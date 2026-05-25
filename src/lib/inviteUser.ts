@@ -7,6 +7,7 @@ export type InviteCompanyUserInput = {
   role: string;
   company_id: string | null;
   subscriber_id?: string | null;
+  customer_id?: string | null;
 };
 
 export async function inviteCompanyUser(input: InviteCompanyUserInput) {

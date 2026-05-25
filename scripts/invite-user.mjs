@@ -58,7 +58,15 @@ const admin = createClient(url, serviceKey, {
   auth: { autoRefreshToken: false, persistSession: false },
 });
 
-const metadata = { company_id: companyId, role, display_name: displayName };
+const subscriberId = arg('subscriber-id');
+const customerId = arg('customer-id');
+const metadata = {
+  company_id: companyId,
+  role,
+  display_name: displayName,
+  ...(subscriberId ? { subscriber_id: subscriberId } : {}),
+  ...(customerId ? { customer_id: customerId } : {}),
+};
 
 const { data: listed } = await admin.auth.admin.listUsers();
 const existing = listed?.users?.find((u) => u.email === email);
@@ -91,6 +99,8 @@ const { error: profileError } = await admin.from('profiles').upsert(
     role,
     email,
     display_name: displayName,
+    subscriber_id: role === 'subscriber' ? subscriberId : null,
+    customer_id: role === 'customer' ? customerId : null,
   },
   { onConflict: 'id' },
 );

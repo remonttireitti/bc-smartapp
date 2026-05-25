@@ -49,6 +49,19 @@ export function companiesWithCustomerWrite(
   return options;
 }
 
+export async function loadCustomersForOwner(
+  supabase: import('@supabase/supabase-js').SupabaseClient,
+  ownerCompanyId: string,
+) {
+  const { data, error } = await supabase
+    .from('customers')
+    .select('id, name, address, city, subscriber_id')
+    .eq('owner_company_id', ownerCompanyId)
+    .order('name');
+  if (error) throw error;
+  return data ?? [];
+}
+
 export const CUSTOMER_SELECT = `
   id, name, address, city, phone, email, business_id, notes, owner_company_id, created_at,
   subscriber_id,

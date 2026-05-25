@@ -61,6 +61,10 @@ Deno.serve(async (req) => {
       body.subscriber_id != null && String(body.subscriber_id).trim() !== ''
         ? String(body.subscriber_id).trim()
         : null;
+    const customerId =
+      body.customer_id != null && String(body.customer_id).trim() !== ''
+        ? String(body.customer_id).trim()
+        : null;
 
     if (!email || companyId !== adminProfile.company_id) {
       return new Response(JSON.stringify({ error: 'Virheelliset tiedot' }), {
@@ -69,7 +73,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    if (!['admin', 'technician', 'manager', 'subscriber'].includes(role)) {
+    if (!['admin', 'technician', 'manager', 'subscriber', 'customer'].includes(role)) {
       return new Response(JSON.stringify({ error: 'Virheellinen rooli' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -83,11 +87,47 @@ Deno.serve(async (req) => {
       });
     }
 
+    if (role === 'customer' && !customerId) {
+      return new Response(JSON.stringify({ error: 'Asiakasportaalille valitse asiakaskohde rekisteristä' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    if (role === 'customer' && customerId) {
+      const { data: customerRow, error: customerError } = await adminClient
+        .from('customers')
+        .select('id, owner_company_id')
+        .eq('id', customerId)
+        .maybeSingle();
+      if (customerError || !customerRow || customerRow.owner_company_id !== companyId) {
+        return new Response(JSON.stringify({ error: 'Valittu asiakaskohde ei kuulu yrityksellesi' }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+    }
+
+    if (role === 'subscriber' && subscriberId) {
+      const { data: subscriberRow, error: subscriberError } = await adminClient
+        .from('subscribers')
+        .select('id, owner_company_id')
+        .eq('id', subscriberId)
+        .maybeSingle();
+      if (subscriberError || !subscriberRow || subscriberRow.owner_company_id !== companyId) {
+        return new Response(JSON.stringify({ error: 'Valittu tilaaja ei kuulu yrityksellesi' }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+    }
+
     const metadata = {
       company_id: companyId,
       role,
       display_name: displayName,
       ...(subscriberId ? { subscriber_id: subscriberId } : {}),
+      ...(customerId ? { customer_id: customerId } : {}),
     };
 
     const { data: listed } = await adminClient.auth.admin.listUsers();
@@ -120,7 +160,7 @@ Deno.serve(async (req) => {
         email,
         display_name: displayName,
         subscriber_id: role === 'subscriber' ? subscriberId : null,
-        customer_id: null,
+        customer_id: role === 'customer' ? customerId : null,
       },
       { onConflict: 'id' },
     );

@@ -44,8 +44,13 @@ export const ROLE_LABELS: Record<string, string> = {
 export const INVITE_ROLES = [
   { value: 'admin', label: 'Ylläpitäjä (kaikki oikeudet)' },
   { value: 'technician', label: 'Asentaja' },
+  { value: 'customer', label: 'Asiakas (yksi kohde, portaali)' },
   { value: 'subscriber', label: 'Tilaaja (moniasiakas-portaali)' },
 ] as const;
+
+export function isPortalRole(role: string | null | undefined) {
+  return role === 'customer' || role === 'subscriber';
+}
 
 export type PartnerBillingRates = {
   hourly_regular?: number;
