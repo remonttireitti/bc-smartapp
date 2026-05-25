@@ -469,6 +469,17 @@ export function renderCheckbox(val: boolean | undefined, label: string = ''): st
   return '';
 }
 
+/** Huoltotiedot: kylmäaine-/vuototarkastus (ei sama kuin mlp.kylmaaineVuotoja). */
+export function renderVuototarkastusStatus(checked: boolean | undefined): string {
+  if (checked === true) {
+    return '<span style="color:#16a34a;font-weight:bold;">Vuototarkastus suoritettu, ei vuotoja ✓</span>';
+  }
+  if (checked === false) {
+    return '<span style="color:#dc2626;font-weight:bold;">Ei tarkastettu tai vuotoja ✗</span>';
+  }
+  return '';
+}
+
 // Calculate phase imbalance percentage
 export function calculatePhaseImbalance(virtaL1: number, virtaL2: number, virtaL3: number): number {
   if (virtaL1 === 0 && virtaL2 === 0 && virtaL3 === 0) return 0;

@@ -2405,6 +2405,26 @@ textarea {
   align-items: end;
 }
 
+/* Tiiveyskoe, tyhjiöinti ja vastaavat mittausmoduulit */
+.huolto-measurement-grid {
+  grid-template-columns: repeat(auto-fill, minmax(12.5rem, 1fr));
+  gap: 1rem 0.85rem;
+  align-items: start;
+}
+
+.huolto-measurement-grid label {
+  min-width: 0;
+}
+
+.huolto-measurement-grid .huolto-readonly-field {
+  min-height: 2.65rem;
+}
+
+.maintenance-form .huolto-measurement-grid,
+.huolto-module-body .huolto-measurement-grid {
+  align-items: start;
+}
+
 @media (max-width: 900px) {
   .calendar-grid { grid-template-columns: 1fr; }
 
@@ -2826,7 +2846,9 @@ textarea {
 .huolto-part-body .line-form-grid,
 .huolto-circuit-body .line-form-grid,
 .huolto-lampopiirit .line-form-grid,
-.maintenance-form .collapsible-body .line-form-grid {
+.maintenance-form .collapsible-body .line-form-grid,
+.maintenance-form .huolto-measurement-grid,
+.huolto-module-body .huolto-measurement-grid {
   align-items: start;
   row-gap: 1rem;
   column-gap: 0.75rem;

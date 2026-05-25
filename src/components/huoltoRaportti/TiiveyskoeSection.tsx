@@ -1,3 +1,4 @@
+import { koeTulosOptions } from '../../lib/huoltoRaportti/constants';
 import {
   KLO_PUOLI_TUNNIN_VAIHTOEHDOT,
   laskeKokeLoppuaikaFi,
@@ -31,7 +32,7 @@ export function TiiveyskoeSection({ form, onChange, reportId, userId }: Props) {
 
   return (
     <HuoltoModuleSection moduleKey="tiiveyskoe" title="Tiiveyskoe">
-      <div className="line-form-grid">
+      <div className="line-form-grid huolto-measurement-grid">
         <FormInput
           label="Koepaine (bar)"
           value={data.testipaineBar}
@@ -82,9 +83,11 @@ export function TiiveyskoeSection({ form, onChange, reportId, userId }: Props) {
               patchTiiveyskoe({ tulos: e.target.value as TiiveyskoeTulos })
             }
           >
-            <option value="">—</option>
-            <option value="hyvaksytty">Hyväksytty</option>
-            <option value="hylatty">Hylätty</option>
+            {koeTulosOptions.map((opt) => (
+              <option key={opt.value || 'empty'} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
           </select>
         </label>
         <FormInput

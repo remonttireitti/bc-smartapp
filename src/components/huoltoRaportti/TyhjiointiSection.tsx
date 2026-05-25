@@ -1,3 +1,4 @@
+import { koeTulosOptions } from '../../lib/huoltoRaportti/constants';
 import {
   KLO_PUOLI_TUNNIN_VAIHTOEHDOT,
   laskeKokeLoppuaikaFi,
@@ -36,7 +37,7 @@ export function TyhjiointiSection({ form, onChange, reportId, userId }: Props) {
 
   return (
     <HuoltoModuleSection moduleKey="tyhjiointi" title="Tyhjiöinti">
-      <div className="line-form-grid">
+      <div className="line-form-grid huolto-measurement-grid">
         <FormInput
           label="Loppupaine (arvo)"
           value={data.loppupaineArvo}
@@ -96,9 +97,11 @@ export function TyhjiointiSection({ form, onChange, reportId, userId }: Props) {
               patchTyhjiointi({ tulos: e.target.value as TiiveyskoeTulos })
             }
           >
-            <option value="">—</option>
-            <option value="hyvaksytty">Hyväksytty</option>
-            <option value="hylatty">Hylätty</option>
+            {koeTulosOptions.map((opt) => (
+              <option key={opt.value || 'empty'} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
           </select>
         </label>
         <FormInput

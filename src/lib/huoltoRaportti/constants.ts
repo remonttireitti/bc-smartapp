@@ -163,6 +163,17 @@ export const lauhdutinTypeOptions = [
   { value: 'nestekiertoinen', label: 'Nestekiertoinen lauhdutin' },
 ];
 
+export const huomioLuonneOptions = [
+  { value: 'kommentti', label: 'Kommentti / suositus' },
+  { value: 'vika', label: 'Vika (punainen tulosteissa)' },
+] as const;
+
+export const koeTulosOptions = [
+  { value: '', label: '—' },
+  { value: 'hyvaksytty', label: 'Hyväksytty' },
+  { value: 'hylatty', label: 'Hylätty' },
+] as const;
+
 export const kayttovesiLisalammitinSijaintiOptions = [
   { value: '', label: 'Valitse…' },
   { value: 'integroitu', label: 'Integroitu laitteeseen' },

@@ -12,6 +12,7 @@ import {
   calculateSuperheatFromMeasurements,
   getRefrigerantGWP,
   renderCheckbox,
+  renderVuototarkastusStatus,
 } from './utils';
 
 export interface MaintenancePrintMeta {
@@ -344,7 +345,6 @@ function renderMlpSummary(data: HuoltoReportData): string {
     row('Pumpun tyyppi', mlp.latausPumpunTyyppi, '#6A1B9A'),
     checkRow(mlp.latausPaineTarkastettu, 'Paine tarkastettu'),
     checkRow(mlp.latausPumppuTarkastettu, 'Pumppu tarkastettu'),
-    checkRow(mlp.kylmaaineVuotoja, 'Kylmäainevuotoja'),
   ]
     .filter(Boolean)
     .join('');
@@ -689,9 +689,10 @@ export function generateMaintenanceReportHtml(
 
   let circuitsHtml = renderCircuitsHtml(data);
 
+  const vuotoStatus = renderVuototarkastusStatus(data.huoltoKylmaaineVuotoTarkastus);
   const statusHtml = `<div class="huolto-status">
     ${checkRow(data.huoltoSuoritettu, 'Huolto suoritettu')}
-    ${checkRow(data.huoltoKylmaaineVuotoTarkastus, 'Kylmäaine-/vuototarkastus')}
+    ${vuotoStatus ? `<div style="padding:2px 0;">${vuotoStatus}</div>` : ''}
     ${data.huoltoLaiteessaVika ? '<span style="color:#b91c1c;font-weight:700;">Laiteessa vika havaittu</span>' : checkRow(data.huoltoLaiteessaVika === false, 'Ei vikaa havaittu')}
   </div>`;
 

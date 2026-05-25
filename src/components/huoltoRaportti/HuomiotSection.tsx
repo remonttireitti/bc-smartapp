@@ -1,3 +1,4 @@
+import { huomioLuonneOptions } from '../../lib/huoltoRaportti/constants';
 import type { HuoltoReportData, HuomioLuonne, HuomiotImageAttachment } from '../../lib/huoltoRaportti/types';
 import { EvidencePhotoUpload } from './EvidencePhotoUpload';
 import { HuoltoModuleSection } from './HuoltoModuleSection';
@@ -32,27 +33,19 @@ export function HuomiotSection({ form, onChange, reportId, userId }: Props) {
   return (
     <HuoltoModuleSection moduleKey="huomiot" title="Huomiot">
       <div className="huolto-submodule">
-        <p className="muted">Tekstin luonne</p>
-        <div className="checkbox-grid">
-          <label>
-            <input
-              type="radio"
-              name="huomiotLuonne"
-              checked={luonne === 'kommentti'}
-              onChange={() => onChange({ huomiotLuonne: 'kommentti' as HuomioLuonne })}
-            />
-            Kommentti / suositus
-          </label>
-          <label>
-            <input
-              type="radio"
-              name="huomiotLuonne"
-              checked={luonne === 'vika'}
-              onChange={() => onChange({ huomiotLuonne: 'vika' as HuomioLuonne })}
-            />
-            Vika (punainen tulosteissa)
-          </label>
-        </div>
+        <label style={{ maxWidth: '360px' }}>
+          Tekstin luonne
+          <select
+            value={luonne}
+            onChange={(e) => onChange({ huomiotLuonne: e.target.value as HuomioLuonne })}
+          >
+            {huomioLuonneOptions.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+        </label>
         <label className="huolto-span-all">
           Huomiot ja suositukset
           <textarea
