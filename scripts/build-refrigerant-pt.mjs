@@ -1,24 +1,18 @@
 /**
- * Generates src/lib/huoltoRaportti/refrigerantPtData.ts from verified PT chart rows.
+ * Generates src/lib/huoltoRaportti/refrigerantPtData.ts
+ * iGas PDFs: scripts/pt-pdf/*.pdf (download from igasusa.com/files/*-PT-Chart.pdf)
  * Run: node scripts/build-refrigerant-pt.mjs
  */
 import { writeFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
+import { loadIgasPtFromPdfs, psigToBar, IGAS_CHART_URLS } from './igas-pt-charts.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const OUT = join(__dirname, '../src/lib/huoltoRaportti/refrigerantPtData.ts');
 
-/** [tempC, psig gauge] — Soundhon / manufacturer PT charts */
-const SINGLE = {
-  'R-410A': [
-    [-40, 10.9], [-35, 14.2], [-30, 17.9], [-25, 22.0], [-20, 26.4], [-15, 31.3], [-10, 36.5],
-    [-5, 42.2], [0, 48.4], [5, 55.1], [10, 62.4], [15, 70.2], [20, 78.5], [25, 87.5], [30, 97.2],
-    [35, 107.5], [40, 118.5], [45, 130.2], [50, 142.7], [55, 156.0], [60, 170.1], [65, 185.1],
-    [70, 201.0], [75, 217.8], [80, 235.6], [85, 254.5], [90, 274.3], [95, 295.3], [100, 317.4],
-    [105, 340.6], [110, 365.1], [115, 390.9], [120, 418.0], [125, 446.5], [130, 476.5],
-    [135, 508.0], [140, 541.2], [145, 576.0], [150, 612.8],
-  ],
+/** Muut aineet — ei vielä iGas-PDF:tä repossa */
+const FALLBACK_SINGLE_PSIG = {
   'R-32': [
     [-40, 6.1], [-35, 9.5], [-30, 13.4], [-25, 17.7], [-20, 22.6], [-15, 28.0], [-10, 34.0],
     [-5, 40.6], [0, 47.8], [5, 55.6], [10, 64.1], [15, 73.2], [20, 83.0], [25, 93.5], [30, 104.8],
@@ -33,11 +27,6 @@ const SINGLE = {
     [85, 46.5], [90, 51.3], [95, 56.3], [100, 61.6], [105, 67.2], [110, 73.1], [115, 79.3],
     [120, 85.7], [125, 92.5], [130, 99.6],
   ],
-  'R-22': [
-    [-40, 0.5], [-30, 4.9], [-20, 10.1], [-10, 16.5], [0, 24.0], [10, 32.8], [20, 43.0],
-    [30, 54.9], [40, 68.5], [50, 84.0], [60, 101.6], [70, 121.4], [80, 143.6], [90, 168.4],
-    [100, 195.9], [110, 226.4], [120, 259.9], [130, 296.8], [140, 337.2], [150, 381.5],
-  ],
   'R-290': [
     [-40, 0.03], [-28, 6.6], [-24, 8.6], [-20, 10.7], [-16, 13.0], [-12, 15.5], [-8, 18.1],
     [-4, 20.8], [0, 23.7], [4, 26.9], [8, 30.2], [12, 33.6], [16, 37.7], [20, 41.2], [24, 45.3],
@@ -45,75 +34,23 @@ const SINGLE = {
     [56, 86.8], [60, 93.2], [64, 99.9], [68, 106.9], [72, 114.1], [76, 121.7], [80, 129.6],
     [84, 137.9], [88, 146.5], [92, 164.7], [96, 164.7], [100, 174.3], [120, 228.4],
   ],
-  /** R-449A dew (Solstice 449A style chart, °C / psig) */
   'R-449A': [
     [-40, 9], [-35, 12], [-30, 15], [-25, 19], [-20, 23], [-15, 27], [-10, 32], [-5, 37],
     [0, 43], [5, 49], [10, 56], [15, 63], [20, 70], [25, 78], [30, 87], [35, 96], [40, 106],
     [45, 116], [50, 127], [55, 138], [60, 150], [65, 163], [70, 176],
   ],
-  /** R-1234yf — field PT chart (dew ≈ bubble for glide) */
   'R-1234yf': [
     [-40, 4.2], [-30, 7.8], [-20, 12.5], [-10, 18.2], [0, 25.0], [10, 33.0], [20, 42.5],
     [30, 53.5], [40, 66.0], [50, 80.0], [60, 96.0], [70, 114.0], [80, 134.0], [90, 156.0],
     [100, 181.0], [110, 208.0], [120, 238.0],
   ],
-  /** R-717 ammonia (°C, psig gauge) — standard saturation */
   'R-717': [
     [-40, -3.5], [-30, -0.5], [-20, 2.5], [-10, 6.0], [0, 10.5], [10, 16.0], [20, 23.0],
     [30, 31.5], [40, 41.5], [50, 53.5], [60, 68.0],
   ],
 };
 
-const ZEOTROPIC = {
-  'R-404A': {
-    bubble: [
-      [-40, 4.5], [-35, 7.0], [-30, 9.9], [-25, 12.9], [-20, 16.4], [-15, 20.1], [-10, 24.1],
-      [-5, 28.5], [0, 33.3], [5, 38.4], [10, 44.0], [15, 50.0], [20, 56.5], [25, 63.4],
-      [30, 70.7], [35, 78.6], [40, 87.0], [45, 95.9], [50, 105.4], [55, 115.4], [60, 126.1],
-      [65, 137.3], [70, 149.1], [75, 161.5], [80, 174.6], [85, 188.2], [90, 202.6], [95, 217.6],
-      [100, 233.3], [105, 249.7], [110, 266.8], [115, 284.6], [120, 303.2], [125, 322.5],
-      [130, 342.6], [135, 363.5], [140, 385.2],
-    ],
-    dew: [
-      [-40, 4.1], [-35, 6.6], [-30, 9.3], [-25, 12.3], [-20, 15.7], [-15, 19.3], [-10, 23.3],
-      [-5, 27.6], [0, 32.3], [5, 37.4], [10, 42.9], [15, 48.8], [20, 55.3], [25, 62.2],
-      [30, 69.5], [35, 77.3], [40, 85.7], [45, 94.5], [50, 103.9], [55, 113.8], [60, 124.4],
-      [65, 135.5], [70, 147.2], [75, 159.5], [80, 172.5], [85, 186.1], [90, 200.4], [95, 215.3],
-      [100, 230.9], [105, 247.2], [110, 264.2], [115, 281.9], [120, 300.4], [125, 319.6],
-      [130, 339.6], [135, 360.4], [140, 382.0],
-    ],
-  },
-};
-
-/**
- * R-134a saturation (°C, psig gauge) — iGas P-T chart (manometri / psig).
- * Interpoloidaan bar-gauge-taulukkoon (REFRIGERANT_PT_BAR).
- */
-const R134A_PSIG = [
-  [-17.2, 7.0],
-  [-11.7, 11.9],
-  [-6.1, 17.3],
-  [-1.7, 25.3],
-  [3.9, 33.1],
-  [10.6, 46.6],
-  [16.1, 56.9],
-  [21.7, 71.1],
-  [26.1, 85.0],
-  [31.7, 102.5],
-  [38.3, 126.3],
-  [43.9, 149.8],
-  [49.4, 176.9],
-  [53.9, 195.8],
-];
-
-const PSIG_TO_BAR_GAUGE = 0.06894757293178306;
-
-const R134A_BAR = R134A_PSIG.map(([t, psig]) => [
-  t,
-  Math.round(psig * PSIG_TO_BAR_GAUGE * 1000) / 1000,
-]);
-
-/** R407C FSW chart (°C, bar gauge) — bubble = liquid, dew = vapor */
+/** R407C FSW (°C, bar gauge) — ei iGas */
 const R407C_BAR = {
   bubble: [
     [-10, 4.71], [-5, 5.5], [0, 6.31], [5, 7.0], [10, 7.79], [15, 8.33], [20, 9.36],
@@ -189,25 +126,60 @@ function fmtZeotropeBar(name, { bubble, dew }) {
   return `    '${name}': {\n      bubble: [\n${bubble.map(([t, b]) => `        [${t}, ${b}],`).join('\n')}\n      ],\n      dew: [\n${dew.map(([t, b]) => `        [${t}, ${b}],`).join('\n')}\n      ],\n    },`;
 }
 
-let out = `/** Auto-generated by scripts/build-refrigerant-pt.mjs — do not edit by hand. */\n\n`;
+const igas = await loadIgasPtFromPdfs();
+
+const SINGLE_PSIG = {
+  'R-134a': igas['R-134a'].psig,
+  'R-22': igas['R-22'].psig,
+  ...FALLBACK_SINGLE_PSIG,
+};
+
+const ZEOTROPIC_PSIG = {
+  'R-410A': { bubble: igas['R-410A'].bubble, dew: igas['R-410A'].dew },
+  'R-404A': { bubble: igas['R-404A'].bubble, dew: igas['R-404A'].dew },
+};
+
+const SINGLE_BAR = {
+  'R-134a': psigToBar(SINGLE_PSIG['R-134a']),
+  'R-22': psigToBar(SINGLE_PSIG['R-22']),
+};
+
+const ZEOTROPIC_BAR = {
+  'R-410A': {
+    bubble: psigToBar(ZEOTROPIC_PSIG['R-410A'].bubble),
+    dew: psigToBar(ZEOTROPIC_PSIG['R-410A'].dew),
+  },
+  'R-404A': {
+    bubble: psigToBar(ZEOTROPIC_PSIG['R-404A'].bubble),
+    dew: psigToBar(ZEOTROPIC_PSIG['R-404A'].dew),
+  },
+  'R-407C': R407C_BAR,
+};
+
+let out = `/** Auto-generated by scripts/build-refrigerant-pt.mjs — do not edit by hand. */\n`;
+out += `/** iGas P-T: https://www.igasusa.com/products/refrigerants */\n\n`;
 out += `export type PsigTempRow = readonly [tempC: number, psig: number];\n`;
 out += `export type BarTempRow = readonly [tempC: number, barGauge: number];\n\n`;
+out += `export const REFRIGERANT_PT_CHART_URLS: Record<string, string> = ${JSON.stringify(IGAS_CHART_URLS, null, 2)};\n\n`;
 out += `export const REFRIGERANT_PT_PSIG: Record<string, readonly PsigTempRow[]> = {\n`;
-out += Object.entries(SINGLE).map(([k, v]) => fmtRows(k, v)).join('\n');
+out += Object.entries(SINGLE_PSIG).map(([k, v]) => fmtRows(k, v)).join('\n');
 out += `\n};\n\n`;
 out += `export const REFRIGERANT_PT_ZEOTROPIC_PSIG: Record<\n  string,\n  { bubble: readonly PsigTempRow[]; dew: readonly PsigTempRow[] }\n> = {\n`;
-out += Object.entries(ZEOTROPIC)
-  .filter(([k]) => k !== 'R-407C')
-  .map(([k, v]) => fmtZeotropePsig(k, v))
-  .join('\n');
+out += Object.entries(ZEOTROPIC_PSIG).map(([k, v]) => fmtZeotropePsig(k, v)).join('\n');
 out += `\n};\n\n`;
 out += `export const REFRIGERANT_PT_BAR: Record<string, readonly BarTempRow[]> = {\n`;
-out += fmtRows('R-134a', R134A_BAR);
+out += Object.entries(SINGLE_BAR).map(([k, v]) => fmtRows(k, v)).join('\n');
 out += `\n};\n\n`;
 out += `export const REFRIGERANT_PT_ZEOTROPIC_BAR: Record<\n  string,\n  { bubble: readonly BarTempRow[]; dew: readonly BarTempRow[] }\n> = {\n`;
-out += fmtZeotropeBar('R-407C', R407C_BAR);
+out += Object.entries(ZEOTROPIC_BAR).map(([k, v]) => fmtZeotropeBar(k, v)).join('\n');
 out += `\n};\n\n`;
 out += `export const REFRIGERANT_PT_ALIASES: Record<string, string> = ${JSON.stringify(ALIASES, null, 2)};\n`;
 
 writeFileSync(OUT, out, 'utf8');
 console.log('Wrote', OUT);
+console.log(
+  'iGas points:',
+  Object.keys(SINGLE_PSIG).filter((k) => ['R-134a', 'R-22'].includes(k)).map((k) => `${k}:${SINGLE_PSIG[k].length}`).join(', '),
+  '| zeotropic R-410A/R-404A:',
+  ZEOTROPIC_PSIG['R-410A'].dew.length,
+);

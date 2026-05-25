@@ -11,6 +11,7 @@ export {
   hasRefrigerantPtData,
   isRefrigerantPtApproximate,
   getCo2PtLimitBarGauge,
+  getRefrigerantPtChartUrl,
 } from './refrigerantPt';
 
 /** Tulistus (K) = imukaasun lämpötila − kastelämpötila imupaineella (manometribar). */

@@ -10,6 +10,7 @@ import {
 import {
   calculateSubcoolingFromMeasurements,
   calculateSuperheatFromMeasurements,
+  getRefrigerantPtChartUrl,
 } from '../../lib/huoltoRaportti/utils';
 import { expansionValveTypes, piiriOhjaustapaOptions } from '../../lib/huoltoRaportti/constants';
 import { refrigerantCircuitHasMagnetValve } from '../../lib/huoltoRaportti/deviceModuleLogic';
@@ -279,6 +280,7 @@ export function RefrigerantCircuitModule({
     calcRefrigerant === 'R-744' &&
     ((suctionBar > getCo2PtLimitBarGauge() && suctionBar > 0) ||
       (highBar > getCo2PtLimitBarGauge() && highBar > 0));
+  const ptChartUrl = calcRefrigerant ? getRefrigerantPtChartUrl(calcRefrigerant) : null;
 
   const calculatedSuperheat = calculateSuperheat();
   const calculatedSubcooling = calculateSubcooling();
@@ -470,6 +472,14 @@ export function RefrigerantCircuitModule({
               <>
                 {' '}
                 Kupla korkeapaineella: <strong>{bubbleSatC.toFixed(1)} °C</strong>.
+              </>
+            )}
+            {ptChartUrl && (
+              <>
+                {' '}
+                <a href={ptChartUrl} target="_blank" rel="noreferrer">
+                  iGas P-T-kaavio (PDF)
+                </a>
               </>
             )}
           </p>

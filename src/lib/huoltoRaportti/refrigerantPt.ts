@@ -5,6 +5,7 @@
 import {
   REFRIGERANT_PT_ALIASES,
   REFRIGERANT_PT_BAR,
+  REFRIGERANT_PT_CHART_URLS,
   REFRIGERANT_PT_PSIG,
   REFRIGERANT_PT_ZEOTROPIC_BAR,
   REFRIGERANT_PT_ZEOTROPIC_PSIG,
@@ -86,10 +87,10 @@ export function interpolatePtBarAscending(table: readonly PtBarPoint[], pressure
 function getDewTable(key: string): PtBarPoint[] | null {
   const barZe = REFRIGERANT_PT_ZEOTROPIC_BAR[key];
   if (barZe) return rowsBarToPoints(barZe.dew);
-  const psigZe = REFRIGERANT_PT_ZEOTROPIC_PSIG[key];
-  if (psigZe) return rowsToBarPoints(psigZe.dew);
   const bar = REFRIGERANT_PT_BAR[key];
   if (bar) return rowsBarToPoints(bar);
+  const psigZe = REFRIGERANT_PT_ZEOTROPIC_PSIG[key];
+  if (psigZe) return rowsToBarPoints(psigZe.dew);
   const psig = REFRIGERANT_PT_PSIG[key];
   if (psig) return rowsToBarPoints(psig);
   return null;
@@ -98,10 +99,10 @@ function getDewTable(key: string): PtBarPoint[] | null {
 function getBubbleTable(key: string): PtBarPoint[] | null {
   const barZe = REFRIGERANT_PT_ZEOTROPIC_BAR[key];
   if (barZe) return rowsBarToPoints(barZe.bubble);
-  const psigZe = REFRIGERANT_PT_ZEOTROPIC_PSIG[key];
-  if (psigZe) return rowsToBarPoints(psigZe.bubble);
   const bar = REFRIGERANT_PT_BAR[key];
   if (bar) return rowsBarToPoints(bar);
+  const psigZe = REFRIGERANT_PT_ZEOTROPIC_PSIG[key];
+  if (psigZe) return rowsToBarPoints(psigZe.bubble);
   const psig = REFRIGERANT_PT_PSIG[key];
   if (psig) return rowsToBarPoints(psig);
   return null;
@@ -162,4 +163,12 @@ function interpolateCo2Bubble(pressure: number): number {
 
 export function getCo2PtLimitBarGauge(): number {
   return 58;
+}
+
+export { REFRIGERANT_PT_CHART_URLS };
+
+export function getRefrigerantPtChartUrl(refrigerant: string): string | null {
+  const key = resolveRefrigerantPtKey(refrigerant);
+  if (!key) return null;
+  return REFRIGERANT_PT_CHART_URLS[key] ?? REFRIGERANT_PT_CHART_URLS[refrigerant.trim()] ?? null;
 }
