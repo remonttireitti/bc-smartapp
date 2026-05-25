@@ -4109,3 +4109,25 @@ textarea {
 .input-disabled input { opacity: .65; cursor: not-allowed; }
 .inline-check-disabled { opacity: .65; cursor: not-allowed; }
 .required-mark { color: var(--danger); }
+
+.global-admin-duplicate-groups {
+  display: grid;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.global-admin-duplicate-group {
+  margin: 0;
+}
+
+.global-admin-duplicate-group-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.global-admin-duplicate-group-head h3 {
+  margin: 0 0 0.25rem;
+}

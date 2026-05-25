@@ -80,6 +80,29 @@ function parseIds(text: string) {
   )];
 }
 
+function normalizeCustomerName(name: string) {
+  return name.trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
+type DuplicateCustomerRow = {
+  id: string;
+  name: string;
+  address: string | null;
+  city: string | null;
+  created_at: string;
+  equipmentCount: number;
+  workReportCount: number;
+  maintenanceReportCount: number;
+};
+
+type DuplicateCustomerGroup = {
+  key: string;
+  normalizedName: string;
+  ownerCompanyId: string;
+  ownerCompanyName: string;
+  customers: DuplicateCustomerRow[];
+};
+
 export default function GlobalAdminPage() {
   const { profile } = useOutletContext<Context>();
   const [companies, setCompanies] = useState<Company[]>([]);
@@ -97,6 +120,12 @@ export default function GlobalAdminPage() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [counts, setCounts] = useState<Record<string, number>>({});
+  const [duplicateOwnerId, setDuplicateOwnerId] = useState('');
+  const [duplicateGroups, setDuplicateGroups] = useState<DuplicateCustomerGroup[]>([]);
+  const [duplicateTargets, setDuplicateTargets] = useState<Record<string, string>>({});
+  const [duplicateMessage, setDuplicateMessage] = useState<string | null>(null);
+  const [duplicateError, setDuplicateError] = useState<string | null>(null);
+  const [duplicateBusy, setDuplicateBusy] = useState(false);
   const selectAllRef = useRef<HTMLInputElement>(null);
 
   const selectedCount = selectedIds.size;
@@ -238,6 +267,203 @@ export default function GlobalAdminPage() {
       setMessage(`Haettu ${count} / ${ids.length} rivi(ä).`);
     }
     setBusy(false);
+  }
+
+  function pickDefaultDuplicateTarget(customers: DuplicateCustomerRow[]) {
+    return [...customers].sort((a, b) => {
+      const scoreA = a.equipmentCount + a.workReportCount + a.maintenanceReportCount;
+      const scoreB = b.equipmentCount + b.workReportCount + b.maintenanceReportCount;
+      if (scoreA !== scoreB) return scoreB - scoreA;
+      return a.created_at.localeCompare(b.created_at);
+    })[0]?.id ?? customers[0]?.id ?? '';
+  }
+
+  async function loadDuplicateCustomers() {
+    if (!duplicateOwnerId) {
+      setDuplicateError('Valitse yritys.');
+      return;
+    }
+
+    setDuplicateBusy(true);
+    setDuplicateError(null);
+    setDuplicateMessage(null);
+
+    const { data: customerRows, error: customerError } = await supabase
+      .from('customers')
+      .select('id, name, address, city, owner_company_id, created_at')
+      .eq('owner_company_id', duplicateOwnerId)
+      .order('name');
+
+    if (customerError) {
+      setDuplicateError(customerError.message);
+      setDuplicateGroups([]);
+      setDuplicateBusy(false);
+      return;
+    }
+
+    const customers = (customerRows ?? []) as Array<{
+      id: string;
+      name: string;
+      address: string | null;
+      city: string | null;
+      owner_company_id: string;
+      created_at: string;
+    }>;
+
+    const customerIds = customers.map((row) => row.id);
+    const countsByCustomer = new Map<string, { equipment: number; work: number; maintenance: number }>();
+    for (const id of customerIds) {
+      countsByCustomer.set(id, { equipment: 0, work: 0, maintenance: 0 });
+    }
+
+    if (customerIds.length > 0) {
+      const [equipmentCounts, workCounts, maintenanceCounts] = await Promise.all([
+        supabase.from('equipment').select('customer_id').in('customer_id', customerIds),
+        supabase.from('work_reports').select('customer_id').in('customer_id', customerIds),
+        supabase.from('maintenance_reports').select('customer_id').in('customer_id', customerIds),
+      ]);
+
+      for (const row of equipmentCounts.data ?? []) {
+        const customerId = (row as { customer_id: string }).customer_id;
+        const entry = countsByCustomer.get(customerId);
+        if (entry) entry.equipment += 1;
+      }
+      for (const row of workCounts.data ?? []) {
+        const customerId = (row as { customer_id: string | null }).customer_id;
+        if (!customerId) continue;
+        const entry = countsByCustomer.get(customerId);
+        if (entry) entry.work += 1;
+      }
+      for (const row of maintenanceCounts.data ?? []) {
+        const customerId = (row as { customer_id: string | null }).customer_id;
+        if (!customerId) continue;
+        const entry = countsByCustomer.get(customerId);
+        if (entry) entry.maintenance += 1;
+      }
+    }
+
+    const grouped = new Map<string, DuplicateCustomerGroup>();
+    const ownerCompanyName = companies.find((company) => company.id === duplicateOwnerId)?.name ?? '—';
+
+    for (const row of customers) {
+      const normalizedName = normalizeCustomerName(row.name);
+      const key = `${row.owner_company_id}:${normalizedName}`;
+      const countsForCustomer = countsByCustomer.get(row.id) ?? { equipment: 0, work: 0, maintenance: 0 };
+      const duplicateRow: DuplicateCustomerRow = {
+        id: row.id,
+        name: row.name,
+        address: row.address,
+        city: row.city,
+        created_at: row.created_at,
+        equipmentCount: countsForCustomer.equipment,
+        workReportCount: countsForCustomer.work,
+        maintenanceReportCount: countsForCustomer.maintenance,
+      };
+
+      const existing = grouped.get(key);
+      if (existing) {
+        existing.customers.push(duplicateRow);
+      } else {
+        grouped.set(key, {
+          key,
+          normalizedName,
+          ownerCompanyId: row.owner_company_id,
+          ownerCompanyName,
+          customers: [duplicateRow],
+        });
+      }
+    }
+
+    const duplicates = [...grouped.values()]
+      .filter((group) => group.customers.length > 1)
+      .sort((a, b) => a.normalizedName.localeCompare(b.normalizedName, 'fi'));
+
+    const defaultTargets: Record<string, string> = {};
+    for (const group of duplicates) {
+      defaultTargets[group.key] = pickDefaultDuplicateTarget(group.customers);
+    }
+
+    setDuplicateGroups(duplicates);
+    setDuplicateTargets(defaultTargets);
+    setDuplicateMessage(duplicates.length > 0
+      ? `Löytyi ${duplicates.length} saman nimistä ryhmää.`
+      : 'Ei saman nimisiä duplikaatteja valitulla yrityksellä.');
+    setDuplicateBusy(false);
+  }
+
+  async function mergeDuplicateGroup(group: DuplicateCustomerGroup) {
+    const targetId = duplicateTargets[group.key];
+    if (!targetId) {
+      setDuplicateError('Valitse säilytettävä asiakas.');
+      return;
+    }
+
+    const sourceIds = group.customers.map((customer) => customer.id).filter((id) => id !== targetId);
+    if (sourceIds.length === 0) {
+      setDuplicateError('Valitse vähintään kaksi eri asiakasta yhdistettäväksi.');
+      return;
+    }
+
+    const targetName = group.customers.find((customer) => customer.id === targetId)?.name ?? 'asiakas';
+    if (!window.confirm(
+      `Yhdistetään ${sourceIds.length} asiakasta kohteeseen "${targetName}"? `
+      + 'Laitteet, raportit ja dokumentit siirretään. Tätä ei voi perua.',
+    )) {
+      return;
+    }
+
+    setDuplicateBusy(true);
+    setDuplicateError(null);
+    setDuplicateMessage(null);
+
+    const { data, error: mergeError } = await supabase.rpc('global_admin_merge_customers', {
+      p_target_customer_id: targetId,
+      p_source_customer_ids: sourceIds,
+    });
+
+    if (mergeError) {
+      setDuplicateError(mergeError.message);
+      setDuplicateBusy(false);
+      return;
+    }
+
+    const result = data as {
+      merged_count?: number;
+      equipment_moved?: number;
+      work_reports_moved?: number;
+      maintenance_reports_moved?: number;
+    } | null;
+
+    setDuplicateMessage(
+      `Yhdistetty ${result?.merged_count ?? sourceIds.length} asiakasta. `
+      + `Siirretty: ${result?.equipment_moved ?? 0} laitetta, `
+      + `${result?.work_reports_moved ?? 0} työraporttia, `
+      + `${result?.maintenance_reports_moved ?? 0} huoltoraporttia.`,
+    );
+    await Promise.all([loadMeta(), loadDuplicateCustomers()]);
+  }
+
+  async function deleteDuplicateCustomer(customer: DuplicateCustomerRow, groupName: string) {
+    const warning = customer.equipmentCount > 0
+      ? `Asiakkaalla on ${customer.equipmentCount} laitetta, jotka poistetaan samalla. `
+      : '';
+    if (!window.confirm(`${warning}Poistetaanko asiakas "${groupName}" pysyvästi? Tätä toimintoa ei voi perua.`)) {
+      return;
+    }
+
+    setDuplicateBusy(true);
+    setDuplicateError(null);
+    setDuplicateMessage(null);
+
+    const { error: deleteError } = await supabase.from('customers').delete().eq('id', customer.id);
+    if (deleteError) {
+      setDuplicateError(deleteError.message);
+      setDuplicateBusy(false);
+      return;
+    }
+
+    setDuplicateMessage(`Asiakas "${customer.name}" poistettu.`);
+    await Promise.all([loadMeta(), loadDuplicateCustomers()]);
   }
 
   if (!profile) {
@@ -432,6 +658,113 @@ export default function GlobalAdminPage() {
 
       {message && <p className="success">{message}</p>}
       {error && <p className="error">{error}</p>}
+
+      <section className="card" style={{ marginTop: '1rem' }}>
+        <h2>Asiakkaiden duplikaatit</h2>
+        <p className="muted global-admin-hint">
+          Etsi saman nimiset asiakkaat yrityksen rekisteristä. Voit yhdistää ne yhdeksi tai poistaa turhat rivit.
+          Poisto ja yhdistäminen on saatavilla myös asiakkaan tiedoissa.
+        </p>
+
+        <div className="line-form-grid">
+          <label>
+            Yritys
+            <select value={duplicateOwnerId} onChange={(e) => setDuplicateOwnerId(e.target.value)}>
+              <option value="">—</option>
+              {companies.map((company) => (
+                <option key={company.id} value={company.id}>{company.name}</option>
+              ))}
+            </select>
+          </label>
+          <div>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              disabled={duplicateBusy || !duplicateOwnerId}
+              onClick={() => void loadDuplicateCustomers()}
+            >
+              {duplicateBusy ? 'Haetaan…' : 'Etsi duplikaatit'}
+            </button>
+          </div>
+        </div>
+
+        {duplicateMessage && <p className="success">{duplicateMessage}</p>}
+        {duplicateError && <p className="error">{duplicateError}</p>}
+
+        {duplicateGroups.length > 0 && (
+          <div className="global-admin-duplicate-groups">
+            {duplicateGroups.map((group) => (
+              <article key={group.key} className="panel global-admin-duplicate-group">
+                <div className="global-admin-duplicate-group-head">
+                  <div>
+                    <h3>{group.customers[0]?.name ?? group.normalizedName}</h3>
+                    <p className="muted">
+                      {group.ownerCompanyName} • {group.customers.length} kpl
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    className="btn btn-primary btn-sm"
+                    disabled={duplicateBusy}
+                    onClick={() => void mergeDuplicateGroup(group)}
+                  >
+                    Yhdistä valitut
+                  </button>
+                </div>
+
+                <div className="table-wrap">
+                  <table className="data-table global-admin-entity-table">
+                    <thead>
+                      <tr>
+                        <th>Säilytä</th>
+                        <th>Nimi</th>
+                        <th>Osoite</th>
+                        <th>Laitteet</th>
+                        <th>Raportit</th>
+                        <th>UUID</th>
+                        <th />
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {group.customers.map((customer) => (
+                        <tr key={customer.id}>
+                          <td className="select-col">
+                            <input
+                              type="radio"
+                              name={`duplicate-target-${group.key}`}
+                              checked={duplicateTargets[group.key] === customer.id}
+                              onChange={() => setDuplicateTargets((current) => ({
+                                ...current,
+                                [group.key]: customer.id,
+                              }))}
+                              aria-label={`Säilytä ${customer.name}`}
+                            />
+                          </td>
+                          <td>{customer.name}</td>
+                          <td>{[customer.address, customer.city].filter(Boolean).join(', ') || '—'}</td>
+                          <td>{customer.equipmentCount}</td>
+                          <td>{customer.workReportCount + customer.maintenanceReportCount}</td>
+                          <td className="uuid-cell">{customer.id}</td>
+                          <td>
+                            <button
+                              type="button"
+                              className="btn btn-danger btn-sm"
+                              disabled={duplicateBusy}
+                              onClick={() => void deleteDuplicateCustomer(customer, customer.name)}
+                            >
+                              Poista
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
     </>
   );
 }
