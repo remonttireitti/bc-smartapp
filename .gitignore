@@ -13,3 +13,5 @@ scripts/.cache/
 supabase/.temp/
 supabase/.branches/
 tsconfig.tsbuildinfo
+
+.vercel

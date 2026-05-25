@@ -48,7 +48,25 @@ supabase db push
 
 Aseta Vercel-ympäristöön `VITE_SUPABASE_URL` ja `VITE_SUPABASE_ANON_KEY` (katso `.env.production.example`).
 
-Uudelleenjulkaisu: `npm run build` ja `npx vercel deploy --prod --yes`
+### Git + Vercel (suositeltu)
+
+| | |
+|---|---|
+| GitHub | https://github.com/remonttireitti/bc-smartapp |
+| Tuotanto | https://bc-smartapp.vercel.app |
+
+Muutokset: commit → `git push origin main` → Vercel deployaa automaattisesti.
+
+Ensimmäinen asennus (uudessa koneessa):
+
+```bash
+git clone https://github.com/remonttireitti/bc-smartapp.git
+cd bc-smartapp
+npm install
+npx vercel link --yes --project bc-smartapp
+```
+
+Manuaalinen julkaisu (hätätilanteessa): `npm run build` ja `npx vercel deploy --prod --yes`
 
 ## Tietomalli (lyhyesti)
 
