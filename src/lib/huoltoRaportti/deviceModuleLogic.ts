@@ -237,3 +237,8 @@ export function keruupiiriSectionTitle(deviceType: string): string {
   if (isWaterAirHeatPump(deviceType)) return 'Keruupiiri (lähde/vesi)';
   return 'Keruupiiri (maa/vesi)';
 }
+
+/** Maalämpöpumpun (MLP) omat alaosiot — ei vesi-ilmalämpöpumpulla. */
+export function showMlpMaalampoSubsections(deviceType: string): boolean {
+  return isGroundSourceHeatPump(deviceType);
+}

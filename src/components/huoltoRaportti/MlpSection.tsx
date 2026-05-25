@@ -1,10 +1,6 @@
 import type { HuoltoReportData, KompressorinVaiheValinta, MlpData, PumpunSyottoValinta } from '../../lib/huoltoRaportti/types';
 import { lampoJakotapaOptions, mlpNestOptions } from '../../lib/huoltoRaportti/constants';
-import {
-  isWaterAirHeatPump,
-  keruupiiriSectionTitle,
-  mlpSectionTitle,
-} from '../../lib/huoltoRaportti/deviceModuleLogic';
+import { mlpSectionTitle, showMlpMaalampoSubsections } from '../../lib/huoltoRaportti/deviceModuleLogic';
 import { createEmptyHeatingCircuitData, createEmptyHeatingElementData } from '../../lib/huoltoRaportti/defaults';
 import { getKokoLaiteSahkoVaiheValinta, getMlpPumpSyottoValinta } from '../../lib/huoltoRaportti/sahkoVaiheUtils';
 import { FormCheckbox } from './FormCheckbox';
@@ -43,6 +39,7 @@ export function MlpSection({ form, onChange }: Props) {
     } as Partial<MlpData>);
   };
 
+  const showMaalampoOnly = showMlpMaalampoSubsections(form.laiteTyyppi);
   const keruuPower = calcPower(mlp.keruupiiriVirtaus, mlp.keruupiiriMeno, mlp.keruupiiriTulo, parseFloat(mlp.keruupiiriNeste) || 0);
   const latausPower = calcPower(mlp.latausVirtaus, mlp.latausMeno, mlp.latausTulo, parseFloat(mlp.latausNeste) || 0);
 
@@ -56,8 +53,9 @@ export function MlpSection({ form, onChange }: Props) {
   return (
     <HuoltoModuleSection moduleKey="mlpPiirit" title={mlpSectionTitle(form.laiteTyyppi)}>
 
+      {showMaalampoOnly && (
       <div className="huolto-submodule">
-        <h3>{keruupiiriSectionTitle(form.laiteTyyppi)}</h3>
+        <h3>Keruupiiri (maa/vesi)</h3>
         <div className="checkbox-grid huolto-toggle-grid">
           <FormCheckbox label="Paine tarkastettu" checked={mlp.keruupiirinPaineTarkastettu} onChange={(v) => patchMlp({ keruupiirinPaineTarkastettu: v, ...(v ? {} : { keruupiiriPaineBar: '' }) })} />
           <FormCheckbox label="Mutasihti puhdistettu" checked={mlp.keruupiirissaMutapussiPuhdistettu} onChange={(v) => patchMlp({ keruupiirissaMutapussiPuhdistettu: v })} />
@@ -112,8 +110,9 @@ export function MlpSection({ form, onChange }: Props) {
           <div className="huolto-alert huolto-alert-success">Keruupiirin teho: {keruuPower} kW</div>
         )}
       </div>
+      )}
 
-      {!isWaterAirHeatPump(form.laiteTyyppi) && (
+      {showMaalampoOnly && (
       <div className="huolto-submodule">
         <h3>Erillinen jäähdytyspiiri</h3>
         <div className="checkbox-grid huolto-toggle-grid">
@@ -150,7 +149,7 @@ export function MlpSection({ form, onChange }: Props) {
 
       <div className="huolto-submodule">
         <h3>Lämmityspiiri</h3>
-        <div className="checkbox-grid">
+        <div className="checkbox-grid huolto-toggle-grid">
           <FormCheckbox label="Paine tarkastettu" checked={mlp.latausPaineTarkastettu} onChange={(v) => patchMlp({ latausPaineTarkastettu: v, ...(v ? {} : { latausPaineBar: '' }) })} />
           <FormCheckbox label="Mutapussi puhdistettu" checked={mlp.latausMutapussiPuhdistettu} onChange={(v) => patchMlp({ latausMutapussiPuhdistettu: v })} />
           <FormCheckbox label="Pumppu tarkastettu" checked={mlp.latausPumppuTarkastettu} onChange={(v) => patchMlp({ latausPumppuTarkastettu: v })} />
@@ -498,8 +497,9 @@ export function MlpSection({ form, onChange }: Props) {
         )}
       </div>
 
+      {showMaalampoOnly && (
       <div className="huolto-submodule">
-        <h3>{isWaterAirHeatPump(form.laiteTyyppi) ? 'Kylmäaine' : 'Kylmäaine (MLP)'}</h3>
+        <h3>Kylmäaine (MLP)</h3>
         <div className="checkbox-grid huolto-toggle-grid">
           <FormCheckbox label="Päästöventtiili tarkastettu" checked={mlp.kylmaainePaetosTarkastettu} onChange={(v) => patchMlp({ kylmaainePaetosTarkastettu: v })} />
           <FormCheckbox label="Vuotoja havaittu" checked={mlp.kylmaaineVuotoja} onChange={(v) => patchMlp({ kylmaaineVuotoja: v })} />
@@ -511,7 +511,9 @@ export function MlpSection({ form, onChange }: Props) {
           <FormInput label="Alijäähdytys (K)" value={mlp.kylmaaineAlijaahdytys} onChange={(v) => patchMlp({ kylmaaineAlijaahdytys: v })} type="number" />
         </div>
       </div>
+      )}
 
+      {showMaalampoOnly && (
       <div className="huolto-submodule">
         <h3>Energiatehokkuus</h3>
         <FormCheckbox
@@ -551,6 +553,7 @@ export function MlpSection({ form, onChange }: Props) {
           </div>
         )}
       </div>
+      )}
     </HuoltoModuleSection>
   );
 }

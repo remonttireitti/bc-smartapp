@@ -22,7 +22,7 @@ interface Props {
 
 export function RefrigerantCircuitsSection({ form, onChange }: Props) {
   const circuitCount = Math.min(3, Math.max(1, parseInt(form.kylmaainePiireja, 10) || 1));
-  const isMLP = form.laiteTyyppi === 'mlp' || form.laiteTyyppi === 'vesiilmalampopumppu';
+  const isMLP = form.laiteTyyppi === 'mlp';
   const condenserType = form.lauhdutinTyyppiLaite ?? form.condenserData[0]?.tyyppi;
   const showChillerCondenser = showChillerCondenserInCircuit(
     form.laiteTyyppi,

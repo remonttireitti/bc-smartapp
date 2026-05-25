@@ -1,5 +1,5 @@
 import type { CompressorData, EvaporatorData, HuoltoReportData, RefrigerantCircuitData } from './types';
-import { isChillerLikeDevice } from './deviceModuleLogic';
+import { isChillerLikeDevice, mlpSectionTitle, showMlpMaalampoSubsections } from './deviceModuleLogic';
 import {
   formatTyhjiointiLoppupaine,
   laskeKokeLoppuaikaFi,
@@ -309,21 +309,24 @@ function renderMlpSummary(data: HuoltoReportData): string {
   }
 
   const sections: string[] = [];
+  const showMaalampoOnly = showMlpMaalampoSubsections(data.laiteTyyppi);
 
-  const keruu = [
-    row('Keruupiiri paine (bar)', mlp.keruupiiriPaineBar, '#6A1B9A'),
-    row('Keruupiiri virtaus', mlp.keruupiiriVirtaus, '#6A1B9A'),
-    row('Keruupiiri meno (°C)', mlp.keruupiiriMeno, '#6A1B9A'),
-    row('Keruupiiri paluu (°C)', mlp.keruupiiriTulo, '#6A1B9A'),
-    row('Pumpun tyyppi', mlp.keruupiirinPumpunTyyppi, '#6A1B9A'),
-    row('Pumpun valmistaja', mlp.keruupiiriPumpunValmistaja, '#6A1B9A'),
-    row('Pumpun malli', mlp.keruupiiriPumpunMalli, '#6A1B9A'),
-    checkRow(mlp.keruupiirinPaineTarkastettu, 'Paine tarkastettu'),
-    checkRow(mlp.keruupiirinPumppuTarkastettu, 'Pumppu tarkastettu'),
-  ]
-    .filter(Boolean)
-    .join('');
-  if (keruu) sections.push(`<div style="margin-bottom:8px;"><strong>Keruupiiri</strong>${keruu}</div>`);
+  if (showMaalampoOnly) {
+    const keruu = [
+      row('Keruupiiri paine (bar)', mlp.keruupiiriPaineBar, '#6A1B9A'),
+      row('Keruupiiri virtaus', mlp.keruupiiriVirtaus, '#6A1B9A'),
+      row('Keruupiiri meno (°C)', mlp.keruupiiriMeno, '#6A1B9A'),
+      row('Keruupiiri paluu (°C)', mlp.keruupiiriTulo, '#6A1B9A'),
+      row('Pumpun tyyppi', mlp.keruupiirinPumpunTyyppi, '#6A1B9A'),
+      row('Pumpun valmistaja', mlp.keruupiiriPumpunValmistaja, '#6A1B9A'),
+      row('Pumpun malli', mlp.keruupiiriPumpunMalli, '#6A1B9A'),
+      checkRow(mlp.keruupiirinPaineTarkastettu, 'Paine tarkastettu'),
+      checkRow(mlp.keruupiirinPumppuTarkastettu, 'Pumppu tarkastettu'),
+    ]
+      .filter(Boolean)
+      .join('');
+    if (keruu) sections.push(`<div style="margin-bottom:8px;"><strong>Keruupiiri</strong>${keruu}</div>`);
+  }
 
   const lataus = [
     row('Latauspiiri paine (bar)', mlp.latausPaineBar, '#6A1B9A'),
@@ -379,7 +382,8 @@ function renderMlpSummary(data: HuoltoReportData): string {
       </div>`);
   }
 
-  return box('MLP-PIIRIT', '#6A1B9A', sections.join(''));
+  if (sections.length === 0) return '';
+  return box(mlpSectionTitle(data.laiteTyyppi).toUpperCase(), '#6A1B9A', sections.join(''));
 }
 
 function renderKonvektoritTable(data: HuoltoReportData): string {
