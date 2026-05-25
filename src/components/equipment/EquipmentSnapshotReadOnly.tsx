@@ -70,10 +70,9 @@ export default function EquipmentSnapshotReadOnly({ snapshot }: { snapshot: Pars
     sumCompressors += circuitCompressorDisplayCount(data);
   }
 
-  const tyy = String(snapshot.kylmaaineTyyppi || '').trim();
-  const laatu = String(snapshot.kylmaaineLaatu || '').trim();
-  const kylmaaineYksiRivi =
-    tyy && laatu && laatu.toLowerCase() !== tyy.toLowerCase() ? `${tyy} · ${laatu}` : tyy || laatu || '';
+  const kylmaaineYksiRivi = String(
+    snapshot.kylmaaineTyyppi || snapshot.kylmaaineLaatu || '',
+  ).trim();
 
   const piiriMaarat = [
     { label: 'Määrä piiri 1', value: snapshot.kylmaaineMaaraPiiri1 },

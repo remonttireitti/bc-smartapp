@@ -24,7 +24,7 @@ import type {
   TiiveyskoeData,
   TyhjiointiData,
 } from './types';
-import { generateId } from './utils';
+import { generateId, resolveKylmaaineTyyppi } from './utils';
 
 export function createEmptyKonvektoriRow(): KonvektoriRowData {
   return {
@@ -538,8 +538,11 @@ export function normalizeHuoltoReportData(data: Partial<HuoltoReportData>): Huol
   const base = createEmptyHuoltoReportData();
   const merged = { ...base, ...data };
   const sisMaara = merged.sisayksikkoMaara ?? 1;
+  const kylmaaineTyyppi = resolveKylmaaineTyyppi(merged.kylmaaineTyyppi, merged.kylmaaineLaatu);
   return {
     ...merged,
+    kylmaaineTyyppi,
+    kylmaaineLaatu: '',
     kylmaainePiiri1: ensureRefrigerantCircuitData(data.kylmaainePiiri1),
     kylmaainePiiri2: data.kylmaainePiiri2 ? ensureRefrigerantCircuitData(data.kylmaainePiiri2) : null,
     kylmaainePiiri3: data.kylmaainePiiri3 ? ensureRefrigerantCircuitData(data.kylmaainePiiri3) : null,

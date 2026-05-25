@@ -551,6 +551,14 @@ export function calculateCO2Ekv(amountKg: number, gwp: number): number {
   return (amountKg * gwp) / 1000;
 }
 
+/** Yksi kylmäaine-kenttä: tyyppi (valinta) ja vanha "laatu" olivat sama tieto. */
+export function resolveKylmaaineTyyppi(
+  tyyppi?: string | null,
+  laatu?: string | null,
+): string {
+  return String(tyyppi ?? '').trim() || String(laatu ?? '').trim();
+}
+
 // Get refrigerant GWP value
 export function getRefrigerantGWP(refrigerantType: string): number {
   const gwpMap: Record<string, number> = {

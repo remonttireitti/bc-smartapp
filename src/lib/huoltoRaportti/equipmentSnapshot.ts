@@ -27,7 +27,7 @@ import type {
   RefrigerantCircuitData,
   SisayksikkoData,
 } from './types';
-import { getRefrigerantGWP } from './utils';
+import { getRefrigerantGWP, resolveKylmaaineTyyppi } from './utils';
 
 const trim = (s: unknown) => String(s ?? '').trim();
 
@@ -313,14 +313,15 @@ export function buildHuoltoEquipmentTechnicalSnapshot(data: HuoltoReportData): R
   const sisayksikkoData = field(data, 'sisayksikkoData');
   const sisayksikkoMaara = Number(field(data, 'sisayksikkoMaara') ?? 0);
 
-  const gwp = data.kylmaaineTyyppi ? getRefrigerantGWP(data.kylmaaineTyyppi) : 0;
+  const kylmaaineTyyppi = resolveKylmaaineTyyppi(data.kylmaaineTyyppi, data.kylmaaineLaatu);
+  const gwp = kylmaaineTyyppi ? getRefrigerantGWP(kylmaaineTyyppi) : 0;
 
   const snapshot: EquipmentSnapshot = {
     laiteTyyppi: data.laiteTyyppi,
     laiteKayttotarkoitus: data.laiteKayttotarkoitus,
-    kylmaaineLaatu: strField(data, 'kylmaaineLaatu'),
+    kylmaaineLaatu: '',
     kylmaainePiireja: data.kylmaainePiireja,
-    ...(trim(data.kylmaaineTyyppi) ? { kylmaaineTyyppi: trim(data.kylmaaineTyyppi) } : {}),
+    ...(kylmaaineTyyppi ? { kylmaaineTyyppi } : {}),
     ...(strField(data, 'kylmaaineValmistajaMaara')
       ? { kylmaaineValmistajaMaara: strField(data, 'kylmaaineValmistajaMaara') }
       : {}),
@@ -457,9 +458,12 @@ export function applyEquipmentSnapshotToForm(
 
   if (snap.laiteTyyppi) patch.laiteTyyppi = snap.laiteTyyppi;
   if (snap.laiteKayttotarkoitus != null) patch.laiteKayttotarkoitus = snap.laiteKayttotarkoitus;
-  if (snap.kylmaaineTyyppi) patch.kylmaaineTyyppi = snap.kylmaaineTyyppi;
+  const kylmaaineTyyppi = resolveKylmaaineTyyppi(snap.kylmaaineTyyppi, snap.kylmaaineLaatu);
+  if (kylmaaineTyyppi) {
+    patch.kylmaaineTyyppi = kylmaaineTyyppi;
+    patch.kylmaaineLaatu = '';
+  }
   if (snap.kylmaainePiireja) patch.kylmaainePiireja = snap.kylmaainePiireja;
-  if (snap.kylmaaineLaatu) patch.kylmaaineLaatu = snap.kylmaaineLaatu;
 
   for (const key of [
     'kylmaaineValmistajaMaara',

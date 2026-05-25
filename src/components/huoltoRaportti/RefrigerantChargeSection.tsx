@@ -56,7 +56,7 @@ export function RefrigerantChargeSection({ form, onChange, defaultOpen }: Props)
           Kylmäaine
           <select
             value={form.kylmaaineTyyppi}
-            onChange={(e) => onChange({ kylmaaineTyyppi: e.target.value })}
+            onChange={(e) => onChange({ kylmaaineTyyppi: e.target.value, kylmaaineLaatu: '' })}
           >
             <option value="">Valitse…</option>
             {refrigerantTypes.map((type) => (
@@ -66,11 +66,6 @@ export function RefrigerantChargeSection({ form, onChange, defaultOpen }: Props)
             ))}
           </select>
         </label>
-        <FormInput
-          label="Kylmäaineen laatu"
-          value={form.kylmaaineLaatu || ''}
-          onChange={(v) => onChange({ kylmaaineLaatu: v })}
-        />
         <FormInput
           label="CO₂-ekvivalentti (t)"
           value={co2Tonnes}
