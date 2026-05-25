@@ -18,8 +18,9 @@ export type PtBarPoint = { bar: number; temp: number };
 export const PSIG_TO_BAR_GAUGE = 0.06894757293178306;
 
 export function resolveRefrigerantPtKey(refrigerant: string): string | null {
-  const key = (refrigerant || '').trim();
+  let key = (refrigerant || '').trim();
   if (!key || key === 'Muu' || key === 'muu') return null;
+  if (key.toUpperCase() === 'R-134A') key = 'R-134a';
   if (key === 'R-744') return 'R-744';
   if (
     REFRIGERANT_PT_PSIG[key] ||

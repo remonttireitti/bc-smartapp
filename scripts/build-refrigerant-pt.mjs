@@ -27,13 +27,6 @@ const SINGLE = {
     [105, 379.5], [110, 406.1], [115, 434.0], [120, 463.1], [125, 493.5], [130, 525.2],
     [135, 558.3], [140, 592.8], [145, 628.7], [150, 666.1],
   ],
-  'R-134a': [
-    [-15, 0.1], [-10, 1.9], [-5, 4.0], [0, 6.5], [5, 9.1], [10, 11.9], [15, 15.0], [20, 18.4],
-    [25, 22.1], [30, 26.1], [35, 30.4], [40, 35.0], [45, 40.1], [50, 45.4], [55, 51.2],
-    [60, 57.4], [65, 64.0], [70, 71.1], [75, 78.7], [80, 86.7], [85, 95.3], [90, 104.3],
-    [95, 114.0], [100, 124.2], [105, 135.0], [110, 146.4], [115, 158.4], [120, 171.2],
-    [125, 184.6], [130, 198.7], [135, 213.6], [140, 229.2],
-  ],
   'R-600a': [
     [10, 0.7], [15, 2.5], [20, 4.4], [25, 6.5], [30, 8.8], [35, 11.2], [40, 13.8], [45, 16.6],
     [50, 19.6], [55, 22.8], [60, 26.2], [65, 29.8], [70, 33.6], [75, 37.7], [80, 42.0],
@@ -92,6 +85,25 @@ const ZEOTROPIC = {
   },
 };
 
+/**
+ * R-134a saturation (°C, psig gauge) — standard field PT chart.
+ * Stored as bar gauge in REFRIGERANT_PT_BAR (manometribar), not psig×factor from wrong legacy rows.
+ */
+const R134A_PSIG = [
+  [-20, 10.4], [-15, 14.8], [-10, 19.4], [-5, 24.5], [0, 29.9], [5, 35.8], [10, 42.1],
+  [15, 48.9], [20, 56.2], [25, 64.0], [30, 72.4], [35, 81.4], [40, 91.0], [45, 101.3],
+  [50, 112.3], [55, 124.0], [60, 136.5], [65, 149.8], [70, 164.0], [75, 179.1], [80, 195.2],
+  [85, 212.3], [90, 230.4], [95, 249.6], [100, 269.9], [105, 291.4], [110, 314.1],
+  [115, 338.2], [120, 363.7], [125, 390.7], [130, 419.3], [135, 449.6], [140, 481.7],
+];
+
+const PSIG_TO_BAR_GAUGE = 0.06894757293178306;
+
+const R134A_BAR = R134A_PSIG.map(([t, psig]) => [
+  t,
+  Math.round(psig * PSIG_TO_BAR_GAUGE * 1000) / 1000,
+]);
+
 /** R407C FSW chart (°C, bar gauge) — bubble = liquid, dew = vapor */
 const R407C_BAR = {
   bubble: [
@@ -147,6 +159,7 @@ const ALIASES = {
   'R-454B': 'R-410A',
   'R-454C': 'R-410A',
   'R-455A': 'R-410A',
+  'R-134A': 'R-134a',
   'R-513A': 'R-134a',
   'R-1234ze': 'R-1234yf',
   'R-417A': 'R-407C',
@@ -179,7 +192,9 @@ out += Object.entries(ZEOTROPIC)
   .map(([k, v]) => fmtZeotropePsig(k, v))
   .join('\n');
 out += `\n};\n\n`;
-out += `export const REFRIGERANT_PT_BAR: Record<string, readonly BarTempRow[]> = {};\n\n`;
+out += `export const REFRIGERANT_PT_BAR: Record<string, readonly BarTempRow[]> = {\n`;
+out += fmtRows('R-134a', R134A_BAR);
+out += `\n};\n\n`;
 out += `export const REFRIGERANT_PT_ZEOTROPIC_BAR: Record<\n  string,\n  { bubble: readonly BarTempRow[]; dew: readonly BarTempRow[] }\n> = {\n`;
 out += fmtZeotropeBar('R-407C', R407C_BAR);
 out += `\n};\n\n`;
