@@ -1,5 +1,10 @@
 import type { HuoltoReportData, KompressorinVaiheValinta, MlpData, PumpunSyottoValinta } from '../../lib/huoltoRaportti/types';
-import { lampoJakotapaOptions, mlpNestOptions } from '../../lib/huoltoRaportti/constants';
+import {
+  isMlpVesiNeste,
+  kayttovesiLisalammitinSijaintiOptions,
+  lampoJakotapaOptions,
+  mlpNestOptions,
+} from '../../lib/huoltoRaportti/constants';
 import { mlpSectionTitle, showMlpMaalampoSubsections } from '../../lib/huoltoRaportti/deviceModuleLogic';
 import { createEmptyHeatingCircuitData, createEmptyHeatingElementData } from '../../lib/huoltoRaportti/defaults';
 import { getKokoLaiteSahkoVaiheValinta, getMlpPumpSyottoValinta } from '../../lib/huoltoRaportti/sahkoVaiheUtils';
@@ -186,7 +191,17 @@ export function MlpSection({ form, onChange }: Props) {
           <FormInput label="Tulo (°C)" value={mlp.latausTulo} onChange={(v) => patchMlp({ latausTulo: v })} type="number" />
           <label>
             Neste
-            <select value={mlp.latausNeste} onChange={(e) => patchMlp({ latausNeste: e.target.value })}>
+            <select
+              value={mlp.latausNeste}
+              onChange={(e) => {
+                const neste = e.target.value;
+                patchMlp({
+                  latausNeste: neste,
+                  latausJarjestelmanNeste: '',
+                  ...(isMlpVesiNeste(neste) ? { latausGlykoliPakkaskestavyys: '' } : {}),
+                });
+              }}
+            >
               {mlpNestOptions.map((o) => (
                 <option key={`l-${o.label}`} value={o.value}>{o.label}</option>
               ))}
@@ -196,20 +211,16 @@ export function MlpSection({ form, onChange }: Props) {
         {latausPower && (
           <div className="huolto-alert huolto-alert-success">Latauspiirin teho: {latausPower} kW</div>
         )}
-        <div className="line-form-grid">
-          <FormInput
-            label="Järjestelmän neste"
-            value={mlp.latausJarjestelmanNeste}
-            onChange={(v) => patchMlp({ latausJarjestelmanNeste: v })}
-            className="huolto-span-all"
-          />
-          <FormInput
-            label="Glykolin pakkaskestävyys (°C)"
-            value={mlp.latausGlykoliPakkaskestavyys}
-            onChange={(v) => patchMlp({ latausGlykoliPakkaskestavyys: v })}
-            type="number"
-          />
-        </div>
+        {!isMlpVesiNeste(mlp.latausNeste) && mlp.latausNeste !== '' && (
+          <div className="line-form-grid">
+            <FormInput
+              label="Glykolin pakkaskestävyys (°C)"
+              value={mlp.latausGlykoliPakkaskestavyys}
+              onChange={(v) => patchMlp({ latausGlykoliPakkaskestavyys: v })}
+              type="number"
+            />
+          </div>
+        )}
         {mlp.latausTulistuspiiri && (
           <div className="huolto-submodule">
             <FormCheckbox
@@ -273,7 +284,7 @@ export function MlpSection({ form, onChange }: Props) {
         <h3>Käyttövesi</h3>
         <FormCheckbox label="Käyttövesi mukana" checked={mlp.kayttovesiEnabled} onChange={(v) => patchMlp({ kayttovesiEnabled: v })} />
         {mlp.kayttovesiEnabled && (
-          <>
+          <div className="huolto-form-stack">
             <div className="line-form-grid">
               <FormInput label="Tilavuus (l)" value={mlp.kayttovesiTilavuus} onChange={(v) => patchMlp({ kayttovesiTilavuus: v })} />
               <FormInput label="Lämpötila-asetus (°C)" value={mlp.kayttovesiLampotilaAsetus} onChange={(v) => patchMlp({ kayttovesiLampotilaAsetus: v })} />
@@ -281,45 +292,97 @@ export function MlpSection({ form, onChange }: Props) {
               <FormCheckbox label="Toimilaitteet OK" checked={mlp.kayttovesiToimilaitteetOK} onChange={(v) => patchMlp({ kayttovesiToimilaitteetOK: v })} />
             </div>
             <FormCheckbox
-              label="Sähkövastukset käytössä"
+              label="Lisälämmittin (sähkövastukset)"
               checked={mlp.kayttovesiSahkoVastuksetEnabled}
-              onChange={(v) => patchMlp({ kayttovesiSahkoVastuksetEnabled: v })}
+              onChange={(v) =>
+                patchMlp({
+                  kayttovesiSahkoVastuksetEnabled: v,
+                  ...(v
+                    ? {}
+                    : {
+                        kayttovesiSahkoVastuksetSijainti: '',
+                        kayttovesiSahkoVastuksetMaara: '',
+                        kayttovesiSahkoVastukset: [],
+                      }),
+                })
+              }
             />
             {mlp.kayttovesiSahkoVastuksetEnabled && (
               <>
-                <FormInput
-                  label="Vastusten määrä (kpl)"
-                  value={mlp.kayttovesiSahkoVastuksetMaara}
-                  onChange={(v) => {
-                    const newCount = parseInt(v, 10) || 0;
-                    let next = [...mlp.kayttovesiSahkoVastukset];
-                    while (next.length < newCount) next.push(createEmptyHeatingElementData());
-                    patchMlp({
-                      kayttovesiSahkoVastuksetMaara: v,
-                      kayttovesiSahkoVastukset: next.slice(0, newCount),
-                    });
-                  }}
-                  type="number"
-                />
-                {mlp.kayttovesiSahkoVastukset.map((vastus, idx) => (
-                  <HeatingElementModule
-                    key={idx}
-                    index={idx}
-                    data={vastus}
-                    onChange={(data) => {
-                      const next = [...mlp.kayttovesiSahkoVastukset];
-                      next[idx] = data;
-                      patchMlp({ kayttovesiSahkoVastukset: next });
+                <label style={{ maxWidth: '320px' }}>
+                  Lisälämmittimen sijainti
+                  <select
+                    value={mlp.kayttovesiSahkoVastuksetSijainti}
+                    onChange={(e) => {
+                      const sijainti = e.target.value as MlpData['kayttovesiSahkoVastuksetSijainti'];
+                      if (sijainti === 'integroitu') {
+                        patchMlp({
+                          kayttovesiSahkoVastuksetSijainti: sijainti,
+                          kayttovesiSahkoVastuksetMaara: '',
+                          kayttovesiSahkoVastukset: [],
+                        });
+                      } else if (sijainti === 'ulkopuolinen') {
+                        const count = Math.max(1, parseInt(mlp.kayttovesiSahkoVastuksetMaara, 10) || 1);
+                        let next = [...mlp.kayttovesiSahkoVastukset];
+                        while (next.length < count) next.push(createEmptyHeatingElementData());
+                        patchMlp({
+                          kayttovesiSahkoVastuksetSijainti: sijainti,
+                          kayttovesiSahkoVastuksetMaara: String(count),
+                          kayttovesiSahkoVastukset: next.slice(0, count),
+                        });
+                      } else {
+                        patchMlp({ kayttovesiSahkoVastuksetSijainti: sijainti });
+                      }
                     }}
-                    onRemove={() => {
-                      const next = mlp.kayttovesiSahkoVastukset.filter((_, i) => i !== idx);
-                      patchMlp({
-                        kayttovesiSahkoVastukset: next,
-                        kayttovesiSahkoVastuksetMaara: String(next.length),
-                      });
-                    }}
-                  />
-                ))}
+                  >
+                    {kayttovesiLisalammitinSijaintiOptions.map((opt) => (
+                      <option key={opt.value || 'empty'} value={opt.value}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                {mlp.kayttovesiSahkoVastuksetSijainti === 'integroitu' && (
+                  <p className="muted">Lisälämmittin on integroitu laitteeseen.</p>
+                )}
+                {mlp.kayttovesiSahkoVastuksetSijainti === 'ulkopuolinen' && (
+                  <>
+                    <FormInput
+                      label="Lisälämmittimien määrä (kpl)"
+                      value={mlp.kayttovesiSahkoVastuksetMaara}
+                      onChange={(v) => {
+                        const newCount = Math.max(0, parseInt(v, 10) || 0);
+                        let next = [...mlp.kayttovesiSahkoVastukset];
+                        while (next.length < newCount) next.push(createEmptyHeatingElementData());
+                        patchMlp({
+                          kayttovesiSahkoVastuksetMaara: v,
+                          kayttovesiSahkoVastukset: next.slice(0, newCount),
+                        });
+                      }}
+                      type="number"
+                    />
+                    {mlp.kayttovesiSahkoVastukset.map((vastus, idx) => (
+                      <HeatingElementModule
+                        key={idx}
+                        index={idx}
+                        data={vastus}
+                        compact
+                        onChange={(data) => {
+                          const next = [...mlp.kayttovesiSahkoVastukset];
+                          next[idx] = data;
+                          patchMlp({ kayttovesiSahkoVastukset: next });
+                        }}
+                        onRemove={() => {
+                          const next = mlp.kayttovesiSahkoVastukset.filter((_, i) => i !== idx);
+                          patchMlp({
+                            kayttovesiSahkoVastukset: next,
+                            kayttovesiSahkoVastuksetMaara: String(next.length),
+                          });
+                        }}
+                      />
+                    ))}
+                  </>
+                )}
               </>
             )}
             <FormCheckbox
@@ -335,7 +398,7 @@ export function MlpSection({ form, onChange }: Props) {
                 <FormInput label="Käyntivirta (A)" value={mlp.kayttovesiKiertoKayntivirta} onChange={(v) => patchMlp({ kayttovesiKiertoKayntivirta: v })} type="number" />
               </div>
             )}
-          </>
+          </div>
         )}
       </div>
 

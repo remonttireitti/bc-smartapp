@@ -163,6 +163,12 @@ export const lauhdutinTypeOptions = [
   { value: 'nestekiertoinen', label: 'Nestekiertoinen lauhdutin' },
 ];
 
+export const kayttovesiLisalammitinSijaintiOptions = [
+  { value: '', label: 'Valitse…' },
+  { value: 'integroitu', label: 'Integroitu laitteeseen' },
+  { value: 'ulkopuolinen', label: 'Ulkopuolinen' },
+] as const;
+
 export const sahkoVastusOhjaustapaOptions = [
   { value: '', label: 'Valitse...' },
   { value: 'lampopumppu', label: 'Lämpöpumppu ohjaa' },
@@ -188,9 +194,17 @@ export const sisayksikkoTyyppiOptions = [
   { value: 'kanavoitava', label: 'Kanavoitava' },
 ];
 
+/** Lämpöpiirin nesteen ominaislämpö (c) – vesi = 4.18 */
+export const MLP_VESI_NESTE_CP = '4.18';
+
+export const isMlpVesiNeste = (nesteCp: string) => nesteCp === MLP_VESI_NESTE_CP;
+
+export const mlpNesteLabel = (nesteCp: string) =>
+  mlpNestOptions.find((o) => o.value === nesteCp)?.label ?? nesteCp;
+
 export const mlpNestOptions = [
   { value: '', label: 'Valitse...' },
-  { value: '4.18', label: 'Vesi (c = 4.18 kJ/kgK)' },
+  { value: MLP_VESI_NESTE_CP, label: 'Vesi (c = 4.18 kJ/kgK)' },
   { value: '3.8', label: 'Naturet' },
   { value: '3.6', label: 'Etanoli 20%' },
   { value: '3.4', label: 'Etanoli 30%' },

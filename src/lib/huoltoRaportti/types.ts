@@ -99,6 +99,7 @@ export type PuhallinOhjausType =
   | 'kp_pressostaatti'
   | 'kompressorin_yhtaaikaa'
   | 'muu';
+export type KayttovesiLisalammitinSijainti = '' | 'integroitu' | 'ulkopuolinen';
 export type TiiveyskoeTulos = '' | 'hyvaksytty' | 'hylatty';
 export type TyhjiointiPaineYksikko = 'micron' | 'mbar';
 
@@ -402,6 +403,7 @@ export interface MlpData {
   kayttovesiLampotilaAsetus: string;
   kayttovesiLampotilaNykyinen: string;
   kayttovesiSahkoVastuksetEnabled: boolean;
+  kayttovesiSahkoVastuksetSijainti: KayttovesiLisalammitinSijainti;
   kayttovesiSahkoVastuksetMaara: string;
   kayttovesiSahkoVastukset: HeatingElementData[];
   kayttovesiToimilaitteetOK: boolean;

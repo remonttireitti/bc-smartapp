@@ -1243,27 +1243,22 @@ export default function MaintenanceReportEditPage({ session }: Props) {
 
             <CollapsibleSection title="Huoltotiedot" defaultOpen>
               {showHuoltoVsKayttoonottoSelector(form.laiteTyyppi) && (
-                <fieldset className="radio-group">
-                  <legend>Raportin tyyppi</legend>
-                  <label>
-                    <input
-                      type="radio"
-                      name="docKind"
-                      checked={form.huoltoReportDocumentKind === 'huolto'}
-                      onChange={() => patchForm({ huoltoReportDocumentKind: 'huolto' })}
-                    />
-                    Huolto
-                  </label>
-                  <label>
-                    <input
-                      type="radio"
-                      name="docKind"
-                      checked={form.huoltoReportDocumentKind === 'kayttoonotto'}
-                      onChange={() => patchForm({ huoltoReportDocumentKind: 'kayttoonotto' })}
-                    />
-                    Käyttöönotto
-                  </label>
-                </fieldset>
+                <label style={{ maxWidth: '280px' }}>
+                  Raportin tyyppi
+                  <select
+                    value={
+                      form.huoltoReportDocumentKind === 'kayttoonotto' ? 'kayttoonotto' : 'huolto'
+                    }
+                    onChange={(e) =>
+                      patchForm({
+                        huoltoReportDocumentKind: e.target.value as HuoltoReportData['huoltoReportDocumentKind'],
+                      })
+                    }
+                  >
+                    <option value="huolto">Huolto</option>
+                    <option value="kayttoonotto">Käyttöönotto</option>
+                  </select>
+                </label>
               )}
               <div className="toggle-grid">
                 <ToggleSwitch

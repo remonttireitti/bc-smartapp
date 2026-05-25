@@ -1,4 +1,5 @@
 import type { CompressorData, EvaporatorData, HuoltoReportData, RefrigerantCircuitData } from './types';
+import { isMlpVesiNeste, mlpNesteLabel, sahkoVastusOhjaustapaOptions } from './constants';
 import { isChillerLikeDevice, mlpSectionTitle, showMlpMaalampoSubsections } from './deviceModuleLogic';
 import {
   formatTyhjiointiLoppupaine,
@@ -328,11 +329,18 @@ function renderMlpSummary(data: HuoltoReportData): string {
     if (keruu) sections.push(`<div style="margin-bottom:8px;"><strong>Keruupiiri</strong>${keruu}</div>`);
   }
 
+  const latausNesteLabel = mlp.latausNeste
+    ? mlpNesteLabel(mlp.latausNeste)
+    : mlp.latausJarjestelmanNeste;
   const lataus = [
     row('Latauspiiri paine (bar)', mlp.latausPaineBar, '#6A1B9A'),
     row('Lataus virtaus', mlp.latausVirtaus, '#6A1B9A'),
     row('Lataus meno (°C)', mlp.latausMeno, '#6A1B9A'),
     row('Lataus paluu (°C)', mlp.latausTulo, '#6A1B9A'),
+    row('Neste', latausNesteLabel, '#6A1B9A'),
+    ...(!isMlpVesiNeste(mlp.latausNeste) && mlp.latausGlykoliPakkaskestavyys
+      ? [row('Glykolin pakkaskestävyys (°C)', mlp.latausGlykoliPakkaskestavyys, '#6A1B9A')]
+      : []),
     row('Pumpun tyyppi', mlp.latausPumpunTyyppi, '#6A1B9A'),
     checkRow(mlp.latausPaineTarkastettu, 'Paine tarkastettu'),
     checkRow(mlp.latausPumppuTarkastettu, 'Pumppu tarkastettu'),
@@ -343,11 +351,37 @@ function renderMlpSummary(data: HuoltoReportData): string {
   if (lataus) sections.push(`<div style="margin-bottom:8px;"><strong>Latauspiiri</strong>${lataus}</div>`);
 
   if (mlp.kayttovesiEnabled) {
+    const lisalammitinRows: string[] = [];
+    if (mlp.kayttovesiSahkoVastuksetEnabled) {
+      const sijaintiLabel =
+        mlp.kayttovesiSahkoVastuksetSijainti === 'integroitu'
+          ? 'Integroitu laitteeseen'
+          : mlp.kayttovesiSahkoVastuksetSijainti === 'ulkopuolinen'
+            ? 'Ulkopuolinen'
+            : '';
+      if (sijaintiLabel) lisalammitinRows.push(row('Lisälämmittin', sijaintiLabel, '#6A1B9A'));
+      if (mlp.kayttovesiSahkoVastuksetSijainti === 'ulkopuolinen') {
+        const maara = mlp.kayttovesiSahkoVastuksetMaara;
+        if (maara) lisalammitinRows.push(row('Lisälämmittimien määrä', `${maara} kpl`, '#6A1B9A'));
+        (mlp.kayttovesiSahkoVastukset ?? []).forEach((v, i) => {
+          const parts = [
+            v.teho ? `${v.teho} kW` : '',
+            v.ohjaustapa
+              ? (sahkoVastusOhjaustapaOptions.find((o) => o.value === v.ohjaustapa)?.label ?? v.ohjaustapa)
+              : '',
+          ].filter(Boolean);
+          if (parts.length) {
+            lisalammitinRows.push(row(`Lisälämmittin ${i + 1}`, parts.join(' · '), '#6A1B9A'));
+          }
+        });
+      }
+    }
     const kv = [
       row('Tilavuus', mlp.kayttovesiTilavuus, '#6A1B9A'),
       row('Lämpötila-asetus', mlp.kayttovesiLampotilaAsetus, '#6A1B9A'),
       row('Nykyinen lämpötila', mlp.kayttovesiLampotilaNykyinen, '#6A1B9A'),
       checkRow(mlp.kayttovesiToimilaitteetOK, 'Toimilaitteet OK'),
+      ...lisalammitinRows,
     ]
       .filter(Boolean)
       .join('');

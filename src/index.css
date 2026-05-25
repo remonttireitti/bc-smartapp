@@ -1333,6 +1333,10 @@ button[type='submit']:disabled { opacity: .6; cursor: wait; }
   background: #fff;
 }
 
+.maintenance-form .collapsible-body {
+  gap: 1rem;
+}
+
 .module-toggle-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
@@ -2753,6 +2757,15 @@ textarea {
   margin-top: .75rem;
   background: #fff;
   box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.huolto-submodule > h3,
+.huolto-submodule > h4,
+.huolto-submodule > h5 {
+  margin: 0;
 }
 
 .huolto-part-section {
@@ -2790,20 +2803,74 @@ textarea {
 
 .huolto-part-body {
   padding: .85rem 1rem 1rem;
-  display: grid;
-  gap: .75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
   border-top: 1px solid #94a3b8;
   background: #fff;
 }
 
-.huolto-submodule h4 { margin: 0 0 .75rem; font-size: .95rem; color: #0f172a; }
+.huolto-submodule h4 { margin: 0; font-size: .95rem; color: #0f172a; }
+
+/* Huoltoraportti: väli kenttien, ruudukoiden ja kytkimien välillä (kaikki moduulit) */
+.maintenance-form .collapsible-body,
+.huolto-form-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.maintenance-form .line-form-grid,
+.huolto-module-body .line-form-grid,
+.huolto-submodule .line-form-grid,
+.huolto-part-body .line-form-grid,
+.huolto-circuit-body .line-form-grid,
+.huolto-lampopiirit .line-form-grid,
+.maintenance-form .collapsible-body .line-form-grid {
+  align-items: start;
+  row-gap: 1rem;
+  column-gap: 0.75rem;
+}
+
+.maintenance-form .line-form-grid > .toggle-switch,
+.maintenance-form .line-form-grid > .form-toggle,
+.huolto-module-body .line-form-grid > .toggle-switch,
+.huolto-submodule .line-form-grid > .toggle-switch,
+.huolto-part-body .line-form-grid > .toggle-switch,
+.huolto-circuit-body .line-form-grid > .toggle-switch,
+.collapsible-body .line-form-grid > .toggle-switch {
+  align-self: start;
+  margin-top: 1.35rem;
+  padding: 0.35rem 0;
+}
+
+.maintenance-form .collapsible-body > .toggle-switch,
+.maintenance-form .collapsible-body > .toggle-grid,
+.maintenance-form .collapsible-body > .checkbox-grid,
+.huolto-module-body > .toggle-switch,
+.huolto-module-body > .form-toggle,
+.huolto-module-body > .toggle-grid,
+.huolto-submodule > .toggle-switch,
+.huolto-submodule > .form-toggle,
+.huolto-submodule > .toggle-grid,
+.huolto-submodule > .checkbox-grid:not(.huolto-toggle-grid) {
+  padding: 0.35rem 0;
+}
+
+.maintenance-form .toggle-grid,
+.huolto-module-body .toggle-grid,
+.huolto-submodule .toggle-grid,
+.maintenance-form .collapsible-body .toggle-grid {
+  gap: 1rem 1.5rem;
+}
 
 .huolto-submodule .checkbox-grid.huolto-toggle-grid,
 .huolto-submodule .huolto-toggle-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr));
-  gap: 0.85rem 1.25rem;
+  gap: 1rem 1.25rem;
   align-items: start;
+  margin: 0.15rem 0;
 }
 
 .huolto-submodule .huolto-toggle-grid .toggle-switch {
@@ -2844,7 +2911,7 @@ textarea {
 .huolto-circuit-body {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 1.1rem;
   margin-top: 1rem;
 }
 
@@ -3080,8 +3147,9 @@ textarea {
 
 .huolto-module-body {
   padding: 1rem 1.1rem 1.15rem;
-  display: grid;
-  gap: .85rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
   background: #fff;
   border-top: 2px solid rgba(15, 23, 42, 0.08);
 }

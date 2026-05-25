@@ -4,7 +4,7 @@ import {
   isHeatPumpCircuitsDevice,
   resolveAutoModules,
 } from './deviceModuleLogic';
-import type { ModuleKey } from './constants';
+import { isMlpVesiNeste, type ModuleKey } from './constants';
 import type {
   CompressorData,
   CondenserData,
@@ -402,6 +402,7 @@ export function createEmptyMlpData(): MlpData {
     kayttovesiLampotilaAsetus: '',
     kayttovesiLampotilaNykyinen: '',
     kayttovesiSahkoVastuksetEnabled: false,
+    kayttovesiSahkoVastuksetSijainti: '',
     kayttovesiSahkoVastuksetMaara: '',
     kayttovesiSahkoVastukset: [],
     kayttovesiToimilaitteetOK: false,
@@ -451,13 +452,35 @@ export function ensureEvaporatorData(data: Partial<EvaporatorData> | undefined):
   };
 }
 
+function normalizeKayttovesiLisalammitinSijainti(
+  data: Partial<MlpData>,
+): MlpData['kayttovesiSahkoVastuksetSijainti'] {
+  const s = data.kayttovesiSahkoVastuksetSijainti;
+  if (s === 'integroitu' || s === 'ulkopuolinen') return s;
+  const maara = parseInt(String(data.kayttovesiSahkoVastuksetMaara ?? ''), 10) || 0;
+  const len = data.kayttovesiSahkoVastukset?.length ?? 0;
+  if (maara > 0 || len > 0) return 'ulkopuolinen';
+  if (data.kayttovesiSahkoVastuksetEnabled) return 'integroitu';
+  return '';
+}
+
 export function ensureMlpData(data: Partial<MlpData> | null | undefined): MlpData {
   const base = createEmptyMlpData();
   if (!data) return base;
+  const latausNeste = data.latausNeste ?? base.latausNeste;
   return {
     ...base,
     ...data,
-    kayttovesiSahkoVastukset: data.kayttovesiSahkoVastukset ?? [],
+    latausNeste,
+    latausJarjestelmanNeste: latausNeste ? '' : (data.latausJarjestelmanNeste ?? ''),
+    latausGlykoliPakkaskestavyys: isMlpVesiNeste(latausNeste)
+      ? ''
+      : (data.latausGlykoliPakkaskestavyys ?? ''),
+    kayttovesiSahkoVastuksetSijainti: normalizeKayttovesiLisalammitinSijainti(data),
+    kayttovesiSahkoVastukset: (data.kayttovesiSahkoVastukset ?? []).map((v) => ({
+      ...createEmptyHeatingElementData(),
+      ...v,
+    })),
     lampoPiirit: (data.lampoPiirit ?? []).map((p) => ({ ...createEmptyHeatingCircuitData(), ...p })),
   };
 }
@@ -584,6 +607,8 @@ export function normalizeHuoltoReportData(data: Partial<HuoltoReportData>): Huol
         : ''),
     vjNestelauhdutusJaettu: data.vjNestelauhdutusJaettu ?? base.vjNestelauhdutusJaettu,
     vapaajahdytysKaytossa: data.vapaajahdytysKaytossa ?? false,
+    huoltoReportDocumentKind:
+      merged.huoltoReportDocumentKind === 'kayttoonotto' ? 'kayttoonotto' : 'huolto',
     selectedModules: merged.laiteTyyppi
       ? resolveAutoModules({
           laiteTyyppi: merged.laiteTyyppi,

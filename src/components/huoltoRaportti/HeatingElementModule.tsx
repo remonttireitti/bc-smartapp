@@ -8,9 +8,44 @@ interface Props {
   data: HeatingElementData;
   onChange: (data: HeatingElementData) => void;
   onRemove: () => void;
+  /** Käyttöveden ulkopuolinen lisälämmittin: vain teho ja ohjaustapa */
+  compact?: boolean;
 }
 
-export function HeatingElementModule({ index, data, onChange, onRemove }: Props) {
+export function HeatingElementModule({ index, data, onChange, onRemove, compact }: Props) {
+  if (compact) {
+    return (
+      <div className="huolto-submodule">
+        <div className="huolto-circuit-header">
+          <h5>Lisälämmittin {index + 1}</h5>
+          {index > 0 && (
+            <button type="button" className="btn btn-secondary btn-sm" onClick={onRemove}>
+              Poista
+            </button>
+          )}
+        </div>
+        <div className="line-form-grid">
+          <FormInput
+            label="Teho (kW)"
+            value={data.teho}
+            onChange={(v) => onChange({ ...data, teho: v })}
+            type="number"
+          />
+          <label>
+            Ohjaustapa
+            <select value={data.ohjaustapa} onChange={(e) => onChange({ ...data, ohjaustapa: e.target.value })}>
+              {sahkoVastusOhjaustapaOptions.map((opt) => (
+                <option key={opt.value || 'empty'} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="huolto-submodule">
       <div className="huolto-circuit-header">
