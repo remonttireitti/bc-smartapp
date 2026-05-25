@@ -11,13 +11,16 @@ import {
   type CompanyUserDeletionImpact,
 } from '../lib/deleteCompanyUser';
 import { inviteCompanyUser } from '../lib/inviteUser';
-import SubscriberPicker from '../components/SubscriberPicker';
-import PortalCustomerPicker from '../components/PortalCustomerPicker';
-import { loadCustomersForOwner } from '../lib/customers';
-import { loadSubscribersForOwner } from '../lib/subscribers';
 import { supabase } from '../lib/supabase';
-import type { Company, Customer, Profile, Subscriber } from '../types';
-import { INVITE_ROLES, isPortalRole, ROLE_LABELS } from '../lib/management';
+import type { Company, Profile } from '../types';
+import { ROLE_LABELS } from '../lib/management';
+
+const STAFF_ROLES = ['admin', 'technician', 'manager'] as const;
+const STAFF_INVITE_ROLES = [
+  { value: 'admin', label: 'Ylläpitäjä (kaikki oikeudet)' },
+  { value: 'technician', label: 'Asentaja' },
+  { value: 'manager', label: 'Esimies' },
+] as const;
 
 type Context = { profile: Profile; session: Session };
 
@@ -60,11 +63,7 @@ export default function UsersPage() {
     password: 'test123456',
     display_name: '',
     role: 'technician',
-    subscriber_id: '',
-    customer_id: '',
   });
-  const [subscribers, setSubscribers] = useState<Subscriber[]>([]);
-  const [customers, setCustomers] = useState<Pick<Customer, 'id' | 'name' | 'address' | 'city' | 'subscriber_id'>[]>([]);
   const [busy, setBusy] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<CompanyUser | null>(null);
   const [deleteImpact, setDeleteImpact] = useState<CompanyUserDeletionImpact | null>(null);
@@ -76,16 +75,6 @@ export default function UsersPage() {
   useEffect(() => {
     if (profile.company_id) void loadUsers();
   }, [profile.company_id, gbaActive]);
-
-  useEffect(() => {
-    if (!profile.company_id || profile.role !== 'admin') return;
-    void loadSubscribersForOwner(supabase, profile.company_id)
-      .then(setSubscribers)
-      .catch(() => setSubscribers([]));
-    void loadCustomersForOwner(supabase, profile.company_id)
-      .then(setCustomers)
-      .catch(() => setCustomers([]));
-  }, [profile.company_id, profile.role]);
 
   useEffect(() => {
     if (!gbaActive) return;
@@ -103,6 +92,7 @@ export default function UsersPage() {
       .select(
         'id, display_name, email, role, company_id, bill_hours_enabled, bill_expenses_enabled, companies(name)',
       )
+      .in('role', [...STAFF_ROLES]);
 
     if (!gbaActive) {
       query = query.eq('company_id', profile.company_id!);
@@ -229,25 +219,12 @@ export default function UsersPage() {
     setMessage(null);
 
     try {
-      if (invite.role === 'subscriber' && !invite.subscriber_id) {
-        setError('Valitse tilaaja, jolle portaali myönnetään.');
-        setBusy(false);
-        return;
-      }
-      if (invite.role === 'customer' && !invite.customer_id) {
-        setError('Valitse asiakaskohde, jolle portaali myönnetään.');
-        setBusy(false);
-        return;
-      }
-
       await inviteCompanyUser({
         email: invite.email.trim(),
         password: invite.password,
         display_name: invite.display_name.trim() || invite.email.split('@')[0],
         role: invite.role,
         company_id: profile.company_id,
-        subscriber_id: invite.role === 'subscriber' ? invite.subscriber_id : null,
-        customer_id: invite.role === 'customer' ? invite.customer_id : null,
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Käyttäjän luonti epäonnistui');
@@ -257,14 +234,7 @@ export default function UsersPage() {
     }
 
     setMessage(`Käyttäjä ${invite.email} luotu. Kirjautuminen: ${invite.email} / ${invite.password}`);
-    setInvite({
-      email: '',
-      password: 'test123456',
-      display_name: '',
-      role: 'technician',
-      subscriber_id: '',
-      customer_id: '',
-    });
+    setInvite({ email: '', password: 'test123456', display_name: '', role: 'technician' });
     await loadUsers();
   }
 
@@ -345,8 +315,8 @@ export default function UsersPage() {
       <section className="panel">
         <h2>Käyttäjät</h2>
         <p className="muted">
-          Määritä kenen tunnit ja kulut lasketaan kumppanilaskutukseen (oletus: pois päältä).
-          Kun laskutus on käytössä, raportit näkyvät myös <Link to="/laskutus">Laskutus</Link>-moduulissa.
+          Yrityksen sisäiset käyttäjät (asentajat, ylläpitäjät). Asiakas- ja tilaajaportaalit hallitaan{' '}
+          <Link to="/asiakkaat">asiakaskorteilta</Link> ja <Link to="/hallinta/tilaajat">tilaajarekisteristä</Link>.
         </p>
         {isGlobalAdmin && !globalAdminMode && (
           <p className="muted global-admin-hint">
@@ -431,22 +401,18 @@ export default function UsersPage() {
                     )}
                   </div>
 
-                  {!isPortalRole(u.role) ? (
-                    <div className="user-card-toggles">
-                      <ToggleSwitch
-                        label="Tunnit laskutukseen"
-                        checked={u.bill_hours_enabled}
-                        onChange={(value) => void updateBillingFlag(u.id, 'bill_hours_enabled', value)}
-                      />
-                      <ToggleSwitch
-                        label="Kulut laskutukseen"
-                        checked={u.bill_expenses_enabled}
-                        onChange={(value) => void updateBillingFlag(u.id, 'bill_expenses_enabled', value)}
-                      />
-                    </div>
-                  ) : (
-                    <p className="muted user-portal-hint">Portaali — ei laskutuskenttiä</p>
-                  )}
+                  <div className="user-card-toggles">
+                    <ToggleSwitch
+                      label="Tunnit laskutukseen"
+                      checked={u.bill_hours_enabled}
+                      onChange={(value) => void updateBillingFlag(u.id, 'bill_hours_enabled', value)}
+                    />
+                    <ToggleSwitch
+                      label="Kulut laskutukseen"
+                      checked={u.bill_expenses_enabled}
+                      onChange={(value) => void updateBillingFlag(u.id, 'bill_expenses_enabled', value)}
+                    />
+                  </div>
 
                   <select
                     className="user-role-select"
@@ -454,13 +420,11 @@ export default function UsersPage() {
                     onChange={(e) => void updateRole(u.id, e.target.value)}
                     disabled={u.id === profile.id && u.role === 'admin' && adminCount <= 1}
                   >
-                    {Object.entries(ROLE_LABELS)
-                      .filter(([value]) => value !== 'customer' && value !== 'subscriber')
-                      .map(([value, label]) => (
-                        <option key={value} value={value}>
-                          {label}
-                        </option>
-                      ))}
+                    {STAFF_ROLES.map((value) => (
+                      <option key={value} value={value}>
+                        {ROLE_LABELS[value]}
+                      </option>
+                    ))}
                   </select>
 
                   {canDeleteUsers && u.id !== profile.id && (
@@ -584,17 +548,9 @@ export default function UsersPage() {
               Rooli
               <select
                 value={invite.role}
-                onChange={(e) => {
-                  const role = e.target.value;
-                  setInvite((i) => ({
-                    ...i,
-                    role,
-                    subscriber_id: role === 'subscriber' ? i.subscriber_id : '',
-                    customer_id: role === 'customer' ? i.customer_id : '',
-                  }));
-                }}
+                onChange={(e) => setInvite((i) => ({ ...i, role: e.target.value }))}
               >
-                {INVITE_ROLES.map((r) => (
+                {STAFF_INVITE_ROLES.map((r) => (
                   <option key={r.value} value={r.value}>
                     {r.label}
                   </option>
@@ -602,43 +558,6 @@ export default function UsersPage() {
               </select>
             </label>
           </div>
-
-          {invite.role === 'customer' && (
-            <PortalCustomerPicker
-              customers={customers}
-              customerId={invite.customer_id}
-              disabled={busy}
-              label="Asiakaskohde (portaali)"
-              hint={
-                customers.length === 0 ? (
-                  'Ei asiakkaita rekisterissä — luo ensin kohde asiakasrekisteriin.'
-                ) : customers.every((c) => c.subscriber_id) ? (
-                  'Kaikki kohteet on linkitetty tilaajaan — luo suora asiakaskohde tai irrota tilaajalinkki.'
-                ) : (
-                  'Käyttäjä näkee tämän kohteen raportit ja voi lähettää työtilauksia.'
-                )
-              }
-              onChange={(customerId) => setInvite((i) => ({ ...i, customer_id: customerId }))}
-            />
-          )}
-
-          {invite.role === 'subscriber' && (
-            <SubscriberPicker
-              subscribers={subscribers}
-              subscriberId={invite.subscriber_id}
-              disabled={busy}
-              hint={
-                subscribers.length === 0 ? (
-                  <>
-                    Luo ensin tilaaja kohdassa <Link to="/hallinta/tilaajat">Hallinta → Tilaajat</Link>.
-                  </>
-                ) : (
-                  'Käyttäjä näkee kaikki tähän tilaajaan linkitetyt kohteet, voi lähettää työtilauksia ja lukea raportteja.'
-                )
-              }
-              onChange={(subscriberId) => setInvite((i) => ({ ...i, subscriber_id: subscriberId }))}
-            />
-          )}
 
           {error && <p className="error">{error}</p>}
           {message && <p className="muted">{message}</p>}

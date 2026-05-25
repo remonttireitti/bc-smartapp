@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { Link, useOutletContext } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
+import SubscriberPortalSection from '../components/SubscriberPortalSection';
 import { loadSubscribersForOwner } from '../lib/subscribers';
 import { supabase } from '../lib/supabase';
 import type { Profile, Subscriber } from '../types';
@@ -45,7 +46,7 @@ export default function SubscribersPage() {
     setLoading(false);
   }
 
-  function startEdit(entry: Subscriber) {
+  function startEdit(entry: Subscriber, scrollToPortal = false) {
     setEditingId(entry.id);
     setForm({
       name: entry.name,
@@ -56,6 +57,11 @@ export default function SubscribersPage() {
     });
     setMessage(null);
     setError(null);
+    if (scrollToPortal) {
+      window.setTimeout(() => {
+        document.getElementById('subscriber-portal')?.scrollIntoView({ behavior: 'smooth' });
+      }, 150);
+    }
   }
 
   function cancelEdit() {
@@ -213,6 +219,14 @@ export default function SubscribersPage() {
         </div>
       </form>
 
+      {editingId && ownerCompanyId && (
+        <SubscriberPortalSection
+          subscriberId={editingId}
+          subscriberName={form.name.trim() || subscribers.find((s) => s.id === editingId)?.name || 'Tilaaja'}
+          companyId={ownerCompanyId}
+        />
+      )}
+
       <section className="panel" style={{ marginTop: '1.5rem' }}>
         <h2>Rekisteri ({subscribers.length})</h2>
         {loading ? (
@@ -230,6 +244,9 @@ export default function SubscribersPage() {
                   </span>
                 </div>
                 <div className="inline-actions">
+                  <button type="button" className="primary" onClick={() => startEdit(entry, true)} disabled={busy}>
+                    Avaa tilaajaportaali
+                  </button>
                   <button type="button" className="secondary" onClick={() => startEdit(entry)} disabled={busy}>
                     Muokkaa
                   </button>

@@ -7,6 +7,7 @@ import { DeviceCardIcon, HistoryIcon, PrinterIcon } from '../components/PrintIco
 import Tooltip from '../components/Tooltip';
 import ToggleSwitch from '../components/ToggleSwitch';
 import SubscriberPicker from '../components/SubscriberPicker';
+import CustomerPortalSection from '../components/CustomerPortalSection';
 import {
   isCustomerExplicitlySharedWithPartner,
   isCustomerReportLinkedWithPartner,
@@ -504,6 +505,15 @@ export default function CustomerDetailPage({ session }: Props) {
             >
               + Uusi huoltoraportti
             </Link>
+            {!customer.subscriber_id && profile?.role === 'admin' && (
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => document.getElementById('customer-portal')?.scrollIntoView({ behavior: 'smooth' })}
+              >
+                Asiakasportaali
+              </button>
+            )}
             <button type="button" className="btn btn-secondary" onClick={() => setEditing(true)}>
               Muokkaa
             </button>
@@ -575,6 +585,27 @@ export default function CustomerDetailPage({ session }: Props) {
             <div><dt>Muistiinpanot</dt><dd>{customer.notes ?? '—'}</dd></div>
           </dl>
         </section>
+      )}
+
+      {!editing && customer.owner_company_id === profile?.company_id && (
+        customer.subscriber_id ? (
+          <section className="panel">
+            <h2>Asiakasportaali</h2>
+            <p className="muted">
+              Kohde on linkitetty tilaajaan{' '}
+              <strong>{customer.subscriber?.name ?? '—'}</strong>. Monikohteinen portaali hallitaan tilaajan
+              kautta — <Link to="/hallinta/tilaajat">Hallinta → Tilaajat</Link> → valitse tilaaja →
+              tilaajaportaali.
+            </p>
+          </section>
+        ) : (
+          <CustomerPortalSection
+            customerId={customer.id}
+            customerName={customer.name}
+            companyId={customer.owner_company_id}
+            canManage={profile?.role === 'admin'}
+          />
+        )
       )}
 
       {customer.owner_company_id === profile?.company_id && shareablePartners.length > 0 && (

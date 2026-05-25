@@ -193,7 +193,14 @@ export default function CustomersPage({ session }: Props) {
             <ul className="report-list">
               {filteredCustomers.map((c) => (
                 <li key={c.id}>
-                  <CustomerListItem customer={c} />
+                  <CustomerListItem
+                    customer={c}
+                    showPortalAction={
+                      profile?.role === 'admin'
+                      && c.owner_company_id === profile.company_id
+                      && !c.subscriber_id
+                    }
+                  />
                 </li>
               ))}
             </ul>
