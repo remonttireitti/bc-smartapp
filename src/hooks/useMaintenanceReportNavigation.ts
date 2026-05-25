@@ -34,14 +34,15 @@ export function useMaintenanceReportNavigation(input: {
     });
 
     const reportTrail: NavigationTrailState = {
-      breadcrumb: [...trail.breadcrumb, { label: pageLabel }],
-      backTo: trail.backTo,
+      breadcrumb,
+      backTo,
     };
 
     return {
       breadcrumb,
       backTo,
       reportTrail,
+      trail,
       navState: location.state,
       linkToPrint: (reportId: string) => ({
         to: `/huoltoraportit/${reportId}/tuloste`,
@@ -64,8 +65,8 @@ export function useMaintenanceReportNavigation(input: {
 
   useEffect(() => {
     if (!input.reportId) return;
-    persistNavTrail(input.reportId, navigation.reportTrail);
-  }, [input.reportId, navigation.reportTrail]);
+    persistNavTrail(input.reportId, navigation.trail);
+  }, [input.reportId, navigation.trail]);
 
   return navigation;
 }

@@ -43,26 +43,21 @@ export function useMaintenancePrintNavigation(reportId: string | undefined, repo
         breadcrumb: reportTrail.breadcrumb.slice(0, -1),
         backTo: reportTrail.backTo,
       };
-    } else if (persisted) {
-      reportTrail = persisted;
-    } else if (reportData) {
-      reportTrail = inferMaintenanceReportTrail({
-        inherited: null,
+    } else if (persisted || reportData) {
+      const inferred = inferMaintenanceReportTrail({
+        inherited: persisted,
         customerId,
-        customerName: loadedCustomerName ?? (reportData.asiakas.trim() || null),
+        customerName: loadedCustomerName ?? (reportData?.asiakas.trim() || null),
         pageLabel,
-      }).trail;
-      reportTrail = {
-        breadcrumb: appendPage(reportTrail, pageLabel),
-        backTo: reportTrail.backTo,
-      };
+      });
+      reportTrail = { breadcrumb: inferred.breadcrumb, backTo: inferred.backTo };
     }
 
     const breadcrumb: BreadcrumbItem[] = reportTrail
       ? [...reportTrail.breadcrumb, { label: printLabel }]
       : [{ label: 'Etusivu', to: '/' }, { label: 'Huoltoraportit', to: '/huoltoraportit' }, { label: printLabel }];
 
-    const editTrail =
+    const editTrail: NavigationTrailState =
       reportTrail ??
       inferMaintenanceReportTrail({
         inherited: null,
@@ -71,18 +66,18 @@ export function useMaintenancePrintNavigation(reportId: string | undefined, repo
         pageLabel,
       }).trail;
 
-    const editTrailWithPage: NavigationTrailState = {
-      breadcrumb: appendPage(editTrail, pageLabel),
-      backTo: editTrail.backTo,
-    };
-
     return {
       breadcrumb,
       backTo: reportId ? `/huoltoraportit/${reportId}` : '/huoltoraportit',
       linkToEdit: reportId
         ? {
             to: `/huoltoraportit/${reportId}`,
-            ...withNavTrail(editTrailWithPage),
+            ...withNavTrail(
+              reportTrail ?? {
+                breadcrumb: appendPage(editTrail, pageLabel),
+                backTo: editTrail.backTo,
+              },
+            ),
           }
         : null,
       listBackTo: editTrail.backTo,

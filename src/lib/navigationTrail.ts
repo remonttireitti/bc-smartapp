@@ -79,6 +79,23 @@ export function appendPage(trail: NavigationTrailState, label: string): Breadcru
   return [...trail.breadcrumb, { label }];
 }
 
+/** Poistaa peräkkäiset nykyisen sivun nimikkeet (reload-bugin jälkeen sessionStoragessa). */
+export function stripTrailingPageCrumbs(
+  breadcrumb: BreadcrumbItem[],
+  pageLabel: string,
+): BreadcrumbItem[] {
+  const items = [...breadcrumb];
+  while (items.length > 0) {
+    const last = items[items.length - 1];
+    if (last.label === pageLabel && !last.to) {
+      items.pop();
+    } else {
+      break;
+    }
+  }
+  return items;
+}
+
 export function withNavTrail(trail: NavigationTrailState) {
   return { state: { [NAV_TRAIL_STATE_KEY]: trail } };
 }
@@ -98,11 +115,17 @@ export function inferMaintenanceReportTrail(input: {
   customerName: string | null;
   pageLabel: string;
 }): { breadcrumb: BreadcrumbItem[]; backTo: string; trail: NavigationTrailState } {
-  const base =
-    input.inherited ??
-    (input.customerId && input.customerName
+  const fallback =
+    input.customerId && input.customerName
       ? customerDetailTrail(input.customerId, input.customerName)
-      : maintenanceListTrail());
+      : maintenanceListTrail();
+
+  const base: NavigationTrailState = input.inherited
+    ? {
+        ...input.inherited,
+        breadcrumb: stripTrailingPageCrumbs(input.inherited.breadcrumb, input.pageLabel),
+      }
+    : fallback;
 
   const breadcrumb = appendPage(base, input.pageLabel);
   return { breadcrumb, backTo: base.backTo, trail: base };
