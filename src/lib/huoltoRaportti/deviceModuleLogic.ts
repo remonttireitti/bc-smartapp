@@ -232,3 +232,8 @@ export function mlpSectionTitle(deviceType: string): string {
   if (isGroundSourceHeatPump(deviceType)) return 'Maalämpöpumpun piirit';
   return 'MLP-piirit';
 }
+
+export function keruupiiriSectionTitle(deviceType: string): string {
+  if (isWaterAirHeatPump(deviceType)) return 'Keruupiiri (lähde/vesi)';
+  return 'Keruupiiri (maa/vesi)';
+}

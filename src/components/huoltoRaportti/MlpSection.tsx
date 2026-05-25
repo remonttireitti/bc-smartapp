@@ -1,6 +1,6 @@
 import type { HuoltoReportData, KompressorinVaiheValinta, MlpData, PumpunSyottoValinta } from '../../lib/huoltoRaportti/types';
 import { lampoJakotapaOptions, mlpNestOptions } from '../../lib/huoltoRaportti/constants';
-import { isWaterAirHeatPump, mlpSectionTitle } from '../../lib/huoltoRaportti/deviceModuleLogic';
+import { keruupiiriSectionTitle, mlpSectionTitle } from '../../lib/huoltoRaportti/deviceModuleLogic';
 import { createEmptyHeatingCircuitData, createEmptyHeatingElementData } from '../../lib/huoltoRaportti/defaults';
 import { getKokoLaiteSahkoVaiheValinta, getMlpPumpSyottoValinta } from '../../lib/huoltoRaportti/sahkoVaiheUtils';
 import { FormCheckbox } from './FormCheckbox';
@@ -52,9 +52,8 @@ export function MlpSection({ form, onChange }: Props) {
   return (
     <HuoltoModuleSection moduleKey="mlpPiirit" title={mlpSectionTitle(form.laiteTyyppi)}>
 
-      {!isWaterAirHeatPump(form.laiteTyyppi) && (
       <div className="huolto-submodule">
-        <h3>Keruupiiri (maa/vesi)</h3>
+        <h3>{keruupiiriSectionTitle(form.laiteTyyppi)}</h3>
         <div className="checkbox-grid">
           <FormCheckbox label="Paine tarkastettu" checked={mlp.keruupiirinPaineTarkastettu} onChange={(v) => patchMlp({ keruupiirinPaineTarkastettu: v, ...(v ? {} : { keruupiiriPaineBar: '' }) })} />
           <FormCheckbox label="Mutasihti puhdistettu" checked={mlp.keruupiirissaMutapussiPuhdistettu} onChange={(v) => patchMlp({ keruupiirissaMutapussiPuhdistettu: v })} />
@@ -109,7 +108,6 @@ export function MlpSection({ form, onChange }: Props) {
           <div className="huolto-alert huolto-alert-success">Keruupiirin teho: {keruuPower} kW</div>
         )}
       </div>
-      )}
 
       <div className="huolto-submodule">
         <h3>Erillinen jäähdytyspiiri</h3>

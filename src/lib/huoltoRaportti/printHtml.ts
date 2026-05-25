@@ -297,7 +297,16 @@ function renderNestelauhduttimet(data: HuoltoReportData): string {
 
 function renderMlpSummary(data: HuoltoReportData): string {
   const mlp = data.mlpData;
-  if (!mlp || (!data.selectedModules.mlpPiirit && data.laiteTyyppi !== 'mlp')) return '';
+  if (
+    !mlp
+    || (
+      !data.selectedModules.mlpPiirit
+      && data.laiteTyyppi !== 'mlp'
+      && data.laiteTyyppi !== 'vesiilmalampopumppu'
+    )
+  ) {
+    return '';
+  }
 
   const sections: string[] = [];
 
