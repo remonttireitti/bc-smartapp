@@ -469,10 +469,36 @@ export function reportPartyLabels(report: WorkReport) {
   return { reporterName: authorName, reporterCompany, onBehalfOf, isPartnerReport };
 }
 
+function truncateAtWord(text: string, maxLength: number): string {
+  const trimmed = text.trim();
+  if (trimmed.length <= maxLength) return trimmed;
+
+  const cut = trimmed.slice(0, maxLength);
+  const lastSpace = cut.lastIndexOf(' ');
+  if (lastSpace > Math.floor(maxLength * 0.5)) {
+    return cut.slice(0, lastSpace).trimEnd();
+  }
+
+  return cut.trimEnd();
+}
+
 export function buildWorkReportTitle(customerName: string | undefined | null, description: string) {
   const base = customerName ?? 'Työraportti';
-  const snippet = description.trim().slice(0, 48);
+  const snippet = truncateAtWord(description, 48);
   return snippet ? `${base} – ${snippet}` : base;
+}
+
+/** Full headline for print/PDF — uses complete task description, not the short list title. */
+export function buildWorkReportPrintHeadline(
+  report: Pick<WorkReport, 'title' | 'description'> & {
+    customers?: { name: string } | null;
+  },
+): string {
+  const customerName = report.customers?.name?.trim();
+  const taskText = resolveWorkReportDescription(report);
+  if (taskText && customerName) return `${customerName} – ${taskText}`;
+  if (taskText) return taskText;
+  return report.title?.trim() || 'Työraportti';
 }
 
 /** Full task description for display/edit — falls back to title when description column is empty. */

@@ -14,6 +14,7 @@ import {
   defaultOfficeHour,
   todayIsoDate,
   OFFICE_HOUR_OPTIONS,
+  buildWorkReportTitle,
   resolveWorkReportDescription,
   splitScheduledStart,
 } from '../types';
@@ -25,9 +26,7 @@ interface Props {
 }
 
 function buildTitle(customerName: string | undefined, description: string) {
-  const base = customerName ?? 'Toimeksianto';
-  const snippet = description.trim().slice(0, 48);
-  return snippet ? `${base} – ${snippet}` : base;
+  return buildWorkReportTitle(customerName, description);
 }
 
 export default function WorkReportOrderPage({ session }: Props) {

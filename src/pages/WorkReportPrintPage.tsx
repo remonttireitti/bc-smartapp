@@ -9,6 +9,7 @@ import { IconBack, IconEuro, IconPrint } from '../components/icons';
 import { useProfile } from '../hooks/useProfile';
 import { loadWorkReportPrintBundle } from '../lib/workReportPrintAction';
 import { buildWorkReportPrintTitle } from '../lib/workReportPrintHtml';
+import { buildWorkReportPrintHeadline } from '../types';
 import type { BillableCalculation } from '../lib/workReportBilling';
 import type { WorkReport } from '../types';
 
@@ -92,7 +93,7 @@ export default function WorkReportPrintPage({ session }: Props) {
               <Link to="/">Etusivu</Link> / <Link to="/tyoraportit">Työraportit</Link> / Tuloste
             </p>
             <h1>Työraportin tuloste</h1>
-            <p className="muted">{report.title}</p>
+            <p className="muted">{buildWorkReportPrintHeadline(report)}</p>
           </div>
           <div className="page-header-actions action-toolbar">
             {canTogglePartnerPrices && (

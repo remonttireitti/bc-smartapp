@@ -17,6 +17,7 @@ import {
   formatWorkReportEquipment,
   resolveWorkReportDisplayPeople,
   resolveWorkReportDescription,
+  buildWorkReportPrintHeadline,
   resolveDailyLogAuthorLabel,
   resolveWorkReportAuthorCompany,
   type WorkReport,
@@ -79,7 +80,7 @@ export function buildWorkReportPrintTitle(
   const reportDate = report.completed_at ?? report.scheduled_start;
   const dateLabel = reportDate ? formatDate(reportDate) : new Date().toLocaleDateString('fi-FI');
   const descriptionLine = summary.descriptionText.replace(/\s+/g, ' ').trim() || '—';
-  const titleLine = report.title.replace(/\s+/g, ' ').trim() || '—';
+  const titleLine = buildWorkReportPrintHeadline(report).replace(/\s+/g, ' ').trim() || '—';
 
   return [
     sanitizePrintFileNamePart(summary.brandingName, 50),
@@ -235,6 +236,7 @@ export function generateWorkReportPrintHtml(input: {
     meta,
   );
   const printTitle = buildWorkReportPrintTitle(report, meta);
+  const printHeadline = buildWorkReportPrintHeadline(report);
   const displayPeople = resolveWorkReportDisplayPeople(report, { hideAssignee: hideAssignee });
   const authorCompanyName = resolveWorkReportAuthorCompany(report, {
     hideAssignee: hideAssignee,
@@ -250,7 +252,7 @@ export function generateWorkReportPrintHtml(input: {
       </div>
       <div class="summary-title-block">
         <div class="doc-label">Työraportti</div>
-        <h1>${esc(report.title)}</h1>
+        <h1>${esc(printHeadline)}</h1>
       </div>
       <div class="summary-print-date">
         <span class="field-label">Tulostettu</span>
@@ -476,13 +478,20 @@ const PRINT_CSS = `
   }
   .print-box-body { padding: 12px; }
   .summary-head {
-    display: grid;
-    grid-template-columns: 52mm 1fr auto;
+    position: relative;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
     gap: 12px;
-    align-items: start;
+    min-height: 16mm;
     padding-bottom: 12px;
     margin-bottom: 12px;
     border-bottom: 2px solid var(--accent);
+  }
+  .summary-brand {
+    flex: 0 1 52mm;
+    max-width: 52mm;
+    z-index: 1;
   }
   .logo { max-height: 16mm; max-width: 50mm; object-fit: contain; display: block; }
   .logo-fallback { font-size: 11pt; font-weight: 700; color: var(--text); }
@@ -494,6 +503,14 @@ const PRINT_CSS = `
     color: var(--muted);
     margin-bottom: 2px;
   }
+  .summary-title-block {
+    position: absolute;
+    left: 50%;
+    top: 0;
+    transform: translateX(-50%);
+    width: min(110mm, calc(100% - 104mm));
+    text-align: center;
+  }
   .summary-title-block h1 {
     margin: 0;
     font-size: 16pt;
@@ -501,8 +518,10 @@ const PRINT_CSS = `
     color: var(--text);
   }
   .summary-print-date {
+    flex: 0 0 auto;
     text-align: right;
     min-width: 28mm;
+    z-index: 1;
   }
   .field-label {
     display: block;
