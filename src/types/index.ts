@@ -488,6 +488,15 @@ export function buildWorkReportTitle(customerName: string | undefined | null, de
   return snippet ? `${base} – ${snippet}` : base;
 }
 
+export function buildMaintenanceReportTitle(
+  customerName: string | undefined | null,
+  snippet: string,
+) {
+  const base = customerName ?? 'Huoltoraportti';
+  const part = truncateAtWord(snippet, 48);
+  return part ? `${base} – ${part}` : base;
+}
+
 /** Full headline for print/PDF — uses complete task description, not the short list title. */
 export function buildWorkReportPrintHeadline(
   report: Pick<WorkReport, 'title' | 'description'> & {

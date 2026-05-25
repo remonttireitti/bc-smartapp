@@ -536,6 +536,7 @@ export type MaintenanceReportRow = {
   equipment_id: string | null;
   assigned_user_id: string | null;
   status: string;
+  title: string | null;
   data: HuoltoReportData;
   created_at: string;
   updated_at: string;

@@ -26,11 +26,12 @@ import { TiiveyskoeSection } from '../components/huoltoRaportti/TiiveyskoeSectio
 import { TyhjiointiSection } from '../components/huoltoRaportti/TyhjiointiSection';
 import {
   applyDeviceTypeDefaults,
+  buildMaintenanceReportTitleFromData,
   createEmptyHuoltoReportData,
   createEmptyMlpData,
-  maintenanceReportListTitle,
   mergeHuoltoReportData,
   normalizeHuoltoReportData,
+  resolveMaintenanceReportTitle,
 } from '../lib/huoltoRaportti/defaults';
 import { supabase } from '../lib/supabase';
 import { createRegistryCustomer } from '../lib/createRegistryCustomer';
@@ -100,6 +101,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
   const { profile, loading: profileLoading } = useProfile(session);
 
   const [reportId, setReportId] = useState<string | null>(id ?? null);
+  const [savedReportTitle, setSavedReportTitle] = useState<string | null>(null);
   const [reportOwnerCompanyId, setReportOwnerCompanyId] = useState<string | null>(null);
   const [status, setStatus] = useState('draft');
   const [form, setForm] = useState<HuoltoReportData>(() => createEmptyHuoltoReportData());
@@ -138,7 +140,15 @@ export default function MaintenanceReportEditPage({ session }: Props) {
   }, [selectedCustomer, profile?.company_id, partnerships]);
   const { contextMode, partnerId, ownerCompanyId } = reportContext;
 
-  const reportTitle = maintenanceReportListTitle(form);
+  const reportTitle = useMemo(
+    () =>
+      resolveMaintenanceReportTitle(
+        savedReportTitle,
+        form,
+        selectedCustomer?.name ?? (form.asiakas.trim() || null),
+      ),
+    [savedReportTitle, form, selectedCustomer?.name],
+  );
   const navigation = useMaintenanceReportNavigation({
     isNew,
     reportId,
@@ -251,7 +261,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
     const { data, error: loadError } = await supabase
       .from('maintenance_reports')
       .select(`
-        id, status, data, owner_company_id, created_by_company_id,
+        id, status, title, data, owner_company_id, created_by_company_id,
         branding_company_id, partnership_id, customer_id, equipment_id
       `)
       .eq('id', reportIdToLoad)
@@ -266,6 +276,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
     const row = data as {
       id: string;
       status: string;
+      title: string | null;
       data: HuoltoReportData;
       owner_company_id: string;
       created_by_company_id: string;
@@ -275,6 +286,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
     };
 
     setReportId(row.id);
+    setSavedReportTitle(row.title);
     setReportOwnerCompanyId(row.owner_company_id);
     setStatus(row.status);
     setForm(normalizeHuoltoReportData({ ...createEmptyHuoltoReportData(), ...row.data }));
@@ -620,6 +632,9 @@ export default function MaintenanceReportEditPage({ session }: Props) {
         equipmentSnapshot: buildHuoltoEquipmentTechnicalSnapshot(form) as unknown as EquipmentSnapshot,
       };
 
+      const customerName = selectedCustomer?.name ?? (form.asiakas.trim() || null);
+      const title = buildMaintenanceReportTitleFromData(customerName, dataPayload);
+
       const rowPayload = {
         owner_company_id: ownerCompanyId,
         created_by_company_id: profile.company_id,
@@ -628,6 +643,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
         customer_id: customerId || null,
         equipment_id: equipmentId || null,
         assigned_user_id: session.user.id,
+        title,
         data: dataPayload,
         status: nextStatus ?? status,
         completed_at: nextStatus === 'submitted' ? new Date().toISOString() : null,
@@ -644,6 +660,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
           if (options?.auto) setAutoSaveState('offline');
           return false;
         }
+        setSavedReportTitle(title);
       } else {
         const { data, error: insertError } = await supabase
           .from('maintenance_reports')
@@ -657,6 +674,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
           return false;
         }
         setReportId(data.id);
+        setSavedReportTitle(title);
         clearLocalMaintenanceDraft(localDraftKey(null, session.user.id));
         navigate(`/huoltoraportit/${data.id}`, { replace: true, state: location.state });
       }

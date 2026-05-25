@@ -8,7 +8,7 @@ import AppLayout from '../components/AppLayout';
 
 import { supabase } from '../lib/supabase';
 
-import { maintenanceReportListTitle } from '../lib/huoltoRaportti/defaults';
+import { resolveMaintenanceReportTitle } from '../lib/huoltoRaportti/defaults';
 
 import type { HuoltoReportData } from '../lib/huoltoRaportti/types';
 
@@ -32,6 +32,8 @@ type MaintenanceReportListRow = {
   id: string;
 
   status: string;
+
+  title: string | null;
 
   data: HuoltoReportData;
 
@@ -65,7 +67,7 @@ function reportSearchText(report: MaintenanceReportListRow): string {
 
   return [
 
-    maintenanceReportListTitle(data),
+    resolveMaintenanceReportTitle(report.title, data, report.customers?.name),
 
     report.customers?.name,
 
@@ -341,9 +343,9 @@ function ReportRow({
 
   const data = report.data ?? ({} as HuoltoReportData);
 
-  const title = maintenanceReportListTitle(data);
-
   const customerName = report.customers?.name ?? data.asiakas;
+
+  const title = resolveMaintenanceReportTitle(report.title, data, customerName);
 
   const deviceLabel =
 

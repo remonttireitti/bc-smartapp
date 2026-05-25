@@ -4,7 +4,8 @@ import {
   isHeatPumpCircuitsDevice,
   resolveAutoModules,
 } from './deviceModuleLogic';
-import { isMlpVesiNeste, type ModuleKey } from './constants';
+import { buildMaintenanceReportTitle } from '../../types';
+import { deviceTypes, isMlpVesiNeste, type ModuleKey } from './constants';
 import type {
   CompressorData,
   CondenserData,
@@ -822,13 +823,40 @@ function isAirSourceHeatPump(deviceType: string) {
   return deviceType === 'lämpöpumppu';
 }
 
+/** Lyhyt kuvaus listanimeä varten (laite / tyyppi), sama idea kuin työraportin kuvaus. */
+export function maintenanceReportTitleSnippet(data: HuoltoReportData): string {
+  const deviceTypeLabel = deviceTypes.find((d) => d.value === data.laiteTyyppi)?.label;
+  return [
+    data.laiteTunnus?.trim(),
+    data.laiteMalli?.trim(),
+    deviceTypeLabel,
+    data.laiteKayttotarkoitus?.trim(),
+  ]
+    .filter(Boolean)
+    .join(' ');
+}
+
+export function buildMaintenanceReportTitleFromData(
+  customerName: string | undefined | null,
+  data: HuoltoReportData,
+): string {
+  return buildMaintenanceReportTitle(customerName, maintenanceReportTitleSnippet(data));
+}
+
+export function resolveMaintenanceReportTitle(
+  storedTitle: string | null | undefined,
+  data: HuoltoReportData,
+  customerName?: string | null,
+): string {
+  const trimmed = storedTitle?.trim();
+  if (trimmed) return trimmed;
+  const customer = customerName ?? (data.asiakas?.trim() || null);
+  return buildMaintenanceReportTitleFromData(customer, data);
+}
+
+/** @deprecated Prefer resolveMaintenanceReportTitle with DB title when available. */
 export function maintenanceReportListTitle(data: HuoltoReportData): string {
-  const parts = [
-    data.huoltoPaivamaara,
-    data.asiakas?.trim(),
-    data.laiteTunnus?.trim() || data.laiteMalli?.trim(),
-  ].filter(Boolean);
-  return parts.join(' · ') || 'Huoltoraportti';
+  return buildMaintenanceReportTitleFromData(data.asiakas?.trim() || null, data);
 }
 
 export function mergeHuoltoReportData(

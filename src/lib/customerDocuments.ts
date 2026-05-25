@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { maintenanceReportListTitle } from './huoltoRaportti/defaults';
+import { resolveMaintenanceReportTitle } from './huoltoRaportti/defaults';
 import type { HuoltoReportData } from './huoltoRaportti/types';
 import { QUOTE_TYPE_LABELS } from './quoteRequest/constants';
 import { QUOTE_STATUS_LABELS, normalizeQuoteRequestData } from './quoteRequest/defaults';
@@ -70,7 +70,7 @@ export async function loadCustomerLinkedDocuments(
       .order('updated_at', { ascending: false }),
     supabase
       .from('maintenance_reports')
-      .select('id, status, data, created_at, updated_at, equipment_id, equipment(name, tag)')
+      .select('id, status, title, data, created_at, updated_at, equipment_id, equipment(name, tag)')
       .eq('customer_id', customerId)
       .order('updated_at', { ascending: false }),
     supabase
@@ -120,6 +120,7 @@ export async function loadCustomerLinkedDocuments(
     const report = row as unknown as {
       id: string;
       status: string;
+      title: string | null;
       data: HuoltoReportData;
       created_at: string;
       updated_at: string;
@@ -129,7 +130,10 @@ export async function loadCustomerLinkedDocuments(
     linked.push({
       id: report.id,
       kind: 'maintenance_report',
-      title: maintenanceReportListTitle(report.data ?? ({} as HuoltoReportData)),
+      title: resolveMaintenanceReportTitle(
+        report.title,
+        report.data ?? ({} as HuoltoReportData),
+      ),
       date: report.updated_at || report.created_at,
       status: report.status,
       statusLabel: getMaintenanceReportStatusLabel(report.status),

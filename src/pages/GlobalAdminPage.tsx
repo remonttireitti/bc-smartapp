@@ -17,7 +17,7 @@ const ENTITY_LABELS: Record<EntityType, string> = {
 
 const ENTITY_SELECT: Record<EntityType, string> = {
   work_reports: 'id, title, customers(name)',
-  maintenance_reports: 'id, customers(name), equipment(name, tag)',
+  maintenance_reports: 'id, title, customers(name), equipment(name, tag)',
   customers: 'id, name',
   quote_requests: 'id, title, customers(name)',
 };
@@ -54,7 +54,9 @@ function formatEntityRow(entityType: EntityType, row: Record<string, unknown>): 
       return {
         id,
         customerLabel: (row.customers as { name?: string } | null)?.name ?? '—',
-        detailLabel: formatEquipmentLabel(row.equipment as { name?: string | null; tag?: string | null } | null),
+        detailLabel:
+          (row.title as string | null)?.trim()
+          || formatEquipmentLabel(row.equipment as { name?: string | null; tag?: string | null } | null),
       };
     case 'customers':
       return {
