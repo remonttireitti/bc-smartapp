@@ -1,6 +1,10 @@
 import type { HuoltoReportData, KompressorinVaiheValinta, MlpData, PumpunSyottoValinta } from '../../lib/huoltoRaportti/types';
 import { lampoJakotapaOptions, mlpNestOptions } from '../../lib/huoltoRaportti/constants';
-import { keruupiiriSectionTitle, mlpSectionTitle } from '../../lib/huoltoRaportti/deviceModuleLogic';
+import {
+  isWaterAirHeatPump,
+  keruupiiriSectionTitle,
+  mlpSectionTitle,
+} from '../../lib/huoltoRaportti/deviceModuleLogic';
 import { createEmptyHeatingCircuitData, createEmptyHeatingElementData } from '../../lib/huoltoRaportti/defaults';
 import { getKokoLaiteSahkoVaiheValinta, getMlpPumpSyottoValinta } from '../../lib/huoltoRaportti/sahkoVaiheUtils';
 import { FormCheckbox } from './FormCheckbox';
@@ -54,7 +58,7 @@ export function MlpSection({ form, onChange }: Props) {
 
       <div className="huolto-submodule">
         <h3>{keruupiiriSectionTitle(form.laiteTyyppi)}</h3>
-        <div className="checkbox-grid">
+        <div className="checkbox-grid huolto-toggle-grid">
           <FormCheckbox label="Paine tarkastettu" checked={mlp.keruupiirinPaineTarkastettu} onChange={(v) => patchMlp({ keruupiirinPaineTarkastettu: v, ...(v ? {} : { keruupiiriPaineBar: '' }) })} />
           <FormCheckbox label="Mutasihti puhdistettu" checked={mlp.keruupiirissaMutapussiPuhdistettu} onChange={(v) => patchMlp({ keruupiirissaMutapussiPuhdistettu: v })} />
           <FormCheckbox label="Pumppu tarkastettu" checked={mlp.keruupiirinPumppuTarkastettu} onChange={(v) => patchMlp({ keruupiirinPumppuTarkastettu: v })} />
@@ -109,9 +113,10 @@ export function MlpSection({ form, onChange }: Props) {
         )}
       </div>
 
+      {!isWaterAirHeatPump(form.laiteTyyppi) && (
       <div className="huolto-submodule">
         <h3>Erillinen jäähdytyspiiri</h3>
-        <div className="checkbox-grid">
+        <div className="checkbox-grid huolto-toggle-grid">
           <FormCheckbox label="Erillinen piiri" checked={mlp.keruuJaahdytysPiiri} onChange={(v) => patchMlp({ keruuJaahdytysPiiri: v })} />
           <FormCheckbox label="Piirissä pumppu" checked={mlp.keruuJaahdytysPiiriPumppu} onChange={(v) => patchMlp({ keruuJaahdytysPiiriPumppu: v })} />
         </div>
@@ -141,6 +146,7 @@ export function MlpSection({ form, onChange }: Props) {
           <FormInput label="Paluu (°C)" value={mlp.keruuJaahdytysPaluuLampotila} onChange={(v) => patchMlp({ keruuJaahdytysPaluuLampotila: v })} type="number" />
         </div>
       </div>
+      )}
 
       <div className="huolto-submodule">
         <h3>Lämmityspiiri</h3>
@@ -334,15 +340,15 @@ export function MlpSection({ form, onChange }: Props) {
         )}
       </div>
 
-      <div className="huolto-submodule">
+      <div className="huolto-submodule huolto-lampopiirit">
         <h3>Lämpöpiirit</h3>
         <FormCheckbox
           label="Tulosta ja tallenna laitekorttiin (kiinteistön lämmityspiiri)"
           checked={mlp.kiinteistoPiiritSisallytetaan !== false}
           onChange={(v) => patchMlp({ kiinteistoPiiritSisallytetaan: v })}
-          className="huolto-span-all"
+          className="huolto-lampopiirit-wide"
         />
-        <label>
+        <label className="huolto-lampopiirit-piireja">
           Piirejä
           <select
             value={mlp.lampoPiirit.length || parseInt(mlp.lampoPiireja, 10) || 0}
@@ -353,16 +359,16 @@ export function MlpSection({ form, onChange }: Props) {
             ))}
           </select>
         </label>
-        <div className="checkbox-grid">
+        <div className="checkbox-grid huolto-toggle-grid">
           <FormCheckbox label="Toimilaitteet testattu" checked={mlp.lampoToimilaitteetOK} onChange={(v) => patchMlp({ lampoToimilaitteetOK: v })} />
           <FormCheckbox label="Automaattinen ilmanpoisto testattu" checked={mlp.lampoAutomaattinenIlmausTarkistettu} onChange={(v) => patchMlp({ lampoAutomaattinenIlmausTarkistettu: v })} />
           <FormCheckbox label="Mutasihti puhdistettu" checked={mlp.lampoMutapussiPuhdistettu} onChange={(v) => patchMlp({ lampoMutapussiPuhdistettu: v })} />
+          <FormCheckbox
+            label="Paisunta-astia esipaine tarkistettu"
+            checked={mlp.lampoPaisuntaAstiaTarkistettu}
+            onChange={(v) => patchMlp({ lampoPaisuntaAstiaTarkistettu: v })}
+          />
         </div>
-        <FormCheckbox
-          label="Paisunta-astia esipaine tarkistettu"
-          checked={mlp.lampoPaisuntaAstiaTarkistettu}
-          onChange={(v) => patchMlp({ lampoPaisuntaAstiaTarkistettu: v })}
-        />
         {mlp.lampoPaisuntaAstiaTarkistettu && (
           <div className="line-form-grid">
             <FormInput label="Paisunta-astian koko" value={mlp.lampoPaisuntaAstiaKoko} onChange={(v) => patchMlp({ lampoPaisuntaAstiaKoko: v })} className="huolto-span-all" />
@@ -399,15 +405,18 @@ export function MlpSection({ form, onChange }: Props) {
                   }}
                 />
               )}
-              <FormCheckbox
-                label="Pumppu tarkastettu"
-                checked={!!piiri.pumppuTarkastettu}
-                onChange={(v) => {
-                  const next = [...mlp.lampoPiirit];
-                  next[idx] = { ...next[idx], pumppuTarkastettu: v };
-                  patchMlp({ lampoPiirit: next });
-                }}
-              />
+            </div>
+            <FormCheckbox
+              label="Pumppu tarkastettu"
+              checked={!!piiri.pumppuTarkastettu}
+              onChange={(v) => {
+                const next = [...mlp.lampoPiirit];
+                next[idx] = { ...next[idx], pumppuTarkastettu: v };
+                patchMlp({ lampoPiirit: next });
+              }}
+              className="huolto-lampopiirit-wide"
+            />
+            <div className="line-form-grid">
               {piiri.pumppuTarkastettu && (
                 <>
                   <FormInput label="Pumpun valmistaja" value={piiri.pumppuValmistaja || ''} onChange={(v) => {
@@ -490,8 +499,8 @@ export function MlpSection({ form, onChange }: Props) {
       </div>
 
       <div className="huolto-submodule">
-        <h3>Kylmäaine (MLP)</h3>
-        <div className="checkbox-grid">
+        <h3>{isWaterAirHeatPump(form.laiteTyyppi) ? 'Kylmäaine' : 'Kylmäaine (MLP)'}</h3>
+        <div className="checkbox-grid huolto-toggle-grid">
           <FormCheckbox label="Päästöventtiili tarkastettu" checked={mlp.kylmaainePaetosTarkastettu} onChange={(v) => patchMlp({ kylmaainePaetosTarkastettu: v })} />
           <FormCheckbox label="Vuotoja havaittu" checked={mlp.kylmaaineVuotoja} onChange={(v) => patchMlp({ kylmaaineVuotoja: v })} />
         </div>
