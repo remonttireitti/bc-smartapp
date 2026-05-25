@@ -19,6 +19,8 @@ export type Profile = {
   company_id: string | null;
   /** Moniasiakas-tilaajan portaali: linkitetty tilaajarekisteriin. */
   subscriber_id?: string | null;
+  /** Yksittäisen kohteen asiakasportaali. */
+  customer_id?: string | null;
   bill_hours_enabled?: boolean;
   bill_expenses_enabled?: boolean;
   is_global_admin?: boolean;

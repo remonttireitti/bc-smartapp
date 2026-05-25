@@ -21,17 +21,18 @@ interface Props {
   session: Session;
 }
 
-const SUBSCRIBER_MODULE_HREFS = new Set(['/asiakkaat', '/huoltoraportit', '/tyoraportit']);
-const CUSTOMER_MODULE_HREFS = new Set(['/asiakkaat', '/huoltoraportit', '/tyoraportit']);
+const PORTAL_MODULES = [
+  { title: 'Työtilaus', desc: 'Lähetä työtilaus palveluyritykselle', color: '#0ea5e9', href: '/tyoraportit/tilaus/uusi' },
+  { title: 'Työraportit', desc: 'Omat tilaukset ja valmiit raportit', color: '#0284c7', href: '/tyoraportit' },
+  { title: 'Huoltoraportit', desc: 'Toimitetut huoltopöytäkirjat', color: '#22c55e', href: '/huoltoraportit' },
+  { title: 'Kohteet', desc: 'Asiakaskohteet ja laitteet', color: '#3b82f6', href: '/asiakkaat' },
+];
 
 export default function Dashboard({ session }: Props) {
   const { profile } = useProfile(session);
   const visibleModules = useMemo(() => {
-    if (profile?.role === 'subscriber') {
-      return MODULES.filter((m) => SUBSCRIBER_MODULE_HREFS.has(m.href));
-    }
-    if (profile?.role === 'customer') {
-      return MODULES.filter((m) => CUSTOMER_MODULE_HREFS.has(m.href));
+    if (profile?.role === 'subscriber' || profile?.role === 'customer') {
+      return PORTAL_MODULES;
     }
     return MODULES;
   }, [profile?.role]);
@@ -44,11 +45,13 @@ export default function Dashboard({ session }: Props) {
         {profile?.companies?.name ?? 'Ei yritystä'} • {roleLabel}
       </p>
 
-      <section className="search-box">
-        <h2>Pikahaku</h2>
-        <p className="muted">Asiakkaat, laitteet ja raportit — kirjoita vähintään 2 merkkiä</p>
-        <QuickSearch />
-      </section>
+      {profile?.role !== 'subscriber' && profile?.role !== 'customer' && (
+        <section className="search-box">
+          <h2>Pikahaku</h2>
+          <p className="muted">Asiakkaat, laitteet ja raportit — kirjoita vähintään 2 merkkiä</p>
+          <QuickSearch />
+        </section>
+      )}
 
       <section className="grid">
         {visibleModules.map((m) => (

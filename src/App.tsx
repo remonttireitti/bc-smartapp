@@ -17,6 +17,7 @@ import MaintenanceReportPrintPage from './pages/MaintenanceReportPrintPage';
 import MaintenanceReportsPage from './pages/MaintenanceReportsPage';
 import WorkReportDetailPage from './pages/WorkReportDetailPage';
 import WorkReportNewPage from './pages/WorkReportNewPage';
+import PortalWorkOrderPage from './pages/PortalWorkOrderPage';
 import WorkReportOrderPage from './pages/WorkReportOrderPage';
 import WorkReportBillingSummaryPage from './pages/WorkReportBillingSummaryPage';
 import WorkReportPartnerBillingPrintPage from './pages/WorkReportPartnerBillingPrintPage';
@@ -82,6 +83,8 @@ export default function App() {
         <Route path="kumppanuudet" element={<PartnershipsPage />} />
         <Route path="kumppanilaskutus" element={<WorkReportBillingSummaryPage />} />
       </Route>
+      <Route path="/tyoraportit/tilaus/uusi" element={<PortalWorkOrderPage session={session} />} />
+      <Route path="/tyoraportit/tilaus/:id/muokkaa" element={<PortalWorkOrderPage session={session} />} />
       <Route path="/tyoraportit/uusi" element={<WorkReportNewPage session={session} />} />
       <Route path="/tyoraportit/toimeksianto/uusi" element={<WorkReportOrderPage session={session} />} />
       <Route path="/tyoraportit/toimeksianto/:id/muokkaa" element={<WorkReportOrderPage session={session} />} />

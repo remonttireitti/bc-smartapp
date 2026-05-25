@@ -10,6 +10,8 @@ type ProfileRow = {
   tukes_number?: string | null;
   role: string;
   company_id: string | null;
+  subscriber_id?: string | null;
+  customer_id?: string | null;
   is_global_admin?: boolean;
 };
 
@@ -42,7 +44,7 @@ export function useProfile(session: Session | null) {
 
       let { data, error } = await supabase
         .from('profiles')
-        .select('id, display_name, email, tukes_number, role, company_id, is_global_admin')
+        .select('id, display_name, email, tukes_number, role, company_id, subscriber_id, customer_id, is_global_admin')
         .eq('id', userId)
         .maybeSingle();
 
@@ -58,7 +60,7 @@ export function useProfile(session: Session | null) {
         });
         const retry = await supabase
           .from('profiles')
-          .select('id, display_name, email, tukes_number, role, company_id, is_global_admin')
+          .select('id, display_name, email, tukes_number, role, company_id, subscriber_id, customer_id, is_global_admin')
           .eq('id', userId)
           .maybeSingle();
         data = retry.data;
@@ -97,6 +99,8 @@ export function useProfile(session: Session | null) {
         tukes_number: row.tukes_number ?? null,
         role: row.role,
         company_id: row.company_id ?? metaCompanyId,
+        subscriber_id: row.subscriber_id ?? null,
+        customer_id: row.customer_id ?? null,
         is_global_admin: isGlobalAdmin,
         companies: company,
       });

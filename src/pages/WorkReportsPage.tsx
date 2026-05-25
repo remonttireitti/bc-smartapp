@@ -24,11 +24,15 @@ import {
 
 import { supabase } from '../lib/supabase';
 
+import { isPortalUser } from '../lib/portalWorkOrder';
+
 import { useProfile } from '../hooks/useProfile';
 
 import {
 
   WORK_STATUS_LABELS,
+
+  getWorkStatusLabel,
 
   addDays,
 
@@ -74,6 +78,8 @@ const ACTIVE_STATUSES: WorkStatus[] = ['scheduled', 'in_progress'];
 
 const DRAFT_STATUS: WorkStatus = 'draft';
 
+const PORTAL_OPEN_STATUSES: WorkStatus[] = ['draft', 'delegated', 'scheduled', 'in_progress'];
+
 
 
 const DELEGATION_SELECT = `
@@ -86,7 +92,7 @@ const DELEGATION_SELECT = `
 
   partnership_id, customer_id, equipment_id, assigned_user_id,
 
-  delegate_company_id, delegated_at, created_at,
+  delegate_company_id, delegated_at, created_at, subscriber_id,
 
   customers(name),
 
@@ -351,7 +357,124 @@ export default function WorkReportsPage({ session }: Props) {
 
   }
 
+  const portalMode = isPortalUser(profile);
 
+  const myPortalOrders = useMemo(
+    () => reports.filter((r) => r.created_by_user_id === session.user.id),
+    [reports, session.user.id],
+  );
+
+  const portalOpenOrders = useMemo(
+    () => myPortalOrders.filter((r) => PORTAL_OPEN_STATUSES.includes(r.status)),
+    [myPortalOrders],
+  );
+
+  const portalHistoryOrders = useMemo(
+    () =>
+      myPortalOrders
+        .filter((r) => HISTORY_STATUSES.includes(r.status))
+        .sort((a, b) => {
+          const aTime = a.completed_at ?? a.scheduled_start ?? a.created_at;
+          const bTime = b.completed_at ?? b.scheduled_start ?? b.created_at;
+          return new Date(bTime).getTime() - new Date(aTime).getTime();
+        }),
+    [myPortalOrders],
+  );
+
+  const subscriberPortalOrders = useMemo(
+    () =>
+      draftReports.filter(
+        (r) => !!r.subscriber_id && !r.assigned_user_id && r.created_by_user_id !== session.user.id,
+      ),
+    [draftReports, session.user.id],
+  );
+
+  if (portalMode) {
+    return (
+      <AppLayout session={session}>
+        <div className="page-header">
+          <div>
+            <p className="breadcrumb">
+              <Link to="/">Etusivu</Link> / Työraportit
+            </p>
+            <h1>Työtilaukset</h1>
+            <p className="muted">
+              {profile?.companies?.name ?? '—'} • lähetä työtilauksia ja seuraa tilauksen tilaa
+            </p>
+          </div>
+          <div className="page-header-actions">
+            <Link to="/tyoraportit/tilaus/uusi" className="btn btn-primary">
+              + Uusi työtilaus
+            </Link>
+          </div>
+        </div>
+
+        {loading ? (
+          <p className="muted">Ladataan…</p>
+        ) : (
+          <>
+            <section className="panel">
+              <h2>Avoimet tilaukset</h2>
+              {portalOpenOrders.length === 0 ? (
+                <p className="muted">Ei avoimia tilauksia.</p>
+              ) : (
+                <ul className="report-list">
+                  {portalOpenOrders.map((report) => (
+                    <li key={report.id}>
+                      <Link
+                        to={
+                          report.status === 'draft'
+                            ? `/tyoraportit/tilaus/${report.id}/muokkaa`
+                            : `/tyoraportit/${report.id}`
+                        }
+                        className="report-link"
+                      >
+                        <div className="report-link-body">
+                          <strong>{report.title}</strong>
+                          <span className="muted">
+                            {getWorkStatusLabel(report.status)}
+                            {report.customers?.name ? ` • ${report.customers.name}` : ''}
+                            {report.scheduled_start
+                              ? ` • ${formatDateTime(report.scheduled_start)}`
+                              : ''}
+                          </span>
+                        </div>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+
+            <section className="panel">
+              <h2>Valmiit työraportit</h2>
+              {portalHistoryOrders.length === 0 ? (
+                <p className="muted">Ei valmiita raportteja vielä.</p>
+              ) : (
+                <ul className="report-list">
+                  {portalHistoryOrders.map((report) => (
+                    <li key={report.id}>
+                      <Link to={`/tyoraportit/${report.id}`} className="report-link">
+                        <div className="report-link-body">
+                          <strong>{report.title}</strong>
+                          <span className="muted">
+                            {getWorkStatusLabel(report.status)}
+                            {report.completed_at
+                              ? ` • ${formatDateTime(report.completed_at)}`
+                              : ''}
+                          </span>
+                        </div>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+          </>
+        )}
+      </AppLayout>
+    );
+  }
 
   return (
 
@@ -623,6 +746,31 @@ export default function WorkReportsPage({ session }: Props) {
           )}
 
 
+
+          {subscriberPortalOrders.length > 0 && (
+            <>
+              <h2>Tilaajan työtilaukset</h2>
+              <p className="muted">
+                Asiakasportaalista tulleet tilaukset — avaa, aikatauluta ja osoita tekijä kuten tavallinen luonnos.
+              </p>
+              <ul className="report-list">
+                {subscriberPortalOrders.map((r) => (
+                  <li key={r.id}>
+                    <Link to={draftEditPath(r)} className="report-link">
+                      <div className="report-link-main">
+                        <strong>{r.title}</strong>
+                        <span className="muted">
+                          {r.customers?.name ?? r.location_text ?? '—'}
+                          {r.orderer_name ? ` • ${r.orderer_name}` : ''}
+                        </span>
+                      </div>
+                      <span className="badge badge-draft">Tilaajan tilaus</span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
 
           {draftReports.length > 0 && (
 
