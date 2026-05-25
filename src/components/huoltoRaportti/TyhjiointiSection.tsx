@@ -3,7 +3,12 @@ import {
   laskeKokeLoppuaikaFi,
   resolveKoePaivamaaraJaKello,
 } from '../../lib/huoltoRaportti/kokeAikaUtils';
-import type { HuoltoReportData, TyhjiointiData, TyhjiointiPaineYksikko } from '../../lib/huoltoRaportti/types';
+import type {
+  HuoltoReportData,
+  TiiveyskoeTulos,
+  TyhjiointiData,
+  TyhjiointiPaineYksikko,
+} from '../../lib/huoltoRaportti/types';
 import { EvidencePhotoUpload } from './EvidencePhotoUpload';
 import { FormInput } from './FormInput';
 import { HuoltoModuleSection } from './HuoltoModuleSection';
@@ -82,6 +87,19 @@ export function TyhjiointiSection({ form, onChange, reportId, userId }: Props) {
         <label>
           Koe päättyi (laskettu alusta + kesto)
           <div className="huolto-readonly-field">{loppuaika || '—'}</div>
+        </label>
+        <label>
+          Tulos
+          <select
+            value={data.tulos}
+            onChange={(e) =>
+              patchTyhjiointi({ tulos: e.target.value as TiiveyskoeTulos })
+            }
+          >
+            <option value="">—</option>
+            <option value="hyvaksytty">Hyväksytty</option>
+            <option value="hylatty">Hylätty</option>
+          </select>
         </label>
         <FormInput
           label="Käytetty painemittari"

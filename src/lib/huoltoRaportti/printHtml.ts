@@ -561,12 +561,15 @@ function renderTyhjiointi(data: HuoltoReportData): string {
   const alku = res.pvmIso && res.klo ? `${res.pvmIso} klo ${res.klo}` : '';
   const loppu = alku ? laskeKokeLoppuaikaFi(res.pvmIso, res.klo, ty.kestoMin) : '';
   const loppupaine = formatTyhjiointiLoppupaine(ty.loppupaineArvo, ty.loppupaineYksikko);
+  const tulos =
+    ty.tulos === 'hyvaksytty' ? 'Hyväksytty' : ty.tulos === 'hylatty' ? 'Hylätty' : '';
 
   const inner = [
     hasPrintableValue(loppupaine) ? row('Loppupaine', loppupaine, '#0277BD') : '',
     alku ? row('Koe alkoi', alku, '#0277BD') : '',
     row('Kesto (min)', ty.kestoMin, '#0277BD'),
     loppu ? row('Koe päättyi', loppu, '#0277BD') : '',
+    tulos ? row('Tulos', tulos, '#0277BD') : '',
     row('Painemittari', ty.kaytettyPainemittari, '#0277BD'),
     hasPrintableValue(ty.huom) ? `<div style="white-space:pre-wrap;padding:2px 0;">Huom: ${esc(ty.huom)}</div>` : '',
   ]

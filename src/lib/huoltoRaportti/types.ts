@@ -139,6 +139,7 @@ export interface TyhjiointiData {
   kestoMin: string;
   koeAlkaaPvm: string;
   koeAlkaaKlo: string;
+  tulos: TiiveyskoeTulos;
   kaytettyPainemittari: string;
   huom: string;
   todisteKuvat: string[];

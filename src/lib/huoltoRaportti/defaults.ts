@@ -224,6 +224,7 @@ export function createEmptyTyhjiointiData(): TyhjiointiData {
     kestoMin: '',
     koeAlkaaPvm: '',
     koeAlkaaKlo: '',
+    tulos: '',
     kaytettyPainemittari: '',
     huom: '',
     todisteKuvat: [],
