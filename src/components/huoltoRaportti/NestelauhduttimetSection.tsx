@@ -80,7 +80,7 @@ export function NestelauhduttimetSection({ units, shared = false, onChange }: Pr
         };
 
         return (
-          <div key={unit.id} className="huolto-submodule">
+          <div key={unit.id} className="huolto-submodule huolto-form-stack">
             <h3>Nestelauhdutin {uidx + 1}</h3>
 
             <FormCheckbox
@@ -93,13 +93,22 @@ export function NestelauhduttimetSection({ units, shared = false, onChange }: Pr
                 label="Puhdistustapa"
                 value={unit.lauhdutinPuhdistusTapa || ''}
                 onChange={(v) => patchUnit(uidx, { lauhdutinPuhdistusTapa: v })}
+                className="huolto-span-all"
               />
             )}
 
-            <div className="line-form-grid">
+            <div className="huolto-field-group">
+              <p className="huolto-field-group-title">Lauhdutin</p>
+              <div className="line-form-grid huolto-measurement-grid">
               <FormInput label="Lauhduttimen valmistaja" value={unit.valmistaja} onChange={(v) => patchUnit(uidx, { valmistaja: v })} />
               <FormInput label="Lauhduttimen malli" value={unit.malli} onChange={(v) => patchUnit(uidx, { malli: v })} />
               <FormInput label="Lauhduttimen sarjanumero" value={unit.sarjanumero} onChange={(v) => patchUnit(uidx, { sarjanumero: v })} />
+              </div>
+            </div>
+
+            <div className="huolto-field-group">
+              <p className="huolto-field-group-title">Puhaltimet</p>
+              <div className="line-form-grid huolto-measurement-grid">
               <label>
                 Puhaltimien määrä
                 <select
@@ -157,6 +166,10 @@ export function NestelauhduttimetSection({ units, shared = false, onChange }: Pr
                 value={unit.puhaltimienMalli}
                 onChange={(v) => patchUnit(uidx, { puhaltimienMalli: v })}
               />
+              </div>
+            </div>
+
+            <div className="line-form-grid huolto-measurement-grid">
               <label className="huolto-span-all">
                 Puhaltimen ohjaustapa
                 <select
@@ -197,7 +210,7 @@ export function NestelauhduttimetSection({ units, shared = false, onChange }: Pr
             />
 
             {unit.puhallinMoottoriVirratMitattu && fanCount > 0 && (
-              <div className="line-form-grid">
+              <div className="line-form-grid huolto-measurement-grid">
                 {(unit.puhaltimet || []).slice(0, fanCount).map((puhallin, idx) => {
                   const syotto400 = unit.puhallinSyotto === '400';
                   const effectivePhase: FanPhaseType = syotto400 ? 3 : 1;

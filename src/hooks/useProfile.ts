@@ -7,6 +7,7 @@ type ProfileRow = {
   id: string;
   display_name: string | null;
   email: string | null;
+  tukes_number?: string | null;
   role: string;
   company_id: string | null;
   is_global_admin?: boolean;
@@ -41,7 +42,7 @@ export function useProfile(session: Session | null) {
 
       let { data, error } = await supabase
         .from('profiles')
-        .select('id, display_name, email, role, company_id, is_global_admin')
+        .select('id, display_name, email, tukes_number, role, company_id, is_global_admin')
         .eq('id', userId)
         .maybeSingle();
 
@@ -55,7 +56,11 @@ export function useProfile(session: Session | null) {
           display_name: (meta.display_name as string) ?? userEmail.split('@')[0] ?? 'Käyttäjä',
           role: (meta.role as string) ?? 'technician',
         });
-        const retry = await supabase.from('profiles').select('id, display_name, email, role, company_id, is_global_admin').eq('id', userId).maybeSingle();
+        const retry = await supabase
+          .from('profiles')
+          .select('id, display_name, email, tukes_number, role, company_id, is_global_admin')
+          .eq('id', userId)
+          .maybeSingle();
         data = retry.data;
       }
 
@@ -89,6 +94,7 @@ export function useProfile(session: Session | null) {
         id: row.id,
         display_name: row.display_name,
         email: row.email,
+        tukes_number: row.tukes_number ?? null,
         role: row.role,
         company_id: row.company_id ?? metaCompanyId,
         is_global_admin: isGlobalAdmin,

@@ -4,9 +4,12 @@ import type { HuoltoReportData } from '../../lib/huoltoRaportti/types';
 import { createEmptyRefrigerantCircuitData } from '../../lib/huoltoRaportti/defaults';
 import {
   isAirCondenserType,
+  isChillerLikeDevice,
+  isSharedEvaporatorAcrossCircuits,
   showChillerCondenserInCircuit,
   showEvaporatorInCircuit,
 } from '../../lib/huoltoRaportti/deviceModuleLogic';
+import ToggleSwitch from '../ToggleSwitch';
 import { EvaporatorModule } from './EvaporatorModule';
 import { HuoltoModuleSection } from './HuoltoModuleSection';
 import { RefrigerantCircuitModule } from './RefrigerantCircuitModule';
@@ -30,6 +33,10 @@ export function RefrigerantCircuitsSection({ form, onChange }: Props) {
     condenserType,
   );
   const showInlineEvaporator = showEvaporatorInCircuit(form.laiteTyyppi, form.selectedModules);
+  const sharedEvaporator = isSharedEvaporatorAcrossCircuits(
+    form.laiteTyyppi,
+    form.hoyrystinYhteinenPiireissa,
+  );
   const { updateEvaporator, setSameAsFirst } = createEvaporatorActions(form, onChange);
 
   useEffect(() => {
@@ -69,6 +76,7 @@ export function RefrigerantCircuitsSection({ form, onChange }: Props) {
 
   function renderInlineEvaporator(circuitIndex: number) {
     if (!showInlineEvaporator) return null;
+    if (sharedEvaporator && circuitIndex > 0) return null;
     const evaporator = form.evaporatorData[circuitIndex];
     if (!evaporator) return null;
 
@@ -76,10 +84,11 @@ export function RefrigerantCircuitsSection({ form, onChange }: Props) {
       <EvaporatorModule
         key={`evaporator-${circuitIndex}`}
         index={circuitIndex}
+        laiteTyyppi={form.laiteTyyppi}
         titleLabel={evaporatorTitleForIndex(form, circuitIndex)}
         data={evaporator}
         locked={false}
-        showSameAsFirst={circuitIndex > 0}
+        showSameAsFirst={circuitIndex > 0 && !sharedEvaporator}
         sameAsFirst={form.evaporatorSamaKuinEnsimmainen[circuitIndex]}
         onSameAsFirstChange={(v) => setSameAsFirst(circuitIndex, v)}
         onChange={(data) => updateEvaporator(circuitIndex, data)}
@@ -94,10 +103,20 @@ export function RefrigerantCircuitsSection({ form, onChange }: Props) {
           Ilmalauhduttimen tiedot täytetään kylmäainepiirin alle. Nestekiertoista lauhdutuspiiriä ei käytetä.
         </p>
       )}
+      {showInlineEvaporator && isChillerLikeDevice(form.laiteTyyppi) && (
+        <label className="checkbox-inline huolto-span-all">
+          <ToggleSwitch
+            label="Yhteinen höyrystin kaikille kylmäainepiireille"
+            checked={form.hoyrystinYhteinenPiireissa ?? true}
+            onChange={(checked) => onChange({ hoyrystinYhteinenPiireissa: checked })}
+          />
+        </label>
+      )}
       {showInlineEvaporator && (
         <p className="muted huolto-help">
-          Höyrystimen tiedot täytetään kylmäainepiirin alle. Täytä ensin piirin mittaukset ja komponentit, sitten
-          höyrystin.
+          {sharedEvaporator
+            ? 'Yhteinen höyrystin — täytä tiedot vain ensimmäisen piirin alle.'
+            : 'Höyrystimen tiedot täytetään kylmäainepiirin alle. Täytä ensin piirin mittaukset ja komponentit, sitten höyrystin.'}
         </p>
       )}
 

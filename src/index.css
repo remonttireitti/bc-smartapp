@@ -2849,9 +2849,34 @@ textarea {
 .maintenance-form .collapsible-body .line-form-grid,
 .maintenance-form .huolto-measurement-grid,
 .huolto-module-body .huolto-measurement-grid {
+  grid-template-columns: repeat(auto-fill, minmax(12.5rem, 1fr));
   align-items: start;
   row-gap: 1rem;
   column-gap: 0.75rem;
+}
+
+.huolto-module-body label,
+.huolto-submodule label,
+.huolto-part-body label,
+.huolto-circuit-body label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.huolto-field-group {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+
+.huolto-field-group-title {
+  margin: 0 0 0.5rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #334155;
 }
 
 .maintenance-form .line-form-grid > .toggle-switch,

@@ -10,6 +10,7 @@ type Context = { profile: Profile; session: Session; reloadProfile: () => void }
 export default function ProfileSettingsPage() {
   const { profile, session, reloadProfile } = useOutletContext<Context>();
   const [displayName, setDisplayName] = useState(profile.display_name ?? '');
+  const [tukesNumber, setTukesNumber] = useState(profile.tukes_number ?? '');
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -27,7 +28,10 @@ export default function ProfileSettingsPage() {
     const trimmed = displayName.trim();
     const { error: updateError } = await supabase
       .from('profiles')
-      .update({ display_name: trimmed || null })
+      .update({
+        display_name: trimmed || null,
+        tukes_number: tukesNumber.trim() || null,
+      })
       .eq('id', profile.id);
 
     setBusy(false);
@@ -45,8 +49,8 @@ export default function ProfileSettingsPage() {
     <section className="panel form-grid">
       <h2>Omat tiedot</h2>
       <p className="muted">
-        Nimi näkyy työraporteissa ja muissa tulosteissa raportin laatijana. Sähköpostia ja roolia voi muuttaa vain
-        ylläpitäjä.
+        Nimi ja TUKES-numero täyttyvät automaattisesti huoltopöytäkirjaan raportin laatijana. Sähköpostia ja roolia voi
+        muuttaa vain ylläpitäjä.
       </p>
 
       <form onSubmit={(e) => void saveProfile(e)}>
@@ -58,6 +62,15 @@ export default function ProfileSettingsPage() {
               onChange={(e) => setDisplayName(e.target.value)}
               placeholder={session.user.email?.split('@')[0] ?? 'Nimi'}
               autoComplete="name"
+            />
+          </label>
+          <label>
+            TUKES-numero
+            <input
+              value={tukesNumber}
+              onChange={(e) => setTukesNumber(e.target.value)}
+              placeholder="esim. 12345"
+              autoComplete="off"
             />
           </label>
           <label>

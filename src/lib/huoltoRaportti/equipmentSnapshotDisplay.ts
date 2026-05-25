@@ -1,3 +1,4 @@
+import { refrigerantCircuitHasMagnetValve } from './deviceModuleLogic';
 import type { CondenserData, EquipmentSnapshot, NestelauhdutinUnitData } from './types';
 
 export type ParsedEquipmentSnapshot = EquipmentSnapshot & Record<string, unknown>;
@@ -110,43 +111,34 @@ export function circuitCompressorDisplayCount(circuit: Record<string, unknown>):
   return Math.max(filled, declared);
 }
 
-export function circuitHasStaticRefrigerantFields(circuit: Record<string, unknown>): boolean {
+export function circuitHasStaticRefrigerantFields(
+  circuit: Record<string, unknown>,
+  laiteTyyppi?: string,
+): boolean {
+  const showMag =
+    laiteTyyppi != null && laiteTyyppi !== ''
+      ? refrigerantCircuitHasMagnetValve(laiteTyyppi, String(circuit.paisuntaventtiiliTyyppi ?? ''))
+      : true;
   return (
     nonEmpty(circuit.ohjaustapa) ||
     nonEmpty(circuit.paisuntaventtiiliTyyppi) ||
     nonEmpty(circuit.paisuntaventtiiliMuu) ||
     nonEmpty(circuit.paisuntaventtiiliValmistaja) ||
     nonEmpty(circuit.paisuntaventtiiliMalli) ||
-    nonEmpty(circuit.magneettiventtiiliValmistaja) ||
-    nonEmpty(circuit.magneettiventtiiliMalli) ||
+    (showMag && nonEmpty(circuit.magneettiventtiiliValmistaja)) ||
+    (showMag && nonEmpty(circuit.magneettiventtiiliMalli)) ||
     nonEmpty(circuit.kuivainValmistaja) ||
     nonEmpty(circuit.kuivainMalli) ||
     nonEmpty(circuit.kuivainKivienMaara)
   );
 }
 
-export function evaporatorSnapshotRowIsMeaningful(ev: {
-  valmistaja?: string;
-  malli?: string;
-  sarjanumero?: string;
-  tyyppi?: string;
-  huoneenTunnus?: string;
-}): boolean {
-  const t = String(ev.tyyppi ?? '').trim();
-  return (
-    nonEmpty(ev.valmistaja) ||
-    nonEmpty(ev.malli) ||
-    nonEmpty(ev.sarjanumero) ||
-    nonEmpty(ev.huoneenTunnus) ||
-    (t !== '' && t !== 'staatinen')
-  );
-}
+export {
+  evaporatorSnapshotRowIsMeaningful,
+  evapTyyppiLabel,
+} from './evaporatorHelpers';
 
-export function evapTyyppiLabel(value: string): string {
-  if (value === 'puhallin') return 'Puhallin';
-  if (value === 'staatinen') return 'Staattinen';
-  return value || '—';
-}
+export { refrigerantCircuitHasMagnetValve };
 
 export function nestelauhdutinRegistryUnitIsMeaningful(unit: Partial<NestelauhdutinUnitData>): boolean {
   const t = (value: unknown) => String(value ?? '').trim();

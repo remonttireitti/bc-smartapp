@@ -3,7 +3,9 @@ import {
   isChillerLikeDevice,
   isHeatPumpCircuitsDevice,
   resolveAutoModules,
+  stripMagnetValveFromCircuit,
 } from './deviceModuleLogic';
+import { normalizeEvaporatorForDevice } from './evaporatorHelpers';
 import { buildMaintenanceReportTitle } from '../../types';
 import { deviceTypes, isMlpVesiNeste, type ModuleKey } from './constants';
 import type {
@@ -265,9 +267,10 @@ export function ensureTyhjiointiData(data: Partial<TyhjiointiData> | undefined):
   };
 }
 
-export function createEmptyEvaporatorData(): EvaporatorData {
+export function createEmptyEvaporatorData(laiteTyyppi?: string): EvaporatorData {
+  const chiller = laiteTyyppi != null && laiteTyyppi !== '' && isChillerLikeDevice(laiteTyyppi);
   return {
-    tyyppi: 'staatinen',
+    tyyppi: chiller ? 'levy' : 'staatinen',
     huoneenTunnus: '',
     valmistaja: '',
     malli: '',
@@ -284,8 +287,8 @@ export function createEmptyEvaporatorData(): EvaporatorData {
     sulatusKertojaPäivässä: '',
     sulatusAika: '',
     sulatusLopetusLämpötila: '',
-    puhaltimienMaara: 1,
-    puhaltimet: [createEmptyEvaporatorFan(1)],
+    puhaltimienMaara: chiller ? 0 : 1,
+    puhaltimet: chiller ? [] : [createEmptyEvaporatorFan(1)],
   };
 }
 
@@ -568,10 +571,19 @@ export function normalizeHuoltoReportData(data: Partial<HuoltoReportData>): Huol
     ...merged,
     kylmaaineTyyppi,
     kylmaaineLaatu: '',
-    kylmaainePiiri1: ensureRefrigerantCircuitData(data.kylmaainePiiri1),
-    kylmaainePiiri2: data.kylmaainePiiri2 ? ensureRefrigerantCircuitData(data.kylmaainePiiri2) : null,
-    kylmaainePiiri3: data.kylmaainePiiri3 ? ensureRefrigerantCircuitData(data.kylmaainePiiri3) : null,
-    evaporatorData: (data.evaporatorData ?? base.evaporatorData).map((ev) => ensureEvaporatorData(ev)),
+    kylmaainePiiri1: stripMagnetValveFromCircuit(
+      merged.laiteTyyppi,
+      ensureRefrigerantCircuitData(data.kylmaainePiiri1),
+    ),
+    kylmaainePiiri2: data.kylmaainePiiri2
+      ? stripMagnetValveFromCircuit(merged.laiteTyyppi, ensureRefrigerantCircuitData(data.kylmaainePiiri2))
+      : null,
+    kylmaainePiiri3: data.kylmaainePiiri3
+      ? stripMagnetValveFromCircuit(merged.laiteTyyppi, ensureRefrigerantCircuitData(data.kylmaainePiiri3))
+      : null,
+    evaporatorData: (data.evaporatorData ?? base.evaporatorData).map((ev) =>
+      normalizeEvaporatorForDevice(ensureEvaporatorData(ev), merged.laiteTyyppi),
+    ),
     evaporatorSamaKuinEnsimmainen: data.evaporatorSamaKuinEnsimmainen ?? base.evaporatorSamaKuinEnsimmainen,
     condenserData: (data.condenserData ?? base.condenserData).map((c) => ensureCondenserData(c)),
     nestelauhduttimetVj: (Array.isArray(data.nestelauhduttimetVj)
@@ -693,6 +705,7 @@ export function createEmptyHuoltoReportData(): HuoltoReportData {
     condenserData: [createEmptyCondenserData()],
     lauhdutinTyyppiLaite: '',
     vjNestelauhdutusJaettu: true,
+    hoyrystinYhteinenPiireissa: true,
     vapaajahdytysKaytossa: false,
     vapaajahdytysData: createEmptyVapaajahdytysData(),
     jaahdytysvesiData: createEmptyJaahdytysvesiData(),
@@ -790,9 +803,11 @@ export function applyDeviceTypeDefaults(
         ? data.nestelauhduttimetVj.map(ensureNestelauhdutinUnit)
         : [createEmptyNestelauhdutinUnit()];
     patch.vjNestelauhdutusJaettu = data.vjNestelauhdutusJaettu ?? true;
+    patch.hoyrystinYhteinenPiireissa = data.hoyrystinYhteinenPiireissa ?? true;
   } else {
     patch.nestelauhduttimetVj = [];
     patch.vjNestelauhdutusJaettu = false;
+    patch.hoyrystinYhteinenPiireissa = false;
     patch.vapaajahdytysKaytossa = false;
   }
   if (deviceType === 'lämpöpumppu' || deviceType === 'vesiilmalampopumppu') {

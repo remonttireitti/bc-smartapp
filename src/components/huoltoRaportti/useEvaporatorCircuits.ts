@@ -2,14 +2,21 @@ import { useEffect, useRef } from 'react';
 
 import type { EvaporatorData, HuoltoReportData } from '../../lib/huoltoRaportti/types';
 import { createEmptyEvaporatorData } from '../../lib/huoltoRaportti/defaults';
+import { isSharedEvaporatorAcrossCircuits } from '../../lib/huoltoRaportti/deviceModuleLogic';
 
 export function evaporatorTitleForIndex(form: HuoltoReportData, index: number): string {
   if (form.laiteTyyppi === 'kylmäkoneikko') return `Höyrystin ${index + 1}`;
+  if (isSharedEvaporatorAcrossCircuits(form.laiteTyyppi, form.hoyrystinYhteinenPiireissa)) {
+    return 'Höyrystin (yhteinen kaikille piireille)';
+  }
   return `Höyrystin — piiri ${index + 1}`;
 }
 
 export function getEvaporatorCircuitCount(form: HuoltoReportData): number {
   if (form.laiteTyyppi === 'kylmäkoneikko') return form.evaporatorData.length;
+  if (isSharedEvaporatorAcrossCircuits(form.laiteTyyppi, form.hoyrystinYhteinenPiireissa)) {
+    return 1;
+  }
   return Math.min(3, Math.max(1, parseInt(form.kylmaainePiireja, 10) || 1));
 }
 
@@ -28,7 +35,9 @@ export function createEvaporatorActions(
       count > form.evaporatorData.length
         ? [
             ...form.evaporatorData,
-            ...Array.from({ length: count - form.evaporatorData.length }, () => createEmptyEvaporatorData()),
+            ...Array.from({ length: count - form.evaporatorData.length }, () =>
+              createEmptyEvaporatorData(form.laiteTyyppi),
+            ),
           ]
         : form.evaporatorData.slice(0, count);
     onChange({ evaporatorData: next });
@@ -86,6 +95,10 @@ export function useEvaporatorCircuitsSync(
 
   const isKylmakoneikko = form.laiteTyyppi === 'kylmäkoneikko';
   const circuitCount = getEvaporatorCircuitCount(form);
+  const sharedEvaporator = isSharedEvaporatorAcrossCircuits(
+    form.laiteTyyppi,
+    form.hoyrystinYhteinenPiireissa,
+  );
 
   useEffect(() => {
     if (isKylmakoneikko) return;
@@ -96,7 +109,9 @@ export function useEvaporatorCircuitsSync(
     if (evaporators.length < circuitCount) {
       evaporators = [
         ...evaporators,
-        ...Array.from({ length: circuitCount - evaporators.length }, () => createEmptyEvaporatorData()),
+        ...Array.from({ length: circuitCount - evaporators.length }, () =>
+          createEmptyEvaporatorData(form.laiteTyyppi),
+        ),
       ];
       patch.evaporatorData = evaporators;
     } else if (evaporators.length > circuitCount) {
@@ -112,10 +127,16 @@ export function useEvaporatorCircuitsSync(
     }
 
     if (Object.keys(patch).length > 0) onChangeRef.current(patch);
-  }, [circuitCount, isKylmakoneikko, form.evaporatorData, form.evaporatorSamaKuinEnsimmainen]);
+  }, [
+    circuitCount,
+    isKylmakoneikko,
+    sharedEvaporator,
+    form.evaporatorData,
+    form.evaporatorSamaKuinEnsimmainen,
+  ]);
 
   useEffect(() => {
-    if (form.evaporatorData.length < 2) return;
+    if (sharedEvaporator || form.evaporatorData.length < 2) return;
     const first = form.evaporatorData[0];
     let changed = false;
     const next = form.evaporatorData.map((row, idx) => {

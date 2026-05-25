@@ -1,6 +1,17 @@
 import type { CompressorData, EvaporatorData, HuoltoReportData, RefrigerantCircuitData } from './types';
-import { isMlpVesiNeste, mlpNesteLabel, sahkoVastusOhjaustapaOptions } from './constants';
-import { isChillerLikeDevice, mlpSectionTitle, showMlpMaalampoSubsections } from './deviceModuleLogic';
+import { expansionValveTypes, isMlpVesiNeste, mlpNesteLabel, sahkoVastusOhjaustapaOptions } from './constants';
+import {
+  isChillerLikeDevice,
+  isSharedEvaporatorAcrossCircuits,
+  mlpSectionTitle,
+  refrigerantCircuitHasMagnetValve,
+  showMlpMaalampoSubsections,
+} from './deviceModuleLogic';
+import {
+  evapTyyppiLabel,
+  evaporatorShowsFansAndDefrost,
+  isHeatExchangerEvaporatorType,
+} from './evaporatorHelpers';
 import {
   formatTyhjiointiLoppupaine,
   laskeKokeLoppuaikaFi,
@@ -138,6 +149,7 @@ function renderCircuitHtml(
   circuitNum: number,
   kp: RefrigerantCircuitData | null | undefined,
   refrigerant: string,
+  laiteTyyppi: string,
 ): string {
   if (!kp || !kp.onKaytossa) return '';
   const sh =
@@ -170,14 +182,18 @@ function renderCircuitHtml(
     if (comp) compressors += renderCompressorBlock(comp, i);
   }
 
+  const showMagnetValve = refrigerantCircuitHasMagnetValve(laiteTyyppi, kp.paisuntaventtiiliTyyppi);
+  const pvLabel =
+    expansionValveTypes.find((t) => t.value === kp.paisuntaventtiiliTyyppi)?.label ??
+    kp.paisuntaventtiiliTyyppi;
   const configRows = [
     row('Ohjaustapa', kp.ohjaustapa, '#E64A19'),
-    row('Paisuntaventtiili', kp.paisuntaventtiiliTyyppi, '#E64A19'),
+    row('Paisuntaventtiili', pvLabel, '#E64A19'),
     row('PV valmistaja', kp.paisuntaventtiiliValmistaja, '#E64A19'),
     row('PV malli', kp.paisuntaventtiiliMalli, '#E64A19'),
     row('Kuivain valmistaja', kp.kuivainValmistaja, '#E64A19'),
     row('Kuivain malli', kp.kuivainMalli, '#E64A19'),
-    checkRow(kp.magneettiventtiiliTestattu, 'Magneettiventtiili testattu'),
+    ...(showMagnetValve ? [checkRow(kp.magneettiventtiiliTestattu, 'Magneettiventtiili testattu')] : []),
     checkRow(kp.nestelasiKuiva, 'Nestelasi kuiva'),
     checkRow(kp.kuivainOK, 'Kuivain OK'),
   ]
@@ -196,20 +212,32 @@ function renderCircuitHtml(
   );
 }
 
-function renderSingleEvaporatorHtml(ev: EvaporatorData, index: number, deviceType: string): string {
+function renderSingleEvaporatorHtml(
+  ev: EvaporatorData,
+  index: number,
+  deviceType: string,
+  sharedAcrossCircuits?: boolean,
+): string {
   const title =
-    deviceType === 'kylmäkoneikko' ? `HÖYRYSTIN ${index + 1}` : `HÖYRYSTIN — PIIRI ${index + 1}`;
+    deviceType === 'kylmäkoneikko'
+      ? `HÖYRYSTIN ${index + 1}`
+      : sharedAcrossCircuits
+        ? 'HÖYRYSTIN (yhteinen)'
+        : `HÖYRYSTIN — PIIRI ${index + 1}`;
+  const chillerHx = isChillerLikeDevice(deviceType) && isHeatExchangerEvaporatorType(ev.tyyppi);
+  const showDefrost = evaporatorShowsFansAndDefrost(ev.tyyppi);
   const inner = [
-    gridField('Tyyppi', ev.tyyppi === 'puhallin' ? 'Puhallinhöyrystin' : 'Staattinen höyrystin'),
-    gridField('Huoneen tunnus', ev.huoneenTunnus),
-    gridField('Sulatus', getSulatusText(ev.sulatus)),
+    gridField(chillerHx ? 'Lämmönvaihdin' : 'Tyyppi', evapTyyppiLabel(ev.tyyppi)),
+    !chillerHx ? gridField('Huoneen tunnus', ev.huoneenTunnus) : '',
+    showDefrost ? gridField('Sulatus', getSulatusText(ev.sulatus)) : '',
     gridField('Valmistaja', ev.valmistaja),
     gridField('Malli', ev.malli),
     gridField('Sarjanumero', ev.sarjanumero),
-    checkRow(ev.sahkoVirtaMitattu, 'Sähkövirta mitattu'),
+    showDefrost ? checkRow(ev.sahkoVirtaMitattu, 'Sähkövirta mitattu') : '',
   ]
     .filter(Boolean)
     .join('');
+  if (!inner.trim()) return '';
   return box(title, '#00838F', `<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;">${inner}</div>`);
 }
 
@@ -229,24 +257,28 @@ function renderCircuitsHtml(data: HuoltoReportData): string {
   const inlineEvaporators =
     isChillerLikeDevice(data.laiteTyyppi) &&
     (data.selectedModules.hoyrystin || data.laiteTyyppi === 'pakastin' || data.laiteTyyppi === 'kylmäkoneikko');
+  const sharedEvaporator = isSharedEvaporatorAcrossCircuits(
+    data.laiteTyyppi,
+    data.hoyrystinYhteinenPiireissa,
+  );
 
   let html = '';
-  html += renderCircuitHtml(1, data.kylmaainePiiri1, data.kylmaaineTyyppi);
+  html += renderCircuitHtml(1, data.kylmaainePiiri1, data.kylmaaineTyyppi, data.laiteTyyppi);
   if (inlineEvaporators && data.evaporatorData[0]) {
-    html += renderSingleEvaporatorHtml(data.evaporatorData[0], 0, data.laiteTyyppi);
+    html += renderSingleEvaporatorHtml(data.evaporatorData[0], 0, data.laiteTyyppi, sharedEvaporator);
   }
 
   if (data.kylmaainePiireja !== '1' && data.kylmaainePiiri2) {
-    html += renderCircuitHtml(2, data.kylmaainePiiri2, data.kylmaaineTyyppi);
-    if (inlineEvaporators && data.evaporatorData[1]) {
-      html += renderSingleEvaporatorHtml(data.evaporatorData[1], 1, data.laiteTyyppi);
+    html += renderCircuitHtml(2, data.kylmaainePiiri2, data.kylmaaineTyyppi, data.laiteTyyppi);
+    if (inlineEvaporators && !sharedEvaporator && data.evaporatorData[1]) {
+      html += renderSingleEvaporatorHtml(data.evaporatorData[1], 1, data.laiteTyyppi, false);
     }
   }
 
   if ((data.kylmaainePiireja === '3' || data.kylmaainePiireja === '4') && data.kylmaainePiiri3) {
-    html += renderCircuitHtml(3, data.kylmaainePiiri3, data.kylmaaineTyyppi);
-    if (inlineEvaporators && data.evaporatorData[2]) {
-      html += renderSingleEvaporatorHtml(data.evaporatorData[2], 2, data.laiteTyyppi);
+    html += renderCircuitHtml(3, data.kylmaainePiiri3, data.kylmaaineTyyppi, data.laiteTyyppi);
+    if (inlineEvaporators && !sharedEvaporator && data.evaporatorData[2]) {
+      html += renderSingleEvaporatorHtml(data.evaporatorData[2], 2, data.laiteTyyppi, false);
     }
   }
 

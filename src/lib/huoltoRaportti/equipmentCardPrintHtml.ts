@@ -9,6 +9,7 @@ import {
   condenserRowShowsAirLauhdutinSection,
   evapTyyppiLabel,
   evaporatorSnapshotRowIsMeaningful,
+  refrigerantCircuitHasMagnetValve,
   formatPumpSyottoReadout,
   huoltoTechnicalSnapshotShowsEvaporatorHeading,
   kompressoriSnapshotRowMeaningful,
@@ -132,12 +133,16 @@ export function buildEquipmentCardSnapshotPrintHtml(snapshot: ParsedEquipmentSna
   for (const { label, data } of circuits) {
     if (data.onKaytossa === false) continue;
     const nComp = circuitCompressorDisplayCount(data);
-    const hasStatic = circuitHasStaticRefrigerantFields(data);
+    const hasStatic = circuitHasStaticRefrigerantFields(data, snapshot.laiteTyyppi);
     const hasAnyKomp = [1, 2, 3, 4, 5, 6].some((i) => kompressoriSnapshotRowMeaningful(data[`kompressori${i}`]));
     if (nComp <= 0 && !hasStatic && !hasAnyKomp) continue;
 
     const sub: string[] = [`<h3 class="print-card-h3">${escapeHtmlPrint(label)}</h3>`];
     const rows: { label: string; value: string }[] = [];
+    const showMagnetValve = refrigerantCircuitHasMagnetValve(
+      snapshot.laiteTyyppi,
+      String(data.paisuntaventtiiliTyyppi ?? ''),
+    );
     if (nComp > 0) rows.push({ label: 'Kompressoreita (ilmoitettu)', value: `${nComp} kpl` });
     rows.push(
       { label: 'Piirin ohjaustapa', value: snapVal(data.ohjaustapa) },
@@ -145,8 +150,12 @@ export function buildEquipmentCardSnapshotPrintHtml(snapshot: ParsedEquipmentSna
       { label: 'Paisuntaventtiili (muu)', value: snapVal(data.paisuntaventtiiliMuu) },
       { label: 'Paisuntaventtiilin valmistaja', value: snapVal(data.paisuntaventtiiliValmistaja) },
       { label: 'Paisuntaventtiilin malli', value: snapVal(data.paisuntaventtiiliMalli) },
-      { label: 'Magneettiventtiilin valmistaja', value: snapVal(data.magneettiventtiiliValmistaja) },
-      { label: 'Magneettiventtiilin malli', value: snapVal(data.magneettiventtiiliMalli) },
+      ...(showMagnetValve
+        ? [
+            { label: 'Magneettiventtiilin valmistaja', value: snapVal(data.magneettiventtiiliValmistaja) },
+            { label: 'Magneettiventtiilin malli', value: snapVal(data.magneettiventtiiliMalli) },
+          ]
+        : []),
       { label: 'Kuivain · valmistaja', value: snapVal(data.kuivainValmistaja) },
       { label: 'Kuivain · malli', value: snapVal(data.kuivainMalli) },
       { label: 'Kuivain · kivien määrä', value: snapVal(data.kuivainKivienMaara) },
@@ -202,10 +211,16 @@ export function buildEquipmentCardSnapshotPrintHtml(snapshot: ParsedEquipmentSna
                   label: 'Tyyppi',
                   value: nonEmpty(ev.tyyppi) ? evapTyyppiLabel(String(ev.tyyppi)) : '—',
                 },
-                { label: 'Huoneen tunnus', value: snapVal(ev.huoneenTunnus) },
-                { label: 'Valmistaja', value: snapVal(ev.valmistaja) },
-                { label: 'Malli', value: snapVal(ev.malli) },
-                { label: 'Sarjanumero', value: snapVal(ev.sarjanumero) },
+                ...(nonEmpty(ev.huoneenTunnus)
+                  ? [{ label: 'Huoneen tunnus', value: String(ev.huoneenTunnus).trim() }]
+                  : []),
+                ...(nonEmpty(ev.valmistaja)
+                  ? [{ label: 'Valmistaja', value: String(ev.valmistaja).trim() }]
+                  : []),
+                ...(nonEmpty(ev.malli) ? [{ label: 'Malli', value: String(ev.malli).trim() }] : []),
+                ...(nonEmpty(ev.sarjanumero)
+                  ? [{ label: 'Sarjanumero', value: String(ev.sarjanumero).trim() }]
+                  : []),
               ]),
             )
             .filter(Boolean)

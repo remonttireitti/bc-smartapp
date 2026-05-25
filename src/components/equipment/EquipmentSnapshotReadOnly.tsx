@@ -11,6 +11,7 @@ import {
   evapTyyppiLabel,
   evaporatorSnapshotRowIsMeaningful,
   formatPumpSyottoReadout,
+  refrigerantCircuitHasMagnetValve,
   huoltoTechnicalSnapshotShowsEvaporatorHeading,
   kompressoriSnapshotRowMeaningful,
   mlpSnapshotSectionHasContent,
@@ -123,11 +124,15 @@ export default function EquipmentSnapshotReadOnly({ snapshot }: { snapshot: Pars
         {circuits.map(({ label, data }) => {
           if (data.onKaytossa === false) return null;
           const nComp = circuitCompressorDisplayCount(data);
-          const hasStatic = circuitHasStaticRefrigerantFields(data);
+          const hasStatic = circuitHasStaticRefrigerantFields(data, snapshot.laiteTyyppi);
           const hasAnyKomp = [1, 2, 3, 4, 5, 6].some((i) =>
             kompressoriSnapshotRowMeaningful(data[`kompressori${i}`]),
           );
           if (nComp <= 0 && !hasStatic && !hasAnyKomp) return null;
+          const showMagnetValve = refrigerantCircuitHasMagnetValve(
+            snapshot.laiteTyyppi,
+            String(data.paisuntaventtiiliTyyppi ?? ''),
+          );
           return (
             <SubCard key={label} title={label}>
               {nComp > 0 ? <DetailRow label="Kompressoreita (ilmoitettu)" value={`${nComp} kpl`} /> : null}
@@ -136,8 +141,15 @@ export default function EquipmentSnapshotReadOnly({ snapshot }: { snapshot: Pars
               <OptionalRow label="Paisuntaventtiili (muu)" value={snapVal(data.paisuntaventtiiliMuu)} />
               <OptionalRow label="Paisuntaventtiilin valmistaja" value={snapVal(data.paisuntaventtiiliValmistaja)} />
               <OptionalRow label="Paisuntaventtiilin malli" value={snapVal(data.paisuntaventtiiliMalli)} />
-              <OptionalRow label="Magneettiventtiilin valmistaja" value={snapVal(data.magneettiventtiiliValmistaja)} />
-              <OptionalRow label="Magneettiventtiilin malli" value={snapVal(data.magneettiventtiiliMalli)} />
+              {showMagnetValve ? (
+                <>
+                  <OptionalRow
+                    label="Magneettiventtiilin valmistaja"
+                    value={snapVal(data.magneettiventtiiliValmistaja)}
+                  />
+                  <OptionalRow label="Magneettiventtiilin malli" value={snapVal(data.magneettiventtiiliMalli)} />
+                </>
+              ) : null}
               <OptionalRow label="Kuivain · valmistaja" value={snapVal(data.kuivainValmistaja)} />
               <OptionalRow label="Kuivain · malli" value={snapVal(data.kuivainMalli)} />
               <OptionalRow label="Kuivain · kivien määrä" value={snapVal(data.kuivainKivienMaara)} />

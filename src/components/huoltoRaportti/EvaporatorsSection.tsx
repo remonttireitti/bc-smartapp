@@ -39,6 +39,7 @@ export function EvaporatorsSection({ form, onChange }: Props) {
         <EvaporatorModule
           key={index}
           index={index}
+          laiteTyyppi={form.laiteTyyppi}
           titleLabel={evaporatorTitleForIndex(form, index)}
           data={evaporator}
           locked={false}

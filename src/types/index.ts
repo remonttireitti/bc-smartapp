@@ -13,6 +13,8 @@ export type Profile = {
   id: string;
   display_name: string | null;
   email: string | null;
+  /** Kylmäalan TUKES-tunnus (huoltopöytäkirja). */
+  tukes_number?: string | null;
   role: string;
   company_id: string | null;
   bill_hours_enabled?: boolean;

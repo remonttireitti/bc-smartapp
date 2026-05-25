@@ -1,10 +1,18 @@
 import { useEffect, useState } from 'react';
 import type { CondenserData, RefrigerantCircuitData } from '../../lib/huoltoRaportti/types';
 import {
+  getBubblePointFromPressure,
+  getCo2PtLimitBarGauge,
+  getSaturationTempFromPressure,
+  hasRefrigerantPtData,
+  isRefrigerantPtApproximate,
+} from '../../lib/huoltoRaportti/refrigerantPt';
+import {
   calculateSubcoolingFromMeasurements,
   calculateSuperheatFromMeasurements,
 } from '../../lib/huoltoRaportti/utils';
 import { expansionValveTypes, piiriOhjaustapaOptions } from '../../lib/huoltoRaportti/constants';
+import { refrigerantCircuitHasMagnetValve } from '../../lib/huoltoRaportti/deviceModuleLogic';
 import { ChillerCondenserInCircuit } from './ChillerCondenserInCircuit';
 import { CompressorModule } from './CompressorModule';
 import { FormCheckbox } from './FormCheckbox';
@@ -49,9 +57,10 @@ export function RefrigerantCircuitModule({
   showChillerCondenserInCircuit = false,
 }: RefrigerantCircuitModuleProps) {
   const [expanded, setExpanded] = useState(true);
-  const calcRefrigerant = refrigerantType && refrigerantType !== 'muu' && refrigerantType !== 'Muu'
-    ? refrigerantType
-    : 'R-410A';
+  const calcRefrigerant =
+    refrigerantType && refrigerantType !== 'muu' && refrigerantType !== 'Muu' ? refrigerantType : '';
+  const ptSupported = calcRefrigerant ? hasRefrigerantPtData(calcRefrigerant) : false;
+  const ptApproximate = calcRefrigerant ? isRefrigerantPtApproximate(calcRefrigerant) : false;
 
   type CompressorKey =
     | 'kompressori1'
@@ -157,9 +166,19 @@ export function RefrigerantCircuitModule({
         paisuntaventtiiliMuu: source.paisuntaventtiiliMuu ?? '',
         paisuntaventtiiliValmistaja: source.paisuntaventtiiliValmistaja ?? '',
         paisuntaventtiiliMalli: source.paisuntaventtiiliMalli ?? '',
+        nestelasiKuiva: !!source.nestelasiKuiva,
       };
+      if (!refrigerantCircuitHasMagnetValve(laiteTyyppi, next.paisuntaventtiiliTyyppi)) {
+        next.magneettiventtiiliTestattu = false;
+        next.magneettiventtiiliValmistaja = '';
+        next.magneettiventtiiliMalli = '';
+        next.magneettiventtiiliSamaKuinPiiri1 = false;
+      }
     }
-    if (next.magneettiventtiiliSamaKuinPiiri1) {
+    if (
+      next.magneettiventtiiliSamaKuinPiiri1 &&
+      refrigerantCircuitHasMagnetValve(laiteTyyppi, next.paisuntaventtiiliTyyppi)
+    ) {
       next = {
         ...next,
         magneettiventtiiliTestattu: !!source.magneettiventtiiliTestattu,
@@ -167,6 +186,11 @@ export function RefrigerantCircuitModule({
         magneettiventtiiliMalli: source.magneettiventtiiliMalli ?? '',
         nestelasiKuiva: !!source.nestelasiKuiva,
       };
+    } else if (
+      next.paisuntaventtiiliSamaKuinPiiri1 &&
+      !refrigerantCircuitHasMagnetValve(laiteTyyppi, next.paisuntaventtiiliTyyppi)
+    ) {
+      next.nestelasiKuiva = !!source.nestelasiKuiva;
     }
     if (next.kuivainSamaKuinPiiri1) {
       next = {
@@ -182,6 +206,18 @@ export function RefrigerantCircuitModule({
   };
 
   const hasCrossCircuitSync = circuitNumber > 1 && !!firstCircuitData;
+  const showMagnetValve = refrigerantCircuitHasMagnetValve(laiteTyyppi, data.paisuntaventtiiliTyyppi);
+
+  const applyExpansionValveType = (tyyppi: string) => {
+    const next: RefrigerantCircuitData = { ...data, paisuntaventtiiliTyyppi: tyyppi };
+    if (!refrigerantCircuitHasMagnetValve(laiteTyyppi, tyyppi)) {
+      next.magneettiventtiiliTestattu = false;
+      next.magneettiventtiiliValmistaja = '';
+      next.magneettiventtiiliMalli = '';
+      next.magneettiventtiiliSamaKuinPiiri1 = false;
+    }
+    onChange(next);
+  };
 
   useEffect(() => {
     if (!hasCrossCircuitSync || !firstCircuitData) return;
@@ -204,7 +240,7 @@ export function RefrigerantCircuitModule({
   };
 
   const calculateSuperheat = () => {
-    if (!refrigerantType || refrigerantType === 'muu' || refrigerantType === 'Muu') return '';
+    if (!calcRefrigerant || !ptSupported) return '';
     if (data.imupaine && data.imuLampotila) {
       const suctionPressure = parseFloat(data.imupaine);
       const suctionTemp = parseFloat(data.imuLampotila);
@@ -217,7 +253,7 @@ export function RefrigerantCircuitModule({
   };
 
   const calculateSubcooling = () => {
-    if (!refrigerantType || refrigerantType === 'muu' || refrigerantType === 'Muu') return '';
+    if (!calcRefrigerant || !ptSupported) return '';
     if (data.korkeapaine && data.nestePutkiLampotila) {
       const highPressure = parseFloat(data.korkeapaine);
       const liquidTemp = parseFloat(data.nestePutkiLampotila);
@@ -228,6 +264,21 @@ export function RefrigerantCircuitModule({
     }
     return '';
   };
+
+  const suctionBar = parseFloat(data.imupaine || '');
+  const highBar = parseFloat(data.korkeapaine || '');
+  const dewSatC =
+    calcRefrigerant && ptSupported && suctionBar > 0
+      ? getSaturationTempFromPressure(suctionBar, calcRefrigerant)
+      : NaN;
+  const bubbleSatC =
+    calcRefrigerant && ptSupported && highBar > 0
+      ? getBubblePointFromPressure(highBar, calcRefrigerant)
+      : NaN;
+  const co2OverLimit =
+    calcRefrigerant === 'R-744' &&
+    ((suctionBar > getCo2PtLimitBarGauge() && suctionBar > 0) ||
+      (highBar > getCo2PtLimitBarGauge() && highBar > 0));
 
   const calculatedSuperheat = calculateSuperheat();
   const calculatedSubcooling = calculateSubcooling();
@@ -409,7 +460,42 @@ export function RefrigerantCircuitModule({
           <p className="muted huolto-help">
             Tulistus = imu (°C) − kaste(P<sub>imu</sub>); alijäähdytys = kupla(P<sub>korkea</sub>) −
             nesteputki (°C). Paineet manometribar.
+            {ptSupported && Number.isFinite(dewSatC) && (
+              <>
+                {' '}
+                Kaste imupaineella: <strong>{dewSatC.toFixed(1)} °C</strong>.
+              </>
+            )}
+            {ptSupported && Number.isFinite(bubbleSatC) && (
+              <>
+                {' '}
+                Kupla korkeapaineella: <strong>{bubbleSatC.toFixed(1)} °C</strong>.
+              </>
+            )}
           </p>
+
+          {!calcRefrigerant && (
+            <div className="huolto-alert huolto-alert-warning">
+              Valitse kylmäaine laitteen tiedoissa ennen tulistuksen ja alijäähdytyksen laskentaa.
+            </div>
+          )}
+          {calcRefrigerant && !ptSupported && (
+            <div className="huolto-alert huolto-alert-warning">
+              PT-taulukkoa ei ole aineelle {calcRefrigerant} — syötä tulistus ja alijäähdytys käsin tai
+              valitse listasta tunnettu vasta-aine.
+            </div>
+          )}
+          {ptApproximate && ptSupported && (
+            <div className="huolto-alert huolto-alert-warning">
+              {calcRefrigerant}: laskenta perustuu lähimmän tunnetun aineen PT-käyrään (likimääräinen).
+            </div>
+          )}
+          {co2OverLimit && (
+            <div className="huolto-alert huolto-alert-warning">
+              R-744 (CO₂): paine yli {getCo2PtLimitBarGauge()} bar (man) — transkriittinen alue, automaattinen
+              laskenta ei päde.
+            </div>
+          )}
 
           {showLowSuperheatWarning && (
             <div className="huolto-alert huolto-alert-danger">
@@ -511,7 +597,7 @@ export function RefrigerantCircuitModule({
                 Paisuntaventtiili
                 <select
                   value={data.paisuntaventtiiliTyyppi}
-                  onChange={(e) => onChange({ ...data, paisuntaventtiiliTyyppi: e.target.value })}
+                  onChange={(e) => applyExpansionValveType(e.target.value)}
                   disabled={!!data.paisuntaventtiiliSamaKuinPiiri1}
                 >
                   {expansionValveTypes.map((type) => (
@@ -541,9 +627,18 @@ export function RefrigerantCircuitModule({
                 onChange={(v) => onChange({ ...data, paisuntaventtiiliMalli: v })}
                 disabled={!!data.paisuntaventtiiliSamaKuinPiiri1}
               />
+              {!showMagnetValve && (
+                <FormCheckbox
+                  label="Nestelasi kuiva"
+                  checked={data.nestelasiKuiva}
+                  onChange={(v) => onChange({ ...data, nestelasiKuiva: v })}
+                  disabled={!!data.paisuntaventtiiliSamaKuinPiiri1}
+                />
+              )}
             </div>
           </HuoltoPartSection>
 
+          {showMagnetValve && (
           <HuoltoPartSection title="Magneettiventtiili" defaultOpen>
             {hasCrossCircuitSync && (
               <FormCheckbox
@@ -579,6 +674,7 @@ export function RefrigerantCircuitModule({
               />
             </div>
           </HuoltoPartSection>
+          )}
 
           <HuoltoPartSection title="Kuivain" defaultOpen>
             {hasCrossCircuitSync && (

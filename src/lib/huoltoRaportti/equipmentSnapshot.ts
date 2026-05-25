@@ -89,19 +89,22 @@ function huoltoFormShowsEvaporatorSection(
 }
 
 export function stripEvaporatorForRegistry(e: EvaporatorData): Partial<EvaporatorData> {
+  const hx = e.tyyppi === 'levy' || e.tyyppi === 'putki';
   const out: Partial<EvaporatorData> = {
     tyyppi: e.tyyppi,
-    valmistaja: e.valmistaja,
-    malli: e.malli,
-    sarjanumero: e.sarjanumero,
-    sulatus: e.sulatus,
-    sahkoJannite: e.sahkoJannite,
-    sulatusOhjaus: e.sulatusOhjaus,
-    sulatusOhjausMuu: e.sulatusOhjausMuu,
-    sulatusKelloMalli: e.sulatusKelloMalli,
-    sulatusSäädinMalli: e.sulatusSäädinMalli,
-    puhaltimienMaara: e.puhaltimienMaara,
-    puhaltimet: (e.puhaltimet || []).map((f) => {
+  };
+  if (trim(e.valmistaja)) out.valmistaja = trim(e.valmistaja);
+  if (trim(e.malli)) out.malli = trim(e.malli);
+  if (trim(e.sarjanumero)) out.sarjanumero = trim(e.sarjanumero);
+  if (!hx) {
+    out.sulatus = e.sulatus;
+    out.sahkoJannite = e.sahkoJannite;
+    out.sulatusOhjaus = e.sulatusOhjaus;
+    out.sulatusOhjausMuu = e.sulatusOhjausMuu;
+    out.sulatusKelloMalli = e.sulatusKelloMalli;
+    out.sulatusSäädinMalli = e.sulatusSäädinMalli;
+    out.puhaltimienMaara = e.puhaltimienMaara;
+    out.puhaltimet = (e.puhaltimet || []).map((f) => {
       const vv = getCondenserFanVaiheValinta(f, f.jannite === '400' ? '400' : undefined);
       if (vv === '1' || vv === '3') {
         return {
@@ -112,9 +115,9 @@ export function stripEvaporatorForRegistry(e: EvaporatorData): Partial<Evaporato
         } as CondenserFanData;
       }
       return { id: f.id, jannite: f.jannite } as CondenserFanData;
-    }),
-  };
-  if (trim(e.huoneenTunnus)) out.huoneenTunnus = trim(e.huoneenTunnus);
+    });
+    if (trim(e.huoneenTunnus)) out.huoneenTunnus = trim(e.huoneenTunnus);
+  }
   return out;
 }
 

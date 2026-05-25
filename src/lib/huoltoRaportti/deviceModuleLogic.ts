@@ -15,6 +15,36 @@ export function isChillerLikeDevice(deviceType: string): boolean {
   return deviceType === 'vedenjäähdytyskone' || deviceType === 'vakioilmastointtikone';
 }
 
+/** Vedenjäähdytyskone + elektroninen EEV: ei erillistä magneettiventtiiliä. */
+export function refrigerantCircuitHasMagnetValve(
+  laiteTyyppi: string,
+  paisuntaventtiiliTyyppi: string | undefined,
+): boolean {
+  if (laiteTyyppi === 'vedenjäähdytyskone' && paisuntaventtiiliTyyppi === 'ELEKTRONINEN') {
+    return false;
+  }
+  return true;
+}
+
+export function stripMagnetValveFromCircuit<T extends {
+  paisuntaventtiiliTyyppi?: string;
+  magneettiventtiiliTestattu?: boolean;
+  magneettiventtiiliValmistaja?: string;
+  magneettiventtiiliMalli?: string;
+  magneettiventtiiliSamaKuinPiiri1?: boolean;
+}>(laiteTyyppi: string, circuit: T): T {
+  if (refrigerantCircuitHasMagnetValve(laiteTyyppi, circuit.paisuntaventtiiliTyyppi)) {
+    return circuit;
+  }
+  return {
+    ...circuit,
+    magneettiventtiiliTestattu: false,
+    magneettiventtiiliValmistaja: '',
+    magneettiventtiiliMalli: '',
+    magneettiventtiiliSamaKuinPiiri1: false,
+  };
+}
+
 export function isGroundSourceHeatPump(deviceType: string): boolean {
   return deviceType === 'mlp';
 }
@@ -161,6 +191,14 @@ export function showEvaporatorInCircuit(
   modules: Record<ModuleKey, boolean>,
 ): boolean {
   return isChillerLikeDevice(deviceType) && showEvaporatorModules(deviceType, modules);
+}
+
+/** VJ/VAK: yksi höyrystin kaikille piireille (oletus), ei toisteta jokaisessa piirissä. */
+export function isSharedEvaporatorAcrossCircuits(
+  deviceType: string,
+  shared?: boolean,
+): boolean {
+  return isChillerLikeDevice(deviceType) && (shared ?? true);
 }
 
 export function showCondenserModules(

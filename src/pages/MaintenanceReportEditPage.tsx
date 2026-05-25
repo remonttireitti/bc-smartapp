@@ -1,5 +1,6 @@
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { huoltoPerformerFields } from '../lib/huoltoRaportti/performerFromProfile';
 import NavigationBreadcrumb from '../components/NavigationBreadcrumb';
 import LeaveDraftDialog from '../components/LeaveDraftDialog';
 import { useMaintenanceReportNavigation } from '../hooks/useMaintenanceReportNavigation';
@@ -200,6 +201,28 @@ export default function MaintenanceReportEditPage({ session }: Props) {
     if (profileLoading || loadingReport) return;
     setHasUnsavedChanges(false);
   }, [profileLoading, loadingReport, reportId]);
+
+  useEffect(() => {
+    if (profileLoading || loadingReport || status !== 'draft') return;
+    const performer = huoltoPerformerFields(profile, session);
+    setForm((prev) => {
+      if (
+        prev.huoltoSuorittajaNimi === performer.huoltoSuorittajaNimi &&
+        prev.huoltoSuorittajaTUKES === performer.huoltoSuorittajaTUKES
+      ) {
+        return prev;
+      }
+      return mergeHuoltoReportData(prev, performer);
+    });
+  }, [
+    profileLoading,
+    loadingReport,
+    status,
+    profile?.display_name,
+    profile?.tukes_number,
+    profile?.email,
+    session,
+  ]);
 
   useEffect(() => {
     if (!isNew || !ownerCompanyId) return;
@@ -625,6 +648,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
 
       const dataPayload: HuoltoReportData = {
         ...form,
+        ...huoltoPerformerFields(profile, session),
         customerId: customerId || form.customerId,
         asiakas: selectedCustomer?.name ?? form.asiakas,
         osoite:
@@ -1297,19 +1321,30 @@ export default function MaintenanceReportEditPage({ session }: Props) {
               </div>
               <div className="line-form-grid">
                 <label>
-                  Suorittaja
+                  Suorittaja (raportin laatija)
                   <input
                     value={form.huoltoSuorittajaNimi}
-                    onChange={(e) => patchForm({ huoltoSuorittajaNimi: e.target.value })}
+                    readOnly
+                    disabled
+                    title="Haetaan omista tiedoista (Hallinta → Omat tiedot)"
                   />
                 </label>
                 <label>
                   TUKES-numero
                   <input
                     value={form.huoltoSuorittajaTUKES}
-                    onChange={(e) => patchForm({ huoltoSuorittajaTUKES: e.target.value })}
+                    readOnly
+                    disabled
+                    placeholder={profile?.tukes_number ? undefined : 'Lisää omissa tiedoissa'}
+                    title="Haetaan omista tiedoista (Hallinta → Omat tiedot)"
                   />
                 </label>
+                {!form.huoltoSuorittajaTUKES.trim() && (
+                  <p className="muted huolto-span-all">
+                    TUKES-numero puuttuu profiilista.{' '}
+                    <Link to="/hallinta/omat">Täytä omat tiedot</Link>
+                  </p>
+                )}
                 <label>
                   Päivämäärä
                   <input

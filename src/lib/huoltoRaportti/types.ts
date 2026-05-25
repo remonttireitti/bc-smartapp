@@ -89,7 +89,7 @@ export interface CondenserFanData {
   virtaL3?: string;
 }
 
-export type EvaporatorType = 'puhallin' | 'staatinen';
+export type EvaporatorType = 'puhallin' | 'staatinen' | 'levy' | 'putki';
 export type SulatusType = 'ilma' | 'sahko' | 'kuumakaasu';
 export type SulatusOhjausType = 'huonesäädin' | 'kello' | 'muu';
 export type LauhdutinType = 'koneseen_integroitu' | 'erillinen_ilma' | 'nestekiertoinen';
@@ -481,6 +481,8 @@ export type HuoltoReportData = {
   condenserData: CondenserData[];
   lauhdutinTyyppiLaite?: LauhdutinType | '';
   vjNestelauhdutusJaettu?: boolean;
+  /** Vedenjäähdytyskone / VAK: yksi höyrystin kaikille kylmäainepiireille. */
+  hoyrystinYhteinenPiireissa?: boolean;
   vapaajahdytysKaytossa?: boolean;
   vapaajahdytysData?: VapaajahdytysData;
   jaahdytysvesiData?: JaahdytysvesiData;

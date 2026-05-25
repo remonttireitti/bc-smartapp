@@ -6,6 +6,11 @@ import type {
   SulatusType,
 } from '../../lib/huoltoRaportti/types';
 import { createEmptyEvaporatorFan } from '../../lib/huoltoRaportti/defaults';
+import { isChillerLikeDevice } from '../../lib/huoltoRaportti/deviceModuleLogic';
+import {
+  evaporatorShowsFansAndDefrost,
+  isHeatExchangerEvaporatorType,
+} from '../../lib/huoltoRaportti/evaporatorHelpers';
 import { EvaporatorPuhaltimetFields } from './EvaporatorPuhaltimetFields';
 import { FormCheckbox } from './FormCheckbox';
 import { FormInput } from './FormInput';
@@ -14,6 +19,7 @@ import { HuoltoPartSection } from './HuoltoPartSection';
 interface Props {
   index: number;
   titleLabel: string;
+  laiteTyyppi?: string;
   data: EvaporatorData;
   locked: boolean;
   showSameAsFirst?: boolean;
@@ -22,9 +28,29 @@ interface Props {
   onChange: (data: EvaporatorData) => void;
 }
 
+function applyEvaporatorTypeChange(data: EvaporatorData, tyyppi: EvaporatorType): EvaporatorData {
+  if (isHeatExchangerEvaporatorType(tyyppi)) {
+    return {
+      ...data,
+      tyyppi,
+      puhaltimienMaara: 0,
+      puhaltimet: [],
+      sulatus: 'ilma',
+      sahkoVirtaMitattu: false,
+    };
+  }
+  return {
+    ...data,
+    tyyppi,
+    puhaltimienMaara: 1,
+    puhaltimet: [createEmptyEvaporatorFan(1)],
+  };
+}
+
 export function EvaporatorModule({
   index,
   titleLabel,
+  laiteTyyppi = '',
   data,
   locked,
   showSameAsFirst,
@@ -33,6 +59,10 @@ export function EvaporatorModule({
   onChange,
 }: Props) {
   const disabled = locked || !!sameAsFirst;
+  const chillerHx = isChillerLikeDevice(laiteTyyppi);
+  const showFansDefrost = evaporatorShowsFansAndDefrost(data.tyyppi);
+  const selectValue =
+    chillerHx && !isHeatExchangerEvaporatorType(data.tyyppi) ? '' : data.tyyppi;
 
   return (
     <HuoltoPartSection title={titleLabel} defaultOpen={index === 0}>
@@ -45,39 +75,50 @@ export function EvaporatorModule({
       )}
 
       <div className="line-form-grid">
-        <FormInput
-          label="Huoneen tunnus"
-          value={data.huoneenTunnus || ''}
-          onChange={(v) => onChange({ ...data, huoneenTunnus: v })}
-          disabled={disabled}
-          className="huolto-span-all"
-        />
-        <label>
-          Höyrystimen tyyppi
-          <select
-            value={data.tyyppi}
+        {!chillerHx && (
+          <FormInput
+            label="Huoneen tunnus"
+            value={data.huoneenTunnus || ''}
+            onChange={(v) => onChange({ ...data, huoneenTunnus: v })}
             disabled={disabled}
-            onChange={(e) =>
-              onChange({
-                ...data,
-                tyyppi: e.target.value as EvaporatorType,
-                puhaltimienMaara: 1,
-                puhaltimet: [createEmptyEvaporatorFan(1)],
-              })
-            }
+            className="huolto-span-all"
+          />
+        )}
+        <label className={chillerHx ? 'huolto-span-all' : undefined}>
+          {chillerHx ? 'Lämmönvaihtimen tyyppi' : 'Höyrystimen tyyppi'}
+          <select
+            value={selectValue}
+            disabled={disabled}
+            onChange={(e) => {
+              const next = e.target.value as EvaporatorType;
+              if (!next) return;
+              onChange(applyEvaporatorTypeChange(data, next));
+            }}
           >
-            <option value="staatinen">Staattinen höyrystin</option>
-            <option value="puhallin">Puhallinhöyrystin</option>
+            {chillerHx ? (
+              <>
+                <option value="" disabled>
+                  Valitse…
+                </option>
+                <option value="levy">Levy lämmönvaihdin</option>
+                <option value="putki">Putkilämmönvaihdin</option>
+              </>
+            ) : (
+              <>
+                <option value="staatinen">Staattinen höyrystin</option>
+                <option value="puhallin">Puhallinhöyrystin</option>
+              </>
+            )}
           </select>
         </label>
         <FormInput
-          label="Valmistaja"
+          label="Valmistaja (valinnainen)"
           value={data.valmistaja}
           onChange={(v) => onChange({ ...data, valmistaja: v })}
           disabled={disabled}
         />
         <FormInput
-          label="Malli"
+          label="Malli (valinnainen)"
           value={data.malli}
           onChange={(v) => onChange({ ...data, malli: v })}
           disabled={disabled}
@@ -88,20 +129,23 @@ export function EvaporatorModule({
           onChange={(v) => onChange({ ...data, sarjanumero: v })}
           disabled={disabled}
         />
-        <label>
-          Sulatustapa
-          <select
-            value={data.sulatus}
-            disabled={disabled}
-            onChange={(e) => onChange({ ...data, sulatus: e.target.value as SulatusType })}
-          >
-            <option value="ilma">Ilmasulatus</option>
-            <option value="sahko">Sähkösulatus</option>
-            <option value="kuumakaasu">Kuumakaasu sulatus</option>
-          </select>
-        </label>
 
-        {data.sulatus === 'sahko' && !sameAsFirst && (
+        {showFansDefrost && (
+          <label>
+            Sulatustapa
+            <select
+              value={data.sulatus}
+              disabled={disabled}
+              onChange={(e) => onChange({ ...data, sulatus: e.target.value as SulatusType })}
+            >
+              <option value="ilma">Ilmasulatus</option>
+              <option value="sahko">Sähkösulatus</option>
+              <option value="kuumakaasu">Kuumakaasu sulatus</option>
+            </select>
+          </label>
+        )}
+
+        {showFansDefrost && data.sulatus === 'sahko' && !sameAsFirst && (
           <>
             <label>
               Jännite
@@ -176,7 +220,7 @@ export function EvaporatorModule({
         )}
       </div>
 
-      {data.sulatus === 'sahko' && data.sahkoVirtaMitattu && !sameAsFirst && (
+      {showFansDefrost && data.sulatus === 'sahko' && data.sahkoVirtaMitattu && !sameAsFirst && (
         <div className="huolto-submodule">
           <h4>Sähkösulatuksen virrat</h4>
           <div className="line-form-grid huolto-phase-grid">
