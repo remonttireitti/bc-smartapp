@@ -1,0 +1,40 @@
+{
+  "name": "bc-smartapp",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview",
+    "db:start": "npx supabase start",
+    "db:stop": "npx supabase stop",
+    "db:reset": "npx supabase db reset",
+    "db:push": "npx supabase db push",
+    "gen:types": "npx supabase gen types typescript --local > src/lib/database.types.ts",
+    "setup:user": "node scripts/setup-dev-user.mjs",
+    "setup:dev": "node scripts/setup-dev-users.mjs",
+    "invite:user": "node scripts/invite-user.mjs",
+    "import:firestore:dry": "node scripts/import-from-firestore.mjs --dry-run",
+    "import:firestore": "node scripts/import-from-firestore.mjs --apply --production --clear-demo",
+    "import:media:dry": "node scripts/import-firestore-media.mjs --dry-run",
+    "import:media": "node scripts/import-firestore-media.mjs --apply --production",
+    "setup:global-admin": "node scripts/setup-global-admin.mjs --production",
+    "fix:ownership": "node scripts/fix-import-ownership.mjs --apply --production"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.49.1",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "react-router-dom": "^7.1.1"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^4.3.4",
+    "firebase-admin": "^13.10.0",
+    "supabase": "^2.101.0",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.3"
+  }
+}

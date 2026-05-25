@@ -1,0 +1,15 @@
+node_modules
+dist
+.env
+.env.local
+.env.production
+.env.production.local
+.DS_Store
+*.log
+*-log.txt
+.supabase
+.vercel
+scripts/.cache/
+supabase/.temp/
+supabase/.branches/
+tsconfig.tsbuildinfo

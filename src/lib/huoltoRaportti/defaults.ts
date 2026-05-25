@@ -1,0 +1,814 @@
+import {
+  defaultCondenserTypeForDevice,
+  isChillerLikeDevice,
+  isHeatPumpCircuitsDevice,
+  resolveAutoModules,
+} from './deviceModuleLogic';
+import type { ModuleKey } from './constants';
+import type {
+  CompressorData,
+  CondenserData,
+  CondenserFanData,
+  EvaporatorData,
+  FanPhaseType,
+  HeatingCircuitData,
+  HeatingElementData,
+  HuoltoReportData,
+  HuomiotImageAttachment,
+  KonvektoriRowData,
+  MittausSisayksikkoData,
+  MlpData,
+  NestelauhdutinUnitData,
+  RefrigerantCircuitData,
+  SisayksikkoData,
+  TiiveyskoeData,
+  TyhjiointiData,
+} from './types';
+import { generateId } from './utils';
+
+export function createEmptyKonvektoriRow(): KonvektoriRowData {
+  return {
+    id: generateId(),
+    tunnus: '',
+    valmistaja: '',
+    malli: '',
+    sarjanumero: '',
+    suodatinPuhdistettu: false,
+    kennoPuhdistettu: false,
+    kondenssiTarkastettu: false,
+    puhallinTarkastettu: false,
+    venttiiliTarkastettu: false,
+    huomio: '',
+    huomioTyyppi: 'kommentti',
+  };
+}
+
+export function createEmptySisayksikkoData(): SisayksikkoData {
+  return {
+    tyyppi: '',
+    malli: '',
+    sarjanumero: '',
+    kondenssivesi: '',
+    pumppuMalli: '',
+    asennettu: false,
+    kennoPuhdas: false,
+    eiAania: false,
+    kondenssiTestattu: false,
+  };
+}
+
+export function createEmptyMittausSisayksikkoData(): MittausSisayksikkoData {
+  return {
+    imupaineJaahdytys: '',
+    korkeapaineJaahdytys: '',
+    imupaineLammitys: '',
+    korkeapaineLammitys: '',
+    sisalampotila: '',
+    paluuLampotila: '',
+    puhallusLampotila: '',
+    ilmanmaaraM3h: '',
+  };
+}
+
+/** @deprecated Use createEmptyMittausSisayksikkoData */
+export const createEmptySisayksikkoMittausData = createEmptyMittausSisayksikkoData;
+
+export function createEmptyNestelauhdutinUnit(): NestelauhdutinUnitData {
+  return {
+    id: generateId(),
+    lauhdutinPuhdistettu: false,
+    lauhdutinPuhdistusTapa: '',
+    valmistaja: '',
+    malli: '',
+    sarjanumero: '',
+    puhaltimienMaara: 1,
+    puhallinSyotto: '400',
+    puhaltimienValmistaja: '',
+    puhaltimienMalli: '',
+    puhallinOhjausTapa: '',
+    ohjausLahde: '',
+    puhallinMoottoriVirratMitattu: false,
+    puhaltimet: [
+      {
+        id: 1,
+        phase: 3 as FanPhaseType,
+        jannite: '400',
+        virtaL1: '',
+        virtaL2: '',
+        virtaL3: '',
+      },
+    ],
+  };
+}
+
+export function ensureKonvektoriRow(data: Partial<KonvektoriRowData> | undefined): KonvektoriRowData {
+  const base = createEmptyKonvektoriRow();
+  if (!data) return base;
+  return { ...base, ...data };
+}
+
+export function ensureSisayksikkoData(data: Partial<SisayksikkoData> | undefined): SisayksikkoData {
+  const base = createEmptySisayksikkoData();
+  if (!data) return base;
+  return { ...base, ...data };
+}
+
+export function ensureMittausSisayksikkoData(
+  data: Partial<MittausSisayksikkoData> | undefined,
+): MittausSisayksikkoData {
+  const base = createEmptyMittausSisayksikkoData();
+  if (!data) return base;
+  return { ...base, ...data };
+}
+
+export function ensureNestelauhdutinUnit(data: Partial<NestelauhdutinUnitData> | undefined): NestelauhdutinUnitData {
+  const base = createEmptyNestelauhdutinUnit();
+  if (!data) return base;
+  return {
+    ...base,
+    ...data,
+    id: data.id ?? base.id,
+    puhaltimet: (data.puhaltimet ?? base.puhaltimet).map((f, i) => ({
+      ...createEmptyEvaporatorFan(i + 1),
+      ...f,
+    })),
+  };
+}
+
+export function ensureHuomiotLiite(data: Partial<HuomiotImageAttachment> | undefined): HuomiotImageAttachment {
+  return {
+    id: data?.id ?? generateId(),
+    url: data?.url ?? '',
+    comment: data?.comment ?? '',
+    storagePath: data?.storagePath,
+    fileName: data?.fileName,
+    contentType: data?.contentType,
+    createdAt: data?.createdAt,
+  };
+}
+
+export function createEmptyEvaporatorFan(id: number): CondenserFanData {
+  return {
+    id,
+    phase: 1,
+    jannite: '230',
+    vaiheValinta: '1',
+    virtaL1: '',
+    virtaL2: '',
+    virtaL3: '',
+  };
+}
+
+export function createEmptyCondenserData(): CondenserData {
+  return {
+    tyyppi: undefined,
+    lauhdutinPuhdistettu: false,
+    lauhdutinPuhdistusTapa: '',
+    puhaltimienMaara: 1,
+    puhaltimet: [createEmptyEvaporatorFan(1)],
+    puhallinOhjaus: undefined,
+    puhallinOhjausMuu: '',
+    nopeussäädinMalli: '',
+    taajusmuuntajaMalli: '',
+    kpPressostaattiMalli: '',
+    talvivarustus: false,
+    talvivarustusTapa: '',
+    painesäätimenTarkistettu: false,
+    painesäätimenMalli: '',
+    virtausRiittävä: true,
+    virtausOngelma: '',
+  };
+}
+
+export function createEmptyLiquidCircuitData() {
+  return {
+    neste: '',
+    virtaus: '',
+    meno: '',
+    tulo: '',
+    pumppuTarkastettu: false,
+    pumppuValmistaja: '',
+    pumppuMalli: '',
+  };
+}
+
+export function createEmptyJaahdytysvesiData() {
+  return createEmptyLiquidCircuitData();
+}
+
+export function createEmptyVapaajahdytysData() {
+  return {
+    ...createEmptyLiquidCircuitData(),
+    ohjaus: '' as const,
+  };
+}
+
+export function createEmptyTiiveyskoeData(): TiiveyskoeData {
+  return {
+    testipaineBar: '',
+    kestoMin: '',
+    koeAlkaaPvm: '',
+    koeAlkaaKlo: '',
+    testauslampotila: '',
+    tulos: '',
+    menetelma: '',
+    huom: '',
+    todisteKuvat: [],
+  };
+}
+
+export function createEmptyTyhjiointiData(): TyhjiointiData {
+  return {
+    loppupaineArvo: '',
+    loppupaineYksikko: 'micron',
+    kestoMin: '',
+    koeAlkaaPvm: '',
+    koeAlkaaKlo: '',
+    kaytettyPainemittari: '',
+    huom: '',
+    todisteKuvat: [],
+  };
+}
+
+export function ensureCondenserData(data: Partial<CondenserData> | undefined): CondenserData {
+  const base = createEmptyCondenserData();
+  if (!data) return base;
+  return {
+    ...base,
+    ...data,
+    puhaltimet: (data.puhaltimet ?? base.puhaltimet ?? []).map((f, i) => ({
+      ...createEmptyEvaporatorFan(i + 1),
+      ...f,
+    })),
+  };
+}
+
+export function ensureTiiveyskoeData(data: Partial<TiiveyskoeData> | undefined): TiiveyskoeData {
+  const base = createEmptyTiiveyskoeData();
+  if (!data) return base;
+  return {
+    ...base,
+    ...data,
+    todisteKuvat: data.todisteKuvat ?? base.todisteKuvat,
+  };
+}
+
+export function ensureTyhjiointiData(data: Partial<TyhjiointiData> | undefined): TyhjiointiData {
+  const base = createEmptyTyhjiointiData();
+  if (!data) return base;
+  return {
+    ...base,
+    ...data,
+    todisteKuvat: data.todisteKuvat ?? base.todisteKuvat,
+  };
+}
+
+export function createEmptyEvaporatorData(): EvaporatorData {
+  return {
+    tyyppi: 'staatinen',
+    huoneenTunnus: '',
+    valmistaja: '',
+    malli: '',
+    sarjanumero: '',
+    sulatus: 'ilma',
+    sahkoJannite: '230',
+    sahkoVirtaMitattu: false,
+    sahkoVirtaL1: '',
+    sahkoVirtaL2: '',
+    sahkoVirtaL3: '',
+    sulatusOhjausMuu: '',
+    sulatusKelloMalli: '',
+    sulatusSäädinMalli: '',
+    sulatusKertojaPäivässä: '',
+    sulatusAika: '',
+    sulatusLopetusLämpötila: '',
+    puhaltimienMaara: 1,
+    puhaltimet: [createEmptyEvaporatorFan(1)],
+  };
+}
+
+export function createEmptyHeatingElementData(): HeatingElementData {
+  return {
+    tunnus: '',
+    teho: '',
+    jannite: '',
+    asetusarvo: '',
+    ohjaustapa: '',
+    toimintaTestattu: false,
+  };
+}
+
+export function cloneKonvektoriRow(row?: KonvektoriRowData): KonvektoriRowData {
+  return {
+    ...(row ?? createEmptyKonvektoriRow()),
+    id: generateId(),
+  };
+}
+
+export function createEmptyHeatingCircuitData(): HeatingCircuitData {
+  return {
+    jakotapa: '',
+    jakotapaMuu: '',
+    pumppuTyyppi: '',
+    pumppuVirta1vaihe: '',
+    pumppuVirtaL1: '',
+    pumppuVirtaL2: '',
+    pumppuVirtaL3: '',
+    virtaus: '',
+    meno: '',
+    tulo: '',
+    neste: '',
+  };
+}
+
+export function createEmptyMlpData(): MlpData {
+  return {
+    keruupiirinPaineTarkastettu: false,
+    keruupiiriPaineBar: '',
+    keruupiirissaMutapussiPuhdistettu: false,
+    keruupiirinPumppuTarkastettu: false,
+    keruupiirinEristeetKunnossa: false,
+    keruupiirissaAutomaattinenIlmausTarkistettu: false,
+    keruupiiriVirtaus: '',
+    keruupiiriMeno: '',
+    keruupiiriTulo: '',
+    keruupiirinPumpunTyyppi: '',
+    keruupiiriPumpunValmistaja: '',
+    keruupiiriPumpunMalli: '',
+    keruupiiriPumpunSyottoValinta: '',
+    keruupiiriPumppuVirta1vaihe: '',
+    keruupiiriPumppuVirtaL1: '',
+    keruupiiriPumppuVirtaL2: '',
+    keruupiiriPumppuVirtaL3: '',
+    keruupiiriNeste: '',
+    keruupiiriTehoLaskenta: '',
+    keruuPaisuntaAstiaTarkistettu: false,
+    keruuPaisuntaAstiaKoko: '',
+    keruuPaisuntaAstiaEsipaine: '',
+    keruuJaahdytysPiiri: false,
+    keruuJaahdytysPiiriPumppu: false,
+    keruuJaahdytysPumppuTyyppi: '',
+    keruuJaahdytysPumpunValmistaja: '',
+    keruuJaahdytysPumpunMalli: '',
+    keruuJaahdytysPumpunSyottoValinta: '',
+    keruuJaahdytysPumppuVirta1vaihe: '',
+    keruuJaahdytysPumppuVirtaL1: '',
+    keruuJaahdytysPumppuVirtaL2: '',
+    keruuJaahdytysPumppuVirtaL3: '',
+    keruuJaahdytysVirtaus: '',
+    keruuJaahdytysKayntivirta: '',
+    keruuJaahdytysMenoLampotila: '',
+    keruuJaahdytysPaluuLampotila: '',
+    latausPaineTarkastettu: false,
+    latausPaineBar: '',
+    latausMutapussiPuhdistettu: false,
+    latausPumppuTarkastettu: false,
+    latausEristeetKunnossa: false,
+    latausAutomaattinenIlmausTarkistettu: false,
+    latausPumpunTyyppi: '',
+    latausPumpunValmistaja: '',
+    latausPumpunMalli: '',
+    latausPumpunSyottoValinta: '',
+    latausPumppuVirta1vaihe: '',
+    latausPumppuVirtaL1: '',
+    latausPumppuVirtaL2: '',
+    latausPumppuVirtaL3: '',
+    latausVirtaus: '',
+    latausMeno: '',
+    latausTulo: '',
+    latausNeste: '',
+    latausPaisuntaAstiaTarkistettu: false,
+    latausPaisuntaAstiaKoko: '',
+    latausPaisuntaAstiaEsipaine: '',
+    latausTulistuspiiri: false,
+    latausTulistuspiiriPumppu: false,
+    latausTulistusPumppuTyyppi: '',
+    latausTulistusPumpunValmistaja: '',
+    latausTulistusPumpunMalli: '',
+    latausTulistusPumpunSyottoValinta: '',
+    latausTulistusPumppuVirta1vaihe: '',
+    latausTulistusPumppuVirtaL1: '',
+    latausTulistusPumppuVirtaL2: '',
+    latausTulistusPumppuVirtaL3: '',
+    latausTulistusVirtaus: '',
+    latausTulistusMeno: '',
+    latausTulistusTulo: '',
+    latausTulistusNeste: '',
+    latausJarjestelmanNeste: '',
+    latausGlykoliPakkaskestavyys: '',
+    kayttovesiEnabled: false,
+    kayttovesiTilavuus: '',
+    kayttovesiLampotilaAsetus: '',
+    kayttovesiLampotilaNykyinen: '',
+    kayttovesiSahkoVastuksetEnabled: false,
+    kayttovesiSahkoVastuksetMaara: '',
+    kayttovesiSahkoVastukset: [],
+    kayttovesiToimilaitteetOK: false,
+    kayttovesiKiertoEnabled: false,
+    kayttovesiKiertoPumppuTyyppi: '',
+    kayttovesiKiertoPumpunValmistaja: '',
+    kayttovesiKiertoPumpunMalli: '',
+    kayttovesiKiertoVirtaus: '',
+    kayttovesiKiertoKayntivirta: '',
+    kiinteistoPiiritSisallytetaan: true,
+    lampoPiireja: '',
+    lampoPiirit: [],
+    lampoPaisuntaAstiaTarkistettu: false,
+    lampoPaisuntaAstiaKoko: '',
+    lampoPaisuntaAstiaEsipaine: '',
+    lampoToimilaitteetOK: false,
+    lampoAutomaattinenIlmausTarkistettu: false,
+    lampoMutapussiPuhdistettu: false,
+    lampoSahkoKattilaVaralampitykseen: false,
+    lampoSahkoKattilaTeho: '',
+    lampoSahkoKattilaTyyppi: '',
+    kylmaainePaetosTarkastettu: false,
+    kylmaaineVuotoja: false,
+    kylmaainePaineLauhdutinBar: '',
+    kylmaaineKyllaestymisLampotila: '',
+    kylmaaineNestePutkiLampotila: '',
+    kylmaaineAlijaahdytys: '',
+    mittaaKokoLaiteSahko: false,
+    kokoLaiteSahkoVaiheValinta: '',
+    kokoLaiteVirta1vaihe: '',
+    kokoLaiteVirtaL1: '',
+    kokoLaiteVirtaL2: '',
+    kokoLaiteVirtaL3: '',
+  };
+}
+
+export function ensureEvaporatorData(data: Partial<EvaporatorData> | undefined): EvaporatorData {
+  const base = createEmptyEvaporatorData();
+  if (!data) return base;
+  return {
+    ...base,
+    ...data,
+    puhaltimet: (data.puhaltimet ?? base.puhaltimet).map((f, i) => ({
+      ...createEmptyEvaporatorFan(i + 1),
+      ...f,
+    })),
+  };
+}
+
+export function ensureMlpData(data: Partial<MlpData> | null | undefined): MlpData {
+  const base = createEmptyMlpData();
+  if (!data) return base;
+  return {
+    ...base,
+    ...data,
+    kayttovesiSahkoVastukset: data.kayttovesiSahkoVastukset ?? [],
+    lampoPiirit: (data.lampoPiirit ?? []).map((p) => ({ ...createEmptyHeatingCircuitData(), ...p })),
+  };
+}
+
+export function createEmptyCompressorData(): CompressorData {
+  return {
+    tyyppi: '',
+    valmistaja: '',
+    malli: '',
+    oljyMaaraOikea: true,
+    oljyKirkas: true,
+    oljyMaaraLaatu: '',
+    kompressorinVaiheValinta: '',
+    virta1vaihe: '',
+    virtaL1: '',
+    virtaL2: '',
+    virtaL3: '',
+    ohjaustapa: '',
+    kontaktoritTarkastettu: false,
+    kontaktoriTyyppi: '',
+    pehmokaynnistinTarkastettu: false,
+    pehmokaynnistinTyyppi: '',
+    taajuusmuuttajaTarkastettu: false,
+    taajuusmuuttajaTyyppi: '',
+    ohjaustapaMuu: '',
+  };
+}
+
+export function createEmptyRefrigerantCircuitData(): RefrigerantCircuitData {
+  const kompressori = createEmptyCompressorData();
+  return {
+    onKaytossa: true,
+    kompressorienMaara: '1',
+    imupaine: '',
+    imuLampotila: '',
+    korkeapaine: '',
+    nestePutkiLampotila: '',
+    kuumakaasuLampotila: '',
+    ohjaustapa: '',
+    paisuntaventtiiliTyyppi: '',
+    paisuntaventtiiliMuu: '',
+    paisuntaventtiiliMalli: '',
+    paisuntaventtiiliValmistaja: '',
+    magneettiventtiiliValmistaja: '',
+    magneettiventtiiliMalli: '',
+    kuivainLisatieto: '',
+    kuivainValmistaja: '',
+    kuivainMalli: '',
+    kuivainKivienMaara: '',
+    tulistus: '',
+    alijäähtyminen: '',
+    kompressori1: { ...kompressori },
+    kompressori2: { ...kompressori },
+    kompressori3: { ...kompressori },
+    kompressori4: { ...kompressori },
+    kompressori5: { ...kompressori },
+    kompressori6: { ...kompressori },
+  };
+}
+
+export function ensureRefrigerantCircuitData(
+  data: Partial<RefrigerantCircuitData> | null | undefined,
+): RefrigerantCircuitData {
+  const base = createEmptyRefrigerantCircuitData();
+  if (!data) return base;
+  return {
+    ...base,
+    ...data,
+    kompressori1: { ...base.kompressori1, ...data.kompressori1 },
+    kompressori2: { ...base.kompressori2, ...data.kompressori2 },
+    kompressori3: { ...base.kompressori3, ...data.kompressori3 },
+    kompressori4: { ...base.kompressori4, ...data.kompressori4 },
+    kompressori5: { ...base.kompressori5, ...data.kompressori5 },
+    kompressori6: { ...base.kompressori6, ...data.kompressori6 },
+  };
+}
+
+export function normalizeHuoltoReportData(data: Partial<HuoltoReportData>): HuoltoReportData {
+  const base = createEmptyHuoltoReportData();
+  const merged = { ...base, ...data };
+  const sisMaara = merged.sisayksikkoMaara ?? 1;
+  return {
+    ...merged,
+    kylmaainePiiri1: ensureRefrigerantCircuitData(data.kylmaainePiiri1),
+    kylmaainePiiri2: data.kylmaainePiiri2 ? ensureRefrigerantCircuitData(data.kylmaainePiiri2) : null,
+    kylmaainePiiri3: data.kylmaainePiiri3 ? ensureRefrigerantCircuitData(data.kylmaainePiiri3) : null,
+    evaporatorData: (data.evaporatorData ?? base.evaporatorData).map((ev) => ensureEvaporatorData(ev)),
+    evaporatorSamaKuinEnsimmainen: data.evaporatorSamaKuinEnsimmainen ?? base.evaporatorSamaKuinEnsimmainen,
+    condenserData: (data.condenserData ?? base.condenserData).map((c) => ensureCondenserData(c)),
+    nestelauhduttimetVj: (Array.isArray(data.nestelauhduttimetVj)
+      ? data.nestelauhduttimetVj
+      : base.nestelauhduttimetVj
+    ).map((u) => ensureNestelauhdutinUnit(u)),
+    konvektoriRows: (data.konvektoriRows ?? base.konvektoriRows).map((r) => ensureKonvektoriRow(r)),
+    mlpData: data.mlpData ? ensureMlpData(data.mlpData) : null,
+    tiiveyskoeData: ensureTiiveyskoeData(data.tiiveyskoeData),
+    tyhjiointiData: ensureTyhjiointiData(data.tyhjiointiData),
+    huomiotLiitteet: (data.huomiotLiitteet ?? base.huomiotLiitteet)?.map((a) => ensureHuomiotLiite(a)),
+    sisayksikkoMaara: sisMaara,
+    sisayksikkoData: padArray(
+      (data.sisayksikkoData ?? base.sisayksikkoData).map((s) => ensureSisayksikkoData(s)),
+      sisMaara,
+      createEmptySisayksikkoData,
+    ),
+    sisaSamaKuinEnsimmainen: padBoolArray(data.sisaSamaKuinEnsimmainen ?? base.sisaSamaKuinEnsimmainen, sisMaara),
+    mittausSisayksikot: padArray(
+      (data.mittausSisayksikot ?? base.mittausSisayksikot).map((m) => ensureMittausSisayksikkoData(m)),
+      sisMaara,
+      createEmptyMittausSisayksikkoData,
+    ),
+    mittausSamaKuinEnsimmainen: padBoolArray(
+      data.mittausSamaKuinEnsimmainen ?? base.mittausSamaKuinEnsimmainen,
+      sisMaara,
+    ),
+    jaahdytysvesiData: { ...createEmptyJaahdytysvesiData(), ...(data.jaahdytysvesiData ?? {}) },
+    vapaajahdytysData: { ...createEmptyVapaajahdytysData(), ...(data.vapaajahdytysData ?? {}) },
+    lauhdutinTyyppiLaite:
+      data.lauhdutinTyyppiLaite ??
+      (isChillerLikeDevice(merged.laiteTyyppi)
+        ? defaultCondenserTypeForDevice(merged.laiteTyyppi)
+        : ''),
+    vjNestelauhdutusJaettu: data.vjNestelauhdutusJaettu ?? base.vjNestelauhdutusJaettu,
+    vapaajahdytysKaytossa: data.vapaajahdytysKaytossa ?? false,
+    selectedModules: merged.laiteTyyppi
+      ? resolveAutoModules({
+          laiteTyyppi: merged.laiteTyyppi,
+          lauhdutinTyyppiLaite:
+            data.lauhdutinTyyppiLaite ??
+            (isChillerLikeDevice(merged.laiteTyyppi)
+              ? defaultCondenserTypeForDevice(merged.laiteTyyppi)
+              : ''),
+          vapaajahdytysKaytossa: data.vapaajahdytysKaytossa ?? false,
+          manualModules: { ...base.selectedModules, ...(data.selectedModules ?? {}) },
+        })
+      : { ...base.selectedModules, ...(data.selectedModules ?? {}) },
+  };
+}
+
+function padArray<T>(arr: T[], length: number, create: () => T): T[] {
+  const out = [...arr];
+  while (out.length < length) out.push(create());
+  return out.slice(0, length);
+}
+
+function padBoolArray(arr: boolean[], length: number): boolean[] {
+  const out = [...arr];
+  while (out.length < length) out.push(false);
+  if (out.length > 0) out[0] = false;
+  return out.slice(0, length);
+}
+
+export function emptySelectedModules(): Record<ModuleKey, boolean> {
+  return {
+    kylmaainePiiri: false,
+    hoyrystin: false,
+    lauhdutin: false,
+    mlpPiirit: false,
+    konvektorit: false,
+    ulkoyksikko: false,
+    sisayksikko: false,
+    mittaukset: false,
+    vedenjajahdytyskone: false,
+    nestelauhduttimet: false,
+    vapaajahdytys: false,
+    tiiveyskoe: false,
+    tyhjiointi: false,
+  };
+}
+
+export function createEmptyHuoltoReportData(): HuoltoReportData {
+  const today = new Date().toISOString().slice(0, 10);
+  return {
+    asiakas: '',
+    osoite: '',
+    laiteTyyppi: '',
+    selectedModules: emptySelectedModules(),
+    laiteValmistaja: '',
+    laiteMalli: '',
+    laiteTunnus: '',
+    laiteSarjanumero: '',
+    laiteSijainti: '',
+    laiteKayttotarkoitus: '',
+    kylmaaineTyyppi: '',
+    kylmaaineLaatu: '',
+    kylmaainePiireja: '1',
+    kylmaaineValmistajaMaara: '',
+    kylmaaineLisattyMaara: '',
+    kylmaainePutkimatka: '',
+    kylmaaineMaaraPiiri1: '',
+    kylmaaineMaaraPiiri2: '',
+    kylmaaineMaaraPiiri3: '',
+    kylmaaineMaaraPiiri4: '',
+    kylmaaineMaaraYhteensa: '',
+    kylmaaineCO2Ekv: '',
+    hoyrystimienMaara: '',
+    hoyrystinTyyppi: '',
+    sulatusKaytossa: false,
+    sulatusTapa: '',
+    kylmaainePiiri1: createEmptyRefrigerantCircuitData(),
+    kylmaainePiiri2: null,
+    kylmaainePiiri3: null,
+    evaporatorData: [createEmptyEvaporatorData()],
+    evaporatorSamaKuinEnsimmainen: [false],
+    condenserData: [createEmptyCondenserData()],
+    lauhdutinTyyppiLaite: '',
+    vjNestelauhdutusJaettu: true,
+    vapaajahdytysKaytossa: false,
+    vapaajahdytysData: createEmptyVapaajahdytysData(),
+    jaahdytysvesiData: createEmptyJaahdytysvesiData(),
+    nestelauhduttimetVj: [],
+    konvektoriRows: [],
+    mlpData: null,
+    tiiveyskoeData: createEmptyTiiveyskoeData(),
+    tyhjiointiData: createEmptyTyhjiointiData(),
+    huomiot: '',
+    huomiotLuonne: 'kommentti',
+    huomiotLiitteet: [],
+    ulkoyksikkoMalli: '',
+    ulkoyksikkoSarjanumero: '',
+    ulkoyksikkoJaahdytysTeho: '',
+    ulkoyksikkoLammitysTeho: '',
+    ulkoyksikkoAsennustapa: '',
+    ulkoyksikkoAsennustapaMuu: '',
+    ulkoyksikkoKennosPuhdas: false,
+    ulkoyksikkoSulatausVedenKeraily: false,
+    ulkoyksikkoSulatausVedenTarkistettu: false,
+    ulkoyksikkoTurvakytkin: false,
+    ulkoyksikkoSuojakotelo: false,
+    sisayksikkoMaara: 1,
+    sisayksikkoData: [createEmptySisayksikkoData()],
+    sisaSamaKuinEnsimmainen: [false],
+    mittausJaahdytysTestattu: undefined,
+    mittausLammitysTestattu: undefined,
+    mittausTestausLampotila: '',
+    mittausUlkoLampotila: '',
+    mittausSisayksikot: [createEmptyMittausSisayksikkoData()],
+    mittausSamaKuinEnsimmainen: [false],
+    mittausVaiheMaara: '1',
+    mittausAmpeeriL1: '',
+    mittausAmpeeriL2: '',
+    mittausAmpeeriL3: '',
+    equipmentSnapshot: null,
+    huoltoSuoritettu: false,
+    huoltoKylmaaineVuotoTarkastus: false,
+    huoltoLaiteessaVika: false,
+    huoltoSuorittajaNimi: '',
+    huoltoSuorittajaTUKES: '',
+    huoltoPaivamaara: today,
+    huoltoReportDocumentKind: 'huolto',
+  };
+}
+
+export function applyDeviceTypeDefaults(
+  data: HuoltoReportData,
+  deviceType: string,
+): HuoltoReportData {
+  const condenserType =
+    isChillerLikeDevice(deviceType)
+      ? data.lauhdutinTyyppiLaite || defaultCondenserTypeForDevice(deviceType)
+      : defaultCondenserTypeForDevice(deviceType);
+
+  const modules = resolveAutoModules({
+    laiteTyyppi: deviceType,
+    lauhdutinTyyppiLaite: condenserType,
+    vapaajahdytysKaytossa: data.vapaajahdytysKaytossa ?? false,
+    manualModules: {
+      ...data.selectedModules,
+      tiiveyskoe: data.selectedModules.tiiveyskoe,
+      tyhjiointi: data.selectedModules.tyhjiointi,
+    },
+  });
+
+  const patch: Partial<HuoltoReportData> = {
+    laiteTyyppi: deviceType,
+    laiteSarjanumero: isAirSourceHeatPump(deviceType) ? '' : data.laiteSarjanumero,
+    selectedModules: modules as HuoltoReportData['selectedModules'],
+    lauhdutinTyyppiLaite: condenserType,
+    huoltoReportDocumentKind:
+      deviceType === 'lämpöpumppu' || isHeatPumpCircuitsDevice(deviceType)
+        ? data.huoltoReportDocumentKind
+        : 'huolto',
+    condenserData: data.condenserData.map((c) => ({ ...c, tyyppi: condenserType || c.tyyppi })),
+    jaahdytysvesiData: data.jaahdytysvesiData ?? createEmptyJaahdytysvesiData(),
+    vapaajahdytysData: data.vapaajahdytysData ?? createEmptyVapaajahdytysData(),
+  };
+
+  if (isHeatPumpCircuitsDevice(deviceType)) {
+    patch.mlpData = ensureMlpData(data.mlpData);
+  } else {
+    patch.mlpData = null;
+  }
+  if (deviceType === 'konvektorit') {
+    patch.konvektoriRows =
+      data.konvektoriRows?.length ? data.konvektoriRows.map(ensureKonvektoriRow) : [createEmptyKonvektoriRow()];
+  } else {
+    patch.konvektoriRows = [];
+  }
+  if (isChillerLikeDevice(deviceType)) {
+    patch.nestelauhduttimetVj =
+      data.nestelauhduttimetVj?.length
+        ? data.nestelauhduttimetVj.map(ensureNestelauhdutinUnit)
+        : [createEmptyNestelauhdutinUnit()];
+    patch.vjNestelauhdutusJaettu = data.vjNestelauhdutusJaettu ?? true;
+  } else {
+    patch.nestelauhduttimetVj = [];
+    patch.vjNestelauhdutusJaettu = false;
+    patch.vapaajahdytysKaytossa = false;
+  }
+  if (deviceType === 'lämpöpumppu' || deviceType === 'vesiilmalampopumppu') {
+    const maara = data.sisayksikkoMaara > 0 ? data.sisayksikkoMaara : 1;
+    if (deviceType === 'lämpöpumppu') {
+      patch.sisayksikkoMaara = maara;
+      patch.sisayksikkoData = padArray(
+        data.sisayksikkoData?.length ? data.sisayksikkoData.map(ensureSisayksikkoData) : [createEmptySisayksikkoData()],
+        maara,
+        createEmptySisayksikkoData,
+      );
+      patch.sisaSamaKuinEnsimmainen = padBoolArray(data.sisaSamaKuinEnsimmainen ?? [false], maara);
+      patch.mittausSisayksikot = padArray(
+        data.mittausSisayksikot?.length
+          ? data.mittausSisayksikot.map(ensureMittausSisayksikkoData)
+          : [createEmptyMittausSisayksikkoData()],
+        maara,
+        createEmptyMittausSisayksikkoData,
+      );
+      patch.mittausSamaKuinEnsimmainen = padBoolArray(data.mittausSamaKuinEnsimmainen ?? [false], maara);
+    }
+  }
+
+  return { ...data, ...patch };
+}
+
+function isAirSourceHeatPump(deviceType: string) {
+  return deviceType === 'lämpöpumppu';
+}
+
+export function maintenanceReportListTitle(data: HuoltoReportData): string {
+  const parts = [
+    data.huoltoPaivamaara,
+    data.asiakas?.trim(),
+    data.laiteTunnus?.trim() || data.laiteMalli?.trim(),
+  ].filter(Boolean);
+  return parts.join(' · ') || 'Huoltoraportti';
+}
+
+export function mergeHuoltoReportData(
+  base: HuoltoReportData,
+  patch: Partial<HuoltoReportData>,
+): HuoltoReportData {
+  const merged = { ...base, ...patch };
+  if (patch.selectedModules) {
+    merged.selectedModules = { ...base.selectedModules, ...patch.selectedModules };
+  }
+  return merged;
+}
