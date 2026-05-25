@@ -16,6 +16,7 @@ const PROFILE_TAB = { href: '/hallinta/omat', label: 'Omat tiedot' };
 
 const ADMIN_TABS = [
   { href: '/hallinta/yritys', label: 'Yritystiedot' },
+  { href: '/hallinta/tilaajat', label: 'Tilaajat' },
   { href: '/hallinta/kayttajat', label: 'Käyttäjät' },
   { href: '/hallinta/kumppanuudet', label: 'Kumppanuudet' },
   { href: '/hallinta/kumppanilaskutus', label: 'Kumppanilaskutus' },

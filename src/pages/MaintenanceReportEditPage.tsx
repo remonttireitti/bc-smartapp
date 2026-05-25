@@ -9,6 +9,7 @@ import type { Session } from '@supabase/supabase-js';
 import AppLayout from '../components/AppLayout';
 import CustomerRegistryPicker, { type NewCustomerDraft } from '../components/CustomerRegistryPicker';
 import EquipmentRegistryPicker, { type NewEquipmentDraft } from '../components/EquipmentRegistryPicker';
+import SubscriberPicker from '../components/SubscriberPicker';
 import CollapsibleSection from '../components/CollapsibleSection';
 import ToggleSwitch from '../components/ToggleSwitch';
 import { CondensersSection } from '../components/huoltoRaportti/CondensersSection';
@@ -43,6 +44,10 @@ import {
   loadAccessibleReportCustomers,
   resolveReportContextFromCustomer,
 } from '../lib/reportCustomerRegistry';
+import {
+  loadAccessibleSubscribers,
+  resolveSubscriberIdForReport,
+} from '../lib/subscribers';
 import {
   deviceTypes,
   moduleSelectionOptions,
@@ -80,7 +85,7 @@ import {
 } from '../lib/maintenanceReportDraftStorage';
 import { useProfile } from '../hooks/useProfile';
 import { canDeleteCompanyOwnedEntity } from '../lib/deletePermissions';
-import type { Company, Customer, Equipment, Partnership } from '../types';
+import type { Company, Customer, Equipment, Partnership, Subscriber } from '../types';
 
 interface Props {
   session: Session;
@@ -111,6 +116,8 @@ export default function MaintenanceReportEditPage({ session }: Props) {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [equipment, setEquipment] = useState<Equipment[]>([]);
   const [customerId, setCustomerId] = useState('');
+  const [subscriberId, setSubscriberId] = useState('');
+  const [subscribers, setSubscribers] = useState<Subscriber[]>([]);
   const [equipmentId, setEquipmentId] = useState('');
   const [loadingReport, setLoadingReport] = useState(!isNew);
   const [error, setError] = useState<string | null>(null);
@@ -237,6 +244,18 @@ export default function MaintenanceReportEditPage({ session }: Props) {
   }, [profile?.company_id, partnerships, profileLoading]);
 
   useEffect(() => {
+    if (!profile?.company_id || profileLoading) return;
+    void loadAccessibleSubscribers(supabase, profile.company_id, partnerships)
+      .then(setSubscribers)
+      .catch((err) => console.error('Tilaajien lataus epäonnistui:', err));
+  }, [profile?.company_id, partnerships, profileLoading]);
+
+  const subscribersForOwner = useMemo(() => {
+    if (!ownerCompanyId) return subscribers;
+    return subscribers.filter((s) => s.owner_company_id === ownerCompanyId);
+  }, [subscribers, ownerCompanyId]);
+
+  useEffect(() => {
     if (!isNew || loadingReport || profileLoading || !profile?.company_id || customerId) return;
     void loadOwnerCompany(profile.company_id);
   }, [isNew, loadingReport, profileLoading, profile?.company_id, customerId]);
@@ -285,7 +304,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
       .from('maintenance_reports')
       .select(`
         id, status, title, data, owner_company_id, created_by_company_id,
-        branding_company_id, partnership_id, customer_id, equipment_id
+        branding_company_id, partnership_id, customer_id, equipment_id, subscriber_id
       `)
       .eq('id', reportIdToLoad)
       .single();
@@ -306,6 +325,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
       partnership_id: string | null;
       customer_id: string | null;
       equipment_id: string | null;
+      subscriber_id: string | null;
     };
 
     setReportId(row.id);
@@ -314,6 +334,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
     setStatus(row.status);
     setForm(normalizeHuoltoReportData({ ...createEmptyHuoltoReportData(), ...row.data }));
     setCustomerId(row.customer_id ?? row.data.customerId ?? '');
+    setSubscriberId(row.subscriber_id ?? '');
     setEquipmentId(row.equipment_id ?? '');
 
     await loadAccessibleCustomers();
@@ -424,6 +445,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
       address: draft.address,
       city: draft.city,
       phone: draft.phone,
+      subscriberId: subscriberId || null,
     });
 
     if (insertError || !created) {
@@ -665,6 +687,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
         branding_company_id: ownerCompanyId,
         partnership_id: partnership?.id ?? null,
         customer_id: customerId || null,
+        subscriber_id: resolveSubscriberIdForReport(customerId, subscriberId, customers),
         equipment_id: equipmentId || null,
         assigned_user_id: session.user.id,
         title,
@@ -902,6 +925,16 @@ export default function MaintenanceReportEditPage({ session }: Props) {
 
             {canEditCustomerEquipment ? (
               <>
+                {ownerCompanyId ? (
+                  <SubscriberPicker
+                    subscribers={subscribersForOwner}
+                    subscriberId={subscriberId}
+                    disabled={busy}
+                    hint="Valinnainen. Moniasiakas-tilaaja näkee kaikki tähän linkitetyt kohteet ja raportit."
+                    onChange={setSubscriberId}
+                  />
+                ) : null}
+
                 <CustomerRegistryPicker
                   customers={customers}
                   customerId={customerId}
@@ -913,7 +946,10 @@ export default function MaintenanceReportEditPage({ session }: Props) {
                     setCustomerId(id);
                     setEquipmentId('');
                     const customer = customers.find((entry) => entry.id === id);
-                    if (customer) void loadOwnerCompany(customer.owner_company_id);
+                    if (customer) {
+                      void loadOwnerCompany(customer.owner_company_id);
+                      if (customer.subscriber_id) setSubscriberId(customer.subscriber_id);
+                    }
                   }}
                   onClear={() => {
                     setCustomerId('');

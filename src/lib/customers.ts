@@ -51,6 +51,8 @@ export function companiesWithCustomerWrite(
 
 export const CUSTOMER_SELECT = `
   id, name, address, city, phone, email, business_id, notes, owner_company_id, created_at,
+  subscriber_id,
+  subscriber:subscribers!customers_subscriber_id_fkey(id, name),
   owner_company:companies!customers_owner_company_id_fkey(name)
 `;
 

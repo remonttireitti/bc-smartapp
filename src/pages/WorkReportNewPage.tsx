@@ -10,6 +10,8 @@ import CustomerRegistryPicker, { type NewCustomerDraft } from '../components/Cus
 
 import EquipmentRegistryPicker, { type NewEquipmentDraft } from '../components/EquipmentRegistryPicker';
 
+import SubscriberPicker from '../components/SubscriberPicker';
+
 import { supabase } from '../lib/supabase';
 
 import { createRegistryCustomer } from '../lib/createRegistryCustomer';
@@ -21,6 +23,11 @@ import {
   resolveReportContextFromCustomer,
   resolveReportContextFromOwner,
 } from '../lib/reportCustomerRegistry';
+
+import {
+  loadAccessibleSubscribers,
+  resolveSubscriberIdForReport,
+} from '../lib/subscribers';
 
 import { partnershipModuleAccess, partnershipPermsActingOnOwner } from '../lib/management';
 
@@ -68,7 +75,7 @@ import {
   validateFutureSchedule,
 } from '../lib/workReportCalendar';
 
-import type { Company, Customer, Equipment, Partnership } from '../types';
+import type { Company, Customer, Equipment, Partnership, Subscriber } from '../types';
 
 
 
@@ -111,6 +118,10 @@ export default function WorkReportNewPage({ session }: Props) {
   const [description, setDescription] = useState('');
 
   const [ordererName, setOrdererName] = useState('');
+
+  const [subscriberId, setSubscriberId] = useState('');
+
+  const [subscribers, setSubscribers] = useState<Subscriber[]>([]);
 
   const [scheduledDate, setScheduledDate] = useState(todayIsoDate);
 
@@ -169,6 +180,11 @@ export default function WorkReportNewPage({ session }: Props) {
   }, [selectedCustomer, reportOwnerCompanyId, profile?.company_id, partnerships]);
 
   const { contextMode, partnerId, ownerCompanyId } = reportContext;
+
+  const subscribersForOwner = useMemo(() => {
+    if (!ownerCompanyId) return subscribers;
+    return subscribers.filter((s) => s.owner_company_id === ownerCompanyId);
+  }, [subscribers, ownerCompanyId]);
 
   const reportOwnerTargets = useMemo(() => {
     if (!profile?.company_id) return [];
@@ -282,6 +298,13 @@ export default function WorkReportNewPage({ session }: Props) {
 
   }, [profile?.company_id, partnerships, profileLoading]);
 
+  useEffect(() => {
+    if (!profile?.company_id || profileLoading) return;
+    void loadAccessibleSubscribers(supabase, profile.company_id, partnerships)
+      .then(setSubscribers)
+      .catch((err) => console.error('Tilaajien lataus epäonnistui:', err));
+  }, [profile?.company_id, partnerships, profileLoading]);
+
 
 
   useEffect(() => {
@@ -331,7 +354,7 @@ export default function WorkReportNewPage({ session }: Props) {
       .from('work_reports')
 
       .select(
-        'id, status, description, orderer_name, title, owner_company_id, created_by_company_id, assigned_user_id, partnership_id, customer_id, equipment_id, scheduled_start, customers(name)',
+        'id, status, description, orderer_name, subscriber_id, title, owner_company_id, created_by_company_id, assigned_user_id, partnership_id, customer_id, equipment_id, scheduled_start, customers(name)',
       )
 
       .eq('id', id)
@@ -386,6 +409,8 @@ export default function WorkReportNewPage({ session }: Props) {
     );
 
     setOrdererName(String(data.orderer_name ?? '').trim());
+
+    setSubscriberId(String(data.subscriber_id ?? '').trim());
 
     setCustomerId(data.customer_id ?? '');
 
@@ -574,6 +599,7 @@ export default function WorkReportNewPage({ session }: Props) {
       address: draft.address,
       city: draft.city,
       phone: draft.phone,
+      subscriberId: subscriberId || null,
     });
 
     if (insertError || !created) {
@@ -821,6 +847,8 @@ export default function WorkReportNewPage({ session }: Props) {
       description: description.trim() || null,
 
       orderer_name: ordererName.trim() || null,
+
+      subscriber_id: resolveSubscriberIdForReport(customerId, subscriberId, customers),
 
       location_text: locationText,
 
@@ -1251,6 +1279,15 @@ export default function WorkReportNewPage({ session }: Props) {
             </p>
           </details>
 
+          {ownerCompanyId ? (
+            <SubscriberPicker
+              subscribers={subscribersForOwner}
+              subscriberId={subscriberId}
+              disabled={busy}
+              onChange={setSubscriberId}
+            />
+          ) : null}
+
           <CustomerRegistryPicker
 
             customers={customers}
@@ -1278,6 +1315,7 @@ export default function WorkReportNewPage({ session }: Props) {
               if (customer) {
                 setReportOwnerCompanyId(customer.owner_company_id);
                 void loadOwnerCompany(customer.owner_company_id);
+                if (customer.subscriber_id) setSubscriberId(customer.subscriber_id);
               }
 
             }}
@@ -1325,7 +1363,7 @@ export default function WorkReportNewPage({ session }: Props) {
 
           <label>
 
-            Tilaaja
+            Tilaajan yhteyshenkilö (vapaa teksti)
 
             <input
 
@@ -1335,7 +1373,7 @@ export default function WorkReportNewPage({ session }: Props) {
 
               onChange={(e) => setOrdererName(e.target.value)}
 
-              placeholder="Tilaajan nimi tai taho (valinnainen)"
+              placeholder="Esim. kiinteistönhoitaja (valinnainen)"
 
             />
 

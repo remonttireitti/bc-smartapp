@@ -12,8 +12,10 @@ import {
 } from '../lib/deleteCompanyUser';
 import { inviteCompanyUser } from '../lib/inviteUser';
 import { INVITE_ROLES, ROLE_LABELS } from '../lib/management';
+import SubscriberPicker from '../components/SubscriberPicker';
+import { loadSubscribersForOwner } from '../lib/subscribers';
 import { supabase } from '../lib/supabase';
-import type { Company, Profile } from '../types';
+import type { Company, Profile, Subscriber } from '../types';
 
 type Context = { profile: Profile; session: Session };
 
@@ -51,7 +53,14 @@ export default function UsersPage() {
   const [saveBusyId, setSaveBusyId] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [invite, setInvite] = useState({ email: '', password: 'test123456', display_name: '', role: 'technician' });
+  const [invite, setInvite] = useState({
+    email: '',
+    password: 'test123456',
+    display_name: '',
+    role: 'technician',
+    subscriber_id: '',
+  });
+  const [subscribers, setSubscribers] = useState<Subscriber[]>([]);
   const [busy, setBusy] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<CompanyUser | null>(null);
   const [deleteImpact, setDeleteImpact] = useState<CompanyUserDeletionImpact | null>(null);
@@ -63,6 +72,13 @@ export default function UsersPage() {
   useEffect(() => {
     if (profile.company_id) void loadUsers();
   }, [profile.company_id, gbaActive]);
+
+  useEffect(() => {
+    if (!profile.company_id || profile.role !== 'admin') return;
+    void loadSubscribersForOwner(supabase, profile.company_id)
+      .then(setSubscribers)
+      .catch(() => setSubscribers([]));
+  }, [profile.company_id, profile.role]);
 
   useEffect(() => {
     if (!gbaActive) return;
@@ -207,12 +223,18 @@ export default function UsersPage() {
     setMessage(null);
 
     try {
+      if (invite.role === 'subscriber' && !invite.subscriber_id) {
+        setError('Valitse tilaaja, jolle portaali myönnetään.');
+        return;
+      }
+
       await inviteCompanyUser({
         email: invite.email.trim(),
         password: invite.password,
         display_name: invite.display_name.trim() || invite.email.split('@')[0],
         role: invite.role,
         company_id: profile.company_id,
+        subscriber_id: invite.role === 'subscriber' ? invite.subscriber_id : null,
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Käyttäjän luonti epäonnistui');
@@ -222,7 +244,7 @@ export default function UsersPage() {
     }
 
     setMessage(`Käyttäjä ${invite.email} luotu. Kirjautuminen: ${invite.email} / ${invite.password}`);
-    setInvite({ email: '', password: 'test123456', display_name: '', role: 'technician' });
+    setInvite({ email: '', password: 'test123456', display_name: '', role: 'technician', subscriber_id: '' });
     await loadUsers();
   }
 
@@ -409,7 +431,7 @@ export default function UsersPage() {
                     disabled={u.id === profile.id && u.role === 'admin' && adminCount <= 1}
                   >
                     {Object.entries(ROLE_LABELS)
-                      .filter(([value]) => value !== 'customer')
+                      .filter(([value]) => value !== 'customer' && value !== 'subscriber')
                       .map(([value, label]) => (
                         <option key={value} value={value}>
                           {label}
@@ -536,7 +558,16 @@ export default function UsersPage() {
             </label>
             <label>
               Rooli
-              <select value={invite.role} onChange={(e) => setInvite((i) => ({ ...i, role: e.target.value }))}>
+              <select
+                value={invite.role}
+                onChange={(e) =>
+                  setInvite((i) => ({
+                    ...i,
+                    role: e.target.value,
+                    subscriber_id: e.target.value === 'subscriber' ? i.subscriber_id : '',
+                  }))
+                }
+              >
                 {INVITE_ROLES.map((r) => (
                   <option key={r.value} value={r.value}>
                     {r.label}
@@ -545,6 +576,24 @@ export default function UsersPage() {
               </select>
             </label>
           </div>
+
+          {invite.role === 'subscriber' && (
+            <SubscriberPicker
+              subscribers={subscribers}
+              subscriberId={invite.subscriber_id}
+              disabled={busy}
+              hint={
+                subscribers.length === 0 ? (
+                  <>
+                    Luo ensin tilaaja kohdassa <Link to="/hallinta/tilaajat">Hallinta → Tilaajat</Link>.
+                  </>
+                ) : (
+                  'Käyttäjä näkee kaikki tähän tilaajaan linkitetyt kohteet ja toimitetut raportit.'
+                )
+              }
+              onChange={(subscriberId) => setInvite((i) => ({ ...i, subscriber_id: subscriberId }))}
+            />
+          )}
 
           {error && <p className="error">{error}</p>}
           {message && <p className="muted">{message}</p>}

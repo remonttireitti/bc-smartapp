@@ -4,6 +4,7 @@ import type { Session } from '@supabase/supabase-js';
 import AppLayout from '../components/AppLayout';
 import CustomerRegistryPicker, { type NewCustomerDraft } from '../components/CustomerRegistryPicker';
 import EquipmentRegistryPicker, { type NewEquipmentDraft } from '../components/EquipmentRegistryPicker';
+import SubscriberPicker from '../components/SubscriberPicker';
 import NavigationBreadcrumb from '../components/NavigationBreadcrumb';
 import QuoteIilpConfigSection from '../components/quoteRequest/QuoteIilpConfigSection';
 import QuoteIilpSiteSection from '../components/quoteRequest/QuoteIilpSiteSection';
@@ -19,6 +20,10 @@ import {
   loadReportPartnerships,
   resolveReportContextFromCustomer,
 } from '../lib/reportCustomerRegistry';
+import {
+  loadAccessibleSubscribers,
+  resolveSubscriberIdForReport,
+} from '../lib/subscribers';
 import { partnershipModuleAccess, partnershipPermsActingOnOwner, parseCompanySettings } from '../lib/management';
 import { computeKotitalousDeduction, computePumpSizingNeedKw, computeQuoteTotals } from '../lib/quoteRequest/calculations';
 import { deliveryFeesFromCompanySettings } from '../lib/quoteRequest/deviceCatalog';
@@ -43,7 +48,7 @@ import {
 import type { QuoteEditSection, QuoteRequestData, QuoteType } from '../lib/quoteRequest/types';
 import { quoteListTrail } from '../lib/navigationTrail';
 import { useProfile } from '../hooks/useProfile';
-import type { Company, Customer, Equipment, Partnership } from '../types';
+import type { Company, Customer, Equipment, Partnership, Subscriber } from '../types';
 
 interface Props {
   session: Session;
@@ -67,6 +72,8 @@ export default function QuoteRequestEditPage({ session }: Props) {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [equipment, setEquipment] = useState<Equipment[]>([]);
   const [customerId, setCustomerId] = useState('');
+  const [subscriberId, setSubscriberId] = useState('');
+  const [subscribers, setSubscribers] = useState<Subscriber[]>([]);
   const [equipmentId, setEquipmentId] = useState('');
   const [loadingQuote, setLoadingQuote] = useState(!isNew);
   const [error, setError] = useState<string | null>(null);
@@ -138,6 +145,18 @@ export default function QuoteRequestEditPage({ session }: Props) {
     if (!profile?.company_id || profileLoading) return;
     void loadAccessibleCustomers();
   }, [profile?.company_id, partnerships, profileLoading]);
+
+  useEffect(() => {
+    if (!profile?.company_id || profileLoading) return;
+    void loadAccessibleSubscribers(supabase, profile.company_id, partnerships)
+      .then(setSubscribers)
+      .catch((err) => console.error('Tilaajien lataus epäonnistui:', err));
+  }, [profile?.company_id, partnerships, profileLoading]);
+
+  const subscribersForOwner = useMemo(() => {
+    if (!ownerCompanyId) return subscribers;
+    return subscribers.filter((s) => s.owner_company_id === ownerCompanyId);
+  }, [subscribers, ownerCompanyId]);
 
   useEffect(() => {
     if (!isNew || loadingQuote || profileLoading || !profile?.company_id || customerId) return;
@@ -240,7 +259,7 @@ export default function QuoteRequestEditPage({ session }: Props) {
       .from('quote_requests')
       .select(`
         id, title, status, data, owner_company_id, created_by_company_id,
-        branding_company_id, partnership_id, customer_id, equipment_id
+        branding_company_id, partnership_id, customer_id, equipment_id, subscriber_id
       `)
       .eq('id', quoteIdToLoad)
       .single();
@@ -258,6 +277,7 @@ export default function QuoteRequestEditPage({ session }: Props) {
       owner_company_id: string;
       customer_id: string | null;
       equipment_id: string | null;
+      subscriber_id: string | null;
     };
 
     const normalized = normalizeQuoteRequestData(row.data);
@@ -286,6 +306,7 @@ export default function QuoteRequestEditPage({ session }: Props) {
     }
 
     setCustomerId(resolvedCustomerId);
+    setSubscriberId(row.subscriber_id ?? '');
     setEquipmentId(row.equipment_id ?? '');
 
     await loadOwnerCompany(row.owner_company_id);
@@ -352,6 +373,7 @@ export default function QuoteRequestEditPage({ session }: Props) {
       branding_company_id: brandingCompanyId,
       partnership_id: partnership?.id ?? null,
       customer_id: customerId,
+      subscriber_id: resolveSubscriberIdForReport(customerId, subscriberId, customers),
       equipment_id: equipmentId || null,
       title,
       status: nextStatus ?? status,
@@ -405,6 +427,7 @@ export default function QuoteRequestEditPage({ session }: Props) {
       address: draft.address,
       city: draft.city,
       phone: draft.phone,
+      subscriberId: subscriberId || null,
     });
 
     if (insertError || !created) {
@@ -533,6 +556,15 @@ export default function QuoteRequestEditPage({ session }: Props) {
                 vastaava asiakas rekisteristä.
               </p>
             )}
+            {ownerCompanyId ? (
+              <SubscriberPicker
+                subscribers={subscribersForOwner}
+                subscriberId={subscriberId}
+                disabled={!canEdit || busy}
+                onChange={setSubscriberId}
+              />
+            ) : null}
+
             <CustomerRegistryPicker
               customers={customers}
               customerId={customerId}
@@ -544,7 +576,10 @@ export default function QuoteRequestEditPage({ session }: Props) {
                 setCustomerId(selectedId);
                 setEquipmentId('');
                 const customer = customers.find((entry) => entry.id === selectedId);
-                if (customer) void loadOwnerCompany(customer.owner_company_id);
+                if (customer) {
+                  void loadOwnerCompany(customer.owner_company_id);
+                  if (customer.subscriber_id) setSubscriberId(customer.subscriber_id);
+                }
               }}
               onClear={() => {
                 setCustomerId('');

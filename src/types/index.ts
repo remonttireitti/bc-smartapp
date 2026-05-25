@@ -17,10 +17,23 @@ export type Profile = {
   tukes_number?: string | null;
   role: string;
   company_id: string | null;
+  /** Moniasiakas-tilaajan portaali: linkitetty tilaajarekisteriin. */
+  subscriber_id?: string | null;
   bill_hours_enabled?: boolean;
   bill_expenses_enabled?: boolean;
   is_global_admin?: boolean;
   companies: { id: string; name: string } | null;
+};
+
+export type Subscriber = {
+  id: string;
+  name: string;
+  business_id: string | null;
+  email: string | null;
+  phone: string | null;
+  notes: string | null;
+  owner_company_id: string;
+  created_at?: string;
 };
 
 export type Company = {
@@ -39,6 +52,8 @@ export type Customer = {
   business_id: string | null;
   notes: string | null;
   owner_company_id: string;
+  subscriber_id?: string | null;
+  subscriber?: { id: string; name: string } | null;
   owner_company?: { name: string } | null;
   created_at?: string;
 };
@@ -165,6 +180,7 @@ export type WorkReport = {
   title: string;
   description: string | null;
   orderer_name: string | null;
+  subscriber_id?: string | null;
   location_text: string | null;
   status: WorkStatus;
   scheduled_start: string | null;

@@ -57,6 +57,10 @@ Deno.serve(async (req) => {
     const displayName = String(body.display_name ?? email.split('@')[0] ?? 'Käyttäjä');
     const role = String(body.role ?? 'technician');
     const companyId = String(body.company_id ?? adminProfile.company_id);
+    const subscriberId =
+      body.subscriber_id != null && String(body.subscriber_id).trim() !== ''
+        ? String(body.subscriber_id).trim()
+        : null;
 
     if (!email || companyId !== adminProfile.company_id) {
       return new Response(JSON.stringify({ error: 'Virheelliset tiedot' }), {
@@ -65,14 +69,26 @@ Deno.serve(async (req) => {
       });
     }
 
-    if (!['admin', 'technician', 'manager'].includes(role)) {
+    if (!['admin', 'technician', 'manager', 'subscriber'].includes(role)) {
       return new Response(JSON.stringify({ error: 'Virheellinen rooli' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    const metadata = { company_id: companyId, role, display_name: displayName };
+    if (role === 'subscriber' && !subscriberId) {
+      return new Response(JSON.stringify({ error: 'Tilaaja-käyttäjälle valitse tilaaja rekisteristä' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    const metadata = {
+      company_id: companyId,
+      role,
+      display_name: displayName,
+      ...(subscriberId ? { subscriber_id: subscriberId } : {}),
+    };
 
     const { data: listed } = await adminClient.auth.admin.listUsers();
     const existing = listed?.users?.find((u) => u.email === email);
@@ -103,6 +119,8 @@ Deno.serve(async (req) => {
         role,
         email,
         display_name: displayName,
+        subscriber_id: role === 'subscriber' ? subscriberId : null,
+        customer_id: null,
       },
       { onConflict: 'id' },
     );

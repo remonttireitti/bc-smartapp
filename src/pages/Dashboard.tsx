@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
 import AppLayout from '../components/AppLayout';
@@ -20,9 +21,20 @@ interface Props {
   session: Session;
 }
 
+const SUBSCRIBER_MODULE_HREFS = new Set(['/asiakkaat', '/huoltoraportit', '/tyoraportit']);
+const CUSTOMER_MODULE_HREFS = new Set(['/asiakkaat', '/huoltoraportit', '/tyoraportit']);
+
 export default function Dashboard({ session }: Props) {
   const { profile } = useProfile(session);
-  const visibleModules = MODULES;
+  const visibleModules = useMemo(() => {
+    if (profile?.role === 'subscriber') {
+      return MODULES.filter((m) => SUBSCRIBER_MODULE_HREFS.has(m.href));
+    }
+    if (profile?.role === 'customer') {
+      return MODULES.filter((m) => CUSTOMER_MODULE_HREFS.has(m.href));
+    }
+    return MODULES;
+  }, [profile?.role]);
 
   const roleLabel = ROLE_LABELS[profile?.role ?? ''] ?? profile?.role ?? '—';
 

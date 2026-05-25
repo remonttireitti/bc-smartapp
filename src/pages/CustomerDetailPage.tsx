@@ -6,6 +6,7 @@ import CollapsibleSection from '../components/CollapsibleSection';
 import { DeviceCardIcon, HistoryIcon, PrinterIcon } from '../components/PrintIcons';
 import Tooltip from '../components/Tooltip';
 import ToggleSwitch from '../components/ToggleSwitch';
+import SubscriberPicker from '../components/SubscriberPicker';
 import {
   isCustomerExplicitlySharedWithPartner,
   isCustomerReportLinkedWithPartner,
@@ -20,6 +21,7 @@ import {
   canWriteCustomersModule,
   customerAddressLine,
 } from '../lib/customers';
+import { loadSubscribersForOwner, subscriberLabel } from '../lib/subscribers';
 import { canDeleteCompanyOwnedEntity } from '../lib/deletePermissions';
 import {
   partnershipModuleAccess,
@@ -48,7 +50,7 @@ import {
   type CustomerLinkedDocument,
 } from '../lib/customerDocuments';
 import { useProfile } from '../hooks/useProfile';
-import type { Customer, Equipment, Partnership } from '../types';
+import type { Customer, Equipment, Partnership, Subscriber } from '../types';
 
 interface Props {
   session: Session;
@@ -85,7 +87,9 @@ export default function CustomerDetailPage({ session }: Props) {
     email: '',
     business_id: '',
     notes: '',
+    subscriber_id: '',
   });
+  const [subscribers, setSubscribers] = useState<Subscriber[]>([]);
   const [newEquipment, setNewEquipment] = useState({ name: '', tag: '', model: '', serial_number: '', location: '' });
   const [showNewEquipment, setShowNewEquipment] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -160,7 +164,18 @@ export default function CustomerDetailPage({ session }: Props) {
       email: c.email ?? '',
       business_id: c.business_id ?? '',
       notes: c.notes ?? '',
+      subscriber_id: c.subscriber_id ?? '',
     });
+
+    if (c.owner_company_id === profile?.company_id) {
+      try {
+        setSubscribers(await loadSubscribersForOwner(supabase, c.owner_company_id));
+      } catch {
+        setSubscribers([]);
+      }
+    } else {
+      setSubscribers([]);
+    }
 
     const [{ data: equipmentRows }, linkedDocuments, maintenanceContext] = await Promise.all([
       supabase.from('equipment').select(EQUIPMENT_SELECT).eq('customer_id', id).order('name'),
@@ -247,6 +262,7 @@ export default function CustomerDetailPage({ session }: Props) {
         email: form.email.trim() || null,
         business_id: form.business_id.trim() || null,
         notes: form.notes.trim() || null,
+        subscriber_id: form.subscriber_id || null,
       })
       .eq('id', customer.id);
 
@@ -512,6 +528,26 @@ export default function CustomerDetailPage({ session }: Props) {
         <form className="panel form-grid" onSubmit={saveCustomer}>
           <section className="form-section">
             <h2>Muokkaa asiakasta</h2>
+            {customer.owner_company_id === profile?.company_id && (
+              <>
+                <SubscriberPicker
+                  subscribers={subscribers}
+                  subscriberId={form.subscriber_id}
+                  disabled={busy}
+                  hint={
+                    subscribers.length === 0 ? (
+                      <>
+                        Lisää tilaajia kohdassa{' '}
+                        <Link to="/hallinta/tilaajat">Hallinta → Tilaajat</Link>.
+                      </>
+                    ) : (
+                      'Linkitä kohde tilaajaan, jotta tilaaja näkee raportit ja historian.'
+                    )
+                  }
+                  onChange={(id) => setForm((f) => ({ ...f, subscriber_id: id }))}
+                />
+              </>
+            )}
             <div className="line-form-grid">
               <label>Nimi *<input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} required /></label>
               <label>Y-tunnus<input value={form.business_id} onChange={(e) => setForm((f) => ({ ...f, business_id: e.target.value }))} /></label>
@@ -531,6 +567,7 @@ export default function CustomerDetailPage({ session }: Props) {
         <section className="panel">
           <h2>Asiakastiedot</h2>
           <dl className="detail-list">
+            <div><dt>Tilaaja</dt><dd>{subscriberLabel(customer.subscriber ?? null)}</dd></div>
             <div><dt>Osoite</dt><dd>{customerAddressLine(customer)}</dd></div>
             <div><dt>Puhelin</dt><dd>{customer.phone ?? '—'}</dd></div>
             <div><dt>Sähköposti</dt><dd>{customer.email ?? '—'}</dd></div>

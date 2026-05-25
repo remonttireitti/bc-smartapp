@@ -38,11 +38,13 @@ export const ROLE_LABELS: Record<string, string> = {
   technician: 'Asentaja',
   manager: 'Esimies',
   customer: 'Asiakas',
+  subscriber: 'Tilaaja',
 };
 
 export const INVITE_ROLES = [
   { value: 'admin', label: 'Ylläpitäjä (kaikki oikeudet)' },
   { value: 'technician', label: 'Asentaja' },
+  { value: 'subscriber', label: 'Tilaaja (moniasiakas-portaali)' },
 ] as const;
 
 export type PartnerBillingRates = {

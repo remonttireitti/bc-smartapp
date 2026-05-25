@@ -31,6 +31,7 @@ import GlobalAdminPage from './pages/GlobalAdminPage';
 import PumpDeviceRegistryPage from './pages/PumpDeviceRegistryPage';
 import InventoryPage from './pages/InventoryPage';
 import ToolsPage from './pages/ToolsPage';
+import SubscribersPage from './pages/SubscribersPage';
 
 export default function App() {
   const [session, setSession] = useState<Session | null>(null);
@@ -76,6 +77,7 @@ export default function App() {
         <Route path="omat" element={<ProfileSettingsPage />} />
         <Route path="global-admin" element={<GlobalAdminPage />} />
         <Route path="yritys" element={<CompanySettingsPage />} />
+        <Route path="tilaajat" element={<SubscribersPage />} />
         <Route path="kayttajat" element={<UsersPage />} />
         <Route path="kumppanuudet" element={<PartnershipsPage />} />
         <Route path="kumppanilaskutus" element={<WorkReportBillingSummaryPage />} />

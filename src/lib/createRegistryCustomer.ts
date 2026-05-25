@@ -7,6 +7,7 @@ export type CreateRegistryCustomerInput = {
   address?: string;
   city?: string;
   phone?: string;
+  subscriberId?: string | null;
 };
 
 export async function createRegistryCustomer(
@@ -19,6 +20,7 @@ export async function createRegistryCustomer(
     p_address: input.address?.trim() || null,
     p_city: input.city?.trim() || null,
     p_phone: input.phone?.trim() || null,
+    p_subscriber_id: input.subscriberId || null,
   });
 
   if (error) return { customer: null, error: error.message };
