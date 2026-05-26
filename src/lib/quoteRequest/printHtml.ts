@@ -3,6 +3,7 @@ import {
   QUOTE_PROJECT_TYPE_LABELS,
   QUOTE_REGION_LABELS,
   QUOTE_TYPE_LABELS,
+  QUOTE_ZERO_VAT_NOTICE,
   isHuoltoQuoteType,
   isPumpQuoteType,
   quoteShowsKotitalousDeduction,
@@ -220,6 +221,16 @@ function quotePrintStyles(): string {
     }
     .summary-row.purchase td { color: #475569; }
     .print-enduser .col-internal { display: none; }
+    .vat-notice {
+      margin: 0 0 12px;
+      padding: 8px 12px;
+      background: #f0fdf4;
+      border: 1px solid #86efac;
+      border-radius: 8px;
+      font-size: 10px;
+      font-weight: 600;
+      color: #166534;
+    }
   `;
 }
 
@@ -230,7 +241,12 @@ function quoteHasVat(vatRate: number): boolean {
 }
 
 function quoteTotalRowLabel(vatRate: number): string {
-  return quoteHasVat(vatRate) ? `Tarjous yhteensä (sis. ALV ${vatRate}%)` : 'Tarjous yhteensä';
+  return quoteHasVat(vatRate) ? `Tarjous yhteensä (sis. ALV ${vatRate}%)` : 'Tarjous yhteensä (alv 0 %)';
+}
+
+function quoteZeroVatNoticeHtml(vatRate: number): string {
+  if (quoteHasVat(vatRate)) return '';
+  return `<p class="vat-notice">${esc(QUOTE_ZERO_VAT_NOTICE)}</p>`;
 }
 
 function quotePrintTableHead(mode: QuotePrintMode): string {
@@ -367,7 +383,7 @@ function creatorSummaryFooter(
   const customerTotal = quoteHasVat(internal.vatRate)
     ? formatEuro(internal.grossTotal)
     : formatEuro(internal.discountedSellNet);
-  const netLabel = quoteHasVat(internal.vatRate) ? 'Myynti yhteensä (veroton)' : 'Myynti yhteensä';
+  const netLabel = quoteHasVat(internal.vatRate) ? 'Myynti yhteensä (veroton)' : 'Myynti yhteensä (alv 0 %)';
   return `${discountNote}
     <tr class="summary-row"><td colspan="4">${netLabel}</td><td class="num">${formatEuro(internal.discountedSellNet)}</td></tr>
     <tr class="summary-row purchase"><td colspan="4">Hankinta yhteensä</td><td class="num">${formatEuro(internal.purchaseNet)}</td></tr>
@@ -521,7 +537,7 @@ export function generateQuoteOfferPrintHtml(input: {
                   <div>${esc(device.name)}</div>
                   ${pct != null ? `<div class="option-sub">Teho ${device.heatingPowerMax} kW (${pct}% tarpeesta)</div>` : ''}
                   <div class="option-compare-price">${formatEuro(quoteHasVat(vatRate) ? opt!.grossTotal : opt!.discountedNet)}</div>
-                  ${quoteHasVat(vatRate) ? `<div class="option-sub">sis. ALV ${vatRate}%</div>` : ''}
+                  ${quoteHasVat(vatRate) ? `<div class="option-sub">sis. ALV ${vatRate}%</div>` : '<div class="option-sub">alv 0 %</div>'}
                 </div>`;
               })
               .join('')}
@@ -597,6 +613,8 @@ export function generateQuoteOfferPrintHtml(input: {
     ${data.introText.trim() ? `<p class="intro">${esc(data.introText).replace(/\n/g, '<br />')}</p>` : ''}
 
     ${heatingNeedKw != null ? `<p class="intro"><strong>Laskettu lämmitystarve:</strong> ${heatingNeedKw} kW</p>` : ''}
+
+    ${quoteZeroVatNoticeHtml(vatRate)}
 
     <table>
       ${quotePrintTableHead(mode)}
@@ -815,6 +833,8 @@ export function generateQuoteServicePrintHtml(input: {
     ${data.introText.trim() ? `<p class="intro">${esc(data.introText).replace(/\n/g, '<br />')}</p>` : ''}
 
     ${buildSituationReportHtml(data)}
+
+    ${quoteZeroVatNoticeHtml(vatRate)}
 
     <table>
       ${quotePrintTableHead(mode)}

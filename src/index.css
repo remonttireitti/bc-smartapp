@@ -3673,6 +3673,17 @@ textarea {
   background: #fff7ed;
 }
 
+.quote-vat-notice {
+  margin: 0;
+  padding: .45rem .65rem;
+  border-radius: 6px;
+  background: #ecfdf5;
+  border: 1px solid #86efac;
+  color: #166534;
+  font-size: .85rem;
+  font-weight: 600;
+}
+
 .tile-disabled {
   opacity: .72;
   cursor: not-allowed;

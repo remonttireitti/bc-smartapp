@@ -104,6 +104,9 @@ export function isHuoltoQuoteType(type: QuoteType): boolean {
   return type === 'huolto';
 }
 
+/** Näytetään tulosteessa ja yhteenvedossa kun ALV on 0 %. */
+export const QUOTE_ZERO_VAT_NOTICE = 'Kaikki hinnat ovat alv 0 %.';
+
 /** Kylmälaite-huoltotarjous: oletus alv 0 %, tarvittaessa korotettu kanta. */
 export const HUOLTO_VAT_OPTIONS: ReadonlyArray<{ value: number; label: string }> = [
   { value: 0, label: 'ALV 0 % (oletus)' },

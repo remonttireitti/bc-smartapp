@@ -34,6 +34,7 @@ import {
   HUOLTO_VAT_OPTIONS,
   isPumpQuoteType,
   isRepairQuoteType,
+  QUOTE_ZERO_VAT_NOTICE,
   quoteShowsKotitalousDeduction,
 } from '../lib/quoteRequest/constants';
 import {
@@ -1099,6 +1100,7 @@ export default function QuoteRequestEditPage({ session }: Props) {
               />
             </label>
             <div className="quote-summary-box">
+              {form.vatRate <= 0 && <p className="quote-vat-notice">{QUOTE_ZERO_VAT_NOTICE}</p>}
               <div>Työt: {totals.workNet.toLocaleString('fi-FI', { style: 'currency', currency: 'EUR' })}</div>
               <div>
                 Tarvikkeet: {totals.materialsNet.toLocaleString('fi-FI', { style: 'currency', currency: 'EUR' })}
@@ -1116,7 +1118,7 @@ export default function QuoteRequestEditPage({ session }: Props) {
               )}
               <strong>
                 Tarjous yhteensä
-                {form.vatRate > 0 ? ` (sis. ALV ${form.vatRate}%)` : ''}:{' '}
+                {form.vatRate > 0 ? ` (sis. ALV ${form.vatRate}%)` : ' (alv 0 %)'}:{' '}
                 {(form.vatRate > 0 ? totals.grossTotal : totals.discountedNet).toLocaleString('fi-FI', {
                   style: 'currency',
                   currency: 'EUR',
