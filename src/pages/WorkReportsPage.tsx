@@ -156,12 +156,6 @@ export default function WorkReportsPage({ session }: Props) {
 
   const [loading, setLoading] = useState(true);
 
-  const [pendingOrders, setPendingOrders] = useState<PendingWorkOrderCounts>({
-    fromSubscriber: 0,
-    fromPartner: 0,
-    total: 0,
-  });
-
   const companyId = profile?.company_id ?? '';
 
 
