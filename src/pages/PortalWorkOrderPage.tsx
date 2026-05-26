@@ -12,7 +12,13 @@ import {
   resolvePortalOwnerCompanyId,
   resolvePortalServiceCompanyId,
 } from '../lib/portalWorkOrder';
+import {
+  loadWorkReportAttachments,
+  uploadWorkReportAttachments,
+  WorkReportAttachmentsField,
+} from '../lib/workReportAttachments';
 import { supabase } from '../lib/supabase';
+import type { WorkReportAttachment } from '../types';
 import {
   WORK_STATUS_LABELS,
   buildWorkReportTitle,
@@ -49,6 +55,8 @@ export default function PortalWorkOrderPage({ session }: Props) {
   const [message, setMessage] = useState<string | null>(null);
   const [serviceCompanyId, setServiceCompanyId] = useState<string | null>(null);
   const [loadingCustomers, setLoadingCustomers] = useState(true);
+  const [savedAttachments, setSavedAttachments] = useState<WorkReportAttachment[]>([]);
+  const [pendingAttachments, setPendingAttachments] = useState<File[]>([]);
 
   const isSubscriber = profile?.role === 'subscriber';
   const isCustomer = profile?.role === 'customer';
@@ -122,6 +130,16 @@ export default function PortalWorkOrderPage({ session }: Props) {
     if (isNew || !editId) return;
     void loadReport(editId);
   }, [editId, isNew]);
+
+  useEffect(() => {
+    if (!editId) {
+      setSavedAttachments([]);
+      return;
+    }
+    void loadWorkReportAttachments(editId)
+      .then(setSavedAttachments)
+      .catch(() => setSavedAttachments([]));
+  }, [editId]);
 
   useEffect(() => {
     if (!customerId) {
@@ -235,13 +253,27 @@ export default function PortalWorkOrderPage({ session }: Props) {
       status: 'draft' as const,
     };
 
+    const uploadPending = async (reportId: string) => {
+      if (pendingAttachments.length === 0) return;
+      await uploadWorkReportAttachments(reportId, pendingAttachments, session.user.id);
+      setPendingAttachments([]);
+    };
+
     if (editId) {
       const { error: updateError } = await supabase.from('work_reports').update(payload).eq('id', editId);
-      setBusy(false);
       if (updateError) {
+        setBusy(false);
         setError(updateError.message);
         return;
       }
+      try {
+        await uploadPending(editId);
+      } catch (uploadErr) {
+        setBusy(false);
+        setError(uploadErr instanceof Error ? uploadErr.message : 'Kuvien lataus epäonnistui.');
+        return;
+      }
+      setBusy(false);
       setMessage('Työtilaus päivitetty. Palveluyritys käsittelee sen pian.');
       navigate('/tyoraportit');
       return;
@@ -253,12 +285,21 @@ export default function PortalWorkOrderPage({ session }: Props) {
       .select('id')
       .single();
 
-    setBusy(false);
     if (insertError || !data) {
+      setBusy(false);
       setError(insertError?.message ?? 'Lähetys epäonnistui.');
       return;
     }
 
+    try {
+      await uploadPending(data.id);
+    } catch (uploadErr) {
+      setBusy(false);
+      setError(uploadErr instanceof Error ? uploadErr.message : 'Kuvien lataus epäonnistui.');
+      return;
+    }
+
+    setBusy(false);
     setMessage('Työtilaus lähetetty palveluyritykselle. Saat ilmoituksen, kun työ on aikataulutettu tai valmis.');
     navigate('/tyoraportit');
   }
@@ -395,6 +436,18 @@ export default function PortalWorkOrderPage({ session }: Props) {
               required
             />
           </label>
+        </section>
+
+        <section className="form-section">
+          <WorkReportAttachmentsField
+            reportId={editId ?? null}
+            userId={session.user.id}
+            savedAttachments={savedAttachments}
+            pendingFiles={pendingAttachments}
+            disabled={busy}
+            onSavedAttachmentsChange={setSavedAttachments}
+            onPendingFilesChange={setPendingAttachments}
+          />
         </section>
 
         <section className="form-section">
