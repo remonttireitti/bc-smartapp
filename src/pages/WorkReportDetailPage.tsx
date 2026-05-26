@@ -14,6 +14,7 @@ import { useCompanyCustomerBillingEnabled } from '../hooks/useCompanyCustomerBil
 import { useCompanyBillingEnabled } from '../hooks/useCompanyBillingEnabled';
 import { useProfile } from '../hooks/useProfile';
 import { canDeleteWorkReport } from '../lib/deletePermissions';
+import { isPortalReadOnly } from '../lib/portalWorkOrder';
 import { canEditWorkReportDescription, canManageWorkReportDailyLogs } from '../lib/workReportDailyLogs';
 import DailyLogRefrigerantFields from '../components/inventory/DailyLogRefrigerantFields';
 import { AddDailyLogImages, BUCKET, DailyLogImageGallery, uploadDailyLogImages } from '../lib/dailyLogImages';
@@ -1509,7 +1510,9 @@ export default function WorkReportDetailPage({ session }: Props) {
     !isPartnerReport && isOwnerCompany;
   const showCustomerMoneyBilling =
     showCustomerMoney && !!customerBillableCalculation;
-  const canDeleteReport = canDeleteWorkReport(report, session.user.id, profile?.is_global_admin);
+  const portalReadOnly = isPortalReadOnly(profile);
+  const canDeleteReport =
+    !portalReadOnly && canDeleteWorkReport(report, session.user.id, profile?.is_global_admin, profile?.role);
   const displayPeople = resolveWorkReportDisplayPeople(report, { hideAssignee: hideAssigneeFromViewer });
   const partnerBillingListRow = report && billing
     ? {
@@ -1544,7 +1547,10 @@ export default function WorkReportDetailPage({ session }: Props) {
   const showCustomerBillingStatus =
     customerInvoicingEnabled === true && isOwnerCompany;
   const canManageCustomerBilling =
-    showCustomerBillingStatus && report.status !== 'draft' && report.status !== 'delegated';
+    !portalReadOnly
+    && showCustomerBillingStatus
+    && report.status !== 'draft'
+    && report.status !== 'delegated';
   const customerBilled = isCustomerInvoicePaid(billing);
 
   async function markCustomerBilled() {
@@ -1785,7 +1791,7 @@ export default function WorkReportDetailPage({ session }: Props) {
               </div>
             </div>
           )}
-          {nextStatus && report.status !== 'delegated' && (
+          {nextStatus && report.status !== 'delegated' && !portalReadOnly && (
             <button type="button" className="btn btn-primary" onClick={() => void updateStatus(nextStatus)}>
               Merkitse: {WORK_STATUS_LABELS[nextStatus]}
             </button>

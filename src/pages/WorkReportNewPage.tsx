@@ -42,6 +42,7 @@ import {
 } from '../lib/workReportDraftStorage';
 
 import { useProfile } from '../hooks/useProfile';
+import { isPortalReadOnly } from '../lib/portalWorkOrder';
 
 import {
   loadWorkReportAttachments,
@@ -155,7 +156,12 @@ export default function WorkReportNewPage({ session }: Props) {
 
   const draftStorageKey = localWorkDraftKey(reportId, session.user.id);
 
-
+  useEffect(() => {
+    if (profileLoading) return;
+    if (isPortalReadOnly(profile)) {
+      navigate('/tyoraportit', { replace: true });
+    }
+  }, [profile, profileLoading, navigate]);
 
   const selectedCustomer = customers.find((c) => c.id === customerId);
 

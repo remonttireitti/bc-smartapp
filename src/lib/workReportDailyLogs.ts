@@ -1,5 +1,10 @@
 import type { WorkReport, WorkReportDailyLog } from '../types';
 import { isAdminOrManager } from './deletePermissions';
+import { isPortalPreviewActive } from './portalPreview';
+
+function isPortalStaffReadOnly(role: string | null | undefined) {
+  return role === 'subscriber' || role === 'customer' || isPortalPreviewActive();
+}
 
 export function canEditWorkReportDescription(input: {
   report: Pick<
@@ -16,6 +21,10 @@ export function canEditWorkReportDescription(input: {
   role?: string | null;
 }) {
   const { report, userId, companyId, role } = input;
+
+  if (isPortalStaffReadOnly(role)) {
+    return false;
+  }
 
   if (report.status === 'billed_customer' || report.status === 'billed_partner') {
     return false;
@@ -45,6 +54,10 @@ export function canManageWorkReportDailyLogs(input: {
   role?: string | null;
 }) {
   const { report, userId, companyId, role } = input;
+
+  if (isPortalStaffReadOnly(role)) {
+    return false;
+  }
 
   if (report.status === 'billed_customer' || report.status === 'billed_partner') {
     return false;
