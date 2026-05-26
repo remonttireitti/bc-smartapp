@@ -42,6 +42,7 @@ export function DeviceCardIcon({ title = 'Laitekortti' }: { title?: string }) {
   );
 }
 
+/** Tulostin + kello — huoltohistorian tulostus */
 export function HistoryIcon({ title = 'Huoltohistoria' }: { title?: string }) {
   return (
     <svg
@@ -51,15 +52,17 @@ export function HistoryIcon({ title = 'Huoltohistoria' }: { title?: string }) {
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
-      strokeWidth="2"
+      strokeWidth="1.75"
       strokeLinecap="round"
       strokeLinejoin="round"
       aria-hidden={title ? undefined : true}
     >
       {title ? <title>{title}</title> : null}
-      <path d="M3 12a9 9 0 1 0 3 6.7" />
-      <path d="M3 12h4" />
-      <path d="M12 7v5l3 2" />
+      <path d="M5 9V3h10v6" />
+      <path d="M5 13H4a1.5 1.5 0 0 1-1.5-1.5V9A1.5 1.5 0 0 1 4 7.5h13A1.5 1.5 0 0 1 18.5 9v2.5A1.5 1.5 0 0 1 17 13h-1" />
+      <path d="M6 12h9v7H6z" />
+      <circle cx="17.5" cy="17.5" r="4.25" />
+      <path d="M17.5 15.25V17.5l1.75 1.25" />
     </svg>
   );
 }

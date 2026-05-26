@@ -253,19 +253,21 @@ export default function CustomerDetailPage({ session }: Props) {
 
     setBusy(true);
     setError(null);
-    const { error: updateError } = await supabase
-      .from('customers')
-      .update({
-        name: form.name.trim(),
-        address: form.address.trim() || null,
-        city: form.city.trim() || null,
-        phone: form.phone.trim() || null,
-        email: form.email.trim() || null,
-        business_id: form.business_id.trim() || null,
-        notes: form.notes.trim() || null,
-        subscriber_id: form.subscriber_id || null,
-      })
-      .eq('id', customer.id);
+
+    const patch: Record<string, string | null> = {
+      name: form.name.trim(),
+      address: form.address.trim() || null,
+      city: form.city.trim() || null,
+      phone: form.phone.trim() || null,
+      email: form.email.trim() || null,
+      business_id: form.business_id.trim() || null,
+      notes: form.notes.trim() || null,
+    };
+    if (customer.owner_company_id === profile?.company_id) {
+      patch.subscriber_id = form.subscriber_id || null;
+    }
+
+    const { error: updateError } = await supabase.from('customers').update(patch).eq('id', customer.id);
 
     setBusy(false);
     if (updateError) {
@@ -395,13 +397,6 @@ export default function CustomerDetailPage({ session }: Props) {
     });
   }
 
-  function toggleSelectAllEquipment() {
-    if (equipment.length === 0) return;
-    setSelectedEquipmentIds((prev) =>
-      prev.size === equipment.length ? new Set() : new Set(equipment.map((eq) => eq.id)),
-    );
-  }
-
   async function printMaintenanceHistoryForEquipmentList(mode: 'all' | 'selected') {
     if (!customer) return;
     const list = mode === 'all' ? equipment : equipment.filter((eq) => selectedEquipmentIds.has(eq.id));
@@ -483,6 +478,26 @@ export default function CustomerDetailPage({ session }: Props) {
   const documentCounts = countCustomerLinkedDocumentsByKind(documents);
   const filteredDocuments = filterCustomerLinkedDocuments(documents, documentFilter);
 
+  const managesRegistry = Boolean(
+    customer && profile?.company_id && customer.owner_company_id === profile.company_id,
+  );
+
+  async function loadRegistrySubscribers(ownerCompanyId: string) {
+    try {
+      setSubscribers(await loadSubscribersForOwner(supabase, ownerCompanyId));
+    } catch {
+      setSubscribers([]);
+    }
+  }
+
+  function openCustomerEdit() {
+    if (!customer) return;
+    setEditing(true);
+    if (managesRegistry) {
+      void loadRegistrySubscribers(customer.owner_company_id);
+    }
+  }
+
   return (
     <AppLayout session={session}>
       <div className="page-header">
@@ -514,7 +529,7 @@ export default function CustomerDetailPage({ session }: Props) {
                 Asiakasportaali
               </button>
             )}
-            <button type="button" className="btn btn-secondary" onClick={() => setEditing(true)}>
+            <button type="button" className="btn btn-secondary" onClick={openCustomerEdit}>
               Muokkaa
             </button>
             {canDeleteRegistry && (
@@ -538,26 +553,31 @@ export default function CustomerDetailPage({ session }: Props) {
         <form className="panel form-grid" onSubmit={saveCustomer}>
           <section className="form-section">
             <h2>Muokkaa asiakasta</h2>
-            {customer.owner_company_id === profile?.company_id && (
-              <>
-                <SubscriberPicker
-                  subscribers={subscribers}
-                  subscriberId={form.subscriber_id}
-                  disabled={busy}
-                  hint={
-                    subscribers.length === 0 ? (
-                      <>
-                        Lisää tilaajia kohdassa{' '}
-                        <Link to="/hallinta/tilaajat">Hallinta → Tilaajat</Link>.
-                      </>
-                    ) : (
-                      'Linkitä kohde tilaajaan, jotta tilaaja näkee raportit ja historian.'
-                    )
-                  }
-                  onChange={(id) => setForm((f) => ({ ...f, subscriber_id: id }))}
-                />
-              </>
-            )}
+            {managesRegistry ? (
+              <SubscriberPicker
+                subscribers={subscribers}
+                subscriberId={form.subscriber_id}
+                disabled={busy}
+                hint={
+                  subscribers.length === 0 ? (
+                    <>
+                      Lisää tilaajia kohdassa{' '}
+                      <Link to="/hallinta/tilaajat">Hallinta → Tilaajat</Link>.
+                    </>
+                  ) : (
+                    'Linkitä kohde tilaajaan — tilaaja näkee kohteen raportit, laitteet ja voi lähettää työtilauksia.'
+                  )
+                }
+                onChange={(id) => setForm((f) => ({ ...f, subscriber_id: id }))}
+              />
+            ) : canWrite ? (
+              <p className="muted" style={{ marginBottom: '1rem' }}>
+                Tilaajan voi asettaa vain rekisterin omistaja (
+                <strong>{customer.owner_company?.name ?? '—'}</strong>). Jos olet ylläpitäjä toisella yrityksellä,
+                kirjaudu {customer.owner_company?.name ?? 'rekisterinomistajan'} tilillä tai pyydä heitä linkittämään
+                kohde tilaajaan.
+              </p>
+            ) : null}
             <div className="line-form-grid">
               <label>Nimi *<input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} required /></label>
               <label>Y-tunnus<input value={form.business_id} onChange={(e) => setForm((f) => ({ ...f, business_id: e.target.value }))} /></label>
@@ -577,7 +597,20 @@ export default function CustomerDetailPage({ session }: Props) {
         <section className="panel">
           <h2>Asiakastiedot</h2>
           <dl className="detail-list">
-            <div><dt>Tilaaja</dt><dd>{subscriberLabel(customer.subscriber ?? null)}</dd></div>
+            <div>
+              <dt>Tilaaja</dt>
+              <dd>
+                {subscriberLabel(customer.subscriber ?? null)}
+                {!customer.subscriber_id && managesRegistry && profile?.role === 'admin' && (
+                  <>
+                    {' '}
+                    <button type="button" className="btn btn-secondary btn-sm" onClick={openCustomerEdit}>
+                      Aseta tilaaja
+                    </button>
+                  </>
+                )}
+              </dd>
+            </div>
             <div><dt>Osoite</dt><dd>{customerAddressLine(customer)}</dd></div>
             <div><dt>Puhelin</dt><dd>{customer.phone ?? '—'}</dd></div>
             <div><dt>Sähköposti</dt><dd>{customer.email ?? '—'}</dd></div>
@@ -688,14 +721,18 @@ export default function CustomerDetailPage({ session }: Props) {
         ) : (
           <>
             <div className="customer-equipment-bulk-toolbar">
-              <label className="customer-equipment-select-all">
-                <input
-                  type="checkbox"
-                  checked={equipment.length > 0 && selectedEquipmentIds.size === equipment.length}
-                  onChange={toggleSelectAllEquipment}
-                />
-                Valitse kaikki laitteet
-              </label>
+              <ToggleSwitch
+                className="customer-equipment-select-all-toggle"
+                checked={equipment.length > 0 && selectedEquipmentIds.size === equipment.length}
+                onChange={(checked) => {
+                  if (checked) {
+                    setSelectedEquipmentIds(new Set(equipment.map((e) => e.id)));
+                  } else {
+                    setSelectedEquipmentIds(new Set());
+                  }
+                }}
+                label="Valitse kaikki laitteet"
+              />
               <div className="customer-equipment-bulk-actions">
                 <button
                   type="button"
@@ -718,20 +755,18 @@ export default function CustomerDetailPage({ session }: Props) {
               </div>
             </div>
             <p className="muted customer-equipment-bulk-hint">
-              Valitse laitteet ruuduista ja tulosta valittujen huoltohistoria, tai tulosta kaikkien laitteiden historia
+              Kytke laitteet päälle ja tulosta valittujen huoltohistoria, tai tulosta kaikkien laitteiden historia
               kerralla.
             </p>
             <ul className="report-list">
             {equipment.map((eq) => (
               <li key={eq.id} className="customer-equipment-row">
-                <label className="customer-equipment-select">
-                  <input
-                    type="checkbox"
-                    checked={selectedEquipmentIds.has(eq.id)}
-                    onChange={(e) => toggleEquipmentSelection(eq.id, e.target.checked)}
-                    aria-label={`Valitse ${eq.name}`}
-                  />
-                </label>
+                <ToggleSwitch
+                  className="customer-equipment-toggle"
+                  checked={selectedEquipmentIds.has(eq.id)}
+                  onChange={(checked) => toggleEquipmentSelection(eq.id, checked)}
+                  label={`Valitse ${eq.name}`}
+                />
                 <Link
                   to={`/asiakkaat/${customer.id}/laitteet/${eq.id}`}
                   className="customer-equipment-link"
