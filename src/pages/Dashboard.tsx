@@ -1,11 +1,17 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
 import AppLayout from '../components/AppLayout';
+import PendingWorkOrdersBanner from '../components/PendingWorkOrdersBanner';
 import QuickSearch from '../components/QuickSearch';
 import { useProfile } from '../hooks/useProfile';
 import { ROLE_LABELS } from '../lib/management';
 import { getPortalPreviewLabel, isPortalPreviewActive, isPortalView } from '../lib/portalPreview';
+import {
+  loadPendingWorkOrderCounts,
+  type PendingWorkOrderCounts,
+} from '../lib/pendingWorkOrders';
+import { supabase } from '../lib/supabase';
 
 const MODULES = [
   { title: 'Työraportti', desc: 'Työtilaukset ja raportit', color: '#0ea5e9', href: '/tyoraportit' },
@@ -29,10 +35,28 @@ const PORTAL_MODULES = [
   { title: 'Kohteet', desc: 'Asiakaskohteet ja laitteet', color: '#3b82f6', href: '/asiakkaat' },
 ];
 
+const EMPTY_PENDING: PendingWorkOrderCounts = {
+  fromSubscriber: 0,
+  fromPartner: 0,
+  total: 0,
+};
+
 export default function Dashboard({ session }: Props) {
   const { profile } = useProfile(session);
   const portalView = isPortalView(profile);
   const visibleModules = useMemo(() => (portalView ? PORTAL_MODULES : MODULES), [portalView]);
+  const [pendingOrders, setPendingOrders] = useState<PendingWorkOrderCounts>(EMPTY_PENDING);
+
+  const companyId = profile?.company_id ?? '';
+
+  useEffect(() => {
+    if (portalView || !companyId) {
+      setPendingOrders(EMPTY_PENDING);
+      return;
+    }
+
+    void loadPendingWorkOrderCounts(supabase, companyId, session.user.id).then(setPendingOrders);
+  }, [portalView, companyId, session.user.id]);
 
   const roleLabel = isPortalPreviewActive()
     ? `Esikatselu: ${getPortalPreviewLabel() ?? 'portaali'}`
@@ -43,6 +67,10 @@ export default function Dashboard({ session }: Props) {
       <p className="subtitle">
         {profile?.companies?.name ?? 'Ei yritystä'} • {roleLabel}
       </p>
+
+      {!portalView && pendingOrders.total > 0 && (
+        <PendingWorkOrdersBanner counts={pendingOrders} />
+      )}
 
       {!portalView && (
         <section className="search-box">

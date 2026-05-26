@@ -5,6 +5,7 @@ import { Link } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
 
 import AppLayout from '../components/AppLayout';
+import PendingWorkOrdersBanner from '../components/PendingWorkOrdersBanner';
 import WorkReportFilters, {
   buildWorkReportFilterOptions,
   matchesWorkReportFilters,
@@ -36,6 +37,10 @@ import {
   reportMatchesPortalSubscriber,
 } from '../lib/portalWorkOrder';
 import { usePortalPreview } from '../hooks/usePortalPreview';
+import {
+  loadPendingWorkOrderCounts,
+  type PendingWorkOrderCounts,
+} from '../lib/pendingWorkOrders';
 
 import { useProfile } from '../hooks/useProfile';
 
@@ -156,7 +161,11 @@ export default function WorkReportsPage({ session }: Props) {
 
   const [loading, setLoading] = useState(true);
 
-
+  const [pendingOrders, setPendingOrders] = useState<PendingWorkOrderCounts>({
+    fromSubscriber: 0,
+    fromPartner: 0,
+    total: 0,
+  });
 
   const companyId = profile?.company_id ?? '';
 
@@ -288,6 +297,12 @@ export default function WorkReportsPage({ session }: Props) {
     setIncomingDelegated((incomingResult.data as unknown as WorkReport[]) ?? []);
 
     setSentDelegated((sentResult.data as unknown as WorkReport[]) ?? []);
+
+    if (companyId && !isPortalUser(profile)) {
+      void loadPendingWorkOrderCounts(supabase, companyId, session.user.id).then(setPendingOrders);
+    } else {
+      setPendingOrders({ fromSubscriber: 0, fromPartner: 0, total: 0 });
+    }
 
     setLoading(false);
 
@@ -743,6 +758,10 @@ export default function WorkReportsPage({ session }: Props) {
 
         <section className="panel">
 
+          {!portalMode && pendingOrders.total > 0 && (
+            <PendingWorkOrdersBanner counts={pendingOrders} className="panel-section-spaced" />
+          )}
+
           {incomingDelegated.length > 0 && (
 
             <>
@@ -809,7 +828,7 @@ export default function WorkReportsPage({ session }: Props) {
                 {subscriberPortalOrders.map((r) => (
                   <li key={r.id}>
                     <Link to={draftEditPath(r)} className="report-link">
-                      <div className="report-link-main">
+                      <div className="report-link-body">
                         <strong>{workReportListTitle(r)}</strong>
                         <span className="muted">
                           {r.orderer_name ? `Tilaaja: ${r.orderer_name}` : 'Tilaajan tilaus'}
@@ -838,7 +857,7 @@ export default function WorkReportsPage({ session }: Props) {
 
                     <Link to={draftEditPath(r)} className="report-link">
 
-                      <div className="report-link-main">
+                      <div className="report-link-body">
 
                         <strong>{workReportListTitle(r)}</strong>
 

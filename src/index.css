@@ -1436,19 +1436,77 @@ button[type='submit']:disabled { opacity: .6; cursor: wait; }
   }
 }
 
+.report-list > li > .report-link {
+  flex: 1 1 100%;
+  min-width: 0;
+}
+
 .report-link {
   display: flex;
   justify-content: space-between;
   align-items: center;
   gap: 1rem;
   width: 100%;
+  min-width: 0;
+  text-decoration: none;
+  color: inherit;
 }
 
-.report-link-body {
+.report-link .badge {
+  flex-shrink: 0;
+}
+
+.report-link-body,
+.report-link-main {
   display: flex;
   flex-direction: column;
   gap: .25rem;
+  flex: 1;
   min-width: 0;
+}
+
+.report-link-body strong,
+.report-link-main strong {
+  display: block;
+}
+
+.report-link-body .muted,
+.report-link-main .muted {
+  display: block;
+  font-size: .85rem;
+}
+
+.pending-work-orders-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem 1.25rem;
+  margin-bottom: 1.25rem;
+  padding: 1rem 1.25rem;
+  border-radius: 10px;
+  border: 1px solid #93c5fd;
+  background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+  box-shadow: 0 1px 3px rgba(37, 99, 235, 0.12);
+}
+
+.pending-work-orders-banner__content {
+  flex: 1 1 14rem;
+  min-width: 0;
+}
+
+.pending-work-orders-banner__title {
+  display: block;
+  font-size: 1.05rem;
+  color: #1e3a8a;
+}
+
+.pending-work-orders-banner__hint {
+  margin: .35rem 0 0;
+}
+
+.panel-section-spaced {
+  margin-bottom: 1.25rem;
 }
 
 .report-meta-row {
