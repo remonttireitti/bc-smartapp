@@ -14,7 +14,7 @@ import { useCompanyCustomerBillingEnabled } from '../hooks/useCompanyCustomerBil
 import { useCompanyBillingEnabled } from '../hooks/useCompanyBillingEnabled';
 import { useProfile } from '../hooks/useProfile';
 import { canDeleteWorkReport } from '../lib/deletePermissions';
-import { isPortalReadOnly } from '../lib/portalWorkOrder';
+import { isPortalReadOnly, isWorkReportVisibleToPortal } from '../lib/portalWorkOrder';
 import { canEditWorkReportDescription, canManageWorkReportDailyLogs } from '../lib/workReportDailyLogs';
 import DailyLogRefrigerantFields from '../components/inventory/DailyLogRefrigerantFields';
 import { AddDailyLogImages, BUCKET, DailyLogImageGallery, uploadDailyLogImages } from '../lib/dailyLogImages';
@@ -680,6 +680,13 @@ export default function WorkReportDetailPage({ session }: Props) {
   useEffect(() => {
     if (id && profile?.company_id) void load(id);
   }, [id, profile?.company_id]);
+
+  useEffect(() => {
+    if (!report || !isPortalReadOnly(profile)) return;
+    if (!isWorkReportVisibleToPortal(report.status)) {
+      navigate('/tyoraportit', { replace: true });
+    }
+  }, [report, profile, navigate]);
 
   async function load(reportId: string) {
     setLoading(true);

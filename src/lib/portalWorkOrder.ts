@@ -1,7 +1,21 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { CUSTOMER_SELECT, EQUIPMENT_SELECT } from './customers';
 import { isPortalView } from './portalPreview';
-import type { Customer, Equipment, Profile } from '../types';
+import type { Customer, Equipment, Profile, WorkStatus } from '../types';
+
+/** Tilaajan/asiakkaan näkemät valmiit työraportit. */
+export const PORTAL_COMPLETED_WORK_STATUSES: WorkStatus[] = [
+  'completed',
+  'billed_partner',
+  'billed_customer',
+];
+
+/** Oma työtilaus ennen kuin yritys ottaa sen käsittelyyn. */
+export const PORTAL_OWN_ORDER_OPEN_STATUSES: WorkStatus[] = ['draft'];
+
+export function isWorkReportVisibleToPortal(status: string) {
+  return PORTAL_COMPLETED_WORK_STATUSES.includes(status as WorkStatus);
+}
 
 export function isPortalUser(profile: Pick<Profile, 'role'> | null | undefined) {
   return isPortalView(profile);

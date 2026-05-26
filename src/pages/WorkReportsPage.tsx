@@ -28,6 +28,8 @@ import {
   getPortalSubscriberId,
   isPortalUser,
   needsPortalClientFilter,
+  PORTAL_COMPLETED_WORK_STATUSES,
+  PORTAL_OWN_ORDER_OPEN_STATUSES,
   reportMatchesPortalSubscriber,
 } from '../lib/portalWorkOrder';
 import { usePortalPreview } from '../hooks/usePortalPreview';
@@ -83,8 +85,6 @@ const HISTORY_STATUSES: WorkStatus[] = ['completed', 'billed_partner', 'billed_c
 const ACTIVE_STATUSES: WorkStatus[] = ['scheduled', 'in_progress'];
 
 const DRAFT_STATUS: WorkStatus = 'draft';
-
-const PORTAL_OPEN_STATUSES: WorkStatus[] = ['draft', 'delegated', 'scheduled', 'in_progress'];
 
 
 
@@ -399,16 +399,15 @@ export default function WorkReportsPage({ session }: Props) {
     if (adminSubscriberPreview && portalSubscriberId) {
       return reports.filter(
         (r) =>
-          PORTAL_OPEN_STATUSES.includes(r.status)
+          PORTAL_OWN_ORDER_OPEN_STATUSES.includes(r.status)
           && reportMatchesPortalSubscriber(r, portalSubscriberId, subscriberCustomerIds),
       );
     }
-    return myPortalOrders.filter((r) => PORTAL_OPEN_STATUSES.includes(r.status));
+    return myPortalOrders.filter((r) => PORTAL_OWN_ORDER_OPEN_STATUSES.includes(r.status));
   }, [reports, myPortalOrders, adminSubscriberPreview, portalSubscriberId, subscriberCustomerIds]);
 
-  /** RLS palauttaa valmiit yrityksen raportit; UI suodatti aiemmin vain omat luonnokset pois. */
   const portalHistoryOrders = useMemo(() => {
-    let list = reports.filter((r) => HISTORY_STATUSES.includes(r.status));
+    let list = reports.filter((r) => PORTAL_COMPLETED_WORK_STATUSES.includes(r.status));
     if (adminSubscriberPreview && portalSubscriberId) {
       list = list.filter((r) =>
         reportMatchesPortalSubscriber(r, portalSubscriberId, subscriberCustomerIds),
@@ -468,11 +467,7 @@ export default function WorkReportsPage({ session }: Props) {
                   {portalOpenOrders.map((report) => (
                     <li key={report.id}>
                       <Link
-                        to={
-                          report.status === 'draft'
-                            ? `/tyoraportit/tilaus/${report.id}/muokkaa`
-                            : `/tyoraportit/${report.id}`
-                        }
+                        to={`/tyoraportit/tilaus/${report.id}/muokkaa`}
                         className="report-link"
                       >
                         <div className="report-link-body">

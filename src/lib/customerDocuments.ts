@@ -5,6 +5,7 @@ import { QUOTE_TYPE_LABELS } from './quoteRequest/constants';
 import { QUOTE_STATUS_LABELS, normalizeQuoteRequestData } from './quoteRequest/defaults';
 import type { QuoteRequestData } from './quoteRequest/types';
 import { isMaintenanceReportPublished } from './maintenanceReportStatus';
+import { isWorkReportVisibleToPortal } from './portalWorkOrder';
 import { getMaintenanceReportStatusLabel, getWorkStatusLabel, type WorkStatus } from '../types';
 
 export type CustomerLinkedDocumentKind =
@@ -95,8 +96,6 @@ export async function loadCustomerLinkedDocuments(
 
   const linked: CustomerLinkedDocument[] = [];
 
-  const completedWorkStatuses: WorkStatus[] = ['completed', 'billed_partner', 'billed_customer'];
-
   for (const row of workResult.data ?? []) {
     const report = row as unknown as {
       id: string;
@@ -107,7 +106,7 @@ export async function loadCustomerLinkedDocuments(
       equipment_id: string | null;
       equipment: unknown;
     };
-    if (portalReadOnly && !completedWorkStatuses.includes(report.status)) continue;
+    if (portalReadOnly && !isWorkReportVisibleToPortal(report.status)) continue;
     linked.push({
       id: report.id,
       kind: 'work_report',
