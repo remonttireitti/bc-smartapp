@@ -1,14 +1,22 @@
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useOutletContext } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
 import SubscriberPortalSection from '../components/SubscriberPortalSection';
 import { loadSubscribersForOwner } from '../lib/subscribers';
+import {
+  clearSubscriberNewFormDraft,
+  readSubscriberNewFormDraft,
+  subscriberFormDraftHasContent,
+  subscriberNewFormDraftKey,
+  writeSubscriberNewFormDraft,
+  type SubscriberFormDraft,
+} from '../lib/subscriberFormDraftStorage';
 import { supabase } from '../lib/supabase';
 import type { Profile, Subscriber } from '../types';
 
 type Context = { profile: Profile; session: Session };
 
-const emptyForm = () => ({
+const emptyForm = (): SubscriberFormDraft => ({
   name: '',
   business_id: '',
   email: '',
@@ -17,17 +25,48 @@ const emptyForm = () => ({
 });
 
 export default function SubscribersPage() {
-  const { profile } = useOutletContext<Context>();
+  const { profile, session } = useOutletContext<Context>();
   const [subscribers, setSubscribers] = useState<Subscriber[]>([]);
-  const [form, setForm] = useState(emptyForm);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [draftRestored, setDraftRestored] = useState(false);
 
   const isAdmin = profile.role === 'admin';
   const ownerCompanyId = profile.company_id;
+
+  const newFormDraftKey = useMemo(() => {
+    if (!ownerCompanyId) return null;
+    return subscriberNewFormDraftKey(ownerCompanyId, session.user.id);
+  }, [ownerCompanyId, session.user.id]);
+
+  const loadNewFormDraft = useCallback((): SubscriberFormDraft => {
+    if (!newFormDraftKey) return emptyForm();
+    const stored = readSubscriberNewFormDraft(newFormDraftKey);
+    return stored?.payload ?? emptyForm();
+  }, [newFormDraftKey]);
+
+  const [form, setForm] = useState<SubscriberFormDraft>(() => loadNewFormDraft());
+
+  useEffect(() => {
+    if (editingId || !newFormDraftKey) return;
+    const stored = readSubscriberNewFormDraft(newFormDraftKey);
+    if (stored?.payload) {
+      setForm(stored.payload);
+      setDraftRestored(true);
+    }
+  }, [newFormDraftKey, editingId]);
+
+  useEffect(() => {
+    if (editingId || !newFormDraftKey) return;
+    if (!subscriberFormDraftHasContent(form)) {
+      clearSubscriberNewFormDraft(newFormDraftKey);
+      return;
+    }
+    writeSubscriberNewFormDraft(newFormDraftKey, form);
+  }, [form, editingId, newFormDraftKey]);
 
   useEffect(() => {
     if (ownerCompanyId) void load();
@@ -48,6 +87,7 @@ export default function SubscribersPage() {
 
   function startEdit(entry: Subscriber, scrollToPortal = false) {
     setEditingId(entry.id);
+    setDraftRestored(false);
     setForm({
       name: entry.name,
       business_id: entry.business_id ?? '',
@@ -65,8 +105,20 @@ export default function SubscribersPage() {
   }
 
   function cancelEdit() {
+    const draft = loadNewFormDraft();
     setEditingId(null);
+    setForm(draft);
+    setDraftRestored(subscriberFormDraftHasContent(draft));
+    setMessage(null);
+    setError(null);
+  }
+
+  function clearNewFormDraft() {
+    if (newFormDraftKey) clearSubscriberNewFormDraft(newFormDraftKey);
     setForm(emptyForm());
+    setDraftRestored(false);
+    setMessage(null);
+    setError(null);
   }
 
   async function saveSubscriber(e: FormEvent) {
@@ -115,7 +167,9 @@ export default function SubscribersPage() {
         return;
       }
       setMessage('Tilaaja lisätty rekisteriin.');
+      if (newFormDraftKey) clearSubscriberNewFormDraft(newFormDraftKey);
       setForm(emptyForm());
+      setDraftRestored(false);
     }
 
     await load();
@@ -169,6 +223,11 @@ export default function SubscribersPage() {
 
       <form className="panel form-grid" onSubmit={(e) => void saveSubscriber(e)}>
         <h2>{editingId ? 'Muokkaa tilaajaa' : 'Uusi tilaaja'}</h2>
+        {!editingId && draftRestored && subscriberFormDraftHasContent(form) && (
+          <p className="muted field-span-all" style={{ margin: '-0.25rem 0 0' }}>
+            Tallentamaton luonnos palautettiin — voit jatkaa täyttämistä tai tyhjentää lomakkeen.
+          </p>
+        )}
         <label>
           Nimi *
           <input
@@ -214,6 +273,15 @@ export default function SubscribersPage() {
           {editingId ? (
             <button type="button" className="btn btn-secondary" onClick={cancelEdit} disabled={busy}>
               Peruuta
+            </button>
+          ) : subscriberFormDraftHasContent(form) ? (
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={clearNewFormDraft}
+              disabled={busy}
+            >
+              Tyhjennä lomake
             </button>
           ) : null}
         </div>
