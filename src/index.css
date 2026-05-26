@@ -4361,3 +4361,7 @@ textarea {
 .portal-preview-banner .muted {
   color: #b45309;
 }
+
+.customer-list-no-subscriber {
+  font-style: italic;
+}

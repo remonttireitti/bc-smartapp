@@ -101,7 +101,8 @@ export default function CustomersPage({ session }: Props) {
         c.name.toLowerCase().includes(q)
         || (c.address ?? '').toLowerCase().includes(q)
         || (c.city ?? '').toLowerCase().includes(q)
-        || (c.phone ?? '').toLowerCase().includes(q),
+        || (c.phone ?? '').toLowerCase().includes(q)
+        || (c.subscriber?.name ?? '').toLowerCase().includes(q),
     );
 
     const activeSearchHits = searchHitsFor === q ? searchHits : [];
@@ -161,7 +162,7 @@ export default function CustomersPage({ session }: Props) {
             type="search"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Nimi, osoite, kaupunki, puhelin…"
+            placeholder="Nimi, osoite, kaupunki, puhelin, tilaaja…"
           />
         </label>
         {!portalMode && (
@@ -222,6 +223,7 @@ export default function CustomersPage({ session }: Props) {
                 <li key={c.id}>
                   <CustomerListItem
                     customer={c}
+                    showSubscriber={!portalMode}
                     showPortalAction={
                       profile?.role === 'admin'
                       && c.owner_company_id === profile.company_id
