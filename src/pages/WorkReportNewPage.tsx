@@ -42,6 +42,7 @@ import {
 } from '../lib/workReportDraftStorage';
 
 import { useProfile } from '../hooks/useProfile';
+import { useRegisterDraftSaver } from '../hooks/useRegisterDraftSaver';
 import { isPortalReadOnly, isSubscriberPortalWorkOrder } from '../lib/portalWorkOrder';
 
 import {
@@ -1100,7 +1101,21 @@ export default function WorkReportNewPage({ session }: Props) {
 
   }, [isOnline]);
 
-
+  useRegisterDraftSaver(async () => {
+    if (status !== 'draft') return;
+    writeLocalWorkDraft(draftStorageKey, {
+      description,
+      customerId,
+      equipmentId,
+      contextMode,
+      partnerId,
+      scheduledDate,
+      scheduledHour,
+    });
+    if (canAutoSave && isOnline) {
+      await saveReport('draft', { auto: true });
+    }
+  });
 
   async function onSubmit(e: FormEvent) {
 

@@ -3,7 +3,7 @@ import { useState, type ReactNode } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import PortalPreviewBanner from './PortalPreviewBanner';
 import { usePortalPreview } from '../hooks/usePortalPreview';
-import { supabase } from '../lib/supabase';
+import { useAuthSession } from '../contexts/AuthSessionContext';
 import { useProfile } from '../hooks/useProfile';
 
 interface Props {
@@ -14,18 +14,13 @@ interface Props {
 export default function AppLayout({ session, children }: Props) {
   const { profile } = useProfile(session);
   const portalPreview = usePortalPreview();
+  const { signOut: authSignOut } = useAuthSession();
   const [signingOut, setSigningOut] = useState(false);
 
   async function signOut() {
     if (signingOut) return;
     setSigningOut(true);
-    const { error } = await supabase.auth.signOut();
-    if (error) {
-      console.error('Uloskirjautuminen epäonnistui:', error.message);
-      setSigningOut(false);
-      return;
-    }
-    window.location.assign('/login');
+    await authSignOut('manual');
   }
 
   return (

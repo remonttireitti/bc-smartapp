@@ -7,4 +7,11 @@ if (!url || !key) {
   console.warn('Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY — copy .env.example to .env');
 }
 
-export const supabase = createClient(url ?? '', key ?? '');
+/** sessionStorage: istunto päättyy kun selain suljetaan (kaikki välilehdet). */
+export const supabase = createClient(url ?? '', key ?? '', {
+  auth: {
+    storage: typeof window !== 'undefined' ? window.sessionStorage : undefined,
+    persistSession: true,
+    autoRefreshToken: true,
+  },
+});

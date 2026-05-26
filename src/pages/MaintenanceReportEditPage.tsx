@@ -85,6 +85,7 @@ import {
 } from '../lib/maintenanceReportDraftStorage';
 import { isPortalUser } from '../lib/portalWorkOrder';
 import { useProfile } from '../hooks/useProfile';
+import { useRegisterDraftSaver } from '../hooks/useRegisterDraftSaver';
 import { canDeleteCompanyOwnedEntity } from '../lib/deletePermissions';
 import type { Company, Customer, Equipment, Partnership, Subscriber } from '../types';
 
@@ -802,6 +803,19 @@ export default function MaintenanceReportEditPage({ session }: Props) {
 
     return () => window.clearTimeout(timer);
   }, [form, customerId, equipmentId, contextMode, partnerId, ownerCompanyId, status, isOnline, busy]);
+
+  useRegisterDraftSaver(async () => {
+    if (status !== 'draft') return;
+    writeLocalMaintenanceDraft(draftStorageKey, {
+      form,
+      customerId,
+      equipmentId,
+      contextMode,
+      partnerId,
+    });
+    if (!form.laiteTyyppi || (!customerId && !form.asiakas.trim())) return;
+    if (isOnline) await saveReport('draft', { auto: true });
+  });
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();

@@ -52,6 +52,8 @@ import {
 import type { QuoteEditSection, QuoteRequestData, QuoteType } from '../lib/quoteRequest/types';
 import { quoteListTrail } from '../lib/navigationTrail';
 import { useProfile } from '../hooks/useProfile';
+import { useRegisterDraftSaver } from '../hooks/useRegisterDraftSaver';
+import { localQuoteDraftKey, writeLocalQuoteDraft } from '../lib/quoteRequestDraftStorage';
 import type { Company, Customer, Equipment, Partnership, Subscriber } from '../types';
 
 interface Props {
@@ -87,6 +89,7 @@ export default function QuoteRequestEditPage({ session }: Props) {
   const [registryMessage, setRegistryMessage] = useState<string | null>(null);
   const titleMigratedRef = useRef(false);
   const [companySettings, setCompanySettings] = useState<ReturnType<typeof parseCompanySettings> | null>(null);
+  const quoteDraftStorageKey = localQuoteDraftKey(quoteId, session.user.id);
 
   const deliveryFeeMap = useMemo(
     () => deliveryFeesFromCompanySettings(companySettings),
@@ -438,6 +441,40 @@ export default function QuoteRequestEditPage({ session }: Props) {
     setBusy(false);
     return true;
   }
+
+  useEffect(() => {
+    if (status !== 'draft') return;
+    writeLocalQuoteDraft(quoteDraftStorageKey, {
+      form,
+      customerId,
+      equipmentId,
+      subscriberId,
+      partnerId: reportContext.partnerId,
+      contextMode,
+    });
+  }, [
+    form,
+    customerId,
+    equipmentId,
+    subscriberId,
+    reportContext.partnerId,
+    contextMode,
+    status,
+    quoteDraftStorageKey,
+  ]);
+
+  useRegisterDraftSaver(async () => {
+    if (status !== 'draft') return;
+    writeLocalQuoteDraft(quoteDraftStorageKey, {
+      form,
+      customerId,
+      equipmentId,
+      subscriberId,
+      partnerId: reportContext.partnerId,
+      contextMode,
+    });
+    if (customerId) await saveQuote('draft');
+  });
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
