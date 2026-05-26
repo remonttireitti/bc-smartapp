@@ -27,9 +27,11 @@ import { supabase } from '../lib/supabase';
 import {
   getPortalSubscriberId,
   isPortalUser,
+  isSubscriberPortalWorkOrder,
   needsPortalClientFilter,
   PORTAL_COMPLETED_WORK_STATUSES,
   PORTAL_OWN_ORDER_OPEN_STATUSES,
+  portalWorkOrderEditPath,
   reportMatchesPortalSubscriber,
 } from '../lib/portalWorkOrder';
 import { usePortalPreview } from '../hooks/usePortalPreview';
@@ -41,6 +43,10 @@ import {
   WORK_STATUS_LABELS,
 
   getWorkStatusLabel,
+
+  buildWorkReportTitle,
+
+  resolveWorkReportDescription,
 
   addDays,
 
@@ -318,12 +324,19 @@ export default function WorkReportsPage({ session }: Props) {
 
 
 
-  const draftReports = useMemo(
-
+  const allDraftReports = useMemo(
     () => filteredReports.filter((r) => r.status === DRAFT_STATUS),
-
     [filteredReports],
+  );
 
+  const subscriberPortalOrders = useMemo(
+    () => allDraftReports.filter((r) => isSubscriberPortalWorkOrder(r, session.user.id)),
+    [allDraftReports, session.user.id],
+  );
+
+  const draftReports = useMemo(
+    () => allDraftReports.filter((r) => !isSubscriberPortalWorkOrder(r, session.user.id)),
+    [allDraftReports, session.user.id],
   );
 
 
@@ -376,14 +389,20 @@ export default function WorkReportsPage({ session }: Props) {
 
   const activeMonth = monthAnchor.getMonth();
 
+  function workReportListTitle(report: WorkReport) {
+    const description = report.description?.trim() || resolveWorkReportDescription(report);
+    return buildWorkReportTitle(report.customers?.name, description);
+  }
+
   function draftEditPath(report: WorkReport) {
+    if (isSubscriberPortalWorkOrder(report, session.user.id)) {
+      return portalWorkOrderEditPath(report.id);
+    }
 
     const isOrderDraft =
-
       !report.assigned_user_id && report.created_by_company_id === report.owner_company_id;
 
     return isOrderDraft ? `/tyoraportit/toimeksianto/${report.id}/muokkaa` : `/tyoraportit/${report.id}/muokkaa`;
-
   }
 
   const portalMode = isPortalUser(profile);
@@ -419,14 +438,6 @@ export default function WorkReportsPage({ session }: Props) {
       return new Date(bTime).getTime() - new Date(aTime).getTime();
     });
   }, [reports, adminSubscriberPreview, portalSubscriberId, subscriberCustomerIds]);
-
-  const subscriberPortalOrders = useMemo(
-    () =>
-      draftReports.filter(
-        (r) => !!r.subscriber_id && !r.assigned_user_id && r.created_by_user_id !== session.user.id,
-      ),
-    [draftReports, session.user.id],
-  );
 
   if (portalMode) {
     return (
@@ -799,10 +810,10 @@ export default function WorkReportsPage({ session }: Props) {
                   <li key={r.id}>
                     <Link to={draftEditPath(r)} className="report-link">
                       <div className="report-link-main">
-                        <strong>{r.title}</strong>
+                        <strong>{workReportListTitle(r)}</strong>
                         <span className="muted">
-                          {r.customers?.name ?? r.location_text ?? '—'}
-                          {r.orderer_name ? ` • ${r.orderer_name}` : ''}
+                          {r.orderer_name ? `Tilaaja: ${r.orderer_name}` : 'Tilaajan tilaus'}
+                          {r.location_text ? ` • ${r.location_text}` : ''}
                         </span>
                       </div>
                       <span className="badge badge-draft">Tilaajan tilaus</span>
@@ -829,7 +840,7 @@ export default function WorkReportsPage({ session }: Props) {
 
                       <div className="report-link-main">
 
-                        <strong>{r.title}</strong>
+                        <strong>{workReportListTitle(r)}</strong>
 
                         <span className="muted">{r.customers?.name ?? r.location_text ?? '—'}</span>
 

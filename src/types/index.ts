@@ -514,9 +514,32 @@ function truncateAtWord(text: string, maxLength: number): string {
   return cut.trimEnd();
 }
 
+function stripRedundantCustomerFromSnippet(snippet: string, customerName: string): string {
+  const base = customerName.trim();
+  let part = snippet.trim();
+  if (!base || !part) return part;
+
+  const baseLower = base.toLowerCase();
+  const partLower = part.toLowerCase();
+
+  if (partLower === baseLower) return '';
+
+  if (partLower.startsWith(baseLower)) {
+    return part.slice(base.length).replace(/^[\s,–—-]+/, '').trim();
+  }
+
+  if (partLower.endsWith(baseLower) && part.length > base.length) {
+    const prefix = part.slice(0, part.length - base.length).trimEnd();
+    if (prefix) return prefix;
+  }
+
+  return part;
+}
+
 export function buildWorkReportTitle(customerName: string | undefined | null, description: string) {
-  const base = customerName ?? 'Työraportti';
-  const snippet = truncateAtWord(description, 48);
+  const base = (customerName?.trim() || 'Työraportti').replace(/\s+/g, ' ');
+  const rawSnippet = truncateAtWord(description.replace(/\s+/g, ' ').trim(), 48);
+  const snippet = stripRedundantCustomerFromSnippet(rawSnippet, base);
   return snippet ? `${base} – ${snippet}` : base;
 }
 

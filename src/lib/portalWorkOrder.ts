@@ -17,6 +17,32 @@ export function isWorkReportVisibleToPortal(status: string) {
   return PORTAL_COMPLETED_WORK_STATUSES.includes(status as WorkStatus);
 }
 
+/** Tilaajan portaaliin lähetetty luonnos (ei näy yrityksen yleisessä luonnoslistassa). */
+export function isSubscriberPortalWorkOrder(
+  report: {
+    status: string;
+    subscriber_id?: string | null;
+    assigned_user_id?: string | null;
+    created_by_company_id?: string | null;
+    owner_company_id?: string | null;
+    created_by_user_id?: string | null;
+  },
+  viewerUserId: string,
+) {
+  return (
+    report.status === 'draft'
+    && !!report.subscriber_id
+    && !report.assigned_user_id
+    && report.created_by_company_id === report.owner_company_id
+    && !!report.created_by_user_id
+    && report.created_by_user_id !== viewerUserId
+  );
+}
+
+export function portalWorkOrderEditPath(reportId: string) {
+  return `/tyoraportit/tilaus/${reportId}/muokkaa`;
+}
+
 export function isPortalUser(profile: Pick<Profile, 'role'> | null | undefined) {
   return isPortalView(profile);
 }
