@@ -4,7 +4,9 @@ import type { Session } from '@supabase/supabase-js';
 import AppLayout from '../components/AppLayout';
 import NavigationBreadcrumb from '../components/NavigationBreadcrumb';
 import { useMaintenancePrintNavigation } from '../hooks/useMaintenancePrintNavigation';
+import { useProfile } from '../hooks/useProfile';
 import { resolveCompanyLogoUrl } from '../lib/companyLogo';
+import { isPortalReadOnly } from '../lib/portalWorkOrder';
 import { normalizeHuoltoReportData } from '../lib/huoltoRaportti/defaults';
 import { generateMaintenanceReportHtml } from '../lib/huoltoRaportti/printHtml';
 import type { HuoltoReportData } from '../lib/huoltoRaportti/types';
@@ -17,11 +19,13 @@ interface Props {
 
 export default function MaintenanceReportPrintPage({ session }: Props) {
   const { id } = useParams();
+  const { profile } = useProfile(session);
   const [html, setHtml] = useState('');
   const [reportData, setReportData] = useState<HuoltoReportData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const navigation = useMaintenancePrintNavigation(id, reportData);
+  const portalReadOnly = isPortalReadOnly(profile);
 
   useEffect(() => {
     if (!id) {
@@ -115,7 +119,7 @@ export default function MaintenanceReportPrintPage({ session }: Props) {
             <button type="button" className="btn btn-primary" onClick={() => window.print()}>
               Tulosta
             </button>
-            {navigation.linkToEdit && (
+            {navigation.linkToEdit && !portalReadOnly && (
               <Link {...navigation.linkToEdit} className="btn btn-secondary">
                 Muokkaa raporttia
               </Link>
