@@ -2,7 +2,7 @@ import type { Partnership } from '../../types';
 import { partnershipPermsActingOnOwner } from '../management';
 import { applyLegacyQuoteFields } from './legacyImport';
 import { resolveLegacyDeviceIds } from './deviceCatalog';
-import { isHuoltoQuoteType, isRepairQuoteType, quoteTemplates } from './constants';
+import { isRepairQuoteType, normalizeStoredVatRate, quoteTemplates } from './constants';
 import type {
   QuoteBrandMode,
   QuoteLine,
@@ -145,7 +145,7 @@ export function createEmptyQuoteRequestData(type: QuoteType = 'vesi-ilma'): Quot
     laborHours: template.laborHours ?? 0,
     laborRate: template.laborRate ?? 65,
     travelCost: template.travelCost ?? 50,
-    vatRate: template.vatRate ?? 25.5,
+    vatRate: template.vatRate ?? 0,
     deviceDiscountPercent: 52.5,
     deviceMarginPercent: 25,
     devicePurchaseOverrideNet: null,
@@ -184,7 +184,7 @@ export function createEmptyQuoteRequestData(type: QuoteType = 'vesi-ilma'): Quot
 
 export function applyQuoteTypeChange(current: QuoteRequestData, nextType: QuoteType): QuoteRequestData {
   const template = quoteTemplates[nextType];
-  const defaultVat = isHuoltoQuoteType(nextType) ? 0 : (template.vatRate ?? 25.5);
+  const defaultVat = template.vatRate ?? 0;
   return {
     ...current,
     type: nextType,
@@ -340,7 +340,7 @@ export function normalizeQuoteRequestData(raw: unknown): QuoteRequestData {
     laborHours: Number(record.laborHours) || 0,
     laborRate: Number(record.laborRate) || 65,
     travelCost: Number(record.travelCost) || 50,
-    vatRate: Number(record.vatRate) || 25.5,
+    vatRate: normalizeStoredVatRate(record.vatRate, base.vatRate),
     deviceDiscountPercent: Number(record.deviceDiscountPercent) || 0,
     deviceMarginPercent: Number(record.deviceMarginPercent) || 25,
     devicePurchaseOverrideNet:

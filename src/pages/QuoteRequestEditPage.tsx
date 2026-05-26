@@ -32,7 +32,6 @@ import {
   QUOTE_SECTION_LABELS,
   QUOTE_TYPE_LABELS,
   HUOLTO_VAT_OPTIONS,
-  isHuoltoQuoteType,
   isPumpQuoteType,
   isRepairQuoteType,
   quoteShowsKotitalousDeduction,
@@ -1011,7 +1010,7 @@ export default function QuoteRequestEditPage({ session }: Props) {
               </label>
               <label>
                 ALV
-                {isHuoltoQuoteType(form.type) ? (
+                {isRepairQuoteType(form.type) ? (
                   <select
                     value={form.vatRate}
                     onChange={(e) => patchForm({ vatRate: Number(e.target.value) })}
@@ -1117,8 +1116,11 @@ export default function QuoteRequestEditPage({ session }: Props) {
               )}
               <strong>
                 Tarjous yhteensä
-                {form.vatRate > 0 ? ` (sis. ALV ${form.vatRate}%)` : ' (alv 0 %)'}:{' '}
-                {totals.grossTotal.toLocaleString('fi-FI', { style: 'currency', currency: 'EUR' })}
+                {form.vatRate > 0 ? ` (sis. ALV ${form.vatRate}%)` : ''}:{' '}
+                {(form.vatRate > 0 ? totals.grossTotal : totals.discountedNet).toLocaleString('fi-FI', {
+                  style: 'currency',
+                  currency: 'EUR',
+                })}
               </strong>
               {quoteShowsKotitalousDeduction(form.type) && kotitalous.laborOnlyGross > 0 && (
                 <div>

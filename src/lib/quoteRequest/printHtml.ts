@@ -230,9 +230,7 @@ function quoteHasVat(vatRate: number): boolean {
 }
 
 function quoteTotalRowLabel(vatRate: number): string {
-  return quoteHasVat(vatRate)
-    ? `Tarjous yhteensä (sis. ALV ${vatRate}%)`
-    : 'Tarjous yhteensä (alv 0 %)';
+  return quoteHasVat(vatRate) ? `Tarjous yhteensä (sis. ALV ${vatRate}%)` : 'Tarjous yhteensä';
 }
 
 function quotePrintTableHead(mode: QuotePrintMode): string {
@@ -369,8 +367,9 @@ function creatorSummaryFooter(
   const customerTotal = quoteHasVat(internal.vatRate)
     ? formatEuro(internal.grossTotal)
     : formatEuro(internal.discountedSellNet);
+  const netLabel = quoteHasVat(internal.vatRate) ? 'Myynti yhteensä (veroton)' : 'Myynti yhteensä';
   return `${discountNote}
-    <tr class="summary-row"><td colspan="4">Myynti yhteensä (alv 0 %)</td><td class="num">${formatEuro(internal.discountedSellNet)}</td></tr>
+    <tr class="summary-row"><td colspan="4">${netLabel}</td><td class="num">${formatEuro(internal.discountedSellNet)}</td></tr>
     <tr class="summary-row purchase"><td colspan="4">Hankinta yhteensä</td><td class="num">${formatEuro(internal.purchaseNet)}</td></tr>
     <tr class="summary-row profit"><td colspan="4">Kate / tuotto (viivan päälle)</td><td class="num">${formatEuro(internal.marginNet)}<div class="line-sub">${internal.marginPercent.toLocaleString('fi-FI', { maximumFractionDigits: 1 })} % myynnistä</div></td></tr>
     ${vatRow}
@@ -401,7 +400,11 @@ function quotePrintTableFooter(
   if (mode === 'creator' && input.internal) {
     return creatorSummaryFooter(input.internal, input.totalRowLabel);
   }
-  return enduserSummaryFooter(input.totals, input.totalRowLabel, Number(input.data.vatRate) || 0);
+  return enduserSummaryFooter(
+    input.totals,
+    input.totalRowLabel,
+    Number(input.data.vatRate) > 0 ? Number(input.data.vatRate) : 0,
+  );
 }
 
 function buildSituationReportHtml(data: QuoteRequestData): string {
@@ -518,7 +521,7 @@ export function generateQuoteOfferPrintHtml(input: {
                   <div>${esc(device.name)}</div>
                   ${pct != null ? `<div class="option-sub">Teho ${device.heatingPowerMax} kW (${pct}% tarpeesta)</div>` : ''}
                   <div class="option-compare-price">${formatEuro(quoteHasVat(vatRate) ? opt!.grossTotal : opt!.discountedNet)}</div>
-                  ${quoteHasVat(vatRate) ? `<div class="option-sub">sis. ALV ${vatRate}%</div>` : '<div class="option-sub">alv 0 %</div>'}
+                  ${quoteHasVat(vatRate) ? `<div class="option-sub">sis. ALV ${vatRate}%</div>` : ''}
                 </div>`;
               })
               .join('')}

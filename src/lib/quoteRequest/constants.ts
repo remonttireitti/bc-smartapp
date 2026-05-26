@@ -81,9 +81,16 @@ export const quoteTemplates: Record<QuoteType, Partial<QuoteRequestData>> = {
     iilpBaseInstallMaterialsGross: 500,
   },
   huolto: { laborHours: 2, laborRate: 65, travelCost: 50, vatRate: 0 },
-  korjaus: { laborHours: 4, laborRate: 65, travelCost: 50, vatRate: 25.5 },
-  asennus: { laborHours: 12, laborRate: 65, travelCost: 50, vatRate: 25.5 },
+  korjaus: { laborHours: 4, laborRate: 65, travelCost: 50, vatRate: 0 },
+  asennus: { laborHours: 12, laborRate: 65, travelCost: 50, vatRate: 0 },
 };
+
+/** Säilyttää 0 % — älä käytä `Number(v) || 25.5`. */
+export function normalizeStoredVatRate(value: unknown, fallback = 0): number {
+  if (value === null || value === undefined || value === '') return fallback;
+  const n = Number(value);
+  return Number.isFinite(n) ? Math.max(0, n) : fallback;
+}
 
 export function isPumpQuoteType(type: QuoteType): boolean {
   return type === 'vesi-ilma' || type === 'ilma-ilma';
