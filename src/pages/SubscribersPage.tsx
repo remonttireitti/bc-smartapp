@@ -208,11 +208,11 @@ export default function SubscribersPage() {
           />
         </label>
         <div className="form-actions field-span-all">
-          <button type="submit" className="primary" disabled={busy}>
+          <button type="submit" className="btn btn-primary" disabled={busy}>
             {busy ? 'Tallennetaan…' : editingId ? 'Tallenna muutokset' : 'Lisää tilaaja'}
           </button>
           {editingId ? (
-            <button type="button" className="secondary" onClick={cancelEdit} disabled={busy}>
+            <button type="button" className="btn btn-secondary" onClick={cancelEdit} disabled={busy}>
               Peruuta
             </button>
           ) : null}
@@ -244,15 +244,25 @@ export default function SubscribersPage() {
                   </span>
                 </div>
                 <div className="inline-actions">
-                  <button type="button" className="primary" onClick={() => startEdit(entry, true)} disabled={busy}>
+                  <button
+                    type="button"
+                    className="btn btn-primary btn-sm"
+                    onClick={() => startEdit(entry, true)}
+                    disabled={busy}
+                  >
                     Avaa tilaajaportaali
                   </button>
-                  <button type="button" className="secondary" onClick={() => startEdit(entry)} disabled={busy}>
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    onClick={() => startEdit(entry)}
+                    disabled={busy}
+                  >
                     Muokkaa
                   </button>
                   <button
                     type="button"
-                    className="danger"
+                    className="btn btn-danger btn-sm"
                     onClick={() => void removeSubscriber(entry)}
                     disabled={busy}
                   >
