@@ -94,6 +94,8 @@ export async function loadCustomerLinkedDocuments(
 
   const linked: CustomerLinkedDocument[] = [];
 
+  const completedWorkStatuses: WorkStatus[] = ['completed', 'billed_partner', 'billed_customer'];
+
   for (const row of workResult.data ?? []) {
     const report = row as unknown as {
       id: string;
@@ -104,6 +106,7 @@ export async function loadCustomerLinkedDocuments(
       equipment_id: string | null;
       equipment: unknown;
     };
+    if (portalReadOnly && !completedWorkStatuses.includes(report.status)) continue;
     linked.push({
       id: report.id,
       kind: 'work_report',
@@ -129,6 +132,7 @@ export async function loadCustomerLinkedDocuments(
       equipment_id: string | null;
       equipment: unknown;
     };
+    if (portalReadOnly && report.status !== 'submitted') continue;
     const printHref = `/huoltoraportit/${report.id}/tuloste`;
     linked.push({
       id: report.id,

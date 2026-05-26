@@ -1,15 +1,24 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { CUSTOMER_SELECT, EQUIPMENT_SELECT } from './customers';
+import { isPortalView } from './portalPreview';
 import type { Customer, Equipment, Profile } from '../types';
 
 export function isPortalUser(profile: Pick<Profile, 'role'> | null | undefined) {
-  return profile?.role === 'subscriber' || profile?.role === 'customer';
+  return isPortalView(profile);
 }
 
 /** Portaali on vain luku — ei asiakas-/huoltoraportin muokkausta. */
 export function isPortalReadOnly(profile: Pick<Profile, 'role'> | null | undefined) {
-  return isPortalUser(profile);
+  return isPortalView(profile);
 }
+
+export {
+  getPortalSubscriberId,
+  getPortalCustomerId,
+  needsPortalClientFilter,
+  reportMatchesPortalSubscriber,
+  filterMaintenanceReportsForPortalView,
+} from './portalPreview';
 
 export async function loadPortalOrderCustomers(
   supabase: SupabaseClient,

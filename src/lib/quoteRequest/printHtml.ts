@@ -1,5 +1,12 @@
 import { parseCompanySettings, type CompanySettings } from '../management';
-import { QUOTE_PROJECT_TYPE_LABELS, QUOTE_REGION_LABELS, QUOTE_TYPE_LABELS, isPumpQuoteType } from './constants';
+import {
+  QUOTE_PROJECT_TYPE_LABELS,
+  QUOTE_REGION_LABELS,
+  QUOTE_TYPE_LABELS,
+  isHuoltoQuoteType,
+  isPumpQuoteType,
+  quoteShowsKotitalousDeduction,
+} from './constants';
 import {
   calculateDevicePurchaseNet,
   calculateDeviceSellNet,
@@ -309,7 +316,10 @@ export function generateQuoteOfferPrintHtml(input: {
   const tableBody = `${lineRows}${iilpBaseInstallRows(data)}${deviceRows}`;
 
   const heatingNeedKw = isPumpQuoteType(data.type) ? computeHeatingNeedKw(data) : null;
-  const kotitalous = mode === 'enduser' ? computeKotitalousDeduction(data) : null;
+  const kotitalous =
+    mode === 'enduser' && quoteShowsKotitalousDeduction(data.type)
+      ? computeKotitalousDeduction(data)
+      : null;
   const optionTotals = computeAllOptionTotals(data, feeMap);
   const optionCompareHtml =
     optionTotals.length > 1
@@ -568,7 +578,14 @@ export function generateQuoteServicePrintHtml(input: {
   const logo = meta.logoUrl || smartappFallbackLogoSvg(meta.companyName);
   const customerAddress = [customer.address, customer.city].filter(Boolean).join(', ');
   const docTitle = QUOTE_TYPE_LABELS[data.type] || 'Tarjous';
-  const kotitalous = mode === 'enduser' ? computeKotitalousDeduction(data) : null;
+  const kotitalous =
+    mode === 'enduser' && quoteShowsKotitalousDeduction(data.type)
+      ? computeKotitalousDeduction(data)
+      : null;
+  const totalRowLabel =
+    Number(data.vatRate) > 0
+      ? `Tarjous yhteensä (sis. ALV ${data.vatRate}%)`
+      : 'Tarjous yhteensä (alv 0 %)';
 
   const workRows = buildServiceTaskPrintRows(data);
 
@@ -655,7 +672,7 @@ export function generateQuoteServicePrintHtml(input: {
       <tbody>
         ${tableBody || '<tr><td colspan="4">Ei rivejä</td></tr>'}
         <tr class="total-row">
-          <td colspan="3">Tarjous yhteensä (sis. ALV ${data.vatRate}%)</td>
+          <td colspan="3">${esc(totalRowLabel)}</td>
           <td class="num">${formatEuro(totals.grossTotal)}</td>
         </tr>
       </tbody>
@@ -666,7 +683,7 @@ export function generateQuoteServicePrintHtml(input: {
     ${kotitalousHtml}
 
     <section class="terms">
-      <div class="terms-title">${esc(meta.companyName)} – Huolto- ja asennusehdot</div>
+      <div class="terms-title">${esc(meta.companyName)} – ${isHuoltoQuoteType(data.type) ? 'Huoltoehdot' : 'Huolto- ja asennusehdot'}</div>
       <div>Työ suoritetaan alan hyvän työtavan mukaisesti. Hinnat sisältävät tarjouksessa eritellyt työt ja materiaalit.
       Lisätyöt ja odottamattomat vauriot sovitaan erikseen ennen jatkotoimenpiteitä.</div>
     </section>

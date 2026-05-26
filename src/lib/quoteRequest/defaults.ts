@@ -2,7 +2,7 @@ import type { Partnership } from '../../types';
 import { partnershipPermsActingOnOwner } from '../management';
 import { applyLegacyQuoteFields } from './legacyImport';
 import { resolveLegacyDeviceIds } from './deviceCatalog';
-import { isRepairQuoteType, quoteTemplates } from './constants';
+import { isHuoltoQuoteType, isRepairQuoteType, quoteTemplates } from './constants';
 import type {
   QuoteBrandMode,
   QuoteLine,
@@ -184,13 +184,14 @@ export function createEmptyQuoteRequestData(type: QuoteType = 'vesi-ilma'): Quot
 
 export function applyQuoteTypeChange(current: QuoteRequestData, nextType: QuoteType): QuoteRequestData {
   const template = quoteTemplates[nextType];
+  const defaultVat = isHuoltoQuoteType(nextType) ? 0 : (template.vatRate ?? 25.5);
   return {
     ...current,
     type: nextType,
     laborHours: template.laborHours ?? 0,
     laborRate: template.laborRate ?? 65,
     travelCost: template.travelCost ?? 50,
-    vatRate: template.vatRate ?? 25.5,
+    vatRate: defaultVat,
     workItems: isRepairQuoteType(nextType)
       ? defaultWorkItemsForType(nextType)
       : [createEmptyWorkItem({ pricePerHour: template.laborRate ?? 65 })],
@@ -428,15 +429,14 @@ export function quoteLinesTotal(lines: QuoteLine[]): number {
   return lines.reduce((sum, line) => sum + quoteLineTotal(line), 0);
 }
 
-export function quoteRequestTitle(
-  customerName: string | undefined,
-  quoteTypeLabel?: string,
-  extra?: string,
-): string {
-  const base = customerName?.trim() || 'Tarjouspyyntö';
-  const parts = [quoteTypeLabel, extra?.trim()].filter(Boolean);
-  return parts.length > 0 ? `${base} – ${parts.join(' • ')}` : base;
-}
+export {
+  quoteRequestTitle,
+  quoteRequestPageTitle,
+  quoteRequestStoredTitle,
+  resolveQuoteDisplayTitle,
+  stripLegacyQuoteTitleSuffix,
+  quoteCustomerNameForTitle,
+} from './title';
 
 export function partnerCompanyIdFromPartnership(
   partnership: Partnership,

@@ -24,7 +24,13 @@ import {
 
 import { supabase } from '../lib/supabase';
 
-import { isPortalUser } from '../lib/portalWorkOrder';
+import {
+  getPortalSubscriberId,
+  isPortalUser,
+  needsPortalClientFilter,
+  reportMatchesPortalSubscriber,
+} from '../lib/portalWorkOrder';
+import { usePortalPreview } from '../hooks/usePortalPreview';
 
 import { useProfile } from '../hooks/useProfile';
 
@@ -94,7 +100,7 @@ const DELEGATION_SELECT = `
 
   delegate_company_id, delegated_at, created_at, subscriber_id,
 
-  customers(name),
+  customers(name, subscriber_id),
 
   equipment(name, tag),
 
@@ -117,6 +123,9 @@ const DELEGATION_SELECT = `
 export default function WorkReportsPage({ session }: Props) {
 
   const { profile } = useProfile(session);
+  const portalPreview = usePortalPreview();
+  const portalSubscriberId = getPortalSubscriberId(profile);
+  const [subscriberCustomerIds, setSubscriberCustomerIds] = useState<Set<string>>(() => new Set());
 
   const [tab, setTab] = useState<Tab>('list');
 
@@ -153,6 +162,26 @@ export default function WorkReportsPage({ session }: Props) {
   }, [session.user.id, companyId]);
 
 
+
+  useEffect(() => {
+    if (!portalSubscriberId || !needsPortalClientFilter(profile)) {
+      setSubscriberCustomerIds(new Set());
+      return;
+    }
+
+    void supabase
+      .from('customers')
+      .select('id')
+      .eq('subscriber_id', portalSubscriberId)
+      .then(({ data, error }) => {
+        if (error) {
+          console.error(error);
+          setSubscriberCustomerIds(new Set());
+          return;
+        }
+        setSubscriberCustomerIds(new Set((data ?? []).map((row) => row.id)));
+      });
+  }, [portalSubscriberId, profile, portalPreview]);
 
   async function loadReports() {
 
@@ -358,30 +387,39 @@ export default function WorkReportsPage({ session }: Props) {
   }
 
   const portalMode = isPortalUser(profile);
-  const isSubscriberPortal = profile?.role === 'subscriber';
+  const isSubscriberPortal = profile?.role === 'subscriber' || portalPreview?.kind === 'subscriber';
+  const adminSubscriberPreview = needsPortalClientFilter(profile) && !!portalSubscriberId;
 
   const myPortalOrders = useMemo(
     () => reports.filter((r) => r.created_by_user_id === session.user.id),
     [reports, session.user.id],
   );
 
-  const portalOpenOrders = useMemo(
-    () => myPortalOrders.filter((r) => PORTAL_OPEN_STATUSES.includes(r.status)),
-    [myPortalOrders],
-  );
+  const portalOpenOrders = useMemo(() => {
+    if (adminSubscriberPreview && portalSubscriberId) {
+      return reports.filter(
+        (r) =>
+          PORTAL_OPEN_STATUSES.includes(r.status)
+          && reportMatchesPortalSubscriber(r, portalSubscriberId, subscriberCustomerIds),
+      );
+    }
+    return myPortalOrders.filter((r) => PORTAL_OPEN_STATUSES.includes(r.status));
+  }, [reports, myPortalOrders, adminSubscriberPreview, portalSubscriberId, subscriberCustomerIds]);
 
   /** RLS palauttaa valmiit yrityksen raportit; UI suodatti aiemmin vain omat luonnokset pois. */
-  const portalHistoryOrders = useMemo(
-    () =>
-      reports
-        .filter((r) => HISTORY_STATUSES.includes(r.status))
-        .sort((a, b) => {
-          const aTime = a.completed_at ?? a.scheduled_start ?? a.created_at;
-          const bTime = b.completed_at ?? b.scheduled_start ?? b.created_at;
-          return new Date(bTime).getTime() - new Date(aTime).getTime();
-        }),
-    [reports],
-  );
+  const portalHistoryOrders = useMemo(() => {
+    let list = reports.filter((r) => HISTORY_STATUSES.includes(r.status));
+    if (adminSubscriberPreview && portalSubscriberId) {
+      list = list.filter((r) =>
+        reportMatchesPortalSubscriber(r, portalSubscriberId, subscriberCustomerIds),
+      );
+    }
+    return list.sort((a, b) => {
+      const aTime = a.completed_at ?? a.scheduled_start ?? a.created_at;
+      const bTime = b.completed_at ?? b.scheduled_start ?? b.created_at;
+      return new Date(bTime).getTime() - new Date(aTime).getTime();
+    });
+  }, [reports, adminSubscriberPreview, portalSubscriberId, subscriberCustomerIds]);
 
   const subscriberPortalOrders = useMemo(
     () =>

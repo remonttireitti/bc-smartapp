@@ -205,10 +205,10 @@ function noticeBullets(data: QuoteRequestData): string[] {
   ];
 }
 
-function kohdeLine(data: QuoteRequestData, customer: QuotePrintCustomer): string {
+function kohdeLine(_data: QuoteRequestData, customer: QuotePrintCustomer): string {
   const address = [customer.address, customer.city].filter(Boolean).join(' ');
   if (address) return address;
-  return data.faultDescription.split(/\r?\n/)[0]?.trim() || '—';
+  return customer.name?.trim() || '—';
 }
 
 function signatoryName(meta: QuotePrintMeta): string {

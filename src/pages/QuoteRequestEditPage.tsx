@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
 import AppLayout from '../components/AppLayout';
@@ -31,8 +31,11 @@ import { setActiveDeviceRegistry, snapshotFromCompanySettings } from '../lib/quo
 import {
   QUOTE_SECTION_LABELS,
   QUOTE_TYPE_LABELS,
+  HUOLTO_VAT_OPTIONS,
+  isHuoltoQuoteType,
   isPumpQuoteType,
   isRepairQuoteType,
+  quoteShowsKotitalousDeduction,
 } from '../lib/quoteRequest/constants';
 import {
   applyQuoteTypeChange,
@@ -41,7 +44,8 @@ import {
   createEmptyQuoteRequestData,
   createEmptyWorkItem,
   normalizeQuoteRequestData,
-  quoteRequestTitle,
+  quoteRequestStoredTitle,
+  resolveQuoteDisplayTitle,
   resolveQuoteBrandingCompanyId,
   syncCustomerFieldsToForm,
 } from '../lib/quoteRequest/defaults';
@@ -79,7 +83,9 @@ export default function QuoteRequestEditPage({ session }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [savedAt, setSavedAt] = useState<string | null>(null);
+  const [storedDbTitle, setStoredDbTitle] = useState<string | null>(null);
   const [registryMessage, setRegistryMessage] = useState<string | null>(null);
+  const titleMigratedRef = useRef(false);
   const [companySettings, setCompanySettings] = useState<ReturnType<typeof parseCompanySettings> | null>(null);
 
   const deliveryFeeMap = useMemo(
@@ -108,11 +114,17 @@ export default function QuoteRequestEditPage({ session }: Props) {
   );
   const totals = useMemo(() => computeQuoteTotals(form, deliveryFeeMap), [form, deliveryFeeMap]);
   const kotitalous = useMemo(() => computeKotitalousDeduction(form), [form]);
-  const title = quoteRequestTitle(
-    selectedCustomer?.name,
-    QUOTE_TYPE_LABELS[form.type],
-    isRepairQuoteType(form.type) ? form.faultDescription : undefined,
+  const quoteTypeLabel = QUOTE_TYPE_LABELS[form.type];
+  const pageTitle = useMemo(
+    () =>
+      resolveQuoteDisplayTitle({
+        customerName: selectedCustomer?.name,
+        quoteTypeLabel,
+        storedTitle: storedDbTitle,
+      }),
+    [selectedCustomer?.name, quoteTypeLabel, storedDbTitle],
   );
+  const storedTitle = quoteRequestStoredTitle(selectedCustomer?.name, quoteTypeLabel);
   const brandOptions = useMemo(() => {
     if (!profile?.company_id) return [];
     return brandModeOptions({
@@ -272,6 +284,7 @@ export default function QuoteRequestEditPage({ session }: Props) {
 
     const row = data as {
       id: string;
+      title: string | null;
       status: 'draft' | 'sent';
       data: QuoteRequestData;
       owner_company_id: string;
@@ -283,6 +296,8 @@ export default function QuoteRequestEditPage({ session }: Props) {
     const normalized = normalizeQuoteRequestData(row.data);
 
     setQuoteId(row.id);
+    setStoredDbTitle(row.title);
+    titleMigratedRef.current = false;
     setStatus(row.status);
     setForm(normalized);
 
@@ -313,6 +328,16 @@ export default function QuoteRequestEditPage({ session }: Props) {
     if (resolvedCustomerId) await loadEquipment(resolvedCustomerId);
     setLoadingQuote(false);
   }
+
+  useEffect(() => {
+    if (!quoteId || titleMigratedRef.current || !storedTitle.trim()) return;
+    if (!storedDbTitle?.includes(' • ')) return;
+    if (storedDbTitle.trim() === storedTitle.trim()) return;
+    titleMigratedRef.current = true;
+    void supabase.from('quote_requests').update({ title: storedTitle }).eq('id', quoteId).then(({ error: patchError }) => {
+      if (!patchError) setStoredDbTitle(storedTitle);
+    });
+  }, [quoteId, storedDbTitle, storedTitle]);
 
   async function saveQuote(nextStatus?: 'draft' | 'sent') {
     if (!profile?.company_id || !ownerCompanyId) {
@@ -375,7 +400,7 @@ export default function QuoteRequestEditPage({ session }: Props) {
       customer_id: customerId,
       subscriber_id: resolveSubscriberIdForReport(customerId, subscriberId, customers),
       equipment_id: equipmentId || null,
-      title,
+      title: storedTitle,
       status: nextStatus ?? status,
       data: form,
     };
@@ -482,13 +507,13 @@ export default function QuoteRequestEditPage({ session }: Props) {
         items={[
           { label: 'Etusivu', to: '/' },
           { label: 'Tarjouspyyntö', to: '/tarjouspyynnot' },
-          { label: isNew ? 'Uusi tarjouspyyntö' : title },
+          { label: isNew ? 'Uusi tarjouspyyntö' : pageTitle },
         ]}
       />
 
       <div className="page-header">
         <div>
-          <h1>{isNew ? 'Uusi tarjouspyyntö' : title}</h1>
+          <h1>{isNew ? 'Uusi tarjouspyyntö' : pageTitle}</h1>
           <p className="muted">
             {ownerCompany?.name ?? profile?.companies?.name ?? '—'}
             {' • '}
@@ -985,15 +1010,29 @@ export default function QuoteRequestEditPage({ session }: Props) {
                 />
               </label>
               <label>
-                ALV (%)
-                <input
-                  type="number"
-                  min="0"
-                  step="0.1"
-                  value={form.vatRate}
-                  onChange={(e) => patchForm({ vatRate: Number(e.target.value) })}
-                  disabled={!canEdit}
-                />
+                ALV
+                {isHuoltoQuoteType(form.type) ? (
+                  <select
+                    value={form.vatRate}
+                    onChange={(e) => patchForm({ vatRate: Number(e.target.value) })}
+                    disabled={!canEdit}
+                  >
+                    {HUOLTO_VAT_OPTIONS.map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.1"
+                    value={form.vatRate}
+                    onChange={(e) => patchForm({ vatRate: Number(e.target.value) })}
+                    disabled={!canEdit}
+                  />
+                )}
               </label>
               <label>
                 Alennus (%)
@@ -1070,13 +1109,18 @@ export default function QuoteRequestEditPage({ session }: Props) {
               <div>
                 Yhteensä (alv 0): {totals.discountedNet.toLocaleString('fi-FI', { style: 'currency', currency: 'EUR' })}
               </div>
-              <div>
-                ALV {form.vatRate}%: {totals.vatAmount.toLocaleString('fi-FI', { style: 'currency', currency: 'EUR' })}
-              </div>
+              {form.vatRate > 0 && (
+                <div>
+                  ALV {form.vatRate}%:{' '}
+                  {totals.vatAmount.toLocaleString('fi-FI', { style: 'currency', currency: 'EUR' })}
+                </div>
+              )}
               <strong>
-                Tarjous yhteensä: {totals.grossTotal.toLocaleString('fi-FI', { style: 'currency', currency: 'EUR' })}
+                Tarjous yhteensä
+                {form.vatRate > 0 ? ` (sis. ALV ${form.vatRate}%)` : ' (alv 0 %)'}:{' '}
+                {totals.grossTotal.toLocaleString('fi-FI', { style: 'currency', currency: 'EUR' })}
               </strong>
-              {kotitalous.laborOnlyGross > 0 && (
+              {quoteShowsKotitalousDeduction(form.type) && kotitalous.laborOnlyGross > 0 && (
                 <div>
                   {kotitalous.label}:{' '}
                   {kotitalous.onePerson.toLocaleString('fi-FI', { style: 'currency', currency: 'EUR' })}

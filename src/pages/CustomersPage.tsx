@@ -6,7 +6,7 @@ import ToggleSwitch from '../components/ToggleSwitch';
 import { CustomerListItem } from '../components/CustomerListItem';
 import { CUSTOMER_SELECT } from '../lib/customers';
 import { quickSearchHitPath, type QuickSearchHit } from '../lib/quickSearch';
-import { isPortalUser } from '../lib/portalWorkOrder';
+import { filterCustomersForPortalView, getPortalPreview, isPortalUser } from '../lib/portalPreview';
 import { supabase } from '../lib/supabase';
 import { useProfile } from '../hooks/useProfile';
 import type { Customer } from '../types';
@@ -33,7 +33,8 @@ export default function CustomersPage({ session }: Props) {
   }, [profile?.company_id, profileLoading]);
 
   const portalMode = isPortalUser(profile);
-  const isSubscriberPortal = profile?.role === 'subscriber';
+  const preview = getPortalPreview();
+  const isSubscriberPortal = profile?.role === 'subscriber' || preview?.kind === 'subscriber';
 
   useEffect(() => {
     const q = search.trim();
@@ -86,9 +87,10 @@ export default function CustomersPage({ session }: Props) {
   }
 
   const visibleCustomers = useMemo(() => {
-    if (!ownOnly || !profile?.company_id) return customers;
-    return customers.filter((c) => c.owner_company_id === profile.company_id);
-  }, [customers, ownOnly, profile?.company_id]);
+    let list = filterCustomersForPortalView(customers, profile);
+    if (!ownOnly || !profile?.company_id) return list;
+    return list.filter((c) => c.owner_company_id === profile.company_id);
+  }, [customers, ownOnly, profile]);
 
   const filteredCustomers = useMemo(() => {
     const q = search.trim().toLowerCase();

@@ -14,8 +14,8 @@ type Props = {
   companyId: string;
 };
 
-function portalLoginUrl() {
-  return `${window.location.origin}/login`;
+function subscriberPortalPreviewUrl(subscriberId: string) {
+  return `${window.location.origin}/esikatselu/tilaaja/${subscriberId}`;
 }
 
 export default function SubscriberPortalSection({ subscriberId, subscriberName, companyId }: Props) {
@@ -54,7 +54,7 @@ export default function SubscriberPortalSection({ subscriberId, subscriberName, 
   }
 
   function openSubscriberPortal() {
-    window.open(portalLoginUrl(), '_blank', 'noopener,noreferrer');
+    window.open(subscriberPortalPreviewUrl(subscriberId), '_blank', 'noopener,noreferrer');
   }
 
   async function createPortalUser(e: FormEvent) {
@@ -115,9 +115,13 @@ export default function SubscriberPortalSection({ subscriberId, subscriberName, 
           </dl>
           <div className="form-actions" style={{ marginTop: '1rem' }}>
             <button type="button" className="btn btn-primary" onClick={openSubscriberPortal}>
-              Avaa tilaajaportaali
+              Avaa tilaajaportaali (esikatselu)
             </button>
           </div>
+          <p className="muted" style={{ marginTop: '0.75rem' }}>
+            Avaa saman näkymän kuin tilaaja näkee. Esikatselussa käytetään yrityskäyttäjän istuntoa, mutta näet
+            tilaajan oikeuksilla rajatun sisällön.
+          </p>
         </div>
       ) : !showInvite ? (
         <div className="form-actions">
@@ -125,7 +129,7 @@ export default function SubscriberPortalSection({ subscriberId, subscriberName, 
             Luo portaalikäyttäjä
           </button>
           <button type="button" className="btn btn-secondary" onClick={openSubscriberPortal}>
-            Avaa kirjautumissivu
+            Esikatsele tilaajaportaalia
           </button>
         </div>
       ) : (

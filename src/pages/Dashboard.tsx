@@ -5,6 +5,7 @@ import AppLayout from '../components/AppLayout';
 import QuickSearch from '../components/QuickSearch';
 import { useProfile } from '../hooks/useProfile';
 import { ROLE_LABELS } from '../lib/management';
+import { getPortalPreviewLabel, isPortalPreviewActive, isPortalView } from '../lib/portalPreview';
 
 const MODULES = [
   { title: 'Työraportti', desc: 'Työtilaukset ja raportit', color: '#0ea5e9', href: '/tyoraportit' },
@@ -30,14 +31,12 @@ const PORTAL_MODULES = [
 
 export default function Dashboard({ session }: Props) {
   const { profile } = useProfile(session);
-  const visibleModules = useMemo(() => {
-    if (profile?.role === 'subscriber' || profile?.role === 'customer') {
-      return PORTAL_MODULES;
-    }
-    return MODULES;
-  }, [profile?.role]);
+  const portalView = isPortalView(profile);
+  const visibleModules = useMemo(() => (portalView ? PORTAL_MODULES : MODULES), [portalView]);
 
-  const roleLabel = ROLE_LABELS[profile?.role ?? ''] ?? profile?.role ?? '—';
+  const roleLabel = isPortalPreviewActive()
+    ? `Esikatselu: ${getPortalPreviewLabel() ?? 'portaali'}`
+    : (ROLE_LABELS[profile?.role ?? ''] ?? profile?.role ?? '—');
 
   return (
     <AppLayout session={session}>
@@ -45,7 +44,7 @@ export default function Dashboard({ session }: Props) {
         {profile?.companies?.name ?? 'Ei yritystä'} • {roleLabel}
       </p>
 
-      {profile?.role !== 'subscriber' && profile?.role !== 'customer' && (
+      {!portalView && (
         <section className="search-box">
           <h2>Pikahaku</h2>
           <p className="muted">Asiakkaat, laitteet ja raportit — kirjoita vähintään 2 merkkiä</p>

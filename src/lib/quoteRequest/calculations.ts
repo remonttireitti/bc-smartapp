@@ -1,6 +1,6 @@
 import type { BrandDeliveryFeeByCategoryMap } from '../../data/devicePricingShared';
 import type { QuoteMaterial, QuoteRegion, QuoteRequestData, QuoteWorkItem } from './types';
-import { isRepairQuoteType } from './constants';
+import { isHuoltoQuoteType, isRepairQuoteType } from './constants';
 import {
   calculateDeviceSellNet,
   findDeviceById,
@@ -271,6 +271,18 @@ export function computeAllOptionTotals(
     .filter((row) => row.totals != null);
 }
 export function computeKotitalousDeduction(data: QuoteRequestData) {
+  if (isHuoltoQuoteType(data.type)) {
+    return {
+      laborOnlyGross: 0,
+      percent: 0,
+      maxPerPerson: 0,
+      onePerson: 0,
+      withSpouse: 0,
+      isOilAbandonment: false,
+      label: '',
+    };
+  }
+
   const totals = computeQuoteTotals(data);
   const vatRate = Number(data.vatRate || 0);
   const laborOnlyGross = totals.workNet * (1 + vatRate / 100);

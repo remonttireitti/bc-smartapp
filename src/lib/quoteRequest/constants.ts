@@ -80,7 +80,7 @@ export const quoteTemplates: Record<QuoteType, Partial<QuoteRequestData>> = {
     iilpBaseInstallLaborGross: 890,
     iilpBaseInstallMaterialsGross: 500,
   },
-  huolto: { laborHours: 2, laborRate: 65, travelCost: 50, vatRate: 25.5 },
+  huolto: { laborHours: 2, laborRate: 65, travelCost: 50, vatRate: 0 },
   korjaus: { laborHours: 4, laborRate: 65, travelCost: 50, vatRate: 25.5 },
   asennus: { laborHours: 12, laborRate: 65, travelCost: 50, vatRate: 25.5 },
 };
@@ -91,4 +91,20 @@ export function isPumpQuoteType(type: QuoteType): boolean {
 
 export function isRepairQuoteType(type: QuoteType): boolean {
   return type === 'huolto' || type === 'korjaus' || type === 'asennus';
+}
+
+export function isHuoltoQuoteType(type: QuoteType): boolean {
+  return type === 'huolto';
+}
+
+/** Kylmälaite-huoltotarjous: oletus alv 0 %, tarvittaessa korotettu kanta. */
+export const HUOLTO_VAT_OPTIONS: ReadonlyArray<{ value: number; label: string }> = [
+  { value: 0, label: 'ALV 0 % (oletus)' },
+  { value: 25.5, label: 'ALV 25,5 %' },
+  { value: 14, label: 'ALV 14 %' },
+  { value: 10, label: 'ALV 10 %' },
+];
+
+export function quoteShowsKotitalousDeduction(type: QuoteType): boolean {
+  return !isHuoltoQuoteType(type);
 }

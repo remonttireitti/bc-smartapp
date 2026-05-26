@@ -1,4 +1,4 @@
-import { isPortalUser } from './portalWorkOrder';
+import { isPortalPreviewActive, isPortalUser } from './portalPreview';
 import {
   partnershipModuleAccess,
   partnershipPermsActingOnOwner,
@@ -30,7 +30,7 @@ export function canEditCustomersAsStaff(
   myCompanyId: string | null | undefined,
   partnerships: Partnership[],
 ) {
-  if (isPortalUser(profile)) return false;
+  if (isPortalUser(profile) || isPortalPreviewActive()) return false;
   return canWriteCustomersModule(ownerCompanyId, myCompanyId, partnerships);
 }
 

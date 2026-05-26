@@ -9,6 +9,7 @@ import { QUOTE_TYPE_LABELS } from '../lib/quoteRequest/constants';
 import {
   QUOTE_STATUS_LABELS,
   normalizeQuoteRequestData,
+  resolveQuoteDisplayTitle,
 } from '../lib/quoteRequest/defaults';
 import { quoteCustomerDisplayName, quoteDeviceDisplayLabel } from '../lib/quoteRequest/legacyImport';
 import type { QuoteRequestRow } from '../lib/quoteRequest/types';
@@ -160,12 +161,17 @@ function QuoteListItem({ row }: { row: QuoteRequestRow }) {
   const data = normalizeQuoteRequestData(row.data);
   const total = computeQuoteTotals(data).grossTotal;
   const updated = new Date(row.updated_at).toLocaleString('fi-FI');
+  const displayTitle = resolveQuoteDisplayTitle({
+    customerName: row.customers?.name,
+    quoteTypeLabel: QUOTE_TYPE_LABELS[data.type],
+    storedTitle: row.title,
+  });
 
   return (
     <li>
       <Link to={`/tarjouspyynnot/${row.id}`} {...withNavTrail(quoteListTrail())}>
         <div className="report-list-main">
-          <strong>{row.title}</strong>
+          <strong>{displayTitle}</strong>
           <span className="muted">
             {QUOTE_TYPE_LABELS[data.type]}
             {' • '}

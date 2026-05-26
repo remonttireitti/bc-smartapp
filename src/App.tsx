@@ -33,6 +33,10 @@ import PumpDeviceRegistryPage from './pages/PumpDeviceRegistryPage';
 import InventoryPage from './pages/InventoryPage';
 import ToolsPage from './pages/ToolsPage';
 import SubscribersPage from './pages/SubscribersPage';
+import {
+  CustomerPortalPreviewPage,
+  SubscriberPortalPreviewPage,
+} from './pages/PortalPreviewPage';
 
 export default function App() {
   const [session, setSession] = useState<Session | null>(null);
@@ -64,6 +68,14 @@ export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<Navigate to="/" replace />} />
+      <Route
+        path="/esikatselu/tilaaja/:subscriberId"
+        element={<SubscriberPortalPreviewPage session={session} kind="subscriber" />}
+      />
+      <Route
+        path="/esikatselu/asiakas/:customerId"
+        element={<CustomerPortalPreviewPage session={session} kind="customer" />}
+      />
       <Route path="/" element={<Dashboard session={session} />} />
       <Route path="/global-admin" element={<Navigate to="/hallinta/global-admin" replace />} />
       <Route path="/tyoraportit" element={<WorkReportsPage session={session} />} />

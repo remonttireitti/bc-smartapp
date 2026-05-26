@@ -12,12 +12,12 @@ import { resolveCompanyLogoUrl } from '../lib/companyLogo';
 
 import { quoteListTrail } from '../lib/navigationTrail';
 
-import { isPumpQuoteType, isRepairQuoteType } from '../lib/quoteRequest/constants';
+import { isPumpQuoteType, isRepairQuoteType, QUOTE_TYPE_LABELS } from '../lib/quoteRequest/constants';
 
 import { deliveryFeesFromCompanySettings } from '../lib/quoteRequest/deviceCatalog';
 import { setActiveDeviceRegistry, snapshotFromCompanySettings } from '../lib/quoteRequest/deviceRegistryState';
 
-import { normalizeQuoteRequestData } from '../lib/quoteRequest/defaults';
+import { normalizeQuoteRequestData, resolveQuoteDisplayTitle } from '../lib/quoteRequest/defaults';
 
 import {
   generateQuoteHeatCalcPrintHtml,
@@ -334,7 +334,13 @@ export default function QuoteRequestPrintPage({ session }: Props) {
 
     const normalized = normalizeQuoteRequestData(row.data);
 
-    setTitle(row.title || 'Tarjous');
+    setTitle(
+      resolveQuoteDisplayTitle({
+        customerName: row.customers?.name,
+        quoteTypeLabel: QUOTE_TYPE_LABELS[normalized.type],
+        storedTitle: row.title,
+      }) || 'Tarjous',
+    );
 
     setQuoteData(normalized);
 

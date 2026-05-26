@@ -247,7 +247,7 @@ export default function SubscribersPage() {
                   <button
                     type="button"
                     className="btn btn-primary btn-sm"
-                    onClick={() => startEdit(entry, true)}
+                    onClick={() => window.open(`/esikatselu/tilaaja/${entry.id}`, '_blank', 'noopener,noreferrer')}
                     disabled={busy}
                   >
                     Avaa tilaajaportaali

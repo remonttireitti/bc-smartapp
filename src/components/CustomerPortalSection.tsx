@@ -16,8 +16,8 @@ type Props = {
   sectionId?: string;
 };
 
-function portalLoginUrl() {
-  return `${window.location.origin}/login`;
+function customerPortalPreviewUrl(customerId: string) {
+  return `${window.location.origin}/esikatselu/asiakas/${customerId}`;
 }
 
 export default function CustomerPortalSection({
@@ -62,7 +62,7 @@ export default function CustomerPortalSection({
   }
 
   function openCustomerPortal() {
-    window.open(portalLoginUrl(), '_blank', 'noopener,noreferrer');
+    window.open(customerPortalPreviewUrl(customerId), '_blank', 'noopener,noreferrer');
   }
 
   async function createPortalUser(e: FormEvent) {
@@ -129,7 +129,8 @@ export default function CustomerPortalSection({
             </button>
           </div>
           <p className="muted" style={{ marginTop: '0.75rem' }}>
-            Avaa kirjautumissivun uuteen välilehteen. Anna asiakkaalle sähköposti ja väliaikainen salasana.
+            Esikatselussa käytetään yrityskäyttäjän istuntoa, mutta näet asiakasportaalin näkymän kohteesi
+            oikeuksilla.
           </p>
         </div>
       ) : canManage ? (
@@ -140,7 +141,7 @@ export default function CustomerPortalSection({
                 Luo portaalikäyttäjä
               </button>
               <button type="button" className="btn btn-secondary" onClick={openCustomerPortal}>
-                Avaa kirjautumissivu
+                Esikatsele asiakasportaalia
               </button>
             </div>
           ) : (

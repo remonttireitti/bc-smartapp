@@ -501,7 +501,13 @@ button[type='submit']:disabled { opacity: .6; cursor: wait; }
   box-shadow: var(--shadow-panel);
 }
 
-.page-header h1 { margin: .25rem 0; color: var(--text); }
+.page-header h1 {
+  margin: .25rem 0;
+  color: var(--text);
+  font-size: 1.35rem;
+  font-weight: 600;
+  line-height: 1.35;
+}
 
 .page-header-actions {
   display: inline-flex;
@@ -4325,4 +4331,22 @@ textarea {
 
 .global-admin-duplicate-group-head h3 {
   margin: 0 0 0.25rem;
+}
+
+.portal-preview-banner {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  border: 1px solid #f59e0b;
+  background: #fffbeb;
+  color: #92400e;
+}
+
+.portal-preview-banner .muted {
+  color: #b45309;
 }

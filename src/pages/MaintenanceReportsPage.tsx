@@ -15,7 +15,14 @@ import type { HuoltoReportData } from '../lib/huoltoRaportti/types';
 import { maintenanceListTrail, withNavTrail } from '../lib/navigationTrail';
 
 import { useProfile } from '../hooks/useProfile';
-import { isPortalUser } from '../lib/portalWorkOrder';
+import {
+  filterMaintenanceReportsForPortalView,
+  isPortalUser,
+  needsPortalClientFilter,
+  reportMatchesPortalSubscriber,
+} from '../lib/portalWorkOrder';
+import { getPortalSubscriberId } from '../lib/portalPreview';
+import { usePortalPreview } from '../hooks/usePortalPreview';
 import { getMaintenanceReportStatusLabel } from '../types';
 
 
@@ -44,13 +51,15 @@ type MaintenanceReportListRow = {
 
   customer_id: string | null;
 
+  subscriber_id: string | null;
+
   equipment_id: string | null;
 
   owner_company_id: string;
 
   branding_company_id: string;
 
-  customers: { name: string } | null;
+  customers: { name: string; subscriber_id: string | null } | null;
 
   equipment: { name: string; tag: string | null } | null;
 
@@ -104,11 +113,17 @@ export default function MaintenanceReportsPage({ session }: Props) {
 
   const { profile } = useProfile(session);
 
+  const portalPreview = usePortalPreview();
+  const portalSubscriberId = getPortalSubscriberId(profile);
+  const [subscriberCustomerIds, setSubscriberCustomerIds] = useState<Set<string>>(() => new Set());
+
   const [reports, setReports] = useState<MaintenanceReportListRow[]>([]);
 
   const [loading, setLoading] = useState(true);
 
   const [search, setSearch] = useState('');
+
+  const portalMode = isPortalUser(profile);
 
 
 
@@ -116,7 +131,26 @@ export default function MaintenanceReportsPage({ session }: Props) {
 
     void loadReports();
 
-  }, [session.user.id]);
+  }, [session.user.id, portalPreview?.kind, portalPreview?.kind === 'subscriber' ? portalPreview.subscriberId : portalPreview?.kind === 'customer' ? portalPreview.customerId : null]);
+
+  useEffect(() => {
+    if (!portalSubscriberId || !needsPortalClientFilter(profile)) {
+      setSubscriberCustomerIds(new Set());
+      return;
+    }
+    void supabase
+      .from('customers')
+      .select('id')
+      .eq('subscriber_id', portalSubscriberId)
+      .then(({ data, error }) => {
+        if (error) {
+          console.error(error);
+          setSubscriberCustomerIds(new Set());
+          return;
+        }
+        setSubscriberCustomerIds(new Set((data ?? []).map((row) => row.id)));
+      });
+  }, [portalSubscriberId, profile, portalPreview]);
 
 
 
@@ -132,9 +166,9 @@ export default function MaintenanceReportsPage({ session }: Props) {
 
         id, status, data, updated_at, created_at,
 
-        customer_id, equipment_id, owner_company_id, branding_company_id,
+        customer_id, subscriber_id, equipment_id, owner_company_id, branding_company_id,
 
-        customers(name),
+        customers(name, subscriber_id),
 
         equipment(name, tag),
 
@@ -166,27 +200,38 @@ export default function MaintenanceReportsPage({ session }: Props) {
 
 
 
+  const portalVisibleReports = useMemo(
+    () => filterMaintenanceReportsForPortalView(reports, profile, subscriberCustomerIds),
+    [reports, profile, subscriberCustomerIds],
+  );
+
   const filteredReports = useMemo(() => {
+    const base = portalMode ? portalVisibleReports : reports;
 
     const query = search.trim().toLowerCase();
+    if (!query) return base;
 
-    if (!query) return reports;
-
-    return reports.filter((report) => reportSearchText(report).includes(query));
-
-  }, [reports, search]);
+    return base.filter((report) => reportSearchText(report).includes(query));
+  }, [reports, portalMode, portalVisibleReports, search]);
 
 
-
-  const portalMode = isPortalUser(profile);
 
   const grouped = useMemo(() => {
     const drafts = portalMode ? [] : filteredReports.filter((r) => r.status === 'draft');
     const done = portalMode
-      ? filteredReports.filter((r) => r.status === 'submitted')
+      ? filteredReports
       : filteredReports.filter((r) => r.status !== 'draft');
     return { drafts, done };
   }, [filteredReports, portalMode]);
+
+  const portalPendingCount = useMemo(() => {
+    if (!portalMode || !needsPortalClientFilter(profile) || !portalSubscriberId) return 0;
+    return reports.filter(
+      (r) =>
+        r.status !== 'submitted'
+        && reportMatchesPortalSubscriber(r, portalSubscriberId, subscriberCustomerIds),
+    ).length;
+  }, [portalMode, profile, portalSubscriberId, reports, subscriberCustomerIds]);
 
   return (
 
@@ -262,17 +307,25 @@ export default function MaintenanceReportsPage({ session }: Props) {
 
         <p className="muted">Ladataan…</p>
 
-      ) : reports.length === 0 ? (
+      ) : portalMode && grouped.done.length === 0 ? (
 
         <section className="panel">
           <p>
-            {portalMode
-              ? 'Ei toimitettuja huoltoraportteja vielä. Kun palveluyritys merkitsee raportin toimitetuksi ja kohde on linkitetty tilaajaan, raportti näkyy tässä.'
-              : 'Ei huoltoraportteja. Aloita luomalla uusi raportti.'}
+            {search.trim()
+              ? `Ei tuloksia haulle "${search.trim()}".`
+              : portalPendingCount > 0
+                ? `Ei toimitettuja huoltoraportteja vielä. Löytyi ${portalPendingCount} luonnosta linkitetyistä kohteista — merkitse raportti toimitetuksi, jotta se näkyy tilaajalle.`
+                : 'Ei toimitettuja huoltoraportteja vielä. Kun palveluyritys merkitsee raportin toimitetuksi ja kohde on linkitetty tilaajaan, raportti näkyy tässä.'}
           </p>
         </section>
 
-      ) : filteredReports.length === 0 ? (
+      ) : !portalMode && reports.length === 0 ? (
+
+        <section className="panel">
+          <p>Ei huoltoraportteja. Aloita luomalla uusi raportti.</p>
+        </section>
+
+      ) : !portalMode && filteredReports.length === 0 ? (
 
         <section className="panel">
 
@@ -418,5 +471,4 @@ function ReportRow({
   );
 
 }
-
 

@@ -1,6 +1,8 @@
 import { Link } from 'react-router-dom';
 import { useState, type ReactNode } from 'react';
 import type { Session } from '@supabase/supabase-js';
+import PortalPreviewBanner from './PortalPreviewBanner';
+import { usePortalPreview } from '../hooks/usePortalPreview';
 import { supabase } from '../lib/supabase';
 import { useProfile } from '../hooks/useProfile';
 
@@ -11,6 +13,7 @@ interface Props {
 
 export default function AppLayout({ session, children }: Props) {
   const { profile } = useProfile(session);
+  const portalPreview = usePortalPreview();
   const [signingOut, setSigningOut] = useState(false);
 
   async function signOut() {
@@ -36,9 +39,13 @@ export default function AppLayout({ session, children }: Props) {
         </div>
         <div className="topbar-actions">
           <div className="topbar-actions-group topbar-actions-user">
-            <Link to="/hallinta/omat" className="topbar-user-name">
-              {profile?.display_name ?? session.user.email}
-            </Link>
+            {!portalPreview ? (
+              <Link to="/hallinta/omat" className="topbar-user-name">
+                {profile?.display_name ?? session.user.email}
+              </Link>
+            ) : (
+              <span className="topbar-user-name">{profile?.display_name ?? session.user.email}</span>
+            )}
             <span className="topbar-actions-sep" aria-hidden="true" />
             <button
               type="button"
@@ -52,7 +59,10 @@ export default function AppLayout({ session, children }: Props) {
         </div>
       </header>
 
-      <main className="main">{children}</main>
+      <main className="main">
+        {portalPreview && <PortalPreviewBanner />}
+        {children}
+      </main>
 
       <footer className="footer">BC Smartapp — moniyritys + kumppanuudet</footer>
     </div>

@@ -68,6 +68,8 @@ export function applyLegacyQuoteFields(
   return out;
 }
 
+import { quoteCustomerNameForTitle, stripLegacyQuoteTitleSuffix } from './title';
+
 export function quoteCustomerDisplayName(input: {
   title?: string | null;
   customers?: { name?: string | null } | null;
@@ -76,10 +78,13 @@ export function quoteCustomerDisplayName(input: {
   const data = input.data;
   if (data && typeof data === 'object' && 'legacyCustomerName' in data) {
     const legacy = (data as { legacyCustomerName?: string }).legacyCustomerName?.trim();
-    if (legacy) return legacy;
+    if (legacy) return quoteCustomerNameForTitle(legacy) || legacy;
   }
-  if (input.customers?.name?.trim()) return input.customers.name.trim();
-  const title = input.title?.trim();
+  if (input.customers?.name?.trim()) {
+    const short = quoteCustomerNameForTitle(input.customers.name);
+    return short || input.customers.name.trim();
+  }
+  const title = stripLegacyQuoteTitleSuffix(input.title ?? '');
   if (title) return title.split(' – ')[0]?.trim() || title;
   return 'Ei asiakasta';
 }
