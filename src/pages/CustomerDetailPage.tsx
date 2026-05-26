@@ -275,6 +275,15 @@ export default function CustomerDetailPage({ session }: Props) {
       return;
     }
 
+    if (customer.owner_company_id === profile?.company_id) {
+      const subscriberId = form.subscriber_id || null;
+      await Promise.all([
+        supabase.from('maintenance_reports').update({ subscriber_id: subscriberId }).eq('customer_id', customer.id),
+        supabase.from('work_reports').update({ subscriber_id: subscriberId }).eq('customer_id', customer.id),
+        supabase.from('quote_requests').update({ subscriber_id: subscriberId }).eq('customer_id', customer.id),
+      ]);
+    }
+
     setMessage('Asiakastiedot tallennettu.');
     setEditing(false);
     await load();

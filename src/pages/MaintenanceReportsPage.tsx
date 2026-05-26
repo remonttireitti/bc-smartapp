@@ -15,6 +15,7 @@ import type { HuoltoReportData } from '../lib/huoltoRaportti/types';
 import { maintenanceListTrail, withNavTrail } from '../lib/navigationTrail';
 
 import { useProfile } from '../hooks/useProfile';
+import { isPortalUser } from '../lib/portalWorkOrder';
 import { getMaintenanceReportStatusLabel } from '../types';
 
 
@@ -177,17 +178,15 @@ export default function MaintenanceReportsPage({ session }: Props) {
 
 
 
+  const portalMode = isPortalUser(profile);
+
   const grouped = useMemo(() => {
-
-    const drafts = filteredReports.filter((r) => r.status === 'draft');
-
-    const done = filteredReports.filter((r) => r.status !== 'draft');
-
+    const drafts = portalMode ? [] : filteredReports.filter((r) => r.status === 'draft');
+    const done = portalMode
+      ? filteredReports.filter((r) => r.status === 'submitted')
+      : filteredReports.filter((r) => r.status !== 'draft');
     return { drafts, done };
-
-  }, [filteredReports]);
-
-
+  }, [filteredReports, portalMode]);
 
   return (
 
@@ -207,21 +206,29 @@ export default function MaintenanceReportsPage({ session }: Props) {
 
           <p className="muted">
 
-            {profile?.companies?.name ?? '—'} • laiterekisteri ja huoltolomake
+            {profile?.companies?.name ?? '—'} •{' '}
+            {portalMode
+              ? 'toimitetut huoltopöytäkirjat linkeistäsi kohteista'
+              : 'laiterekisteri ja huoltolomake'}
 
           </p>
 
-        </div>
-
-        <div className="page-header-actions">
-
-          <Link to="/huoltoraportit/uusi" className="btn btn-primary" {...withNavTrail(maintenanceListTrail())}>
-
-            + Uusi huoltoraportti
-
-          </Link>
+          {portalMode && (
+            <p className="muted" style={{ marginTop: '0.5rem' }}>
+              Näet vain tilan <strong>Toimitettu</strong> raportit. Luonnokset eivät näy tilaajalle. Varmista, että
+              asiakaskohde on linkitetty tilaajaan ja raportti on merkitty toimitetuksi.
+            </p>
+          )}
 
         </div>
+
+        {!portalMode && (
+          <div className="page-header-actions">
+            <Link to="/huoltoraportit/uusi" className="btn btn-primary" {...withNavTrail(maintenanceListTrail())}>
+              + Uusi huoltoraportti
+            </Link>
+          </div>
+        )}
 
       </div>
 
@@ -258,9 +265,11 @@ export default function MaintenanceReportsPage({ session }: Props) {
       ) : reports.length === 0 ? (
 
         <section className="panel">
-
-          <p>Ei huoltoraportteja. Aloita luomalla uusi raportti.</p>
-
+          <p>
+            {portalMode
+              ? 'Ei toimitettuja huoltoraportteja vielä. Kun palveluyritys merkitsee raportin toimitetuksi ja kohde on linkitetty tilaajaan, raportti näkyy tässä.'
+              : 'Ei huoltoraportteja. Aloita luomalla uusi raportti.'}
+          </p>
         </section>
 
       ) : filteredReports.length === 0 ? (
@@ -299,13 +308,18 @@ export default function MaintenanceReportsPage({ session }: Props) {
 
             <section className="panel">
 
-              <h2>Valmiit</h2>
+              <h2>{portalMode ? 'Toimitetut huoltoraportit' : 'Valmiit'}</h2>
 
               <ul className="report-list">
 
                 {grouped.done.map((r) => (
 
-                  <ReportRow key={r.id} report={r} myCompanyId={profile?.company_id ?? null} />
+                  <ReportRow
+                    key={r.id}
+                    report={r}
+                    myCompanyId={profile?.company_id ?? null}
+                    portalMode={portalMode}
+                  />
 
                 ))}
 
@@ -333,11 +347,15 @@ function ReportRow({
 
   myCompanyId,
 
+  portalMode = false,
+
 }: {
 
   report: MaintenanceReportListRow;
 
   myCompanyId: string | null;
+
+  portalMode?: boolean;
 
 }) {
 
@@ -363,7 +381,7 @@ function ReportRow({
 
       <Link
 
-        to={`/huoltoraportit/${report.id}`}
+        to={portalMode ? `/huoltoraportit/${report.id}/tuloste` : `/huoltoraportit/${report.id}`}
 
         className="report-list-item"
 

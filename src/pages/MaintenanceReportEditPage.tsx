@@ -83,6 +83,7 @@ import {
   localDraftKey,
   writeLocalMaintenanceDraft,
 } from '../lib/maintenanceReportDraftStorage';
+import { isPortalUser } from '../lib/portalWorkOrder';
 import { useProfile } from '../hooks/useProfile';
 import { canDeleteCompanyOwnedEntity } from '../lib/deletePermissions';
 import type { Company, Customer, Equipment, Partnership, Subscriber } from '../types';
@@ -342,6 +343,10 @@ export default function MaintenanceReportEditPage({ session }: Props) {
     if (row.customer_id) await loadEquipment(row.customer_id);
     setHasUnsavedChanges(false);
     setLoadingReport(false);
+
+    if (isPortalUser(profile) && row.status === 'submitted') {
+      navigate(`/huoltoraportit/${row.id}/tuloste`, { replace: true });
+    }
   }
 
   async function loadOwnerCompany(companyId: string) {
