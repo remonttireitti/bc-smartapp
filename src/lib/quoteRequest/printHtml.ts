@@ -15,7 +15,14 @@ import {
   getDevicePricingParams,
   selectedDevices,
 } from './deviceCatalog';
-import { computeAllOptionTotals, computeHeatingNeedKw, computeKotitalousDeduction, computeQuoteTotals } from './calculations';
+import {
+  computeAllOptionTotals,
+  computeHeatingNeedKw,
+  computeKotitalousDeduction,
+  computeQuoteInternalTotals,
+  computeQuoteTotals,
+} from './calculations';
+import type { QuoteMaterial } from './types';
 import { quoteLineTotal } from './defaults';
 import type { QuoteRequestData } from './types';
 import type { BrandDeliveryFeeByCategoryMap } from '../../data/devicePricingShared';
@@ -41,6 +48,11 @@ function esc(v: unknown): string {
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;');
+}
+
+/** img src — älä muuta &-merkkejä (signed URL). */
+function attrUrl(url: string): string {
+  return String(url).replace(/"/g, '&quot;');
 }
 
 function formatEuro(value: number): string {
@@ -185,7 +197,86 @@ function quotePrintStyles(): string {
       text-align: center;
     }
     .option-compare-price { font-size: 16px; font-weight: 700; margin-top: 6px; color: #c2410c; }
+    .creator-badge {
+      display: inline-block;
+      margin-bottom: 10px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: #0f172a;
+      color: #fff;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+    }
+    .summary-row td {
+      font-weight: 600;
+      background: #f8fafc;
+    }
+    .summary-row.profit td {
+      background: #ecfdf5;
+      color: #047857;
+      border-top: 2px solid #34d399;
+    }
+    .summary-row.purchase td { color: #475569; }
   `;
+}
+
+function creatorMaterialRow(mat: QuoteMaterial): string {
+  const qty = Number(mat.quantity) || 0;
+  const purchase = qty * (Number(mat.purchasePrice) || 0);
+  const sell = qty * (Number(mat.sellPrice) || 0);
+  const margin = sell - purchase;
+  const marginPct = sell > 0 ? Math.round((margin / sell) * 1000) / 10 : 0;
+  return `<tr>
+    <td>${esc(mat.name)}</td>
+    <td class="num">${esc(qty)} kpl</td>
+    <td class="num">${formatEuro(purchase)}</td>
+    <td class="num">${formatEuro(sell)}</td>
+    <td class="num">${formatEuro(margin)}<div class="line-sub">${marginPct}%</div></td>
+  </tr>`;
+}
+
+function creatorWorkRow(label: string, qtyLabel: string, sell: number): string {
+  return `<tr>
+    <td>${esc(label)}</td>
+    <td class="num">${esc(qtyLabel)}</td>
+    <td class="num">—</td>
+    <td class="num">${formatEuro(sell)}</td>
+    <td class="num">${formatEuro(sell)}</td>
+  </tr>`;
+}
+
+function creatorTableHead(): string {
+  return `<thead>
+    <tr>
+      <th>Kuvaus</th>
+      <th class="num">Määrä</th>
+      <th class="num">Hankinta</th>
+      <th class="num">Myynti</th>
+      <th class="num">Kate</th>
+    </tr>
+  </thead>`;
+}
+
+function creatorSummaryFooter(
+  internal: ReturnType<typeof computeQuoteInternalTotals>,
+  totalRowLabel: string,
+): string {
+  const discountNote =
+    internal.discountPercent > 0
+      ? `<tr class="summary-row"><td colspan="4">Alennus ${internal.discountPercent}%</td><td class="num">−${formatEuro(internal.sellNet - internal.discountedSellNet)}</td></tr>`
+      : '';
+  const vatRow =
+    internal.vatRate > 0
+      ? `<tr class="summary-row"><td colspan="4">ALV ${internal.vatRate}%</td><td class="num">${formatEuro(internal.vatAmount)}</td></tr>`
+      : '';
+  return `${discountNote}
+    <tr class="summary-row"><td colspan="4">Myynti yhteensä (alv 0 %)</td><td class="num">${formatEuro(internal.discountedSellNet)}</td></tr>
+    <tr class="summary-row purchase"><td colspan="4">Hankinta yhteensä</td><td class="num">${formatEuro(internal.purchaseNet)}</td></tr>
+    <tr class="summary-row profit"><td colspan="4">Kate / tuotto (viivan päälle)</td><td class="num">${formatEuro(internal.marginNet)}<div class="line-sub">${internal.marginPercent.toLocaleString('fi-FI', { maximumFractionDigits: 1 })} % myynnistä</div></td></tr>
+    ${vatRow}
+    <tr class="total-row"><td colspan="4">${esc(totalRowLabel)}</td><td class="num">${formatEuro(internal.grossTotal)}</td></tr>`;
 }
 
 function buildSituationReportHtml(data: QuoteRequestData): string {
@@ -198,25 +289,33 @@ function buildSituationReportHtml(data: QuoteRequestData): string {
   </div>`;
 }
 
-function iilpBaseInstallRows(data: QuoteRequestData): string {
+function iilpBaseInstallRows(data: QuoteRequestData, mode: QuotePrintMode = 'enduser'): string {
   const base = computeQuoteTotals(data).iilpBaseInstall;
   if (!base.enabled) return '';
   const rows: string[] = [];
   if (base.laborNet > 0.01) {
-    rows.push(`<tr>
+    rows.push(
+      mode === 'creator'
+        ? creatorWorkRow('Ilmalämpöpumpun perusasennus – työn osuus', '1 kpl', base.laborNet)
+        : `<tr>
       <td>Ilmalämpöpumpun perusasennus – työn osuus</td>
       <td class="num">1 kpl</td>
       <td class="num">${formatEuro(base.laborNet)}</td>
       <td class="num">${formatEuro(base.laborNet)}</td>
-    </tr>`);
+    </tr>`,
+    );
   }
   if (base.materialsNet > 0.01) {
-    rows.push(`<tr>
+    rows.push(
+      mode === 'creator'
+        ? creatorWorkRow('Ilmalämpöpumpun perusasennus – tarvikkeet', '1 kpl', base.materialsNet)
+        : `<tr>
       <td>Ilmalämpöpumpun perusasennus – tarvikkeet</td>
       <td class="num">1 kpl</td>
       <td class="num">${formatEuro(base.materialsNet)}</td>
       <td class="num">${formatEuro(base.materialsNet)}</td>
-    </tr>`);
+    </tr>`,
+    );
   }
   return rows.join('');
 }
@@ -245,25 +344,35 @@ export function generateQuoteOfferPrintHtml(input: {
 }) {
   const { data, customer, meta, mode = 'enduser', feeMap = null } = input;
   const totals = computeQuoteTotals(data, feeMap);
+  const internal = mode === 'creator' ? computeQuoteInternalTotals(data, feeMap) : null;
   const logo = meta.logoUrl || smartappFallbackLogoSvg(meta.companyName);
   const customerAddress = [customer.address, customer.city].filter(Boolean).join(', ');
+  const totalRowLabel =
+    Number(data.vatRate) > 0
+      ? `Tarjous yhteensä (sis. ALV ${data.vatRate}%)`
+      : 'Tarjous yhteensä (alv 0 %)';
 
   const workRows = data.workItems
     .filter((item) => item.description.trim() && Number(item.hours) > 0)
-    .map(
-      (item) => `<tr>
+    .map((item) => {
+      const sell = item.hours * item.pricePerHour;
+      return mode === 'creator'
+        ? creatorWorkRow(item.description, `${item.hours} h`, sell)
+        : `<tr>
         <td>${esc(item.description)}</td>
         <td class="num">${esc(item.hours)} h</td>
         <td class="num">${formatEuro(item.pricePerHour)}</td>
-        <td class="num">${formatEuro(item.hours * item.pricePerHour)}</td>
-      </tr>`,
-    )
+        <td class="num">${formatEuro(sell)}</td>
+      </tr>`;
+    })
     .join('');
 
   const materialRows = data.materials
     .filter((item) => item.name.trim())
-    .map(
-      (item) => `<tr>
+    .map((item) =>
+      mode === 'creator'
+        ? creatorMaterialRow(item)
+        : `<tr>
         <td>${esc(item.name)}</td>
         <td class="num">${esc(item.quantity)} kpl</td>
         <td class="num">${formatEuro(item.sellPrice)}</td>
@@ -290,13 +399,19 @@ export function generateQuoteOfferPrintHtml(input: {
         .map(({ key, device }) => {
           const sell = calculateDeviceSellNet(data, device, feeMap);
           const purchase = calculateDevicePurchaseNet(data, device, feeMap);
-          const { discountPct, marginPct } = getDevicePricingParams(data, device);
-          const internal =
-            mode === 'creator'
-              ? `<div class="line-sub">Hankinta ${formatEuro(purchase)} • alennus ${discountPct}% • kate ${marginPct}%</div>`
-              : '';
+          const margin = sell - purchase;
+          const { marginPct } = getDevicePricingParams(data, device);
+          if (mode === 'creator') {
+            return `<tr>
+            <td><strong>Vaihtoehto ${key}</strong><br />${esc(formatDeviceLabel(device))}</td>
+            <td class="num">1 kpl</td>
+            <td class="num">${formatEuro(purchase)}</td>
+            <td class="num">${formatEuro(sell)}</td>
+            <td class="num">${formatEuro(margin)}<div class="line-sub">${marginPct}%</div></td>
+          </tr>`;
+          }
           return `<tr>
-            <td><strong>Vaihtoehto ${key}</strong><br />${esc(formatDeviceLabel(device))}${internal}</td>
+            <td><strong>Vaihtoehto ${key}</strong><br />${esc(formatDeviceLabel(device))}</td>
             <td class="num">1 kpl</td>
             <td class="num">${formatEuro(sell)}</td>
             <td class="num">${formatEuro(sell)}</td>
@@ -304,16 +419,29 @@ export function generateQuoteOfferPrintHtml(input: {
         })
         .join('')
     : data.deviceSaleOverrideNet
-      ? `<tr>
+      ? (() => {
+          const sell = Number(data.deviceSaleOverrideNet);
+          const purchase = Number(data.devicePurchaseOverrideNet ?? 0);
+          const margin = sell - purchase;
+          return mode === 'creator'
+            ? `<tr>
           <td>Laite / urakka</td>
           <td class="num">1 kpl</td>
-          <td class="num">${formatEuro(Number(data.deviceSaleOverrideNet))}</td>
-          <td class="num">${formatEuro(Number(data.deviceSaleOverrideNet))}</td>
+          <td class="num">${formatEuro(purchase)}</td>
+          <td class="num">${formatEuro(sell)}</td>
+          <td class="num">${formatEuro(margin)}</td>
         </tr>`
+            : `<tr>
+          <td>Laite / urakka</td>
+          <td class="num">1 kpl</td>
+          <td class="num">${formatEuro(sell)}</td>
+          <td class="num">${formatEuro(sell)}</td>
+        </tr>`;
+        })()
       : '';
 
   const lineRows = `${workRows}${materialRows}${legacyLineRows}`;
-  const tableBody = `${lineRows}${iilpBaseInstallRows(data)}${deviceRows}`;
+  const tableBody = `${lineRows}${iilpBaseInstallRows(data, mode)}${deviceRows}`;
 
   const heatingNeedKw = isPumpQuoteType(data.type) ? computeHeatingNeedKw(data) : null;
   const kotitalous =
@@ -383,7 +511,7 @@ export function generateQuoteOfferPrintHtml(input: {
 <body>
   <div class="page">
     <header class="header">
-      <div class="logo"><img src="${esc(logo)}" alt="${esc(meta.companyName)}" /></div>
+      <div class="logo"><img src="${attrUrl(logo)}" alt="${esc(meta.companyName)}" /></div>
       <div class="company-meta">
         <strong>${esc(meta.companyName)}</strong>
         ${companyContactBlock(meta)}
@@ -391,13 +519,15 @@ export function generateQuoteOfferPrintHtml(input: {
     </header>
 
     <div class="title-row">
-      <h1>Tarjous</h1>
+      <h1>Tarjous${mode === 'creator' ? ' — sisäinen laskenta' : ''}</h1>
       <div class="meta-box">
         <div><strong>Päivä:</strong> ${formatDateFi(meta.quoteDate)}</div>
         <div><strong>Voimassa:</strong> ${formatDateFi(data.validUntil)}</div>
         ${meta.quoteNumber ? `<div><strong>Numero:</strong> ${esc(meta.quoteNumber)}</div>` : ''}
       </div>
     </div>
+
+    ${mode === 'creator' ? '<div class="creator-badge">Sisäinen — hankinta ja kate</div>' : ''}
 
     <section class="customer-box">
       <strong>Asiakas</strong>
@@ -410,20 +540,24 @@ export function generateQuoteOfferPrintHtml(input: {
     ${heatingNeedKw != null ? `<p class="intro"><strong>Laskettu lämmitystarve:</strong> ${heatingNeedKw} kW</p>` : ''}
 
     <table>
-      <thead>
+      ${mode === 'creator' ? creatorTableHead() : `<thead>
         <tr>
           <th>Kuvaus</th>
           <th class="num">Määrä</th>
           <th class="num">á-hinta</th>
           <th class="num">Yhteensä</th>
         </tr>
-      </thead>
+      </thead>`}
       <tbody>
-        ${tableBody ? tableBody : '<tr><td colspan="4">Ei rivejä</td></tr>'}
-        <tr class="total-row">
+        ${tableBody ? tableBody : `<tr><td colspan="${mode === 'creator' ? 5 : 4}">Ei rivejä</td></tr>`}
+        ${
+          mode === 'creator' && internal
+            ? creatorSummaryFooter(internal, totalRowLabel)
+            : `<tr class="total-row">
           <td colspan="3">Tarjous yhteensä (sis. ALV ${data.vatRate}%)</td>
           <td class="num">${formatEuro(totals.grossTotal)}</td>
-        </tr>
+        </tr>`
+        }
       </tbody>
     </table>
 
@@ -472,7 +606,7 @@ export function generateQuoteHeatCalcPrintHtml(input: {
 </head>
 <body>
   <div class="header">
-    <div><img src="${esc(logo)}" alt="" style="max-height:48px" /></div>
+    <div><img src="${attrUrl(logo)}" alt="" style="max-height:48px" /></div>
     <div style="text-align:right"><strong>${esc(meta.companyName)}</strong><br />${formatDateFi(meta.quoteDate)}</div>
   </div>
   <h1 style="margin:0 0 8px">Lämmitystarvelaskelma</h1>
@@ -493,9 +627,11 @@ export function generateQuoteHeatCalcPrintHtml(input: {
 </html>`;
 }
 
-function buildServiceTaskPrintRows(data: QuoteRequestData): string {
+function buildServiceTaskPrintRows(data: QuoteRequestData, mode: QuotePrintMode): string {
   const sections: string[] = [];
   let hasTaskContent = false;
+  const creator = mode === 'creator';
+  const headerColspan = creator ? 5 : 4;
 
   for (const item of data.workItems) {
     const desc = item.description.trim();
@@ -513,20 +649,25 @@ function buildServiceTaskPrintRows(data: QuoteRequestData): string {
       : '';
 
     sections.push(
-      `<tr class="task-section-header"><td colspan="4"><strong>${esc(header)}</strong>${equipmentSuffix}</td></tr>`,
+      `<tr class="task-section-header"><td colspan="${headerColspan}"><strong>${esc(header)}</strong>${equipmentSuffix}</td></tr>`,
     );
 
     if (hours > 0 || (desc && rate > 0)) {
-      sections.push(`<tr>
-        <td>${esc(desc || 'Työ')} — työ</td>
-        <td class="num">${esc(hours)} h</td>
-        <td class="num">${formatEuro(rate)}</td>
-        <td class="num">${formatEuro(hours * rate)}</td>
-      </tr>`);
+      const sell = hours * rate;
+      if (creator) {
+        sections.push(creatorWorkRow(`${desc || 'Työ'} — työ`, `${hours} h`, sell));
+      } else {
+        sections.push(`<tr>
+          <td>${esc(desc || 'Työ')} — työ</td>
+          <td class="num">${esc(hours)} h</td>
+          <td class="num">${formatEuro(rate)}</td>
+          <td class="num">${formatEuro(sell)}</td>
+        </tr>`);
+      }
     }
 
     for (const mat of materials) {
-      sections.push(`<tr>
+      sections.push(creator ? creatorMaterialRow(mat) : `<tr>
         <td>${esc(mat.name)}</td>
         <td class="num">${esc(mat.quantity)} kpl</td>
         <td class="num">${formatEuro(mat.sellPrice)}</td>
@@ -538,12 +679,17 @@ function buildServiceTaskPrintRows(data: QuoteRequestData): string {
   if (!hasTaskContent && Number(data.laborHours) > 0) {
     const hours = Number(data.laborHours);
     const rate = Number(data.laborRate) || 0;
-    sections.push(`<tr>
-      <td>Työ</td>
-      <td class="num">${esc(hours)} h</td>
-      <td class="num">${formatEuro(rate)}</td>
-      <td class="num">${formatEuro(hours * rate)}</td>
-    </tr>`);
+    const sell = hours * rate;
+    if (creator) {
+      sections.push(creatorWorkRow('Työ', `${hours} h`, sell));
+    } else {
+      sections.push(`<tr>
+        <td>Työ</td>
+        <td class="num">${esc(hours)} h</td>
+        <td class="num">${formatEuro(rate)}</td>
+        <td class="num">${formatEuro(sell)}</td>
+      </tr>`);
+    }
     hasTaskContent = true;
   }
 
@@ -554,12 +700,16 @@ function buildServiceTaskPrintRows(data: QuoteRequestData): string {
   if (nestedMaterialCount === 0) {
     for (const item of data.materials) {
       if (!item.name.trim()) continue;
-      sections.push(`<tr>
+      sections.push(
+        creator
+          ? creatorMaterialRow(item)
+          : `<tr>
         <td>${esc(item.name)}</td>
         <td class="num">${esc(item.quantity)} kpl</td>
         <td class="num">${formatEuro(item.sellPrice)}</td>
         <td class="num">${formatEuro(item.quantity * item.sellPrice)}</td>
-      </tr>`);
+      </tr>`,
+      );
     }
   }
 
@@ -575,6 +725,7 @@ export function generateQuoteServicePrintHtml(input: {
 }) {
   const { data, customer, meta, mode = 'enduser' } = input;
   const totals = computeQuoteTotals(data, input.feeMap ?? null);
+  const internal = mode === 'creator' ? computeQuoteInternalTotals(data, input.feeMap ?? null) : null;
   const logo = meta.logoUrl || smartappFallbackLogoSvg(meta.companyName);
   const customerAddress = [customer.address, customer.city].filter(Boolean).join(', ');
   const docTitle = QUOTE_TYPE_LABELS[data.type] || 'Tarjous';
@@ -587,15 +738,18 @@ export function generateQuoteServicePrintHtml(input: {
       ? `Tarjous yhteensä (sis. ALV ${data.vatRate}%)`
       : 'Tarjous yhteensä (alv 0 %)';
 
-  const workRows = buildServiceTaskPrintRows(data);
+  const workRows = buildServiceTaskPrintRows(data, mode);
 
+  const travelCost = Number(data.travelCost) || 0;
   const travelRow =
-    Number(data.travelCost) > 0
-      ? `<tr>
+    travelCost > 0
+      ? mode === 'creator'
+        ? creatorWorkRow('Matkakulut', '1 kpl', travelCost)
+        : `<tr>
           <td>Matkakulut</td>
           <td class="num">1 kpl</td>
-          <td class="num">${formatEuro(Number(data.travelCost))}</td>
-          <td class="num">${formatEuro(Number(data.travelCost))}</td>
+          <td class="num">${formatEuro(travelCost)}</td>
+          <td class="num">${formatEuro(travelCost)}</td>
         </tr>`
       : '';
 
@@ -632,7 +786,7 @@ export function generateQuoteServicePrintHtml(input: {
 <body>
   <div class="page">
     <header class="header">
-      <div class="logo"><img src="${esc(logo)}" alt="${esc(meta.companyName)}" /></div>
+      <div class="logo"><img src="${attrUrl(logo)}" alt="${esc(meta.companyName)}" /></div>
       <div class="company-meta">
         <strong>${esc(meta.companyName)}</strong>
         ${companyContactBlock(meta)}
@@ -640,13 +794,15 @@ export function generateQuoteServicePrintHtml(input: {
     </header>
 
     <div class="title-row">
-      <h1>${esc(docTitle)}</h1>
+      <h1>${esc(docTitle)}${mode === 'creator' ? ' — sisäinen laskenta' : ''}</h1>
       <div class="meta-box">
         <div><strong>Päivä:</strong> ${formatDateFi(meta.quoteDate)}</div>
         <div><strong>Voimassa:</strong> ${formatDateFi(data.validUntil)}</div>
         ${meta.quoteNumber ? `<div><strong>Numero:</strong> ${esc(meta.quoteNumber)}</div>` : ''}
       </div>
     </div>
+
+    ${mode === 'creator' ? '<div class="creator-badge">Sisäinen — hankinta ja kate</div>' : ''}
 
     <section class="customer-box">
       <strong>Asiakas</strong>
@@ -661,20 +817,24 @@ export function generateQuoteServicePrintHtml(input: {
     ${buildSituationReportHtml(data)}
 
     <table>
-      <thead>
+      ${mode === 'creator' ? creatorTableHead() : `<thead>
         <tr>
           <th>Kuvaus</th>
           <th class="num">Määrä</th>
           <th class="num">á-hinta</th>
           <th class="num">Yhteensä</th>
         </tr>
-      </thead>
+      </thead>`}
       <tbody>
-        ${tableBody || '<tr><td colspan="4">Ei rivejä</td></tr>'}
-        <tr class="total-row">
+        ${tableBody || `<tr><td colspan="${mode === 'creator' ? 5 : 4}">Ei rivejä</td></tr>`}
+        ${
+          mode === 'creator' && internal
+            ? creatorSummaryFooter(internal, totalRowLabel)
+            : `<tr class="total-row">
           <td colspan="3">${esc(totalRowLabel)}</td>
           <td class="num">${formatEuro(totals.grossTotal)}</td>
-        </tr>
+        </tr>`
+        }
       </tbody>
     </table>
 

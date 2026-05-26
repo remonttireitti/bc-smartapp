@@ -11,6 +11,10 @@ function esc(v: unknown): string {
     .replace(/>/g, '&gt;');
 }
 
+function attrUrl(url: string): string {
+  return String(url).replace(/"/g, '&quot;');
+}
+
 function formatDateFi(iso: string | undefined): string {
   if (!iso) return '—';
   const d = new Date(iso);
@@ -244,7 +248,7 @@ export function generateLampokatsastusServicePrintHtml(input: {
   const signatory = signatoryName(meta);
   const customerContact = data.customerContactPerson.trim();
   const logoHtml = logoUrl
-    ? `<div class="logo"><img src="${esc(logoUrl)}" alt="${esc(meta.companyName)}" /></div>`
+    ? `<div class="logo"><img src="${attrUrl(logoUrl)}" alt="${esc(meta.companyName)}" /></div>`
     : `<div class="logo"><strong style="color:#2f6aa8;font-size:12pt;">${esc(meta.companyName)}</strong></div>`;
 
   const tableRows = rows

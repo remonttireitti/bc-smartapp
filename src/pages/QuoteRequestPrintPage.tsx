@@ -9,6 +9,7 @@ import AppLayout from '../components/AppLayout';
 import NavigationBreadcrumb from '../components/NavigationBreadcrumb';
 
 import { resolveCompanyLogoUrl } from '../lib/companyLogo';
+import { embedUrlAsDataUrl } from '../lib/quoteRequest/termatekAssets';
 
 import { quoteListTrail } from '../lib/navigationTrail';
 
@@ -83,7 +84,7 @@ export default function QuoteRequestPrintPage({ session }: Props) {
 
   const [title, setTitle] = useState('Tarjous');
 
-  const [printMode, setPrintMode] = useState<QuotePrintMode>('enduser');
+  const [printMode, setPrintMode] = useState<QuotePrintMode>('creator');
 
   const [printDocument, setPrintDocument] = useState<PrintDocument>('offer');
 
@@ -324,6 +325,14 @@ export default function QuoteRequestPrintPage({ session }: Props) {
 
       if (resolved) logoUrl = resolved;
 
+      if (logoUrl && !logoUrl.startsWith('data:')) {
+        try {
+          logoUrl = await embedUrlAsDataUrl(logoUrl);
+        } catch {
+          /* keep signed url */
+        }
+      }
+
     } catch {
 
       /* optional logo */
@@ -549,7 +558,7 @@ export default function QuoteRequestPrintPage({ session }: Props) {
 
             >
 
-              Sisäinen (hinnat)
+              Sisäinen laskenta
 
             </button>
 

@@ -2,6 +2,7 @@ import type { BrandDeliveryFeeByCategoryMap } from '../../data/devicePricingShar
 import type { QuoteMaterial, QuoteRegion, QuoteRequestData, QuoteWorkItem } from './types';
 import { isHuoltoQuoteType, isRepairQuoteType } from './constants';
 import {
+  calculateDevicePurchaseNet,
   calculateDeviceSellNet,
   findDeviceById,
   selectedDevices,
@@ -177,6 +178,79 @@ export function materialSellTotal(materials: QuoteMaterial[]): number {
     (sum, item) => sum + Number(item.quantity || 0) * Number(item.sellPrice || 0),
     0,
   );
+}
+
+export function materialPurchaseTotal(materials: QuoteMaterial[]): number {
+  return materials.reduce(
+    (sum, item) => sum + Number(item.quantity || 0) * Number(item.purchasePrice || 0),
+    0,
+  );
+}
+
+/** Sisäinen laskenta: hankinta, myynti ja kate (työ/matka = koko rivi kateena). */
+export function computeQuoteInternalTotals(
+  data: QuoteRequestData,
+  feeMap?: BrandDeliveryFeeByCategoryMap | null,
+) {
+  const quoteTotals = computeQuoteTotals(data, feeMap);
+
+  const workSellNet = quoteTotals.workNet;
+  const travelSellNet = quoteTotals.travelNet;
+
+  let materialsPurchaseNet = 0;
+  let materialsSellNet = 0;
+  const nestedMaterialCount = data.workItems.reduce(
+    (sum, item) => sum + (item.materials ?? []).filter((row) => row.name.trim()).length,
+    0,
+  );
+  if (nestedMaterialCount > 0) {
+    for (const item of data.workItems) {
+      materialsPurchaseNet += materialPurchaseTotal(item.materials ?? []);
+      materialsSellNet += materialSellTotal(item.materials ?? []);
+    }
+  } else {
+    materialsPurchaseNet = materialPurchaseTotal(data.materials);
+    materialsSellNet = materialSellTotal(data.materials);
+  }
+
+  let devicePurchaseNet = 0;
+  let deviceSellNet = quoteTotals.deviceNet;
+  if (isPumpQuoteType(data.type)) {
+    const mainDevice = findDeviceById(data.selectedDeviceId);
+    if (mainDevice) {
+      devicePurchaseNet = calculateDevicePurchaseNet(data, mainDevice, feeMap);
+    }
+  } else if (data.devicePurchaseOverrideNet != null) {
+    devicePurchaseNet = Number(data.devicePurchaseOverrideNet) || 0;
+  }
+
+  const purchaseNet = materialsPurchaseNet + devicePurchaseNet;
+  const sellNet = quoteTotals.subtotalNet;
+  const discountedSellNet = quoteTotals.discountedNet;
+  const marginNet = discountedSellNet - purchaseNet;
+  const marginPercent = discountedSellNet > 0 ? (marginNet / discountedSellNet) * 100 : 0;
+  const materialsMarginNet = materialsSellNet - materialsPurchaseNet;
+  const deviceMarginNet = deviceSellNet - devicePurchaseNet;
+
+  return {
+    workSellNet,
+    travelSellNet,
+    materialsPurchaseNet,
+    materialsSellNet,
+    materialsMarginNet,
+    devicePurchaseNet,
+    deviceSellNet,
+    deviceMarginNet,
+    purchaseNet,
+    sellNet,
+    discountedSellNet,
+    marginNet,
+    marginPercent,
+    grossTotal: quoteTotals.grossTotal,
+    vatAmount: quoteTotals.vatAmount,
+    vatRate: Number(data.vatRate) || 0,
+    discountPercent: Math.max(0, Math.min(100, Number(data.overallDiscountPercent || 0))),
+  };
 }
 
 export function quoteMaterialsNet(data: QuoteRequestData): number {
