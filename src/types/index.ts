@@ -262,12 +262,24 @@ export function getWorkStatusLabel(status: string | null | undefined): string {
 
 export const MAINTENANCE_REPORT_STATUS_LABELS: Record<string, string> = {
   draft: 'Luonnos',
-  submitted: 'Toimitettu',
+  submitted: 'Valmis',
 };
 
 export function getMaintenanceReportStatusLabel(status: string | null | undefined): string {
   const key = String(status ?? '').trim().toLowerCase();
-  return MAINTENANCE_REPORT_STATUS_LABELS[key] ?? 'Toimitettu';
+  if (key === 'draft') return MAINTENANCE_REPORT_STATUS_LABELS.draft;
+  if (key === 'submitted') return MAINTENANCE_REPORT_STATUS_LABELS.submitted;
+  if (
+    key === 'completed' ||
+    key === 'valmis' ||
+    key === 'toimitettu' ||
+    key === 'complete' ||
+    key === 'ready' ||
+    key === 'done'
+  ) {
+    return MAINTENANCE_REPORT_STATUS_LABELS.submitted;
+  }
+  return MAINTENANCE_REPORT_STATUS_LABELS.draft;
 }
 
 export const WORK_STATUS_ORDER: WorkStatus[] = [

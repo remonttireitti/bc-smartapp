@@ -23,6 +23,7 @@ import {
 } from '../lib/portalWorkOrder';
 import { getPortalSubscriberId } from '../lib/portalPreview';
 import { usePortalPreview } from '../hooks/usePortalPreview';
+import { isMaintenanceReportPublished } from '../lib/maintenanceReportStatus';
 import { getMaintenanceReportStatusLabel } from '../types';
 
 
@@ -253,15 +254,15 @@ export default function MaintenanceReportsPage({ session }: Props) {
 
             {profile?.companies?.name ?? '—'} •{' '}
             {portalMode
-              ? 'toimitetut huoltopöytäkirjat linkeistäsi kohteista'
+              ? 'valmiit huoltopöytäkirjat linkeistäsi kohteista'
               : 'laiterekisteri ja huoltolomake'}
 
           </p>
 
           {portalMode && (
             <p className="muted" style={{ marginTop: '0.5rem' }}>
-              Näet vain tilan <strong>Toimitettu</strong> raportit. Luonnokset eivät näy tilaajalle. Varmista, että
-              asiakaskohde on linkitetty tilaajaan ja raportti on merkitty toimitetuksi.
+              Näet vain <strong>valmiit</strong> huoltoraportit (tila Valmis). Luonnokset eivät näy tilaajalle.
+              Varmista, että asiakaskohde on linkitetty tilaajaan ja raportti on merkitty valmiiksi.
             </p>
           )}
 
@@ -361,7 +362,7 @@ export default function MaintenanceReportsPage({ session }: Props) {
 
             <section className="panel">
 
-              <h2>{portalMode ? 'Toimitetut huoltoraportit' : 'Valmiit'}</h2>
+              <h2>Valmiit huoltoraportit</h2>
 
               <ul className="report-list">
 
@@ -458,7 +459,7 @@ function ReportRow({
 
         </div>
 
-        <span className={`badge badge-${report.status === 'draft' ? 'scheduled' : 'completed'}`}>
+        <span className={`badge badge-${isMaintenanceReportPublished(report.status) ? 'completed' : 'scheduled'}`}>
 
           {getMaintenanceReportStatusLabel(report.status)}
 

@@ -93,6 +93,7 @@ interface Props {
 }
 
 
+import { isMaintenanceReportPublished } from '../lib/maintenanceReportStatus';
 import { getMaintenanceReportStatusLabel } from '../types';
 
 function moduleLabel(key: ModuleKey): string {
@@ -353,7 +354,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
     setLoadingReport(false);
 
     if (portalMode) {
-      if (row.status === 'submitted') {
+      if (isMaintenanceReportPublished(row.status)) {
         navigate(`/huoltoraportit/${row.id}/tuloste`, { replace: true });
       } else {
         navigate('/huoltoraportit', { replace: true });
@@ -698,7 +699,8 @@ export default function MaintenanceReportEditPage({ session }: Props) {
       const customerName = selectedCustomer?.name ?? (form.asiakas.trim() || null);
       const title = buildMaintenanceReportTitleFromData(customerName, dataPayload);
 
-      const rowPayload = {
+      const resolvedStatus = nextStatus ?? status;
+      const rowPayload: Record<string, unknown> = {
         owner_company_id: ownerCompanyId,
         created_by_company_id: profile.company_id,
         branding_company_id: ownerCompanyId,
@@ -709,9 +711,13 @@ export default function MaintenanceReportEditPage({ session }: Props) {
         assigned_user_id: session.user.id,
         title,
         data: dataPayload,
-        status: nextStatus ?? status,
-        completed_at: nextStatus === 'submitted' ? new Date().toISOString() : null,
+        status: resolvedStatus,
       };
+      if (resolvedStatus === 'submitted') {
+        rowPayload.completed_at = new Date().toISOString();
+      } else if (nextStatus === 'draft') {
+        rowPayload.completed_at = null;
+      }
 
       if (reportId) {
         const { error: updateError } = await supabase

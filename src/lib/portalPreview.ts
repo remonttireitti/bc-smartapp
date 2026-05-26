@@ -1,3 +1,4 @@
+import { isMaintenanceReportPublished } from './maintenanceReportStatus';
 import type { Profile } from '../types';
 
 export type SubscriberPortalPreview = {
@@ -121,7 +122,7 @@ export function filterMaintenanceReportsForPortalView<
 ): T[] {
   if (!isPortalView(profile)) return reports;
 
-  let list = reports.filter((r) => r.status === 'submitted');
+  let list = reports.filter((r) => isMaintenanceReportPublished(r.status));
 
   const subscriberId = getPortalSubscriberId(profile);
   const customerId = getPortalCustomerId(profile);

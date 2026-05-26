@@ -25,7 +25,7 @@ interface Props {
 const PORTAL_MODULES = [
   { title: 'Työtilaus', desc: 'Lähetä työtilaus palveluyritykselle', color: '#0ea5e9', href: '/tyoraportit/tilaus/uusi' },
   { title: 'Työraportit', desc: 'Omat tilaukset ja valmiit raportit', color: '#0284c7', href: '/tyoraportit' },
-  { title: 'Huoltoraportit', desc: 'Toimitetut huoltopöytäkirjat', color: '#22c55e', href: '/huoltoraportit' },
+  { title: 'Huoltoraportit', desc: 'Valmiit huoltopöytäkirjat', color: '#22c55e', href: '/huoltoraportit' },
   { title: 'Kohteet', desc: 'Asiakaskohteet ja laitteet', color: '#3b82f6', href: '/asiakkaat' },
 ];
 

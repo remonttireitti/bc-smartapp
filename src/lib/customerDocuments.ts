@@ -4,6 +4,7 @@ import type { HuoltoReportData } from './huoltoRaportti/types';
 import { QUOTE_TYPE_LABELS } from './quoteRequest/constants';
 import { QUOTE_STATUS_LABELS, normalizeQuoteRequestData } from './quoteRequest/defaults';
 import type { QuoteRequestData } from './quoteRequest/types';
+import { isMaintenanceReportPublished } from './maintenanceReportStatus';
 import { getMaintenanceReportStatusLabel, getWorkStatusLabel, type WorkStatus } from '../types';
 
 export type CustomerLinkedDocumentKind =
@@ -132,7 +133,7 @@ export async function loadCustomerLinkedDocuments(
       equipment_id: string | null;
       equipment: unknown;
     };
-    if (portalReadOnly && report.status !== 'submitted') continue;
+    if (portalReadOnly && !isMaintenanceReportPublished(report.status)) continue;
     const printHref = `/huoltoraportit/${report.id}/tuloste`;
     linked.push({
       id: report.id,
@@ -147,7 +148,7 @@ export async function loadCustomerLinkedDocuments(
       equipmentId: report.equipment_id,
       equipmentLabel: formatEquipmentLabel(relationEquipment(report.equipment)),
       href:
-        portalReadOnly && report.status === 'submitted'
+        portalReadOnly && isMaintenanceReportPublished(report.status)
           ? printHref
           : `/huoltoraportit/${report.id}`,
       printHref,
