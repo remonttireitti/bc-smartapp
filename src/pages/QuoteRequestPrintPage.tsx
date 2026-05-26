@@ -29,7 +29,6 @@ import {
 } from '../lib/quoteRequest/printHtml';
 import {
   generateLampokatsastusServicePrintHtml,
-  isLampokatsastusCompany,
   prepareLampokatsastusServicePrintHtml,
 } from '../lib/quoteRequest/lampokatsastusPrintHtml';
 import {
@@ -133,13 +132,8 @@ export default function QuoteRequestPrintPage({ session }: Props) {
     && !!meta
     && isTermatekCompany(meta);
 
-  const useLampokatsastusTemplate =
-    printDocument === 'offer'
-    && !!quoteData
-    && isRepairQuoteType(quoteData.type)
-    && printMode === 'enduser'
-    && !!meta
-    && isLampokatsastusCompany(meta);
+  // Huolto/korjaus: sama pohja sisäiselle ja asiakastulosteelle (ei erillistä brändipohjaa).
+  const useLampokatsastusTemplate = false;
 
   useEffect(() => {
     if (!useTermatekTemplate || !quoteData || !customer || !meta) {
