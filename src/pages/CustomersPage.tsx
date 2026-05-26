@@ -6,6 +6,7 @@ import ToggleSwitch from '../components/ToggleSwitch';
 import { CustomerListItem } from '../components/CustomerListItem';
 import { CUSTOMER_SELECT } from '../lib/customers';
 import { quickSearchHitPath, type QuickSearchHit } from '../lib/quickSearch';
+import { isPortalUser } from '../lib/portalWorkOrder';
 import { supabase } from '../lib/supabase';
 import { useProfile } from '../hooks/useProfile';
 import type { Customer } from '../types';
@@ -31,9 +32,12 @@ export default function CustomersPage({ session }: Props) {
     void load();
   }, [profile?.company_id, profileLoading]);
 
+  const portalMode = isPortalUser(profile);
+  const isSubscriberPortal = profile?.role === 'subscriber';
+
   useEffect(() => {
     const q = search.trim();
-    if (q.length < 2) {
+    if (portalMode || q.length < 2) {
       setSearchHits([]);
       setSearchHitsFor('');
       return;
@@ -54,7 +58,7 @@ export default function CustomersPage({ session }: Props) {
     }, 250);
 
     return () => clearTimeout(timer);
-  }, [search]);
+  }, [search, portalMode]);
 
   async function load() {
     if (!profile?.company_id) {
@@ -127,8 +131,23 @@ export default function CustomersPage({ session }: Props) {
           </p>
           <h1>Asiakkaat</h1>
           <p className="muted">
-            {profile?.companies?.name ?? '—'} • asiakasrekisteri, laitteet ja dokumentit.
-            Uusi asiakas luodaan <Link to="/tyoraportit/uusi">työraportin</Link> yhteydessä.
+            {portalMode ? (
+              isSubscriberPortal ? (
+                <>
+                  {profile?.companies?.name ?? '—'} • kohteet, laitteet ja toimitetut raportit linkitettynä
+                  tilaajanasi.
+                </>
+              ) : (
+                <>
+                  {profile?.companies?.name ?? '—'} • oman kohteen laitteet ja toimitetut raportit.
+                </>
+              )
+            ) : (
+              <>
+                {profile?.companies?.name ?? '—'} • asiakasrekisteri, laitteet ja dokumentit. Uusi asiakas luodaan{' '}
+                <Link to="/tyoraportit/uusi">työraportin</Link> yhteydessä.
+              </>
+            )}
           </p>
         </div>
       </div>
@@ -143,16 +162,18 @@ export default function CustomersPage({ session }: Props) {
             placeholder="Nimi, osoite, kaupunki, puhelin…"
           />
         </label>
-        <ToggleSwitch
-          checked={ownOnly}
-          onChange={setOwnOnly}
-          label="Vain omat asiakkaat"
-        />
+        {!portalMode && (
+          <ToggleSwitch
+            checked={ownOnly}
+            onChange={setOwnOnly}
+            label="Vain omat asiakkaat"
+          />
+        )}
       </div>
 
       {loadError && <p className="error">{loadError}</p>}
 
-      {search.trim().length >= 2 && searchHitsFor === search.trim().toLowerCase() && searchHits.length > 0 && (
+      {!portalMode && search.trim().length >= 2 && searchHitsFor === search.trim().toLowerCase() && searchHits.length > 0 && (
         <section className="panel search-hits">
           <h2>Hakutulokset</h2>
           <ul className="report-list compact">
@@ -186,9 +207,13 @@ export default function CustomersPage({ session }: Props) {
         <p className="muted">Ladataan…</p>
       ) : (
         <section className="panel">
-          <h2>Asiakasrekisteri ({filteredCustomers.length})</h2>
+          <h2>{portalMode ? `Kohteet (${filteredCustomers.length})` : `Asiakasrekisteri (${filteredCustomers.length})`}</h2>
           {filteredCustomers.length === 0 ? (
-            <p className="muted">Ei asiakkaita valituilla suodattimilla.</p>
+            <p className="muted">
+              {portalMode
+                ? 'Ei linkitettyjä kohteita. Pyydä palveluyritystä linkittämään kohteet tilaajaasi.'
+                : 'Ei asiakkaita valituilla suodattimilla.'}
+            </p>
           ) : (
             <ul className="report-list">
               {filteredCustomers.map((c) => (
