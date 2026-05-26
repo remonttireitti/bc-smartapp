@@ -7,6 +7,7 @@ import ManagementLayout from './components/ManagementLayout';
 import Dashboard from './pages/Dashboard';
 import CompanySettingsPage from './pages/CompanySettingsPage';
 import Login from './pages/Login';
+import PublicLandingPage from './pages/PublicLandingPage';
 import PartnershipsPage from './pages/PartnershipsPage';
 import UsersPage from './pages/UsersPage';
 import ProfileSettingsPage from './pages/ProfileSettingsPage';
@@ -46,8 +47,9 @@ function AppRoutes() {
   if (!session) {
     return (
       <Routes>
+        <Route path="/" element={<PublicLandingPage />} />
         <Route path="/login" element={<Login />} />
-        <Route path="*" element={<Navigate to="/login" replace />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     );
   }

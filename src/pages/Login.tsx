@@ -1,5 +1,5 @@
 import { FormEvent, useMemo, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { SIGN_OUT_REASON_MESSAGES, type SignOutReason } from '../lib/authSessionConfig';
 import { translateAuthError } from '../lib/authErrors';
 import { supabase } from '../lib/supabase';
@@ -38,6 +38,9 @@ export default function Login() {
   return (
     <div className="login-page">
       <div className="login-card">
+        <p className="login-back">
+          <Link to="/">← Takaisin etusivulle</Link>
+        </p>
         <h1>BC Smartapp</h1>
         <p className="muted">Kirjaudu sisään</p>
         {signOutNotice && <p className="login-notice">{signOutNotice}</p>}
