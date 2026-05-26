@@ -50,7 +50,10 @@ export default function PortalWorkOrderPage({ session }: Props) {
   const portalOk = isPortalUser(profile);
 
   const selectedCustomer = customers.find((c) => c.id === customerId);
-  const ownerCompanyId = resolvePortalOwnerCompanyId(profile!, selectedCustomer);
+  const ownerCompanyId = useMemo(
+    () => resolvePortalOwnerCompanyId(profile, selectedCustomer),
+    [profile, selectedCustomer],
+  );
 
   const customerLocked = isCustomer && customers.length === 1;
 
@@ -137,7 +140,7 @@ export default function PortalWorkOrderPage({ session }: Props) {
 
   async function submitOrder(e: FormEvent) {
     e.preventDefault();
-    if (!profile?.company_id || !portalOk) return;
+    if (!profile || !portalOk) return;
     if (!description.trim()) {
       setError('Kuvaile työ tai vika.');
       return;
@@ -215,6 +218,15 @@ export default function PortalWorkOrderPage({ session }: Props) {
     return (
       <AppLayout session={session}>
         <p className="muted">Ladataan…</p>
+      </AppLayout>
+    );
+  }
+
+  if (!profile) {
+    return (
+      <AppLayout session={session}>
+        <p className="error">Käyttäjäprofiilia ei löytynyt. Kirjaudu uudelleen tai ota yhteys palveluyritykseen.</p>
+        <Link to="/">Etusivu</Link>
       </AppLayout>
     );
   }

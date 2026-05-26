@@ -61,9 +61,9 @@ export async function loadPortalOrderEquipment(
 }
 
 export function resolvePortalOwnerCompanyId(
-  profile: Pick<Profile, 'role' | 'company_id'>,
+  profile: Pick<Profile, 'role' | 'company_id'> | null | undefined,
   customer: Pick<Customer, 'owner_company_id'> | undefined,
 ): string | null {
   if (customer?.owner_company_id) return customer.owner_company_id;
-  return profile.company_id ?? null;
+  return profile?.company_id ?? null;
 }
