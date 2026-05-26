@@ -81,3 +81,26 @@ export function resolvePortalOwnerCompanyId(
   if (customer?.owner_company_id) return customer.owner_company_id;
   return profile?.company_id ?? null;
 }
+
+/** Palveluyritys jonka rekisteriin tilaajan työtilaus / uusi kohde tallennetaan. */
+export async function resolvePortalServiceCompanyId(
+  supabase: SupabaseClient,
+  profile: Pick<Profile, 'company_id' | 'subscriber_id'> | null | undefined,
+): Promise<string | null> {
+  if (!profile) return null;
+  if (profile.company_id) return profile.company_id;
+  if (!profile.subscriber_id) return null;
+
+  const { data, error } = await supabase
+    .from('subscribers')
+    .select('owner_company_id')
+    .eq('id', profile.subscriber_id)
+    .maybeSingle();
+
+  if (error) {
+    console.error(error);
+    return null;
+  }
+
+  return (data as { owner_company_id: string } | null)?.owner_company_id ?? null;
+}

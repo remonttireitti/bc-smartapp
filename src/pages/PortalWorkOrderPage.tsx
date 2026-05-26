@@ -2,12 +2,15 @@ import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
 import AppLayout from '../components/AppLayout';
+import CustomerRegistryPicker, { type NewCustomerDraft } from '../components/CustomerRegistryPicker';
 import { useProfile } from '../hooks/useProfile';
+import { createRegistryCustomer } from '../lib/createRegistryCustomer';
 import {
   isPortalUser,
   loadPortalOrderCustomers,
   loadPortalOrderEquipment,
   resolvePortalOwnerCompanyId,
+  resolvePortalServiceCompanyId,
 } from '../lib/portalWorkOrder';
 import { supabase } from '../lib/supabase';
 import {
@@ -44,6 +47,8 @@ export default function PortalWorkOrderPage({ session }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [serviceCompanyId, setServiceCompanyId] = useState<string | null>(null);
+  const [loadingCustomers, setLoadingCustomers] = useState(true);
 
   const isSubscriber = profile?.role === 'subscriber';
   const isCustomer = profile?.role === 'customer';
@@ -55,20 +60,63 @@ export default function PortalWorkOrderPage({ session }: Props) {
     [profile, selectedCustomer],
   );
 
-  const customerLocked = isCustomer && customers.length === 1;
-
   useEffect(() => {
     if (!profile || profileLoading || !portalOk) return;
     void (async () => {
+      setLoadingCustomers(true);
+      setError(null);
       try {
-        const rows = await loadPortalOrderCustomers(supabase, profile);
+        const [rows, ownerId] = await Promise.all([
+          loadPortalOrderCustomers(supabase, profile),
+          resolvePortalServiceCompanyId(supabase, profile),
+        ]);
         setCustomers(rows);
+        setServiceCompanyId(ownerId);
         if (isCustomer && rows[0]) setCustomerId(rows[0].id);
       } catch (loadError) {
         setError(loadError instanceof Error ? loadError.message : 'Kohteiden lataus epäonnistui.');
+      } finally {
+        setLoadingCustomers(false);
       }
     })();
   }, [profile?.id, profile?.role, profile?.subscriber_id, profile?.customer_id, profileLoading, portalOk, isCustomer]);
+
+  async function createPortalCustomer(draft: NewCustomerDraft) {
+    const ownerId = serviceCompanyId ?? (await resolvePortalServiceCompanyId(supabase, profile));
+    if (!ownerId) {
+      setError('Palveluyritystä ei voitu määrittää. Ota yhteys ylläpitoon.');
+      return;
+    }
+    if (!draft.name.trim()) {
+      setError('Kohteen nimi on pakollinen.');
+      return;
+    }
+
+    setBusy(true);
+    setError(null);
+    const { customer, error: createError } = await createRegistryCustomer(supabase, {
+      ownerCompanyId: ownerId,
+      name: draft.name,
+      address: draft.address,
+      city: draft.city,
+      phone: draft.phone,
+      subscriberId: isSubscriber ? profile?.subscriber_id ?? null : null,
+    });
+    setBusy(false);
+
+    if (createError || !customer) {
+      setError(createError ?? 'Kohteen luonti epäonnistui.');
+      return;
+    }
+
+    setCustomers((prev) => {
+      const next = [...prev.filter((c) => c.id !== customer.id), customer];
+      return next.sort((a, b) => a.name.localeCompare(b.name, 'fi'));
+    });
+    setCustomerId(customer.id);
+    setEquipmentId('');
+    setMessage(`Kohde "${customer.name}" luotu ja valittu. Palveluyritys näkee sen rekisterissään.`);
+  }
 
   useEffect(() => {
     if (isNew || !editId) return;
@@ -149,7 +197,8 @@ export default function PortalWorkOrderPage({ session }: Props) {
       setError(isSubscriber ? 'Valitse kohde (asiakas).' : 'Kohdetta ei löytynyt profiilista.');
       return;
     }
-    if (!ownerCompanyId) {
+    const resolvedOwnerCompanyId = ownerCompanyId ?? serviceCompanyId;
+    if (!resolvedOwnerCompanyId) {
       setError('Palveluyritystä ei voitu määrittää.');
       return;
     }
@@ -170,10 +219,10 @@ export default function PortalWorkOrderPage({ session }: Props) {
       description: description.trim(),
       orderer_name: contactName.trim() || profile.display_name || profile.email || null,
       location_text: locationText,
-      owner_company_id: ownerCompanyId,
-      created_by_company_id: ownerCompanyId,
+      owner_company_id: resolvedOwnerCompanyId,
+      created_by_company_id: resolvedOwnerCompanyId,
       created_by_user_id: session.user.id,
-      branding_company_id: ownerCompanyId,
+      branding_company_id: resolvedOwnerCompanyId,
       partnership_id: null,
       delegate_company_id: null,
       delegated_at: null,
@@ -240,17 +289,6 @@ export default function PortalWorkOrderPage({ session }: Props) {
     );
   }
 
-  if (isSubscriber && customers.length === 0) {
-    return (
-      <AppLayout session={session}>
-        <p className="error">
-          Tilaajalle ei ole vielä linkitettyjä kohteita. Pyydä palveluyritystä liittämään kohteet tilaajaasi.
-        </p>
-        <Link to="/asiakkaat">Näytä kohteet</Link>
-      </AppLayout>
-    );
-  }
-
   return (
     <AppLayout session={session}>
       <div className="page-header">
@@ -274,28 +312,38 @@ export default function PortalWorkOrderPage({ session }: Props) {
           <h2>Kohde ja työ</h2>
 
           {isSubscriber ? (
-            <label>
-              Kohde (asiakas) *
-              <select
-                value={customerId}
-                required
-                disabled={busy || customerLocked}
-                onChange={(e) => {
-                  setCustomerId(e.target.value);
-                  setEquipmentId('');
-                }}
-              >
-                <option value="">— Valitse kohde —</option>
-                {customers.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                    {[c.address, c.city].filter(Boolean).length
-                      ? ` (${[c.address, c.city].filter(Boolean).join(', ')})`
-                      : ''}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <>
+              {loadingCustomers ? (
+                <p className="muted">Ladataan kohteita…</p>
+              ) : (
+                <>
+                  {customers.length === 0 ? (
+                    <p className="muted">
+                      Ei vielä linkitettyjä kohteita — voit hakea alla tai luoda uuden kohteen. Palveluyritys
+                      tallentaa sen asiakasrekisteriin tilaajaksesi.
+                    </p>
+                  ) : null}
+                  <CustomerRegistryPicker
+                    label="Kohde (asiakas)"
+                    customers={customers}
+                    customerId={customerId}
+                    disabled={busy || !serviceCompanyId}
+                    brandingName={profile.companies?.name ?? undefined}
+                    createRegistryName={profile.companies?.name ?? 'palveluyritys'}
+                    busy={busy}
+                    onSelect={(id) => {
+                      setCustomerId(id);
+                      setEquipmentId('');
+                    }}
+                    onClear={() => {
+                      setCustomerId('');
+                      setEquipmentId('');
+                    }}
+                    onCreate={createPortalCustomer}
+                  />
+                </>
+              )}
+            </>
           ) : (
             <div className="info-box">
               <span className="info-label">Kohde</span>
