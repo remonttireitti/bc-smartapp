@@ -160,7 +160,10 @@ export default function WorkReportOrderPage({ session }: Props) {
     }
 
     setPartnerships(enriched);
-    if (isNew && enriched[0] && !partnerId) setPartnerId(enriched[0].id);
+    setPartnerId((current) => {
+      if (current && enriched.some((p) => p.id === current)) return current;
+      return enriched[0]?.id ?? '';
+    });
   }
 
   async function loadAccessibleCustomers() {
@@ -257,7 +260,11 @@ export default function WorkReportOrderPage({ session }: Props) {
       setError('Tehtävän kuvaus on pakollinen.');
       return false;
     }
-    if (sendToPartner && !partnerId) {
+    const partnership =
+      partnerships.find((p) => p.id === partnerId)
+      ?? (partnerships.length === 1 ? partnerships[0] : undefined);
+
+    if (sendToPartner && !partnership) {
       setError('Valitse kumppani, jolle toimeksianto lähetetään.');
       return false;
     }
@@ -271,8 +278,6 @@ export default function WorkReportOrderPage({ session }: Props) {
       setBusy(false);
       return false;
     }
-
-    const partnership = partnerships.find((p) => p.id === partnerId);
     const delegateCompanyId = partnership
       ? partnership.company_a_id === companyId
         ? partnership.company_b_id
