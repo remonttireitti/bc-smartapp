@@ -42,7 +42,7 @@ import {
 } from '../lib/workReportDraftStorage';
 
 import { useProfile } from '../hooks/useProfile';
-import { isPortalReadOnly } from '../lib/portalWorkOrder';
+import { isPortalReadOnly, isSubscriberPortalWorkOrder } from '../lib/portalWorkOrder';
 
 import {
   loadWorkReportAttachments,
@@ -152,7 +152,7 @@ export default function WorkReportNewPage({ session }: Props) {
 
   const [pendingAttachments, setPendingAttachments] = useState<File[]>([]);
 
-
+  const [portalOrderCreatorUserId, setPortalOrderCreatorUserId] = useState<string | null>(null);
 
   const draftStorageKey = localWorkDraftKey(reportId, session.user.id);
 
@@ -360,7 +360,7 @@ export default function WorkReportNewPage({ session }: Props) {
       .from('work_reports')
 
       .select(
-        'id, status, description, orderer_name, subscriber_id, title, owner_company_id, created_by_company_id, assigned_user_id, partnership_id, customer_id, equipment_id, scheduled_start, customers(name)',
+        'id, status, description, orderer_name, subscriber_id, title, owner_company_id, created_by_company_id, created_by_user_id, assigned_user_id, partnership_id, customer_id, equipment_id, scheduled_start, customers(name)',
       )
 
       .eq('id', id)
@@ -391,11 +391,14 @@ export default function WorkReportNewPage({ session }: Props) {
 
     if (
       !data.assigned_user_id &&
-      data.created_by_company_id === data.owner_company_id
+      data.created_by_company_id === data.owner_company_id &&
+      !data.subscriber_id
     ) {
       navigate(`/tyoraportit/toimeksianto/${id}/muokkaa`, { replace: true });
       return;
     }
+
+    setPortalOrderCreatorUserId(data.created_by_user_id ?? null);
 
     setReportId(data.id);
 
@@ -846,6 +849,9 @@ export default function WorkReportNewPage({ session }: Props) {
       }
     }
 
+    const preservePortalCreator =
+      !!portalOrderCreatorUserId && portalOrderCreatorUserId !== session.user.id;
+
     const payload = {
 
       title: buildWorkReportTitle(selectedCustomer?.name, description),
@@ -862,7 +868,7 @@ export default function WorkReportNewPage({ session }: Props) {
 
       created_by_company_id: profile.company_id,
 
-      created_by_user_id: session.user.id,
+      ...(preservePortalCreator ? {} : { created_by_user_id: session.user.id }),
 
       branding_company_id: ownerCompanyId,
 
@@ -1134,6 +1140,21 @@ export default function WorkReportNewPage({ session }: Props) {
 
   const brandingName = ownerCompany?.name ?? reportOwnerName;
 
+  const isSubscriberPortalOrder =
+    !!reportId
+    && !!subscriberId
+    && isSubscriberPortalWorkOrder(
+      {
+        status: 'draft',
+        subscriber_id: subscriberId,
+        assigned_user_id: null,
+        created_by_company_id: profile?.company_id ?? null,
+        owner_company_id: ownerCompanyId || (profile?.company_id ?? null),
+        created_by_user_id: portalOrderCreatorUserId,
+      },
+      session.user.id,
+    );
+
   return (
 
     <AppLayout session={session}>
@@ -1150,7 +1171,13 @@ export default function WorkReportNewPage({ session }: Props) {
 
           </p>
 
-          <h1>{isNew && !reportId ? 'Uusi työraportti' : 'Työraportin luonnos'}</h1>
+          <h1>
+            {isSubscriberPortalOrder
+              ? 'Tilaajan työtilaus'
+              : isNew && !reportId
+                ? 'Uusi työraportti'
+                : 'Työraportin luonnos'}
+          </h1>
 
           <p className="muted autosave-status">
 
@@ -1195,6 +1222,15 @@ export default function WorkReportNewPage({ session }: Props) {
       )}
 
 
+
+      {isSubscriberPortalOrder && (
+        <section className="panel portal-order-handle-banner">
+          <p className="muted" style={{ margin: 0 }}>
+            Tilaaja on lähettänyt työtilauksen portaalista. Voit ottaa työn vastaan omaan kalenteriin tai siirtää sen
+            kumppanille.
+          </p>
+        </section>
+      )}
 
       <form className="panel form-grid work-report-form" onSubmit={onSubmit}>
 
@@ -1491,6 +1527,15 @@ export default function WorkReportNewPage({ session }: Props) {
 
           <Link to="/tyoraportit" className="btn btn-secondary">Peruuta</Link>
 
+          {isSubscriberPortalOrder && reportId && (
+            <Link
+              to={`/tyoraportit/toimeksianto/${reportId}/muokkaa`}
+              className="btn btn-secondary"
+            >
+              Siirrä kumppanille
+            </Link>
+          )}
+
           <button
 
             type="button"
@@ -1509,7 +1554,11 @@ export default function WorkReportNewPage({ session }: Props) {
 
           <button type="submit" className="btn btn-primary" disabled={busy || !profile?.company_id}>
 
-            {busy ? 'Tallennetaan…' : 'Merkitse ajoitetuksi'}
+            {busy
+              ? 'Tallennetaan…'
+              : isSubscriberPortalOrder
+                ? 'Ota vastaan ja ajoita'
+                : 'Merkitse ajoitetuksi'}
 
           </button>
 

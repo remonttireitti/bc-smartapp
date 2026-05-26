@@ -14,7 +14,13 @@ import { useCompanyCustomerBillingEnabled } from '../hooks/useCompanyCustomerBil
 import { useCompanyBillingEnabled } from '../hooks/useCompanyBillingEnabled';
 import { useProfile } from '../hooks/useProfile';
 import { canDeleteWorkReport } from '../lib/deletePermissions';
-import { isPortalReadOnly, isWorkReportVisibleToPortal } from '../lib/portalWorkOrder';
+import {
+  companySubscriberOrderEditPath,
+  isInternalCompanyOrderDraft,
+  isPortalReadOnly,
+  isSubscriberPortalWorkOrder,
+  isWorkReportVisibleToPortal,
+} from '../lib/portalWorkOrder';
 import { canEditWorkReportDescription, canManageWorkReportDailyLogs } from '../lib/workReportDailyLogs';
 import DailyLogRefrigerantFields from '../components/inventory/DailyLogRefrigerantFields';
 import { AddDailyLogImages, BUCKET, DailyLogImageGallery, uploadDailyLogImages } from '../lib/dailyLogImages';
@@ -124,7 +130,7 @@ const REPORT_SELECT = `
   scheduled_start, scheduled_end, completed_at,
   owner_company_id, created_by_company_id, created_by_user_id, branding_company_id,
   partnership_id, customer_id, equipment_id, assigned_user_id,
-  delegate_company_id, delegated_at, created_at,
+  delegate_company_id, delegated_at, created_at, subscriber_id,
   created_by_user_name_snapshot, created_by_user_deleted,
   assigned_user_name_snapshot, assigned_user_deleted,
   customers(name),
@@ -1037,10 +1043,14 @@ export default function WorkReportDetailPage({ session }: Props) {
 
   useEffect(() => {
     if (report?.status === 'draft' && id) {
-      const isOrderDraft =
-        !report.assigned_user_id && report.created_by_company_id === report.owner_company_id;
+      if (isSubscriberPortalWorkOrder(report, session.user.id)) {
+        navigate(companySubscriberOrderEditPath(id), { replace: true });
+        return;
+      }
       navigate(
-        isOrderDraft ? `/tyoraportit/toimeksianto/${id}/muokkaa` : `/tyoraportit/${id}/muokkaa`,
+        isInternalCompanyOrderDraft(report)
+          ? `/tyoraportit/toimeksianto/${id}/muokkaa`
+          : `/tyoraportit/${id}/muokkaa`,
         { replace: true },
       );
     }
@@ -1049,8 +1059,11 @@ export default function WorkReportDetailPage({ session }: Props) {
     report?.assigned_user_id,
     report?.created_by_company_id,
     report?.owner_company_id,
+    report?.subscriber_id,
+    report?.created_by_user_id,
     id,
     navigate,
+    session.user.id,
   ]);
 
   useEffect(() => {

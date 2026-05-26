@@ -43,6 +43,27 @@ export function portalWorkOrderEditPath(reportId: string) {
   return `/tyoraportit/tilaus/${reportId}/muokkaa`;
 }
 
+/** Yrityksen käsittely: tilaajan portaaliin lähettämä luonnos. */
+export function companySubscriberOrderEditPath(reportId: string) {
+  return `/tyoraportit/${reportId}/muokkaa`;
+}
+
+/** Sisäinen toimeksiantoluonnos (ei tilaajan portaalitilaus). */
+export function isInternalCompanyOrderDraft(report: {
+  status: string;
+  subscriber_id?: string | null;
+  assigned_user_id?: string | null;
+  created_by_company_id?: string | null;
+  owner_company_id?: string | null;
+}) {
+  return (
+    report.status === 'draft'
+    && !report.subscriber_id
+    && !report.assigned_user_id
+    && report.created_by_company_id === report.owner_company_id
+  );
+}
+
 export function isPortalUser(profile: Pick<Profile, 'role'> | null | undefined) {
   return isPortalView(profile);
 }

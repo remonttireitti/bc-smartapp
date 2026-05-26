@@ -7,6 +7,10 @@ import EquipmentRegistryPicker, { type NewEquipmentDraft } from '../components/E
 import { loadAccessibleReportCustomers, loadReportPartnerships } from '../lib/reportCustomerRegistry';
 import { createRegistryCustomer } from '../lib/createRegistryCustomer';
 import { useProfile } from '../hooks/useProfile';
+import {
+  companySubscriberOrderEditPath,
+  isSubscriberPortalWorkOrder,
+} from '../lib/portalWorkOrder';
 import { supabase } from '../lib/supabase';
 import {
   WORK_STATUS_LABELS,
@@ -48,6 +52,8 @@ export default function WorkReportOrderPage({ session }: Props) {
   const [loadingReport, setLoadingReport] = useState(!isNew);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [subscriberId, setSubscriberId] = useState<string | null>(null);
+  const [portalOrderCreatorUserId, setPortalOrderCreatorUserId] = useState<string | null>(null);
 
   const companyId = profile?.company_id ?? '';
 
@@ -85,7 +91,7 @@ export default function WorkReportOrderPage({ session }: Props) {
     const { data, error: loadError } = await supabase
       .from('work_reports')
       .select(
-        'id, status, description, orderer_name, title, partnership_id, delegate_company_id, customer_id, equipment_id, scheduled_start, assigned_user_id, customers(name)',
+        'id, status, description, orderer_name, title, partnership_id, delegate_company_id, customer_id, equipment_id, scheduled_start, assigned_user_id, subscriber_id, created_by_user_id, created_by_company_id, owner_company_id, customers(name)',
       )
       .eq('id', id)
       .single();
@@ -119,6 +125,8 @@ export default function WorkReportOrderPage({ session }: Props) {
       }),
     );
     setOrdererName(String(data.orderer_name ?? '').trim());
+    setSubscriberId(data.subscriber_id ?? null);
+    setPortalOrderCreatorUserId(data.created_by_user_id ?? null);
     setCustomerId(data.customer_id ?? '');
     setEquipmentId(data.equipment_id ?? '');
     if (data.partnership_id) setPartnerId(data.partnership_id);
@@ -335,6 +343,20 @@ export default function WorkReportOrderPage({ session }: Props) {
     await saveOrder(true);
   }
 
+  const isSubscriberPortalOrder =
+    !!editId
+    && isSubscriberPortalWorkOrder(
+      {
+        status: 'draft',
+        subscriber_id: subscriberId,
+        assigned_user_id: null,
+        created_by_company_id: companyId,
+        owner_company_id: companyId,
+        created_by_user_id: portalOrderCreatorUserId,
+      },
+      session.user.id,
+    );
+
   if (profileLoading || loadingReport) {
     return (
       <AppLayout session={session}>
@@ -350,14 +372,30 @@ export default function WorkReportOrderPage({ session }: Props) {
           <p className="breadcrumb">
             <Link to="/">Etusivu</Link> / <Link to="/tyoraportit">Työraportit</Link> / Toimeksianto
           </p>
-          <h1>{isNew ? 'Uusi toimeksianto kumppanille' : 'Muokkaa toimeksiantoa'}</h1>
+          <h1>
+            {isSubscriberPortalOrder
+              ? 'Siirrä tilaajan työtilaus kumppanille'
+              : isNew
+                ? 'Uusi toimeksianto kumppanille'
+                : 'Muokkaa toimeksiantoa'}
+          </h1>
           <p className="muted">
-            Lähetä työtehtävä kumppaniyritykselle. Kumppani määrittää oman tekijänsä — et näe heidän
-            henkilöstölistaa.
+            {isSubscriberPortalOrder
+              ? 'Lähetä tilaajan portaalista tulleen työtilauksen kumppanille. Voit myös ottaa työn vastaan itse.'
+              : 'Lähetä työtehtävä kumppaniyritykselle. Kumppani määrittää oman tekijänsä — et näe heidän henkilöstölistaa.'}
           </p>
         </div>
         <span className="badge badge-draft">{WORK_STATUS_LABELS.draft}</span>
       </div>
+
+      {isSubscriberPortalOrder && editId && (
+        <section className="panel portal-order-handle-banner">
+          <p className="muted" style={{ margin: 0 }}>
+            Haluatko hoitaa työn itse?{' '}
+            <Link to={companySubscriberOrderEditPath(editId)}>Ota tilaus vastaan omaan kalenteriin</Link>
+          </p>
+        </section>
+      )}
 
       <form className="panel form-grid work-report-form" onSubmit={onSend}>
         <section className="form-section">
@@ -473,6 +511,11 @@ export default function WorkReportOrderPage({ session }: Props) {
           <Link to="/tyoraportit" className="btn btn-secondary">
             Peruuta
           </Link>
+          {isSubscriberPortalOrder && editId && (
+            <Link to={companySubscriberOrderEditPath(editId)} className="btn btn-secondary">
+              Ota vastaan itse
+            </Link>
+          )}
           <button
             type="button"
             className="btn btn-secondary"

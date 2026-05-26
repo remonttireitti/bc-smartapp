@@ -1,11 +1,12 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
 import AppLayout from '../components/AppLayout';
 import CustomerRegistryPicker, { type NewCustomerDraft } from '../components/CustomerRegistryPicker';
 import { useProfile } from '../hooks/useProfile';
 import { createRegistryCustomer } from '../lib/createRegistryCustomer';
 import {
+  companySubscriberOrderEditPath,
   isPortalUser,
   loadPortalOrderCustomers,
   loadPortalOrderEquipment,
@@ -61,6 +62,8 @@ export default function PortalWorkOrderPage({ session }: Props) {
   const isSubscriber = profile?.role === 'subscriber';
   const isCustomer = profile?.role === 'customer';
   const portalOk = isPortalUser(profile);
+  const isCompanyStaff =
+    !!profile?.company_id && profile.role !== 'subscriber' && profile.role !== 'customer';
 
   const selectedCustomer = customers.find((c) => c.id === customerId);
   const ownerCompanyId = useMemo(
@@ -319,6 +322,13 @@ export default function PortalWorkOrderPage({ session }: Props) {
         <Link to="/">Etusivu</Link>
       </AppLayout>
     );
+  }
+
+  if (isCompanyStaff && !portalOk) {
+    if (editId) {
+      return <Navigate to={companySubscriberOrderEditPath(editId)} replace />;
+    }
+    return <Navigate to="/tyoraportit/uusi" replace />;
   }
 
   if (!portalOk) {

@@ -27,11 +27,12 @@ import { supabase } from '../lib/supabase';
 import {
   getPortalSubscriberId,
   isPortalUser,
+  companySubscriberOrderEditPath,
+  isInternalCompanyOrderDraft,
   isSubscriberPortalWorkOrder,
   needsPortalClientFilter,
   PORTAL_COMPLETED_WORK_STATUSES,
   PORTAL_OWN_ORDER_OPEN_STATUSES,
-  portalWorkOrderEditPath,
   reportMatchesPortalSubscriber,
 } from '../lib/portalWorkOrder';
 import { usePortalPreview } from '../hooks/usePortalPreview';
@@ -396,13 +397,12 @@ export default function WorkReportsPage({ session }: Props) {
 
   function draftEditPath(report: WorkReport) {
     if (isSubscriberPortalWorkOrder(report, session.user.id)) {
-      return portalWorkOrderEditPath(report.id);
+      return companySubscriberOrderEditPath(report.id);
     }
 
-    const isOrderDraft =
-      !report.assigned_user_id && report.created_by_company_id === report.owner_company_id;
-
-    return isOrderDraft ? `/tyoraportit/toimeksianto/${report.id}/muokkaa` : `/tyoraportit/${report.id}/muokkaa`;
+    return isInternalCompanyOrderDraft(report)
+      ? `/tyoraportit/toimeksianto/${report.id}/muokkaa`
+      : `/tyoraportit/${report.id}/muokkaa`;
   }
 
   const portalMode = isPortalUser(profile);
@@ -803,7 +803,7 @@ export default function WorkReportsPage({ session }: Props) {
             <>
               <h2>Tilaajan työtilaukset</h2>
               <p className="muted">
-                Asiakasportaalista tulleet tilaukset — avaa, aikatauluta ja osoita tekijä kuten tavallinen luonnos.
+                Asiakasportaalista tulleet tilaukset — ota vastaan omaan kalenteriin tai siirrä kumppanille.
               </p>
               <ul className="report-list">
                 {subscriberPortalOrders.map((r) => (
