@@ -5,7 +5,6 @@ import { Link } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
 
 import AppLayout from '../components/AppLayout';
-import PendingWorkOrdersBanner from '../components/PendingWorkOrdersBanner';
 import WorkReportFilters, {
   buildWorkReportFilterOptions,
   matchesWorkReportFilters,
@@ -37,10 +36,6 @@ import {
   reportMatchesPortalSubscriber,
 } from '../lib/portalWorkOrder';
 import { usePortalPreview } from '../hooks/usePortalPreview';
-import {
-  loadPendingWorkOrderCounts,
-  type PendingWorkOrderCounts,
-} from '../lib/pendingWorkOrders';
 
 import { useProfile } from '../hooks/useProfile';
 
@@ -297,12 +292,6 @@ export default function WorkReportsPage({ session }: Props) {
     setIncomingDelegated((incomingResult.data as unknown as WorkReport[]) ?? []);
 
     setSentDelegated((sentResult.data as unknown as WorkReport[]) ?? []);
-
-    if (companyId && !isPortalUser(profile)) {
-      void loadPendingWorkOrderCounts(supabase, companyId, session.user.id).then(setPendingOrders);
-    } else {
-      setPendingOrders({ fromSubscriber: 0, fromPartner: 0, total: 0 });
-    }
 
     setLoading(false);
 
@@ -757,10 +746,6 @@ export default function WorkReportsPage({ session }: Props) {
       ) : tab === 'list' ? (
 
         <section className="panel">
-
-          {!portalMode && pendingOrders.total > 0 && (
-            <PendingWorkOrdersBanner counts={pendingOrders} className="panel-section-spaced" />
-          )}
 
           {incomingDelegated.length > 0 && (
 
