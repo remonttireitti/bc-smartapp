@@ -19,7 +19,7 @@ import {
 import {
   CUSTOMER_SELECT,
   EQUIPMENT_SELECT,
-  canWriteCustomersModule,
+  canEditCustomersAsStaff,
   customerAddressLine,
 } from '../lib/customers';
 import { loadSubscribersForOwner, subscriberLabel } from '../lib/subscribers';
@@ -40,6 +40,7 @@ import {
   loadCustomerMaintenanceContext,
 } from '../lib/equipmentMaintenanceHistory';
 import { openPrintHtml } from '../lib/openPrintWindow';
+import { isPortalUser } from '../lib/portalWorkOrder';
 import { supabase } from '../lib/supabase';
 import { customerDetailTrail, withNavTrail } from '../lib/navigationTrail';
 import {
@@ -156,7 +157,7 @@ export default function CustomerDetailPage({ session }: Props) {
 
     const c = customerRow as unknown as Customer;
     setCustomer(c);
-    setCanWrite(canWriteCustomersModule(c.owner_company_id, profile?.company_id, partnershipRows));
+    setCanWrite(canEditCustomersAsStaff(profile, c.owner_company_id, profile?.company_id, partnershipRows));
     setForm({
       name: c.name,
       address: c.address ?? '',
@@ -180,7 +181,7 @@ export default function CustomerDetailPage({ session }: Props) {
 
     const [{ data: equipmentRows }, linkedDocuments, maintenanceContext] = await Promise.all([
       supabase.from('equipment').select(EQUIPMENT_SELECT).eq('customer_id', id).order('name'),
-      loadCustomerLinkedDocuments(supabase, id),
+      loadCustomerLinkedDocuments(supabase, id, { portalReadOnly: isPortalUser(profile) }),
       loadCustomerMaintenanceContext(supabase, id),
     ]);
 

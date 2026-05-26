@@ -6,6 +6,11 @@ export function isPortalUser(profile: Pick<Profile, 'role'> | null | undefined) 
   return profile?.role === 'subscriber' || profile?.role === 'customer';
 }
 
+/** Portaali on vain luku — ei asiakas-/huoltoraportin muokkausta. */
+export function isPortalReadOnly(profile: Pick<Profile, 'role'> | null | undefined) {
+  return isPortalUser(profile);
+}
+
 export async function loadPortalOrderCustomers(
   supabase: SupabaseClient,
   profile: Pick<Profile, 'role' | 'subscriber_id' | 'customer_id' | 'company_id'>,

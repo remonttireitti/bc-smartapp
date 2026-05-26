@@ -61,7 +61,9 @@ function sortByDateDesc(rows: CustomerLinkedDocument[]): CustomerLinkedDocument[
 export async function loadCustomerLinkedDocuments(
   supabase: SupabaseClient,
   customerId: string,
+  options?: { portalReadOnly?: boolean },
 ): Promise<CustomerLinkedDocument[]> {
+  const portalReadOnly = options?.portalReadOnly === true;
   const [workResult, maintenanceResult, quoteResult, fileResult] = await Promise.all([
     supabase
       .from('work_reports')
@@ -127,6 +129,7 @@ export async function loadCustomerLinkedDocuments(
       equipment_id: string | null;
       equipment: unknown;
     };
+    const printHref = `/huoltoraportit/${report.id}/tuloste`;
     linked.push({
       id: report.id,
       kind: 'maintenance_report',
@@ -139,8 +142,11 @@ export async function loadCustomerLinkedDocuments(
       statusLabel: getMaintenanceReportStatusLabel(report.status),
       equipmentId: report.equipment_id,
       equipmentLabel: formatEquipmentLabel(relationEquipment(report.equipment)),
-      href: `/huoltoraportit/${report.id}`,
-      printHref: `/huoltoraportit/${report.id}/tuloste`,
+      href:
+        portalReadOnly && report.status === 'submitted'
+          ? printHref
+          : `/huoltoraportit/${report.id}`,
+      printHref,
     });
   }
 

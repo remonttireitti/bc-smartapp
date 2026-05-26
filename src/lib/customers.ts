@@ -1,8 +1,9 @@
+import { isPortalUser } from './portalWorkOrder';
 import {
   partnershipModuleAccess,
   partnershipPermsActingOnOwner,
 } from './management';
-import type { Partnership } from '../types';
+import type { Partnership, Profile } from '../types';
 
 export function canWriteCustomersModule(
   ownerCompanyId: string,
@@ -21,6 +22,16 @@ export function canWriteCustomersModule(
   }
 
   return false;
+}
+
+export function canEditCustomersAsStaff(
+  profile: Pick<Profile, 'role'> | null | undefined,
+  ownerCompanyId: string,
+  myCompanyId: string | null | undefined,
+  partnerships: Partnership[],
+) {
+  if (isPortalUser(profile)) return false;
+  return canWriteCustomersModule(ownerCompanyId, myCompanyId, partnerships);
 }
 
 export function customerAddressLine(customer: {

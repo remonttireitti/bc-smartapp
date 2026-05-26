@@ -137,7 +137,8 @@ export default function MaintenanceReportEditPage({ session }: Props) {
 
   const draftStorageKey = localDraftKey(reportId, session.user.id);
 
-  const canEditCustomerEquipment = isNew || status === 'draft';
+  const portalMode = isPortalUser(profile);
+  const canEditCustomerEquipment = !portalMode && (isNew || status === 'draft');
 
   const selectedCustomer = customers.find((c) => c.id === customerId);
   const reportContext = useMemo(() => {
@@ -299,6 +300,13 @@ export default function MaintenanceReportEditPage({ session }: Props) {
     void loadEquipmentIntoForm(equipmentId);
   }, [equipmentId]);
 
+  useEffect(() => {
+    if (profileLoading) return;
+    if (portalMode && isNew) {
+      navigate('/huoltoraportit', { replace: true });
+    }
+  }, [profileLoading, portalMode, isNew, navigate]);
+
   async function loadReport(reportIdToLoad: string) {
     setLoadingReport(true);
     const { data, error: loadError } = await supabase
@@ -344,8 +352,12 @@ export default function MaintenanceReportEditPage({ session }: Props) {
     setHasUnsavedChanges(false);
     setLoadingReport(false);
 
-    if (isPortalUser(profile) && row.status === 'submitted') {
-      navigate(`/huoltoraportit/${row.id}/tuloste`, { replace: true });
+    if (portalMode) {
+      if (row.status === 'submitted') {
+        navigate(`/huoltoraportit/${row.id}/tuloste`, { replace: true });
+      } else {
+        navigate('/huoltoraportit', { replace: true });
+      }
     }
   }
 
@@ -813,7 +825,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
     onSave: () => saveReport('draft'),
   });
 
-  if (profileLoading || loadingReport) {
+  if (profileLoading || loadingReport || (portalMode && isNew)) {
     return (
       <AppLayout session={session}>
         <p className="muted">Ladataan…</p>

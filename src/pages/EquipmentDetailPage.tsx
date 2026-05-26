@@ -24,6 +24,7 @@ import { deviceTypeLabel, parseEquipmentSnapshot } from '../lib/huoltoRaportti/e
 import { customerDetailTrail, equipmentDetailTrail, withNavTrail } from '../lib/navigationTrail';
 import { openPrintHtml } from '../lib/openPrintWindow';
 import { supabase } from '../lib/supabase';
+import { isPortalUser } from '../lib/portalWorkOrder';
 import { useProfile } from '../hooks/useProfile';
 import type { Customer, Equipment } from '../types';
 
@@ -63,7 +64,7 @@ export default function EquipmentDetailPage({ session }: Props) {
     const [customerResult, equipmentResult, linkedDocuments, maintenanceContext] = await Promise.all([
       supabase.from('customers').select(CUSTOMER_SELECT).eq('id', customerId).maybeSingle(),
       supabase.from('equipment').select(EQUIPMENT_SELECT).eq('id', equipmentId).maybeSingle(),
-      loadCustomerLinkedDocuments(supabase, customerId),
+      loadCustomerLinkedDocuments(supabase, customerId, { portalReadOnly: isPortalUser(profile) }),
       loadCustomerMaintenanceContext(supabase, customerId),
     ]);
 
@@ -178,6 +179,7 @@ export default function EquipmentDetailPage({ session }: Props) {
 
   const title = equipmentTitle(equipment);
   const trail = equipmentDetailTrail(customer.id, customer.name, title);
+  const portalMode = isPortalUser(profile);
 
   return (
     <AppLayout session={session}>
@@ -216,13 +218,15 @@ export default function EquipmentDetailPage({ session }: Props) {
               <HistoryIcon />
             </button>
           </Tooltip>
-          <Link
-            to={`/huoltoraportit/uusi?customerId=${customer.id}&equipmentId=${equipment.id}`}
-            className="btn btn-primary"
-            {...withNavTrail(trail)}
-          >
-            + Uusi huoltoraportti
-          </Link>
+          {!portalMode && (
+            <Link
+              to={`/huoltoraportit/uusi?customerId=${customer.id}&equipmentId=${equipment.id}`}
+              className="btn btn-primary"
+              {...withNavTrail(trail)}
+            >
+              + Uusi huoltoraportti
+            </Link>
+          )}
         </div>
       </div>
 
