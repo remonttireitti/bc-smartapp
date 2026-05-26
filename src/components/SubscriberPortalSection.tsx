@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useState } from 'react';
+import PortalUserCredentialsForm from './PortalUserCredentialsForm';
 import { inviteCompanyUser } from '../lib/inviteUser';
 import { supabase } from '../lib/supabase';
 
@@ -103,16 +104,12 @@ export default function SubscriberPortalSection({ subscriberId, subscriberName, 
         <p className="muted">Ladataan…</p>
       ) : portalUser ? (
         <div className="customer-portal-active">
-          <dl className="detail-list compact">
-            <div>
-              <dt>Kirjautuminen</dt>
-              <dd>{portalUser.email ?? '—'}</dd>
-            </div>
-            <div>
-              <dt>Näyttönimi</dt>
-              <dd>{portalUser.display_name ?? '—'}</dd>
-            </div>
-          </dl>
+          <PortalUserCredentialsForm
+            portalUser={portalUser}
+            entityName={subscriberName}
+            subscriberId={subscriberId}
+            onUpdated={loadPortalUser}
+          />
           <div className="form-actions" style={{ marginTop: '1rem' }}>
             <button type="button" className="btn btn-primary" onClick={openSubscriberPortal}>
               Avaa tilaajaportaali (esikatselu)

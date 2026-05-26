@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useState } from 'react';
+import PortalUserCredentialsForm from './PortalUserCredentialsForm';
 import { inviteCompanyUser } from '../lib/inviteUser';
 import { supabase } from '../lib/supabase';
 
@@ -113,16 +114,25 @@ export default function CustomerPortalSection({
         <p className="muted">Ladataan…</p>
       ) : portalUser ? (
         <div className="customer-portal-active">
-          <dl className="detail-list compact">
-            <div>
-              <dt>Kirjautuminen</dt>
-              <dd>{portalUser.email ?? '—'}</dd>
-            </div>
-            <div>
-              <dt>Näyttönimi</dt>
-              <dd>{portalUser.display_name ?? '—'}</dd>
-            </div>
-          </dl>
+          {canManage ? (
+            <PortalUserCredentialsForm
+              portalUser={portalUser}
+              entityName={customerName}
+              customerId={customerId}
+              onUpdated={loadPortalUser}
+            />
+          ) : (
+            <dl className="detail-list compact">
+              <div>
+                <dt>Kirjautuminen</dt>
+                <dd>{portalUser.email ?? '—'}</dd>
+              </div>
+              <div>
+                <dt>Näyttönimi</dt>
+                <dd>{portalUser.display_name ?? '—'}</dd>
+              </div>
+            </dl>
+          )}
           <div className="form-actions" style={{ marginTop: '1rem' }}>
             <button type="button" className="btn btn-primary" onClick={openCustomerPortal}>
               Avaa asiakasportaali
