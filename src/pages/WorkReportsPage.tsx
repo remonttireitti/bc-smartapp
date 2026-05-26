@@ -358,6 +358,7 @@ export default function WorkReportsPage({ session }: Props) {
   }
 
   const portalMode = isPortalUser(profile);
+  const isSubscriberPortal = profile?.role === 'subscriber';
 
   const myPortalOrders = useMemo(
     () => reports.filter((r) => r.created_by_user_id === session.user.id),
@@ -369,16 +370,17 @@ export default function WorkReportsPage({ session }: Props) {
     [myPortalOrders],
   );
 
+  /** RLS palauttaa valmiit yrityksen raportit; UI suodatti aiemmin vain omat luonnokset pois. */
   const portalHistoryOrders = useMemo(
     () =>
-      myPortalOrders
+      reports
         .filter((r) => HISTORY_STATUSES.includes(r.status))
         .sort((a, b) => {
           const aTime = a.completed_at ?? a.scheduled_start ?? a.created_at;
           const bTime = b.completed_at ?? b.scheduled_start ?? b.created_at;
           return new Date(bTime).getTime() - new Date(aTime).getTime();
         }),
-    [myPortalOrders],
+    [reports],
   );
 
   const subscriberPortalOrders = useMemo(
@@ -401,6 +403,12 @@ export default function WorkReportsPage({ session }: Props) {
             <p className="muted">
               {profile?.companies?.name ?? '—'} • lähetä työtilauksia ja seuraa tilauksen tilaa
             </p>
+            {isSubscriberPortal && (
+              <p className="muted" style={{ marginTop: '0.5rem' }}>
+                Näet valmiit työraportit kohteista, jotka on linkitetty tilaajaan (asiakaskortilla tai raportin
+                tilaaja-kentällä). Keskeneräiset yrityksen raportit eivät näy — vain valmis / laskutettu.
+              </p>
+            )}
           </div>
           <div className="page-header-actions">
             <Link to="/tyoraportit/tilaus/uusi" className="btn btn-primary">
