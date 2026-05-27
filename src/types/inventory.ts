@@ -17,6 +17,7 @@ export type RefrigerantCylinder = {
   purchase_date: string | null;
   returned_at: string | null;
   notes: string | null;
+  image_path: string | null;
   created_at: string;
   updated_at: string;
   company_name?: string | null;
@@ -68,6 +69,7 @@ export type InventoryItem = {
   min_qty: number;
   location: string | null;
   item_type: string;
+  image_path: string | null;
   created_at: string;
   updated_at: string;
 };

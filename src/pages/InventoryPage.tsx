@@ -2,12 +2,15 @@ import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
 import AppLayout from '../components/AppLayout';
+import InventoryPhotoThumb from '../components/inventory/InventoryPhotoThumb';
+import InventoryQtyStepper from '../components/inventory/InventoryQtyStepper';
 import { useProfile } from '../hooks/useProfile';
 import {
   loadInventoryPartnerships,
   warehouseAccessForCompany,
   warehouseOwnerTargets,
 } from '../lib/reportCustomerRegistry';
+import { removeInventoryImage, uploadInventoryImage } from '../lib/inventoryImages';
 import { supabase } from '../lib/supabase';
 import { refrigerantTypes } from '../lib/huoltoRaportti/constants';
 import type { Partnership } from '../types';
@@ -22,82 +25,22 @@ interface Props {
 }
 
 type Tab = 'materials' | 'refrigerant';
+type AddPanel = 'material' | 'cylinder' | null;
+
+const ZERO_EPS = 0.0005;
 
 const CYLINDER_SELECT = `
   id, company_id, serial_number, refrigerant_type, purchased_kg, remaining_kg,
-  owner_user_id, ownership_type, status, purchase_date, returned_at, notes, created_at, updated_at,
+  owner_user_id, ownership_type, status, purchase_date, returned_at, notes, image_path,
+  created_at, updated_at,
   owner_user:profiles!refrigerant_cylinders_owner_user_id_fkey(display_name, email)
 `;
 
 const WAREHOUSE_COMPANY_STORAGE_KEY = 'bc-smartapp-inventory-warehouse-company';
 
-type ItemFormState = {
-  name: string;
-  sku: string;
-  unit: string;
-  qty_on_hand: string;
-  min_qty: string;
-  location: string;
-};
-
-type CylinderFormState = {
-  serial_number: string;
-  refrigerant_type: string;
-  purchased_kg: string;
-  remaining_kg: string;
-  owner_user_id: string;
-  ownership_type: RefrigerantCylinderOwnership;
-  purchase_date: string;
-  returned_at: string;
-  notes: string;
-};
-
-function emptyItemForm(): ItemFormState {
-  return { name: '', sku: '', unit: 'kpl', qty_on_hand: '', min_qty: '', location: '' };
-}
-
-function emptyCylinderForm(): CylinderFormState {
-  return {
-    serial_number: '',
-    refrigerant_type: 'R-410A',
-    purchased_kg: '',
-    remaining_kg: '',
-    owner_user_id: '',
-    ownership_type: 'owned',
-    purchase_date: '',
-    returned_at: '',
-    notes: '',
-  };
-}
-
-function itemToForm(item: InventoryItem): ItemFormState {
-  return {
-    name: item.name,
-    sku: item.sku ?? '',
-    unit: item.unit,
-    qty_on_hand: String(item.qty_on_hand),
-    min_qty: String(item.min_qty),
-    location: item.location ?? '',
-  };
-}
-
-function cylinderToForm(cylinder: RefrigerantCylinder): CylinderFormState {
-  return {
-    serial_number: cylinder.serial_number,
-    refrigerant_type: cylinder.refrigerant_type,
-    purchased_kg: String(cylinder.purchased_kg),
-    remaining_kg: String(cylinder.remaining_kg),
-    owner_user_id: cylinder.owner_user_id ?? '',
-    ownership_type: cylinder.ownership_type ?? 'owned',
-    purchase_date: cylinder.purchase_date ?? '',
-    returned_at: cylinder.returned_at ?? '',
-    notes: cylinder.notes ?? '',
-  };
-}
-
 function deriveCylinderStatus(remaining: number, returnedAt: string | null): string {
   if (returnedAt) return 'returned';
-  return remaining <= 0.005 ? 'empty' : 'in_stock';
+  return remaining <= ZERO_EPS ? 'empty' : 'in_stock';
 }
 
 function cylinderStatusLabel(status: string): string {
@@ -110,6 +53,7 @@ function normalizeCylinder(row: Record<string, unknown>): RefrigerantCylinder {
     ...c,
     ownership_type: (c.ownership_type as RefrigerantCylinderOwnership) ?? 'owned',
     returned_at: c.returned_at ?? null,
+    image_path: c.image_path ?? null,
   };
 }
 
@@ -140,13 +84,18 @@ export default function InventoryPage({ session }: Props) {
   const [users, setUsers] = useState<{ id: string; display_name: string | null; email: string | null }[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [rowBusyId, setRowBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [addPanel, setAddPanel] = useState<AddPanel>(null);
 
-  const [editingItemId, setEditingItemId] = useState<string | null>(null);
-  const [editingCylinderId, setEditingCylinderId] = useState<string | null>(null);
-  const [itemForm, setItemForm] = useState(emptyItemForm);
-  const [cylinderForm, setCylinderForm] = useState(emptyCylinderForm);
+  const [quickMaterial, setQuickMaterial] = useState({ name: '', qty: '1', unit: 'kpl' });
+  const [quickCylinder, setQuickCylinder] = useState({
+    serial_number: '',
+    refrigerant_type: 'R-410A',
+    purchased_kg: '',
+    ownership_type: 'owned' as RefrigerantCylinderOwnership,
+  });
 
   const warehouseTargets = useMemo(() => {
     if (!myCompanyId) return [];
@@ -186,32 +135,7 @@ export default function InventoryPage({ session }: Props) {
     if (myCompanyId) writeStoredWarehouseCompanyId(myCompanyId, companyId);
     setMessage(null);
     setError(null);
-    cancelEdits();
-  }
-
-  function cancelEdits() {
-    setEditingItemId(null);
-    setEditingCylinderId(null);
-    setItemForm(emptyItemForm());
-    setCylinderForm(emptyCylinderForm());
-  }
-
-  function startEditMaterial(item: InventoryItem) {
-    setEditingItemId(item.id);
-    setEditingCylinderId(null);
-    setCylinderForm(emptyCylinderForm());
-    setItemForm(itemToForm(item));
-    setMessage(null);
-    setError(null);
-  }
-
-  function startEditCylinder(cylinder: RefrigerantCylinder) {
-    setEditingCylinderId(cylinder.id);
-    setEditingItemId(null);
-    setItemForm(emptyItemForm());
-    setCylinderForm(cylinderToForm(cylinder));
-    setMessage(null);
-    setError(null);
+    setAddPanel(null);
   }
 
   async function load(companyId: string) {
@@ -227,12 +151,15 @@ export default function InventoryPage({ session }: Props) {
         .select('*')
         .eq('company_id', companyId)
         .eq('item_type', 'material')
+        .gt('qty_on_hand', ZERO_EPS)
         .order('name'),
       supabase
         .from('refrigerant_cylinders')
         .select(CYLINDER_SELECT)
         .eq('company_id', companyId)
         .neq('status', 'retired')
+        .neq('status', 'returned')
+        .gt('remaining_kg', ZERO_EPS)
         .order('serial_number'),
       loadUsersForCompany
         ? supabase
@@ -244,167 +171,283 @@ export default function InventoryPage({ session }: Props) {
         : Promise.resolve({ data: [] as { id: string; display_name: string | null; email: string | null }[] }),
     ]);
 
-    setItems((itemRows as InventoryItem[]) ?? []);
+    setItems(((itemRows as InventoryItem[]) ?? []).map((row) => ({ ...row, image_path: row.image_path ?? null })));
     setCylinders(((cylinderRows as unknown as Record<string, unknown>[]) ?? []).map(normalizeCylinder));
     setUsers((userRows as { id: string; display_name: string | null; email: string | null }[]) ?? []);
-    if (!loadUsersForCompany) {
-      setCylinderForm((prev) => ({ ...prev, owner_user_id: '' }));
-    }
     setLoading(false);
   }
 
-  async function saveMaterial(e: FormEvent) {
-    e.preventDefault();
-    if (!warehouseCompanyId || !canEditWarehouse || !itemForm.name.trim()) return;
-    setBusy(true);
-    setError(null);
-
-    const payload = {
-      name: itemForm.name.trim(),
-      sku: itemForm.sku.trim() || null,
-      unit: itemForm.unit.trim() || 'kpl',
-      qty_on_hand: Number(itemForm.qty_on_hand || 0),
-      min_qty: Number(itemForm.min_qty || 0),
-      location: itemForm.location.trim() || null,
-    };
-
-    const { error: saveError } = editingItemId
-      ? await supabase.from('inventory_items').update(payload).eq('id', editingItemId)
-      : await supabase.from('inventory_items').insert({
-          ...payload,
-          company_id: warehouseCompanyId,
-          item_type: 'material',
-        });
-
-    setBusy(false);
-    if (saveError) {
-      setError(saveError.message);
-      return;
-    }
-    const wasEdit = Boolean(editingItemId);
-    cancelEdits();
-    setMessage(wasEdit ? 'Materiaali päivitetty.' : 'Materiaali lisätty.');
-    await load(warehouseCompanyId);
+  async function removeCylinderFromWarehouse(cylinder: RefrigerantCylinder) {
+    await removeInventoryImage(supabase, cylinder.image_path);
+    await supabase.from('refrigerant_cylinders').delete().eq('id', cylinder.id);
   }
 
-  async function deleteMaterial(itemId: string) {
+  async function setMaterialQty(item: InventoryItem, nextQty: number) {
     if (!warehouseCompanyId || !canEditWarehouse) return;
-    if (!window.confirm('Poistetaanko materiaali varastosta?')) return;
-    setBusy(true);
-    setError(null);
-    const { error: deleteError } = await supabase.from('inventory_items').delete().eq('id', itemId);
-    setBusy(false);
-    if (deleteError) {
-      setError(deleteError.message);
-      return;
-    }
-    if (editingItemId === itemId) cancelEdits();
-    setMessage('Materiaali poistettu.');
-    await load(warehouseCompanyId);
-  }
-
-  async function saveCylinder(e: FormEvent) {
-    e.preventDefault();
-    if (!warehouseCompanyId || !canEditWarehouse || !cylinderForm.serial_number.trim()) return;
-    setBusy(true);
+    setRowBusyId(item.id);
     setError(null);
 
-    const purchased = Number(cylinderForm.purchased_kg || 0);
-    const remainingRaw = cylinderForm.remaining_kg.trim();
-    const remaining = remainingRaw ? Number(remainingRaw) : purchased;
-    const returnedAt = cylinderForm.returned_at.trim() || null;
-    const status = deriveCylinderStatus(remaining, returnedAt);
-
-    const payload = {
-      serial_number: cylinderForm.serial_number.trim(),
-      refrigerant_type: cylinderForm.refrigerant_type,
-      purchased_kg: purchased,
-      remaining_kg: remaining,
-      owner_user_id: cylinderForm.owner_user_id || null,
-      ownership_type: cylinderForm.ownership_type,
-      purchase_date: cylinderForm.purchase_date || null,
-      returned_at: returnedAt,
-      notes: cylinderForm.notes.trim() || null,
-      status,
-    };
-
-    const { error: saveError } = editingCylinderId
-      ? await supabase.from('refrigerant_cylinders').update(payload).eq('id', editingCylinderId)
-      : await supabase.from('refrigerant_cylinders').insert({
-          ...payload,
-          company_id: warehouseCompanyId,
-        });
-
-    setBusy(false);
-    if (saveError) {
-      setError(saveError.message);
+    if (nextQty <= ZERO_EPS) {
+      const { error: deleteError } = await supabase.from('inventory_items').delete().eq('id', item.id);
+      setRowBusyId(null);
+      if (deleteError) {
+        setError(deleteError.message);
+        return;
+      }
+      await removeInventoryImage(supabase, item.image_path);
+      setItems((prev) => prev.filter((row) => row.id !== item.id));
       return;
     }
-    const wasEdit = Boolean(editingCylinderId);
-    cancelEdits();
-    setMessage(wasEdit ? 'Pullo päivitetty.' : 'Kylmäainepullo lisätty.');
-    await load(warehouseCompanyId);
+
+    const { error: updateError } = await supabase
+      .from('inventory_items')
+      .update({ qty_on_hand: nextQty })
+      .eq('id', item.id);
+
+    setRowBusyId(null);
+    if (updateError) {
+      setError(updateError.message);
+      return;
+    }
+    setItems((prev) => prev.map((row) => (row.id === item.id ? { ...row, qty_on_hand: nextQty } : row)));
   }
 
-  async function markCylinderReturnedToday(cylinderId: string) {
+  async function setCylinderRemaining(cylinder: RefrigerantCylinder, nextRemaining: number) {
+    if (!warehouseCompanyId || !canEditWarehouse) return;
+    setRowBusyId(cylinder.id);
+    setError(null);
+
+    if (nextRemaining <= ZERO_EPS) {
+      const { error: deleteError } = await supabase.from('refrigerant_cylinders').delete().eq('id', cylinder.id);
+      setRowBusyId(null);
+      if (deleteError) {
+        setError(deleteError.message);
+        return;
+      }
+      await removeInventoryImage(supabase, cylinder.image_path);
+      setCylinders((prev) => prev.filter((row) => row.id !== cylinder.id));
+      return;
+    }
+
+    const status = deriveCylinderStatus(nextRemaining, cylinder.returned_at);
+    const { error: updateError } = await supabase
+      .from('refrigerant_cylinders')
+      .update({ remaining_kg: nextRemaining, status })
+      .eq('id', cylinder.id);
+
+    setRowBusyId(null);
+    if (updateError) {
+      setError(updateError.message);
+      return;
+    }
+    setCylinders((prev) =>
+      prev.map((row) =>
+        row.id === cylinder.id ? { ...row, remaining_kg: nextRemaining, status } : row,
+      ),
+    );
+  }
+
+  async function updateMaterialMeta(
+    item: InventoryItem,
+    patch: Partial<Pick<InventoryItem, 'name' | 'sku' | 'unit' | 'min_qty' | 'location'>>,
+  ) {
+    if (!canEditWarehouse) return;
+    setRowBusyId(item.id);
+    const { error: updateError } = await supabase.from('inventory_items').update(patch).eq('id', item.id);
+    setRowBusyId(null);
+    if (updateError) {
+      setError(updateError.message);
+      return;
+    }
+    setItems((prev) => prev.map((row) => (row.id === item.id ? { ...row, ...patch } : row)));
+  }
+
+  async function updateCylinderMeta(
+    cylinder: RefrigerantCylinder,
+    patch: Partial<
+      Pick<
+        RefrigerantCylinder,
+        'serial_number' | 'refrigerant_type' | 'ownership_type' | 'notes' | 'owner_user_id'
+      >
+    >,
+  ) {
+    if (!canEditWarehouse) return;
+    setRowBusyId(cylinder.id);
+    const { error: updateError } = await supabase
+      .from('refrigerant_cylinders')
+      .update(patch)
+      .eq('id', cylinder.id);
+    setRowBusyId(null);
+    if (updateError) {
+      setError(updateError.message);
+      return;
+    }
+    setCylinders((prev) => prev.map((row) => (row.id === cylinder.id ? { ...row, ...patch } : row)));
+  }
+
+  async function uploadMaterialPhoto(item: InventoryItem, file: File) {
+    if (!warehouseCompanyId) return;
+    setRowBusyId(item.id);
+    try {
+      const path = await uploadInventoryImage(supabase, warehouseCompanyId, 'materials', item.id, file);
+      await supabase.from('inventory_items').update({ image_path: path }).eq('id', item.id);
+      setItems((prev) => prev.map((row) => (row.id === item.id ? { ...row, image_path: path } : row)));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Kuvan lataus epäonnistui');
+    } finally {
+      setRowBusyId(null);
+    }
+  }
+
+  async function uploadCylinderPhoto(cylinder: RefrigerantCylinder, file: File) {
+    if (!warehouseCompanyId) return;
+    setRowBusyId(cylinder.id);
+    try {
+      const path = await uploadInventoryImage(supabase, warehouseCompanyId, 'cylinders', cylinder.id, file);
+      await supabase.from('refrigerant_cylinders').update({ image_path: path }).eq('id', cylinder.id);
+      setCylinders((prev) => prev.map((row) => (row.id === cylinder.id ? { ...row, image_path: path } : row)));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Kuvan lataus epäonnistui');
+    } finally {
+      setRowBusyId(null);
+    }
+  }
+
+  async function clearMaterialPhoto(item: InventoryItem) {
+    setRowBusyId(item.id);
+    await removeInventoryImage(supabase, item.image_path);
+    await supabase.from('inventory_items').update({ image_path: null }).eq('id', item.id);
+    setItems((prev) => prev.map((row) => (row.id === item.id ? { ...row, image_path: null } : row)));
+    setRowBusyId(null);
+  }
+
+  async function clearCylinderPhoto(cylinder: RefrigerantCylinder) {
+    setRowBusyId(cylinder.id);
+    await removeInventoryImage(supabase, cylinder.image_path);
+    await supabase.from('refrigerant_cylinders').update({ image_path: null }).eq('id', cylinder.id);
+    setCylinders((prev) => prev.map((row) => (row.id === cylinder.id ? { ...row, image_path: null } : row)));
+    setRowBusyId(null);
+  }
+
+  async function markCylinderReturned(cylinder: RefrigerantCylinder) {
     if (!warehouseCompanyId || !canEditWarehouse) return;
     const today = new Date().toISOString().slice(0, 10);
-    setBusy(true);
-    setError(null);
-    const { error: updateError } = await supabase
-      .from('refrigerant_cylinders')
-      .update({ returned_at: today, status: 'returned' })
-      .eq('id', cylinderId);
-    setBusy(false);
-    if (updateError) {
-      setError(updateError.message);
-      return;
+    setRowBusyId(cylinder.id);
+    if (Number(cylinder.remaining_kg) <= ZERO_EPS) {
+      await removeCylinderFromWarehouse(cylinder);
+      setCylinders((prev) => prev.filter((row) => row.id !== cylinder.id));
+    } else {
+      const { error: updateError } = await supabase
+        .from('refrigerant_cylinders')
+        .update({ returned_at: today, status: 'returned' })
+        .eq('id', cylinder.id);
+      if (updateError) setError(updateError.message);
+      else setCylinders((prev) => prev.filter((row) => row.id !== cylinder.id));
     }
-    if (editingCylinderId === cylinderId) {
-      setCylinderForm((prev) => ({ ...prev, returned_at: today }));
-    }
-    setMessage('Pullo merkitty palautetuksi.');
-    await load(warehouseCompanyId);
+    setRowBusyId(null);
+    setMessage('Vuokrapullo merkitty palautetuksi.');
   }
 
-  async function clearCylinderReturned(cylinderId: string, remainingKg: number) {
-    if (!warehouseCompanyId || !canEditWarehouse) return;
-    setBusy(true);
-    setError(null);
-    const status = deriveCylinderStatus(remainingKg, null);
-    const { error: updateError } = await supabase
-      .from('refrigerant_cylinders')
-      .update({ returned_at: null, status })
-      .eq('id', cylinderId);
-    setBusy(false);
-    if (updateError) {
-      setError(updateError.message);
+  async function quickAddMaterial(e: FormEvent) {
+    e.preventDefault();
+    if (!warehouseCompanyId || !canEditWarehouse || !quickMaterial.name.trim()) return;
+    const qty = Number(quickMaterial.qty || 0);
+    if (qty <= ZERO_EPS) {
+      setError('Anna saldo suurempi kuin nolla.');
       return;
     }
-    if (editingCylinderId === cylinderId) {
-      setCylinderForm((prev) => ({ ...prev, returned_at: '' }));
+    setBusy(true);
+    setError(null);
+    const { data, error: insertError } = await supabase
+      .from('inventory_items')
+      .insert({
+        company_id: warehouseCompanyId,
+        name: quickMaterial.name.trim(),
+        unit: quickMaterial.unit.trim() || 'kpl',
+        qty_on_hand: qty,
+        item_type: 'material',
+      })
+      .select('*')
+      .single();
+    setBusy(false);
+    if (insertError) {
+      setError(insertError.message);
+      return;
     }
-    setMessage('Palautusmerkintä poistettu.');
-    await load(warehouseCompanyId);
+    setQuickMaterial({ name: '', qty: '1', unit: 'kpl' });
+    setAddPanel(null);
+    setMessage('Materiaali lisätty.');
+    if (data) setItems((prev) => [...prev, { ...(data as InventoryItem), image_path: null }]);
   }
+
+  async function quickAddCylinder(e: FormEvent) {
+    e.preventDefault();
+    if (!warehouseCompanyId || !canEditWarehouse || !quickCylinder.serial_number.trim()) return;
+    const purchased = Number(quickCylinder.purchased_kg || 0);
+    if (purchased <= ZERO_EPS) {
+      setError('Anna määrä (kg) suurempi kuin nolla.');
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    const { data, error: insertError } = await supabase
+      .from('refrigerant_cylinders')
+      .insert({
+        company_id: warehouseCompanyId,
+        serial_number: quickCylinder.serial_number.trim(),
+        refrigerant_type: quickCylinder.refrigerant_type,
+        purchased_kg: purchased,
+        remaining_kg: purchased,
+        ownership_type: quickCylinder.ownership_type,
+        status: 'in_stock',
+      })
+      .select(CYLINDER_SELECT)
+      .single();
+    setBusy(false);
+    if (insertError) {
+      setError(insertError.message);
+      return;
+    }
+    setQuickCylinder({
+      serial_number: '',
+      refrigerant_type: 'R-410A',
+      purchased_kg: '',
+      ownership_type: 'owned',
+    });
+    setAddPanel(null);
+    setMessage('Pullo lisätty.');
+    if (data) setCylinders((prev) => [...prev, normalizeCylinder(data as Record<string, unknown>)]);
+  }
+
+  const showAddMaterial = canEditWarehouse && addPanel === 'material';
+  const showAddCylinder = canEditWarehouse && addPanel === 'cylinder';
 
   return (
     <AppLayout session={session}>
-      <div className="page-header">
+      <div className="page-header inventory-page-header">
         <div>
           <p className="breadcrumb">
             <Link to="/">Etusivu</Link> / Varasto
           </p>
-          <h1>Varastohallinta</h1>
+          <h1>Varasto</h1>
           <p className="muted">
             {activeWarehouseLabel}
-            {canEditWarehouse ? ' · muokkausoikeus' : ' · vain katselu'}
+            {canEditWarehouse ? '' : ' · vain katselu'}
           </p>
         </div>
+        {canEditWarehouse && (
+          <button
+            type="button"
+            className="btn btn-primary inventory-add-fab"
+            onClick={() => setAddPanel(tab === 'materials' ? 'material' : 'cylinder')}
+          >
+            + Lisää
+          </button>
+        )}
       </div>
 
       {warehouseTargets.length > 1 && (
-        <section className="panel" style={{ marginBottom: '1rem' }}>
+        <section className="panel inventory-warehouse-panel">
           <label>
             <strong>Hallittava varasto</strong>
             <select
@@ -420,30 +463,27 @@ export default function InventoryPage({ session }: Props) {
               ))}
             </select>
           </label>
-          <p className="muted" style={{ marginTop: '0.5rem' }}>
-            Jokaisella yrityksellä on oma varasto. Kumppani voi myöntää oikeuden hallita toisen varastoa
-            (Hallinta → Kumppanuudet → Varasto).
-          </p>
-          {isPartnerWarehouse && !canEditWarehouse && (
-            <p className="muted">
-              Sinulla on vain lukuoikeus tähän varastoon — et voi lisätä tai muokata rivejä.
-            </p>
-          )}
         </section>
       )}
 
-      <div className="billing-filter-pills" style={{ marginBottom: '1rem' }}>
+      <div className="billing-filter-pills inventory-tabs">
         <button
           type="button"
           className={tab === 'refrigerant' ? 'billing-pill active' : 'billing-pill'}
-          onClick={() => setTab('refrigerant')}
+          onClick={() => {
+            setTab('refrigerant');
+            setAddPanel(null);
+          }}
         >
           Kylmäaine
         </button>
         <button
           type="button"
           className={tab === 'materials' ? 'billing-pill active' : 'billing-pill'}
-          onClick={() => setTab('materials')}
+          onClick={() => {
+            setTab('materials');
+            setAddPanel(null);
+          }}
         >
           Materiaalit
         </button>
@@ -452,320 +492,359 @@ export default function InventoryPage({ session }: Props) {
       {error && <p className="error">{error}</p>}
       {message && <p className="muted">{message}</p>}
 
+      {showAddMaterial && (
+        <section className="panel inventory-quick-add">
+          <div className="inventory-quick-add-head">
+            <h2>Uusi materiaali</h2>
+            <button type="button" className="btn" onClick={() => setAddPanel(null)}>
+              Sulje
+            </button>
+          </div>
+          <form onSubmit={(e) => void quickAddMaterial(e)} className="inventory-quick-add-form">
+            <label>
+              Nimi *
+              <input
+                value={quickMaterial.name}
+                onChange={(e) => setQuickMaterial({ ...quickMaterial, name: e.target.value })}
+                required
+                autoFocus
+              />
+            </label>
+            <label>
+              Saldo
+              <input
+                type="number"
+                min="0.001"
+                step="1"
+                inputMode="decimal"
+                value={quickMaterial.qty}
+                onChange={(e) => setQuickMaterial({ ...quickMaterial, qty: e.target.value })}
+              />
+            </label>
+            <label>
+              Yksikkö
+              <input
+                value={quickMaterial.unit}
+                onChange={(e) => setQuickMaterial({ ...quickMaterial, unit: e.target.value })}
+              />
+            </label>
+            <button type="submit" className="btn btn-primary" disabled={busy}>
+              Lisää varastoon
+            </button>
+          </form>
+        </section>
+      )}
+
+      {showAddCylinder && (
+        <section className="panel inventory-quick-add">
+          <div className="inventory-quick-add-head">
+            <h2>Uusi pullo</h2>
+            <button type="button" className="btn" onClick={() => setAddPanel(null)}>
+              Sulje
+            </button>
+          </div>
+          <form onSubmit={(e) => void quickAddCylinder(e)} className="inventory-quick-add-form">
+            <label>
+              Sarjanumero *
+              <input
+                value={quickCylinder.serial_number}
+                onChange={(e) => setQuickCylinder({ ...quickCylinder, serial_number: e.target.value })}
+                required
+                autoFocus
+              />
+            </label>
+            <label>
+              Kylmäaine
+              <select
+                value={quickCylinder.refrigerant_type}
+                onChange={(e) => setQuickCylinder({ ...quickCylinder, refrigerant_type: e.target.value })}
+              >
+                {refrigerantTypes.map((t) => (
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Määrä (kg) *
+              <input
+                type="number"
+                step="0.1"
+                min="0.001"
+                inputMode="decimal"
+                value={quickCylinder.purchased_kg}
+                onChange={(e) => setQuickCylinder({ ...quickCylinder, purchased_kg: e.target.value })}
+                required
+              />
+            </label>
+            <label>
+              Pullo
+              <select
+                value={quickCylinder.ownership_type}
+                onChange={(e) =>
+                  setQuickCylinder({
+                    ...quickCylinder,
+                    ownership_type: e.target.value as RefrigerantCylinderOwnership,
+                  })
+                }
+              >
+                <option value="owned">{REFRIGERANT_CYLINDER_OWNERSHIP_LABELS.owned}</option>
+                <option value="rental">{REFRIGERANT_CYLINDER_OWNERSHIP_LABELS.rental}</option>
+              </select>
+            </label>
+            <button type="submit" className="btn btn-primary" disabled={busy}>
+              Lisää varastoon
+            </button>
+          </form>
+        </section>
+      )}
+
       {loading ? (
         <section className="panel">Ladataan…</section>
       ) : tab === 'refrigerant' ? (
-        <>
-          {canEditWarehouse && (
-            <section className="panel form-section">
-              <h2>{editingCylinderId ? 'Muokkaa kylmäainepulloa' : 'Lisää kylmäainepullo'}</h2>
-              <form onSubmit={(e) => void saveCylinder(e)} className="line-form-grid">
-                <label>
-                  Sarjanumero *
-                  <input
-                    value={cylinderForm.serial_number}
-                    onChange={(e) => setCylinderForm({ ...cylinderForm, serial_number: e.target.value })}
-                    required
-                  />
-                </label>
-                <label>
-                  Kylmäaine
-                  <select
-                    value={cylinderForm.refrigerant_type}
-                    onChange={(e) => setCylinderForm({ ...cylinderForm, refrigerant_type: e.target.value })}
-                  >
-                    {refrigerantTypes.map((t) => (
-                      <option key={t} value={t}>
-                        {t}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label>
-                  Pullo
-                  <select
-                    value={cylinderForm.ownership_type}
-                    onChange={(e) =>
-                      setCylinderForm({
-                        ...cylinderForm,
-                        ownership_type: e.target.value as RefrigerantCylinderOwnership,
-                      })
-                    }
-                  >
-                    <option value="owned">{REFRIGERANT_CYLINDER_OWNERSHIP_LABELS.owned}</option>
-                    <option value="rental">{REFRIGERANT_CYLINDER_OWNERSHIP_LABELS.rental}</option>
-                  </select>
-                </label>
-                <label>
-                  Ostettu (kg)
-                  <input
-                    type="number"
-                    step="0.001"
-                    min="0"
-                    value={cylinderForm.purchased_kg}
-                    onChange={(e) => setCylinderForm({ ...cylinderForm, purchased_kg: e.target.value })}
-                    required
-                  />
-                </label>
-                <label>
-                  Jäljellä (kg)
-                  <input
-                    type="number"
-                    step="0.001"
-                    min="0"
-                    value={cylinderForm.remaining_kg}
-                    onChange={(e) => setCylinderForm({ ...cylinderForm, remaining_kg: e.target.value })}
-                    placeholder="Oletus = ostettu"
-                  />
-                </label>
-                <label>
-                  Varasto (henkilö)
-                  <select
-                    value={cylinderForm.owner_user_id}
-                    onChange={(e) => setCylinderForm({ ...cylinderForm, owner_user_id: e.target.value })}
-                    disabled={isPartnerWarehouse}
-                  >
-                    <option value="">Yhteinen varasto</option>
-                    {users.map((u) => (
-                      <option key={u.id} value={u.id}>
-                        {u.display_name ?? u.email ?? u.id}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label>
-                  Ostopäivä
-                  <input
-                    type="date"
-                    value={cylinderForm.purchase_date}
-                    onChange={(e) => setCylinderForm({ ...cylinderForm, purchase_date: e.target.value })}
-                  />
-                </label>
-                {cylinderForm.ownership_type === 'rental' && (
-                  <label>
-                    Palautettu (päivä)
-                    <input
-                      type="date"
-                      value={cylinderForm.returned_at}
-                      onChange={(e) => setCylinderForm({ ...cylinderForm, returned_at: e.target.value })}
+        <section className="inventory-card-list">
+          {cylinders.length === 0 ? (
+            <p className="muted inventory-empty">
+              Ei pulloja varastossa. Paina + Lisää tai vähennä saldoa nollaan poistaaksesi rivin.
+            </p>
+          ) : (
+            cylinders.map((c) => {
+              const rowBusy = rowBusyId === c.id;
+              const qtyDisabled = !canEditWarehouse || Boolean(c.returned_at);
+              return (
+                <article key={c.id} className="inventory-card">
+                  <div className="inventory-card-main">
+                    <InventoryPhotoThumb
+                      imagePath={c.image_path}
+                      label={c.serial_number}
+                      canEdit={canEditWarehouse}
+                      busy={rowBusy}
+                      onPick={(file) => uploadCylinderPhoto(c, file)}
+                      onRemove={() => clearCylinderPhoto(c)}
                     />
-                  </label>
-                )}
-                <label>
-                  Huomio
-                  <input
-                    value={cylinderForm.notes}
-                    onChange={(e) => setCylinderForm({ ...cylinderForm, notes: e.target.value })}
+                    <div className="inventory-card-body">
+                      <h3>{c.serial_number}</h3>
+                      <p className="muted inventory-card-sub">
+                        {c.refrigerant_type} · {REFRIGERANT_CYLINDER_OWNERSHIP_LABELS[c.ownership_type]}
+                        {c.owner_user?.display_name ? ` · ${c.owner_user.display_name}` : ''}
+                      </p>
+                      {c.status !== 'in_stock' && (
+                        <p className="muted inventory-card-badge">{cylinderStatusLabel(c.status)}</p>
+                      )}
+                    </div>
+                  </div>
+                  <InventoryQtyStepper
+                    value={Number(c.remaining_kg)}
+                    step={1}
+                    min={0}
+                    max={Number(c.purchased_kg)}
+                    unit="kg"
+                    decimals={1}
+                    disabled={qtyDisabled}
+                    busy={rowBusy}
+                    onCommit={(next) => setCylinderRemaining(c, next)}
                   />
-                </label>
-                <div className="form-actions">
-                  <button type="submit" className="btn btn-primary" disabled={busy}>
-                    {busy ? 'Tallennetaan…' : editingCylinderId ? 'Tallenna muutokset' : 'Lisää pullo'}
-                  </button>
-                  {editingCylinderId && (
-                    <button type="button" className="btn" disabled={busy} onClick={cancelEdits}>
-                      Peruuta
-                    </button>
-                  )}
-                </div>
-              </form>
-              <p className="muted" style={{ marginTop: '0.75rem' }}>
-                Tyhjä pullo jää varastoon (tila Tyhjä). Vuokrapullon voi merkitä palautetuksi — se poistuu
-                työraportin valinnasta mutta näkyy varastolistassa.
-              </p>
-            </section>
-          )}
-
-          <section className="panel">
-            <h2>Kylmäainepullot ({cylinders.length})</h2>
-            {cylinders.length === 0 ? (
-              <p className="muted">Ei pulloja vielä. Lisää ensimmäinen sarjanumerolla.</p>
-            ) : (
-              <div className="table-wrap">
-                <table className="billing-table">
-                  <thead>
-                    <tr>
-                      <th>Sarjanro</th>
-                      <th>Typpi</th>
-                      <th>Pullo</th>
-                      <th className="num">Ostettu kg</th>
-                      <th className="num">Jäljellä kg</th>
-                      <th>Varasto</th>
-                      <th>Tila</th>
-                      {canEditWarehouse && <th />}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {cylinders.map((c) => (
-                      <tr key={c.id}>
-                        <td>{c.serial_number}</td>
-                        <td>{c.refrigerant_type}</td>
-                        <td>{REFRIGERANT_CYLINDER_OWNERSHIP_LABELS[c.ownership_type] ?? c.ownership_type}</td>
-                        <td className="num">{Number(c.purchased_kg).toFixed(3)}</td>
-                        <td className="num">{Number(c.remaining_kg).toFixed(3)}</td>
-                        <td>{c.owner_user?.display_name ?? 'Yhteinen'}</td>
-                        <td>
-                          {cylinderStatusLabel(c.status)}
-                          {c.returned_at ? ` (${c.returned_at})` : ''}
-                        </td>
-                        {canEditWarehouse && (
-                          <td className="inventory-row-actions">
-                            <button
-                              type="button"
-                              className="btn"
-                              disabled={busy}
-                              onClick={() => startEditCylinder(c)}
+                  <p className="muted inventory-card-hint">
+                    Saldo 0 poistaa pullon varastosta. Kuva valinnainen (pienennetään automaattisesti).
+                  </p>
+                  {canEditWarehouse && (
+                    <details className="inventory-card-details">
+                      <summary>Tiedot</summary>
+                      <div className="inventory-details-grid">
+                        <label>
+                          Sarjanumero
+                          <input
+                            defaultValue={c.serial_number}
+                            disabled={rowBusy}
+                            onBlur={(e) => {
+                              const v = e.target.value.trim();
+                              if (v && v !== c.serial_number) void updateCylinderMeta(c, { serial_number: v });
+                            }}
+                          />
+                        </label>
+                        <label>
+                          Kylmäaine
+                          <select
+                            defaultValue={c.refrigerant_type}
+                            disabled={rowBusy}
+                            onChange={(e) => void updateCylinderMeta(c, { refrigerant_type: e.target.value })}
+                          >
+                            {refrigerantTypes.map((t) => (
+                              <option key={t} value={t}>
+                                {t}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        <label>
+                          Pullo
+                          <select
+                            defaultValue={c.ownership_type}
+                            disabled={rowBusy}
+                            onChange={(e) =>
+                              void updateCylinderMeta(c, {
+                                ownership_type: e.target.value as RefrigerantCylinderOwnership,
+                              })
+                            }
+                          >
+                            <option value="owned">{REFRIGERANT_CYLINDER_OWNERSHIP_LABELS.owned}</option>
+                            <option value="rental">{REFRIGERANT_CYLINDER_OWNERSHIP_LABELS.rental}</option>
+                          </select>
+                        </label>
+                        {!isPartnerWarehouse && (
+                          <label>
+                            Henkilövarasto
+                            <select
+                              defaultValue={c.owner_user_id ?? ''}
+                              disabled={rowBusy}
+                              onChange={(e) =>
+                                void updateCylinderMeta(c, { owner_user_id: e.target.value || null })
+                              }
                             >
-                              Muokkaa
-                            </button>
-                            {c.ownership_type === 'rental' && !c.returned_at && (
-                              <button
-                                type="button"
-                                className="btn"
-                                disabled={busy}
-                                onClick={() => void markCylinderReturnedToday(c.id)}
-                              >
-                                Palautettu
-                              </button>
-                            )}
-                            {c.returned_at && (
-                              <button
-                                type="button"
-                                className="btn"
-                                disabled={busy}
-                                onClick={() => void clearCylinderReturned(c.id, Number(c.remaining_kg))}
-                              >
-                                Peru palautus
-                              </button>
-                            )}
-                          </td>
+                              <option value="">Yhteinen</option>
+                              {users.map((u) => (
+                                <option key={u.id} value={u.id}>
+                                  {u.display_name ?? u.email ?? u.id}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
                         )}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </section>
-        </>
+                        <label>
+                          Huomio
+                          <input
+                            defaultValue={c.notes ?? ''}
+                            disabled={rowBusy}
+                            onBlur={(e) => {
+                              const v = e.target.value.trim();
+                              if (v !== (c.notes ?? '')) void updateCylinderMeta(c, { notes: v || null });
+                            }}
+                          />
+                        </label>
+                        {c.ownership_type === 'rental' && !c.returned_at && (
+                          <button
+                            type="button"
+                            className="btn"
+                            disabled={rowBusy}
+                            onClick={() => void markCylinderReturned(c)}
+                          >
+                            Merkitse palautetuksi
+                          </button>
+                        )}
+                      </div>
+                    </details>
+                  )}
+                </article>
+              );
+            })
+          )}
+        </section>
       ) : (
-        <>
-          {canEditWarehouse && (
-            <section className="panel form-section">
-              <h2>{editingItemId ? 'Muokkaa materiaalia' : 'Lisää materiaali'}</h2>
-              <form onSubmit={(e) => void saveMaterial(e)} className="line-form-grid">
-                <label>
-                  Nimi *
-                  <input
-                    value={itemForm.name}
-                    onChange={(e) => setItemForm({ ...itemForm, name: e.target.value })}
-                    required
+        <section className="inventory-card-list">
+          {items.length === 0 ? (
+            <p className="muted inventory-empty">Ei materiaaleja. Paina + Lisää.</p>
+          ) : (
+            items.map((item) => {
+              const rowBusy = rowBusyId === item.id;
+              return (
+                <article key={item.id} className="inventory-card">
+                  <div className="inventory-card-main">
+                    <InventoryPhotoThumb
+                      imagePath={item.image_path}
+                      label={item.name}
+                      canEdit={canEditWarehouse}
+                      busy={rowBusy}
+                      onPick={(file) => uploadMaterialPhoto(item, file)}
+                      onRemove={() => clearMaterialPhoto(item)}
+                    />
+                    <div className="inventory-card-body">
+                      <h3>{item.name}</h3>
+                      <p className="muted inventory-card-sub">
+                        {item.sku ? `SKU ${item.sku}` : '—'}
+                        {item.location ? ` · ${item.location}` : ''}
+                      </p>
+                    </div>
+                  </div>
+                  <InventoryQtyStepper
+                    value={Number(item.qty_on_hand)}
+                    step={1}
+                    min={0}
+                    unit={item.unit}
+                    disabled={!canEditWarehouse}
+                    busy={rowBusy}
+                    onCommit={(next) => setMaterialQty(item, next)}
                   />
-                </label>
-                <label>
-                  SKU
-                  <input value={itemForm.sku} onChange={(e) => setItemForm({ ...itemForm, sku: e.target.value })} />
-                </label>
-                <label>
-                  Yksikkö
-                  <input value={itemForm.unit} onChange={(e) => setItemForm({ ...itemForm, unit: e.target.value })} />
-                </label>
-                <label>
-                  Saldo
-                  <input
-                    type="number"
-                    step="0.001"
-                    min="0"
-                    value={itemForm.qty_on_hand}
-                    onChange={(e) => setItemForm({ ...itemForm, qty_on_hand: e.target.value })}
-                  />
-                </label>
-                <label>
-                  Minimi
-                  <input
-                    type="number"
-                    step="0.001"
-                    min="0"
-                    value={itemForm.min_qty}
-                    onChange={(e) => setItemForm({ ...itemForm, min_qty: e.target.value })}
-                  />
-                </label>
-                <label>
-                  Sijainti
-                  <input
-                    value={itemForm.location}
-                    onChange={(e) => setItemForm({ ...itemForm, location: e.target.value })}
-                  />
-                </label>
-                <div className="form-actions">
-                  <button type="submit" className="btn btn-primary" disabled={busy}>
-                    {busy ? 'Tallennetaan…' : editingItemId ? 'Tallenna muutokset' : 'Lisää'}
-                  </button>
-                  {editingItemId && (
-                    <button type="button" className="btn" disabled={busy} onClick={cancelEdits}>
-                      Peruuta
-                    </button>
+                  {canEditWarehouse && (
+                    <details className="inventory-card-details">
+                      <summary>Tiedot</summary>
+                      <div className="inventory-details-grid">
+                        <label>
+                          Nimi
+                          <input
+                            defaultValue={item.name}
+                            disabled={rowBusy}
+                            onBlur={(e) => {
+                              const v = e.target.value.trim();
+                              if (v && v !== item.name) void updateMaterialMeta(item, { name: v });
+                            }}
+                          />
+                        </label>
+                        <label>
+                          SKU
+                          <input
+                            defaultValue={item.sku ?? ''}
+                            disabled={rowBusy}
+                            onBlur={(e) => {
+                              const v = e.target.value.trim();
+                              if (v !== (item.sku ?? '')) void updateMaterialMeta(item, { sku: v || null });
+                            }}
+                          />
+                        </label>
+                        <label>
+                          Yksikkö
+                          <input
+                            defaultValue={item.unit}
+                            disabled={rowBusy}
+                            onBlur={(e) => {
+                              const v = e.target.value.trim() || 'kpl';
+                              if (v !== item.unit) void updateMaterialMeta(item, { unit: v });
+                            }}
+                          />
+                        </label>
+                        <label>
+                          Minimi
+                          <input
+                            type="number"
+                            step="1"
+                            min="0"
+                            defaultValue={String(item.min_qty)}
+                            disabled={rowBusy}
+                            onBlur={(e) => {
+                              const v = Number(e.target.value || 0);
+                              if (v !== Number(item.min_qty)) void updateMaterialMeta(item, { min_qty: v });
+                            }}
+                          />
+                        </label>
+                        <label>
+                          Sijainti
+                          <input
+                            defaultValue={item.location ?? ''}
+                            disabled={rowBusy}
+                            onBlur={(e) => {
+                              const v = e.target.value.trim();
+                              if (v !== (item.location ?? '')) void updateMaterialMeta(item, { location: v || null });
+                            }}
+                          />
+                        </label>
+                      </div>
+                    </details>
                   )}
-                </div>
-              </form>
-            </section>
+                </article>
+              );
+            })
           )}
-
-          <section className="panel">
-            <h2>Materiaalit ({items.length})</h2>
-            {items.length === 0 ? (
-              <p className="muted">Ei materiaaleja vielä.</p>
-            ) : (
-              <div className="table-wrap">
-                <table className="billing-table">
-                  <thead>
-                    <tr>
-                      <th>Nimi</th>
-                      <th>SKU</th>
-                      <th className="num">Saldo</th>
-                      <th className="num">Minimi</th>
-                      <th>Yksikkö</th>
-                      <th>Sijainti</th>
-                      {canEditWarehouse && <th />}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {items.map((item) => (
-                      <tr key={item.id}>
-                        <td>{item.name}</td>
-                        <td>{item.sku ?? '—'}</td>
-                        <td className="num">{Number(item.qty_on_hand).toFixed(3)}</td>
-                        <td className="num">{Number(item.min_qty).toFixed(3)}</td>
-                        <td>{item.unit}</td>
-                        <td>{item.location ?? '—'}</td>
-                        {canEditWarehouse && (
-                          <td className="inventory-row-actions">
-                            <button
-                              type="button"
-                              className="btn"
-                              disabled={busy}
-                              onClick={() => startEditMaterial(item)}
-                            >
-                              Muokkaa
-                            </button>
-                            <button
-                              type="button"
-                              className="btn"
-                              disabled={busy}
-                              onClick={() => void deleteMaterial(item.id)}
-                            >
-                              Poista
-                            </button>
-                          </td>
-                        )}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </section>
-        </>
+        </section>
       )}
     </AppLayout>
   );

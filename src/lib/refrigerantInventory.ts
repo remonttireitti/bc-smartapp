@@ -90,6 +90,7 @@ export function mapRpcCylinders(rows: RefrigerantCylinderListRow[]): Refrigerant
     status: row.status,
     purchase_date: null,
     returned_at: null,
+    image_path: null,
     notes: null,
     created_at: '',
     updated_at: '',
