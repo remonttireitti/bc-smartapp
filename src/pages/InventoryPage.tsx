@@ -338,11 +338,6 @@ export default function InventoryPage({ session }: Props) {
                     </option>
                   ))}
                 </select>
-                {isPartnerWarehouse && (
-                  <span className="muted" style={{ display: 'block', marginTop: '0.25rem' }}>
-                    Henkilökohtainen varasto vain oman yrityksen pulloille.
-                  </span>
-                )}
               </label>
               <label>
                 Ostopäivä
