@@ -1,4 +1,5 @@
 import type { ModuleKey } from './constants';
+import { canonicalizeDeviceType, resolveLegacyDeviceType } from './deviceTypeLegacy';
 import { usesManualModuleMenu } from './deviceModuleLogic';
 import type {
   CondenserData,
@@ -10,19 +11,6 @@ import type {
   RefrigerantCircuitData,
   TyhjiointiData,
 } from './types';
-
-/** Vanhan Firestore-sovelluksen laitetyypit → nykyiset arvot. */
-const DEVICE_TYPE_ALIASES: Record<string, string> = {
-  Vedenjäähdytyskone: 'vedenjäähdytyskone',
-  Vakioilmastointtikone: 'vakioilmastointtikone',
-  Pakastin: 'pakastin',
-  Kylmäkoneikko: 'kylmäkoneikko',
-  Konvektorit: 'konvektorit',
-  MLP: 'mlp',
-  Lämpöpumppu: 'lämpöpumppu',
-  'Vesi-ilmalämpöpumppu': 'vesiilmalampopumppu',
-  VesiIlmalampopumppu: 'vesiilmalampopumppu',
-};
 
 /** Vanhat moduuliavaimet → nykyiset ModuleKey-arvot. */
 const LEGACY_MODULE_TO_NEW: Record<string, ModuleKey> = {
@@ -318,15 +306,6 @@ export function applyLegacyHuoltoFields(
   const source: Record<string, unknown> = { ...meta, ...raw };
   const out: LegacyRecord = { ...raw };
 
-  const laiteTyyppi = String(source.laiteTyyppi ?? out.laiteTyyppi ?? '').trim();
-  if (laiteTyyppi && DEVICE_TYPE_ALIASES[laiteTyyppi]) {
-    out.laiteTyyppi = DEVICE_TYPE_ALIASES[laiteTyyppi];
-  } else if (!out.laiteTyyppi && source.isMLP === true) {
-    out.laiteTyyppi = 'mlp';
-  } else if (out.laiteTyyppi === 'muu' && source.isMLP === true) {
-    out.laiteTyyppi = 'mlp';
-  }
-
   if (source.kp1Data && typeof source.kp1Data === 'object') {
     out.kylmaainePiiri1 = source.kp1Data as RefrigerantCircuitData;
   }
@@ -385,8 +364,7 @@ export function applyLegacyHuoltoFields(
     if (!out.laiteValmistaja && laite.valmistaja) out.laiteValmistaja = String(laite.valmistaja);
     if (!out.laiteTunnus && laite.tunnus) out.laiteTunnus = String(laite.tunnus);
     if (!out.laiteTyyppi && laite.tyyppi) {
-      const t = String(laite.tyyppi);
-      out.laiteTyyppi = DEVICE_TYPE_ALIASES[t] ?? t;
+      out.laiteTyyppi = canonicalizeDeviceType(String(laite.tyyppi));
     }
   }
 
@@ -396,6 +374,19 @@ export function applyLegacyHuoltoFields(
 
   if (typeof source.piilotaVaroitukset === 'boolean') {
     out.piilotaVaroitukset = source.piilotaVaroitukset;
+  }
+
+  const tyPatch = mapLegacyTyhjiointiData(source.tyhjiointiData);
+  if (tyPatch) {
+    (out as { tyhjiointiData?: Partial<TyhjiointiData> }).tyhjiointiData = {
+      ...(out.tyhjiointiData as Partial<TyhjiointiData> | undefined),
+      ...tyPatch,
+    };
+  }
+
+  const resolvedType = resolveLegacyDeviceType(out as HuoltoReportData, source);
+  if (resolvedType) {
+    out.laiteTyyppi = resolvedType;
   }
 
   const resolvedDeviceType = String(out.laiteTyyppi ?? '').trim();
@@ -420,14 +411,6 @@ export function applyLegacyHuoltoFields(
       out.lauhdutuspiiriData as Partial<LauhdutuspiiriData> | undefined,
     ) as LauhdutuspiiriData | undefined;
     if (!out.lauhdutinTyyppiLaite) out.lauhdutinTyyppiLaite = 'nestekiertoinen';
-  }
-
-  const tyPatch = mapLegacyTyhjiointiData(source.tyhjiointiData);
-  if (tyPatch) {
-    (out as { tyhjiointiData?: Partial<TyhjiointiData> }).tyhjiointiData = {
-      ...(out.tyhjiointiData as Partial<TyhjiointiData> | undefined),
-      ...tyPatch,
-    };
   }
 
   return out;

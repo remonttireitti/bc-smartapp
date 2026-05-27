@@ -34,6 +34,7 @@ import type {
   TyhjiointiData,
   VjOhjausData,
 } from './types';
+import { resolveLegacyDeviceType } from './deviceTypeLegacy';
 import { applyLegacyImportInference } from './legacyImportInference';
 import { inferLegacyMlpFlags } from './mlpLegacyFlags';
 import { normalizeMaintenanceReportPhotos } from '../maintenanceReportPhotoUtils';
@@ -770,7 +771,11 @@ export function normalizeHuoltoReportData(data: Partial<HuoltoReportData>): Huol
   };
 
   let result = normalized;
-  if (result.laiteTyyppi) {
+  const resolvedType = resolveLegacyDeviceType(result, legacy as Record<string, unknown>);
+  if (resolvedType) {
+    result = { ...result, laiteTyyppi: resolvedType };
+    result = applyDeviceTypeDefaults(result, resolvedType);
+  } else if (result.laiteTyyppi) {
     result = applyDeviceTypeDefaults(result, result.laiteTyyppi);
   }
   return applyLegacyImportInference(result);

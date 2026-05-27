@@ -2,17 +2,7 @@
  * Maps legacy Firestore huolto_raportit documents to current maintenance_reports.data shape.
  */
 
-const DEVICE_TYPE_ALIASES = {
-  'Vedenjäähdytyskone': 'vedenjäähdytyskone',
-  Vakioilmastointtikone: 'vakioilmastointtikone',
-  Pakastin: 'pakastin',
-  Kylmäkoneikko: 'kylmäkoneikko',
-  Konvektorit: 'konvektorit',
-  MLP: 'mlp',
-  Lämpöpumppu: 'lämpöpumppu',
-  'Vesi-ilmalämpöpumppu': 'vesiilmalampopumppu',
-  VesiIlmalampopumppu: 'vesiilmalampopumppu',
-};
+import { canonicalizeDeviceType, resolveLegacyDeviceType } from './device-type-legacy.mjs';
 
 const LEGACY_MODULE_TO_NEW = {
   kylmapiri: 'kylmaainePiiri',
@@ -117,15 +107,6 @@ export function applyLegacyHuoltoFields(raw, meta = {}) {
   const source = { ...meta, ...raw };
   const out = { ...raw };
 
-  const laiteTyyppi = String(source.laiteTyyppi ?? out.laiteTyyppi ?? '').trim();
-  if (laiteTyyppi && DEVICE_TYPE_ALIASES[laiteTyyppi]) {
-    out.laiteTyyppi = DEVICE_TYPE_ALIASES[laiteTyyppi];
-  } else if (!out.laiteTyyppi && source.isMLP === true) {
-    out.laiteTyyppi = 'mlp';
-  } else if (out.laiteTyyppi === 'muu' && source.isMLP === true) {
-    out.laiteTyyppi = 'mlp';
-  }
-
   if (source.kp1Data && typeof source.kp1Data === 'object') out.kylmaainePiiri1 = source.kp1Data;
   if (source.kp2Data && typeof source.kp2Data === 'object') out.kylmaainePiiri2 = source.kp2Data;
   if (source.kp3Data && typeof source.kp3Data === 'object') out.kylmaainePiiri3 = source.kp3Data;
@@ -163,8 +144,7 @@ export function applyLegacyHuoltoFields(raw, meta = {}) {
     if (!out.laiteValmistaja && source.laite.valmistaja) out.laiteValmistaja = String(source.laite.valmistaja);
     if (!out.laiteTunnus && source.laite.tunnus) out.laiteTunnus = String(source.laite.tunnus);
     if (!out.laiteTyyppi && source.laite.tyyppi) {
-      const t = String(source.laite.tyyppi);
-      out.laiteTyyppi = DEVICE_TYPE_ALIASES[t] ?? t;
+      out.laiteTyyppi = canonicalizeDeviceType(source.laite.tyyppi);
     }
   }
 
@@ -172,16 +152,19 @@ export function applyLegacyHuoltoFields(raw, meta = {}) {
     out.legacyCompanyInfo = source.companyInfo;
   }
 
+  const tyPatch = mapLegacyTyhjiointiData(source.tyhjiointiData);
+  if (tyPatch) {
+    out.tyhjiointiData = { ...(out.tyhjiointiData ?? {}), ...tyPatch };
+  }
+
+  const resolvedType = resolveLegacyDeviceType(out, source);
+  if (resolvedType) out.laiteTyyppi = resolvedType;
+
   const resolvedDeviceType = String(out.laiteTyyppi ?? '').trim();
   if (isChillerDeviceType(resolvedDeviceType) && source.mlpData && typeof source.mlpData === 'object') {
     if (!out.mlpData) out.mlpData = source.mlpData;
     out.jaahdytysvesiData = mapLegacyMlpKeruupiiriToJaahdytysvesi(source.mlpData, out.jaahdytysvesiData);
     out.selectedModules = { ...(out.selectedModules ?? {}), mlpPiirit: true };
-  }
-
-  const tyPatch = mapLegacyTyhjiointiData(source.tyhjiointiData);
-  if (tyPatch) {
-    out.tyhjiointiData = { ...(out.tyhjiointiData ?? {}), ...tyPatch };
   }
 
   return out;

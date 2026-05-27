@@ -3,7 +3,7 @@ import { inferLegacyMlpFlags } from './mlpLegacyFlags';
 import type { HuoltoReportData, LauhdutuspiiriData, MlpData, NestepiiriData } from './types';
 
 /** Kasvatetaan kun tuonti-normalisointilogiikka muuttuu — fix-skripti päivittää vanhat rivit. */
-export const HUOLTO_IMPORT_NORMALIZE_VERSION = 2;
+export const HUOLTO_IMPORT_NORMALIZE_VERSION = 3;
 
 function hasText(...values: unknown[]): boolean {
   return values.some((v) => String(v ?? '').trim().length > 0);
