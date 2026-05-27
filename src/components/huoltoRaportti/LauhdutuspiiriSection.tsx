@@ -1,4 +1,4 @@
-import { createEmptyNestepiiriData } from '../../lib/huoltoRaportti/defaults';
+import { createEmptyLauhdutuspiiriData } from '../../lib/huoltoRaportti/defaults';
 import type { HuoltoReportData } from '../../lib/huoltoRaportti/types';
 import { HuoltoModuleSection } from './HuoltoModuleSection';
 import { NestepiiriFields } from './NestepiiriFields';
@@ -9,17 +9,22 @@ interface Props {
 }
 
 export function LauhdutuspiiriSection({ form, onChange }: Props) {
-  const data = form.lauhdutuspiiriData ?? createEmptyNestepiiriData();
+  const data = form.lauhdutuspiiriData ?? createEmptyLauhdutuspiiriData();
   const patch = (next: Partial<typeof data>) =>
     onChange({ lauhdutuspiiriData: { ...data, ...next } });
 
   return (
     <HuoltoModuleSection moduleKey="lauhdutin" title="Lauhdutuspiiri">
       <p className="muted huolto-help">
-        Koneen levy- tai putkilämmönvaihtimen nestekierto. Ulkoisen nestelauhduttimen piiri täytetään
-        nestelauhdutin-moduulissa.
+        Yhteinen nestekierto koneen levy-/putkilämmönvaihtimen ja ulkoisen nestelauhduttimen välillä.
+        Nestelauhdutin-moduulissa täytetään vain yksikön omat tiedot (kenno, puhaltimet).
       </p>
-      <NestepiiriFields data={data} onChange={patch} showPiiriTarkistukset />
+      <NestepiiriFields
+        data={data}
+        onChange={patch}
+        showLauhdutinTarkistukset
+        showPiiriTarkistukset
+      />
     </HuoltoModuleSection>
   );
 }

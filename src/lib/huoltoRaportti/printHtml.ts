@@ -367,19 +367,12 @@ function renderNestelauhduttimet(data: HuoltoReportData): string {
   if (!data.selectedModules.nestelauhduttimet || !Array.isArray(units) || units.length === 0) return '';
   return units
     .map((u: Record<string, unknown>, i: number) => {
-      const lauhdutus = renderNestepiiriFields(
-        '#5D4037',
-        u.lauhdutuspiiri as LauhdutuspiiriData | undefined,
-      );
       const inner = [
         gridField('Valmistaja', u.valmistaja),
         gridField('Malli', u.malli),
         gridField('Sarjanumero', u.sarjanumero),
         gridField('Puhaltimien määrä', u.puhaltimienMaara),
         checkRow(u.lauhdutinPuhdistettu as boolean | undefined, 'Puhdistettu'),
-        lauhdutus
-          ? `<div style="margin-top:8px;"><strong>Lauhdutuspiiri</strong>${lauhdutus}</div>`
-          : '',
       ]
         .filter(Boolean)
         .join('');

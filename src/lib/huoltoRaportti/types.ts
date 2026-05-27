@@ -518,8 +518,8 @@ export type HuoltoReportData = {
   vapaajahdytysKaytossa?: boolean;
   vapaajahdytysData?: VapaajahdytysData;
   jaahdytysvesiData?: JaahdytysvesiData;
-  /** Vedenjäähdytyskone: koneen nestekiertoinen lauhdutuspiiri (levy-/putkilämmönvaihdin). */
-  lauhdutuspiiriData?: NestepiiriData;
+  /** Vedenjäähdytyskone: yhteinen nestekiertoinen lauhdutuspiiri. */
+  lauhdutuspiiriData?: LauhdutuspiiriData;
   /** Vedenjäähdytyskone: höyrystimen jäähdytysnestepiiri. */
   hoyrystinPiiriData?: NestepiiriData;
   vjOhjausData?: VjOhjausData;

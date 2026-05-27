@@ -252,9 +252,18 @@ export function createEmptyJaahdytysvesiData(): JaahdytysvesiData {
   return createEmptyNestepiiriData();
 }
 
+function mergeLauhdutuspiiriData(data: Partial<HuoltoReportData>): LauhdutuspiiriData {
+  const legacyUnitPiiri = data.nestelauhduttimetVj?.[0]?.lauhdutuspiiri;
+  return ensureLauhdutuspiiriData({
+    ...createEmptyLauhdutuspiiriData(),
+    ...legacyUnitPiiri,
+    ...data.lauhdutuspiiriData,
+  });
+}
+
 export function ensureChillerLiquidCondenserData(data: Partial<HuoltoReportData>): Partial<HuoltoReportData> {
   return {
-    lauhdutuspiiriData: ensureNestepiiriData(data.lauhdutuspiiriData),
+    lauhdutuspiiriData: mergeLauhdutuspiiriData(data),
     nestelauhduttimetVj: data.nestelauhduttimetVj?.length
       ? data.nestelauhduttimetVj.map(ensureNestelauhdutinUnit)
       : [createEmptyNestelauhdutinUnit()],
@@ -685,10 +694,9 @@ export function normalizeHuoltoReportData(data: Partial<HuoltoReportData>): Huol
       data.mittausSamaKuinEnsimmainen ?? base.mittausSamaKuinEnsimmainen,
       sisMaara,
     ),
-    lauhdutuspiiriData: ensureNestepiiriData({
-      ...createEmptyNestepiiriData(),
-      ...(data.lauhdutuspiiriData ?? {}),
-    }),
+    lauhdutuspiiriData: isChillerLikeDevice(merged.laiteTyyppi)
+      ? mergeLauhdutuspiiriData(data)
+      : ensureLauhdutuspiiriData(data.lauhdutuspiiriData),
     jaahdytysvesiData: isChillerLikeDevice(merged.laiteTyyppi)
       ? mergeChillerCoolingCircuit(data.jaahdytysvesiData, data.hoyrystinPiiriData)
       : ensureNestepiiriData({
@@ -799,7 +807,7 @@ export function createEmptyHuoltoReportData(): HuoltoReportData {
     vapaajahdytysKaytossa: false,
     vapaajahdytysData: createEmptyVapaajahdytysData(),
     jaahdytysvesiData: createEmptyJaahdytysvesiData(),
-    lauhdutuspiiriData: createEmptyNestepiiriData(),
+    lauhdutuspiiriData: createEmptyLauhdutuspiiriData(),
     hoyrystinPiiriData: createEmptyNestepiiriData(),
     vjOhjausData: createEmptyVjOhjausData(),
     nestelauhduttimetVj: [],
@@ -896,12 +904,12 @@ export function applyDeviceTypeDefaults(
       Object.assign(patch, ensureChillerLiquidCondenserData(data));
     } else {
       patch.nestelauhduttimetVj = [];
-      patch.lauhdutuspiiriData = createEmptyNestepiiriData();
+      patch.lauhdutuspiiriData = createEmptyLauhdutuspiiriData();
       patch.vjNestelauhdutusJaettu = data.vjNestelauhdutusJaettu ?? true;
     }
   } else {
     patch.nestelauhduttimetVj = [];
-    patch.lauhdutuspiiriData = createEmptyNestepiiriData();
+    patch.lauhdutuspiiriData = createEmptyLauhdutuspiiriData();
     patch.vjNestelauhdutusJaettu = false;
     patch.hoyrystinYhteinenPiireissa = false;
     patch.vapaajahdytysKaytossa = false;
