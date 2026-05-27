@@ -1,6 +1,5 @@
 import { FormEvent, useEffect, useRef, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import type { Session } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import {
   COMPANY_LOGO_MAX_BYTES,
@@ -9,16 +8,16 @@ import {
   resolveCompanyLogoUrl,
   saveCompanyLogo,
   validateCompanyLogoFile,
-} from '../lib/companyLogo';import { emptyCompanySettings, parseCompanySettings, type CompanySettings } from '../lib/management';
+} from '../lib/companyLogo';
+import { emptyCompanySettings, parseCompanySettings, type CompanySettings } from '../lib/management';
+import type { ManagementOutletContext } from '../lib/managementOutletContext';
 import PartnerBillingRatesFields from '../components/PartnerBillingRatesFields';
 import DeviceRegistrySettingsFields from '../components/quoteRequest/DeviceRegistrySettingsFields';
 import ToggleSwitch from '../components/ToggleSwitch';
-import type { Profile } from '../types';
-
-type Context = { profile: Profile; session: Session };
 
 export default function CompanySettingsPage() {
-  const { profile } = useOutletContext<Context>();
+  const { profile, billingModuleEnabled } = useOutletContext<ManagementOutletContext>();
+  const showBillingSettings = billingModuleEnabled !== false;
   const [name, setName] = useState('');
   const [logoPath, setLogoPath] = useState<string | null>(null);
   const [logoPreviewUrl, setLogoPreviewUrl] = useState<string | null>(null);
@@ -253,59 +252,69 @@ export default function CompanySettingsPage() {
         </p>
       </section>
 
-      <section className="form-section">
-        <h2>Laskutus</h2>
-        <ToggleSwitch
-          label="Seurataan laskutuksia asiakkailta"
-          checked={settings.billing?.track_customer_invoicing ?? false}
-          onChange={(track_customer_invoicing) =>
-            setSettings((s) => ({
-              ...s,
-              billing: { ...s.billing, track_customer_invoicing },
-            }))
-          }
-        />
-        <p className="muted">
-          Kun päällä, työraportissa näkyy asiakaslaskutuksen tila erillään kumppanilaskutuksesta. Voit merkitä
-          asiakkaan laskutetuksi vaikka kumppanilaskutus olisi yhä auki — ja päinvastoin. Kumppanilaskutus
-          hallitaan Laskutus-moduulissa ja käyttäjien laskutusasetuksista (Hallinta → Käyttäjät).
-        </p>
-      </section>
+      {showBillingSettings ? (
+        <>
+          <section className="form-section">
+            <h2>Laskutus</h2>
+            <ToggleSwitch
+              label="Seurataan laskutuksia asiakkailta"
+              checked={settings.billing?.track_customer_invoicing ?? false}
+              onChange={(track_customer_invoicing) =>
+                setSettings((s) => ({
+                  ...s,
+                  billing: { ...s.billing, track_customer_invoicing },
+                }))
+              }
+            />
+            <p className="muted">
+              Kun päällä, työraportissa näkyy asiakaslaskutuksen tila erillään kumppanilaskutuksesta. Voit merkitä
+              asiakkaan laskutetuksi vaikka kumppanilaskutus olisi yhä auki — ja päinvastoin. Kumppanilaskutus
+              hallitaan Laskutus-moduulissa ja käyttäjien laskutusasetuksista (Hallinta → Käyttäjät).
+            </p>
+          </section>
 
-      <section className="form-section">
-        <h2>Asiakaslaskutuksen oletustuntihinnat</h2>
-        <p className="muted">
-          Oletustuntihinnat omien työraporttien asiakaslaskutuksessa. Voit poiketa yksittäisessä päiväkirjauksessa
-          tai raporttikohtaisilla hinnoilla. Tarvikkeiden ja varaosien asiakashinta syötetään kuluriville.
-        </p>
-        <PartnerBillingRatesFields
-          rates={settings.billing?.customer_rates ?? {}}
-          onChange={(customer_rates) =>
-            setSettings((s) => ({
-              ...s,
-              billing: { ...s.billing, customer_rates: { ...s.billing?.customer_rates, ...customer_rates } },
-            }))
-          }
-        />
-      </section>
+          <section className="form-section">
+            <h2>Asiakaslaskutuksen oletustuntihinnat</h2>
+            <p className="muted">
+              Oletustuntihinnat omien työraporttien asiakaslaskutuksessa. Voit poiketa yksittäisessä päiväkirjauksessa
+              tai raporttikohtaisilla hinnoilla. Tarvikkeiden ja varaosien asiakashinta syötetään kuluriville.
+            </p>
+            <PartnerBillingRatesFields
+              rates={settings.billing?.customer_rates ?? {}}
+              onChange={(customer_rates) =>
+                setSettings((s) => ({
+                  ...s,
+                  billing: { ...s.billing, customer_rates: { ...s.billing?.customer_rates, ...customer_rates } },
+                }))
+              }
+            />
+          </section>
 
-      <section className="form-section">
-        <h2>Kumppanilaskutuksen oletushinnat</h2>
-        <p className="muted">
-          Oletushinnat, joilla yrityksesi laskuttaa, kun teette työtä toisen yrityksen nimissä. Kumppanuus-sivulla
-          kumppani voi määrittää eri hinnan teille; raportin laatija voi poiketa yksittäisessä työraportissa.
-          Kulut lasketaan päiväkirjauksen riveiltä sellaisenaan.
-        </p>
-        <PartnerBillingRatesFields
-          rates={settings.billing?.partner_rates ?? {}}
-          onChange={(partner_rates) =>
-            setSettings((s) => ({
-              ...s,
-              billing: { ...s.billing, partner_rates: { ...s.billing?.partner_rates, ...partner_rates } },
-            }))
-          }
-        />
-      </section>
+          <section className="form-section">
+            <h2>Kumppanilaskutuksen oletushinnat</h2>
+            <p className="muted">
+              Oletushinnat, joilla yrityksesi laskuttaa, kun teette työtä toisen yrityksen nimissä. Kumppanuus-sivulla
+              kumppani voi määrittää eri hinnan teille; raportin laatija voi poiketa yksittäisessä työraportissa.
+              Kulut lasketaan päiväkirjauksen riveiltä sellaisenaan.
+            </p>
+            <PartnerBillingRatesFields
+              rates={settings.billing?.partner_rates ?? {}}
+              onChange={(partner_rates) =>
+                setSettings((s) => ({
+                  ...s,
+                  billing: { ...s.billing, partner_rates: { ...s.billing?.partner_rates, ...partner_rates } },
+                }))
+              }
+            />
+          </section>
+        </>
+      ) : (
+        <section className="form-section">
+          <p className="muted">
+            Laskutusmoduuli ei ole käytössä tälle yritykselle. Kumppani- ja asiakaslaskutuksen asetukset on piilotettu.
+          </p>
+        </section>
+      )}
 
       {error && <p className="error">{error}</p>}
       {message && <p className="muted">{message}</p>}

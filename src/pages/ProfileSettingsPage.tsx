@@ -1,14 +1,11 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import type { Session } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import { ROLE_LABELS } from '../lib/management';
-import type { Profile } from '../types';
-
-type Context = { profile: Profile; session: Session; reloadProfile: () => void };
+import type { ManagementOutletContext } from '../lib/managementOutletContext';
 
 export default function ProfileSettingsPage() {
-  const { profile, session, reloadProfile } = useOutletContext<Context>();
+  const { profile, session, reloadProfile } = useOutletContext<ManagementOutletContext>();
   const [displayName, setDisplayName] = useState(profile.display_name ?? '');
   const [tukesNumber, setTukesNumber] = useState(profile.tukes_number ?? '');
   const [busy, setBusy] = useState(false);
@@ -41,7 +38,7 @@ export default function ProfileSettingsPage() {
       return;
     }
 
-    reloadProfile();
+    await reloadProfile?.();
     setMessage('Profiili päivitetty.');
   }
 

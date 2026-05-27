@@ -1,6 +1,5 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useOutletContext } from 'react-router-dom';
-import type { Session } from '@supabase/supabase-js';
 import SubscriberPortalSection from '../components/SubscriberPortalSection';
 import { loadSubscribersForOwner } from '../lib/subscribers';
 import {
@@ -12,9 +11,8 @@ import {
   type SubscriberFormDraft,
 } from '../lib/subscriberFormDraftStorage';
 import { supabase } from '../lib/supabase';
-import type { Profile, Subscriber } from '../types';
-
-type Context = { profile: Profile; session: Session };
+import type { ManagementOutletContext } from '../lib/managementOutletContext';
+import type { Subscriber } from '../types';
 
 const emptyForm = (): SubscriberFormDraft => ({
   name: '',
@@ -25,7 +23,7 @@ const emptyForm = (): SubscriberFormDraft => ({
 });
 
 export default function SubscribersPage() {
-  const { profile, session } = useOutletContext<Context>();
+  const { profile, session } = useOutletContext<ManagementOutletContext>();
   const [subscribers, setSubscribers] = useState<Subscriber[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);

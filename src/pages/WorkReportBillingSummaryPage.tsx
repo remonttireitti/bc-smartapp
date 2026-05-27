@@ -1,15 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useOutletContext } from 'react-router-dom';
-import type { Session } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import {
   aggregateBillableByUser,
   formatEuro,
   type BillableCalculation,
 } from '../lib/workReportBilling';
-import type { Profile } from '../types';
-
-type Context = { profile: Profile; session: Session };
+import type { ManagementOutletContext } from '../lib/managementOutletContext';
 
 type BillableRow = {
   work_report_id: string;
@@ -25,7 +22,7 @@ type BillableRow = {
 };
 
 export default function WorkReportBillingSummaryPage() {
-  const { profile } = useOutletContext<Context>();
+  const { profile } = useOutletContext<ManagementOutletContext>();
   const [rows, setRows] = useState<BillableRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

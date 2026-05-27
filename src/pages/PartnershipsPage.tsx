@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import type { Session } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import {
   customerSharingSummary,
@@ -28,9 +27,8 @@ import {
 } from '../lib/management';
 import PartnerBillingRatesFields from '../components/PartnerBillingRatesFields';
 import PartnerCustomerSharingPicker from '../components/PartnerCustomerSharingPicker';
-import type { Company, Customer, Partnership, Profile } from '../types';
-
-type Context = { profile: Profile; session: Session };
+import type { ManagementOutletContext } from '../lib/managementOutletContext';
+import type { Company, Customer, Partnership } from '../types';
 
 type SharingSummary = {
   restricted: boolean;
@@ -48,7 +46,8 @@ function partnershipGrantsRegistryAccess(raw: unknown) {
 }
 
 export default function PartnershipsPage() {
-  const { profile } = useOutletContext<Context>();
+  const { profile, billingModuleEnabled } = useOutletContext<ManagementOutletContext>();
+  const showBillingSettings = billingModuleEnabled !== false;
   const companyName = profile.companies?.name ?? 'yrityksemme';
   const [partnerships, setPartnerships] = useState<Partnership[]>([]);
   const [partners, setPartners] = useState<Company[]>([]);
@@ -323,7 +322,7 @@ export default function PartnershipsPage() {
                       <span className="perm-readonly-note"> (vain luku — muokkaa kumppanin ylläpitäjä)</span>
                     </div>
 
-                    {grantField && ratesField && (
+                    {showBillingSettings && grantField && ratesField && (
                     <div className="muted">
                       <strong>Kumppanin laskutushinnat meille:</strong>{' '}
                       {ourRates.hourly_regular != null
@@ -375,7 +374,7 @@ export default function PartnershipsPage() {
                       </div>
                     )}
 
-                    {grantField && isEditingRates && ratesField && (
+                    {showBillingSettings && grantField && isEditingRates && ratesField && (
                       <div className="perm-grid">
                         <p>
                           <strong>
@@ -455,9 +454,11 @@ export default function PartnershipsPage() {
                           Valitse asiakkaat
                         </button>
                       )}
-                      <button type="button" className="btn btn-secondary" onClick={() => startEditRates(p)}>
-                        Muokkaa hintoja
-                      </button>
+                      {showBillingSettings && (
+                        <button type="button" className="btn btn-secondary" onClick={() => startEditRates(p)}>
+                          Muokkaa hintoja
+                        </button>
+                      )}
                     </div>
                   )}
                 </li>

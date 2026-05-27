@@ -1,12 +1,10 @@
 import { FormEvent, useEffect, useRef, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import type { Session } from '@supabase/supabase-js';
 import ToggleSwitch from '../components/ToggleSwitch';
 import { companyBillingModuleEnabled, parseCompanySettings } from '../lib/management';
 import { supabase } from '../lib/supabase';
+import type { ManagementOutletContext } from '../lib/managementOutletContext';
 import type { Company, Profile } from '../types';
-
-type Context = { profile: Profile; session: Session };
 
 type EntityType = 'work_reports' | 'maintenance_reports' | 'customers' | 'quote_requests';
 
@@ -108,7 +106,7 @@ type DuplicateCustomerGroup = {
 };
 
 export default function GlobalAdminPage() {
-  const { profile } = useOutletContext<Context>();
+  const { profile } = useOutletContext<ManagementOutletContext>();
   const [companies, setCompanies] = useState<Company[]>([]);
   const [users, setUsers] = useState<Profile[]>([]);
   const [entityType, setEntityType] = useState<EntityType>('work_reports');

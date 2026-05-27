@@ -157,7 +157,7 @@ export default function ManagementLayout({ session }: Props) {
         </div>
       </div>
 
-      <Outlet context={{ profile, session, reloadProfile: reload }} />
+      <Outlet context={{ profile, session, reloadProfile: reload, billingModuleEnabled }} />
     </AppLayout>
   );
 }

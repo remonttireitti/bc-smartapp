@@ -1,6 +1,5 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { Link, useOutletContext } from 'react-router-dom';
-import type { Session } from '@supabase/supabase-js';
 import IconButton from '../components/IconButton';
 import ToggleSwitch from '../components/ToggleSwitch';
 import { IconTrash } from '../components/icons';
@@ -12,8 +11,9 @@ import {
 } from '../lib/deleteCompanyUser';
 import { inviteCompanyUser } from '../lib/inviteUser';
 import { supabase } from '../lib/supabase';
-import type { Company, Profile } from '../types';
-import { ROLE_LABELS } from '../lib/management';
+import type { Company } from '../types';
+import { companyBillingModuleEnabled, parseCompanySettings, ROLE_LABELS } from '../lib/management';
+import type { ManagementOutletContext } from '../lib/managementOutletContext';
 
 const STAFF_ROLES = ['admin', 'technician', 'manager'] as const;
 const STAFF_INVITE_ROLES = [
@@ -21,8 +21,6 @@ const STAFF_INVITE_ROLES = [
   { value: 'technician', label: 'Asentaja' },
   { value: 'manager', label: 'Esimies' },
 ] as const;
-
-type Context = { profile: Profile; session: Session };
 
 type CompanyUser = {
   id: string;
@@ -43,7 +41,7 @@ function userLabel(user: Pick<CompanyUser, 'display_name' | 'email' | 'id'>) {
 }
 
 export default function UsersPage() {
-  const { profile } = useOutletContext<Context>();
+  const { profile, billingModuleEnabled } = useOutletContext<ManagementOutletContext>();
   const { globalAdminMode } = useGlobalAdminMode();
   const isGlobalAdmin = !!profile.is_global_admin;
   const gbaActive = isGlobalAdmin && globalAdminMode;
@@ -82,8 +80,16 @@ export default function UsersPage() {
   }, [gbaActive]);
 
   async function loadCompanies() {
-    const { data } = await supabase.from('companies').select('id, name, slug').order('name');
+    const { data } = await supabase.from('companies').select('id, name, slug, settings').order('name');
     setCompanies((data as Company[]) ?? []);
+  }
+
+  function userBillingSettingsVisible(user: CompanyUser): boolean {
+    const companyId = user.company_id ?? profile.company_id;
+    if (!companyId) return false;
+    if (!gbaActive) return billingModuleEnabled !== false;
+    const company = companies.find((row) => row.id === companyId);
+    return companyBillingModuleEnabled(parseCompanySettings(company?.settings));
   }
 
   async function loadUsers() {
@@ -401,18 +407,20 @@ export default function UsersPage() {
                     )}
                   </div>
 
-                  <div className="user-card-toggles">
-                    <ToggleSwitch
-                      label="Tunnit laskutukseen"
-                      checked={u.bill_hours_enabled}
-                      onChange={(value) => void updateBillingFlag(u.id, 'bill_hours_enabled', value)}
-                    />
-                    <ToggleSwitch
-                      label="Kulut laskutukseen"
-                      checked={u.bill_expenses_enabled}
-                      onChange={(value) => void updateBillingFlag(u.id, 'bill_expenses_enabled', value)}
-                    />
-                  </div>
+                  {userBillingSettingsVisible(u) && (
+                    <div className="user-card-toggles">
+                      <ToggleSwitch
+                        label="Tunnit laskutukseen"
+                        checked={u.bill_hours_enabled}
+                        onChange={(value) => void updateBillingFlag(u.id, 'bill_hours_enabled', value)}
+                      />
+                      <ToggleSwitch
+                        label="Kulut laskutukseen"
+                        checked={u.bill_expenses_enabled}
+                        onChange={(value) => void updateBillingFlag(u.id, 'bill_expenses_enabled', value)}
+                      />
+                    </div>
+                  )}
 
                   <select
                     className="user-role-select"
