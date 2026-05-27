@@ -2,6 +2,8 @@ export type RefrigerantSource = 'warehouse' | 'partner_warehouse' | 'supplier';
 
 export type RefrigerantSupplierPaidBy = 'own' | 'partner';
 
+export type RefrigerantCylinderOwnership = 'owned' | 'rental';
+
 export type RefrigerantCylinder = {
   id: string;
   company_id: string;
@@ -10,13 +12,27 @@ export type RefrigerantCylinder = {
   purchased_kg: number;
   remaining_kg: number;
   owner_user_id: string | null;
+  ownership_type: RefrigerantCylinderOwnership;
   status: string;
   purchase_date: string | null;
+  returned_at: string | null;
   notes: string | null;
   created_at: string;
   updated_at: string;
   company_name?: string | null;
   owner_user?: { display_name: string | null; email: string | null } | null;
+};
+
+export const REFRIGERANT_CYLINDER_OWNERSHIP_LABELS: Record<RefrigerantCylinderOwnership, string> = {
+  owned: 'Omistus',
+  rental: 'Vuokra',
+};
+
+export const REFRIGERANT_CYLINDER_STATUS_LABELS: Record<string, string> = {
+  in_stock: 'Varastossa',
+  empty: 'Tyhjä (varastossa)',
+  returned: 'Palautettu',
+  retired: 'Poistettu',
 };
 
 export type WorkReportRefrigerantLine = {

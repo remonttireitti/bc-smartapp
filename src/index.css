@@ -2768,6 +2768,14 @@ textarea {
 .billing-table .num { text-align: right; white-space: nowrap; }
 .billing-table tfoot td { background: var(--surface-muted); }
 
+.inventory-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  justify-content: flex-end;
+  white-space: nowrap;
+}
+
 .user-billing-list .user-billing-flags {
   display: flex;
   flex-wrap: wrap;
