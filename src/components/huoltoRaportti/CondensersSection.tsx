@@ -3,6 +3,7 @@ import type { CondenserData, HuoltoReportData } from '../../lib/huoltoRaportti/t
 import { createEmptyCondenserData } from '../../lib/huoltoRaportti/defaults';
 import { CondenserModule } from './CondenserModule';
 import { HuoltoModuleSection } from './HuoltoModuleSection';
+import { lauhdutinSectionTitle, lauhdutinUnitTitle } from '../../lib/huoltoRaportti/sectionTitles';
 
 interface Props {
   form: HuoltoReportData;
@@ -35,12 +36,12 @@ export function CondensersSection({ form, onChange }: Props) {
   }
 
   return (
-    <HuoltoModuleSection moduleKey="lauhdutin" title="Lauhdutin">
+    <HuoltoModuleSection moduleKey="lauhdutin" title={lauhdutinSectionTitle(form.laiteTyyppi)}>
       {form.condenserData.slice(0, circuitCount).map((condenser, index) => (
         <CondenserModule
           key={index}
           index={index}
-          titleLabel={`Lauhdutin — piiri ${index + 1}`}
+          titleLabel={lauhdutinUnitTitle(form.laiteTyyppi, index)}
           data={condenser}
           onChange={(data) => updateCondenser(index, data)}
         />

@@ -1,6 +1,16 @@
 import type { ModuleKey } from './constants';
 
-export type ModuleThemeKey = ModuleKey | 'kylmaaineCharge' | 'huomiot' | 'vjOhjaus';
+export type ModuleThemeKey =
+  | ModuleKey
+  | 'kylmaaineCharge'
+  | 'huomiot'
+  | 'vjOhjaus'
+  | 'mlpKeruupiiri'
+  | 'mlpJaahdytyspiiri'
+  | 'mlpLatauspiiri'
+  | 'mlpKayttovesi'
+  | 'mlpLampopiirit'
+  | 'mlpEnergia';
 
 export type ModuleTheme = {
   accent: string;
@@ -26,6 +36,12 @@ export const MODULE_THEMES: Record<ModuleThemeKey, ModuleTheme> = {
   tyhjiointi: { accent: '#4338ca', bg: '#eef2ff', border: '#818cf8', header: '#6366f1' },
   huomiot: { accent: '#a16207', bg: '#fefce8', border: '#facc15', header: '#ca8a04' },
   vjOhjaus: { accent: '#4f46e5', bg: '#eef2ff', border: '#818cf8', header: '#6366f1' },
+  mlpKeruupiiri: { accent: '#7b1fa2', bg: '#f3e5f5', border: '#ce93d8', header: '#7b1fa2' },
+  mlpJaahdytyspiiri: { accent: '#7b1fa2', bg: '#f3e5f5', border: '#ce93d8', header: '#7b1fa2' },
+  mlpLatauspiiri: { accent: '#e65100', bg: '#fff3e0', border: '#ffb74d', header: '#e65100' },
+  mlpKayttovesi: { accent: '#e65100', bg: '#fff3e0', border: '#ffb74d', header: '#e65100' },
+  mlpLampopiirit: { accent: '#e65100', bg: '#fff3e0', border: '#ffb74d', header: '#e65100' },
+  mlpEnergia: { accent: '#ff6d00', bg: '#fff8e1', border: '#ffcc80', header: '#ff6d00' },
 };
 
 export function getModuleTheme(key: ModuleThemeKey): ModuleTheme {

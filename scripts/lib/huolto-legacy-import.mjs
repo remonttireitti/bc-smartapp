@@ -4,13 +4,30 @@
 
 const DEVICE_TYPE_ALIASES = {
   'Vedenjäähdytyskone': 'vedenjäähdytyskone',
+  Vakioilmastointtikone: 'vakioilmastointtikone',
+  Pakastin: 'pakastin',
+  Kylmäkoneikko: 'kylmäkoneikko',
+  Konvektorit: 'konvektorit',
   MLP: 'mlp',
   Lämpöpumppu: 'lämpöpumppu',
+  'Vesi-ilmalämpöpumppu': 'vesiilmalampopumppu',
+  VesiIlmalampopumppu: 'vesiilmalampopumppu',
 };
 
 const LEGACY_MODULE_TO_NEW = {
   kylmapiri: 'kylmaainePiiri',
   kylmaaine: 'kylmaainePiiri',
+  hoyrystin: 'hoyrystin',
+  lauhdutin: 'lauhdutin',
+  ulkoyksikko: 'ulkoyksikko',
+  sisayksikko: 'sisayksikko',
+  mittaukset: 'mittaukset',
+  vedenjajahdytyskone: 'vedenjajahdytyskone',
+  nestelauhduttimet: 'nestelauhduttimet',
+  konvektorit: 'konvektorit',
+  vapaajahdytys: 'vapaajahdytys',
+  tiiveyskoe: 'tiiveyskoe',
+  tyhjiointi: 'tyhjiointi',
   mlp_keruupiiri: 'mlpPiirit',
   mlp_latauspiiri: 'mlpPiirit',
   mlp_lampopiirit: 'mlpPiirit',
@@ -159,6 +176,7 @@ export function applyLegacyHuoltoFields(raw, meta = {}) {
   if (isChillerDeviceType(resolvedDeviceType) && source.mlpData && typeof source.mlpData === 'object') {
     if (!out.mlpData) out.mlpData = source.mlpData;
     out.jaahdytysvesiData = mapLegacyMlpKeruupiiriToJaahdytysvesi(source.mlpData, out.jaahdytysvesiData);
+    out.selectedModules = { ...(out.selectedModules ?? {}), mlpPiirit: true };
   }
 
   const tyPatch = mapLegacyTyhjiointiData(source.tyhjiointiData);
@@ -177,4 +195,4 @@ export function huoltoTitleFromFirestore(doc) {
   if (customer && device) return `${customer} – ${device}`.slice(0, 200);
   return customer || device || 'Huoltoraportti';
 }
-
+

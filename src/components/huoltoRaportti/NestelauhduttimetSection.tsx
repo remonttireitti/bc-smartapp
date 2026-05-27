@@ -12,13 +12,16 @@ import { FormCheckbox } from './FormCheckbox';
 import { FormInput } from './FormInput';
 import { HuoltoModuleSection } from './HuoltoModuleSection';
 
+import { nestelauhduttimetSectionTitle } from '../../lib/huoltoRaportti/sectionTitles';
+
 interface Props {
   units: NestelauhdutinUnitData[];
   shared?: boolean;
+  laiteTyyppi?: string;
   onChange: (next: NestelauhdutinUnitData[]) => void;
 }
 
-export function NestelauhduttimetSection({ units, shared = false, onChange }: Props) {
+export function NestelauhduttimetSection({ units, shared = false, laiteTyyppi = '', onChange }: Props) {
   const lkm = shared ? 1 : Math.min(4, Math.max(1, units.length || 1));
 
   useEffect(() => {
@@ -44,7 +47,7 @@ export function NestelauhduttimetSection({ units, shared = false, onChange }: Pr
   };
 
   return (
-    <HuoltoModuleSection moduleKey="nestelauhduttimet" title="Nestelauhdutin">
+    <HuoltoModuleSection moduleKey="nestelauhduttimet" title={nestelauhduttimetSectionTitle(laiteTyyppi)}>
       {!shared && (
       <div className="huolto-submodule">
         <label>

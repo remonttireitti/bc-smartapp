@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import type { HuoltoReportData } from '../../lib/huoltoRaportti/types';
 import { refrigerantTypes } from '../../lib/huoltoRaportti/constants';
 import { calculateCO2Ekv, getRefrigerantGWP } from '../../lib/huoltoRaportti/utils';
+import { kylmaaineChargeTitle } from '../../lib/huoltoRaportti/sectionTitles';
 import { FormInput } from './FormInput';
 import { HuoltoModuleSection } from './HuoltoModuleSection';
 import { HuoltoPartSection } from './HuoltoPartSection';
@@ -50,7 +51,11 @@ export function RefrigerantChargeSection({ form, onChange, defaultOpen }: Props)
       : '';
 
   return (
-    <HuoltoModuleSection moduleKey="kylmaaineCharge" title="Kylmäaine" defaultOpen={defaultOpen}>
+    <HuoltoModuleSection
+      moduleKey="kylmaaineCharge"
+      title={kylmaaineChargeTitle(form.laiteTyyppi)}
+      defaultOpen={defaultOpen}
+    >
       <div className="line-form-grid">
         <label>
           Kylmäaine

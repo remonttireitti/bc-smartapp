@@ -6,6 +6,7 @@ import {
   type MaintenanceReportPhotoItem,
 } from '../../lib/maintenanceReportImages';
 import { EvidencePhotoUpload } from './EvidencePhotoUpload';
+import { huomiotSectionTitle } from '../../lib/huoltoRaportti/sectionTitles';
 import { HuoltoModuleSection } from './HuoltoModuleSection';
 
 interface Props {
@@ -46,7 +47,10 @@ export function HuomiotSection({ form, onChange, reportId, userId }: Props) {
   const photoItems = liitteetToPhotoItems(form.huomiotLiitteet);
 
   return (
-    <HuoltoModuleSection moduleKey="huomiot" title="Huomiot">
+    <HuoltoModuleSection
+      moduleKey="huomiot"
+      title={huomiotSectionTitle(form.laiteTyyppi)}
+    >
       <div className="huolto-submodule">
         <label style={{ maxWidth: '360px' }}>
           Tekstin luonne

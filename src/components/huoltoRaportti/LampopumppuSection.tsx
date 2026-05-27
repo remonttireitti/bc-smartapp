@@ -5,6 +5,11 @@ import {
 } from '../../lib/huoltoRaportti/defaults';
 import { FormCheckbox } from './FormCheckbox';
 import { FormInput } from './FormInput';
+import {
+  lampopumppuMittauksetTitle,
+  lampopumppuSisayksikkoTitle,
+  lampopumppuUlkoyksikkoTitle,
+} from '../../lib/huoltoRaportti/sectionTitles';
 import { HuoltoModuleSection } from './HuoltoModuleSection';
 
 interface Props {
@@ -49,7 +54,7 @@ export function LampopumppuSection({
   return (
     <>
       {showUlkoyksikko && (
-        <HuoltoModuleSection moduleKey="ulkoyksikko" title="Ulkoyksikkö">
+        <HuoltoModuleSection moduleKey="ulkoyksikko" title={lampopumppuUlkoyksikkoTitle(form.laiteTyyppi)}>
           <div className="line-form-grid">
             <FormInput
               label="Ulkoyksikkö malli"
@@ -142,7 +147,7 @@ export function LampopumppuSection({
       )}
 
       {showSisayksikko && (
-        <HuoltoModuleSection moduleKey="sisayksikko" title="Sisäyksiköt">
+        <HuoltoModuleSection moduleKey="sisayksikko" title={lampopumppuSisayksikkoTitle(form.laiteTyyppi)}>
           <div className="btn-group">
             {[1, 2, 3, 4, 5].map((num) => (
               <button
@@ -295,7 +300,7 @@ export function LampopumppuSection({
       )}
 
       {showMittaukset && (
-        <HuoltoModuleSection moduleKey="mittaukset" title="Mittaukset">
+        <HuoltoModuleSection moduleKey="mittaukset" title={lampopumppuMittauksetTitle(form.laiteTyyppi)}>
           <div className="line-form-grid">
             <FormCheckbox
               label="Jäähdytys toiminto testattu"

@@ -1,6 +1,7 @@
 import type { HuomioLuonne, KonvektoriRowData } from '../../lib/huoltoRaportti/types';
 import { cloneKonvektoriRow, createEmptyKonvektoriRow } from '../../lib/huoltoRaportti/defaults';
 import { FormInput } from './FormInput';
+import { konvektoritSectionTitle } from '../../lib/huoltoRaportti/sectionTitles';
 import { HuoltoModuleSection } from './HuoltoModuleSection';
 
 const CHECKBOX_FIELDS = [
@@ -26,7 +27,7 @@ export function KonvektoritSection({ rows, onChange }: Props) {
   };
 
   return (
-    <HuoltoModuleSection moduleKey="konvektorit" title="Konvektorit">
+    <HuoltoModuleSection moduleKey="konvektorit" title={konvektoritSectionTitle('konvektorit')}>
       <p className="muted huolto-help">
         Lisää huolletut konvektorit riveittäin. Rasti tarkoittaa, että kohde on tarkastettu ja todettu
         kunnossa (OK).

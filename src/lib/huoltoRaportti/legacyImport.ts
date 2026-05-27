@@ -1,4 +1,5 @@
 import type { ModuleKey } from './constants';
+import { usesManualModuleMenu } from './deviceModuleLogic';
 import type {
   CondenserData,
   HuoltoReportData,
@@ -13,14 +14,29 @@ import type {
 /** Vanhan Firestore-sovelluksen laitetyypit → nykyiset arvot. */
 const DEVICE_TYPE_ALIASES: Record<string, string> = {
   Vedenjäähdytyskone: 'vedenjäähdytyskone',
+  Vakioilmastointtikone: 'vakioilmastointtikone',
+  Pakastin: 'pakastin',
+  Kylmäkoneikko: 'kylmäkoneikko',
+  Konvektorit: 'konvektorit',
   MLP: 'mlp',
   Lämpöpumppu: 'lämpöpumppu',
+  'Vesi-ilmalämpöpumppu': 'vesiilmalampopumppu',
+  VesiIlmalampopumppu: 'vesiilmalampopumppu',
 };
 
 /** Vanhat moduuliavaimet → nykyiset ModuleKey-arvot. */
 const LEGACY_MODULE_TO_NEW: Record<string, ModuleKey> = {
   kylmapiri: 'kylmaainePiiri',
   kylmaaine: 'kylmaainePiiri',
+  hoyrystin: 'hoyrystin',
+  lauhdutin: 'lauhdutin',
+  ulkoyksikko: 'ulkoyksikko',
+  sisayksikko: 'sisayksikko',
+  mittaukset: 'mittaukset',
+  vedenjajahdytyskone: 'vedenjajahdytyskone',
+  nestelauhduttimet: 'nestelauhduttimet',
+  konvektorit: 'konvektorit',
+  vapaajahdytys: 'vapaajahdytys',
   mlp_keruupiiri: 'mlpPiirit',
   mlp_latauspiiri: 'mlpPiirit',
   mlp_lampopiirit: 'mlpPiirit',
@@ -30,6 +46,8 @@ const LEGACY_MODULE_TO_NEW: Record<string, ModuleKey> = {
   kayttovesi: 'mlpPiirit',
   lammityspiiri: 'mlpPiirit',
   energiat: 'mlpPiirit',
+  tiiveyskoe: 'tiiveyskoe',
+  tyhjiointi: 'tyhjiointi',
 };
 
 type LegacyRecord = Partial<HuoltoReportData> & Record<string, unknown>;
@@ -199,6 +217,97 @@ function mapLegacyTyhjiointiData(raw: unknown): Partial<TyhjiointiData> | undefi
   return Object.keys(patch).length ? patch : undefined;
 }
 
+function hasAnyString(...values: unknown[]): boolean {
+  return values.some((v) => String(v ?? '').trim().length > 0);
+}
+
+function hasMlpPiiritValues(m: Partial<MlpData> | null | undefined): boolean {
+  if (!m) return false;
+  return Boolean(
+    hasMlpKeruupiiriValues(m) ||
+      m.latausVirtaus ||
+      m.latausMeno ||
+      m.kayttovesiEnabled ||
+      (m.lampoPiirit?.length ?? 0) > 0 ||
+      parseInt(String(m.lampoPiireja ?? ''), 10) > 0 ||
+      m.mittaaKokoLaiteSahko ||
+      m.kylmaainePaineLauhdutinBar,
+  );
+}
+
+/** Päättelee moduulit vanhan raportin datasta — täydentää tuontia. */
+export function inferModulesFromLegacyData(data: Partial<HuoltoReportData>): Partial<Record<ModuleKey, boolean>> {
+  const inferred: Partial<Record<ModuleKey, boolean>> = {};
+
+  if (data.kylmaainePiiri1 || data.kylmaainePiiri2 || data.kylmaainePiiri3) {
+    inferred.kylmaainePiiri = true;
+  }
+  if (data.evaporatorData?.some((ev) => hasAnyString(ev.valmistaja, ev.malli, ev.sarjanumero))) {
+    inferred.hoyrystin = true;
+  }
+  if (data.condenserData?.some((c) => hasAnyString(c.tyyppi, c.lauhdutinPuhdistusTapa, c.painesäätimenMalli))) {
+    inferred.lauhdutin = true;
+  }
+  if (hasMlpPiiritValues(data.mlpData)) inferred.mlpPiirit = true;
+  if (hasNestepiiriValues(data.jaahdytysvesiData)) inferred.vedenjajahdytyskone = true;
+  if (Array.isArray(data.nestelauhduttimetVj) && data.nestelauhduttimetVj.length > 0) {
+    inferred.nestelauhduttimet = true;
+  }
+  if (hasNestepiiriValues(data.lauhdutuspiiriData)) inferred.lauhdutin = true;
+  if (data.vapaajahdytysKaytossa) inferred.vapaajahdytys = true;
+  if (data.konvektoriRows?.length) inferred.konvektorit = true;
+  if (
+    hasAnyString(
+      data.ulkoyksikkoMalli,
+      data.ulkoyksikkoSarjanumero,
+      data.ulkoyksikkoJaahdytysTeho,
+      data.ulkoyksikkoLammitysTeho,
+    )
+  ) {
+    inferred.ulkoyksikko = true;
+  }
+  if (data.sisayksikkoData?.some((s) => hasAnyString(s.malli, s.sarjanumero, s.tyyppi))) {
+    inferred.sisayksikko = true;
+  }
+  if (
+    data.mittausSisayksikot?.some((m) =>
+      hasAnyString(m.imupaineJaahdytys, m.korkeapaineJaahdytys, m.sisalampotila, m.ilmanmaaraM3h),
+    ) ||
+    hasAnyString(data.mittausAmpeeriL1, data.mittausAmpeeriL2, data.mittausAmpeeriL3)
+  ) {
+    inferred.mittaukset = true;
+  }
+  if (data.tiiveyskoeData && Object.values(data.tiiveyskoeData).some((v) => v === true || hasAnyString(v))) {
+    inferred.tiiveyskoe = true;
+  }
+  if (data.tyhjiointiData && Object.values(data.tyhjiointiData).some((v) => v === true || hasAnyString(v))) {
+    inferred.tyhjiointi = true;
+  }
+
+  return inferred;
+}
+
+export function mergeLegacySelectedModules(
+  deviceType: string,
+  legacyModules: Partial<Record<ModuleKey, boolean>> | undefined,
+  inferred: Partial<Record<ModuleKey, boolean>>,
+): Partial<Record<ModuleKey, boolean>> {
+  const merged: Partial<Record<ModuleKey, boolean>> = {
+    ...inferred,
+    ...(legacyModules ?? {}),
+  };
+
+  if (usesManualModuleMenu(deviceType)) {
+    return merged;
+  }
+
+  return {
+    ...merged,
+    tiiveyskoe: legacyModules?.tiiveyskoe ?? inferred.tiiveyskoe ?? false,
+    tyhjiointi: legacyModules?.tyhjiointi ?? inferred.tyhjiointi ?? false,
+  };
+}
+
 /**
  * Kartoittaa vanhan huoltoraportin kentät nykyiseen data-malliin.
  */
@@ -298,6 +407,12 @@ export function applyLegacyHuoltoFields(
         mlp,
         out.jaahdytysvesiData as Partial<JaahdytysvesiData> | undefined,
       ) as JaahdytysvesiData | undefined;
+    }
+    if (hasMlpPiiritValues(out.mlpData as Partial<MlpData> | null | undefined)) {
+      out.selectedModules = {
+        ...(out.selectedModules ?? {}),
+        mlpPiirit: true,
+      } as HuoltoReportData['selectedModules'];
     }
     const condensers = (out.condenserData ?? source.condenserData) as CondenserData[] | undefined;
     out.lauhdutuspiiriData = mapLegacyCondenserToLauhdutuspiiri(

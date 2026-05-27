@@ -4,11 +4,11 @@ import type { HuoltoReportData } from '../../lib/huoltoRaportti/types';
 import { createEmptyRefrigerantCircuitData } from '../../lib/huoltoRaportti/defaults';
 import {
   isAirCondenserType,
-  isChillerLikeDevice,
   isSharedEvaporatorAcrossCircuits,
   showChillerCondenserInCircuit,
   showEvaporatorInCircuit,
 } from '../../lib/huoltoRaportti/deviceModuleLogic';
+import { kylmaainePiiriSectionTitle } from '../../lib/huoltoRaportti/sectionTitles';
 import ToggleSwitch from '../ToggleSwitch';
 import { EvaporatorModule } from './EvaporatorModule';
 import { HuoltoModuleSection } from './HuoltoModuleSection';
@@ -99,11 +99,7 @@ export function RefrigerantCircuitsSection({ form, onChange }: Props) {
   return (
     <HuoltoModuleSection
       moduleKey="kylmaainePiiri"
-      title={
-        isChillerLikeDevice(form.laiteTyyppi)
-          ? 'Kylmäainepiirin rakenne ja mittaukset'
-          : 'Kylmäainepiiri'
-      }
+      title={kylmaainePiiriSectionTitle(form.laiteTyyppi)}
     >
       {isAirCondenserType(condenserType) && (
         <p className="muted huolto-help">

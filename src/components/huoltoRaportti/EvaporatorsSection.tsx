@@ -1,5 +1,6 @@
 import type { HuoltoReportData } from '../../lib/huoltoRaportti/types';
 import { EvaporatorModule } from './EvaporatorModule';
+import { hoyrystinSectionTitle } from '../../lib/huoltoRaportti/sectionTitles';
 import { HuoltoModuleSection } from './HuoltoModuleSection';
 import {
   createEvaporatorActions,
@@ -18,7 +19,7 @@ export function EvaporatorsSection({ form, onChange }: Props) {
   const { updateEvaporator, setCount, setSameAsFirst } = createEvaporatorActions(form, onChange);
 
   return (
-    <HuoltoModuleSection moduleKey="hoyrystin" title="Höyrystin">
+    <HuoltoModuleSection moduleKey="hoyrystin" title={hoyrystinSectionTitle(form.laiteTyyppi)}>
       {isKylmakoneikko && (
         <label>
           Höyrystimien määrä (1–10)

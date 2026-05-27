@@ -11,6 +11,11 @@ export function usesManualModuleMenu(deviceType: string): boolean {
   return !deviceType || deviceType === 'muu';
 }
 
+/** Vanhan sovelluksen numeroidut osiot (ei koske tyhjää / muu). */
+export function usesLegacySectionNumbers(deviceType: string): boolean {
+  return Boolean(deviceType) && deviceType !== 'muu';
+}
+
 export function isChillerLikeDevice(deviceType: string): boolean {
   return deviceType === 'vedenjäähdytyskone' || deviceType === 'vakioilmastointtikone';
 }
@@ -84,15 +89,74 @@ export function getActiveModuleLabels(
   ) as Record<ModuleKey, string>;
 
   if (isGroundSourceHeatPump(deviceType)) {
-    labels.mlpPiirit = 'Maalämpöpumpun piirit';
+    return [
+      '3. Kylmäaine',
+      '4. Kylmäpiiri 1 mittaukset',
+      '4.1 Keruupiiri (maa/vesi)',
+      '4.1b Erillinen keruu-/jäähdytyspiiri',
+      '5.2 Latauspiiri',
+      '5.3 Käyttöveden lämmitys',
+      '5.4 Kiinteistö lämmityspiiri',
+      '5.5 Lämpöpumpun energiatehokkuus',
+      ...(modules.tiiveyskoe ? ['Tiiveyskoe'] : []),
+      ...(modules.tyhjiointi ? ['Tyhjiöinti'] : []),
+    ];
   }
   if (isWaterAirHeatPump(deviceType)) {
-    labels.mlpPiirit = 'Vesi-ilmalämpöpumpun piirit';
-    labels.ulkoyksikko = 'Ulkoyksikkö (lähte side)';
+    return [
+      '3. Kylmäaine',
+      '4. Kylmäpiiri 1 mittaukset',
+      '4.1 Keruupiiri (lähde/vesi)',
+      '5.2 Latauspiiri',
+      '5.3 Käyttöveden lämmitys',
+      '5.4 Kiinteistö lämmityspiiri',
+      '4. Ulkoyksikkö (lähte side)',
+      ...(modules.tiiveyskoe ? ['Tiiveyskoe'] : []),
+      ...(modules.tyhjiointi ? ['Tyhjiöinti'] : []),
+    ];
   }
   if (isChillerLikeDevice(deviceType)) {
-    labels.vedenjajahdytyskone = 'Jäähdytyspiir';
-    labels.nestelauhduttimet = 'Nestelauhdutin';
+    const list = [
+      '3. Kylmäaine',
+      '4. Kylmäpiiri 1 mittaukset',
+      '4.1 Jäähdytyspiiri',
+    ];
+    if (modules.nestelauhduttimet) list.push('Nestelauhduttimet');
+    if (modules.lauhdutin) list.push('5.2 Lauhdutuspiiri');
+    list.push('5.4 Kiinteistön jäähdytyspiiri', '5.5 Lämpöpumpun energiatehokkuus');
+    if (modules.vapaajahdytys) list.push('Vapaajäähdytys');
+    if (modules.tiiveyskoe) list.push('Tiiveyskoe');
+    if (modules.tyhjiointi) list.push('Tyhjiöinti');
+    return list;
+  }
+  if (isAirSourceHeatPump(deviceType)) {
+    return [
+      '3. Kylmäaine',
+      '4. Ulkoyksikkö',
+      '5. Sisäyksiköt',
+      '6. Mittaukset',
+      '6. Huomiot',
+      '7. Huolto tiedot',
+      ...(modules.tiiveyskoe ? ['Tiiveyskoe'] : []),
+      ...(modules.tyhjiointi ? ['Tyhjiöinti'] : []),
+    ];
+  }
+  if (deviceType === 'pakastin' || deviceType === 'kylmäkoneikko' || deviceType === 'vakioilmastointtikone') {
+    return [
+      '3. Kylmäaine',
+      '4. Kylmäpiiri 1 mittaukset',
+      'Höyrystin',
+      'Lauhdutin',
+      ...(modules.tiiveyskoe ? ['Tiiveyskoe'] : []),
+      ...(modules.tyhjiointi ? ['Tyhjiöinti'] : []),
+    ];
+  }
+  if (deviceType === 'konvektorit') {
+    return [
+      '2. Konvektorit',
+      ...(modules.tiiveyskoe ? ['Tiiveyskoe'] : []),
+      ...(modules.tyhjiointi ? ['Tyhjiöinti'] : []),
+    ];
   }
 
   return (Object.keys(modules) as ModuleKey[])
@@ -128,6 +192,7 @@ export function resolveAutoModules(input: {
       modules.kylmaainePiiri = true;
       modules.hoyrystin = true;
       modules.vedenjajahdytyskone = true;
+      modules.mlpPiirit = true;
       if (isLiquidCondenserType(condenserType)) {
         modules.nestelauhduttimet = true;
         modules.lauhdutin = true;
@@ -237,7 +302,36 @@ export function showVjLauhdutuspiiriModules(
 }
 
 export function showMlpModules(deviceType: string, modules: Record<ModuleKey, boolean>): boolean {
+  if (isChillerLikeDevice(deviceType)) {
+    return moduleIsActive(modules, 'mlpPiirit');
+  }
   return isHeatPumpCircuitsDevice(deviceType) && moduleIsActive(modules, 'mlpPiirit');
+}
+
+/** Näytä MLP:n 4.1 / 4.1b (maa/vesi) — MLP ja VIL. */
+export function showMlpKeruupiiriSubsection(deviceType: string): boolean {
+  return isGroundSourceHeatPump(deviceType) || isWaterAirHeatPump(deviceType);
+}
+
+/** Näytä MLP:n 4.1b — vain maalämpöpumppu. */
+export function showMlpMaalampoSubsections(deviceType: string): boolean {
+  return isGroundSourceHeatPump(deviceType);
+}
+
+/** Näytä VJ:n 5.4 / 5.5 (kiinteistöpiiri + energia). */
+export function showChillerPropertySubsections(deviceType: string): boolean {
+  return isChillerLikeDevice(deviceType);
+}
+
+/** Näytä 5.2 latauspiiri MlpSectionissa (ei VJ nestelauhdutin-tilassa). */
+export function showMlpLatauspiiriSubsection(
+  deviceType: string,
+  condenserType: LauhdutinType | '' | undefined,
+): boolean {
+  if (isChillerLikeDevice(deviceType) && isLiquidCondenserType(condenserType)) {
+    return false;
+  }
+  return isHeatPumpCircuitsDevice(deviceType) || isChillerLikeDevice(deviceType);
 }
 
 export function showLampopumppuModules(
@@ -288,9 +382,4 @@ export function mlpSectionTitle(deviceType: string): string {
 export function keruupiiriSectionTitle(deviceType: string): string {
   if (isWaterAirHeatPump(deviceType)) return 'Keruupiiri (lähde/vesi)';
   return 'Keruupiiri (maa/vesi)';
-}
-
-/** Maalämpöpumpun (MLP) omat alaosiot — ei vesi-ilmalämpöpumpulla. */
-export function showMlpMaalampoSubsections(deviceType: string): boolean {
-  return isGroundSourceHeatPump(deviceType);
 }

@@ -4,9 +4,10 @@ import {
   isHeatPumpCircuitsDevice,
   isLiquidCondenserType,
   resolveAutoModules,
+  usesManualModuleMenu,
   stripMagnetValveFromCircuit,
 } from './deviceModuleLogic';
-import { applyLegacyHuoltoFields, mapLegacyMlpKeruupiiriToJaahdytysvesi } from './legacyImport';
+import { applyLegacyHuoltoFields, inferModulesFromLegacyData, mapLegacyMlpKeruupiiriToJaahdytysvesi, mergeLegacySelectedModules } from './legacyImport';
 import { normalizeEvaporatorForDevice } from './evaporatorHelpers';
 import { buildMaintenanceReportTitle } from '../../types';
 import { deviceTypes, isMlpVesiNeste, type ModuleKey } from './constants';
@@ -736,18 +737,33 @@ export function normalizeHuoltoReportData(data: Partial<HuoltoReportData>): Huol
     vapaajahdytysKaytossa: legacy.vapaajahdytysKaytossa ?? false,
     huoltoReportDocumentKind:
       merged.huoltoReportDocumentKind === 'kayttoonotto' ? 'kayttoonotto' : 'huolto',
-    selectedModules: merged.laiteTyyppi
-      ? resolveAutoModules({
+    selectedModules: (() => {
+      const inferred = inferModulesFromLegacyData(legacy);
+      const manualModules = mergeLegacySelectedModules(
+        merged.laiteTyyppi,
+        legacy.selectedModules as Partial<Record<ModuleKey, boolean>> | undefined,
+        inferred,
+      );
+      if (!merged.laiteTyyppi) {
+        return { ...base.selectedModules, ...manualModules } as HuoltoReportData['selectedModules'];
+      }
+      if (usesManualModuleMenu(merged.laiteTyyppi)) {
+        return resolveAutoModules({
           laiteTyyppi: merged.laiteTyyppi,
-          lauhdutinTyyppiLaite:
-            legacy.lauhdutinTyyppiLaite ??
-            (isChillerLikeDevice(merged.laiteTyyppi)
-              ? defaultCondenserTypeForDevice(merged.laiteTyyppi)
-              : ''),
-          vapaajahdytysKaytossa: legacy.vapaajahdytysKaytossa ?? false,
-          manualModules: { ...base.selectedModules, ...(legacy.selectedModules ?? {}) },
-        })
-      : { ...base.selectedModules, ...(legacy.selectedModules ?? {}) },
+          manualModules: { ...base.selectedModules, ...manualModules },
+        }) as HuoltoReportData['selectedModules'];
+      }
+      return resolveAutoModules({
+        laiteTyyppi: merged.laiteTyyppi,
+        lauhdutinTyyppiLaite:
+          legacy.lauhdutinTyyppiLaite ??
+          (isChillerLikeDevice(merged.laiteTyyppi)
+            ? defaultCondenserTypeForDevice(merged.laiteTyyppi)
+            : ''),
+        vapaajahdytysKaytossa: legacy.vapaajahdytysKaytossa ?? false,
+        manualModules: { ...base.selectedModules, ...manualModules },
+      }) as HuoltoReportData['selectedModules'];
+    })(),
   };
 }
 
@@ -904,7 +920,7 @@ export function applyDeviceTypeDefaults(
     vapaajahdytysData: data.vapaajahdytysData ?? createEmptyVapaajahdytysData(),
   };
 
-  if (isHeatPumpCircuitsDevice(deviceType)) {
+  if (isHeatPumpCircuitsDevice(deviceType) || isChillerLikeDevice(deviceType)) {
     patch.mlpData = ensureMlpData(data.mlpData);
   } else {
     patch.mlpData = null;

@@ -3511,6 +3511,27 @@ textarea {
   --module-header: #db2777;
 }
 
+.huolto-module-section[data-module='mlpKeruupiiri'],
+.huolto-module-section[data-module='mlpJaahdytyspiiri'] {
+  --module-border: #ce93d8;
+  --module-bg: #f3e5f5;
+  --module-header: #7b1fa2;
+}
+
+.huolto-module-section[data-module='mlpLatauspiiri'],
+.huolto-module-section[data-module='mlpKayttovesi'],
+.huolto-module-section[data-module='mlpLampopiirit'] {
+  --module-border: #ffb74d;
+  --module-bg: #fff3e0;
+  --module-header: #e65100;
+}
+
+.huolto-module-section[data-module='mlpEnergia'] {
+  --module-border: #ffcc80;
+  --module-bg: #fff8e1;
+  --module-header: #ff6d00;
+}
+
 .huolto-module-section[data-module='konvektorit'] {
   --module-border: #fb923c;
   --module-bg: #fff7ed;

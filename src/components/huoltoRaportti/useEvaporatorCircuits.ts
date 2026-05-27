@@ -2,14 +2,17 @@ import { useEffect, useRef } from 'react';
 
 import type { EvaporatorData, HuoltoReportData } from '../../lib/huoltoRaportti/types';
 import { createEmptyEvaporatorData } from '../../lib/huoltoRaportti/defaults';
-import { isSharedEvaporatorAcrossCircuits } from '../../lib/huoltoRaportti/deviceModuleLogic';
+import { isChillerLikeDevice, isSharedEvaporatorAcrossCircuits } from '../../lib/huoltoRaportti/deviceModuleLogic';
+import { hoyrystinUnitTitle } from '../../lib/huoltoRaportti/sectionTitles';
 
 export function evaporatorTitleForIndex(form: HuoltoReportData, index: number): string {
-  if (form.laiteTyyppi === 'kylmäkoneikko') return `Höyrystin ${index + 1}`;
-  if (isSharedEvaporatorAcrossCircuits(form.laiteTyyppi, form.hoyrystinYhteinenPiireissa)) {
+  if (isSharedEvaporatorAcrossCircuits(form.laiteTyyppi, form.hoyrystinYhteinenPiireissa) && index === 0) {
+    if (isChillerLikeDevice(form.laiteTyyppi)) {
+      return '4.1 Höyrystin (yhteinen kaikille piireille)';
+    }
     return 'Höyrystin (yhteinen kaikille piireille)';
   }
-  return `Höyrystin — piiri ${index + 1}`;
+  return hoyrystinUnitTitle(form.laiteTyyppi, index);
 }
 
 export function getEvaporatorCircuitCount(form: HuoltoReportData): number {

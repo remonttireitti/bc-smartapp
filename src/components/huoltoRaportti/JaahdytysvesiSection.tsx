@@ -3,6 +3,7 @@ import { isChillerLikeDevice } from '../../lib/huoltoRaportti/deviceModuleLogic'
 import type { HuoltoReportData } from '../../lib/huoltoRaportti/types';
 import ToggleSwitch from '../ToggleSwitch';
 import { HuoltoModuleSection } from './HuoltoModuleSection';
+import { jaahdytysvesiSectionTitle } from '../../lib/huoltoRaportti/sectionTitles';
 import { NestepiiriFields } from './NestepiiriFields';
 
 interface Props {
@@ -20,9 +21,7 @@ export function JaahdytysvesiSection({ form, onChange }: Props) {
   return (
     <HuoltoModuleSection
       moduleKey="vedenjajahdytyskone"
-      title={
-        isVj ? 'Jäähdytyskone — jäähdytyspiir' : 'Jäähdytysveden piiri'
-      }
+      title={jaahdytysvesiSectionTitle(form.laiteTyyppi)}
     >
       <p className="muted huolto-help">
         {isVj

@@ -102,6 +102,7 @@ interface Props {
 }
 
 
+import { huoltoTiedotSectionTitle } from '../lib/huoltoRaportti/sectionTitles';
 import { isMaintenanceReportPublished } from '../lib/maintenanceReportStatus';
 import { getMaintenanceReportStatusLabel } from '../types';
 
@@ -1289,7 +1290,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
                     onChange={(e) => patchForm({ laiteKayttotarkoitus: e.target.value })}
                   />
                 </label>
-                {!isChillerLikeDevice(form.laiteTyyppi) && (
+                {!isChillerLikeDevice(form.laiteTyyppi) && form.laiteTyyppi !== 'konvektorit' && form.laiteTyyppi !== 'lämpöpumppu' && (
                 <>
                 <label>
                   Kylmäaine
@@ -1399,6 +1400,10 @@ export default function MaintenanceReportEditPage({ session }: Props) {
               </>
             )}
 
+            {form.laiteTyyppi === 'lämpöpumppu' && (
+              <RefrigerantChargeSection form={form} onChange={patchForm} defaultOpen />
+            )}
+
             {showEvaporatorSection && <EvaporatorCircuitsSync form={form} onChange={syncForm} />}
 
             {showEvaporatorSection && !isChillerLikeDevice(form.laiteTyyppi) && (
@@ -1413,6 +1418,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
               <NestelauhduttimetSection
                 units={form.nestelauhduttimetVj ?? []}
                 shared={!!form.vjNestelauhdutusJaettu}
+                laiteTyyppi={form.laiteTyyppi}
                 onChange={(units) => patchForm({ nestelauhduttimetVj: units })}
               />
             )}
@@ -1482,7 +1488,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
             />
             </div>
 
-            <CollapsibleSection title="Huoltotiedot" defaultOpen>
+            <CollapsibleSection title={huoltoTiedotSectionTitle(form.laiteTyyppi)} defaultOpen>
               {showHuoltoVsKayttoonottoSelector(form.laiteTyyppi) && (
                 <label style={{ maxWidth: '280px' }}>
                   Raportin tyyppi
