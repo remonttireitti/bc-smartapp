@@ -117,6 +117,7 @@ export function NestelauhduttimetSection({ units, shared = false, onChange }: Pr
                   })
                 }
                 showLauhdutinTarkistukset
+                showPiiriTarkistukset
               />
             </div>
 

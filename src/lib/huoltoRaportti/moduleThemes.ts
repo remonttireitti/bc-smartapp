@@ -1,6 +1,6 @@
 import type { ModuleKey } from './constants';
 
-export type ModuleThemeKey = ModuleKey | 'kylmaaineCharge' | 'huomiot';
+export type ModuleThemeKey = ModuleKey | 'kylmaaineCharge' | 'huomiot' | 'vjOhjaus';
 
 export type ModuleTheme = {
   accent: string;
@@ -25,6 +25,7 @@ export const MODULE_THEMES: Record<ModuleThemeKey, ModuleTheme> = {
   tiiveyskoe: { accent: '#b91c1c', bg: '#fef2f2', border: '#f87171', header: '#dc2626' },
   tyhjiointi: { accent: '#4338ca', bg: '#eef2ff', border: '#818cf8', header: '#6366f1' },
   huomiot: { accent: '#a16207', bg: '#fefce8', border: '#facc15', header: '#ca8a04' },
+  vjOhjaus: { accent: '#4f46e5', bg: '#eef2ff', border: '#818cf8', header: '#6366f1' },
 };
 
 export function getModuleTheme(key: ModuleThemeKey): ModuleTheme {

@@ -14,9 +14,11 @@ interface Props {
   onChange: (patch: Partial<Data>) => void;
   /** Näytä painesäädin ja virtaus (ulkoinen nestelauhdutin). */
   showLauhdutinTarkistukset?: boolean;
+  /** Paine, ilmaus, mutapussi, toimilaitteet (VJ nestepiirit). */
+  showPiiriTarkistukset?: boolean;
 }
 
-export function NestepiiriFields({ data, onChange, showLauhdutinTarkistukset }: Props) {
+export function NestepiiriFields({ data, onChange, showLauhdutinTarkistukset, showPiiriTarkistukset }: Props) {
   const lauhdutus = showLauhdutinTarkistukset && isLauhdutuspiiri(data) ? data : null;
 
   return (
@@ -74,6 +76,39 @@ export function NestepiiriFields({ data, onChange, showLauhdutinTarkistukset }: 
             type="number"
           />
         </div>
+      )}
+
+      {showPiiriTarkistukset && (
+        <div className="checkbox-grid huolto-toggle-grid">
+          <FormCheckbox
+            label="Paine tarkastettu"
+            checked={data.paineTarkastettu}
+            onChange={(v) => onChange({ paineTarkastettu: v, ...(v ? {} : { paineBar: '' }) })}
+          />
+          <FormCheckbox
+            label="Automaattinen ilmaus tarkistettu"
+            checked={data.automaattinenIlmausTarkistettu}
+            onChange={(v) => onChange({ automaattinenIlmausTarkistettu: v })}
+          />
+          <FormCheckbox
+            label="Mutapussi puhdistettu"
+            checked={data.mutapussiPuhdistettu}
+            onChange={(v) => onChange({ mutapussiPuhdistettu: v })}
+          />
+          <FormCheckbox
+            label="Toimilaitteet OK"
+            checked={data.toimilaitteetOK}
+            onChange={(v) => onChange({ toimilaitteetOK: v })}
+          />
+        </div>
+      )}
+      {showPiiriTarkistukset && data.paineTarkastettu && (
+        <FormInput
+          label="Mitattu paine (bar)"
+          value={data.paineBar}
+          onChange={(v) => onChange({ paineBar: v })}
+          type="number"
+        />
       )}
 
       {lauhdutus && (

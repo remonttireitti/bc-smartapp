@@ -15,11 +15,18 @@ export function JaahdytysvesiSection({ form, onChange }: Props) {
     onChange({ jaahdytysvesiData: { ...data, ...next } });
 
   return (
-    <HuoltoModuleSection moduleKey="vedenjajahdytyskone" title="Jäähdytysveden piiri">
+    <HuoltoModuleSection
+      moduleKey="vedenjajahdytyskone"
+      title={
+        form.laiteTyyppi === 'vedenjäähdytyskone' || form.laiteTyyppi === 'vakioilmastointtikone'
+          ? 'Jäähdytyskone — jäähdytysveden piiri'
+          : 'Jäähdytysveden piiri'
+      }
+    >
       <p className="muted huolto-help">
         Nestekiertoinen jäähdytysveden piiri kuuluu aina vedenjäähdytyskoneeseen ja vakioilmastointikoneeseen.
       </p>
-      <NestepiiriFields data={data} onChange={patch} />
+      <NestepiiriFields data={data} onChange={patch} showPiiriTarkistukset />
     </HuoltoModuleSection>
   );
 }

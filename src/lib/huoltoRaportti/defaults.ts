@@ -29,6 +29,7 @@ import type {
   SisayksikkoData,
   TiiveyskoeData,
   TyhjiointiData,
+  VjOhjausData,
 } from './types';
 import { normalizeMaintenanceReportPhotos } from '../maintenanceReportImages';
 import { generateId, resolveKylmaaineTyyppi } from './utils';
@@ -207,6 +208,11 @@ export function createEmptyNestepiiriData(): NestepiiriData {
     paisuntaAstiaTarkistettu: false,
     paisuntaAstiaKoko: '',
     paisuntaAstiaEsipaine: '',
+    paineTarkastettu: false,
+    paineBar: '',
+    automaattinenIlmausTarkistettu: false,
+    mutapussiPuhdistettu: false,
+    toimilaitteetOK: false,
   };
 }
 
@@ -226,6 +232,19 @@ export function ensureNestepiiriData(data: Partial<NestepiiriData> | undefined):
 
 export function ensureLauhdutuspiiriData(data: Partial<LauhdutuspiiriData> | undefined): LauhdutuspiiriData {
   return { ...createEmptyLauhdutuspiiriData(), ...data };
+}
+
+export function createEmptyVjOhjausData(): VjOhjausData {
+  return {
+    ohjausValmistaja: '',
+    lauhdutusOhjausLahde: '',
+    asetusArvot: '',
+    kuvaus: '',
+  };
+}
+
+export function ensureVjOhjausData(data: Partial<VjOhjausData> | undefined): VjOhjausData {
+  return { ...createEmptyVjOhjausData(), ...data };
 }
 
 export function createEmptyJaahdytysvesiData(): JaahdytysvesiData {
@@ -648,6 +667,11 @@ export function normalizeHuoltoReportData(data: Partial<HuoltoReportData>): Huol
       ...createEmptyJaahdytysvesiData(),
       ...(data.jaahdytysvesiData ?? {}),
     }),
+    hoyrystinPiiriData: ensureNestepiiriData({
+      ...createEmptyNestepiiriData(),
+      ...(data.hoyrystinPiiriData ?? {}),
+    }),
+    vjOhjausData: ensureVjOhjausData(data.vjOhjausData),
     vapaajahdytysData: { ...createEmptyVapaajahdytysData(), ...(data.vapaajahdytysData ?? {}) },
     lauhdutinTyyppiLaite:
       data.lauhdutinTyyppiLaite ??
@@ -745,6 +769,8 @@ export function createEmptyHuoltoReportData(): HuoltoReportData {
     vapaajahdytysKaytossa: false,
     vapaajahdytysData: createEmptyVapaajahdytysData(),
     jaahdytysvesiData: createEmptyJaahdytysvesiData(),
+    hoyrystinPiiriData: createEmptyNestepiiriData(),
+    vjOhjausData: createEmptyVjOhjausData(),
     nestelauhduttimetVj: [],
     konvektoriRows: [],
     mlpData: null,

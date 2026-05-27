@@ -18,6 +18,9 @@ import { EvaporatorsSection } from '../components/huoltoRaportti/EvaporatorsSect
 import { JaahdytysvesiSection } from '../components/huoltoRaportti/JaahdytysvesiSection';
 import { HuomiotSection } from '../components/huoltoRaportti/HuomiotSection';
 import { VapaajahdytysSection } from '../components/huoltoRaportti/VapaajahdytysSection';
+import { VjHoyrystinPiiriSection } from '../components/huoltoRaportti/VjHoyrystinPiiriSection';
+import { VjLauhdutinSection } from '../components/huoltoRaportti/VjLauhdutinSection';
+import { VjOhjausSection } from '../components/huoltoRaportti/VjOhjausSection';
 import { KonvektoritSection } from '../components/huoltoRaportti/KonvektoritSection';
 import { LampopumppuSection } from '../components/huoltoRaportti/LampopumppuSection';
 import { MlpSection } from '../components/huoltoRaportti/MlpSection';
@@ -55,14 +58,12 @@ import {
   moduleSelectionOptions,
   refrigerantTypes,
   showHuoltoVsKayttoonottoSelector,
-  lauhdutinTypeOptions,
   type ModuleKey,
 } from '../lib/huoltoRaportti/constants';
 import {
   getActiveModuleLabels,
   getManualModuleOptions,
   isChillerLikeDevice,
-  isLiquidCondenserType,
   lampopumppuSubmodules,
   resolveAutoModules,
   showCondenserModules,
@@ -202,6 +203,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
   const showKonvektoritSection = form.selectedModules.konvektorit;
   const showNestelauhduttimetSection = showNestelauhduttimetModules(form.selectedModules);
   const showJaahdytysvesiSection = form.selectedModules.vedenjajahdytyskone;
+  const isVj = isChillerLikeDevice(form.laiteTyyppi);
   const showVapaajahdytysSection = form.selectedModules.vapaajahdytys;
   const lampopumppuParts = lampopumppuSubmodules(form.laiteTyyppi, form.selectedModules);
   const showLampopumppuSection = showLampopumppuModules(form.laiteTyyppi, form.selectedModules);
@@ -1147,7 +1149,10 @@ export default function MaintenanceReportEditPage({ session }: Props) {
 
         {form.laiteTyyppi && (
           <>
-            <CollapsibleSection title="Laitetiedot" defaultOpen>
+            <CollapsibleSection
+              title={isChillerLikeDevice(form.laiteTyyppi) ? 'Laite — perustiedot' : 'Laitetiedot'}
+              defaultOpen
+            >
               {registryMessage && <p className="muted">{registryMessage}</p>}
               {customerId && (
                 <div className="form-actions" style={{ marginBottom: '1rem' }}>
@@ -1214,6 +1219,8 @@ export default function MaintenanceReportEditPage({ session }: Props) {
                     onChange={(e) => patchForm({ laiteKayttotarkoitus: e.target.value })}
                   />
                 </label>
+                {!isChillerLikeDevice(form.laiteTyyppi) && (
+                <>
                 <label>
                   Kylmäaine
                   <select
@@ -1238,42 +1245,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
                     onChange={(e) => patchForm({ kylmaainePiireja: e.target.value })}
                   />
                 </label>
-                {isChillerLikeDevice(form.laiteTyyppi) && (
-                  <>
-                    <label className="huolto-span-all">
-                      Lauhdutin / lauhde
-                      <select
-                        value={form.lauhdutinTyyppiLaite ?? ''}
-                        onChange={(e) =>
-                          onCondenserTypeChange(
-                            e.target.value as HuoltoReportData['lauhdutinTyyppiLaite'],
-                          )
-                        }
-                      >
-                        {lauhdutinTypeOptions.map((opt) => (
-                          <option key={opt.value || 'empty'} value={opt.value}>
-                            {opt.label}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    {isLiquidCondenserType(form.lauhdutinTyyppiLaite) && (
-                      <label className="checkbox-inline huolto-span-all">
-                        <ToggleSwitch
-                          label="Yhteinen nestelauhdutus kaikille kylmäainepiireille"
-                          checked={form.vjNestelauhdutusJaettu ?? true}
-                          onChange={(checked) => patchForm({ vjNestelauhdutusJaettu: checked })}
-                        />
-                      </label>
-                    )}
-                    <label className="checkbox-inline huolto-span-all">
-                      <ToggleSwitch
-                        label="Vapaajäähdytys käytössä"
-                        checked={!!form.vapaajahdytysKaytossa}
-                        onChange={onFreeCoolingChange}
-                      />
-                    </label>
-                  </>
+                </>
                 )}
               </div>
             </CollapsibleSection>
@@ -1345,8 +1317,20 @@ export default function MaintenanceReportEditPage({ session }: Props) {
             {form.selectedModules.kylmaainePiiri && (
               <>
                 <RefrigerantChargeSection form={form} onChange={patchForm} defaultOpen />
+                {isVj && (
+                  <VjLauhdutinSection
+                    form={form}
+                    onChange={patchForm}
+                    onCondenserTypeChange={onCondenserTypeChange}
+                    onFreeCoolingChange={onFreeCoolingChange}
+                  />
+                )}
                 <RefrigerantCircuitsSection form={form} onChange={patchForm} />
               </>
+            )}
+
+            {isVj && form.selectedModules.hoyrystin && (
+              <VjHoyrystinPiiriSection form={form} onChange={patchForm} />
             )}
 
             {showEvaporatorSection && <EvaporatorCircuitsSync form={form} onChange={syncForm} />}
@@ -1366,6 +1350,8 @@ export default function MaintenanceReportEditPage({ session }: Props) {
             )}
 
             {showJaahdytysvesiSection && <JaahdytysvesiSection form={form} onChange={patchForm} />}
+
+            {isVj && <VjOhjausSection form={form} onChange={patchForm} />}
 
             {showVapaajahdytysSection && <VapaajahdytysSection form={form} onChange={patchForm} />}
 

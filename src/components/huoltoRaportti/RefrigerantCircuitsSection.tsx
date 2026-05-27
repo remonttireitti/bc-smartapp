@@ -97,13 +97,20 @@ export function RefrigerantCircuitsSection({ form, onChange }: Props) {
   }
 
   return (
-    <HuoltoModuleSection moduleKey="kylmaainePiiri" title="Kylmäainepiiri">
+    <HuoltoModuleSection
+      moduleKey="kylmaainePiiri"
+      title={
+        isChillerLikeDevice(form.laiteTyyppi)
+          ? 'Kylmäainepiirin rakenne ja mittaukset'
+          : 'Kylmäainepiiri'
+      }
+    >
       {isAirCondenserType(condenserType) && (
         <p className="muted huolto-help">
           Ilmalauhduttimen tiedot täytetään kylmäainepiirin alle. Nestekiertoista lauhdutuspiiriä ei käytetä.
         </p>
       )}
-      {showInlineEvaporator && isChillerLikeDevice(form.laiteTyyppi) && (
+      {showInlineEvaporator && form.laiteTyyppi === 'vakioilmastointtikone' && (
         <label className="checkbox-inline huolto-span-all">
           <ToggleSwitch
             label="Yhteinen höyrystin kaikille kylmäainepiireille"

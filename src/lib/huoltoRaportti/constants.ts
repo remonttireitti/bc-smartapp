@@ -163,6 +163,17 @@ export const lauhdutinTypeOptions = [
   { value: 'nestekiertoinen', label: 'Nestekiertoinen lauhdutin' },
 ];
 
+/** Vedenjäähdytyskone: selkeämmät lauhdutinvaihtoehdot. */
+export const chillerLauhdutinTypeOptions = [
+  { value: '', label: 'Valitse…' },
+  {
+    value: 'nestekiertoinen',
+    label: 'Levy-/putkilämmönvaihdin + nestelauhdutin',
+  },
+  { value: 'koneseen_integroitu', label: 'Ilmalauhdutin (koneseen integroitu)' },
+  { value: 'erillinen_ilma', label: 'Ilmalauhdutin (erillinen)' },
+];
+
 export const huomioLuonneOptions = [
   { value: 'kommentti', label: 'Kommentti / suositus' },
   { value: 'vika', label: 'Vika (punainen tulosteissa)' },

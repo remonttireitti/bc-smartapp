@@ -460,8 +460,11 @@ export function RefrigerantCircuitModule({
           </div>
 
           <p className="muted huolto-help">
-            Tulistus = imu (°C) − kaste(P<sub>imu</sub>); alijäähdytys = kupla(P<sub>korkea</sub>) −
-            nesteputki (°C). Paineet manometribar.
+            Tulistus = imu (°C) − kastepiste(P<sub>imu</sub>, höyry); alijäähdytys = kuplapiste(P
+            <sub>korkea</sub>, neste) − nesteputki (°C). Paineet manometribar.
+            {calcRefrigerant.includes('407') && (
+              <> Zeotropisella R-407C: tulistukseen dew-piste, alijäähtymiseen bubble-piste.</>
+            )}
             {ptSupported && Number.isFinite(dewSatC) && (
               <>
                 {' '}

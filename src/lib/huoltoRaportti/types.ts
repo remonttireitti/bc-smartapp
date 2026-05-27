@@ -297,11 +297,16 @@ export interface LiquidCircuitData {
   pumppuMalli: string;
 }
 
-/** Nestekierron peruskentät (jäähdytysvesi, lauhdutuspiiri). */
+/** Nestekierron peruskentät (jäähdytysvesi, lauhdutuspiiri, höyrystinpiir). */
 export interface NestepiiriData extends LiquidCircuitData {
   paisuntaAstiaTarkistettu: boolean;
   paisuntaAstiaKoko: string;
   paisuntaAstiaEsipaine: string;
+  paineTarkastettu: boolean;
+  paineBar: string;
+  automaattinenIlmausTarkistettu: boolean;
+  mutapussiPuhdistettu: boolean;
+  toimilaitteetOK: boolean;
 }
 
 /** Ulkoisen nestelauhduttimen nestekierto (vedenjäähdytyskone). */
@@ -317,6 +322,16 @@ export interface VapaajahdytysData extends LiquidCircuitData {
 }
 
 export interface JaahdytysvesiData extends NestepiiriData {}
+
+export type VjLauhdutusOhjausLahde = '' | 'kone' | 'taloautomaatio';
+
+/** Vedenjäähdytyskone: ohjaus / automaatio. */
+export interface VjOhjausData {
+  ohjausValmistaja: string;
+  lauhdutusOhjausLahde: VjLauhdutusOhjausLahde;
+  asetusArvot: string;
+  kuvaus: string;
+}
 
 export interface HeatingCircuitData {
   jakotapa: string;
@@ -503,6 +518,9 @@ export type HuoltoReportData = {
   vapaajahdytysKaytossa?: boolean;
   vapaajahdytysData?: VapaajahdytysData;
   jaahdytysvesiData?: JaahdytysvesiData;
+  /** Vedenjäähdytyskone: höyrystimen jäähdytysnestepiiri. */
+  hoyrystinPiiriData?: NestepiiriData;
+  vjOhjausData?: VjOhjausData;
   nestelauhduttimetVj: NestelauhdutinUnitData[];
   konvektoriRows: KonvektoriRowData[];
   mlpData: MlpData | null;
