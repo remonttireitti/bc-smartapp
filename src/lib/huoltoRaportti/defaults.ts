@@ -6,6 +6,7 @@ import {
   resolveAutoModules,
   stripMagnetValveFromCircuit,
 } from './deviceModuleLogic';
+import { applyLegacyHuoltoFields, mapLegacyMlpKeruupiiriToJaahdytysvesi } from './legacyImport';
 import { normalizeEvaporatorForDevice } from './evaporatorHelpers';
 import { buildMaintenanceReportTitle } from '../../types';
 import { deviceTypes, isMlpVesiNeste, type ModuleKey } from './constants';
@@ -343,9 +344,13 @@ export function ensureTiiveyskoeData(data: Partial<TiiveyskoeData> | undefined):
 export function ensureTyhjiointiData(data: Partial<TyhjiointiData> | undefined): TyhjiointiData {
   const base = createEmptyTyhjiointiData();
   if (!data) return base;
+  const legacyPump = (data as Record<string, unknown>).pumpunTyyppi;
   return {
     ...base,
     ...data,
+    kaytettyPainemittari:
+      data.kaytettyPainemittari ||
+      (typeof legacyPump === 'string' ? legacyPump.trim() : ''),
     todisteKuvat: normalizeMaintenanceReportPhotos(data.todisteKuvat ?? base.todisteKuvat),
   };
 }
@@ -646,8 +651,9 @@ export function ensureRefrigerantCircuitData(
 }
 
 export function normalizeHuoltoReportData(data: Partial<HuoltoReportData>): HuoltoReportData {
+  const legacy = applyLegacyHuoltoFields(data as Partial<HuoltoReportData> & Record<string, unknown>);
   const base = createEmptyHuoltoReportData();
-  const merged = { ...base, ...data };
+  const merged = { ...base, ...legacy };
   const sisMaara = merged.sisayksikkoMaara ?? 1;
   const kylmaaineTyyppi = resolveKylmaaineTyyppi(merged.kylmaaineTyyppi, merged.kylmaaineLaatu);
   return {
@@ -656,82 +662,85 @@ export function normalizeHuoltoReportData(data: Partial<HuoltoReportData>): Huol
     kylmaaineLaatu: '',
     kylmaainePiiri1: stripMagnetValveFromCircuit(
       merged.laiteTyyppi,
-      ensureRefrigerantCircuitData(data.kylmaainePiiri1),
+      ensureRefrigerantCircuitData(legacy.kylmaainePiiri1),
     ),
-    kylmaainePiiri2: data.kylmaainePiiri2
-      ? stripMagnetValveFromCircuit(merged.laiteTyyppi, ensureRefrigerantCircuitData(data.kylmaainePiiri2))
+    kylmaainePiiri2: legacy.kylmaainePiiri2
+      ? stripMagnetValveFromCircuit(merged.laiteTyyppi, ensureRefrigerantCircuitData(legacy.kylmaainePiiri2))
       : null,
-    kylmaainePiiri3: data.kylmaainePiiri3
-      ? stripMagnetValveFromCircuit(merged.laiteTyyppi, ensureRefrigerantCircuitData(data.kylmaainePiiri3))
+    kylmaainePiiri3: legacy.kylmaainePiiri3
+      ? stripMagnetValveFromCircuit(merged.laiteTyyppi, ensureRefrigerantCircuitData(legacy.kylmaainePiiri3))
       : null,
-    evaporatorData: (data.evaporatorData ?? base.evaporatorData).map((ev) =>
+    evaporatorData: (legacy.evaporatorData ?? base.evaporatorData).map((ev) =>
       normalizeEvaporatorForDevice(ensureEvaporatorData(ev), merged.laiteTyyppi),
     ),
-    evaporatorSamaKuinEnsimmainen: data.evaporatorSamaKuinEnsimmainen ?? base.evaporatorSamaKuinEnsimmainen,
-    condenserData: (data.condenserData ?? base.condenserData).map((c) => ensureCondenserData(c)),
-    nestelauhduttimetVj: (Array.isArray(data.nestelauhduttimetVj)
-      ? data.nestelauhduttimetVj
+    evaporatorSamaKuinEnsimmainen: legacy.evaporatorSamaKuinEnsimmainen ?? base.evaporatorSamaKuinEnsimmainen,
+    condenserData: (legacy.condenserData ?? base.condenserData).map((c) => ensureCondenserData(c)),
+    nestelauhduttimetVj: (Array.isArray(legacy.nestelauhduttimetVj)
+      ? legacy.nestelauhduttimetVj
       : base.nestelauhduttimetVj
     ).map((u) => ensureNestelauhdutinUnit(u)),
-    konvektoriRows: (data.konvektoriRows ?? base.konvektoriRows).map((r) => ensureKonvektoriRow(r)),
-    mlpData: data.mlpData ? ensureMlpData(data.mlpData) : null,
-    tiiveyskoeData: ensureTiiveyskoeData(data.tiiveyskoeData),
-    tyhjiointiData: ensureTyhjiointiData(data.tyhjiointiData),
-    huomiotLiitteet: (data.huomiotLiitteet ?? base.huomiotLiitteet)?.map((a) => ensureHuomiotLiite(a)),
+    konvektoriRows: (legacy.konvektoriRows ?? base.konvektoriRows).map((r) => ensureKonvektoriRow(r)),
+    mlpData: legacy.mlpData ? ensureMlpData(legacy.mlpData) : null,
+    tiiveyskoeData: ensureTiiveyskoeData(legacy.tiiveyskoeData),
+    tyhjiointiData: ensureTyhjiointiData(legacy.tyhjiointiData),
+    huomiotLiitteet: (legacy.huomiotLiitteet ?? base.huomiotLiitteet)?.map((a) => ensureHuomiotLiite(a)),
     sisayksikkoMaara: sisMaara,
     sisayksikkoData: padArray(
-      (data.sisayksikkoData ?? base.sisayksikkoData).map((s) => ensureSisayksikkoData(s)),
+      (legacy.sisayksikkoData ?? base.sisayksikkoData).map((s) => ensureSisayksikkoData(s)),
       sisMaara,
       createEmptySisayksikkoData,
     ),
-    sisaSamaKuinEnsimmainen: padBoolArray(data.sisaSamaKuinEnsimmainen ?? base.sisaSamaKuinEnsimmainen, sisMaara),
+    sisaSamaKuinEnsimmainen: padBoolArray(legacy.sisaSamaKuinEnsimmainen ?? base.sisaSamaKuinEnsimmainen, sisMaara),
     mittausSisayksikot: padArray(
-      (data.mittausSisayksikot ?? base.mittausSisayksikot).map((m) => ensureMittausSisayksikkoData(m)),
+      (legacy.mittausSisayksikot ?? base.mittausSisayksikot).map((m) => ensureMittausSisayksikkoData(m)),
       sisMaara,
       createEmptyMittausSisayksikkoData,
     ),
     mittausSamaKuinEnsimmainen: padBoolArray(
-      data.mittausSamaKuinEnsimmainen ?? base.mittausSamaKuinEnsimmainen,
+      legacy.mittausSamaKuinEnsimmainen ?? base.mittausSamaKuinEnsimmainen,
       sisMaara,
     ),
     lauhdutuspiiriData: isChillerLikeDevice(merged.laiteTyyppi)
-      ? mergeLauhdutuspiiriData(data)
-      : ensureLauhdutuspiiriData(data.lauhdutuspiiriData),
+      ? mergeLauhdutuspiiriData(legacy)
+      : ensureLauhdutuspiiriData(legacy.lauhdutuspiiriData),
     jaahdytysvesiData: isChillerLikeDevice(merged.laiteTyyppi)
-      ? mergeChillerCoolingCircuit(data.jaahdytysvesiData, data.hoyrystinPiiriData)
+      ? mergeChillerCoolingCircuit(
+          mapLegacyMlpKeruupiiriToJaahdytysvesi(legacy.mlpData, legacy.jaahdytysvesiData),
+          legacy.hoyrystinPiiriData,
+        )
       : ensureNestepiiriData({
           ...createEmptyJaahdytysvesiData(),
-          ...(data.jaahdytysvesiData ?? {}),
+          ...(legacy.jaahdytysvesiData ?? {}),
         }),
     hoyrystinPiiriData: isChillerLikeDevice(merged.laiteTyyppi)
       ? createEmptyNestepiiriData()
       : ensureNestepiiriData({
           ...createEmptyNestepiiriData(),
-          ...(data.hoyrystinPiiriData ?? {}),
+          ...(legacy.hoyrystinPiiriData ?? {}),
         }),
-    vjOhjausData: ensureVjOhjausData(data.vjOhjausData),
-    vapaajahdytysData: { ...createEmptyVapaajahdytysData(), ...(data.vapaajahdytysData ?? {}) },
+    vjOhjausData: ensureVjOhjausData(legacy.vjOhjausData),
+    vapaajahdytysData: { ...createEmptyVapaajahdytysData(), ...(legacy.vapaajahdytysData ?? {}) },
     lauhdutinTyyppiLaite:
-      data.lauhdutinTyyppiLaite ??
+      legacy.lauhdutinTyyppiLaite ??
       (isChillerLikeDevice(merged.laiteTyyppi)
         ? defaultCondenserTypeForDevice(merged.laiteTyyppi)
         : ''),
-    vjNestelauhdutusJaettu: data.vjNestelauhdutusJaettu ?? base.vjNestelauhdutusJaettu,
-    vapaajahdytysKaytossa: data.vapaajahdytysKaytossa ?? false,
+    vjNestelauhdutusJaettu: legacy.vjNestelauhdutusJaettu ?? base.vjNestelauhdutusJaettu,
+    vapaajahdytysKaytossa: legacy.vapaajahdytysKaytossa ?? false,
     huoltoReportDocumentKind:
       merged.huoltoReportDocumentKind === 'kayttoonotto' ? 'kayttoonotto' : 'huolto',
     selectedModules: merged.laiteTyyppi
       ? resolveAutoModules({
           laiteTyyppi: merged.laiteTyyppi,
           lauhdutinTyyppiLaite:
-            data.lauhdutinTyyppiLaite ??
+            legacy.lauhdutinTyyppiLaite ??
             (isChillerLikeDevice(merged.laiteTyyppi)
               ? defaultCondenserTypeForDevice(merged.laiteTyyppi)
               : ''),
-          vapaajahdytysKaytossa: data.vapaajahdytysKaytossa ?? false,
-          manualModules: { ...base.selectedModules, ...(data.selectedModules ?? {}) },
+          vapaajahdytysKaytossa: legacy.vapaajahdytysKaytossa ?? false,
+          manualModules: { ...base.selectedModules, ...(legacy.selectedModules ?? {}) },
         })
-      : { ...base.selectedModules, ...(data.selectedModules ?? {}) },
+      : { ...base.selectedModules, ...(legacy.selectedModules ?? {}) },
   };
 }
 

@@ -19,6 +19,10 @@ import {
   firestoreQuoteCustomerId,
   quoteTitleFromFirestore,
 } from './lib/quote-legacy-import.mjs';
+import {
+  applyLegacyHuoltoFields,
+  huoltoTitleFromFirestore,
+} from './lib/huolto-legacy-import.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const CACHE_DIR = resolve(__dirname, '.cache');
@@ -558,7 +562,8 @@ async function main() {
       branding_company_id: targetCompanyId,
       customer_id: customerId,
       equipment_id: equipmentId,
-      data: extractHuoltoData(data),
+      data: applyLegacyHuoltoFields(extractHuoltoData(data), data),
+      title: huoltoTitleFromFirestore(data),
       status: completed ? 'completed' : 'draft',
       completed_at: completed ? tsToIso(data.updatedAt) : null,
       created_at: tsToIso(data.createdAt) ?? undefined,

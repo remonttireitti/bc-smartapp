@@ -1,6 +1,7 @@
 import { maintenanceReportListTitle, normalizeHuoltoReportData } from './huoltoRaportti/defaults';
 import { generateMaintenanceReportHtml } from './huoltoRaportti/printHtml';
 import type { HuoltoReportData } from './huoltoRaportti/types';
+import { BUCKET, normalizeMaintenanceReportPhotos } from './maintenanceReportImages';
 import { resolveCompanyLogoUrl } from './companyLogo';
 import { openPrintHtml } from './openPrintWindow';
 import { escapeHtmlPrint } from './printDocumentShell';
@@ -17,6 +18,41 @@ export function buildMaintenanceReportPrintDocument(fragment: string, documentTi
 ${fragment}
 </body>
 </html>`;
+}
+
+function collectPrintImagePaths(data: HuoltoReportData): string[] {
+  const paths = new Set<string>();
+
+  for (const item of normalizeMaintenanceReportPhotos(data.tiiveyskoeData?.todisteKuvat)) {
+    if (item.storagePath) paths.add(item.storagePath);
+  }
+  for (const item of normalizeMaintenanceReportPhotos(data.tyhjiointiData?.todisteKuvat)) {
+    if (item.storagePath) paths.add(item.storagePath);
+  }
+  for (const item of data.huomiotLiitteet ?? []) {
+    const storagePath = String(item.storagePath ?? '').trim();
+    const url = String(item.url ?? '').trim();
+    if (storagePath) paths.add(storagePath);
+    else if (url && !url.startsWith('data:image/')) paths.add(url);
+  }
+
+  return [...paths].filter((p) => p && !p.startsWith('data:image/') && !p.startsWith('http'));
+}
+
+async function resolveMaintenancePrintImageUrls(
+  data: HuoltoReportData,
+): Promise<Record<string, string>> {
+  const map: Record<string, string> = {};
+  const paths = collectPrintImagePaths(data);
+
+  await Promise.all(
+    paths.map(async (path) => {
+      const { data: signed } = await supabase.storage.from(BUCKET).createSignedUrl(path, 3600);
+      if (signed?.signedUrl) map[path] = signed.signedUrl;
+    }),
+  );
+
+  return map;
 }
 
 export async function loadMaintenanceReportPrintBundle(reportId: string) {
@@ -60,7 +96,8 @@ export async function loadMaintenanceReportPrintBundle(reportId: string) {
     customerId: row.data.customerId ?? row.customer_id ?? undefined,
   });
 
-  const fragment = generateMaintenanceReportHtml(normalized, { companyName, logoUrl });
+  const imageUrls = await resolveMaintenancePrintImageUrls(normalized);
+  const fragment = generateMaintenanceReportHtml(normalized, { companyName, logoUrl, imageUrls });
   const documentTitle = maintenanceReportListTitle(normalized);
 
   return {
