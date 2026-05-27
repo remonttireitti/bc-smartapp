@@ -12,6 +12,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { normalizeHuoltoReportData } from '../src/lib/huoltoRaportti/defaults.ts';
+import { HUOLTO_IMPORT_NORMALIZE_VERSION } from '../src/lib/huoltoRaportti/legacyImportInference.ts';
 import type { HuoltoReportData } from '../src/lib/huoltoRaportti/types.ts';
 import {
   applyLegacyHuoltoFields,
@@ -113,7 +114,9 @@ async function updateReport(
   patch: { data: HuoltoReportData; title?: string },
   currentData: unknown,
 ) {
-  if (stableJson(patch.data) === stableJson(currentData)) {
+  const prev = (currentData ?? {}) as HuoltoReportData;
+  const versionStale = (prev.legacyImportNormalizedVersion ?? 0) < HUOLTO_IMPORT_NORMALIZE_VERSION;
+  if (!versionStale && stableJson(patch.data) === stableJson(currentData)) {
     return false;
   }
   if (DRY_RUN) return true;

@@ -1,5 +1,6 @@
 import { useId, useState, type ReactNode } from 'react';
 import type { ModuleThemeKey } from '../../lib/huoltoRaportti/moduleThemes';
+import { useHuoltoEditUi } from './HuoltoEditUiContext';
 
 interface Props {
   moduleKey: ModuleThemeKey;
@@ -12,9 +13,11 @@ export function HuoltoModuleSection({
   moduleKey,
   title,
   children,
-  defaultOpen = false,
+  defaultOpen,
 }: Props) {
-  const [open, setOpen] = useState(defaultOpen);
+  const { sectionsDefaultOpen } = useHuoltoEditUi();
+  const initialOpen = defaultOpen ?? sectionsDefaultOpen;
+  const [open, setOpen] = useState(initialOpen);
   const contentId = useId();
 
   return (

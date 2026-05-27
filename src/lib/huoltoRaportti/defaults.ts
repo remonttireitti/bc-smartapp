@@ -34,6 +34,7 @@ import type {
   TyhjiointiData,
   VjOhjausData,
 } from './types';
+import { applyLegacyImportInference } from './legacyImportInference';
 import { inferLegacyMlpFlags } from './mlpLegacyFlags';
 import { normalizeMaintenanceReportPhotos } from '../maintenanceReportPhotoUtils';
 import { generateId, resolveKylmaaineTyyppi } from './utils';
@@ -666,7 +667,7 @@ export function normalizeHuoltoReportData(data: Partial<HuoltoReportData>): Huol
   const merged = { ...base, ...legacy };
   const sisMaara = merged.sisayksikkoMaara ?? 1;
   const kylmaaineTyyppi = resolveKylmaaineTyyppi(merged.kylmaaineTyyppi, merged.kylmaaineLaatu);
-  return {
+  const normalized: HuoltoReportData = {
     ...merged,
     kylmaaineTyyppi,
     kylmaaineLaatu: '',
@@ -767,6 +768,12 @@ export function normalizeHuoltoReportData(data: Partial<HuoltoReportData>): Huol
       }) as HuoltoReportData['selectedModules'];
     })(),
   };
+
+  let result = normalized;
+  if (result.laiteTyyppi) {
+    result = applyDeviceTypeDefaults(result, result.laiteTyyppi);
+  }
+  return applyLegacyImportInference(result);
 }
 
 function padArray<T>(arr: T[], length: number, create: () => T): T[] {

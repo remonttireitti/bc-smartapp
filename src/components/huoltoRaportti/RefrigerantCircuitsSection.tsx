@@ -165,7 +165,6 @@ export function RefrigerantCircuitsSection({ form, onChange }: Props) {
         <HuoltoModuleSection
           moduleKey="kylmaainePiiri"
           title={kylmaainePiiriCircuitLabel(form.laiteTyyppi, 1)}
-          defaultOpen
         >
           {renderCircuitBlock(1, form.kylmaainePiiri1, 0)}
         </HuoltoModuleSection>
@@ -173,7 +172,6 @@ export function RefrigerantCircuitsSection({ form, onChange }: Props) {
           <HuoltoModuleSection
             moduleKey="kylmaainePiiri"
             title={kylmaainePiiriCircuitLabel(form.laiteTyyppi, 2)}
-            defaultOpen
           >
             {renderCircuitBlock(2, form.kylmaainePiiri2, 1)}
           </HuoltoModuleSection>
@@ -182,7 +180,6 @@ export function RefrigerantCircuitsSection({ form, onChange }: Props) {
           <HuoltoModuleSection
             moduleKey="kylmaainePiiri"
             title={kylmaainePiiriCircuitLabel(form.laiteTyyppi, 3)}
-            defaultOpen
           >
             {renderCircuitBlock(3, form.kylmaainePiiri3, 2)}
           </HuoltoModuleSection>
@@ -195,7 +192,6 @@ export function RefrigerantCircuitsSection({ form, onChange }: Props) {
     <HuoltoModuleSection
       moduleKey="kylmaainePiiri"
       title={kylmaainePiiriSectionTitle(form.laiteTyyppi)}
-      defaultOpen
     >
       {chillerHelp}
       {renderCircuitBlock(1, form.kylmaainePiiri1, 0)}

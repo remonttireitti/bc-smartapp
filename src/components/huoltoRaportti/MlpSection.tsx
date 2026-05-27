@@ -79,7 +79,7 @@ export function MlpSection({ form, onChange }: Props) {
   return (
     <>
       {showKeruupiiri && (
-      <HuoltoModuleSection moduleKey="mlpKeruupiiri" title={mlpKeruupiiriSectionTitle(form.laiteTyyppi)} defaultOpen>
+      <HuoltoModuleSection moduleKey="mlpKeruupiiri" title={mlpKeruupiiriSectionTitle(form.laiteTyyppi)}>
         <div className="checkbox-grid huolto-toggle-grid">
           <FormCheckbox label="Paine tarkastettu" checked={mlp.keruupiirinPaineTarkastettu} onChange={(v) => patchMlp({ keruupiirinPaineTarkastettu: v, ...(v ? {} : { keruupiiriPaineBar: '' }) })} />
           <FormCheckbox label="Mutasihti puhdistettu" checked={mlp.keruupiirissaMutapussiPuhdistettu} onChange={(v) => patchMlp({ keruupiirissaMutapussiPuhdistettu: v })} />
@@ -137,7 +137,7 @@ export function MlpSection({ form, onChange }: Props) {
       )}
 
       {showMaalampoOnly && (
-      <HuoltoModuleSection moduleKey="mlpJaahdytyspiiri" title={mlpJaahdytyspiiriSectionTitle(form.laiteTyyppi)} defaultOpen>
+      <HuoltoModuleSection moduleKey="mlpJaahdytyspiiri" title={mlpJaahdytyspiiriSectionTitle(form.laiteTyyppi)}>
         <div className="checkbox-grid huolto-toggle-grid">
           <FormCheckbox label="Erillinen piiri" checked={mlp.keruuJaahdytysPiiri} onChange={(v) => patchMlp({ keruuJaahdytysPiiri: v })} />
           <FormCheckbox label="Piirissä pumppu" checked={mlp.keruuJaahdytysPiiriPumppu} onChange={(v) => patchMlp({ keruuJaahdytysPiiriPumppu: v })} />
@@ -172,7 +172,7 @@ export function MlpSection({ form, onChange }: Props) {
       )}
 
       {showLatauspiiri && showHeatPumpCircuits && (
-      <HuoltoModuleSection moduleKey="mlpLatauspiiri" title="5.2 Latauspiiri" defaultOpen>
+      <HuoltoModuleSection moduleKey="mlpLatauspiiri" title="5.2 Latauspiiri">
         <div className="checkbox-grid huolto-toggle-grid">
           <FormCheckbox label="Paine tarkastettu" checked={mlp.latausPaineTarkastettu} onChange={(v) => patchMlp({ latausPaineTarkastettu: v, ...(v ? {} : { latausPaineBar: '' }) })} />
           <FormCheckbox label="Mutapussi puhdistettu" checked={mlp.latausMutapussiPuhdistettu} onChange={(v) => patchMlp({ latausMutapussiPuhdistettu: v })} />
@@ -318,7 +318,7 @@ export function MlpSection({ form, onChange }: Props) {
       )}
 
       {showHeatPumpCircuits && (
-      <HuoltoModuleSection moduleKey="mlpKayttovesi" title="5.3 Käyttöveden lämmitys" defaultOpen>
+      <HuoltoModuleSection moduleKey="mlpKayttovesi" title="5.3 Käyttöveden lämmitys">
         <FormCheckbox label="Käyttövesi mukana" checked={mlp.kayttovesiEnabled} onChange={(v) => patchMlp({ kayttovesiEnabled: v })} />
         {mlp.kayttovesiEnabled && (
           <div className="huolto-form-stack">
@@ -441,7 +441,7 @@ export function MlpSection({ form, onChange }: Props) {
       )}
 
       {(showHeatPumpCircuits || showChillerParts) && (
-      <HuoltoModuleSection moduleKey="mlpLampopiirit" title={kiinteistoPiiriSectionTitle(form.laiteTyyppi)} defaultOpen>
+      <HuoltoModuleSection moduleKey="mlpLampopiirit" title={kiinteistoPiiriSectionTitle(form.laiteTyyppi)}>
         <FormCheckbox
           label="Tulosta ja tallenna laitekorttiin (kiinteistön lämmityspiiri)"
           checked={mlp.kiinteistoPiiritSisallytetaan !== false}
@@ -600,7 +600,7 @@ export function MlpSection({ form, onChange }: Props) {
       )}
 
       {(showMaalampoOnly || showChillerParts) && (
-      <HuoltoModuleSection moduleKey="mlpEnergia" title={energiatehokkuusSectionTitle(form.laiteTyyppi)} defaultOpen>
+      <HuoltoModuleSection moduleKey="mlpEnergia" title={energiatehokkuusSectionTitle(form.laiteTyyppi)}>
         <FormCheckbox
           label="Mittaan koko laitteiston sähkönkulutuksen COP-laskentaan"
           checked={mlp.mittaaKokoLaiteSahko}

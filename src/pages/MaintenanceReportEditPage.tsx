@@ -103,6 +103,8 @@ interface Props {
 
 
 import { huoltoTiedotSectionTitle } from '../lib/huoltoRaportti/sectionTitles';
+import { huoltoReportHasSubstantiveData } from '../lib/huoltoRaportti/legacyImportInference';
+import { HuoltoEditUiProvider } from '../components/huoltoRaportti/HuoltoEditUiContext';
 import { isMaintenanceReportPublished } from '../lib/maintenanceReportStatus';
 import { getMaintenanceReportStatusLabel } from '../types';
 
@@ -146,6 +148,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
   const skipAutoSaveRef = useRef(true);
   const saveInFlightRef = useRef(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [sectionsDefaultOpen, setSectionsDefaultOpen] = useState(false);
 
   const draftStorageKey = localDraftKey(reportId, session.user.id);
 
@@ -404,7 +407,9 @@ export default function MaintenanceReportEditPage({ session }: Props) {
     setSavedReportTitle(row.title);
     setReportOwnerCompanyId(row.owner_company_id);
     setStatus(row.status);
-    setForm(normalizeHuoltoReportData({ ...createEmptyHuoltoReportData(), ...row.data }));
+    const normalized = normalizeHuoltoReportData({ ...createEmptyHuoltoReportData(), ...row.data });
+    setForm(normalized);
+    setSectionsDefaultOpen(huoltoReportHasSubstantiveData(normalized));
     setCustomerId(row.customer_id ?? row.data.customerId ?? '');
     setSubscriberId(row.subscriber_id ?? '');
     setEquipmentId(row.equipment_id ?? '');
@@ -1384,6 +1389,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
               )}
             </CollapsibleSection>
 
+            <HuoltoEditUiProvider sectionsDefaultOpen={sectionsDefaultOpen}>
             <div className="huolto-modules-stack">
             {form.selectedModules.kylmaainePiiri && (
               <>
@@ -1487,6 +1493,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
               userId={session.user.id}
             />
             </div>
+            </HuoltoEditUiProvider>
 
             <CollapsibleSection title={huoltoTiedotSectionTitle(form.laiteTyyppi)} defaultOpen>
               {showHuoltoVsKayttoonottoSelector(form.laiteTyyppi) && (

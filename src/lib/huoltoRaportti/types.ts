@@ -568,6 +568,8 @@ export type HuoltoReportData = {
   piilotaVaroitukset?: boolean;
   /** Vanhan tuonnin yritystiedot (tuloste). */
   legacyCompanyInfo?: Record<string, unknown>;
+  /** Tuonti-normalisoinnin versio (fix-import-huolto). */
+  legacyImportNormalizedVersion?: number;
   [key: string]: unknown;
 };
 export type MaintenanceReportRow = {
