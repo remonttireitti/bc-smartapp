@@ -27,7 +27,7 @@ export function EvidencePhotoUpload({ reportId, section, paths, onChange, userId
   return (
     <div className="huolto-submodule">
       <p className="muted huolto-help">
-        Liitä enintään {MAX_IMAGES} kuvaa (max 800 kt / kuva).
+        Liitä enintään {MAX_IMAGES} kuvaa. Suuret kamerakuvat tiivistetään automaattisesti ennen tallennusta.
       </p>
       <div className="btn-group">
         <AddMaintenanceReportImages

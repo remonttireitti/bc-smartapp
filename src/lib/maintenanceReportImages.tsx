@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
+import { prepareImageFileForUpload } from './prepareUploadImage';
 import { supabase } from './supabase';
 
 export const BUCKET = 'maintenance-report-images';
 export const MAX_IMAGES = 6;
-const MAX_BYTES = 800 * 1024;
+/** Tallennusraja pakattulle kuvalle. */
+export const MAX_IMAGE_BYTES = 800 * 1024;
 
 export type MaintenanceReportImageSection = 'tiiveyskoe' | 'tyhjiointi' | 'huomiot';
 
@@ -28,15 +30,13 @@ export async function uploadMaintenanceReportImages(
   const batch = files.slice(0, Math.max(0, remaining));
 
   for (const file of batch) {
-    if (file.size > MAX_BYTES) {
-      throw new Error(`Kuva ${file.name} ylittää 800 kt rajan.`);
-    }
-    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+    const prepared = await prepareImageFileForUpload(file, MAX_IMAGE_BYTES);
+    const safeName = prepared.name.replace(/[^a-zA-Z0-9._-]/g, '_');
     const storagePath = `${reportId}/${section}/${crypto.randomUUID()}-${safeName}`;
 
     const { error: uploadError } = await supabase.storage
       .from(BUCKET)
-      .upload(storagePath, file, { contentType: file.type, upsert: false });
+      .upload(storagePath, prepared, { contentType: prepared.type, upsert: false });
 
     if (uploadError) throw new Error(uploadError.message);
 
@@ -44,8 +44,8 @@ export async function uploadMaintenanceReportImages(
       maintenance_report_id: reportId,
       section,
       storage_path: storagePath,
-      file_name: file.name,
-      mime_type: file.type,
+      file_name: prepared.name,
+      mime_type: prepared.type,
       uploaded_by: userId,
     });
 
