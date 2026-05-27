@@ -1,5 +1,5 @@
 import { maintenanceReportListTitle, normalizeHuoltoReportData } from './huoltoRaportti/defaults';
-import { generateMaintenanceReportHtml } from './huoltoRaportti/printHtml';
+import { generateLegacyMaintenanceReportHtml } from './huoltoRaportti/legacyPrintAdapter';
 import type { HuoltoReportData } from './huoltoRaportti/types';
 import { BUCKET, normalizeMaintenanceReportPhotos } from './maintenanceReportImages';
 import { resolveCompanyLogoUrl } from './companyLogo';
@@ -8,6 +8,10 @@ import { escapeHtmlPrint } from './printDocumentShell';
 import { supabase } from './supabase';
 
 export function buildMaintenanceReportPrintDocument(fragment: string, documentTitle: string): string {
+  // Legacy print already returns a full HTML document.
+  if (/<!doctype html/i.test(fragment) || /<html[\s>]/i.test(fragment)) {
+    return fragment;
+  }
   return `<!doctype html>
 <html lang="fi">
 <head>
@@ -97,14 +101,14 @@ export async function loadMaintenanceReportPrintBundle(reportId: string) {
   });
 
   const imageUrls = await resolveMaintenancePrintImageUrls(normalized);
-  const fragment = generateMaintenanceReportHtml(normalized, { companyName, logoUrl, imageUrls });
+  const html = generateLegacyMaintenanceReportHtml(normalized, { companyName, logoUrl, imageUrls });
   const documentTitle = maintenanceReportListTitle(normalized);
 
   return {
     data: normalized,
-    fragment,
+    fragment: html,
     documentTitle,
-    html: buildMaintenanceReportPrintDocument(fragment, documentTitle),
+    html,
   };
 }
 
