@@ -142,7 +142,9 @@ export default function MaintenanceReportEditPage({ session }: Props) {
   const draftStorageKey = localDraftKey(reportId, session.user.id);
 
   const portalMode = isPortalUser(profile);
+  const isPublished = isMaintenanceReportPublished(status);
   const canEditCustomerEquipment = !portalMode && (isNew || status === 'draft');
+  const canEditPublishedReport = !portalMode && isPublished;
 
   const selectedCustomer = customers.find((c) => c.id === customerId);
   const reportContext = useMemo(() => {
@@ -753,10 +755,12 @@ export default function MaintenanceReportEditPage({ session }: Props) {
         data: dataPayload,
         status: resolvedStatus,
       };
-      if (resolvedStatus === 'submitted') {
+      if (nextStatus === 'submitted') {
         rowPayload.completed_at = new Date().toISOString();
+        rowPayload.status = 'submitted';
       } else if (nextStatus === 'draft') {
         rowPayload.completed_at = null;
+        rowPayload.status = 'draft';
       }
 
       if (reportId) {
@@ -858,7 +862,11 @@ export default function MaintenanceReportEditPage({ session }: Props) {
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
-    await saveReport('draft');
+    if (isPublished) {
+      await saveReport();
+    } else {
+      await saveReport('draft');
+    }
   }
 
   async function deleteReport() {
@@ -879,9 +887,9 @@ export default function MaintenanceReportEditPage({ session }: Props) {
   }
 
   const leaveGuard = useDraftLeaveGuard({
-    enabled: status === 'draft' && !profileLoading && !loadingReport,
+    enabled: (status === 'draft' || canEditPublishedReport) && !profileLoading && !loadingReport,
     isDirty: hasUnsavedChanges,
-    onSave: () => saveReport('draft'),
+    onSave: () => (isPublished ? saveReport() : saveReport('draft')),
   });
 
   if (profileLoading || loadingReport || (portalMode && isNew)) {
@@ -926,7 +934,12 @@ export default function MaintenanceReportEditPage({ session }: Props) {
             {autoSaveState === 'idle' && savedAt && `Viimeksi tallennettu klo ${savedAt}`}
             {status === 'draft' && autoSaveState === 'idle' && !savedAt && isOnline &&
               'Automaattinen tallennus käynnistyy kun laitetyyppi ja asiakas on valittu.'}
-            {hasUnsavedChanges && status === 'draft' && ' · Tallentamattomia muutoksia'}
+            {hasUnsavedChanges && (status === 'draft' || canEditPublishedReport) &&
+              ' · Tallentamattomia muutoksia'}
+            {canEditPublishedReport &&
+              autoSaveState === 'idle' &&
+              !hasUnsavedChanges &&
+              ' · Valmis raportti — muutokset tallennetaan manuaalisesti.'}
           </p>
         </div>
         <div className="page-header-actions">
@@ -1517,6 +1530,26 @@ export default function MaintenanceReportEditPage({ session }: Props) {
                 onClick={() => void saveReport('submitted')}
               >
                 Merkitse valmiiksi
+              </button>
+            </>
+          )}
+          {canEditPublishedReport && (
+            <>
+              <button
+                type="button"
+                className="btn btn-primary"
+                disabled={busy || !form.laiteTyyppi}
+                onClick={() => void saveReport()}
+              >
+                {busy ? 'Tallennetaan…' : 'Tallenna muutokset'}
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                disabled={busy || !form.laiteTyyppi}
+                onClick={() => void saveReport('draft')}
+              >
+                Palauta luonnokseksi
               </button>
             </>
           )}
