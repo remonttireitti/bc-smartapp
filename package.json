@@ -20,7 +20,9 @@
     "import:media:dry": "node scripts/import-firestore-media.mjs --dry-run",
     "import:media": "node scripts/import-firestore-media.mjs --apply --production",
     "setup:global-admin": "node scripts/setup-global-admin.mjs --production",
-    "fix:ownership": "node scripts/fix-import-ownership.mjs --apply --production"
+    "fix:ownership": "node scripts/fix-import-ownership.mjs --apply --production",
+    "fix:huolto:dry": "npx tsx scripts/fix-import-huolto.ts --dry-run --production --all",
+    "fix:huolto": "npx tsx scripts/fix-import-huolto.ts --apply --production --all"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.1",

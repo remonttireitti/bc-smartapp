@@ -621,6 +621,10 @@ async function main() {
   } else {
     console.log(`\nKäyttäjien väliaikainen salasana: ${DEFAULT_IMPORT_PASSWORD}`);
     console.log('ID-kartta: scripts/.cache/firestore-import-map.json');
+    if (stats.maintenance_reports > 0) {
+      console.log('\nNormalisoidaan tuodut huoltoraportit…');
+      execSync('npm run fix:huolto', { stdio: 'inherit', cwd: resolve(__dirname, '..') });
+    }
   }
 }
 

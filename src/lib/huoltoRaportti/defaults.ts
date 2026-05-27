@@ -34,7 +34,7 @@ import type {
   TyhjiointiData,
   VjOhjausData,
 } from './types';
-import { normalizeMaintenanceReportPhotos } from '../maintenanceReportImages';
+import { normalizeMaintenanceReportPhotos } from '../maintenanceReportPhotoUtils';
 import { generateId, resolveKylmaaineTyyppi } from './utils';
 
 export function createEmptyKonvektoriRow(): KonvektoriRowData {
