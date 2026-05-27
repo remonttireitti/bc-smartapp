@@ -76,14 +76,13 @@ export type ReportOwnerTarget = {
 
 export type CustomerCreateTarget = ReportOwnerTarget;
 
-export const reportOwnerTargets = customerCreateTargets;
-
-export function customerCreateTargets(
+export function reportOwnerTargets(
   myCompanyId: string,
   myCompanyName: string,
   partnerships: Partnership[],
-): CustomerCreateTarget[] {
-  const targets: CustomerCreateTarget[] = [{ companyId: myCompanyId, label: myCompanyName }];
+  module: PartnershipModuleKey,
+): ReportOwnerTarget[] {
+  const targets: ReportOwnerTarget[] = [{ companyId: myCompanyId, label: myCompanyName }];
   const seen = new Set<string>([myCompanyId]);
 
   for (const partnership of partnerships) {
@@ -94,8 +93,7 @@ export function customerCreateTargets(
     if (seen.has(partnerCompanyId)) continue;
 
     const permissions = partnershipPermsActingOnOwner(partnership, myCompanyId, partnerCompanyId);
-    const canWriteReports = partnershipModuleAccess(permissions, 'work_reports', 'write');
-    if (!canWriteReports) continue;
+    if (!partnershipModuleAccess(permissions, module, 'write')) continue;
 
     seen.add(partnerCompanyId);
     targets.push({
@@ -105,6 +103,22 @@ export function customerCreateTargets(
   }
 
   return targets;
+}
+
+export function customerCreateTargets(
+  myCompanyId: string,
+  myCompanyName: string,
+  partnerships: Partnership[],
+): CustomerCreateTarget[] {
+  return reportOwnerTargets(myCompanyId, myCompanyName, partnerships, 'work_reports');
+}
+
+export function maintenanceReportOwnerTargets(
+  myCompanyId: string,
+  myCompanyName: string,
+  partnerships: Partnership[],
+): ReportOwnerTarget[] {
+  return reportOwnerTargets(myCompanyId, myCompanyName, partnerships, 'maintenance_reports');
 }
 
 export function defaultReportContext(myCompanyId: string): ReportContext {

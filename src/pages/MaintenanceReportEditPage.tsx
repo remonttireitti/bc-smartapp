@@ -42,7 +42,9 @@ import { EQUIPMENT_SELECT } from '../lib/customers';
 import {
   defaultReportContext,
   loadAccessibleReportCustomers,
+  maintenanceReportOwnerTargets,
   resolveReportContextFromCustomer,
+  resolveReportContextFromOwner,
 } from '../lib/reportCustomerRegistry';
 import {
   loadAccessibleSubscribers,
@@ -148,9 +150,27 @@ export default function MaintenanceReportEditPage({ session }: Props) {
     if (selectedCustomer) {
       return resolveReportContextFromCustomer(selectedCustomer, profile.company_id, partnerships);
     }
+    if (reportOwnerCompanyId) {
+      return resolveReportContextFromOwner(reportOwnerCompanyId, profile.company_id, partnerships);
+    }
     return defaultReportContext(profile.company_id);
-  }, [selectedCustomer, profile?.company_id, partnerships]);
+  }, [selectedCustomer, reportOwnerCompanyId, profile?.company_id, partnerships]);
   const { contextMode, partnerId, ownerCompanyId } = reportContext;
+
+  const reportOwnerTargets = useMemo(() => {
+    if (!profile?.company_id) return [];
+    return maintenanceReportOwnerTargets(
+      profile.company_id,
+      profile.companies?.name ?? 'Oma rekisteri',
+      partnerships,
+    );
+  }, [profile?.company_id, profile?.companies?.name, partnerships]);
+
+  const creatorCompanyName = profile?.companies?.name ?? '—';
+  const reportOwnerName =
+    reportOwnerTargets.find((target) => target.companyId === reportOwnerCompanyId)?.label ??
+    ownerCompany?.name ??
+    creatorCompanyName;
 
   const reportTitle = useMemo(
     () =>
@@ -234,6 +254,25 @@ export default function MaintenanceReportEditPage({ session }: Props) {
     profile?.email,
     session,
   ]);
+
+  useEffect(() => {
+    if (!reportOwnerCompanyId) return;
+    void loadOwnerCompany(reportOwnerCompanyId);
+  }, [reportOwnerCompanyId]);
+
+  useEffect(() => {
+    if (selectedCustomer) {
+      setReportOwnerCompanyId(selectedCustomer.owner_company_id);
+      return;
+    }
+    if (reportOwnerCompanyId) return;
+    if (profile?.company_id) setReportOwnerCompanyId(profile.company_id);
+  }, [selectedCustomer, profile?.company_id, reportOwnerCompanyId]);
+
+  function onReportOwnerChange(companyId: string) {
+    setReportOwnerCompanyId(companyId);
+    setHasUnsavedChanges(true);
+  }
 
   useEffect(() => {
     if (!isNew || !ownerCompanyId) return;
@@ -853,8 +892,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
     );
   }
 
-  const brandingName = ownerCompany?.name ?? profile?.companies?.name ?? '—';
-  const creatorCompanyName = profile?.companies?.name ?? '—';
+  const brandingName = ownerCompany?.name ?? reportOwnerName;
   const canDeleteMaintenance = !isNew && reportOwnerCompanyId
     ? canDeleteCompanyOwnedEntity(
         reportOwnerCompanyId,
@@ -935,8 +973,23 @@ export default function MaintenanceReportEditPage({ session }: Props) {
         <CollapsibleSection title="Raportointikonteksti" defaultOpen>
           <div className="info-grid">
             <div className="info-box">
-              <span className="info-label">Yrityksen nimissä</span>
-              <strong>{brandingName}</strong>
+              <span className="info-label">Yrityksen nimissä (brändi tulosteessa)</span>
+              {!customerId && reportOwnerTargets.length > 1 ? (
+                <select
+                  className="info-box-select"
+                  value={reportOwnerCompanyId ?? ''}
+                  onChange={(event) => onReportOwnerChange(event.target.value)}
+                  disabled={busy || !canEditCustomerEquipment}
+                >
+                  {reportOwnerTargets.map((target) => (
+                    <option key={target.companyId} value={target.companyId}>
+                      {target.label}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <strong>{brandingName}</strong>
+              )}
             </div>
             <div className="info-box">
               <span className="info-label">Laatija</span>
@@ -948,6 +1001,12 @@ export default function MaintenanceReportEditPage({ session }: Props) {
             <p className="muted">
               Valittu asiakas kuuluu kumppanin rekisteriin — raportti luodaan yrityksen{' '}
               <strong>{brandingName}</strong> nimissä.
+            </p>
+          )}
+          {canEditCustomerEquipment && !customerId && reportOwnerTargets.length > 1 && (
+            <p className="muted">
+              Valitse ensin yritys, jonka nimissä raportti laaditaan. Asiakasrekisteristä näytetään
+              vain kumppanit, joilla on huoltoraportin luontioikeus.
             </p>
           )}
         </CollapsibleSection>
