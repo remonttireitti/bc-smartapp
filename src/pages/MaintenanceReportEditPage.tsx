@@ -89,6 +89,7 @@ import {
   localDraftKey,
   writeLocalMaintenanceDraft,
 } from '../lib/maintenanceReportDraftStorage';
+import { openMaintenanceReportPrint } from '../lib/maintenanceReportPrintAction';
 import { isPortalUser } from '../lib/portalWorkOrder';
 import { useProfile } from '../hooks/useProfile';
 import { useMaintenanceReportScrollRestore } from '../hooks/useMaintenanceReportScrollRestore';
@@ -133,6 +134,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [deleteBusy, setDeleteBusy] = useState(false);
+  const [printBusy, setPrintBusy] = useState(false);
   const [savedAt, setSavedAt] = useState<string | null>(null);
   const [autoSaveState, setAutoSaveState] = useState<'idle' | 'saving' | 'saved' | 'offline'>('idle');
   const [isOnline, setIsOnline] = useState(
@@ -891,6 +893,19 @@ export default function MaintenanceReportEditPage({ session }: Props) {
     }
   }
 
+  async function openPrintPreview() {
+    if (!reportId) return;
+    setPrintBusy(true);
+    setError(null);
+    try {
+      await openMaintenanceReportPrint(reportId);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Tulosteen avaus epäonnistui.');
+    } finally {
+      setPrintBusy(false);
+    }
+  }
+
   async function deleteReport() {
     if (!reportId || !reportOwnerCompanyId) return;
     if (!window.confirm('Poistetaanko huoltoraportti pysyvästi? Tätä toimintoa ei voi perua.')) return;
@@ -986,14 +1001,14 @@ export default function MaintenanceReportEditPage({ session }: Props) {
             {getMaintenanceReportStatusLabel(status)}
           </span>
           {reportId && (
-            <Link
-              {...navigation.linkToPrint(reportId)}
+            <button
+              type="button"
               className="btn btn-secondary btn-sm"
-              target="_blank"
-              rel="noreferrer"
+              disabled={printBusy || busy}
+              onClick={() => void openPrintPreview()}
             >
-              Tulosta / PDF
-            </Link>
+              {printBusy ? 'Avataan…' : 'Tulosta / PDF'}
+            </button>
           )}
         </div>
       </div>

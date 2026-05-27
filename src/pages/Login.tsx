@@ -1,5 +1,5 @@
 import { FormEvent, useMemo, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { SIGN_OUT_REASON_MESSAGES, type SignOutReason } from '../lib/authSessionConfig';
 import { translateAuthError } from '../lib/authErrors';
 import { supabase } from '../lib/supabase';
@@ -11,6 +11,7 @@ function parseSignOutReason(raw: string | null): SignOutReason | null {
 
 export default function Login() {
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -19,6 +20,12 @@ export default function Login() {
   const signOutNotice = useMemo(() => {
     const reason = parseSignOutReason(searchParams.get('reason'));
     return reason ? SIGN_OUT_REASON_MESSAGES[reason] : null;
+  }, [searchParams]);
+
+  const redirectTarget = useMemo(() => {
+    const raw = searchParams.get('redirect');
+    if (!raw || !raw.startsWith('/') || raw.startsWith('//')) return '/';
+    return raw;
   }, [searchParams]);
 
   async function onSubmit(e: FormEvent) {
@@ -33,6 +40,7 @@ export default function Login() {
     }
     await supabase.auth.signOut({ scope: 'others' });
     setBusy(false);
+    navigate(redirectTarget, { replace: true });
   }
 
   return (

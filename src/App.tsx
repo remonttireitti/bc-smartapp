@@ -1,4 +1,5 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
+import RequireLoginRedirect from './components/RequireLoginRedirect';
 import { AuthSessionProvider, useAuthSession } from './contexts/AuthSessionContext';
 import CustomerDetailPage from './pages/CustomerDetailPage';
 import EquipmentDetailPage from './pages/EquipmentDetailPage';
@@ -49,7 +50,7 @@ function AppRoutes() {
       <Routes>
         <Route path="/" element={<PublicLandingPage />} />
         <Route path="/login" element={<Login />} />
-        <Route path="*" element={<Navigate to="/" replace />} />
+        <Route path="*" element={<RequireLoginRedirect />} />
       </Routes>
     );
   }
@@ -95,8 +96,8 @@ function AppRoutes() {
       <Route path="/tyoraportit/:id" element={<WorkReportDetailPage session={session} />} />
       <Route path="/huoltoraportit" element={<MaintenanceReportsPage session={session} />} />
       <Route path="/huoltoraportit/uusi" element={<MaintenanceReportEditPage session={session} />} />
-      <Route path="/huoltoraportit/:id" element={<MaintenanceReportEditPage session={session} />} />
       <Route path="/huoltoraportit/:id/tuloste" element={<MaintenanceReportPrintPage session={session} />} />
+      <Route path="/huoltoraportit/:id" element={<MaintenanceReportEditPage session={session} />} />
       <Route path="/tarjouspyynnot" element={<QuoteRequestHubPage session={session} />} />
       <Route path="/tarjouspyynnot/lista" element={<QuoteRequestsPage session={session} />} />
       <Route path="/tarjouspyynnot/laiterekisteri" element={<PumpDeviceRegistryPage session={session} />} />
