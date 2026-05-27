@@ -18,7 +18,10 @@ import type {
   HeatingElementData,
   HuoltoReportData,
   HuomiotImageAttachment,
+  JaahdytysvesiData,
   KonvektoriRowData,
+  LauhdutuspiiriData,
+  NestepiiriData,
   MittausSisayksikkoData,
   MlpData,
   NestelauhdutinUnitData,
@@ -27,6 +30,7 @@ import type {
   TiiveyskoeData,
   TyhjiointiData,
 } from './types';
+import { normalizeMaintenanceReportPhotos } from '../maintenanceReportImages';
 import { generateId, resolveKylmaaineTyyppi } from './utils';
 
 export function createEmptyKonvektoriRow(): KonvektoriRowData {
@@ -79,6 +83,7 @@ export const createEmptySisayksikkoMittausData = createEmptyMittausSisayksikkoDa
 export function createEmptyNestelauhdutinUnit(): NestelauhdutinUnitData {
   return {
     id: generateId(),
+    lauhdutuspiiri: createEmptyLauhdutuspiiriData(),
     lauhdutinPuhdistettu: false,
     lauhdutinPuhdistusTapa: '',
     valmistaja: '',
@@ -131,6 +136,7 @@ export function ensureNestelauhdutinUnit(data: Partial<NestelauhdutinUnitData> |
     ...base,
     ...data,
     id: data.id ?? base.id,
+    lauhdutuspiiri: ensureLauhdutuspiiriData(data.lauhdutuspiiri ?? base.lauhdutuspiiri),
     puhaltimet: (data.puhaltimet ?? base.puhaltimet).map((f, i) => ({
       ...createEmptyEvaporatorFan(i + 1),
       ...f,
@@ -195,8 +201,35 @@ export function createEmptyLiquidCircuitData() {
   };
 }
 
-export function createEmptyJaahdytysvesiData() {
-  return createEmptyLiquidCircuitData();
+export function createEmptyNestepiiriData(): NestepiiriData {
+  return {
+    ...createEmptyLiquidCircuitData(),
+    paisuntaAstiaTarkistettu: false,
+    paisuntaAstiaKoko: '',
+    paisuntaAstiaEsipaine: '',
+  };
+}
+
+export function createEmptyLauhdutuspiiriData(): LauhdutuspiiriData {
+  return {
+    ...createEmptyNestepiiriData(),
+    painesäätimenTarkistettu: false,
+    painesäätimenMalli: '',
+    virtausRiittävä: true,
+    virtausOngelma: '',
+  };
+}
+
+export function ensureNestepiiriData(data: Partial<NestepiiriData> | undefined): NestepiiriData {
+  return { ...createEmptyNestepiiriData(), ...data };
+}
+
+export function ensureLauhdutuspiiriData(data: Partial<LauhdutuspiiriData> | undefined): LauhdutuspiiriData {
+  return { ...createEmptyLauhdutuspiiriData(), ...data };
+}
+
+export function createEmptyJaahdytysvesiData(): JaahdytysvesiData {
+  return createEmptyNestepiiriData();
 }
 
 export function createEmptyVapaajahdytysData() {
@@ -253,7 +286,7 @@ export function ensureTiiveyskoeData(data: Partial<TiiveyskoeData> | undefined):
   return {
     ...base,
     ...data,
-    todisteKuvat: data.todisteKuvat ?? base.todisteKuvat,
+    todisteKuvat: normalizeMaintenanceReportPhotos(data.todisteKuvat ?? base.todisteKuvat),
   };
 }
 
@@ -263,7 +296,7 @@ export function ensureTyhjiointiData(data: Partial<TyhjiointiData> | undefined):
   return {
     ...base,
     ...data,
-    todisteKuvat: data.todisteKuvat ?? base.todisteKuvat,
+    todisteKuvat: normalizeMaintenanceReportPhotos(data.todisteKuvat ?? base.todisteKuvat),
   };
 }
 
@@ -611,7 +644,10 @@ export function normalizeHuoltoReportData(data: Partial<HuoltoReportData>): Huol
       data.mittausSamaKuinEnsimmainen ?? base.mittausSamaKuinEnsimmainen,
       sisMaara,
     ),
-    jaahdytysvesiData: { ...createEmptyJaahdytysvesiData(), ...(data.jaahdytysvesiData ?? {}) },
+    jaahdytysvesiData: ensureNestepiiriData({
+      ...createEmptyJaahdytysvesiData(),
+      ...(data.jaahdytysvesiData ?? {}),
+    }),
     vapaajahdytysData: { ...createEmptyVapaajahdytysData(), ...(data.vapaajahdytysData ?? {}) },
     lauhdutinTyyppiLaite:
       data.lauhdutinTyyppiLaite ??

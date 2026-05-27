@@ -6,10 +6,11 @@ import type {
   NestelauhdutinUnitData,
   SahkoJanniteType,
 } from '../../lib/huoltoRaportti/types';
-import { createEmptyNestelauhdutinUnit } from '../../lib/huoltoRaportti/defaults';
+import { createEmptyLauhdutuspiiriData, createEmptyNestelauhdutinUnit } from '../../lib/huoltoRaportti/defaults';
 import { FormCheckbox } from './FormCheckbox';
 import { FormInput } from './FormInput';
 import { HuoltoModuleSection } from './HuoltoModuleSection';
+import { NestepiiriFields } from './NestepiiriFields';
 
 interface Props {
   units: NestelauhdutinUnitData[];
@@ -104,6 +105,19 @@ export function NestelauhduttimetSection({ units, shared = false, onChange }: Pr
               <FormInput label="Lauhduttimen malli" value={unit.malli} onChange={(v) => patchUnit(uidx, { malli: v })} />
               <FormInput label="Lauhduttimen sarjanumero" value={unit.sarjanumero} onChange={(v) => patchUnit(uidx, { sarjanumero: v })} />
               </div>
+            </div>
+
+            <div className="huolto-field-group">
+              <p className="huolto-field-group-title">Lauhdutuspiiri</p>
+              <NestepiiriFields
+                data={unit.lauhdutuspiiri ?? createEmptyLauhdutuspiiriData()}
+                onChange={(patch) =>
+                  patchUnit(uidx, {
+                    lauhdutuspiiri: { ...(unit.lauhdutuspiiri ?? createEmptyLauhdutuspiiriData()), ...patch },
+                  })
+                }
+                showLauhdutinTarkistukset
+              />
             </div>
 
             <div className="huolto-field-group">

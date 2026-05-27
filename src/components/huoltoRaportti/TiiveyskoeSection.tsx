@@ -110,9 +110,9 @@ export function TiiveyskoeSection({ form, onChange, reportId, userId }: Props) {
         <EvidencePhotoUpload
           reportId={reportId}
           section="tiiveyskoe"
-          paths={data.todisteKuvat ?? []}
+          items={data.todisteKuvat ?? []}
           userId={userId}
-          onChange={(paths) => patchTiiveyskoe({ todisteKuvat: paths })}
+          onChange={(todisteKuvat) => patchTiiveyskoe({ todisteKuvat })}
         />
       ) : (
         <p className="muted">Tallenna luonnos ensin, jotta voit liittää kuvatodisteita.</p>

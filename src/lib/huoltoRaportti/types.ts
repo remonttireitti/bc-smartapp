@@ -1,3 +1,4 @@
+import type { MaintenanceReportPhotoItem } from '../maintenanceReportImages';
 import type { ModuleKey } from './constants';
 
 export type KompressorinVaiheValinta = '' | '1' | '3';
@@ -131,7 +132,7 @@ export interface TiiveyskoeData {
   tulos: TiiveyskoeTulos;
   menetelma: string;
   huom: string;
-  todisteKuvat: string[];
+  todisteKuvat: MaintenanceReportPhotoItem[];
 }
 
 export interface TyhjiointiData {
@@ -143,7 +144,7 @@ export interface TyhjiointiData {
   tulos: TiiveyskoeTulos;
   kaytettyPainemittari: string;
   huom: string;
-  todisteKuvat: string[];
+  todisteKuvat: MaintenanceReportPhotoItem[];
 }
 
 export interface EvaporatorData {
@@ -215,6 +216,7 @@ export type NestelauhdutinOhjausLahde =
 
 export interface NestelauhdutinUnitData {
   id: string;
+  lauhdutuspiiri: LauhdutuspiiriData;
   lauhdutinPuhdistettu?: boolean;
   lauhdutinPuhdistusTapa?: string;
   valmistaja: string;
@@ -295,11 +297,26 @@ export interface LiquidCircuitData {
   pumppuMalli: string;
 }
 
+/** Nestekierron peruskentät (jäähdytysvesi, lauhdutuspiiri). */
+export interface NestepiiriData extends LiquidCircuitData {
+  paisuntaAstiaTarkistettu: boolean;
+  paisuntaAstiaKoko: string;
+  paisuntaAstiaEsipaine: string;
+}
+
+/** Ulkoisen nestelauhduttimen nestekierto (vedenjäähdytyskone). */
+export interface LauhdutuspiiriData extends NestepiiriData {
+  painesäätimenTarkistettu: boolean;
+  painesäätimenMalli: string;
+  virtausRiittävä: boolean;
+  virtausOngelma: string;
+}
+
 export interface VapaajahdytysData extends LiquidCircuitData {
   ohjaus: VapaajahdytysOhjaus;
 }
 
-export interface JaahdytysvesiData extends LiquidCircuitData {}
+export interface JaahdytysvesiData extends NestepiiriData {}
 
 export interface HeatingCircuitData {
   jakotapa: string;

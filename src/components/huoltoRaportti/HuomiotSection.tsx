@@ -1,5 +1,10 @@
 import { huomioLuonneOptions } from '../../lib/huoltoRaportti/constants';
+import { ensureHuomiotLiite } from '../../lib/huoltoRaportti/defaults';
 import type { HuoltoReportData, HuomioLuonne, HuomiotImageAttachment } from '../../lib/huoltoRaportti/types';
+import {
+  normalizeMaintenanceReportPhotos,
+  type MaintenanceReportPhotoItem,
+} from '../../lib/maintenanceReportImages';
 import { EvidencePhotoUpload } from './EvidencePhotoUpload';
 import { HuoltoModuleSection } from './HuoltoModuleSection';
 
@@ -10,25 +15,35 @@ interface Props {
   userId?: string;
 }
 
-function attachmentPaths(attachments: HuomiotImageAttachment[] | undefined): string[] {
-  return (attachments ?? [])
-    .map((a) => a.storagePath ?? a.id)
-    .filter((p) => Boolean(p && String(p).trim()));
+function liitteetToPhotoItems(liitteet: HuomiotImageAttachment[] | undefined): MaintenanceReportPhotoItem[] {
+  return normalizeMaintenanceReportPhotos(
+    (liitteet ?? []).map((a) => ({
+      storagePath: a.storagePath ?? a.id,
+      comment: a.comment ?? '',
+    })),
+  );
 }
 
-function pathsToAttachments(paths: string[]): HuomiotImageAttachment[] {
-  return paths.map((path) => ({
-    id: path,
-    url: '',
-    comment: '',
-    storagePath: path,
-    fileName: path.split('/').pop(),
-  }));
+function photoItemsToLiitteet(
+  items: MaintenanceReportPhotoItem[],
+  prev: HuomiotImageAttachment[] | undefined,
+): HuomiotImageAttachment[] {
+  const previous = prev ?? [];
+  return items.map((item) => {
+    const existing = previous.find((a) => (a.storagePath ?? a.id) === item.storagePath);
+    return ensureHuomiotLiite({
+      ...existing,
+      id: item.storagePath,
+      storagePath: item.storagePath,
+      comment: item.comment,
+      fileName: existing?.fileName ?? item.storagePath.split('/').pop(),
+    });
+  });
 }
 
 export function HuomiotSection({ form, onChange, reportId, userId }: Props) {
   const luonne = form.huomiotLuonne ?? 'kommentti';
-  const paths = attachmentPaths(form.huomiotLiitteet);
+  const photoItems = liitteetToPhotoItems(form.huomiotLiitteet);
 
   return (
     <HuoltoModuleSection moduleKey="huomiot" title="Huomiot">
@@ -61,17 +76,21 @@ export function HuomiotSection({ form, onChange, reportId, userId }: Props) {
         <EvidencePhotoUpload
           reportId={reportId}
           section="huomiot"
-          paths={paths}
-          onChange={(next) => onChange({ huomiotLiitteet: pathsToAttachments(next) })}
+          items={photoItems}
+          onChange={(next) =>
+            onChange({ huomiotLiitteet: photoItemsToLiitteet(next, form.huomiotLiitteet) })
+          }
           userId={userId}
         />
       ) : (
         <div className="huolto-submodule">
           <p className="muted">Kuvien liittäminen vaatii tallennetun raportin.</p>
-          {paths.length > 0 && (
-            <ul className="huolto-path-list">
-              {paths.map((path) => (
-                <li key={path}>{path.split('/').pop()}</li>
+          {photoItems.length > 0 && (
+            <ul className="huolto-evidence-photo-list">
+              {photoItems.map((item) => (
+                <li key={item.storagePath}>
+                  {item.comment.trim() || <span className="muted">(ei kommenttia)</span>}
+                </li>
               ))}
             </ul>
           )}

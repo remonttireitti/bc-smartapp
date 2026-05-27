@@ -9,6 +9,40 @@ export const MAX_IMAGE_BYTES = 800 * 1024;
 
 export type MaintenanceReportImageSection = 'tiiveyskoe' | 'tyhjiointi' | 'huomiot';
 
+/** Kuva + vapaatekstinen kommentti (tallennetaan raportin dataan). */
+export type MaintenanceReportPhotoItem = {
+  storagePath: string;
+  comment: string;
+};
+
+/** Vanha tallennusmuoto (polkujono) → kommenttikentälliset rivit. */
+export function normalizeMaintenanceReportPhotos(raw: unknown): MaintenanceReportPhotoItem[] {
+  if (!Array.isArray(raw)) return [];
+  const out: MaintenanceReportPhotoItem[] = [];
+  for (const item of raw) {
+    if (typeof item === 'string' && item.trim()) {
+      out.push({ storagePath: item.trim(), comment: '' });
+      continue;
+    }
+    if (item && typeof item === 'object') {
+      const path = String(
+        (item as { storagePath?: string; path?: string; id?: string }).storagePath ??
+          (item as { path?: string }).path ??
+          (item as { id?: string }).id ??
+          '',
+      ).trim();
+      if (!path) continue;
+      const comment = String((item as { comment?: string }).comment ?? '').trim();
+      out.push({ storagePath: path, comment });
+    }
+  }
+  return out;
+}
+
+export function photoStoragePaths(items: MaintenanceReportPhotoItem[]): string[] {
+  return items.map((i) => i.storagePath).filter(Boolean);
+}
+
 export type MaintenanceReportImage = {
   id: string;
   maintenance_report_id: string;
@@ -63,7 +97,7 @@ export async function deleteMaintenanceReportImage(storagePath: string) {
   await supabase.from('maintenance_report_images').delete().eq('storage_path', storagePath);
 }
 
-export function MaintenanceReportImageGallery({ paths }: { paths: string[] }) {
+function useSignedImageUrls(paths: string[]) {
   const [urls, setUrls] = useState<Record<string, string>>({});
 
   useEffect(() => {
@@ -86,6 +120,31 @@ export function MaintenanceReportImageGallery({ paths }: { paths: string[] }) {
     };
   }, [paths]);
 
+  return urls;
+}
+
+export function MaintenanceReportImageThumb({ path }: { path: string }) {
+  const urls = useSignedImageUrls([path]);
+  const url = urls[path];
+
+  return (
+    <a
+      href={url ?? '#'}
+      target="_blank"
+      rel="noreferrer"
+      className="image-thumb huolto-evidence-thumb"
+      onClick={(e) => {
+        if (!url) e.preventDefault();
+      }}
+    >
+      {url ? <img src={url} alt="" /> : <span className="muted">Ladataan…</span>}
+    </a>
+  );
+}
+
+export function MaintenanceReportImageGallery({ paths }: { paths: string[] }) {
+  const urls = useSignedImageUrls(paths);
+
   if (paths.length === 0) return null;
 
   return (
@@ -97,7 +156,9 @@ export function MaintenanceReportImageGallery({ paths }: { paths: string[] }) {
           target="_blank"
           rel="noreferrer"
           className="image-thumb"
-          title={path.split('/').pop() ?? path}
+          onClick={(e) => {
+            if (!urls[path]) e.preventDefault();
+          }}
         >
           {urls[path] ? (
             <img src={urls[path]} alt="" />
@@ -114,22 +175,22 @@ interface AddImagesProps {
   reportId: string;
   section: MaintenanceReportImageSection;
   userId: string;
-  paths: string[];
-  onChange: (paths: string[]) => void;
+  items: MaintenanceReportPhotoItem[];
+  onChange: (items: MaintenanceReportPhotoItem[]) => void;
 }
 
 export function AddMaintenanceReportImages({
   reportId,
   section,
   userId,
-  paths,
+  items,
   onChange,
 }: AddImagesProps) {
   const [busy, setBusy] = useState(false);
 
   async function onFilesSelected(files: FileList | null) {
     if (!files || files.length === 0) return;
-    if (paths.length >= MAX_IMAGES) {
+    if (items.length >= MAX_IMAGES) {
       alert(`Enintään ${MAX_IMAGES} kuvaa.`);
       return;
     }
@@ -140,9 +201,12 @@ export function AddMaintenanceReportImages({
         section,
         Array.from(files),
         userId,
-        paths.length,
+        items.length,
       );
-      onChange([...paths, ...uploaded]);
+      onChange([
+        ...items,
+        ...uploaded.map((storagePath) => ({ storagePath, comment: '' })),
+      ]);
     } catch (err) {
       console.error(err);
       alert(err instanceof Error ? err.message : 'Kuvien lataus epäonnistui');
@@ -159,7 +223,7 @@ export function AddMaintenanceReportImages({
         accept="image/jpeg,image/png,image/webp,image/gif,image/heic,image/heif"
         multiple
         hidden
-        disabled={busy || paths.length >= MAX_IMAGES}
+        disabled={busy || items.length >= MAX_IMAGES}
         onChange={(e) => void onFilesSelected(e.target.files)}
       />
     </label>

@@ -1,27 +1,33 @@
 import {
   AddMaintenanceReportImages,
   deleteMaintenanceReportImage,
-  MaintenanceReportImageGallery,
+  MaintenanceReportImageThumb,
   MAX_IMAGES,
   type MaintenanceReportImageSection,
+  type MaintenanceReportPhotoItem,
 } from '../../lib/maintenanceReportImages';
+
 interface Props {
   reportId: string;
   section: string;
-  paths: string[];
-  onChange: (paths: string[]) => void;
+  items: MaintenanceReportPhotoItem[];
+  onChange: (items: MaintenanceReportPhotoItem[]) => void;
   userId: string;
 }
 
-export function EvidencePhotoUpload({ reportId, section, paths, onChange, userId }: Props) {
-  async function removePath(path: string) {
+export function EvidencePhotoUpload({ reportId, section, items, onChange, userId }: Props) {
+  async function removeItem(storagePath: string) {
     try {
-      await deleteMaintenanceReportImage(path);
-      onChange(paths.filter((p) => p !== path));
+      await deleteMaintenanceReportImage(storagePath);
+      onChange(items.filter((i) => i.storagePath !== storagePath));
     } catch (err) {
       console.error(err);
       alert(err instanceof Error ? err.message : 'Kuvan poisto epäonnistui');
     }
+  }
+
+  function updateComment(storagePath: string, comment: string) {
+    onChange(items.map((i) => (i.storagePath === storagePath ? { ...i, comment } : i)));
   }
 
   return (
@@ -34,17 +40,29 @@ export function EvidencePhotoUpload({ reportId, section, paths, onChange, userId
           reportId={reportId}
           section={section as MaintenanceReportImageSection}
           userId={userId}
-          paths={paths}
+          items={items}
           onChange={onChange}
         />
       </div>
-      <MaintenanceReportImageGallery paths={paths} />
-      {paths.length > 0 && (
-        <ul className="huolto-path-list">
-          {paths.map((path) => (
-            <li key={path}>
-              <span className="muted">{path.split('/').pop()}</span>
-              <button type="button" className="btn btn-secondary btn-sm" onClick={() => void removePath(path)}>
+      {items.length > 0 && (
+        <ul className="huolto-evidence-photo-list">
+          {items.map((item) => (
+            <li key={item.storagePath} className="huolto-evidence-photo-row">
+              <MaintenanceReportImageThumb path={item.storagePath} />
+              <label className="huolto-evidence-photo-comment">
+                Kommentti
+                <input
+                  type="text"
+                  value={item.comment}
+                  onChange={(e) => updateComment(item.storagePath, e.target.value)}
+                  placeholder="Kuvaile kuvaa…"
+                />
+              </label>
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                onClick={() => void removeItem(item.storagePath)}
+              >
                 Poista
               </button>
             </li>

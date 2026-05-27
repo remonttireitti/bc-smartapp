@@ -124,9 +124,9 @@ export function TyhjiointiSection({ form, onChange, reportId, userId }: Props) {
         <EvidencePhotoUpload
           reportId={reportId}
           section="tyhjiointi"
-          paths={data.todisteKuvat ?? []}
+          items={data.todisteKuvat ?? []}
           userId={userId}
-          onChange={(paths) => patchTyhjiointi({ todisteKuvat: paths })}
+          onChange={(todisteKuvat) => patchTyhjiointi({ todisteKuvat })}
         />
       ) : (
         <p className="muted">Tallenna luonnos ensin, jotta voit liittää kuvatodisteita.</p>
