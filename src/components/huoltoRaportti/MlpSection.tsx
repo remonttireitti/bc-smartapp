@@ -601,19 +601,6 @@ export function MlpSection({ form, onChange }: Props) {
 
       {(showMaalampoOnly || showChillerParts) && (
       <HuoltoModuleSection moduleKey="mlpEnergia" title={energiatehokkuusSectionTitle(form.laiteTyyppi)} defaultOpen>
-        <div className="huolto-submodule">
-          <h3 className="huolto-part-title">Kylmäaine (MLP)</h3>
-          <div className="checkbox-grid huolto-toggle-grid">
-            <FormCheckbox label="Päästöventtiili tarkastettu" checked={mlp.kylmaainePaetosTarkastettu} onChange={(v) => patchMlp({ kylmaainePaetosTarkastettu: v })} />
-            <FormCheckbox label="Vuotoja havaittu" checked={mlp.kylmaaineVuotoja} onChange={(v) => patchMlp({ kylmaaineVuotoja: v })} />
-          </div>
-          <div className="line-form-grid">
-            <FormInput label="Paine lauhdutin (bar)" value={mlp.kylmaainePaineLauhdutinBar} onChange={(v) => patchMlp({ kylmaainePaineLauhdutinBar: v })} type="number" />
-            <FormInput label="Kyllästyslämpötila (°C)" value={mlp.kylmaaineKyllaestymisLampotila} onChange={(v) => patchMlp({ kylmaaineKyllaestymisLampotila: v })} type="number" />
-            <FormInput label="Nesteputki (°C)" value={mlp.kylmaaineNestePutkiLampotila} onChange={(v) => patchMlp({ kylmaaineNestePutkiLampotila: v })} type="number" />
-            <FormInput label="Alijäähdytys (K)" value={mlp.kylmaaineAlijaahdytys} onChange={(v) => patchMlp({ kylmaaineAlijaahdytys: v })} type="number" />
-          </div>
-        </div>
         <FormCheckbox
           label="Mittaan koko laitteiston sähkönkulutuksen COP-laskentaan"
           checked={mlp.mittaaKokoLaiteSahko}
