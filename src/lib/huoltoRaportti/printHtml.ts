@@ -9,13 +9,11 @@ import type {
   RefrigerantCircuitData,
 } from './types';
 import type { MaintenanceReportPhotoItem } from '../maintenanceReportImages';
-import { expansionValveTypes, isMlpVesiNeste, mlpNesteLabel, sahkoVastusOhjaustapaOptions } from './constants';
+import { expansionValveTypes } from './constants';
 import {
   isChillerLikeDevice,
   isSharedEvaporatorAcrossCircuits,
-  mlpSectionTitle,
   refrigerantCircuitHasMagnetValve,
-  showMlpMaalampoSubsections,
 } from './deviceModuleLogic';
 import {
   evapTyyppiLabel,
@@ -27,12 +25,12 @@ import {
   laskeKokeLoppuaikaFi,
   resolveKoePaivamaaraJaKello,
 } from './kokeAikaUtils';
-import { getCompressorVaiheValinta, getCondenserFanVaiheValinta } from './sahkoVaiheUtils';
 import {
   buildRefrigerantCircuitWarnings,
   computeChillerEnergyFromMlp,
-  computeMlpEnergySummary,
 } from './mlpEnergyCalc';
+import { generateMlpFullPrintHtml } from './printMlpFull';
+import { renderCompressorCurrentHtml, renderFanPhaseCardHtml } from './printPhaseHelpers';
 import {
   calculateSubcoolingFromMeasurements,
   calculateSuperheatFromMeasurements,
@@ -132,34 +130,11 @@ function getOhjausText(ohjaus: string, muu?: string): string {
 }
 
 function renderCondenserFanBlock(fan: Partial<CondenserFanData>, index: number, syotto?: '230' | '400'): string {
-  const vv = getCondenserFanVaiheValinta(fan, syotto);
-  const virta =
-    vv === '1' && hasPrintableValue(fan.virtaL1)
-      ? row(`Puhallin ${index} virta (A)`, fan.virtaL1, '#1565C0')
-      : vv === '3'
-        ? [
-            row(`Puhallin ${index} L1 (A)`, fan.virtaL1, '#1565C0'),
-            row(`Puhallin ${index} L2 (A)`, fan.virtaL2, '#1565C0'),
-            row(`Puhallin ${index} L3 (A)`, fan.virtaL3, '#1565C0'),
-          ].join('')
-        : '';
-  const jannite = hasPrintableValue(fan.jannite) ? row(`Puhallin ${index} jännite`, fan.jannite, '#1565C0') : '';
-  return [jannite, virta].filter(Boolean).join('');
+  return renderFanPhaseCardHtml(fan, index, 'condenser', syotto);
 }
 
 function renderEvaporatorFanBlock(fan: Partial<CondenserFanData>, index: number): string {
-  const vv = getCondenserFanVaiheValinta(fan);
-  const virta =
-    vv === '1' && hasPrintableValue(fan.virtaL1)
-      ? row(`Puhallin ${index} virta (A)`, fan.virtaL1, '#00838F')
-      : vv === '3'
-        ? [
-            row(`Puhallin ${index} L1 (A)`, fan.virtaL1, '#00838F'),
-            row(`Puhallin ${index} L2 (A)`, fan.virtaL2, '#00838F'),
-            row(`Puhallin ${index} L3 (A)`, fan.virtaL3, '#00838F'),
-          ].join('')
-        : '';
-  return virta;
+  return renderFanPhaseCardHtml(fan, index, 'evaporator', fan.jannite === '400' ? '400' : undefined);
 }
 
 function renderChillerEnergy(data: HuoltoReportData): string {
@@ -215,24 +190,12 @@ function renderCompressorBlock(comp: Partial<CompressorData>, index: number): st
     gridField('Taajuusmuuttaja', comp.taajuusmuuttajaTyyppi),
   ].filter(Boolean);
   const checks = [checkRow(comp.oljyMaaraOikea, 'Öljy määrä oikea'), checkRow(comp.oljyKirkas, 'Öljy kirkas')].filter(Boolean);
-  const vv = getCompressorVaiheValinta(comp);
-  const syotto =
-    vv === '1' || vv === '3'
-      ? `<div style="margin:4px 0;font-size:11px;">Syöttö: <strong>${vv === '3' ? '3-vaiheinen' : '1-vaiheinen'}</strong></div>`
-      : '';
-  const virta =
-    vv === '1' && hasPrintableValue(comp.virta1vaihe)
-      ? gridField('Virta (A)', comp.virta1vaihe)
-      : vv === '3'
-        ? [gridField('L1 (A)', comp.virtaL1), gridField('L2 (A)', comp.virtaL2), gridField('L3 (A)', comp.virtaL3)]
-            .filter(Boolean)
-            .join('')
-        : '';
-  if (!parts.length && !checks.length && !syotto && !virta) return '';
-  return `<div style="margin-bottom:8px;padding:8px;background:#fff8f0;border:1px solid #ffe0b2;border-radius:4px;">
+  const virta = renderCompressorCurrentHtml(comp);
+  if (!parts.length && !checks.length && !virta) return '';
+  return `<div style="margin-bottom:8px;padding:8px;background:#fafafa;border:1px solid #e0e0e0;border-radius:4px;">
     <div style="font-weight:bold;color:#E64A19;margin-bottom:4px;">Kompressori ${index}</div>
     ${parts.length ? `<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:6px;">${parts.join('')}</div>` : ''}
-    ${checks.join('')}${syotto}${virta ? `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;">${virta}</div>` : ''}
+    ${checks.join('')}${virta}
   </div>`;
 }
 
@@ -318,7 +281,10 @@ function renderSingleEvaporatorHtml(
   const chillerHx = isChillerLikeDevice(deviceType) && isHeatExchangerEvaporatorType(ev.tyyppi);
   const showDefrost = evaporatorShowsFansAndDefrost(ev.tyyppi);
   const fanHtml = showDefrost && Array.isArray(ev.puhaltimet)
-    ? ev.puhaltimet.map((fan, fi) => renderEvaporatorFanBlock(fan, fi + 1)).filter(Boolean).join('')
+    ? `<div style="margin-top:8px;display:grid;grid-template-columns:repeat(2,1fr);gap:8px;">${ev.puhaltimet
+        .map((fan, fi) => renderEvaporatorFanBlock(fan, fi + 1))
+        .filter(Boolean)
+        .join('')}</div>`
     : '';
   const defrostHtml = showDefrost && ev.sulatus === 'sahko'
     ? [
@@ -410,10 +376,12 @@ function renderCondensers(data: HuoltoReportData): string {
   }
   return data.condenserData
     .map((co, i) => {
-      const fanHtml = (co.puhaltimet ?? [])
-        .map((fan, fi) => renderCondenserFanBlock(fan, fi + 1))
-        .filter(Boolean)
-        .join('');
+      const fanHtml = (co.puhaltimet ?? []).length
+        ? `<div style="margin-top:8px;display:grid;grid-template-columns:repeat(2,1fr);gap:8px;">${(co.puhaltimet ?? [])
+            .map((fan, fi) => renderCondenserFanBlock(fan, fi + 1, fan.jannite === '400' ? '400' : undefined))
+            .filter(Boolean)
+            .join('')}</div>`
+        : '';
       const inner = [
         gridField('Tyyppi', co.tyyppi ? getLauhdutinTypeText(co.tyyppi) : ''),
         gridField('Puhaltimien määrä', co.puhaltimienMaara),
@@ -496,129 +464,6 @@ function renderNestelauhduttimet(data: HuoltoReportData): string {
       return box(`NESTELAUHDUTIN ${i + 1}`, '#5D4037', `<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;">${inner}</div>`);
     })
     .join('');
-}
-
-function renderMlpSummary(data: HuoltoReportData): string {
-  const mlp = data.mlpData;
-  if (
-    !mlp
-    || (
-      !data.selectedModules.mlpPiirit
-      && data.laiteTyyppi !== 'mlp'
-      && data.laiteTyyppi !== 'vesiilmalampopumppu'
-    )
-  ) {
-    return '';
-  }
-
-  const sections: string[] = [];
-  const showMaalampoOnly = showMlpMaalampoSubsections(data.laiteTyyppi);
-
-  if (showMaalampoOnly) {
-    const keruu = [
-      row('Keruupiiri paine (bar)', mlp.keruupiiriPaineBar, '#6A1B9A'),
-      row('Keruupiiri virtaus', mlp.keruupiiriVirtaus, '#6A1B9A'),
-      row('Keruupiiri meno (°C)', mlp.keruupiiriMeno, '#6A1B9A'),
-      row('Keruupiiri paluu (°C)', mlp.keruupiiriTulo, '#6A1B9A'),
-      row('Pumpun tyyppi', mlp.keruupiirinPumpunTyyppi, '#6A1B9A'),
-      row('Pumpun valmistaja', mlp.keruupiiriPumpunValmistaja, '#6A1B9A'),
-      row('Pumpun malli', mlp.keruupiiriPumpunMalli, '#6A1B9A'),
-      checkRow(mlp.keruupiirinPaineTarkastettu, 'Paine tarkastettu'),
-      checkRow(mlp.keruupiirinPumppuTarkastettu, 'Pumppu tarkastettu'),
-    ]
-      .filter(Boolean)
-      .join('');
-    if (keruu) sections.push(`<div style="margin-bottom:8px;"><strong>Keruupiiri</strong>${keruu}</div>`);
-  }
-
-  const latausNesteLabel = mlp.latausNeste
-    ? mlpNesteLabel(mlp.latausNeste)
-    : mlp.latausJarjestelmanNeste;
-  const lataus = [
-    row('Latauspiiri paine (bar)', mlp.latausPaineBar, '#6A1B9A'),
-    row('Lataus virtaus', mlp.latausVirtaus, '#6A1B9A'),
-    row('Lataus meno (°C)', mlp.latausMeno, '#6A1B9A'),
-    row('Lataus paluu (°C)', mlp.latausTulo, '#6A1B9A'),
-    row('Neste', latausNesteLabel, '#6A1B9A'),
-    ...(!isMlpVesiNeste(mlp.latausNeste) && mlp.latausGlykoliPakkaskestavyys
-      ? [row('Glykolin pakkaskestävyys (°C)', mlp.latausGlykoliPakkaskestavyys, '#6A1B9A')]
-      : []),
-    row('Pumpun tyyppi', mlp.latausPumpunTyyppi, '#6A1B9A'),
-    checkRow(mlp.latausPaineTarkastettu, 'Paine tarkastettu'),
-    checkRow(mlp.latausPumppuTarkastettu, 'Pumppu tarkastettu'),
-  ]
-    .filter(Boolean)
-    .join('');
-  if (lataus) sections.push(`<div style="margin-bottom:8px;"><strong>Latauspiiri</strong>${lataus}</div>`);
-
-  if (mlp.kayttovesiEnabled) {
-    const lisalammitinRows: string[] = [];
-    if (mlp.kayttovesiSahkoVastuksetEnabled) {
-      const sijaintiLabel =
-        mlp.kayttovesiSahkoVastuksetSijainti === 'integroitu'
-          ? 'Integroitu laitteeseen'
-          : mlp.kayttovesiSahkoVastuksetSijainti === 'ulkopuolinen'
-            ? 'Ulkopuolinen'
-            : '';
-      if (sijaintiLabel) lisalammitinRows.push(row('Lisälämmittin', sijaintiLabel, '#6A1B9A'));
-      if (mlp.kayttovesiSahkoVastuksetSijainti === 'ulkopuolinen') {
-        const maara = mlp.kayttovesiSahkoVastuksetMaara;
-        if (maara) lisalammitinRows.push(row('Lisälämmittimien määrä', `${maara} kpl`, '#6A1B9A'));
-        (mlp.kayttovesiSahkoVastukset ?? []).forEach((v, i) => {
-          const parts = [
-            v.teho ? `${v.teho} kW` : '',
-            v.ohjaustapa
-              ? (sahkoVastusOhjaustapaOptions.find((o) => o.value === v.ohjaustapa)?.label ?? v.ohjaustapa)
-              : '',
-          ].filter(Boolean);
-          if (parts.length) {
-            lisalammitinRows.push(row(`Lisälämmittin ${i + 1}`, parts.join(' · '), '#6A1B9A'));
-          }
-        });
-      }
-    }
-    const kv = [
-      row('Tilavuus', mlp.kayttovesiTilavuus, '#6A1B9A'),
-      row('Lämpötila-asetus', mlp.kayttovesiLampotilaAsetus, '#6A1B9A'),
-      row('Nykyinen lämpötila', mlp.kayttovesiLampotilaNykyinen, '#6A1B9A'),
-      checkRow(mlp.kayttovesiToimilaitteetOK, 'Toimilaitteet OK'),
-      ...lisalammitinRows,
-    ]
-      .filter(Boolean)
-      .join('');
-    if (kv) sections.push(`<div style="margin-bottom:8px;"><strong>Käyttövesi</strong>${kv}</div>`);
-  }
-
-  if (Array.isArray(mlp.lampoPiirit) && mlp.lampoPiirit.length > 0) {
-    const rows = mlp.lampoPiirit
-      .map(
-        (p, i) =>
-          `<tr>
-        <td style="border:1px solid #ccc;padding:4px;">${i + 1}</td>
-        <td style="border:1px solid #ccc;padding:4px;">${esc(p.jakotapa || p.jakotapaMuu)}</td>
-        <td style="border:1px solid #ccc;padding:4px;">${esc(p.pumppuTyyppi)}</td>
-        <td style="border:1px solid #ccc;padding:4px;">${esc(p.virtaus)}</td>
-        <td style="border:1px solid #ccc;padding:4px;">${esc(p.meno)} / ${esc(p.tulo)}</td>
-      </tr>`,
-      )
-      .join('');
-    sections.push(`
-      <div style="margin-bottom:8px;"><strong>Lämpöpiirit</strong>
-        <table style="width:100%;border-collapse:collapse;font-size:10px;margin-top:4px;">
-          <thead><tr style="background:#f5f5f5;">
-            <th style="border:1px solid #ccc;padding:4px;">#</th>
-            <th style="border:1px solid #ccc;padding:4px;">Jakotapa</th>
-            <th style="border:1px solid #ccc;padding:4px;">Pumppu</th>
-            <th style="border:1px solid #ccc;padding:4px;">Virtaus</th>
-            <th style="border:1px solid #ccc;padding:4px;">Meno/Tulo</th>
-          </tr></thead>
-          <tbody>${rows}</tbody>
-        </table>
-      </div>`);
-  }
-
-  if (sections.length === 0) return '';
-  return box(mlpSectionTitle(data.laiteTyyppi).toUpperCase(), '#6A1B9A', sections.join(''));
 }
 
 function renderKonvektoritTable(data: HuoltoReportData): string {
@@ -954,35 +799,6 @@ function renderCircuitWarningsBanner(data: HuoltoReportData): string {
   </div>`;
 }
 
-function renderMlpEnergyPrint(data: HuoltoReportData): string {
-  if (isChillerLikeDevice(data.laiteTyyppi)) return '';
-  if (!data.mlpData) return '';
-  if (
-    data.laiteTyyppi !== 'mlp'
-    && data.laiteTyyppi !== 'vesiilmalampopumppu'
-    && !data.selectedModules.mlpPiirit
-  ) {
-    return '';
-  }
-  const e = computeMlpEnergySummary(data.mlpData, data.kylmaainePiiri1);
-  if (e.cop == null && e.qKeruuKw == null && e.pInKw == null) return '';
-
-  const rows = [
-    e.qKeruuKw != null ? row('Keruupiiri (kW)', e.qKeruuKw.toFixed(2), '#7B1FA2') : '',
-    e.qLatausKw != null ? row('Latauspiiri (kW)', e.qLatausKw.toFixed(2), '#7B1FA2') : '',
-    e.qTulistusKw != null ? row('Tulistuspiiri (kW)', e.qTulistusKw.toFixed(2), '#7B1FA2') : '',
-    e.pInKw != null ? row('Sähköteho P_in (kW)', e.pInKw.toFixed(2), '#7B1FA2') : '',
-    e.cop != null ? row('COP', e.cop.toFixed(2), '#7B1FA2') : '',
-  ]
-    .filter(Boolean)
-    .join('');
-  const warn =
-    e.warnings.length > 0
-      ? `<ul style="margin:8px 0 0 16px;font-size:10px;color:#c62828;">${e.warnings.map((w) => `<li>${esc(w)}</li>`).join('')}</ul>`
-      : '';
-  return box('ENERGIATEHOKKUUS (MLP)', '#7B1FA2', rows + warn);
-}
-
 const PRINT_CSS = `
 :root { --text:#111827; --muted:#6b7280; --accent:#F0810F; --accent-strong:#D97706; }
 .huolto-print { font-family: Arial, sans-serif; font-size: 10pt; line-height: 1.35; color: var(--text); background: #fff; }
@@ -1095,8 +911,7 @@ export function generateMaintenanceReportHtml(
   ${renderNestelauhduttimet(data)}
   ${renderJaahdytysvesi(data)}
   ${renderChillerEnergy(data)}
-  ${renderMlpSummary(data)}
-  ${renderMlpEnergyPrint(data)}
+  ${generateMlpFullPrintHtml(data)}
   ${renderKonvektoritTable(data)}
   ${renderTiiveyskoe(data, imageUrls)}
   ${renderTyhjiointi(data, imageUrls)}
