@@ -92,6 +92,7 @@ export function getActiveModuleLabels(
   }
   if (isChillerLikeDevice(deviceType)) {
     labels.vedenjajahdytyskone = 'Jäähdytyspiir';
+    labels.nestelauhduttimet = 'Nestelauhdutin';
   }
 
   return (Object.keys(modules) as ModuleKey[])
@@ -129,6 +130,7 @@ export function resolveAutoModules(input: {
       modules.vedenjajahdytyskone = true;
       if (isLiquidCondenserType(condenserType)) {
         modules.nestelauhduttimet = true;
+        modules.lauhdutin = true;
       }
       if (isAirCondenserType(condenserType)) {
         modules.lauhdutin = true;
@@ -220,6 +222,18 @@ export function showChillerCondenserInCircuit(
 
 export function showNestelauhduttimetModules(modules: Record<ModuleKey, boolean>): boolean {
   return moduleIsActive(modules, 'nestelauhduttimet');
+}
+
+export function showVjLauhdutuspiiriModules(
+  deviceType: string,
+  condenserType: LauhdutinType | '' | undefined,
+  modules: Record<ModuleKey, boolean>,
+): boolean {
+  return (
+    isChillerLikeDevice(deviceType) &&
+    isLiquidCondenserType(condenserType) &&
+    moduleIsActive(modules, 'lauhdutin')
+  );
 }
 
 export function showMlpModules(deviceType: string, modules: Record<ModuleKey, boolean>): boolean {

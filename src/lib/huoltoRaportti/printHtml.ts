@@ -355,6 +355,13 @@ function renderJaahdytysvesi(data: HuoltoReportData): string {
   return box(title, '#01579B', inner);
 }
 
+function renderLauhdutuspiiri(data: HuoltoReportData): string {
+  if (!data.selectedModules.lauhdutin || data.lauhdutinTyyppiLaite !== 'nestekiertoinen') return '';
+  const inner = renderNestepiiriFields('#1565C0', data.lauhdutuspiiriData);
+  if (!inner) return '';
+  return box('LAUHDUTUSPIIRI', '#1565C0', inner);
+}
+
 function renderNestelauhduttimet(data: HuoltoReportData): string {
   const units = field(data, 'nestelauhduttimetVj');
   if (!data.selectedModules.nestelauhduttimet || !Array.isArray(units) || units.length === 0) return '';
@@ -825,6 +832,7 @@ export function generateMaintenanceReportHtml(
   ${circuitsHtml}
   ${renderEvaporators(data)}
   ${renderCondensers(data)}
+  ${renderLauhdutuspiiri(data)}
   ${renderNestelauhduttimet(data)}
   ${renderJaahdytysvesi(data)}
   ${renderMlpSummary(data)}

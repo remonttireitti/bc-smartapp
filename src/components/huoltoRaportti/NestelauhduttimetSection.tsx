@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import type {
   CondenserFanData,
   FanPhaseType,
@@ -19,7 +20,12 @@ interface Props {
 }
 
 export function NestelauhduttimetSection({ units, shared = false, onChange }: Props) {
-  const lkm = shared ? 1 : Math.min(4, Math.max(1, units.length));
+  const lkm = shared ? 1 : Math.min(4, Math.max(1, units.length || 1));
+
+  useEffect(() => {
+    if (units.length > 0) return;
+    onChange([createEmptyNestelauhdutinUnit()]);
+  }, [units.length, onChange]);
 
   const setLkm = (n: number) => {
     const nextN = Math.min(4, Math.max(1, n));
@@ -39,7 +45,7 @@ export function NestelauhduttimetSection({ units, shared = false, onChange }: Pr
   };
 
   return (
-    <HuoltoModuleSection moduleKey="nestelauhduttimet" title="Nestelauhduttimet">
+    <HuoltoModuleSection moduleKey="nestelauhduttimet" title="Nestelauhdutin">
       {!shared && (
       <div className="huolto-submodule">
         <label>

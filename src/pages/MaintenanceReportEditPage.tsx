@@ -16,6 +16,7 @@ import { CondensersSection } from '../components/huoltoRaportti/CondensersSectio
 import { EvaporatorCircuitsSync } from '../components/huoltoRaportti/EvaporatorCircuitsSync';
 import { EvaporatorsSection } from '../components/huoltoRaportti/EvaporatorsSection';
 import { JaahdytysvesiSection } from '../components/huoltoRaportti/JaahdytysvesiSection';
+import { LauhdutuspiiriSection } from '../components/huoltoRaportti/LauhdutuspiiriSection';
 import { HuomiotSection } from '../components/huoltoRaportti/HuomiotSection';
 import { VapaajahdytysSection } from '../components/huoltoRaportti/VapaajahdytysSection';
 import { VjLauhdutinSection } from '../components/huoltoRaportti/VjLauhdutinSection';
@@ -33,6 +34,7 @@ import {
   buildMaintenanceReportTitleFromData,
   createEmptyHuoltoReportData,
   createEmptyMlpData,
+  ensureChillerLiquidCondenserData,
   mergeHuoltoReportData,
   normalizeHuoltoReportData,
   resolveMaintenanceReportTitle,
@@ -63,6 +65,7 @@ import {
   getActiveModuleLabels,
   getManualModuleOptions,
   isChillerLikeDevice,
+  isLiquidCondenserType,
   lampopumppuSubmodules,
   resolveAutoModules,
   showCondenserModules,
@@ -70,6 +73,7 @@ import {
   showLampopumppuModules,
   showMlpModules,
   showNestelauhduttimetModules,
+  showVjLauhdutuspiiriModules,
   usesManualModuleMenu,
 } from '../lib/huoltoRaportti/deviceModuleLogic';
 import { getModuleTheme, moduleThemeKeyForOption } from '../lib/huoltoRaportti/moduleThemes';
@@ -208,6 +212,11 @@ export default function MaintenanceReportEditPage({ session }: Props) {
   const showMlpSection = showMlpModules(form.laiteTyyppi, form.selectedModules);
   const showKonvektoritSection = form.selectedModules.konvektorit;
   const showNestelauhduttimetSection = showNestelauhduttimetModules(form.selectedModules);
+  const showLauhdutuspiiriSection = showVjLauhdutuspiiriModules(
+    form.laiteTyyppi,
+    form.lauhdutinTyyppiLaite,
+    form.selectedModules,
+  );
   const showJaahdytysvesiSection = form.selectedModules.vedenjajahdytyskone;
   const isVj = isChillerLikeDevice(form.laiteTyyppi);
   const showVapaajahdytysSection = form.selectedModules.vapaajahdytys;
@@ -615,15 +624,20 @@ export default function MaintenanceReportEditPage({ session }: Props) {
     setHasUnsavedChanges(true);
     setForm((prev) => {
       const merged = mergeHuoltoReportData(prev, next);
+      const condenserType = merged.lauhdutinTyyppiLaite ?? '';
+      const liquidCondenserPatch =
+        isChillerLikeDevice(merged.laiteTyyppi) && isLiquidCondenserType(condenserType)
+          ? ensureChillerLiquidCondenserData(merged)
+          : {};
       const selectedModules = resolveAutoModules({
         laiteTyyppi: merged.laiteTyyppi,
         lauhdutinTyyppiLaite: merged.lauhdutinTyyppiLaite,
         vapaajahdytysKaytossa: merged.vapaajahdytysKaytossa,
         manualModules: merged.selectedModules,
       });
-      const condenserType = merged.lauhdutinTyyppiLaite ?? '';
       return {
         ...merged,
+        ...liquidCondenserPatch,
         selectedModules,
         condenserData: merged.condenserData.map((c) => ({ ...c, tyyppi: condenserType || c.tyyppi })),
       };
@@ -1342,6 +1356,8 @@ export default function MaintenanceReportEditPage({ session }: Props) {
             )}
 
             {showCondenserSection && <CondensersSection form={form} onChange={patchForm} />}
+
+            {showLauhdutuspiiriSection && <LauhdutuspiiriSection form={form} onChange={patchForm} />}
 
             {showNestelauhduttimetSection && (
               <NestelauhduttimetSection

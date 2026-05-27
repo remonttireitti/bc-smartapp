@@ -2,6 +2,7 @@ import {
   defaultCondenserTypeForDevice,
   isChillerLikeDevice,
   isHeatPumpCircuitsDevice,
+  isLiquidCondenserType,
   resolveAutoModules,
   stripMagnetValveFromCircuit,
 } from './deviceModuleLogic';
@@ -249,6 +250,16 @@ export function ensureVjOhjausData(data: Partial<VjOhjausData> | undefined): VjO
 
 export function createEmptyJaahdytysvesiData(): JaahdytysvesiData {
   return createEmptyNestepiiriData();
+}
+
+export function ensureChillerLiquidCondenserData(data: Partial<HuoltoReportData>): Partial<HuoltoReportData> {
+  return {
+    lauhdutuspiiriData: ensureNestepiiriData(data.lauhdutuspiiriData),
+    nestelauhduttimetVj: data.nestelauhduttimetVj?.length
+      ? data.nestelauhduttimetVj.map(ensureNestelauhdutinUnit)
+      : [createEmptyNestelauhdutinUnit()],
+    vjNestelauhdutusJaettu: data.vjNestelauhdutusJaettu ?? true,
+  };
 }
 
 function mergeChillerCoolingCircuit(
@@ -674,6 +685,10 @@ export function normalizeHuoltoReportData(data: Partial<HuoltoReportData>): Huol
       data.mittausSamaKuinEnsimmainen ?? base.mittausSamaKuinEnsimmainen,
       sisMaara,
     ),
+    lauhdutuspiiriData: ensureNestepiiriData({
+      ...createEmptyNestepiiriData(),
+      ...(data.lauhdutuspiiriData ?? {}),
+    }),
     jaahdytysvesiData: isChillerLikeDevice(merged.laiteTyyppi)
       ? mergeChillerCoolingCircuit(data.jaahdytysvesiData, data.hoyrystinPiiriData)
       : ensureNestepiiriData({
@@ -784,6 +799,7 @@ export function createEmptyHuoltoReportData(): HuoltoReportData {
     vapaajahdytysKaytossa: false,
     vapaajahdytysData: createEmptyVapaajahdytysData(),
     jaahdytysvesiData: createEmptyJaahdytysvesiData(),
+    lauhdutuspiiriData: createEmptyNestepiiriData(),
     hoyrystinPiiriData: createEmptyNestepiiriData(),
     vjOhjausData: createEmptyVjOhjausData(),
     nestelauhduttimetVj: [],
@@ -875,14 +891,17 @@ export function applyDeviceTypeDefaults(
     patch.konvektoriRows = [];
   }
   if (isChillerLikeDevice(deviceType)) {
-    patch.nestelauhduttimetVj =
-      data.nestelauhduttimetVj?.length
-        ? data.nestelauhduttimetVj.map(ensureNestelauhdutinUnit)
-        : [createEmptyNestelauhdutinUnit()];
-    patch.vjNestelauhdutusJaettu = data.vjNestelauhdutusJaettu ?? true;
     patch.hoyrystinYhteinenPiireissa = data.hoyrystinYhteinenPiireissa ?? true;
+    if (isLiquidCondenserType(condenserType)) {
+      Object.assign(patch, ensureChillerLiquidCondenserData(data));
+    } else {
+      patch.nestelauhduttimetVj = [];
+      patch.lauhdutuspiiriData = createEmptyNestepiiriData();
+      patch.vjNestelauhdutusJaettu = data.vjNestelauhdutusJaettu ?? true;
+    }
   } else {
     patch.nestelauhduttimetVj = [];
+    patch.lauhdutuspiiriData = createEmptyNestepiiriData();
     patch.vjNestelauhdutusJaettu = false;
     patch.hoyrystinYhteinenPiireissa = false;
     patch.vapaajahdytysKaytossa = false;
