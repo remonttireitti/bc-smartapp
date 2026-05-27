@@ -55,10 +55,17 @@ export type MlpEnergySummary = {
   warnings: string[];
 };
 
-export function computeMlpEnergySummary(
+export type MlpHeatPumpEnergyBalance = MlpEnergySummary & {
+  deviceOutputKw: number;
+  maaperastaKw: number;
+  copEfficiencyLabel: string;
+  canCalculateCop: boolean;
+};
+
+export function computeMlpHeatPumpEnergyBalance(
   mlp: MlpData,
   kp1: RefrigerantCircuitData,
-): MlpEnergySummary {
+): MlpHeatPumpEnergyBalance {
   const cKeruu = parseNum(mlp.keruupiiriNeste) || 4.18;
   const cLataus = parseNum(mlp.latausNeste) || parseNum(mlp.latausJarjestelmanNeste) || 4.18;
   const cTulistus = parseNum(mlp.latausTulistusNeste) || cLataus;
@@ -70,8 +77,13 @@ export function computeMlpEnergySummary(
     : null;
 
   const pInKw = mlp.mittaaKokoLaiteSahko ? wholeDeviceElectricKw(mlp) : compressorElectricKw(kp1);
-
-  const cop = pInKw && pInKw > 0 && qKeruuKw && qKeruuKw > 0 ? qKeruuKw / pInKw : null;
+  const deviceOutputKw = (qLatausKw ?? 0) + (qTulistusKw ?? 0);
+  const maaperastaKw =
+    deviceOutputKw > 0 && pInKw != null && pInKw > 0
+      ? deviceOutputKw - pInKw
+      : qKeruuKw ?? 0;
+  const canCalculateCop = pInKw != null && pInKw > 0 && deviceOutputKw > 0;
+  const cop = canCalculateCop ? deviceOutputKw / pInKw : null;
 
   const warnings: string[] = [];
   if (cop != null) {
@@ -85,7 +97,44 @@ export function computeMlpEnergySummary(
     warnings.push('Sähköteho: syötä kompressorien virrat tai koko laitteen virranmittaus.');
   }
 
-  return { qKeruuKw, qLatausKw, qTulistusKw, pInKw, cop, warnings };
+  const copEfficiencyLabel =
+    cop == null || cop <= 0
+      ? 'Ei voida laskea'
+      : cop >= 4
+        ? 'Erinomainen'
+        : cop >= 3
+          ? 'Hyvä energiatehokkuus'
+          : cop >= 2
+            ? 'Tyydyttävä energiatehokkuus'
+            : 'Heikko';
+
+  return {
+    qKeruuKw,
+    qLatausKw,
+    qTulistusKw,
+    pInKw,
+    cop,
+    warnings,
+    deviceOutputKw,
+    maaperastaKw,
+    copEfficiencyLabel,
+    canCalculateCop,
+  };
+}
+
+export function computeMlpEnergySummary(
+  mlp: MlpData,
+  kp1: RefrigerantCircuitData,
+): MlpEnergySummary {
+  const balance = computeMlpHeatPumpEnergyBalance(mlp, kp1);
+  return {
+    qKeruuKw: balance.qKeruuKw,
+    qLatausKw: balance.qLatausKw,
+    qTulistusKw: balance.qTulistusKw,
+    pInKw: balance.pInKw,
+    cop: balance.cop,
+    warnings: balance.warnings,
+  };
 }
 
 export function computeChillerEnergyFromMlp(

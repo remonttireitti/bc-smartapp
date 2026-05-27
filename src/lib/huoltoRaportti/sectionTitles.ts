@@ -27,17 +27,41 @@ export function kylmaaineChargeTitle(deviceType: string): string {
 }
 
 export function kylmaainePiiriSectionTitle(deviceType: string): string {
-  if (isGroundSourceHeatPump(deviceType)) return '4. Kylmäpiiri 1 mittaukset';
+  if (isGroundSourceHeatPump(deviceType) || isWaterAirHeatPump(deviceType)) {
+    return 'Kylmäainepiiri';
+  }
   if (isChillerLikeDevice(deviceType)) return 'Kylmäainepiirin rakenne ja mittaukset';
   if (usesLegacySectionNumbers(deviceType)) return 'Kylmäainepiiri';
   return 'Kylmäainepiiri';
 }
 
 export function kylmaainePiiriCircuitLabel(deviceType: string, circuitNumber: number): string {
+  if (isGroundSourceHeatPump(deviceType) || isWaterAirHeatPump(deviceType)) {
+    return `Kylmäainepiiri ${circuitNumber} mittaukset`;
+  }
   if (usesLegacySectionNumbers(deviceType) && !isChillerLikeDevice(deviceType)) {
     return `4. Kylmäpiiri ${circuitNumber} mittaukset`;
   }
   return `Kylmäainepiiri ${circuitNumber}`;
+}
+
+export function mlpKeruupiiriSectionTitle(deviceType: string): string {
+  if (isGroundSourceHeatPump(deviceType)) {
+    return `5.1 ${keruupiiriSectionTitle(deviceType)}`;
+  }
+  if (isWaterAirHeatPump(deviceType)) {
+    return `4.1 ${keruupiiriSectionTitle(deviceType)}`;
+  }
+  if (isChillerLikeDevice(deviceType)) {
+    return '4.1 Jäähdytyspiiri';
+  }
+  return keruupiiriSectionTitle(deviceType);
+}
+
+export function mlpJaahdytyspiiriSectionTitle(deviceType: string): string {
+  return isGroundSourceHeatPump(deviceType)
+    ? '5.1b Erillinen keruu- / jäähdytyspiiri'
+    : '4.1b Erillinen keruu- / jäähdytyspiiri';
 }
 
 export function hoyrystinSectionTitle(deviceType: string): string {

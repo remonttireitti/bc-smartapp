@@ -91,9 +91,9 @@ export function getActiveModuleLabels(
   if (isGroundSourceHeatPump(deviceType)) {
     return [
       '3. Kylmäaine',
-      '4. Kylmäpiiri 1 mittaukset',
-      '4.1 Keruupiiri (maa/vesi)',
-      '4.1b Erillinen keruu-/jäähdytyspiiri',
+      'Kylmäainepiiri 1 mittaukset',
+      '5.1 Keruupiiri (maa/vesi)',
+      '5.1b Erillinen keruu-/jäähdytyspiiri',
       '5.2 Latauspiiri',
       '5.3 Käyttöveden lämmitys',
       '5.4 Kiinteistö lämmityspiiri',

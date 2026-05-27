@@ -4,11 +4,12 @@ import type { HuoltoReportData } from '../../lib/huoltoRaportti/types';
 import { createEmptyRefrigerantCircuitData } from '../../lib/huoltoRaportti/defaults';
 import {
   isAirCondenserType,
+  isHeatPumpCircuitsDevice,
   isSharedEvaporatorAcrossCircuits,
   showChillerCondenserInCircuit,
   showEvaporatorInCircuit,
 } from '../../lib/huoltoRaportti/deviceModuleLogic';
-import { kylmaainePiiriSectionTitle } from '../../lib/huoltoRaportti/sectionTitles';
+import { kylmaainePiiriCircuitLabel, kylmaainePiiriSectionTitle } from '../../lib/huoltoRaportti/sectionTitles';
 import ToggleSwitch from '../ToggleSwitch';
 import { EvaporatorModule } from './EvaporatorModule';
 import { HuoltoModuleSection } from './HuoltoModuleSection';
@@ -26,6 +27,7 @@ interface Props {
 export function RefrigerantCircuitsSection({ form, onChange }: Props) {
   const circuitCount = Math.min(3, Math.max(1, parseInt(form.kylmaainePiireja, 10) || 1));
   const isMLP = form.laiteTyyppi === 'mlp';
+  const splitHeatPumpCircuits = isHeatPumpCircuitsDevice(form.laiteTyyppi);
   const condenserType = form.lauhdutinTyyppiLaite ?? form.condenserData[0]?.tyyppi;
   const showChillerCondenser = showChillerCondenserInCircuit(
     form.laiteTyyppi,
@@ -96,11 +98,43 @@ export function RefrigerantCircuitsSection({ form, onChange }: Props) {
     );
   }
 
-  return (
-    <HuoltoModuleSection
-      moduleKey="kylmaainePiiri"
-      title={kylmaainePiiriSectionTitle(form.laiteTyyppi)}
-    >
+  function renderCircuitBlock(
+    circuitNumber: 1 | 2 | 3,
+    circuitData: HuoltoReportData['kylmaainePiiri1'],
+    circuitIndex: number,
+  ) {
+    const firstCircuit = circuitNumber > 1 ? form.kylmaainePiiri1 : undefined;
+    return (
+      <>
+        <RefrigerantCircuitModule
+          circuitNumber={circuitNumber}
+          data={circuitData}
+          onChange={(data) => updateCircuit(circuitNumber, data)}
+          refrigerantType={form.kylmaaineTyyppi}
+          isMLP={isMLP}
+          laiteTyyppi={form.laiteTyyppi}
+          firstCircuitData={firstCircuit}
+          showChillerCondenserInCircuit={
+            showChillerCondenser && (circuitNumber === 1 || !form.vjNestelauhdutusJaettu)
+          }
+          chillerCondenser={
+            showChillerCondenser && (circuitNumber === 1 || !form.vjNestelauhdutusJaettu)
+              ? form.condenserData[circuitIndex]
+              : undefined
+          }
+          onChillerCondenserChange={
+            showChillerCondenser && (circuitNumber === 1 || !form.vjNestelauhdutusJaettu)
+              ? (patch) => updateCondenser(circuitIndex, patch)
+              : undefined
+          }
+        />
+        {renderInlineEvaporator(circuitIndex)}
+      </>
+    );
+  }
+
+  const chillerHelp = (
+    <>
       {isAirCondenserType(condenserType) && (
         <p className="muted huolto-help">
           Ilmalauhduttimen tiedot täytetään kylmäainepiirin alle. Nestekiertoista lauhdutuspiiriä ei käytetä.
@@ -122,69 +156,51 @@ export function RefrigerantCircuitsSection({ form, onChange }: Props) {
             : 'Höyrystimen tiedot täytetään kylmäainepiirin alle. Täytä ensin piirin mittaukset ja komponentit, sitten höyrystin.'}
         </p>
       )}
+    </>
+  );
 
-      <RefrigerantCircuitModule
-        circuitNumber={1}
-        data={form.kylmaainePiiri1}
-        onChange={(data) => updateCircuit(1, data)}
-        refrigerantType={form.kylmaaineTyyppi}
-        isMLP={isMLP}
-        laiteTyyppi={form.laiteTyyppi}
-        showChillerCondenserInCircuit={showChillerCondenser}
-        chillerCondenser={showChillerCondenser ? form.condenserData[0] : undefined}
-        onChillerCondenserChange={
-          showChillerCondenser ? (patch) => updateCondenser(0, patch) : undefined
-        }
-      />
-      {renderInlineEvaporator(0)}
+  if (splitHeatPumpCircuits) {
+    return (
+      <>
+        <HuoltoModuleSection
+          moduleKey="kylmaainePiiri"
+          title={kylmaainePiiriCircuitLabel(form.laiteTyyppi, 1)}
+          defaultOpen
+        >
+          {renderCircuitBlock(1, form.kylmaainePiiri1, 0)}
+        </HuoltoModuleSection>
+        {circuitCount >= 2 && form.kylmaainePiiri2 ? (
+          <HuoltoModuleSection
+            moduleKey="kylmaainePiiri"
+            title={kylmaainePiiriCircuitLabel(form.laiteTyyppi, 2)}
+            defaultOpen
+          >
+            {renderCircuitBlock(2, form.kylmaainePiiri2, 1)}
+          </HuoltoModuleSection>
+        ) : null}
+        {circuitCount >= 3 && form.kylmaainePiiri3 ? (
+          <HuoltoModuleSection
+            moduleKey="kylmaainePiiri"
+            title={kylmaainePiiriCircuitLabel(form.laiteTyyppi, 3)}
+            defaultOpen
+          >
+            {renderCircuitBlock(3, form.kylmaainePiiri3, 2)}
+          </HuoltoModuleSection>
+        ) : null}
+      </>
+    );
+  }
 
-      {circuitCount >= 2 && form.kylmaainePiiri2 && (
-        <>
-          <RefrigerantCircuitModule
-            circuitNumber={2}
-            data={form.kylmaainePiiri2}
-            onChange={(data) => updateCircuit(2, data)}
-            refrigerantType={form.kylmaaineTyyppi}
-            isMLP={isMLP}
-            laiteTyyppi={form.laiteTyyppi}
-            firstCircuitData={form.kylmaainePiiri1}
-            showChillerCondenserInCircuit={showChillerCondenser && !form.vjNestelauhdutusJaettu}
-            chillerCondenser={
-              showChillerCondenser && !form.vjNestelauhdutusJaettu ? form.condenserData[1] : undefined
-            }
-            onChillerCondenserChange={
-              showChillerCondenser && !form.vjNestelauhdutusJaettu
-                ? (patch) => updateCondenser(1, patch)
-                : undefined
-            }
-          />
-          {renderInlineEvaporator(1)}
-        </>
-      )}
-
-      {circuitCount >= 3 && form.kylmaainePiiri3 && (
-        <>
-          <RefrigerantCircuitModule
-            circuitNumber={3}
-            data={form.kylmaainePiiri3}
-            onChange={(data) => updateCircuit(3, data)}
-            refrigerantType={form.kylmaaineTyyppi}
-            isMLP={isMLP}
-            laiteTyyppi={form.laiteTyyppi}
-            firstCircuitData={form.kylmaainePiiri1}
-            showChillerCondenserInCircuit={showChillerCondenser && !form.vjNestelauhdutusJaettu}
-            chillerCondenser={
-              showChillerCondenser && !form.vjNestelauhdutusJaettu ? form.condenserData[2] : undefined
-            }
-            onChillerCondenserChange={
-              showChillerCondenser && !form.vjNestelauhdutusJaettu
-                ? (patch) => updateCondenser(2, patch)
-                : undefined
-            }
-          />
-          {renderInlineEvaporator(2)}
-        </>
-      )}
+  return (
+    <HuoltoModuleSection
+      moduleKey="kylmaainePiiri"
+      title={kylmaainePiiriSectionTitle(form.laiteTyyppi)}
+      defaultOpen
+    >
+      {chillerHelp}
+      {renderCircuitBlock(1, form.kylmaainePiiri1, 0)}
+      {circuitCount >= 2 && form.kylmaainePiiri2 ? renderCircuitBlock(2, form.kylmaainePiiri2, 1) : null}
+      {circuitCount >= 3 && form.kylmaainePiiri3 ? renderCircuitBlock(3, form.kylmaainePiiri3, 2) : null}
     </HuoltoModuleSection>
   );
 }

@@ -7,7 +7,6 @@ import {
 } from '../../lib/huoltoRaportti/constants';
 import {
   isChillerLikeDevice,
-  keruupiiriSectionTitle,
   showChillerPropertySubsections,
   showMlpKeruupiiriSubsection,
   showMlpLatauspiiriSubsection,
@@ -16,13 +15,16 @@ import {
 import {
   energiatehokkuusSectionTitle,
   kiinteistoPiiriSectionTitle,
+  mlpJaahdytyspiiriSectionTitle,
+  mlpKeruupiiriSectionTitle,
 } from '../../lib/huoltoRaportti/sectionTitles';
 import { createEmptyHeatingCircuitData, createEmptyHeatingElementData } from '../../lib/huoltoRaportti/defaults';
 import { getKokoLaiteSahkoVaiheValinta, getMlpPumpSyottoValinta } from '../../lib/huoltoRaportti/sahkoVaiheUtils';
-import { computeMlpEnergySummary } from '../../lib/huoltoRaportti/mlpEnergyCalc';
+import { computeChillerEnergyFromMlp } from '../../lib/huoltoRaportti/mlpEnergyCalc';
 import { FormCheckbox } from './FormCheckbox';
 import { FormInput } from './FormInput';
 import { HeatingElementModule } from './HeatingElementModule';
+import { MlpEnergyDashboard } from './MlpEnergyDashboard';
 import { PumpSupplyMeasurementBlock } from './PumpSupplyMeasurementBlock';
 import { HuoltoModuleSection } from './HuoltoModuleSection';
 interface Props {
@@ -66,10 +68,6 @@ export function MlpSection({ form, onChange }: Props) {
   const showHeatPumpCircuits = !isChillerLikeDevice(form.laiteTyyppi);
   const keruuPower = calcPower(mlp.keruupiiriVirtaus, mlp.keruupiiriMeno, mlp.keruupiiriTulo, parseFloat(mlp.keruupiiriNeste) || 0);
   const latausPower = calcPower(mlp.latausVirtaus, mlp.latausMeno, mlp.latausTulo, parseFloat(mlp.latausNeste) || 0);
-  const energy =
-    showMaalampoOnly || showChillerParts
-      ? computeMlpEnergySummary(mlp, form.kylmaainePiiri1)
-      : null;
 
   function setLampoCount(count: number) {
     if (!form.mlpData) return;
@@ -81,7 +79,7 @@ export function MlpSection({ form, onChange }: Props) {
   return (
     <>
       {showKeruupiiri && (
-      <HuoltoModuleSection moduleKey="mlpKeruupiiri" title={`4.1 ${keruupiiriSectionTitle(form.laiteTyyppi)}`}>
+      <HuoltoModuleSection moduleKey="mlpKeruupiiri" title={mlpKeruupiiriSectionTitle(form.laiteTyyppi)} defaultOpen>
         <div className="checkbox-grid huolto-toggle-grid">
           <FormCheckbox label="Paine tarkastettu" checked={mlp.keruupiirinPaineTarkastettu} onChange={(v) => patchMlp({ keruupiirinPaineTarkastettu: v, ...(v ? {} : { keruupiiriPaineBar: '' }) })} />
           <FormCheckbox label="Mutasihti puhdistettu" checked={mlp.keruupiirissaMutapussiPuhdistettu} onChange={(v) => patchMlp({ keruupiirissaMutapussiPuhdistettu: v })} />
@@ -139,7 +137,7 @@ export function MlpSection({ form, onChange }: Props) {
       )}
 
       {showMaalampoOnly && (
-      <HuoltoModuleSection moduleKey="mlpJaahdytyspiiri" title="4.1b Erillinen keruu- / jäähdytyspiiri">
+      <HuoltoModuleSection moduleKey="mlpJaahdytyspiiri" title={mlpJaahdytyspiiriSectionTitle(form.laiteTyyppi)} defaultOpen>
         <div className="checkbox-grid huolto-toggle-grid">
           <FormCheckbox label="Erillinen piiri" checked={mlp.keruuJaahdytysPiiri} onChange={(v) => patchMlp({ keruuJaahdytysPiiri: v })} />
           <FormCheckbox label="Piirissä pumppu" checked={mlp.keruuJaahdytysPiiriPumppu} onChange={(v) => patchMlp({ keruuJaahdytysPiiriPumppu: v })} />
@@ -174,7 +172,7 @@ export function MlpSection({ form, onChange }: Props) {
       )}
 
       {showLatauspiiri && showHeatPumpCircuits && (
-      <HuoltoModuleSection moduleKey="mlpLatauspiiri" title="5.2 Latauspiiri">
+      <HuoltoModuleSection moduleKey="mlpLatauspiiri" title="5.2 Latauspiiri" defaultOpen>
         <div className="checkbox-grid huolto-toggle-grid">
           <FormCheckbox label="Paine tarkastettu" checked={mlp.latausPaineTarkastettu} onChange={(v) => patchMlp({ latausPaineTarkastettu: v, ...(v ? {} : { latausPaineBar: '' }) })} />
           <FormCheckbox label="Mutapussi puhdistettu" checked={mlp.latausMutapussiPuhdistettu} onChange={(v) => patchMlp({ latausMutapussiPuhdistettu: v })} />
@@ -320,7 +318,7 @@ export function MlpSection({ form, onChange }: Props) {
       )}
 
       {showHeatPumpCircuits && (
-      <HuoltoModuleSection moduleKey="mlpKayttovesi" title="5.3 Käyttöveden lämmitys">
+      <HuoltoModuleSection moduleKey="mlpKayttovesi" title="5.3 Käyttöveden lämmitys" defaultOpen>
         <FormCheckbox label="Käyttövesi mukana" checked={mlp.kayttovesiEnabled} onChange={(v) => patchMlp({ kayttovesiEnabled: v })} />
         {mlp.kayttovesiEnabled && (
           <div className="huolto-form-stack">
@@ -443,7 +441,7 @@ export function MlpSection({ form, onChange }: Props) {
       )}
 
       {(showHeatPumpCircuits || showChillerParts) && (
-      <HuoltoModuleSection moduleKey="mlpLampopiirit" title={kiinteistoPiiriSectionTitle(form.laiteTyyppi)}>
+      <HuoltoModuleSection moduleKey="mlpLampopiirit" title={kiinteistoPiiriSectionTitle(form.laiteTyyppi)} defaultOpen>
         <FormCheckbox
           label="Tulosta ja tallenna laitekorttiin (kiinteistön lämmityspiiri)"
           checked={mlp.kiinteistoPiiritSisallytetaan !== false}
@@ -602,7 +600,7 @@ export function MlpSection({ form, onChange }: Props) {
       )}
 
       {(showMaalampoOnly || showChillerParts) && (
-      <HuoltoModuleSection moduleKey="mlpEnergia" title={energiatehokkuusSectionTitle(form.laiteTyyppi)}>
+      <HuoltoModuleSection moduleKey="mlpEnergia" title={energiatehokkuusSectionTitle(form.laiteTyyppi)} defaultOpen>
         <div className="huolto-submodule">
           <h3 className="huolto-part-title">Kylmäaine (MLP)</h3>
           <div className="checkbox-grid huolto-toggle-grid">
@@ -652,37 +650,36 @@ export function MlpSection({ form, onChange }: Props) {
             )}
           </div>
         )}
-        {energy && (energy.cop != null || energy.qKeruuKw != null || energy.pInKw != null) && (
-          <div className="huolto-energy-summary">
-            <div className="huolto-energy-cop">
-              <span className="huolto-energy-cop-label">Lämpöpumpun COP</span>
-              <strong className="huolto-energy-cop-value">
-                {energy.cop != null ? energy.cop.toFixed(2) : '—'}
-              </strong>
+        {showMaalampoOnly ? (
+          <MlpEnergyDashboard
+            mlp={mlp}
+            kp1={form.kylmaainePiiri1}
+            wholeDeviceElectric={!!mlp.mittaaKokoLaiteSahko}
+          />
+        ) : null}
+        {showChillerParts && !showMaalampoOnly ? (() => {
+          const chiller = computeChillerEnergyFromMlp(mlp, form.kylmaainePiiri1);
+          return (
+            <div className="huolto-energy-summary">
+              <div className="huolto-energy-cop">
+                <span className="huolto-energy-cop-label">Jäähdytyksen COP</span>
+                <strong className="huolto-energy-cop-value">
+                  {chiller.cop != null && chiller.cop > 0 ? chiller.cop.toFixed(2) : '—'}
+                </strong>
+              </div>
+              <div className="line-form-grid huolto-energy-grid">
+                {chiller.qCoolKw != null && chiller.qCoolKw > 0 ? (
+                  <div className="huolto-alert huolto-alert-success">
+                    Jäähdytysteho: {chiller.qCoolKw.toFixed(2)} kW
+                  </div>
+                ) : null}
+                {chiller.pInKw != null ? (
+                  <div className="huolto-alert">Sähköteho: {chiller.pInKw.toFixed(2)} kW</div>
+                ) : null}
+              </div>
             </div>
-            <div className="line-form-grid huolto-energy-grid">
-              {energy.qKeruuKw != null && (
-                <div className="huolto-alert huolto-alert-success">Keruupiiri: {energy.qKeruuKw.toFixed(2)} kW</div>
-              )}
-              {energy.qLatausKw != null && (
-                <div className="huolto-alert huolto-alert-success">Latauspiiri: {energy.qLatausKw.toFixed(2)} kW</div>
-              )}
-              {energy.qTulistusKw != null && (
-                <div className="huolto-alert huolto-alert-success">Tulistuspiiri: {energy.qTulistusKw.toFixed(2)} kW</div>
-              )}
-              {energy.pInKw != null && (
-                <div className="huolto-alert">Sähköteho P_in: {energy.pInKw.toFixed(2)} kW</div>
-              )}
-            </div>
-            {energy.warnings.length > 0 && (
-              <ul className="huolto-energy-warnings">
-                {energy.warnings.map((w) => (
-                  <li key={w}>{w}</li>
-                ))}
-              </ul>
-            )}
-          </div>
-        )}
+          );
+        })() : null}
       </HuoltoModuleSection>
       )}
     </>

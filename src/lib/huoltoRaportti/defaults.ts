@@ -34,6 +34,7 @@ import type {
   TyhjiointiData,
   VjOhjausData,
 } from './types';
+import { inferLegacyMlpFlags } from './mlpLegacyFlags';
 import { normalizeMaintenanceReportPhotos } from '../maintenanceReportPhotoUtils';
 import { generateId, resolveKylmaaineTyyppi } from './utils';
 
@@ -567,10 +568,11 @@ function normalizeKayttovesiLisalammitinSijainti(
 export function ensureMlpData(data: Partial<MlpData> | null | undefined): MlpData {
   const base = createEmptyMlpData();
   if (!data) return base;
-  const latausNeste = data.latausNeste ?? base.latausNeste;
+  const inferred = inferLegacyMlpFlags(data);
+  const merged = { ...base, ...data, ...inferred };
+  const latausNeste = merged.latausNeste ?? base.latausNeste;
   return {
-    ...base,
-    ...data,
+    ...merged,
     latausNeste,
     latausJarjestelmanNeste: latausNeste ? '' : (data.latausJarjestelmanNeste ?? ''),
     latausGlykoliPakkaskestavyys: isMlpVesiNeste(latausNeste)

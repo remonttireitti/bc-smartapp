@@ -4797,3 +4797,63 @@ textarea {
 .customer-list-no-subscriber {
   font-style: italic;
 }
+
+.huolto-energy-dashboard {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.huolto-energy-dashboard-heading {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted, #666);
+  margin-bottom: 0.35rem;
+}
+
+.huolto-energy-balance-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0.75rem;
+}
+
+.huolto-energy-balance-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: 0.65rem 0.75rem;
+  border-radius: 8px;
+  border: 1px solid var(--border, #ddd);
+  background: #f8fafc;
+}
+
+.huolto-energy-balance-card strong {
+  font-size: 1.05rem;
+}
+
+.huolto-energy-balance-input {
+  border-color: #90caf9;
+  background: #e3f2fd;
+}
+
+.huolto-energy-balance-electric {
+  border-color: #ffe082;
+  background: #fff8e1;
+}
+
+.huolto-energy-balance-total {
+  border-color: #ffcc80;
+  background: #fff3e0;
+}
+
+.huolto-energy-cop-badge {
+  display: inline-block;
+  margin-top: 0.35rem;
+  padding: 0.2rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  background: #e8f5e9;
+  color: #2e7d32;
+}
