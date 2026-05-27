@@ -1,11 +1,16 @@
-import type { QuoteProjectType, QuoteRegion, QuoteRequestData, QuoteType } from './types';
+import type { QuoteProjectType, QuoteRegion, QuoteRequestData, QuoteType, QuoteVatProfile } from './types';
+
+export const QUOTE_TYPE_ORDER: QuoteType[] = ['vesi-ilma', 'ilma-ilma', 'huolto'];
 
 export const QUOTE_TYPE_LABELS: Record<QuoteType, string> = {
   'vesi-ilma': 'Vesi-ilmalämpöpumppu',
   'ilma-ilma': 'Ilmalämpöpumppu',
-  huolto: 'Kylmälaite huolto',
-  korjaus: 'Kylmälaitteen korjaus',
-  asennus: 'Kylmälaitteen asennus',
+  huolto: 'Kylmälaitehuolto',
+};
+
+export const QUOTE_VAT_PROFILE_LABELS: Record<QuoteVatProfile, string> = {
+  business: 'Yritysasiakas (ALV 0 %)',
+  consumer: 'Yksityishenkilö (ALV 25,5 %)',
 };
 
 export const QUOTE_REGION_LABELS: Record<QuoteRegion, string> = {
@@ -80,10 +85,27 @@ export const quoteTemplates: Record<QuoteType, Partial<QuoteRequestData>> = {
     iilpBaseInstallLaborGross: 890,
     iilpBaseInstallMaterialsGross: 500,
   },
-  huolto: { laborHours: 2, laborRate: 65, travelCost: 50, vatRate: 0 },
-  korjaus: { laborHours: 4, laborRate: 65, travelCost: 50, vatRate: 0 },
-  asennus: { laborHours: 12, laborRate: 65, travelCost: 50, vatRate: 0 },
+  huolto: { laborHours: 2, laborRate: 65, travelCost: 0, vatRate: 0 },
 };
+
+/** Matkakulut vain lämpöpumppu-tarjouksissa. */
+export function quoteUsesTravelCost(type: QuoteType): boolean {
+  return isPumpQuoteType(type);
+}
+
+export function vatRateForQuoteProfile(profile: QuoteVatProfile): number {
+  return profile === 'consumer' ? 25.5 : 0;
+}
+
+export function inferQuoteVatProfile(vatRate: unknown): QuoteVatProfile {
+  const n = normalizeStoredVatRate(vatRate, 0);
+  return n >= 20 ? 'consumer' : 'business';
+}
+
+export function quoteVatPrintNotice(vatRate: number): string {
+  if (vatRate <= 0) return QUOTE_ZERO_VAT_NOTICE;
+  return `Hinnat sisältävät arvonlisäveron ${vatRate} % (yksityisasiakas).`;
+}
 
 /** Säilyttää 0 % — älä käytä `Number(v) || 25.5`. */
 export function normalizeStoredVatRate(value: unknown, fallback = 0): number {
@@ -96,8 +118,9 @@ export function isPumpQuoteType(type: QuoteType): boolean {
   return type === 'vesi-ilma' || type === 'ilma-ilma';
 }
 
+/** Kylmälaitehuoltotarjous (työrivit + tarvikkeet). */
 export function isRepairQuoteType(type: QuoteType): boolean {
-  return type === 'huolto' || type === 'korjaus' || type === 'asennus';
+  return type === 'huolto';
 }
 
 export function isHuoltoQuoteType(type: QuoteType): boolean {
@@ -107,14 +130,6 @@ export function isHuoltoQuoteType(type: QuoteType): boolean {
 /** Näytetään tulosteessa ja yhteenvedossa kun ALV on 0 %. */
 export const QUOTE_ZERO_VAT_NOTICE = 'Kaikki hinnat ovat alv 0 %.';
 
-/** Kylmälaite-huoltotarjous: oletus alv 0 %, tarvittaessa korotettu kanta. */
-export const HUOLTO_VAT_OPTIONS: ReadonlyArray<{ value: number; label: string }> = [
-  { value: 0, label: 'ALV 0 % (oletus)' },
-  { value: 25.5, label: 'ALV 25,5 %' },
-  { value: 14, label: 'ALV 14 %' },
-  { value: 10, label: 'ALV 10 %' },
-];
-
 export function quoteShowsKotitalousDeduction(type: QuoteType): boolean {
-  return !isHuoltoQuoteType(type);
+  return isPumpQuoteType(type);
 }

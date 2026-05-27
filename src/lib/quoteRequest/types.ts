@@ -1,6 +1,9 @@
 export type QuoteRequestStatus = 'draft' | 'sent';
 
-export type QuoteType = 'vesi-ilma' | 'ilma-ilma' | 'huolto' | 'korjaus' | 'asennus';
+export type QuoteType = 'vesi-ilma' | 'ilma-ilma' | 'huolto';
+
+/** Yritys ALV 0 % tai yksityishenkilö ALV 25,5 %. */
+export type QuoteVatProfile = 'business' | 'consumer';
 export type QuoteRegion = 'pohjois' | 'keski' | 'etela';
 export type QuoteProjectType = 'uudis' | 'korjaus' | 'rinnalle';
 export type QuoteBrandMode = 'auto' | 'own' | `partner:${string}`;
@@ -14,11 +17,11 @@ export type QuoteWorkItem = {
   description: string;
   hours: number;
   pricePerHour: number;
-  /** Valinnainen linkitys asiakkaan laiterekisteriin (huolto/korjaus/asennus). */
+  /** Valinnainen linkitys asiakkaan laiterekisteriin (kylmälaitehuolto). */
   equipmentId?: string;
   /** Tulostetta varten tallennettu laitteen nimi. */
   equipmentName?: string;
-  /** Työkohtaiset tarvikkeet (huolto/korjaus/asennus). */
+  /** Työkohtaiset tarvikkeet (kylmälaitehuolto). */
   materials: QuoteMaterial[];
 };
 
@@ -44,6 +47,8 @@ export type QuoteLine = {
 
 export type QuoteRequestData = {
   type: QuoteType;
+  /** Yritys (alv 0) tai yksityishenkilö (alv 25,5). */
+  quoteVatProfile: QuoteVatProfile;
   introText: string;
   notes: string;
   validUntil: string;

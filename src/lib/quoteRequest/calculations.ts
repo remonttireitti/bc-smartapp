@@ -1,6 +1,6 @@
 import type { BrandDeliveryFeeByCategoryMap } from '../../data/devicePricingShared';
 import type { QuoteMaterial, QuoteRegion, QuoteRequestData, QuoteWorkItem } from './types';
-import { isHuoltoQuoteType, isRepairQuoteType } from './constants';
+import { isRepairQuoteType, quoteShowsKotitalousDeduction, quoteUsesTravelCost } from './constants';
 import {
   calculateDevicePurchaseNet,
   calculateDeviceSellNet,
@@ -278,7 +278,7 @@ export function computeQuoteTotals(
     workNet += iilpBase.laborNet;
     materialsNet += iilpBase.materialsNet;
   }
-  const travelNet = Number(data.travelCost || 0);
+  const travelNet = quoteUsesTravelCost(data.type) ? Number(data.travelCost || 0) : 0;
 
   let deviceNet = 0;
   if (isPumpQuoteType(data.type)) {
@@ -345,7 +345,7 @@ export function computeAllOptionTotals(
     .filter((row) => row.totals != null);
 }
 export function computeKotitalousDeduction(data: QuoteRequestData) {
-  if (isHuoltoQuoteType(data.type)) {
+  if (!quoteShowsKotitalousDeduction(data.type)) {
     return {
       laborOnlyGross: 0,
       percent: 0,

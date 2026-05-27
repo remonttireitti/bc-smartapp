@@ -31,11 +31,14 @@ import { setActiveDeviceRegistry, snapshotFromCompanySettings } from '../lib/quo
 import {
   QUOTE_SECTION_LABELS,
   QUOTE_TYPE_LABELS,
-  HUOLTO_VAT_OPTIONS,
+  QUOTE_TYPE_ORDER,
+  QUOTE_VAT_PROFILE_LABELS,
   isPumpQuoteType,
   isRepairQuoteType,
-  QUOTE_ZERO_VAT_NOTICE,
   quoteShowsKotitalousDeduction,
+  quoteUsesTravelCost,
+  quoteVatPrintNotice,
+  vatRateForQuoteProfile,
 } from '../lib/quoteRequest/constants';
 import {
   applyQuoteTypeChange,
@@ -49,7 +52,7 @@ import {
   resolveQuoteBrandingCompanyId,
   syncCustomerFieldsToForm,
 } from '../lib/quoteRequest/defaults';
-import type { QuoteEditSection, QuoteRequestData, QuoteType } from '../lib/quoteRequest/types';
+import type { QuoteEditSection, QuoteRequestData, QuoteType, QuoteVatProfile } from '../lib/quoteRequest/types';
 import { quoteListTrail } from '../lib/navigationTrail';
 import { useProfile } from '../hooks/useProfile';
 import { useRegisterDraftSaver } from '../hooks/useRegisterDraftSaver';
@@ -144,7 +147,33 @@ export default function QuoteRequestEditPage({ session }: Props) {
 
   function changeQuoteType(nextType: QuoteType) {
     if (nextType === form.type) return;
+    const crossingFamily =
+      isPumpQuoteType(form.type) !== isPumpQuoteType(nextType)
+      || isRepairQuoteType(form.type) !== isRepairQuoteType(nextType);
+    const hasWork =
+      form.workItems.some(
+        (w) =>
+          w.description.trim() ||
+          Number(w.hours) > 0 ||
+          (w.materials ?? []).some((m) => m.name.trim()),
+      ) || form.materials.some((m) => m.name.trim());
+    if (
+      crossingFamily
+      && hasWork
+      && !window.confirm(
+        'Vaihdat tarjouksen tyyppiä. Työt ja tarvikkeet säilyvät — tarkista rivit ja ALV-asetus tarpeen mukaan.',
+      )
+    ) {
+      return;
+    }
     setForm((prev) => applyQuoteTypeChange(prev, nextType));
+  }
+
+  function changeVatProfile(profile: QuoteVatProfile) {
+    patchForm({
+      quoteVatProfile: profile,
+      vatRate: vatRateForQuoteProfile(profile),
+    });
   }
 
   useEffect(() => {
@@ -579,7 +608,7 @@ export default function QuoteRequestEditPage({ session }: Props) {
       <section className="panel quote-type-grid">
         <h2>Tarjouksen tyyppi</h2>
         <div className="quote-type-buttons">
-          {(Object.keys(QUOTE_TYPE_LABELS) as QuoteType[]).map((type) => (
+          {QUOTE_TYPE_ORDER.map((type) => (
             <button
               key={type}
               type="button"
@@ -1035,42 +1064,38 @@ export default function QuoteRequestEditPage({ session }: Props) {
                   disabled={!canEdit}
                 />
               </label>
-              <label>
-                Matkakulut (€, alv 0)
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={form.travelCost}
-                  onChange={(e) => patchForm({ travelCost: Number(e.target.value) })}
-                  disabled={!canEdit}
-                />
-              </label>
-              <label>
-                ALV
-                {isRepairQuoteType(form.type) ? (
-                  <select
-                    value={form.vatRate}
-                    onChange={(e) => patchForm({ vatRate: Number(e.target.value) })}
-                    disabled={!canEdit}
-                  >
-                    {HUOLTO_VAT_OPTIONS.map((opt) => (
-                      <option key={opt.value} value={opt.value}>
-                        {opt.label}
-                      </option>
-                    ))}
-                  </select>
-                ) : (
+              {quoteUsesTravelCost(form.type) && (
+                <label>
+                  Matkakulut (€, alv 0)
                   <input
                     type="number"
                     min="0"
-                    step="0.1"
-                    value={form.vatRate}
-                    onChange={(e) => patchForm({ vatRate: Number(e.target.value) })}
+                    step="0.01"
+                    value={form.travelCost}
+                    onChange={(e) => patchForm({ travelCost: Number(e.target.value) })}
                     disabled={!canEdit}
                   />
-                )}
-              </label>
+                </label>
+              )}
+              <div className="quote-vat-profile-field">
+                <span className="field-label">ALV / asiakastyyppi</span>
+                <div className="quote-vat-profile-options" role="radiogroup" aria-label="ALV / asiakastyyppi">
+                  {(Object.keys(QUOTE_VAT_PROFILE_LABELS) as QuoteVatProfile[]).map((profile) => (
+                    <label key={profile} className="quote-vat-profile-option">
+                      <input
+                        type="radio"
+                        name="quoteVatProfile"
+                        value={profile}
+                        checked={(form.quoteVatProfile ?? 'business') === profile}
+                        disabled={!canEdit}
+                        onChange={() => changeVatProfile(profile)}
+                      />
+                      <span>{QUOTE_VAT_PROFILE_LABELS[profile]}</span>
+                    </label>
+                  ))}
+                </div>
+                <p className="muted quote-vat-profile-hint">{quoteVatPrintNotice(form.vatRate)}</p>
+              </div>
               <label>
                 Alennus (%)
                 <input
@@ -1137,12 +1162,14 @@ export default function QuoteRequestEditPage({ session }: Props) {
               />
             </label>
             <div className="quote-summary-box">
-              {form.vatRate <= 0 && <p className="quote-vat-notice">{QUOTE_ZERO_VAT_NOTICE}</p>}
+              <p className="quote-vat-notice">{quoteVatPrintNotice(form.vatRate)}</p>
               <div>Työt: {totals.workNet.toLocaleString('fi-FI', { style: 'currency', currency: 'EUR' })}</div>
               <div>
                 Tarvikkeet: {totals.materialsNet.toLocaleString('fi-FI', { style: 'currency', currency: 'EUR' })}
               </div>
-              <div>Matkat: {totals.travelNet.toLocaleString('fi-FI', { style: 'currency', currency: 'EUR' })}</div>
+              {quoteUsesTravelCost(form.type) && (
+                <div>Matkat: {totals.travelNet.toLocaleString('fi-FI', { style: 'currency', currency: 'EUR' })}</div>
+              )}
               <div>Laite/urakka: {totals.deviceNet.toLocaleString('fi-FI', { style: 'currency', currency: 'EUR' })}</div>
               <div>
                 Yhteensä (alv 0): {totals.discountedNet.toLocaleString('fi-FI', { style: 'currency', currency: 'EUR' })}

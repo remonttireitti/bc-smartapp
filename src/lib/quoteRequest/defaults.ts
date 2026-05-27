@@ -2,7 +2,15 @@ import type { Partnership } from '../../types';
 import { partnershipPermsActingOnOwner } from '../management';
 import { applyLegacyQuoteFields } from './legacyImport';
 import { resolveLegacyDeviceIds } from './deviceCatalog';
-import { isRepairQuoteType, normalizeStoredVatRate, quoteTemplates } from './constants';
+import {
+  inferQuoteVatProfile,
+  isPumpQuoteType,
+  isRepairQuoteType,
+  isHuoltoQuoteType,
+  quoteTemplates,
+  quoteUsesTravelCost,
+  vatRateForQuoteProfile,
+} from './constants';
 import type {
   QuoteBrandMode,
   QuoteLine,
@@ -53,16 +61,6 @@ export function defaultWorkItemsForType(type: QuoteType): QuoteWorkItem[] {
     ];
   }
 
-  if (isRepairQuoteType(type)) {
-    return [
-      createEmptyWorkItem({
-        description: '',
-        hours: template.laborHours ?? 1,
-        pricePerHour: rate,
-      }),
-    ];
-  }
-
   return [createEmptyWorkItem({ pricePerHour: rate })];
 }
 
@@ -108,9 +106,11 @@ export function createEmptyQuoteRequestData(type: QuoteType = 'vesi-ilma'): Quot
   const validUntil = new Date();
   validUntil.setDate(validUntil.getDate() + 30);
   const template = quoteTemplates[type];
+  const quoteVatProfile = type === 'huolto' ? 'business' : 'consumer';
 
   return {
     type,
+    quoteVatProfile,
     introText: 'Tarjoamme seuraavat työt ja tuotteet:',
     notes: '',
     validUntil: validUntil.toISOString().slice(0, 10),
@@ -145,7 +145,7 @@ export function createEmptyQuoteRequestData(type: QuoteType = 'vesi-ilma'): Quot
     laborHours: template.laborHours ?? 0,
     laborRate: template.laborRate ?? 65,
     travelCost: template.travelCost ?? 50,
-    vatRate: template.vatRate ?? 0,
+    vatRate: vatRateForQuoteProfile(quoteVatProfile),
     deviceDiscountPercent: 52.5,
     deviceMarginPercent: 25,
     devicePurchaseOverrideNet: null,
@@ -182,25 +182,68 @@ export function createEmptyQuoteRequestData(type: QuoteType = 'vesi-ilma'): Quot
   };
 }
 
+function quoteHasWorkContent(data: QuoteRequestData): boolean {
+  return (
+    data.workItems.some(
+      (w) =>
+        w.description.trim() ||
+        Number(w.hours) > 0 ||
+        (w.materials ?? []).some((m) => m.name.trim()),
+    ) || data.materials.some((m) => m.name.trim())
+  );
+}
+
 export function applyQuoteTypeChange(current: QuoteRequestData, nextType: QuoteType): QuoteRequestData {
   const template = quoteTemplates[nextType];
-  const defaultVat = template.vatRate ?? 0;
+  const wasPump = isPumpQuoteType(current.type);
+  const nextPump = isPumpQuoteType(nextType);
+  const wasService = isHuoltoQuoteType(current.type);
+  const nextService = isHuoltoQuoteType(nextType);
+  const crossingFamily = wasPump !== nextPump || wasService !== nextService;
+  const hasContent = quoteHasWorkContent(current);
+
+  let workItems = current.workItems;
+  let materials = current.materials;
+
+  if (crossingFamily && !hasContent) {
+    workItems = nextService
+      ? defaultWorkItemsForType(nextType)
+      : [createEmptyWorkItem({ pricePerHour: template.laborRate ?? 65 })];
+    materials = [];
+  } else if (nextService) {
+    workItems = workItems.map((item) => ({ ...item, materials: item.materials ?? [] }));
+    const nestedCount = workItems.reduce((sum, item) => sum + (item.materials?.length ?? 0), 0);
+    if (materials.length > 0 && nestedCount === 0 && workItems.length > 0) {
+      workItems = workItems.map((item, index) =>
+        index === 0 ? { ...item, materials: [...materials] } : item,
+      );
+      materials = [];
+    }
+  }
+
+  const quoteVatProfile = current.quoteVatProfile ?? inferQuoteVatProfile(current.vatRate);
+
   return {
     ...current,
     type: nextType,
-    laborHours: template.laborHours ?? 0,
-    laborRate: template.laborRate ?? 65,
-    travelCost: template.travelCost ?? 50,
-    vatRate: defaultVat,
-    workItems: isRepairQuoteType(nextType)
-      ? defaultWorkItemsForType(nextType)
-      : [createEmptyWorkItem({ pricePerHour: template.laborRate ?? 65 })],
-    materials: [],
-    devicePurchaseOverrideNet: null,
-    deviceSaleOverrideNet: null,
-    selectedDeviceId: '',
-    altDevice1Id: '',
-    altDevice2Id: '',
+    quoteVatProfile,
+    laborHours: template.laborHours ?? current.laborHours,
+    laborRate: template.laborRate ?? current.laborRate,
+    travelCost: quoteUsesTravelCost(nextType)
+      ? (template.travelCost ?? current.travelCost)
+      : 0,
+    vatRate: vatRateForQuoteProfile(quoteVatProfile),
+    workItems,
+    materials,
+    ...(nextPump
+      ? {}
+      : {
+          devicePurchaseOverrideNet: null,
+          deviceSaleOverrideNet: null,
+          selectedDeviceId: '',
+          altDevice1Id: '',
+          altDevice2Id: '',
+        }),
     vilpBrandChoice: nextType === 'vesi-ilma' ? current.vilpBrandChoice : '',
     vilpOutdoorModel: nextType === 'vesi-ilma' ? current.vilpOutdoorModel : '',
     iilpBaseInstallEnabled:
@@ -339,8 +382,16 @@ export function normalizeQuoteRequestData(raw: unknown): QuoteRequestData {
     materials,
     laborHours: Number(record.laborHours) || 0,
     laborRate: Number(record.laborRate) || 65,
-    travelCost: Number(record.travelCost) || 50,
-    vatRate: normalizeStoredVatRate(record.vatRate, base.vatRate),
+    travelCost: quoteUsesTravelCost(type) ? Number(record.travelCost) || 50 : 0,
+    quoteVatProfile:
+      record.quoteVatProfile === 'consumer' || record.quoteVatProfile === 'business'
+        ? record.quoteVatProfile
+        : inferQuoteVatProfile(record.vatRate),
+    vatRate: vatRateForQuoteProfile(
+      record.quoteVatProfile === 'consumer' || record.quoteVatProfile === 'business'
+        ? record.quoteVatProfile
+        : inferQuoteVatProfile(record.vatRate),
+    ),
     deviceDiscountPercent: Number(record.deviceDiscountPercent) || 0,
     deviceMarginPercent: Number(record.deviceMarginPercent) || 25,
     devicePurchaseOverrideNet:
@@ -393,14 +444,11 @@ function normalizeVilpTankLiters(value: unknown): 0 | 180 | 230 {
 }
 
 function normalizeQuoteType(value: unknown): QuoteType | null {
-  if (
-    value === 'vesi-ilma' ||
-    value === 'ilma-ilma' ||
-    value === 'huolto' ||
-    value === 'korjaus' ||
-    value === 'asennus'
-  ) {
+  if (value === 'vesi-ilma' || value === 'ilma-ilma' || value === 'huolto') {
     return value;
+  }
+  if (value === 'korjaus' || value === 'asennus') {
+    return 'huolto';
   }
   return null;
 }

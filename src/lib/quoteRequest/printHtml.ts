@@ -3,10 +3,9 @@ import {
   QUOTE_PROJECT_TYPE_LABELS,
   QUOTE_REGION_LABELS,
   QUOTE_TYPE_LABELS,
-  QUOTE_ZERO_VAT_NOTICE,
-  isHuoltoQuoteType,
   isPumpQuoteType,
   quoteShowsKotitalousDeduction,
+  quoteVatPrintNotice,
 } from './constants';
 import {
   calculateDevicePurchaseNet,
@@ -244,9 +243,8 @@ function quoteTotalRowLabel(vatRate: number): string {
   return quoteHasVat(vatRate) ? `Tarjous yhteensä (sis. ALV ${vatRate}%)` : 'Tarjous yhteensä (alv 0 %)';
 }
 
-function quoteZeroVatNoticeHtml(vatRate: number): string {
-  if (quoteHasVat(vatRate)) return '';
-  return `<p class="vat-notice">${esc(QUOTE_ZERO_VAT_NOTICE)}</p>`;
+function quoteVatNoticeHtml(vatRate: number): string {
+  return `<p class="vat-notice">${esc(quoteVatPrintNotice(vatRate))}</p>`;
 }
 
 function quotePrintTableHead(mode: QuotePrintMode): string {
@@ -614,7 +612,7 @@ export function generateQuoteOfferPrintHtml(input: {
 
     ${heatingNeedKw != null ? `<p class="intro"><strong>Laskettu lämmitystarve:</strong> ${heatingNeedKw} kW</p>` : ''}
 
-    ${quoteZeroVatNoticeHtml(vatRate)}
+    ${quoteVatNoticeHtml(vatRate)}
 
     <table>
       ${quotePrintTableHead(mode)}
@@ -758,18 +756,10 @@ export function generateQuoteServicePrintHtml(input: {
   const logo = meta.logoUrl || smartappFallbackLogoSvg(meta.companyName);
   const customerAddress = [customer.address, customer.city].filter(Boolean).join(', ');
   const docTitle = QUOTE_TYPE_LABELS[data.type] || 'Tarjous';
-  const kotitalous =
-    mode === 'enduser' && quoteShowsKotitalousDeduction(data.type)
-      ? computeKotitalousDeduction(data)
-      : null;
   const vatRate = Number(data.vatRate) || 0;
   const totalRowLabel = quoteTotalRowLabel(vatRate);
 
   const workRows = buildServiceTaskPrintRows(data, mode);
-
-  const travelCost = Number(data.travelCost) || 0;
-  const travelRow =
-    travelCost > 0 ? printWorkRow('Matkakulut', '1 kpl', travelCost, travelCost, mode) : '';
 
   const deviceLabel = [data.deviceBrand, data.deviceModel].filter(Boolean).join(' ').trim();
   const deviceBox = deviceLabel
@@ -785,15 +775,7 @@ export function generateQuoteServicePrintHtml(input: {
         </section>`
       : '';
 
-  const tableBody = `${workRows}${travelRow}` || '';
-  const kotitalousHtml =
-    kotitalous && kotitalous.laborOnlyGross > 0
-      ? `<div class="notes">
-          <strong>${esc(kotitalous.label)}</strong>
-          <div>${formatEuro(kotitalous.onePerson)}</div>
-        </div>`
-      : '';
-
+  const tableBody = workRows || '';
   return `<!DOCTYPE html>
 <html lang="fi">
 <head>
@@ -834,7 +816,7 @@ export function generateQuoteServicePrintHtml(input: {
 
     ${buildSituationReportHtml(data)}
 
-    ${quoteZeroVatNoticeHtml(vatRate)}
+    ${quoteVatNoticeHtml(vatRate)}
 
     <table>
       ${quotePrintTableHead(mode)}
@@ -846,10 +828,8 @@ export function generateQuoteServicePrintHtml(input: {
 
     ${data.notes.trim() ? `<div class="notes"><strong>Huomautukset</strong><div>${esc(data.notes).replace(/\n/g, '<br />')}</div></div>` : ''}
 
-    ${kotitalousHtml}
-
     <section class="terms">
-      <div class="terms-title">${esc(meta.companyName)} – ${isHuoltoQuoteType(data.type) ? 'Huoltoehdot' : 'Huolto- ja asennusehdot'}</div>
+      <div class="terms-title">${esc(meta.companyName)} – Huoltoehdot</div>
       <div>Työ suoritetaan alan hyvän työtavan mukaisesti. Hinnat sisältävät tarjouksessa eritellyt työt ja materiaalit.
       Lisätyöt ja odottamattomat vauriot sovitaan erikseen ennen jatkotoimenpiteitä.</div>
     </section>
