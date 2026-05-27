@@ -1,6 +1,8 @@
 import { FormEvent, useEffect, useRef, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
+import ToggleSwitch from '../components/ToggleSwitch';
+import { companyBillingModuleEnabled, parseCompanySettings } from '../lib/management';
 import { supabase } from '../lib/supabase';
 import type { Company, Profile } from '../types';
 
@@ -128,6 +130,11 @@ export default function GlobalAdminPage() {
   const [duplicateMessage, setDuplicateMessage] = useState<string | null>(null);
   const [duplicateError, setDuplicateError] = useState<string | null>(null);
   const [duplicateBusy, setDuplicateBusy] = useState(false);
+  const [billingModuleCompanyId, setBillingModuleCompanyId] = useState('');
+  const [billingModuleEnabled, setBillingModuleEnabled] = useState(true);
+  const [billingModuleBusy, setBillingModuleBusy] = useState(false);
+  const [billingModuleMessage, setBillingModuleMessage] = useState<string | null>(null);
+  const [billingModuleError, setBillingModuleError] = useState<string | null>(null);
   const selectAllRef = useRef<HTMLInputElement>(null);
 
   const selectedCount = selectedIds.size;
@@ -147,7 +154,7 @@ export default function GlobalAdminPage() {
 
   async function loadMeta() {
     const [{ data: companyRows }, { data: userRows }] = await Promise.all([
-      supabase.from('companies').select('id, name, slug').order('name'),
+      supabase.from('companies').select('id, name, slug, settings').order('name'),
       supabase.from('profiles').select('id, display_name, email, role, company_id').order('email'),
     ]);
     setCompanies((companyRows as Company[]) ?? []);
@@ -166,6 +173,54 @@ export default function GlobalAdminPage() {
       }),
     );
     setCounts(Object.fromEntries(countEntries));
+  }
+
+  function syncBillingModuleToggle(companyId: string, companyRows: Company[]) {
+    const company = companyRows.find((row) => row.id === companyId);
+    if (!company) {
+      setBillingModuleEnabled(true);
+      return;
+    }
+    setBillingModuleEnabled(
+      companyBillingModuleEnabled(parseCompanySettings(company.settings)),
+    );
+  }
+
+  async function saveBillingModuleForCompany(companyId: string, enabled: boolean) {
+    setBillingModuleBusy(true);
+    setBillingModuleMessage(null);
+    setBillingModuleError(null);
+    const { error } = await supabase.rpc('global_admin_set_company_billing_module', {
+      p_company_id: companyId,
+      p_enabled: enabled,
+    });
+    setBillingModuleBusy(false);
+    if (error) {
+      setBillingModuleError(error.message);
+      return;
+    }
+    setBillingModuleEnabled(enabled);
+    setCompanies((prev) =>
+      prev.map((company) => {
+        if (company.id !== companyId) return company;
+        const settings = parseCompanySettings(company.settings);
+        return {
+          ...company,
+          settings: {
+            ...settings,
+            billing: {
+              ...settings.billing,
+              module_enabled: enabled,
+            },
+          },
+        };
+      }),
+    );
+    setBillingModuleMessage(
+      enabled
+        ? 'Laskutusmoduuli käytössä valitulle yritykselle.'
+        : 'Laskutusmoduuli piilotettu valitulta yritykseltä.',
+    );
   }
 
   async function loadEntityRows(ids?: string[]) {
@@ -477,6 +532,47 @@ export default function GlobalAdminPage() {
       <p className="muted" style={{ marginTop: 0 }}>
         Omistajuuden ja raportointitahon massamuokkaus
       </p>
+
+      <section className="card" style={{ marginBottom: '1rem' }}>
+        <h2>Laskutusmoduuli (yritys)</h2>
+        <p className="muted global-admin-hint">
+          Määrittää näkeekö yrityksen käyttäjät Laskutus-moduulin (etusivu, /laskutus, kumppanilaskutus).
+          Ei näy yrityksen ylläpitäjän hallinnassa — vain globaali admin.
+        </p>
+        <div className="line-form-grid">
+          <label>
+            Yritys
+            <select
+              value={billingModuleCompanyId}
+              onChange={(e) => {
+                const nextId = e.target.value;
+                setBillingModuleCompanyId(nextId);
+                syncBillingModuleToggle(nextId, companies);
+                setBillingModuleMessage(null);
+                setBillingModuleError(null);
+              }}
+            >
+              <option value="">Valitse yritys…</option>
+              {companies.map((company) => (
+                <option key={company.id} value={company.id}>{company.name}</option>
+              ))}
+            </select>
+          </label>
+          <div className="form-field-toggle">
+            <ToggleSwitch
+              checked={billingModuleEnabled}
+              disabled={!billingModuleCompanyId || billingModuleBusy}
+              label="Laskutusmoduuli käytössä"
+              onChange={(checked) => {
+                if (!billingModuleCompanyId) return;
+                void saveBillingModuleForCompany(billingModuleCompanyId, checked);
+              }}
+            />
+          </div>
+        </div>
+        {billingModuleMessage && <p className="success">{billingModuleMessage}</p>}
+        {billingModuleError && <p className="error">{billingModuleError}</p>}
+      </section>
 
       <section className="card" style={{ marginBottom: '1rem' }}>
         <h2>Yrityskohtaiset rivimäärät</h2>

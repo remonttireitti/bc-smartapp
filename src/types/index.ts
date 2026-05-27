@@ -42,6 +42,7 @@ export type Company = {
   id: string;
   name: string;
   slug: string;
+  settings?: unknown;
 };
 
 export type Customer = {

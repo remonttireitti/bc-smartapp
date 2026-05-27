@@ -4,6 +4,7 @@ import AppLayout from './AppLayout';
 import ToggleSwitch from './ToggleSwitch';
 import Tooltip from './Tooltip';
 import { IconGear } from './icons';
+import { useCompanyBillingModuleEnabled } from '../hooks/useCompanyBillingModuleEnabled';
 import { useGlobalAdminMode } from '../hooks/useGlobalAdminMode';
 import { useProfile } from '../hooks/useProfile';
 import { ROLE_LABELS } from '../lib/management';
@@ -27,6 +28,7 @@ const GLOBAL_ADMIN_TAB = { href: '/hallinta/global-admin', label: 'Globaali admi
 export default function ManagementLayout({ session }: Props) {
   const location = useLocation();
   const { profile, loading, reload } = useProfile(session);
+  const billingModuleEnabled = useCompanyBillingModuleEnabled(profile?.company_id, session);
   const { globalAdminMode, setGlobalAdminMode } = useGlobalAdminMode();
   const isAdmin = profile?.role === 'admin';
   const isGlobalAdmin = !!profile?.is_global_admin;
@@ -51,6 +53,10 @@ export default function ManagementLayout({ session }: Props) {
 
   if (location.pathname === '/hallinta' || location.pathname === '/hallinta/') {
     return <Navigate to={isAdmin ? '/hallinta/yritys' : '/hallinta/omat'} replace />;
+  }
+
+  if (billingModuleEnabled === false && location.pathname.startsWith('/hallinta/kumppanilaskutus')) {
+    return <Navigate to="/hallinta/omat" replace />;
   }
 
   if (isGlobalAdminRoute) {
@@ -87,9 +93,14 @@ export default function ManagementLayout({ session }: Props) {
     );
   }
 
+  const adminTabs =
+    billingModuleEnabled === false
+      ? ADMIN_TABS.filter((tab) => tab.href !== '/hallinta/kumppanilaskutus')
+      : ADMIN_TABS;
+
   const tabs = [
     PROFILE_TAB,
-    ...(isAdmin ? ADMIN_TABS : []),
+    ...(isAdmin ? adminTabs : []),
     ...(isGlobalAdmin && globalAdminMode ? [GLOBAL_ADMIN_TAB] : []),
   ];
 

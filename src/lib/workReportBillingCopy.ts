@@ -221,6 +221,11 @@ export async function companyHasBillableBilling(
   supabase: SupabaseClient,
   companyId: string,
 ): Promise<boolean> {
+  const { data: moduleRpc, error: moduleError } = await supabase.rpc('company_billing_module_enabled', {
+    p_company_id: companyId,
+  });
+  if (!moduleError && moduleRpc === false) return false;
+
   const { data: rpcData, error: rpcError } = await supabase.rpc('company_has_billable_billing', {
     p_company_id: companyId,
   });
@@ -284,12 +289,15 @@ export function billToCustomerKey(row: BillingListRow): string {
 }
 
 export async function companyHasCustomerBillableBilling(
-  _supabase: SupabaseClient,
+  supabase: SupabaseClient,
   companyId: string,
 ): Promise<boolean> {
-  // Omien asiakkaiden laskutus on aina käytössä omille työraporteille.
-  // track_customer_invoicing hallitsee vain "laskutettu"-tilamerkintää raportissa.
-  return !!companyId;
+  if (!companyId) return false;
+  const { data: moduleRpc, error: moduleError } = await supabase.rpc('company_billing_module_enabled', {
+    p_company_id: companyId,
+  });
+  if (!moduleError) return !!moduleRpc;
+  return true;
 }
 
 export function formatWorkReportCustomerBillingCopy(input: {

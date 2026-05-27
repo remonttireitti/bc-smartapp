@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
 import AppLayout from '../components/AppLayout';
+import { useCompanyBillingModuleEnabled } from '../hooks/useCompanyBillingModuleEnabled';
 import { useProfile } from '../hooks/useProfile';
 import { supabase } from '../lib/supabase';
 import { formatEuro } from '../lib/workReportBilling';
@@ -78,6 +79,7 @@ const REPORT_SELECT = `
 
 export default function BillingPage({ session }: Props) {
   const { profile } = useProfile(session);
+  const billingModuleEnabled = useCompanyBillingModuleEnabled(profile?.company_id, session);
   const [searchParams] = useSearchParams();
   const urlMode = searchParams.get('mode');
   const initialMode: BillingModuleMode =
@@ -266,11 +268,12 @@ export default function BillingPage({ session }: Props) {
   }, [rows, billingMode]);
 
   const moduleEnabled =
-    billingMode === 'total'
+    billingModuleEnabled !== false
+    && (billingMode === 'total'
       ? customerBillingEnabled !== false || billingEnabled !== false
       : billingMode === 'customer'
         ? customerBillingEnabled !== false
-        : billingEnabled !== false;
+        : billingEnabled !== false);
 
   const filteredRows = useMemo(() => {
     return rows.filter((row) => {
@@ -614,7 +617,7 @@ export default function BillingPage({ session }: Props) {
     }
   }
 
-  const pageDisabled = false;
+  const pageDisabled = billingModuleEnabled === false;
   const customerModeActive = billingMode === 'customer';
   const partnerModeActive = billingMode === 'partner';
   const totalModeActive = billingMode === 'total';
@@ -642,7 +645,12 @@ export default function BillingPage({ session }: Props) {
 
       {pageDisabled ? (
         <section className="panel">
-          <p className="muted">Laskutus ei ole käytettävissä.</p>
+          <p className="muted">
+            Laskutusmoduuli ei ole käytössä tälle yritykselle. Ota yhteys järjestelmän ylläpitoon, jos tarvitset moduulin käyttöön.
+          </p>
+          <p>
+            <Link to="/">Palaa etusivulle</Link>
+          </p>
         </section>
       ) : (
         <div className="billing-page">

@@ -4,6 +4,7 @@ import type { Session } from '@supabase/supabase-js';
 import AppLayout from '../components/AppLayout';
 import PendingWorkOrdersBanner from '../components/PendingWorkOrdersBanner';
 import QuickSearch from '../components/QuickSearch';
+import { useCompanyBillingModuleEnabled } from '../hooks/useCompanyBillingModuleEnabled';
 import { useProfile } from '../hooks/useProfile';
 import { ROLE_LABELS } from '../lib/management';
 import { getPortalPreviewLabel, isPortalPreviewActive, isPortalView } from '../lib/portalPreview';
@@ -43,8 +44,15 @@ const EMPTY_PENDING: PendingWorkOrderCounts = {
 
 export default function Dashboard({ session }: Props) {
   const { profile } = useProfile(session);
+  const billingModuleEnabled = useCompanyBillingModuleEnabled(profile?.company_id, session);
   const portalView = isPortalView(profile);
-  const visibleModules = useMemo(() => (portalView ? PORTAL_MODULES : MODULES), [portalView]);
+  const visibleModules = useMemo(() => {
+    if (portalView) return PORTAL_MODULES;
+    if (billingModuleEnabled === false) {
+      return MODULES.filter((m) => m.href !== '/laskutus');
+    }
+    return MODULES;
+  }, [portalView, billingModuleEnabled]);
   const [pendingOrders, setPendingOrders] = useState<PendingWorkOrderCounts>(EMPTY_PENDING);
 
   const companyId = profile?.company_id ?? '';

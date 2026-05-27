@@ -12,6 +12,7 @@ import Tooltip from '../components/Tooltip';
 import WorkReportStatusBadges from '../components/WorkReportStatusBadges';
 import { useCompanyCustomerBillingEnabled } from '../hooks/useCompanyCustomerBillingEnabled';
 import { useCompanyBillingEnabled } from '../hooks/useCompanyBillingEnabled';
+import { useCompanyBillingModuleEnabled } from '../hooks/useCompanyBillingModuleEnabled';
 import { useProfile } from '../hooks/useProfile';
 import { canDeleteWorkReport } from '../lib/deletePermissions';
 import {
@@ -674,8 +675,11 @@ export default function WorkReportDetailPage({ session }: Props) {
   const [descriptionBusy, setDescriptionBusy] = useState(false);
   const [reportAttachments, setReportAttachments] = useState<WorkReportAttachment[]>([]);
 
-  const partnerBillingEnabled = useCompanyBillingEnabled(report?.created_by_company_id, session);
-  const customerInvoicingEnabled = useCompanyCustomerBillingEnabled(report?.owner_company_id, session);
+  const billingModuleEnabled = useCompanyBillingModuleEnabled(profile?.company_id, session);
+  const creatorPartnerBilling = useCompanyBillingEnabled(report?.created_by_company_id, session);
+  const ownerCustomerInvoicing = useCompanyCustomerBillingEnabled(report?.owner_company_id, session);
+  const partnerBillingEnabled = billingModuleEnabled !== false && creatorPartnerBilling;
+  const customerInvoicingEnabled = billingModuleEnabled !== false && ownerCustomerInvoicing;
 
   useEffect(() => {
     const urls = pendingImages.map((file) => URL.createObjectURL(file));

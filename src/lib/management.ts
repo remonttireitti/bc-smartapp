@@ -79,6 +79,11 @@ export type CompanySettings = {
     billing_address?: string;
     payment_terms?: string;
     invoice_email?: string;
+    /**
+     * Näytetäänkö yritykselle Laskutus-moduuli (dashboard, /laskutus, kumppanilaskutus).
+     * Vain globaali admin voi muuttaa. Oletus true kun kenttä puuttuu.
+     */
+    module_enabled?: boolean;
     /** Seurataanko työraporttien asiakaslaskutusta (Laskutettu asiakkaalta). */
     track_customer_invoicing?: boolean;
     /** Oletushinnat kumppanille laskutettaessa. */
@@ -296,12 +301,30 @@ export function parseCompanySettings(raw: unknown): CompanySettings {
     billing: {
       ...base.billing,
       ...(s.billing ?? {}),
+      module_enabled: s.billing?.module_enabled,
       track_customer_invoicing: s.billing?.track_customer_invoicing ?? false,
       partner_rates: { ...base.billing?.partner_rates, ...(s.billing?.partner_rates ?? {}) },
       customer_rates: { ...base.billing?.customer_rates, ...(s.billing?.customer_rates ?? {}) },
     },
     device_registry: s.device_registry ? { ...s.device_registry } : undefined,
   };
+}
+
+export function companyBillingModuleEnabled(settings: CompanySettings | null | undefined): boolean {
+  return settings?.billing?.module_enabled !== false;
+}
+
+export async function loadCompanyBillingModuleEnabled(
+  supabase: import('@supabase/supabase-js').SupabaseClient,
+  companyId: string,
+): Promise<boolean> {
+  const { data: rpcData, error: rpcError } = await supabase.rpc('company_billing_module_enabled', {
+    p_company_id: companyId,
+  });
+  if (!rpcError) return !!rpcData;
+
+  const { data } = await supabase.from('companies').select('settings').eq('id', companyId).single();
+  return companyBillingModuleEnabled(parseCompanySettings((data as { settings: unknown } | null)?.settings));
 }
 
 export function companyTracksCustomerInvoicing(settings: CompanySettings | null | undefined): boolean {
