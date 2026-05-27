@@ -131,7 +131,7 @@ export default function GlobalAdminPage() {
   const [duplicateError, setDuplicateError] = useState<string | null>(null);
   const [duplicateBusy, setDuplicateBusy] = useState(false);
   const [billingModuleCompanyId, setBillingModuleCompanyId] = useState('');
-  const [billingModuleEnabled, setBillingModuleEnabled] = useState(true);
+  const [billingModuleEnabled, setBillingModuleEnabled] = useState(false);
   const [billingModuleBusy, setBillingModuleBusy] = useState(false);
   const [billingModuleMessage, setBillingModuleMessage] = useState<string | null>(null);
   const [billingModuleError, setBillingModuleError] = useState<string | null>(null);
@@ -178,7 +178,7 @@ export default function GlobalAdminPage() {
   function syncBillingModuleToggle(companyId: string, companyRows: Company[]) {
     const company = companyRows.find((row) => row.id === companyId);
     if (!company) {
-      setBillingModuleEnabled(true);
+      setBillingModuleEnabled(false);
       return;
     }
     setBillingModuleEnabled(
@@ -537,6 +537,7 @@ export default function GlobalAdminPage() {
         <h2>Laskutusmoduuli (yritys)</h2>
         <p className="muted global-admin-hint">
           Määrittää näkeekö yrityksen käyttäjät Laskutus-moduulin (etusivu, /laskutus, kumppanilaskutus).
+          Oletus on pois päältä — ota käyttöön vain yrityksille, joille moduuli on tarkoitettu (esim. BC Smartapp).
           Ei näy yrityksen ylläpitäjän hallinnassa — vain globaali admin.
         </p>
         <div className="line-form-grid">

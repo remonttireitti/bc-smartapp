@@ -81,7 +81,7 @@ export type CompanySettings = {
     invoice_email?: string;
     /**
      * Näytetäänkö yritykselle Laskutus-moduuli (dashboard, /laskutus, kumppanilaskutus).
-     * Vain globaali admin voi muuttaa. Oletus true kun kenttä puuttuu.
+     * Vain globaali admin voi muuttaa. Oletus false (opt-in).
      */
     module_enabled?: boolean;
     /** Seurataanko työraporttien asiakaslaskutusta (Laskutettu asiakkaalta). */
@@ -311,7 +311,7 @@ export function parseCompanySettings(raw: unknown): CompanySettings {
 }
 
 export function companyBillingModuleEnabled(settings: CompanySettings | null | undefined): boolean {
-  return settings?.billing?.module_enabled !== false;
+  return settings?.billing?.module_enabled === true;
 }
 
 export async function loadCompanyBillingModuleEnabled(

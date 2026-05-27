@@ -297,7 +297,7 @@ export async function companyHasCustomerBillableBilling(
     p_company_id: companyId,
   });
   if (!moduleError) return !!moduleRpc;
-  return true;
+  return false;
 }
 
 export function formatWorkReportCustomerBillingCopy(input: {
