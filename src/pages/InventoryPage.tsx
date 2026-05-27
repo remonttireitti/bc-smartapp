@@ -1,10 +1,16 @@
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
 import AppLayout from '../components/AppLayout';
 import { useProfile } from '../hooks/useProfile';
+import {
+  loadInventoryPartnerships,
+  warehouseAccessForCompany,
+  warehouseOwnerTargets,
+} from '../lib/reportCustomerRegistry';
 import { supabase } from '../lib/supabase';
 import { refrigerantTypes } from '../lib/huoltoRaportti/constants';
+import type { Partnership } from '../types';
 import type { InventoryItem, RefrigerantCylinder } from '../types/inventory';
 
 interface Props {
@@ -19,8 +25,29 @@ const CYLINDER_SELECT = `
   owner_user:profiles!refrigerant_cylinders_owner_user_id_fkey(display_name, email)
 `;
 
+const WAREHOUSE_COMPANY_STORAGE_KEY = 'bc-smartapp-inventory-warehouse-company';
+
+function readStoredWarehouseCompanyId(myCompanyId: string): string | null {
+  try {
+    return sessionStorage.getItem(`${WAREHOUSE_COMPANY_STORAGE_KEY}:${myCompanyId}`);
+  } catch {
+    return null;
+  }
+}
+
+function writeStoredWarehouseCompanyId(myCompanyId: string, warehouseCompanyId: string) {
+  try {
+    sessionStorage.setItem(`${WAREHOUSE_COMPANY_STORAGE_KEY}:${myCompanyId}`, warehouseCompanyId);
+  } catch {
+    /* ignore */
+  }
+}
+
 export default function InventoryPage({ session }: Props) {
   const { profile } = useProfile(session);
+  const myCompanyId = profile?.company_id ?? '';
+  const [partnerships, setPartnerships] = useState<Partnership[]>([]);
+  const [warehouseCompanyId, setWarehouseCompanyId] = useState('');
   const [tab, setTab] = useState<Tab>('refrigerant');
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [cylinders, setCylinders] = useState<RefrigerantCylinder[]>([]);
@@ -41,48 +68,91 @@ export default function InventoryPage({ session }: Props) {
     notes: '',
   });
 
-  useEffect(() => {
-    if (profile?.company_id) void load();
-  }, [profile?.company_id]);
+  const warehouseTargets = useMemo(() => {
+    if (!myCompanyId) return [];
+    return warehouseOwnerTargets(myCompanyId, profile?.companies?.name ?? 'Oma yritys', partnerships);
+  }, [myCompanyId, profile?.companies?.name, partnerships]);
 
-  async function load() {
-    if (!profile?.company_id) return;
+  const warehouseAccess = useMemo(() => {
+    if (!myCompanyId || !warehouseCompanyId) return 'write' as const;
+    return warehouseAccessForCompany(myCompanyId, warehouseCompanyId, partnerships);
+  }, [myCompanyId, warehouseCompanyId, partnerships]);
+
+  const canEditWarehouse = warehouseAccess === 'write';
+  const isPartnerWarehouse = Boolean(myCompanyId && warehouseCompanyId && warehouseCompanyId !== myCompanyId);
+  const activeWarehouseLabel =
+    warehouseTargets.find((target) => target.companyId === warehouseCompanyId)?.label ?? '—';
+
+  useEffect(() => {
+    if (!myCompanyId) return;
+    void loadInventoryPartnerships(supabase, myCompanyId).then(setPartnerships);
+  }, [myCompanyId]);
+
+  useEffect(() => {
+    if (!myCompanyId) return;
+    const targets = warehouseOwnerTargets(myCompanyId, profile?.companies?.name ?? 'Oma yritys', partnerships);
+    const stored = readStoredWarehouseCompanyId(myCompanyId);
+    const validStored = stored && targets.some((target) => target.companyId === stored);
+    setWarehouseCompanyId(validStored ? stored : myCompanyId);
+  }, [myCompanyId, profile?.companies?.name, partnerships]);
+
+  useEffect(() => {
+    if (!warehouseCompanyId) return;
+    void load(warehouseCompanyId);
+  }, [warehouseCompanyId]);
+
+  function onWarehouseCompanyChange(companyId: string) {
+    setWarehouseCompanyId(companyId);
+    if (myCompanyId) writeStoredWarehouseCompanyId(myCompanyId, companyId);
+    setMessage(null);
+    setError(null);
+  }
+
+  async function load(companyId: string) {
+    if (!companyId) return;
     setLoading(true);
     setError(null);
+
+    const loadUsersForCompany = companyId === myCompanyId;
 
     const [{ data: itemRows }, { data: cylinderRows }, { data: userRows }] = await Promise.all([
       supabase
         .from('inventory_items')
         .select('*')
-        .eq('company_id', profile.company_id)
+        .eq('company_id', companyId)
         .eq('item_type', 'material')
         .order('name'),
       supabase
         .from('refrigerant_cylinders')
         .select(CYLINDER_SELECT)
-        .eq('company_id', profile.company_id)
+        .eq('company_id', companyId)
         .order('serial_number'),
-      supabase
-        .from('profiles')
-        .select('id, display_name, email')
-        .eq('company_id', profile.company_id)
-        .neq('role', 'customer')
-        .order('display_name'),
+      loadUsersForCompany
+        ? supabase
+            .from('profiles')
+            .select('id, display_name, email')
+            .eq('company_id', companyId)
+            .neq('role', 'customer')
+            .order('display_name')
+        : Promise.resolve({ data: [] as { id: string; display_name: string | null; email: string | null }[] }),
     ]);
 
     setItems((itemRows as InventoryItem[]) ?? []);
     setCylinders((cylinderRows as unknown as RefrigerantCylinder[]) ?? []);
     setUsers((userRows as { id: string; display_name: string | null; email: string | null }[]) ?? []);
+    if (!loadUsersForCompany) {
+      setCylinderForm((prev) => ({ ...prev, owner_user_id: '' }));
+    }
     setLoading(false);
   }
 
   async function addMaterial(e: FormEvent) {
     e.preventDefault();
-    if (!profile?.company_id || !itemForm.name.trim()) return;
+    if (!warehouseCompanyId || !canEditWarehouse || !itemForm.name.trim()) return;
     setBusy(true);
     setError(null);
     const { error: insertError } = await supabase.from('inventory_items').insert({
-      company_id: profile.company_id,
+      company_id: warehouseCompanyId,
       name: itemForm.name.trim(),
       sku: itemForm.sku.trim() || null,
       unit: itemForm.unit.trim() || 'kpl',
@@ -98,12 +168,12 @@ export default function InventoryPage({ session }: Props) {
     }
     setItemForm({ name: '', sku: '', unit: 'kpl', qty_on_hand: '', min_qty: '', location: '' });
     setMessage('Materiaali lisätty.');
-    await load();
+    await load(warehouseCompanyId);
   }
 
   async function addCylinder(e: FormEvent) {
     e.preventDefault();
-    if (!profile?.company_id || !cylinderForm.serial_number.trim()) return;
+    if (!warehouseCompanyId || !canEditWarehouse || !cylinderForm.serial_number.trim()) return;
     setBusy(true);
     setError(null);
     const purchased = Number(cylinderForm.purchased_kg || 0);
@@ -111,7 +181,7 @@ export default function InventoryPage({ session }: Props) {
     const remaining = remainingRaw ? Number(remainingRaw) : purchased;
 
     const { error: insertError } = await supabase.from('refrigerant_cylinders').insert({
-      company_id: profile.company_id,
+      company_id: warehouseCompanyId,
       serial_number: cylinderForm.serial_number.trim(),
       refrigerant_type: cylinderForm.refrigerant_type,
       purchased_kg: purchased,
@@ -136,7 +206,7 @@ export default function InventoryPage({ session }: Props) {
       notes: '',
     });
     setMessage('Kylmäainepullo lisätty.');
-    await load();
+    await load(warehouseCompanyId);
   }
 
   return (
@@ -147,9 +217,41 @@ export default function InventoryPage({ session }: Props) {
             <Link to="/">Etusivu</Link> / Varasto
           </p>
           <h1>Varastohallinta</h1>
-          <p className="muted">Materiaalit ja kylmäainepullojen seuranta (sarjanumero, ostomäärä, jäljellä).</p>
+          <p className="muted">
+            {activeWarehouseLabel}
+            {canEditWarehouse ? ' · muokkausoikeus' : ' · vain katselu'}
+          </p>
         </div>
       </div>
+
+      {warehouseTargets.length > 1 && (
+        <section className="panel" style={{ marginBottom: '1rem' }}>
+          <label>
+            <strong>Hallittava varasto</strong>
+            <select
+              className="inventory-warehouse-select"
+              value={warehouseCompanyId}
+              onChange={(e) => onWarehouseCompanyChange(e.target.value)}
+            >
+              {warehouseTargets.map((target) => (
+                <option key={target.companyId} value={target.companyId}>
+                  {target.label}
+                  {target.access === 'read' ? ' (vain luku)' : ''}
+                </option>
+              ))}
+            </select>
+          </label>
+          <p className="muted" style={{ marginTop: '0.5rem' }}>
+            Jokaisella yrityksellä on oma varasto. Kumppani voi myöntää oikeuden hallita toisen varastoa
+            (Hallinta → Kumppanuudet → Varasto).
+          </p>
+          {isPartnerWarehouse && !canEditWarehouse && (
+            <p className="muted">
+              Sinulla on vain lukuoikeus tähän varastoon — et voi lisätä tai muokata rivejä.
+            </p>
+          )}
+        </section>
+      )}
 
       <div className="billing-filter-pills" style={{ marginBottom: '1rem' }}>
         <button
@@ -175,6 +277,7 @@ export default function InventoryPage({ session }: Props) {
         <section className="panel">Ladataan…</section>
       ) : tab === 'refrigerant' ? (
         <>
+          {canEditWarehouse && (
           <section className="panel form-section">
             <h2>Lisää kylmäainepullo</h2>
             <form onSubmit={(e) => void addCylinder(e)} className="line-form-grid">
@@ -226,6 +329,7 @@ export default function InventoryPage({ session }: Props) {
                 <select
                   value={cylinderForm.owner_user_id}
                   onChange={(e) => setCylinderForm({ ...cylinderForm, owner_user_id: e.target.value })}
+                  disabled={isPartnerWarehouse}
                 >
                   <option value="">Yhteinen varasto</option>
                   {users.map((u) => (
@@ -234,6 +338,11 @@ export default function InventoryPage({ session }: Props) {
                     </option>
                   ))}
                 </select>
+                {isPartnerWarehouse && (
+                  <span className="muted" style={{ display: 'block', marginTop: '0.25rem' }}>
+                    Henkilökohtainen varasto vain oman yrityksen pulloille.
+                  </span>
+                )}
               </label>
               <label>
                 Ostopäivä
@@ -257,6 +366,7 @@ export default function InventoryPage({ session }: Props) {
               </div>
             </form>
           </section>
+          )}
 
           <section className="panel">
             <h2>Kylmäainepullot ({cylinders.length})</h2>
@@ -294,6 +404,7 @@ export default function InventoryPage({ session }: Props) {
         </>
       ) : (
         <>
+          {canEditWarehouse && (
           <section className="panel form-section">
             <h2>Lisää materiaali</h2>
             <form onSubmit={(e) => void addMaterial(e)} className="line-form-grid">
@@ -347,6 +458,7 @@ export default function InventoryPage({ session }: Props) {
               </div>
             </form>
           </section>
+          )}
 
           <section className="panel">
             <h2>Materiaalit ({items.length})</h2>
