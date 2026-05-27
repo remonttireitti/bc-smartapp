@@ -348,7 +348,11 @@ function renderJaahdytysvesi(data: HuoltoReportData): string {
   if (!data.selectedModules.vedenjajahdytyskone) return '';
   const inner = renderNestepiiriFields('#01579B', data.jaahdytysvesiData);
   if (!inner) return '';
-  return box('JÄÄHDYTYSVESEN PIIRI', '#01579B', inner);
+  const title =
+    data.laiteTyyppi === 'vedenjäähdytyskone' || data.laiteTyyppi === 'vakioilmastointtikone'
+      ? 'JÄÄHDYTYSPIIRI'
+      : 'JÄÄHDYTYSVESEN PIIRI';
+  return box(title, '#01579B', inner);
 }
 
 function renderNestelauhduttimet(data: HuoltoReportData): string {

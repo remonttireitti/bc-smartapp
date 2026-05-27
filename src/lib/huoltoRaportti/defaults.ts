@@ -251,6 +251,17 @@ export function createEmptyJaahdytysvesiData(): JaahdytysvesiData {
   return createEmptyNestepiiriData();
 }
 
+function mergeChillerCoolingCircuit(
+  jaahdytysvesi: Partial<JaahdytysvesiData> | undefined,
+  legacyHoyrystinPiiri: Partial<NestepiiriData> | undefined,
+): JaahdytysvesiData {
+  return ensureNestepiiriData({
+    ...createEmptyJaahdytysvesiData(),
+    ...legacyHoyrystinPiiri,
+    ...jaahdytysvesi,
+  });
+}
+
 export function createEmptyVapaajahdytysData() {
   return {
     ...createEmptyLiquidCircuitData(),
@@ -663,14 +674,18 @@ export function normalizeHuoltoReportData(data: Partial<HuoltoReportData>): Huol
       data.mittausSamaKuinEnsimmainen ?? base.mittausSamaKuinEnsimmainen,
       sisMaara,
     ),
-    jaahdytysvesiData: ensureNestepiiriData({
-      ...createEmptyJaahdytysvesiData(),
-      ...(data.jaahdytysvesiData ?? {}),
-    }),
-    hoyrystinPiiriData: ensureNestepiiriData({
-      ...createEmptyNestepiiriData(),
-      ...(data.hoyrystinPiiriData ?? {}),
-    }),
+    jaahdytysvesiData: isChillerLikeDevice(merged.laiteTyyppi)
+      ? mergeChillerCoolingCircuit(data.jaahdytysvesiData, data.hoyrystinPiiriData)
+      : ensureNestepiiriData({
+          ...createEmptyJaahdytysvesiData(),
+          ...(data.jaahdytysvesiData ?? {}),
+        }),
+    hoyrystinPiiriData: isChillerLikeDevice(merged.laiteTyyppi)
+      ? createEmptyNestepiiriData()
+      : ensureNestepiiriData({
+          ...createEmptyNestepiiriData(),
+          ...(data.hoyrystinPiiriData ?? {}),
+        }),
     vjOhjausData: ensureVjOhjausData(data.vjOhjausData),
     vapaajahdytysData: { ...createEmptyVapaajahdytysData(), ...(data.vapaajahdytysData ?? {}) },
     lauhdutinTyyppiLaite:

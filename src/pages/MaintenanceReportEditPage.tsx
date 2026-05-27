@@ -18,7 +18,6 @@ import { EvaporatorsSection } from '../components/huoltoRaportti/EvaporatorsSect
 import { JaahdytysvesiSection } from '../components/huoltoRaportti/JaahdytysvesiSection';
 import { HuomiotSection } from '../components/huoltoRaportti/HuomiotSection';
 import { VapaajahdytysSection } from '../components/huoltoRaportti/VapaajahdytysSection';
-import { VjHoyrystinPiiriSection } from '../components/huoltoRaportti/VjHoyrystinPiiriSection';
 import { VjLauhdutinSection } from '../components/huoltoRaportti/VjLauhdutinSection';
 import { VjOhjausSection } from '../components/huoltoRaportti/VjOhjausSection';
 import { KonvektoritSection } from '../components/huoltoRaportti/KonvektoritSection';
@@ -88,6 +87,7 @@ import {
 } from '../lib/maintenanceReportDraftStorage';
 import { isPortalUser } from '../lib/portalWorkOrder';
 import { useProfile } from '../hooks/useProfile';
+import { useMaintenanceReportScrollRestore } from '../hooks/useMaintenanceReportScrollRestore';
 import { useRegisterDraftSaver } from '../hooks/useRegisterDraftSaver';
 import { canDeleteCompanyOwnedEntity } from '../lib/deletePermissions';
 import type { Company, Customer, Equipment, Partnership, Subscriber } from '../types';
@@ -141,6 +141,12 @@ export default function MaintenanceReportEditPage({ session }: Props) {
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
   const draftStorageKey = localDraftKey(reportId, session.user.id);
+
+  useMaintenanceReportScrollRestore({
+    reportId,
+    userId: session.user.id,
+    ready: !profileLoading && !loadingReport,
+  });
 
   const portalMode = isPortalUser(profile);
   const isPublished = isMaintenanceReportPublished(status);
@@ -730,7 +736,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
         }
       }
 
-      const dataPayload: HuoltoReportData = {
+      const dataPayload: HuoltoReportData = normalizeHuoltoReportData({
         ...form,
         ...huoltoPerformerFields(profile, session),
         customerId: customerId || form.customerId,
@@ -738,7 +744,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
         osoite:
           [selectedCustomer?.address, selectedCustomer?.city].filter(Boolean).join(', ') || form.osoite,
         equipmentSnapshot: buildHuoltoEquipmentTechnicalSnapshot(form) as unknown as EquipmentSnapshot,
-      };
+      });
 
       const customerName = selectedCustomer?.name ?? (form.asiakas.trim() || null);
       const title = buildMaintenanceReportTitleFromData(customerName, dataPayload);
@@ -1327,10 +1333,6 @@ export default function MaintenanceReportEditPage({ session }: Props) {
                 )}
                 <RefrigerantCircuitsSection form={form} onChange={patchForm} />
               </>
-            )}
-
-            {isVj && form.selectedModules.hoyrystin && (
-              <VjHoyrystinPiiriSection form={form} onChange={patchForm} />
             )}
 
             {showEvaporatorSection && <EvaporatorCircuitsSync form={form} onChange={syncForm} />}

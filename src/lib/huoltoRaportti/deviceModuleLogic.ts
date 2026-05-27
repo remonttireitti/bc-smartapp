@@ -91,7 +91,7 @@ export function getActiveModuleLabels(
     labels.ulkoyksikko = 'Ulkoyksikkö (lähte side)';
   }
   if (isChillerLikeDevice(deviceType)) {
-    labels.vedenjajahdytyskone = 'Jäähdytysveden piiri';
+    labels.vedenjajahdytyskone = 'Jäähdytyspiir';
   }
 
   return (Object.keys(modules) as ModuleKey[])
