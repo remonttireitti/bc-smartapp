@@ -1162,6 +1162,41 @@ export default function MaintenanceReportEditPage({ session }: Props) {
                 />
               </label>
             </div>
+            <div className="line-form-grid">
+              <label>
+                Y-tunnus
+                <input
+                  value={form.asiakasYtunnus ?? ''}
+                  onChange={(e) => patchForm({ asiakasYtunnus: e.target.value })}
+                  disabled={!canEditCustomerEquipment}
+                />
+              </label>
+              <label>
+                Yhteyshenkilö
+                <input
+                  value={form.asiakasYhteyshenkilo ?? ''}
+                  onChange={(e) => patchForm({ asiakasYhteyshenkilo: e.target.value })}
+                  disabled={!canEditCustomerEquipment}
+                />
+              </label>
+              <label>
+                Puhelin
+                <input
+                  value={form.asiakasPuhelin ?? ''}
+                  onChange={(e) => patchForm({ asiakasPuhelin: e.target.value })}
+                  disabled={!canEditCustomerEquipment}
+                />
+              </label>
+              <label>
+                Sähköposti
+                <input
+                  type="email"
+                  value={form.asiakasEmail ?? ''}
+                  onChange={(e) => patchForm({ asiakasEmail: e.target.value })}
+                  disabled={!canEditCustomerEquipment}
+                />
+              </label>
+            </div>
           </CollapsibleSection>
         )}
 
@@ -1481,6 +1516,11 @@ export default function MaintenanceReportEditPage({ session }: Props) {
                   label="Laitteessa vika / puutteita"
                   checked={form.huoltoLaiteessaVika}
                   onChange={(checked) => patchForm({ huoltoLaiteessaVika: checked })}
+                />
+                <ToggleSwitch
+                  label="Piilota varoitukset tulosteessa"
+                  checked={form.piilotaVaroitukset ?? false}
+                  onChange={(checked) => patchForm({ piilotaVaroitukset: checked })}
                 />
               </div>
               <div className="line-form-grid">

@@ -564,6 +564,10 @@ export type HuoltoReportData = {
   huoltoSuorittajaTUKES: string;
   huoltoPaivamaara: string;
   huoltoReportDocumentKind: 'huolto' | 'kayttoonotto';
+  /** Tuloste: piilota kylmäainepiirin varoitukset (vanha sovellus). */
+  piilotaVaroitukset?: boolean;
+  /** Vanhan tuonnin yritystiedot (tuloste). */
+  legacyCompanyInfo?: Record<string, unknown>;
   [key: string]: unknown;
 };
 export type MaintenanceReportRow = {

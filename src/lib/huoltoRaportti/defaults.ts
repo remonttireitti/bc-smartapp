@@ -344,13 +344,20 @@ export function ensureTiiveyskoeData(data: Partial<TiiveyskoeData> | undefined):
 export function ensureTyhjiointiData(data: Partial<TyhjiointiData> | undefined): TyhjiointiData {
   const base = createEmptyTyhjiointiData();
   if (!data) return base;
-  const legacyPump = (data as Record<string, unknown>).pumpunTyyppi;
+  const legacy = data as Record<string, unknown>;
+  const loppupaineArvo =
+    data.loppupaineArvo ||
+    (legacy.loppupaineMikronia != null ? String(legacy.loppupaineMikronia).trim() : '');
   return {
     ...base,
     ...data,
+    loppupaineArvo,
+    loppupaineYksikko:
+      data.loppupaineYksikko ||
+      (loppupaineArvo && !data.loppupaineYksikko ? 'micron' : base.loppupaineYksikko),
     kaytettyPainemittari:
       data.kaytettyPainemittari ||
-      (typeof legacyPump === 'string' ? legacyPump.trim() : ''),
+      (typeof legacy.pumpunTyyppi === 'string' ? legacy.pumpunTyyppi.trim() : ''),
     todisteKuvat: normalizeMaintenanceReportPhotos(data.todisteKuvat ?? base.todisteKuvat),
   };
 }
@@ -859,6 +866,7 @@ export function createEmptyHuoltoReportData(): HuoltoReportData {
     huoltoSuorittajaTUKES: '',
     huoltoPaivamaara: today,
     huoltoReportDocumentKind: 'huolto',
+    piilotaVaroitukset: false,
   };
 }
 

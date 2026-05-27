@@ -8,6 +8,7 @@ import {
 import { mlpSectionTitle, showMlpMaalampoSubsections } from '../../lib/huoltoRaportti/deviceModuleLogic';
 import { createEmptyHeatingCircuitData, createEmptyHeatingElementData } from '../../lib/huoltoRaportti/defaults';
 import { getKokoLaiteSahkoVaiheValinta, getMlpPumpSyottoValinta } from '../../lib/huoltoRaportti/sahkoVaiheUtils';
+import { computeMlpEnergySummary } from '../../lib/huoltoRaportti/mlpEnergyCalc';
 import { FormCheckbox } from './FormCheckbox';
 import { FormInput } from './FormInput';
 import { HeatingElementModule } from './HeatingElementModule';
@@ -47,6 +48,7 @@ export function MlpSection({ form, onChange }: Props) {
   const showMaalampoOnly = showMlpMaalampoSubsections(form.laiteTyyppi);
   const keruuPower = calcPower(mlp.keruupiiriVirtaus, mlp.keruupiiriMeno, mlp.keruupiiriTulo, parseFloat(mlp.keruupiiriNeste) || 0);
   const latausPower = calcPower(mlp.latausVirtaus, mlp.latausMeno, mlp.latausTulo, parseFloat(mlp.latausNeste) || 0);
+  const energy = showMaalampoOnly ? computeMlpEnergySummary(mlp, form.kylmaainePiiri1) : null;
 
   function setLampoCount(count: number) {
     if (!form.mlpData) return;
@@ -148,6 +150,7 @@ export function MlpSection({ form, onChange }: Props) {
           <FormInput label="Virtaus (l/s)" value={mlp.keruuJaahdytysVirtaus} onChange={(v) => patchMlp({ keruuJaahdytysVirtaus: v })} type="number" />
           <FormInput label="Meno (°C)" value={mlp.keruuJaahdytysMenoLampotila} onChange={(v) => patchMlp({ keruuJaahdytysMenoLampotila: v })} type="number" />
           <FormInput label="Paluu (°C)" value={mlp.keruuJaahdytysPaluuLampotila} onChange={(v) => patchMlp({ keruuJaahdytysPaluuLampotila: v })} type="number" />
+          <FormInput label="Käyntivirta (A)" value={mlp.keruuJaahdytysKayntivirta} onChange={(v) => patchMlp({ keruuJaahdytysKayntivirta: v })} type="number" />
         </div>
       </div>
       )}
@@ -160,8 +163,25 @@ export function MlpSection({ form, onChange }: Props) {
           <FormCheckbox label="Pumppu tarkastettu" checked={mlp.latausPumppuTarkastettu} onChange={(v) => patchMlp({ latausPumppuTarkastettu: v })} />
           <FormCheckbox label="Eristeet kunnossa" checked={mlp.latausEristeetKunnossa} onChange={(v) => patchMlp({ latausEristeetKunnossa: v })} />
           <FormCheckbox label="Automaattinen ilmaus tarkistettu" checked={mlp.latausAutomaattinenIlmausTarkistettu} onChange={(v) => patchMlp({ latausAutomaattinenIlmausTarkistettu: v })} />
+          <FormCheckbox label="Paisunta-astia tarkistettu" checked={mlp.latausPaisuntaAstiaTarkistettu} onChange={(v) => patchMlp({ latausPaisuntaAstiaTarkistettu: v })} />
           <FormCheckbox label="Tulistuspiiri" checked={mlp.latausTulistuspiiri} onChange={(v) => patchMlp({ latausTulistuspiiri: v })} />
         </div>
+        {mlp.latausPaisuntaAstiaTarkistettu && (
+          <div className="line-form-grid">
+            <FormInput
+              label="Paisunta-astian koko"
+              value={mlp.latausPaisuntaAstiaKoko}
+              onChange={(v) => patchMlp({ latausPaisuntaAstiaKoko: v })}
+              className="huolto-span-all"
+            />
+            <FormInput
+              label="Esipaine (bar)"
+              value={mlp.latausPaisuntaAstiaEsipaine}
+              onChange={(v) => patchMlp({ latausPaisuntaAstiaEsipaine: v })}
+              type="number"
+            />
+          </div>
+        )}
         {mlp.latausPaineTarkastettu && (
           <FormInput label="Mitattu paine (bar)" value={mlp.latausPaineBar} onChange={(v) => patchMlp({ latausPaineBar: v })} type="number" />
         )}
@@ -612,6 +632,37 @@ export function MlpSection({ form, onChange }: Props) {
                 <FormInput label="L2 (A)" value={mlp.kokoLaiteVirtaL2} onChange={(v) => patchMlp({ kokoLaiteVirtaL2: v })} type="number" />
                 <FormInput label="L3 (A)" value={mlp.kokoLaiteVirtaL3} onChange={(v) => patchMlp({ kokoLaiteVirtaL3: v })} type="number" />
               </>
+            )}
+          </div>
+        )}
+        {energy && (energy.cop != null || energy.qKeruuKw != null || energy.pInKw != null) && (
+          <div className="huolto-energy-summary">
+            <div className="huolto-energy-cop">
+              <span className="huolto-energy-cop-label">Lämpöpumpun COP</span>
+              <strong className="huolto-energy-cop-value">
+                {energy.cop != null ? energy.cop.toFixed(2) : '—'}
+              </strong>
+            </div>
+            <div className="line-form-grid huolto-energy-grid">
+              {energy.qKeruuKw != null && (
+                <div className="huolto-alert huolto-alert-success">Keruupiiri: {energy.qKeruuKw.toFixed(2)} kW</div>
+              )}
+              {energy.qLatausKw != null && (
+                <div className="huolto-alert huolto-alert-success">Latauspiiri: {energy.qLatausKw.toFixed(2)} kW</div>
+              )}
+              {energy.qTulistusKw != null && (
+                <div className="huolto-alert huolto-alert-success">Tulistuspiiri: {energy.qTulistusKw.toFixed(2)} kW</div>
+              )}
+              {energy.pInKw != null && (
+                <div className="huolto-alert">Sähköteho P_in: {energy.pInKw.toFixed(2)} kW</div>
+              )}
+            </div>
+            {energy.warnings.length > 0 && (
+              <ul className="huolto-energy-warnings">
+                {energy.warnings.map((w) => (
+                  <li key={w}>{w}</li>
+                ))}
+              </ul>
             )}
           </div>
         )}

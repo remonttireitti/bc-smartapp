@@ -421,6 +421,17 @@ export function LampopumppuSection({
                   type="number"
                   disabled={!!mittausSama[index]}
                 />
+                <FormInput
+                  label="Ilmanmäärä (m³/h)"
+                  value={mittaus.ilmanmaaraM3h}
+                  onChange={(v) => {
+                    const next = [...mittausSisayksikot];
+                    next[index] = { ...next[index], ilmanmaaraM3h: v };
+                    onChange({ mittausSisayksikot: next });
+                  }}
+                  type="number"
+                  disabled={!!mittausSama[index]}
+                />
               </div>
             </div>
           ))}

@@ -1,5 +1,14 @@
 import type { ModuleKey } from './constants';
-import type { HuoltoReportData, JaahdytysvesiData, MlpData, RefrigerantCircuitData, TyhjiointiData } from './types';
+import type {
+  CondenserData,
+  HuoltoReportData,
+  JaahdytysvesiData,
+  LauhdutuspiiriData,
+  MlpData,
+  NestelauhdutinUnitData,
+  RefrigerantCircuitData,
+  TyhjiointiData,
+} from './types';
 
 /** Vanhan Firestore-sovelluksen laitetyypit → nykyiset arvot. */
 const DEVICE_TYPE_ALIASES: Record<string, string> = {
@@ -29,7 +38,7 @@ function isChillerDeviceType(deviceType: string): boolean {
   return deviceType === 'vedenjäähdytyskone' || deviceType === 'vakioilmastointtikone';
 }
 
-function hasNestepiiriValues(p: Partial<JaahdytysvesiData> | undefined): boolean {
+function hasNestepiiriValues(p: Partial<NestepiiriLike> | undefined): boolean {
   if (!p) return false;
   return Boolean(
     p.virtaus ||
@@ -41,6 +50,28 @@ function hasNestepiiriValues(p: Partial<JaahdytysvesiData> | undefined): boolean
       p.paineTarkastettu,
   );
 }
+
+type NestepiiriLike = {
+  virtaus?: string;
+  meno?: string;
+  tulo?: string;
+  neste?: string;
+  paineBar?: string;
+  pumppuTarkastettu?: boolean;
+  paineTarkastettu?: boolean;
+  pumppuValmistaja?: string;
+  pumppuMalli?: string;
+  paisuntaAstiaTarkistettu?: boolean;
+  paisuntaAstiaKoko?: string;
+  paisuntaAstiaEsipaine?: string;
+  automaattinenIlmausTarkistettu?: boolean;
+  mutapussiPuhdistettu?: boolean;
+  toimilaitteetOK?: boolean;
+  painesäätimenTarkistettu?: boolean;
+  painesäätimenMalli?: string;
+  virtausRiittävä?: boolean;
+  virtausOngelma?: string;
+};
 
 function hasMlpKeruupiiriValues(m: Partial<MlpData> | null | undefined): boolean {
   if (!m) return false;
@@ -90,6 +121,70 @@ export function mapLegacyMlpKeruupiiriToJaahdytysvesi(
   };
 }
 
+function mapLegacyCondenserToLauhdutuspiiri(
+  condensers: CondenserData[] | undefined,
+  existing: Partial<LauhdutuspiiriData> | undefined,
+): Partial<LauhdutuspiiriData> | undefined {
+  if (hasNestepiiriValues(existing)) return existing;
+  const liquid = condensers?.find((c) => c.tyyppi === 'nestekiertoinen');
+  if (!liquid) return existing;
+  const src = liquid as CondenserData & NestepiiriLike;
+  if (!hasNestepiiriValues(src)) return existing;
+  return {
+    ...existing,
+    neste: existing?.neste || src.neste || '',
+    virtaus: existing?.virtaus || src.virtaus || '',
+    meno: existing?.meno || src.meno || '',
+    tulo: existing?.tulo || src.tulo || '',
+    paineTarkastettu: existing?.paineTarkastettu ?? src.paineTarkastettu ?? src.painesäätimenTarkistettu ?? false,
+    paineBar: existing?.paineBar || src.paineBar || '',
+    pumppuTarkastettu: existing?.pumppuTarkastettu ?? src.pumppuTarkastettu ?? false,
+    pumppuValmistaja: existing?.pumppuValmistaja || src.pumppuValmistaja || '',
+    pumppuMalli: existing?.pumppuMalli || src.pumppuMalli || '',
+    painesäätimenTarkistettu: existing?.painesäätimenTarkistettu ?? src.painesäätimenTarkistettu ?? false,
+    painesäätimenMalli: existing?.painesäätimenMalli || src.painesäätimenMalli || '',
+    virtausRiittävä: existing?.virtausRiittävä ?? src.virtausRiittävä ?? true,
+    virtausOngelma: existing?.virtausOngelma || src.virtausOngelma || '',
+  };
+}
+
+function migrateNestelauhduttimetVj(units: NestelauhdutinUnitData[] | undefined): NestelauhdutinUnitData[] {
+  if (!Array.isArray(units)) return [];
+  return units.map((unit) => {
+    const u = unit as NestelauhdutinUnitData & NestepiiriLike;
+    const nested = u.lauhdutuspiiri ?? ({} as LauhdutuspiiriData);
+    if (hasNestepiiriValues(nested)) return unit;
+    const flatHas = hasNestepiiriValues(u);
+    if (!flatHas) return unit;
+    return {
+      ...unit,
+      lauhdutuspiiri: {
+        ...nested,
+        neste: nested.neste || u.neste || '',
+        virtaus: nested.virtaus || u.virtaus || '',
+        meno: nested.meno || u.meno || '',
+        tulo: nested.tulo || u.tulo || '',
+        paineTarkastettu: nested.paineTarkastettu ?? u.paineTarkastettu ?? false,
+        paineBar: nested.paineBar || u.paineBar || '',
+        pumppuTarkastettu: nested.pumppuTarkastettu ?? u.pumppuTarkastettu ?? false,
+        pumppuValmistaja: nested.pumppuValmistaja || u.pumppuValmistaja || '',
+        pumppuMalli: nested.pumppuMalli || u.pumppuMalli || '',
+        painesäätimenTarkistettu: nested.painesäätimenTarkistettu ?? u.painesäätimenTarkistettu ?? false,
+        painesäätimenMalli: nested.painesäätimenMalli || u.painesäätimenMalli || '',
+        virtausRiittävä: nested.virtausRiittävä ?? u.virtausRiittävä ?? true,
+        virtausOngelma: nested.virtausOngelma || u.virtausOngelma || '',
+        paisuntaAstiaTarkistettu: nested.paisuntaAstiaTarkistettu ?? u.paisuntaAstiaTarkistettu ?? false,
+        paisuntaAstiaKoko: nested.paisuntaAstiaKoko || u.paisuntaAstiaKoko || '',
+        paisuntaAstiaEsipaine: nested.paisuntaAstiaEsipaine || u.paisuntaAstiaEsipaine || '',
+        automaattinenIlmausTarkistettu:
+          nested.automaattinenIlmausTarkistettu ?? u.automaattinenIlmausTarkistettu ?? false,
+        mutapussiPuhdistettu: nested.mutapussiPuhdistettu ?? u.mutapussiPuhdistettu ?? false,
+        toimilaitteetOK: nested.toimilaitteetOK ?? u.toimilaitteetOK ?? false,
+      },
+    };
+  });
+}
+
 function mapLegacyTyhjiointiData(raw: unknown): Partial<TyhjiointiData> | undefined {
   if (!raw || typeof raw !== 'object') return undefined;
   const ty = raw as Record<string, unknown>;
@@ -97,12 +192,15 @@ function mapLegacyTyhjiointiData(raw: unknown): Partial<TyhjiointiData> | undefi
   if (!String(ty.kaytettyPainemittari ?? '').trim() && typeof ty.pumpunTyyppi === 'string') {
     patch.kaytettyPainemittari = ty.pumpunTyyppi.trim();
   }
+  if (!String(ty.loppupaineArvo ?? '').trim() && ty.loppupaineMikronia != null) {
+    patch.loppupaineArvo = String(ty.loppupaineMikronia).trim();
+    if (!ty.loppupaineYksikko) patch.loppupaineYksikko = 'micron';
+  }
   return Object.keys(patch).length ? patch : undefined;
 }
 
 /**
  * Kartoittaa vanhan huoltoraportin kentät nykyiseen data-malliin.
- * Firestore tallensi mm. kp1Data/kp2Data/kp3Data — uusi app odottaa kylmaainePiiri1/2/3.
  */
 export function applyLegacyHuoltoFields(
   raw: LegacyRecord,
@@ -164,6 +262,14 @@ export function applyLegacyHuoltoFields(
     } as HuoltoReportData['selectedModules'];
   }
 
+  if (Array.isArray(out.nestelauhduttimetVj) && out.nestelauhduttimetVj.length > 0) {
+    out.nestelauhduttimetVj = migrateNestelauhduttimetVj(out.nestelauhduttimetVj);
+    out.selectedModules = {
+      ...(out.selectedModules ?? {}),
+      nestelauhduttimet: true,
+    } as HuoltoReportData['selectedModules'];
+  }
+
   if (source.laite && typeof source.laite === 'object') {
     const laite = source.laite as Record<string, unknown>;
     if (!out.laiteMalli && laite.malli) out.laiteMalli = String(laite.malli);
@@ -176,17 +282,29 @@ export function applyLegacyHuoltoFields(
   }
 
   if (source.companyInfo && !out.legacyCompanyInfo) {
-    out.legacyCompanyInfo = source.companyInfo;
+    out.legacyCompanyInfo = source.companyInfo as Record<string, unknown>;
+  }
+
+  if (typeof source.piilotaVaroitukset === 'boolean') {
+    out.piilotaVaroitukset = source.piilotaVaroitukset;
   }
 
   const resolvedDeviceType = String(out.laiteTyyppi ?? '').trim();
-  if (isChillerDeviceType(resolvedDeviceType) && source.mlpData && typeof source.mlpData === 'object') {
-    const mlp = source.mlpData as Partial<MlpData>;
-    if (!out.mlpData) out.mlpData = mlp as MlpData;
-    out.jaahdytysvesiData = mapLegacyMlpKeruupiiriToJaahdytysvesi(
-      mlp,
-      out.jaahdytysvesiData as Partial<JaahdytysvesiData> | undefined,
-    ) as JaahdytysvesiData | undefined;
+  if (isChillerDeviceType(resolvedDeviceType)) {
+    if (source.mlpData && typeof source.mlpData === 'object') {
+      const mlp = source.mlpData as Partial<MlpData>;
+      if (!out.mlpData) out.mlpData = mlp as MlpData;
+      out.jaahdytysvesiData = mapLegacyMlpKeruupiiriToJaahdytysvesi(
+        mlp,
+        out.jaahdytysvesiData as Partial<JaahdytysvesiData> | undefined,
+      ) as JaahdytysvesiData | undefined;
+    }
+    const condensers = (out.condenserData ?? source.condenserData) as CondenserData[] | undefined;
+    out.lauhdutuspiiriData = mapLegacyCondenserToLauhdutuspiiri(
+      condensers,
+      out.lauhdutuspiiriData as Partial<LauhdutuspiiriData> | undefined,
+    ) as LauhdutuspiiriData | undefined;
+    if (!out.lauhdutinTyyppiLaite) out.lauhdutinTyyppiLaite = 'nestekiertoinen';
   }
 
   const tyPatch = mapLegacyTyhjiointiData(source.tyhjiointiData);
