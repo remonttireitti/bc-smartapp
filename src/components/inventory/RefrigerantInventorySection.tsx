@@ -586,7 +586,7 @@ export default function RefrigerantInventorySection({
                 <input
                   type="number"
                   step="0.1"
-                  min="0.001"
+                  min="0"
                   value={bottleForm.remaining_kg}
                   onChange={(e) => setBottleForm({ ...bottleForm, remaining_kg: e.target.value })}
                   required
@@ -653,7 +653,7 @@ export default function RefrigerantInventorySection({
           <input
             type="number"
             step="0.1"
-            min="0.001"
+            min="0"
             max={maxKg}
             value={retrieveForm.fill_kg}
             onChange={(e) => setRetrieveForm({ ...retrieveForm, fill_kg: e.target.value })}
