@@ -6,6 +6,10 @@ export type RefrigerantCylinderOwnership = 'owned' | 'rental';
 
 export type RefrigerantStockSource = 'purchase' | 'customer_retrieved';
 
+export type BottleSize = 'small' | 'medium' | 'large';
+
+export type RefrigerantCylinderDisposition = 'partial_in_stock' | 'empty_in_stock' | 'return_to_supplier';
+
 export type RefrigerantMovementType =
   | 'purchase'
   | 'customer_retrieve'
@@ -14,10 +18,24 @@ export type RefrigerantMovementType =
   | 'recycle'
   | 'return_rental';
 
+export const BOTTLE_SIZE_LABELS: Record<BottleSize, string> = {
+  small: 'Pieni',
+  medium: 'Keskikokoinen',
+  large: 'Iso',
+};
+
+export const REFRIGERANT_CYLINDER_DISPOSITION_LABELS: Record<RefrigerantCylinderDisposition, string> = {
+  partial_in_stock: 'Jää pulloon varastoon',
+  empty_in_stock: 'Pullo tyhjenee varastoon',
+  return_to_supplier: 'Pullo palautetaan tukkurille',
+};
+
 export type RefrigerantCylinder = {
   id: string;
   company_id: string;
-  serial_number: string;
+  serial_number: string | null;
+  bottle_size: BottleSize;
+  non_recyclable: boolean;
   /** Nykyinen aine; tyhjällä pullolla null tai tyhjä */
   refrigerant_type: string | null;
   /** Enimmäistäyttö (synkassa capacity_kg) */
@@ -102,9 +120,10 @@ export type WorkReportRefrigerantLine = {
   refrigerant_type: string;
   qty_kg: number;
   notes: string | null;
+  cylinder_disposition: RefrigerantCylinderDisposition | null;
   created_by: string | null;
   created_at: string;
-  cylinder?: Pick<RefrigerantCylinder, 'serial_number' | 'refrigerant_type'> | null;
+  cylinder?: Pick<RefrigerantCylinder, 'serial_number' | 'refrigerant_type' | 'bottle_size' | 'notes'> | null;
   warehouse_company?: { name: string | null } | null;
   owner_user?: { display_name: string | null } | null;
 };

@@ -1,10 +1,12 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type {
   RefrigerantCylinder,
+  RefrigerantCylinderDisposition,
   RefrigerantSource,
   RefrigerantSupplierPaidBy,
   WorkReportRefrigerantLine,
 } from '../types/inventory';
+import { formatBottleLabel, formatBottleSizeLabel, bottleSize } from './refrigerantBottle';
 import {
   REFRIGERANT_PARTNER_BILLING_REMINDER,
   REFRIGERANT_SUPPLIER_PARTNER_REMINDER,
@@ -23,17 +25,21 @@ export type RefrigerantLineDraft = {
   refrigerant_type: string;
   qty_kg: string;
   notes: string;
+  cylinder_disposition: RefrigerantCylinderDisposition | '';
 };
 
 export type RefrigerantCylinderListRow = {
   id: string;
   company_id: string;
   company_name: string | null;
-  serial_number: string;
+  serial_number: string | null;
   refrigerant_type: string;
   purchased_kg: number;
   remaining_kg: number;
   capacity_kg?: number | null;
+  bottle_size?: string | null;
+  non_recyclable?: boolean | null;
+  notes?: string | null;
   owner_user_id: string | null;
   ownership_type?: string | null;
   status: string;
@@ -55,6 +61,7 @@ export function emptyRefrigerantDraft(): RefrigerantLineDraft {
     refrigerant_type: 'R-410A',
     qty_kg: '',
     notes: '',
+    cylinder_disposition: 'partial_in_stock',
   };
 }
 
@@ -75,6 +82,7 @@ export function refrigerantLinesToDrafts(lines: WorkReportRefrigerantLine[]): Re
     refrigerant_type: line.refrigerant_type,
     qty_kg: Number(line.qty_kg) > 0 ? String(line.qty_kg) : '',
     notes: line.notes ?? '',
+    cylinder_disposition: line.cylinder_disposition ?? 'partial_in_stock',
   }));
 }
 
@@ -84,10 +92,14 @@ export function mapRpcCylinders(rows: RefrigerantCylinderListRow[]): Refrigerant
     company_id: row.company_id,
     company_name: row.company_name,
     serial_number: row.serial_number,
+    bottle_size:
+      row.bottle_size === 'small' || row.bottle_size === 'large' ? row.bottle_size : 'medium',
+    non_recyclable: Boolean(row.non_recyclable),
     refrigerant_type: row.refrigerant_type,
     purchased_kg: Number(row.purchased_kg),
     remaining_kg: Number(row.remaining_kg),
     capacity_kg: Number(row.capacity_kg ?? row.purchased_kg) || Number(row.purchased_kg),
+    notes: row.notes ?? null,
     owner_user_id: row.owner_user_id,
     ownership_type: row.ownership_type === 'rental' ? 'rental' : 'owned',
     stock_source: 'purchase',
@@ -97,7 +109,6 @@ export function mapRpcCylinders(rows: RefrigerantCylinderListRow[]): Refrigerant
     purchase_date: null,
     returned_at: null,
     image_path: null,
-    notes: null,
     created_at: '',
     updated_at: '',
     owner_user:
@@ -171,6 +182,9 @@ export function validateRefrigerantDrafts(
     if (row.source === 'supplier' && !row.supplier_paid_by) {
       return 'Valitse tukkurihankinnalle, kenen piikki kylmäaine hankittiin.';
     }
+    if (isWarehouseSource(row.source) && !row.cylinder_disposition) {
+      return 'Valitse mitä pulloon jää työkäytön jälkeen.';
+    }
     if (!options?.requirePrices) continue;
     const billing = resolveRefrigerantBilling({
       source: row.source,
@@ -185,7 +199,10 @@ export function validateRefrigerantDrafts(
 
 export async function restoreCylinderQuantities(
   supabase: SupabaseClient,
-  lines: Pick<WorkReportRefrigerantLine, 'source' | 'cylinder_id' | 'qty_kg'>[],
+  lines: Pick<
+    WorkReportRefrigerantLine,
+    'source' | 'cylinder_id' | 'qty_kg' | 'cylinder_disposition'
+  >[],
   workReportId: string,
 ) {
   for (const line of lines) {
@@ -197,6 +214,7 @@ export async function restoreCylinderQuantities(
       p_cylinder_id: line.cylinder_id,
       p_delta_kg: qty,
       p_work_report_id: workReportId,
+      p_disposition: null,
     });
     if (error) throw error;
   }
@@ -207,11 +225,13 @@ export async function deductCylinderQuantity(
   cylinderId: string,
   qtyKg: number,
   workReportId: string,
+  disposition: RefrigerantCylinderDisposition | null,
 ) {
   const { error } = await supabase.rpc('apply_refrigerant_cylinder_delta', {
     p_cylinder_id: cylinderId,
     p_delta_kg: -qtyKg,
     p_work_report_id: workReportId,
+    p_disposition: disposition,
   });
   if (error) throw error;
 }
@@ -236,7 +256,9 @@ export async function saveRefrigerantLines(
   const valid = input.drafts.filter((row) => {
     const qty = Number(row.qty_kg);
     if (!Number.isFinite(qty) || qty <= 0) return false;
-    if (isWarehouseSource(row.source)) return !!row.cylinder_id;
+    if (isWarehouseSource(row.source)) {
+      return !!row.cylinder_id && !!row.cylinder_disposition;
+    }
     if (row.source === 'supplier') return !!row.refrigerant_type.trim() && !!row.supplier_paid_by;
     return !!row.refrigerant_type.trim();
   });
@@ -263,11 +285,18 @@ export async function saveRefrigerantLines(
         .single();
 
       if (!cylinder) throw new Error('Valittua kylmäainepulloa ei löytynyt.');
-      refrigerantType = cylinder.refrigerant_type;
+      refrigerantType = (cylinder.refrigerant_type || row.refrigerant_type || '').trim();
+      if (!refrigerantType) throw new Error('Pullossa ei ole merkittyä kylmäainetta.');
       ownerUserId = row.owner_user_id || cylinder.owner_user_id || null;
       warehouseCompanyId = row.warehouse_company_id || cylinder.company_id || null;
 
-      await deductCylinderQuantity(supabase, cylinderId, qty, input.workReportId);
+      await deductCylinderQuantity(
+        supabase,
+        cylinderId,
+        qty,
+        input.workReportId,
+        row.cylinder_disposition || 'partial_in_stock',
+      );
     } else {
       supplierName = row.supplier_name.trim() || 'Tukkuri';
     }
@@ -296,6 +325,7 @@ export async function saveRefrigerantLines(
       refrigerant_type: refrigerantType,
       qty_kg: qty,
       notes: row.notes.trim() || null,
+      cylinder_disposition: isWarehouseSource(row.source) ? row.cylinder_disposition || null : null,
       created_by: input.userId,
     });
 
@@ -305,18 +335,34 @@ export async function saveRefrigerantLines(
 
 export function formatRefrigerantLineLabel(line: WorkReportRefrigerantLine): string {
   const qty = Number(line.qty_kg).toFixed(3);
-  if (line.source === 'warehouse') {
-    const serial = line.cylinder?.serial_number ?? '—';
+  if (line.source === 'warehouse' || line.source === 'partner_warehouse') {
+    const bottleLabel = line.cylinder?.serial_number?.trim() || line.cylinder?.notes?.trim() || '—';
+    const size =
+      line.cylinder?.bottle_size === 'small' ||
+      line.cylinder?.bottle_size === 'medium' ||
+      line.cylinder?.bottle_size === 'large'
+        ? formatBottleSizeLabel(line.cylinder.bottle_size)
+        : '';
+    const partner = line.source === 'partner_warehouse' ? line.warehouse_company?.name ?? 'Kumppani' : null;
     const owner = line.owner_user?.display_name ?? 'Yhteinen varasto';
-    return `${line.refrigerant_type} ${qty} kg · pullo ${serial} · ${owner}`;
-  }
-  if (line.source === 'partner_warehouse') {
-    const serial = line.cylinder?.serial_number ?? '—';
-    const partner = line.warehouse_company?.name ?? 'Kumppani';
-    const owner = line.owner_user?.display_name ?? 'Yhteinen varasto';
-    return `${line.refrigerant_type} ${qty} kg · ${partner} · pullo ${serial} · ${owner}`;
+    const parts = [
+      `${line.refrigerant_type} ${qty} kg`,
+      partner,
+      size ? `${size} pullo ${bottleLabel}` : `pullo ${bottleLabel}`,
+      owner,
+    ].filter(Boolean);
+    return parts.join(' · ');
   }
   return `${line.refrigerant_type} ${qty} kg · ${line.supplier_name ?? 'Tukkuri'}`;
+}
+
+export function formatCylinderPickerLabel(c: RefrigerantCylinder): string {
+  const label = formatBottleLabel(c);
+  const size = formatBottleSizeLabel(bottleSize(c));
+  const content = Number(c.remaining_kg) > 0.005
+    ? `${c.refrigerant_type ?? '—'} · ${Number(c.remaining_kg).toFixed(1)} kg`
+    : 'tyhjä';
+  return `${label} · ${size} · ${content}`;
 }
 
 export function cylindersForSource(

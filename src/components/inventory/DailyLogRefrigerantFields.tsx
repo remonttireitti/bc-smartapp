@@ -1,9 +1,15 @@
 import type { RefrigerantLineDraft } from '../../lib/refrigerantInventory';
-import { cylindersForSource, resolveRefrigerantBilling } from '../../lib/refrigerantInventory';
+import {
+  cylindersForSource,
+  formatCylinderPickerLabel,
+  resolveRefrigerantBilling,
+} from '../../lib/refrigerantInventory';
 import { refrigerantTypes } from '../../lib/huoltoRaportti/constants';
 import {
+  REFRIGERANT_CYLINDER_DISPOSITION_LABELS,
   REFRIGERANT_SOURCE_LABELS,
   type RefrigerantCylinder,
+  type RefrigerantCylinderDisposition,
   type RefrigerantSource,
   type RefrigerantSupplierPaidBy,
 } from '../../types/inventory';
@@ -34,6 +40,7 @@ function emptyRow(): RefrigerantLineDraft {
     refrigerant_type: 'R-410A',
     qty_kg: '',
     notes: '',
+    cylinder_disposition: 'partial_in_stock',
   };
 }
 
@@ -57,6 +64,7 @@ export default function DailyLogRefrigerantFields({
       warehouse_company_id: '',
       supplier_name: '',
       supplier_paid_by: '',
+      cylinder_disposition: 'partial_in_stock',
     });
   }
 
@@ -94,7 +102,7 @@ export default function DailyLogRefrigerantFields({
       </div>
       {drafts.length === 0 ? (
         <p className="muted">
-          Merkitse käytetty kylmäaine omasta tai kumppanin varastosta (pullo + sarjanumero) tai tukkurilta.
+          Merkitse myyty kylmäaine varastopullosta tai tukkurilta. Valitse mitä pullolle tapahtuu käytön jälkeen.
         </p>
       ) : (
         drafts.map((row, index) => {
@@ -121,7 +129,7 @@ export default function DailyLogRefrigerantFields({
               {row.source === 'warehouse' || row.source === 'partner_warehouse' ? (
                 <>
                   <label>
-                    Pullo (sarjanro)
+                    Varastopullo
                     <select
                       value={row.cylinder_id}
                       onChange={(e) => onCylinderPick(index, e.target.value)}
@@ -131,8 +139,31 @@ export default function DailyLogRefrigerantFields({
                       {rowCylinders.map((c) => (
                         <option key={c.id} value={c.id}>
                           {row.source === 'partner_warehouse' && c.company_name ? `${c.company_name} · ` : ''}
-                          {c.serial_number} · {c.refrigerant_type} · {Number(c.remaining_kg).toFixed(2)} kg jäljellä
+                          {formatCylinderPickerLabel(c)}
                           {c.owner_user?.display_name ? ` · ${c.owner_user.display_name}` : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    Pullo työkäytön jälkeen
+                    <select
+                      value={row.cylinder_disposition}
+                      onChange={(e) =>
+                        updateRow(index, {
+                          cylinder_disposition: e.target.value as RefrigerantCylinderDisposition,
+                        })
+                      }
+                      required
+                    >
+                      {(
+                        Object.entries(REFRIGERANT_CYLINDER_DISPOSITION_LABELS) as [
+                          RefrigerantCylinderDisposition,
+                          string,
+                        ][]
+                      ).map(([value, label]) => (
+                        <option key={value} value={value}>
+                          {label}
                         </option>
                       ))}
                     </select>

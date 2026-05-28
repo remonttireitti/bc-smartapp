@@ -4,6 +4,7 @@ import {
   partnershipPermsActingOnOwner,
 } from './management';
 import type { Partnership, Profile } from '../types';
+import { loadAccessibleReportCustomers } from './reportCustomerRegistry';
 
 export function canWriteCustomersModule(
   ownerCompanyId: string,
@@ -86,7 +87,6 @@ export async function loadWarehouseCustomerPicker(
   warehouseCompanyId: string,
   partnerships: Partnership[],
 ): Promise<WarehouseCustomerPickerOption[]> {
-  const { loadAccessibleReportCustomers } = await import('./reportCustomerRegistry');
   const rows = await loadAccessibleReportCustomers(supabase, myCompanyId, partnerships);
   const seen = new Set<string>();
   const options: WarehouseCustomerPickerOption[] = [];

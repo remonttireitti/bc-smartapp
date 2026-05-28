@@ -1,25 +1,18 @@
-import type { RefrigerantCylinder } from '../types/inventory';
-
-export type BottleSize = 'small' | 'medium' | 'large';
+import type { BottleSize, RefrigerantCylinder } from '../types/inventory';
+import { BOTTLE_SIZE_LABELS } from '../types/inventory';
 
 export type BottleFillFilter = 'all' | 'empty' | 'filled';
 
 export const BOTTLE_SIZE_ORDER: BottleSize[] = ['large', 'medium', 'small'];
 
-export const BOTTLE_SIZE_LABELS: Record<BottleSize, string> = {
-  small: 'Pieni',
-  medium: 'Keskikokoinen',
-  large: 'Iso',
-};
+export { BOTTLE_SIZE_LABELS };
 
-/** Sisäinen oletus kg (tyhjä pullo, työraportin yläraja) */
 const DEFAULT_CAPACITY_KG: Record<BottleSize, number> = {
   small: 5,
   medium: 12,
   large: 40,
 };
 
-/** Karkea fyysinen yläraja sisällölle kokoluokan mukaan */
 const MAX_CONTENT_KG: Record<BottleSize, number> = {
   small: 10,
   medium: 20,
@@ -39,7 +32,10 @@ export function bottleSizeFromCapacityKg(capKg: number): BottleSize {
   return 'large';
 }
 
-export function bottleSize(c: Pick<RefrigerantCylinder, 'capacity_kg' | 'purchased_kg'>): BottleSize {
+export function bottleSize(c: Pick<RefrigerantCylinder, 'bottle_size' | 'capacity_kg' | 'purchased_kg'>): BottleSize {
+  if (c.bottle_size === 'small' || c.bottle_size === 'medium' || c.bottle_size === 'large') {
+    return c.bottle_size;
+  }
   return bottleSizeFromCapacityKg(bottleCapacityKg(c));
 }
 
@@ -61,6 +57,16 @@ export function formatBottleSizeLabel(size: BottleSize): string {
   return BOTTLE_SIZE_LABELS[size];
 }
 
+export function formatBottleLabel(
+  c: Pick<RefrigerantCylinder, 'id' | 'serial_number' | 'notes'>,
+): string {
+  const serial = (c.serial_number || '').trim();
+  if (serial) return serial;
+  const note = (c.notes || '').trim();
+  if (note) return note.length > 48 ? `${note.slice(0, 45)}…` : note;
+  return `Pullo ${c.id.slice(0, 8)}`;
+}
+
 export function isBottleEmpty(c: Pick<RefrigerantCylinder, 'remaining_kg' | 'status'>): boolean {
   if (c.status === 'empty') return true;
   return Number(c.remaining_kg) <= 0.0005;
@@ -73,10 +79,11 @@ export function bottleFillRatio(c: RefrigerantCylinder): number {
 }
 
 export function formatBottleContent(c: RefrigerantCylinder): string {
-  if (isBottleEmpty(c)) return 'Tyhjä pullo';
+  if (isBottleEmpty(c)) return 'Tyhjä';
   const type = (c.refrigerant_type || '').trim() || '—';
   const rem = Number(c.remaining_kg);
-  return `${type} · ${rem.toFixed(1)} kg`;
+  const suffix = c.non_recyclable ? ' · ei kierrätyskelpoinen' : '';
+  return `${type} · ${rem.toFixed(1)} kg${suffix}`;
 }
 
 export function groupBottlesBySize(bottles: RefrigerantCylinder[]): Map<BottleSize, RefrigerantCylinder[]> {
