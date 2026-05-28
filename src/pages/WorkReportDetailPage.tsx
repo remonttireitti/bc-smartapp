@@ -203,6 +203,12 @@ function hourFieldsForEntryType(entryType: DailyHourEntryType) {
   };
 }
 
+function addHourValue(current: string, delta: number): string {
+  const next = Math.max(0, Number(current || 0) + delta);
+  if (!Number.isFinite(next)) return String(delta);
+  return String(Math.round(next * 100) / 100);
+}
+
 function logToForm(log: WorkReportDailyLog): DailyLogFormState {
   return {
     log_date: log.log_date.slice(0, 10),
@@ -294,6 +300,7 @@ function DailyLogFields({
   defaultCustomerHourlyRate?: number | null;
 }) {
   const { showRegular, showOvertime, showOnCall, showFixed } = hourFieldsForEntryType(form.entry_type);
+  const quickHourSteps = [0.5, 1, 2, 4];
 
   return (
     <>
@@ -349,6 +356,18 @@ function DailyLogFields({
               value={form.hours_regular}
               onChange={(e) => setForm({ ...form, hours_regular: e.target.value })}
             />
+            <div className="mobile-hour-quickbar" role="group" aria-label="Lisää tunteja">
+              {quickHourSteps.map((step) => (
+                <button
+                  key={`regular-${step}`}
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => setForm({ ...form, hours_regular: addHourValue(form.hours_regular, step) })}
+                >
+                  +{step} h
+                </button>
+              ))}
+            </div>
           </label>
         )}
         {showOvertime && (
@@ -361,6 +380,18 @@ function DailyLogFields({
               value={form.hours_overtime}
               onChange={(e) => setForm({ ...form, hours_overtime: e.target.value })}
             />
+            <div className="mobile-hour-quickbar" role="group" aria-label="Lisää ylitunteja">
+              {quickHourSteps.map((step) => (
+                <button
+                  key={`overtime-${step}`}
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => setForm({ ...form, hours_overtime: addHourValue(form.hours_overtime, step) })}
+                >
+                  +{step} h
+                </button>
+              ))}
+            </div>
           </label>
         )}
         {showOnCall && (
@@ -373,6 +404,18 @@ function DailyLogFields({
               value={form.hours_on_call}
               onChange={(e) => setForm({ ...form, hours_on_call: e.target.value })}
             />
+            <div className="mobile-hour-quickbar" role="group" aria-label="Lisää päivystystunteja">
+              {quickHourSteps.map((step) => (
+                <button
+                  key={`oncall-${step}`}
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => setForm({ ...form, hours_on_call: addHourValue(form.hours_on_call, step) })}
+                >
+                  +{step} h
+                </button>
+              ))}
+            </div>
           </label>
         )}
         {showFixed && (

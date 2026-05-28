@@ -3030,6 +3030,13 @@ textarea {
   align-items: end;
 }
 
+.mobile-hour-quickbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .35rem;
+  margin-top: .45rem;
+}
+
 /* Tiiveyskoe, tyhjiöinti ja vastaavat mittausmoduulit */
 .huolto-measurement-grid {
   grid-template-columns: repeat(auto-fill, minmax(12.5rem, 1fr));
@@ -3302,6 +3309,85 @@ textarea {
     flex-direction: column;
     align-items: flex-start;
   }
+
+  .work-report-form .form-section,
+  .maintenance-form .form-section {
+    padding: 1rem;
+    gap: 1rem;
+  }
+
+  .work-report-form label input,
+  .work-report-form label select,
+  .work-report-form label textarea,
+  .maintenance-form label input,
+  .maintenance-form label select,
+  .maintenance-form label textarea {
+    min-height: 2.9rem;
+    padding: .7rem .8rem;
+  }
+
+  .work-report-form textarea,
+  .maintenance-form textarea {
+    min-height: 8rem;
+  }
+
+  .mobile-hour-quickbar {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: .4rem;
+  }
+
+  .mobile-hour-quickbar .btn {
+    width: 100%;
+    min-height: 2.5rem;
+    font-size: .85rem;
+    padding: .35rem .3rem;
+  }
+
+  .daily-log-dialog .expense-section,
+  .daily-log-dialog .image-section {
+    padding: .85rem;
+  }
+
+  .maintenance-form .chip-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: .45rem;
+  }
+
+  .maintenance-form .chip {
+    width: 100%;
+    justify-content: flex-start;
+    min-height: 2.75rem;
+    padding: .6rem .8rem;
+  }
+
+  .maintenance-form .module-toggle-grid {
+    grid-template-columns: 1fr;
+    gap: .55rem;
+  }
+
+  .maintenance-form .module-toggle-card {
+    padding: .85rem .9rem;
+  }
+
+  .maintenance-form .collapsible-header {
+    min-height: 3.1rem;
+  }
+
+  .maintenance-form .huolto-module-header {
+    min-height: 3.25rem;
+  }
+
+  .maintenance-form .huolto-module-title {
+    font-size: 1rem;
+  }
+
+  .maintenance-form .huolto-module-body,
+  .maintenance-form .huolto-part-body,
+  .maintenance-form .huolto-submodule {
+    padding: .85rem;
+  }
 }
 
 .form-help-details {
@@ -3362,6 +3448,12 @@ textarea {
   }
 
   .work-report-form .form-actions {
+    margin: 0 -1rem;
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+
+  .maintenance-form .form-actions {
     margin: 0 -1rem;
     padding-left: 1rem;
     padding-right: 1rem;

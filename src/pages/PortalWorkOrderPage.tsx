@@ -362,7 +362,7 @@ export default function PortalWorkOrderPage({ session }: Props) {
       {error && <p className="error">{error}</p>}
       {message && <p className="muted">{message}</p>}
 
-      <form className="panel form-grid" onSubmit={(e) => void submitOrder(e)}>
+      <form className="panel form-grid work-report-form" onSubmit={(e) => void submitOrder(e)}>
         <section className="form-section">
           <h2>Kohde ja työ</h2>
 
