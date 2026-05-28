@@ -73,6 +73,40 @@ export async function loadCustomersForOwner(
   return data ?? [];
 }
 
+export type WarehouseCustomerPickerOption = {
+  id: string;
+  name: string;
+  label: string;
+};
+
+/** Asiakkaat, joita käyttäjä näkee ja jotka kuuluvat valitun varaston yrityksen rekisteriin. */
+export async function loadWarehouseCustomerPicker(
+  supabase: import('@supabase/supabase-js').SupabaseClient,
+  myCompanyId: string,
+  warehouseCompanyId: string,
+  partnerships: Partnership[],
+): Promise<WarehouseCustomerPickerOption[]> {
+  const { loadAccessibleReportCustomers } = await import('./reportCustomerRegistry');
+  const rows = await loadAccessibleReportCustomers(supabase, myCompanyId, partnerships);
+  const seen = new Set<string>();
+  const options: WarehouseCustomerPickerOption[] = [];
+
+  for (const customer of rows) {
+    if (customer.owner_company_id !== warehouseCompanyId) continue;
+    if (seen.has(customer.id)) continue;
+    seen.add(customer.id);
+    const addr = customerAddressLine(customer);
+    options.push({
+      id: customer.id,
+      name: customer.name,
+      label: addr !== '—' ? `${customer.name} · ${addr}` : customer.name,
+    });
+  }
+
+  options.sort((a, b) => a.name.localeCompare(b.name, 'fi'));
+  return options;
+}
+
 export const CUSTOMER_SELECT = `
   id, name, address, city, phone, email, business_id, notes, owner_company_id, created_at,
   subscriber_id,

@@ -23,8 +23,10 @@ import {
   loadRefrigerantPeriodReport,
   printRefrigerantPeriodReport,
 } from '../../lib/refrigerantInventoryReport';
+import { loadWarehouseCustomerPicker, type WarehouseCustomerPickerOption } from '../../lib/customers';
 import { supabase } from '../../lib/supabase';
 import { refrigerantTypes } from '../../lib/huoltoRaportti/constants';
+import type { Partnership } from '../../types';
 import type {
   RefrigerantCylinder,
   RefrigerantCylinderMovement,
@@ -100,19 +102,21 @@ async function logMovement(params: {
 }
 
 type Props = {
+  myCompanyId: string;
+  partnerships: Partnership[];
   warehouseCompanyId: string;
   warehouseCompanyName: string;
   canEditWarehouse: boolean;
-  isPartnerWarehouse: boolean;
   onMessage: (msg: string | null) => void;
   onError: (msg: string | null) => void;
 };
 
 export default function RefrigerantInventorySection({
+  myCompanyId,
+  partnerships,
   warehouseCompanyId,
   warehouseCompanyName,
   canEditWarehouse,
-  isPartnerWarehouse,
   onMessage,
   onError,
 }: Props) {
@@ -121,7 +125,7 @@ export default function RefrigerantInventorySection({
   const [sizeFilter, setSizeFilter] = useState<BottleSize | 'all'>('all');
   const [cylinders, setCylinders] = useState<RefrigerantCylinder[]>([]);
   const [movements, setMovements] = useState<RefrigerantCylinderMovement[]>([]);
-  const [customers, setCustomers] = useState<{ id: string; name: string }[]>([]);
+  const [customers, setCustomers] = useState<WarehouseCustomerPickerOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [rowBusyId, setRowBusyId] = useState<string | null>(null);
@@ -204,12 +208,17 @@ export default function RefrigerantInventorySection({
   }
 
   async function loadCustomers() {
-    const { data } = await supabase
-      .from('customers')
-      .select('id, name')
-      .eq('owner_company_id', warehouseCompanyId)
-      .order('name');
-    setCustomers((data as { id: string; name: string }[]) ?? []);
+    if (!myCompanyId || !warehouseCompanyId) {
+      setCustomers([]);
+      return;
+    }
+    const options = await loadWarehouseCustomerPicker(
+      supabase,
+      myCompanyId,
+      warehouseCompanyId,
+      partnerships,
+    );
+    setCustomers(options);
   }
 
   async function reload() {
@@ -219,7 +228,7 @@ export default function RefrigerantInventorySection({
     try {
       await loadStock();
       if (view === 'history') await loadHistory();
-      if (canEditWarehouse && !isPartnerWarehouse) await loadCustomers();
+      if (canEditWarehouse) await loadCustomers();
     } catch (err) {
       onError(err instanceof Error ? err.message : 'Lataus epäonnistui');
     } finally {
@@ -229,7 +238,7 @@ export default function RefrigerantInventorySection({
 
   useEffect(() => {
     void reload();
-  }, [warehouseCompanyId, view]);
+  }, [warehouseCompanyId, view, myCompanyId, partnerships]);
 
   async function addBottle(e: FormEvent) {
     e.preventDefault();
@@ -577,7 +586,7 @@ export default function RefrigerantInventorySection({
                   <option value="">Valitse…</option>
                   {customers.map((cust) => (
                     <option key={cust.id} value={cust.id}>
-                      {cust.name}
+                      {cust.label}
                     </option>
                   ))}
                 </select>
@@ -781,7 +790,7 @@ export default function RefrigerantInventorySection({
                         <option value="">—</option>
                         {customers.map((cust) => (
                           <option key={cust.id} value={cust.id}>
-                            {cust.name}
+                            {cust.label}
                           </option>
                         ))}
                       </select>

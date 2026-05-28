@@ -69,7 +69,6 @@ export default function InventoryPage({ session }: Props) {
   }, [myCompanyId, warehouseCompanyId, partnerships]);
 
   const canEditWarehouse = warehouseAccess === 'write';
-  const isPartnerWarehouse = Boolean(myCompanyId && warehouseCompanyId && warehouseCompanyId !== myCompanyId);
   const activeWarehouseLabel =
     warehouseTargets.find((target) => target.companyId === warehouseCompanyId)?.label ?? '—';
 
@@ -332,10 +331,11 @@ export default function InventoryPage({ session }: Props) {
 
       {tab === 'refrigerant' ? (
         <RefrigerantInventorySection
+          myCompanyId={myCompanyId}
+          partnerships={partnerships}
           warehouseCompanyId={warehouseCompanyId}
           warehouseCompanyName={activeWarehouseLabel}
           canEditWarehouse={canEditWarehouse}
-          isPartnerWarehouse={isPartnerWarehouse}
           onMessage={setMessage}
           onError={setError}
         />
