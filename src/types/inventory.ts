@@ -18,9 +18,13 @@ export type RefrigerantCylinder = {
   id: string;
   company_id: string;
   serial_number: string;
-  refrigerant_type: string;
+  /** Nykyinen aine; tyhjällä pullolla null tai tyhjä */
+  refrigerant_type: string | null;
+  /** Enimmäistäyttö (synkassa capacity_kg) */
   purchased_kg: number;
   remaining_kg: number;
+  /** Pulmon nimellistilavuus kg */
+  capacity_kg: number;
   owner_user_id: string | null;
   ownership_type: RefrigerantCylinderOwnership;
   stock_source: RefrigerantStockSource;

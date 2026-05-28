@@ -2,7 +2,17 @@ import { FormEvent, useEffect, useMemo, useState } from 'react';
 
 import InventoryPhotoThumb from './InventoryPhotoThumb';
 import InventoryQtyStepper from './InventoryQtyStepper';
-import { removeInventoryImage, uploadInventoryImage } from '../../lib/inventoryImages';
+import { uploadInventoryImage } from '../../lib/inventoryImages';
+import {
+  bottleCapacityKg,
+  bottleFillRatio,
+  formatBottleContent,
+  formatCapacityLabel,
+  groupBottlesByCapacity,
+  isBottleEmpty,
+  STANDARD_BOTTLE_CAPACITIES_KG,
+  type BottleFillFilter,
+} from '../../lib/refrigerantBottle';
 import {
   buildRefrigerantPeriodReportHtml,
   loadRefrigerantPeriodReport,
@@ -14,18 +24,16 @@ import type {
   RefrigerantCylinder,
   RefrigerantCylinderMovement,
   RefrigerantCylinderOwnership,
-  RefrigerantStockSource,
 } from '../../types/inventory';
 import {
   REFRIGERANT_CYLINDER_OWNERSHIP_LABELS,
   REFRIGERANT_MOVEMENT_TYPE_LABELS,
-  REFRIGERANT_STOCK_SOURCE_LABELS,
 } from '../../types/inventory';
 
 const ZERO_EPS = 0.0005;
 
 const CYLINDER_SELECT = `
-  id, company_id, serial_number, refrigerant_type, purchased_kg, remaining_kg,
+  id, company_id, serial_number, refrigerant_type, purchased_kg, remaining_kg, capacity_kg,
   owner_user_id, ownership_type, stock_source, customer_id, location, status,
   purchase_date, returned_at, notes, image_path, created_at, updated_at,
   owner_user:profiles!refrigerant_cylinders_owner_user_id_fkey(display_name, email),
@@ -39,36 +47,32 @@ const MOVEMENT_SELECT = `
 `;
 
 type RefrigerantView = 'stock' | 'history' | 'report';
-type AddPanel = 'purchase' | 'customer' | null;
-type StockFilter = 'all' | RefrigerantStockSource;
-
-function deriveCylinderStatus(remaining: number, returnedAt: string | null, status: string): string {
-  if (status === 'recycled') return 'recycled';
-  if (returnedAt) return 'returned';
-  return remaining <= ZERO_EPS ? 'empty' : 'in_stock';
-}
 
 function normalizeCylinder(row: Record<string, unknown>): RefrigerantCylinder {
   const c = row as RefrigerantCylinder;
+  const cap = Number(c.capacity_kg) || Number(c.purchased_kg) || 0;
   return {
     ...c,
+    capacity_kg: cap,
+    purchased_kg: cap > 0 ? cap : Number(c.purchased_kg),
     ownership_type: (c.ownership_type as RefrigerantCylinderOwnership) ?? 'owned',
-    stock_source: (c.stock_source as RefrigerantStockSource) ?? 'purchase',
+    stock_source: c.stock_source ?? 'purchase',
     customer_id: c.customer_id ?? null,
     location: c.location ?? null,
     returned_at: c.returned_at ?? null,
     image_path: c.image_path ?? null,
+    refrigerant_type: c.refrigerant_type ?? null,
     customer: (row.customer as { name: string | null } | null) ?? null,
   };
 }
 
 async function logMovement(params: {
   companyId: string;
-  cylinderId: string | null;
+  cylinderId: string;
   movementType: string;
   qtyKg: number;
   refrigerantType: string;
-  serialNumber?: string;
+  serialNumber: string;
   customerId?: string | null;
   location?: string | null;
   ownershipType?: string;
@@ -80,7 +84,7 @@ async function logMovement(params: {
     p_movement_type: params.movementType,
     p_qty_kg: params.qtyKg,
     p_refrigerant_type: params.refrigerantType,
-    p_serial_number: params.serialNumber ?? null,
+    p_serial_number: params.serialNumber,
     p_customer_id: params.customerId ?? null,
     p_location: params.location ?? null,
     p_ownership_type: params.ownershipType ?? null,
@@ -108,29 +112,34 @@ export default function RefrigerantInventorySection({
   onError,
 }: Props) {
   const [view, setView] = useState<RefrigerantView>('stock');
-  const [stockFilter, setStockFilter] = useState<StockFilter>('all');
+  const [fillFilter, setFillFilter] = useState<BottleFillFilter>('all');
+  const [capacityFilter, setCapacityFilter] = useState<string>('all');
   const [cylinders, setCylinders] = useState<RefrigerantCylinder[]>([]);
   const [movements, setMovements] = useState<RefrigerantCylinderMovement[]>([]);
   const [customers, setCustomers] = useState<{ id: string; name: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [rowBusyId, setRowBusyId] = useState<string | null>(null);
-  const [addPanel, setAddPanel] = useState<AddPanel>(null);
+  const [showAddBottle, setShowAddBottle] = useState(false);
+  const [fillBottleId, setFillBottleId] = useState<string | null>(null);
 
-  const [quickPurchase, setQuickPurchase] = useState({
+  const [newBottle, setNewBottle] = useState({
     serial_number: '',
-    refrigerant_type: 'R-410A',
-    purchased_kg: '',
+    capacity_kg: '11.3',
     ownership_type: 'owned' as RefrigerantCylinderOwnership,
+    location: '',
+    start_empty: true,
+    refrigerant_type: 'R-410A',
+    fill_kg: '',
+    customer_id: '',
   });
 
-  const [quickCustomer, setQuickCustomer] = useState({
-    serial_number: '',
+  const [fillForm, setFillForm] = useState({
     refrigerant_type: 'R-410A',
-    purchased_kg: '',
-    ownership_type: 'owned' as RefrigerantCylinderOwnership,
+    fill_kg: '',
     customer_id: '',
     location: '',
+    from_customer: true,
   });
 
   const [reportFrom, setReportFrom] = useState(() => {
@@ -141,10 +150,23 @@ export default function RefrigerantInventorySection({
   const [reportTo, setReportTo] = useState(() => new Date().toISOString().slice(0, 10));
   const [reportBusy, setReportBusy] = useState(false);
 
-  const filteredCylinders = useMemo(() => {
-    if (stockFilter === 'all') return cylinders;
-    return cylinders.filter((c) => c.stock_source === stockFilter);
-  }, [cylinders, stockFilter]);
+  const capacityOptions = useMemo(() => {
+    const fromData = new Set(cylinders.map((c) => bottleCapacityKg(c)).filter((v) => v > 0));
+    for (const v of STANDARD_BOTTLE_CAPACITIES_KG) fromData.add(v);
+    return [...fromData].sort((a, b) => a - b);
+  }, [cylinders]);
+
+  const filteredBottles = useMemo(() => {
+    return cylinders.filter((c) => {
+      const cap = bottleCapacityKg(c);
+      if (capacityFilter !== 'all' && cap !== Number(capacityFilter)) return false;
+      if (fillFilter === 'empty' && !isBottleEmpty(c)) return false;
+      if (fillFilter === 'filled' && isBottleEmpty(c)) return false;
+      return true;
+    });
+  }, [cylinders, capacityFilter, fillFilter]);
+
+  const groupedBottles = useMemo(() => groupBottlesByCapacity(filteredBottles), [filteredBottles]);
 
   async function loadStock() {
     const { data, error } = await supabase
@@ -154,7 +176,7 @@ export default function RefrigerantInventorySection({
       .neq('status', 'recycled')
       .neq('status', 'returned')
       .neq('status', 'retired')
-      .gt('remaining_kg', ZERO_EPS)
+      .order('capacity_kg', { ascending: false })
       .order('serial_number');
 
     if (error) throw error;
@@ -168,7 +190,6 @@ export default function RefrigerantInventorySection({
       .eq('company_id', warehouseCompanyId)
       .order('created_at', { ascending: false })
       .limit(300);
-
     if (error) throw error;
     setMovements(
       ((data as unknown as Record<string, unknown>[]) ?? []).map((row) => {
@@ -198,11 +219,9 @@ export default function RefrigerantInventorySection({
     setLoading(true);
     onError(null);
     try {
-      await Promise.all([
-        loadStock(),
-        view === 'history' ? loadHistory() : Promise.resolve(),
-        canEditWarehouse && !isPartnerWarehouse ? loadCustomers() : Promise.resolve(),
-      ]);
+      await loadStock();
+      if (view === 'history') await loadHistory();
+      if (canEditWarehouse && !isPartnerWarehouse) await loadCustomers();
     } catch (err) {
       onError(err instanceof Error ? err.message : 'Lataus epäonnistui');
     } finally {
@@ -214,104 +233,30 @@ export default function RefrigerantInventorySection({
     void reload();
   }, [warehouseCompanyId, view]);
 
-  async function setCylinderRemaining(cylinder: RefrigerantCylinder, nextRemaining: number) {
-    if (!canEditWarehouse) return;
-    setRowBusyId(cylinder.id);
-    onError(null);
-
-    const prev = Number(cylinder.remaining_kg);
-    const delta = nextRemaining - prev;
-
-    if (nextRemaining <= ZERO_EPS) {
-      if (cylinder.stock_source === 'customer_retrieved' || Number(cylinder.remaining_kg) > ZERO_EPS) {
-        setRowBusyId(null);
-        onError('Käytä ”Kierrätykseen” tyhjälle asiakaspullolle — historia säilyy.');
-        return;
-      }
-      const { error: deleteError } = await supabase.from('refrigerant_cylinders').delete().eq('id', cylinder.id);
-      setRowBusyId(null);
-      if (deleteError) {
-        onError(deleteError.message);
-        return;
-      }
-      await removeInventoryImage(supabase, cylinder.image_path);
-      setCylinders((p) => p.filter((r) => r.id !== cylinder.id));
-      return;
-    }
-
-    const status = deriveCylinderStatus(nextRemaining, cylinder.returned_at, cylinder.status);
-    const { error: updateError } = await supabase
-      .from('refrigerant_cylinders')
-      .update({ remaining_kg: nextRemaining, status })
-      .eq('id', cylinder.id);
-
-    if (!updateError && Math.abs(delta) > ZERO_EPS) {
-      try {
-        await logMovement({
-          companyId: warehouseCompanyId,
-          cylinderId: cylinder.id,
-          movementType: 'adjustment',
-          qtyKg: Math.abs(delta),
-          refrigerantType: cylinder.refrigerant_type,
-          serialNumber: cylinder.serial_number,
-          customerId: cylinder.customer_id,
-          location: cylinder.location,
-          ownershipType: cylinder.ownership_type,
-          notes: delta < 0 ? 'Saldo vähennetty' : 'Saldo lisätty',
-        });
-      } catch (e) {
-        onError(e instanceof Error ? e.message : 'Liikekirjaus epäonnistui');
-      }
-    }
-
-    setRowBusyId(null);
-    if (updateError) {
-      onError(updateError.message);
-      return;
-    }
-    setCylinders((p) =>
-      p.map((r) => (r.id === cylinder.id ? { ...r, remaining_kg: nextRemaining, status } : r)),
-    );
-  }
-
-  async function markRecycled(cylinder: RefrigerantCylinder) {
-    if (!canEditWarehouse) return;
-    if (!window.confirm(`Merkitään pullo ${cylinder.serial_number} kierrätykseen toimitetuksi?`)) return;
-    setRowBusyId(cylinder.id);
-    onError(null);
-    const { error } = await supabase.rpc('mark_refrigerant_cylinder_recycled', {
-      p_cylinder_id: cylinder.id,
-      p_notes: null,
-    });
-    setRowBusyId(null);
-    if (error) {
-      onError(error.message);
-      return;
-    }
-    setCylinders((p) => p.filter((r) => r.id !== cylinder.id));
-    onMessage('Pullo merkitty kierrätykseen — poistettu varastosaldosta.');
-    if (view === 'history') void loadHistory();
-  }
-
-  async function addCylinder(
-    e: FormEvent,
-    stockSource: RefrigerantStockSource,
-    form: typeof quickPurchase | typeof quickCustomer,
-  ) {
+  async function addBottle(e: FormEvent) {
     e.preventDefault();
-    if (!canEditWarehouse || !form.serial_number.trim()) return;
-    const purchased = Number('purchased_kg' in form ? form.purchased_kg : 0);
-    if (purchased <= ZERO_EPS) {
-      onError('Anna määrä (kg) suurempi kuin nolla.');
+    if (!canEditWarehouse || !newBottle.serial_number.trim()) return;
+
+    const cap = Number(newBottle.capacity_kg);
+    if (!(cap > 0)) {
+      onError('Valitse pulmon tilavuus (kg).');
       return;
     }
 
-    const customerId = 'customer_id' in form ? form.customer_id || null : null;
-    const location = 'location' in form ? form.location.trim() || null : null;
+    let remaining = 0;
+    let refType: string | null = null;
+    let stockSource: 'purchase' | 'customer_retrieved' = 'purchase';
+    let customerId: string | null = null;
 
-    if (stockSource === 'customer_retrieved' && !customerId) {
-      onError('Valitse asiakas talteenotetulle pullelle.');
-      return;
+    if (!newBottle.start_empty) {
+      remaining = Number(newBottle.fill_kg || 0);
+      if (remaining <= 0 || remaining > cap) {
+        onError(`Anna täyttömäärä 0–${cap} kg.`);
+        return;
+      }
+      refType = newBottle.refrigerant_type;
+      customerId = newBottle.customer_id || null;
+      if (customerId) stockSource = 'customer_retrieved';
     }
 
     setBusy(true);
@@ -321,15 +266,16 @@ export default function RefrigerantInventorySection({
       .from('refrigerant_cylinders')
       .insert({
         company_id: warehouseCompanyId,
-        serial_number: form.serial_number.trim(),
-        refrigerant_type: form.refrigerant_type,
-        purchased_kg: purchased,
-        remaining_kg: purchased,
-        ownership_type: form.ownership_type,
+        serial_number: newBottle.serial_number.trim(),
+        capacity_kg: cap,
+        purchased_kg: cap,
+        remaining_kg: remaining,
+        refrigerant_type: refType,
+        ownership_type: newBottle.ownership_type,
         stock_source: stockSource,
         customer_id: customerId,
-        location,
-        status: 'in_stock',
+        location: newBottle.location.trim() || null,
+        status: remaining <= ZERO_EPS ? 'empty' : 'in_stock',
       })
       .select(CYLINDER_SELECT)
       .single();
@@ -340,106 +286,349 @@ export default function RefrigerantInventorySection({
       return;
     }
 
-    const cylinder = normalizeCylinder(data as Record<string, unknown>);
+    const bottle = normalizeCylinder(data as Record<string, unknown>);
     try {
-      await logMovement({
-        companyId: warehouseCompanyId,
-        cylinderId: cylinder.id,
-        movementType: stockSource === 'customer_retrieved' ? 'customer_retrieve' : 'purchase',
-        qtyKg: purchased,
-        refrigerantType: cylinder.refrigerant_type,
-        serialNumber: cylinder.serial_number,
-        customerId,
-        location,
-        ownershipType: cylinder.ownership_type,
-        notes: stockSource === 'customer_retrieved' ? 'Asiakkaalta talteenotettu' : 'Ostettu varastoon',
-      });
+      if (remaining > ZERO_EPS) {
+        await logMovement({
+          companyId: warehouseCompanyId,
+          cylinderId: bottle.id,
+          movementType: stockSource === 'customer_retrieved' ? 'customer_retrieve' : 'purchase',
+          qtyKg: remaining,
+          refrigerantType: refType || '—',
+          serialNumber: bottle.serial_number,
+          customerId,
+          location: bottle.location,
+          ownershipType: bottle.ownership_type,
+          notes: stockSource === 'customer_retrieved' ? 'Asiakkaalta talteen' : 'Varastoon',
+        });
+      }
     } catch (movErr) {
       onError(movErr instanceof Error ? movErr.message : 'Liikekirjaus epäonnistui');
     }
 
     setBusy(false);
-    setAddPanel(null);
-    onMessage(stockSource === 'customer_retrieved' ? 'Talteenotettu pullo lisätty.' : 'Pullo lisätty varastoon.');
-    setCylinders((p) => [...p, cylinder]);
+    setShowAddBottle(false);
+    setNewBottle({
+      serial_number: '',
+      capacity_kg: '11.3',
+      ownership_type: 'owned',
+      location: '',
+      start_empty: true,
+      refrigerant_type: 'R-410A',
+      fill_kg: '',
+      customer_id: '',
+    });
+    onMessage(remaining > 0 ? 'Pullo lisätty sisällöllä.' : 'Tyhjä pullo lisätty varastoon.');
+    setCylinders((p) => [...p, bottle]);
+  }
+
+  async function submitFillBottle(cylinder: RefrigerantCylinder, e: FormEvent) {
+    e.preventDefault();
+    const cap = bottleCapacityKg(cylinder);
+    const kg = Number(fillForm.fill_kg);
+    if (!(kg > 0) || kg > cap) {
+      onError(`Anna määrä 0–${cap} kg.`);
+      return;
+    }
+    if (fillForm.from_customer && !fillForm.customer_id) {
+      onError('Valitse asiakas, jolta aine on otettu talteen.');
+      return;
+    }
+
+    setRowBusyId(cylinder.id);
+    onError(null);
+
+    const patch = {
+      remaining_kg: kg,
+      refrigerant_type: fillForm.refrigerant_type,
+      customer_id: fillForm.from_customer ? fillForm.customer_id : cylinder.customer_id,
+      location: fillForm.location.trim() || cylinder.location,
+      stock_source: fillForm.from_customer ? 'customer_retrieved' : cylinder.stock_source,
+      status: 'in_stock',
+    };
+
+    const { error } = await supabase.from('refrigerant_cylinders').update(patch).eq('id', cylinder.id);
+    if (error) {
+      setRowBusyId(null);
+      onError(error.message);
+      return;
+    }
+
+    try {
+      await logMovement({
+        companyId: warehouseCompanyId,
+        cylinderId: cylinder.id,
+        movementType: fillForm.from_customer ? 'customer_retrieve' : 'adjustment',
+        qtyKg: kg,
+        refrigerantType: fillForm.refrigerant_type,
+        serialNumber: cylinder.serial_number,
+        customerId: patch.customer_id,
+        location: patch.location,
+        ownershipType: cylinder.ownership_type,
+        notes: fillForm.from_customer ? 'Täytetty asiakkaalta talteenotulla aineella' : 'Pullo täytetty',
+      });
+    } catch (movErr) {
+      onError(movErr instanceof Error ? movErr.message : 'Liikekirjaus epäonnistui');
+    }
+
+    setRowBusyId(null);
+    setFillBottleId(null);
+    onMessage('Pullo täytetty.');
+    await loadStock();
+  }
+
+  async function setContentKg(cylinder: RefrigerantCylinder, nextKg: number) {
+    if (!canEditWarehouse) return;
+    const cap = bottleCapacityKg(cylinder);
+    const clamped = Math.min(cap, Math.max(0, nextKg));
+    setRowBusyId(cylinder.id);
+
+    if (clamped <= ZERO_EPS) {
+      const { error } = await supabase
+        .from('refrigerant_cylinders')
+        .update({ remaining_kg: 0, refrigerant_type: null, status: 'empty' })
+        .eq('id', cylinder.id);
+      setRowBusyId(null);
+      if (error) onError(error.message);
+      else {
+        onMessage('Pullo merkitty tyhjäksi.');
+        setCylinders((p) =>
+          p.map((r) =>
+            r.id === cylinder.id ? { ...r, remaining_kg: 0, refrigerant_type: null, status: 'empty' } : r,
+          ),
+        );
+      }
+      return;
+    }
+
+    const refType = (cylinder.refrigerant_type || '').trim() || 'R-410A';
+    const { error } = await supabase
+      .from('refrigerant_cylinders')
+      .update({ remaining_kg: clamped, refrigerant_type: refType, status: 'in_stock' })
+      .eq('id', cylinder.id);
+
+    setRowBusyId(null);
+    if (error) onError(error.message);
+    else
+      setCylinders((p) =>
+        p.map((r) =>
+          r.id === cylinder.id ? { ...r, remaining_kg: clamped, refrigerant_type: refType, status: 'in_stock' } : r,
+        ),
+      );
+  }
+
+  async function markRecycled(cylinder: RefrigerantCylinder) {
+    if (!canEditWarehouse) return;
+    if (!window.confirm(`Merkitään ${cylinder.serial_number} kierrätykseen? Pullo poistuu varastosta, historia säilyy.`)) return;
+    setRowBusyId(cylinder.id);
+    const { error } = await supabase.rpc('mark_refrigerant_cylinder_recycled', {
+      p_cylinder_id: cylinder.id,
+      p_notes: null,
+    });
+    setRowBusyId(null);
+    if (error) onError(error.message);
+    else {
+      setCylinders((p) => p.filter((r) => r.id !== cylinder.id));
+      onMessage('Kierrätykseen merkitty.');
+    }
   }
 
   async function runReportPrint() {
     setReportBusy(true);
-    onError(null);
     try {
-      const fromIso = `${reportFrom}T00:00:00.000Z`;
-      const toIso = `${reportTo}T23:59:59.999Z`;
-      const { rows, summary } = await loadRefrigerantPeriodReport(supabase, warehouseCompanyId, fromIso, toIso);
-      const html = buildRefrigerantPeriodReportHtml({
-        companyName: warehouseCompanyName,
-        fromLabel: new Date(reportFrom).toLocaleDateString('fi-FI'),
-        toLabel: new Date(reportTo).toLocaleDateString('fi-FI'),
-        summary,
-        rows,
-      });
-      printRefrigerantPeriodReport(html);
+      const { rows, summary } = await loadRefrigerantPeriodReport(
+        supabase,
+        warehouseCompanyId,
+        `${reportFrom}T00:00:00.000Z`,
+        `${reportTo}T23:59:59.999Z`,
+      );
+      printRefrigerantPeriodReport(
+        buildRefrigerantPeriodReportHtml({
+          companyName: warehouseCompanyName,
+          fromLabel: new Date(reportFrom).toLocaleDateString('fi-FI'),
+          toLabel: new Date(reportTo).toLocaleDateString('fi-FI'),
+          summary,
+          rows,
+        }),
+      );
     } catch (err) {
-      onError(err instanceof Error ? err.message : 'Raportin muodostus epäonnistui');
+      onError(err instanceof Error ? err.message : 'Raportti epäonnistui');
     } finally {
       setReportBusy(false);
     }
   }
 
-  async function markCylinderReturned(cylinder: RefrigerantCylinder) {
-    if (!canEditWarehouse) return;
-    const today = new Date().toISOString().slice(0, 10);
-    setRowBusyId(cylinder.id);
-    if (Number(cylinder.remaining_kg) <= ZERO_EPS) {
-      await supabase.from('refrigerant_cylinders').delete().eq('id', cylinder.id);
-      setCylinders((p) => p.filter((r) => r.id !== cylinder.id));
-    } else {
-      await supabase
-        .from('refrigerant_cylinders')
-        .update({ returned_at: today, status: 'returned' })
-        .eq('id', cylinder.id);
-      try {
-        await logMovement({
-          companyId: warehouseCompanyId,
-          cylinderId: cylinder.id,
-          movementType: 'return_rental',
-          qtyKg: Number(cylinder.remaining_kg),
-          refrigerantType: cylinder.refrigerant_type,
-          serialNumber: cylinder.serial_number,
-          ownershipType: 'rental',
-          notes: 'Vuokrapullo palautettu',
-        });
-      } catch {
-        /* ignore */
-      }
-      setCylinders((p) => p.filter((r) => r.id !== cylinder.id));
-    }
-    setRowBusyId(null);
-    onMessage('Vuokrapullo merkitty palautetuksi.');
-  }
+  function renderBottleCard(c: RefrigerantCylinder) {
+    const rowBusy = rowBusyId === c.id;
+    const empty = isBottleEmpty(c);
+    const cap = bottleCapacityKg(c);
+    const ratio = bottleFillRatio(c);
+    const showFill = fillBottleId === c.id;
 
-  async function uploadCylinderPhoto(cylinder: RefrigerantCylinder, file: File) {
-    setRowBusyId(cylinder.id);
-    try {
-      const path = await uploadInventoryImage(supabase, warehouseCompanyId, 'cylinders', cylinder.id, file);
-      await supabase.from('refrigerant_cylinders').update({ image_path: path }).eq('id', cylinder.id);
-      setCylinders((p) => p.map((r) => (r.id === cylinder.id ? { ...r, image_path: path } : r)));
-    } catch (err) {
-      onError(err instanceof Error ? err.message : 'Kuvan lataus epäonnistui');
-    } finally {
-      setRowBusyId(null);
-    }
+    return (
+      <article key={c.id} className={`inventory-card inventory-bottle-card${empty ? ' inventory-bottle-empty' : ''}`}>
+        <div className="inventory-card-main">
+          <InventoryPhotoThumb
+            imagePath={c.image_path}
+            label={c.serial_number}
+            canEdit={canEditWarehouse}
+            busy={rowBusy}
+            onPick={async (file) => {
+              setRowBusyId(c.id);
+              try {
+                const path = await uploadInventoryImage(supabase, warehouseCompanyId, 'cylinders', c.id, file);
+                await supabase.from('refrigerant_cylinders').update({ image_path: path }).eq('id', c.id);
+                setCylinders((p) => p.map((r) => (r.id === c.id ? { ...r, image_path: path } : r)));
+              } finally {
+                setRowBusyId(null);
+              }
+            }}
+            onRemove={() => {}}
+          />
+          <div className="inventory-card-body">
+            <div className="inventory-bottle-title-row">
+              <h3>{c.serial_number}</h3>
+              <span className="inventory-bottle-badge">{formatCapacityLabel(cap)}</span>
+              <span className="inventory-bottle-badge inventory-bottle-badge-muted">
+                {REFRIGERANT_CYLINDER_OWNERSHIP_LABELS[c.ownership_type]}
+              </span>
+            </div>
+            <p className={`inventory-bottle-state${empty ? ' inventory-bottle-state-empty' : ''}`}>
+              {formatBottleContent(c)}
+            </p>
+            {!empty && cap > 0 && (
+              <div className="inventory-bottle-meter" aria-hidden>
+                <div className="inventory-bottle-meter-fill" style={{ width: `${Math.round(ratio * 100)}%` }} />
+              </div>
+            )}
+            {(c.location || c.customer?.name) && (
+              <p className="muted inventory-card-sub">
+                {[c.customer?.name, c.location].filter(Boolean).join(' · ')}
+              </p>
+            )}
+          </div>
+        </div>
+
+        {!empty && canEditWarehouse && (
+          <InventoryQtyStepper
+            value={Number(c.remaining_kg)}
+            step={0.5}
+            min={0}
+            max={cap}
+            unit="kg"
+            decimals={1}
+            disabled={!canEditWarehouse}
+            busy={rowBusy}
+            onCommit={(next) => setContentKg(c, next)}
+          />
+        )}
+
+        {canEditWarehouse && (
+          <div className="inventory-card-actions">
+            {empty && (
+              <button type="button" className="btn btn-primary btn-sm" disabled={rowBusy} onClick={() => {
+                setFillBottleId(c.id);
+                setFillForm({
+                  refrigerant_type: 'R-410A',
+                  fill_kg: String(cap),
+                  customer_id: '',
+                  location: c.location ?? '',
+                  from_customer: true,
+                });
+              }}>
+                Täytä pullo
+              </button>
+            )}
+            {!empty && (
+              <button type="button" className="btn btn-sm" disabled={rowBusy} onClick={() => void setContentKg(c, 0)}>
+                Tyhjennä
+              </button>
+            )}
+            <button type="button" className="btn btn-sm" disabled={rowBusy} onClick={() => void markRecycled(c)}>
+              Kierrätys
+            </button>
+          </div>
+        )}
+
+        {showFill && (
+          <form className="inventory-fill-form panel" onSubmit={(e) => void submitFillBottle(c, e)}>
+            <h4>Täytä pullo {c.serial_number}</h4>
+            <label className="inventory-check">
+              <input
+                type="checkbox"
+                checked={fillForm.from_customer}
+                onChange={(e) => setFillForm({ ...fillForm, from_customer: e.target.checked })}
+              />
+              Aine asiakkaalta talteen
+            </label>
+            {fillForm.from_customer && (
+              <label>
+                Asiakas *
+                <select
+                  value={fillForm.customer_id}
+                  onChange={(e) => setFillForm({ ...fillForm, customer_id: e.target.value })}
+                  required
+                >
+                  <option value="">Valitse…</option>
+                  {customers.map((cust) => (
+                    <option key={cust.id} value={cust.id}>
+                      {cust.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+            <label>
+              Kylmäaine
+              <select
+                value={fillForm.refrigerant_type}
+                onChange={(e) => setFillForm({ ...fillForm, refrigerant_type: e.target.value })}
+              >
+                {refrigerantTypes.map((t) => (
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Määrä (kg), max {cap}
+              <input
+                type="number"
+                step="0.1"
+                min="0.001"
+                max={cap}
+                value={fillForm.fill_kg}
+                onChange={(e) => setFillForm({ ...fillForm, fill_kg: e.target.value })}
+                required
+              />
+            </label>
+            <label>
+              Sijainti
+              <input
+                value={fillForm.location}
+                onChange={(e) => setFillForm({ ...fillForm, location: e.target.value })}
+              />
+            </label>
+            <div className="inventory-fill-form-actions">
+              <button type="submit" className="btn btn-primary btn-sm" disabled={rowBusy}>
+                Tallenna
+              </button>
+              <button type="button" className="btn btn-sm" onClick={() => setFillBottleId(null)}>
+                Peruuta
+              </button>
+            </div>
+          </form>
+        )}
+      </article>
+    );
   }
 
   return (
     <>
       <div className="billing-filter-pills inventory-subtabs">
-        <button
-          type="button"
-          className={view === 'stock' ? 'billing-pill active' : 'billing-pill'}
-          onClick={() => setView('stock')}
-        >
-          Varasto
+        <button type="button" className={view === 'stock' ? 'billing-pill active' : 'billing-pill'} onClick={() => setView('stock')}>
+          Pullovarasto
         </button>
         <button
           type="button"
@@ -451,180 +640,155 @@ export default function RefrigerantInventorySection({
         >
           Historia
         </button>
-        <button
-          type="button"
-          className={view === 'report' ? 'billing-pill active' : 'billing-pill'}
-          onClick={() => setView('report')}
-        >
+        <button type="button" className={view === 'report' ? 'billing-pill active' : 'billing-pill'} onClick={() => setView('report')}>
           Raportti
         </button>
       </div>
 
       {view === 'stock' && (
         <>
-          <div className="inventory-stock-filters">
-            <span className="muted">Näytä:</span>
-            {(['all', 'purchase', 'customer_retrieved'] as const).map((f) => (
-              <button
-                key={f}
-                type="button"
-                className={stockFilter === f ? 'billing-pill active' : 'billing-pill'}
-                onClick={() => setStockFilter(f)}
-              >
-                {f === 'all' ? 'Kaikki' : REFRIGERANT_STOCK_SOURCE_LABELS[f]}
-              </button>
-            ))}
-            {canEditWarehouse && (
-              <div className="inventory-add-actions">
-                <button type="button" className="btn btn-secondary btn-sm" onClick={() => setAddPanel('purchase')}>
-                  + Ostettu pullo
-                </button>
-                <button type="button" className="btn btn-secondary btn-sm" onClick={() => setAddPanel('customer')}>
-                  + Asiakkaalta talteen
-                </button>
+          <div className="inventory-stock-toolbar">
+            <div className="inventory-stock-filters">
+              <label className="inventory-filter-label">
+                Tilavuus
+                <select value={capacityFilter} onChange={(e) => setCapacityFilter(e.target.value)}>
+                  <option value="all">Kaikki</option>
+                  {capacityOptions.map((kg) => (
+                    <option key={kg} value={String(kg)}>
+                      {formatCapacityLabel(kg)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <div className="billing-filter-pills">
+                {(
+                  [
+                    ['all', 'Kaikki'],
+                    ['empty', 'Tyhjät'],
+                    ['filled', 'Sisältää ainetta'],
+                  ] as const
+                ).map(([key, label]) => (
+                  <button
+                    key={key}
+                    type="button"
+                    className={fillFilter === key ? 'billing-pill active' : 'billing-pill'}
+                    onClick={() => setFillFilter(key)}
+                  >
+                    {label}
+                  </button>
+                ))}
               </div>
+            </div>
+            {canEditWarehouse && (
+              <button type="button" className="btn btn-primary" onClick={() => setShowAddBottle((v) => !v)}>
+                + Lisää pullo
+              </button>
             )}
           </div>
 
-          {addPanel === 'purchase' && (
+          {showAddBottle && canEditWarehouse && (
             <section className="panel inventory-quick-add">
-              <h2>Uusi ostettu pullo</h2>
-              <form onSubmit={(e) => void addCylinder(e, 'purchase', quickPurchase)} className="inventory-quick-add-form">
+              <h2>Uusi pullo varastoon</h2>
+              <p className="muted">Voit lisätä tyhjän pullon (täytät myöhemmin) tai pullon, jossa on jo kylmäainetta.</p>
+              <form onSubmit={(e) => void addBottle(e)} className="inventory-quick-add-form inventory-bottle-add-form">
                 <label>
-                  Sarjanumero *
+                  Sarjanumero / tunniste *
                   <input
-                    value={quickPurchase.serial_number}
-                    onChange={(e) => setQuickPurchase({ ...quickPurchase, serial_number: e.target.value })}
+                    value={newBottle.serial_number}
+                    onChange={(e) => setNewBottle({ ...newBottle, serial_number: e.target.value })}
                     required
                   />
                 </label>
                 <label>
-                  Kylmäaine
-                  <select
-                    value={quickPurchase.refrigerant_type}
-                    onChange={(e) => setQuickPurchase({ ...quickPurchase, refrigerant_type: e.target.value })}
-                  >
-                    {refrigerantTypes.map((t) => (
-                      <option key={t} value={t}>
-                        {t}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label>
-                  Määrä (kg) *
+                  Tilavuus (kg) *
                   <input
                     type="number"
                     step="0.1"
-                    min="0.001"
-                    value={quickPurchase.purchased_kg}
-                    onChange={(e) => setQuickPurchase({ ...quickPurchase, purchased_kg: e.target.value })}
+                    min="0.1"
+                    list="standard-bottle-capacities"
+                    value={newBottle.capacity_kg}
+                    onChange={(e) => setNewBottle({ ...newBottle, capacity_kg: e.target.value })}
                     required
                   />
+                  <datalist id="standard-bottle-capacities">
+                    {STANDARD_BOTTLE_CAPACITIES_KG.map((kg) => (
+                      <option key={kg} value={String(kg)} />
+                    ))}
+                  </datalist>
                 </label>
                 <label>
                   Omistus
                   <select
-                    value={quickPurchase.ownership_type}
+                    value={newBottle.ownership_type}
                     onChange={(e) =>
-                      setQuickPurchase({
-                        ...quickPurchase,
-                        ownership_type: e.target.value as RefrigerantCylinderOwnership,
-                      })
+                      setNewBottle({ ...newBottle, ownership_type: e.target.value as RefrigerantCylinderOwnership })
                     }
                   >
                     <option value="owned">{REFRIGERANT_CYLINDER_OWNERSHIP_LABELS.owned}</option>
                     <option value="rental">{REFRIGERANT_CYLINDER_OWNERSHIP_LABELS.rental}</option>
                   </select>
                 </label>
+                <label>
+                  Sijainti
+                  <input
+                    value={newBottle.location}
+                    onChange={(e) => setNewBottle({ ...newBottle, location: e.target.value })}
+                    placeholder="Varasto, hylly, auto…"
+                  />
+                </label>
+                <label className="inventory-check">
+                  <input
+                    type="checkbox"
+                    checked={newBottle.start_empty}
+                    onChange={(e) => setNewBottle({ ...newBottle, start_empty: e.target.checked })}
+                  />
+                  Tyhjä pullo (täytetään myöhemmin)
+                </label>
+                {!newBottle.start_empty && (
+                  <>
+                    <label>
+                      Kylmäaine
+                      <select
+                        value={newBottle.refrigerant_type}
+                        onChange={(e) => setNewBottle({ ...newBottle, refrigerant_type: e.target.value })}
+                      >
+                        {refrigerantTypes.map((t) => (
+                          <option key={t} value={t}>
+                            {t}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label>
+                      Määrä nyt (kg)
+                      <input
+                        type="number"
+                        step="0.1"
+                        min="0.001"
+                        value={newBottle.fill_kg}
+                        onChange={(e) => setNewBottle({ ...newBottle, fill_kg: e.target.value })}
+                      />
+                    </label>
+                    <label>
+                      Asiakas (jos talteen asiakkaalta)
+                      <select
+                        value={newBottle.customer_id}
+                        onChange={(e) => setNewBottle({ ...newBottle, customer_id: e.target.value })}
+                      >
+                        <option value="">—</option>
+                        {customers.map((cust) => (
+                          <option key={cust.id} value={cust.id}>
+                            {cust.name}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  </>
+                )}
                 <button type="submit" className="btn btn-primary" disabled={busy}>
-                  Lisää
+                  Lisää pullo
                 </button>
-                <button type="button" className="btn" onClick={() => setAddPanel(null)}>
-                  Peruuta
-                </button>
-              </form>
-            </section>
-          )}
-
-          {addPanel === 'customer' && (
-            <section className="panel inventory-quick-add">
-              <h2>Asiakkaalta talteenotettu</h2>
-              <form onSubmit={(e) => void addCylinder(e, 'customer_retrieved', quickCustomer)} className="inventory-quick-add-form">
-                <label>
-                  Asiakas *
-                  <select
-                    value={quickCustomer.customer_id}
-                    onChange={(e) => setQuickCustomer({ ...quickCustomer, customer_id: e.target.value })}
-                    required
-                  >
-                    <option value="">Valitse…</option>
-                    {customers.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label>
-                  Pullo / sarjanumero *
-                  <input
-                    value={quickCustomer.serial_number}
-                    onChange={(e) => setQuickCustomer({ ...quickCustomer, serial_number: e.target.value })}
-                    required
-                  />
-                </label>
-                <label>
-                  Missä pullossa / sijainti
-                  <input
-                    value={quickCustomer.location}
-                    onChange={(e) => setQuickCustomer({ ...quickCustomer, location: e.target.value })}
-                    placeholder="esim. ulkovarasto, hylly 3"
-                  />
-                </label>
-                <label>
-                  Kylmäaine
-                  <select
-                    value={quickCustomer.refrigerant_type}
-                    onChange={(e) => setQuickCustomer({ ...quickCustomer, refrigerant_type: e.target.value })}
-                  >
-                    {refrigerantTypes.map((t) => (
-                      <option key={t} value={t}>
-                        {t}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label>
-                  Määrä (kg) *
-                  <input
-                    type="number"
-                    step="0.1"
-                    min="0.001"
-                    value={quickCustomer.purchased_kg}
-                    onChange={(e) => setQuickCustomer({ ...quickCustomer, purchased_kg: e.target.value })}
-                    required
-                  />
-                </label>
-                <label>
-                  Omistus / vuokra
-                  <select
-                    value={quickCustomer.ownership_type}
-                    onChange={(e) =>
-                      setQuickCustomer({
-                        ...quickCustomer,
-                        ownership_type: e.target.value as RefrigerantCylinderOwnership,
-                      })
-                    }
-                  >
-                    <option value="owned">{REFRIGERANT_CYLINDER_OWNERSHIP_LABELS.owned}</option>
-                    <option value="rental">{REFRIGERANT_CYLINDER_OWNERSHIP_LABELS.rental}</option>
-                  </select>
-                </label>
-                <button type="submit" className="btn btn-primary" disabled={busy}>
-                  Lisää varastoon
-                </button>
-                <button type="button" className="btn" onClick={() => setAddPanel(null)}>
+                <button type="button" className="btn" onClick={() => setShowAddBottle(false)}>
                   Peruuta
                 </button>
               </form>
@@ -633,67 +797,17 @@ export default function RefrigerantInventorySection({
 
           {loading ? (
             <p className="muted">Ladataan…</p>
-          ) : filteredCylinders.length === 0 ? (
-            <p className="muted inventory-empty">Ei pulloja valitulla suodattimella.</p>
+          ) : filteredBottles.length === 0 ? (
+            <p className="muted inventory-empty">Ei pulloja valituilla suodattimilla.</p>
           ) : (
-            <section className="inventory-card-list">
-              {filteredCylinders.map((c) => {
-                const rowBusy = rowBusyId === c.id;
-                return (
-                  <article key={c.id} className="inventory-card">
-                    <div className="inventory-card-main">
-                      <InventoryPhotoThumb
-                        imagePath={c.image_path}
-                        label={c.serial_number}
-                        canEdit={canEditWarehouse}
-                        busy={rowBusy}
-                        onPick={(file) => uploadCylinderPhoto(c, file)}
-                        onRemove={() => {}}
-                      />
-                      <div className="inventory-card-body">
-                        <h3>{c.serial_number}</h3>
-                        <p className="muted inventory-card-sub">
-                          {c.refrigerant_type} · {REFRIGERANT_STOCK_SOURCE_LABELS[c.stock_source]} ·{' '}
-                          {REFRIGERANT_CYLINDER_OWNERSHIP_LABELS[c.ownership_type]}
-                        </p>
-                        {c.stock_source === 'customer_retrieved' && (
-                          <p className="muted inventory-card-sub">
-                            {c.customer?.name ?? '—'}
-                            {c.location ? ` · ${c.location}` : ''}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                    <InventoryQtyStepper
-                      value={Number(c.remaining_kg)}
-                      step={1}
-                      min={0}
-                      max={Number(c.purchased_kg)}
-                      unit="kg"
-                      decimals={1}
-                      disabled={!canEditWarehouse}
-                      busy={rowBusy}
-                      onCommit={(next) => setCylinderRemaining(c, next)}
-                    />
-                    {canEditWarehouse && (
-                      <div className="inventory-card-actions">
-                        <button type="button" className="btn btn-sm" disabled={rowBusy} onClick={() => void markRecycled(c)}>
-                          Kierrätykseen toimitettu
-                        </button>
-                        {c.ownership_type === 'rental' && !c.returned_at && (
-                          <button type="button" className="btn btn-sm" disabled={rowBusy} onClick={() => void markCylinderReturned(c)}>
-                            Palauta vuokra
-                          </button>
-                        )}
-                      </div>
-                    )}
-                    <p className="muted inventory-card-hint">
-                      Tyhjennä asiakaspullo kierrätyspainikkeella — historia säilyy. Ostetun pullon saldo 0 poistaa rivin.
-                    </p>
-                  </article>
-                );
-              })}
-            </section>
+            [...groupedBottles.entries()].map(([capKg, bottles]) => (
+              <section key={capKg} className="inventory-capacity-group">
+                <h3 className="inventory-capacity-heading">
+                  {capKg > 0 ? formatCapacityLabel(capKg) : 'Tilavuus määrittämätön'} ({bottles.length})
+                </h3>
+                <div className="inventory-card-list">{bottles.map(renderBottleCard)}</div>
+              </section>
+            ))
           )}
         </>
       )}
@@ -703,7 +817,7 @@ export default function RefrigerantInventorySection({
           {loading ? (
             <p className="muted">Ladataan…</p>
           ) : movements.length === 0 ? (
-            <p className="muted">Ei kirjattuja liikkeitä.</p>
+            <p className="muted">Ei liikkeitä.</p>
           ) : (
             <div className="table-wrap">
               <table className="data-table">
@@ -711,11 +825,10 @@ export default function RefrigerantInventorySection({
                   <tr>
                     <th>Aika</th>
                     <th>Tapahtuma</th>
-                    <th>Aine</th>
                     <th>Pullo</th>
+                    <th>Aine</th>
                     <th>kg</th>
                     <th>Asiakas</th>
-                    <th>Sijainti</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -723,11 +836,10 @@ export default function RefrigerantInventorySection({
                     <tr key={m.id}>
                       <td>{new Date(m.created_at).toLocaleString('fi-FI')}</td>
                       <td>{REFRIGERANT_MOVEMENT_TYPE_LABELS[m.movement_type]}</td>
-                      <td>{m.refrigerant_type}</td>
                       <td>{m.serial_number ?? '—'}</td>
+                      <td>{m.refrigerant_type}</td>
                       <td>{Number(m.qty_kg).toFixed(2)}</td>
                       <td>{m.customer?.name ?? '—'}</td>
-                      <td>{m.location ?? '—'}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -740,7 +852,6 @@ export default function RefrigerantInventorySection({
       {view === 'report' && (
         <section className="panel inventory-report-panel">
           <h2>Kylmäaineraportti</h2>
-          <p className="muted">Yhteenveto ja tapahtumat valitulta aikajaksolta (ostettu, asiakkaalta talteen, myyty, käyttö, kierrätys).</p>
           <div className="inventory-report-dates">
             <label>
               Alku
@@ -751,7 +862,7 @@ export default function RefrigerantInventorySection({
               <input type="date" value={reportTo} onChange={(e) => setReportTo(e.target.value)} />
             </label>
             <button type="button" className="btn btn-primary" disabled={reportBusy} onClick={() => void runReportPrint()}>
-              Tulosta raportti
+              Tulosta
             </button>
           </div>
         </section>

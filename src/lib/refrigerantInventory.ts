@@ -33,6 +33,7 @@ export type RefrigerantCylinderListRow = {
   refrigerant_type: string;
   purchased_kg: number;
   remaining_kg: number;
+  capacity_kg?: number | null;
   owner_user_id: string | null;
   ownership_type?: string | null;
   status: string;
@@ -86,6 +87,7 @@ export function mapRpcCylinders(rows: RefrigerantCylinderListRow[]): Refrigerant
     refrigerant_type: row.refrigerant_type,
     purchased_kg: Number(row.purchased_kg),
     remaining_kg: Number(row.remaining_kg),
+    capacity_kg: Number(row.capacity_kg ?? row.purchased_kg) || Number(row.purchased_kg),
     owner_user_id: row.owner_user_id,
     ownership_type: row.ownership_type === 'rental' ? 'rental' : 'owned',
     stock_source: 'purchase',
