@@ -65,8 +65,8 @@ export function canManageWorkReportDailyLogs(input: {
 
   if (report.status === 'delegated') {
     return (
-      companyId === report.delegate_company_id &&
-      (role === 'admin' || report.assigned_user_id === userId)
+      companyId === report.delegate_company_id
+      && (role === 'admin' || role === 'manager' || report.assigned_user_id === userId)
     );
   }
 

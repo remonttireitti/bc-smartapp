@@ -23,6 +23,10 @@ import {
   isWorkReportVisibleToPortal,
 } from '../lib/portalWorkOrder';
 import { canEditWorkReportDescription, canManageWorkReportDailyLogs } from '../lib/workReportDailyLogs';
+import {
+  canAcceptDelegatedWorkOrder,
+  canAssignDelegatedWorkOrder,
+} from '../lib/workReportDelegation';
 import DailyLogRefrigerantFields from '../components/inventory/DailyLogRefrigerantFields';
 import { AddDailyLogImages, BUCKET, DailyLogImageGallery, uploadDailyLogImages } from '../lib/dailyLogImages';
 import {
@@ -1117,9 +1121,12 @@ export default function WorkReportDetailPage({ session }: Props) {
 
   useEffect(() => {
     if (
-      report?.status !== 'delegated' ||
-      profile?.company_id !== report.delegate_company_id ||
-      profile?.role !== 'admin'
+      !report ||
+      !canAssignDelegatedWorkOrder({
+        report,
+        companyId: profile?.company_id,
+        role: profile?.role,
+      })
     ) {
       return;
     }
@@ -1198,13 +1205,13 @@ export default function WorkReportDetailPage({ session }: Props) {
     await load(report.id);
   }
 
-  async function assignDelegatedWork() {
-    if (!report || !assignUserId) return;
+  async function assignDelegatedWork(userId: string) {
+    if (!report || !userId) return;
     setAssignBusy(true);
     setError(null);
     const { error: updateError } = await supabase
       .from('work_reports')
-      .update({ assigned_user_id: assignUserId, status: 'scheduled' })
+      .update({ assigned_user_id: userId, status: 'scheduled' })
       .eq('id', report.id);
     setAssignBusy(false);
     if (updateError) {
@@ -1212,6 +1219,10 @@ export default function WorkReportDetailPage({ session }: Props) {
       return;
     }
     await load(report.id);
+  }
+
+  async function acceptDelegatedWork() {
+    await assignDelegatedWork(session.user.id);
   }
 
   async function loadRefrigerantContext(selectedCylinderIds: string[] = []) {
@@ -1539,8 +1550,16 @@ export default function WorkReportDetailPage({ session }: Props) {
   const isCreatorCompany = profile?.company_id === report.created_by_company_id;
   const isOwnerCompany = profile?.company_id === report.owner_company_id;
   const isDelegateCompany = profile?.company_id === report.delegate_company_id;
-  const canAssignDelegate =
-    report.status === 'delegated' && isDelegateCompany && profile?.role === 'admin';
+  const canAcceptDelegated = canAcceptDelegatedWorkOrder({
+    report,
+    companyId: profile?.company_id,
+    role: profile?.role,
+  });
+  const canAssignDelegate = canAssignDelegatedWorkOrder({
+    report,
+    companyId: profile?.company_id,
+    role: profile?.role,
+  });
   const hideAssigneeFromViewer = isDelegatedOrder && isCreatorCompany;
   const canManageDailyLogs = canManageWorkReportDailyLogs({
     report,
@@ -1855,32 +1874,51 @@ export default function WorkReportDetailPage({ session }: Props) {
           )}
         </dl>
         <div className="status-actions">
-          {canAssignDelegate && (
+          {canAcceptDelegated && (
             <div className="assign-delegate-panel">
               <p className="muted">
-                Määritä tekijä omasta organisaatiostasi. Lähettäjä ({report.created_by_company?.name ?? '—'}) ei
-                näe henkilöstölistaa.
+                Kumppani ({report.created_by_company?.name ?? '—'}) on lähettänyt toimeksiannon. Ota se vastaan
+                aloittaaksesi työkirjaukset — lähettäjä ei näe henkilöstöluetteloasi.
               </p>
-              <div className="line-form-grid">
-                <label>
-                  Tekijä
-                  <select value={assignUserId} onChange={(e) => setAssignUserId(e.target.value)}>
-                    {companyUsers.map((u) => (
-                      <option key={u.id} value={u.id}>
-                        {u.display_name ?? u.email ?? u.id}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+              {canAssignDelegate ? (
+                <div className="line-form-grid">
+                  <label>
+                    Tekijä
+                    <select value={assignUserId} onChange={(e) => setAssignUserId(e.target.value)}>
+                      {companyUsers.map((u) => (
+                        <option key={u.id} value={u.id}>
+                          {u.display_name ?? u.email ?? u.id}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    disabled={assignBusy || !assignUserId}
+                    onClick={() => void assignDelegatedWork(assignUserId)}
+                  >
+                    {assignBusy ? 'Tallennetaan…' : 'Määritä tekijä'}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    disabled={assignBusy}
+                    onClick={() => void acceptDelegatedWork()}
+                  >
+                    {assignBusy ? 'Tallennetaan…' : 'Ota itse vastaan'}
+                  </button>
+                </div>
+              ) : (
                 <button
                   type="button"
                   className="btn btn-primary"
-                  disabled={assignBusy || !assignUserId}
-                  onClick={() => void assignDelegatedWork()}
+                  disabled={assignBusy}
+                  onClick={() => void acceptDelegatedWork()}
                 >
-                  {assignBusy ? 'Tallennetaan…' : 'Määritä tekijä'}
+                  {assignBusy ? 'Tallennetaan…' : 'Ota toimeksianto vastaan'}
                 </button>
-              </div>
+              )}
             </div>
           )}
           {nextStatus && report.status !== 'delegated' && !portalReadOnly && (
@@ -1939,7 +1977,11 @@ export default function WorkReportDetailPage({ session }: Props) {
             </button>
           )}
           {report.status === 'delegated' && !canAddDailyLogs && (
-            <p className="muted">Odottaa kumppanin tekijän määrittämistä ennen työkirjausta.</p>
+            <p className="muted">
+              {canAcceptDelegated
+                ? 'Ota toimeksianto vastaan perustiedoissa aloittaaksesi työkirjaukset.'
+                : 'Odottaa toimeksisaajan vastaanottoa ennen työkirjausta.'}
+            </p>
           )}
         </div>
 

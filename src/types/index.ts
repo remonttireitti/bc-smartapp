@@ -249,7 +249,7 @@ export type WorkReportBilling = {
 
 export const WORK_STATUS_LABELS: Record<WorkStatus, string> = {
   draft: 'Luonnos',
-  delegated: 'Odottaa toimeksiantoa',
+  delegated: 'Odottaa vastaanottoa',
   scheduled: 'Tulossa',
   in_progress: 'Työn alla',
   completed: 'Valmis',

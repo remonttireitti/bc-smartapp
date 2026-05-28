@@ -11,7 +11,7 @@ import { WORK_STATUS_LABELS, normalizeWorkflowStatus, type WorkStatus } from '..
 
 const WORK_STATUS_HINTS: Record<WorkStatus, string> = {
   draft: 'Raportti on luonnos — ei vielä työn alla.',
-  delegated: 'Odottaa toimeksisaajan tekijän määrittämistä.',
+  delegated: 'Odottaa toimeksisaajan vastaanottoa — ota työ vastaan aloittaaksesi.',
   scheduled: 'Työ on aikataulutettu mutta ei vielä alkanut.',
   in_progress: 'Työ on käynnissä.',
   completed: 'Työ on valmis mutta ei vielä laskutettu.',
