@@ -777,6 +777,7 @@ button[type='submit']:disabled { opacity: .6; cursor: wait; }
   border: 1px solid var(--border-strong);
   border-radius: 12px;
   box-shadow: var(--shadow-panel);
+  overflow: visible;
 }
 
 .page-header h1 {
@@ -793,6 +794,7 @@ button[type='submit']:disabled { opacity: .6; cursor: wait; }
   gap: .35rem;
   align-items: center;
   flex-shrink: 0;
+  overflow: visible;
 }
 
 .action-toolbar {
@@ -1109,12 +1111,30 @@ button[type='submit']:disabled { opacity: .6; cursor: wait; }
   position: absolute;
   z-index: 120;
   top: calc(100% + .35rem);
-  right: 0;
   min-width: 12.5rem;
+  max-width: calc(100vw - 2rem);
   background: var(--bg-surface);
   border: 1px solid var(--border-strong);
   border-radius: 10px;
   box-shadow: var(--shadow-md);
+}
+
+/* + valikko otsikkorivillä: mobiilissa vasemmalle, leveällä näytöllä oikealle */
+.page-header-actions .toolbar-popover-panel {
+  left: 0;
+  right: auto;
+}
+
+.toolbar-right .toolbar-popover-panel {
+  left: auto;
+  right: 0;
+}
+
+@media (min-width: 901px) {
+  .page-header-actions .toolbar-popover-panel {
+    left: auto;
+    right: 0;
+  }
 }
 
 .toolbar-action-menu {
@@ -3210,6 +3230,10 @@ textarea {
 
   .page-header-actions.action-toolbar {
     gap: .5rem;
+  }
+
+  .page-header-actions .toolbar-action-menu a {
+    white-space: normal;
   }
 
   .action-toolbar-sep {
