@@ -636,6 +636,8 @@ export function createEmptyRefrigerantCircuitData(): RefrigerantCircuitData {
     kuivainKivienMaara: '',
     tulistus: '',
     alijäähtyminen: '',
+    tulistusTulosteeseen: false,
+    alijahdytysTulosteeseen: false,
     kompressori1: { ...kompressori },
     kompressori2: { ...kompressori },
     kompressori3: { ...kompressori },

@@ -3837,6 +3837,36 @@ textarea {
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.65);
 }
 
+.huolto-calc-metric {
+  display: flex;
+  flex-direction: column;
+  gap: .35rem;
+  min-width: 0;
+}
+
+.huolto-calc-metric-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .5rem;
+  flex-wrap: wrap;
+}
+
+.huolto-calc-print-toggle {
+  flex-shrink: 0;
+  font-size: .72rem;
+}
+
+.huolto-calc-print-toggle .toggle-switch-track {
+  width: 1.85rem;
+  height: 1.05rem;
+}
+
+.huolto-calc-off-hint {
+  font-size: .85rem;
+  font-style: italic;
+}
+
 .huolto-calc-row strong {
   display: block;
   font-size: 1.25rem;

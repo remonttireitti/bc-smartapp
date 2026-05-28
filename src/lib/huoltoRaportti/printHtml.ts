@@ -29,6 +29,10 @@ import {
   buildRefrigerantCircuitWarnings,
   computeChillerEnergyFromMlp,
 } from './mlpEnergyCalc';
+import {
+  circuitSubcoolingPrintEnabled,
+  circuitSuperheatPrintEnabled,
+} from './refrigerantCircuitPrint';
 import { generateMlpFullPrintHtml } from './printMlpFull';
 import { renderCompressorCurrentHtml, renderFanPhaseCardHtml } from './printPhaseHelpers';
 import {
@@ -206,18 +210,30 @@ function renderCircuitHtml(
   laiteTyyppi: string,
 ): string {
   if (!kp || !kp.onKaytossa) return '';
-  const sh =
-    calculateSuperheatFromMeasurements(
-      parseFloat(kp.imupaine) || 0,
-      parseFloat(kp.imuLampotila) || 0,
-      refrigerant,
-    )?.toFixed(1) ?? '-';
-  const sc =
-    calculateSubcoolingFromMeasurements(
-      parseFloat(kp.korkeapaine) || 0,
-      parseFloat(kp.nestePutkiLampotila) || 0,
-      refrigerant,
-    )?.toFixed(1) ?? '-';
+  const printSuperheat = circuitSuperheatPrintEnabled(kp);
+  const printSubcooling = circuitSubcoolingPrintEnabled(kp);
+  const sh = printSuperheat
+    ? calculateSuperheatFromMeasurements(
+        parseFloat(kp.imupaine) || 0,
+        parseFloat(kp.imuLampotila) || 0,
+        refrigerant,
+      )?.toFixed(1) ?? '-'
+    : '';
+  const sc = printSubcooling
+    ? calculateSubcoolingFromMeasurements(
+        parseFloat(kp.korkeapaine) || 0,
+        parseFloat(kp.nestePutkiLampotila) || 0,
+        refrigerant,
+      )?.toFixed(1) ?? '-'
+    : '';
+  const calcLine =
+    printSuperheat || printSubcooling
+      ? `<div style="margin-bottom:6px;font-size:11px;">${
+          printSuperheat ? `Tulistus: <strong>${esc(sh || '—')} K</strong>` : ''
+        }${printSuperheat && printSubcooling ? ' · ' : ''}${
+          printSubcooling ? `Alijäähdytys: <strong>${esc(sc || '—')} K</strong>` : ''
+        }</div>`
+      : '';
 
   const paineGrid = [
     gridField('Imupaine (bar)', kp.imupaine),
@@ -259,7 +275,7 @@ function renderCircuitHtml(
     '#E64A19',
     `
     ${paineGrid ? `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:8px;">${paineGrid}</div>` : ''}
-    <div style="margin-bottom:6px;font-size:11px;">Tulistus: <strong>${esc(sh)} K</strong> · Alijäähdytys: <strong>${esc(sc)} K</strong></div>
+    ${calcLine}
     ${configRows}
     ${compressors ? `<div style="margin-top:8px;"><strong>Kompressorit</strong>${compressors}</div>` : ''}
   `,

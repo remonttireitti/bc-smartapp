@@ -14,6 +14,11 @@ import {
 } from '../../lib/huoltoRaportti/utils';
 import { expansionValveTypes, piiriOhjaustapaOptions } from '../../lib/huoltoRaportti/constants';
 import { refrigerantCircuitHasMagnetValve } from '../../lib/huoltoRaportti/deviceModuleLogic';
+import {
+  circuitSubcoolingPrintEnabled,
+  circuitSuperheatPrintEnabled,
+} from '../../lib/huoltoRaportti/refrigerantCircuitPrint';
+import ToggleSwitch from '../ToggleSwitch';
 import { ChillerCondenserInCircuit } from './ChillerCondenserInCircuit';
 import { CompressorModule } from './CompressorModule';
 import { FormCheckbox } from './FormCheckbox';
@@ -282,8 +287,11 @@ export function RefrigerantCircuitModule({
       (highBar > getCo2PtLimitBarGauge() && highBar > 0));
   const ptChartUrl = calcRefrigerant ? getRefrigerantPtChartUrl(calcRefrigerant) : null;
 
-  const calculatedSuperheat = calculateSuperheat();
-  const calculatedSubcooling = calculateSubcooling();
+  const showSuperheatCalc = circuitSuperheatPrintEnabled(data);
+  const showSubcoolingCalc = circuitSubcoolingPrintEnabled(data);
+
+  const calculatedSuperheat = showSuperheatCalc ? calculateSuperheat() : '';
+  const calculatedSubcooling = showSubcoolingCalc ? calculateSubcooling() : '';
   const superheatValue = parseFloat(calculatedSuperheat || '0');
   const subcoolingValue = parseFloat(calculatedSubcooling || '0');
 
@@ -339,13 +347,23 @@ export function RefrigerantCircuitModule({
   const superheatLimits = getSuperheatLimits(deviceType, calcRefrigerant);
   const subcoolingLimits = getSubcoolingLimits(deviceType, calcRefrigerant);
 
-  const showLowSuperheatWarning = calculatedSuperheat && superheatValue < superheatLimits.low;
-  const showHighSuperheatWarning = calculatedSuperheat && superheatValue > superheatLimits.high;
-  const showLowSubcoolingWarning = calculatedSubcooling && subcoolingValue < subcoolingLimits.low;
-  const showHighSubcoolingWarning = calculatedSubcooling && subcoolingValue > subcoolingLimits.high;
-  const isSuperheatNormal = calculatedSuperheat && !showLowSuperheatWarning && !showHighSuperheatWarning;
-  const isSubcoolingNormal = calculatedSubcooling && !showLowSubcoolingWarning && !showHighSubcoolingWarning;
-  const showNormalOperationMessage = isSuperheatNormal && isSubcoolingNormal;
+  const showLowSuperheatWarning =
+    showSuperheatCalc && calculatedSuperheat && superheatValue < superheatLimits.low;
+  const showHighSuperheatWarning =
+    showSuperheatCalc && calculatedSuperheat && superheatValue > superheatLimits.high;
+  const showLowSubcoolingWarning =
+    showSubcoolingCalc && calculatedSubcooling && subcoolingValue < subcoolingLimits.low;
+  const showHighSubcoolingWarning =
+    showSubcoolingCalc && calculatedSubcooling && subcoolingValue > subcoolingLimits.high;
+  const isSuperheatNormal =
+    showSuperheatCalc && calculatedSuperheat && !showLowSuperheatWarning && !showHighSuperheatWarning;
+  const isSubcoolingNormal =
+    showSubcoolingCalc && calculatedSubcooling && !showLowSubcoolingWarning && !showHighSubcoolingWarning;
+  const showNormalOperationMessage =
+    (showSuperheatCalc || showSubcoolingCalc) &&
+    (!showSuperheatCalc || isSuperheatNormal) &&
+    (!showSubcoolingCalc || isSubcoolingNormal) &&
+    (isSuperheatNormal || isSubcoolingNormal);
 
   const renderCompressor = (index: number) => {
     const key = compressorByIndex[index];
@@ -429,81 +447,117 @@ export function RefrigerantCircuitModule({
           </div>
 
           <div className="huolto-calc-row">
-            <div>
-              <span className="muted">Tulistus (K)</span>
-              <strong
-                className={
-                  showLowSuperheatWarning
-                    ? 'calc-bad'
-                    : showHighSuperheatWarning
-                      ? 'calc-warn'
-                      : 'calc-ok'
-                }
-              >
-                {calculatedSuperheat || '—'}
-              </strong>
+            <div className="huolto-calc-metric">
+              <div className="huolto-calc-metric-head">
+                <span className="muted">Tulistus (K)</span>
+                <ToggleSwitch
+                  checked={showSuperheatCalc}
+                  onChange={(v) => onChange({ ...data, tulistusTulosteeseen: v })}
+                  label="Tulosteeseen"
+                  className="toggle-switch-inline huolto-calc-print-toggle"
+                />
+              </div>
+              {showSuperheatCalc ? (
+                <strong
+                  className={
+                    showLowSuperheatWarning
+                      ? 'calc-bad'
+                      : showHighSuperheatWarning
+                        ? 'calc-warn'
+                        : 'calc-ok'
+                  }
+                >
+                  {calculatedSuperheat || '—'}
+                </strong>
+              ) : (
+                <span className="muted huolto-calc-off-hint">Laskelmaa ei tulosteta</span>
+              )}
             </div>
-            <div>
-              <span className="muted">Alijäähdytys (K)</span>
-              <strong
-                className={
-                  showLowSubcoolingWarning
-                    ? 'calc-bad'
-                    : showHighSubcoolingWarning
-                      ? 'calc-warn'
-                      : 'calc-ok'
-                }
-              >
-                {calculatedSubcooling || '—'}
-              </strong>
+            <div className="huolto-calc-metric">
+              <div className="huolto-calc-metric-head">
+                <span className="muted">Alijäähdytys (K)</span>
+                <ToggleSwitch
+                  checked={showSubcoolingCalc}
+                  onChange={(v) => onChange({ ...data, alijahdytysTulosteeseen: v })}
+                  label="Tulosteeseen"
+                  className="toggle-switch-inline huolto-calc-print-toggle"
+                />
+              </div>
+              {showSubcoolingCalc ? (
+                <strong
+                  className={
+                    showLowSubcoolingWarning
+                      ? 'calc-bad'
+                      : showHighSubcoolingWarning
+                        ? 'calc-warn'
+                        : 'calc-ok'
+                  }
+                >
+                  {calculatedSubcooling || '—'}
+                </strong>
+              ) : (
+                <span className="muted huolto-calc-off-hint">Laskelmaa ei tulosteta</span>
+              )}
             </div>
           </div>
 
-          <p className="muted huolto-help">
-            Tulistus = imu (°C) − kastepiste(P<sub>imu</sub>, höyry); alijäähdytys = kuplapiste(P
-            <sub>korkea</sub>, neste) − nesteputki (°C). Paineet manometribar.
-            {calcRefrigerant.includes('407') && (
-              <> Zeotropisella R-407C: tulistukseen dew-piste, alijäähtymiseen bubble-piste.</>
-            )}
-            {ptSupported && Number.isFinite(dewSatC) && (
-              <>
-                {' '}
-                Kaste imupaineella: <strong>{dewSatC.toFixed(1)} °C</strong>.
-              </>
-            )}
-            {ptSupported && Number.isFinite(bubbleSatC) && (
-              <>
-                {' '}
-                Kupla korkeapaineella: <strong>{bubbleSatC.toFixed(1)} °C</strong>.
-              </>
-            )}
-            {ptChartUrl && (
-              <>
-                {' '}
-                <a href={ptChartUrl} target="_blank" rel="noreferrer">
-                  iGas P-T-kaavio (PDF)
-                </a>
-              </>
-            )}
-          </p>
+          {(showSuperheatCalc || showSubcoolingCalc) && (
+            <p className="muted huolto-help">
+              {showSuperheatCalc && (
+                <>
+                  Tulistus = imu (°C) − kastepiste(P<sub>imu</sub>, höyry).
+                  {calcRefrigerant.includes('407') && <> Zeotropisella R-407C: dew-piste.</>}
+                  {ptSupported && Number.isFinite(dewSatC) && (
+                    <>
+                      {' '}
+                      Kaste imupaineella: <strong>{dewSatC.toFixed(1)} °C</strong>.
+                    </>
+                  )}
+                </>
+              )}
+              {showSuperheatCalc && showSubcoolingCalc && ' '}
+              {showSubcoolingCalc && (
+                <>
+                  Alijäähdytys = kuplapiste(P<sub>korkea</sub>, neste) − nesteputki (°C).
+                  {calcRefrigerant.includes('407') && <> R-407C: bubble-piste.</>}
+                  {ptSupported && Number.isFinite(bubbleSatC) && (
+                    <>
+                      {' '}
+                      Kupla korkeapaineella: <strong>{bubbleSatC.toFixed(1)} °C</strong>.
+                    </>
+                  )}
+                </>
+              )}
+              {' '}
+              Paineet manometribar.
+              {ptChartUrl && (
+                <>
+                  {' '}
+                  <a href={ptChartUrl} target="_blank" rel="noreferrer">
+                    iGas P-T-kaavio (PDF)
+                  </a>
+                </>
+              )}
+            </p>
+          )}
 
-          {!calcRefrigerant && (
+          {!calcRefrigerant && (showSuperheatCalc || showSubcoolingCalc) && (
             <div className="huolto-alert huolto-alert-warning">
               Valitse kylmäaine laitteen tiedoissa ennen tulistuksen ja alijäähdytyksen laskentaa.
             </div>
           )}
-          {calcRefrigerant && !ptSupported && (
+          {calcRefrigerant && !ptSupported && (showSuperheatCalc || showSubcoolingCalc) && (
             <div className="huolto-alert huolto-alert-warning">
               PT-taulukkoa ei ole aineelle {calcRefrigerant} — syötä tulistus ja alijäähdytys käsin tai
               valitse listasta tunnettu vasta-aine.
             </div>
           )}
-          {ptApproximate && ptSupported && (
+          {ptApproximate && ptSupported && (showSuperheatCalc || showSubcoolingCalc) && (
             <div className="huolto-alert huolto-alert-warning">
               {calcRefrigerant}: laskenta perustuu lähimmän tunnetun aineen PT-käyrään (likimääräinen).
             </div>
           )}
-          {co2OverLimit && (
+          {co2OverLimit && (showSuperheatCalc || showSubcoolingCalc) && (
             <div className="huolto-alert huolto-alert-warning">
               R-744 (CO₂): paine yli {getCo2PtLimitBarGauge()} bar (man) — transkriittinen alue, automaattinen
               laskenta ei päde.
@@ -536,8 +590,12 @@ export function RefrigerantCircuitModule({
           )}
           {showNormalOperationMessage && (
             <div className="huolto-alert huolto-alert-success">
-              Kylmäainepiiri toimii oikein — tulistus {superheatValue.toFixed(1)} K, alijäähdytys{' '}
-              {subcoolingValue.toFixed(1)} K.
+              Kylmäainepiiri toimii oikein
+              {showSuperheatCalc && isSuperheatNormal ? ` — tulistus ${superheatValue.toFixed(1)} K` : ''}
+              {showSubcoolingCalc && isSubcoolingNormal
+                ? ` — alijäähdytys ${subcoolingValue.toFixed(1)} K`
+                : ''}
+              .
             </div>
           )}
 

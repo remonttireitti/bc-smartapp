@@ -1,5 +1,9 @@
 import type { HuoltoReportData, MlpData, RefrigerantCircuitData } from './types';
 import { getCompressorVaiheValinta, getKokoLaiteSahkoVaiheValinta } from './sahkoVaiheUtils';
+import {
+  circuitSubcoolingPrintEnabled,
+  circuitSuperheatPrintEnabled,
+} from './refrigerantCircuitPrint';
 import { calculateSubcoolingFromMeasurements, calculateSuperheatFromMeasurements } from './utils';
 
 function parseNum(v: unknown): number {
@@ -154,29 +158,57 @@ export function computeChillerEnergyFromMlp(
   return { qCoolKw, pInKw, qCondKw, cop };
 }
 
-export function buildRefrigerantCircuitWarnings(data: HuoltoReportData): string[] {
-  if (data.piilotaVaroitukset || data.laiteTyyppi === 'lämpöpumppu') return [];
-  const kp = data.kylmaainePiiri1;
+function warningsForRefrigerantCircuit(
+  kp: HuoltoReportData['kylmaainePiiri1'] | null | undefined,
+  ref: string,
+  circuitLabel: string,
+): string[] {
   if (!kp?.onKaytossa) return [];
-  const ref = data.kylmaaineTyyppi || '';
+  const prefix = circuitLabel ? `${circuitLabel}: ` : '';
   const warnings: string[] = [];
-  const sh = calculateSuperheatFromMeasurements(
-    parseNum(kp.imupaine),
-    parseNum(kp.imuLampotila),
-    ref,
-  );
-  const sc = calculateSubcoolingFromMeasurements(
-    parseNum(kp.korkeapaine),
-    parseNum(kp.nestePutkiLampotila),
-    ref,
-  );
+  const sh = circuitSuperheatPrintEnabled(kp)
+    ? calculateSuperheatFromMeasurements(parseNum(kp.imupaine), parseNum(kp.imuLampotila), ref)
+    : null;
+  const sc = circuitSubcoolingPrintEnabled(kp)
+    ? calculateSubcoolingFromMeasurements(
+        parseNum(kp.korkeapaine),
+        parseNum(kp.nestePutkiLampotila),
+        ref,
+      )
+    : null;
   if (sh != null) {
-    if (sh < 3) warnings.push(`Tulistus matala (${sh.toFixed(1)} K < 3 K) — nestepisarat voivat päätyä kompressoriin`);
-    else if (sh > 15) warnings.push(`Tulistus korkea (${sh.toFixed(1)} K > 15 K) — tehokkuuden lasku`);
+    if (sh < 3) {
+      warnings.push(
+        `${prefix}Tulistus matala (${sh.toFixed(1)} K < 3 K) — nestepisarat voivat päätyä kompressoriin`,
+      );
+    } else if (sh > 15) {
+      warnings.push(`${prefix}Tulistus korkea (${sh.toFixed(1)} K > 15 K) — tehokkuuden lasku`);
+    }
   }
   if (sc != null) {
-    if (sc < 3) warnings.push(`Alijäähdytys matala (${sc.toFixed(1)} K < 3 K) — lauhdutus voi olla tehoton`);
-    else if (sc > 10) warnings.push(`Alijäähdytys korkea (${sc.toFixed(1)} K > 10 K) — nesteen alijohtumisriski`);
+    if (sc < 3) {
+      warnings.push(
+        `${prefix}Alijäähdytys matala (${sc.toFixed(1)} K < 3 K) — lauhdutus voi olla tehoton`,
+      );
+    } else if (sc > 10) {
+      warnings.push(
+        `${prefix}Alijäähdytys korkea (${sc.toFixed(1)} K > 10 K) — nesteen alijohtumisriski`,
+      );
+    }
   }
   return warnings;
+}
+
+export function buildRefrigerantCircuitWarnings(data: HuoltoReportData): string[] {
+  if (data.piilotaVaroitukset || data.laiteTyyppi === 'lämpöpumppu') return [];
+  const ref = data.kylmaaineTyyppi || '';
+  const circuits = data.kylmaainePiireja ?? '1';
+  const out = [...warningsForRefrigerantCircuit(data.kylmaainePiiri1, ref, '')];
+  if (circuits !== '1') {
+    out.push(...warningsForRefrigerantCircuit(data.kylmaainePiiri2, ref, 'Piiri 2'));
+  }
+  if (circuits === '3' || circuits === '4') {
+    out.push(...warningsForRefrigerantCircuit(data.kylmaainePiiri3, ref, 'Piiri 3'));
+  }
+  return out;
 }

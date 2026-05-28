@@ -20,6 +20,10 @@ import {
   getMlpPumpSyottoValinta,
 } from './sahkoVaiheUtils';
 import {
+  circuitSubcoolingPrintEnabled,
+  circuitSuperheatPrintEnabled,
+} from './refrigerantCircuitPrint';
+import {
   getSpecificHeatCapacity,
   renderCheckbox,
   calculateSuperheatFromMeasurements,
@@ -2348,48 +2352,59 @@ export function generatePrintHTML(data: {
     return `<th title="${escAttr(fullTitle)}" style="border:1px solid #ccc;padding:1px 0;width:4px;min-width:4px;max-width:5px;vertical-align:middle;text-align:center;font-size:4.5px;line-height:0.95;font-weight:700;color:#222;">${br}</th>`;
   };
   
-  const superheat = (() => {
-    const imp = parseFloat(data.kp1Data.imupaine) || 0;
-    const tmp = parseFloat(data.kp1Data.imuLampotila) || 0;
-    if (imp > 0 && data.kylmaaineTyyppi) {
-      const sh = calculateSuperheatFromMeasurements(imp, tmp, data.kylmaaineTyyppi);
-      if (sh != null) return sh.toFixed(1);
-    }
-    return '-';
-  })();
-  
-  const subcooling = (() => {
-    const hp = parseFloat(data.kp1Data.korkeapaine) || 0;
-    const lp = parseFloat(data.kp1Data.nestePutkiLampotila) || 0;
-    if (hp > 0 && data.kylmaaineTyyppi) {
-      const sc = calculateSubcoolingFromMeasurements(hp, lp, data.kylmaaineTyyppi);
-      if (sc != null) return sc.toFixed(1);
-    }
-    return '-';
-  })();
+  const buildLegacyCircuitWarnings = (
+    kpData: Partial<RefrigerantCircuitData> | null | undefined,
+  ): string[] => {
+    if (!kpData || data.laiteTyyppi === 'lämpöpumppu') return [];
+    const warnings: string[] = [];
+    const ref = data.kylmaaineTyyppi || '';
 
-  // Varoitukset (kp1) — tulosteen vihreä "normaali"-banneri on piirikohtainen generateCircuitBoxissa
-  const subcoolingNum = parseFloat(subcooling);
-  const superheatNum = parseFloat(superheat);
-
-  // Add warnings for abnormal refrigerant measurements (ei ilmalämpöpumpun huolto-/käyttöönottopöytäkirjaa)
-  const kylmaainepiiriWarnings: string[] = [];
-  if (data.laiteTyyppi !== 'lämpöpumppu') {
-    if (!isNaN(superheatNum)) {
-      if (superheatNum < 3) {
-        kylmaainepiiriWarnings.push(`Tulistus matala (${superheatNum.toFixed(1)} K < 3 K) - nestepisarat voivat päätyä kompressoriin`);
-      } else if (superheatNum > 15) {
-        kylmaainepiiriWarnings.push(`Tulistus korkea (${superheatNum.toFixed(1)} K > 15 K) - tehokkuuden lasku`);
+    if (circuitSuperheatPrintEnabled(kpData as RefrigerantCircuitData)) {
+      const imp = parseFloat(kpData.imupaine || '') || 0;
+      const tmp = parseFloat(kpData.imuLampotila || '') || 0;
+      if (imp > 0 && ref) {
+        const sh = calculateSuperheatFromMeasurements(imp, tmp, ref);
+        if (sh != null) {
+          if (sh < 3) {
+            warnings.push(
+              `Tulistus matala (${sh.toFixed(1)} K < 3 K) - nestepisarat voivat päätyä kompressoriin`,
+            );
+          } else if (sh > 15) {
+            warnings.push(`Tulistus korkea (${sh.toFixed(1)} K > 15 K) - tehokkuuden lasku`);
+          }
+        }
       }
     }
-    if (!isNaN(subcoolingNum)) {
-      if (subcoolingNum < 3) {
-        kylmaainepiiriWarnings.push(`Alijäähdytys matala (${subcoolingNum.toFixed(1)} K < 3 K) - lauhdutus voi olla tehoton`);
-      } else if (subcoolingNum > 10) {
-        kylmaainepiiriWarnings.push(`Alijäähdytys korkea (${subcoolingNum.toFixed(1)} K > 10 K) - nesteen alijohtumisriski`);
+
+    if (circuitSubcoolingPrintEnabled(kpData as RefrigerantCircuitData)) {
+      const hp = parseFloat(kpData.korkeapaine || '') || 0;
+      const lp = parseFloat(kpData.nestePutkiLampotila || '') || 0;
+      if (hp > 0 && ref) {
+        const sc = calculateSubcoolingFromMeasurements(hp, lp, ref);
+        if (sc != null) {
+          if (sc < 3) {
+            warnings.push(
+              `Alijäähdytys matala (${sc.toFixed(1)} K < 3 K) - lauhdutus voi olla tehoton`,
+            );
+          } else if (sc > 10) {
+            warnings.push(
+              `Alijäähdytys korkea (${sc.toFixed(1)} K > 10 K) - nesteen alijohtumisriski`,
+            );
+          }
+        }
       }
     }
-  }
+
+    return warnings;
+  };
+
+  const kylmaainepiiriWarnings: string[] = [
+    ...buildLegacyCircuitWarnings(data.kp1Data),
+    ...(data.kylmaainePiireja !== '1' ? buildLegacyCircuitWarnings(data.kp2Data) : []),
+    ...(data.kylmaainePiireja === '3' || data.kylmaainePiireja === '4'
+      ? buildLegacyCircuitWarnings(data.kp3Data)
+      : []),
+  ];
 
   const logoSrc = String(
     (data.companyInfo as LegacyCompanyInfo | null)?.logoBase64 ?? '',
@@ -2656,8 +2671,10 @@ export function generatePrintHTML(data: {
     const generateCircuitBox = (circuitNum: number, kpData: Partial<RefrigerantCircuitData> | null | undefined) => {
       if (!kpData) return '';
 
-      const superheat = calcSuperheat(kpData);
-      const subcooling = calcSubcooling(kpData);
+      const printSuperheat = circuitSuperheatPrintEnabled(kpData as RefrigerantCircuitData);
+      const printSubcooling = circuitSubcoolingPrintEnabled(kpData as RefrigerantCircuitData);
+      const superheat = printSuperheat ? calcSuperheat(kpData) : '';
+      const subcooling = printSubcooling ? calcSubcooling(kpData) : '';
       const circuitLabel = circuitNum === 1 ? 'Kylmäainepiiri 1' : circuitNum === 2 ? 'Kylmäainepiiri 2' : 'Kylmäainepiiri 3';
 
       const paineSolu = (title: string, val: unknown) =>
@@ -2828,18 +2845,20 @@ export function generatePrintHTML(data: {
         .filter(Boolean)
         .join('');
 
-      const tulistusLaatikko = hasPrintableValue(superheat)
-        ? `<div style="padding: 8px; background: #e8f5e9; border-radius: 4px; border-left: 4px solid #4caf50;">
+      const tulistusLaatikko =
+        printSuperheat && hasPrintableValue(superheat)
+          ? `<div style="padding: 8px; background: #e8f5e9; border-radius: 4px; border-left: 4px solid #4caf50;">
         <div style="color: #388E3C; margin-bottom: 4px;">Tulistus (K)</div>
         <div style="font-size: 18px; font-weight: bold; color: #1B5E20;">${superheat}</div>
       </div>`
-        : '';
-      const alijaahtLaatikko = hasPrintableValue(subcooling)
-        ? `<div style="padding: 8px; background: #e8f5e9; border-radius: 4px; border-left: 4px solid #4caf50;">
+          : '';
+      const alijaahtLaatikko =
+        printSubcooling && hasPrintableValue(subcooling)
+          ? `<div style="padding: 8px; background: #e8f5e9; border-radius: 4px; border-left: 4px solid #4caf50;">
         <div style="color: #388E3C; margin-bottom: 4px;">Alijäähdytys (K)</div>
         <div style="font-size: 18px; font-weight: bold; color: #1B5E20;">${subcooling}</div>
       </div>`
-        : '';
+          : '';
       const lasketutRivi =
         tulistusLaatikko || alijaahtLaatikko
           ? `<div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 8px; font-size: 11px;">${tulistusLaatikko}${alijaahtLaatikko}</div>`
@@ -2847,15 +2866,23 @@ export function generatePrintHTML(data: {
 
       const superheatNum = parseFloat(String(superheat));
       const subcoolingNum = parseFloat(String(subcooling));
-      const showCircuitNormalMessage =
+      const superheatOk =
+        printSuperheat &&
         hasPrintableValue(superheat) &&
-        hasPrintableValue(subcooling) &&
         !Number.isNaN(superheatNum) &&
         superheatNum >= 3 &&
-        superheatNum <= 15 &&
+        superheatNum <= 15;
+      const subcoolingOk =
+        printSubcooling &&
+        hasPrintableValue(subcooling) &&
         !Number.isNaN(subcoolingNum) &&
         subcoolingNum >= 3 &&
         subcoolingNum <= 10;
+      const showCircuitNormalMessage =
+        (printSuperheat || printSubcooling) &&
+        (!printSuperheat || superheatOk) &&
+        (!printSubcooling || subcoolingOk) &&
+        (superheatOk || subcoolingOk);
 
       const perustiedotInner = [
         ohjaHtml,
@@ -2911,7 +2938,7 @@ export function generatePrintHTML(data: {
     ${lasketutRivi}
     ${showCircuitNormalMessage ? `
     <div style="margin-bottom: 8px; padding: 8px; background: #c8e6c9; border-radius: 4px; font-size: 12px; font-weight: bold; color: #2e7d32; text-align: center;">
-      Kylmäainepiiri toimii oikein. Sekä tulistus (${superheat} K) että alijäähdytys (${subcooling} K) ovat sallituissa rajoissa.
+      Kylmäainepiiri toimii oikein.${superheatOk ? ` Tulistus ${superheat} K.` : ''}${subcoolingOk ? ` Alijäähdytys ${subcooling} K.` : ''}
     </div>` : ''}
 
     <!-- Kompressorit -->

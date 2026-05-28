@@ -54,6 +54,9 @@ export interface RefrigerantCircuitData {
   kuivainKivienMaara?: string;
   tulistus?: string;
   alijäähtyminen?: string;
+  /** Käyttäjä valitsee: tulostetaanko automaattinen tulistuslaskelma ja varoitukset. */
+  tulistusTulosteeseen?: boolean;
+  alijahdytysTulosteeseen?: boolean;
   kompressori1: CompressorData;
   kompressori2: CompressorData;
   kompressori3: CompressorData;

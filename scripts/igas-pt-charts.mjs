@@ -16,12 +16,18 @@ function fToC(f) {
 }
 
 function dedupeSort(rows) {
-  const m = new Map();
+  const seen = new Set();
+  const out = [];
   for (const [t, p] of rows) {
     if (!Number.isFinite(t) || !Number.isFinite(p) || p < 7) continue;
-    m.set(Math.round(t * 10) / 10, Math.round(p * 10) / 10);
+    const rt = Math.round(t * 10) / 10;
+    const rp = Math.round(p * 10) / 10;
+    const key = `${rt}|${rp}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push([rt, rp]);
   }
-  return [...m.entries()].sort((a, b) => a[0] - b[0]);
+  return out.sort((a, b) => a[0] - b[0]);
 }
 
 function parseSingleR22(text) {
@@ -38,27 +44,48 @@ function parseSingleR22(text) {
   return dedupeSort(rows);
 }
 
+/** iGas zeotropic PDF: block D has °C, psig, then duplicate pressures in kPa — never use kPa as psig. */
+function isLikelyKpaNotPsig(psigCol, altCol) {
+  return altCol >= 150 && altCol > psigCol * 2;
+}
+
+/** Block C P_liq column is kPa (~1.55–1.72× psig), not true high-side psig (~1.8×+). */
+function isBlockCLiqKpaColumn(psigCol, liqCol) {
+  if (!(psigCol >= 7) || !(liqCol >= 7)) return false;
+  const ratio = liqCol / psigCol;
+  return liqCol > psigCol * 1.3 && liqCol < psigCol * 1.75;
+}
+
 function parseZeotropic(text) {
   const bubble = [];
   const dew = [];
   for (const line of text.split('\n')) {
     const n = line.trim().split(/\s+/).map(Number).filter((x) => !Number.isNaN(x));
     if (n.length < 11) continue;
-    // Block C: °C, °F, P_liq, P_vap
-    if (n[7] > -25 && n[7] < 60 && n[9] >= 7 && n[10] >= 7) {
-      bubble.push([n[7], n[9]]);
-      dew.push([n[7], n[10]]);
+    const tempC = n.length >= 13 && n[11] > -50 && n[11] < 70 ? n[11] : null;
+    // Block C: high-side P_liq/P_vap (psig) — use n[11] as °C, not n[7] (different table column).
+    if (
+      tempC != null &&
+      n[9] >= 7 &&
+      n[10] >= 7 &&
+      n[9] < 400 &&
+      n[10] < 400 &&
+      n[9] > 180 &&
+      !(n.length >= 13 && isBlockCLiqKpaColumn(n[12], n[9]))
+    ) {
+      bubble.push([tempC, n[9]]);
+      dew.push([tempC, n[10]]);
     }
-    // Block D
-    if (n.length >= 15 && n[11] > -25 && n[11] < 60 && n[13] >= 7 && n[14] >= 7) {
-      bubble.push([n[11], n[13]]);
-      dew.push([n[11], n[14]]);
-    }
-    // Block B (°F-based mid column)
-    if (n.length >= 7 && n[5] >= 7 && n[6] >= 7 && n[3] <= -20) {
-      const tc = fToC(n[3]);
-      bubble.push([tc, n[5]]);
-      dew.push([tc, n[6]]);
+    // Block D: °C + psig (n[12]); n[13]/n[14] are kPa — do not use as psig.
+    if (tempC != null && n[12] >= 7 && n[12] < 400) {
+      const psig = n[12];
+      if (n.length >= 15 && n[13] >= 7 && isLikelyKpaNotPsig(psig, n[13])) {
+        bubble.push([tempC, psig]);
+        dew.push([tempC, psig]);
+      } else if (n.length >= 15 && n[13] < 250 && n[14] < 250) {
+        bubble.push([tempC, n[13]]);
+        dew.push([tempC, n[14]]);
+      }
     }
   }
   return { bubble: dedupeSort(bubble), dew: dedupeSort(dew) };
