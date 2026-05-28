@@ -4,6 +4,16 @@ export type RefrigerantSupplierPaidBy = 'own' | 'partner';
 
 export type RefrigerantCylinderOwnership = 'owned' | 'rental';
 
+export type RefrigerantStockSource = 'purchase' | 'customer_retrieved';
+
+export type RefrigerantMovementType =
+  | 'purchase'
+  | 'customer_retrieve'
+  | 'work_use'
+  | 'adjustment'
+  | 'recycle'
+  | 'return_rental';
+
 export type RefrigerantCylinder = {
   id: string;
   company_id: string;
@@ -13,6 +23,9 @@ export type RefrigerantCylinder = {
   remaining_kg: number;
   owner_user_id: string | null;
   ownership_type: RefrigerantCylinderOwnership;
+  stock_source: RefrigerantStockSource;
+  customer_id: string | null;
+  location: string | null;
   status: string;
   purchase_date: string | null;
   returned_at: string | null;
@@ -22,6 +35,24 @@ export type RefrigerantCylinder = {
   updated_at: string;
   company_name?: string | null;
   owner_user?: { display_name: string | null; email: string | null } | null;
+  customer?: { name: string | null } | null;
+};
+
+export type RefrigerantCylinderMovement = {
+  id: string;
+  company_id: string;
+  cylinder_id: string | null;
+  movement_type: RefrigerantMovementType;
+  qty_kg: number;
+  refrigerant_type: string;
+  serial_number: string | null;
+  customer_id: string | null;
+  location: string | null;
+  ownership_type: string | null;
+  work_report_id: string | null;
+  notes: string | null;
+  created_at: string;
+  customer?: { name: string | null } | null;
 };
 
 export const REFRIGERANT_CYLINDER_OWNERSHIP_LABELS: Record<RefrigerantCylinderOwnership, string> = {
@@ -33,7 +64,22 @@ export const REFRIGERANT_CYLINDER_STATUS_LABELS: Record<string, string> = {
   in_stock: 'Varastossa',
   empty: 'Tyhjä (varastossa)',
   returned: 'Palautettu',
+  recycled: 'Kierrätykseen toimitettu',
   retired: 'Poistettu',
+};
+
+export const REFRIGERANT_STOCK_SOURCE_LABELS: Record<RefrigerantStockSource, string> = {
+  purchase: 'Ostettu',
+  customer_retrieved: 'Asiakkaalta talteen',
+};
+
+export const REFRIGERANT_MOVEMENT_TYPE_LABELS: Record<RefrigerantMovementType, string> = {
+  purchase: 'Osto / varastoon',
+  customer_retrieve: 'Asiakkaalta talteen',
+  work_use: 'Käyttö työkohteella',
+  adjustment: 'Saldon muutos',
+  recycle: 'Kierrätykseen toimitettu',
+  return_rental: 'Vuokrapullo palautettu',
 };
 
 export type WorkReportRefrigerantLine = {
