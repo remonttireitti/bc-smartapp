@@ -118,6 +118,7 @@ export default function WorkReportNewPage({ session }: Props) {
   const [equipmentId, setEquipmentId] = useState('');
 
   const [description, setDescription] = useState('');
+  const [heading, setHeading] = useState('');
 
   const [ordererName, setOrdererName] = useState('');
 
@@ -361,7 +362,7 @@ export default function WorkReportNewPage({ session }: Props) {
       .from('work_reports')
 
       .select(
-        'id, status, description, orderer_name, subscriber_id, title, owner_company_id, created_by_company_id, created_by_user_id, assigned_user_id, partnership_id, customer_id, equipment_id, scheduled_start, customers(name)',
+        'id, status, heading, description, orderer_name, subscriber_id, title, owner_company_id, created_by_company_id, created_by_user_id, assigned_user_id, partnership_id, customer_id, equipment_id, scheduled_start, customers(name)',
       )
 
       .eq('id', id)
@@ -410,6 +411,7 @@ export default function WorkReportNewPage({ session }: Props) {
       ? (customerJoin[0] as { name: string } | undefined)
       : (customerJoin as { name: string } | null);
 
+    setHeading(String(data.heading ?? '').trim());
     setDescription(
       resolveWorkReportDescription({
         title: String(data.title ?? ''),
@@ -835,7 +837,7 @@ export default function WorkReportNewPage({ session }: Props) {
         reportId: reportId ?? 'new',
         dayYmd: scheduledDate,
         hour: scheduledHour,
-        label: buildWorkReportTitle(selectedCustomer?.name, description),
+        label: buildWorkReportTitle(selectedCustomer?.name, heading.trim() || description),
       });
       const conflict = checkPerformerScheduleConflict({
         performerUserId: session.user.id,
@@ -855,7 +857,8 @@ export default function WorkReportNewPage({ session }: Props) {
 
     const payload = {
 
-      title: buildWorkReportTitle(selectedCustomer?.name, description),
+      title: buildWorkReportTitle(selectedCustomer?.name, heading.trim() || description),
+      heading: heading.trim() || null,
 
       description: description.trim() || null,
 
@@ -992,6 +995,7 @@ export default function WorkReportNewPage({ session }: Props) {
     if (skipAutoSaveRef.current || status !== 'draft') return;
 
     writeLocalWorkDraft(draftStorageKey, {
+      heading,
 
       description,
 
@@ -1010,6 +1014,7 @@ export default function WorkReportNewPage({ session }: Props) {
     });
 
   }, [
+    heading,
 
     description,
 
@@ -1062,6 +1067,7 @@ export default function WorkReportNewPage({ session }: Props) {
     return () => window.clearTimeout(timer);
 
   }, [
+    heading,
 
     description,
 
@@ -1104,6 +1110,7 @@ export default function WorkReportNewPage({ session }: Props) {
   useRegisterDraftSaver(async () => {
     if (status !== 'draft') return;
     writeLocalWorkDraft(draftStorageKey, {
+      heading,
       description,
       customerId,
       equipmentId,
@@ -1437,6 +1444,16 @@ export default function WorkReportNewPage({ session }: Props) {
           </label>
 
 
+
+          <label>
+            Otsikko (tuloste / tiedostonimi)
+            <input
+              type="text"
+              value={heading}
+              onChange={(e) => setHeading(e.target.value)}
+              placeholder="Esim. ILK 22A korjaukset"
+            />
+          </label>
 
           <label>
 

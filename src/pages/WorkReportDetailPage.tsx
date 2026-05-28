@@ -127,7 +127,7 @@ type ExpenseDraft = {
 };
 
 const REPORT_SELECT = `
-  id, title, description, orderer_name, location_text, status,
+  id, title, heading, description, orderer_name, location_text, status,
   scheduled_start, scheduled_end, completed_at,
   owner_company_id, created_by_company_id, created_by_user_id, branding_company_id,
   partnership_id, customer_id, equipment_id, assigned_user_id,
@@ -671,6 +671,7 @@ export default function WorkReportDetailPage({ session }: Props) {
   const [assignBusy, setAssignBusy] = useState(false);
   const [customerBillingBusy, setCustomerBillingBusy] = useState(false);
   const [descriptionDraft, setDescriptionDraft] = useState('');
+  const [headingDraft, setHeadingDraft] = useState('');
   const [ordererDraft, setOrdererDraft] = useState('');
   const [descriptionBusy, setDescriptionBusy] = useState(false);
   const [reportAttachments, setReportAttachments] = useState<WorkReportAttachment[]>([]);
@@ -730,6 +731,7 @@ export default function WorkReportDetailPage({ session }: Props) {
     setBilling((billingData as WorkReportBilling | null) ?? null);
     setDailyLogs(logs);
     setDescriptionDraft(resolveWorkReportDescription(reportRow));
+    setHeadingDraft(reportRow.heading?.trim() ?? '');
     setOrdererDraft(reportRow.orderer_name?.trim() ?? '');
     setLoading(false);
 
@@ -1131,13 +1133,15 @@ export default function WorkReportDetailPage({ session }: Props) {
     setError(null);
 
     const trimmed = descriptionDraft.trim();
+    const trimmedHeading = headingDraft.trim();
     const trimmedOrderer = ordererDraft.trim();
     const { error: updateError } = await supabase
       .from('work_reports')
       .update({
+        heading: trimmedHeading || null,
         description: trimmed || null,
         orderer_name: trimmedOrderer || null,
-        title: buildWorkReportTitle(report.customers?.name, trimmed),
+        title: buildWorkReportTitle(report.customers?.name, trimmedHeading || trimmed),
       })
       .eq('id', report.id);
 
@@ -1515,10 +1519,12 @@ export default function WorkReportDetailPage({ session }: Props) {
     role: profile?.role,
   });
   const savedDescription = resolveWorkReportDescription(report);
+  const savedHeading = report.heading?.trim() ?? '';
   const savedOrderer = report.orderer_name?.trim() ?? '';
+  const headingDirty = headingDraft.trim() !== savedHeading;
   const descriptionDirty = descriptionDraft.trim() !== savedDescription.trim();
   const ordererDirty = ordererDraft.trim() !== savedOrderer;
-  const basicsDirty = descriptionDirty || ordererDirty;
+  const basicsDirty = headingDirty || descriptionDirty || ordererDirty;
   const canSeeCreatorBilling = isCreatorCompany;
   const canSeePartnerSummary =
     !!billing?.partner_summary_shared &&
@@ -1626,7 +1632,7 @@ export default function WorkReportDetailPage({ session }: Props) {
               <IconTrash />
             </IconButton>
           )}
-          <IconButton label="Tulosta raportti" href={`/tyoraportit/${report.id}/tuloste`} target="_blank">
+          <IconButton label="Tulosta raportti" href={`/tyoraportit/${report.id}/tuloste`}>
             <IconPrint />
           </IconButton>
           <span className="action-toolbar-sep" aria-hidden="true" />
@@ -1669,6 +1675,24 @@ export default function WorkReportDetailPage({ session }: Props) {
           </dd>
           <dt>Laite</dt>
           <dd className={report.equipment ? undefined : 'muted'}>{formatWorkReportEquipment(report.equipment)}</dd>
+          <dt>Otsikko</dt>
+          <dd>
+            {canEditDescription ? (
+              <div className="detail-description-edit">
+                <input
+                  type="text"
+                  value={headingDraft}
+                  onChange={(e) => setHeadingDraft(e.target.value)}
+                  placeholder="Esim. ILK 22A korjaukset"
+                />
+                <p className="muted" style={{ margin: '.35rem 0 0' }}>
+                  Käytetään tulosteen otsikossa ja PDF-tiedoston nimessä.
+                </p>
+              </div>
+            ) : (
+              savedHeading || '—'
+            )}
+          </dd>
           <dt>Tehtävän kuvaus</dt>
           <dd>
             {canEditDescription ? (
@@ -1694,6 +1718,7 @@ export default function WorkReportDetailPage({ session }: Props) {
                       className="btn btn-secondary btn-sm"
                       disabled={descriptionBusy}
                       onClick={() => {
+                        setHeadingDraft(savedHeading);
                         setDescriptionDraft(savedDescription);
                         setOrdererDraft(savedOrderer);
                       }}
@@ -2132,7 +2157,6 @@ export default function WorkReportDetailPage({ session }: Props) {
                 <Link
                   to={`/tyoraportit/${report.id}/tuloste?hinnat=1`}
                   className="btn btn-secondary"
-                  target="_blank"
                 >
                   Tulosta kumppanille
                 </Link>

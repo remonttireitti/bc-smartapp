@@ -181,6 +181,7 @@ export const EXPENSE_TYPE_OPTIONS = Object.entries(EXPENSE_TYPE_LABELS).map(([va
 export type WorkReport = {
   id: string;
   title: string;
+  heading?: string | null;
   description: string | null;
   orderer_name: string | null;
   subscriber_id?: string | null;
@@ -544,6 +545,16 @@ export function buildWorkReportTitle(customerName: string | undefined | null, de
   return snippet ? `${base} – ${snippet}` : base;
 }
 
+export function resolveWorkReportHeading(
+  report: Pick<WorkReport, 'heading' | 'description' | 'title'>,
+): string {
+  const heading = report.heading?.trim();
+  if (heading) return heading;
+  const description = report.description?.trim();
+  if (description) return description;
+  return report.title?.trim() ?? '';
+}
+
 export function buildMaintenanceReportTitle(
   customerName: string | undefined | null,
   snippet: string,
@@ -555,12 +566,12 @@ export function buildMaintenanceReportTitle(
 
 /** Full headline for print/PDF — uses complete task description, not the short list title. */
 export function buildWorkReportPrintHeadline(
-  report: Pick<WorkReport, 'title' | 'description'> & {
+  report: Pick<WorkReport, 'title' | 'description' | 'heading'> & {
     customers?: { name: string } | null;
   },
 ): string {
   const customerName = report.customers?.name?.trim();
-  const taskText = resolveWorkReportDescription(report);
+  const taskText = resolveWorkReportHeading(report);
   if (taskText && customerName) return `${customerName} – ${taskText}`;
   if (taskText) return taskText;
   return report.title?.trim() || 'Työraportti';

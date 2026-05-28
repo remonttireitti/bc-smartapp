@@ -46,6 +46,7 @@ export default function WorkReportOrderPage({ session }: Props) {
   const [customerId, setCustomerId] = useState('');
   const [equipmentId, setEquipmentId] = useState('');
   const [description, setDescription] = useState('');
+  const [heading, setHeading] = useState('');
   const [ordererName, setOrdererName] = useState('');
   const [scheduledDate, setScheduledDate] = useState(todayIsoDate);
   const [scheduledHour, setScheduledHour] = useState(defaultOfficeHour);
@@ -91,7 +92,7 @@ export default function WorkReportOrderPage({ session }: Props) {
     const { data, error: loadError } = await supabase
       .from('work_reports')
       .select(
-        'id, status, description, orderer_name, title, partnership_id, delegate_company_id, customer_id, equipment_id, scheduled_start, assigned_user_id, subscriber_id, created_by_user_id, created_by_company_id, owner_company_id, customers(name)',
+        'id, status, heading, description, orderer_name, title, partnership_id, delegate_company_id, customer_id, equipment_id, scheduled_start, assigned_user_id, subscriber_id, created_by_user_id, created_by_company_id, owner_company_id, customers(name)',
       )
       .eq('id', id)
       .single();
@@ -117,6 +118,7 @@ export default function WorkReportOrderPage({ session }: Props) {
       ? (customerJoin[0] as { name: string } | undefined)
       : (customerJoin as { name: string } | null);
 
+    setHeading(String(data.heading ?? '').trim());
     setDescription(
       resolveWorkReportDescription({
         title: String(data.title ?? ''),
@@ -287,7 +289,8 @@ export default function WorkReportOrderPage({ session }: Props) {
     const locationText = [selectedCustomer?.address, selectedCustomer?.city].filter(Boolean).join(', ') || null;
 
     const payload = {
-      title: buildTitle(selectedCustomer?.name, description),
+      title: buildTitle(selectedCustomer?.name, heading.trim() || description),
+      heading: heading.trim() || null,
       description: description.trim(),
       orderer_name: ordererName.trim() || null,
       location_text: locationText,
@@ -472,6 +475,15 @@ export default function WorkReportOrderPage({ session }: Props) {
               value={ordererName}
               onChange={(e) => setOrdererName(e.target.value)}
               placeholder="Tilaajan nimi tai taho (valinnainen)"
+            />
+          </label>
+          <label>
+            Otsikko (tuloste / tiedostonimi)
+            <input
+              type="text"
+              value={heading}
+              onChange={(e) => setHeading(e.target.value)}
+              placeholder="Esim. ILK 22A korjaukset"
             />
           </label>
           <label>

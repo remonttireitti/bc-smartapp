@@ -17,6 +17,7 @@ import {
   formatWorkReportEquipment,
   resolveWorkReportDisplayPeople,
   resolveWorkReportDescription,
+  resolveWorkReportHeading,
   buildWorkReportPrintHeadline,
   resolveDailyLogAuthorLabel,
   resolveWorkReportAuthorCompany,
@@ -43,6 +44,7 @@ export type WorkReportPrintSummary = {
   brandingName: string;
   reportDateLabel: string;
   customerLabel: string;
+  headingText: string;
   descriptionText: string;
 };
 
@@ -62,6 +64,7 @@ export function getWorkReportPrintSummary(
     brandingName: report.branding_company?.name ?? report.owner_company?.name ?? meta?.companyName ?? '—',
     reportDateLabel: reportDate ? formatDateTime(reportDate) : printDate,
     customerLabel: report.customers?.name ?? report.location_text ?? '—',
+    headingText: resolveWorkReportHeading(report),
     descriptionText: [
       resolveWorkReportDescription(report),
       report.location_text && report.customers?.name ? report.location_text : '',
@@ -79,15 +82,12 @@ export function buildWorkReportPrintTitle(
   const summary = getWorkReportPrintSummary(report, meta);
   const reportDate = report.completed_at ?? report.scheduled_start;
   const dateLabel = reportDate ? formatDate(reportDate) : new Date().toLocaleDateString('fi-FI');
-  const descriptionLine = summary.descriptionText.replace(/\s+/g, ' ').trim() || '—';
-  const titleLine = buildWorkReportPrintHeadline(report).replace(/\s+/g, ' ').trim() || '—';
+  const headingLine = summary.headingText.replace(/\s+/g, ' ').trim() || 'Työraportti';
 
   return [
-    sanitizePrintFileNamePart(summary.brandingName, 50),
-    sanitizePrintFileNamePart(dateLabel, 20),
     sanitizePrintFileNamePart(summary.customerLabel, 50),
-    sanitizePrintFileNamePart(titleLine, 60),
-    sanitizePrintFileNamePart(descriptionLine, 80),
+    sanitizePrintFileNamePart(headingLine, 70),
+    sanitizePrintFileNamePart(dateLabel, 20),
   ].join(' — ');
 }
 

@@ -47,6 +47,7 @@ export default function PortalWorkOrderPage({ session }: Props) {
   const [customerId, setCustomerId] = useState('');
   const [equipmentId, setEquipmentId] = useState('');
   const [description, setDescription] = useState('');
+  const [heading, setHeading] = useState('');
   const [contactName, setContactName] = useState('');
   const [scheduledDate, setScheduledDate] = useState(todayIsoDate);
   const [scheduledHour, setScheduledHour] = useState(defaultOfficeHour);
@@ -164,7 +165,7 @@ export default function PortalWorkOrderPage({ session }: Props) {
     const { data, error: loadError } = await supabase
       .from('work_reports')
       .select(
-        'id, status, description, orderer_name, customer_id, equipment_id, scheduled_start, created_by_user_id, subscriber_id',
+        'id, status, heading, description, orderer_name, customer_id, equipment_id, scheduled_start, created_by_user_id, subscriber_id',
       )
       .eq('id', id)
       .single();
@@ -179,6 +180,7 @@ export default function PortalWorkOrderPage({ session }: Props) {
       id: string;
       status: string;
       description: string | null;
+      heading: string | null;
       orderer_name: string | null;
       customer_id: string | null;
       equipment_id: string | null;
@@ -197,6 +199,7 @@ export default function PortalWorkOrderPage({ session }: Props) {
       return;
     }
 
+    setHeading(row.heading ?? '');
     setDescription(row.description ?? '');
     setContactName(row.orderer_name ?? '');
     setCustomerId(row.customer_id ?? '');
@@ -236,7 +239,8 @@ export default function PortalWorkOrderPage({ session }: Props) {
 
     const locationText = [selectedCustomer?.address, selectedCustomer?.city].filter(Boolean).join(', ') || null;
     const payload = {
-      title: buildWorkReportTitle(selectedCustomer?.name, description),
+      title: buildWorkReportTitle(selectedCustomer?.name, heading.trim() || description),
+      heading: heading.trim() || null,
       description: description.trim(),
       orderer_name: contactName.trim() || profile.display_name || profile.email || null,
       location_text: locationText,
@@ -433,6 +437,16 @@ export default function PortalWorkOrderPage({ session }: Props) {
               value={contactName}
               onChange={(e) => setContactName(e.target.value)}
               placeholder="Nimi paikan päällä"
+            />
+          </label>
+
+          <label>
+            Otsikko (tuloste / tiedostonimi)
+            <input
+              type="text"
+              value={heading}
+              onChange={(e) => setHeading(e.target.value)}
+              placeholder="Esim. ILK 22A korjaukset"
             />
           </label>
 

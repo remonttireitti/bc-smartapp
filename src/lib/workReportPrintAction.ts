@@ -8,7 +8,7 @@ import { generateWorkReportPrintHtml } from './workReportPrintHtml';
 import type { WorkReport, WorkReportDailyLog } from '../types';
 
 const REPORT_SELECT = `
-  id, title, description, orderer_name, location_text, status,
+  id, title, heading, description, orderer_name, location_text, status,
   scheduled_start, scheduled_end, completed_at,
   owner_company_id, created_by_company_id, created_by_user_id, branding_company_id,
   partnership_id, customer_id, equipment_id, assigned_user_id,
