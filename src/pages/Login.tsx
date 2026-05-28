@@ -38,7 +38,6 @@ export default function Login() {
       setBusy(false);
       return;
     }
-    await supabase.auth.signOut({ scope: 'others' });
     setBusy(false);
     navigate(redirectTarget, { replace: true });
   }

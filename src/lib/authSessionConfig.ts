@@ -1,5 +1,6 @@
 /** Toimettomuus ennen automaattista uloskirjautumista. */
-export const IDLE_LOGOUT_MS = 5 * 60 * 1000;
+export const IDLE_LOGOUT_MINUTES = 30;
+export const IDLE_LOGOUT_MS = IDLE_LOGOUT_MINUTES * 60 * 1000;
 
 /** Tarkistetaan kaikissa välilehdissä (localStorage). */
 export const ACTIVITY_STORAGE_KEY = 'bc-smartapp:last-activity';
@@ -10,7 +11,7 @@ export type SignOutReason = 'manual' | 'idle' | 'remote' | 'expired';
 
 export const SIGN_OUT_REASON_MESSAGES: Record<SignOutReason, string> = {
   manual: '',
-  idle: 'Istuntosi päättyi 5 minuutin toimettomuuden jälkeen. Keskeneräiset luonnokset on tallennettu.',
-  remote: 'Kirjauduit sisään toisella laitteella — tämä istunto on suljettu.',
+  idle: `Istuntosi päättyi ${IDLE_LOGOUT_MINUTES} minuutin toimettomuuden jälkeen. Keskeneräiset luonnokset on tallennettu.`,
+  remote: 'Kirjautumisesi on päättynyt. Kirjaudu uudelleen.',
   expired: 'Istunto vanhentui. Kirjaudu uudelleen.',
 };
