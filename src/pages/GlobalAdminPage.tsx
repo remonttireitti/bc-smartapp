@@ -276,12 +276,16 @@ export default function GlobalAdminPage() {
       return;
     }
 
+    const targetOwner = ownerCompanyId || null;
+    const targetCreatedBy = createdByCompanyId || targetOwner;
+    const targetBranding = brandingCompanyId || targetOwner;
+
     const { data, error: rpcError } = await supabase.rpc('global_admin_reassign_entities', {
       p_entity_type: entityType,
       p_ids: ids,
-      p_owner_company_id: ownerCompanyId || null,
-      p_created_by_company_id: createdByCompanyId || null,
-      p_branding_company_id: brandingCompanyId || null,
+      p_owner_company_id: targetOwner,
+      p_created_by_company_id: targetCreatedBy,
+      p_branding_company_id: targetBranding,
       p_created_by_user_id: createdByUserId || null,
       p_assigned_user_id: null,
     });
