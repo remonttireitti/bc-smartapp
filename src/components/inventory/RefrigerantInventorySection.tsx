@@ -4,14 +4,19 @@ import InventoryPhotoThumb from './InventoryPhotoThumb';
 import InventoryQtyStepper from './InventoryQtyStepper';
 import { uploadInventoryImage } from '../../lib/inventoryImages';
 import {
-  bottleCapacityKg,
   bottleFillRatio,
+  bottleMaxContentKg,
+  bottleSize,
+  BOTTLE_SIZE_LABELS,
+  BOTTLE_SIZE_ORDER,
+  defaultCapacityKgForSize,
   formatBottleContent,
-  formatCapacityLabel,
-  groupBottlesByCapacity,
+  formatBottleSizeLabel,
+  groupBottlesBySize,
   isBottleEmpty,
-  STANDARD_BOTTLE_CAPACITIES_KG,
+  maxContentKgForSize,
   type BottleFillFilter,
+  type BottleSize,
 } from '../../lib/refrigerantBottle';
 import {
   buildRefrigerantPeriodReportHtml,
@@ -113,7 +118,7 @@ export default function RefrigerantInventorySection({
 }: Props) {
   const [view, setView] = useState<RefrigerantView>('stock');
   const [fillFilter, setFillFilter] = useState<BottleFillFilter>('all');
-  const [capacityFilter, setCapacityFilter] = useState<string>('all');
+  const [sizeFilter, setSizeFilter] = useState<BottleSize | 'all'>('all');
   const [cylinders, setCylinders] = useState<RefrigerantCylinder[]>([]);
   const [movements, setMovements] = useState<RefrigerantCylinderMovement[]>([]);
   const [customers, setCustomers] = useState<{ id: string; name: string }[]>([]);
@@ -125,7 +130,7 @@ export default function RefrigerantInventorySection({
 
   const [newBottle, setNewBottle] = useState({
     serial_number: '',
-    capacity_kg: '11.3',
+    bottle_size: 'medium' as BottleSize,
     ownership_type: 'owned' as RefrigerantCylinderOwnership,
     location: '',
     start_empty: true,
@@ -150,23 +155,16 @@ export default function RefrigerantInventorySection({
   const [reportTo, setReportTo] = useState(() => new Date().toISOString().slice(0, 10));
   const [reportBusy, setReportBusy] = useState(false);
 
-  const capacityOptions = useMemo(() => {
-    const fromData = new Set(cylinders.map((c) => bottleCapacityKg(c)).filter((v) => v > 0));
-    for (const v of STANDARD_BOTTLE_CAPACITIES_KG) fromData.add(v);
-    return [...fromData].sort((a, b) => a - b);
-  }, [cylinders]);
-
   const filteredBottles = useMemo(() => {
     return cylinders.filter((c) => {
-      const cap = bottleCapacityKg(c);
-      if (capacityFilter !== 'all' && cap !== Number(capacityFilter)) return false;
+      if (sizeFilter !== 'all' && bottleSize(c) !== sizeFilter) return false;
       if (fillFilter === 'empty' && !isBottleEmpty(c)) return false;
       if (fillFilter === 'filled' && isBottleEmpty(c)) return false;
       return true;
     });
-  }, [cylinders, capacityFilter, fillFilter]);
+  }, [cylinders, sizeFilter, fillFilter]);
 
-  const groupedBottles = useMemo(() => groupBottlesByCapacity(filteredBottles), [filteredBottles]);
+  const groupedBottles = useMemo(() => groupBottlesBySize(filteredBottles), [filteredBottles]);
 
   async function loadStock() {
     const { data, error } = await supabase
@@ -237,11 +235,9 @@ export default function RefrigerantInventorySection({
     e.preventDefault();
     if (!canEditWarehouse || !newBottle.serial_number.trim()) return;
 
-    const cap = Number(newBottle.capacity_kg);
-    if (!(cap > 0)) {
-      onError('Valitse pulmon tilavuus (kg).');
-      return;
-    }
+    const size = newBottle.bottle_size;
+    const cap = defaultCapacityKgForSize(size);
+    const maxKg = maxContentKgForSize(size);
 
     let remaining = 0;
     let refType: string | null = null;
@@ -250,8 +246,8 @@ export default function RefrigerantInventorySection({
 
     if (!newBottle.start_empty) {
       remaining = Number(newBottle.fill_kg || 0);
-      if (remaining <= 0 || remaining > cap) {
-        onError(`Anna täyttömäärä 0–${cap} kg.`);
+      if (remaining <= 0 || remaining > maxKg) {
+        onError(`Anna täyttömäärä 0–${maxKg} kg (${formatBottleSizeLabel(size).toLowerCase()} pullo).`);
         return;
       }
       refType = newBottle.refrigerant_type;
@@ -267,8 +263,8 @@ export default function RefrigerantInventorySection({
       .insert({
         company_id: warehouseCompanyId,
         serial_number: newBottle.serial_number.trim(),
-        capacity_kg: cap,
-        purchased_kg: cap,
+        capacity_kg: Math.max(cap, remaining),
+        purchased_kg: Math.max(cap, remaining),
         remaining_kg: remaining,
         refrigerant_type: refType,
         ownership_type: newBottle.ownership_type,
@@ -310,7 +306,7 @@ export default function RefrigerantInventorySection({
     setShowAddBottle(false);
     setNewBottle({
       serial_number: '',
-      capacity_kg: '11.3',
+      bottle_size: 'medium',
       ownership_type: 'owned',
       location: '',
       start_empty: true,
@@ -324,10 +320,10 @@ export default function RefrigerantInventorySection({
 
   async function submitFillBottle(cylinder: RefrigerantCylinder, e: FormEvent) {
     e.preventDefault();
-    const cap = bottleCapacityKg(cylinder);
+    const maxKg = bottleMaxContentKg(cylinder);
     const kg = Number(fillForm.fill_kg);
-    if (!(kg > 0) || kg > cap) {
-      onError(`Anna määrä 0–${cap} kg.`);
+    if (!(kg > 0) || kg > maxKg) {
+      onError(`Anna määrä 0–${maxKg} kg.`);
       return;
     }
     if (fillForm.from_customer && !fillForm.customer_id) {
@@ -340,6 +336,8 @@ export default function RefrigerantInventorySection({
 
     const patch = {
       remaining_kg: kg,
+      purchased_kg: Math.max(Number(cylinder.purchased_kg) || 0, kg),
+      capacity_kg: Math.max(Number(cylinder.capacity_kg) || 0, kg),
       refrigerant_type: fillForm.refrigerant_type,
       customer_id: fillForm.from_customer ? fillForm.customer_id : cylinder.customer_id,
       location: fillForm.location.trim() || cylinder.location,
@@ -379,8 +377,8 @@ export default function RefrigerantInventorySection({
 
   async function setContentKg(cylinder: RefrigerantCylinder, nextKg: number) {
     if (!canEditWarehouse) return;
-    const cap = bottleCapacityKg(cylinder);
-    const clamped = Math.min(cap, Math.max(0, nextKg));
+    const maxKg = bottleMaxContentKg(cylinder);
+    const clamped = Math.min(maxKg, Math.max(0, nextKg));
     setRowBusyId(cylinder.id);
 
     if (clamped <= ZERO_EPS) {
@@ -404,7 +402,13 @@ export default function RefrigerantInventorySection({
     const refType = (cylinder.refrigerant_type || '').trim() || 'R-410A';
     const { error } = await supabase
       .from('refrigerant_cylinders')
-      .update({ remaining_kg: clamped, refrigerant_type: refType, status: 'in_stock' })
+      .update({
+        remaining_kg: clamped,
+        refrigerant_type: refType,
+        status: 'in_stock',
+        purchased_kg: Math.max(Number(cylinder.purchased_kg) || 0, clamped),
+        capacity_kg: Math.max(Number(cylinder.capacity_kg) || 0, clamped),
+      })
       .eq('id', cylinder.id);
 
     setRowBusyId(null);
@@ -461,7 +465,8 @@ export default function RefrigerantInventorySection({
   function renderBottleCard(c: RefrigerantCylinder) {
     const rowBusy = rowBusyId === c.id;
     const empty = isBottleEmpty(c);
-    const cap = bottleCapacityKg(c);
+    const size = bottleSize(c);
+    const maxKg = bottleMaxContentKg(c);
     const ratio = bottleFillRatio(c);
     const showFill = fillBottleId === c.id;
 
@@ -488,7 +493,7 @@ export default function RefrigerantInventorySection({
           <div className="inventory-card-body">
             <div className="inventory-bottle-title-row">
               <h3>{c.serial_number}</h3>
-              <span className="inventory-bottle-badge">{formatCapacityLabel(cap)}</span>
+              <span className="inventory-bottle-badge">{formatBottleSizeLabel(size)}</span>
               <span className="inventory-bottle-badge inventory-bottle-badge-muted">
                 {REFRIGERANT_CYLINDER_OWNERSHIP_LABELS[c.ownership_type]}
               </span>
@@ -496,7 +501,7 @@ export default function RefrigerantInventorySection({
             <p className={`inventory-bottle-state${empty ? ' inventory-bottle-state-empty' : ''}`}>
               {formatBottleContent(c)}
             </p>
-            {!empty && cap > 0 && (
+            {!empty && maxKg > 0 && (
               <div className="inventory-bottle-meter" aria-hidden>
                 <div className="inventory-bottle-meter-fill" style={{ width: `${Math.round(ratio * 100)}%` }} />
               </div>
@@ -514,7 +519,7 @@ export default function RefrigerantInventorySection({
             value={Number(c.remaining_kg)}
             step={0.5}
             min={0}
-            max={cap}
+            max={maxKg}
             unit="kg"
             decimals={1}
             disabled={!canEditWarehouse}
@@ -530,7 +535,7 @@ export default function RefrigerantInventorySection({
                 setFillBottleId(c.id);
                 setFillForm({
                   refrigerant_type: 'R-410A',
-                  fill_kg: String(cap),
+                  fill_kg: '',
                   customer_id: '',
                   location: c.location ?? '',
                   from_customer: true,
@@ -592,12 +597,12 @@ export default function RefrigerantInventorySection({
               </select>
             </label>
             <label>
-              Määrä (kg), max {cap}
+              Määrä (kg), max {maxKg}
               <input
                 type="number"
                 step="0.1"
                 min="0.001"
-                max={cap}
+                max={maxKg}
                 value={fillForm.fill_kg}
                 onChange={(e) => setFillForm({ ...fillForm, fill_kg: e.target.value })}
                 required
@@ -650,12 +655,12 @@ export default function RefrigerantInventorySection({
           <div className="inventory-stock-toolbar">
             <div className="inventory-stock-filters">
               <label className="inventory-filter-label">
-                Tilavuus
-                <select value={capacityFilter} onChange={(e) => setCapacityFilter(e.target.value)}>
+                Koko
+                <select value={sizeFilter} onChange={(e) => setSizeFilter(e.target.value as BottleSize | 'all')}>
                   <option value="all">Kaikki</option>
-                  {capacityOptions.map((kg) => (
-                    <option key={kg} value={String(kg)}>
-                      {formatCapacityLabel(kg)}
+                  {BOTTLE_SIZE_ORDER.map((size) => (
+                    <option key={size} value={size}>
+                      {BOTTLE_SIZE_LABELS[size]}
                     </option>
                   ))}
                 </select>
@@ -700,21 +705,19 @@ export default function RefrigerantInventorySection({
                   />
                 </label>
                 <label>
-                  Tilavuus (kg) *
-                  <input
-                    type="number"
-                    step="0.1"
-                    min="0.1"
-                    list="standard-bottle-capacities"
-                    value={newBottle.capacity_kg}
-                    onChange={(e) => setNewBottle({ ...newBottle, capacity_kg: e.target.value })}
-                    required
-                  />
-                  <datalist id="standard-bottle-capacities">
-                    {STANDARD_BOTTLE_CAPACITIES_KG.map((kg) => (
-                      <option key={kg} value={String(kg)} />
-                    ))}
-                  </datalist>
+                  Koko *
+                  <select
+                    value={newBottle.bottle_size}
+                    onChange={(e) => setNewBottle({ ...newBottle, bottle_size: e.target.value as BottleSize })}
+                  >
+                    {BOTTLE_SIZE_ORDER.slice()
+                      .reverse()
+                      .map((size) => (
+                        <option key={size} value={size}>
+                          {BOTTLE_SIZE_LABELS[size]}
+                        </option>
+                      ))}
+                  </select>
                 </label>
                 <label>
                   Omistus
@@ -800,10 +803,10 @@ export default function RefrigerantInventorySection({
           ) : filteredBottles.length === 0 ? (
             <p className="muted inventory-empty">Ei pulloja valituilla suodattimilla.</p>
           ) : (
-            [...groupedBottles.entries()].map(([capKg, bottles]) => (
-              <section key={capKg} className="inventory-capacity-group">
+            [...groupedBottles.entries()].map(([size, bottles]) => (
+              <section key={size} className="inventory-capacity-group">
                 <h3 className="inventory-capacity-heading">
-                  {capKg > 0 ? formatCapacityLabel(capKg) : 'Tilavuus määrittämätön'} ({bottles.length})
+                  {formatBottleSizeLabel(size)} ({bottles.length})
                 </h3>
                 <div className="inventory-card-list">{bottles.map(renderBottleCard)}</div>
               </section>
