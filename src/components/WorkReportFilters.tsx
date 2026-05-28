@@ -1,3 +1,5 @@
+import { useEffect, useRef, useState } from 'react';
+import { IconFilter } from './icons';
 import Tooltip from './Tooltip';
 
 export type WorkReportFilterOptions = {
@@ -31,66 +33,107 @@ export default function WorkReportFilters({
   hasActiveFilters,
   onClear,
 }: Props) {
-  return (
-    <div className="toolbar-filters">
-      <Tooltip side="bottom" label="Näytä vain raportit, jotka on tehty valitun yrityksen nimissä.">
-        <label className="toolbar-filter">
-          <span className="toolbar-filter-prefix" aria-hidden="true">
-            Yritys
-          </span>
-          <select value={brandingId} onChange={(e) => onBrandingChange(e.target.value)}>
-            <option value="">Kaikki</option>
-            {options.branding.map((entry) => (
-              <option key={entry.id} value={entry.id}>
-                {entry.label}
-              </option>
-            ))}
-          </select>
-        </label>
-      </Tooltip>
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
 
+  useEffect(() => {
+    function onDocClick(event: MouseEvent) {
+      if (!rootRef.current?.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', onDocClick);
+    return () => document.removeEventListener('mousedown', onDocClick);
+  }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') setOpen(false);
+    }
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [open]);
+
+  const activeCount = [brandingId, personId, customerId].filter(Boolean).length;
+
+  return (
+    <div className="toolbar-popover-anchor" ref={rootRef}>
       <Tooltip
         side="bottom"
-        label="Suodata tekijän tai laatijan mukaan. Minä = sinulle osoitetut tai itse laatimasi raportit."
+        label={
+          hasActiveFilters
+            ? `Suodattimet (${activeCount} aktiivinen) — avaa valinta`
+            : 'Suodattimet — avaa valinta'
+        }
+        touchHelp={false}
       >
-        <label className="toolbar-filter">
-          <span className="toolbar-filter-prefix" aria-hidden="true">
+        <button
+          type="button"
+          className={`icon-btn${hasActiveFilters ? ' icon-btn-active' : ''}`}
+          aria-label="Suodattimet"
+          aria-haspopup="dialog"
+          aria-expanded={open}
+          onClick={() => setOpen((value) => !value)}
+        >
+          <IconFilter />
+          {hasActiveFilters && <span className="icon-btn-badge" aria-hidden="true" />}
+        </button>
+      </Tooltip>
+
+      {open && (
+        <div className="toolbar-popover-panel toolbar-filter-popover" role="dialog" aria-label="Suodattimet">
+          <p className="toolbar-filter-popover-title">Suodata listaa</p>
+
+          <label>
+            Yritys
+            <select value={brandingId} onChange={(e) => onBrandingChange(e.target.value)}>
+              <option value="">Kaikki</option>
+              {options.branding.map((entry) => (
+                <option key={entry.id} value={entry.id}>
+                  {entry.label}
+                </option>
+              ))}
+            </select>
+            <span className="muted toolbar-filter-hint">
+              Näytä vain raportit, jotka on tehty valitun yrityksen nimissä.
+            </span>
+          </label>
+
+          <label>
             Henkilö
-          </span>
-          <select value={personId} onChange={(e) => onPersonChange(e.target.value)}>
-            <option value="">Kaikki</option>
-            <option value={WORK_REPORT_PERSON_ME}>Minä</option>
-            {options.people.map((entry) => (
-              <option key={entry.id} value={entry.id}>
-                {entry.label}
-              </option>
-            ))}
-          </select>
-        </label>
-      </Tooltip>
+            <select value={personId} onChange={(e) => onPersonChange(e.target.value)}>
+              <option value="">Kaikki</option>
+              <option value={WORK_REPORT_PERSON_ME}>Minä</option>
+              {options.people.map((entry) => (
+                <option key={entry.id} value={entry.id}>
+                  {entry.label}
+                </option>
+              ))}
+            </select>
+            <span className="muted toolbar-filter-hint">
+              Minä = sinulle osoitetut tai itse laatimasi raportit.
+            </span>
+          </label>
 
-      <Tooltip side="bottom" label="Näytä vain valitun asiakkaan työraportit.">
-        <label className="toolbar-filter">
-          <span className="toolbar-filter-prefix" aria-hidden="true">
+          <label>
             Asiakas
-          </span>
-          <select value={customerId} onChange={(e) => onCustomerChange(e.target.value)}>
-            <option value="">Kaikki</option>
-            {options.customers.map((entry) => (
-              <option key={entry.id} value={entry.id}>
-                {entry.label}
-              </option>
-            ))}
-          </select>
-        </label>
-      </Tooltip>
+            <select value={customerId} onChange={(e) => onCustomerChange(e.target.value)}>
+              <option value="">Kaikki</option>
+              {options.customers.map((entry) => (
+                <option key={entry.id} value={entry.id}>
+                  {entry.label}
+                </option>
+              ))}
+            </select>
+          </label>
 
-      {hasActiveFilters && (
-        <Tooltip side="bottom" label="Poista kaikki suodattimet.">
-          <button type="button" className="toolbar-filter-clear" onClick={onClear}>
-            ×
-          </button>
-        </Tooltip>
+          {hasActiveFilters && (
+            <button type="button" className="btn btn-secondary btn-sm toolbar-filter-popover-clear" onClick={onClear}>
+              Poista suodattimet
+            </button>
+          )}
+        </div>
       )}
     </div>
   );

@@ -5,6 +5,7 @@ import { Link } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
 
 import AppLayout from '../components/AppLayout';
+import WorkReportCreateMenu from '../components/WorkReportCreateMenu';
 import WorkReportFilters, {
   buildWorkReportFilterOptions,
   matchesWorkReportFilters,
@@ -551,19 +552,7 @@ export default function WorkReportsPage({ session }: Props) {
         </div>
 
         <div className="page-header-actions">
-
-          <Link to="/tyoraportit/toimeksianto/uusi" className="btn btn-secondary">
-
-            + Toimeksianto kumppanille
-
-          </Link>
-
-          <Link to="/tyoraportit/uusi" className="btn btn-primary">
-
-            + Uusi työraportti
-
-          </Link>
-
+          <WorkReportCreateMenu />
         </div>
 
       </div>

@@ -142,3 +142,22 @@ export function IconEuro({ className = 'ui-icon' }: IconProps) {
     </svg>
   );
 }
+
+export function IconPlus({ className = 'ui-icon' }: IconProps) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M11 5h2v6h6v2h-6v6h-2v-6H5v-2h6V5z" fill="currentColor" />
+    </svg>
+  );
+}
+
+export function IconFilter({ className = 'ui-icon' }: IconProps) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        d="M4 6h16v2H4V6zm3 5h10v2H7v-2zm3 5h4v2h-4v-2z"
+        fill="currentColor"
+      />
+    </svg>
+  );
+}

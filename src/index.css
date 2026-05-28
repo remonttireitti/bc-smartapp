@@ -830,6 +830,7 @@ button[type='submit']:disabled { opacity: .6; cursor: wait; }
 }
 
 .icon-btn {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1096,6 +1097,113 @@ button[type='submit']:disabled { opacity: .6; cursor: wait; }
 .toolbar-filter-clear:hover {
   background: var(--bg-subtle);
   color: var(--text);
+}
+
+.toolbar-popover-anchor {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.toolbar-popover-panel {
+  position: absolute;
+  z-index: 120;
+  top: calc(100% + .35rem);
+  right: 0;
+  min-width: 12.5rem;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  box-shadow: var(--shadow-md);
+}
+
+.toolbar-action-menu {
+  display: flex;
+  flex-direction: column;
+  gap: .1rem;
+  padding: .35rem;
+}
+
+.toolbar-action-menu a {
+  display: block;
+  padding: .65rem .85rem;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: .9rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.toolbar-action-menu a:hover {
+  background: var(--bg-subtle);
+  color: var(--text);
+}
+
+.toolbar-action-menu-primary {
+  color: var(--primary);
+}
+
+.toolbar-filter-popover {
+  min-width: min(18rem, calc(100vw - 2.5rem));
+  max-width: 20rem;
+  padding: .85rem;
+}
+
+.toolbar-filter-popover-title {
+  margin: 0 0 .65rem;
+  font-size: .85rem;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.toolbar-filter-popover label {
+  display: flex;
+  flex-direction: column;
+  gap: .35rem;
+  margin: 0 0 .75rem;
+  font-size: .85rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.toolbar-filter-popover select {
+  width: 100%;
+  min-height: 2.5rem;
+  padding: .5rem .65rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--bg-surface);
+  font-size: .95rem;
+  font-weight: 500;
+  color: var(--text);
+}
+
+.toolbar-filter-hint {
+  font-size: .75rem;
+  font-weight: 400;
+  line-height: 1.35;
+}
+
+.toolbar-filter-popover-clear {
+  width: 100%;
+  margin-top: .15rem;
+}
+
+.icon-btn-active {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.icon-btn-badge {
+  position: absolute;
+  top: .18rem;
+  right: .18rem;
+  width: .5rem;
+  height: .5rem;
+  border-radius: 50%;
+  background: var(--primary);
+  border: 2px solid var(--bg-surface);
+  pointer-events: none;
 }
 
 .tabs { display: flex; gap: .5rem; flex-wrap: wrap; }
