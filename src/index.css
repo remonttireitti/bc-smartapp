@@ -5394,9 +5394,89 @@ textarea {
   color: var(--muted, #555);
 }
 
+.inventory-bottle-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
+  gap: 0.85rem;
+}
+
+.inventory-bottle-grid-span {
+  grid-column: 1 / -1;
+}
+
+.inventory-bottle-card {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  padding: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg-surface);
+  box-shadow: var(--shadow-sm);
+}
+
 .inventory-bottle-card.inventory-bottle-empty {
   border-style: dashed;
-  background: #fafafa;
+  background: var(--bg-muted);
+}
+
+.inventory-bottle-card-visual {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  margin-bottom: 0.35rem;
+}
+
+.inventory-bottle-card-title {
+  font-size: 0.88rem;
+  word-break: break-word;
+}
+
+.inventory-bottle-card-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  margin-top: 0.35rem;
+}
+
+.inventory-bottle-card-meta,
+.inventory-bottle-card-note {
+  margin: 0.35rem 0 0;
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+
+.inventory-bottle-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin-top: 0.65rem;
+  padding-top: 0.55rem;
+  border-top: 1px solid var(--border);
+}
+
+.inventory-photo-thumb-md {
+  width: 100%;
+}
+
+.inventory-photo-thumb-md .inventory-photo-btn {
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  max-height: 140px;
+  border-radius: 10px;
+}
+
+.inventory-photo-btn-bottle {
+  color: var(--text-subtle);
+  background: linear-gradient(180deg, var(--bg-muted) 0%, var(--bg-inset) 100%);
+}
+
+.inventory-bottle-icon {
+  width: 52%;
+  height: auto;
+  max-height: 88%;
+  color: #64748b;
 }
 
 .inventory-bottle-title-row {

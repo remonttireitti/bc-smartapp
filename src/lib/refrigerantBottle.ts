@@ -86,6 +86,13 @@ export function formatBottleContent(c: RefrigerantCylinder): string {
   return `${type} · ${rem.toFixed(1)} kg${suffix}`;
 }
 
+/** Lyhyt teksti kortin alle (esim. "7 kg R-407C" tai "Tyhjä"). */
+export function formatBottleContentShort(c: RefrigerantCylinder): string {
+  if (isBottleEmpty(c)) return 'Tyhjä';
+  const type = (c.refrigerant_type || '').trim() || '—';
+  return `${Number(c.remaining_kg).toFixed(1)} kg ${type}`;
+}
+
 export function groupBottlesBySize(bottles: RefrigerantCylinder[]): Map<BottleSize, RefrigerantCylinder[]> {
   const map = new Map<BottleSize, RefrigerantCylinder[]>();
   for (const b of bottles) {

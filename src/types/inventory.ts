@@ -16,7 +16,8 @@ export type RefrigerantMovementType =
   | 'work_use'
   | 'adjustment'
   | 'recycle'
-  | 'return_rental';
+  | 'return_rental'
+  | 'dispose';
 
 export const BOTTLE_SIZE_LABELS: Record<BottleSize, string> = {
   small: 'Pieni',
@@ -102,6 +103,7 @@ export const REFRIGERANT_MOVEMENT_TYPE_LABELS: Record<RefrigerantMovementType, s
   adjustment: 'Saldon muutos',
   recycle: 'Kierrätykseen toimitettu',
   return_rental: 'Vuokrapullo palautettu',
+  dispose: 'Poistettu varastosta',
 };
 
 export type WorkReportRefrigerantLine = {

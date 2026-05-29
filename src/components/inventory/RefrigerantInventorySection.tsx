@@ -1,6 +1,6 @@
 import { FormEvent, Fragment, useEffect, useMemo, useState } from 'react';
 
-import InventoryPhotoThumb from './InventoryPhotoThumb';
+import RefrigerantBottleCard from './RefrigerantBottleCard';
 import { uploadInventoryImage } from '../../lib/inventoryImages';
 import {
   bottleMaxContentKg,
@@ -8,7 +8,6 @@ import {
   BOTTLE_SIZE_LABELS,
   BOTTLE_SIZE_ORDER,
   defaultCapacityKgForSize,
-  formatBottleContent,
   formatBottleLabel,
   formatBottleSizeLabel,
   groupBottlesBySize,
@@ -458,6 +457,67 @@ export default function RefrigerantInventorySection({
     }
   }
 
+  async function returnRentalBottle(cylinder: RefrigerantCylinder) {
+    if (!canEditWarehouse || cylinder.ownership_type !== 'rental') return;
+    const label = formatBottleLabel(cylinder);
+    if (
+      !window.confirm(
+        `Merkitään ${label} palautetuksi tukkurille? Pullo poistuu varastonäkymästä, historia säilyy.`,
+      )
+    ) {
+      return;
+    }
+    setRowBusyId(cylinder.id);
+    onError(null);
+    const { error } = await supabase.rpc('mark_refrigerant_cylinder_returned_rental', {
+      p_cylinder_id: cylinder.id,
+      p_notes: null,
+    });
+    setRowBusyId(null);
+    if (error) onError(error.message);
+    else {
+      onMessage('Vuokrapullo merkitty palautetuksi.');
+      setCylinders((p) => p.filter((r) => r.id !== cylinder.id));
+    }
+  }
+
+  async function retireOwnedBottle(cylinder: RefrigerantCylinder) {
+    if (!canEditWarehouse || cylinder.ownership_type !== 'owned') return;
+    const label = formatBottleLabel(cylinder);
+    if (
+      !window.confirm(
+        `Poistetaanko ${label} varastosta (myyty tai hävitetty)? Pullo ei näy enää rekisterissä, historia säilyy.`,
+      )
+    ) {
+      return;
+    }
+    setRowBusyId(cylinder.id);
+    onError(null);
+    const { error } = await supabase.rpc('mark_refrigerant_cylinder_retired', {
+      p_cylinder_id: cylinder.id,
+      p_notes: null,
+    });
+    setRowBusyId(null);
+    if (error) onError(error.message);
+    else {
+      onMessage('Pullo poistettu varastosta.');
+      setCylinders((p) => p.filter((r) => r.id !== cylinder.id));
+    }
+  }
+
+  async function uploadBottlePhoto(cylinder: RefrigerantCylinder, file: File) {
+    setRowBusyId(cylinder.id);
+    try {
+      const path = await uploadInventoryImage(supabase, warehouseCompanyId, 'cylinders', cylinder.id, file);
+      await supabase.from('refrigerant_cylinders').update({ image_path: path }).eq('id', cylinder.id);
+      setCylinders((p) => p.map((r) => (r.id === cylinder.id ? { ...r, image_path: path } : r)));
+    } catch (err) {
+      onError(err instanceof Error ? err.message : 'Kuvan lataus epäonnistui');
+    } finally {
+      setRowBusyId(null);
+    }
+  }
+
   async function markRecycled(cylinder: RefrigerantCylinder) {
     if (!canEditWarehouse) return;
     if (cylinder.non_recyclable) {
@@ -780,111 +840,40 @@ export default function RefrigerantInventorySection({
                 <h3 className="inventory-capacity-heading">
                   {formatBottleSizeLabel(size)} ({bottles.length})
                 </h3>
-                <div className="table-wrap">
-                  <table className="data-table inventory-bottle-table">
-                    <thead>
-                      <tr>
-                        <th>Pullo</th>
-                        <th>Omistus</th>
-                        <th>Sisältö</th>
-                        <th>Sijainti / asiakas</th>
-                        <th />
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {bottles.map((c) => {
-                        const rowBusy = rowBusyId === c.id;
-                        return (
-                          <Fragment key={c.id}>
-                            <tr className={isBottleEmpty(c) ? 'inventory-bottle-row-empty' : ''}>
-                              <td>
-                                <div className="inventory-bottle-cell-id">
-                                  <InventoryPhotoThumb
-                                    imagePath={c.image_path}
-                                    label={formatBottleLabel(c)}
-                                    canEdit={canEditWarehouse}
-                                    busy={rowBusy}
-                                    onPick={async (file) => {
-                                      setRowBusyId(c.id);
-                                      try {
-                                        const path = await uploadInventoryImage(
-                                          supabase,
-                                          warehouseCompanyId,
-                                          'cylinders',
-                                          c.id,
-                                          file,
-                                        );
-                                        await supabase
-                                          .from('refrigerant_cylinders')
-                                          .update({ image_path: path })
-                                          .eq('id', c.id);
-                                        setCylinders((p) =>
-                                          p.map((r) => (r.id === c.id ? { ...r, image_path: path } : r)),
-                                        );
-                                      } finally {
-                                        setRowBusyId(null);
-                                      }
-                                    }}
-                                    onRemove={() => {}}
-                                  />
-                                  <strong>{formatBottleLabel(c)}</strong>
-                                  {c.notes && <span className="muted inventory-bottle-note">{c.notes}</span>}
-                                </div>
-                              </td>
-                              <td>{REFRIGERANT_CYLINDER_OWNERSHIP_LABELS[c.ownership_type]}</td>
-                              <td>{formatBottleContent(c)}</td>
-                              <td className="muted">
-                                {[c.location, c.customer?.name].filter(Boolean).join(' · ') || '—'}
-                              </td>
-                              <td className="inventory-bottle-actions">
-                                {canEditWarehouse && (
-                                  <div className="inventory-card-actions">
-                                    <button type="button" className="btn btn-sm" disabled={rowBusy} onClick={() => openEdit(c)}>
-                                      Muokkaa
-                                    </button>
-                                    <button
-                                      type="button"
-                                      className="btn btn-sm btn-primary"
-                                      disabled={rowBusy}
-                                      onClick={() => {
-                                        setRetrieveBottleId(c.id);
-                                        setEditorMode(null);
-                                        setRetrieveForm({
-                                          customer_id: '',
-                                          refrigerant_type: 'R-410A',
-                                          fill_kg: '',
-                                          location: c.location ?? '',
-                                          non_recyclable: false,
-                                          notes: '',
-                                        });
-                                      }}
-                                    >
-                                      Talteen asiakkaalta
-                                    </button>
-                                    {!isBottleEmpty(c) && (
-                                      <button type="button" className="btn btn-sm" disabled={rowBusy} onClick={() => void emptyBottle(c)}>
-                                        Tyhjennä
-                                      </button>
-                                    )}
-                                    {!c.non_recyclable && (
-                                      <button type="button" className="btn btn-sm" disabled={rowBusy} onClick={() => void markRecycled(c)}>
-                                        Kierrätys
-                                      </button>
-                                    )}
-                                  </div>
-                                )}
-                              </td>
-                            </tr>
-                            {retrieveBottleId === c.id && (
-                              <tr>
-                                <td colSpan={5}>{renderRetrieveForm(c)}</td>
-                              </tr>
-                            )}
-                          </Fragment>
-                        );
-                      })}
-                    </tbody>
-                  </table>
+                <div className="inventory-bottle-grid">
+                  {bottles.map((c) => {
+                    const rowBusy = rowBusyId === c.id;
+                    return (
+                      <Fragment key={c.id}>
+                        <RefrigerantBottleCard
+                          cylinder={c}
+                          canEdit={canEditWarehouse}
+                          busy={rowBusy}
+                          onPickPhoto={(file) => void uploadBottlePhoto(c, file)}
+                          onEdit={() => openEdit(c)}
+                          onRetrieve={() => {
+                            setRetrieveBottleId(c.id);
+                            setEditorMode(null);
+                            setRetrieveForm({
+                              customer_id: '',
+                              refrigerant_type: 'R-410A',
+                              fill_kg: '',
+                              location: c.location ?? '',
+                              non_recyclable: false,
+                              notes: '',
+                            });
+                          }}
+                          onEmpty={() => void emptyBottle(c)}
+                          onRecycle={() => void markRecycled(c)}
+                          onReturnRental={() => void returnRentalBottle(c)}
+                          onRetire={() => void retireOwnedBottle(c)}
+                        />
+                        {retrieveBottleId === c.id && (
+                          <div className="inventory-bottle-grid-span">{renderRetrieveForm(c)}</div>
+                        )}
+                      </Fragment>
+                    );
+                  })}
                 </div>
               </section>
             ))
