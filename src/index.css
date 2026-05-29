@@ -5408,11 +5408,16 @@ textarea {
   display: flex;
   flex-direction: column;
   align-items: stretch;
+  position: relative;
   padding: 0.75rem;
   border: 1px solid var(--border);
   border-radius: 12px;
   background: var(--bg-surface);
   box-shadow: var(--shadow-sm);
+}
+
+.inventory-bottle-card.inventory-bottle-menu-open {
+  z-index: 3;
 }
 
 .inventory-bottle-card.inventory-bottle-empty {
@@ -5448,12 +5453,63 @@ textarea {
 }
 
 .inventory-bottle-card-actions {
+  display: none;
+}
+
+.inventory-bottle-title-row {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.3rem;
-  margin-top: 0.65rem;
-  padding-top: 0.55rem;
-  border-top: 1px solid var(--border);
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.35rem;
+  width: 100%;
+  margin-top: 0.15rem;
+}
+
+.inventory-bottle-menu-anchor {
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.inventory-bottle-menu-anchor .toolbar-popover-panel {
+  right: 0;
+  left: auto;
+  min-width: 11rem;
+}
+
+.inventory-bottle-menu-btn {
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+}
+
+.inventory-bottle-menu-item {
+  display: block;
+  width: 100%;
+  padding: 0.6rem 0.75rem;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 600;
+  text-align: left;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.inventory-bottle-menu-item:hover:not(:disabled) {
+  background: var(--bg-subtle);
+  color: var(--text);
+}
+
+.inventory-bottle-menu-item:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.inventory-bottle-menu-item-primary {
+  color: var(--primary);
 }
 
 .inventory-photo-thumb-md {
@@ -5477,13 +5533,6 @@ textarea {
   height: auto;
   max-height: 88%;
   color: #64748b;
-}
-
-.inventory-bottle-title-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.35rem;
 }
 
 .inventory-bottle-badge {
