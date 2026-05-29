@@ -236,6 +236,54 @@ export async function deductCylinderQuantity(
   if (error) throw error;
 }
 
+function isDraftRowFilled(row: RefrigerantLineDraft): boolean {
+  const qty = Number(row.qty_kg);
+  if (Number.isFinite(qty) && qty > 0) return true;
+  if (isWarehouseSource(row.source) && row.cylinder_id) return true;
+  if (row.source === 'supplier' && (row.supplier_name.trim() || row.supplier_paid_by)) return true;
+  return false;
+}
+
+function isDraftRowValid(row: RefrigerantLineDraft): boolean {
+  const qty = Number(row.qty_kg);
+  if (!Number.isFinite(qty) || qty <= 0) return false;
+  if (isWarehouseSource(row.source)) {
+    return !!row.cylinder_id && !!row.cylinder_disposition;
+  }
+  if (row.source === 'supplier') return !!row.refrigerant_type.trim() && !!row.supplier_paid_by;
+  return !!row.refrigerant_type.trim();
+}
+
+async function reinsertRefrigerantLines(
+  supabase: SupabaseClient,
+  lines: WorkReportRefrigerantLine[],
+  dailyLogId: string,
+  workReportId: string,
+  userId: string,
+) {
+  for (const line of lines) {
+    const { error } = await supabase.from('work_report_refrigerant_lines').insert({
+      daily_log_id: dailyLogId,
+      work_report_id: workReportId,
+      source: line.source,
+      cylinder_id: line.cylinder_id,
+      warehouse_company_id: line.warehouse_company_id,
+      owner_user_id: line.owner_user_id,
+      supplier_name: line.supplier_name,
+      supplier_paid_by: line.supplier_paid_by,
+      unit_price: line.unit_price,
+      customer_unit_price: line.customer_unit_price,
+      bill_to_customer: line.bill_to_customer,
+      refrigerant_type: line.refrigerant_type,
+      qty_kg: line.qty_kg,
+      notes: line.notes,
+      cylinder_disposition: line.cylinder_disposition,
+      created_by: userId,
+    });
+    if (error) throw error;
+  }
+}
+
 export async function saveRefrigerantLines(
   supabase: SupabaseClient,
   input: {
@@ -247,89 +295,138 @@ export async function saveRefrigerantLines(
     requirePrices?: boolean;
   },
 ) {
-  if (input.previousLines?.length) {
-    await restoreCylinderQuantities(supabase, input.previousLines, input.workReportId);
-  }
-
-  await supabase.from('work_report_refrigerant_lines').delete().eq('daily_log_id', input.dailyLogId);
-
-  const valid = input.drafts.filter((row) => {
-    const qty = Number(row.qty_kg);
-    if (!Number.isFinite(qty) || qty <= 0) return false;
-    if (isWarehouseSource(row.source)) {
-      return !!row.cylinder_id && !!row.cylinder_disposition;
-    }
-    if (row.source === 'supplier') return !!row.refrigerant_type.trim() && !!row.supplier_paid_by;
-    return !!row.refrigerant_type.trim();
-  });
+  const attempted = input.drafts.filter(isDraftRowFilled);
+  const valid = input.drafts.filter(isDraftRowValid);
 
   const validationError = validateRefrigerantDrafts(input.drafts, {
     requirePrices: input.requirePrices,
   });
   if (validationError) throw new Error(validationError);
 
-  for (const row of valid) {
-    const qty = Number(row.qty_kg);
-    let cylinderId: string | null = null;
-    let warehouseCompanyId: string | null = null;
-    let ownerUserId: string | null = null;
-    let refrigerantType = row.refrigerant_type.trim();
-    let supplierName: string | null = null;
+  if (attempted.length > 0 && valid.length === 0) {
+    throw new Error(
+      'Kylmäainerivit eivät kelpaa. Valitse pullo, määrä (kg) ja mitä pulloon jää työkäytön jälkeen.',
+    );
+  }
 
-    if (isWarehouseSource(row.source)) {
-      cylinderId = row.cylinder_id;
-      const { data: cylinder } = await supabase
-        .from('refrigerant_cylinders')
-        .select('refrigerant_type, owner_user_id, company_id')
-        .eq('id', cylinderId)
-        .single();
+  const previousLines = input.previousLines ?? [];
+  const deducted: { cylinderId: string; qty: number }[] = [];
 
-      if (!cylinder) throw new Error('Valittua kylmäainepulloa ei löytynyt.');
-      refrigerantType = (cylinder.refrigerant_type || row.refrigerant_type || '').trim();
-      if (!refrigerantType) throw new Error('Pullossa ei ole merkittyä kylmäainetta.');
-      ownerUserId = row.owner_user_id || cylinder.owner_user_id || null;
-      warehouseCompanyId = row.warehouse_company_id || cylinder.company_id || null;
-
-      await deductCylinderQuantity(
-        supabase,
-        cylinderId,
-        qty,
-        input.workReportId,
-        row.cylinder_disposition || 'partial_in_stock',
-      );
-    } else {
-      supplierName = row.supplier_name.trim() || 'Tukkuri';
+  try {
+    if (previousLines.length) {
+      await restoreCylinderQuantities(supabase, previousLines, input.workReportId);
     }
 
-    const billing = resolveRefrigerantBilling({
-      source: row.source,
-      supplier_paid_by: row.supplier_paid_by,
-    });
-    const unitPrice = Number(row.unit_price || 0);
-    const customerUnitPriceRaw = Number(row.customer_unit_price);
-    const customerUnitPrice =
-      Number.isFinite(customerUnitPriceRaw) && customerUnitPriceRaw > 0 ? customerUnitPriceRaw : null;
+    const { error: deleteError } = await supabase
+      .from('work_report_refrigerant_lines')
+      .delete()
+      .eq('daily_log_id', input.dailyLogId);
+    if (deleteError) throw deleteError;
 
-    const { error: insertError } = await supabase.from('work_report_refrigerant_lines').insert({
-      daily_log_id: input.dailyLogId,
-      work_report_id: input.workReportId,
-      source: row.source,
-      cylinder_id: cylinderId,
-      warehouse_company_id: warehouseCompanyId,
-      owner_user_id: ownerUserId,
-      supplier_name: supplierName,
-      supplier_paid_by: row.source === 'supplier' ? row.supplier_paid_by : null,
-      unit_price: unitPrice,
-      customer_unit_price: customerUnitPrice,
-      bill_to_customer: billing.billToCustomer,
-      refrigerant_type: refrigerantType,
-      qty_kg: qty,
-      notes: row.notes.trim() || null,
-      cylinder_disposition: isWarehouseSource(row.source) ? row.cylinder_disposition || null : null,
-      created_by: input.userId,
-    });
+    for (const row of valid) {
+      const qty = Number(row.qty_kg);
+      let cylinderId: string | null = null;
+      let warehouseCompanyId: string | null = null;
+      let ownerUserId: string | null = null;
+      let refrigerantType = row.refrigerant_type.trim();
+      let supplierName: string | null = null;
 
-    if (insertError) throw insertError;
+      if (isWarehouseSource(row.source)) {
+        cylinderId = row.cylinder_id;
+        const { data: cylinder, error: cylinderError } = await supabase
+          .from('refrigerant_cylinders')
+          .select('refrigerant_type, owner_user_id, company_id')
+          .eq('id', cylinderId)
+          .single();
+
+        if (cylinderError || !cylinder) {
+          throw new Error(cylinderError?.message ?? 'Valittua kylmäainepulloa ei löytynyt.');
+        }
+        refrigerantType = (cylinder.refrigerant_type || row.refrigerant_type || '').trim();
+        if (!refrigerantType) {
+          throw new Error('Pullossa ei ole merkittyä kylmäainetta — täytä pullo varastossa ensin.');
+        }
+        ownerUserId = row.owner_user_id || cylinder.owner_user_id || null;
+        warehouseCompanyId = row.warehouse_company_id || cylinder.company_id || null;
+
+        await deductCylinderQuantity(
+          supabase,
+          cylinderId,
+          qty,
+          input.workReportId,
+          row.cylinder_disposition || 'partial_in_stock',
+        );
+        deducted.push({ cylinderId, qty });
+      } else {
+        supplierName = row.supplier_name.trim() || 'Tukkuri';
+      }
+
+      const billing = resolveRefrigerantBilling({
+        source: row.source,
+        supplier_paid_by: row.supplier_paid_by,
+      });
+      const unitPrice = Number(row.unit_price || 0);
+      const customerUnitPriceRaw = Number(row.customer_unit_price);
+      const customerUnitPrice =
+        Number.isFinite(customerUnitPriceRaw) && customerUnitPriceRaw > 0 ? customerUnitPriceRaw : null;
+
+      const { error: insertError } = await supabase.from('work_report_refrigerant_lines').insert({
+        daily_log_id: input.dailyLogId,
+        work_report_id: input.workReportId,
+        source: row.source,
+        cylinder_id: cylinderId,
+        warehouse_company_id: warehouseCompanyId,
+        owner_user_id: ownerUserId,
+        supplier_name: supplierName,
+        supplier_paid_by: row.source === 'supplier' ? row.supplier_paid_by : null,
+        unit_price: unitPrice,
+        customer_unit_price: customerUnitPrice,
+        bill_to_customer: billing.billToCustomer,
+        refrigerant_type: refrigerantType,
+        qty_kg: qty,
+        notes: row.notes.trim() || null,
+        cylinder_disposition: isWarehouseSource(row.source) ? row.cylinder_disposition || null : null,
+        created_by: input.userId,
+      });
+
+      if (insertError) throw insertError;
+    }
+  } catch (err) {
+    for (const { cylinderId, qty } of [...deducted].reverse()) {
+      try {
+        await supabase.rpc('apply_refrigerant_cylinder_delta', {
+          p_cylinder_id: cylinderId,
+          p_delta_kg: qty,
+          p_work_report_id: input.workReportId,
+          p_disposition: null,
+        });
+      } catch {
+        /* best-effort rollback */
+      }
+    }
+
+    if (previousLines.length) {
+      try {
+        await restoreCylinderQuantities(supabase, previousLines, input.workReportId);
+        await reinsertRefrigerantLines(
+          supabase,
+          previousLines,
+          input.dailyLogId,
+          input.workReportId,
+          input.userId,
+        );
+      } catch {
+        /* leave deleted if rollback fails — surface original error */
+      }
+    }
+
+    const message = err instanceof Error ? err.message : 'Kylmäaineen tallennus epäonnistui.';
+    if (/Pullo ei kuulu|ei ole käytettävissä|ei oikeutta/i.test(message)) {
+      throw new Error(
+        `${message} Kumppanin varastosta käyttäessä varmista, että kumppanuudella on varasto-oikeus.`,
+      );
+    }
+    throw err instanceof Error ? err : new Error(message);
   }
 }
 

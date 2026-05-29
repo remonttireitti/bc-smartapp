@@ -1356,7 +1356,10 @@ export default function WorkReportDetailPage({ session }: Props) {
     const refrigerantError = await saveDailyLogRefrigerant(logRow.id);
     if (refrigerantError) {
       setLogDialogBusy(false);
-      setError(refrigerantError.message);
+      setError(
+        `Työkirjaus tallennettiin, mutta kylmäaine jäi tallentamatta: ${refrigerantError.message} Korjaa rivit ja tallenna uudelleen (muokkaa työkirjausta).`,
+      );
+      await load(report.id);
       return;
     }
 
