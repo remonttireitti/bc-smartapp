@@ -26,3 +26,13 @@ export function isStandaloneDisplayMode() {
     (window.navigator as Navigator & { standalone?: boolean }).standalone === true
   );
 }
+
+export function isMobileDevice() {
+  if (typeof navigator === 'undefined') return false;
+  return /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+}
+
+export function isIosDevice() {
+  if (typeof navigator === 'undefined') return false;
+  return /iPhone|iPad|iPod/i.test(navigator.userAgent);
+}
