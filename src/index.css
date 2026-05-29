@@ -5500,3 +5500,57 @@ textarea {
 .inventory-bottle-row-empty td {
   background: #fafafa;
 }
+
+.offline-banner,
+.pwa-install-banner,
+.pwa-update-banner {
+  margin: 0.75rem 1rem 0;
+  max-width: none;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  font-size: 0.9rem;
+}
+
+.dashboard .offline-banner,
+.dashboard .pwa-install-banner,
+.dashboard .pwa-update-banner {
+  margin: 0 auto 1rem;
+  max-width: 960px;
+}
+
+.offline-banner {
+  background: #fef3c7;
+  border: 1px solid #f59e0b;
+  color: #92400e;
+}
+
+.pwa-install-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  background: #eff6ff;
+  border: 1px solid #93c5fd;
+}
+
+.pwa-install-banner-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.pwa-install-banner-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.pwa-update-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  background: #ecfdf5;
+  border: 1px solid #6ee7b7;
+}

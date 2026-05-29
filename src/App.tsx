@@ -37,6 +37,9 @@ import {
   CustomerPortalPreviewPage,
   SubscriberPortalPreviewPage,
 } from './pages/PortalPreviewPage';
+import OfflineBanner from './components/OfflineBanner';
+import PwaInstallBanner from './components/PwaInstallBanner';
+import PwaUpdateBanner from './components/PwaUpdateBanner';
 
 function AppRoutes() {
   const { session, loading } = useAuthSession();
@@ -112,7 +115,12 @@ function AppRoutes() {
 export default function App() {
   return (
     <AuthSessionProvider>
-      <AppRoutes />
+      <div className="app-shell">
+        <OfflineBanner />
+        <PwaUpdateBanner />
+        <PwaInstallBanner />
+        <AppRoutes />
+      </div>
     </AuthSessionProvider>
   );
 }

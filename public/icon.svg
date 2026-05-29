@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="BC Smartapp">
+  <rect width="512" height="512" rx="96" fill="#1e40af"/>
+  <rect x="96" y="128" width="320" height="256" rx="24" fill="#ffffff"/>
+  <rect x="144" y="176" width="224" height="32" rx="8" fill="#1e40af"/>
+  <rect x="144" y="232" width="176" height="24" rx="6" fill="#93c5fd"/>
+  <rect x="144" y="272" width="200" height="24" rx="6" fill="#93c5fd"/>
+  <rect x="144" y="312" width="144" height="24" rx="6" fill="#93c5fd"/>
+</svg>
