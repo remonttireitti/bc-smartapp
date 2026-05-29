@@ -4,7 +4,6 @@ import {
   partnershipPermsActingOnOwner,
 } from './management';
 import type { Partnership, Profile } from '../types';
-import { loadAccessibleReportCustomers } from './reportCustomerRegistry';
 
 export function canWriteCustomersModule(
   ownerCompanyId: string,
@@ -80,28 +79,22 @@ export type WarehouseCustomerPickerOption = {
   label: string;
 };
 
-/** Asiakkaat, joita käyttäjä näkee ja jotka kuuluvat valitun varaston yrityksen rekisteriin. */
+/** Asiakkaat valitun varaston yrityksen rekisteristä (RLS rajaa näkyvyyden). */
 export async function loadWarehouseCustomerPicker(
   supabase: import('@supabase/supabase-js').SupabaseClient,
-  myCompanyId: string,
   warehouseCompanyId: string,
-  partnerships: Partnership[],
 ): Promise<WarehouseCustomerPickerOption[]> {
-  const rows = await loadAccessibleReportCustomers(supabase, myCompanyId, partnerships);
-  const seen = new Set<string>();
-  const options: WarehouseCustomerPickerOption[] = [];
+  if (!warehouseCompanyId) return [];
 
-  for (const customer of rows) {
-    if (customer.owner_company_id !== warehouseCompanyId) continue;
-    if (seen.has(customer.id)) continue;
-    seen.add(customer.id);
+  const rows = await loadCustomersForOwner(supabase, warehouseCompanyId);
+  const options: WarehouseCustomerPickerOption[] = rows.map((customer) => {
     const addr = customerAddressLine(customer);
-    options.push({
+    return {
       id: customer.id,
       name: customer.name,
       label: addr !== '—' ? `${customer.name} · ${addr}` : customer.name,
-    });
-  }
+    };
+  });
 
   options.sort((a, b) => a.name.localeCompare(b.name, 'fi'));
   return options;

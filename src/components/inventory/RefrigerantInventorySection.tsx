@@ -24,7 +24,6 @@ import {
 import { loadWarehouseCustomerPicker, type WarehouseCustomerPickerOption } from '../../lib/customers';
 import { supabase } from '../../lib/supabase';
 import { refrigerantTypes } from '../../lib/huoltoRaportti/constants';
-import type { Partnership } from '../../types';
 import type {
   BottleSize,
   RefrigerantCylinder,
@@ -148,8 +147,6 @@ async function logMovement(params: {
 }
 
 type Props = {
-  myCompanyId: string;
-  partnerships: Partnership[];
   warehouseCompanyId: string;
   warehouseCompanyName: string;
   canEditWarehouse: boolean;
@@ -158,8 +155,6 @@ type Props = {
 };
 
 export default function RefrigerantInventorySection({
-  myCompanyId,
-  partnerships,
   warehouseCompanyId,
   warehouseCompanyName,
   canEditWarehouse,
@@ -247,11 +242,11 @@ export default function RefrigerantInventorySection({
   }
 
   async function loadCustomers() {
-    if (!myCompanyId || !warehouseCompanyId) {
+    if (!warehouseCompanyId) {
       setCustomers([]);
       return;
     }
-    setCustomers(await loadWarehouseCustomerPicker(supabase, myCompanyId, warehouseCompanyId, partnerships));
+    setCustomers(await loadWarehouseCustomerPicker(supabase, warehouseCompanyId));
   }
 
   async function reload() {
@@ -261,7 +256,6 @@ export default function RefrigerantInventorySection({
     try {
       await loadStock();
       if (view === 'history') await loadHistory();
-      if (canEditWarehouse) await loadCustomers();
     } catch (err) {
       onError(err instanceof Error ? err.message : 'Lataus epäonnistui');
     } finally {
@@ -271,7 +265,15 @@ export default function RefrigerantInventorySection({
 
   useEffect(() => {
     void reload();
-  }, [warehouseCompanyId, view, myCompanyId, partnerships]);
+  }, [warehouseCompanyId, view]);
+
+  useEffect(() => {
+    setCustomers([]);
+    setRetrieveBottleId(null);
+    if (warehouseCompanyId && canEditWarehouse) {
+      void loadCustomers();
+    }
+  }, [warehouseCompanyId, canEditWarehouse]);
 
   function openAdd() {
     setBottleForm(emptyBottleForm());
@@ -620,6 +622,7 @@ export default function RefrigerantInventorySection({
     return (
       <form className="inventory-fill-form panel" onSubmit={(e) => void submitRetrieve(e, cylinder)}>
         <h4>Asiakkaalta talteen — {formatBottleLabel(cylinder)}</h4>
+        <p className="muted">Asiakasrekisteri: {warehouseCompanyName}</p>
         <label>
           Asiakas *
           <select

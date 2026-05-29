@@ -331,8 +331,6 @@ export default function InventoryPage({ session }: Props) {
 
       {tab === 'refrigerant' ? (
         <RefrigerantInventorySection
-          myCompanyId={myCompanyId}
-          partnerships={partnerships}
           warehouseCompanyId={warehouseCompanyId}
           warehouseCompanyName={activeWarehouseLabel}
           canEditWarehouse={canEditWarehouse}
