@@ -9,7 +9,7 @@ export default defineConfig({
     inviteCompanyUserPlugin(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['icon.svg', 'pwa-180.png', 'pwa-192.png', 'pwa-512.png'],
+      includeAssets: ['icon.svg', 'pwa-180.png', 'pwa-192.png', 'pwa-512.png', 'refrigerant-bottle-default.png'],
       manifest: {
         name: 'BC Smartapp',
         short_name: 'BC Smartapp',

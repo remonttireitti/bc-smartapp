@@ -5525,14 +5525,14 @@ textarea {
 
 .inventory-photo-btn-bottle {
   color: var(--text-subtle);
-  background: linear-gradient(180deg, var(--bg-muted) 0%, var(--bg-inset) 100%);
+  background: #fff;
 }
 
-.inventory-bottle-icon {
-  width: 52%;
-  height: auto;
-  max-height: 88%;
-  color: #64748b;
+.inventory-photo-btn-bottle img,
+.inventory-bottle-default-img {
+  object-fit: contain;
+  padding: 0.35rem;
+  background: #fff;
 }
 
 .inventory-bottle-badge {
