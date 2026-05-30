@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
 import AppLayout from '../components/AppLayout';
 import IconButton from '../components/IconButton';
+import TempMonitoringPageHeader from '../components/tempMonitoring/TempMonitoringPageHeader';
 import { IconBack, IconPrint } from '../components/icons';
 import { loadTempMonitorReportPrintBundle } from '../lib/tempMonitorReportPrint';
 import type { TempMonitorReport } from '../lib/tempMonitoring';
@@ -71,31 +72,35 @@ export default function TempMonitorReportPrintPage({ session }: Props) {
   return (
     <AppLayout session={session}>
       <div className="temp-report-print-page">
-        <div className="page-header no-print">
-          <div>
-            <p className="breadcrumb">
-              <Link to="/lampotila">Lämpötilaseuranta</Link> / Tuloste
-            </p>
-            <h1>{report.title}</h1>
-            <p className="muted">{report.monitor_label ?? 'Lämpötilaraportti'}</p>
-          </div>
-          <div className="page-header-actions action-toolbar">
-            <IconButton
-              label="Takaisin laitteeseen"
-              href={`/lampotila/${report.device_id}`}
-              tooltipSide="bottom"
-            >
-              <IconBack />
-            </IconButton>
-            <IconButton
-              label="Tulosta tai tallenna PDF"
-              variant="primary"
-              tooltipSide="bottom"
-              onClick={() => window.print()}
-            >
-              <IconPrint />
-            </IconButton>
-          </div>
+        <div className="no-print">
+          <TempMonitoringPageHeader
+            crumbs={[
+              { href: '/', label: 'Etusivu' },
+              { href: '/lampotila', label: 'Lämpötilaseuranta' },
+              { label: 'Tuloste' },
+            ]}
+            title={report.title}
+            subtitle={report.monitor_label ?? 'Lämpötilaraportti'}
+            actions={
+              <>
+                <IconButton
+                  label="Takaisin laitteeseen"
+                  href={`/lampotila/${report.device_id}`}
+                  tooltipSide="bottom"
+                >
+                  <IconBack />
+                </IconButton>
+                <IconButton
+                  label="Tulosta tai tallenna PDF"
+                  variant="primary"
+                  tooltipSide="bottom"
+                  onClick={() => window.print()}
+                >
+                  <IconPrint />
+                </IconButton>
+              </>
+            }
+          />
         </div>
         <div className="temp-report-print-host" dangerouslySetInnerHTML={{ __html: html }} />
       </div>

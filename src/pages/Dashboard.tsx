@@ -14,14 +14,28 @@ import {
 } from '../lib/pendingWorkOrders';
 import { supabase } from '../lib/supabase';
 
-const MODULES = [
+type ModuleTile = {
+  title: string;
+  desc: string;
+  color: string;
+  href: string;
+  menuPath?: string;
+};
+
+const MODULES: ModuleTile[] = [
   { title: 'Työraportti', desc: 'Työtilaukset ja raportit', color: '#0ea5e9', href: '/tyoraportit' },
   { title: 'Laskutus', desc: 'Kumppani- ja asiakaslaskutus', color: '#6366f1', href: '/laskutus' },
   { title: 'Huoltoraportti', desc: 'Huoltopöytäkirjat ja laiterekisteri', color: '#22c55e', href: '/huoltoraportit' },
   { title: 'Asiakkaat', desc: 'Asiakkaat, laitteet, dokumentit', color: '#3b82f6', href: '/asiakkaat' },
   { title: 'Tarjouspyyntö', desc: 'Tarjoukset, laskelmat ja tulosteet', color: '#f97316', href: '/tarjouspyynnot' },
   { title: 'Varasto', desc: 'Materiaalit ja kylmäaine', color: '#a855f7', href: '/varasto' },
-  { title: 'Lämpötilaseuranta', desc: 'Siirrettävät mittauslaitteet', color: '#14b8a6', href: '/lampotila' },
+  {
+    title: 'Lämpötilaseuranta',
+    desc: 'Online-seuranta ja mittauslaitteet',
+    menuPath: 'Etusivu → Lämpötilaseuranta',
+    color: '#14b8a6',
+    href: '/lampotila',
+  },
   { title: 'Työkalut', desc: 'Työkaluinventaario', color: '#ec4899', href: '/tyokalut' },
   { title: 'Hallinta', desc: 'Omat tiedot, yritys ja kumppanuudet', color: '#8b5cf6', href: '/hallinta/omat' },
 ];
@@ -30,7 +44,7 @@ interface Props {
   session: Session;
 }
 
-const PORTAL_MODULES = [
+const PORTAL_MODULES: ModuleTile[] = [
   { title: 'Työtilaus', desc: 'Lähetä työtilaus palveluyritykselle', color: '#0ea5e9', href: '/tyoraportit/tilaus/uusi' },
   { title: 'Työraportit', desc: 'Omat tilaukset ja valmiit raportit', color: '#0284c7', href: '/tyoraportit' },
   { title: 'Huoltoraportit', desc: 'Valmiit huoltopöytäkirjat', color: '#22c55e', href: '/huoltoraportit' },
@@ -92,6 +106,7 @@ export default function Dashboard({ session }: Props) {
       <section className="grid">
         {visibleModules.map((m) => (
           <Link key={m.title} to={m.href} className="tile" style={{ background: m.color }}>
+            {m.menuPath ? <span className="tile-menu-path">{m.menuPath}</span> : null}
             <strong>{m.title}</strong>
             <span>{m.desc}</span>
           </Link>

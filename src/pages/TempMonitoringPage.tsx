@@ -1,15 +1,13 @@
-import { FormEvent, useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import AppLayout from '../components/AppLayout';
-import IconButton from '../components/IconButton';
+import CollapsibleSection from '../components/CollapsibleSection';
 import TempDeviceDeleteDialog from '../components/tempMonitoring/TempDeviceDeleteDialog';
-import { IconTrash } from '../components/icons';
+import TempDeviceListCard from '../components/tempMonitoring/TempDeviceListCard';
+import TempMonitoringPageHeader from '../components/tempMonitoring/TempMonitoringPageHeader';
 import { useProfile } from '../hooks/useProfile';
 import {
   TEMP_DEVICE_SELECT,
-  formatRelativeTime,
-  formatTempC,
   generateDeviceKey,
   ingestFunctionUrl,
   isTempDeviceOnline,
@@ -33,6 +31,12 @@ export default function TempMonitoringPage({ session }: Props) {
   const [createdKey, setCreatedKey] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<TempDevice | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [lastRefreshAt, setLastRefreshAt] = useState<Date | null>(null);
+
+  const onlineCount = useMemo(
+    () => devices.filter((device) => isTempDeviceOnline(device.last_seen_at)).length,
+    [devices],
+  );
 
   async function load() {
     if (!companyId) return;
@@ -44,6 +48,7 @@ export default function TempMonitoringPage({ session }: Props) {
       .eq('company_id', companyId)
       .order('name');
     setDevices((data as TempDevice[] | null) ?? []);
+    setLastRefreshAt(new Date());
     setLoading(false);
     if (loadError) setError(loadError.message);
   }
@@ -110,96 +115,109 @@ export default function TempMonitoringPage({ session }: Props) {
 
   return (
     <AppLayout session={session}>
-      <p className="subtitle">Lämpötilaseuranta — siirrettävät mittauslaitteet</p>
-
-      {error && <p className="form-error">{error}</p>}
-      {message && <p className="form-success">{message}</p>}
-
-      {createdKey && (
-        <section className="panel temp-key-panel">
-          <h2>Laiteavain (näytetään kerran)</h2>
-          <p className="muted">
-            12-numeroinen avain — syötä laitteen WiFi-valikossa kohdassa Pilviavain (numeronäppäimistö).
-          </p>
-          <code className="temp-device-key">{createdKey}</code>
-          <div className="form-actions">
-            <button
-              type="button"
-              className="btn secondary"
-              onClick={() => void navigator.clipboard.writeText(createdKey)}
-            >
-              Kopioi avain
+      <div className="temp-monitoring-page page-stack">
+        <TempMonitoringPageHeader
+          sticky
+          crumbs={[
+            { href: '/', label: 'Etusivu' },
+            { label: 'Lämpötilaseuranta' },
+          ]}
+          title="Lämpötilaseuranta"
+          subtitle={
+            loading
+              ? 'Ladataan laitteita…'
+              : `${onlineCount}/${devices.length} online · päivitetty ${lastRefreshAt ? lastRefreshAt.toLocaleTimeString('fi-FI', { hour: '2-digit', minute: '2-digit' }) : '—'}`
+          }
+          actions={
+            <button type="button" className="btn btn-secondary" disabled={loading || busy} onClick={() => void load()}>
+              Päivitä
             </button>
+          }
+        />
+
+        {error && <p className="form-error">{error}</p>}
+        {message && <p className="form-success">{message}</p>}
+
+        {createdKey && (
+          <section className="panel temp-key-panel">
+            <h2>Laiteavain (näytetään kerran)</h2>
+            <p className="muted">
+              12-numeroinen avain — syötä laitteen WiFi-valikossa kohdassa Pilviavain (numeronäppäimistö).
+            </p>
+            <code className="temp-device-key">{createdKey}</code>
+            <div className="form-actions">
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => void navigator.clipboard.writeText(createdKey)}
+              >
+                Kopioi avain
+              </button>
+            </div>
+          </section>
+        )}
+
+        <section className="panel temp-devices-panel">
+          <div className="temp-panel-head">
+            <h2>Online-seuranta</h2>
+            {!loading && devices.length > 0 && (
+              <span className="temp-devices-count muted">{devices.length} laitetta</span>
+            )}
           </div>
+          {loading ? (
+            <p className="muted">Ladataan…</p>
+          ) : devices.length === 0 ? (
+            <p className="muted">Ei laitteita. Lisää ensimmäinen laite alla.</p>
+          ) : (
+            <ul className="temp-device-list">
+              {devices.map((device) => (
+                <TempDeviceListCard
+                  key={device.id}
+                  device={device}
+                  to={`/lampotila/${device.id}`}
+                  deleteDisabled={busy}
+                  onDelete={() => {
+                    setDeleteError(null);
+                    setDeleteTarget(device);
+                  }}
+                />
+              ))}
+            </ul>
+          )}
         </section>
-      )}
 
-      <section className="panel">
-        <h2>Lisää laite</h2>
-        <form className="form-grid" onSubmit={(e) => void addDevice(e)}>
-          <label>
-            Nimi
-            <input
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-              placeholder="Esim. JC3248 #1"
-              required
-            />
-          </label>
-          <div className="form-actions">
-            <button type="submit" className="btn primary" disabled={busy}>
-              {busy ? 'Tallennetaan…' : 'Luo laite'}
-            </button>
-          </div>
-        </form>
+        <CollapsibleSection
+          title="Lisää laite"
+          defaultOpen={devices.length === 0}
+          variant="plain"
+          className="panel temp-admin-panel"
+        >
+          <form className="form-grid" onSubmit={(e) => void addDevice(e)}>
+            <label>
+              Nimi
+              <input
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                placeholder="Esim. JC3248 #1"
+                required
+              />
+            </label>
+            <div className="form-actions">
+              <button type="submit" className="btn btn-primary" disabled={busy}>
+                {busy ? 'Tallennetaan…' : 'Luo laite'}
+              </button>
+            </div>
+          </form>
+        </CollapsibleSection>
+
         {ingestUrl && (
-          <p className="muted temp-ingest-url">
-            Laitteen lähetysosoite: <code>{ingestUrl}</code>
-          </p>
+          <CollapsibleSection title="Tekninen asetus" defaultOpen={false} variant="plain" className="panel temp-admin-panel">
+            <p className="muted temp-ingest-url">
+              Laitteen lähetysosoite: <code>{ingestUrl}</code>
+            </p>
+          </CollapsibleSection>
         )}
-      </section>
-
-      <section className="panel">
-        <h2>Laitteet</h2>
-        {loading ? (
-          <p className="muted">Ladataan…</p>
-        ) : devices.length === 0 ? (
-          <p className="muted">Ei laitteita. Luo ensimmäinen laite yllä.</p>
-        ) : (
-          <ul className="temp-device-list">
-            {devices.map((device) => {
-              const online = isTempDeviceOnline(device.last_seen_at);
-              return (
-                <li key={device.id} className="temp-device-list-item">
-                  <Link to={`/lampotila/${device.id}`} className="temp-device-card">
-                    <div className="temp-device-card-head">
-                      <strong>{device.name}</strong>
-                      <span className={`temp-status ${online ? 'online' : 'offline'}`}>
-                        {online ? 'Online' : 'Offline'}
-                      </span>
-                    </div>
-                    <div className="temp-device-card-meta">
-                      <span>{formatTempC(device.last_temp_c)}</span>
-                      <span>{formatRelativeTime(device.last_seen_at)}</span>
-                    </div>
-                  </Link>
-                  <IconButton
-                    label="Poista laite"
-                    variant="danger"
-                    disabled={busy}
-                    onClick={() => {
-                      setDeleteError(null);
-                      setDeleteTarget(device);
-                    }}
-                  >
-                    <IconTrash />
-                  </IconButton>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </section>
+      </div>
 
       <TempDeviceDeleteDialog
         open={deleteTarget != null}

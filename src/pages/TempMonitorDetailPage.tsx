@@ -2,7 +2,9 @@ import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
 import AppLayout from '../components/AppLayout';
+import CollapsibleSection from '../components/CollapsibleSection';
 import IconButton from '../components/IconButton';
+import TempMonitoringPageHeader from '../components/tempMonitoring/TempMonitoringPageHeader';
 import TempMonitorReportDialog, {
   buildReportPayloadFromForm,
   emptyReportForm,
@@ -64,6 +66,7 @@ export default function TempMonitorDetailPage({ session }: Props) {
   const [reportError, setReportError] = useState<string | null>(null);
   const [reportForm, setReportForm] = useState<TempReportFormState | null>(null);
   const [savedReports, setSavedReports] = useState<TempMonitorReport[]>([]);
+  const [lastRefreshAt, setLastRefreshAt] = useState<Date | null>(null);
 
   const [sessionForm, setSessionForm] = useState({
     customer_id: '',
@@ -147,6 +150,7 @@ export default function TempMonitorDetailPage({ session }: Props) {
     setReadings((readingRows as TempReading[] | null) ?? []);
     setSavedReports((reportRows as TempMonitorReport[] | null) ?? []);
     setCustomers(customerRows);
+    setLastRefreshAt(new Date());
     setLoading(false);
   }
 
@@ -320,85 +324,95 @@ export default function TempMonitorDetailPage({ session }: Props) {
   }
 
   const online = isTempDeviceOnline(device.last_seen_at);
+  const heroClass =
+    activeSession && compliance !== 'unknown'
+      ? `temp-live-hero--${compliance}`
+      : online
+        ? 'temp-live-hero--online'
+        : 'temp-live-hero--offline';
 
   return (
     <AppLayout session={session}>
-      <p className="subtitle">
-        <Link to="/lampotila">Lämpötilaseuranta</Link> / {device.name}
-      </p>
+      <div className="temp-monitoring-page temp-monitoring-detail page-stack">
+        <TempMonitoringPageHeader
+          sticky
+          crumbs={[
+            { href: '/', label: 'Etusivu' },
+            { href: '/lampotila', label: 'Lämpötilaseuranta' },
+            { label: device.name },
+          ]}
+          title={device.name}
+          subtitle={
+            lastRefreshAt
+              ? `Päivitetty ${lastRefreshAt.toLocaleTimeString('fi-FI', { hour: '2-digit', minute: '2-digit' })}`
+              : undefined
+          }
+          actions={
+            <button type="button" className="btn btn-secondary" disabled={loading || busy} onClick={() => void load()}>
+              Päivitä
+            </button>
+          }
+        />
 
-      {error && <p className="form-error">{error}</p>}
-      {message && <p className="form-success">{message}</p>}
+        {error && <p className="form-error">{error}</p>}
+        {message && <p className="form-success">{message}</p>}
 
-      <section className="panel temp-device-summary">
-        <div className="temp-device-summary-head">
-          <h1>{device.name}</h1>
-          <div className="temp-device-summary-actions">
-            <div className="temp-device-summary-badges">
-              <span className={`temp-status ${online ? 'online' : 'offline'}`}>
-                {online ? 'Online' : 'Offline'}
+        <section className={`temp-live-hero panel ${heroClass}`}>
+          <div className="temp-live-hero-main">
+            <p className="temp-live-hero-label">{activeSession?.monitor_label ?? 'Lämpötila nyt'}</p>
+            <p className="temp-live-hero-temp">{formatTempC(device.last_temp_c)}</p>
+          </div>
+          <div className="temp-live-hero-badges">
+            <span className={`temp-status ${online ? 'online' : 'offline'}`}>
+              <span className="temp-status-dot" aria-hidden="true" />
+              {online ? 'Online' : 'Offline'}
+            </span>
+            {activeSession && (
+              <span className={`temp-compliance temp-compliance--${compliance}`}>
+                {complianceLabel(compliance)}
               </span>
+            )}
+          </div>
+          <dl className="temp-live-hero-grid">
+            <div>
+              <dt>Viimeisin yhteys</dt>
+              <dd>{formatRelativeTime(device.last_seen_at)}</dd>
+            </div>
+            <div>
+              <dt>Missä</dt>
+              <dd>{activeSession?.site_label ?? '—'}</dd>
+            </div>
+            <div>
+              <dt>Asiakas</dt>
+              <dd>{activeSession?.customer?.name ?? '—'}</dd>
+            </div>
+            <div>
+              <dt>Tavoitealue</dt>
+              <dd>
+                {activeLimits ? `${activeLimits.targetMin}–${activeLimits.targetMax} °C` : '—'}
+              </dd>
+            </div>
+          </dl>
+        </section>
+
+        <section className="panel temp-trend-panel">
+          <div className="temp-panel-head">
+            <h2>Trendi</h2>
+            <div className="temp-panel-head-actions">
+              {sessions.length > 0 && (
+                <button type="button" className="btn btn-secondary" disabled={busy} onClick={openReportDialog}>
+                  Raportti
+                </button>
+              )}
               {activeSession && (
-                <span className={`temp-compliance temp-compliance--${compliance}`}>
-                  {complianceLabel(compliance)}
-                </span>
+                <IconButton label="Mittauksen asetukset" onClick={openSettings}>
+                  <SettingsIcon />
+                </IconButton>
               )}
             </div>
-            <button
-              type="button"
-              className="btn btn-danger"
-              disabled={busy}
-              onClick={() => {
-                setDeleteError(null);
-                setDeleteOpen(true);
-              }}
-            >
-              Poista laite
-            </button>
           </div>
-        </div>
-        <dl className="temp-summary-grid">
-          <div>
-            <dt>Lämpötila</dt>
-            <dd>{formatTempC(device.last_temp_c)}</dd>
-          </div>
-          <div>
-            <dt>Viimeisin yhteys</dt>
-            <dd>{formatRelativeTime(device.last_seen_at)}</dd>
-          </div>
-          <div>
-            <dt>Seurattava</dt>
-            <dd>{activeSession?.monitor_label ?? '—'}</dd>
-          </div>
-          <div>
-            <dt>Tavoitealue</dt>
-            <dd>
-              {activeLimits
-                ? `${activeLimits.targetMin}–${activeLimits.targetMax} °C`
-                : '—'}
-            </dd>
-          </div>
-        </dl>
-      </section>
-
-      <section className="panel">
-        <div className="temp-panel-head">
-          <h2>Trendi</h2>
-          <div className="temp-panel-head-actions">
-            {sessions.length > 0 && (
-              <button type="button" className="btn btn-secondary" disabled={busy} onClick={openReportDialog}>
-                Raportti / tuloste
-              </button>
-            )}
-            {activeSession && (
-              <IconButton label="Mittauksen asetukset" onClick={openSettings}>
-                <SettingsIcon />
-              </IconButton>
-            )}
-          </div>
-        </div>
-        <TempTrendChart readings={chartReadings} limits={activeLimits} />
-      </section>
+          <TempTrendChart readings={chartReadings} limits={activeLimits} height={240} />
+        </section>
 
       <section className="panel">
         <div className="temp-panel-head">
@@ -424,7 +438,7 @@ export default function TempMonitorDetailPage({ session }: Props) {
               </p>
             )}
             {activeSession.notes && <p>{activeSession.notes}</p>}
-            <button type="button" className="btn secondary" disabled={busy} onClick={() => void endSession()}>
+            <button type="button" className="btn btn-primary btn-block" disabled={busy} onClick={() => void endSession()}>
               Lopeta mittaus
             </button>
           </div>
@@ -474,8 +488,12 @@ export default function TempMonitorDetailPage({ session }: Props) {
         )}
       </section>
 
-      <section className="panel">
-        <h2>Tallennetut raportit</h2>
+      <CollapsibleSection
+        title={`Tallennetut raportit (${savedReports.length})`}
+        defaultOpen={savedReports.length > 0}
+        variant="plain"
+        className="panel temp-admin-panel"
+      >
         {savedReports.length === 0 ? (
           <p className="muted">Ei tallennettuja raportteja. Luo raportti trendin yläpuolelta.</p>
         ) : (
@@ -498,10 +516,14 @@ export default function TempMonitorDetailPage({ session }: Props) {
             ))}
           </ul>
         )}
-      </section>
+      </CollapsibleSection>
 
-      <section className="panel">
-        <h2>Aiemmat jaksot</h2>
+      <CollapsibleSection
+        title={`Aiemmat jaksot (${sessions.filter((s) => s.ended_at).length})`}
+        defaultOpen={false}
+        variant="plain"
+        className="panel temp-admin-panel"
+      >
         {sessions.filter((s) => s.ended_at).length === 0 ? (
           <p className="muted">Ei päättyneitä mittausjaksoja.</p>
         ) : (
@@ -522,7 +544,22 @@ export default function TempMonitorDetailPage({ session }: Props) {
               ))}
           </ul>
         )}
-      </section>
+      </CollapsibleSection>
+
+      <CollapsibleSection title="Laitehallinta" defaultOpen={false} variant="plain" className="panel temp-admin-panel">
+        <button
+          type="button"
+          className="btn btn-danger btn-block"
+          disabled={busy}
+          onClick={() => {
+            setDeleteError(null);
+            setDeleteOpen(true);
+          }}
+        >
+          Poista laite
+        </button>
+      </CollapsibleSection>
+      </div>
 
       <TempSessionSettingsDialog
         open={settingsOpen}
