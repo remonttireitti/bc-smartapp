@@ -239,6 +239,33 @@ export default function CompanySettingsPage() {
 
       <DeviceRegistrySettingsFields settings={settings} onChange={setSettings} />
 
+      <section className="form-section">
+        <h2>Ajomatkat</h2>
+        <p className="muted">
+          Km-korvauksen hintaa käytetään työkirjauksen automaattiseen km-korvausriviin ajomatkojen yhteiskilometrien
+          perusteella.
+        </p>
+        <div className="line-form-grid">
+          <label>
+            Km-korvauksen hinta (€/km)
+            <input
+              type="number"
+              step="0.01"
+              min="0"
+              value={settings.trip_km_rate ?? ''}
+              onChange={(e) => {
+                const raw = e.target.value.trim();
+                setSettings((current) => ({
+                  ...current,
+                  trip_km_rate: raw ? Number(raw) : undefined,
+                }));
+              }}
+              placeholder="Esim. 0,53"
+            />
+          </label>
+        </div>
+      </section>
+
       {profile.company_id && <TripDestinationsSettingsSection companyId={profile.company_id} />}
 
       <section className="form-section">

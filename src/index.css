@@ -5734,9 +5734,84 @@ textarea {
   align-self: end;
 }
 
-.trip-destination-quickpick {
-  margin-top: 0.35rem;
+.trip-leg-row-return {
+  background: var(--bg-muted);
+  border-radius: 8px;
+  padding-left: 0.35rem;
+  padding-right: 0.35rem;
+}
+
+.trip-destination-field {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.trip-destination-field > label {
+  font-size: 0.88rem;
+  color: var(--text-muted);
+}
+
+.trip-destination-input {
   width: 100%;
+}
+
+.trip-destination-suggestions {
+  position: absolute;
+  top: calc(100% + 0.2rem);
+  left: 0;
+  right: 0;
+  z-index: 30;
+  margin: 0;
+  padding: 0.25rem 0;
+  list-style: none;
+  max-height: 14rem;
+  overflow: auto;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: var(--shadow-md);
+}
+
+.trip-destination-suggestions li button {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  padding: 0.45rem 0.65rem;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.trip-destination-suggestions li button:hover,
+.trip-destination-suggestions li button.is-active {
+  background: var(--bg-muted);
+}
+
+.trip-destination-suggestion-label {
+  font-size: 0.92rem;
+  color: var(--text);
+}
+
+.trip-destination-suggestion-meta {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.expense-row-auto {
+  background: var(--bg-muted);
+  border-radius: 8px;
+  padding: 0.35rem;
+}
+
+.expense-auto-note {
+  margin: 0;
+  grid-column: 1 / -1;
+  font-size: 0.85rem;
 }
 
 .trip-departure-source-fieldset {

@@ -72,33 +72,121 @@ export function resolveWorkReportSiteLabel(
 }
 
 export function buildDefaultTripLegs(departureLabel: string, siteLabel: string): TripLegDraft[] {
-  return [
-    {
-      key: crypto.randomUUID(),
-      from_label: departureLabel,
-      to_label: siteLabel,
-      distance_km: '',
-      bill_to_customer: true,
-    },
-  ];
+  return normalizeTripLegDrafts(
+    [
+      {
+        key: crypto.randomUUID(),
+        from_label: departureLabel,
+        to_label: siteLabel,
+        distance_km: '',
+        bill_to_customer: true,
+      },
+    ],
+    departureLabel,
+  );
 }
 
-export function createReturnTripLeg(leg: TripLegDraft): TripLegDraft {
-  return {
-    key: crypto.randomUUID(),
-    from_label: leg.to_label,
-    to_label: leg.from_label,
-    distance_km: '',
-    bill_to_customer: leg.bill_to_customer,
-  };
+function labelsMatch(a: string, b: string): boolean {
+  return a.trim().toLowerCase() === b.trim().toLowerCase();
 }
 
-export function appendReturnTripLeg(drafts: TripLegDraft[], index: number): TripLegDraft[] {
-  const leg = drafts[index];
-  if (!leg) return drafts;
-  const next = [...drafts];
-  next.splice(index + 1, 0, createReturnTripLeg(leg));
+export function isReturnToDepartureLeg(leg: TripLegDraft, departureLabel: string): boolean {
+  return labelsMatch(leg.to_label, departureLabel);
+}
+
+export function findReturnLegIndex(drafts: TripLegDraft[], departureLabel: string): number {
+  if (drafts.length <= 1) return -1;
+  const lastIndex = drafts.length - 1;
+  return isReturnToDepartureLeg(drafts[lastIndex], departureLabel) ? lastIndex : -1;
+}
+
+export function normalizeTripLegDrafts(drafts: TripLegDraft[], departureLabel: string): TripLegDraft[] {
+  if (drafts.length === 0) return drafts;
+
+  const next = drafts.map((row) => ({ ...row }));
+  next[0] = { ...next[0], from_label: departureLabel };
+
+  const returnIndex = findReturnLegIndex(next, departureLabel);
+  if (returnIndex > 0) {
+    const previous = next[returnIndex - 1];
+    next[returnIndex] = {
+      ...next[returnIndex],
+      to_label: departureLabel,
+      from_label: previous?.to_label?.trim() ? previous.to_label : next[returnIndex].from_label,
+    };
+  }
+
   return next;
+}
+
+export function updateTripLegDraft(
+  drafts: TripLegDraft[],
+  index: number,
+  patch: Partial<TripLegDraft>,
+  departureLabel: string,
+): TripLegDraft[] {
+  const next = drafts.map((row, rowIndex) => (rowIndex === index ? { ...row, ...patch } : row));
+  return normalizeTripLegDrafts(next, departureLabel);
+}
+
+export function appendReturnTripLeg(
+  drafts: TripLegDraft[],
+  sourceIndex: number,
+  departureLabel: string,
+): { drafts: TripLegDraft[]; newLegIndex: number } {
+  const sourceLeg = drafts[sourceIndex];
+  if (!sourceLeg?.to_label.trim()) {
+    return { drafts, newLegIndex: -1 };
+  }
+
+  let next = [...drafts];
+  const existingReturnIndex = findReturnLegIndex(next, departureLabel);
+  if (existingReturnIndex >= 0) {
+    next = next.filter((_, index) => index !== existingReturnIndex);
+  }
+
+  const adjustedSourceIndex = next.findIndex((row) => row.key === sourceLeg.key);
+  if (adjustedSourceIndex < 0) {
+    return { drafts, newLegIndex: -1 };
+  }
+
+  const returnLeg: TripLegDraft = {
+    key: crypto.randomUUID(),
+    from_label: next[adjustedSourceIndex].to_label.trim(),
+    to_label: departureLabel,
+    distance_km: '',
+    bill_to_customer: next[adjustedSourceIndex].bill_to_customer,
+  };
+
+  next.push(returnLeg);
+  next = normalizeTripLegDrafts(next, departureLabel);
+  return { drafts: next, newLegIndex: next.length - 1 };
+}
+
+export function insertIntermediateTripLeg(drafts: TripLegDraft[], departureLabel: string): TripLegDraft[] {
+  const returnIndex = findReturnLegIndex(drafts, departureLabel);
+  const insertAt = returnIndex >= 0 ? returnIndex : drafts.length;
+  const previous = insertAt > 0 ? drafts[insertAt - 1] : null;
+
+  const newLeg: TripLegDraft = {
+    key: crypto.randomUUID(),
+    from_label: previous?.to_label?.trim() || departureLabel,
+    to_label: '',
+    distance_km: '',
+    bill_to_customer: true,
+  };
+
+  const next = [...drafts];
+  next.splice(insertAt, 0, newLeg);
+  return normalizeTripLegDrafts(next, departureLabel);
+}
+
+export function removeTripLegAt(drafts: TripLegDraft[], index: number, departureLabel: string): TripLegDraft[] {
+  if (index === 0) return drafts;
+  return normalizeTripLegDrafts(
+    drafts.filter((_, rowIndex) => rowIndex !== index),
+    departureLabel,
+  );
 }
 
 export function sumTripLegDraftKm(drafts: TripLegDraft[]): number {

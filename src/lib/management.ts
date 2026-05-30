@@ -72,6 +72,8 @@ export type CompanySettings = {
   website?: string;
   /** Tarjousten allekirjoittajan nimi (esim. Lämpökatsastus-tuloste). */
   quote_signatory_name?: string;
+  /** Oletushinta km-korvaukselle työkirjauksissa (€/km). */
+  trip_km_rate?: number;
   billing?: {
     business_id?: string;
     vat_id?: string;
@@ -269,6 +271,7 @@ export function emptyCompanySettings(): CompanySettings {
     phone: '',
     email: '',
     website: '',
+    trip_km_rate: undefined,
     billing: {
       business_id: '',
       vat_id: '',
@@ -291,6 +294,12 @@ export function emptyCompanySettings(): CompanySettings {
   };
 }
 
+function parseOptionalPositiveNumber(value: unknown): number | undefined {
+  const parsed = typeof value === 'number' ? value : Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) return undefined;
+  return parsed;
+}
+
 export function parseCompanySettings(raw: unknown): CompanySettings {
   const base = emptyCompanySettings();
   if (!raw || typeof raw !== 'object') return base;
@@ -298,6 +307,7 @@ export function parseCompanySettings(raw: unknown): CompanySettings {
   return {
     ...base,
     ...s,
+    trip_km_rate: parseOptionalPositiveNumber(s.trip_km_rate),
     billing: {
       ...base.billing,
       ...(s.billing ?? {}),

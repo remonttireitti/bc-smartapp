@@ -88,8 +88,14 @@ import {
 } from '../lib/workReportBilling';
 import { loadTripDestinationOptions, type TripDestinationOption } from '../lib/tripDestinations';
 import {
+  isAutoTripKmExpense,
+  parseTripKmRate,
+  syncTripKmExpenseDrafts,
+} from '../lib/tripKmExpense';
+import {
   buildDefaultTripLegs,
   formatTripLegSummary,
+  normalizeTripLegDrafts,
   resolveUserDepartureLabel,
   resolveWorkReportSiteLabel,
   saveTripLegs,
@@ -539,14 +545,17 @@ function DailyLogFields({
           </button>
         </div>
         {expenseDrafts.length === 0 ? (
-          <p className="muted">Esim. pysäköinti, km-korvaus, varaosat…</p>
+          <p className="muted">Esim. pysäköinti, km-korvaus, varaosat… Km-korvausrivi syntyy automaattisesti ajomatkoista, jos yrityksellä on €/km-hinta.</p>
         ) : (
-          expenseDrafts.map((row, index) => (
-            <div key={row.key} className="expense-row">
+          expenseDrafts.map((row, index) => {
+            const autoTripKm = isAutoTripKmExpense(row);
+            return (
+            <div key={row.key} className={`expense-row${autoTripKm ? ' expense-row-auto' : ''}`}>
               <label>
                 Tyyppi
                 <select
                   value={row.expense_type}
+                  disabled={autoTripKm}
                   onChange={(e) =>
                     setExpenseDrafts(
                       expenseDrafts.map((r, i) =>
@@ -566,6 +575,8 @@ function DailyLogFields({
                 Kuvaus
                 <input
                   value={row.description}
+                  readOnly={autoTripKm}
+                  disabled={autoTripKm}
                   onChange={(e) =>
                     setExpenseDrafts(
                       expenseDrafts.map((r, i) =>
@@ -583,6 +594,8 @@ function DailyLogFields({
                   step="0.001"
                   min="0"
                   value={row.qty}
+                  readOnly={autoTripKm}
+                  disabled={autoTripKm}
                   onChange={(e) =>
                     setExpenseDrafts(
                       expenseDrafts.map((r, i) => (i === index ? { ...r, qty: e.target.value } : r)),
@@ -597,6 +610,8 @@ function DailyLogFields({
                   step="0.01"
                   min="0"
                   value={row.unit_price}
+                  readOnly={autoTripKm}
+                  disabled={autoTripKm}
                   onChange={(e) =>
                     setExpenseDrafts(
                       expenseDrafts.map((r, i) =>
@@ -606,6 +621,9 @@ function DailyLogFields({
                   }
                 />
               </label>
+              {autoTripKm && (
+                <p className="muted expense-auto-note">Päivittyy automaattisesti ajomatkoista</p>
+              )}
               {showCustomerExpenseFields && (
                 <>
                   <label>
@@ -615,6 +633,8 @@ function DailyLogFields({
                       step="0.01"
                       min="0"
                       value={row.customer_unit_price}
+                      readOnly={autoTripKm}
+                      disabled={autoTripKm}
                       onChange={(e) =>
                         setExpenseDrafts(
                           expenseDrafts.map((r, i) =>
@@ -629,6 +649,7 @@ function DailyLogFields({
                     <input
                       type="checkbox"
                       checked={row.bill_to_customer}
+                      disabled={autoTripKm}
                       onChange={(e) =>
                         setExpenseDrafts(
                           expenseDrafts.map((r, i) =>
@@ -641,15 +662,18 @@ function DailyLogFields({
                   </label>
                 </>
               )}
-              <button
-                type="button"
-                className="btn btn-secondary btn-sm"
-                onClick={() => setExpenseDrafts(expenseDrafts.filter((_, i) => i !== index))}
-              >
-                Poista rivi
-              </button>
+              {!autoTripKm && (
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => setExpenseDrafts(expenseDrafts.filter((_, i) => i !== index))}
+                >
+                  Poista rivi
+                </button>
+              )}
             </div>
-          ))
+            );
+          })
         )}
       </div>
     </>
@@ -717,6 +741,8 @@ export default function WorkReportDetailPage({ session }: Props) {
   const [expenseDrafts, setExpenseDrafts] = useState<ExpenseDraft[]>([]);
   const [tripDrafts, setTripDrafts] = useState<TripLegDraft[]>([]);
   const [tripDestinationOptions, setTripDestinationOptions] = useState<TripDestinationOption[]>([]);
+  const [tripDepartureLabel, setTripDepartureLabel] = useState('');
+  const [tripKmRate, setTripKmRate] = useState<number | null>(null);
   const [refrigerantDrafts, setRefrigerantDrafts] = useState<RefrigerantLineDraft[]>([]);
   const [refrigerantCylinders, setRefrigerantCylinders] = useState<RefrigerantCylinder[]>([]);
   const [refrigerantCompanyUsers, setRefrigerantCompanyUsers] = useState<
@@ -749,6 +775,11 @@ export default function WorkReportDetailPage({ session }: Props) {
     setImagePreviewUrls(urls);
     return () => urls.forEach((url) => URL.revokeObjectURL(url));
   }, [pendingImages]);
+
+  useEffect(() => {
+    if (!logDialogOpen) return;
+    setExpenseDrafts((current) => syncTripKmExpenseDrafts(current, tripDrafts, tripKmRate));
+  }, [logDialogOpen, tripDrafts, tripKmRate]);
 
   useEffect(() => {
     if (id && profile?.company_id) void load(id);
@@ -1422,6 +1453,31 @@ export default function WorkReportDetailPage({ session }: Props) {
     await load(report.id);
   }
 
+  async function resolveTripDepartureLabel(ownerCompanyId: string) {
+    const { data: companyRow } = await supabase
+      .from('companies')
+      .select('name, settings')
+      .eq('id', ownerCompanyId)
+      .maybeSingle();
+    const companySettings = parseCompanySettings((companyRow as { settings: unknown } | null)?.settings);
+    return resolveUserDepartureLabel({
+      trip_departure_source: profile?.trip_departure_source,
+      workplace_address: profile?.workplace_address,
+      home_address: profile?.home_address,
+      companySettings,
+      companyName: (companyRow as { name: string | null } | null)?.name,
+    });
+  }
+
+  async function loadTripKmRateForReport(activeReport: WorkReport) {
+    const { data: companyRow } = await supabase
+      .from('companies')
+      .select('settings')
+      .eq('id', activeReport.created_by_company_id)
+      .maybeSingle();
+    return parseTripKmRate(parseCompanySettings((companyRow as { settings: unknown } | null)?.settings));
+  }
+
   async function loadTripDestinationOptionsForDialog(activeReport: WorkReport) {
     if (!profile?.company_id) {
       setTripDestinationOptions([]);
@@ -1459,25 +1515,20 @@ export default function WorkReportDetailPage({ session }: Props) {
     void loadRefrigerantContext();
     if (report) {
       void (async () => {
-        const { data: companyRow } = await supabase
-          .from('companies')
-          .select('name, settings')
-          .eq('id', report.owner_company_id)
-          .maybeSingle();
-        const companySettings = parseCompanySettings((companyRow as { settings: unknown } | null)?.settings);
-        const departureLabel = resolveUserDepartureLabel({
-          trip_departure_source: profile?.trip_departure_source,
-          workplace_address: profile?.workplace_address,
-          home_address: profile?.home_address,
-          companySettings,
-          companyName: (companyRow as { name: string | null } | null)?.name,
-        });
+        const [departureLabel, kmRate] = await Promise.all([
+          resolveTripDepartureLabel(report.owner_company_id),
+          loadTripKmRateForReport(report),
+        ]);
+        setTripDepartureLabel(departureLabel);
+        setTripKmRate(kmRate);
         await loadTripDestinationOptionsForDialog(report);
         setTripDrafts(buildDefaultTripLegs(departureLabel, resolveWorkReportSiteLabel(report)));
       })();
     } else {
       setTripDrafts([]);
       setTripDestinationOptions([]);
+      setTripDepartureLabel('');
+      setTripKmRate(null);
     }
   }
 
@@ -1487,12 +1538,32 @@ export default function WorkReportDetailPage({ session }: Props) {
     setEditingLog(log);
     setLogForm(logToForm(log));
     setExpenseDrafts(expensesToDrafts(log.expense_lines));
-    setTripDrafts(tripLegsToDrafts(log.trip_legs));
     setRefrigerantDrafts(drafts);
     setPendingImages([]);
     setError(null);
     setLogDialogOpen(true);
-    if (report) void loadTripDestinationOptionsForDialog(report);
+    if (report) {
+      void (async () => {
+        const [departureLabel, kmRate] = await Promise.all([
+          resolveTripDepartureLabel(report.owner_company_id),
+          loadTripKmRateForReport(report),
+        ]);
+        setTripDepartureLabel(departureLabel);
+        setTripKmRate(kmRate);
+        await loadTripDestinationOptionsForDialog(report);
+        setTripDrafts(normalizeTripLegDrafts(tripLegsToDrafts(log.trip_legs), departureLabel));
+        setExpenseDrafts((current) =>
+          syncTripKmExpenseDrafts(
+            current,
+            normalizeTripLegDrafts(tripLegsToDrafts(log.trip_legs), departureLabel),
+            kmRate,
+          ),
+        );
+      })();
+    } else {
+      setTripDepartureLabel('');
+      setTripKmRate(null);
+    }
     void loadRefrigerantContext(drafts.map((d) => d.cylinder_id).filter(Boolean));
   }
 
@@ -1505,6 +1576,8 @@ export default function WorkReportDetailPage({ session }: Props) {
     setExpenseDrafts([]);
     setTripDrafts([]);
     setTripDestinationOptions([]);
+    setTripDepartureLabel('');
+    setTripKmRate(null);
     setRefrigerantDrafts([]);
     setPendingImages([]);
     setError(null);
@@ -2505,6 +2578,14 @@ export default function WorkReportDetailPage({ session }: Props) {
         onClose={closeLogDialog}
         onSubmit={(event) => void (editingLogId ? saveDailyLogEdit(event) : addDailyLog(event))}
       >
+        <DailyLogTripLegFields
+          drafts={tripDrafts}
+          setDrafts={setTripDrafts}
+          departureLabel={tripDepartureLabel}
+          showCustomerFields={showCustomerMoney}
+          destinationOptions={tripDestinationOptions}
+          tripKmRate={tripKmRate}
+        />
         <DailyLogFields
           form={logForm}
           setForm={(next) => setLogForm(next)}
@@ -2515,12 +2596,6 @@ export default function WorkReportDetailPage({ session }: Props) {
           showCustomerExpenseFields={showCustomerMoney}
           defaultHourlyRate={billableCalculation?.ratesUsed.hourly_regular ?? null}
           defaultCustomerHourlyRate={customerBillableCalculation?.ratesUsed.hourly_regular ?? null}
-        />
-        <DailyLogTripLegFields
-          drafts={tripDrafts}
-          setDrafts={setTripDrafts}
-          showCustomerFields={showCustomerMoney}
-          destinationOptions={tripDestinationOptions}
         />
         <DailyLogRefrigerantFields
           drafts={refrigerantDrafts}

@@ -6,56 +6,68 @@ import { calculateTripLegDistances } from '../lib/tripDistanceApi';
 import type { TripDestinationOption } from '../lib/tripDestinations';
 import {
   appendReturnTripLeg,
-  emptyTripLeg,
+  findReturnLegIndex,
+  insertIntermediateTripLeg,
+  isReturnToDepartureLeg,
+  removeTripLegAt,
   sumTripLegDraftKm,
+  updateTripLegDraft,
   type TripLegDraft,
 } from '../lib/workReportTripLegs';
+import { formatTripKmRateLabel } from '../lib/tripKmExpense';
 
 type Props = {
   drafts: TripLegDraft[];
   setDrafts: (next: TripLegDraft[]) => void;
+  departureLabel: string;
   showCustomerFields?: boolean;
   destinationOptions?: TripDestinationOption[];
+  tripKmRate?: number | null;
 };
 
 export default function DailyLogTripLegFields({
   drafts,
   setDrafts,
+  departureLabel,
   showCustomerFields,
   destinationOptions = [],
+  tripKmRate = null,
 }: Props) {
   const totalKm = sumTripLegDraftKm(drafts);
+  const returnLegIndex = findReturnLegIndex(drafts, departureLabel);
   const [busy, setBusy] = useState(false);
   const [rowBusyKey, setRowBusyKey] = useState<string | null>(null);
   const [calcError, setCalcError] = useState<string | null>(null);
 
-  async function calculateRows(indices: number[]) {
-    if (indices.length === 0) return;
+  async function applyDistanceResults(nextDrafts: TripLegDraft[], indices: number[]) {
+    if (indices.length === 0) return nextDrafts;
+
     setCalcError(null);
     const legs = indices.map((index) => ({
-      from: drafts[index]?.from_label ?? '',
-      to: drafts[index]?.to_label ?? '',
+      from: nextDrafts[index]?.from_label ?? '',
+      to: nextDrafts[index]?.to_label ?? '',
     }));
 
     const results = await calculateTripLegDistances(supabase, legs);
-    const next = [...drafts];
+    const next = [...nextDrafts];
     indices.forEach((draftIndex, resultIndex) => {
       const result = results[resultIndex];
       if (result?.distance_km != null && result.distance_km > 0 && next[draftIndex]) {
         next[draftIndex] = { ...next[draftIndex], distance_km: String(result.distance_km) };
       }
     });
-    setDrafts(next);
 
-    const firstError = results.find((r) => r.error)?.error;
+    const firstError = results.find((result) => result.error)?.error;
     if (firstError) setCalcError(firstError);
+    return next;
   }
 
-  async function calculateAll() {
-    if (drafts.length === 0) return;
+  async function calculateRows(indices: number[], baseDrafts = drafts) {
+    if (indices.length === 0) return;
     setBusy(true);
     try {
-      await calculateRows(drafts.map((_, index) => index));
+      const next = await applyDistanceResults(baseDrafts, indices);
+      setDrafts(next);
     } catch (err) {
       setCalcError(err instanceof Error ? err.message : 'Reittilaskenta epäonnistui.');
     } finally {
@@ -63,18 +75,45 @@ export default function DailyLogTripLegFields({
     }
   }
 
+  async function calculateAll() {
+    if (drafts.length === 0) return;
+    await calculateRows(drafts.map((_, index) => index));
+  }
+
   async function calculateOne(index: number) {
     const row = drafts[index];
     if (!row) return;
     setRowBusyKey(row.key);
-    setCalcError(null);
     try {
       await calculateRows([index]);
+    } finally {
+      setRowBusyKey(null);
+    }
+  }
+
+  async function addReturnTrip(index: number) {
+    const { drafts: nextDrafts, newLegIndex } = appendReturnTripLeg(drafts, index, departureLabel);
+    if (newLegIndex < 0) return;
+
+    setDrafts(nextDrafts);
+    const newLeg = nextDrafts[newLegIndex];
+    if (!newLeg) return;
+
+    setRowBusyKey(newLeg.key);
+    setBusy(true);
+    try {
+      const withDistance = await applyDistanceResults(nextDrafts, [newLegIndex]);
+      setDrafts(withDistance);
     } catch (err) {
       setCalcError(err instanceof Error ? err.message : 'Reittilaskenta epäonnistui.');
     } finally {
       setRowBusyKey(null);
+      setBusy(false);
     }
+  }
+
+  function patchLeg(index: number, patch: Partial<TripLegDraft>) {
+    setDrafts(updateTripLegDraft(drafts, index, patch, departureLabel));
   }
 
   return (
@@ -98,17 +137,19 @@ export default function DailyLogTripLegFields({
           <button
             type="button"
             className="btn btn-secondary"
-            disabled={busy || rowBusyKey != null}
-            onClick={() => setDrafts([...drafts, emptyTripLeg()])}
+            disabled={busy || rowBusyKey != null || !departureLabel.trim()}
+            onClick={() => setDrafts(insertIntermediateTripLeg(drafts, departureLabel))}
           >
             + Lisää väliajo
           </button>
         </div>
       </div>
       <p className="muted trip-leg-hint">
-        Lähtö tulee profiilistasi (toimipiste tai koti). Kohde ehdotetaan työraportin asiakkaan osoitteesta — voit valita
-        myös tukkurin tai muun kohteen listasta. Paina <strong>Laske reitti</strong> km-laskentaan tai{' '}
-        <strong>Lisää paluumatka</strong> paluulle.
+        Päivä alkaa aina toimipisteestä/kodista ja päättyy sinne. Kirjoita kohteeseen — ehdotukset haetaan rekisteristä.
+        Paluumatka lisätään aina viimeiseksi ja km lasketaan heti.
+        {formatTripKmRateLabel(tripKmRate)
+          ? ` Km-korvausrivi (${formatTripKmRateLabel(tripKmRate)}) päivittyy kulut-osiossa automaattisesti.`
+          : ' Aseta €/km-hinta kohdassa Hallinta → Yritys, jolloin km-korvausrivi luodaan automaattisesti.'}
       </p>
       {calcError && <p className="error trip-leg-calc-error">{calcError}</p>}
       {drafts.length === 0 ? (
@@ -116,78 +157,89 @@ export default function DailyLogTripLegFields({
       ) : (
         drafts.map((row, index) => {
           const rowBusy = rowBusyKey === row.key;
+          const isFirstLeg = index === 0;
+          const isReturnLeg = isReturnToDepartureLeg(row, departureLabel) && index === returnLegIndex;
+          const canAddReturn =
+            !isReturnLeg &&
+            row.to_label.trim().length > 0 &&
+            (returnLegIndex < 0 || index < returnLegIndex);
+
           return (
-            <div key={row.key} className="trip-leg-row">
+            <div key={row.key} className={`trip-leg-row${isReturnLeg ? ' trip-leg-row-return' : ''}`}>
               <label>
                 Lähtö
                 <input
                   value={row.from_label}
-                  onChange={(e) =>
-                    setDrafts(drafts.map((r, i) => (i === index ? { ...r, from_label: e.target.value } : r)))
-                  }
+                  readOnly={isFirstLeg || isReturnLeg}
+                  disabled={isFirstLeg || isReturnLeg || busy || rowBusy}
+                  onChange={(event) => patchLeg(index, { from_label: event.target.value })}
                   placeholder="Toimipiste tai koti"
                 />
               </label>
-              <TripDestinationInput
-                id={`trip-to-${row.key}`}
-                label="Kohde"
-                value={row.to_label}
-                placeholder="Asiakkaan osoite tai tukkuri"
-                options={destinationOptions}
-                disabled={busy || rowBusy}
-                onChange={(value) =>
-                  setDrafts(drafts.map((r, i) => (i === index ? { ...r, to_label: value } : r)))
-                }
-              />
-              <label>
+              {isReturnLeg ? (
+                <label>
+                  Kohde
+                  <input value={row.to_label} readOnly disabled />
+                </label>
+              ) : (
+                <TripDestinationInput
+                  label="Kohde"
+                  value={row.to_label}
+                  placeholder="Kirjoita tai valitse kohde"
+                  options={destinationOptions}
+                  disabled={busy || rowBusy}
+                  onChange={(value) => patchLeg(index, { to_label: value })}
+                />
+              )}
+              <label className="trip-leg-km-field">
                 km
                 <input
                   type="number"
                   step="0.1"
                   min="0"
                   value={row.distance_km}
-                  onChange={(e) =>
-                    setDrafts(drafts.map((r, i) => (i === index ? { ...r, distance_km: e.target.value } : r)))
-                  }
+                  disabled={busy || rowBusy}
+                  onChange={(event) => patchLeg(index, { distance_km: event.target.value })}
                   placeholder="0"
                 />
               </label>
               <div className="trip-leg-row-actions">
                 <button
                   type="button"
-                  className="btn btn-secondary btn-sm trip-leg-calc-btn"
+                  className="btn btn-secondary btn-sm"
                   disabled={busy || rowBusy}
                   onClick={() => void calculateOne(index)}
                 >
                   {rowBusy ? '…' : 'Laske reitti'}
                 </button>
-                <button
-                  type="button"
-                  className="btn btn-secondary btn-sm"
-                  disabled={busy || rowBusy}
-                  onClick={() => setDrafts(appendReturnTripLeg(drafts, index))}
-                >
-                  Lisää paluumatka
-                </button>
-                <button
-                  type="button"
-                  className="btn btn-secondary btn-sm"
-                  disabled={busy || rowBusy}
-                  onClick={() => setDrafts(drafts.filter((_, i) => i !== index))}
-                >
-                  Poista
-                </button>
+                {canAddReturn && (
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    disabled={busy || rowBusy}
+                    onClick={() => void addReturnTrip(index)}
+                  >
+                    Lisää paluumatka
+                  </button>
+                )}
+                {!isFirstLeg && (
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    disabled={busy || rowBusy}
+                    onClick={() => setDrafts(removeTripLegAt(drafts, index, departureLabel))}
+                  >
+                    Poista
+                  </button>
+                )}
               </div>
               {showCustomerFields && (
                 <label className="compact-option trip-leg-bill-check">
                   <input
                     type="checkbox"
                     checked={row.bill_to_customer}
-                    onChange={(e) =>
-                      setDrafts(
-                        drafts.map((r, i) => (i === index ? { ...r, bill_to_customer: e.target.checked } : r)),
-                      )
-                    }
+                    disabled={busy || rowBusy}
+                    onChange={(event) => patchLeg(index, { bill_to_customer: event.target.checked })}
                   />
                   Laskutetaan asiakkaalta
                 </label>

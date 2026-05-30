@@ -1,96 +1,115 @@
-import type { TripDestinationOption } from '../lib/tripDestinations';
+import { useEffect, useId, useRef, useState } from 'react';
+
+import {
+  filterTripDestinationOptions,
+  tripDestinationGroupLabel,
+  type TripDestinationOption,
+} from '../lib/tripDestinations';
 
 type Props = {
-  id: string;
   label: string;
   value: string;
   placeholder?: string;
   options: TripDestinationOption[];
   disabled?: boolean;
   onChange: (value: string) => void;
-  onPickOption?: (option: TripDestinationOption) => void;
 };
 
 export default function TripDestinationInput({
-  id,
   label,
   value,
   placeholder,
   options,
   disabled,
   onChange,
-  onPickOption,
 }: Props) {
-  const listId = `${id}-options`;
+  const listId = useId();
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const [open, setOpen] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(0);
+  const matches = filterTripDestinationOptions(options, value);
+
+  useEffect(() => {
+    setActiveIndex(0);
+  }, [value, options.length]);
+
+  useEffect(() => {
+    function onPointerDown(event: MouseEvent) {
+      if (!rootRef.current?.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', onPointerDown);
+    return () => document.removeEventListener('mousedown', onPointerDown);
+  }, []);
+
+  function pickOption(option: TripDestinationOption) {
+    onChange(option.address);
+    setOpen(false);
+  }
+
+  function onInputKeyDown(event: React.KeyboardEvent<HTMLInputElement>) {
+    if (!open && (event.key === 'ArrowDown' || event.key === 'ArrowUp')) {
+      setOpen(true);
+      return;
+    }
+    if (!open || matches.length === 0) return;
+
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      setActiveIndex((index) => (index + 1) % matches.length);
+    } else if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      setActiveIndex((index) => (index - 1 + matches.length) % matches.length);
+    } else if (event.key === 'Enter' && matches[activeIndex]) {
+      event.preventDefault();
+      pickOption(matches[activeIndex]);
+    } else if (event.key === 'Escape') {
+      setOpen(false);
+    }
+  }
+
+  const showSuggestions = open && !disabled && matches.length > 0;
 
   return (
-    <label>
-      {label}
+    <div ref={rootRef} className="trip-destination-field">
+      <label htmlFor={listId}>{label}</label>
       <input
-        list={listId}
+        id={listId}
+        className="trip-destination-input"
         value={value}
         disabled={disabled}
         placeholder={placeholder}
-        onChange={(e) => onChange(e.target.value)}
+        autoComplete="off"
+        role="combobox"
+        aria-expanded={showSuggestions}
+        aria-controls={`${listId}-listbox`}
+        onFocus={() => setOpen(true)}
+        onChange={(event) => {
+          onChange(event.target.value);
+          setOpen(true);
+        }}
+        onKeyDown={onInputKeyDown}
       />
-      <datalist id={listId}>
-        {options.map((option) => (
-          <option
-            key={option.id}
-            value={option.address}
-            label={`${option.label} · ${option.group === 'customer' ? 'Asiakas' : option.group === 'supplier' ? 'Tukkuri' : 'Muu'}`}
-          />
-        ))}
-      </datalist>
-      {options.length > 0 && (
-        <select
-          className="trip-destination-quickpick"
-          disabled={disabled}
-          value=""
-          onChange={(e) => {
-            const picked = options.find((option) => option.id === e.target.value);
-            if (!picked) return;
-            onChange(picked.address);
-            onPickOption?.(picked);
-            e.target.value = '';
-          }}
-        >
-          <option value="">Valitse listasta…</option>
-          {options.some((o) => o.group === 'customer') && (
-            <optgroup label="Asiakkaat">
-              {options
-                .filter((o) => o.group === 'customer')
-                .map((option) => (
-                  <option key={option.id} value={option.id}>
-                    {option.label}
-                  </option>
-                ))}
-            </optgroup>
-          )}
-          {options.some((o) => o.group === 'supplier') && (
-            <optgroup label="Tukkurit">
-              {options
-                .filter((o) => o.group === 'supplier')
-                .map((option) => (
-                  <option key={option.id} value={option.id}>
-                    {option.label}
-                  </option>
-                ))}
-            </optgroup>
-          )}
-          {options.some((o) => o.group === 'custom') && (
-            <optgroup label="Omat kohteet">
-              {options
-                .filter((o) => o.group === 'custom')
-                .map((option) => (
-                  <option key={option.id} value={option.id}>
-                    {option.label}
-                  </option>
-                ))}
-            </optgroup>
-          )}
-        </select>
+      {showSuggestions && (
+        <ul id={`${listId}-listbox`} className="trip-destination-suggestions" role="listbox">
+          {matches.map((option, index) => (
+            <li key={option.id} role="option" aria-selected={index === activeIndex}>
+              <button
+                type="button"
+                className={index === activeIndex ? 'is-active' : undefined}
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => pickOption(option)}
+              >
+                <span className="trip-destination-suggestion-label">{option.label}</span>
+                <span className="trip-destination-suggestion-meta">
+                  {tripDestinationGroupLabel(option.group)} · {option.address}
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
       )}
-    </label>
+    </div>
   );
 }

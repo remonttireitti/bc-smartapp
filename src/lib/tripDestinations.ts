@@ -113,6 +113,27 @@ export async function loadTripDestinationOptions(
   return options;
 }
 
+export function filterTripDestinationOptions(
+  options: TripDestinationOption[],
+  query: string,
+  limit = 12,
+): TripDestinationOption[] {
+  const trimmed = query.trim().toLowerCase();
+  if (!trimmed) return options.slice(0, limit);
+  return options
+    .filter(
+      (option) =>
+        option.label.toLowerCase().includes(trimmed) || option.address.toLowerCase().includes(trimmed),
+    )
+    .slice(0, limit);
+}
+
+export function tripDestinationGroupLabel(group: TripDestinationOption['group']): string {
+  if (group === 'customer') return 'Asiakas';
+  if (group === 'supplier') return 'Tukkuri';
+  return 'Muu';
+}
+
 export function formatCustomerDestination(customer: {
   name?: string | null;
   address?: string | null;
