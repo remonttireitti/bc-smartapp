@@ -2,11 +2,13 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 import { inviteCompanyUserPlugin } from './vite.invite-plugin';
+import { tripDistancePlugin } from './vite.trip-distance-plugin';
 
 export default defineConfig({
   plugins: [
     react(),
     inviteCompanyUserPlugin(),
+    tripDistancePlugin(),
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['icon.svg', 'pwa-180.png', 'pwa-192.png', 'pwa-512.png', 'refrigerant-bottle-default.png'],

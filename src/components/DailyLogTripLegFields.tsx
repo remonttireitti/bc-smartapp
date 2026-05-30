@@ -1,3 +1,7 @@
+import { useState } from 'react';
+
+import { supabase } from '../lib/supabase';
+import { calculateTripLegDistances } from '../lib/tripDistanceApi';
 import {
   emptyTripLeg,
   sumTripLegDraftKm,
@@ -12,6 +16,57 @@ type Props = {
 
 export default function DailyLogTripLegFields({ drafts, setDrafts, showCustomerFields }: Props) {
   const totalKm = sumTripLegDraftKm(drafts);
+  const [busy, setBusy] = useState(false);
+  const [rowBusyKey, setRowBusyKey] = useState<string | null>(null);
+  const [calcError, setCalcError] = useState<string | null>(null);
+
+  async function calculateRows(indices: number[]) {
+    if (indices.length === 0) return;
+    setCalcError(null);
+    const legs = indices.map((index) => ({
+      from: drafts[index]?.from_label ?? '',
+      to: drafts[index]?.to_label ?? '',
+    }));
+
+    const results = await calculateTripLegDistances(supabase, legs);
+    const next = [...drafts];
+    indices.forEach((draftIndex, resultIndex) => {
+      const result = results[resultIndex];
+      if (result?.distance_km != null && result.distance_km > 0 && next[draftIndex]) {
+        next[draftIndex] = { ...next[draftIndex], distance_km: String(result.distance_km) };
+      }
+    });
+    setDrafts(next);
+
+    const firstError = results.find((r) => r.error)?.error;
+    if (firstError) setCalcError(firstError);
+  }
+
+  async function calculateAll() {
+    if (drafts.length === 0) return;
+    setBusy(true);
+    try {
+      await calculateRows(drafts.map((_, index) => index));
+    } catch (err) {
+      setCalcError(err instanceof Error ? err.message : 'Reittilaskenta epäonnistui.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function calculateOne(index: number) {
+    const row = drafts[index];
+    if (!row) return;
+    setRowBusyKey(row.key);
+    setCalcError(null);
+    try {
+      await calculateRows([index]);
+    } catch (err) {
+      setCalcError(err instanceof Error ? err.message : 'Reittilaskenta epäonnistui.');
+    } finally {
+      setRowBusyKey(null);
+    }
+  }
 
   return (
     <div className="trip-leg-section">
@@ -20,79 +75,105 @@ export default function DailyLogTripLegFields({ drafts, setDrafts, showCustomerF
           Ajomatkat
           {totalKm > 0 ? <span className="trip-leg-total"> · yhteensä {totalKm.toFixed(1)} km</span> : null}
         </h3>
-        <button
-          type="button"
-          className="btn btn-secondary"
-          onClick={() => setDrafts([...drafts, emptyTripLeg()])}
-        >
-          + Lisää väliajo
-        </button>
-      </div>
-      <p className="muted trip-leg-hint">
-        Kirjaa reitti pätkittäin: toimisto → kohde, mahdolliset väliajot (esim. tukkuri) ja paluu. Kilometrit syötetään
-        käsin toistaiseksi.
-      </p>
-      {drafts.length === 0 ? (
-        <p className="muted">Ei ajomatkoja — lisää rivi tai käytä oletusreittiä.</p>
-      ) : (
-        drafts.map((row, index) => (
-          <div key={row.key} className="trip-leg-row">
-            <label>
-              Lähtö
-              <input
-                value={row.from_label}
-                onChange={(e) =>
-                  setDrafts(drafts.map((r, i) => (i === index ? { ...r, from_label: e.target.value } : r)))
-                }
-                placeholder="Esim. Toimisto"
-              />
-            </label>
-            <label>
-              Kohde
-              <input
-                value={row.to_label}
-                onChange={(e) =>
-                  setDrafts(drafts.map((r, i) => (i === index ? { ...r, to_label: e.target.value } : r)))
-                }
-                placeholder="Esim. työkohde"
-              />
-            </label>
-            <label>
-              km
-              <input
-                type="number"
-                step="0.1"
-                min="0"
-                value={row.distance_km}
-                onChange={(e) =>
-                  setDrafts(drafts.map((r, i) => (i === index ? { ...r, distance_km: e.target.value } : r)))
-                }
-                placeholder="0"
-              />
-            </label>
-            {showCustomerFields && (
-              <label className="compact-option trip-leg-bill-check">
-                <input
-                  type="checkbox"
-                  checked={row.bill_to_customer}
-                  onChange={(e) =>
-                    setDrafts(
-                      drafts.map((r, i) => (i === index ? { ...r, bill_to_customer: e.target.checked } : r)),
-                    )
-                  }
-                />
-                Laskutetaan asiakkaalta
-              </label>
-            )}
+        <div className="trip-leg-head-actions">
+          {drafts.length > 0 && (
             <button
               type="button"
               className="btn btn-secondary btn-sm"
-              onClick={() => setDrafts(drafts.filter((_, i) => i !== index))}
+              disabled={busy || rowBusyKey != null}
+              onClick={() => void calculateAll()}
             >
-              Poista
+              {busy ? 'Lasketaan…' : 'Laske kaikki reitit'}
             </button>
-          </div>
-        ))
+          )}
+          <button
+            type="button"
+            className="btn btn-secondary"
+            disabled={busy || rowBusyKey != null}
+            onClick={() => setDrafts([...drafts, emptyTripLeg()])}
+          >
+            + Lisää väliajo
+          </button>
+        </div>
+      </div>
+      <p className="muted trip-leg-hint">
+        Kirjaa reitti pätkittäin (toimisto → kohde, väliajot, paluu). Paina <strong>Laske reitti</strong> — km haetaan
+        OpenRouteServicestä osoitteiden perusteella. Voit korjata km:t käsin tarvittaessa.
+      </p>
+      {calcError && <p className="error trip-leg-calc-error">{calcError}</p>}
+      {drafts.length === 0 ? (
+        <p className="muted">Ei ajomatkoja — lisää rivi tai käytä oletusreittiä.</p>
+      ) : (
+        drafts.map((row, index) => {
+          const rowBusy = rowBusyKey === row.key;
+          return (
+            <div key={row.key} className="trip-leg-row">
+              <label>
+                Lähtö
+                <input
+                  value={row.from_label}
+                  onChange={(e) =>
+                    setDrafts(drafts.map((r, i) => (i === index ? { ...r, from_label: e.target.value } : r)))
+                  }
+                  placeholder="Esim. Toimisto"
+                />
+              </label>
+              <label>
+                Kohde
+                <input
+                  value={row.to_label}
+                  onChange={(e) =>
+                    setDrafts(drafts.map((r, i) => (i === index ? { ...r, to_label: e.target.value } : r)))
+                  }
+                  placeholder="Esim. työkohde"
+                />
+              </label>
+              <label>
+                km
+                <input
+                  type="number"
+                  step="0.1"
+                  min="0"
+                  value={row.distance_km}
+                  onChange={(e) =>
+                    setDrafts(drafts.map((r, i) => (i === index ? { ...r, distance_km: e.target.value } : r)))
+                  }
+                  placeholder="0"
+                />
+              </label>
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm trip-leg-calc-btn"
+                disabled={busy || rowBusy}
+                onClick={() => void calculateOne(index)}
+              >
+                {rowBusy ? '…' : 'Laske reitti'}
+              </button>
+              {showCustomerFields && (
+                <label className="compact-option trip-leg-bill-check">
+                  <input
+                    type="checkbox"
+                    checked={row.bill_to_customer}
+                    onChange={(e) =>
+                      setDrafts(
+                        drafts.map((r, i) => (i === index ? { ...r, bill_to_customer: e.target.checked } : r)),
+                      )
+                    }
+                  />
+                  Laskutetaan asiakkaalta
+                </label>
+              )}
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                disabled={busy || rowBusy}
+                onClick={() => setDrafts(drafts.filter((_, i) => i !== index))}
+              >
+                Poista
+              </button>
+            </div>
+          );
+        })
       )}
     </div>
   );

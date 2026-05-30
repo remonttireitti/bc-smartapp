@@ -5695,6 +5695,23 @@ textarea {
   font-size: 0.88rem;
 }
 
+.trip-leg-head-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  align-items: center;
+}
+
+.trip-leg-calc-error {
+  margin: 0 0 0.75rem;
+  font-size: 0.88rem;
+}
+
+.trip-leg-calc-btn {
+  align-self: end;
+  margin-bottom: 0.15rem;
+}
+
 .trip-leg-total {
   font-weight: 600;
   color: var(--text-muted);
@@ -5702,7 +5719,7 @@ textarea {
 
 .trip-leg-row {
   display: grid;
-  grid-template-columns: minmax(120px, 1.2fr) minmax(120px, 1.2fr) 5.5rem auto;
+  grid-template-columns: minmax(120px, 1.2fr) minmax(120px, 1.2fr) 5.5rem auto auto;
   gap: 0.65rem;
   align-items: end;
   padding: 0.65rem 0;
