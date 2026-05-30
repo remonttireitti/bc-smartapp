@@ -21,6 +21,7 @@ const MODULES = [
   { title: 'Asiakkaat', desc: 'Asiakkaat, laitteet, dokumentit', color: '#3b82f6', href: '/asiakkaat' },
   { title: 'Tarjouspyyntö', desc: 'Tarjoukset, laskelmat ja tulosteet', color: '#f97316', href: '/tarjouspyynnot' },
   { title: 'Varasto', desc: 'Materiaalit ja kylmäaine', color: '#a855f7', href: '/varasto' },
+  { title: 'Lämpötilaseuranta', desc: 'Siirrettävät mittauslaitteet', color: '#14b8a6', href: '/lampotila' },
   { title: 'Työkalut', desc: 'Työkaluinventaario', color: '#ec4899', href: '/tyokalut' },
   { title: 'Hallinta', desc: 'Omat tiedot, yritys ja kumppanuudet', color: '#8b5cf6', href: '/hallinta/omat' },
 ];

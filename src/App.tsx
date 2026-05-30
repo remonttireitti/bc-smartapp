@@ -32,6 +32,8 @@ import GlobalAdminPage from './pages/GlobalAdminPage';
 import PumpDeviceRegistryPage from './pages/PumpDeviceRegistryPage';
 import InventoryPage from './pages/InventoryPage';
 import ToolsPage from './pages/ToolsPage';
+import TempMonitoringPage from './pages/TempMonitoringPage';
+import TempMonitorDetailPage from './pages/TempMonitorDetailPage';
 import SubscribersPage from './pages/SubscribersPage';
 import {
   CustomerPortalPreviewPage,
@@ -74,6 +76,8 @@ function AppRoutes() {
       <Route path="/tyoraportit" element={<WorkReportsPage session={session} />} />
       <Route path="/laskutus" element={<BillingPage session={session} />} />
       <Route path="/varasto" element={<InventoryPage session={session} />} />
+      <Route path="/lampotila" element={<TempMonitoringPage session={session} />} />
+      <Route path="/lampotila/:deviceId" element={<TempMonitorDetailPage session={session} />} />
       <Route path="/tyokalut" element={<ToolsPage session={session} />} />
       <Route path="/asiakkaat" element={<CustomersPage session={session} />} />
       <Route path="/asiakkaat/:customerId/laitteet/:equipmentId" element={<EquipmentDetailPage session={session} />} />
