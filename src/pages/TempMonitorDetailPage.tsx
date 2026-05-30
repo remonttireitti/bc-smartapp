@@ -12,6 +12,7 @@ import TempMonitorReportDialog, {
 } from '../components/tempMonitoring/TempMonitorReportDialog';
 import TempApSetupGuide from '../components/tempMonitoring/TempApSetupGuide';
 import TempDeviceDeleteDialog from '../components/tempMonitoring/TempDeviceDeleteDialog';
+import TempReportDeleteDialog from '../components/tempMonitoring/TempReportDeleteDialog';
 import TempSessionSettingsDialog from '../components/tempMonitoring/TempSessionSettingsDialog';
 import TempSessionSettingsFields from '../components/tempMonitoring/TempSessionSettingsFields';
 import { SettingsIcon } from '../components/tempMonitoring/SettingsIcon';
@@ -67,6 +68,8 @@ export default function TempMonitorDetailPage({ session }: Props) {
   const [reportError, setReportError] = useState<string | null>(null);
   const [reportForm, setReportForm] = useState<TempReportFormState | null>(null);
   const [savedReports, setSavedReports] = useState<TempMonitorReport[]>([]);
+  const [deleteReportTarget, setDeleteReportTarget] = useState<TempMonitorReport | null>(null);
+  const [deleteReportError, setDeleteReportError] = useState<string | null>(null);
   const [lastRefreshAt, setLastRefreshAt] = useState<Date | null>(null);
   const [liveTick, setLiveTick] = useState(0);
   const lastReadingAtRef = useRef<string | null>(null);
@@ -357,6 +360,28 @@ export default function TempMonitorDetailPage({ session }: Props) {
     navigate('/lampotila');
   }
 
+  async function deleteReport() {
+    if (!deleteReportTarget) return;
+    setBusy(true);
+    setDeleteReportError(null);
+
+    const { error: deleteErr } = await supabase
+      .from('temp_monitor_reports')
+      .delete()
+      .eq('id', deleteReportTarget.id);
+
+    setBusy(false);
+    if (deleteErr) {
+      setDeleteReportError(deleteErr.message);
+      return;
+    }
+
+    const title = deleteReportTarget.title;
+    setDeleteReportTarget(null);
+    setMessage(`Raportti "${title}" poistettu.`);
+    await load();
+  }
+
   function openReportDialog() {
     if (!device) return;
     setReportForm(emptyReportForm(sessions, device.name));
@@ -610,9 +635,22 @@ export default function TempMonitorDetailPage({ session }: Props) {
                     {new Date(report.period_end).toLocaleString('fi-FI')}
                   </div>
                 </div>
-                <Link to={`/lampotila/raportit/${report.id}/tuloste`} className="btn btn-secondary">
-                  Tuloste
-                </Link>
+                <div className="temp-report-list-actions">
+                  <Link to={`/lampotila/raportit/${report.id}/tuloste`} className="btn btn-secondary">
+                    Tuloste
+                  </Link>
+                  <button
+                    type="button"
+                    className="btn btn-danger"
+                    disabled={busy}
+                    onClick={() => {
+                      setDeleteReportError(null);
+                      setDeleteReportTarget(report);
+                    }}
+                  >
+                    Poista
+                  </button>
+                </div>
               </li>
             ))}
           </ul>
@@ -689,6 +727,19 @@ export default function TempMonitorDetailPage({ session }: Props) {
           setDeleteError(null);
         }}
         onConfirm={() => void deleteDevice()}
+      />
+
+      <TempReportDeleteDialog
+        open={deleteReportTarget != null}
+        reportTitle={deleteReportTarget?.title ?? ''}
+        busy={busy}
+        error={deleteReportError}
+        onClose={() => {
+          if (busy) return;
+          setDeleteReportTarget(null);
+          setDeleteReportError(null);
+        }}
+        onConfirm={() => void deleteReport()}
       />
 
       {reportForm && (
