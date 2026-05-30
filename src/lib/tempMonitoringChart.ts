@@ -45,6 +45,117 @@ export function dotIndices(count: number) {
 
 export type ChartPoint = { x: number; y: number; temp: number; recordedAt: string };
 
+export type ChartGradientStop = { offset: number; color: string };
+
+const STROKE_COLOR_IN = { r: 22, g: 163, b: 74 };
+const STROKE_COLOR_OUT = { r: 220, g: 38, b: 38 };
+const STROKE_COLOR_NEUTRAL = '#64748b';
+
+function clamp(value: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, value));
+}
+
+function lerpColorRgb(
+  from: { r: number; g: number; b: number },
+  to: { r: number; g: number; b: number },
+  t: number,
+) {
+  const mix = clamp(t, 0, 1);
+  const r = Math.round(from.r + (to.r - from.r) * mix);
+  const g = Math.round(from.g + (to.g - from.g) * mix);
+  const b = Math.round(from.b + (to.b - from.b) * mix);
+  return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
+}
+
+/** 1 = fully in range, 0 = fully out — smooth fade at acceptable boundaries. */
+export function tempToStrokeBlend(temp: number, limits: TempEffectiveLimits) {
+  const span = Math.max(limits.acceptableMax - limits.acceptableMin, 0.5);
+  const fade = Math.max(0.35, span * 0.25);
+
+  if (temp >= limits.acceptableMin && temp <= limits.acceptableMax) {
+    const edgeDist = Math.min(temp - limits.acceptableMin, limits.acceptableMax - temp);
+    if (edgeDist >= fade) return 1;
+    return 0.55 + 0.45 * (edgeDist / fade);
+  }
+
+  if (temp < limits.acceptableMin) {
+    const distance = limits.acceptableMin - temp;
+    if (distance >= fade) return 0;
+    return 1 - distance / fade;
+  }
+
+  const distance = temp - limits.acceptableMax;
+  if (distance >= fade) return 0;
+  return 1 - distance / fade;
+}
+
+export function tempToStrokeColor(temp: number, limits: TempEffectiveLimits | null | undefined) {
+  if (!limits) return STROKE_COLOR_NEUTRAL;
+  return lerpColorRgb(STROKE_COLOR_OUT, STROKE_COLOR_IN, tempToStrokeBlend(temp, limits));
+}
+
+function gradientSampleIndices(count: number) {
+  if (count <= 80) return Array.from({ length: count }, (_, i) => i);
+  const step = Math.ceil(count / 80);
+  const indices: number[] = [];
+  for (let i = 0; i < count; i += step) indices.push(i);
+  if (indices[indices.length - 1] !== count - 1) indices.push(count - 1);
+  return indices;
+}
+
+export function buildTrendGradientStops(
+  points: ChartPoint[],
+  limits: TempEffectiveLimits,
+  padLeft: number,
+  innerW: number,
+): ChartGradientStop[] {
+  if (points.length === 0 || innerW <= 0) return [];
+
+  const indices = gradientSampleIndices(points.length);
+  const stops: ChartGradientStop[] = indices.map((index) => {
+    const point = points[index];
+    return {
+      offset: clamp((point.x - padLeft) / innerW, 0, 1),
+      color: tempToStrokeColor(point.temp, limits),
+    };
+  });
+
+  stops.sort((a, b) => a.offset - b.offset);
+
+  const first = points[0];
+  const last = points[points.length - 1];
+  if (stops[0]?.offset > 0) {
+    stops.unshift({
+      offset: 0,
+      color: tempToStrokeColor(first.temp, limits),
+    });
+  }
+  if (stops[stops.length - 1]?.offset < 1) {
+    stops.push({
+      offset: 1,
+      color: tempToStrokeColor(last.temp, limits),
+    });
+  }
+
+  return stops;
+}
+
+export function renderTrendStrokeGradientDef(
+  gradientId: string,
+  chart: Pick<TempChartModel, 'padLeft' | 'innerW'>,
+  stops: ChartGradientStop[],
+) {
+  const x1 = chart.padLeft;
+  const x2 = chart.padLeft + chart.innerW;
+  const stopMarkup = stops
+    .map(
+      (stop) =>
+        `<stop offset="${(stop.offset * 100).toFixed(2)}%" stop-color="${stop.color}" />`,
+    )
+    .join('');
+  return `<linearGradient id="${gradientId}" gradientUnits="userSpaceOnUse" x1="${x1}" y1="0" x2="${x2}" y2="0">${stopMarkup}</linearGradient>`;
+}
+
 export type ChartLineSegment = {
   path: string;
   variant: 'in-range' | 'deviation' | 'neutral';
@@ -210,7 +321,15 @@ export function renderTempTrendChartSvg(
   }
 
   const path = buildSmoothPath(chart.points);
-  const segments = buildChartLineSegments(chart.points, limits);
+  const gradientId = 'temp-trend-print-gradient';
+  const gradientStops = limits ? buildTrendGradientStops(chart.points, limits, chart.padLeft, chart.innerW) : [];
+  const gradientDef =
+    limits && gradientStops.length > 0
+      ? `<defs>${renderTrendStrokeGradientDef(gradientId, chart, gradientStops)}</defs>`
+      : '';
+  const strokeLine = limits
+    ? `<path d="${path}" fill="none" stroke="url(#${gradientId})" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />`
+    : `<path d="${path}" fill="none" stroke="${STROKE_COLOR_NEUTRAL}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />`;
   const yTicks = [chart.min, (chart.min + chart.max) / 2, chart.max];
   const bandY1 = limits ? chart.tempToY(limits.acceptableMax) : null;
   const bandY2 = limits ? chart.tempToY(limits.acceptableMin) : null;
@@ -248,28 +367,17 @@ export function renderTempTrendChartSvg(
   const dots = visibleDots
     .map((index) => {
       const point = chart.points[index];
-      const fill = limits && isPointOutOfRange(point.temp, limits) ? '#dc2626' : limits ? '#16a34a' : '#64748b';
+      const fill = tempToStrokeColor(point.temp, limits);
       return `<circle cx="${point.x.toFixed(1)}" cy="${point.y.toFixed(1)}" r="3" fill="${fill}" stroke="#fff" stroke-width="1" />`;
     })
     .join('');
 
-  const lines = (segments.length > 0 ? segments : [{ path, variant: 'neutral' as const }])
-    .map((segment) => {
-      const stroke =
-        segment.variant === 'deviation'
-          ? '#dc2626'
-          : segment.variant === 'in-range'
-            ? '#16a34a'
-            : '#64748b';
-      return `<path d="${segment.path}" fill="none" stroke="${stroke}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />`;
-    })
-    .join('');
-
   return `<svg viewBox="0 0 ${width} ${height}" width="100%" role="img" aria-label="Lämpötilatrendi" style="max-width:100%;height:auto;border:1px solid #e5e7eb;border-radius:8px;background:#f9fafb;">
+${gradientDef}
 ${bands}
 ${grid}
 ${xAxis}
-${lines}
+${strokeLine}
 ${dots}
 </svg>`;
 }

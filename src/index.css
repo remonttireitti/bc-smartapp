@@ -6076,12 +6076,8 @@ textarea {
   fill: none;
 }
 
-.temp-chart-line--in-range {
-  stroke: #16a34a;
-}
-
-.temp-chart-line--deviation {
-  stroke: #dc2626;
+.temp-chart-line--gradient {
+  /* stroke color comes from inline SVG gradient */
 }
 
 .temp-chart-line--neutral {

@@ -1,9 +1,11 @@
+import { useId, useMemo } from 'react';
 import type { TempEffectiveLimits, TempReading } from '../../lib/tempMonitoring';
-import { isTempWithinLimits } from '../../lib/tempMonitoring';
 import {
-  buildChartLineSegments,
+  buildSmoothPath,
   buildTempTrendChartModel,
+  buildTrendGradientStops,
   dotIndices,
+  tempToStrokeColor,
 } from '../../lib/tempMonitoringChart';
 
 type Props = {
@@ -12,16 +14,19 @@ type Props = {
   height?: number;
 };
 
-function pointClass(outOfRange: boolean, hasLimits: boolean) {
-  if (!hasLimits) return 'temp-chart-point temp-chart-point--neutral';
-  return outOfRange
-    ? 'temp-chart-point temp-chart-point--deviation'
-    : 'temp-chart-point temp-chart-point--in-range';
-}
-
 export default function TempTrendChart({ readings, limits = null, height = 220 }: Props) {
   const width = 640;
+  const gradientId = useId().replace(/:/g, '');
   const chart = buildTempTrendChartModel(readings, width, height, limits);
+
+  const path = useMemo(() => (chart ? buildSmoothPath(chart.points) : ''), [chart]);
+  const gradientStops = useMemo(
+    () =>
+      chart && limits
+        ? buildTrendGradientStops(chart.points, limits, chart.padLeft, chart.innerW)
+        : [],
+    [chart, limits],
+  );
 
   if (!chart) {
     return (
@@ -31,7 +36,6 @@ export default function TempTrendChart({ readings, limits = null, height = 220 }
     );
   }
 
-  const segments = buildChartLineSegments(chart.points, limits);
   const yTicks = [chart.min, (chart.min + chart.max) / 2, chart.max];
   const bandY1 = limits ? chart.tempToY(limits.acceptableMax) : null;
   const bandY2 = limits ? chart.tempToY(limits.acceptableMin) : null;
@@ -44,6 +48,26 @@ export default function TempTrendChart({ readings, limits = null, height = 220 }
   return (
     <div className="temp-chart">
       <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Lämpötilatrendi">
+        {limits && gradientStops.length > 0 && (
+          <defs>
+            <linearGradient
+              id={gradientId}
+              gradientUnits="userSpaceOnUse"
+              x1={chart.padLeft}
+              y1={0}
+              x2={chart.padLeft + chart.innerW}
+              y2={0}
+            >
+              {gradientStops.map((stop, index) => (
+                <stop
+                  key={`${stop.offset}-${index}`}
+                  offset={`${(stop.offset * 100).toFixed(2)}%`}
+                  stopColor={stop.color}
+                />
+              ))}
+            </linearGradient>
+          </defs>
+        )}
         {limits && bandY1 != null && bandY2 != null && (
           <rect
             x={chart.padLeft}
@@ -107,23 +131,22 @@ export default function TempTrendChart({ readings, limits = null, height = 220 }
             </text>
           </g>
         ))}
-        {segments.map((segment, index) => (
-          <path
-            key={`segment-${index}`}
-            d={segment.path}
-            className={`temp-chart-line temp-chart-line--${segment.variant}`}
-          />
-        ))}
+        <path
+          d={path}
+          className={`temp-chart-line ${limits ? 'temp-chart-line--gradient' : 'temp-chart-line--neutral'}`}
+          stroke={limits ? `url(#${gradientId})` : undefined}
+        />
         {visibleDots.map((index) => {
           const point = chart.points[index];
-          const outOfRange = limits != null && !isTempWithinLimits(point.temp, limits);
           return (
             <circle
               key={`${point.recordedAt}-${index}`}
               cx={point.x}
               cy={point.y}
               r={singlePoint ? 4 : 3}
-              className={pointClass(outOfRange, limits != null)}
+              fill={tempToStrokeColor(point.temp, limits)}
+              stroke="#fff"
+              strokeWidth={1}
             />
           );
         })}
@@ -132,6 +155,7 @@ export default function TempTrendChart({ readings, limits = null, height = 220 }
         <div className="temp-chart-legend">
           <span className="temp-chart-legend-in-range">Vihreä = alueella</span>
           <span className="temp-chart-legend-deviation">Punainen = poikkeama</span>
+          <span className="temp-chart-legend-blend">Väri vaihtuu liukuvasti rajan yli</span>
           <span className="temp-chart-legend-target">Toivottu {limits.targetMin}–{limits.targetMax} °C</span>
         </div>
       ) : (
