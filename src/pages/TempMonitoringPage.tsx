@@ -95,7 +95,9 @@ export default function TempMonitoringPage({ session }: Props) {
       {createdKey && (
         <section className="panel temp-key-panel">
           <h2>Laiteavain (näytetään kerran)</h2>
-          <p className="muted">Syötä tämä avain laitteen WiFi-valikossa kohdassa Pilviavain.</p>
+          <p className="muted">
+            12-numeroinen avain — syötä laitteen WiFi-valikossa kohdassa Pilviavain (numeronäppäimistö).
+          </p>
           <code className="temp-device-key">{createdKey}</code>
           <div className="form-actions">
             <button

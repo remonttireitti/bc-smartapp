@@ -70,6 +70,7 @@ export const TEMP_SESSION_SELECT =
   'id, company_id, device_id, customer_id, site_label, notes, monitor_label, target_temp_min, target_temp_max, allowed_deviation_c, allowed_deviation_minutes, started_at, ended_at, created_at, customer:customers(id, name)';
 
 export const ONLINE_THRESHOLD_MS = 3 * 60 * 1000;
+export const TEMP_DEVICE_KEY_DIGITS = 12;
 
 export function isTempDeviceOnline(lastSeenAt: string | null | undefined, nowMs = Date.now()) {
   if (!lastSeenAt) return false;
@@ -77,9 +78,9 @@ export function isTempDeviceOnline(lastSeenAt: string | null | undefined, nowMs 
 }
 
 export function generateDeviceKey() {
-  const bytes = new Uint8Array(24);
+  const bytes = new Uint8Array(TEMP_DEVICE_KEY_DIGITS);
   crypto.getRandomValues(bytes);
-  return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+  return Array.from(bytes, (b) => String(b % 10)).join('');
 }
 
 export function formatTempC(value: number | null | undefined) {
