@@ -2,6 +2,9 @@ import { FormEvent, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
 import AppLayout from '../components/AppLayout';
+import IconButton from '../components/IconButton';
+import TempDeviceDeleteDialog from '../components/tempMonitoring/TempDeviceDeleteDialog';
+import { IconTrash } from '../components/icons';
 import { useProfile } from '../hooks/useProfile';
 import {
   TEMP_DEVICE_SELECT,
@@ -28,6 +31,8 @@ export default function TempMonitoringPage({ session }: Props) {
   const [message, setMessage] = useState<string | null>(null);
   const [newName, setNewName] = useState('');
   const [createdKey, setCreatedKey] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<TempDevice | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   async function load() {
     if (!companyId) return;
@@ -78,6 +83,24 @@ export default function TempMonitoringPage({ session }: Props) {
     setNewName('');
     setCreatedKey(deviceKey);
     setMessage('Laite lisätty. Kopioi laiteavain laitteeseen.');
+    await load();
+  }
+
+  async function confirmDeleteDevice() {
+    if (!deleteTarget) return;
+    setBusy(true);
+    setDeleteError(null);
+
+    const { error: deleteErr } = await supabase.from('temp_devices').delete().eq('id', deleteTarget.id);
+
+    setBusy(false);
+    if (deleteErr) {
+      setDeleteError(deleteErr.message);
+      return;
+    }
+
+    setDeleteTarget(null);
+    setMessage(`Laite "${deleteTarget.name}" poistettu.`);
     await load();
   }
 
@@ -147,7 +170,7 @@ export default function TempMonitoringPage({ session }: Props) {
             {devices.map((device) => {
               const online = isTempDeviceOnline(device.last_seen_at);
               return (
-                <li key={device.id}>
+                <li key={device.id} className="temp-device-list-item">
                   <Link to={`/lampotila/${device.id}`} className="temp-device-card">
                     <div className="temp-device-card-head">
                       <strong>{device.name}</strong>
@@ -160,12 +183,36 @@ export default function TempMonitoringPage({ session }: Props) {
                       <span>{formatRelativeTime(device.last_seen_at)}</span>
                     </div>
                   </Link>
+                  <IconButton
+                    label="Poista laite"
+                    variant="danger"
+                    disabled={busy}
+                    onClick={() => {
+                      setDeleteError(null);
+                      setDeleteTarget(device);
+                    }}
+                  >
+                    <IconTrash />
+                  </IconButton>
                 </li>
               );
             })}
           </ul>
         )}
       </section>
+
+      <TempDeviceDeleteDialog
+        open={deleteTarget != null}
+        deviceName={deleteTarget?.name ?? ''}
+        busy={busy}
+        error={deleteError}
+        onClose={() => {
+          if (busy) return;
+          setDeleteTarget(null);
+          setDeleteError(null);
+        }}
+        onConfirm={() => void confirmDeleteDevice()}
+      />
     </AppLayout>
   );
 }

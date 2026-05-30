@@ -5900,6 +5900,22 @@ textarea {
   gap: 0.75rem;
 }
 
+.temp-device-list-item {
+  display: flex;
+  align-items: stretch;
+  gap: 0.5rem;
+}
+
+.temp-device-list-item .temp-device-card {
+  flex: 1;
+  min-width: 0;
+}
+
+.temp-device-list-item .icon-btn {
+  flex-shrink: 0;
+  align-self: center;
+}
+
 .temp-device-card {
   display: block;
   padding: 1rem 1.1rem;
@@ -5919,6 +5935,14 @@ textarea {
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
+}
+
+.temp-device-summary-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.75rem;
 }
 
 .temp-device-card-meta {

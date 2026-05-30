@@ -1,8 +1,9 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
 import AppLayout from '../components/AppLayout';
 import IconButton from '../components/IconButton';
+import TempDeviceDeleteDialog from '../components/tempMonitoring/TempDeviceDeleteDialog';
 import TempSessionSettingsDialog from '../components/tempMonitoring/TempSessionSettingsDialog';
 import TempSessionSettingsFields from '../components/tempMonitoring/TempSessionSettingsFields';
 import { SettingsIcon } from '../components/tempMonitoring/SettingsIcon';
@@ -34,6 +35,7 @@ interface Props {
 
 export default function TempMonitorDetailPage({ session }: Props) {
   const { deviceId } = useParams<{ deviceId: string }>();
+  const navigate = useNavigate();
   const { profile } = useProfile(session);
   const companyId = profile?.company_id ?? '';
 
@@ -47,6 +49,8 @@ export default function TempMonitorDetailPage({ session }: Props) {
   const [message, setMessage] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsError, setSettingsError] = useState<string | null>(null);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const [sessionForm, setSessionForm] = useState({
     customer_id: '',
@@ -210,6 +214,22 @@ export default function TempMonitorDetailPage({ session }: Props) {
     await load();
   }
 
+  async function deleteDevice() {
+    if (!device) return;
+    setBusy(true);
+    setDeleteError(null);
+
+    const { error: deleteErr } = await supabase.from('temp_devices').delete().eq('id', device.id);
+
+    setBusy(false);
+    if (deleteErr) {
+      setDeleteError(deleteErr.message);
+      return;
+    }
+
+    navigate('/lampotila');
+  }
+
   if (loading && !device) {
     return (
       <AppLayout session={session}>
@@ -241,15 +261,28 @@ export default function TempMonitorDetailPage({ session }: Props) {
       <section className="panel temp-device-summary">
         <div className="temp-device-summary-head">
           <h1>{device.name}</h1>
-          <div className="temp-device-summary-badges">
-            <span className={`temp-status ${online ? 'online' : 'offline'}`}>
-              {online ? 'Online' : 'Offline'}
-            </span>
-            {activeSession && (
-              <span className={`temp-compliance temp-compliance--${compliance}`}>
-                {complianceLabel(compliance)}
+          <div className="temp-device-summary-actions">
+            <div className="temp-device-summary-badges">
+              <span className={`temp-status ${online ? 'online' : 'offline'}`}>
+                {online ? 'Online' : 'Offline'}
               </span>
-            )}
+              {activeSession && (
+                <span className={`temp-compliance temp-compliance--${compliance}`}>
+                  {complianceLabel(compliance)}
+                </span>
+              )}
+            </div>
+            <button
+              type="button"
+              className="btn btn-danger"
+              disabled={busy}
+              onClick={() => {
+                setDeleteError(null);
+                setDeleteOpen(true);
+              }}
+            >
+              Poista laite
+            </button>
           </div>
         </div>
         <dl className="temp-summary-grid">
@@ -394,6 +427,19 @@ export default function TempMonitorDetailPage({ session }: Props) {
         onChange={setSettingsForm}
         onClose={() => setSettingsOpen(false)}
         onSubmit={(e) => void saveSettings(e)}
+      />
+
+      <TempDeviceDeleteDialog
+        open={deleteOpen}
+        deviceName={device.name}
+        busy={busy}
+        error={deleteError}
+        onClose={() => {
+          if (busy) return;
+          setDeleteOpen(false);
+          setDeleteError(null);
+        }}
+        onConfirm={() => void deleteDevice()}
       />
     </AppLayout>
   );
