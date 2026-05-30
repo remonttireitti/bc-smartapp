@@ -28,6 +28,7 @@ import {
   canAssignDelegatedWorkOrder,
 } from '../lib/workReportDelegation';
 import DailyLogRefrigerantFields from '../components/inventory/DailyLogRefrigerantFields';
+import DailyLogTripLegFields from '../components/DailyLogTripLegFields';
 import { AddDailyLogImages, BUCKET, DailyLogImageGallery, uploadDailyLogImages } from '../lib/dailyLogImages';
 import {
   loadWorkReportAttachments,
@@ -85,6 +86,16 @@ import {
   type BillableCalculation,
   type UserBillingProfile,
 } from '../lib/workReportBilling';
+import {
+  buildDefaultTripLegs,
+  formatOfficeTripLabel,
+  formatTripLegSummary,
+  resolveWorkReportSiteLabel,
+  saveTripLegs,
+  sumDailyTripKm,
+  tripLegsToDrafts,
+  type TripLegDraft,
+} from '../lib/workReportTripLegs';
 import {
   EXPENSE_TYPE_LABELS,
   EXPENSE_TYPE_OPTIONS,
@@ -156,6 +167,7 @@ const LOG_SELECT = `
   author_name_snapshot, author_deleted,
   author:profiles!work_report_daily_logs_created_by_fkey(display_name),
   expense_lines:work_report_daily_expense_lines(id, daily_log_id, expense_type, description, qty, unit_price, bill_to_customer, customer_unit_price, sort_order),
+  trip_legs:work_report_daily_trip_legs(id, daily_log_id, from_label, to_label, distance_km, bill_to_customer, sort_order),
   refrigerant_lines:work_report_refrigerant_lines(
     id, daily_log_id, work_report_id, source, cylinder_id, warehouse_company_id, owner_user_id, supplier_name,
     supplier_paid_by, unit_price, customer_unit_price, bill_to_customer,
@@ -702,6 +714,7 @@ export default function WorkReportDetailPage({ session }: Props) {
   const [logDialogBusy, setLogDialogBusy] = useState(false);
   const [logForm, setLogForm] = useState(initialLogForm);
   const [expenseDrafts, setExpenseDrafts] = useState<ExpenseDraft[]>([]);
+  const [tripDrafts, setTripDrafts] = useState<TripLegDraft[]>([]);
   const [refrigerantDrafts, setRefrigerantDrafts] = useState<RefrigerantLineDraft[]>([]);
   const [refrigerantCylinders, setRefrigerantCylinders] = useState<RefrigerantCylinder[]>([]);
   const [refrigerantCompanyUsers, setRefrigerantCompanyUsers] = useState<
@@ -1148,6 +1161,7 @@ export default function WorkReportDetailPage({ session }: Props) {
 
   const totalHours = useMemo(() => sumDailyHours(dailyLogs), [dailyLogs]);
   const totalExpenses = useMemo(() => sumDailyExpenses(dailyLogs), [dailyLogs]);
+  const totalTripKm = useMemo(() => sumDailyTripKm(dailyLogs), [dailyLogs]);
   const refrigerantPartnerReminders = useMemo(
     () =>
       Array.from(
@@ -1265,6 +1279,19 @@ export default function WorkReportDetailPage({ session }: Props) {
     }
   }
 
+  async function saveDailyLogTripLegs(dailyLogId: string) {
+    if (!report) return null;
+    const includeCustomerFields =
+      report.created_by_company_id === report.owner_company_id &&
+      !(!!report.delegate_company_id && report.created_by_company_id === report.owner_company_id);
+    try {
+      await saveTripLegs(supabase, dailyLogId, tripDrafts, includeCustomerFields);
+      return null;
+    } catch (err) {
+      return err instanceof Error ? err : new Error('Ajomatkojen tallennus epäonnistui.');
+    }
+  }
+
   async function saveDailyLogRefrigerant(
     dailyLogId: string,
     previousLines?: WorkReportDailyLog['refrigerant_lines'],
@@ -1353,6 +1380,16 @@ export default function WorkReportDetailPage({ session }: Props) {
       return;
     }
 
+    const tripError = await saveDailyLogTripLegs(logRow.id);
+    if (tripError) {
+      setLogDialogBusy(false);
+      setError(
+        `Työkirjaus tallennettiin, mutta ajomatkat jäivät tallentamatta: ${tripError.message} Korjaa rivit ja tallenna uudelleen (muokkaa työkirjausta).`,
+      );
+      await load(report.id);
+      return;
+    }
+
     const refrigerantError = await saveDailyLogRefrigerant(logRow.id);
     if (refrigerantError) {
       setLogDialogBusy(false);
@@ -1393,6 +1430,25 @@ export default function WorkReportDetailPage({ session }: Props) {
     setError(null);
     setLogDialogOpen(true);
     void loadRefrigerantContext();
+    if (report) {
+      void (async () => {
+        let officeLabel = 'Toimisto';
+        const { data: companyRow } = await supabase
+          .from('companies')
+          .select('name, settings')
+          .eq('id', report.owner_company_id)
+          .maybeSingle();
+        if (companyRow) {
+          officeLabel = formatOfficeTripLabel(
+            parseCompanySettings((companyRow as { settings: unknown }).settings),
+            (companyRow as { name: string | null }).name,
+          );
+        }
+        setTripDrafts(buildDefaultTripLegs(resolveWorkReportSiteLabel(report), officeLabel));
+      })();
+    } else {
+      setTripDrafts([]);
+    }
   }
 
   function openEditLogDialog(log: WorkReportDailyLog) {
@@ -1401,6 +1457,7 @@ export default function WorkReportDetailPage({ session }: Props) {
     setEditingLog(log);
     setLogForm(logToForm(log));
     setExpenseDrafts(expensesToDrafts(log.expense_lines));
+    setTripDrafts(tripLegsToDrafts(log.trip_legs));
     setRefrigerantDrafts(drafts);
     setPendingImages([]);
     setError(null);
@@ -1415,6 +1472,7 @@ export default function WorkReportDetailPage({ session }: Props) {
     setEditingLog(null);
     setLogForm(initialLogForm());
     setExpenseDrafts([]);
+    setTripDrafts([]);
     setRefrigerantDrafts([]);
     setPendingImages([]);
     setError(null);
@@ -1475,6 +1533,13 @@ export default function WorkReportDetailPage({ session }: Props) {
     if (expenseError) {
       setLogDialogBusy(false);
       setError(expenseError.message);
+      return;
+    }
+
+    const tripError = await saveDailyLogTripLegs(editingLogId);
+    if (tripError) {
+      setLogDialogBusy(false);
+      setError(tripError.message);
       return;
     }
 
@@ -1964,7 +2029,7 @@ export default function WorkReportDetailPage({ session }: Props) {
       </CollapsibleSection>
 
       <CollapsibleSection
-        title={`Työkirjaukset · ${totalHours.toFixed(2)} h · kulut ${totalExpenses.toFixed(2)} €`}
+        title={`Työkirjaukset · ${totalHours.toFixed(2)} h · kulut ${totalExpenses.toFixed(2)} €${totalTripKm > 0 ? ` · ${totalTripKm.toFixed(1)} km` : ''}`}
         defaultOpen
         variant="plain"
         className="panel work-report-section"
@@ -1994,6 +2059,8 @@ export default function WorkReportDetailPage({ session }: Props) {
           <ul className="daily-log-list compact-daily-log-list">
             {dailyLogs.map((log) => {
               const expenseLines = log.expense_lines ?? [];
+              const tripLegs = log.trip_legs ?? [];
+              const tripKm = tripLegs.reduce((s, leg) => s + Number(leg.distance_km || 0), 0);
               const refrigerantLines = log.refrigerant_lines ?? [];
               return (
                 <li key={log.id}>
@@ -2007,6 +2074,7 @@ export default function WorkReportDetailPage({ session }: Props) {
                           Kulut {expenseLines.reduce((s, line) => s + expenseLineTotal(line), 0).toFixed(2)} €
                         </span>
                       )}
+                      {tripKm > 0 && <span>Ajomatka {tripKm.toFixed(1)} km</span>}
                       {refrigerantLines.length > 0 && (
                         <span>
                           Kylmäaine{' '}
@@ -2070,6 +2138,13 @@ export default function WorkReportDetailPage({ session }: Props) {
                           </li>
                         );
                       })}
+                    </ul>
+                  )}
+                  {tripLegs.length > 0 && (
+                    <ul className="expense-line-list compact-expense-line-list">
+                      {tripLegs.map((leg) => (
+                        <li key={leg.id}>{formatTripLegSummary(leg)}</li>
+                      ))}
                     </ul>
                   )}
                   {refrigerantLines.length > 0 && (
@@ -2408,6 +2483,11 @@ export default function WorkReportDetailPage({ session }: Props) {
           showCustomerExpenseFields={showCustomerMoney}
           defaultHourlyRate={billableCalculation?.ratesUsed.hourly_regular ?? null}
           defaultCustomerHourlyRate={customerBillableCalculation?.ratesUsed.hourly_regular ?? null}
+        />
+        <DailyLogTripLegFields
+          drafts={tripDrafts}
+          setDrafts={setTripDrafts}
+          showCustomerFields={showCustomerMoney}
         />
         <DailyLogRefrigerantFields
           drafts={refrigerantDrafts}

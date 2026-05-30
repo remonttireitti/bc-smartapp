@@ -115,6 +115,16 @@ export type DailyExpenseLine = {
   sort_order: number;
 };
 
+export type DailyTripLeg = {
+  id: string;
+  daily_log_id: string;
+  from_label: string;
+  to_label: string;
+  distance_km: number;
+  bill_to_customer?: boolean;
+  sort_order: number;
+};
+
 export type DailyLogImage = {
   id: string;
   daily_log_id: string;
@@ -153,6 +163,7 @@ export type WorkReportDailyLog = {
   author_deleted?: boolean;
   author: { display_name: string | null } | null;
   expense_lines?: DailyExpenseLine[];
+  trip_legs?: DailyTripLeg[];
   refrigerant_lines?: import('./inventory').WorkReportRefrigerantLine[];
   images?: DailyLogImage[];
 };
