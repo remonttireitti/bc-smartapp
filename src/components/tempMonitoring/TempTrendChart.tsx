@@ -12,6 +12,13 @@ type Props = {
   height?: number;
 };
 
+function pointClass(outOfRange: boolean, hasLimits: boolean) {
+  if (!hasLimits) return 'temp-chart-point temp-chart-point--neutral';
+  return outOfRange
+    ? 'temp-chart-point temp-chart-point--deviation'
+    : 'temp-chart-point temp-chart-point--in-range';
+}
+
 export default function TempTrendChart({ readings, limits = null, height = 220 }: Props) {
   const width = 640;
   const chart = buildTempTrendChartModel(readings, width, height, limits);
@@ -30,7 +37,8 @@ export default function TempTrendChart({ readings, limits = null, height = 220 }
   const bandY2 = limits ? chart.tempToY(limits.acceptableMin) : null;
   const targetY1 = limits ? chart.tempToY(limits.targetMax) : null;
   const targetY2 = limits ? chart.tempToY(limits.targetMin) : null;
-  const visibleDots = dotIndices(chart.points.length);
+  const showDots = chart.points.length <= 80;
+  const visibleDots = showDots ? dotIndices(chart.points.length) : [];
   const singlePoint = chart.points.length === 1;
 
   return (
@@ -104,7 +112,6 @@ export default function TempTrendChart({ readings, limits = null, height = 220 }
             key={`segment-${index}`}
             d={segment.path}
             className={`temp-chart-line temp-chart-line--${segment.variant}`}
-            fill="none"
           />
         ))}
         {visibleDots.map((index) => {
@@ -116,19 +123,19 @@ export default function TempTrendChart({ readings, limits = null, height = 220 }
               cx={point.x}
               cy={point.y}
               r={singlePoint ? 4 : 3}
-              className={outOfRange ? 'temp-chart-point temp-chart-point--deviation' : 'temp-chart-point'}
+              className={pointClass(outOfRange, limits != null)}
             />
           );
         })}
       </svg>
-      {limits && (
+      {limits ? (
         <div className="temp-chart-legend">
-          <span className="temp-chart-legend-target">Toivottu {limits.targetMin}–{limits.targetMax} °C</span>
-          <span className="temp-chart-legend-acceptable">
-            Sallittu {limits.acceptableMin.toFixed(1)}–{limits.acceptableMax.toFixed(1)} °C
-          </span>
+          <span className="temp-chart-legend-in-range">Vihreä = alueella</span>
           <span className="temp-chart-legend-deviation">Punainen = poikkeama</span>
+          <span className="temp-chart-legend-target">Toivottu {limits.targetMin}–{limits.targetMax} °C</span>
         </div>
+      ) : (
+        <p className="temp-chart-legend muted">Aseta tavoitealue mittauksen asetuksista nähdäksesi vihreä/punainen viiva.</p>
       )}
     </div>
   );

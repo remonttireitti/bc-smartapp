@@ -6070,27 +6070,36 @@ textarea {
 }
 
 .temp-chart-line {
-  stroke-width: 2.5;
+  stroke-width: 3;
   stroke-linecap: round;
   stroke-linejoin: round;
+  fill: none;
 }
 
-.temp-chart-line--ok {
-  stroke: #0284c7;
+.temp-chart-line--in-range {
+  stroke: #16a34a;
 }
 
 .temp-chart-line--deviation {
-  stroke: #ef4444;
+  stroke: #dc2626;
+}
+
+.temp-chart-line--neutral {
+  stroke: #64748b;
 }
 
 .temp-chart-point {
-  fill: #0284c7;
+  fill: #16a34a;
   stroke: #fff;
   stroke-width: 1;
 }
 
 .temp-chart-point--deviation {
-  fill: #ef4444;
+  fill: #dc2626;
+}
+
+.temp-chart-point--neutral {
+  fill: #64748b;
 }
 
 .temp-chart-label {
@@ -6212,6 +6221,7 @@ textarea {
 
 .temp-chart-legend-target::before,
 .temp-chart-legend-acceptable::before,
+.temp-chart-legend-in-range::before,
 .temp-chart-legend-deviation::before {
   content: '';
   display: inline-block;
@@ -6230,8 +6240,12 @@ textarea {
   background: rgba(34, 197, 94, 0.35);
 }
 
+.temp-chart-legend-in-range::before {
+  background: #16a34a;
+}
+
 .temp-chart-legend-deviation::before {
-  background: #ef4444;
+  background: #dc2626;
 }
 
 .temp-trend-live {

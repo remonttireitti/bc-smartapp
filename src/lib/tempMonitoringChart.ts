@@ -47,7 +47,7 @@ export type ChartPoint = { x: number; y: number; temp: number; recordedAt: strin
 
 export type ChartLineSegment = {
   path: string;
-  variant: 'ok' | 'deviation';
+  variant: 'in-range' | 'deviation' | 'neutral';
 };
 
 function isPointOutOfRange(temp: number, limits: TempEffectiveLimits | null | undefined) {
@@ -56,7 +56,7 @@ function isPointOutOfRange(temp: number, limits: TempEffectiveLimits | null | un
 }
 
 /** Catmull-Rom style cubic bezier through chart points. */
-export function buildSmoothPath(points: ChartPoint[], tension = 0.22): string {
+export function buildSmoothPath(points: ChartPoint[], tension = 0.35): string {
   if (points.length === 0) return '';
   if (points.length === 1) {
     return `M ${points[0].x.toFixed(1)} ${points[0].y.toFixed(1)}`;
@@ -85,11 +85,14 @@ export function buildChartLineSegments(
   limits: TempEffectiveLimits | null | undefined,
 ): ChartLineSegment[] {
   if (points.length === 0) return [];
+  if (!limits) {
+    return [{ path: buildSmoothPath(points), variant: 'neutral' }];
+  }
   if (points.length === 1) {
     return [
       {
         path: buildSmoothPath(points),
-        variant: isPointOutOfRange(points[0].temp, limits) ? 'deviation' : 'ok',
+        variant: isPointOutOfRange(points[0].temp, limits) ? 'deviation' : 'in-range',
       },
     ];
   }
@@ -98,12 +101,12 @@ export function buildChartLineSegments(
   let start = 0;
   let currentVariant: ChartLineSegment['variant'] = isPointOutOfRange(points[0].temp, limits)
     ? 'deviation'
-    : 'ok';
+    : 'in-range';
 
   for (let i = 1; i < points.length; i++) {
     const variant: ChartLineSegment['variant'] = isPointOutOfRange(points[i].temp, limits)
       ? 'deviation'
-      : 'ok';
+      : 'in-range';
     if (variant !== currentVariant) {
       const slice = points.slice(start, i + 1);
       segments.push({ path: buildSmoothPath(slice), variant: currentVariant });
@@ -245,15 +248,20 @@ export function renderTempTrendChartSvg(
   const dots = visibleDots
     .map((index) => {
       const point = chart.points[index];
-      const fill = limits && isPointOutOfRange(point.temp, limits) ? '#ef4444' : '#0284c7';
+      const fill = limits && isPointOutOfRange(point.temp, limits) ? '#dc2626' : limits ? '#16a34a' : '#64748b';
       return `<circle cx="${point.x.toFixed(1)}" cy="${point.y.toFixed(1)}" r="3" fill="${fill}" stroke="#fff" stroke-width="1" />`;
     })
     .join('');
 
-  const lines = (segments.length > 0 ? segments : [{ path, variant: 'ok' as const }])
+  const lines = (segments.length > 0 ? segments : [{ path, variant: 'neutral' as const }])
     .map((segment) => {
-      const stroke = segment.variant === 'deviation' ? '#ef4444' : '#0284c7';
-      return `<path d="${segment.path}" fill="none" stroke="${stroke}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />`;
+      const stroke =
+        segment.variant === 'deviation'
+          ? '#dc2626'
+          : segment.variant === 'in-range'
+            ? '#16a34a'
+            : '#64748b';
+      return `<path d="${segment.path}" fill="none" stroke="${stroke}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />`;
     })
     .join('');
 
