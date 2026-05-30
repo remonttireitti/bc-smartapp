@@ -1,5 +1,10 @@
 import type { TempEffectiveLimits, TempReading } from '../../lib/tempMonitoring';
-import { buildTempTrendChartModel, dotIndices } from '../../lib/tempMonitoringChart';
+import { isTempWithinLimits } from '../../lib/tempMonitoring';
+import {
+  buildChartLineSegments,
+  buildTempTrendChartModel,
+  dotIndices,
+} from '../../lib/tempMonitoringChart';
 
 type Props = {
   readings: TempReading[];
@@ -19,13 +24,14 @@ export default function TempTrendChart({ readings, limits = null, height = 220 }
     );
   }
 
-  const path = chart.points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ');
+  const segments = buildChartLineSegments(chart.points, limits);
   const yTicks = [chart.min, (chart.min + chart.max) / 2, chart.max];
   const bandY1 = limits ? chart.tempToY(limits.acceptableMax) : null;
   const bandY2 = limits ? chart.tempToY(limits.acceptableMin) : null;
   const targetY1 = limits ? chart.tempToY(limits.targetMax) : null;
   const targetY2 = limits ? chart.tempToY(limits.targetMin) : null;
   const visibleDots = dotIndices(chart.points.length);
+  const singlePoint = chart.points.length === 1;
 
   return (
     <div className="temp-chart">
@@ -93,16 +99,24 @@ export default function TempTrendChart({ readings, limits = null, height = 220 }
             </text>
           </g>
         ))}
-        <path d={path} className="temp-chart-line" fill="none" />
+        {segments.map((segment, index) => (
+          <path
+            key={`segment-${index}`}
+            d={segment.path}
+            className={`temp-chart-line temp-chart-line--${segment.variant}`}
+            fill="none"
+          />
+        ))}
         {visibleDots.map((index) => {
           const point = chart.points[index];
+          const outOfRange = limits != null && !isTempWithinLimits(point.temp, limits);
           return (
             <circle
               key={`${point.recordedAt}-${index}`}
               cx={point.x}
               cy={point.y}
-              r={2.5}
-              className="temp-chart-point"
+              r={singlePoint ? 4 : 3}
+              className={outOfRange ? 'temp-chart-point temp-chart-point--deviation' : 'temp-chart-point'}
             />
           );
         })}
@@ -113,6 +127,7 @@ export default function TempTrendChart({ readings, limits = null, height = 220 }
           <span className="temp-chart-legend-acceptable">
             Sallittu {limits.acceptableMin.toFixed(1)}–{limits.acceptableMax.toFixed(1)} °C
           </span>
+          <span className="temp-chart-legend-deviation">Punainen = poikkeama</span>
         </div>
       )}
     </div>

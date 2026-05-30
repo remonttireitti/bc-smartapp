@@ -14,7 +14,7 @@
 namespace {
 
 constexpr uint32_t CLOUD_INTERVAL_MS = 60 * 1000;
-constexpr size_t CLOUD_BATCH_MAX = 30;
+constexpr size_t CLOUD_BATCH_MAX = 35;
 
 struct CloudSample {
   uint32_t tsSec;
@@ -72,7 +72,7 @@ bool flushBatch(float currentTemp) {
   http.addHeader("Content-Type", "application/json");
   http.addHeader("X-Device-Key", deviceKey);
 
-  StaticJsonDocument<2048> doc;
+  StaticJsonDocument<4096> doc;
   JsonArray readings = doc["readings"].to<JsonArray>();
   for (size_t i = 0; i < batchCount; i++) {
     JsonObject row = readings.add<JsonObject>();
@@ -118,9 +118,13 @@ const char *cloudSyncDeviceKey() {
   return deviceKey;
 }
 
+void cloudSyncOnSample(float tempC) {
+  if (isnan(tempC)) return;
+  queueSample(tempC);
+}
+
 void cloudSyncLoop(float currentTemp, bool sensorOk) {
   if (!sensorOk || isnan(currentTemp)) return;
-  queueSample(currentTemp);
   unsigned long now = millis();
   if (now - lastCloudMs < CLOUD_INTERVAL_MS) return;
   lastCloudMs = now;

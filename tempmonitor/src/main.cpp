@@ -420,6 +420,7 @@ void readTemperature() {
   sensorOk = true;
   currentTemp = t;
   historyAddSample(t);
+  cloudSyncOnSample(t);
 }
 
 void setup() {

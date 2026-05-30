@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
 import AppLayout from '../components/AppLayout';
@@ -68,6 +68,8 @@ export default function TempMonitorDetailPage({ session }: Props) {
   const [reportForm, setReportForm] = useState<TempReportFormState | null>(null);
   const [savedReports, setSavedReports] = useState<TempMonitorReport[]>([]);
   const [lastRefreshAt, setLastRefreshAt] = useState<Date | null>(null);
+  const [liveTick, setLiveTick] = useState(0);
+  const lastReadingAtRef = useRef<string | null>(null);
 
   const [sessionForm, setSessionForm] = useState({
     customer_id: '',
@@ -88,82 +90,173 @@ export default function TempMonitorDetailPage({ session }: Props) {
   );
 
   const chartReadings = useMemo(() => {
-    if (activeSession) {
-      return readings.filter((r) => r.session_id === activeSession.id);
+    let rows = activeSession
+      ? readings.filter((r) => r.session_id === activeSession.id)
+      : readings.slice(-500);
+
+    if (device?.last_temp_c != null && device.last_seen_at) {
+      const liveTs = new Date(device.last_seen_at).getTime();
+      const lastRow = rows[rows.length - 1];
+      const lastTs = lastRow ? new Date(lastRow.recorded_at).getTime() : 0;
+      if (liveTs >= lastTs) {
+        rows = [
+          ...rows.filter((r) => r.id >= 0),
+          {
+            id: -1,
+            device_id: device.id,
+            session_id: activeSession?.id ?? null,
+            recorded_at: device.last_seen_at,
+            temp_c: device.last_temp_c,
+          },
+        ];
+      }
     }
-    return readings.slice(-500);
-  }, [readings, activeSession]);
+
+    return rows;
+  }, [readings, activeSession, device?.id, device?.last_seen_at, device?.last_temp_c]);
 
   const compliance = useMemo(
     () => evaluateTempCompliance(device?.last_temp_c, chartReadings, activeSession),
-    [device?.last_temp_c, chartReadings, activeSession],
+    [device?.last_temp_c, chartReadings, activeSession, liveTick],
   );
 
-  async function load() {
-    if (!deviceId || !companyId) return;
-    setLoading(true);
-    setError(null);
-
-    const partnerRows = await loadReportPartnerships(supabase, companyId, 'customers', 'read').catch(
-      () => [],
-    );
-
-    const since = new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString();
-
-    const [
-      { data: deviceRow, error: deviceError },
-      { data: sessionRows },
-      { data: readingRows },
-      { data: reportRows },
-      customerRows,
-    ] = await Promise.all([
-      supabase.from('temp_devices').select(TEMP_DEVICE_SELECT).eq('id', deviceId).maybeSingle(),
-      supabase
-        .from('temp_monitor_sessions')
-        .select(TEMP_SESSION_SELECT)
-        .eq('device_id', deviceId)
-        .order('started_at', { ascending: false })
-        .limit(20),
-      supabase
-        .from('temp_readings')
-        .select('id, device_id, session_id, recorded_at, temp_c')
-        .eq('device_id', deviceId)
-        .gte('recorded_at', since)
-        .order('recorded_at', { ascending: true })
-        .limit(10000),
-      supabase
-        .from('temp_monitor_reports')
-        .select(TEMP_REPORT_SELECT)
-        .eq('device_id', deviceId)
-        .order('created_at', { ascending: false })
-        .limit(20),
-      loadAccessibleReportCustomers(supabase, companyId, partnerRows).catch(() => [] as Customer[]),
-    ]);
-
-    if (deviceError || !deviceRow) {
-      setError(deviceError?.message ?? 'Laitetta ei löydy');
-      setLoading(false);
-      return;
+  const mergeReadings = useCallback((prev: TempReading[], incoming: TempReading[]) => {
+    const map = new Map(prev.map((row) => [row.id, row]));
+    for (const row of incoming) {
+      map.set(row.id, row);
     }
+    return [...map.values()].sort(
+      (a, b) => new Date(a.recorded_at).getTime() - new Date(b.recorded_at).getTime(),
+    );
+  }, []);
 
-    setDevice(deviceRow as TempDevice);
-    setSessions((sessionRows as TempMonitorSession[] | null) ?? []);
-    setReadings((readingRows as TempReading[] | null) ?? []);
-    setSavedReports((reportRows as TempMonitorReport[] | null) ?? []);
-    setCustomers(customerRows);
-    setLastRefreshAt(new Date());
-    setLoading(false);
-  }
+  const load = useCallback(
+    async (options?: { silent?: boolean }) => {
+      if (!deviceId || !companyId) return;
+      const silent = options?.silent ?? false;
+      if (!silent) setLoading(true);
+      if (!silent) setError(null);
+
+      const since = new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString();
+
+      if (silent) {
+        const cursor =
+          lastReadingAtRef.current ??
+          new Date(Date.now() - 2 * 3600 * 1000).toISOString();
+
+        const [{ data: deviceRow, error: deviceError }, { data: readingRows, error: readingError }] =
+          await Promise.all([
+            supabase.from('temp_devices').select(TEMP_DEVICE_SELECT).eq('id', deviceId).maybeSingle(),
+            supabase
+              .from('temp_readings')
+              .select('id, device_id, session_id, recorded_at, temp_c')
+              .eq('device_id', deviceId)
+              .gt('recorded_at', cursor)
+              .order('recorded_at', { ascending: true })
+              .limit(500),
+          ]);
+
+        if (deviceError) {
+          setError(deviceError.message);
+          return;
+        }
+        if (deviceRow) setDevice(deviceRow as TempDevice);
+        if (readingError) {
+          setError(readingError.message);
+          return;
+        }
+        if (readingRows?.length) {
+          setReadings((prev) => mergeReadings(prev, readingRows as TempReading[]));
+          lastReadingAtRef.current = (readingRows as TempReading[])[readingRows.length - 1].recorded_at;
+        } else if (deviceRow) {
+          lastReadingAtRef.current =
+            (deviceRow as TempDevice).last_seen_at ?? lastReadingAtRef.current;
+        }
+        setLastRefreshAt(new Date());
+        return;
+      }
+
+      const partnerRows = await loadReportPartnerships(supabase, companyId, 'customers', 'read').catch(
+        () => [],
+      );
+
+      const [
+        { data: deviceRow, error: deviceError },
+        { data: sessionRows },
+        { data: readingRows },
+        { data: reportRows },
+        customerRows,
+      ] = await Promise.all([
+        supabase.from('temp_devices').select(TEMP_DEVICE_SELECT).eq('id', deviceId).maybeSingle(),
+        supabase
+          .from('temp_monitor_sessions')
+          .select(TEMP_SESSION_SELECT)
+          .eq('device_id', deviceId)
+          .order('started_at', { ascending: false })
+          .limit(20),
+        supabase
+          .from('temp_readings')
+          .select('id, device_id, session_id, recorded_at, temp_c')
+          .eq('device_id', deviceId)
+          .gte('recorded_at', since)
+          .order('recorded_at', { ascending: true })
+          .limit(10000),
+        supabase
+          .from('temp_monitor_reports')
+          .select(TEMP_REPORT_SELECT)
+          .eq('device_id', deviceId)
+          .order('created_at', { ascending: false })
+          .limit(20),
+        loadAccessibleReportCustomers(supabase, companyId, partnerRows).catch(() => [] as Customer[]),
+      ]);
+
+      if (deviceError || !deviceRow) {
+        setError(deviceError?.message ?? 'Laitetta ei löydy');
+        if (!silent) setLoading(false);
+        return;
+      }
+
+      const nextReadings = (readingRows as TempReading[] | null) ?? [];
+      setDevice(deviceRow as TempDevice);
+      setSessions((sessionRows as TempMonitorSession[] | null) ?? []);
+      setReadings(nextReadings);
+      setSavedReports((reportRows as TempMonitorReport[] | null) ?? []);
+      setCustomers(customerRows);
+      lastReadingAtRef.current = nextReadings[nextReadings.length - 1]?.recorded_at ?? null;
+      setLastRefreshAt(new Date());
+      if (!silent) setLoading(false);
+    },
+    [companyId, deviceId, mergeReadings],
+  );
+
+  const loadRef = useRef(load);
+  loadRef.current = load;
 
   useEffect(() => {
-    if (deviceId && companyId) void load();
+    if (deviceId && companyId) void loadRef.current();
   }, [deviceId, companyId]);
+
+  const pollMs = activeSession ? 10_000 : 20_000;
 
   useEffect(() => {
     if (!deviceId || !companyId) return;
-    const timer = window.setInterval(() => void load(), 30_000);
+    const timer = window.setInterval(() => void loadRef.current({ silent: true }), pollMs);
     return () => window.clearInterval(timer);
-  }, [deviceId, companyId]);
+  }, [deviceId, companyId, pollMs]);
+
+  useEffect(() => {
+    function onVisible() {
+      if (document.visibilityState === 'visible') void loadRef.current({ silent: true });
+    }
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, []);
+
+  useEffect(() => {
+    if (!activeSession) return;
+    const timer = window.setInterval(() => setLiveTick((n) => n + 1), 15_000);
+    return () => window.clearInterval(timer);
+  }, [activeSession?.id]);
 
   useEffect(() => {
     if (activeSession) {
@@ -398,7 +491,14 @@ export default function TempMonitorDetailPage({ session }: Props) {
 
         <section className="panel temp-trend-panel">
           <div className="temp-panel-head">
-            <h2>Trendi</h2>
+            <div>
+              <h2>Trendi</h2>
+              {activeSession && lastRefreshAt && (
+                <p className="temp-trend-live muted">
+                  Live · päivitetty {lastRefreshAt.toLocaleTimeString('fi-FI', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                </p>
+              )}
+            </div>
             <div className="temp-panel-head-actions">
               {sessions.length > 0 && (
                 <button type="button" className="btn btn-secondary" disabled={busy} onClick={openReportDialog}>

@@ -35,12 +35,88 @@ export function formatXTick(iso: string, spanMs: number) {
 }
 
 export function dotIndices(count: number) {
-  if (count <= 100) return Array.from({ length: count }, (_, i) => i);
-  const step = Math.ceil(count / 80);
+  if (count <= 60) return Array.from({ length: count }, (_, i) => i);
+  const step = Math.ceil(count / 50);
   const indices: number[] = [];
   for (let i = 0; i < count; i += step) indices.push(i);
   if (indices[indices.length - 1] !== count - 1) indices.push(count - 1);
   return indices;
+}
+
+export type ChartPoint = { x: number; y: number; temp: number; recordedAt: string };
+
+export type ChartLineSegment = {
+  path: string;
+  variant: 'ok' | 'deviation';
+};
+
+function isPointOutOfRange(temp: number, limits: TempEffectiveLimits | null | undefined) {
+  if (!limits) return false;
+  return temp < limits.acceptableMin || temp > limits.acceptableMax;
+}
+
+/** Catmull-Rom style cubic bezier through chart points. */
+export function buildSmoothPath(points: ChartPoint[], tension = 0.22): string {
+  if (points.length === 0) return '';
+  if (points.length === 1) {
+    return `M ${points[0].x.toFixed(1)} ${points[0].y.toFixed(1)}`;
+  }
+  if (points.length === 2) {
+    return `M ${points[0].x.toFixed(1)} ${points[0].y.toFixed(1)} L ${points[1].x.toFixed(1)} ${points[1].y.toFixed(1)}`;
+  }
+
+  let d = `M ${points[0].x.toFixed(1)} ${points[0].y.toFixed(1)}`;
+  for (let i = 0; i < points.length - 1; i++) {
+    const p0 = points[Math.max(i - 1, 0)];
+    const p1 = points[i];
+    const p2 = points[i + 1];
+    const p3 = points[Math.min(i + 2, points.length - 1)];
+    const cp1x = p1.x + (p2.x - p0.x) * tension;
+    const cp1y = p1.y + (p2.y - p0.y) * tension;
+    const cp2x = p2.x - (p3.x - p1.x) * tension;
+    const cp2y = p2.y - (p3.y - p1.y) * tension;
+    d += ` C ${cp1x.toFixed(1)} ${cp1y.toFixed(1)}, ${cp2x.toFixed(1)} ${cp2y.toFixed(1)}, ${p2.x.toFixed(1)} ${p2.y.toFixed(1)}`;
+  }
+  return d;
+}
+
+export function buildChartLineSegments(
+  points: ChartPoint[],
+  limits: TempEffectiveLimits | null | undefined,
+): ChartLineSegment[] {
+  if (points.length === 0) return [];
+  if (points.length === 1) {
+    return [
+      {
+        path: buildSmoothPath(points),
+        variant: isPointOutOfRange(points[0].temp, limits) ? 'deviation' : 'ok',
+      },
+    ];
+  }
+
+  const segments: ChartLineSegment[] = [];
+  let start = 0;
+  let currentVariant: ChartLineSegment['variant'] = isPointOutOfRange(points[0].temp, limits)
+    ? 'deviation'
+    : 'ok';
+
+  for (let i = 1; i < points.length; i++) {
+    const variant: ChartLineSegment['variant'] = isPointOutOfRange(points[i].temp, limits)
+      ? 'deviation'
+      : 'ok';
+    if (variant !== currentVariant) {
+      const slice = points.slice(start, i + 1);
+      segments.push({ path: buildSmoothPath(slice), variant: currentVariant });
+      start = i;
+      currentVariant = variant;
+    }
+  }
+
+  segments.push({
+    path: buildSmoothPath(points.slice(start)),
+    variant: currentVariant,
+  });
+  return segments;
 }
 
 export function buildTempTrendChartModel(
@@ -49,7 +125,7 @@ export function buildTempTrendChartModel(
   height: number,
   limits?: TempEffectiveLimits | null,
 ): TempChartModel | null {
-  if (readings.length < 2) return null;
+  if (readings.length < 1) return null;
 
   const sorted = [...readings].sort(
     (a, b) => new Date(a.recorded_at).getTime() - new Date(b.recorded_at).getTime(),
@@ -130,9 +206,8 @@ export function renderTempTrendChartSvg(
     return '<p class="print-card-muted">Ei riittävästi mittausdataa trendiin.</p>';
   }
 
-  const path = chart.points
-    .map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`)
-    .join(' ');
+  const path = buildSmoothPath(chart.points);
+  const segments = buildChartLineSegments(chart.points, limits);
   const yTicks = [chart.min, (chart.min + chart.max) / 2, chart.max];
   const bandY1 = limits ? chart.tempToY(limits.acceptableMax) : null;
   const bandY2 = limits ? chart.tempToY(limits.acceptableMin) : null;
@@ -170,7 +245,15 @@ export function renderTempTrendChartSvg(
   const dots = visibleDots
     .map((index) => {
       const point = chart.points[index];
-      return `<circle cx="${point.x.toFixed(1)}" cy="${point.y.toFixed(1)}" r="2.5" fill="#0284c7" stroke="#fff" stroke-width="0.75" />`;
+      const fill = limits && isPointOutOfRange(point.temp, limits) ? '#ef4444' : '#0284c7';
+      return `<circle cx="${point.x.toFixed(1)}" cy="${point.y.toFixed(1)}" r="3" fill="${fill}" stroke="#fff" stroke-width="1" />`;
+    })
+    .join('');
+
+  const lines = (segments.length > 0 ? segments : [{ path, variant: 'ok' as const }])
+    .map((segment) => {
+      const stroke = segment.variant === 'deviation' ? '#ef4444' : '#0284c7';
+      return `<path d="${segment.path}" fill="none" stroke="${stroke}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />`;
     })
     .join('');
 
@@ -178,7 +261,7 @@ export function renderTempTrendChartSvg(
 ${bands}
 ${grid}
 ${xAxis}
-<path d="${path}" fill="none" stroke="#0ea5e9" stroke-width="1" />
+${lines}
 ${dots}
 </svg>`;
 }
