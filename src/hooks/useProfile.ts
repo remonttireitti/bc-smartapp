@@ -8,6 +8,9 @@ type ProfileRow = {
   display_name: string | null;
   email: string | null;
   tukes_number?: string | null;
+  home_address?: string | null;
+  workplace_address?: string | null;
+  trip_departure_source?: 'workplace' | 'home' | null;
   role: string;
   company_id: string | null;
   subscriber_id?: string | null;
@@ -44,7 +47,7 @@ export function useProfile(session: Session | null) {
 
       let { data, error } = await supabase
         .from('profiles')
-        .select('id, display_name, email, tukes_number, role, company_id, subscriber_id, customer_id, is_global_admin')
+        .select('id, display_name, email, tukes_number, home_address, workplace_address, trip_departure_source, role, company_id, subscriber_id, customer_id, is_global_admin')
         .eq('id', userId)
         .maybeSingle();
 
@@ -60,7 +63,7 @@ export function useProfile(session: Session | null) {
         });
         const retry = await supabase
           .from('profiles')
-          .select('id, display_name, email, tukes_number, role, company_id, subscriber_id, customer_id, is_global_admin')
+          .select('id, display_name, email, tukes_number, home_address, workplace_address, trip_departure_source, role, company_id, subscriber_id, customer_id, is_global_admin')
           .eq('id', userId)
           .maybeSingle();
         data = retry.data;
@@ -97,6 +100,10 @@ export function useProfile(session: Session | null) {
         display_name: row.display_name,
         email: row.email,
         tukes_number: row.tukes_number ?? null,
+        home_address: row.home_address ?? null,
+        workplace_address: row.workplace_address ?? null,
+        trip_departure_source:
+          row.trip_departure_source === 'home' ? 'home' : 'workplace',
         role: row.role,
         company_id: row.company_id ?? metaCompanyId,
         subscriber_id: row.subscriber_id ?? null,

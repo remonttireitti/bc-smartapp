@@ -1,8 +1,11 @@
 import { useState } from 'react';
 
+import TripDestinationInput from './TripDestinationInput';
 import { supabase } from '../lib/supabase';
 import { calculateTripLegDistances } from '../lib/tripDistanceApi';
+import type { TripDestinationOption } from '../lib/tripDestinations';
 import {
+  appendReturnTripLeg,
   emptyTripLeg,
   sumTripLegDraftKm,
   type TripLegDraft,
@@ -12,9 +15,15 @@ type Props = {
   drafts: TripLegDraft[];
   setDrafts: (next: TripLegDraft[]) => void;
   showCustomerFields?: boolean;
+  destinationOptions?: TripDestinationOption[];
 };
 
-export default function DailyLogTripLegFields({ drafts, setDrafts, showCustomerFields }: Props) {
+export default function DailyLogTripLegFields({
+  drafts,
+  setDrafts,
+  showCustomerFields,
+  destinationOptions = [],
+}: Props) {
   const totalKm = sumTripLegDraftKm(drafts);
   const [busy, setBusy] = useState(false);
   const [rowBusyKey, setRowBusyKey] = useState<string | null>(null);
@@ -97,8 +106,9 @@ export default function DailyLogTripLegFields({ drafts, setDrafts, showCustomerF
         </div>
       </div>
       <p className="muted trip-leg-hint">
-        Kirjaa reitti pätkittäin (toimisto → kohde, väliajot, paluu). Paina <strong>Laske reitti</strong> — km haetaan
-        OpenRouteServicestä osoitteiden perusteella. Voit korjata km:t käsin tarvittaessa.
+        Lähtö tulee profiilistasi (toimipiste tai koti). Kohde ehdotetaan työraportin asiakkaan osoitteesta — voit valita
+        myös tukkurin tai muun kohteen listasta. Paina <strong>Laske reitti</strong> km-laskentaan tai{' '}
+        <strong>Lisää paluumatka</strong> paluulle.
       </p>
       {calcError && <p className="error trip-leg-calc-error">{calcError}</p>}
       {drafts.length === 0 ? (
@@ -115,19 +125,20 @@ export default function DailyLogTripLegFields({ drafts, setDrafts, showCustomerF
                   onChange={(e) =>
                     setDrafts(drafts.map((r, i) => (i === index ? { ...r, from_label: e.target.value } : r)))
                   }
-                  placeholder="Esim. Toimisto"
+                  placeholder="Toimipiste tai koti"
                 />
               </label>
-              <label>
-                Kohde
-                <input
-                  value={row.to_label}
-                  onChange={(e) =>
-                    setDrafts(drafts.map((r, i) => (i === index ? { ...r, to_label: e.target.value } : r)))
-                  }
-                  placeholder="Esim. työkohde"
-                />
-              </label>
+              <TripDestinationInput
+                id={`trip-to-${row.key}`}
+                label="Kohde"
+                value={row.to_label}
+                placeholder="Asiakkaan osoite tai tukkuri"
+                options={destinationOptions}
+                disabled={busy || rowBusy}
+                onChange={(value) =>
+                  setDrafts(drafts.map((r, i) => (i === index ? { ...r, to_label: value } : r)))
+                }
+              />
               <label>
                 km
                 <input
@@ -141,14 +152,32 @@ export default function DailyLogTripLegFields({ drafts, setDrafts, showCustomerF
                   placeholder="0"
                 />
               </label>
-              <button
-                type="button"
-                className="btn btn-secondary btn-sm trip-leg-calc-btn"
-                disabled={busy || rowBusy}
-                onClick={() => void calculateOne(index)}
-              >
-                {rowBusy ? '…' : 'Laske reitti'}
-              </button>
+              <div className="trip-leg-row-actions">
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm trip-leg-calc-btn"
+                  disabled={busy || rowBusy}
+                  onClick={() => void calculateOne(index)}
+                >
+                  {rowBusy ? '…' : 'Laske reitti'}
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  disabled={busy || rowBusy}
+                  onClick={() => setDrafts(appendReturnTripLeg(drafts, index))}
+                >
+                  Lisää paluumatka
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  disabled={busy || rowBusy}
+                  onClick={() => setDrafts(drafts.filter((_, i) => i !== index))}
+                >
+                  Poista
+                </button>
+              </div>
               {showCustomerFields && (
                 <label className="compact-option trip-leg-bill-check">
                   <input
@@ -163,14 +192,6 @@ export default function DailyLogTripLegFields({ drafts, setDrafts, showCustomerF
                   Laskutetaan asiakkaalta
                 </label>
               )}
-              <button
-                type="button"
-                className="btn btn-secondary btn-sm"
-                disabled={busy || rowBusy}
-                onClick={() => setDrafts(drafts.filter((_, i) => i !== index))}
-              >
-                Poista
-              </button>
             </div>
           );
         })

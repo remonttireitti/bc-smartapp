@@ -37,34 +37,68 @@ export function formatOfficeTripLabel(settings?: CompanySettings | null, company
   return companyName?.trim() || 'Toimisto';
 }
 
-export function resolveWorkReportSiteLabel(report: Pick<WorkReport, 'location_text' | 'customers'>): string {
+export function resolveUserDepartureLabel(input: {
+  trip_departure_source?: 'workplace' | 'home' | null;
+  workplace_address?: string | null;
+  home_address?: string | null;
+  companySettings?: CompanySettings | null;
+  companyName?: string | null;
+}): string {
+  const preferHome = input.trip_departure_source === 'home';
+  const workplace = input.workplace_address?.trim();
+  const home = input.home_address?.trim();
+
+  if (preferHome && home) return home;
+  if (!preferHome && workplace) return workplace;
+  if (workplace) return workplace;
+  if (home) return home;
+  return formatOfficeTripLabel(input.companySettings, input.companyName);
+}
+
+export function resolveWorkReportSiteLabel(
+  report: Pick<WorkReport, 'location_text' | 'customers'>,
+): string {
   const location = report.location_text?.trim();
   if (location) return location;
-  const customerName = report.customers?.name?.trim();
-  if (customerName) return customerName;
+
+  const customer = report.customers;
+  if (customer) {
+    const parts = [customer.address, customer.city].filter(Boolean);
+    if (parts.length) return parts.join(', ');
+    if (customer.name?.trim()) return customer.name.trim();
+  }
+
   return 'Kohde';
 }
 
-export function buildDefaultTripLegs(
-  siteLabel: string,
-  officeLabel = 'Toimisto',
-): TripLegDraft[] {
+export function buildDefaultTripLegs(departureLabel: string, siteLabel: string): TripLegDraft[] {
   return [
     {
       key: crypto.randomUUID(),
-      from_label: officeLabel,
+      from_label: departureLabel,
       to_label: siteLabel,
       distance_km: '',
       bill_to_customer: true,
     },
-    {
-      key: crypto.randomUUID(),
-      from_label: siteLabel,
-      to_label: officeLabel,
-      distance_km: '',
-      bill_to_customer: true,
-    },
   ];
+}
+
+export function createReturnTripLeg(leg: TripLegDraft): TripLegDraft {
+  return {
+    key: crypto.randomUUID(),
+    from_label: leg.to_label,
+    to_label: leg.from_label,
+    distance_km: '',
+    bill_to_customer: leg.bill_to_customer,
+  };
+}
+
+export function appendReturnTripLeg(drafts: TripLegDraft[], index: number): TripLegDraft[] {
+  const leg = drafts[index];
+  if (!leg) return drafts;
+  const next = [...drafts];
+  next.splice(index + 1, 0, createReturnTripLeg(leg));
+  return next;
 }
 
 export function sumTripLegDraftKm(drafts: TripLegDraft[]): number {

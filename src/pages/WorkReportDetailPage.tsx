@@ -86,10 +86,11 @@ import {
   type BillableCalculation,
   type UserBillingProfile,
 } from '../lib/workReportBilling';
+import { loadTripDestinationOptions, type TripDestinationOption } from '../lib/tripDestinations';
 import {
   buildDefaultTripLegs,
-  formatOfficeTripLabel,
   formatTripLegSummary,
+  resolveUserDepartureLabel,
   resolveWorkReportSiteLabel,
   saveTripLegs,
   sumDailyTripKm,
@@ -149,7 +150,7 @@ const REPORT_SELECT = `
   delegate_company_id, delegated_at, created_at, subscriber_id,
   created_by_user_name_snapshot, created_by_user_deleted,
   assigned_user_name_snapshot, assigned_user_deleted,
-  customers(name),
+  customers(name, address, city),
   equipment(name, tag),
   owner_company:companies!work_reports_owner_company_id_fkey(name),
   branding_company:companies!work_reports_branding_company_id_fkey(name),
@@ -715,6 +716,7 @@ export default function WorkReportDetailPage({ session }: Props) {
   const [logForm, setLogForm] = useState(initialLogForm);
   const [expenseDrafts, setExpenseDrafts] = useState<ExpenseDraft[]>([]);
   const [tripDrafts, setTripDrafts] = useState<TripLegDraft[]>([]);
+  const [tripDestinationOptions, setTripDestinationOptions] = useState<TripDestinationOption[]>([]);
   const [refrigerantDrafts, setRefrigerantDrafts] = useState<RefrigerantLineDraft[]>([]);
   const [refrigerantCylinders, setRefrigerantCylinders] = useState<RefrigerantCylinder[]>([]);
   const [refrigerantCompanyUsers, setRefrigerantCompanyUsers] = useState<
@@ -1420,6 +1422,31 @@ export default function WorkReportDetailPage({ session }: Props) {
     await load(report.id);
   }
 
+  async function loadTripDestinationOptionsForDialog(activeReport: WorkReport) {
+    if (!profile?.company_id) {
+      setTripDestinationOptions([]);
+      return;
+    }
+
+    try {
+      const options = await loadTripDestinationOptions(
+        supabase,
+        profile.company_id,
+        activeReport.customer_id && activeReport.customers
+          ? {
+              id: activeReport.customer_id,
+              name: activeReport.customers.name,
+              address: activeReport.customers.address,
+              city: activeReport.customers.city,
+            }
+          : null,
+      );
+      setTripDestinationOptions(options);
+    } catch {
+      setTripDestinationOptions([]);
+    }
+  }
+
   function openAddLogDialog() {
     setEditingLogId(null);
     setEditingLog(null);
@@ -1432,22 +1459,25 @@ export default function WorkReportDetailPage({ session }: Props) {
     void loadRefrigerantContext();
     if (report) {
       void (async () => {
-        let officeLabel = 'Toimisto';
         const { data: companyRow } = await supabase
           .from('companies')
           .select('name, settings')
           .eq('id', report.owner_company_id)
           .maybeSingle();
-        if (companyRow) {
-          officeLabel = formatOfficeTripLabel(
-            parseCompanySettings((companyRow as { settings: unknown }).settings),
-            (companyRow as { name: string | null }).name,
-          );
-        }
-        setTripDrafts(buildDefaultTripLegs(resolveWorkReportSiteLabel(report), officeLabel));
+        const companySettings = parseCompanySettings((companyRow as { settings: unknown } | null)?.settings);
+        const departureLabel = resolveUserDepartureLabel({
+          trip_departure_source: profile?.trip_departure_source,
+          workplace_address: profile?.workplace_address,
+          home_address: profile?.home_address,
+          companySettings,
+          companyName: (companyRow as { name: string | null } | null)?.name,
+        });
+        await loadTripDestinationOptionsForDialog(report);
+        setTripDrafts(buildDefaultTripLegs(departureLabel, resolveWorkReportSiteLabel(report)));
       })();
     } else {
       setTripDrafts([]);
+      setTripDestinationOptions([]);
     }
   }
 
@@ -1462,6 +1492,7 @@ export default function WorkReportDetailPage({ session }: Props) {
     setPendingImages([]);
     setError(null);
     setLogDialogOpen(true);
+    if (report) void loadTripDestinationOptionsForDialog(report);
     void loadRefrigerantContext(drafts.map((d) => d.cylinder_id).filter(Boolean));
   }
 
@@ -1473,6 +1504,7 @@ export default function WorkReportDetailPage({ session }: Props) {
     setLogForm(initialLogForm());
     setExpenseDrafts([]);
     setTripDrafts([]);
+    setTripDestinationOptions([]);
     setRefrigerantDrafts([]);
     setPendingImages([]);
     setError(null);
@@ -2488,6 +2520,7 @@ export default function WorkReportDetailPage({ session }: Props) {
           drafts={tripDrafts}
           setDrafts={setTripDrafts}
           showCustomerFields={showCustomerMoney}
+          destinationOptions={tripDestinationOptions}
         />
         <DailyLogRefrigerantFields
           drafts={refrigerantDrafts}

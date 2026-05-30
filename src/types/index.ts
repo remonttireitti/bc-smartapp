@@ -15,6 +15,9 @@ export type Profile = {
   email: string | null;
   /** Kylmäalan TUKES-tunnus (huoltopöytäkirja). */
   tukes_number?: string | null;
+  home_address?: string | null;
+  workplace_address?: string | null;
+  trip_departure_source?: 'workplace' | 'home' | null;
   role: string;
   company_id: string | null;
   /** Moniasiakas-tilaajan portaali: linkitetty tilaajarekisteriin. */
@@ -216,7 +219,7 @@ export type WorkReport = {
   delegate_company_id: string | null;
   delegated_at: string | null;
   created_at: string;
-  customers: { name: string } | null;
+  customers: { name: string; address?: string | null; city?: string | null } | null;
   equipment: { name: string; tag: string | null } | null;
   owner_company: { name: string } | null;
   branding_company: { name: string } | null;

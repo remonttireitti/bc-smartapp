@@ -5719,11 +5719,81 @@ textarea {
 
 .trip-leg-row {
   display: grid;
-  grid-template-columns: minmax(120px, 1.2fr) minmax(120px, 1.2fr) 5.5rem auto auto;
+  grid-template-columns: minmax(120px, 1.1fr) minmax(140px, 1.3fr) 5.5rem minmax(180px, auto);
   gap: 0.65rem;
   align-items: end;
   padding: 0.65rem 0;
   border-top: 1px solid var(--border);
+}
+
+.trip-leg-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  align-items: center;
+  align-self: end;
+}
+
+.trip-destination-quickpick {
+  margin-top: 0.35rem;
+  width: 100%;
+}
+
+.trip-departure-source-fieldset {
+  margin: 0.75rem 0 0;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.trip-departure-source-fieldset legend {
+  padding: 0 0.35rem;
+  font-size: 0.9rem;
+  color: var(--text-muted);
+}
+
+.trip-destinations-group {
+  margin-top: 0.75rem;
+}
+
+.trip-destinations-group h3 {
+  margin: 0 0 0.35rem;
+  font-size: 1rem;
+}
+
+.trip-destinations-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.trip-destinations-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.5rem 0;
+  border-top: 1px solid var(--border);
+}
+
+.trip-destinations-list li strong {
+  display: block;
+}
+
+.trip-destinations-list li .muted {
+  display: block;
+  font-size: 0.88rem;
+}
+
+.trip-destination-add-form {
+  margin-top: 1rem;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.75rem;
 }
 
 .trip-leg-bill-check {
@@ -5734,6 +5804,10 @@ textarea {
 @media (max-width: 640px) {
   .trip-leg-row {
     grid-template-columns: 1fr 1fr;
+  }
+
+  .trip-leg-row-actions {
+    grid-column: 1 / -1;
   }
 
   .trip-leg-row .btn {

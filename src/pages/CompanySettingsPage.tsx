@@ -14,6 +14,7 @@ import type { ManagementOutletContext } from '../lib/managementOutletContext';
 import PartnerBillingRatesFields from '../components/PartnerBillingRatesFields';
 import DeviceRegistrySettingsFields from '../components/quoteRequest/DeviceRegistrySettingsFields';
 import ToggleSwitch from '../components/ToggleSwitch';
+import TripDestinationsSettingsSection from '../components/TripDestinationsSettingsSection';
 
 export default function CompanySettingsPage() {
   const { profile, billingModuleEnabled } = useOutletContext<ManagementOutletContext>();
@@ -237,6 +238,8 @@ export default function CompanySettingsPage() {
       </section>
 
       <DeviceRegistrySettingsFields settings={settings} onChange={setSettings} />
+
+      {profile.company_id && <TripDestinationsSettingsSection companyId={profile.company_id} />}
 
       <section className="form-section">
         <h2>Kumppanuudet</h2>
