@@ -14,3 +14,7 @@ bool wifiConfigHandleTap(int x, int y);
 bool wifiConfigOnSubScreen();
 void wifiConfigGoBack();
 bool wifiConfigIsConnected();
+bool wifiConfigSetupApActive();
+void wifiConfigStartSetupAp();
+void wifiConfigStopSetupAp();
+int wifiConfigSavedCount();

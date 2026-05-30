@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useMemo, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import AppLayout from '../components/AppLayout';
 import CollapsibleSection from '../components/CollapsibleSection';
+import TempApSetupGuide from '../components/tempMonitoring/TempApSetupGuide';
 import TempDeviceDeleteDialog from '../components/tempMonitoring/TempDeviceDeleteDialog';
 import TempDeviceListCard from '../components/tempMonitoring/TempDeviceListCard';
 import TempMonitoringPageHeader from '../components/tempMonitoring/TempMonitoringPageHeader';
@@ -145,6 +146,7 @@ export default function TempMonitoringPage({ session }: Props) {
               12-numeroinen avain — syötä laitteen WiFi-valikossa kohdassa Pilviavain (numeronäppäimistö).
             </p>
             <code className="temp-device-key">{createdKey}</code>
+            <TempApSetupGuide deviceKey={createdKey} compact />
             <div className="form-actions">
               <button
                 type="button"
@@ -185,6 +187,15 @@ export default function TempMonitoringPage({ session }: Props) {
             </ul>
           )}
         </section>
+
+        <CollapsibleSection
+          title="WiFi-asennus asiakkaalla (AP)"
+          defaultOpen={devices.length === 0}
+          variant="plain"
+          className="panel temp-admin-panel"
+        >
+          <TempApSetupGuide />
+        </CollapsibleSection>
 
         <CollapsibleSection
           title="Lisää laite"

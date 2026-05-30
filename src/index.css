@@ -5997,6 +5997,31 @@ textarea {
   font-size: 0.85rem;
 }
 
+.temp-device-key--inline {
+  display: inline;
+  margin: 0;
+  padding: 0.15rem 0.35rem;
+  font-size: inherit;
+}
+
+.temp-ap-guide {
+  margin-top: 0.5rem;
+}
+
+.temp-ap-steps {
+  margin: 0.75rem 0 0;
+  padding-left: 1.25rem;
+  line-height: 1.5;
+}
+
+.temp-ap-steps li + li {
+  margin-top: 0.5rem;
+}
+
+.temp-ap-note {
+  margin-top: 0.75rem;
+}
+
 .temp-key-panel {
   border: 1px solid #5eead4;
   background: #f0fdfa;
@@ -6441,6 +6466,16 @@ textarea {
 
 .temp-admin-panel .collapsible-body {
   padding: 0 1.25rem 1.25rem;
+}
+
+.temp-admin-subtitle {
+  margin: 0 0 0.5rem;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.temp-admin-panel .btn-danger {
+  margin-top: 1rem;
 }
 
 @media (max-width: 640px) {

@@ -10,6 +10,7 @@ import TempMonitorReportDialog, {
   emptyReportForm,
   type TempReportFormState,
 } from '../components/tempMonitoring/TempMonitorReportDialog';
+import TempApSetupGuide from '../components/tempMonitoring/TempApSetupGuide';
 import TempDeviceDeleteDialog from '../components/tempMonitoring/TempDeviceDeleteDialog';
 import TempSessionSettingsDialog from '../components/tempMonitoring/TempSessionSettingsDialog';
 import TempSessionSettingsFields from '../components/tempMonitoring/TempSessionSettingsFields';
@@ -546,7 +547,13 @@ export default function TempMonitorDetailPage({ session }: Props) {
         )}
       </CollapsibleSection>
 
-      <CollapsibleSection title="Laitehallinta" defaultOpen={false} variant="plain" className="panel temp-admin-panel">
+      <CollapsibleSection title="Laitehallinta" defaultOpen={!online} variant="plain" className="panel temp-admin-panel">
+        {!online && (
+          <>
+            <h3 className="temp-admin-subtitle">WiFi-asennus (AP)</h3>
+            <TempApSetupGuide deviceKey={device.device_key} compact />
+          </>
+        )}
         <button
           type="button"
           className="btn btn-danger btn-block"

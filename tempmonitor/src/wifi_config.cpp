@@ -1,6 +1,8 @@
 #include "wifi_config.h"
 
 #include <Preferences.h>
+#include <WebServer.h>
+#include <DNSServer.h>
 #include <WiFi.h>
 #include <string.h>
 #include "cloud_sync.h"
@@ -43,6 +45,19 @@ unsigned long scanStartedMs = 0;
 
 bool connecting = false;
 char statusMsg[48] = "";
+
+WebServer portalServer(80);
+DNSServer portalDns;
+bool apPortalActive = false;
+String apPortalSsid;
+unsigned long lastPortalScanMs = 0;
+String portalScanSsids[WIFI_SCAN_MAX];
+int portalScanRssi[WIFI_SCAN_MAX];
+wifi_auth_mode_t portalScanAuth[WIFI_SCAN_MAX];
+int portalScanCount = 0;
+
+void startApPortal();
+void stopApPortal();
 
 Arduino_Canvas *canvas = nullptr;
 int lastScreenW = 480;
@@ -149,8 +164,12 @@ bool removeSavedAt(int index) {
 bool tryConnect(const char *ssid, const char *pass, uint32_t timeoutMs) {
   connecting = true;
   setStatus("Yhdistetaan...");
-  WiFi.mode(WIFI_STA);
-  WiFi.disconnect(true, true);
+  if (apPortalActive) {
+    WiFi.mode(WIFI_AP_STA);
+  } else {
+    WiFi.mode(WIFI_STA);
+  }
+  WiFi.disconnect(false, true);
   delay(100);
   WiFi.begin(ssid, pass);
   unsigned long start = millis();
@@ -161,6 +180,9 @@ bool tryConnect(const char *ssid, const char *pass, uint32_t timeoutMs) {
   if (WiFi.status() == WL_CONNECTED) {
     upsertSaved(ssid, pass);
     setStatus("Yhdistetty");
+    if (apPortalActive) {
+      stopApPortal();
+    }
     return true;
   }
   setStatus("Yhteys epaonnistui");
@@ -170,7 +192,7 @@ bool tryConnect(const char *ssid, const char *pass, uint32_t timeoutMs) {
 void startScan() {
   if (scanInProgress) return;
   WiFi.scanDelete();
-  WiFi.mode(WIFI_STA);
+  WiFi.mode(apPortalActive ? WIFI_AP_STA : WIFI_STA);
   scanInProgress = true;
   scanStartedMs = millis();
   scanCount = 0;
@@ -231,6 +253,177 @@ void finishScanIfReady() {
     }
   }
   snprintf(statusMsg, sizeof(statusMsg), "Loytyi %d verkkoa", scanCount);
+}
+
+void buildApPortalSsid() {
+  uint8_t mac[6];
+  WiFi.macAddress(mac);
+  char buf[20];
+  snprintf(buf, sizeof(buf), "TempMon-%02X%02X", mac[4], mac[5]);
+  apPortalSsid = buf;
+}
+
+void refreshPortalScan() {
+  portalScanCount = 0;
+  int n = WiFi.scanNetworks(false, true);
+  if (n <= 0) return;
+  for (int i = 0; i < n && portalScanCount < WIFI_SCAN_MAX; i++) {
+    String ssid = WiFi.SSID(i);
+    if (ssid.length() == 0) continue;
+    bool dup = false;
+    for (int j = 0; j < portalScanCount; j++) {
+      if (portalScanSsids[j] == ssid) {
+        dup = true;
+        if (WiFi.RSSI(i) > portalScanRssi[j]) {
+          portalScanRssi[j] = WiFi.RSSI(i);
+        }
+        break;
+      }
+    }
+    if (dup) continue;
+    portalScanSsids[portalScanCount] = ssid;
+    portalScanRssi[portalScanCount] = WiFi.RSSI(i);
+    portalScanAuth[portalScanCount] = WiFi.encryptionType(i);
+    portalScanCount++;
+  }
+  for (int i = 0; i < portalScanCount - 1; i++) {
+    for (int j = i + 1; j < portalScanCount; j++) {
+      if (portalScanRssi[j] > portalScanRssi[i]) {
+        String ts = portalScanSsids[i];
+        portalScanSsids[i] = portalScanSsids[j];
+        portalScanSsids[j] = ts;
+        int tr = portalScanRssi[i];
+        portalScanRssi[i] = portalScanRssi[j];
+        portalScanRssi[j] = tr;
+        wifi_auth_mode_t ta = portalScanAuth[i];
+        portalScanAuth[i] = portalScanAuth[j];
+        portalScanAuth[j] = ta;
+      }
+    }
+  }
+  lastPortalScanMs = millis();
+}
+
+String portalHtmlPage(bool success, bool failed) {
+  String html =
+      "<!doctype html><html lang='fi'><head><meta charset='utf-8'>"
+      "<meta name='viewport' content='width=device-width,initial-scale=1'>"
+      "<title>TempMonitor WiFi</title>"
+      "<style>"
+      "body{font-family:system-ui,sans-serif;margin:0;padding:1rem;background:#f1f5f9;color:#0f172a}"
+      ".card{background:#fff;border:1px solid #cbd5e1;border-radius:12px;padding:1rem;margin-bottom:1rem}"
+      "h1{font-size:1.25rem;margin:0 0 .5rem}label{display:block;margin:.75rem 0 .25rem;font-weight:600}"
+      "input,select{width:100%;padding:.75rem;border:1px solid #94a3b8;border-radius:8px;font-size:16px;box-sizing:border-box}"
+      "button{width:100%;padding:.85rem;border:0;border-radius:8px;background:#14b8a6;color:#fff;font-size:1rem;font-weight:700;margin-top:1rem}"
+      ".ok{background:#dcfce7;color:#166534;padding:.75rem;border-radius:8px;margin-bottom:1rem}"
+      ".err{background:#fee2e2;color:#991b1b;padding:.75rem;border-radius:8px;margin-bottom:1rem}"
+      ".muted{color:#64748b;font-size:.9rem;line-height:1.45}"
+      "a{color:#2563eb}"
+      "</style></head><body>";
+
+  html += "<div class='card'><h1>TempMonitor WiFi-asennus</h1>";
+  html += "<p class='muted'>Yhdistä laite asiakkaan verkkoon puhelimella tai tabletilla.</p>";
+  html += "<p class='muted'><strong>AP:</strong> ";
+  html += apPortalSsid;
+  html += "<br><strong>Osoite:</strong> <a href='http://";
+  html += WiFi.softAPIP().toString();
+  html += "/'>";
+  html += WiFi.softAPIP().toString();
+  html += "</a></p></div>";
+
+  if (success) {
+    html += "<div class='ok'>WiFi tallennettu. Laite yhdistää verkkoon — voit sulkea tämän sivun.</div>";
+  }
+  if (failed) {
+    html += "<div class='err'>Yhteys epäonnistui. Tarkista salasana ja yritä uudelleen.</div>";
+  }
+
+  html += "<form method='POST' action='/save' class='card'>";
+  html += "<label for='ssid'>Verkko</label><select id='ssid' name='ssid' required>";
+  html += "<option value=''>— Valitse verkko —</option>";
+  for (int i = 0; i < portalScanCount; i++) {
+    html += "<option value='";
+    html += portalScanSsids[i];
+    html += "'>";
+    html += portalScanSsids[i];
+    html += portalScanAuth[i] == WIFI_AUTH_OPEN ? " (avoin)" : " *";
+    html += " (";
+    html += String(portalScanRssi[i]);
+    html += " dBm)</option>";
+  }
+  html += "</select>";
+  html += "<label for='pass'>Salasana</label>";
+  html += "<input id='pass' name='pass' type='password' autocomplete='off' placeholder='WiFi-salasana'>";
+  html += "<label for='key'>Pilviavain (12 numeroa)</label>";
+  html += "<input id='key' name='key' inputmode='numeric' pattern='[0-9]*' maxlength='12' placeholder='Web-sovelluksen laiteavain'>";
+  html += "<button type='submit'>Tallenna ja yhdistä</button>";
+  html += "</form>";
+  html += "<p class='muted'><a href='/'>Päivitä verkkolista</a></p>";
+  html += "</body></html>";
+  return html;
+}
+
+void handlePortalRoot() {
+  if (millis() - lastPortalScanMs > 15000) {
+    refreshPortalScan();
+  }
+  portalServer.send(200, "text/html", portalHtmlPage(false, false));
+}
+
+void handlePortalSave() {
+  String ssid = portalServer.arg("ssid");
+  String pass = portalServer.arg("pass");
+  String key = portalServer.arg("key");
+  key.trim();
+  if (key.length() > 0) {
+    cloudSyncSetDeviceKey(key.c_str());
+  }
+  if (ssid.length() == 0) {
+    portalServer.send(400, "text/plain", "Valitse verkko");
+    return;
+  }
+  bool ok = tryConnect(ssid.c_str(), pass.c_str(), 20000);
+  if (ok) {
+    portalServer.send(200, "text/html", portalHtmlPage(true, false));
+    return;
+  }
+  if (millis() - lastPortalScanMs > 15000) {
+    refreshPortalScan();
+  }
+  portalServer.send(200, "text/html", portalHtmlPage(false, true));
+}
+
+void startApPortal() {
+  if (apPortalActive) return;
+  buildApPortalSsid();
+  WiFi.mode(WIFI_AP_STA);
+  WiFi.softAP(apPortalSsid.c_str(), nullptr, 1, 0, 4);
+  delay(150);
+  portalDns.start(53, "*", WiFi.softAPIP());
+  portalServer.on("/", HTTP_GET, handlePortalRoot);
+  portalServer.on("/save", HTTP_POST, handlePortalSave);
+  portalServer.onNotFound([]() {
+    portalServer.sendHeader("Location", String("http://") + WiFi.softAPIP().toString() + "/");
+    portalServer.send(302, "text/plain", "");
+  });
+  portalServer.begin();
+  refreshPortalScan();
+  apPortalActive = true;
+  snprintf(statusMsg, sizeof(statusMsg), "AP %s", apPortalSsid.c_str());
+}
+
+void stopApPortal() {
+  if (!apPortalActive) return;
+  portalServer.stop();
+  portalDns.stop();
+  WiFi.softAPdisconnect(true);
+  if (WiFi.status() == WL_CONNECTED) {
+    WiFi.mode(WIFI_STA);
+  } else {
+    WiFi.mode(WIFI_STA);
+  }
+  apPortalActive = false;
+  setStatus("AP suljettu");
 }
 
 bool hitRect(int x, int y, int rx, int ry, int rw, int rh) {
@@ -294,14 +487,29 @@ void drawMain(int w, int h) {
   canvas->setCursor(240, 72);
   canvas->print("IP:");
   canvas->setCursor(262, 72);
-  canvas->print(connected ? WiFi.localIP().toString().c_str() : "-");
+  if (apPortalActive) {
+    canvas->print(WiFi.softAPIP().toString().c_str());
+  } else {
+    canvas->print(connected ? WiFi.localIP().toString().c_str() : "-");
+  }
+
+  if (apPortalActive) {
+    canvas->setTextColor(COLOR_ACCENT);
+    canvas->setCursor(18, 90);
+    canvas->print("Asennus AP:");
+    canvas->setTextColor(COLOR_TEXT);
+    canvas->setCursor(110, 90);
+    canvas->print(apPortalSsid.c_str());
+  }
 
   drawButton(10, 104, (w - 30) / 2, 32, "Hae verkot", COLOR_ACCENT);
   drawButton(20 + (w - 30) / 2, 104, (w - 30) / 2, 32, "Tallennetut", COLOR_BTN);
-  drawButton(10, 142, w - 20, 28, "Pilviavain", COLOR_BTN);
+  drawButton(10, 142, (w - 30) / 2, 28, apPortalActive ? "Sulje AP" : "Asennus AP",
+             apPortalActive ? COLOR_WARN : COLOR_ACCENT);
+  drawButton(20 + (w - 30) / 2, 142, (w - 30) / 2, 28, "Pilviavain", COLOR_BTN);
 
   canvas->setTextColor(COLOR_GRID);
-  canvas->setCursor(10, 148);
+  canvas->setCursor(10, 178);
   canvas->print(statusMsg);
 
   if (connecting) {
@@ -748,7 +956,15 @@ bool handleMainTap(int x, int y, int w) {
     listScroll = 0;
     return true;
   }
-  if (hitRect(x, y, 10, 142, w - 20, 28)) {
+  if (hitRect(x, y, 10, 142, (w - 30) / 2, 28)) {
+    if (apPortalActive) {
+      stopApPortal();
+    } else {
+      startApPortal();
+    }
+    return true;
+  }
+  if (hitRect(x, y, 20 + (w - 30) / 2, 142, (w - 30) / 2, 28)) {
     passwordBuf[0] = '\0';
     strncpy(passwordBuf, cloudSyncDeviceKey(), PASSWORD_MAX);
     passwordBuf[PASSWORD_MAX] = '\0';
@@ -763,6 +979,7 @@ bool handleMainTap(int x, int y, int w) {
 void connectSavedOnBoot() {
   if (savedCount == 0) {
     setStatus("Ei tallennettuja verkkoja");
+    startApPortal();
     return;
   }
   for (int i = 0; i < savedCount; i++) {
@@ -771,6 +988,7 @@ void connectSavedOnBoot() {
     }
   }
   setStatus("Automaattinen yhteys epaonnistui");
+  startApPortal();
 }
 
 }  // namespace
@@ -786,6 +1004,10 @@ void wifiConfigBegin() {
 
 void wifiConfigLoop() {
   finishScanIfReady();
+  if (apPortalActive) {
+    portalDns.processNextRequest();
+    portalServer.handleClient();
+  }
 }
 
 void wifiConfigDraw(Arduino_Canvas *gfx, int screenW, int screenH) {
@@ -862,4 +1084,20 @@ void wifiConfigGoBack() {
 
 bool wifiConfigIsConnected() {
   return WiFi.status() == WL_CONNECTED;
+}
+
+bool wifiConfigSetupApActive() {
+  return apPortalActive;
+}
+
+void wifiConfigStartSetupAp() {
+  startApPortal();
+}
+
+void wifiConfigStopSetupAp() {
+  stopApPortal();
+}
+
+int wifiConfigSavedCount() {
+  return savedCount;
 }
