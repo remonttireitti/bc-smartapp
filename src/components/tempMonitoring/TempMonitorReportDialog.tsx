@@ -28,8 +28,7 @@ type Props = {
   open: boolean;
   busy?: boolean;
   error?: string | null;
-  device: TempDevice;
-  sessions: TempMonitorSession[];
+  activeSession: TempMonitorSession | null;
   customers: Customer[];
   readings: TempReading[];
   companyId: string;
@@ -40,19 +39,25 @@ type Props = {
 };
 
 export function emptyReportForm(
-  sessions: TempMonitorSession[],
+  activeSession: TempMonitorSession | null,
+  readings: TempReading[],
   deviceName: string,
 ): TempReportFormState {
-  const session = sessions.find((row) => !row.ended_at) ?? sessions[0] ?? null;
-  const start = session?.started_at ?? new Date(Date.now() - 24 * 3600_000).toISOString();
-  const end = session?.ended_at ?? new Date().toISOString();
+  const scopedReadings = activeSession
+    ? readings.filter((row) => row.session_id === activeSession.id)
+    : readings;
+  const start =
+    activeSession?.started_at ??
+    scopedReadings[0]?.recorded_at ??
+    new Date(Date.now() - 24 * 3600_000).toISOString();
+  const end = scopedReadings[scopedReadings.length - 1]?.recorded_at ?? new Date().toISOString();
   return {
-    sessionId: session?.id ?? '',
-    customerId: session?.customer_id ?? '',
-    title: defaultReportTitle(session, deviceName),
+    sessionId: activeSession?.id ?? '',
+    customerId: activeSession?.customer_id ?? '',
+    title: defaultReportTitle(activeSession, deviceName),
     periodStart: formatDateTimeLocalInput(start),
     periodEnd: formatDateTimeLocalInput(end),
-    purposeNotes: session?.notes ?? '',
+    purposeNotes: activeSession?.notes ?? '',
     notes: '',
   };
 }
@@ -61,8 +66,7 @@ export default function TempMonitorReportDialog({
   open,
   busy = false,
   error = null,
-  device,
-  sessions,
+  activeSession,
   customers,
   readings,
   companyId,
@@ -71,10 +75,7 @@ export default function TempMonitorReportDialog({
   onClose,
   onSubmit,
 }: Props) {
-  const selectedSession = useMemo(
-    () => sessions.find((row) => row.id === value.sessionId) ?? null,
-    [sessions, value.sessionId],
-  );
+  const selectedSession = activeSession;
 
   const previewReadings = useMemo(() => {
     const start = parseDateTimeLocalInput(value.periodStart);
@@ -108,20 +109,6 @@ export default function TempMonitorReportDialog({
     onChange({ ...value, [key]: fieldValue });
   }
 
-  function applySessionDefaults(sessionId: string) {
-    const session = sessions.find((row) => row.id === sessionId);
-    if (!session) return;
-    onChange({
-      ...value,
-      sessionId,
-      customerId: session.customer_id ?? value.customerId,
-      title: defaultReportTitle(session, device.name),
-      periodStart: formatDateTimeLocalInput(session.started_at),
-      periodEnd: formatDateTimeLocalInput(session.ended_at ?? new Date().toISOString()),
-      purposeNotes: session.notes ?? '',
-    });
-  }
-
   return (
     <div className="leave-draft-overlay" role="presentation" onClick={busy ? undefined : onClose}>
       <div
@@ -131,25 +118,11 @@ export default function TempMonitorReportDialog({
         aria-labelledby="temp-report-dialog-title"
         onClick={(event) => event.stopPropagation()}
       >
-        <h2 id="temp-report-dialog-title">Tallenna ja tulosta raportti</h2>
+        <h2 id="temp-report-dialog-title">Tallenna raportti</h2>
+        <p className="muted temp-report-dialog-lead">
+          Vain tallennetut raportit jäävät muistiin. Valitse trendin aikaväli ja tarkista esikatselu ennen tallennusta.
+        </p>
         <form className="form-grid" onSubmit={onSubmit}>
-          <label>
-            Mittausjakso
-            <select
-              value={value.sessionId}
-              onChange={(e) => applySessionDefaults(e.target.value)}
-            >
-              <option value="">— Valitse jakso —</option>
-              {sessions.map((session) => (
-                <option key={session.id} value={session.id}>
-                  {session.monitor_label ?? 'Mittaus'}{' '}
-                  {session.ended_at ? '(päättynyt)' : '(aktiivinen)'} ·{' '}
-                  {new Date(session.started_at).toLocaleString('fi-FI')}
-                </option>
-              ))}
-            </select>
-          </label>
-
           <label>
             Asiakas (valinnainen)
             <select
@@ -251,7 +224,7 @@ export function resolveReportCustomer(
 export function buildReportPayloadFromForm(input: {
   form: TempReportFormState;
   device: TempDevice;
-  sessions: TempMonitorSession[];
+  activeSession: TempMonitorSession | null;
   customers: Customer[];
   readings: TempReading[];
   companyId: string;
@@ -266,7 +239,7 @@ export function buildReportPayloadFromForm(input: {
     throw new Error('Trendin lopun pitää olla alun jälkeen.');
   }
 
-  const session = input.sessions.find((row) => row.id === input.form.sessionId) ?? null;
+  const session = input.activeSession;
   const periodReadings = filterReadingsByPeriod(input.readings, periodStart, periodEnd);
   if (periodReadings.length < 2) {
     throw new Error('Valitulla aikavälillä pitää olla vähintään kaksi mittausta.');

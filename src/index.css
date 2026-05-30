@@ -6151,6 +6151,16 @@ textarea {
   gap: 0.5rem;
 }
 
+.temp-live-session-note {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.temp-report-dialog-lead {
+  margin: 0 0 1rem;
+}
+
 .temp-panel-head {
   display: flex;
   align-items: center;

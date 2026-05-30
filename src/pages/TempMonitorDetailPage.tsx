@@ -195,8 +195,9 @@ export default function TempMonitorDetailPage({ session }: Props) {
           .from('temp_monitor_sessions')
           .select(TEMP_SESSION_SELECT)
           .eq('device_id', deviceId)
+          .is('ended_at', null)
           .order('started_at', { ascending: false })
-          .limit(20),
+          .limit(1),
         supabase
           .from('temp_readings')
           .select('id, device_id, session_id, recorded_at, temp_c')
@@ -302,7 +303,7 @@ export default function TempMonitorDetailPage({ session }: Props) {
       notes: '',
       settings: emptySessionSettings(),
     });
-    setMessage('Mittaus aloitettu.');
+    setMessage('Seuranta aloitettu.');
     await load();
   }
 
@@ -340,7 +341,7 @@ export default function TempMonitorDetailPage({ session }: Props) {
       setError(updateError.message);
       return;
     }
-    setMessage('Mittaus päättynyt.');
+    setMessage('Seuranta päättynyt. Mittausdataa ei tallennettu raportiksi.');
     await load();
   }
 
@@ -384,7 +385,7 @@ export default function TempMonitorDetailPage({ session }: Props) {
 
   function openReportDialog() {
     if (!device) return;
-    setReportForm(emptyReportForm(sessions, device.name));
+    setReportForm(emptyReportForm(activeSession, readings, device.name));
     setReportError(null);
     setReportOpen(true);
   }
@@ -399,7 +400,7 @@ export default function TempMonitorDetailPage({ session }: Props) {
       const payload = buildReportPayloadFromForm({
         form: reportForm,
         device,
-        sessions,
+        activeSession,
         customers,
         readings,
         companyId,
@@ -412,6 +413,14 @@ export default function TempMonitorDetailPage({ session }: Props) {
         .single();
 
       if (insertError) throw new Error(insertError.message);
+
+      if (activeSession) {
+        await supabase
+          .from('temp_monitor_sessions')
+          .update({ ended_at: new Date().toISOString() })
+          .eq('id', activeSession.id);
+      }
+
       setReportOpen(false);
       setMessage('Raportti tallennettu.');
       await load();
@@ -525,9 +534,9 @@ export default function TempMonitorDetailPage({ session }: Props) {
               )}
             </div>
             <div className="temp-panel-head-actions">
-              {sessions.length > 0 && (
+              {(activeSession || readings.length >= 2) && (
                 <button type="button" className="btn btn-secondary" disabled={busy} onClick={openReportDialog}>
-                  Raportti
+                  Tallenna raportti
                 </button>
               )}
               {activeSession && (
@@ -542,7 +551,7 @@ export default function TempMonitorDetailPage({ session }: Props) {
 
       <section className="panel">
         <div className="temp-panel-head">
-          <h2>Mittausjakso</h2>
+          <h2>Live-seuranta</h2>
           {activeSession && (
             <IconButton label="Mittauksen asetukset" onClick={openSettings}>
               <SettingsIcon />
@@ -552,7 +561,7 @@ export default function TempMonitorDetailPage({ session }: Props) {
         {activeSession ? (
           <div className="temp-active-session">
             <p>
-              <strong>{activeSession.monitor_label ?? 'Aktiivinen mittaus'}</strong>
+              <strong>{activeSession.monitor_label ?? 'Aktiivinen seuranta'}</strong>
               {activeSession.customer?.name ? ` — ${activeSession.customer.name}` : ''}
               {activeSession.site_label ? ` (${activeSession.site_label})` : ''}
             </p>
@@ -564,12 +573,18 @@ export default function TempMonitorDetailPage({ session }: Props) {
               </p>
             )}
             {activeSession.notes && <p>{activeSession.notes}</p>}
-            <button type="button" className="btn btn-primary btn-block" disabled={busy} onClick={() => void endSession()}>
-              Lopeta mittaus
+            <p className="muted temp-live-session-note">
+              Vain tallennetut raportit jäävät muistiin. Lopeta seuranta ilman raporttia, jos et tarvitse tulostetta.
+            </p>
+            <button type="button" className="btn btn-secondary btn-block" disabled={busy} onClick={() => void endSession()}>
+              Lopeta seuranta
             </button>
           </div>
         ) : (
           <form className="form-grid" onSubmit={(e) => void startSession(e)}>
+            <p className="muted temp-live-session-note">
+              Aloita seuranta reaaliaikaista mittausta varten. Pysyvä tallennus tapahtuu raportilla.
+            </p>
             <label>
               Asiakas (valinnainen)
               <select
@@ -607,7 +622,7 @@ export default function TempMonitorDetailPage({ session }: Props) {
             </label>
             <div className="form-actions">
               <button type="submit" className="btn primary" disabled={busy}>
-                Aloita mittaus
+                Aloita seuranta
               </button>
             </div>
           </form>
@@ -621,7 +636,7 @@ export default function TempMonitorDetailPage({ session }: Props) {
         className="panel temp-admin-panel"
       >
         {savedReports.length === 0 ? (
-          <p className="muted">Ei tallennettuja raportteja. Luo raportti trendin yläpuolelta.</p>
+          <p className="muted">Ei tallennettuja raportteja. Tallenna raportti trendin yläpuolelta — vain raportit jäävät muistiin.</p>
         ) : (
           <ul className="temp-session-list">
             {savedReports.map((report) => (
@@ -653,34 +668,6 @@ export default function TempMonitorDetailPage({ session }: Props) {
                 </div>
               </li>
             ))}
-          </ul>
-        )}
-      </CollapsibleSection>
-
-      <CollapsibleSection
-        title={`Aiemmat jaksot (${sessions.filter((s) => s.ended_at).length})`}
-        defaultOpen={false}
-        variant="plain"
-        className="panel temp-admin-panel"
-      >
-        {sessions.filter((s) => s.ended_at).length === 0 ? (
-          <p className="muted">Ei päättyneitä mittausjaksoja.</p>
-        ) : (
-          <ul className="temp-session-list">
-            {sessions
-              .filter((s) => s.ended_at)
-              .map((s) => (
-                <li key={s.id}>
-                  <strong>{s.monitor_label ?? s.customer?.name ?? 'Ilman otsikkoa'}</strong>
-                  {s.customer?.name && s.monitor_label ? ` — ${s.customer.name}` : ''}
-                  {s.site_label ? ` (${s.site_label})` : ''}
-                  <div className="muted">
-                    {new Date(s.started_at).toLocaleString('fi-FI')}
-                    {' – '}
-                    {s.ended_at ? new Date(s.ended_at).toLocaleString('fi-FI') : '—'}
-                  </div>
-                </li>
-              ))}
           </ul>
         )}
       </CollapsibleSection>
@@ -747,8 +734,7 @@ export default function TempMonitorDetailPage({ session }: Props) {
           open={reportOpen}
           busy={busy}
           error={reportError}
-          device={device}
-          sessions={sessions}
+          activeSession={activeSession}
           customers={customers}
           readings={readings}
           companyId={companyId}
