@@ -12,6 +12,7 @@ export type CustomerLinkedDocumentKind =
   | 'work_report'
   | 'maintenance_report'
   | 'quote_request'
+  | 'temp_monitor_report'
   | 'file';
 
 export type CustomerLinkedDocument = {
@@ -34,6 +35,7 @@ export const CUSTOMER_DOCUMENT_KIND_LABELS: Record<CustomerLinkedDocumentKind, s
   work_report: 'Työraportti',
   maintenance_report: 'Huoltoraportti',
   quote_request: 'Tarjouspyyntö',
+  temp_monitor_report: 'Lämpötilaraportti',
   file: 'Tiedosto',
 };
 
@@ -66,7 +68,7 @@ export async function loadCustomerLinkedDocuments(
   options?: { portalReadOnly?: boolean },
 ): Promise<CustomerLinkedDocument[]> {
   const portalReadOnly = options?.portalReadOnly === true;
-  const [workResult, maintenanceResult, quoteResult, fileResult] = await Promise.all([
+  const [workResult, maintenanceResult, quoteResult, tempReportResult, fileResult] = await Promise.all([
     supabase
       .from('work_reports')
       .select('id, title, status, created_at, updated_at, equipment_id, equipment(name, tag)')
@@ -83,6 +85,11 @@ export async function loadCustomerLinkedDocuments(
       .eq('customer_id', customerId)
       .order('updated_at', { ascending: false }),
     supabase
+      .from('temp_monitor_reports')
+      .select('id, title, monitor_label, period_start, period_end, created_at, updated_at, device:temp_devices(name)')
+      .eq('customer_id', customerId)
+      .order('created_at', { ascending: false }),
+    supabase
       .from('documents')
       .select('id, file_name, file_path, mime_type, created_at, equipment_id, equipment(name, tag)')
       .eq('customer_id', customerId)
@@ -92,6 +99,7 @@ export async function loadCustomerLinkedDocuments(
   if (workResult.error) console.error(workResult.error);
   if (maintenanceResult.error) console.error(maintenanceResult.error);
   if (quoteResult.error) console.error(quoteResult.error);
+  if (tempReportResult.error) console.error(tempReportResult.error);
   if (fileResult.error) console.error(fileResult.error);
 
   const linked: CustomerLinkedDocument[] = [];
@@ -182,6 +190,30 @@ export async function loadCustomerLinkedDocuments(
     });
   }
 
+  for (const row of tempReportResult.data ?? []) {
+    const report = row as unknown as {
+      id: string;
+      title: string;
+      monitor_label: string | null;
+      period_start: string;
+      period_end: string;
+      created_at: string;
+      updated_at: string;
+      device: unknown;
+    };
+    const device = relationEquipment(report.device);
+    linked.push({
+      id: report.id,
+      kind: 'temp_monitor_report',
+      title: report.title,
+      subtitle: report.monitor_label ?? undefined,
+      date: report.updated_at || report.created_at,
+      equipmentLabel: device?.name ?? null,
+      href: `/lampotila/raportit/${report.id}/tuloste`,
+      printHref: `/lampotila/raportit/${report.id}/tuloste`,
+    });
+  }
+
   for (const row of fileResult.data ?? []) {
     const doc = row as unknown as {
       id: string;
@@ -226,6 +258,7 @@ export function countCustomerLinkedDocumentsByKind(
       work_report: 0,
       maintenance_report: 0,
       quote_request: 0,
+      temp_monitor_report: 0,
       file: 0,
     },
   );

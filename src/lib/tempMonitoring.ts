@@ -209,3 +209,175 @@ export function complianceLabel(status: TempComplianceStatus) {
       return 'Ei rajoja';
   }
 }
+
+export type TempReportSummary = {
+  readingCount: number;
+  minTemp: number | null;
+  maxTemp: number | null;
+  avgTemp: number | null;
+  outOfRangeMinutes: number;
+  complianceStatus: TempComplianceStatus;
+};
+
+export type TempMonitorReport = {
+  id: string;
+  owner_company_id: string;
+  created_by_company_id: string;
+  device_id: string;
+  session_id: string | null;
+  customer_id: string | null;
+  title: string;
+  period_start: string;
+  period_end: string;
+  monitor_label: string | null;
+  site_label: string | null;
+  purpose_notes: string | null;
+  notes: string | null;
+  target_temp_min: number | null;
+  target_temp_max: number | null;
+  allowed_deviation_c: number | null;
+  allowed_deviation_minutes: number | null;
+  summary: TempReportSummary;
+  created_at: string;
+  updated_at: string;
+  customer?: { id: string; name: string; owner_company_id?: string } | null;
+  device?: { id: string; name: string } | null;
+};
+
+export const TEMP_REPORT_SELECT =
+  'id, owner_company_id, created_by_company_id, device_id, session_id, customer_id, title, period_start, period_end, monitor_label, site_label, purpose_notes, notes, target_temp_min, target_temp_max, allowed_deviation_c, allowed_deviation_minutes, summary, created_at, updated_at, customer:customers(id, name, owner_company_id), device:temp_devices(id, name)';
+
+export function getEffectiveLimitsFromSnapshot(report: Pick<
+  TempMonitorReport,
+  'target_temp_min' | 'target_temp_max' | 'allowed_deviation_c' | 'allowed_deviation_minutes'
+>): TempEffectiveLimits | null {
+  if (report.target_temp_min == null || report.target_temp_max == null) return null;
+  const targetMin = Number(report.target_temp_min);
+  const targetMax = Number(report.target_temp_max);
+  if (!Number.isFinite(targetMin) || !Number.isFinite(targetMax)) return null;
+  const deviation = Number(report.allowed_deviation_c ?? 0);
+  const allowedDeviationMinutes = Math.max(0, Number(report.allowed_deviation_minutes ?? 0));
+  return {
+    targetMin,
+    targetMax,
+    acceptableMin: targetMin - deviation,
+    acceptableMax: targetMax + deviation,
+    allowedDeviationMinutes,
+  };
+}
+
+export function filterReadingsByPeriod(readings: TempReading[], startIso: string, endIso: string) {
+  const start = new Date(startIso).getTime();
+  const end = new Date(endIso).getTime();
+  return readings.filter((row) => {
+    const ts = new Date(row.recorded_at).getTime();
+    return ts >= start && ts <= end;
+  });
+}
+
+export function computeReportSummary(
+  readings: TempReading[],
+  limits: TempEffectiveLimits | null,
+): TempReportSummary {
+  if (readings.length === 0) {
+    return {
+      readingCount: 0,
+      minTemp: null,
+      maxTemp: null,
+      avgTemp: null,
+      outOfRangeMinutes: 0,
+      complianceStatus: 'unknown',
+    };
+  }
+
+  const temps = readings.map((row) => Number(row.temp_c));
+  const minTemp = Math.min(...temps);
+  const maxTemp = Math.max(...temps);
+  const avgTemp = temps.reduce((sum, value) => sum + value, 0) / temps.length;
+  const outOfRangeMinutes = limits ? continuousOutOfRangeMinutes(readings, limits) : 0;
+  const lastTemp = temps[temps.length - 1];
+  let complianceStatus: TempComplianceStatus = 'unknown';
+  if (limits) {
+    if (isTempWithinLimits(lastTemp, limits)) {
+      complianceStatus = 'ok';
+    } else if (limits.allowedDeviationMinutes > 0 && outOfRangeMinutes >= limits.allowedDeviationMinutes) {
+      complianceStatus = 'alert';
+    } else {
+      complianceStatus = 'warning';
+    }
+  }
+
+  return {
+    readingCount: readings.length,
+    minTemp,
+    maxTemp,
+    avgTemp,
+    outOfRangeMinutes,
+    complianceStatus,
+  };
+}
+
+export function formatDateTimeLocalInput(iso: string) {
+  const date = new Date(iso);
+  const pad = (value: number) => String(value).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+export function parseDateTimeLocalInput(value: string) {
+  if (!value) return null;
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
+}
+
+export function defaultReportTitle(session: TempMonitorSession | null, deviceName: string) {
+  const label = session?.monitor_label?.trim() || 'Lämpötilaseuranta';
+  return `${label} — ${deviceName}`;
+}
+
+export function buildReportInsertPayload(input: {
+  device: TempDevice;
+  session: TempMonitorSession | null;
+  customer: { id: string; owner_company_id: string } | null;
+  companyId: string;
+  userId: string;
+  title: string;
+  periodStart: string;
+  periodEnd: string;
+  purposeNotes: string;
+  notes: string;
+  summary: TempReportSummary;
+}) {
+  const ownerCompanyId = input.customer?.owner_company_id ?? input.companyId;
+  const session = input.session;
+
+  return {
+    owner_company_id: ownerCompanyId,
+    created_by_company_id: input.companyId,
+    device_id: input.device.id,
+    session_id: session?.id ?? null,
+    customer_id: input.customer?.id ?? session?.customer_id ?? null,
+    title: input.title.trim(),
+    period_start: input.periodStart,
+    period_end: input.periodEnd,
+    monitor_label: session?.monitor_label ?? null,
+    site_label: session?.site_label ?? null,
+    purpose_notes: input.purposeNotes.trim() || session?.notes?.trim() || null,
+    notes: input.notes.trim() || null,
+    target_temp_min: session?.target_temp_min ?? null,
+    target_temp_max: session?.target_temp_max ?? null,
+    allowed_deviation_c: session?.allowed_deviation_c ?? null,
+    allowed_deviation_minutes: session?.allowed_deviation_minutes ?? null,
+    summary: input.summary,
+    created_by: input.userId,
+  };
+}
+
+export function customerOptionLabel(
+  customer: { name: string; owner_company_id: string; owner_company?: { name: string } | null },
+  myCompanyId: string,
+) {
+  if (customer.owner_company_id !== myCompanyId && customer.owner_company?.name) {
+    return `${customer.name} · ${customer.owner_company.name}`;
+  }
+  return customer.name;
+}

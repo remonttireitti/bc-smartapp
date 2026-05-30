@@ -5195,8 +5195,11 @@ textarea {
 @media print {
   .no-print { display: none !important; }
   .dashboard:has(.work-report-print-page) > .topbar,
-  .dashboard:has(.work-report-print-page) > .footer { display: none !important; }
-  .dashboard:has(.work-report-print-page) > .main {
+  .dashboard:has(.temp-report-print-page) > .topbar,
+  .dashboard:has(.work-report-print-page) > .footer,
+  .dashboard:has(.temp-report-print-page) > .footer { display: none !important; }
+  .dashboard:has(.work-report-print-page) > .main,
+  .dashboard:has(.temp-report-print-page) > .main {
     padding: 0 !important;
     margin: 0 !important;
     max-width: none !important;
@@ -5204,9 +5207,11 @@ textarea {
   .app-layout nav,
   .app-layout .sidebar,
   .maintenance-print-page .page-header,
-  .work-report-print-page .page-header { display: none !important; }
+  .work-report-print-page .page-header,
+  .temp-report-print-page .page-header { display: none !important; }
   .maintenance-print-page .maintenance-print-host,
-  .work-report-print-page .work-report-print-host {
+  .work-report-print-page .work-report-print-host,
+  .temp-report-print-page .temp-report-print-host {
     border: none;
     padding: 0;
     background: #fff;
@@ -6029,11 +6034,13 @@ textarea {
 
 .temp-chart-line {
   stroke: #0ea5e9;
-  stroke-width: 2.5;
+  stroke-width: 1;
 }
 
-.temp-chart-dot {
+.temp-chart-point {
   fill: #0284c7;
+  stroke: #fff;
+  stroke-width: 0.75;
 }
 
 .temp-chart-label {
@@ -6041,12 +6048,19 @@ textarea {
   font-size: 11px;
 }
 
-.temp-chart-axis {
-  display: flex;
-  justify-content: space-between;
-  font-size: 0.75rem;
-  color: var(--text-muted);
-  padding: 0.25rem 0.5rem 0;
+.temp-chart-axis-line {
+  stroke: var(--border-strong);
+  stroke-width: 1;
+}
+
+.temp-chart-axis-tick {
+  stroke: var(--text-muted);
+  stroke-width: 1;
+}
+
+.temp-chart-axis-label {
+  fill: var(--text-muted);
+  font-size: 10px;
 }
 
 .temp-chart--empty {
@@ -6169,4 +6183,39 @@ textarea {
   .temp-settings-range-row {
     grid-template-columns: 1fr;
   }
+}
+
+.temp-panel-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.temp-report-dialog {
+  width: min(720px, calc(100vw - 2rem));
+  max-height: calc(100vh - 2rem);
+  overflow: auto;
+}
+
+.temp-report-preview {
+  margin: 0;
+}
+
+.temp-report-list-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.temp-report-print-host {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #fff;
+  padding: 1rem;
+}
+
+.nested-panel {
+  background: var(--bg-muted);
 }

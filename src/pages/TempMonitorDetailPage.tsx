@@ -3,14 +3,21 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
 import AppLayout from '../components/AppLayout';
 import IconButton from '../components/IconButton';
+import TempMonitorReportDialog, {
+  buildReportPayloadFromForm,
+  emptyReportForm,
+  type TempReportFormState,
+} from '../components/tempMonitoring/TempMonitorReportDialog';
 import TempDeviceDeleteDialog from '../components/tempMonitoring/TempDeviceDeleteDialog';
 import TempSessionSettingsDialog from '../components/tempMonitoring/TempSessionSettingsDialog';
 import TempSessionSettingsFields from '../components/tempMonitoring/TempSessionSettingsFields';
 import { SettingsIcon } from '../components/tempMonitoring/SettingsIcon';
 import TempTrendChart from '../components/tempMonitoring/TempTrendChart';
 import { useProfile } from '../hooks/useProfile';
+import { loadAccessibleReportCustomers, loadReportPartnerships } from '../lib/reportCustomerRegistry';
 import {
   TEMP_DEVICE_SELECT,
+  TEMP_REPORT_SELECT,
   TEMP_SESSION_SELECT,
   complianceLabel,
   emptySessionSettings,
@@ -21,7 +28,9 @@ import {
   isTempDeviceOnline,
   sessionSettingsFromRow,
   sessionSettingsToPayload,
+  customerOptionLabel,
   type TempDevice,
+  type TempMonitorReport,
   type TempMonitorSession,
   type TempReading,
   type TempSessionSettingsInput,
@@ -51,6 +60,10 @@ export default function TempMonitorDetailPage({ session }: Props) {
   const [settingsError, setSettingsError] = useState<string | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [reportOpen, setReportOpen] = useState(false);
+  const [reportError, setReportError] = useState<string | null>(null);
+  const [reportForm, setReportForm] = useState<TempReportFormState | null>(null);
+  const [savedReports, setSavedReports] = useState<TempMonitorReport[]>([]);
 
   const [sessionForm, setSessionForm] = useState({
     customer_id: '',
@@ -87,26 +100,41 @@ export default function TempMonitorDetailPage({ session }: Props) {
     setLoading(true);
     setError(null);
 
-    const since = new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString();
+    const partnerRows = await loadReportPartnerships(supabase, companyId, 'customers', 'read').catch(
+      () => [],
+    );
 
-    const [{ data: deviceRow, error: deviceError }, { data: sessionRows }, { data: readingRows }, { data: customerRows }] =
-      await Promise.all([
-        supabase.from('temp_devices').select(TEMP_DEVICE_SELECT).eq('id', deviceId).maybeSingle(),
-        supabase
-          .from('temp_monitor_sessions')
-          .select(TEMP_SESSION_SELECT)
-          .eq('device_id', deviceId)
-          .order('started_at', { ascending: false })
-          .limit(20),
-        supabase
-          .from('temp_readings')
-          .select('id, device_id, session_id, recorded_at, temp_c')
-          .eq('device_id', deviceId)
-          .gte('recorded_at', since)
-          .order('recorded_at', { ascending: true })
-          .limit(5000),
-        supabase.from('customers').select('id, name').eq('owner_company_id', companyId).order('name'),
-      ]);
+    const since = new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString();
+
+    const [
+      { data: deviceRow, error: deviceError },
+      { data: sessionRows },
+      { data: readingRows },
+      { data: reportRows },
+      customerRows,
+    ] = await Promise.all([
+      supabase.from('temp_devices').select(TEMP_DEVICE_SELECT).eq('id', deviceId).maybeSingle(),
+      supabase
+        .from('temp_monitor_sessions')
+        .select(TEMP_SESSION_SELECT)
+        .eq('device_id', deviceId)
+        .order('started_at', { ascending: false })
+        .limit(20),
+      supabase
+        .from('temp_readings')
+        .select('id, device_id, session_id, recorded_at, temp_c')
+        .eq('device_id', deviceId)
+        .gte('recorded_at', since)
+        .order('recorded_at', { ascending: true })
+        .limit(10000),
+      supabase
+        .from('temp_monitor_reports')
+        .select(TEMP_REPORT_SELECT)
+        .eq('device_id', deviceId)
+        .order('created_at', { ascending: false })
+        .limit(20),
+      loadAccessibleReportCustomers(supabase, companyId, partnerRows).catch(() => [] as Customer[]),
+    ]);
 
     if (deviceError || !deviceRow) {
       setError(deviceError?.message ?? 'Laitetta ei löydy');
@@ -117,7 +145,8 @@ export default function TempMonitorDetailPage({ session }: Props) {
     setDevice(deviceRow as TempDevice);
     setSessions((sessionRows as TempMonitorSession[] | null) ?? []);
     setReadings((readingRows as TempReading[] | null) ?? []);
-    setCustomers((customerRows as Customer[] | null) ?? []);
+    setSavedReports((reportRows as TempMonitorReport[] | null) ?? []);
+    setCustomers(customerRows);
     setLoading(false);
   }
 
@@ -230,6 +259,49 @@ export default function TempMonitorDetailPage({ session }: Props) {
     navigate('/lampotila');
   }
 
+  function openReportDialog() {
+    if (!device) return;
+    setReportForm(emptyReportForm(sessions, device.name));
+    setReportError(null);
+    setReportOpen(true);
+  }
+
+  async function saveReport(e: FormEvent) {
+    e.preventDefault();
+    if (!device || !companyId || !reportForm) return;
+    setBusy(true);
+    setReportError(null);
+
+    try {
+      const payload = buildReportPayloadFromForm({
+        form: reportForm,
+        device,
+        sessions,
+        customers,
+        readings,
+        companyId,
+        userId: session.user.id,
+      });
+      const { data, error: insertError } = await supabase
+        .from('temp_monitor_reports')
+        .insert(payload)
+        .select('id')
+        .single();
+
+      if (insertError) throw new Error(insertError.message);
+      setReportOpen(false);
+      setMessage('Raportti tallennettu.');
+      await load();
+      if (data?.id) {
+        navigate(`/lampotila/raportit/${data.id}/tuloste`);
+      }
+    } catch (err) {
+      setReportError(err instanceof Error ? err.message : 'Raportin tallennus epäonnistui.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   if (loading && !device) {
     return (
       <AppLayout session={session}>
@@ -312,11 +384,18 @@ export default function TempMonitorDetailPage({ session }: Props) {
       <section className="panel">
         <div className="temp-panel-head">
           <h2>Trendi</h2>
-          {activeSession && (
-            <IconButton label="Mittauksen asetukset" onClick={openSettings}>
-              <SettingsIcon />
-            </IconButton>
-          )}
+          <div className="temp-panel-head-actions">
+            {sessions.length > 0 && (
+              <button type="button" className="btn btn-secondary" disabled={busy} onClick={openReportDialog}>
+                Raportti / tuloste
+              </button>
+            )}
+            {activeSession && (
+              <IconButton label="Mittauksen asetukset" onClick={openSettings}>
+                <SettingsIcon />
+              </IconButton>
+            )}
+          </div>
         </div>
         <TempTrendChart readings={chartReadings} limits={activeLimits} />
       </section>
@@ -360,7 +439,7 @@ export default function TempMonitorDetailPage({ session }: Props) {
                 <option value="">— Ei valittu —</option>
                 {customers.map((c) => (
                   <option key={c.id} value={c.id}>
-                    {c.name}
+                    {customerOptionLabel(c, companyId)}
                   </option>
                 ))}
               </select>
@@ -392,6 +471,32 @@ export default function TempMonitorDetailPage({ session }: Props) {
               </button>
             </div>
           </form>
+        )}
+      </section>
+
+      <section className="panel">
+        <h2>Tallennetut raportit</h2>
+        {savedReports.length === 0 ? (
+          <p className="muted">Ei tallennettuja raportteja. Luo raportti trendin yläpuolelta.</p>
+        ) : (
+          <ul className="temp-session-list">
+            {savedReports.map((report) => (
+              <li key={report.id} className="temp-report-list-item">
+                <div>
+                  <strong>{report.title}</strong>
+                  {report.customer?.name ? ` — ${report.customer.name}` : ''}
+                  <div className="muted">
+                    {new Date(report.period_start).toLocaleString('fi-FI')}
+                    {' – '}
+                    {new Date(report.period_end).toLocaleString('fi-FI')}
+                  </div>
+                </div>
+                <Link to={`/lampotila/raportit/${report.id}/tuloste`} className="btn btn-secondary">
+                  Tuloste
+                </Link>
+              </li>
+            ))}
+          </ul>
         )}
       </section>
 
@@ -441,6 +546,23 @@ export default function TempMonitorDetailPage({ session }: Props) {
         }}
         onConfirm={() => void deleteDevice()}
       />
+
+      {reportForm && (
+        <TempMonitorReportDialog
+          open={reportOpen}
+          busy={busy}
+          error={reportError}
+          device={device}
+          sessions={sessions}
+          customers={customers}
+          readings={readings}
+          companyId={companyId}
+          value={reportForm}
+          onChange={setReportForm}
+          onClose={() => setReportOpen(false)}
+          onSubmit={(e) => void saveReport(e)}
+        />
+      )}
     </AppLayout>
   );
 }

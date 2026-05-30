@@ -34,6 +34,7 @@ import InventoryPage from './pages/InventoryPage';
 import ToolsPage from './pages/ToolsPage';
 import TempMonitoringPage from './pages/TempMonitoringPage';
 import TempMonitorDetailPage from './pages/TempMonitorDetailPage';
+import TempMonitorReportPrintPage from './pages/TempMonitorReportPrintPage';
 import SubscribersPage from './pages/SubscribersPage';
 import {
   CustomerPortalPreviewPage,
@@ -77,6 +78,7 @@ function AppRoutes() {
       <Route path="/laskutus" element={<BillingPage session={session} />} />
       <Route path="/varasto" element={<InventoryPage session={session} />} />
       <Route path="/lampotila" element={<TempMonitoringPage session={session} />} />
+      <Route path="/lampotila/raportit/:reportId/tuloste" element={<TempMonitorReportPrintPage session={session} />} />
       <Route path="/lampotila/:deviceId" element={<TempMonitorDetailPage session={session} />} />
       <Route path="/tyokalut" element={<ToolsPage session={session} />} />
       <Route path="/asiakkaat" element={<CustomersPage session={session} />} />
