@@ -40,7 +40,12 @@ export type VrfDeviceSettings = {
   auto_stop_outdoor_hysteresis_c: number;
   auto_stop_outdoor_smooth_tau_min: number;
   compressor_alarm_enable_after_s: number;
+  /** @deprecated Käytä di3_trigger_raw_level — säilytetty yhteensopivuuden vuoksi. */
   alarm_input_trigger_raw_level: number;
+  /** 0 = aktiivinen matalalla, 1 = aktiivinen korkealla (+12 V PNP). */
+  di2_trigger_raw_level?: number;
+  di3_trigger_raw_level?: number;
+  di4_trigger_raw_level?: number;
   notify_on_delay_s?: number;
   notify_off_delay_s?: number;
   notify_min_interval_s?: number;
@@ -65,6 +70,10 @@ export type VrfTelemetry = {
     operating_state: string | null;
     operating_text: string | null;
     outdoor_safety_lock_active: boolean;
+    outdoor_auto_stop_signal_c: number | null;
+    alarm_shutdown_active: boolean;
+    alarm_shutdown_remaining_s: number | null;
+    alarm_shutdown_waiting_di_clear: boolean;
     compressor_likely_running: boolean;
     data_online: boolean;
   };
@@ -128,9 +137,14 @@ export const VRF_TREND_HOUR_OPTIONS = [
   { hours: 6, label: '6 h' },
   { hours: 24, label: '24 h' },
   { hours: 168, label: '7 pv' },
+  { hours: 720, label: '1 kk' },
+  { hours: 2160, label: '3 kk' },
 ] as const;
 
 export type VrfTrendHours = (typeof VRF_TREND_HOUR_OPTIONS)[number]['hours'];
+
+export const VRF_TREND_MAX_HOURS = 2160;
+export const VRF_READING_QUERY_MAX = 50_000;
 
 export type VrfSchematicClickKey =
   | 'outdoor_c'
@@ -183,6 +197,16 @@ export const VRF_BINARY_LANES: {
   { key: 'unit_ready', label: 'Laite DI4', color: '#22c55e', glow: 'rgba(34, 197, 94, 0.45)' },
 ];
 
+/** PNP (+12 V = ON): trigger 1. Käänteinen: trigger 0. */
+export function vrfDiTriggerFromInverted(inverted: boolean): 0 | 1 {
+  return inverted ? 0 : 1;
+}
+
+export function vrfDiInvertedFromTrigger(level: number | null | undefined, fallback = 1): boolean {
+  const v = level ?? fallback;
+  return v === 0;
+}
+
 export function defaultVrfSettings(): VrfDeviceSettings {
   return {
     auto_stop_enabled: true,
@@ -191,6 +215,9 @@ export function defaultVrfSettings(): VrfDeviceSettings {
     auto_stop_outdoor_smooth_tau_min: 0,
     compressor_alarm_enable_after_s: 300,
     alarm_input_trigger_raw_level: 0,
+    di2_trigger_raw_level: 1,
+    di3_trigger_raw_level: 0,
+    di4_trigger_raw_level: 1,
     notify_on_delay_s: 60,
     notify_off_delay_s: 180,
     notify_min_interval_s: 300,
@@ -241,6 +268,18 @@ export function parseVrfSettings(raw: unknown): VrfDeviceSettings {
       readNumber(row.compressor_alarm_enable_after_s) ?? base.compressor_alarm_enable_after_s,
     alarm_input_trigger_raw_level:
       readNumber(row.alarm_input_trigger_raw_level) ?? base.alarm_input_trigger_raw_level,
+    di2_trigger_raw_level:
+      readNumber(row.di2_trigger_raw_level) ??
+      readNumber(row.alarm_input_trigger_raw_level) ??
+      base.di2_trigger_raw_level,
+    di3_trigger_raw_level:
+      readNumber(row.di3_trigger_raw_level) ??
+      readNumber(row.alarm_input_trigger_raw_level) ??
+      base.di3_trigger_raw_level,
+    di4_trigger_raw_level:
+      readNumber(row.di4_trigger_raw_level) ??
+      readNumber(row.alarm_input_trigger_raw_level) ??
+      base.di4_trigger_raw_level,
     notify_on_delay_s: readNumber(row.notify_on_delay_s) ?? base.notify_on_delay_s,
     notify_off_delay_s: readNumber(row.notify_off_delay_s) ?? base.notify_off_delay_s,
     notify_min_interval_s: readNumber(row.notify_min_interval_s) ?? base.notify_min_interval_s,
@@ -299,6 +338,10 @@ export function parseVrfTelemetry(payload: Record<string, unknown> | null | unde
       operating_state: typeof statusRaw?.operating_state === 'string' ? statusRaw.operating_state : null,
       operating_text: typeof statusRaw?.operating_text === 'string' ? statusRaw.operating_text : null,
       outdoor_safety_lock_active: readBoolean(statusRaw?.outdoor_safety_lock_active) ?? false,
+      outdoor_auto_stop_signal_c: readNumber(statusRaw?.outdoor_auto_stop_signal_c),
+      alarm_shutdown_active: readBoolean(statusRaw?.alarm_shutdown_active) ?? false,
+      alarm_shutdown_remaining_s: readNumber(statusRaw?.alarm_shutdown_remaining_s),
+      alarm_shutdown_waiting_di_clear: readBoolean(statusRaw?.alarm_shutdown_waiting_di_clear) ?? false,
       compressor_likely_running: readBoolean(statusRaw?.compressor_likely_running) ?? false,
       data_online: readBoolean(statusRaw?.data_online) ?? false,
     },
@@ -354,16 +397,282 @@ export function vrfDeviceConfigUrl(supabaseUrl: string) {
 export function vrfOperatingStateLabel(state: string | null | undefined) {
   switch (state) {
     case 'off':
-      return 'Pois';
+      return 'Sammutettu';
     case 'defrost':
-      return 'Sulatus';
+      return 'Sulattaa';
     case 'permit_on':
-      return 'Lämpö päällä';
+      return 'Lämmittää';
     case 'idle':
       return 'Valmiustila';
+    case 'alarm':
+    case 'alarm_shutdown':
+      return 'Hälytyksessä';
     default:
       return state ?? '—';
   }
+}
+
+export type VrfPermitTone = 'on' | 'off' | 'blocked' | 'unknown';
+
+export type VrfPermitPresentation = {
+  isOn: boolean | null;
+  actualOn: boolean | null;
+  requestedOn: boolean | null;
+  label: string;
+  reason: string | null;
+  tone: VrfPermitTone;
+};
+
+export type VrfActivityTone = 'heat' | 'defrost' | 'idle' | 'off' | 'alarm' | 'wait' | 'unknown';
+
+export type VrfActivityPresentation = {
+  headline: string;
+  detail: string | null;
+  tone: VrfActivityTone;
+};
+
+function isAlarmLikeOperatingText(text: string | null | undefined) {
+  const t = String(text ?? '').toLowerCase();
+  return t.includes('halyty') || t.includes('hälyty');
+}
+
+function formatShutdownRemaining(remainingS: number) {
+  if (remainingS >= 120) {
+    const mins = Math.ceil(remainingS / 60);
+    return `Uudelleenkäynnistys noin ${mins} min kuluttua`;
+  }
+  return `Uudelleenkäynnistys noin ${remainingS} s kuluttua`;
+}
+
+export function vrfResolvePermitStatus(params: {
+  telemetry: VrfTelemetry | null;
+  requestedEnabled: boolean | null | undefined;
+  online: boolean;
+  stale: boolean;
+}): VrfPermitPresentation {
+  const { telemetry, requestedEnabled, online, stale } = params;
+  const actualOn = telemetry?.control.enabled ?? null;
+  const requestedOn = requestedEnabled ?? telemetry?.control.permit_requested_enabled ?? null;
+  const outdoorLock = telemetry?.status.outdoor_safety_lock_active ?? false;
+  const alarmShutdown = telemetry?.status.alarm_shutdown_active ?? false;
+  const remainingS = telemetry?.status.alarm_shutdown_remaining_s;
+  const waitingDi = telemetry?.status.alarm_shutdown_waiting_di_clear ?? false;
+
+  if (!online) {
+    const fallbackOn = actualOn ?? requestedOn;
+    return {
+      isOn: fallbackOn,
+      actualOn,
+      requestedOn,
+      label: fallbackOn == null ? '—' : fallbackOn ? 'Päällä' : 'Pois',
+      reason: 'Laite ei ole yhteydessä',
+      tone: 'unknown',
+    };
+  }
+
+  if (stale) {
+    const fallbackOn = actualOn ?? requestedOn;
+    return {
+      isOn: fallbackOn,
+      actualOn,
+      requestedOn,
+      label: fallbackOn == null ? '—' : fallbackOn ? 'Päällä' : 'Pois',
+      reason: 'Ei tuoretta dataa — ohjaus lukittu',
+      tone: 'unknown',
+    };
+  }
+
+  if (actualOn === true) {
+    return {
+      isOn: true,
+      actualOn,
+      requestedOn,
+      label: 'Päällä',
+      reason: outdoorLock ? 'RO1 aktiivinen — ulkoraja estää uuden kytkemisen päälle' : 'RO1 antaa lämmitysluvan',
+      tone: 'on',
+    };
+  }
+
+  let reason: string | null = null;
+  let tone: VrfPermitTone = 'off';
+
+  if (alarmShutdown) {
+    tone = 'blocked';
+    if (typeof remainingS === 'number' && remainingS > 0) {
+      reason = `Hälytyksen jälkeinen tauko — ${formatShutdownRemaining(remainingS).toLowerCase()}`;
+    } else if (waitingDi) {
+      reason = 'Odottaa hälytyksen (DI3) poistumista';
+    } else {
+      reason = 'Käynti estetty hälytyksen takia';
+    }
+  } else if (outdoorLock) {
+    tone = 'blocked';
+    const signal = telemetry?.status.outdoor_auto_stop_signal_c;
+    const limit = telemetry?.settings.auto_stop_below_outdoor_c;
+    const limitText =
+      signal != null && limit != null
+        ? `mittaus ${signal.toFixed(1)} °C, raja ${limit} °C`
+        : 'ulkolämpötilaraja';
+    reason =
+      requestedOn === true
+        ? `Pyydetty päälle — ${limitText} estää lämmityksen`
+        : `Ulkolämpötilaraja (${limitText})`;
+  } else if (requestedOn === false) {
+    reason = 'Kytketty pois käsin';
+  } else if (requestedOn === true && actualOn === false) {
+    reason = 'Pyydetty päälle — laite ei vielä vastannut';
+  } else {
+    reason = 'Käyntilupa poissa';
+  }
+
+  return {
+    isOn: false,
+    actualOn,
+    requestedOn,
+    label: 'Pois',
+    reason,
+    tone,
+  };
+}
+
+export function vrfResolveDeviceActivity(params: {
+  telemetry: VrfTelemetry | null;
+  online: boolean;
+  stale: boolean;
+  defrostLikely: boolean;
+  compressorRunning: boolean;
+  externalAlarm: boolean;
+  activeAlarmLabels?: string[];
+}): VrfActivityPresentation {
+  const {
+    telemetry,
+    online,
+    stale,
+    defrostLikely,
+    compressorRunning,
+    externalAlarm,
+    activeAlarmLabels = [],
+  } = params;
+
+  if (!online) {
+    return {
+      headline: 'Ei yhteyttä',
+      detail: 'Laite ei raportoi verkkoon',
+      tone: 'unknown',
+    };
+  }
+
+  const permitOn = telemetry?.control.enabled === true;
+  const unitReady = telemetry?.digital_inputs?.di4_unit_ready === true;
+  const alarmShutdown = telemetry?.status.alarm_shutdown_active ?? false;
+  const remainingS = telemetry?.status.alarm_shutdown_remaining_s;
+  const waitingDi = telemetry?.status.alarm_shutdown_waiting_di_clear ?? false;
+  const outdoorLock = telemetry?.status.outdoor_safety_lock_active ?? false;
+  const defrostActive = telemetry?.defrost?.active === true || defrostLikely;
+  const opState = telemetry?.status.operating_state;
+  const opText = telemetry?.status.operating_text?.trim() ?? null;
+
+  const staleNote = stale ? 'Mittaus ei ole tuore' : null;
+
+  if (alarmShutdown) {
+    let detail: string | null = null;
+    if (typeof remainingS === 'number' && remainingS > 0) {
+      detail = formatShutdownRemaining(remainingS);
+    } else if (waitingDi) {
+      detail = 'Odottaa hälytyksen (DI3) poistumista ennen uudelleenkäynnistystä';
+    } else {
+      detail = 'Lämmitys estetty hälytyksen jälkeen';
+    }
+    return {
+      headline: 'Käynnistys estetty hälytyksen jälkeen',
+      detail: staleNote ? `${detail} · ${staleNote}` : detail,
+      tone: 'wait',
+    };
+  }
+
+  if (externalAlarm || activeAlarmLabels.length > 0) {
+    const detail =
+      activeAlarmLabels.length > 0
+        ? activeAlarmLabels.join(' · ')
+        : 'Ulkoinen hälytys (DI3) aktiivinen';
+    return {
+      headline: 'Hälytyksessä',
+      detail: staleNote ? `${detail} · ${staleNote}` : detail,
+      tone: 'alarm',
+    };
+  }
+
+  if (defrostActive) {
+    return {
+      headline: 'Sulattaa',
+      detail: staleNote ?? 'Sulatus arvioitu lämpötiloista',
+      tone: 'defrost',
+    };
+  }
+
+  if (!permitOn) {
+    let detail: string | null = null;
+    if (outdoorLock) {
+      const signal = telemetry?.status.outdoor_auto_stop_signal_c;
+      detail =
+        signal != null
+          ? `Ulkolämpöraja — mittaus ${signal.toFixed(1)} °C`
+          : 'Ulkolämpötilaraja estää lämmityksen';
+    } else if (telemetry?.control.permit_requested_enabled === false) {
+      detail = 'Käyntilupa kytketty pois';
+    } else {
+      detail = 'Käyntilupa poissa';
+    }
+    return {
+      headline: 'Sammutettu',
+      detail: staleNote ? `${detail} · ${staleNote}` : detail,
+      tone: 'off',
+    };
+  }
+
+  if (compressorRunning) {
+    const diDetail = telemetry?.digital_inputs?.di2_compressor_running === true ? 'DI2 vahvistaa' : 'Arvio lämpötiloista';
+    return {
+      headline: 'Lämmittää',
+      detail: staleNote ?? `Kompressori käy — ${diDetail}`,
+      tone: 'heat',
+    };
+  }
+
+  if (unitReady) {
+    return {
+      headline: 'Valmiustila',
+      detail: staleNote ?? 'VRF päällä (DI4) — odottaa lämmitystarvetta',
+      tone: 'idle',
+    };
+  }
+
+  if (opState === 'idle' || opState === 'permit_on') {
+    const headline = opState === 'idle' ? 'Valmiustila' : vrfOperatingStateLabel(opState);
+    const detail =
+      opText && !isAlarmLikeOperatingText(opText)
+        ? opText
+        : staleNote ?? 'Lämmityslupa päällä — kompressori ei käy';
+    return {
+      headline,
+      detail: staleNote && detail !== staleNote ? `${detail} · ${staleNote}` : detail,
+      tone: opState === 'idle' ? 'idle' : 'heat',
+    };
+  }
+
+  if (opText && !isAlarmLikeOperatingText(opText)) {
+    return {
+      headline: vrfOperatingStateLabel(opState),
+      detail: staleNote ? `${opText} · ${staleNote}` : opText,
+      tone: 'idle',
+    };
+  }
+
+  return {
+    headline: vrfOperatingStateLabel(opState),
+    detail: staleNote ?? (permitOn ? 'Lämmityslupa päällä' : 'Odottaa tietoa'),
+    tone: permitOn ? 'idle' : 'unknown',
+  };
 }
 
 export function activeVrfAlarms(alarms: Record<string, boolean | null>) {
@@ -489,10 +798,16 @@ export function buildBinaryLaneSegments(
   return segments;
 }
 
-export function trendReadingLimit(hours: VrfTrendHours): number {
-  // Historia ~1/min → lisätään puskuri; 7 pv cap 10000
+export function trendReadingLimit(hours: number): number {
   const estimated = hours * 60 + 30;
-  return Math.min(Math.max(estimated, 120), 10_000);
+  return Math.min(Math.max(estimated, 120), VRF_READING_QUERY_MAX);
+}
+
+export function hoursBetweenIso(startIso: string, endIso: string): number {
+  const start = new Date(startIso).getTime();
+  const end = new Date(endIso).getTime();
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return 1;
+  return Math.min((end - start) / 3600_000, VRF_TREND_MAX_HOURS);
 }
 
 export function sortReadingsByTime(readings: VrfReading[]): VrfReading[] {

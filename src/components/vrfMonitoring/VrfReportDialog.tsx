@@ -6,20 +6,15 @@ import {
   VRF_TREND_SERIES,
   VRF_READING_SELECT,
   filterVrfReadingsByPeriod,
-
+  hoursBetweenIso,
   trendReadingLimit,
-
   type VrfBinaryLaneKey,
-
   type VrfDevice,
-
   type VrfReading,
-
   type VrfTrendHours,
-
   type VrfTrendSeriesKey,
-
 } from '../../lib/vrfMonitoring';
+import { loadMonitorShareViewPublic } from '../../lib/monitorReaderShares';
 
 import { formatDateTimeLocalInput, parseDateTimeLocalInput } from '../../lib/tempMonitoring';
 
@@ -36,17 +31,12 @@ import VrfTrendChart from './VrfTrendChart';
 
 
 type Props = {
-
   open: boolean;
-
   device: VrfDevice;
-
   companyName: string;
-
   logoUrl?: string | null;
-
+  shareToken?: string;
   onClose: () => void;
-
 };
 
 
@@ -55,7 +45,14 @@ type PeriodMode = 'preset' | 'custom';
 
 
 
-export default function VrfReportDialog({ open, device, companyName, logoUrl, onClose }: Props) {
+export default function VrfReportDialog({
+  open,
+  device,
+  companyName,
+  logoUrl,
+  shareToken,
+  onClose,
+}: Props) {
 
   const [periodMode, setPeriodMode] = useState<PeriodMode>('preset');
 
@@ -120,46 +117,46 @@ export default function VrfReportDialog({ open, device, companyName, logoUrl, on
 
 
   const loadReadings = useCallback(async () => {
-
     if (!device.id || !effectivePeriod) return;
 
     setLoading(true);
-
     setError(null);
 
-    const limit =
+    try {
+      if (shareToken) {
+        const bundle =
+          periodMode === 'preset'
+            ? await loadMonitorShareViewPublic(shareToken, presetHours)
+            : await loadMonitorShareViewPublic(shareToken, {
+                start: effectivePeriod.start,
+                end: effectivePeriod.end,
+              });
+        setReadings((bundle.readings as VrfReading[]) ?? []);
+        return;
+      }
 
-      periodMode === 'preset' ? trendReadingLimit(presetHours) : Math.min(trendReadingLimit(168), 10_000);
+      const spanHours =
+        periodMode === 'preset' ? presetHours : hoursBetweenIso(effectivePeriod.start, effectivePeriod.end);
+      const limit = trendReadingLimit(spanHours);
 
-    const { data, error: fetchError } = await supabase
+      const { data, error: fetchError } = await supabase
+        .from('vrf_readings')
+        .select(VRF_READING_SELECT)
+        .eq('device_id', device.id)
+        .gte('recorded_at', effectivePeriod.start)
+        .lte('recorded_at', effectivePeriod.end)
+        .order('recorded_at', { ascending: true })
+        .limit(limit);
 
-      .from('vrf_readings')
-
-      .select(VRF_READING_SELECT)
-
-      .eq('device_id', device.id)
-
-      .gte('recorded_at', effectivePeriod.start)
-
-      .lte('recorded_at', effectivePeriod.end)
-
-      .order('recorded_at', { ascending: true })
-
-      .limit(limit);
-
-    setLoading(false);
-
-    if (fetchError) {
-
-      setError(fetchError.message);
-
-      return;
-
+      if (fetchError) throw new Error(fetchError.message);
+      setReadings((data as VrfReading[] | null) ?? []);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Historian lataus epäonnistui');
+      setReadings([]);
+    } finally {
+      setLoading(false);
     }
-
-    setReadings((data as VrfReading[] | null) ?? []);
-
-  }, [device.id, effectivePeriod, periodMode, presetHours]);
+  }, [device.id, effectivePeriod, periodMode, presetHours, shareToken]);
 
 
 

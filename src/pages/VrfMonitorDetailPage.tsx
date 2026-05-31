@@ -19,8 +19,8 @@ import TempMonitoringPageHeader from '../components/tempMonitoring/TempMonitorin
 import VrfMonitorShareDialog from '../components/vrfMonitoring/VrfMonitorShareDialog';
 import VrfReportDialog from '../components/vrfMonitoring/VrfReportDialog';
 
+import VrfStatusPanel from '../components/vrfMonitoring/VrfStatusPanel';
 import VrfSchematicBoard from '../components/vrfMonitoring/VrfSchematicBoard';
-
 import VrfToggleSwitch from '../components/vrfMonitoring/VrfToggleSwitch';
 
 import VrfTrendDialog from '../components/vrfMonitoring/VrfTrendDialog';
@@ -41,9 +41,8 @@ import {
   activeVrfAlarms,
 
   defaultVrfSettings,
-
-  formatRelativeTime,
-
+  vrfDiInvertedFromTrigger,
+  vrfDiTriggerFromInverted,
   inferDefrostLikely,
 
   isVrfDeviceOnline,
@@ -59,8 +58,7 @@ import {
   trendReadingLimit,
 
   vrfCompressorRunning,
-
-  vrfOperatingStateLabel,
+  vrfResolveDeviceActivity,
 
   type VrfBinaryLaneKey,
 
@@ -164,6 +162,24 @@ export default function VrfMonitorDetailPage({ session }: Props) {
     return inferDefrostLikely(sorted, sorted.length - 1);
 
   }, [readings, telemetry?.defrost?.active]);
+
+  const externalAlarm =
+    telemetry?.digital_inputs?.di3_alarm === true ||
+    telemetry?.alarms.external_alarm_input === true;
+
+  const activitySummary = useMemo(
+    () =>
+      vrfResolveDeviceActivity({
+        telemetry,
+        online,
+        stale,
+        defrostLikely: defrostLikelyNow,
+        compressorRunning,
+        externalAlarm,
+        activeAlarmLabels: activeVrfAlarms(telemetry?.alarms ?? {}).map((a) => a.label),
+      }),
+    [telemetry, online, stale, defrostLikelyNow, compressorRunning, externalAlarm],
+  );
 
 
 
@@ -465,7 +481,7 @@ export default function VrfMonitorDetailPage({ session }: Props) {
 
             lastRefreshAt
 
-              ? `${online ? 'Online' : 'Offline'} · ${vrfOperatingStateLabel(device.operating_state)} · päivitetty ${lastRefreshAt.toLocaleTimeString('fi-FI', { hour: '2-digit', minute: '2-digit' })}`
+              ? `${online ? 'Online' : 'Offline'} · ${activitySummary.headline} · päivitetty ${lastRefreshAt.toLocaleTimeString('fi-FI', { hour: '2-digit', minute: '2-digit' })}`
 
               : undefined
 
@@ -502,93 +518,20 @@ export default function VrfMonitorDetailPage({ session }: Props) {
 
 
         <section className={`vrf-hero panel ${alarms.length > 0 ? 'vrf-hero--alarm' : ''}`}>
-
-          <div className="vrf-hero-main">
-
-            <div className="vrf-hero-badges">
-
-              <span className={`temp-status ${online ? 'online' : 'offline'}`}>
-
-                <span className="temp-status-dot" aria-hidden="true" />
-
-                {online ? 'Online' : 'Offline'}
-
-              </span>
-
-              {alarms.length > 0 && <span className="badge badge-alert">Hälytys</span>}
-
-              {outdoorLock && <span className="badge badge-warning">Ulkolämpö lukko</span>}
-
-              <span className="muted">{vrfOperatingStateLabel(telemetry?.status.operating_state ?? device.operating_state)}</span>
-
-              <span className="muted">Viimeisin yhteys: {formatRelativeTime(device.last_seen_at)}</span>
-
-              {device.firmware_version && <span className="muted">Firmware {device.firmware_version}</span>}
-
-            </div>
-
-
-
-            <div className="vrf-permit-block">
-
-              <div className="vrf-permit-copy">
-
-                <h2 className="vrf-permit-title">Käyntilupa</h2>
-
-                <p className="muted vrf-permit-desc">
-
-                  Sallii monitorin kytkeä <strong>RO1-lähdön</strong> (lämmitysrele) päälle. <strong>ON</strong> =
-
-                  lämmityslupa, <strong>OFF</strong> = estetty. RO1 on ohjaus ulospäin — erillinen DI4-luku
-
-                  kertoo VRF:n oman käyntitilan (12 V palaute).
-
-                </p>
-
-                {outdoorLock && (
-
-                  <p className="temp-live-hero-offline-note muted">Ulkolämpötilaraja estää lämmityksen.</p>
-
-                )}
-
-                {permitDisabled && !outdoorLock && (
-
-                  <p className="muted vrf-permit-hint">Ohjaus lukittu kunnes tuore telemetria saapuu.</p>
-
-                )}
-
-              </div>
-
-              <VrfToggleSwitch
-
-                checked={heatEnabled === true}
-
-                disabled={permitDisabled}
-
-                size="lg"
-
-                labelOn="ON"
-
-                labelOff="OFF"
-
-                ariaLabel={
-
-                  heatEnabled
-
-                    ? 'Käyntilupa päällä — sammuta painamalla'
-
-                    : 'Käyntilupa pois — kytke päälle painamalla'
-
-                }
-
-                onChange={(next) => void setHeatPermit(next)}
-
-              />
-
-            </div>
-
-          </div>
-
+          <VrfStatusPanel
+            telemetry={telemetry}
+            online={online}
+            stale={stale}
+            defrostLikely={defrostLikelyNow}
+            compressorRunning={compressorRunning}
+            externalAlarm={externalAlarm}
+            activeAlarmLabels={alarms.map((alarm) => alarm.label)}
+            requestedEnabled={heatEnabled}
+            lastSeenAt={device.last_seen_at}
+            firmwareVersion={device.firmware_version}
+            permitDisabled={permitDisabled}
+            onPermitChange={(next) => void setHeatPermit(next)}
+          />
         </section>
 
 
@@ -885,29 +828,49 @@ export default function VrfMonitorDetailPage({ session }: Props) {
 
               </label>
 
-              <label>
-
-                DI3 laukaisutaso (0/1)
-
-                <input
-
-                  type="number"
-
-                  min="0"
-
-                  max="1"
-
-                  value={settingsForm.alarm_input_trigger_raw_level}
-
-                  onChange={(e) =>
-
-                    setSettingsForm((s) => ({ ...s, alarm_input_trigger_raw_level: Number(e.target.value) }))
-
-                  }
-
-                />
-
-              </label>
+              <fieldset className="vrf-settings-fieldset">
+                <legend>Digitaalitulot (DI)</legend>
+                <p className="muted vrf-settings-fieldset-lead">
+                  Normaali = signaali aktivoituu korkealla (+12 V, PNP). Käänteinen = aktivoituu matalalla (0 V).
+                </p>
+                {(
+                  [
+                    ['di2_trigger_raw_level', 'DI2 — Kompressori'] as const,
+                    ['di3_trigger_raw_level', 'DI3 — Hälytys'] as const,
+                    ['di4_trigger_raw_level', 'DI4 — Laite päällä / valmius'] as const,
+                  ] as const
+                ).map(([key, label]) => (
+                  <div key={key} className="vrf-settings-toggle-row">
+                    <div>
+                      <strong>{label}</strong>
+                      <p className="muted">
+                        {vrfDiInvertedFromTrigger(settingsForm[key], settingsForm.alarm_input_trigger_raw_level)
+                          ? 'Käänteinen — ON kun tulo on matalalla'
+                          : 'Normaali — ON kun tulo on korkealla (+12 V)'}
+                      </p>
+                    </div>
+                    <VrfToggleSwitch
+                      checked={vrfDiInvertedFromTrigger(
+                        settingsForm[key],
+                        settingsForm.alarm_input_trigger_raw_level,
+                      )}
+                      labelOn="INV"
+                      labelOff="PNP"
+                      ariaLabel={`${label} — käänteinen logiikka`}
+                      onChange={(inverted) =>
+                        setSettingsForm((s) => {
+                          const nextLevel = vrfDiTriggerFromInverted(inverted);
+                          const patch = { [key]: nextLevel } as Partial<typeof s>;
+                          if (key === 'di3_trigger_raw_level') {
+                            patch.alarm_input_trigger_raw_level = nextLevel;
+                          }
+                          return { ...s, ...patch };
+                        })
+                      }
+                    />
+                  </div>
+                ))}
+              </fieldset>
 
               <fieldset className="vrf-settings-fieldset">
 

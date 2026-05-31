@@ -12,6 +12,9 @@ const defaultSettings = {
   auto_stop_outdoor_smooth_tau_min: 0,
   compressor_alarm_enable_after_s: 300,
   alarm_input_trigger_raw_level: 0,
+  di2_trigger_raw_level: 1,
+  di3_trigger_raw_level: 0,
+  di4_trigger_raw_level: 1,
   alarm_limits: {
     hot_gas_high_c: 110,
     refrigerant_return_low_c: -20,
@@ -62,10 +65,18 @@ Deno.serve(async (req) => {
       });
     }
 
-    const settings =
+    const rawSettings =
       device.settings && typeof device.settings === 'object' && !Array.isArray(device.settings)
-        ? { ...defaultSettings, ...(device.settings as Record<string, unknown>) }
-        : defaultSettings;
+        ? (device.settings as Record<string, unknown>)
+        : null;
+
+    const settings = rawSettings
+      ? { ...defaultSettings, ...rawSettings }
+      : { ...defaultSettings };
+
+    if (rawSettings?.ota_request && typeof rawSettings.ota_request === 'object') {
+      settings.ota_request = rawSettings.ota_request;
+    }
 
     const controlEnabled =
       device.control_requested_enabled ?? device.heat_enabled ?? false;

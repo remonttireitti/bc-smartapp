@@ -108,9 +108,28 @@ export type MonitorShareViewBundle = {
   readings: Record<string, unknown>[];
 };
 
-export async function loadMonitorShareView(token: string, hours = 24): Promise<MonitorShareViewBundle> {
+export type MonitorShareViewOptions = {
+  hours?: number;
+  start?: string;
+  end?: string;
+};
+
+function buildMonitorShareViewBody(token: string, hoursOrOptions: number | MonitorShareViewOptions = 24) {
+  if (typeof hoursOrOptions === 'number') {
+    return { token, hours: hoursOrOptions };
+  }
+  if (hoursOrOptions.start && hoursOrOptions.end) {
+    return { token, start: hoursOrOptions.start, end: hoursOrOptions.end };
+  }
+  return { token, hours: hoursOrOptions.hours ?? 24 };
+}
+
+export async function loadMonitorShareView(
+  token: string,
+  hoursOrOptions: number | MonitorShareViewOptions = 24,
+): Promise<MonitorShareViewBundle> {
   const { data, error } = await supabase.functions.invoke('monitor-share-view', {
-    body: { token, hours },
+    body: buildMonitorShareViewBody(token, hoursOrOptions),
   });
   if (error) throw new Error(error.message);
   if (data?.error) throw new Error(String(data.error));
@@ -123,7 +142,10 @@ export function monitorShareViewFunctionUrl(): string {
 }
 
 /** Julkinen token-näkymä ilman kirjautumista (anon key + edge function). */
-export async function loadMonitorShareViewPublic(token: string, hours = 24): Promise<MonitorShareViewBundle> {
+export async function loadMonitorShareViewPublic(
+  token: string,
+  hoursOrOptions: number | MonitorShareViewOptions = 24,
+): Promise<MonitorShareViewBundle> {
   const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
   const response = await fetch(monitorShareViewFunctionUrl(), {
     method: 'POST',
@@ -132,7 +154,7 @@ export async function loadMonitorShareViewPublic(token: string, hours = 24): Pro
       Authorization: `Bearer ${anonKey}`,
       apikey: anonKey,
     },
-    body: JSON.stringify({ token, hours }),
+    body: JSON.stringify(buildMonitorShareViewBody(token, hoursOrOptions)),
   });
   const data = (await response.json()) as MonitorShareViewBundle & { error?: string };
   if (!response.ok) {

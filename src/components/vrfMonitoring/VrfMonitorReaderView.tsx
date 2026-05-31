@@ -1,16 +1,19 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
+import VrfStatusPanel from './VrfStatusPanel';
 import VrfSchematicBoard from './VrfSchematicBoard';
 import VrfTrendDialog from './VrfTrendDialog';
+import VrfReportDialog from './VrfReportDialog';
+import IconButton from '../IconButton';
+import { IconPrint } from '../icons';
 import {
   VRF_DEVICE_SELECT,
   activeVrfAlarms,
-  formatRelativeTime,
   isVrfDeviceOnline,
   isVrfTelemetryStale,
   parseVrfTelemetry,
   vrfCompressorRunning,
-  vrfOperatingStateLabel,
+  vrfResolveDeviceActivity,
   type VrfBinaryLaneKey,
   type VrfDevice,
   type VrfSchematicClickKey,
@@ -38,6 +41,7 @@ export default function VrfMonitorReaderView({
   const [error, setError] = useState<string | null>(null);
   const [lastRefreshAt, setLastRefreshAt] = useState<Date | null>(null);
   const [trendOpen, setTrendOpen] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
   const [trendFocusHotspot, setTrendFocusHotspot] = useState<VrfSchematicClickKey | null>(null);
   const [trendFocusBinary, setTrendFocusBinary] = useState<VrfBinaryLaneKey | null>(null);
 
@@ -83,8 +87,25 @@ export default function VrfMonitorReaderView({
   const compressorRunning = vrfCompressorRunning(telemetry);
   const diStale = stale || !online;
   const heatEnabled = device?.control_requested_enabled ?? telemetry?.control.enabled ?? device?.heat_enabled;
-  const outdoorLock = telemetry?.status.outdoor_safety_lock_active ?? false;
   const alarms = activeVrfAlarms(telemetry?.alarms ?? {});
+  const externalAlarm =
+    telemetry?.digital_inputs?.di3_alarm === true ||
+    telemetry?.alarms.external_alarm_input === true;
+  const defrostLikely = telemetry?.defrost?.active === true;
+
+  const activitySummary = useMemo(
+    () =>
+      vrfResolveDeviceActivity({
+        telemetry,
+        online,
+        stale,
+        defrostLikely,
+        compressorRunning,
+        externalAlarm,
+        activeAlarmLabels: alarms.map((alarm) => alarm.label),
+      }),
+    [telemetry, online, stale, defrostLikely, compressorRunning, externalAlarm],
+  );
 
   function openTrendFromHotspot(key: VrfSchematicClickKey) {
     setTrendFocusHotspot(key);
@@ -115,15 +136,20 @@ export default function VrfMonitorReaderView({
           {showReaderBadge && <span className="badge vrf-reader-badge">Lukuoikeus</span>}
           <h1>{title}</h1>
           <p className="muted vrf-reader-subtitle">
-            {online ? 'Online' : 'Offline'} · {vrfOperatingStateLabel(telemetry?.status.operating_state ?? device.operating_state)}
+            {online ? 'Online' : 'Offline'} · {activitySummary.headline}
             {lastRefreshAt
               ? ` · päivitetty ${lastRefreshAt.toLocaleTimeString('fi-FI', { hour: '2-digit', minute: '2-digit' })}`
               : ''}
           </p>
         </div>
-        <button type="button" className="btn btn-secondary" onClick={() => void load()}>
-          Päivitä
-        </button>
+        <div className="vrf-reader-head-actions">
+          <IconButton label="Tulosta raportti" tooltipSide="bottom" onClick={() => setReportOpen(true)}>
+            <IconPrint />
+          </IconButton>
+          <button type="button" className="btn btn-secondary" onClick={() => void load()}>
+            Päivitä
+          </button>
+        </div>
       </header>
 
       {stale && online && (
@@ -131,44 +157,19 @@ export default function VrfMonitorReaderView({
       )}
 
       <section className={`vrf-hero panel vrf-hero--reader ${alarms.length > 0 ? 'vrf-hero--alarm' : ''}`}>
-        <div className="vrf-hero-main">
-          <div className="vrf-hero-badges">
-            <span className={`temp-status ${online ? 'online' : 'offline'}`}>
-              <span className="temp-status-dot" aria-hidden="true" />
-              {online ? 'Online' : 'Offline'}
-            </span>
-            {alarms.length > 0 && <span className="badge badge-alert">Hälytys</span>}
-            {outdoorLock && <span className="badge badge-warning">Ulkolämpö lukko</span>}
-            <span className="muted">{vrfOperatingStateLabel(telemetry?.status.operating_state ?? device.operating_state)}</span>
-            <span className="muted">Viimeisin yhteys: {formatRelativeTime(device.last_seen_at)}</span>
-          </div>
-          <div className="vrf-reader-status-grid">
-            <div className="vrf-reader-status-item">
-              <span className="muted">Käyntilupa (RO1)</span>
-              <strong>{heatEnabled ? 'ON' : 'OFF'}</strong>
-            </div>
-            <div className="vrf-reader-status-item">
-              <span className="muted">Kompressori (DI2)</span>
-              <strong>
-                {diStale
-                  ? '—'
-                  : telemetry?.digital_inputs?.di2_compressor_running
-                    ? 'Käy'
-                    : 'Pois'}
-              </strong>
-            </div>
-            <div className="vrf-reader-status-item">
-              <span className="muted">Laite (DI4)</span>
-              <strong>
-                {diStale
-                  ? '—'
-                  : telemetry?.digital_inputs?.di4_unit_ready
-                    ? 'Päällä'
-                    : 'Pois'}
-              </strong>
-            </div>
-          </div>
-        </div>
+        <VrfStatusPanel
+          telemetry={telemetry}
+          online={online}
+          stale={stale}
+          defrostLikely={defrostLikely}
+          compressorRunning={compressorRunning}
+          externalAlarm={externalAlarm}
+          activeAlarmLabels={alarms.map((alarm) => alarm.label)}
+          requestedEnabled={heatEnabled}
+          lastSeenAt={device.last_seen_at}
+          firmwareVersion={device.firmware_version}
+          readOnly
+        />
       </section>
 
       {alarms.length > 0 && (
@@ -198,18 +199,27 @@ export default function VrfMonitorReaderView({
       </section>
 
       {device.id && (
-        <VrfTrendDialog
-          open={trendOpen}
-          deviceId={device.id}
-          shareToken={shareToken}
-          focusHotspot={trendFocusHotspot}
-          focusBinary={trendFocusBinary}
-          onClose={() => {
-            setTrendOpen(false);
-            setTrendFocusHotspot(null);
-            setTrendFocusBinary(null);
-          }}
-        />
+        <>
+          <VrfTrendDialog
+            open={trendOpen}
+            deviceId={device.id}
+            shareToken={shareToken}
+            focusHotspot={trendFocusHotspot}
+            focusBinary={trendFocusBinary}
+            onClose={() => {
+              setTrendOpen(false);
+              setTrendFocusHotspot(null);
+              setTrendFocusBinary(null);
+            }}
+          />
+          <VrfReportDialog
+            open={reportOpen}
+            device={device}
+            companyName="BC SmartApp"
+            shareToken={shareToken}
+            onClose={() => setReportOpen(false)}
+          />
+        </>
       )}
 
       {session && (
