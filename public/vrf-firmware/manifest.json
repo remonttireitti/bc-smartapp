@@ -1,5 +1,5 @@
 {
-  "version": "1.1.9",
+  "version": "1.1.11",
   "url": "https://bc-smartapp.vercel.app/vrf-firmware/firmware.bin",
-  "notes": "Fix OTA nonce int32 overflow, longer HTTPS timeout, OTA error telemetry"
+  "notes": "Optional DI3 alarm shutdown disable for testing without RO1 lockout"
 }
