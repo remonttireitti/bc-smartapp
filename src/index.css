@@ -6453,6 +6453,336 @@ button.vrf-toggle:not(:disabled) {
   gap: 0.75rem;
 }
 
+.vrf-trend-hint {
+  margin: 0 0 0.65rem;
+  font-size: 0.88rem;
+}
+
+.vrf-trend-section {
+  display: grid;
+  gap: 1rem;
+}
+
+.vrf-trend-head {
+  align-items: flex-start;
+}
+
+.vrf-trend-meta {
+  margin: 0.25rem 0 0;
+  font-size: 0.88rem;
+}
+
+.vrf-trend-range {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.vrf-trend-range-btn {
+  border: 1px solid var(--border-strong);
+  background: var(--bg-surface);
+  color: var(--text);
+  border-radius: 999px;
+  padding: 0.4rem 0.75rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.vrf-trend-range-btn.active {
+  background: #0f766e;
+  border-color: #0f766e;
+  color: #fff;
+}
+
+.vrf-trend-range-btn:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+
+.vrf-trend-block {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.vrf-trend-block-toggle {
+  justify-self: start;
+  border: none;
+  background: none;
+  color: var(--text);
+  font-weight: 700;
+  font-size: 0.95rem;
+  padding: 0;
+  cursor: pointer;
+}
+
+.vrf-trend-subtitle {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.vrf-trend-legend-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border: 1px solid var(--border);
+  background: var(--bg-surface);
+  border-radius: 999px;
+  padding: 0.25rem 0.55rem;
+  font-size: 0.82rem;
+  cursor: pointer;
+  color: var(--text-muted);
+}
+
+.vrf-trend-legend-toggle.active {
+  color: var(--text);
+  border-color: var(--border-strong);
+}
+
+.vrf-binary-chart {
+  overflow-x: auto;
+}
+
+.vrf-hp-hotspot--clickable,
+.vrf-hp-di-badge--clickable {
+  cursor: pointer;
+  font: inherit;
+  text-align: inherit;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+}
+
+.vrf-hp-hotspot--clickable:hover,
+.vrf-hp-hotspot--clickable:focus-visible,
+.vrf-hp-di-badge--clickable:hover,
+.vrf-hp-di-badge--clickable:focus-visible {
+  border-color: rgba(240, 129, 15, 0.65);
+  box-shadow: 0 0 0 2px rgba(240, 129, 15, 0.25);
+  outline: none;
+}
+
+.vrf-hp-di-badge--clickable {
+  appearance: none;
+}
+
+.vrf-hp-hint {
+  margin: 0.75rem 0 0;
+  font-size: 0.85rem;
+  text-align: center;
+}
+
+.vrf-trend-dialog {
+  width: min(920px, calc(100vw - 2rem));
+  max-height: min(92vh, 960px);
+  overflow: auto;
+}
+
+.vrf-trend-dialog-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.vrf-report-dialog {
+  width: min(920px, calc(100vw - 2rem));
+  max-height: min(92vh, 960px);
+  overflow: auto;
+}
+
+.vrf-report-form fieldset {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.75rem 1rem;
+  margin: 0;
+}
+
+.vrf-report-period-mode {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.vrf-report-radio {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.vrf-report-check-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
+  gap: 0.45rem 0.75rem;
+}
+
+.vrf-report-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.9rem;
+}
+
+.vrf-report-preview {
+  margin-top: 1rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border);
+}
+
+.vrf-alarm-banner {
+  margin: 0;
+  padding: 0.75rem 1rem;
+  border-radius: 10px;
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  background: rgba(239, 68, 68, 0.08);
+}
+
+.vrf-reader-badge {
+  margin-bottom: 0.35rem;
+}
+
+.vrf-reader-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem 1rem;
+}
+
+.vrf-reader-subtitle {
+  margin: 0.25rem 0 0;
+}
+
+.vrf-hero--reader .vrf-permit-block,
+.vrf-hero--reader .vrf-toggle-switch {
+  display: none;
+}
+
+.vrf-reader-status-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+
+.vrf-reader-status-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: 0.65rem 0.75rem;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--bg-surface);
+}
+
+.vrf-reader-login-note {
+  margin-top: 0.5rem;
+  font-size: 0.85rem;
+}
+
+.vrf-share-dialog {
+  width: min(760px, calc(100vw - 2rem));
+  max-height: min(92vh, 900px);
+  overflow: auto;
+}
+
+.vrf-share-items {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.75rem;
+}
+
+.vrf-share-item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.vrf-share-item.disabled {
+  opacity: 0.65;
+}
+
+.vrf-share-url {
+  display: block;
+  margin-top: 0.35rem;
+  font-size: 0.78rem;
+  word-break: break-all;
+}
+
+.vrf-share-item-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.vrf-share-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.monitor-reader-public {
+  min-height: 100vh;
+  background: var(--bg-page, #0f172a);
+  color: var(--text, #e2e8f0);
+}
+
+.monitor-reader-public-topbar {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.85rem 1rem;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.25);
+}
+
+.monitor-reader-public-main {
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 1rem;
+}
+
+.monitor-reader-login-link {
+  margin-left: auto;
+}
+
+.monitor-reader-hub-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.75rem;
+}
+
+.monitor-reader-hub-card {
+  display: grid;
+  gap: 0.25rem;
+  padding: 1rem;
+  text-decoration: none;
+  color: inherit;
+}
+
+.monitor-reader-hub-card.disabled {
+  opacity: 0.7;
+}
+
+.vrf-binary-lane-label {
+  fill: var(--text-muted);
+  font-size: 0.62rem;
+  font-weight: 600;
+}
+
+.vrf-binary-chart--empty {
+  padding: 0.75rem 0;
+}
+
 .vrf-settings-note {
   margin-top: 0.75rem;
 }
@@ -7173,6 +7503,21 @@ button.vrf-toggle:not(:disabled) {
   .vrf-permit-block {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .vrf-trend-head {
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .vrf-trend-range {
+    width: 100%;
+  }
+
+  .vrf-trend-range-btn {
+    flex: 1;
+    min-width: 3rem;
+    text-align: center;
   }
 
   .vrf-hp-hotspot {

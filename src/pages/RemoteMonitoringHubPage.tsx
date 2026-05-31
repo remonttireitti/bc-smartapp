@@ -1,7 +1,8 @@
-import { Link } from 'react-router-dom';
+import { Link, Navigate } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
 import AppLayout from '../components/AppLayout';
 import { useProfile } from '../hooks/useProfile';
+import { isMonitorViewerRole, monitorReaderHubPath } from '../lib/monitorReaderShares';
 import { TEMP_MONITORING_BASE, VRF_MONITORING_BASE } from '../lib/remoteMonitoringRoutes';
 
 interface Props {
@@ -25,6 +26,10 @@ const TILES = [
 
 export default function RemoteMonitoringHubPage({ session }: Props) {
   const { profile } = useProfile(session);
+
+  if (isMonitorViewerRole(profile?.role)) {
+    return <Navigate to={monitorReaderHubPath()} replace />;
+  }
 
   return (
     <AppLayout session={session}>

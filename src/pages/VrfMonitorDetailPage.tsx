@@ -1,623 +1,1165 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
+
 import { Link, useNavigate, useParams } from 'react-router-dom';
+
 import type { Session } from '@supabase/supabase-js';
+
 import AppLayout from '../components/AppLayout';
+
 import CollapsibleSection from '../components/CollapsibleSection';
+
+import IconButton from '../components/IconButton';
+
+import { IconPrint } from '../components/icons';
+
 import TempDeviceDeleteDialog from '../components/tempMonitoring/TempDeviceDeleteDialog';
+
 import TempMonitoringPageHeader from '../components/tempMonitoring/TempMonitoringPageHeader';
+
+import VrfMonitorShareDialog from '../components/vrfMonitoring/VrfMonitorShareDialog';
+import VrfReportDialog from '../components/vrfMonitoring/VrfReportDialog';
+
 import VrfSchematicBoard from '../components/vrfMonitoring/VrfSchematicBoard';
-import VrfDiStatusPill from '../components/vrfMonitoring/VrfDiStatusPill';
+
 import VrfToggleSwitch from '../components/vrfMonitoring/VrfToggleSwitch';
-import VrfTrendChart from '../components/vrfMonitoring/VrfTrendChart';
+
+import VrfTrendDialog from '../components/vrfMonitoring/VrfTrendDialog';
+
 import VrfWiringGuide from '../components/vrfMonitoring/VrfWiringGuide';
+
 import { useProfile } from '../hooks/useProfile';
+
+import { monitorReaderVrfPath } from '../lib/monitorReaderShares';
 import { REMOTE_MONITORING_HUB, VRF_MONITORING_BASE } from '../lib/remoteMonitoringRoutes';
+
 import {
+
   VRF_DEVICE_SELECT,
+
   VRF_READING_SELECT,
-  VRF_SENSOR_KEYS,
-  VRF_SENSOR_LABELS,
+
   activeVrfAlarms,
+
   defaultVrfSettings,
+
   formatRelativeTime,
-  formatTempC,
+
+  inferDefrostLikely,
+
   isVrfDeviceOnline,
+
   isVrfTelemetryStale,
+
   parseVrfSettings,
+
   parseVrfTelemetry,
-  vrfOperatingStateLabel,
+
+  sortReadingsByTime,
+
+  trendReadingLimit,
+
   vrfCompressorRunning,
+
+  vrfOperatingStateLabel,
+
+  type VrfBinaryLaneKey,
+
   type VrfDevice,
+
   type VrfDeviceSettings,
+
   type VrfReading,
+
+  type VrfSchematicClickKey,
+
 } from '../lib/vrfMonitoring';
+
 import { supabase } from '../lib/supabase';
 
+
+
 interface Props {
+
   session: Session;
+
 }
+
+
 
 type TabId = 'seuranta' | 'sulatus' | 'asetukset';
 
+
+
+const HISTORY_HOURS = 24;
+
+
+
 export default function VrfMonitorDetailPage({ session }: Props) {
+
   const { deviceId } = useParams<{ deviceId: string }>();
+
   const navigate = useNavigate();
+
   const { profile } = useProfile(session);
+
   const [device, setDevice] = useState<VrfDevice | null>(null);
+
   const [readings, setReadings] = useState<VrfReading[]>([]);
+
   const [loading, setLoading] = useState(true);
+
   const [busy, setBusy] = useState(false);
+
   const [error, setError] = useState<string | null>(null);
+
   const [message, setMessage] = useState<string | null>(null);
+
   const [settingsMessage, setSettingsMessage] = useState<string | null>(null);
+
   const [tab, setTab] = useState<TabId>('seuranta');
+
   const [deleteTarget, setDeleteTarget] = useState(false);
+
   const [deleteError, setDeleteError] = useState<string | null>(null);
+
   const [settingsForm, setSettingsForm] = useState<VrfDeviceSettings>(defaultVrfSettings());
+
   const [lastRefreshAt, setLastRefreshAt] = useState<Date | null>(null);
 
+  const [trendOpen, setTrendOpen] = useState(false);
+
+  const [trendFocusHotspot, setTrendFocusHotspot] = useState<VrfSchematicClickKey | null>(null);
+
+  const [trendFocusBinary, setTrendFocusBinary] = useState<VrfBinaryLaneKey | null>(null);
+
+  const [reportOpen, setReportOpen] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
+
+
+
   const online = isVrfDeviceOnline(device?.last_seen_at);
+
   const telemetry = useMemo(() => parseVrfTelemetry(device?.latest_payload), [device?.latest_payload]);
+
   const stale = isVrfTelemetryStale(device?.latest_payload);
+
   const heatEnabled = device?.control_requested_enabled ?? telemetry?.control.enabled ?? device?.heat_enabled;
+
   const outdoorLock = telemetry?.status.outdoor_safety_lock_active ?? false;
+
   const compressorRunning = vrfCompressorRunning(telemetry);
+
   const permitDisabled = busy || stale || !online || outdoorLock;
+
   const diStale = stale || !online;
 
+  const defrostLikelyNow = useMemo(() => {
+
+    if (telemetry?.defrost?.active === true) return true;
+
+    const sorted = sortReadingsByTime(readings);
+
+    if (sorted.length === 0) return false;
+
+    return inferDefrostLikely(sorted, sorted.length - 1);
+
+  }, [readings, telemetry?.defrost?.active]);
+
+
+
   const load = useCallback(async () => {
+
     if (!deviceId) return;
+
     setError(null);
-    const since = new Date(Date.now() - 24 * 3600_000).toISOString();
+
+    const since = new Date(Date.now() - HISTORY_HOURS * 3600_000).toISOString();
+
     const [deviceRes, readingsRes] = await Promise.all([
+
       supabase.from('vrf_devices').select(VRF_DEVICE_SELECT).eq('id', deviceId).maybeSingle(),
+
       supabase
+
         .from('vrf_readings')
+
         .select(VRF_READING_SELECT)
+
         .eq('device_id', deviceId)
+
         .gte('recorded_at', since)
+
         .order('recorded_at', { ascending: true })
-        .limit(500),
+
+        .limit(trendReadingLimit(HISTORY_HOURS)),
+
     ]);
+
     const nextDevice = (deviceRes.data as VrfDevice | null) ?? null;
+
     setDevice(nextDevice);
+
     setReadings((readingsRes.data as VrfReading[] | null) ?? []);
+
     if (nextDevice) {
+
       const fromDb = parseVrfSettings(nextDevice.settings);
+
       const fromPayload = parseVrfTelemetry(nextDevice.latest_payload)?.settings;
+
       setSettingsForm(parseVrfSettings({ ...fromDb, ...fromPayload }));
+
     }
+
     setLastRefreshAt(new Date());
+
     setLoading(false);
+
     if (deviceRes.error) setError(deviceRes.error.message);
+
     else if (readingsRes.error) setError(readingsRes.error.message);
+
   }, [deviceId]);
 
-  useEffect(() => {
-    if (deviceId) void load();
-  }, [deviceId, load]);
+
 
   useEffect(() => {
-    if (!deviceId) return;
-    const timer = window.setInterval(() => void load(), 10_000);
-    return () => window.clearInterval(timer);
+    if (profile?.role === 'monitor_viewer' && deviceId) {
+      navigate(monitorReaderVrfPath(deviceId), { replace: true });
+    }
+  }, [profile?.role, deviceId, navigate]);
+
+  useEffect(() => {
+
+    if (deviceId) void load();
+
   }, [deviceId, load]);
+
+
+
+  useEffect(() => {
+
+    if (!deviceId) return;
+
+    const timer = window.setInterval(() => void load(), 10_000);
+
+    return () => window.clearInterval(timer);
+
+  }, [deviceId, load]);
+
+
+
+  function openTrendFromHotspot(key: VrfSchematicClickKey) {
+
+    setTrendFocusHotspot(key);
+
+    setTrendFocusBinary(null);
+
+    setTrendOpen(true);
+
+  }
+
+
+
+  function openTrendFromDi(lane: VrfBinaryLaneKey) {
+
+    setTrendFocusHotspot(null);
+
+    setTrendFocusBinary(lane);
+
+    setTrendOpen(true);
+
+  }
+
+
+
+  function closeTrend() {
+
+    setTrendOpen(false);
+
+    setTrendFocusHotspot(null);
+
+    setTrendFocusBinary(null);
+
+  }
+
+
 
   async function setHeatPermit(next: boolean) {
+
     if (!device || stale || outdoorLock) return;
+
     setBusy(true);
+
     setMessage(null);
+
     const { error: updateError } = await supabase
+
       .from('vrf_devices')
+
       .update({
+
         control_requested_enabled: next,
+
         control_updated_at: new Date().toISOString(),
+
       })
+
       .eq('id', device.id);
+
     setBusy(false);
+
     if (updateError) {
+
       setMessage(updateError.message);
+
       return;
+
     }
+
     setMessage(`Käyntilupa ${next ? 'päällä' : 'pois'} — laite päivittää tilan hetken kuluttua.`);
+
     await load();
+
   }
+
+
 
   async function saveSettings(e: FormEvent) {
+
     e.preventDefault();
+
     if (!device || stale) {
+
       setSettingsMessage('Laite ei lähetä tuoretta dataa — tallennus lukittu.');
+
       return;
+
     }
+
     setBusy(true);
+
     setSettingsMessage(null);
+
     const { error: updateError } = await supabase
+
       .from('vrf_devices')
+
       .update({
+
         settings: settingsForm,
+
         settings_updated_at: new Date().toISOString(),
+
       })
+
       .eq('id', device.id);
+
     setBusy(false);
+
     if (updateError) {
+
       setSettingsMessage(updateError.message);
+
       return;
+
     }
+
     setSettingsMessage('Asetukset tallennettu.');
+
     await load();
+
   }
+
+
 
   async function confirmDelete() {
+
     if (!device) return;
+
     setBusy(true);
+
     setDeleteError(null);
+
     const { error: deleteErr } = await supabase.from('vrf_devices').delete().eq('id', device.id);
+
     setBusy(false);
+
     if (deleteErr) {
+
       setDeleteError(deleteErr.message);
+
       return;
+
     }
+
     navigate(VRF_MONITORING_BASE);
+
   }
+
+
 
   if (loading) {
+
     return (
+
       <AppLayout session={session}>
+
         <p className="muted">Ladataan…</p>
+
       </AppLayout>
+
     );
+
   }
 
+
+
   if (!device) {
+
     return (
+
       <AppLayout session={session}>
+
         <p className="form-error">{error ?? 'Laitetta ei löydy'}</p>
+
         <Link to={VRF_MONITORING_BASE}>← Takaisin</Link>
+
       </AppLayout>
+
     );
+
   }
+
+
 
   const alarms = activeVrfAlarms(telemetry?.alarms ?? {});
 
+
+
   return (
+
     <AppLayout session={session}>
+
       <div className="temp-monitoring-page temp-monitoring-detail vrf-detail-page page-stack">
+
         <TempMonitoringPageHeader
+
           sticky
+
           crumbs={[
+
             { href: '/', label: 'Etusivu' },
+
             { href: REMOTE_MONITORING_HUB, label: 'Etäohjaus ja seuranta' },
+
             { href: VRF_MONITORING_BASE, label: 'VRF ohjaus ja seuranta' },
+
             { label: device.name },
+
           ]}
+
           title={device.name}
+
           subtitle={
+
             lastRefreshAt
+
               ? `${online ? 'Online' : 'Offline'} · ${vrfOperatingStateLabel(device.operating_state)} · päivitetty ${lastRefreshAt.toLocaleTimeString('fi-FI', { hour: '2-digit', minute: '2-digit' })}`
+
               : undefined
+
           }
+
           actions={
-            <button type="button" className="btn btn-secondary" disabled={busy} onClick={() => void load()}>
-              Päivitä
-            </button>
+            <>
+              <button type="button" className="btn btn-secondary" disabled={busy} onClick={() => setShareOpen(true)}>
+                Jaa lukuoikeus
+              </button>
+              <IconButton label="Tulosta raportti" tooltipSide="bottom" onClick={() => setReportOpen(true)}>
+                <IconPrint />
+              </IconButton>
+              <button type="button" className="btn btn-secondary" disabled={busy} onClick={() => void load()}>
+                Päivitä
+              </button>
+            </>
           }
+
         />
 
+
+
         {error && <p className="form-error">{error}</p>}
+
         {message && <p className="form-success">{message}</p>}
+
         {stale && online && (
+
           <p className="form-error">Mittaus ei ole tuore — ohjaus ja asetukset lukittu kunnes uusi data saapuu.</p>
+
         )}
+
+
 
         <section className={`vrf-hero panel ${alarms.length > 0 ? 'vrf-hero--alarm' : ''}`}>
+
           <div className="vrf-hero-main">
+
             <div className="vrf-hero-badges">
+
               <span className={`temp-status ${online ? 'online' : 'offline'}`}>
+
                 <span className="temp-status-dot" aria-hidden="true" />
+
                 {online ? 'Online' : 'Offline'}
+
               </span>
+
               {alarms.length > 0 && <span className="badge badge-alert">Hälytys</span>}
+
               {outdoorLock && <span className="badge badge-warning">Ulkolämpö lukko</span>}
+
               <span className="muted">{vrfOperatingStateLabel(telemetry?.status.operating_state ?? device.operating_state)}</span>
+
+              <span className="muted">Viimeisin yhteys: {formatRelativeTime(device.last_seen_at)}</span>
+
+              {device.firmware_version && <span className="muted">Firmware {device.firmware_version}</span>}
+
             </div>
+
+
 
             <div className="vrf-permit-block">
+
               <div className="vrf-permit-copy">
+
                 <h2 className="vrf-permit-title">Käyntilupa</h2>
+
                 <p className="muted vrf-permit-desc">
+
                   Sallii monitorin kytkeä <strong>RO1-lähdön</strong> (lämmitysrele) päälle. <strong>ON</strong> =
+
                   lämmityslupa, <strong>OFF</strong> = estetty. RO1 on ohjaus ulospäin — erillinen DI4-luku
+
                   kertoo VRF:n oman käyntitilan (12 V palaute).
+
                 </p>
+
                 {outdoorLock && (
+
                   <p className="temp-live-hero-offline-note muted">Ulkolämpötilaraja estää lämmityksen.</p>
+
                 )}
+
                 {permitDisabled && !outdoorLock && (
+
                   <p className="muted vrf-permit-hint">Ohjaus lukittu kunnes tuore telemetria saapuu.</p>
+
                 )}
+
               </div>
+
               <VrfToggleSwitch
+
                 checked={heatEnabled === true}
+
                 disabled={permitDisabled}
+
                 size="lg"
+
                 labelOn="ON"
+
                 labelOff="OFF"
+
                 ariaLabel={
+
                   heatEnabled
+
                     ? 'Käyntilupa päällä — sammuta painamalla'
+
                     : 'Käyntilupa pois — kytke päälle painamalla'
+
                 }
+
                 onChange={(next) => void setHeatPermit(next)}
+
               />
+
             </div>
+
           </div>
-          <div className="vrf-hero-side">
-            <p className="muted">Ulkoilma</p>
-            <p className="temp-live-hero-temp">{online && !stale ? formatTempC(device.outdoor_c) : '—'}</p>
-            <p className="muted">Viimeisin yhteys: {formatRelativeTime(device.last_seen_at)}</p>
-            {device.firmware_version && <p className="muted">Firmware {device.firmware_version}</p>}
-          </div>
+
         </section>
 
+
+
+        {alarms.length > 0 && (
+
+          <ul className="vrf-alarm-list vrf-alarm-banner">
+
+            {alarms.map((alarm) => (
+
+              <li key={alarm.key} className="vrf-alarm-item">
+
+                {alarm.label}
+
+              </li>
+
+            ))}
+
+          </ul>
+
+        )}
+
+
+
         <div className="vrf-tab-row">
+
           {(
+
             [
+
               ['seuranta', 'Seuranta'],
+
               ['sulatus', 'Sulatukset'],
+
               ['asetukset', 'Asetukset'],
+
             ] as const
+
           ).map(([id, label]) => (
+
             <button key={id} type="button" className={`vrf-tab ${tab === id ? 'active' : ''}`} onClick={() => setTab(id)}>
+
               {label}
+
             </button>
+
           ))}
+
         </div>
 
+
+
         {tab === 'seuranta' && (
-          <>
-            <section className="panel temp-devices-panel vrf-schematic-panel">
-              <div className="temp-panel-head">
-                <h2>Järjestelmäkaavio</h2>
-              </div>
-              <VrfSchematicBoard
-                temperatures={telemetry?.temperatures ?? {}}
-                digitalInputs={telemetry?.digital_inputs ?? null}
-                compressorRunning={compressorRunning}
-                stale={diStale}
-                showTemps={online}
-              />
-            </section>
 
-            <section className="panel temp-devices-panel">
-              <div className="temp-panel-head">
-                <h2>VRF-signaalit (12 V → DI)</h2>
-                <p className="muted">Lukutila — VRF-ohjain antaa signaalin, monitori näyttää ON/OFF.</p>
-              </div>
-              <ul className="vrf-di-list">
-                <li>
-                  <div>
-                    <strong>DI4 — Laite päällä / valmiustila</strong>
-                    <p className="muted">
-                      12 V palaute VRF:stä (lukutila). RO1 voi olla ON ja DI4 OFF esim. hälytyksen takia.
-                    </p>
-                  </div>
-                  <VrfDiStatusPill
-                    active={telemetry?.digital_inputs?.di4_unit_ready ?? null}
-                    stale={diStale}
-                    labelOn="ON"
-                    labelOff="OFF"
-                  />
-                </li>
-                <li>
-                  <div>
-                    <strong>DI2 — Kompressori</strong>
-                    <p className="muted">12 V = kompressori käynnissä</p>
-                  </div>
-                  <VrfDiStatusPill
-                    active={telemetry?.digital_inputs?.di2_compressor_running ?? null}
-                    stale={diStale}
-                    labelOn="ON"
-                    labelOff="OFF"
-                  />
-                </li>
-                <li>
-                  <div>
-                    <strong>DI3 — Hälytys</strong>
-                    <p className="muted">12 V = ulkoinen hälytys (sammuttaa lämmityksen väh. 30 min)</p>
-                  </div>
-                  <VrfDiStatusPill
-                    active={telemetry?.digital_inputs?.di3_alarm ?? telemetry?.alarms.external_alarm_input ?? null}
-                    stale={diStale}
-                    variant="alarm"
-                    labelOn="ON"
-                    labelOff="OFF"
-                  />
-                </li>
-              </ul>
+          <section className="panel temp-devices-panel vrf-schematic-panel">
+
+            <div className="temp-panel-head">
+
+              <h2>Järjestelmäkaavio</h2>
+
+              <p className="muted">Lämpötilat, tilat ja trendi — paina kaavion kohtaa.</p>
+
+            </div>
+
+            <VrfSchematicBoard
+
+              temperatures={telemetry?.temperatures ?? {}}
+
+              digitalInputs={telemetry?.digital_inputs ?? null}
+
+              compressorRunning={compressorRunning}
+
+              stale={diStale}
+
+              showTemps={online}
+
+              onHotspotClick={openTrendFromHotspot}
+
+              onDiClick={openTrendFromDi}
+
+            />
+
+            <CollapsibleSection title="Kytkentäohje (DI / RO1)" defaultOpen={false} variant="plain">
+
               <VrfWiringGuide />
-            </section>
 
-            <section className="panel temp-devices-panel">
-              <div className="temp-panel-head">
-                <h2>Lämpötilat</h2>
-              </div>
-              <div className="vrf-temp-grid">
-                {VRF_SENSOR_KEYS.map((key) => (
-                  <div key={key} className="vrf-temp-card">
-                    <span className="vrf-temp-label">{VRF_SENSOR_LABELS[key] ?? key}</span>
-                    <strong className="vrf-temp-value">
-                      {online && !stale ? formatTempC(telemetry?.temperatures[key]) : '—'}
-                    </strong>
-                  </div>
-                ))}
-              </div>
-            </section>
+            </CollapsibleSection>
 
-            <section className="panel temp-devices-panel">
-              <div className="temp-panel-head">
-                <h2>Tila ja hälytykset</h2>
-              </div>
-              <ul className="vrf-status-list">
-                <li>
-                  <span>Kompressori</span>
-                  <strong>
-                    {diStale
-                      ? '—'
-                      : telemetry?.digital_inputs?.di2_compressor_running != null
-                        ? telemetry.digital_inputs.di2_compressor_running
-                          ? 'DI2 ON'
-                          : 'DI2 OFF'
-                        : telemetry?.status.compressor_likely_running
-                          ? 'Arvio: käy'
-                          : 'Arvio: ei'}
-                  </strong>
-                </li>
-                <li>
-                  <span>Tila</span>
-                  <strong>{telemetry?.status.operating_text ?? vrfOperatingStateLabel(device.operating_state)}</strong>
-                </li>
-                <li>
-                  <span>Verkko</span>
-                  <strong>{typeof telemetry?.network.type === 'string' ? telemetry.network.type : '—'}</strong>
-                </li>
-              </ul>
-              {alarms.length > 0 ? (
-                <ul className="vrf-alarm-list">
-                  {alarms.map((alarm) => (
-                    <li key={alarm.key} className="vrf-alarm-item">
-                      {alarm.label}
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="muted">Ei aktiivisia hälytyksiä.</p>
-              )}
-            </section>
+          </section>
 
-            <section className="panel temp-devices-panel">
-              <div className="temp-panel-head">
-                <h2>Trendi (24 h)</h2>
-              </div>
-              <VrfTrendChart readings={readings} />
-            </section>
-          </>
         )}
+
+
 
         {tab === 'sulatus' && (
+
           <section className="panel temp-devices-panel">
+
             <div className="temp-panel-head">
+
               <h2>Sulatus</h2>
+
             </div>
+
             <ul className="vrf-status-list">
+
               <li>
+
                 <span>Sulatus nyt</span>
-                <strong>{telemetry?.defrost.active === true ? 'Kyllä' : 'Ei'}</strong>
+
+                <strong>
+
+                  {telemetry?.defrost.active === true
+
+                    ? 'Kyllä (laite)'
+
+                    : defrostLikelyNow
+
+                      ? 'Todennäköinen (trendi)'
+
+                      : 'Ei'}
+
+                </strong>
+
               </li>
+
               <li>
+
                 <span>Tänään</span>
+
                 <strong>{String(telemetry?.defrost.today_count ?? '—')}</strong>
+
               </li>
+
               <li>
+
                 <span>Eilen</span>
+
                 <strong>{String(telemetry?.defrost.yesterday_count ?? '—')}</strong>
+
               </li>
+
               <li>
+
                 <span>Keskikesto (min)</span>
+
                 <strong>{String(telemetry?.defrost.avg_duration_min ?? '—')}</strong>
+
               </li>
+
               <li>
+
                 <span>Viimeisin kesto (min)</span>
+
                 <strong>{String(telemetry?.defrost.last_duration_min ?? '—')}</strong>
+
               </li>
+
             </ul>
+
           </section>
+
         )}
+
+
 
         {tab === 'asetukset' && (
+
           <section className="panel temp-devices-panel">
+
             <div className="temp-panel-head">
+
               <h2>Laiteasetukset</h2>
+
             </div>
+
             <form className="form-grid vrf-settings-form" onSubmit={(e) => void saveSettings(e)}>
+
               <div className="vrf-settings-toggle-row">
+
                 <div>
+
                   <strong>Ulkolämpö-automaattikatkaisu</strong>
+
                   <p className="muted">Sammuttaa käyntiluvan, kun ulkolämpö putoaa rajan alle.</p>
+
                 </div>
+
                 <VrfToggleSwitch
+
                   checked={settingsForm.auto_stop_enabled}
+
                   labelOn="ON"
+
                   labelOff="OFF"
+
                   ariaLabel="Ulkolämpö-automaattikatkaisu"
+
                   onChange={(next) => setSettingsForm((s) => ({ ...s, auto_stop_enabled: next }))}
+
                 />
+
               </div>
+
               <label>
+
                 Katkaise alle (°C)
+
                 <input
+
                   type="number"
+
                   step="0.1"
+
                   value={settingsForm.auto_stop_below_outdoor_c}
+
                   onChange={(e) =>
+
                     setSettingsForm((s) => ({ ...s, auto_stop_below_outdoor_c: Number(e.target.value) }))
+
                   }
+
                 />
+
               </label>
+
               <label>
+
                 Hysteresis (°C)
+
                 <input
+
                   type="number"
+
                   step="0.1"
+
                   min="0"
+
                   value={settingsForm.auto_stop_outdoor_hysteresis_c}
+
                   onChange={(e) =>
+
                     setSettingsForm((s) => ({ ...s, auto_stop_outdoor_hysteresis_c: Number(e.target.value) }))
+
                   }
+
                 />
+
               </label>
+
               <label>
+
                 Ulkoilman tasoitus (min)
+
                 <input
+
                   type="number"
+
                   min="0"
+
                   max="720"
+
                   value={settingsForm.auto_stop_outdoor_smooth_tau_min}
+
                   onChange={(e) =>
+
                     setSettingsForm((s) => ({ ...s, auto_stop_outdoor_smooth_tau_min: Number(e.target.value) }))
+
                   }
+
                 />
+
               </label>
+
               <label>
+
                 Kompressorihälytys viive (s)
+
                 <input
+
                   type="number"
+
                   min="0"
+
                   value={settingsForm.compressor_alarm_enable_after_s}
+
                   onChange={(e) =>
+
                     setSettingsForm((s) => ({ ...s, compressor_alarm_enable_after_s: Number(e.target.value) }))
+
                   }
+
                 />
+
               </label>
+
               <label>
+
                 DI3 laukaisutaso (0/1)
+
                 <input
+
                   type="number"
+
                   min="0"
+
                   max="1"
+
                   value={settingsForm.alarm_input_trigger_raw_level}
+
                   onChange={(e) =>
+
                     setSettingsForm((s) => ({ ...s, alarm_input_trigger_raw_level: Number(e.target.value) }))
+
                   }
+
                 />
+
               </label>
+
               <fieldset className="vrf-settings-fieldset">
+
                 <legend>Hälytyrajat (°C)</legend>
+
                 <label>
+
                   Kuumakaasu yläraja
+
                   <input
+
                     type="number"
+
                     step="0.1"
+
                     value={settingsForm.alarm_limits.hot_gas_high_c}
+
                     onChange={(e) =>
+
                       setSettingsForm((s) => ({
+
                         ...s,
+
                         alarm_limits: { ...s.alarm_limits, hot_gas_high_c: Number(e.target.value) },
+
                       }))
+
                     }
+
                   />
+
                 </label>
+
                 <label>
+
                   Paluu alaraja
+
                   <input
+
                     type="number"
+
                     step="0.1"
+
                     value={settingsForm.alarm_limits.refrigerant_return_low_c}
+
                     onChange={(e) =>
+
                       setSettingsForm((s) => ({
+
                         ...s,
+
                         alarm_limits: { ...s.alarm_limits, refrigerant_return_low_c: Number(e.target.value) },
+
                       }))
+
                     }
+
                   />
+
                 </label>
+
                 <label>
+
                   Meno/paluu-ero yläraja
+
                   <input
+
                     type="number"
+
                     step="0.1"
+
                     value={settingsForm.alarm_limits.refrigerant_delta_high_c}
+
                     onChange={(e) =>
+
                       setSettingsForm((s) => ({
+
                         ...s,
+
                         alarm_limits: { ...s.alarm_limits, refrigerant_delta_high_c: Number(e.target.value) },
+
                       }))
+
                     }
+
                   />
+
                 </label>
+
                 <label>
+
                   Meno/paluu-ero alaraja
+
                   <input
+
                     type="number"
+
                     step="0.1"
+
                     value={settingsForm.alarm_limits.refrigerant_delta_low_c}
+
                     onChange={(e) =>
+
                       setSettingsForm((s) => ({
+
                         ...s,
+
                         alarm_limits: { ...s.alarm_limits, refrigerant_delta_low_c: Number(e.target.value) },
+
                       }))
+
                     }
+
                   />
+
                 </label>
+
               </fieldset>
+
               {settingsMessage && (
+
                 <p className={settingsMessage.includes('tallennettu') ? 'form-success' : 'form-error'}>{settingsMessage}</p>
+
               )}
+
               <div className="form-actions">
+
                 <button type="submit" className="btn btn-primary" disabled={busy || stale || !online}>
+
                   Tallenna asetukset
+
                 </button>
+
               </div>
+
             </form>
-            <p className="muted vrf-settings-note">
-              Sähköpostihälytykset toimivat toistaiseksi Firebase-integraation kautta.
-            </p>
+
+
           </section>
+
         )}
 
+
+
         <CollapsibleSection title="Laite" defaultOpen={false} variant="plain" className="panel temp-admin-panel">
+
           <ul className="vrf-status-list">
+
             <li>
+
               <span>Laite-ID</span>
+
               <strong>{device.external_device_id ?? '—'}</strong>
+
             </li>
+
             <li>
+
               <span>Yritys</span>
+
               <strong>{profile?.companies?.name ?? '—'}</strong>
+
             </li>
+
           </ul>
+
           <div className="form-actions">
+
             <button type="button" className="btn btn-danger" disabled={busy} onClick={() => setDeleteTarget(true)}>
+
               Poista laite
+
             </button>
+
             <Link to={VRF_MONITORING_BASE} className="btn btn-secondary">
+
               ← Takaisin listaan
+
             </Link>
+
           </div>
+
         </CollapsibleSection>
+
       </div>
 
-      <TempDeviceDeleteDialog
-        open={deleteTarget}
-        deviceName={device.name}
-        busy={busy}
-        error={deleteError}
-        onClose={() => {
-          if (busy) return;
-          setDeleteTarget(false);
-          setDeleteError(null);
-        }}
-        onConfirm={() => void confirmDelete()}
+
+
+      <VrfTrendDialog
+
+        open={trendOpen}
+
+        deviceId={device.id}
+
+        focusHotspot={trendFocusHotspot}
+
+        focusBinary={trendFocusBinary}
+
+        onClose={closeTrend}
+
       />
+
+
+
+      <VrfMonitorShareDialog
+        open={shareOpen}
+        deviceId={device.id}
+        deviceName={device.name}
+        onClose={() => setShareOpen(false)}
+      />
+
+      <VrfReportDialog
+
+        open={reportOpen}
+
+        device={device}
+
+        companyName={profile?.companies?.name ?? 'BC SmartApp'}
+
+        onClose={() => setReportOpen(false)}
+
+      />
+
+
+
+      <TempDeviceDeleteDialog
+
+        open={deleteTarget}
+
+        deviceName={device.name}
+
+        busy={busy}
+
+        error={deleteError}
+
+        onClose={() => {
+
+          if (busy) return;
+
+          setDeleteTarget(false);
+
+          setDeleteError(null);
+
+        }}
+
+        onConfirm={() => void confirmDelete()}
+
+      />
+
     </AppLayout>
+
   );
+
 }
+

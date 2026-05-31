@@ -1,8 +1,6 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
 import AppLayout from '../components/AppLayout';
-import CollapsibleSection from '../components/CollapsibleSection';
 import TempDeviceDeleteDialog from '../components/tempMonitoring/TempDeviceDeleteDialog';
 import TempMonitoringPageHeader from '../components/tempMonitoring/TempMonitoringPageHeader';
 import VrfDeviceListCard from '../components/vrfMonitoring/VrfDeviceListCard';
@@ -177,7 +175,7 @@ export default function VrfMonitoringPage({ session }: Props) {
           {loading ? (
             <p className="muted">Ladataan…</p>
           ) : devices.length === 0 ? (
-            <p className="muted">Ei laitteita. Lisää laite alla tai käytä toistaiseksi Firebase-seurantaa.</p>
+            <p className="muted">Ei laitteita. Lisää laite alla.</p>
           ) : (
             <ul className="temp-device-list">
               {devices.map((device) => (
@@ -224,31 +222,6 @@ export default function VrfMonitoringPage({ session }: Props) {
             </div>
           </form>
         </section>
-
-        <CollapsibleSection
-          title="Nykyinen Firebase-seuranta"
-          defaultOpen={false}
-          variant="plain"
-          className="panel temp-admin-panel"
-        >
-          <p className="muted">
-            Kentällä oleva laite lähettää vielä Firebaseen. Avaa vanha käyttöliittymä ohjaukseen ja asetuksiin, kunnes
-            Supabase-siirto on valmis.
-          </p>
-          <div className="form-actions">
-            <a
-              href="https://hyrylavrf.web.app"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="btn btn-secondary"
-            >
-              Avaa Firebase VRF-seuranta
-            </a>
-            <Link to={REMOTE_MONITORING_HUB} className="btn btn-secondary">
-              ← Takaisin
-            </Link>
-          </div>
-        </CollapsibleSection>
       </div>
 
       <TempDeviceDeleteDialog

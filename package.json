@@ -14,15 +14,7 @@
     "gen:types": "npx supabase gen types typescript --local > src/lib/database.types.ts",
     "setup:user": "node scripts/setup-dev-user.mjs",
     "setup:dev": "node scripts/setup-dev-users.mjs",
-    "invite:user": "node scripts/invite-user.mjs",
-    "import:firestore:dry": "node scripts/import-from-firestore.mjs --dry-run",
-    "import:firestore": "node scripts/import-from-firestore.mjs --apply --production --clear-demo",
-    "import:media:dry": "node scripts/import-firestore-media.mjs --dry-run",
-    "import:media": "node scripts/import-firestore-media.mjs --apply --production",
-    "setup:global-admin": "node scripts/setup-global-admin.mjs --production",
-    "fix:ownership": "node scripts/fix-import-ownership.mjs --apply --production",
-    "fix:huolto:dry": "npx tsx scripts/fix-import-huolto.ts --dry-run --production --all",
-    "fix:huolto": "npx tsx scripts/fix-import-huolto.ts --apply --production --all"
+    "invite:user": "node scripts/invite-user.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.1",
@@ -34,7 +26,6 @@
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^4.3.4",
-    "firebase-admin": "^13.10.0",
     "sharp": "^0.34.5",
     "supabase": "^2.101.0",
     "typescript": "^5.7.2",

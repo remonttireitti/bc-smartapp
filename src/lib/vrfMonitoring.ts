@@ -117,10 +117,70 @@ export const VRF_ALARM_LABELS: Record<string, string> = {
 
 export const VRF_TREND_SERIES = [
   { key: 'outdoor_c', label: 'Ulkoilma', color: '#0ea5e9' },
+  { key: 'outdoor_coil_c', label: 'Ulkoyks. kenno', color: '#84cc16' },
   { key: 'refrigerant_supply_c', label: 'Kylmäaine meno', color: '#14b8a6' },
   { key: 'refrigerant_return_c', label: 'Kylmäaine paluu', color: '#6366f1' },
   { key: 'hot_gas_c', label: 'Kuumakaasu', color: '#f97316' },
 ] as const;
+
+export const VRF_TREND_HOUR_OPTIONS = [
+  { hours: 1, label: '1 h' },
+  { hours: 6, label: '6 h' },
+  { hours: 24, label: '24 h' },
+  { hours: 168, label: '7 pv' },
+] as const;
+
+export type VrfTrendHours = (typeof VRF_TREND_HOUR_OPTIONS)[number]['hours'];
+
+export type VrfSchematicClickKey =
+  | 'outdoor_c'
+  | 'outdoor_coil_c'
+  | 'refrigerant_supply_c'
+  | 'refrigerant_return_c'
+  | 'hot_gas_c'
+  | 'delta';
+
+export type VrfTrendSeriesKey = (typeof VRF_TREND_SERIES)[number]['key'];
+
+export function defaultTrendSeriesForHotspot(key: VrfSchematicClickKey): Set<VrfTrendSeriesKey> {
+  if (key === 'delta') {
+    return new Set(['refrigerant_supply_c', 'refrigerant_return_c']);
+  }
+  return new Set([key]);
+}
+
+export function filterVrfReadingsByPeriod(
+  readings: VrfReading[],
+  startIso: string,
+  endIso: string,
+): VrfReading[] {
+  const start = new Date(startIso).getTime();
+  const end = new Date(endIso).getTime();
+  if (!Number.isFinite(start) || !Number.isFinite(end)) return [];
+  return readings.filter((reading) => {
+    const t = new Date(reading.recorded_at).getTime();
+    return t >= start && t <= end;
+  });
+}
+
+/** Firmware-oletukset (config.h) — sulatusheuristiikka historiatrendissä. */
+export const VRF_DEFROST_COIL_RISE_C = 0.85;
+export const VRF_DEFROST_SUPPLY_FALL_C = 0.55;
+export const VRF_DEFROST_WINDOW_SAMPLES = 3;
+
+export type VrfBinaryLaneKey = 'control' | 'compressor' | 'defrost' | 'alarm' | 'unit_ready';
+
+export const VRF_BINARY_LANES: {
+  key: VrfBinaryLaneKey;
+  label: string;
+  color: string;
+}[] = [
+  { key: 'control', label: 'Käyntilupa', color: '#4f8cff' },
+  { key: 'compressor', label: 'Kompressori', color: '#a855f7' },
+  { key: 'defrost', label: 'Sulatus (arvio)', color: '#38bdf8' },
+  { key: 'alarm', label: 'Hälytys DI3', color: '#ef4444' },
+  { key: 'unit_ready', label: 'Laite DI4', color: '#22c55e' },
+];
 
 export function defaultVrfSettings(): VrfDeviceSettings {
   return {
@@ -316,4 +376,103 @@ export function readingTemp(reading: VrfReading, key: string): number | null {
   const payloadTemps = asRecord(reading.payload?.temperatures) ?? asRecord(asRecord(reading.payload)?.temperatures);
   if (payloadTemps) return readNumber(payloadTemps[key]);
   return null;
+}
+
+export function readingTelemetry(reading: VrfReading): VrfTelemetry | null {
+  const payload = asRecord(reading.payload);
+  if (!payload) return null;
+  return parseVrfTelemetry(payload);
+}
+
+export function readingHeatPermit(reading: VrfReading): boolean {
+  const telemetry = readingTelemetry(reading);
+  if (telemetry?.control.enabled != null) return telemetry.control.enabled === true;
+  return reading.heat_enabled === true;
+}
+
+export function readingCompressorOn(reading: VrfReading): boolean {
+  const telemetry = readingTelemetry(reading);
+  if (telemetry) return vrfCompressorRunning(telemetry);
+  return false;
+}
+
+export function readingAlarmActive(reading: VrfReading): boolean {
+  const telemetry = readingTelemetry(reading);
+  if (telemetry?.digital_inputs?.di3_alarm != null) return telemetry.digital_inputs.di3_alarm;
+  if (telemetry?.alarms.external_alarm_input === true) return true;
+  return reading.any_alarm;
+}
+
+export function readingUnitReady(reading: VrfReading): boolean {
+  const telemetry = readingTelemetry(reading);
+  return telemetry?.digital_inputs?.di4_unit_ready === true;
+}
+
+export function readingFirmwareDefrost(reading: VrfReading): boolean {
+  const telemetry = readingTelemetry(reading);
+  return readBoolean(telemetry?.defrost?.active) === true;
+}
+
+/** Sulatus: firmware-lippu tai heuristiikka (kompressori + kenno nousee + meno laskee). */
+export function inferDefrostLikely(readings: VrfReading[], index: number): boolean {
+  const reading = readings[index];
+  if (readingFirmwareDefrost(reading)) return true;
+  if (index < VRF_DEFROST_WINDOW_SAMPLES - 1) return false;
+  if (!readingHeatPermit(reading) || !readingCompressorOn(reading)) return false;
+
+  const startIdx = index - (VRF_DEFROST_WINDOW_SAMPLES - 1);
+  const coilStart = readingTemp(readings[startIdx], 'outdoor_coil_c');
+  const coilEnd = readingTemp(reading, 'outdoor_coil_c');
+  const supplyStart = readingTemp(readings[startIdx], 'refrigerant_supply_c');
+  const supplyEnd = readingTemp(reading, 'refrigerant_supply_c');
+  if (coilStart == null || coilEnd == null || supplyStart == null || supplyEnd == null) return false;
+
+  const dCoil = coilEnd - coilStart;
+  const dSupply = supplyEnd - supplyStart;
+  return dCoil >= VRF_DEFROST_COIL_RISE_C && dSupply <= -VRF_DEFROST_SUPPLY_FALL_C;
+}
+
+export function buildBinaryLaneFlags(
+  readings: VrfReading[],
+  key: VrfBinaryLaneKey,
+): boolean[] {
+  return readings.map((reading, index) => {
+    switch (key) {
+      case 'control':
+        return readingHeatPermit(reading);
+      case 'compressor':
+        return readingCompressorOn(reading);
+      case 'defrost':
+        return inferDefrostLikely(readings, index);
+      case 'alarm':
+        return readingAlarmActive(reading);
+      case 'unit_ready':
+        return readingUnitReady(reading);
+      default:
+        return false;
+    }
+  });
+}
+
+export function trendReadingLimit(hours: VrfTrendHours): number {
+  // Historia ~1/min → lisätään puskuri; 7 pv cap 10000
+  const estimated = hours * 60 + 30;
+  return Math.min(Math.max(estimated, 120), 10_000);
+}
+
+export function sortReadingsByTime(readings: VrfReading[]): VrfReading[] {
+  return [...readings].sort(
+    (a, b) => new Date(a.recorded_at).getTime() - new Date(b.recorded_at).getTime(),
+  );
+}
+
+export function formatTrendTimeLabel(ms: number, spanMs: number): string {
+  const date = new Date(ms);
+  if (spanMs <= 6 * 3600_000) {
+    return date.toLocaleTimeString('fi-FI', { hour: '2-digit', minute: '2-digit' });
+  }
+  if (spanMs <= 48 * 3600_000) {
+    return date.toLocaleString('fi-FI', { day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit' });
+  }
+  return date.toLocaleString('fi-FI', { day: 'numeric', month: 'numeric', hour: '2-digit' });
 }

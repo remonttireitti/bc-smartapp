@@ -37,6 +37,9 @@ import TempMonitorDetailPage from './pages/TempMonitorDetailPage';
 import TempMonitorReportPrintPage from './pages/TempMonitorReportPrintPage';
 import RemoteMonitoringHubPage from './pages/RemoteMonitoringHubPage';
 import VrfMonitoringPage from './pages/VrfMonitoringPage';
+import MonitorReaderTokenPage from './pages/MonitorReaderTokenPage';
+import MonitorReaderHubPage from './pages/MonitorReaderHubPage';
+import MonitorReaderVrfPage from './pages/MonitorReaderVrfPage';
 import VrfMonitorDetailPage from './pages/VrfMonitorDetailPage';
 import SubscribersPage from './pages/SubscribersPage';
 import {
@@ -75,6 +78,7 @@ function AppRoutes() {
       <Routes>
         <Route path="/" element={<PublicLandingPage />} />
         <Route path="/login" element={<Login />} />
+        <Route path="/seuranta/luku/:token" element={<MonitorReaderTokenPage />} />
         <Route path="*" element={<RequireLoginRedirect />} />
       </Routes>
     );
@@ -97,6 +101,9 @@ function AppRoutes() {
       <Route path="/laskutus" element={<BillingPage session={session} />} />
       <Route path="/varasto" element={<InventoryPage session={session} />} />
       <Route path="/etaseuranta" element={<RemoteMonitoringHubPage session={session} />} />
+      <Route path="/etaseuranta/luku" element={<MonitorReaderHubPage session={session} />} />
+      <Route path="/etaseuranta/luku/vrf/:deviceId" element={<MonitorReaderVrfPage session={session} />} />
+      <Route path="/seuranta/luku/:token" element={<MonitorReaderTokenPage />} />
       <Route path="/etaseuranta/lampotila" element={<TempMonitoringPage session={session} />} />
       <Route path="/etaseuranta/lampotila/raportit/:reportId/tuloste" element={<TempMonitorReportPrintPage session={session} />} />
       <Route path="/etaseuranta/lampotila/:deviceId" element={<TempMonitorDetailPage session={session} />} />

@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
+import { Navigate } from 'react-router-dom';
 import AppLayout from '../components/AppLayout';
 import PendingWorkOrdersBanner from '../components/PendingWorkOrdersBanner';
 import QuickSearch from '../components/QuickSearch';
 import { useCompanyBillingModuleEnabled } from '../hooks/useCompanyBillingModuleEnabled';
 import { useProfile } from '../hooks/useProfile';
+import { isMonitorViewerRole, monitorReaderHubPath } from '../lib/monitorReaderShares';
 import { ROLE_LABELS } from '../lib/management';
 import { getPortalPreviewLabel, isPortalPreviewActive, isPortalView } from '../lib/portalPreview';
 import {
@@ -84,6 +86,10 @@ export default function Dashboard({ session }: Props) {
   const roleLabel = isPortalPreviewActive()
     ? `Esikatselu: ${getPortalPreviewLabel() ?? 'portaali'}`
     : (ROLE_LABELS[profile?.role ?? ''] ?? profile?.role ?? '—');
+
+  if (isMonitorViewerRole(profile?.role)) {
+    return <Navigate to={monitorReaderHubPath()} replace />;
+  }
 
   return (
     <AppLayout session={session}>

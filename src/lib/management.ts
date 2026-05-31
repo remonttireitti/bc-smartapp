@@ -39,6 +39,7 @@ export const ROLE_LABELS: Record<string, string> = {
   manager: 'Esimies',
   customer: 'Asiakas',
   subscriber: 'Tilaaja',
+  monitor_viewer: 'Seurannan lukija',
 };
 
 export const INVITE_ROLES = [
