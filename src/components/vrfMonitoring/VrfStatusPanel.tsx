@@ -1,3 +1,5 @@
+import { useEffect, useId, useRef, useState } from 'react';
+import { IconHelp } from '../icons';
 import VrfToggleSwitch from './VrfToggleSwitch';
 import {
   formatRelativeTime,
@@ -45,6 +47,10 @@ export default function VrfStatusPanel({
   alarmDelayResetBusy = false,
   diWiringHint = null,
 }: Props) {
+  const [diOpen, setDiOpen] = useState(false);
+  const diPopoverId = useId();
+  const diAnchorRef = useRef<HTMLSpanElement>(null);
+
   const activity = vrfResolveDeviceActivity({
     telemetry,
     online,
@@ -72,6 +78,19 @@ export default function VrfStatusPanel({
   const toggleDisabled = permitDisabled || readOnly || !onPermitChange;
   const di = telemetry?.digital_inputs;
 
+  useEffect(() => {
+    if (!diOpen) return;
+
+    function onDocumentClick(event: MouseEvent) {
+      if (!diAnchorRef.current?.contains(event.target as Node)) {
+        setDiOpen(false);
+      }
+    }
+
+    document.addEventListener('click', onDocumentClick);
+    return () => document.removeEventListener('click', onDocumentClick);
+  }, [diOpen]);
+
   return (
     <section className="vrf-status-panel">
       <div className="vrf-status-meta">
@@ -81,6 +100,50 @@ export default function VrfStatusPanel({
         </span>
         <span className="muted">Viimeisin yhteys: {formatRelativeTime(lastSeenAt)}</span>
         {firmwareVersion && <span className="muted">Firmware {firmwareVersion}</span>}
+        {di && (
+          <span ref={diAnchorRef} className="vrf-di-info-anchor">
+            <button
+              type="button"
+              className={`btn btn-sm vrf-di-info-btn${diOpen ? ' vrf-di-info-btn--open' : ''}`}
+              aria-label="Digitaalitulot (FDC400KXZE2)"
+              aria-expanded={diOpen}
+              aria-controls={diPopoverId}
+              onClick={(event) => {
+                event.stopPropagation();
+                setDiOpen((open) => !open);
+              }}
+            >
+              <IconHelp className="ui-icon" />
+              <span>DI</span>
+            </button>
+            {diOpen && (
+              <div id={diPopoverId} className="vrf-di-popover" role="dialog" aria-label="Digitaalitulot">
+                <p className="vrf-di-popover-title">Digitaalitulot (FDC400KXZE2)</p>
+                <ul className="vrf-di-status-list">
+                  <li>
+                    <strong>DI4 Käyntitieto</strong>
+                    <span>
+                      {di.di4_unit_ready ? 'Päällä' : 'Pois'} · {formatVrfDiRaw(di.di4_raw)}
+                    </span>
+                  </li>
+                  <li>
+                    <strong>DI2 Kompressori</strong>
+                    <span>
+                      {di.di2_compressor_running ? 'Käy' : 'Pois'} · {formatVrfDiRaw(di.di2_raw)}
+                    </span>
+                  </li>
+                  <li>
+                    <strong>DI3 Hälytys</strong>
+                    <span>
+                      {di.di3_alarm ? 'Hälytys' : 'Normaali'} · {formatVrfDiRaw(di.di3_raw)}
+                    </span>
+                  </li>
+                </ul>
+                {diWiringHint && <p className="vrf-di-popover-hint">{diWiringHint}</p>}
+              </div>
+            )}
+          </span>
+        )}
       </div>
 
       <div className="vrf-status-grid">
@@ -116,27 +179,6 @@ export default function VrfStatusPanel({
             </div>
           )}
         </article>
-
-        {di && (
-          <article className="vrf-status-card vrf-status-card--di">
-            <span className="vrf-status-card-label">Digitaalitulot (FDC400KXZE2)</span>
-            <ul className="vrf-di-status-list">
-              <li>
-                <strong>DI4 Käyntitieto</strong> · {di.di4_unit_ready ? 'Päällä' : 'Pois'} ·{' '}
-                {formatVrfDiRaw(di.di4_raw)}
-              </li>
-              <li>
-                <strong>DI2 Kompressori</strong> · {di.di2_compressor_running ? 'Käy' : 'Pois'} ·{' '}
-                {formatVrfDiRaw(di.di2_raw)}
-              </li>
-              <li>
-                <strong>DI3 Hälytys</strong> · {di.di3_alarm ? 'Hälytys' : 'Normaali'} ·{' '}
-                {formatVrfDiRaw(di.di3_raw)}
-              </li>
-            </ul>
-            {diWiringHint && <p className="vrf-status-detail">{diWiringHint}</p>}
-          </article>
-        )}
 
         <article className={`vrf-status-card vrf-status-card--permit-${permit.tone}`}>
           <div className="vrf-status-permit-head">

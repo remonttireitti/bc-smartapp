@@ -10,7 +10,7 @@ import CollapsibleSection from '../components/CollapsibleSection';
 
 import IconButton from '../components/IconButton';
 
-import { IconPrint } from '../components/icons';
+import { IconHelp, IconPrint } from '../components/icons';
 
 import TempDeviceDeleteDialog from '../components/tempMonitoring/TempDeviceDeleteDialog';
 
@@ -23,9 +23,9 @@ import VrfStatusPanel from '../components/vrfMonitoring/VrfStatusPanel';
 import VrfSchematicBoard from '../components/vrfMonitoring/VrfSchematicBoard';
 import VrfToggleSwitch from '../components/vrfMonitoring/VrfToggleSwitch';
 
-import VrfTrendDialog from '../components/vrfMonitoring/VrfTrendDialog';
+import VrfWiringGuideDialog from '../components/vrfMonitoring/VrfWiringGuideDialog';
 
-import VrfWiringGuide from '../components/vrfMonitoring/VrfWiringGuide';
+import VrfTrendDialog from '../components/vrfMonitoring/VrfTrendDialog';
 
 import { useProfile } from '../hooks/useProfile';
 
@@ -137,6 +137,7 @@ export default function VrfMonitorDetailPage({ session }: Props) {
 
   const [reportOpen, setReportOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
+  const [wiringGuideOpen, setWiringGuideOpen] = useState(false);
 
 
 
@@ -662,12 +663,6 @@ export default function VrfMonitorDetailPage({ session }: Props) {
 
             />
 
-            <CollapsibleSection title="Kytkentäohje (DI / RO1)" defaultOpen={false} variant="plain">
-
-              <VrfWiringGuide />
-
-            </CollapsibleSection>
-
           </section>
 
         )}
@@ -753,6 +748,14 @@ export default function VrfMonitorDetailPage({ session }: Props) {
             <div className="temp-panel-head">
 
               <h2>Laiteasetukset</h2>
+
+              <IconButton
+                label="Kytkentäohje (DI / RO1)"
+                tooltipSide="bottom"
+                onClick={() => setWiringGuideOpen(true)}
+              >
+                <IconHelp className="ui-icon" />
+              </IconButton>
 
             </div>
 
@@ -1056,52 +1059,20 @@ export default function VrfMonitorDetailPage({ session }: Props) {
 
             </form>
 
+            <CollapsibleSection title="Laitehallinta" defaultOpen={false} variant="plain" className="vrf-settings-danger">
+              <p className="muted vrf-settings-danger-lead">
+                Poistaa laitteen ja siihen liittyvän seurantadatan pysyvästi.
+              </p>
+              <button type="button" className="btn btn-danger" disabled={busy} onClick={() => setDeleteTarget(true)}>
+                Poista laite
+              </button>
+            </CollapsibleSection>
 
           </section>
 
         )}
 
 
-
-        <CollapsibleSection title="Laite" defaultOpen={false} variant="plain" className="panel temp-admin-panel">
-
-          <ul className="vrf-status-list">
-
-            <li>
-
-              <span>Laite-ID</span>
-
-              <strong>{device.external_device_id ?? '—'}</strong>
-
-            </li>
-
-            <li>
-
-              <span>Yritys</span>
-
-              <strong>{profile?.companies?.name ?? '—'}</strong>
-
-            </li>
-
-          </ul>
-
-          <div className="form-actions">
-
-            <button type="button" className="btn btn-danger" disabled={busy} onClick={() => setDeleteTarget(true)}>
-
-              Poista laite
-
-            </button>
-
-            <Link to={VRF_MONITORING_BASE} className="btn btn-secondary">
-
-              ← Takaisin listaan
-
-            </Link>
-
-          </div>
-
-        </CollapsibleSection>
 
       </div>
 
@@ -1129,6 +1100,8 @@ export default function VrfMonitorDetailPage({ session }: Props) {
         deviceName={device.name}
         onClose={() => setShareOpen(false)}
       />
+
+      <VrfWiringGuideDialog open={wiringGuideOpen} onClose={() => setWiringGuideOpen(false)} />
 
       <VrfReportDialog
 
