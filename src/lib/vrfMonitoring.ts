@@ -236,7 +236,7 @@ export const VRF_BINARY_LANES: {
   glow: string;
 }[] = [
   { key: 'control', label: 'Käyntilupa', color: '#3b82f6', glow: 'rgba(59, 130, 246, 0.45)' },
-  { key: 'compressor', label: 'Kompressori', color: '#8b5cf6', glow: 'rgba(139, 92, 246, 0.45)' },
+  { key: 'compressor', label: 'Kompressori DI2', color: '#8b5cf6', glow: 'rgba(139, 92, 246, 0.45)' },
   { key: 'defrost', label: 'Sulatus', color: '#14b8a6', glow: 'rgba(20, 184, 166, 0.45)' },
   { key: 'alarm', label: 'Hälytys DI3', color: '#f43f5e', glow: 'rgba(244, 63, 94, 0.45)' },
   { key: 'unit_ready', label: 'Käyntitieto DI4', color: '#22c55e', glow: 'rgba(34, 197, 94, 0.45)' },

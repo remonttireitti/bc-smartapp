@@ -8,6 +8,33 @@ const HOTSPOTS = [
   { key: 'hot_gas_c' as const, label: 'Kuumakaasu', className: 'vrf-hp-hotspot--hotgas' },
 ] as const;
 
+const SCHEMATIC_DI_BADGES = [
+  {
+    lane: 'unit_ready' as const,
+    className: 'vrf-hp-di-badge--unit',
+    di: 'DI4',
+    name: 'Käyntitieto',
+    activeText: 'Päällä',
+    idleText: 'Pois',
+  },
+  {
+    lane: 'compressor' as const,
+    className: 'vrf-hp-di-badge--comp',
+    di: 'DI2',
+    name: 'Kompressori',
+    activeText: 'Käy',
+    idleText: 'Pois',
+  },
+  {
+    lane: 'alarm' as const,
+    className: 'vrf-hp-di-badge--alarm',
+    di: 'DI3',
+    name: 'Hälytys',
+    activeText: 'Hälytys',
+    idleText: 'Normaali',
+  },
+] as const;
+
 interface Props {
   temperatures: Record<string, number | null | undefined>;
   digitalInputs: VrfDigitalInputs | null;
@@ -74,15 +101,18 @@ export default function VrfSchematicBoard({
   function renderDiBadge(
     lane: VrfBinaryLaneKey,
     className: string,
-    label: string,
+    di: string,
+    name: string,
     active: boolean,
     activeText: string,
     idleText: string,
   ) {
+    const status = active ? activeText : idleText;
     const body = (
       <>
-        <span>{label}</span>
-        <strong>{active ? activeText : idleText}</strong>
+        <span className="vrf-hp-di-badge-eyebrow">{name}</span>
+        <span className="vrf-hp-di-badge-pin">{di}</span>
+        <strong>{status}</strong>
       </>
     );
 
@@ -91,7 +121,7 @@ export default function VrfSchematicBoard({
         <button
           type="button"
           className={`vrf-hp-di-badge vrf-hp-di-badge--clickable ${className} ${active ? 'active' : ''}`}
-          aria-label={`${label} — avaa trendi`}
+          aria-label={`${name} (${di}): ${status} — avaa trendi`}
           onClick={() => onDiClick(lane)}
         >
           {body}
@@ -100,7 +130,12 @@ export default function VrfSchematicBoard({
     }
 
     return (
-      <div className={`vrf-hp-di-badge ${className} ${active ? 'active' : ''}`}>{body}</div>
+      <div
+        className={`vrf-hp-di-badge ${className} ${active ? 'active' : ''}`}
+        aria-label={`${name} (${di}): ${status}`}
+      >
+        {body}
+      </div>
     );
   }
 
@@ -133,30 +168,15 @@ export default function VrfSchematicBoard({
           showTemps && !stale && delta != null ? delta.toFixed(1) : '—',
         )}
 
-        {renderDiBadge(
-          'unit_ready',
-          'vrf-hp-di-badge--unit',
-          'DI4',
-          Boolean(digitalInputs?.di4_unit_ready),
-          'Päällä',
-          'Pois',
-        )}
-        {renderDiBadge(
-          'compressor',
-          'vrf-hp-di-badge--comp',
-          'DI2',
-          Boolean(digitalInputs?.di2_compressor_running),
-          'Käy',
-          'Pois',
-        )}
-        {renderDiBadge(
-          'alarm',
-          'vrf-hp-di-badge--alarm',
-          'DI3',
-          Boolean(digitalInputs?.di3_alarm),
-          'Hälytys',
-          'Normaali',
-        )}
+        {SCHEMATIC_DI_BADGES.map(({ lane, className, di, name, activeText, idleText }) => {
+          const active =
+            lane === 'unit_ready'
+              ? Boolean(digitalInputs?.di4_unit_ready)
+              : lane === 'compressor'
+                ? Boolean(digitalInputs?.di2_compressor_running)
+                : Boolean(digitalInputs?.di3_alarm);
+          return renderDiBadge(lane, className, di, name, active, activeText, idleText);
+        })}
       </div>
       {interactive && <p className="muted vrf-hp-hint">Paina lämpötilaa tai DI-merkkiä avataksesi trendin.</p>}
     </div>

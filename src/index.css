@@ -6437,22 +6437,41 @@ button.vrf-toggle:not(:disabled) {
   z-index: 3;
   display: flex;
   flex-direction: column;
-  gap: 0.1rem;
+  gap: 0.08rem;
+  min-width: 5.75rem;
   padding: 0.35rem 0.55rem;
   border-radius: 8px;
   border: 1px solid rgba(148, 163, 184, 0.35);
   background: rgba(15, 23, 42, 0.88);
   color: #94a3b8;
   font-size: 0.62rem;
+  letter-spacing: 0.03em;
+}
+
+.vrf-hp-di-badge-eyebrow {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #e2e8f0;
+  text-transform: none;
+  letter-spacing: 0.01em;
+  line-height: 1.2;
+}
+
+.vrf-hp-di-badge-pin {
+  font-size: 0.58rem;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.06em;
+  color: #64748b;
 }
 
 .vrf-hp-di-badge strong {
   color: #cbd5e1;
-  font-size: 0.72rem;
+  font-size: 0.78rem;
+  font-weight: 800;
   text-transform: none;
   letter-spacing: 0;
+  line-height: 1.2;
 }
 
 .vrf-hp-di-badge.active strong {
@@ -6461,10 +6480,12 @@ button.vrf-toggle:not(:disabled) {
 
 .vrf-hp-di-badge--unit { left: 2%; bottom: 4%; }
 .vrf-hp-di-badge--unit.active { border-color: #22c55e; background: rgba(22, 101, 52, 0.55); }
-.vrf-hp-di-badge--comp { left: 2%; bottom: 22%; }
+.vrf-hp-di-badge--comp { left: 2%; bottom: 24%; }
 .vrf-hp-di-badge--comp.active { border-color: #38bdf8; background: rgba(3, 105, 161, 0.55); }
 .vrf-hp-di-badge--alarm { right: 2%; bottom: 4%; }
 .vrf-hp-di-badge--alarm.active { border-color: #ef4444; background: rgba(127, 29, 29, 0.65); }
+.vrf-hp-di-badge--alarm:not(.active) { border-color: rgba(34, 197, 94, 0.45); }
+.vrf-hp-di-badge--alarm:not(.active) strong { color: #86efac; }
 
 .vrf-wiring-table {
   width: 100%;
