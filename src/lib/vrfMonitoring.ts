@@ -52,6 +52,12 @@ export type VrfDeviceSettings = {
   };
 };
 
+export type VrfDigitalInputs = {
+  di1_unit_ready: boolean | null;
+  di2_compressor_running: boolean | null;
+  di3_alarm: boolean | null;
+};
+
 export type VrfTelemetry = {
   temperatures: Record<string, number | null>;
   control: { enabled: boolean | null; permit_requested_enabled?: boolean | null };
@@ -62,6 +68,7 @@ export type VrfTelemetry = {
     compressor_likely_running: boolean;
     data_online: boolean;
   };
+  digital_inputs: VrfDigitalInputs | null;
   alarms: Record<string, boolean | null>;
   defrost: Record<string, unknown>;
   network: Record<string, unknown>;
@@ -151,6 +158,8 @@ function readNumber(value: unknown): number | null {
 
 function readBoolean(value: unknown): boolean | null {
   if (typeof value === 'boolean') return value;
+  if (value === 1 || value === '1') return true;
+  if (value === 0 || value === '0') return false;
   return null;
 }
 
@@ -186,6 +195,23 @@ export function parseVrfSettings(raw: unknown): VrfDeviceSettings {
   };
 }
 
+export function parseVrfDigitalInputs(payload: Record<string, unknown> | null | undefined): VrfDigitalInputs | null {
+  const raw = asRecord(payload?.digital_inputs) ?? asRecord(asRecord(payload)?.digital_inputs);
+  if (!raw) return null;
+  return {
+    di1_unit_ready: readBoolean(raw.di1_unit_ready),
+    di2_compressor_running: readBoolean(raw.di2_compressor_running),
+    di3_alarm: readBoolean(raw.di3_alarm),
+  };
+}
+
+export function vrfCompressorRunning(telemetry: VrfTelemetry | null): boolean {
+  if (telemetry?.digital_inputs?.di2_compressor_running != null) {
+    return telemetry.digital_inputs.di2_compressor_running;
+  }
+  return telemetry?.status.compressor_likely_running ?? false;
+}
+
 export function parseVrfTelemetry(payload: Record<string, unknown> | null | undefined): VrfTelemetry | null {
   if (!payload) return null;
   const temperaturesRaw = asRecord(payload.temperatures);
@@ -215,6 +241,7 @@ export function parseVrfTelemetry(payload: Record<string, unknown> | null | unde
       compressor_likely_running: readBoolean(statusRaw?.compressor_likely_running) ?? false,
       data_online: readBoolean(statusRaw?.data_online) ?? false,
     },
+    digital_inputs: parseVrfDigitalInputs(payload),
     alarms,
     defrost: asRecord(payload.defrost) ?? {},
     network: asRecord(payload.network) ?? {},

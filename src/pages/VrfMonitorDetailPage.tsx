@@ -5,7 +5,11 @@ import AppLayout from '../components/AppLayout';
 import CollapsibleSection from '../components/CollapsibleSection';
 import TempDeviceDeleteDialog from '../components/tempMonitoring/TempDeviceDeleteDialog';
 import TempMonitoringPageHeader from '../components/tempMonitoring/TempMonitoringPageHeader';
+import VrfSchematicBoard from '../components/vrfMonitoring/VrfSchematicBoard';
+import VrfDiStatusPill from '../components/vrfMonitoring/VrfDiStatusPill';
+import VrfToggleSwitch from '../components/vrfMonitoring/VrfToggleSwitch';
 import VrfTrendChart from '../components/vrfMonitoring/VrfTrendChart';
+import VrfWiringGuide from '../components/vrfMonitoring/VrfWiringGuide';
 import { useProfile } from '../hooks/useProfile';
 import { REMOTE_MONITORING_HUB, VRF_MONITORING_BASE } from '../lib/remoteMonitoringRoutes';
 import {
@@ -22,6 +26,7 @@ import {
   parseVrfSettings,
   parseVrfTelemetry,
   vrfOperatingStateLabel,
+  vrfCompressorRunning,
   type VrfDevice,
   type VrfDeviceSettings,
   type VrfReading,
@@ -56,6 +61,9 @@ export default function VrfMonitorDetailPage({ session }: Props) {
   const stale = isVrfTelemetryStale(device?.latest_payload);
   const heatEnabled = device?.control_requested_enabled ?? telemetry?.control.enabled ?? device?.heat_enabled;
   const outdoorLock = telemetry?.status.outdoor_safety_lock_active ?? false;
+  const compressorRunning = vrfCompressorRunning(telemetry);
+  const permitDisabled = busy || stale || !online || outdoorLock;
+  const diStale = stale || !online;
 
   const load = useCallback(async () => {
     if (!deviceId) return;
@@ -212,20 +220,36 @@ export default function VrfMonitorDetailPage({ session }: Props) {
               {outdoorLock && <span className="badge badge-warning">Ulkolämpö lukko</span>}
               <span className="muted">{vrfOperatingStateLabel(telemetry?.status.operating_state ?? device.operating_state)}</span>
             </div>
-            <p className="temp-live-hero-label">Käyntilupa</p>
-            <button
-              type="button"
-              className={`vrf-permit-toggle ${heatEnabled ? 'on' : 'off'}`}
-              disabled={busy || stale || !online || outdoorLock}
-              aria-pressed={heatEnabled === true}
-              onClick={() => void setHeatPermit(!heatEnabled)}
-            >
-              <span className="vrf-permit-toggle-knob" aria-hidden="true" />
-              <span>{heatEnabled ? 'PÄÄLLÄ' : 'POIS'}</span>
-            </button>
-            {outdoorLock && (
-              <p className="temp-live-hero-offline-note muted">Ulkolämpötilaraja estää lämmityksen.</p>
-            )}
+
+            <div className="vrf-permit-block">
+              <div className="vrf-permit-copy">
+                <h2 className="vrf-permit-title">Käyntilupa</h2>
+                <p className="muted vrf-permit-desc">
+                  Sallii monitorin kytkeä lämmitysreleen päälle. <strong>ON</strong> = lämmitys sallittu,{' '}
+                  <strong>OFF</strong> = estetty. Tämä ei ole VRF-laitteen virta — DI1 kertoo laitteen
+                  päällä/valmiustilan.
+                </p>
+                {outdoorLock && (
+                  <p className="temp-live-hero-offline-note muted">Ulkolämpötilaraja estää lämmityksen.</p>
+                )}
+                {permitDisabled && !outdoorLock && (
+                  <p className="muted vrf-permit-hint">Ohjaus lukittu kunnes tuore telemetria saapuu.</p>
+                )}
+              </div>
+              <VrfToggleSwitch
+                checked={heatEnabled === true}
+                disabled={permitDisabled}
+                size="lg"
+                labelOn="ON"
+                labelOff="OFF"
+                ariaLabel={
+                  heatEnabled
+                    ? 'Käyntilupa päällä — sammuta painamalla'
+                    : 'Käyntilupa pois — kytke päälle painamalla'
+                }
+                onChange={(next) => void setHeatPermit(next)}
+              />
+            </div>
           </div>
           <div className="vrf-hero-side">
             <p className="muted">Ulkoilma</p>
@@ -251,6 +275,66 @@ export default function VrfMonitorDetailPage({ session }: Props) {
 
         {tab === 'seuranta' && (
           <>
+            <section className="panel temp-devices-panel vrf-schematic-panel">
+              <div className="temp-panel-head">
+                <h2>Järjestelmäkaavio</h2>
+              </div>
+              <VrfSchematicBoard
+                temperatures={telemetry?.temperatures ?? {}}
+                digitalInputs={telemetry?.digital_inputs ?? null}
+                compressorRunning={compressorRunning}
+                stale={diStale}
+                showTemps={online}
+              />
+            </section>
+
+            <section className="panel temp-devices-panel">
+              <div className="temp-panel-head">
+                <h2>VRF-signaalit (12 V → DI)</h2>
+                <p className="muted">Lukutila — VRF-ohjain antaa signaalin, monitori näyttää ON/OFF.</p>
+              </div>
+              <ul className="vrf-di-list">
+                <li>
+                  <div>
+                    <strong>DI1 — Laite päällä / valmiustila</strong>
+                    <p className="muted">12 V = VRF-yksikkö käynnissä tai valmiustilassa</p>
+                  </div>
+                  <VrfDiStatusPill
+                    active={telemetry?.digital_inputs?.di1_unit_ready ?? null}
+                    stale={diStale}
+                    labelOn="ON"
+                    labelOff="OFF"
+                  />
+                </li>
+                <li>
+                  <div>
+                    <strong>DI2 — Kompressori</strong>
+                    <p className="muted">12 V = kompressori käynnissä</p>
+                  </div>
+                  <VrfDiStatusPill
+                    active={telemetry?.digital_inputs?.di2_compressor_running ?? null}
+                    stale={diStale}
+                    labelOn="ON"
+                    labelOff="OFF"
+                  />
+                </li>
+                <li>
+                  <div>
+                    <strong>DI3 — Hälytys</strong>
+                    <p className="muted">12 V = ulkoinen hälytys (sammuttaa lämmityksen väh. 30 min)</p>
+                  </div>
+                  <VrfDiStatusPill
+                    active={telemetry?.digital_inputs?.di3_alarm ?? telemetry?.alarms.external_alarm_input ?? null}
+                    stale={diStale}
+                    variant="alarm"
+                    labelOn="ON"
+                    labelOff="OFF"
+                  />
+                </li>
+              </ul>
+              <VrfWiringGuide />
+            </section>
+
             <section className="panel temp-devices-panel">
               <div className="temp-panel-head">
                 <h2>Lämpötilat</h2>
@@ -273,8 +357,18 @@ export default function VrfMonitorDetailPage({ session }: Props) {
               </div>
               <ul className="vrf-status-list">
                 <li>
-                  <span>Kompressori (arvio)</span>
-                  <strong>{telemetry?.status.compressor_likely_running ? 'Käy' : 'Ei'}</strong>
+                  <span>Kompressori</span>
+                  <strong>
+                    {diStale
+                      ? '—'
+                      : telemetry?.digital_inputs?.di2_compressor_running != null
+                        ? telemetry.digital_inputs.di2_compressor_running
+                          ? 'DI2 ON'
+                          : 'DI2 OFF'
+                        : telemetry?.status.compressor_likely_running
+                          ? 'Arvio: käy'
+                          : 'Arvio: ei'}
+                  </strong>
                 </li>
                 <li>
                   <span>Tila</span>
@@ -343,14 +437,19 @@ export default function VrfMonitorDetailPage({ session }: Props) {
               <h2>Laiteasetukset</h2>
             </div>
             <form className="form-grid vrf-settings-form" onSubmit={(e) => void saveSettings(e)}>
-              <label className="checkbox-row">
-                <input
-                  type="checkbox"
+              <div className="vrf-settings-toggle-row">
+                <div>
+                  <strong>Ulkolämpö-automaattikatkaisu</strong>
+                  <p className="muted">Sammuttaa käyntiluvan, kun ulkolämpö putoaa rajan alle.</p>
+                </div>
+                <VrfToggleSwitch
                   checked={settingsForm.auto_stop_enabled}
-                  onChange={(e) => setSettingsForm((s) => ({ ...s, auto_stop_enabled: e.target.checked }))}
+                  labelOn="ON"
+                  labelOff="OFF"
+                  ariaLabel="Ulkolämpö-automaattikatkaisu"
+                  onChange={(next) => setSettingsForm((s) => ({ ...s, auto_stop_enabled: next }))}
                 />
-                Ulkolämpö-automaattikatkaisu käytössä
-              </label>
+              </div>
               <label>
                 Katkaise alle (°C)
                 <input
