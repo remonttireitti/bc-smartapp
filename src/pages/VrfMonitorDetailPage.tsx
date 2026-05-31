@@ -41,6 +41,7 @@ import {
   activeVrfAlarms,
 
   buildAlarmShutdownResetSettings,
+  buildVrfSettingsForSave,
   defaultVrfSettings,
   vrfDiWiringHint,
   vrfDiInvertedFromTrigger,
@@ -409,7 +410,7 @@ export default function VrfMonitorDetailPage({ session }: Props) {
 
       .update({
 
-        settings: settingsForm,
+        settings: buildVrfSettingsForSave(settingsForm, device.settings),
 
         settings_updated_at: new Date().toISOString(),
 
@@ -878,6 +879,25 @@ export default function VrfMonitorDetailPage({ session }: Props) {
                 />
 
               </label>
+
+              <div className="vrf-settings-toggle-row vrf-settings-toggle-row--warn">
+                <div>
+                  <strong>DI3 hälytys estää käynnistyksen</strong>
+                  <p className="muted">
+                    Pois päältä: DI3 näkyy vain seurannassa — hälytys ei sammuta RO1:ttä eikä käynnistä
+                    hälytysviivettä. Käytä testaukseen (esim. kompressorin DI2-tarkistus).
+                  </p>
+                </div>
+                <VrfToggleSwitch
+                  checked={settingsForm.di3_alarm_shutdown_enabled !== false}
+                  labelOn="ON"
+                  labelOff="OFF"
+                  ariaLabel="DI3 hälytys estää käynnistyksen"
+                  onChange={(next) =>
+                    setSettingsForm((s) => ({ ...s, di3_alarm_shutdown_enabled: next }))
+                  }
+                />
+              </div>
 
               <fieldset className="vrf-settings-fieldset">
                 <legend>Digitaalitulot (DI)</legend>

@@ -15,6 +15,7 @@ const defaultSettings = {
   di2_trigger_raw_level: 1,
   di3_trigger_raw_level: 0,
   di4_trigger_raw_level: 1,
+  di3_alarm_shutdown_enabled: true,
   alarm_limits: {
     hot_gas_high_c: 110,
     refrigerant_return_low_c: -20,

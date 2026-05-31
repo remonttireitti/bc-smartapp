@@ -69,9 +69,11 @@ export default function VrfStatusPanel({
   });
 
   const alarmDelayReset = vrfAlarmDelayResetState(telemetry, externalAlarm);
+  const alarmShutdownDisabled = telemetry?.settings?.di3_alarm_shutdown_enabled === false;
   const showAlarmDelayReset =
     !readOnly &&
     onResetAlarmDelay &&
+    !alarmShutdownDisabled &&
     (telemetry?.status.alarm_shutdown_active ?? false);
 
   const toggleChecked = requestedEnabled ?? permit.actualOn ?? permit.isOn ?? false;
@@ -151,6 +153,9 @@ export default function VrfStatusPanel({
           <span className="vrf-status-card-label">Tilatieto</span>
           <h2 className="vrf-status-headline">{activity.headline}</h2>
           {activity.detail && <p className="vrf-status-detail">{activity.detail}</p>}
+          {alarmShutdownDisabled && (
+            <p className="vrf-status-detail muted">DI3-hälytyksen esto pois — vain seuranta, ei vaikutusta RO1:een</p>
+          )}
           {showAlarmDelayReset && (
             <div className="vrf-status-delay-reset">
               {alarmDelayReset.canReset && (

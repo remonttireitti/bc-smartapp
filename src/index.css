@@ -6700,6 +6700,13 @@ button.vrf-toggle:not(:disabled) {
   border-radius: 50%;
 }
 
+.vrf-settings-toggle-row--warn {
+  padding: 0.75rem 0.85rem;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, #f59e0b 45%, var(--border));
+  background: color-mix(in srgb, #f59e0b 8%, var(--bg-surface));
+}
+
 .vrf-settings-fieldset {
   border: 1px solid var(--border);
   border-radius: 10px;

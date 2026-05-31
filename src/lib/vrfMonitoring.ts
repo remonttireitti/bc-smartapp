@@ -46,6 +46,8 @@ export type VrfDeviceSettings = {
   di2_trigger_raw_level?: number;
   di3_trigger_raw_level?: number;
   di4_trigger_raw_level?: number;
+  /** DI3-reuna estää RO1:n ja aloittaa hälytysviiveen. Pois = vain seuranta, ei ohjausvaikutusta. */
+  di3_alarm_shutdown_enabled?: boolean;
   notify_on_delay_s?: number;
   notify_off_delay_s?: number;
   notify_min_interval_s?: number;
@@ -287,6 +289,7 @@ export function defaultVrfSettings(): VrfDeviceSettings {
     di2_trigger_raw_level: 1,
     di3_trigger_raw_level: 0,
     di4_trigger_raw_level: 1,
+    di3_alarm_shutdown_enabled: true,
     notify_on_delay_s: 60,
     notify_off_delay_s: 180,
     notify_min_interval_s: 300,
@@ -343,6 +346,8 @@ export function parseVrfSettings(raw: unknown): VrfDeviceSettings {
       readNumber(row.alarm_input_trigger_raw_level) ??
       base.di3_trigger_raw_level,
     di4_trigger_raw_level: readNumber(row.di4_trigger_raw_level) ?? base.di4_trigger_raw_level,
+    di3_alarm_shutdown_enabled:
+      readBoolean(row.di3_alarm_shutdown_enabled) ?? base.di3_alarm_shutdown_enabled,
     notify_on_delay_s: readNumber(row.notify_on_delay_s) ?? base.notify_on_delay_s,
     notify_off_delay_s: readNumber(row.notify_off_delay_s) ?? base.notify_off_delay_s,
     notify_min_interval_s: readNumber(row.notify_min_interval_s) ?? base.notify_min_interval_s,
@@ -521,7 +526,7 @@ export function vrfAlarmDelayResetState(
   telemetry: VrfTelemetry | null,
   externalAlarm: boolean,
 ): VrfAlarmDelayResetState {
-  const alarmShutdown = telemetry?.status.alarm_shutdown_active ?? false;
+  const alarmShutdown = vrfAlarmShutdownBlocksControl(telemetry);
   if (!alarmShutdown) {
     return { canReset: false, canForceReset: false, blockedReason: null };
   }
@@ -583,6 +588,26 @@ export function vrfSettingsNonce(): number {
   return Math.floor(Date.now() / 1000);
 }
 
+function vrfAlarmShutdownBlocksControl(telemetry: VrfTelemetry | null): boolean {
+  if (telemetry?.settings?.di3_alarm_shutdown_enabled === false) return false;
+  return telemetry?.status.alarm_shutdown_active ?? false;
+}
+
+export function buildVrfSettingsForSave(
+  form: VrfDeviceSettings,
+  previous?: VrfDeviceSettings | Record<string, unknown> | null,
+): Record<string, unknown> {
+  const payload: Record<string, unknown> = { ...form };
+  const wasEnabled =
+    previous && typeof previous === 'object' && !Array.isArray(previous)
+      ? parseVrfSettings(previous).di3_alarm_shutdown_enabled !== false
+      : true;
+  if (form.di3_alarm_shutdown_enabled === false && wasEnabled) {
+    payload.alarm_shutdown_reset = { nonce: vrfSettingsNonce(), force: true };
+  }
+  return payload;
+}
+
 export function buildAlarmShutdownResetSettings(
   current: VrfDeviceSettings | Record<string, unknown> | null | undefined,
   options?: { force?: boolean },
@@ -618,7 +643,7 @@ export function vrfResolvePermitStatus(params: {
   stale: boolean;
 }): VrfPermitPresentation {
   const { telemetry, requestedEnabled, online, stale } = params;
-  const alarmShutdown = telemetry?.status.alarm_shutdown_active ?? false;
+  const alarmShutdown = vrfAlarmShutdownBlocksControl(telemetry);
   const rawActualOn = telemetry?.control.enabled ?? null;
   // Firmware pitää heatEnabled-arvon hälytyslockin ajan — RO1 on silti pois.
   const actualOn = alarmShutdown ? false : rawActualOn;
@@ -741,7 +766,7 @@ export function vrfResolveDeviceActivity(params: {
 
   const permitOn = telemetry?.control.enabled === true;
   const unitReady = telemetry?.digital_inputs?.di4_unit_ready === true;
-  const alarmShutdown = telemetry?.status.alarm_shutdown_active ?? false;
+  const alarmShutdown = vrfAlarmShutdownBlocksControl(telemetry);
   const remainingS = telemetry?.status.alarm_shutdown_remaining_s;
   const waitingDi = telemetry?.status.alarm_shutdown_waiting_di_clear ?? false;
   const outdoorLock = telemetry?.status.outdoor_safety_lock_active ?? false;
@@ -1110,7 +1135,7 @@ export function resolveReadingActivityTrendState(
 ): VrfActivityTrendState {
   const reading = readings[index];
   const telemetry = readingTelemetry(reading);
-  const alarmShutdown = telemetry?.status.alarm_shutdown_active === true;
+  const alarmShutdown = vrfAlarmShutdownBlocksControl(telemetry);
   const externalAlarm = readingAlarmActive(reading);
   const defrostActive = inferDefrostLikely(readings, index);
   const permitOn = readingHeatPermit(reading);
