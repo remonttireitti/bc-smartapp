@@ -46,3 +46,6 @@ verify_jwt = false
 
 [functions.vrf-monitor-ingest]
 verify_jwt = false
+
+[functions.vrf-device-config]
+verify_jwt = false

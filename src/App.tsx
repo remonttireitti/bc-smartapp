@@ -37,6 +37,7 @@ import TempMonitorDetailPage from './pages/TempMonitorDetailPage';
 import TempMonitorReportPrintPage from './pages/TempMonitorReportPrintPage';
 import RemoteMonitoringHubPage from './pages/RemoteMonitoringHubPage';
 import VrfMonitoringPage from './pages/VrfMonitoringPage';
+import VrfMonitorDetailPage from './pages/VrfMonitorDetailPage';
 import SubscribersPage from './pages/SubscribersPage';
 import {
   CustomerPortalPreviewPage,
@@ -100,6 +101,7 @@ function AppRoutes() {
       <Route path="/etaseuranta/lampotila/raportit/:reportId/tuloste" element={<TempMonitorReportPrintPage session={session} />} />
       <Route path="/etaseuranta/lampotila/:deviceId" element={<TempMonitorDetailPage session={session} />} />
       <Route path="/etaseuranta/vrf" element={<VrfMonitoringPage session={session} />} />
+      <Route path="/etaseuranta/vrf/:deviceId" element={<VrfMonitorDetailPage session={session} />} />
       <Route path="/lampotila" element={<Navigate to="/etaseuranta/lampotila" replace />} />
       <Route path="/lampotila/raportit/:reportId/tuloste" element={<LegacyTempReportRedirect />} />
       <Route path="/lampotila/:deviceId" element={<LegacyTempDeviceRedirect />} />

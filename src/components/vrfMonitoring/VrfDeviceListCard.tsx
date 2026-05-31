@@ -1,10 +1,11 @@
+import { Link } from 'react-router-dom';
 import {
   formatRelativeTime,
   formatTempC,
   isVrfDeviceOnline,
-  vrfOperatingStateLabel,
   type VrfDevice,
 } from '../../lib/vrfMonitoring';
+import { vrfMonitoringDevicePath } from '../../lib/remoteMonitoringRoutes';
 
 type Props = {
   device: VrfDevice;
@@ -17,7 +18,7 @@ export default function VrfDeviceListCard({ device, onDelete, deleteDisabled = f
 
   return (
     <li className="temp-device-list-item">
-      <div className="temp-device-card temp-device-card-static">
+      <Link to={vrfMonitoringDevicePath(device.id)} className="temp-device-card">
         <div className="temp-device-card-top">
           <div className="temp-device-card-title-wrap">
             <strong className="temp-device-card-title">{device.name}</strong>
@@ -39,20 +40,12 @@ export default function VrfDeviceListCard({ device, onDelete, deleteDisabled = f
         </div>
         <div className="temp-device-card-meta">
           <span>{formatRelativeTime(device.last_seen_at)}</span>
-          <span className="muted">
-            {device.heat_enabled == null
-              ? 'Ohjaus —'
-              : device.heat_enabled
-                ? 'Lämpölupa päällä'
-                : 'Lämpölupa pois'}
-            {' · '}
-            {vrfOperatingStateLabel(device.operating_state)}
-          </span>
+          <span className="temp-device-card-cta">Avaa seuranta →</span>
         </div>
         {device.external_device_id && (
           <p className="temp-device-card-meta muted">Laite-ID: {device.external_device_id}</p>
         )}
-      </div>
+      </Link>
       <button
         type="button"
         className="temp-device-delete-btn"
