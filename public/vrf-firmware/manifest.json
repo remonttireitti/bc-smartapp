@@ -1,5 +1,5 @@
 {
-  "version": "1.1.7",
+  "version": "1.1.8",
   "url": "https://bc-smartapp.vercel.app/vrf-firmware/firmware.bin",
-  "notes": "Alarm delay reset from app, accurate RO1 telemetry during alarm lockout"
+  "notes": "Force alarm delay reset, DI raw telemetry for FDC400 wiring diagnosis"
 }

@@ -10,6 +10,47 @@ export default function VrfWiringGuide() {
           tyypillisesti <strong>+12 V aktiivinen</strong> (PNP / korkean tason signaali).
         </p>
 
+        <h3>FDC400KXZE2 — suositeltu DI-kytkentä</h3>
+        <p>
+          Mitsubishi Heavy KX / FDC400KXZE2 antaa ulostuloja <strong>DC 12 V</strong> releen ohjaukseen. Ulkoyksikön
+          liitännät (CnS / CnT / CnG — tarkista P07–P10-asetus 7-segmentinäytöstä) voidaan ohjata näin:
+        </p>
+        <table className="vrf-wiring-table">
+          <thead>
+            <tr>
+              <th>Monitorin DI</th>
+              <th>VRF-ulostulo (tehdas/oletus)</th>
+              <th>Merkitys</th>
+              <th>Logiikka</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>DI4</strong></td>
+              <td>Operation output (CnT-2 / ulk. käynti)</td>
+              <td>Käyntitieto / laite päällä</td>
+              <td>PNP (+12 V = päällä)</td>
+            </tr>
+            <tr>
+              <td><strong>DI2</strong></td>
+              <td>Compressor ON output (CnT-4 / ulk. komp.)</td>
+              <td>Kompressori käy</td>
+              <td>PNP (+12 V = käy)</td>
+            </tr>
+            <tr>
+              <td><strong>DI3</strong></td>
+              <td>Fail-safe OK-signaali (ei Error-ulostulo suoraan)</td>
+              <td>+12 V = normaali, 0 V = hälytys</td>
+              <td>INV (käänteinen)</td>
+            </tr>
+          </tbody>
+        </table>
+        <p className="muted vrf-wiring-note">
+          <strong>Tärkeää DI3:lle:</strong> CnT-5 / Inspection (Error) -ulostulo antaa +12 V vain vian sattuessa. Jos DI3
+          on kytketty siihen, vaihda Asetukset-välilehdellä DI3 → <strong>PNP</strong>. Nykyinen INV-logiikka sopii
+          signaaliin joka on +12 V normaalisti ja putoaa 0 V:hun hälytyksessä.
+        </p>
+
         <h3>COM ja DGND — minne VRF:n GND?</h3>
         <p>
           <strong>COM</strong> on digitaalitulojen yhteinen liitäntä (valitaan NPN/PNP-tila).{' '}

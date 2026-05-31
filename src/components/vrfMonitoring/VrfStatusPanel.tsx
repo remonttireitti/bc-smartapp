@@ -1,6 +1,7 @@
 import VrfToggleSwitch from './VrfToggleSwitch';
 import {
   formatRelativeTime,
+  formatVrfDiRaw,
   vrfAlarmDelayResetState,
   vrfResolveDeviceActivity,
   vrfResolvePermitStatus,
@@ -18,10 +19,11 @@ type Props = {
   requestedEnabled: boolean | null | undefined;
   lastSeenAt: string | null;
   firmwareVersion?: string | null;
+  diWiringHint?: string | null;
   readOnly?: boolean;
   permitDisabled?: boolean;
   onPermitChange?: (next: boolean) => void;
-  onResetAlarmDelay?: () => void;
+  onResetAlarmDelay?: (force?: boolean) => void;
   alarmDelayResetBusy?: boolean;
 };
 
@@ -41,6 +43,7 @@ export default function VrfStatusPanel({
   onPermitChange,
   onResetAlarmDelay,
   alarmDelayResetBusy = false,
+  diWiringHint = null,
 }: Props) {
   const activity = vrfResolveDeviceActivity({
     telemetry,
@@ -67,6 +70,7 @@ export default function VrfStatusPanel({
 
   const toggleChecked = requestedEnabled ?? permit.actualOn ?? permit.isOn ?? false;
   const toggleDisabled = permitDisabled || readOnly || !onPermitChange;
+  const di = telemetry?.digital_inputs;
 
   return (
     <section className="vrf-status-panel">
@@ -86,23 +90,53 @@ export default function VrfStatusPanel({
           {activity.detail && <p className="vrf-status-detail">{activity.detail}</p>}
           {showAlarmDelayReset && (
             <div className="vrf-status-delay-reset">
-              {alarmDelayReset.canReset ? (
+              {alarmDelayReset.canReset && (
                 <button
                   type="button"
                   className="btn btn-secondary btn-sm"
                   disabled={alarmDelayResetBusy || stale || !online}
-                  onClick={onResetAlarmDelay}
+                  onClick={() => onResetAlarmDelay?.(false)}
                 >
                   {alarmDelayResetBusy ? 'Nollataan…' : 'Nollaa hälytysviive'}
                 </button>
-              ) : (
-                alarmDelayReset.blockedReason && (
-                  <p className="vrf-status-detail muted">{alarmDelayReset.blockedReason}</p>
-                )
+              )}
+              {!alarmDelayReset.canReset && alarmDelayReset.canForceReset && (
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  disabled={alarmDelayResetBusy || stale || !online}
+                  onClick={() => onResetAlarmDelay?.(true)}
+                >
+                  {alarmDelayResetBusy ? 'Nollataan…' : 'Pakota viiveen nollaus'}
+                </button>
+              )}
+              {alarmDelayReset.blockedReason && (
+                <p className="vrf-status-detail muted">{alarmDelayReset.blockedReason}</p>
               )}
             </div>
           )}
         </article>
+
+        {di && (
+          <article className="vrf-status-card vrf-status-card--di">
+            <span className="vrf-status-card-label">Digitaalitulot (FDC400KXZE2)</span>
+            <ul className="vrf-di-status-list">
+              <li>
+                <strong>DI4 Käyntitieto</strong> · {di.di4_unit_ready ? 'Päällä' : 'Pois'} ·{' '}
+                {formatVrfDiRaw(di.di4_raw)}
+              </li>
+              <li>
+                <strong>DI2 Kompressori</strong> · {di.di2_compressor_running ? 'Käy' : 'Pois'} ·{' '}
+                {formatVrfDiRaw(di.di2_raw)}
+              </li>
+              <li>
+                <strong>DI3 Hälytys</strong> · {di.di3_alarm ? 'Hälytys' : 'Normaali'} ·{' '}
+                {formatVrfDiRaw(di.di3_raw)}
+              </li>
+            </ul>
+            {diWiringHint && <p className="vrf-status-detail">{diWiringHint}</p>}
+          </article>
+        )}
 
         <article className={`vrf-status-card vrf-status-card--permit-${permit.tone}`}>
           <div className="vrf-status-permit-head">

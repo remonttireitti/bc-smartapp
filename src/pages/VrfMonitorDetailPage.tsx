@@ -42,6 +42,7 @@ import {
 
   buildAlarmShutdownResetSettings,
   defaultVrfSettings,
+  vrfDiWiringHint,
   vrfDiInvertedFromTrigger,
   vrfDiLogicDescription,
   vrfDiTriggerDefault,
@@ -183,6 +184,11 @@ export default function VrfMonitorDetailPage({ session }: Props) {
         activeAlarmLabels: activeVrfAlarms(telemetry?.alarms ?? {}).map((a) => a.label),
       }),
     [telemetry, online, stale, defrostLikelyNow, compressorRunning, externalAlarm],
+  );
+
+  const diWiringHint = useMemo(
+    () => vrfDiWiringHint(telemetry?.digital_inputs ?? null, settingsForm),
+    [telemetry?.digital_inputs, settingsForm],
   );
 
 
@@ -345,52 +351,37 @@ export default function VrfMonitorDetailPage({ session }: Props) {
 
 
 
-  async function resetAlarmDelay() {
-
+  async function resetAlarmDelay(force = false) {
     if (!device || stale || !online) return;
-
     const resetState = vrfAlarmDelayResetState(telemetry, externalAlarm);
-
-    if (!resetState.canReset) {
-
+    if (!force && !resetState.canReset) {
       setMessage(resetState.blockedReason ?? 'Hälytysviiven nollaus ei ole mahdollista.');
-
       return;
-
     }
-
+    if (force && !resetState.canForceReset) {
+      setMessage('Pakotettu nollaus ei ole mahdollista.');
+      return;
+    }
     setBusy(true);
-
     setMessage(null);
-
     const { error: updateError } = await supabase
-
       .from('vrf_devices')
-
       .update({
-
-        settings: buildAlarmShutdownResetSettings(device.settings),
-
+        settings: buildAlarmShutdownResetSettings(device.settings, { force }),
         settings_updated_at: new Date().toISOString(),
-
       })
-
       .eq('id', device.id);
-
     setBusy(false);
-
     if (updateError) {
-
       setMessage(updateError.message);
-
       return;
-
     }
-
-    setMessage('Hälytysviive nollattu — laite päivittää tilan hetken kuluttua.');
-
+    setMessage(
+      force
+        ? 'Hälytysviive pakotettu nollattu — tarkista DI3-kytkentä jos hälytys palaa.'
+        : 'Hälytysviive nollattu — laite päivittää tilan hetken kuluttua.',
+    );
     await load();
-
   }
 
 
@@ -585,8 +576,9 @@ export default function VrfMonitorDetailPage({ session }: Props) {
             firmwareVersion={device.firmware_version}
             permitDisabled={permitDisabled}
             onPermitChange={(next) => void setHeatPermit(next)}
-            onResetAlarmDelay={() => void resetAlarmDelay()}
+            onResetAlarmDelay={(force) => void resetAlarmDelay(force)}
             alarmDelayResetBusy={busy}
+            diWiringHint={diWiringHint}
           />
         </section>
 

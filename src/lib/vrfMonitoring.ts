@@ -63,6 +63,9 @@ export type VrfDigitalInputs = {
   di4_unit_ready: boolean | null;
   di2_compressor_running: boolean | null;
   di3_alarm: boolean | null;
+  di2_raw?: number | null;
+  di3_raw?: number | null;
+  di4_raw?: number | null;
 };
 
 export type VrfTelemetry = {
@@ -362,6 +365,9 @@ export function parseVrfDigitalInputs(payload: Record<string, unknown> | null | 
     di4_unit_ready: readBoolean(raw.di4_unit_ready) ?? readBoolean(raw.di1_unit_ready),
     di2_compressor_running: readBoolean(raw.di2_compressor_running),
     di3_alarm: readBoolean(raw.di3_alarm),
+    di2_raw: readNumber(raw.di2_raw),
+    di3_raw: readNumber(raw.di3_raw),
+    di4_raw: readNumber(raw.di4_raw),
   };
 }
 
@@ -506,33 +512,67 @@ function formatShutdownRemaining(remainingS: number) {
 
 export type VrfAlarmDelayResetState = {
   canReset: boolean;
+  canForceReset: boolean;
   blockedReason: string | null;
 };
 
-/** Voiko hälytyksen jälkeisen minimiviiveen nollata sovelluksesta (DI3 pitää olla poissa). */
+/** Voiko hälytyksen jälkeisen minimiviiveen nollata sovelluksesta. */
 export function vrfAlarmDelayResetState(
   telemetry: VrfTelemetry | null,
   externalAlarm: boolean,
 ): VrfAlarmDelayResetState {
   const alarmShutdown = telemetry?.status.alarm_shutdown_active ?? false;
   if (!alarmShutdown) {
-    return { canReset: false, blockedReason: null };
+    return { canReset: false, canForceReset: false, blockedReason: null };
   }
   if (externalAlarm) {
-    return { canReset: false, blockedReason: 'DI3-hälytys on vielä aktiivinen' };
+    return {
+      canReset: false,
+      canForceReset: true,
+      blockedReason: 'DI3-hälytys on vielä aktiivinen — tarkista kytkentä tai käytä pakotettua nollausta',
+    };
   }
   const remainingS = telemetry?.status.alarm_shutdown_remaining_s;
   if (typeof remainingS === 'number' && remainingS > 0) {
-    return { canReset: true, blockedReason: null };
+    return { canReset: true, canForceReset: true, blockedReason: null };
   }
   if (telemetry?.status.alarm_shutdown_waiting_di_clear) {
-    return { canReset: false, blockedReason: 'Odottaa DI3-signaalin poistumista' };
+    return {
+      canReset: false,
+      canForceReset: true,
+      blockedReason: 'Odottaa DI3-signaalin poistumista',
+    };
   }
-  return { canReset: true, blockedReason: null };
+  return { canReset: true, canForceReset: true, blockedReason: null };
+}
+
+export function formatVrfDiRaw(raw: number | null | undefined): string {
+  if (raw == null) return '—';
+  return raw ? 'HIGH (+12 V)' : 'LOW (0 V)';
+}
+
+/** FDC400KXZE2 / KX-sarjan ulostulot vs nykyinen DI-kytkentä. */
+export function vrfDiWiringHint(
+  inputs: VrfDigitalInputs | null,
+  settings: VrfDeviceSettings | null | undefined,
+): string | null {
+  if (!inputs) return null;
+  const di3Inverted = vrfDiInvertedFromTrigger(
+    settings?.di3_trigger_raw_level ?? settings?.alarm_input_trigger_raw_level,
+    0,
+  );
+  if (inputs.di3_alarm && inputs.di3_raw === 0 && di3Inverted) {
+    return 'DI3 lukee jatkuvasti 0 V (INV = hälytys). Jos kytketty CnT-5 / Error-ulostuloon, vaihda DI3-asetus PNP:ksi — error antaa +12 V vain vian sattuessa.';
+  }
+  if (!inputs.di3_alarm && inputs.di3_raw === 1 && di3Inverted) {
+    return 'DI3 lukee +12 V (INV = normaali). Kytkentä näyttää oikealta fail-safe -logiikalla.';
+  }
+  return null;
 }
 
 export function buildAlarmShutdownResetSettings(
   current: VrfDeviceSettings | Record<string, unknown> | null | undefined,
+  options?: { force?: boolean },
 ): Record<string, unknown> {
   const base =
     current && typeof current === 'object' && !Array.isArray(current)
@@ -540,7 +580,7 @@ export function buildAlarmShutdownResetSettings(
       : {};
   return {
     ...base,
-    alarm_shutdown_reset: { nonce: Date.now() },
+    alarm_shutdown_reset: { nonce: Date.now(), force: options?.force === true },
   };
 }
 
