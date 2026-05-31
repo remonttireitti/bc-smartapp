@@ -43,3 +43,6 @@ verify_jwt = true
 
 [functions.temp-monitor-ingest]
 verify_jwt = false
+
+[functions.vrf-monitor-ingest]
+verify_jwt = false

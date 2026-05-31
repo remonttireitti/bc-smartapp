@@ -5946,6 +5946,24 @@ textarea {
   border-color: var(--link);
 }
 
+.temp-device-card-static {
+  flex: 1;
+  min-width: 0;
+}
+
+.temp-device-card-static:hover {
+  border-color: var(--border);
+}
+
+.temp-device-alarm-badge {
+  font-size: 0.75rem;
+}
+
+.badge-alert {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
 .temp-device-card-head,
 .temp-device-summary-head {
   display: flex;
