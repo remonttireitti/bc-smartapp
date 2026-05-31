@@ -17,6 +17,8 @@ type Props = {
   canEdit: boolean;
   busy: boolean;
   onPickPhoto: (file: File) => void | Promise<void>;
+  onShowDetails: () => void;
+  onPrintLabel: () => void | Promise<void>;
   onEdit: () => void;
   onRetrieve: () => void;
   onEmpty: () => void;
@@ -30,6 +32,8 @@ export default function RefrigerantBottleCard({
   canEdit,
   busy,
   onPickPhoto,
+  onShowDetails,
+  onPrintLabel,
   onEdit,
   onRetrieve,
   onEmpty,
@@ -94,62 +98,87 @@ export default function RefrigerantBottleCard({
       </p>
 
       <div className="inventory-bottle-title-row">
-        <strong className="inventory-bottle-card-title">{formatBottleLabel(c)}</strong>
-        {canEdit && (
-          <div className="toolbar-popover-anchor inventory-bottle-menu-anchor" ref={menuRef}>
-            <button
-              type="button"
-              className="icon-btn inventory-bottle-menu-btn"
-              aria-label={`Toiminnot: ${formatBottleLabel(c)}`}
-              aria-haspopup="menu"
-              aria-expanded={menuOpen}
-              disabled={busy}
-              onClick={() => setMenuOpen((value) => !value)}
-            >
-              <IconGear />
-            </button>
-            {menuOpen && (
-              <div className="toolbar-popover-panel toolbar-action-menu inventory-bottle-menu" role="menu">
-                <button type="button" role="menuitem" className="inventory-bottle-menu-item" onClick={() => runAction(onEdit)}>
-                  Muokkaa
-                </button>
-                <button
-                  type="button"
-                  role="menuitem"
-                  className="inventory-bottle-menu-item inventory-bottle-menu-item-primary"
-                  onClick={() => runAction(onRetrieve)}
-                >
-                  Talteen asiakkaalta
-                </button>
-                {!empty && (
-                  <button type="button" role="menuitem" className="inventory-bottle-menu-item" onClick={() => runAction(onEmpty)}>
-                    Tyhjennä
+        <button
+          type="button"
+          className="inventory-bottle-card-title-btn"
+          onClick={onShowDetails}
+          disabled={busy}
+        >
+          {formatBottleLabel(c)}
+        </button>
+        <div className="toolbar-popover-anchor inventory-bottle-menu-anchor" ref={menuRef}>
+          <button
+            type="button"
+            className="icon-btn inventory-bottle-menu-btn"
+            aria-label={`Toiminnot: ${formatBottleLabel(c)}`}
+            aria-haspopup="menu"
+            aria-expanded={menuOpen}
+            disabled={busy}
+            onClick={() => setMenuOpen((value) => !value)}
+          >
+            <IconGear />
+          </button>
+          {menuOpen && (
+            <div className="toolbar-popover-panel toolbar-action-menu inventory-bottle-menu" role="menu">
+              <button
+                type="button"
+                role="menuitem"
+                className="inventory-bottle-menu-item"
+                onClick={() => runAction(onShowDetails)}
+              >
+                Näytä tiedot
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                className="inventory-bottle-menu-item"
+                onClick={() => runAction(() => void onPrintLabel())}
+              >
+                Tulosta QR-tarra
+              </button>
+              {canEdit && (
+                <>
+                  <button type="button" role="menuitem" className="inventory-bottle-menu-item" onClick={() => runAction(onEdit)}>
+                    Muokkaa
                   </button>
-                )}
-                {c.ownership_type === 'rental' && (
                   <button
                     type="button"
                     role="menuitem"
-                    className="inventory-bottle-menu-item"
-                    onClick={() => runAction(onReturnRental)}
+                    className="inventory-bottle-menu-item inventory-bottle-menu-item-primary"
+                    onClick={() => runAction(onRetrieve)}
                   >
-                    Palauta vuokra
+                    Talteen asiakkaalta
                   </button>
-                )}
-                {c.ownership_type === 'owned' && (
-                  <button type="button" role="menuitem" className="inventory-bottle-menu-item" onClick={() => runAction(onRetire)}>
-                    Poista / myy
-                  </button>
-                )}
-                {!c.non_recyclable && !empty && (
-                  <button type="button" role="menuitem" className="inventory-bottle-menu-item" onClick={() => runAction(onRecycle)}>
-                    Kierrätys
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
-        )}
+                  {!empty && (
+                    <button type="button" role="menuitem" className="inventory-bottle-menu-item" onClick={() => runAction(onEmpty)}>
+                      Tyhjennä
+                    </button>
+                  )}
+                  {c.ownership_type === 'rental' && (
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="inventory-bottle-menu-item"
+                      onClick={() => runAction(onReturnRental)}
+                    >
+                      Palauta vuokra
+                    </button>
+                  )}
+                  {c.ownership_type === 'owned' && (
+                    <button type="button" role="menuitem" className="inventory-bottle-menu-item" onClick={() => runAction(onRetire)}>
+                      Poista / myy
+                    </button>
+                  )}
+                  {!c.non_recyclable && !empty && (
+                    <button type="button" role="menuitem" className="inventory-bottle-menu-item" onClick={() => runAction(onRecycle)}>
+                      Kierrätys
+                    </button>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="inventory-bottle-card-badges">

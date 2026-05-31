@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
 import AppLayout from '../components/AppLayout';
 import InventoryPhotoThumb from '../components/inventory/InventoryPhotoThumb';
@@ -45,6 +45,7 @@ function writeStoredWarehouseCompanyId(myCompanyId: string, warehouseCompanyId: 
 
 export default function InventoryPage({ session }: Props) {
   const { profile } = useProfile(session);
+  const [searchParams, setSearchParams] = useSearchParams();
   const myCompanyId = profile?.company_id ?? '';
   const [partnerships, setPartnerships] = useState<Partnership[]>([]);
   const [warehouseCompanyId, setWarehouseCompanyId] = useState('');
@@ -71,6 +72,11 @@ export default function InventoryPage({ session }: Props) {
   const canEditWarehouse = warehouseAccess === 'write';
   const activeWarehouseLabel =
     warehouseTargets.find((target) => target.companyId === warehouseCompanyId)?.label ?? '—';
+  const openCylinderId = searchParams.get('cylinder');
+
+  useEffect(() => {
+    if (openCylinderId) setTab('refrigerant');
+  }, [openCylinderId]);
 
   useEffect(() => {
     if (!myCompanyId) return;
@@ -334,6 +340,8 @@ export default function InventoryPage({ session }: Props) {
           warehouseCompanyId={warehouseCompanyId}
           warehouseCompanyName={activeWarehouseLabel}
           canEditWarehouse={canEditWarehouse}
+          openCylinderId={openCylinderId}
+          onOpenCylinderHandled={() => setSearchParams({}, { replace: true })}
           onMessage={setMessage}
           onError={setError}
         />

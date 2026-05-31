@@ -1,6 +1,9 @@
-import { FormEvent, Fragment, useEffect, useMemo, useState } from 'react';
+import { FormEvent, Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 
+import { IconScan } from '../icons';
 import RefrigerantBottleCard from './RefrigerantBottleCard';
+import RefrigerantBottleDetailDialog from './RefrigerantBottleDetailDialog';
+import RefrigerantBottleScanDialog from './RefrigerantBottleScanDialog';
 import { uploadInventoryImage } from '../../lib/inventoryImages';
 import {
   bottleMaxContentKg,
@@ -21,6 +24,8 @@ import {
   printRefrigerantPeriodReport,
 } from '../../lib/refrigerantInventoryReport';
 import { loadWarehouseCustomerPicker, type WarehouseCustomerPickerOption } from '../../lib/customers';
+import { resolveCylinderFromScan } from '../../lib/refrigerantCylinderCode';
+import { printRefrigerantCylinderLabel } from '../../lib/refrigerantCylinderLabelPrint';
 import { supabase } from '../../lib/supabase';
 import { refrigerantTypes } from '../../lib/huoltoRaportti/constants';
 import type {
@@ -149,6 +154,8 @@ type Props = {
   warehouseCompanyId: string;
   warehouseCompanyName: string;
   canEditWarehouse: boolean;
+  openCylinderId?: string | null;
+  onOpenCylinderHandled?: () => void;
   onMessage: (msg: string | null) => void;
   onError: (msg: string | null) => void;
 };
@@ -157,6 +164,8 @@ export default function RefrigerantInventorySection({
   warehouseCompanyId,
   warehouseCompanyName,
   canEditWarehouse,
+  openCylinderId = null,
+  onOpenCylinderHandled,
   onMessage,
   onError,
 }: Props) {
@@ -191,6 +200,9 @@ export default function RefrigerantInventorySection({
   });
   const [reportTo, setReportTo] = useState(() => new Date().toISOString().slice(0, 10));
   const [reportBusy, setReportBusy] = useState(false);
+  const [scanOpen, setScanOpen] = useState(false);
+  const [scanBusy, setScanBusy] = useState(false);
+  const [detailCylinder, setDetailCylinder] = useState<RefrigerantCylinder | null>(null);
 
   const filteredBottles = useMemo(() => {
     return cylinders.filter((c) => {
@@ -292,6 +304,73 @@ export default function RefrigerantInventorySection({
     setEditorMode(null);
     setEditingId(null);
   }
+
+  const openCylinderDetails = useCallback((cylinder: RefrigerantCylinder) => {
+    setDetailCylinder(cylinder);
+    setView('registry');
+  }, []);
+
+  async function printCylinderLabel(cylinder: RefrigerantCylinder) {
+    try {
+      await printRefrigerantCylinderLabel(cylinder, { companyName: warehouseCompanyName });
+    } catch (err) {
+      onError(err instanceof Error ? err.message : 'QR-tarran tulostus epäonnistui');
+    }
+  }
+
+  async function handleScanText(text: string) {
+    if (!warehouseCompanyId) return;
+    setScanOpen(false);
+    setScanBusy(true);
+    onError(null);
+    try {
+      const row = await resolveCylinderFromScan(
+        supabase,
+        warehouseCompanyId,
+        text,
+        cylinders,
+        CYLINDER_SELECT,
+      );
+      if (!row) {
+        onError('Pulloa ei löytynyt tästä varastosta.');
+        return;
+      }
+      openCylinderDetails(normalizeCylinder(row as unknown as Record<string, unknown>));
+    } catch (err) {
+      onError(err instanceof Error ? err.message : 'Skannaus epäonnistui');
+    } finally {
+      setScanBusy(false);
+    }
+  }
+
+  useEffect(() => {
+    if (!openCylinderId || !warehouseCompanyId || loading) return;
+    const local = cylinders.find((c) => c.id === openCylinderId);
+    if (local) {
+      openCylinderDetails(local);
+      onOpenCylinderHandled?.();
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      const { data, error } = await supabase
+        .from('refrigerant_cylinders')
+        .select(CYLINDER_SELECT)
+        .eq('company_id', warehouseCompanyId)
+        .eq('id', openCylinderId)
+        .maybeSingle();
+      if (cancelled) return;
+      onOpenCylinderHandled?.();
+      if (error || !data) {
+        onError('Pulloa ei löytynyt.');
+        return;
+      }
+      openCylinderDetails(normalizeCylinder(data as unknown as Record<string, unknown>));
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [openCylinderId, warehouseCompanyId, loading, cylinders, openCylinderDetails, onOpenCylinderHandled, onError]);
 
   async function saveBottleForm(e: FormEvent) {
     e.preventDefault();
@@ -820,11 +899,21 @@ export default function RefrigerantInventorySection({
                 ))}
               </div>
             </div>
-            {canEditWarehouse && (
-              <button type="button" className="btn btn-primary" onClick={openAdd}>
-                + Lisää pullo
+            <div className="inventory-stock-toolbar-actions">
+              <button
+                type="button"
+                className="btn btn-secondary inventory-scan-btn"
+                disabled={!warehouseCompanyId || scanBusy}
+                onClick={() => setScanOpen(true)}
+              >
+                <IconScan /> Skannaa pullo
               </button>
-            )}
+              {canEditWarehouse && (
+                <button type="button" className="btn btn-primary" onClick={openAdd}>
+                  + Lisää pullo
+                </button>
+              )}
+            </div>
           </div>
 
           {editorMode === 'add' && renderBottleForm('Uusi pullo')}
@@ -850,6 +939,8 @@ export default function RefrigerantInventorySection({
                           canEdit={canEditWarehouse}
                           busy={rowBusy}
                           onPickPhoto={(file) => void uploadBottlePhoto(c, file)}
+                          onShowDetails={() => openCylinderDetails(c)}
+                          onPrintLabel={() => printCylinderLabel(c)}
                           onEdit={() => openEdit(c)}
                           onRetrieve={() => {
                             setRetrieveBottleId(c.id);
@@ -936,6 +1027,29 @@ export default function RefrigerantInventorySection({
           </div>
         </section>
       )}
+
+      <RefrigerantBottleScanDialog
+        open={scanOpen}
+        busy={scanBusy}
+        onClose={() => setScanOpen(false)}
+        onScan={(text) => void handleScanText(text)}
+      />
+      <RefrigerantBottleDetailDialog
+        open={detailCylinder != null}
+        cylinder={detailCylinder}
+        canEdit={canEditWarehouse}
+        busy={scanBusy}
+        onClose={() => setDetailCylinder(null)}
+        onEdit={
+          detailCylinder
+            ? () => {
+                openEdit(detailCylinder);
+                setDetailCylinder(null);
+              }
+            : undefined
+        }
+        onPrintLabel={() => (detailCylinder ? printCylinderLabel(detailCylinder) : undefined)}
+      />
     </>
   );
 }

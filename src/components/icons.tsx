@@ -22,6 +22,17 @@ export function IconPrint({ className = 'ui-icon' }: IconProps) {
   );
 }
 
+export function IconScan({ className = 'ui-icon' }: IconProps) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        d="M4 6V4h4V2H4a2 2 0 0 0-2 2v2zm16-2h-4v2h4v2h2V4a2 2 0 0 0-2-2zM4 18v-2H2v2a2 2 0 0 0 2 2h2v-2H4zm16 2h-2v-2h-2v4h4v-2zM7 8h10v8H7V8z"
+        fill="currentColor"
+      />
+    </svg>
+  );
+}
+
 export function IconBack({ className = 'ui-icon' }: IconProps) {
   return (
     <svg className={className} viewBox="0 0 24 24" aria-hidden="true">
