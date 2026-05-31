@@ -25,6 +25,8 @@ import { buildVrfReportPrintHtml } from '../../lib/vrfReportPrint';
 
 import { supabase } from '../../lib/supabase';
 
+import ToggleSwitch from '../ToggleSwitch';
+
 import VrfBinaryTrendChart from './VrfBinaryTrendChart';
 
 import VrfTrendChart from './VrfTrendChart';
@@ -223,54 +225,24 @@ export default function VrfReportDialog({
 
 
 
-  function toggleTemp(key: VrfTrendSeriesKey) {
-
+  function setTempEnabled(key: VrfTrendSeriesKey, enabled: boolean) {
     setTempSeries((prev) => {
-
+      if (!enabled && prev.size <= 1) return prev;
       const next = new Set(prev);
-
-      if (next.has(key)) {
-
-        if (next.size <= 1) return prev;
-
-        next.delete(key);
-
-      } else {
-
-        next.add(key);
-
-      }
-
+      if (enabled) next.add(key);
+      else next.delete(key);
       return next;
-
     });
-
   }
 
-
-
-  function toggleBinary(key: VrfBinaryLaneKey) {
-
+  function setBinaryEnabled(key: VrfBinaryLaneKey, enabled: boolean) {
     setBinaryLanes((prev) => {
-
+      if (!enabled && prev.size <= 1) return prev;
       const next = new Set(prev);
-
-      if (next.has(key)) {
-
-        if (next.size <= 1) return prev;
-
-        next.delete(key);
-
-      } else {
-
-        next.add(key);
-
-      }
-
+      if (enabled) next.add(key);
+      else next.delete(key);
       return next;
-
     });
-
   }
 
 
@@ -465,27 +437,27 @@ export default function VrfReportDialog({
 
             <legend>Lämpötilat</legend>
 
-            <div className="vrf-report-check-grid">
+            <div className="vrf-report-series-grid">
 
               {VRF_TREND_SERIES.map((series) => (
 
-                <label key={series.key} className="vrf-report-check">
+                <ToggleSwitch
 
-                  <input
+                  key={series.key}
 
-                    type="checkbox"
+                  className="vrf-report-series-toggle"
 
-                    checked={tempSeries.has(series.key)}
+                  checked={tempSeries.has(series.key)}
 
-                    onChange={() => toggleTemp(series.key)}
+                  disabled={loading}
 
-                  />
+                  onChange={(checked) => setTempEnabled(series.key, checked)}
 
-                  <span className="vrf-trend-legend-dot" style={{ background: series.color }} />
+                  icon={<span className="vrf-trend-legend-dot" style={{ background: series.color }} />}
 
-                  {series.label}
+                  label={series.label}
 
-                </label>
+                />
 
               ))}
 
@@ -499,27 +471,27 @@ export default function VrfReportDialog({
 
             <legend>Tilatiedot</legend>
 
-            <div className="vrf-report-check-grid">
+            <div className="vrf-report-series-grid">
 
               {VRF_BINARY_LANES.map((lane) => (
 
-                <label key={lane.key} className="vrf-report-check">
+                <ToggleSwitch
 
-                  <input
+                  key={lane.key}
 
-                    type="checkbox"
+                  className="vrf-report-series-toggle"
 
-                    checked={binaryLanes.has(lane.key)}
+                  checked={binaryLanes.has(lane.key)}
 
-                    onChange={() => toggleBinary(lane.key)}
+                  disabled={loading}
 
-                  />
+                  onChange={(checked) => setBinaryEnabled(lane.key, checked)}
 
-                  <span className="vrf-trend-legend-dot" style={{ background: lane.color }} />
+                  icon={<span className="vrf-trend-legend-dot" style={{ background: lane.color }} />}
 
-                  {lane.label}
+                  label={lane.label}
 
-                </label>
+                />
 
               ))}
 
