@@ -1,4 +1,4 @@
-import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { Link, useNavigate, useParams } from 'react-router-dom';
 
@@ -127,6 +127,8 @@ export default function VrfMonitorDetailPage({ session }: Props) {
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const [settingsForm, setSettingsForm] = useState<VrfDeviceSettings>(defaultVrfSettings());
+  const settingsDirtyRef = useRef(false);
+  const [settingsDirty, setSettingsDirty] = useState(false);
 
   const [lastRefreshAt, setLastRefreshAt] = useState<Date | null>(null);
 
@@ -193,7 +195,14 @@ export default function VrfMonitorDetailPage({ session }: Props) {
     [telemetry?.digital_inputs, settingsForm],
   );
 
-
+  const patchSettingsForm = useCallback(
+    (patch: Partial<VrfDeviceSettings> | ((prev: VrfDeviceSettings) => VrfDeviceSettings)) => {
+      settingsDirtyRef.current = true;
+      setSettingsDirty(true);
+      setSettingsForm((prev) => (typeof patch === 'function' ? patch(prev) : { ...prev, ...patch }));
+    },
+    [],
+  );
 
   const load = useCallback(async () => {
 
@@ -229,14 +238,8 @@ export default function VrfMonitorDetailPage({ session }: Props) {
 
     setReadings((readingsRes.data as VrfReading[] | null) ?? []);
 
-    if (nextDevice) {
-
-      const fromDb = parseVrfSettings(nextDevice.settings);
-
-      const fromPayload = parseVrfTelemetry(nextDevice.latest_payload)?.settings;
-
-      setSettingsForm(parseVrfSettings({ ...fromDb, ...fromPayload }));
-
+    if (nextDevice && !settingsDirtyRef.current) {
+      setSettingsForm(parseVrfSettings(nextDevice.settings));
     }
 
     setLastRefreshAt(new Date());
@@ -258,9 +261,9 @@ export default function VrfMonitorDetailPage({ session }: Props) {
   }, [profile?.role, deviceId, navigate]);
 
   useEffect(() => {
-
+    settingsDirtyRef.current = false;
+    setSettingsDirty(false);
     if (deviceId) void load();
-
   }, [deviceId, load]);
 
 
@@ -428,6 +431,8 @@ export default function VrfMonitorDetailPage({ session }: Props) {
 
     }
 
+    settingsDirtyRef.current = false;
+    setSettingsDirty(false);
     setSettingsMessage('Asetukset tallennettu.');
 
     await load();
@@ -782,7 +787,7 @@ export default function VrfMonitorDetailPage({ session }: Props) {
 
                   ariaLabel="Ulkolämpö-automaattikatkaisu"
 
-                  onChange={(next) => setSettingsForm((s) => ({ ...s, auto_stop_enabled: next }))}
+                  onChange={(next) => patchSettingsForm((s) => ({ ...s, auto_stop_enabled: next }))}
 
                 />
 
@@ -802,7 +807,7 @@ export default function VrfMonitorDetailPage({ session }: Props) {
 
                   onChange={(e) =>
 
-                    setSettingsForm((s) => ({ ...s, auto_stop_below_outdoor_c: Number(e.target.value) }))
+                    patchSettingsForm((s) => ({ ...s, auto_stop_below_outdoor_c: Number(e.target.value) }))
 
                   }
 
@@ -826,7 +831,7 @@ export default function VrfMonitorDetailPage({ session }: Props) {
 
                   onChange={(e) =>
 
-                    setSettingsForm((s) => ({ ...s, auto_stop_outdoor_hysteresis_c: Number(e.target.value) }))
+                    patchSettingsForm((s) => ({ ...s, auto_stop_outdoor_hysteresis_c: Number(e.target.value) }))
 
                   }
 
@@ -850,7 +855,7 @@ export default function VrfMonitorDetailPage({ session }: Props) {
 
                   onChange={(e) =>
 
-                    setSettingsForm((s) => ({ ...s, auto_stop_outdoor_smooth_tau_min: Number(e.target.value) }))
+                    patchSettingsForm((s) => ({ ...s, auto_stop_outdoor_smooth_tau_min: Number(e.target.value) }))
 
                   }
 
@@ -872,7 +877,7 @@ export default function VrfMonitorDetailPage({ session }: Props) {
 
                   onChange={(e) =>
 
-                    setSettingsForm((s) => ({ ...s, compressor_alarm_enable_after_s: Number(e.target.value) }))
+                    patchSettingsForm((s) => ({ ...s, compressor_alarm_enable_after_s: Number(e.target.value) }))
 
                   }
 
@@ -894,7 +899,7 @@ export default function VrfMonitorDetailPage({ session }: Props) {
                   labelOff="OFF"
                   ariaLabel="DI3 hälytys estää käynnistyksen"
                   onChange={(next) =>
-                    setSettingsForm((s) => ({ ...s, di3_alarm_shutdown_enabled: next }))
+                    patchSettingsForm((s) => ({ ...s, di3_alarm_shutdown_enabled: next }))
                   }
                 />
               </div>
@@ -928,7 +933,7 @@ export default function VrfMonitorDetailPage({ session }: Props) {
                       labelOff="PNP"
                       ariaLabel={`${label} — käänteinen logiikka`}
                       onChange={(nextInverted) =>
-                        setSettingsForm((s) => {
+                        patchSettingsForm((s) => {
                           const nextLevel = vrfDiTriggerFromInverted(nextInverted);
                           const patch = { [key]: nextLevel } as Partial<typeof s>;
                           if (key === 'di3_trigger_raw_level') {
@@ -961,7 +966,7 @@ export default function VrfMonitorDetailPage({ session }: Props) {
 
                     onChange={(e) =>
 
-                      setSettingsForm((s) => ({
+                      patchSettingsForm((s) => ({
 
                         ...s,
 
@@ -989,7 +994,7 @@ export default function VrfMonitorDetailPage({ session }: Props) {
 
                     onChange={(e) =>
 
-                      setSettingsForm((s) => ({
+                      patchSettingsForm((s) => ({
 
                         ...s,
 
@@ -1017,7 +1022,7 @@ export default function VrfMonitorDetailPage({ session }: Props) {
 
                     onChange={(e) =>
 
-                      setSettingsForm((s) => ({
+                      patchSettingsForm((s) => ({
 
                         ...s,
 
@@ -1045,7 +1050,7 @@ export default function VrfMonitorDetailPage({ session }: Props) {
 
                     onChange={(e) =>
 
-                      setSettingsForm((s) => ({
+                      patchSettingsForm((s) => ({
 
                         ...s,
 
@@ -1060,6 +1065,10 @@ export default function VrfMonitorDetailPage({ session }: Props) {
                 </label>
 
               </fieldset>
+
+              {settingsDirty && !settingsMessage && (
+                <p className="muted">Tallentamattomia muutoksia — seuranta ei ylikirjoita lomaketta ennen tallennusta.</p>
+              )}
 
               {settingsMessage && (
 
