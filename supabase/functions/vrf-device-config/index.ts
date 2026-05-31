@@ -77,6 +77,12 @@ Deno.serve(async (req) => {
     if (rawSettings?.ota_request && typeof rawSettings.ota_request === 'object') {
       settings.ota_request = rawSettings.ota_request;
     }
+    if (
+      rawSettings?.alarm_shutdown_reset &&
+      typeof rawSettings.alarm_shutdown_reset === 'object'
+    ) {
+      settings.alarm_shutdown_reset = rawSettings.alarm_shutdown_reset;
+    }
 
     const controlEnabled =
       device.control_requested_enabled ?? device.heat_enabled ?? false;

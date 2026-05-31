@@ -55,6 +55,8 @@ export type VrfDeviceSettings = {
     refrigerant_delta_high_c: number;
     refrigerant_delta_low_c: number;
   };
+  /** Pilvikomenno: hälytyslockin nollaus (nonce kasvaa jokaisella pyynnöllä). */
+  alarm_shutdown_reset?: { nonce: number };
 };
 
 export type VrfDigitalInputs = {
@@ -487,6 +489,46 @@ function formatShutdownRemaining(remainingS: number) {
   return `Uudelleenkäynnistys noin ${remainingS} s kuluttua`;
 }
 
+export type VrfAlarmDelayResetState = {
+  canReset: boolean;
+  blockedReason: string | null;
+};
+
+/** Voiko hälytyksen jälkeisen minimiviiveen nollata sovelluksesta (DI3 pitää olla poissa). */
+export function vrfAlarmDelayResetState(
+  telemetry: VrfTelemetry | null,
+  externalAlarm: boolean,
+): VrfAlarmDelayResetState {
+  const alarmShutdown = telemetry?.status.alarm_shutdown_active ?? false;
+  if (!alarmShutdown) {
+    return { canReset: false, blockedReason: null };
+  }
+  if (externalAlarm) {
+    return { canReset: false, blockedReason: 'DI3-hälytys on vielä aktiivinen' };
+  }
+  const remainingS = telemetry?.status.alarm_shutdown_remaining_s;
+  if (typeof remainingS === 'number' && remainingS > 0) {
+    return { canReset: true, blockedReason: null };
+  }
+  if (telemetry?.status.alarm_shutdown_waiting_di_clear) {
+    return { canReset: false, blockedReason: 'Odottaa DI3-signaalin poistumista' };
+  }
+  return { canReset: true, blockedReason: null };
+}
+
+export function buildAlarmShutdownResetSettings(
+  current: VrfDeviceSettings | Record<string, unknown> | null | undefined,
+): Record<string, unknown> {
+  const base =
+    current && typeof current === 'object' && !Array.isArray(current)
+      ? { ...(current as Record<string, unknown>) }
+      : {};
+  return {
+    ...base,
+    alarm_shutdown_reset: { nonce: Date.now() },
+  };
+}
+
 export function vrfResolvePermitStatus(params: {
   telemetry: VrfTelemetry | null;
   requestedEnabled: boolean | null | undefined;
@@ -494,10 +536,12 @@ export function vrfResolvePermitStatus(params: {
   stale: boolean;
 }): VrfPermitPresentation {
   const { telemetry, requestedEnabled, online, stale } = params;
-  const actualOn = telemetry?.control.enabled ?? null;
+  const alarmShutdown = telemetry?.status.alarm_shutdown_active ?? false;
+  const rawActualOn = telemetry?.control.enabled ?? null;
+  // Firmware pitää heatEnabled-arvon hälytyslockin ajan — RO1 on silti pois.
+  const actualOn = alarmShutdown ? false : rawActualOn;
   const requestedOn = requestedEnabled ?? telemetry?.control.permit_requested_enabled ?? null;
   const outdoorLock = telemetry?.status.outdoor_safety_lock_active ?? false;
-  const alarmShutdown = telemetry?.status.alarm_shutdown_active ?? false;
   const remainingS = telemetry?.status.alarm_shutdown_remaining_s;
   const waitingDi = telemetry?.status.alarm_shutdown_waiting_di_clear ?? false;
 
@@ -541,7 +585,15 @@ export function vrfResolvePermitStatus(params: {
 
   if (alarmShutdown) {
     tone = 'blocked';
-    if (typeof remainingS === 'number' && remainingS > 0) {
+    if (requestedOn === true) {
+      if (typeof remainingS === 'number' && remainingS > 0) {
+        reason = `Pyydetty päälle — RO1 estetty hälytyksen jälkeen (${formatShutdownRemaining(remainingS).toLowerCase()})`;
+      } else if (waitingDi) {
+        reason = 'Pyydetty päälle — odottaa hälytyksen (DI3) poistumista';
+      } else {
+        reason = 'Pyydetty päälle — RO1 estetty hälytyksen takia';
+      }
+    } else if (typeof remainingS === 'number' && remainingS > 0) {
       reason = `Hälytyksen jälkeinen tauko — ${formatShutdownRemaining(remainingS).toLowerCase()}`;
     } else if (waitingDi) {
       reason = 'Odottaa hälytyksen (DI3) poistumista';

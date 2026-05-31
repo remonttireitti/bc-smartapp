@@ -40,6 +40,7 @@ import {
 
   activeVrfAlarms,
 
+  buildAlarmShutdownResetSettings,
   defaultVrfSettings,
   vrfDiInvertedFromTrigger,
   vrfDiTriggerFromInverted,
@@ -57,6 +58,7 @@ import {
 
   trendReadingLimit,
 
+  vrfAlarmDelayResetState,
   vrfCompressorRunning,
   vrfResolveDeviceActivity,
 
@@ -341,6 +343,56 @@ export default function VrfMonitorDetailPage({ session }: Props) {
 
 
 
+  async function resetAlarmDelay() {
+
+    if (!device || stale || !online) return;
+
+    const resetState = vrfAlarmDelayResetState(telemetry, externalAlarm);
+
+    if (!resetState.canReset) {
+
+      setMessage(resetState.blockedReason ?? 'Hälytysviiven nollaus ei ole mahdollista.');
+
+      return;
+
+    }
+
+    setBusy(true);
+
+    setMessage(null);
+
+    const { error: updateError } = await supabase
+
+      .from('vrf_devices')
+
+      .update({
+
+        settings: buildAlarmShutdownResetSettings(device.settings),
+
+        settings_updated_at: new Date().toISOString(),
+
+      })
+
+      .eq('id', device.id);
+
+    setBusy(false);
+
+    if (updateError) {
+
+      setMessage(updateError.message);
+
+      return;
+
+    }
+
+    setMessage('Hälytysviive nollattu — laite päivittää tilan hetken kuluttua.');
+
+    await load();
+
+  }
+
+
+
   async function saveSettings(e: FormEvent) {
 
     e.preventDefault();
@@ -531,6 +583,8 @@ export default function VrfMonitorDetailPage({ session }: Props) {
             firmwareVersion={device.firmware_version}
             permitDisabled={permitDisabled}
             onPermitChange={(next) => void setHeatPermit(next)}
+            onResetAlarmDelay={() => void resetAlarmDelay()}
+            alarmDelayResetBusy={busy}
           />
         </section>
 

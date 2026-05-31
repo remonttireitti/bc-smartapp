@@ -1,6 +1,7 @@
 import VrfToggleSwitch from './VrfToggleSwitch';
 import {
   formatRelativeTime,
+  vrfAlarmDelayResetState,
   vrfResolveDeviceActivity,
   vrfResolvePermitStatus,
   type VrfTelemetry,
@@ -20,6 +21,8 @@ type Props = {
   readOnly?: boolean;
   permitDisabled?: boolean;
   onPermitChange?: (next: boolean) => void;
+  onResetAlarmDelay?: () => void;
+  alarmDelayResetBusy?: boolean;
 };
 
 export default function VrfStatusPanel({
@@ -36,6 +39,8 @@ export default function VrfStatusPanel({
   readOnly = false,
   permitDisabled = false,
   onPermitChange,
+  onResetAlarmDelay,
+  alarmDelayResetBusy = false,
 }: Props) {
   const activity = vrfResolveDeviceActivity({
     telemetry,
@@ -53,6 +58,12 @@ export default function VrfStatusPanel({
     online,
     stale,
   });
+
+  const alarmDelayReset = vrfAlarmDelayResetState(telemetry, externalAlarm);
+  const showAlarmDelayReset =
+    !readOnly &&
+    onResetAlarmDelay &&
+    (telemetry?.status.alarm_shutdown_active ?? false);
 
   const toggleChecked = requestedEnabled ?? permit.actualOn ?? permit.isOn ?? false;
   const toggleDisabled = permitDisabled || readOnly || !onPermitChange;
@@ -73,6 +84,24 @@ export default function VrfStatusPanel({
           <span className="vrf-status-card-label">Tilatieto</span>
           <h2 className="vrf-status-headline">{activity.headline}</h2>
           {activity.detail && <p className="vrf-status-detail">{activity.detail}</p>}
+          {showAlarmDelayReset && (
+            <div className="vrf-status-delay-reset">
+              {alarmDelayReset.canReset ? (
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  disabled={alarmDelayResetBusy || stale || !online}
+                  onClick={onResetAlarmDelay}
+                >
+                  {alarmDelayResetBusy ? 'Nollataan…' : 'Nollaa hälytysviive'}
+                </button>
+              ) : (
+                alarmDelayReset.blockedReason && (
+                  <p className="vrf-status-detail muted">{alarmDelayReset.blockedReason}</p>
+                )
+              )}
+            </div>
+          )}
         </article>
 
         <article className={`vrf-status-card vrf-status-card--permit-${permit.tone}`}>
@@ -96,6 +125,9 @@ export default function VrfStatusPanel({
           </div>
           <p className={`vrf-status-permit-value vrf-status-permit-value--${permit.tone}`}>{permit.label}</p>
           {permit.reason && <p className="vrf-status-detail">{permit.reason}</p>}
+          {permit.requestedOn === true && permit.actualOn === false && permit.tone === 'blocked' && (
+            <p className="vrf-status-detail muted">RO1-rele pois — VRF-yksikkö voi silti olla valmiustilassa (DI4)</p>
+          )}
           {readOnly && permit.requestedOn != null && permit.actualOn != null && permit.requestedOn !== permit.actualOn && (
             <p className="vrf-status-detail muted">
               Pyydetty {permit.requestedOn ? 'päälle' : 'pois'} · RO1 {permit.actualOn ? 'päällä' : 'pois'}

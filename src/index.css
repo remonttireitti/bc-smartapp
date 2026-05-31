@@ -6027,6 +6027,10 @@ textarea {
   color: var(--text-muted);
 }
 
+.vrf-status-delay-reset {
+  margin-top: 0.65rem;
+}
+
 .vrf-status-permit-head {
   display: flex;
   align-items: flex-start;
