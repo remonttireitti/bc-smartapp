@@ -6349,16 +6349,25 @@ textarea {
 
 .temp-page-header {
   margin-bottom: 0;
+  padding: 1.15rem 1.35rem;
+  align-items: flex-start;
 }
 
 .temp-page-header--sticky {
   position: sticky;
   top: 0;
   z-index: 30;
-  background: color-mix(in srgb, var(--bg-page) 92%, transparent);
+  background: color-mix(in srgb, var(--bg-surface) 96%, var(--bg-page));
   backdrop-filter: blur(8px);
-  padding: 0.35rem 0 0.75rem;
-  margin: -0.35rem 0 0;
+}
+
+.temp-page-header-main {
+  min-width: 0;
+  flex: 1;
+}
+
+.temp-page-header-actions {
+  padding-top: 0.15rem;
 }
 
 .temp-breadcrumb {
