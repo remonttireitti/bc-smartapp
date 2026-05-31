@@ -22,9 +22,13 @@ export default function TempDeviceListCard({ device, to, onDelete, deleteDisable
               {online ? 'Online' : 'Offline'}
             </span>
           </div>
-          <div className="temp-device-card-temp" aria-label={`Lämpötila ${formatTempC(device.last_temp_c)}`}>
-            {formatTempC(device.last_temp_c)}
-          </div>
+          {online ? (
+            <div className="temp-device-card-temp" aria-label={`Lämpötila ${formatTempC(device.last_temp_c)}`}>
+              {formatTempC(device.last_temp_c)}
+            </div>
+          ) : (
+            <span className="temp-device-card-offline-label muted">Ei yhteyttä</span>
+          )}
         </div>
         <div className="temp-device-card-meta">
           <span>{formatRelativeTime(device.last_seen_at)}</span>

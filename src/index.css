@@ -6166,11 +6166,39 @@ textarea {
   align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
-  margin-bottom: 0.75rem;
+  margin: -0.15rem 0 1rem;
+  padding-bottom: 0.85rem;
+  border-bottom: 2px solid var(--bg-inset);
 }
 
 .temp-panel-head h2 {
   margin: 0;
+  padding: 0;
+  border: 0;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.temp-devices-panel {
+  padding: 1.25rem 1.35rem;
+}
+
+.temp-devices-count {
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+
+.temp-device-card-offline-label {
+  font-size: 0.9rem;
+  font-weight: 600;
+  white-space: nowrap;
+  align-self: center;
+}
+
+.temp-live-hero-offline-note {
+  margin: 0.35rem 0 0;
+  font-size: 0.9rem;
 }
 
 .temp-device-summary-badges {
@@ -6516,13 +6544,19 @@ textarea {
   width: 100%;
   border: 0;
   background: transparent;
-  padding: 1rem 1.25rem;
+  padding: 1.15rem 1.35rem;
   text-align: left;
   cursor: pointer;
 }
 
+.temp-admin-panel .collapsible-title {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
 .temp-admin-panel .collapsible-body {
-  padding: 0 1.25rem 1.25rem;
+  padding: 0 1.35rem 1.35rem;
 }
 
 .temp-admin-subtitle {

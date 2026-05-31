@@ -10,7 +10,6 @@ import { useProfile } from '../hooks/useProfile';
 import {
   TEMP_DEVICE_SELECT,
   generateDeviceKey,
-  ingestFunctionUrl,
   isTempDeviceOnline,
   type TempDevice,
 } from '../lib/tempMonitoring';
@@ -110,10 +109,6 @@ export default function TempMonitoringPage({ session }: Props) {
     await load();
   }
 
-  const ingestUrl = import.meta.env.VITE_SUPABASE_URL
-    ? ingestFunctionUrl(import.meta.env.VITE_SUPABASE_URL)
-    : '';
-
   return (
     <AppLayout session={session}>
       <div className="temp-monitoring-page page-stack">
@@ -189,8 +184,8 @@ export default function TempMonitoringPage({ session }: Props) {
         </section>
 
         <CollapsibleSection
-          title="WiFi-asennus asiakkaalla (AP)"
-          defaultOpen={devices.length === 0}
+          title="WiFi haku ja tallennus"
+          defaultOpen={false}
           variant="plain"
           className="panel temp-admin-panel"
         >
@@ -220,14 +215,6 @@ export default function TempMonitoringPage({ session }: Props) {
             </div>
           </form>
         </CollapsibleSection>
-
-        {ingestUrl && (
-          <CollapsibleSection title="Tekninen asetus" defaultOpen={false} variant="plain" className="panel temp-admin-panel">
-            <p className="muted temp-ingest-url">
-              Laitteen lähetysosoite: <code>{ingestUrl}</code>
-            </p>
-          </CollapsibleSection>
-        )}
       </div>
 
       <TempDeviceDeleteDialog

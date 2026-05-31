@@ -488,7 +488,12 @@ export default function TempMonitorDetailPage({ session }: Props) {
         <section className={`temp-live-hero panel ${heroClass}`}>
           <div className="temp-live-hero-main">
             <p className="temp-live-hero-label">{activeSession?.monitor_label ?? 'Lämpötila nyt'}</p>
-            <p className="temp-live-hero-temp">{formatTempC(device.last_temp_c)}</p>
+            <p className="temp-live-hero-temp">
+              {online ? formatTempC(device.last_temp_c) : '—'}
+            </p>
+            {!online && (
+              <p className="temp-live-hero-offline-note muted">Laite offline — lämpötilaa ei päivitetä</p>
+            )}
           </div>
           <div className="temp-live-hero-badges">
             <span className={`temp-status ${online ? 'online' : 'offline'}`}>
