@@ -47,9 +47,9 @@ export default function VrfWiringGuide() {
         ulkoisen jännitteen (+12 V = HIGH), ei raaka-GPIO-arvoa.
       </p>
       <p className="muted vrf-wiring-note">
-        <strong>RO1 / käyntilupa:</strong> Lämmitysrele (RO1) ohjaa vain VRF:n käyntilupaa — se ei saa katkaista DI-tulojen
-        COM- tai +12 V -kiskoa. Jos kaikki DI:t putoavat 0 V:hen samalla kun käyntilupa sammutetaan, COM/GND-kytkentä
-        on väärin tai signaali tulee releen läpi.
+        <strong>Ulk. ohjaus pois:</strong> Kun RO1 katkaisee käyntiluvan (manuaalisesti tai ulkolämpörajasta), FDC400KXZE2 voi
+        ottaa status-ulostulot (DI2/DI3/DI4) virrattomiksi. Tämä on normaalia — sovellus ei tulkitse DI-lukuja hälytyksenä
+        tai käyntitietona, vaan näyttää oletustilan: kompressori seis, ei hälytystä, käyntitieto pois.
       </p>
       <p className="muted vrf-wiring-note">
         <strong>Tärkeää DI3:lle:</strong> CnT-5 / Inspection (Error) -ulostulo antaa +12 V vain vian sattuessa. Jos DI3

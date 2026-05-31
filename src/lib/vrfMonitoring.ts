@@ -569,6 +569,50 @@ export function formatVrfDiRaw(raw: number | null | undefined): string {
   return raw ? 'HIGH (+12 V)' : 'LOW (0 V)';
 }
 
+export type VrfDiSuppressReason = 'permit_off' | 'outdoor_lock' | 'bus_open' | null;
+
+/** DI-lukemat eivät ole luotettavia kun ulk. ohjaus on pois ja signaalikisko on kuollut. */
+export function vrfDiSuppressedReason(telemetry: VrfTelemetry | null): VrfDiSuppressReason {
+  if (!telemetry) return null;
+  const bus = vrfDiBusEnergized(telemetry.digital_inputs, telemetry.diagnostics);
+  if (bus !== false) return null;
+  if (telemetry.status.outdoor_safety_lock_active) return 'outdoor_lock';
+  if (telemetry.control.permit_requested_enabled === false) return 'permit_off';
+  return 'bus_open';
+}
+
+export function vrfDiSignalsTrusted(telemetry: VrfTelemetry | null): boolean {
+  return vrfDiSuppressedReason(telemetry) === null;
+}
+
+/** Näytettävä DI-tila — ohjaus pois → oletus: kompressori seis, ei hälytystä, käyntitieto pois. */
+export function vrfPresentDigitalInputs(telemetry: VrfTelemetry | null): VrfDigitalInputs | null {
+  const raw = telemetry?.digital_inputs;
+  if (!raw) return null;
+  const reason = vrfDiSuppressedReason(telemetry);
+  if (reason === 'permit_off' || reason === 'outdoor_lock') {
+    return {
+      ...raw,
+      di2_compressor_running: false,
+      di4_unit_ready: false,
+      di3_alarm: false,
+      di_bus_energized: false,
+    };
+  }
+  return raw;
+}
+
+export function formatVrfDiRawDisplay(
+  raw: number | null | undefined,
+  telemetry: VrfTelemetry | null,
+): string {
+  const reason = vrfDiSuppressedReason(telemetry);
+  if (reason === 'permit_off' || reason === 'outdoor_lock') {
+    return 'Ei aktiivinen (ohjaus pois)';
+  }
+  return formatVrfDiRaw(raw);
+}
+
 /** FDC400KXZE2 / KX-sarjan ulostulot vs nykyinen DI-kytkentä. */
 export function vrfDiWiringHint(
   inputs: VrfDigitalInputs | null,
@@ -578,6 +622,13 @@ export function vrfDiWiringHint(
   if (!inputs) return null;
 
   const bus = vrfDiBusEnergized(inputs, telemetry?.diagnostics);
+  const suppressReason = vrfDiSuppressedReason(telemetry ?? null);
+  if (suppressReason === 'permit_off') {
+    return 'Käyntilupa pois — VRF voi ottaa status-lähdöt virrattomiksi. Oletus: kompressori seis, ei hälytystä, käyntitieto pois. DI-jännite ei ole luotettava.';
+  }
+  if (suppressReason === 'outdoor_lock') {
+    return 'Ulkolämpöraja katkaisi käyntiluvan (sama kuin manuaalinen sammutus). DI-signaalit eivät ole luotettavia ennen kuin ohjaus palaa.';
+  }
   if (bus === false) {
     const relayOn = readBoolean(telemetry?.diagnostics?.heat_relay_energized);
     const permitOff = telemetry?.control.permit_requested_enabled === false;

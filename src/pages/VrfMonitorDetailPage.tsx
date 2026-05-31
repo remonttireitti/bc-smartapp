@@ -44,6 +44,7 @@ import {
   buildVrfSettingsForSave,
   defaultVrfSettings,
   vrfDiWiringHint,
+  vrfPresentDigitalInputs,
   vrfDiInvertedFromTrigger,
   vrfDiLogicDescription,
   vrfDiTriggerDefault,
@@ -654,7 +655,7 @@ export default function VrfMonitorDetailPage({ session }: Props) {
 
               temperatures={telemetry?.temperatures ?? {}}
 
-              digitalInputs={telemetry?.digital_inputs ?? null}
+              digitalInputs={vrfPresentDigitalInputs(telemetry)}
 
               compressorRunning={compressorRunning}
 

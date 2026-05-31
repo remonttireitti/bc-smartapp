@@ -3,9 +3,10 @@ import { IconHelp } from '../icons';
 import VrfToggleSwitch from './VrfToggleSwitch';
 import {
   formatRelativeTime,
-  formatVrfDiRaw,
+  formatVrfDiRawDisplay,
   vrfAlarmDelayResetState,
-  vrfDiBusEnergized,
+  vrfDiSuppressedReason,
+  vrfPresentDigitalInputs,
   vrfResolveDeviceActivity,
   vrfResolvePermitStatus,
   type VrfTelemetry,
@@ -79,8 +80,8 @@ export default function VrfStatusPanel({
 
   const toggleChecked = requestedEnabled ?? permit.actualOn ?? permit.isOn ?? false;
   const toggleDisabled = permitDisabled || readOnly || !onPermitChange;
-  const di = telemetry?.digital_inputs;
-  const diBusEnergized = vrfDiBusEnergized(di ?? null, telemetry?.diagnostics);
+  const di = vrfPresentDigitalInputs(telemetry);
+  const diSuppressReason = vrfDiSuppressedReason(telemetry);
 
   useEffect(() => {
     if (!diOpen) return;
@@ -123,28 +124,32 @@ export default function VrfStatusPanel({
             {diOpen && (
               <div id={diPopoverId} className="vrf-di-popover" role="dialog" aria-label="Digitaalitulot">
                 <p className="vrf-di-popover-title">Digitaalitulot (FDC400KXZE2)</p>
-                {diBusEnergized === false && (
+                {diSuppressReason && (
                   <p className="vrf-di-popover-hint">
-                    Signaalikisko ei aktiivinen — jännite-arvot voivat näyttää 0 V vaikka mittarilla näkyisi +12 V.
+                    {diSuppressReason === 'outdoor_lock'
+                      ? 'Ulkolämpöraja — status-DI:t eivät ole luotettavia.'
+                      : diSuppressReason === 'permit_off'
+                        ? 'Käyntilupa pois — status-DI:t eivät ole luotettavia.'
+                        : 'Signaalikisko ei aktiivinen — jännite-arvot voivat näyttää 0 V vaikka mittarilla näkyisi +12 V.'}
                   </p>
                 )}
                 <ul className="vrf-di-status-list">
                   <li>
                     <strong>DI4 Käyntitieto</strong>
                     <span>
-                      {di.di4_unit_ready ? 'Päällä' : 'Pois'} · {formatVrfDiRaw(di.di4_raw)}
+                      {di.di4_unit_ready ? 'Päällä' : 'Pois'} · {formatVrfDiRawDisplay(di.di4_raw, telemetry)}
                     </span>
                   </li>
                   <li>
                     <strong>DI2 Kompressori</strong>
                     <span>
-                      {di.di2_compressor_running ? 'Käy' : 'Pois'} · {formatVrfDiRaw(di.di2_raw)}
+                      {di.di2_compressor_running ? 'Käy' : 'Pois'} · {formatVrfDiRawDisplay(di.di2_raw, telemetry)}
                     </span>
                   </li>
                   <li>
                     <strong>DI3 Hälytys</strong>
                     <span>
-                      {di.di3_alarm ? 'Hälytys' : 'Normaali'} · {formatVrfDiRaw(di.di3_raw)}
+                      {di.di3_alarm ? 'Hälytys' : 'Normaali'} · {formatVrfDiRawDisplay(di.di3_raw, telemetry)}
                     </span>
                   </li>
                 </ul>
