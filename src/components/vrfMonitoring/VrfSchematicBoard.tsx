@@ -155,7 +155,7 @@ export default function VrfSchematicBoard({
           'DI3',
           Boolean(digitalInputs?.di3_alarm),
           'Hälytys',
-          'OK',
+          'Normaali',
         )}
       </div>
       {interactive && <p className="muted vrf-hp-hint">Paina lämpötilaa tai DI-merkkiä avataksesi trendin.</p>}

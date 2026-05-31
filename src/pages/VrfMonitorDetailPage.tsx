@@ -43,6 +43,8 @@ import {
   buildAlarmShutdownResetSettings,
   defaultVrfSettings,
   vrfDiInvertedFromTrigger,
+  vrfDiLogicDescription,
+  vrfDiTriggerDefault,
   vrfDiTriggerFromInverted,
   inferDefrostLikely,
 
@@ -885,35 +887,34 @@ export default function VrfMonitorDetailPage({ session }: Props) {
               <fieldset className="vrf-settings-fieldset">
                 <legend>Digitaalitulot (DI)</legend>
                 <p className="muted vrf-settings-fieldset-lead">
-                  Normaali = signaali aktivoituu korkealla (+12 V, PNP). Käänteinen = aktivoituu matalalla (0 V).
+                  DI2 ja DI4: +12 V = päällä (PNP). DI3 hälytys: +12 V = normaali, hälytys kun signaali
+                  putoaa (INV).
                 </p>
                 {(
                   [
                     ['di2_trigger_raw_level', 'DI2 — Kompressori'] as const,
                     ['di3_trigger_raw_level', 'DI3 — Hälytys'] as const,
-                    ['di4_trigger_raw_level', 'DI4 — Laite päällä / valmius'] as const,
+                    ['di4_trigger_raw_level', 'DI4 — Käyntitieto / laite päällä'] as const,
                   ] as const
-                ).map(([key, label]) => (
+                ).map(([key, label]) => {
+                  const inverted = vrfDiInvertedFromTrigger(
+                    settingsForm[key],
+                    vrfDiTriggerDefault(key),
+                  );
+                  return (
                   <div key={key} className="vrf-settings-toggle-row">
                     <div>
                       <strong>{label}</strong>
-                      <p className="muted">
-                        {vrfDiInvertedFromTrigger(settingsForm[key], settingsForm.alarm_input_trigger_raw_level)
-                          ? 'Käänteinen — ON kun tulo on matalalla'
-                          : 'Normaali — ON kun tulo on korkealla (+12 V)'}
-                      </p>
+                      <p className="muted">{vrfDiLogicDescription(key, inverted)}</p>
                     </div>
                     <VrfToggleSwitch
-                      checked={vrfDiInvertedFromTrigger(
-                        settingsForm[key],
-                        settingsForm.alarm_input_trigger_raw_level,
-                      )}
+                      checked={inverted}
                       labelOn="INV"
                       labelOff="PNP"
                       ariaLabel={`${label} — käänteinen logiikka`}
-                      onChange={(inverted) =>
+                      onChange={(nextInverted) =>
                         setSettingsForm((s) => {
-                          const nextLevel = vrfDiTriggerFromInverted(inverted);
+                          const nextLevel = vrfDiTriggerFromInverted(nextInverted);
                           const patch = { [key]: nextLevel } as Partial<typeof s>;
                           if (key === 'di3_trigger_raw_level') {
                             patch.alarm_input_trigger_raw_level = nextLevel;
@@ -923,7 +924,8 @@ export default function VrfMonitorDetailPage({ session }: Props) {
                       }
                     />
                   </div>
-                ))}
+                  );
+                })}
               </fieldset>
 
               <fieldset className="vrf-settings-fieldset">

@@ -239,7 +239,7 @@ export const VRF_BINARY_LANES: {
   { key: 'compressor', label: 'Kompressori', color: '#8b5cf6', glow: 'rgba(139, 92, 246, 0.45)' },
   { key: 'defrost', label: 'Sulatus', color: '#14b8a6', glow: 'rgba(20, 184, 166, 0.45)' },
   { key: 'alarm', label: 'Hälytys DI3', color: '#f43f5e', glow: 'rgba(244, 63, 94, 0.45)' },
-  { key: 'unit_ready', label: 'Laite DI4', color: '#22c55e', glow: 'rgba(34, 197, 94, 0.45)' },
+  { key: 'unit_ready', label: 'Käyntitieto DI4', color: '#22c55e', glow: 'rgba(34, 197, 94, 0.45)' },
 ];
 
 /** PNP (+12 V = ON): trigger 1. Käänteinen: trigger 0. */
@@ -250,6 +250,27 @@ export function vrfDiTriggerFromInverted(inverted: boolean): 0 | 1 {
 export function vrfDiInvertedFromTrigger(level: number | null | undefined, fallback = 1): boolean {
   const v = level ?? fallback;
   return v === 0;
+}
+
+export function vrfDiTriggerDefault(
+  key: 'di2_trigger_raw_level' | 'di3_trigger_raw_level' | 'di4_trigger_raw_level',
+): 0 | 1 {
+  return key === 'di3_trigger_raw_level' ? 0 : 1;
+}
+
+/** Selite DI-asetuksille: VRF +12 V PNP -kytkentä. */
+export function vrfDiLogicDescription(
+  key: 'di2_trigger_raw_level' | 'di3_trigger_raw_level' | 'di4_trigger_raw_level',
+  inverted: boolean,
+): string {
+  if (key === 'di3_trigger_raw_level') {
+    return inverted
+      ? '+12 V tulossa = normaali (ei hälytystä). Hälytys kun signaali putoaa (0 V).'
+      : '+12 V tulossa = hälytys aktiivinen (käänteinen logiikka — ei suositella).';
+  }
+  return inverted
+    ? 'Päällä kun tulo on matalalla (0 V).'
+    : 'Päällä kun tulo on korkealla (+12 V, PNP).';
 }
 
 export function defaultVrfSettings(): VrfDeviceSettings {
@@ -313,18 +334,12 @@ export function parseVrfSettings(raw: unknown): VrfDeviceSettings {
       readNumber(row.compressor_alarm_enable_after_s) ?? base.compressor_alarm_enable_after_s,
     alarm_input_trigger_raw_level:
       readNumber(row.alarm_input_trigger_raw_level) ?? base.alarm_input_trigger_raw_level,
-    di2_trigger_raw_level:
-      readNumber(row.di2_trigger_raw_level) ??
-      readNumber(row.alarm_input_trigger_raw_level) ??
-      base.di2_trigger_raw_level,
+    di2_trigger_raw_level: readNumber(row.di2_trigger_raw_level) ?? base.di2_trigger_raw_level,
     di3_trigger_raw_level:
       readNumber(row.di3_trigger_raw_level) ??
       readNumber(row.alarm_input_trigger_raw_level) ??
       base.di3_trigger_raw_level,
-    di4_trigger_raw_level:
-      readNumber(row.di4_trigger_raw_level) ??
-      readNumber(row.alarm_input_trigger_raw_level) ??
-      base.di4_trigger_raw_level,
+    di4_trigger_raw_level: readNumber(row.di4_trigger_raw_level) ?? base.di4_trigger_raw_level,
     notify_on_delay_s: readNumber(row.notify_on_delay_s) ?? base.notify_on_delay_s,
     notify_off_delay_s: readNumber(row.notify_off_delay_s) ?? base.notify_off_delay_s,
     notify_min_interval_s: readNumber(row.notify_min_interval_s) ?? base.notify_min_interval_s,

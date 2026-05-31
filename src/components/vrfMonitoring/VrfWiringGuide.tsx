@@ -17,7 +17,7 @@ export default function VrfWiringGuide() {
         </p>
         <p>
           VRF antaa ulos <strong>12 V + signaalijohdin</strong> ja <strong>GND (0 V)</strong>.
-          Kytkentä (PNP, suositus kun signaali ON = +12 V):
+          Kytkentä (PNP, suositus):
         </p>
         <ul className="vrf-wiring-steps">
           <li>
@@ -25,20 +25,21 @@ export default function VrfWiringGuide() {
             (sama referenssi; voit hyppylankalla COM–DGND tai yksi GND-jako).
           </li>
           <li>
-            <strong>VRF +12 V status</strong> (kun tila ON) → vastaava <strong>DIx</strong>-ruuvi
-            (DI4 / DI2 / DI3).
+            <strong>VRF +12 V status</strong> (kun tila ON) → <strong>DI4</strong> (käyntitieto) ja{' '}
+            <strong>DI2</strong> (kompressori).
           </li>
           <li>
-            Kun signaali OFF: DI-johdin on 0 V → firmware lukee <strong>OFF</strong>.
+            <strong>DI3 hälytys</strong>: kytke sama +12 V -signaali — kun jännite on mukana, tila on{' '}
+            <strong>normaali</strong>. Hälytys rekisteröidään kun signaali putoaa (0 V).
           </li>
         </ul>
 
         <div className="vrf-wiring-diagram">
           <pre>{`VRF-ohjain                          Waveshare DI-liitin
 ──────────                          ────────────────────
-Status +12 V (ON)  ───────────────►  DI4  (käyntitieto)
-Kompressori +12 V  ───────────────►  DI2
-Hälytys +12 V      ───────────────►  DI3
+Käyntitieto +12 V  ───────────────►  DI4  (laite päällä)
+Kompressori +12 V  ───────────────►  DI2  (käy)
+Hälytys / OK +12 V ───────────────►  DI3  (normaali; 0 V = hälytys)
 GND (0 V)          ───────────────►  COM
                    └──────────────►  DGND`}</pre>
         </div>
@@ -69,19 +70,19 @@ GND (0 V)          ───────────────►  COM
             <tr>
               <td><strong>DI4</strong></td>
               <td>GPIO7</td>
-              <td>Laite päällä / valmiustila (+12 V)</td>
+              <td>Käyntitieto / laite päällä (+12 V = ON)</td>
               <td>VRF → monitori</td>
             </tr>
             <tr>
               <td><strong>DI2</strong></td>
               <td>GPIO5</td>
-              <td>Kompressori (+12 V)</td>
+              <td>Kompressori (+12 V = käy)</td>
               <td>VRF → monitori</td>
             </tr>
             <tr>
               <td><strong>DI3</strong></td>
               <td>GPIO6</td>
-              <td>Hälytys (+12 V)</td>
+              <td>Hälytys (+12 V = normaali, 0 V = hälytys)</td>
               <td>VRF → monitori</td>
             </tr>
             <tr>
@@ -93,11 +94,9 @@ GND (0 V)          ───────────────►  COM
           </tbody>
         </table>
 
-        <h3>Jos VRF antaa NPN-signaalin (aktivoituu GND:hen)</h3>
         <p className="muted">
-          Harvinaisempi: kytke <strong>COM → +12 V</strong> (VRF:n tai jaetun 12 V:n plus) ja signaali
-          DIx:ään. Tarkista VRF-dokumentaatiosta ulostulotyyppi. Nykyinen firmware odottaa PNP-tyyliä
-          (12 V DI-johdossa = ON).
+          DI3 käyttää firmwaressa käänteistä (INV) logiikkaa. DI2 ja DI4 käyttävät PNP-logiikkaa (+12 V =
+          päällä). Asetukset-välilehdeltä voi tarkistaa INV/PNP-kytkimet.
         </p>
 
         <h3>RO1-rele (käyntilupa)</h3>
