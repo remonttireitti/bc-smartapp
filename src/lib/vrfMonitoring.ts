@@ -174,12 +174,13 @@ export const VRF_BINARY_LANES: {
   key: VrfBinaryLaneKey;
   label: string;
   color: string;
+  glow: string;
 }[] = [
-  { key: 'control', label: 'Käyntilupa', color: '#4f8cff' },
-  { key: 'compressor', label: 'Kompressori', color: '#a855f7' },
-  { key: 'defrost', label: 'Sulatus (arvio)', color: '#38bdf8' },
-  { key: 'alarm', label: 'Hälytys DI3', color: '#ef4444' },
-  { key: 'unit_ready', label: 'Laite DI4', color: '#22c55e' },
+  { key: 'control', label: 'Käyntilupa', color: '#3b82f6', glow: 'rgba(59, 130, 246, 0.45)' },
+  { key: 'compressor', label: 'Kompressori', color: '#8b5cf6', glow: 'rgba(139, 92, 246, 0.45)' },
+  { key: 'defrost', label: 'Sulatus', color: '#14b8a6', glow: 'rgba(20, 184, 166, 0.45)' },
+  { key: 'alarm', label: 'Hälytys DI3', color: '#f43f5e', glow: 'rgba(244, 63, 94, 0.45)' },
+  { key: 'unit_ready', label: 'Laite DI4', color: '#22c55e', glow: 'rgba(34, 197, 94, 0.45)' },
 ];
 
 export function defaultVrfSettings(): VrfDeviceSettings {
@@ -452,6 +453,40 @@ export function buildBinaryLaneFlags(
         return false;
     }
   });
+}
+
+export type BinaryLaneSegment = { startPct: number; widthPct: number };
+
+/** ON-jaksot prosentteina aikavälillä (Gantt-tyylinen tilatrendi). */
+export function buildBinaryLaneSegments(
+  readings: VrfReading[],
+  flags: boolean[],
+  minTime: number,
+  span: number,
+): BinaryLaneSegment[] {
+  if (readings.length === 0 || span <= 0) return [];
+  const segments: BinaryLaneSegment[] = [];
+  let startT: number | null = null;
+
+  readings.forEach((reading, i) => {
+    const on = flags[i];
+    const t = new Date(reading.recorded_at).getTime();
+    if (on && startT == null) startT = t;
+    const isLast = i === readings.length - 1;
+    if ((!on || isLast) && startT != null) {
+      const endT = on && isLast ? t : new Date(readings[i - 1].recorded_at).getTime();
+      const startPct = ((startT - minTime) / span) * 100;
+      const endPct = ((endT - minTime) / span) * 100;
+      const minWidth = Math.min(1.2, (100 / readings.length) * 0.85);
+      segments.push({
+        startPct: Math.max(0, startPct),
+        widthPct: Math.max(minWidth, endPct - startPct + minWidth * 0.35),
+      });
+      startT = null;
+    }
+  });
+
+  return segments;
 }
 
 export function trendReadingLimit(hours: VrfTrendHours): number {

@@ -6543,6 +6543,200 @@ button.vrf-toggle:not(:disabled) {
   overflow-x: auto;
 }
 
+/* Gantt-tyylinen tilatrendi */
+.vrf-status-timeline {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.vrf-status-timeline-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.vrf-status-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  border: 1px solid var(--border);
+  background: var(--bg-surface);
+  border-radius: 999px;
+  padding: 0.35rem 0.7rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+}
+
+.vrf-status-chip.active {
+  color: var(--text);
+  border-color: var(--chip-color, var(--border-strong));
+  background: color-mix(in srgb, var(--chip-color, #3b82f6) 14%, var(--bg-surface));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--chip-color, #3b82f6) 25%, transparent);
+}
+
+.vrf-status-chip-dot {
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.vrf-status-timeline-body {
+  position: relative;
+  padding: 0.35rem 0 0;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: linear-gradient(180deg, var(--bg-muted) 0%, var(--bg-surface) 100%);
+  overflow: hidden;
+}
+
+.vrf-status-timeline-axis-label {
+  margin: 0;
+  padding: 0.55rem 0.85rem 0.25rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.vrf-status-timeline-grid {
+  position: relative;
+  display: grid;
+  gap: 0;
+  padding: 0.25rem 0.65rem 0.35rem 0;
+}
+
+.vrf-status-timeline-matrix {
+  display: grid;
+  grid-template-columns: minmax(4.75rem, 6.75rem) minmax(0, 1fr);
+  gap: 0.55rem;
+  padding: 0.15rem 0.65rem 0.35rem;
+  align-items: stretch;
+}
+
+.vrf-status-timeline-label-col {
+  display: grid;
+  gap: 0;
+  align-content: stretch;
+}
+
+.vrf-status-timeline-track-col {
+  position: relative;
+  display: grid;
+  gap: 0;
+  min-width: 0;
+}
+
+.vrf-status-timeline-vlines {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.vrf-status-timeline-vline {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: color-mix(in srgb, var(--border-strong) 65%, transparent);
+}
+
+.vrf-status-timeline-row {
+  position: relative;
+  z-index: 1;
+  padding: 0.35rem 0;
+  border-radius: 8px;
+}
+
+.vrf-status-timeline-row:nth-child(even) {
+  background: color-mix(in srgb, var(--bg-surface) 55%, transparent);
+}
+
+.vrf-status-timeline-label {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  min-height: 2rem;
+  padding: 0.35rem 0.15rem 0.35rem 0;
+  font-size: 0.78rem;
+  font-weight: 700;
+  line-height: 1.2;
+  text-align: right;
+}
+
+.vrf-status-timeline-track {
+  position: relative;
+  height: 2rem;
+  min-width: 0;
+}
+
+.vrf-status-timeline-rail {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 2px;
+  transform: translateY(-50%);
+  background: color-mix(in srgb, var(--border-strong) 80%, transparent);
+  border-radius: 999px;
+}
+
+.vrf-status-timeline-block {
+  position: absolute;
+  top: 50%;
+  height: 1.15rem;
+  min-width: 3px;
+  transform: translateY(-50%);
+  border-radius: 4px;
+  z-index: 1;
+}
+
+.vrf-status-timeline-times {
+  display: grid;
+  grid-template-columns: minmax(4.75rem, 6.75rem) 1fr 1fr 1fr;
+  gap: 0.25rem;
+  padding: 0.35rem 0.65rem 0.55rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  border-top: 1px solid var(--border);
+  background: color-mix(in srgb, var(--bg-surface) 90%, var(--bg-muted));
+}
+
+.vrf-status-timeline-times span:first-child {
+  grid-column: 2;
+  text-align: left;
+}
+
+.vrf-status-timeline-times span:nth-child(2) {
+  grid-column: 3;
+  text-align: center;
+}
+
+.vrf-status-timeline-times span:last-child {
+  grid-column: 4;
+  text-align: right;
+}
+
+.vrf-chart-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  margin: 0 -0.15rem;
+  padding: 0 0.15rem;
+}
+
+.vrf-chart-scroll svg {
+  display: block;
+  width: 100%;
+  min-width: 280px;
+  height: auto;
+}
+
 .vrf-hp-hotspot--clickable,
 .vrf-hp-di-badge--clickable {
   cursor: pointer;
@@ -7527,6 +7721,114 @@ button.vrf-toggle:not(:disabled) {
 
   .vrf-hp-hotspot-value {
     font-size: 0.95rem;
+  }
+
+  .vrf-hp-di-badge {
+    font-size: 0.58rem;
+    padding: 0.28rem 0.4rem;
+  }
+
+  .vrf-hp-hotspot--clickable,
+  .vrf-hp-di-badge--clickable {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  .vrf-trend-dialog,
+  .vrf-report-dialog,
+  .vrf-share-dialog,
+  .leave-draft-dialog.vrf-trend-dialog {
+    width: calc(100vw - 1rem);
+    max-width: none;
+    max-height: calc(100dvh - 1rem);
+    margin: 0.5rem;
+    border-radius: 14px;
+  }
+
+  .leave-draft-overlay {
+    padding: 0;
+    align-items: flex-end;
+  }
+
+  .vrf-status-timeline-matrix {
+    grid-template-columns: minmax(3.6rem, 4.5rem) minmax(0, 1fr);
+    gap: 0.35rem;
+    padding: 0.15rem 0.45rem 0.25rem;
+  }
+
+  .vrf-status-timeline-label {
+    font-size: 0.68rem;
+    min-height: 2.35rem;
+  }
+
+  .vrf-status-timeline-track {
+    height: 2.35rem;
+  }
+
+  .vrf-status-timeline-block {
+    height: 1.35rem;
+  }
+
+  .vrf-status-chip {
+    font-size: 0.76rem;
+    padding: 0.4rem 0.6rem;
+    min-height: 36px;
+  }
+
+  .vrf-status-timeline-times {
+    grid-template-columns: minmax(3.6rem, 4.5rem) 1fr 1fr 1fr;
+    font-size: 0.66rem;
+    padding: 0.35rem 0.45rem 0.5rem;
+  }
+
+  .vrf-reader-head {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .vrf-reader-head .btn {
+    width: 100%;
+    min-height: 44px;
+  }
+
+  .vrf-reader-status-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .vrf-share-item {
+    flex-direction: column;
+  }
+
+  .vrf-share-item-actions {
+    width: 100%;
+  }
+
+  .vrf-share-item-actions .btn {
+    flex: 1;
+    min-height: 44px;
+  }
+
+  .temp-page-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.75rem;
+    padding: 1rem;
+  }
+
+  .temp-page-header-actions {
+    width: 100%;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .temp-page-header-actions .btn,
+  .temp-page-header-actions .icon-button {
+    min-height: 44px;
+  }
+
+  .monitor-reader-public-main {
+    padding: 0.65rem;
   }
 
   .grid {
