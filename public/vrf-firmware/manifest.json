@@ -1,5 +1,5 @@
 {
-  "version": "1.1.8",
+  "version": "1.1.9",
   "url": "https://bc-smartapp.vercel.app/vrf-firmware/firmware.bin",
-  "notes": "Force alarm delay reset, DI raw telemetry for FDC400 wiring diagnosis"
+  "notes": "Fix OTA nonce int32 overflow, longer HTTPS timeout, OTA error telemetry"
 }

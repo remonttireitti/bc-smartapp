@@ -570,6 +570,11 @@ export function vrfDiWiringHint(
   return null;
 }
 
+/** Nonce that fits ESP32 int32 JSON parsing (epoch seconds, not Date.now() ms). */
+export function vrfSettingsNonce(): number {
+  return Math.floor(Date.now() / 1000);
+}
+
 export function buildAlarmShutdownResetSettings(
   current: VrfDeviceSettings | Record<string, unknown> | null | undefined,
   options?: { force?: boolean },
@@ -580,7 +585,21 @@ export function buildAlarmShutdownResetSettings(
       : {};
   return {
     ...base,
-    alarm_shutdown_reset: { nonce: Date.now(), force: options?.force === true },
+    alarm_shutdown_reset: { nonce: vrfSettingsNonce(), force: options?.force === true },
+  };
+}
+
+export function buildOtaRequestSettings(
+  current: VrfDeviceSettings | Record<string, unknown> | null | undefined,
+  url = 'https://bc-smartapp.vercel.app/vrf-firmware/firmware.bin',
+): Record<string, unknown> {
+  const base =
+    current && typeof current === 'object' && !Array.isArray(current)
+      ? { ...(current as Record<string, unknown>) }
+      : {};
+  return {
+    ...base,
+    ota_request: { nonce: vrfSettingsNonce(), url },
   };
 }
 
