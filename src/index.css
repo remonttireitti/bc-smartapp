@@ -5428,6 +5428,10 @@ textarea {
   font-size: 0.9rem;
 }
 
+.inventory-scan-actions {
+  flex-wrap: wrap;
+}
+
 .inventory-bottle-detail-dialog {
   width: min(100%, 34rem);
 }
