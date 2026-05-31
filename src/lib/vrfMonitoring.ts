@@ -561,6 +561,14 @@ export function vrfDiWiringHint(
     settings?.di3_trigger_raw_level ?? settings?.alarm_input_trigger_raw_level,
     0,
   );
+  const allHigh =
+    inputs.di2_raw === 1 && inputs.di3_raw === 1 && inputs.di4_raw === 1;
+  if (allHigh && !di3Inverted && inputs.di3_alarm) {
+    return 'Kaikki DI-tulot +12 V ja DI3 on PNP-asetuksella → hälytys luetaan väärin. Vaihda Asetuksista DI3 → INV (+12 V = normaali).';
+  }
+  if (allHigh && di3Inverted && inputs.di2_compressor_running) {
+    return 'Kaikki DI-tulot +12 V yhtä aikaa — tarkista ettei DI2/DI3/DI4 johda samaan VRF-ulostuloon.';
+  }
   if (inputs.di3_alarm && inputs.di3_raw === 0 && di3Inverted) {
     return 'DI3 lukee jatkuvasti 0 V (INV = hälytys). Jos kytketty CnT-5 / Error-ulostuloon, vaihda DI3-asetus PNP:ksi — error antaa +12 V vain vian sattuessa.';
   }
