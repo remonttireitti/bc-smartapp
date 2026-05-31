@@ -43,6 +43,10 @@ export default function VrfWiringGuide() {
         </tbody>
       </table>
       <p className="muted vrf-wiring-note">
+        Waveshare-optot: +12 V liitännässä → GPIO LOW. Sovellus näyttää <strong>di*_raw</strong>-kentissä
+        ulkoisen jännitteen (+12 V = HIGH), ei raaka-GPIO-arvoa.
+      </p>
+      <p className="muted vrf-wiring-note">
         <strong>Tärkeää DI3:lle:</strong> CnT-5 / Inspection (Error) -ulostulo antaa +12 V vain vian sattuessa. Jos DI3
         on kytketty siihen, vaihda Asetukset-välilehdellä DI3 → <strong>PNP</strong>. Nykyinen INV-logiikka sopii
         signaaliin joka on +12 V normaalisti ja putoaa 0 V:hun hälytyksessä.
