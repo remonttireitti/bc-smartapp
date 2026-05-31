@@ -317,46 +317,6 @@ export default function VrfReportDialog({
 
             <legend>Aikaväli</legend>
 
-            <div className="vrf-report-period-mode">
-
-              <label className="vrf-report-radio">
-
-                <input
-
-                  type="radio"
-
-                  name="vrf-period-mode"
-
-                  checked={periodMode === 'preset'}
-
-                  onChange={() => setPeriodMode('preset')}
-
-                />
-
-                Valmiit välit
-
-              </label>
-
-              <label className="vrf-report-radio">
-
-                <input
-
-                  type="radio"
-
-                  name="vrf-period-mode"
-
-                  checked={periodMode === 'custom'}
-
-                  onChange={() => setPeriodMode('custom')}
-
-                />
-
-                Mukautettu
-
-              </label>
-
-            </div>
-
             {periodMode === 'preset' ? (
 
               <div className="vrf-trend-range" role="group" aria-label="Raportin aikaväli">
@@ -428,6 +388,20 @@ export default function VrfReportDialog({
               </div>
 
             )}
+
+            <ToggleSwitch
+
+              className="vrf-report-custom-period-toggle"
+
+              checked={periodMode === 'custom'}
+
+              disabled={loading}
+
+              onChange={(checked) => setPeriodMode(checked ? 'custom' : 'preset')}
+
+              label="Valitse omavalinnainen aikaväli"
+
+            />
 
           </fieldset>
 

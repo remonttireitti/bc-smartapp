@@ -6990,17 +6990,12 @@ button.vrf-toggle:not(:disabled) {
   margin: 0;
 }
 
-.vrf-report-period-mode {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 1rem;
-  margin-bottom: 0.75rem;
-}
-
-.vrf-report-radio {
-  display: inline-flex;
+.vrf-report-custom-period-toggle {
+  margin-top: 0.85rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border);
+  width: 100%;
   align-items: center;
-  gap: 0.4rem;
 }
 
 .vrf-report-series-grid {
