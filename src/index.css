@@ -6237,12 +6237,41 @@ button.vrf-toggle:not(:disabled) {
   padding-bottom: 1px;
 }
 
-.vrf-hp-hotspot--sky { left: 89%; top: 43%; }
-.vrf-hp-hotspot--tent { left: 50%; top: 52%; max-width: 9.5rem; transform: translateX(-50%); }
-.vrf-hp-hotspot--coil { left: 70%; top: 43%; }
-.vrf-hp-hotspot--supply { left: 15%; top: 76%; }
-.vrf-hp-hotspot--return { left: 15%; top: 10%; }
-.vrf-hp-hotspot--hotgas { left: 50%; top: 36%; max-width: 9.5rem; transform: translateX(-50%); }
+.vrf-hp-hotspot--sky {
+  left: 89%;
+  top: 43%;
+  transform: translateX(-100%);
+}
+
+.vrf-hp-hotspot--tent {
+  left: 50%;
+  top: 52%;
+  max-width: 9.5rem;
+  transform: translateX(-50%);
+}
+
+.vrf-hp-hotspot--coil {
+  left: 70%;
+  top: 43%;
+  transform: translateX(-50%);
+}
+
+.vrf-hp-hotspot--supply {
+  left: 15%;
+  top: 76%;
+}
+
+.vrf-hp-hotspot--return {
+  left: 15%;
+  top: 10%;
+}
+
+.vrf-hp-hotspot--hotgas {
+  left: 50%;
+  top: 36%;
+  max-width: 9.5rem;
+  transform: translateX(-50%);
+}
 
 .vrf-hp-di-badge {
   position: absolute;

@@ -225,9 +225,9 @@ export default function VrfMonitorDetailPage({ session }: Props) {
               <div className="vrf-permit-copy">
                 <h2 className="vrf-permit-title">Käyntilupa</h2>
                 <p className="muted vrf-permit-desc">
-                  Sallii monitorin kytkeä lämmitysreleen päälle. <strong>ON</strong> = lämmitys sallittu,{' '}
-                  <strong>OFF</strong> = estetty. Tämä ei ole VRF-laitteen virta — DI1 kertoo laitteen
-                  päällä/valmiustilan.
+                  Sallii monitorin kytkeä <strong>RO1-lähdön</strong> (lämmitysrele) päälle. <strong>ON</strong> =
+                  lämmityslupa, <strong>OFF</strong> = estetty. RO1 on ohjaus ulospäin — erillinen DI4-luku
+                  kertoo VRF:n oman käyntitilan (12 V palaute).
                 </p>
                 {outdoorLock && (
                   <p className="temp-live-hero-offline-note muted">Ulkolämpötilaraja estää lämmityksen.</p>
@@ -296,11 +296,13 @@ export default function VrfMonitorDetailPage({ session }: Props) {
               <ul className="vrf-di-list">
                 <li>
                   <div>
-                    <strong>DI1 — Laite päällä / valmiustila</strong>
-                    <p className="muted">12 V = VRF-yksikkö käynnissä tai valmiustilassa</p>
+                    <strong>DI4 — Laite päällä / valmiustila</strong>
+                    <p className="muted">
+                      12 V palaute VRF:stä (lukutila). RO1 voi olla ON ja DI4 OFF esim. hälytyksen takia.
+                    </p>
                   </div>
                   <VrfDiStatusPill
-                    active={telemetry?.digital_inputs?.di1_unit_ready ?? null}
+                    active={telemetry?.digital_inputs?.di4_unit_ready ?? null}
                     stale={diStale}
                     labelOn="ON"
                     labelOff="OFF"

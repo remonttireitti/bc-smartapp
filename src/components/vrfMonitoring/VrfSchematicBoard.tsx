@@ -1,11 +1,11 @@
 import { formatTempC, type VrfDigitalInputs } from '../../lib/vrfMonitoring';
 
 const HOTSPOTS = [
-  { key: 'outdoor_c', label: 'Ulkoilma', className: 'hp-hotspot--sky' },
-  { key: 'outdoor_coil_c', label: 'Ulkoyks. kenno', className: 'hp-hotspot--coil' },
-  { key: 'refrigerant_supply_c', label: 'Kylmäaine meno', className: 'hp-hotspot--supply' },
-  { key: 'refrigerant_return_c', label: 'Kylmäaine paluu', className: 'hp-hotspot--return' },
-  { key: 'hot_gas_c', label: 'Kuumakaasu', className: 'hp-hotspot--hotgas' },
+  { key: 'outdoor_c', label: 'Ulkoilma', className: 'vrf-hp-hotspot--sky' },
+  { key: 'outdoor_coil_c', label: 'Ulkoyks. kenno', className: 'vrf-hp-hotspot--coil' },
+  { key: 'refrigerant_supply_c', label: 'Kylmäaine meno', className: 'vrf-hp-hotspot--supply' },
+  { key: 'refrigerant_return_c', label: 'Kylmäaine paluu', className: 'vrf-hp-hotspot--return' },
+  { key: 'hot_gas_c', label: 'Kuumakaasu', className: 'vrf-hp-hotspot--hotgas' },
 ] as const;
 
 interface Props {
@@ -63,9 +63,9 @@ export default function VrfSchematicBoard({
           <span className="vrf-hp-hotspot-unit">°C</span>
         </div>
 
-        <div className={`vrf-hp-di-badge vrf-hp-di-badge--unit ${digitalInputs?.di1_unit_ready ? 'active' : ''}`}>
-          <span>DI1</span>
-          <strong>{digitalInputs?.di1_unit_ready ? 'Päällä' : 'Pois'}</strong>
+        <div className={`vrf-hp-di-badge vrf-hp-di-badge--unit ${digitalInputs?.di4_unit_ready ? 'active' : ''}`}>
+          <span>DI4</span>
+          <strong>{digitalInputs?.di4_unit_ready ? 'Päällä' : 'Pois'}</strong>
         </div>
         <div className={`vrf-hp-di-badge vrf-hp-di-badge--comp ${digitalInputs?.di2_compressor_running ? 'active' : ''}`}>
           <span>DI2</span>

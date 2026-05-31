@@ -53,7 +53,7 @@ export type VrfDeviceSettings = {
 };
 
 export type VrfDigitalInputs = {
-  di1_unit_ready: boolean | null;
+  di4_unit_ready: boolean | null;
   di2_compressor_running: boolean | null;
   di3_alarm: boolean | null;
 };
@@ -199,7 +199,7 @@ export function parseVrfDigitalInputs(payload: Record<string, unknown> | null | 
   const raw = asRecord(payload?.digital_inputs) ?? asRecord(asRecord(payload)?.digital_inputs);
   if (!raw) return null;
   return {
-    di1_unit_ready: readBoolean(raw.di1_unit_ready),
+    di4_unit_ready: readBoolean(raw.di4_unit_ready) ?? readBoolean(raw.di1_unit_ready),
     di2_compressor_running: readBoolean(raw.di2_compressor_running),
     di3_alarm: readBoolean(raw.di3_alarm),
   };

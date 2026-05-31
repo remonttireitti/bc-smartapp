@@ -2,41 +2,47 @@ import CollapsibleSection from '../CollapsibleSection';
 
 export default function VrfWiringGuide() {
   return (
-    <CollapsibleSection title="Kytkentäohjeet (DI1–DI3)" defaultOpen={false}>
+    <CollapsibleSection title="Kytkentäohjeet (DI2–DI4, RO1)" defaultOpen={false}>
       <div className="vrf-wiring-guide">
         <p>
-          VRF-ohjain antaa ulos <strong>12 V DC</strong> -signaalit. Waveshare ESP32-S3-ETH-8DI-8RO -moduulin
-          digitaalitulot (DI) ovat optoeristettyjä: kun 12 V syötetään tuloon, firmware lukee signaalin
-          aktiiviseksi.
+          <strong>RO1</strong> (relelähtö 1) = monitorin lämmityslupa VRF:ään (ohjaus ulos).{' '}
+          <strong>DI4/DI2/DI3</strong> = VRF:n 12 V -palaute monitoriin (lukutila). Nämä eivät ole sama
+          signaali — RO1 voi olla päällä ja DI4 pois, jos VRF on pysähtynyt hälytyksestä.
         </p>
 
         <table className="vrf-wiring-table">
           <thead>
             <tr>
-              <th>Tulo</th>
+              <th>Liitäntä</th>
               <th>GPIO</th>
-              <th>Signaali VRF:stä</th>
-              <th>Merkitys UI:ssa</th>
+              <th>Signaali</th>
+              <th>Suunta</th>
             </tr>
           </thead>
           <tbody>
             <tr>
-              <td><strong>DI1</strong></td>
-              <td>GPIO4</td>
-              <td>Laite päällä / valmiustilassa</td>
-              <td>12 V = laite käynnissä tai valmiustilassa</td>
+              <td><strong>RO1</strong></td>
+              <td>TCA9554 EXIO1</td>
+              <td>Lämmityslupa (käyntilupa webistä)</td>
+              <td>Monitori → VRF</td>
+            </tr>
+            <tr>
+              <td><strong>DI4</strong></td>
+              <td>GPIO7</td>
+              <td>Laite päällä / valmiustila</td>
+              <td>VRF → monitori</td>
             </tr>
             <tr>
               <td><strong>DI2</strong></td>
               <td>GPIO5</td>
-              <td>Kompressorin tila</td>
-              <td>12 V = kompressori käynnissä</td>
+              <td>Kompressori käynnissä</td>
+              <td>VRF → monitori</td>
             </tr>
             <tr>
               <td><strong>DI3</strong></td>
               <td>GPIO6</td>
               <td>Hälytys</td>
-              <td>12 V = ulkoinen hälytys aktiivinen (sammuttaa lämmityksen)</td>
+              <td>VRF → monitori</td>
             </tr>
           </tbody>
         </table>
@@ -44,26 +50,12 @@ export default function VrfWiringGuide() {
         <h3>Kytkentä Waveshare-moduuliin</h3>
         <ol className="vrf-wiring-steps">
           <li>
-            Kytke VRF-ohjaimen <strong>12 V+</strong> ja <strong>GND</strong> vastaavasti Waveshare DI -liittimen
-            <strong> +</strong> ja <strong>−</strong> -nappeihin (DI1, DI2 tai DI3).
+            Kytke VRF-ohjaimen 12 V -palautesignaalit DI4, DI2 ja DI3 -tuloihin (+ ja −).
           </li>
-          <li>
-            Käytä erillistä johdinta kullekin signaalille — älä jaa samaa DI-tuloa usealle signaalille.
-          </li>
-          <li>
-            Varmista yhteinen massa (GND) VRF-ohjaimen ja monitorointimoduulin välillä.
-          </li>
-          <li>
-            Lämmityksen käyntilupa (rele RO1) on erillinen ohjaus: se sallii lämmityksen, kun käyttäjä kytkee
-            <strong> Käyntiluvan ON</strong> web-käyttöliittymässä.
-          </li>
+          <li>RO1-rele kytketään VRF:n lämmityspyyntö-/käyntilupapiiriin erikseen (ohjaus, ei palaute).</li>
+          <li>Yhteinen GND VRF:n ja monitorin välillä.</li>
+          <li>DI1 jätetään vapaaksi — ei sekoitu RO1-releen kanssa.</li>
         </ol>
-
-        <p className="muted vrf-wiring-note">
-          DI-signaalit ovat vain lukutilaa (VRF → monitori). Käyntilupa ohjaa relettä monitorista VRF:ään päin.
-          Tarkista VRF-ohjaimen dokumentaatiosta, mitkä liitännät antavat 12 V valmiustila-, kompressori- ja
-          hälytystiedot.
-        </p>
       </div>
     </CollapsibleSection>
   );
