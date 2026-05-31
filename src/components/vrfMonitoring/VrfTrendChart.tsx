@@ -2,14 +2,18 @@ import { useMemo } from 'react';
 import {
   VRF_TREND_SERIES,
   formatTrendTimeLabel,
+  readingGapThresholdMs,
+  readingsInTrendPeriod,
   readingTemp,
-  sortReadingsByTime,
+  splitReadingsByCoverageGaps,
   type VrfReading,
+  type VrfTrendPeriod,
   type VrfTrendSeriesKey,
 } from '../../lib/vrfMonitoring';
 
 type Props = {
   readings: VrfReading[];
+  period: VrfTrendPeriod;
   height?: number;
   visibleSeries?: Set<VrfTrendSeriesKey>;
   onVisibleSeriesChange?: (next: Set<VrfTrendSeriesKey>) => void;
@@ -17,34 +21,52 @@ type Props = {
 
 type Point = { x: number; y: number; value: number; time: number };
 
-function buildSeries(
-  readings: VrfReading[],
+const DEFAULT_TEMP_MIN = -5;
+const DEFAULT_TEMP_MAX = 35;
+
+function buildSeriesPaths(
+  groups: VrfReading[][],
   key: string,
   minT: number,
   maxT: number,
-  minTime: number,
+  periodStartMs: number,
   span: number,
+  gapThreshold: number,
   padLeft: number,
   innerW: number,
   innerH: number,
   padTop: number,
-) {
-  const points: Point[] = [];
-  for (const reading of readings) {
-    const value = readingTemp(reading, key);
-    if (value == null) continue;
-    const time = new Date(reading.recorded_at).getTime();
-    points.push({ time, value, x: 0, y: 0 });
-  }
-  if (points.length === 0) return [];
-
+): Point[][] {
   const tempSpan = Math.max(maxT - minT, 1);
+  const paths: Point[][] = [];
 
-  return points.map((point) => ({
-    ...point,
-    x: padLeft + ((point.time - minTime) / span) * innerW,
-    y: padTop + innerH - ((point.value - minT) / tempSpan) * innerH,
-  }));
+  for (const group of groups) {
+    const rawPoints: { time: number; value: number }[] = [];
+    for (const reading of group) {
+      const value = readingTemp(reading, key);
+      if (value == null) continue;
+      rawPoints.push({ time: new Date(reading.recorded_at).getTime(), value });
+    }
+    if (rawPoints.length === 0) continue;
+
+    let run: Point[] = [];
+    for (let i = 0; i < rawPoints.length; i += 1) {
+      const { time, value } = rawPoints[i];
+      if (i > 0 && time - rawPoints[i - 1].time > gapThreshold) {
+        if (run.length > 0) paths.push(run);
+        run = [];
+      }
+      run.push({
+        time,
+        value,
+        x: padLeft + ((time - periodStartMs) / span) * innerW,
+        y: padTop + innerH - ((value - minT) / tempSpan) * innerH,
+      });
+    }
+    if (run.length > 0) paths.push(run);
+  }
+
+  return paths;
 }
 
 function pathFromPoints(points: Point[]) {
@@ -62,6 +84,7 @@ function pathFromPoints(points: Point[]) {
 
 export default function VrfTrendChart({
   readings,
+  period,
   height = 220,
   visibleSeries,
   onVisibleSeriesChange,
@@ -80,11 +103,13 @@ export default function VrfTrendChart({
   }, [visibleSeries]);
 
   const chart = useMemo(() => {
-    if (readings.length < 2 || activeSeries.length === 0) return null;
-    const sorted = sortReadingsByTime(readings);
-    const minTime = new Date(sorted[0].recorded_at).getTime();
-    const maxTime = new Date(sorted[sorted.length - 1].recorded_at).getTime();
-    const span = Math.max(maxTime - minTime, 1);
+    if (activeSeries.length === 0) return null;
+
+    const sorted = readingsInTrendPeriod(readings, period);
+    const { startMs, endMs, span } = period;
+    const gapThreshold = readingGapThresholdMs(sorted, span);
+    const groups = splitReadingsByCoverageGaps(readings, period);
+
     let minT = Infinity;
     let maxT = -Infinity;
     for (const reading of sorted) {
@@ -95,18 +120,44 @@ export default function VrfTrendChart({
         maxT = Math.max(maxT, value);
       }
     }
-    if (!Number.isFinite(minT) || !Number.isFinite(maxT)) return null;
-    minT -= 1;
-    maxT += 1;
-    const seriesPaths = activeSeries
-      .map((series) => ({
-        ...series,
-        points: buildSeries(sorted, series.key, minT, maxT, minTime, span, padLeft, innerW, innerH, padTop),
-      }))
-      .filter((series) => series.points.length > 0);
-    if (seriesPaths.length === 0) return null;
-    return { minT, maxT, seriesPaths, minTime, maxTime, span };
-  }, [readings, innerH, innerW, padLeft, padTop, activeSeries]);
+
+    const hasData = Number.isFinite(minT) && Number.isFinite(maxT);
+    if (!hasData) {
+      minT = DEFAULT_TEMP_MIN;
+      maxT = DEFAULT_TEMP_MAX;
+    } else {
+      minT -= 1;
+      maxT += 1;
+    }
+
+    const seriesPaths = activeSeries.map((series) => ({
+      ...series,
+      paths: buildSeriesPaths(
+        groups,
+        series.key,
+        minT,
+        maxT,
+        startMs,
+        span,
+        gapThreshold,
+        padLeft,
+        innerW,
+        innerH,
+        padTop,
+      ),
+    }));
+
+    return {
+      minT,
+      maxT,
+      seriesPaths,
+      minTime: startMs,
+      maxTime: endMs,
+      span,
+      hasData,
+      pointCount: sorted.length,
+    };
+  }, [readings, period, innerH, innerW, padLeft, padTop, activeSeries]);
 
   function toggleSeries(key: VrfTrendSeriesKey) {
     if (!onVisibleSeriesChange || !visibleSeries) return;
@@ -123,11 +174,7 @@ export default function VrfTrendChart({
   if (!chart) {
     return (
       <div className="temp-chart temp-chart--empty">
-        <p className="muted">
-          {activeSeries.length === 0
-            ? 'Valitse vähintään yksi lämpötilaviiva.'
-            : 'Trendi vaatii vähintään kaksi historiapistettä.'}
-        </p>
+        <p className="muted">Valitse vähintään yksi lämpötilaviiva.</p>
       </div>
     );
   }
@@ -135,6 +182,7 @@ export default function VrfTrendChart({
   const yTicks = [chart.maxT, (chart.maxT + chart.minT) / 2, chart.minT];
   const xTicks = [chart.minTime, chart.minTime + chart.span / 2, chart.maxTime];
   const interactiveLegend = visibleSeries != null && onVisibleSeriesChange != null;
+  const hasLines = chart.seriesPaths.some((series) => series.paths.length > 0);
 
   return (
     <div className="vrf-trend-chart temp-chart">
@@ -164,33 +212,45 @@ export default function VrfTrendChart({
           );
         })}
       </div>
+      {!chart.hasData && (
+        <p className="muted vrf-trend-empty-hint">Ei lämpötiladataa valitulla aikavälillä.</p>
+      )}
       <div className="vrf-chart-scroll">
         <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Lämpötilatrendi" preserveAspectRatio="xMidYMid meet">
-        {xTicks.map((tick) => {
-          const x = padLeft + ((tick - chart.minTime) / chart.span) * innerW;
-          return (
-            <g key={tick}>
-              <line x1={x} y1={padTop} x2={x} y2={padTop + innerH} className="temp-chart-grid" />
-              <text x={x} y={height - 4} textAnchor="middle" className="temp-chart-axis">
-                {formatTrendTimeLabel(tick, chart.span)}
-              </text>
-            </g>
-          );
-        })}
-        {yTicks.map((tick) => {
-          const y = padTop + innerH - ((tick - chart.minT) / (chart.maxT - chart.minT)) * innerH;
-          return (
-            <g key={tick}>
-              <line x1={padLeft} y1={y} x2={padLeft + innerW} y2={y} className="temp-chart-grid" />
-              <text x={padLeft - 6} y={y + 4} textAnchor="end" className="temp-chart-axis">
-                {tick.toFixed(0)}
-              </text>
-            </g>
-          );
-        })}
-        {chart.seriesPaths.map((series) => (
-          <path key={series.key} d={pathFromPoints(series.points)} fill="none" stroke={series.color} strokeWidth={2} />
-        ))}
+          {xTicks.map((tick) => {
+            const x = padLeft + ((tick - chart.minTime) / chart.span) * innerW;
+            return (
+              <g key={tick}>
+                <line x1={x} y1={padTop} x2={x} y2={padTop + innerH} className="temp-chart-grid" />
+                <text x={x} y={height - 4} textAnchor="middle" className="temp-chart-axis">
+                  {formatTrendTimeLabel(tick, chart.span)}
+                </text>
+              </g>
+            );
+          })}
+          {yTicks.map((tick) => {
+            const y = padTop + innerH - ((tick - chart.minT) / (chart.maxT - chart.minT)) * innerH;
+            return (
+              <g key={tick}>
+                <line x1={padLeft} y1={y} x2={padLeft + innerW} y2={y} className="temp-chart-grid" />
+                <text x={padLeft - 6} y={y + 4} textAnchor="end" className="temp-chart-axis">
+                  {tick.toFixed(0)}
+                </text>
+              </g>
+            );
+          })}
+          {hasLines &&
+            chart.seriesPaths.map((series) =>
+              series.paths.map((points, pathIdx) => (
+                <path
+                  key={`${series.key}-${pathIdx}`}
+                  d={pathFromPoints(points)}
+                  fill="none"
+                  stroke={series.color}
+                  strokeWidth={2}
+                />
+              )),
+            )}
         </svg>
       </div>
     </div>

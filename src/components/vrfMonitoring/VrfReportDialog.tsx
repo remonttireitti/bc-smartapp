@@ -8,6 +8,7 @@ import {
   filterVrfReadingsByPeriod,
   hoursBetweenIso,
   trendReadingLimit,
+  vrfTrendPeriodFromIso,
   type VrfBinaryLaneKey,
   type VrfDevice,
   type VrfReading,
@@ -113,6 +114,16 @@ export default function VrfReportDialog({
     return filterVrfReadingsByPeriod(readings, effectivePeriod.start, effectivePeriod.end);
 
   }, [readings, effectivePeriod]);
+
+
+
+  const chartPeriod = useMemo(
+
+    () => (effectivePeriod ? vrfTrendPeriodFromIso(effectivePeriod.start, effectivePeriod.end) : null),
+
+    [effectivePeriod],
+
+  );
 
 
 
@@ -526,49 +537,45 @@ export default function VrfReportDialog({
 
 
 
-        {!loading && previewReadings.length < 2 ? (
+        {!loading && chartPeriod && (
 
-          <p className="muted">Raportti vaatii vähintään kaksi mittauspistettä valitulla aikavälillä.</p>
+          <div className="vrf-report-preview">
 
-        ) : (
+            <h3 className="vrf-trend-subtitle">Esikatselu</h3>
 
-          !loading && (
+            {tempSeries.size > 0 && (
 
-            <div className="vrf-report-preview">
+              <VrfTrendChart
 
-              <h3 className="vrf-trend-subtitle">Esikatselu</h3>
+                readings={previewReadings}
 
-              {tempSeries.size > 0 && (
+                period={chartPeriod}
 
-                <VrfTrendChart
+                visibleSeries={tempSeries}
 
-                  readings={previewReadings}
+                onVisibleSeriesChange={setTempSeries}
 
-                  visibleSeries={tempSeries}
+              />
 
-                  onVisibleSeriesChange={setTempSeries}
+            )}
 
-                />
+            {binaryLanes.size > 0 && (
 
-              )}
+              <VrfBinaryTrendChart
 
-              {binaryLanes.size > 0 && (
+                readings={previewReadings}
 
-                <VrfBinaryTrendChart
+                period={chartPeriod}
 
-                  readings={previewReadings}
+                visible={binaryLanes}
 
-                  visible={binaryLanes}
+                onVisibleChange={setBinaryLanes}
 
-                  onVisibleChange={setBinaryLanes}
+              />
 
-                />
+            )}
 
-              )}
-
-            </div>
-
-          )
+          </div>
 
         )}
 

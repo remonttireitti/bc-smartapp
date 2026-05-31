@@ -177,6 +177,49 @@ export function filterVrfReadingsByPeriod(
   });
 }
 
+export type VrfTrendPeriod = {
+  startMs: number;
+  endMs: number;
+  span: number;
+  startIso: string;
+  endIso: string;
+};
+
+/** Valitun trendi-ikkunan rajat (nykyhetkestä taaksepäin). */
+export function vrfTrendPeriodFromHours(hours: number, nowMs = Date.now()): VrfTrendPeriod {
+  const endMs = nowMs;
+  const startMs = nowMs - hours * 3600_000;
+  return {
+    startMs,
+    endMs,
+    span: Math.max(endMs - startMs, 1),
+    startIso: new Date(startMs).toISOString(),
+    endIso: new Date(endMs).toISOString(),
+  };
+}
+
+export function vrfTrendPeriodFromIso(startIso: string, endIso: string): VrfTrendPeriod | null {
+  const startMs = new Date(startIso).getTime();
+  const endMs = new Date(endIso).getTime();
+  if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs) return null;
+  return {
+    startMs,
+    endMs,
+    span: endMs - startMs,
+    startIso,
+    endIso,
+  };
+}
+
+export function readingsInTrendPeriod(readings: VrfReading[], period: VrfTrendPeriod): VrfReading[] {
+  return sortReadingsByTime(
+    readings.filter((reading) => {
+      const t = new Date(reading.recorded_at).getTime();
+      return t >= period.startMs && t <= period.endMs;
+    }),
+  );
+}
+
 /** Firmware-oletukset (config.h) — sulatusheuristiikka historiatrendissä. */
 export const VRF_DEFROST_COIL_RISE_C = 0.85;
 export const VRF_DEFROST_SUPPLY_FALL_C = 0.55;
@@ -765,6 +808,90 @@ export function buildBinaryLaneFlags(
 }
 
 export type BinaryLaneSegment = { startPct: number; widthPct: number };
+
+function timeRangeToSegment(
+  startT: number,
+  endT: number,
+  periodStartMs: number,
+  span: number,
+): BinaryLaneSegment {
+  const startPct = ((startT - periodStartMs) / span) * 100;
+  const endPct = ((endT - periodStartMs) / span) * 100;
+  return {
+    startPct: Math.max(0, startPct),
+    widthPct: Math.max(0.4, endPct - startPct),
+  };
+}
+
+/** Mittausvälien mediaani → raja, milloin jakson väliä pidetään datattomana. */
+export function readingGapThresholdMs(sorted: VrfReading[], spanMs: number): number {
+  const minGap = 15 * 60_000;
+  const maxGap = Math.max(spanMs / 20, minGap);
+  if (sorted.length < 2) return Math.min(Math.max(spanMs / 200, minGap), maxGap);
+  const intervals: number[] = [];
+  for (let i = 1; i < sorted.length; i += 1) {
+    intervals.push(
+      new Date(sorted[i].recorded_at).getTime() - new Date(sorted[i - 1].recorded_at).getTime(),
+    );
+  }
+  intervals.sort((a, b) => a - b);
+  const median = intervals[Math.floor(intervals.length / 2)];
+  return Math.min(Math.max(median * 3, minGap), maxGap);
+}
+
+/** Jaksot joilla ei ole mittauksia valitulla aikavälillä. */
+export function buildReadingCoverageGaps(
+  readings: VrfReading[],
+  period: VrfTrendPeriod,
+): BinaryLaneSegment[] {
+  const sorted = readingsInTrendPeriod(readings, period);
+  const { startMs, endMs, span } = period;
+  if (sorted.length === 0) return [{ startPct: 0, widthPct: 100 }];
+
+  const gapThreshold = readingGapThresholdMs(sorted, span);
+  const gaps: BinaryLaneSegment[] = [];
+
+  const firstT = new Date(sorted[0].recorded_at).getTime();
+  if (firstT - startMs > gapThreshold) {
+    gaps.push(timeRangeToSegment(startMs, firstT, startMs, span));
+  }
+
+  for (let i = 0; i < sorted.length - 1; i += 1) {
+    const t1 = new Date(sorted[i].recorded_at).getTime();
+    const t2 = new Date(sorted[i + 1].recorded_at).getTime();
+    if (t2 - t1 > gapThreshold) {
+      gaps.push(timeRangeToSegment(t1, t2, startMs, span));
+    }
+  }
+
+  const lastT = new Date(sorted[sorted.length - 1].recorded_at).getTime();
+  if (endMs - lastT > gapThreshold) {
+    gaps.push(timeRangeToSegment(lastT, endMs, startMs, span));
+  }
+
+  return gaps;
+}
+
+/** Mittausryhmät, joita ei erota dataton aukko. */
+export function splitReadingsByCoverageGaps(
+  readings: VrfReading[],
+  period: VrfTrendPeriod,
+): VrfReading[][] {
+  const sorted = readingsInTrendPeriod(readings, period);
+  if (sorted.length === 0) return [];
+  const gapThreshold = readingGapThresholdMs(sorted, period.span);
+  const groups: VrfReading[][] = [[sorted[0]]];
+  for (let i = 1; i < sorted.length; i += 1) {
+    const prevT = new Date(sorted[i - 1].recorded_at).getTime();
+    const currT = new Date(sorted[i].recorded_at).getTime();
+    if (currT - prevT > gapThreshold) {
+      groups.push([sorted[i]]);
+    } else {
+      groups[groups.length - 1].push(sorted[i]);
+    }
+  }
+  return groups;
+}
 
 /** ON-jaksot prosentteina aikavälillä (Gantt-tyylinen tilatrendi). */
 export function buildBinaryLaneSegments(

@@ -3,14 +3,17 @@ import {
   VRF_BINARY_LANES,
   buildBinaryLaneFlags,
   buildBinaryLaneSegments,
+  buildReadingCoverageGaps,
   formatTrendTimeLabel,
-  sortReadingsByTime,
+  splitReadingsByCoverageGaps,
   type VrfBinaryLaneKey,
   type VrfReading,
+  type VrfTrendPeriod,
 } from '../../lib/vrfMonitoring';
 
 type Props = {
   readings: VrfReading[];
+  period: VrfTrendPeriod;
   visible?: Set<VrfBinaryLaneKey>;
   onVisibleChange?: (next: Set<VrfBinaryLaneKey>) => void;
 };
@@ -19,6 +22,7 @@ const DEFAULT_VISIBLE = new Set<VrfBinaryLaneKey>(['control', 'compressor', 'def
 
 export default function VrfBinaryTrendChart({
   readings,
+  period,
   visible: visibleProp,
   onVisibleChange,
 }: Props) {
@@ -31,27 +35,24 @@ export default function VrfBinaryTrendChart({
   }
 
   const chart = useMemo(() => {
-    const sorted = sortReadingsByTime(readings);
-    if (sorted.length < 2) return null;
-
-    const minTime = new Date(sorted[0].recorded_at).getTime();
-    const maxTime = new Date(sorted[sorted.length - 1].recorded_at).getTime();
-    const span = Math.max(maxTime - minTime, 1);
+    const { startMs, span } = period;
+    const groups = splitReadingsByCoverageGaps(readings, period);
+    const noDataSegments = buildReadingCoverageGaps(readings, period);
 
     const lanes = VRF_BINARY_LANES.filter((lane) => visible.has(lane.key)).map((lane) => {
-      const flags = buildBinaryLaneFlags(sorted, lane.key);
-      return {
-        ...lane,
-        segments: buildBinaryLaneSegments(sorted, flags, minTime, span),
-      };
+      const segments = groups.flatMap((group) => {
+        const flags = buildBinaryLaneFlags(group, lane.key);
+        return buildBinaryLaneSegments(group, flags, startMs, span);
+      });
+      return { ...lane, segments };
     });
 
-    const xTicks = [minTime, minTime + span / 2, maxTime];
+    const xTicks = [period.startMs, period.startMs + span / 2, period.endMs];
 
-    return { sorted, minTime, maxTime, span, lanes, xTicks };
-  }, [readings, visible]);
+    return { lanes, xTicks, noDataSegments, hasReadings: groups.length > 0 };
+  }, [readings, period, visible]);
 
-  if (!chart || chart.lanes.length === 0) {
+  if (chart.lanes.length === 0) {
     return (
       <div className="vrf-binary-chart vrf-binary-chart--empty">
         <p className="muted">Valitse vähintään yksi tilaviiva.</p>
@@ -96,6 +97,10 @@ export default function VrfBinaryTrendChart({
         })}
       </div>
 
+      {!chart.hasReadings && (
+        <p className="muted vrf-trend-empty-hint">Ei tilahistoriaa valitulla aikavälillä.</p>
+      )}
+
       <div className="vrf-status-timeline-body">
         <p className="vrf-status-timeline-axis-label">Aika →</p>
 
@@ -111,7 +116,7 @@ export default function VrfBinaryTrendChart({
           <div className="vrf-status-timeline-track-col">
             <div className="vrf-status-timeline-vlines" aria-hidden="true">
               {chart.xTicks.map((tick) => {
-                const left = ((tick - chart.minTime) / chart.span) * 100;
+                const left = ((tick - period.startMs) / period.span) * 100;
                 return <div key={tick} className="vrf-status-timeline-vline" style={{ left: `${left}%` }} />;
               })}
             </div>
@@ -120,6 +125,21 @@ export default function VrfBinaryTrendChart({
               <div key={lane.key} className="vrf-status-timeline-row">
                 <div className="vrf-status-timeline-track" aria-label={lane.label}>
                   <div className="vrf-status-timeline-rail" />
+                  {chart.noDataSegments.map((segment, i) => (
+                    <div
+                      key={`nodata-${i}`}
+                      className="vrf-status-timeline-nodata"
+                      style={{
+                        left: `${segment.startPct}%`,
+                        width: `${segment.widthPct}%`,
+                      }}
+                      title="Ei tietoa"
+                    >
+                      {segment.widthPct >= 6 && (
+                        <span className="vrf-status-timeline-nodata-label">Ei tietoa</span>
+                      )}
+                    </div>
+                  ))}
                   {lane.segments.map((segment, i) => (
                     <div
                       key={i}
@@ -140,7 +160,7 @@ export default function VrfBinaryTrendChart({
 
         <div className="vrf-status-timeline-times" aria-hidden="true">
           {chart.xTicks.map((tick) => (
-            <span key={tick}>{formatTrendTimeLabel(tick, chart.span)}</span>
+            <span key={tick}>{formatTrendTimeLabel(tick, period.span)}</span>
           ))}
         </div>
       </div>

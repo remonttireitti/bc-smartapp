@@ -7,6 +7,7 @@ import {
   type VrfTrendSeriesKey,
 } from './vrfMonitoring';
 import { renderVrfBinaryTrendSvg, renderVrfTrendChartSvg } from './vrfMonitoringChart';
+import { vrfTrendPeriodFromIso } from './vrfMonitoring';
 
 function formatPeriod(startIso: string, endIso: string) {
   return `${new Date(startIso).toLocaleString('fi-FI')} – ${new Date(endIso).toLocaleString('fi-FI')}`;
@@ -31,13 +32,29 @@ export function buildVrfReportPrintHtml(input: {
     .map((l) => l.label)
     .join(', ');
 
+  const period = vrfTrendPeriodFromIso(input.periodStart, input.periodEnd);
+  if (!period) {
+    return buildStyledPrintDocumentHtml({
+      documentTitle: title,
+      pageH1: title,
+      subtitleEscaped: escapeHtmlPrint(input.deviceName),
+      badge: 'VRF-seuranta',
+      branding: {
+        companyName: input.companyName,
+        logoUrl: input.logoUrl ?? null,
+      },
+      mainHtml: '<p class="print-card-muted">Virheellinen aikaväli.</p>',
+      footerHtml: `<div>VRF ohjaus ja seuranta · ${escapeHtmlPrint(input.companyName)}</div>`,
+    });
+  }
+
   const tempSvg =
     input.tempSeries.length > 0
-      ? renderVrfTrendChartSvg(input.readings, input.tempSeries)
+      ? renderVrfTrendChartSvg(input.readings, input.tempSeries, period)
       : '<p class="print-card-muted">Lämpötiloja ei valittu.</p>';
   const binarySvg =
     input.binaryLanes.length > 0
-      ? renderVrfBinaryTrendSvg(input.readings, input.binaryLanes)
+      ? renderVrfBinaryTrendSvg(input.readings, input.binaryLanes, period)
       : '<p class="print-card-muted">Tilatietoja ei valittu.</p>';
 
   const mainHtml = `

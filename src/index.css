@@ -6857,6 +6857,43 @@ button.vrf-toggle:not(:disabled) {
   z-index: 1;
 }
 
+.vrf-status-timeline-nodata {
+  position: absolute;
+  top: 50%;
+  height: 1.15rem;
+  min-width: 3px;
+  transform: translateY(-50%);
+  border-radius: 4px;
+  z-index: 0;
+  background: repeating-linear-gradient(
+    -45deg,
+    color-mix(in srgb, var(--text-muted) 14%, transparent),
+    color-mix(in srgb, var(--text-muted) 14%, transparent) 4px,
+    color-mix(in srgb, var(--text-muted) 7%, transparent) 4px,
+    color-mix(in srgb, var(--text-muted) 7%, transparent) 8px
+  );
+  border: 1px dashed color-mix(in srgb, var(--text-muted) 38%, transparent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.vrf-status-timeline-nodata-label {
+  font-size: 0.55rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--text-muted);
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0.9;
+}
+
+.vrf-trend-empty-hint {
+  margin: 0 0 0.35rem;
+  font-size: 0.82rem;
+}
+
 .vrf-status-timeline-times {
   display: grid;
   grid-template-columns: minmax(4.75rem, 6.75rem) 1fr 1fr 1fr;
