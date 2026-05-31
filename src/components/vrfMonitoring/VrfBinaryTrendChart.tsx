@@ -4,12 +4,16 @@ import {
   buildBinaryLaneFlags,
   buildBinaryLaneSegments,
   buildReadingCoverageGaps,
+  formatTrendHoverTime,
   formatTrendTimeLabel,
+  readingsInTrendPeriod,
   splitReadingsByCoverageGaps,
   type VrfBinaryLaneKey,
   type VrfReading,
   type VrfTrendPeriod,
 } from '../../lib/vrfMonitoring';
+import { useVrfTrendHover } from '../../hooks/useVrfTrendHover';
+import VrfTrendHoverTip from './VrfTrendHoverTip';
 
 type Props = {
   readings: VrfReading[];
@@ -28,6 +32,8 @@ export default function VrfBinaryTrendChart({
 }: Props) {
   const [internalVisible, setInternalVisible] = useState<Set<VrfBinaryLaneKey>>(() => new Set(DEFAULT_VISIBLE));
   const visible = visibleProp ?? internalVisible;
+  const { trackRef, hover, onMouseMove, onMouseLeave } = useVrfTrendHover(readings, period);
+  const sortedReadings = useMemo(() => readingsInTrendPeriod(readings, period), [readings, period]);
 
   function setVisible(next: Set<VrfBinaryLaneKey>) {
     if (onVisibleChange) onVisibleChange(next);
@@ -51,6 +57,18 @@ export default function VrfBinaryTrendChart({
 
     return { lanes, xTicks, noDataSegments, hasReadings: groups.length > 0 };
   }, [readings, period, visible]);
+
+  const hoverRows = hover
+    ? chart.lanes.map((lane) => {
+        const idx = sortedReadings.findIndex((r) => r.id === hover.reading.id);
+        const on = idx >= 0 ? buildBinaryLaneFlags(sortedReadings, lane.key)[idx] : false;
+        return {
+          color: lane.color,
+          label: lane.label,
+          value: on ? 'Päällä' : 'Pois',
+        };
+      })
+    : [];
 
   if (chart.lanes.length === 0) {
     return (
@@ -113,7 +131,22 @@ export default function VrfBinaryTrendChart({
             ))}
           </div>
 
-          <div className="vrf-status-timeline-track-col">
+          <div
+            ref={trackRef}
+            className="vrf-status-timeline-track-col vrf-status-timeline-track-col--interactive"
+            onMouseMove={onMouseMove}
+            onMouseLeave={onMouseLeave}
+          >
+            {hover && (
+              <>
+                <div className="vrf-trend-hover-crosshair" style={{ left: `${hover.leftPct}%` }} />
+                <VrfTrendHoverTip
+                  leftPct={hover.leftPct}
+                  timeLabel={formatTrendHoverTime(hover.reading.recorded_at, period.span)}
+                  rows={hoverRows}
+                />
+              </>
+            )}
             <div className="vrf-status-timeline-vlines" aria-hidden="true">
               {chart.xTicks.map((tick) => {
                 const left = ((tick - period.startMs) / period.span) * 100;

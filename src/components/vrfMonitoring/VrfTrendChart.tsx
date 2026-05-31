@@ -1,15 +1,20 @@
-import { useMemo } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import {
   VRF_TREND_SERIES,
+  formatTrendHoverTime,
   formatTrendTimeLabel,
+  nearestReadingAtTime,
   readingGapThresholdMs,
   readingsInTrendPeriod,
   readingTemp,
   splitReadingsByCoverageGaps,
+  trendHoverLeftPct,
+  trendHoverTimeMs,
   type VrfReading,
   type VrfTrendPeriod,
   type VrfTrendSeriesKey,
 } from '../../lib/vrfMonitoring';
+import VrfTrendHoverTip from './VrfTrendHoverTip';
 
 type Props = {
   readings: VrfReading[];
@@ -123,6 +128,8 @@ export default function VrfTrendChart({
   const padBottom = 28;
   const innerW = width - padLeft - padRight;
   const innerH = height - padTop - padBottom;
+  const plotRef = useRef<HTMLDivElement>(null);
+  const [hover, setHover] = useState<{ leftPct: number; reading: VrfReading; x: number } | null>(null);
 
   const activeSeries = useMemo(() => {
     if (!visibleSeries) return VRF_TREND_SERIES;
@@ -189,6 +196,24 @@ export default function VrfTrendChart({
     };
   }, [readings, period, innerH, innerW, padLeft, padTop, activeSeries]);
 
+  const handlePlotMove = useCallback(
+    (event: React.MouseEvent) => {
+      const el = plotRef.current;
+      if (!el || !chart) return;
+      const leftPct = trendHoverLeftPct(event.clientX, el.getBoundingClientRect());
+      const reading = nearestReadingAtTime(readings, period, trendHoverTimeMs(leftPct, period));
+      if (!reading) {
+        setHover(null);
+        return;
+      }
+      const x = padLeft + ((new Date(reading.recorded_at).getTime() - chart.minTime) / chart.span) * innerW;
+      setHover({ leftPct, reading, x });
+    },
+    [readings, period, chart, padLeft, innerW],
+  );
+
+  const handlePlotLeave = useCallback(() => setHover(null), []);
+
   function toggleSeries(key: VrfTrendSeriesKey) {
     if (!onVisibleSeriesChange || !visibleSeries) return;
     const next = new Set(visibleSeries);
@@ -213,6 +238,16 @@ export default function VrfTrendChart({
   const xTicks = [chart.minTime, chart.minTime + chart.span / 2, chart.maxTime];
   const interactiveLegend = visibleSeries != null && onVisibleSeriesChange != null;
   const hasLines = chart.seriesPaths.some((series) => series.paths.length > 0);
+  const hoverRows = hover
+    ? chart.seriesPaths.map((series) => {
+        const value = readingTemp(hover.reading, series.key);
+        return {
+          color: series.color,
+          label: series.label,
+          value: value != null ? `${value.toFixed(1)} °C` : '—',
+        };
+      })
+    : [];
 
   return (
     <div className="vrf-trend-chart temp-chart">
@@ -245,7 +280,19 @@ export default function VrfTrendChart({
       {!chart.hasData && (
         <p className="muted vrf-trend-empty-hint">Ei lämpötiladataa valitulla aikavälillä.</p>
       )}
-      <div className="vrf-chart-scroll">
+      <div
+        ref={plotRef}
+        className="vrf-chart-scroll vrf-chart-scroll--interactive"
+        onMouseMove={handlePlotMove}
+        onMouseLeave={handlePlotLeave}
+      >
+        {hover && (
+          <VrfTrendHoverTip
+            leftPct={hover.leftPct}
+            timeLabel={formatTrendHoverTime(hover.reading.recorded_at, chart.span)}
+            rows={hoverRows}
+          />
+        )}
         <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Lämpötilatrendi" preserveAspectRatio="xMidYMid meet">
           {xTicks.map((tick) => {
             const x = padLeft + ((tick - chart.minTime) / chart.span) * innerW;
@@ -291,8 +338,36 @@ export default function VrfTrendChart({
                     fill={series.color}
                   />
                 ))}
+                {hover &&
+                  (() => {
+                    const value = readingTemp(hover.reading, series.key);
+                    if (value == null) return null;
+                    const y =
+                      padTop +
+                      innerH -
+                      ((value - chart.minT) / (chart.maxT - chart.minT)) * innerH;
+                    return (
+                      <circle
+                        key={`${series.key}-hover`}
+                        className="vrf-trend-hover-point"
+                        cx={hover.x}
+                        cy={y}
+                        r={5}
+                        fill={series.color}
+                      />
+                    );
+                  })()}
               </g>
             ))}
+          {hover && (
+            <line
+              x1={hover.x}
+              y1={padTop}
+              x2={hover.x}
+              y2={padTop + innerH}
+              className="vrf-trend-crosshair"
+            />
+          )}
         </svg>
       </div>
     </div>

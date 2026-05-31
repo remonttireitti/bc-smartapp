@@ -7220,6 +7220,89 @@ button.vrf-toggle:not(:disabled) {
   padding: 0 0.15rem;
 }
 
+.vrf-chart-scroll--interactive {
+  position: relative;
+  cursor: crosshair;
+}
+
+.vrf-trend-crosshair {
+  stroke: color-mix(in srgb, var(--text-muted) 75%, var(--primary));
+  stroke-width: 1;
+  stroke-dasharray: 4 3;
+  pointer-events: none;
+}
+
+.vrf-trend-hover-point {
+  stroke: var(--bg-surface, #fff);
+  stroke-width: 2;
+  pointer-events: none;
+}
+
+.vrf-trend-hover-tip {
+  position: absolute;
+  top: 0.35rem;
+  z-index: 4;
+  transform: translateX(-50%);
+  pointer-events: none;
+  min-width: 9rem;
+  max-width: 14rem;
+  padding: 0.45rem 0.6rem;
+  border-radius: 8px;
+  border: 1px solid var(--border-strong);
+  background: color-mix(in srgb, var(--bg-surface) 94%, #fff);
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.14);
+  font-size: 0.78rem;
+}
+
+.vrf-trend-hover-tip-time {
+  margin: 0 0 0.35rem;
+  font-weight: 700;
+  font-size: 0.76rem;
+  color: var(--text);
+}
+
+.vrf-trend-hover-tip-rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.2rem;
+}
+
+.vrf-trend-hover-tip-rows li {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.vrf-trend-hover-tip-dot {
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+
+.vrf-trend-hover-tip-label {
+  color: var(--text-muted);
+}
+
+.vrf-status-timeline-track-col--interactive {
+  position: relative;
+  cursor: crosshair;
+}
+
+.vrf-trend-hover-crosshair {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  transform: translateX(-50%);
+  background: color-mix(in srgb, var(--text-muted) 70%, var(--primary));
+  pointer-events: none;
+  z-index: 3;
+}
+
 .vrf-chart-scroll svg {
   display: block;
   width: 100%;

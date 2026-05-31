@@ -1,14 +1,19 @@
 import { useMemo, type CSSProperties } from 'react';
 import {
-  VRF_ACTIVITY_TREND_LEGEND,
   VRF_ACTIVITY_TREND_META,
+  VRF_ACTIVITY_TREND_LEGEND,
   buildActivityTimelineSegments,
   buildReadingCoverageGaps,
+  formatTrendHoverTime,
   formatTrendTimeLabel,
+  resolveReadingActivityTrendState,
+  readingsInTrendPeriod,
   splitReadingsByCoverageGaps,
   type VrfReading,
   type VrfTrendPeriod,
 } from '../../lib/vrfMonitoring';
+import { useVrfTrendHover } from '../../hooks/useVrfTrendHover';
+import VrfTrendHoverTip from './VrfTrendHoverTip';
 
 type Props = {
   readings: VrfReading[];
@@ -16,6 +21,9 @@ type Props = {
 };
 
 export default function VrfActivityTrendChart({ readings, period }: Props) {
+  const { trackRef, hover, onMouseMove, onMouseLeave } = useVrfTrendHover(readings, period);
+  const sortedReadings = useMemo(() => readingsInTrendPeriod(readings, period), [readings, period]);
+
   const chart = useMemo(() => {
     const { startMs, span } = period;
     const groups = splitReadingsByCoverageGaps(readings, period);
@@ -25,6 +33,16 @@ export default function VrfActivityTrendChart({ readings, period }: Props) {
 
     return { segments, xTicks, noDataSegments, hasReadings: groups.length > 0 };
   }, [readings, period]);
+
+  const hoverRows = hover
+    ? (() => {
+        const idx = sortedReadings.findIndex((r) => r.id === hover.reading.id);
+        const state =
+          idx >= 0 ? resolveReadingActivityTrendState(sortedReadings, idx) : 'unknown';
+        const meta = VRF_ACTIVITY_TREND_META[state];
+        return [{ color: meta.color, label: 'Tila', value: meta.label }];
+      })()
+    : [];
 
   return (
     <div className="vrf-status-timeline vrf-activity-timeline" role="img" aria-label="Tilatietotrendi">
@@ -52,7 +70,22 @@ export default function VrfActivityTrendChart({ readings, period }: Props) {
             <div className="vrf-status-timeline-label vrf-activity-timeline-label">Tilatieto</div>
           </div>
 
-          <div className="vrf-status-timeline-track-col">
+          <div
+            ref={trackRef}
+            className="vrf-status-timeline-track-col vrf-status-timeline-track-col--interactive"
+            onMouseMove={onMouseMove}
+            onMouseLeave={onMouseLeave}
+          >
+            {hover && (
+              <>
+                <div className="vrf-trend-hover-crosshair" style={{ left: `${hover.leftPct}%` }} />
+                <VrfTrendHoverTip
+                  leftPct={hover.leftPct}
+                  timeLabel={formatTrendHoverTime(hover.reading.recorded_at, period.span)}
+                  rows={hoverRows}
+                />
+              </>
+            )}
             <div className="vrf-status-timeline-vlines" aria-hidden="true">
               {chart.xTicks.map((tick) => {
                 const left = ((tick - period.startMs) / period.span) * 100;

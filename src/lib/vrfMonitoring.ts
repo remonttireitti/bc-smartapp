@@ -1334,3 +1334,43 @@ export function formatTrendTimeLabel(ms: number, spanMs: number): string {
   }
   return date.toLocaleString('fi-FI', { day: 'numeric', month: 'numeric', hour: '2-digit' });
 }
+
+export function formatTrendHoverTime(iso: string, spanMs: number): string {
+  const ms = new Date(iso).getTime();
+  if (spanMs <= 6 * 3600_000) {
+    return new Date(ms).toLocaleTimeString('fi-FI', {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    });
+  }
+  return formatTrendTimeLabel(ms, spanMs);
+}
+
+export function nearestReadingAtTime(
+  readings: VrfReading[],
+  period: VrfTrendPeriod,
+  timeMs: number,
+): VrfReading | null {
+  const sorted = readingsInTrendPeriod(readings, period);
+  if (sorted.length === 0) return null;
+  let best = sorted[0];
+  let minDist = Math.abs(new Date(best.recorded_at).getTime() - timeMs);
+  for (let i = 1; i < sorted.length; i += 1) {
+    const dist = Math.abs(new Date(sorted[i].recorded_at).getTime() - timeMs);
+    if (dist < minDist) {
+      minDist = dist;
+      best = sorted[i];
+    }
+  }
+  return best;
+}
+
+export function trendHoverLeftPct(clientX: number, rect: DOMRect): number {
+  if (rect.width <= 0) return 0;
+  return Math.min(100, Math.max(0, ((clientX - rect.left) / rect.width) * 100));
+}
+
+export function trendHoverTimeMs(leftPct: number, period: VrfTrendPeriod): number {
+  return period.startMs + (leftPct / 100) * period.span;
+}
