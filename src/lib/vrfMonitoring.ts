@@ -808,24 +808,33 @@ export function vrfResolveDeviceActivity(params: {
     };
   }
 
-  if (unitReady) {
+  if (permitOn) {
+    let detail = 'Lämmityslupa päällä — odottaa lämmitystarvetta';
+    if (unitReady) {
+      detail = 'VRF valmiustilassa — odottaa lämmitystarvetta';
+    } else if (
+      opText &&
+      !isAlarmLikeOperatingText(opText) &&
+      !/^k[aä]y[nnt]tilupa/i.test(opText)
+    ) {
+      detail = opText;
+    }
     return {
       headline: 'Valmiustila',
-      detail: staleNote ?? 'VRF päällä (DI4) — odottaa lämmitystarvetta',
+      detail: staleNote ? `${detail} · ${staleNote}` : detail,
       tone: 'idle',
     };
   }
 
-  if (opState === 'idle' || opState === 'permit_on') {
-    const headline = opState === 'idle' ? 'Valmiustila' : vrfOperatingStateLabel(opState);
+  if (opState === 'idle') {
     const detail =
       opText && !isAlarmLikeOperatingText(opText)
         ? opText
-        : staleNote ?? 'Lämmityslupa päällä — kompressori ei käy';
+        : staleNote ?? 'Odottaa lämmitystarvetta';
     return {
-      headline,
+      headline: 'Valmiustila',
       detail: staleNote && detail !== staleNote ? `${detail} · ${staleNote}` : detail,
-      tone: opState === 'idle' ? 'idle' : 'heat',
+      tone: 'idle',
     };
   }
 
