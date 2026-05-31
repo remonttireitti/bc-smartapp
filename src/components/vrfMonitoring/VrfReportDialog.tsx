@@ -27,6 +27,7 @@ import { supabase } from '../../lib/supabase';
 
 import ToggleSwitch from '../ToggleSwitch';
 
+import VrfActivityTrendChart from './VrfActivityTrendChart';
 import VrfBinaryTrendChart from './VrfBinaryTrendChart';
 
 import VrfTrendChart from './VrfTrendChart';
@@ -504,6 +505,8 @@ export default function VrfReportDialog({
               />
 
             )}
+
+            <VrfActivityTrendChart readings={previewReadings} period={chartPeriod} />
 
             {binaryLanes.size > 0 && (
 

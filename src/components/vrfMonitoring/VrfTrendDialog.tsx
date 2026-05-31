@@ -19,6 +19,7 @@ import {
 import { loadMonitorShareViewPublic } from '../../lib/monitorReaderShares';
 import { supabase } from '../../lib/supabase';
 
+import VrfActivityTrendChart from './VrfActivityTrendChart';
 import VrfBinaryTrendChart from './VrfBinaryTrendChart';
 import VrfTrendChart from './VrfTrendChart';
 
@@ -155,6 +156,10 @@ export default function VrfTrendDialog({ open, deviceId, onClose, focusHotspot, 
                 visibleSeries={visibleSeries}
                 onVisibleSeriesChange={setVisibleSeries}
               />
+            </div>
+            <div className="vrf-trend-block">
+              <h3 className="vrf-trend-subtitle">Tilatieto</h3>
+              <VrfActivityTrendChart readings={readings} period={period} />
             </div>
             <div className="vrf-trend-block">
               <h3 className="vrf-trend-subtitle">Ohjaus, tilat ja sulatus</h3>

@@ -6816,6 +6816,30 @@ button.vrf-toggle:not(:disabled) {
 }
 
 /* Gantt-tyylinen tilatrendi */
+.vrf-activity-timeline {
+  margin-bottom: 0.5rem;
+}
+
+.vrf-activity-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem 0.85rem;
+  margin-bottom: 0.75rem;
+}
+
+.vrf-activity-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+
+.vrf-activity-timeline-label {
+  color: var(--text);
+  font-weight: 600;
+}
+
 .vrf-status-timeline {
   display: grid;
   gap: 0.75rem;

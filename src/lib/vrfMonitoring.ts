@@ -1060,6 +1060,105 @@ export function buildBinaryLaneSegments(
   return segments;
 }
 
+export type VrfActivityTrendState =
+  | 'heating'
+  | 'standby'
+  | 'defrost'
+  | 'off'
+  | 'shutdown_wait'
+  | 'alarm'
+  | 'unknown';
+
+export type ActivityTimelineSegment = BinaryLaneSegment & {
+  state: VrfActivityTrendState;
+};
+
+export const VRF_ACTIVITY_TREND_META: Record<
+  VrfActivityTrendState,
+  { label: string; color: string; glow: string }
+> = {
+  heating: { label: 'Lämmittää', color: '#f97316', glow: 'rgba(249, 115, 22, 0.45)' },
+  standby: { label: 'Valmiustila', color: '#22c55e', glow: 'rgba(34, 197, 94, 0.45)' },
+  defrost: { label: 'Sulattaa', color: '#14b8a6', glow: 'rgba(20, 184, 166, 0.45)' },
+  off: { label: 'Sammutettu', color: '#64748b', glow: 'rgba(100, 116, 139, 0.35)' },
+  shutdown_wait: { label: 'Hälytysviive', color: '#f59e0b', glow: 'rgba(245, 158, 11, 0.45)' },
+  alarm: { label: 'Hälytyksessä', color: '#ef4444', glow: 'rgba(239, 68, 68, 0.45)' },
+  unknown: { label: 'Tuntematon', color: '#94a3b8', glow: 'rgba(148, 163, 184, 0.35)' },
+};
+
+export const VRF_ACTIVITY_TREND_LEGEND: VrfActivityTrendState[] = [
+  'heating',
+  'standby',
+  'defrost',
+  'off',
+  'shutdown_wait',
+  'alarm',
+];
+
+/** Yhdistetty tilatieto historiatrendiin — sama logiikka kuin live-tilapaneelissa. */
+export function resolveReadingActivityTrendState(
+  readings: VrfReading[],
+  index: number,
+): VrfActivityTrendState {
+  const reading = readings[index];
+  const telemetry = readingTelemetry(reading);
+  const alarmShutdown = telemetry?.status.alarm_shutdown_active === true;
+  const externalAlarm = readingAlarmActive(reading);
+  const defrostActive = inferDefrostLikely(readings, index);
+  const permitOn = readingHeatPermit(reading);
+  const compressorRunning = readingCompressorOn(reading);
+  const alarms = telemetry?.alarms ?? {};
+  const hasActiveAlarm =
+    externalAlarm ||
+    Object.entries(VRF_ALARM_LABELS).some(
+      ([key]) => key !== 'any_alarm' && alarms[key as keyof typeof alarms] === true,
+    );
+
+  if (alarmShutdown) return 'shutdown_wait';
+  if (hasActiveAlarm) return 'alarm';
+  if (defrostActive) return 'defrost';
+  if (!permitOn) return 'off';
+  if (compressorRunning) return 'heating';
+  return 'standby';
+}
+
+/** Tilatieto-jaksot (värillinen Gantt) historiatrendissä. */
+export function buildActivityTimelineSegments(
+  readings: VrfReading[],
+  minTime: number,
+  span: number,
+): ActivityTimelineSegment[] {
+  if (readings.length === 0 || span <= 0) return [];
+
+  const segments: ActivityTimelineSegment[] = [];
+  let runStartIdx = 0;
+  let runState = resolveReadingActivityTrendState(readings, 0);
+
+  const pushRun = (startIdx: number, endIdx: number, state: VrfActivityTrendState) => {
+    const startT = new Date(readings[startIdx].recorded_at).getTime();
+    const endT = new Date(readings[endIdx].recorded_at).getTime();
+    const startPct = ((startT - minTime) / span) * 100;
+    const endPct = ((endT - minTime) / span) * 100;
+    const minWidth = Math.min(1.2, (100 / readings.length) * 0.85);
+    segments.push({
+      state,
+      startPct: Math.max(0, startPct),
+      widthPct: Math.max(minWidth, endPct - startPct + minWidth * 0.35),
+    });
+  };
+
+  for (let i = 1; i < readings.length; i += 1) {
+    const state = resolveReadingActivityTrendState(readings, i);
+    if (state !== runState) {
+      pushRun(runStartIdx, i - 1, runState);
+      runStartIdx = i;
+      runState = state;
+    }
+  }
+  pushRun(runStartIdx, readings.length - 1, runState);
+  return segments;
+}
+
 export function trendReadingLimit(hours: number): number {
   const estimated = hours * 60 + 30;
   return Math.min(Math.max(estimated, 120), VRF_READING_QUERY_MAX);
