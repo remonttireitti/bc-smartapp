@@ -134,7 +134,7 @@ export default function RefrigerantBottleCard({
                 className="inventory-bottle-menu-item"
                 onClick={() => runAction(() => void onPrintLabel())}
               >
-                Tulosta QR-tarra
+                  Tulosta DYMO XTL -tarra
               </button>
               {canEdit && (
                 <>

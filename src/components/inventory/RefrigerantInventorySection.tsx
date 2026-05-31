@@ -312,9 +312,11 @@ export default function RefrigerantInventorySection({
 
   async function printCylinderLabel(cylinder: RefrigerantCylinder) {
     try {
-      await printRefrigerantCylinderLabel(cylinder, { companyName: warehouseCompanyName });
+      const result = await printRefrigerantCylinderLabel(cylinder, { companyName: warehouseCompanyName });
+      onMessage(result.message);
+      onError(null);
     } catch (err) {
-      onError(err instanceof Error ? err.message : 'QR-tarran tulostus epäonnistui');
+      onError(err instanceof Error ? err.message : 'DYMO XTL -tarran tulostus epäonnistui');
     }
   }
 

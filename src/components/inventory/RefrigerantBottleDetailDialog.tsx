@@ -113,7 +113,7 @@ export default function RefrigerantBottleDetailDialog({
             disabled={busy}
             onClick={() => void onPrintLabel()}
           >
-            <IconPrint /> Tulosta QR-tarra
+            <IconPrint /> Tulosta DYMO XTL -tarra
           </button>
           {canEdit && onEdit ? (
             <button type="button" className="btn btn-primary" disabled={busy} onClick={onEdit}>
