@@ -1079,8 +1079,42 @@ function timeRangeToSegment(
   const endPct = ((endT - periodStartMs) / span) * 100;
   return {
     startPct: Math.max(0, startPct),
-    widthPct: Math.max(0.4, endPct - startPct),
+    widthPct: Math.max(0.06, endPct - startPct),
   };
+}
+
+function readingTimesMs(readings: VrfReading[]): number[] {
+  return readings.map((reading) => new Date(reading.recorded_at).getTime());
+}
+
+/** Terävä reuna: tila vaihtuu mittauspisteiden puolivälissä. */
+function segmentBoundaryBefore(times: number[], idx: number): number {
+  if (idx <= 0) return times[0];
+  return (times[idx - 1] + times[idx]) / 2;
+}
+
+function segmentBoundaryAfter(times: number[], idx: number): number {
+  if (idx >= times.length - 1) {
+    if (times.length >= 2) {
+      const dt = times[idx] - times[idx - 1];
+      return times[idx] + dt / 2;
+    }
+    return times[idx];
+  }
+  return (times[idx] + times[idx + 1]) / 2;
+}
+
+function buildSegmentFromIndices(
+  readings: VrfReading[],
+  startIdx: number,
+  endIdx: number,
+  minTime: number,
+  span: number,
+): BinaryLaneSegment {
+  const times = readingTimesMs(readings);
+  const startT = segmentBoundaryBefore(times, startIdx);
+  const endT = segmentBoundaryAfter(times, endIdx);
+  return timeRangeToSegment(startT, endT, minTime, span);
 }
 
 /** Mittausvälien mediaani → raja, milloin jakson väliä pidetään datattomana. */
@@ -1162,25 +1196,19 @@ export function buildBinaryLaneSegments(
 ): BinaryLaneSegment[] {
   if (readings.length === 0 || span <= 0) return [];
   const segments: BinaryLaneSegment[] = [];
-  let startT: number | null = null;
+  let runStart: number | null = null;
 
-  readings.forEach((reading, i) => {
-    const on = flags[i];
-    const t = new Date(reading.recorded_at).getTime();
-    if (on && startT == null) startT = t;
-    const isLast = i === readings.length - 1;
-    if ((!on || isLast) && startT != null) {
-      const endT = on && isLast ? t : new Date(readings[i - 1].recorded_at).getTime();
-      const startPct = ((startT - minTime) / span) * 100;
-      const endPct = ((endT - minTime) / span) * 100;
-      const minWidth = Math.min(1.2, (100 / readings.length) * 0.85);
-      segments.push({
-        startPct: Math.max(0, startPct),
-        widthPct: Math.max(minWidth, endPct - startPct + minWidth * 0.35),
-      });
-      startT = null;
+  for (let i = 0; i < readings.length; i += 1) {
+    if (flags[i] && runStart == null) runStart = i;
+    const atEnd = i === readings.length - 1;
+    if (runStart != null && (!flags[i] || atEnd)) {
+      const endIdx = flags[i] && atEnd ? i : i - 1;
+      if (endIdx >= runStart) {
+        segments.push(buildSegmentFromIndices(readings, runStart, endIdx, minTime, span));
+      }
+      runStart = null;
     }
-  });
+  }
 
   return segments;
 }
@@ -1260,15 +1288,9 @@ export function buildActivityTimelineSegments(
   let runState = resolveReadingActivityTrendState(readings, 0);
 
   const pushRun = (startIdx: number, endIdx: number, state: VrfActivityTrendState) => {
-    const startT = new Date(readings[startIdx].recorded_at).getTime();
-    const endT = new Date(readings[endIdx].recorded_at).getTime();
-    const startPct = ((startT - minTime) / span) * 100;
-    const endPct = ((endT - minTime) / span) * 100;
-    const minWidth = Math.min(1.2, (100 / readings.length) * 0.85);
     segments.push({
       state,
-      startPct: Math.max(0, startPct),
-      widthPct: Math.max(minWidth, endPct - startPct + minWidth * 0.35),
+      ...buildSegmentFromIndices(readings, startIdx, endIdx, minTime, span),
     });
   };
 

@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, type CSSProperties } from 'react';
 import {
   VRF_ACTIVITY_TREND_LEGEND,
   VRF_ACTIVITY_TREND_META,
@@ -88,9 +88,8 @@ export default function VrfActivityTrendChart({ readings, period }: Props) {
                       style={{
                         left: `${segment.startPct}%`,
                         width: `${segment.widthPct}%`,
-                        background: `linear-gradient(180deg, ${meta.color} 0%, color-mix(in srgb, ${meta.color} 78%, #000) 100%)`,
-                        boxShadow: `0 0 0 1px color-mix(in srgb, ${meta.color} 55%, transparent), 0 2px 10px ${meta.glow}`,
-                      }}
+                        '--block-color': meta.color,
+                      } as CSSProperties}
                     />
                   );
                 })}

@@ -82,6 +82,33 @@ function pathFromPoints(points: Point[]) {
   return d;
 }
 
+/** Valitse merkkipisteet: alku/loppu, huiput, laaksot + järkevä tiheys. */
+function selectTrendMarkerPoints(points: Point[]): Point[] {
+  if (points.length <= 2) return points;
+
+  const selected = new Set<number>([0, points.length - 1]);
+  const epsilon = 0.04;
+
+  for (let i = 1; i < points.length - 1; i += 1) {
+    const prev = points[i - 1].value;
+    const curr = points[i].value;
+    const next = points[i + 1].value;
+    const isPeak = curr > prev + epsilon && curr > next + epsilon;
+    const isValley = curr < prev - epsilon && curr < next - epsilon;
+    if (isPeak || isValley) selected.add(i);
+  }
+
+  const targetCount = Math.min(56, Math.max(10, Math.ceil(points.length / 6)));
+  if (selected.size < targetCount) {
+    const step = Math.max(1, Math.floor(points.length / targetCount));
+    for (let i = 0; i < points.length; i += step) selected.add(i);
+  }
+
+  return [...selected]
+    .sort((a, b) => a - b)
+    .map((index) => points[index]);
+}
+
 export default function VrfTrendChart({
   readings,
   period,
@@ -145,6 +172,9 @@ export default function VrfTrendChart({
         innerH,
         padTop,
       ),
+    })).map((series) => ({
+      ...series,
+      markers: series.paths.flatMap((points) => selectTrendMarkerPoints(points)),
     }));
 
     return {
@@ -240,17 +270,29 @@ export default function VrfTrendChart({
             );
           })}
           {hasLines &&
-            chart.seriesPaths.map((series) =>
-              series.paths.map((points, pathIdx) => (
-                <path
-                  key={`${series.key}-${pathIdx}`}
-                  d={pathFromPoints(points)}
-                  fill="none"
-                  stroke={series.color}
-                  strokeWidth={2}
-                />
-              )),
-            )}
+            chart.seriesPaths.map((series) => (
+              <g key={series.key}>
+                {series.paths.map((points, pathIdx) => (
+                  <path
+                    key={`${series.key}-line-${pathIdx}`}
+                    d={pathFromPoints(points)}
+                    fill="none"
+                    stroke={series.color}
+                    strokeWidth={2}
+                  />
+                ))}
+                {series.markers.map((point, markerIdx) => (
+                  <circle
+                    key={`${series.key}-pt-${markerIdx}`}
+                    className="vrf-trend-point"
+                    cx={point.x}
+                    cy={point.y}
+                    r={3.5}
+                    fill={series.color}
+                  />
+                ))}
+              </g>
+            ))}
         </svg>
       </div>
     </div>

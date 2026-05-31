@@ -147,9 +147,8 @@ export default function VrfBinaryTrendChart({
                       style={{
                         left: `${segment.startPct}%`,
                         width: `${segment.widthPct}%`,
-                        background: `linear-gradient(180deg, ${lane.color} 0%, color-mix(in srgb, ${lane.color} 78%, #000) 100%)`,
-                        boxShadow: `0 0 0 1px color-mix(in srgb, ${lane.color} 55%, transparent), 0 2px 10px ${lane.glow}`,
-                      }}
+                        '--block-color': lane.color,
+                      } as CSSProperties}
                     />
                   ))}
                 </div>
