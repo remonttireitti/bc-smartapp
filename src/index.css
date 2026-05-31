@@ -5468,6 +5468,49 @@ textarea {
   gap: 0.35rem;
 }
 
+.inventory-bottle-qr-dialog {
+  width: min(100%, 28rem);
+}
+
+.inventory-bottle-qr-hint {
+  margin: 0 0 1rem;
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.inventory-bottle-qr-preview {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 1rem;
+  padding: 0.75rem;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.inventory-bottle-qr-preview img {
+  display: block;
+  width: 220px;
+  height: 220px;
+}
+
+.inventory-bottle-qr-url {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-bottom: 1rem;
+  font-size: 0.85rem;
+}
+
+.inventory-bottle-qr-url input {
+  width: 100%;
+  font-size: 0.82rem;
+}
+
+.inventory-bottle-qr-actions {
+  flex-wrap: wrap;
+}
+
 .inventory-filter-label {
   display: flex;
   flex-direction: column;

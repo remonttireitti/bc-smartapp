@@ -1,7 +1,6 @@
 import { useEffect } from 'react';
 
 import InventoryPhotoThumb from './InventoryPhotoThumb';
-import { IconPrint } from '../icons';
 import {
   formatBottleContent,
   formatBottleLabel,
@@ -22,7 +21,7 @@ type Props = {
   busy?: boolean;
   onClose: () => void;
   onEdit?: () => void;
-  onPrintLabel: () => void | Promise<void>;
+  onShowQr?: () => void;
 };
 
 export default function RefrigerantBottleDetailDialog({
@@ -32,7 +31,7 @@ export default function RefrigerantBottleDetailDialog({
   busy = false,
   onClose,
   onEdit,
-  onPrintLabel,
+  onShowQr,
 }: Props) {
   useEffect(() => {
     if (!open) return;
@@ -107,14 +106,11 @@ export default function RefrigerantBottleDetailDialog({
           <button type="button" className="btn btn-secondary" onClick={onClose} disabled={busy}>
             Sulje
           </button>
-          <button
-            type="button"
-            className="btn btn-secondary inventory-bottle-detail-print"
-            disabled={busy}
-            onClick={() => void onPrintLabel()}
-          >
-            <IconPrint /> Tulosta DYMO XTL -tarra
-          </button>
+          {onShowQr ? (
+            <button type="button" className="btn btn-secondary" disabled={busy} onClick={onShowQr}>
+              QR-koodi ja linkki
+            </button>
+          ) : null}
           {canEdit && onEdit ? (
             <button type="button" className="btn btn-primary" disabled={busy} onClick={onEdit}>
               Muokkaa

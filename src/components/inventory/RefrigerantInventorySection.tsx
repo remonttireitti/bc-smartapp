@@ -2,8 +2,8 @@ import { FormEvent, Fragment, useCallback, useEffect, useMemo, useState } from '
 
 import { IconScan } from '../icons';
 import RefrigerantBottleCard from './RefrigerantBottleCard';
+import RefrigerantBottleQrDialog from './RefrigerantBottleQrDialog';
 import RefrigerantBottleDetailDialog from './RefrigerantBottleDetailDialog';
-import RefrigerantBottleScanDialog from './RefrigerantBottleScanDialog';
 import { uploadInventoryImage } from '../../lib/inventoryImages';
 import {
   bottleMaxContentKg,
@@ -23,9 +23,9 @@ import {
   loadRefrigerantPeriodReport,
   printRefrigerantPeriodReport,
 } from '../../lib/refrigerantInventoryReport';
-import { loadWarehouseCustomerPicker, type WarehouseCustomerPickerOption } from '../../lib/customers';
 import { resolveCylinderFromScan } from '../../lib/refrigerantCylinderCode';
-import { printRefrigerantCylinderLabel } from '../../lib/refrigerantCylinderLabelPrint';
+import { loadWarehouseCustomerPicker, type WarehouseCustomerPickerOption } from '../../lib/customers';
+import RefrigerantBottleScanDialog from './RefrigerantBottleScanDialog';
 import { supabase } from '../../lib/supabase';
 import { refrigerantTypes } from '../../lib/huoltoRaportti/constants';
 import type {
@@ -203,6 +203,7 @@ export default function RefrigerantInventorySection({
   const [scanOpen, setScanOpen] = useState(false);
   const [scanBusy, setScanBusy] = useState(false);
   const [detailCylinder, setDetailCylinder] = useState<RefrigerantCylinder | null>(null);
+  const [qrCylinder, setQrCylinder] = useState<RefrigerantCylinder | null>(null);
 
   const filteredBottles = useMemo(() => {
     return cylinders.filter((c) => {
@@ -310,15 +311,10 @@ export default function RefrigerantInventorySection({
     setView('registry');
   }, []);
 
-  async function printCylinderLabel(cylinder: RefrigerantCylinder) {
-    try {
-      const result = await printRefrigerantCylinderLabel(cylinder, { companyName: warehouseCompanyName });
-      onMessage(result.message);
-      onError(null);
-    } catch (err) {
-      onError(err instanceof Error ? err.message : 'DYMO XTL -tarran tulostus epäonnistui');
-    }
-  }
+  const openCylinderQr = useCallback((cylinder: RefrigerantCylinder) => {
+    setQrCylinder(cylinder);
+    setView('registry');
+  }, []);
 
   async function handleScanText(text: string) {
     if (!warehouseCompanyId) return;
@@ -942,7 +938,7 @@ export default function RefrigerantInventorySection({
                           busy={rowBusy}
                           onPickPhoto={(file) => void uploadBottlePhoto(c, file)}
                           onShowDetails={() => openCylinderDetails(c)}
-                          onPrintLabel={() => printCylinderLabel(c)}
+                          onShowQr={() => openCylinderQr(c)}
                           onEdit={() => openEdit(c)}
                           onRetrieve={() => {
                             setRetrieveBottleId(c.id);
@@ -1050,7 +1046,20 @@ export default function RefrigerantInventorySection({
               }
             : undefined
         }
-        onPrintLabel={() => (detailCylinder ? printCylinderLabel(detailCylinder) : undefined)}
+        onShowQr={
+          detailCylinder
+            ? () => {
+                openCylinderQr(detailCylinder);
+                setDetailCylinder(null);
+              }
+            : undefined
+        }
+      />
+      <RefrigerantBottleQrDialog
+        open={qrCylinder != null}
+        cylinder={qrCylinder}
+        onClose={() => setQrCylinder(null)}
+        onMessage={onMessage}
       />
     </>
   );

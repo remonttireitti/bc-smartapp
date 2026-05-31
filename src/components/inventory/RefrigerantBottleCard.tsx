@@ -18,7 +18,7 @@ type Props = {
   busy: boolean;
   onPickPhoto: (file: File) => void | Promise<void>;
   onShowDetails: () => void;
-  onPrintLabel: () => void | Promise<void>;
+  onShowQr: () => void;
   onEdit: () => void;
   onRetrieve: () => void;
   onEmpty: () => void;
@@ -33,7 +33,7 @@ export default function RefrigerantBottleCard({
   busy,
   onPickPhoto,
   onShowDetails,
-  onPrintLabel,
+  onShowQr,
   onEdit,
   onRetrieve,
   onEmpty,
@@ -132,9 +132,9 @@ export default function RefrigerantBottleCard({
                 type="button"
                 role="menuitem"
                 className="inventory-bottle-menu-item"
-                onClick={() => runAction(() => void onPrintLabel())}
+                onClick={() => runAction(onShowQr)}
               >
-                  Tulosta DYMO XTL -tarra
+                QR-koodi ja linkki
               </button>
               {canEdit && (
                 <>
