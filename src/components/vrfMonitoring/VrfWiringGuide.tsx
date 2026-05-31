@@ -2,59 +2,109 @@ import CollapsibleSection from '../CollapsibleSection';
 
 export default function VrfWiringGuide() {
   return (
-    <CollapsibleSection title="Kytkentäohjeet (DI2–DI4, RO1)" defaultOpen={false}>
+    <CollapsibleSection title="Kytkentäohjeet (DI2–DI4, RO1, COM/DGND)" defaultOpen>
       <div className="vrf-wiring-guide">
         <p>
-          <strong>RO1</strong> (relelähtö 1) = monitorin lämmityslupa VRF:ään (ohjaus ulos).{' '}
-          <strong>DI4/DI2/DI3</strong> = VRF:n 12 V -palaute monitoriin (lukutila). Nämä eivät ole sama
-          signaali — RO1 voi olla päällä ja DI4 pois, jos VRF on pysähtynyt hälytyksestä.
+          Waveshare ESP32-S3-ETH-8DI-8RO -liitännät: <strong>COM</strong>, <strong>DGND</strong>,{' '}
+          <strong>DI1…DI8</strong>. Tulot ovat optoeristettyjä (5–36 V). VRF:n statusulostulot ovat
+          tyypillisesti <strong>+12 V aktiivinen</strong> (PNP / korkean tason signaali).
         </p>
 
+        <h3>COM ja DGND — minne VRF:n GND?</h3>
+        <p>
+          <strong>COM</strong> on digitaalitulojen yhteinen liitäntä (valitaan NPN/PNP-tila).{' '}
+          <strong>DGND</strong> on signaalipuolen maadoitus.
+        </p>
+        <p>
+          VRF antaa ulos <strong>12 V + signaalijohdin</strong> ja <strong>GND (0 V)</strong>.
+          Kytkentä (PNP, suositus kun signaali ON = +12 V):
+        </p>
+        <ul className="vrf-wiring-steps">
+          <li>
+            <strong>VRF GND (0 V)</strong> → moduulin <strong>COM</strong> ja <strong>DGND</strong>{' '}
+            (sama referenssi; voit hyppylankalla COM–DGND tai yksi GND-jako).
+          </li>
+          <li>
+            <strong>VRF +12 V status</strong> (kun tila ON) → vastaava <strong>DIx</strong>-ruuvi
+            (DI4 / DI2 / DI3).
+          </li>
+          <li>
+            Kun signaali OFF: DI-johdin on 0 V → firmware lukee <strong>OFF</strong>.
+          </li>
+        </ul>
+
+        <div className="vrf-wiring-diagram">
+          <pre>{`VRF-ohjain                          Waveshare DI-liitin
+──────────                          ────────────────────
+Status +12 V (ON)  ───────────────►  DI4  (käyntitieto)
+Kompressori +12 V  ───────────────►  DI2
+Hälytys +12 V      ───────────────►  DI3
+GND (0 V)          ───────────────►  COM
+                   └──────────────►  DGND`}</pre>
+        </div>
+
+        <p className="muted vrf-wiring-note">
+          <strong>Huom:</strong> Moduulin oman virtalähteen (7–36 V / RJ45) GND on eri puolella eristystä
+          kuin DI-kenttäpuoli. VRF:n GND kytketään <em>vain</em> COM/DGND:hen — ei sekoiteta
+          relelähtöihin (RO).
+        </p>
+
+        <h3>Signaalikartta</h3>
         <table className="vrf-wiring-table">
           <thead>
             <tr>
               <th>Liitäntä</th>
               <th>GPIO</th>
-              <th>Signaali</th>
+              <th>VRF-signaali</th>
               <th>Suunta</th>
             </tr>
           </thead>
           <tbody>
             <tr>
               <td><strong>RO1</strong></td>
-              <td>TCA9554 EXIO1</td>
-              <td>Lämmityslupa (käyntilupa webistä)</td>
+              <td>Rele EXIO1</td>
+              <td>Lämmityslupa (webistä ON/OFF)</td>
               <td>Monitori → VRF</td>
             </tr>
             <tr>
               <td><strong>DI4</strong></td>
               <td>GPIO7</td>
-              <td>Laite päällä / valmiustila</td>
+              <td>Laite päällä / valmiustila (+12 V)</td>
               <td>VRF → monitori</td>
             </tr>
             <tr>
               <td><strong>DI2</strong></td>
               <td>GPIO5</td>
-              <td>Kompressori käynnissä</td>
+              <td>Kompressori (+12 V)</td>
               <td>VRF → monitori</td>
             </tr>
             <tr>
               <td><strong>DI3</strong></td>
               <td>GPIO6</td>
-              <td>Hälytys</td>
+              <td>Hälytys (+12 V)</td>
               <td>VRF → monitori</td>
+            </tr>
+            <tr>
+              <td><strong>COM + DGND</strong></td>
+              <td>—</td>
+              <td>VRF GND (0 V)</td>
+              <td>Yhteinen paluu</td>
             </tr>
           </tbody>
         </table>
 
-        <h3>Kytkentä Waveshare-moduuliin</h3>
+        <h3>Jos VRF antaa NPN-signaalin (aktivoituu GND:hen)</h3>
+        <p className="muted">
+          Harvinaisempi: kytke <strong>COM → +12 V</strong> (VRF:n tai jaetun 12 V:n plus) ja signaali
+          DIx:ään. Tarkista VRF-dokumentaatiosta ulostulotyyppi. Nykyinen firmware odottaa PNP-tyyliä
+          (12 V DI-johdossa = ON).
+        </p>
+
+        <h3>RO1-rele (käyntilupa)</h3>
         <ol className="vrf-wiring-steps">
-          <li>
-            Kytke VRF-ohjaimen 12 V -palautesignaalit DI4, DI2 ja DI3 -tuloihin (+ ja −).
-          </li>
-          <li>RO1-rele kytketään VRF:n lämmityspyyntö-/käyntilupapiiriin erikseen (ohjaus, ei palaute).</li>
-          <li>Yhteinen GND VRF:n ja monitorin välillä.</li>
-          <li>DI1 jätetään vapaaksi — ei sekoitu RO1-releen kanssa.</li>
+          <li>RO1 on erillinen relelähtö — ei sama kuin DI-tulot.</li>
+          <li>Kytke RO1 VRF:n lämmityspyyntö-/käyntilupapiiriin ohjauksena (kuiva kontakti).</li>
+          <li>DI1 jätetään vapaaksi (ei sekoitu RO1-numerointiin).</li>
         </ol>
       </div>
     </CollapsibleSection>

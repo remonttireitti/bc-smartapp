@@ -6332,6 +6332,23 @@ button.vrf-toggle:not(:disabled) {
   line-height: 1.5;
 }
 
+.vrf-wiring-diagram {
+  margin: 0.75rem 0 1rem;
+  padding: 0.85rem 1rem;
+  border-radius: 10px;
+  background: var(--bg-muted);
+  border: 1px solid var(--border);
+  overflow-x: auto;
+}
+
+.vrf-wiring-diagram pre {
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  white-space: pre;
+  font-family: ui-monospace, 'Cascadia Code', Consolas, monospace;
+}
+
 .vrf-wiring-note {
   font-size: 0.88rem;
 }
