@@ -13,6 +13,10 @@ import {
   isTempDeviceOnline,
   type TempDevice,
 } from '../lib/tempMonitoring';
+import {
+  REMOTE_MONITORING_HUB,
+  tempMonitoringDevicePath,
+} from '../lib/remoteMonitoringRoutes';
 import { supabase } from '../lib/supabase';
 
 interface Props {
@@ -116,6 +120,7 @@ export default function TempMonitoringPage({ session }: Props) {
           sticky
           crumbs={[
             { href: '/', label: 'Etusivu' },
+            { href: REMOTE_MONITORING_HUB, label: 'Etäohjaus ja seuranta' },
             { label: 'Lämpötilaseuranta' },
           ]}
           title="Lämpötilaseuranta"
@@ -171,7 +176,7 @@ export default function TempMonitoringPage({ session }: Props) {
                 <TempDeviceListCard
                   key={device.id}
                   device={device}
-                  to={`/lampotila/${device.id}`}
+                  to={tempMonitoringDevicePath(device.id)}
                   deleteDisabled={busy}
                   onDelete={() => {
                     setDeleteError(null);

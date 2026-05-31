@@ -1,4 +1,4 @@
-import { Navigate, Route, Routes } from 'react-router-dom';
+import { Navigate, Route, Routes, useParams } from 'react-router-dom';
 import RequireLoginRedirect from './components/RequireLoginRedirect';
 import { AuthSessionProvider, useAuthSession } from './contexts/AuthSessionContext';
 import CustomerDetailPage from './pages/CustomerDetailPage';
@@ -35,6 +35,8 @@ import ToolsPage from './pages/ToolsPage';
 import TempMonitoringPage from './pages/TempMonitoringPage';
 import TempMonitorDetailPage from './pages/TempMonitorDetailPage';
 import TempMonitorReportPrintPage from './pages/TempMonitorReportPrintPage';
+import RemoteMonitoringHubPage from './pages/RemoteMonitoringHubPage';
+import VrfMonitoringPage from './pages/VrfMonitoringPage';
 import SubscribersPage from './pages/SubscribersPage';
 import {
   CustomerPortalPreviewPage,
@@ -43,6 +45,22 @@ import {
 import OfflineBanner from './components/OfflineBanner';
 import PwaInstallBanner from './components/PwaInstallBanner';
 import PwaUpdateBanner from './components/PwaUpdateBanner';
+import {
+  tempMonitoringDevicePath,
+  tempMonitoringReportPrintPath,
+} from './lib/remoteMonitoringRoutes';
+
+function LegacyTempDeviceRedirect() {
+  const { deviceId } = useParams();
+  if (!deviceId) return <Navigate to="/etaseuranta/lampotila" replace />;
+  return <Navigate to={tempMonitoringDevicePath(deviceId)} replace />;
+}
+
+function LegacyTempReportRedirect() {
+  const { reportId } = useParams();
+  if (!reportId) return <Navigate to="/etaseuranta/lampotila" replace />;
+  return <Navigate to={tempMonitoringReportPrintPath(reportId)} replace />;
+}
 
 function AppRoutes() {
   const { session, loading } = useAuthSession();
@@ -77,9 +95,14 @@ function AppRoutes() {
       <Route path="/tyoraportit" element={<WorkReportsPage session={session} />} />
       <Route path="/laskutus" element={<BillingPage session={session} />} />
       <Route path="/varasto" element={<InventoryPage session={session} />} />
-      <Route path="/lampotila" element={<TempMonitoringPage session={session} />} />
-      <Route path="/lampotila/raportit/:reportId/tuloste" element={<TempMonitorReportPrintPage session={session} />} />
-      <Route path="/lampotila/:deviceId" element={<TempMonitorDetailPage session={session} />} />
+      <Route path="/etaseuranta" element={<RemoteMonitoringHubPage session={session} />} />
+      <Route path="/etaseuranta/lampotila" element={<TempMonitoringPage session={session} />} />
+      <Route path="/etaseuranta/lampotila/raportit/:reportId/tuloste" element={<TempMonitorReportPrintPage session={session} />} />
+      <Route path="/etaseuranta/lampotila/:deviceId" element={<TempMonitorDetailPage session={session} />} />
+      <Route path="/etaseuranta/vrf" element={<VrfMonitoringPage session={session} />} />
+      <Route path="/lampotila" element={<Navigate to="/etaseuranta/lampotila" replace />} />
+      <Route path="/lampotila/raportit/:reportId/tuloste" element={<LegacyTempReportRedirect />} />
+      <Route path="/lampotila/:deviceId" element={<LegacyTempDeviceRedirect />} />
       <Route path="/tyokalut" element={<ToolsPage session={session} />} />
       <Route path="/asiakkaat" element={<CustomersPage session={session} />} />
       <Route path="/asiakkaat/:customerId/laitteet/:equipmentId" element={<EquipmentDetailPage session={session} />} />

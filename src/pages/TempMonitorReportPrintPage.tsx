@@ -6,6 +6,11 @@ import IconButton from '../components/IconButton';
 import TempMonitoringPageHeader from '../components/tempMonitoring/TempMonitoringPageHeader';
 import { IconBack, IconPrint } from '../components/icons';
 import { loadTempMonitorReportPrintBundle } from '../lib/tempMonitorReportPrint';
+import {
+  REMOTE_MONITORING_HUB,
+  TEMP_MONITORING_BASE,
+  tempMonitoringDevicePath,
+} from '../lib/remoteMonitoringRoutes';
 import type { TempMonitorReport } from '../lib/tempMonitoring';
 
 interface Props {
@@ -64,7 +69,7 @@ export default function TempMonitorReportPrintPage({ session }: Props) {
     return (
       <AppLayout session={session}>
         <p className="form-error">{error ?? 'Raporttia ei löydy'}</p>
-        <Link to="/lampotila">← Takaisin</Link>
+        <Link to={TEMP_MONITORING_BASE}>← Takaisin</Link>
       </AppLayout>
     );
   }
@@ -76,7 +81,8 @@ export default function TempMonitorReportPrintPage({ session }: Props) {
           <TempMonitoringPageHeader
             crumbs={[
               { href: '/', label: 'Etusivu' },
-              { href: '/lampotila', label: 'Lämpötilaseuranta' },
+              { href: REMOTE_MONITORING_HUB, label: 'Etäohjaus ja seuranta' },
+              { href: TEMP_MONITORING_BASE, label: 'Lämpötilaseuranta' },
               { label: 'Tuloste' },
             ]}
             title={report.title}
@@ -85,7 +91,7 @@ export default function TempMonitorReportPrintPage({ session }: Props) {
               <>
                 <IconButton
                   label="Takaisin laitteeseen"
-                  href={`/lampotila/${report.device_id}`}
+                  href={tempMonitoringDevicePath(report.device_id)}
                   tooltipSide="bottom"
                 >
                   <IconBack />

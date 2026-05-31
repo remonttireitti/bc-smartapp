@@ -39,6 +39,11 @@ import {
   type TempReading,
   type TempSessionSettingsInput,
 } from '../lib/tempMonitoring';
+import {
+  REMOTE_MONITORING_HUB,
+  TEMP_MONITORING_BASE,
+  tempMonitoringReportPrintPath,
+} from '../lib/remoteMonitoringRoutes';
 import { supabase } from '../lib/supabase';
 import type { Customer } from '../types';
 
@@ -358,7 +363,7 @@ export default function TempMonitorDetailPage({ session }: Props) {
       return;
     }
 
-    navigate('/lampotila');
+    navigate(TEMP_MONITORING_BASE);
   }
 
   async function deleteReport() {
@@ -425,7 +430,7 @@ export default function TempMonitorDetailPage({ session }: Props) {
       setMessage('Raportti tallennettu.');
       await load();
       if (data?.id) {
-        navigate(`/lampotila/raportit/${data.id}/tuloste`);
+        navigate(tempMonitoringReportPrintPath(data.id));
       }
     } catch (err) {
       setReportError(err instanceof Error ? err.message : 'Raportin tallennus epäonnistui.');
@@ -446,7 +451,7 @@ export default function TempMonitorDetailPage({ session }: Props) {
     return (
       <AppLayout session={session}>
         <p className="form-error">{error ?? 'Laitetta ei löydy'}</p>
-        <Link to="/lampotila">← Takaisin</Link>
+        <Link to={TEMP_MONITORING_BASE}>← Takaisin</Link>
       </AppLayout>
     );
   }
@@ -466,7 +471,8 @@ export default function TempMonitorDetailPage({ session }: Props) {
           sticky
           crumbs={[
             { href: '/', label: 'Etusivu' },
-            { href: '/lampotila', label: 'Lämpötilaseuranta' },
+            { href: REMOTE_MONITORING_HUB, label: 'Etäohjaus ja seuranta' },
+            { href: TEMP_MONITORING_BASE, label: 'Lämpötilaseuranta' },
             { label: device.name },
           ]}
           title={device.name}
@@ -656,7 +662,7 @@ export default function TempMonitorDetailPage({ session }: Props) {
                   </div>
                 </div>
                 <div className="temp-report-list-actions">
-                  <Link to={`/lampotila/raportit/${report.id}/tuloste`} className="btn btn-secondary">
+                  <Link to={tempMonitoringReportPrintPath(report.id)} className="btn btn-secondary">
                     Tuloste
                   </Link>
                   <button

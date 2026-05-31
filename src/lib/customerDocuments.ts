@@ -7,6 +7,7 @@ import type { QuoteRequestData } from './quoteRequest/types';
 import { isMaintenanceReportPublished } from './maintenanceReportStatus';
 import { isWorkReportVisibleToPortal } from './portalWorkOrder';
 import { getMaintenanceReportStatusLabel, getWorkStatusLabel, type WorkStatus } from '../types';
+import { tempMonitoringReportPrintPath } from './remoteMonitoringRoutes';
 
 export type CustomerLinkedDocumentKind =
   | 'work_report'
@@ -209,8 +210,8 @@ export async function loadCustomerLinkedDocuments(
       subtitle: report.monitor_label ?? undefined,
       date: report.updated_at || report.created_at,
       equipmentLabel: device?.name ?? null,
-      href: `/lampotila/raportit/${report.id}/tuloste`,
-      printHref: `/lampotila/raportit/${report.id}/tuloste`,
+      href: tempMonitoringReportPrintPath(report.id),
+      printHref: tempMonitoringReportPrintPath(report.id),
     });
   }
 
