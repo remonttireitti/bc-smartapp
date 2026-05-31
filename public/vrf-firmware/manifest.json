@@ -1,6 +1,5 @@
-{
-  "version": "1.1.12",
-  "url": "https://bc-smartapp.vercel.app/vrf-firmware/firmware.bin",
-  "notes": "Fix Waveshare DI opto inversion: +12 V at terminal now reads as HIGH in UI and logic."
-}
-
+{
+  "version": "1.1.13",
+  "url": "https://bc-smartapp.vercel.app/vrf-firmware/firmware.bin",
+  "notes": "DI bus energize detection: suppress false alarm/states when all optos open; relay diagnostics."
+}

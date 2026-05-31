@@ -63,6 +63,7 @@ import {
   trendReadingLimit,
 
   vrfAlarmDelayResetState,
+  vrfExternalAlarmActive,
   vrfCompressorRunning,
   vrfResolveDeviceActivity,
 
@@ -172,9 +173,7 @@ export default function VrfMonitorDetailPage({ session }: Props) {
 
   }, [readings, telemetry?.defrost?.active]);
 
-  const externalAlarm =
-    telemetry?.digital_inputs?.di3_alarm === true ||
-    telemetry?.alarms.external_alarm_input === true;
+  const externalAlarm = vrfExternalAlarmActive(telemetry);
 
   const activitySummary = useMemo(
     () =>
@@ -191,8 +190,8 @@ export default function VrfMonitorDetailPage({ session }: Props) {
   );
 
   const diWiringHint = useMemo(
-    () => vrfDiWiringHint(telemetry?.digital_inputs ?? null, settingsForm),
-    [telemetry?.digital_inputs, settingsForm],
+    () => vrfDiWiringHint(telemetry?.digital_inputs ?? null, settingsForm, telemetry),
+    [telemetry, settingsForm],
   );
 
   const patchSettingsForm = useCallback(

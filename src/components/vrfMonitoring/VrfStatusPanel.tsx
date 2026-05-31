@@ -5,6 +5,7 @@ import {
   formatRelativeTime,
   formatVrfDiRaw,
   vrfAlarmDelayResetState,
+  vrfDiBusEnergized,
   vrfResolveDeviceActivity,
   vrfResolvePermitStatus,
   type VrfTelemetry,
@@ -79,6 +80,7 @@ export default function VrfStatusPanel({
   const toggleChecked = requestedEnabled ?? permit.actualOn ?? permit.isOn ?? false;
   const toggleDisabled = permitDisabled || readOnly || !onPermitChange;
   const di = telemetry?.digital_inputs;
+  const diBusEnergized = vrfDiBusEnergized(di ?? null, telemetry?.diagnostics);
 
   useEffect(() => {
     if (!diOpen) return;
@@ -121,6 +123,11 @@ export default function VrfStatusPanel({
             {diOpen && (
               <div id={diPopoverId} className="vrf-di-popover" role="dialog" aria-label="Digitaalitulot">
                 <p className="vrf-di-popover-title">Digitaalitulot (FDC400KXZE2)</p>
+                {diBusEnergized === false && (
+                  <p className="vrf-di-popover-hint">
+                    Signaalikisko ei aktiivinen — jännite-arvot voivat näyttää 0 V vaikka mittarilla näkyisi +12 V.
+                  </p>
+                )}
                 <ul className="vrf-di-status-list">
                   <li>
                     <strong>DI4 Käyntitieto</strong>

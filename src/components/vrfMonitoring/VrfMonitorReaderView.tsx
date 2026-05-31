@@ -12,6 +12,7 @@ import {
   isVrfDeviceOnline,
   isVrfTelemetryStale,
   parseVrfTelemetry,
+  vrfExternalAlarmActive,
   vrfCompressorRunning,
   vrfResolveDeviceActivity,
   type VrfBinaryLaneKey,
@@ -88,9 +89,7 @@ export default function VrfMonitorReaderView({
   const diStale = stale || !online;
   const heatEnabled = device?.control_requested_enabled ?? telemetry?.control.enabled ?? device?.heat_enabled;
   const alarms = activeVrfAlarms(telemetry?.alarms ?? {});
-  const externalAlarm =
-    telemetry?.digital_inputs?.di3_alarm === true ||
-    telemetry?.alarms.external_alarm_input === true;
+  const externalAlarm = vrfExternalAlarmActive(telemetry);
   const defrostLikely = telemetry?.defrost?.active === true;
 
   const activitySummary = useMemo(

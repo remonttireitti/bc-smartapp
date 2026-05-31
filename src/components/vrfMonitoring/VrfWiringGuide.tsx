@@ -47,6 +47,11 @@ export default function VrfWiringGuide() {
         ulkoisen jännitteen (+12 V = HIGH), ei raaka-GPIO-arvoa.
       </p>
       <p className="muted vrf-wiring-note">
+        <strong>RO1 / käyntilupa:</strong> Lämmitysrele (RO1) ohjaa vain VRF:n käyntilupaa — se ei saa katkaista DI-tulojen
+        COM- tai +12 V -kiskoa. Jos kaikki DI:t putoavat 0 V:hen samalla kun käyntilupa sammutetaan, COM/GND-kytkentä
+        on väärin tai signaali tulee releen läpi.
+      </p>
+      <p className="muted vrf-wiring-note">
         <strong>Tärkeää DI3:lle:</strong> CnT-5 / Inspection (Error) -ulostulo antaa +12 V vain vian sattuessa. Jos DI3
         on kytketty siihen, vaihda Asetukset-välilehdellä DI3 → <strong>PNP</strong>. Nykyinen INV-logiikka sopii
         signaaliin joka on +12 V normaalisti ja putoaa 0 V:hun hälytyksessä.

@@ -65,6 +65,8 @@ export type VrfDigitalInputs = {
   di4_unit_ready: boolean | null;
   di2_compressor_running: boolean | null;
   di3_alarm: boolean | null;
+  /** Vähintään yksi opto aktiivinen — false = kaikki tulot irrallaan, älä tulkita 0 V -tiloja. */
+  di_bus_energized?: boolean | null;
   di2_raw?: number | null;
   di3_raw?: number | null;
   di4_raw?: number | null;
@@ -370,13 +372,24 @@ export function parseVrfDigitalInputs(payload: Record<string, unknown> | null | 
     di4_unit_ready: readBoolean(raw.di4_unit_ready) ?? readBoolean(raw.di1_unit_ready),
     di2_compressor_running: readBoolean(raw.di2_compressor_running),
     di3_alarm: readBoolean(raw.di3_alarm),
+    di_bus_energized: readBoolean(raw.di_bus_energized),
     di2_raw: readNumber(raw.di2_raw),
     di3_raw: readNumber(raw.di3_raw),
     di4_raw: readNumber(raw.di4_raw),
   };
 }
 
+export function vrfDiBusEnergized(
+  inputs: VrfDigitalInputs | null,
+  diagnostics?: Record<string, unknown> | null,
+): boolean | null {
+  if (inputs?.di_bus_energized != null) return inputs.di_bus_energized;
+  return readBoolean(diagnostics?.di_bus_energized);
+}
+
 export function vrfCompressorRunning(telemetry: VrfTelemetry | null): boolean {
+  const bus = vrfDiBusEnergized(telemetry?.digital_inputs ?? null, telemetry?.diagnostics);
+  if (bus === false) return false;
   if (telemetry?.digital_inputs?.di2_compressor_running != null) {
     return telemetry.digital_inputs.di2_compressor_running;
   }
@@ -560,22 +573,45 @@ export function formatVrfDiRaw(raw: number | null | undefined): string {
 export function vrfDiWiringHint(
   inputs: VrfDigitalInputs | null,
   settings: VrfDeviceSettings | null | undefined,
+  telemetry?: VrfTelemetry | null,
 ): string | null {
   if (!inputs) return null;
+
+  const bus = vrfDiBusEnergized(inputs, telemetry?.diagnostics);
+  if (bus === false) {
+    const relayOn = readBoolean(telemetry?.diagnostics?.heat_relay_energized);
+    const permitOff = telemetry?.control.permit_requested_enabled === false;
+    if (permitOff && relayOn === true) {
+      return 'Kaikki DI-tulot irrallaan käyntiluvan sammutuksen jälkeen — tarkista ettei RO1/rele katkaise VRF:n +12 V -kiskoa tai COM-liitosta. COM/DGND → VRF GND erikseen lämmitysreleestä.';
+    }
+    return 'DI-signaalit eivät ole aktiivisia (kaikki optot auki). Mittari voi näyttää +12 V, mutta virta ei kulje optoon — tarkista COM/DGND-kytkentä.';
+  }
+
   const di3Inverted = vrfDiInvertedFromTrigger(
     settings?.di3_trigger_raw_level ?? settings?.alarm_input_trigger_raw_level,
     0,
   );
+  const di2Inverted = vrfDiInvertedFromTrigger(settings?.di2_trigger_raw_level, 1);
+  const di4Inverted = vrfDiInvertedFromTrigger(settings?.di4_trigger_raw_level, 1);
   const allHigh =
     inputs.di2_raw === 1 && inputs.di3_raw === 1 && inputs.di4_raw === 1;
+  const allLow =
+    inputs.di2_raw === 0 && inputs.di3_raw === 0 && inputs.di4_raw === 0;
+
   if (allHigh && !di3Inverted && inputs.di3_alarm) {
     return 'Kaikki DI-tulot +12 V ja DI3 on PNP-asetuksella → hälytys luetaan väärin. Vaihda Asetuksista DI3 → INV (+12 V = normaali).';
   }
-  if (allHigh && di3Inverted && inputs.di2_compressor_running) {
-    return 'Kaikki DI-tulot +12 V yhtä aikaa — tarkista ettei DI2/DI3/DI4 johda samaan VRF-ulostuloon.';
+  if (allHigh && di3Inverted && !di2Inverted && !di4Inverted && inputs.di2_compressor_running) {
+    return 'Kaikki DI-tulot +12 V yhtä aikaa — jos kompressori on seis, vaihda DI2 ja DI4 → INV (+12 V = pois).';
+  }
+  if (allHigh && di2Inverted && di4Inverted && di3Inverted && !inputs.di3_alarm) {
+    return 'Kaikki DI-tulot +12 V — lepotila (kompressori seis, ei hälytystä). INV-asetukset DI2/DI4 näyttävät oikealta.';
+  }
+  if (allLow && di3Inverted && inputs.di3_alarm) {
+    return 'Kaikki DI-tulot 0 V — DI3 tulkitsee hälytykseksi (INV). Jos mittarilla on +12 V, signaalikisko on irrallaan (COM/rele).';
   }
   if (inputs.di3_alarm && inputs.di3_raw === 0 && di3Inverted) {
-    return 'DI3 lukee jatkuvasti 0 V (INV = hälytys). Jos kytketty CnT-5 / Error-ulostuloon, vaihda DI3-asetus PNP:ksi — error antaa +12 V vain vian sattuessa.';
+    return 'DI3 lukee 0 V (INV = hälytys). Jos kytketty CnT-5 / Error-ulostuloon, vaihda DI3-asetus PNP:ksi — error antaa +12 V vain vian sattuessa.';
   }
   if (!inputs.di3_alarm && inputs.di3_raw === 1 && di3Inverted) {
     return 'DI3 lukee +12 V (INV = normaali). Kytkentä näyttää oikealta fail-safe -logiikalla.';
@@ -917,11 +953,16 @@ export function readingCompressorOn(reading: VrfReading): boolean {
   return false;
 }
 
+export function vrfExternalAlarmActive(telemetry: VrfTelemetry | null): boolean {
+  const bus = vrfDiBusEnergized(telemetry?.digital_inputs ?? null, telemetry?.diagnostics);
+  if (bus === false) return false;
+  if (telemetry?.digital_inputs?.di3_alarm != null) return telemetry.digital_inputs.di3_alarm;
+  return telemetry?.alarms.external_alarm_input === true;
+}
+
 export function readingAlarmActive(reading: VrfReading): boolean {
   const telemetry = readingTelemetry(reading);
-  if (telemetry?.digital_inputs?.di3_alarm != null) return telemetry.digital_inputs.di3_alarm;
-  if (telemetry?.alarms.external_alarm_input === true) return true;
-  return reading.any_alarm;
+  return vrfExternalAlarmActive(telemetry);
 }
 
 export function readingUnitReady(reading: VrfReading): boolean {
