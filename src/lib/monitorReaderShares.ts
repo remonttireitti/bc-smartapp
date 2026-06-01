@@ -61,6 +61,23 @@ export async function fetchMonitorSharesForViewer(): Promise<MonitorReaderShare[
   return (data as MonitorReaderShare[] | null) ?? [];
 }
 
+/** Kirjautuneen katsojan jakotoken VRF-laitteelle (trendi/raportti edge functionin kautta). */
+export async function fetchViewerShareTokenForVrfDevice(
+  deviceId: string,
+): Promise<string | null> {
+  const { data, error } = await supabase
+    .from('monitor_reader_shares')
+    .select('access_token')
+    .eq('kind', 'vrf')
+    .eq('vrf_device_id', deviceId)
+    .eq('enabled', true)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  return data?.access_token ? String(data.access_token) : null;
+}
+
 export type CreateMonitorShareInput = {
   kind: MonitorShareKind;
   device_id: string;

@@ -146,7 +146,7 @@ export default function VrfReportDialog({
                 start: effectivePeriod.start,
                 end: effectivePeriod.end,
               });
-        setReadings((bundle.readings as VrfReading[]) ?? []);
+        setReadings(sortReadingsByTime((bundle.readings as VrfReading[]) ?? []));
         return;
       }
 
@@ -160,14 +160,13 @@ export default function VrfReportDialog({
         .eq('device_id', device.id)
         .gte('recorded_at', effectivePeriod.start)
         .lte('recorded_at', effectivePeriod.end)
-        .order('recorded_at', { ascending: false })
+        .order('recorded_at', { ascending: true })
         .limit(limit);
 
       if (fetchError) throw new Error(fetchError.message);
       setReadings(sortReadingsByTime((data as VrfReading[] | null) ?? []));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Historian lataus epäonnistui');
-      setReadings([]);
     } finally {
       setLoading(false);
     }

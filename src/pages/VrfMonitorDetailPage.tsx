@@ -689,7 +689,7 @@ export default function VrfMonitorDetailPage({ session }: Props) {
 
               ['seuranta', 'Seuranta'],
 
-              ['sulatus', 'Sulatukset'],
+              ['sulatus', 'Öljypalautus / sulatus'],
 
               ['asetukset', 'Asetukset'],
 
@@ -751,15 +751,20 @@ export default function VrfMonitorDetailPage({ session }: Props) {
 
             <div className="temp-panel-head">
 
-              <h2>Sulatus</h2>
+              <h2>Öljypalautus / sulatus</h2>
 
             </div>
+
+            <p className="muted" style={{ marginTop: 0 }}>
+              Lämmityksessä käynnistyksen öljypalautus ja sulatus näyttävät lähes samalta (kenno lämpenee).
+              Arvio ei käynnisty heti käyntiluvan jälkeen eikä jos kenno ei ole kylmempi kuin ulkoilma.
+            </p>
 
             <ul className="vrf-status-list">
 
               <li>
 
-                <span>Sulatus nyt</span>
+                <span>Käynnissä nyt</span>
 
                 <strong>
 
@@ -1191,6 +1196,42 @@ export default function VrfMonitorDetailPage({ session }: Props) {
                 <p className={settingsMessage.includes('tallennettu') ? 'form-success' : 'form-error'}>{settingsMessage}</p>
 
               )}
+
+              <fieldset className="vrf-settings-fieldset">
+                <legend>Hälytyssähköpostit</legend>
+                <p className="muted vrf-settings-fieldset-lead">
+                  Lähetetään Supabasesta (Resend), kun DI3-hälytys on vähintään{' '}
+                  {settingsForm.notify_on_delay_s ?? 60} s päällä. Poistumisviesti{' '}
+                  {settingsForm.notify_off_delay_s ?? 180} s hälytyksen loputtua.
+                </p>
+                <ul className="vrf-status-list">
+                  {(settingsForm.notify_mail_subscribers ?? []).length === 0 ? (
+                    <li>
+                      <span>Vastaanottajat</span>
+                      <strong className="muted">Ei määritelty (oletus: huolto@tuusulankylmahuolto.fi)</strong>
+                    </li>
+                  ) : (
+                    (settingsForm.notify_mail_subscribers ?? []).map((sub) => (
+                      <li key={sub.email}>
+                        <span>{sub.email}</span>
+                        <strong>
+                          {[
+                            sub.deviation && 'hälytys',
+                            sub.defrost_start && 'sulatus',
+                            sub.outdoor_lock_on && 'ulkolukko',
+                            sub.connectivity && 'yhteys',
+                          ]
+                            .filter(Boolean)
+                            .join(', ') || '—'}
+                        </strong>
+                      </li>
+                    ))
+                  )}
+                </ul>
+                <p className="muted">
+                  Vastaanottajalistaa voi muokata toistaiseksi Firebase-asetuksista tai pyydä päivitys bc-smartappiin.
+                </p>
+              </fieldset>
 
               <fieldset className="vrf-settings-fieldset">
                 <legend>Firmware OTA</legend>

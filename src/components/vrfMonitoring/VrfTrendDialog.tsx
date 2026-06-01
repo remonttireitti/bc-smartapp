@@ -53,7 +53,7 @@ export default function VrfTrendDialog({ open, deviceId, onClose, focusHotspot, 
     try {
       if (shareToken) {
         const bundle = await loadMonitorShareViewPublic(shareToken, trendHours);
-        setReadings((bundle.readings as VrfReading[]) ?? []);
+        setReadings(sortReadingsByTime((bundle.readings as VrfReading[]) ?? []));
       } else {
         const since = new Date(Date.now() - trendHours * 3600_000).toISOString();
         const { data, error: fetchError } = await supabase
@@ -61,14 +61,13 @@ export default function VrfTrendDialog({ open, deviceId, onClose, focusHotspot, 
           .select(VRF_READING_SELECT)
           .eq('device_id', deviceId)
           .gte('recorded_at', since)
-          .order('recorded_at', { ascending: false })
+          .order('recorded_at', { ascending: true })
           .limit(trendReadingLimit(trendHours));
         if (fetchError) throw new Error(fetchError.message);
         setReadings(sortReadingsByTime((data as VrfReading[] | null) ?? []));
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Historian lataus epäonnistui');
-      setReadings([]);
     } finally {
       setLoading(false);
     }
@@ -108,6 +107,9 @@ export default function VrfTrendDialog({ open, deviceId, onClose, focusHotspot, 
   );
 
   const rangeLabel = VRF_TREND_HOUR_OPTIONS.find((o) => o.hours === trendHours)?.label ?? `${trendHours} h`;
+  const hasChartData = periodReadings.length > 0;
+  const showInitialLoader = loading && !hasChartData;
+  const showCharts = hasChartData || (!loading && !error);
 
   if (!open) return null;
 
@@ -145,10 +147,18 @@ export default function VrfTrendDialog({ open, deviceId, onClose, focusHotspot, 
         </div>
 
         {error && <p className="form-error">{error}</p>}
-        {loading && <p className="muted">Ladataan historiaa…</p>}
+        {showInitialLoader && <p className="muted">Ladataan historiaa…</p>}
+        {loading && hasChartData && (
+          <p className="muted vrf-trend-refresh-hint">Päivitetään trendiä…</p>
+        )}
 
-        {!loading && (
+        {showCharts && (
           <>
+            {!hasChartData && !loading && (
+              <p className="muted vrf-trend-empty-hint">
+                Ei mittausdataa valitulla aikavälillä. Laite on ehkä offline tai historiaa ei ole vielä tallennettu.
+              </p>
+            )}
             <div className="vrf-trend-block">
               <h3 className="vrf-trend-subtitle">Lämpötilat</h3>
               <VrfTrendChart
@@ -165,7 +175,8 @@ export default function VrfTrendDialog({ open, deviceId, onClose, focusHotspot, 
             <div className="vrf-trend-block">
               <h3 className="vrf-trend-subtitle">Ohjaus, tilat ja sulatus</h3>
               <p className="muted vrf-trend-hint">
-                Sulatus tunnistetaan arviona: kompressori päällä, kylmäaine meno laskee ja ulkoyks. kenno nousee.
+                Öljypalautus / sulatus tunnistetaan arviona: kompressori päällä, kylmäaine meno laskee ja ulkoyks. kenno nousee.
+                Käynnistyksessä sama kuvio kuin öljypalautuksessa — ei merkitä heti käyntiluvan jälkeen.
               </p>
               <VrfBinaryTrendChart readings={readings} period={period} visible={visibleBinary} onVisibleChange={setVisibleBinary} />
             </div>

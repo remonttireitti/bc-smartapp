@@ -51,6 +51,16 @@ export type VrfDeviceSettings = {
   notify_on_delay_s?: number;
   notify_off_delay_s?: number;
   notify_min_interval_s?: number;
+  notify_mail_subscribers?: Array<{
+    email: string;
+    deviation?: boolean;
+    defrost_start?: boolean;
+    outdoor_lock_on?: boolean;
+    connectivity?: boolean;
+  }>;
+  notify_email?: string;
+  notify_extra_emails?: string;
+  notify_enabled?: boolean;
   alarm_limits: {
     hot_gas_high_c: number;
     refrigerant_return_low_c: number;
@@ -233,6 +243,10 @@ export function readingsInTrendPeriod(readings: VrfReading[], period: VrfTrendPe
 export const VRF_DEFROST_COIL_RISE_C = 0.85;
 export const VRF_DEFROST_SUPPLY_FALL_C = 0.55;
 export const VRF_DEFROST_WINDOW_SAMPLES = 3;
+/** Ei sulatusarviota heti käyntiluvan jälkeen (öljypalautus käynnistyksessä). */
+export const VRF_DEFROST_SUPPRESS_AFTER_PERMIT_ON_MS = 5 * 60 * 1000;
+/** Kennon pitää olla kylmempi kuin ulkoilma ennen sulatusarviota. */
+export const VRF_DEFROST_COIL_COLDER_THAN_OUTDOOR_C = 2;
 
 export type VrfBinaryLaneKey = 'control' | 'compressor' | 'defrost' | 'alarm' | 'unit_ready';
 
@@ -244,7 +258,7 @@ export const VRF_BINARY_LANES: {
 }[] = [
   { key: 'control', label: 'Käyntilupa', color: '#3b82f6', glow: 'rgba(59, 130, 246, 0.45)' },
   { key: 'compressor', label: 'Kompressori DI2', color: '#8b5cf6', glow: 'rgba(139, 92, 246, 0.45)' },
-  { key: 'defrost', label: 'Sulatus', color: '#14b8a6', glow: 'rgba(20, 184, 166, 0.45)' },
+  { key: 'defrost', label: 'Öljypalautus / sulatus', color: '#14b8a6', glow: 'rgba(20, 184, 166, 0.45)' },
   { key: 'alarm', label: 'Hälytys DI3', color: '#f43f5e', glow: 'rgba(244, 63, 94, 0.45)' },
   { key: 'unit_ready', label: 'CNH tilatieto DI4', color: '#22c55e', glow: 'rgba(34, 197, 94, 0.45)' },
 ];
@@ -392,6 +406,18 @@ export function parseVrfSettings(raw: unknown): VrfDeviceSettings {
     notify_on_delay_s: readNumber(row.notify_on_delay_s) ?? base.notify_on_delay_s,
     notify_off_delay_s: readNumber(row.notify_off_delay_s) ?? base.notify_off_delay_s,
     notify_min_interval_s: readNumber(row.notify_min_interval_s) ?? base.notify_min_interval_s,
+    notify_mail_subscribers: Array.isArray(row.notify_mail_subscribers)
+      ? (row.notify_mail_subscribers as VrfDeviceSettings['notify_mail_subscribers'])
+      : base.notify_mail_subscribers,
+    notify_email:
+      typeof row.notify_email === 'string' && row.notify_email.trim()
+        ? row.notify_email.trim()
+        : base.notify_email,
+    notify_extra_emails:
+      typeof row.notify_extra_emails === 'string' && row.notify_extra_emails.trim()
+        ? row.notify_extra_emails.trim()
+        : base.notify_extra_emails,
+    notify_enabled: readBoolean(row.notify_enabled) ?? base.notify_enabled,
     alarm_limits: {
       hot_gas_high_c: readNumber(limits?.hot_gas_high_c) ?? base.alarm_limits.hot_gas_high_c,
       refrigerant_return_low_c:
@@ -547,7 +573,7 @@ export function vrfOperatingStateLabel(state: string | null | undefined) {
     case 'off':
       return 'Sammutettu';
     case 'defrost':
-      return 'Sulattaa';
+      return 'Öljypalautus / sulatus';
     case 'permit_on':
       return 'Lämmittää';
     case 'idle':
@@ -1067,8 +1093,12 @@ export function vrfResolveDeviceActivity(params: {
 
   if (defrostActive) {
     return {
-      headline: 'Sulattaa',
-      detail: staleNote ?? 'Sulatus arvioitu lämpötiloista',
+      headline: 'Öljypalautus / sulatus',
+      detail:
+        staleNote ??
+        (opText && opText.length > 0
+          ? opText
+          : 'Arvio lämpötiloista — lämmityksessä öljypalautus ja sulatus näyttävät samalta'),
       tone: 'defrost',
     };
   }
@@ -1223,6 +1253,24 @@ export function readingFirmwareDefrost(reading: VrfReading): boolean {
   return readBoolean(telemetry?.defrost?.active) === true;
 }
 
+/** Millisekunnit siitä kun käyntilupa tuli päälle (historiasta). */
+export function vrfMsSinceHeatPermitOn(
+  readings: VrfReading[],
+  index: number,
+): number | null {
+  if (!readingHeatPermit(readings[index])) return null;
+  const atMs = new Date(readings[index].recorded_at).getTime();
+  for (let i = index; i >= 0; i--) {
+    if (!readingHeatPermit(readings[i])) {
+      if (i === index) return null;
+      const onMs = new Date(readings[i + 1].recorded_at).getTime();
+      return atMs - onMs;
+    }
+  }
+  const firstMs = new Date(readings[0].recorded_at).getTime();
+  return atMs - firstMs;
+}
+
 /** Sulatus: firmware-lippu tai heuristiikka (kompressori + kenno nousee + meno laskee). */
 export function inferDefrostLikely(readings: VrfReading[], index: number): boolean {
   const reading = readings[index];
@@ -1230,12 +1278,27 @@ export function inferDefrostLikely(readings: VrfReading[], index: number): boole
   if (index < VRF_DEFROST_WINDOW_SAMPLES - 1) return false;
   if (!readingHeatPermit(reading) || !readingCompressorOn(reading)) return false;
 
+  const sincePermitOn = vrfMsSinceHeatPermitOn(readings, index);
+  if (
+    sincePermitOn != null &&
+    sincePermitOn < VRF_DEFROST_SUPPRESS_AFTER_PERMIT_ON_MS
+  ) {
+    return false;
+  }
+
   const startIdx = index - (VRF_DEFROST_WINDOW_SAMPLES - 1);
   const coilStart = readingTemp(readings[startIdx], 'outdoor_coil_c');
   const coilEnd = readingTemp(reading, 'outdoor_coil_c');
   const supplyStart = readingTemp(readings[startIdx], 'refrigerant_supply_c');
   const supplyEnd = readingTemp(reading, 'refrigerant_supply_c');
+  const outdoorAtStart = readingTemp(readings[startIdx], 'outdoor_c');
   if (coilStart == null || coilEnd == null || supplyStart == null || supplyEnd == null) return false;
+  if (
+    outdoorAtStart != null &&
+    coilStart > outdoorAtStart - VRF_DEFROST_COIL_COLDER_THAN_OUTDOOR_C
+  ) {
+    return false;
+  }
 
   const dCoil = coilEnd - coilStart;
   const dSupply = supplyEnd - supplyStart;
@@ -1429,7 +1492,7 @@ export const VRF_ACTIVITY_TREND_META: Record<
 > = {
   heating: { label: 'Lämmittää', color: '#f97316', glow: 'rgba(249, 115, 22, 0.45)' },
   standby: { label: 'Valmiustila', color: '#22c55e', glow: 'rgba(34, 197, 94, 0.45)' },
-  defrost: { label: 'Sulattaa', color: '#14b8a6', glow: 'rgba(20, 184, 166, 0.45)' },
+  defrost: { label: 'Öljypalautus / sulatus', color: '#14b8a6', glow: 'rgba(20, 184, 166, 0.45)' },
   off: { label: 'Sammutettu', color: '#64748b', glow: 'rgba(100, 116, 139, 0.35)' },
   shutdown_wait: { label: 'Hälytysviive', color: '#f59e0b', glow: 'rgba(245, 158, 11, 0.45)' },
   alarm: { label: 'Hälytyksessä', color: '#ef4444', glow: 'rgba(239, 68, 68, 0.45)' },

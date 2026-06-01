@@ -21,7 +21,10 @@ import {
   type VrfDevice,
   type VrfSchematicClickKey,
 } from '../../lib/vrfMonitoring';
-import { loadMonitorShareViewPublic } from '../../lib/monitorReaderShares';
+import {
+  fetchViewerShareTokenForVrfDevice,
+  loadMonitorShareViewPublic,
+} from '../../lib/monitorReaderShares';
 import { supabase } from '../../lib/supabase';
 
 type Props = {
@@ -206,7 +209,7 @@ export default function VrfMonitorReaderView({
           <VrfTrendDialog
             open={trendOpen}
             deviceId={device.id}
-            shareToken={shareToken}
+            shareToken={effectiveShareToken}
             focusHotspot={trendFocusHotspot}
             focusBinary={trendFocusBinary}
             onClose={() => {
@@ -219,7 +222,7 @@ export default function VrfMonitorReaderView({
             open={reportOpen}
             device={device}
             companyName="BC SmartApp"
-            shareToken={shareToken}
+            shareToken={effectiveShareToken}
             onClose={() => setReportOpen(false)}
           />
         </>

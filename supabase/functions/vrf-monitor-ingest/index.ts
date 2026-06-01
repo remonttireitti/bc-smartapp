@@ -1,4 +1,5 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
+import { processVrfAlarmEmail } from '../_shared/vrfAlarmNotify.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -171,7 +172,7 @@ Deno.serve(async (req) => {
 
     const { data: device, error: deviceError } = await admin
       .from('vrf_devices')
-      .select('id, company_id, latest_payload, settings')
+      .select('id, company_id, name, any_alarm, latest_payload, settings')
       .eq('device_key', deviceKey)
       .maybeSingle();
 
@@ -257,6 +258,33 @@ Deno.serve(async (req) => {
       devicePatch.hardware_id = latest.hardwareId.slice(0, 64);
     }
 
+    let notifyEmailsSent = 0;
+    let notifySettingsPatch: JsonRecord | null = null;
+
+    try {
+      const notifyResult = await processVrfAlarmEmail({
+        deviceName: typeof device.name === 'string' ? device.name : 'VRF-laite',
+        deviceId: device.id,
+        settings: deviceSettings,
+        wasAlarm: device.any_alarm === true,
+        nowAlarm: latest.anyAlarm,
+        recordedAtIso: latest.recordedAt,
+        outdoorC: latest.outdoorC,
+      });
+      notifyEmailsSent = notifyResult.emailsSent;
+      notifySettingsPatch = notifyResult.settingsPatch;
+    } catch (notifyErr) {
+      console.error(
+        '[vrf-notify]',
+        notifyErr instanceof Error ? notifyErr.message : notifyErr,
+      );
+    }
+
+    if (notifySettingsPatch) {
+      devicePatch.settings = notifySettingsPatch;
+      devicePatch.settings_updated_at = nowIso;
+    }
+
     await admin.from('vrf_devices').update(devicePatch).eq('id', device.id);
 
     return new Response(
@@ -264,6 +292,7 @@ Deno.serve(async (req) => {
         ok: true,
         stored_history: shouldStoreHistory,
         recorded_at: latest.recordedAt,
+        notify_emails_sent: notifyEmailsSent,
       }),
       {
         status: 200,
