@@ -1,5 +1,5 @@
 {
-  "version": "1.1.14",
+  "version": "1.1.15",
   "url": "https://bc-smartapp.vercel.app/vrf-firmware/firmware.bin",
-  "notes": "Always read DI2/DI3/DI4 state regardless of heating permit; di_bus_energized is diagnostic only."
+  "notes": "CH8 (RO8) alarm relay: normal de-energized, DI3 alarm energizes relay. Heat relay diagnostics fixed."
 }
