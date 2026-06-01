@@ -7,9 +7,12 @@ import {
   vrfAlarmDelayResetState,
   vrfAlarmShutdownBlocksControl,
   vrfDiSuppressedReason,
+  vrfDiStateContradictions,
   vrfPresentDigitalInputs,
   vrfResolveDeviceActivity,
+  vrfAlarmBlocksPermitEnable,
   vrfResolvePermitStatus,
+  type VrfDeviceSettings,
   type VrfTelemetry,
 } from '../../lib/vrfMonitoring';
 
@@ -25,6 +28,8 @@ type Props = {
   lastSeenAt: string | null;
   firmwareVersion?: string | null;
   diWiringHint?: string | null;
+  diMismatchHint?: string | null;
+  deviceSettings?: Partial<VrfDeviceSettings> | null;
   readOnly?: boolean;
   permitDisabled?: boolean;
   onPermitChange?: (next: boolean) => void;
@@ -49,6 +54,8 @@ export default function VrfStatusPanel({
   onResetAlarmDelay,
   alarmDelayResetBusy = false,
   diWiringHint = null,
+  diMismatchHint = null,
+  deviceSettings = null,
 }: Props) {
   const [diOpen, setDiOpen] = useState(false);
   const diPopoverId = useId();
@@ -69,7 +76,15 @@ export default function VrfStatusPanel({
     requestedEnabled,
     online,
     stale,
+    externalAlarm,
+    activeAlarmLabels,
   });
+
+  const permitEnableBlocked = vrfAlarmBlocksPermitEnable(
+    telemetry,
+    deviceSettings,
+    activeAlarmLabels,
+  );
 
   const alarmDelayReset = vrfAlarmDelayResetState(telemetry, externalAlarm);
   const alarmShutdownDisabled = telemetry?.settings?.di3_alarm_shutdown_enabled === false;
@@ -83,8 +98,18 @@ export default function VrfStatusPanel({
   const toggleChecked = alarmShutdownLock
     ? false
     : requestedEnabled ?? permit.actualOn ?? permit.isOn ?? false;
-  const toggleDisabled = permitDisabled || readOnly || !onPermitChange;
-  const di = vrfPresentDigitalInputs(telemetry);
+  const toggleDisabled =
+    permitDisabled || readOnly || !onPermitChange || (permitEnableBlocked && !toggleChecked);
+
+  function handlePermitChange(next: boolean) {
+    if (next && permitEnableBlocked) return;
+    onPermitChange?.(next);
+  }
+  const di = vrfPresentDigitalInputs(telemetry, deviceSettings);
+  const diContradictions = vrfDiStateContradictions(telemetry, deviceSettings);
+  const diMismatchHintResolved =
+    diMismatchHint ??
+    (diContradictions.length > 0 ? diContradictions.map((c) => c.message).join(' ') : null);
   const diSuppressReason = vrfDiSuppressedReason(telemetry);
 
   useEffect(() => {
@@ -157,6 +182,7 @@ export default function VrfStatusPanel({
                     </span>
                   </li>
                 </ul>
+                {diMismatchHintResolved && <p className="vrf-di-popover-hint">{diMismatchHintResolved}</p>}
                 {diWiringHint && <p className="vrf-di-popover-hint">{diWiringHint}</p>}
               </div>
             )}
@@ -214,11 +240,13 @@ export default function VrfStatusPanel({
                 ariaLabel={
                   toggleDisabled && alarmShutdownLock
                     ? 'Käyntilupa lukittu hälytysviiveen takia — nollaa viive ensin'
-                    : toggleChecked
-                      ? 'Käyntilupa päällä — sammuta painamalla'
-                      : 'Käyntilupa pois — kytke päälle painamalla'
+                    : toggleDisabled && permitEnableBlocked
+                      ? 'Käyntilupa ei kytkettävissä päälle — hälytys aktiivinen'
+                      : toggleChecked
+                        ? 'Käyntilupa päällä — sammuta painamalla'
+                        : 'Käyntilupa pois — kytke päälle painamalla'
                 }
-                onChange={onPermitChange}
+                onChange={handlePermitChange}
               />
             )}
           </div>
@@ -227,6 +255,11 @@ export default function VrfStatusPanel({
           {toggleDisabled && alarmShutdownLock && (
             <p className="vrf-status-detail muted">
               Kytkin pois käytöstä — käytä Tilatiedossa &quot;Nollaa hälytysviive&quot; tai &quot;Pakota viiveen nollaus&quot;.
+            </p>
+          )}
+          {toggleDisabled && permitEnableBlocked && !alarmShutdownLock && (
+            <p className="vrf-status-detail muted">
+              Käyntilupaa ei voi kytkeä päälle ennen kuin hälytys on poistunut. Voit sammuttaa (OFF), jos kytkin on päällä.
             </p>
           )}
           {permit.requestedOn === true && permit.actualOn === false && permit.tone === 'blocked' && (

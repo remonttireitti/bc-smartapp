@@ -14,4 +14,7 @@ supabase/.temp/
 supabase/.branches/
 tsconfig.tsbuildinfo
 
+.pio/
+**/.pio/
+
 .vercel

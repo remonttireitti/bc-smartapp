@@ -3,6 +3,9 @@ import {
   formatRelativeTime,
   formatTempC,
   isVrfDeviceOnline,
+  parseVrfSettings,
+  parseVrfTelemetry,
+  vrfExternalAlarmActive,
   type VrfDevice,
 } from '../../lib/vrfMonitoring';
 import { vrfMonitoringDevicePath } from '../../lib/remoteMonitoringRoutes';
@@ -15,6 +18,9 @@ type Props = {
 
 export default function VrfDeviceListCard({ device, onDelete, deleteDisabled = false }: Props) {
   const online = isVrfDeviceOnline(device.last_seen_at);
+  const telemetry = parseVrfTelemetry(device.latest_payload);
+  const settings = parseVrfSettings(device.settings);
+  const alarmActive = device.any_alarm || vrfExternalAlarmActive(telemetry, settings);
 
   return (
     <li className="temp-device-list-item">
@@ -26,7 +32,7 @@ export default function VrfDeviceListCard({ device, onDelete, deleteDisabled = f
               <span className="temp-status-dot" aria-hidden="true" />
               {online ? 'Online' : 'Offline'}
             </span>
-            {device.any_alarm && online && (
+            {alarmActive && online && (
               <span className="badge badge-alert temp-device-alarm-badge">Hälytys</span>
             )}
           </div>

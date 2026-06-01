@@ -38,13 +38,15 @@ import {
 
   VRF_READING_SELECT,
 
-  activeVrfAlarms,
+  activeVrfAlarmsForDisplay,
 
   buildAlarmShutdownResetSettings,
   buildOtaRequestSettings,
   buildVrfSettingsForSave,
   defaultVrfSettings,
   vrfDiWiringHint,
+  vrfDiOperationalMismatchHint,
+  vrfDiStateContradictions,
   vrfPresentDigitalInputs,
   vrfDiInvertedFromTrigger,
   vrfDiLogicDescription,
@@ -65,6 +67,7 @@ import {
   trendReadingLimit,
 
   vrfAlarmDelayResetState,
+  vrfAlarmBlocksPermitEnable,
   vrfAlarmShutdownBlocksControl,
   vrfExternalAlarmActive,
   vrfCompressorRunning,
@@ -160,7 +163,7 @@ export default function VrfMonitorDetailPage({ session }: Props) {
   const outdoorLock = telemetry?.status.outdoor_safety_lock_active ?? false;
   const alarmShutdownLock = vrfAlarmShutdownBlocksControl(telemetry);
 
-  const compressorRunning = vrfCompressorRunning(telemetry);
+  const compressorRunning = vrfCompressorRunning(telemetry, settingsForm);
 
   const permitDisabled = busy || stale || !online || outdoorLock || alarmShutdownLock;
 
@@ -178,7 +181,7 @@ export default function VrfMonitorDetailPage({ session }: Props) {
 
   }, [readings, telemetry?.defrost?.active]);
 
-  const externalAlarm = vrfExternalAlarmActive(telemetry);
+  const externalAlarm = vrfExternalAlarmActive(telemetry, settingsForm);
 
   const activitySummary = useMemo(
     () =>
@@ -189,7 +192,9 @@ export default function VrfMonitorDetailPage({ session }: Props) {
         defrostLikely: defrostLikelyNow,
         compressorRunning,
         externalAlarm,
-        activeAlarmLabels: activeVrfAlarms(telemetry?.alarms ?? {}).map((a) => a.label),
+        activeAlarmLabels: activeVrfAlarmsForDisplay(telemetry?.alarms ?? {}, telemetry, settingsForm).map(
+          (a) => a.label,
+        ),
       }),
     [telemetry, online, stale, defrostLikelyNow, compressorRunning, externalAlarm],
   );
@@ -197,6 +202,19 @@ export default function VrfMonitorDetailPage({ session }: Props) {
   const diWiringHint = useMemo(
     () => vrfDiWiringHint(telemetry?.digital_inputs ?? null, settingsForm, telemetry),
     [telemetry, settingsForm],
+  );
+
+  const diContradictions = useMemo(
+    () => vrfDiStateContradictions(telemetry, settingsForm),
+    [telemetry, settingsForm],
+  );
+
+  const diMismatchHint = useMemo(
+    () =>
+      diContradictions.length > 0
+        ? diContradictions.map((c) => c.message).join(' ')
+        : vrfDiOperationalMismatchHint(telemetry, settingsForm),
+    [diContradictions, telemetry, settingsForm],
   );
 
   const patchSettingsForm = useCallback(
@@ -324,8 +342,15 @@ export default function VrfMonitorDetailPage({ session }: Props) {
 
     if (!device || stale || outdoorLock) return;
 
-    if (next && vrfAlarmShutdownBlocksControl(telemetry)) {
-      setMessage('Käyntilupaa ei voi kytkeä päälle hälytysviiveen aikana — käytä Nollaa hälytysviive.');
+    const alarmLabels = activeVrfAlarmsForDisplay(telemetry?.alarms ?? {}, telemetry, settingsForm).map(
+      (a) => a.label,
+    );
+    if (next && vrfAlarmBlocksPermitEnable(telemetry, settingsForm, alarmLabels)) {
+      if (vrfAlarmShutdownBlocksControl(telemetry)) {
+        setMessage('Käyntilupaa ei voi kytkeä päälle hälytysviiveen aikana — käytä Nollaa hälytysviive.');
+      } else {
+        setMessage('Käyntilupaa ei voi kytkeä päälle kun hälytys on aktiivinen.');
+      }
       return;
     }
 
@@ -534,7 +559,7 @@ export default function VrfMonitorDetailPage({ session }: Props) {
 
 
 
-  const alarms = activeVrfAlarms(telemetry?.alarms ?? {});
+  const alarms = activeVrfAlarmsForDisplay(telemetry?.alarms ?? {}, telemetry, settingsForm);
 
 
 
@@ -619,6 +644,8 @@ export default function VrfMonitorDetailPage({ session }: Props) {
             onResetAlarmDelay={(force) => void resetAlarmDelay(force)}
             alarmDelayResetBusy={busy}
             diWiringHint={diWiringHint}
+            diMismatchHint={diMismatchHint}
+            deviceSettings={settingsForm}
           />
         </section>
 
@@ -642,7 +669,20 @@ export default function VrfMonitorDetailPage({ session }: Props) {
 
         )}
 
-
+        {diContradictions.length > 0 && (
+          <div className="panel vrf-di-contradiction-banner" role="alert">
+            <p className="vrf-di-contradiction-title">
+              <strong>DI-signaalien ristiriita</strong> — näytetään mitattu tila; korjaa kytkentä tai firmware.
+            </p>
+            <ul className="vrf-alarm-list">
+              {diContradictions.map((item) => (
+                <li key={item.key} className="vrf-alarm-item">
+                  {item.message}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
 
         <div className="vrf-tab-row">
 
@@ -688,7 +728,7 @@ export default function VrfMonitorDetailPage({ session }: Props) {
 
               temperatures={telemetry?.temperatures ?? {}}
 
-              digitalInputs={vrfPresentDigitalInputs(telemetry)}
+              digitalInputs={vrfPresentDigitalInputs(telemetry, settingsForm)}
 
               compressorRunning={compressorRunning}
 

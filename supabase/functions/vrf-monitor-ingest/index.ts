@@ -57,19 +57,44 @@ function resolveRecordedAt(payload: JsonRecord): string {
   return new Date().toISOString();
 }
 
-function summarizeSnapshot(payload: JsonRecord): SnapshotSummary {
+function di3TriggerLevel(payload: JsonRecord, deviceSettings: JsonRecord | null): 0 | 1 {
+  const settings = asRecord(payload.settings);
+  const level =
+    readNumber(settings?.di3_trigger_raw_level) ??
+    readNumber(settings?.alarm_input_trigger_raw_level) ??
+    readNumber(deviceSettings?.di3_trigger_raw_level) ??
+    readNumber(deviceSettings?.alarm_input_trigger_raw_level) ??
+    0;
+  return level === 1 ? 1 : 0;
+}
+
+function di3AlarmActive(payload: JsonRecord, deviceSettings: JsonRecord | null): boolean {
+  const di = asRecord(payload.digital_inputs);
+  const raw = readNumber(di?.di3_raw);
+  if (raw != null) {
+    return raw === di3TriggerLevel(payload, deviceSettings);
+  }
+  const di3Alarm = readBoolean(di?.di3_alarm);
+  if (di3Alarm != null) return di3Alarm;
+  const alarms = asRecord(payload.alarms);
+  return readBoolean(alarms?.external_alarm_input) === true;
+}
+
+function summarizeSnapshot(payload: JsonRecord, deviceSettings: JsonRecord | null = null): SnapshotSummary {
   const temperatures = asRecord(payload.temperatures);
   const control = asRecord(payload.control);
   const status = asRecord(payload.status);
   const alarms = asRecord(payload.alarms);
   const diagnostics = asRecord(payload.diagnostics);
+  const firmwareAnyAlarm = readBoolean(alarms?.any_alarm) ?? false;
+  const externalAlarm = di3AlarmActive(payload, deviceSettings);
 
   return {
     recordedAt: resolveRecordedAt(payload),
     outdoorC: readNumber(temperatures?.outdoor_c),
     heatEnabled: readBoolean(control?.enabled),
     operatingState: readString(status?.operating_state),
-    anyAlarm: readBoolean(alarms?.any_alarm) ?? false,
+    anyAlarm: firmwareAnyAlarm || externalAlarm,
     firmwareVersion: readString(diagnostics?.firmware_version),
     externalDeviceId: readString(payload.device_id),
     hardwareId: null,
@@ -101,9 +126,13 @@ function collectSnapshots(body: unknown): JsonRecord[] {
   return [];
 }
 
-function summaryChanged(previous: JsonRecord | null, next: SnapshotSummary): boolean {
+function summaryChanged(
+  previous: JsonRecord | null,
+  next: SnapshotSummary,
+  deviceSettings: JsonRecord | null,
+): boolean {
   if (!previous) return true;
-  const prevSummary = summarizeSnapshot(previous);
+  const prevSummary = summarizeSnapshot(previous, deviceSettings);
   return (
     prevSummary.heatEnabled !== next.heatEnabled ||
     prevSummary.operatingState !== next.operatingState ||
@@ -142,7 +171,7 @@ Deno.serve(async (req) => {
 
     const { data: device, error: deviceError } = await admin
       .from('vrf_devices')
-      .select('id, company_id, latest_payload')
+      .select('id, company_id, latest_payload, settings')
       .eq('device_key', deviceKey)
       .maybeSingle();
 
@@ -163,7 +192,8 @@ Deno.serve(async (req) => {
       });
     }
 
-    const summaries = snapshots.map(summarizeSnapshot);
+    const deviceSettings = asRecord(device.settings);
+    const summaries = snapshots.map((payload) => summarizeSnapshot(payload, deviceSettings));
     const latest = summaries[summaries.length - 1];
     const nowIso = new Date().toISOString();
 
@@ -183,7 +213,7 @@ Deno.serve(async (req) => {
     const shouldStoreHistory =
       !lastReading ||
       latestRecordedMs - lastReadingMs >= HISTORY_MIN_INTERVAL_MS ||
-      summaryChanged(previousPayload, latest);
+      summaryChanged(previousPayload, latest, deviceSettings);
 
     if (shouldStoreHistory) {
       const { error: insertError } = await admin.from('vrf_readings').upsert(

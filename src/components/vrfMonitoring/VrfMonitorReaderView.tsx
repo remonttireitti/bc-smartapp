@@ -8,11 +8,13 @@ import IconButton from '../IconButton';
 import { IconPrint } from '../icons';
 import {
   VRF_DEVICE_SELECT,
-  activeVrfAlarms,
+  activeVrfAlarmsForDisplay,
   isVrfDeviceOnline,
   isVrfTelemetryStale,
+  parseVrfSettings,
   parseVrfTelemetry,
   vrfExternalAlarmActive,
+  vrfPresentDigitalInputs,
   vrfCompressorRunning,
   vrfResolveDeviceActivity,
   type VrfBinaryLaneKey,
@@ -83,13 +85,14 @@ export default function VrfMonitorReaderView({
   }, [load]);
 
   const telemetry = useMemo(() => parseVrfTelemetry(device?.latest_payload), [device?.latest_payload]);
+  const deviceSettings = useMemo(() => parseVrfSettings(device?.settings), [device?.settings]);
   const online = isVrfDeviceOnline(device?.last_seen_at);
   const stale = isVrfTelemetryStale(device?.latest_payload);
-  const compressorRunning = vrfCompressorRunning(telemetry);
+  const compressorRunning = vrfCompressorRunning(telemetry, deviceSettings);
   const diStale = stale || !online;
   const heatEnabled = device?.control_requested_enabled ?? telemetry?.control.enabled ?? device?.heat_enabled;
-  const alarms = activeVrfAlarms(telemetry?.alarms ?? {});
-  const externalAlarm = vrfExternalAlarmActive(telemetry);
+  const alarms = activeVrfAlarmsForDisplay(telemetry?.alarms ?? {}, telemetry, deviceSettings);
+  const externalAlarm = vrfExternalAlarmActive(telemetry, deviceSettings);
   const defrostLikely = telemetry?.defrost?.active === true;
 
   const activitySummary = useMemo(
@@ -168,6 +171,7 @@ export default function VrfMonitorReaderView({
           lastSeenAt={device.last_seen_at}
           firmwareVersion={device.firmware_version}
           readOnly
+          deviceSettings={deviceSettings}
         />
       </section>
 
@@ -188,7 +192,7 @@ export default function VrfMonitorReaderView({
         </div>
         <VrfSchematicBoard
           temperatures={telemetry?.temperatures ?? {}}
-          digitalInputs={telemetry?.digital_inputs ?? null}
+          digitalInputs={vrfPresentDigitalInputs(telemetry, deviceSettings)}
           compressorRunning={compressorRunning}
           stale={diStale}
           showTemps={online}

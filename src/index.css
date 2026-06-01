@@ -7449,6 +7449,16 @@ button.vrf-toggle:not(:disabled) {
   background: rgba(239, 68, 68, 0.08);
 }
 
+.vrf-di-contradiction-banner {
+  border-color: rgba(245, 158, 11, 0.45);
+  background: rgba(245, 158, 11, 0.1);
+}
+
+.vrf-di-contradiction-title {
+  margin: 0 0 0.5rem;
+  font-size: 0.92rem;
+}
+
 .vrf-reader-badge {
   margin-bottom: 0.35rem;
 }

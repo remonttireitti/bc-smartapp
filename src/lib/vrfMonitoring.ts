@@ -259,6 +259,38 @@ export function vrfDiInvertedFromTrigger(level: number | null | undefined, fallb
   return v === 0;
 }
 
+/** DI3 trigger firmware/web (0 = INV / fail-safe, 1 = PNP). */
+export function vrfDi3TriggerLevel(
+  telemetry: VrfTelemetry | null,
+  deviceSettings?: Partial<VrfDeviceSettings> | null,
+): 0 | 1 {
+  const level =
+    telemetry?.settings?.di3_trigger_raw_level ??
+    telemetry?.settings?.alarm_input_trigger_raw_level ??
+    deviceSettings?.di3_trigger_raw_level ??
+    deviceSettings?.alarm_input_trigger_raw_level ??
+    0;
+  return level === 1 ? 1 : 0;
+}
+
+/**
+ * DI3 hälytys di_raw + trigger -tasosta (sama kuin firmware: raw === trigger).
+ * INV (0): di_raw=0 → hälytys. PNP (1): di_raw=1 → hälytys.
+ */
+export function vrfDi3AlarmActive(
+  telemetry: VrfTelemetry | null,
+  deviceSettings?: Partial<VrfDeviceSettings> | null,
+): boolean {
+  const raw = telemetry?.digital_inputs?.di3_raw;
+  if (raw != null) {
+    return raw === vrfDi3TriggerLevel(telemetry, deviceSettings);
+  }
+  if (telemetry?.digital_inputs?.di3_alarm != null) {
+    return telemetry.digital_inputs.di3_alarm;
+  }
+  return telemetry?.alarms?.external_alarm_input === true;
+}
+
 export function vrfDiTriggerDefault(
   key: 'di2_trigger_raw_level' | 'di3_trigger_raw_level' | 'di4_trigger_raw_level',
 ): 0 | 1 {
@@ -387,13 +419,30 @@ export function vrfDiBusEnergized(
   return readBoolean(diagnostics?.di_bus_energized);
 }
 
-export function vrfCompressorRunning(telemetry: VrfTelemetry | null): boolean {
+/** Käyntilupa päällä (RO1 / control.enabled). */
+export function vrfHeatPermitActive(telemetry: VrfTelemetry | null): boolean {
+  return telemetry?.control.enabled === true;
+}
+
+/** Mittattu DI2 (ei peitetä — ristiriidat näytetään erikseen). */
+export function vrfMeasuredCompressorRunning(telemetry: VrfTelemetry | null): boolean {
   if (telemetry?.digital_inputs?.di2_compressor_running != null) {
     return telemetry.digital_inputs.di2_compressor_running;
   }
   const bus = vrfDiBusEnergized(telemetry?.digital_inputs ?? null, telemetry?.diagnostics);
   if (bus === false) return false;
   return telemetry?.status.compressor_likely_running ?? false;
+}
+
+export function vrfCompressorRunning(
+  telemetry: VrfTelemetry | null,
+  _deviceSettings?: Partial<VrfDeviceSettings> | null,
+): boolean {
+  return vrfMeasuredCompressorRunning(telemetry);
+}
+
+export function vrfMeasuredUnitReady(telemetry: VrfTelemetry | null): boolean {
+  return telemetry?.digital_inputs?.di4_unit_ready === true;
 }
 
 export function parseVrfTelemetry(payload: Record<string, unknown> | null | undefined): VrfTelemetry | null {
@@ -584,10 +633,17 @@ export function vrfDiSignalsTrusted(telemetry: VrfTelemetry | null): boolean {
   return vrfDiSuppressedReason(telemetry) === null;
 }
 
-/** Näytettävä DI-tila — sama kuin telemetria (ei peitetä käyntiluvan takia). */
-export function vrfPresentDigitalInputs(telemetry: VrfTelemetry | null): VrfDigitalInputs | null {
+/**
+ * Näytettävä DI — mittaus sellaisenaan; vain DI3-hälytys lasketaan raw+trigger jos firmware lähettää väärin.
+ * Ulkolämpörajalla signaalikisko voi olla kuollut → DI merkitään ei-luotettaviksi.
+ */
+export function vrfPresentDigitalInputs(
+  telemetry: VrfTelemetry | null,
+  deviceSettings?: Partial<VrfDeviceSettings> | null,
+): VrfDigitalInputs | null {
   const raw = telemetry?.digital_inputs;
   if (!raw) return null;
+  const di3Alarm = vrfDi3AlarmActive(telemetry, deviceSettings);
   const reason = vrfDiSuppressedReason(telemetry);
   if (reason === 'outdoor_lock') {
     return {
@@ -598,7 +654,84 @@ export function vrfPresentDigitalInputs(telemetry: VrfTelemetry | null): VrfDigi
       di_bus_energized: false,
     };
   }
-  return raw;
+  return { ...raw, di3_alarm: di3Alarm };
+}
+
+export type VrfDiStateContradiction = {
+  key: string;
+  message: string;
+};
+
+/**
+ * Loogiset ristiriidat mitatun DI:n ja käyntiluvan/hälytyksen välillä.
+ * UI ei peitä mittausta — nämä kertovat että firmware/kytkentä pitää korjata.
+ */
+export function vrfDiStateContradictions(
+  telemetry: VrfTelemetry | null,
+  deviceSettings?: Partial<VrfDeviceSettings> | null,
+): VrfDiStateContradiction[] {
+  const di = telemetry?.digital_inputs;
+  if (!di) return [];
+  if (vrfDiSuppressedReason(telemetry) != null) return [];
+  if (vrfDiBusEnergized(di, telemetry?.diagnostics) === false) return [];
+
+  const permitOn = vrfHeatPermitActive(telemetry);
+  const alarm = vrfDi3AlarmActive(telemetry, deviceSettings);
+  const alarmShutdown = vrfAlarmShutdownBlocksControl(telemetry);
+  const issues: VrfDiStateContradiction[] = [];
+
+  if (!permitOn && di.di4_unit_ready) {
+    issues.push({
+      key: 'di4_without_permit',
+      message:
+        'DI4 käyntitieto on päällä vaikka käyntilupa on pois — tarkista kytkentä, DI4-logiikka tai että firmware raportoi oikein.',
+    });
+  }
+  if ((alarm || alarmShutdown) && di.di4_unit_ready) {
+    issues.push({
+      key: 'di4_during_alarm',
+      message: 'DI4 käyntitieto on päällä hälytyksessä — VRF ei pitäisi olla käynnistystilassa.',
+    });
+  }
+  if (!di.di4_unit_ready && di.di2_compressor_running) {
+    issues.push({
+      key: 'di2_without_di4',
+      message: 'DI2 kompressori on päällä ilman DI4 käyntitietoa — ristiriita signaaleissa tai väärä DI-tulkinta.',
+    });
+  }
+  if (!permitOn && di.di2_compressor_running) {
+    issues.push({
+      key: 'di2_without_permit',
+      message: 'DI2 kompressori on päällä vaikka käyntilupa on pois — tarkista RO1, kytkentä ja firmware.',
+    });
+  }
+  if ((alarm || alarmShutdown) && di.di2_compressor_running) {
+    issues.push({
+      key: 'di2_during_alarm',
+      message: 'DI2 kompressori on päällä hälytyksessä — laite ei pitäisi käydä.',
+    });
+  }
+  if (di.di3_raw != null && di.di3_alarm != null) {
+    const expectedAlarm = vrfDi3AlarmActive(telemetry, deviceSettings);
+    if (di.di3_alarm !== expectedAlarm) {
+      issues.push({
+        key: 'di3_flag_mismatch',
+        message:
+          'DI3 hälytyslippu ei vastaa di3_raw + trigger-asetusta (INV/PNP) — päivitä firmware tai DI3-asetus.',
+      });
+    }
+  }
+
+  return issues;
+}
+
+export function vrfDiOperationalMismatchHint(
+  telemetry: VrfTelemetry | null,
+  deviceSettings?: Partial<VrfDeviceSettings> | null,
+): string | null {
+  const issues = vrfDiStateContradictions(telemetry, deviceSettings);
+  if (issues.length === 0) return null;
+  return issues.map((i) => i.message).join(' ');
 }
 
 export function formatVrfDiRawDisplay(
@@ -660,6 +793,13 @@ export function vrfDiWiringHint(
   if (allLow && di3Inverted && inputs.di3_alarm) {
     return 'Kaikki virtapiirit auki — DI3 tulkitsee hälytykseksi (INV). Tarkista COM (+12 V), DGND ja DI3 GND-paluu.';
   }
+  const computedAlarm = vrfDi3AlarmActive(telemetry ?? null, settings);
+  if (inputs.di3_raw === 0 && di3Inverted && !computedAlarm && inputs.di3_alarm === false) {
+    return 'DI3 raw=0 (auki) mutta hälytystä ei — tarkista että DI3 on INV-asetuksella (ei PNP).';
+  }
+  if (inputs.di3_raw === 0 && di3Inverted && computedAlarm) {
+    return 'DI3 hälytys (INV: virtapiiri auki).';
+  }
   if (inputs.di3_alarm && inputs.di3_raw === 0 && di3Inverted) {
     return 'DI3 virtapiiri auki (INV = hälytys). Jos kytketty CnT-5 / Error-ulostuloon, vaihda DI3 → PNP (suljettu = hälytys vian sattuessa).';
   }
@@ -678,6 +818,18 @@ export function vrfSettingsNonce(): number {
 export function vrfAlarmShutdownBlocksControl(telemetry: VrfTelemetry | null): boolean {
   if (telemetry?.settings?.di3_alarm_shutdown_enabled === false) return false;
   return telemetry?.status.alarm_shutdown_active ?? false;
+}
+
+/** Käyntilupaa ei saa kytkeä päälle (DI3, muut hälytykset tai hälytysviive). */
+export function vrfAlarmBlocksPermitEnable(
+  telemetry: VrfTelemetry | null,
+  deviceSettings?: Partial<VrfDeviceSettings> | null,
+  activeAlarmLabels: string[] = [],
+): boolean {
+  if (vrfAlarmShutdownBlocksControl(telemetry)) return true;
+  if (vrfDi3AlarmActive(telemetry, deviceSettings)) return true;
+  if (activeAlarmLabels.length > 0) return true;
+  return activeVrfAlarms(telemetry?.alarms ?? {}).length > 0;
 }
 
 export function buildVrfSettingsForSave(
@@ -728,9 +880,15 @@ export function vrfResolvePermitStatus(params: {
   requestedEnabled: boolean | null | undefined;
   online: boolean;
   stale: boolean;
+  externalAlarm?: boolean;
+  activeAlarmLabels?: string[];
 }): VrfPermitPresentation {
-  const { telemetry, requestedEnabled, online, stale } = params;
+  const { telemetry, requestedEnabled, online, stale, activeAlarmLabels = [] } = params;
   const alarmShutdown = vrfAlarmShutdownBlocksControl(telemetry);
+  const alarmBlocksEnable = vrfAlarmBlocksPermitEnable(telemetry, telemetry?.settings, activeAlarmLabels);
+  const externalAlarm =
+    params.externalAlarm ??
+    (vrfDi3AlarmActive(telemetry, telemetry?.settings) || activeAlarmLabels.length > 0);
   const rawActualOn = telemetry?.control.enabled ?? null;
   // Firmware pitää heatEnabled-arvon hälytyslockin ajan — RO1 on silti pois.
   const actualOn = alarmShutdown ? false : rawActualOn;
@@ -794,6 +952,18 @@ export function vrfResolvePermitStatus(params: {
     } else {
       reason = 'Käynti estetty hälytyksen takia';
     }
+  } else if (alarmBlocksEnable) {
+    tone = 'blocked';
+    const alarmDetail =
+      activeAlarmLabels.length > 0
+        ? activeAlarmLabels.join(', ')
+        : externalAlarm
+          ? 'ulkoinen hälytys (DI3)'
+          : 'hälytys aktiivinen';
+    reason =
+      requestedOn === true
+        ? `Pyydetty päälle — ${alarmDetail} estää käynnistyksen`
+        : `Hälytys estää käyntiluvan — ${alarmDetail}`;
   } else if (outdoorLock) {
     tone = 'blocked';
     const signal = telemetry?.status.outdoor_auto_stop_signal_c;
@@ -851,8 +1021,8 @@ export function vrfResolveDeviceActivity(params: {
     };
   }
 
-  const permitOn = telemetry?.control.enabled === true;
-  const unitReady = telemetry?.digital_inputs?.di4_unit_ready === true;
+  const permitOn = vrfHeatPermitActive(telemetry);
+  const unitReady = vrfMeasuredUnitReady(telemetry);
   const alarmShutdown = vrfAlarmShutdownBlocksControl(telemetry);
   const remainingS = telemetry?.status.alarm_shutdown_remaining_s;
   const waitingDi = telemetry?.status.alarm_shutdown_waiting_di_clear ?? false;
@@ -980,6 +1150,18 @@ export function activeVrfAlarms(alarms: Record<string, boolean | null>) {
     .map(([key, label]) => ({ key, label }));
 }
 
+/** Hälytyslista UI:hin — sisältää lasketun DI3-hälytyksen vaikka alarms.any_alarm olisi false. */
+export function activeVrfAlarmsForDisplay(
+  alarms: Record<string, boolean | null>,
+  telemetry: VrfTelemetry | null,
+  deviceSettings?: Partial<VrfDeviceSettings> | null,
+) {
+  const list = activeVrfAlarms(alarms);
+  if (!vrfDi3AlarmActive(telemetry, deviceSettings)) return list;
+  if (list.some((a) => a.key === 'external_alarm_input')) return list;
+  return [{ key: 'external_alarm_input', label: VRF_ALARM_LABELS.external_alarm_input }, ...list];
+}
+
 export function readingTemp(reading: VrfReading, key: string): number | null {
   const payloadTemps = asRecord(reading.payload?.temperatures) ?? asRecord(asRecord(reading.payload)?.temperatures);
   if (payloadTemps) return readNumber(payloadTemps[key]);
@@ -1000,17 +1182,15 @@ export function readingHeatPermit(reading: VrfReading): boolean {
 
 export function readingCompressorOn(reading: VrfReading): boolean {
   const telemetry = readingTelemetry(reading);
-  if (telemetry) return vrfCompressorRunning(telemetry);
+  if (telemetry) return vrfCompressorRunning(telemetry, telemetry.settings);
   return false;
 }
 
-export function vrfExternalAlarmActive(telemetry: VrfTelemetry | null): boolean {
-  if (telemetry?.digital_inputs?.di3_alarm != null) {
-    return telemetry.digital_inputs.di3_alarm;
-  }
-  const bus = vrfDiBusEnergized(telemetry?.digital_inputs ?? null, telemetry?.diagnostics);
-  if (bus === false) return false;
-  return telemetry?.alarms.external_alarm_input === true;
+export function vrfExternalAlarmActive(
+  telemetry: VrfTelemetry | null,
+  deviceSettings?: Partial<VrfDeviceSettings> | null,
+): boolean {
+  return vrfDi3AlarmActive(telemetry, deviceSettings);
 }
 
 export function readingAlarmActive(reading: VrfReading): boolean {
@@ -1020,7 +1200,7 @@ export function readingAlarmActive(reading: VrfReading): boolean {
 
 export function readingUnitReady(reading: VrfReading): boolean {
   const telemetry = readingTelemetry(reading);
-  return telemetry?.digital_inputs?.di4_unit_ready === true;
+  return vrfMeasuredUnitReady(telemetry);
 }
 
 export function readingFirmwareDefrost(reading: VrfReading): boolean {
