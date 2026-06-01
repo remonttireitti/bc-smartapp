@@ -20,6 +20,7 @@ import {
 } from '../../lib/huoltoRaportti/sectionTitles';
 import { createEmptyHeatingCircuitData, createEmptyHeatingElementData } from '../../lib/huoltoRaportti/defaults';
 import { getKokoLaiteSahkoVaiheValinta, getMlpPumpSyottoValinta } from '../../lib/huoltoRaportti/sahkoVaiheUtils';
+import { hideMaintenancePrintWarnings } from '../../lib/huoltoRaportti/defaults';
 import { computeChillerEnergyFromMlp } from '../../lib/huoltoRaportti/mlpEnergyCalc';
 import { FormCheckbox } from './FormCheckbox';
 import { FormInput } from './FormInput';
@@ -642,7 +643,7 @@ export function MlpSection({ form, onChange }: Props) {
             mlp={mlp}
             kp1={form.kylmaainePiiri1}
             wholeDeviceElectric={!!mlp.mittaaKokoLaiteSahko}
-            hideWarnings={!!form.piilotaVaroitukset}
+            hideWarnings={hideMaintenancePrintWarnings(form)}
           />
         ) : null}
         {showChillerParts && !showMaalampoOnly ? (() => {

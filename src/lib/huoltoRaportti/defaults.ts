@@ -991,6 +991,14 @@ function isAirSourceHeatPump(deviceType: string) {
   return deviceType === 'lämpöpumppu';
 }
 
+/** Tuloste: piilota HUOMIOITAVAA, COP-ohjeet ja COP-varoituslabelit. */
+export function hideMaintenancePrintWarnings(
+  data: Pick<HuoltoReportData, 'piilotaVaroitukset'> | { piilotaVaroitukset?: unknown },
+): boolean {
+  const v = data.piilotaVaroitukset;
+  return v === true || v === 'true' || v === 1;
+}
+
 function sanitizeMaintenancePrintFileNamePart(value: string, maxLength = 50): string {
   return (
     value

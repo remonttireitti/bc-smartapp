@@ -1,6 +1,7 @@
 import type { MaintenanceReportPhotoItem } from '../maintenanceReportImages';
 import { normalizeMaintenanceReportPhotos } from '../maintenanceReportImages';
 import { generatePrintHTML } from './legacyPrintUtils';
+import { hideMaintenancePrintWarnings } from './defaults';
 import type { HuoltoReportData, HuomiotImageAttachment } from './types';
 import type { MaintenancePrintMeta } from './printHtml';
 
@@ -130,7 +131,7 @@ export function generateLegacyMaintenanceReportHtml(
     huoltoSuoritettu: data.huoltoSuoritettu,
     huoltoKylmaaineVuotoTarkastus: data.huoltoKylmaaineVuotoTarkastus,
     huoltoLaiteessaVika: data.huoltoLaiteessaVika,
-    piilotaVaroitukset: data.piilotaVaroitukset,
+    piilotaVaroitukset: hideMaintenancePrintWarnings(data),
     hasAirCondenserSelected: hasAirCondenser(data),
     huoltoReportDocumentKind: data.huoltoReportDocumentKind,
     companyInfo: {

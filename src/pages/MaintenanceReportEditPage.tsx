@@ -32,6 +32,7 @@ import { TyhjiointiSection } from '../components/huoltoRaportti/TyhjiointiSectio
 import {
   applyDeviceTypeDefaults,
   buildMaintenanceReportTitleFromData,
+  hideMaintenancePrintWarnings,
   createEmptyHuoltoReportData,
   createEmptyMlpData,
   ensureChillerLiquidCondenserData,
@@ -1611,8 +1612,11 @@ export default function MaintenanceReportEditPage({ session }: Props) {
                 />
                 <ToggleSwitch
                   label="Piilota varoitukset tulosteessa (HUOMIOITAVAA, COP-ohjeet)"
-                  checked={form.piilotaVaroitukset ?? false}
-                  onChange={(checked) => patchForm({ piilotaVaroitukset: checked })}
+                  checked={hideMaintenancePrintWarnings(form)}
+                  onChange={(checked) => {
+                    patchForm({ piilotaVaroitukset: checked });
+                    if (reportId && isOnline) void saveReport('draft', { auto: true });
+                  }}
                 />
               </div>
               <div className="line-form-grid">

@@ -10,6 +10,7 @@ import { getCompressorVaiheValinta, getKokoLaiteSahkoVaiheValinta, getMlpPumpSyo
 import { getSpecificHeatCapacity, renderCheckbox } from './utils';
 import { hasPrintableValue, normalizePrintText, pumpSupplyHtmlBlock } from './printPhaseHelpers';
 import { isChillerLikeDevice } from './deviceModuleLogic';
+import { hideMaintenancePrintWarnings } from './defaults';
 
 function kiinteistoPiiritPrintSectionHtml(m: MlpData, laiteTyyppi: string): string {
   if (!m.lampoPiirit?.length) return '';
@@ -976,9 +977,9 @@ function generateMLPPrintHtml(
         </div>
         <div style="text-align: right;">
           <div style="font-size: 14px; font-weight: bold; color: ${copTextColor};">
-            ${copEfficiencyLabel}
+            ${piilotaVaroitukset && !canCalculateCop ? '—' : copEfficiencyLabel}
           </div>
-          <div style="font-size: 10px; color: #666;">energiatehokkuus</div>
+          <div style="font-size: 10px; color: #666;">${piilotaVaroitukset && !canCalculateCop ? '' : 'energiatehokkuus'}</div>
         </div>
       </div>
     </div>`;
@@ -1152,6 +1153,6 @@ export function generateMlpFullPrintHtml(data: HuoltoReportData, hasAirCondenser
     data.kylmaainePiiri1,
     data.laiteTyyppi,
     hasAirCondenserSelected,
-    !!data.piilotaVaroitukset,
+    hideMaintenancePrintWarnings(data),
   );
 }

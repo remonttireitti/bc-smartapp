@@ -36,7 +36,7 @@ import {
   formatTyhjiointiLoppupaine,
   resolveKoePaivamaaraJaKello,
 } from './kokeAikaUtils';
-import { buildMaintenanceReportPrintTitle } from './defaults';
+import { buildMaintenanceReportPrintTitle, hideMaintenancePrintWarnings } from './defaults';
 import type { HuoltoReportData } from './types';
 
 type LegacyCompanyInfo = {
@@ -1830,9 +1830,9 @@ export function generateMLPPrintHtml(
         </div>
         <div style="text-align: right;">
           <div style="font-size: 14px; font-weight: bold; color: ${copTextColor};">
-            ${copEfficiencyLabel}
+            ${piilotaVaroitukset && !canCalculateCop ? '—' : copEfficiencyLabel}
           </div>
-          <div style="font-size: 10px; color: #666;">energiatehokkuus</div>
+          <div style="font-size: 10px; color: #666;">${piilotaVaroitukset && !canCalculateCop ? '' : 'energiatehokkuus'}</div>
         </div>
       </div>
     </div>`;
@@ -3209,11 +3209,11 @@ export function generatePrintHTML(data: {
         laiteTyyppiEff,
         Array.isArray(data.condenserData)
           && data.condenserData.some((c: CondenserData) => c?.tyyppi === 'koneseen_integroitu' || c?.tyyppi === 'erillinen_ilma'),
-        !!data.piilotaVaroitukset,
+        hideMaintenancePrintWarnings(data),
       )
     : ''}
 
-  ${!data.piilotaVaroitukset && kylmaainepiiriWarnings.length > 0 ? `
+  ${!hideMaintenancePrintWarnings(data) && kylmaainepiiriWarnings.length > 0 ? `
   <div class="box-content" style="border-color: #d32f2f; margin-top: 12px; page-break-inside: avoid;">
     <div style="border-bottom: 2px solid #d32f2f; padding-bottom: 2px; margin-bottom: 4px;">
       <strong style="font-size: 14px; color: #d32f2f;">HUOMIOITAVAA - KYLMÄAINEPIRII</strong>
