@@ -42,7 +42,7 @@ export type VrfDeviceSettings = {
   compressor_alarm_enable_after_s: number;
   /** @deprecated Käytä di3_trigger_raw_level — säilytetty yhteensopivuuden vuoksi. */
   alarm_input_trigger_raw_level: number;
-  /** 0 = aktiivinen matalalla, 1 = aktiivinen korkealla (+12 V PNP). */
+  /** 0 = aktiivinen kun di_raw=0, 1 = aktiivinen kun di_raw=1 (virtapiiri suljettu / GND-paluu). */
   di2_trigger_raw_level?: number;
   di3_trigger_raw_level?: number;
   di4_trigger_raw_level?: number;
@@ -249,7 +249,7 @@ export const VRF_BINARY_LANES: {
   { key: 'unit_ready', label: 'Käyntitieto DI4', color: '#22c55e', glow: 'rgba(34, 197, 94, 0.45)' },
 ];
 
-/** PNP (+12 V = ON): trigger 1. Käänteinen: trigger 0. */
+/** PNP (di_raw=1 = ON, virtapiiri suljettu): trigger 1. Käänteinen: trigger 0. */
 export function vrfDiTriggerFromInverted(inverted: boolean): 0 | 1 {
   return inverted ? 0 : 1;
 }
@@ -265,19 +265,19 @@ export function vrfDiTriggerDefault(
   return key === 'di3_trigger_raw_level' ? 0 : 1;
 }
 
-/** Selite DI-asetuksille: VRF +12 V PNP -kytkentä. */
+/** Selite DI-asetuksille: MH GND-suljettu (sink) -kytkentä, di_raw = virtapiiri. */
 export function vrfDiLogicDescription(
   key: 'di2_trigger_raw_level' | 'di3_trigger_raw_level' | 'di4_trigger_raw_level',
   inverted: boolean,
 ): string {
   if (key === 'di3_trigger_raw_level') {
     return inverted
-      ? '+12 V tulossa = normaali (ei hälytystä). Hälytys kun signaali putoaa (0 V).'
-      : '+12 V tulossa = hälytys aktiivinen (käänteinen logiikka — ei suositella).';
+      ? 'GND-paluu suljettu (di_raw=1) = normaali. Hälytys kun virtapiiri aukeaa (di_raw=0).'
+      : 'GND-paluu suljettu = hälytys (Error-ulostulo). Käytä vain jos DI3 on CnT-5 / Error -linjalla.';
   }
   return inverted
-    ? 'Päällä kun tulo on matalalla (0 V).'
-    : 'Päällä kun tulo on korkealla (+12 V, PNP).';
+    ? 'Päällä kun virtapiiri auki (di_raw=0) — harvinainen MH-kytkennässä.'
+    : 'Päällä kun virtapiiri suljettu (MH-rele vetää DI→GND, di_raw=1).';
 }
 
 export function defaultVrfSettings(): VrfDeviceSettings {
@@ -566,7 +566,7 @@ export function vrfAlarmDelayResetState(
 
 export function formatVrfDiRaw(raw: number | null | undefined): string {
   if (raw == null) return '—';
-  return raw ? 'HIGH (+12 V)' : 'LOW (0 V)';
+  return raw ? 'Suljettu (virtapiiri)' : 'Auki';
 }
 
 export type VrfDiSuppressReason = 'permit_off' | 'outdoor_lock' | 'bus_open' | null;
@@ -633,9 +633,9 @@ export function vrfDiWiringHint(
     const relayOn = readBoolean(telemetry?.diagnostics?.heat_relay_energized);
     const permitOff = telemetry?.control.permit_requested_enabled === false;
     if (permitOff && relayOn === true) {
-      return 'Kaikki DI-tulot irrallaan käyntiluvan sammutuksen jälkeen — tarkista ettei RO1/rele katkaise VRF:n +12 V -kiskoa tai COM-liitosta. COM/DGND → VRF GND erikseen lämmitysreleestä.';
+      return 'Kaikki DI-tulot auki käyntiluvan sammutuksen jälkeen — tarkista ettei RO1 katkaise VRF:n +12 V -kiskoa (COM) tai GND-paluu (DGND). COM=+12 V, DGND=VRF GND.';
     }
-    return 'DI-signaalit eivät ole aktiivisia (kaikki optot auki). Mittari voi näyttää +12 V, mutta virta ei kulje optoon — tarkista COM/DGND-kytkentä.';
+    return 'Kaikki virtapiirit auki (ei virtaa optoissa). Mittari voi näyttää ~12 V DIx–GND, mutta GND-paluu on katkennut — tarkista COM (+12 V) ja DGND (GND).';
   }
 
   const di3Inverted = vrfDiInvertedFromTrigger(
@@ -650,22 +650,22 @@ export function vrfDiWiringHint(
     inputs.di2_raw === 0 && inputs.di3_raw === 0 && inputs.di4_raw === 0;
 
   if (allHigh && !di3Inverted && inputs.di3_alarm) {
-    return 'Kaikki DI-tulot +12 V ja DI3 on PNP-asetuksella → hälytys luetaan väärin. Vaihda Asetuksista DI3 → INV (+12 V = normaali).';
+    return 'Kaikki virtapiirit suljettu ja DI3 on PNP-asetuksella → hälytys luetaan väärin. Vaihda DI3 → INV (suljettu = normaali).';
   }
   if (allHigh && di3Inverted && !di2Inverted && !di4Inverted && inputs.di2_compressor_running) {
-    return 'Kaikki DI-tulot +12 V yhtä aikaa — jos kompressori on seis, vaihda DI2 ja DI4 → INV (+12 V = pois).';
+    return 'Kaikki DI-tulot suljettu yhtä aikaa — jos kompressori on seis, tarkista DI2/DI4 logiikka tai väärä kytkentä (vanha PNP-jännitekytkentä?).';
   }
   if (allHigh && di2Inverted && di4Inverted && di3Inverted && !inputs.di3_alarm) {
-    return 'Kaikki DI-tulot +12 V — lepotila (kompressori seis, ei hälytystä). INV-asetukset DI2/DI4 näyttävät oikealta.';
+    return 'Kaikki virtapiirit suljettu — harvinainen lepotila. Tarkista onko logiikka INV kaikilla (vanha jännitekytkentä?).';
   }
   if (allLow && di3Inverted && inputs.di3_alarm) {
-    return 'Kaikki DI-tulot 0 V — DI3 tulkitsee hälytykseksi (INV). Jos mittarilla on +12 V, signaalikisko on irrallaan (COM/rele).';
+    return 'Kaikki virtapiirit auki — DI3 tulkitsee hälytykseksi (INV). Tarkista COM (+12 V), DGND ja DI3 GND-paluu.';
   }
   if (inputs.di3_alarm && inputs.di3_raw === 0 && di3Inverted) {
-    return 'DI3 lukee 0 V (INV = hälytys). Jos kytketty CnT-5 / Error-ulostuloon, vaihda DI3-asetus PNP:ksi — error antaa +12 V vain vian sattuessa.';
+    return 'DI3 virtapiiri auki (INV = hälytys). Jos kytketty CnT-5 / Error-ulostuloon, vaihda DI3 → PNP (suljettu = hälytys vian sattuessa).';
   }
   if (!inputs.di3_alarm && inputs.di3_raw === 1 && di3Inverted) {
-    return 'DI3 lukee +12 V (INV = normaali). Kytkentä näyttää oikealta fail-safe -logiikalla.';
+    return 'DI3 virtapiiri suljettu (INV = normaali). Fail-safe -kytkentä näyttää oikealta.';
   }
   return null;
 }

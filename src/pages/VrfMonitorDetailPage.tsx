@@ -907,8 +907,8 @@ export default function VrfMonitorDetailPage({ session }: Props) {
               <fieldset className="vrf-settings-fieldset">
                 <legend>Digitaalitulot (DI)</legend>
                 <p className="muted vrf-settings-fieldset-lead">
-                  DI2 ja DI4: +12 V = päällä (PNP). DI3 hälytys: +12 V = normaali, hälytys kun signaali
-                  putoaa (INV). di*_raw = jännite liitännässä (+12 V = HIGH).
+                  MH-kytkentä: +12 V COM-kiskolla, signaali GND-releellä. di*_raw=1 kun virtapiiri suljettu.
+                  DI2/DI4 PNP (suljettu=päällä). DI3 INV (auki=hälytys). Katso kytkentäohje (DI-ikoni).
                 </p>
                 {(
                   [

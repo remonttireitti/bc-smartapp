@@ -130,7 +130,7 @@ export default function VrfStatusPanel({
                       ? 'Ulkolämpöraja — status-DI:t eivät ole luotettavia.'
                       : diSuppressReason === 'permit_off'
                         ? 'Käyntilupa pois — status-DI:t eivät ole luotettavia.'
-                        : 'Signaalikisko ei aktiivinen — jännite-arvot voivat näyttää 0 V vaikka mittarilla näkyisi +12 V.'}
+                        : 'Signaalikisko ei aktiivinen — virtapiirit auki; mittari voi näyttää ~12 V vaikka di_raw=0.'}
                   </p>
                 )}
                 <ul className="vrf-di-status-list">

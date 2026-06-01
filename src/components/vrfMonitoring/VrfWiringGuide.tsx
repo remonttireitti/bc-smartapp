@@ -3,14 +3,27 @@ export default function VrfWiringGuide() {
     <div className="vrf-wiring-guide">
       <p>
         Waveshare ESP32-S3-ETH-8DI-8RO -liitännät: <strong>COM</strong>, <strong>DGND</strong>,{' '}
-        <strong>DI1…DI8</strong>. Tulot ovat optoeristettyjä (5–36 V). VRF:n statusulostulot ovat
-        tyypillisesti <strong>+12 V aktiivinen</strong> (PNP / korkean tason signaali).
+        <strong>DI1…DI8</strong>. Tulot ovat optoeristettyjä (5–36 V). Mitsubishi Heavy FDC400KXZE2
+        käyttää status-ulostuloissaan tyypillisesti <strong>+12 V -kiskoa</strong> ja ohjaa signaalia{' '}
+        <strong>GND-puolella</strong> sisäisillä mikroreleillä (sink / NPN-tyyppi).
       </p>
 
-      <h3>FDC400KXZE2 — suositeltu DI-kytkentä</h3>
+      <h3>Miten opto näkee signaalin</h3>
       <p>
-        Mitsubishi Heavy KX / FDC400KXZE2 antaa ulostuloja <strong>DC 12 V</strong> releen ohjaukseen. Ulkoyksikön
-        liitännät (CnS / CnT / CnG — tarkista P07–P10-asetus 7-segmentinäytöstä) voidaan ohjata näin:
+        Opto ei mittaa jännitettä vaan <strong>virtaa</strong>. Virtapiiri:{' '}
+        <strong>COM (+12 V)</strong> → opto → <strong>DIx</strong> → VRF:n rele → <strong>GND</strong>.
+        Kun rele <strong>sulkee DIx:n GND:hen</strong>, virta kulkee ja tulo on aktiivinen. Kun rele on
+        auki, virtaa ei kulje — mittari voi silti näyttää ~12 V DIx–GND välillä, mutta paluu on katkennut.
+      </p>
+      <p className="muted vrf-wiring-note">
+        Sovelluksessa <strong>di*_raw = 1</strong> = virtapiiri suljettu (GND-paluu).{' '}
+        <strong>di*_raw = 0</strong> = virtapiiri auki. Tämä ei ole sama kuin “+12 V mittarilla”.
+      </p>
+
+      <h3>FDC400KXZE2 — suositeltu DI-kytkentä (GND-suljettu)</h3>
+      <p>
+        KX / FDC400KXZE2 antaa ulostuloja <strong>DC 12 V</strong> releen ohjaukseen (CnS / CnT / CnG —
+        tarkista P07–P10). Kytkentä:
       </p>
       <table className="vrf-wiring-table">
         <thead>
@@ -18,7 +31,7 @@ export default function VrfWiringGuide() {
             <th>Monitorin DI</th>
             <th>VRF-ulostulo (tehdas/oletus)</th>
             <th>Merkitys</th>
-            <th>Logiikka</th>
+            <th>Logiikka (asetukset)</th>
           </tr>
         </thead>
         <tbody>
@@ -26,75 +39,67 @@ export default function VrfWiringGuide() {
             <td><strong>DI4</strong></td>
             <td>Operation output (CnT-2 / ulk. käynti)</td>
             <td>Käyntitieto / laite päällä</td>
-            <td>PNP (+12 V = päällä)</td>
+            <td>PNP (suljettu = päällä)</td>
           </tr>
           <tr>
             <td><strong>DI2</strong></td>
             <td>Compressor ON output (CnT-4 / ulk. komp.)</td>
             <td>Kompressori käy</td>
-            <td>PNP (+12 V = käy)</td>
+            <td>PNP (suljettu = käy)</td>
           </tr>
           <tr>
             <td><strong>DI3</strong></td>
             <td>Fail-safe OK-signaali (ei Error-ulostulo suoraan)</td>
-            <td>+12 V = normaali, 0 V = hälytys</td>
-            <td>INV (käänteinen)</td>
+            <td>GND-paluu suljettu = normaali</td>
+            <td>INV (auki = hälytys)</td>
           </tr>
         </tbody>
       </table>
-      <p className="muted vrf-wiring-note">
-        Waveshare-optot: +12 V liitännässä → GPIO LOW. Sovellus näyttää <strong>di*_raw</strong>-kentissä
-        ulkoisen jännitteen (+12 V = HIGH), ei raaka-GPIO-arvoa.
-      </p>
-      <p className="muted vrf-wiring-note">
-        <strong>Ulk. ohjaus pois:</strong> Kun RO1 katkaisee käyntiluvan (manuaalisesti tai ulkolämpörajasta), FDC400KXZE2 voi
-        ottaa status-ulostulot (DI2/DI3/DI4) virrattomiksi. Tämä on normaalia — sovellus ei tulkitse DI-lukuja hälytyksenä
-        tai käyntitietona, vaan näyttää oletustilan: kompressori seis, ei hälytystä, käyntitieto pois.
-      </p>
-      <p className="muted vrf-wiring-note">
-        <strong>Tärkeää DI3:lle:</strong> CnT-5 / Inspection (Error) -ulostulo antaa +12 V vain vian sattuessa. Jos DI3
-        on kytketty siihen, vaihda Asetukset-välilehdellä DI3 → <strong>PNP</strong>. Nykyinen INV-logiikka sopii
-        signaaliin joka on +12 V normaalisti ja putoaa 0 V:hun hälytyksessä.
-      </p>
 
-      <h3>COM ja DGND — minne VRF:n GND?</h3>
-      <p>
-        <strong>COM</strong> on digitaalitulojen yhteinen liitäntä (valitaan NPN/PNP-tila).{' '}
-        <strong>DGND</strong> on signaalipuolen maadoitus.
-      </p>
-      <p>
-        VRF antaa ulos <strong>12 V + signaalijohdin</strong> ja <strong>GND (0 V)</strong>.
-        Kytkentä (PNP, suositus):
-      </p>
+      <h3>COM ja DGND</h3>
       <ul className="vrf-wiring-steps">
         <li>
-          <strong>VRF GND (0 V)</strong> → moduulin <strong>COM</strong> ja <strong>DGND</strong>{' '}
-          (sama referenssi; voit hyppylankalla COM–DGND tai yksi GND-jako).
+          <strong>VRF +12 V</strong> (yhteinen status-kisko) → moduulin <strong>COM</strong>
         </li>
         <li>
-          <strong>VRF +12 V status</strong> (kun tila ON) → <strong>DI4</strong> (käyntitieto) ja{' '}
-          <strong>DI2</strong> (kompressori).
+          <strong>VRF GND</strong> → moduulin <strong>DGND</strong> (yhteinen paluu; COM ja DGND sama
+          referenssi VRF:n kanssa)
         </li>
         <li>
-          <strong>DI3 hälytys</strong>: kytke sama +12 V -signaali — kun jännite on mukana, tila on{' '}
-          <strong>normaali</strong>. Hälytys rekisteröidään kun signaali putoaa (0 V).
+          Jokainen status-releen <strong>NO-kontakti</strong>: yksi pää <strong>DIx</strong>:ään, toinen
+          VRF:n GND-puolelle (tai sisäinen GND-sulku releellä). Kun tila ON, rele vetää{' '}
+          <strong>DIx → GND</strong>.
+        </li>
+        <li>
+          <strong>DI3 hälytys</strong>: fail-safe — normaalisti GND-paluu suljettu (raw=1). Hälytys kun
+          paluu katkeaa (raw=0).
         </li>
       </ul>
 
       <div className="vrf-wiring-diagram">
-        <pre>{`VRF-ohjain                          Waveshare DI-liitin
-──────────                          ────────────────────
-Käyntitieto +12 V  ───────────────►  DI4  (laite päällä)
-Kompressori +12 V  ───────────────►  DI2  (käy)
-Hälytys / OK +12 V ───────────────►  DI3  (normaali; 0 V = hälytys)
-GND (0 V)          ───────────────►  COM
-                   └──────────────►  DGND`}</pre>
+        <pre>{`VRF-ohjain (MH)                    Waveshare DI
+──────────────                    ──────────────
++12 V (yhteinen kisko)  ───────►  COM
+GND                     ───────►  DGND
+
+Käyntitieto-rele  ──► DI4 ──► GND  (kun ON: sulku)
+Kompressori-rele  ──► DI2 ──► GND  (kun käy: sulku)
+Hälytys/OK-rele   ──► DI3 ──► GND  (normaali: sulku; auki = hälytys)`}</pre>
       </div>
 
       <p className="muted vrf-wiring-note">
-        <strong>Huom:</strong> Moduulin oman virtalähteen (7–36 V / RJ45) GND on eri puolella eristystä
-        kuin DI-kenttäpuoli. VRF:n GND kytketään <em>vain</em> COM/DGND:hen — ei sekoiteta
-        relelähtöihin (RO).
+        <strong>Ulk. ohjaus pois:</strong> Kun RO1 katkaisee käyntiluvan, FDC400KXZE2 voi vapauttaa
+        status-releet (kaikki virtapiirit auki). Sovellus ei tulkita DI-lukuja silloin — oletus: kompressori
+        seis, ei hälytystä, käyntitieto pois.
+      </p>
+      <p className="muted vrf-wiring-note">
+        <strong>DI3 ja Error-ulostulo:</strong> CnT-5 / Inspection (Error) sulkee GND vain vian sattuessa.
+        Jos DI3 on kytketty siihen, vaihda Asetuksissa DI3 → <strong>PNP</strong> (suljettu = hälytys).
+        INV sopii fail-safe -signaaliin (suljettu = normaali).
+      </p>
+      <p className="muted vrf-wiring-note">
+        <strong>Huom:</strong> Moduulin oman virtalähteen GND on eristetty DI-kenttäpuolesta. VRF:n GND
+        kytketään vain COM/DGND:hen — ei sekoiteta RO-releisiin.
       </p>
 
       <h3>Signaalikartta</h3>
@@ -111,47 +116,67 @@ GND (0 V)          ───────────────►  COM
           <tr>
             <td><strong>RO1</strong></td>
             <td>Rele EXIO1</td>
-            <td>Lämmityslupa (webistä ON/OFF)</td>
+            <td>Lämmityslupa (kuiva kontakti, GND-puoli)</td>
             <td>Monitori → VRF</td>
           </tr>
           <tr>
             <td><strong>DI4</strong></td>
             <td>GPIO7</td>
-            <td>Käyntitieto / laite päällä (+12 V = ON)</td>
+            <td>Käyntitieto (GND suljettu = ON)</td>
             <td>VRF → monitori</td>
           </tr>
           <tr>
             <td><strong>DI2</strong></td>
             <td>GPIO5</td>
-            <td>Kompressori (+12 V = käy)</td>
+            <td>Kompressori (GND suljettu = käy)</td>
             <td>VRF → monitori</td>
           </tr>
           <tr>
             <td><strong>DI3</strong></td>
             <td>GPIO6</td>
-            <td>Hälytys (+12 V = normaali, 0 V = hälytys)</td>
+            <td>Hälytys (INV: auki = hälytys)</td>
             <td>VRF → monitori</td>
           </tr>
           <tr>
-            <td><strong>COM + DGND</strong></td>
+            <td><strong>COM</strong></td>
             <td>—</td>
-            <td>VRF GND (0 V)</td>
+            <td>VRF +12 V</td>
+            <td>Yhteinen plus</td>
+          </tr>
+          <tr>
+            <td><strong>DGND</strong></td>
+            <td>—</td>
+            <td>VRF GND</td>
             <td>Yhteinen paluu</td>
           </tr>
         </tbody>
       </table>
 
       <p className="muted">
-        DI3 käyttää firmwaressa käänteistä (INV) logiikkaa. DI2 ja DI4 käyttävät PNP-logiikkaa (+12 V =
-        päällä). Asetukset-välilehdeltä voi tarkistaa INV/PNP-kytkimet.
+        Oletusasetukset: DI2 ja DI4 <strong>PNP</strong> (di_raw=1 = päällä), DI3 <strong>INV</strong>{' '}
+        (di_raw=0 = hälytys). Tarkista INV/PNP Asetukset-välilehdeltä kytkentämuutoksen jälkeen.
       </p>
 
       <h3>RO1-rele (käyntilupa)</h3>
       <ol className="vrf-wiring-steps">
-        <li>RO1 on erillinen relelähtö — ei sama kuin DI-tulot.</li>
-        <li>Kytke RO1 VRF:n lämmityspyyntö-/käyntilupapiiriin ohjauksena (kuiva kontakti).</li>
+        <li>RO1 on erillinen relelähtö — sama periaate: kuiva kontakti VRF:n käyntilupa-piirissä.</li>
+        <li>Usein VRF odottaa, että ulkoinen ohjaus <strong>sulkee GND-puolen</strong> (tai katkaisee sen).</li>
+        <li>Kytke RO1 VRF:n lämmityspyyntö-/käyntilupapiiriin ohjauksena.</li>
         <li>DI1 jätetään vapaaksi (ei sekoitu RO1-numerointiin).</li>
       </ol>
+
+      <h3>Mittaus vianetsintään</h3>
+      <ul className="vrf-wiring-steps">
+        <li>
+          <strong>COM–DGND</strong>: ~12 V (aina, kun VRF syöttää kiskoa)
+        </li>
+        <li>
+          <strong>DIx–DGND</strong>, rele auki: usein ~12 V, <em>ei virtaa optoon</em> → di_raw=0
+        </li>
+        <li>
+          <strong>DIx–DGND</strong>, rele sulkenut GND: lähellä 0 V, virta kulkee → di_raw=1
+        </li>
+      </ul>
     </div>
   );
 }
