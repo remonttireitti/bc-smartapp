@@ -1,4 +1,4 @@
-import { maintenanceReportListTitle, normalizeHuoltoReportData } from './huoltoRaportti/defaults';
+import { buildMaintenanceReportPrintTitle, normalizeHuoltoReportData } from './huoltoRaportti/defaults';
 import { generateLegacyMaintenanceReportHtml } from './huoltoRaportti/legacyPrintAdapter';
 import type { HuoltoReportData } from './huoltoRaportti/types';
 import { BUCKET, normalizeMaintenanceReportPhotos } from './maintenanceReportImages';
@@ -59,7 +59,10 @@ async function resolveMaintenancePrintImageUrls(
   return map;
 }
 
-export async function loadMaintenanceReportPrintBundle(reportId: string) {
+export async function loadMaintenanceReportPrintBundle(
+  reportId: string,
+  dataOverride?: HuoltoReportData,
+) {
   const { data, error: loadError } = await supabase
     .from('maintenance_reports')
     .select('id, data, branding_company_id, owner_company_id, customer_id')
@@ -95,14 +98,21 @@ export async function loadMaintenanceReportPrintBundle(reportId: string) {
     /* optional logo */
   }
 
-  const normalized = normalizeHuoltoReportData({
-    ...row.data,
-    customerId: row.data.customerId ?? row.customer_id ?? undefined,
-  });
+  const normalized = normalizeHuoltoReportData(
+    dataOverride
+      ? {
+          ...dataOverride,
+          customerId: dataOverride.customerId ?? row.customer_id ?? undefined,
+        }
+      : {
+          ...row.data,
+          customerId: row.data.customerId ?? row.customer_id ?? undefined,
+        },
+  );
 
   const imageUrls = await resolveMaintenancePrintImageUrls(normalized);
   const html = generateLegacyMaintenanceReportHtml(normalized, { companyName, logoUrl, imageUrls });
-  const documentTitle = maintenanceReportListTitle(normalized);
+  const documentTitle = buildMaintenanceReportPrintTitle(normalized);
 
   return {
     data: normalized,
@@ -112,7 +122,10 @@ export async function loadMaintenanceReportPrintBundle(reportId: string) {
   };
 }
 
-export async function openMaintenanceReportPrint(reportId: string) {
-  const bundle = await loadMaintenanceReportPrintBundle(reportId);
+export async function openMaintenanceReportPrint(
+  reportId: string,
+  dataOverride?: HuoltoReportData,
+) {
+  const bundle = await loadMaintenanceReportPrintBundle(reportId, dataOverride);
   openPrintHtml(bundle.html);
 }

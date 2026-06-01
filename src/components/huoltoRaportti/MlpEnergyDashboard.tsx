@@ -5,6 +5,8 @@ interface Props {
   mlp: MlpData;
   kp1: RefrigerantCircuitData;
   wholeDeviceElectric: boolean;
+  /** Kun true, energiatehokkuuden varoituslista piilotetaan (sama kuin tuloste). */
+  hideWarnings?: boolean;
 }
 
 function fmtKw(value: number | null | undefined): string {
@@ -12,7 +14,7 @@ function fmtKw(value: number | null | undefined): string {
   return `${value.toFixed(2)} kW`;
 }
 
-export function MlpEnergyDashboard({ mlp, kp1, wholeDeviceElectric }: Props) {
+export function MlpEnergyDashboard({ mlp, kp1, wholeDeviceElectric, hideWarnings }: Props) {
   const balance = computeMlpHeatPumpEnergyBalance(mlp, kp1);
   const maaperanOsuus =
     balance.deviceOutputKw > 0 && balance.maaperastaKw > 0
@@ -80,13 +82,13 @@ export function MlpEnergyDashboard({ mlp, kp1, wholeDeviceElectric }: Props) {
             <div className="huolto-alert huolto-alert-success">Keruupiiri: {balance.qKeruuKw.toFixed(2)} kW</div>
           ) : null}
         </div>
-        {balance.warnings.length > 0 ? (
+        {!hideWarnings && balance.warnings.length > 0 ? (
           <ul className="huolto-energy-warnings">
             {balance.warnings.map((w) => (
               <li key={w}>{w}</li>
             ))}
           </ul>
-        ) : balance.canCalculateCop ? (
+        ) : !hideWarnings && balance.canCalculateCop ? (
           <div className="huolto-alert huolto-alert-success">
             Mittaukset vaikuttavat normaaleilta, ei havaittu poikkeamia
           </div>

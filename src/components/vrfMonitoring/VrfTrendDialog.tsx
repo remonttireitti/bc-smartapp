@@ -3,12 +3,10 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   VRF_TREND_HOUR_OPTIONS,
   VRF_TREND_SERIES,
-  VRF_READING_SELECT,
   defaultTrendSeriesForHotspot,
   formatTrendTimeLabel,
   readingsInTrendPeriod,
   sortReadingsByTime,
-  trendReadingLimit,
   vrfTrendPeriodFromHours,
   type VrfBinaryLaneKey,
   type VrfReading,
@@ -18,7 +16,7 @@ import {
 } from '../../lib/vrfMonitoring';
 
 import { loadMonitorShareViewPublic } from '../../lib/monitorReaderShares';
-import { supabase } from '../../lib/supabase';
+import { fetchVrfTrendReadings } from '../../lib/vrfTrendReadings';
 
 import VrfActivityTrendChart from './VrfActivityTrendChart';
 import VrfBinaryTrendChart from './VrfBinaryTrendChart';
@@ -56,15 +54,8 @@ export default function VrfTrendDialog({ open, deviceId, onClose, focusHotspot, 
         setReadings(sortReadingsByTime((bundle.readings as VrfReading[]) ?? []));
       } else {
         const since = new Date(Date.now() - trendHours * 3600_000).toISOString();
-        const { data, error: fetchError } = await supabase
-          .from('vrf_readings')
-          .select(VRF_READING_SELECT)
-          .eq('device_id', deviceId)
-          .gte('recorded_at', since)
-          .order('recorded_at', { ascending: true })
-          .limit(trendReadingLimit(trendHours));
-        if (fetchError) throw new Error(fetchError.message);
-        setReadings(sortReadingsByTime((data as VrfReading[] | null) ?? []));
+        const rows = await fetchVrfTrendReadings({ deviceId, sinceIso: since, hours: trendHours });
+        setReadings(rows);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Historian lataus epäonnistui');

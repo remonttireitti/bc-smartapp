@@ -18,6 +18,7 @@ export default function MaintenanceReportPrintPage({ session }: Props) {
   const { id } = useParams();
   const { profile } = useProfile(session);
   const [html, setHtml] = useState('');
+  const [printTitle, setPrintTitle] = useState('');
   const [reportData, setReportData] = useState<HuoltoReportData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -33,6 +34,15 @@ export default function MaintenanceReportPrintPage({ session }: Props) {
     void loadReport(id);
   }, [id]);
 
+  useEffect(() => {
+    if (!printTitle) return;
+    const previous = document.title;
+    document.title = printTitle;
+    return () => {
+      document.title = previous;
+    };
+  }, [printTitle]);
+
   async function loadReport(reportId: string) {
     setLoading(true);
     setError(null);
@@ -41,6 +51,7 @@ export default function MaintenanceReportPrintPage({ session }: Props) {
       const bundle = await loadMaintenanceReportPrintBundle(reportId);
       setReportData(bundle.data);
       setHtml(bundle.fragment);
+      setPrintTitle(bundle.documentTitle);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Raporttia ei löytynyt.');
     } finally {

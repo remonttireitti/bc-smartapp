@@ -991,6 +991,56 @@ function isAirSourceHeatPump(deviceType: string) {
   return deviceType === 'lämpöpumppu';
 }
 
+function sanitizeMaintenancePrintFileNamePart(value: string, maxLength = 50): string {
+  return (
+    value
+      .replace(/[\r\n]+/g, ' ')
+      .replace(/[\\/:*?"<>|]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .replace(/\.+$/, '')
+      .slice(0, maxLength)
+      .trim() || '—'
+  );
+}
+
+function formatMaintenanceReportPrintPvm(value: string | undefined): string {
+  const raw = String(value ?? '').trim();
+  if (!raw) return new Date().toLocaleDateString('fi-FI');
+  const iso = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) return `${iso[3]}.${iso[2]}.${iso[1]}`;
+  return raw;
+}
+
+/** PDF/tulosteen tallennusnimi: asiakas/kohde — laite — laitetyyppi — pvm */
+export function buildMaintenanceReportPrintTitle(
+  data: HuoltoReportData,
+  customerName?: string | null,
+): string {
+  const asiakas = (customerName ?? data.asiakas ?? '').trim();
+  const kohde = data.osoite?.trim() ?? '';
+  const customerSite = kohde ? (asiakas ? `${asiakas} / ${kohde}` : kohde) : asiakas || '—';
+
+  const laite =
+    data.laiteTunnus?.trim() ||
+    [data.laiteValmistaja, data.laiteMalli].map((s) => s?.trim()).filter(Boolean).join(' ') ||
+    '—';
+
+  const deviceTypeLabel =
+    deviceTypes.find((d) => d.value === data.laiteTyyppi)?.label?.trim() ||
+    data.laiteTyyppi?.trim() ||
+    '—';
+
+  const pvm = formatMaintenanceReportPrintPvm(data.huoltoPaivamaara);
+
+  return [
+    sanitizeMaintenancePrintFileNamePart(customerSite, 60),
+    sanitizeMaintenancePrintFileNamePart(laite, 40),
+    sanitizeMaintenancePrintFileNamePart(deviceTypeLabel, 35),
+    sanitizeMaintenancePrintFileNamePart(pvm, 20),
+  ].join(' — ');
+}
+
 /** Lyhyt kuvaus listanimeä varten (laite / tyyppi), sama idea kuin työraportin kuvaus. */
 export function maintenanceReportTitleSnippet(data: HuoltoReportData): string {
   const deviceTypeLabel = deviceTypes.find((d) => d.value === data.laiteTyyppi)?.label;

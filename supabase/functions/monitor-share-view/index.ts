@@ -16,10 +16,51 @@ const TEMP_READING_SELECT = 'id, device_id, session_id, recorded_at, temp_c';
 
 const MAX_SHARE_HOURS = 2160;
 const MAX_READINGS = 50_000;
+const READ_PAGE_SIZE = 1000;
 
 function readingLimit(hours: number) {
   const estimated = hours * 60 + 30;
   return Math.min(Math.max(estimated, 120), MAX_READINGS);
+}
+
+async function fetchVrfReadingsInWindow(
+  admin: ReturnType<typeof createClient>,
+  deviceId: string,
+  since: string,
+  until: string,
+  maxRows: number,
+) {
+  const sinceMs = new Date(since).getTime();
+  const collected: Record<string, unknown>[] = [];
+
+  for (let page = 0; collected.length < maxRows; page += 1) {
+    const from = page * READ_PAGE_SIZE;
+    const to = from + READ_PAGE_SIZE - 1;
+    const { data, error } = await admin
+      .from('vrf_readings')
+      .select(VRF_READING_SELECT)
+      .eq('device_id', deviceId)
+      .gte('recorded_at', since)
+      .lte('recorded_at', until)
+      .order('recorded_at', { ascending: false })
+      .range(from, to);
+
+    if (error) throw error;
+    const batch = data ?? [];
+    if (batch.length === 0) break;
+
+    for (const row of batch) {
+      if (collected.length >= maxRows) break;
+      collected.push(row);
+    }
+
+    const oldest = batch[batch.length - 1] as { recorded_at: string };
+    const oldestMs = new Date(oldest.recorded_at).getTime();
+    if (batch.length < READ_PAGE_SIZE || oldestMs <= sinceMs) break;
+  }
+
+  collected.reverse();
+  return collected;
 }
 
 function resolveShareWindow(body: Record<string, unknown>) {
@@ -108,17 +149,11 @@ Deno.serve(async (req) => {
     }
 
     if (share.kind === 'vrf' && share.vrf_device_id) {
-      const [deviceRes, readingsRes] = await Promise.all([
-        admin.from('vrf_devices').select(VRF_DEVICE_SELECT).eq('id', share.vrf_device_id).maybeSingle(),
-        admin
-          .from('vrf_readings')
-          .select(VRF_READING_SELECT)
-          .eq('device_id', share.vrf_device_id)
-          .gte('recorded_at', window.since)
-          .lte('recorded_at', window.until)
-          .order('recorded_at', { ascending: true })
-          .limit(window.limit),
-      ]);
+      const deviceRes = await admin
+        .from('vrf_devices')
+        .select(VRF_DEVICE_SELECT)
+        .eq('id', share.vrf_device_id)
+        .maybeSingle();
 
       if (deviceRes.error || !deviceRes.data) {
         return new Response(JSON.stringify({ error: 'Laitetta ei löydy' }), {
@@ -126,6 +161,14 @@ Deno.serve(async (req) => {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
+
+      const vrfReadings = await fetchVrfReadingsInWindow(
+        admin,
+        share.vrf_device_id,
+        window.since,
+        window.until,
+        window.limit,
+      );
 
       return new Response(
         JSON.stringify({
@@ -135,7 +178,7 @@ Deno.serve(async (req) => {
             label: share.label,
           },
           device: deviceRes.data,
-          readings: readingsRes.data ?? [],
+          readings: vrfReadings,
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       );
@@ -150,7 +193,7 @@ Deno.serve(async (req) => {
           .eq('device_id', share.temp_device_id)
           .gte('recorded_at', window.since)
           .lte('recorded_at', window.until)
-          .order('recorded_at', { ascending: true })
+          .order('recorded_at', { ascending: false })
           .limit(window.limit),
       ]);
 
@@ -161,6 +204,9 @@ Deno.serve(async (req) => {
         });
       }
 
+      const tempReadings = readingsRes.data ?? [];
+      tempReadings.reverse();
+
       return new Response(
         JSON.stringify({
           share: {
@@ -169,7 +215,7 @@ Deno.serve(async (req) => {
             label: share.label,
           },
           device: deviceRes.data,
-          readings: readingsRes.data ?? [],
+          readings: tempReadings,
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       );

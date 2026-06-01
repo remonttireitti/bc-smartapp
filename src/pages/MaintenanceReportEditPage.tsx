@@ -814,15 +814,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
         }
       }
 
-      const dataPayload: HuoltoReportData = normalizeHuoltoReportData({
-        ...form,
-        ...huoltoPerformerFields(profile, session),
-        customerId: customerId || form.customerId,
-        asiakas: selectedCustomer?.name ?? form.asiakas,
-        osoite:
-          [selectedCustomer?.address, selectedCustomer?.city].filter(Boolean).join(', ') || form.osoite,
-        equipmentSnapshot: buildHuoltoEquipmentTechnicalSnapshot(form) as unknown as EquipmentSnapshot,
-      });
+      const dataPayload = buildReportDataPayload();
 
       const customerName = selectedCustomer?.name ?? (form.asiakas.trim() || null);
       const title = buildMaintenanceReportTitleFromData(customerName, dataPayload);
@@ -955,12 +947,24 @@ export default function MaintenanceReportEditPage({ session }: Props) {
     }
   }
 
+  function buildReportDataPayload(): HuoltoReportData {
+    return normalizeHuoltoReportData({
+      ...form,
+      ...huoltoPerformerFields(profile, session),
+      customerId: customerId || form.customerId,
+      asiakas: selectedCustomer?.name ?? form.asiakas,
+      osoite:
+        [selectedCustomer?.address, selectedCustomer?.city].filter(Boolean).join(', ') || form.osoite,
+      equipmentSnapshot: buildHuoltoEquipmentTechnicalSnapshot(form) as unknown as EquipmentSnapshot,
+    });
+  }
+
   async function openPrintPreview() {
     if (!reportId) return;
     setPrintBusy(true);
     setError(null);
     try {
-      await openMaintenanceReportPrint(reportId);
+      await openMaintenanceReportPrint(reportId, buildReportDataPayload());
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Tulosteen avaus epäonnistui.');
     } finally {
@@ -1606,7 +1610,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
                   onChange={(checked) => patchForm({ huoltoLaiteessaVika: checked })}
                 />
                 <ToggleSwitch
-                  label="Piilota varoitukset tulosteessa"
+                  label="Piilota varoitukset tulosteessa (HUOMIOITAVAA, COP-ohjeet)"
                   checked={form.piilotaVaroitukset ?? false}
                   onChange={(checked) => patchForm({ piilotaVaroitukset: checked })}
                 />

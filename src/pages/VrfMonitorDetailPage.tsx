@@ -65,10 +65,6 @@ import {
 
   parseVrfTelemetry,
 
-  sortReadingsByTime,
-
-  trendReadingLimit,
-
   vrfAlarmDelayResetState,
   vrfAlarmBlocksPermitEnable,
   vrfAlarmShutdownBlocksControl,
@@ -89,6 +85,7 @@ import {
 } from '../lib/vrfMonitoring';
 
 import { supabase } from '../lib/supabase';
+import { fetchVrfTrendReadings } from '../lib/vrfTrendReadings';
 
 
 
@@ -240,31 +237,16 @@ export default function VrfMonitorDetailPage({ session }: Props) {
 
     const since = new Date(Date.now() - HISTORY_HOURS * 3600_000).toISOString();
 
-    const [deviceRes, readingsRes] = await Promise.all([
-
+    const [deviceRes, readingsRows] = await Promise.all([
       supabase.from('vrf_devices').select(VRF_DEVICE_SELECT).eq('id', deviceId).maybeSingle(),
-
-      supabase
-
-        .from('vrf_readings')
-
-        .select(VRF_READING_SELECT)
-
-        .eq('device_id', deviceId)
-
-        .gte('recorded_at', since)
-
-        .order('recorded_at', { ascending: false })
-
-        .limit(trendReadingLimit(HISTORY_HOURS)),
-
+      fetchVrfTrendReadings({ deviceId, sinceIso: since, hours: HISTORY_HOURS }),
     ]);
 
     const nextDevice = (deviceRes.data as VrfDevice | null) ?? null;
 
     setDevice(nextDevice);
 
-    setReadings(sortReadingsByTime((readingsRes.data as VrfReading[] | null) ?? []));
+    setReadings(readingsRows);
 
     if (nextDevice && !settingsDirtyRef.current) {
       setSettingsForm(parseVrfSettings(nextDevice.settings));
@@ -275,8 +257,6 @@ export default function VrfMonitorDetailPage({ session }: Props) {
     setLoading(false);
 
     if (deviceRes.error) setError(deviceRes.error.message);
-
-    else if (readingsRes.error) setError(readingsRes.error.message);
 
   }, [deviceId]);
 

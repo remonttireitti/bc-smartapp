@@ -4,11 +4,9 @@ import {
   VRF_BINARY_LANES,
   VRF_TREND_HOUR_OPTIONS,
   VRF_TREND_SERIES,
-  VRF_READING_SELECT,
   filterVrfReadingsByPeriod,
   hoursBetweenIso,
   sortReadingsByTime,
-  trendReadingLimit,
   vrfTrendPeriodFromIso,
   type VrfBinaryLaneKey,
   type VrfDevice,
@@ -17,6 +15,7 @@ import {
   type VrfTrendSeriesKey,
 } from '../../lib/vrfMonitoring';
 import { loadMonitorShareViewPublic } from '../../lib/monitorReaderShares';
+import { fetchVrfTrendReadings } from '../../lib/vrfTrendReadings';
 
 import { formatDateTimeLocalInput, parseDateTimeLocalInput } from '../../lib/tempMonitoring';
 
@@ -24,7 +23,6 @@ import { openPrintHtml } from '../../lib/openPrintWindow';
 
 import { buildVrfReportPrintHtml } from '../../lib/vrfReportPrint';
 
-import { supabase } from '../../lib/supabase';
 
 import ToggleSwitch from '../ToggleSwitch';
 
@@ -152,19 +150,13 @@ export default function VrfReportDialog({
 
       const spanHours =
         periodMode === 'preset' ? presetHours : hoursBetweenIso(effectivePeriod.start, effectivePeriod.end);
-      const limit = trendReadingLimit(spanHours);
-
-      const { data, error: fetchError } = await supabase
-        .from('vrf_readings')
-        .select(VRF_READING_SELECT)
-        .eq('device_id', device.id)
-        .gte('recorded_at', effectivePeriod.start)
-        .lte('recorded_at', effectivePeriod.end)
-        .order('recorded_at', { ascending: true })
-        .limit(limit);
-
-      if (fetchError) throw new Error(fetchError.message);
-      setReadings(sortReadingsByTime((data as VrfReading[] | null) ?? []));
+      const rows = await fetchVrfTrendReadings({
+        deviceId: device.id,
+        sinceIso: effectivePeriod.start,
+        untilIso: effectivePeriod.end,
+        hours: spanHours,
+      });
+      setReadings(rows);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Historian lataus epäonnistui');
     } finally {

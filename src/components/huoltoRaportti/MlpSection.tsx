@@ -642,6 +642,7 @@ export function MlpSection({ form, onChange }: Props) {
             mlp={mlp}
             kp1={form.kylmaainePiiri1}
             wholeDeviceElectric={!!mlp.mittaaKokoLaiteSahko}
+            hideWarnings={!!form.piilotaVaroitukset}
           />
         ) : null}
         {showChillerParts && !showMaalampoOnly ? (() => {

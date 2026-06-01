@@ -50,6 +50,27 @@ export default function VrfMonitorReaderView({
   const [reportOpen, setReportOpen] = useState(false);
   const [trendFocusHotspot, setTrendFocusHotspot] = useState<VrfSchematicClickKey | null>(null);
   const [trendFocusBinary, setTrendFocusBinary] = useState<VrfBinaryLaneKey | null>(null);
+  const [resolvedShareToken, setResolvedShareToken] = useState<string | undefined>(undefined);
+
+  useEffect(() => {
+    if (shareToken) {
+      setResolvedShareToken(shareToken);
+      return;
+    }
+    if (!deviceId) {
+      setResolvedShareToken(undefined);
+      return;
+    }
+    let cancelled = false;
+    void fetchViewerShareTokenForVrfDevice(deviceId).then((token) => {
+      if (!cancelled) setResolvedShareToken(token ?? undefined);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [shareToken, deviceId]);
+
+  const effectiveShareToken = shareToken ?? resolvedShareToken;
 
   const load = useCallback(async () => {
     setError(null);

@@ -126,6 +126,7 @@ function generateMLPPrintHtml(
   kp1Data: RefrigerantCircuitData,
   laiteTyyppi: string,
   _hasAirCondenserSelected: boolean = false,
+  piilotaVaroitukset: boolean = false,
 ): string {
   const includeKiinteistoPiirit = m.kiinteistoPiiritSisallytetaan !== false;
   const showLauhdutuspiiri = true;
@@ -982,7 +983,7 @@ function generateMLPPrintHtml(
       </div>
     </div>`;
   
-  if (warnings.length > 0) {
+  if (!piilotaVaroitukset && warnings.length > 0) {
     mlpHtml += `
     <div style="padding: 10px; background: #ffebee; border-radius: 4px; border-left: 4px solid #d32f2f; margin-bottom: 8px;">
       <div style="font-size: 11px; font-weight: bold; color: #d32f2f; margin-bottom: 4px;">HUOMIOITAVAA</div>
@@ -996,14 +997,14 @@ function generateMLPPrintHtml(
     // PARANNUSEHDOTUKSIA - Removed as requested
   }
   
-  if (warnings.length === 0 && cop > 0) {
+  if (!piilotaVaroitukset && warnings.length === 0 && cop > 0) {
     mlpHtml += `
     <div style="padding: 10px; background: #e8f5e9; border-radius: 4px; border-left: 4px solid #388E3C;">
       <div style="font-size: 11px; color: #2e7d32;">✓ Mittaukset vaikuttavat normaaleilta, ei havaittu poikkeamia</div>
     </div>`;
   }
   
-  if (!canCalculateCop) {
+  if (!piilotaVaroitukset && !canCalculateCop) {
     const missingCopMeasurements: string[] = [];
     if (m.mittaaKokoLaiteSahko) {
       const kv = getKokoLaiteSahkoVaiheValinta(m);
@@ -1146,5 +1147,11 @@ export function generateMlpFullPrintHtml(data: HuoltoReportData, hasAirCondenser
   ) {
     return '';
   }
-  return generateMLPPrintHtml(m, data.kylmaainePiiri1, data.laiteTyyppi, hasAirCondenserSelected);
+  return generateMLPPrintHtml(
+    m,
+    data.kylmaainePiiri1,
+    data.laiteTyyppi,
+    hasAirCondenserSelected,
+    !!data.piilotaVaroitukset,
+  );
 }

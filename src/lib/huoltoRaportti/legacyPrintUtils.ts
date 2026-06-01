@@ -36,6 +36,8 @@ import {
   formatTyhjiointiLoppupaine,
   resolveKoePaivamaaraJaKello,
 } from './kokeAikaUtils';
+import { buildMaintenanceReportPrintTitle } from './defaults';
+import type { HuoltoReportData } from './types';
 
 type LegacyCompanyInfo = {
   name?: string;
@@ -807,7 +809,8 @@ export function generateMLPPrintHtml(
   m: MlpData,
   kp1Data: RefrigerantCircuitData,
   laiteTyyppi: string,
-  hasAirCondenserSelected: boolean = false
+  hasAirCondenserSelected: boolean = false,
+  piilotaVaroitukset: boolean = false,
 ): string {
   const includeKiinteistoPiirit = m.kiinteistoPiiritSisallytetaan !== false;
   // Check if this is a vedenjäähdytyskone (chiller)
@@ -1834,7 +1837,7 @@ export function generateMLPPrintHtml(
       </div>
     </div>`;
   
-  if (warnings.length > 0) {
+  if (!piilotaVaroitukset && warnings.length > 0) {
     mlpHtml += `
     <div style="padding: 10px; background: #ffebee; border-radius: 4px; border-left: 4px solid #d32f2f; margin-bottom: 8px;">
       <div style="font-size: 11px; font-weight: bold; color: #d32f2f; margin-bottom: 4px;">HUOMIOITAVAA</div>
@@ -1848,14 +1851,14 @@ export function generateMLPPrintHtml(
     // PARANNUSEHDOTUKSIA - Removed as requested
   }
   
-  if (warnings.length === 0 && cop > 0) {
+  if (!piilotaVaroitukset && warnings.length === 0 && cop > 0) {
     mlpHtml += `
     <div style="padding: 10px; background: #e8f5e9; border-radius: 4px; border-left: 4px solid #388E3C;">
       <div style="font-size: 11px; color: #2e7d32;">✓ Mittaukset vaikuttavat normaaleilta, ei havaittu poikkeamia</div>
     </div>`;
   }
   
-  if (!canCalculateCop) {
+  if (!piilotaVaroitukset && !canCalculateCop) {
     const missingCopMeasurements: string[] = [];
     if (m.mittaaKokoLaiteSahko) {
       const kv = getKokoLaiteSahkoVaiheValinta(m);
@@ -2158,6 +2161,7 @@ export function generatePrintHTML(data: {
   const sm = data.selectedModules || {};
   const docKind = data.huoltoReportDocumentKind === 'kayttoonotto' ? 'kayttoonotto' : 'huolto';
   const docTitleFi = docKind === 'kayttoonotto' ? 'Käyttöönottopöytäkirja' : 'Huoltopöytäkirja';
+  const printFileTitle = buildMaintenanceReportPrintTitle(data as HuoltoReportData);
   /** Muu + vedenjäähdytysmoduuli: sama tulostelogiikka kuin lomakkeella (showChillerCondenserInCircuit). */
   const laiteTyyppiEff =
     data.laiteTyyppi === 'Vedenjäähdytyskone' ||
@@ -2970,7 +2974,7 @@ export function generatePrintHTML(data: {
   return withDemoPrintBootstrap(`<!DOCTYPE html>
 <html>
 <head>
-  <title>${docTitleFi}</title>
+  <title>${esc(printFileTitle)}</title>
   <style>
     :root { --text:#111827; --muted:#6b7280; --border:#e5e7eb; --soft:#f9fafb; --accent:#F0810F; --accent-strong:#D97706; }
     body { font-family: Arial, sans-serif; font-size: 10pt; line-height: 1.3; color: var(--text); margin: 0; padding: 0 2mm; background: linear-gradient(180deg, #f3f4f6 0%, #eceef1 100%); -webkit-print-color-adjust: exact; print-color-adjust: exact; }
@@ -3204,7 +3208,8 @@ export function generatePrintHTML(data: {
         data.kp1Data as RefrigerantCircuitData,
         laiteTyyppiEff,
         Array.isArray(data.condenserData)
-          && data.condenserData.some((c: CondenserData) => c?.tyyppi === 'koneseen_integroitu' || c?.tyyppi === 'erillinen_ilma')
+          && data.condenserData.some((c: CondenserData) => c?.tyyppi === 'koneseen_integroitu' || c?.tyyppi === 'erillinen_ilma'),
+        !!data.piilotaVaroitukset,
       )
     : ''}
 
