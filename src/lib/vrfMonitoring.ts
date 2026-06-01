@@ -388,11 +388,11 @@ export function vrfDiBusEnergized(
 }
 
 export function vrfCompressorRunning(telemetry: VrfTelemetry | null): boolean {
-  const bus = vrfDiBusEnergized(telemetry?.digital_inputs ?? null, telemetry?.diagnostics);
-  if (bus === false) return false;
   if (telemetry?.digital_inputs?.di2_compressor_running != null) {
     return telemetry.digital_inputs.di2_compressor_running;
   }
+  const bus = vrfDiBusEnergized(telemetry?.digital_inputs ?? null, telemetry?.diagnostics);
+  if (bus === false) return false;
   return telemetry?.status.compressor_likely_running ?? false;
 }
 
@@ -571,13 +571,12 @@ export function formatVrfDiRaw(raw: number | null | undefined): string {
 
 export type VrfDiSuppressReason = 'permit_off' | 'outdoor_lock' | 'bus_open' | null;
 
-/** DI-lukemat eivät ole luotettavia kun ulk. ohjaus on pois ja signaalikisko on kuollut. */
+/** DI-lukemat piilotetaan vain jos koko signaalikisko on kuollut (ei yhtään optoa). Käyntilupa pois ei estä DI-lukua. */
 export function vrfDiSuppressedReason(telemetry: VrfTelemetry | null): VrfDiSuppressReason {
   if (!telemetry) return null;
   const bus = vrfDiBusEnergized(telemetry.digital_inputs, telemetry.diagnostics);
   if (bus !== false) return null;
   if (telemetry.status.outdoor_safety_lock_active) return 'outdoor_lock';
-  if (telemetry.control.permit_requested_enabled === false) return 'permit_off';
   return 'bus_open';
 }
 
@@ -585,12 +584,12 @@ export function vrfDiSignalsTrusted(telemetry: VrfTelemetry | null): boolean {
   return vrfDiSuppressedReason(telemetry) === null;
 }
 
-/** Näytettävä DI-tila — ohjaus pois → oletus: kompressori seis, ei hälytystä, käyntitieto pois. */
+/** Näytettävä DI-tila — sama kuin telemetria (ei peitetä käyntiluvan takia). */
 export function vrfPresentDigitalInputs(telemetry: VrfTelemetry | null): VrfDigitalInputs | null {
   const raw = telemetry?.digital_inputs;
   if (!raw) return null;
   const reason = vrfDiSuppressedReason(telemetry);
-  if (reason === 'permit_off' || reason === 'outdoor_lock') {
+  if (reason === 'outdoor_lock') {
     return {
       ...raw,
       di2_compressor_running: false,
@@ -607,8 +606,11 @@ export function formatVrfDiRawDisplay(
   telemetry: VrfTelemetry | null,
 ): string {
   const reason = vrfDiSuppressedReason(telemetry);
-  if (reason === 'permit_off' || reason === 'outdoor_lock') {
-    return 'Ei aktiivinen (ohjaus pois)';
+  if (reason === 'outdoor_lock') {
+    return 'Ei aktiivinen (ulkolämpöraja)';
+  }
+  if (reason === 'bus_open') {
+    return 'Ei signaalia (kaikki optot auki)';
   }
   return formatVrfDiRaw(raw);
 }
@@ -623,9 +625,6 @@ export function vrfDiWiringHint(
 
   const bus = vrfDiBusEnergized(inputs, telemetry?.diagnostics);
   const suppressReason = vrfDiSuppressedReason(telemetry ?? null);
-  if (suppressReason === 'permit_off') {
-    return 'Käyntilupa pois — VRF voi ottaa status-lähdöt virrattomiksi. Oletus: kompressori seis, ei hälytystä, käyntitieto pois. DI-jännite ei ole luotettava.';
-  }
   if (suppressReason === 'outdoor_lock') {
     return 'Ulkolämpöraja katkaisi käyntiluvan (sama kuin manuaalinen sammutus). DI-signaalit eivät ole luotettavia ennen kuin ohjaus palaa.';
   }
@@ -1005,9 +1004,11 @@ export function readingCompressorOn(reading: VrfReading): boolean {
 }
 
 export function vrfExternalAlarmActive(telemetry: VrfTelemetry | null): boolean {
+  if (telemetry?.digital_inputs?.di3_alarm != null) {
+    return telemetry.digital_inputs.di3_alarm;
+  }
   const bus = vrfDiBusEnergized(telemetry?.digital_inputs ?? null, telemetry?.diagnostics);
   if (bus === false) return false;
-  if (telemetry?.digital_inputs?.di3_alarm != null) return telemetry.digital_inputs.di3_alarm;
   return telemetry?.alarms.external_alarm_input === true;
 }
 

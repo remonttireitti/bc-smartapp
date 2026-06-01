@@ -88,9 +88,9 @@ Hälytys/OK-rele   ──► DI3 ──► GND  (normaali: sulku; auki = hälyty
       </div>
 
       <p className="muted vrf-wiring-note">
-        <strong>Ulk. ohjaus pois:</strong> Kun RO1 katkaisee käyntiluvan, FDC400KXZE2 voi vapauttaa
-        status-releet (kaikki virtapiirit auki). Sovellus ei tulkita DI-lukuja silloin — oletus: kompressori
-        seis, ei hälytystä, käyntitieto pois.
+        <strong>Käyntilupa pois (RO1):</strong> Lämmitysrele katkaistaan, mutta DI2/DI3/DI4 luetaan aina
+        sellaisenaan kuin VRF antaa (status-releet). Jos kaikki optot ovat auki, kisko on todennäköisesti
+        irrallaan.
       </p>
       <p className="muted vrf-wiring-note">
         <strong>DI3 ja Error-ulostulo:</strong> CnT-5 / Inspection (Error) sulkee GND vain vian sattuessa.

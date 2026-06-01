@@ -127,10 +127,10 @@ export default function VrfStatusPanel({
                 {diSuppressReason && (
                   <p className="vrf-di-popover-hint">
                     {diSuppressReason === 'outdoor_lock'
-                      ? 'Ulkolämpöraja — status-DI:t eivät ole luotettavia.'
-                      : diSuppressReason === 'permit_off'
-                        ? 'Käyntilupa pois — status-DI:t eivät ole luotettavia.'
-                        : 'Signaalikisko ei aktiivinen — virtapiirit auki; mittari voi näyttää ~12 V vaikka di_raw=0.'}
+                      ? 'Ulkolämpöraja — signaalikisko voi olla pois.'
+                      : diSuppressReason === 'bus_open'
+                        ? 'Kaikki DI-optot auki — ei virtaa signaalipoluissa.'
+                        : null}
                   </p>
                 )}
                 <ul className="vrf-di-status-list">
