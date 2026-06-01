@@ -65,6 +65,7 @@ import {
   trendReadingLimit,
 
   vrfAlarmDelayResetState,
+  vrfAlarmShutdownBlocksControl,
   vrfExternalAlarmActive,
   vrfCompressorRunning,
   vrfResolveDeviceActivity,
@@ -157,10 +158,11 @@ export default function VrfMonitorDetailPage({ session }: Props) {
   const heatEnabled = device?.control_requested_enabled ?? telemetry?.control.enabled ?? device?.heat_enabled;
 
   const outdoorLock = telemetry?.status.outdoor_safety_lock_active ?? false;
+  const alarmShutdownLock = vrfAlarmShutdownBlocksControl(telemetry);
 
   const compressorRunning = vrfCompressorRunning(telemetry);
 
-  const permitDisabled = busy || stale || !online || outdoorLock;
+  const permitDisabled = busy || stale || !online || outdoorLock || alarmShutdownLock;
 
   const diStale = stale || !online;
 
@@ -321,6 +323,11 @@ export default function VrfMonitorDetailPage({ session }: Props) {
   async function setHeatPermit(next: boolean) {
 
     if (!device || stale || outdoorLock) return;
+
+    if (next && vrfAlarmShutdownBlocksControl(telemetry)) {
+      setMessage('Käyntilupaa ei voi kytkeä päälle hälytysviiveen aikana — käytä Nollaa hälytysviive.');
+      return;
+    }
 
     setBusy(true);
 

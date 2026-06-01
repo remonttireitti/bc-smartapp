@@ -5,6 +5,7 @@ import {
   formatRelativeTime,
   formatVrfDiRawDisplay,
   vrfAlarmDelayResetState,
+  vrfAlarmShutdownBlocksControl,
   vrfDiSuppressedReason,
   vrfPresentDigitalInputs,
   vrfResolveDeviceActivity,
@@ -78,7 +79,10 @@ export default function VrfStatusPanel({
     !alarmShutdownDisabled &&
     (telemetry?.status.alarm_shutdown_active ?? false);
 
-  const toggleChecked = requestedEnabled ?? permit.actualOn ?? permit.isOn ?? false;
+  const alarmShutdownLock = vrfAlarmShutdownBlocksControl(telemetry);
+  const toggleChecked = alarmShutdownLock
+    ? false
+    : requestedEnabled ?? permit.actualOn ?? permit.isOn ?? false;
   const toggleDisabled = permitDisabled || readOnly || !onPermitChange;
   const di = vrfPresentDigitalInputs(telemetry);
   const diSuppressReason = vrfDiSuppressedReason(telemetry);
@@ -208,9 +212,11 @@ export default function VrfStatusPanel({
                 labelOn="ON"
                 labelOff="OFF"
                 ariaLabel={
-                  toggleChecked
-                    ? 'Käyntilupa päällä — sammuta painamalla'
-                    : 'Käyntilupa pois — kytke päälle painamalla'
+                  toggleDisabled && alarmShutdownLock
+                    ? 'Käyntilupa lukittu hälytysviiveen takia — nollaa viive ensin'
+                    : toggleChecked
+                      ? 'Käyntilupa päällä — sammuta painamalla'
+                      : 'Käyntilupa pois — kytke päälle painamalla'
                 }
                 onChange={onPermitChange}
               />
@@ -218,6 +224,11 @@ export default function VrfStatusPanel({
           </div>
           <p className={`vrf-status-permit-value vrf-status-permit-value--${permit.tone}`}>{permit.label}</p>
           {permit.reason && <p className="vrf-status-detail">{permit.reason}</p>}
+          {toggleDisabled && alarmShutdownLock && (
+            <p className="vrf-status-detail muted">
+              Kytkin pois käytöstä — käytä Tilatiedossa &quot;Nollaa hälytysviive&quot; tai &quot;Pakota viiveen nollaus&quot;.
+            </p>
+          )}
           {permit.requestedOn === true && permit.actualOn === false && permit.tone === 'blocked' && (
             <p className="vrf-status-detail muted">RO1-rele pois — VRF-yksikkö voi silti olla valmiustilassa (DI4)</p>
           )}

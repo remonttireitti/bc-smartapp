@@ -674,7 +674,8 @@ export function vrfSettingsNonce(): number {
   return Math.floor(Date.now() / 1000);
 }
 
-function vrfAlarmShutdownBlocksControl(telemetry: VrfTelemetry | null): boolean {
+/** Hälytyksen jälkeinen tauko — RO1 ja käyntilupa-kytkin lukittu kunnes viive nollataan. */
+export function vrfAlarmShutdownBlocksControl(telemetry: VrfTelemetry | null): boolean {
   if (telemetry?.settings?.di3_alarm_shutdown_enabled === false) return false;
   return telemetry?.status.alarm_shutdown_active ?? false;
 }
