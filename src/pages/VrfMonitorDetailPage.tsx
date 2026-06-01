@@ -152,6 +152,7 @@ export default function VrfMonitorDetailPage({ session }: Props) {
   const [shareOpen, setShareOpen] = useState(false);
   const [wiringGuideOpen, setWiringGuideOpen] = useState(false);
   const [otaBusy, setOtaBusy] = useState(false);
+  const [permitPending, setPermitPending] = useState<boolean | null>(null);
 
 
 
@@ -162,13 +163,15 @@ export default function VrfMonitorDetailPage({ session }: Props) {
   const stale = isVrfTelemetryStale(device?.latest_payload);
 
   const heatEnabled = device?.control_requested_enabled ?? telemetry?.control.enabled ?? device?.heat_enabled;
+  const displayHeatEnabled = permitPending ?? heatEnabled;
+  const permitChangeBusy = permitPending !== null;
 
   const outdoorLock = telemetry?.status.outdoor_safety_lock_active ?? false;
   const alarmShutdownLock = vrfAlarmShutdownBlocksControl(telemetry);
 
   const compressorRunning = vrfCompressorRunning(telemetry, settingsForm);
 
-  const permitDisabled = busy || stale || !online || outdoorLock || alarmShutdownLock;
+  const permitDisabled = stale || !online || outdoorLock || alarmShutdownLock;
 
   const diStale = stale || !online;
 
@@ -357,38 +360,28 @@ export default function VrfMonitorDetailPage({ session }: Props) {
       return;
     }
 
-    setBusy(true);
-
+    setPermitPending(next);
     setMessage(null);
 
-    const { error: updateError } = await supabase
+    try {
+      const { error: updateError } = await supabase
+        .from('vrf_devices')
+        .update({
+          control_requested_enabled: next,
+          control_updated_at: new Date().toISOString(),
+        })
+        .eq('id', device.id);
 
-      .from('vrf_devices')
+      if (updateError) {
+        setMessage(updateError.message);
+        return;
+      }
 
-      .update({
-
-        control_requested_enabled: next,
-
-        control_updated_at: new Date().toISOString(),
-
-      })
-
-      .eq('id', device.id);
-
-    setBusy(false);
-
-    if (updateError) {
-
-      setMessage(updateError.message);
-
-      return;
-
+      setMessage(`Käyntilupa ${next ? 'päällä' : 'pois'} — laite päivittää tilan hetken kuluttua.`);
+      await load();
+    } finally {
+      setPermitPending(null);
     }
-
-    setMessage(`Käyntilupa ${next ? 'päällä' : 'pois'} — laite päivittää tilan hetken kuluttua.`);
-
-    await load();
-
   }
 
 
@@ -639,10 +632,11 @@ export default function VrfMonitorDetailPage({ session }: Props) {
             compressorRunning={compressorRunning}
             externalAlarm={externalAlarm}
             activeAlarmLabels={alarms.map((alarm) => alarm.label)}
-            requestedEnabled={heatEnabled}
+            requestedEnabled={displayHeatEnabled}
             lastSeenAt={device.last_seen_at}
             firmwareVersion={device.firmware_version}
             permitDisabled={permitDisabled}
+            permitChangeBusy={permitChangeBusy}
             onPermitChange={(next) => void setHeatPermit(next)}
             onResetAlarmDelay={(force) => void resetAlarmDelay(force)}
             alarmDelayResetBusy={busy}

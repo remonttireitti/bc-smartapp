@@ -33,6 +33,7 @@ type Props = {
   deviceSettings?: Partial<VrfDeviceSettings> | null;
   readOnly?: boolean;
   permitDisabled?: boolean;
+  permitChangeBusy?: boolean;
   onPermitChange?: (next: boolean) => void;
   onResetAlarmDelay?: (force?: boolean) => void;
   alarmDelayResetBusy?: boolean;
@@ -51,6 +52,7 @@ export default function VrfStatusPanel({
   firmwareVersion,
   readOnly = false,
   permitDisabled = false,
+  permitChangeBusy = false,
   onPermitChange,
   onResetAlarmDelay,
   alarmDelayResetBusy = false,
@@ -235,6 +237,7 @@ export default function VrfStatusPanel({
               <VrfToggleSwitch
                 checked={toggleChecked === true}
                 disabled={toggleDisabled}
+                pending={permitChangeBusy}
                 size="lg"
                 labelOn="ON"
                 labelOff="OFF"
@@ -252,7 +255,10 @@ export default function VrfStatusPanel({
             )}
           </div>
           <p className={`vrf-status-permit-value vrf-status-permit-value--${permit.tone}`}>{permit.label}</p>
-          {permit.reason && <p className="vrf-status-detail">{permit.reason}</p>}
+          {permitChangeBusy && (
+            <p className="vrf-status-detail vrf-status-permit-saving">Tallennetaan käyntilupaa…</p>
+          )}
+          {permit.reason && !permitChangeBusy && <p className="vrf-status-detail">{permit.reason}</p>}
           {toggleDisabled && alarmShutdownLock && (
             <p className="vrf-status-detail muted">
               Kytkin pois käytöstä — käytä Tilatiedossa &quot;Nollaa hälytysviive&quot; tai &quot;Pakota viiveen nollaus&quot;.
