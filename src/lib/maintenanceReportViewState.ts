@@ -1,8 +1,20 @@
+import type { HuoltoReportData } from './huoltoRaportti/types';
+
 const PREFIX = 'bc-smartapp:huoltoraportti-view:';
+
+export type MaintenanceReportEditorSnapshot = {
+  reportId: string;
+  form: HuoltoReportData;
+  customerId: string;
+  equipmentId: string;
+};
 
 export type MaintenanceReportViewState = {
   scrollY: number;
   savedAt: number;
+  /** Avoinna olevat osiot (page:*, module:*, part:*). */
+  openKeys?: string[];
+  editor?: MaintenanceReportEditorSnapshot;
 };
 
 export function maintenanceReportViewKey(reportId: string | null, userId: string) {
@@ -25,4 +37,16 @@ export function readMaintenanceReportViewState(key: string): MaintenanceReportVi
   } catch {
     return null;
   }
+}
+
+/** Luonnos palautetaan vain lyhyen ajan sisällä (mobiili välilehti / kuva). */
+export function readFreshMaintenanceReportEditorSnapshot(
+  key: string,
+  reportId: string,
+  maxAgeMs = 2 * 60 * 60 * 1000,
+): MaintenanceReportEditorSnapshot | null {
+  const saved = readMaintenanceReportViewState(key);
+  if (!saved?.editor || saved.editor.reportId !== reportId) return null;
+  if (Date.now() - saved.savedAt > maxAgeMs) return null;
+  return saved.editor;
 }

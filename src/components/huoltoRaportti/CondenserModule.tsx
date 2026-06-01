@@ -17,7 +17,7 @@ export function CondenserModule({ index, titleLabel, data, onChange }: Props) {
   const isLiquidType = data.tyyppi === 'nestekiertoinen';
 
   return (
-    <HuoltoPartSection title={titleLabel} defaultOpen={index === 0}>
+    <HuoltoPartSection title={titleLabel} partKey={`cond-${index}`} defaultOpen={index === 0}>
 
       <div className="line-form-grid">
         <label className="huolto-span-all">

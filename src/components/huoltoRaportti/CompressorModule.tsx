@@ -51,7 +51,7 @@ export function CompressorModule({
     [val, mall].map((s) => String(s ?? '').trim()).filter(Boolean).join(' ');
 
   return (
-    <HuoltoPartSection title={`Kompressori ${number}`} defaultOpen={number === 1}>
+    <HuoltoPartSection title={`Kompressori ${number}`} partKey={`comp-${number}`} defaultOpen={number === 1}>
       <div className="line-form-grid">
         <FormInput
           label="Valmistaja"

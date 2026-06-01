@@ -1,9 +1,12 @@
-import { useId, useState, type ReactNode } from 'react';
+import { useId, type ReactNode } from 'react';
+import { useHuoltoCollapse } from './huoltoRaportti/HuoltoEditUiContext';
 
 interface Props {
   title: string;
   children: ReactNode;
   defaultOpen?: boolean;
+  /** Kun asetettu ja HuoltoEditUiProvider on käytössä, tila muistetaan istunnossa. */
+  collapseKey?: string;
   variant?: 'form' | 'plain';
   className?: string;
 }
@@ -11,11 +14,13 @@ interface Props {
 export default function CollapsibleSection({
   title,
   children,
-  defaultOpen = true,
+  defaultOpen = false,
+  collapseKey,
   variant = 'form',
   className = '',
 }: Props) {
-  const [open, setOpen] = useState(defaultOpen);
+  const key = collapseKey ?? `page:${title}`;
+  const { open, toggle } = useHuoltoCollapse(key, defaultOpen);
   const contentId = useId();
 
   return (
@@ -25,7 +30,7 @@ export default function CollapsibleSection({
       <button
         type="button"
         className="collapsible-header"
-        onClick={() => setOpen((value) => !value)}
+        onClick={toggle}
         aria-expanded={open}
         aria-controls={contentId}
       >

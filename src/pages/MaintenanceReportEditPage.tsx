@@ -103,8 +103,12 @@ interface Props {
 
 
 import { huoltoTiedotSectionTitle } from '../lib/huoltoRaportti/sectionTitles';
-import { huoltoReportHasSubstantiveData } from '../lib/huoltoRaportti/legacyImportInference';
 import { HuoltoEditUiProvider } from '../components/huoltoRaportti/HuoltoEditUiContext';
+import { cloneHuoltoReportForSiblingEquipment } from '../lib/huoltoRaportti/cloneReportForSiblingEquipment';
+import {
+  maintenanceReportViewKey,
+  readFreshMaintenanceReportEditorSnapshot,
+} from '../lib/maintenanceReportViewState';
 import { isMaintenanceReportPublished } from '../lib/maintenanceReportStatus';
 import { getMaintenanceReportStatusLabel } from '../types';
 
@@ -148,14 +152,19 @@ export default function MaintenanceReportEditPage({ session }: Props) {
   const skipAutoSaveRef = useRef(true);
   const saveInFlightRef = useRef(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
-  const [sectionsDefaultOpen, setSectionsDefaultOpen] = useState(false);
+  const copyFromLoadedRef = useRef(false);
 
   const draftStorageKey = localDraftKey(reportId, session.user.id);
+  const reportViewKey = maintenanceReportViewKey(reportId, session.user.id);
 
   useMaintenanceReportScrollRestore({
     reportId,
     userId: session.user.id,
     ready: !profileLoading && !loadingReport,
+    status,
+    form,
+    customerId,
+    equipmentId,
   });
 
   const portalMode = isPortalUser(profile);
@@ -306,6 +315,42 @@ export default function MaintenanceReportEditPage({ session }: Props) {
     if (cid) setCustomerId(cid);
     if (eid) setEquipmentId(eid);
   }, [isNew, ownerCompanyId, searchParams]);
+
+  useEffect(() => {
+    const copyFromId = searchParams.get('copyFrom');
+    if (!isNew || !copyFromId || copyFromLoadedRef.current || profileLoading) return;
+    copyFromLoadedRef.current = true;
+
+    void (async () => {
+      const { data, error: copyError } = await supabase
+        .from('maintenance_reports')
+        .select('data, customer_id, owner_company_id, subscriber_id')
+        .eq('id', copyFromId)
+        .maybeSingle();
+
+      if (copyError || !data) {
+        setError(copyError?.message ?? 'Kopiointilähdettä ei löytynyt.');
+        return;
+      }
+
+      const row = data as {
+        data: HuoltoReportData;
+        customer_id: string | null;
+        owner_company_id: string;
+        subscriber_id: string | null;
+      };
+
+      setForm(cloneHuoltoReportForSiblingEquipment(row.data));
+      setEquipmentId('');
+      if (row.customer_id) setCustomerId(row.customer_id);
+      if (row.owner_company_id) setReportOwnerCompanyId(row.owner_company_id);
+      if (row.subscriber_id) setSubscriberId(row.subscriber_id);
+      setHasUnsavedChanges(true);
+      setRegistryMessage(
+        'Tiedot kopioitu edellisestä pöytäkirjasta — valitse toisen laitteen tunnus rekisteristä.',
+      );
+    })();
+  }, [isNew, searchParams, profileLoading]);
   useEffect(() => {
     if (!profile?.company_id || profileLoading) return;
     void loadAccessibleCustomers();
@@ -374,7 +419,17 @@ export default function MaintenanceReportEditPage({ session }: Props) {
   }, [profileLoading, portalMode, isNew, navigate]);
 
   async function loadReport(reportIdToLoad: string) {
-    setLoadingReport(true);
+    const viewKey = maintenanceReportViewKey(reportIdToLoad, session.user.id);
+    const sessionEditor = readFreshMaintenanceReportEditorSnapshot(viewKey, reportIdToLoad);
+    if (sessionEditor) {
+      setForm(normalizeHuoltoReportData(sessionEditor.form));
+      setCustomerId(sessionEditor.customerId);
+      setEquipmentId(sessionEditor.equipmentId);
+      setLoadingReport(false);
+    } else {
+      setLoadingReport(true);
+    }
+
     const { data, error: loadError } = await supabase
       .from('maintenance_reports')
       .select(`
@@ -408,11 +463,12 @@ export default function MaintenanceReportEditPage({ session }: Props) {
     setReportOwnerCompanyId(row.owner_company_id);
     setStatus(row.status);
     const normalized = normalizeHuoltoReportData({ ...createEmptyHuoltoReportData(), ...row.data });
-    setForm(normalized);
-    setSectionsDefaultOpen(huoltoReportHasSubstantiveData(normalized));
-    setCustomerId(row.customer_id ?? row.data.customerId ?? '');
+    if (!sessionEditor || row.status !== 'draft') {
+      setForm(normalized);
+    }
+    setCustomerId(row.customer_id ?? row.data.customerId ?? sessionEditor?.customerId ?? '');
     setSubscriberId(row.subscriber_id ?? '');
-    setEquipmentId(row.equipment_id ?? '');
+    setEquipmentId(row.equipment_id ?? sessionEditor?.equipmentId ?? '');
 
     await loadAccessibleCustomers();
     await loadOwnerCompany(row.owner_company_id);
@@ -1025,8 +1081,9 @@ export default function MaintenanceReportEditPage({ session }: Props) {
         </section>
       )}
 
+      <HuoltoEditUiProvider viewKey={reportViewKey}>
       <form className="panel form-grid maintenance-form" onSubmit={onSubmit}>
-        <CollapsibleSection title="Raportointikonteksti" defaultOpen>
+        <CollapsibleSection title="Raportointikonteksti" collapseKey="page:raportointi">
           <div className="info-grid">
             <div className="info-box">
               <span className="info-label">Yrityksen nimissä (brändi tulosteessa)</span>
@@ -1068,7 +1125,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
         </CollapsibleSection>
 
         {profile?.company_id && (
-          <CollapsibleSection title="Asiakas ja laite" defaultOpen>
+          <CollapsibleSection title="Asiakas ja laite" collapseKey="page:asiakas-laite">
             <p className="muted">
               Hae asiakasta kaikista rekistereistä joihin sinulla on pääsy. Raportti luodaan automaattisesti
               sen yrityksen nimissä, jonka rekisteriin asiakas kuuluu. Uusi asiakas tallennetaan aina omaan
@@ -1110,6 +1167,23 @@ export default function MaintenanceReportEditPage({ session }: Props) {
                   }}
                   onCreate={createCustomerAndSelect}
                 />
+
+                {customerId && equipment.length >= 2 && reportId && status === 'draft' && (
+                  <p className="form-actions">
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      disabled={busy}
+                      onClick={() =>
+                        navigate(
+                          `/huoltoraportit/uusi?customerId=${encodeURIComponent(customerId)}&copyFrom=${encodeURIComponent(reportId)}`,
+                        )
+                      }
+                    >
+                      Lisää pöytäkirja toiselle laitteelle (kopioi tiedot)
+                    </button>
+                  </p>
+                )}
 
                 {customerId && (
                   <EquipmentRegistryPicker
@@ -1206,7 +1280,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
           </CollapsibleSection>
         )}
 
-        <CollapsibleSection title="Laitetyyppi" defaultOpen>
+        <CollapsibleSection title="Laitetyyppi" collapseKey="page:laitetyyppi">
           <div className="chip-grid">
             {deviceTypes.map((dt) => (
               <label key={dt.value} className={`chip ${form.laiteTyyppi === dt.value ? 'chip-active' : ''}`}>
@@ -1227,7 +1301,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
           <>
             <CollapsibleSection
               title={isChillerLikeDevice(form.laiteTyyppi) ? 'Laite — perustiedot' : 'Laitetiedot'}
-              defaultOpen
+              collapseKey="page:laitetiedot"
             >
               {registryMessage && <p className="muted">{registryMessage}</p>}
               {customerId && (
@@ -1326,7 +1400,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
               </div>
             </CollapsibleSection>
 
-            <CollapsibleSection title="Moduulit" defaultOpen>
+            <CollapsibleSection title="Moduulit" collapseKey="page:moduulit">
               {usesManualModuleMenu(form.laiteTyyppi) ? (
                 <>
                   <p className="muted">
@@ -1389,11 +1463,10 @@ export default function MaintenanceReportEditPage({ session }: Props) {
               )}
             </CollapsibleSection>
 
-            <HuoltoEditUiProvider sectionsDefaultOpen={sectionsDefaultOpen}>
             <div className="huolto-modules-stack">
             {form.selectedModules.kylmaainePiiri && (
               <>
-                <RefrigerantChargeSection form={form} onChange={patchForm} defaultOpen />
+                <RefrigerantChargeSection form={form} onChange={patchForm} />
                 {isVj && (
                   <VjLauhdutinSection
                     form={form}
@@ -1407,7 +1480,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
             )}
 
             {form.laiteTyyppi === 'lämpöpumppu' && (
-              <RefrigerantChargeSection form={form} onChange={patchForm} defaultOpen />
+              <RefrigerantChargeSection form={form} onChange={patchForm} />
             )}
 
             {showEvaporatorSection && <EvaporatorCircuitsSync form={form} onChange={syncForm} />}
@@ -1493,9 +1566,11 @@ export default function MaintenanceReportEditPage({ session }: Props) {
               userId={session.user.id}
             />
             </div>
-            </HuoltoEditUiProvider>
 
-            <CollapsibleSection title={huoltoTiedotSectionTitle(form.laiteTyyppi)} defaultOpen>
+            <CollapsibleSection
+              title={huoltoTiedotSectionTitle(form.laiteTyyppi)}
+              collapseKey="page:huoltotiedot"
+            >
               {showHuoltoVsKayttoonottoSelector(form.laiteTyyppi) && (
                 <label style={{ maxWidth: '280px' }}>
                   Raportin tyyppi
@@ -1627,6 +1702,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
           )}
         </div>
       </form>
+      </HuoltoEditUiProvider>
     </AppLayout>
   );
 }

@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type MouseEvent } from 'react';
+import { MaintenanceReportImageLightbox } from '../components/huoltoRaportti/MaintenanceReportImageLightbox';
 import { prepareImageFileForUpload } from './prepareUploadImage';
 import {
   normalizeMaintenanceReportPhotos,
@@ -103,19 +104,49 @@ function useSignedImageUrls(paths: string[]) {
 export function MaintenanceReportImageThumb({ path }: { path: string }) {
   const urls = useSignedImageUrls([path]);
   const url = urls[path];
+  const [previewOpen, setPreviewOpen] = useState(false);
+
+  function openPreview(event: MouseEvent) {
+    event.preventDefault();
+    if (url) setPreviewOpen(true);
+  }
 
   return (
-    <a
-      href={url ?? '#'}
-      target="_blank"
-      rel="noreferrer"
-      className="image-thumb huolto-evidence-thumb"
-      onClick={(e) => {
-        if (!url) e.preventDefault();
-      }}
-    >
-      {url ? <img src={url} alt="" /> : <span className="muted">Ladataan…</span>}
-    </a>
+    <>
+      <button
+        type="button"
+        className="image-thumb huolto-evidence-thumb"
+        disabled={!url}
+        onClick={openPreview}
+        aria-label="Avaa kuva"
+      >
+        {url ? <img src={url} alt="" /> : <span className="muted">Ladataan…</span>}
+      </button>
+      {previewOpen && url ? (
+        <MaintenanceReportImageLightbox url={url} onClose={() => setPreviewOpen(false)} />
+      ) : null}
+    </>
+  );
+}
+
+function GalleryThumb({ url }: { url: string | undefined }) {
+  const [previewOpen, setPreviewOpen] = useState(false);
+
+  return (
+    <>
+      <button
+        type="button"
+        className="image-thumb"
+        disabled={!url}
+        onClick={() => url && setPreviewOpen(true)}
+        aria-label="Avaa kuva"
+      >
+        {url ? <img src={url} alt="" /> : <span className="muted">Ladataan…</span>}
+      </button>
+      {previewOpen && url ? (
+        <MaintenanceReportImageLightbox url={url} onClose={() => setPreviewOpen(false)} />
+      ) : null}
+    </>
   );
 }
 
@@ -127,22 +158,7 @@ export function MaintenanceReportImageGallery({ paths }: { paths: string[] }) {
   return (
     <div className="image-gallery">
       {paths.map((path) => (
-        <a
-          key={path}
-          href={urls[path] ?? '#'}
-          target="_blank"
-          rel="noreferrer"
-          className="image-thumb"
-          onClick={(e) => {
-            if (!urls[path]) e.preventDefault();
-          }}
-        >
-          {urls[path] ? (
-            <img src={urls[path]} alt="" />
-          ) : (
-            <span className="muted">Ladataan…</span>
-          )}
-        </a>
+        <GalleryThumb key={path} url={urls[path]} />
       ))}
     </div>
   );

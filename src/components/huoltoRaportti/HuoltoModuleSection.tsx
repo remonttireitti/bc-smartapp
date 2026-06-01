@@ -1,11 +1,12 @@
-import { useId, useState, type ReactNode } from 'react';
+import { useId, type ReactNode } from 'react';
 import type { ModuleThemeKey } from '../../lib/huoltoRaportti/moduleThemes';
-import { useHuoltoEditUi } from './HuoltoEditUiContext';
+import { useHuoltoCollapse } from './HuoltoEditUiContext';
 
 interface Props {
   moduleKey: ModuleThemeKey;
   title: string;
   children: ReactNode;
+  /** @deprecated Käytä vain ilman HuoltoEditUiProvideria. Oletus: kiinni. */
   defaultOpen?: boolean;
 }
 
@@ -13,11 +14,9 @@ export function HuoltoModuleSection({
   moduleKey,
   title,
   children,
-  defaultOpen,
+  defaultOpen = false,
 }: Props) {
-  const { sectionsDefaultOpen } = useHuoltoEditUi();
-  const initialOpen = defaultOpen ?? sectionsDefaultOpen;
-  const [open, setOpen] = useState(initialOpen);
+  const { open, toggle } = useHuoltoCollapse(`module:${moduleKey}`, defaultOpen);
   const contentId = useId();
 
   return (
@@ -28,7 +27,7 @@ export function HuoltoModuleSection({
       <button
         type="button"
         className="huolto-module-header"
-        onClick={() => setOpen((value) => !value)}
+        onClick={toggle}
         aria-expanded={open}
         aria-controls={contentId}
       >

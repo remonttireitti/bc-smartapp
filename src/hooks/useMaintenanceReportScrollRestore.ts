@@ -1,15 +1,20 @@
 import { useEffect } from 'react';
+import type { HuoltoReportData } from '../lib/huoltoRaportti/types';
 import {
   maintenanceReportViewKey,
   readMaintenanceReportViewState,
   writeMaintenanceReportViewState,
 } from '../lib/maintenanceReportViewState';
 
-/** Palauttaa vierityskohdan kun käyttäjä palaa raporttisivulle (toinen sivu / välilehti). */
+/** Palauttaa vierityskohdan ja tallentaa editor-tilan (scroll, taivutus, lomake). */
 export function useMaintenanceReportScrollRestore(input: {
   reportId: string | null;
   userId: string;
   ready: boolean;
+  status?: string;
+  form?: HuoltoReportData;
+  customerId?: string;
+  equipmentId?: string;
 }) {
   const viewKey = maintenanceReportViewKey(input.reportId, input.userId);
 
@@ -30,10 +35,24 @@ export function useMaintenanceReportScrollRestore(input: {
 
   useEffect(() => {
     const persist = () => {
-      writeMaintenanceReportViewState(viewKey, {
+      const prev = readMaintenanceReportViewState(viewKey);
+      const next = {
         scrollY: window.scrollY,
         savedAt: Date.now(),
-      });
+        openKeys: prev?.openKeys,
+        editor:
+          input.reportId &&
+          input.status === 'draft' &&
+          input.form
+            ? {
+                reportId: input.reportId,
+                form: input.form,
+                customerId: input.customerId ?? '',
+                equipmentId: input.equipmentId ?? '',
+              }
+            : prev?.editor,
+      };
+      writeMaintenanceReportViewState(viewKey, next);
     };
 
     const onVisibilityChange = () => {
@@ -58,5 +77,5 @@ export function useMaintenanceReportScrollRestore(input: {
       document.removeEventListener('visibilitychange', onVisibilityChange);
       window.removeEventListener('pageshow', onPageShow);
     };
-  }, [viewKey]);
+  }, [viewKey, input.reportId, input.status, input.form, input.customerId, input.equipmentId]);
 }

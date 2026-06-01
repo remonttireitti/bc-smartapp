@@ -1,8 +1,11 @@
-import { useId, useState, type ReactNode } from 'react';
+import { useId, type ReactNode } from 'react';
+import { useHuoltoCollapse } from './HuoltoEditUiContext';
 
 interface Props {
   title: string;
   children: ReactNode;
+  /** Uniikki avain osion muistille (esim. evap-0, comp-2). */
+  partKey?: string;
   defaultOpen?: boolean;
   className?: string;
 }
@@ -10,10 +13,12 @@ interface Props {
 export function HuoltoPartSection({
   title,
   children,
+  partKey,
   defaultOpen = false,
   className = '',
 }: Props) {
-  const [open, setOpen] = useState(defaultOpen);
+  const key = partKey ?? `part:${title}`;
+  const { open, toggle } = useHuoltoCollapse(key, defaultOpen);
   const contentId = useId();
 
   return (
@@ -23,7 +28,7 @@ export function HuoltoPartSection({
       <button
         type="button"
         className="huolto-part-header"
-        onClick={() => setOpen((value) => !value)}
+        onClick={toggle}
         aria-expanded={open}
         aria-controls={contentId}
       >

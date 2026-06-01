@@ -2650,6 +2650,39 @@ button[type='submit']:disabled { opacity: .6; cursor: wait; }
   flex-direction: column;
   align-items: center;
   justify-content: center;
+  padding: 0;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
+
+button.image-thumb:disabled {
+  cursor: default;
+  opacity: 0.7;
+}
+
+.huolto-image-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  background: rgba(0, 0, 0, 0.92);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.huolto-image-lightbox-img {
+  max-width: min(100%, 960px);
+  max-height: min(92vh, 1200px);
+  object-fit: contain;
+}
+
+.huolto-image-lightbox-close {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  z-index: 1;
 }
 
 .image-thumb img {

@@ -65,7 +65,7 @@ export function EvaporatorModule({
     chillerHx && !isHeatExchangerEvaporatorType(data.tyyppi) ? '' : data.tyyppi;
 
   return (
-    <HuoltoPartSection title={titleLabel} defaultOpen={index === 0}>
+    <HuoltoPartSection title={titleLabel} partKey={`evap-${index}`} defaultOpen={index === 0}>
       {showSameAsFirst && onSameAsFirstChange && (
         <FormCheckbox
           label={`Piiri ${index + 1}: sama höyrystin kuin piirissä 1 (ei mittauskenttiä)`}
