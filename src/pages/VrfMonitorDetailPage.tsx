@@ -36,8 +36,6 @@ import {
 
   VRF_DEVICE_SELECT,
 
-  VRF_READING_SELECT,
-
   activeVrfAlarmsForDisplay,
 
   buildAlarmShutdownResetSettings,
@@ -56,6 +54,7 @@ import {
   formatVrfDiRaw,
   vrfMeasuredUnitReady,
   inferDefrostLikely,
+  sortReadingsByTime,
 
   isVrfDeviceOnline,
 
