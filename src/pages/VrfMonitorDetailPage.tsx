@@ -226,7 +226,7 @@ export default function VrfMonitorDetailPage({ session }: Props) {
 
         .gte('recorded_at', since)
 
-        .order('recorded_at', { ascending: true })
+        .order('recorded_at', { ascending: false })
 
         .limit(trendReadingLimit(HISTORY_HOURS)),
 
@@ -236,7 +236,7 @@ export default function VrfMonitorDetailPage({ session }: Props) {
 
     setDevice(nextDevice);
 
-    setReadings((readingsRes.data as VrfReading[] | null) ?? []);
+    setReadings(sortReadingsByTime((readingsRes.data as VrfReading[] | null) ?? []));
 
     if (nextDevice && !settingsDirtyRef.current) {
       setSettingsForm(parseVrfSettings(nextDevice.settings));

@@ -7,6 +7,7 @@ import {
   defaultTrendSeriesForHotspot,
   formatTrendTimeLabel,
   readingsInTrendPeriod,
+  sortReadingsByTime,
   trendReadingLimit,
   vrfTrendPeriodFromHours,
   type VrfBinaryLaneKey,
@@ -60,10 +61,10 @@ export default function VrfTrendDialog({ open, deviceId, onClose, focusHotspot, 
           .select(VRF_READING_SELECT)
           .eq('device_id', deviceId)
           .gte('recorded_at', since)
-          .order('recorded_at', { ascending: true })
+          .order('recorded_at', { ascending: false })
           .limit(trendReadingLimit(trendHours));
         if (fetchError) throw new Error(fetchError.message);
-        setReadings((data as VrfReading[] | null) ?? []);
+        setReadings(sortReadingsByTime((data as VrfReading[] | null) ?? []));
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Historian lataus epäonnistui');

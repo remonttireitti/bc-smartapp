@@ -7,6 +7,7 @@ import {
   VRF_READING_SELECT,
   filterVrfReadingsByPeriod,
   hoursBetweenIso,
+  sortReadingsByTime,
   trendReadingLimit,
   vrfTrendPeriodFromIso,
   type VrfBinaryLaneKey,
@@ -159,11 +160,11 @@ export default function VrfReportDialog({
         .eq('device_id', device.id)
         .gte('recorded_at', effectivePeriod.start)
         .lte('recorded_at', effectivePeriod.end)
-        .order('recorded_at', { ascending: true })
+        .order('recorded_at', { ascending: false })
         .limit(limit);
 
       if (fetchError) throw new Error(fetchError.message);
-      setReadings((data as VrfReading[] | null) ?? []);
+      setReadings(sortReadingsByTime((data as VrfReading[] | null) ?? []));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Historian lataus epäonnistui');
       setReadings([]);
