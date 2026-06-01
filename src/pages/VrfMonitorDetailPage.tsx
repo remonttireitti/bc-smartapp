@@ -52,6 +52,9 @@ import {
   vrfDiLogicDescription,
   vrfDiTriggerDefault,
   vrfDiTriggerFromInverted,
+  VRF_CNH_STATUS_LABEL,
+  formatVrfDiRaw,
+  vrfMeasuredUnitReady,
   inferDefrostLikely,
 
   isVrfDeviceOnline,
@@ -981,13 +984,12 @@ export default function VrfMonitorDetailPage({ session }: Props) {
                 <legend>Digitaalitulot (DI)</legend>
                 <p className="muted vrf-settings-fieldset-lead">
                   MH-kytkentä: +12 V COM-kiskolla, signaali GND-releellä. di*_raw=1 kun virtapiiri suljettu.
-                  DI2/DI4 PNP (suljettu=päällä). DI3 INV (auki=hälytys). Katso kytkentäohje (DI-ikoni).
+                  DI2 PNP (suljettu=päällä). DI3 INV (auki=hälytys). Katso kytkentäohje (DI-ikoni).
                 </p>
                 {(
                   [
                     ['di2_trigger_raw_level', 'DI2 — Kompressori'] as const,
                     ['di3_trigger_raw_level', 'DI3 — Hälytys'] as const,
-                    ['di4_trigger_raw_level', 'DI4 — Käyntitieto / laite päällä'] as const,
                   ] as const
                 ).map(([key, label]) => {
                   const inverted = vrfDiInvertedFromTrigger(
@@ -1020,6 +1022,52 @@ export default function VrfMonitorDetailPage({ session }: Props) {
                   );
                 })}
               </fieldset>
+
+              <details className="vrf-settings-details">
+                <summary>{VRF_CNH_STATUS_LABEL} (DI4)</summary>
+                <p className="muted vrf-settings-details-lead">
+                  Vain DI-mittaus — ei vaikuta käyntilupaan, hälytykseen, tilatekstiin, kaavioon eikä trendiin.
+                </p>
+                {telemetry?.digital_inputs && (
+                  <p className="vrf-cnh-di-readout">
+                    Mittaus nyt:{' '}
+                    <strong>
+                      {vrfMeasuredUnitReady(telemetry) ? 'Signaali päällä' : 'Pois'}
+                    </strong>
+                    {' · '}
+                    {formatVrfDiRaw(telemetry.digital_inputs.di4_raw)}
+                  </p>
+                )}
+                <div className="vrf-settings-toggle-row">
+                  <div>
+                    <strong>DI4 — {VRF_CNH_STATUS_LABEL}</strong>
+                    <p className="muted">
+                      {vrfDiLogicDescription(
+                        'di4_trigger_raw_level',
+                        vrfDiInvertedFromTrigger(
+                          settingsForm.di4_trigger_raw_level,
+                          vrfDiTriggerDefault('di4_trigger_raw_level'),
+                        ),
+                      )}
+                    </p>
+                  </div>
+                  <VrfToggleSwitch
+                    checked={vrfDiInvertedFromTrigger(
+                      settingsForm.di4_trigger_raw_level,
+                      vrfDiTriggerDefault('di4_trigger_raw_level'),
+                    )}
+                    labelOn="INV"
+                    labelOff="PNP"
+                    ariaLabel={`${VRF_CNH_STATUS_LABEL} — käänteinen logiikka`}
+                    onChange={(nextInverted) =>
+                      patchSettingsForm((s) => ({
+                        ...s,
+                        di4_trigger_raw_level: vrfDiTriggerFromInverted(nextInverted),
+                      }))
+                    }
+                  />
+                </div>
+              </details>
 
               <fieldset className="vrf-settings-fieldset">
 

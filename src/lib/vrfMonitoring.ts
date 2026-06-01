@@ -246,8 +246,10 @@ export const VRF_BINARY_LANES: {
   { key: 'compressor', label: 'Kompressori DI2', color: '#8b5cf6', glow: 'rgba(139, 92, 246, 0.45)' },
   { key: 'defrost', label: 'Sulatus', color: '#14b8a6', glow: 'rgba(20, 184, 166, 0.45)' },
   { key: 'alarm', label: 'Hälytys DI3', color: '#f43f5e', glow: 'rgba(244, 63, 94, 0.45)' },
-  { key: 'unit_ready', label: 'Käyntitieto DI4', color: '#22c55e', glow: 'rgba(34, 197, 94, 0.45)' },
 ];
+
+/** DI4 CNH-tilatieto — vain mittaus asetuksissa, ei trendiä eikä ohjausta. */
+export const VRF_CNH_STATUS_LABEL = 'CNH tilatieto';
 
 /** PNP (di_raw=1 = ON, virtapiiri suljettu): trigger 1. Käänteinen: trigger 0. */
 export function vrfDiTriggerFromInverted(inverted: boolean): 0 | 1 {
@@ -306,6 +308,11 @@ export function vrfDiLogicDescription(
     return inverted
       ? 'GND-paluu suljettu (di_raw=1) = normaali. Hälytys kun virtapiiri aukeaa (di_raw=0).'
       : 'GND-paluu suljettu = hälytys (Error-ulostulo). Käytä vain jos DI3 on CnT-5 / Error -linjalla.';
+  }
+  if (key === 'di4_trigger_raw_level') {
+    return inverted
+      ? `${VRF_CNH_STATUS_LABEL} (DI4): di_raw=0 = signaali päällä. Vain mittaus — ei vaikuta ohjaukseen.`
+      : `${VRF_CNH_STATUS_LABEL} (DI4): di_raw=1 = signaali päällä. Vain mittaus — ei vaikuta ohjaukseen.`;
   }
   return inverted
     ? 'Päällä kun virtapiiri auki (di_raw=0) — harvinainen MH-kytkennässä.'
@@ -680,25 +687,6 @@ export function vrfDiStateContradictions(
   const alarmShutdown = vrfAlarmShutdownBlocksControl(telemetry);
   const issues: VrfDiStateContradiction[] = [];
 
-  if (!permitOn && di.di4_unit_ready) {
-    issues.push({
-      key: 'di4_without_permit',
-      message:
-        'DI4 käyntitieto on päällä vaikka käyntilupa on pois — tarkista kytkentä, DI4-logiikka tai että firmware raportoi oikein.',
-    });
-  }
-  if ((alarm || alarmShutdown) && di.di4_unit_ready) {
-    issues.push({
-      key: 'di4_during_alarm',
-      message: 'DI4 käyntitieto on päällä hälytyksessä — VRF ei pitäisi olla käynnistystilassa.',
-    });
-  }
-  if (!di.di4_unit_ready && di.di2_compressor_running) {
-    issues.push({
-      key: 'di2_without_di4',
-      message: 'DI2 kompressori on päällä ilman DI4 käyntitietoa — ristiriita signaaleissa tai väärä DI-tulkinta.',
-    });
-  }
   if (!permitOn && di.di2_compressor_running) {
     issues.push({
       key: 'di2_without_permit',
@@ -1022,7 +1010,6 @@ export function vrfResolveDeviceActivity(params: {
   }
 
   const permitOn = vrfHeatPermitActive(telemetry);
-  const unitReady = vrfMeasuredUnitReady(telemetry);
   const alarmShutdown = vrfAlarmShutdownBlocksControl(telemetry);
   const remainingS = telemetry?.status.alarm_shutdown_remaining_s;
   const waitingDi = telemetry?.status.alarm_shutdown_waiting_di_clear ?? false;
@@ -1100,9 +1087,7 @@ export function vrfResolveDeviceActivity(params: {
 
   if (permitOn) {
     let detail = 'Lämmityslupa päällä — odottaa lämmitystarvetta';
-    if (unitReady) {
-      detail = 'VRF valmiustilassa — odottaa lämmitystarvetta';
-    } else if (
+    if (
       opText &&
       !isAlarmLikeOperatingText(opText) &&
       !/^k[aä]y[nnt]tilupa/i.test(opText)

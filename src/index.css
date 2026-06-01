@@ -6901,6 +6901,30 @@ button.vrf-toggle:not(:disabled) {
   grid-column: 1 / -1;
 }
 
+.vrf-settings-details {
+  margin: 0.5rem 0 0;
+  padding: 0.65rem 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--bg-surface) 92%, var(--border));
+}
+
+.vrf-settings-details > summary {
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.92rem;
+}
+
+.vrf-settings-details-lead {
+  margin: 0.65rem 0 0.5rem;
+  font-size: 0.88rem;
+}
+
+.vrf-cnh-di-readout {
+  margin: 0 0 0.75rem;
+  font-size: 0.9rem;
+}
+
 .vrf-settings-danger {
   margin-top: 1.25rem;
   padding-top: 1rem;

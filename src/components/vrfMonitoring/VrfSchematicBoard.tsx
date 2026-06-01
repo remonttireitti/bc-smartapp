@@ -10,14 +10,6 @@ const HOTSPOTS = [
 
 const SCHEMATIC_DI_BADGES = [
   {
-    lane: 'unit_ready' as const,
-    className: 'vrf-hp-di-badge--unit',
-    di: 'DI4',
-    name: 'Käyntitieto',
-    activeText: 'Päällä',
-    idleText: 'Pois',
-  },
-  {
     lane: 'compressor' as const,
     className: 'vrf-hp-di-badge--comp',
     di: 'DI2',
@@ -170,11 +162,9 @@ export default function VrfSchematicBoard({
 
         {SCHEMATIC_DI_BADGES.map(({ lane, className, di, name, activeText, idleText }) => {
           const active =
-            lane === 'unit_ready'
-              ? Boolean(digitalInputs?.di4_unit_ready)
-              : lane === 'compressor'
-                ? Boolean(digitalInputs?.di2_compressor_running)
-                : Boolean(digitalInputs?.di3_alarm);
+            lane === 'compressor'
+              ? Boolean(digitalInputs?.di2_compressor_running)
+              : Boolean(digitalInputs?.di3_alarm);
           return renderDiBadge(lane, className, di, name, active, activeText, idleText);
         })}
       </div>

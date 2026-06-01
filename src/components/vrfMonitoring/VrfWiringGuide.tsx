@@ -38,7 +38,7 @@ export default function VrfWiringGuide() {
           <tr>
             <td><strong>DI4</strong></td>
             <td>Operation output (CnT-2 / ulk. käynti)</td>
-            <td>Käyntitieto / laite päällä</td>
+            <td>CNH tilatieto (vain mittaus)</td>
             <td>PNP (suljettu = päällä)</td>
           </tr>
           <tr>
@@ -82,15 +82,15 @@ export default function VrfWiringGuide() {
 +12 V (yhteinen kisko)  ───────►  COM
 GND                     ───────►  DGND
 
-Käyntitieto-rele  ──► DI4 ──► GND  (kun ON: sulku)
+CNH tilatieto     ──► DI4 ──► GND  (vain seuranta)
 Kompressori-rele  ──► DI2 ──► GND  (kun käy: sulku)
 Hälytys/OK-rele   ──► DI3 ──► GND  (normaali: sulku; auki = hälytys)`}</pre>
       </div>
 
       <p className="muted vrf-wiring-note">
-        <strong>Käyntilupa pois (RO1):</strong> Lämmitysrele katkaistaan, mutta DI2/DI3/DI4 luetaan aina
-        sellaisenaan kuin VRF antaa (status-releet). Jos kaikki optot ovat auki, kisko on todennäköisesti
-        irrallaan.
+        <strong>Käyntilupa pois (RO1):</strong> Lämmitysrele katkaistaan, mutta DI2/DI3 (ja DI4 mittaus)
+        luetaan sellaisenaan kuin VRF antaa. DI4 (CNH tilatieto) ei vaikuta ohjaukseen. Jos kaikki optot
+        ovat auki, kisko on todennäköisesti irrallaan.
       </p>
       <p className="muted vrf-wiring-note">
         <strong>DI3 ja Error-ulostulo:</strong> CnT-5 / Inspection (Error) sulkee GND vain vian sattuessa.
@@ -122,7 +122,7 @@ Hälytys/OK-rele   ──► DI3 ──► GND  (normaali: sulku; auki = hälyty
           <tr>
             <td><strong>DI4</strong></td>
             <td>GPIO7</td>
-            <td>Käyntitieto (GND suljettu = ON)</td>
+            <td>CNH tilatieto (GND suljettu = ON, vain mittaus)</td>
             <td>VRF → monitori</td>
           </tr>
           <tr>
@@ -153,7 +153,7 @@ Hälytys/OK-rele   ──► DI3 ──► GND  (normaali: sulku; auki = hälyty
       </table>
 
       <p className="muted">
-        Oletusasetukset: DI2 ja DI4 <strong>PNP</strong> (di_raw=1 = päällä), DI3 <strong>INV</strong>{' '}
+        Oletusasetukset: DI2 ja DI4 (CNH) <strong>PNP</strong> (di_raw=1 = päällä), DI3 <strong>INV</strong>{' '}
         (di_raw=0 = hälytys). Tarkista INV/PNP Asetukset-välilehdeltä kytkentämuutoksen jälkeen.
       </p>
 

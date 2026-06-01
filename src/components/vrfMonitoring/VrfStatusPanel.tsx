@@ -164,12 +164,6 @@ export default function VrfStatusPanel({
                 )}
                 <ul className="vrf-di-status-list">
                   <li>
-                    <strong>DI4 Käyntitieto</strong>
-                    <span>
-                      {di.di4_unit_ready ? 'Päällä' : 'Pois'} · {formatVrfDiRawDisplay(di.di4_raw, telemetry)}
-                    </span>
-                  </li>
-                  <li>
                     <strong>DI2 Kompressori</strong>
                     <span>
                       {di.di2_compressor_running ? 'Käy' : 'Pois'} · {formatVrfDiRawDisplay(di.di2_raw, telemetry)}
@@ -263,7 +257,7 @@ export default function VrfStatusPanel({
             </p>
           )}
           {permit.requestedOn === true && permit.actualOn === false && permit.tone === 'blocked' && (
-            <p className="vrf-status-detail muted">RO1-rele pois — VRF-yksikkö voi silti olla valmiustilassa (DI4)</p>
+            <p className="vrf-status-detail muted">RO1-rele pois — laite ei saa lämmityslupaa</p>
           )}
           {readOnly && permit.requestedOn != null && permit.actualOn != null && permit.requestedOn !== permit.actualOn && (
             <p className="vrf-status-detail muted">
