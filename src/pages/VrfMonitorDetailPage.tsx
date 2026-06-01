@@ -41,6 +41,7 @@ import {
   activeVrfAlarms,
 
   buildAlarmShutdownResetSettings,
+  buildOtaRequestSettings,
   buildVrfSettingsForSave,
   defaultVrfSettings,
   vrfDiWiringHint,
@@ -143,6 +144,7 @@ export default function VrfMonitorDetailPage({ session }: Props) {
   const [reportOpen, setReportOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [wiringGuideOpen, setWiringGuideOpen] = useState(false);
+  const [otaBusy, setOtaBusy] = useState(false);
 
 
 
@@ -389,7 +391,31 @@ export default function VrfMonitorDetailPage({ session }: Props) {
     await load();
   }
 
-
+  async function requestOta() {
+    if (!device) return;
+    if (!online) {
+      setSettingsMessage('Laite ei ole online — OTA vaatii verkkoyhteyden.');
+      return;
+    }
+    setOtaBusy(true);
+    setSettingsMessage(null);
+    const { error: updateError } = await supabase
+      .from('vrf_devices')
+      .update({
+        settings: buildOtaRequestSettings(device.settings),
+        settings_updated_at: new Date().toISOString(),
+      })
+      .eq('id', device.id);
+    setOtaBusy(false);
+    if (updateError) {
+      setSettingsMessage(updateError.message);
+      return;
+    }
+    setSettingsMessage(
+      'OTA-pyyntö lähetetty. Laite lataa firmwaren ~10–60 s sisällä ja käynnistyy uudelleen.',
+    );
+    await load();
+  }
 
   async function saveSettings(e: FormEvent) {
 
@@ -1075,6 +1101,27 @@ export default function VrfMonitorDetailPage({ session }: Props) {
                 <p className={settingsMessage.includes('tallennettu') ? 'form-success' : 'form-error'}>{settingsMessage}</p>
 
               )}
+
+              <fieldset className="vrf-settings-fieldset">
+                <legend>Firmware OTA</legend>
+                <p className="muted vrf-settings-fieldset-lead">
+                  Etäpäivitys ilman USB:tä. Lataa{' '}
+                  <a href="https://bc-smartapp.vercel.app/vrf-firmware/firmware.bin" target="_blank" rel="noreferrer">
+                    bc-smartapp/vrf-firmware
+                  </a>
+                  . Nykyinen: {device.firmware_version ?? '—'}.
+                </p>
+                <div className="form-actions">
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    disabled={busy || otaBusy || !online}
+                    onClick={() => void requestOta()}
+                  >
+                    {otaBusy ? 'Lähetetään…' : 'Lähetä OTA laitteelle'}
+                  </button>
+                </div>
+              </fieldset>
 
               <div className="form-actions">
 
