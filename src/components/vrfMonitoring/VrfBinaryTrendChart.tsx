@@ -22,7 +22,7 @@ type Props = {
   onVisibleChange?: (next: Set<VrfBinaryLaneKey>) => void;
 };
 
-const DEFAULT_VISIBLE = new Set<VrfBinaryLaneKey>(['control', 'compressor', 'defrost', 'alarm']);
+const DEFAULT_VISIBLE = new Set<VrfBinaryLaneKey>(['control', 'compressor', 'defrost', 'alarm', 'unit_ready']);
 
 export default function VrfBinaryTrendChart({
   readings,

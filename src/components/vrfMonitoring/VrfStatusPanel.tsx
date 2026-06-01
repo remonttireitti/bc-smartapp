@@ -7,6 +7,7 @@ import {
   vrfAlarmDelayResetState,
   vrfAlarmShutdownBlocksControl,
   vrfDiSuppressedReason,
+  VRF_CNH_STATUS_LABEL,
   vrfDiStateContradictions,
   vrfPresentDigitalInputs,
   vrfResolveDeviceActivity,
@@ -163,6 +164,12 @@ export default function VrfStatusPanel({
                   </p>
                 )}
                 <ul className="vrf-di-status-list">
+                  <li>
+                    <strong>DI4 {VRF_CNH_STATUS_LABEL}</strong>
+                    <span>
+                      {di.di4_unit_ready ? 'Päällä' : 'Pois'} · {formatVrfDiRawDisplay(di.di4_raw, telemetry)}
+                    </span>
+                  </li>
                   <li>
                     <strong>DI2 Kompressori</strong>
                     <span>

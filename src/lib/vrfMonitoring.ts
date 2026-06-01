@@ -246,9 +246,9 @@ export const VRF_BINARY_LANES: {
   { key: 'compressor', label: 'Kompressori DI2', color: '#8b5cf6', glow: 'rgba(139, 92, 246, 0.45)' },
   { key: 'defrost', label: 'Sulatus', color: '#14b8a6', glow: 'rgba(20, 184, 166, 0.45)' },
   { key: 'alarm', label: 'Hälytys DI3', color: '#f43f5e', glow: 'rgba(244, 63, 94, 0.45)' },
+  { key: 'unit_ready', label: 'CNH tilatieto DI4', color: '#22c55e', glow: 'rgba(34, 197, 94, 0.45)' },
 ];
 
-/** DI4 CNH-tilatieto — vain mittaus asetuksissa, ei trendiä eikä ohjausta. */
 export const VRF_CNH_STATUS_LABEL = 'CNH tilatieto';
 
 /** PNP (di_raw=1 = ON, virtapiiri suljettu): trigger 1. Käänteinen: trigger 0. */
@@ -450,6 +450,14 @@ export function vrfCompressorRunning(
 
 export function vrfMeasuredUnitReady(telemetry: VrfTelemetry | null): boolean {
   return telemetry?.digital_inputs?.di4_unit_ready === true;
+}
+
+/** Käyntilupa pois, mutta kompressori/DI2 vielä käynnissä — normaali sammutusviive, ei ristiriitaa. */
+export function vrfInPermitOffCoast(telemetry: VrfTelemetry | null): boolean {
+  if (vrfHeatPermitActive(telemetry)) return false;
+  if (vrfDi3AlarmActive(telemetry, telemetry?.settings)) return false;
+  if (vrfAlarmShutdownBlocksControl(telemetry)) return false;
+  return vrfMeasuredCompressorRunning(telemetry) || telemetry?.status.compressor_likely_running === true;
 }
 
 export function parseVrfTelemetry(payload: Record<string, unknown> | null | undefined): VrfTelemetry | null {
@@ -685,15 +693,22 @@ export function vrfDiStateContradictions(
   const permitOn = vrfHeatPermitActive(telemetry);
   const alarm = vrfDi3AlarmActive(telemetry, deviceSettings);
   const alarmShutdown = vrfAlarmShutdownBlocksControl(telemetry);
+  const permitOffCoast = vrfInPermitOffCoast(telemetry);
   const issues: VrfDiStateContradiction[] = [];
 
-  if (!permitOn && di.di2_compressor_running) {
+  if (!permitOn && di.di2_compressor_running && !permitOffCoast) {
     issues.push({
       key: 'di2_without_permit',
       message: 'DI2 kompressori on päällä vaikka käyntilupa on pois — tarkista RO1, kytkentä ja firmware.',
     });
   }
-  if ((alarm || alarmShutdown) && di.di2_compressor_running) {
+  if (permitOn && !di.di4_unit_ready && di.di2_compressor_running) {
+    issues.push({
+      key: 'di2_without_di4',
+      message: 'DI2 kompressori on päällä ilman CNH tilatietoa (DI4) — tarkista signaalit tai DI-tulkinta.',
+    });
+  }
+  if ((alarm || alarmShutdown) && di.di2_compressor_running && !permitOffCoast) {
     issues.push({
       key: 'di2_during_alarm',
       message: 'DI2 kompressori on päällä hälytyksessä — laite ei pitäisi käydä.',
@@ -1010,6 +1025,8 @@ export function vrfResolveDeviceActivity(params: {
   }
 
   const permitOn = vrfHeatPermitActive(telemetry);
+  const unitReady = vrfMeasuredUnitReady(telemetry);
+  const permitOffCoast = vrfInPermitOffCoast(telemetry);
   const alarmShutdown = vrfAlarmShutdownBlocksControl(telemetry);
   const remainingS = telemetry?.status.alarm_shutdown_remaining_s;
   const waitingDi = telemetry?.status.alarm_shutdown_waiting_di_clear ?? false;
@@ -1056,6 +1073,17 @@ export function vrfResolveDeviceActivity(params: {
     };
   }
 
+  if (!permitOn && permitOffCoast) {
+    const diDetail = telemetry?.digital_inputs?.di2_compressor_running === true ? 'DI2' : 'arvio';
+    return {
+      headline: 'Sammutusviive',
+      detail: staleNote
+        ? `Käyntilupa pois — kompressori vielä käynnissä (${diDetail}) · ${staleNote}`
+        : `Käyntilupa pois — kompressori vielä käynnissä (${diDetail}), odota pysähtymistä`,
+      tone: 'wait',
+    };
+  }
+
   if (!permitOn) {
     let detail: string | null = null;
     if (outdoorLock) {
@@ -1087,7 +1115,9 @@ export function vrfResolveDeviceActivity(params: {
 
   if (permitOn) {
     let detail = 'Lämmityslupa päällä — odottaa lämmitystarvetta';
-    if (
+    if (unitReady) {
+      detail = `${VRF_CNH_STATUS_LABEL} päällä — laite valmiustilassa`;
+    } else if (
       opText &&
       !isAlarmLikeOperatingText(opText) &&
       !/^k[aä]y[nnt]tilupa/i.test(opText)

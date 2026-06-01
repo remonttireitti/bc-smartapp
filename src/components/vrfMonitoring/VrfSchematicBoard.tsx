@@ -1,4 +1,10 @@
-import { formatTempC, type VrfBinaryLaneKey, type VrfDigitalInputs, type VrfSchematicClickKey } from '../../lib/vrfMonitoring';
+import {
+  VRF_CNH_STATUS_LABEL,
+  formatTempC,
+  type VrfBinaryLaneKey,
+  type VrfDigitalInputs,
+  type VrfSchematicClickKey,
+} from '../../lib/vrfMonitoring';
 
 const HOTSPOTS = [
   { key: 'outdoor_c' as const, label: 'Ulkoilma', className: 'vrf-hp-hotspot--sky' },
@@ -9,6 +15,14 @@ const HOTSPOTS = [
 ] as const;
 
 const SCHEMATIC_DI_BADGES = [
+  {
+    lane: 'unit_ready' as const,
+    className: 'vrf-hp-di-badge--unit',
+    di: 'DI4',
+    name: VRF_CNH_STATUS_LABEL,
+    activeText: 'Päällä',
+    idleText: 'Pois',
+  },
   {
     lane: 'compressor' as const,
     className: 'vrf-hp-di-badge--comp',
@@ -162,9 +176,11 @@ export default function VrfSchematicBoard({
 
         {SCHEMATIC_DI_BADGES.map(({ lane, className, di, name, activeText, idleText }) => {
           const active =
-            lane === 'compressor'
-              ? Boolean(digitalInputs?.di2_compressor_running)
-              : Boolean(digitalInputs?.di3_alarm);
+            lane === 'unit_ready'
+              ? Boolean(digitalInputs?.di4_unit_ready)
+              : lane === 'compressor'
+                ? Boolean(digitalInputs?.di2_compressor_running)
+                : Boolean(digitalInputs?.di3_alarm);
           return renderDiBadge(lane, className, di, name, active, activeText, idleText);
         })}
       </div>

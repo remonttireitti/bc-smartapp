@@ -1026,7 +1026,8 @@ export default function VrfMonitorDetailPage({ session }: Props) {
               <details className="vrf-settings-details">
                 <summary>{VRF_CNH_STATUS_LABEL} (DI4)</summary>
                 <p className="muted vrf-settings-details-lead">
-                  Vain DI-mittaus — ei vaikuta käyntilupaan, hälytykseen, tilatekstiin, kaavioon eikä trendiin.
+                  DI4-signaali näkyy kaaviossa ja trendissä. Ei ohjaa käyntilupaa. Sammutuksen jälkeen kompressori voi
+                  käydä hetken ilman ristiriitahälytystä.
                 </p>
                 {telemetry?.digital_inputs && (
                   <p className="vrf-cnh-di-readout">
