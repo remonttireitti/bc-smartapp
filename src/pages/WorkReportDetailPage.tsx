@@ -29,7 +29,12 @@ import {
 } from '../lib/workReportDelegation';
 import DailyLogRefrigerantFields from '../components/inventory/DailyLogRefrigerantFields';
 import DailyLogTripLegFields from '../components/DailyLogTripLegFields';
-import { AddDailyLogImages, BUCKET, DailyLogImageGallery, uploadDailyLogImages } from '../lib/dailyLogImages';
+import {
+  BUCKET,
+  DailyLogImageGallery,
+  DailyLogImageSection,
+  uploadDailyLogImages,
+} from '../lib/dailyLogImages';
 import {
   loadWorkReportAttachments,
   WorkReportAttachmentGallery,
@@ -751,7 +756,6 @@ export default function WorkReportDetailPage({ session }: Props) {
   const [editingLogId, setEditingLogId] = useState<string | null>(null);
   const [editingLog, setEditingLog] = useState<WorkReportDailyLog | null>(null);
   const [pendingImages, setPendingImages] = useState<File[]>([]);
-  const [imagePreviewUrls, setImagePreviewUrls] = useState<string[]>([]);
   const [companyUsers, setCompanyUsers] = useState<
     { id: string; display_name: string | null; email: string | null }[]
   >([]);
@@ -771,10 +775,10 @@ export default function WorkReportDetailPage({ session }: Props) {
   const customerInvoicingEnabled = billingModuleEnabled !== false && ownerCustomerInvoicing;
 
   useEffect(() => {
-    const urls = pendingImages.map((file) => URL.createObjectURL(file));
-    setImagePreviewUrls(urls);
-    return () => urls.forEach((url) => URL.revokeObjectURL(url));
-  }, [pendingImages]);
+    if (!logDialogOpen || !editingLogId) return;
+    const fresh = dailyLogs.find((log) => log.id === editingLogId);
+    if (fresh) setEditingLog(fresh);
+  }, [dailyLogs, editingLogId, logDialogOpen]);
 
   useEffect(() => {
     if (!logDialogOpen) return;
@@ -1656,6 +1660,17 @@ export default function WorkReportDetailPage({ session }: Props) {
       setLogDialogBusy(false);
       setError(refrigerantError.message);
       return;
+    }
+
+    if (pendingImages.length > 0) {
+      try {
+        await uploadDailyLogImages(report.id, editingLogId, pendingImages, session.user.id);
+      } catch (uploadErr) {
+        setLogDialogBusy(false);
+        setError(uploadErr instanceof Error ? uploadErr.message : 'Kuvien lataus epäonnistui.');
+        await load(report.id);
+        return;
+      }
     }
 
     closeLogDialog();
@@ -2606,55 +2621,17 @@ export default function WorkReportDetailPage({ session }: Props) {
           hasPartnerCompanies={hasPartnerRefrigerantCompanies}
           showCustomerBillingFields={showCustomerMoney}
         />
-        <div className="image-section">
-          <div className="section-head">
-            <h3>Kuvat</h3>
-            <label className="btn btn-secondary image-upload-btn">
-              + Valitse kuvia
-              <input
-                type="file"
-                accept="image/jpeg,image/png,image/webp,image/gif,image/heic,image/heif"
-                multiple
-                hidden
-                onChange={(e) => {
-                  if (e.target.files) {
-                    setPendingImages((prev) => [...prev, ...Array.from(e.target.files!)]);
-                  }
-                  e.target.value = '';
-                }}
-              />
-            </label>
-          </div>
-          {editingLog && (editingLog.images ?? []).length > 0 && (
-            <DailyLogImageGallery images={editingLog.images ?? []} />
-          )}
-          {editingLogId && report && (
-            <AddDailyLogImages
-              reportId={report.id}
-              dailyLogId={editingLogId}
-              userId={session.user.id}
-              onUploaded={() => void load(report.id)}
-            />
-          )}
-          {pendingImages.length === 0 && !editingLogId ? (
-            <p className="muted">Voit liittää kuvia työstä (max 10 MB / kuva).</p>
-          ) : pendingImages.length > 0 ? (
-            <div className="image-gallery">
-              {pendingImages.map((file, index) => (
-                <div key={`${file.name}-${index}`} className="image-thumb pending">
-                  <img src={imagePreviewUrls[index]} alt={file.name} />
-                  <button
-                    type="button"
-                    className="btn btn-secondary btn-sm"
-                    onClick={() => setPendingImages((prev) => prev.filter((_, i) => i !== index))}
-                  >
-                    Poista
-                  </button>
-                </div>
-              ))}
-            </div>
-          ) : null}
-        </div>
+        {report && (
+          <DailyLogImageSection
+            reportId={report.id}
+            dailyLogId={editingLogId}
+            userId={session.user.id}
+            savedImages={editingLog?.images ?? []}
+            pendingImages={pendingImages}
+            onPendingImagesChange={setPendingImages}
+            onSavedImagesChange={() => void load(report.id)}
+          />
+        )}
       </DailyLogDialog>
     </AppLayout>
   );

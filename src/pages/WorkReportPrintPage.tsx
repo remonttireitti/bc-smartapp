@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
 import AppLayout from '../components/AppLayout';
+import { MaintenanceReportImageLightbox } from '../components/huoltoRaportti/MaintenanceReportImageLightbox';
 import IconButton from '../components/IconButton';
 import Tooltip from '../components/Tooltip';
 import ToggleSwitch from '../components/ToggleSwitch';
@@ -27,6 +28,7 @@ export default function WorkReportPrintPage({ session }: Props) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showPartnerPrices, setShowPartnerPrices] = useState(searchParams.get('hinnat') === '1');
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
 
   useEffect(() => {
     if (!id) {
@@ -64,6 +66,22 @@ export default function WorkReportPrintPage({ session }: Props) {
       document.title = previousTitle;
     };
   }, [report]);
+
+  useEffect(() => {
+    const host = document.querySelector('.work-report-print-host');
+    if (!host || !html) return;
+
+    function onImageLinkClick(event: Event) {
+      const target = event.target as HTMLElement | null;
+      const link = target?.closest('a.log-image-full-link') as HTMLAnchorElement | null;
+      if (!link?.href) return;
+      event.preventDefault();
+      setLightboxUrl(link.href);
+    }
+
+    host.addEventListener('click', onImageLinkClick);
+    return () => host.removeEventListener('click', onImageLinkClick);
+  }, [html]);
 
   const canTogglePartnerPrices = !!calculation;
 
@@ -135,6 +153,9 @@ export default function WorkReportPrintPage({ session }: Props) {
         </div>
 
         <div className="work-report-print-host" dangerouslySetInnerHTML={{ __html: html }} />
+        {lightboxUrl ? (
+          <MaintenanceReportImageLightbox url={lightboxUrl} onClose={() => setLightboxUrl(null)} />
+        ) : null}
       </div>
     </AppLayout>
   );

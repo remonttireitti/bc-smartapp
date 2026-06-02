@@ -188,7 +188,7 @@ export function generateWorkReportPrintHtml(input: {
               <div class="log-images">${images
                 .map(
                   (image) =>
-                    `<figure class="log-image"><img src="${esc(image.url)}" alt="${esc(image.fileName)}" /><figcaption>${esc(image.fileName)}</figcaption></figure>`,
+                    `<figure class="log-image"><a href="${esc(image.url)}" class="log-image-full-link" target="_blank" rel="noopener noreferrer"><img src="${esc(image.url)}" alt="${esc(image.fileName)}" /></a><figcaption>${esc(image.fileName)}</figcaption></figure>`,
                 )
                 .join('')}</div>
             </div>`
@@ -603,19 +603,29 @@ const PRINT_CSS = `
   }
   .log-images {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 8px;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 6px;
     margin-top: 10px;
   }
   .log-image { margin: 0; break-inside: avoid; }
+  .log-image-full-link {
+    display: block;
+    text-decoration: none;
+  }
   .log-image img {
     display: block;
     width: 100%;
-    max-height: 42mm;
-    object-fit: contain;
+    max-height: 26mm;
+    object-fit: cover;
     border: 1px solid var(--border);
     border-radius: 4px;
     background: #fff;
+    cursor: zoom-in;
+  }
+  @media screen {
+    .log-image-full-link:hover img {
+      border-color: var(--accent);
+    }
   }
   .log-image figcaption {
     margin-top: 3px;

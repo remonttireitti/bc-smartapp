@@ -1,8 +1,24 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState, type MouseEvent } from 'react';
+import { MaintenanceReportImageLightbox } from '../components/huoltoRaportti/MaintenanceReportImageLightbox';
+import { prepareImageFileForUpload } from './prepareUploadImage';
 import { supabase } from './supabase';
 import type { DailyLogImage } from '../types';
 
 export const BUCKET = 'work-report-images';
+
+/** Varoitus kun kuvia on paljon — ei estä tallennusta. */
+export const DAILY_LOG_IMAGE_SOFT_WARN = 20;
+
+/** Pakkaus ennen tallennusta (kamera/tabletti). */
+export const DAILY_LOG_MAX_IMAGE_BYTES = 10 * 1024 * 1024;
+
+export const DAILY_LOG_IMAGE_ACCEPT =
+  'image/jpeg,image/png,image/webp,image/gif,image/heic,image/heif';
+
+export function dailyLogImageCountWarning(totalCount: number): string | null {
+  if (totalCount <= DAILY_LOG_IMAGE_SOFT_WARN) return null;
+  return `Kirjauksessa on jo ${totalCount} kuvaa. Suuri määrä kuvia voi hidastaa latausta ja tulostetta.`;
+}
 
 export async function resolveDailyLogImageUrls(
   images: DailyLogImage[],
@@ -43,20 +59,21 @@ export async function uploadDailyLogImages(
   userId: string,
 ) {
   for (const file of files) {
-    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+    const prepared = await prepareImageFileForUpload(file, DAILY_LOG_MAX_IMAGE_BYTES);
+    const safeName = prepared.name.replace(/[^a-zA-Z0-9._-]/g, '_');
     const storagePath = `${reportId}/${dailyLogId}/${crypto.randomUUID()}-${safeName}`;
 
     const { error: uploadError } = await supabase.storage
       .from(BUCKET)
-      .upload(storagePath, file, { contentType: file.type, upsert: false });
+      .upload(storagePath, prepared, { contentType: prepared.type, upsert: false });
 
     if (uploadError) throw new Error(uploadError.message);
 
     const { error: metaError } = await supabase.from('work_report_daily_log_images').insert({
       daily_log_id: dailyLogId,
       storage_path: storagePath,
-      file_name: file.name,
-      mime_type: file.type,
+      file_name: prepared.name,
+      mime_type: prepared.type,
       uploaded_by: userId,
     });
 
@@ -70,6 +87,33 @@ export async function uploadDailyLogImages(
 export async function deleteDailyLogImage(image: DailyLogImage) {
   await supabase.storage.from(BUCKET).remove([image.storage_path]);
   await supabase.from('work_report_daily_log_images').delete().eq('id', image.id);
+}
+
+function DailyLogImageThumb({ url, label }: { url: string | undefined; label: string }) {
+  const [previewOpen, setPreviewOpen] = useState(false);
+
+  function openPreview(event: MouseEvent) {
+    event.preventDefault();
+    if (url) setPreviewOpen(true);
+  }
+
+  return (
+    <>
+      <button
+        type="button"
+        className="image-thumb"
+        disabled={!url}
+        onClick={openPreview}
+        title={label}
+        aria-label={`Avaa kuva: ${label}`}
+      >
+        {url ? <img src={url} alt={label} /> : <span className="muted">Ladataan…</span>}
+      </button>
+      {previewOpen && url ? (
+        <MaintenanceReportImageLightbox url={url} onClose={() => setPreviewOpen(false)} />
+      ) : null}
+    </>
+  );
 }
 
 export function DailyLogImageGallery({ images }: { images: DailyLogImage[] }) {
@@ -102,60 +146,156 @@ export function DailyLogImageGallery({ images }: { images: DailyLogImage[] }) {
   return (
     <div className="image-gallery">
       {images.map((image) => (
-        <a
+        <DailyLogImageThumb
           key={image.id}
-          href={urls[image.id] ?? '#'}
-          target="_blank"
-          rel="noreferrer"
-          className="image-thumb"
-          title={image.file_name}
-        >
-          {urls[image.id] ? (
-            <img src={urls[image.id]} alt={image.file_name} />
-          ) : (
-            <span className="muted">Ladataan…</span>
-          )}
-        </a>
+          url={urls[image.id]}
+          label={image.file_name}
+        />
       ))}
     </div>
   );
 }
 
-interface AddImagesProps {
-  reportId: string;
-  dailyLogId: string;
-  userId: string;
-  onUploaded: () => void;
+function PendingDailyLogImageThumb({
+  file,
+  previewUrl,
+  onRemove,
+}: {
+  file: File;
+  previewUrl: string;
+  onRemove: () => void;
+}) {
+  const [previewOpen, setPreviewOpen] = useState(false);
+
+  return (
+    <div className="image-thumb pending">
+      <button
+        type="button"
+        className="image-thumb-preview-btn"
+        onClick={() => setPreviewOpen(true)}
+        aria-label={`Avaa kuva: ${file.name}`}
+      >
+        <img src={previewUrl} alt={file.name} />
+      </button>
+      <button type="button" className="btn btn-secondary btn-sm" onClick={onRemove}>
+        Poista
+      </button>
+      {previewOpen ? (
+        <MaintenanceReportImageLightbox url={previewUrl} onClose={() => setPreviewOpen(false)} />
+      ) : null}
+    </div>
+  );
 }
 
-export function AddDailyLogImages({ reportId, dailyLogId, userId, onUploaded }: AddImagesProps) {
+interface DailyLogImageSectionProps {
+  reportId: string;
+  dailyLogId: string | null;
+  userId: string;
+  savedImages: DailyLogImage[];
+  pendingImages: File[];
+  onPendingImagesChange: (files: File[]) => void;
+  onSavedImagesChange: () => void;
+  disabled?: boolean;
+}
+
+export function DailyLogImageSection({
+  reportId,
+  dailyLogId,
+  userId,
+  savedImages,
+  pendingImages,
+  onPendingImagesChange,
+  onSavedImagesChange,
+  disabled = false,
+}: DailyLogImageSectionProps) {
   const [busy, setBusy] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+
+  const previewUrls = useMemo(
+    () => pendingImages.map((file) => URL.createObjectURL(file)),
+    [pendingImages],
+  );
+
+  useEffect(
+    () => () => previewUrls.forEach((url) => URL.revokeObjectURL(url)),
+    [previewUrls],
+  );
+
+  const totalAfterPick = (extra: number) =>
+    savedImages.length + pendingImages.length + extra;
+
+  const countWarning = dailyLogImageCountWarning(
+    savedImages.length + pendingImages.length,
+  );
 
   async function onFilesSelected(files: FileList | null) {
-    if (!files || files.length === 0) return;
-    setBusy(true);
-    try {
-      await uploadDailyLogImages(reportId, dailyLogId, Array.from(files), userId);
-      onUploaded();
-    } catch (err) {
-      console.error(err);
-      alert(err instanceof Error ? err.message : 'Kuvien lataus epäonnistui');
-    } finally {
-      setBusy(false);
+    if (!files || files.length === 0 || disabled) return;
+    const selected = Array.from(files);
+    setUploadError(null);
+
+    const warn = dailyLogImageCountWarning(totalAfterPick(selected.length));
+    if (warn) {
+      window.alert(warn);
     }
+
+    if (dailyLogId) {
+      setBusy(true);
+      try {
+        await uploadDailyLogImages(reportId, dailyLogId, selected, userId);
+        onSavedImagesChange();
+      } catch (err) {
+        console.error(err);
+        setUploadError(err instanceof Error ? err.message : 'Kuvien lataus epäonnistui');
+      } finally {
+        setBusy(false);
+      }
+      return;
+    }
+
+    onPendingImagesChange([...pendingImages, ...selected]);
   }
 
   return (
-    <label className="btn btn-secondary image-upload-btn">
-      {busy ? 'Ladataan…' : '+ Lisää kuvia'}
-      <input
-        type="file"
-        accept="image/jpeg,image/png,image/webp,image/gif,image/heic,image/heif"
-        multiple
-        hidden
-        disabled={busy}
-        onChange={(e) => void onFilesSelected(e.target.files)}
-      />
-    </label>
+    <div className="image-section">
+      <div className="section-head">
+        <h3>Kuvat</h3>
+        <label className="btn btn-secondary image-upload-btn">
+          {busy ? 'Ladataan…' : '+ Lisää kuvia'}
+          <input
+            type="file"
+            accept={DAILY_LOG_IMAGE_ACCEPT}
+            multiple
+            hidden
+            disabled={busy || disabled}
+            onChange={(e) => {
+              void onFilesSelected(e.target.files);
+              e.target.value = '';
+            }}
+          />
+        </label>
+      </div>
+      <p className="muted">
+        {dailyLogId
+          ? 'Kuvat tallentuvat heti valinnan jälkeen. Voit lisätä useita kerralla.'
+          : 'Kuvat tallentuvat työkirjauksen tallennuksen yhteydessä. Voit lisätä useita kerralla.'}
+      </p>
+      {countWarning && !uploadError && <p className="warning-text">{countWarning}</p>}
+      {uploadError && <p className="error">{uploadError}</p>}
+      {savedImages.length > 0 && <DailyLogImageGallery images={savedImages} />}
+      {pendingImages.length > 0 && (
+        <div className="image-gallery">
+          {pendingImages.map((file, index) => (
+            <PendingDailyLogImageThumb
+              key={`${file.name}-${file.lastModified}-${index}`}
+              file={file}
+              previewUrl={previewUrls[index]}
+              onRemove={() =>
+                onPendingImagesChange(pendingImages.filter((_, i) => i !== index))
+              }
+            />
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
