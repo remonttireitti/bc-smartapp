@@ -94,6 +94,10 @@ import {
 } from '../lib/workReportBilling';
 import { loadTripDestinationOptions, type TripDestinationOption } from '../lib/tripDestinations';
 import {
+  fetchWorkReportDetailLogs,
+  isMissingBillToPartnerColumn,
+} from '../lib/workReportDailyLogSelect';
+import {
   isAutoTripKmExpense,
   parseTripKmCustomerRate,
   parseTripKmRate,
@@ -172,26 +176,6 @@ const REPORT_SELECT = `
   delegate_company:companies!work_reports_delegate_company_id_fkey(name),
   assigned_user:profiles!work_reports_assigned_user_id_fkey(display_name),
   created_by_user:profiles!work_reports_created_by_user_id_fkey(display_name, email)
-`;
-
-const LOG_SELECT = `
-  id, work_report_id, log_date, log_start_time, entry_type,
-  hours_regular, hours_overtime, hours_on_call, fixed_price_amount, hourly_rate_override,
-  customer_hourly_rate_override,
-  commission_amount, commission_note, work_done, created_by, created_at,
-  author_name_snapshot, author_deleted,
-  author:profiles!work_report_daily_logs_created_by_fkey(display_name),
-  expense_lines:work_report_daily_expense_lines(id, daily_log_id, expense_type, description, qty, unit_price, bill_to_partner, bill_to_customer, customer_unit_price, sort_order),
-  trip_legs:work_report_daily_trip_legs(id, daily_log_id, from_label, to_label, distance_km, bill_to_customer, sort_order),
-  refrigerant_lines:work_report_refrigerant_lines(
-    id, daily_log_id, work_report_id, source, cylinder_id, warehouse_company_id, owner_user_id, supplier_name,
-    supplier_paid_by, unit_price, customer_unit_price, bill_to_customer,
-    refrigerant_type, qty_kg, notes, cylinder_disposition, created_by, created_at,
-    cylinder:refrigerant_cylinders(serial_number, refrigerant_type, bottle_size, notes),
-    warehouse_company:companies!work_report_refrigerant_lines_warehouse_company_id_fkey(name),
-    owner_user:profiles!work_report_refrigerant_lines_owner_user_id_fkey(display_name)
-  ),
-  images:work_report_daily_log_images(id, daily_log_id, storage_path, file_name, mime_type)
 `;
 
 function emptyExpense(): ExpenseDraft {
@@ -740,7 +724,7 @@ async function saveExpenseLines(
   await supabase.from('work_report_daily_expense_lines').delete().eq('daily_log_id', dailyLogId);
   const validExpenses = expenseDrafts.filter((row) => row.description.trim());
   if (validExpenses.length === 0) return null;
-  const { error } = await supabase.from('work_report_daily_expense_lines').insert(
+  const buildRows = (includePartnerField: boolean) =>
     validExpenses.map((row, index) => {
       const customerPriceRaw = String(row.customer_unit_price ?? '').trim();
       const customerUnitPrice = customerPriceRaw ? Number(customerPriceRaw) : null;
@@ -750,7 +734,9 @@ async function saveExpenseLines(
         description: row.description.trim(),
         qty: Number(row.qty || 1),
         unit_price: Number(row.unit_price || 0),
-        ...(options.includePartnerFields ? { bill_to_partner: row.bill_to_partner } : {}),
+        ...(includePartnerField && options.includePartnerFields
+          ? { bill_to_partner: row.bill_to_partner }
+          : {}),
         ...(options.includeCustomerFields
           ? {
               bill_to_customer: row.bill_to_customer,
@@ -762,8 +748,12 @@ async function saveExpenseLines(
           : {}),
         sort_order: index,
       };
-    }),
-  );
+    });
+
+  let { error } = await supabase.from('work_report_daily_expense_lines').insert(buildRows(true));
+  if (error && options.includePartnerFields && isMissingBillToPartnerColumn(error)) {
+    ({ error } = await supabase.from('work_report_daily_expense_lines').insert(buildRows(false)));
+  }
   return error;
 }
 
@@ -854,16 +844,11 @@ export default function WorkReportDetailPage({ session }: Props) {
     setCustomerBillableCalculation(null);
     setBillableUsers([]);
 
-    const [{ data: reportData, error: reportError }, { data: billingData }, { data: logsData }] =
+    const [{ data: reportData, error: reportError }, { data: billingData }, logsResult] =
       await Promise.all([
         supabase.from('work_reports').select(REPORT_SELECT).eq('id', reportId).single(),
         supabase.from('work_report_billing').select('*').eq('work_report_id', reportId).maybeSingle(),
-        supabase
-          .from('work_report_daily_logs')
-          .select(LOG_SELECT)
-          .eq('work_report_id', reportId)
-          .order('log_date', { ascending: false })
-          .order('created_at', { ascending: false }),
+        fetchWorkReportDetailLogs(supabase, reportId),
       ]);
 
     if (reportError || !reportData) {
@@ -872,8 +857,14 @@ export default function WorkReportDetailPage({ session }: Props) {
       return;
     }
 
+    if (logsResult.error) {
+      setError(`Päiväkirjausten lataus epäonnistui: ${logsResult.error.message}`);
+      setLoading(false);
+      return;
+    }
+
     const reportRow = reportData as unknown as WorkReport;
-    const logs = (logsData as unknown as WorkReportDailyLog[]) ?? [];
+    const logs = logsResult.logs;
 
     setReport(reportRow);
     setBilling((billingData as WorkReportBilling | null) ?? null);

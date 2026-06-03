@@ -4,6 +4,7 @@ import { resolveDailyLogImagesByLogId } from './dailyLogImages';
 import { openPrintHtml } from './openPrintWindow';
 import { supabase } from './supabase';
 import type { BillableCalculation } from './workReportBilling';
+import { fetchWorkReportPrintLogs } from './workReportDailyLogSelect';
 import { generateWorkReportPrintHtml } from './workReportPrintHtml';
 import type { WorkReport, WorkReportDailyLog } from '../types';
 
@@ -23,24 +24,6 @@ const REPORT_SELECT = `
   delegate_company:companies!work_reports_delegate_company_id_fkey(name),
   assigned_user:profiles!work_reports_assigned_user_id_fkey(display_name),
   created_by_user:profiles!work_reports_created_by_user_id_fkey(display_name, email)
-`;
-
-const LOG_SELECT = `
-  id, work_report_id, log_date, entry_type,
-  hours_regular, hours_overtime, hours_on_call, fixed_price_amount, hourly_rate_override,
-  commission_amount, commission_note, work_done, created_by, created_at,
-  author_name_snapshot, author_deleted,
-  author:profiles!work_report_daily_logs_created_by_fkey(display_name),
-  expense_lines:work_report_daily_expense_lines(id, daily_log_id, expense_type, description, qty, unit_price, bill_to_partner, bill_to_customer, customer_unit_price, sort_order),
-  refrigerant_lines:work_report_refrigerant_lines(
-    id, daily_log_id, work_report_id, source, cylinder_id, warehouse_company_id, owner_user_id, supplier_name,
-    supplier_paid_by, unit_price, customer_unit_price, bill_to_customer,
-    refrigerant_type, qty_kg, notes, created_by, created_at,
-    cylinder:refrigerant_cylinders(serial_number, refrigerant_type),
-    warehouse_company:companies!work_report_refrigerant_lines_warehouse_company_id_fkey(name),
-    owner_user:profiles!work_report_refrigerant_lines_owner_user_id_fkey(display_name)
-  ),
-  images:work_report_daily_log_images(id, daily_log_id, storage_path, file_name, mime_type)
 `;
 
 function sortLogsForPrint(logs: WorkReportDailyLog[]) {
@@ -116,15 +99,10 @@ export async function loadWorkReportPrintBundle(
 ) {
   const db = options?.client ?? supabase;
 
-  const [{ data: reportData, error: reportError }, { data: logsData }, { data: billableData }] =
+  const [{ data: reportData, error: reportError }, logsResult, { data: billableData }] =
     await Promise.all([
       db.from('work_reports').select(REPORT_SELECT).eq('id', reportId).single(),
-      db
-        .from('work_report_daily_logs')
-        .select(LOG_SELECT)
-        .eq('work_report_id', reportId)
-        .order('log_date', { ascending: true })
-        .order('created_at', { ascending: true }),
+      fetchWorkReportPrintLogs(db, reportId),
       db
         .from('work_report_billable')
         .select('calculation, customer_calculation, customer_total')
@@ -136,8 +114,12 @@ export async function loadWorkReportPrintBundle(
     throw new Error(reportError?.message ?? 'Työraporttia ei löytynyt.');
   }
 
+  if (logsResult.error) {
+    throw new Error(logsResult.error.message);
+  }
+
   const report = reportData as unknown as WorkReport;
-  const logs = (logsData as unknown as WorkReportDailyLog[]) ?? [];
+  const logs = logsResult.logs;
   const { isPartnerReport } = resolvePrintContext(report, options?.viewerCompanyId);
   const calculation = (billableData?.calculation as BillableCalculation | undefined) ?? null;
   const customerCalculation =

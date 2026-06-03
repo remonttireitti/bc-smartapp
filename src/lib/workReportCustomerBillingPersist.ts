@@ -10,36 +10,18 @@ import {
   calculateWorkReportCustomerBillable,
   shouldCalculateCustomerBilling,
 } from './workReportCustomerBilling';
-
-const LOG_SELECT = `
-  id, work_report_id, log_date, log_start_time, entry_type,
-  hours_regular, hours_overtime, hours_on_call, fixed_price_amount, hourly_rate_override,
-  customer_hourly_rate_override,
-  commission_amount, commission_note, work_done, created_by, created_at,
-  author_name_snapshot, author_deleted,
-  expense_lines:work_report_daily_expense_lines(
-    id, daily_log_id, expense_type, description, qty, unit_price, bill_to_partner, bill_to_customer, customer_unit_price, sort_order
-  ),
-  refrigerant_lines:work_report_refrigerant_lines(
-    id, daily_log_id, work_report_id, source, cylinder_id, warehouse_company_id, owner_user_id, supplier_name,
-    supplier_paid_by, unit_price, customer_unit_price, bill_to_customer,
-    refrigerant_type, qty_kg, notes, created_by, created_at,
-    cylinder:refrigerant_cylinders(serial_number, refrigerant_type),
-    warehouse_company:companies!work_report_refrigerant_lines_warehouse_company_id_fkey(name),
-    owner_user:profiles!work_report_refrigerant_lines_owner_user_id_fkey(display_name)
-  )
-`;
+import { fetchCustomerBillingLogs } from './workReportDailyLogSelect';
 
 export async function loadWorkReportDailyLogs(
   supabase: SupabaseClient,
   workReportId: string,
 ): Promise<WorkReportDailyLog[]> {
-  const { data } = await supabase
-    .from('work_report_daily_logs')
-    .select(LOG_SELECT)
-    .eq('work_report_id', workReportId)
-    .order('log_date', { ascending: false });
-  return (data as unknown as WorkReportDailyLog[]) ?? [];
+  const { logs, error } = await fetchCustomerBillingLogs(supabase, workReportId);
+  if (error) {
+    console.error('Päiväkirjausten lataus epäonnistui:', error.message);
+    return [];
+  }
+  return logs;
 }
 
 export async function refreshAndPersistCustomerBillable(
