@@ -249,7 +249,8 @@ export function calculateWorkReportBillable(input: {
 
     for (const expense of log.expense_lines ?? []) {
       const total = lineTotal(Number(expense.qty), Number(expense.unit_price));
-      const included = expensesEnabled;
+      const billToPartner = expense.bill_to_partner !== false;
+      const included = expensesEnabled && billToPartner;
       summary.lines.push({
         logId: log.id,
         logDate: log.log_date,

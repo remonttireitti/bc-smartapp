@@ -6310,6 +6310,17 @@ textarea {
   color: var(--text-muted);
 }
 
+.expense-billing-options {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.expense-billing-options .compact-option {
+  margin: 0;
+}
+
 .expense-row-auto {
   background: var(--bg-muted);
   border-radius: 8px;

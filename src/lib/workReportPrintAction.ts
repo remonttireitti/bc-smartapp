@@ -31,7 +31,7 @@ const LOG_SELECT = `
   commission_amount, commission_note, work_done, created_by, created_at,
   author_name_snapshot, author_deleted,
   author:profiles!work_report_daily_logs_created_by_fkey(display_name),
-  expense_lines:work_report_daily_expense_lines(id, daily_log_id, expense_type, description, qty, unit_price, bill_to_customer, customer_unit_price, sort_order),
+  expense_lines:work_report_daily_expense_lines(id, daily_log_id, expense_type, description, qty, unit_price, bill_to_partner, bill_to_customer, customer_unit_price, sort_order),
   refrigerant_lines:work_report_refrigerant_lines(
     id, daily_log_id, work_report_id, source, cylinder_id, warehouse_company_id, owner_user_id, supplier_name,
     supplier_paid_by, unit_price, customer_unit_price, bill_to_customer,

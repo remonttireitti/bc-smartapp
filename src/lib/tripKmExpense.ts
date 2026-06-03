@@ -8,6 +8,7 @@ export type TripKmExpenseDraft = {
   description: string;
   qty: string;
   unit_price: string;
+  bill_to_partner: boolean;
   bill_to_customer: boolean;
   customer_unit_price: string;
 };
@@ -68,6 +69,7 @@ export function syncTripKmExpenseDrafts<T extends TripKmExpenseDraft>(
     description: `Ajomatkat (${qtyStr} km)`,
     qty: qtyStr,
     unit_price: priceStr,
+    bill_to_partner: true,
     bill_to_customer: billToCustomer,
     customer_unit_price: customerPriceStr,
   } as T;

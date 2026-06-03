@@ -273,7 +273,13 @@ export function formatWorkReportBillingCopy(input: {
       const typeLabel = EXPENSE_TYPE_LABELS[expense.expense_type] ?? expense.expense_type;
       const qty = Number(expense.qty);
       const qtyLabel = Number.isInteger(qty) ? `${qty} kpl` : `${qty} kpl`;
-      lines.push(`${typeLabel}: ${expense.description} (${qtyLabel})`);
+      const unit = Number(expense.unit_price);
+      const priceSuffix =
+        input.showMoney && unit > 0 && expense.bill_to_partner !== false
+          ? ` (${unit.toFixed(2)} €/kpl)`
+          : '';
+      const partnerSuffix = expense.bill_to_partner === false ? ' — kumppanin piikki' : '';
+      lines.push(`${typeLabel}: ${expense.description} (${qtyLabel})${priceSuffix}${partnerSuffix}`);
     }
     lines.push('');
   }
@@ -357,7 +363,7 @@ export async function loadCustomerBillingCopyText(
       id, log_date, entry_type, hours_regular, hours_overtime, hours_on_call,
       fixed_price_amount, hourly_rate_override, customer_hourly_rate_override, commission_note, work_done,
       expense_lines:work_report_daily_expense_lines(
-        id, expense_type, description, qty, unit_price, bill_to_customer, customer_unit_price
+        id, expense_type, description, qty, unit_price, bill_to_partner, bill_to_customer, customer_unit_price
       ),
       refrigerant_lines:work_report_refrigerant_lines(
         id, source, supplier_paid_by, unit_price, customer_unit_price, bill_to_customer,
@@ -392,7 +398,7 @@ export async function loadBillingCopyText(
       id, log_date, entry_type, hours_regular, hours_overtime, hours_on_call,
       fixed_price_amount, hourly_rate_override, commission_note, work_done,
       expense_lines:work_report_daily_expense_lines(
-        id, expense_type, description, qty, unit_price
+        id, expense_type, description, qty, unit_price, bill_to_partner
       )
     `)
     .eq('work_report_id', row.id)

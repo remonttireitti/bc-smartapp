@@ -151,6 +151,7 @@ type ExpenseDraft = {
   description: string;
   qty: string;
   unit_price: string;
+  bill_to_partner: boolean;
   bill_to_customer: boolean;
   customer_unit_price: string;
 };
@@ -180,7 +181,7 @@ const LOG_SELECT = `
   commission_amount, commission_note, work_done, created_by, created_at,
   author_name_snapshot, author_deleted,
   author:profiles!work_report_daily_logs_created_by_fkey(display_name),
-  expense_lines:work_report_daily_expense_lines(id, daily_log_id, expense_type, description, qty, unit_price, bill_to_customer, customer_unit_price, sort_order),
+  expense_lines:work_report_daily_expense_lines(id, daily_log_id, expense_type, description, qty, unit_price, bill_to_partner, bill_to_customer, customer_unit_price, sort_order),
   trip_legs:work_report_daily_trip_legs(id, daily_log_id, from_label, to_label, distance_km, bill_to_customer, sort_order),
   refrigerant_lines:work_report_refrigerant_lines(
     id, daily_log_id, work_report_id, source, cylinder_id, warehouse_company_id, owner_user_id, supplier_name,
@@ -200,6 +201,7 @@ function emptyExpense(): ExpenseDraft {
     description: '',
     qty: '1',
     unit_price: '',
+    bill_to_partner: true,
     bill_to_customer: true,
     customer_unit_price: '',
   };
@@ -274,12 +276,28 @@ function expensesToDrafts(lines: WorkReportDailyLog['expense_lines']): ExpenseDr
     description: line.description,
     qty: String(line.qty),
     unit_price: String(line.unit_price),
+    bill_to_partner: line.bill_to_partner !== false,
     bill_to_customer: line.bill_to_customer !== false,
     customer_unit_price:
       line.customer_unit_price != null && Number(line.customer_unit_price) > 0
         ? String(line.customer_unit_price)
         : '',
   }));
+}
+
+function expenseSaveOptionsForReport(
+  report: Pick<WorkReport, 'owner_company_id' | 'created_by_company_id' | 'delegate_company_id'>,
+  viewerCompanyId: string | null | undefined,
+  customerInvoicingEnabled: boolean,
+) {
+  const isDelegatedOrder =
+    !!report.delegate_company_id && report.created_by_company_id === report.owner_company_id;
+  const isPartnerReport =
+    report.created_by_company_id !== report.owner_company_id || isDelegatedOrder;
+  return {
+    includePartnerFields: isPartnerReport,
+    includeCustomerFields: viewerCompanyId === report.owner_company_id && customerInvoicingEnabled,
+  };
 }
 
 function buildLogPayload(form: DailyLogFormState) {
@@ -315,6 +333,7 @@ function DailyLogFields({
   setExpenseDrafts,
   showHourlyRate,
   showCustomerHourlyRate,
+  showPartnerExpenseFields,
   showCustomerExpenseFields,
   defaultHourlyRate,
   defaultCustomerHourlyRate,
@@ -325,6 +344,7 @@ function DailyLogFields({
   setExpenseDrafts: (next: ExpenseDraft[]) => void;
   showHourlyRate?: boolean;
   showCustomerHourlyRate?: boolean;
+  showPartnerExpenseFields?: boolean;
   showCustomerExpenseFields?: boolean;
   defaultHourlyRate?: number | null;
   defaultCustomerHourlyRate?: number | null;
@@ -611,7 +631,11 @@ function DailyLogFields({
                 />
               </label>
               <label>
-                {showCustomerExpenseFields ? 'Ostohinta (€)' : 'á hinta (€)'}
+                {showCustomerExpenseFields
+                  ? 'Ostohinta (€)'
+                  : showPartnerExpenseFields
+                    ? 'Kumppanihinta (€)'
+                    : 'á hinta (€)'}
                 <input
                   type="number"
                   step="0.01"
@@ -631,43 +655,64 @@ function DailyLogFields({
               {autoTripKm && (
                 <p className="muted expense-auto-note">Päivittyy automaattisesti ajomatkoista</p>
               )}
-              {showCustomerExpenseFields && (
-                <>
-                  <label>
-                    Asiakashinta (€)
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={row.customer_unit_price}
-                      readOnly={autoTripKm}
-                      disabled={autoTripKm}
-                      onChange={(e) =>
-                        setExpenseDrafts(
-                          expenseDrafts.map((r, i) =>
-                            i === index ? { ...r, customer_unit_price: e.target.value } : r,
-                          ),
-                        )
-                      }
-                      placeholder={row.unit_price.trim() || 'Sama kuin ostohinta'}
-                    />
-                  </label>
-                  <label className="compact-option">
-                    <input
-                      type="checkbox"
-                      checked={row.bill_to_customer}
-                      disabled={autoTripKm}
-                      onChange={(e) =>
-                        setExpenseDrafts(
-                          expenseDrafts.map((r, i) =>
-                            i === index ? { ...r, bill_to_customer: e.target.checked } : r,
-                          ),
-                        )
-                      }
-                    />
-                    Laskutetaan asiakkaalta
-                  </label>
-                </>
+              {(showPartnerExpenseFields || showCustomerExpenseFields) && (
+                <div className="expense-billing-options">
+                  {showPartnerExpenseFields && (
+                    <label className="compact-option">
+                      <input
+                        type="checkbox"
+                        checked={!row.bill_to_partner}
+                        disabled={autoTripKm}
+                        onChange={(e) =>
+                          setExpenseDrafts(
+                            expenseDrafts.map((r, i) =>
+                              i === index ? { ...r, bill_to_partner: !e.target.checked } : r,
+                            ),
+                          )
+                        }
+                      />
+                      Kumppanin piikki (ei keskinäistä laskutusta)
+                    </label>
+                  )}
+                  {showCustomerExpenseFields && (
+                    <>
+                      <label>
+                        Asiakashinta (€)
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={row.customer_unit_price}
+                          readOnly={autoTripKm}
+                          disabled={autoTripKm}
+                          onChange={(e) =>
+                            setExpenseDrafts(
+                              expenseDrafts.map((r, i) =>
+                                i === index ? { ...r, customer_unit_price: e.target.value } : r,
+                              ),
+                            )
+                          }
+                          placeholder={row.unit_price.trim() || 'Sama kuin ostohinta'}
+                        />
+                      </label>
+                      <label className="compact-option">
+                        <input
+                          type="checkbox"
+                          checked={row.bill_to_customer}
+                          disabled={autoTripKm}
+                          onChange={(e) =>
+                            setExpenseDrafts(
+                              expenseDrafts.map((r, i) =>
+                                i === index ? { ...r, bill_to_customer: e.target.checked } : r,
+                              ),
+                            )
+                          }
+                        />
+                        Laskutetaan asiakkaalta
+                      </label>
+                    </>
+                  )}
+                </div>
               )}
               {!autoTripKm && (
                 <button
@@ -690,7 +735,7 @@ function DailyLogFields({
 async function saveExpenseLines(
   dailyLogId: string,
   expenseDrafts: ExpenseDraft[],
-  includeCustomerFields: boolean,
+  options: { includeCustomerFields: boolean; includePartnerFields: boolean },
 ) {
   await supabase.from('work_report_daily_expense_lines').delete().eq('daily_log_id', dailyLogId);
   const validExpenses = expenseDrafts.filter((row) => row.description.trim());
@@ -705,7 +750,8 @@ async function saveExpenseLines(
         description: row.description.trim(),
         qty: Number(row.qty || 1),
         unit_price: Number(row.unit_price || 0),
-        ...(includeCustomerFields
+        ...(options.includePartnerFields ? { bill_to_partner: row.bill_to_partner } : {}),
+        ...(options.includeCustomerFields
           ? {
               bill_to_customer: row.bill_to_customer,
               customer_unit_price:
@@ -1421,7 +1467,7 @@ export default function WorkReportDetailPage({ session }: Props) {
     const expenseError = await saveExpenseLines(
       logRow.id,
       expenseDrafts,
-      profile?.company_id === report.owner_company_id && customerInvoicingEnabled,
+      expenseSaveOptionsForReport(report, profile?.company_id, customerInvoicingEnabled),
     );
     if (expenseError) {
       setLogDialogBusy(false);
@@ -1662,7 +1708,7 @@ export default function WorkReportDetailPage({ session }: Props) {
     const expenseError = await saveExpenseLines(
       editingLogId,
       expenseDrafts,
-      profile?.company_id === report.owner_company_id && customerInvoicingEnabled,
+      expenseSaveOptionsForReport(report, profile?.company_id, customerInvoicingEnabled),
     );
     if (expenseError) {
       setLogDialogBusy(false);
@@ -2632,6 +2678,7 @@ export default function WorkReportDetailPage({ session }: Props) {
           setExpenseDrafts={setExpenseDrafts}
           showHourlyRate={showMoneyBilling}
           showCustomerHourlyRate={showCustomerMoney}
+          showPartnerExpenseFields={isPartnerReport}
           showCustomerExpenseFields={showCustomerMoney}
           defaultHourlyRate={billableCalculation?.ratesUsed.hourly_regular ?? null}
           defaultCustomerHourlyRate={customerBillableCalculation?.ratesUsed.hourly_regular ?? null}

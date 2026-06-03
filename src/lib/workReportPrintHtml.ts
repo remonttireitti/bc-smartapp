@@ -186,13 +186,14 @@ export function generateWorkReportPrintHtml(input: {
               : unit;
           const customerTotal = expenseLineTotal({ ...line, unit_price: customerUnit });
           if (showPartnerPrices) {
+            const partnerNote = line.bill_to_partner === false ? ' · kumppanin piikki' : '';
             const customerNote =
               showCustomerExpensePrices && line.bill_to_customer !== false && customerUnit !== unit
                 ? ` · asiakas ${formatEuro(customerUnit)} = ${formatEuro(customerTotal)}`
                 : showCustomerExpensePrices && line.bill_to_customer !== false
                   ? ` · asiakas ${formatEuro(customerTotal)}`
                   : '';
-            return `<tr><td>${esc(label)}</td><td>${esc(line.description)}</td><td class="num">${qty} × ${formatEuro(unit)} = ${formatEuro(total)}${esc(customerNote)}</td></tr>`;
+            return `<tr><td>${esc(label)}</td><td>${esc(line.description)}</td><td class="num">${qty} × ${formatEuro(unit)} = ${formatEuro(total)}${esc(partnerNote)}${esc(customerNote)}</td></tr>`;
           }
           if (showCustomerExpensePrices && line.bill_to_customer !== false) {
             return `<tr><td>${esc(label)}</td><td>${esc(line.description)}</td><td class="num">${qty} × ${formatEuro(customerUnit)} = ${formatEuro(customerTotal)}</td></tr>`;

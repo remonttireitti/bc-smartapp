@@ -113,6 +113,7 @@ export type DailyExpenseLine = {
   description: string;
   qty: number;
   unit_price: number;
+  bill_to_partner?: boolean;
   bill_to_customer?: boolean;
   customer_unit_price?: number | null;
   sort_order: number;
