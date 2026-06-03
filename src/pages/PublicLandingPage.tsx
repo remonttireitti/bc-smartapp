@@ -21,8 +21,8 @@ const FEATURES = [
   },
   {
     icon: '💶',
-    title: 'Tarjoukset ja laskutus',
-    desc: 'Tarjouspyynnöt, pumpputarjoukset ja kumppani-/asiakaslaskutus samassa järjestelmässä.',
+    title: 'Tarjoukset ja kassavirta',
+    desc: 'Tarjouspyynnöt ja valmiit tarjoustulosteet (lämpöpumppu, korjaus, ilmalämpöpumppu). Työraporteista kertyvät laskutettavat summat — kumppanille ja asiakkaalle erikseen. Kassavirran seuranta, ei laskutusohjelma.',
     color: '#f97316',
   },
   {
@@ -40,7 +40,7 @@ const FEATURES = [
   {
     icon: '📦',
     title: 'Varasto ja työkalut',
-    desc: 'Materiaalit, kylmäaine ja työkaluinventaario linkitettynä työhön ja laskutukseen.',
+    desc: 'Materiaalit, kylmäaine ja työkaluinventaario linkitettynä työhön ja hinnoitteluun.',
     color: '#a855f7',
   },
 ];
@@ -48,7 +48,7 @@ const FEATURES = [
 const BENEFITS = [
   'Vähemmän kadotettua tietoa — luonnokset tallentuvat automaattisesti',
   'Lämpötilahälytykset, trendit ja etäohjaus samassa rekisterissä kuin työt',
-  'Selkeä ketju: tilaus → työ → raportti → lasku',
+  'Selkeä ketju: tilaus → työ → raportti → laskutettava summa',
   'Yksi paikka koko tiimille ja kumppaneille',
   'Toimii puhelimella ja tietokoneella selaimessa',
   'Suomenkielinen käyttöliittymä LV- ja kiinteistöpalveluille',
@@ -60,7 +60,7 @@ const PRAISE = [
     who: 'Palveluyrityksen työnjohto',
   },
   {
-    quote: 'Kumppanille lähetetty toimeksianto ja laskutus samassa järjestelmässä säästää tunteja viikossa.',
+    quote: 'Kumppanille lähetetty toimeksianto ja laskutettavat summat samassa järjestelmässä säästää tunteja viikossa.',
     who: 'LV-alan yrittäjä',
   },
   {
@@ -88,13 +88,13 @@ export default function PublicLandingPage() {
         <div className="landing-hero-inner">
           <p className="landing-eyebrow">LV- ja kiinteistöpalveluiden työnhallinta</p>
           <h1>
-            Kaikki työt, raportit ja laskutus
+            Kaikki työt, raportit ja tarjoukset
             <span className="landing-hero-accent"> yhdessä sovelluksessa</span>
           </h1>
           <p className="landing-hero-lead">
             BC Smartapp on rakennettu yrityksille, jotka tekevät työtä usealle asiakkaalle — omilla
-            tekijöillä, kumppaneiden kanssa ja tilaajien kautta. Työt, raportit, laskutus sekä
-            lämpötilojen etäseuranta ja etäohjaus samassa järjestelmässä. Selkeämpi arki, vähemmän
+            tekijöillä, kumppaneiden kanssa ja tilaajien kautta. Työt, raportit, tarjoukset, kassavirran
+            seuranta sekä lämpötilojen etäseuranta ja etäohjaus samassa järjestelmässä. Selkeämpi arki, vähemmän
             välikäsiä, enemmän billableaikaa.
           </p>
           <div className="landing-hero-actions">

@@ -86,6 +86,18 @@ function normalizeCustomerName(name: string) {
   return name.trim().toLowerCase().replace(/\s+/g, ' ');
 }
 
+function suggestCompanySlug(name: string): string {
+  return name
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 64)
+    .replace(/-+$/g, '');
+}
+
 type DuplicateCustomerRow = {
   id: string;
   name: string;
@@ -133,6 +145,12 @@ export default function GlobalAdminPage() {
   const [billingModuleBusy, setBillingModuleBusy] = useState(false);
   const [billingModuleMessage, setBillingModuleMessage] = useState<string | null>(null);
   const [billingModuleError, setBillingModuleError] = useState<string | null>(null);
+  const [newCompanyName, setNewCompanyName] = useState('');
+  const [newCompanySlug, setNewCompanySlug] = useState('');
+  const [newCompanySlugTouched, setNewCompanySlugTouched] = useState(false);
+  const [createCompanyBusy, setCreateCompanyBusy] = useState(false);
+  const [createCompanyMessage, setCreateCompanyMessage] = useState<string | null>(null);
+  const [createCompanyError, setCreateCompanyError] = useState<string | null>(null);
   const selectAllRef = useRef<HTMLInputElement>(null);
 
   const selectedCount = selectedIds.size;
@@ -155,7 +173,8 @@ export default function GlobalAdminPage() {
       supabase.from('companies').select('id, name, slug, settings').order('name'),
       supabase.from('profiles').select('id, display_name, email, role, company_id').order('email'),
     ]);
-    setCompanies((companyRows as Company[]) ?? []);
+    const nextCompanies = (companyRows as Company[]) ?? [];
+    setCompanies(nextCompanies);
     setUsers((userRows as Profile[]) ?? []);
 
     const countEntries = await Promise.all(
@@ -171,6 +190,7 @@ export default function GlobalAdminPage() {
       }),
     );
     setCounts(Object.fromEntries(countEntries));
+    return nextCompanies;
   }
 
   function syncBillingModuleToggle(companyId: string, companyRows: Company[]) {
@@ -182,6 +202,41 @@ export default function GlobalAdminPage() {
     setBillingModuleEnabled(
       companyBillingModuleEnabled(parseCompanySettings(company.settings)),
     );
+  }
+
+  async function createCompany(e: FormEvent) {
+    e.preventDefault();
+    const name = newCompanyName.trim();
+    if (!name) {
+      setCreateCompanyError('Yrityksen nimi on pakollinen.');
+      return;
+    }
+
+    setCreateCompanyBusy(true);
+    setCreateCompanyMessage(null);
+    setCreateCompanyError(null);
+
+    const slug = (newCompanySlugTouched ? newCompanySlug : suggestCompanySlug(name)).trim();
+    const { data, error: createError } = await supabase.rpc('global_admin_create_company', {
+      p_name: name,
+      p_slug: slug || null,
+    });
+
+    setCreateCompanyBusy(false);
+
+    if (createError) {
+      setCreateCompanyError(createError.message);
+      return;
+    }
+
+    const companyId = data as string;
+    setCreateCompanyMessage(`Yritys "${name}" luotu. Liitä käyttäjä yritykseen kohdassa Hallinta → Käyttäjät (GBA-tila).`);
+    setNewCompanyName('');
+    setNewCompanySlug('');
+    setNewCompanySlugTouched(false);
+    const refreshed = await loadMeta();
+    setBillingModuleCompanyId(companyId);
+    syncBillingModuleToggle(companyId, refreshed);
   }
 
   async function saveBillingModuleForCompany(companyId: string, enabled: boolean) {
@@ -534,6 +589,49 @@ export default function GlobalAdminPage() {
       <p className="muted" style={{ marginTop: 0 }}>
         Omistajuuden ja raportointitahon massamuokkaus
       </p>
+
+      <section className="card" style={{ marginBottom: '1rem' }}>
+        <h2>Uusi yritys</h2>
+        <p className="muted global-admin-hint">
+          Luo uusi tenant rekisteriin. Käyttäjät kutsutaan erikseen — valitse luodulle yritykselle yritys
+          kohdassa <strong>Hallinta → Käyttäjät</strong> (GBA-tila päällä).
+        </p>
+        <form className="line-form-grid" onSubmit={(e) => void createCompany(e)}>
+          <label>
+            Yrityksen nimi *
+            <input
+              value={newCompanyName}
+              onChange={(e) => {
+                const nextName = e.target.value;
+                setNewCompanyName(nextName);
+                if (!newCompanySlugTouched) {
+                  setNewCompanySlug(suggestCompanySlug(nextName));
+                }
+              }}
+              required
+              placeholder="Esim. Lämpökatsastus Oy"
+            />
+          </label>
+          <label>
+            Tunniste (slug)
+            <input
+              value={newCompanySlug}
+              onChange={(e) => {
+                setNewCompanySlugTouched(true);
+                setNewCompanySlug(e.target.value);
+              }}
+              placeholder="lampokatsastus-oy"
+            />
+          </label>
+          <div className="form-actions" style={{ gridColumn: '1 / -1' }}>
+            <button type="submit" className="btn btn-primary" disabled={createCompanyBusy}>
+              {createCompanyBusy ? 'Luodaan…' : 'Luo yritys'}
+            </button>
+          </div>
+        </form>
+        {createCompanyMessage && <p className="success">{createCompanyMessage}</p>}
+        {createCompanyError && <p className="error">{createCompanyError}</p>}
+      </section>
 
       <section className="card" style={{ marginBottom: '1rem' }}>
         <h2>Laskutusmoduuli (yritys)</h2>
