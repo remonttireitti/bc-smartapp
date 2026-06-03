@@ -38,7 +38,16 @@
 
 * { box-sizing: border-box; }
 
-body { margin: 0; min-height: 100vh; }
+html {
+  overflow-x: clip;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  overflow-x: clip;
+  max-width: 100%;
+}
 
 a { color: inherit; text-decoration: none; }
 
@@ -358,14 +367,36 @@ label {
   gap: .35rem;
   font-size: .9rem;
   color: var(--text-secondary);
+  min-width: 0;
+  max-width: 100%;
 }
 
-input {
+label input,
+label select,
+label textarea {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.field-block {
+  display: flex;
+  flex-direction: column;
+  gap: .35rem;
+  min-width: 0;
+  max-width: 100%;
+}
+
+input,
+select,
+textarea {
   padding: .65rem .75rem;
   border-radius: 8px;
   border: 1px solid var(--border-strong);
   background: var(--bg-surface);
   color: var(--text);
+  box-sizing: border-box;
 }
 
 input:focus,
@@ -644,6 +675,8 @@ button[type='submit']:disabled { opacity: .6; cursor: wait; }
   border-radius: 12px;
   padding: 1.25rem;
   box-shadow: var(--shadow-panel);
+  min-width: 0;
+  max-width: 100%;
 }
 
 .panel + .panel {
@@ -2202,7 +2235,7 @@ button[type='submit']:disabled { opacity: .6; cursor: wait; }
   }
 }
 
-.form-grid { display: flex; flex-direction: column; gap: 1.25rem; }
+.form-grid { display: flex; flex-direction: column; gap: 1.25rem; min-width: 0; max-width: 100%; }
 .form-section {
   display: grid;
   gap: .85rem;
@@ -2211,6 +2244,16 @@ button[type='submit']:disabled { opacity: .6; cursor: wait; }
   border-radius: 10px;
   background: var(--bg-muted);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.85);
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: clip;
+}
+
+.panel.form-grid,
+.work-report-form {
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: clip;
 }
 .form-section h2 {
   margin: 0 0 .35rem;
@@ -2823,6 +2866,12 @@ textarea, select {
 
 .registry-combobox {
   position: relative;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.registry-combobox > label {
+  min-width: 0;
 }
 
 .registry-combobox--open {
@@ -3195,7 +3244,12 @@ textarea {
   overflow: auto;
 }
 
-.table-wrap { overflow-x: auto; margin-bottom: 1rem; }
+.table-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  max-width: 100%;
+  margin-bottom: 1rem;
+}
 
 .data-table {
   width: 100%;
@@ -3259,6 +3313,8 @@ textarea {
   .main {
     padding: 1rem;
     padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+    overflow-x: clip;
+    max-width: 100%;
   }
 
   .topbar {
@@ -3521,9 +3577,19 @@ textarea {
   .work-report-form label textarea,
   .maintenance-form label input,
   .maintenance-form label select,
-  .maintenance-form label textarea {
+  .maintenance-form label textarea,
+  .field-block select,
+  .registry-combobox input {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
     min-height: 2.9rem;
     padding: .7rem .8rem;
+  }
+
+  .work-report-form label select,
+  .field-block select {
+    text-overflow: ellipsis;
   }
 
   .work-report-form textarea,
@@ -3587,6 +3653,222 @@ textarea {
   .maintenance-form .huolto-part-body,
   .maintenance-form .huolto-submodule {
     padding: .85rem;
+  }
+
+  .panel {
+    min-width: 0;
+    max-width: 100%;
+    overflow-x: clip;
+  }
+
+  .page-stack,
+  .search-box {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .search-box input {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .search-field-grow {
+    flex: 1 1 100%;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .detail-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: .75rem;
+  }
+
+  .tile {
+    aspect-ratio: auto;
+    min-height: 7.5rem;
+  }
+
+  .report-list li,
+  .report-list li.report-list-row-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .report-list li.report-list-row-actions .inline-actions {
+    width: 100%;
+    justify-content: stretch;
+  }
+
+  .report-list li.report-list-row-actions .inline-actions .btn,
+  .report-list li.report-list-row-actions .inline-actions a.btn {
+    flex: 1;
+    min-height: 2.75rem;
+  }
+
+  .toolbar-filters {
+    width: 100%;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .toolbar-filter {
+    width: 100%;
+    height: auto;
+    min-height: 2.75rem;
+    padding: .45rem .65rem;
+  }
+
+  .toolbar-filter select {
+    flex: 1;
+    max-width: none;
+    height: 2rem;
+    font-size: 1rem;
+  }
+
+  .toolbar-popover-panel {
+    left: 0;
+    right: 0;
+    min-width: 0;
+    width: max(100%, 12.5rem);
+  }
+
+  .maintenance-form,
+  .maintenance-form.panel,
+  .quote-form.panel,
+  .quote-form {
+    min-width: 0;
+    max-width: 100%;
+    overflow-x: clip;
+  }
+
+  .quote-form .section-header-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .quote-form .section-header-row .btn {
+    width: 100%;
+    min-height: 2.75rem;
+  }
+
+  .huolto-phase-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .huolto-calc-row {
+    grid-template-columns: 1fr;
+  }
+
+  .huolto-measurement-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .huolto-evidence-photo-row {
+    grid-template-columns: 72px 1fr;
+    gap: .5rem;
+  }
+
+  .trip-leg-row {
+    grid-template-columns: 1fr;
+    gap: .5rem;
+  }
+
+  .trip-leg-head-actions {
+    width: 100%;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .trip-leg-head-actions .btn {
+    width: 100%;
+    min-height: 2.75rem;
+  }
+
+  .trip-leg-row-actions {
+    grid-column: auto;
+    width: 100%;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .trip-leg-row-actions .btn {
+    width: 100%;
+    min-height: 2.75rem;
+  }
+
+  .trip-leg-row .btn {
+    grid-column: auto;
+    width: 100%;
+    min-height: 2.75rem;
+  }
+
+  .trip-leg-bill-check {
+    align-self: flex-start;
+    min-height: 2.75rem;
+    padding: .35rem 0;
+  }
+
+  .image-gallery {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .image-section,
+  .expense-section {
+    min-width: 0;
+    max-width: 100%;
+    overflow-x: clip;
+  }
+
+  .billing-rates-inline,
+  .billing-rates-bar .compact-option {
+    width: 100%;
+  }
+
+  .compact-option {
+    min-height: 2.75rem;
+    display: inline-flex;
+    align-items: center;
+    gap: .5rem;
+  }
+
+  .customer-document-filters {
+    flex-direction: column;
+  }
+
+  .customer-document-filters .btn {
+    width: 100%;
+    min-height: 2.75rem;
+  }
+
+  .partner-customer-picker-filter,
+  .user-company-filter {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .partner-customer-picker-filter select,
+  .user-company-filter select {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .form-help-details {
+    padding: .35rem 0;
+  }
+
+  .registry-create-form .line-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .leave-draft-dialog:not(.daily-log-dialog) {
+    width: 100%;
+    max-width: none;
+    max-height: min(92dvh, 100%);
+    border-radius: 16px 16px 0 0;
   }
 }
 
@@ -3668,6 +3950,12 @@ textarea {
 
 @media (pointer: coarse) {
   .icon-btn {
+    width: 2.75rem;
+    height: 2.75rem;
+  }
+
+  .page-header-actions .icon-btn,
+  .action-toolbar .icon-btn {
     width: 2.75rem;
     height: 2.75rem;
   }
@@ -6098,16 +6386,7 @@ textarea {
 
 @media (max-width: 640px) {
   .trip-leg-row {
-    grid-template-columns: 1fr 1fr;
-  }
-
-  .trip-leg-row-actions {
-    grid-column: 1 / -1;
-  }
-
-  .trip-leg-row .btn {
-    grid-column: 1 / -1;
-    justify-self: start;
+    grid-template-columns: 1fr;
   }
 }
 
