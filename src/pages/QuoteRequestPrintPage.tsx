@@ -446,23 +446,41 @@ export default function QuoteRequestPrintPage({ session }: Props) {
 
 
 
+  const listTrail = quoteListTrail();
+
   return (
 
     <AppLayout session={session}>
 
-      <NavigationBreadcrumb
+      <div className="quote-print-page">
 
-        items={[
+      <nav className="quote-print-sticky-nav no-print" aria-label="Tulostenäkymän navigointi">
+        {id ? (
+          <Link to={`/tarjouspyynnot/${id}`} className="btn btn-secondary quote-print-sticky-nav-back">
+            ← Takaisin
+          </Link>
+        ) : null}
+        <Link
+          to={listTrail.backTo}
+          className="btn btn-secondary quote-print-sticky-nav-list"
+          {...withNavTrail(listTrail)}
+        >
+          Lista
+        </Link>
+        <button type="button" className="btn btn-primary quote-print-sticky-nav-print" onClick={() => void handlePrint()}>
+          Tulosta
+        </button>
+      </nav>
 
-          ...quoteListTrail().breadcrumb,
-
-          { label: title, to: `/tarjouspyynnot/${id}` },
-
-          { label: 'Tuloste' },
-
-        ]}
-
-      />
+      <div className="quote-print-breadcrumb">
+        <NavigationBreadcrumb
+          items={[
+            ...listTrail.breadcrumb,
+            { label: title, to: `/tarjouspyynnot/${id}` },
+            { label: 'Tuloste' },
+          ]}
+        />
+      </div>
 
 
 
@@ -487,9 +505,9 @@ export default function QuoteRequestPrintPage({ session }: Props) {
             </IconButton>
           ) : null}
           <Link
-            to={quoteListTrail().backTo}
+            to={listTrail.backTo}
             className="btn btn-secondary"
-            {...withNavTrail(quoteListTrail())}
+            {...withNavTrail(listTrail)}
           >
             Tarjouspyyntöihin
           </Link>
@@ -586,6 +604,8 @@ export default function QuoteRequestPrintPage({ session }: Props) {
         ) : null}
         <iframe title="Tarjouksen esikatselu" srcDoc={html} className="print-preview-frame" />
       </section>
+
+      </div>
 
     </AppLayout>
 

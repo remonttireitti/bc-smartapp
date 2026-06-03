@@ -5066,6 +5066,54 @@ textarea {
   background: #fff;
 }
 
+/* Tarjouksen tuloste — mobiili / PWA: kiinnitetty takaisin-navigaatio */
+.quote-print-sticky-nav {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .quote-print-sticky-nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: center;
+    position: sticky;
+    top: 0;
+    z-index: 40;
+    margin: 0 0 0.75rem;
+    padding: 0.65rem 0.75rem;
+    padding-top: calc(0.65rem + env(safe-area-inset-top, 0px));
+    background: color-mix(in srgb, var(--bg-surface) 96%, var(--bg-page));
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    backdrop-filter: blur(8px);
+    box-shadow: 0 2px 10px rgba(15, 23, 42, 0.08);
+  }
+
+  .quote-print-sticky-nav .btn {
+    min-height: 44px;
+    flex: 1 1 auto;
+    justify-content: center;
+  }
+
+  .quote-print-sticky-nav-back {
+    flex: 1 1 100%;
+    font-weight: 600;
+  }
+
+  .quote-print-sticky-nav-print {
+    flex: 1 1 8rem;
+  }
+
+  .quote-print-page .quote-print-breadcrumb {
+    display: none;
+  }
+
+  .quote-print-page .page-header-actions {
+    display: none;
+  }
+}
+
 .quote-device-card {
   margin-bottom: .85rem;
 }

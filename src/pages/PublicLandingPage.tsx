@@ -14,6 +14,12 @@ const FEATURES = [
     color: '#22c55e',
   },
   {
+    icon: '🌡️',
+    title: 'Lämpötilojen etäseuranta ja etäohjaus',
+    desc: 'Reaaliaikaiset mittaukset, hälytykset ja trendit kohteittain. Etäohjaus ja lämpötilaraportit linkitettynä asiakkaaseen ja laiterekisteriin.',
+    color: '#06b6d4',
+  },
+  {
     icon: '💶',
     title: 'Tarjoukset ja laskutus',
     desc: 'Tarjouspyynnöt, pumpputarjoukset ja kumppani-/asiakaslaskutus samassa järjestelmässä.',
@@ -41,6 +47,7 @@ const FEATURES = [
 
 const BENEFITS = [
   'Vähemmän kadotettua tietoa — luonnokset tallentuvat automaattisesti',
+  'Lämpötilahälytykset, trendit ja etäohjaus samassa rekisterissä kuin työt',
   'Selkeä ketju: tilaus → työ → raportti → lasku',
   'Yksi paikka koko tiimille ja kumppaneille',
   'Toimii puhelimella ja tietokoneella selaimessa',
@@ -86,7 +93,8 @@ export default function PublicLandingPage() {
           </h1>
           <p className="landing-hero-lead">
             BC Smartapp on rakennettu yrityksille, jotka tekevät työtä usealle asiakkaalle — omilla
-            tekijöillä, kumppaneiden kanssa ja tilaajien kautta. Selkeämpi arki, vähemmän
+            tekijöillä, kumppaneiden kanssa ja tilaajien kautta. Työt, raportit, laskutus sekä
+            lämpötilojen etäseuranta ja etäohjaus samassa järjestelmässä. Selkeämpi arki, vähemmän
             välikäsiä, enemmän billableaikaa.
           </p>
           <div className="landing-hero-actions">
