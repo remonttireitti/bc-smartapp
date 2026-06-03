@@ -958,13 +958,9 @@ export default function WorkReportDetailPage({ session }: Props) {
       setBillableUsers([]);
     }
 
-    if (profile?.company_id === reportRow.owner_company_id) {
-      const tracksCustomer = await loadCompanyTracksCustomerInvoicing(supabase, reportRow.owner_company_id);
-      if (tracksCustomer) {
-        await refreshCustomerBillable(reportRow, logs);
-      } else {
-        setCustomerBillableCalculation(null);
-      }
+    const tracksCustomer = await loadCompanyTracksCustomerInvoicing(supabase, reportRow.owner_company_id);
+    if (tracksCustomer) {
+      await refreshCustomerBillable(reportRow, logs);
     } else {
       setCustomerBillableCalculation(null);
     }
@@ -1911,9 +1907,12 @@ export default function WorkReportDetailPage({ session }: Props) {
     : (report.owner_company?.name ?? '—');
   const showMoneyBilling =
     isPartnerReport && canSeeCreatorBilling && !!billableCalculation;
-  const showCustomerMoney = isOwnerCompany && customerInvoicingEnabled;
+  const showCustomerMoney = customerInvoicingEnabled;
+  const canManageCustomerBillingRates = isOwnerCompany && customerInvoicingEnabled;
   const showCustomerMoneyBilling =
-    showCustomerMoney && !!customerBillableCalculation;
+    customerInvoicingEnabled
+    && !!customerBillableCalculation
+    && (isOwnerCompany || (isPartnerReport && canSeeCreatorBilling));
   const portalReadOnly = isPortalReadOnly(profile);
   const canDeleteReport =
     !portalReadOnly && canDeleteWorkReport(report, session.user.id, profile?.is_global_admin, profile?.role);
@@ -2591,36 +2590,45 @@ export default function WorkReportDetailPage({ session }: Props) {
 
       {showCustomerMoneyBilling && customerBillableCalculation && (
         <CollapsibleSection
-          title={`Asiakkaalle laskutettava · ${formatEuro(customerBillableCalculation.grandTotal)}`}
+          title={`Asiakkaalta laskutettava · ${formatEuro(customerBillableCalculation.grandTotal)}`}
           defaultOpen={false}
           variant="plain"
           className="panel work-report-section"
         >
           <div className="billing-rates-bar">
             <p className="muted" style={{ margin: 0 }}>
-              Laskutettava: <strong>{report.customers?.name ?? 'Asiakas'}</strong>
+              Asiakas: <strong>{report.customers?.name ?? '—'}</strong>
               {' · '}
-              <Tooltip label="Hinta haetaan yrityksen asiakashinnoista, ellei raporttikohtaisia hintoja ole päällä.">
+              <Tooltip label="Hinta haetaan raportin omistavan yrityksen asiakashinnoista, ellei raporttikohtaisia hintoja ole päällä.">
                 <span>
                   {BILLABLE_RATES_SOURCE_LABELS[customerBillableCalculation.ratesSource]} · tunti{' '}
                   {formatEuro(customerBillableCalculation.ratesUsed.hourly_regular)}
                 </span>
               </Tooltip>
             </p>
-            <Tooltip label="Poikkea vain tämän raportin asiakashinnoista.">
-              <label className="compact-option">
-                <input
-                  type="checkbox"
-                  checked={useCustomCustomerRates}
-                  disabled={customerRatesBusy}
-                  onChange={(e) => void onCustomCustomerRatesToggle(e.target.checked)}
-                />
-                Raporttihinnat
-              </label>
-            </Tooltip>
+            {canManageCustomerBillingRates ? (
+              <Tooltip label="Poikkea vain tämän raportin asiakashinnoista.">
+                <label className="compact-option">
+                  <input
+                    type="checkbox"
+                    checked={useCustomCustomerRates}
+                    disabled={customerRatesBusy}
+                    onChange={(e) => void onCustomCustomerRatesToggle(e.target.checked)}
+                  />
+                  Raporttihinnat
+                </label>
+              </Tooltip>
+            ) : null}
           </div>
 
-          {useCustomCustomerRates && (
+          {!canManageCustomerBillingRates && (
+            <p className="muted">
+              Asiakaslaskutuksen hinnat ja merkinnät hallitsee raportin omistava yritys (
+              {report.owner_company?.name ?? '—'}).
+            </p>
+          )}
+
+          {canManageCustomerBillingRates && useCustomCustomerRates && (
             <div className="billing-rates-inline">
               <PartnerBillingRatesFields
                 rates={customerReportRatesDraft}
@@ -2684,9 +2692,16 @@ export default function WorkReportDetailPage({ session }: Props) {
             </table>
           </div>
           <div className="form-actions" style={{ justifyContent: 'flex-start' }}>
-            <Link to="/laskutus?mode=customer" className="btn btn-secondary">
-              Laskutus-moduuli
-            </Link>
+            <Tooltip label="Tuloste sisältää asiakkaalta laskutettavan yhteenvedon, kun summat on laskettu.">
+              <Link to={`/tyoraportit/${report.id}/tuloste`} className="btn btn-secondary">
+                Tulosta asiakkaalle
+              </Link>
+            </Tooltip>
+            {canManageCustomerBillingRates && (
+              <Link to="/laskutus?mode=customer" className="btn btn-secondary">
+                Laskutus-moduuli
+              </Link>
+            )}
           </div>
         </CollapsibleSection>
       )}
