@@ -5,13 +5,14 @@ import { Link, useParams } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
 
 import AppLayout from '../components/AppLayout';
-
+import IconButton from '../components/IconButton';
+import { IconBack } from '../components/icons';
 import NavigationBreadcrumb from '../components/NavigationBreadcrumb';
 
 import { resolveCompanyLogoUrl } from '../lib/companyLogo';
 import { embedUrlAsDataUrl } from '../lib/quoteRequest/termatekAssets';
 
-import { quoteListTrail } from '../lib/navigationTrail';
+import { quoteListTrail, withNavTrail } from '../lib/navigationTrail';
 
 import { isPumpQuoteType, isRepairQuoteType, QUOTE_TYPE_LABELS } from '../lib/quoteRequest/constants';
 
@@ -387,7 +388,10 @@ export default function QuoteRequestPrintPage({ session }: Props) {
       }
     }
     const printWindow = window.open('', '_blank');
-    if (!printWindow) return;
+    if (!printWindow) {
+      setError('Tulostusikkunan avaus estettiin. Salli ponnahdusikkunat tai käytä selaimen tulostusta.');
+      return;
+    }
     printWindow.document.write(printHtml);
     printWindow.document.close();
     printWindow.focus();
@@ -472,14 +476,26 @@ export default function QuoteRequestPrintPage({ session }: Props) {
 
         </div>
 
-        <div className="page-header-actions">
-
-          <button type="button" className="btn btn-primary" onClick={handlePrint}>
-
+        <div className="page-header-actions action-toolbar">
+          {id ? (
+            <IconButton
+              label="Takaisin muokkaukseen"
+              href={`/tarjouspyynnot/${id}`}
+              tooltipSide="bottom"
+            >
+              <IconBack />
+            </IconButton>
+          ) : null}
+          <Link
+            to={quoteListTrail().backTo}
+            className="btn btn-secondary"
+            {...withNavTrail(quoteListTrail())}
+          >
+            Tarjouspyyntöihin
+          </Link>
+          <button type="button" className="btn btn-primary" onClick={() => void handlePrint()}>
             Tulosta / PDF
-
           </button>
-
         </div>
 
       </div>
