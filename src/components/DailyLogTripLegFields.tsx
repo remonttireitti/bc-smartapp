@@ -15,6 +15,7 @@ import {
   type TripLegDraft,
 } from '../lib/workReportTripLegs';
 import { formatTripKmRateLabel } from '../lib/tripKmExpense';
+import DailyLogFormSection from './DailyLogFormSection';
 
 type Props = {
   drafts: TripLegDraft[];
@@ -116,14 +117,13 @@ export default function DailyLogTripLegFields({
     setDrafts(updateTripLegDraft(drafts, index, patch, departureLabel));
   }
 
+  const sectionTitle =
+    totalKm > 0 ? `Ajomatkat (${totalKm.toFixed(1)} km)` : 'Ajomatkat';
+
   return (
+    <DailyLogFormSection title={sectionTitle} collapseKey="daily-log:trips" className="trip-leg-dialog-section">
     <div className="trip-leg-section">
-      <div className="section-head">
-        <h3>
-          Ajomatkat
-          {totalKm > 0 ? <span className="trip-leg-total"> · yhteensä {totalKm.toFixed(1)} km</span> : null}
-        </h3>
-        <div className="trip-leg-head-actions">
+      <div className="trip-leg-head-actions">
           {drafts.length > 0 && (
             <button
               type="button"
@@ -142,7 +142,6 @@ export default function DailyLogTripLegFields({
           >
             + Lisää väliajo
           </button>
-        </div>
       </div>
       <p className="muted trip-leg-hint">
         Päivä alkaa aina toimipisteestä/kodista ja päättyy sinne. Kirjoita kohteeseen — ehdotukset haetaan rekisteristä.
@@ -249,5 +248,6 @@ export default function DailyLogTripLegFields({
         })
       )}
     </div>
+    </DailyLogFormSection>
   );
 }

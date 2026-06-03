@@ -3484,9 +3484,18 @@ textarea {
     min-height: 2.75rem;
   }
 
-  .expense-row {
+  .expense-row,
+  .expense-row-fields {
     grid-template-columns: 1fr;
     gap: .5rem;
+  }
+
+  .expense-price-pair {
+    grid-template-columns: 1fr;
+  }
+
+  .daily-log-dialog-section .collapsible-header {
+    min-height: 3rem;
   }
 
   .expense-row .btn,
@@ -6308,6 +6317,84 @@ textarea {
 .trip-destination-suggestion-meta {
   font-size: 0.8rem;
   color: var(--text-muted);
+}
+
+.daily-log-dialog .daily-log-form {
+  gap: 0.5rem;
+}
+
+.daily-log-dialog-section.collapsible-section {
+  margin: 0;
+  border-radius: 10px;
+  box-shadow: none;
+}
+
+.daily-log-dialog-section .collapsible-header {
+  padding: 0.75rem 0.9rem;
+  min-height: 2.85rem;
+}
+
+.daily-log-dialog-section .collapsible-title {
+  font-size: 0.95rem;
+}
+
+.daily-log-dialog-section .collapsible-body {
+  padding: 0.65rem 0.9rem 0.85rem;
+  display: grid;
+  gap: 0.65rem;
+}
+
+.daily-log-dialog-section.expense-line-section {
+  border-width: 1px;
+  border-color: var(--border);
+}
+
+.daily-log-dialog-section.expense-line-section .collapsible-header {
+  padding: 0.6rem 0.75rem;
+  min-height: 2.5rem;
+  background: var(--bg-subtle);
+}
+
+.daily-log-dialog-section.expense-line-section .collapsible-title {
+  font-size: 0.88rem;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+.expense-section-in-dialog {
+  border: 0;
+  padding: 0;
+  box-shadow: none;
+  background: transparent;
+  gap: 0.5rem;
+}
+
+.expense-row-fields {
+  display: grid;
+  gap: 0.65rem;
+  grid-template-columns: 1fr;
+}
+
+.expense-price-pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.65rem;
+}
+
+.trip-leg-dialog-section .trip-leg-section {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  gap: 0.65rem;
+}
+
+.trip-leg-dialog-section .trip-leg-head-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
 }
 
 .expense-billing-options {

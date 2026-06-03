@@ -5,6 +5,7 @@ import AppLayout from '../components/AppLayout';
 import DeletedUserLabel from '../components/DeletedUserLabel';
 import CollapsibleSection from '../components/CollapsibleSection';
 import DailyLogDialog from '../components/DailyLogDialog';
+import DailyLogFormSection from '../components/DailyLogFormSection';
 import IconButton from '../components/IconButton';
 import { IconPrint, IconTrash } from '../components/icons';
 import PartnerBillingRatesFields from '../components/PartnerBillingRatesFields';
@@ -271,7 +272,6 @@ function expensesToDrafts(lines: WorkReportDailyLog['expense_lines']): ExpenseDr
 
 function expenseSaveOptionsForReport(
   report: Pick<WorkReport, 'owner_company_id' | 'created_by_company_id' | 'delegate_company_id'>,
-  viewerCompanyId: string | null | undefined,
   customerInvoicingEnabled: boolean,
 ) {
   const isDelegatedOrder =
@@ -280,8 +280,31 @@ function expenseSaveOptionsForReport(
     report.created_by_company_id !== report.owner_company_id || isDelegatedOrder;
   return {
     includePartnerFields: isPartnerReport,
-    includeCustomerFields: viewerCompanyId === report.owner_company_id && customerInvoicingEnabled,
+    includeCustomerFields: customerInvoicingEnabled,
   };
+}
+
+function expenseRowSectionTitle(
+  row: ExpenseDraft,
+  showPartner: boolean,
+  showCustomer: boolean,
+): string {
+  const type = EXPENSE_TYPE_LABELS[row.expense_type] ?? row.expense_type;
+  const desc = row.description.trim() || 'Uusi rivi';
+  const parts = [type, desc];
+  if (row.qty.trim()) parts.push(`${row.qty} kpl`);
+  if (showPartner && !row.bill_to_partner) parts.push('kumppanin piikki');
+  if (showCustomer) {
+    const customerPrice = row.customer_unit_price.trim() || row.unit_price.trim();
+    parts.push(
+      row.bill_to_customer
+        ? customerPrice
+          ? `asiakas ${customerPrice} €`
+          : 'laskutetaan asiakkaalta'
+        : 'ei asiakaslaskua',
+    );
+  }
+  return parts.join(' · ');
 }
 
 function buildLogPayload(form: DailyLogFormState) {
@@ -335,51 +358,68 @@ function DailyLogFields({
 }) {
   const { showRegular, showOvertime, showOnCall, showFixed } = hourFieldsForEntryType(form.entry_type);
   const quickHourSteps = [0.5, 1, 2, 4];
+  const showPartnerPrices = !!showPartnerExpenseFields;
+  const showCustomerPrices = !!showCustomerExpenseFields;
+  const expenseSectionTitle =
+    expenseDrafts.length > 0 ? `Kulut ja tarvikkeet (${expenseDrafts.length})` : 'Kulut ja tarvikkeet';
 
   return (
     <>
-      <div className="line-form-grid">
+      <DailyLogFormSection title="Päivä ja aika" defaultOpen collapseKey="daily-log:day">
+        <div className="line-form-grid">
+          <label>
+            Päivä
+            <input
+              type="date"
+              value={form.log_date}
+              onChange={(e) => setForm({ ...form, log_date: e.target.value })}
+              required
+            />
+          </label>
+          <label>
+            Aloitusaika
+            <select
+              value={form.log_start_time}
+              onChange={(e) => setForm({ ...form, log_start_time: e.target.value })}
+            >
+              {OFFICE_HOUR_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Tuntien tyyppi
+            <select
+              value={form.entry_type}
+              onChange={(e) => setForm({ ...form, entry_type: e.target.value as DailyHourEntryType })}
+            >
+              {(Object.entries(HOUR_ENTRY_LABELS) as [DailyHourEntryType, string][]).map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+      </DailyLogFormSection>
+
+      <DailyLogFormSection title="Mitä tein" defaultOpen collapseKey="daily-log:work">
         <label>
-          Päivä
-          <input
-            type="date"
-            value={form.log_date}
-            onChange={(e) => setForm({ ...form, log_date: e.target.value })}
+          Kuvaus
+          <textarea
+            value={form.work_done}
+            onChange={(e) => setForm({ ...form, work_done: e.target.value })}
+            rows={4}
+            placeholder="Kuvaa päivän työt…"
             required
           />
         </label>
-        <label>
-          Aloitusaika
-          <select
-            value={form.log_start_time}
-            onChange={(e) => setForm({ ...form, log_start_time: e.target.value })}
-          >
-            {OFFICE_HOUR_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>
+      </DailyLogFormSection>
 
-      <div className="line-form-grid">
-        <label>
-          Tuntien tyyppi
-          <select
-            value={form.entry_type}
-            onChange={(e) => setForm({ ...form, entry_type: e.target.value as DailyHourEntryType })}
-          >
-            {(Object.entries(HOUR_ENTRY_LABELS) as [DailyHourEntryType, string][]).map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>
-
-      <div className="line-form-grid">
+      <DailyLogFormSection title="Tunnit" collapseKey="daily-log:hours">
+        <div className="line-form-grid">
         {showRegular && (
           <label>
             {form.entry_type === 'regular' ? 'Asennustyötunnit' : 'Tunnit'}
@@ -510,43 +550,34 @@ function DailyLogFields({
           asiakastuntihinta poikkeaa.
         </p>
       )}
+      </DailyLogFormSection>
 
-      <div className="line-form-grid">
-        <label>
-          Myyntiprovisio (€)
-          <input
-            type="number"
-            step="0.01"
-            min="0"
-            value={form.commission_amount}
-            onChange={(e) => setForm({ ...form, commission_amount: e.target.value })}
-            placeholder="0"
-          />
-        </label>
-        <label>
-          Provisio selitys
-          <input
-            value={form.commission_note}
-            onChange={(e) => setForm({ ...form, commission_note: e.target.value })}
-            placeholder="Esim. lisämyynti asiakkaalle"
-          />
-        </label>
-      </div>
+      <DailyLogFormSection title="Provisio" collapseKey="daily-log:commission">
+        <div className="line-form-grid">
+          <label>
+            Myyntiprovisio (€)
+            <input
+              type="number"
+              step="0.01"
+              min="0"
+              value={form.commission_amount}
+              onChange={(e) => setForm({ ...form, commission_amount: e.target.value })}
+              placeholder="0"
+            />
+          </label>
+          <label>
+            Provisio selitys
+            <input
+              value={form.commission_note}
+              onChange={(e) => setForm({ ...form, commission_note: e.target.value })}
+              placeholder="Esim. lisämyynti asiakkaalle"
+            />
+          </label>
+        </div>
+      </DailyLogFormSection>
 
-      <label>
-        Mitä tein
-        <textarea
-          value={form.work_done}
-          onChange={(e) => setForm({ ...form, work_done: e.target.value })}
-          rows={4}
-          placeholder="Kuvaa päivän työt…"
-          required
-        />
-      </label>
-
-      <div className="expense-section">
-        <div className="section-head">
-          <h3>Kulut ja tarvikkeet</h3>
+      <DailyLogFormSection title={expenseSectionTitle} collapseKey="daily-log:expenses">
+        <div className="expense-section expense-section-in-dialog">
           <button
             type="button"
             className="btn btn-secondary"
@@ -554,164 +585,199 @@ function DailyLogFields({
           >
             + Lisää rivi
           </button>
-        </div>
-        {expenseDrafts.length === 0 ? (
-          <p className="muted">Esim. pysäköinti, km-korvaus, varaosat… Km-korvausrivi syntyy automaattisesti ajomatkoista, jos yrityksellä on €/km-hinta.</p>
-        ) : (
-          expenseDrafts.map((row, index) => {
-            const autoTripKm = isAutoTripKmExpense(row);
-            return (
-            <div key={row.key} className={`expense-row${autoTripKm ? ' expense-row-auto' : ''}`}>
-              <label>
-                Tyyppi
-                <select
-                  value={row.expense_type}
-                  disabled={autoTripKm}
-                  onChange={(e) =>
-                    setExpenseDrafts(
-                      expenseDrafts.map((r, i) =>
-                        i === index ? { ...r, expense_type: e.target.value } : r,
-                      ),
-                    )
-                  }
-                >
-                  {EXPENSE_TYPE_OPTIONS.map((opt) => (
-                    <option key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                Kuvaus
-                <input
-                  value={row.description}
-                  readOnly={autoTripKm}
-                  disabled={autoTripKm}
-                  onChange={(e) =>
-                    setExpenseDrafts(
-                      expenseDrafts.map((r, i) =>
-                        i === index ? { ...r, description: e.target.value } : r,
-                      ),
-                    )
-                  }
-                  placeholder="Esim. Varaosa X"
-                />
-              </label>
-              <label>
-                Määrä
-                <input
-                  type="number"
-                  step="0.001"
-                  min="0"
-                  value={row.qty}
-                  readOnly={autoTripKm}
-                  disabled={autoTripKm}
-                  onChange={(e) =>
-                    setExpenseDrafts(
-                      expenseDrafts.map((r, i) => (i === index ? { ...r, qty: e.target.value } : r)),
-                    )
-                  }
-                />
-              </label>
-              <label>
-                {showCustomerExpenseFields
+          {expenseDrafts.length === 0 ? (
+            <p className="muted">
+              Esim. pysäköinti, km-korvaus, varaosat… Km-korvausrivi syntyy automaattisesti ajomatkoista, jos
+              yrityksellä on €/km-hinta.
+            </p>
+          ) : (
+            expenseDrafts.map((row, index) => {
+              const autoTripKm = isAutoTripKmExpense(row);
+              const partnerUnitLabel = showPartnerPrices
+                ? 'Kumppanihinta (€)'
+                : showCustomerPrices
                   ? 'Ostohinta (€)'
-                  : showPartnerExpenseFields
-                    ? 'Kumppanihinta (€)'
-                    : 'á hinta (€)'}
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={row.unit_price}
-                  readOnly={autoTripKm}
-                  disabled={autoTripKm}
-                  onChange={(e) =>
-                    setExpenseDrafts(
-                      expenseDrafts.map((r, i) =>
-                        i === index ? { ...r, unit_price: e.target.value } : r,
-                      ),
-                    )
-                  }
-                />
-              </label>
-              {autoTripKm && (
-                <p className="muted expense-auto-note">Päivittyy automaattisesti ajomatkoista</p>
-              )}
-              {(showPartnerExpenseFields || showCustomerExpenseFields) && (
-                <div className="expense-billing-options">
-                  {showPartnerExpenseFields && (
-                    <label className="compact-option">
-                      <input
-                        type="checkbox"
-                        checked={!row.bill_to_partner}
+                  : 'á hinta (€)';
+              return (
+                <DailyLogFormSection
+                  key={row.key}
+                  title={expenseRowSectionTitle(row, showPartnerPrices, showCustomerPrices)}
+                  collapseKey={`daily-log:expense:${row.key}`}
+                  className="expense-line-section"
+                >
+                  <div className={`expense-row-fields${autoTripKm ? ' expense-row-auto' : ''}`}>
+                    <label>
+                      Tyyppi
+                      <select
+                        value={row.expense_type}
                         disabled={autoTripKm}
                         onChange={(e) =>
                           setExpenseDrafts(
                             expenseDrafts.map((r, i) =>
-                              i === index ? { ...r, bill_to_partner: !e.target.checked } : r,
+                              i === index ? { ...r, expense_type: e.target.value } : r,
                             ),
                           )
                         }
-                      />
-                      Kumppanin piikki (ei keskinäistä laskutusta)
+                      >
+                        {EXPENSE_TYPE_OPTIONS.map((opt) => (
+                          <option key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </option>
+                        ))}
+                      </select>
                     </label>
-                  )}
-                  {showCustomerExpenseFields && (
-                    <>
+                    <label>
+                      Kuvaus
+                      <input
+                        value={row.description}
+                        readOnly={autoTripKm}
+                        disabled={autoTripKm}
+                        onChange={(e) =>
+                          setExpenseDrafts(
+                            expenseDrafts.map((r, i) =>
+                              i === index ? { ...r, description: e.target.value } : r,
+                            ),
+                          )
+                        }
+                        placeholder="Esim. Varaosa X"
+                      />
+                    </label>
+                    <label>
+                      Määrä
+                      <input
+                        type="number"
+                        step="0.001"
+                        min="0"
+                        value={row.qty}
+                        readOnly={autoTripKm}
+                        disabled={autoTripKm}
+                        onChange={(e) =>
+                          setExpenseDrafts(
+                            expenseDrafts.map((r, i) => (i === index ? { ...r, qty: e.target.value } : r)),
+                          )
+                        }
+                      />
+                    </label>
+                    {showPartnerPrices || showCustomerPrices ? (
+                      <div className="expense-price-pair">
+                        <label>
+                          {partnerUnitLabel}
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            value={row.unit_price}
+                            readOnly={autoTripKm}
+                            disabled={autoTripKm}
+                            onChange={(e) =>
+                              setExpenseDrafts(
+                                expenseDrafts.map((r, i) =>
+                                  i === index ? { ...r, unit_price: e.target.value } : r,
+                                ),
+                              )
+                            }
+                            placeholder={showPartnerPrices ? '0 = kumppanin piikki' : undefined}
+                          />
+                        </label>
+                        {showCustomerPrices && (
+                          <label>
+                            Asiakashinta (€)
+                            <input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              value={row.customer_unit_price}
+                              readOnly={autoTripKm}
+                              disabled={autoTripKm}
+                              onChange={(e) =>
+                                setExpenseDrafts(
+                                  expenseDrafts.map((r, i) =>
+                                    i === index ? { ...r, customer_unit_price: e.target.value } : r,
+                                  ),
+                                )
+                              }
+                              placeholder={row.unit_price.trim() || 'Esim. laskutushinta'}
+                            />
+                          </label>
+                        )}
+                      </div>
+                    ) : (
                       <label>
-                        Asiakashinta (€)
+                        á hinta (€)
                         <input
                           type="number"
                           step="0.01"
                           min="0"
-                          value={row.customer_unit_price}
+                          value={row.unit_price}
                           readOnly={autoTripKm}
                           disabled={autoTripKm}
                           onChange={(e) =>
                             setExpenseDrafts(
                               expenseDrafts.map((r, i) =>
-                                i === index ? { ...r, customer_unit_price: e.target.value } : r,
-                              ),
-                            )
-                          }
-                          placeholder={row.unit_price.trim() || 'Sama kuin ostohinta'}
-                        />
-                      </label>
-                      <label className="compact-option">
-                        <input
-                          type="checkbox"
-                          checked={row.bill_to_customer}
-                          disabled={autoTripKm}
-                          onChange={(e) =>
-                            setExpenseDrafts(
-                              expenseDrafts.map((r, i) =>
-                                i === index ? { ...r, bill_to_customer: e.target.checked } : r,
+                                i === index ? { ...r, unit_price: e.target.value } : r,
                               ),
                             )
                           }
                         />
-                        Laskutetaan asiakkaalta
                       </label>
-                    </>
-                  )}
-                </div>
-              )}
-              {!autoTripKm && (
-                <button
-                  type="button"
-                  className="btn btn-secondary btn-sm"
-                  onClick={() => setExpenseDrafts(expenseDrafts.filter((_, i) => i !== index))}
-                >
-                  Poista rivi
-                </button>
-              )}
-            </div>
-            );
-          })
-        )}
-      </div>
+                    )}
+                    {autoTripKm && (
+                      <p className="muted expense-auto-note">Päivittyy automaattisesti ajomatkoista</p>
+                    )}
+                    {(showPartnerPrices || showCustomerPrices) && (
+                      <div className="expense-billing-options">
+                        {showPartnerPrices && (
+                          <label className="compact-option">
+                            <input
+                              type="checkbox"
+                              checked={!row.bill_to_partner}
+                              disabled={autoTripKm}
+                              onChange={(e) =>
+                                setExpenseDrafts(
+                                  expenseDrafts.map((r, i) =>
+                                    i === index ? { ...r, bill_to_partner: !e.target.checked } : r,
+                                  ),
+                                )
+                              }
+                            />
+                            Kumppanin piikki (ei keskinäistä laskutusta)
+                          </label>
+                        )}
+                        {showCustomerPrices && (
+                          <label className="compact-option">
+                            <input
+                              type="checkbox"
+                              checked={row.bill_to_customer}
+                              disabled={autoTripKm}
+                              onChange={(e) =>
+                                setExpenseDrafts(
+                                  expenseDrafts.map((r, i) =>
+                                    i === index ? { ...r, bill_to_customer: e.target.checked } : r,
+                                  ),
+                                )
+                              }
+                            />
+                            Laskutetaan asiakkaalta
+                          </label>
+                        )}
+                      </div>
+                    )}
+                    {!autoTripKm && (
+                      <button
+                        type="button"
+                        className="btn btn-secondary btn-sm"
+                        onClick={() => setExpenseDrafts(expenseDrafts.filter((_, i) => i !== index))}
+                      >
+                        Poista rivi
+                      </button>
+                    )}
+                  </div>
+                </DailyLogFormSection>
+              );
+            })
+          )}
+        </div>
+      </DailyLogFormSection>
     </>
   );
 }
@@ -1368,11 +1434,8 @@ export default function WorkReportDetailPage({ session }: Props) {
 
   async function saveDailyLogTripLegs(dailyLogId: string) {
     if (!report) return null;
-    const includeCustomerFields =
-      report.created_by_company_id === report.owner_company_id &&
-      !(!!report.delegate_company_id && report.created_by_company_id === report.owner_company_id);
     try {
-      await saveTripLegs(supabase, dailyLogId, tripDrafts, includeCustomerFields);
+      await saveTripLegs(supabase, dailyLogId, tripDrafts, customerInvoicingEnabled);
       return null;
     } catch (err) {
       return err instanceof Error ? err : new Error('Ajomatkojen tallennus epäonnistui.');
@@ -1458,7 +1521,7 @@ export default function WorkReportDetailPage({ session }: Props) {
     const expenseError = await saveExpenseLines(
       logRow.id,
       expenseDrafts,
-      expenseSaveOptionsForReport(report, profile?.company_id, customerInvoicingEnabled),
+      expenseSaveOptionsForReport(report, customerInvoicingEnabled),
     );
     if (expenseError) {
       setLogDialogBusy(false);
@@ -1699,7 +1762,7 @@ export default function WorkReportDetailPage({ session }: Props) {
     const expenseError = await saveExpenseLines(
       editingLogId,
       expenseDrafts,
-      expenseSaveOptionsForReport(report, profile?.company_id, customerInvoicingEnabled),
+      expenseSaveOptionsForReport(report, customerInvoicingEnabled),
     );
     if (expenseError) {
       setLogDialogBusy(false);
@@ -2658,7 +2721,7 @@ export default function WorkReportDetailPage({ session }: Props) {
           drafts={tripDrafts}
           setDrafts={setTripDrafts}
           departureLabel={tripDepartureLabel}
-          showCustomerFields={showCustomerMoney}
+          showCustomerFields={customerInvoicingEnabled}
           destinationOptions={tripDestinationOptions}
           tripKmRate={tripKmRate}
         />
@@ -2668,9 +2731,9 @@ export default function WorkReportDetailPage({ session }: Props) {
           expenseDrafts={expenseDrafts}
           setExpenseDrafts={setExpenseDrafts}
           showHourlyRate={showMoneyBilling}
-          showCustomerHourlyRate={showCustomerMoney}
+          showCustomerHourlyRate={customerInvoicingEnabled}
           showPartnerExpenseFields={isPartnerReport}
-          showCustomerExpenseFields={showCustomerMoney}
+          showCustomerExpenseFields={customerInvoicingEnabled}
           defaultHourlyRate={billableCalculation?.ratesUsed.hourly_regular ?? null}
           defaultCustomerHourlyRate={customerBillableCalculation?.ratesUsed.hourly_regular ?? null}
         />
@@ -2681,9 +2744,14 @@ export default function WorkReportDetailPage({ session }: Props) {
           companyUsers={refrigerantCompanyUsers}
           ownCompanyId={profile?.company_id ?? null}
           hasPartnerCompanies={hasPartnerRefrigerantCompanies}
-          showCustomerBillingFields={showCustomerMoney}
+          showCustomerBillingFields={customerInvoicingEnabled}
         />
         {report && (
+          <DailyLogFormSection
+            title="Kuvat"
+            collapseKey="daily-log:images"
+            className="daily-log-images-section"
+          >
           <DailyLogImageSection
             reportId={report.id}
             dailyLogId={editingLogId}
@@ -2693,6 +2761,7 @@ export default function WorkReportDetailPage({ session }: Props) {
             onPendingImagesChange={setPendingImages}
             onSavedImagesChange={() => void load(report.id)}
           />
+          </DailyLogFormSection>
         )}
       </DailyLogDialog>
     </AppLayout>

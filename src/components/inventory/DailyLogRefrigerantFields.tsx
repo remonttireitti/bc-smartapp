@@ -5,6 +5,7 @@ import {
   resolveRefrigerantBilling,
 } from '../../lib/refrigerantInventory';
 import { refrigerantTypes } from '../../lib/huoltoRaportti/constants';
+import DailyLogFormSection from '../DailyLogFormSection';
 import {
   REFRIGERANT_CYLINDER_DISPOSITION_LABELS,
   REFRIGERANT_SOURCE_LABELS,
@@ -92,14 +93,14 @@ export default function DailyLogRefrigerantFields({
     ([value]) => value !== 'partner_warehouse' || hasPartnerCompanies,
   );
 
+  const sectionTitle = drafts.length > 0 ? `Kylmäaine (${drafts.length})` : 'Kylmäaine';
+
   return (
-    <div className="expense-section">
-      <div className="section-head">
-        <h3>Kylmäaine</h3>
-        <button type="button" className="btn btn-secondary" onClick={() => setDrafts([...drafts, emptyRow()])}>
-          + Lisää kylmäaine
-        </button>
-      </div>
+    <DailyLogFormSection title={sectionTitle} collapseKey="daily-log:refrigerant" className="refrigerant-dialog-section">
+    <div className="expense-section expense-section-in-dialog">
+      <button type="button" className="btn btn-secondary" onClick={() => setDrafts([...drafts, emptyRow()])}>
+        + Lisää kylmäaine
+      </button>
       {drafts.length === 0 ? (
         <p className="muted">
           Merkitse myyty kylmäaine varastopullosta tai tukkurilta. Valitse mitä pullolle tapahtuu käytön jälkeen.
@@ -286,5 +287,6 @@ export default function DailyLogRefrigerantFields({
         })
       )}
     </div>
+    </DailyLogFormSection>
   );
 }
