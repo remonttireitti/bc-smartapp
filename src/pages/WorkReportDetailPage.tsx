@@ -10,6 +10,7 @@ import IconButton from '../components/IconButton';
 import { IconPrint, IconTrash } from '../components/icons';
 import PartnerBillingRatesFields from '../components/PartnerBillingRatesFields';
 import Tooltip from '../components/Tooltip';
+import WorkReportBillingBreakdown from '../components/WorkReportBillingBreakdown';
 import WorkReportStatusBadges from '../components/WorkReportStatusBadges';
 import { useCompanyCustomerBillingEnabled } from '../hooks/useCompanyCustomerBillingEnabled';
 import { useCompanyBillingEnabled } from '../hooks/useCompanyBillingEnabled';
@@ -2529,35 +2530,7 @@ export default function WorkReportDetailPage({ session }: Props) {
                 Käyttäjien laskutusasetukset olivat pois — lasketaan silti päiväkirjauksista (oletus päällä).
               </p>
             )}
-            <div className="table-wrap">
-              <table className="billing-table">
-                <thead>
-                  <tr>
-                    <th>Henkilö</th>
-                    <th className="num">Työtunnit</th>
-                    <th className="num">Työt (€)</th>
-                    <th className="num">Kulut / urakat</th>
-                    <th className="num">Yhteensä</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {billableCalculation.byUser.map((u) => (
-                    <tr key={u.userId}>
-                      <td>
-                        {u.userName}
-                        {!u.effectiveBillHoursEnabled && !u.effectiveBillExpensesEnabled && (
-                          <span className="muted"> (ei laskutukseen)</span>
-                        )}
-                      </td>
-                      <td className="num">{u.hoursQty.toFixed(2)} h</td>
-                      <td className="num">{formatEuro(u.hoursTotal)}</td>
-                      <td className="num">{formatEuro(u.expensesTotal + u.fixedTotal + (u.commissionTotal ?? 0))}</td>
-                      <td className="num">{formatEuro(u.subtotal)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <WorkReportBillingBreakdown calculation={billableCalculation} />
             <div className="form-actions" style={{ justifyContent: 'flex-start' }}>
               <Tooltip label="Avaa tulosteen kumppanille hintoineen.">
                 <Link
@@ -2667,30 +2640,7 @@ export default function WorkReportDetailPage({ session }: Props) {
             </div>
           )}
 
-          <div className="table-wrap">
-            <table className="billing-table">
-              <thead>
-                <tr>
-                  <th>Henkilö</th>
-                  <th className="num">Työtunnit</th>
-                  <th className="num">Työt (€)</th>
-                  <th className="num">Kulut / urakat</th>
-                  <th className="num">Yhteensä</th>
-                </tr>
-              </thead>
-              <tbody>
-                {customerBillableCalculation.byUser.map((u) => (
-                  <tr key={u.userId}>
-                    <td>{u.userName}</td>
-                    <td className="num">{u.hoursQty.toFixed(2)} h</td>
-                    <td className="num">{formatEuro(u.hoursTotal)}</td>
-                    <td className="num">{formatEuro(u.expensesTotal + u.fixedTotal + (u.commissionTotal ?? 0))}</td>
-                    <td className="num">{formatEuro(u.subtotal)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <WorkReportBillingBreakdown calculation={customerBillableCalculation} />
           <div className="form-actions" style={{ justifyContent: 'flex-start' }}>
             <Tooltip label="Tuloste sisältää asiakkaalta laskutettavan yhteenvedon, kun summat on laskettu.">
               <Link to={`/tyoraportit/${report.id}/tuloste`} className="btn btn-secondary">

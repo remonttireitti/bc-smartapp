@@ -3510,6 +3510,14 @@ textarea {
     align-items: stretch;
   }
 
+  .billing-table-detail {
+    min-width: 36rem;
+  }
+
+  .billing-table-detail td:nth-child(4) {
+    max-width: 9rem;
+  }
+
   .leave-draft-overlay {
     align-items: flex-end;
     padding: 0;
@@ -6395,6 +6403,37 @@ textarea {
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
+}
+
+.billing-breakdown {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.billing-breakdown-heading {
+  margin: 0.25rem 0 0;
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+
+.billing-breakdown-heading.muted-heading {
+  font-weight: 600;
+}
+
+.billing-table-detail th,
+.billing-table-detail td {
+  font-size: 0.88rem;
+  vertical-align: top;
+}
+
+.billing-table-detail td:nth-child(4) {
+  word-break: break-word;
+  max-width: 12rem;
+}
+
+.billing-table-excluded tbody tr {
+  opacity: 0.85;
 }
 
 .expense-billing-options {
