@@ -40,11 +40,13 @@ Deno.serve(async (req) => {
 
     const { data: adminProfile } = await userClient
       .from('profiles')
-      .select('role, company_id')
+      .select('role, company_id, is_global_admin')
       .eq('id', authData.user.id)
       .single();
 
-    if (!adminProfile || adminProfile.role !== 'admin') {
+    const isGlobalAdmin = adminProfile?.is_global_admin === true;
+
+    if (!adminProfile || (adminProfile.role !== 'admin' && !isGlobalAdmin)) {
       return new Response(JSON.stringify({ error: 'Vain ylläpitäjä voi kutsua käyttäjiä' }), {
         status: 403,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -66,7 +68,7 @@ Deno.serve(async (req) => {
         ? String(body.customer_id).trim()
         : null;
 
-    if (!email || companyId !== adminProfile.company_id) {
+    if (!email || (!isGlobalAdmin && companyId !== adminProfile.company_id)) {
       return new Response(JSON.stringify({ error: 'Virheelliset tiedot' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -126,6 +128,7 @@ Deno.serve(async (req) => {
       company_id: companyId,
       role,
       display_name: displayName,
+      must_change_password: true,
       ...(subscriberId ? { subscriber_id: subscriberId } : {}),
       ...(customerId ? { customer_id: customerId } : {}),
     };
@@ -161,6 +164,7 @@ Deno.serve(async (req) => {
         display_name: displayName,
         subscriber_id: role === 'subscriber' ? subscriberId : null,
         customer_id: role === 'customer' ? customerId : null,
+        must_change_password: true,
       },
       { onConflict: 'id' },
     );

@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useState } from 'react';
-import { useOutletContext } from 'react-router-dom';
+import { Link, useOutletContext } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { ROLE_LABELS } from '../lib/management';
 import type { ManagementOutletContext } from '../lib/managementOutletContext';
@@ -158,6 +158,10 @@ export default function ProfileSettingsPage() {
           {busy ? 'Tallennetaan…' : 'Tallenna'}
         </button>
       </form>
+
+      <p style={{ marginTop: '1.25rem' }}>
+        <Link to="/vaihda-salasana">Vaihda salasana</Link>
+      </p>
     </section>
   );
 }

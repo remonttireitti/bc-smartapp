@@ -61,6 +61,7 @@ export default function UsersPage() {
     password: 'test123456',
     display_name: '',
     role: 'technician',
+    company_id: '',
   });
   const [busy, setBusy] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<CompanyUser | null>(null);
@@ -78,6 +79,12 @@ export default function UsersPage() {
     if (!gbaActive) return;
     void loadCompanies();
   }, [gbaActive]);
+
+  useEffect(() => {
+    if (profile.company_id && !invite.company_id) {
+      setInvite((current) => ({ ...current, company_id: profile.company_id ?? '' }));
+    }
+  }, [profile.company_id, invite.company_id]);
 
   async function loadCompanies() {
     const { data } = await supabase.from('companies').select('id, name, slug, settings').order('name');
@@ -230,7 +237,7 @@ export default function UsersPage() {
         password: invite.password,
         display_name: invite.display_name.trim() || invite.email.split('@')[0],
         role: invite.role,
-        company_id: profile.company_id,
+        company_id: gbaActive ? invite.company_id || profile.company_id : profile.company_id,
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Käyttäjän luonti epäonnistui');
@@ -239,8 +246,16 @@ export default function UsersPage() {
       setBusy(false);
     }
 
-    setMessage(`Käyttäjä ${invite.email} luotu. Kirjautuminen: ${invite.email} / ${invite.password}`);
-    setInvite({ email: '', password: 'test123456', display_name: '', role: 'technician' });
+    setMessage(
+      `Käyttäjä ${invite.email} luotu. Kirjautuminen: ${invite.email} / ${invite.password}. Käyttäjän täytyy vaihtaa salasana ensimmäisellä kerralla.`,
+    );
+    setInvite({
+      email: '',
+      password: 'test123456',
+      display_name: '',
+      role: 'technician',
+      company_id: gbaActive ? invite.company_id : profile.company_id ?? '',
+    });
     await loadUsers();
   }
 
@@ -525,8 +540,27 @@ export default function UsersPage() {
 
       <section className="panel form-grid">
         <h2>Lisää käyttäjä</h2>
+        <p className="muted">
+          Väliaikainen salasana pakottaa käyttäjän vaihtamaan sen heti ensimmäisellä kirjautumisella.
+        </p>
         <form onSubmit={inviteUser}>
           <div className="line-form-grid">
+            {gbaActive && companies.length > 0 && (
+              <label>
+                Yritys
+                <select
+                  value={invite.company_id}
+                  onChange={(e) => setInvite((i) => ({ ...i, company_id: e.target.value }))}
+                  required
+                >
+                  {companies.map((company) => (
+                    <option key={company.id} value={company.id}>
+                      {company.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
             <label>
               Sähköposti
               <input

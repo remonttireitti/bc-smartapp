@@ -9040,3 +9040,72 @@ button.vrf-toggle:not(:disabled) {
     min-height: 118px;
   }
 }
+
+.license-status-panel {
+  margin-bottom: 1rem;
+}
+
+.license-status-lead {
+  margin: 0 0 1rem;
+}
+
+.license-status-trial {
+  color: #0f766e;
+}
+
+.license-status-expired {
+  color: #b45309;
+}
+
+.license-pricing-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.license-pricing-card {
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 0.75rem;
+  padding: 0.85rem;
+  background: #fff;
+}
+
+.license-pricing-card.is-active {
+  border-color: #86efac;
+  background: #f0fdf4;
+}
+
+.license-pricing-card h3 {
+  margin: 0 0 0.35rem;
+  font-size: 1rem;
+}
+
+.license-price {
+  margin: 0.5rem 0 0.25rem;
+  font-weight: 700;
+}
+
+.license-state {
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.license-usage-block {
+  margin-top: 1rem;
+}
+
+.license-usage-list {
+  margin: 0.35rem 0 0;
+  padding-left: 1.2rem;
+}
+
+.license-locked-panel h1 {
+  margin-top: 0;
+}
+
+.license-admin-module-toggles {
+  display: grid;
+  gap: 0.65rem;
+  margin: 0.75rem 0 1rem;
+}

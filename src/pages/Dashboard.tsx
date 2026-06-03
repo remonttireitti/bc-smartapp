@@ -3,10 +3,13 @@ import { Link } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
 import { Navigate } from 'react-router-dom';
 import AppLayout from '../components/AppLayout';
+import LicenseStatusPanel from '../components/LicenseStatusPanel';
 import PendingWorkOrdersBanner from '../components/PendingWorkOrdersBanner';
 import QuickSearch from '../components/QuickSearch';
 import { useCompanyBillingModuleEnabled } from '../hooks/useCompanyBillingModuleEnabled';
+import { useCompanyLicense } from '../hooks/useCompanyLicense';
 import { useProfile } from '../hooks/useProfile';
+import { isLicenseModuleAccessible, type LicenseModuleKey } from '../lib/companyLicense';
 import { isMonitorViewerRole, monitorReaderHubPath } from '../lib/monitorReaderShares';
 import { ROLE_LABELS } from '../lib/management';
 import { getPortalPreviewLabel, isPortalPreviewActive, isPortalView } from '../lib/portalPreview';
@@ -22,23 +25,25 @@ type ModuleTile = {
   color: string;
   href: string;
   menuPath?: string;
+  licenseModule?: LicenseModuleKey;
 };
 
 const MODULES: ModuleTile[] = [
-  { title: 'Työraportti', desc: 'Työtilaukset ja raportit', color: '#0ea5e9', href: '/tyoraportit' },
-  { title: 'Laskutus', desc: 'Kumppani- ja asiakaslaskutus', color: '#6366f1', href: '/laskutus' },
-  { title: 'Huoltoraportti', desc: 'Huoltopöytäkirjat ja laiterekisteri', color: '#22c55e', href: '/huoltoraportit' },
-  { title: 'Asiakkaat', desc: 'Asiakkaat, laitteet, dokumentit', color: '#3b82f6', href: '/asiakkaat' },
-  { title: 'Tarjouspyyntö', desc: 'Tarjoukset, laskelmat ja tulosteet', color: '#f97316', href: '/tarjouspyynnot' },
-  { title: 'Varasto', desc: 'Materiaalit ja kylmäaine', color: '#a855f7', href: '/varasto' },
+  { title: 'Työraportti', desc: 'Työtilaukset ja raportit', color: '#0ea5e9', href: '/tyoraportit', licenseModule: 'base' },
+  { title: 'Laskutus', desc: 'Kumppani- ja asiakaslaskutus', color: '#6366f1', href: '/laskutus', licenseModule: 'billing' },
+  { title: 'Huoltoraportti', desc: 'Huoltopöytäkirjat ja laiterekisteri', color: '#22c55e', href: '/huoltoraportit', licenseModule: 'base' },
+  { title: 'Asiakkaat', desc: 'Asiakkaat, laitteet, dokumentit', color: '#3b82f6', href: '/asiakkaat', licenseModule: 'base' },
+  { title: 'Tarjouspyyntö', desc: 'Tarjoukset, laskelmat ja tulosteet', color: '#f97316', href: '/tarjouspyynnot', licenseModule: 'quotes' },
+  { title: 'Varasto', desc: 'Materiaalit ja kylmäaine', color: '#a855f7', href: '/varasto', licenseModule: 'base' },
   {
     title: 'Etäohjaus ja seuranta',
     desc: 'Lämpötilaseuranta ja VRF-laitteet',
     menuPath: 'Etusivu → Etäohjaus ja seuranta',
     color: '#14b8a6',
     href: '/etaseuranta',
+    licenseModule: 'remote_monitoring',
   },
-  { title: 'Työkalut', desc: 'Työkaluinventaario', color: '#ec4899', href: '/tyokalut' },
+  { title: 'Työkalut', desc: 'Työkaluinventaario', color: '#ec4899', href: '/tyokalut', licenseModule: 'tools' },
   { title: 'Hallinta', desc: 'Omat tiedot, yritys ja kumppanuudet', color: '#8b5cf6', href: '/hallinta/omat' },
 ];
 
@@ -62,14 +67,19 @@ const EMPTY_PENDING: PendingWorkOrderCounts = {
 export default function Dashboard({ session }: Props) {
   const { profile } = useProfile(session);
   const billingModuleEnabled = useCompanyBillingModuleEnabled(profile?.company_id, session);
+  const { license } = useCompanyLicense(profile?.company_id, session, !!profile?.is_global_admin);
   const portalView = isPortalView(profile);
   const visibleModules = useMemo(() => {
     if (portalView) return PORTAL_MODULES;
-    if (billingModuleEnabled === false) {
-      return MODULES.filter((m) => m.href !== '/laskutus');
-    }
-    return MODULES;
-  }, [portalView, billingModuleEnabled]);
+    return MODULES.filter((m) => {
+      if (!m.licenseModule) return true;
+      if (license && license.enrollment !== 'legacy') {
+        return isLicenseModuleAccessible(license, m.licenseModule);
+      }
+      if (m.licenseModule === 'billing' && billingModuleEnabled === false) return false;
+      return true;
+    });
+  }, [portalView, license, billingModuleEnabled]);
   const [pendingOrders, setPendingOrders] = useState<PendingWorkOrderCounts>(EMPTY_PENDING);
 
   const companyId = profile?.company_id ?? '';
@@ -99,6 +109,10 @@ export default function Dashboard({ session }: Props) {
 
       {!portalView && pendingOrders.total > 0 && (
         <PendingWorkOrdersBanner counts={pendingOrders} />
+      )}
+
+      {!portalView && license && license.enrollment !== 'legacy' && (
+        <LicenseStatusPanel license={license} />
       )}
 
       {!portalView && (

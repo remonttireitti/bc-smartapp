@@ -16,6 +16,7 @@ type ProfileRow = {
   subscriber_id?: string | null;
   customer_id?: string | null;
   is_global_admin?: boolean;
+  must_change_password?: boolean;
 };
 
 async function fetchCompany(companyId: string) {
@@ -47,7 +48,7 @@ export function useProfile(session: Session | null) {
 
       let { data, error } = await supabase
         .from('profiles')
-        .select('id, display_name, email, tukes_number, home_address, workplace_address, trip_departure_source, role, company_id, subscriber_id, customer_id, is_global_admin')
+        .select('id, display_name, email, tukes_number, home_address, workplace_address, trip_departure_source, role, company_id, subscriber_id, customer_id, is_global_admin, must_change_password')
         .eq('id', userId)
         .maybeSingle();
 
@@ -63,7 +64,7 @@ export function useProfile(session: Session | null) {
         });
         const retry = await supabase
           .from('profiles')
-          .select('id, display_name, email, tukes_number, home_address, workplace_address, trip_departure_source, role, company_id, subscriber_id, customer_id, is_global_admin')
+          .select('id, display_name, email, tukes_number, home_address, workplace_address, trip_departure_source, role, company_id, subscriber_id, customer_id, is_global_admin, must_change_password')
           .eq('id', userId)
           .maybeSingle();
         data = retry.data;
@@ -109,6 +110,8 @@ export function useProfile(session: Session | null) {
         subscriber_id: row.subscriber_id ?? null,
         customer_id: row.customer_id ?? null,
         is_global_admin: isGlobalAdmin,
+        must_change_password:
+          row.must_change_password === true || meta.must_change_password === true,
         companies: company,
       });
       setLoading(false);

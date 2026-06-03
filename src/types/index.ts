@@ -27,6 +27,8 @@ export type Profile = {
   bill_hours_enabled?: boolean;
   bill_expenses_enabled?: boolean;
   is_global_admin?: boolean;
+  /** Pakollinen salasanan vaihto ennen muuta käyttöä (väliaikainen salasana). */
+  must_change_password?: boolean;
   companies: { id: string; name: string } | null;
 };
 

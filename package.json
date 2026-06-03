@@ -14,7 +14,8 @@
     "gen:types": "npx supabase gen types typescript --local > src/lib/database.types.ts",
     "setup:user": "node scripts/setup-dev-user.mjs",
     "setup:dev": "node scripts/setup-dev-users.mjs",
-    "invite:user": "node scripts/invite-user.mjs"
+    "invite:user": "node scripts/invite-user.mjs",
+    "docs:pdf": "node scripts/generate-user-guide-pdf.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.1",
