@@ -54,6 +54,7 @@ import {
 import {
   BILLABLE_RATES_SOURCE_LABELS,
   hasPartnerBillingRates,
+  loadCompanyTracksCustomerInvoicing,
   parseCompanySettings,
   parseCustomerBillingRates,
   parsePartnerBillingRates,
@@ -94,6 +95,7 @@ import {
 import { loadTripDestinationOptions, type TripDestinationOption } from '../lib/tripDestinations';
 import {
   isAutoTripKmExpense,
+  parseTripKmCustomerRate,
   parseTripKmRate,
   syncTripKmExpenseDrafts,
 } from '../lib/tripKmExpense';
@@ -748,6 +750,7 @@ export default function WorkReportDetailPage({ session }: Props) {
   const [tripDestinationOptions, setTripDestinationOptions] = useState<TripDestinationOption[]>([]);
   const [tripDepartureLabel, setTripDepartureLabel] = useState('');
   const [tripKmRate, setTripKmRate] = useState<number | null>(null);
+  const [tripKmCustomerRate, setTripKmCustomerRate] = useState<number | null>(null);
   const [refrigerantDrafts, setRefrigerantDrafts] = useState<RefrigerantLineDraft[]>([]);
   const [refrigerantCylinders, setRefrigerantCylinders] = useState<RefrigerantCylinder[]>([]);
   const [refrigerantCompanyUsers, setRefrigerantCompanyUsers] = useState<
@@ -772,7 +775,7 @@ export default function WorkReportDetailPage({ session }: Props) {
   const creatorPartnerBilling = useCompanyBillingEnabled(report?.created_by_company_id, session);
   const ownerCustomerInvoicing = useCompanyCustomerBillingEnabled(report?.owner_company_id, session);
   const partnerBillingEnabled = billingModuleEnabled !== false && creatorPartnerBilling;
-  const customerInvoicingEnabled = billingModuleEnabled !== false && ownerCustomerInvoicing;
+  const customerInvoicingEnabled = ownerCustomerInvoicing === true;
 
   useEffect(() => {
     if (!logDialogOpen || !editingLogId) return;
@@ -782,8 +785,10 @@ export default function WorkReportDetailPage({ session }: Props) {
 
   useEffect(() => {
     if (!logDialogOpen) return;
-    setExpenseDrafts((current) => syncTripKmExpenseDrafts(current, tripDrafts, tripKmRate));
-  }, [logDialogOpen, tripDrafts, tripKmRate]);
+    setExpenseDrafts((current) =>
+      syncTripKmExpenseDrafts(current, tripDrafts, tripKmRate, tripKmCustomerRate),
+    );
+  }, [logDialogOpen, tripDrafts, tripKmRate, tripKmCustomerRate]);
 
   useEffect(() => {
     if (id && profile?.company_id) void load(id);
@@ -845,12 +850,20 @@ export default function WorkReportDetailPage({ session }: Props) {
 
     if (isPartnerReport && profile?.company_id === reportRow.created_by_company_id) {
       await refreshBillable(reportRow, logs);
-    } else if (!isPartnerReport && profile?.company_id === reportRow.owner_company_id) {
-      await refreshCustomerBillable(reportRow, logs);
     } else {
       setBillableCalculation(null);
-      setCustomerBillableCalculation(null);
       setBillableUsers([]);
+    }
+
+    if (profile?.company_id === reportRow.owner_company_id) {
+      const tracksCustomer = await loadCompanyTracksCustomerInvoicing(supabase, reportRow.owner_company_id);
+      if (tracksCustomer) {
+        await refreshCustomerBillable(reportRow, logs);
+      } else {
+        setCustomerBillableCalculation(null);
+      }
+    } else {
+      setCustomerBillableCalculation(null);
     }
   }
 
@@ -1408,8 +1421,7 @@ export default function WorkReportDetailPage({ session }: Props) {
     const expenseError = await saveExpenseLines(
       logRow.id,
       expenseDrafts,
-      report.created_by_company_id === report.owner_company_id &&
-        !(!!report.delegate_company_id && report.created_by_company_id === report.owner_company_id),
+      profile?.company_id === report.owner_company_id && customerInvoicingEnabled,
     );
     if (expenseError) {
       setLogDialogBusy(false);
@@ -1473,13 +1485,25 @@ export default function WorkReportDetailPage({ session }: Props) {
     });
   }
 
-  async function loadTripKmRateForReport(activeReport: WorkReport) {
-    const { data: companyRow } = await supabase
-      .from('companies')
-      .select('settings')
-      .eq('id', activeReport.created_by_company_id)
-      .maybeSingle();
-    return parseTripKmRate(parseCompanySettings((companyRow as { settings: unknown } | null)?.settings));
+  async function loadTripKmRatesForReport(activeReport: WorkReport) {
+    const [{ data: creatorRow }, { data: ownerRow }] = await Promise.all([
+      supabase
+        .from('companies')
+        .select('settings')
+        .eq('id', activeReport.created_by_company_id)
+        .maybeSingle(),
+      supabase
+        .from('companies')
+        .select('settings')
+        .eq('id', activeReport.owner_company_id)
+        .maybeSingle(),
+    ]);
+    const creatorSettings = parseCompanySettings((creatorRow as { settings: unknown } | null)?.settings);
+    const ownerSettings = parseCompanySettings((ownerRow as { settings: unknown } | null)?.settings);
+    return {
+      kmRate: parseTripKmRate(creatorSettings),
+      customerKmRate: parseTripKmCustomerRate(ownerSettings),
+    };
   }
 
   async function loadTripDestinationOptionsForDialog(activeReport: WorkReport) {
@@ -1519,12 +1543,13 @@ export default function WorkReportDetailPage({ session }: Props) {
     void loadRefrigerantContext();
     if (report) {
       void (async () => {
-        const [departureLabel, kmRate] = await Promise.all([
+        const [departureLabel, kmRates] = await Promise.all([
           resolveTripDepartureLabel(report.owner_company_id),
-          loadTripKmRateForReport(report),
+          loadTripKmRatesForReport(report),
         ]);
         setTripDepartureLabel(departureLabel);
-        setTripKmRate(kmRate);
+        setTripKmRate(kmRates.kmRate);
+        setTripKmCustomerRate(kmRates.customerKmRate);
         await loadTripDestinationOptionsForDialog(report);
         setTripDrafts(buildDefaultTripLegs(departureLabel, resolveWorkReportSiteLabel(report)));
       })();
@@ -1533,6 +1558,7 @@ export default function WorkReportDetailPage({ session }: Props) {
       setTripDestinationOptions([]);
       setTripDepartureLabel('');
       setTripKmRate(null);
+      setTripKmCustomerRate(null);
     }
   }
 
@@ -1548,25 +1574,24 @@ export default function WorkReportDetailPage({ session }: Props) {
     setLogDialogOpen(true);
     if (report) {
       void (async () => {
-        const [departureLabel, kmRate] = await Promise.all([
+        const [departureLabel, kmRates] = await Promise.all([
           resolveTripDepartureLabel(report.owner_company_id),
-          loadTripKmRateForReport(report),
+          loadTripKmRatesForReport(report),
         ]);
         setTripDepartureLabel(departureLabel);
-        setTripKmRate(kmRate);
+        setTripKmRate(kmRates.kmRate);
+        setTripKmCustomerRate(kmRates.customerKmRate);
         await loadTripDestinationOptionsForDialog(report);
-        setTripDrafts(normalizeTripLegDrafts(tripLegsToDrafts(log.trip_legs), departureLabel));
+        const normalizedLegs = normalizeTripLegDrafts(tripLegsToDrafts(log.trip_legs), departureLabel);
+        setTripDrafts(normalizedLegs);
         setExpenseDrafts((current) =>
-          syncTripKmExpenseDrafts(
-            current,
-            normalizeTripLegDrafts(tripLegsToDrafts(log.trip_legs), departureLabel),
-            kmRate,
-          ),
+          syncTripKmExpenseDrafts(current, normalizedLegs, kmRates.kmRate, kmRates.customerKmRate),
         );
       })();
     } else {
       setTripDepartureLabel('');
       setTripKmRate(null);
+      setTripKmCustomerRate(null);
     }
     void loadRefrigerantContext(drafts.map((d) => d.cylinder_id).filter(Boolean));
   }
@@ -1582,6 +1607,7 @@ export default function WorkReportDetailPage({ session }: Props) {
     setTripDestinationOptions([]);
     setTripDepartureLabel('');
     setTripKmRate(null);
+    setTripKmCustomerRate(null);
     setRefrigerantDrafts([]);
     setPendingImages([]);
     setError(null);
@@ -1636,8 +1662,7 @@ export default function WorkReportDetailPage({ session }: Props) {
     const expenseError = await saveExpenseLines(
       editingLogId,
       expenseDrafts,
-      report.created_by_company_id === report.owner_company_id &&
-        !(!!report.delegate_company_id && report.created_by_company_id === report.owner_company_id),
+      profile?.company_id === report.owner_company_id && customerInvoicingEnabled,
     );
     if (expenseError) {
       setLogDialogBusy(false);
@@ -1786,8 +1811,7 @@ export default function WorkReportDetailPage({ session }: Props) {
     : (report.owner_company?.name ?? '—');
   const showMoneyBilling =
     isPartnerReport && canSeeCreatorBilling && !!billableCalculation;
-  const showCustomerMoney =
-    !isPartnerReport && isOwnerCompany;
+  const showCustomerMoney = isOwnerCompany && customerInvoicingEnabled;
   const showCustomerMoneyBilling =
     showCustomerMoney && !!customerBillableCalculation;
   const portalReadOnly = isPortalReadOnly(profile);

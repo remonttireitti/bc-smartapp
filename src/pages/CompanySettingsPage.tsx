@@ -242,12 +242,12 @@ export default function CompanySettingsPage() {
       <section className="form-section">
         <h2>Ajomatkat</h2>
         <p className="muted">
-          Km-korvauksen hintaa käytetään työkirjauksen automaattiseen km-korvausriviin ajomatkojen yhteiskilometrien
-          perusteella.
+          Km-hintoja käytetään työkirjauksen automaattiseen km-korvausriviin. Oma hinta on kustannus tai
+          kumppanille kirjattava summa; asiakashinta erikseen asiakaslaskutuksessa.
         </p>
         <div className="line-form-grid">
           <label>
-            Km-korvauksen hinta (€/km)
+            Km-korvaus — oma hinta (€/km)
             <input
               type="number"
               step="0.01"
@@ -261,6 +261,23 @@ export default function CompanySettingsPage() {
                 }));
               }}
               placeholder="Esim. 0,53"
+            />
+          </label>
+          <label>
+            Km-korvaus — asiakkaalle (€/km)
+            <input
+              type="number"
+              step="0.01"
+              min="0"
+              value={settings.trip_km_customer_rate ?? ''}
+              onChange={(e) => {
+                const raw = e.target.value.trim();
+                setSettings((current) => ({
+                  ...current,
+                  trip_km_customer_rate: raw ? Number(raw) : undefined,
+                }));
+              }}
+              placeholder="Esim. 0,80"
             />
           </label>
         </div>
@@ -282,44 +299,43 @@ export default function CompanySettingsPage() {
         </p>
       </section>
 
+      <section className="form-section">
+        <h2>Asiakaslaskutuksen seuranta</h2>
+        <ToggleSwitch
+          label="Seurataan laskutusta asiakkaalta"
+          checked={settings.billing?.track_customer_invoicing ?? false}
+          onChange={(track_customer_invoicing) =>
+            setSettings((s) => ({
+              ...s,
+              billing: { ...s.billing, track_customer_invoicing },
+            }))
+          }
+        />
+        <p className="muted">
+          Koskee työraportteja ja tarjouspyyntöjä. Ei liity Laskutus-moduuliin (kumppanilaskutus). Työraportissa näkyy
+          asiakkaalle laskutettava summa ja tila erillään kumppanilaskutuksesta. Kumppanin tulosteessa voidaan näyttää
+          myös asiakkaalta laskutettava.
+        </p>
+      </section>
+
+      <section className="form-section">
+        <h2>Asiakaslaskutuksen oletustuntihinnat</h2>
+        <p className="muted">
+          Oletustuntihinnat työraportin asiakaslaskutuksessa. Kulurivillä oma hinta (ostohinta) ja erillinen asiakashinta.
+        </p>
+        <PartnerBillingRatesFields
+          rates={settings.billing?.customer_rates ?? {}}
+          onChange={(customer_rates) =>
+            setSettings((s) => ({
+              ...s,
+              billing: { ...s.billing, customer_rates: { ...s.billing?.customer_rates, ...customer_rates } },
+            }))
+          }
+        />
+      </section>
+
       {showBillingSettings ? (
         <>
-          <section className="form-section">
-            <h2>Laskutus</h2>
-            <ToggleSwitch
-              label="Seurataan laskutuksia asiakkailta"
-              checked={settings.billing?.track_customer_invoicing ?? false}
-              onChange={(track_customer_invoicing) =>
-                setSettings((s) => ({
-                  ...s,
-                  billing: { ...s.billing, track_customer_invoicing },
-                }))
-              }
-            />
-            <p className="muted">
-              Kun päällä, työraportissa näkyy asiakaslaskutuksen tila erillään kumppanilaskutuksesta. Voit merkitä
-              asiakkaan laskutetuksi vaikka kumppanilaskutus olisi yhä auki — ja päinvastoin. Kumppanilaskutus
-              hallitaan Laskutus-moduulissa ja käyttäjien laskutusasetuksista (Hallinta → Käyttäjät).
-            </p>
-          </section>
-
-          <section className="form-section">
-            <h2>Asiakaslaskutuksen oletustuntihinnat</h2>
-            <p className="muted">
-              Oletustuntihinnat omien työraporttien asiakaslaskutuksessa. Voit poiketa yksittäisessä päiväkirjauksessa
-              tai raporttikohtaisilla hinnoilla. Tarvikkeiden ja varaosien asiakashinta syötetään kuluriville.
-            </p>
-            <PartnerBillingRatesFields
-              rates={settings.billing?.customer_rates ?? {}}
-              onChange={(customer_rates) =>
-                setSettings((s) => ({
-                  ...s,
-                  billing: { ...s.billing, customer_rates: { ...s.billing?.customer_rates, ...customer_rates } },
-                }))
-              }
-            />
-          </section>
-
           <section className="form-section">
             <h2>Kumppanilaskutuksen oletushinnat</h2>
             <p className="muted">
@@ -341,7 +357,8 @@ export default function CompanySettingsPage() {
       ) : (
         <section className="form-section">
           <p className="muted">
-            Laskutusmoduuli ei ole käytössä tälle yritykselle. Kumppani- ja asiakaslaskutuksen asetukset on piilotettu.
+            Laskutusmoduuli (kumppanilaskutus) ei ole käytössä. Kumppanilaskutuksen oletushinnat on piilotettu — ota
+            moduuli käyttöön globaalissa hallinnassa tarvittaessa.
           </p>
         </section>
       )}

@@ -120,16 +120,46 @@ function partnerBillingLinesForPrint(
   return lines.filter((line) => line.included || line.kind === 'refrigerant');
 }
 
+function customerBillingPrintSection(
+  customerCalculation: BillableCalculation,
+  customerLabel: string,
+): string {
+  return printBox(
+    'Asiakkaalta laskutettava',
+    `<p class="meta-line">Asiakas: <strong>${esc(customerLabel)}</strong></p>
+    <table>
+      <thead>
+        <tr><th>Henkilö</th><th class="num">Työt (€)</th><th class="num">Kulut / urakat</th><th class="num">Yhteensä</th></tr>
+      </thead>
+      <tbody>
+        ${customerCalculation.byUser
+          .map(
+            (u) => `<tr>
+              <td>${esc(u.userName)}</td>
+              <td class="num">${formatEuro(u.hoursTotal)}</td>
+              <td class="num">${formatEuro(u.expensesTotal + u.fixedTotal + (u.commissionTotal ?? 0))}</td>
+              <td class="num"><strong>${formatEuro(u.subtotal)}</strong></td>
+            </tr>`,
+          )
+          .join('')}
+      </tbody>
+    </table>
+    <p class="grand-total"><strong>Asiakkaalta laskutettava yhteensä: ${formatEuro(customerCalculation.grandTotal)}</strong></p>`,
+  );
+}
+
 export function generateWorkReportPrintHtml(input: {
   report: WorkReport;
   logs: WorkReportDailyLog[];
   logImages?: Record<string, WorkReportPrintLogImage[]>;
   showPartnerPrices: boolean;
   calculation: BillableCalculation | null;
+  customerCalculation?: BillableCalculation | null;
   meta: WorkReportPrintMeta;
   hideAssignee?: boolean;
 }) {
-  const { report, logs, logImages = {}, showPartnerPrices, calculation, meta, hideAssignee } = input;
+  const { report, logs, logImages = {}, showPartnerPrices, calculation, customerCalculation, meta, hideAssignee } =
+    input;
   const isDelegatedOrder =
     !!report.delegate_company_id && report.created_by_company_id === report.owner_company_id;
   const billedPartnerName = isDelegatedOrder
@@ -142,14 +172,30 @@ export function generateWorkReportPrintHtml(input: {
     .map((log) => {
       const expenses = log.expense_lines ?? [];
       const refrigerantLines = log.refrigerant_lines ?? [];
+      const showCustomerExpensePrices =
+        !!customerCalculation && customerCalculation.grandTotal > 0;
       const expenseRows = expenses
         .map((line) => {
           const label = EXPENSE_TYPE_LABELS[line.expense_type] ?? line.expense_type;
           const qty = Number(line.qty);
           const unit = Number(line.unit_price);
           const total = expenseLineTotal(line);
+          const customerUnit =
+            line.customer_unit_price != null && Number(line.customer_unit_price) > 0
+              ? Number(line.customer_unit_price)
+              : unit;
+          const customerTotal = expenseLineTotal({ ...line, unit_price: customerUnit });
           if (showPartnerPrices) {
-            return `<tr><td>${esc(label)}</td><td>${esc(line.description)}</td><td class="num">${qty} × ${formatEuro(unit)} = ${formatEuro(total)}</td></tr>`;
+            const customerNote =
+              showCustomerExpensePrices && line.bill_to_customer !== false && customerUnit !== unit
+                ? ` · asiakas ${formatEuro(customerUnit)} = ${formatEuro(customerTotal)}`
+                : showCustomerExpensePrices && line.bill_to_customer !== false
+                  ? ` · asiakas ${formatEuro(customerTotal)}`
+                  : '';
+            return `<tr><td>${esc(label)}</td><td>${esc(line.description)}</td><td class="num">${qty} × ${formatEuro(unit)} = ${formatEuro(total)}${esc(customerNote)}</td></tr>`;
+          }
+          if (showCustomerExpensePrices && line.bill_to_customer !== false) {
+            return `<tr><td>${esc(label)}</td><td>${esc(line.description)}</td><td class="num">${qty} × ${formatEuro(customerUnit)} = ${formatEuro(customerTotal)}</td></tr>`;
           }
           return `<tr><td>${esc(label)}</td><td>${esc(line.description)}</td><td class="num">${qty}</td></tr>`;
         })
@@ -416,6 +462,12 @@ export function generateWorkReportPrintHtml(input: {
         )
       : '';
 
+  const billingCustomerName = report.customers?.name ?? customerLabel;
+  const customerBillingSection =
+    customerCalculation && customerCalculation.grandTotal > 0
+      ? customerBillingPrintSection(customerCalculation, billingCustomerName)
+      : '';
+
   return `<!doctype html>
 <html lang="fi">
 <head>
@@ -429,6 +481,7 @@ export function generateWorkReportPrintHtml(input: {
     ${detailsBox}
     ${logsBox}
     ${billingSection}
+    ${customerBillingSection}
     <div class="footer">
       ${esc(meta.companyName)} • Tulostettu ${new Date().toLocaleString('fi-FI')}${showPartnerPrices ? ' • Kumppanin hinnat mukana' : ''}
     </div>

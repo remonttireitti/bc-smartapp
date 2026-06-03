@@ -219,6 +219,30 @@ function quotePrintStyles(): string {
       border-top: 2px solid #34d399;
     }
     .summary-row.purchase td { color: #475569; }
+    .mutual-billing-box {
+      margin: 14px 0 0;
+      padding: 12px 14px;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      background: #f8fafc;
+    }
+    .mutual-billing-title {
+      font-weight: 700;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+      margin-bottom: 8px;
+      color: #334155;
+    }
+    .mutual-billing-grid {
+      margin: 0;
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 4px 12px;
+      font-size: 11px;
+    }
+    .mutual-billing-grid dt { color: #64748b; margin: 0; }
+    .mutual-billing-grid dd { margin: 0; }
     .print-enduser .col-internal { display: none; }
     .vat-notice {
       margin: 0 0 12px;
@@ -365,6 +389,26 @@ function printLegacyLineRow(line: QuoteLine, mode: QuotePrintMode): string {
     <td class="num">${formatEuro(total)}</td>
     <td class="num col-internal">${formatEuro(total)}</td>
   </tr>`;
+}
+
+function quoteCreatorMutualBillingBox(
+  internal: ReturnType<typeof computeQuoteInternalTotals>,
+  totalRowLabel: string,
+): string {
+  const customerTotal = quoteHasVat(internal.vatRate)
+    ? formatEuro(internal.grossTotal)
+    : formatEuro(internal.discountedSellNet);
+  return `<section class="mutual-billing-box">
+    <div class="mutual-billing-title">Keskinäinen laskutus (kumppanille / sisäinen)</div>
+    <dl class="mutual-billing-grid">
+      <dt>Asiakkaalta laskutettava (tarjoushinta)</dt>
+      <dd><strong>${customerTotal}</strong> <span class="line-sub">${esc(totalRowLabel)}</span></dd>
+      <dt>Hankinta / kustannus</dt>
+      <dd>${formatEuro(internal.purchaseNet)}</dd>
+      <dt>Kate</dt>
+      <dd>${formatEuro(internal.marginNet)} <span class="line-sub">(${internal.marginPercent.toLocaleString('fi-FI', { maximumFractionDigits: 1 })} % myynnistä)</span></dd>
+    </dl>
+  </section>`;
 }
 
 function creatorSummaryFooter(
@@ -622,6 +666,8 @@ export function generateQuoteOfferPrintHtml(input: {
       </tbody>
     </table>
 
+    ${mode === 'creator' && internal ? quoteCreatorMutualBillingBox(internal, totalRowLabel) : ''}
+
     ${optionCompareHtml}
 
     ${optionCards ? `<section>${optionCards}</section>` : ''}
@@ -825,6 +871,8 @@ export function generateQuoteServicePrintHtml(input: {
         ${quotePrintTableFooter(mode, { data, totals, internal, totalRowLabel })}
       </tbody>
     </table>
+
+    ${mode === 'creator' && internal ? quoteCreatorMutualBillingBox(internal, totalRowLabel) : ''}
 
     ${data.notes.trim() ? `<div class="notes"><strong>Huomautukset</strong><div>${esc(data.notes).replace(/\n/g, '<br />')}</div></div>` : ''}
 

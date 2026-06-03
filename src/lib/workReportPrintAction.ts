@@ -31,7 +31,7 @@ const LOG_SELECT = `
   commission_amount, commission_note, work_done, created_by, created_at,
   author_name_snapshot, author_deleted,
   author:profiles!work_report_daily_logs_created_by_fkey(display_name),
-  expense_lines:work_report_daily_expense_lines(id, daily_log_id, expense_type, description, qty, unit_price, sort_order),
+  expense_lines:work_report_daily_expense_lines(id, daily_log_id, expense_type, description, qty, unit_price, bill_to_customer, customer_unit_price, sort_order),
   refrigerant_lines:work_report_refrigerant_lines(
     id, daily_log_id, work_report_id, source, cylinder_id, warehouse_company_id, owner_user_id, supplier_name,
     supplier_paid_by, unit_price, customer_unit_price, bill_to_customer,
@@ -68,6 +68,7 @@ export async function buildWorkReportPrintHtmlDocument(input: {
   report: WorkReport;
   logs: WorkReportDailyLog[];
   calculation?: BillableCalculation | null;
+  customerCalculation?: BillableCalculation | null;
   showPartnerPrices?: boolean;
   viewerCompanyId?: string | null;
   client?: SupabaseClient;
@@ -103,6 +104,7 @@ export async function buildWorkReportPrintHtmlDocument(input: {
     logImages,
     showPartnerPrices: !!input.showPartnerPrices && isPartnerReport && !!calculation,
     calculation,
+    customerCalculation: input.customerCalculation ?? null,
     meta: { companyName, logoUrl },
     hideAssignee,
   });
@@ -125,7 +127,7 @@ export async function loadWorkReportPrintBundle(
         .order('created_at', { ascending: true }),
       db
         .from('work_report_billable')
-        .select('calculation')
+        .select('calculation, customer_calculation, customer_total')
         .eq('work_report_id', reportId)
         .maybeSingle(),
     ]);
@@ -138,17 +140,25 @@ export async function loadWorkReportPrintBundle(
   const logs = (logsData as unknown as WorkReportDailyLog[]) ?? [];
   const { isPartnerReport } = resolvePrintContext(report, options?.viewerCompanyId);
   const calculation = (billableData?.calculation as BillableCalculation | undefined) ?? null;
+  const customerCalculation =
+    (billableData?.customer_calculation as BillableCalculation | undefined) ?? null;
 
   const html = await buildWorkReportPrintHtmlDocument({
     report,
     logs,
     calculation: isPartnerReport ? calculation : null,
+    customerCalculation,
     showPartnerPrices: options?.showPartnerPrices,
     viewerCompanyId: options?.viewerCompanyId,
     client: db,
   });
 
-  return { report, html, calculation: isPartnerReport ? calculation : null };
+  return {
+    report,
+    html,
+    calculation: isPartnerReport ? calculation : null,
+    customerCalculation,
+  };
 }
 
 export async function openWorkReportPrint(input: {
@@ -165,6 +175,7 @@ export async function openWorkReportPrintFromLoaded(input: {
   report: WorkReport;
   logs: WorkReportDailyLog[];
   calculation?: BillableCalculation | null;
+  customerCalculation?: BillableCalculation | null;
   showPartnerPrices?: boolean;
   viewerCompanyId?: string | null;
   client?: SupabaseClient;

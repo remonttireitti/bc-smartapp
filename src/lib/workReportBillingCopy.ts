@@ -6,6 +6,7 @@ import {
   type InvoiceStatus,
   type WorkReportDailyLog,
 } from '../types';
+import { loadCompanyTracksCustomerInvoicing } from './management';
 import {
   formatRefrigerantLineLabel,
   refrigerantBillingReminder,
@@ -293,11 +294,7 @@ export async function companyHasCustomerBillableBilling(
   companyId: string,
 ): Promise<boolean> {
   if (!companyId) return false;
-  const { data: moduleRpc, error: moduleError } = await supabase.rpc('company_billing_module_enabled', {
-    p_company_id: companyId,
-  });
-  if (!moduleError) return !!moduleRpc;
-  return false;
+  return loadCompanyTracksCustomerInvoicing(supabase, companyId);
 }
 
 export function formatWorkReportCustomerBillingCopy(input: {

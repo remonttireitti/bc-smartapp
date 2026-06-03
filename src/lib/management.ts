@@ -73,8 +73,10 @@ export type CompanySettings = {
   website?: string;
   /** Tarjousten allekirjoittajan nimi (esim. Lämpökatsastus-tuloste). */
   quote_signatory_name?: string;
-  /** Oletushinta km-korvaukselle työkirjauksissa (€/km). */
+  /** Oma kustannus / kumppanille kirjattava km-hinta (€/km). */
   trip_km_rate?: number;
+  /** Asiakkaalle laskutettava km-hinta (€/km). */
+  trip_km_customer_rate?: number;
   billing?: {
     business_id?: string;
     vat_id?: string;
@@ -309,6 +311,7 @@ export function parseCompanySettings(raw: unknown): CompanySettings {
     ...base,
     ...s,
     trip_km_rate: parseOptionalPositiveNumber(s.trip_km_rate),
+    trip_km_customer_rate: parseOptionalPositiveNumber(s.trip_km_customer_rate),
     billing: {
       ...base.billing,
       ...(s.billing ?? {}),
