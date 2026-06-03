@@ -54,7 +54,12 @@ export function applyLegacyQuoteFields(
     if (Number.isFinite(height) && height > 0) out.roomHeight = height;
   }
 
-  if (!out.notes && typeof source.situationReportText === 'string' && source.situationReportText.trim()) {
+  // Migrate legacy situation report text only when notes was never stored (empty string = cleared).
+  if (
+    typeof source.notes !== 'string' &&
+    typeof source.situationReportText === 'string' &&
+    source.situationReportText.trim()
+  ) {
     out.notes = source.situationReportText.trim();
   }
 

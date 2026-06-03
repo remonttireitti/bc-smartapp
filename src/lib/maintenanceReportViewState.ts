@@ -12,6 +12,8 @@ export type MaintenanceReportEditorSnapshot = {
 export type MaintenanceReportViewState = {
   scrollY: number;
   savedAt: number;
+  /** Viimeisin onnistunut DB-tallennus (ms). Editor-snapshot ohittaa DB:n vain jos savedAt on uudempi. */
+  dbSyncedAt?: number;
   /** Avoinna olevat osiot (page:*, module:*, part:*). */
   openKeys?: string[];
   editor?: MaintenanceReportEditorSnapshot;
@@ -39,6 +41,14 @@ export function readMaintenanceReportViewState(key: string): MaintenanceReportVi
   }
 }
 
+/** Onko sessionStorage-editorissa tallentamattomia muutoksia verrattuna viimeiseen DB-tallennukseen. */
+export function maintenanceReportEditorAheadOfDb(key: string): boolean {
+  const saved = readMaintenanceReportViewState(key);
+  if (!saved?.editor) return false;
+  const syncedAt = saved.dbSyncedAt ?? 0;
+  return saved.savedAt > syncedAt;
+}
+
 /** Luonnos palautetaan vain lyhyen ajan sisällä (mobiili välilehti / kuva). */
 export function readFreshMaintenanceReportEditorSnapshot(
   key: string,
@@ -48,5 +58,22 @@ export function readFreshMaintenanceReportEditorSnapshot(
   const saved = readMaintenanceReportViewState(key);
   if (!saved?.editor || saved.editor.reportId !== reportId) return null;
   if (Date.now() - saved.savedAt > maxAgeMs) return null;
+  if (!maintenanceReportEditorAheadOfDb(key)) return null;
   return saved.editor;
+}
+
+/** Päivitä session-editor vastaamaan juuri tallennettua dataa (estää vanhan luonnoksen palautumisen). */
+export function syncMaintenanceReportEditorAfterSave(
+  key: string,
+  editor: MaintenanceReportEditorSnapshot,
+) {
+  const prev = readMaintenanceReportViewState(key);
+  const now = Date.now();
+  writeMaintenanceReportViewState(key, {
+    scrollY: prev?.scrollY ?? 0,
+    savedAt: now,
+    dbSyncedAt: now,
+    openKeys: prev?.openKeys,
+    editor,
+  });
 }

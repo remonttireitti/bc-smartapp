@@ -109,6 +109,7 @@ import { cloneHuoltoReportForSiblingEquipment } from '../lib/huoltoRaportti/clon
 import {
   maintenanceReportViewKey,
   readFreshMaintenanceReportEditorSnapshot,
+  syncMaintenanceReportEditorAfterSave,
 } from '../lib/maintenanceReportViewState';
 import { isMaintenanceReportPublished } from '../lib/maintenanceReportStatus';
 import { getMaintenanceReportStatusLabel } from '../types';
@@ -842,6 +843,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
         rowPayload.status = 'draft';
       }
 
+      let savedReportId = reportId;
       if (reportId) {
         const { error: updateError } = await supabase
           .from('maintenance_reports')
@@ -866,10 +868,11 @@ export default function MaintenanceReportEditPage({ session }: Props) {
           if (options?.auto) setAutoSaveState('offline');
           return false;
         }
-        setReportId(data.id);
+        savedReportId = (data as { id: string }).id;
+        setReportId(savedReportId);
         setSavedReportTitle(title);
         clearLocalMaintenanceDraft(localDraftKey(null, session.user.id));
-        navigate(`/huoltoraportit/${data.id}`, { replace: true, state: location.state });
+        navigate(`/huoltoraportit/${savedReportId}`, { replace: true, state: location.state });
       }
 
       if (nextStatus) setStatus(nextStatus);
@@ -880,7 +883,16 @@ export default function MaintenanceReportEditPage({ session }: Props) {
         setAutoSaveState('saved');
       }
       clearLocalMaintenanceDraft(draftStorageKey);
-      clearLocalMaintenanceDraft(localDraftKey(reportId, session.user.id));
+      clearLocalMaintenanceDraft(localDraftKey(savedReportId, session.user.id));
+
+      if (savedReportId) {
+        syncMaintenanceReportEditorAfterSave(maintenanceReportViewKey(savedReportId, session.user.id), {
+          reportId: savedReportId,
+          form: dataPayload,
+          customerId: customerId || '',
+          equipmentId: equipmentId || '',
+        });
+      }
 
       if (equipmentId) {
         try {
