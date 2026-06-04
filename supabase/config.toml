@@ -29,7 +29,7 @@ file_size_limit = "50MiB"
 
 [auth]
 enabled = true
-site_url = "http://localhost:5173"
+site_url = "https://bc-smartapp.vercel.app"
 additional_redirect_urls = [
   "http://localhost:5173",
   "http://localhost:5173/aseta-uusi-salasana",
