@@ -1,23 +1,22 @@
 import { Link } from 'react-router-dom';
+import CompanySubscriptionOrderForm from './CompanySubscriptionOrderForm';
 import { GLOBAL_ADMIN_SUPPORT } from '../lib/supportContacts';
 import {
   formatLicenseMoney,
+  formatLicensePeriodMoney,
   LICENSE_MODULE_DESCRIPTIONS,
   LICENSE_MODULE_LABELS,
+  LICENSE_PAYMENT_STATUS_LABELS,
+  PRICED_ADDON_MODULES,
   trialDaysRemaining,
   type CompanyLicenseSnapshot,
   type LicenseModuleKey,
 } from '../lib/companyLicense';
 
-const ADDON_MODULES: Exclude<LicenseModuleKey, 'base'>[] = [
-  'quotes',
-  'billing',
-  'remote_monitoring',
-  'tools',
-];
-
 type Props = {
   license: CompanyLicenseSnapshot;
+  canManageOrder?: boolean;
+  onRefresh?: () => void;
 };
 
 function formatDateFi(iso: string | null) {
@@ -25,11 +24,15 @@ function formatDateFi(iso: string | null) {
   return new Date(iso).toLocaleDateString('fi-FI');
 }
 
-export default function LicenseStatusPanel({ license }: Props) {
+export default function LicenseStatusPanel({ license, canManageOrder, onRefresh }: Props) {
   if (license.enrollment === 'legacy') return null;
 
   const daysLeft = trialDaysRemaining(license);
   const { pricing } = license;
+  const showOrderForm =
+    canManageOrder
+    && license.effective_status === 'expired'
+    && license.payment_status !== 'awaiting_payment';
 
   return (
     <section className="panel license-status-panel">
@@ -50,17 +53,27 @@ export default function LicenseStatusPanel({ license }: Props) {
         </p>
       )}
 
-      {license.effective_status === 'expired' && (
+      {license.effective_status === 'expired' && license.payment_status !== 'awaiting_payment' && (
         <p className="license-status-lead license-status-expired">
-          Kokeilujakso on päättynyt ({formatDateFi(license.trial_ends_at)}). Sovellus vaatii tilauksen jatkamiseen.
-          Ota yhteyttä BC Smartappiin.
+          Kokeilujakso on päättynyt ({formatDateFi(license.trial_ends_at)}). Valitse moduulit ja lähetä tilaus
+          alla, tai ota yhteyttä BC Smartappiin.
         </p>
       )}
 
       {license.effective_status === 'active' && (
         <p className="license-status-lead">
-          Tilaus voimassa. Arvioitu kuukausihinta:{' '}
-          <strong>{formatLicenseMoney(pricing.estimated_monthly_total_eur)}</strong>
+          Tilaus voimassa
+          {license.paid_through && <> · maksettu {formatDateFi(license.paid_through)} asti</>}.
+          Arvio jakson hinnasta ({license.billing_interval_label}):{' '}
+          <strong>{formatLicensePeriodMoney(pricing.estimated_period_total_eur, license.billing_interval)}</strong>
+          {' '}(n. {formatLicenseMoney(pricing.estimated_monthly_total_eur)} / kk).
+        </p>
+      )}
+
+      {license.payment_status !== 'none' && (
+        <p className="muted license-status-meta">
+          Maksutila: <strong>{LICENSE_PAYMENT_STATUS_LABELS[license.payment_status]}</strong>
+          {license.next_billing_at && <> · seuraava laskutus {formatDateFi(license.next_billing_at)}</>}
         </p>
       )}
 
@@ -69,10 +82,10 @@ export default function LicenseStatusPanel({ license }: Props) {
           <h3>{LICENSE_MODULE_LABELS.base}</h3>
           <p className="muted">{LICENSE_MODULE_DESCRIPTIONS.base}</p>
           <p className="license-price">{formatLicenseMoney(pricing.base_monthly_eur)}</p>
-          <p className="license-state">{license.base_active ? 'Tilattu' : 'Ei tilattu'}</p>
+          <p className="license-state">{license.base_active ? 'Käytössä' : 'Ei tilattu'}</p>
         </article>
 
-        {ADDON_MODULES.map((moduleKey) => {
+        {PRICED_ADDON_MODULES.map((moduleKey) => {
           const active = license.modules[moduleKey];
           const price = pricing.module_prices[moduleKey] ?? 0;
           return (
@@ -80,11 +93,18 @@ export default function LicenseStatusPanel({ license }: Props) {
               <h3>{LICENSE_MODULE_LABELS[moduleKey]}</h3>
               <p className="muted">{LICENSE_MODULE_DESCRIPTIONS[moduleKey]}</p>
               <p className="license-price">{formatLicenseMoney(price)}</p>
-              <p className="license-state">{active ? 'Tilattu' : 'Ei tilattu'}</p>
+              <p className="license-state">{active ? 'Käytössä' : 'Ei tilattu'}</p>
             </article>
           );
         })}
       </div>
+
+      {(showOrderForm || (canManageOrder && license.payment_status === 'awaiting_payment')) && (
+        <CompanySubscriptionOrderForm
+          license={license}
+          onSubmitted={() => onRefresh?.()}
+        />
+      )}
 
       {license.usage_this_month.length > 0 && (
         <div className="license-usage-block">

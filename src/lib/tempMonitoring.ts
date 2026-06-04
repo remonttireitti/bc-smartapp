@@ -4,8 +4,12 @@ export type TempDevice = {
   name: string;
   device_key: string;
   hardware_id: string | null;
+  device_type?: string | null;
+  is_shared_demo?: boolean;
+  zone_config?: unknown;
   last_seen_at: string | null;
   last_temp_c: number | null;
+  last_temp_c2?: number | null;
   firmware_version: string | null;
   notes: string | null;
   created_at: string;
@@ -61,10 +65,21 @@ export type TempReading = {
   session_id: string | null;
   recorded_at: string;
   temp_c: number;
+  sensor_channel?: number;
 };
 
 export const TEMP_DEVICE_SELECT =
-  'id, company_id, name, device_key, hardware_id, last_seen_at, last_temp_c, firmware_version, notes, created_at';
+  'id, company_id, name, device_key, hardware_id, device_type, is_shared_demo, zone_config, last_seen_at, last_temp_c, last_temp_c2, firmware_version, notes, created_at';
+
+export const TEMP_READING_SELECT = 'id, device_id, session_id, recorded_at, temp_c, sensor_channel';
+
+export function isEsp32ZoneDevice(device: Pick<TempDevice, 'device_type' | 'zone_config'>) {
+  return device.device_type === 'esp32_ds18b20' || device.zone_config != null;
+}
+
+export function isSharedTempDemo(device: Pick<TempDevice, 'is_shared_demo'>) {
+  return device.is_shared_demo === true;
+}
 
 export const TEMP_SESSION_SELECT =
   'id, company_id, device_id, customer_id, site_label, notes, monitor_label, target_temp_min, target_temp_max, allowed_deviation_c, allowed_deviation_minutes, started_at, ended_at, created_at, customer:customers(id, name)';

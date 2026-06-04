@@ -67,7 +67,12 @@ const EMPTY_PENDING: PendingWorkOrderCounts = {
 export default function Dashboard({ session }: Props) {
   const { profile } = useProfile(session);
   const billingModuleEnabled = useCompanyBillingModuleEnabled(profile?.company_id, session);
-  const { license } = useCompanyLicense(profile?.company_id, session, !!profile?.is_global_admin);
+  const { license, refresh: refreshLicense } = useCompanyLicense(
+    profile?.company_id,
+    session,
+    !!profile?.is_global_admin,
+  );
+  const canManageSubscription = profile?.role === 'admin';
   const portalView = isPortalView(profile);
   const visibleModules = useMemo(() => {
     if (portalView) return PORTAL_MODULES;
@@ -112,7 +117,11 @@ export default function Dashboard({ session }: Props) {
       )}
 
       {!portalView && license && license.enrollment !== 'legacy' && (
-        <LicenseStatusPanel license={license} />
+        <LicenseStatusPanel
+          license={license}
+          canManageOrder={canManageSubscription}
+          onRefresh={() => void refreshLicense()}
+        />
       )}
 
       {!portalView && (

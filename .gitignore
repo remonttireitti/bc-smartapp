@@ -16,5 +16,6 @@ tsconfig.tsbuildinfo
 
 .pio/
 **/.pio/
+firmware/esp32-temp-monitor/include/secrets.h
 
 .vercel

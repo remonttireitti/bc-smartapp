@@ -1,10 +1,17 @@
 import { FormEvent, useEffect, useState } from 'react';
 import ToggleSwitch from '../../components/ToggleSwitch';
 import {
-  formatLicenseMoney,
+  formatLicensePeriodMoney,
+  LICENSE_BILLING_INTERVALS,
+  LICENSE_MODULE_LABELS,
+  LICENSE_PAYMENT_STATUS_LABELS,
+  PRICED_ADDON_MODULES,
   parseCompanyLicenseSnapshot,
   type CompanyLicenseSnapshot,
+  type LicenseBillingInterval,
+  type LicensePaymentStatus,
 } from '../../lib/companyLicense';
+import GlobalAdminLicenseOverview from './GlobalAdminLicenseOverview';
 import { companyBillingModuleEnabled, parseCompanySettings } from '../../lib/management';
 import { supabase } from '../../lib/supabase';
 import type { Company } from '../../types';
@@ -28,6 +35,8 @@ export default function GlobalAdminLicensesSection({
   const [licenseCompanyId, setLicenseCompanyId] = useState('');
   const [licenseSnapshot, setLicenseSnapshot] = useState<CompanyLicenseSnapshot | null>(null);
   const [licenseStatus, setLicenseStatus] = useState('pending_trial');
+  const [licenseBillingInterval, setLicenseBillingInterval] = useState<LicenseBillingInterval>('monthly');
+  const [licensePaymentStatus, setLicensePaymentStatus] = useState<LicensePaymentStatus>('none');
   const [licenseBaseActive, setLicenseBaseActive] = useState(false);
   const [licenseModules, setLicenseModules] = useState({
     quotes: false,
@@ -90,6 +99,8 @@ export default function GlobalAdminLicensesSection({
     setLicenseSnapshot(snapshot);
     if (!snapshot) return;
     setLicenseStatus(snapshot.status);
+    setLicenseBillingInterval(snapshot.billing_interval);
+    setLicensePaymentStatus(snapshot.payment_status);
     setLicenseBaseActive(snapshot.base_active);
     setLicenseModules({ ...snapshot.modules });
   }
@@ -105,6 +116,9 @@ export default function GlobalAdminLicensesSection({
       p_status: licenseStatus,
       p_base_active: licenseBaseActive,
       p_modules: licenseModules,
+      p_billing_interval: licenseBillingInterval,
+      p_payment_status: licensePaymentStatus,
+      p_activate_pending_order: false,
     });
 
     setLicenseBusy(false);
@@ -115,6 +129,41 @@ export default function GlobalAdminLicensesSection({
 
     setLicenseSnapshot(parseCompanyLicenseSnapshot(data));
     setLicenseMessage('Lisenssi päivitetty.');
+    await onRefresh();
+  }
+
+  async function activatePendingOrder() {
+    if (!licenseCompanyId) return;
+    setLicenseBusy(true);
+    setLicenseMessage(null);
+    setLicenseError(null);
+
+    const { data, error: saveError } = await supabase.rpc('global_admin_set_company_license', {
+      p_company_id: licenseCompanyId,
+      p_status: 'active',
+      p_base_active: licenseBaseActive,
+      p_modules: licenseModules,
+      p_billing_interval: licenseBillingInterval,
+      p_payment_status: 'paid',
+      p_activate_pending_order: true,
+    });
+
+    setLicenseBusy(false);
+    if (saveError) {
+      setLicenseError(saveError.message);
+      return;
+    }
+
+    const snapshot = parseCompanyLicenseSnapshot(data);
+    setLicenseSnapshot(snapshot);
+    if (snapshot) {
+      setLicenseStatus(snapshot.status);
+      setLicenseBillingInterval(snapshot.billing_interval);
+      setLicensePaymentStatus(snapshot.payment_status);
+      setLicenseBaseActive(snapshot.base_active);
+      setLicenseModules({ ...snapshot.modules });
+    }
+    setLicenseMessage('Tilaus merkitty maksetuksi ja moduulit aktivoitu.');
     await onRefresh();
   }
 
@@ -177,6 +226,15 @@ export default function GlobalAdminLicensesSection({
 
   return (
     <>
+      <GlobalAdminLicenseOverview
+        onSelectCompany={(companyId) => {
+          setLicenseCompanyId(companyId);
+          setLicenseMessage(null);
+          setLicenseError(null);
+          void loadLicenseForCompany(companyId);
+        }}
+      />
+
       <section className="card global-admin-block">
         <h2>Hinnoittelu (kaikki yritykset)</h2>
         <p className="muted global-admin-hint">
@@ -291,7 +349,58 @@ export default function GlobalAdminLicensesSection({
               <option value="expired">Päättynyt / maksamaton</option>
             </select>
           </label>
+          <label>
+            Laskutusjakso
+            <select
+              value={licenseBillingInterval}
+              disabled={!licenseCompanyId}
+              onChange={(e) => setLicenseBillingInterval(e.target.value as LicenseBillingInterval)}
+            >
+              {LICENSE_BILLING_INTERVALS.map((item) => (
+                <option key={item.value} value={item.value}>{item.label}</option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Maksutila
+            <select
+              value={licensePaymentStatus}
+              disabled={!licenseCompanyId}
+              onChange={(e) => setLicensePaymentStatus(e.target.value as LicensePaymentStatus)}
+            >
+              {(Object.keys(LICENSE_PAYMENT_STATUS_LABELS) as LicensePaymentStatus[]).map((key) => (
+                <option key={key} value={key}>{LICENSE_PAYMENT_STATUS_LABELS[key]}</option>
+              ))}
+            </select>
+          </label>
         </div>
+
+        {licenseSnapshot?.order && (
+          <div className="global-admin-pending-order panel">
+            <h3>Odottava yrityksen tilaus</h3>
+            <p className="muted">
+              Lähetetty {new Date(licenseSnapshot.order.submitted_at).toLocaleString('fi-FI')} ·{' '}
+              {formatLicensePeriodMoney(
+                licenseSnapshot.order.estimated_period_eur,
+                licenseSnapshot.order.billing_interval,
+              )}
+            </p>
+            <ul className="license-order-module-list">
+              {licenseSnapshot.order.base_active && <li>{LICENSE_MODULE_LABELS.base}</li>}
+              {PRICED_ADDON_MODULES.filter((key) => licenseSnapshot.order?.modules[key]).map((key) => (
+                <li key={key}>{LICENSE_MODULE_LABELS[key]}</li>
+              ))}
+            </ul>
+            <button
+              type="button"
+              className="btn btn-primary"
+              disabled={licenseBusy}
+              onClick={() => void activatePendingOrder()}
+            >
+              {licenseBusy ? 'Aktivoidaan…' : 'Merkitse maksetuksi ja aktivoi tilaus'}
+            </button>
+          </div>
+        )}
 
         {licenseSnapshot && licenseSnapshot.enrollment === 'legacy' && (
           <p className="muted">Legacy-yritys — kaikki moduulit vapaasti (ei tilausmallia).</p>
@@ -305,7 +414,13 @@ export default function GlobalAdminLicensesSection({
                 ? ` · kokeilu päättyy ${new Date(licenseSnapshot.trial_ends_at).toLocaleDateString('fi-FI')}`
                 : ''}
               {licenseSnapshot.effective_status === 'active'
-                ? ` · arvio ${formatLicenseMoney(licenseSnapshot.pricing.estimated_monthly_total_eur)}`
+                ? ` · ${formatLicensePeriodMoney(
+                    licenseSnapshot.pricing.estimated_period_total_eur,
+                    licenseSnapshot.billing_interval,
+                  )}`
+                : ''}
+              {licenseSnapshot.paid_through
+                ? ` · maksettu ${new Date(licenseSnapshot.paid_through).toLocaleDateString('fi-FI')} asti`
                 : ''}
             </p>
             <div className="form-field-toggle">

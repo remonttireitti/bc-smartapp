@@ -17,12 +17,17 @@ import TempSessionSettingsDialog from '../components/tempMonitoring/TempSessionS
 import TempSessionSettingsFields from '../components/tempMonitoring/TempSessionSettingsFields';
 import { SettingsIcon } from '../components/tempMonitoring/SettingsIcon';
 import TempTrendChart from '../components/tempMonitoring/TempTrendChart';
+import TempZoneFloorPlan, { TempZoneLiveSensors } from '../components/tempMonitoring/TempZoneFloorPlan';
 import { useProfile } from '../hooks/useProfile';
 import { loadAccessibleReportCustomers, loadReportPartnerships } from '../lib/reportCustomerRegistry';
+import { buildHistoryPoints } from '../lib/tempZoneMonitoring';
 import {
   TEMP_DEVICE_SELECT,
+  TEMP_READING_SELECT,
   TEMP_REPORT_SELECT,
   TEMP_SESSION_SELECT,
+  isEsp32ZoneDevice,
+  isSharedTempDemo,
   complianceLabel,
   emptySessionSettings,
   evaluateTempCompliance,
@@ -128,6 +133,8 @@ export default function TempMonitorDetailPage({ session }: Props) {
     [device?.last_temp_c, chartReadings, activeSession, liveTick],
   );
 
+  const historyPoints = useMemo(() => buildHistoryPoints(readings), [readings]);
+
   const mergeReadings = useCallback((prev: TempReading[], incoming: TempReading[]) => {
     const map = new Map(prev.map((row) => [row.id, row]));
     for (const row of incoming) {
@@ -157,7 +164,7 @@ export default function TempMonitorDetailPage({ session }: Props) {
             supabase.from('temp_devices').select(TEMP_DEVICE_SELECT).eq('id', deviceId).maybeSingle(),
             supabase
               .from('temp_readings')
-              .select('id, device_id, session_id, recorded_at, temp_c')
+              .select(TEMP_READING_SELECT)
               .eq('device_id', deviceId)
               .gt('recorded_at', cursor)
               .order('recorded_at', { ascending: true })
@@ -205,7 +212,7 @@ export default function TempMonitorDetailPage({ session }: Props) {
           .limit(1),
         supabase
           .from('temp_readings')
-          .select('id, device_id, session_id, recorded_at, temp_c')
+          .select(TEMP_READING_SELECT)
           .eq('device_id', deviceId)
           .gte('recorded_at', since)
           .order('recorded_at', { ascending: true })
@@ -351,7 +358,7 @@ export default function TempMonitorDetailPage({ session }: Props) {
   }
 
   async function deleteDevice() {
-    if (!device) return;
+    if (!device || isSharedTempDemo(device)) return;
     setBusy(true);
     setDeleteError(null);
 
@@ -457,6 +464,10 @@ export default function TempMonitorDetailPage({ session }: Props) {
   }
 
   const online = isTempDeviceOnline(device.last_seen_at);
+  const zoneView = isEsp32ZoneDevice(device);
+  const sharedDemo = isSharedTempDemo(device);
+  const ownsDevice = device.company_id === companyId;
+
   const heroClass =
     activeSession && compliance !== 'unknown'
       ? `temp-live-hero--${compliance}`
@@ -490,6 +501,27 @@ export default function TempMonitorDetailPage({ session }: Props) {
 
         {error && <p className="form-error">{error}</p>}
         {message && <p className="form-success">{message}</p>}
+
+        {sharedDemo && (
+          <section className="panel temp-demo-banner" role="note">
+            <strong>Oikea laite — demo kokeilujakson käyttäjille</strong>
+            <p className="muted">
+              {device.notes ??
+                'Kyseessä on oikea ESP32-mittaus ylläpitäjän kylmiöstä ja pakastimesta. Data päivittyy reaaliajassa samalla tavalla kuin omissa laitteissa.'}
+            </p>
+          </section>
+        )}
+
+        {zoneView && (
+          <TempZoneFloorPlan
+            zoneConfig={device.zone_config}
+            lastTempC={device.last_temp_c}
+            lastTempC2={device.last_temp_c2}
+            lastSeenAt={device.last_seen_at}
+            historyPoints={historyPoints}
+            readOnly
+          />
+        )}
 
         <section className={`temp-live-hero panel ${heroClass}`}>
           <div className="temp-live-hero-main">
@@ -532,6 +564,7 @@ export default function TempMonitorDetailPage({ session }: Props) {
               </dd>
             </div>
           </dl>
+          {zoneView && <TempZoneLiveSensors lastTempC={device.last_temp_c} lastTempC2={device.last_temp_c2} />}
         </section>
 
         <section className="panel temp-trend-panel">
@@ -545,7 +578,7 @@ export default function TempMonitorDetailPage({ session }: Props) {
               )}
             </div>
             <div className="temp-panel-head-actions">
-              {(activeSession || readings.length >= 2) && (
+              {!sharedDemo && (activeSession || readings.length >= 2) && (
                 <button type="button" className="btn btn-secondary" disabled={busy} onClick={openReportDialog}>
                   Tallenna raportti
                 </button>
@@ -560,6 +593,7 @@ export default function TempMonitorDetailPage({ session }: Props) {
           <TempTrendChart readings={chartReadings} limits={activeLimits} height={240} />
         </section>
 
+      {!sharedDemo && (
       <section className="panel">
         <div className="temp-panel-head">
           <h2>Live-seuranta</h2>
@@ -639,10 +673,20 @@ export default function TempMonitorDetailPage({ session }: Props) {
           </form>
         )}
       </section>
+      )}
+
+      {sharedDemo && (
+        <section className="panel">
+          <p className="muted">
+            Demo-laitteella ei aloiteta yrityskohtaista seurantaa. Voit seurata lämpötiloja pohjapiirroksessa ja trendissä.
+            Lisää oma ESP32 tai JC3248 -laite listasta, kun haluat tallentaa raportteja.
+          </p>
+        </section>
+      )}
 
       <CollapsibleSection
         title={`Tallennetut raportit (${savedReports.length})`}
-        defaultOpen={savedReports.length > 0}
+        defaultOpen={!sharedDemo && savedReports.length > 0}
         variant="plain"
         className="panel temp-admin-panel"
       >
@@ -683,13 +727,15 @@ export default function TempMonitorDetailPage({ session }: Props) {
         )}
       </CollapsibleSection>
 
-      <CollapsibleSection title="Laitehallinta" defaultOpen={!online} variant="plain" className="panel temp-admin-panel">
-        {!online && (
+      {ownsDevice && (
+      <CollapsibleSection title="Laitehallinta" defaultOpen={!online && !sharedDemo} variant="plain" className="panel temp-admin-panel">
+        {!online && !sharedDemo && (
           <>
             <h3 className="temp-admin-subtitle">WiFi-asennus (AP)</h3>
             <TempApSetupGuide deviceKey={device.device_key} compact />
           </>
         )}
+        {!sharedDemo && (
         <button
           type="button"
           className="btn btn-danger btn-block"
@@ -701,7 +747,9 @@ export default function TempMonitorDetailPage({ session }: Props) {
         >
           Poista laite
         </button>
+        )}
       </CollapsibleSection>
+      )}
       </div>
 
       <TempSessionSettingsDialog

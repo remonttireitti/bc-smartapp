@@ -2,6 +2,20 @@ export type LicenseModuleKey = 'base' | 'quotes' | 'billing' | 'remote_monitorin
 
 export type LicenseEffectiveStatus = 'pending_trial' | 'trial' | 'active' | 'expired';
 
+export type LicenseBillingInterval = 'monthly' | 'quarterly' | 'semi_annual' | 'annual';
+
+export type LicensePaymentStatus = 'none' | 'awaiting_payment' | 'paid' | 'overdue';
+
+export type CompanySubscriptionOrder = {
+  submitted_at: string;
+  submitted_by?: string;
+  base_active: boolean;
+  modules: Record<Exclude<LicenseModuleKey, 'base'>, boolean>;
+  billing_interval: LicenseBillingInterval;
+  estimated_monthly_eur: number;
+  estimated_period_eur: number;
+};
+
 export type CompanyLicenseSnapshot = {
   enrollment: 'subscription' | 'legacy' | string;
   status: string;
@@ -9,18 +23,40 @@ export type CompanyLicenseSnapshot = {
   trial_started_at: string | null;
   trial_ends_at: string | null;
   trial_days: number;
+  billing_interval: LicenseBillingInterval;
+  billing_interval_label: string;
+  billing_interval_months: number;
+  payment_status: LicensePaymentStatus;
+  paid_through: string | null;
+  next_billing_at: string | null;
+  order: CompanySubscriptionOrder | null;
   base_active: boolean;
   modules: Record<Exclude<LicenseModuleKey, 'base'>, boolean>;
   pricing: {
     base_monthly_eur: number;
     module_prices: Record<string, number>;
     estimated_monthly_total_eur: number;
+    estimated_period_total_eur: number;
   };
   usage_this_month: Array<{
     module_key: string;
     access_count: number;
     last_accessed_at: string | null;
   }>;
+};
+
+export const LICENSE_BILLING_INTERVALS: { value: LicenseBillingInterval; label: string; months: number }[] = [
+  { value: 'monthly', label: 'Kuukausittain', months: 1 },
+  { value: 'quarterly', label: '3 kk välein', months: 3 },
+  { value: 'semi_annual', label: '6 kk välein', months: 6 },
+  { value: 'annual', label: 'Kerran vuodessa', months: 12 },
+];
+
+export const LICENSE_PAYMENT_STATUS_LABELS: Record<LicensePaymentStatus, string> = {
+  none: 'Ei laskutusta',
+  awaiting_payment: 'Odottaa maksua',
+  paid: 'Maksettu',
+  overdue: 'Erääntynyt',
 };
 
 export const LICENSE_MODULE_LABELS: Record<LicenseModuleKey, string> = {
@@ -46,6 +82,13 @@ export const LICENSE_MODULE_HREFS: Record<LicenseModuleKey, string[]> = {
   remote_monitoring: ['/etaseuranta', '/lampotila'],
   tools: ['/tyokalut'],
 };
+
+export const PRICED_ADDON_MODULES: Exclude<LicenseModuleKey, 'base'>[] = [
+  'quotes',
+  'billing',
+  'remote_monitoring',
+  'tools',
+];
 
 const MODULE_BY_PATH_PREFIX: Array<{ prefix: string; module: LicenseModuleKey }> = [
   { prefix: '/laskutus', module: 'billing' },
@@ -79,8 +122,32 @@ export function isLicenseModuleAccessible(
   return !!snapshot.modules[moduleKey];
 }
 
-export function formatLicenseMoney(value: number) {
-  return `${value.toLocaleString('fi-FI', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €/kk`;
+export function formatLicenseMoney(value: number, suffix = '€/kk') {
+  return `${value.toLocaleString('fi-FI', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${suffix}`;
+}
+
+export function formatLicensePeriodMoney(value: number, interval: LicenseBillingInterval) {
+  const entry = LICENSE_BILLING_INTERVALS.find((item) => item.value === interval);
+  const label = entry && entry.months > 1 ? `€ / ${entry.months} kk` : '€ / jakso';
+  return formatLicenseMoney(value, label);
+}
+
+export function estimateOrderMonthlyTotal(
+  baseActive: boolean,
+  modules: Record<Exclude<LicenseModuleKey, 'base'>, boolean>,
+  pricing: CompanyLicenseSnapshot['pricing'],
+): number {
+  let total = 0;
+  if (baseActive) total += pricing.base_monthly_eur;
+  for (const key of PRICED_ADDON_MODULES) {
+    if (modules[key]) total += pricing.module_prices[key] ?? 0;
+  }
+  return total;
+}
+
+export function estimateOrderPeriodTotal(monthly: number, interval: LicenseBillingInterval) {
+  const months = LICENSE_BILLING_INTERVALS.find((item) => item.value === interval)?.months ?? 1;
+  return Math.round(monthly * months * 100) / 100;
 }
 
 export function trialDaysRemaining(snapshot: CompanyLicenseSnapshot | null): number | null {
@@ -96,6 +163,27 @@ export function parseCompanyLicenseSnapshot(raw: unknown): CompanyLicenseSnapsho
   const modulesRaw = (row.modules as Record<string, unknown> | undefined) ?? {};
   const pricingRaw = (row.pricing as Record<string, unknown> | undefined) ?? {};
   const modulePricesRaw = (pricingRaw.module_prices as Record<string, unknown> | undefined) ?? {};
+  const orderRaw = row.order;
+
+  let order: CompanySubscriptionOrder | null = null;
+  if (orderRaw && typeof orderRaw === 'object') {
+    const o = orderRaw as Record<string, unknown>;
+    const orderModules = (o.modules as Record<string, unknown> | undefined) ?? {};
+    order = {
+      submitted_at: String(o.submitted_at ?? ''),
+      submitted_by: typeof o.submitted_by === 'string' ? o.submitted_by : undefined,
+      base_active: o.base_active === true,
+      modules: {
+        quotes: orderModules.quotes === true,
+        billing: orderModules.billing === true,
+        remote_monitoring: orderModules.remote_monitoring === true,
+        tools: orderModules.tools === true,
+      },
+      billing_interval: (o.billing_interval as LicenseBillingInterval) ?? 'monthly',
+      estimated_monthly_eur: Number(o.estimated_monthly_eur ?? 0),
+      estimated_period_eur: Number(o.estimated_period_eur ?? 0),
+    };
+  }
 
   return {
     enrollment: String(row.enrollment ?? 'subscription'),
@@ -104,6 +192,13 @@ export function parseCompanyLicenseSnapshot(raw: unknown): CompanyLicenseSnapsho
     trial_started_at: typeof row.trial_started_at === 'string' ? row.trial_started_at : null,
     trial_ends_at: typeof row.trial_ends_at === 'string' ? row.trial_ends_at : null,
     trial_days: Number(row.trial_days ?? 30),
+    billing_interval: (row.billing_interval as LicenseBillingInterval) ?? 'monthly',
+    billing_interval_label: String(row.billing_interval_label ?? 'Kuukausittain'),
+    billing_interval_months: Number(row.billing_interval_months ?? 1),
+    payment_status: (row.payment_status as LicensePaymentStatus) ?? 'none',
+    paid_through: typeof row.paid_through === 'string' ? row.paid_through : null,
+    next_billing_at: typeof row.next_billing_at === 'string' ? row.next_billing_at : null,
+    order,
     base_active: row.base_active === true,
     modules: {
       quotes: modulesRaw.quotes === true,
@@ -117,6 +212,7 @@ export function parseCompanyLicenseSnapshot(raw: unknown): CompanyLicenseSnapsho
         Object.entries(modulePricesRaw).map(([key, value]) => [key, Number(value ?? 0)]),
       ),
       estimated_monthly_total_eur: Number(pricingRaw.estimated_monthly_total_eur ?? 0),
+      estimated_period_total_eur: Number(pricingRaw.estimated_period_total_eur ?? 0),
     },
     usage_this_month: Array.isArray(row.usage_this_month)
       ? row.usage_this_month.map((entry) => {
@@ -130,4 +226,29 @@ export function parseCompanyLicenseSnapshot(raw: unknown): CompanyLicenseSnapsho
         })
       : [],
   };
+}
+
+export type LicenseOverviewRow = {
+  company_id: string;
+  company_name: string;
+  company_slug: string | null;
+  snapshot: CompanyLicenseSnapshot;
+};
+
+export function parseLicenseOverviewRows(raw: unknown): LicenseOverviewRow[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((entry) => {
+      if (!entry || typeof entry !== 'object') return null;
+      const row = entry as Record<string, unknown>;
+      const snapshot = parseCompanyLicenseSnapshot(row.snapshot);
+      if (!snapshot || !row.company_id) return null;
+      return {
+        company_id: String(row.company_id),
+        company_name: String(row.company_name ?? '—'),
+        company_slug: row.company_slug != null ? String(row.company_slug) : null,
+        snapshot,
+      };
+    })
+    .filter((row): row is LicenseOverviewRow => row !== null);
 }

@@ -1,0 +1,215 @@
+import type { TempReading } from './tempMonitoring';
+
+export const ZONE_KEYS = ['k1', 'k2', 'k3', 'pakastin'] as const;
+export type ZoneKey = (typeof ZONE_KEYS)[number];
+
+export type ZoneConfigEntry = {
+  label: string;
+  contents: string;
+  min: number;
+  max: number;
+  sensor: number;
+  kind: 'chilled' | 'freezer';
+};
+
+export type ZoneConfig = Record<ZoneKey, ZoneConfigEntry>;
+
+export type ZoneLevel = 'ok' | 'warn' | 'bad' | 'none';
+
+export type ZoneEval = { level: ZoneLevel; text: string; badge: string };
+
+export const TIME_POLICY = {
+  dangerFromBadSec: 25 * 60,
+  spoilFromBadSec: 2 * 60 * 60,
+} as const;
+
+export const OFFLINE_ALERT_AFTER_SEC = 5 * 60;
+
+const DEFAULT_ZONE_CONFIG: ZoneConfig = {
+  k1: {
+    label: 'Kylmiö 1',
+    contents: '',
+    min: 0,
+    max: 6,
+    sensor: 1,
+    kind: 'chilled',
+  },
+  k2: {
+    label: 'Kylmiö 2',
+    contents: '',
+    min: 0,
+    max: 6,
+    sensor: 0,
+    kind: 'chilled',
+  },
+  k3: {
+    label: 'Kylmiö 3',
+    contents: '',
+    min: 0,
+    max: 6,
+    sensor: 0,
+    kind: 'chilled',
+  },
+  pakastin: {
+    label: 'Pakastin',
+    contents: '',
+    min: -35,
+    max: -18,
+    sensor: 2,
+    kind: 'freezer',
+  },
+};
+
+export type HistoryPoint = {
+  ts: number;
+  t1: number | null;
+  t2: number | null;
+};
+
+export function parseZoneConfig(raw: unknown): ZoneConfig | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const obj = raw as Record<string, unknown>;
+  const out = {} as ZoneConfig;
+  for (const z of ZONE_KEYS) {
+    const entry = obj[z];
+    if (!entry || typeof entry !== 'object') {
+      out[z] = { ...DEFAULT_ZONE_CONFIG[z] };
+      continue;
+    }
+    const e = entry as Record<string, unknown>;
+    const d = DEFAULT_ZONE_CONFIG[z];
+    out[z] = {
+      label: typeof e.label === 'string' ? e.label : d.label,
+      contents: typeof e.contents === 'string' ? e.contents : d.contents,
+      min: Number.isFinite(Number(e.min)) ? Number(e.min) : d.min,
+      max: Number.isFinite(Number(e.max)) ? Number(e.max) : d.max,
+      sensor: parseInt(String(e.sensor), 10) || 0,
+      kind: e.kind === 'freezer' ? 'freezer' : 'chilled',
+    };
+  }
+  return out;
+}
+
+export function isTempInRange(t: number, cfg: ZoneConfigEntry) {
+  return t >= cfg.min && t <= cfg.max;
+}
+
+export function buildHistoryPoints(readings: TempReading[]): HistoryPoint[] {
+  const byTs = new Map<string, HistoryPoint>();
+  for (const row of readings) {
+    const key = row.recorded_at;
+    const ts = Math.floor(new Date(key).getTime() / 1000);
+    const existing = byTs.get(key) ?? { ts, t1: null, t2: null };
+    const channel = row.sensor_channel ?? 0;
+    if (channel === 1) existing.t1 = Number(row.temp_c);
+    else if (channel === 2) existing.t2 = Number(row.temp_c);
+    else if (existing.t1 == null) existing.t1 = Number(row.temp_c);
+    else if (existing.t2 == null) existing.t2 = Number(row.temp_c);
+    byTs.set(key, existing);
+  }
+  return [...byTs.values()].sort((a, b) => a.ts - b.ts);
+}
+
+function consecutiveBadDurationSec(
+  points: HistoryPoint[],
+  sensorKey: 't1' | 't2',
+  cfg: ZoneConfigEntry,
+): number {
+  if (points.length === 0) return 0;
+  const last = points[points.length - 1];
+  const temp = last[sensorKey];
+  if (temp == null || isTempInRange(temp, cfg)) return 0;
+
+  let lastOkIdx = -1;
+  for (let i = points.length - 1; i >= 0; i--) {
+    const t = points[i][sensorKey];
+    if (t != null && isTempInRange(t, cfg)) {
+      lastOkIdx = i;
+      break;
+    }
+  }
+  if (lastOkIdx === points.length - 1) return 0;
+  if (lastOkIdx < 0) {
+    return Math.max(0, last.ts - points[0].ts);
+  }
+  return Math.max(0, last.ts - points[lastOkIdx].ts);
+}
+
+function timeBasedLevelFromBadDuration(badDurSec: number): ZoneLevel {
+  if (badDurSec <= 0) return 'ok';
+  if (badDurSec >= TIME_POLICY.spoilFromBadSec) return 'bad';
+  if (badDurSec >= TIME_POLICY.dangerFromBadSec) return 'warn';
+  return 'ok';
+}
+
+function formatMinSec(sec: number) {
+  if (!Number.isFinite(sec) || sec < 0) return '0 min';
+  const m = Math.floor(sec / 60);
+  if (m < 120) return `${m} min`;
+  return `${(sec / 3600).toFixed(1).replace('.', ',')} h`;
+}
+
+export function evalZone(
+  t: number | null,
+  cfg: ZoneConfigEntry,
+  recentPoints: HistoryPoint[],
+  sensorIdx: number,
+): ZoneEval {
+  if (t == null || !Number.isFinite(t)) {
+    return { level: 'none', text: 'Ei mittausta', badge: 'Ei anturia' };
+  }
+
+  const key = sensorIdx === 1 ? 't1' : 't2';
+  if (isTempInRange(t, cfg)) {
+    return { level: 'ok', text: 'OK', badge: 'OK' };
+  }
+
+  const badDur = consecutiveBadDurationSec(recentPoints, key, cfg);
+  const level = timeBasedLevelFromBadDuration(badDur);
+
+  let dev = 0;
+  if (cfg.kind === 'freezer') {
+    dev = t - cfg.max;
+  } else if (t < cfg.min) {
+    dev = cfg.min - t;
+  } else {
+    dev = t - cfg.max;
+  }
+
+  let text: string;
+  if (level === 'ok') {
+    text = `Hetkellinen poikkeama (ei hälytysrajaa). Yhtäjaksoisesti ${formatMinSec(badDur)} · Δ ${dev.toFixed(1)} °C`;
+  } else if (level === 'warn') {
+    text = `Vaara: ${formatMinSec(badDur)} rajauksen ulkopuolella. Δ ${dev.toFixed(1)} °C`;
+  } else {
+    text = `Todennäköinen pilaantuminen: yhtäjaksoinen poikkeama ${formatMinSec(badDur)} (yli ${Math.round(TIME_POLICY.spoilFromBadSec / 60)} min ohje). Δ ${dev.toFixed(1)} °C`;
+  }
+
+  const badge =
+    level === 'ok' ? 'OK' : level === 'warn' ? 'Varoitus' : level === 'bad' ? 'Hälytys' : '—';
+
+  return { level, text, badge };
+}
+
+export function liveTempsFromDevice(
+  lastTempC: number | null | undefined,
+  lastTempC2: number | null | undefined,
+): { t1: number | null; t2: number | null } {
+  return {
+    t1: lastTempC ?? null,
+    t2: lastTempC2 ?? null,
+  };
+}
+
+export function secondsSinceLastSample(lastSeenAt: string | null | undefined): number | null {
+  if (!lastSeenAt) return null;
+  return Math.max(0, (Date.now() - new Date(lastSeenAt).getTime()) / 1000);
+}
+
+export function connectionBadgeLabel(lastSeenAt: string | null | undefined, online: boolean) {
+  const age = secondsSinceLastSample(lastSeenAt);
+  if (!online || (age != null && age > OFFLINE_ALERT_AFTER_SEC)) {
+    return { text: 'Ei tuoretta dataa', warn: true };
+  }
+  return { text: 'Yhdistetty', warn: false };
+}

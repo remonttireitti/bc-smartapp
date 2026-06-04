@@ -49,7 +49,8 @@ export default function TempMonitoringPage({ session }: Props) {
     const { data, error: loadError } = await supabase
       .from('temp_devices')
       .select(TEMP_DEVICE_SELECT)
-      .eq('company_id', companyId)
+      .or(`company_id.eq.${companyId},is_shared_demo.eq.true`)
+      .order('is_shared_demo', { ascending: false })
       .order('name');
     setDevices((data as TempDevice[] | null) ?? []);
     setLastRefreshAt(new Date());
@@ -96,7 +97,7 @@ export default function TempMonitoringPage({ session }: Props) {
   }
 
   async function confirmDeleteDevice() {
-    if (!deleteTarget) return;
+    if (!deleteTarget || deleteTarget.is_shared_demo) return;
     setBusy(true);
     setDeleteError(null);
 
@@ -177,7 +178,7 @@ export default function TempMonitoringPage({ session }: Props) {
                   key={device.id}
                   device={device}
                   to={tempMonitoringDevicePath(device.id)}
-                  deleteDisabled={busy}
+                  deleteDisabled={busy || device.is_shared_demo === true}
                   onDelete={() => {
                     setDeleteError(null);
                     setDeleteTarget(device);
