@@ -15,8 +15,9 @@ interface Props {
 
 const PROFILE_TAB = { href: '/hallinta/omat', label: 'Omat tiedot' };
 
+const COMPANY_SETTINGS_TAB = { href: '/hallinta/yritys', label: 'Yritystiedot' };
+
 const ADMIN_TABS = [
-  { href: '/hallinta/yritys', label: 'Yritystiedot' },
   { href: '/hallinta/tilaajat', label: 'Tilaajat' },
   { href: '/hallinta/kayttajat', label: 'Käyttäjät' },
   { href: '/hallinta/kumppanuudet', label: 'Kumppanuudet' },
@@ -31,7 +32,9 @@ export default function ManagementLayout({ session }: Props) {
   const billingModuleEnabled = useCompanyBillingModuleEnabled(profile?.company_id, session);
   const { globalAdminMode, setGlobalAdminMode } = useGlobalAdminMode();
   const isAdmin = profile?.role === 'admin';
+  const isManager = profile?.role === 'manager';
   const isGlobalAdmin = !!profile?.is_global_admin;
+  const isCompanySettingsRoute = location.pathname.startsWith(COMPANY_SETTINGS_TAB.href);
   const isAdminRoute = ADMIN_TABS.some((tab) => location.pathname.startsWith(tab.href));
   const isGlobalAdminRoute = location.pathname.startsWith(GLOBAL_ADMIN_TAB.href);
 
@@ -52,7 +55,7 @@ export default function ManagementLayout({ session }: Props) {
   }
 
   if (location.pathname === '/hallinta' || location.pathname === '/hallinta/') {
-    return <Navigate to={isAdmin ? '/hallinta/yritys' : '/hallinta/omat'} replace />;
+    return <Navigate to={isAdmin || isManager ? '/hallinta/yritys' : '/hallinta/omat'} replace />;
   }
 
   if (billingModuleEnabled === false && location.pathname.startsWith('/hallinta/kumppanilaskutus')) {
@@ -82,6 +85,17 @@ export default function ManagementLayout({ session }: Props) {
     }
   }
 
+  if (isCompanySettingsRoute && !isAdmin && !isManager) {
+    return (
+      <AppLayout session={session}>
+        <p className="error">Vain ylläpitäjä tai esimies voi avata yritystiedot.</p>
+        <p>
+          <Link to="/hallinta/omat">Siirry omiin tietoihin</Link>
+        </p>
+      </AppLayout>
+    );
+  }
+
   if (isAdminRoute && !isAdmin) {
     return (
       <AppLayout session={session}>
@@ -100,7 +114,8 @@ export default function ManagementLayout({ session }: Props) {
 
   const tabs = [
     PROFILE_TAB,
-    ...(isAdmin ? adminTabs : []),
+    ...(isAdmin ? [COMPANY_SETTINGS_TAB, ...adminTabs.filter((tab) => tab.href !== COMPANY_SETTINGS_TAB.href)] : []),
+    ...(isManager && !isAdmin ? [COMPANY_SETTINGS_TAB] : []),
     ...(isGlobalAdmin && globalAdminMode ? [GLOBAL_ADMIN_TAB] : []),
   ];
 

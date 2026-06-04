@@ -53,6 +53,22 @@ export function isPortalRole(role: string | null | undefined) {
   return role === 'customer' || role === 'subscriber';
 }
 
+export function isCompanyAdmin(role: string | null | undefined) {
+  return role === 'admin';
+}
+
+export function isCompanyManager(role: string | null | undefined) {
+  return role === 'manager';
+}
+
+export function canManageCompanyLogo(role: string | null | undefined) {
+  return isCompanyAdmin(role) || isCompanyManager(role);
+}
+
+export function canEditCompanySettings(role: string | null | undefined) {
+  return isCompanyAdmin(role);
+}
+
 export type PartnerBillingRates = {
   hourly_regular?: number;
   hourly_overtime?: number;

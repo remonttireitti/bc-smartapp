@@ -9,7 +9,7 @@ import {
   saveCompanyLogo,
   validateCompanyLogoFile,
 } from '../lib/companyLogo';
-import { emptyCompanySettings, parseCompanySettings, type CompanySettings } from '../lib/management';
+import { emptyCompanySettings, parseCompanySettings, canEditCompanySettings, canManageCompanyLogo, type CompanySettings } from '../lib/management';
 import type { ManagementOutletContext } from '../lib/managementOutletContext';
 import PartnerBillingRatesFields from '../components/PartnerBillingRatesFields';
 import DeviceRegistrySettingsFields from '../components/quoteRequest/DeviceRegistrySettingsFields';
@@ -31,7 +31,8 @@ export default function CompanySettingsPage() {
   const logoInputRef = useRef<HTMLInputElement | null>(null);
   const logoPreviewRequestRef = useRef(0);
   const localPreviewRef = useRef<string | null>(null);
-  const canManageLogo = profile.role === 'admin';
+  const canManageLogo = canManageCompanyLogo(profile.role);
+  const canEditSettings = canEditCompanySettings(profile.role);
 
   function revokeLocalPreview() {
     if (localPreviewRef.current) {
@@ -123,7 +124,7 @@ export default function CompanySettingsPage() {
     }
   }
   async function onRemoveLogo() {
-    if (!profile.company_id || !logoPath) return;
+    if (!profile.company_id || !logoPath || !canManageLogo) return;
     setLogoBusy(true);
     setError(null);
     setMessage(null);
@@ -142,6 +143,7 @@ export default function CompanySettingsPage() {
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
+    if (!canEditSettings) return;
     setBusy(true);
     setError(null);
     setMessage(null);
@@ -173,7 +175,7 @@ export default function CompanySettingsPage() {
         <h2>Perustiedot</h2>
         <label>
           Yrityksen nimi
-          <input value={name} onChange={(e) => setName(e.target.value)} required />
+          <input value={name} onChange={(e) => setName(e.target.value)} required disabled={!canEditSettings} />
         </label>
 
         <div className="logo-upload-section">
@@ -208,13 +210,15 @@ export default function CompanySettingsPage() {
               )}
             </div>
           ) : (
-            <p className="muted">Vain yrityksen ylläpitäjä voi vaihtaa logon.</p>
+            <p className="muted">Vain ylläpitäjä tai esimies voi vaihtaa logon.</p>
           )}
           <p className="muted">PNG, JPG, WebP tai GIF. Max {(COMPANY_LOGO_MAX_BYTES / (1024 * 1024)).toFixed(0)} MB.</p>
         </div>      </section>
 
-      <section className="form-section">
-        <h2>Yhteystiedot</h2>
+      {canEditSettings ? (
+        <>
+          <section className="form-section">
+            <h2>Yhteystiedot</h2>
         <div className="line-form-grid">
           <label>Osoite<input value={settings.address ?? ''} onChange={(e) => setSettings((s) => ({ ...s, address: e.target.value }))} /></label>
           <label>Postinumero<input value={settings.postal_code ?? ''} onChange={(e) => setSettings((s) => ({ ...s, postal_code: e.target.value }))} /></label>
@@ -363,14 +367,25 @@ export default function CompanySettingsPage() {
         </section>
       )}
 
+        </>
+      ) : null}
+
       {error && <p className="error">{error}</p>}
       {message && <p className="muted">{message}</p>}
 
-      <div className="form-actions">
-        <button type="submit" className="btn btn-primary" disabled={busy}>
-          {busy ? 'Tallennetaan…' : 'Tallenna yritystiedot'}
-        </button>
-      </div>
+      {canEditSettings && (
+        <div className="form-actions">
+          <button type="submit" className="btn btn-primary" disabled={busy}>
+            {busy ? 'Tallennetaan…' : 'Tallenna yritystiedot'}
+          </button>
+        </div>
+      )}
+
+      {!canEditSettings && (
+        <p className="muted">
+          Esimies voi vaihtaa vain yrityksen logon. Muut yritystiedot muokkaa ylläpitäjä.
+        </p>
+      )}
     </form>
   );
 }
