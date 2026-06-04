@@ -298,12 +298,47 @@ export function parseCompanyLicenseSnapshot(raw: unknown): CompanyLicenseSnapsho
   };
 }
 
+export type LicenseSettingsStored = {
+  enrollment: string;
+  status: string;
+  trial_started_at: string | null;
+  trial_ends_at: string | null;
+  base_active: boolean;
+  modules: Record<Exclude<LicenseModuleKey, 'base'>, boolean>;
+  payment_status?: LicensePaymentStatus;
+};
+
 export type LicenseOverviewRow = {
   company_id: string;
   company_name: string;
   company_slug: string | null;
+  company_created_at: string | null;
+  user_count: number;
+  last_sign_in_at: string | null;
+  has_logged_in: boolean;
+  license_settings: LicenseSettingsStored | null;
   snapshot: CompanyLicenseSnapshot;
 };
+
+function parseLicenseSettingsStored(raw: unknown): LicenseSettingsStored | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const row = raw as Record<string, unknown>;
+  const modulesRaw = (row.modules as Record<string, unknown> | undefined) ?? {};
+  return {
+    enrollment: String(row.enrollment ?? 'subscription'),
+    status: String(row.status ?? 'pending_trial'),
+    trial_started_at: typeof row.trial_started_at === 'string' ? row.trial_started_at : null,
+    trial_ends_at: typeof row.trial_ends_at === 'string' ? row.trial_ends_at : null,
+    base_active: row.base_active === true,
+    modules: {
+      quotes: modulesRaw.quotes === true,
+      billing: modulesRaw.billing === true,
+      remote_monitoring: modulesRaw.remote_monitoring === true,
+      tools: modulesRaw.tools === true,
+    },
+    payment_status: (row.payment_status as LicensePaymentStatus) ?? undefined,
+  };
+}
 
 export function parseLicenseOverviewRows(raw: unknown): LicenseOverviewRow[] {
   if (!Array.isArray(raw)) return [];
@@ -317,8 +352,92 @@ export function parseLicenseOverviewRows(raw: unknown): LicenseOverviewRow[] {
         company_id: String(row.company_id),
         company_name: String(row.company_name ?? '—'),
         company_slug: row.company_slug != null ? String(row.company_slug) : null,
+        company_created_at:
+          typeof row.company_created_at === 'string' ? row.company_created_at : null,
+        user_count: Number(row.user_count ?? 0),
+        last_sign_in_at:
+          typeof row.last_sign_in_at === 'string' ? row.last_sign_in_at : null,
+        has_logged_in: row.has_logged_in === true,
+        license_settings: parseLicenseSettingsStored(row.license_settings),
         snapshot,
       };
     })
     .filter((row): row is LicenseOverviewRow => row !== null);
+}
+
+export function licenseOverviewEnrollmentLabel(enrollment: string) {
+  if (enrollment === 'legacy') return 'Vanha sopimus';
+  return 'Tilaus / kokeilu';
+}
+
+export function licenseOverviewLoginSummary(row: LicenseOverviewRow) {
+  if (row.snapshot.enrollment === 'legacy') {
+    if (row.has_logged_in && row.last_sign_in_at) {
+      return `Kirjautunut · ${new Date(row.last_sign_in_at).toLocaleDateString('fi-FI')}`;
+    }
+    if (row.user_count === 0) return 'Ei käyttäjiä';
+    return row.has_logged_in ? 'Kirjautunut' : 'Ei kirjautumista tallennettuna';
+  }
+  if (row.snapshot.effective_status === 'pending_trial') {
+    return row.has_logged_in
+      ? 'Kirjautunut, kokeilu ei käynnistynyt'
+      : 'Ei ensimmäistä kirjautumista';
+  }
+  if (row.snapshot.trial_started_at) {
+    const started = new Date(row.snapshot.trial_started_at).toLocaleDateString('fi-FI');
+    return `Kokeilu alkanut ${started}`;
+  }
+  if (row.has_logged_in && row.last_sign_in_at) {
+    return `Viimeisin ${new Date(row.last_sign_in_at).toLocaleDateString('fi-FI')}`;
+  }
+  return '—';
+}
+
+export function licenseOverviewTrialSummary(row: LicenseOverviewRow) {
+  if (row.snapshot.enrollment === 'legacy') {
+    return 'Ei kokeilua (vanha sopimus, ei laskutusta)';
+  }
+  if (row.snapshot.effective_status === 'pending_trial') {
+    return `Odottaa · ${row.snapshot.trial_days} pv kokeilu ensimmäisestä kirjautumisesta`;
+  }
+  if (row.snapshot.effective_status === 'trial') {
+    const remaining = trialDaysRemaining(row.snapshot);
+    const end = row.snapshot.trial_ends_at
+      ? new Date(row.snapshot.trial_ends_at).toLocaleDateString('fi-FI')
+      : '—';
+    return remaining != null
+      ? `Päättyy ${end} (${remaining} pv jäljellä)`
+      : `Päättyy ${end}`;
+  }
+  if (row.snapshot.effective_status === 'active') {
+    return 'Maksava · moduulit alla';
+  }
+  if (row.snapshot.order) return 'Odottaa maksua (tilaus lähetetty)';
+  return 'Kokeilu päättynyt / ei aktiivinen';
+}
+
+export function formatStoredModulesSummary(
+  stored: LicenseSettingsStored | null,
+  snapshot: CompanyLicenseSnapshot,
+) {
+  if (snapshot.enrollment === 'legacy') {
+    return 'Kaikki sallittu (vanha sopimus)';
+  }
+  if (snapshot.effective_status === 'trial' || snapshot.effective_status === 'pending_trial') {
+    return 'Kokeilussa: kaikki moduulit käytössä';
+  }
+  if (!stored) return '—';
+  const parts: string[] = [];
+  if (stored.base_active) parts.push('Perus ✓');
+  else parts.push('Perus ✗');
+  const labels: Record<Exclude<LicenseModuleKey, 'base'>, string> = {
+    quotes: 'Tarj.',
+    billing: 'Lask.',
+    remote_monitoring: 'Etä',
+    tools: 'Työkalut',
+  };
+  for (const key of PRICED_ADDON_MODULES) {
+    parts.push(`${labels[key]} ${stored.modules[key] ? '✓' : '✗'}`);
+  }
+  return parts.join(' · ');
 }

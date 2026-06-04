@@ -13,6 +13,7 @@ import OfflineBanner from './components/OfflineBanner';
 import PwaInstallBanner from './components/PwaInstallBanner';
 import PwaUpdateBanner from './components/PwaUpdateBanner';
 import { buildAuthenticatedRoutes } from './routes/authenticatedRoutes';
+import PlatformRouteAudit from './components/PlatformRouteAudit';
 
 function AppRoutes() {
   const { session, loading } = useAuthSession();
@@ -52,6 +53,7 @@ export default function App() {
         <OfflineBanner />
         <PwaUpdateBanner />
         <PwaInstallBanner />
+        <PlatformRouteAudit />
         <AppRoutes />
       </div>
     </AuthSessionProvider>

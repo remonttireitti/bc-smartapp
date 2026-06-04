@@ -62,6 +62,9 @@ export default function GlobalAdminLicensesSection({
   });
   const [catalogBusy, setCatalogBusy] = useState(false);
   const [catalogMessage, setCatalogMessage] = useState<string | null>(null);
+  const [licenseEnrollment, setLicenseEnrollment] = useState<'legacy' | 'subscription'>('subscription');
+  const [preserveLegacy, setPreserveLegacy] = useState(false);
+  const [extendTrialBusyId, setExtendTrialBusyId] = useState<string | null>(null);
 
   useEffect(() => {
     void loadLicenseCatalog();
@@ -110,11 +113,96 @@ export default function GlobalAdminLicensesSection({
     const snapshot = parseCompanyLicenseSnapshot(data);
     setLicenseSnapshot(snapshot);
     if (!snapshot) return;
+    setLicenseEnrollment(snapshot.enrollment === 'legacy' ? 'legacy' : 'subscription');
     setLicenseStatus(snapshot.status);
     setLicenseBillingInterval(snapshot.billing_interval);
     setLicensePaymentStatus(snapshot.payment_status);
-    setLicenseBaseActive(snapshot.base_active);
-    setLicenseModules({ ...snapshot.modules });
+
+    const company = companies.find((row) => row.id === companyId);
+    const storedLicense =
+      company?.settings && typeof company.settings === 'object'
+        ? (company.settings as { license?: Record<string, unknown> }).license
+        : null;
+    const storedModules =
+      storedLicense?.modules && typeof storedLicense.modules === 'object'
+        ? (storedLicense.modules as Record<string, boolean>)
+        : null;
+
+    setPreserveLegacy(storedLicense?.preserve_legacy === true);
+
+    if (storedLicense) {
+      setLicenseBaseActive(storedLicense.base_active === true);
+      setLicenseModules({
+        quotes: storedModules?.quotes === true,
+        billing: storedModules?.billing === true,
+        remote_monitoring: storedModules?.remote_monitoring === true,
+        tools: storedModules?.tools === true,
+      });
+    } else {
+      setLicenseBaseActive(snapshot.base_active);
+      setLicenseModules({ ...snapshot.modules });
+    }
+  }
+
+  async function saveEnrollmentForCompany() {
+    if (!licenseCompanyId) return;
+    setLicenseBusy(true);
+    setLicenseMessage(null);
+    setLicenseError(null);
+    const { data, error: saveError } = await supabase.rpc('global_admin_set_company_enrollment', {
+      p_company_id: licenseCompanyId,
+      p_enrollment: licenseEnrollment,
+      p_preserve_legacy: licenseEnrollment === 'legacy' ? preserveLegacy : false,
+    });
+    setLicenseBusy(false);
+    if (saveError) {
+      setLicenseError(saveError.message);
+      return;
+    }
+    const snapshot = parseCompanyLicenseSnapshot(data);
+    setLicenseSnapshot(snapshot);
+    if (snapshot) {
+      setLicenseEnrollment(snapshot.enrollment === 'legacy' ? 'legacy' : 'subscription');
+      setLicenseStatus(snapshot.status);
+      setLicenseBaseActive(snapshot.base_active);
+      setLicenseModules({ ...snapshot.modules });
+    }
+    setLicenseMessage(
+      licenseEnrollment === 'legacy'
+        ? 'Yritys siirretty vanhaan sopimukseen (kaikki moduulit, ei laskutusta).'
+        : 'Yritys siirretty tilaus-/kokeilumalliin.',
+    );
+    await onRefresh();
+  }
+
+  async function extendTrialForCompany(companyId: string, days: number) {
+    setExtendTrialBusyId(companyId);
+    setLicenseError(null);
+    const { data, error: extendError } = await supabase.rpc('global_admin_extend_company_trial', {
+      p_company_id: companyId,
+      p_extra_days: days,
+    });
+    setExtendTrialBusyId(null);
+    if (extendError) {
+      setLicenseError(extendError.message);
+      return;
+    }
+    if (licenseCompanyId === companyId) {
+      setLicenseSnapshot(parseCompanyLicenseSnapshot(data));
+      const snapshot = parseCompanyLicenseSnapshot(data);
+      if (snapshot) setLicenseStatus(snapshot.status);
+    }
+    setLicenseMessage(`Kokeilua jatkettu ${days} päivää.`);
+  }
+
+  function openCompanyEditor(companyId: string) {
+    setLicenseCompanyId(companyId);
+    setLicenseMessage(null);
+    setLicenseError(null);
+    void loadLicenseForCompany(companyId);
+    requestAnimationFrame(() => {
+      document.getElementById('global-admin-license-editor')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
   }
 
   async function saveLicenseForCompany() {
@@ -240,12 +328,9 @@ export default function GlobalAdminLicensesSection({
   return (
     <>
       <GlobalAdminLicenseOverview
-        onSelectCompany={(companyId) => {
-          setLicenseCompanyId(companyId);
-          setLicenseMessage(null);
-          setLicenseError(null);
-          void loadLicenseForCompany(companyId);
-        }}
+        extendTrialBusyId={extendTrialBusyId}
+        onExtendTrial={extendTrialForCompany}
+        onSelectCompany={openCompanyEditor}
       />
 
       <section className="card global-admin-block">
@@ -362,19 +447,19 @@ export default function GlobalAdminLicensesSection({
         {catalogMessage && <p className="success">{catalogMessage}</p>}
       </section>
 
-      <section className="card global-admin-block">
-        <h2>Yrityksen lisenssi</h2>
+      <section id="global-admin-license-editor" className="card global-admin-block">
+        <h2>Yrityksen lisenssi ja moduulit</h2>
+        <p className="muted global-admin-hint">
+          Valitse yritys taulukosta (Hallinta) tai listasta. Maksavan asiakkaan moduulit: päälle/pois alla. Kokeilua voi
+          jatkaa ilman maksua (+30 pv taulukossa tai tilan Kokeilujakso + tallenna).
+        </p>
         <div className="line-form-grid">
           <label>
             Yritys
             <select
               value={licenseCompanyId}
               onChange={(e) => {
-                const nextId = e.target.value;
-                setLicenseCompanyId(nextId);
-                setLicenseMessage(null);
-                setLicenseError(null);
-                void loadLicenseForCompany(nextId);
+                openCompanyEditor(e.target.value);
               }}
             >
               <option value="">Valitse yritys…</option>
@@ -386,10 +471,43 @@ export default function GlobalAdminLicensesSection({
             </select>
           </label>
           <label>
+            Yritysmalli
+            <select
+              value={licenseEnrollment}
+              disabled={!licenseCompanyId || licenseBusy}
+              onChange={(e) => setLicenseEnrollment(e.target.value as 'legacy' | 'subscription')}
+            >
+              <option value="legacy">Vanha sopimus (ei laskutusta, kaikki moduulit)</option>
+              <option value="subscription">Tilaus / kokeilu</option>
+            </select>
+          </label>
+          {licenseCompanyId && licenseEnrollment === 'legacy' && (
+            <div className="form-field-toggle">
+              <ToggleSwitch
+                checked={preserveLegacy}
+                disabled={licenseBusy}
+                label="Pidä vanha sopimus (ohita massasiirto tilausmalliin)"
+                onChange={setPreserveLegacy}
+              />
+            </div>
+          )}
+          {licenseCompanyId && (
+            <div className="form-actions global-admin-form-actions">
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                disabled={licenseBusy}
+                onClick={() => void saveEnrollmentForCompany()}
+              >
+                {licenseBusy ? 'Tallennetaan…' : 'Tallenna yritysmalli'}
+              </button>
+            </div>
+          )}
+          <label>
             Tila
             <select
               value={licenseStatus}
-              disabled={!licenseCompanyId}
+              disabled={!licenseCompanyId || licenseEnrollment === 'legacy'}
               onChange={(e) => setLicenseStatus(e.target.value)}
             >
               <option value="pending_trial">Odottaa ensimmäistä kirjautumista</option>
@@ -452,13 +570,22 @@ export default function GlobalAdminLicensesSection({
         )}
 
         {licenseSnapshot && licenseSnapshot.enrollment === 'legacy' && (
-          <p className="muted">Legacy-yritys — kaikki moduulit vapaasti (ei tilausmallia).</p>
+          <p className="muted">
+            Vanha sopimus — kaikki moduulit käytössä ilman laskutusta. Vaihda malliksi Tilaus / kokeilu, jos haluat
+            saman käytännön kuin uusilla yrityksillä. Massasiirto legacy → tilaus on ajettu; poikkeukset vain manuaalisesti
+            takaisin vanhaan sopimukseen.
+          </p>
         )}
 
         {licenseCompanyId && licenseSnapshot && licenseSnapshot.enrollment !== 'legacy' && (
           <>
             <p className="muted">
               Tehokas tila: <strong>{licenseSnapshot.effective_status}</strong>
+              {licenseSnapshot.trial_started_at
+                ? ` · kokeilu alkanut ${new Date(licenseSnapshot.trial_started_at).toLocaleDateString('fi-FI')}`
+                : licenseSnapshot.effective_status === 'pending_trial'
+                  ? ' · ei kirjautumista / kokeilua ei alkanut'
+                  : ''}
               {licenseSnapshot.trial_ends_at
                 ? ` · kokeilu päättyy ${new Date(licenseSnapshot.trial_ends_at).toLocaleDateString('fi-FI')}`
                 : ''}
@@ -480,11 +607,14 @@ export default function GlobalAdminLicensesSection({
                 onChange={setLicenseBaseActive}
               />
             </div>
+            <p className="muted" style={{ marginTop: '0.75rem' }}>
+              Moduulien sallinta maksavalle asiakkaalle (kokeilussa kaikki auki automaattisesti):
+            </p>
             <div className="license-admin-module-toggles">
               <ToggleSwitch
                 checked={licenseModules.quotes}
                 disabled={licenseBusy}
-                label="Tarjoukset"
+                label="Tarjoukset — sallittu"
                 onChange={(checked) => setLicenseModules((m) => ({ ...m, quotes: checked }))}
               />
               <ToggleSwitch
@@ -516,13 +646,25 @@ export default function GlobalAdminLicensesSection({
               </ul>
             )}
             <div className="form-actions global-admin-form-actions">
+              {(licenseSnapshot.effective_status === 'trial' ||
+                licenseSnapshot.effective_status === 'expired' ||
+                licenseSnapshot.effective_status === 'pending_trial') && (
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  disabled={licenseBusy}
+                  onClick={() => void extendTrialForCompany(licenseCompanyId, 30)}
+                >
+                  Jatka kokeilua 30 pv
+                </button>
+              )}
               <button
                 type="button"
                 className="btn btn-primary"
                 disabled={!licenseCompanyId || licenseBusy}
                 onClick={() => void saveLicenseForCompany()}
               >
-                {licenseBusy ? 'Tallennetaan…' : 'Tallenna yrityksen lisenssi'}
+                {licenseBusy ? 'Tallennetaan…' : 'Tallenna tila ja moduulit'}
               </button>
             </div>
           </>

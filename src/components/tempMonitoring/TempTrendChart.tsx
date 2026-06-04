@@ -30,8 +30,8 @@ export default function TempTrendChart({ readings, limits = null, height = 220 }
 
   if (!chart) {
     return (
-      <div className="temp-chart temp-chart--empty">
-        <p className="muted">Ei vielä mittausdataa.</p>
+      <div className="vrf-trend-chart temp-chart temp-chart--empty">
+        <p className="muted vrf-trend-empty-hint">Ei vielä mittausdataa valitulla aikavälillä.</p>
       </div>
     );
   }
@@ -46,8 +46,9 @@ export default function TempTrendChart({ readings, limits = null, height = 220 }
   const singlePoint = chart.points.length === 1;
 
   return (
-    <div className="temp-chart">
-      <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Lämpötilatrendi">
+    <div className="vrf-trend-chart temp-chart">
+      <div className="vrf-chart-scroll">
+        <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Lämpötilatrendi">
         {limits && gradientStops.length > 0 && (
           <defs>
             <linearGradient
@@ -150,16 +151,25 @@ export default function TempTrendChart({ readings, limits = null, height = 220 }
             />
           );
         })}
-      </svg>
+        </svg>
+      </div>
       {limits ? (
-        <div className="temp-chart-legend">
-          <span className="temp-chart-legend-in-range">Vihreä = alueella</span>
-          <span className="temp-chart-legend-deviation">Punainen = poikkeama</span>
-          <span className="temp-chart-legend-blend">Väri vaihtuu liukuvasti rajan yli</span>
-          <span className="temp-chart-legend-target">Toivottu {limits.targetMin}–{limits.targetMax} °C</span>
+        <div className="vrf-trend-legend temp-chart-legend">
+          <span className="vrf-trend-legend-item temp-chart-legend-in-range">
+            <span className="vrf-trend-legend-dot" style={{ background: '#16a34a' }} />
+            Vihreä = alueella
+          </span>
+          <span className="vrf-trend-legend-item temp-chart-legend-deviation">
+            <span className="vrf-trend-legend-dot" style={{ background: '#dc2626' }} />
+            Punainen = poikkeama
+          </span>
+          <span className="vrf-trend-legend-item temp-chart-legend-target">
+            <span className="vrf-trend-legend-dot" style={{ background: 'rgba(14, 165, 233, 0.45)' }} />
+            Toivottu {limits.targetMin}–{limits.targetMax} °C
+          </span>
         </div>
       ) : (
-        <p className="temp-chart-legend muted">Aseta tavoitealue mittauksen asetuksista nähdäksesi vihreä/punainen viiva.</p>
+        <p className="vrf-trend-hint">Aseta tavoitealue mittauksen asetuksista nähdäksesi vihreä/punainen viiva.</p>
       )}
     </div>
   );

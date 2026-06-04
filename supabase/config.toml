@@ -54,3 +54,12 @@ verify_jwt = false
 
 [functions.vrf-device-config]
 verify_jwt = false
+
+[functions.platform-backup-run]
+verify_jwt = false
+
+[functions.platform-backup-restore]
+verify_jwt = false
+
+[functions.platform-backup-download]
+verify_jwt = false

@@ -1,4 +1,4 @@
-export type GlobalAdminSectionId = 'companies' | 'licenses' | 'registry';
+export type GlobalAdminSectionId = 'companies' | 'licenses' | 'registry' | 'operations';
 
 export const GLOBAL_ADMIN_SECTIONS: { id: GlobalAdminSectionId; label: string; description: string }[] = [
   {
@@ -15,6 +15,11 @@ export const GLOBAL_ADMIN_SECTIONS: { id: GlobalAdminSectionId; label: string; d
     id: 'registry',
     label: 'Rekisterikorjaukset',
     description: 'Omistajuus, duplikaatit ja massamuokkaus',
+  },
+  {
+    id: 'operations',
+    label: 'Loki ja varmuuskopiot',
+    description: 'Käyttäjätoiminta, päivittäiset ja viikoittaiset vedokset, lataus ja palautus',
   },
 ];
 

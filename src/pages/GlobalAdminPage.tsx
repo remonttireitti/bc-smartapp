@@ -4,6 +4,7 @@ import type { ManagementOutletContext } from '../lib/managementOutletContext';
 import GlobalAdminCompaniesSection from './globalAdmin/GlobalAdminCompaniesSection';
 import GlobalAdminLicensesSection from './globalAdmin/GlobalAdminLicensesSection';
 import GlobalAdminRegistrySection from './globalAdmin/GlobalAdminRegistrySection';
+import GlobalAdminOperationsSection from './globalAdmin/GlobalAdminOperationsSection';
 import { GLOBAL_ADMIN_SECTIONS, type GlobalAdminSectionId } from './globalAdmin/types';
 import { useGlobalAdminMeta } from './globalAdmin/useGlobalAdminMeta';
 
@@ -79,6 +80,7 @@ export default function GlobalAdminPage() {
               onRefresh={refresh}
             />
           )}
+          {section === 'operations' && <GlobalAdminOperationsSection companies={companies} />}
         </div>
       )}
     </div>

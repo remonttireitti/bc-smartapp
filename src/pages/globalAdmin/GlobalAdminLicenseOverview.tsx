@@ -1,8 +1,13 @@
 import { useEffect, useState } from 'react';
 import {
   formatLicensePeriodMoney,
+  formatStoredModulesSummary,
   LICENSE_PAYMENT_STATUS_LABELS,
+  licenseOverviewEnrollmentLabel,
+  licenseOverviewLoginSummary,
+  licenseOverviewTrialSummary,
   parseLicenseOverviewRows,
+  trialDaysRemaining,
   type LicenseOverviewRow,
 } from '../../lib/companyLicense';
 import { supabase } from '../../lib/supabase';
@@ -14,43 +19,25 @@ function formatDateFi(iso: string | null) {
 
 function statusLabel(row: LicenseOverviewRow) {
   const { snapshot } = row;
-  if (snapshot.enrollment === 'legacy') return 'Legacy (kaikki)';
-  if (snapshot.effective_status === 'pending_trial') return 'Odottaa kirjautumista';
-  if (snapshot.effective_status === 'trial') return 'Kokeilu';
-  if (snapshot.effective_status === 'active') return 'Aktiivinen';
-  if (snapshot.payment_status === 'awaiting_payment') return 'Tilaus · odottaa maksua';
-  return 'Päättynyt';
-}
-
-function modulesSummary(row: LicenseOverviewRow) {
-  const { snapshot } = row;
-  if (snapshot.order) {
-    const parts: string[] = [];
-    if (snapshot.order.base_active) parts.push('Perus');
-    for (const key of ['quotes', 'billing', 'remote_monitoring', 'tools'] as const) {
-      if (snapshot.order.modules[key]) {
-        parts.push(key === 'remote_monitoring' ? 'Etä' : key.slice(0, 4));
-      }
-    }
-    return parts.length ? `Tilaus: ${parts.join(', ')}` : 'Tilaus';
-  }
-  if (snapshot.effective_status === 'trial' || snapshot.effective_status === 'pending_trial') {
-    return 'Kaikki kokeilussa';
-  }
-  const parts: string[] = [];
-  if (snapshot.base_active) parts.push('Perus');
-  if (snapshot.modules.quotes) parts.push('Tarj.');
-  if (snapshot.modules.billing) parts.push('Lask.');
-  if (snapshot.modules.remote_monitoring) parts.push('Etä');
-  if (snapshot.modules.tools) parts.push('Työkalut');
-  return parts.length ? parts.join(', ') : '—';
+  if (snapshot.enrollment === 'legacy') return 'Vanha sopimus';
+  if (snapshot.effective_status === 'pending_trial') return 'Odottaa kokeilua';
+  if (snapshot.effective_status === 'trial') return 'Kokeilujakso';
+  if (snapshot.effective_status === 'active') return 'Maksava';
+  if (snapshot.payment_status === 'awaiting_payment') return 'Odottaa maksua';
+  return 'Ei aktiivinen';
 }
 
 type Props = {
   onSelectCompany?: (companyId: string) => void;
+  onExtendTrial?: (companyId: string, days: number) => Promise<void>;
+  extendTrialBusyId?: string | null;
 };
 
-export default function GlobalAdminLicenseOverview({ onSelectCompany }: Props) {
+export default function GlobalAdminLicenseOverview({
+  onSelectCompany,
+  onExtendTrial,
+  extendTrialBusyId,
+}: Props) {
   const [rows, setRows] = useState<LicenseOverviewRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -71,6 +58,9 @@ export default function GlobalAdminLicenseOverview({ onSelectCompany }: Props) {
     void load();
   }, []);
 
+  const legacyCount = rows.filter((r) => r.snapshot.enrollment === 'legacy').length;
+  const subscriptionCount = rows.length - legacyCount;
+
   return (
     <section className="card global-admin-block">
       <div className="global-admin-block-head">
@@ -79,7 +69,18 @@ export default function GlobalAdminLicenseOverview({ onSelectCompany }: Props) {
           {loading ? 'Päivitetään…' : 'Päivitä'}
         </button>
       </div>
-      <p className="muted">Kaikki yritykset: kokeilu, tilaus, maksu ja aktiiviset moduulit.</p>
+
+      <div className="global-admin-license-legend panel">
+        <p className="muted" style={{ margin: 0 }}>
+          <strong>Vanha sopimus</strong> ({legacyCount}): ei kokeilua eikä laskutusta — kaikki moduulit vapaasti. Uudet
+          ja siirretyt yritykset käyttävät <strong>Tilaus / kokeilu</strong> -mallia; vanhaan sopimukseen voi palauttaa
+          kohdassa Hallinta.
+        </p>
+        <p className="muted" style={{ margin: '0.5rem 0 0' }}>
+          <strong>Tilaus / kokeilu</strong> ({subscriptionCount}): kokeilu alkaa ensimmäisestä kirjautumisesta.
+          Maksavan asiakkaan moduulit (✓/✗) hallitaan kohdassa <strong>Yrityksen lisenssi ja moduulit</strong>.
+        </p>
+      </div>
 
       {error && <p className="error">{error}</p>}
 
@@ -87,15 +88,15 @@ export default function GlobalAdminLicenseOverview({ onSelectCompany }: Props) {
         <p className="muted">Ladataan…</p>
       ) : (
         <div className="table-wrap global-admin-overview-wrap">
-          <table className="data-table global-admin-overview-table">
+          <table className="data-table global-admin-overview-table global-admin-license-table">
             <thead>
               <tr>
                 <th>Yritys</th>
+                <th>Malli</th>
                 <th>Tila</th>
-                <th>Moduulit / tilaus</th>
-                <th>Laskutus</th>
-                <th>Maksu</th>
-                <th>Summa</th>
+                <th>Kirjautuminen</th>
+                <th>Kokeilu / maksu</th>
+                <th>Moduulit (hallinta)</th>
                 <th />
               </tr>
             </thead>
@@ -103,6 +104,11 @@ export default function GlobalAdminLicenseOverview({ onSelectCompany }: Props) {
               {rows.map((row) => {
                 const { snapshot } = row;
                 const isLegacy = snapshot.enrollment === 'legacy';
+                const canExtendTrial =
+                  !isLegacy &&
+                  (snapshot.effective_status === 'trial' ||
+                    snapshot.effective_status === 'expired' ||
+                    snapshot.effective_status === 'pending_trial');
                 const price = snapshot.order
                   ? formatLicensePeriodMoney(
                       snapshot.order.estimated_period_eur,
@@ -113,32 +119,78 @@ export default function GlobalAdminLicenseOverview({ onSelectCompany }: Props) {
                         snapshot.pricing.estimated_period_total_eur,
                         snapshot.billing_interval,
                       )
-                    : '—';
+                    : null;
 
                 return (
                   <tr key={row.company_id}>
                     <td data-label="Yritys">
                       <strong>{row.company_name}</strong>
-                      {row.company_slug && <span className="muted global-admin-slug">{row.company_slug}</span>}
+                      {row.company_slug && (
+                        <span className="muted global-admin-slug">{row.company_slug}</span>
+                      )}
+                      <span className="muted global-admin-sub">
+                        {row.user_count} käyttäjää
+                        {row.company_created_at
+                          ? ` · luotu ${formatDateFi(row.company_created_at)}`
+                          : ''}
+                      </span>
+                    </td>
+                    <td data-label="Malli">
+                      <span
+                        className={
+                          isLegacy
+                            ? 'global-admin-badge global-admin-badge--legacy'
+                            : 'global-admin-badge global-admin-badge--subscription'
+                        }
+                      >
+                        {licenseOverviewEnrollmentLabel(snapshot.enrollment)}
+                      </span>
                     </td>
                     <td data-label="Tila">
                       {statusLabel(row)}
                       {snapshot.effective_status === 'trial' && snapshot.trial_ends_at && (
-                        <span className="muted global-admin-sub"> · {formatDateFi(snapshot.trial_ends_at)}</span>
+                        <span className="muted global-admin-sub">
+                          {' '}
+                          · {formatDateFi(snapshot.trial_ends_at)}
+                          {trialDaysRemaining(snapshot) != null &&
+                            ` (${trialDaysRemaining(snapshot)} pv)`}
+                        </span>
+                      )}
+                      {!isLegacy && snapshot.payment_status !== 'none' && (
+                        <span className="muted global-admin-sub">
+                          {' '}
+                          · {LICENSE_PAYMENT_STATUS_LABELS[snapshot.payment_status]}
+                        </span>
                       )}
                     </td>
-                    <td data-label="Moduulit">{modulesSummary(row)}</td>
-                    <td data-label="Laskutus">{isLegacy ? '—' : snapshot.billing_interval_label}</td>
-                    <td data-label="Maksu">{isLegacy ? '—' : (LICENSE_PAYMENT_STATUS_LABELS[snapshot.payment_status] ?? snapshot.payment_status)}</td>
-                    <td data-label="Summa">{isLegacy ? '—' : price}</td>
-                    <td data-label="">
-                      {onSelectCompany && !isLegacy && (
+                    <td data-label="Kirjautuminen">{licenseOverviewLoginSummary(row)}</td>
+                    <td data-label="Kokeilu">
+                      {licenseOverviewTrialSummary(row)}
+                      {price && (
+                        <span className="muted global-admin-sub"> · {price}</span>
+                      )}
+                    </td>
+                    <td data-label="Moduulit">
+                      {formatStoredModulesSummary(row.license_settings, snapshot)}
+                    </td>
+                    <td data-label="" className="global-admin-license-actions">
+                      {onSelectCompany && (
                         <button
                           type="button"
                           className="btn btn-secondary btn-sm"
                           onClick={() => onSelectCompany(row.company_id)}
                         >
-                          Avaa
+                          Hallinta
+                        </button>
+                      )}
+                      {onExtendTrial && canExtendTrial && (
+                        <button
+                          type="button"
+                          className="btn btn-secondary btn-sm"
+                          disabled={extendTrialBusyId === row.company_id}
+                          onClick={() => void onExtendTrial(row.company_id, 30)}
+                        >
+                          {extendTrialBusyId === row.company_id ? '…' : '+30 pv kokeilu'}
                         </button>
                       )}
                     </td>
