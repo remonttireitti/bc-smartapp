@@ -9260,6 +9260,21 @@ button.vrf-toggle:not(:disabled) {
   font-size: 0.9rem;
 }
 
+.license-device-pricing-detail {
+  margin-top: 0.35rem;
+  font-size: 0.85rem;
+}
+
+.license-device-pricing-detail p {
+  margin: 0.2rem 0;
+}
+
+.license-device-pricing-list {
+  margin: 0.35rem 0 0;
+  padding-left: 1.1rem;
+  font-size: 0.82rem;
+}
+
 .license-usage-block {
   margin-top: 1rem;
 }

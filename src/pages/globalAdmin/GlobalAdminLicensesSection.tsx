@@ -55,6 +55,11 @@ export default function GlobalAdminLicensesSection({
     remote_monitoring: 29,
     tools: 9,
   });
+  const [catalogDevicePrices, setCatalogDevicePrices] = useState({
+    jc3248: 5,
+    esp32_ds18b20: 5,
+    default: 5,
+  });
   const [catalogBusy, setCatalogBusy] = useState(false);
   const [catalogMessage, setCatalogMessage] = useState<string | null>(null);
 
@@ -80,6 +85,13 @@ export default function GlobalAdminLicensesSection({
       billing: Number(prices.billing ?? 19),
       remote_monitoring: Number(prices.remote_monitoring ?? 29),
       tools: Number(prices.tools ?? 9),
+    });
+    const devicePrices =
+      (data.temp_device_monthly_prices as Record<string, number> | null) ?? {};
+    setCatalogDevicePrices({
+      jc3248: Number(devicePrices.jc3248 ?? 5),
+      esp32_ds18b20: Number(devicePrices.esp32_ds18b20 ?? 5),
+      default: Number(devicePrices.default ?? 5),
     });
   }
 
@@ -176,6 +188,7 @@ export default function GlobalAdminLicensesSection({
       p_trial_days: catalogTrialDays,
       p_base_monthly_eur: catalogBasePrice,
       p_module_prices: catalogModulePrices,
+      p_temp_device_monthly_prices: catalogDevicePrices,
     });
 
     setCatalogBusy(false);
@@ -283,7 +296,7 @@ export default function GlobalAdminLicensesSection({
             />
           </label>
           <label>
-            Etäseuranta €/kk
+            Etäseuranta (moduuli) €/kk
             <input
               type="number"
               min={0}
@@ -291,6 +304,42 @@ export default function GlobalAdminLicensesSection({
               value={catalogModulePrices.remote_monitoring}
               onChange={(e) =>
                 setCatalogModulePrices((m) => ({ ...m, remote_monitoring: Number(e.target.value) }))
+              }
+            />
+          </label>
+          <label>
+            Laite JC3248 €/kk
+            <input
+              type="number"
+              min={0}
+              step="0.01"
+              value={catalogDevicePrices.jc3248}
+              onChange={(e) =>
+                setCatalogDevicePrices((m) => ({ ...m, jc3248: Number(e.target.value) }))
+              }
+            />
+          </label>
+          <label>
+            Laite ESP32 €/kk
+            <input
+              type="number"
+              min={0}
+              step="0.01"
+              value={catalogDevicePrices.esp32_ds18b20}
+              onChange={(e) =>
+                setCatalogDevicePrices((m) => ({ ...m, esp32_ds18b20: Number(e.target.value) }))
+              }
+            />
+          </label>
+          <label>
+            Laite (oletus) €/kk
+            <input
+              type="number"
+              min={0}
+              step="0.01"
+              value={catalogDevicePrices.default}
+              onChange={(e) =>
+                setCatalogDevicePrices((m) => ({ ...m, default: Number(e.target.value) }))
               }
             />
           </label>

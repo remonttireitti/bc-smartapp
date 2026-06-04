@@ -8,6 +8,8 @@ import {
   LICENSE_MODULE_LABELS,
   LICENSE_PAYMENT_STATUS_LABELS,
   PRICED_ADDON_MODULES,
+  remoteMonitoringModuleDisplayPrice,
+  tempDeviceTypeLabel,
   trialDaysRemaining,
   type CompanyLicenseSnapshot,
   type LicenseModuleKey,
@@ -87,12 +89,42 @@ export default function LicenseStatusPanel({ license, canManageOrder, onRefresh 
 
         {PRICED_ADDON_MODULES.map((moduleKey) => {
           const active = license.modules[moduleKey];
-          const price = pricing.module_prices[moduleKey] ?? 0;
+          const price =
+            moduleKey === 'remote_monitoring'
+              ? remoteMonitoringModuleDisplayPrice(pricing)
+              : (pricing.module_prices[moduleKey] ?? 0);
+          const devicePricing = pricing.remote_monitoring_devices;
           return (
             <article key={moduleKey} className={`license-pricing-card${active ? ' is-active' : ''}`}>
               <h3>{LICENSE_MODULE_LABELS[moduleKey]}</h3>
               <p className="muted">{LICENSE_MODULE_DESCRIPTIONS[moduleKey]}</p>
               <p className="license-price">{formatLicenseMoney(price)}</p>
+              {moduleKey === 'remote_monitoring' && (
+                <div className="license-device-pricing-detail muted">
+                  <p>
+                    Moduuli {formatLicenseMoney(pricing.module_prices.remote_monitoring ?? 0)}
+                    {devicePricing.billable_count > 0 ? (
+                      <>
+                        {' '}
+                        + laitteet {formatLicenseMoney(devicePricing.monthly_eur)} (
+                        {devicePricing.billable_count} kpl)
+                      </>
+                    ) : (
+                      <> · ei omia laitteita (demo ei laskuteta)</>
+                    )}
+                  </p>
+                  {devicePricing.by_type.length > 0 && (
+                    <ul className="license-device-pricing-list">
+                      {devicePricing.by_type.map((row) => (
+                        <li key={row.device_type}>
+                          {tempDeviceTypeLabel(row.device_type)}: {row.count} ×{' '}
+                          {formatLicenseMoney(row.unit_eur)} = {formatLicenseMoney(row.subtotal_eur)}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              )}
               <p className="license-state">{active ? 'Käytössä' : 'Ei tilattu'}</p>
             </article>
           );

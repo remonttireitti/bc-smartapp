@@ -9,6 +9,8 @@ import {
   LICENSE_MODULE_DESCRIPTIONS,
   LICENSE_MODULE_LABELS,
   PRICED_ADDON_MODULES,
+  remoteMonitoringModuleDisplayPrice,
+  tempDeviceTypeLabel,
   type CompanyLicenseSnapshot,
   type LicenseBillingInterval,
 } from '../lib/companyLicense';
@@ -110,19 +112,45 @@ export default function CompanySubscriptionOrderForm({ license, onSubmitted }: P
             <span className="muted"> — {LICENSE_MODULE_DESCRIPTIONS.base}</span>
           </span>
         </div>
-        {PRICED_ADDON_MODULES.map((moduleKey) => (
-          <div key={moduleKey} className="license-order-module-row">
-            <ToggleSwitch
-              checked={modules[moduleKey]}
-              label={LICENSE_MODULE_LABELS[moduleKey]}
-              onChange={(checked) => setModules((current) => ({ ...current, [moduleKey]: checked }))}
-            />
-            <span className="license-order-module-meta">
-              {formatLicenseMoney(license.pricing.module_prices[moduleKey] ?? 0)}
-              <span className="muted"> — {LICENSE_MODULE_DESCRIPTIONS[moduleKey]}</span>
-            </span>
-          </div>
-        ))}
+        {PRICED_ADDON_MODULES.map((moduleKey) => {
+          const basePrice = license.pricing.module_prices[moduleKey] ?? 0;
+          const displayPrice =
+            moduleKey === 'remote_monitoring' && modules.remote_monitoring
+              ? remoteMonitoringModuleDisplayPrice(license.pricing)
+              : basePrice;
+          const showDevices =
+            moduleKey === 'remote_monitoring' && license.pricing.remote_monitoring_devices.billable_count > 0;
+          return (
+            <div key={moduleKey} className="license-order-module-row">
+              <ToggleSwitch
+                checked={modules[moduleKey]}
+                label={LICENSE_MODULE_LABELS[moduleKey]}
+                onChange={(checked) => setModules((current) => ({ ...current, [moduleKey]: checked }))}
+              />
+              <span className="license-order-module-meta">
+                {formatLicenseMoney(displayPrice)}
+                {moduleKey === 'remote_monitoring' && showDevices && (
+                  <span className="muted">
+                    {' '}
+                    (moduuli {formatLicenseMoney(basePrice)} + {license.pricing.remote_monitoring_devices.billable_count}{' '}
+                    laitetta)
+                  </span>
+                )}
+                <span className="muted"> — {LICENSE_MODULE_DESCRIPTIONS[moduleKey]}</span>
+                {moduleKey === 'remote_monitoring' && showDevices && (
+                  <ul className="license-device-pricing-list">
+                    {license.pricing.remote_monitoring_devices.by_type.map((row) => (
+                      <li key={row.device_type}>
+                        {tempDeviceTypeLabel(row.device_type)}: {row.count} ×{' '}
+                        {formatLicenseMoney(row.unit_eur)}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </span>
+            </div>
+          );
+        })}
       </div>
 
       <label>

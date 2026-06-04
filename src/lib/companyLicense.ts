@@ -16,6 +16,20 @@ export type CompanySubscriptionOrder = {
   estimated_period_eur: number;
 };
 
+export type RemoteMonitoringDeviceTypeRow = {
+  device_type: string;
+  count: number;
+  unit_eur: number;
+  subtotal_eur: number;
+};
+
+export type RemoteMonitoringDevicesPricing = {
+  billable_count: number;
+  monthly_eur: number;
+  by_type: RemoteMonitoringDeviceTypeRow[];
+  unit_prices: Record<string, number>;
+};
+
 export type CompanyLicenseSnapshot = {
   enrollment: 'subscription' | 'legacy' | string;
   status: string;
@@ -35,6 +49,8 @@ export type CompanyLicenseSnapshot = {
   pricing: {
     base_monthly_eur: number;
     module_prices: Record<string, number>;
+    temp_device_unit_prices: Record<string, number>;
+    remote_monitoring_devices: RemoteMonitoringDevicesPricing;
     estimated_monthly_total_eur: number;
     estimated_period_total_eur: number;
   };
@@ -71,7 +87,7 @@ export const LICENSE_MODULE_DESCRIPTIONS: Record<LicenseModuleKey, string> = {
   base: 'Työraportit, varasto, huoltoraportit, asiakas- ja laiterekisteri',
   quotes: 'Tarjouspyynnöt, laskelmat ja tulosteet',
   billing: 'Laskutettavat summat ja kumppanilaskutus',
-  remote_monitoring: 'Lämpötilaseuranta ja etäohjaus',
+  remote_monitoring: 'Lämpötilaseuranta ja etäohjaus. Moduulimaksu + laitemaksu (€/kk per laite, tyypistä riippuen).',
   tools: 'Työkaluinventaario',
 };
 
@@ -82,6 +98,22 @@ export const LICENSE_MODULE_HREFS: Record<LicenseModuleKey, string[]> = {
   remote_monitoring: ['/etaseuranta', '/lampotila'],
   tools: ['/tyokalut'],
 };
+
+export const TEMP_DEVICE_TYPE_LABELS: Record<string, string> = {
+  jc3248: 'JC3248-näyttölaite',
+  esp32_ds18b20: 'ESP32 + DS18B20',
+  default: 'Lämpötilalaite',
+};
+
+export function tempDeviceTypeLabel(deviceType: string) {
+  return TEMP_DEVICE_TYPE_LABELS[deviceType] ?? deviceType;
+}
+
+export function remoteMonitoringModuleDisplayPrice(pricing: CompanyLicenseSnapshot['pricing']) {
+  const base = pricing.module_prices.remote_monitoring ?? 0;
+  const devices = pricing.remote_monitoring_devices?.monthly_eur ?? 0;
+  return base + devices;
+}
 
 export const PRICED_ADDON_MODULES: Exclude<LicenseModuleKey, 'base'>[] = [
   'quotes',
@@ -140,9 +172,39 @@ export function estimateOrderMonthlyTotal(
   let total = 0;
   if (baseActive) total += pricing.base_monthly_eur;
   for (const key of PRICED_ADDON_MODULES) {
-    if (modules[key]) total += pricing.module_prices[key] ?? 0;
+    if (!modules[key]) continue;
+    if (key === 'remote_monitoring') {
+      total += remoteMonitoringModuleDisplayPrice(pricing);
+    } else {
+      total += pricing.module_prices[key] ?? 0;
+    }
   }
   return total;
+}
+
+function parseRemoteMonitoringDevicesPricing(raw: unknown): RemoteMonitoringDevicesPricing {
+  if (!raw || typeof raw !== 'object') {
+    return { billable_count: 0, monthly_eur: 0, by_type: [], unit_prices: {} };
+  }
+  const row = raw as Record<string, unknown>;
+  const unitPricesRaw = (row.unit_prices as Record<string, unknown> | undefined) ?? {};
+  const byTypeRaw = Array.isArray(row.by_type) ? row.by_type : [];
+  return {
+    billable_count: Number(row.billable_count ?? 0),
+    monthly_eur: Number(row.monthly_eur ?? 0),
+    by_type: byTypeRaw.map((entry) => {
+      const item = entry as Record<string, unknown>;
+      return {
+        device_type: String(item.device_type ?? 'default'),
+        count: Number(item.count ?? 0),
+        unit_eur: Number(item.unit_eur ?? 0),
+        subtotal_eur: Number(item.subtotal_eur ?? 0),
+      };
+    }),
+    unit_prices: Object.fromEntries(
+      Object.entries(unitPricesRaw).map(([key, value]) => [key, Number(value ?? 0)]),
+    ),
+  };
 }
 
 export function estimateOrderPeriodTotal(monthly: number, interval: LicenseBillingInterval) {
@@ -163,6 +225,8 @@ export function parseCompanyLicenseSnapshot(raw: unknown): CompanyLicenseSnapsho
   const modulesRaw = (row.modules as Record<string, unknown> | undefined) ?? {};
   const pricingRaw = (row.pricing as Record<string, unknown> | undefined) ?? {};
   const modulePricesRaw = (pricingRaw.module_prices as Record<string, unknown> | undefined) ?? {};
+  const tempDeviceUnitPricesRaw =
+    (pricingRaw.temp_device_unit_prices as Record<string, unknown> | undefined) ?? {};
   const orderRaw = row.order;
 
   let order: CompanySubscriptionOrder | null = null;
@@ -210,6 +274,12 @@ export function parseCompanyLicenseSnapshot(raw: unknown): CompanyLicenseSnapsho
       base_monthly_eur: Number(pricingRaw.base_monthly_eur ?? 0),
       module_prices: Object.fromEntries(
         Object.entries(modulePricesRaw).map(([key, value]) => [key, Number(value ?? 0)]),
+      ),
+      temp_device_unit_prices: Object.fromEntries(
+        Object.entries(tempDeviceUnitPricesRaw).map(([key, value]) => [key, Number(value ?? 0)]),
+      ),
+      remote_monitoring_devices: parseRemoteMonitoringDevicesPricing(
+        pricingRaw.remote_monitoring_devices,
       ),
       estimated_monthly_total_eur: Number(pricingRaw.estimated_monthly_total_eur ?? 0),
       estimated_period_total_eur: Number(pricingRaw.estimated_period_total_eur ?? 0),
