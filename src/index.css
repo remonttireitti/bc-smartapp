@@ -1685,6 +1685,155 @@ button[type='submit']:disabled { opacity: .6; cursor: wait; }
   opacity: .55;
 }
 
+.global-admin-page {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  max-width: 56rem;
+}
+
+.global-admin-page-head {
+  margin: 0;
+}
+
+.global-admin-nav {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 11rem), 1fr));
+  gap: 0.5rem;
+}
+
+.global-admin-nav-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.2rem;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  background: var(--bg-surface);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
+}
+
+.global-admin-nav-btn:hover {
+  border-color: #93c5fd;
+  background: #f8fafc;
+}
+
+.global-admin-nav-btn.active {
+  border-color: #2563eb;
+  background: linear-gradient(180deg, #eff6ff 0%, #fff 100%);
+  box-shadow: var(--shadow-sm);
+}
+
+.global-admin-nav-label {
+  font-weight: 700;
+  font-size: 0.92rem;
+}
+
+.global-admin-nav-desc {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  line-height: 1.35;
+}
+
+.global-admin-section-intro {
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.global-admin-section {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.global-admin-block {
+  margin: 0;
+}
+
+.global-admin-block h2 {
+  margin: 0 0 0.5rem;
+  font-size: 1.05rem;
+}
+
+.global-admin-form-actions {
+  margin-top: 0.25rem;
+}
+
+.global-admin-full-width {
+  grid-column: 1 / -1;
+}
+
+.global-admin-inline-action {
+  display: flex;
+  align-items: flex-end;
+  padding-bottom: 0.1rem;
+}
+
+.global-admin-stats-list {
+  list-style: none;
+  margin: 0.75rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.global-admin-stats-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.55rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.global-admin-stats-name {
+  font-weight: 600;
+}
+
+.global-admin-stats-count {
+  color: var(--text-muted);
+  font-size: 0.88rem;
+  white-space: nowrap;
+}
+
+.global-admin-footnote {
+  margin-top: 0.85rem;
+  font-size: 0.85rem;
+}
+
+.global-admin-registry-form {
+  margin-top: 0.5rem;
+}
+
+@media (max-width: 640px) {
+  .global-admin-nav {
+    grid-template-columns: 1fr;
+  }
+
+  .global-admin-duplicate-group-head {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .global-admin-duplicate-group-head .btn {
+    width: 100%;
+  }
+
+  .global-admin-selection-bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .global-admin-selection-bar .btn-sm {
+    width: 100%;
+  }
+}
+
 .btn-sm {
   padding: 0.4rem 0.75rem;
   font-size: 0.86rem;
