@@ -81,10 +81,18 @@ export default function UsersPage() {
   }, [gbaActive]);
 
   useEffect(() => {
-    if (profile.company_id && !invite.company_id) {
-      setInvite((current) => ({ ...current, company_id: profile.company_id ?? '' }));
+    if (!gbaActive) {
+      if (profile.company_id) {
+        setInvite((current) =>
+          current.company_id ? current : { ...current, company_id: profile.company_id ?? '' },
+        );
+      }
+      return;
     }
-  }, [profile.company_id, invite.company_id]);
+    if (companyFilter) {
+      setInvite((current) => ({ ...current, company_id: companyFilter }));
+    }
+  }, [gbaActive, profile.company_id, companyFilter]);
 
   async function loadCompanies() {
     const { data } = await supabase.from('companies').select('id, name, slug, settings').order('name');
@@ -231,13 +239,20 @@ export default function UsersPage() {
     setError(null);
     setMessage(null);
 
+    const targetCompanyId = gbaActive ? invite.company_id.trim() : profile.company_id;
+    if (!targetCompanyId) {
+      setBusy(false);
+      setError(gbaActive ? 'Valitse yritys ennen käyttäjän luontia.' : 'Yritys puuttuu profiilista.');
+      return;
+    }
+
     try {
       await inviteCompanyUser({
         email: invite.email.trim(),
         password: invite.password,
         display_name: invite.display_name.trim() || invite.email.split('@')[0],
         role: invite.role,
-        company_id: gbaActive ? invite.company_id || profile.company_id : profile.company_id,
+        company_id: targetCompanyId,
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Käyttäjän luonti epäonnistui');
@@ -254,7 +269,7 @@ export default function UsersPage() {
       password: 'test123456',
       display_name: '',
       role: 'technician',
-      company_id: gbaActive ? invite.company_id : profile.company_id ?? '',
+      company_id: gbaActive ? companyFilter || invite.company_id : profile.company_id ?? '',
     });
     await loadUsers();
   }

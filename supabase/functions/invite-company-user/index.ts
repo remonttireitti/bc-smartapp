@@ -68,7 +68,14 @@ Deno.serve(async (req) => {
         ? String(body.customer_id).trim()
         : null;
 
-    if (!email || (!isGlobalAdmin && companyId !== adminProfile.company_id)) {
+    if (!email || !companyId) {
+      return new Response(JSON.stringify({ error: 'Virheelliset tiedot' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    if (!isGlobalAdmin && companyId !== adminProfile.company_id) {
       return new Response(JSON.stringify({ error: 'Virheelliset tiedot' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
