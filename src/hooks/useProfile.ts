@@ -85,6 +85,10 @@ export function useProfile(session: Session | null) {
       }
 
       const row = data as ProfileRow;
+      if (metaGlobalAdmin && !row.is_global_admin) {
+        await supabase.from('profiles').update({ is_global_admin: true }).eq('id', userId);
+        row.is_global_admin = true;
+      }
       const isGlobalAdmin = row.is_global_admin === true || metaGlobalAdmin;
       let company = row.company_id ? await fetchCompany(row.company_id) : null;
 
