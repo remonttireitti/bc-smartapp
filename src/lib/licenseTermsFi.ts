@@ -28,7 +28,7 @@ export const LICENSE_TERMS_HELP_CONTENT: Record<
     paragraphs: [
       'Yritysmalli määrittää, onko kyseessä vanha sopimus vai tilaus-/kokeilumalli.',
       'Tila ja maksu: kokeilujakso, maksava asiakas tai päättynyt tilaus. Moduulien kytkimet koskevat maksavaa asiakasta (kokeilussa kaikki auki).',
-      'Laskutusmoduuli erikseen: piilottaa Laskutus-valikon yrityksen käyttäjiltä, vaikka lisenssi olisi päällä.',
+      'Laskutus-kytkin: sekä tilaus/lisenssi että näkyvyys valikossa (ei erillistä lohkoa). Vanhassa sopimuksessa vain valikon näkyvyys.',
     ],
   },
   nav: {

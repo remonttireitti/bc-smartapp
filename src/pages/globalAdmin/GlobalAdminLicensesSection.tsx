@@ -29,12 +29,9 @@ export default function GlobalAdminLicensesSection({
   onCompaniesChange,
   onRefresh,
 }: Props) {
-  const [billingModuleCompanyId, setBillingModuleCompanyId] = useState('');
-  const [billingModuleEnabled, setBillingModuleEnabled] = useState(false);
-  const [billingModuleBusy, setBillingModuleBusy] = useState(false);
-  const [billingModuleMessage, setBillingModuleMessage] = useState<string | null>(null);
-  const [billingModuleError, setBillingModuleError] = useState<string | null>(null);
   const [licenseCompanyId, setLicenseCompanyId] = useState('');
+  /** Näkyykö Laskutus valikossa (settings.billing.module_enabled). */
+  const [billingMenuVisible, setBillingMenuVisible] = useState(false);
   const [licenseSnapshot, setLicenseSnapshot] = useState<CompanyLicenseSnapshot | null>(null);
   const [licenseStatus, setLicenseStatus] = useState('pending_trial');
   const [licenseBillingInterval, setLicenseBillingInterval] = useState<LicenseBillingInterval>('monthly');
@@ -72,11 +69,9 @@ export default function GlobalAdminLicensesSection({
     void loadLicenseCatalog();
   }, []);
 
-  function syncBillingModuleToggle(companyId: string) {
+  function readBillingMenuVisible(companyId: string) {
     const company = companies.find((row) => row.id === companyId);
-    setBillingModuleEnabled(
-      company ? companyBillingModuleEnabled(parseCompanySettings(company.settings)) : false,
-    );
+    return company ? companyBillingModuleEnabled(parseCompanySettings(company.settings)) : false;
   }
 
   async function loadLicenseCatalog() {
@@ -131,6 +126,7 @@ export default function GlobalAdminLicensesSection({
         : null;
 
     setPreserveLegacy(storedLicense?.preserve_legacy === true);
+    setBillingMenuVisible(readBillingMenuVisible(companyId));
 
     if (storedLicense) {
       setLicenseBaseActive(storedLicense.base_active === true);
@@ -230,8 +226,12 @@ export default function GlobalAdminLicensesSection({
     }
 
     setLicenseSnapshot(parseCompanyLicenseSnapshot(data));
+    setBillingMenuVisible(licenseModules.billing);
     setLicenseMessage('Tilaus ja moduulit päivitetty.');
-    await onRefresh();
+    const refreshed = await onRefresh();
+    if (Array.isArray(refreshed)) {
+      setBillingMenuVisible(readBillingMenuVisible(licenseCompanyId));
+    }
   }
 
   async function activatePendingOrder() {
@@ -290,23 +290,20 @@ export default function GlobalAdminLicensesSection({
     await loadLicenseCatalog();
   }
 
-  async function saveBillingModuleForCompany(companyId: string, enabled: boolean) {
-    setBillingModuleBusy(true);
-    setBillingModuleMessage(null);
-    setBillingModuleError(null);
+  async function saveBillingMenuForCompany(enabled = billingMenuVisible) {
+    if (!licenseCompanyId) return false;
     const { error } = await supabase.rpc('global_admin_set_company_billing_module', {
-      p_company_id: companyId,
+      p_company_id: licenseCompanyId,
       p_enabled: enabled,
     });
-    setBillingModuleBusy(false);
     if (error) {
-      setBillingModuleError(error.message);
-      return;
+      setLicenseError(error.message);
+      return false;
     }
-    setBillingModuleEnabled(enabled);
+    setBillingMenuVisible(enabled);
     onCompaniesChange((prev) =>
       prev.map((company) => {
-        if (company.id !== companyId) return company;
+        if (company.id !== licenseCompanyId) return company;
         const settings = parseCompanySettings(company.settings);
         return {
           ...company,
@@ -320,11 +317,12 @@ export default function GlobalAdminLicensesSection({
         };
       }),
     );
-    setBillingModuleMessage(
-      enabled
-        ? 'Laskutusmoduuli käytössä valitulle yritykselle.'
-        : 'Laskutusmoduuli piilotettu valitulta yritykseltä.',
-    );
+    return true;
+  }
+
+  function setBillingModule(checked: boolean) {
+    setLicenseModules((m) => ({ ...m, billing: checked }));
+    setBillingMenuVisible(checked);
   }
 
   return (
@@ -573,12 +571,44 @@ export default function GlobalAdminLicensesSection({
           </div>
         )}
 
-        {licenseSnapshot && licenseSnapshot.enrollment === 'legacy' && (
-          <p className="muted">
-            Vanha sopimus — kaikki moduulit käytössä ilman laskutusta. Vaihda malliksi Tilaus / kokeilu, jos haluat
-            saman käytännön kuin uusilla yrityksillä. Massasiirto legacy → tilaus on ajettu; poikkeukset vain manuaalisesti
-            takaisin vanhaan sopimukseen.
-          </p>
+        {licenseCompanyId && licenseSnapshot && licenseSnapshot.enrollment === 'legacy' && (
+          <>
+            <p className="muted">
+              Vanha sopimus — muut moduulit vapaasti ilman laskutusta. Laskutus-valikko erikseen alla (oletus piilossa).
+            </p>
+            <div className="license-admin-module-toggles">
+              <ToggleSwitch
+                checked={billingMenuVisible}
+                disabled={licenseBusy}
+                label="Laskutus — näkyvissä valikossa"
+                onChange={setBillingMenuVisible}
+              />
+            </div>
+            <div className="form-actions global-admin-form-actions">
+              <button
+                type="button"
+                className="btn btn-primary"
+                disabled={licenseBusy}
+                onClick={async () => {
+                  setLicenseBusy(true);
+                  setLicenseMessage(null);
+                  setLicenseError(null);
+                  const visible = billingMenuVisible;
+                  const ok = await saveBillingMenuForCompany(visible);
+                  setLicenseBusy(false);
+                  if (ok) {
+                    setLicenseMessage(
+                      visible
+                        ? 'Laskutus näkyy yrityksen valikossa.'
+                        : 'Laskutus piilotettu yrityksen valikosta.',
+                    );
+                  }
+                }}
+              >
+                {licenseBusy ? 'Tallennetaan…' : 'Tallenna'}
+              </button>
+            </div>
+          </>
         )}
 
         {licenseCompanyId && licenseSnapshot && licenseSnapshot.enrollment !== 'legacy' && (
@@ -624,8 +654,8 @@ export default function GlobalAdminLicensesSection({
               <ToggleSwitch
                 checked={licenseModules.billing}
                 disabled={licenseBusy}
-                label="Laskutus"
-                onChange={(checked) => setLicenseModules((m) => ({ ...m, billing: checked }))}
+                label="Laskutus — tilaus ja valikko"
+                onChange={setBillingModule}
               />
               <ToggleSwitch
                 checked={licenseModules.remote_monitoring}
@@ -640,6 +670,9 @@ export default function GlobalAdminLicensesSection({
                 onChange={(checked) => setLicenseModules((m) => ({ ...m, tools: checked }))}
               />
             </div>
+            <p className="muted license-billing-hint">
+              Laskutus-kytkin: tilaus/lisenssi ja valikon näkyvyys samasta (kokeilussa kaikki moduulit automaattisesti auki).
+            </p>
             {licenseSnapshot.usage_this_month.length > 0 && (
               <ul className="license-usage-list">
                 {licenseSnapshot.usage_this_month.map((row) => (
@@ -675,47 +708,6 @@ export default function GlobalAdminLicensesSection({
         )}
         {licenseMessage && <p className="success">{licenseMessage}</p>}
         {licenseError && <p className="error">{licenseError}</p>}
-      </section>
-
-      <section className="card global-admin-block">
-        <h2>Laskutusmoduuli (yritys)</h2>
-        <p className="muted global-admin-hint">
-          Määrittää näkeekö yrityksen käyttäjät Laskutus-moduulin. Oletus on pois päältä. Ei näy yrityksen
-          ylläpitäjän hallinnassa — vain globaali admin.
-        </p>
-        <div className="line-form-grid">
-          <label>
-            Yritys
-            <select
-              value={billingModuleCompanyId}
-              onChange={(e) => {
-                const nextId = e.target.value;
-                setBillingModuleCompanyId(nextId);
-                syncBillingModuleToggle(nextId);
-                setBillingModuleMessage(null);
-                setBillingModuleError(null);
-              }}
-            >
-              <option value="">Valitse yritys…</option>
-              {companies.map((company) => (
-                <option key={company.id} value={company.id}>{company.name}</option>
-              ))}
-            </select>
-          </label>
-          <div className="form-field-toggle">
-            <ToggleSwitch
-              checked={billingModuleEnabled}
-              disabled={!billingModuleCompanyId || billingModuleBusy}
-              label="Laskutusmoduuli käytössä"
-              onChange={(checked) => {
-                if (!billingModuleCompanyId) return;
-                void saveBillingModuleForCompany(billingModuleCompanyId, checked);
-              }}
-            />
-          </div>
-        </div>
-        {billingModuleMessage && <p className="success">{billingModuleMessage}</p>}
-        {billingModuleError && <p className="error">{billingModuleError}</p>}
       </section>
     </>
   );

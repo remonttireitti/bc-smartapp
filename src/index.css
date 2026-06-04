@@ -9890,6 +9890,16 @@ button.vrf-toggle:not(:disabled) {
   font-size: 0.92rem;
 }
 
+.license-billing-hint {
+  margin: -0.25rem 0 0.5rem;
+  font-size: 0.85rem;
+  grid-column: 1 / -1;
+}
+
+.license-admin-module-toggles .license-billing-hint {
+  margin-left: 0;
+}
+
 .global-admin-badge {
   display: inline-block;
   padding: 0.15rem 0.5rem;
