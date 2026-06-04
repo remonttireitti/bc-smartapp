@@ -102,7 +102,7 @@ SELECT
       'contents', 'Ylläpitäjän kylmiö (oikea mittaus)',
       'min', 0,
       'max', 6,
-      'sensor', 1,
+      'sensor', 2,
       'kind', 'chilled'
     ),
     'k2', jsonb_build_object(
@@ -126,7 +126,7 @@ SELECT
       'contents', 'Ylläpitäjän pakastin (oikea mittaus)',
       'min', -35,
       'max', -18,
-      'sensor', 2,
+      'sensor', 1,
       'kind', 'freezer'
     )
   )

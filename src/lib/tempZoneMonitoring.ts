@@ -1,4 +1,4 @@
-import type { TempReading } from './tempMonitoring';
+import type { TempEffectiveLimits, TempReading } from './tempMonitoring';
 
 export const ZONE_KEYS = ['k1', 'k2', 'k3', 'pakastin'] as const;
 export type ZoneKey = (typeof ZONE_KEYS)[number];
@@ -31,7 +31,7 @@ const DEFAULT_ZONE_CONFIG: ZoneConfig = {
     contents: '',
     min: 0,
     max: 6,
-    sensor: 1,
+    sensor: 2,
     kind: 'chilled',
   },
   k2: {
@@ -55,10 +55,50 @@ const DEFAULT_ZONE_CONFIG: ZoneConfig = {
     contents: '',
     min: -35,
     max: -18,
-    sensor: 2,
+    sensor: 1,
     kind: 'freezer',
   },
 };
+
+export function zoneConfigToEffectiveLimits(entry: ZoneConfigEntry): TempEffectiveLimits {
+  return {
+    targetMin: entry.min,
+    targetMax: entry.max,
+    acceptableMin: entry.min,
+    acceptableMax: entry.max,
+    allowedDeviationMinutes: 0,
+  };
+}
+
+export function filterReadingsForSensor(readings: TempReading[], sensor: number): TempReading[] {
+  if (sensor !== 1 && sensor !== 2) return [];
+  return readings.filter((row) => {
+    const ch = row.sensor_channel ?? 0;
+    if (sensor === 1) return ch === 1 || ch === 0;
+    return ch === 2;
+  });
+}
+
+export type ZoneTrendPreset = 'today' | '7d' | '30d';
+
+export function filterReadingsByTrendPreset(readings: TempReading[], preset: ZoneTrendPreset): TempReading[] {
+  const now = Date.now();
+  let startMs: number;
+  if (preset === 'today') {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    startMs = d.getTime();
+  } else if (preset === '7d') {
+    startMs = now - 7 * 24 * 3600 * 1000;
+  } else {
+    startMs = now - 30 * 24 * 3600 * 1000;
+  }
+  return readings.filter((row) => new Date(row.recorded_at).getTime() >= startMs);
+}
+
+export function serializeZoneConfig(config: ZoneConfig): Record<string, unknown> {
+  return { ...config };
+}
 
 export type HistoryPoint = {
   ts: number;

@@ -18,9 +18,17 @@ import TempSessionSettingsFields from '../components/tempMonitoring/TempSessionS
 import { SettingsIcon } from '../components/tempMonitoring/SettingsIcon';
 import TempTrendChart from '../components/tempMonitoring/TempTrendChart';
 import TempZoneFloorPlan, { TempZoneLiveSensors } from '../components/tempMonitoring/TempZoneFloorPlan';
+import TempZoneSettingsDialog from '../components/tempMonitoring/TempZoneSettingsDialog';
+import TempZoneTrendDialog from '../components/tempMonitoring/TempZoneTrendDialog';
 import { useProfile } from '../hooks/useProfile';
 import { loadAccessibleReportCustomers, loadReportPartnerships } from '../lib/reportCustomerRegistry';
-import { buildHistoryPoints } from '../lib/tempZoneMonitoring';
+import {
+  buildHistoryPoints,
+  parseZoneConfig,
+  serializeZoneConfig,
+  type ZoneConfig,
+  type ZoneKey,
+} from '../lib/tempZoneMonitoring';
 import {
   TEMP_DEVICE_SELECT,
   TEMP_READING_SELECT,
@@ -91,6 +99,10 @@ export default function TempMonitorDetailPage({ session }: Props) {
     settings: emptySessionSettings(),
   });
   const [settingsForm, setSettingsForm] = useState<TempSessionSettingsInput>(emptySessionSettings());
+  const [zoneSettingsOpen, setZoneSettingsOpen] = useState(false);
+  const [zoneSettingsError, setZoneSettingsError] = useState<string | null>(null);
+  const [zoneConfigForm, setZoneConfigForm] = useState<ZoneConfig | null>(null);
+  const [trendZoneKey, setTrendZoneKey] = useState<ZoneKey | null>(null);
 
   const activeSession = useMemo(
     () => sessions.find((s) => !s.ended_at) ?? null,
@@ -280,6 +292,11 @@ export default function TempMonitorDetailPage({ session }: Props) {
     }
   }, [activeSession?.id]);
 
+  useEffect(() => {
+    if (!device?.zone_config) return;
+    setZoneConfigForm(parseZoneConfig(device.zone_config));
+  }, [device?.id, device?.zone_config]);
+
   function openSettings() {
     if (!activeSession) return;
     setSettingsForm(sessionSettingsFromRow(activeSession));
@@ -402,6 +419,25 @@ export default function TempMonitorDetailPage({ session }: Props) {
     setReportOpen(true);
   }
 
+  async function saveZoneSettings(e: FormEvent) {
+    e.preventDefault();
+    if (!device || !zoneConfigForm) return;
+    setBusy(true);
+    setZoneSettingsError(null);
+    const { error: updateError } = await supabase
+      .from('temp_devices')
+      .update({ zone_config: serializeZoneConfig(zoneConfigForm) })
+      .eq('id', device.id);
+    setBusy(false);
+    if (updateError) {
+      setZoneSettingsError(updateError.message);
+      return;
+    }
+    setDevice({ ...device, zone_config: serializeZoneConfig(zoneConfigForm) });
+    setZoneSettingsOpen(false);
+    setMessage('Huoltoasetukset tallennettu.');
+  }
+
   async function saveReport(e: FormEvent) {
     e.preventDefault();
     if (!device || !companyId || !reportForm) return;
@@ -467,6 +503,11 @@ export default function TempMonitorDetailPage({ session }: Props) {
   const zoneView = isEsp32ZoneDevice(device);
   const sharedDemo = isSharedTempDemo(device);
   const ownsDevice = device.company_id === companyId;
+  const canEditZoneSettings =
+    zoneView && (ownsDevice || profile?.is_global_admin === true);
+  const activeZoneConfig = zoneConfigForm ?? parseZoneConfig(device.zone_config);
+  const trendZone =
+    trendZoneKey && activeZoneConfig ? activeZoneConfig[trendZoneKey] : null;
 
   const heroClass =
     activeSession && compliance !== 'unknown'
@@ -512,14 +553,20 @@ export default function TempMonitorDetailPage({ session }: Props) {
           </section>
         )}
 
-        {zoneView && (
+        {zoneView && activeZoneConfig && (
           <TempZoneFloorPlan
-            zoneConfig={device.zone_config}
+            zoneConfig={activeZoneConfig}
             lastTempC={device.last_temp_c}
             lastTempC2={device.last_temp_c2}
             lastSeenAt={device.last_seen_at}
             historyPoints={historyPoints}
-            readOnly
+            canEditSettings={canEditZoneSettings}
+            onOpenSettings={() => {
+              setZoneConfigForm(parseZoneConfig(device.zone_config) ?? activeZoneConfig);
+              setZoneSettingsError(null);
+              setZoneSettingsOpen(true);
+            }}
+            onTempClick={(zoneKey) => setTrendZoneKey(zoneKey)}
           />
         )}
 
@@ -564,7 +611,13 @@ export default function TempMonitorDetailPage({ session }: Props) {
               </dd>
             </div>
           </dl>
-          {zoneView && <TempZoneLiveSensors lastTempC={device.last_temp_c} lastTempC2={device.last_temp_c2} />}
+          {zoneView && (
+            <TempZoneLiveSensors
+              zoneConfig={activeZoneConfig}
+              lastTempC={device.last_temp_c}
+              lastTempC2={device.last_temp_c2}
+            />
+          )}
         </section>
 
         <section className="panel temp-trend-panel">
@@ -786,6 +839,26 @@ export default function TempMonitorDetailPage({ session }: Props) {
           setDeleteReportError(null);
         }}
         onConfirm={() => void deleteReport()}
+      />
+
+      {zoneConfigForm && (
+        <TempZoneSettingsDialog
+          open={zoneSettingsOpen}
+          busy={busy}
+          error={zoneSettingsError}
+          value={zoneConfigForm}
+          onChange={setZoneConfigForm}
+          onClose={() => setZoneSettingsOpen(false)}
+          onSubmit={(e) => void saveZoneSettings(e)}
+        />
+      )}
+
+      <TempZoneTrendDialog
+        open={trendZoneKey != null}
+        zoneKey={trendZoneKey}
+        zone={trendZone}
+        readings={readings}
+        onClose={() => setTrendZoneKey(null)}
       />
 
       {reportForm && (
