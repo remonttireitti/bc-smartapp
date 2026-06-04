@@ -9885,6 +9885,11 @@ button.vrf-toggle:not(:disabled) {
   font-size: 0.92rem;
 }
 
+.global-admin-license-summary {
+  margin: 0 0 1rem;
+  font-size: 0.92rem;
+}
+
 .global-admin-badge {
   display: inline-block;
   padding: 0.15rem 0.5rem;
@@ -9908,6 +9913,85 @@ button.vrf-toggle:not(:disabled) {
   flex-wrap: wrap;
   gap: 0.35rem;
   justify-content: flex-end;
+}
+
+.license-section-heading {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.license-terms-help {
+  position: relative;
+  display: inline-flex;
+  vertical-align: middle;
+}
+
+.license-terms-help-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.35rem;
+  height: 1.35rem;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: var(--bg-muted);
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+  font-style: italic;
+  font-family: Georgia, 'Times New Roman', serif;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.license-terms-help-btn:hover,
+.license-terms-help-btn:focus-visible {
+  border-color: var(--link);
+  color: var(--link);
+  outline: none;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--link) 25%, transparent);
+}
+
+.license-terms-help-popover {
+  position: absolute;
+  z-index: 40;
+  top: calc(100% + 0.35rem);
+  left: 0;
+  width: min(22rem, calc(100vw - 2rem));
+  padding: 0.75rem 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-surface);
+  box-shadow: var(--shadow-sm);
+  text-align: left;
+  font-size: 0.88rem;
+  font-weight: 400;
+  color: var(--text-secondary);
+}
+
+.license-terms-help-popover-title {
+  margin: 0 0 0.5rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.license-terms-help-popover-p {
+  margin: 0 0 0.45rem;
+  line-height: 1.45;
+}
+
+.license-terms-help-popover .btn {
+  margin-top: 0.35rem;
+}
+
+.global-admin-block-head h2 .license-section-heading,
+.license-status-panel h2 .license-section-heading {
+  font-size: inherit;
+  font-weight: inherit;
 }
 
 @media (max-width: 780px) {

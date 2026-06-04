@@ -10,6 +10,8 @@ import {
   trialDaysRemaining,
   type LicenseOverviewRow,
 } from '../../lib/companyLicense';
+import { LicenseSectionHeading } from '../../components/LicenseTermsHelp';
+import { LICENSE_SECTION_TITLES } from '../../lib/licenseTermsFi';
 import { supabase } from '../../lib/supabase';
 
 function formatDateFi(iso: string | null) {
@@ -64,23 +66,18 @@ export default function GlobalAdminLicenseOverview({
   return (
     <section className="card global-admin-block">
       <div className="global-admin-block-head">
-        <h2>Yritysten tilauskatsaus</h2>
+        <h2>
+          <LicenseSectionHeading title={LICENSE_SECTION_TITLES.adminOverview} helpVariant="adminOverview" />
+        </h2>
         <button type="button" className="btn btn-secondary btn-sm" disabled={loading} onClick={() => void load()}>
           {loading ? 'Päivitetään…' : 'Päivitä'}
         </button>
       </div>
 
-      <div className="global-admin-license-legend panel">
-        <p className="muted" style={{ margin: 0 }}>
-          <strong>Vanha sopimus</strong> ({legacyCount}): ei kokeilua eikä laskutusta — kaikki moduulit vapaasti. Uudet
-          ja siirretyt yritykset käyttävät <strong>Tilaus / kokeilu</strong> -mallia; vanhaan sopimukseen voi palauttaa
-          kohdassa Hallinta.
-        </p>
-        <p className="muted" style={{ margin: '0.5rem 0 0' }}>
-          <strong>Tilaus / kokeilu</strong> ({subscriptionCount}): kokeilu alkaa ensimmäisestä kirjautumisesta.
-          Maksavan asiakkaan moduulit (✓/✗) hallitaan kohdassa <strong>Yrityksen lisenssi ja moduulit</strong>.
-        </p>
-      </div>
+      <p className="muted global-admin-license-summary">
+        Vanhaa sopimusta {legacyCount}, tilaus-/kokeilumallia {subscriptionCount}. Tarkemmat selitteet info-ikonista
+        otsikon vieressä.
+      </p>
 
       {error && <p className="error">{error}</p>}
 
@@ -129,7 +126,12 @@ export default function GlobalAdminLicenseOverview({
                         <span className="muted global-admin-slug">{row.company_slug}</span>
                       )}
                       <span className="muted global-admin-sub">
-                        {row.user_count} käyttäjää
+                        {row.user_count === 1
+                          ? '1 sisäinen käyttäjä'
+                          : `${row.user_count} sisäistä käyttäjää`}
+                        {row.account_count > row.user_count
+                          ? ` (${row.account_count} tiliä yhteensä)`
+                          : ''}
                         {row.company_created_at
                           ? ` · luotu ${formatDateFi(row.company_created_at)}`
                           : ''}

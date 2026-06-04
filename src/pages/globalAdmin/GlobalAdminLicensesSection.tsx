@@ -11,6 +11,8 @@ import {
   type LicenseBillingInterval,
   type LicensePaymentStatus,
 } from '../../lib/companyLicense';
+import { LicenseSectionHeading } from '../../components/LicenseTermsHelp';
+import { LICENSE_SECTION_TITLES } from '../../lib/licenseTermsFi';
 import GlobalAdminLicenseOverview from './GlobalAdminLicenseOverview';
 import { companyBillingModuleEnabled, parseCompanySettings } from '../../lib/management';
 import { supabase } from '../../lib/supabase';
@@ -228,7 +230,7 @@ export default function GlobalAdminLicensesSection({
     }
 
     setLicenseSnapshot(parseCompanyLicenseSnapshot(data));
-    setLicenseMessage('Lisenssi päivitetty.');
+    setLicenseMessage('Tilaus ja moduulit päivitetty.');
     await onRefresh();
   }
 
@@ -448,10 +450,12 @@ export default function GlobalAdminLicensesSection({
       </section>
 
       <section id="global-admin-license-editor" className="card global-admin-block">
-        <h2>Yrityksen lisenssi ja moduulit</h2>
+        <h2>
+          <LicenseSectionHeading title={LICENSE_SECTION_TITLES.adminEditor} helpVariant="adminEditor" />
+        </h2>
         <p className="muted global-admin-hint">
           Valitse yritys taulukosta (Hallinta) tai listasta. Maksavan asiakkaan moduulit: päälle/pois alla. Kokeilua voi
-          jatkaa ilman maksua (+30 pv taulukossa tai tilan Kokeilujakso + tallenna).
+          jatkaa ilman maksua (+30 pv taulukossa tai tilan Kokeilujakso + tallenna). Selitteet info-ikonista.
         </p>
         <div className="line-form-grid">
           <label>
@@ -478,7 +482,7 @@ export default function GlobalAdminLicensesSection({
               onChange={(e) => setLicenseEnrollment(e.target.value as 'legacy' | 'subscription')}
             >
               <option value="legacy">Vanha sopimus (ei laskutusta, kaikki moduulit)</option>
-              <option value="subscription">Tilaus / kokeilu</option>
+              <option value="subscription">Tilaus ja kokeilu</option>
             </select>
           </label>
           {licenseCompanyId && licenseEnrollment === 'legacy' && (

@@ -35,7 +35,7 @@ export default function LicenseModuleGate({ session, moduleKey, children }: Prop
   if (loading) {
     return (
       <AppLayout session={session}>
-        <p className="muted">Tarkistetaan lisenssiä…</p>
+        <p className="muted">Tarkistetaan käyttöoikeuksia…</p>
       </AppLayout>
     );
   }

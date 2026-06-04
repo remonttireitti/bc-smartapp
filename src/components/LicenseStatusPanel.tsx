@@ -1,5 +1,7 @@
 import { Link } from 'react-router-dom';
+import { LicenseSectionHeading } from './LicenseTermsHelp';
 import CompanySubscriptionOrderForm from './CompanySubscriptionOrderForm';
+import { LICENSE_SECTION_TITLES } from '../lib/licenseTermsFi';
 import { GLOBAL_ADMIN_SUPPORT } from '../lib/supportContacts';
 import {
   formatLicenseMoney,
@@ -38,7 +40,9 @@ export default function LicenseStatusPanel({ license, canManageOrder, onRefresh 
 
   return (
     <section className="panel license-status-panel">
-      <h2>Lisenssi ja tilaus</h2>
+      <h2>
+        <LicenseSectionHeading title={LICENSE_SECTION_TITLES.companyPanel} helpVariant="company" />
+      </h2>
 
       {license.effective_status === 'pending_trial' && (
         <p className="license-status-lead">
@@ -64,7 +68,7 @@ export default function LicenseStatusPanel({ license, canManageOrder, onRefresh 
 
       {license.effective_status === 'active' && (
         <p className="license-status-lead">
-          Tilaus voimassa
+          Tilaus on voimassa
           {license.paid_through && <> · maksettu {formatDateFi(license.paid_through)} asti</>}.
           Arvio jakson hinnasta ({license.billing_interval_label}):{' '}
           <strong>{formatLicensePeriodMoney(pricing.estimated_period_total_eur, license.billing_interval)}</strong>
@@ -84,7 +88,7 @@ export default function LicenseStatusPanel({ license, canManageOrder, onRefresh 
           <h3>{LICENSE_MODULE_LABELS.base}</h3>
           <p className="muted">{LICENSE_MODULE_DESCRIPTIONS.base}</p>
           <p className="license-price">{formatLicenseMoney(pricing.base_monthly_eur)}</p>
-          <p className="license-state">{license.base_active ? 'Käytössä' : 'Ei tilattu'}</p>
+          <p className="license-state">{license.base_active ? 'Käytössä' : 'Ei tilauksessa'}</p>
         </article>
 
         {PRICED_ADDON_MODULES.map((moduleKey) => {
@@ -125,7 +129,7 @@ export default function LicenseStatusPanel({ license, canManageOrder, onRefresh 
                   )}
                 </div>
               )}
-              <p className="license-state">{active ? 'Käytössä' : 'Ei tilattu'}</p>
+              <p className="license-state">{active ? 'Käytössä' : 'Ei tilauksessa'}</p>
             </article>
           );
         })}

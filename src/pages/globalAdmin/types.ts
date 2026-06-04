@@ -8,8 +8,8 @@ export const GLOBAL_ADMIN_SECTIONS: { id: GlobalAdminSectionId; label: string; d
   },
   {
     id: 'licenses',
-    label: 'Lisenssit ja moduulit',
-    description: 'Kokeilu, hinnoittelu ja yrityskohtaiset oikeudet',
+    label: 'Tilaukset ja moduulit',
+    description: 'Kokeilujaksot, tilaukset, maksut ja moduulien käyttöoikeudet',
   },
   {
     id: 'registry',

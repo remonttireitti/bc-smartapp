@@ -314,6 +314,8 @@ export type LicenseOverviewRow = {
   company_slug: string | null;
   company_created_at: string | null;
   user_count: number;
+  /** Kaikki profiles-rivit yrityksellä (myös muut roolit). */
+  account_count: number;
   last_sign_in_at: string | null;
   has_logged_in: boolean;
   license_settings: LicenseSettingsStored | null;
@@ -355,6 +357,7 @@ export function parseLicenseOverviewRows(raw: unknown): LicenseOverviewRow[] {
         company_created_at:
           typeof row.company_created_at === 'string' ? row.company_created_at : null,
         user_count: Number(row.user_count ?? 0),
+        account_count: Number(row.account_count ?? row.user_count ?? 0),
         last_sign_in_at:
           typeof row.last_sign_in_at === 'string' ? row.last_sign_in_at : null,
         has_logged_in: row.has_logged_in === true,
@@ -367,7 +370,7 @@ export function parseLicenseOverviewRows(raw: unknown): LicenseOverviewRow[] {
 
 export function licenseOverviewEnrollmentLabel(enrollment: string) {
   if (enrollment === 'legacy') return 'Vanha sopimus';
-  return 'Tilaus / kokeilu';
+  return 'Tilaus ja kokeilu';
 }
 
 export function licenseOverviewLoginSummary(row: LicenseOverviewRow) {
@@ -398,7 +401,7 @@ export function licenseOverviewTrialSummary(row: LicenseOverviewRow) {
     return 'Ei kokeilua (vanha sopimus, ei laskutusta)';
   }
   if (row.snapshot.effective_status === 'pending_trial') {
-    return `Odottaa · ${row.snapshot.trial_days} pv kokeilu ensimmäisestä kirjautumisesta`;
+    return `Odottaa ensimmäistä kirjautumista · ${row.snapshot.trial_days} pv kokeilua`;
   }
   if (row.snapshot.effective_status === 'trial') {
     const remaining = trialDaysRemaining(row.snapshot);
@@ -412,7 +415,7 @@ export function licenseOverviewTrialSummary(row: LicenseOverviewRow) {
   if (row.snapshot.effective_status === 'active') {
     return 'Maksava · moduulit alla';
   }
-  if (row.snapshot.order) return 'Odottaa maksua (tilaus lähetetty)';
+  if (row.snapshot.order) return 'Tilaus odottaa maksua';
   return 'Kokeilu päättynyt / ei aktiivinen';
 }
 
