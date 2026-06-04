@@ -110,8 +110,7 @@ export function useProfile(session: Session | null) {
         subscriber_id: row.subscriber_id ?? null,
         customer_id: row.customer_id ?? null,
         is_global_admin: isGlobalAdmin,
-        must_change_password:
-          row.must_change_password === true || meta.must_change_password === true,
+        must_change_password: row.must_change_password === true,
         companies: company,
       });
       setLoading(false);

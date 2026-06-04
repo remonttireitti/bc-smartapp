@@ -361,6 +361,26 @@ a { color: inherit; text-decoration: none; }
   margin-top: 1.5rem;
 }
 
+.login-card-wide {
+  width: min(440px, 100%);
+}
+
+.login-footer-actions {
+  margin: 1.25rem 0 0;
+  text-align: center;
+  font-size: .9rem;
+}
+
+.btn-block {
+  width: 100%;
+  justify-content: center;
+}
+
+.password-change-panel {
+  max-width: 28rem;
+  margin: 2rem auto;
+}
+
 label {
   display: flex;
   flex-direction: column;
