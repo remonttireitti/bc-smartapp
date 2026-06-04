@@ -48,6 +48,8 @@ import MonitorReaderVrfPage from './pages/MonitorReaderVrfPage';
 import VrfMonitorDetailPage from './pages/VrfMonitorDetailPage';
 import SubscribersPage from './pages/SubscribersPage';
 import ChangePasswordPage from './pages/ChangePasswordPage';
+import ForgotPasswordPage from './pages/ForgotPasswordPage';
+import ResetPasswordPage from './pages/ResetPasswordPage';
 import {
   CustomerPortalPreviewPage,
   SubscriberPortalPreviewPage,
@@ -132,6 +134,8 @@ function AppRoutes() {
       <Routes>
         <Route path="/" element={<PublicLandingPage />} />
         <Route path="/login" element={<Login />} />
+        <Route path="/unohdin-salasana" element={<ForgotPasswordPage />} />
+        <Route path="/aseta-uusi-salasana" element={<ResetPasswordPage />} />
         <Route path="/seuranta/luku/:token" element={<MonitorReaderTokenPage />} />
         <Route path="*" element={<RequireLoginRedirect />} />
       </Routes>
@@ -142,6 +146,8 @@ function AppRoutes() {
     <RequirePasswordChange session={session}>
       <Routes>
       <Route path="/login" element={<Navigate to="/" replace />} />
+      <Route path="/unohdin-salasana" element={<Navigate to="/" replace />} />
+      <Route path="/aseta-uusi-salasana" element={<ResetPasswordPage />} />
       <Route path="/vaihda-salasana" element={<ChangePasswordPage session={session} />} />
       <Route
         path="/esikatselu/tilaaja/:subscriberId"

@@ -2,7 +2,7 @@ import { Navigate, useLocation } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
 import { useProfile } from '../hooks/useProfile';
 
-const ALLOWED_PATHS = ['/vaihda-salasana'];
+const ALLOWED_PATHS = ['/vaihda-salasana', '/aseta-uusi-salasana'];
 
 type Props = {
   session: Session;

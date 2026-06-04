@@ -65,6 +65,9 @@ export default function Login() {
             {busy ? 'Kirjaudutaan…' : 'Kirjaudu'}
           </button>
         </form>
+        <p className="login-footer-actions">
+          <Link to="/unohdin-salasana">Unohditko salasanan?</Link>
+        </p>
       </div>
     </div>
   );
