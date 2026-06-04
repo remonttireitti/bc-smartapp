@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { useState, type ReactNode } from 'react';
 import type { Session } from '@supabase/supabase-js';
+import LicenseStatusHeaderButton from './LicenseStatusHeaderButton';
 import PortalPreviewBanner from './PortalPreviewBanner';
 import { usePortalPreview } from '../hooks/usePortalPreview';
 import { useAuthSession } from '../contexts/AuthSessionContext';
@@ -33,6 +34,7 @@ export default function AppLayout({ session, children }: Props) {
           </Link>
         </div>
         <div className="topbar-actions">
+          <LicenseStatusHeaderButton session={session} />
           <div className="topbar-actions-group topbar-actions-user">
             {!portalPreview ? (
               <Link to="/hallinta/omat" className="topbar-user-name">

@@ -515,6 +515,96 @@ button[type='submit']:disabled { opacity: .6; cursor: wait; }
   white-space: nowrap;
 }
 
+.topbar-license-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0.35rem 0.55rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-muted);
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  font-weight: 500;
+  line-height: 1;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.topbar-license-btn:hover,
+.topbar-license-btn:focus-visible {
+  border-color: var(--link);
+  color: var(--link);
+  outline: none;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--link) 20%, transparent);
+}
+
+.topbar-license-btn-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.2rem;
+  height: 1.2rem;
+  border-radius: 50%;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  font-size: 0.72rem;
+  font-weight: 700;
+  font-style: italic;
+  font-family: Georgia, 'Times New Roman', serif;
+}
+
+.topbar-license-btn-badge {
+  padding: 0.1rem 0.4rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, #0f766e 15%, var(--bg-surface));
+  color: #0f766e;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.license-status-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 1.25rem;
+  overflow-y: auto;
+  background: rgba(15, 23, 42, 0.45);
+}
+
+.license-status-dialog {
+  width: min(960px, 100%);
+  max-height: calc(100vh - 2.5rem);
+  overflow: auto;
+  margin: auto 0;
+}
+
+.license-status-dialog-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.75rem;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: inherit;
+  padding-bottom: 0.35rem;
+}
+
+.license-status-dialog-head h2 {
+  margin: 0;
+  font-size: 1.15rem;
+}
+
+.license-status-dialog .license-status-panel {
+  margin-bottom: 0;
+}
+
 .topbar-actions .ui-tooltip {
   display: inline-flex;
   align-items: center;
@@ -9365,6 +9455,10 @@ button.vrf-toggle:not(:disabled) {
 
 .license-status-panel {
   margin-bottom: 1rem;
+}
+
+.license-status-dialog .license-status-panel {
+  margin-bottom: 0;
 }
 
 .license-status-lead {

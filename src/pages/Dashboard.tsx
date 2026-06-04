@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
 import { Navigate } from 'react-router-dom';
 import AppLayout from '../components/AppLayout';
-import LicenseStatusPanel from '../components/LicenseStatusPanel';
 import PendingWorkOrdersBanner from '../components/PendingWorkOrdersBanner';
 import QuickSearch from '../components/QuickSearch';
 import { useCompanyBillingModuleEnabled } from '../hooks/useCompanyBillingModuleEnabled';
@@ -67,12 +66,11 @@ const EMPTY_PENDING: PendingWorkOrderCounts = {
 export default function Dashboard({ session }: Props) {
   const { profile } = useProfile(session);
   const billingModuleEnabled = useCompanyBillingModuleEnabled(profile?.company_id, session);
-  const { license, refresh: refreshLicense } = useCompanyLicense(
+  const { license } = useCompanyLicense(
     profile?.company_id,
     session,
     !!profile?.is_global_admin,
   );
-  const canManageSubscription = profile?.role === 'admin';
   const portalView = isPortalView(profile);
   const visibleModules = useMemo(() => {
     if (portalView) return PORTAL_MODULES;
@@ -114,14 +112,6 @@ export default function Dashboard({ session }: Props) {
 
       {!portalView && pendingOrders.total > 0 && (
         <PendingWorkOrdersBanner counts={pendingOrders} />
-      )}
-
-      {!portalView && license && license.enrollment !== 'legacy' && (
-        <LicenseStatusPanel
-          license={license}
-          canManageOrder={canManageSubscription}
-          onRefresh={() => void refreshLicense()}
-        />
       )}
 
       {!portalView && (

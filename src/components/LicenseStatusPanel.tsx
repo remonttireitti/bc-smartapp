@@ -1,7 +1,5 @@
 import { Link } from 'react-router-dom';
-import { LicenseSectionHeading } from './LicenseTermsHelp';
 import CompanySubscriptionOrderForm from './CompanySubscriptionOrderForm';
-import { LICENSE_SECTION_TITLES } from '../lib/licenseTermsFi';
 import { GLOBAL_ADMIN_SUPPORT } from '../lib/supportContacts';
 import {
   formatLicenseMoney,
@@ -39,11 +37,7 @@ export default function LicenseStatusPanel({ license, canManageOrder, onRefresh 
     && license.payment_status !== 'awaiting_payment';
 
   return (
-    <section className="panel license-status-panel">
-      <h2>
-        <LicenseSectionHeading title={LICENSE_SECTION_TITLES.companyPanel} helpVariant="company" />
-      </h2>
-
+    <section className="license-status-panel">
       {license.effective_status === 'pending_trial' && (
         <p className="license-status-lead">
           Kokeilujakso alkaa, kun yrityksen ensimmäinen käyttäjä kirjautuu sisään. Jakso on{' '}
