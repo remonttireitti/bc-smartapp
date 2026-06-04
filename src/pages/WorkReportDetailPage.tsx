@@ -4,8 +4,16 @@ import type { Session } from '@supabase/supabase-js';
 import AppLayout from '../components/AppLayout';
 import DeletedUserLabel from '../components/DeletedUserLabel';
 import CollapsibleSection from '../components/CollapsibleSection';
+import ActionStatusDialog from '../components/ActionStatusDialog';
 import DailyLogDialog from '../components/DailyLogDialog';
 import DailyLogFormSection from '../components/DailyLogFormSection';
+import {
+  dailyLogNoticeFromError,
+  dailyLogNoticeFromWarning,
+  dailyLogSavedNotice,
+  dailyLogSavingNotice,
+  type DailyLogActionNotice,
+} from '../lib/dailyLogActionStatus';
 import IconButton from '../components/IconButton';
 import { IconPrint, IconTrash } from '../components/icons';
 import PartnerBillingRatesFields from '../components/PartnerBillingRatesFields';
@@ -214,10 +222,11 @@ type DailyLogFormState = ReturnType<typeof initialLogForm>;
 
 function hourFieldsForEntryType(entryType: DailyHourEntryType) {
   return {
-    showRegular: ['regular', 'regular_and_overtime'].includes(entryType),
+    showRegular: ['regular', 'regular_and_overtime', 'fixed_price'].includes(entryType),
     showOvertime: ['overtime', 'regular_and_overtime'].includes(entryType),
     showOnCall: entryType === 'on_call',
     showFixed: entryType === 'fixed_price',
+    calendarOnlyHours: entryType === 'fixed_price',
   };
 }
 
@@ -357,7 +366,8 @@ function DailyLogFields({
   defaultHourlyRate?: number | null;
   defaultCustomerHourlyRate?: number | null;
 }) {
-  const { showRegular, showOvertime, showOnCall, showFixed } = hourFieldsForEntryType(form.entry_type);
+  const { showRegular, showOvertime, showOnCall, showFixed, calendarOnlyHours } =
+    hourFieldsForEntryType(form.entry_type);
   const quickHourSteps = [0.5, 1, 2, 4];
   const showPartnerPrices = !!showPartnerExpenseFields;
   const showCustomerPrices = !!showCustomerExpenseFields;
@@ -423,7 +433,11 @@ function DailyLogFields({
         <div className="line-form-grid">
         {showRegular && (
           <label>
-            {form.entry_type === 'regular' ? 'Asennustyötunnit' : 'Tunnit'}
+            {calendarOnlyHours
+              ? 'Tunnit kalenteria varten'
+              : form.entry_type === 'regular'
+                ? 'Asennustyötunnit'
+                : 'Tunnit'}
             <input
               type="number"
               step="0.25"
@@ -431,6 +445,11 @@ function DailyLogFields({
               value={form.hours_regular}
               onChange={(e) => setForm({ ...form, hours_regular: e.target.value })}
             />
+            {calendarOnlyHours && (
+              <span className="muted daily-log-calendar-hours-hint">
+                Ei laskuteta — käytetään vain kalenterissa ja päällekkäisyystarkistuksessa.
+              </span>
+            )}
             <div className="mobile-hour-quickbar" role="group" aria-label="Lisää tunteja">
               {quickHourSteps.map((step) => (
                 <button
@@ -847,6 +866,7 @@ export default function WorkReportDetailPage({ session }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [logDialogOpen, setLogDialogOpen] = useState(false);
   const [logDialogBusy, setLogDialogBusy] = useState(false);
+  const [dailyLogNotice, setDailyLogNotice] = useState<DailyLogActionNotice | null>(null);
   const [logForm, setLogForm] = useState(initialLogForm);
   const [expenseDrafts, setExpenseDrafts] = useState<ExpenseDraft[]>([]);
   const [tripDrafts, setTripDrafts] = useState<TripLegDraft[]>([]);
@@ -1468,10 +1488,11 @@ export default function WorkReportDetailPage({ session }: Props) {
   async function addDailyLog(e: FormEvent) {
     e.preventDefault();
     if (!report || !logForm.work_done.trim()) {
-      setError('Kirjaa mitä teit.');
+      setDailyLogNotice(dailyLogNoticeFromWarning('Kirjaa mitä teit.', 'Puuttuu tieto'));
       return;
     }
 
+    setDailyLogNotice(dailyLogSavingNotice(false));
     setLogDialogBusy(true);
     const payload = buildLogPayload(logForm);
 
@@ -1495,7 +1516,7 @@ export default function WorkReportDetailPage({ session }: Props) {
     });
     if (conflict) {
       setLogDialogBusy(false);
-      setError(conflict);
+      setDailyLogNotice(dailyLogNoticeFromWarning(conflict, 'Kalenteriristiriita'));
       return;
     }
 
@@ -1511,7 +1532,9 @@ export default function WorkReportDetailPage({ session }: Props) {
 
     if (insertError || !logRow) {
       setLogDialogBusy(false);
-      setError(insertError?.message ?? 'Kirjauksen tallennus epäonnistui.');
+      setDailyLogNotice(
+        dailyLogNoticeFromError(insertError?.message ?? 'Kirjauksen tallennus epäonnistui.'),
+      );
       return;
     }
 
@@ -1522,16 +1545,18 @@ export default function WorkReportDetailPage({ session }: Props) {
     );
     if (expenseError) {
       setLogDialogBusy(false);
-      setError(expenseError.message);
+      setDailyLogNotice(dailyLogNoticeFromError(expenseError.message));
       return;
     }
 
     const tripError = await saveDailyLogTripLegs(logRow.id);
     if (tripError) {
       setLogDialogBusy(false);
-      setError(
-        `Työkirjaus tallennettiin, mutta ajomatkat jäivät tallentamatta: ${tripError.message} Korjaa rivit ja tallenna uudelleen (muokkaa työkirjausta).`,
-      );
+      setDailyLogNotice({
+        variant: 'warning',
+        title: 'Osittain tallennettu',
+        message: `Työkirjaus tallennettiin, mutta ajomatkat jäivät tallentamatta: ${tripError.message} Korjaa rivit ja tallenna uudelleen (muokkaa työkirjausta).`,
+      });
       await load(report.id);
       return;
     }
@@ -1539,9 +1564,11 @@ export default function WorkReportDetailPage({ session }: Props) {
     const refrigerantError = await saveDailyLogRefrigerant(logRow.id);
     if (refrigerantError) {
       setLogDialogBusy(false);
-      setError(
-        `Työkirjaus tallennettiin, mutta kylmäaine jäi tallentamatta: ${refrigerantError.message} Korjaa rivit ja tallenna uudelleen (muokkaa työkirjausta).`,
-      );
+      setDailyLogNotice({
+        variant: 'warning',
+        title: 'Osittain tallennettu',
+        message: `Työkirjaus tallennettiin, mutta kylmäaine jäi tallentamatta: ${refrigerantError.message} Korjaa rivit ja tallenna uudelleen (muokkaa työkirjausta).`,
+      });
       await load(report.id);
       return;
     }
@@ -1551,7 +1578,12 @@ export default function WorkReportDetailPage({ session }: Props) {
         await uploadDailyLogImages(report.id, logRow.id, pendingImages, session.user.id);
       } catch (uploadErr) {
         setLogDialogBusy(false);
-        setError(uploadErr instanceof Error ? uploadErr.message : 'Kuvien lataus epäonnistui.');
+        setDailyLogNotice(
+          dailyLogNoticeFromError(
+            uploadErr instanceof Error ? uploadErr.message : 'Kuvien lataus epäonnistui.',
+            'Kuvien tallennus epäonnistui',
+          ),
+        );
         return;
       }
     }
@@ -1561,8 +1593,8 @@ export default function WorkReportDetailPage({ session }: Props) {
     }
 
     closeLogDialog();
-    setError(null);
     setLogDialogBusy(false);
+    setDailyLogNotice(dailyLogSavedNotice(false));
     await load(report.id);
   }
 
@@ -1636,6 +1668,7 @@ export default function WorkReportDetailPage({ session }: Props) {
     setRefrigerantDrafts([]);
     setPendingImages([]);
     setError(null);
+    setDailyLogNotice(null);
     setLogDialogOpen(true);
     void loadRefrigerantContext();
     if (report) {
@@ -1668,6 +1701,7 @@ export default function WorkReportDetailPage({ session }: Props) {
     setRefrigerantDrafts(drafts);
     setPendingImages([]);
     setError(null);
+    setDailyLogNotice(null);
     setLogDialogOpen(true);
     if (report) {
       void (async () => {
@@ -1708,15 +1742,17 @@ export default function WorkReportDetailPage({ session }: Props) {
     setRefrigerantDrafts([]);
     setPendingImages([]);
     setError(null);
+    setDailyLogNotice(null);
   }
 
   async function saveDailyLogEdit(e: FormEvent) {
     e.preventDefault();
     if (!report || !editingLogId || !logForm.work_done.trim()) {
-      setError('Kirjaa mitä teit.');
+      setDailyLogNotice(dailyLogNoticeFromWarning('Kirjaa mitä teit.', 'Puuttuu tieto'));
       return;
     }
 
+    setDailyLogNotice(dailyLogSavingNotice(true));
     setLogDialogBusy(true);
     const payload = buildLogPayload(logForm);
 
@@ -1741,7 +1777,7 @@ export default function WorkReportDetailPage({ session }: Props) {
     });
     if (conflict) {
       setLogDialogBusy(false);
-      setError(conflict);
+      setDailyLogNotice(dailyLogNoticeFromWarning(conflict, 'Kalenteriristiriita'));
       return;
     }
 
@@ -1752,7 +1788,7 @@ export default function WorkReportDetailPage({ session }: Props) {
 
     if (updateError) {
       setLogDialogBusy(false);
-      setError(updateError.message);
+      setDailyLogNotice(dailyLogNoticeFromError(updateError.message));
       return;
     }
 
@@ -1763,14 +1799,14 @@ export default function WorkReportDetailPage({ session }: Props) {
     );
     if (expenseError) {
       setLogDialogBusy(false);
-      setError(expenseError.message);
+      setDailyLogNotice(dailyLogNoticeFromError(expenseError.message));
       return;
     }
 
     const tripError = await saveDailyLogTripLegs(editingLogId);
     if (tripError) {
       setLogDialogBusy(false);
-      setError(tripError.message);
+      setDailyLogNotice(dailyLogNoticeFromError(tripError.message, 'Ajomatkojen tallennus epäonnistui'));
       return;
     }
 
@@ -1780,7 +1816,9 @@ export default function WorkReportDetailPage({ session }: Props) {
     );
     if (refrigerantError) {
       setLogDialogBusy(false);
-      setError(refrigerantError.message);
+      setDailyLogNotice(
+        dailyLogNoticeFromError(refrigerantError.message, 'Kylmäaineen tallennus epäonnistui'),
+      );
       return;
     }
 
@@ -1789,15 +1827,20 @@ export default function WorkReportDetailPage({ session }: Props) {
         await uploadDailyLogImages(report.id, editingLogId, pendingImages, session.user.id);
       } catch (uploadErr) {
         setLogDialogBusy(false);
-        setError(uploadErr instanceof Error ? uploadErr.message : 'Kuvien lataus epäonnistui.');
+        setDailyLogNotice(
+          dailyLogNoticeFromError(
+            uploadErr instanceof Error ? uploadErr.message : 'Kuvien lataus epäonnistui.',
+            'Kuvien tallennus epäonnistui',
+          ),
+        );
         await load(report.id);
         return;
       }
     }
 
     closeLogDialog();
-    setError(null);
     setLogDialogBusy(false);
+    setDailyLogNotice(dailyLogSavedNotice(true));
     await load(report.id);
   }
 
@@ -2678,7 +2721,6 @@ export default function WorkReportDetailPage({ session }: Props) {
         title={editingLogId ? 'Muokkaa työkirjausta' : 'Lisää työkirjaus'}
         submitLabel={editingLogId ? 'Tallenna muutokset' : 'Lisää työkirjaus'}
         busy={logDialogBusy}
-        error={logDialogOpen ? error : null}
         onClose={closeLogDialog}
         onSubmit={(event) => void (editingLogId ? saveDailyLogEdit(event) : addDailyLog(event))}
       >
@@ -2710,6 +2752,7 @@ export default function WorkReportDetailPage({ session }: Props) {
           ownCompanyId={profile?.company_id ?? null}
           hasPartnerCompanies={hasPartnerRefrigerantCompanies}
           showCustomerBillingFields={customerInvoicingEnabled}
+          onBillingReminder={(message) => setDailyLogNotice(dailyLogNoticeFromWarning(message))}
         />
         {report && (
           <DailyLogFormSection
@@ -2725,10 +2768,33 @@ export default function WorkReportDetailPage({ session }: Props) {
             pendingImages={pendingImages}
             onPendingImagesChange={setPendingImages}
             onSavedImagesChange={() => void load(report.id)}
+            onNotice={(message) => setDailyLogNotice(dailyLogNoticeFromWarning(message))}
+            onUploadFailed={(message) =>
+              setDailyLogNotice(dailyLogNoticeFromError(message, 'Kuvien tallennus epäonnistui'))
+            }
+            onUploadSuccess={(count) =>
+              setDailyLogNotice({
+                variant: 'success',
+                title: 'Kuvat tallennettu',
+                message:
+                  count === 1
+                    ? 'Kuva tallennettiin työkirjaukseen.'
+                    : `${count} kuvaa tallennettiin työkirjaukseen.`,
+              })
+            }
           />
           </DailyLogFormSection>
         )}
       </DailyLogDialog>
+
+      <ActionStatusDialog
+        open={!!dailyLogNotice}
+        variant={dailyLogNotice?.variant ?? 'info'}
+        title={dailyLogNotice?.title}
+        message={dailyLogNotice?.message ?? ''}
+        busy={logDialogBusy && dailyLogNotice?.variant === 'loading'}
+        onClose={() => setDailyLogNotice(null)}
+      />
     </AppLayout>
   );
 }

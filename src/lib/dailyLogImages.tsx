@@ -196,6 +196,9 @@ interface DailyLogImageSectionProps {
   onPendingImagesChange: (files: File[]) => void;
   onSavedImagesChange: () => void;
   disabled?: boolean;
+  onNotice?: (message: string) => void;
+  onUploadFailed?: (message: string) => void;
+  onUploadSuccess?: (count: number) => void;
 }
 
 export function DailyLogImageSection({
@@ -207,9 +210,11 @@ export function DailyLogImageSection({
   onPendingImagesChange,
   onSavedImagesChange,
   disabled = false,
+  onNotice,
+  onUploadFailed,
+  onUploadSuccess,
 }: DailyLogImageSectionProps) {
   const [busy, setBusy] = useState(false);
-  const [uploadError, setUploadError] = useState<string | null>(null);
 
   const previewUrls = useMemo(
     () => pendingImages.map((file) => URL.createObjectURL(file)),
@@ -231,11 +236,11 @@ export function DailyLogImageSection({
   async function onFilesSelected(files: FileList | null) {
     if (!files || files.length === 0 || disabled) return;
     const selected = Array.from(files);
-    setUploadError(null);
 
     const warn = dailyLogImageCountWarning(totalAfterPick(selected.length));
     if (warn) {
-      window.alert(warn);
+      if (onNotice) onNotice(warn);
+      else window.alert(warn);
     }
 
     if (dailyLogId) {
@@ -243,9 +248,11 @@ export function DailyLogImageSection({
       try {
         await uploadDailyLogImages(reportId, dailyLogId, selected, userId);
         onSavedImagesChange();
+        onUploadSuccess?.(selected.length);
       } catch (err) {
         console.error(err);
-        setUploadError(err instanceof Error ? err.message : 'Kuvien lataus epäonnistui');
+        const message = err instanceof Error ? err.message : 'Kuvien lataus epäonnistui';
+        if (onUploadFailed) onUploadFailed(message);
       } finally {
         setBusy(false);
       }
@@ -279,8 +286,7 @@ export function DailyLogImageSection({
           ? 'Kuvat tallentuvat heti valinnan jälkeen. Voit lisätä useita kerralla.'
           : 'Kuvat tallentuvat työkirjauksen tallennuksen yhteydessä. Voit lisätä useita kerralla.'}
       </p>
-      {countWarning && !uploadError && <p className="warning-text">{countWarning}</p>}
-      {uploadError && <p className="error">{uploadError}</p>}
+      {countWarning && !onNotice && <p className="warning-text">{countWarning}</p>}
       {savedImages.length > 0 && <DailyLogImageGallery images={savedImages} />}
       {pendingImages.length > 0 && (
         <div className="image-gallery">

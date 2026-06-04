@@ -684,10 +684,16 @@ export function formatHourEntry(log: WorkReportDailyLog, options?: { showMoney?:
       return `${Number(log.hours_regular).toFixed(2)} h + ${Number(log.hours_overtime).toFixed(2)} ylityö h${rateHint}`;
     case 'on_call':
       return `${Number(log.hours_on_call).toFixed(2)} päivystys h${rateHint}`;
-    case 'fixed_price':
-      return showMoney
+    case 'fixed_price': {
+      const calendarHours = Number(log.hours_regular) || 0;
+      const pricePart = showMoney
         ? `Urakka ${Number(log.fixed_price_amount || 0).toFixed(2)} €`
         : 'Urakka';
+      if (calendarHours > 0) {
+        return `${pricePart} · ${calendarHours.toFixed(2)} h (kalenteri, ei laskuteta)`;
+      }
+      return pricePart;
+    }
     default:
       return '—';
   }

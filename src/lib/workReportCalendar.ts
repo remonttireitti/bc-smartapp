@@ -66,14 +66,23 @@ export function resolveReportPerformerUserId(report: Pick<WorkReport, 'assigned_
   return report.assigned_user_id ?? report.created_by_user_id;
 }
 
+/** Hours used for calendar blocks; urakka can log non-billable hours for scheduling. */
+export function calendarHoursForDailyLog(
+  log: Pick<WorkReportDailyLog, 'entry_type' | 'hours_regular' | 'hours_overtime' | 'hours_on_call'>,
+): number {
+  if (log.entry_type === 'fixed_price') {
+    const regular = Number(log.hours_regular) || 0;
+    if (regular > 0) return regular;
+    return SCHEDULE_PLACEHOLDER_HOURS;
+  }
+  return sumDailyHours([log as WorkReportDailyLog]);
+}
+
 export function dailyLogDurationMinutes(log: Pick<
   WorkReportDailyLog,
   'entry_type' | 'hours_regular' | 'hours_overtime' | 'hours_on_call'
 >): number {
-  if (log.entry_type === 'fixed_price') {
-    return Math.max(30, SCHEDULE_PLACEHOLDER_HOURS * 60);
-  }
-  const hours = sumDailyHours([log as WorkReportDailyLog]);
+  const hours = calendarHoursForDailyLog(log);
   const roundedHours = Math.max(0.5, Math.round(hours * 2) / 2);
   return Math.round(roundedHours * 60);
 }
@@ -206,7 +215,7 @@ export function buildCalendarEvents(input: {
       const dayYmd = log.log_date.slice(0, 10);
       const startMinutes = timeToMinutes(log.log_start_time ?? undefined);
       const durationMinutes = dailyLogDurationMinutes(log);
-      const hours = sumDailyHours([log]).toFixed(1).replace(/\.0$/, '');
+      const hours = calendarHoursForDailyLog(log).toFixed(1).replace(/\.0$/, '');
       const timeLabel = formatTimeRange(startMinutes, durationMinutes);
       events.push({
         id: `${report.id}-log-${log.id}`,

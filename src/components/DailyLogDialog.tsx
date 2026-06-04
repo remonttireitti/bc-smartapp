@@ -5,7 +5,6 @@ interface Props {
   title: string;
   submitLabel: string;
   busy?: boolean;
-  error?: string | null;
   onClose: () => void;
   onSubmit: (event: FormEvent) => void;
   children: ReactNode;
@@ -16,7 +15,6 @@ export default function DailyLogDialog({
   title,
   submitLabel,
   busy = false,
-  error = null,
   onClose,
   onSubmit,
   children,
@@ -47,7 +45,6 @@ export default function DailyLogDialog({
         </p>
         <form className="daily-log-form" onSubmit={onSubmit}>
           {children}
-          {error && <p className="error daily-log-dialog-error">{error}</p>}
           <div className="leave-draft-actions">
             <button type="button" className="btn btn-secondary" onClick={onClose} disabled={busy}>
               Peruuta

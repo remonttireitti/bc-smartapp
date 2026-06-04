@@ -25,6 +25,7 @@ type Props = {
   ownCompanyId: string | null;
   hasPartnerCompanies: boolean;
   showCustomerBillingFields?: boolean;
+  onBillingReminder?: (message: string) => void;
 };
 
 function emptyRow(): RefrigerantLineDraft {
@@ -53,20 +54,32 @@ export default function DailyLogRefrigerantFields({
   ownCompanyId,
   hasPartnerCompanies,
   showCustomerBillingFields = false,
+  onBillingReminder,
 }: Props) {
   function updateRow(index: number, patch: Partial<RefrigerantLineDraft>) {
     setDrafts(drafts.map((row, i) => (i === index ? { ...row, ...patch } : row)));
   }
 
+  function notifyBillingReminder(row: RefrigerantLineDraft) {
+    const reminder = resolveRefrigerantBilling({
+      source: row.source,
+      supplier_paid_by: row.supplier_paid_by,
+    }).reminder;
+    if (reminder) onBillingReminder?.(reminder);
+  }
+
   function onSourceChange(index: number, source: RefrigerantSource) {
-    updateRow(index, {
+    const nextRow: RefrigerantLineDraft = {
+      ...drafts[index],
       source,
       cylinder_id: '',
       warehouse_company_id: '',
       supplier_name: '',
       supplier_paid_by: '',
       cylinder_disposition: 'partial_in_stock',
-    });
+    };
+    updateRow(index, nextRow);
+    notifyBillingReminder(nextRow);
   }
 
   function onCylinderPick(index: number, cylinderId: string) {
@@ -211,9 +224,14 @@ export default function DailyLogRefrigerantFields({
                     Kenen piikki hankinta?
                     <select
                       value={row.supplier_paid_by}
-                      onChange={(e) =>
-                        updateRow(index, { supplier_paid_by: e.target.value as RefrigerantSupplierPaidBy | '' })
-                      }
+                      onChange={(e) => {
+                        const nextRow = {
+                          ...row,
+                          supplier_paid_by: e.target.value as RefrigerantSupplierPaidBy | '',
+                        };
+                        updateRow(index, { supplier_paid_by: nextRow.supplier_paid_by });
+                        notifyBillingReminder(nextRow);
+                      }}
                       required
                     >
                       <option value="">Valitse…</option>

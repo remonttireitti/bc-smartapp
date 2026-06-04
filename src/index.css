@@ -51,6 +51,15 @@ body {
 
 a { color: inherit; text-decoration: none; }
 
+.keep-alive-root {
+  display: block;
+  min-height: 0;
+}
+
+.keep-alive-panel[hidden] {
+  display: none !important;
+}
+
 .app-loading {
   min-height: 100vh;
   display: grid;
@@ -2517,8 +2526,50 @@ button[type='submit']:disabled { opacity: .6; cursor: wait; }
   font-size: .9rem;
 }
 
+.daily-log-calendar-hours-hint {
+  display: block;
+  margin-top: .35rem;
+  font-size: .85rem;
+  line-height: 1.35;
+}
+
 .daily-log-dialog-error {
   margin: .75rem 0 0;
+}
+
+.action-status-overlay {
+  z-index: 10050;
+}
+
+.action-status-dialog {
+  width: min(100%, 28rem);
+}
+
+.action-status-dialog-message {
+  margin: 0;
+  line-height: 1.45;
+  white-space: pre-wrap;
+}
+
+.action-status-dialog-loading {
+  margin: .75rem 0 0;
+}
+
+.action-status-dialog--success {
+  border-top: 4px solid #22c55e;
+}
+
+.action-status-dialog--error {
+  border-top: 4px solid #ef4444;
+}
+
+.action-status-dialog--warning {
+  border-top: 4px solid #f59e0b;
+}
+
+.action-status-dialog--info,
+.action-status-dialog--loading {
+  border-top: 4px solid #3b82f6;
 }
 
 .work-report-section {
