@@ -1801,6 +1801,47 @@ button[type='submit']:disabled { opacity: .6; cursor: wait; }
   white-space: nowrap;
 }
 
+.global-admin-company-row {
+  align-items: center;
+}
+
+.global-admin-company-row-main {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.35rem 0.75rem;
+  min-width: 0;
+}
+
+.global-admin-company-slug {
+  font-size: 0.85rem;
+}
+
+.global-admin-delete-dialog {
+  max-width: 32rem;
+}
+
+.global-admin-delete-impact {
+  margin: 0.5rem 0 0;
+  padding-left: 1.1rem;
+}
+
+.global-admin-delete-confirm-label {
+  display: block;
+  margin-top: 0.75rem;
+}
+
+.global-admin-delete-confirm-label input {
+  display: block;
+  width: 100%;
+  margin-top: 0.35rem;
+}
+
+.global-admin-delete-emails {
+  font-size: 0.85rem;
+  word-break: break-word;
+}
+
 .global-admin-footnote {
   margin-top: 0.85rem;
   font-size: 0.85rem;
@@ -9713,6 +9754,12 @@ button.vrf-toggle:not(:disabled) {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 0.5rem;
+}
+
+.temp-zone-report-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: -0.25rem;
 }
 
 @media (max-width: 780px) {

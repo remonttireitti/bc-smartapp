@@ -2,6 +2,7 @@ import { FormEvent, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import type { Company } from '../../types';
+import GlobalAdminCompanyDeleteDialog from './GlobalAdminCompanyDeleteDialog';
 import { suggestCompanySlug } from './utils';
 
 type Props = {
@@ -17,6 +18,10 @@ export default function GlobalAdminCompaniesSection({ companies, counts, onRefre
   const [createCompanyBusy, setCreateCompanyBusy] = useState(false);
   const [createCompanyMessage, setCreateCompanyMessage] = useState<string | null>(null);
   const [createCompanyError, setCreateCompanyError] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Company | null>(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [deleteMessage, setDeleteMessage] = useState<string | null>(null);
 
   async function createCompany(e: FormEvent) {
     e.preventDefault();
@@ -47,6 +52,30 @@ export default function GlobalAdminCompaniesSection({ companies, counts, onRefre
     setNewCompanyName('');
     setNewCompanySlug('');
     setNewCompanySlugTouched(false);
+    await onRefresh();
+  }
+
+  async function confirmDeleteCompany(confirmSlug: string) {
+    if (!deleteTarget) return;
+
+    setDeleteBusy(true);
+    setDeleteError(null);
+
+    const { data, error: deleteRpcError } = await supabase.rpc('global_admin_delete_company', {
+      p_company_id: deleteTarget.id,
+      p_confirm_slug: confirmSlug,
+    });
+
+    setDeleteBusy(false);
+
+    if (deleteRpcError) {
+      setDeleteError(deleteRpcError.message);
+      return;
+    }
+
+    const result = data as { name?: string } | null;
+    setDeleteMessage(`Yritys "${result?.name ?? deleteTarget.name}" poistettu.`);
+    setDeleteTarget(null);
     await onRefresh();
   }
 
@@ -109,13 +138,31 @@ export default function GlobalAdminCompaniesSection({ companies, counts, onRefre
       </section>
 
       <section className="card global-admin-block">
-        <h2>Yritysten rivimäärät</h2>
-        <p className="muted">Työraportit, huollot, asiakkaat ja tarjouspyynnöt yhteensä per yritys.</p>
-        <ul className="global-admin-stats-list">
+        <h2>Yritykset</h2>
+        <p className="muted">
+          Työraportit, huollot, asiakkaat ja tarjouspyynnöt yhteensä per yritys. Poisto poistaa myös
+          yrityksen käyttäjätilit ja kaiken tenant-dataan sidotun datan.
+        </p>
+        {deleteMessage && <p className="success">{deleteMessage}</p>}
+        <ul className="global-admin-stats-list global-admin-company-list">
           {companies.map((company) => (
-            <li key={company.id}>
-              <span className="global-admin-stats-name">{company.name}</span>
-              <span className="global-admin-stats-count">{counts[company.id] ?? 0} riviä</span>
+            <li key={company.id} className="global-admin-company-row">
+              <div className="global-admin-company-row-main">
+                <span className="global-admin-stats-name">{company.name}</span>
+                <span className="muted global-admin-company-slug">{company.slug}</span>
+                <span className="global-admin-stats-count">{counts[company.id] ?? 0} riviä</span>
+              </div>
+              <button
+                type="button"
+                className="btn btn-danger btn-sm"
+                onClick={() => {
+                  setDeleteMessage(null);
+                  setDeleteError(null);
+                  setDeleteTarget(company);
+                }}
+              >
+                Poista
+              </button>
             </li>
           ))}
         </ul>
@@ -124,6 +171,19 @@ export default function GlobalAdminCompaniesSection({ companies, counts, onRefre
           <code>node scripts/fix-import-ownership.mjs --apply --production</code>
         </p>
       </section>
+
+      <GlobalAdminCompanyDeleteDialog
+        company={deleteTarget}
+        open={!!deleteTarget}
+        busy={deleteBusy}
+        error={deleteError}
+        onClose={() => {
+          if (deleteBusy) return;
+          setDeleteTarget(null);
+          setDeleteError(null);
+        }}
+        onConfirm={(confirmSlug) => void confirmDeleteCompany(confirmSlug)}
+      />
     </>
   );
 }

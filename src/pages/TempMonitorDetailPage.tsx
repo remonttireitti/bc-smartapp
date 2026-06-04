@@ -570,6 +570,14 @@ export default function TempMonitorDetailPage({ session }: Props) {
           />
         )}
 
+        {zoneView && !sharedDemo && (activeSession || readings.length >= 2) && (
+          <div className="temp-zone-report-actions">
+            <button type="button" className="btn btn-secondary" disabled={busy} onClick={openReportDialog}>
+              Tallenna raportti
+            </button>
+          </div>
+        )}
+
         <section className={`temp-live-hero panel ${heroClass}`}>
           <div className="temp-live-hero-main">
             <p className="temp-live-hero-label">{activeSession?.monitor_label ?? 'Lämpötila nyt'}</p>
@@ -620,31 +628,38 @@ export default function TempMonitorDetailPage({ session }: Props) {
           )}
         </section>
 
-        <section className="panel temp-trend-panel">
-          <div className="temp-panel-head">
-            <div>
-              <h2>Trendi</h2>
-              {activeSession && lastRefreshAt && (
-                <p className="temp-trend-live muted">
-                  Live · päivitetty {lastRefreshAt.toLocaleTimeString('fi-FI', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-                </p>
-              )}
+        {!zoneView && (
+          <section className="panel temp-trend-panel">
+            <div className="temp-panel-head">
+              <div>
+                <h2>Trendi</h2>
+                {activeSession && lastRefreshAt && (
+                  <p className="temp-trend-live muted">
+                    Live · päivitetty{' '}
+                    {lastRefreshAt.toLocaleTimeString('fi-FI', {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                      second: '2-digit',
+                    })}
+                  </p>
+                )}
+              </div>
+              <div className="temp-panel-head-actions">
+                {!sharedDemo && (activeSession || readings.length >= 2) && (
+                  <button type="button" className="btn btn-secondary" disabled={busy} onClick={openReportDialog}>
+                    Tallenna raportti
+                  </button>
+                )}
+                {activeSession && (
+                  <IconButton label="Mittauksen asetukset" onClick={openSettings}>
+                    <SettingsIcon />
+                  </IconButton>
+                )}
+              </div>
             </div>
-            <div className="temp-panel-head-actions">
-              {!sharedDemo && (activeSession || readings.length >= 2) && (
-                <button type="button" className="btn btn-secondary" disabled={busy} onClick={openReportDialog}>
-                  Tallenna raportti
-                </button>
-              )}
-              {activeSession && (
-                <IconButton label="Mittauksen asetukset" onClick={openSettings}>
-                  <SettingsIcon />
-                </IconButton>
-              )}
-            </div>
-          </div>
-          <TempTrendChart readings={chartReadings} limits={activeLimits} height={240} />
-        </section>
+            <TempTrendChart readings={chartReadings} limits={activeLimits} height={240} />
+          </section>
+        )}
 
       {!sharedDemo && (
       <section className="panel">
