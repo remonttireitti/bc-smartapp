@@ -4,6 +4,7 @@ import RequireLoginRedirect from './components/RequireLoginRedirect';
 import RequirePasswordChange from './components/RequirePasswordChange';
 import KeepAliveRoutes from './components/KeepAliveRoutes';
 import { AuthSessionProvider, useAuthSession } from './contexts/AuthSessionContext';
+import { ProfileProvider } from './contexts/ProfileContext';
 import Login from './pages/Login';
 import PublicLandingPage from './pages/PublicLandingPage';
 import MonitorReaderTokenPage from './pages/MonitorReaderTokenPage';
@@ -40,9 +41,11 @@ function AppRoutes() {
   }
 
   return (
-    <RequirePasswordChange session={session}>
-      <KeepAliveRoutes routes={authenticatedRoutes} resetKey={session.user.id} />
-    </RequirePasswordChange>
+    <ProfileProvider session={session}>
+      <RequirePasswordChange session={session}>
+        <KeepAliveRoutes routes={authenticatedRoutes} resetKey={session.user.id} />
+      </RequirePasswordChange>
+    </ProfileProvider>
   );
 }
 

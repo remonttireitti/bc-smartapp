@@ -32,10 +32,10 @@ export default function LicenseModuleGate({ session, moduleKey, children }: Prop
     void recordAccess(moduleKey);
   }, [loading, isGlobalAdmin, license, moduleKey, recordAccess]);
 
-  if (loading) {
+  if (loading && !license && !isGlobalAdmin) {
     return (
       <AppLayout session={session}>
-        <p className="muted">Tarkistetaan käyttöoikeuksia…</p>
+        <p className="muted page-loading-placeholder">Tarkistetaan käyttöoikeuksia…</p>
       </AppLayout>
     );
   }

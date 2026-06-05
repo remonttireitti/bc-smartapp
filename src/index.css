@@ -66,6 +66,10 @@ a { color: inherit; text-decoration: none; }
   place-items: center;
 }
 
+.page-loading-placeholder {
+  min-height: 40vh;
+}
+
 .login-page {
   min-height: 100vh;
   display: grid;

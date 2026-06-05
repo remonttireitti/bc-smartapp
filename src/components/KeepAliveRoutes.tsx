@@ -45,14 +45,17 @@ export default function KeepAliveRoutes({ routes, resetKey }: Props) {
       scrollRef.current[previousKey] = window.scrollY;
     }
 
-    const savedScroll = scrollRef.current[activeKey];
-    if (typeof savedScroll === 'number') {
-      window.scrollTo({ top: savedScroll, left: 0, behavior: 'auto' });
-    } else if (previousKey && previousKey !== activeKey) {
-      window.scrollTo(0, 0);
-    }
+    const frameId = window.requestAnimationFrame(() => {
+      const savedScroll = scrollRef.current[activeKey];
+      if (typeof savedScroll === 'number') {
+        window.scrollTo({ top: savedScroll, left: 0, behavior: 'auto' });
+      } else if (previousKey && previousKey !== activeKey) {
+        window.scrollTo(0, 0);
+      }
+    });
 
     previousKeyRef.current = activeKey;
+    return () => window.cancelAnimationFrame(frameId);
   }, [activeKey]);
 
   const cachedEntries = Object.entries(cacheRef.current);

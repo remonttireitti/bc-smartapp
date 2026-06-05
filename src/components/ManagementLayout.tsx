@@ -38,10 +38,10 @@ export default function ManagementLayout({ session }: Props) {
   const isAdminRoute = ADMIN_TABS.some((tab) => location.pathname.startsWith(tab.href));
   const isGlobalAdminRoute = location.pathname.startsWith(GLOBAL_ADMIN_TAB.href);
 
-  if (loading) {
+  if (loading && !profile) {
     return (
       <AppLayout session={session}>
-        <p className="muted">Ladataan…</p>
+        <p className="muted page-loading-placeholder">Ladataan…</p>
       </AppLayout>
     );
   }
