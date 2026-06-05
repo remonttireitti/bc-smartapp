@@ -23,8 +23,8 @@ import TempZoneTrendDialog from '../components/tempMonitoring/TempZoneTrendDialo
 import { useProfile } from '../hooks/useProfile';
 import { loadAccessibleReportCustomers, loadReportPartnerships } from '../lib/reportCustomerRegistry';
 import {
+  appendLiveTrendSample,
   buildHistoryPoints,
-  buildZoneTrendReadings,
   parseZoneConfig,
   serializeZoneConfig,
   type ZoneConfig,
@@ -92,6 +92,7 @@ export default function TempMonitorDetailPage({ session }: Props) {
   const [lastRefreshAt, setLastRefreshAt] = useState<Date | null>(null);
   const [liveTick, setLiveTick] = useState(0);
   const lastReadingAtRef = useRef<string | null>(null);
+  const [liveTrendSamples, setLiveTrendSamples] = useState<TempReading[]>([]);
 
   const [sessionForm, setSessionForm] = useState({
     customer_id: '',
@@ -148,29 +149,27 @@ export default function TempMonitorDetailPage({ session }: Props) {
 
   const historyPoints = useMemo(() => buildHistoryPoints(readings), [readings]);
 
-  const zoneTrendReadings = useMemo(
-    () =>
-      buildZoneTrendReadings(
-        readings,
-        device
-          ? {
-              id: device.id,
-              last_seen_at: device.last_seen_at,
-              last_temp_c: device.last_temp_c,
-              last_temp_c2: device.last_temp_c2,
-            }
-          : null,
+  useEffect(() => {
+    if (!device?.id || !device.last_seen_at) return;
+    setLiveTrendSamples((prev) =>
+      appendLiveTrendSample(
+        prev,
+        {
+          id: device.id,
+          last_seen_at: device.last_seen_at,
+          last_temp_c: device.last_temp_c,
+          last_temp_c2: device.last_temp_c2,
+        },
         activeSession?.id ?? null,
       ),
-    [
-      readings,
-      device?.id,
-      device?.last_seen_at,
-      device?.last_temp_c,
-      device?.last_temp_c2,
-      activeSession?.id,
-    ],
-  );
+    );
+  }, [
+    device?.id,
+    device?.last_seen_at,
+    device?.last_temp_c,
+    device?.last_temp_c2,
+    activeSession?.id,
+  ]);
 
   const mergeReadings = useCallback((prev: TempReading[], incoming: TempReading[]) => {
     const map = new Map(prev.map((row) => [row.id, row]));
@@ -895,9 +894,22 @@ export default function TempMonitorDetailPage({ session }: Props) {
 
       <TempZoneTrendDialog
         open={trendZoneKey != null}
+        deviceId={device?.id ?? null}
+        device={
+          device
+            ? {
+                id: device.id,
+                last_seen_at: device.last_seen_at,
+                last_temp_c: device.last_temp_c,
+                last_temp_c2: device.last_temp_c2,
+              }
+            : null
+        }
+        activeSessionId={activeSession?.id ?? null}
+        liveSamples={liveTrendSamples}
         zoneKey={trendZoneKey}
         zone={trendZone}
-        readings={zoneTrendReadings}
+        readings={readings}
         onClose={() => setTrendZoneKey(null)}
       />
 

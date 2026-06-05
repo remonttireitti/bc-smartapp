@@ -124,7 +124,7 @@ Deno.serve(async (req) => {
         .from('temp_readings')
         .upsert(inserts, {
           onConflict: 'device_id,recorded_at,sensor_channel',
-          ignoreDuplicates: true,
+          ignoreDuplicates: false,
         });
       if (insertError) {
         return new Response(JSON.stringify({ error: insertError.message }), {

@@ -1,18 +1,19 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import TempZoneTrendChart from './TempZoneTrendChart';
-import { formatTempC } from '../../lib/tempMonitoring';
+import { formatTempC, TEMP_READING_SELECT, type TempReading } from '../../lib/tempMonitoring';
 import {
-  collapseChartReadings,
+  buildZoneTrendReadings,
   filterReadingsByTrendPreset,
   filterReadingsForSensor,
-  resolveZoneChartPreset,
+  mergeTrendReadingSets,
   summarizeZoneTrend,
+  trendPresetSinceIso,
   zoneConfigToEffectiveLimits,
   type ZoneConfigEntry,
   type ZoneKey,
   type ZoneTrendPreset,
 } from '../../lib/tempZoneMonitoring';
-import type { TempReading } from '../../lib/tempMonitoring';
+import { supabase } from '../../lib/supabase';
 
 const PRESETS: { value: ZoneTrendPreset; label: string }[] = [
   { value: 'today', label: 'Tänään' },
@@ -20,8 +21,19 @@ const PRESETS: { value: ZoneTrendPreset; label: string }[] = [
   { value: '30d', label: '30 päivää' },
 ];
 
+type DeviceLive = {
+  id: string;
+  last_seen_at: string | null;
+  last_temp_c: number | null;
+  last_temp_c2?: number | null;
+};
+
 type Props = {
   open: boolean;
+  deviceId: string | null;
+  device: DeviceLive | null;
+  activeSessionId: string | null;
+  liveSamples: TempReading[];
   zoneKey: ZoneKey | null;
   zone: ZoneConfigEntry | null;
   readings: TempReading[];
@@ -38,39 +50,83 @@ function formatMeasuredAt(iso: string | null) {
   });
 }
 
-export default function TempZoneTrendDialog({ open, zoneKey, zone, readings, onClose }: Props) {
+export default function TempZoneTrendDialog({
+  open,
+  deviceId,
+  device,
+  activeSessionId,
+  liveSamples,
+  zoneKey,
+  zone,
+  readings,
+  onClose,
+}: Props) {
   const [preset, setPreset] = useState<ZoneTrendPreset>('today');
   const [showBothSensors, setShowBothSensors] = useState(false);
+  const [fetchedReadings, setFetchedReadings] = useState<TempReading[]>([]);
+  const [fetching, setFetching] = useState(false);
+
+  useEffect(() => {
+    if (!open || !deviceId) {
+      setFetchedReadings([]);
+      return;
+    }
+
+    let cancelled = false;
+    setFetching(true);
+
+    void supabase
+      .from('temp_readings')
+      .select(TEMP_READING_SELECT)
+      .eq('device_id', deviceId)
+      .gte('recorded_at', trendPresetSinceIso(preset))
+      .order('recorded_at', { ascending: true })
+      .limit(10_000)
+      .then(({ data, error }) => {
+        if (cancelled) return;
+        if (error) console.error('Trendin luku epäonnistui:', error.message);
+        setFetchedReadings((data as TempReading[] | null) ?? []);
+        setFetching(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [open, deviceId, preset]);
+
+  const trendReadings = useMemo(() => {
+    if (!zone || zone.sensor === 0) return [];
+    const merged = mergeTrendReadingSets(readings, fetchedReadings, liveSamples);
+    return buildZoneTrendReadings(
+      merged,
+      device
+        ? {
+            id: device.id,
+            last_seen_at: device.last_seen_at,
+            last_temp_c: device.last_temp_c,
+            last_temp_c2: device.last_temp_c2,
+          }
+        : null,
+      activeSessionId,
+    );
+  }, [readings, fetchedReadings, liveSamples, device, activeSessionId, zone]);
 
   const presetReadings = useMemo(() => {
     if (!zone || zone.sensor === 0) return [];
-    return filterReadingsByTrendPreset(readings, preset);
-  }, [readings, preset, zone]);
+    return filterReadingsByTrendPreset(trendReadings, preset);
+  }, [trendReadings, preset, zone]);
 
-  const summaryReadings = useMemo(() => {
+  const sensorReadings = useMemo(() => {
     if (!zone) return [];
-    return collapseChartReadings(filterReadingsForSensor(presetReadings, zone.sensor));
+    return filterReadingsForSensor(presetReadings, zone.sensor);
   }, [presetReadings, zone]);
-
-  const chartPreset = useMemo(() => {
-    if (!zone || zone.sensor === 0) {
-      return { preset: preset as ZoneTrendPreset, expanded: false, pointCount: 0 };
-    }
-    return resolveZoneChartPreset(preset, readings, zone.sensor);
-  }, [readings, preset, zone]);
-
-  const chartReadings = useMemo(
-    () => filterReadingsByTrendPreset(readings, chartPreset.preset),
-    [readings, chartPreset.preset],
-  );
 
   const limits = zone ? zoneConfigToEffectiveLimits(zone) : null;
   const presetLabel = PRESETS.find((p) => p.value === preset)?.label ?? preset;
-  const chartPresetLabel = PRESETS.find((p) => p.value === chartPreset.preset)?.label ?? chartPreset.preset;
-  const summary = zone ? summarizeZoneTrend(summaryReadings, zone) : null;
+  const summary = zone ? summarizeZoneTrend(sensorReadings, zone) : null;
   const hasChartData =
-    chartPreset.pointCount > 0 ||
-    (showBothSensors && chartReadings.some((r) => (r.sensor_channel ?? 0) > 0));
+    sensorReadings.length > 0 ||
+    (showBothSensors && presetReadings.some((r) => (r.sensor_channel ?? 0) > 0));
 
   if (!open || !zoneKey || !zone) return null;
 
@@ -88,7 +144,10 @@ export default function TempZoneTrendDialog({ open, zoneKey, zone, readings, onC
         <div className="vrf-trend-dialog-head">
           <div>
             <h2 id="temp-zone-trend-title">{title}</h2>
-            <p className="vrf-trend-meta muted">Lämpötilahistoria · {presetLabel}</p>
+            <p className="vrf-trend-meta muted">
+              Lämpötilahistoria · {presetLabel}
+              {fetching ? ' · päivitetään…' : ''}
+            </p>
           </div>
           <div className="vrf-trend-range" role="group" aria-label="Trendin aikaväli">
             {PRESETS.map((p) => (
@@ -137,8 +196,9 @@ export default function TempZoneTrendDialog({ open, zoneKey, zone, readings, onC
             </dl>
             {summary.isSparse && (
               <p className="temp-zone-trend-summary-note">
-                Historiaa on vähän — näet lähinnä nykytilan. Valitse pidempi jakso tai odota, kunnes laite tallentaa
-                lisää mittauksia. Jos lämpö näyttää väärältä huoneelle, tarkista huoltoasetuksista oikea anturi.
+                {preset === 'today'
+                  ? 'Tänään on vähän tallennettuja mittauksia. Pidä laiteverkkoa päällä — jokainen päivitys näkyy trendissä. Kokeile myös 7 päivää.'
+                  : 'Historiaa on vähän valitulla jaksolla. Jos lämpö näyttää väärältä huoneelle, tarkista huoltoasetuksista oikea anturi.'}
               </p>
             )}
           </div>
@@ -162,22 +222,16 @@ export default function TempZoneTrendDialog({ open, zoneKey, zone, readings, onC
         </label>
 
         <div className="vrf-trend-block">
-          {chartPreset.expanded && (
-            <p className="muted temp-zone-trend-chart-note">
-              {presetLabel} — vain {summary?.pointCount ?? 0}{' '}
-              {(summary?.pointCount ?? 0) === 1 ? 'mittaus' : 'mittausta'}. Graafi näyttää{' '}
-              {chartPresetLabel.toLowerCase()}.
-            </p>
-          )}
-          {!hasChartData ? (
+          {!hasChartData && !fetching ? (
             <p className="muted temp-zone-trend-empty">
-              Ei mittauksia valitulla jaksolla. Kokeile 7 tai 30 päivää.
+              Ei mittauksia valitulla jaksolla ({presetLabel.toLowerCase()}). Kokeile pidempää jaksoa tai odota laitteen
+              seuraavaa lähetystä.
             </p>
           ) : (
             <TempZoneTrendChart
-              readings={chartReadings}
+              readings={presetReadings}
               limits={limits}
-              preset={chartPreset.preset}
+              preset={preset}
               showBothSensors={showBothSensors}
               activeSensor={zone.sensor}
               height={280}

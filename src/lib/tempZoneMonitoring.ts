@@ -158,31 +158,73 @@ export function splitTempReadingsByGaps(readings: TempReading[], gapThreshold: n
   return groups;
 }
 
-export type ZoneChartPresetResolution = {
-  preset: ZoneTrendPreset;
-  expanded: boolean;
-  pointCount: number;
-};
+export function trendPresetSinceIso(preset: ZoneTrendPreset, nowMs = Date.now()): string {
+  return new Date(zoneTrendPeriodFromPreset(preset, nowMs).startMs).toISOString();
+}
 
-/** Jos valitulla jaksolla on liian vähän pisteitä, laajenna automaattisesti pidemmälle jaksolle. */
-export function resolveZoneChartPreset(
-  requested: ZoneTrendPreset,
-  readings: TempReading[],
-  sensor: number,
-): ZoneChartPresetResolution {
-  const chain: ZoneTrendPreset[] =
-    requested === 'today' ? ['today', '7d', '30d'] : requested === '7d' ? ['7d', '30d'] : ['30d'];
-
-  for (const preset of chain) {
-    const points = filterReadingsForSensor(filterReadingsByTrendPreset(readings, preset), sensor);
-    if (points.length >= 2) {
-      return { preset, expanded: preset !== requested, pointCount: points.length };
+/** Yhdistä useita lukumääriä (DB + haettu + live-puskuri) ilman tuplia. */
+export function mergeTrendReadingSets(...sets: TempReading[][]): TempReading[] {
+  const map = new Map<string, TempReading>();
+  for (const rows of sets) {
+    for (const row of rows) {
+      const key =
+        row.id >= 0
+          ? `id:${row.id}`
+          : `t:${row.recorded_at}|${row.sensor_channel ?? 0}`;
+      map.set(key, row);
     }
   }
+  return [...map.values()].sort(
+    (a, b) => new Date(a.recorded_at).getTime() - new Date(b.recorded_at).getTime(),
+  );
+}
 
-  const fallback = chain[chain.length - 1];
-  const points = filterReadingsForSensor(filterReadingsByTrendPreset(readings, fallback), sensor);
-  return { preset: fallback, expanded: fallback !== requested, pointCount: points.length };
+/** Kerää jokaisesta laitteen päivityksestä trendipisteet (kun DB ei ehdi tallentaa). */
+export function appendLiveTrendSample(
+  samples: TempReading[],
+  device: {
+    id: string;
+    last_seen_at: string | null;
+    last_temp_c: number | null;
+    last_temp_c2?: number | null;
+  },
+  sessionId: string | null,
+): TempReading[] {
+  if (!device.last_seen_at) return samples;
+
+  const at = device.last_seen_at;
+  const hasChannel = (channel: number) =>
+    samples.some((row) => row.recorded_at === at && (row.sensor_channel ?? 0) === channel);
+
+  const next = [...samples];
+  let syntheticId = -Date.now();
+
+  if (device.last_temp_c != null && Number.isFinite(device.last_temp_c) && !hasChannel(1)) {
+    next.push({
+      id: syntheticId,
+      device_id: device.id,
+      session_id: sessionId,
+      recorded_at: at,
+      temp_c: device.last_temp_c,
+      sensor_channel: 1,
+    });
+    syntheticId -= 1;
+  }
+  if (device.last_temp_c2 != null && Number.isFinite(device.last_temp_c2) && !hasChannel(2)) {
+    next.push({
+      id: syntheticId,
+      device_id: device.id,
+      session_id: sessionId,
+      recorded_at: at,
+      temp_c: device.last_temp_c2,
+      sensor_channel: 2,
+    });
+  }
+
+  const cutoff = Date.now() - 3 * 24 * 3600_000;
+  return next
+    .filter((row) => new Date(row.recorded_at).getTime() >= cutoff)
+    .slice(-5000);
 }
 
 /** Kun pisteitä on vähän, zoomaa aika-akseli datan ympärille — yksi piste ei jää nurkkaan. */
@@ -267,6 +309,13 @@ export function buildZoneTrendReadings(
       ? new Date(channelRows[channelRows.length - 1].recorded_at).getTime()
       : 0;
     if (liveMs < lastTs) return;
+    const duplicateLive = sorted.some(
+      (row) =>
+        readingMatchesSensor(row, sensor) &&
+        row.recorded_at === liveAt &&
+        Number(row.temp_c) === temp,
+    );
+    if (duplicateLive) return;
     extras.push({
       id: syntheticId,
       device_id: device.id,
