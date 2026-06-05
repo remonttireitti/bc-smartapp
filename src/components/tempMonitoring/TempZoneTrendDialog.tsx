@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import TempZoneTrendChart from './TempZoneTrendChart';
 import { formatTempC, TEMP_READING_SELECT, type TempReading } from '../../lib/tempMonitoring';
 import {
@@ -20,6 +20,8 @@ const PRESETS: { value: ZoneTrendPreset; label: string }[] = [
   { value: '7d', label: '7 päivää' },
   { value: '30d', label: '30 päivää' },
 ];
+
+const TREND_POLL_MS = 10_000;
 
 type DeviceLive = {
   id: string;
@@ -65,38 +67,68 @@ export default function TempZoneTrendDialog({
   const [showBothSensors, setShowBothSensors] = useState(false);
   const [fetchedReadings, setFetchedReadings] = useState<TempReading[]>([]);
   const [fetching, setFetching] = useState(false);
+  const fetchCursorRef = useRef<string | null>(null);
+
+  const refreshTrend = useCallback(
+    async (full: boolean) => {
+      if (!deviceId) return;
+
+      if (full) {
+        setFetching(true);
+        fetchCursorRef.current = null;
+      }
+
+      let query = supabase
+        .from('temp_readings')
+        .select(TEMP_READING_SELECT)
+        .eq('device_id', deviceId)
+        .order('recorded_at', { ascending: true })
+        .limit(10_000);
+
+      if (full || !fetchCursorRef.current) {
+        query = query.gte('recorded_at', trendPresetSinceIso(preset));
+      } else {
+        query = query.gt('recorded_at', fetchCursorRef.current);
+      }
+
+      const { data, error } = await query;
+      if (error) {
+        console.error('Trendin luku epäonnistui:', error.message);
+        if (full) setFetching(false);
+        return;
+      }
+
+      const rows = (data as TempReading[] | null) ?? [];
+      if (rows.length > 0) {
+        fetchCursorRef.current = rows[rows.length - 1].recorded_at;
+      }
+
+      setFetchedReadings((prev) => (full ? rows : mergeTrendReadingSets(prev, rows)));
+      if (full) setFetching(false);
+    },
+    [deviceId, preset],
+  );
 
   useEffect(() => {
     if (!open || !deviceId) {
       setFetchedReadings([]);
+      fetchCursorRef.current = null;
       return;
     }
 
-    let cancelled = false;
-    setFetching(true);
+    void refreshTrend(true);
+    const timer = window.setInterval(() => void refreshTrend(false), TREND_POLL_MS);
+    return () => window.clearInterval(timer);
+  }, [open, deviceId, preset, refreshTrend]);
 
-    void supabase
-      .from('temp_readings')
-      .select(TEMP_READING_SELECT)
-      .eq('device_id', deviceId)
-      .gte('recorded_at', trendPresetSinceIso(preset))
-      .order('recorded_at', { ascending: true })
-      .limit(10_000)
-      .then(({ data, error }) => {
-        if (cancelled) return;
-        if (error) console.error('Trendin luku epäonnistui:', error.message);
-        setFetchedReadings((data as TempReading[] | null) ?? []);
-        setFetching(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [open, deviceId, preset]);
+  useEffect(() => {
+    if (!open || !device?.last_seen_at) return;
+    void refreshTrend(false);
+  }, [open, device?.last_seen_at, device?.last_temp_c, device?.last_temp_c2, refreshTrend]);
 
   const trendReadings = useMemo(() => {
     if (!zone || zone.sensor === 0) return [];
-    const merged = mergeTrendReadingSets(readings, fetchedReadings, liveSamples);
+    const merged = mergeTrendReadingSets(fetchedReadings, readings, liveSamples);
     return buildZoneTrendReadings(
       merged,
       device
@@ -146,6 +178,7 @@ export default function TempZoneTrendDialog({
             <h2 id="temp-zone-trend-title">{title}</h2>
             <p className="vrf-trend-meta muted">
               Lämpötilahistoria · {presetLabel}
+              {preset === 'today' ? ' · viimeiset 12 h' : ''}
               {fetching ? ' · päivitetään…' : ''}
             </p>
           </div>
@@ -197,7 +230,7 @@ export default function TempZoneTrendDialog({
             {summary.isSparse && (
               <p className="temp-zone-trend-summary-note">
                 {preset === 'today'
-                  ? 'Tänään on vähän tallennettuja mittauksia. Pidä laiteverkkoa päällä — jokainen päivitys näkyy trendissä. Kokeile myös 7 päivää.'
+                  ? 'Tänään on vähän tallennettuja mittauksia. Trendi päivittyy automaattisesti — odota hetki tai kokeile 7 päivää.'
                   : 'Historiaa on vähän valitulla jaksolla. Jos lämpö näyttää väärältä huoneelle, tarkista huoltoasetuksista oikea anturi.'}
               </p>
             )}

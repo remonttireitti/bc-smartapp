@@ -162,7 +162,7 @@ export function trendPresetSinceIso(preset: ZoneTrendPreset, nowMs = Date.now())
   return new Date(zoneTrendPeriodFromPreset(preset, nowMs).startMs).toISOString();
 }
 
-/** Yhdistä useita lukumääriä (DB + haettu + live-puskuri) ilman tuplia. */
+/** Yhdistä useita lukumääriä — myöhemmät joukot voittavat (live-puskuri viimeisenä). */
 export function mergeTrendReadingSets(...sets: TempReading[][]): TempReading[] {
   const map = new Map<string, TempReading>();
   for (const rows of sets) {
@@ -171,7 +171,14 @@ export function mergeTrendReadingSets(...sets: TempReading[][]): TempReading[] {
         row.id >= 0
           ? `id:${row.id}`
           : `t:${row.recorded_at}|${row.sensor_channel ?? 0}`;
-      map.set(key, row);
+      const existing = map.get(key);
+      if (!existing) {
+        map.set(key, row);
+        continue;
+      }
+      const rowMs = new Date(row.recorded_at).getTime();
+      const existingMs = new Date(existing.recorded_at).getTime();
+      if (rowMs >= existingMs) map.set(key, row);
     }
   }
   return [...map.values()].sort(
@@ -193,38 +200,62 @@ export function appendLiveTrendSample(
   if (!device.last_seen_at) return samples;
 
   const at = device.last_seen_at;
-  const hasChannel = (channel: number) =>
-    samples.some((row) => row.recorded_at === at && (row.sensor_channel ?? 0) === channel);
+  const channelAt = (channel: number) =>
+    samples.findIndex((row) => row.recorded_at === at && (row.sensor_channel ?? 0) === channel);
 
   const next = [...samples];
   let syntheticId = -Date.now();
 
-  if (device.last_temp_c != null && Number.isFinite(device.last_temp_c) && !hasChannel(1)) {
+  const upsertChannel = (channel: number, temp: number | null | undefined) => {
+    if (temp == null || !Number.isFinite(temp)) return;
+    const idx = channelAt(channel);
+    if (idx >= 0) {
+      if (next[idx].temp_c === temp) return;
+      next[idx] = { ...next[idx], temp_c: temp };
+      return;
+    }
     next.push({
       id: syntheticId,
       device_id: device.id,
       session_id: sessionId,
       recorded_at: at,
-      temp_c: device.last_temp_c,
-      sensor_channel: 1,
+      temp_c: temp,
+      sensor_channel: channel,
     });
     syntheticId -= 1;
-  }
-  if (device.last_temp_c2 != null && Number.isFinite(device.last_temp_c2) && !hasChannel(2)) {
-    next.push({
-      id: syntheticId,
-      device_id: device.id,
-      session_id: sessionId,
-      recorded_at: at,
-      temp_c: device.last_temp_c2,
-      sensor_channel: 2,
-    });
-  }
+  };
+
+  upsertChannel(1, device.last_temp_c);
+  upsertChannel(2, device.last_temp_c2);
 
   const cutoff = Date.now() - 3 * 24 * 3600_000;
   return next
     .filter((row) => new Date(row.recorded_at).getTime() >= cutoff)
     .slice(-5000);
+}
+
+/** Graafin aika-akseli — tänään zoomaa viimeisiin 12 h kun data on tuoretta. */
+export function zoneTrendChartPeriod(
+  preset: ZoneTrendPreset,
+  readings: TempReading[],
+  activeSensor: number,
+  nowMs = Date.now(),
+): ZoneTrendPeriod {
+  const base = zoneTrendPeriodFromPreset(preset, nowMs);
+  if (preset !== 'today' || activeSensor <= 0) return base;
+
+  const rows = filterReadingsForSensor(readings, activeSensor);
+  if (rows.length === 0) return base;
+
+  const lastMs = new Date(rows[rows.length - 1].recorded_at).getTime();
+  const recentWindowMs = 12 * 3600_000;
+
+  if (nowMs - lastMs <= 2 * 3600_000) {
+    const startMs = Math.max(base.startMs, nowMs - recentWindowMs);
+    return { startMs, endMs: nowMs, span: Math.max(nowMs - startMs, 60_000) };
+  }
+
+  return base;
 }
 
 /** Kun pisteitä on vähän, zoomaa aika-akseli datan ympärille — yksi piste ei jää nurkkaan. */
@@ -293,43 +324,46 @@ export function buildZoneTrendReadings(
   } | null,
   activeSessionId: string | null,
 ): TempReading[] {
-  const sorted = [...readings].sort(
-    (a, b) => new Date(a.recorded_at).getTime() - new Date(b.recorded_at).getTime(),
-  );
+  const sorted = [...readings]
+    .filter((row) => row.id >= 0)
+    .sort((a, b) => new Date(a.recorded_at).getTime() - new Date(b.recorded_at).getTime());
   if (!device?.last_seen_at) return sorted;
 
   const liveAt = device.last_seen_at;
-  const liveMs = new Date(liveAt).getTime();
-  const extras: TempReading[] = [];
+  const base = sorted.filter((row) => {
+    if (row.recorded_at !== liveAt) return true;
+    if (device.last_temp_c != null && Number.isFinite(device.last_temp_c) && readingMatchesSensor(row, 1)) {
+      return false;
+    }
+    if (device.last_temp_c2 != null && Number.isFinite(device.last_temp_c2) && readingMatchesSensor(row, 2)) {
+      return false;
+    }
+    return true;
+  });
 
-  const pushLive = (temp: number | null | undefined, sensor: number, syntheticId: number) => {
-    if (temp == null || !Number.isFinite(temp)) return;
-    const channelRows = sorted.filter((row) => readingMatchesSensor(row, sensor));
-    const lastTs = channelRows.length
-      ? new Date(channelRows[channelRows.length - 1].recorded_at).getTime()
-      : 0;
-    if (liveMs < lastTs) return;
-    const duplicateLive = sorted.some(
-      (row) =>
-        readingMatchesSensor(row, sensor) &&
-        row.recorded_at === liveAt &&
-        Number(row.temp_c) === temp,
-    );
-    if (duplicateLive) return;
+  const extras: TempReading[] = [];
+  if (device.last_temp_c != null && Number.isFinite(device.last_temp_c)) {
     extras.push({
-      id: syntheticId,
+      id: -1,
       device_id: device.id,
       session_id: activeSessionId,
       recorded_at: liveAt,
-      temp_c: temp,
-      sensor_channel: sensor,
+      temp_c: device.last_temp_c,
+      sensor_channel: 1,
     });
-  };
+  }
+  if (device.last_temp_c2 != null && Number.isFinite(device.last_temp_c2)) {
+    extras.push({
+      id: -2,
+      device_id: device.id,
+      session_id: activeSessionId,
+      recorded_at: liveAt,
+      temp_c: device.last_temp_c2,
+      sensor_channel: 2,
+    });
+  }
 
-  pushLive(device.last_temp_c, 1, -1);
-  pushLive(device.last_temp_c2, 2, -2);
-
-  return [...sorted, ...extras].sort(
+  return [...base, ...extras].sort(
     (a, b) => new Date(a.recorded_at).getTime() - new Date(b.recorded_at).getTime(),
   );
 }

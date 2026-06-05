@@ -288,13 +288,13 @@ export default function TempMonitorDetailPage({ session }: Props) {
     if (deviceId && companyId) void loadRef.current();
   }, [deviceId, companyId]);
 
-  const pollMs = activeSession ? 10_000 : 20_000;
+  const pollMs = trendZoneKey != null ? 5_000 : activeSession ? 10_000 : 20_000;
 
   useEffect(() => {
     if (!deviceId || !companyId) return;
     const timer = window.setInterval(() => void loadRef.current({ silent: true }), pollMs);
     return () => window.clearInterval(timer);
-  }, [deviceId, companyId, pollMs]);
+  }, [deviceId, companyId, pollMs, trendZoneKey]);
 
   useEffect(() => {
     function onVisible() {

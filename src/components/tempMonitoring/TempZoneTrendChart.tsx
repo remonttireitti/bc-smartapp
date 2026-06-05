@@ -8,7 +8,7 @@ import {
   formatZoneTrendTimeLabel,
   splitTempReadingsByGaps,
   tempReadingGapThresholdMs,
-  zoneTrendPeriodFromPreset,
+  zoneTrendChartPeriod,
   type ZoneTrendPreset,
 } from '../../lib/tempZoneMonitoring';
 
@@ -123,7 +123,7 @@ export default function TempZoneTrendChart({
   const chart = useMemo(() => {
     if (activeSeries.length === 0) return null;
 
-    const basePeriod = zoneTrendPeriodFromPreset(preset);
+    const basePeriod = zoneTrendChartPeriod(preset, readings, activeSensor);
     const inPeriod = readings.filter((row) => {
       const t = new Date(row.recorded_at).getTime();
       return t >= basePeriod.startMs && t <= basePeriod.endMs;
