@@ -24,6 +24,7 @@ import { useProfile } from '../hooks/useProfile';
 import { loadAccessibleReportCustomers, loadReportPartnerships } from '../lib/reportCustomerRegistry';
 import {
   buildHistoryPoints,
+  buildZoneTrendReadings,
   parseZoneConfig,
   serializeZoneConfig,
   type ZoneConfig,
@@ -146,6 +147,30 @@ export default function TempMonitorDetailPage({ session }: Props) {
   );
 
   const historyPoints = useMemo(() => buildHistoryPoints(readings), [readings]);
+
+  const zoneTrendReadings = useMemo(
+    () =>
+      buildZoneTrendReadings(
+        readings,
+        device
+          ? {
+              id: device.id,
+              last_seen_at: device.last_seen_at,
+              last_temp_c: device.last_temp_c,
+              last_temp_c2: device.last_temp_c2,
+            }
+          : null,
+        activeSession?.id ?? null,
+      ),
+    [
+      readings,
+      device?.id,
+      device?.last_seen_at,
+      device?.last_temp_c,
+      device?.last_temp_c2,
+      activeSession?.id,
+    ],
+  );
 
   const mergeReadings = useCallback((prev: TempReading[], incoming: TempReading[]) => {
     const map = new Map(prev.map((row) => [row.id, row]));
@@ -872,7 +897,7 @@ export default function TempMonitorDetailPage({ session }: Props) {
         open={trendZoneKey != null}
         zoneKey={trendZoneKey}
         zone={trendZone}
-        readings={readings}
+        readings={zoneTrendReadings}
         onClose={() => setTrendZoneKey(null)}
       />
 

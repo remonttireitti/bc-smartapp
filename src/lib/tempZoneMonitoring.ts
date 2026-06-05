@@ -96,6 +96,58 @@ export function filterReadingsByTrendPreset(readings: TempReading[], preset: Zon
   return readings.filter((row) => new Date(row.recorded_at).getTime() >= startMs);
 }
 
+function readingMatchesSensor(row: TempReading, sensor: number): boolean {
+  const ch = row.sensor_channel ?? 0;
+  if (sensor === 1) return ch === 1 || ch === 0;
+  if (sensor === 2) return ch === 2;
+  return false;
+}
+
+/** DB-rivit + viimeisin live-mittaus (kuten pohjapiirros), jotta trendi ei jää tyhjäksi. */
+export function buildZoneTrendReadings(
+  readings: TempReading[],
+  device: {
+    id: string;
+    last_seen_at: string | null;
+    last_temp_c: number | null;
+    last_temp_c2?: number | null;
+  } | null,
+  activeSessionId: string | null,
+): TempReading[] {
+  const sorted = [...readings].sort(
+    (a, b) => new Date(a.recorded_at).getTime() - new Date(b.recorded_at).getTime(),
+  );
+  if (!device?.last_seen_at) return sorted;
+
+  const liveAt = device.last_seen_at;
+  const liveMs = new Date(liveAt).getTime();
+  const extras: TempReading[] = [];
+
+  const pushLive = (temp: number | null | undefined, sensor: number, syntheticId: number) => {
+    if (temp == null || !Number.isFinite(temp)) return;
+    const channelRows = sorted.filter((row) => readingMatchesSensor(row, sensor));
+    const lastTs = channelRows.length
+      ? new Date(channelRows[channelRows.length - 1].recorded_at).getTime()
+      : 0;
+    if (liveMs < lastTs) return;
+    extras.push({
+      id: syntheticId,
+      device_id: device.id,
+      session_id: activeSessionId,
+      recorded_at: liveAt,
+      temp_c: temp,
+      sensor_channel: sensor,
+    });
+  };
+
+  pushLive(device.last_temp_c, 1, -1);
+  pushLive(device.last_temp_c2, 2, -2);
+
+  return [...sorted, ...extras].sort(
+    (a, b) => new Date(a.recorded_at).getTime() - new Date(b.recorded_at).getTime(),
+  );
+}
+
 export function serializeZoneConfig(config: ZoneConfig): Record<string, unknown> {
   return { ...config };
 }

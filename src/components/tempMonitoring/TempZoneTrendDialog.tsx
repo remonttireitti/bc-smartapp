@@ -95,6 +95,12 @@ export default function TempZoneTrendDialog({ open, zoneKey, zone, readings, onC
 
         <div className="vrf-trend-block">
           <h3 className="vrf-trend-subtitle">Lämpötila</h3>
+          {pointCount === 0 && (
+            <p className="muted vrf-trend-hint">
+              Ei tallennettuja mittauksia valitulla aikavälillä. Kokeile 7 tai 30 päivää — tai odota, kunnes laite lähettää
+              uusia lukemia.
+            </p>
+          )}
           <TempTrendChart readings={chartReadings} limits={limits} height={300} />
         </div>
 
