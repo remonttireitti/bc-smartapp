@@ -81,6 +81,83 @@ export function filterReadingsForSensor(readings: TempReading[], sensor: number)
 
 export type ZoneTrendPreset = 'today' | '7d' | '30d';
 
+export type ZoneTrendPeriod = {
+  startMs: number;
+  endMs: number;
+  span: number;
+};
+
+export const ZONE_SENSOR_SERIES = [
+  { sensor: 1 as const, label: 'Anturi 1', color: '#6366f1' },
+  { sensor: 2 as const, label: 'Anturi 2', color: '#14b8a6' },
+];
+
+export function zoneTrendPeriodFromPreset(preset: ZoneTrendPreset, nowMs = Date.now()): ZoneTrendPeriod {
+  const endMs = nowMs;
+  let startMs: number;
+  if (preset === 'today') {
+    const d = new Date(nowMs);
+    d.setHours(0, 0, 0, 0);
+    startMs = d.getTime();
+  } else if (preset === '7d') {
+    startMs = nowMs - 7 * 24 * 3600_000;
+  } else {
+    startMs = nowMs - 30 * 24 * 3600_000;
+  }
+  return { startMs, endMs, span: Math.max(endMs - startMs, 1) };
+}
+
+export function formatZoneTrendTimeLabel(ms: number, spanMs: number): string {
+  const date = new Date(ms);
+  if (spanMs <= 6 * 3600_000) {
+    return date.toLocaleTimeString('fi-FI', { hour: '2-digit', minute: '2-digit' });
+  }
+  if (spanMs <= 48 * 3600_000) {
+    return date.toLocaleString('fi-FI', {
+      day: 'numeric',
+      month: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  }
+  return date.toLocaleString('fi-FI', { day: 'numeric', month: 'numeric', hour: '2-digit' });
+}
+
+/** Mittausvälien mediaani → raja, milloin jakson väliä ei yhdistetä viivalla. */
+export function tempReadingGapThresholdMs(sorted: TempReading[], spanMs: number): number {
+  const minGap = 15 * 60_000;
+  const maxGap = Math.max(spanMs / 20, minGap);
+  if (sorted.length < 2) return Math.min(Math.max(spanMs / 200, minGap), maxGap);
+  const intervals: number[] = [];
+  for (let i = 1; i < sorted.length; i += 1) {
+    intervals.push(
+      new Date(sorted[i].recorded_at).getTime() - new Date(sorted[i - 1].recorded_at).getTime(),
+    );
+  }
+  intervals.sort((a, b) => a - b);
+  const median = intervals[Math.floor(intervals.length / 2)];
+  return Math.min(Math.max(median * 3, minGap), maxGap);
+}
+
+/** Mittausryhmät, joita ei erota dataton aukko (kuten VRF-trendissä). */
+export function splitTempReadingsByGaps(readings: TempReading[], gapThreshold: number): TempReading[][] {
+  const sorted = [...readings].sort(
+    (a, b) => new Date(a.recorded_at).getTime() - new Date(b.recorded_at).getTime(),
+  );
+  if (sorted.length === 0) return [];
+  const groups: TempReading[][] = [[sorted[0]]];
+  for (let i = 1; i < sorted.length; i += 1) {
+    const prevT = new Date(sorted[i - 1].recorded_at).getTime();
+    const currT = new Date(sorted[i].recorded_at).getTime();
+    if (currT - prevT > gapThreshold) {
+      groups.push([sorted[i]]);
+    } else {
+      groups[groups.length - 1].push(sorted[i]);
+    }
+  }
+  return groups;
+}
+
 export function filterReadingsByTrendPreset(readings: TempReading[], preset: ZoneTrendPreset): TempReading[] {
   const now = Date.now();
   let startMs: number;

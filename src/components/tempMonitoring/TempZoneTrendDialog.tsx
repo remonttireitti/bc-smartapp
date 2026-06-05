@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import TempTrendChart from './TempTrendChart';
+import TempZoneTrendChart from './TempZoneTrendChart';
 import { formatTempC } from '../../lib/tempMonitoring';
 import {
   collapseChartReadings,
@@ -41,26 +41,20 @@ export default function TempZoneTrendDialog({ open, zoneKey, zone, readings, onC
   const [preset, setPreset] = useState<ZoneTrendPreset>('today');
   const [showBothSensors, setShowBothSensors] = useState(false);
 
-  const rawChartReadings = useMemo(() => {
+  const presetReadings = useMemo(() => {
     if (!zone || zone.sensor === 0) return [];
-    const filtered = filterReadingsByTrendPreset(readings, preset);
-    if (showBothSensors) {
-      return filtered.filter((r) => {
-        const ch = r.sensor_channel ?? 0;
-        return ch === 1 || ch === 2 || ch === 0;
-      });
-    }
-    return filterReadingsForSensor(filtered, zone.sensor);
-  }, [readings, preset, zone, showBothSensors]);
+    return filterReadingsByTrendPreset(readings, preset);
+  }, [readings, preset, zone]);
 
-  const chartReadings = useMemo(
-    () => collapseChartReadings(rawChartReadings),
-    [rawChartReadings],
-  );
+  const summaryReadings = useMemo(() => {
+    if (!zone) return [];
+    return collapseChartReadings(filterReadingsForSensor(presetReadings, zone.sensor));
+  }, [presetReadings, zone]);
 
   const limits = zone ? zoneConfigToEffectiveLimits(zone) : null;
   const presetLabel = PRESETS.find((p) => p.value === preset)?.label ?? preset;
-  const summary = zone ? summarizeZoneTrend(chartReadings, zone) : null;
+  const summary = zone ? summarizeZoneTrend(summaryReadings, zone) : null;
+  const hasChartData = summaryReadings.length > 0 || (showBothSensors && presetReadings.length > 0);
 
   if (!open || !zoneKey || !zone) return null;
 
@@ -152,17 +146,18 @@ export default function TempZoneTrendDialog({ open, zoneKey, zone, readings, onC
         </label>
 
         <div className="vrf-trend-block">
-          {chartReadings.length === 0 ? (
+          {!hasChartData ? (
             <p className="muted temp-zone-trend-empty">
               Ei mittauksia valitulla jaksolla. Kokeile 7 tai 30 päivää.
             </p>
           ) : (
-            <TempTrendChart
-              readings={chartReadings}
+            <TempZoneTrendChart
+              readings={presetReadings}
               limits={limits}
+              preset={preset}
+              showBothSensors={showBothSensors}
+              activeSensor={zone.sensor}
               height={280}
-              legendMode="zone"
-              hidePathWhenSparse={chartReadings.length < 2}
             />
           )}
         </div>
