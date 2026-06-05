@@ -20,6 +20,14 @@ export type TempChartModel = {
 
 export function formatXTick(iso: string, spanMs: number) {
   const date = new Date(iso);
+  if (spanMs < 60_000) {
+    return date.toLocaleString('fi-FI', {
+      day: 'numeric',
+      month: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  }
   if (spanMs <= 24 * 3_600_000) {
     return date.toLocaleTimeString('fi-FI', { hour: '2-digit', minute: '2-digit' });
   }
@@ -259,7 +267,8 @@ export function buildTempTrendChartModel(
 
   const t0 = new Date(sorted[0].recorded_at).getTime();
   const t1 = new Date(sorted[sorted.length - 1].recorded_at).getTime();
-  const span = Math.max(t1 - t0, 60_000);
+  const singleSnapshot = sorted.length === 1 || t1 <= t0;
+  const span = singleSnapshot ? 0 : Math.max(t1 - t0, 60_000);
 
   const padLeft = 34;
   const padRight = 10;
@@ -269,7 +278,10 @@ export function buildTempTrendChartModel(
   const innerH = height - padTop - padBottom;
 
   const tempToY = (temp: number) => padTop + innerH - ((temp - min) / (max - min)) * innerH;
-  const timeToX = (ts: number) => padLeft + ((ts - t0) / span) * innerW;
+  const timeToX = (ts: number) => {
+    if (singleSnapshot) return padLeft + innerW / 2;
+    return padLeft + ((ts - t0) / span) * innerW;
+  };
 
   const points = sorted.map((row) => {
     const t = new Date(row.recorded_at).getTime();
@@ -281,14 +293,34 @@ export function buildTempTrendChartModel(
     };
   });
 
-  const xTickCount = 5;
-  const xTicks = Array.from({ length: xTickCount }, (_, i) => {
-    const ts = t0 + (span * i) / (xTickCount - 1);
-    return {
-      x: timeToX(ts),
-      label: formatXTick(new Date(ts).toISOString(), span),
-    };
-  });
+  let xTicks: { x: number; label: string }[];
+  if (singleSnapshot) {
+    xTicks = [
+      {
+        x: padLeft + innerW / 2,
+        label: formatXTick(sorted[0].recorded_at, 0),
+      },
+    ];
+  } else {
+    const xTickCount = Math.min(5, sorted.length);
+    const seen = new Set<string>();
+    xTicks = [];
+    for (let i = 0; i < xTickCount; i += 1) {
+      const ts = t0 + (span * i) / Math.max(xTickCount - 1, 1);
+      const label = formatXTick(new Date(ts).toISOString(), span);
+      if (seen.has(label)) continue;
+      seen.add(label);
+      xTicks.push({ x: timeToX(ts), label });
+    }
+    if (xTicks.length === 0) {
+      xTicks = [
+        {
+          x: timeToX(t0),
+          label: formatXTick(sorted[0].recorded_at, span),
+        },
+      ];
+    }
+  }
 
   return {
     points,

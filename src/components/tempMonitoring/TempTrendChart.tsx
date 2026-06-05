@@ -12,9 +12,17 @@ type Props = {
   readings: TempReading[];
   limits?: TempEffectiveLimits | null;
   height?: number;
+  legendMode?: 'default' | 'zone';
+  hidePathWhenSparse?: boolean;
 };
 
-export default function TempTrendChart({ readings, limits = null, height = 220 }: Props) {
+export default function TempTrendChart({
+  readings,
+  limits = null,
+  height = 220,
+  legendMode = 'default',
+  hidePathWhenSparse = false,
+}: Props) {
   const width = 640;
   const gradientId = useId().replace(/:/g, '');
   const chart = buildTempTrendChartModel(readings, width, height, limits);
@@ -44,6 +52,7 @@ export default function TempTrendChart({ readings, limits = null, height = 220 }
   const showDots = chart.points.length <= 80;
   const visibleDots = showDots ? dotIndices(chart.points.length) : [];
   const singlePoint = chart.points.length === 1;
+  const showPath = !(hidePathWhenSparse && chart.points.length < 2);
 
   return (
     <div className="vrf-trend-chart temp-chart">
@@ -132,11 +141,13 @@ export default function TempTrendChart({ readings, limits = null, height = 220 }
             </text>
           </g>
         ))}
-        <path
-          d={path}
-          className={`temp-chart-line ${limits ? 'temp-chart-line--gradient' : 'temp-chart-line--neutral'}`}
-          stroke={limits ? `url(#${gradientId})` : undefined}
-        />
+        {showPath && path && (
+          <path
+            d={path}
+            className={`temp-chart-line ${limits ? 'temp-chart-line--gradient' : 'temp-chart-line--neutral'}`}
+            stroke={limits ? `url(#${gradientId})` : undefined}
+          />
+        )}
         {visibleDots.map((index) => {
           const point = chart.points[index];
           return (
@@ -155,17 +166,19 @@ export default function TempTrendChart({ readings, limits = null, height = 220 }
       </div>
       {limits ? (
         <div className="vrf-trend-legend temp-chart-legend">
+          <span className="vrf-trend-legend-item temp-chart-legend-target">
+            <span className="vrf-trend-legend-dot" style={{ background: 'rgba(14, 165, 233, 0.45)' }} />
+            {legendMode === 'zone'
+              ? `Sininen alue = sallittu ${limits.targetMin} … ${limits.targetMax} °C`
+              : `Toivottu ${limits.targetMin}–${limits.targetMax} °C`}
+          </span>
           <span className="vrf-trend-legend-item temp-chart-legend-in-range">
             <span className="vrf-trend-legend-dot" style={{ background: '#16a34a' }} />
-            Vihreä = alueella
+            {legendMode === 'zone' ? 'Piste vihreä = ok' : 'Vihreä = alueella'}
           </span>
           <span className="vrf-trend-legend-item temp-chart-legend-deviation">
             <span className="vrf-trend-legend-dot" style={{ background: '#dc2626' }} />
-            Punainen = poikkeama
-          </span>
-          <span className="vrf-trend-legend-item temp-chart-legend-target">
-            <span className="vrf-trend-legend-dot" style={{ background: 'rgba(14, 165, 233, 0.45)' }} />
-            Toivottu {limits.targetMin}–{limits.targetMax} °C
+            {legendMode === 'zone' ? 'Piste punainen = poikkeama' : 'Punainen = poikkeama'}
           </span>
         </div>
       ) : (

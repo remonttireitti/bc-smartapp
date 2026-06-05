@@ -148,6 +148,83 @@ export function buildZoneTrendReadings(
   );
 }
 
+/** Yhdistä tiheät live-päivitykset yhdeksi pisteeksi minuutin välein. */
+export function collapseChartReadings(readings: TempReading[], bucketMs = 60_000): TempReading[] {
+  if (readings.length <= 1) return readings;
+  const sorted = [...readings].sort(
+    (a, b) => new Date(a.recorded_at).getTime() - new Date(b.recorded_at).getTime(),
+  );
+  const out: TempReading[] = [];
+  let bucketStart = 0;
+  for (const row of sorted) {
+    const ts = new Date(row.recorded_at).getTime();
+    if (out.length === 0) {
+      out.push(row);
+      bucketStart = ts;
+      continue;
+    }
+    if (ts - bucketStart < bucketMs) {
+      out[out.length - 1] = row;
+    } else {
+      out.push(row);
+      bucketStart = ts;
+    }
+  }
+  return out;
+}
+
+export type ZoneTrendSummary = {
+  latestTemp: number | null;
+  latestAt: string | null;
+  inRange: boolean;
+  statusLabel: string;
+  statusTone: 'ok' | 'warn' | 'none';
+  pointCount: number;
+  isSparse: boolean;
+};
+
+export function summarizeZoneTrend(
+  readings: TempReading[],
+  zone: ZoneConfigEntry,
+): ZoneTrendSummary {
+  const pointCount = readings.length;
+  const latest = readings.length ? readings[readings.length - 1] : null;
+  const latestTemp = latest != null ? Number(latest.temp_c) : null;
+  if (latestTemp == null || !Number.isFinite(latestTemp)) {
+    return {
+      latestTemp: null,
+      latestAt: null,
+      inRange: false,
+      statusLabel: 'Ei mittausta',
+      statusTone: 'none',
+      pointCount,
+      isSparse: true,
+    };
+  }
+  const inRange = isTempInRange(latestTemp, zone);
+  let statusLabel = 'Lämpötila tavoitealueella';
+  let statusTone: ZoneTrendSummary['statusTone'] = 'ok';
+  if (!inRange) {
+    statusTone = 'warn';
+    if (zone.kind === 'freezer') {
+      statusLabel = latestTemp > zone.max ? 'Liian lämmin' : 'Liian kylmä';
+    } else if (latestTemp < zone.min) {
+      statusLabel = 'Liian kylmä';
+    } else {
+      statusLabel = 'Liian lämmin';
+    }
+  }
+  return {
+    latestTemp,
+    latestAt: latest?.recorded_at ?? null,
+    inRange,
+    statusLabel,
+    statusTone,
+    pointCount,
+    isSparse: pointCount < 3,
+  };
+}
+
 export function serializeZoneConfig(config: ZoneConfig): Record<string, unknown> {
   return { ...config };
 }

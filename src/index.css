@@ -9928,14 +9928,123 @@ button.vrf-toggle:not(:disabled) {
   overflow: auto;
 }
 
+.temp-zone-trend-dialog {
+  max-width: min(720px, 96vw);
+  max-height: min(92vh, 900px);
+  overflow: auto;
+}
+
+.temp-zone-trend-summary {
+  margin: 0 0 1rem;
+  padding: 0.85rem 1rem;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--bg-muted);
+}
+
+.temp-zone-trend-summary--ok {
+  border-color: color-mix(in srgb, #16a34a 35%, var(--border));
+}
+
+.temp-zone-trend-summary--warn {
+  border-color: color-mix(in srgb, #dc2626 35%, var(--border));
+  background: color-mix(in srgb, #dc2626 6%, var(--bg-muted));
+}
+
+.temp-zone-trend-summary-main {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem 0.75rem;
+  margin-bottom: 0.65rem;
+}
+
+.temp-zone-trend-summary-label {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.temp-zone-trend-summary-temp {
+  font-size: 1.75rem;
+  line-height: 1;
+  color: var(--text);
+}
+
+.temp-zone-trend-summary-status {
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.temp-zone-trend-summary--warn .temp-zone-trend-summary-status {
+  color: #b91c1c;
+}
+
+.temp-zone-trend-summary-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 0.5rem 1rem;
+  margin: 0;
+}
+
+.temp-zone-trend-summary-facts dt {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+.temp-zone-trend-summary-facts dd {
+  margin: 0.1rem 0 0;
+  font-weight: 500;
+}
+
+.temp-zone-trend-summary-note {
+  margin: 0.65rem 0 0;
+  font-size: 0.88rem;
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
+.temp-zone-trend-policy {
+  margin: 0 0 0.75rem;
+  font-size: 0.88rem;
+}
+
+.temp-zone-trend-policy summary {
+  cursor: pointer;
+  color: var(--text-muted);
+  user-select: none;
+}
+
+.temp-zone-trend-policy p {
+  margin: 0.4rem 0 0;
+}
+
 .temp-zone-trend-both {
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  gap: 0.45rem;
+  gap: 0.5rem;
   margin: 0 0 0.85rem;
   font-size: 0.95rem;
   font-weight: 500;
   color: var(--text);
+  cursor: pointer;
+}
+
+.temp-zone-trend-both input {
+  margin: 0;
+  flex-shrink: 0;
+}
+
+.temp-zone-trend-empty {
+  margin: 0;
+  padding: 1.5rem 0;
+  text-align: center;
+}
+
+.vrf-trend-block .vrf-trend-subtitle {
+  display: none;
 }
 
 .temp-zone-settings-grid {
