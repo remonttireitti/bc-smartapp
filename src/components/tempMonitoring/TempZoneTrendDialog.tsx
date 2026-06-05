@@ -5,6 +5,7 @@ import {
   collapseChartReadings,
   filterReadingsByTrendPreset,
   filterReadingsForSensor,
+  resolveZoneChartPreset,
   summarizeZoneTrend,
   zoneConfigToEffectiveLimits,
   type ZoneConfigEntry,
@@ -51,10 +52,25 @@ export default function TempZoneTrendDialog({ open, zoneKey, zone, readings, onC
     return collapseChartReadings(filterReadingsForSensor(presetReadings, zone.sensor));
   }, [presetReadings, zone]);
 
+  const chartPreset = useMemo(() => {
+    if (!zone || zone.sensor === 0) {
+      return { preset: preset as ZoneTrendPreset, expanded: false, pointCount: 0 };
+    }
+    return resolveZoneChartPreset(preset, readings, zone.sensor);
+  }, [readings, preset, zone]);
+
+  const chartReadings = useMemo(
+    () => filterReadingsByTrendPreset(readings, chartPreset.preset),
+    [readings, chartPreset.preset],
+  );
+
   const limits = zone ? zoneConfigToEffectiveLimits(zone) : null;
   const presetLabel = PRESETS.find((p) => p.value === preset)?.label ?? preset;
+  const chartPresetLabel = PRESETS.find((p) => p.value === chartPreset.preset)?.label ?? chartPreset.preset;
   const summary = zone ? summarizeZoneTrend(summaryReadings, zone) : null;
-  const hasChartData = summaryReadings.length > 0 || (showBothSensors && presetReadings.length > 0);
+  const hasChartData =
+    chartPreset.pointCount > 0 ||
+    (showBothSensors && chartReadings.some((r) => (r.sensor_channel ?? 0) > 0));
 
   if (!open || !zoneKey || !zone) return null;
 
@@ -146,15 +162,22 @@ export default function TempZoneTrendDialog({ open, zoneKey, zone, readings, onC
         </label>
 
         <div className="vrf-trend-block">
+          {chartPreset.expanded && (
+            <p className="muted temp-zone-trend-chart-note">
+              {presetLabel} — vain {summary?.pointCount ?? 0}{' '}
+              {(summary?.pointCount ?? 0) === 1 ? 'mittaus' : 'mittausta'}. Graafi näyttää{' '}
+              {chartPresetLabel.toLowerCase()}.
+            </p>
+          )}
           {!hasChartData ? (
             <p className="muted temp-zone-trend-empty">
               Ei mittauksia valitulla jaksolla. Kokeile 7 tai 30 päivää.
             </p>
           ) : (
             <TempZoneTrendChart
-              readings={presetReadings}
+              readings={chartReadings}
               limits={limits}
-              preset={preset}
+              preset={chartPreset.preset}
               showBothSensors={showBothSensors}
               activeSensor={zone.sensor}
               height={280}

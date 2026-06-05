@@ -2,8 +2,9 @@ import { useMemo } from 'react';
 import type { TempEffectiveLimits, TempReading } from '../../lib/tempMonitoring';
 import {
   ZONE_SENSOR_SERIES,
-  collapseChartReadings,
+  downsampleZoneChartReadings,
   filterReadingsForSensor,
+  fitZoneChartPeriod,
   formatZoneTrendTimeLabel,
   splitTempReadingsByGaps,
   tempReadingGapThresholdMs,
@@ -73,7 +74,7 @@ function buildSensorPaths(
   innerH: number,
   padTop: number,
 ): Point[][] {
-  const collapsed = collapseChartReadings(readings);
+  const collapsed = downsampleZoneChartReadings(readings);
   const groups = splitTempReadingsByGaps(collapsed, gapThreshold);
   const tempSpan = Math.max(maxT - minT, 1);
   const paths: Point[][] = [];
@@ -122,10 +123,10 @@ export default function TempZoneTrendChart({
   const chart = useMemo(() => {
     if (activeSeries.length === 0) return null;
 
-    const period = zoneTrendPeriodFromPreset(preset);
+    const basePeriod = zoneTrendPeriodFromPreset(preset);
     const inPeriod = readings.filter((row) => {
       const t = new Date(row.recorded_at).getTime();
-      return t >= period.startMs && t <= period.endMs;
+      return t >= basePeriod.startMs && t <= basePeriod.endMs;
     });
 
     let minT = Infinity;
@@ -152,8 +153,14 @@ export default function TempZoneTrendChart({
       maxT += 1;
     }
 
+    const allTimes = activeSeries.flatMap((series) =>
+      filterReadingsForSensor(inPeriod, series.sensor).map((row) =>
+        new Date(row.recorded_at).getTime(),
+      ),
+    );
+    const period = fitZoneChartPeriod(basePeriod, allTimes);
     const gapThreshold = tempReadingGapThresholdMs(inPeriod, period.span);
-    const seriesPaths = activeSeries.map((series) => ({
+    const fittedSeriesPaths = activeSeries.map((series) => ({
       ...series,
       paths: buildSensorPaths(
         filterReadingsForSensor(inPeriod, series.sensor),
@@ -175,7 +182,7 @@ export default function TempZoneTrendChart({
     return {
       minT,
       maxT,
-      seriesPaths,
+      seriesPaths: fittedSeriesPaths,
       period,
       hasData,
     };
@@ -253,22 +260,24 @@ export default function TempZoneTrendChart({
           {hasLines &&
             chart.seriesPaths.map((series) => (
               <g key={series.sensor}>
-                {series.paths.map((points, pathIdx) => (
-                  <path
-                    key={`${series.sensor}-line-${pathIdx}`}
-                    d={pathFromPoints(points)}
-                    fill="none"
-                    stroke={series.color}
-                    strokeWidth={2}
-                  />
-                ))}
+                {series.paths.map((points, pathIdx) =>
+                  points.length >= 2 ? (
+                    <path
+                      key={`${series.sensor}-line-${pathIdx}`}
+                      d={pathFromPoints(points)}
+                      fill="none"
+                      stroke={series.color}
+                      strokeWidth={2}
+                    />
+                  ) : null,
+                )}
                 {series.markers.map((point, markerIdx) => (
                   <circle
                     key={`${series.sensor}-pt-${markerIdx}`}
                     className="vrf-trend-point"
                     cx={point.x}
                     cy={point.y}
-                    r={3.5}
+                    r={series.markers.length === 1 && series.paths.every((p) => p.length === 1) ? 5.5 : 3.5}
                     fill={series.color}
                   />
                 ))}

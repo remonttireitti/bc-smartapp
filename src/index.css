@@ -10047,6 +10047,11 @@ button.vrf-toggle:not(:disabled) {
   text-align: center;
 }
 
+.temp-zone-trend-chart-note {
+  margin: 0 0 0.65rem;
+  font-size: 0.88rem;
+}
+
 .vrf-trend-block .vrf-trend-subtitle {
   display: none;
 }

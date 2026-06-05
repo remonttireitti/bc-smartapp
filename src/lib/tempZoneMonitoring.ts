@@ -158,6 +158,66 @@ export function splitTempReadingsByGaps(readings: TempReading[], gapThreshold: n
   return groups;
 }
 
+export type ZoneChartPresetResolution = {
+  preset: ZoneTrendPreset;
+  expanded: boolean;
+  pointCount: number;
+};
+
+/** Jos valitulla jaksolla on liian vähän pisteitä, laajenna automaattisesti pidemmälle jaksolle. */
+export function resolveZoneChartPreset(
+  requested: ZoneTrendPreset,
+  readings: TempReading[],
+  sensor: number,
+): ZoneChartPresetResolution {
+  const chain: ZoneTrendPreset[] =
+    requested === 'today' ? ['today', '7d', '30d'] : requested === '7d' ? ['7d', '30d'] : ['30d'];
+
+  for (const preset of chain) {
+    const points = filterReadingsForSensor(filterReadingsByTrendPreset(readings, preset), sensor);
+    if (points.length >= 2) {
+      return { preset, expanded: preset !== requested, pointCount: points.length };
+    }
+  }
+
+  const fallback = chain[chain.length - 1];
+  const points = filterReadingsForSensor(filterReadingsByTrendPreset(readings, fallback), sensor);
+  return { preset: fallback, expanded: fallback !== requested, pointCount: points.length };
+}
+
+/** Kun pisteitä on vähän, zoomaa aika-akseli datan ympärille — yksi piste ei jää nurkkaan. */
+export function fitZoneChartPeriod(
+  period: ZoneTrendPeriod,
+  times: number[],
+  nowMs = Date.now(),
+): ZoneTrendPeriod {
+  if (times.length === 0) return period;
+
+  const dataSpan = times.length === 1 ? 0 : times[times.length - 1] - times[0];
+  if (times.length >= 3 && dataSpan >= period.span * 0.08) {
+    return period;
+  }
+
+  if (times.length === 1) {
+    const center = times[0];
+    const half = 3 * 3600_000;
+    return { startMs: center - half, endMs: center + half, span: 2 * half };
+  }
+
+  const min = Math.min(...times);
+  const max = Math.max(...times);
+  const span = Math.max(max - min, 45 * 60_000);
+  const pad = Math.max(span * 0.12, 15 * 60_000);
+  const startMs = Math.max(period.startMs, min - pad);
+  const endMs = Math.min(Math.max(max + pad, startMs + 60_000), nowMs);
+  return { startMs, endMs, span: Math.max(endMs - startMs, 60_000) };
+}
+
+export function downsampleZoneChartReadings(readings: TempReading[]): TempReading[] {
+  if (readings.length <= 100) return readings;
+  return collapseChartReadings(readings);
+}
+
 export function filterReadingsByTrendPreset(readings: TempReading[], preset: ZoneTrendPreset): TempReading[] {
   const now = Date.now();
   let startMs: number;
