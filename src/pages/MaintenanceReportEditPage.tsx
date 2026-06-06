@@ -147,6 +147,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
   const [subscribers, setSubscribers] = useState<Subscriber[]>([]);
   const [equipmentId, setEquipmentId] = useState('');
   const [loadingReport, setLoadingReport] = useState(!isNew);
+  const [reportReady, setReportReady] = useState(isNew);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [deleteBusy, setDeleteBusy] = useState(false);
@@ -366,13 +367,15 @@ export default function MaintenanceReportEditPage({ session }: Props) {
   }, [profile?.company_id]);
 
   useEffect(() => {
-    if (!isNew && id) void loadReport(id);
+    if (isNew || !id) return;
+    if (loadedReportIdRef.current === id) return;
+    void loadReport(id);
   }, [id, isNew]);
 
   useEffect(() => {
-    if (profileLoading || loadingReport) return;
+    if (!reportReady || loadingReport) return;
     setHasUnsavedChanges(false);
-  }, [profileLoading, loadingReport, reportId]);
+  }, [reportReady, loadingReport, reportId]);
 
   useEffect(() => {
     formStateRef.current = { ...formStateRef.current, customerId, equipmentId };
@@ -613,6 +616,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
     await loadAccessibleCustomers();
     await loadOwnerCompany(row.owner_company_id);
     if (row.customer_id) await loadEquipment(row.customer_id);
+    setReportReady(true);
     setHasUnsavedChanges(false);
     setLoadingReport(false);
 
@@ -1176,7 +1180,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
     onSave: () => (isPublished ? saveReport() : saveReport('draft')),
   });
 
-  if (profileLoading || loadingReport || (portalMode && isNew)) {
+  if ((profileLoading && !profile) || (loadingReport && !reportReady) || (portalMode && isNew)) {
     return (
       <AppLayout session={session}>
         <p className="muted">Ladataan…</p>

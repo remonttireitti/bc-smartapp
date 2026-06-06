@@ -1,4 +1,4 @@
-import { createContext, useCallback, useEffect, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import type { Profile } from '../types';
@@ -36,7 +36,12 @@ export function ProfileProvider({ session, children }: { session: Session; child
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const [reloadToken, setReloadToken] = useState(0);
+  const profileRef = useRef<Profile | null>(null);
   const reload = useCallback(() => setReloadToken((token) => token + 1), []);
+
+  useEffect(() => {
+    profileRef.current = profile;
+  }, [profile]);
 
   useEffect(() => {
     const userId = session.user.id;
@@ -48,7 +53,10 @@ export function ProfileProvider({ session, children }: { session: Session; child
     let cancelled = false;
 
     async function loadProfile() {
-      setLoading(true);
+      const alreadyLoadedForUser = profileRef.current?.id === userId;
+      if (!alreadyLoadedForUser) {
+        setLoading(true);
+      }
 
       let { data, error } = await supabase
         .from('profiles')
@@ -139,7 +147,7 @@ export function ProfileProvider({ session, children }: { session: Session; child
     return () => {
       cancelled = true;
     };
-  }, [session.user.id, session.user.email, session.user.user_metadata, reloadToken]);
+  }, [session.user.id, reloadToken]);
 
   return (
     <ProfileContext.Provider value={{ profile, loading, reload }}>{children}</ProfileContext.Provider>

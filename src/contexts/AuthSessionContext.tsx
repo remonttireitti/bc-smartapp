@@ -102,6 +102,13 @@ export function AuthSessionProvider({ children }: { children: ReactNode }) {
     });
 
     const { data: sub } = supabase.auth.onAuthStateChange((event: AuthChangeEvent, nextSession) => {
+      if (event === 'TOKEN_REFRESHED') {
+        if (!nextSession) {
+          window.location.assign('/login?reason=expired');
+        }
+        return;
+      }
+
       setSession(nextSession);
       setLoading(false);
 
@@ -116,10 +123,6 @@ export function AuthSessionProvider({ children }: { children: ReactNode }) {
           window.location.assign('/login?reason=remote');
         });
         return;
-      }
-
-      if (event === 'TOKEN_REFRESHED' && !nextSession) {
-        window.location.assign('/login?reason=expired');
       }
     });
 
