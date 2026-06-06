@@ -10,6 +10,7 @@ import PendingWorkOrdersBanner from '../components/PendingWorkOrdersBanner';
 import QuickSearch from '../components/QuickSearch';
 import { incrementAppVisit } from '../lib/dashboardOnboarding';
 import { useCompanyBillingModuleEnabled } from '../hooks/useCompanyBillingModuleEnabled';
+import { useCompanyPartnershipsEnabled } from '../hooks/useCompanyPartnershipsEnabled';
 import { useCompanyLicense } from '../hooks/useCompanyLicense';
 import { useProfile } from '../hooks/useProfile';
 import { isLicenseModuleAccessible, type LicenseModuleKey } from '../lib/companyLicense';
@@ -70,6 +71,7 @@ const EMPTY_PENDING: PendingWorkOrderCounts = {
 export default function Dashboard({ session }: Props) {
   const { profile } = useProfile(session);
   const billingModuleEnabled = useCompanyBillingModuleEnabled(profile?.company_id, session);
+  const partnershipsEnabled = useCompanyPartnershipsEnabled(profile?.company_id, session);
   const { license } = useCompanyLicense(
     profile?.company_id,
     session,
@@ -85,8 +87,16 @@ export default function Dashboard({ session }: Props) {
       }
       if (m.licenseModule === 'billing' && billingModuleEnabled === false) return false;
       return true;
+    }).map((module) => {
+      if (module.title === 'Laskutus' && partnershipsEnabled === false) {
+        return { ...module, desc: 'Asiakaslaskutus' };
+      }
+      if (module.title === 'Hallinta' && partnershipsEnabled === false) {
+        return { ...module, desc: 'Omat tiedot ja yritysasetukset' };
+      }
+      return module;
     });
-  }, [portalView, license, billingModuleEnabled]);
+  }, [portalView, license, billingModuleEnabled, partnershipsEnabled]);
   const [pendingOrders, setPendingOrders] = useState<PendingWorkOrderCounts>(EMPTY_PENDING);
   const [onboardingRefreshKey, setOnboardingRefreshKey] = useState(0);
 

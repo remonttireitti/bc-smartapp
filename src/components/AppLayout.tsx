@@ -4,6 +4,7 @@ import type { Session } from '@supabase/supabase-js';
 import LicenseStatusHeaderButton from './LicenseStatusHeaderButton';
 import PortalPreviewBanner from './PortalPreviewBanner';
 import { usePortalPreview } from '../hooks/usePortalPreview';
+import { useCompanyPartnershipsEnabled } from '../hooks/useCompanyPartnershipsEnabled';
 import { useAuthSession } from '../contexts/AuthSessionContext';
 import { useProfile } from '../hooks/useProfile';
 
@@ -14,6 +15,7 @@ interface Props {
 
 export default function AppLayout({ session, children }: Props) {
   const { profile } = useProfile(session);
+  const partnershipsEnabled = useCompanyPartnershipsEnabled(profile?.company_id, session);
   const portalPreview = usePortalPreview();
   const { signOut: authSignOut } = useAuthSession();
   const [signingOut, setSigningOut] = useState(false);
@@ -61,7 +63,10 @@ export default function AppLayout({ session, children }: Props) {
         {children}
       </main>
 
-      <footer className="footer">BC Smartapp — moniyritys + kumppanuudet</footer>
+      <footer className="footer">
+        BC Smartapp
+        {partnershipsEnabled === false ? '' : ' — moniyritys + kumppanuudet'}
+      </footer>
     </div>
   );
 }

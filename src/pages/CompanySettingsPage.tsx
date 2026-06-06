@@ -17,8 +17,9 @@ import ToggleSwitch from '../components/ToggleSwitch';
 import TripDestinationsSettingsSection from '../components/TripDestinationsSettingsSection';
 
 export default function CompanySettingsPage() {
-  const { profile, billingModuleEnabled } = useOutletContext<ManagementOutletContext>();
+  const { profile, billingModuleEnabled, partnershipsEnabled } = useOutletContext<ManagementOutletContext>();
   const showBillingSettings = billingModuleEnabled !== false;
+  const showPartnershipSettings = partnershipsEnabled !== false;
   const [name, setName] = useState('');
   const [logoPath, setLogoPath] = useState<string | null>(null);
   const [logoPreviewUrl, setLogoPreviewUrl] = useState<string | null>(null);
@@ -290,6 +291,25 @@ export default function CompanySettingsPage() {
       {profile.company_id && <TripDestinationsSettingsSection companyId={profile.company_id} />}
 
       <section className="form-section">
+        <h2>Kumppanuus- ja moniyritystoiminnot</h2>
+        <ToggleSwitch
+          label="Käytössä"
+          checked={settings.partnerships_enabled === true}
+          onChange={(partnerships_enabled) =>
+            setSettings((current) => ({
+              ...current,
+              partnerships_enabled,
+            }))
+          }
+        />
+        <p className="muted">
+          Kun pois päältä, sovellus toimii yksinyrityksenä: kumppanuudet, toimeksiannot kumppanille ja
+          kumppanilaskutus piilotetaan. Voit ottaa toiminnot käyttöön myöhemmin, kun tarvitset niitä.
+        </p>
+      </section>
+
+      {showPartnershipSettings && (
+      <section className="form-section">
         <h2>Kumppanuudet</h2>
         <ToggleSwitch
           label="Salli kumppanuuskutsut"
@@ -302,6 +322,7 @@ export default function CompanySettingsPage() {
           luoda — olemassa olevat kumppanuudet säilyvät.
         </p>
       </section>
+      )}
 
       <section className="form-section">
         <h2>Asiakaslaskutuksen seuranta</h2>
@@ -338,7 +359,7 @@ export default function CompanySettingsPage() {
         />
       </section>
 
-      {showBillingSettings ? (
+      {showBillingSettings && showPartnershipSettings ? (
         <>
           <section className="form-section">
             <h2>Kumppanilaskutuksen oletushinnat</h2>

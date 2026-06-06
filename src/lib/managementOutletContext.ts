@@ -7,4 +7,6 @@ export type ManagementOutletContext = {
   reloadProfile?: () => void | Promise<void>;
   /** false = laskutusmoduuli pois (globaali admin). */
   billingModuleEnabled: boolean | null;
+  /** false = yksinyritystila, kumppanuus- ja moniyritystoiminnot piilotettu. */
+  partnershipsEnabled: boolean | null;
 };

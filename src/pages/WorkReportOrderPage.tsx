@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, Navigate } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
 import AppLayout from '../components/AppLayout';
 import CustomerRegistryPicker, { type NewCustomerDraft } from '../components/CustomerRegistryPicker';
@@ -7,6 +7,7 @@ import EquipmentRegistryPicker, { type NewEquipmentDraft } from '../components/E
 import { loadAccessibleReportCustomers, loadReportPartnerships } from '../lib/reportCustomerRegistry';
 import { createRegistryCustomer } from '../lib/createRegistryCustomer';
 import { useProfile } from '../hooks/useProfile';
+import { useCompanyPartnershipsEnabled } from '../hooks/useCompanyPartnershipsEnabled';
 import {
   companySubscriberOrderEditPath,
   isSubscriberPortalWorkOrder,
@@ -38,6 +39,7 @@ export default function WorkReportOrderPage({ session }: Props) {
   const navigate = useNavigate();
   const isNew = !editId;
   const { profile, loading: profileLoading } = useProfile(session);
+  const partnershipsEnabled = useCompanyPartnershipsEnabled(profile?.company_id, session);
 
   const [partnerships, setPartnerships] = useState<Partnership[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -365,12 +367,16 @@ export default function WorkReportOrderPage({ session }: Props) {
       session.user.id,
     );
 
-  if (profileLoading || loadingReport) {
+  if (profileLoading || loadingReport || partnershipsEnabled === null) {
     return (
       <AppLayout session={session}>
         <p className="muted">Ladataan…</p>
       </AppLayout>
     );
+  }
+
+  if (partnershipsEnabled === false) {
+    return <Navigate to="/tyoraportit" replace />;
   }
 
   return (

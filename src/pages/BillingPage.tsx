@@ -3,6 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
 import AppLayout from '../components/AppLayout';
 import { useCompanyBillingModuleEnabled } from '../hooks/useCompanyBillingModuleEnabled';
+import { useCompanyPartnershipsEnabled } from '../hooks/useCompanyPartnershipsEnabled';
 import { useProfile } from '../hooks/useProfile';
 import { supabase } from '../lib/supabase';
 import { formatEuro } from '../lib/workReportBilling';
@@ -80,10 +81,17 @@ const REPORT_SELECT = `
 export default function BillingPage({ session }: Props) {
   const { profile } = useProfile(session);
   const billingModuleEnabled = useCompanyBillingModuleEnabled(profile?.company_id, session);
+  const partnershipsEnabled = useCompanyPartnershipsEnabled(profile?.company_id, session);
   const [searchParams] = useSearchParams();
   const urlMode = searchParams.get('mode');
   const initialMode: BillingModuleMode =
-    urlMode === 'customer' ? 'customer' : urlMode === 'partner' ? 'partner' : 'total';
+    urlMode === 'customer'
+      ? 'customer'
+      : urlMode === 'partner'
+        ? 'partner'
+        : urlMode === 'total'
+          ? 'total'
+          : 'customer';
   const [tab, setTab] = useState<Tab>('list');
   const [billingMode, setBillingMode] = useState<BillingModuleMode>(initialMode);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('unbilled');
@@ -108,11 +116,17 @@ export default function BillingPage({ session }: Props) {
     if (searchParams.get('mode') === 'customer') {
       setBillingMode('customer');
     } else if (searchParams.get('mode') === 'partner') {
-      setBillingMode('partner');
+      setBillingMode(partnershipsEnabled === false ? 'customer' : 'partner');
     } else if (searchParams.get('mode') === 'total' || !searchParams.get('mode')) {
-      setBillingMode('total');
+      setBillingMode(partnershipsEnabled === false ? 'customer' : 'total');
     }
-  }, [searchParams]);
+  }, [searchParams, partnershipsEnabled]);
+
+  useEffect(() => {
+    if (partnershipsEnabled === false && billingMode !== 'customer') {
+      setBillingMode('customer');
+    }
+  }, [partnershipsEnabled, billingMode]);
 
   useEffect(() => {
     if (profile?.company_id) void load(billingMode);
@@ -622,6 +636,8 @@ export default function BillingPage({ session }: Props) {
   const partnerModeActive = billingMode === 'partner';
   const totalModeActive = billingMode === 'total';
 
+  const showPartnerBillingModes = partnershipsEnabled !== false;
+
   const billingModeLabel =
     billingMode === 'customer'
       ? 'asiakaslaskutus omista työraporteista'
@@ -656,18 +672,20 @@ export default function BillingPage({ session }: Props) {
         <div className="billing-page">
           <div className="billing-toolbar panel" style={{ marginBottom: '1rem' }}>
             <div className="billing-filter-pills">
-              <button
-                type="button"
-                className={totalModeActive ? 'billing-pill active' : 'billing-pill'}
-                onClick={() => {
-                  setBillingMode('total');
-                  setPartnerFilter('');
-                  setCustomerFilter('');
-                  setSelectedDay(null);
-                }}
-              >
-                Yhteensä
-              </button>
+              {showPartnerBillingModes && (
+                <button
+                  type="button"
+                  className={totalModeActive ? 'billing-pill active' : 'billing-pill'}
+                  onClick={() => {
+                    setBillingMode('total');
+                    setPartnerFilter('');
+                    setCustomerFilter('');
+                    setSelectedDay(null);
+                  }}
+                >
+                  Yhteensä
+                </button>
+              )}
               <button
                 type="button"
                 className={customerModeActive ? 'billing-pill active' : 'billing-pill'}
@@ -680,7 +698,7 @@ export default function BillingPage({ session }: Props) {
               >
                 Omat asiakkaat
               </button>
-              {billingEnabled === true && (
+              {showPartnerBillingModes && billingEnabled === true && (
                 <button
                   type="button"
                   className={partnerModeActive ? 'billing-pill active' : 'billing-pill'}

@@ -3,7 +3,11 @@ import { Link } from 'react-router-dom';
 import { IconPlus } from './icons';
 import Tooltip from './Tooltip';
 
-export default function WorkReportCreateMenu() {
+interface Props {
+  partnershipsEnabled?: boolean;
+}
+
+export default function WorkReportCreateMenu({ partnershipsEnabled = true }: Props) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
 
@@ -50,13 +54,15 @@ export default function WorkReportCreateMenu() {
           >
             Uusi työraportti
           </Link>
-          <Link
-            to="/tyoraportit/toimeksianto/uusi"
-            role="menuitem"
-            onClick={() => setOpen(false)}
-          >
-            Toimeksianto kumppanille
-          </Link>
+          {partnershipsEnabled && (
+            <Link
+              to="/tyoraportit/toimeksianto/uusi"
+              role="menuitem"
+              onClick={() => setOpen(false)}
+            >
+              Toimeksianto kumppanille
+            </Link>
+          )}
         </div>
       )}
     </div>

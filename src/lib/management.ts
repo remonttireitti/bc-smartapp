@@ -112,6 +112,11 @@ export type CompanySettings = {
     /** Oletustuntihinnat asiakkaalle omissa työraporteissa. */
     customer_rates?: CustomerBillingRates;
   };
+  /**
+   * Näytetäänkö kumppanuus- ja moniyritystoiminnot (kumppanuudet, toimeksiannot, kumppanilaskutus).
+   * Oletus false — yksinyritystila. Yrityksen ylläpitäjä voi kytkeä päälle myöhemmin.
+   */
+  partnerships_enabled?: boolean;
   /** Kevyt laiterekisteri: brändikohtaiset toimitusmaksut (€/yksikkö, alv 0). */
   device_registry?: {
     brand_delivery_fees_by_category?: Record<
@@ -328,6 +333,7 @@ export function parseCompanySettings(raw: unknown): CompanySettings {
     ...s,
     trip_km_rate: parseOptionalPositiveNumber(s.trip_km_rate),
     trip_km_customer_rate: parseOptionalPositiveNumber(s.trip_km_customer_rate),
+    partnerships_enabled: s.partnerships_enabled === true,
     billing: {
       ...base.billing,
       ...(s.billing ?? {}),
@@ -342,6 +348,23 @@ export function parseCompanySettings(raw: unknown): CompanySettings {
 
 export function companyBillingModuleEnabled(settings: CompanySettings | null | undefined): boolean {
   return settings?.billing?.module_enabled === true;
+}
+
+export function companyPartnershipsEnabled(settings: CompanySettings | null | undefined): boolean {
+  return settings?.partnerships_enabled === true;
+}
+
+export async function loadCompanyPartnershipsEnabled(
+  supabase: import('@supabase/supabase-js').SupabaseClient,
+  companyId: string,
+): Promise<boolean> {
+  const { data: rpcData, error: rpcError } = await supabase.rpc('company_partnerships_enabled', {
+    p_company_id: companyId,
+  });
+  if (!rpcError) return !!rpcData;
+
+  const { data } = await supabase.from('companies').select('settings').eq('id', companyId).single();
+  return companyPartnershipsEnabled(parseCompanySettings((data as { settings: unknown } | null)?.settings));
 }
 
 export async function loadCompanyBillingModuleEnabled(

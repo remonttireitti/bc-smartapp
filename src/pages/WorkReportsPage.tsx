@@ -41,6 +41,7 @@ import {
   reportMatchesPortalSubscriber,
 } from '../lib/portalWorkOrder';
 import { usePortalPreview } from '../hooks/usePortalPreview';
+import { useCompanyPartnershipsEnabled } from '../hooks/useCompanyPartnershipsEnabled';
 
 import { useProfile } from '../hooks/useProfile';
 
@@ -129,6 +130,7 @@ const DELEGATION_SELECT = `
 export default function WorkReportsPage({ session }: Props) {
 
   const { profile } = useProfile(session);
+  const partnershipsEnabled = useCompanyPartnershipsEnabled(profile?.company_id, session);
   const portalPreview = usePortalPreview();
   const portalSubscriberId = getPortalSubscriberId(profile);
   const [subscriberCustomerIds, setSubscriberCustomerIds] = useState<Set<string>>(() => new Set());
@@ -159,7 +161,7 @@ export default function WorkReportsPage({ session }: Props) {
 
     if (companyId) void loadReports();
 
-  }, [session.user.id, companyId]);
+  }, [session.user.id, companyId, partnershipsEnabled]);
 
 
 
@@ -200,7 +202,9 @@ export default function WorkReportsPage({ session }: Props) {
     const [mainResult, incomingResult, sentResult] = await Promise.all([
       query,
 
-      supabase
+      partnershipsEnabled === false
+        ? Promise.resolve({ data: [], error: null })
+        : supabase
 
         .from('work_reports')
 
@@ -212,7 +216,9 @@ export default function WorkReportsPage({ session }: Props) {
 
         .order('delegated_at', { ascending: false }),
 
-      supabase
+      partnershipsEnabled === false
+        ? Promise.resolve({ data: [], error: null })
+        : supabase
 
         .from('work_reports')
 
@@ -366,8 +372,7 @@ export default function WorkReportsPage({ session }: Props) {
 
   const isCompanyListEmpty =
     !hasActiveFilters
-    && incomingDelegated.length === 0
-    && sentDelegated.length === 0
+    && (partnershipsEnabled === false || (incomingDelegated.length === 0 && sentDelegated.length === 0))
     && activeReports.length === 0
     && draftReports.length === 0
     && subscriberPortalOrders.length === 0;
@@ -549,7 +554,7 @@ export default function WorkReportsPage({ session }: Props) {
         </div>
 
         <div className="page-header-actions">
-          <WorkReportCreateMenu />
+          <WorkReportCreateMenu partnershipsEnabled={partnershipsEnabled !== false} />
         </div>
 
       </div>
@@ -741,7 +746,7 @@ export default function WorkReportsPage({ session }: Props) {
             />
           )}
 
-          {incomingDelegated.length > 0 && (
+          {partnershipsEnabled !== false && incomingDelegated.length > 0 && (
 
             <>
 
@@ -769,7 +774,7 @@ export default function WorkReportsPage({ session }: Props) {
 
 
 
-          {sentDelegated.length > 0 && (
+          {partnershipsEnabled !== false && sentDelegated.length > 0 && (
 
             <>
 

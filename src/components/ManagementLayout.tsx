@@ -5,6 +5,7 @@ import ToggleSwitch from './ToggleSwitch';
 import Tooltip from './Tooltip';
 import { IconGear } from './icons';
 import { useCompanyBillingModuleEnabled } from '../hooks/useCompanyBillingModuleEnabled';
+import { useCompanyPartnershipsEnabled } from '../hooks/useCompanyPartnershipsEnabled';
 import { useGlobalAdminMode } from '../hooks/useGlobalAdminMode';
 import { useProfile } from '../hooks/useProfile';
 import { ROLE_LABELS } from '../lib/management';
@@ -30,6 +31,7 @@ export default function ManagementLayout({ session }: Props) {
   const location = useLocation();
   const { profile, loading, reload } = useProfile(session);
   const billingModuleEnabled = useCompanyBillingModuleEnabled(profile?.company_id, session);
+  const partnershipsEnabled = useCompanyPartnershipsEnabled(profile?.company_id, session);
   const { globalAdminMode, setGlobalAdminMode } = useGlobalAdminMode();
   const isAdmin = profile?.role === 'admin';
   const isManager = profile?.role === 'manager';
@@ -59,6 +61,10 @@ export default function ManagementLayout({ session }: Props) {
   }
 
   if (billingModuleEnabled === false && location.pathname.startsWith('/hallinta/kumppanilaskutus')) {
+    return <Navigate to="/hallinta/omat" replace />;
+  }
+
+  if (partnershipsEnabled === false && location.pathname.startsWith('/hallinta/kumppanuudet')) {
     return <Navigate to="/hallinta/omat" replace />;
   }
 
@@ -107,10 +113,11 @@ export default function ManagementLayout({ session }: Props) {
     );
   }
 
-  const adminTabs =
-    billingModuleEnabled === false
-      ? ADMIN_TABS.filter((tab) => tab.href !== '/hallinta/kumppanilaskutus')
-      : ADMIN_TABS;
+  const adminTabs = ADMIN_TABS.filter((tab) => {
+    if (partnershipsEnabled === false && tab.href === '/hallinta/kumppanuudet') return false;
+    if (billingModuleEnabled === false && tab.href === '/hallinta/kumppanilaskutus') return false;
+    return true;
+  });
 
   const tabs = [
     PROFILE_TAB,
@@ -172,7 +179,15 @@ export default function ManagementLayout({ session }: Props) {
         </div>
       </div>
 
-      <Outlet context={{ profile, session, reloadProfile: reload, billingModuleEnabled }} />
+      <Outlet
+        context={{
+          profile,
+          session,
+          reloadProfile: reload,
+          billingModuleEnabled,
+          partnershipsEnabled,
+        }}
+      />
     </AppLayout>
   );
 }
