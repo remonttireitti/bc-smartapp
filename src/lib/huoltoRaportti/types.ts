@@ -195,6 +195,11 @@ export interface KonvektoriRowData {
   sarjanumero: string;
   /** Huoneen / imuilman lämpötila */
   huoneLampotila?: string;
+  /** Jäähdytysneste (vesi, glykoli …) */
+  jaahdytysNeste?: string;
+  jaahdytysNesteMuu?: string;
+  /** Vesimäärävirtaus l/s */
+  virtausLs?: string;
   /** Menoveden / tuloveden lämpötilat */
   tuloLampotila?: string;
   menoLampotila?: string;

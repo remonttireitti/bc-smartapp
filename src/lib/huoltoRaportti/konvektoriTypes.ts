@@ -62,30 +62,35 @@ const OVERLAY_BY_TYYPPI: Record<KonvektoriAsennustyyppi, {
   tulo: OverlayPos;
   meno: OverlayPos;
   imu: OverlayPos;
+  virtaus: OverlayPos;
   output: OverlayPos;
 }> = {
   katto: {
     tulo: { top: '40%', left: '1%' },
     meno: { top: '56%', left: '1%' },
     imu: { top: '10%', left: '42%' },
+    virtaus: { top: '48%', left: '1%' },
     output: { bottom: '6%', right: '4%' },
   },
   seina: {
     tulo: { top: '36%', left: '1%' },
     meno: { top: '52%', left: '1%' },
     imu: { top: '2%', right: '6%' },
+    virtaus: { top: '44%', left: '1%' },
     output: { bottom: '10%', left: '32%' },
   },
   lattia: {
     tulo: { top: '30%', left: '1%' },
     meno: { top: '46%', left: '1%' },
     imu: { bottom: '8%', left: '34%' },
+    virtaus: { top: '38%', left: '1%' },
     output: { top: '6%', left: '38%' },
   },
   kanavoitava: {
     tulo: { top: '38%', left: '1%' },
     meno: { top: '52%', left: '1%' },
     imu: { bottom: '6%', left: '38%' },
+    virtaus: { top: '45%', left: '1%' },
     output: { top: '4%', left: '55%' },
   },
 };
@@ -115,4 +120,33 @@ export function konvektoriOutputMeasurement(row: KonvektoriRowData): { label: st
   const teho = formatKonvektoriTeho(row.mitattuTeho);
   if (teho) return { label: 'Teho', value: teho };
   return null;
+}
+
+export const KONVEKTORI_JAAHDYTYSNESTE_OPTIONS = [
+  { value: '', label: 'Valitse…' },
+  { value: 'vesi', label: 'Vesi' },
+  { value: 'etyleniglykoli_20', label: 'Etyleniglykoli 20 %' },
+  { value: 'etyleniglykoli_30', label: 'Etyleniglykoli 30 %' },
+  { value: 'etyleniglykoli_40', label: 'Etyleniglykoli 40 %' },
+  { value: 'propyleeniglykoli_20', label: 'Propyleeniglykoli 20 %' },
+  { value: 'propyleeniglykoli_30', label: 'Propyleeniglykoli 30 %' },
+  { value: 'propyleeniglykoli_40', label: 'Propyleeniglykoli 40 %' },
+  { value: 'muu', label: 'Muu' },
+] as const;
+
+export function konvektoriJaahdytysNesteLabel(value: unknown, muu?: unknown): string {
+  const raw = String(value ?? '').trim();
+  if (!raw) return '';
+  if (raw === 'muu') {
+    const custom = String(muu ?? '').trim();
+    return custom || 'Muu';
+  }
+  return KONVEKTORI_JAAHDYTYSNESTE_OPTIONS.find((opt) => opt.value === raw)?.label ?? raw;
+}
+
+export function formatKonvektoriVirtaus(value: unknown): string {
+  const s = String(value ?? '').trim();
+  if (!s) return '';
+  if (/l\s*\/\s*s|l\/s/i.test(s)) return s.replace(/\s+/g, '');
+  return `${s} l/s`;
 }

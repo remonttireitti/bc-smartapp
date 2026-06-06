@@ -4,6 +4,7 @@ import {
   KONVEKTORI_TARKASTUS_ITEMS,
   type KonvektoriTarkastusField,
 } from '../../lib/huoltoRaportti/konvektoriTarkastus';
+import { KONVEKTORI_JAAHDYTYSNESTE_OPTIONS } from '../../lib/huoltoRaportti/konvektoriTypes';
 
 interface Props {
   open: boolean;
@@ -83,6 +84,42 @@ export function KonvektoriTarkastusDialog({ open, row, rowLabel, onClose, onSave
         <div className="konvektori-mittaukset">
           <h3 className="konvektori-mittaukset-title">Mittaukset</h3>
           <div className="konvektori-mittaukset-grid">
+            <label className="konvektori-mittaus-field">
+              Jäähdytysneste
+              <select
+                value={draft.jaahdytysNeste ?? ''}
+                onChange={(e) => setDraft((prev) => ({
+                  ...prev,
+                  jaahdytysNeste: e.target.value,
+                  jaahdytysNesteMuu: e.target.value === 'muu' ? prev.jaahdytysNesteMuu : '',
+                }))}
+              >
+                {KONVEKTORI_JAAHDYTYSNESTE_OPTIONS.map((opt) => (
+                  <option key={opt.value || 'empty'} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+            </label>
+            {draft.jaahdytysNeste === 'muu' && (
+              <label className="konvektori-mittaus-field">
+                Neste (muu)
+                <input
+                  type="text"
+                  value={draft.jaahdytysNesteMuu ?? ''}
+                  onChange={(e) => setDraft((prev) => ({ ...prev, jaahdytysNesteMuu: e.target.value }))}
+                  placeholder="Kirjoita neste"
+                />
+              </label>
+            )}
+            <label className="konvektori-mittaus-field">
+              Virtaus l/s
+              <input
+                type="text"
+                inputMode="decimal"
+                value={draft.virtausLs ?? ''}
+                onChange={(e) => setDraft((prev) => ({ ...prev, virtausLs: e.target.value }))}
+                placeholder="esim. 0,8"
+              />
+            </label>
             <label className="konvektori-mittaus-field">
               Huone °C (imuilma)
               <input

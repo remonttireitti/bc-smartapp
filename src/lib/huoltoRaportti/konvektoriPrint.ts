@@ -1,7 +1,9 @@
 import { KONVEKTORI_TARKASTUS_ITEMS, konvektoriTarkastusSummary } from './konvektoriTarkastus';
 import {
   formatKonvektoriLampotila,
+  formatKonvektoriVirtaus,
   konvektoriImageUrl,
+  konvektoriJaahdytysNesteLabel,
   konvektoriOutputMeasurement,
   konvektoriOverlayPositions,
   konvektoriTyyppiLabel,
@@ -55,7 +57,7 @@ function renderKonvektoriCheckLegend(esc: (v: unknown) => string): string {
     <div style="font-size:7px;color:#334155;line-height:1.35;margin:0 0 6px 0;padding:5px 7px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:3px;">
       <div style="font-weight:700;margin-bottom:4px;color:#00838F;">Tarkastuskohdat (✓ = OK, ✗ = ei OK, – = ei vastattu)</div>
       ${rows}
-      <div style="margin-top:4px;color:#64748b;">Ruudun tausta: vihreä = kaikki OK · punertava = vika tai jokin kohta Ei. Mittaukset kuvan päällä: Huone = imuilman lämpötila, Tulo/Meno = vesi, Puhallus/Teho = poistuvan ilman mittaus.</div>
+      <div style="margin-top:4px;color:#64748b;">Ruudun tausta: vihreä = kaikki OK · punertava = vika tai jokin kohta Ei. Mittaukset kuvan päällä: Huone = imuilma, Tulo/Meno = vesi, Virtaus = l/s putkilla, Puhallus/Teho = poistuva ilma. Neste näkyy otsikkorivin alla.</div>
     </div>`;
 }
 
@@ -82,6 +84,16 @@ function renderKonvektoriCard(
     row.sarjanumero?.trim(),
   ].filter(Boolean);
 
+  const nesteLabel = konvektoriJaahdytysNesteLabel(row.jaahdytysNeste, row.jaahdytysNesteMuu);
+  const virtausLabel = formatKonvektoriVirtaus(row.virtausLs);
+  const nesteVirtausParts = [
+    nesteLabel ? `Neste: ${nesteLabel}` : '',
+    virtausLabel ? `Virtaus: ${virtausLabel}` : '',
+  ].filter(Boolean);
+  const nesteVirtausHtml = nesteVirtausParts.length
+    ? `<div style="font-size:6px;color:#475569;line-height:1.25;margin-bottom:3px;word-wrap:break-word;">${esc(nesteVirtausParts.join(' · '))}</div>`
+    : '';
+
   const checks = KONVEKTORI_TARKASTUS_ITEMS.map((item) => {
     const short = CHECK_SHORT[item.field] ?? item.field;
     const val = row[item.field as keyof KonvektoriRowData];
@@ -99,6 +111,7 @@ function renderKonvektoriCard(
     huoneLampo ? `<div style="${posStyle(overlay.imu)}">Huone ${esc(huoneLampo)}</div>` : '',
     tulo ? `<div style="${posStyle(overlay.tulo)}">Tulo ${esc(tulo)}</div>` : '',
     meno ? `<div style="${posStyle(overlay.meno)}">Meno ${esc(meno)}</div>` : '',
+    virtausLabel ? `<div style="${posStyle(overlay.virtaus)}">${esc(virtausLabel)}</div>` : '',
     output ? `<div style="${posStyle(overlay.output)}">${esc(output.label)} ${esc(output.value)}</div>` : '',
   ].filter(Boolean).join('');
 
@@ -108,6 +121,7 @@ function renderKonvektoriCard(
     <div style="border:1px solid ${cardColors.border};border-radius:4px;padding:4px;background:${cardColors.background};page-break-inside:avoid;display:flex;flex-direction:column;min-height:0;">
       <div style="font-size:7px;font-weight:700;color:#00838F;line-height:1.2;margin-bottom:2px;">${index + 1}. ${esc(typeLabel)}</div>
       <div style="font-size:6px;color:#334155;line-height:1.25;margin-bottom:3px;word-wrap:break-word;">${metaParts.length ? esc(metaParts.join(' · ')) : '—'}</div>
+      ${nesteVirtausHtml}
       <div style="position:relative;width:100%;height:72px;margin-bottom:3px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:3px;overflow:hidden;">
         <img src="${escAttr(imgUrl)}" alt="" style="width:100%;height:100%;object-fit:contain;display:block;" />
         ${overlayHtml}
