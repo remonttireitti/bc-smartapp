@@ -1,5 +1,5 @@
 import type { KonvektoriRowData } from './types';
-import { calculateKonvektoriVesipiirinTeho } from './konvektoriTeho';
+import { resolveKonvektoriTehoKw } from './konvektoriTeho';
 
 export type KonvektoriAsennustyyppi = 'katto' | 'seina' | 'lattia' | 'kanavoitava';
 
@@ -107,7 +107,7 @@ export function formatKonvektoriTeho(value: unknown): string {
 }
 
 export function konvektoriOutputMeasurement(row: KonvektoriRowData): { label: string; value: string } | null {
-  const calc = calculateKonvektoriVesipiirinTeho(row);
+  const calc = resolveKonvektoriTehoKw(row);
   if (calc) {
     const rounded = Math.round(calc.tehoKw * 100) / 100;
     const value = `${rounded.toLocaleString('fi-FI', { maximumFractionDigits: 2 })} kW`;

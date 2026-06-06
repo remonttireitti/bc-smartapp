@@ -5,7 +5,7 @@ import {
   type KonvektoriTarkastusField,
 } from '../../lib/huoltoRaportti/konvektoriTarkastus';
 import { KONVEKTORI_JAAHDYTYSNESTE_OPTIONS } from '../../lib/huoltoRaportti/konvektoriTypes';
-import { calculateKonvektoriVesipiirinTeho, formatKonvektoriLaskettuTeho } from '../../lib/huoltoRaportti/konvektoriTeho';
+import { getKonvektoriCalculationLines } from '../../lib/huoltoRaportti/konvektoriTeho';
 
 interface Props {
   open: boolean;
@@ -68,7 +68,7 @@ export function KonvektoriTarkastusDialog({ open, row, rowLabel, onClose, onSave
     setDraft((prev) => ({ ...prev, [field]: value }));
   };
 
-  const laskettuTeho = formatKonvektoriLaskettuTeho(calculateKonvektoriVesipiirinTeho(draft));
+  const calcLines = getKonvektoriCalculationLines(draft);
 
   return (
     <div className="leave-draft-overlay konvektori-dialog-overlay" role="presentation" onClick={onClose}>
@@ -114,7 +114,7 @@ export function KonvektoriTarkastusDialog({ open, row, rowLabel, onClose, onSave
               </label>
             )}
             <label className="konvektori-mittaus-field">
-              Virtaus l/s
+              Vesivirtaus l/s
               <input
                 type="text"
                 inputMode="decimal"
@@ -154,6 +154,16 @@ export function KonvektoriTarkastusDialog({ open, row, rowLabel, onClose, onSave
               />
             </label>
             <label className="konvektori-mittaus-field">
+              Ilmavirtaus m³/h
+              <input
+                type="text"
+                inputMode="decimal"
+                value={draft.ilmanVirtausM3h ?? ''}
+                onChange={(e) => setDraft((prev) => ({ ...prev, ilmanVirtausM3h: e.target.value }))}
+                placeholder="esim. 120"
+              />
+            </label>
+            <label className="konvektori-mittaus-field">
               Puhallus °C
               <input
                 type="text"
@@ -174,11 +184,15 @@ export function KonvektoriTarkastusDialog({ open, row, rowLabel, onClose, onSave
               />
             </label>
           </div>
-          {laskettuTeho ? (
-            <p className="konvektori-laskettu-teho">{laskettuTeho}</p>
+          {calcLines.length > 0 ? (
+            <div className="konvektori-laskettu-teho-list">
+              {calcLines.map((line) => (
+                <p key={line} className="konvektori-laskettu-teho">{line}</p>
+              ))}
+            </div>
           ) : null}
           <p className="muted konvektori-mittaukset-hint">
-            P ≈ c_p × virtaus (l/s) × |meno − tulo|. Jäähdytyksessä meno &gt; tulo. Puhalluslämpötila tai mitattu teho — valinnainen.
+            Vesi: P ≈ c_p × vesivirtaus (l/s) × |meno − tulo|. Ilma: P ≈ 1,21 × ilmavirtaus (m³/h) / 3600 × |huone − puhallus|. Tehosta voidaan arvioida ilmavirtaus tai päinvastoin.
           </p>
         </div>
 

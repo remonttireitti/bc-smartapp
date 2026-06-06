@@ -54,6 +54,7 @@ export function createEmptyKonvektoriRow(): KonvektoriRowData {
     jaahdytysNeste: '',
     jaahdytysNesteMuu: '',
     virtausLs: '',
+    ilmanVirtausM3h: '',
     tuloLampotila: '',
     menoLampotila: '',
     puhallusLampotila: '',
@@ -161,6 +162,7 @@ export function konvektoriRowHasMaintenanceData(row: KonvektoriRowData): boolean
     || Boolean(row.huoneLampotila?.trim())
     || Boolean(row.jaahdytysNeste?.trim())
     || Boolean(row.virtausLs?.trim())
+    || Boolean(row.ilmanVirtausM3h?.trim())
     || Boolean(row.tuloLampotila?.trim())
     || Boolean(row.menoLampotila?.trim())
     || Boolean(row.puhallusLampotila?.trim())
@@ -186,6 +188,7 @@ export function konvektoriRowsMaintenanceScore(rows: KonvektoriRowData[] | undef
     if (row.huoneLampotila?.trim()) score += 1;
     if (row.jaahdytysNeste?.trim()) score += 1;
     if (row.virtausLs?.trim()) score += 1;
+    if (row.ilmanVirtausM3h?.trim()) score += 1;
     if (row.tuloLampotila?.trim()) score += 1;
     if (row.menoLampotila?.trim()) score += 1;
     if (row.puhallusLampotila?.trim() || row.mitattuTeho?.trim()) score += 1;
@@ -212,6 +215,7 @@ export function ensureKonvektoriRow(data: Partial<KonvektoriRowData> | undefined
     jaahdytysNeste: String(data.jaahdytysNeste ?? raw.jaahdytysNeste ?? '').trim(),
     jaahdytysNesteMuu: String(data.jaahdytysNesteMuu ?? raw.jaahdytysNesteMuu ?? '').trim(),
     virtausLs: String(data.virtausLs ?? raw.virtausLs ?? '').trim(),
+    ilmanVirtausM3h: String(data.ilmanVirtausM3h ?? raw.ilmanVirtausM3h ?? '').trim(),
     tuloLampotila: String(data.tuloLampotila ?? raw.tuloLampotila ?? '').trim(),
     menoLampotila: String(data.menoLampotila ?? raw.menoLampotila ?? '').trim(),
     puhallusLampotila: String(data.puhallusLampotila ?? raw.puhallusLampotila ?? '').trim(),

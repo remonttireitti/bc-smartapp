@@ -200,6 +200,8 @@ export interface KonvektoriRowData {
   jaahdytysNesteMuu?: string;
   /** Vesimäärävirtaus l/s */
   virtausLs?: string;
+  /** Ilmavirtaus m³/h */
+  ilmanVirtausM3h?: string;
   /** Menoveden / tuloveden lämpötilat */
   tuloLampotila?: string;
   menoLampotila?: string;

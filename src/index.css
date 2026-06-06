@@ -10982,6 +10982,17 @@ button.vrf-toggle:not(:disabled) {
   font-size: 0.78rem;
 }
 
+.konvektori-laskettu-teho-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-top: 0.65rem;
+}
+
+.konvektori-laskettu-teho-list .konvektori-laskettu-teho {
+  margin: 0;
+}
+
 .konvektori-laskettu-teho {
   margin: 0.65rem 0 0;
   padding: 0.5rem 0.65rem;

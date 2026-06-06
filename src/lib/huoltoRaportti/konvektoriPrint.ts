@@ -9,7 +9,7 @@ import {
   konvektoriTyyppiLabel,
   normalizeKonvektoriTyyppi,
 } from './konvektoriTypes';
-import { calculateKonvektoriVesipiirinTeho, formatKonvektoriLaskettuTeho } from './konvektoriTeho';
+import { getKonvektoriCalculationLines, resolveKonvektoriTehoKw } from './konvektoriTeho';
 import type { KonvektoriRowData } from './types';
 
 const CHECK_SHORT: Record<string, string> = {
@@ -45,7 +45,7 @@ function renderWaterOverlayColumn(
 }
 
 function konvektoriImageAirOutput(row: KonvektoriRowData): { label: string; value: string } | null {
-  if (calculateKonvektoriVesipiirinTeho(row)) return null;
+  if (resolveKonvektoriTehoKw(row)) return null;
   const puh = formatKonvektoriLampotila(row.puhallusLampotila);
   if (puh) return { label: 'Puhallus', value: puh };
   const teho = formatKonvektoriTeho(row.mitattuTeho);
@@ -110,11 +110,16 @@ function renderKonvektoriCard(
 
   const nesteLabel = konvektoriJaahdytysNesteLabel(row.jaahdytysNeste, row.jaahdytysNesteMuu);
   const virtausLabel = formatKonvektoriVirtaus(row.virtausLs);
-  const laskettuTehoLabel = formatKonvektoriLaskettuTeho(calculateKonvektoriVesipiirinTeho(row));
+  const ilmanVirtausRaw = String(row.ilmanVirtausM3h ?? '').trim();
+  const ilmanVirtausLabel = ilmanVirtausRaw
+    ? (/m³\/h|m3\/h/i.test(ilmanVirtausRaw) ? ilmanVirtausRaw : `${ilmanVirtausRaw} m³/h`)
+    : '';
+  const calcLines = getKonvektoriCalculationLines(row);
   const nesteVirtausParts = [
     nesteLabel ? `Neste: ${nesteLabel}` : '',
-    virtausLabel ? `Virtaus: ${virtausLabel}` : '',
-    laskettuTehoLabel || '',
+    virtausLabel ? `Vesivirtaus: ${virtausLabel}` : '',
+    ilmanVirtausLabel ? `Ilmavirtaus: ${ilmanVirtausLabel}` : '',
+    ...calcLines,
   ].filter(Boolean);
   const nesteVirtausHtml = nesteVirtausParts.length
     ? `<div style="font-size:6px;color:#475569;line-height:1.25;margin-bottom:3px;word-wrap:break-word;">${esc(nesteVirtausParts.join(' · '))}</div>`
