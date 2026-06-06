@@ -122,6 +122,12 @@ export function ensureKonvektoriRow(data: Partial<KonvektoriRowData> | undefined
   return { ...base, ...data };
 }
 
+/** Vähintään yksi rivi konvektoritaulukossa. */
+export function ensureKonvektoriRowsList(rows: KonvektoriRowData[] | undefined | null): KonvektoriRowData[] {
+  const list = (rows ?? []).map((row) => ensureKonvektoriRow(row));
+  return list.length > 0 ? list : [createEmptyKonvektoriRow()];
+}
+
 export function ensureSisayksikkoData(data: Partial<SisayksikkoData> | undefined): SisayksikkoData {
   const base = createEmptySisayksikkoData();
   if (!data) return base;
@@ -942,8 +948,9 @@ export function applyDeviceTypeDefaults(
     patch.mlpData = null;
   }
   if (deviceType === 'konvektorit') {
-    patch.konvektoriRows =
-      data.konvektoriRows?.length ? data.konvektoriRows.map(ensureKonvektoriRow) : [createEmptyKonvektoriRow()];
+    patch.konvektoriRows = ensureKonvektoriRowsList(data.konvektoriRows);
+  } else if (data.selectedModules?.konvektorit) {
+    patch.konvektoriRows = ensureKonvektoriRowsList(data.konvektoriRows);
   } else {
     patch.konvektoriRows = [];
   }

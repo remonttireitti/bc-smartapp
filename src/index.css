@@ -4916,8 +4916,29 @@ textarea {
   width: 3.25rem;
 }
 
-.huolto-mobile-cards {
-  display: none;
+@media (min-width: 901px) {
+  .huolto-mobile-cards {
+    display: none;
+  }
+}
+
+@media (max-width: 900px) {
+  .huolto-table-wrap {
+    display: none;
+  }
+
+  .huolto-mobile-cards {
+    display: flex;
+    flex-direction: column;
+    gap: .75rem;
+    margin-top: .5rem;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .huolto-mobile-cards .line-form-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .huolto-konvektori-checks {

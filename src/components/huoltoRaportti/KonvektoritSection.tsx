@@ -1,5 +1,10 @@
+import { useEffect, useMemo } from 'react';
 import type { HuomioLuonne, KonvektoriRowData } from '../../lib/huoltoRaportti/types';
-import { cloneKonvektoriRow, createEmptyKonvektoriRow } from '../../lib/huoltoRaportti/defaults';
+import {
+  cloneKonvektoriRow,
+  createEmptyKonvektoriRow,
+  ensureKonvektoriRowsList,
+} from '../../lib/huoltoRaportti/defaults';
 import { FormInput } from './FormInput';
 import { konvektoritSectionTitle } from '../../lib/huoltoRaportti/sectionTitles';
 import { HuoltoModuleSection } from './HuoltoModuleSection';
@@ -18,12 +23,24 @@ interface Props {
 }
 
 export function KonvektoritSection({ rows, onChange }: Props) {
+  const effectiveRows = useMemo(() => ensureKonvektoriRowsList(rows), [rows]);
+
+  useEffect(() => {
+    if (rows.length === 0) {
+      onChange([createEmptyKonvektoriRow()]);
+    }
+  }, [rows.length, onChange]);
+
   const patchRow = (index: number, patch: Partial<KonvektoriRowData>) => {
-    onChange(rows.map((row, i) => (i === index ? { ...row, ...patch } : row)));
+    onChange(effectiveRows.map((row, i) => (i === index ? { ...row, ...patch } : row)));
   };
 
   const removeRow = (index: number) => {
-    onChange(rows.length > 1 ? rows.filter((_, i) => i !== index) : [createEmptyKonvektoriRow()]);
+    onChange(
+      effectiveRows.length > 1
+        ? effectiveRows.filter((_, i) => i !== index)
+        : [createEmptyKonvektoriRow()],
+    );
   };
 
   return (
@@ -36,14 +53,19 @@ export function KonvektoritSection({ rows, onChange }: Props) {
         <button
           type="button"
           className="btn btn-secondary btn-sm"
-          onClick={() => onChange([...rows, cloneKonvektoriRow(rows[rows.length - 1])])}
+          onClick={() =>
+            onChange([
+              ...effectiveRows,
+              cloneKonvektoriRow(effectiveRows[effectiveRows.length - 1]),
+            ])
+          }
         >
           Kopioi rivi
         </button>
         <button
           type="button"
           className="btn btn-secondary btn-sm"
-          onClick={() => onChange([...rows, createEmptyKonvektoriRow()])}
+          onClick={() => onChange([...effectiveRows, createEmptyKonvektoriRow()])}
         >
           + Lisää rivi
         </button>
@@ -66,7 +88,7 @@ export function KonvektoritSection({ rows, onChange }: Props) {
             </tr>
           </thead>
           <tbody>
-            {rows.map((row, index) => (
+            {effectiveRows.map((row, index) => (
               <tr key={row.id ?? index}>
                 <td>{index + 1}</td>
                 <td>
@@ -125,7 +147,7 @@ export function KonvektoritSection({ rows, onChange }: Props) {
       </div>
 
       <div className="huolto-mobile-cards">
-        {rows.map((row, index) => (
+        {effectiveRows.map((row, index) => (
           <div key={`mobile-${row.id ?? index}`} className="huolto-submodule">
             <div className="huolto-circuit-header">
               <h4>Rivi {index + 1}</h4>
