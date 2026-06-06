@@ -49,8 +49,8 @@ export function maintenanceReportEditorAheadOfDb(key: string): boolean {
   return saved.savedAt > syncedAt;
 }
 
-/** Luonnos palautetaan vain lyhyen ajan sisällä (mobiili välilehti / kuva). */
-export function readFreshMaintenanceReportEditorSnapshot(
+/** Session-editor ilman DB-ahead-tarkistusta (palautus taustalta / bfcache). */
+export function readMaintenanceReportEditorSnapshot(
   key: string,
   reportId: string,
   maxAgeMs = 2 * 60 * 60 * 1000,
@@ -58,8 +58,48 @@ export function readFreshMaintenanceReportEditorSnapshot(
   const saved = readMaintenanceReportViewState(key);
   if (!saved?.editor || saved.editor.reportId !== reportId) return null;
   if (Date.now() - saved.savedAt > maxAgeMs) return null;
-  if (!maintenanceReportEditorAheadOfDb(key)) return null;
   return saved.editor;
+}
+
+/** Luonnos palautetaan vain lyhyen ajan sisällä (mobiili välilehti / kuva). */
+export function readFreshMaintenanceReportEditorSnapshot(
+  key: string,
+  reportId: string,
+  maxAgeMs = 2 * 60 * 60 * 1000,
+): MaintenanceReportEditorSnapshot | null {
+  const snap = readMaintenanceReportEditorSnapshot(key, reportId, maxAgeMs);
+  if (!snap || !maintenanceReportEditorAheadOfDb(key)) return null;
+  return snap;
+}
+
+/** Tallenna editor-snapshot säilyttäen dbSyncedAt (openKeys-päivitykset eivät saa nollata editoria). */
+export function persistMaintenanceReportEditorSnapshot(
+  key: string,
+  editor: MaintenanceReportEditorSnapshot,
+  scrollY = typeof window !== 'undefined' ? window.scrollY : 0,
+) {
+  const prev = readMaintenanceReportViewState(key);
+  writeMaintenanceReportViewState(key, {
+    scrollY,
+    savedAt: Date.now(),
+    dbSyncedAt: prev?.dbSyncedAt,
+    openKeys: prev?.openKeys,
+    editor,
+  });
+}
+
+/** Päivitä vain avoinna olevat osiot — älä koske editoriin, savedAt:aan tai dbSyncedAt:iin. */
+export function persistMaintenanceReportOpenKeys(key: string, openKeys: string[]) {
+  const prev = readMaintenanceReportViewState(key);
+  if (!prev) {
+    writeMaintenanceReportViewState(key, {
+      scrollY: typeof window !== 'undefined' ? window.scrollY : 0,
+      savedAt: Date.now(),
+      openKeys,
+    });
+    return;
+  }
+  writeMaintenanceReportViewState(key, { ...prev, openKeys });
 }
 
 /** Päivitä session-editor vastaamaan juuri tallennettua dataa (estää vanhan luonnoksen palautumisen). */

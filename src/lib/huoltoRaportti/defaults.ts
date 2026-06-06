@@ -147,6 +147,21 @@ export function konvektoriRowsHaveMaintenanceData(rows: KonvektoriRowData[] | un
   return (rows ?? []).some(konvektoriRowHasMaintenanceData);
 }
 
+/** Vertaa rivien huoltotietojen määrää — valitse rikkaampi lähde palautuksessa. */
+export function konvektoriRowsMaintenanceScore(rows: KonvektoriRowData[] | undefined | null): number {
+  return (rows ?? []).reduce((sum, row) => {
+    let score = 0;
+    if (row.suodatinPuhdistettu) score += 1;
+    if (row.kennoPuhdistettu) score += 1;
+    if (row.kondenssiTarkastettu) score += 1;
+    if (row.puhallinTarkastettu) score += 1;
+    if (row.venttiiliTarkastettu) score += 1;
+    if (row.huomio.trim()) score += 2;
+    if (row.huomioTyyppi === 'vika') score += 1;
+    return sum + score;
+  }, 0);
+}
+
 export function ensureKonvektoriRow(data: Partial<KonvektoriRowData> | undefined): KonvektoriRowData {
   const base = createEmptyKonvektoriRow();
   if (!data) return base;
@@ -171,6 +186,22 @@ export function ensureKonvektoriRow(data: Partial<KonvektoriRowData> | undefined
 export function ensureKonvektoriRowsList(rows: KonvektoriRowData[] | undefined | null): KonvektoriRowData[] {
   const list = (rows ?? []).map((row) => ensureKonvektoriRow(row));
   return list.length > 0 ? list : [createEmptyKonvektoriRow()];
+}
+
+export function pickBestKonvektoriRows(
+  ...sources: (KonvektoriRowData[] | undefined | null)[]
+): KonvektoriRowData[] {
+  let best: KonvektoriRowData[] = [];
+  let bestScore = -1;
+  for (const source of sources) {
+    const rows = ensureKonvektoriRowsList(source);
+    const score = konvektoriRowsMaintenanceScore(rows);
+    if (score > bestScore) {
+      best = rows;
+      bestScore = score;
+    }
+  }
+  return best.length > 0 ? best : [createEmptyKonvektoriRow()];
 }
 
 export function ensureSisayksikkoData(data: Partial<SisayksikkoData> | undefined): SisayksikkoData {

@@ -36,9 +36,10 @@ import {
   createEmptyHuoltoReportData,
   createEmptyMlpData,
   ensureChillerLiquidCondenserData,
-  konvektoriRowsHaveMaintenanceData,
+  konvektoriRowsMaintenanceScore,
   mergeHuoltoReportData,
   normalizeHuoltoReportData,
+  pickBestKonvektoriRows,
   resolveMaintenanceReportTitle,
 } from '../lib/huoltoRaportti/defaults';
 import { supabase } from '../lib/supabase';
@@ -89,6 +90,7 @@ import type { EquipmentSnapshot, HuoltoReportData } from '../lib/huoltoRaportti/
 import {
   clearLocalMaintenanceDraft,
   localDraftKey,
+  readLocalMaintenanceDraft,
   writeLocalMaintenanceDraft,
 } from '../lib/maintenanceReportDraftStorage';
 import { openMaintenanceReportPrint } from '../lib/maintenanceReportPrintAction';
@@ -109,7 +111,10 @@ import { HuoltoEditUiProvider } from '../components/huoltoRaportti/HuoltoEditUiC
 import { cloneHuoltoReportForSiblingEquipment } from '../lib/huoltoRaportti/cloneReportForSiblingEquipment';
 import {
   maintenanceReportViewKey,
+  maintenanceReportEditorAheadOfDb,
+  persistMaintenanceReportEditorSnapshot,
   readFreshMaintenanceReportEditorSnapshot,
+  readMaintenanceReportEditorSnapshot,
   syncMaintenanceReportEditorAfterSave,
 } from '../lib/maintenanceReportViewState';
 import { isMaintenanceReportPublished } from '../lib/maintenanceReportStatus';
@@ -154,8 +159,11 @@ export default function MaintenanceReportEditPage({ session }: Props) {
   const previousCustomerIdRef = useRef('');
   /** Estää raportin avauksessa rekisterin snapshotin ylikirjoittamasta tallennettua dataa. */
   const skipEquipmentRegistryHydrateRef = useRef<string | null>(null);
+  const equipmentHydrateGenRef = useRef(0);
   const skipAutoSaveRef = useRef(true);
   const saveInFlightRef = useRef(false);
+  const formStateRef = useRef({ form, customerId, equipmentId });
+  formStateRef.current = { form, customerId, equipmentId };
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const copyFromLoadedRef = useRef(false);
 
@@ -167,10 +175,64 @@ export default function MaintenanceReportEditPage({ session }: Props) {
     userId: session.user.id,
     ready: !profileLoading && !loadingReport,
     status,
-    form,
-    customerId,
-    equipmentId,
+    formStateRef,
   });
+
+  useEffect(() => {
+    if (status !== 'draft' || !reportId || profileLoading || loadingReport) return;
+    const timer = window.setTimeout(() => {
+      persistMaintenanceReportEditorSnapshot(reportViewKey, {
+        reportId,
+        form: formStateRef.current.form,
+        customerId: formStateRef.current.customerId,
+        equipmentId: formStateRef.current.equipmentId,
+      });
+    }, 300);
+    return () => window.clearTimeout(timer);
+  }, [form, customerId, equipmentId, status, reportId, reportViewKey, profileLoading, loadingReport]);
+
+  useEffect(() => {
+    if (status !== 'draft' || !reportId || profileLoading || loadingReport) return;
+
+    const restoreIfWiped = () => {
+      if (document.visibilityState !== 'visible') return;
+
+      const sessionSnap = readMaintenanceReportEditorSnapshot(reportViewKey, reportId);
+      const localDraft = readLocalMaintenanceDraft<{
+        form: HuoltoReportData;
+        customerId: string;
+        equipmentId: string;
+      }>(draftStorageKey);
+
+      const sessionForm = sessionSnap ? normalizeHuoltoReportData(sessionSnap.form) : null;
+      const localForm = localDraft ? normalizeHuoltoReportData(localDraft.payload.form) : null;
+      const current = formStateRef.current.form;
+      const currentScore = konvektoriRowsMaintenanceScore(current.konvektoriRows);
+      const sessionScore = konvektoriRowsMaintenanceScore(sessionForm?.konvektoriRows);
+      const localScore = konvektoriRowsMaintenanceScore(localForm?.konvektoriRows);
+      const bestScore = Math.max(sessionScore, localScore);
+
+      if (bestScore <= currentScore) return;
+
+      const konvektoriRows = pickBestKonvektoriRows(
+        sessionForm?.konvektoriRows,
+        localForm?.konvektoriRows,
+        current.konvektoriRows,
+      );
+      const source =
+        sessionScore >= localScore && sessionForm
+          ? sessionForm
+          : localForm ?? sessionForm ?? current;
+
+      setForm(mergeHuoltoReportData(current, { ...source, konvektoriRows }));
+      if (maintenanceReportEditorAheadOfDb(reportViewKey)) {
+        setHasUnsavedChanges(true);
+      }
+    };
+
+    document.addEventListener('visibilitychange', restoreIfWiped);
+    return () => document.removeEventListener('visibilitychange', restoreIfWiped);
+  }, [status, reportId, reportViewKey, draftStorageKey, profileLoading, loadingReport]);
 
   const portalMode = isPortalUser(profile);
   const isPublished = isMaintenanceReportPublished(status);
@@ -460,18 +522,26 @@ export default function MaintenanceReportEditPage({ session }: Props) {
     };
 
     const normalized = normalizeHuoltoReportData({ ...createEmptyHuoltoReportData(), ...row.data });
-    const sessionEditor = readFreshMaintenanceReportEditorSnapshot(viewKey, reportIdToLoad);
+    const sessionEditor =
+      readFreshMaintenanceReportEditorSnapshot(viewKey, reportIdToLoad)
+      ?? readMaintenanceReportEditorSnapshot(viewKey, reportIdToLoad);
+    const localDraft = readLocalMaintenanceDraft<{
+      form: HuoltoReportData;
+      customerId: string;
+      equipmentId: string;
+    }>(localDraftKey(reportIdToLoad, session.user.id));
 
     let formToUse = normalized;
-    if (sessionEditor && row.status === 'draft') {
-      const sessionForm = normalizeHuoltoReportData(sessionEditor.form);
-      const dbRows = normalized.konvektoriRows ?? [];
-      const sessionRows = sessionForm.konvektoriRows ?? [];
-      if (konvektoriRowsHaveMaintenanceData(dbRows) && !konvektoriRowsHaveMaintenanceData(sessionRows)) {
-        formToUse = { ...sessionForm, konvektoriRows: dbRows };
-      } else {
-        formToUse = sessionForm;
-      }
+    if (row.status === 'draft') {
+      const sessionForm = sessionEditor ? normalizeHuoltoReportData(sessionEditor.form) : null;
+      const localForm = localDraft ? normalizeHuoltoReportData(localDraft.payload.form) : null;
+      const baseForm = sessionForm ?? localForm ?? normalized;
+      const konvektoriRows = pickBestKonvektoriRows(
+        sessionForm?.konvektoriRows,
+        localForm?.konvektoriRows,
+        normalized.konvektoriRows,
+      );
+      formToUse = mergeHuoltoReportData(normalized, { ...baseForm, konvektoriRows });
     }
 
     setReportId(row.id);
@@ -558,13 +628,14 @@ export default function MaintenanceReportEditPage({ session }: Props) {
   }
 
   async function loadEquipmentIntoForm(selectedEquipmentId: string) {
+    const hydrateGen = ++equipmentHydrateGenRef.current;
     const { data } = await supabase
       .from('equipment')
       .select('id, name, tag, model, serial_number, location, device_type, huolto_technical_snapshot')
       .eq('id', selectedEquipmentId)
       .single();
 
-    if (!data) return;
+    if (!data || hydrateGen !== equipmentHydrateGenRef.current) return;
     const eq = data as Equipment & {
       model?: string;
       serial_number?: string;
@@ -573,7 +644,8 @@ export default function MaintenanceReportEditPage({ session }: Props) {
       huolto_technical_snapshot?: Record<string, unknown> | null;
     };
 
-    const deviceType = eq.device_type ?? form.laiteTyyppi;
+    const currentForm = formStateRef.current.form;
+    const deviceType = eq.device_type ?? currentForm.laiteTyyppi;
     const basePatch: Partial<HuoltoReportData> = {
       laiteTunnus: String(eq.tag || eq.name || '').trim(),
       laiteMalli: String(eq.model || '').trim(),
@@ -583,8 +655,9 @@ export default function MaintenanceReportEditPage({ session }: Props) {
     };
     if (eq.device_type) basePatch.laiteTyyppi = eq.device_type;
 
-    const snapshotPatch = applyEquipmentSnapshotToForm(form, eq.huolto_technical_snapshot);
-    const merged = mergeHuoltoReportData(form, { ...basePatch, ...snapshotPatch });
+    const snapshotPatch = applyEquipmentSnapshotToForm(currentForm, eq.huolto_technical_snapshot);
+    delete snapshotPatch.konvektoriRows;
+    const merged = mergeHuoltoReportData(currentForm, { ...basePatch, ...snapshotPatch });
     setHasUnsavedChanges(true);
     setForm(eq.device_type ? applyDeviceTypeDefaults(merged, eq.device_type) : merged);
   }
@@ -786,11 +859,12 @@ export default function MaintenanceReportEditPage({ session }: Props) {
       if (!options?.auto) setError('Profiilista puuttuu yritys.');
       return false;
     }
-    if (!form.laiteTyyppi) {
+    const currentForm = formStateRef.current.form;
+    if (!currentForm.laiteTyyppi) {
       if (!options?.auto) setError('Valitse laitetyyppi.');
       return false;
     }
-    if (!customerId && !form.asiakas.trim()) {
+    if (!customerId && !currentForm.asiakas.trim()) {
       if (!options?.auto) setError('Valitse asiakas tai täytä asiakastiedot.');
       return false;
     }
@@ -833,7 +907,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
 
       const dataPayload = buildReportDataPayload();
 
-      const customerName = selectedCustomer?.name ?? (form.asiakas.trim() || null);
+      const customerName = selectedCustomer?.name ?? (formStateRef.current.form.asiakas.trim() || null);
       const title = buildMaintenanceReportTitleFromData(customerName, dataPayload);
 
       const resolvedStatus = nextStatus ?? status;
@@ -955,14 +1029,15 @@ export default function MaintenanceReportEditPage({ session }: Props) {
 
   useRegisterDraftSaver(async () => {
     if (status !== 'draft') return;
+    const { form: currentForm, customerId: cid, equipmentId: eid } = formStateRef.current;
     writeLocalMaintenanceDraft(draftStorageKey, {
-      form,
-      customerId,
-      equipmentId,
+      form: currentForm,
+      customerId: cid,
+      equipmentId: eid,
       contextMode,
       partnerId,
     });
-    if (!form.laiteTyyppi || (!customerId && !form.asiakas.trim())) return;
+    if (!currentForm.laiteTyyppi || (!customerId && !currentForm.asiakas.trim())) return;
     if (isOnline) await saveReport('draft', { auto: true });
   });
 
@@ -976,14 +1051,15 @@ export default function MaintenanceReportEditPage({ session }: Props) {
   }
 
   function buildReportDataPayload(): HuoltoReportData {
+    const currentForm = formStateRef.current.form;
     return normalizeHuoltoReportData({
-      ...form,
+      ...currentForm,
       ...huoltoPerformerFields(profile, session),
-      customerId: customerId || form.customerId,
-      asiakas: selectedCustomer?.name ?? form.asiakas,
+      customerId: customerId || currentForm.customerId,
+      asiakas: selectedCustomer?.name ?? currentForm.asiakas,
       osoite:
-        [selectedCustomer?.address, selectedCustomer?.city].filter(Boolean).join(', ') || form.osoite,
-      equipmentSnapshot: buildHuoltoEquipmentTechnicalSnapshot(form) as unknown as EquipmentSnapshot,
+        [selectedCustomer?.address, selectedCustomer?.city].filter(Boolean).join(', ') || currentForm.osoite,
+      equipmentSnapshot: buildHuoltoEquipmentTechnicalSnapshot(currentForm) as unknown as EquipmentSnapshot,
     });
   }
 

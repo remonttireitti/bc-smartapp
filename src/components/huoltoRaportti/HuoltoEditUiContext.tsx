@@ -9,8 +9,8 @@ import {
   type ReactNode,
 } from 'react';
 import {
+  persistMaintenanceReportOpenKeys,
   readMaintenanceReportViewState,
-  writeMaintenanceReportViewState,
   type MaintenanceReportViewState,
 } from '../../lib/maintenanceReportViewState';
 
@@ -41,13 +41,7 @@ export function HuoltoEditUiProvider({
   openKeysRef.current = openKeys;
 
   const persistOpenKeys = useCallback(() => {
-    const saved = readMaintenanceReportViewState(viewKey);
-    writeMaintenanceReportViewState(viewKey, {
-      scrollY: saved?.scrollY ?? window.scrollY,
-      savedAt: Date.now(),
-      openKeys: [...openKeysRef.current],
-      editor: saved?.editor,
-    });
+    persistMaintenanceReportOpenKeys(viewKey, [...openKeysRef.current]);
   }, [viewKey]);
 
   const setOpen = useCallback((key: string, open: boolean) => {

@@ -1,22 +1,31 @@
-import { useEffect } from 'react';
+import { useEffect, useRef, type RefObject } from 'react';
 import type { HuoltoReportData } from '../lib/huoltoRaportti/types';
+import type { MaintenanceReportEditorSnapshot } from '../lib/maintenanceReportViewState';
 import {
   maintenanceReportViewKey,
+  persistMaintenanceReportEditorSnapshot,
   readMaintenanceReportViewState,
-  writeMaintenanceReportViewState,
 } from '../lib/maintenanceReportViewState';
 
-/** Palauttaa vierityskohdan ja tallentaa editor-tilan (scroll, taivutus, lomake). */
+type FormStateRef = {
+  form: HuoltoReportData;
+  customerId: string;
+  equipmentId: string;
+};
+
+/** Palauttaa vierityskohdan ja tallentaa editor-tilan (scroll, lomake). */
 export function useMaintenanceReportScrollRestore(input: {
   reportId: string | null;
   userId: string;
   ready: boolean;
   status?: string;
-  form?: HuoltoReportData;
-  customerId?: string;
-  equipmentId?: string;
+  formStateRef: RefObject<FormStateRef>;
 }) {
   const viewKey = maintenanceReportViewKey(input.reportId, input.userId);
+  const statusRef = useRef(input.status);
+  const reportIdRef = useRef(input.reportId);
+  statusRef.current = input.status;
+  reportIdRef.current = input.reportId;
 
   useEffect(() => {
     if (!input.ready) return;
@@ -34,29 +43,21 @@ export function useMaintenanceReportScrollRestore(input: {
   }, [input.ready, viewKey]);
 
   useEffect(() => {
-    const persist = () => {
-      const prev = readMaintenanceReportViewState(viewKey);
-      const next = {
-        scrollY: window.scrollY,
-        savedAt: Date.now(),
-        openKeys: prev?.openKeys,
-        editor:
-          input.reportId &&
-          input.status === 'draft' &&
-          input.form
-            ? {
-                reportId: input.reportId,
-                form: input.form,
-                customerId: input.customerId ?? '',
-                equipmentId: input.equipmentId ?? '',
-              }
-            : prev?.editor,
+    const persistEditor = () => {
+      const reportId = reportIdRef.current;
+      const state = input.formStateRef.current;
+      if (!reportId || statusRef.current !== 'draft' || !state?.form) return;
+      const editor: MaintenanceReportEditorSnapshot = {
+        reportId,
+        form: state.form,
+        customerId: state.customerId,
+        equipmentId: state.equipmentId,
       };
-      writeMaintenanceReportViewState(viewKey, next);
+      persistMaintenanceReportEditorSnapshot(viewKey, editor);
     };
 
     const onVisibilityChange = () => {
-      if (document.visibilityState === 'hidden') persist();
+      if (document.visibilityState === 'hidden') persistEditor();
     };
 
     const onPageShow = (event: PageTransitionEvent) => {
@@ -67,15 +68,15 @@ export function useMaintenanceReportScrollRestore(input: {
       }
     };
 
-    window.addEventListener('pagehide', persist);
+    window.addEventListener('pagehide', persistEditor);
     document.addEventListener('visibilitychange', onVisibilityChange);
     window.addEventListener('pageshow', onPageShow);
 
     return () => {
-      persist();
-      window.removeEventListener('pagehide', persist);
+      persistEditor();
+      window.removeEventListener('pagehide', persistEditor);
       document.removeEventListener('visibilitychange', onVisibilityChange);
       window.removeEventListener('pageshow', onPageShow);
     };
-  }, [viewKey, input.reportId, input.status, input.form, input.customerId, input.equipmentId]);
+  }, [viewKey, input.formStateRef]);
 }
