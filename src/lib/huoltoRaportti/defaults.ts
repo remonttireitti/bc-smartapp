@@ -52,7 +52,7 @@ export function createEmptyKonvektoriRow(): KonvektoriRowData {
     kondenssiTarkastettu: null,
     puhallinTarkastettu: null,
     venttiiliTarkastettu: null,
-    lisaaOhjausToimii: null,
+    ohjausToimii: null,
     huomio: '',
     huomioTyyppi: 'kommentti',
   };
@@ -133,7 +133,7 @@ const KONVEKTORI_CHECKBOX_FIELDS = [
   'kondenssiTarkastettu',
   'puhallinTarkastettu',
   'venttiiliTarkastettu',
-  'lisaaOhjausToimii',
+  'ohjausToimii',
 ] as const;
 
 export function konvektoriRowHasMaintenanceData(row: KonvektoriRowData): boolean {
@@ -143,7 +143,7 @@ export function konvektoriRowHasMaintenanceData(row: KonvektoriRowData): boolean
     || row.kondenssiTarkastettu !== null
     || row.puhallinTarkastettu !== null
     || row.venttiiliTarkastettu !== null
-    || row.lisaaOhjausToimii != null
+    || row.ohjausToimii != null
     || row.huomio.trim()
     || row.huomioTyyppi === 'vika',
   );
@@ -162,7 +162,7 @@ export function konvektoriRowsMaintenanceScore(rows: KonvektoriRowData[] | undef
     if (row.kondenssiTarkastettu !== null) score += 1;
     if (row.puhallinTarkastettu !== null) score += 1;
     if (row.venttiiliTarkastettu !== null) score += 1;
-    if (row.lisaaOhjausToimii != null) score += 1;
+    if (row.ohjausToimii != null) score += 1;
     if (row.huomio.trim()) score += 2;
     if (row.huomioTyyppi === 'vika') score += 1;
     return sum + score;
@@ -185,6 +185,9 @@ export function ensureKonvektoriRow(data: Partial<KonvektoriRowData> | undefined
   };
   for (const field of KONVEKTORI_CHECKBOX_FIELDS) {
     next[field] = coerceKonvektoriTriState(raw[field] ?? data[field]);
+  }
+  if (next.ohjausToimii == null && raw.lisaaOhjausToimii != null) {
+    next.ohjausToimii = coerceKonvektoriTriState(raw.lisaaOhjausToimii);
   }
   return next;
 }

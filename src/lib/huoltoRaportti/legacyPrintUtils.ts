@@ -2079,7 +2079,7 @@ export function generatePrintHTML(data: {
     kondenssiTarkastettu?: boolean | null;
     puhallinTarkastettu?: boolean | null;
     venttiiliTarkastettu?: boolean | null;
-    lisaaOhjausToimii?: boolean | null;
+    ohjausToimii?: boolean | null;
     huomio?: string;
     huomioTyyppi?: 'kommentti' | 'vika';
   }>;
@@ -3232,7 +3232,7 @@ export function generatePrintHTML(data: {
       <strong style="font-size: 12px; color: #00838F;">KONVEKTORIT (HUOLTOTAULUKKO)</strong>
     </div>
     <p style="font-size: 8px; color: #444; margin: 0 0 4px 0; line-height: 1.25;">
-      Suod.–Vent.: <span style="font-family: system-ui, sans-serif;">✓/✗</span> = tarkastettu OK / ei OK.
+      Suod.–Ohj.: <span style="font-family: system-ui, sans-serif;">✓/✗</span> = tarkastettu OK / ei OK.
     </p>
     <div style="overflow: visible;">
       <table style="width:100%;border-collapse:collapse;table-layout:fixed;font-size:7px;line-height:1.2;">
@@ -3242,7 +3242,7 @@ export function generatePrintHTML(data: {
           <col style="width:10.5%" />
           <col style="width:17%" />
           <col style="width:8.5%" />
-          <col style="width:1.6%" /><col style="width:1.6%" /><col style="width:1.6%" /><col style="width:1.6%" /><col style="width:1.6%" />
+          <col style="width:1.6%" /><col style="width:1.6%" /><col style="width:1.6%" /><col style="width:1.6%" /><col style="width:1.6%" /><col style="width:1.6%" />
           <col style="width:auto" />
         </colgroup>
         <thead>
@@ -3257,6 +3257,7 @@ export function generatePrintHTML(data: {
             ${konvThVertical('Kond.', 'Kondenssi')}
             ${konvThVertical('Puh.', 'Puhallin')}
             ${konvThVertical('Vent.', 'Venttiili')}
+            ${konvThVertical('Ohj.', 'Ohjaus')}
             <th style="border:1px solid #ccc;padding:2px;text-align:left;font-size:7px;">Huomio</th>
           </tr>
         </thead>
@@ -3281,6 +3282,7 @@ export function generatePrintHTML(data: {
               <td style="border:1px solid #ccc;padding:0;text-align:center;vertical-align:middle;">${renderCheckKonv(row.kondenssiTarkastettu)}</td>
               <td style="border:1px solid #ccc;padding:0;text-align:center;vertical-align:middle;">${renderCheckKonv(row.puhallinTarkastettu)}</td>
               <td style="border:1px solid #ccc;padding:0;text-align:center;vertical-align:middle;">${renderCheckKonv(row.venttiiliTarkastettu)}</td>
+              <td style="border:1px solid #ccc;padding:0;text-align:center;vertical-align:middle;">${renderCheckKonv(row.ohjausToimii)}</td>
               <td style="border:1px solid #ccc;padding:1px 3px;word-wrap:break-word;font-size:7px;">${huomCell}</td>
             </tr>`;
           }).join('')}

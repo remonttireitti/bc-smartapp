@@ -196,8 +196,7 @@ export interface KonvektoriRowData {
   kondenssiTarkastettu: boolean | null;
   puhallinTarkastettu: boolean | null;
   venttiiliTarkastettu: boolean | null;
-  /** Ei tulosteessa — vain lomakkeessa */
-  lisaaOhjausToimii?: boolean | null;
+  ohjausToimii?: boolean | null;
   huomio: string;
   huomioTyyppi?: HuomioLuonne;
 }

@@ -486,7 +486,7 @@ function renderKonvektoritTable(data: HuoltoReportData): string {
   const rows = field(data, 'konvektoriRows') ?? field(data, 'konvektoritData');
   if (data.laiteTyyppi !== 'konvektorit' || !Array.isArray(rows) || rows.length === 0) return '';
 
-  const renderCheckKonv = (checked: boolean | undefined) => {
+  const renderCheckKonv = (checked: boolean | null | undefined) => {
     if (checked === true) return '<span style="color:#16a34a;font-weight:700;">✓</span>';
     if (checked === false) return '<span style="color:#dc2626;font-weight:700;">✗</span>';
     return '<span style="color:#9ca3af;">–</span>';
@@ -497,17 +497,19 @@ function renderKonvektoritTable(data: HuoltoReportData): string {
       const isVika = r.huomioTyyppi === 'vika';
       const huom = r.huomio ? esc(r.huomio) : '—';
       const huomCell = isVika ? `<span style="color:#b91c1c;font-weight:700;">${huom}</span>` : huom;
+      const ohjaus = r.ohjausToimii ?? r.lisaaOhjausToimii;
       return `<tr>
         <td style="border:1px solid #ccc;padding:2px;text-align:center;">${idx + 1}</td>
         <td style="border:1px solid #ccc;padding:2px;">${esc(r.tunnus)}</td>
         <td style="border:1px solid #ccc;padding:2px;">${esc(r.valmistaja)}</td>
         <td style="border:1px solid #ccc;padding:2px;">${esc(r.malli)}</td>
         <td style="border:1px solid #ccc;padding:2px;">${esc(r.sarjanumero)}</td>
-        <td style="border:1px solid #ccc;padding:2px;text-align:center;">${renderCheckKonv(r.suodatinPuhdistettu as boolean | undefined)}</td>
-        <td style="border:1px solid #ccc;padding:2px;text-align:center;">${renderCheckKonv(r.kennoPuhdistettu as boolean | undefined)}</td>
-        <td style="border:1px solid #ccc;padding:2px;text-align:center;">${renderCheckKonv(r.kondenssiTarkastettu as boolean | undefined)}</td>
-        <td style="border:1px solid #ccc;padding:2px;text-align:center;">${renderCheckKonv(r.puhallinTarkastettu as boolean | undefined)}</td>
-        <td style="border:1px solid #ccc;padding:2px;text-align:center;">${renderCheckKonv(r.venttiiliTarkastettu as boolean | undefined)}</td>
+        <td style="border:1px solid #ccc;padding:2px;text-align:center;">${renderCheckKonv(r.suodatinPuhdistettu as boolean | null | undefined)}</td>
+        <td style="border:1px solid #ccc;padding:2px;text-align:center;">${renderCheckKonv(r.kennoPuhdistettu as boolean | null | undefined)}</td>
+        <td style="border:1px solid #ccc;padding:2px;text-align:center;">${renderCheckKonv(r.kondenssiTarkastettu as boolean | null | undefined)}</td>
+        <td style="border:1px solid #ccc;padding:2px;text-align:center;">${renderCheckKonv(r.puhallinTarkastettu as boolean | null | undefined)}</td>
+        <td style="border:1px solid #ccc;padding:2px;text-align:center;">${renderCheckKonv(r.venttiiliTarkastettu as boolean | null | undefined)}</td>
+        <td style="border:1px solid #ccc;padding:2px;text-align:center;">${renderCheckKonv(ohjaus as boolean | null | undefined)}</td>
         <td style="border:1px solid #ccc;padding:2px;font-size:9px;">${huomCell}</td>
       </tr>`;
     })
@@ -528,6 +530,7 @@ function renderKonvektoritTable(data: HuoltoReportData): string {
         <th style="border:1px solid #ccc;padding:2px;">Kond.</th>
         <th style="border:1px solid #ccc;padding:2px;">Puh.</th>
         <th style="border:1px solid #ccc;padding:2px;">Vent.</th>
+        <th style="border:1px solid #ccc;padding:2px;">Ohj.</th>
         <th style="border:1px solid #ccc;padding:2px;">Huomio</th>
       </tr></thead>
       <tbody>${body}</tbody>

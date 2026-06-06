@@ -22,8 +22,8 @@ export const KONVEKTORI_TARKASTUS_ITEMS = [
     label: 'Venttiili ja toimilaite testattu ja toimii',
   },
   {
-    field: 'lisaaOhjausToimii',
-    label: 'Lisäohjaus toimii tarkoituksenmukaisesti',
+    field: 'ohjausToimii',
+    label: 'Ohjaus toimii tarkoituksenmukaisesti',
   },
 ] as const satisfies ReadonlyArray<{
   field: keyof KonvektoriRowData;
