@@ -69,40 +69,42 @@ export function KonvektoritSection({ rows, onChange }: Props) {
         </button>
       </div>
 
-      <div className="huolto-table-wrap">
-        <table className="huolto-table">
+      <div className="huolto-table-wrap huolto-konvektori-table-wrap">
+        <table className="huolto-table huolto-konvektori-table">
           <thead>
             <tr>
-              <th>#</th>
-              <th>Tunnus / tila</th>
-              <th>Valmistaja</th>
-              <th>Malli</th>
-              <th>Sarjanumero</th>
+              <th className="huolto-konvektori-col-num">#</th>
+              <th className="huolto-konvektori-col-text">Tunnus / tila</th>
+              <th className="huolto-konvektori-col-text">Valmistaja</th>
+              <th className="huolto-konvektori-col-text">Malli</th>
+              <th className="huolto-konvektori-col-text">Sarjanumero</th>
               {CHECKBOX_FIELDS.map(([, label]) => (
-                <th key={label}>{label}</th>
+                <th key={label} className="huolto-table-checkbox">
+                  {label}
+                </th>
               ))}
-              <th>Huomio</th>
-              <th />
+              <th className="huolto-konvektori-col-huomio">Huomio</th>
+              <th className="huolto-konvektori-col-actions" />
             </tr>
           </thead>
           <tbody>
             {effectiveRows.map((row, index) => (
               <tr key={row.id ?? index}>
-                <td>{index + 1}</td>
-                <td>
+                <td className="huolto-konvektori-col-num">{index + 1}</td>
+                <td className="huolto-konvektori-col-text">
                   <input
                     value={row.tunnus}
                     onChange={(e) => patchRow(index, { tunnus: e.target.value })}
                     placeholder="Esim. Neuvottelu / K1"
                   />
                 </td>
-                <td>
+                <td className="huolto-konvektori-col-text">
                   <input value={row.valmistaja} onChange={(e) => patchRow(index, { valmistaja: e.target.value })} />
                 </td>
-                <td>
+                <td className="huolto-konvektori-col-text">
                   <input value={row.malli} onChange={(e) => patchRow(index, { malli: e.target.value })} />
                 </td>
-                <td>
+                <td className="huolto-konvektori-col-text">
                   <input
                     value={row.sarjanumero}
                     onChange={(e) => patchRow(index, { sarjanumero: e.target.value })}
@@ -118,22 +120,25 @@ export function KonvektoritSection({ rows, onChange }: Props) {
                     />
                   </td>
                 ))}
-                <td>
-                  <select
-                    value={row.huomioTyyppi ?? 'kommentti'}
-                    onChange={(e) => patchRow(index, { huomioTyyppi: e.target.value as HuomioLuonne })}
-                    aria-label="Huomion tyyppi"
-                  >
-                    <option value="kommentti">Kommentti</option>
-                    <option value="vika">Vika</option>
-                  </select>
-                  <input
-                    value={row.huomio}
-                    onChange={(e) => patchRow(index, { huomio: e.target.value })}
-                    placeholder="Lisähuomio"
-                  />
+                <td className="huolto-konvektori-col-huomio">
+                  <div className="huolto-konvektori-huomio-fields">
+                    <select
+                      value={row.huomioTyyppi ?? 'kommentti'}
+                      onChange={(e) => patchRow(index, { huomioTyyppi: e.target.value as HuomioLuonne })}
+                      aria-label="Huomion tyyppi"
+                    >
+                      <option value="kommentti">Kommentti</option>
+                      <option value="vika">Vika</option>
+                    </select>
+                    <textarea
+                      rows={2}
+                      value={row.huomio}
+                      onChange={(e) => patchRow(index, { huomio: e.target.value })}
+                      placeholder="Lisähuomio"
+                    />
+                  </div>
                 </td>
-                <td>
+                <td className="huolto-konvektori-col-actions">
                   <button type="button" className="btn btn-secondary btn-sm" onClick={() => removeRow(index)}>
                     Poista
                   </button>
@@ -189,7 +194,15 @@ export function KonvektoritSection({ rows, onChange }: Props) {
                 <option value="vika">Vika</option>
               </select>
             </label>
-            <FormInput label="Huomio" value={row.huomio} onChange={(v) => patchRow(index, { huomio: v })} />
+            <label className="huolto-konvektori-huomio-mobile">
+              Huomio
+              <textarea
+                rows={3}
+                value={row.huomio}
+                onChange={(e) => patchRow(index, { huomio: e.target.value })}
+                placeholder="Lisähuomio"
+              />
+            </label>
           </div>
         ))}
       </div>

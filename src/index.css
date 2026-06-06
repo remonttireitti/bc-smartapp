@@ -4896,7 +4896,8 @@ textarea {
 }
 
 .huolto-table td input,
-.huolto-table td select {
+.huolto-table td select,
+.huolto-table td textarea {
   width: 100%;
   min-width: 4.25rem;
   min-height: 2.25rem;
@@ -4914,6 +4915,67 @@ textarea {
   text-align: center;
   vertical-align: middle;
   width: 3.25rem;
+}
+
+.huolto-konvektori-table {
+  min-width: 72rem;
+  table-layout: auto;
+}
+
+.huolto-konvektori-col-num {
+  width: 2.25rem;
+  white-space: nowrap;
+}
+
+.huolto-konvektori-col-text {
+  min-width: 7.5rem;
+}
+
+.huolto-konvektori-col-huomio {
+  min-width: 16rem;
+  width: 18rem;
+}
+
+.huolto-konvektori-col-actions {
+  width: 5.5rem;
+  white-space: nowrap;
+}
+
+.huolto-konvektori-huomio-fields {
+  display: flex;
+  flex-direction: column;
+  gap: .35rem;
+  min-width: 14rem;
+}
+
+.huolto-konvektori-huomio-fields select {
+  width: 100%;
+  min-width: 0;
+}
+
+.huolto-konvektori-huomio-fields textarea {
+  width: 100%;
+  min-width: 14rem;
+  min-height: 3.25rem;
+  resize: vertical;
+  line-height: 1.35;
+  font-family: inherit;
+}
+
+.huolto-konvektori-huomio-mobile {
+  display: flex;
+  flex-direction: column;
+  gap: .35rem;
+  font-weight: 600;
+}
+
+.huolto-konvektori-huomio-mobile textarea {
+  width: 100%;
+  min-height: 4.5rem;
+  resize: vertical;
+  font-weight: 400;
+  line-height: 1.35;
+  font-family: inherit;
 }
 
 @media (min-width: 901px) {
