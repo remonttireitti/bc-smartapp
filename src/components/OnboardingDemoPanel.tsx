@@ -40,7 +40,12 @@ export default function OnboardingDemoPanel({ companyId, onChanged }: Props) {
       setStatus(demoStatus);
       setRealStats(stats);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Tilan lataus epäonnistui.');
+      const message = err instanceof Error ? err.message : 'Tilan lataus epäonnistui.';
+      setError(
+        message.includes('onboarding_demo_status')
+          ? 'Esimerkkidata ei vielä käytettävissä — päivitä sivu hetken kuluttua.'
+          : message,
+      );
       setStatus(EMPTY_STATUS);
       setRealStats(null);
     } finally {
