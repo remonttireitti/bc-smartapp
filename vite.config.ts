@@ -11,7 +11,7 @@ export default defineConfig({
     tripDistancePlugin(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['icon.svg', 'pwa-180.png', 'pwa-192.png', 'pwa-512.png', 'refrigerant-bottle-default.png'],
+      includeAssets: ['icon.svg', 'pwa-180.png', 'pwa-192.png', 'pwa-512.png', 'refrigerant-bottle-default.png', 'BC-Smartapp-kayttoohje.pdf'],
       manifest: {
         name: 'BC Smartapp',
         short_name: 'BC Smartapp',
@@ -47,10 +47,10 @@ export default defineConfig({
       workbox: {
         // Main bundle exceeds Workbox default 2 MiB precache limit as app grows.
         maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
-        globPatterns: ['**/*.{js,css,html,ico,svg,png,woff2}'],
+        globPatterns: ['**/*.{js,css,html,ico,svg,png,pdf,woff2}'],
         globIgnores: ['**/termatek/**', '**/firmware/**'],
         navigateFallback: '/index.html',
-        navigateFallbackDenylist: [/^\/api\//],
+        navigateFallbackDenylist: [/^\/api\//, /\.pdf$/i],
         runtimeCaching: [
           {
             urlPattern: ({ request, url }) =>

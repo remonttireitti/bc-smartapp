@@ -20,6 +20,7 @@ export function CustomerListItem({ customer, showPortalAction, showSubscriber }:
       <Link to={`/asiakkaat/${customer.id}`} className="report-link customer-list-link">
         <div className="report-link-body">
           <strong>{customer.name}</strong>
+          {customer.is_onboarding_demo && <span className="badge badge-demo">Esimerkki</span>}
           <span className="muted">{customerAddressLine(customer)}</span>
           {customer.phone && <span className="muted">{customer.phone}</span>}
           {showSubscriber && (

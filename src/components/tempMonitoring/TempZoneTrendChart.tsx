@@ -1,16 +1,20 @@
-import { useMemo } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
+import { formatTrendHoverTime, trendHoverLeftPct } from '../../lib/vrfMonitoring';
 import type { TempEffectiveLimits, TempReading } from '../../lib/tempMonitoring';
+import { formatTempC } from '../../lib/tempMonitoring';
 import {
   ZONE_SENSOR_SERIES,
   downsampleZoneChartReadings,
   filterReadingsForSensor,
   fitZoneChartPeriod,
   formatZoneTrendTimeLabel,
+  nearestZoneReadingAtTime,
   splitTempReadingsByGaps,
   tempReadingGapThresholdMs,
   zoneTrendChartPeriod,
   type ZoneTrendPreset,
 } from '../../lib/tempZoneMonitoring';
+import VrfTrendHoverTip from '../vrfMonitoring/VrfTrendHoverTip';
 
 type Props = {
   readings: TempReading[];
@@ -66,7 +70,6 @@ function buildSensorPaths(
   readings: TempReading[],
   periodStartMs: number,
   span: number,
-  gapThreshold: number,
   minT: number,
   maxT: number,
   padLeft: number,
@@ -75,6 +78,7 @@ function buildSensorPaths(
   padTop: number,
 ): Point[][] {
   const collapsed = downsampleZoneChartReadings(readings);
+  const gapThreshold = tempReadingGapThresholdMs(collapsed, span);
   const groups = splitTempReadingsByGaps(collapsed, gapThreshold);
   const tempSpan = Math.max(maxT - minT, 1);
   const paths: Point[][] = [];
@@ -113,6 +117,8 @@ export default function TempZoneTrendChart({
   const padBottom = 28;
   const innerW = width - padLeft - padRight;
   const innerH = height - padTop - padBottom;
+  const plotRef = useRef<HTMLDivElement>(null);
+  const [hover, setHover] = useState<{ leftPct: number; timeMs: number; x: number } | null>(null);
 
   const activeSeries = useMemo(() => {
     if (showBothSensors) return ZONE_SENSOR_SERIES;
@@ -159,25 +165,25 @@ export default function TempZoneTrendChart({
       ),
     );
     const period = fitZoneChartPeriod(basePeriod, allTimes);
-    const gapThreshold = tempReadingGapThresholdMs(inPeriod, period.span);
-    const fittedSeriesPaths = activeSeries.map((series) => ({
-      ...series,
-      paths: buildSensorPaths(
-        filterReadingsForSensor(inPeriod, series.sensor),
-        period.startMs,
-        period.span,
-        gapThreshold,
-        minT,
-        maxT,
-        padLeft,
-        innerW,
-        innerH,
-        padTop,
-      ),
-    })).map((series) => ({
-      ...series,
-      markers: series.paths.flatMap((points) => selectTrendMarkerPoints(points)),
-    }));
+    const fittedSeriesPaths = activeSeries
+      .map((series) => ({
+        ...series,
+        paths: buildSensorPaths(
+          filterReadingsForSensor(inPeriod, series.sensor),
+          period.startMs,
+          period.span,
+          minT,
+          maxT,
+          padLeft,
+          innerW,
+          innerH,
+          padTop,
+        ),
+      }))
+      .map((series) => ({
+        ...series,
+        markers: series.paths.flatMap((points) => selectTrendMarkerPoints(points)),
+      }));
 
     return {
       minT,
@@ -185,8 +191,23 @@ export default function TempZoneTrendChart({
       seriesPaths: fittedSeriesPaths,
       period,
       hasData,
+      inPeriod,
     };
-  }, [readings, limits, preset, activeSeries, innerH, innerW, padLeft, padTop]);
+  }, [readings, limits, preset, activeSeries, activeSensor, innerH, innerW, padLeft, padTop]);
+
+  const handlePlotMove = useCallback(
+    (event: React.MouseEvent) => {
+      const el = plotRef.current;
+      if (!el || !chart) return;
+      const leftPct = trendHoverLeftPct(event.clientX, el.getBoundingClientRect());
+      const timeMs = chart.period.startMs + (leftPct / 100) * chart.period.span;
+      const x = padLeft + ((timeMs - chart.period.startMs) / chart.period.span) * innerW;
+      setHover({ leftPct, timeMs, x });
+    },
+    [chart, padLeft, innerW],
+  );
+
+  const handlePlotLeave = useCallback(() => setHover(null), []);
 
   if (!chart) {
     return (
@@ -204,6 +225,24 @@ export default function TempZoneTrendChart({
 
   const targetY1 = limits ? tempToY(limits.targetMax) : null;
   const targetY2 = limits ? tempToY(limits.targetMin) : null;
+
+  const hoverRows = hover
+    ? chart.seriesPaths.map((series) => {
+        const row = nearestZoneReadingAtTime(chart.inPeriod, chart.period, hover.timeMs, series.sensor);
+        const value = row != null ? Number(row.temp_c) : null;
+        return {
+          color: series.color,
+          label: series.label,
+          value: value != null && Number.isFinite(value) ? formatTempC(value) : '—',
+          row,
+        };
+      })
+    : [];
+
+  const anchorReading = hoverRows.find((row) => row.row)?.row ?? null;
+  const hoverTimeLabel = anchorReading
+    ? formatTrendHoverTime(anchorReading.recorded_at, chart.period.span)
+    : '';
 
   return (
     <div className="vrf-trend-chart temp-chart temp-zone-trend-chart">
@@ -224,7 +263,19 @@ export default function TempZoneTrendChart({
       {!chart.hasData && (
         <p className="muted vrf-trend-empty-hint">Ei lämpötiladataa valitulla aikavälillä.</p>
       )}
-      <div className="vrf-chart-scroll">
+      <div
+        ref={plotRef}
+        className="vrf-chart-scroll vrf-chart-scroll--interactive"
+        onMouseMove={handlePlotMove}
+        onMouseLeave={handlePlotLeave}
+      >
+        {hover && anchorReading && (
+          <VrfTrendHoverTip
+            leftPct={hover.leftPct}
+            timeLabel={hoverTimeLabel}
+            rows={hoverRows.map(({ color, label, value }) => ({ color, label, value }))}
+          />
+        )}
         <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Lämpötilatrendi" preserveAspectRatio="xMidYMid meet">
           {limits && targetY1 != null && targetY2 != null && (
             <rect
@@ -281,8 +332,38 @@ export default function TempZoneTrendChart({
                     fill={series.color}
                   />
                 ))}
+                {hover &&
+                  (() => {
+                    const row = nearestZoneReadingAtTime(
+                      chart.inPeriod,
+                      chart.period,
+                      hover.timeMs,
+                      series.sensor,
+                    );
+                    const value = row != null ? Number(row.temp_c) : null;
+                    if (value == null || !Number.isFinite(value)) return null;
+                    return (
+                      <circle
+                        key={`${series.sensor}-hover`}
+                        className="vrf-trend-hover-point"
+                        cx={hover.x}
+                        cy={tempToY(value)}
+                        r={5}
+                        fill={series.color}
+                      />
+                    );
+                  })()}
               </g>
             ))}
+          {hover && (
+            <line
+              x1={hover.x}
+              y1={padTop}
+              x2={hover.x}
+              y2={padTop + innerH}
+              className="vrf-trend-crosshair"
+            />
+          )}
         </svg>
       </div>
     </div>

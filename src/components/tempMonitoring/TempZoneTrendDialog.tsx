@@ -1,19 +1,21 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import TempZoneTrendChart from './TempZoneTrendChart';
-import { formatTempC, TEMP_READING_SELECT, type TempReading } from '../../lib/tempMonitoring';
+import { formatTempC, type TempReading } from '../../lib/tempMonitoring';
+import { fetchTempZoneTrendDelta, fetchTempZoneTrendReadings } from '../../lib/tempTrendReadings';
 import {
   buildZoneTrendReadings,
   filterReadingsByTrendPreset,
+  filterReadingsForChartPeriod,
   filterReadingsForSensor,
   mergeTrendReadingSets,
   summarizeZoneTrend,
-  trendPresetSinceIso,
   zoneConfigToEffectiveLimits,
+  zoneTrendChartPeriod,
+  zoneTrendPeriodFromPreset,
   type ZoneConfigEntry,
   type ZoneKey,
   type ZoneTrendPreset,
 } from '../../lib/tempZoneMonitoring';
-import { supabase } from '../../lib/supabase';
 
 const PRESETS: { value: ZoneTrendPreset; label: string }[] = [
   { value: 'today', label: 'Tänään' },
@@ -21,7 +23,7 @@ const PRESETS: { value: ZoneTrendPreset; label: string }[] = [
   { value: '30d', label: '30 päivää' },
 ];
 
-const TREND_POLL_MS = 10_000;
+const TREND_POLL_MS = 30_000;
 
 type DeviceLive = {
   id: string;
@@ -65,70 +67,65 @@ export default function TempZoneTrendDialog({
 }: Props) {
   const [preset, setPreset] = useState<ZoneTrendPreset>('today');
   const [showBothSensors, setShowBothSensors] = useState(false);
-  const [fetchedReadings, setFetchedReadings] = useState<TempReading[]>([]);
-  const [fetching, setFetching] = useState(false);
-  const fetchCursorRef = useRef<string | null>(null);
+  const [trendRows, setTrendRows] = useState<TempReading[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+  const lastFetchedAtRef = useRef<string | null>(null);
 
-  const refreshTrend = useCallback(
+  const loadTrend = useCallback(
     async (full: boolean) => {
       if (!deviceId) return;
 
       if (full) {
-        setFetching(true);
-        fetchCursorRef.current = null;
+        setLoading(true);
+        setFetchError(null);
+        lastFetchedAtRef.current = null;
       }
 
-      let query = supabase
-        .from('temp_readings')
-        .select(TEMP_READING_SELECT)
-        .eq('device_id', deviceId)
-        .order('recorded_at', { ascending: true })
-        .limit(10_000);
+      try {
+        if (full) {
+          const rows = await fetchTempZoneTrendReadings({ deviceId, preset });
+          setTrendRows(rows);
+          lastFetchedAtRef.current = rows[rows.length - 1]?.recorded_at ?? null;
+          return;
+        }
 
-      if (full || !fetchCursorRef.current) {
-        query = query.gte('recorded_at', trendPresetSinceIso(preset));
-      } else {
-        query = query.gt('recorded_at', fetchCursorRef.current);
+        const cursor = lastFetchedAtRef.current;
+        if (!cursor) return;
+
+        const delta = await fetchTempZoneTrendDelta({ deviceId, afterIso: cursor });
+        if (delta.length === 0) return;
+
+        setTrendRows((prev) => mergeTrendReadingSets(prev, delta));
+        lastFetchedAtRef.current = delta[delta.length - 1].recorded_at;
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Trendin lataus epäonnistui';
+        if (full) setFetchError(message);
+        else console.error('Trendin päivitys epäonnistui:', message);
+      } finally {
+        if (full) setLoading(false);
       }
-
-      const { data, error } = await query;
-      if (error) {
-        console.error('Trendin luku epäonnistui:', error.message);
-        if (full) setFetching(false);
-        return;
-      }
-
-      const rows = (data as TempReading[] | null) ?? [];
-      if (rows.length > 0) {
-        fetchCursorRef.current = rows[rows.length - 1].recorded_at;
-      }
-
-      setFetchedReadings((prev) => (full ? rows : mergeTrendReadingSets(prev, rows)));
-      if (full) setFetching(false);
     },
     [deviceId, preset],
   );
 
   useEffect(() => {
     if (!open || !deviceId) {
-      setFetchedReadings([]);
-      fetchCursorRef.current = null;
+      setTrendRows([]);
+      lastFetchedAtRef.current = null;
+      setFetchError(null);
       return;
     }
 
-    void refreshTrend(true);
-    const timer = window.setInterval(() => void refreshTrend(false), TREND_POLL_MS);
+    void loadTrend(true);
+    const timer = window.setInterval(() => void loadTrend(false), TREND_POLL_MS);
     return () => window.clearInterval(timer);
-  }, [open, deviceId, preset, refreshTrend]);
-
-  useEffect(() => {
-    if (!open || !device?.last_seen_at) return;
-    void refreshTrend(false);
-  }, [open, device?.last_seen_at, device?.last_temp_c, device?.last_temp_c2, refreshTrend]);
+  }, [open, deviceId, preset, loadTrend]);
 
   const trendReadings = useMemo(() => {
     if (!zone || zone.sensor === 0) return [];
-    const merged = mergeTrendReadingSets(fetchedReadings, readings, liveSamples);
+    const base = trendRows.length > 0 ? trendRows : filterReadingsByTrendPreset(readings, preset);
+    const merged = mergeTrendReadingSets(base, liveSamples);
     return buildZoneTrendReadings(
       merged,
       device
@@ -141,7 +138,7 @@ export default function TempZoneTrendDialog({
         : null,
       activeSessionId,
     );
-  }, [readings, fetchedReadings, liveSamples, device, activeSessionId, zone]);
+  }, [readings, trendRows, liveSamples, preset, device, activeSessionId, zone]);
 
   const presetReadings = useMemo(() => {
     if (!zone || zone.sensor === 0) return [];
@@ -153,12 +150,27 @@ export default function TempZoneTrendDialog({
     return filterReadingsForSensor(presetReadings, zone.sensor);
   }, [presetReadings, zone]);
 
+  const chartPeriod = useMemo(() => {
+    if (!zone || zone.sensor === 0) return null;
+    return zoneTrendChartPeriod(preset, presetReadings, zone.sensor);
+  }, [preset, presetReadings, zone]);
+
+  const chartSensorReadings = useMemo(() => {
+    if (!chartPeriod) return sensorReadings;
+    return filterReadingsForChartPeriod(sensorReadings, chartPeriod);
+  }, [sensorReadings, chartPeriod]);
+
   const limits = zone ? zoneConfigToEffectiveLimits(zone) : null;
   const presetLabel = PRESETS.find((p) => p.value === preset)?.label ?? preset;
-  const summary = zone ? summarizeZoneTrend(sensorReadings, zone) : null;
+  const summary = zone ? summarizeZoneTrend(chartSensorReadings, zone) : null;
+  const usesRecentWindow =
+    preset === 'today' &&
+    chartPeriod != null &&
+    chartPeriod.startMs > zoneTrendPeriodFromPreset('today').startMs + 60_000;
   const hasChartData =
     sensorReadings.length > 0 ||
     (showBothSensors && presetReadings.some((r) => (r.sensor_channel ?? 0) > 0));
+  const showInitialLoader = loading && !hasChartData;
 
   if (!open || !zoneKey || !zone) return null;
 
@@ -178,8 +190,9 @@ export default function TempZoneTrendDialog({
             <h2 id="temp-zone-trend-title">{title}</h2>
             <p className="vrf-trend-meta muted">
               Lämpötilahistoria · {presetLabel}
-              {preset === 'today' ? ' · viimeiset 12 h' : ''}
-              {fetching ? ' · päivitetään…' : ''}
+              {usesRecentWindow ? ' · viimeiset 12 h' : ''}
+              {summary ? ` · ${summary.pointCount} pistettä` : ''}
+              {loading && hasChartData ? ' · päivitetään…' : ''}
             </p>
           </div>
           <div className="vrf-trend-range" role="group" aria-label="Trendin aikaväli">
@@ -188,6 +201,7 @@ export default function TempZoneTrendDialog({
                 key={p.value}
                 type="button"
                 className={`vrf-trend-range-btn ${preset === p.value ? 'active' : ''}`}
+                disabled={loading && !hasChartData}
                 onClick={() => setPreset(p.value)}
               >
                 {p.label}
@@ -195,6 +209,9 @@ export default function TempZoneTrendDialog({
             ))}
           </div>
         </div>
+
+        {fetchError && <p className="form-error">{fetchError}</p>}
+        {showInitialLoader && <p className="muted">Ladataan historiaa…</p>}
 
         {summary && (
           <div
@@ -255,7 +272,7 @@ export default function TempZoneTrendDialog({
         </label>
 
         <div className="vrf-trend-block">
-          {!hasChartData && !fetching ? (
+          {!hasChartData && !loading ? (
             <p className="muted temp-zone-trend-empty">
               Ei mittauksia valitulla jaksolla ({presetLabel.toLowerCase()}). Kokeile pidempää jaksoa tai odota laitteen
               seuraavaa lähetystä.

@@ -5,6 +5,7 @@ import { Link } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
 
 import AppLayout from '../components/AppLayout';
+import EmptyStateCallout from '../components/EmptyStateCallout';
 import WorkReportCreateMenu from '../components/WorkReportCreateMenu';
 import WorkReportFilters, {
   buildWorkReportFilterOptions,
@@ -20,7 +21,10 @@ import WorkReportCalendarTimeline, {
 import {
   buildCalendarEvents,
   CALENDAR_LOG_SELECT,
+  compareActiveReportsForList,
+  CALENDAR_DISPLAY_STATUSES,
   formatAllowedOverlapLabel,
+  formatTimeRange,
 } from '../lib/workReportCalendar';
 
 import { supabase } from '../lib/supabase';
@@ -50,8 +54,6 @@ import {
 
   resolveWorkReportDescription,
 
-  addDays,
-
   addMonths,
 
   formatDateTime,
@@ -59,8 +61,6 @@ import {
   monthGridDays,
 
   startOfMonth,
-
-  startOfWeek,
 
   toLocalYmd,
 
@@ -84,8 +84,6 @@ interface Props {
 
 type Tab = 'calendar' | 'list' | 'history';
 
-type CalendarLayout = 'week' | 'month';
-
 
 
 const HISTORY_STATUSES: WorkStatus[] = ['completed', 'billed_partner', 'billed_customer'];
@@ -106,7 +104,7 @@ const DELEGATION_SELECT = `
 
   partnership_id, customer_id, equipment_id, assigned_user_id,
 
-  delegate_company_id, delegated_at, created_at, subscriber_id,
+  delegate_company_id, delegated_at, created_at, subscriber_id, is_onboarding_demo,
 
   customers(name, subscriber_id),
 
@@ -135,17 +133,13 @@ export default function WorkReportsPage({ session }: Props) {
   const portalSubscriberId = getPortalSubscriberId(profile);
   const [subscriberCustomerIds, setSubscriberCustomerIds] = useState<Set<string>>(() => new Set());
 
-  const [tab, setTab] = useState<Tab>('list');
+  const [tab, setTab] = useState<Tab>('calendar');
 
   const [brandingFilter, setBrandingFilter] = useState('');
   const [personFilter, setPersonFilter] = useState('');
   const [customerFilter, setCustomerFilter] = useState('');
 
-  const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date()));
-
   const [monthAnchor, setMonthAnchor] = useState(() => startOfMonth(new Date()));
-
-  const [calendarLayout, setCalendarLayout] = useState<CalendarLayout>('week');
 
   const [reports, setReports] = useState<WorkReport[]>([]);
 
@@ -248,9 +242,9 @@ export default function WorkReportsPage({ session }: Props) {
 
       setReports(loaded);
 
-      const activeIds = loaded.filter((r) => ACTIVE_STATUSES.includes(r.status)).map((r) => r.id);
+      const calendarIds = loaded.filter((r) => CALENDAR_DISPLAY_STATUSES.includes(r.status)).map((r) => r.id);
 
-      if (activeIds.length === 0) {
+      if (calendarIds.length === 0) {
 
         setLogsByReportId(new Map());
 
@@ -262,7 +256,7 @@ export default function WorkReportsPage({ session }: Props) {
 
           .select(CALENDAR_LOG_SELECT)
 
-          .in('work_report_id', activeIds);
+          .in('work_report_id', calendarIds);
 
         const map = new Map<string, WorkReportDailyLog[]>();
 
@@ -316,13 +310,44 @@ export default function WorkReportsPage({ session }: Props) {
 
   const activeReports = useMemo(
 
-    () => filteredReports.filter((r) => ACTIVE_STATUSES.includes(r.status)),
+    () =>
+      filteredReports
+        .filter((r) => ACTIVE_STATUSES.includes(r.status))
+        .sort(compareActiveReportsForList),
 
     [filteredReports],
 
   );
 
 
+
+  const calendarReports = useMemo(
+    () => filteredReports.filter((r) => CALENDAR_DISPLAY_STATUSES.includes(r.status)),
+    [filteredReports],
+  );
+
+
+
+  const calendarEvents = useMemo(
+
+    () => buildCalendarEvents({ reports: calendarReports, logsByReportId }),
+
+    [calendarReports, logsByReportId],
+
+  );
+
+  const calendarDays = useMemo(() => monthGridDays(monthAnchor), [monthAnchor]);
+
+  const calendarSidebarEvents = useMemo(() => {
+    const visibleDays = new Set(calendarDays.map((day) => toLocalYmd(day)));
+    return calendarEvents
+      .filter((event) => event.kind === 'scheduled' && visibleDays.has(event.dayYmd))
+      .sort((a, b) => {
+        const byDay = a.dayYmd.localeCompare(b.dayYmd);
+        if (byDay !== 0) return byDay;
+        return a.startMinutes - b.startMinutes || a.title.localeCompare(b.title, 'fi');
+      });
+  }, [calendarEvents, calendarDays]);
 
   const allDraftReports = useMemo(
     () => filteredReports.filter((r) => r.status === DRAFT_STATUS),
@@ -339,53 +364,25 @@ export default function WorkReportsPage({ session }: Props) {
     [allDraftReports, session.user.id],
   );
 
-
+  const isCompanyListEmpty =
+    !hasActiveFilters
+    && incomingDelegated.length === 0
+    && sentDelegated.length === 0
+    && activeReports.length === 0
+    && draftReports.length === 0
+    && subscriberPortalOrders.length === 0;
 
   const historyReports = useMemo(
-
     () =>
-
       filteredReports
-
         .filter((r) => HISTORY_STATUSES.includes(r.status))
-
         .sort((a, b) => {
-
           const aTime = a.completed_at ?? a.scheduled_start ?? a.created_at;
-
           const bTime = b.completed_at ?? b.scheduled_start ?? b.created_at;
-
           return new Date(bTime).getTime() - new Date(aTime).getTime();
-
         }),
-
     [filteredReports],
-
   );
-
-
-
-  const calendarEvents = useMemo(
-
-    () => buildCalendarEvents({ reports: activeReports, logsByReportId }),
-
-    [activeReports, logsByReportId],
-
-  );
-
-  const weekDays = useMemo(
-
-    () => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)),
-
-    [weekStart],
-
-  );
-
-
-
-  const monthDays = useMemo(() => monthGridDays(monthAnchor), [monthAnchor]);
-
-  const calendarDays = calendarLayout === 'week' ? weekDays : monthDays;
 
   const activeMonth = monthAnchor.getMonth();
 
@@ -563,15 +560,15 @@ export default function WorkReportsPage({ session }: Props) {
 
         <div className="tabs">
 
-          <button type="button" className={tab === 'list' ? 'tab active' : 'tab'} onClick={() => setTab('list')}>
-
-            Lista
-
-          </button>
-
           <button type="button" className={tab === 'calendar' ? 'tab active' : 'tab'} onClick={() => setTab('calendar')}>
 
             Kalenteri
+
+          </button>
+
+          <button type="button" className={tab === 'list' ? 'tab active' : 'tab'} onClick={() => setTab('list')}>
+
+            Lista
 
           </button>
 
@@ -618,39 +615,26 @@ export default function WorkReportsPage({ session }: Props) {
             <button
               type="button"
               className="btn btn-secondary"
-              onClick={() => {
-                if (calendarLayout === 'week') setWeekStart(addDays(weekStart, -7));
-                else setMonthAnchor(addMonths(monthAnchor, -1));
-              }}
+              onClick={() => setMonthAnchor(addMonths(monthAnchor, -1))}
             >
 
-              ← {calendarLayout === 'week' ? 'Edellinen viikko' : 'Edellinen kuukausi'}
+              ← Edellinen kuukausi
 
             </button>
 
             <strong>
 
-              {calendarLayout === 'week' ? (
-                <>
-                  {formatDateTime(weekStart.toISOString()).split(' ')[0]} –{' '}
-                  {formatDateTime(addDays(weekStart, 6).toISOString()).split(' ')[0]}
-                </>
-              ) : (
-                monthAnchor.toLocaleDateString('fi-FI', { month: 'long', year: 'numeric' })
-              )}
+              {monthAnchor.toLocaleDateString('fi-FI', { month: 'long', year: 'numeric' })}
 
             </strong>
 
             <button
               type="button"
               className="btn btn-secondary"
-              onClick={() => {
-                if (calendarLayout === 'week') setWeekStart(addDays(weekStart, 7));
-                else setMonthAnchor(addMonths(monthAnchor, 1));
-              }}
+              onClick={() => setMonthAnchor(addMonths(monthAnchor, 1))}
             >
 
-              {calendarLayout === 'week' ? 'Seuraava viikko' : 'Seuraava kuukausi'} →
+              Seuraava kuukausi →
 
             </button>
 
@@ -658,29 +642,15 @@ export default function WorkReportsPage({ session }: Props) {
 
           <div className="work-report-calendar-controls">
 
-            <button
-              type="button"
-              className={calendarLayout === 'week' ? 'billing-pill active' : 'billing-pill'}
-              onClick={() => setCalendarLayout('week')}
-            >
-              Viikko
-            </button>
-
-            <button
-              type="button"
-              className={calendarLayout === 'month' ? 'billing-pill active' : 'billing-pill'}
-              onClick={() => setCalendarLayout('month')}
-            >
-              Kuukausi
-            </button>
-
             <span className="muted work-report-calendar-legend">
               07–17 · kellon mukaan skaalattu · max {formatAllowedOverlapLabel()} päällekkäisyys sallittu
             </span>
 
           </div>
 
-          <div className={`calendar-grid ${calendarLayout === 'month' ? 'calendar-grid-month' : ''}`}>
+          <div className="work-report-calendar-layout">
+
+          <div className="calendar-grid calendar-grid-month">
 
             {calendarDays.map((day) => {
 
@@ -694,7 +664,7 @@ export default function WorkReportsPage({ session }: Props) {
                 key={day.toISOString()}
                 className={[
                   'calendar-day',
-                  calendarLayout === 'month' && day.getMonth() !== activeMonth ? 'outside-month' : '',
+                  day.getMonth() !== activeMonth ? 'outside-month' : '',
                 ]
                   .filter(Boolean)
                   .join(' ')}
@@ -708,12 +678,12 @@ export default function WorkReportsPage({ session }: Props) {
 
                 </div>
 
-                <div className={`calendar-day-body ${calendarLayout === 'month' ? 'calendar-day-body-month' : ''}`}>
+                <div className="calendar-day-body calendar-day-body-month">
 
                   <WorkReportCalendarTimeline
                     dayYmd={dayYmd}
                     events={calendarEvents}
-                    compact={calendarLayout === 'month'}
+                    compact
                   />
 
                 </div>
@@ -724,11 +694,52 @@ export default function WorkReportsPage({ session }: Props) {
 
           </div>
 
+          <aside className="work-report-calendar-sidebar panel">
+            <h3>Odottaa päiväkirjausta</h3>
+            {calendarSidebarEvents.length === 0 ? (
+              <p className="muted">Ei ajoitettuja töitä ilman kirjausta valitulla jaksolla.</p>
+            ) : (
+              <ul className="work-report-calendar-sidebar-list">
+                {calendarSidebarEvents.map((event) => (
+                  <li key={event.id}>
+                    <Link to={`/tyoraportit/${event.reportId}`} className="work-report-calendar-sidebar-item">
+                      <strong>{event.title}</strong>
+                      <span className="muted">
+                        {new Date(`${event.dayYmd}T12:00:00`).toLocaleDateString('fi-FI', {
+                          weekday: 'short',
+                          day: 'numeric',
+                          month: 'numeric',
+                        })}
+                        {' · '}
+                        {formatTimeRange(event.startMinutes, event.durationMinutes)}
+                        {' · '}
+                        {getWorkStatusLabel(event.status)}
+                      </span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </aside>
+
+          </div>
+
         </section>
 
       ) : tab === 'list' ? (
 
         <section className="panel">
+
+          {!loading && isCompanyListEmpty && (
+            <EmptyStateCallout
+              title="Ei työraportteja vielä"
+              description="Aloita luonnoksella — asiakas syntyy samalla. Ajoitus kalenteriin on valinnainen."
+              primaryLabel="Luo ensimmäinen työraportti"
+              primaryTo="/tyoraportit/uusi"
+              secondaryLabel="Etusivu"
+              secondaryTo="/"
+            />
+          )}
 
           {incomingDelegated.length > 0 && (
 
@@ -781,6 +792,34 @@ export default function WorkReportsPage({ session }: Props) {
               </ul>
 
             </>
+
+          )}
+
+
+
+          <h2>Tulevat ja käynnissä olevat työt</h2>
+
+          {activeReports.length === 0 ? (
+
+            !isCompanyListEmpty ? (
+              <p className="muted">Ei ajoitettuja tai käynnissä olevia töitä valituilla suodattimilla.</p>
+            ) : null
+
+          ) : (
+
+            <ul className="report-list">
+
+              {activeReports.map((r) => (
+
+                <li key={r.id}>
+
+                  <ReportListItem report={r} />
+
+                </li>
+
+              ))}
+
+            </ul>
 
           )}
 
@@ -844,30 +883,6 @@ export default function WorkReportsPage({ session }: Props) {
               </ul>
 
             </>
-
-          )}
-
-          <h2>Tulevat ja käynnissä olevat työt</h2>
-
-          {activeReports.length === 0 ? (
-
-            <p className="muted">Ei työraportteja valituilla suodattimilla.</p>
-
-          ) : (
-
-            <ul className="report-list">
-
-              {activeReports.map((r) => (
-
-                <li key={r.id}>
-
-                  <ReportListItem report={r} />
-
-                </li>
-
-              ))}
-
-            </ul>
 
           )}
 

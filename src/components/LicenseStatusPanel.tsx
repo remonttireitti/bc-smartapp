@@ -152,7 +152,12 @@ export default function LicenseStatusPanel({ license, canManageOrder, onRefresh 
 
       <p className="muted license-status-foot">
         Tilaus- ja maksuasiat: {GLOBAL_ADMIN_SUPPORT.email}.{' '}
-        <a href="/BC-Smartapp-kayttoohje.pdf" target="_blank" rel="noreferrer">
+        <a
+          href="/BC-Smartapp-kayttoohje.pdf"
+          download="BC-Smartapp-kayttoohje.pdf"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
           Lataa käyttöohje (PDF)
         </a>
         {' · '}

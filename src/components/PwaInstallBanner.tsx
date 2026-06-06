@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
 import { isIosDevice, isMobileDevice, isStandaloneDisplayMode } from '../hooks/useNetworkStatus';
+import { getAppVisitCount } from '../lib/dashboardOnboarding';
 
 const DISMISS_KEY = 'bc-smartapp-pwa-install-dismissed';
+const PWA_DEFER_MIN_VISITS = 2;
 
 type BeforeInstallPromptEvent = Event & {
   prompt: () => Promise<void>;
@@ -16,15 +18,21 @@ function isDismissed() {
   }
 }
 
+function shouldDeferInstall() {
+  return getAppVisitCount() < PWA_DEFER_MIN_VISITS;
+}
+
 export default function PwaInstallBanner() {
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
-  const [hidden, setHidden] = useState(() => isStandaloneDisplayMode() || isDismissed());
+  const [hidden, setHidden] = useState(
+    () => isStandaloneDisplayMode() || isDismissed() || shouldDeferInstall(),
+  );
   const [busy, setBusy] = useState(false);
   const mobile = isMobileDevice();
   const ios = isIosDevice();
 
   useEffect(() => {
-    if (hidden) return;
+    if (hidden || shouldDeferInstall()) return;
 
     const handler = (event: Event) => {
       event.preventDefault();
@@ -59,6 +67,13 @@ export default function PwaInstallBanner() {
       setBusy(false);
     }
   }
+
+  useEffect(() => {
+    if (isStandaloneDisplayMode() || isDismissed()) return;
+    if (!shouldDeferInstall()) {
+      setHidden(false);
+    }
+  }, []);
 
   if (hidden) return null;
 

@@ -1,0 +1,14 @@
+firmware
+supabase
+scripts/.cache/
+.pio
+**/.pio
+.git
+*.log
+*-log.txt
+.env
+.env.*
+.supabase
+tsconfig.tsbuildinfo
+agent-transcripts
+mcps

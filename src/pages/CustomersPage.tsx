@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
 import AppLayout from '../components/AppLayout';
+import EmptyStateCallout from '../components/EmptyStateCallout';
 import ToggleSwitch from '../components/ToggleSwitch';
 import { CustomerListItem } from '../components/CustomerListItem';
 import { CUSTOMER_SELECT } from '../lib/customers';
@@ -147,8 +148,7 @@ export default function CustomersPage({ session }: Props) {
               )
             ) : (
               <>
-                {profile?.companies?.name ?? '—'} • asiakasrekisteri, laitteet ja dokumentit. Uusi asiakas luodaan{' '}
-                <Link to="/tyoraportit/uusi">työraportin</Link> yhteydessä.
+                {profile?.companies?.name ?? '—'} • asiakasrekisteri, laitteet ja dokumentit.
               </>
             )}
           </p>
@@ -212,11 +212,22 @@ export default function CustomersPage({ session }: Props) {
         <section className="panel">
           <h2>{portalMode ? `Kohteet (${filteredCustomers.length})` : `Asiakasrekisteri (${filteredCustomers.length})`}</h2>
           {filteredCustomers.length === 0 ? (
-            <p className="muted">
-              {portalMode
-                ? 'Ei linkitettyjä kohteita. Pyydä palveluyritystä linkittämään kohteet tilaajaasi.'
-                : 'Ei asiakkaita valituilla suodattimilla.'}
-            </p>
+            portalMode ? (
+              <p className="muted">
+                Ei linkitettyjä kohteita. Pyydä palveluyritystä linkittämään kohteet tilaajaasi.
+              </p>
+            ) : search.trim() || ownOnly ? (
+              <p className="muted">Ei asiakkaita valituilla suodattimilla.</p>
+            ) : (
+              <EmptyStateCallout
+                title="Ei asiakkaita vielä"
+                description="Asiakas luodaan työraportin yhteydessä. Aloita luonnoksella — voit täydentää tiedot myöhemmin."
+                primaryLabel="Luo työraportti"
+                primaryTo="/tyoraportit/uusi"
+                secondaryLabel="Takaisin etusivulle"
+                secondaryTo="/"
+              />
+            )
           ) : (
             <ul className="report-list">
               {filteredCustomers.map((c) => (

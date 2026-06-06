@@ -3,8 +3,12 @@ import { Link } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
 import { Navigate } from 'react-router-dom';
 import AppLayout from '../components/AppLayout';
+import DashboardTrialBanner from '../components/DashboardTrialBanner';
+import DashboardWelcomeCard from '../components/DashboardWelcomeCard';
+import OnboardingDemoPanel from '../components/OnboardingDemoPanel';
 import PendingWorkOrdersBanner from '../components/PendingWorkOrdersBanner';
 import QuickSearch from '../components/QuickSearch';
+import { incrementAppVisit } from '../lib/dashboardOnboarding';
 import { useCompanyBillingModuleEnabled } from '../hooks/useCompanyBillingModuleEnabled';
 import { useCompanyLicense } from '../hooks/useCompanyLicense';
 import { useProfile } from '../hooks/useProfile';
@@ -84,8 +88,15 @@ export default function Dashboard({ session }: Props) {
     });
   }, [portalView, license, billingModuleEnabled]);
   const [pendingOrders, setPendingOrders] = useState<PendingWorkOrderCounts>(EMPTY_PENDING);
+  const [onboardingRefreshKey, setOnboardingRefreshKey] = useState(0);
 
   const companyId = profile?.company_id ?? '';
+
+  useEffect(() => {
+    if (!portalView) {
+      incrementAppVisit();
+    }
+  }, [portalView]);
 
   useEffect(() => {
     if (portalView || !companyId) {
@@ -104,11 +115,34 @@ export default function Dashboard({ session }: Props) {
     return <Navigate to={monitorReaderHubPath()} replace />;
   }
 
+  const showTrialBanner =
+    !portalView && license && license.enrollment !== 'legacy'
+    && (license.effective_status === 'trial' || license.effective_status === 'pending_trial');
+  const isAdmin = profile?.role === 'admin';
+
   return (
     <AppLayout session={session}>
       <p className="subtitle">
         {profile?.companies?.name ?? 'Ei yritystä'} • {roleLabel}
       </p>
+
+      {!portalView && (
+        <DashboardWelcomeCard
+          key={onboardingRefreshKey}
+          session={session}
+          profile={profile}
+          isAdmin={isAdmin}
+        />
+      )}
+
+      {!portalView && (
+        <OnboardingDemoPanel
+          companyId={companyId}
+          onChanged={() => setOnboardingRefreshKey((value) => value + 1)}
+        />
+      )}
+
+      {showTrialBanner && license && <DashboardTrialBanner license={license} />}
 
       {!portalView && pendingOrders.total > 0 && (
         <PendingWorkOrdersBanner counts={pendingOrders} />

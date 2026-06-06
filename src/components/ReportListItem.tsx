@@ -33,6 +33,7 @@ export function ReportListItem({
       <div className="report-link-body">
 
         <strong>{report.title}</strong>
+        {report.is_onboarding_demo && <span className="badge badge-demo">Esimerkki</span>}
 
         <div className="report-meta-row">
 

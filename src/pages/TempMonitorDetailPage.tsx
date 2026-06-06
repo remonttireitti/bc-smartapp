@@ -251,7 +251,7 @@ export default function TempMonitorDetailPage({ session }: Props) {
           .select(TEMP_READING_SELECT)
           .eq('device_id', deviceId)
           .gte('recorded_at', since)
-          .order('recorded_at', { ascending: true })
+          .order('recorded_at', { ascending: false })
           .limit(10000),
         supabase
           .from('temp_monitor_reports')
@@ -268,7 +268,7 @@ export default function TempMonitorDetailPage({ session }: Props) {
         return;
       }
 
-      const nextReadings = (readingRows as TempReading[] | null) ?? [];
+      const nextReadings = ((readingRows as TempReading[] | null) ?? []).slice().reverse();
       setDevice(deviceRow as TempDevice);
       setSessions((sessionRows as TempMonitorSession[] | null) ?? []);
       setReadings(nextReadings);

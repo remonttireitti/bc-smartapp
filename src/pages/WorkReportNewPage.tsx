@@ -884,7 +884,8 @@ export default function WorkReportNewPage({ session }: Props) {
 
       assigned_user_id: session.user.id,
 
-      scheduled_start: combineDateAndHour(scheduledDate, scheduledHour),
+      scheduled_start:
+        targetStatus === 'scheduled' ? combineDateAndHour(scheduledDate, scheduledHour) : null,
 
       scheduled_end: null,
 
@@ -1125,6 +1126,21 @@ export default function WorkReportNewPage({ session }: Props) {
   });
 
   async function onSubmit(e: FormEvent) {
+
+    e.preventDefault();
+
+    if (isSubscriberPortalOrder) {
+      await saveReport('scheduled');
+      return;
+    }
+
+    await saveReport('draft');
+
+  }
+
+
+
+  async function onSchedule(e: FormEvent) {
 
     e.preventDefault();
 
@@ -1501,9 +1517,14 @@ export default function WorkReportNewPage({ session }: Props) {
 
 
 
-        <section className="form-section">
+        <details className="form-section work-report-schedule-details">
 
-          <h2>Kalenteri</h2>
+          <summary>Ajoita kalenteriin (valinnainen)</summary>
+
+          <p className="muted">
+            Voit tallentaa luonnoksen ilman ajastusta ja ajoittaa työn myöhemmin. Valitse tuleva päivä ja klo
+            07:00–16:30 (puolen tunnin tarkkuudella).
+          </p>
 
           <div className="line-form-grid">
 
@@ -1545,9 +1566,20 @@ export default function WorkReportNewPage({ session }: Props) {
 
           </div>
 
-          <p className="muted">Valitse tuleva päivä ja klo 07:00–16:30 (puolen tunnin tarkkuudella).</p>
+          <div className="form-actions" style={{ marginTop: '0.75rem' }}>
 
-        </section>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              disabled={busy || !profile?.company_id}
+              onClick={(e) => void onSchedule(e)}
+            >
+              {busy ? 'Tallennetaan…' : 'Merkitse ajoitetuksi'}
+            </button>
+
+          </div>
+
+        </details>
 
 
 
@@ -1590,7 +1622,9 @@ export default function WorkReportNewPage({ session }: Props) {
               ? 'Tallennetaan…'
               : isSubscriberPortalOrder
                 ? 'Ota vastaan ja ajoita'
-                : 'Merkitse ajoitetuksi'}
+                : reportId
+                  ? 'Tallenna ja jatka'
+                  : 'Tallenna luonnos'}
 
           </button>
 

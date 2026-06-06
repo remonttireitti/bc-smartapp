@@ -126,8 +126,8 @@ export function formatZoneTrendTimeLabel(ms: number, spanMs: number): string {
 /** Mittausvälien mediaani → raja, milloin jakson väliä ei yhdistetä viivalla. */
 export function tempReadingGapThresholdMs(sorted: TempReading[], spanMs: number): number {
   const minGap = 15 * 60_000;
-  const maxGap = Math.max(spanMs / 20, minGap);
-  if (sorted.length < 2) return Math.min(Math.max(spanMs / 200, minGap), maxGap);
+  const maxGap = Math.max(spanMs / 8, 2 * 3600_000);
+  if (sorted.length < 2) return Math.min(Math.max(spanMs / 40, minGap), maxGap);
   const intervals: number[] = [];
   for (let i = 1; i < sorted.length; i += 1) {
     intervals.push(
@@ -136,7 +136,7 @@ export function tempReadingGapThresholdMs(sorted: TempReading[], spanMs: number)
   }
   intervals.sort((a, b) => a - b);
   const median = intervals[Math.floor(intervals.length / 2)];
-  return Math.min(Math.max(median * 3, minGap), maxGap);
+  return Math.min(Math.max(median * 4, minGap), maxGap);
 }
 
 /** Mittausryhmät, joita ei erota dataton aukko (kuten VRF-trendissä). */
@@ -160,6 +160,13 @@ export function splitTempReadingsByGaps(readings: TempReading[], gapThreshold: n
 
 export function trendPresetSinceIso(preset: ZoneTrendPreset, nowMs = Date.now()): string {
   return new Date(zoneTrendPeriodFromPreset(preset, nowMs).startMs).toISOString();
+}
+
+/** Trendihaku: riittävästi pisteitä, ei turhaa ylärajaa. */
+export function tempTrendReadingLimit(preset: ZoneTrendPreset): number {
+  if (preset === 'today') return 2500;
+  if (preset === '7d') return 5000;
+  return 10_000;
 }
 
 /** Yhdistä useita lukumääriä — myöhemmät joukot voittavat (live-puskuri viimeisenä). */
@@ -234,7 +241,7 @@ export function appendLiveTrendSample(
     .slice(-5000);
 }
 
-/** Graafin aika-akseli — tänään zoomaa viimeisiin 12 h kun data on tuoretta. */
+/** Graafin aika-akseli — tänään koko kalenteripäivä, ellei kaikki data ole viimeisen 12 h sisällä. */
 export function zoneTrendChartPeriod(
   preset: ZoneTrendPreset,
   readings: TempReading[],
@@ -247,15 +254,62 @@ export function zoneTrendChartPeriod(
   const rows = filterReadingsForSensor(readings, activeSensor);
   if (rows.length === 0) return base;
 
-  const lastMs = new Date(rows[rows.length - 1].recorded_at).getTime();
   const recentWindowMs = 12 * 3600_000;
+  const recentStartMs = Math.max(base.startMs, nowMs - recentWindowMs);
+  const hasOlderTodayData = rows.some(
+    (row) => new Date(row.recorded_at).getTime() < recentStartMs,
+  );
 
+  if (hasOlderTodayData) return base;
+
+  const lastMs = new Date(rows[rows.length - 1].recorded_at).getTime();
   if (nowMs - lastMs <= 2 * 3600_000) {
-    const startMs = Math.max(base.startMs, nowMs - recentWindowMs);
-    return { startMs, endMs: nowMs, span: Math.max(nowMs - startMs, 60_000) };
+    return {
+      startMs: recentStartMs,
+      endMs: nowMs,
+      span: Math.max(nowMs - recentStartMs, 60_000),
+    };
   }
 
   return base;
+}
+
+export function filterReadingsForChartPeriod(
+  readings: TempReading[],
+  period: ZoneTrendPeriod,
+): TempReading[] {
+  return readings.filter((row) => {
+    const t = new Date(row.recorded_at).getTime();
+    return t >= period.startMs && t <= period.endMs;
+  });
+}
+
+/** Lähin mittaus anturille annetulla hetkellä (binäärihaku). */
+export function nearestZoneReadingAtTime(
+  readings: TempReading[],
+  period: ZoneTrendPeriod,
+  timeMs: number,
+  sensor: number,
+): TempReading | null {
+  const sorted = filterReadingsForChartPeriod(filterReadingsForSensor(readings, sensor), period);
+  if (sorted.length === 0) return null;
+  if (sorted.length === 1) return sorted[0];
+
+  let lo = 0;
+  let hi = sorted.length - 1;
+  while (lo < hi) {
+    const mid = Math.floor((lo + hi) / 2);
+    const midMs = new Date(sorted[mid].recorded_at).getTime();
+    if (midMs < timeMs) lo = mid + 1;
+    else hi = mid;
+  }
+
+  if (lo === 0) return sorted[0];
+  const prev = sorted[lo - 1];
+  const next = sorted[lo];
+  const prevMs = new Date(prev.recorded_at).getTime();
+  const nextMs = new Date(next.recorded_at).getTime();
+  return timeMs - prevMs <= nextMs - timeMs ? prev : next;
 }
 
 /** Kun pisteitä on vähän, zoomaa aika-akseli datan ympärille — yksi piste ei jää nurkkaan. */

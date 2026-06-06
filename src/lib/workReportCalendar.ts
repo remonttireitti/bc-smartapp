@@ -175,14 +175,39 @@ export function buildCalendarTimeRanges(input: {
   return ranges;
 }
 
+export function compareActiveReportsForList(a: WorkReport, b: WorkReport): number {
+  const statusOrder = (status: WorkStatus) => (status === 'scheduled' ? 0 : status === 'in_progress' ? 1 : 2);
+  const byStatus = statusOrder(a.status) - statusOrder(b.status);
+  if (byStatus !== 0) return byStatus;
+  const aTime = a.scheduled_start ? new Date(a.scheduled_start).getTime() : Number.MAX_SAFE_INTEGER;
+  const bTime = b.scheduled_start ? new Date(b.scheduled_start).getTime() : Number.MAX_SAFE_INTEGER;
+  if (aTime !== bTime) return aTime - bTime;
+  return a.title.localeCompare(b.title, 'fi');
+}
+
+export const CALENDAR_DISPLAY_STATUSES: WorkStatus[] = [
+  'scheduled',
+  'in_progress',
+  'completed',
+  'billed_partner',
+  'billed_customer',
+];
+
 export function buildCalendarEvents(input: {
   reports: WorkReport[];
   logsByReportId: Map<string, WorkReportDailyLog[]>;
 }): WorkReportCalendarEvent[] {
   const events: WorkReportCalendarEvent[] = [];
+  const calendarStatuses: WorkStatus[] = [
+    'scheduled',
+    'in_progress',
+    'completed',
+    'billed_partner',
+    'billed_customer',
+  ];
 
   for (const report of input.reports) {
-    if (!['scheduled', 'in_progress'].includes(report.status)) continue;
+    if (!calendarStatuses.includes(report.status)) continue;
     const logs = input.logsByReportId.get(report.id) ?? [];
     const customer = report.customers?.name ?? report.location_text ?? '—';
     const performer =
@@ -190,12 +215,17 @@ export function buildCalendarEvents(input: {
       report.created_by_user?.display_name ??
       '—';
 
-    if (logs.length === 0 && report.scheduled_start) {
+    if (
+      logs.length === 0 &&
+      report.scheduled_start &&
+      (report.status === 'scheduled' || report.status === 'in_progress')
+    ) {
       const parts = scheduledStartParts(report.scheduled_start);
       if (!parts) continue;
       const durationMinutes = SCHEDULE_PLACEHOLDER_HOURS * 60;
       const timeLabel = formatTimeRange(parts.startMinutes, durationMinutes);
-      const statusLabel = report.status === 'scheduled' ? WORK_STATUS_LABELS.scheduled : WORK_STATUS_LABELS.in_progress;
+      const statusLabel =
+        report.status === 'scheduled' ? WORK_STATUS_LABELS.scheduled : WORK_STATUS_LABELS.in_progress;
       events.push({
         id: `${report.id}-scheduled`,
         reportId: report.id,

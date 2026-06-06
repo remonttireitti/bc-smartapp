@@ -61,6 +61,7 @@ export type Customer = {
   notes: string | null;
   owner_company_id: string;
   subscriber_id?: string | null;
+  is_onboarding_demo?: boolean;
   subscriber?: { id: string; name: string } | null;
   owner_company?: { name: string } | null;
   created_at?: string;
@@ -221,6 +222,7 @@ export type WorkReport = {
   assigned_user_deleted?: boolean;
   delegate_company_id: string | null;
   delegated_at: string | null;
+  is_onboarding_demo?: boolean;
   created_at: string;
   customers: { name: string; address?: string | null; city?: string | null } | null;
   equipment: { name: string; tag: string | null } | null;
