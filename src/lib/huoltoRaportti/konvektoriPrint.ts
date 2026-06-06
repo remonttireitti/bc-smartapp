@@ -1,10 +1,10 @@
 import { KONVEKTORI_TARKASTUS_ITEMS, konvektoriTarkastusSummary } from './konvektoriTarkastus';
 import {
   formatKonvektoriLampotila,
+  formatKonvektoriTeho,
   formatKonvektoriVirtaus,
   konvektoriImageUrl,
   konvektoriJaahdytysNesteLabel,
-  konvektoriOutputMeasurement,
   konvektoriOverlayPositions,
   konvektoriTyyppiLabel,
   normalizeKonvektoriTyyppi,
@@ -21,13 +21,36 @@ const CHECK_SHORT: Record<string, string> = {
   ohjausToimii: 'Ohj',
 };
 
-function posStyle(pos: { top?: string; bottom?: string; left?: string; right?: string }): string {
-  const parts = ['position:absolute', 'max-width:46%', 'line-height:1.15', 'padding:1px 2px', 'border-radius:2px', 'background:rgba(255,255,255,0.92)', 'border:1px solid #cbd5e1', 'font-size:6px', 'font-weight:600', 'color:#0f172a', 'white-space:nowrap'];
-  if (pos.top) parts.push(`top:${pos.top}`);
-  if (pos.bottom) parts.push(`bottom:${pos.bottom}`);
-  if (pos.left) parts.push(`left:${pos.left}`);
-  if (pos.right) parts.push(`right:${pos.right}`);
+function anchorStyle(anchor: { top?: string; bottom?: string; left?: string; right?: string }): string {
+  const parts = ['position:absolute', 'z-index:2', 'pointer-events:none'];
+  if (anchor.top) parts.push(`top:${anchor.top}`);
+  if (anchor.bottom) parts.push(`bottom:${anchor.bottom}`);
+  if (anchor.left) parts.push(`left:${anchor.left}`);
+  if (anchor.right) parts.push(`right:${anchor.right}`);
   return parts.join(';');
+}
+
+function overlayChip(text: string): string {
+  return `<div style="padding:1px 3px;border-radius:2px;background:rgba(255,255,255,0.96);border:1px solid #cbd5e1;font-size:6px;font-weight:600;color:#0f172a;white-space:nowrap;line-height:1.25;">${text}</div>`;
+}
+
+function renderWaterOverlayColumn(
+  anchor: { top?: string; bottom?: string; left?: string; right?: string },
+  lines: string[],
+): string {
+  if (lines.length === 0) return '';
+  return `<div style="${anchorStyle(anchor)};display:flex;flex-direction:column;gap:2px;align-items:flex-start;max-width:48%;">
+    ${lines.map((line) => overlayChip(line)).join('')}
+  </div>`;
+}
+
+function konvektoriImageAirOutput(row: KonvektoriRowData): { label: string; value: string } | null {
+  if (calculateKonvektoriVesipiirinTeho(row)) return null;
+  const puh = formatKonvektoriLampotila(row.puhallusLampotila);
+  if (puh) return { label: 'Puhallus', value: puh };
+  const teho = formatKonvektoriTeho(row.mitattuTeho);
+  if (teho) return { label: 'Teho', value: teho };
+  return null;
 }
 
 function renderCheckMark(checked: boolean | null | undefined): string {
@@ -58,7 +81,7 @@ function renderKonvektoriCheckLegend(esc: (v: unknown) => string): string {
     <div style="font-size:7px;color:#334155;line-height:1.35;margin:0 0 6px 0;padding:5px 7px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:3px;">
       <div style="font-weight:700;margin-bottom:4px;color:#00838F;">Tarkastuskohdat (✓ = OK, ✗ = ei OK, – = ei vastattu)</div>
       ${rows}
-      <div style="margin-top:4px;color:#64748b;">Ruudun tausta: vihreä = kaikki OK · punertava = vika tai jokin kohta Ei. Mittaukset kuvan päällä: Huone = imuilma, Tulo/Meno = vesi, Virtaus = l/s putkilla. Jäähdytysteho lasketaan: P ≈ c_p × virtaus(l/s) × (meno − tulo), kun neste, virtaus ja lämpötilat on syötetty.</div>
+      <div style="margin-top:4px;color:#64748b;">Ruudun tausta: vihreä = kaikki OK · punertava = vika tai jokin kohta Ei. Kuvan päällä: Huone = imuilma, vasemmalla pino = tulo/virtaus/meno. Neste, virtaus ja laskettu teho otsikkorivillä.</div>
     </div>`;
 }
 
@@ -76,7 +99,7 @@ function renderKonvektoriCard(
   const tulo = formatKonvektoriLampotila(row.tuloLampotila);
   const meno = formatKonvektoriLampotila(row.menoLampotila);
   const huoneLampo = formatKonvektoriLampotila(row.huoneLampotila);
-  const output = konvektoriOutputMeasurement(row);
+  const airOutput = konvektoriImageAirOutput(row);
 
   const metaParts = [
     row.tunnus?.trim(),
@@ -110,12 +133,20 @@ function renderKonvektoriCard(
       : esc(row.huomio)
     : '<span style="color:#94a3b8;">—</span>';
 
+  const waterLines = [
+    tulo ? `Tulo ${esc(tulo)}` : '',
+    virtausLabel ? `Virtaus ${esc(virtausLabel)}` : '',
+    meno ? `Meno ${esc(meno)}` : '',
+  ].filter(Boolean);
+
   const overlayHtml = [
-    huoneLampo ? `<div style="${posStyle(overlay.imu)}">Huone ${esc(huoneLampo)}</div>` : '',
-    tulo ? `<div style="${posStyle(overlay.tulo)}">Tulo ${esc(tulo)}</div>` : '',
-    meno ? `<div style="${posStyle(overlay.meno)}">Meno ${esc(meno)}</div>` : '',
-    virtausLabel ? `<div style="${posStyle(overlay.virtaus)}">${esc(virtausLabel)}</div>` : '',
-    output ? `<div style="${posStyle(overlay.output)}">${esc(output.label)} ${esc(output.value)}</div>` : '',
+    renderWaterOverlayColumn(overlay.water, waterLines),
+    huoneLampo
+      ? `<div style="${anchorStyle(overlay.imu)}">${overlayChip(`Huone ${esc(huoneLampo)}`)}</div>`
+      : '',
+    airOutput
+      ? `<div style="${anchorStyle(overlay.output)}">${overlayChip(`${esc(airOutput.label)} ${esc(airOutput.value)}`)}</div>`
+      : '',
   ].filter(Boolean).join('');
 
   const cardColors = konvektoriCardColors(row);
@@ -125,7 +156,7 @@ function renderKonvektoriCard(
       <div style="font-size:7px;font-weight:700;color:#00838F;line-height:1.2;margin-bottom:2px;">${index + 1}. ${esc(typeLabel)}</div>
       <div style="font-size:6px;color:#334155;line-height:1.25;margin-bottom:3px;word-wrap:break-word;">${metaParts.length ? esc(metaParts.join(' · ')) : '—'}</div>
       ${nesteVirtausHtml}
-      <div style="position:relative;width:100%;height:72px;margin-bottom:3px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:3px;overflow:hidden;">
+      <div style="position:relative;width:100%;height:80px;margin-bottom:3px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:3px;overflow:visible;">
         <img src="${escAttr(imgUrl)}" alt="" style="width:100%;height:100%;object-fit:contain;display:block;" />
         ${overlayHtml}
       </div>

@@ -57,42 +57,33 @@ export function konvektoriImageUrl(tyyppi: unknown, origin = ''): string {
   return path;
 }
 
-type OverlayPos = { top?: string; bottom?: string; left?: string; right?: string };
+type OverlayAnchor = { top?: string; bottom?: string; left?: string; right?: string };
 
 const OVERLAY_BY_TYYPPI: Record<KonvektoriAsennustyyppi, {
-  tulo: OverlayPos;
-  meno: OverlayPos;
-  imu: OverlayPos;
-  virtaus: OverlayPos;
-  output: OverlayPos;
+  /** Vasemman reunan pino: tulo, virtaus, meno */
+  water: OverlayAnchor;
+  imu: OverlayAnchor;
+  output: OverlayAnchor;
 }> = {
   katto: {
-    tulo: { top: '40%', left: '1%' },
-    meno: { top: '56%', left: '1%' },
-    imu: { top: '10%', left: '42%' },
-    virtaus: { top: '48%', left: '1%' },
-    output: { bottom: '6%', right: '4%' },
+    water: { top: '22%', left: '1%' },
+    imu: { top: '4%', left: '38%' },
+    output: { bottom: '4%', right: '2%' },
   },
   seina: {
-    tulo: { top: '36%', left: '1%' },
-    meno: { top: '52%', left: '1%' },
-    imu: { top: '2%', right: '6%' },
-    virtaus: { top: '44%', left: '1%' },
-    output: { bottom: '10%', left: '32%' },
+    water: { top: '28%', left: '1%' },
+    imu: { top: '2%', right: '4%' },
+    output: { bottom: '8%', left: '28%' },
   },
   lattia: {
-    tulo: { top: '30%', left: '1%' },
-    meno: { top: '46%', left: '1%' },
-    imu: { bottom: '8%', left: '34%' },
-    virtaus: { top: '38%', left: '1%' },
-    output: { top: '6%', left: '38%' },
+    water: { top: '24%', left: '1%' },
+    imu: { bottom: '6%', left: '30%' },
+    output: { top: '4%', left: '36%' },
   },
   kanavoitava: {
-    tulo: { top: '38%', left: '1%' },
-    meno: { top: '52%', left: '1%' },
-    imu: { bottom: '6%', left: '38%' },
-    virtaus: { top: '45%', left: '1%' },
-    output: { top: '4%', left: '55%' },
+    water: { top: '26%', left: '1%' },
+    imu: { bottom: '4%', left: '34%' },
+    output: { top: '2%', right: '2%' },
   },
 };
 
