@@ -4413,6 +4413,42 @@ textarea {
     min-width: 0;
     max-width: 100%;
     overflow-x: clip;
+    padding-bottom: calc(11rem + env(safe-area-inset-bottom, 0px));
+  }
+
+  .maintenance-form input,
+  .maintenance-form select,
+  .maintenance-form textarea {
+    scroll-margin-bottom: 10rem;
+  }
+
+  .huolto-module-section {
+    overflow: visible;
+  }
+
+  .huolto-table-wrap {
+    display: none;
+  }
+
+  .huolto-mobile-cards {
+    display: flex;
+    flex-direction: column;
+    gap: .75rem;
+    margin-top: .5rem;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .huolto-mobile-cards .line-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .huolto-konvektori-checks {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .huolto-konvektori-checks label {
+    min-height: 2.75rem;
   }
 
   .quote-form .section-header-row {
@@ -4828,6 +4864,80 @@ textarea {
   justify-content: space-between;
   align-items: center;
   gap: 1rem;
+}
+
+.huolto-table-wrap {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  margin-top: .5rem;
+}
+
+.huolto-table {
+  width: 100%;
+  min-width: 52rem;
+  border-collapse: collapse;
+  font-size: .85rem;
+}
+
+.huolto-table th,
+.huolto-table td {
+  border: 1px solid var(--border-strong);
+  padding: .4rem .5rem;
+  vertical-align: top;
+  text-align: left;
+}
+
+.huolto-table th {
+  background: var(--bg-muted);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.huolto-table td input,
+.huolto-table td select {
+  width: 100%;
+  min-width: 4.25rem;
+  min-height: 2.25rem;
+  font-size: .85rem;
+}
+
+.huolto-table td input[type='checkbox'] {
+  width: 1.1rem;
+  height: 1.1rem;
+  min-height: auto;
+  min-width: auto;
+}
+
+.huolto-table-checkbox {
+  text-align: center;
+  vertical-align: middle;
+  width: 3.25rem;
+}
+
+.huolto-mobile-cards {
+  display: none;
+}
+
+.huolto-konvektori-checks {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr));
+  gap: .5rem .75rem;
+}
+
+.huolto-konvektori-checks label {
+  display: flex;
+  align-items: center;
+  gap: .45rem;
+  min-height: 2.5rem;
+  font-weight: 500;
+}
+
+.huolto-konvektori-checks input[type='checkbox'] {
+  width: 1.2rem;
+  height: 1.2rem;
+  flex-shrink: 0;
 }
 
 .huolto-circuit-body {

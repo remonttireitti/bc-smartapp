@@ -147,7 +147,7 @@ export function KonvektoritSection({ rows, onChange }: Props) {
                 onChange={(v) => patchRow(index, { sarjanumero: v })}
               />
             </div>
-            <div className="checkbox-grid">
+            <div className="checkbox-grid huolto-konvektori-checks">
               {CHECKBOX_FIELDS.map(([field, label]) => (
                 <label key={field}>
                   <input
