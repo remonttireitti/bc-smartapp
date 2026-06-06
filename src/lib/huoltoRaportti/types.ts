@@ -193,6 +193,8 @@ export interface KonvektoriRowData {
   valmistaja: string;
   malli: string;
   sarjanumero: string;
+  /** Huoneen / imuilman lämpötila */
+  huoneLampotila?: string;
   /** Menoveden / tuloveden lämpötilat */
   tuloLampotila?: string;
   menoLampotila?: string;

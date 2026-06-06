@@ -61,26 +61,31 @@ type OverlayPos = { top?: string; bottom?: string; left?: string; right?: string
 const OVERLAY_BY_TYYPPI: Record<KonvektoriAsennustyyppi, {
   tulo: OverlayPos;
   meno: OverlayPos;
+  imu: OverlayPos;
   output: OverlayPos;
 }> = {
   katto: {
     tulo: { top: '40%', left: '1%' },
     meno: { top: '56%', left: '1%' },
+    imu: { top: '10%', left: '42%' },
     output: { bottom: '6%', right: '4%' },
   },
   seina: {
     tulo: { top: '36%', left: '1%' },
     meno: { top: '52%', left: '1%' },
+    imu: { top: '2%', right: '6%' },
     output: { bottom: '10%', left: '32%' },
   },
   lattia: {
     tulo: { top: '30%', left: '1%' },
     meno: { top: '46%', left: '1%' },
+    imu: { bottom: '8%', left: '34%' },
     output: { top: '6%', left: '38%' },
   },
   kanavoitava: {
     tulo: { top: '38%', left: '1%' },
     meno: { top: '52%', left: '1%' },
+    imu: { bottom: '6%', left: '38%' },
     output: { top: '4%', left: '55%' },
   },
 };

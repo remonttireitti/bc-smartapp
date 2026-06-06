@@ -84,6 +84,16 @@ export function KonvektoriTarkastusDialog({ open, row, rowLabel, onClose, onSave
           <h3 className="konvektori-mittaukset-title">Mittaukset</h3>
           <div className="konvektori-mittaukset-grid">
             <label className="konvektori-mittaus-field">
+              Huone °C (imuilma)
+              <input
+                type="text"
+                inputMode="decimal"
+                value={draft.huoneLampotila ?? ''}
+                onChange={(e) => setDraft((prev) => ({ ...prev, huoneLampotila: e.target.value }))}
+                placeholder="esim. 24"
+              />
+            </label>
+            <label className="konvektori-mittaus-field">
               Tulo °C
               <input
                 type="text"

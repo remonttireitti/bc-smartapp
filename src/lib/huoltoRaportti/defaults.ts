@@ -50,6 +50,7 @@ export function createEmptyKonvektoriRow(): KonvektoriRowData {
     valmistaja: '',
     malli: '',
     sarjanumero: '',
+    huoneLampotila: '',
     tuloLampotila: '',
     menoLampotila: '',
     puhallusLampotila: '',
@@ -154,6 +155,7 @@ export function konvektoriRowHasMaintenanceData(row: KonvektoriRowData): boolean
     || row.huomio.trim()
     || row.huomioTyyppi === 'vika'
     || Boolean(row.huone?.trim())
+    || Boolean(row.huoneLampotila?.trim())
     || Boolean(row.tuloLampotila?.trim())
     || Boolean(row.menoLampotila?.trim())
     || Boolean(row.puhallusLampotila?.trim())
@@ -176,6 +178,7 @@ export function konvektoriRowsMaintenanceScore(rows: KonvektoriRowData[] | undef
     if (row.venttiiliTarkastettu !== null) score += 1;
     if (row.ohjausToimii != null) score += 1;
     if (row.huone?.trim()) score += 1;
+    if (row.huoneLampotila?.trim()) score += 1;
     if (row.tuloLampotila?.trim()) score += 1;
     if (row.menoLampotila?.trim()) score += 1;
     if (row.puhallusLampotila?.trim() || row.mitattuTeho?.trim()) score += 1;
@@ -198,6 +201,7 @@ export function ensureKonvektoriRow(data: Partial<KonvektoriRowData> | undefined
     valmistaja: String(data.valmistaja ?? raw.valmistaja ?? '').trim(),
     malli: String(data.malli ?? raw.malli ?? '').trim(),
     sarjanumero: String(data.sarjanumero ?? raw.sarjanumero ?? '').trim(),
+    huoneLampotila: String(data.huoneLampotila ?? raw.huoneLampotila ?? raw.imuilmaLampotila ?? '').trim(),
     tuloLampotila: String(data.tuloLampotila ?? raw.tuloLampotila ?? '').trim(),
     menoLampotila: String(data.menoLampotila ?? raw.menoLampotila ?? '').trim(),
     puhallusLampotila: String(data.puhallusLampotila ?? raw.puhallusLampotila ?? '').trim(),
