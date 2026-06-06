@@ -35,6 +35,7 @@ import {
   hideMaintenancePrintWarnings,
   createEmptyHuoltoReportData,
   createEmptyMlpData,
+  createEmptyKonvektoriRow,
   ensureChillerLiquidCondenserData,
   konvektoriRowsMaintenanceScore,
   mergeHuoltoReportData,
@@ -164,6 +165,8 @@ export default function MaintenanceReportEditPage({ session }: Props) {
   const saveInFlightRef = useRef(false);
   const formStateRef = useRef({ form, customerId, equipmentId });
   formStateRef.current = { form, customerId, equipmentId };
+  const lastSavedKonvektoriScoreRef = useRef(0);
+  const loadedReportIdRef = useRef<string | null>(null);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const copyFromLoadedRef = useRef(false);
 
@@ -177,62 +180,6 @@ export default function MaintenanceReportEditPage({ session }: Props) {
     status,
     formStateRef,
   });
-
-  useEffect(() => {
-    if (status !== 'draft' || !reportId || profileLoading || loadingReport) return;
-    const timer = window.setTimeout(() => {
-      persistMaintenanceReportEditorSnapshot(reportViewKey, {
-        reportId,
-        form: formStateRef.current.form,
-        customerId: formStateRef.current.customerId,
-        equipmentId: formStateRef.current.equipmentId,
-      });
-    }, 300);
-    return () => window.clearTimeout(timer);
-  }, [form, customerId, equipmentId, status, reportId, reportViewKey, profileLoading, loadingReport]);
-
-  useEffect(() => {
-    if (status !== 'draft' || !reportId || profileLoading || loadingReport) return;
-
-    const restoreIfWiped = () => {
-      if (document.visibilityState !== 'visible') return;
-
-      const sessionSnap = readMaintenanceReportEditorSnapshot(reportViewKey, reportId);
-      const localDraft = readLocalMaintenanceDraft<{
-        form: HuoltoReportData;
-        customerId: string;
-        equipmentId: string;
-      }>(draftStorageKey);
-
-      const sessionForm = sessionSnap ? normalizeHuoltoReportData(sessionSnap.form) : null;
-      const localForm = localDraft ? normalizeHuoltoReportData(localDraft.payload.form) : null;
-      const current = formStateRef.current.form;
-      const currentScore = konvektoriRowsMaintenanceScore(current.konvektoriRows);
-      const sessionScore = konvektoriRowsMaintenanceScore(sessionForm?.konvektoriRows);
-      const localScore = konvektoriRowsMaintenanceScore(localForm?.konvektoriRows);
-      const bestScore = Math.max(sessionScore, localScore);
-
-      if (bestScore <= currentScore) return;
-
-      const konvektoriRows = pickBestKonvektoriRows(
-        sessionForm?.konvektoriRows,
-        localForm?.konvektoriRows,
-        current.konvektoriRows,
-      );
-      const source =
-        sessionScore >= localScore && sessionForm
-          ? sessionForm
-          : localForm ?? sessionForm ?? current;
-
-      setForm(mergeHuoltoReportData(current, { ...source, konvektoriRows }));
-      if (maintenanceReportEditorAheadOfDb(reportViewKey)) {
-        setHasUnsavedChanges(true);
-      }
-    };
-
-    document.addEventListener('visibilitychange', restoreIfWiped);
-    return () => document.removeEventListener('visibilitychange', restoreIfWiped);
-  }, [status, reportId, reportViewKey, draftStorageKey, profileLoading, loadingReport]);
 
   const portalMode = isPortalUser(profile);
   const isPublished = isMaintenanceReportPublished(status);
@@ -305,14 +252,107 @@ export default function MaintenanceReportEditPage({ session }: Props) {
   const lampopumppuParts = lampopumppuSubmodules(form.laiteTyyppi, form.selectedModules);
   const showLampopumppuSection = showLampopumppuModules(form.laiteTyyppi, form.selectedModules);
 
-  const patchForm = useCallback((patch: Partial<HuoltoReportData>) => {
-    setHasUnsavedChanges(true);
-    setForm((prev) => mergeHuoltoReportData(prev, patch));
-  }, []);
+  const persistDraftLocally = useCallback(
+    (nextForm: HuoltoReportData) => {
+      formStateRef.current = {
+        ...formStateRef.current,
+        form: nextForm,
+      };
+      if (status !== 'draft' || !reportId) return;
+      persistMaintenanceReportEditorSnapshot(reportViewKey, {
+        reportId,
+        form: nextForm,
+        customerId: formStateRef.current.customerId,
+        equipmentId: formStateRef.current.equipmentId,
+      });
+      writeLocalMaintenanceDraft(draftStorageKey, {
+        form: nextForm,
+        customerId: formStateRef.current.customerId,
+        equipmentId: formStateRef.current.equipmentId,
+        contextMode,
+        partnerId,
+      });
+    },
+    [status, reportId, reportViewKey, draftStorageKey, contextMode, partnerId],
+  );
 
-  const syncForm = useCallback((patch: Partial<HuoltoReportData>) => {
-    setForm((prev) => mergeHuoltoReportData(prev, patch));
-  }, []);
+  const applyFormPatch = useCallback(
+    (patch: Partial<HuoltoReportData>, options?: { markDirty?: boolean }) => {
+      const next = mergeHuoltoReportData(formStateRef.current.form, patch);
+      persistDraftLocally(next);
+      if (options?.markDirty !== false) setHasUnsavedChanges(true);
+      setForm(next);
+    },
+    [persistDraftLocally],
+  );
+
+  const patchForm = useCallback(
+    (patch: Partial<HuoltoReportData>) => applyFormPatch(patch, { markDirty: true }),
+    [applyFormPatch],
+  );
+
+  const syncForm = useCallback(
+    (patch: Partial<HuoltoReportData>) => applyFormPatch(patch, { markDirty: false }),
+    [applyFormPatch],
+  );
+
+  useEffect(() => {
+    if (!showKonvektoritSection) return;
+    if ((form.konvektoriRows?.length ?? 0) > 0) return;
+    syncForm({ konvektoriRows: [createEmptyKonvektoriRow()] });
+  }, [showKonvektoritSection, form.konvektoriRows?.length, syncForm]);
+
+  useEffect(() => {
+    if (status !== 'draft' || !reportId || profileLoading || loadingReport) return;
+
+    const restoreIfWiped = () => {
+      if (document.visibilityState !== 'visible') return;
+
+      const sessionSnap = readMaintenanceReportEditorSnapshot(reportViewKey, reportId);
+      const localDraft = readLocalMaintenanceDraft<{
+        form: HuoltoReportData;
+        customerId: string;
+        equipmentId: string;
+      }>(draftStorageKey);
+
+      const sessionForm = sessionSnap ? normalizeHuoltoReportData(sessionSnap.form) : null;
+      const localForm = localDraft ? normalizeHuoltoReportData(localDraft.payload.form) : null;
+      const current = formStateRef.current.form;
+      const currentScore = konvektoriRowsMaintenanceScore(current.konvektoriRows);
+      const sessionScore = konvektoriRowsMaintenanceScore(sessionForm?.konvektoriRows);
+      const localScore = konvektoriRowsMaintenanceScore(localForm?.konvektoriRows);
+      const bestScore = Math.max(sessionScore, localScore);
+
+      if (bestScore <= currentScore) return;
+
+      const konvektoriRows = pickBestKonvektoriRows(
+        sessionForm?.konvektoriRows,
+        localForm?.konvektoriRows,
+        current.konvektoriRows,
+      );
+      const source =
+        sessionScore >= localScore && sessionForm
+          ? sessionForm
+          : localForm ?? sessionForm ?? current;
+
+      applyFormPatch({ ...source, konvektoriRows }, { markDirty: maintenanceReportEditorAheadOfDb(reportViewKey) });
+    };
+
+    document.addEventListener('visibilitychange', restoreIfWiped);
+    window.addEventListener('pageshow', restoreIfWiped);
+    return () => {
+      document.removeEventListener('visibilitychange', restoreIfWiped);
+      window.removeEventListener('pageshow', restoreIfWiped);
+    };
+  }, [
+    status,
+    reportId,
+    reportViewKey,
+    draftStorageKey,
+    profileLoading,
+    loadingReport,
+    applyFormPatch,
+  ]);
 
   useEffect(() => {
     if (showMlpSection && !form.mlpData) {
@@ -335,17 +375,20 @@ export default function MaintenanceReportEditPage({ session }: Props) {
   }, [profileLoading, loadingReport, reportId]);
 
   useEffect(() => {
+    formStateRef.current = { ...formStateRef.current, customerId, equipmentId };
+  }, [customerId, equipmentId]);
+
+  useEffect(() => {
     if (profileLoading || loadingReport || status !== 'draft') return;
     const performer = huoltoPerformerFields(profile, session);
-    setForm((prev) => {
-      if (
-        prev.huoltoSuorittajaNimi === performer.huoltoSuorittajaNimi &&
-        prev.huoltoSuorittajaTUKES === performer.huoltoSuorittajaTUKES
-      ) {
-        return prev;
-      }
-      return mergeHuoltoReportData(prev, performer);
-    });
+    const prev = formStateRef.current.form;
+    if (
+      prev.huoltoSuorittajaNimi === performer.huoltoSuorittajaNimi &&
+      prev.huoltoSuorittajaTUKES === performer.huoltoSuorittajaTUKES
+    ) {
+      return;
+    }
+    syncForm(performer);
   }, [
     profileLoading,
     loadingReport,
@@ -354,6 +397,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
     profile?.tukes_number,
     profile?.email,
     session,
+    syncForm,
   ]);
 
   useEffect(() => {
@@ -544,14 +588,23 @@ export default function MaintenanceReportEditPage({ session }: Props) {
       formToUse = mergeHuoltoReportData(normalized, { ...baseForm, konvektoriRows });
     }
 
+    const nextCustomerId = row.customer_id ?? row.data.customerId ?? sessionEditor?.customerId ?? '';
+    const nextEquipmentId = row.equipment_id ?? sessionEditor?.equipmentId ?? '';
+    formStateRef.current = {
+      form: formToUse,
+      customerId: nextCustomerId,
+      equipmentId: nextEquipmentId,
+    };
+    lastSavedKonvektoriScoreRef.current = konvektoriRowsMaintenanceScore(normalized.konvektoriRows);
+    loadedReportIdRef.current = reportIdToLoad;
+
     setReportId(row.id);
     setSavedReportTitle(row.title);
     setReportOwnerCompanyId(row.owner_company_id);
     setStatus(row.status);
     setForm(formToUse);
-    setCustomerId(row.customer_id ?? row.data.customerId ?? sessionEditor?.customerId ?? '');
+    setCustomerId(nextCustomerId);
     setSubscriberId(row.subscriber_id ?? '');
-    const nextEquipmentId = row.equipment_id ?? sessionEditor?.equipmentId ?? '';
     if (nextEquipmentId) {
       skipEquipmentRegistryHydrateRef.current = nextEquipmentId;
     }
@@ -658,8 +711,10 @@ export default function MaintenanceReportEditPage({ session }: Props) {
     const snapshotPatch = applyEquipmentSnapshotToForm(currentForm, eq.huolto_technical_snapshot);
     delete snapshotPatch.konvektoriRows;
     const merged = mergeHuoltoReportData(currentForm, { ...basePatch, ...snapshotPatch });
+    const finalForm = eq.device_type ? applyDeviceTypeDefaults(merged, eq.device_type) : merged;
+    formStateRef.current = { ...formStateRef.current, form: finalForm };
     setHasUnsavedChanges(true);
-    setForm(eq.device_type ? applyDeviceTypeDefaults(merged, eq.device_type) : merged);
+    setForm(finalForm);
   }
 
   async function createCustomerAndSelect(draft: NewCustomerDraft) {
@@ -905,7 +960,28 @@ export default function MaintenanceReportEditPage({ session }: Props) {
         }
       }
 
-      const dataPayload = buildReportDataPayload();
+      let dataPayload = buildReportDataPayload();
+      const payloadKonScore = konvektoriRowsMaintenanceScore(dataPayload.konvektoriRows);
+      if (payloadKonScore < lastSavedKonvektoriScoreRef.current && reportId) {
+        const sessionSnap = readMaintenanceReportEditorSnapshot(reportViewKey, reportId);
+        const localDraft = readLocalMaintenanceDraft<{
+          form: HuoltoReportData;
+          customerId: string;
+          equipmentId: string;
+        }>(draftStorageKey);
+        const bestRows = pickBestKonvektoriRows(
+          dataPayload.konvektoriRows,
+          sessionSnap ? normalizeHuoltoReportData(sessionSnap.form).konvektoriRows : null,
+          localDraft ? normalizeHuoltoReportData(localDraft.payload.form).konvektoriRows : null,
+        );
+        if (konvektoriRowsMaintenanceScore(bestRows) > payloadKonScore) {
+          dataPayload = { ...dataPayload, konvektoriRows: bestRows };
+          formStateRef.current = {
+            ...formStateRef.current,
+            form: mergeHuoltoReportData(formStateRef.current.form, { konvektoriRows: bestRows }),
+          };
+        }
+      }
 
       const customerName = selectedCustomer?.name ?? (formStateRef.current.form.asiakas.trim() || null);
       const title = buildMaintenanceReportTitleFromData(customerName, dataPayload);
@@ -982,6 +1058,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
           equipmentId: equipmentId || '',
         });
       }
+      lastSavedKonvektoriScoreRef.current = konvektoriRowsMaintenanceScore(dataPayload.konvektoriRows);
 
       if (equipmentId) {
         try {

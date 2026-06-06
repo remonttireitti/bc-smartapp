@@ -69,13 +69,13 @@ export function useMaintenanceReportScrollRestore(input: {
     };
 
     window.addEventListener('pagehide', persistEditor);
-    document.addEventListener('visibilitychange', onVisibilityChange);
+    document.addEventListener('visibilitychange', onVisibilityChange, true);
     window.addEventListener('pageshow', onPageShow);
 
     return () => {
       persistEditor();
       window.removeEventListener('pagehide', persistEditor);
-      document.removeEventListener('visibilitychange', onVisibilityChange);
+      document.removeEventListener('visibilitychange', onVisibilityChange, true);
       window.removeEventListener('pageshow', onPageShow);
     };
   }, [viewKey, input.formStateRef]);
