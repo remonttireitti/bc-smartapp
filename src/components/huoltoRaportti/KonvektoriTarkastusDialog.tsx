@@ -1,0 +1,150 @@
+import { useEffect, useState } from 'react';
+import type { HuomioLuonne, KonvektoriRowData } from '../../lib/huoltoRaportti/types';
+import {
+  KONVEKTORI_TARKASTUS_ITEMS,
+  type KonvektoriTarkastusField,
+} from '../../lib/huoltoRaportti/konvektoriTarkastus';
+
+interface Props {
+  open: boolean;
+  row: KonvektoriRowData;
+  rowLabel: string;
+  onClose: () => void;
+  onSave: (row: KonvektoriRowData) => void;
+}
+
+function YesNoToggle({
+  value,
+  onChange,
+  name,
+}: {
+  value: boolean | null;
+  onChange: (next: boolean) => void;
+  name: string;
+}) {
+  return (
+    <div className="konvektori-yesno" role="group" aria-label={name}>
+      <button
+        type="button"
+        className={`konvektori-yesno-btn${value === true ? ' konvektori-yesno-btn--active konvektori-yesno-btn--yes' : ''}`}
+        aria-pressed={value === true}
+        onClick={() => onChange(true)}
+      >
+        Kyllä
+      </button>
+      <button
+        type="button"
+        className={`konvektori-yesno-btn${value === false ? ' konvektori-yesno-btn--active konvektori-yesno-btn--no' : ''}`}
+        aria-pressed={value === false}
+        onClick={() => onChange(false)}
+      >
+        Ei
+      </button>
+    </div>
+  );
+}
+
+export function KonvektoriTarkastusDialog({ open, row, rowLabel, onClose, onSave }: Props) {
+  const [draft, setDraft] = useState(row);
+
+  useEffect(() => {
+    if (open) setDraft(row);
+  }, [open, row]);
+
+  useEffect(() => {
+    if (!open) return;
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') onClose();
+    }
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [open, onClose]);
+
+  if (!open) return null;
+
+  const patchCheck = (field: KonvektoriTarkastusField, value: boolean) => {
+    setDraft((prev) => ({ ...prev, [field]: value }));
+  };
+
+  return (
+    <div className="leave-draft-overlay konvektori-dialog-overlay" role="presentation" onClick={onClose}>
+      <div
+        className="leave-draft-dialog panel konvektori-tarkastus-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="konvektori-tarkastus-title"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <h2 id="konvektori-tarkastus-title">Tarkastus: {rowLabel}</h2>
+        <p className="muted konvektori-dialog-help">
+          Vastaa jokaiseen kohtaan Kyllä tai Ei. Kommentti on valinnainen.
+        </p>
+
+        <div className="konvektori-tarkastus-list">
+          {KONVEKTORI_TARKASTUS_ITEMS.map((item) => (
+            <div key={item.field} className="konvektori-tarkastus-item">
+              <span className="konvektori-tarkastus-label">{item.label}</span>
+              <YesNoToggle
+                name={item.label}
+                value={
+                  draft[item.field] === true || draft[item.field] === false
+                    ? (draft[item.field] as boolean)
+                    : null
+                }
+                onChange={(value) => patchCheck(item.field, value)}
+              />
+            </div>
+          ))}
+        </div>
+
+        <div className="konvektori-huomio-type">
+          <span className="konvektori-tarkastus-label">Huomion tyyppi</span>
+          <div className="konvektori-huomio-type-toggle" role="group" aria-label="Huomion tyyppi">
+            <button
+              type="button"
+              className={`konvektori-huomio-type-btn${draft.huomioTyyppi !== 'vika' ? ' konvektori-huomio-type-btn--active' : ''}`}
+              aria-pressed={draft.huomioTyyppi !== 'vika'}
+              onClick={() => setDraft((prev) => ({ ...prev, huomioTyyppi: 'kommentti' satisfies HuomioLuonne }))}
+            >
+              Kommentti
+            </button>
+            <button
+              type="button"
+              className={`konvektori-huomio-type-btn konvektori-huomio-type-btn--vika${draft.huomioTyyppi === 'vika' ? ' konvektori-huomio-type-btn--active' : ''}`}
+              aria-pressed={draft.huomioTyyppi === 'vika'}
+              onClick={() => setDraft((prev) => ({ ...prev, huomioTyyppi: 'vika' satisfies HuomioLuonne }))}
+            >
+              Vika (punainen)
+            </button>
+          </div>
+        </div>
+
+        <label className="konvektori-huomio-field">
+          Kommentti / huomio
+          <textarea
+            rows={4}
+            value={draft.huomio}
+            onChange={(e) => setDraft((prev) => ({ ...prev, huomio: e.target.value }))}
+            placeholder="Kirjoita huomio tähän…"
+          />
+        </label>
+
+        <div className="leave-draft-actions konvektori-dialog-actions">
+          <button type="button" className="btn btn-secondary" onClick={onClose}>
+            Peruuta
+          </button>
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={() => {
+              onSave(draft);
+              onClose();
+            }}
+          >
+            Tallenna tarkastus
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}

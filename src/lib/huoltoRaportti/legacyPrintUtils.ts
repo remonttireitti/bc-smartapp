@@ -2074,11 +2074,12 @@ export function generatePrintHTML(data: {
     valmistaja?: string;
     malli?: string;
     sarjanumero?: string;
-    suodatinPuhdistettu?: boolean;
-    kennoPuhdistettu?: boolean;
-    kondenssiTarkastettu?: boolean;
-    puhallinTarkastettu?: boolean;
-    venttiiliTarkastettu?: boolean;
+    suodatinPuhdistettu?: boolean | null;
+    kennoPuhdistettu?: boolean | null;
+    kondenssiTarkastettu?: boolean | null;
+    puhallinTarkastettu?: boolean | null;
+    venttiiliTarkastettu?: boolean | null;
+    lisaaOhjausToimii?: boolean | null;
     huomio?: string;
     huomioTyyppi?: 'kommentti' | 'vika';
   }>;
@@ -2334,7 +2335,7 @@ export function generatePrintHTML(data: {
   };
 
   /** Konvektoritaulukko: pienet merkit; sarakkeet 4–5 px leveät */
-  const renderCheckKonv = (checked: boolean | undefined) => {
+  const renderCheckKonv = (checked: boolean | null | undefined) => {
     if (checked === true) {
       return `<span style="color:#16a34a;font-weight:700;font-size:7px;line-height:1;">✓</span>`;
     }

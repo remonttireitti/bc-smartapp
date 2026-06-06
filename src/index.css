@@ -4917,65 +4917,241 @@ textarea {
   width: 3.25rem;
 }
 
-.huolto-konvektori-table {
-  min-width: 72rem;
-  table-layout: auto;
+.huolto-konvektori-cards {
+  display: none;
 }
 
-.huolto-konvektori-col-num {
-  width: 2.25rem;
-  white-space: nowrap;
+.konvektori-list-actions {
+  flex-direction: row;
+  flex-wrap: wrap;
+  margin-bottom: .5rem;
 }
 
-.huolto-konvektori-col-text {
-  min-width: 7.5rem;
-}
-
-.huolto-konvektori-col-huomio {
-  min-width: 16rem;
-  width: 18rem;
-}
-
-.huolto-konvektori-col-actions {
-  width: 5.5rem;
-  white-space: nowrap;
-}
-
-.huolto-konvektori-huomio-fields {
+.konvektori-compact-list {
   display: flex;
   flex-direction: column;
-  gap: .35rem;
-  min-width: 14rem;
+  gap: .5rem;
+  min-width: 0;
+  max-width: 100%;
 }
 
-.huolto-konvektori-huomio-fields select {
-  width: 100%;
+.konvektori-compact-head,
+.konvektori-compact-row {
+  display: grid;
+  grid-template-columns: 2rem minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr) 5.5rem minmax(9rem, auto);
+  gap: .4rem .5rem;
+  align-items: center;
   min-width: 0;
 }
 
-.huolto-konvektori-huomio-fields textarea {
-  width: 100%;
-  min-width: 14rem;
-  min-height: 3.25rem;
-  resize: vertical;
-  line-height: 1.35;
-  font-family: inherit;
+.konvektori-compact-head {
+  font-size: .75rem;
+  font-weight: 600;
+  color: var(--text-muted, #64748b);
+  padding: 0 .25rem;
 }
 
-.huolto-konvektori-huomio-mobile {
+.konvektori-compact-row {
+  padding: .55rem .45rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--bg-surface, #fff);
+}
+
+.konvektori-compact-num {
+  text-align: center;
+  font-weight: 600;
+  color: var(--text-muted, #64748b);
+}
+
+.konvektori-compact-field {
+  display: flex;
+  min-width: 0;
+}
+
+.konvektori-compact-field input {
+  width: 100%;
+  min-width: 0;
+  min-height: 2.5rem;
+  font-size: .9rem;
+}
+
+.konvektori-compact-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .35rem;
+  justify-content: flex-end;
+}
+
+.konvektori-status {
+  display: inline-block;
+  font-size: .72rem;
+  font-weight: 700;
+  padding: .2rem .45rem;
+  border-radius: 999px;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.konvektori-status--ok {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.konvektori-status--pending {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.konvektori-status--warn {
+  background: #ffedd5;
+  color: #c2410c;
+}
+
+.konvektori-status--note {
+  background: #e0e7ff;
+  color: #3730a3;
+}
+
+.konvektori-status--vika {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.konvektori-tarkastus-dialog {
+  width: min(36rem, calc(100vw - 1.5rem));
+  max-height: min(90dvh, 100%);
+  overflow-y: auto;
+}
+
+.konvektori-dialog-help {
+  margin: 0 0 1rem;
+}
+
+.konvektori-tarkastus-list {
+  display: flex;
+  flex-direction: column;
+  gap: .75rem;
+  margin-bottom: 1rem;
+}
+
+.konvektori-tarkastus-item,
+.konvektori-huomio-type {
+  display: flex;
+  flex-direction: column;
+  gap: .45rem;
+}
+
+.konvektori-tarkastus-label {
+  font-weight: 600;
+  font-size: .92rem;
+  line-height: 1.35;
+}
+
+.konvektori-yesno,
+.konvektori-huomio-type-toggle {
+  display: flex;
+  gap: .5rem;
+}
+
+.konvektori-yesno-btn,
+.konvektori-huomio-type-btn {
+  flex: 1;
+  min-height: 2.75rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--bg-muted, #f8fafc);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.konvektori-yesno-btn--active.konvektori-yesno-btn--yes {
+  background: #dcfce7;
+  border-color: #16a34a;
+  color: #166534;
+}
+
+.konvektori-yesno-btn--active.konvektori-yesno-btn--no {
+  background: #fee2e2;
+  border-color: #dc2626;
+  color: #b91c1c;
+}
+
+.konvektori-huomio-type-btn--active {
+  background: #e0e7ff;
+  border-color: #4f46e5;
+  color: #312e81;
+}
+
+.konvektori-huomio-type-btn--vika.konvektori-huomio-type-btn--active {
+  background: #fee2e2;
+  border-color: #dc2626;
+  color: #b91c1c;
+}
+
+.konvektori-huomio-field {
   display: flex;
   flex-direction: column;
   gap: .35rem;
   font-weight: 600;
+  margin-bottom: 1rem;
 }
 
-.huolto-konvektori-huomio-mobile textarea {
+.konvektori-huomio-field textarea {
   width: 100%;
-  min-height: 4.5rem;
+  min-height: 6rem;
   resize: vertical;
   font-weight: 400;
-  line-height: 1.35;
   font-family: inherit;
+  line-height: 1.4;
+  box-sizing: border-box;
+}
+
+.konvektori-dialog-actions {
+  margin-top: 0;
+}
+
+@media (max-width: 900px) {
+  .konvektori-compact-head {
+    display: none;
+  }
+
+  .konvektori-compact-row {
+    grid-template-columns: 1fr 1fr;
+    grid-template-areas:
+      'num num'
+      'tunnus tunnus'
+      'valmistaja malli'
+      'sarja sarja'
+      'status status'
+      'actions actions';
+    gap: .5rem;
+  }
+
+  .konvektori-compact-num {
+    grid-area: num;
+    text-align: left;
+  }
+
+  .konvektori-compact-row .konvektori-compact-field:nth-of-type(1) { grid-area: tunnus; }
+  .konvektori-compact-row .konvektori-compact-field:nth-of-type(2) { grid-area: valmistaja; }
+  .konvektori-compact-row .konvektori-compact-field:nth-of-type(3) { grid-area: malli; }
+  .konvektori-compact-row .konvektori-compact-field:nth-of-type(4) { grid-area: sarja; }
+
+  .konvektori-compact-row > .konvektori-status {
+    grid-area: status;
+    justify-self: start;
+  }
+
+  .konvektori-compact-actions {
+    grid-area: actions;
+    justify-content: stretch;
+  }
+
+  .konvektori-compact-actions .btn {
+    flex: 1;
+    min-height: 2.75rem;
+  }
 }
 
 @media (min-width: 901px) {

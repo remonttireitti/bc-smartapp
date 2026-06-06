@@ -190,11 +190,14 @@ export interface KonvektoriRowData {
   valmistaja: string;
   malli: string;
   sarjanumero: string;
-  suodatinPuhdistettu: boolean;
-  kennoPuhdistettu: boolean;
-  kondenssiTarkastettu: boolean;
-  puhallinTarkastettu: boolean;
-  venttiiliTarkastettu: boolean;
+  /** true = kyllä, false = ei, null = ei vastattu */
+  suodatinPuhdistettu: boolean | null;
+  kennoPuhdistettu: boolean | null;
+  kondenssiTarkastettu: boolean | null;
+  puhallinTarkastettu: boolean | null;
+  venttiiliTarkastettu: boolean | null;
+  /** Ei tulosteessa — vain lomakkeessa */
+  lisaaOhjausToimii?: boolean | null;
   huomio: string;
   huomioTyyppi?: HuomioLuonne;
 }
