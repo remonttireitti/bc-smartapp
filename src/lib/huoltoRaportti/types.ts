@@ -186,10 +186,18 @@ export type HuomioLuonne = 'kommentti' | 'vika';
 
 export interface KonvektoriRowData {
   id?: string;
+  /** Asennustyyppi — valitsee tulosteen kuvan */
+  tyyppi?: 'katto' | 'seina' | 'lattia' | '';
   tunnus: string;
+  huone?: string;
   valmistaja: string;
   malli: string;
   sarjanumero: string;
+  /** Menoveden / tuloveden lämpötilat */
+  tuloLampotila?: string;
+  menoLampotila?: string;
+  puhallusLampotila?: string;
+  mitattuTeho?: string;
   /** true = kyllä, false = ei, null = ei vastattu */
   suodatinPuhdistettu: boolean | null;
   kennoPuhdistettu: boolean | null;

@@ -77,8 +77,55 @@ export function KonvektoriTarkastusDialog({ open, row, rowLabel, onClose, onSave
       >
         <h2 id="konvektori-tarkastus-title">Tarkastus: {rowLabel}</h2>
         <p className="muted konvektori-dialog-help">
-          Vastaa jokaiseen kohtaan Kyllä tai Ei. Kommentti on valinnainen.
+          Täytä mittaukset ja vastaa jokaiseen kohtaan Kyllä tai Ei.
         </p>
+
+        <div className="konvektori-mittaukset">
+          <h3 className="konvektori-mittaukset-title">Mittaukset</h3>
+          <div className="konvektori-mittaukset-grid">
+            <label className="konvektori-mittaus-field">
+              Tulo °C
+              <input
+                type="text"
+                inputMode="decimal"
+                value={draft.tuloLampotila ?? ''}
+                onChange={(e) => setDraft((prev) => ({ ...prev, tuloLampotila: e.target.value }))}
+                placeholder="esim. 45"
+              />
+            </label>
+            <label className="konvektori-mittaus-field">
+              Meno °C
+              <input
+                type="text"
+                inputMode="decimal"
+                value={draft.menoLampotila ?? ''}
+                onChange={(e) => setDraft((prev) => ({ ...prev, menoLampotila: e.target.value }))}
+                placeholder="esim. 38"
+              />
+            </label>
+            <label className="konvektori-mittaus-field">
+              Puhallus °C
+              <input
+                type="text"
+                inputMode="decimal"
+                value={draft.puhallusLampotila ?? ''}
+                onChange={(e) => setDraft((prev) => ({ ...prev, puhallusLampotila: e.target.value }))}
+                placeholder="esim. 22"
+              />
+            </label>
+            <label className="konvektori-mittaus-field">
+              Mitattu teho
+              <input
+                type="text"
+                inputMode="decimal"
+                value={draft.mitattuTeho ?? ''}
+                onChange={(e) => setDraft((prev) => ({ ...prev, mitattuTeho: e.target.value }))}
+                placeholder="esim. 1,2 kW"
+              />
+            </label>
+          </div>
+          <p className="muted konvektori-mittaukset-hint">Puhalluslämpötila tai mitattu teho — riittää toinen.</p>
+        </div>
 
         <div className="konvektori-tarkastus-list">
           {KONVEKTORI_TARKASTUS_ITEMS.map((item) => (

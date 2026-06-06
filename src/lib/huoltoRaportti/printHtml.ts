@@ -4,6 +4,7 @@ import type {
   EvaporatorData,
   HuoltoReportData,
   HuomiotImageAttachment,
+  KonvektoriRowData,
   LauhdutuspiiriData,
   NestepiiriData,
   RefrigerantCircuitData,
@@ -33,6 +34,7 @@ import {
   circuitSubcoolingPrintEnabled,
   circuitSuperheatPrintEnabled,
 } from './refrigerantCircuitPrint';
+import { generateKonvektoritGridPrintHtml } from './konvektoriPrint';
 import { generateMlpFullPrintHtml } from './printMlpFull';
 import { renderCompressorCurrentHtml, renderFanPhaseCardHtml } from './printPhaseHelpers';
 import {
@@ -485,57 +487,10 @@ function renderNestelauhduttimet(data: HuoltoReportData): string {
 function renderKonvektoritTable(data: HuoltoReportData): string {
   const rows = field(data, 'konvektoriRows') ?? field(data, 'konvektoritData');
   if (data.laiteTyyppi !== 'konvektorit' || !Array.isArray(rows) || rows.length === 0) return '';
-
-  const renderCheckKonv = (checked: boolean | null | undefined) => {
-    if (checked === true) return '<span style="color:#16a34a;font-weight:700;">✓</span>';
-    if (checked === false) return '<span style="color:#dc2626;font-weight:700;">✗</span>';
-    return '<span style="color:#9ca3af;">–</span>';
-  };
-
-  const body = rows
-    .map((r: Record<string, unknown>, idx: number) => {
-      const isVika = r.huomioTyyppi === 'vika';
-      const huom = r.huomio ? esc(r.huomio) : '—';
-      const huomCell = isVika ? `<span style="color:#b91c1c;font-weight:700;">${huom}</span>` : huom;
-      const ohjaus = r.ohjausToimii ?? r.lisaaOhjausToimii;
-      return `<tr>
-        <td style="border:1px solid #ccc;padding:2px;text-align:center;">${idx + 1}</td>
-        <td style="border:1px solid #ccc;padding:2px;">${esc(r.tunnus)}</td>
-        <td style="border:1px solid #ccc;padding:2px;">${esc(r.valmistaja)}</td>
-        <td style="border:1px solid #ccc;padding:2px;">${esc(r.malli)}</td>
-        <td style="border:1px solid #ccc;padding:2px;">${esc(r.sarjanumero)}</td>
-        <td style="border:1px solid #ccc;padding:2px;text-align:center;">${renderCheckKonv(r.suodatinPuhdistettu as boolean | null | undefined)}</td>
-        <td style="border:1px solid #ccc;padding:2px;text-align:center;">${renderCheckKonv(r.kennoPuhdistettu as boolean | null | undefined)}</td>
-        <td style="border:1px solid #ccc;padding:2px;text-align:center;">${renderCheckKonv(r.kondenssiTarkastettu as boolean | null | undefined)}</td>
-        <td style="border:1px solid #ccc;padding:2px;text-align:center;">${renderCheckKonv(r.puhallinTarkastettu as boolean | null | undefined)}</td>
-        <td style="border:1px solid #ccc;padding:2px;text-align:center;">${renderCheckKonv(r.venttiiliTarkastettu as boolean | null | undefined)}</td>
-        <td style="border:1px solid #ccc;padding:2px;text-align:center;">${renderCheckKonv(ohjaus as boolean | null | undefined)}</td>
-        <td style="border:1px solid #ccc;padding:2px;font-size:9px;">${huomCell}</td>
-      </tr>`;
-    })
-    .join('');
-
-  return box(
-    'KONVEKTORIT (HUOLTOTAULUKKO)',
-    '#00838F',
-    `<table style="width:100%;border-collapse:collapse;font-size:9px;">
-      <thead><tr style="background:#f5f5f5;">
-        <th style="border:1px solid #ccc;padding:2px;">#</th>
-        <th style="border:1px solid #ccc;padding:2px;">Tunnus</th>
-        <th style="border:1px solid #ccc;padding:2px;">Valm.</th>
-        <th style="border:1px solid #ccc;padding:2px;">Malli</th>
-        <th style="border:1px solid #ccc;padding:2px;">Sarj.</th>
-        <th style="border:1px solid #ccc;padding:2px;">Suod.</th>
-        <th style="border:1px solid #ccc;padding:2px;">Kenno</th>
-        <th style="border:1px solid #ccc;padding:2px;">Kond.</th>
-        <th style="border:1px solid #ccc;padding:2px;">Puh.</th>
-        <th style="border:1px solid #ccc;padding:2px;">Vent.</th>
-        <th style="border:1px solid #ccc;padding:2px;">Ohj.</th>
-        <th style="border:1px solid #ccc;padding:2px;">Huomio</th>
-      </tr></thead>
-      <tbody>${body}</tbody>
-    </table>`,
-  );
+  return generateKonvektoritGridPrintHtml(rows as KonvektoriRowData[], esc, {
+    origin: typeof window !== 'undefined' ? window.location.origin : '',
+    escAttr,
+  });
 }
 
 function renderLampopumppuSections(data: HuoltoReportData): string {

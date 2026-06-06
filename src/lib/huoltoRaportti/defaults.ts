@@ -38,15 +38,22 @@ import { resolveLegacyDeviceType } from './deviceTypeLegacy';
 import { applyLegacyImportInference } from './legacyImportInference';
 import { inferLegacyMlpFlags } from './mlpLegacyFlags';
 import { normalizeMaintenanceReportPhotos } from '../maintenanceReportPhotoUtils';
+import { normalizeKonvektoriTyyppi } from './konvektoriTypes';
 import { generateId, resolveKylmaaineTyyppi } from './utils';
 
 export function createEmptyKonvektoriRow(): KonvektoriRowData {
   return {
     id: generateId(),
+    tyyppi: '',
     tunnus: '',
+    huone: '',
     valmistaja: '',
     malli: '',
     sarjanumero: '',
+    tuloLampotila: '',
+    menoLampotila: '',
+    puhallusLampotila: '',
+    mitattuTeho: '',
     suodatinPuhdistettu: null,
     kennoPuhdistettu: null,
     kondenssiTarkastettu: null,
@@ -145,7 +152,12 @@ export function konvektoriRowHasMaintenanceData(row: KonvektoriRowData): boolean
     || row.venttiiliTarkastettu !== null
     || row.ohjausToimii != null
     || row.huomio.trim()
-    || row.huomioTyyppi === 'vika',
+    || row.huomioTyyppi === 'vika'
+    || Boolean(row.huone?.trim())
+    || Boolean(row.tuloLampotila?.trim())
+    || Boolean(row.menoLampotila?.trim())
+    || Boolean(row.puhallusLampotila?.trim())
+    || Boolean(row.mitattuTeho?.trim()),
   );
 }
 
@@ -163,6 +175,10 @@ export function konvektoriRowsMaintenanceScore(rows: KonvektoriRowData[] | undef
     if (row.puhallinTarkastettu !== null) score += 1;
     if (row.venttiiliTarkastettu !== null) score += 1;
     if (row.ohjausToimii != null) score += 1;
+    if (row.huone?.trim()) score += 1;
+    if (row.tuloLampotila?.trim()) score += 1;
+    if (row.menoLampotila?.trim()) score += 1;
+    if (row.puhallusLampotila?.trim() || row.mitattuTeho?.trim()) score += 1;
     if (row.huomio.trim()) score += 2;
     if (row.huomioTyyppi === 'vika') score += 1;
     return sum + score;
@@ -176,10 +192,16 @@ export function ensureKonvektoriRow(data: Partial<KonvektoriRowData> | undefined
   const next: KonvektoriRowData = {
     ...base,
     ...data,
+    tyyppi: normalizeKonvektoriTyyppi(data.tyyppi ?? raw.tyyppi),
     tunnus: String(data.tunnus ?? raw.tunnus ?? '').trim(),
+    huone: String(data.huone ?? raw.huone ?? '').trim(),
     valmistaja: String(data.valmistaja ?? raw.valmistaja ?? '').trim(),
     malli: String(data.malli ?? raw.malli ?? '').trim(),
     sarjanumero: String(data.sarjanumero ?? raw.sarjanumero ?? '').trim(),
+    tuloLampotila: String(data.tuloLampotila ?? raw.tuloLampotila ?? '').trim(),
+    menoLampotila: String(data.menoLampotila ?? raw.menoLampotila ?? '').trim(),
+    puhallusLampotila: String(data.puhallusLampotila ?? raw.puhallusLampotila ?? '').trim(),
+    mitattuTeho: String(data.mitattuTeho ?? raw.mitattuTeho ?? '').trim(),
     huomio: String(data.huomio ?? raw.huomio ?? '').trim(),
     huomioTyyppi: data.huomioTyyppi === 'vika' || raw.huomioTyyppi === 'vika' ? 'vika' : 'kommentti',
   };

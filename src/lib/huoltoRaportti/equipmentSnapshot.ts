@@ -407,7 +407,9 @@ export function buildHuoltoEquipmentTechnicalSnapshot(data: HuoltoReportData): R
 
   if (data.laiteTyyppi === 'konvektorit' && Array.isArray(konvektoriRows)) {
     snapshot.konvektorit = konvektoriRows.map((r: Record<string, unknown>) => ({
+      tyyppi: trim(r.tyyppi),
       tunnus: trim(r.tunnus),
+      huone: trim(r.huone),
       valmistaja: trim(r.valmistaja),
       malli: trim(r.malli),
       sarjanumero: trim(r.sarjanumero),

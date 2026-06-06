@@ -6,6 +6,7 @@ import {
   ensureKonvektoriRowsList,
 } from '../../lib/huoltoRaportti/defaults';
 import { konvektoriTarkastusSummary } from '../../lib/huoltoRaportti/konvektoriTarkastus';
+import { KONVEKTORI_TYYPPI_OPTIONS } from '../../lib/huoltoRaportti/konvektoriTypes';
 import { konvektoritSectionTitle } from '../../lib/huoltoRaportti/sectionTitles';
 import { HuoltoModuleSection } from './HuoltoModuleSection';
 import { KonvektoriTarkastusDialog } from './KonvektoriTarkastusDialog';
@@ -55,13 +56,14 @@ export function KonvektoritSection({ rows, onChange }: Props) {
   const dialogRow = dialogIndex != null ? effectiveRows[dialogIndex] : null;
   const dialogLabel =
     dialogRow?.tunnus.trim()
+    || dialogRow?.huone?.trim()
     || [dialogRow?.valmistaja, dialogRow?.malli].filter(Boolean).join(' ')
     || (dialogIndex != null ? `Konvektori ${dialogIndex + 1}` : '');
 
   return (
     <HuoltoModuleSection moduleKey="konvektorit" title={konvektoritSectionTitle('konvektorit')}>
       <p className="muted huolto-help">
-        Täytä tunnistetiedot riville ja avaa tarkastus popupista. Tuloste pysyy entisellään.
+        Valitse tyyppi ja täytä tunnistetiedot. Mittaukset ja tarkastus avataan popupista. Tuloste näyttää konvektorit ruudukkona kuvineen.
       </p>
       <div className="btn-group konvektori-list-actions">
         <button
@@ -88,7 +90,9 @@ export function KonvektoritSection({ rows, onChange }: Props) {
       <div className="konvektori-compact-list">
         <div className="konvektori-compact-head" aria-hidden="true">
           <span>#</span>
-          <span>Tunnus / tila</span>
+          <span>Tyyppi</span>
+          <span>Tunnus</span>
+          <span>Huone</span>
           <span>Valmistaja</span>
           <span>Malli</span>
           <span>Sarjanumero</span>
@@ -101,12 +105,32 @@ export function KonvektoritSection({ rows, onChange }: Props) {
           return (
             <div key={row.id ?? index} className="konvektori-compact-row">
               <span className="konvektori-compact-num">{index + 1}</span>
+              <label className="konvektori-compact-field konvektori-compact-field--type">
+                <span className="sr-only">Tyyppi</span>
+                <select
+                  value={row.tyyppi ?? ''}
+                  onChange={(e) => patchRow(index, { tyyppi: e.target.value as KonvektoriRowData['tyyppi'] })}
+                >
+                  <option value="">Valitse…</option>
+                  {KONVEKTORI_TYYPPI_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
+              </label>
               <label className="konvektori-compact-field">
-                <span className="sr-only">Tunnus / tila</span>
+                <span className="sr-only">Tunnus</span>
                 <input
                   value={row.tunnus}
                   onChange={(e) => patchRow(index, { tunnus: e.target.value })}
-                  placeholder="Tunnus / tila"
+                  placeholder="Tunnus"
+                />
+              </label>
+              <label className="konvektori-compact-field">
+                <span className="sr-only">Huone</span>
+                <input
+                  value={row.huone ?? ''}
+                  onChange={(e) => patchRow(index, { huone: e.target.value })}
+                  placeholder="Huone"
                 />
               </label>
               <label className="konvektori-compact-field">

@@ -37,6 +37,7 @@ import {
   resolveKoePaivamaaraJaKello,
 } from './kokeAikaUtils';
 import { buildMaintenanceReportPrintTitle, hideMaintenancePrintWarnings } from './defaults';
+import { generateKonvektoritGridPrintHtml } from './konvektoriPrint';
 import type { HuoltoReportData } from './types';
 
 type LegacyCompanyInfo = {
@@ -2070,10 +2071,16 @@ export function generatePrintHTML(data: {
   mittausAmpeeriL3?: string;
   konvektoriRows?: Array<{
     id?: string;
+    tyyppi?: string;
     tunnus?: string;
+    huone?: string;
     valmistaja?: string;
     malli?: string;
     sarjanumero?: string;
+    tuloLampotila?: string;
+    menoLampotila?: string;
+    puhallusLampotila?: string;
+    mitattuTeho?: string;
     suodatinPuhdistettu?: boolean | null;
     kennoPuhdistettu?: boolean | null;
     kondenssiTarkastettu?: boolean | null;
@@ -3226,71 +3233,12 @@ export function generatePrintHTML(data: {
   ` : ''}
 
 
-  ${(data.laiteTyyppi === 'konvektorit' && data.konvektoriRows && data.konvektoriRows.length > 0) ? `
-  <div class="box-content" style="border-color: #00838F; page-break-inside: avoid; margin-top: 6px;">
-    <div style="border-bottom: 2px solid #00838F; padding-bottom: 2px; margin-bottom: 4px;">
-      <strong style="font-size: 12px; color: #00838F;">KONVEKTORIT (HUOLTOTAULUKKO)</strong>
-    </div>
-    <p style="font-size: 8px; color: #444; margin: 0 0 4px 0; line-height: 1.25;">
-      Suod.–Ohj.: <span style="font-family: system-ui, sans-serif;">✓/✗</span> = tarkastettu OK / ei OK.
-    </p>
-    <div style="overflow: visible;">
-      <table style="width:100%;border-collapse:collapse;table-layout:fixed;font-size:7px;line-height:1.2;">
-        <colgroup>
-          <col style="width:2.2%" />
-          <col style="width:10.5%" />
-          <col style="width:10.5%" />
-          <col style="width:17%" />
-          <col style="width:8.5%" />
-          <col style="width:1.6%" /><col style="width:1.6%" /><col style="width:1.6%" /><col style="width:1.6%" /><col style="width:1.6%" /><col style="width:1.6%" />
-          <col style="width:auto" />
-        </colgroup>
-        <thead>
-          <tr style="background: #f5f5f5;">
-            <th style="border:1px solid #ccc;padding:2px;text-align:center;">#</th>
-            <th style="border:1px solid #ccc;padding:2px;text-align:left;font-size:7px;">Tunnus</th>
-            <th style="border:1px solid #ccc;padding:2px;text-align:left;font-size:7px;">Valm.</th>
-            <th style="border:1px solid #ccc;padding:2px;text-align:left;font-size:7px;">Malli</th>
-            <th style="border:1px solid #ccc;padding:2px;text-align:left;font-size:7px;">Sarj.</th>
-            ${konvThVertical('Suod.', 'Suodatin')}
-            ${konvThVertical('Kenno', 'Kenno')}
-            ${konvThVertical('Kond.', 'Kondenssi')}
-            ${konvThVertical('Puh.', 'Puhallin')}
-            ${konvThVertical('Vent.', 'Venttiili')}
-            ${konvThVertical('Ohj.', 'Ohjaus')}
-            <th style="border:1px solid #ccc;padding:2px;text-align:left;font-size:7px;">Huomio</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${data.konvektoriRows.map((row, idx) => {
-            const isVika = row.huomioTyyppi === 'vika';
-            const h = row.huomio ? esc(row.huomio) : '';
-            const huomCell = h
-              ? isVika
-                ? `<span style="color:#b91c1c;font-weight:700;">${h}</span>`
-                : h
-              : '—';
-            return `
-            <tr>
-              <td style="border:1px solid #ccc;padding:1px 2px;text-align:center;">${idx + 1}</td>
-              <td style="border:1px solid #ccc;padding:1px 2px;word-wrap:break-word;overflow-wrap:break-word;">${row.tunnus != null && String(row.tunnus).trim() !== '' ? esc(row.tunnus) : '—'}</td>
-              <td style="border:1px solid #ccc;padding:1px 2px;word-wrap:break-word;overflow-wrap:break-word;">${row.valmistaja != null && String(row.valmistaja).trim() !== '' ? esc(row.valmistaja) : '—'}</td>
-              <td style="border:1px solid #ccc;padding:1px 2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:0;" title="${row.malli != null && String(row.malli).trim() !== '' ? escAttr(String(row.malli)) : ''}">${row.malli != null && String(row.malli).trim() !== '' ? esc(row.malli) : '—'}</td>
-              <td style="border:1px solid #ccc;padding:1px 2px;word-wrap:break-word;">${row.sarjanumero != null && String(row.sarjanumero).trim() !== '' ? esc(row.sarjanumero) : '—'}</td>
-              <td style="border:1px solid #ccc;padding:0;text-align:center;vertical-align:middle;">${renderCheckKonv(row.suodatinPuhdistettu)}</td>
-              <td style="border:1px solid #ccc;padding:0;text-align:center;vertical-align:middle;">${renderCheckKonv(row.kennoPuhdistettu)}</td>
-              <td style="border:1px solid #ccc;padding:0;text-align:center;vertical-align:middle;">${renderCheckKonv(row.kondenssiTarkastettu)}</td>
-              <td style="border:1px solid #ccc;padding:0;text-align:center;vertical-align:middle;">${renderCheckKonv(row.puhallinTarkastettu)}</td>
-              <td style="border:1px solid #ccc;padding:0;text-align:center;vertical-align:middle;">${renderCheckKonv(row.venttiiliTarkastettu)}</td>
-              <td style="border:1px solid #ccc;padding:0;text-align:center;vertical-align:middle;">${renderCheckKonv(row.ohjausToimii)}</td>
-              <td style="border:1px solid #ccc;padding:1px 3px;word-wrap:break-word;font-size:7px;">${huomCell}</td>
-            </tr>`;
-          }).join('')}
-        </tbody>
-      </table>
-    </div>
-  </div>
-  ` : ''}
+  ${(data.laiteTyyppi === 'konvektorit' && data.konvektoriRows && data.konvektoriRows.length > 0)
+    ? generateKonvektoritGridPrintHtml(data.konvektoriRows, esc, {
+        origin: typeof window !== 'undefined' ? window.location.origin : '',
+        escAttr,
+      })
+    : ''}
 
   ${tiiveyskoeOsioHtml}
 

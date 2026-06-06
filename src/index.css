@@ -10842,3 +10842,285 @@ button.vrf-toggle:not(:disabled) {
     grid-row: auto;
   }
 }
+
+/* Konvektorit — kompakti lista + tarkastusdialogi */
+.konvektori-list-actions {
+  margin-bottom: 0.75rem;
+}
+
+.konvektori-compact-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  overflow-x: auto;
+  min-width: 0;
+}
+
+.konvektori-compact-head,
+.konvektori-compact-row {
+  display: grid;
+  grid-template-columns:
+    2rem
+    minmax(7.5rem, 0.9fr)
+    minmax(4.5rem, 0.7fr)
+    minmax(4rem, 0.6fr)
+    minmax(4.5rem, 0.7fr)
+    minmax(4.5rem, 0.7fr)
+    minmax(5rem, 0.75fr)
+    minmax(4.5rem, 0.55fr)
+    minmax(9rem, auto);
+  gap: 0.35rem;
+  align-items: center;
+  min-width: 52rem;
+}
+
+.konvektori-compact-head {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  padding: 0 0.15rem 0.25rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.konvektori-compact-row {
+  padding: 0.35rem 0.15rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.konvektori-compact-num {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.konvektori-compact-field input,
+.konvektori-compact-field select {
+  width: 100%;
+  min-width: 0;
+  font-size: 0.82rem;
+  padding: 0.35rem 0.45rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-surface);
+}
+
+.konvektori-compact-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  justify-content: flex-end;
+}
+
+.konvektori-status {
+  display: inline-block;
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 0.2rem 0.45rem;
+  border-radius: 999px;
+  white-space: nowrap;
+  text-align: center;
+}
+
+.konvektori-status--ok { background: #dcfce7; color: #166534; }
+.konvektori-status--pending { background: #fef3c7; color: #92400e; }
+.konvektori-status--warn { background: #ffedd5; color: #c2410c; }
+.konvektori-status--note { background: #e0f2fe; color: #0369a1; }
+.konvektori-status--vika { background: #fee2e2; color: #b91c1c; }
+
+.konvektori-dialog-overlay {
+  z-index: 1200;
+}
+
+.konvektori-tarkastus-dialog {
+  width: min(560px, calc(100vw - 2rem));
+  max-height: calc(100vh - 2rem);
+  overflow: auto;
+}
+
+.konvektori-dialog-help {
+  margin: 0 0 0.75rem;
+  font-size: 0.88rem;
+}
+
+.konvektori-mittaukset {
+  margin-bottom: 1rem;
+  padding: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-muted);
+}
+
+.konvektori-mittaukset-title {
+  margin: 0 0 0.5rem;
+  font-size: 0.95rem;
+}
+
+.konvektori-mittaukset-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.konvektori-mittaus-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.konvektori-mittaus-field input {
+  font-weight: 400;
+  padding: 0.45rem 0.55rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.konvektori-mittaukset-hint {
+  margin: 0.5rem 0 0;
+  font-size: 0.78rem;
+}
+
+.konvektori-tarkastus-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  margin-bottom: 1rem;
+}
+
+.konvektori-tarkastus-item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.45rem 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.konvektori-tarkastus-label {
+  flex: 1 1 12rem;
+  font-size: 0.88rem;
+  line-height: 1.35;
+}
+
+.konvektori-yesno {
+  display: flex;
+  gap: 0.35rem;
+}
+
+.konvektori-yesno-btn {
+  min-width: 4.25rem;
+  padding: 0.35rem 0.65rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-surface);
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
+.konvektori-yesno-btn--active.konvektori-yesno-btn--yes {
+  background: #dcfce7;
+  border-color: #86efac;
+  color: #166534;
+  font-weight: 600;
+}
+
+.konvektori-yesno-btn--active.konvektori-yesno-btn--no {
+  background: #fee2e2;
+  border-color: #fca5a5;
+  color: #b91c1c;
+  font-weight: 600;
+}
+
+.konvektori-huomio-type {
+  margin-bottom: 0.75rem;
+}
+
+.konvektori-huomio-type-toggle {
+  display: flex;
+  gap: 0.35rem;
+  margin-top: 0.35rem;
+}
+
+.konvektori-huomio-type-btn {
+  padding: 0.35rem 0.65rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-surface);
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
+.konvektori-huomio-type-btn--active {
+  border-color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 12%, var(--bg-surface));
+  font-weight: 600;
+}
+
+.konvektori-huomio-type-btn--vika.konvektori-huomio-type-btn--active {
+  border-color: #ef4444;
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.konvektori-huomio-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.88rem;
+  font-weight: 600;
+  margin-bottom: 1rem;
+}
+
+.konvektori-huomio-field textarea {
+  font-weight: 400;
+  width: 100%;
+  min-height: 5rem;
+  padding: 0.55rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  resize: vertical;
+}
+
+.konvektori-dialog-actions {
+  margin-top: 0;
+}
+
+@media (max-width: 720px) {
+  .konvektori-compact-head {
+    display: none;
+  }
+
+  .konvektori-compact-row {
+    grid-template-columns: 1fr 1fr;
+    grid-template-areas:
+      "num status"
+      "type type"
+      "tunnus huone"
+      "valm malli"
+      "sarja sarja"
+      "actions actions";
+    min-width: 0;
+    padding: 0.65rem;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    margin-bottom: 0.35rem;
+  }
+
+  .konvektori-compact-num { grid-area: num; text-align: left; }
+  .konvektori-compact-row > .konvektori-status { grid-area: status; justify-self: end; }
+  .konvektori-compact-row > .konvektori-compact-field:nth-of-type(1) { grid-area: type; }
+  .konvektori-compact-row > .konvektori-compact-field:nth-of-type(2) { grid-area: tunnus; }
+  .konvektori-compact-row > .konvektori-compact-field:nth-of-type(3) { grid-area: huone; }
+  .konvektori-compact-row > .konvektori-compact-field:nth-of-type(4) { grid-area: valm; }
+  .konvektori-compact-row > .konvektori-compact-field:nth-of-type(5) { grid-area: malli; }
+  .konvektori-compact-row > .konvektori-compact-field:nth-of-type(6) { grid-area: sarja; }
+  .konvektori-compact-actions { grid-area: actions; justify-content: stretch; }
+  .konvektori-compact-actions .btn { flex: 1; }
+
+  .konvektori-mittaukset-grid {
+    grid-template-columns: 1fr;
+  }
+}
