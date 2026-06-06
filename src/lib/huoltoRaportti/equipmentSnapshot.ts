@@ -12,7 +12,7 @@ import {
   getKokoLaiteSahkoVaiheValinta,
   getMlpPumpSyottoValinta,
 } from './sahkoVaiheUtils';
-import { ensureKonvektoriRow } from './defaults';
+import { ensureKonvektoriRow, konvektoriRowsHaveMaintenanceData } from './defaults';
 import type {
   CompressorData,
   CondenserData,
@@ -38,22 +38,6 @@ function konvektoriRowHasIdentity(row: KonvektoriRowData): boolean {
 
 function konvektoriRowsHaveRegistryData(rows: KonvektoriRowData[] | undefined): boolean {
   return (rows ?? []).some(konvektoriRowHasIdentity);
-}
-
-function konvektoriRowHasMaintenanceData(row: KonvektoriRowData): boolean {
-  return Boolean(
-    row.suodatinPuhdistettu
-    || row.kennoPuhdistettu
-    || row.kondenssiTarkastettu
-    || row.puhallinTarkastettu
-    || row.venttiiliTarkastettu
-    || row.huomio.trim()
-    || row.huomioTyyppi === 'vika',
-  );
-}
-
-function konvektoriRowsHaveMaintenanceData(rows: KonvektoriRowData[] | undefined): boolean {
-  return (rows ?? []).some(konvektoriRowHasMaintenanceData);
 }
 
 function field(data: HuoltoReportData, key: string): unknown {

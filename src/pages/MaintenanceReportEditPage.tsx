@@ -36,6 +36,7 @@ import {
   createEmptyHuoltoReportData,
   createEmptyMlpData,
   ensureChillerLiquidCondenserData,
+  konvektoriRowsHaveMaintenanceData,
   mergeHuoltoReportData,
   normalizeHuoltoReportData,
   resolveMaintenanceReportTitle,
@@ -428,15 +429,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
 
   async function loadReport(reportIdToLoad: string) {
     const viewKey = maintenanceReportViewKey(reportIdToLoad, session.user.id);
-    const sessionEditor = readFreshMaintenanceReportEditorSnapshot(viewKey, reportIdToLoad);
-    if (sessionEditor) {
-      setForm(normalizeHuoltoReportData(sessionEditor.form));
-      setCustomerId(sessionEditor.customerId);
-      setEquipmentId(sessionEditor.equipmentId);
-      setLoadingReport(false);
-    } else {
-      setLoadingReport(true);
-    }
+    setLoadingReport(true);
 
     const { data, error: loadError } = await supabase
       .from('maintenance_reports')
@@ -466,14 +459,26 @@ export default function MaintenanceReportEditPage({ session }: Props) {
       subscriber_id: string | null;
     };
 
+    const normalized = normalizeHuoltoReportData({ ...createEmptyHuoltoReportData(), ...row.data });
+    const sessionEditor = readFreshMaintenanceReportEditorSnapshot(viewKey, reportIdToLoad);
+
+    let formToUse = normalized;
+    if (sessionEditor && row.status === 'draft') {
+      const sessionForm = normalizeHuoltoReportData(sessionEditor.form);
+      const dbRows = normalized.konvektoriRows ?? [];
+      const sessionRows = sessionForm.konvektoriRows ?? [];
+      if (konvektoriRowsHaveMaintenanceData(dbRows) && !konvektoriRowsHaveMaintenanceData(sessionRows)) {
+        formToUse = { ...sessionForm, konvektoriRows: dbRows };
+      } else {
+        formToUse = sessionForm;
+      }
+    }
+
     setReportId(row.id);
     setSavedReportTitle(row.title);
     setReportOwnerCompanyId(row.owner_company_id);
     setStatus(row.status);
-    const normalized = normalizeHuoltoReportData({ ...createEmptyHuoltoReportData(), ...row.data });
-    if (!sessionEditor || row.status !== 'draft') {
-      setForm(normalized);
-    }
+    setForm(formToUse);
     setCustomerId(row.customer_id ?? row.data.customerId ?? sessionEditor?.customerId ?? '');
     setSubscriberId(row.subscriber_id ?? '');
     const nextEquipmentId = row.equipment_id ?? sessionEditor?.equipmentId ?? '';

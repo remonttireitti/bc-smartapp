@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react';
+import { useMemo } from 'react';
 import type { HuomioLuonne, KonvektoriRowData } from '../../lib/huoltoRaportti/types';
 import {
   cloneKonvektoriRow,
@@ -25,18 +25,16 @@ interface Props {
 export function KonvektoritSection({ rows, onChange }: Props) {
   const effectiveRows = useMemo(() => ensureKonvektoriRowsList(rows), [rows]);
 
-  useEffect(() => {
-    if (rows.length === 0) {
-      onChange([createEmptyKonvektoriRow()]);
-    }
-  }, [rows.length, onChange]);
+  const commitRows = (nextRows: KonvektoriRowData[]) => {
+    onChange(nextRows);
+  };
 
   const patchRow = (index: number, patch: Partial<KonvektoriRowData>) => {
-    onChange(effectiveRows.map((row, i) => (i === index ? { ...row, ...patch } : row)));
+    commitRows(effectiveRows.map((row, i) => (i === index ? { ...row, ...patch } : row)));
   };
 
   const removeRow = (index: number) => {
-    onChange(
+    commitRows(
       effectiveRows.length > 1
         ? effectiveRows.filter((_, i) => i !== index)
         : [createEmptyKonvektoriRow()],
@@ -54,7 +52,7 @@ export function KonvektoritSection({ rows, onChange }: Props) {
           type="button"
           className="btn btn-secondary btn-sm"
           onClick={() =>
-            onChange([
+            commitRows([
               ...effectiveRows,
               cloneKonvektoriRow(effectiveRows[effectiveRows.length - 1]),
             ])
@@ -65,7 +63,7 @@ export function KonvektoritSection({ rows, onChange }: Props) {
         <button
           type="button"
           className="btn btn-secondary btn-sm"
-          onClick={() => onChange([...effectiveRows, createEmptyKonvektoriRow()])}
+          onClick={() => commitRows([...effectiveRows, createEmptyKonvektoriRow()])}
         >
           + Lisää rivi
         </button>

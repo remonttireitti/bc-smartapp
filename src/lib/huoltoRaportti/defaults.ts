@@ -116,10 +116,55 @@ export function createEmptyNestelauhdutinUnit(): NestelauhdutinUnitData {
   };
 }
 
+function coerceKonvektoriBoolean(value: unknown): boolean {
+  if (value === true || value === 1) return true;
+  if (value === false || value === 0 || value == null) return false;
+  const normalized = String(value).trim().toLowerCase();
+  return normalized === 'true' || normalized === '1' || normalized === 'kyllä' || normalized === 'x';
+}
+
+const KONVEKTORI_CHECKBOX_FIELDS = [
+  'suodatinPuhdistettu',
+  'kennoPuhdistettu',
+  'kondenssiTarkastettu',
+  'puhallinTarkastettu',
+  'venttiiliTarkastettu',
+] as const;
+
+export function konvektoriRowHasMaintenanceData(row: KonvektoriRowData): boolean {
+  return Boolean(
+    row.suodatinPuhdistettu
+    || row.kennoPuhdistettu
+    || row.kondenssiTarkastettu
+    || row.puhallinTarkastettu
+    || row.venttiiliTarkastettu
+    || row.huomio.trim()
+    || row.huomioTyyppi === 'vika',
+  );
+}
+
+export function konvektoriRowsHaveMaintenanceData(rows: KonvektoriRowData[] | undefined | null): boolean {
+  return (rows ?? []).some(konvektoriRowHasMaintenanceData);
+}
+
 export function ensureKonvektoriRow(data: Partial<KonvektoriRowData> | undefined): KonvektoriRowData {
   const base = createEmptyKonvektoriRow();
   if (!data) return base;
-  return { ...base, ...data };
+  const raw = data as Record<string, unknown>;
+  const next: KonvektoriRowData = {
+    ...base,
+    ...data,
+    tunnus: String(data.tunnus ?? raw.tunnus ?? '').trim(),
+    valmistaja: String(data.valmistaja ?? raw.valmistaja ?? '').trim(),
+    malli: String(data.malli ?? raw.malli ?? '').trim(),
+    sarjanumero: String(data.sarjanumero ?? raw.sarjanumero ?? '').trim(),
+    huomio: String(data.huomio ?? raw.huomio ?? '').trim(),
+    huomioTyyppi: data.huomioTyyppi === 'vika' || raw.huomioTyyppi === 'vika' ? 'vika' : 'kommentti',
+  };
+  for (const field of KONVEKTORI_CHECKBOX_FIELDS) {
+    next[field] = coerceKonvektoriBoolean(raw[field]);
+  }
+  return next;
 }
 
 /** Vähintään yksi rivi konvektoritaulukossa. */
