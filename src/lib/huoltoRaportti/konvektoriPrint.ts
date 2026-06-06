@@ -1,4 +1,4 @@
-import { KONVEKTORI_TARKASTUS_ITEMS } from './konvektoriTarkastus';
+import { KONVEKTORI_TARKASTUS_ITEMS, konvektoriTarkastusSummary } from './konvektoriTarkastus';
 import {
   formatKonvektoriLampotila,
   konvektoriImageUrl,
@@ -31,6 +31,18 @@ function renderCheckMark(checked: boolean | null | undefined): string {
   if (checked === true) return '<span style="color:#16a34a;font-weight:700;">✓</span>';
   if (checked === false) return '<span style="color:#dc2626;font-weight:700;">✗</span>';
   return '<span style="color:#9ca3af;">–</span>';
+}
+
+function konvektoriCardColors(row: KonvektoriRowData): { background: string; border: string } {
+  const summary = konvektoriTarkastusSummary(row);
+  const isVika = row.huomioTyyppi === 'vika' || summary.anyNo;
+  if (isVika) {
+    return { background: '#fef2f2', border: '#fca5a5' };
+  }
+  if (summary.complete && summary.allYes) {
+    return { background: '#f0fdf4', border: '#86efac' };
+  }
+  return { background: '#fff', border: '#cbd5e1' };
 }
 
 function renderKonvektoriCard(
@@ -74,8 +86,10 @@ function renderKonvektoriCard(
     output ? `<div style="${posStyle(overlay.output)}">${esc(output.label)} ${esc(output.value)}</div>` : '',
   ].filter(Boolean).join('');
 
+  const cardColors = konvektoriCardColors(row);
+
   return `
-    <div style="border:1px solid #cbd5e1;border-radius:4px;padding:4px;background:#fff;page-break-inside:avoid;display:flex;flex-direction:column;min-height:0;">
+    <div style="border:1px solid ${cardColors.border};border-radius:4px;padding:4px;background:${cardColors.background};page-break-inside:avoid;display:flex;flex-direction:column;min-height:0;">
       <div style="font-size:7px;font-weight:700;color:#00838F;line-height:1.2;margin-bottom:2px;">${index + 1}. ${esc(typeLabel)}</div>
       <div style="font-size:6px;color:#334155;line-height:1.25;margin-bottom:3px;word-wrap:break-word;">${metaParts.length ? esc(metaParts.join(' · ')) : '—'}</div>
       <div style="position:relative;width:100%;height:72px;margin-bottom:3px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:3px;overflow:hidden;">
