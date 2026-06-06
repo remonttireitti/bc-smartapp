@@ -21,6 +21,7 @@ import type {
   EvaporatorData,
   HeatingCircuitData,
   HuoltoReportData,
+  KonvektoriRowData,
   MlpData,
   NestelauhdutinUnitData,
   PumpunSyottoValinta,
@@ -30,6 +31,30 @@ import type {
 import { getRefrigerantGWP, resolveKylmaaineTyyppi } from './utils';
 
 const trim = (s: unknown) => String(s ?? '').trim();
+
+function konvektoriRowHasIdentity(row: KonvektoriRowData): boolean {
+  return Boolean(row.tunnus.trim() || row.valmistaja.trim() || row.malli.trim() || row.sarjanumero.trim());
+}
+
+function konvektoriRowsHaveRegistryData(rows: KonvektoriRowData[] | undefined): boolean {
+  return (rows ?? []).some(konvektoriRowHasIdentity);
+}
+
+function konvektoriRowHasMaintenanceData(row: KonvektoriRowData): boolean {
+  return Boolean(
+    row.suodatinPuhdistettu
+    || row.kennoPuhdistettu
+    || row.kondenssiTarkastettu
+    || row.puhallinTarkastettu
+    || row.venttiiliTarkastettu
+    || row.huomio.trim()
+    || row.huomioTyyppi === 'vika',
+  );
+}
+
+function konvektoriRowsHaveMaintenanceData(rows: KonvektoriRowData[] | undefined): boolean {
+  return (rows ?? []).some(konvektoriRowHasMaintenanceData);
+}
 
 function field(data: HuoltoReportData, key: string): unknown {
   return data[key];
@@ -532,19 +557,48 @@ export function applyEquipmentSnapshotToForm(
     patch.nestelauhduttimetVj = snap.nestelauhduttimetVj as NestelauhdutinUnitData[];
   }
 
-  if (Array.isArray(snap.konvektorit)) {
-    patch.konvektoriRows = snap.konvektorit.map((r) =>
-      ensureKonvektoriRow({
-        ...r,
-        id: crypto.randomUUID(),
-        suodatinPuhdistettu: false,
-        kennoPuhdistettu: false,
-        kondenssiTarkastettu: false,
-        puhallinTarkastettu: false,
-        venttiiliTarkastettu: false,
-        huomio: '',
-      }),
-    );
+  if (Array.isArray(snap.konvektorit) && snap.konvektorit.length > 0) {
+    const registryRows = snap.konvektorit;
+    const existing = form.konvektoriRows ?? [];
+    if (konvektoriRowsHaveMaintenanceData(existing)) {
+      // Raportilla on jo huoltotila — älä korvaa rekisterin tunnisteilla.
+    } else if (konvektoriRowsHaveRegistryData(existing)) {
+      patch.konvektoriRows = existing.map((row, index) => {
+        const snapRow = registryRows[index];
+        if (!snapRow) return ensureKonvektoriRow(row);
+        return ensureKonvektoriRow({
+          ...row,
+          tunnus: trim(snapRow.tunnus) || row.tunnus,
+          valmistaja: trim(snapRow.valmistaja) || row.valmistaja,
+          malli: trim(snapRow.malli) || row.malli,
+          sarjanumero: trim(snapRow.sarjanumero) || row.sarjanumero,
+        });
+      });
+      if (registryRows.length > existing.length) {
+        patch.konvektoriRows = [
+          ...patch.konvektoriRows,
+          ...registryRows.slice(existing.length).map((r) =>
+            ensureKonvektoriRow({
+              id: crypto.randomUUID(),
+              tunnus: trim(r.tunnus),
+              valmistaja: trim(r.valmistaja),
+              malli: trim(r.malli),
+              sarjanumero: trim(r.sarjanumero),
+            }),
+          ),
+        ];
+      }
+    } else {
+      patch.konvektoriRows = registryRows.map((r) =>
+        ensureKonvektoriRow({
+          id: crypto.randomUUID(),
+          tunnus: trim(r.tunnus),
+          valmistaja: trim(r.valmistaja),
+          malli: trim(r.malli),
+          sarjanumero: trim(r.sarjanumero),
+        }),
+      );
+    }
   }
 
   return patch;

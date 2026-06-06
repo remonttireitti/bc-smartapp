@@ -75,35 +75,62 @@ export async function deleteMaintenanceReportImage(storagePath: string) {
   await supabase.from('maintenance_report_images').delete().eq('storage_path', storagePath);
 }
 
-function useSignedImageUrls(paths: string[]) {
-  const [urls, setUrls] = useState<Record<string, string>>({});
+function useSignedImageUrl(path: string) {
+  const [url, setUrl] = useState<string | undefined>();
 
   useEffect(() => {
     let cancelled = false;
 
+    if (!path) {
+      setUrl(undefined);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    void (async () => {
+      const { data } = await supabase.storage.from(BUCKET).createSignedUrl(path, 3600);
+      if (!cancelled) setUrl(data?.signedUrl);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [path]);
+
+  return url;
+}
+
+function useSignedImageUrls(paths: string[]) {
+  const pathsKey = paths.join('\0');
+  const [urls, setUrls] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    let cancelled = false;
+    const pathList = pathsKey ? pathsKey.split('\0') : [];
+
     async function loadUrls() {
       const next: Record<string, string> = {};
-      for (const path of paths) {
+      for (const path of pathList) {
         const { data } = await supabase.storage.from(BUCKET).createSignedUrl(path, 3600);
         if (data?.signedUrl) next[path] = data.signedUrl;
       }
       if (!cancelled) setUrls(next);
     }
 
-    if (paths.length > 0) void loadUrls();
+    if (pathList.length > 0) void loadUrls();
     else setUrls({});
 
     return () => {
       cancelled = true;
     };
-  }, [paths]);
+  }, [pathsKey]);
 
   return urls;
 }
 
 export function MaintenanceReportImageThumb({ path }: { path: string }) {
-  const urls = useSignedImageUrls([path]);
-  const url = urls[path];
+  const url = useSignedImageUrl(path);
   const [previewOpen, setPreviewOpen] = useState(false);
 
   function openPreview(event: MouseEvent) {

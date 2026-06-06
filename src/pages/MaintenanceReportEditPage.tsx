@@ -151,6 +151,8 @@ export default function MaintenanceReportEditPage({ session }: Props) {
   );
   const [registryMessage, setRegistryMessage] = useState<string | null>(null);
   const previousCustomerIdRef = useRef('');
+  /** Estää raportin avauksessa rekisterin snapshotin ylikirjoittamasta tallennettua dataa. */
+  const skipEquipmentRegistryHydrateRef = useRef<string | null>(null);
   const skipAutoSaveRef = useRef(true);
   const saveInFlightRef = useRef(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
@@ -410,6 +412,10 @@ export default function MaintenanceReportEditPage({ session }: Props) {
 
   useEffect(() => {
     if (!equipmentId) return;
+    if (skipEquipmentRegistryHydrateRef.current === equipmentId) {
+      skipEquipmentRegistryHydrateRef.current = null;
+      return;
+    }
     void loadEquipmentIntoForm(equipmentId);
   }, [equipmentId]);
 
@@ -470,7 +476,11 @@ export default function MaintenanceReportEditPage({ session }: Props) {
     }
     setCustomerId(row.customer_id ?? row.data.customerId ?? sessionEditor?.customerId ?? '');
     setSubscriberId(row.subscriber_id ?? '');
-    setEquipmentId(row.equipment_id ?? sessionEditor?.equipmentId ?? '');
+    const nextEquipmentId = row.equipment_id ?? sessionEditor?.equipmentId ?? '';
+    if (nextEquipmentId) {
+      skipEquipmentRegistryHydrateRef.current = nextEquipmentId;
+    }
+    setEquipmentId(nextEquipmentId);
 
     await loadAccessibleCustomers();
     await loadOwnerCompany(row.owner_company_id);
