@@ -1,6 +1,6 @@
 import type { KonvektoriRowData } from './types';
 
-/** c_p kJ/(kg·K); vesipiirillä P(kW) ≈ c_p × V(l/s) × ΔT (°C) kun ρ ≈ 1000 kg/m³ */
+/** c_p kJ/(kg·K); vesipiirillä P(kW) ≈ c_p × V(l/s) × ΔT (°C) */
 const JAAHDYTYSNESTE_CP: Record<string, number> = {
   vesi: 4.18,
   etyleeniglykoli_20: 3.65,
@@ -11,8 +11,8 @@ const JAAHDYTYSNESTE_CP: Record<string, number> = {
   propyleeniglykoli_40: 3.15,
 };
 
-/** ρ × c_p ilmalle huoneolosuhteissa, kJ/(m³·K) — vain näyttöhyöty */
-const AIR_VOL_HEAT = 1.206;
+/** Ilman näyttöhyöty: P ≈ 1,206 × V(m³/h) / 3600 × |ΔT| */
+const AIR_SENSIBLE_FACTOR = 1.206;
 
 export function parseKonvektoriNumeric(value: unknown): number | null {
   const raw = String(value ?? '').trim().replace(',', '.');
@@ -31,133 +31,188 @@ function formatM3h(value: number): string {
   return rounded.toLocaleString('fi-FI', { maximumFractionDigits: 0 });
 }
 
+function formatLs(value: number): string {
+  const rounded = Math.round(value * 1000) / 1000;
+  return rounded.toLocaleString('fi-FI', { maximumFractionDigits: 3 });
+}
+
 export type KonvektoriLaskettuTeho = {
   tehoKw: number;
   mode: 'jaahdytys' | 'lammitys';
+  method?: 'vesi' | 'ilma' | 'mitattu';
 };
 
 function tehoModeFromDelta(delta: number): KonvektoriLaskettuTeho['mode'] {
   return delta > 0 ? 'jaahdytys' : 'lammitys';
 }
 
-function airTemperatureDelta(huone: number, puhallus: number): number | null {
-  const delta = huone - puhallus;
-  if (Math.abs(delta) < 0.01) return null;
-  return Math.abs(delta);
+/** Paluu- ja menoveden lämpötilat vaaditaan laskentariveihin */
+export function konvektoriVesiLampotilatOk(row: KonvektoriRowData): boolean {
+  const tulo = parseKonvektoriNumeric(row.tuloLampotila);
+  const meno = parseKonvektoriNumeric(row.menoLampotila);
+  return tulo != null && meno != null && Math.abs(meno - tulo) >= 0.01;
 }
 
-/** Laskee vesipiirin teho kW: P ≈ c_p × virtaus(l/s) × |meno − tulo| */
-export function calculateKonvektoriVesipiirinTeho(row: KonvektoriRowData): KonvektoriLaskettuTeho | null {
+function waterDeltaT(row: KonvektoriRowData): number | null {
+  if (!konvektoriVesiLampotilatOk(row)) return null;
+  const tulo = parseKonvektoriNumeric(row.tuloLampotila)!;
+  const meno = parseKonvektoriNumeric(row.menoLampotila)!;
+  return Math.abs(meno - tulo);
+}
+
+function nesteCp(row: KonvektoriRowData): number | null {
   const neste = String(row.jaahdytysNeste ?? '').trim();
   if (!neste || neste === 'muu') return null;
+  return JAAHDYTYSNESTE_CP[neste] ?? null;
+}
 
-  const cp = JAAHDYTYSNESTE_CP[neste];
+/** Laskee vesipiirin teho kW kun virtaus ja lämpötilat tiedossa */
+export function calculateKonvektoriVesipiirinTeho(row: KonvektoriRowData): KonvektoriLaskettuTeho | null {
+  const cp = nesteCp(row);
   if (cp == null) return null;
 
   const virtaus = parseKonvektoriNumeric(row.virtausLs);
-  const tulo = parseKonvektoriNumeric(row.tuloLampotila);
-  const meno = parseKonvektoriNumeric(row.menoLampotila);
-  if (virtaus == null || virtaus <= 0 || tulo == null || meno == null) return null;
+  const deltaT = waterDeltaT(row);
+  if (virtaus == null || virtaus <= 0 || deltaT == null) return null;
 
-  const delta = meno - tulo;
-  if (Math.abs(delta) < 0.01) return null;
-
-  const tehoKw = cp * virtaus * Math.abs(delta);
+  const tehoKw = cp * virtaus * deltaT;
   if (!Number.isFinite(tehoKw) || tehoKw <= 0) return null;
 
+  const tulo = parseKonvektoriNumeric(row.tuloLampotila)!;
+  const meno = parseKonvektoriNumeric(row.menoLampotila)!;
   return {
     tehoKw,
-    mode: tehoModeFromDelta(delta),
+    mode: tehoModeFromDelta(meno - tulo),
+    method: 'vesi',
   };
 }
 
-/** Ilmapuolen näyttöhyöty: P ≈ 1,206 × virtaus(m³/h) / 3600 × |huone − puhallus| */
+/** Ilmapuolen teho kun virtaus ja lämpötilat tiedossa (näyttöhyöty) */
 export function calculateKonvektoriIlmapuolenTeho(row: KonvektoriRowData): KonvektoriLaskettuTeho | null {
   const huone = parseKonvektoriNumeric(row.huoneLampotila);
   const puhallus = parseKonvektoriNumeric(row.puhallusLampotila);
   const virtausM3h = parseKonvektoriNumeric(row.ilmanVirtausM3h);
   if (huone == null || puhallus == null || virtausM3h == null || virtausM3h <= 0) return null;
 
-  const deltaT = airTemperatureDelta(huone, puhallus);
-  if (deltaT == null) return null;
+  const deltaT = Math.abs(huone - puhallus);
+  if (deltaT < 0.01) return null;
 
-  const tehoKw = AIR_VOL_HEAT * (virtausM3h / 3600) * deltaT;
+  const tehoKw = AIR_SENSIBLE_FACTOR * (virtausM3h / 3600) * deltaT;
   if (!Number.isFinite(tehoKw) || tehoKw <= 0) return null;
 
   return {
     tehoKw,
     mode: tehoModeFromDelta(huone - puhallus),
+    method: 'ilma',
   };
 }
 
-/** Arvioi ilmavirtaus m³/h kun teho ja ilman lämpötilat tiedossa */
+/** Arvioi ilmavirtaus m³/h mitatusta/lasketusta tehosta ja ilman lämpötiloista */
 export function estimateKonvektoriIlmanVirtausM3h(
+  row: KonvektoriRowData,
   tehoKw: number,
-  huone: number,
-  puhallus: number,
 ): number | null {
-  if (tehoKw <= 0) return null;
-  const deltaT = airTemperatureDelta(huone, puhallus);
-  if (deltaT == null) return null;
-  const virtausM3h = (tehoKw * 3600) / (AIR_VOL_HEAT * deltaT);
+  const huone = parseKonvektoriNumeric(row.huoneLampotila);
+  const puhallus = parseKonvektoriNumeric(row.puhallusLampotila);
+  if (huone == null || puhallus == null || tehoKw <= 0) return null;
+
+  const deltaT = Math.abs(huone - puhallus);
+  if (deltaT < 0.01) return null;
+
+  const virtausM3h = (tehoKw * 3600) / (AIR_SENSIBLE_FACTOR * deltaT);
   if (!Number.isFinite(virtausM3h) || virtausM3h <= 0) return null;
   return virtausM3h;
 }
 
+/** Arvioi vesivirtaus l/s tehosta ja veden lämpötilaerosta */
+export function estimateKonvektoriVesivirtausLs(
+  row: KonvektoriRowData,
+  tehoKw: number,
+): number | null {
+  const cp = nesteCp(row);
+  const deltaT = waterDeltaT(row);
+  if (cp == null || deltaT == null || tehoKw <= 0) return null;
+
+  const virtausLs = tehoKw / (cp * deltaT);
+  if (!Number.isFinite(virtausLs) || virtausLs <= 0) return null;
+  return virtausLs;
+}
+
 export function resolveKonvektoriTehoKw(row: KonvektoriRowData): KonvektoriLaskettuTeho | null {
+  const manual = parseKonvektoriNumeric(row.mitattuTeho);
+  if (manual != null && manual > 0) {
+    const huone = parseKonvektoriNumeric(row.huoneLampotila);
+    const puhallus = parseKonvektoriNumeric(row.puhallusLampotila);
+    if (huone != null && puhallus != null && Math.abs(huone - puhallus) >= 0.01) {
+      return { tehoKw: manual, mode: tehoModeFromDelta(huone - puhallus), method: 'mitattu' };
+    }
+    return { tehoKw: manual, mode: 'jaahdytys', method: 'mitattu' };
+  }
+
   const ves = calculateKonvektoriVesipiirinTeho(row);
   if (ves) return ves;
-  const ilm = calculateKonvektoriIlmapuolenTeho(row);
-  if (ilm) return ilm;
-  const manual = parseKonvektoriNumeric(row.mitattuTeho);
-  if (manual == null || manual <= 0) return null;
-  const huone = parseKonvektoriNumeric(row.huoneLampotila);
-  const puhallus = parseKonvektoriNumeric(row.puhallusLampotila);
-  if (huone != null && puhallus != null && Math.abs(huone - puhallus) >= 0.01) {
-    return { tehoKw: manual, mode: tehoModeFromDelta(huone - puhallus) };
-  }
-  return { tehoKw: manual, mode: 'jaahdytys' };
+
+  return calculateKonvektoriIlmapuolenTeho(row);
+}
+
+function tehoLabel(result: KonvektoriLaskettuTeho, prefix: string): string {
+  const mode = result.mode === 'jaahdytys' ? 'jäähdytysteho' : 'lämmitysteho';
+  return `${prefix}${result.method === 'mitattu' ? 'Mitattu' : 'Lask.'} ${mode} ${formatKw(result.tehoKw)}`.trim();
 }
 
 export function formatKonvektoriLaskettuTeho(result: KonvektoriLaskettuTeho | null, prefix = ''): string {
   if (!result) return '';
-  const label = result.mode === 'jaahdytys' ? 'Lask. jäähdytysteho' : 'Lask. lämmitysteho';
-  return `${prefix}${label} ${formatKw(result.tehoKw)}`.trim();
+  return tehoLabel(result, prefix);
 }
 
-/** Kaikki laskennalliset rivit lomakkeeseen ja tulosteeseen */
+/** Laskennalliset rivit — vaatii paluu- ja menoveden lämpötilat */
 export function getKonvektoriCalculationLines(row: KonvektoriRowData): string[] {
+  if (!konvektoriVesiLampotilatOk(row)) return [];
+
   const lines: string[] = [];
-
+  const mitattu = parseKonvektoriNumeric(row.mitattuTeho);
   const ves = calculateKonvektoriVesipiirinTeho(row);
-  if (ves) lines.push(formatKonvektoriLaskettuTeho(ves, 'Vesi: '));
-
   const ilm = calculateKonvektoriIlmapuolenTeho(row);
-  if (ilm) lines.push(formatKonvektoriLaskettuTeho(ilm, 'Ilma: '));
 
-  const huone = parseKonvektoriNumeric(row.huoneLampotila);
-  const puhallus = parseKonvektoriNumeric(row.puhallusLampotila);
+  if (mitattu != null && mitattu > 0) {
+    const resolved = resolveKonvektoriTehoKw(row);
+    if (resolved?.method === 'mitattu') lines.push(tehoLabel(resolved, ''));
+  }
+
+  if (ves) lines.push(tehoLabel(ves, 'Vesi: '));
+  if (ilm) lines.push(tehoLabel(ilm, 'Ilma: '));
+
+  const tehoKw = (mitattu != null && mitattu > 0)
+    ? mitattu
+    : (ves?.tehoKw ?? ilm?.tehoKw ?? null);
+
   const ilmanVirtaus = parseKonvektoriNumeric(row.ilmanVirtausM3h);
-  const tehoKw = ves?.tehoKw ?? ilm?.tehoKw ?? parseKonvektoriNumeric(row.mitattuTeho);
-
   if (
     tehoKw != null
     && tehoKw > 0
-    && huone != null
-    && puhallus != null
+    && parseKonvektoriNumeric(row.huoneLampotila) != null
+    && parseKonvektoriNumeric(row.puhallusLampotila) != null
     && (ilmanVirtaus == null || ilmanVirtaus <= 0)
   ) {
-    const arvio = estimateKonvektoriIlmanVirtausM3h(tehoKw, huone, puhallus);
+    const arvio = estimateKonvektoriIlmanVirtausM3h(row, tehoKw);
     if (arvio != null) {
       lines.push(`Arvioitu ilmavirtaus ${formatM3h(arvio)} m³/h`);
     }
   }
 
-  if (ves && ilm) {
-    const ero = Math.abs(ves.tehoKw - ilm.tehoKw);
-    const pct = Math.round((ero / Math.max(ves.tehoKw, ilm.tehoKw)) * 100);
+  const vesivirtaus = parseKonvektoriNumeric(row.virtausLs);
+  if (tehoKw != null && tehoKw > 0 && nesteCp(row) != null && (vesivirtaus == null || vesivirtaus <= 0)) {
+    const arvioLs = estimateKonvektoriVesivirtausLs(row, tehoKw);
+    if (arvioLs != null) {
+      lines.push(`Arvioitu vesivirtaus ${formatLs(arvioLs)} l/s`);
+    }
+  }
+
+  if (mitattu != null && mitattu > 0 && ves) {
+    const ero = Math.abs(mitattu - ves.tehoKw);
+    const pct = Math.round((ero / Math.max(mitattu, ves.tehoKw)) * 100);
     if (pct > 0) {
-      lines.push(`Vesi vs. ilma − ero ${formatKw(ero)} (${pct} %)`);
+      lines.push(`Mittaus vs. vesi − ero ${formatKw(ero)} (${pct} %)`);
     }
   }
 

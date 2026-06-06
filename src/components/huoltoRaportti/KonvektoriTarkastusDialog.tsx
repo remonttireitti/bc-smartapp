@@ -170,7 +170,7 @@ export function KonvektoriTarkastusDialog({ open, row, rowLabel, onClose, onSave
                 inputMode="decimal"
                 value={draft.puhallusLampotila ?? ''}
                 onChange={(e) => setDraft((prev) => ({ ...prev, puhallusLampotila: e.target.value }))}
-                placeholder="esim. 22"
+                placeholder="esim. 16"
               />
             </label>
             <label className="konvektori-mittaus-field">
@@ -192,7 +192,7 @@ export function KonvektoriTarkastusDialog({ open, row, rowLabel, onClose, onSave
             </div>
           ) : null}
           <p className="muted konvektori-mittaukset-hint">
-            Vesi: P ≈ c_p × vesivirtaus (l/s) × |meno − tulo|. Ilma: P ≈ 1,21 × ilmavirtaus (m³/h) / 3600 × |huone − puhallus|. Tehosta voidaan arvioida ilmavirtaus tai päinvastoin.
+            Syötä paluu- ja menoveden lämpötilat (Tulo + Meno °C) — ilman niitä laskentaa ei tehdä. Jäähdytysteho mitataan suoraan mittarilla (puhallusilma). Jos ilma- tai vesivirtausta ei ole syötetty, se arvioidaan tehosta ja lämpötiloista.
           </p>
         </div>
 

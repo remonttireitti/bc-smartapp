@@ -159,7 +159,6 @@ export function konvektoriRowHasMaintenanceData(row: KonvektoriRowData): boolean
     || row.huomio.trim()
     || row.huomioTyyppi === 'vika'
     || Boolean(row.huone?.trim())
-    || Boolean(row.huoneLampotila?.trim())
     || Boolean(row.jaahdytysNeste?.trim())
     || Boolean(row.virtausLs?.trim())
     || Boolean(row.ilmanVirtausM3h?.trim())
