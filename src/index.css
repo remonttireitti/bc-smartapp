@@ -10982,6 +10982,17 @@ button.vrf-toggle:not(:disabled) {
   font-size: 0.78rem;
 }
 
+.konvektori-laskettu-teho {
+  margin: 0.65rem 0 0;
+  padding: 0.5rem 0.65rem;
+  border-radius: 6px;
+  background: #ecfdf5;
+  border: 1px solid #86efac;
+  color: #166534;
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
 .konvektori-tarkastus-list {
   display: flex;
   flex-direction: column;

@@ -1,4 +1,5 @@
 import type { KonvektoriRowData } from './types';
+import { calculateKonvektoriVesipiirinTeho } from './konvektoriTeho';
 
 export type KonvektoriAsennustyyppi = 'katto' | 'seina' | 'lattia' | 'kanavoitava';
 
@@ -115,6 +116,13 @@ export function formatKonvektoriTeho(value: unknown): string {
 }
 
 export function konvektoriOutputMeasurement(row: KonvektoriRowData): { label: string; value: string } | null {
+  const calc = calculateKonvektoriVesipiirinTeho(row);
+  if (calc) {
+    const rounded = Math.round(calc.tehoKw * 100) / 100;
+    const value = `${rounded.toLocaleString('fi-FI', { maximumFractionDigits: 2 })} kW`;
+    const label = calc.mode === 'jaahdytys' ? 'Lask. jäähdytysteho' : 'Lask. lämmitysteho';
+    return { label, value };
+  }
   const puh = formatKonvektoriLampotila(row.puhallusLampotila);
   if (puh) return { label: 'Puhallus', value: puh };
   const teho = formatKonvektoriTeho(row.mitattuTeho);

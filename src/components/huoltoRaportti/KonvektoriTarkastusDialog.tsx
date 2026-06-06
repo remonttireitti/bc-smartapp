@@ -5,6 +5,7 @@ import {
   type KonvektoriTarkastusField,
 } from '../../lib/huoltoRaportti/konvektoriTarkastus';
 import { KONVEKTORI_JAAHDYTYSNESTE_OPTIONS } from '../../lib/huoltoRaportti/konvektoriTypes';
+import { calculateKonvektoriVesipiirinTeho, formatKonvektoriLaskettuTeho } from '../../lib/huoltoRaportti/konvektoriTeho';
 
 interface Props {
   open: boolean;
@@ -66,6 +67,8 @@ export function KonvektoriTarkastusDialog({ open, row, rowLabel, onClose, onSave
   const patchCheck = (field: KonvektoriTarkastusField, value: boolean) => {
     setDraft((prev) => ({ ...prev, [field]: value }));
   };
+
+  const laskettuTeho = formatKonvektoriLaskettuTeho(calculateKonvektoriVesipiirinTeho(draft));
 
   return (
     <div className="leave-draft-overlay konvektori-dialog-overlay" role="presentation" onClick={onClose}>
@@ -137,7 +140,7 @@ export function KonvektoriTarkastusDialog({ open, row, rowLabel, onClose, onSave
                 inputMode="decimal"
                 value={draft.tuloLampotila ?? ''}
                 onChange={(e) => setDraft((prev) => ({ ...prev, tuloLampotila: e.target.value }))}
-                placeholder="esim. 45"
+                placeholder="esim. 7"
               />
             </label>
             <label className="konvektori-mittaus-field">
@@ -147,7 +150,7 @@ export function KonvektoriTarkastusDialog({ open, row, rowLabel, onClose, onSave
                 inputMode="decimal"
                 value={draft.menoLampotila ?? ''}
                 onChange={(e) => setDraft((prev) => ({ ...prev, menoLampotila: e.target.value }))}
-                placeholder="esim. 38"
+                placeholder="esim. 12"
               />
             </label>
             <label className="konvektori-mittaus-field">
@@ -171,7 +174,12 @@ export function KonvektoriTarkastusDialog({ open, row, rowLabel, onClose, onSave
               />
             </label>
           </div>
-          <p className="muted konvektori-mittaukset-hint">Puhalluslämpötila tai mitattu teho — riittää toinen.</p>
+          {laskettuTeho ? (
+            <p className="konvektori-laskettu-teho">{laskettuTeho}</p>
+          ) : null}
+          <p className="muted konvektori-mittaukset-hint">
+            P ≈ c_p × virtaus (l/s) × |meno − tulo|. Jäähdytyksessä meno &gt; tulo. Puhalluslämpötila tai mitattu teho — valinnainen.
+          </p>
         </div>
 
         <div className="konvektori-tarkastus-list">

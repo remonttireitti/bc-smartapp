@@ -9,6 +9,7 @@ import {
   konvektoriTyyppiLabel,
   normalizeKonvektoriTyyppi,
 } from './konvektoriTypes';
+import { calculateKonvektoriVesipiirinTeho, formatKonvektoriLaskettuTeho } from './konvektoriTeho';
 import type { KonvektoriRowData } from './types';
 
 const CHECK_SHORT: Record<string, string> = {
@@ -57,7 +58,7 @@ function renderKonvektoriCheckLegend(esc: (v: unknown) => string): string {
     <div style="font-size:7px;color:#334155;line-height:1.35;margin:0 0 6px 0;padding:5px 7px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:3px;">
       <div style="font-weight:700;margin-bottom:4px;color:#00838F;">Tarkastuskohdat (✓ = OK, ✗ = ei OK, – = ei vastattu)</div>
       ${rows}
-      <div style="margin-top:4px;color:#64748b;">Ruudun tausta: vihreä = kaikki OK · punertava = vika tai jokin kohta Ei. Mittaukset kuvan päällä: Huone = imuilma, Tulo/Meno = vesi, Virtaus = l/s putkilla, Puhallus/Teho = poistuva ilma. Neste näkyy otsikkorivin alla.</div>
+      <div style="margin-top:4px;color:#64748b;">Ruudun tausta: vihreä = kaikki OK · punertava = vika tai jokin kohta Ei. Mittaukset kuvan päällä: Huone = imuilma, Tulo/Meno = vesi, Virtaus = l/s putkilla. Jäähdytysteho lasketaan: P ≈ c_p × virtaus(l/s) × (meno − tulo), kun neste, virtaus ja lämpötilat on syötetty.</div>
     </div>`;
 }
 
@@ -86,9 +87,11 @@ function renderKonvektoriCard(
 
   const nesteLabel = konvektoriJaahdytysNesteLabel(row.jaahdytysNeste, row.jaahdytysNesteMuu);
   const virtausLabel = formatKonvektoriVirtaus(row.virtausLs);
+  const laskettuTehoLabel = formatKonvektoriLaskettuTeho(calculateKonvektoriVesipiirinTeho(row));
   const nesteVirtausParts = [
     nesteLabel ? `Neste: ${nesteLabel}` : '',
     virtausLabel ? `Virtaus: ${virtausLabel}` : '',
+    laskettuTehoLabel || '',
   ].filter(Boolean);
   const nesteVirtausHtml = nesteVirtausParts.length
     ? `<div style="font-size:6px;color:#475569;line-height:1.25;margin-bottom:3px;word-wrap:break-word;">${esc(nesteVirtausParts.join(' · '))}</div>`
