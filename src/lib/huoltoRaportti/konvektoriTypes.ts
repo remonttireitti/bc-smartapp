@@ -1,6 +1,6 @@
 import type { KonvektoriRowData } from './types';
 
-export type KonvektoriAsennustyyppi = 'katto' | 'seina' | 'lattia';
+export type KonvektoriAsennustyyppi = 'katto' | 'seina' | 'lattia' | 'kanavoitava';
 
 export const KONVEKTORI_TYYPPI_OPTIONS: ReadonlyArray<{
   value: KonvektoriAsennustyyppi;
@@ -10,18 +10,21 @@ export const KONVEKTORI_TYYPPI_OPTIONS: ReadonlyArray<{
   { value: 'katto', label: 'Kattokonvektori', image: 'katto.png' },
   { value: 'seina', label: 'Seinäkonvektori', image: 'seina.png' },
   { value: 'lattia', label: 'Lattia-/koja-konvektori', image: 'lattia.png' },
+  { value: 'kanavoitava', label: 'Kanavoitava jäähdytysyksikkö', image: 'kanavoitava.png' },
 ];
 
 const TYYPPI_LABEL: Record<KonvektoriAsennustyyppi, string> = {
   katto: 'Kattokonvektori',
   seina: 'Seinäkonvektori',
   lattia: 'Lattia-/koja-konvektori',
+  kanavoitava: 'Kanavoitava jäähdytysyksikkö',
 };
 
 const TYYPPI_IMAGE: Record<KonvektoriAsennustyyppi, string> = {
   katto: 'katto.png',
   seina: 'seina.png',
   lattia: 'lattia.png',
+  kanavoitava: 'kanavoitava.png',
 };
 
 export function normalizeKonvektoriTyyppi(value: unknown): KonvektoriAsennustyyppi | '' {
@@ -29,6 +32,9 @@ export function normalizeKonvektoriTyyppi(value: unknown): KonvektoriAsennustyyp
   if (raw === 'katto' || raw === 'kattokonvektori') return 'katto';
   if (raw === 'seina' || raw === 'seinä' || raw === 'seinäkonvektori' || raw === 'seinakonvektori') return 'seina';
   if (raw === 'lattia' || raw === 'lattiakonvektori' || raw === 'koja') return 'lattia';
+  if (raw === 'kanavoitava' || raw === 'kanavoitava jaahdytysyksikko' || raw === 'kanavoitava jäähdytysyksikkö') {
+    return 'kanavoitava';
+  }
   return '';
 }
 
@@ -71,6 +77,11 @@ const OVERLAY_BY_TYYPPI: Record<KonvektoriAsennustyyppi, {
     tulo: { top: '30%', left: '1%' },
     meno: { top: '46%', left: '1%' },
     output: { top: '6%', left: '38%' },
+  },
+  kanavoitava: {
+    tulo: { top: '38%', left: '1%' },
+    meno: { top: '52%', left: '1%' },
+    output: { top: '4%', left: '55%' },
   },
 };
 

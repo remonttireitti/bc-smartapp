@@ -187,7 +187,7 @@ export type HuomioLuonne = 'kommentti' | 'vika';
 export interface KonvektoriRowData {
   id?: string;
   /** Asennustyyppi — valitsee tulosteen kuvan */
-  tyyppi?: 'katto' | 'seina' | 'lattia' | '';
+  tyyppi?: 'katto' | 'seina' | 'lattia' | 'kanavoitava' | '';
   tunnus: string;
   huone?: string;
   valmistaja: string;
