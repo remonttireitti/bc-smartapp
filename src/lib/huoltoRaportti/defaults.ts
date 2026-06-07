@@ -51,6 +51,8 @@ export function createEmptyKonvektoriRow(): KonvektoriRowData {
     malli: '',
     sarjanumero: '',
     huoneLampotila: '',
+    huoneKosteusRh: '',
+    ilmaTehoMittaus: 'mittari',
     jaahdytysNeste: '',
     jaahdytysNesteMuu: '',
     virtausLs: '',
@@ -58,6 +60,7 @@ export function createEmptyKonvektoriRow(): KonvektoriRowData {
     tuloLampotila: '',
     menoLampotila: '',
     puhallusLampotila: '',
+    puhallusKosteusRh: '',
     mitattuTeho: '',
     suodatinPuhdistettu: null,
     kennoPuhdistettu: null,
@@ -165,6 +168,9 @@ export function konvektoriRowHasMaintenanceData(row: KonvektoriRowData): boolean
     || Boolean(row.tuloLampotila?.trim())
     || Boolean(row.menoLampotila?.trim())
     || Boolean(row.puhallusLampotila?.trim())
+    || Boolean(row.huoneKosteusRh?.trim())
+    || Boolean(row.puhallusKosteusRh?.trim())
+    || row.ilmaTehoMittaus === 'laskenta'
     || Boolean(row.mitattuTeho?.trim()),
   );
 }
@@ -185,6 +191,9 @@ export function konvektoriRowsMaintenanceScore(rows: KonvektoriRowData[] | undef
     if (row.ohjausToimii != null) score += 1;
     if (row.huone?.trim()) score += 1;
     if (row.huoneLampotila?.trim()) score += 1;
+    if (row.huoneKosteusRh?.trim()) score += 1;
+    if (row.puhallusKosteusRh?.trim()) score += 1;
+    if (row.ilmaTehoMittaus === 'laskenta') score += 1;
     if (row.jaahdytysNeste?.trim()) score += 1;
     if (row.virtausLs?.trim()) score += 1;
     if (row.ilmanVirtausM3h?.trim()) score += 1;
@@ -211,6 +220,8 @@ export function ensureKonvektoriRow(data: Partial<KonvektoriRowData> | undefined
     malli: String(data.malli ?? raw.malli ?? '').trim(),
     sarjanumero: String(data.sarjanumero ?? raw.sarjanumero ?? '').trim(),
     huoneLampotila: String(data.huoneLampotila ?? raw.huoneLampotila ?? raw.imuilmaLampotila ?? '').trim(),
+    huoneKosteusRh: String(data.huoneKosteusRh ?? raw.huoneKosteusRh ?? '').trim(),
+    ilmaTehoMittaus: data.ilmaTehoMittaus === 'laskenta' || raw.ilmaTehoMittaus === 'laskenta' ? 'laskenta' : 'mittari',
     jaahdytysNeste: String(data.jaahdytysNeste ?? raw.jaahdytysNeste ?? '').trim(),
     jaahdytysNesteMuu: String(data.jaahdytysNesteMuu ?? raw.jaahdytysNesteMuu ?? '').trim(),
     virtausLs: String(data.virtausLs ?? raw.virtausLs ?? '').trim(),
@@ -218,6 +229,7 @@ export function ensureKonvektoriRow(data: Partial<KonvektoriRowData> | undefined
     tuloLampotila: String(data.tuloLampotila ?? raw.tuloLampotila ?? '').trim(),
     menoLampotila: String(data.menoLampotila ?? raw.menoLampotila ?? '').trim(),
     puhallusLampotila: String(data.puhallusLampotila ?? raw.puhallusLampotila ?? '').trim(),
+    puhallusKosteusRh: String(data.puhallusKosteusRh ?? raw.puhallusKosteusRh ?? '').trim(),
     mitattuTeho: String(data.mitattuTeho ?? raw.mitattuTeho ?? '').trim(),
     huomio: String(data.huomio ?? raw.huomio ?? '').trim(),
     huomioTyyppi: data.huomioTyyppi === 'vika' || raw.huomioTyyppi === 'vika' ? 'vika' : 'kommentti',

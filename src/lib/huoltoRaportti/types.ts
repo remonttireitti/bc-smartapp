@@ -195,6 +195,10 @@ export interface KonvektoriRowData {
   sarjanumero: string;
   /** Huoneen / imuilman lämpötila */
   huoneLampotila?: string;
+  /** Imuilman suhteellinen kosteus % — entalpialaskentaan */
+  huoneKosteusRh?: string;
+  /** Ilman teho: mittarista tai laskenta T+RH */
+  ilmaTehoMittaus?: 'mittari' | 'laskenta' | '';
   /** Jäähdytysneste (vesi, glykoli …) */
   jaahdytysNeste?: string;
   jaahdytysNesteMuu?: string;
@@ -206,6 +210,8 @@ export interface KonvektoriRowData {
   tuloLampotila?: string;
   menoLampotila?: string;
   puhallusLampotila?: string;
+  /** Puhallusilman suhteellinen kosteus % */
+  puhallusKosteusRh?: string;
   mitattuTeho?: string;
   /** true = kyllä, false = ei, null = ei vastattu */
   suodatinPuhdistettu: boolean | null;

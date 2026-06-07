@@ -69,6 +69,7 @@ export function KonvektoriTarkastusDialog({ open, row, rowLabel, onClose, onSave
   };
 
   const calcLines = getKonvektoriCalculationLines(draft);
+  const ilmaLaskenta = draft.ilmaTehoMittaus === 'laskenta';
 
   return (
     <div className="leave-draft-overlay konvektori-dialog-overlay" role="presentation" onClick={onClose}>
@@ -133,6 +134,18 @@ export function KonvektoriTarkastusDialog({ open, row, rowLabel, onClose, onSave
                 placeholder="esim. 24"
               />
             </label>
+            {ilmaLaskenta && (
+              <label className="konvektori-mittaus-field">
+                Imu-RH %
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={draft.huoneKosteusRh ?? ''}
+                  onChange={(e) => setDraft((prev) => ({ ...prev, huoneKosteusRh: e.target.value }))}
+                  placeholder="esim. 45"
+                />
+              </label>
+            )}
             <label className="konvektori-mittaus-field">
               Tulo °C
               <input
@@ -173,6 +186,32 @@ export function KonvektoriTarkastusDialog({ open, row, rowLabel, onClose, onSave
                 placeholder="esim. 16"
               />
             </label>
+            {ilmaLaskenta && (
+              <label className="konvektori-mittaus-field">
+                Puhallus-RH %
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={draft.puhallusKosteusRh ?? ''}
+                  onChange={(e) => setDraft((prev) => ({ ...prev, puhallusKosteusRh: e.target.value }))}
+                  placeholder="esim. 90"
+                />
+              </label>
+            )}
+            <label className="konvektori-mittaus-field">
+              Ilman teho
+              <select
+                value={draft.ilmaTehoMittaus === 'laskenta' ? 'laskenta' : 'mittari'}
+                onChange={(e) => setDraft((prev) => ({
+                  ...prev,
+                  ilmaTehoMittaus: e.target.value === 'laskenta' ? 'laskenta' : 'mittari',
+                }))}
+              >
+                <option value="mittari">Mittarista (entalpia)</option>
+                <option value="laskenta">Sovellus laskee (T + RH)</option>
+              </select>
+            </label>
+            {!ilmaLaskenta && (
             <label className="konvektori-mittaus-field">
               Mitattu teho
               <input
@@ -183,6 +222,19 @@ export function KonvektoriTarkastusDialog({ open, row, rowLabel, onClose, onSave
                 placeholder="esim. 1,2 kW"
               />
             </label>
+            )}
+            {ilmaLaskenta && (
+            <label className="konvektori-mittaus-field">
+              Mittari (vertailu, valinnainen)
+              <input
+                type="text"
+                inputMode="decimal"
+                value={draft.mitattuTeho ?? ''}
+                onChange={(e) => setDraft((prev) => ({ ...prev, mitattuTeho: e.target.value }))}
+                placeholder="esim. 1,4 kW"
+              />
+            </label>
+            )}
           </div>
           {calcLines.length > 0 ? (
             <div className="konvektori-laskettu-teho-list">
@@ -192,9 +244,9 @@ export function KonvektoriTarkastusDialog({ open, row, rowLabel, onClose, onSave
             </div>
           ) : null}
           <p className="muted konvektori-mittaukset-hint">
-            Mittari näyttää kokonaistehoa (entalpia, kosteus mukana). Vesi- ja ilmarivit ovat näyttöhyötyä (pelkkä ΔT).
-            Latentti = kuivausenergia. Virtaus arvioidaan näyttöhyödystä — ei mittarin kokonaistehosta, jotta arvio pysyy
-            linjassa mitattujen virtausten kanssa. Vaatii paluu- ja menoveden lämpötilat (Tulo + Meno °C).
+            {ilmaLaskenta
+              ? 'T+RH-tila: syötä imu- ja puhalluslämpötila, RH % ja ilmavirtaus — sovellus laskee kokonais-, näyttöhyöty- ja latenttitehon. Mittari-kenttä on valinnainen vertailuun. Vaatii paluu- ja menoveden lämpötilat.'
+              : 'Mittari-tila: syötä mitattu kokonaisteho. Vesi/ilma-rivit ovat näyttöhyötyä (ΔT). Latentti erotetaan eroksi. Virtaus arvioidaan näyttöhyödystä. Vaatii Tulo + Meno °C.'}
           </p>
         </div>
 
