@@ -69,6 +69,7 @@ import {
   getActiveModuleLabels,
   getManualModuleOptions,
   isChillerLikeDevice,
+  isKonvektoritDevice,
   isLiquidCondenserType,
   lampopumppuSubmodules,
   resolveAutoModules,
@@ -1489,7 +1490,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
         {form.laiteTyyppi && (
           <>
             <CollapsibleSection
-              title={isChillerLikeDevice(form.laiteTyyppi) ? 'Laite — perustiedot' : 'Laitetiedot'}
+              title={isKonvektoritDevice(form.laiteTyyppi) ? 'Konvektoriverkosto' : isChillerLikeDevice(form.laiteTyyppi) ? 'Laite — perustiedot' : 'Laitetiedot'}
               collapseKey="page:laitetiedot"
             >
               {registryMessage && <p className="muted">{registryMessage}</p>}
@@ -1513,6 +1514,40 @@ export default function MaintenanceReportEditPage({ session }: Props) {
                   )}
                 </div>
               )}
+              {isKonvektoritDevice(form.laiteTyyppi) ? (
+                <>
+                  <p className="muted">
+                    Kuvaa kohde verkostotasolla — ei yksittäistä konvektoria. Jokaisen konvektorin valmistaja,
+                    malli ja mittaukset täytetään konvektorilistassa alla.
+                  </p>
+                  <div className="line-form-grid">
+                    <label style={{ gridColumn: '1 / -1' }}>
+                      Verkoston kuvaus
+                      <input
+                        value={form.laiteKayttotarkoitus}
+                        onChange={(e) => patchForm({ laiteKayttotarkoitus: e.target.value })}
+                        placeholder="esim. Kiinteistö X, 3. krs konvektoriverkosto"
+                      />
+                    </label>
+                    <label>
+                      Alue / rakennus / kerros
+                      <input
+                        value={form.laiteSijainti}
+                        onChange={(e) => patchForm({ laiteSijainti: e.target.value })}
+                        placeholder="esim. Rakennus A, kerrokset 2–4"
+                      />
+                    </label>
+                    <label>
+                      Kohteen tunnus (valinnainen)
+                      <input
+                        value={form.laiteTunnus}
+                        onChange={(e) => patchForm({ laiteTunnus: e.target.value })}
+                        placeholder="esim. KV-2024-01"
+                      />
+                    </label>
+                  </div>
+                </>
+              ) : (
               <div className="line-form-grid">
                 <label>
                   Valmistaja
@@ -1587,6 +1622,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
                 </>
                 )}
               </div>
+              )}
             </CollapsibleSection>
 
             <CollapsibleSection title="Moduulit" collapseKey="page:moduulit">

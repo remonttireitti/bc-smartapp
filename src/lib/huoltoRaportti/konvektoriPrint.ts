@@ -10,7 +10,54 @@ import {
   normalizeKonvektoriTyyppi,
 } from './konvektoriTypes';
 import { getKonvektoriCalculationLines, resolveKonvektoriTehoKw } from './konvektoriTeho';
-import type { KonvektoriRowData } from './types';
+import type { HuoltoReportData, KonvektoriRowData } from './types';
+
+export type KonvektoriVerkostoKoide = {
+  kuvaus?: string;
+  alue?: string;
+  tunnus?: string;
+};
+
+export function konvektoriVerkostoKoideFromReport(
+  data: Pick<HuoltoReportData, 'laiteKayttotarkoitus' | 'laiteSijainti' | 'laiteTunnus'>,
+): KonvektoriVerkostoKoide {
+  return {
+    kuvaus: String(data.laiteKayttotarkoitus ?? '').trim(),
+    alue: String(data.laiteSijainti ?? '').trim(),
+    tunnus: String(data.laiteTunnus ?? '').trim(),
+  };
+}
+
+function renderKonvektoriVerkostoSummary(
+  koide: KonvektoriVerkostoKoide,
+  rowCount: number,
+  esc: (v: unknown) => string,
+): string {
+  const cells = [
+    `<div><div style="color:#64748b;font-size:6px;margin-bottom:1px;">Konvektoreita</div><div style="font-weight:700;color:#0f766e;">${rowCount}</div></div>`,
+  ];
+
+  if (koide.kuvaus) {
+    cells.push(
+      `<div style="grid-column:span 2;"><div style="color:#64748b;font-size:6px;margin-bottom:1px;">Kuvaus</div><div style="font-weight:600;color:#0f172a;word-wrap:break-word;">${esc(koide.kuvaus)}</div></div>`,
+    );
+  }
+  if (koide.alue) {
+    cells.push(
+      `<div><div style="color:#64748b;font-size:6px;margin-bottom:1px;">Alue</div><div style="font-weight:600;color:#0f172a;">${esc(koide.alue)}</div></div>`,
+    );
+  }
+  if (koide.tunnus) {
+    cells.push(
+      `<div><div style="color:#64748b;font-size:6px;margin-bottom:1px;">Tunnus</div><div style="font-weight:600;color:#0f172a;">${esc(koide.tunnus)}</div></div>`,
+    );
+  }
+
+  return `
+    <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;font-size:7px;line-height:1.35;margin:0 0 6px 0;padding:5px 7px;background:#f0fdfa;border:1px solid #99f6e4;border-radius:3px;">
+      ${cells.join('')}
+    </div>`;
+}
 
 const CHECK_SHORT: Record<string, string> = {
   suodatinPuhdistettu: 'Suod',
@@ -173,7 +220,12 @@ function renderKonvektoriCard(
 export function generateKonvektoritGridPrintHtml(
   rows: KonvektoriRowData[] | undefined | null,
   esc: (v: unknown) => string,
-  options?: { origin?: string; columns?: number; escAttr?: (v: unknown) => string },
+  options?: {
+    origin?: string;
+    columns?: number;
+    escAttr?: (v: unknown) => string;
+    verkosto?: KonvektoriVerkostoKoide;
+  },
 ): string {
   const list = (rows ?? []).filter((row) => row && typeof row === 'object');
   if (list.length === 0) return '';
@@ -181,6 +233,7 @@ export function generateKonvektoritGridPrintHtml(
   const origin = options?.origin ?? (typeof window !== 'undefined' ? window.location.origin : '');
   const columns = options?.columns ?? 4;
   const escAttr = options?.escAttr ?? esc;
+  const verkostoSummary = renderKonvektoriVerkostoSummary(options?.verkosto ?? {}, list.length, esc);
 
   const cards = list.map((row, idx) => renderKonvektoriCard(row, idx, esc, escAttr, origin)).join('');
 
@@ -189,8 +242,9 @@ export function generateKonvektoritGridPrintHtml(
     <div style="border-bottom:2px solid #00838F;padding-bottom:2px;margin-bottom:4px;">
       <strong style="font-size:12px;color:#00838F;">KONVEKTORIT</strong>
     </div>
+    ${verkostoSummary}
     <p style="font-size:8px;color:#444;margin:0 0 4px 0;line-height:1.25;">
-      Jokaisessa ruudussa lyhenteet viittaavat alla oleviin tarkastuskohtiin.
+      Yksittäisten konvektorien tiedot alla. Lyhenteet viittaavat tarkastuskohteisiin.
     </p>
     ${renderKonvektoriCheckLegend(esc)}
     <div style="display:grid;grid-template-columns:repeat(${columns},minmax(0,1fr));gap:6px;align-items:stretch;">

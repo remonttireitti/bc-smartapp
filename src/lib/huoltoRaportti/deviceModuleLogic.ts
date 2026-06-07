@@ -66,6 +66,10 @@ export function isAirSourceHeatPump(deviceType: string): boolean {
   return deviceType === 'lämpöpumppu';
 }
 
+export function isKonvektoritDevice(deviceType: string): boolean {
+  return deviceType === 'konvektorit';
+}
+
 export function isAirCondenserType(tyyppi: LauhdutinType | '' | undefined): boolean {
   return tyyppi === 'erillinen_ilma' || tyyppi === 'koneseen_integroitu';
 }

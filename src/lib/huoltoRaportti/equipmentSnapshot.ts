@@ -609,6 +609,9 @@ export async function syncEquipmentFromReport(
 }
 
 function equipmentNameFromForm(form: HuoltoReportData): string {
+  if (form.laiteTyyppi === 'konvektorit') {
+    return trim(form.laiteKayttotarkoitus) || trim(form.laiteSijainti) || trim(form.laiteTunnus) || 'Konvektoriverkosto';
+  }
   return trim(form.laiteTunnus) || trim(form.laiteMalli) || trim(form.laiteValmistaja) || 'Laite';
 }
 

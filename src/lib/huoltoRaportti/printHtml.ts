@@ -34,7 +34,11 @@ import {
   circuitSubcoolingPrintEnabled,
   circuitSuperheatPrintEnabled,
 } from './refrigerantCircuitPrint';
-import { generateKonvektoritGridPrintHtml } from './konvektoriPrint';
+import {
+  generateKonvektoritGridPrintHtml,
+  konvektoriVerkostoKoideFromReport,
+} from './konvektoriPrint';
+import { isKonvektoritDevice } from './deviceModuleLogic';
 import { generateMlpFullPrintHtml } from './printMlpFull';
 import { renderCompressorCurrentHtml, renderFanPhaseCardHtml } from './printPhaseHelpers';
 import {
@@ -486,11 +490,17 @@ function renderNestelauhduttimet(data: HuoltoReportData): string {
 
 function renderKonvektoritTable(data: HuoltoReportData): string {
   const rows = field(data, 'konvektoriRows') ?? field(data, 'konvektoritData');
-  if (data.laiteTyyppi !== 'konvektorit' || !Array.isArray(rows) || rows.length === 0) return '';
+  if (!isKonvektoritDevice(data.laiteTyyppi) || !Array.isArray(rows) || rows.length === 0) return '';
   return generateKonvektoritGridPrintHtml(rows as KonvektoriRowData[], esc, {
     origin: typeof window !== 'undefined' ? window.location.origin : '',
     escAttr,
+    verkosto: konvektoriVerkostoKoideFromReport(data),
   });
+}
+
+function konvektoriPrintSubtitle(data: HuoltoReportData): string {
+  const koide = konvektoriVerkostoKoideFromReport(data);
+  return koide.kuvaus || koide.alue || koide.tunnus || '';
 }
 
 function renderLampopumppuSections(data: HuoltoReportData): string {
@@ -803,7 +813,10 @@ export function generateMaintenanceReportHtml(
   const docKind = data.huoltoReportDocumentKind === 'kayttoonotto' ? 'kayttoonotto' : 'huolto';
   const docTitle = docKind === 'kayttoonotto' ? 'Käyttöönottopöytäkirja' : 'Huoltopöytäkirja';
   const printDate = data.huoltoPaivamaara || new Date().toLocaleDateString('fi-FI');
-  const subtitle = [meta.companyName, data.asiakas, data.laiteTunnus].filter(Boolean).join(' – ');
+  const kohteenTunniste = isKonvektoritDevice(data.laiteTyyppi)
+    ? konvektoriPrintSubtitle(data)
+    : data.laiteTunnus;
+  const subtitle = [meta.companyName, data.asiakas, kohteenTunniste].filter(Boolean).join(' – ');
 
   const logoHtml = meta.logoUrl
     ? `<img src="${escAttr(meta.logoUrl)}" alt="Logo" style="max-height:52px;max-width:170px;" />`
@@ -826,21 +839,23 @@ export function generateMaintenanceReportHtml(
       .join(''),
   );
 
-  const deviceBox = box(
-    'LAITETIEDOT',
-    '#388E3C',
-    [
-      row('Tyyppi', data.laiteTyyppi, '#388E3C'),
-      row('Valmistaja', data.laiteValmistaja, '#388E3C'),
-      row('Malli', data.laiteMalli, '#388E3C'),
-      row('Tunnus', data.laiteTunnus, '#388E3C'),
-      row('Sijainti', data.laiteSijainti, '#388E3C'),
-      row('Sarjanumero', data.laiteSarjanumero, '#388E3C'),
-      row('Käyttötarkoitus', data.laiteKayttotarkoitus, '#388E3C'),
-    ]
-      .filter(Boolean)
-      .join(''),
-  );
+  const deviceBox = isKonvektoritDevice(data.laiteTyyppi)
+    ? ''
+    : box(
+      'LAITETIEDOT',
+      '#388E3C',
+      [
+        row('Tyyppi', data.laiteTyyppi, '#388E3C'),
+        row('Valmistaja', data.laiteValmistaja, '#388E3C'),
+        row('Malli', data.laiteMalli, '#388E3C'),
+        row('Tunnus', data.laiteTunnus, '#388E3C'),
+        row('Sijainti', data.laiteSijainti, '#388E3C'),
+        row('Sarjanumero', data.laiteSarjanumero, '#388E3C'),
+        row('Käyttötarkoitus', data.laiteKayttotarkoitus, '#388E3C'),
+      ]
+        .filter(Boolean)
+        .join(''),
+    );
 
   const refrigerantBox = data.selectedModules.kylmaainePiiri || data.kylmaaineTyyppi
     ? renderRefrigerantCharge(data)
@@ -869,9 +884,9 @@ export function generateMaintenanceReportHtml(
   <div class="content-row">
     ${companyBox ? `<div class="column-box">${companyBox}</div>` : ''}
     <div class="column-box">${customerBox}</div>
-    ${companyBox ? '' : `<div class="column-box">${deviceBox}</div>`}
+    ${companyBox || !deviceBox ? '' : `<div class="column-box">${deviceBox}</div>`}
   </div>
-  ${companyBox ? `<div class="content-row"><div class="column-box">${deviceBox}</div></div>` : ''}
+  ${companyBox && deviceBox ? `<div class="content-row"><div class="column-box">${deviceBox}</div></div>` : ''}
 
   ${refrigerantBox ? `<div class="content-row"><div class="column-box">${refrigerantBox}</div></div>` : ''}
 

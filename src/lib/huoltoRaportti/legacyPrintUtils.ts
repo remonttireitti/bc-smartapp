@@ -37,7 +37,7 @@ import {
   resolveKoePaivamaaraJaKello,
 } from './kokeAikaUtils';
 import { buildMaintenanceReportPrintTitle, hideMaintenancePrintWarnings } from './defaults';
-import { generateKonvektoritGridPrintHtml } from './konvektoriPrint';
+import { generateKonvektoritGridPrintHtml, konvektoriVerkostoKoideFromReport } from './konvektoriPrint';
 import type { HuoltoReportData } from './types';
 
 type LegacyCompanyInfo = {
@@ -2424,7 +2424,13 @@ export function generatePrintHTML(data: {
   const logoOnlyHtml = logoSrc ? `
     <img src="${escAttr(logoSrc)}" alt="Logo" style="max-height: 52px; max-width: 170px; width: auto; display: inline-block; vertical-align: middle;" />
   ` : '';
-  const printSubtitle = [data.companyInfo?.name || '', data.asiakas || '', data.laiteTunnus || '']
+  const printSubtitle = [data.companyInfo?.name || '', data.asiakas || '', (() => {
+    if (data.laiteTyyppi === 'konvektorit') {
+      const koide = konvektoriVerkostoKoideFromReport(data);
+      return koide.kuvaus || koide.alue || koide.tunnus || '';
+    }
+    return data.laiteTunnus || '';
+  })()]
     .map((x) => String(x || '').trim())
     .filter(Boolean)
     .join(' – ');
@@ -2483,7 +2489,7 @@ export function generatePrintHTML(data: {
   `;
   })();
 
-  const deviceInfoBoxHtml = `
+  const deviceInfoBoxHtml = data.laiteTyyppi === 'konvektorit' ? '' : `
     <div class="box-content" style="border-color: #388E3C; page-break-inside: avoid; break-inside: avoid;">
       <div style="border-bottom: 2px solid #388E3C; padding-bottom: 2px; margin-bottom: 4px;">
         <strong style="font-size: 18px; color: #388E3C; text-decoration: underline;">LAITETIEDOT</strong>
@@ -3073,12 +3079,14 @@ export function generatePrintHTML(data: {
     </div>
   </div>
 
+  ${deviceInfoBoxHtml || refrigerantInfoBoxHtml ? `
   <div class="content-row-full">
-    <div class="column-box" style="${refrigerantInfoBoxHtml ? 'width: calc(50% - 5px);' : 'width: 100%;'}">
+    ${deviceInfoBoxHtml ? `<div class="column-box" style="${refrigerantInfoBoxHtml ? 'width: calc(50% - 5px);' : 'width: 100%;'}">
       ${deviceInfoBoxHtml}
-    </div>
+    </div>` : ''}
     ${refrigerantInfoBoxHtml ? `<div class="column-box" style="width: calc(50% - 5px);">${refrigerantInfoBoxHtml}</div>` : ''}
   </div>
+  ` : ''}
 
   ${ulkoyksikkoHtml}
 
@@ -3237,6 +3245,7 @@ export function generatePrintHTML(data: {
     ? generateKonvektoritGridPrintHtml(data.konvektoriRows, esc, {
         origin: typeof window !== 'undefined' ? window.location.origin : '',
         escAttr,
+        verkosto: konvektoriVerkostoKoideFromReport(data),
       })
     : ''}
 
