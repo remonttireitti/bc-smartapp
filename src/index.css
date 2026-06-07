@@ -5018,77 +5018,6 @@ textarea {
   color: #b91c1c;
 }
 
-.konvektori-tarkastus-dialog {
-  width: min(36rem, calc(100vw - 1.5rem));
-  max-height: min(90dvh, 100%);
-  overflow-y: auto;
-}
-
-.konvektori-dialog-help {
-  margin: 0 0 1rem;
-}
-
-.konvektori-tarkastus-list {
-  display: flex;
-  flex-direction: column;
-  gap: .75rem;
-  margin-bottom: 1rem;
-}
-
-.konvektori-tarkastus-item,
-.konvektori-huomio-type {
-  display: flex;
-  flex-direction: column;
-  gap: .45rem;
-}
-
-.konvektori-tarkastus-label {
-  font-weight: 600;
-  font-size: .92rem;
-  line-height: 1.35;
-}
-
-.konvektori-yesno,
-.konvektori-huomio-type-toggle {
-  display: flex;
-  gap: .5rem;
-}
-
-.konvektori-yesno-btn,
-.konvektori-huomio-type-btn {
-  flex: 1;
-  min-height: 2.75rem;
-  border: 1px solid var(--border-strong);
-  border-radius: 8px;
-  background: var(--bg-muted, #f8fafc);
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.konvektori-yesno-btn--active.konvektori-yesno-btn--yes {
-  background: #dcfce7;
-  border-color: #16a34a;
-  color: #166534;
-}
-
-.konvektori-yesno-btn--active.konvektori-yesno-btn--no {
-  background: #fee2e2;
-  border-color: #dc2626;
-  color: #b91c1c;
-}
-
-.konvektori-huomio-type-btn--active {
-  background: #e0e7ff;
-  border-color: #4f46e5;
-  color: #312e81;
-}
-
-.konvektori-huomio-type-btn--vika.konvektori-huomio-type-btn--active {
-  background: #fee2e2;
-  border-color: #dc2626;
-  color: #b91c1c;
-}
-
 .konvektori-huomio-field {
   display: flex;
   flex-direction: column;
@@ -11007,38 +10936,45 @@ button.vrf-toggle:not(:disabled) {
 .konvektori-tarkastus-list {
   display: flex;
   flex-direction: column;
-  gap: 0.55rem;
-  margin-bottom: 1rem;
+  gap: 0;
+  margin-bottom: 0.65rem;
 }
 
 .konvektori-tarkastus-item {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: row;
+  flex-wrap: nowrap;
   align-items: center;
   justify-content: space-between;
   gap: 0.5rem;
-  padding: 0.45rem 0;
+  padding: 0.3rem 0;
   border-bottom: 1px solid var(--border);
+  min-height: 0;
 }
 
 .konvektori-tarkastus-label {
-  flex: 1 1 12rem;
-  font-size: 0.88rem;
-  line-height: 1.35;
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 0.84rem;
+  font-weight: 600;
+  line-height: 1.25;
 }
 
 .konvektori-yesno {
   display: flex;
-  gap: 0.35rem;
+  flex: 0 0 auto;
+  gap: 0.3rem;
 }
 
 .konvektori-yesno-btn {
-  min-width: 4.25rem;
-  padding: 0.35rem 0.65rem;
+  min-width: 3.25rem;
+  min-height: unset;
+  padding: 0.28rem 0.5rem;
   border: 1px solid var(--border);
   border-radius: 6px;
   background: var(--bg-surface);
-  font-size: 0.82rem;
+  font-size: 0.8rem;
+  line-height: 1.2;
   cursor: pointer;
 }
 
@@ -11057,21 +10993,27 @@ button.vrf-toggle:not(:disabled) {
 }
 
 .konvektori-huomio-type {
-  margin-bottom: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-bottom: 0.5rem;
 }
 
 .konvektori-huomio-type-toggle {
   display: flex;
-  gap: 0.35rem;
-  margin-top: 0.35rem;
+  gap: 0.3rem;
+  margin-top: 0;
 }
 
 .konvektori-huomio-type-btn {
-  padding: 0.35rem 0.65rem;
+  flex: 1;
+  min-height: unset;
+  padding: 0.28rem 0.5rem;
   border: 1px solid var(--border);
   border-radius: 6px;
   background: var(--bg-surface);
-  font-size: 0.82rem;
+  font-size: 0.8rem;
+  line-height: 1.2;
   cursor: pointer;
 }
 
