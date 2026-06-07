@@ -192,7 +192,9 @@ export function KonvektoriTarkastusDialog({ open, row, rowLabel, onClose, onSave
             </div>
           ) : null}
           <p className="muted konvektori-mittaukset-hint">
-            Syötä paluu- ja menoveden lämpötilat (Tulo + Meno °C) — ilman niitä laskentaa ei tehdä. Jäähdytysteho mitataan suoraan mittarilla (puhallusilma). Jos ilma- tai vesivirtausta ei ole syötetty, se arvioidaan tehosta ja lämpötiloista.
+            Mittari näyttää kokonaistehoa (entalpia, kosteus mukana). Vesi- ja ilmarivit ovat näyttöhyötyä (pelkkä ΔT).
+            Latentti = kuivausenergia. Virtaus arvioidaan näyttöhyödystä — ei mittarin kokonaistehosta, jotta arvio pysyy
+            linjassa mitattujen virtausten kanssa. Vaatii paluu- ja menoveden lämpötilat (Tulo + Meno °C).
           </p>
         </div>
 
