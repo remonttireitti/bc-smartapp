@@ -6,10 +6,12 @@ interface Props extends Omit<TextareaHTMLAttributes<HTMLTextAreaElement>, 'onCha
   onChange: (value: string) => void;
 }
 
-export function MultilineCommentTextarea({ value, onChange, onPaste, ...rest }: Props) {
+export function MultilineCommentTextarea({ value, onChange, onPaste, className, style, ...rest }: Props) {
   return (
     <textarea
       {...rest}
+      className={className ? `multiline-comment-textarea ${className}` : 'multiline-comment-textarea'}
+      style={{ whiteSpace: 'pre-wrap', ...style }}
       value={value}
       onChange={(e) => onChange(e.target.value)}
       onPaste={(e) => {
