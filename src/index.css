@@ -5026,7 +5026,8 @@ textarea {
   margin-bottom: 1rem;
 }
 
-.konvektori-huomio-field textarea {
+.konvektori-huomio-field textarea,
+.konvektori-huomio-field .rich-comment-editor {
   width: 100%;
   min-height: 6rem;
   resize: vertical;
@@ -5034,6 +5035,131 @@ textarea {
   font-family: inherit;
   line-height: 1.4;
   box-sizing: border-box;
+}
+
+.rich-comment-editor-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  width: 100%;
+}
+
+.rich-comment-editor-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.rich-comment-editor-toolbar-group {
+  display: flex;
+  gap: 0.25rem;
+  align-items: center;
+}
+
+.rich-comment-editor-toolbar-group + .rich-comment-editor-toolbar-group {
+  padding-left: 0.5rem;
+  border-left: 1px solid #cbd5e1;
+}
+
+.rich-comment-editor-btn {
+  min-width: 2rem;
+  height: 2rem;
+  padding: 0 0.5rem;
+  border: 2px solid #64748b;
+  border-radius: 4px;
+  background: #fff;
+  cursor: pointer;
+  font: inherit;
+  line-height: 1;
+}
+
+.rich-comment-editor-btn:hover {
+  background: #f1f5f9;
+}
+
+.rich-comment-editor-btn.is-active {
+  background: #e0f2fe;
+  border-color: #0284c7;
+  color: #0c4a6e;
+}
+
+.rich-comment-editor-u {
+  text-decoration: underline;
+}
+
+.rich-comment-editor-size-label {
+  margin: 0;
+  font-weight: 500;
+}
+
+.rich-comment-editor-size {
+  height: 2rem;
+  padding: 0 0.35rem;
+  border: 2px solid #64748b;
+  border-radius: 4px;
+  background: #fff;
+  font: inherit;
+  cursor: pointer;
+}
+
+.rich-comment-editor {
+  width: 100%;
+  padding: 0.5rem 0.65rem;
+  border: 2px solid #64748b;
+  border-radius: 4px;
+  background: #fff;
+  font-weight: 400;
+  font-family: inherit;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  box-sizing: border-box;
+  overflow-y: auto;
+  resize: vertical;
+}
+
+.rich-comment-editor:focus {
+  outline: 2px solid #0284c7;
+  outline-offset: 1px;
+}
+
+.rich-comment-editor p {
+  margin: 0 0 0.35em;
+}
+
+.rich-comment-editor p:last-child {
+  margin-bottom: 0;
+}
+
+.rich-comment-editor ul,
+.rich-comment-editor ol {
+  margin: 0.25em 0;
+  padding-left: 1.35em;
+}
+
+.rich-comment-editor ul {
+  list-style: disc;
+}
+
+.rich-comment-editor ol {
+  list-style: decimal;
+}
+
+.rich-comment-editor li {
+  margin: 0.15em 0;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .konvektori-dialog-actions {

@@ -8,7 +8,7 @@ import {
 import { EvidencePhotoUpload } from './EvidencePhotoUpload';
 import { huomiotSectionTitle } from '../../lib/huoltoRaportti/sectionTitles';
 import { HuoltoModuleSection } from './HuoltoModuleSection';
-import { MultilineCommentTextarea } from './MultilineCommentTextarea';
+import { RichCommentEditor } from './RichCommentEditor';
 
 interface Props {
   form: HuoltoReportData;
@@ -69,7 +69,7 @@ export function HuomiotSection({ form, onChange, reportId, userId }: Props) {
         </label>
         <label className="huolto-span-all">
           Huomiot ja suositukset
-          <MultilineCommentTextarea
+          <RichCommentEditor
             value={form.huomiot}
             onChange={(huomiot) => onChange({ huomiot })}
             rows={5}

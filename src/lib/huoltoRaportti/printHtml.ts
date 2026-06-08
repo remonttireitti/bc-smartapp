@@ -737,7 +737,7 @@ function renderHuomiot(data: HuoltoReportData, imageUrls?: Record<string, string
       : 'white-space:pre-wrap;font-size:11pt;margin:0;';
 
   const body = [
-    huom ? `<p style="${style}">${formatHuomioPrintHtml(huom, esc)}</p>` : '',
+    huom ? `<div style="${style}">${formatHuomioPrintHtml(huom, esc)}</div>` : '',
     kuvat,
   ]
     .filter(Boolean)
