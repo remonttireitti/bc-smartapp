@@ -10,6 +10,9 @@ import type {
   RefrigerantCircuitData,
 } from './types';
 import type { MaintenanceReportPhotoItem } from '../maintenanceReportImages';
+import {
+  resolveMaintenancePrintPhotoHref,
+} from '../maintenanceReportPrintImages';
 import { expansionValveTypes } from './constants';
 import {
   isChillerLikeDevice,
@@ -676,20 +679,7 @@ function resolvePhotoHref(
   item: MaintenanceReportPhotoItem | string | HuomiotImageAttachment,
   imageUrls?: Record<string, string>,
 ): string {
-  if (typeof item === 'string') {
-    const s = item.trim();
-    if (!s) return '';
-    if (s.startsWith('data:image/') || s.startsWith('http')) return s;
-    return imageUrls?.[s] ?? '';
-  }
-  const attachmentUrl =
-    'url' in item ? String((item as HuomiotImageAttachment).url ?? '').trim() : '';
-  if (attachmentUrl.startsWith('data:image/') || attachmentUrl.startsWith('http')) return attachmentUrl;
-  const path = String(item.storagePath ?? '').trim();
-  if (path.startsWith('data:image/') || path.startsWith('http')) return path;
-  if (path && imageUrls?.[path]) return imageUrls[path];
-  if (attachmentUrl && imageUrls?.[attachmentUrl]) return imageUrls[attachmentUrl];
-  return '';
+  return resolveMaintenancePrintPhotoHref(item, imageUrls);
 }
 
 function renderEvidencePhotos(

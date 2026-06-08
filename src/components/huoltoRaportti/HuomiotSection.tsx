@@ -38,6 +38,7 @@ function photoItemsToLiitteet(
       storagePath: item.storagePath,
       comment: item.comment,
       fileName: existing?.fileName ?? item.storagePath.split('/').pop(),
+      contentType: existing?.contentType ?? 'image/jpeg',
     });
   });
 }

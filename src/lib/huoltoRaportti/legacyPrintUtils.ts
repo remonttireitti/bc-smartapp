@@ -13,6 +13,7 @@ import type {
   NestelauhdutinUnitData,
   PumpunSyottoValinta,
 } from './types';
+import type { MaintenancePrintPhoto } from '../maintenanceReportPrintImages';
 import {
   getCompressorVaiheValinta,
   getCondenserFanVaiheValinta,
@@ -38,6 +39,7 @@ import {
 } from './kokeAikaUtils';
 import { buildMaintenanceReportPrintTitle, hideMaintenancePrintWarnings } from './defaults';
 import { generateKonvektoritGridPrintHtml, konvektoriVerkostoKoideFromReport } from './konvektoriPrint';
+import { isMaintenancePrintPhotoImage } from '../maintenanceReportPrintImages';
 import type { HuoltoReportData } from './types';
 
 type LegacyCompanyInfo = {
@@ -2115,7 +2117,7 @@ export function generatePrintHTML(data: {
     tulos?: string;
     menetelma?: string;
     huom?: string;
-    todisteKuvat?: string[];
+    todisteKuvat?: Array<string | MaintenancePrintPhoto>;
   };
   tyhjiointiData?: {
     loppupaineArvo?: string;
@@ -2127,7 +2129,7 @@ export function generatePrintHTML(data: {
     kaytettyPainemittari?: string;
     pumpunTyyppi?: string;
     huom?: string;
-    todisteKuvat?: string[];
+    todisteKuvat?: Array<string | MaintenancePrintPhoto>;
   };
 }) {
   const esc = (v: unknown) =>
@@ -2152,14 +2154,16 @@ export function generatePrintHTML(data: {
               (a.fileName && String(a.fileName).trim()) ||
               'Liite';
             const display = esc(displayRaw);
-            const url = String(a.url || '');
-            const isImg =
-              String(a.contentType || '').startsWith('image/') || url.startsWith('data:image/');
+            const url = String(a.url || '').trim();
+            const isImg = Boolean(url) && isMaintenancePrintPhotoImage(a);
             if (isImg && url) {
-              return `<div style="margin:10px 0;page-break-inside:avoid;"><div style="font-size:10pt;margin-bottom:4px;">${display}</div><img src="${escAttr(url)}" alt="" style="max-width:100%;max-height:420px;border:1px solid #ddd;" /></div>`;
+              return `<div style="margin:10px 0;page-break-inside:avoid;"><div style="font-size:10pt;margin-bottom:4px;">${display}</div><img src="${escAttr(url)}" alt="" style="max-width:100%;max-height:420px;border:1px solid #ddd;border-radius:4px;display:block;" /></div>`;
             }
             if (url) {
-              return `<div style="margin:6px 0;font-size:10pt;"><a href="${escAttr(url)}" target="_blank" rel="noopener noreferrer">${display}</a></div>`;
+              return `<div style="margin:10px 0;page-break-inside:avoid;"><div style="font-size:10pt;margin-bottom:4px;">${display}</div><img src="${escAttr(url)}" alt="" style="max-width:100%;max-height:420px;border:1px solid #ddd;border-radius:4px;display:block;" /></div>`;
+            }
+            if (displayRaw && displayRaw !== 'Liite') {
+              return `<div style="margin:6px 0;font-size:10pt;color:#92400e;">${display} (kuvaa ei voitu ladata tulosteeseen)</div>`;
             }
             return '';
           })
@@ -2218,13 +2222,28 @@ export function generatePrintHTML(data: {
   const todisteKuvatHtml = (kuvat: unknown, kuvaOtsikko: string, reunavari: string): string => {
     if (!Array.isArray(kuvat) || kuvat.length === 0) return '';
     return kuvat
-      .map((src, i) => {
-        const href =
-          typeof src === 'string' && (src.startsWith('data:image/') || src.startsWith('http')) ? src : '';
-        if (!href) return '';
-        return `<div style="margin-top:10px;page-break-inside:avoid;"><div style="font-size:10px;color:#555;margin-bottom:4px;">${esc(
-          kuvaOtsikko
-        )} ${i + 1}</div><img src="${href}" alt="" style="max-width:100%;max-height:380px;border:1px solid ${reunavari};border-radius:4px;display:block;" /></div>`;
+      .map((entry, i) => {
+        let href = '';
+        let comment = '';
+        if (typeof entry === 'string') {
+          href = entry.trim();
+        } else if (entry && typeof entry === 'object') {
+          href = String((entry as { href?: string; url?: string }).href ?? (entry as { url?: string }).url ?? '').trim();
+          comment = String((entry as { comment?: string }).comment ?? '').trim();
+        }
+        if (!href.startsWith('data:image/') && !href.startsWith('http://') && !href.startsWith('https://')) {
+          href = '';
+        }
+        const caption = comment || `${kuvaOtsikko} ${i + 1}`;
+        if (href) {
+          return `<div style="margin-top:10px;page-break-inside:avoid;"><div style="font-size:10px;color:#555;margin-bottom:4px;">${esc(
+            caption,
+          )}</div><img src="${escAttr(href)}" alt="" style="max-width:100%;max-height:380px;border:1px solid ${reunavari};border-radius:4px;display:block;" /></div>`;
+        }
+        if (comment) {
+          return `<div style="margin-top:6px;font-size:10px;color:#92400e;">${esc(comment)} (kuvaa ei voitu ladata tulosteeseen)</div>`;
+        }
+        return '';
       })
       .join('');
   };

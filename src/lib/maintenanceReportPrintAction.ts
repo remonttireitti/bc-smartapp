@@ -1,7 +1,8 @@
 import { buildMaintenanceReportPrintTitle, normalizeHuoltoReportData } from './huoltoRaportti/defaults';
 import { generateLegacyMaintenanceReportHtml } from './huoltoRaportti/legacyPrintAdapter';
 import type { HuoltoReportData } from './huoltoRaportti/types';
-import { BUCKET, normalizeMaintenanceReportPhotos } from './maintenanceReportImages';
+import { BUCKET } from './maintenanceReportImages';
+import { collectMaintenancePrintImagePaths } from './maintenanceReportPrintImages';
 import { resolveCompanyLogoUrl } from './companyLogo';
 import { openPrintHtml } from './openPrintWindow';
 import { escapeHtmlPrint } from './printDocumentShell';
@@ -25,22 +26,7 @@ ${fragment}
 }
 
 function collectPrintImagePaths(data: HuoltoReportData): string[] {
-  const paths = new Set<string>();
-
-  for (const item of normalizeMaintenanceReportPhotos(data.tiiveyskoeData?.todisteKuvat)) {
-    if (item.storagePath) paths.add(item.storagePath);
-  }
-  for (const item of normalizeMaintenanceReportPhotos(data.tyhjiointiData?.todisteKuvat)) {
-    if (item.storagePath) paths.add(item.storagePath);
-  }
-  for (const item of data.huomiotLiitteet ?? []) {
-    const storagePath = String(item.storagePath ?? '').trim();
-    const url = String(item.url ?? '').trim();
-    if (storagePath) paths.add(storagePath);
-    else if (url && !url.startsWith('data:image/')) paths.add(url);
-  }
-
-  return [...paths].filter((p) => p && !p.startsWith('data:image/') && !p.startsWith('http'));
+  return collectMaintenancePrintImagePaths(data);
 }
 
 async function resolveMaintenancePrintImageUrls(
