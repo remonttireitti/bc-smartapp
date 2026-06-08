@@ -4188,12 +4188,19 @@ textarea {
   }
 
   .daily-log-dialog .daily-log-form {
+    display: flex;
+    flex-direction: column;
     flex: 1;
+    min-height: 0;
     overflow-y: auto;
     margin-bottom: 0;
     padding-bottom: .5rem;
     border-bottom: 0;
-    align-content: start;
+  }
+
+  .daily-log-dialog-section.collapsible-section {
+    flex-shrink: 0;
+    width: 100%;
   }
 
   .daily-log-dialog .leave-draft-actions {
@@ -7465,15 +7472,13 @@ textarea {
 
 .daily-log-dialog .daily-log-form {
   gap: 0.5rem;
-  align-content: start;
 }
 
 .daily-log-dialog-section.collapsible-section {
   margin: 0;
   border-radius: 10px;
   box-shadow: none;
-  align-self: start;
-  width: 100%;
+  min-height: min-content;
 }
 
 .daily-log-dialog-section .collapsible-header {
