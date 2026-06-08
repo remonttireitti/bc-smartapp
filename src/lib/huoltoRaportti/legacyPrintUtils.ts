@@ -3279,7 +3279,7 @@ export function generatePrintHTML(data: {
     <div style="border-bottom: 2px solid #7B1FA2; padding-bottom: 2px; margin-bottom: 4px;">
       <strong style="font-size: 14px; color: #7B1FA2;">HUOMIOT JA LISÄTIEDOT</strong>
     </div>
-    ${data.huomiot ? (data.huomiotLuonne === 'vika' ? `<div style="white-space: pre-wrap; font-size: 11pt; margin: 0; color: #b91c1c; font-weight: 700;">${formatHuomioPrintHtml(data.huomiot, esc)}</div>` : `<div style="white-space: pre-wrap; font-size: 11pt; margin: 0;">${formatHuomioPrintHtml(data.huomiot, esc)}</div>`) : ''}
+    ${data.huomiot ? (data.huomiotLuonne === 'vika' ? `<div style="white-space: pre-wrap; font-size: 11pt; margin: 0; color: #b91c1c;">${formatHuomioPrintHtml(data.huomiot, esc)}</div>` : `<div style="white-space: pre-wrap; font-size: 11pt; margin: 0;">${formatHuomioPrintHtml(data.huomiot, esc)}</div>`) : ''}
     ${huomiotLiitteetHtml}
   </div>
   ` : ''}

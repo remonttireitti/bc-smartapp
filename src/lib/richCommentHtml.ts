@@ -135,6 +135,18 @@ function serializeNodeToRichHtml(node: Node): string {
   if (tag === 'span') {
     const sized = serializeFontSizeSpan(el);
     if (sized) return sized;
+    if (isBoldElement(el)) {
+      const inner = serializeChildren(el);
+      return inner.trim() ? `<strong>${inner}</strong>` : inner;
+    }
+    if (isItalicElement(el)) {
+      const inner = serializeChildren(el);
+      return inner.trim() ? `<em>${inner}</em>` : inner;
+    }
+    if (isUnderlineElement(el)) {
+      const inner = serializeChildren(el);
+      return inner.trim() ? `<u>${inner}</u>` : inner;
+    }
     return serializeChildren(el);
   }
 
@@ -210,6 +222,43 @@ function extractAllowedFontSize(style: string): string | null {
   return size;
 }
 
+function convertElementTag(el: Element, newTag: string): Element {
+  const replacement = el.ownerDocument.createElement(newTag);
+  while (el.firstChild) replacement.appendChild(el.firstChild);
+  el.parentNode?.replaceChild(replacement, el);
+  return replacement;
+}
+
+function normalizeInlineFormatting(root: Element): void {
+  root.querySelectorAll('span').forEach((span) => {
+    const style = span.getAttribute('style') ?? '';
+    const fontSize = extractAllowedFontSize(style);
+
+    if (isBoldElement(span)) {
+      convertElementTag(span, 'strong');
+      return;
+    }
+    if (isItalicElement(span)) {
+      convertElementTag(span, 'em');
+      return;
+    }
+    if (isUnderlineElement(span)) {
+      convertElementTag(span, 'u');
+      return;
+    }
+    if (fontSize) return;
+
+    unwrapElement(span);
+  });
+
+  root.querySelectorAll('b').forEach((el) => {
+    if (el.tagName === 'B') convertElementTag(el, 'strong');
+  });
+  root.querySelectorAll('i').forEach((el) => {
+    if (el.tagName === 'I') convertElementTag(el, 'em');
+  });
+}
+
 function convertDivToParagraph(el: Element): Element {
   const p = el.ownerDocument.createElement('p');
   const cls = el.getAttribute('class') ?? '';
@@ -241,6 +290,7 @@ function normalizeEditorStructure(html: string): string {
 
   root.querySelectorAll('p').forEach((p) => classifyParagraph(p));
   compactLegacyLineParagraphs(root);
+  normalizeInlineFormatting(root);
 
   return root.innerHTML;
 }
@@ -270,6 +320,8 @@ function applyPrintRichStyles(html: string): string {
   const doc = new DOMParser().parseFromString(`<div>${html}</div>`, 'text/html');
   const root = doc.body.firstElementChild;
   if (!root) return html;
+
+  normalizeInlineFormatting(root);
 
   root.querySelectorAll('p').forEach((p) => {
     if (!p.classList.contains(PARA_CLASS) && !p.classList.contains(GAP_CLASS)) {
@@ -397,6 +449,11 @@ function sanitizeElementTree(node: Element): void {
       continue;
     }
 
+    if (tag === 'STRONG' || tag === 'EM' || tag === 'U' || tag === 'B' || tag === 'I') {
+      sanitizeElementTree(el);
+      continue;
+    }
+
     if (tag === 'UL' || tag === 'OL' || tag === 'LI') {
       applyPrintListStyles(el);
     }
@@ -443,6 +500,7 @@ export function sanitizeRichCommentHtml(html: string): string {
   const root = doc.body.firstElementChild;
   if (!root) return '';
 
+  normalizeInlineFormatting(root);
   sanitizeElementTree(root);
 
   let result = root.innerHTML

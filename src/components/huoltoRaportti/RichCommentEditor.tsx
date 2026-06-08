@@ -78,7 +78,11 @@ export function RichCommentEditor({ value, onChange, rows = 5, placeholder, clas
 
   const execFormat = (command: string, commandValue?: string) => {
     editorRef.current?.focus();
-    document.execCommand('styleWithCSS', false, 'true');
+    if (command === 'fontSize') {
+      document.execCommand('styleWithCSS', false, 'true');
+    } else {
+      document.execCommand('styleWithCSS', false, 'false');
+    }
     document.execCommand(command, false, commandValue);
     emitChange();
   };
