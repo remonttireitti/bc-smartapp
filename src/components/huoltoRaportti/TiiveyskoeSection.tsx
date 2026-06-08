@@ -8,6 +8,7 @@ import type { HuoltoReportData, TiiveyskoeData, TiiveyskoeTulos } from '../../li
 import { EvidencePhotoUpload } from './EvidencePhotoUpload';
 import { FormInput } from './FormInput';
 import { HuoltoModuleSection } from './HuoltoModuleSection';
+import { MultilineCommentTextarea } from './MultilineCommentTextarea';
 
 interface Props {
   form: HuoltoReportData;
@@ -99,9 +100,9 @@ export function TiiveyskoeSection({ form, onChange, reportId, userId }: Props) {
         />
         <label className="huolto-span-all">
           Huomiot
-          <textarea
+          <MultilineCommentTextarea
             value={data.huom}
-            onChange={(e) => patchTiiveyskoe({ huom: e.target.value })}
+            onChange={(huom) => patchTiiveyskoe({ huom })}
             rows={3}
           />
         </label>

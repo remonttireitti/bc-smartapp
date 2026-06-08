@@ -10,6 +10,7 @@ import {
   normalizeKonvektoriTyyppi,
 } from './konvektoriTypes';
 import { getKonvektoriCalculationLines, resolveKonvektoriTehoKw } from './konvektoriTeho';
+import { formatHuomioPrintHtml, huomioPrintTextStyle } from './formatHuomioPrintHtml';
 import type { HuoltoReportData, KonvektoriRowData } from './types';
 
 export type KonvektoriVerkostoKoide = {
@@ -179,11 +180,12 @@ function renderKonvektoriCard(
   }).join('');
 
   const isVika = row.huomioTyyppi === 'vika';
-  const huom = row.huomio?.trim()
-    ? isVika
-      ? `<span style="color:#b91c1c;font-weight:700;">${esc(row.huomio)}</span>`
-      : esc(row.huomio)
+  const huomBody = row.huomio?.trim()
+    ? formatHuomioPrintHtml(row.huomio, esc)
     : '<span style="color:#94a3b8;">—</span>';
+  const huom = row.huomio?.trim() && isVika
+    ? `<span style="color:#b91c1c;font-weight:700;">${huomBody}</span>`
+    : huomBody;
 
   const waterLines = [
     tulo ? `Tulo ${esc(tulo)}` : '',
@@ -213,7 +215,7 @@ function renderKonvektoriCard(
         ${overlayHtml}
       </div>
       <div style="font-size:5.5px;line-height:1.3;color:#475569;margin-bottom:2px;flex-wrap:wrap;">${checks}</div>
-      <div style="font-size:6px;line-height:1.25;color:#1e293b;border-top:1px solid #e2e8f0;padding-top:2px;margin-top:auto;word-wrap:break-word;">${huom}</div>
+      <div style="font-size:6px;line-height:1.25;color:#1e293b;border-top:1px solid #e2e8f0;padding-top:2px;margin-top:auto;${huomioPrintTextStyle}">${huom}</div>
     </div>`;
 }
 

@@ -6,6 +6,7 @@ import {
 } from '../../lib/huoltoRaportti/konvektoriTarkastus';
 import { KONVEKTORI_JAAHDYTYSNESTE_OPTIONS } from '../../lib/huoltoRaportti/konvektoriTypes';
 import { getKonvektoriCalculationLines } from '../../lib/huoltoRaportti/konvektoriTeho';
+import { MultilineCommentTextarea } from './MultilineCommentTextarea';
 
 interface Props {
   open: boolean;
@@ -291,10 +292,10 @@ export function KonvektoriTarkastusDialog({ open, row, rowLabel, onClose, onSave
 
         <label className="konvektori-huomio-field">
           Kommentti / huomio
-          <textarea
+          <MultilineCommentTextarea
             rows={4}
             value={draft.huomio}
-            onChange={(e) => setDraft((prev) => ({ ...prev, huomio: e.target.value }))}
+            onChange={(huomio) => setDraft((prev) => ({ ...prev, huomio }))}
             placeholder="Kirjoita huomio tähän…"
           />
         </label>

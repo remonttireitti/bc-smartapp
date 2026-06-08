@@ -41,6 +41,7 @@ import {
   generateKonvektoritGridPrintHtml,
   konvektoriVerkostoKoideFromReport,
 } from './konvektoriPrint';
+import { formatHuomioPrintHtml } from './formatHuomioPrintHtml';
 import { isKonvektoritDevice } from './deviceModuleLogic';
 import { generateMlpFullPrintHtml } from './printMlpFull';
 import { renderCompressorCurrentHtml, renderFanPhaseCardHtml } from './printPhaseHelpers';
@@ -736,7 +737,7 @@ function renderHuomiot(data: HuoltoReportData, imageUrls?: Record<string, string
       : 'white-space:pre-wrap;font-size:11pt;margin:0;';
 
   const body = [
-    huom ? `<p style="${style}">${esc(huom)}</p>` : '',
+    huom ? `<p style="${style}">${formatHuomioPrintHtml(huom, esc)}</p>` : '',
     kuvat,
   ]
     .filter(Boolean)

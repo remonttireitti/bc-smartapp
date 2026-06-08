@@ -39,6 +39,7 @@ import {
 } from './kokeAikaUtils';
 import { buildMaintenanceReportPrintTitle, hideMaintenancePrintWarnings } from './defaults';
 import { generateKonvektoritGridPrintHtml, konvektoriVerkostoKoideFromReport } from './konvektoriPrint';
+import { formatHuomioPrintHtml } from './formatHuomioPrintHtml';
 import { isMaintenancePrintPhotoImage } from '../maintenanceReportPrintImages';
 import type { HuoltoReportData } from './types';
 
@@ -2268,7 +2269,7 @@ export function generatePrintHTML(data: {
     ? `<div style="border-bottom: 1px solid #b2dfdb; padding: 2px 0;">Koe päättyi (laskettu): ${esc(tiiveyskoeLoppu)}</div>`
     : '';
   const tiiveyskoeHuomRivi = hasPrintableValue(tv.huom)
-    ? `<div style="padding: 2px 0; white-space: pre-wrap;">Huomiot: ${esc(tv.huom)}</div>`
+    ? `<div style="padding: 2px 0; white-space: pre-wrap;">Huomiot: ${formatHuomioPrintHtml(tv.huom, esc)}</div>`
     : '';
 
   const tiiveyskoeSisalto = [
@@ -2316,7 +2317,7 @@ export function generatePrintHTML(data: {
     ? `<div style="border-bottom: 1px solid #81d4fa; padding: 2px 0;">Käytetty painemittari: ${esc(tyhjiointiPainemittari)}</div>`
     : '';
   const tyhjiointiHuomRivi = hasPrintableValue(ty.huom)
-    ? `<div style="padding: 2px 0; white-space: pre-wrap;">Huomiot: ${esc(ty.huom)}</div>`
+    ? `<div style="padding: 2px 0; white-space: pre-wrap;">Huomiot: ${formatHuomioPrintHtml(ty.huom, esc)}</div>`
     : '';
 
   const tyhjiointiSisalto = [
@@ -3277,7 +3278,7 @@ export function generatePrintHTML(data: {
     <div style="border-bottom: 2px solid #7B1FA2; padding-bottom: 2px; margin-bottom: 4px;">
       <strong style="font-size: 14px; color: #7B1FA2;">HUOMIOT JA LISÄTIEDOT</strong>
     </div>
-    ${data.huomiot ? (data.huomiotLuonne === 'vika' ? `<p style="white-space: pre-wrap; font-size: 11pt; margin: 0; color: #b91c1c; font-weight: 700;">${esc(data.huomiot)}</p>` : `<p style="white-space: pre-wrap; font-size: 11pt; margin: 0;">${esc(data.huomiot)}</p>`) : ''}
+    ${data.huomiot ? (data.huomiotLuonne === 'vika' ? `<p style="white-space: pre-wrap; font-size: 11pt; margin: 0; color: #b91c1c; font-weight: 700;">${formatHuomioPrintHtml(data.huomiot, esc)}</p>` : `<p style="white-space: pre-wrap; font-size: 11pt; margin: 0;">${formatHuomioPrintHtml(data.huomiot, esc)}</p>`) : ''}
     ${huomiotLiitteetHtml}
   </div>
   ` : ''}

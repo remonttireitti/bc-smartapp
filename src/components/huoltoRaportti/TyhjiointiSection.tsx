@@ -13,6 +13,7 @@ import type {
 import { EvidencePhotoUpload } from './EvidencePhotoUpload';
 import { FormInput } from './FormInput';
 import { HuoltoModuleSection } from './HuoltoModuleSection';
+import { MultilineCommentTextarea } from './MultilineCommentTextarea';
 
 interface Props {
   form: HuoltoReportData;
@@ -113,9 +114,9 @@ export function TyhjiointiSection({ form, onChange, reportId, userId }: Props) {
         />
         <label className="huolto-span-all">
           Huomiot
-          <textarea
+          <MultilineCommentTextarea
             value={data.huom}
-            onChange={(e) => patchTyhjiointi({ huom: e.target.value })}
+            onChange={(huom) => patchTyhjiointi({ huom })}
             rows={3}
           />
         </label>
