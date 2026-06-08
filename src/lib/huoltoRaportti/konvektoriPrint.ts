@@ -180,12 +180,13 @@ function renderKonvektoriCard(
   }).join('');
 
   const isVika = row.huomioTyyppi === 'vika';
-  const huomBody = row.huomio?.trim()
+  const huom = row.huomio?.trim()
     ? formatHuomioPrintHtml(row.huomio, esc)
     : '<span style="color:#94a3b8;">—</span>';
-  const huom = row.huomio?.trim() && isVika
-    ? `<span style="color:#b91c1c;font-weight:700;">${huomBody}</span>`
-    : huomBody;
+  const huomioStyle = [
+    huomioPrintTextStyle,
+    isVika ? 'color:#b91c1c;' : '',
+  ].filter(Boolean).join('');
 
   const waterLines = [
     tulo ? `Tulo ${esc(tulo)}` : '',
@@ -215,7 +216,7 @@ function renderKonvektoriCard(
         ${overlayHtml}
       </div>
       <div style="font-size:5.5px;line-height:1.3;color:#475569;margin-bottom:2px;flex-wrap:wrap;">${checks}</div>
-      <div style="font-size:6px;line-height:1.25;color:#1e293b;border-top:1px solid #e2e8f0;padding-top:2px;margin-top:auto;${huomioPrintTextStyle}">${huom}</div>
+      <div style="font-size:6px;line-height:1.25;border-top:1px solid #e2e8f0;padding-top:2px;margin-top:auto;${huomioStyle}">${huom}</div>
     </div>`;
 }
 

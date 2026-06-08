@@ -39,7 +39,7 @@ import {
 } from './kokeAikaUtils';
 import { buildMaintenanceReportPrintTitle, hideMaintenancePrintWarnings } from './defaults';
 import { generateKonvektoritGridPrintHtml, konvektoriVerkostoKoideFromReport } from './konvektoriPrint';
-import { formatHuomioPrintHtml } from './formatHuomioPrintHtml';
+import { formatHuomioPrintHtml, RICH_COMMENT_PRINT_CSS } from './formatHuomioPrintHtml';
 import { isMaintenancePrintPhotoImage } from '../maintenanceReportPrintImages';
 import type { HuoltoReportData } from './types';
 
@@ -3039,6 +3039,7 @@ export function generatePrintHTML(data: {
     @media print { body { padding: 0; } button { display: none; } }
     /* Piilota tyhjät boxit */
     .box-content:empty { display: none !important; }
+    ${RICH_COMMENT_PRINT_CSS}
   </style>
   <script>
     document.addEventListener('DOMContentLoaded', function() {

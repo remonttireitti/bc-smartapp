@@ -100,7 +100,12 @@ export default function MaintenanceReportPrintPage({ session }: Props) {
           </div>
         </div>
 
-        <div className="maintenance-print-host" dangerouslySetInnerHTML={{ __html: html }} />
+        <iframe
+          title="Huoltoraportin tuloste"
+          className="maintenance-print-host"
+          srcDoc={html}
+          style={{ width: '100%', border: 'none', minHeight: '80vh' }}
+        />
       </div>
     </AppLayout>
   );

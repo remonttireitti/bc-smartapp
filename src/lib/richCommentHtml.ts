@@ -271,7 +271,26 @@ function applyPrintRichStyles(html: string): string {
   const root = doc.body.firstElementChild;
   if (!root) return html;
 
-  root.querySelectorAll('p').forEach((p) => applyPrintParagraphStyles(p));
+  root.querySelectorAll('p').forEach((p) => {
+    if (!p.classList.contains(PARA_CLASS) && !p.classList.contains(GAP_CLASS)) {
+      classifyParagraph(p);
+    }
+    applyPrintParagraphStyles(p);
+  });
+
+  root.querySelectorAll('strong, b').forEach((el) => {
+    el.setAttribute('style', 'font-weight:700;');
+  });
+  root.querySelectorAll('em, i').forEach((el) => {
+    el.setAttribute('style', 'font-style:italic;');
+  });
+  root.querySelectorAll('u').forEach((el) => {
+    el.setAttribute('style', 'text-decoration:underline;');
+  });
+  root.querySelectorAll('ul, ol, li').forEach((el) => {
+    applyPrintListStyles(el);
+  });
+
   return root.innerHTML;
 }
 
@@ -402,8 +421,20 @@ export function clipboardHtmlToRichComment(html: string): string {
 }
 
 export function looksLikeRichCommentHtml(value: string): boolean {
-  return /<\/?(?:p|div|br|b|strong|i|em|u|ul|ol|li|span)\b/i.test(value);
+  return /<\/?[a-z][\w-]*\b/i.test(value);
 }
+
+export const RICH_COMMENT_PRINT_CSS = `
+.rc-print p { margin: 0; padding: 0; line-height: 1.4; }
+.rc-print p.rc-para + p.rc-para { margin-top: 0.5em; }
+.rc-print p.rc-gap { min-height: 0.55em; margin: 0; }
+.rc-print strong, .rc-print b { font-weight: 700; }
+.rc-print em, .rc-print i { font-style: italic; }
+.rc-print u { text-decoration: underline; }
+.rc-print ul { margin: 0.25em 0; padding-left: 1.25em; list-style: disc; }
+.rc-print ol { margin: 0.25em 0; padding-left: 1.35em; list-style: decimal; }
+.rc-print li { margin: 0.15em 0; }
+`;
 
 export function sanitizeRichCommentHtml(html: string): string {
   if (!html.trim()) return '';
@@ -450,13 +481,20 @@ export function editorHtmlToStoredValue(html: string): string {
 /** Tuloste: turvallinen HTML tai escattu plain text. */
 export function formatHuomioForPrint(text: string, esc: (v: unknown) => string): string {
   if (!text.trim()) return '';
-  if (looksLikeRichCommentHtml(text)) {
-    return applyPrintRichStyles(sanitizeRichCommentHtml(normalizeEditorStructure(text)));
+
+  let html = text;
+  if (!looksLikeRichCommentHtml(text)) {
+    if (text.includes('**')) {
+      html = legacyMarkdownToRichHtml(text);
+    } else {
+      return `<div class="rc-print">${esc(text).replace(/\n/g, '<br>')}</div>`;
+    }
   }
-  if (text.includes('**')) {
-    return applyPrintRichStyles(legacyMarkdownToRichHtml(text));
-  }
-  return esc(text).replace(/\n/g, '<br>');
+
+  const processed = applyPrintRichStyles(
+    sanitizeRichCommentHtml(normalizeEditorStructure(html)),
+  );
+  return `<div class="rc-print">${processed}</div>`;
 }
 
 export const huomioPrintTextStyle = 'white-space:pre-wrap;word-wrap:break-word;';

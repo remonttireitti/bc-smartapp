@@ -1,1 +1,1 @@
-export { formatHuomioForPrint as formatHuomioPrintHtml, huomioPrintTextStyle } from '../richCommentHtml';
+export { formatHuomioForPrint as formatHuomioPrintHtml, huomioPrintTextStyle, RICH_COMMENT_PRINT_CSS } from '../richCommentHtml';
