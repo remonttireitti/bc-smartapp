@@ -5111,8 +5111,7 @@ textarea {
   background: #fff;
   font-weight: 400;
   font-family: inherit;
-  line-height: 1.45;
-  white-space: pre-wrap;
+  line-height: 1.4;
   overflow-wrap: anywhere;
   box-sizing: border-box;
   overflow-y: auto;
@@ -5125,10 +5124,21 @@ textarea {
 }
 
 .rich-comment-editor p {
-  margin: 0 0 0.35em;
+  margin: 0;
+  padding: 0;
 }
 
-.rich-comment-editor p:last-child {
+.rich-comment-editor p.rc-para + p.rc-para {
+  margin-top: 0.55em;
+}
+
+.rich-comment-editor p.rc-gap {
+  min-height: 0.55em;
+  margin: 0;
+}
+
+.rich-comment-editor p.rc-para:last-child,
+.rich-comment-editor p.rc-gap:last-child {
   margin-bottom: 0;
 }
 

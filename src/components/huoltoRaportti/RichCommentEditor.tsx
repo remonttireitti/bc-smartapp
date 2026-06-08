@@ -2,6 +2,8 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import {
   clipboardDataToRichCommentHtml,
   editorHtmlToStoredValue,
+  markEditorParagraphs,
+  paragraphGapHtml,
   RICH_COMMENT_FONT_SIZES,
   valueToEditorHtml,
 } from '../../lib/richCommentHtml';
@@ -67,6 +69,7 @@ export function RichCommentEditor({ value, onChange, rows = 5, placeholder, clas
   const emitChange = () => {
     const el = editorRef.current;
     if (!el) return;
+    markEditorParagraphs(el);
     const next = editorHtmlToStoredValue(el.innerHTML);
     lastStoredRef.current = next;
     onChange(next);
@@ -77,6 +80,26 @@ export function RichCommentEditor({ value, onChange, rows = 5, placeholder, clas
     editorRef.current?.focus();
     document.execCommand('styleWithCSS', false, 'true');
     document.execCommand(command, false, commandValue);
+    emitChange();
+  };
+
+  const insertParagraphGap = () => {
+    editorRef.current?.focus();
+    document.execCommand('insertHTML', false, paragraphGapHtml());
+    emitChange();
+  };
+
+  const handleEnterKey = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key !== 'Enter' || e.nativeEvent.isComposing) return;
+    if (format.unorderedList || format.orderedList) return;
+
+    e.preventDefault();
+    editorRef.current?.focus();
+    if (e.shiftKey) {
+      document.execCommand('insertLineBreak');
+    } else {
+      document.execCommand('insertParagraph');
+    }
     emitChange();
   };
 
@@ -142,6 +165,16 @@ export function RichCommentEditor({ value, onChange, rows = 5, placeholder, clas
         <div className="rich-comment-editor-toolbar-group">
           <button
             type="button"
+            className="rich-comment-editor-btn"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={insertParagraphGap}
+            title="Kappaleväli (isompi riviväli)"
+            aria-label="Kappaleväli"
+          >
+            ¶
+          </button>
+          <button
+            type="button"
             className={`rich-comment-editor-btn${format.unorderedList ? ' is-active' : ''}`}
             onMouseDown={(e) => e.preventDefault()}
             onClick={() => execFormat('insertUnorderedList')}
@@ -178,6 +211,7 @@ export function RichCommentEditor({ value, onChange, rows = 5, placeholder, clas
         onBlur={emitChange}
         onKeyUp={refreshFormat}
         onMouseUp={refreshFormat}
+        onKeyDown={handleEnterKey}
         onPaste={(e) => {
           e.preventDefault();
           const html = clipboardDataToRichCommentHtml(e.clipboardData);

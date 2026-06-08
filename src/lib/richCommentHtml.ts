@@ -4,8 +4,12 @@ const BLOCK_TAGS = new Set([
 ]);
 
 const ALLOWED_TAGS = new Set([
-  'B', 'STRONG', 'I', 'EM', 'U', 'BR', 'P', 'DIV', 'UL', 'OL', 'LI', 'SPAN',
+  'B', 'STRONG', 'I', 'EM', 'U', 'BR', 'P', 'UL', 'OL', 'LI', 'SPAN',
 ]);
+
+const PARA_CLASS = 'rc-para';
+const GAP_CLASS = 'rc-gap';
+const ALLOWED_CLASSES = new Set([PARA_CLASS, GAP_CLASS]);
 
 const FONT_SIZE_MAP: Record<string, string> = {
   '1': '0.75em',
@@ -155,8 +159,8 @@ function serializeNodeToRichHtml(node: Node): string {
   let out = serializeChildren(el);
 
   if (isBlockTag(tag) && !hasBlockChild(el)) {
-    if (!out.replace(/[\s\u00A0]/g, '')) return '<br>';
-    return `<p>${out}</p>`;
+    if (!out.replace(/[\s\u00A0]/g, '')) return `<p class="${GAP_CLASS}"><br></p>`;
+    return `<p class="${PARA_CLASS}">${out}</p>`;
   }
 
   return out;
@@ -166,24 +170,30 @@ function plainTextToRichHtml(text: string): string {
   const normalized = normalizeLineBreaks(text);
   if (!normalized.trim()) return '';
 
-  const lines = normalized.split('\n');
-  return lines
-    .map((line) => {
-      if (!line.trim()) return '<br>';
-      return `<p>${escapeHtml(line)}</p>`;
+  return normalized
+    .split(/\n\n+/)
+    .map((block) => {
+      if (!block.trim()) return `<p class="${GAP_CLASS}"><br></p>`;
+      const inner = block.split('\n').map((line) => escapeHtml(line)).join('<br>');
+      return `<p class="${PARA_CLASS}">${inner}</p>`;
     })
     .join('');
 }
 
 function legacyMarkdownToRichHtml(text: string): string {
   const normalized = normalizeLineBreaks(text);
-  const lines = normalized.split('\n');
-  return lines
-    .map((line) => {
-      if (!line.trim()) return '<br>';
-      const html = line.replace(/\*\*([^*]+?)\*\*/g, (_, inner: string) => `<strong>${escapeHtml(inner)}</strong>`);
-      if (html.includes('<strong>')) return `<p>${html}</p>`;
-      return `<p>${escapeHtml(line)}</p>`;
+  return normalized
+    .split(/\n\n+/)
+    .map((block) => {
+      if (!block.trim()) return `<p class="${GAP_CLASS}"><br></p>`;
+      const html = block
+        .split('\n')
+        .map((line) => {
+          const withBold = line.replace(/\*\*([^*]+?)\*\*/g, (_, inner: string) => `<strong>${escapeHtml(inner)}</strong>`);
+          return withBold.includes('<strong>') ? withBold : escapeHtml(line);
+        })
+        .join('<br>');
+      return `<p class="${PARA_CLASS}">${html}</p>`;
     })
     .join('');
 }
@@ -200,6 +210,41 @@ function extractAllowedFontSize(style: string): string | null {
   return size;
 }
 
+function convertDivToParagraph(el: Element): Element {
+  const p = el.ownerDocument.createElement('p');
+  const cls = el.getAttribute('class') ?? '';
+  p.setAttribute('class', ALLOWED_CLASSES.has(cls) ? cls : PARA_CLASS);
+  while (el.firstChild) p.appendChild(el.firstChild);
+  el.parentNode?.replaceChild(p, el);
+  return p;
+}
+
+function classifyParagraph(el: Element): void {
+  if (el.tagName !== 'P') return;
+  const cls = el.getAttribute('class') ?? '';
+  if (ALLOWED_CLASSES.has(cls)) return;
+  const text = (el.textContent ?? '').replace(/\u00A0/g, ' ').trim();
+  const onlyBreaks = !text && !!el.querySelector('br');
+  el.setAttribute('class', !text || onlyBreaks ? GAP_CLASS : PARA_CLASS);
+}
+
+function normalizeEditorStructure(html: string): string {
+  if (!html.trim()) return html;
+
+  const doc = new DOMParser().parseFromString(`<div>${html}</div>`, 'text/html');
+  const root = doc.body.firstElementChild;
+  if (!root) return html;
+
+  for (const child of Array.from(root.children)) {
+    if (child.tagName === 'DIV') convertDivToParagraph(child as Element);
+  }
+
+  root.querySelectorAll('p').forEach((p) => classifyParagraph(p));
+  compactLegacyLineParagraphs(root);
+
+  return root.innerHTML;
+}
+
 function convertFontElement(el: Element): Element {
   const span = el.ownerDocument.createElement('span');
   const size = el.getAttribute('size');
@@ -209,6 +254,63 @@ function convertFontElement(el: Element): Element {
   while (el.firstChild) span.appendChild(el.firstChild);
   el.parentNode?.replaceChild(span, el);
   return span;
+}
+
+function applyPrintParagraphStyles(el: Element): void {
+  if (el.classList.contains(GAP_CLASS)) {
+    el.setAttribute('style', 'min-height:0.55em;margin:0;padding:0;line-height:1.35;');
+  } else if (el.classList.contains(PARA_CLASS)) {
+    el.setAttribute('style', 'margin:0 0 0.5em;padding:0;line-height:1.4;');
+  }
+}
+
+function applyPrintRichStyles(html: string): string {
+  if (!html.trim()) return html;
+
+  const doc = new DOMParser().parseFromString(`<div>${html}</div>`, 'text/html');
+  const root = doc.body.firstElementChild;
+  if (!root) return html;
+
+  root.querySelectorAll('p').forEach((p) => applyPrintParagraphStyles(p));
+  return root.innerHTML;
+}
+
+function compactLegacyLineParagraphs(root: Element): void {
+  const doc = root.ownerDocument;
+  const flush = (group: Element[]) => {
+    if (group.length <= 1) return;
+    const merged = doc.createElement('p');
+    merged.setAttribute('class', PARA_CLASS);
+    group.forEach((p, index) => {
+      if (index > 0) merged.appendChild(doc.createElement('br'));
+      while (p.firstChild) merged.appendChild(p.firstChild);
+    });
+    root.insertBefore(merged, group[0]);
+    group.forEach((p) => p.remove());
+  };
+
+  let group: Element[] = [];
+  for (const node of Array.from(root.childNodes)) {
+    if (node.nodeType !== Node.ELEMENT_NODE || (node as Element).tagName !== 'P') {
+      flush(group);
+      group = [];
+      continue;
+    }
+    const p = node as Element;
+    if (p.classList.contains(GAP_CLASS) || !(p.textContent ?? '').replace(/\u00A0/g, ' ').trim()) {
+      flush(group);
+      group = [];
+      continue;
+    }
+    const isSimpleLine = !p.querySelector('ul,ol,br') && p.children.length === 0;
+    if (isSimpleLine) {
+      group.push(p);
+    } else {
+      flush(group);
+      group = [];
+    }
+  }
+  flush(group);
 }
 
 function applyPrintListStyles(el: Element): void {
@@ -239,14 +341,30 @@ function sanitizeElementTree(node: Element): void {
       tag = el.tagName;
     }
 
+    if (tag === 'DIV') {
+      el = convertDivToParagraph(el);
+      tag = el.tagName;
+    }
+
     if (!ALLOWED_TAGS.has(tag)) {
       unwrapElement(el);
       continue;
     }
 
+    const classBefore = el.getAttribute('class') ?? '';
     const styleBefore = el.getAttribute('style') ?? '';
     while (el.attributes.length > 0) {
       el.removeAttribute(el.attributes[0].name);
+    }
+
+    if (tag === 'P') {
+      if (ALLOWED_CLASSES.has(classBefore)) {
+        el.setAttribute('class', classBefore);
+      } else {
+        classifyParagraph(el);
+      }
+      sanitizeElementTree(el);
+      continue;
     }
 
     if (tag === 'SPAN') {
@@ -306,15 +424,25 @@ export function sanitizeRichCommentHtml(html: string): string {
   return result;
 }
 
+export function markEditorParagraphs(root: HTMLElement): void {
+  for (const child of Array.from(root.children)) {
+    if (child.tagName === 'DIV') convertDivToParagraph(child as Element);
+  }
+  root.querySelectorAll('p').forEach((p) => classifyParagraph(p));
+}
+
 export function valueToEditorHtml(value: string): string {
   if (!value.trim()) return '';
-  if (looksLikeRichCommentHtml(value)) return sanitizeRichCommentHtml(value);
-  if (value.includes('**')) return legacyMarkdownToRichHtml(value);
-  return plainTextToRichHtml(value);
+  let html = value;
+  if (!looksLikeRichCommentHtml(value)) {
+    html = value.includes('**') ? legacyMarkdownToRichHtml(value) : plainTextToRichHtml(value);
+  }
+  return sanitizeRichCommentHtml(normalizeEditorStructure(html));
 }
 
 export function editorHtmlToStoredValue(html: string): string {
-  const cleaned = sanitizeRichCommentHtml(html);
+  const normalized = normalizeEditorStructure(html);
+  const cleaned = sanitizeRichCommentHtml(normalized);
   if (looksLikeRichCommentHtml(cleaned)) return cleaned;
   return normalizeLineBreaks(cleaned.replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, ''));
 }
@@ -322,14 +450,20 @@ export function editorHtmlToStoredValue(html: string): string {
 /** Tuloste: turvallinen HTML tai escattu plain text. */
 export function formatHuomioForPrint(text: string, esc: (v: unknown) => string): string {
   if (!text.trim()) return '';
-  if (looksLikeRichCommentHtml(text)) return sanitizeRichCommentHtml(text);
+  if (looksLikeRichCommentHtml(text)) {
+    return applyPrintRichStyles(sanitizeRichCommentHtml(normalizeEditorStructure(text)));
+  }
   if (text.includes('**')) {
-    return legacyMarkdownToRichHtml(text);
+    return applyPrintRichStyles(legacyMarkdownToRichHtml(text));
   }
   return esc(text).replace(/\n/g, '<br>');
 }
 
 export const huomioPrintTextStyle = 'white-space:pre-wrap;word-wrap:break-word;';
+
+export function paragraphGapHtml(): string {
+  return `<p class="${GAP_CLASS}"><br></p>`;
+}
 
 export function clipboardDataToRichCommentHtml(data: DataTransfer): string {
   const html = data.getData('text/html');
