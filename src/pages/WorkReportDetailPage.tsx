@@ -2049,7 +2049,10 @@ export default function WorkReportDetailPage({ session }: Props) {
               <IconTrash />
             </IconButton>
           )}
-          <IconButton label="Tulosta raportti" href={`/tyoraportit/${report.id}/tuloste`}>
+          <IconButton
+            label="Tulosta asiakkaalle (ei hintoja)"
+            href={`/tyoraportit/${report.id}/tuloste`}
+          >
             <IconPrint />
           </IconButton>
           <span className="action-toolbar-sep" aria-hidden="true" />
@@ -2575,12 +2578,12 @@ export default function WorkReportDetailPage({ session }: Props) {
             )}
             <WorkReportBillingBreakdown calculation={billableCalculation} />
             <div className="form-actions" style={{ justifyContent: 'flex-start' }}>
-              <Tooltip label="Avaa tulosteen kumppanille hintoineen.">
+              <Tooltip label="Sisäinen tuloste: kumppanilaskutus, asiakkaalta laskutettava ja kaikki hinnat.">
                 <Link
                   to={`/tyoraportit/${report.id}/tuloste?hinnat=1`}
                   className="btn btn-secondary"
                 >
-                  Tulosta kumppanille
+                  Tulosta sisäinen (hinnat)
                 </Link>
               </Tooltip>
               <Tooltip
@@ -2685,9 +2688,14 @@ export default function WorkReportDetailPage({ session }: Props) {
 
           <WorkReportBillingBreakdown calculation={customerBillableCalculation} />
           <div className="form-actions" style={{ justifyContent: 'flex-start' }}>
-            <Tooltip label="Tuloste sisältää asiakkaalta laskutettavan yhteenvedon, kun summat on laskettu.">
+            <Tooltip label="Työraportti asiakkaalle ilman yhtään hintaa.">
               <Link to={`/tyoraportit/${report.id}/tuloste`} className="btn btn-secondary">
                 Tulosta asiakkaalle
+              </Link>
+            </Tooltip>
+            <Tooltip label="Sisäinen tuloste: kumppanilaskutus, asiakkaalta laskutettava ja kaikki hinnat.">
+              <Link to={`/tyoraportit/${report.id}/tuloste?hinnat=1`} className="btn btn-secondary">
+                Tulosta sisäinen (hinnat)
               </Link>
             </Tooltip>
             {canManageCustomerBillingRates && (
@@ -2752,7 +2760,6 @@ export default function WorkReportDetailPage({ session }: Props) {
           ownCompanyId={profile?.company_id ?? null}
           hasPartnerCompanies={hasPartnerRefrigerantCompanies}
           showCustomerBillingFields={customerInvoicingEnabled}
-          onBillingReminder={(message) => setDailyLogNotice(dailyLogNoticeFromWarning(message))}
         />
         {report && (
           <DailyLogFormSection

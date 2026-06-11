@@ -4,11 +4,13 @@ import type { Session } from '@supabase/supabase-js';
 import AppLayout from '../components/AppLayout';
 import { MaintenanceReportImageLightbox } from '../components/huoltoRaportti/MaintenanceReportImageLightbox';
 import IconButton from '../components/IconButton';
-import Tooltip from '../components/Tooltip';
-import ToggleSwitch from '../components/ToggleSwitch';
-import { IconBack, IconEuro, IconPrint } from '../components/icons';
+import { IconBack, IconPrint } from '../components/icons';
 import { useProfile } from '../hooks/useProfile';
-import { loadWorkReportPrintBundle } from '../lib/workReportPrintAction';
+import {
+  loadWorkReportPrintBundle,
+  workReportPrintPath,
+  type WorkReportPrintMode,
+} from '../lib/workReportPrintAction';
 import { buildWorkReportPrintTitle } from '../lib/workReportPrintHtml';
 import { buildWorkReportPrintHeadline } from '../types';
 import type { BillableCalculation } from '../lib/workReportBilling';
@@ -18,16 +20,21 @@ interface Props {
   session: Session;
 }
 
+function resolvePrintMode(searchParams: URLSearchParams): WorkReportPrintMode {
+  return searchParams.get('hinnat') === '1' ? 'internal' : 'customer';
+}
+
 export default function WorkReportPrintPage({ session }: Props) {
   const { id } = useParams();
   const [searchParams] = useSearchParams();
   const { profile } = useProfile(session);
+  const printMode = resolvePrintMode(searchParams);
   const [report, setReport] = useState<WorkReport | null>(null);
   const [html, setHtml] = useState('');
   const [calculation, setCalculation] = useState<BillableCalculation | null>(null);
+  const [customerCalculation, setCustomerCalculation] = useState<BillableCalculation | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [showPartnerPrices, setShowPartnerPrices] = useState(searchParams.get('hinnat') === '1');
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
 
   useEffect(() => {
@@ -37,7 +44,7 @@ export default function WorkReportPrintPage({ session }: Props) {
       return;
     }
     void loadReport(id);
-  }, [id, showPartnerPrices, profile?.company_id]);
+  }, [id, printMode, profile?.company_id]);
 
   async function loadReport(reportId: string) {
     setLoading(true);
@@ -45,12 +52,13 @@ export default function WorkReportPrintPage({ session }: Props) {
 
     try {
       const bundle = await loadWorkReportPrintBundle(reportId, {
-        showPartnerPrices,
+        printMode,
         viewerCompanyId: profile?.company_id,
       });
       setReport(bundle.report);
       setHtml(bundle.html);
       setCalculation(bundle.calculation);
+      setCustomerCalculation(bundle.customerCalculation);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Tulosteen lataus epäonnistui.');
     } finally {
@@ -83,7 +91,7 @@ export default function WorkReportPrintPage({ session }: Props) {
     return () => host.removeEventListener('click', onImageLinkClick);
   }, [html]);
 
-  const canTogglePartnerPrices = !!calculation;
+  const canShowInternalPrint = !!(calculation || customerCalculation);
 
   if (loading) {
     return (
@@ -110,30 +118,33 @@ export default function WorkReportPrintPage({ session }: Props) {
             <p className="breadcrumb">
               <Link to="/">Etusivu</Link> / <Link to="/tyoraportit">Työraportit</Link> / Tuloste
             </p>
-            <h1>Työraportin tuloste</h1>
+            <h1>
+              {printMode === 'internal' ? 'Sisäinen tuloste' : 'Asiakastuloste'}
+            </h1>
+            <p className="muted">
+              {printMode === 'internal'
+                ? 'Kumppani- ja asiakaslaskutus sekä kaikki hinnat mukana.'
+                : 'Työn kuvaus, tunnit ja kulut ilman hintoja — annettavissa asiakkaalle.'}
+            </p>
             <p className="muted">{buildWorkReportPrintHeadline(report)}</p>
           </div>
           <div className="page-header-actions action-toolbar">
-            {canTogglePartnerPrices && (
-              <Tooltip
-                label={
-                  showPartnerPrices
-                    ? 'Kumppanin hinnat mukana tulosteessa. Kytke pois päältä piilottaaksesi hinnat.'
-                    : 'Näytä kumppanin hinnat tulosteessa.'
-                }
-                side="bottom"
+            <div className="btn-group print-mode-switch">
+              <Link
+                to={workReportPrintPath(report.id, 'customer')}
+                className={`btn btn-sm ${printMode === 'customer' ? 'btn-primary' : 'btn-secondary'}`}
               >
-                <span className="print-toolbar-control">
-                  <IconEuro className="ui-icon print-toolbar-icon" />
-                  <ToggleSwitch
-                    checked={showPartnerPrices}
-                    onChange={setShowPartnerPrices}
-                    className="toggle-switch-inline"
-                    id="print-show-partner-prices"
-                  />
-                </span>
-              </Tooltip>
-            )}
+                Asiakkaalle
+              </Link>
+              {canShowInternalPrint && (
+                <Link
+                  to={workReportPrintPath(report.id, 'internal')}
+                  className={`btn btn-sm ${printMode === 'internal' ? 'btn-primary' : 'btn-secondary'}`}
+                >
+                  Sisäinen (hinnat)
+                </Link>
+              )}
+            </div>
             <IconButton
               label="Takaisin raporttiin"
               href={`/tyoraportit/${report.id}`}

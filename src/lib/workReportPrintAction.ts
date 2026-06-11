@@ -5,8 +5,16 @@ import { openPrintHtml } from './openPrintWindow';
 import { supabase } from './supabase';
 import type { BillableCalculation } from './workReportBilling';
 import { fetchWorkReportPrintLogs } from './workReportDailyLogSelect';
-import { generateWorkReportPrintHtml } from './workReportPrintHtml';
+import { generateWorkReportPrintHtml, type WorkReportPrintMode } from './workReportPrintHtml';
 import type { WorkReport, WorkReportDailyLog } from '../types';
+
+export type { WorkReportPrintMode } from './workReportPrintHtml';
+
+export function workReportPrintPath(reportId: string, mode: WorkReportPrintMode = 'customer') {
+  return mode === 'internal'
+    ? `/tyoraportit/${reportId}/tuloste?hinnat=1`
+    : `/tyoraportit/${reportId}/tuloste`;
+}
 
 const REPORT_SELECT = `
   id, title, heading, description, orderer_name, location_text, status,
@@ -52,6 +60,8 @@ export async function buildWorkReportPrintHtmlDocument(input: {
   logs: WorkReportDailyLog[];
   calculation?: BillableCalculation | null;
   customerCalculation?: BillableCalculation | null;
+  printMode?: WorkReportPrintMode;
+  /** @deprecated Käytä printMode='internal' */
   showPartnerPrices?: boolean;
   viewerCompanyId?: string | null;
   client?: SupabaseClient;
@@ -78,16 +88,20 @@ export async function buildWorkReportPrintHtmlDocument(input: {
     logoUrl = undefined;
   }
 
-  const calculation =
-    input.showPartnerPrices && isPartnerReport ? (input.calculation ?? null) : null;
+  const printMode: WorkReportPrintMode =
+    input.printMode ?? (input.showPartnerPrices ? 'internal' : 'customer');
+  const showInternalPrices = printMode === 'internal';
+  const partnerCalculation =
+    showInternalPrices && isPartnerReport ? (input.calculation ?? null) : null;
 
   return generateWorkReportPrintHtml({
     report: input.report,
     logs,
     logImages,
-    showPartnerPrices: !!input.showPartnerPrices && isPartnerReport && !!calculation,
-    calculation,
-    customerCalculation: input.customerCalculation ?? null,
+    printMode,
+    showPartnerPrices: showInternalPrices && isPartnerReport && !!partnerCalculation,
+    calculation: partnerCalculation,
+    customerCalculation: showInternalPrices ? (input.customerCalculation ?? null) : null,
     meta: { companyName, logoUrl },
     hideAssignee,
   });
@@ -95,7 +109,12 @@ export async function buildWorkReportPrintHtmlDocument(input: {
 
 export async function loadWorkReportPrintBundle(
   reportId: string,
-  options?: { showPartnerPrices?: boolean; viewerCompanyId?: string | null; client?: SupabaseClient },
+  options?: {
+    printMode?: WorkReportPrintMode;
+    showPartnerPrices?: boolean;
+    viewerCompanyId?: string | null;
+    client?: SupabaseClient;
+  },
 ) {
   const db = options?.client ?? supabase;
 
@@ -130,6 +149,7 @@ export async function loadWorkReportPrintBundle(
     logs,
     calculation: isPartnerReport ? calculation : null,
     customerCalculation,
+    printMode: options?.printMode,
     showPartnerPrices: options?.showPartnerPrices,
     viewerCompanyId: options?.viewerCompanyId,
     client: db,
@@ -145,6 +165,7 @@ export async function loadWorkReportPrintBundle(
 
 export async function openWorkReportPrint(input: {
   reportId: string;
+  printMode?: WorkReportPrintMode;
   showPartnerPrices?: boolean;
   viewerCompanyId?: string | null;
   client?: SupabaseClient;
@@ -158,6 +179,7 @@ export async function openWorkReportPrintFromLoaded(input: {
   logs: WorkReportDailyLog[];
   calculation?: BillableCalculation | null;
   customerCalculation?: BillableCalculation | null;
+  printMode?: WorkReportPrintMode;
   showPartnerPrices?: boolean;
   viewerCompanyId?: string | null;
   client?: SupabaseClient;

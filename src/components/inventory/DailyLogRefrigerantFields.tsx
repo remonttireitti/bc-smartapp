@@ -2,7 +2,6 @@ import type { RefrigerantLineDraft } from '../../lib/refrigerantInventory';
 import {
   cylindersForSource,
   formatCylinderPickerLabel,
-  resolveRefrigerantBilling,
   shouldShowRefrigerantCustomerPriceFields,
 } from '../../lib/refrigerantInventory';
 import { refrigerantTypes } from '../../lib/huoltoRaportti/constants';
@@ -26,7 +25,6 @@ type Props = {
   ownCompanyId: string | null;
   hasPartnerCompanies: boolean;
   showCustomerBillingFields?: boolean;
-  onBillingReminder?: (message: string) => void;
 };
 
 function emptyRow(): RefrigerantLineDraft {
@@ -55,18 +53,9 @@ export default function DailyLogRefrigerantFields({
   ownCompanyId,
   hasPartnerCompanies,
   showCustomerBillingFields = false,
-  onBillingReminder,
 }: Props) {
   function updateRow(index: number, patch: Partial<RefrigerantLineDraft>) {
     setDrafts(drafts.map((row, i) => (i === index ? { ...row, ...patch } : row)));
-  }
-
-  function notifyBillingReminder(row: RefrigerantLineDraft) {
-    const reminder = resolveRefrigerantBilling({
-      source: row.source,
-      supplier_paid_by: row.supplier_paid_by,
-    }).reminder;
-    if (reminder) onBillingReminder?.(reminder);
   }
 
   function onSourceChange(index: number, source: RefrigerantSource) {
@@ -80,7 +69,6 @@ export default function DailyLogRefrigerantFields({
       cylinder_disposition: 'partial_in_stock',
     };
     updateRow(index, nextRow);
-    notifyBillingReminder(nextRow);
   }
 
   function onCylinderPick(index: number, cylinderId: string) {
@@ -123,10 +111,6 @@ export default function DailyLogRefrigerantFields({
         drafts.map((row, index) => {
           const rowCylinders = cylindersForSource(cylinders, row.source, ownCompanyId);
           const rowUsers = usersForRow(row);
-          const billing = resolveRefrigerantBilling({
-            source: row.source,
-            supplier_paid_by: row.supplier_paid_by,
-          });
 
           return (
             <div key={row.key} className="expense-row refrigerant-row">
@@ -231,7 +215,6 @@ export default function DailyLogRefrigerantFields({
                           supplier_paid_by: e.target.value as RefrigerantSupplierPaidBy | '',
                         };
                         updateRow(index, { supplier_paid_by: nextRow.supplier_paid_by });
-                        notifyBillingReminder(nextRow);
                       }}
                       required
                     >
@@ -282,18 +265,6 @@ export default function DailyLogRefrigerantFields({
                 </>
               )}
 
-              {billing.reminder && (
-                <p className="refrigerant-billing-reminder">{billing.reminder}</p>
-              )}
-
-              <label>
-                Huomio
-                <input
-                  value={row.notes}
-                  onChange={(e) => updateRow(index, { notes: e.target.value })}
-                  placeholder="Valinnainen"
-                />
-              </label>
               <button
                 type="button"
                 className="btn btn-secondary btn-sm"

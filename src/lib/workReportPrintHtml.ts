@@ -1,4 +1,7 @@
 import type { BillableCalculation } from './workReportBilling';
+
+/** Asiakas = vain työn kuvaus ilman hintoja. Sisäinen = kumppani- ja asiakaslaskutus mukana. */
+export type WorkReportPrintMode = 'customer' | 'internal';
 import { formatEuro } from './workReportBilling';
 import { BILLABLE_RATES_SOURCE_LABELS } from './management';
 import {
@@ -187,14 +190,25 @@ export function generateWorkReportPrintHtml(input: {
   report: WorkReport;
   logs: WorkReportDailyLog[];
   logImages?: Record<string, WorkReportPrintLogImage[]>;
+  printMode?: WorkReportPrintMode;
   showPartnerPrices: boolean;
   calculation: BillableCalculation | null;
   customerCalculation?: BillableCalculation | null;
   meta: WorkReportPrintMeta;
   hideAssignee?: boolean;
 }) {
-  const { report, logs, logImages = {}, showPartnerPrices, calculation, customerCalculation, meta, hideAssignee } =
-    input;
+  const {
+    report,
+    logs,
+    logImages = {},
+    printMode = input.showPartnerPrices ? 'internal' : 'customer',
+    showPartnerPrices,
+    calculation,
+    customerCalculation,
+    meta,
+    hideAssignee,
+  } = input;
+  const showInternalPrices = printMode === 'internal';
   const isDelegatedOrder =
     !!report.delegate_company_id && report.created_by_company_id === report.owner_company_id;
   const billedPartnerName = isDelegatedOrder
@@ -207,8 +221,7 @@ export function generateWorkReportPrintHtml(input: {
     .map((log) => {
       const expenses = log.expense_lines ?? [];
       const refrigerantLines = log.refrigerant_lines ?? [];
-      const showCustomerExpensePrices =
-        !!customerCalculation && customerCalculation.grandTotal > 0;
+      const showCustomerExpensePrices = showInternalPrices && !!customerCalculation;
       const expenseRows = expenses
         .map((line) => {
           const label = EXPENSE_TYPE_LABELS[line.expense_type] ?? line.expense_type;
@@ -241,7 +254,7 @@ export function generateWorkReportPrintHtml(input: {
         })
         .join('');
 
-      const showCustomerRefrigerantPrices = !!customerCalculation;
+      const showCustomerRefrigerantPrices = showInternalPrices && !!customerCalculation;
       const refrigerantRows = refrigerantLines
         .map((line) => {
           const reminder = refrigerantBillingReminder(line);
@@ -266,17 +279,18 @@ export function generateWorkReportPrintHtml(input: {
         })
         .join('');
 
-      const hourSummary = formatHourEntryForPrint(log, showPartnerPrices);
+      const hourSummary = formatHourEntryForPrint(log, showInternalPrices && (showPartnerPrices || !!customerCalculation));
       const logAuthor = resolveDailyLogAuthorLabel(log);
       const logAuthorLabel = logAuthor.deleted
         ? `${logAuthor.name}*`
         : logAuthor.name;
       const commission =
         Number(log.commission_amount) > 0 || log.commission_note
-          ? showPartnerPrices && Number(log.commission_amount) > 0
+          ? showInternalPrices && Number(log.commission_amount) > 0
             ? `<p class="sub"><strong>Provisio:</strong> ${formatEuro(Number(log.commission_amount))}${log.commission_note ? ` — ${esc(log.commission_note)}` : ''}</p>`
             : `<p class="sub"><strong>Provisio</strong>${log.commission_note ? `: ${esc(log.commission_note)}` : Number(log.commission_amount) > 0 ? ' kirjattu' : ''}</p>`
           : '';
+      const showExpenseMoneyColumn = showPartnerPrices || showCustomerExpensePrices;
 
       const images = logImages[log.id] ?? [];
       const imageSection =
@@ -307,7 +321,7 @@ export function generateWorkReportPrintHtml(input: {
             expenses.length > 0
               ? `<table class="mini-table">
                   <thead><tr>${
-                    showPartnerPrices
+                    showExpenseMoneyColumn
                       ? '<th>Kulu</th><th>Kuvaus</th><th class="num">Summa</th>'
                       : '<th>Kulu</th><th>Kuvaus</th><th class="num">Määrä</th>'
                   }</tr></thead>
@@ -327,7 +341,7 @@ export function generateWorkReportPrintHtml(input: {
     })
     .join('');
 
-  const totals = summarizeLogs(logs, showPartnerPrices);
+  const totals = summarizeLogs(logs, showInternalPrices);
   const printDate = new Date().toLocaleDateString('fi-FI');
   const { brandingName, reportDateLabel, customerLabel, descriptionText } = getWorkReportPrintSummary(
     report,
@@ -408,21 +422,21 @@ export function generateWorkReportPrintHtml(input: {
     `<div class="summary-row">
       <span class="chip"><strong>Tunnit yhteensä:</strong> ${totals.hours.toFixed(2)} h</span>
       ${
-        showPartnerPrices && totals.fixed > 0
+        showInternalPrices && totals.fixed > 0
           ? `<span class="chip"><strong>Urakat:</strong> ${formatEuro(totals.fixed)}</span>`
           : totals.fixedEntries > 0
             ? `<span class="chip"><strong>Urakkamerkintöjä:</strong> ${totals.fixedEntries}</span>`
             : ''
       }
       ${
-        showPartnerPrices && totals.expenses > 0
+        showInternalPrices && totals.expenses > 0
           ? `<span class="chip"><strong>Kulut:</strong> ${formatEuro(totals.expenses)}</span>`
           : totals.expenseLines > 0
             ? `<span class="chip"><strong>Kulurivejä:</strong> ${totals.expenseLines}</span>`
             : ''
       }
       ${
-        showPartnerPrices && totals.commission > 0
+        showInternalPrices && totals.commission > 0
           ? `<span class="chip"><strong>Provisio:</strong> ${formatEuro(totals.commission)}</span>`
           : totals.commissionNotes > 0
             ? `<span class="chip"><strong>Provisio:</strong> ${totals.commissionNotes} merkintää</span>`
@@ -438,9 +452,9 @@ export function generateWorkReportPrintHtml(input: {
   );
 
   const billingSection =
-    isPartnerReport && calculation
+    showInternalPrices && isPartnerReport && calculation
       ? printBox(
-          'Kumppanilaskutus',
+          'Keskenään laskutettava',
           `<p class="meta-line">
             Laskuttaja: <strong>${esc(report.created_by_company?.name ?? '—')}</strong>
             • Laskutettava: <strong>${esc(billedPartnerName)}</strong>
@@ -516,6 +530,7 @@ export function generateWorkReportPrintHtml(input: {
 
   const billingCustomerName = report.customers?.name ?? customerLabel;
   const customerBillingSection =
+    showInternalPrices &&
     customerCalculation &&
     customerCalculation.byUser.some((user) => user.lines.some((line) => line.included))
       ? customerBillingPrintSection(customerCalculation, billingCustomerName)
@@ -536,7 +551,9 @@ export function generateWorkReportPrintHtml(input: {
     ${billingSection}
     ${customerBillingSection}
     <div class="footer">
-      ${esc(meta.companyName)} • Tulostettu ${new Date().toLocaleString('fi-FI')}${showPartnerPrices ? ' • Kumppanin hinnat mukana' : ''}
+      ${esc(meta.companyName)} • Tulostettu ${new Date().toLocaleString('fi-FI')}${
+        showInternalPrices ? ' • Sisäinen tuloste (hinnat mukana)' : ' • Asiakastuloste (ei hintoja)'
+      }
     </div>
   </div>
 </body>
