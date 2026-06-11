@@ -81,9 +81,7 @@ interface Props {
 
 }
 
-
-
-
+type WorkReportSaveIntent = 'autosave' | 'save' | 'schedule';
 
 export default function WorkReportNewPage({ session }: Props) {
 
