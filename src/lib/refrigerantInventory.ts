@@ -136,6 +136,30 @@ function isWarehouseSource(source: RefrigerantSource) {
   return source === 'warehouse' || source === 'partner_warehouse';
 }
 
+export function refrigerantIncludedInCustomerBilling(
+  line: Pick<WorkReportRefrigerantLine, 'source' | 'supplier_paid_by' | 'bill_to_customer'>,
+): boolean {
+  if (line.bill_to_customer) return true;
+  if (line.source === 'partner_warehouse') return true;
+  if (line.source === 'supplier' && line.supplier_paid_by === 'partner') return true;
+  return false;
+}
+
+export function shouldShowRefrigerantCustomerPriceFields(input: {
+  source: RefrigerantSource;
+  supplier_paid_by?: RefrigerantSupplierPaidBy | '' | null;
+}): boolean {
+  const supplierPaidBy =
+    input.supplier_paid_by === 'own' || input.supplier_paid_by === 'partner'
+      ? input.supplier_paid_by
+      : null;
+  return refrigerantIncludedInCustomerBilling({
+    source: input.source,
+    supplier_paid_by: supplierPaidBy,
+    bill_to_customer: resolveRefrigerantBilling(input).billToCustomer,
+  });
+}
+
 export function resolveRefrigerantBilling(input: {
   source: RefrigerantSource;
   supplier_paid_by?: RefrigerantSupplierPaidBy | '' | null;

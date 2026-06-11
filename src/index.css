@@ -3666,6 +3666,25 @@ textarea {
 .billing-table .num { text-align: right; white-space: nowrap; }
 .billing-table tfoot td { background: var(--surface-muted); }
 
+.billing-price-missing {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.35rem;
+  min-height: 1.35rem;
+  padding: 0 .25rem;
+  border-radius: 999px;
+  background: #fee2e2;
+  color: #b91c1c;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.billing-price-missing-note {
+  margin-top: .5rem;
+  font-size: .85rem;
+}
+
 .inventory-row-actions {
   display: flex;
   flex-wrap: wrap;

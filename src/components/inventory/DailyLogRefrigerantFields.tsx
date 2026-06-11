@@ -3,6 +3,7 @@ import {
   cylindersForSource,
   formatCylinderPickerLabel,
   resolveRefrigerantBilling,
+  shouldShowRefrigerantCustomerPriceFields,
 } from '../../lib/refrigerantInventory';
 import { refrigerantTypes } from '../../lib/huoltoRaportti/constants';
 import DailyLogFormSection from '../DailyLogFormSection';
@@ -254,7 +255,7 @@ export default function DailyLogRefrigerantFields({
                 />
               </label>
 
-              {billing.billToCustomer && showCustomerBillingFields && (
+              {showCustomerBillingFields && shouldShowRefrigerantCustomerPriceFields(row) && (
                 <>
                   <label>
                     Ostohinta (€/kg)

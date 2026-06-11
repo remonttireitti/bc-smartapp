@@ -4,6 +4,8 @@ import { BILLABLE_RATES_SOURCE_LABELS } from './management';
 import {
   formatRefrigerantLineLabel,
   refrigerantBillingReminder,
+  refrigerantCustomerUnitPrice,
+  refrigerantIncludedInCustomerBilling,
   refrigerantLineTotal,
 } from './refrigerantInventory';
 import {
@@ -120,10 +122,35 @@ function partnerBillingLinesForPrint(
   return lines.filter((line) => line.included || line.kind === 'refrigerant');
 }
 
+function formatBillablePriceCell(unitPrice: number, priceMissing?: boolean): string {
+  if (priceMissing) {
+    return '<span class="billing-price-missing" title="Hinta puuttuu">?</span>';
+  }
+  return formatEuro(unitPrice);
+}
+
 function customerBillingPrintSection(
   customerCalculation: BillableCalculation,
   customerLabel: string,
 ): string {
+  const detailRows = customerCalculation.byUser
+    .flatMap((user) =>
+      user.lines
+        .filter((line) => line.included)
+        .map(
+          (line) => `<tr>
+            <td>${esc(formatDate(line.logDate))}</td>
+            <td>${esc(user.userName)}</td>
+            <td>${esc(LINE_KIND_LABELS[line.kind] ?? line.kind)}</td>
+            <td>${esc(line.description)}</td>
+            <td class="num">${formatBillableLineQty(line.kind, line.qty)}</td>
+            <td class="num">${formatBillablePriceCell(line.unitPrice, line.priceMissing)}</td>
+            <td class="num"><strong>${line.priceMissing ? '<span class="billing-price-missing">?</span>' : formatEuro(line.total)}</strong></td>
+          </tr>`,
+        ),
+    )
+    .join('');
+
   return printBox(
     'Asiakkaalta laskutettava',
     `<p class="meta-line">Asiakas: <strong>${esc(customerLabel)}</strong></p>
@@ -144,7 +171,15 @@ function customerBillingPrintSection(
           .join('')}
       </tbody>
     </table>
-    <p class="grand-total"><strong>Asiakkaalta laskutettava yhteensä: ${formatEuro(customerCalculation.grandTotal)}</strong></p>`,
+    <h3 class="billing-subheading">Laskurivit</h3>
+    <table>
+      <thead>
+        <tr><th>Päivä</th><th>Henkilö</th><th>Tyyppi</th><th>Kuvaus</th><th class="num">Määrä</th><th class="num">á hinta</th><th class="num">Yhteensä</th></tr>
+      </thead>
+      <tbody>${detailRows || '<tr><td colspan="7">Ei laskutettavia rivejä.</td></tr>'}</tbody>
+    </table>
+    <p class="grand-total"><strong>Asiakkaalta laskutettava yhteensä: ${formatEuro(customerCalculation.grandTotal)}</strong></p>
+    <p class="meta-line billing-price-missing-note">Punainen <span class="billing-price-missing">?</span> = hinta puuttuu, määritä asiakkaalle laskutettava hinta.</p>`,
   );
 }
 
@@ -196,22 +231,38 @@ export function generateWorkReportPrintHtml(input: {
             return `<tr><td>${esc(label)}</td><td>${esc(line.description)}</td><td class="num">${qty} × ${formatEuro(unit)} = ${formatEuro(total)}${esc(partnerNote)}${esc(customerNote)}</td></tr>`;
           }
           if (showCustomerExpensePrices && line.bill_to_customer !== false) {
-            return `<tr><td>${esc(label)}</td><td>${esc(line.description)}</td><td class="num">${qty} × ${formatEuro(customerUnit)} = ${formatEuro(customerTotal)}</td></tr>`;
+            const priceMissing = !(customerUnit > 0);
+            const priceCell = priceMissing
+              ? `${qty} · <span class="billing-price-missing">?</span>`
+              : `${qty} × ${formatEuro(customerUnit)} = ${formatEuro(customerTotal)}`;
+            return `<tr><td>${esc(label)}</td><td>${esc(line.description)}</td><td class="num">${priceCell}</td></tr>`;
           }
           return `<tr><td>${esc(label)}</td><td>${esc(line.description)}</td><td class="num">${qty}</td></tr>`;
         })
         .join('');
 
+      const showCustomerRefrigerantPrices = !!customerCalculation;
       const refrigerantRows = refrigerantLines
         .map((line) => {
           const reminder = refrigerantBillingReminder(line);
-          const billingNote =
-            showPartnerPrices && line.bill_to_customer
-              ? ` · laskutetaan asiakkaalta ${formatEuro(refrigerantLineTotal(line))}`
-              : reminder
-                ? ` · ${reminder}`
-                : '';
-          return `<tr><td>${esc(formatRefrigerantLineLabel(line))}${esc(billingNote)}</td><td class="num">${Number(line.qty_kg).toFixed(3)} kg</td></tr>`;
+          const includedInCustomerBilling = refrigerantIncludedInCustomerBilling(line);
+          const customerUnit = refrigerantCustomerUnitPrice(line);
+          const customerTotal = refrigerantLineTotal(line);
+          const priceMissing = includedInCustomerBilling && !(customerUnit > 0);
+          let billingNote = '';
+          if (showPartnerPrices && line.bill_to_customer) {
+            billingNote = ` · laskutetaan asiakkaalta ${formatEuro(refrigerantLineTotal(line))}`;
+          } else if (showCustomerRefrigerantPrices && includedInCustomerBilling) {
+            billingNote = priceMissing
+              ? ' · asiakashinta ?'
+              : ` · asiakas ${formatEuro(customerUnit)}/kg = ${formatEuro(customerTotal)}`;
+          } else if (reminder) {
+            billingNote = ` · ${reminder}`;
+          }
+          const qtyCell = showCustomerRefrigerantPrices && includedInCustomerBilling
+            ? `${Number(line.qty_kg).toFixed(3)} kg${priceMissing ? ' · ?' : ` · ${formatEuro(customerTotal)}`}`
+            : `${Number(line.qty_kg).toFixed(3)} kg`;
+          return `<tr><td>${esc(formatRefrigerantLineLabel(line))}${esc(billingNote)}</td><td class="num">${qtyCell}</td></tr>`;
         })
         .join('');
 
@@ -465,7 +516,8 @@ export function generateWorkReportPrintHtml(input: {
 
   const billingCustomerName = report.customers?.name ?? customerLabel;
   const customerBillingSection =
-    customerCalculation && customerCalculation.grandTotal > 0
+    customerCalculation &&
+    customerCalculation.byUser.some((user) => user.lines.some((line) => line.included))
       ? customerBillingPrintSection(customerCalculation, billingCustomerName)
       : '';
 
@@ -712,6 +764,30 @@ const PRINT_CSS = `
     background: var(--panel-strong);
     font-size: 11pt;
     text-align: right;
+  }
+  .billing-subheading {
+    margin: 12px 0 6px;
+    font-size: 10pt;
+    font-weight: 700;
+    color: var(--accent);
+  }
+  .billing-price-missing {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 1.1rem;
+    min-height: 1.1rem;
+    padding: 0 .2rem;
+    border-radius: 999px;
+    background: #fee2e2;
+    color: #b91c1c;
+    font-weight: 800;
+    line-height: 1;
+  }
+  .billing-price-missing-note {
+    margin-top: 6px;
+    font-size: 8.5pt;
+    color: var(--muted);
   }
   .footer {
     margin-top: 8px;

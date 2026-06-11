@@ -1,7 +1,11 @@
 import type { WorkReportDailyLog } from '../types';
 import { resolveDailyLogAuthorLabel } from '../types';
 import type { PartnerBillingRates } from './management';
-import { refrigerantCustomerUnitPrice, refrigerantLineTotal } from './refrigerantInventory';
+import {
+  refrigerantCustomerUnitPrice,
+  refrigerantIncludedInCustomerBilling,
+  refrigerantLineTotal,
+} from './refrigerantInventory';
 import type { BillableLineKind, BillableCalculation, UserBillingProfile } from './workReportBilling';
 import type { BillableRatesSource } from './management';
 
@@ -39,6 +43,20 @@ function customerExpenseUnitPrice(line: NonNullable<WorkReportDailyLog['expense_
   return Number(line.unit_price || 0);
 }
 
+function customerExpensePriceMissing(line: NonNullable<WorkReportDailyLog['expense_lines']>[number]): boolean {
+  const customerPrice = line.customer_unit_price != null ? Number(line.customer_unit_price) : null;
+  if (customerPrice != null && customerPrice > 0) return false;
+  return !(Number(line.unit_price) > 0);
+}
+
+function refrigerantCustomerPriceMissing(
+  line: NonNullable<WorkReportDailyLog['refrigerant_lines']>[number],
+): boolean {
+  const customerPrice = line.customer_unit_price != null ? Number(line.customer_unit_price) : null;
+  if (customerPrice != null && customerPrice > 0) return false;
+  return !(Number(line.unit_price) > 0);
+}
+
 export function shouldCalculateCustomerBilling(logs: WorkReportDailyLog[]): boolean {
   if (logs.length === 0) return false;
   return logs.some(
@@ -49,7 +67,7 @@ export function shouldCalculateCustomerBilling(logs: WorkReportDailyLog[]): bool
       Number(log.fixed_price_amount) > 0 ||
       Number(log.commission_amount) > 0 ||
       (log.expense_lines ?? []).some((line) => line.bill_to_customer !== false) ||
-      (log.refrigerant_lines ?? []).some((line) => line.bill_to_customer),
+      (log.refrigerant_lines ?? []).some((line) => refrigerantIncludedInCustomerBilling(line)),
   );
 }
 
@@ -158,6 +176,7 @@ export function calculateWorkReportCustomerBillable(input: {
     for (const expense of log.expense_lines ?? []) {
       if (expense.bill_to_customer === false) continue;
       const unitPrice = customerExpenseUnitPrice(expense);
+      const priceMissing = customerExpensePriceMissing(expense);
       const total = lineTotal(Number(expense.qty), unitPrice);
       summary.lines.push({
         logId: log.id,
@@ -168,13 +187,15 @@ export function calculateWorkReportCustomerBillable(input: {
         unitPrice,
         total,
         included: true,
+        priceMissing,
       });
       summary.expensesTotal += total;
     }
 
     for (const refLine of log.refrigerant_lines ?? []) {
-      if (!refLine.bill_to_customer) continue;
+      if (!refrigerantIncludedInCustomerBilling(refLine)) continue;
       const unitPrice = refrigerantCustomerUnitPrice(refLine);
+      const priceMissing = refrigerantCustomerPriceMissing(refLine);
       const total = refrigerantLineTotal(refLine);
       summary.lines.push({
         logId: log.id,
@@ -185,6 +206,7 @@ export function calculateWorkReportCustomerBillable(input: {
         unitPrice,
         total,
         included: true,
+        priceMissing,
       });
       summary.expensesTotal += total;
     }

@@ -11,6 +11,7 @@ import {
   formatRefrigerantLineLabel,
   refrigerantBillingReminder,
   refrigerantCustomerUnitPrice,
+  refrigerantIncludedInCustomerBilling,
   refrigerantLineTotal,
 } from './refrigerantInventory';
 
@@ -329,17 +330,29 @@ export function formatWorkReportCustomerBillingCopy(input: {
         expense.customer_unit_price != null && Number(expense.customer_unit_price) > 0
           ? Number(expense.customer_unit_price)
           : Number(expense.unit_price);
-      const priceSuffix =
-        input.showMoney && customerUnit > 0 ? ` (${customerUnit.toFixed(2)} €/kpl)` : '';
+      const priceMissing =
+        !(expense.customer_unit_price != null && Number(expense.customer_unit_price) > 0) &&
+        !(Number(expense.unit_price) > 0);
+      const priceSuffix = input.showMoney
+        ? priceMissing
+          ? ' (hinta ?)'
+          : customerUnit > 0
+            ? ` (${customerUnit.toFixed(2)} €/kpl)`
+            : ''
+        : '';
       lines.push(`${typeLabel}: ${expense.description} (${qtyLabel})${priceSuffix}`);
     }
     for (const refLine of log.refrigerant_lines ?? []) {
       const qtyLabel = `${Number(refLine.qty_kg).toFixed(3)} kg`;
       const reminder = refrigerantBillingReminder(refLine);
-      if (refLine.bill_to_customer) {
+      if (refrigerantIncludedInCustomerBilling(refLine)) {
         const unit = refrigerantCustomerUnitPrice(refLine);
-        const priceSuffix =
-          input.showMoney && unit > 0 ? ` (${unit.toFixed(2)} €/kg = ${refrigerantLineTotal(refLine).toFixed(2)} €)` : '';
+        const priceMissing = !(unit > 0);
+        const priceSuffix = input.showMoney
+          ? priceMissing
+            ? ' (hinta ?)'
+            : ` (${unit.toFixed(2)} €/kg = ${refrigerantLineTotal(refLine).toFixed(2)} €)`
+          : '';
         lines.push(`Kylmäaine: ${formatRefrigerantLineLabel(refLine)} (${qtyLabel})${priceSuffix}`);
       } else if (reminder) {
         lines.push(`Kylmäaine: ${formatRefrigerantLineLabel(refLine)} (${qtyLabel}) — ${reminder}`);

@@ -109,9 +109,25 @@ export default function WorkReportBillingBreakdown({ calculation }: Props) {
                   <td>{LINE_KIND_LABELS[line.kind]}</td>
                   <td>{line.description}</td>
                   <td className="num">{formatBillableLineQty(line.kind, line.qty)}</td>
-                  <td className="num">{formatEuro(line.unitPrice)}</td>
                   <td className="num">
-                    <strong>{formatEuro(line.total)}</strong>
+                    {line.priceMissing ? (
+                      <span className="billing-price-missing" title="Hinta puuttuu — määritä asiakkaalle">
+                        ?
+                      </span>
+                    ) : (
+                      formatEuro(line.unitPrice)
+                    )}
+                  </td>
+                  <td className="num">
+                    <strong>
+                      {line.priceMissing ? (
+                        <span className="billing-price-missing" title="Hinta puuttuu — määritä asiakkaalle">
+                          ?
+                        </span>
+                      ) : (
+                        formatEuro(line.total)
+                      )}
+                    </strong>
                   </td>
                 </tr>
               ))

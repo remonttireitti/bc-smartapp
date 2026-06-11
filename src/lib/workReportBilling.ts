@@ -28,6 +28,8 @@ export type BillableLine = {
   unitPrice: number;
   total: number;
   included: boolean;
+  /** Asiakashinta puuttuu — kumppanin täydennettävä. */
+  priceMissing?: boolean;
 };
 
 export type BillableUserSummary = {
