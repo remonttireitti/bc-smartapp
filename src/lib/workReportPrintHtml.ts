@@ -25,7 +25,6 @@ import {
   resolveWorkReportHeading,
   buildWorkReportPrintHeadline,
   resolveDailyLogAuthorLabel,
-  resolveWorkReportAuthorCompany,
   type WorkReport,
   type WorkReportDailyLog,
 } from '../types';
@@ -263,14 +262,16 @@ export function generateWorkReportPrintHtml(input: {
           const customerTotal = refrigerantLineTotal(line);
           const priceMissing = includedInCustomerBilling && !(customerUnit > 0);
           let billingNote = '';
-          if (showPartnerPrices && line.bill_to_customer) {
-            billingNote = ` · laskutetaan asiakkaalta ${formatEuro(refrigerantLineTotal(line))}`;
-          } else if (showCustomerRefrigerantPrices && includedInCustomerBilling) {
-            billingNote = priceMissing
-              ? ' · asiakashinta ?'
-              : ` · asiakas ${formatEuro(customerUnit)}/kg = ${formatEuro(customerTotal)}`;
-          } else if (reminder) {
-            billingNote = ` · ${reminder}`;
+          if (showInternalPrices) {
+            if (showPartnerPrices && line.bill_to_customer) {
+              billingNote = ` · laskutetaan asiakkaalta ${formatEuro(refrigerantLineTotal(line))}`;
+            } else if (showCustomerRefrigerantPrices && includedInCustomerBilling) {
+              billingNote = priceMissing
+                ? ' · asiakashinta ?'
+                : ` · asiakas ${formatEuro(customerUnit)}/kg = ${formatEuro(customerTotal)}`;
+            } else if (reminder) {
+              billingNote = ` · ${reminder}`;
+            }
           }
           const qtyCell = showCustomerRefrigerantPrices && includedInCustomerBilling
             ? `${Number(line.qty_kg).toFixed(3)} kg${priceMissing ? ' · ?' : ` · ${formatEuro(customerTotal)}`}`
@@ -350,10 +351,6 @@ export function generateWorkReportPrintHtml(input: {
   const printTitle = buildWorkReportPrintTitle(report, meta);
   const printHeadline = buildWorkReportPrintHeadline(report);
   const displayPeople = resolveWorkReportDisplayPeople(report, { hideAssignee: hideAssignee });
-  const authorCompanyName = resolveWorkReportAuthorCompany(report, {
-    hideAssignee: hideAssignee,
-    fallbackCompanyName: meta.companyName,
-  });
 
   const summaryBox = printBox(
     null,
@@ -395,7 +392,7 @@ export function generateWorkReportPrintHtml(input: {
     'Perustiedot',
     `<dl class="info-grid">
       <dt>Tila</dt><dd>${esc(WORK_STATUS_LABELS[report.status])}</dd>
-      <dt>Laatija</dt><dd>${formatPrintUserLabel(displayPeople.authorName, displayPeople.authorDeleted)} (${esc(authorCompanyName)})</dd>
+      <dt>Laatija</dt><dd>${formatPrintUserLabel(displayPeople.authorName, displayPeople.authorDeleted)}</dd>
       ${
         !hideAssignee && displayPeople.performerName
           ? `<dt>Tekijä</dt><dd>${esc(displayPeople.performerName)}</dd>`
@@ -552,7 +549,7 @@ export function generateWorkReportPrintHtml(input: {
     ${customerBillingSection}
     <div class="footer">
       ${esc(meta.companyName)} • Tulostettu ${new Date().toLocaleString('fi-FI')}${
-        showInternalPrices ? ' • Sisäinen tuloste (hinnat mukana)' : ' • Asiakastuloste (ei hintoja)'
+        showInternalPrices ? ' • Sisäinen tuloste (hinnat mukana)' : ''
       }
     </div>
   </div>

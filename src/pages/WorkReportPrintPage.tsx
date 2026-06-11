@@ -121,11 +121,9 @@ export default function WorkReportPrintPage({ session }: Props) {
             <h1>
               {printMode === 'internal' ? 'Sisäinen tuloste' : 'Asiakastuloste'}
             </h1>
-            <p className="muted">
-              {printMode === 'internal'
-                ? 'Kumppani- ja asiakaslaskutus sekä kaikki hinnat mukana.'
-                : 'Työn kuvaus, tunnit ja kulut ilman hintoja — annettavissa asiakkaalle.'}
-            </p>
+            {printMode === 'internal' && (
+              <p className="muted">Kumppani- ja asiakaslaskutus sekä kaikki hinnat mukana.</p>
+            )}
             <p className="muted">{buildWorkReportPrintHeadline(report)}</p>
           </div>
           <div className="page-header-actions action-toolbar">
