@@ -55,8 +55,6 @@ import type { WorkReportAttachment } from '../types';
 
 import {
 
-  WORK_STATUS_LABELS,
-
   buildWorkReportTitle,
   resolveWorkReportDescription,
 
@@ -710,7 +708,7 @@ export default function WorkReportNewPage({ session }: Props) {
 
   async function saveReport(
     nextStatus?: 'draft' | 'scheduled',
-    options?: { auto?: boolean; navigateTo?: 'detail' | 'edit' | 'none' },
+    options?: { auto?: boolean },
   ) {
 
     if (!profile?.company_id || !ownerCompanyId) {
@@ -923,9 +921,7 @@ export default function WorkReportNewPage({ session }: Props) {
         }
       }
 
-      if (options?.navigateTo === 'detail') {
-        navigate(`/tyoraportit/${reportId}`);
-      } else if (targetStatus === 'scheduled') {
+      if (!options?.auto) {
         navigate(`/tyoraportit/${reportId}`);
       }
     } else {
@@ -962,7 +958,7 @@ export default function WorkReportNewPage({ session }: Props) {
         }
       }
 
-      if (options?.navigateTo === 'detail' || targetStatus === 'scheduled') {
+      if (!options?.auto) {
         navigate(`/tyoraportit/${newId}`);
       } else {
         navigate(`/tyoraportit/${newId}/muokkaa`, { replace: true });
@@ -1134,7 +1130,7 @@ export default function WorkReportNewPage({ session }: Props) {
 
     e.preventDefault();
 
-    await saveReport('draft', isSubscriberPortalOrder ? { navigateTo: 'detail' } : undefined);
+    await saveReport('draft');
 
   }
 
@@ -1145,16 +1141,6 @@ export default function WorkReportNewPage({ session }: Props) {
     e.preventDefault();
 
     await saveReport('scheduled');
-
-  }
-
-
-
-  async function onSaveDraft(e: FormEvent) {
-
-    e.preventDefault();
-
-    await saveReport('draft');
 
   }
 
@@ -1205,7 +1191,7 @@ export default function WorkReportNewPage({ session }: Props) {
 
             <Link to="/">Etusivu</Link> / <Link to="/tyoraportit">Työraportit</Link> /{' '}
 
-            {isNew && !reportId ? 'Uusi' : 'Luonnos'}
+            {isNew && !reportId ? 'Uusi' : 'Muokkaa'}
 
           </p>
 
@@ -1214,7 +1200,7 @@ export default function WorkReportNewPage({ session }: Props) {
               ? 'Tilaajan työtilaus'
               : isNew && !reportId
                 ? 'Uusi työraportti'
-                : 'Työraportin luonnos'}
+                : 'Muokkaa työraporttia'}
           </h1>
 
           <p className="muted autosave-status">
@@ -1237,7 +1223,7 @@ export default function WorkReportNewPage({ session }: Props) {
 
         </div>
 
-        <span className="badge badge-draft">{WORK_STATUS_LABELS.draft}</span>
+        {reportId ? null : <span className="badge badge-draft">Uusi</span>}
 
       </div>
 
@@ -1315,7 +1301,7 @@ export default function WorkReportNewPage({ session }: Props) {
 
               <span className="info-label">Tila</span>
 
-              <strong>{WORK_STATUS_LABELS.draft}</strong>
+              <strong>{reportId ? 'Tallennettu' : 'Uusi'}</strong>
 
             </div>
 
@@ -1602,31 +1588,13 @@ export default function WorkReportNewPage({ session }: Props) {
             </Link>
           )}
 
-          <button
-
-            type="button"
-
-            className="btn btn-secondary"
-
-            disabled={busy || !profile?.company_id}
-
-            onClick={(e) => void onSaveDraft(e)}
-
-          >
-
-            {busy ? 'Tallennetaan…' : 'Tallenna luonnos'}
-
-          </button>
-
           <button type="submit" className="btn btn-primary" disabled={busy || !profile?.company_id}>
 
             {busy
               ? 'Tallennetaan…'
               : isSubscriberPortalOrder
                 ? 'Ota vastaan'
-                : reportId
-                  ? 'Tallenna ja jatka'
-                  : 'Tallenna luonnos'}
+                : 'Tallenna'}
 
           </button>
 
