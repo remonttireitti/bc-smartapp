@@ -706,14 +706,12 @@ export default function WorkReportNewPage({ session }: Props) {
 
 
 
-  async function saveReport(
-    nextStatus?: 'draft' | 'scheduled',
-    options?: { auto?: boolean },
-  ) {
+  async function saveReport(intent: WorkReportSaveIntent = 'save') {
+    const isAuto = intent === 'autosave';
 
     if (!profile?.company_id || !ownerCompanyId) {
 
-      if (!options?.auto) {
+      if (!isAuto) {
 
         setError(
 
@@ -729,21 +727,21 @@ export default function WorkReportNewPage({ session }: Props) {
 
     if (!canAutoSave) {
 
-      if (!options?.auto) setError('Täytä tehtävän kuvaus tai valitse asiakas.');
+      if (!isAuto) setError('Täytä tehtävän kuvaus tai valitse asiakas.');
 
       return false;
 
     }
 
-    if (nextStatus === 'scheduled' && !description.trim()) {
+    if (intent === 'schedule' && !description.trim()) {
 
-      if (!options?.auto) setError('Tehtävän kuvaus on pakollinen ennen ajoittamista.');
+      if (!isAuto) setError('Tehtävän kuvaus on pakollinen ennen kalenteriin merkitsemistä.');
 
       return false;
 
     }
 
-    if (!isOnline && options?.auto) {
+    if (!isOnline && isAuto) {
 
       setAutoSaveState('offline');
 
@@ -753,7 +751,7 @@ export default function WorkReportNewPage({ session }: Props) {
 
 
 
-    if (options?.auto) {
+    if (isAuto) {
 
       setAutoSaveState('saving');
 
@@ -763,7 +761,7 @@ export default function WorkReportNewPage({ session }: Props) {
 
     }
 
-    if (!options?.auto) setError(null);
+    if (!isAuto) setError(null);
 
 
 
@@ -773,9 +771,9 @@ export default function WorkReportNewPage({ session }: Props) {
 
       if (!partnership) {
 
-        if (!options?.auto) setError('Valitse kumppanuus, jonka nimissä raportti laaditaan.');
+        if (!isAuto) setError('Valitse kumppanuus, jonka nimissä raportti laaditaan.');
 
-        if (options?.auto) setAutoSaveState('idle');
+        if (isAuto) setAutoSaveState('idle');
 
         else setBusy(false);
 
@@ -795,7 +793,7 @@ export default function WorkReportNewPage({ session }: Props) {
 
       if (!partnershipModuleAccess(partnerPerms, 'work_reports', 'write')) {
 
-        if (!options?.auto) {
+        if (!isAuto) {
 
           setError(
 
@@ -805,7 +803,7 @@ export default function WorkReportNewPage({ session }: Props) {
 
         }
 
-        if (options?.auto) setAutoSaveState('idle');
+        if (isAuto) setAutoSaveState('idle');
 
         else setBusy(false);
 
@@ -819,9 +817,9 @@ export default function WorkReportNewPage({ session }: Props) {
 
     const locationText = [selectedCustomer?.address, selectedCustomer?.city].filter(Boolean).join(', ') || null;
 
-    const targetStatus = nextStatus ?? status;
+    const targetStatus = isAuto ? 'draft' : 'scheduled';
 
-    if (targetStatus === 'scheduled' && !options?.auto) {
+    if (intent === 'schedule' && !isAuto) {
       if (!combineDateAndHour(scheduledDate, scheduledHour)) {
         setError('Valitse päivä ja kello ennen kalenteriin merkitsemistä.');
         setBusy(false);
@@ -900,8 +898,8 @@ export default function WorkReportNewPage({ session }: Props) {
       const { error: updateError } = await supabase.from('work_reports').update(payload).eq('id', reportId);
 
       if (updateError) {
-        if (!options?.auto) setError(updateError.message);
-        if (options?.auto) setAutoSaveState('offline');
+        if (!isAuto) setError(updateError.message);
+        if (isAuto) setAutoSaveState('offline');
         else setBusy(false);
         return false;
       }
@@ -912,16 +910,18 @@ export default function WorkReportNewPage({ session }: Props) {
           setPendingAttachments([]);
           setSavedAttachments(await loadWorkReportAttachments(reportId));
         } catch (uploadErr) {
-          if (!options?.auto) {
+          if (!isAuto) {
             setError(uploadErr instanceof Error ? uploadErr.message : 'Liitteiden lataus epäonnistui.');
           }
-          if (options?.auto) setAutoSaveState('offline');
+          if (isAuto) setAutoSaveState('offline');
           else setBusy(false);
           return false;
         }
       }
 
-      if (!options?.auto) {
+      if (intent === 'save') {
+        navigate('/tyoraportit');
+      } else if (intent === 'schedule') {
         navigate(`/tyoraportit/${reportId}`);
       }
     } else {
@@ -932,8 +932,8 @@ export default function WorkReportNewPage({ session }: Props) {
         .single();
 
       if (insertError || !data) {
-        if (!options?.auto) setError(insertError?.message ?? 'Tallennus epäonnistui.');
-        if (options?.auto) setAutoSaveState('offline');
+        if (!isAuto) setError(insertError?.message ?? 'Tallennus epäonnistui.');
+        if (isAuto) setAutoSaveState('offline');
         else setBusy(false);
         return false;
       }
@@ -949,16 +949,18 @@ export default function WorkReportNewPage({ session }: Props) {
           setPendingAttachments([]);
           setSavedAttachments(await loadWorkReportAttachments(newId));
         } catch (uploadErr) {
-          if (!options?.auto) {
+          if (!isAuto) {
             setError(uploadErr instanceof Error ? uploadErr.message : 'Liitteiden lataus epäonnistui.');
           }
-          if (options?.auto) setAutoSaveState('offline');
+          if (isAuto) setAutoSaveState('offline');
           else setBusy(false);
           return false;
         }
       }
 
-      if (!options?.auto) {
+      if (intent === 'save') {
+        navigate('/tyoraportit');
+      } else if (intent === 'schedule') {
         navigate(`/tyoraportit/${newId}`);
       } else {
         navigate(`/tyoraportit/${newId}/muokkaa`, { replace: true });
@@ -967,13 +969,13 @@ export default function WorkReportNewPage({ session }: Props) {
 
 
 
-    if (nextStatus) setStatus(nextStatus);
+    if (!isAuto) setStatus(targetStatus);
 
     const timeLabel = new Date().toLocaleTimeString('fi-FI', { hour: '2-digit', minute: '2-digit' });
 
     setSavedAt(timeLabel);
 
-    if (options?.auto) {
+    if (isAuto) {
 
       setAutoSaveState('saved');
 
@@ -985,7 +987,7 @@ export default function WorkReportNewPage({ session }: Props) {
 
 
 
-    if (!options?.auto) setBusy(false);
+    if (!isAuto) setBusy(false);
 
     return true;
   }
@@ -1060,7 +1062,7 @@ export default function WorkReportNewPage({ session }: Props) {
 
     const timer = window.setTimeout(() => {
 
-      void saveReport('draft', { auto: true });
+      void saveReport('autosave');
 
     }, 2500);
 
@@ -1105,7 +1107,7 @@ export default function WorkReportNewPage({ session }: Props) {
 
     if (!canAutoSave) return;
 
-    void saveReport('draft', { auto: true });
+    void saveReport('autosave');
 
   }, [isOnline]);
 
@@ -1122,7 +1124,7 @@ export default function WorkReportNewPage({ session }: Props) {
       scheduledHour,
     });
     if (canAutoSave && isOnline) {
-      await saveReport('draft', { auto: true });
+      await saveReport('autosave');
     }
   });
 
@@ -1130,7 +1132,7 @@ export default function WorkReportNewPage({ session }: Props) {
 
     e.preventDefault();
 
-    await saveReport('draft');
+    await saveReport('save');
 
   }
 
@@ -1140,7 +1142,7 @@ export default function WorkReportNewPage({ session }: Props) {
 
     e.preventDefault();
 
-    await saveReport('scheduled');
+    await saveReport('schedule');
 
   }
 
