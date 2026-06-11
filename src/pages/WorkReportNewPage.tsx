@@ -62,10 +62,6 @@ import {
 
   combineDateAndHour,
 
-  defaultOfficeHour,
-
-  todayIsoDate,
-
   OFFICE_HOUR_OPTIONS,
 
   splitScheduledStart,
@@ -126,9 +122,9 @@ export default function WorkReportNewPage({ session }: Props) {
 
   const [subscribers, setSubscribers] = useState<Subscriber[]>([]);
 
-  const [scheduledDate, setScheduledDate] = useState(todayIsoDate);
+  const [scheduledDate, setScheduledDate] = useState('');
 
-  const [scheduledHour, setScheduledHour] = useState(defaultOfficeHour);
+  const [scheduledHour, setScheduledHour] = useState('');
 
   const [reportOwnerCompanyId, setReportOwnerCompanyId] = useState('');
 
@@ -712,7 +708,10 @@ export default function WorkReportNewPage({ session }: Props) {
 
 
 
-  async function saveReport(nextStatus?: 'draft' | 'scheduled', options?: { auto?: boolean }) {
+  async function saveReport(
+    nextStatus?: 'draft' | 'scheduled',
+    options?: { auto?: boolean; navigateTo?: 'detail' | 'edit' | 'none' },
+  ) {
 
     if (!profile?.company_id || !ownerCompanyId) {
 
@@ -825,6 +824,11 @@ export default function WorkReportNewPage({ session }: Props) {
     const targetStatus = nextStatus ?? status;
 
     if (targetStatus === 'scheduled' && !options?.auto) {
+      if (!combineDateAndHour(scheduledDate, scheduledHour)) {
+        setError('Valitse päivä ja kello ennen kalenteriin merkitsemistä.');
+        setBusy(false);
+        return false;
+      }
       const futureError = validateFutureSchedule(scheduledDate, scheduledHour);
       if (futureError) {
         setError(futureError);
@@ -884,8 +888,7 @@ export default function WorkReportNewPage({ session }: Props) {
 
       assigned_user_id: session.user.id,
 
-      scheduled_start:
-        targetStatus === 'scheduled' ? combineDateAndHour(scheduledDate, scheduledHour) : null,
+      scheduled_start: combineDateAndHour(scheduledDate, scheduledHour),
 
       scheduled_end: null,
 
@@ -920,7 +923,9 @@ export default function WorkReportNewPage({ session }: Props) {
         }
       }
 
-      if (targetStatus === 'scheduled') {
+      if (options?.navigateTo === 'detail') {
+        navigate(`/tyoraportit/${reportId}`);
+      } else if (targetStatus === 'scheduled') {
         navigate(`/tyoraportit/${reportId}`);
       }
     } else {
@@ -957,7 +962,7 @@ export default function WorkReportNewPage({ session }: Props) {
         }
       }
 
-      if (targetStatus === 'scheduled') {
+      if (options?.navigateTo === 'detail' || targetStatus === 'scheduled') {
         navigate(`/tyoraportit/${newId}`);
       } else {
         navigate(`/tyoraportit/${newId}/muokkaa`, { replace: true });
@@ -1129,12 +1134,7 @@ export default function WorkReportNewPage({ session }: Props) {
 
     e.preventDefault();
 
-    if (isSubscriberPortalOrder) {
-      await saveReport('scheduled');
-      return;
-    }
-
-    await saveReport('draft');
+    await saveReport('draft', isSubscriberPortalOrder ? { navigateTo: 'detail' } : undefined);
 
   }
 
@@ -1519,18 +1519,18 @@ export default function WorkReportNewPage({ session }: Props) {
 
         <details className="form-section work-report-schedule-details">
 
-          <summary>Ajoita kalenteriin (valinnainen)</summary>
+          <summary>Toive työn aloituksen ajankohdasta (valinnainen)</summary>
 
           <p className="muted">
-            Voit tallentaa luonnoksen ilman ajastusta ja ajoittaa työn myöhemmin. Valitse tuleva päivä ja klo
-            07:00–16:30 (puolen tunnin tarkkuudella).
+            Raportin voi tallentaa ilman ajankohtaa. Jos haluat merkitä työn kalenteriin, valitse tuleva päivä ja klo
+            07:00–16:30 (puolen tunnin tarkkuudella) ja paina &quot;Merkitse kalenteriin&quot;.
           </p>
 
           <div className="line-form-grid">
 
             <label>
 
-              Päivä
+              Päivä (valinnainen)
 
               <input
 
@@ -1546,9 +1546,11 @@ export default function WorkReportNewPage({ session }: Props) {
 
             <label>
 
-              Klo (virka-aika)
+              Klo (valinnainen)
 
               <select value={scheduledHour} onChange={(e) => setScheduledHour(e.target.value)}>
+
+                <option value="">— Ei valittu —</option>
 
                 {OFFICE_HOUR_OPTIONS.map((opt) => (
 
@@ -1574,7 +1576,7 @@ export default function WorkReportNewPage({ session }: Props) {
               disabled={busy || !profile?.company_id}
               onClick={(e) => void onSchedule(e)}
             >
-              {busy ? 'Tallennetaan…' : 'Merkitse ajoitetuksi'}
+              {busy ? 'Tallennetaan…' : 'Merkitse kalenteriin'}
             </button>
 
           </div>
@@ -1621,7 +1623,7 @@ export default function WorkReportNewPage({ session }: Props) {
             {busy
               ? 'Tallennetaan…'
               : isSubscriberPortalOrder
-                ? 'Ota vastaan ja ajoita'
+                ? 'Ota vastaan'
                 : reportId
                   ? 'Tallenna ja jatka'
                   : 'Tallenna luonnos'}

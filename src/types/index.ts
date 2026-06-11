@@ -413,7 +413,7 @@ export function combineDateAndHour(date: string, hour: string) {
 }
 
 export function splitScheduledStart(iso: string | null) {
-  if (!iso) return { date: todayIsoDate(), hour: defaultOfficeHour() };
+  if (!iso) return { date: '', hour: '' };
   const d = new Date(iso);
   const date = toLocalYmd(d);
   const hour = roundTimeToHalfHour(`${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`);

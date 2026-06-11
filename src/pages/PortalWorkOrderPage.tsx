@@ -24,12 +24,9 @@ import {
   WORK_STATUS_LABELS,
   buildWorkReportTitle,
   combineDateAndHour,
-  defaultOfficeHour,
-  todayIsoDate,
   OFFICE_HOUR_OPTIONS,
   splitScheduledStart,
 } from '../types';
-import { validateFutureSchedule } from '../lib/workReportCalendar';
 import type { Customer, Equipment } from '../types';
 
 interface Props {
@@ -49,8 +46,8 @@ export default function PortalWorkOrderPage({ session }: Props) {
   const [description, setDescription] = useState('');
   const [heading, setHeading] = useState('');
   const [contactName, setContactName] = useState('');
-  const [scheduledDate, setScheduledDate] = useState(todayIsoDate);
-  const [scheduledHour, setScheduledHour] = useState(defaultOfficeHour);
+  const [scheduledDate, setScheduledDate] = useState('');
+  const [scheduledHour, setScheduledHour] = useState('');
   const [loadingReport, setLoadingReport] = useState(!isNew);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -224,12 +221,6 @@ export default function PortalWorkOrderPage({ session }: Props) {
     const resolvedOwnerCompanyId = ownerCompanyId ?? serviceCompanyId;
     if (!resolvedOwnerCompanyId) {
       setError('Palveluyritystä ei voitu määrittää.');
-      return;
-    }
-
-    const futureError = validateFutureSchedule(scheduledDate, scheduledHour);
-    if (futureError) {
-      setError(futureError);
       return;
     }
 
@@ -475,20 +466,20 @@ export default function PortalWorkOrderPage({ session }: Props) {
         </section>
 
         <section className="form-section">
-          <h2>Toivottu ajankohta</h2>
+          <h2>Toive työn aloituksen ajankohdasta (valinnainen)</h2>
           <div className="line-form-grid">
             <label>
-              Päivä
+              Päivä (valinnainen)
               <input
                 type="date"
                 value={scheduledDate}
                 onChange={(e) => setScheduledDate(e.target.value)}
-                required
               />
             </label>
             <label>
-              Kellonaika
+              Klo (valinnainen)
               <select value={scheduledHour} onChange={(e) => setScheduledHour(e.target.value)}>
+                <option value="">— Ei valittu —</option>
                 {OFFICE_HOUR_OPTIONS.map((h) => (
                   <option key={h.value} value={h.value}>
                     {h.label}
