@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type MouseEvent } from 'react';
 import { MaintenanceReportImageLightbox } from '../components/huoltoRaportti/MaintenanceReportImageLightbox';
 import { prepareImageFileForUpload } from './prepareUploadImage';
+import { toSupabaseStoragePath } from './storageUrl';
 import { supabase } from './supabase';
 import type { DailyLogImage } from '../types';
 
@@ -27,9 +28,11 @@ export async function resolveDailyLogImageUrls(
   const result: Array<{ fileName: string; url: string }> = [];
 
   for (const image of images) {
+    const path = toSupabaseStoragePath(image.storage_path);
+    if (!path) continue;
     const { data } = await supabase.storage
       .from(BUCKET)
-      .createSignedUrl(image.storage_path, expiresIn);
+      .createSignedUrl(path, expiresIn);
     if (data?.signedUrl) {
       result.push({ fileName: image.file_name, url: data.signedUrl });
     }
@@ -125,9 +128,11 @@ export function DailyLogImageGallery({ images }: { images: DailyLogImage[] }) {
     async function loadUrls() {
       const next: Record<string, string> = {};
       for (const image of images) {
+        const path = toSupabaseStoragePath(image.storage_path);
+        if (!path) continue;
         const { data } = await supabase.storage
           .from(BUCKET)
-          .createSignedUrl(image.storage_path, 3600);
+          .createSignedUrl(path, 3600);
         if (data?.signedUrl) next[image.id] = data.signedUrl;
       }
       if (!cancelled) setUrls(next);

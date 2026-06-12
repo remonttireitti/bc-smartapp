@@ -1,4 +1,10 @@
 import { supabase } from './supabase';
+import {
+  isAllowedExternalStorageUrl,
+  isLegacyFirebaseStorageUrl,
+  isSupabaseStoragePath,
+  toSupabaseStoragePath,
+} from './storageUrl';
 
 export const COMPANY_LOGO_BUCKET = 'company-logos';
 export const COMPANY_LOGO_MAX_BYTES = 2 * 1024 * 1024;
@@ -19,7 +25,7 @@ const EXT_MIME: Record<string, string> = {
 };
 
 export function isStorageLogoPath(value: string | null | undefined) {
-  return !!value && !/^https?:\/\//i.test(value) && !/^data:/i.test(value) && !/^blob:/i.test(value);
+  return isSupabaseStoragePath(value);
 }
 
 export function inferLogoMimeType(file: File): string {
@@ -54,8 +60,11 @@ export async function getCompanyLogoSignedUrl(storagePath: string, expiresIn = 3
 
 export async function resolveCompanyLogoUrl(logoUrl: string | null | undefined) {
   if (!logoUrl) return null;
-  if (!isStorageLogoPath(logoUrl)) return logoUrl;
-  return getCompanyLogoSignedUrl(logoUrl);
+  if (isLegacyFirebaseStorageUrl(logoUrl)) return null;
+  if (isAllowedExternalStorageUrl(logoUrl)) return logoUrl;
+  const path = toSupabaseStoragePath(logoUrl);
+  if (!path) return null;
+  return getCompanyLogoSignedUrl(path);
 }
 
 export async function uploadCompanyLogo(companyId: string, file: File, previousPath?: string | null) {

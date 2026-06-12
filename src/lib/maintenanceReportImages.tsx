@@ -5,6 +5,7 @@ import {
   normalizeMaintenanceReportPhotos,
   type MaintenanceReportPhotoItem,
 } from './maintenanceReportPhotoUtils';
+import { toSupabaseStoragePath } from './storageUrl';
 import { supabase } from './supabase';
 
 export const BUCKET = 'maintenance-report-images';
@@ -89,7 +90,12 @@ function useSignedImageUrl(path: string) {
     }
 
     void (async () => {
-      const { data } = await supabase.storage.from(BUCKET).createSignedUrl(path, 3600);
+      const storagePath = toSupabaseStoragePath(path);
+      if (!storagePath) {
+        if (!cancelled) setUrl(undefined);
+        return;
+      }
+      const { data } = await supabase.storage.from(BUCKET).createSignedUrl(storagePath, 3600);
       if (!cancelled) setUrl(data?.signedUrl);
     })();
 
@@ -112,7 +118,9 @@ function useSignedImageUrls(paths: string[]) {
     async function loadUrls() {
       const next: Record<string, string> = {};
       for (const path of pathList) {
-        const { data } = await supabase.storage.from(BUCKET).createSignedUrl(path, 3600);
+        const storagePath = toSupabaseStoragePath(path);
+        if (!storagePath) continue;
+        const { data } = await supabase.storage.from(BUCKET).createSignedUrl(storagePath, 3600);
         if (data?.signedUrl) next[path] = data.signedUrl;
       }
       if (!cancelled) setUrls(next);

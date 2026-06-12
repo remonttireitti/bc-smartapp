@@ -15,7 +15,9 @@
     "setup:user": "node scripts/setup-dev-user.mjs",
     "setup:dev": "node scripts/setup-dev-users.mjs",
     "invite:user": "node scripts/invite-user.mjs",
-    "docs:pdf": "node scripts/generate-user-guide-pdf.mjs"
+    "docs:pdf": "node scripts/generate-user-guide-pdf.mjs",
+    "fix:firebase-urls": "node scripts/fix-legacy-firebase-urls.mjs --production",
+    "fix:firebase-urls:apply": "node scripts/fix-legacy-firebase-urls.mjs --production --apply"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.1",

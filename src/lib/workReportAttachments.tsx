@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase } from './supabase';
+import { toSupabaseStoragePath } from './storageUrl';
 import type { WorkReportAttachment } from '../types';
 
 export const BUCKET = 'work-report-images';
@@ -58,7 +59,9 @@ export async function deleteWorkReportAttachment(attachment: WorkReportAttachmen
 }
 
 async function resolveAttachmentUrl(storagePath: string, expiresIn = 3600) {
-  const { data } = await supabase.storage.from(BUCKET).createSignedUrl(storagePath, expiresIn);
+  const path = toSupabaseStoragePath(storagePath);
+  if (!path) return null;
+  const { data } = await supabase.storage.from(BUCKET).createSignedUrl(path, expiresIn);
   return data?.signedUrl ?? null;
 }
 
