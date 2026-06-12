@@ -9,6 +9,15 @@ export function isLegacyFirebaseStorageUrl(value: string | null | undefined): bo
   );
 }
 
+/** Vanha Firestore-tallennuspolku (ei Supabase-buckettia). */
+export function isLegacyFirestoreStoragePath(value: string | null | undefined): boolean {
+  if (!value) return false;
+  return (
+    value.includes('huolto_raportti_liitteet/')
+    || value.startsWith('companies/main/')
+  );
+}
+
 export function isHttpUrl(value: string | null | undefined): boolean {
   return !!value && /^https?:\/\//i.test(value);
 }
@@ -31,6 +40,7 @@ export function toSupabaseStoragePath(value: string | null | undefined): string 
   const trimmed = String(value ?? '').trim();
   if (!trimmed) return null;
   if (isLegacyFirebaseStorageUrl(trimmed)) return null;
+  if (isLegacyFirestoreStoragePath(trimmed)) return null;
   if (isAllowedExternalStorageUrl(trimmed)) {
     const match = trimmed.match(/\/storage\/v1\/object\/(?:sign|public)\/[^/]+\/(.+?)(?:\?|$)/);
     return match?.[1] ? decodeURIComponent(match[1]) : null;

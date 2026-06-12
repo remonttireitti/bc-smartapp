@@ -3,6 +3,7 @@ import { generateLegacyMaintenanceReportHtml } from './huoltoRaportti/legacyPrin
 import type { HuoltoReportData } from './huoltoRaportti/types';
 import { BUCKET } from './maintenanceReportImages';
 import { collectMaintenancePrintImagePaths } from './maintenanceReportPrintImages';
+import { syncMaintenanceReportPhotosFromDb } from './maintenanceReportPhotoSync';
 import { resolveCompanyLogoUrl } from './companyLogo';
 import { openPrintHtml } from './openPrintWindow';
 import { escapeHtmlPrint } from './printDocumentShell';
@@ -96,12 +97,21 @@ export async function loadMaintenanceReportPrintBundle(
         },
   );
 
-  const imageUrls = await resolveMaintenancePrintImageUrls(normalized);
-  const html = generateLegacyMaintenanceReportHtml(normalized, { companyName, logoUrl, imageUrls });
-  const documentTitle = buildMaintenanceReportPrintTitle(normalized);
+  const photoSync = await syncMaintenanceReportPhotosFromDb(reportId, normalized);
+  const reportData = photoSync.data;
+  if (photoSync.changed && !dataOverride) {
+    await supabase
+      .from('maintenance_reports')
+      .update({ data: reportData, updated_at: new Date().toISOString() })
+      .eq('id', reportId);
+  }
+
+  const imageUrls = await resolveMaintenancePrintImageUrls(reportData);
+  const html = generateLegacyMaintenanceReportHtml(reportData, { companyName, logoUrl, imageUrls });
+  const documentTitle = buildMaintenanceReportPrintTitle(reportData);
 
   return {
-    data: normalized,
+    data: reportData,
     fragment: html,
     documentTitle,
     html,

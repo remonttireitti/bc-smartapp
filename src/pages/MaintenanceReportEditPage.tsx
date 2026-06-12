@@ -96,6 +96,7 @@ import {
   writeLocalMaintenanceDraft,
 } from '../lib/maintenanceReportDraftStorage';
 import { openMaintenanceReportPrint } from '../lib/maintenanceReportPrintAction';
+import { syncMaintenanceReportPhotosFromDb } from '../lib/maintenanceReportPhotoSync';
 import { isPortalUser } from '../lib/portalWorkOrder';
 import { useProfile } from '../hooks/useProfile';
 import { useMaintenanceReportScrollRestore } from '../hooks/useMaintenanceReportScrollRestore';
@@ -590,6 +591,15 @@ export default function MaintenanceReportEditPage({ session }: Props) {
         normalized.konvektoriRows,
       );
       formToUse = mergeHuoltoReportData(normalized, { ...baseForm, konvektoriRows });
+    }
+
+    const photoSync = await syncMaintenanceReportPhotosFromDb(reportIdToLoad, formToUse);
+    formToUse = photoSync.data;
+    if (photoSync.changed) {
+      await supabase
+        .from('maintenance_reports')
+        .update({ data: formToUse, updated_at: new Date().toISOString() })
+        .eq('id', reportIdToLoad);
     }
 
     const nextCustomerId = row.customer_id ?? row.data.customerId ?? sessionEditor?.customerId ?? '';

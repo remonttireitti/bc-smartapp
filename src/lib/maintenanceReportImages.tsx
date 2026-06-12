@@ -77,34 +77,48 @@ export async function deleteMaintenanceReportImage(storagePath: string) {
 }
 
 function useSignedImageUrl(path: string) {
+  const storagePath = toSupabaseStoragePath(path);
   const [url, setUrl] = useState<string | undefined>();
+  const [missing, setMissing] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
 
     if (!path) {
       setUrl(undefined);
+      setMissing(true);
       return () => {
         cancelled = true;
       };
     }
 
+    if (!storagePath) {
+      setUrl(undefined);
+      setMissing(true);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    setMissing(false);
     void (async () => {
-      const storagePath = toSupabaseStoragePath(path);
-      if (!storagePath) {
-        if (!cancelled) setUrl(undefined);
+      const { data, error } = await supabase.storage.from(BUCKET).createSignedUrl(storagePath, 3600);
+      if (cancelled) return;
+      if (error || !data?.signedUrl) {
+        setUrl(undefined);
+        setMissing(true);
         return;
       }
-      const { data } = await supabase.storage.from(BUCKET).createSignedUrl(storagePath, 3600);
-      if (!cancelled) setUrl(data?.signedUrl);
+      setUrl(data.signedUrl);
+      setMissing(false);
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [path]);
+  }, [path, storagePath]);
 
-  return url;
+  return { url, missing };
 }
 
 function useSignedImageUrls(paths: string[]) {
@@ -138,7 +152,7 @@ function useSignedImageUrls(paths: string[]) {
 }
 
 export function MaintenanceReportImageThumb({ path }: { path: string }) {
-  const url = useSignedImageUrl(path);
+  const { url, missing } = useSignedImageUrl(path);
   const [previewOpen, setPreviewOpen] = useState(false);
 
   function openPreview(event: MouseEvent) {
@@ -155,7 +169,11 @@ export function MaintenanceReportImageThumb({ path }: { path: string }) {
         onClick={openPreview}
         aria-label="Avaa kuva"
       >
-        {url ? <img src={url} alt="" /> : <span className="muted">Ladataan…</span>}
+        {url ? (
+          <img src={url} alt="" />
+        ) : (
+          <span className="muted">{missing ? 'Kuva puuttuu' : 'Ladataan…'}</span>
+        )}
       </button>
       {previewOpen && url ? (
         <MaintenanceReportImageLightbox url={url} onClose={() => setPreviewOpen(false)} />
