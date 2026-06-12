@@ -14,7 +14,7 @@ import {
 } from '../../data/pumpDeviceCatalog';
 import type { QuoteRequestData, QuoteType } from './types';
 import { filterCompatibleDevicesForQuote } from './vilpCompatibility';
-import { resolveRegistryDevice } from './deviceRegistryState';
+import { listCustomRegistryDevices, resolveRegistryDevice } from './deviceRegistryState';
 
 export type DeviceOptionKey = 'A' | 'B' | 'C';
 
@@ -136,14 +136,27 @@ export function resolveLegacyDeviceIds(
   };
 }
 
+function customDevicesForQuoteType(type: QuoteType): HeatPumpDevice[] {
+  const category = type === 'ilma-ilma' ? 'ilmalampopumppu' : type === 'vesi-ilma' ? 'vesi-ilmalampopumppu' : null;
+  if (!category) return [];
+  return listCustomRegistryDevices().filter((device) => device.category === category);
+}
+
 export function devicesForQuoteType(
   type: QuoteType,
   form?: QuoteRequestData,
   heatingNeedKw?: number | null,
 ): HeatPumpDevice[] {
-  const base = type === 'ilma-ilma' ? ilmaLampopumput : type === 'vesi-ilma' ? vesiIlmaLampopumput : [];
+  const catalog = type === 'ilma-ilma' ? ilmaLampopumput : type === 'vesi-ilma' ? vesiIlmaLampopumput : [];
+  const custom = customDevicesForQuoteType(type);
+  const base = [...catalog, ...custom];
   if (!form) return base;
-  return filterCompatibleDevicesForQuote(base, form, heatingNeedKw ?? null);
+  const filtered = filterCompatibleDevicesForQuote(base, form, heatingNeedKw ?? null);
+  const filteredIds = new Set(filtered.map((device) => device.id));
+  for (const device of custom) {
+    if (!filteredIds.has(device.id)) filtered.push(device);
+  }
+  return filtered.sort((a, b) => (a.heatingPowerMax || 0) - (b.heatingPowerMax || 0));
 }
 
 export function calcSellFromPurchase(purchase: number, marginPercent: number): number {

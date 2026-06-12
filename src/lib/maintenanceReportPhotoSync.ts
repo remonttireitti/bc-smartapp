@@ -6,7 +6,12 @@ import {
 } from './maintenanceReportPhotoUtils';
 import type { MaintenanceReportImageSection } from './maintenanceReportImages';
 import { supabase } from './supabase';
-import { isLegacyFirestoreStoragePath, toSupabaseStoragePath } from './storageUrl';
+import {
+  isInlineImageUrl,
+  isLegacyFirestoreStoragePath,
+  isMaintenanceReportStoragePath,
+  toSupabaseStoragePath,
+} from './storageUrl';
 
 export type MaintenanceReportImageRow = {
   section: MaintenanceReportImageSection;
@@ -16,22 +21,44 @@ export type MaintenanceReportImageRow = {
   created_at: string;
 };
 
-function pathResolvable(value: string | null | undefined): boolean {
-  return !!toSupabaseStoragePath(value);
+function pathKey(value: string | null | undefined): string {
+  return String(value ?? '').trim();
+}
+
+function commentForPath(
+  jsonItems: Array<{ storagePath?: string; id?: string; comment?: string }>,
+  storagePath: string,
+): string {
+  const match = jsonItems.find((item) => pathKey(item.storagePath ?? item.id) === storagePath);
+  return match?.comment?.trim() ?? '';
+}
+
+function pathsMatchDb(
+  jsonPaths: string[],
+  dbRows: MaintenanceReportImageRow[],
+): boolean {
+  if (jsonPaths.length !== dbRows.length) return false;
+  return jsonPaths.every((path, index) => path === dbRows[index]?.storage_path);
 }
 
 function jsonPathsNeedSync(paths: Array<string | undefined>): boolean {
-  if (paths.length === 0) return false;
-  return paths.some((path) => !pathResolvable(path));
+  return paths.some((path) => {
+    const key = pathKey(path);
+    if (!key) return true;
+    if (isInlineImageUrl(key)) return false;
+    if (isLegacyFirestoreStoragePath(key)) return true;
+    const storagePath = toSupabaseStoragePath(key);
+    return !storagePath || !isMaintenanceReportStoragePath(storagePath);
+  });
 }
 
 function mergePhotoComments(
   dbRows: MaintenanceReportImageRow[],
   jsonItems: MaintenanceReportPhotoItem[],
 ): MaintenanceReportPhotoItem[] {
-  return dbRows.map((row, index) => ({
+  return dbRows.map((row) => ({
     storagePath: row.storage_path,
-    comment: jsonItems[index]?.comment?.trim() ?? '',
+    comment: commentForPath(jsonItems, row.storage_path),
   }));
 }
 
@@ -39,18 +66,26 @@ function mergeHuomiotLiitteet(
   dbRows: MaintenanceReportImageRow[],
   jsonItems: HuomiotImageAttachment[],
 ): HuomiotImageAttachment[] {
-  return dbRows.map((row, index) => {
-    const prev = jsonItems[index];
+  return dbRows.map((row) => {
+    const prev = jsonItems.find((item) => pathKey(item.storagePath ?? item.id) === row.storage_path);
     return ensureHuomiotLiite({
       ...prev,
       id: row.storage_path,
       storagePath: row.storage_path,
       url: '',
-      comment: prev?.comment ?? '',
+      comment: prev?.comment ?? commentForPath(jsonItems, row.storage_path),
       fileName: row.file_name,
       contentType: row.mime_type ?? prev?.contentType ?? 'image/jpeg',
     });
   });
+}
+
+function inlineHuomiotLiitteet(jsonItems: HuomiotImageAttachment[]): HuomiotImageAttachment[] {
+  return jsonItems.filter((item) => isInlineImageUrl(pathKey(item.storagePath ?? item.id)));
+}
+
+function inlinePhotoItems(jsonItems: MaintenanceReportPhotoItem[]): MaintenanceReportPhotoItem[] {
+  return jsonItems.filter((item) => isInlineImageUrl(pathKey(item.storagePath)));
 }
 
 export async function loadMaintenanceReportImagesBySection(reportId: string) {
@@ -83,47 +118,71 @@ export async function syncMaintenanceReportPhotosFromDb(
 
   const huomiotDb = bySection.get('huomiot') ?? [];
   const huomiotJson = data.huomiotLiitteet ?? [];
-  const huomiotJsonPaths = huomiotJson.map((item) => item.storagePath ?? item.id);
-  if (
-    huomiotDb.length > 0
-    && (jsonPathsNeedSync(huomiotJsonPaths) || huomiotJson.length !== huomiotDb.length)
-  ) {
-    next.huomiotLiitteet = mergeHuomiotLiitteet(huomiotDb, huomiotJson);
-    changed = true;
+  const huomiotJsonPaths = huomiotJson.map((item) => pathKey(item.storagePath ?? item.id));
+  const inlineHuomiot = inlineHuomiotLiitteet(huomiotJson);
+  if (huomiotDb.length > 0) {
+    const merged = [...mergeHuomiotLiitteet(huomiotDb, huomiotJson), ...inlineHuomiot];
+    if (
+      jsonPathsNeedSync(huomiotJsonPaths)
+      || !pathsMatchDb(
+        huomiotJson.filter((item) => !isInlineImageUrl(pathKey(item.storagePath ?? item.id)))
+          .map((item) => pathKey(item.storagePath ?? item.id)),
+        huomiotDb,
+      )
+    ) {
+      next.huomiotLiitteet = merged;
+      changed = true;
+    }
   }
 
   const tiiveysJson = normalizeMaintenanceReportPhotos(data.tiiveyskoeData?.todisteKuvat);
   const tiiveysDb = bySection.get('tiiveyskoe') ?? [];
-  if (
-    tiiveysDb.length > 0
-    && (jsonPathsNeedSync(tiiveysJson.map((item) => item.storagePath)) || tiiveysJson.length !== tiiveysDb.length)
-  ) {
-    next.tiiveyskoeData = {
-      ...(data.tiiveyskoeData ?? {}),
-      todisteKuvat: mergePhotoComments(tiiveysDb, tiiveysJson),
-    };
-    changed = true;
+  const inlineTiiveys = inlinePhotoItems(tiiveysJson);
+  if (tiiveysDb.length > 0) {
+    const merged = [...mergePhotoComments(tiiveysDb, tiiveysJson), ...inlineTiiveys];
+    const storageJsonPaths = tiiveysJson
+      .filter((item) => !isInlineImageUrl(pathKey(item.storagePath)))
+      .map((item) => pathKey(item.storagePath));
+    if (
+      jsonPathsNeedSync(storageJsonPaths)
+      || !pathsMatchDb(storageJsonPaths, tiiveysDb)
+    ) {
+      next.tiiveyskoeData = {
+        ...(data.tiiveyskoeData ?? {}),
+        todisteKuvat: merged,
+      };
+      changed = true;
+    }
   }
 
   const tyhjJson = normalizeMaintenanceReportPhotos(data.tyhjiointiData?.todisteKuvat);
   const tyhjDb = bySection.get('tyhjiointi') ?? [];
-  if (
-    tyhjDb.length > 0
-    && (jsonPathsNeedSync(tyhjJson.map((item) => item.storagePath)) || tyhjJson.length !== tyhjDb.length)
-  ) {
-    next.tyhjiointiData = {
-      ...(data.tyhjiointiData ?? {}),
-      todisteKuvat: mergePhotoComments(tyhjDb, tyhjJson),
-    };
-    changed = true;
+  const inlineTyhj = inlinePhotoItems(tyhjJson);
+  if (tyhjDb.length > 0) {
+    const merged = [...mergePhotoComments(tyhjDb, tyhjJson), ...inlineTyhj];
+    const storageJsonPaths = tyhjJson
+      .filter((item) => !isInlineImageUrl(pathKey(item.storagePath)))
+      .map((item) => pathKey(item.storagePath));
+    if (
+      jsonPathsNeedSync(storageJsonPaths)
+      || !pathsMatchDb(storageJsonPaths, tyhjDb)
+    ) {
+      next.tyhjiointiData = {
+        ...(data.tyhjiointiData ?? {}),
+        todisteKuvat: merged,
+      };
+      changed = true;
+    }
   }
 
   return { data: next, changed };
 }
 
 export function isStaleMaintenancePhotoPath(value: string | null | undefined): boolean {
-  const trimmed = String(value ?? '').trim();
+  const trimmed = pathKey(value);
   if (!trimmed) return true;
+  if (isInlineImageUrl(trimmed)) return false;
   if (isLegacyFirestoreStoragePath(trimmed)) return true;
-  return !pathResolvable(trimmed);
+  const storagePath = toSupabaseStoragePath(trimmed);
+  return !storagePath || !isMaintenanceReportStoragePath(storagePath);
 }

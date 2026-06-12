@@ -1,4 +1,5 @@
-import type { DeviceRegistryOverride } from '../../data/deviceRegistryTypes';
+import { customDeviceToHeatPump } from '../../data/customPumpDevices';
+import type { CustomHeatPumpDeviceEntry, DeviceRegistryOverride } from '../../data/deviceRegistryTypes';
 import { mergeHeatPumpWithRegistry } from '../../data/mergeDeviceRegistry';
 import { ALL_PUMP_DEVICES, type HeatPumpDevice } from '../../data/pumpDeviceCatalog';
 import {
@@ -11,6 +12,7 @@ export type DeviceRegistrySnapshot = {
   brandBumps: Record<string, number>;
   feeMap: BrandDeliveryFeeByCategoryMap;
   overrides: Record<string, DeviceRegistryOverride>;
+  customDevices: Record<string, CustomHeatPumpDeviceEntry>;
 };
 
 export function snapshotFromCompanySettings(settings: CompanySettings | null | undefined): DeviceRegistrySnapshot {
@@ -26,6 +28,7 @@ export function snapshotFromCompanySettings(settings: CompanySettings | null | u
         : null,
     ),
     overrides: { ...(reg?.overrides ?? {}) },
+    customDevices: { ...(reg?.custom_devices ?? {}) },
   };
 }
 
@@ -43,10 +46,27 @@ export function resolveRegistryDevice(
   id: string,
   snapshot: DeviceRegistrySnapshot | null = activeSnapshot,
 ): HeatPumpDevice | null {
-  const base = ALL_PUMP_DEVICES.find((device) => device.id === id) ?? null;
+  const customEntry = snapshot?.customDevices[id];
+  const base =
+    customEntry != null
+      ? customDeviceToHeatPump(customEntry)
+      : ALL_PUMP_DEVICES.find((device) => device.id === id) ?? null;
   if (!base) return null;
   if (!snapshot) return base;
   return mergeHeatPumpWithRegistry(base, snapshot.brandBumps, snapshot.overrides[id]);
+}
+
+export function listCustomRegistryDevices(
+  snapshot: DeviceRegistrySnapshot | null = activeSnapshot,
+): HeatPumpDevice[] {
+  if (!snapshot) return [];
+  return Object.values(snapshot.customDevices).map((entry) =>
+    mergeHeatPumpWithRegistry(
+      customDeviceToHeatPump(entry),
+      snapshot.brandBumps,
+      snapshot.overrides[entry.id],
+    ),
+  );
 }
 
 export function applyDeviceRegistryToSettings(
@@ -54,6 +74,7 @@ export function applyDeviceRegistryToSettings(
   patch: {
     brandBumps?: Record<string, number>;
     overrides?: Record<string, DeviceRegistryOverride>;
+    customDevices?: Record<string, CustomHeatPumpDeviceEntry>;
   },
 ): CompanySettings {
   const reg = settings.device_registry ?? {};
@@ -63,6 +84,7 @@ export function applyDeviceRegistryToSettings(
       ...reg,
       ...(patch.brandBumps !== undefined ? { brand_price_bumps: patch.brandBumps } : {}),
       ...(patch.overrides !== undefined ? { overrides: patch.overrides } : {}),
+      ...(patch.customDevices !== undefined ? { custom_devices: patch.customDevices } : {}),
     },
   };
 }

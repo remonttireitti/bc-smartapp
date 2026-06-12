@@ -3,6 +3,7 @@ import { normalizeMaintenanceReportPhotos } from './maintenanceReportImages';
 import type { HuoltoReportData, HuomiotImageAttachment } from './huoltoRaportti/types';
 import {
   isAllowedExternalStorageUrl,
+  isInlineImageUrl,
   isLegacyFirebaseStorageUrl,
   toSupabaseStoragePath,
 } from './storageUrl';
@@ -14,7 +15,7 @@ export type MaintenancePrintPhoto = {
 
 function isDirectImageUrl(value: string): boolean {
   if (isLegacyFirebaseStorageUrl(value)) return false;
-  return value.startsWith('data:image/') || isAllowedExternalStorageUrl(value);
+  return isInlineImageUrl(value) || isAllowedExternalStorageUrl(value);
 }
 
 export function photoStoragePathFromAttachment(
@@ -40,6 +41,9 @@ export function resolveMaintenancePrintPhotoHref(
 
   const path = toSupabaseStoragePath(photoStoragePathFromAttachment(item as HuomiotImageAttachment));
   if (path && imageUrls?.[path]) return imageUrls[path];
+
+  const rawPath = photoStoragePathFromAttachment(item as HuomiotImageAttachment);
+  if (isDirectImageUrl(rawPath)) return rawPath;
 
   const attachmentUrl = String((item as HuomiotImageAttachment).url ?? '').trim();
   if (attachmentUrl && isDirectImageUrl(attachmentUrl)) return attachmentUrl;

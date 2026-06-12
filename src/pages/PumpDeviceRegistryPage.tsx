@@ -6,8 +6,14 @@ import type { Session } from '@supabase/supabase-js';
 
 import AppLayout from '../components/AppLayout';
 
+import PumpDeviceRegistryAddDialog from '../components/quoteRequest/PumpDeviceRegistryAddDialog';
 import PumpDeviceRegistryDetailDialog from '../components/quoteRequest/PumpDeviceRegistryDetailDialog';
 
+import {
+  customDeviceToHeatPump,
+  isCustomPumpDeviceId,
+} from '../data/customPumpDevices';
+import type { CustomHeatPumpDeviceEntry } from '../data/deviceRegistryTypes';
 import { ALL_PUMP_DEVICES, type HeatPumpDevice } from '../data/pumpDeviceCatalog';
 
 import {
@@ -116,7 +122,11 @@ export default function PumpDeviceRegistryPage({ session }: Props) {
 
   const [overrides, setOverrides] = useState<Record<string, DeviceRegistryOverride>>({});
 
+  const [customDevices, setCustomDevices] = useState<Record<string, CustomHeatPumpDeviceEntry>>({});
+
   const [draftRow, setDraftRow] = useState<Record<string, Partial<DeviceRegistryOverride>>>({});
+
+  const [addDialogOpen, setAddDialogOpen] = useState(false);
 
   const [search, setSearch] = useState('');
 
@@ -220,6 +230,8 @@ export default function PumpDeviceRegistryPage({ session }: Props) {
 
     setOverrides(nextOverrides);
 
+    setCustomDevices({ ...(reg?.custom_devices ?? {}) });
+
     setDraftRow({});
 
     const snapshot = snapshotFromCompanySettings(parsed);
@@ -259,8 +271,14 @@ export default function PumpDeviceRegistryPage({ session }: Props) {
         ),
       }),
       overrides: effectiveOverrides,
+      customDevices,
     });
-  }, [brandBumps, brandDeliveryFees, effectiveOverrides]);
+  }, [brandBumps, brandDeliveryFees, effectiveOverrides, customDevices]);
+
+  const allDevices = useMemo(
+    () => [...ALL_PUMP_DEVICES, ...Object.values(customDevices).map(customDeviceToHeatPump)],
+    [customDevices],
+  );
 
   const mergedOverride = (id: string): DeviceRegistryOverride | undefined => effectiveOverrides[id];
 
@@ -270,7 +288,7 @@ export default function PumpDeviceRegistryPage({ session }: Props) {
 
     const q = search.trim().toLowerCase();
 
-    return ALL_PUMP_DEVICES.filter((device) => {
+    return allDevices.filter((device) => {
 
       if (category !== 'all' && device.category !== category) return false;
 
@@ -280,7 +298,7 @@ export default function PumpDeviceRegistryPage({ session }: Props) {
 
     });
 
-  }, [search, category]);
+  }, [search, category, allDevices]);
 
 
 
@@ -336,6 +354,46 @@ export default function PumpDeviceRegistryPage({ session }: Props) {
 
 
 
+  async function saveCustomDevice(entry: CustomHeatPumpDeviceEntry): Promise<boolean> {
+    if (!settings) return false;
+    setSavingDeviceId(entry.id);
+    setError(null);
+    setMessage(null);
+    const nextCustom = { ...customDevices, [entry.id]: entry };
+    const next = applyDeviceRegistryToSettings(settings, { customDevices: nextCustom });
+    const ok = await persistSettings(next);
+    if (ok) {
+      setCustomDevices(nextCustom);
+      setAddDialogOpen(false);
+      setMessage(`Oma laite “${entry.name}” lisätty.`);
+    }
+    setSavingDeviceId(null);
+    return ok;
+  }
+
+  async function deleteCustomDevice(deviceId: string): Promise<void> {
+    if (!settings || !isCustomPumpDeviceId(deviceId)) return;
+    if (!window.confirm('Poistetaanko oma laite rekisteristä?')) return;
+    setSavingDeviceId(deviceId);
+    setError(null);
+    setMessage(null);
+    const nextCustom = { ...customDevices };
+    delete nextCustom[deviceId];
+    const nextOverrides = { ...overrides };
+    delete nextOverrides[deviceId];
+    const next = applyDeviceRegistryToSettings(settings, {
+      customDevices: nextCustom,
+      overrides: nextOverrides,
+    });
+    const ok = await persistSettings(next);
+    if (ok) {
+      setCustomDevices(nextCustom);
+      setOverrides(nextOverrides);
+      setMessage('Oma laite poistettu.');
+    }
+    setSavingDeviceId(null);
+  }
+
   async function saveDeviceOverride(deviceId: string): Promise<boolean> {
     if (!settings) return false;
     setSavingDeviceId(deviceId);
@@ -362,7 +420,7 @@ export default function PumpDeviceRegistryPage({ session }: Props) {
 
 
 
-  const detailDevice = detailId ? ALL_PUMP_DEVICES.find((device) => device.id === detailId) : null;
+  const detailDevice = detailId ? allDevices.find((device) => device.id === detailId) : null;
 
 
 
@@ -384,7 +442,7 @@ export default function PumpDeviceRegistryPage({ session }: Props) {
 
           <p className="muted">
 
-            {profile?.companies?.name ?? '—'} • {rows.length} / {ALL_PUMP_DEVICES.length} mallia
+            {profile?.companies?.name ?? '—'} • {rows.length} / {allDevices.length} mallia
 
           </p>
 
@@ -516,7 +574,21 @@ export default function PumpDeviceRegistryPage({ session }: Props) {
 
           <section className="panel">
 
-            <h2>Laitteet</h2>
+            <div className="section-header-row">
+              <h2>Laitteet</h2>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={() => setAddDialogOpen(true)}
+              >
+                + Lisää oma laite
+              </button>
+            </div>
+
+            <p className="muted">
+              Katalogilaitteiden lisäksi voit kirjoittaa oman laitteen käsin. Omat laitteet tallentuvat
+              yrityskohtaisesti ja näkyvät tarjouspyynnöissä.
+            </p>
 
             <div className="toolbar">
 
@@ -611,6 +683,9 @@ export default function PumpDeviceRegistryPage({ session }: Props) {
                         <td>
 
                           <strong>{device.name}</strong>
+                          {isCustomPumpDeviceId(device.id) ? (
+                            <span className="badge badge-muted">Oma laite</span>
+                          ) : null}
 
                           <div className="muted">{device.model}</div>
 
@@ -620,7 +695,11 @@ export default function PumpDeviceRegistryPage({ session }: Props) {
 
                         </td>
 
-                        <td>{device.listPrice.toLocaleString('fi-FI', { style: 'currency', currency: 'EUR' })}</td>
+                        <td>
+                          {isCustomPumpDeviceId(device.id)
+                            ? '—'
+                            : device.listPrice.toLocaleString('fi-FI', { style: 'currency', currency: 'EUR' })}
+                        </td>
 
                         <td>{bump ? `${bump} %` : '—'}</td>
 
@@ -748,6 +827,17 @@ export default function PumpDeviceRegistryPage({ session }: Props) {
 
                           </button>
 
+                          {isCustomPumpDeviceId(device.id) ? (
+                            <button
+                              type="button"
+                              className="btn btn-secondary btn-sm"
+                              disabled={savingDeviceId === device.id}
+                              onClick={() => void deleteCustomDevice(device.id)}
+                            >
+                              Poista
+                            </button>
+                          ) : null}
+
                         </td>
 
                       </tr>
@@ -769,6 +859,13 @@ export default function PumpDeviceRegistryPage({ session }: Props) {
       )}
 
 
+
+      <PumpDeviceRegistryAddDialog
+        open={addDialogOpen}
+        busy={savingDeviceId != null}
+        onClose={() => setAddDialogOpen(false)}
+        onSave={(entry) => void saveCustomDevice(entry)}
+      />
 
       {detailDevice && (
 

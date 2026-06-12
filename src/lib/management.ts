@@ -78,7 +78,7 @@ export type PartnerBillingRates = {
 /** Same shape as partner rates — used for customer-facing prices on own reports. */
 export type CustomerBillingRates = PartnerBillingRates;
 
-import type { DeviceRegistryOverride } from '../data/deviceRegistryTypes';
+import type { CustomHeatPumpDeviceEntry, DeviceRegistryOverride } from '../data/deviceRegistryTypes';
 
 export type CompanySettings = {
   address?: string;
@@ -128,6 +128,8 @@ export type CompanySettings = {
     brand_price_bumps?: Record<string, number>;
     /** Mallikohtaiset yliajot (deviceId → override). */
     overrides?: Record<string, DeviceRegistryOverride>;
+    /** Yrityksen itse lisäämät laitteet (deviceId → laite). */
+    custom_devices?: Record<string, CustomHeatPumpDeviceEntry>;
   };
 };
 

@@ -22,6 +22,18 @@ export function isHttpUrl(value: string | null | undefined): boolean {
   return !!value && /^https?:\/\//i.test(value);
 }
 
+/** Suora img-src (data:, blob:) — ei Supabase-polku. */
+export function isInlineImageUrl(value: string | null | undefined): boolean {
+  if (!value) return false;
+  return value.startsWith('data:image/') || value.startsWith('blob:');
+}
+
+/** Huoltoraportin bucket-polku: reportId/section/tiedosto */
+export function isMaintenanceReportStoragePath(value: string | null | undefined): boolean {
+  if (!value) return false;
+  return /^[0-9a-f-]{36}\/(tiiveyskoe|tyhjiointi|huomiot)\/.+/i.test(value);
+}
+
 /** Supabase bucket path (not a full URL). */
 export function isSupabaseStoragePath(value: string | null | undefined): boolean {
   if (!value) return false;
@@ -41,6 +53,7 @@ export function toSupabaseStoragePath(value: string | null | undefined): string 
   if (!trimmed) return null;
   if (isLegacyFirebaseStorageUrl(trimmed)) return null;
   if (isLegacyFirestoreStoragePath(trimmed)) return null;
+  if (isInlineImageUrl(trimmed)) return null;
   if (isAllowedExternalStorageUrl(trimmed)) {
     const match = trimmed.match(/\/storage\/v1\/object\/(?:sign|public)\/[^/]+\/(.+?)(?:\?|$)/);
     return match?.[1] ? decodeURIComponent(match[1]) : null;

@@ -1,11 +1,17 @@
 import { useEffect, useState, type MouseEvent } from 'react';
 import { MaintenanceReportImageLightbox } from '../components/huoltoRaportti/MaintenanceReportImageLightbox';
+import {
+  primeMaintenanceReportImageBlob,
+  resolveMaintenanceReportImageUrl,
+  resolveMaintenanceReportImageUrls,
+  revokeMaintenanceReportImageBlob,
+} from './maintenanceReportImageUrl';
 import { prepareImageFileForUpload } from './prepareUploadImage';
 import {
   normalizeMaintenanceReportPhotos,
   type MaintenanceReportPhotoItem,
 } from './maintenanceReportPhotoUtils';
-import { toSupabaseStoragePath } from './storageUrl';
+import { isInlineImageUrl } from './storageUrl';
 import { supabase } from './supabase';
 
 export const BUCKET = 'maintenance-report-images';
@@ -66,6 +72,8 @@ export async function uploadMaintenanceReportImages(
       await supabase.storage.from(BUCKET).remove([storagePath]);
       throw new Error(metaError.message);
     }
+
+    primeMaintenanceReportImageBlob(storagePath, prepared);
     uploaded.push(storagePath);
   }
   return uploaded;
@@ -74,12 +82,29 @@ export async function uploadMaintenanceReportImages(
 export async function deleteMaintenanceReportImage(storagePath: string) {
   await supabase.storage.from(BUCKET).remove([storagePath]);
   await supabase.from('maintenance_report_images').delete().eq('storage_path', storagePath);
+  revokeMaintenanceReportImageBlob(storagePath);
 }
 
 function useSignedImageUrl(path: string) {
-  const storagePath = toSupabaseStoragePath(path);
   const [url, setUrl] = useState<string | undefined>();
   const [missing, setMissing] = useState(false);
+  const [authReady, setAuthReady] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    const { data: authSub } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!cancelled) setAuthReady(!!session);
+    });
+
+    void supabase.auth.getSession().then(({ data }) => {
+      if (!cancelled) setAuthReady(!!data.session);
+    });
+
+    return () => {
+      cancelled = true;
+      authSub.subscription.unsubscribe();
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -92,9 +117,17 @@ function useSignedImageUrl(path: string) {
       };
     }
 
-    if (!storagePath) {
+    if (isInlineImageUrl(path)) {
+      setUrl(path);
+      setMissing(false);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    if (!authReady) {
       setUrl(undefined);
-      setMissing(true);
+      setMissing(false);
       return () => {
         cancelled = true;
       };
@@ -102,21 +135,21 @@ function useSignedImageUrl(path: string) {
 
     setMissing(false);
     void (async () => {
-      const { data, error } = await supabase.storage.from(BUCKET).createSignedUrl(storagePath, 3600);
+      const resolved = await resolveMaintenanceReportImageUrl(path);
       if (cancelled) return;
-      if (error || !data?.signedUrl) {
+      if (!resolved) {
         setUrl(undefined);
         setMissing(true);
         return;
       }
-      setUrl(data.signedUrl);
+      setUrl(resolved);
       setMissing(false);
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [path, storagePath]);
+  }, [path, authReady]);
 
   return { url, missing };
 }
@@ -124,6 +157,23 @@ function useSignedImageUrl(path: string) {
 function useSignedImageUrls(paths: string[]) {
   const pathsKey = paths.join('\0');
   const [urls, setUrls] = useState<Record<string, string>>({});
+  const [authReady, setAuthReady] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    const { data: authSub } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!cancelled) setAuthReady(!!session);
+    });
+
+    void supabase.auth.getSession().then(({ data }) => {
+      if (!cancelled) setAuthReady(!!data.session);
+    });
+
+    return () => {
+      cancelled = true;
+      authSub.subscription.unsubscribe();
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -132,21 +182,39 @@ function useSignedImageUrls(paths: string[]) {
     async function loadUrls() {
       const next: Record<string, string> = {};
       for (const path of pathList) {
-        const storagePath = toSupabaseStoragePath(path);
-        if (!storagePath) continue;
-        const { data } = await supabase.storage.from(BUCKET).createSignedUrl(storagePath, 3600);
-        if (data?.signedUrl) next[path] = data.signedUrl;
+        if (isInlineImageUrl(path)) {
+          next[path] = path;
+          continue;
+        }
+      }
+      const storagePaths = pathList.filter((path) => !isInlineImageUrl(path));
+      if (storagePaths.length > 0) {
+        const resolved = await resolveMaintenanceReportImageUrls(storagePaths);
+        Object.assign(next, resolved);
       }
       if (!cancelled) setUrls(next);
     }
 
-    if (pathList.length > 0) void loadUrls();
-    else setUrls({});
+    if (pathList.length === 0) {
+      setUrls({});
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    if (!authReady) {
+      setUrls({});
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    void loadUrls();
 
     return () => {
       cancelled = true;
     };
-  }, [pathsKey]);
+  }, [pathsKey, authReady]);
 
   return urls;
 }

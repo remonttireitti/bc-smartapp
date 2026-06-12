@@ -19,7 +19,9 @@
     "fix:firebase-urls": "node scripts/fix-legacy-firebase-urls.mjs --production",
     "fix:firebase-urls:apply": "node scripts/fix-legacy-firebase-urls.mjs --production --apply",
     "fix:maintenance-photos": "node scripts/sync-maintenance-report-photos.mjs --production",
-    "fix:maintenance-photos:apply": "node scripts/sync-maintenance-report-photos.mjs --production --apply"
+    "fix:maintenance-photos:apply": "node scripts/sync-maintenance-report-photos.mjs --production --apply",
+    "fix:inline-maintenance-images": "node scripts/migrate-inline-maintenance-images.mjs --production",
+    "fix:inline-maintenance-images:apply": "node scripts/migrate-inline-maintenance-images.mjs --production --apply"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.1",

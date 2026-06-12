@@ -1,7 +1,7 @@
 import { buildMaintenanceReportPrintTitle, normalizeHuoltoReportData } from './huoltoRaportti/defaults';
 import { generateLegacyMaintenanceReportHtml } from './huoltoRaportti/legacyPrintAdapter';
 import type { HuoltoReportData } from './huoltoRaportti/types';
-import { BUCKET } from './maintenanceReportImages';
+import { resolveMaintenanceReportImageUrls } from './maintenanceReportImageUrl';
 import { collectMaintenancePrintImagePaths } from './maintenanceReportPrintImages';
 import { syncMaintenanceReportPhotosFromDb } from './maintenanceReportPhotoSync';
 import { resolveCompanyLogoUrl } from './companyLogo';
@@ -33,17 +33,8 @@ function collectPrintImagePaths(data: HuoltoReportData): string[] {
 async function resolveMaintenancePrintImageUrls(
   data: HuoltoReportData,
 ): Promise<Record<string, string>> {
-  const map: Record<string, string> = {};
   const paths = collectPrintImagePaths(data);
-
-  await Promise.all(
-    paths.map(async (path) => {
-      const { data: signed } = await supabase.storage.from(BUCKET).createSignedUrl(path, 3600);
-      if (signed?.signedUrl) map[path] = signed.signedUrl;
-    }),
-  );
-
-  return map;
+  return resolveMaintenanceReportImageUrls(paths);
 }
 
 export async function loadMaintenanceReportPrintBundle(

@@ -18,6 +18,22 @@ export interface DeviceRegistryBrandSettings {
   brandDeliveryFeePerUnit?: Record<string, number>;
 }
 
+/** Yrityksen itse lisäämä lämpöpumppu (ei katalogissa). */
+export interface CustomHeatPumpDeviceEntry {
+  id: string;
+  brand: string;
+  name: string;
+  model: string;
+  category: 'ilmalampopumppu' | 'vesi-ilmalampopumppu';
+  listPrice: number;
+  heatingPowerMin?: number;
+  heatingPowerMax: number;
+  coolingPowerMin?: number;
+  coolingPowerMax?: number;
+  defaultDiscountPercent?: number;
+  notes?: string;
+}
+
 /** Yksittäisen mallin yliajot rekisterissä (Firestore: companies/{id}/deviceRegistryOverrides/{deviceId}). */
 export interface DeviceRegistryOverride {
   deviceId: string;
