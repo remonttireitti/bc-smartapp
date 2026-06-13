@@ -10,6 +10,7 @@ import { IconBack } from '../components/icons';
 import NavigationBreadcrumb from '../components/NavigationBreadcrumb';
 
 import { resolveCompanyLogoUrl } from '../lib/companyLogo';
+import { openPrintWindow } from '../lib/quoteRequest/printWindowUtils';
 import { embedUrlAsDataUrl } from '../lib/quoteRequest/termatekAssets';
 
 import { quoteListTrail, withNavTrail } from '../lib/navigationTrail';
@@ -211,7 +212,7 @@ export default function QuoteRequestPrintPage({ session }: Props) {
     }
 
     if (useTermatekTemplate) {
-      return termatekHtml || generateTermatekVilpPrintHtml({ data: quoteData, customer, meta, feeMap });
+      return termatekHtml;
     }
 
     return generateQuoteOfferPrintHtml({
@@ -384,18 +385,20 @@ export default function QuoteRequestPrintPage({ session }: Props) {
       try {
         printHtml = await prepareTermatekVilpPrintHtml({ data: quoteData, customer, meta, feeMap });
       } catch {
-        printHtml = html;
+        if (!printHtml) {
+          setError('Tulosteen valmistelu epäonnistui. Yritä uudelleen.');
+          return;
+        }
       }
     }
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) {
-      setError('Tulostusikkunan avaus estettiin. Salli ponnahdusikkunat tai käytä selaimen tulostusta.');
+    if (!printHtml) {
+      setError('Tuloste ei ole vielä valmis. Odota hetki ja yritä uudelleen.');
       return;
     }
-    printWindow.document.write(printHtml);
-    printWindow.document.close();
-    printWindow.focus();
-    printWindow.print();
+    const opened = await openPrintWindow(printHtml);
+    if (!opened) {
+      setError('Tulostusikkunan avaus estettiin. Salli ponnahdusikkunat tai käytä selaimen tulostusta.');
+    }
   }
 
 

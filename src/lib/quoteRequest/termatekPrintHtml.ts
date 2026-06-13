@@ -164,7 +164,6 @@ function buildContactSectionHtml(input: {
 }): string {
   const { meta, billing, companyAddress, coverLocationLine, settings, websiteDisplay } = input;
   return `
-      <div class="terms-contact-divider"></div>
       <div class="summary-title terms-contact-title">Yritystiedot ja yhteystiedot</div>
       <div class="tuu-info-grid">
         <div class="tuu-info-block">
@@ -359,6 +358,16 @@ function termatekStyles(): string {
     .a4 { width: 210mm; position: relative; box-sizing: border-box; }
     .page { page-break-after: always; break-after: page; box-sizing: border-box; }
     .page:last-child { page-break-after: auto; break-after: auto; }
+    .page--terms-flow {
+      page-break-before: always;
+      break-before: page;
+      page-break-after: auto;
+      break-after: auto;
+    }
+    .page--contact {
+      page-break-before: always;
+      break-before: page;
+    }
     .page--cover {
       min-height: 297mm;
       display: flex;
@@ -485,10 +494,16 @@ function termatekStyles(): string {
     .terms h3 { font-size: 10.5pt; margin: 3mm 0 1.5mm 0; color: #072855; break-after: avoid; page-break-after: avoid; }
     .terms p { font-size: 10pt; margin: 0 0 2mm 0; break-inside: auto; page-break-inside: auto; }
     .terms ul { break-inside: auto; page-break-inside: auto; }
-    .terms-contact-divider { margin: 5mm 0 4mm 0; border-top: 0.5mm solid #e5e7eb; }
+    .terms-compact { font-size: 8.8pt; line-height: 1.28; }
+    .terms-compact .terms-title { font-size: 10.5pt; margin-bottom: 2mm; }
+    .terms-compact .terms-lead { font-size: 8.8pt; margin-bottom: 2.5mm; line-height: 1.3; }
+    .terms-compact h3 { font-size: 9pt; margin: 2mm 0 1mm; }
+    .terms-compact p { font-size: 8.8pt; margin: 0 0 1.5mm; line-height: 1.28; }
+    .terms-compact ul { margin: 0 0 2mm 3mm; padding-left: 4mm; }
+    .terms-compact li { font-size: 8.5pt; margin: 0.4mm 0; line-height: 1.26; }
     .terms-contact-title { font-size: 12pt; margin-bottom: 3mm; }
-    .terms .tuu-info-grid { margin-top: 0; }
-    .terms .tuu-muted { margin-top: 3mm; font-size: 9.4pt; }
+    .page--contact .content { padding: 8mm 15mm 10mm 15mm; }
+    .page--contact .tuu-info-grid { margin-top: 2mm; }
     .tuu-info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8mm; margin-top: 6mm; }
     .tuu-info-block { border: 1px solid #e5e7eb; border-radius: 12px; padding: 4mm 4.5mm; background: #fff; }
     .tuu-info-title { font-weight: 800; color: #072855; margin-bottom: 2.5mm; }
@@ -704,10 +719,16 @@ export function generateTermatekVilpPrintHtml(input: {
     </div>
   </div>
 
-  <div class="a4 page page--sheet terms">
+  <div class="a4 page--terms-flow">
+    ${headerHtml}
+    <div class="content terms terms-compact">
+      ${buildTermsHtml(data)}
+    </div>
+  </div>
+
+  <div class="a4 page page--sheet page--contact">
     ${headerHtml}
     <div class="content">
-      ${buildTermsHtml(data)}
       ${buildContactSectionHtml({
         meta,
         billing,
@@ -717,7 +738,6 @@ export function generateTermatekVilpPrintHtml(input: {
         websiteDisplay,
       })}
     </div>
-    ${footerHtml}
   </div>
 </body>
 </html>`;

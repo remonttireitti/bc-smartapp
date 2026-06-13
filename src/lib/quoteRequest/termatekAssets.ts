@@ -313,19 +313,64 @@ export function resolveTermatekProductImages(input: {
 
 export async function embedUrlAsDataUrl(url: string): Promise<string> {
   if (!url || url.startsWith('data:')) return url;
+  const origin = typeof window !== 'undefined' ? window.location.origin : '';
+  const absolute = url.startsWith('http')
+    ? url
+    : `${origin}${url.startsWith('/') ? url : `/${url}`}`;
+  const isSameOrigin = Boolean(origin && absolute.startsWith(origin));
   try {
-    const res = await fetch(url, { cache: 'no-store' });
-    if (!res.ok) return url;
-    const blob = await res.blob();
-    return await new Promise<string>((resolve) => {
-      const reader = new FileReader();
-      reader.onloadend = () => resolve(String(reader.result || url));
-      reader.onerror = () => resolve(url);
-      reader.readAsDataURL(blob);
+    const res = await fetch(absolute, {
+      cache: 'force-cache',
+      credentials: isSameOrigin ? 'same-origin' : 'omit',
+      mode: 'cors',
     });
+    if (res.ok) {
+      const blob = await res.blob();
+      if (blob.size) {
+        const dataUrl = await blobToDataUrl(blob);
+        if (dataUrl.startsWith('data:')) return dataUrl;
+      }
+    }
   } catch {
-    return url;
+    /* try canvas fallback below */
   }
+  const viaCanvas = await embedUrlViaCanvas(absolute);
+  return viaCanvas ?? absolute;
+}
+
+function blobToDataUrl(blob: Blob): Promise<string> {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(String(reader.result || ''));
+    reader.onerror = () => resolve('');
+    reader.readAsDataURL(blob);
+  });
+}
+
+function embedUrlViaCanvas(url: string): Promise<string | null> {
+  if (typeof window === 'undefined') return Promise.resolve(null);
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.naturalWidth || img.width;
+        canvas.height = img.naturalHeight || img.height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx || canvas.width <= 0 || canvas.height <= 0) {
+          resolve(null);
+          return;
+        }
+        ctx.drawImage(img, 0, 0);
+        resolve(canvas.toDataURL('image/png'));
+      } catch {
+        resolve(null);
+      }
+    };
+    img.onerror = () => resolve(null);
+    img.src = url;
+  });
 }
 
 export async function embedTermatekAssets(assets: TermatekAssetMap): Promise<TermatekAssetMap> {
