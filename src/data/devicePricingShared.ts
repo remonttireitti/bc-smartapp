@@ -246,10 +246,15 @@ export function computePurchaseNetAlv0(
   device: HeatPumpDevice,
   effectiveListPriceAlv0: number,
   discountFromListPercent: number,
-  feeMap?: BrandDeliveryFeeByCategoryMap | null
+  feeMap?: BrandDeliveryFeeByCategoryMap | null,
+  deliveryFeeNet?: number | null,
 ): number {
   const list = Number(effectiveListPriceAlv0) || 0;
   const d = Number(discountFromListPercent) || 0;
   const after = list * (1 - d / 100);
-  return round2(after + getDeviceDeliveryFeeEuro(device, feeMap));
+  const delivery =
+    deliveryFeeNet != null
+      ? round2(Number(deliveryFeeNet) || 0)
+      : getDeviceDeliveryFeeEuro(device, feeMap);
+  return round2(after + delivery);
 }

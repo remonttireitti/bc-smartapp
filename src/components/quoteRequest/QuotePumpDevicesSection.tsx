@@ -11,6 +11,7 @@ import {
 } from '../../lib/quoteRequest/deviceCatalog';
 import { computeAllOptionTotals } from '../../lib/quoteRequest/calculations';
 import type { BrandDeliveryFeeByCategoryMap } from '../../data/devicePricingShared';
+import { getDeviceDeliveryFeeEuro } from '../../data/devicePricingShared';
 import type { HeatPumpDevice } from '../../data/pumpDeviceCatalog';
 import type { QuoteRequestData } from '../../lib/quoteRequest/types';
 
@@ -33,6 +34,15 @@ function optionField(key: DeviceOptionKey, side: 'Good' | 'Bad'): keyof QuoteReq
     C: { Good: 'optionCGood', Bad: 'optionCBad' },
   };
   return map[key][side];
+}
+
+function deliveryFeeField(key: DeviceOptionKey): keyof QuoteRequestData {
+  const map: Record<DeviceOptionKey, keyof QuoteRequestData> = {
+    A: 'deviceDeliveryFeeNet',
+    B: 'altDevice1DeliveryFeeNet',
+    C: 'altDevice2DeliveryFeeNet',
+  };
+  return map[key];
 }
 
 function DeviceOptionCard({
@@ -71,6 +81,11 @@ function DeviceOptionCard({
   const device = findDeviceById(selectedId);
   const purchase = calculateDevicePurchaseNet(form, device, feeMap);
   const sell = calculateDeviceSellNet(form, device, feeMap);
+  const registryDelivery = device ? getDeviceDeliveryFeeEuro(device, feeMap) : 0;
+  const deliveryField = deliveryFeeField(optionKey);
+  const deliveryOverride = form[deliveryField] as number | null;
+  const effectiveDelivery =
+    deliveryOverride != null ? Number(deliveryOverride) || 0 : registryDelivery;
   const powerPct = computeDevicePowerFitPercent(heatingNeedKw, device);
   const isManualPick =
     variant === 'selection' &&
@@ -96,6 +111,9 @@ function DeviceOptionCard({
               <>
                 {' '}
                 • Hankinta {purchase.toLocaleString('fi-FI', { style: 'currency', currency: 'EUR' })}
+                {effectiveDelivery > 0 && (
+                  <> • Toimitus {effectiveDelivery.toLocaleString('fi-FI', { style: 'currency', currency: 'EUR' })}</>
+                )}
               </>
             )}
           </span>
@@ -140,6 +158,8 @@ function DeviceOptionCard({
               } else if (optionKey === 'A' && nextId === suggestedDeviceId) {
                 patch.iilpDeviceSelectionNote = '';
               }
+              if (optionKey === 'B') patch.altDevice1DeliveryFeeNet = null;
+              if (optionKey === 'C') patch.altDevice2DeliveryFeeNet = null;
               onChange(patch);
             }}
           >
@@ -176,6 +196,30 @@ function DeviceOptionCard({
               disabled={!canEdit}
               onChange={(e) => onChange({ [marginField]: Number(e.target.value) })}
             />
+          </label>
+          <label className="quote-field-grid-span-2">
+            Toimituskulu (€, alv 0)
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              value={deliveryOverride ?? ''}
+              placeholder={registryDelivery > 0 ? String(registryDelivery) : '0'}
+              disabled={!canEdit}
+              onChange={(e) => {
+                const raw = e.target.value.trim();
+                onChange({
+                  [deliveryField]: raw === '' ? null : Number(raw),
+                });
+              }}
+            />
+            <span className="muted field-hint">
+              {deliveryOverride == null && registryDelivery > 0
+                ? `Rekisteristä ${registryDelivery.toLocaleString('fi-FI', { style: 'currency', currency: 'EUR' })}`
+                : deliveryOverride == null
+                  ? 'Tyhjä = ei toimituskulua. Syötä summa tai aseta rekisteriin.'
+                  : 'Käytetään tätä summaa hankinnassa.'}
+            </span>
           </label>
         </div>
       )}

@@ -199,6 +199,16 @@ export function getDevicePricingParams(
   return { discountPct: baseDiscount, marginPct: baseMargin };
 }
 
+function deviceDeliveryFeeOverride(
+  data: QuoteRequestData,
+  device: HeatPumpDevice,
+): number | null {
+  if (device.id === data.selectedDeviceId?.trim()) return data.deviceDeliveryFeeNet ?? null;
+  if (device.id === data.altDevice1Id?.trim()) return data.altDevice1DeliveryFeeNet ?? null;
+  if (device.id === data.altDevice2Id?.trim()) return data.altDevice2DeliveryFeeNet ?? null;
+  return null;
+}
+
 export function calculateDevicePurchaseNet(
   data: QuoteRequestData,
   device: HeatPumpDevice | null,
@@ -210,7 +220,13 @@ export function calculateDevicePurchaseNet(
     const override = Number(data.devicePurchaseOverrideNet) || 0;
     if (override > 0) return round2(override);
   }
-  return computePurchaseNetAlv0(device, Number(device.listPrice) || 0, discountPct, feeMap);
+  return computePurchaseNetAlv0(
+    device,
+    Number(device.listPrice) || 0,
+    discountPct,
+    feeMap,
+    deviceDeliveryFeeOverride(data, device),
+  );
 }
 
 export function calculateDeviceSellNet(
@@ -237,6 +253,7 @@ export function deviceBrandDefaultsPatch(device: HeatPumpDevice | null): Partial
     deviceMarginPercent: device.brand.toLowerCase() === 'inventor' ? 100 : 25,
     devicePurchaseOverrideNet: null,
     deviceSaleOverrideNet: null,
+    deviceDeliveryFeeNet: null,
   };
 }
 

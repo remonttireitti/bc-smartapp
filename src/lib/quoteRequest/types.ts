@@ -108,13 +108,17 @@ export type QuoteRequestData = {
   deviceMarginPercent: number;
   devicePurchaseOverrideNet: number | null;
   deviceSaleOverrideNet: number | null;
+  /** Tyhjä = rekisterin toimituskulu. */
+  deviceDeliveryFeeNet: number | null;
   selectedDeviceId: string;
   altDevice1Id: string;
   altDevice2Id: string;
   altDevice1DiscountPercent: number;
   altDevice1MarginPercent: number;
+  altDevice1DeliveryFeeNet: number | null;
   altDevice2DiscountPercent: number;
   altDevice2MarginPercent: number;
+  altDevice2DeliveryFeeNet: number | null;
   optionAGood: string;
   optionABad: string;
   optionBGood: string;

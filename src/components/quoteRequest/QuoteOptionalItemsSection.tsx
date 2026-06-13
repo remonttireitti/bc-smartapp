@@ -43,6 +43,7 @@ export default function QuoteOptionalItemsSection({ form, canEdit, onChange }: P
             )}
           </div>
           <ToggleSwitch
+            id={`optional-item-${item.id}`}
             checked={item.enabled}
             disabled={!canEdit}
             label="Tarjoa asiakkaalle"
