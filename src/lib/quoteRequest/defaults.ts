@@ -1,7 +1,7 @@
 import type { Partnership } from '../../types';
 import { partnershipPermsActingOnOwner } from '../management';
 import { applyLegacyQuoteFields } from './legacyImport';
-import { resolveLegacyDeviceIds, findDeviceById, resolveQuoteMainDeviceForTotals } from './deviceCatalog';
+import { resolveLegacyDeviceIds, findDeviceById, resolveQuoteMainDeviceForTotals, applyMainDeviceSelection, syncMainDeviceBrandPricing } from './deviceCatalog';
 import { computePumpSizingNeedKw, resolveIilpLaborPricingMode } from './calculations';
 import { DEFAULT_TERMATEK_IILP_QUOTE_TERMS, DEFAULT_QUOTE_TERMS_PRINT } from './termatekDefaultTerms';
 import {
@@ -536,29 +536,22 @@ export function normalizePumpDeviceSelection(data: QuoteRequestData): QuoteReque
   if (existingId) {
     const existing = findDeviceById(existingId);
     if (existing) {
-      return {
+      return syncMainDeviceBrandPricing({
         ...data,
         selectedDeviceId: existing.id,
         deviceBrand: data.deviceBrand || existing.brand,
         deviceModel: data.deviceModel || existing.model,
         vilpBrandChoice:
           data.type === 'ilma-ilma' && !data.vilpBrandChoice ? existing.brand : data.vilpBrandChoice,
-      };
+      });
     }
   }
 
   const needKw = computePumpSizingNeedKw(data);
   const resolved = resolveQuoteMainDeviceForTotals(data, needKw);
-  if (!resolved) return data;
+  if (!resolved) return syncMainDeviceBrandPricing(data);
 
-  return {
-    ...data,
-    selectedDeviceId: resolved.id,
-    deviceBrand: data.deviceBrand || resolved.brand,
-    deviceModel: data.deviceModel || resolved.model,
-    vilpBrandChoice:
-      data.type === 'ilma-ilma' && !data.vilpBrandChoice ? resolved.brand : data.vilpBrandChoice,
-  };
+  return syncMainDeviceBrandPricing(applyMainDeviceSelection(data, resolved));
 }
 
 /** Normalisoi laitteen valinta ja IILP-urakan työrivit ennen tallennusta. */

@@ -13,6 +13,7 @@ import {
   vesiIlmaLampopumput,
 } from '../../data/pumpDeviceCatalog';
 import type { QuoteRequestData, QuoteType } from './types';
+import { isPumpQuoteType } from './constants';
 import { filterCompatibleDevicesForQuote } from './vilpCompatibility';
 import { listCustomRegistryDevices, resolveRegistryDevice } from './deviceRegistryState';
 
@@ -242,6 +243,39 @@ export function deviceBrandDefaultsPatch(device: HeatPumpDevice | null): Partial
 export function applyDeviceBrandDefaults(data: QuoteRequestData, device: HeatPumpDevice | null): QuoteRequestData {
   if (!device) return data;
   return { ...data, ...deviceBrandDefaultsPatch(device) };
+}
+
+/** Päivitä päälaite ja valmistajakohtaiset alennus/kate-oletukset. */
+export function applyMainDeviceSelection(data: QuoteRequestData, device: HeatPumpDevice): QuoteRequestData {
+  return {
+    ...applyDeviceBrandDefaults(data, device),
+    selectedDeviceId: device.id,
+    deviceBrand: device.brand,
+    deviceModel: device.model,
+    ...(data.type === 'ilma-ilma' ? { vilpBrandChoice: data.vilpBrandChoice || device.brand } : {}),
+  };
+}
+
+/** Korjaa vanha 52,5 % / 25 % -oletus kun laite ei ole Daikin. */
+export function syncMainDeviceBrandPricing(data: QuoteRequestData): QuoteRequestData {
+  if (!isPumpQuoteType(data.type)) return data;
+  if (data.deviceSaleOverrideNet != null || data.devicePurchaseOverrideNet != null) return data;
+  const device = findDeviceById(data.selectedDeviceId);
+  if (!device) return data;
+
+  const expectedDiscount = getDefaultDiscountFromListPercent(device);
+  const expectedMargin = device.brand.toLowerCase() === 'inventor' ? 100 : 25;
+  const discount = Number(data.deviceDiscountPercent) || 0;
+  const margin = Number(data.deviceMarginPercent) || 0;
+  if (Math.abs(discount - expectedDiscount) < 0.001 && Math.abs(margin - expectedMargin) < 0.001) {
+    return data;
+  }
+
+  const genericPumpDefaults = Math.abs(discount - 52.5) < 0.01 && Math.abs(margin - 25) < 0.01;
+  if (genericPumpDefaults && device.brand.toLowerCase() !== 'daikin') {
+    return applyDeviceBrandDefaults(data, device);
+  }
+  return data;
 }
 
 export function selectedDevices(data: QuoteRequestData): Array<{ key: DeviceOptionKey; device: HeatPumpDevice }> {

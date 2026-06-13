@@ -81,6 +81,7 @@ function DeviceOptionCard({
 
   const showSelection = variant === 'full' || variant === 'selection';
   const showPricing = variant === 'full' || variant === 'pricing';
+  const showDevicePrice = showPricing || (variant === 'selection' && device);
 
   if (variant === 'pricing' && !device) return null;
 
@@ -88,10 +89,15 @@ function DeviceOptionCard({
     <div className="quote-device-card panel-inset">
       <div className="quote-line-head">
         <strong>{label}</strong>
-        {showPricing && device && (
+        {showDevicePrice && device && (
           <span className="muted">
-            {purchase.toLocaleString('fi-FI', { style: 'currency', currency: 'EUR' })} →{' '}
-            {sell.toLocaleString('fi-FI', { style: 'currency', currency: 'EUR' })}
+            Myyntihinta: {sell.toLocaleString('fi-FI', { style: 'currency', currency: 'EUR' })} (alv 0)
+            {showPricing && (
+              <>
+                {' '}
+                • Hankinta {purchase.toLocaleString('fi-FI', { style: 'currency', currency: 'EUR' })}
+              </>
+            )}
           </span>
         )}
       </div>

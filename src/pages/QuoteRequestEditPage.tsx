@@ -31,7 +31,14 @@ import {
 } from '../lib/subscribers';
 import { partnershipModuleAccess, partnershipPermsActingOnOwner, parseCompanySettings } from '../lib/management';
 import { computeKotitalousDeduction, computePumpSizingNeedKw, computeQuoteTotals, computeTravelNet, resolveIilpLaborPricingMode, travelCostLabel } from '../lib/quoteRequest/calculations';
-import { deliveryFeesFromCompanySettings, findDeviceById, resolveQuoteMainDeviceForTotals, formatDeviceLabel } from '../lib/quoteRequest/deviceCatalog';
+import {
+  applyMainDeviceSelection,
+  calculateDeviceSellNet,
+  deliveryFeesFromCompanySettings,
+  findDeviceById,
+  formatDeviceLabel,
+  resolveQuoteMainDeviceForTotals,
+} from '../lib/quoteRequest/deviceCatalog';
 import { setActiveDeviceRegistry, snapshotFromCompanySettings } from '../lib/quoteRequest/deviceRegistryState';
 import {
   BUILDING_TYPE_OPTIONS,
@@ -175,6 +182,10 @@ export default function QuoteRequestEditPage({ session }: Props) {
   const mainDevice = useMemo(
     () => (isPumpQuoteType(form.type) ? resolveQuoteMainDeviceForTotals(form, pumpSizingNeedKw) : null),
     [form, pumpSizingNeedKw],
+  );
+  const mainDeviceSellNet = useMemo(
+    () => (mainDevice ? calculateDeviceSellNet(form, mainDevice, deliveryFeeMap) : 0),
+    [form, mainDevice, deliveryFeeMap],
   );
   const kotitalous = useMemo(() => computeKotitalousDeduction(form), [form]);
   const pendingSiteDefaults = useMemo(
@@ -359,14 +370,7 @@ export default function QuoteRequestEditPage({ session }: Props) {
       const needKw = computePumpSizingNeedKw(prev);
       const resolved = resolveQuoteMainDeviceForTotals(prev, needKw);
       if (!resolved) return prev;
-      return {
-        ...prev,
-        selectedDeviceId: resolved.id,
-        iilpDeviceSelectionNote: '',
-        deviceBrand: resolved.brand,
-        deviceModel: resolved.model,
-        vilpBrandChoice: prev.vilpBrandChoice || resolved.brand,
-      };
+      return applyMainDeviceSelection(prev, resolved);
     });
   }, [
     formReady,
@@ -1610,7 +1614,12 @@ export default function QuoteRequestEditPage({ session }: Props) {
             </label>
             <div className="quote-summary-box">
               <p className="quote-vat-notice">{quoteVatPrintNotice(form.vatRate)}</p>
-              <div>Työt: {totals.workNet.toLocaleString('fi-FI', { style: 'currency', currency: 'EUR' })}</div>
+              <div>
+                {form.type === 'ilma-ilma' && resolveIilpLaborPricingMode(form) === 'urakka'
+                  ? 'Asennustyö (urakka)'
+                  : 'Työt'}
+                : {totals.workNet.toLocaleString('fi-FI', { style: 'currency', currency: 'EUR' })}
+              </div>
               <div>
                 Tarvikkeet: {totals.materialsNet.toLocaleString('fi-FI', { style: 'currency', currency: 'EUR' })}
               </div>
@@ -1621,8 +1630,20 @@ export default function QuoteRequestEditPage({ session }: Props) {
                 </div>
               )}
               <div>
-                Laite/urakka: {totals.deviceNet.toLocaleString('fi-FI', { style: 'currency', currency: 'EUR' })}
-                {mainDevice ? ` (${formatDeviceLabel(mainDevice)})` : ''}
+                Laite
+                {mainDevice ? `: ${formatDeviceLabel(mainDevice)}` : ''}:{' '}
+                {mainDeviceSellNet.toLocaleString('fi-FI', { style: 'currency', currency: 'EUR' })}
+                {form.vatRate > 0 && (
+                  <>
+                    {' '}
+                    (
+                    {(mainDeviceSellNet * (1 + form.vatRate / 100)).toLocaleString('fi-FI', {
+                      style: 'currency',
+                      currency: 'EUR',
+                    })}{' '}
+                    sis. ALV)
+                  </>
+                )}
               </div>
               {isPumpQuoteType(form.type) && !mainDevice && (
                 <p className="error">
