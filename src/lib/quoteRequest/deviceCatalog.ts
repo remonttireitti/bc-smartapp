@@ -62,9 +62,13 @@ export function findDeviceByModelHint(
   const exact = pool.find((device) => normalizeModelHint(device.model) === hint);
   if (exact) return exact;
 
+  const exactName = pool.find((device) => normalizeModelHint(device.name) === hint);
+  if (exactName) return exactName;
+
   const contains = pool.filter((device) => {
     const model = normalizeModelHint(device.model);
-    return hint.includes(model) || model.includes(hint);
+    const name = normalizeModelHint(device.name);
+    return hint.includes(model) || model.includes(hint) || hint.includes(name) || name.includes(hint);
   });
   if (contains.length === 1) return contains[0];
 
@@ -300,6 +304,17 @@ export function resolveQuoteMainDevice(
   }
 
   return null;
+}
+
+/** Päälaite tarjouslaskentaan ja tulosteeseen (sis. IILP-ehdotus kun id puuttuu). */
+export function resolveQuoteMainDeviceForTotals(
+  data: QuoteRequestData,
+  needKw?: number | null,
+): HeatPumpDevice | null {
+  return resolveQuoteMainDevice(data, {
+    needKw: needKw ?? null,
+    allowSuggest: data.type === 'ilma-ilma',
+  });
 }
 
 /** Ehdota pienin riittävän tehon laite valitulle valmistajalle. */

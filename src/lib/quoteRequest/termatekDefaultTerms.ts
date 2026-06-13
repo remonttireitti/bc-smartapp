@@ -1,3 +1,5 @@
+import type { QuoteRequestData, QuoteTermsPrintFlags, QuoteType } from './types';
+
 /** Termatek Oy – Perusasennus, takuut ja huolto (IILP). Lähde: Termatek_Perusasennus_Takuut_Huolto_Valmis.docx */
 export const DEFAULT_TERMATEK_IILP_QUOTE_TERMS = `Perusasennus, takuut ja huolto
 
@@ -69,6 +71,99 @@ Termatek pidättää oikeuden tehdä vähäisiä teknisiä muutoksia asennustapa
 Yleiset ehdot
 
 Tarjoukseen sovelletaan lisäksi Termatek Oy:n yleisiä sopimusehtoja, jotka ovat tämän tarjouksen liitteenä.`;
+
+export const DEFAULT_QUOTE_TERMS_PRINT: QuoteTermsPrintFlags = {
+  baseInstall: true,
+  warranty: true,
+  commissioning: true,
+  operationMaintenance: true,
+  extraWork: true,
+  general: true,
+};
+
+export const QUOTE_TERMS_PRINT_LABELS: Record<keyof QuoteTermsPrintFlags, string> = {
+  baseInstall: 'Perusasennuksen ehdot',
+  warranty: 'Takuut',
+  commissioning: 'Käyttöönotto ja dokumentaatio',
+  operationMaintenance: 'Käyttö ja huolto',
+  extraWork: 'Lisätyöt',
+  general: 'Yleiset ehdot',
+};
+
+const TERM_SECTION_HEADINGS: Array<{ key: keyof QuoteTermsPrintFlags; heading: string }> = [
+  { key: 'warranty', heading: 'Takuut' },
+  { key: 'commissioning', heading: 'Käyttöönotto ja dokumentaatio' },
+  { key: 'operationMaintenance', heading: 'Järjestelmän käyttö ja huolto' },
+  { key: 'extraWork', heading: 'Lisätyöt' },
+  { key: 'general', heading: 'Yleiset ehdot' },
+];
+
+export function resolveQuoteTermsPrintFlags(data: QuoteRequestData): QuoteTermsPrintFlags {
+  const raw = data.quoteTermsPrint;
+  if (!raw) return { ...DEFAULT_QUOTE_TERMS_PRINT };
+  return {
+    baseInstall: raw.baseInstall !== false,
+    warranty: raw.warranty !== false,
+    commissioning: raw.commissioning !== false,
+    operationMaintenance: raw.operationMaintenance !== false,
+    extraWork: raw.extraWork !== false,
+    general: raw.general !== false,
+  };
+}
+
+export function quoteTermsPrintHasAnyEnabled(flags: QuoteTermsPrintFlags): boolean {
+  return Object.values(flags).some(Boolean);
+}
+
+/** Suodattaa plain text -ehdot tulostusta varten valittujen osioiden mukaan. */
+export function filterQuoteTermsTextForPrint(text: string, flags: QuoteTermsPrintFlags): string {
+  if (!quoteTermsPrintHasAnyEnabled(flags)) return '';
+
+  const lines = text.split('\n');
+  const titleLine = lines[0]?.trim() ?? '';
+  let bodyStart = 1;
+  while (bodyStart < lines.length && !lines[bodyStart]?.trim()) bodyStart += 1;
+
+  const sections: Record<keyof QuoteTermsPrintFlags, string[]> = {
+    baseInstall: [],
+    warranty: [],
+    commissioning: [],
+    operationMaintenance: [],
+    extraWork: [],
+    general: [],
+  };
+
+  let currentKey: keyof QuoteTermsPrintFlags = 'baseInstall';
+  for (let i = bodyStart; i < lines.length; i += 1) {
+    const line = lines[i];
+    const trimmed = line.trim();
+    const match = TERM_SECTION_HEADINGS.find((entry) => entry.heading === trimmed);
+    if (match) {
+      currentKey = match.key;
+      sections[currentKey].push(line);
+      continue;
+    }
+    sections[currentKey].push(line);
+  }
+
+  const parts: string[] = [];
+  if (flags.baseInstall) {
+    if (titleLine) parts.push(titleLine);
+    const content = sections.baseInstall.join('\n').trim();
+    if (content) parts.push(content);
+  }
+  for (const { key } of TERM_SECTION_HEADINGS) {
+    if (!flags[key]) continue;
+    const content = sections[key].join('\n').trim();
+    if (content) parts.push(content);
+  }
+
+  return parts.join('\n\n').trim();
+}
+
+export function defaultQuoteTermsTextForType(type: QuoteType): string {
+  return type === 'ilma-ilma' ? DEFAULT_TERMATEK_IILP_QUOTE_TERMS : '';
+}
 
 /** Muuntaa lomakkeen plain text -ehdot tulosteen HTML:ksi. */
 export function quoteTermsPlainTextToHtml(text: string): string {

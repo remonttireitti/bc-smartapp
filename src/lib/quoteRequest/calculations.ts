@@ -5,35 +5,44 @@ import {
   calculateDevicePurchaseNet,
   calculateDeviceSellNet,
   findDeviceById,
-  resolveQuoteMainDevice,
+  resolveQuoteMainDeviceForTotals,
   selectedDevices,
 } from './deviceCatalog';
 import { isPumpQuoteType } from './constants';
 
 export type IilpBaseInstallParts = ReturnType<typeof getIilpBaseInstallParts>;
 
-export function getIilpBaseInstallParts(data: QuoteRequestData) {
-  const enabled = data.type === 'ilma-ilma' && (data.iilpBaseInstallEnabled ?? false);
-  if (!enabled) {
-    return {
-      enabled: false,
-      laborGross: 0,
-      materialsGross: 0,
-      totalGross: 0,
-      laborNet: 0,
-      materialsNet: 0,
-      totalNet: 0,
-    };
+export function resolveIilpLaborPricingMode(data: QuoteRequestData): 'urakka' | 'tuntityo' {
+  if (data.iilpLaborPricingMode === 'urakka' || data.iilpLaborPricingMode === 'tuntityo') {
+    return data.iilpLaborPricingMode;
   }
+  return data.iilpBaseInstallEnabled === false ? 'tuntityo' : 'urakka';
+}
 
+export function getIilpBaseInstallParts(data: QuoteRequestData) {
+  const empty = {
+    enabled: false,
+    mode: 'urakka' as const,
+    laborGross: 0,
+    materialsGross: 0,
+    totalGross: 0,
+    laborNet: 0,
+    materialsNet: 0,
+    totalNet: 0,
+  };
+  if (data.type !== 'ilma-ilma') return empty;
+
+  const mode = resolveIilpLaborPricingMode(data);
   const vatMult = 1 + (Number(data.vatRate) || 0) / 100;
-  const laborGross = Number(data.iilpBaseInstallLaborGross ?? 890) || 0;
+  const laborGross =
+    mode === 'urakka' ? Number(data.iilpBaseInstallLaborGross ?? 890) || 0 : 0;
   const materialsGross = Number(data.iilpBaseInstallMaterialsGross ?? 500) || 0;
   const laborNet = vatMult > 0 ? laborGross / vatMult : 0;
   const materialsNet = vatMult > 0 ? materialsGross / vatMult : 0;
 
   return {
-    enabled: true,
+    enabled: laborGross > 0 || materialsGross > 0,
+    mode,
     laborGross,
     materialsGross,
     totalGross: laborGross + materialsGross,
@@ -296,7 +305,7 @@ export function computeQuoteInternalTotals(
   let devicePurchaseNet = 0;
   let deviceSellNet = quoteTotals.deviceNet;
   if (isPumpQuoteType(data.type)) {
-    const mainDevice = resolveQuoteMainDevice(data);
+    const mainDevice = resolveQuoteMainDeviceForTotals(data, computePumpSizingNeedKw(data));
     if (mainDevice) {
       devicePurchaseNet = calculateDevicePurchaseNet(data, mainDevice, feeMap);
     }
@@ -362,7 +371,7 @@ export function computeQuoteTotals(
 
   let deviceNet = 0;
   if (isPumpQuoteType(data.type)) {
-    const mainDevice = resolveQuoteMainDevice(data);
+    const mainDevice = resolveQuoteMainDeviceForTotals(data, computePumpSizingNeedKw(data));
     deviceNet = mainDevice ? calculateDeviceSellNet(data, mainDevice, feeMap) : 0;
   } else {
     deviceNet = Number(data.deviceSaleOverrideNet || 0);

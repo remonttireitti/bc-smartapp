@@ -8,6 +8,8 @@ import SubscriberPicker from '../components/SubscriberPicker';
 import NavigationBreadcrumb from '../components/NavigationBreadcrumb';
 import QuoteIilpDevicesSection from '../components/quoteRequest/QuoteIilpDevicesSection';
 import QuoteIilpSiteSection from '../components/quoteRequest/QuoteIilpSiteSection';
+import QuoteIilpOptionsSection from '../components/quoteRequest/QuoteIilpOptionsSection';
+import QuoteTermsPrintSection from '../components/quoteRequest/QuoteTermsPrintSection';
 import QuoteOptionalItemsSection from '../components/quoteRequest/QuoteOptionalItemsSection';
 import QuotePumpDevicesSection from '../components/quoteRequest/QuotePumpDevicesSection';
 import QuoteVilpConfigSection from '../components/quoteRequest/QuoteVilpConfigSection';
@@ -28,8 +30,8 @@ import {
   resolveSubscriberIdForReport,
 } from '../lib/subscribers';
 import { partnershipModuleAccess, partnershipPermsActingOnOwner, parseCompanySettings } from '../lib/management';
-import { computeKotitalousDeduction, computePumpSizingNeedKw, computeQuoteTotals, computeTravelNet, travelCostLabel } from '../lib/quoteRequest/calculations';
-import { deliveryFeesFromCompanySettings } from '../lib/quoteRequest/deviceCatalog';
+import { computeKotitalousDeduction, computePumpSizingNeedKw, computeQuoteTotals, computeTravelNet, resolveIilpLaborPricingMode, travelCostLabel } from '../lib/quoteRequest/calculations';
+import { deliveryFeesFromCompanySettings, suggestBestIilpDeviceId, applyDeviceBrandDefaults, findDeviceById } from '../lib/quoteRequest/deviceCatalog';
 import { setActiveDeviceRegistry, snapshotFromCompanySettings } from '../lib/quoteRequest/deviceRegistryState';
 import {
   BUILDING_TYPE_OPTIONS,
@@ -46,6 +48,11 @@ import {
   quoteVatPrintNotice,
   vatRateForQuoteProfile,
 } from '../lib/quoteRequest/constants';
+import {
+  confirmUnreviewedSiteDefaults,
+  listUnreviewedSiteDefaults,
+  siteDefaultsReviewSection,
+} from '../lib/quoteRequest/siteDefaultsReview';
 import {
   applyQuoteTypeChange,
   brandModeOptions,
@@ -284,6 +291,34 @@ export default function QuoteRequestEditPage({ session }: Props) {
   }, [selectedCustomer?.id, equipmentId, equipment.length]);
 
   useEffect(() => {
+    if (form.type !== 'ilma-ilma' || !canEdit || !form.vilpBrandChoice || !pumpSizingNeedKw) return;
+    if (form.selectedDeviceId && findDeviceById(form.selectedDeviceId)) return;
+    const suggestedId = suggestBestIilpDeviceId(form, pumpSizingNeedKw);
+    if (!suggestedId) return;
+    const device = findDeviceById(suggestedId);
+    if (!device) return;
+    patchForm({
+      ...applyDeviceBrandDefaults(form, device),
+      selectedDeviceId: suggestedId,
+      iilpDeviceSelectionNote: '',
+      deviceBrand: device.brand,
+      deviceModel: device.model,
+      vilpBrandChoice: device.brand,
+    });
+  }, [
+    form.type,
+    form.vilpBrandChoice,
+    form.selectedDeviceId,
+    form.heatedArea,
+    form.roomHeight,
+    form.iilpPurpose,
+    form.buildingType,
+    form.region,
+    canEdit,
+    pumpSizingNeedKw,
+  ]);
+
+  useEffect(() => {
     if (form.type !== 'ilma-ilma') return;
     if (form.buildingType === 'kerrostalo' && form.iilpPurpose !== 'cooling') {
       patchForm({ iilpPurpose: 'cooling' });
@@ -291,7 +326,11 @@ export default function QuoteRequestEditPage({ session }: Props) {
   }, [form.type, form.buildingType, form.iilpPurpose]);
 
   useEffect(() => {
-    if (form.type !== 'ilma-ilma' || !form.iilpBaseInstallEnabled) return;
+    if (form.type !== 'ilma-ilma') return;
+    const mode =
+      form.iilpLaborPricingMode ??
+      (form.iilpBaseInstallEnabled === false ? 'tuntityo' : 'urakka');
+    if (mode !== 'urakka') return;
     const needsFixLaborHours = Number(form.laborHours || 0) !== 0;
     const needsFixWorkRow = form.workItems.some(
       (wi) => wi.description === 'Työ' && Number(wi.hours || 0) !== 0,
@@ -303,7 +342,7 @@ export default function QuoteRequestEditPage({ session }: Props) {
         wi.description === 'Työ' ? { ...wi, hours: 0 } : wi,
       ),
     });
-  }, [form.type, form.iilpBaseInstallEnabled, form.laborHours, form.workItems]);
+  }, [form.type, form.iilpLaborPricingMode, form.iilpBaseInstallEnabled, form.laborHours, form.workItems]);
 
   async function loadPartnerships() {
     if (!profile?.company_id) return;
@@ -437,6 +476,14 @@ export default function QuoteRequestEditPage({ session }: Props) {
       setError('Lisää vähintään yksi työ tai tarvike.');
       setActiveSection('tyot');
       return false;
+    }
+
+    if (isPumpQuoteType(form.type)) {
+      const unreviewed = listUnreviewedSiteDefaults(form);
+      if (unreviewed.length > 0 && !confirmUnreviewedSiteDefaults(form)) {
+        setActiveSection(siteDefaultsReviewSection(unreviewed));
+        return false;
+      }
     }
 
     setBusy(true);
@@ -964,6 +1011,13 @@ export default function QuoteRequestEditPage({ session }: Props) {
             )}
           <section className="form-section">
             <h2>Työt ja tarvikkeet</h2>
+            {form.type === 'ilma-ilma' && resolveIilpLaborPricingMode(form) === 'urakka' ? (
+              <p className="muted panel-inset">
+                Asennustyö hinnoitellaan urakkahinnalla Hinnoittelu-välilehdellä. Asennustarvikkeet
+                lasketaan erikseen samalla välilehdellä.
+              </p>
+            ) : (
+              <>
             <div className="section-header-row">
               <h3>Työrivit</h3>
               {canEdit && (
@@ -1044,6 +1098,9 @@ export default function QuoteRequestEditPage({ session }: Props) {
                 </div>
               </div>
             ))}
+
+              </>
+            )}
 
             <div className="section-header-row">
               <h3>Tarvikkeet</h3>
@@ -1186,6 +1243,9 @@ export default function QuoteRequestEditPage({ session }: Props) {
                 feeMap={deliveryFeeMap}
                 onChange={patchForm}
               />
+            )}
+            {form.type === 'ilma-ilma' && (
+              <QuoteIilpOptionsSection form={form} canEdit={canEdit} onChange={patchForm} />
             )}
             {form.type === 'ilma-ilma' && (
               <QuotePumpDevicesSection
@@ -1382,8 +1442,11 @@ export default function QuoteRequestEditPage({ session }: Props) {
               />
             </label>
             {isPumpQuoteType(form.type) && (
+              <QuoteTermsPrintSection form={form} canEdit={canEdit} onChange={patchForm} />
+            )}
+            {isPumpQuoteType(form.type) && (
               <label>
-                Tarjousehdot (tuloste: takuut, perusasennus, huolto)
+                Tarjousehdot (teksti)
                 <textarea
                   rows={14}
                   value={form.quoteTermsText}

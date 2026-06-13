@@ -1,5 +1,5 @@
-import { getIilpBaseInstallParts } from '../../lib/quoteRequest/calculations';
-import type { QuoteRequestData } from '../../lib/quoteRequest/types';
+import { getIilpBaseInstallParts, resolveIilpLaborPricingMode } from '../../lib/quoteRequest/calculations';
+import type { IilpLaborPricingMode, QuoteRequestData } from '../../lib/quoteRequest/types';
 
 type Props = {
   form: QuoteRequestData;
@@ -8,34 +8,60 @@ type Props = {
 };
 
 export default function QuoteIilpOptionsSection({ form, canEdit, onChange }: Props) {
-  const baseInstall = getIilpBaseInstallParts(form);
+  const mode = resolveIilpLaborPricingMode(form);
+  const installParts = getIilpBaseInstallParts(form);
+
+  function setMode(next: IilpLaborPricingMode) {
+    if (next === mode) return;
+    onChange({
+      iilpLaborPricingMode: next,
+      ...(next === 'urakka'
+        ? {
+            laborHours: 0,
+            workItems: form.workItems.map((wi) =>
+              wi.description === 'Työ' ? { ...wi, hours: 0 } : wi,
+            ),
+          }
+        : {}),
+    });
+  }
 
   return (
     <section className="form-section">
-      <h2>Asennustapa</h2>
+      <h2>Asennuksen hinnoittelu</h2>
       <p className="muted">
-        Valitse tarjotaanko kiinteä perusasennuspaketti vai lasketaanko työt ja tarvikkeet kohdekohtaisesti
-        Työt &amp; tarvikkeet -välilehdellä.
+        Työ hinnoitellaan oletuksena urakkahinnalla. Vaihtoehtoisesti tuntityönä Työt &amp; tarvikkeet
+        -välilehdellä. Asennustarvikkeet lasketaan aina erikseen.
       </p>
-      <label className="checkbox-inline">
-        <input
-          type="checkbox"
-          checked={form.iilpBaseInstallEnabled}
-          disabled={!canEdit}
-          onChange={(e) =>
-            onChange({
-              iilpBaseInstallEnabled: e.target.checked,
-              laborHours: e.target.checked ? 0 : form.laborHours,
-            })
-          }
-        />
-        Sisällytä perusasennuspaketti (työ + tarvikkeet, kiinteä hinta)
-      </label>
+      <div className="quote-vat-profile-options">
+        <label className="quote-vat-profile-option">
+          <input
+            type="radio"
+            name="iilpLaborPricingMode"
+            value="urakka"
+            checked={mode === 'urakka'}
+            disabled={!canEdit}
+            onChange={() => setMode('urakka')}
+          />
+          <span>Urakkahinta</span>
+        </label>
+        <label className="quote-vat-profile-option">
+          <input
+            type="radio"
+            name="iilpLaborPricingMode"
+            value="tuntityo"
+            checked={mode === 'tuntityo'}
+            disabled={!canEdit}
+            onChange={() => setMode('tuntityo')}
+          />
+          <span>Tuntityönä</span>
+        </label>
+      </div>
 
-      {form.iilpBaseInstallEnabled && (
+      {mode === 'urakka' && (
         <div className="line-form-grid panel-inset">
           <label>
-            Työn osuus (€, sis. ALV)
+            Asennustyö urakkahinta (€, sis. ALV)
             <input
               type="number"
               min="0"
@@ -47,29 +73,52 @@ export default function QuoteIilpOptionsSection({ form, canEdit, onChange }: Pro
               }
             />
           </label>
-          <label>
-            Tarvikkeet (€, sis. ALV)
-            <input
-              type="number"
-              min="0"
-              step="1"
-              value={form.iilpBaseInstallMaterialsGross}
-              disabled={!canEdit}
-              onChange={(e) =>
-                onChange({ iilpBaseInstallMaterialsGross: Number(e.target.value) })
-              }
-            />
-          </label>
-          <p className="quote-summary-box">
-            Perusasennus yhteensä:{' '}
-            <strong>
-              {baseInstall.totalGross.toLocaleString('fi-FI', { style: 'currency', currency: 'EUR' })}
-            </strong>{' '}
-            (alv 0: {baseInstall.totalNet.toLocaleString('fi-FI', { style: 'currency', currency: 'EUR' })})
-          </p>
         </div>
       )}
+
+      {mode === 'tuntityo' && (
+        <p className="muted panel-inset">
+          Syötä tunnit ja tuntihinta Työt &amp; tarvikkeet -välilehdellä. Lisätyöt laskutetaan
+          erikseen Hinnoittelu-välilehden tuntihinnalla.
+        </p>
+      )}
+
+      <div className="line-form-grid panel-inset">
+        <label>
+          Asennustarvikkeet (€, sis. ALV)
+          <input
+            type="number"
+            min="0"
+            step="1"
+            value={form.iilpBaseInstallMaterialsGross}
+            disabled={!canEdit}
+            onChange={(e) =>
+              onChange({ iilpBaseInstallMaterialsGross: Number(e.target.value) })
+            }
+          />
+        </label>
+        <p className="quote-summary-box">
+          {mode === 'urakka' ? (
+            <>
+              Asennus yhteensä:{' '}
+              <strong>
+                {installParts.totalGross.toLocaleString('fi-FI', { style: 'currency', currency: 'EUR' })}
+              </strong>{' '}
+              (työ + tarvikkeet, alv 0:{' '}
+              {installParts.totalNet.toLocaleString('fi-FI', { style: 'currency', currency: 'EUR' })})
+            </>
+          ) : (
+            <>
+              Asennustarvikkeet:{' '}
+              <strong>
+                {installParts.materialsGross.toLocaleString('fi-FI', { style: 'currency', currency: 'EUR' })}
+              </strong>{' '}
+              (alv 0:{' '}
+              {installParts.materialsNet.toLocaleString('fi-FI', { style: 'currency', currency: 'EUR' })})
+            </>
+          )}
+        </p>
+      </div>
     </section>
   );
 }
-

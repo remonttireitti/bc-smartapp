@@ -75,6 +75,9 @@ export const IILP_PURPOSE_LABELS: Record<QuoteRequestData['iilpPurpose'], string
 export const DEFAULT_IILP_PAYMENT_TERMS =
   '30 % ennakkomaksu tilauksesta, loppu laskutetaan käyttöönoton jälkeen';
 
+/** IILP vaikutusalueen oletus (m²). */
+export const DEFAULT_IILP_HEATED_AREA = 70;
+
 export const DEFAULT_IILP_ENERGY_SAVINGS_TEXT =
   'Arvioitu sähkönsäästö noin 500–1 000 €/vuosi kohteen käytöstä ja energiahintoihin riippuen.';
 
@@ -94,7 +97,8 @@ export const quoteTemplates: Record<QuoteType, Partial<QuoteRequestData>> = {
     laborRate: 65,
     travelCost: 0,
     vatRate: 25.5,
-    iilpBaseInstallEnabled: true,
+    heatedArea: 70,
+    iilpLaborPricingMode: 'urakka',
     iilpBaseInstallLaborGross: 890,
     iilpBaseInstallMaterialsGross: 500,
   },

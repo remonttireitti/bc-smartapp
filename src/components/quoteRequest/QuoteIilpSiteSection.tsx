@@ -9,7 +9,6 @@ import {
 } from '../../lib/quoteRequest/calculations';
 import { IILP_PURPOSE_LABELS } from '../../lib/quoteRequest/constants';
 import type { QuoteRequestData } from '../../lib/quoteRequest/types';
-import QuoteIilpOptionsSection from './QuoteIilpOptionsSection';
 
 type Props = {
   form: QuoteRequestData;
@@ -31,7 +30,7 @@ export default function QuoteIilpSiteSection({ form, canEdit, onChange }: Props)
         <h2>Mitoitus</h2>
         <p className="muted">
           Teholaskenta perustuu vaikutusalueen tilavuuteen (m² × huonekorkeus), käyttötarkoitukseen ja
-          sijaintiin. Tällä välilehdellä ei ole hintatietoja — vain mitoitus ja asennustapa.
+          sijaintiin. Hinnoittelu on Hinnoittelu-välilehdellä.
         </p>
         <div className="quote-field-grid">
           <label>
@@ -162,8 +161,6 @@ export default function QuoteIilpSiteSection({ form, canEdit, onChange }: Props)
           </label>
         </div>
       </section>
-
-      <QuoteIilpOptionsSection form={form} canEdit={canEdit} onChange={onChange} />
     </>
   );
 }

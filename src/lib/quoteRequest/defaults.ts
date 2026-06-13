@@ -1,8 +1,9 @@
 import type { Partnership } from '../../types';
 import { partnershipPermsActingOnOwner } from '../management';
 import { applyLegacyQuoteFields } from './legacyImport';
-import { resolveLegacyDeviceIds, resolveQuoteMainDevice } from './deviceCatalog';
-import { DEFAULT_TERMATEK_IILP_QUOTE_TERMS } from './termatekDefaultTerms';
+import { resolveLegacyDeviceIds, findDeviceById, resolveQuoteMainDeviceForTotals } from './deviceCatalog';
+import { computePumpSizingNeedKw } from './calculations';
+import { DEFAULT_TERMATEK_IILP_QUOTE_TERMS, DEFAULT_QUOTE_TERMS_PRINT } from './termatekDefaultTerms';
 import {
   DEFAULT_IILP_OPTIONAL_ITEMS,
   DEFAULT_IILP_PAYMENT_TERMS,
@@ -21,6 +22,7 @@ import type {
   QuoteMaterial,
   QuoteOptionalItem,
   QuoteRequestData,
+  QuoteTermsPrintFlags,
   QuoteType,
   QuoteWorkItem,
 } from './types';
@@ -140,7 +142,7 @@ export function createEmptyQuoteRequestData(type: QuoteType = 'vesi-ilma'): Quot
     customerEmail: '',
     customerContactPerson: '',
     buildingType: 'omakotitalo',
-    heatedArea: 150,
+    heatedArea: template.heatedArea ?? 150,
     roomHeight: 2.5,
     buildingYear: 1990,
     region: 'keski',
@@ -168,6 +170,7 @@ export function createEmptyQuoteRequestData(type: QuoteType = 'vesi-ilma'): Quot
     travelKmDistance: 0,
     travelKmRate: DEFAULT_TRAVEL_KM_RATE,
     quoteTermsText: type === 'ilma-ilma' ? DEFAULT_TERMATEK_IILP_QUOTE_TERMS : '',
+    quoteTermsPrint: { ...DEFAULT_QUOTE_TERMS_PRINT },
     vatRate: vatRateForQuoteProfile(quoteVatProfile),
     deviceDiscountPercent: 52.5,
     deviceMarginPercent: 25,
@@ -199,7 +202,7 @@ export function createEmptyQuoteRequestData(type: QuoteType = 'vesi-ilma'): Quot
     vilpZones: 1,
     vilpCooling: true,
     iilpPurpose: 'cooling_heating',
-    iilpBaseInstallEnabled: template.iilpBaseInstallEnabled ?? false,
+    iilpLaborPricingMode: template.iilpLaborPricingMode ?? 'urakka',
     iilpBaseInstallLaborGross: template.iilpBaseInstallLaborGross ?? 890,
     iilpBaseInstallMaterialsGross: template.iilpBaseInstallMaterialsGross ?? 500,
     iilpDeviceSelectionNote: '',
@@ -284,10 +287,6 @@ export function applyQuoteTypeChange(current: QuoteRequestData, nextType: QuoteT
         }),
     vilpBrandChoice: nextType === 'vesi-ilma' ? current.vilpBrandChoice : '',
     vilpOutdoorModel: nextType === 'vesi-ilma' ? current.vilpOutdoorModel : '',
-    iilpBaseInstallEnabled:
-      nextType === 'ilma-ilma'
-        ? (template.iilpBaseInstallEnabled ?? true)
-        : current.iilpBaseInstallEnabled,
     iilpBaseInstallLaborGross:
       nextType === 'ilma-ilma'
         ? (template.iilpBaseInstallLaborGross ?? 890)
@@ -296,6 +295,14 @@ export function applyQuoteTypeChange(current: QuoteRequestData, nextType: QuoteT
       nextType === 'ilma-ilma'
         ? (template.iilpBaseInstallMaterialsGross ?? 500)
         : current.iilpBaseInstallMaterialsGross,
+    iilpLaborPricingMode:
+      nextType === 'ilma-ilma'
+        ? (template.iilpLaborPricingMode ?? 'urakka')
+        : current.iilpLaborPricingMode,
+    heatedArea:
+      nextType === 'ilma-ilma' && current.type !== 'ilma-ilma'
+        ? (template.heatedArea ?? 70)
+        : current.heatedArea,
   };
 }
 
@@ -425,6 +432,7 @@ export function normalizeQuoteRequestData(raw: unknown): QuoteRequestData {
     travelKmDistance: normalizeTravelKmDistance(record, type),
     travelKmRate: normalizeTravelKmRate(record),
     quoteTermsText: normalizeQuoteTermsText(record, type),
+    quoteTermsPrint: normalizeQuoteTermsPrint(record),
     quoteVatProfile:
       record.quoteVatProfile === 'consumer' || record.quoteVatProfile === 'business'
         ? record.quoteVatProfile
@@ -465,7 +473,7 @@ export function normalizeQuoteRequestData(raw: unknown): QuoteRequestData {
     vilpZones: Number(record.vilpZones) === 2 ? 2 : 1,
     vilpCooling: record.vilpCooling !== false,
     iilpPurpose: record.iilpPurpose === 'cooling' ? 'cooling' : 'cooling_heating',
-    iilpBaseInstallEnabled: record.iilpBaseInstallEnabled === true,
+    iilpLaborPricingMode: normalizeIilpLaborPricingMode(record),
     iilpBaseInstallLaborGross: Number(record.iilpBaseInstallLaborGross) || 890,
     iilpBaseInstallMaterialsGross: Number(record.iilpBaseInstallMaterialsGross) || 500,
     iilpDeviceSelectionNote:
@@ -489,9 +497,13 @@ export function normalizeQuoteRequestData(raw: unknown): QuoteRequestData {
 }
 
 function normalizePumpDeviceSelection(data: QuoteRequestData): QuoteRequestData {
-  if (!isPumpQuoteType(data.type) || data.selectedDeviceId) return data;
-  const resolved = resolveQuoteMainDevice(data);
+  if (!isPumpQuoteType(data.type)) return data;
+  if (data.selectedDeviceId && findDeviceById(data.selectedDeviceId)) return data;
+
+  const needKw = computePumpSizingNeedKw(data);
+  const resolved = resolveQuoteMainDeviceForTotals(data, needKw);
   if (!resolved) return data;
+
   return {
     ...data,
     selectedDeviceId: resolved.id,
@@ -499,6 +511,27 @@ function normalizePumpDeviceSelection(data: QuoteRequestData): QuoteRequestData 
     deviceModel: data.deviceModel || resolved.model,
     vilpBrandChoice:
       data.type === 'ilma-ilma' && !data.vilpBrandChoice ? resolved.brand : data.vilpBrandChoice,
+  };
+}
+
+function normalizeIilpLaborPricingMode(record: Record<string, unknown>): QuoteRequestData['iilpLaborPricingMode'] {
+  if (record.iilpLaborPricingMode === 'tuntityo' || record.iilpLaborPricingMode === 'urakka') {
+    return record.iilpLaborPricingMode;
+  }
+  return record.iilpBaseInstallEnabled === false ? 'tuntityo' : 'urakka';
+}
+
+function normalizeQuoteTermsPrint(record: Record<string, unknown>): QuoteTermsPrintFlags {
+  const raw = record.quoteTermsPrint;
+  if (!raw || typeof raw !== 'object') return { ...DEFAULT_QUOTE_TERMS_PRINT };
+  const row = raw as Record<string, unknown>;
+  return {
+    baseInstall: row.baseInstall !== false,
+    warranty: row.warranty !== false,
+    commissioning: row.commissioning !== false,
+    operationMaintenance: row.operationMaintenance !== false,
+    extraWork: row.extraWork !== false,
+    general: row.general !== false,
   };
 }
 

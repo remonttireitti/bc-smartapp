@@ -1,9 +1,17 @@
 import type { BrandDeliveryFeeByCategoryMap } from '../../data/devicePricingShared';
 import type { HeatPumpDevice } from '../../data/pumpDeviceCatalog';
-import { computeKotitalousDeduction, computeIilpCoolingEnergyEstimate, computeQuoteTotals, computeTravelNet, effectiveIilpPurpose, travelCostLabel } from './calculations';
+import { computeKotitalousDeduction, computeIilpCoolingEnergyEstimate, computeQuoteTotals, computePumpSizingNeedKw, computeTravelNet, effectiveIilpPurpose, travelCostLabel } from './calculations';
 import { DEFAULT_IILP_ENERGY_SAVINGS_TEXT, DEFAULT_IILP_PAYMENT_TERMS } from './constants';
-import { quoteTermsPlainTextToHtml } from './termatekDefaultTerms';
-import { calculateDeviceSellNet, findDeviceById, resolveQuoteMainDevice } from './deviceCatalog';
+import {
+  DEFAULT_TERMATEK_IILP_QUOTE_TERMS,
+  defaultQuoteTermsTextForType,
+  filterQuoteTermsTextForPrint,
+  quoteTermsPlainTextToHtml,
+  quoteTermsPrintHasAnyEnabled,
+  resolveQuoteTermsPrintFlags,
+} from './termatekDefaultTerms';
+import type { QuoteTermsPrintFlags } from './types';
+import { calculateDeviceSellNet, findDeviceById, resolveQuoteMainDeviceForTotals } from './deviceCatalog';
 import type { QuotePrintCustomer, QuotePrintMeta } from './printHtml';
 import {
   buildTermatekAssetMap,
@@ -277,46 +285,111 @@ function buildProductFactsHtml(data: QuoteRequestData, device: HeatPumpDevice | 
     </div>`;
 }
 
+function buildVilpFallbackTermsHtml(flags: QuoteTermsPrintFlags): string {
+  const parts: string[] = [
+    `<div class="terms-title">Termatek – Takuut, huolto ja asennusehdot</div>`,
+    `<div class="terms-lead">Tämä asiakirja toimii Termatekin vesi–ilmalämpöpumppujen (VILP) myyntiä ja asennusta koskevana ehtopohjana. Ehdot koskevat sekä kuluttaja- että yritysasiakkaita, ellei toisin mainita.</div>`,
+  ];
+  if (flags.warranty) {
+    parts.push(
+      `<h3>1. Takuut</h3>`,
+      `<p><strong>1.1 Asennustyön takuu</strong> — Termatek myöntää suorittamalleen asennustyölle kahden (2) vuoden takuun.</p>`,
+      `<p><strong>1.2 Laitetakuu</strong> — Laitteiden ja tarvikkeiden osalta noudatetaan kunkin valmistajan voimassa olevia takuuehtoja.</p>`,
+    );
+  }
+  if (flags.commissioning) {
+    parts.push(
+      `<h3>2. Käyttöönotto ja dokumentaatio</h3>`,
+      `<p>Asennuksen valmistuttua Termatek luovuttaa tilaajalle käyttö- ja huolto-ohjeet, käyttöönotto-dokumentit sekä käyttöönotto-pöytäkirjan.</p>`,
+    );
+  }
+  if (flags.operationMaintenance) {
+    parts.push(
+      `<h3>3. Järjestelmän käyttö ja vastuut</h3>`,
+      `<p>Vesi–ilmalämpöpumpun asianmukainen toiminta edellyttää oikein mitoitettua lämmönjakojärjestelmää, määräysten mukaista sähköliitäntää sekä ohjeiden noudattamista.</p>`,
+      `<h3>4. Huolto</h3>`,
+      `<p>Laitteen takuun voimassaolo edellyttää huoltoa valmistajan ohjeiden mukaisesti. Termatek tarjoaa erikseen sovittaessa huoltoja ja huoltosopimuksia.</p>`,
+    );
+  }
+  if (flags.extraWork) {
+    parts.push(
+      `<h3>5. Lisätyöt</h3>`,
+      `<p>Mahdolliset lisätyöt suoritetaan vain tilaajan hyväksynnällä ja laskutetaan erikseen.</p>`,
+    );
+  }
+  if (flags.general) {
+    parts.push(
+      `<h3>6. Sovellettava laki</h3>`,
+      `<p>Sopimukseen sovelletaan Suomen lakia. Kuluttaja-asiakkaiden osalta noudatetaan kuluttajansuojalainsäädäntöä.</p>`,
+    );
+  }
+  return parts.join('\n');
+}
+
+function buildIilpFallbackTermsHtml(flags: QuoteTermsPrintFlags): string {
+  const parts: string[] = [
+    `<div class="terms-title">Termatek – Takuut, huolto ja asennusehdot</div>`,
+    `<div class="terms-lead">Tämä asiakirja toimii Termatekin ilma–ilmalämpöpumppujen (IILP) myyntiä ja asennusta koskevana ehtopohjana. Ehdot koskevat sekä kuluttaja- että yritysasiakkaita, ellei toisin mainita.</div>`,
+  ];
+  if (flags.warranty) {
+    parts.push(
+      `<h3>1. Takuut</h3>`,
+      `<p><strong>1.1 Asennustyön takuu</strong> — Termatek myöntää suorittamalleen asennustyölle kahden (2) vuoden takuun. Takuu kattaa asennusvirheistä johtuvat viat, jotka ilmenevät takuuaikana. Takuu ei kata normaalia kulumista, käyttövirheitä, puutteellisesta huollosta johtuvia vikoja eikä kolmansien osapuolien tekemiä muutoksia tai korjauksia.</p>`,
+      `<p><strong>1.2 Laitetakuu</strong> — Laitteiden ja tarvikkeiden osalta noudatetaan kunkin valmistajan voimassa olevia takuuehtoja. Valmistajan takuu kattaa materiaali- ja valmistusvirheet, mutta ei virheellisestä käytöstä tai asennusympäristöstä johtuvia vaurioita. Mahdollisista laajennetuista takuista sovitaan erikseen ja ne kirjataan tilausvahvistukseen.</p>`,
+    );
+  }
+  if (flags.commissioning) {
+    parts.push(
+      `<h3>2. Käyttöönotto ja dokumentaatio</h3>`,
+      `<p>Asennuksen valmistuttua Termatek luovuttaa tilaajalle käyttö- ja huolto-ohjeet, käyttöönotto-dokumentit sekä käyttöönotto-pöytäkirjan, joka toimii laitteen takuuainestona. Tilaajan vastuulla on säilyttää dokumentaatio takuuajan ja mahdollista huoltoa varten.</p>`,
+    );
+  }
+  if (flags.operationMaintenance) {
+    parts.push(
+      `<h3>3. Järjestelmän käyttö ja vastuut</h3>`,
+      `<p>Ilma–ilmalämpöpumpun asianmukainen toiminta edellyttää oikein mitoitettua ja toimivaa lämmönjakojärjestelmää, määräysten mukaista sähköliitäntää sekä käyttö- ja huolto-ohjeiden noudattamista. Termatek ei vastaa järjestelmän toimintahäiriöistä tai energiatehokkuudesta, mikäli ne johtuvat rakennuksen rakenteista tai eristyksestä, olemassa olevan lämmönjakojärjestelmän puutteista tai tilaajan tekemistä muutoksista järjestelmään.</p>`,
+      `<h3>4. Huolto</h3>`,
+      `<p>Laitteen takuun voimassaolo edellyttää huoltoa valmistajan ohjeiden mukaisesti. Termatek tarjoaa erikseen sovittaessa määräaikaishuoltoja, huoltosopimuksia sekä järjestelmän tarkastuksia myös takuuajan jälkeen.</p>`,
+    );
+  }
+  if (flags.extraWork) {
+    parts.push(
+      `<h3>5. Lisätyöt</h3>`,
+      `<p>Mahdolliset lisätyöt suoritetaan vain tilaajan hyväksynnällä ja laskutetaan erikseen. Termatek pidättää oikeuden tehdä vähäisiä teknisiä muutoksia asennustapaan, mikäli ne parantavat järjestelmän toimivuutta tai turvallisuutta.</p>`,
+    );
+  }
+  if (flags.general) {
+    parts.push(
+      `<h3>6. Sovellettava laki</h3>`,
+      `<p>Sopimukseen sovelletaan Suomen lakia. Kuluttaja-asiakkaiden osalta noudatetaan kuluttajansuojalainsäädäntöä. Mahdolliset erimielisyydet pyritään ensisijaisesti ratkaisemaan neuvotteluteitse.</p>`,
+    );
+  }
+  return parts.join('\n');
+}
+
 function buildTermsHtml(data: QuoteRequestData): string {
-  if (data.quoteTermsText?.trim()) {
+  const flags = resolveQuoteTermsPrintFlags(data);
+  if (!quoteTermsPrintHasAnyEnabled(flags)) return '';
+
+  const sourceText =
+    data.quoteTermsText?.trim() ||
+    (isIilpQuote(data) ? DEFAULT_TERMATEK_IILP_QUOTE_TERMS : defaultQuoteTermsTextForType(data.type));
+
+  if (sourceText) {
+    const filtered = filterQuoteTermsTextForPrint(sourceText, flags);
+    if (!filtered.trim()) return '';
     return `
       <div class="terms-title">Termatek – Takuut, huolto ja asennusehdot</div>
-      ${quoteTermsPlainTextToHtml(data.quoteTermsText.trim())}`;
+      ${quoteTermsPlainTextToHtml(filtered)}`;
   }
+
   if (isIilpQuote(data)) {
-    return `
-      <div class="terms-title">Termatek – Takuut, huolto ja asennusehdot</div>
-      <div class="terms-lead">Tämä asiakirja toimii Termatekin ilma–ilmalämpöpumppujen (IILP) myyntiä ja asennusta koskevana ehtopohjana. Ehdot koskevat sekä kuluttaja- että yritysasiakkaita, ellei toisin mainita.</div>
-      <h3>1. Takuut</h3>
-      <p><strong>1.1 Asennustyön takuu</strong> — Termatek myöntää suorittamalleen asennustyölle kahden (2) vuoden takuun. Takuu kattaa asennusvirheistä johtuvat viat, jotka ilmenevät takuuaikana. Takuu ei kata normaalia kulumista, käyttövirheitä, puutteellisesta huollosta johtuvia vikoja eikä kolmansien osapuolien tekemiä muutoksia tai korjauksia.</p>
-      <p><strong>1.2 Laitetakuu</strong> — Laitteiden ja tarvikkeiden osalta noudatetaan kunkin valmistajan voimassa olevia takuuehtoja. Valmistajan takuu kattaa materiaali- ja valmistusvirheet, mutta ei virheellisestä käytöstä tai asennusympäristöstä johtuvia vaurioita. Mahdollisista laajennetuista takuista sovitaan erikseen ja ne kirjataan tilausvahvistukseen.</p>
-      <h3>2. Käyttöönotto ja dokumentaatio</h3>
-      <p>Asennuksen valmistuttua Termatek luovuttaa tilaajalle käyttö- ja huolto-ohjeet, käyttöönotto-dokumentit sekä käyttöönotto-pöytäkirjan, joka toimii laitteen takuuainestona. Tilaajan vastuulla on säilyttää dokumentaatio takuuajan ja mahdollista huoltoa varten.</p>
-      <h3>3. Järjestelmän käyttö ja vastuut</h3>
-      <p>Ilma–ilmalämpöpumpun asianmukainen toiminta edellyttää oikein mitoitettua ja toimivaa lämmönjakojärjestelmää, määräysten mukaista sähköliitäntää sekä käyttö- ja huolto-ohjeiden noudattamista. Termatek ei vastaa järjestelmän toimintahäiriöistä tai energiatehokkuudesta, mikäli ne johtuvat rakennuksen rakenteista tai eristyksestä, olemassa olevan lämmönjakojärjestelmän puutteista tai tilaajan tekemistä muutoksista järjestelmään.</p>
-      <h3>4. Huolto</h3>
-      <p>Laitteen takuun voimassaolo edellyttää huoltoa valmistajan ohjeiden mukaisesti. Termatek tarjoaa erikseen sovittaessa määräaikaishuoltoja, huoltosopimuksia sekä järjestelmän tarkastuksia myös takuuajan jälkeen.</p>
-      <h3>5. Lisätyöt</h3>
-      <p>Mahdolliset lisätyöt suoritetaan vain tilaajan hyväksynnällä ja laskutetaan erikseen. Termatek pidättää oikeuden tehdä vähäisiä teknisiä muutoksia asennustapaan, mikäli ne parantavat järjestelmän toimivuutta tai turvallisuutta.</p>
-      <h3>6. Sovellettava laki</h3>
-      <p>Sopimukseen sovelletaan Suomen lakia. Kuluttaja-asiakkaiden osalta noudatetaan kuluttajansuojalainsäädäntöä. Mahdolliset erimielisyydet pyritään ensisijaisesti ratkaisemaan neuvotteluteitse.</p>`;
+    const html = buildIilpFallbackTermsHtml(flags);
+    return html.includes('<h3>') ? html : '';
   }
-  return `
-      <div class="terms-title">Termatek – Takuut, huolto ja asennusehdot</div>
-      <div class="terms-lead">Tämä asiakirja toimii Termatekin vesi–ilmalämpöpumppujen (VILP) myyntiä ja asennusta koskevana ehtopohjana. Ehdot koskevat sekä kuluttaja- että yritysasiakkaita, ellei toisin mainita.</div>
-      <h3>1. Takuut</h3>
-      <p><strong>1.1 Asennustyön takuu</strong> — Termatek myöntää suorittamalleen asennustyölle kahden (2) vuoden takuun.</p>
-      <p><strong>1.2 Laitetakuu</strong> — Laitteiden ja tarvikkeiden osalta noudatetaan kunkin valmistajan voimassa olevia takuuehtoja.</p>
-      <h3>2. Käyttöönotto ja dokumentaatio</h3>
-      <p>Asennuksen valmistuttua Termatek luovuttaa tilaajalle käyttö- ja huolto-ohjeet, käyttöönotto-dokumentit sekä käyttöönotto-pöytäkirjan.</p>
-      <h3>3. Järjestelmän käyttö ja vastuut</h3>
-      <p>Vesi–ilmalämpöpumpun asianmukainen toiminta edellyttää oikein mitoitettua lämmönjakojärjestelmää, määräysten mukaista sähköliitäntää sekä ohjeiden noudattamista.</p>
-      <h3>4. Huolto</h3>
-      <p>Laitteen takuun voimassaolo edellyttää huoltoa valmistajan ohjeiden mukaisesti. Termatek tarjoaa erikseen sovittaessa huoltoja ja huoltosopimuksia.</p>
-      <h3>5. Lisätyöt</h3>
-      <p>Mahdolliset lisätyöt suoritetaan vain tilaajan hyväksynnällä ja laskutetaan erikseen.</p>
-      <h3>6. Sovellettava laki</h3>
-      <p>Sopimukseen sovelletaan Suomen lakia. Kuluttaja-asiakkaiden osalta noudatetaan kuluttajansuojalainsäädäntöä.</p>`;
+
+  const html = buildVilpFallbackTermsHtml(flags);
+  return html.includes('<h3>') ? html : '';
 }
 
 function buildContactSectionHtml(input: {
@@ -439,7 +512,7 @@ function buildTermatekPricingLines(input: {
   if (totals.iilpBaseInstall.enabled && totals.iilpBaseInstall.laborGross > 0) {
     const hasInstallLine = lines.some((line) => /asennustyö/i.test(line.label));
     if (!hasInstallLine) {
-      lines.unshift({ label: 'Asennustyö', gross: totals.iilpBaseInstall.laborGross });
+      lines.unshift({ label: 'Asennustyö (urakka)', gross: totals.iilpBaseInstall.laborGross });
     }
   }
 
@@ -465,7 +538,7 @@ function buildTermatekPricingLines(input: {
         gross: rowGross,
       });
     }
-  } else if (totals.iilpBaseInstall.enabled && totals.iilpBaseInstall.materialsGross > 0) {
+  } else if (totals.iilpBaseInstall.materialsGross > 0) {
     listedMaterialsGross = totals.iilpBaseInstall.materialsGross;
     lines.push({ label: 'Asennustarvikkeet', gross: totals.iilpBaseInstall.materialsGross });
   }
@@ -748,7 +821,7 @@ export function generateTermatekVilpPrintHtml(input: {
   const billing = settings.billing ?? {};
   const totals = computeQuoteTotals(data, feeMap);
   const kotitalous = computeKotitalousDeduction(data);
-  const device = resolveQuoteMainDevice(data);
+  const device = resolveQuoteMainDeviceForTotals(data, computePumpSizingNeedKw(data));
   const vatRate = Number(data.vatRate) || 0;
   const vatMult = 1 + vatRate / 100;
   const offerNo = formatOfferNumber(meta);
@@ -816,6 +889,7 @@ export function generateTermatekVilpPrintHtml(input: {
   const productBenefitsHtml = buildProductBenefitsHtml(device);
   const energySavingsHtml = buildEnergySavingsHtml(data, device);
   const kotitalousHtml = buildKotitalousExtrasHtml(kotitalous, vatRate);
+  const termsHtml = buildTermsHtml(data);
 
   const productSubtitleHtml = iilp
     ? ''
@@ -907,12 +981,13 @@ export function generateTermatekVilpPrintHtml(input: {
     </div>
   </div>
 
+  ${termsHtml ? `
   <div class="a4 page--terms-flow page--sheet">
     ${headerHtml}
     <div class="content terms terms-compact">
-      ${buildTermsHtml(data)}
+      ${termsHtml}
     </div>
-  </div>
+  </div>` : ''}
 
   <div class="a4 page page--sheet page--contact">
     ${headerHtml}

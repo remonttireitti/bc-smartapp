@@ -23,24 +23,36 @@ export default function QuoteIilpDevicesSection({ form, canEdit, feeMap, onChang
   useEffect(() => {
     if (!canEdit || !form.vilpBrandChoice || !suggestedId) return;
     const key = `${form.vilpBrandChoice}:${needKw}:${suggestedId}`;
-    if (autoAppliedRef.current === key) return;
-    if (!form.selectedDeviceId) {
+    const current = form.selectedDeviceId ? findDeviceById(form.selectedDeviceId) : null;
+    if (current?.id === suggestedId) {
       autoAppliedRef.current = key;
-      const device = findDeviceById(suggestedId);
-      onChange({
-        selectedDeviceId: suggestedId,
-        iilpDeviceSelectionNote: '',
-        ...(device
-          ? {
-              ...applyDeviceBrandDefaults(form, device),
-              deviceBrand: device.brand,
-              deviceModel: device.model,
-              vilpBrandChoice: device.brand,
-            }
-          : {}),
-      });
+      return;
     }
-  }, [canEdit, form.vilpBrandChoice, form.selectedDeviceId, needKw, suggestedId, onChange]);
+    if (current) return;
+    if (autoAppliedRef.current === key) return;
+    autoAppliedRef.current = key;
+    const device = findDeviceById(suggestedId);
+    onChange({
+      selectedDeviceId: suggestedId,
+      iilpDeviceSelectionNote: '',
+      ...(device
+        ? {
+            ...applyDeviceBrandDefaults(form, device),
+            deviceBrand: device.brand,
+            deviceModel: device.model,
+            vilpBrandChoice: device.brand,
+          }
+        : {}),
+    });
+  }, [
+    canEdit,
+    form,
+    form.vilpBrandChoice,
+    form.selectedDeviceId,
+    needKw,
+    suggestedId,
+    onChange,
+  ]);
 
   const manualSelection =
     form.selectedDeviceId && suggestedId && form.selectedDeviceId !== suggestedId;

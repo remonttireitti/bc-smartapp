@@ -9,6 +9,8 @@ export type QuoteProjectType = 'uudis' | 'korjaus' | 'rinnalle';
 export type QuoteBrandMode = 'auto' | 'own' | `partner:${string}`;
 export type QuoteConsumptionUnit = 'litraa' | 'kwh';
 export type IilpPurpose = 'cooling' | 'cooling_heating';
+/** IILP asennustyön hinnoittelutapa: urakkahinta tai tuntityö. */
+export type IilpLaborPricingMode = 'urakka' | 'tuntityo';
 export type VilpIndoorConfig = 'hydrobox' | 'integroitu' | 'ilman-varaa';
 export type VilpBrandChoice = '' | 'Daikin' | 'Inventor' | 'Samsung';
 
@@ -99,6 +101,8 @@ export type QuoteRequestData = {
   travelKmRate: number;
   /** Termatek / tulosteen takuu- ja asennusehdot (plain text). */
   quoteTermsText: string;
+  /** Mitkä ehto-osiot tulostetaan tarjouksen ehtosivulle. */
+  quoteTermsPrint: QuoteTermsPrintFlags;
   vatRate: number;
   deviceDiscountPercent: number;
   deviceMarginPercent: number;
@@ -129,8 +133,13 @@ export type QuoteRequestData = {
   vilpZones: 1 | 2;
   vilpCooling: boolean;
   iilpPurpose: IilpPurpose;
-  iilpBaseInstallEnabled: boolean;
+  /** Oletus: urakkahinta. Vaihtoehto: tuntityö (Työt-välilehti). */
+  iilpLaborPricingMode: IilpLaborPricingMode;
+  /** @deprecated käytä iilpLaborPricingMode */
+  iilpBaseInstallEnabled?: boolean;
+  /** Urakkahinta (€, sis. ALV) kun iilpLaborPricingMode === 'urakka'. */
   iilpBaseInstallLaborGross: number;
+  /** Asennustarvikkeet erikseen (€, sis. ALV). */
   iilpBaseInstallMaterialsGross: number;
   /** Huomautus kun laite valitaan käsin ehdotetun sijaan. */
   iilpDeviceSelectionNote: string;
@@ -175,3 +184,13 @@ export type QuoteRequestRow = {
 };
 
 export type QuoteEditSection = 'asiakas' | 'kohde' | 'tyot' | 'hinnoittelu';
+
+/** Ehtosivun tulostusvalinnat (on/off). */
+export type QuoteTermsPrintFlags = {
+  baseInstall: boolean;
+  warranty: boolean;
+  commissioning: boolean;
+  operationMaintenance: boolean;
+  extraWork: boolean;
+  general: boolean;
+};
