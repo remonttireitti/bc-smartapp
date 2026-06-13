@@ -52,8 +52,26 @@ export function isTermatekCompany(meta: QuotePrintMeta): boolean {
   return (meta.companyName || '').toLowerCase().includes('termatek');
 }
 
-function deviceIntroBullet(data: QuoteRequestData, device: HeatPumpDevice | null): string {
-  const name = device?.name ?? 'Vesi-ilmalämpöpumppu';
+function isIilpQuote(data: QuoteRequestData): boolean {
+  return data.type === 'ilma-ilma';
+}
+
+function defaultProductTitle(data: QuoteRequestData, device: HeatPumpDevice | null): string {
+  return device?.name ?? (isIilpQuote(data) ? 'Ilmalämpöpumppu' : 'Vesi-ilmalämpöpumppu');
+}
+
+function unitsSubtitle(data: QuoteRequestData): string {
+  return isIilpQuote(data) ? 'Sisä- ja ulkoyksikkö' : 'Ulkoyksikkö + sisäyksikkö';
+}
+
+function deviceIntroBullets(data: QuoteRequestData, device: HeatPumpDevice | null): string[] {
+  const name = defaultProductTitle(data, device);
+  if (isIilpQuote(data)) {
+    return [
+      `Ilmalämpöpumpun asennus: ${name}`,
+      'Tarjous sisältää kohteeseen suunnitellun asennuksen',
+    ];
+  }
   const indoorLabel = vilpIndoorConfigLabel(data.vilpIndoorConfig);
   const indoor =
     data.vilpIndoorConfig === 'integroitu'
@@ -61,7 +79,92 @@ function deviceIntroBullet(data: QuoteRequestData, device: HeatPumpDevice | null
       : indoorLabel && indoorLabel !== 'Ilman varaajaa / monoblock'
         ? ` (${indoorLabel})`
         : '';
-  return `Vesi-ilmalämpöpumpun asennus: ${name}${indoor}`.trim();
+  return [`Vesi-ilmalämpöpumpun asennus: ${name}${indoor}`.trim()];
+}
+
+function introBulletsHtml(bullets: string[]): string {
+  return bullets.map((bullet) => `<li>${esc(bullet)}</li>`).join('');
+}
+
+function formatPowerRange(min: number | undefined, max: number | undefined): string {
+  if (min == null || max == null) return '—';
+  return `${min} – ${max} kW`;
+}
+
+function buildProductFactsHtml(data: QuoteRequestData, device: HeatPumpDevice | null): string {
+  if (isIilpQuote(data)) {
+    return `
+    <div class="fact-grid">
+      <div class="fact-card"><div class="fact-k">Laitetyyppi</div><div class="fact-v">Ilmalämpöpumppu</div></div>
+      <div class="fact-card"><div class="fact-k">Merkki</div><div class="fact-v">${esc(device?.brand ?? '—')}</div></div>
+      <div class="fact-card"><div class="fact-k">Malli</div><div class="fact-v">${esc(device?.model ?? '—')}</div></div>
+      <div class="fact-card"><div class="fact-k">Jäähdytysteho</div><div class="fact-v">${formatPowerRange(device?.coolingPowerMin, device?.coolingPowerMax)}</div></div>
+      <div class="fact-card"><div class="fact-k">Lämmitysteho</div><div class="fact-v">${formatPowerRange(device?.heatingPowerMin, device?.heatingPowerMax)}</div></div>
+      <div class="fact-card"><div class="fact-k">Toimitussisältö</div><div class="fact-v">Sisä- ja ulkoyksikkö</div></div>
+      <div class="fact-card"><div class="fact-k">Asennus</div><div class="fact-v">Asennus laskettu annettujen tietojen perusteella</div></div>
+    </div>`;
+  }
+  return `
+    <div class="fact-grid">
+      <div class="fact-card"><div class="fact-k">Laitetyyppi</div><div class="fact-v">Vesi-ilmalämpöpumppu</div></div>
+      <div class="fact-card"><div class="fact-k">Merkki</div><div class="fact-v">${esc(device?.brand ?? '—')}</div></div>
+      <div class="fact-card"><div class="fact-k">Malli</div><div class="fact-v">${esc(device?.model ?? '—')}</div></div>
+      <div class="fact-card"><div class="fact-k">Lämmitysteho</div><div class="fact-v">${formatPowerRange(device?.heatingPowerMin, device?.heatingPowerMax)}</div></div>
+      <div class="fact-card"><div class="fact-k">Toimitussisältö</div><div class="fact-v">Ulkoyksikkö + sisäyksikkö</div></div>
+      <div class="fact-card"><div class="fact-k">Asennus</div><div class="fact-v">Asennus tarjouksen mukaisesti</div></div>
+    </div>`;
+}
+
+function buildTermsHtml(data: QuoteRequestData): string {
+  if (isIilpQuote(data)) {
+    return `
+      <div class="terms-title">Termatek – Takuut, huolto ja asennusehdot</div>
+      <div class="terms-lead">Tämä asiakirja toimii Termatekin ilma–ilmalämpöpumppujen (IILP) myyntiä ja asennusta koskevana ehtopohjana. Ehdot koskevat sekä kuluttaja- että yritysasiakkaita, ellei toisin mainita.</div>
+      <h3>1. Takuut</h3>
+      <p><strong>1.1 Asennustyön takuu</strong> — Termatek myöntää suorittamalleen asennustyölle kahden (2) vuoden takuun. Takuu kattaa asennusvirheistä johtuvat viat, jotka ilmenevät takuuaikana. Takuu ei kata normaalia kulumista, käyttövirheitä, puutteellisesta huollosta johtuvia vikoja eikä kolmansien osapuolien tekemiä muutoksia tai korjauksia.</p>
+      <p><strong>1.2 Laitetakuu</strong> — Laitteiden ja tarvikkeiden osalta noudatetaan kunkin valmistajan voimassa olevia takuuehtoja. Valmistajan takuu kattaa materiaali- ja valmistusvirheet, mutta ei virheellisestä käytöstä tai asennusympäristöstä johtuvia vaurioita. Mahdollisista laajennetuista takuista sovitaan erikseen ja ne kirjataan tilausvahvistukseen.</p>
+      <h3>2. Käyttöönotto ja dokumentaatio</h3>
+      <p>Asennuksen valmistuttua Termatek luovuttaa tilaajalle käyttö- ja huolto-ohjeet, käyttöönotto-dokumentit sekä käyttöönotto-pöytäkirjan, joka toimii laitteen takuuainestona. Tilaajan vastuulla on säilyttää dokumentaatio takuuajan ja mahdollista huoltoa varten.</p>
+      <h3>3. Järjestelmän käyttö ja vastuut</h3>
+      <p>Ilma–ilmalämpöpumpun asianmukainen toiminta edellyttää oikein mitoitettua ja toimivaa lämmönjakojärjestelmää, määräysten mukaista sähköliitäntää sekä käyttö- ja huolto-ohjeiden noudattamista. Termatek ei vastaa järjestelmän toimintahäiriöistä tai energiatehokkuudesta, mikäli ne johtuvat rakennuksen rakenteista tai eristyksestä, olemassa olevan lämmönjakojärjestelmän puutteista tai tilaajan tekemistä muutoksista järjestelmään.</p>
+      <h3>4. Huolto</h3>
+      <p>Laitteen takuun voimassaolo edellyttää huoltoa valmistajan ohjeiden mukaisesti. Termatek tarjoaa erikseen sovittaessa määräaikaishuoltoja, huoltosopimuksia sekä järjestelmän tarkastuksia myös takuuajan jälkeen.</p>
+      <h3>5. Lisätyöt</h3>
+      <p>Mahdolliset lisätyöt suoritetaan vain tilaajan hyväksynnällä ja laskutetaan erikseen. Termatek pidättää oikeuden tehdä vähäisiä teknisiä muutoksia asennustapaan, mikäli ne parantavat järjestelmän toimivuutta tai turvallisuutta.</p>
+      <h3>6. Sovellettava laki</h3>
+      <p>Sopimukseen sovelletaan Suomen lakia. Kuluttaja-asiakkaiden osalta noudatetaan kuluttajansuojalainsäädäntöä. Mahdolliset erimielisyydet pyritään ensisijaisesti ratkaisemaan neuvotteluteitse.</p>`;
+  }
+  return `
+      <div class="terms-title">Termatek – Takuut, huolto ja asennusehdot</div>
+      <div class="terms-lead">Tämä asiakirja toimii Termatekin vesi–ilmalämpöpumppujen (VILP) myyntiä ja asennusta koskevana ehtopohjana. Ehdot koskevat sekä kuluttaja- että yritysasiakkaita, ellei toisin mainita.</div>
+      <h3>1. Takuut</h3>
+      <p><strong>1.1 Asennustyön takuu</strong> — Termatek myöntää suorittamalleen asennustyölle kahden (2) vuoden takuun.</p>
+      <p><strong>1.2 Laitetakuu</strong> — Laitteiden ja tarvikkeiden osalta noudatetaan kunkin valmistajan voimassa olevia takuuehtoja.</p>
+      <h3>2. Käyttöönotto ja dokumentaatio</h3>
+      <p>Asennuksen valmistuttua Termatek luovuttaa tilaajalle käyttö- ja huolto-ohjeet, käyttöönotto-dokumentit sekä käyttöönotto-pöytäkirjan.</p>
+      <h3>3. Järjestelmän käyttö ja vastuut</h3>
+      <p>Vesi–ilmalämpöpumpun asianmukainen toiminta edellyttää oikein mitoitettua lämmönjakojärjestelmää, määräysten mukaista sähköliitäntää sekä ohjeiden noudattamista.</p>
+      <h3>4. Huolto</h3>
+      <p>Laitteen takuun voimassaolo edellyttää huoltoa valmistajan ohjeiden mukaisesti. Termatek tarjoaa erikseen sovittaessa huoltoja ja huoltosopimuksia.</p>
+      <h3>5. Lisätyöt</h3>
+      <p>Mahdolliset lisätyöt suoritetaan vain tilaajan hyväksynnällä ja laskutetaan erikseen.</p>
+      <h3>6. Sovellettava laki</h3>
+      <p>Sopimukseen sovelletaan Suomen lakia. Kuluttaja-asiakkaiden osalta noudatetaan kuluttajansuojalainsäädäntöä.</p>`;
+}
+
+function buildDeliveryBullets(data: QuoteRequestData): string[] {
+  if (isIilpQuote(data)) {
+    return [
+      'Laite valittu kohteen ja mitoituksen mukaisesti.',
+      'Asennus toteutetaan valmistajan ohjeiden ja viranomaismääräysten mukaan.',
+      'Käyttöönotto sisältää testauksen, luovutuksen ja käytön opastuksen.',
+    ];
+  }
+  return [
+    'Laite valitaan kohteen ja mitoituksen mukaisesti.',
+    'Asennus toteutetaan valmistajan ohjeiden ja viranomaismääräysten mukaan.',
+    'Käyttöönotto sisältää testauksen, luovutuksen ja käytön opastuksen.',
+  ];
 }
 
 function workGrossRows(data: QuoteRequestData, vatMult: number): Array<{ desc: string; hours: number; gross: number }> {
@@ -252,8 +355,10 @@ export function generateTermatekVilpPrintHtml(input: {
   const vatRate = Number(data.vatRate) || 0;
   const vatMult = 1 + vatRate / 100;
   const offerNo = formatOfferNumber(meta);
-  const productTitle = device?.name ?? 'Vesi-ilmalämpöpumppu';
-  const introBullet = deviceIntroBullet(data, device);
+  const productTitle = defaultProductTitle(data, device);
+  const introBullets = deviceIntroBullets(data, device);
+  const unitLine = unitsSubtitle(data);
+  const iilp = isIilpQuote(data);
   const productImages =
     input.productImages
     ?? resolveTermatekProductImages({
@@ -319,15 +424,81 @@ export function generateTermatekVilpPrintHtml(input: {
   const headerHtml = `<div class="header header--termatek"><img class="brand-banner" src="${esc(assets.header)}" alt="${esc(meta.companyName)}" /></div>`;
   const footerHtml = `<div class="footer footer--bar"></div>`;
 
-  const productFactsHtml = `
-    <div class="fact-grid">
-      <div class="fact-card"><div class="fact-k">Laitetyyppi</div><div class="fact-v">Vesi-ilmalämpöpumppu</div></div>
-      <div class="fact-card"><div class="fact-k">Merkki</div><div class="fact-v">${esc(device?.brand ?? '—')}</div></div>
-      <div class="fact-card"><div class="fact-k">Malli</div><div class="fact-v">${esc(device?.model ?? '—')}</div></div>
-      <div class="fact-card"><div class="fact-k">Lämmitysteho</div><div class="fact-v">${device ? `${device.heatingPowerMin} – ${device.heatingPowerMax} kW` : '—'}</div></div>
-      <div class="fact-card"><div class="fact-k">Toimitussisältö</div><div class="fact-v">Ulkoyksikkö + sisäyksikkö</div></div>
-      <div class="fact-card"><div class="fact-k">Asennus</div><div class="fact-v">Asennus tarjouksen mukaisesti</div></div>
-    </div>`;
+  const productFactsHtml = buildProductFactsHtml(data, device);
+  const deliveryBullets = buildDeliveryBullets(data);
+  const optionalNotesHtml = data.notes.trim()
+    ? data.notes
+        .trim()
+        .split('\n')
+        .filter(Boolean)
+        .map((line) => `<div class="tuu-line">${esc(line)}</div>`)
+        .join('')
+    : '';
+
+  const kotitalousHtml =
+    kotitalous.laborOnlyGross > 0
+      ? iilp
+        ? `<span class="k">Kotitalousvähennys (maksimiarvio)</span><span>${formatEuro(kotitalous.onePerson)}</span>`
+        : `<span class="k">Kotitalousvähennys (maksimiarvio)</span><span>${formatEuro(kotitalous.onePerson)} — laskettu työn osuudesta ${formatEuro(kotitalous.laborOnlyGross)} (sis. ALV), ${(kotitalous.percent * 100).toFixed(0)}%, enintään ${formatEuro(kotitalous.maxPerPerson)} / hlö.</span>`
+      : '';
+
+  const productSubtitleHtml = iilp
+    ? ''
+    : `<div class="product-subtitle">Sisäyksikkö: ${esc(vilpIndoorConfigLabel(data.vilpIndoorConfig))}</div>`;
+
+  const summaryRowsHtml = iilp
+    ? `
+          <tr><td>Työn osuus</td><td class="num">${formatEuro(workGross)}</td></tr>
+          <tr><td>Tarvikkeet</td><td class="num">${formatEuro(materialsGross)}</td></tr>
+          <tr><td>Laitehinta</td><td class="num">${formatEuro(deviceGross)}</td></tr>
+          ${discountPct > 0 ? `<tr><td>Kokonaisalennus ${discountPct}%</td><td class="num">- ${formatEuro(discountGross)}</td></tr>` : ''}
+          <tr class="total"><td>Lopullinen tarjoushinta</td><td class="num">${formatEuro(finalGross)}</td></tr>`
+    : `
+          <tr><td>Työn osuus</td><td class="num">${formatEuro(workGross)}</td></tr>
+          <tr><td>Tarvikkeet</td><td class="num">${formatEuro(materialsGross)}</td></tr>
+          <tr><td>Laitehinta</td><td class="num">${formatEuro(deviceGross)}</td></tr>
+          <tr class="total"><td>Välisumma</td><td class="num">${formatEuro(subtotalGross)}</td></tr>
+          ${discountPct > 0 ? `<tr><td>Kokonaisalennus ${discountPct}%</td><td class="num">- ${formatEuro(discountGross)}</td></tr>` : ''}
+          <tr class="total"><td>Lopullinen tarjoushinta</td><td class="num">${formatEuro(finalGross)}</td></tr>`;
+
+  const pricingExtrasSectionHtml = iilp
+    ? `
+      <div class="section-title">Lisätiedot</div>
+      <div class="extras-grid">
+        ${kotitalousHtml}
+        <span class="k">Toimitusehto ja aika</span><span>${esc(deliveryLine)}</span>
+        <span class="k">Maksuehto</span><span>${esc(paymentLine)}</span>
+        <span class="k">Lisätyöt</span><span>${formatEuro(extraWorkGross)} / h (sis. ALV ${vatRate}%)</span>
+      </div>
+      ${optionalNotesHtml ? `<div class="section-title">Tuotteet ja palvelut tarjouksen mukaisesti</div>${optionalNotesHtml}` : ''}
+      <div class="section-title">Työerittely</div>
+      <table class="price-table">
+        <thead><tr><th>Kuvaus</th><th class="num">Tunnit</th><th class="num">Yht (sis. ALV ${vatRate}%)</th></tr></thead>
+        <tbody>${workDetailRows || '<tr><td colspan="3">—</td></tr>'}<tr class="total"><td>Työ yhteensä</td><td></td><td class="num">${formatEuro(workGross)}</td></tr></tbody>
+      </table>
+      <div class="section-title">Tarvike-erittely</div>
+      <table class="price-table">
+        <thead><tr><th>Tarvike</th><th class="num">Määrä</th><th class="num">á (sis. ALV)</th><th class="num">Yht (sis. ALV)</th></tr></thead>
+        <tbody>${materialDetailRows || '<tr><td colspan="4">—</td></tr>'}<tr class="total"><td>Tarvikkeet yhteensä</td><td></td><td></td><td class="num">${formatEuro(materialsGross)}</td></tr></tbody>
+      </table>`
+    : `
+      <div class="section-title">Työerittely</div>
+      <table class="price-table">
+        <thead><tr><th>Kuvaus</th><th class="num">Tunnit</th><th class="num">Yht (sis. ALV ${vatRate}%)</th></tr></thead>
+        <tbody>${workDetailRows || '<tr><td colspan="3">—</td></tr>'}<tr class="total"><td>Työ yhteensä</td><td></td><td class="num">${formatEuro(workGross)}</td></tr></tbody>
+      </table>
+      <div class="section-title">Tarvike-erittely</div>
+      <table class="price-table">
+        <thead><tr><th>Tarvike</th><th class="num">Määrä</th><th class="num">á (sis. ALV)</th><th class="num">Yht (sis. ALV)</th></tr></thead>
+        <tbody>${materialDetailRows || '<tr><td colspan="4">—</td></tr>'}<tr class="total"><td>Tarvikkeet yhteensä</td><td></td><td></td><td class="num">${formatEuro(materialsGross)}</td></tr></tbody>
+      </table>
+      <div class="section-title">Lisätiedot</div>
+      <div class="extras-grid">
+        ${kotitalousHtml}
+        <span class="k">Toimitusehto ja aika</span><span>${esc(deliveryLine)}</span>
+        <span class="k">Maksuehto</span><span>${esc(paymentLine)}</span>
+        <span class="k">Lisätyöt</span><span>${formatEuro(extraWorkGross)} / h (sis. ALV ${vatRate}%)</span>
+      </div>`;
 
   return `<!DOCTYPE html>
 <html lang="fi">
@@ -357,7 +528,7 @@ export function generateTermatekVilpPrintHtml(input: {
           <div class="product-card" style="padding:5mm;">
             <div style="font-weight:800;color:#072855;font-size:11pt;">Tarjottu kokonaisuus</div>
             <div style="font-size:16pt;font-weight:800;color:#111;margin-top:2mm;">${esc(productTitle)}</div>
-            <div style="font-size:10pt;color:#374151;margin-top:1mm;">Ulkoyksikkö + sisäyksikkö</div>
+            <div style="font-size:10pt;color:#374151;margin-top:1mm;">${esc(unitLine)}</div>
             <div style="font-size:9.5pt;color:#4b5563;margin-top:3mm;line-height:1.35;">Laite mitoitetaan kohteeseen sopivaksi ja asennetaan valmistajan ohjeiden mukaisesti.</div>
             ${heroProductImagesHtml(productImages)}
           </div>
@@ -401,7 +572,7 @@ export function generateTermatekVilpPrintHtml(input: {
           <div class="row"><span class="label">Huom.:</span><span class="value">Mikäli työn aikana havaitaan aiheutuvia lisä- ja/tai muutostöitä, veloitetaan ne erikseen tilaajan hyväksynnällä.</span></div>
         </div>
         <div class="tmk-lead"><strong>Kiitämme tarjouspyynnöstänne ja tarjoamme Teille seuraavasti:</strong></div>
-        <ul class="tmk-bullets"><li>${esc(introBullet)}</li></ul>
+        <ul class="tmk-bullets">${introBulletsHtml(introBullets)}</ul>
       </div>
       ${situationHtml}
     </div>
@@ -412,21 +583,19 @@ export function generateTermatekVilpPrintHtml(input: {
     ${footerHtml}
     <div class="content">
       <div class="product-title">${esc(productTitle)}</div>
-      <div class="product-subtitle">Sisäyksikkö: ${esc(vilpIndoorConfigLabel(data.vilpIndoorConfig))}</div>
+      ${productSubtitleHtml}
       <div class="product-layout">
         <div>${productImagesHtml(productImages)}</div>
         <div class="product-side">
           ${productFactsHtml}
           <div class="product-card">
             <div class="section-title" style="margin-top:0;">Tarjoukseen sisältyy</div>
-            <ul class="compact-list"><li>${esc(introBullet)}</li></ul>
+            <ul class="compact-list">${introBulletsHtml(introBullets)}</ul>
           </div>
           <div class="product-card">
             <div class="section-title" style="margin-top:0;">Toimitus ja käyttöönotto</div>
             <ul class="compact-list">
-              <li>Laite valitaan kohteen ja mitoituksen mukaisesti.</li>
-              <li>Asennus toteutetaan valmistajan ohjeiden ja viranomaismääräysten mukaan.</li>
-              <li>Käyttöönotto sisältää testauksen, luovutuksen ja käytön opastuksen.</li>
+              ${deliveryBullets.map((line) => `<li>${esc(line)}</li>`).join('')}
             </ul>
           </div>
         </div>
@@ -443,31 +612,10 @@ export function generateTermatekVilpPrintHtml(input: {
       <table class="price-table">
         <thead><tr><th>Kuvaus</th><th class="num">Yhteensä (sis. ALV ${vatRate}%)</th></tr></thead>
         <tbody>
-          <tr><td>Työn osuus</td><td class="num">${formatEuro(workGross)}</td></tr>
-          <tr><td>Tarvikkeet</td><td class="num">${formatEuro(materialsGross)}</td></tr>
-          <tr><td>Laitehinta</td><td class="num">${formatEuro(deviceGross)}</td></tr>
-          <tr class="total"><td>Välisumma</td><td class="num">${formatEuro(subtotalGross)}</td></tr>
-          ${discountPct > 0 ? `<tr><td>Kokonaisalennus ${discountPct}%</td><td class="num">- ${formatEuro(discountGross)}</td></tr>` : ''}
-          <tr class="total"><td>Lopullinen tarjoushinta</td><td class="num">${formatEuro(finalGross)}</td></tr>
+          ${summaryRowsHtml}
         </tbody>
       </table>
-      <div class="section-title">Työerittely</div>
-      <table class="price-table">
-        <thead><tr><th>Kuvaus</th><th class="num">Tunnit</th><th class="num">Yht (sis. ALV ${vatRate}%)</th></tr></thead>
-        <tbody>${workDetailRows || '<tr><td colspan="3">—</td></tr>'}<tr class="total"><td>Työ yhteensä</td><td></td><td class="num">${formatEuro(workGross)}</td></tr></tbody>
-      </table>
-      <div class="section-title">Tarvike-erittely</div>
-      <table class="price-table">
-        <thead><tr><th>Tarvike</th><th class="num">Määrä</th><th class="num">á (sis. ALV)</th><th class="num">Yht (sis. ALV)</th></tr></thead>
-        <tbody>${materialDetailRows || '<tr><td colspan="4">—</td></tr>'}<tr class="total"><td>Tarvikkeet yhteensä</td><td></td><td></td><td class="num">${formatEuro(materialsGross)}</td></tr></tbody>
-      </table>
-      <div class="section-title">Lisätiedot</div>
-      <div class="extras-grid">
-        ${kotitalous.laborOnlyGross > 0 ? `<span class="k">Kotitalousvähennys (maksimiarvio)</span><span>${formatEuro(kotitalous.onePerson)} — laskettu työn osuudesta ${formatEuro(kotitalous.laborOnlyGross)} (sis. ALV), ${(kotitalous.percent * 100).toFixed(0)}%, enintään ${formatEuro(kotitalous.maxPerPerson)} / hlö.</span>` : ''}
-        <span class="k">Toimitusehto ja aika</span><span>${esc(deliveryLine)}</span>
-        <span class="k">Maksuehto</span><span>${esc(paymentLine)}</span>
-        <span class="k">Lisätyöt</span><span>${formatEuro(extraWorkGross)} / h (sis. ALV ${vatRate}%)</span>
-      </div>
+      ${pricingExtrasSectionHtml}
     </div>
   </div>
 
@@ -475,21 +623,7 @@ export function generateTermatekVilpPrintHtml(input: {
     ${headerHtml}
     ${footerHtml}
     <div class="content">
-      <div class="terms-title">Termatek – Takuut, huolto ja asennusehdot</div>
-      <div class="terms-lead">Tämä asiakirja toimii Termatekin vesi–ilmalämpöpumppujen (VILP) myyntiä ja asennusta koskevana ehtopohjana. Ehdot koskevat sekä kuluttaja- että yritysasiakkaita, ellei toisin mainita.</div>
-      <h3>1. Takuut</h3>
-      <p><strong>1.1 Asennustyön takuu</strong> — Termatek myöntää suorittamalleen asennustyölle kahden (2) vuoden takuun.</p>
-      <p><strong>1.2 Laitetakuu</strong> — Laitteiden ja tarvikkeiden osalta noudatetaan kunkin valmistajan voimassa olevia takuuehtoja.</p>
-      <h3>2. Käyttöönotto ja dokumentaatio</h3>
-      <p>Asennuksen valmistuttua Termatek luovuttaa tilaajalle käyttö- ja huolto-ohjeet, käyttöönottodokumentit sekä käyttöönottopöytäkirjan.</p>
-      <h3>3. Järjestelmän käyttö ja vastuut</h3>
-      <p>Vesi–ilmalämpöpumpun asianmukainen toiminta edellyttää oikein mitoitettua lämmönjakojärjestelmää, määräysten mukaista sähköliitäntää sekä ohjeiden noudattamista.</p>
-      <h3>4. Huolto</h3>
-      <p>Laitteen takuun voimassaolo edellyttää huoltoa valmistajan ohjeiden mukaisesti. Termatek tarjoaa erikseen sovittaessa huoltoja ja huoltosopimuksia.</p>
-      <h3>5. Lisätyöt</h3>
-      <p>Mahdolliset lisätyöt suoritetaan vain tilaajan hyväksynnällä ja laskutetaan erikseen.</p>
-      <h3>6. Sovellettava laki</h3>
-      <p>Sopimukseen sovelletaan Suomen lakia. Kuluttaja-asiakkaiden osalta noudatetaan kuluttajansuojalainsäädäntöä.</p>
+      ${buildTermsHtml(data)}
     </div>
   </div>
 
@@ -532,7 +666,7 @@ export async function prepareTermatekVilpPrintHtml(input: {
     assets.logo = await embedUrlAsDataUrl(input.meta.logoUrl);
   }
   const device = findDeviceById(input.data.selectedDeviceId);
-  const productTitle = device?.name ?? 'Vesi-ilmalämpöpumppu';
+  const productTitle = defaultProductTitle(input.data, device);
   let productImages = resolveTermatekProductImages({
     quoteType: input.data.type,
     data: input.data,

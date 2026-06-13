@@ -128,7 +128,7 @@ export default function QuoteRequestPrintPage({ session }: Props) {
 
   const useTermatekTemplate =
     printDocument === 'offer'
-    && quoteData?.type === 'vesi-ilma'
+    && (quoteData?.type === 'vesi-ilma' || quoteData?.type === 'ilma-ilma')
     && printMode === 'enduser'
     && !!meta
     && isTermatekCompany(meta);
