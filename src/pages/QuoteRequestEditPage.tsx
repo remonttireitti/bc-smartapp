@@ -634,7 +634,13 @@ export default function QuoteRequestEditPage({ session }: Props) {
           return false;
         }
         const verified = normalizeQuoteRequestData((updatedRow as { data: QuoteRequestData }).data);
-        setForm(verified);
+        setForm({
+          ...verified,
+          acceptedSiteDefaults:
+            verified.acceptedSiteDefaults?.length
+              ? verified.acceptedSiteDefaults
+              : acceptedSiteDefaults,
+        });
         clearLocalQuoteDraft(quoteDraftStorageKey);
       } else {
         const { data, error: insertError } = await supabase
@@ -650,7 +656,14 @@ export default function QuoteRequestEditPage({ session }: Props) {
 
         const inserted = data as { id: string; data: QuoteRequestData };
         setQuoteId(inserted.id);
-        setForm(normalizeQuoteRequestData(inserted.data));
+        const verified = normalizeQuoteRequestData(inserted.data);
+        setForm({
+          ...verified,
+          acceptedSiteDefaults:
+            verified.acceptedSiteDefaults?.length
+              ? verified.acceptedSiteDefaults
+              : acceptedSiteDefaults,
+        });
         clearLocalQuoteDraft(quoteDraftStorageKey);
         navigate(`/tarjouspyynnot/${inserted.id}`, { replace: true });
       }
@@ -702,14 +715,27 @@ export default function QuoteRequestEditPage({ session }: Props) {
   });
 
   async function saveWithSiteDefaultsAcceptance(acceptedKeys: string[], acceptAll: boolean) {
-    const pending = siteDefaultsDialog?.pending ?? [];
-    const keysToAccept = acceptAll ? pending.map((item) => item.key) : acceptedKeys;
-    const nextStatus = siteDefaultsDialog?.nextStatus ?? status;
+    const dialogState = siteDefaultsDialog;
+    if (!dialogState) return;
+
+    const keysToAccept = acceptAll
+      ? dialogState.pending.map((item) => item.key)
+      : acceptedKeys;
+    const nextStatus = dialogState.nextStatus;
+    const mergedAccepted = [
+      ...new Set([...(form.acceptedSiteDefaults ?? []), ...keysToAccept]),
+    ];
+
+    setSiteDefaultsDialog(null);
+    setForm((prev) => ({ ...prev, acceptedSiteDefaults: mergedAccepted }));
+
     const ok = await saveQuote(nextStatus, {
       skipDefaultsCheck: true,
       extraAcceptedKeys: keysToAccept,
     });
-    if (ok) setSiteDefaultsDialog(null);
+    if (!ok) {
+      setSiteDefaultsDialog(dialogState);
+    }
   }
 
   async function onSubmit(event: FormEvent) {
