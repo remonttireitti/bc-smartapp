@@ -1,5 +1,5 @@
 import {
-  applyDeviceBrandDefaults,
+  deviceBrandDefaultsPatch,
   calculateDevicePurchaseNet,
   calculateDeviceSellNet,
   computeDevicePowerFitPercent,
@@ -122,7 +122,7 @@ function DeviceOptionCard({
               let patch: Partial<QuoteRequestData> = { [deviceIdField]: nextId };
               if (optionKey === 'A' && nextDevice) {
                 patch = {
-                  ...applyDeviceBrandDefaults(form, nextDevice),
+                  ...deviceBrandDefaultsPatch(nextDevice),
                   ...patch,
                   deviceBrand: nextDevice.brand,
                   deviceModel: nextDevice.model,

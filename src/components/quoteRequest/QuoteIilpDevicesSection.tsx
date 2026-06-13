@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useMemo } from 'react';
 import { computeIilpNeedKw } from '../../lib/quoteRequest/calculations';
 import { VILP_BRAND_OPTIONS } from '../../lib/quoteRequest/constants';
-import { findDeviceById, formatDeviceLabel, suggestBestIilpDeviceId, applyDeviceBrandDefaults } from '../../lib/quoteRequest/deviceCatalog';
+import { findDeviceById, formatDeviceLabel, suggestBestIilpDeviceId } from '../../lib/quoteRequest/deviceCatalog';
 import type { QuoteRequestData } from '../../lib/quoteRequest/types';
 import QuotePumpDevicesSection from './QuotePumpDevicesSection';
 
@@ -18,41 +18,6 @@ export default function QuoteIilpDevicesSection({ form, canEdit, feeMap, onChang
     () => suggestBestIilpDeviceId(form, needKw),
     [form, needKw],
   );
-  const autoAppliedRef = useRef<string>('');
-
-  useEffect(() => {
-    if (!canEdit || !form.vilpBrandChoice || !suggestedId) return;
-    const key = `${form.vilpBrandChoice}:${needKw}:${suggestedId}`;
-    const current = form.selectedDeviceId ? findDeviceById(form.selectedDeviceId) : null;
-    if (current?.id === suggestedId) {
-      autoAppliedRef.current = key;
-      return;
-    }
-    if (current) return;
-    if (autoAppliedRef.current === key) return;
-    autoAppliedRef.current = key;
-    const device = findDeviceById(suggestedId);
-    onChange({
-      selectedDeviceId: suggestedId,
-      iilpDeviceSelectionNote: '',
-      ...(device
-        ? {
-            ...applyDeviceBrandDefaults(form, device),
-            deviceBrand: device.brand,
-            deviceModel: device.model,
-            vilpBrandChoice: device.brand,
-          }
-        : {}),
-    });
-  }, [
-    canEdit,
-    form,
-    form.vilpBrandChoice,
-    form.selectedDeviceId,
-    needKw,
-    suggestedId,
-    onChange,
-  ]);
 
   const manualSelection =
     form.selectedDeviceId && suggestedId && form.selectedDeviceId !== suggestedId;

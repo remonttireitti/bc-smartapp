@@ -2,7 +2,7 @@ import type { Partnership } from '../../types';
 import { partnershipPermsActingOnOwner } from '../management';
 import { applyLegacyQuoteFields } from './legacyImport';
 import { resolveLegacyDeviceIds, findDeviceById, resolveQuoteMainDeviceForTotals } from './deviceCatalog';
-import { computePumpSizingNeedKw } from './calculations';
+import { computePumpSizingNeedKw, resolveIilpLaborPricingMode } from './calculations';
 import { DEFAULT_TERMATEK_IILP_QUOTE_TERMS, DEFAULT_QUOTE_TERMS_PRINT } from './termatekDefaultTerms';
 import {
   DEFAULT_IILP_OPTIONAL_ITEMS,
@@ -213,6 +213,7 @@ export function createEmptyQuoteRequestData(type: QuoteType = 'vesi-ilma'): Quot
     iilpElectricalNotes: '',
     iilpCondensateNotes: '',
     iilpEnergySavingsText: '',
+    siteConfigConfirmed: false,
   };
 }
 
@@ -398,9 +399,9 @@ export function normalizeQuoteRequestData(raw: unknown): QuoteRequestData {
     customerContactPerson:
       typeof record.customerContactPerson === 'string' ? record.customerContactPerson : '',
     buildingType: typeof record.buildingType === 'string' ? record.buildingType : base.buildingType,
-    heatedArea: Number(record.heatedArea) || base.heatedArea,
-    roomHeight: Number(record.roomHeight) || base.roomHeight,
-    buildingYear: Number(record.buildingYear) || base.buildingYear,
+    heatedArea: readStoredNumber(record.heatedArea, base.heatedArea),
+    roomHeight: readStoredNumber(record.roomHeight, base.roomHeight),
+    buildingYear: readStoredNumber(record.buildingYear, base.buildingYear),
     region: normalizeRegion(record.region) ?? base.region,
     projectType: normalizeProjectType(record.projectType) ?? base.projectType,
     heatingSystemType:
@@ -448,7 +449,7 @@ export function normalizeQuoteRequestData(raw: unknown): QuoteRequestData {
       record.devicePurchaseOverrideNet == null ? null : Number(record.devicePurchaseOverrideNet) || 0,
     deviceSaleOverrideNet:
       record.deviceSaleOverrideNet == null ? null : Number(record.deviceSaleOverrideNet) || 0,
-    selectedDeviceId: legacyDeviceIds.selectedDeviceId,
+    selectedDeviceId: normalizeSelectedDeviceId(record, legacyDeviceIds),
     altDevice1Id: legacyDeviceIds.altDevice1Id,
     altDevice2Id: legacyDeviceIds.altDevice2Id,
     altDevice1DiscountPercent: Number(record.altDevice1DiscountPercent) || 0,
@@ -490,10 +491,29 @@ export function normalizeQuoteRequestData(raw: unknown): QuoteRequestData {
       typeof record.iilpCondensateNotes === 'string' ? record.iilpCondensateNotes : '',
     iilpEnergySavingsText:
       typeof record.iilpEnergySavingsText === 'string' ? record.iilpEnergySavingsText : '',
+    siteConfigConfirmed: record.siteConfigConfirmed === true,
     lines,
     legacyCustomerName:
       typeof record.legacyCustomerName === 'string' ? record.legacyCustomerName : undefined,
   });
+}
+
+function readStoredNumber(value: unknown, fallback: number): number {
+  if (value === null || value === undefined || value === '') return fallback;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+function normalizeSelectedDeviceId(
+  record: Record<string, unknown>,
+  legacyIds: ReturnType<typeof resolveLegacyDeviceIds>,
+): string {
+  const raw = typeof record.selectedDeviceId === 'string' ? record.selectedDeviceId : '';
+  if (raw && findDeviceById(raw)) return raw;
+  if (legacyIds.selectedDeviceId && findDeviceById(legacyIds.selectedDeviceId)) {
+    return legacyIds.selectedDeviceId;
+  }
+  return '';
 }
 
 function normalizePumpDeviceSelection(data: QuoteRequestData): QuoteRequestData {
@@ -512,6 +532,33 @@ function normalizePumpDeviceSelection(data: QuoteRequestData): QuoteRequestData 
     vilpBrandChoice:
       data.type === 'ilma-ilma' && !data.vilpBrandChoice ? resolved.brand : data.vilpBrandChoice,
   };
+}
+
+/** Normalisoi laitteen valinta ja IILP-urakan työrivit ennen tallennusta. */
+export function prepareQuoteRequestDataForSave(data: QuoteRequestData): QuoteRequestData {
+  let next = normalizePumpDeviceSelection({ ...data });
+
+  if (next.type === 'ilma-ilma' && resolveIilpLaborPricingMode(next) === 'urakka') {
+    next = {
+      ...next,
+      laborHours: 0,
+      workItems: next.workItems.map((item) =>
+        Number(item.hours) > 0 ? { ...item, hours: 0 } : item,
+      ),
+    };
+  }
+
+  const device = findDeviceById(next.selectedDeviceId);
+  if (device) {
+    next = {
+      ...next,
+      deviceBrand: device.brand,
+      deviceModel: device.model,
+      ...(next.type === 'ilma-ilma' && !next.vilpBrandChoice ? { vilpBrandChoice: device.brand } : {}),
+    };
+  }
+
+  return next;
 }
 
 function normalizeIilpLaborPricingMode(record: Record<string, unknown>): QuoteRequestData['iilpLaborPricingMode'] {

@@ -31,7 +31,7 @@ import {
 } from '../lib/subscribers';
 import { partnershipModuleAccess, partnershipPermsActingOnOwner, parseCompanySettings } from '../lib/management';
 import { computeKotitalousDeduction, computePumpSizingNeedKw, computeQuoteTotals, computeTravelNet, resolveIilpLaborPricingMode, travelCostLabel } from '../lib/quoteRequest/calculations';
-import { deliveryFeesFromCompanySettings, suggestBestIilpDeviceId, applyDeviceBrandDefaults, findDeviceById } from '../lib/quoteRequest/deviceCatalog';
+import { deliveryFeesFromCompanySettings, suggestBestIilpDeviceId, deviceBrandDefaultsPatch, findDeviceById } from '../lib/quoteRequest/deviceCatalog';
 import { setActiveDeviceRegistry, snapshotFromCompanySettings } from '../lib/quoteRequest/deviceRegistryState';
 import {
   BUILDING_TYPE_OPTIONS,
@@ -60,6 +60,7 @@ import {
   createEmptyQuoteRequestData,
   createEmptyWorkItem,
   normalizeQuoteRequestData,
+  prepareQuoteRequestDataForSave,
   quoteRequestStoredTitle,
   resolveQuoteDisplayTitle,
   resolveQuoteBrandingCompanyId,
@@ -69,7 +70,7 @@ import type { QuoteEditSection, QuoteRequestData, QuoteType, QuoteVatProfile } f
 import { quoteListTrail } from '../lib/navigationTrail';
 import { useProfile } from '../hooks/useProfile';
 import { useRegisterDraftSaver } from '../hooks/useRegisterDraftSaver';
-import { localQuoteDraftKey, writeLocalQuoteDraft } from '../lib/quoteRequestDraftStorage';
+import { localQuoteDraftKey, writeLocalQuoteDraft, clearLocalQuoteDraft } from '../lib/quoteRequestDraftStorage';
 import type { Company, Customer, Equipment, Partnership, Subscriber } from '../types';
 
 interface Props {
@@ -77,6 +78,16 @@ interface Props {
 }
 
 const SECTIONS: QuoteEditSection[] = ['asiakas', 'kohde', 'tyot', 'hinnoittelu'];
+
+const SITE_CONFIG_FIELDS: (keyof QuoteRequestData)[] = [
+  'buildingType',
+  'region',
+  'heatedArea',
+  'roomHeight',
+  'iilpPurpose',
+  'buildingYear',
+  'projectType',
+];
 
 export default function QuoteRequestEditPage({ session }: Props) {
   const { id } = useParams();
@@ -99,6 +110,7 @@ export default function QuoteRequestEditPage({ session }: Props) {
   const [reportOwnerCompanyId, setReportOwnerCompanyId] = useState('');
   const [equipmentId, setEquipmentId] = useState('');
   const [loadingQuote, setLoadingQuote] = useState(!isNew);
+  const [formReady, setFormReady] = useState(isNew);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [savedAt, setSavedAt] = useState<string | null>(null);
@@ -180,7 +192,18 @@ export default function QuoteRequestEditPage({ session }: Props) {
   }, [profile?.company_id, profile?.companies?.name, ownerCompanyId, partnerships]);
 
   function patchForm(patch: Partial<QuoteRequestData>) {
-    setForm((prev) => ({ ...prev, ...patch }));
+    setForm((prev) => {
+      const defaults = createEmptyQuoteRequestData(prev.type);
+      const siteEdited = SITE_CONFIG_FIELDS.some((key) => {
+        if (!(key in patch)) return false;
+        return patch[key] !== defaults[key as keyof QuoteRequestData];
+      });
+      return {
+        ...prev,
+        ...patch,
+        ...(siteEdited ? { siteConfigConfirmed: true } : {}),
+      };
+    });
   }
 
   function changeQuoteType(nextType: QuoteType) {
@@ -277,7 +300,7 @@ export default function QuoteRequestEditPage({ session }: Props) {
   }, [customerId, searchParams]);
 
   useEffect(() => {
-    if (!selectedCustomer) return;
+    if (!formReady || !selectedCustomer) return;
     setForm((prev) => syncCustomerFieldsToForm(prev, selectedCustomer));
     if (selectedCustomer.name && isRepairQuoteType(form.type) && !form.deviceModel && selectedCustomer.name) {
       const eq = equipment.find((item) => item.id === equipmentId);
@@ -288,24 +311,29 @@ export default function QuoteRequestEditPage({ session }: Props) {
         });
       }
     }
-  }, [selectedCustomer?.id, equipmentId, equipment.length]);
+  }, [formReady, selectedCustomer?.id, equipmentId, equipment.length]);
 
   useEffect(() => {
-    if (form.type !== 'ilma-ilma' || !canEdit || !form.vilpBrandChoice || !pumpSizingNeedKw) return;
-    if (form.selectedDeviceId && findDeviceById(form.selectedDeviceId)) return;
-    const suggestedId = suggestBestIilpDeviceId(form, pumpSizingNeedKw);
-    if (!suggestedId) return;
-    const device = findDeviceById(suggestedId);
-    if (!device) return;
-    patchForm({
-      ...applyDeviceBrandDefaults(form, device),
-      selectedDeviceId: suggestedId,
-      iilpDeviceSelectionNote: '',
-      deviceBrand: device.brand,
-      deviceModel: device.model,
-      vilpBrandChoice: device.brand,
+    if (!formReady || form.type !== 'ilma-ilma' || !canEdit || !form.vilpBrandChoice || !pumpSizingNeedKw) return;
+    setForm((prev) => {
+      if (prev.type !== 'ilma-ilma' || !prev.vilpBrandChoice) return prev;
+      if (prev.selectedDeviceId && findDeviceById(prev.selectedDeviceId)) return prev;
+      const suggestedId = suggestBestIilpDeviceId(prev, pumpSizingNeedKw);
+      if (!suggestedId) return prev;
+      const device = findDeviceById(suggestedId);
+      if (!device) return prev;
+      return {
+        ...prev,
+        ...deviceBrandDefaultsPatch(device),
+        selectedDeviceId: suggestedId,
+        iilpDeviceSelectionNote: '',
+        deviceBrand: device.brand,
+        deviceModel: device.model,
+        vilpBrandChoice: device.brand,
+      };
     });
   }, [
+    formReady,
     form.type,
     form.vilpBrandChoice,
     form.selectedDeviceId,
@@ -319,14 +347,14 @@ export default function QuoteRequestEditPage({ session }: Props) {
   ]);
 
   useEffect(() => {
-    if (form.type !== 'ilma-ilma') return;
+    if (!formReady || form.type !== 'ilma-ilma') return;
     if (form.buildingType === 'kerrostalo' && form.iilpPurpose !== 'cooling') {
       patchForm({ iilpPurpose: 'cooling' });
     }
-  }, [form.type, form.buildingType, form.iilpPurpose]);
+  }, [formReady, form.type, form.buildingType, form.iilpPurpose]);
 
   useEffect(() => {
-    if (form.type !== 'ilma-ilma') return;
+    if (!formReady || form.type !== 'ilma-ilma') return;
     const mode =
       form.iilpLaborPricingMode ??
       (form.iilpBaseInstallEnabled === false ? 'tuntityo' : 'urakka');
@@ -342,7 +370,7 @@ export default function QuoteRequestEditPage({ session }: Props) {
         wi.description === 'Työ' ? { ...wi, hours: 0 } : wi,
       ),
     });
-  }, [form.type, form.iilpLaborPricingMode, form.iilpBaseInstallEnabled, form.laborHours, form.workItems]);
+  }, [formReady, form.type, form.iilpLaborPricingMode, form.iilpBaseInstallEnabled, form.laborHours, form.workItems]);
 
   async function loadPartnerships() {
     if (!profile?.company_id) return;
@@ -394,6 +422,7 @@ export default function QuoteRequestEditPage({ session }: Props) {
 
     if (loadError || !data) {
       setError(loadError?.message ?? 'Tarjouspyyntöä ei löytynyt.');
+      setFormReady(true);
       setLoadingQuote(false);
       return;
     }
@@ -443,6 +472,7 @@ export default function QuoteRequestEditPage({ session }: Props) {
 
     await loadOwnerCompany(row.owner_company_id);
     if (resolvedCustomerId) await loadEquipment(resolvedCustomerId);
+    setFormReady(true);
     setLoadingQuote(false);
   }
 
@@ -472,17 +502,24 @@ export default function QuoteRequestEditPage({ session }: Props) {
         Number(item.hours) > 0 ||
         (item.materials ?? []).some((mat) => mat.name.trim()),
     );
-    if (!hasWorkContent && !form.laborHours) {
+    const needsWorkLines =
+      isRepairQuoteType(form.type)
+      || (form.type === 'ilma-ilma' && resolveIilpLaborPricingMode(form) === 'tuntityo');
+    if (needsWorkLines && !hasWorkContent && !form.laborHours) {
       setError('Lisää vähintään yksi työ tai tarvike.');
       setActiveSection('tyot');
       return false;
     }
 
+    let siteConfigConfirmed = form.siteConfigConfirmed === true;
     if (isPumpQuoteType(form.type)) {
       const unreviewed = listUnreviewedSiteDefaults(form);
-      if (unreviewed.length > 0 && !confirmUnreviewedSiteDefaults(form)) {
-        setActiveSection(siteDefaultsReviewSection(unreviewed));
-        return false;
+      if (unreviewed.length > 0 && !siteConfigConfirmed) {
+        if (!confirmUnreviewedSiteDefaults(form)) {
+          setActiveSection(siteDefaultsReviewSection(unreviewed));
+          return false;
+        }
+        siteConfigConfirmed = true;
       }
     }
 
@@ -517,6 +554,11 @@ export default function QuoteRequestEditPage({ session }: Props) {
       partnership: partnership ?? null,
     });
 
+    const dataToSave = prepareQuoteRequestDataForSave({
+      ...form,
+      siteConfigConfirmed,
+    });
+
     const rowPayload = {
       owner_company_id: ownerCompanyId,
       created_by_company_id: profile.company_id,
@@ -527,7 +569,7 @@ export default function QuoteRequestEditPage({ session }: Props) {
       equipment_id: equipmentId || null,
       title: storedTitle,
       status: nextStatus ?? status,
-      data: form,
+      data: dataToSave,
     };
 
     if (quoteId) {
@@ -560,6 +602,8 @@ export default function QuoteRequestEditPage({ session }: Props) {
 
     setStatus(nextStatus ?? status);
     setSavedAt(new Date().toLocaleTimeString('fi-FI', { hour: '2-digit', minute: '2-digit' }));
+    setForm(dataToSave);
+    clearLocalQuoteDraft(quoteDraftStorageKey);
     setBusy(false);
     return true;
   }

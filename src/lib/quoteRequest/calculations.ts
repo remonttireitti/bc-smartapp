@@ -262,6 +262,28 @@ export function workItemsTotal(items: QuoteWorkItem[]): number {
   return items.reduce((sum, item) => sum + Number(item.hours || 0) * Number(item.pricePerHour || 0), 0);
 }
 
+export function quoteWorkNetFromItems(data: QuoteRequestData): number {
+  const workFromItems = workItemsTotal(data.workItems);
+  const workFromHours = Number(data.laborHours || 0) * Number(data.laborRate || 0);
+  return workFromItems > 0 ? workFromItems : workFromHours;
+}
+
+/** Työn osuus (alv 0) ilman matkakuluja. IILP-urakassa vain urakkahinta, ei työrivejä. */
+export function quoteWorkNet(data: QuoteRequestData): number {
+  if (data.type === 'ilma-ilma' && resolveIilpLaborPricingMode(data) === 'urakka') {
+    return getIilpBaseInstallParts(data).laborNet;
+  }
+  return quoteWorkNetFromItems(data);
+}
+
+export function quoteMaterialsNetForTotals(data: QuoteRequestData): number {
+  let materialsNet = quoteMaterialsNet(data);
+  if (data.type === 'ilma-ilma') {
+    materialsNet += getIilpBaseInstallParts(data).materialsNet;
+  }
+  return materialsNet;
+}
+
 export function materialSellTotal(materials: QuoteMaterial[]): number {
   return materials.reduce(
     (sum, item) => sum + Number(item.quantity || 0) * Number(item.sellPrice || 0),
@@ -358,15 +380,9 @@ export function computeQuoteTotals(
   data: QuoteRequestData,
   feeMap?: BrandDeliveryFeeByCategoryMap | null,
 ) {
-  const workFromItems = workItemsTotal(data.workItems);
-  const workFromHours = Number(data.laborHours || 0) * Number(data.laborRate || 0);
-  let workNet = workFromItems > 0 ? workFromItems : workFromHours;
-  let materialsNet = quoteMaterialsNet(data);
+  const workNet = quoteWorkNet(data);
+  const materialsNet = quoteMaterialsNetForTotals(data);
   const iilpBase = getIilpBaseInstallParts(data);
-  if (iilpBase.enabled) {
-    workNet += iilpBase.laborNet;
-    materialsNet += iilpBase.materialsNet;
-  }
   const travelNet = computeTravelNet(data);
 
   let deviceNet = 0;

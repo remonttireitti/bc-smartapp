@@ -13,6 +13,7 @@ import {
   computeDevicePowerFitPercent,
   formatDeviceLabel,
   getDevicePricingParams,
+  resolveQuoteMainDeviceForTotals,
   selectedDevices,
 } from './deviceCatalog';
 import {
@@ -21,6 +22,7 @@ import {
   computeKotitalousDeduction,
   computeQuoteInternalTotals,
   computeQuoteTotals,
+  resolveIilpLaborPricingMode,
 } from './calculations';
 import type { QuoteLine, QuoteMaterial } from './types';
 import { quoteLineTotal } from './defaults';
@@ -522,13 +524,17 @@ export function generateQuoteOfferPrintHtml(input: {
   const vatRate = Number(data.vatRate) || 0;
   const totalRowLabel = quoteTotalRowLabel(vatRate);
 
-  const workRows = data.workItems
-    .filter((item) => item.description.trim() && Number(item.hours) > 0)
-    .map((item) => {
-      const sell = item.hours * item.pricePerHour;
-      return printWorkRow(item.description, `${item.hours} h`, item.pricePerHour, sell, mode);
-    })
-    .join('');
+  const isIilpUrakka = data.type === 'ilma-ilma' && resolveIilpLaborPricingMode(data) === 'urakka';
+
+  const workRows = isIilpUrakka
+    ? ''
+    : data.workItems
+        .filter((item) => item.description.trim() && Number(item.hours) > 0)
+        .map((item) => {
+          const sell = item.hours * item.pricePerHour;
+          return printWorkRow(item.description, `${item.hours} h`, item.pricePerHour, sell, mode);
+        })
+        .join('');
 
   const materialRows = data.materials
     .filter((item) => item.name.trim())
@@ -540,16 +546,28 @@ export function generateQuoteOfferPrintHtml(input: {
     .map((line) => printLegacyLineRow(line, mode))
     .join('');
 
+  const heatingNeedKw = isPumpQuoteType(data.type) ? computeHeatingNeedKw(data) : null;
+
   const deviceRows = isPumpQuoteType(data.type)
-    ? selectedDevices(data)
-        .map(({ key, device }) => {
-          const sell = calculateDeviceSellNet(data, device, feeMap);
-          const purchase = calculateDevicePurchaseNet(data, device, feeMap);
-          const { marginPct } = getDevicePricingParams(data, device);
-          const label = `<strong>Vaihtoehto ${key}</strong><br />${esc(formatDeviceLabel(device))}`;
-          return printDeviceRow(label, mode, { purchase, sell, marginPct });
-        })
-        .join('')
+    ? (() => {
+        const rows = selectedDevices(data)
+          .map(({ key, device }) => {
+            const sell = calculateDeviceSellNet(data, device, feeMap);
+            const purchase = calculateDevicePurchaseNet(data, device, feeMap);
+            const { marginPct } = getDevicePricingParams(data, device);
+            const label = `<strong>Vaihtoehto ${key}</strong><br />${esc(formatDeviceLabel(device))}`;
+            return printDeviceRow(label, mode, { purchase, sell, marginPct });
+          })
+          .join('');
+        if (rows) return rows;
+        const mainDevice = resolveQuoteMainDeviceForTotals(data, heatingNeedKw);
+        if (!mainDevice) return '';
+        const sell = totals.deviceNet;
+        const purchase = calculateDevicePurchaseNet(data, mainDevice, feeMap);
+        const { marginPct } = getDevicePricingParams(data, mainDevice);
+        const label = esc(formatDeviceLabel(mainDevice));
+        return printDeviceRow(label, mode, { purchase, sell, marginPct });
+      })()
     : data.deviceSaleOverrideNet
       ? printDeviceRow('Laite / urakka', mode, {
           purchase: Number(data.devicePurchaseOverrideNet ?? 0),
@@ -560,7 +578,6 @@ export function generateQuoteOfferPrintHtml(input: {
   const lineRows = `${workRows}${materialRows}${legacyLineRows}`;
   const tableBody = `${lineRows}${iilpBaseInstallRows(data, mode)}${deviceRows}`;
 
-  const heatingNeedKw = isPumpQuoteType(data.type) ? computeHeatingNeedKw(data) : null;
   const kotitalous =
     mode === 'enduser' && quoteShowsKotitalousDeduction(data.type)
       ? computeKotitalousDeduction(data)

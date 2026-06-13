@@ -1,6 +1,6 @@
 import type { BrandDeliveryFeeByCategoryMap } from '../../data/devicePricingShared';
 import type { HeatPumpDevice } from '../../data/pumpDeviceCatalog';
-import { computeKotitalousDeduction, computeIilpCoolingEnergyEstimate, computeQuoteTotals, computePumpSizingNeedKw, computeTravelNet, effectiveIilpPurpose, travelCostLabel } from './calculations';
+import { computeKotitalousDeduction, computeIilpCoolingEnergyEstimate, computeQuoteTotals, computePumpSizingNeedKw, computeTravelNet, effectiveIilpPurpose, resolveIilpLaborPricingMode, travelCostLabel } from './calculations';
 import { DEFAULT_IILP_ENERGY_SAVINGS_TEXT, DEFAULT_IILP_PAYMENT_TERMS } from './constants';
 import {
   DEFAULT_TERMATEK_IILP_QUOTE_TERMS,
@@ -458,12 +458,15 @@ function buildCoverPageHtml(input: {
       </div>`;
 }
 
-function workGrossRows(data: QuoteRequestData, vatMult: number): Array<{ desc: string; hours: number; gross: number }> {
+function hourlyWorkGrossRows(
+  data: QuoteRequestData,
+  vatMult: number,
+): Array<{ desc: string; hours: number; gross: number }> {
   const rows: Array<{ desc: string; hours: number; gross: number }> = [];
   for (const item of data.workItems) {
     const hours = Number(item.hours) || 0;
+    if (hours <= 0) continue;
     const net = hours * Number(item.pricePerHour || 0);
-    if (hours <= 0 && !item.description.trim()) continue;
     rows.push({
       desc: item.description.trim() || 'Työ',
       hours,
@@ -475,14 +478,6 @@ function workGrossRows(data: QuoteRequestData, vatMult: number): Array<{ desc: s
       desc: 'Asennustyö',
       hours: Number(data.laborHours),
       gross: Number(data.laborHours) * Number(data.laborRate || 0) * vatMult,
-    });
-  }
-  const travelNet = computeTravelNet(data);
-  if (travelNet > 0) {
-    rows.push({
-      desc: travelCostLabel(data),
-      hours: 0,
-      gross: travelNet * vatMult,
     });
   }
   return rows;
@@ -499,30 +494,25 @@ function buildTermatekPricingLines(input: {
 }): PricingLine[] {
   const { data, totals, vatMult, productTitle, deviceGross } = input;
   const lines: PricingLine[] = [];
+  const isUrakka = data.type === 'ilma-ilma' && resolveIilpLaborPricingMode(data) === 'urakka';
 
-  const workRows = workGrossRows(data, vatMult);
-  for (const row of workRows) {
-    if (row.gross <= 0) continue;
-    lines.push({
-      label: row.hours > 0 ? `${row.desc} (${row.hours.toLocaleString('fi-FI', { maximumFractionDigits: 1 })} h)` : row.desc,
-      gross: row.gross,
-    });
-  }
-
-  if (totals.iilpBaseInstall.enabled && totals.iilpBaseInstall.laborGross > 0) {
-    const hasInstallLine = lines.some((line) => /asennustyö/i.test(line.label));
-    if (!hasInstallLine) {
-      lines.unshift({ label: 'Asennustyö (urakka)', gross: totals.iilpBaseInstall.laborGross });
+  if (isUrakka) {
+    if (totals.iilpBaseInstall.laborGross > 0) {
+      lines.push({ label: 'Asennustyö (urakka)', gross: totals.iilpBaseInstall.laborGross });
+    }
+  } else {
+    for (const row of hourlyWorkGrossRows(data, vatMult)) {
+      if (row.gross <= 0) continue;
+      lines.push({
+        label: `${row.desc} (${row.hours.toLocaleString('fi-FI', { maximumFractionDigits: 1 })} h)`,
+        gross: row.gross,
+      });
     }
   }
 
-  const targetWorkGross = (totals.workNet + totals.travelNet) * vatMult;
-  const listedWorkGross = lines.reduce((sum, line) => sum + line.gross, 0);
-  const workGap = Math.max(0, targetWorkGross - listedWorkGross);
-  if (workGap > 0.005) {
-    lines.push({ label: 'Työn osuus', gross: workGap });
-  } else if (!lines.length && targetWorkGross > 0) {
-    lines.push({ label: 'Työn osuus', gross: targetWorkGross });
+  const travelNet = computeTravelNet(data);
+  if (travelNet > 0) {
+    lines.push({ label: travelCostLabel(data), gross: travelNet * vatMult });
   }
 
   const materialItems = data.materials.filter((m) => m.name.trim());
@@ -551,8 +541,10 @@ function buildTermatekPricingLines(input: {
     lines.push({ label: 'Tarvikkeet', gross: targetMaterialsGross });
   }
 
-  if (deviceGross > 0) {
-    lines.push({ label: `Laite: ${productTitle}`, gross: deviceGross });
+  const resolvedDeviceGross = totals.deviceNet * vatMult;
+  const displayDeviceGross = deviceGross > 0 ? deviceGross : resolvedDeviceGross;
+  if (displayDeviceGross > 0) {
+    lines.push({ label: `Laite: ${productTitle}`, gross: displayDeviceGross });
   }
 
   return lines;

@@ -226,16 +226,20 @@ export function calculateDeviceSellNet(
   return calcSellFromPurchase(calculateDevicePurchaseNet(data, device, feeMap), marginPct);
 }
 
-export function applyDeviceBrandDefaults(data: QuoteRequestData, device: HeatPumpDevice | null): QuoteRequestData {
-  if (!device) return data;
+export function deviceBrandDefaultsPatch(device: HeatPumpDevice | null): Partial<QuoteRequestData> {
+  if (!device) return {};
   const discount = getDefaultDiscountFromListPercent(device);
-  const patch: Partial<QuoteRequestData> = {
+  return {
     deviceDiscountPercent: discount,
     deviceMarginPercent: device.brand.toLowerCase() === 'inventor' ? 100 : 25,
     devicePurchaseOverrideNet: null,
     deviceSaleOverrideNet: null,
   };
-  return { ...data, ...patch };
+}
+
+export function applyDeviceBrandDefaults(data: QuoteRequestData, device: HeatPumpDevice | null): QuoteRequestData {
+  if (!device) return data;
+  return { ...data, ...deviceBrandDefaultsPatch(device) };
 }
 
 export function selectedDevices(data: QuoteRequestData): Array<{ key: DeviceOptionKey; device: HeatPumpDevice }> {

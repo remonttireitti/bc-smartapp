@@ -155,8 +155,10 @@ export type QuoteRequestData = {
   iilpElectricalNotes: string;
   /** IILP: kondenssiveden johto (tuloste). */
   iilpCondensateNotes: string;
-  /** IILP: arvioitu sähkönsäästö -teksti tulosteelle (tyhjä = oletusteksti). */
+  /** Arvioitu sähkönsäästö -teksti tulosteelle (tyhjä = oletusteksti). */
   iilpEnergySavingsText: string;
+  /** Käyttäjä on tarkistanut/muokannut kohdetiedot (ei muistutusta tallennuksessa). */
+  siteConfigConfirmed?: boolean;
   /** Preserved from Firestore import when customer FK was missing. */
   legacyCustomerName?: string;
   /** @deprecated use workItems/materials */
