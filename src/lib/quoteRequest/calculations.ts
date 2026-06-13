@@ -236,12 +236,10 @@ export function computeIilpCoolingEnergyEstimate(
 
 export function computeTravelNet(data: QuoteRequestData): number {
   if (!quoteUsesTravelCost(data.type)) return 0;
-  if (data.travelKmEnabled) {
-    const km = Math.max(0, Number(data.travelKmDistance) || 0);
-    const rate = Math.max(0, Number(data.travelKmRate) || 0);
-    return Math.round(km * rate * 100) / 100;
-  }
-  return Math.max(0, Number(data.travelCost) || 0);
+  if (!data.travelKmEnabled) return 0;
+  const km = Math.max(0, Number(data.travelKmDistance) || 0);
+  const rate = Math.max(0, Number(data.travelKmRate) || 0);
+  return Math.round(km * rate * 100) / 100;
 }
 
 export function travelCostLabel(data: QuoteRequestData): string {

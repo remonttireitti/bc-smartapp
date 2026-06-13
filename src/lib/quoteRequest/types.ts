@@ -157,7 +157,9 @@ export type QuoteRequestData = {
   iilpCondensateNotes: string;
   /** Arvioitu sähkönsäästö -teksti tulosteelle (tyhjä = oletusteksti). */
   iilpEnergySavingsText: string;
-  /** Käyttäjä on tarkistanut/muokannut kohdetiedot (ei muistutusta tallennuksessa). */
+  /** Kohde-kentät, jotka käyttäjä on hyväksynyt oletusarvoina (avaimet). */
+  acceptedSiteDefaults?: string[];
+  /** @deprecated käytä acceptedSiteDefaults */
   siteConfigConfirmed?: boolean;
   /** Preserved from Firestore import when customer FK was missing. */
   legacyCustomerName?: string;

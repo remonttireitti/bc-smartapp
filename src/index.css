@@ -2907,6 +2907,56 @@ button[type='submit']:disabled { opacity: .6; cursor: wait; }
   margin-top: 1rem;
 }
 
+.quote-site-defaults-dialog {
+  width: min(100%, 36rem);
+}
+
+.quote-site-defaults-checklist {
+  list-style: none;
+  margin: 1rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: .5rem;
+}
+
+.quote-site-defaults-check {
+  display: flex;
+  align-items: flex-start;
+  gap: .5rem;
+  cursor: pointer;
+}
+
+.quote-site-defaults-hint {
+  margin: .75rem 0 0;
+  font-size: .9rem;
+}
+
+.quote-site-defaults-actions {
+  justify-content: stretch;
+}
+
+.quote-site-defaults-actions .btn {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.quote-site-defaults-alert {
+  margin-bottom: 1rem;
+  border-left: 4px solid var(--warning, #d97706);
+  background: color-mix(in srgb, var(--warning, #d97706) 8%, transparent);
+}
+
+.quote-site-defaults-alert strong {
+  display: block;
+  margin-bottom: .35rem;
+}
+
+.quote-site-defaults-alert-list {
+  margin: 0 0 .75rem;
+  font-size: .92rem;
+}
+
 .daily-log-dialog {
   width: min(100%, 42rem);
   max-height: min(90vh, 52rem);

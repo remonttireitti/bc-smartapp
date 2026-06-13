@@ -48,8 +48,9 @@ import {
   quoteVatPrintNotice,
   vatRateForQuoteProfile,
 } from '../lib/quoteRequest/constants';
+import QuoteSiteDefaultsReviewDialog from '../components/quoteRequest/QuoteSiteDefaultsReviewDialog';
 import {
-  listUnreviewedSiteDefaults,
+  listPendingSiteDefaults,
   siteDefaultsReviewSection,
 } from '../lib/quoteRequest/siteDefaultsReview';
 import {
@@ -69,7 +70,7 @@ import type { QuoteEditSection, QuoteRequestData, QuoteType, QuoteVatProfile } f
 import { quoteListTrail } from '../lib/navigationTrail';
 import { useProfile } from '../hooks/useProfile';
 import { useRegisterDraftSaver } from '../hooks/useRegisterDraftSaver';
-import { localQuoteDraftKey, writeLocalQuoteDraft, clearLocalQuoteDraft } from '../lib/quoteRequestDraftStorage';
+import { localQuoteDraftKey, writeLocalQuoteDraft, clearLocalQuoteDraft, readLocalQuoteDraft } from '../lib/quoteRequestDraftStorage';
 import type { Company, Customer, Equipment, Partnership, Subscriber } from '../types';
 
 interface Props {
@@ -117,6 +118,10 @@ export default function QuoteRequestEditPage({ session }: Props) {
   const [registryMessage, setRegistryMessage] = useState<string | null>(null);
   const titleMigratedRef = useRef(false);
   const [companySettings, setCompanySettings] = useState<ReturnType<typeof parseCompanySettings> | null>(null);
+  const [siteDefaultsDialog, setSiteDefaultsDialog] = useState<{
+    pending: ReturnType<typeof listPendingSiteDefaults>;
+    nextStatus: 'draft' | 'sent';
+  } | null>(null);
   const quoteDraftStorageKey = localQuoteDraftKey(quoteId, session.user.id);
 
   const deliveryFeeMap = useMemo(
@@ -173,8 +178,8 @@ export default function QuoteRequestEditPage({ session }: Props) {
     [form, pumpSizingNeedKw],
   );
   const kotitalous = useMemo(() => computeKotitalousDeduction(form), [form]);
-  const unreviewedSiteDefaults = useMemo(
-    () => (isPumpQuoteType(form.type) ? listUnreviewedSiteDefaults(form) : []),
+  const pendingSiteDefaults = useMemo(
+    () => (isPumpQuoteType(form.type) ? listPendingSiteDefaults(form) : []),
     [form],
   );
   const quoteTypeLabel = QUOTE_TYPE_LABELS[form.type];
@@ -200,15 +205,14 @@ export default function QuoteRequestEditPage({ session }: Props) {
 
   function patchForm(patch: Partial<QuoteRequestData>) {
     setForm((prev) => {
-      const defaults = createEmptyQuoteRequestData(prev.type);
-      const siteEdited = SITE_CONFIG_FIELDS.some((key) => {
-        if (!(key in patch)) return false;
-        return patch[key] !== defaults[key as keyof QuoteRequestData];
-      });
+      const accepted = new Set(prev.acceptedSiteDefaults ?? []);
+      for (const key of SITE_CONFIG_FIELDS) {
+        if (key in patch) accepted.delete(key);
+      }
       return {
         ...prev,
         ...patch,
-        ...(siteEdited ? { siteConfigConfirmed: true } : {}),
+        acceptedSiteDefaults: [...accepted],
       };
     });
   }
@@ -355,29 +359,37 @@ export default function QuoteRequestEditPage({ session }: Props) {
 
   useEffect(() => {
     if (!formReady || form.type !== 'ilma-ilma') return;
-    if (form.buildingType === 'kerrostalo' && form.iilpPurpose !== 'cooling') {
-      patchForm({ iilpPurpose: 'cooling' });
-    }
+    setForm((prev) => {
+      if (prev.type !== 'ilma-ilma') return prev;
+      if (prev.buildingType === 'kerrostalo' && prev.iilpPurpose !== 'cooling') {
+        return { ...prev, iilpPurpose: 'cooling' };
+      }
+      return prev;
+    });
   }, [formReady, form.type, form.buildingType, form.iilpPurpose]);
 
   useEffect(() => {
     if (!formReady || form.type !== 'ilma-ilma') return;
-    const mode =
-      form.iilpLaborPricingMode ??
-      (form.iilpBaseInstallEnabled === false ? 'tuntityo' : 'urakka');
-    if (mode !== 'urakka') return;
-    const needsFixLaborHours = Number(form.laborHours || 0) !== 0;
-    const needsFixWorkRow = form.workItems.some(
-      (wi) => wi.description === 'Työ' && Number(wi.hours || 0) !== 0,
-    );
-    if (!needsFixLaborHours && !needsFixWorkRow) return;
-    patchForm({
-      laborHours: 0,
-      workItems: form.workItems.map((wi) =>
-        wi.description === 'Työ' ? { ...wi, hours: 0 } : wi,
-      ),
+    setForm((prev) => {
+      if (prev.type !== 'ilma-ilma') return prev;
+      const mode =
+        prev.iilpLaborPricingMode ??
+        (prev.iilpBaseInstallEnabled === false ? 'tuntityo' : 'urakka');
+      if (mode !== 'urakka') return prev;
+      const needsFixLaborHours = Number(prev.laborHours || 0) !== 0;
+      const needsFixWorkRow = prev.workItems.some(
+        (wi) => wi.description === 'Työ' && Number(wi.hours || 0) !== 0,
+      );
+      if (!needsFixLaborHours && !needsFixWorkRow) return prev;
+      return {
+        ...prev,
+        laborHours: 0,
+        workItems: prev.workItems.map((wi) =>
+          wi.description === 'Työ' ? { ...wi, hours: 0 } : wi,
+        ),
+      };
     });
-  }, [formReady, form.type, form.iilpLaborPricingMode, form.iilpBaseInstallEnabled, form.laborHours, form.workItems]);
+  }, [formReady, form.type, form.iilpLaborPricingMode, form.iilpBaseInstallEnabled]);
 
   async function loadPartnerships() {
     if (!profile?.company_id) return;
@@ -422,7 +434,7 @@ export default function QuoteRequestEditPage({ session }: Props) {
     const { data, error: loadError } = await supabase
       .from('quote_requests')
       .select(`
-        id, title, status, data, owner_company_id, created_by_company_id,
+        id, title, status, data, updated_at, created_at, owner_company_id, created_by_company_id,
         branding_company_id, partnership_id, customer_id, equipment_id, subscriber_id
       `)
       .eq('id', quoteIdToLoad)
@@ -440,6 +452,8 @@ export default function QuoteRequestEditPage({ session }: Props) {
       title: string | null;
       status: 'draft' | 'sent';
       data: QuoteRequestData;
+      updated_at: string;
+      created_at: string;
       owner_company_id: string;
       customer_id: string | null;
       equipment_id: string | null;
@@ -447,14 +461,32 @@ export default function QuoteRequestEditPage({ session }: Props) {
     };
 
     const normalized = normalizeQuoteRequestData(row.data);
+    const draftKey = localQuoteDraftKey(row.id, session.user.id);
+    const draft = readLocalQuoteDraft<{
+      form: QuoteRequestData;
+      customerId: string;
+      equipmentId: string;
+      subscriberId: string;
+    }>(draftKey);
+    const dbTime = new Date(row.updated_at || row.created_at).getTime();
+    const useDraft =
+      row.status === 'draft'
+      && draft?.payload?.form
+      && draft.savedAt > dbTime + 1000;
+    const formToUse = useDraft
+      ? normalizeQuoteRequestData(draft.payload.form)
+      : normalized;
 
     setQuoteId(row.id);
     setStoredDbTitle(row.title);
     titleMigratedRef.current = false;
     setStatus(row.status);
-    setForm(normalized);
+    setForm(formToUse);
 
     let resolvedCustomerId = row.customer_id ?? '';
+    if (useDraft && draft.payload.customerId) {
+      resolvedCustomerId = draft.payload.customerId;
+    }
     if (profile?.company_id) {
       const partnershipRows = await loadReportPartnerships(supabase, profile.company_id, 'quotes');
       setPartnerships(partnershipRows);
@@ -474,8 +506,8 @@ export default function QuoteRequestEditPage({ session }: Props) {
     }
 
     setCustomerId(resolvedCustomerId);
-    setSubscriberId(row.subscriber_id ?? '');
-    setEquipmentId(row.equipment_id ?? '');
+    setSubscriberId(useDraft && draft.payload.subscriberId ? draft.payload.subscriberId : (row.subscriber_id ?? ''));
+    setEquipmentId(useDraft && draft.payload.equipmentId ? draft.payload.equipmentId : (row.equipment_id ?? ''));
     setReportOwnerCompanyId(row.owner_company_id);
 
     await loadOwnerCompany(row.owner_company_id);
@@ -494,7 +526,10 @@ export default function QuoteRequestEditPage({ session }: Props) {
     });
   }, [quoteId, storedDbTitle, storedTitle]);
 
-  async function saveQuote(nextStatus?: 'draft' | 'sent') {
+  async function saveQuote(
+    nextStatus?: 'draft' | 'sent',
+    options?: { skipDefaultsCheck?: boolean; extraAcceptedKeys?: string[] },
+  ) {
     if (!profile?.company_id || !ownerCompanyId) {
       setError('Profiilista puuttuu yritys.');
       return false;
@@ -519,7 +554,20 @@ export default function QuoteRequestEditPage({ session }: Props) {
       return false;
     }
 
-    const siteConfigConfirmed = true;
+    if (!options?.skipDefaultsCheck && isPumpQuoteType(form.type)) {
+      const pending = listPendingSiteDefaults(form);
+      if (pending.length > 0) {
+        setSiteDefaultsDialog({
+          pending,
+          nextStatus: nextStatus ?? status,
+        });
+        return false;
+      }
+    }
+
+    const acceptedSiteDefaults = [
+      ...new Set([...(form.acceptedSiteDefaults ?? []), ...(options?.extraAcceptedKeys ?? [])]),
+    ];
 
     setBusy(true);
     setError(null);
@@ -553,7 +601,7 @@ export default function QuoteRequestEditPage({ session }: Props) {
 
       const dataToSave = prepareQuoteRequestDataForSave({
         ...form,
-        siteConfigConfirmed,
+        acceptedSiteDefaults,
       });
 
       const rowPayload = {
@@ -570,20 +618,29 @@ export default function QuoteRequestEditPage({ session }: Props) {
       };
 
       if (quoteId) {
-        const { error: updateError } = await supabase
+        const { data: updatedRow, error: updateError } = await supabase
           .from('quote_requests')
           .update(rowPayload)
-          .eq('id', quoteId);
+          .eq('id', quoteId)
+          .select('data')
+          .single();
 
         if (updateError) {
           setError(updateError.message);
           return false;
         }
+        if (!updatedRow) {
+          setError('Tallennus epäonnistui — tarkista oikeudet.');
+          return false;
+        }
+        const verified = normalizeQuoteRequestData((updatedRow as { data: QuoteRequestData }).data);
+        setForm(verified);
+        clearLocalQuoteDraft(quoteDraftStorageKey);
       } else {
         const { data, error: insertError } = await supabase
           .from('quote_requests')
           .insert(rowPayload)
-          .select('id')
+          .select('id, data')
           .single();
 
         if (insertError || !data) {
@@ -591,14 +648,15 @@ export default function QuoteRequestEditPage({ session }: Props) {
           return false;
         }
 
-        setQuoteId((data as { id: string }).id);
-        navigate(`/tarjouspyynnot/${(data as { id: string }).id}`, { replace: true });
+        const inserted = data as { id: string; data: QuoteRequestData };
+        setQuoteId(inserted.id);
+        setForm(normalizeQuoteRequestData(inserted.data));
+        clearLocalQuoteDraft(quoteDraftStorageKey);
+        navigate(`/tarjouspyynnot/${inserted.id}`, { replace: true });
       }
 
       setStatus(nextStatus ?? status);
       setSavedAt(new Date().toLocaleTimeString('fi-FI', { hour: '2-digit', minute: '2-digit' }));
-      setForm(dataToSave);
-      clearLocalQuoteDraft(quoteDraftStorageKey);
       return true;
     } catch (saveError) {
       console.error('Tarjouksen tallennus epäonnistui:', saveError);
@@ -642,6 +700,17 @@ export default function QuoteRequestEditPage({ session }: Props) {
     });
     if (customerId) await saveQuote('draft');
   });
+
+  async function saveWithSiteDefaultsAcceptance(acceptedKeys: string[], acceptAll: boolean) {
+    const pending = siteDefaultsDialog?.pending ?? [];
+    const keysToAccept = acceptAll ? pending.map((item) => item.key) : acceptedKeys;
+    const nextStatus = siteDefaultsDialog?.nextStatus ?? status;
+    const ok = await saveQuote(nextStatus, {
+      skipDefaultsCheck: true,
+      extraAcceptedKeys: keysToAccept,
+    });
+    if (ok) setSiteDefaultsDialog(null);
+  }
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
@@ -760,19 +829,20 @@ export default function QuoteRequestEditPage({ session }: Props) {
       </div>
 
       {error && <p className="error">{error}</p>}
-      {unreviewedSiteDefaults.length > 0 && (
-        <p className="quote-site-defaults-warn">
-          Kohdetiedoissa on oletusarvoja ({unreviewedSiteDefaults.map((item) => item.label).join(', ')}).
-          {' '}
+      {pendingSiteDefaults.length > 0 && (
+        <div className="panel quote-site-defaults-alert" role="status">
+          <strong>Kohdetiedoissa on tarkistamattomia oletusarvoja</strong>
+          <p className="muted quote-site-defaults-alert-list">
+            {pendingSiteDefaults.map((item) => item.label).join(' · ')}
+          </p>
           <button
             type="button"
-            className="link-button"
-            onClick={() => setActiveSection(siteDefaultsReviewSection(unreviewedSiteDefaults))}
+            className="btn btn-secondary btn-sm"
+            onClick={() => setActiveSection(siteDefaultsReviewSection(pendingSiteDefaults))}
           >
-            Tarkista kohde-välilehdellä
+            Siirry kohde-välilehdelle
           </button>
-          {' '}— tallennus toimii silti.
-        </p>
+        </div>
       )}
       {registryMessage && <p className="muted">{registryMessage}</p>}
 
@@ -1342,6 +1412,7 @@ export default function QuoteRequestEditPage({ session }: Props) {
                         patchForm({
                           travelKmEnabled: e.target.checked,
                           travelKmDistance: e.target.checked ? form.travelKmDistance || 0 : 0,
+                          travelCost: 0,
                         })
                       }
                     />
@@ -1624,6 +1695,21 @@ export default function QuoteRequestEditPage({ session }: Props) {
           )}
         </div>
       </form>
+
+      <QuoteSiteDefaultsReviewDialog
+        open={siteDefaultsDialog !== null}
+        pending={siteDefaultsDialog?.pending ?? []}
+        busy={busy}
+        onBackToEdit={() => {
+          const pending = siteDefaultsDialog?.pending ?? [];
+          setSiteDefaultsDialog(null);
+          if (pending.length > 0) {
+            setActiveSection(siteDefaultsReviewSection(pending));
+          }
+        }}
+        onSave={(acceptedKeys) => void saveWithSiteDefaultsAcceptance(acceptedKeys, false)}
+        onSaveAcceptAll={() => void saveWithSiteDefaultsAcceptance([], true)}
+      />
     </AppLayout>
   );
 }

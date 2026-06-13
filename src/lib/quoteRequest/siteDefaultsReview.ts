@@ -81,6 +81,12 @@ export function listUnreviewedSiteDefaults(data: QuoteRequestData): UnreviewedSi
   return unchecked;
 }
 
+/** Oletusarvot, joita ei ole muokattu eikä hyväksytty. */
+export function listPendingSiteDefaults(data: QuoteRequestData): UnreviewedSiteDefault[] {
+  const accepted = new Set(data.acceptedSiteDefaults ?? []);
+  return listUnreviewedSiteDefaults(data).filter((item) => !accepted.has(item.key));
+}
+
 export function siteDefaultsReviewSection(unchecked: UnreviewedSiteDefault[]): QuoteEditSection {
   const kohdeKeys = new Set([
     'heatedArea',
@@ -91,15 +97,4 @@ export function siteDefaultsReviewSection(unchecked: UnreviewedSiteDefault[]): Q
   ]);
   if (unchecked.some((item) => kohdeKeys.has(item.key))) return 'kohde';
   return 'asiakas';
-}
-
-/** Palauttaa true jos tallennus voi jatkua. */
-export function confirmUnreviewedSiteDefaults(data: QuoteRequestData): boolean {
-  const unchecked = listUnreviewedSiteDefaults(data);
-  if (unchecked.length === 0) return true;
-
-  const list = unchecked.map((item) => `• ${item.label}`).join('\n');
-  return window.confirm(
-    `Seuraavat kohdetiedot ovat vielä oletusarvoja:\n\n${list}\n\nTarkista tiedot ennen tallennusta.\n\nTallenna silti?`,
-  );
 }

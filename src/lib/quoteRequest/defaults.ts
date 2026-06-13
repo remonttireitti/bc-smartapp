@@ -214,6 +214,7 @@ export function createEmptyQuoteRequestData(type: QuoteType = 'vesi-ilma'): Quot
     iilpCondensateNotes: '',
     iilpEnergySavingsText: '',
     siteConfigConfirmed: false,
+    acceptedSiteDefaults: [],
   };
 }
 
@@ -319,33 +320,38 @@ export function normalizeQuoteRequestData(raw: unknown): QuoteRequestData {
   const materialsRaw = Array.isArray(record.materials) ? record.materials : [];
   const linesRaw = Array.isArray(record.lines) ? record.lines : [];
 
-  let workItems: QuoteWorkItem[] =
-    workItemsRaw.length > 0
-      ? workItemsRaw.map((entry, index) => {
-          const row = entry as Record<string, unknown>;
-          return createEmptyWorkItem({
-            id: typeof row.id === 'string' ? row.id : `work-${index}`,
-            description: typeof row.description === 'string' ? row.description : 'Työ',
-            hours: Number(row.hours) || 0,
-            pricePerHour: Number(row.pricePerHour) || 65,
-            equipmentId: typeof row.equipmentId === 'string' ? row.equipmentId : undefined,
-            equipmentName: typeof row.equipmentName === 'string' ? row.equipmentName : undefined,
-            materials: normalizeWorkItemMaterials(row.materials),
-          });
-        })
-      : linesRaw.length > 0
-        ? linesRaw.map((entry, index) => {
+  let workItems: QuoteWorkItem[];
+  if (Array.isArray(record.workItems)) {
+    workItems =
+      workItemsRaw.length > 0
+        ? workItemsRaw.map((entry, index) => {
             const row = entry as Record<string, unknown>;
             return createEmptyWorkItem({
               id: typeof row.id === 'string' ? row.id : `work-${index}`,
-              description: typeof row.description === 'string' ? row.description : '',
-              hours: Number(row.qty) || 1,
-              pricePerHour: Number(row.unitPrice) || 0,
+              description: typeof row.description === 'string' ? row.description : 'Työ',
+              hours: Number(row.hours) || 0,
+              pricePerHour: Number(row.pricePerHour) || 65,
               equipmentId: typeof row.equipmentId === 'string' ? row.equipmentId : undefined,
               equipmentName: typeof row.equipmentName === 'string' ? row.equipmentName : undefined,
+              materials: normalizeWorkItemMaterials(row.materials),
             });
           })
-        : defaultWorkItemsForType(type);
+        : [];
+  } else if (linesRaw.length > 0) {
+    workItems = linesRaw.map((entry, index) => {
+      const row = entry as Record<string, unknown>;
+      return createEmptyWorkItem({
+        id: typeof row.id === 'string' ? row.id : `work-${index}`,
+        description: typeof row.description === 'string' ? row.description : '',
+        hours: Number(row.qty) || 1,
+        pricePerHour: Number(row.unitPrice) || 0,
+        equipmentId: typeof row.equipmentId === 'string' ? row.equipmentId : undefined,
+        equipmentName: typeof row.equipmentName === 'string' ? row.equipmentName : undefined,
+      });
+    });
+  } else {
+    workItems = defaultWorkItemsForType(type);
+  }
 
   let materials: QuoteMaterial[] = materialsRaw.map((entry, index) => {
     const row = entry as Record<string, unknown>;
@@ -495,6 +501,7 @@ export function normalizeQuoteRequestData(raw: unknown): QuoteRequestData {
     iilpEnergySavingsText:
       typeof record.iilpEnergySavingsText === 'string' ? record.iilpEnergySavingsText : '',
     siteConfigConfirmed: record.siteConfigConfirmed === true,
+    acceptedSiteDefaults: normalizeAcceptedSiteDefaults(record.acceptedSiteDefaults),
     lines,
     legacyCustomerName:
       typeof record.legacyCustomerName === 'string' ? record.legacyCustomerName : undefined,
@@ -505,6 +512,11 @@ function readStoredNumber(value: unknown, fallback: number): number {
   if (value === null || value === undefined || value === '') return fallback;
   const n = Number(value);
   return Number.isFinite(n) ? n : fallback;
+}
+
+function normalizeAcceptedSiteDefaults(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.filter((entry): entry is string => typeof entry === 'string' && entry.trim().length > 0);
 }
 
 function normalizeSelectedDeviceId(
@@ -577,6 +589,17 @@ export function prepareQuoteRequestDataForSave(data: QuoteRequestData): QuoteReq
     }
   }
 
+  next = {
+    ...next,
+    travelCost: 0,
+    ...(next.travelKmEnabled
+      ? {}
+      : {
+          travelKmEnabled: false,
+          travelKmDistance: 0,
+        }),
+  };
+
   return next;
 }
 
@@ -610,12 +633,14 @@ function normalizeTravelKmEnabled(record: Record<string, unknown>, type: QuoteTy
   if (!quoteUsesTravelCost(type)) return false;
   if (record.travelKmEnabled === true) return true;
   if (record.travelKmEnabled === false) return false;
+  if ('travelKmEnabled' in record) return false;
   const legacyTravel = Number(record.travelCost) || 0;
   return legacyTravel > 0;
 }
 
 function normalizeTravelKmDistance(record: Record<string, unknown>, type: QuoteType): number {
   if (!quoteUsesTravelCost(type)) return 0;
+  if (!normalizeTravelKmEnabled(record, type)) return 0;
   const explicit = Number(record.travelKmDistance);
   if (Number.isFinite(explicit) && explicit > 0) return explicit;
   const legacyTravel = Number(record.travelCost) || 0;
@@ -634,18 +659,18 @@ function normalizeQuoteTermsText(record: Record<string, unknown>, type: QuoteTyp
 }
 
 function normalizeOptionalItems(raw: unknown, type: QuoteType): QuoteOptionalItem[] {
-  if (!Array.isArray(raw) || raw.length === 0) {
-    return type === 'ilma-ilma' ? defaultIilpOptionalItems() : [];
-  }
-  return raw.map((entry, index) => {
-    const row = entry as Record<string, unknown>;
-    return createEmptyOptionalItem({
-      id: typeof row.id === 'string' ? row.id : `opt-${index}`,
-      description: typeof row.description === 'string' ? row.description : '',
-      priceGross: Number(row.priceGross) || 0,
-      enabled: row.enabled === true,
+  if (Array.isArray(raw)) {
+    return raw.map((entry, index) => {
+      const row = entry as Record<string, unknown>;
+      return createEmptyOptionalItem({
+        id: typeof row.id === 'string' ? row.id : `opt-${index}`,
+        description: typeof row.description === 'string' ? row.description : '',
+        priceGross: Number(row.priceGross) || 0,
+        enabled: row.enabled === true,
+      });
     });
-  });
+  }
+  return type === 'ilma-ilma' ? defaultIilpOptionalItems() : [];
 }
 
 function normalizeVilpIndoorConfig(value: unknown): QuoteRequestData['vilpIndoorConfig'] {
