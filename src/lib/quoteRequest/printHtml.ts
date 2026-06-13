@@ -26,6 +26,7 @@ import {
 } from './calculations';
 import type { QuoteLine, QuoteMaterial } from './types';
 import { quoteLineTotal } from './defaults';
+import { optionalItemsPrintHtml } from './optionalItemsPrint';
 import type { QuoteRequestData } from './types';
 import type { BrandDeliveryFeeByCategoryMap } from '../../data/devicePricingShared';
 
@@ -407,6 +408,12 @@ function quoteCreatorMutualBillingBox(
       <dd><strong>${customerTotal}</strong> <span class="line-sub">${esc(totalRowLabel)}</span></dd>
       <dt>Hankinta / kustannus</dt>
       <dd>${formatEuro(internal.purchaseNet)}</dd>
+      ${
+        internal.deviceSellNet > 0.005
+          ? `<dt>Laite (myynti / hankinta / kate)</dt>
+      <dd>${formatEuro(internal.deviceSellNet)} / ${formatEuro(internal.devicePurchaseNet)} / <strong>${formatEuro(internal.deviceMarginNet)}</strong></dd>`
+          : ''
+      }
       <dt>Kate</dt>
       <dd>${formatEuro(internal.marginNet)} <span class="line-sub">(${internal.marginPercent.toLocaleString('fi-FI', { maximumFractionDigits: 1 })} % myynnistä)</span></dd>
     </dl>
@@ -431,6 +438,11 @@ function creatorSummaryFooter(
   return `${discountNote}
     <tr class="summary-row"><td colspan="4">${netLabel}</td><td class="num">${formatEuro(internal.discountedSellNet)}</td></tr>
     <tr class="summary-row purchase"><td colspan="4">Hankinta yhteensä</td><td class="num">${formatEuro(internal.purchaseNet)}</td></tr>
+    ${
+      internal.deviceSellNet > 0.005
+        ? `<tr class="summary-row device-profit"><td colspan="4">Laite: kate erikseen</td><td class="num">${formatEuro(internal.deviceMarginNet)}<div class="line-sub">myynti ${formatEuro(internal.deviceSellNet)} − hankinta ${formatEuro(internal.devicePurchaseNet)}</div></td></tr>`
+        : ''
+    }
     <tr class="summary-row profit"><td colspan="4">Kate / tuotto (viivan päälle)</td><td class="num">${formatEuro(internal.marginNet)}<div class="line-sub">${internal.marginPercent.toLocaleString('fi-FI', { maximumFractionDigits: 1 })} % myynnistä</div></td></tr>
     ${vatRow}
     <tr class="total-row"><td colspan="4">${esc(totalRowLabel)}</td><td class="num">${customerTotal}</td></tr>`;
@@ -688,6 +700,8 @@ export function generateQuoteOfferPrintHtml(input: {
     ${optionCompareHtml}
 
     ${optionCards ? `<section>${optionCards}</section>` : ''}
+
+    ${optionalItemsPrintHtml(data)}
 
     ${data.notes.trim() ? `<div class="notes"><strong>Huomautukset</strong><div>${esc(data.notes).replace(/\n/g, '<br />')}</div></div>` : ''}
 

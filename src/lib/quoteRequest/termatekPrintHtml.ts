@@ -1,6 +1,6 @@
 import type { BrandDeliveryFeeByCategoryMap } from '../../data/devicePricingShared';
 import type { HeatPumpDevice } from '../../data/pumpDeviceCatalog';
-import { computeKotitalousDeduction, computeIilpCoolingEnergyEstimate, computeQuoteTotals, computePumpSizingNeedKw, computeTravelNet, effectiveIilpPurpose, resolveIilpLaborPricingMode, travelCostLabel } from './calculations';
+import { computeKotitalousDeduction, computeIilpCoolingEnergyEstimate, computeQuoteInternalTotals, computeQuoteTotals, computePumpSizingNeedKw, computeTravelNet, effectiveIilpPurpose, resolveIilpLaborPricingMode, travelCostLabel } from './calculations';
 import { DEFAULT_IILP_ENERGY_SAVINGS_TEXT, DEFAULT_IILP_PAYMENT_TERMS } from './constants';
 import {
   DEFAULT_TERMATEK_IILP_QUOTE_TERMS,
@@ -13,6 +13,7 @@ import {
 import type { QuoteTermsPrintFlags } from './types';
 import { calculateDeviceSellNet, resolveQuoteMainDeviceForTotals, syncMainDeviceBrandPricing } from './deviceCatalog';
 import { normalizePumpDeviceSelection } from './defaults';
+import { optionalItemsTermatekPrintHtml } from './optionalItemsPrint';
 import type { QuotePrintCustomer, QuotePrintMeta } from './printHtml';
 import {
   buildTermatekAssetMap,
@@ -576,7 +577,8 @@ function buildPricingSectionHtml(input: {
   deliveryLine: string;
   paymentLine: string;
   extraWorkRateLabel: string;
-  optionalNotesHtml: string;
+  optionalItemsHtml: string;
+  notesHtml: string;
 }): string {
   const {
     lines,
@@ -588,7 +590,8 @@ function buildPricingSectionHtml(input: {
     deliveryLine,
     paymentLine,
     extraWorkRateLabel,
-    optionalNotesHtml,
+    optionalItemsHtml,
+    notesHtml,
   } = input;
 
   const lineRows = lines
@@ -615,7 +618,8 @@ function buildPricingSectionHtml(input: {
         <span class="k">Maksuehto</span><span>${esc(paymentLine)}</span>
         <span class="k">Lisätyöt</span><span>${esc(extraWorkRateLabel)}</span>
       </div>
-      ${optionalNotesHtml ? `<div class="section-title">Tuotteet ja palvelut tarjouksen mukaisesti</div>${optionalNotesHtml}` : ''}`;
+      ${optionalItemsHtml}
+      ${notesHtml ? `<div class="section-title">Huomautukset</div>${notesHtml}` : ''}`;
 }
 
 function termatekStyles(): string {
@@ -795,6 +799,14 @@ function termatekStyles(): string {
     .acceptance-label { font-size: 8.8pt; font-weight: 700; color: #072855; margin-bottom: 1.5mm; }
     .acceptance-line { min-height: 8mm; border-bottom: 0.4mm solid #111; font-size: 10pt; padding-top: 1mm; }
     .acceptance-line--sign { min-height: 14mm; }
+    .tmk-quote-pricing--internal .summary-note-box { background: #fff7ed; border-color: #fdba74; color: #9a3412; }
+    .price-table--internal .device-row td { background: #eff6ff; }
+    .price-table--internal tr.total td { font-weight: 700; border-top: 0.6mm solid #072855; }
+    .internal-device-margin { margin-top: 5mm; padding: 4mm; border: 0.4mm solid #c7d2fe; border-radius: 4mm; background: #f8fafc; break-inside: avoid; page-break-inside: avoid; }
+    .internal-device-margin .section-title { margin-top: 0; }
+    .internal-overall-margin { margin-top: 4mm; padding: 3.5mm 4mm; border-radius: 4mm; background: #f0fdf4; border: 0.4mm solid #86efac; font-size: 10pt; }
+    .internal-overall-margin strong { color: #166534; }
+    .line-sub { font-size: 8.5pt; color: #64748b; font-weight: 400; margin-top: 0.5mm; }
   `;
 }
 
@@ -884,7 +896,8 @@ export function generateTermatekVilpPrintHtml(input: {
     productLabel: coverProductLabel,
     coverImageSrc: assets.coverBg,
   });
-  const optionalNotesHtml = data.notes.trim()
+  const optionalItemsHtml = optionalItemsTermatekPrintHtml(data);
+  const notesHtml = data.notes.trim()
     ? data.notes
         .trim()
         .split('\n')
@@ -912,7 +925,8 @@ export function generateTermatekVilpPrintHtml(input: {
     deliveryLine,
     paymentLine,
     extraWorkRateLabel,
-    optionalNotesHtml,
+    optionalItemsHtml,
+    notesHtml,
   });
 
   return `<!DOCTYPE html>
@@ -1037,4 +1051,260 @@ export async function prepareTermatekVilpPrintHtml(input: {
   });
   productImages = await embedTermatekProductImages(productImages);
   return generateTermatekVilpPrintHtml({ ...input, data, assets, productImages });
+}
+
+type InternalPricingRow = {
+  label: string;
+  sellNet: number;
+  purchaseNet: number;
+  marginNet: number;
+  isDevice?: boolean;
+};
+
+function buildTermatekInternalPricingRows(
+  data: QuoteRequestData,
+  feeMap: BrandDeliveryFeeByCategoryMap | null,
+  internal: ReturnType<typeof computeQuoteInternalTotals>,
+): InternalPricingRow[] {
+  const totals = computeQuoteTotals(data, feeMap);
+  const rows: InternalPricingRow[] = [];
+  const isUrakka = data.type === 'ilma-ilma' && resolveIilpLaborPricingMode(data) === 'urakka';
+
+  if (totals.workNet > 0) {
+    rows.push({
+      label: isUrakka ? 'Asennustyö (urakka)' : 'Työt',
+      sellNet: totals.workNet,
+      purchaseNet: 0,
+      marginNet: totals.workNet,
+    });
+  }
+
+  if (totals.travelNet > 0) {
+    rows.push({
+      label: travelCostLabel(data),
+      sellNet: totals.travelNet,
+      purchaseNet: 0,
+      marginNet: totals.travelNet,
+    });
+  }
+
+  if (internal.materialsSellNet > 0.005 || internal.materialsPurchaseNet > 0.005) {
+    const materialsLabel =
+      isUrakka && totals.iilpBaseInstall.materialsGross > 0 ? 'Asennustarvikkeet' : 'Tarvikkeet';
+    rows.push({
+      label: materialsLabel,
+      sellNet: internal.materialsSellNet,
+      purchaseNet: internal.materialsPurchaseNet,
+      marginNet: internal.materialsMarginNet,
+    });
+  }
+
+  if (internal.deviceSellNet > 0.005 || internal.devicePurchaseNet > 0.005) {
+    const device = resolveQuoteMainDeviceForTotals(data, computePumpSizingNeedKw(data));
+    const deviceLabel = device?.name?.trim() ? `Laite: ${device.name}` : 'Laite';
+    rows.push({
+      label: deviceLabel,
+      sellNet: internal.deviceSellNet,
+      purchaseNet: internal.devicePurchaseNet,
+      marginNet: internal.deviceMarginNet,
+      isDevice: true,
+    });
+  }
+
+  return rows;
+}
+
+function buildTermatekInternalPricingSectionHtml(input: {
+  rows: InternalPricingRow[];
+  internal: ReturnType<typeof computeQuoteInternalTotals>;
+  vatRate: number;
+  optionalItemsHtml: string;
+}): string {
+  const { rows, internal, vatRate, optionalItemsHtml } = input;
+  const discountPct = internal.discountPercent;
+  const discountNet = internal.sellNet - internal.discountedSellNet;
+  const deviceMarginPct =
+    internal.deviceSellNet > 0 ? (internal.deviceMarginNet / internal.deviceSellNet) * 100 : 0;
+  const overallMarginPct =
+    internal.discountedSellNet > 0 ? (internal.marginNet / internal.discountedSellNet) * 100 : 0;
+
+  const bodyRows = rows
+    .map((row) => {
+      const marginPct = row.sellNet > 0 ? (row.marginNet / row.sellNet) * 100 : 0;
+      return `<tr${row.isDevice ? ' class="device-row"' : ''}>
+        <td>${esc(row.label)}</td>
+        <td class="num">${formatEuro(row.sellNet)}</td>
+        <td class="num">${row.purchaseNet > 0.005 ? formatEuro(row.purchaseNet) : '—'}</td>
+        <td class="num">${formatEuro(row.marginNet)}${
+          marginPct > 0.05
+            ? `<div class="line-sub">${marginPct.toLocaleString('fi-FI', { maximumFractionDigits: 1 })} %</div>`
+            : ''
+        }</td>
+      </tr>`;
+    })
+    .join('');
+
+  const device = rows.find((row) => row.isDevice);
+
+  return `
+    <div class="tmk-quote-pricing tmk-quote-pricing--internal">
+      <div class="summary-title">Sisäinen laskenta</div>
+      <div class="summary-note-box">Verottomat hinnat (alv 0). Työn ja matkan kate = myyntihinta.</div>
+      <table class="price-table price-table--summary price-table--internal">
+        <thead>
+          <tr>
+            <th>Kuvaus</th>
+            <th class="num">Myynti (alv 0)</th>
+            <th class="num">Hankinta</th>
+            <th class="num">Kate</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${bodyRows || '<tr><td colspan="4">—</td></tr>'}
+          ${
+            discountPct > 0
+              ? `<tr><td>Kokonaisalennus ${discountPct.toLocaleString('fi-FI', { maximumFractionDigits: 1 })} %</td><td class="num">− ${formatEuro(discountNet)}</td><td></td><td></td></tr>`
+              : ''
+          }
+          <tr class="total">
+            <td>Yhteensä</td>
+            <td class="num">${formatEuro(internal.discountedSellNet)}</td>
+            <td class="num">${formatEuro(internal.purchaseNet)}</td>
+            <td class="num">${formatEuro(internal.marginNet)}</td>
+          </tr>
+          ${
+            vatRate > 0
+              ? `<tr><td>Asiakashinta (sis. ALV ${vatRate} %)</td><td class="num">${formatEuro(internal.grossTotal)}</td><td colspan="2"></td></tr>`
+              : ''
+          }
+        </tbody>
+      </table>
+      ${
+        device
+          ? `<div class="internal-device-margin">
+          <div class="section-title">Laitteen kate erikseen</div>
+          <div class="fact-grid">
+            <div class="fact-card"><div class="fact-k">Myynti (alv 0)</div><div class="fact-v">${formatEuro(internal.deviceSellNet)}</div></div>
+            <div class="fact-card"><div class="fact-k">Hankinta</div><div class="fact-v">${formatEuro(internal.devicePurchaseNet)}</div></div>
+            <div class="fact-card"><div class="fact-k">Kate</div><div class="fact-v">${formatEuro(internal.deviceMarginNet)} (${deviceMarginPct.toLocaleString('fi-FI', { maximumFractionDigits: 1 })} %)</div></div>
+          </div>
+        </div>`
+          : ''
+      }
+      <div class="internal-overall-margin">
+        <strong>Kokonaiskate:</strong> ${formatEuro(internal.marginNet)}
+        (${overallMarginPct.toLocaleString('fi-FI', { maximumFractionDigits: 1 })} % myynnistä)
+      </div>
+      ${optionalItemsHtml}
+    </div>`;
+}
+
+export function generateTermatekInternalPrintHtml(input: {
+  data: QuoteRequestData;
+  customer: QuotePrintCustomer;
+  meta: QuotePrintMeta;
+  feeMap?: BrandDeliveryFeeByCategoryMap | null;
+  assets?: TermatekAssetMap;
+}) {
+  const { customer, meta, feeMap = null } = input;
+  const data = syncMainDeviceBrandPricing(normalizePumpDeviceSelection({ ...input.data }));
+  const assetBase = getTermatekAssetBase();
+  const assets = input.assets ?? buildTermatekAssetMap(assetBase);
+  const settings = meta.settings ?? {};
+  const billing = settings.billing ?? {};
+  const internal = computeQuoteInternalTotals(data, feeMap);
+  const device = resolveQuoteMainDeviceForTotals(data, computePumpSizingNeedKw(data));
+  const vatRate = Number(data.vatRate) || 0;
+  const offerNo = formatOfferNumber(meta);
+  const productTitle = defaultProductTitle(data, device);
+  const iilp = isIilpQuote(data);
+  const customerAddress = [customer.address, customer.city].filter(Boolean).join(', ');
+  const companyAddress = [settings.address, [settings.postal_code, settings.city].filter(Boolean).join(' ')]
+    .filter(Boolean)
+    .join(', ');
+  const websiteDisplay = (settings.website || 'www.termatek.fi').replace(/^https?:\/\//i, '').replace(/\/+$/, '');
+
+  const headerHtml = `<div class="header header--termatek"><img class="brand-banner" src="${esc(assets.header)}" alt="${esc(meta.companyName)}" /></div>`;
+  const footerHtml = `<div class="footer footer--bar"></div>`;
+  const productFactsHtml = device ? buildProductFactsHtml(data, device) : '';
+  const optionalItemsHtml = optionalItemsTermatekPrintHtml(data);
+  const pricingSectionHtml = buildTermatekInternalPricingSectionHtml({
+    rows: buildTermatekInternalPricingRows(data, feeMap, internal),
+    internal,
+    vatRate,
+    optionalItemsHtml,
+  });
+  const introBullets = deviceIntroBullets(data, device);
+  const notesHtml = data.notes.trim()
+    ? `<div class="section-title">Huomautukset</div>${data.notes
+        .trim()
+        .split('\n')
+        .filter(Boolean)
+        .map((line) => `<div class="tuu-line">${esc(line)}</div>`)
+        .join('')}`
+    : '';
+
+  return `<!DOCTYPE html>
+<html lang="fi">
+<head>
+  <meta charset="utf-8" />
+  <title>Sisäinen laskenta # ${esc(offerNo)} – ${esc(customer.name)}</title>
+  <style>${termatekStyles()}</style>
+</head>
+<body>
+  <div class="a4 page page--sheet">
+    ${headerHtml}
+    <div class="content">
+      <div class="tmk-intro-title-row">
+        <div class="tmk-intro-title">Sisäinen laskenta — ${esc(iilp ? 'Ilmalämpöpumppu' : 'Vesi-ilmalämpöpumppu')}</div>
+        <div class="tmk-intro-no"># ${esc(offerNo)}</div>
+      </div>
+      <div class="tmk-info-grid">
+        <div class="tmk-info-block">
+          <div class="tmk-info-title">Yritystiedot</div>
+          ${companyInfoLines({ meta, billing, settings, companyAddress, websiteDisplay })}
+        </div>
+        <div class="tmk-info-block">
+          <div class="tmk-info-title">Asiakastiedot</div>
+          <div class="tmk-line"><strong>${esc(customer.name)}</strong></div>
+          ${customerAddress ? `<div class="tmk-line">${esc(customerAddress)}</div>` : ''}
+          ${data.customerPhone ? `<div class="tmk-line">${esc(data.customerPhone)}</div>` : ''}
+        </div>
+      </div>
+      <div class="tmk-intro-copy">
+        <div class="tmk-meta">
+          <div class="row"><span class="label">Päivä:</span><span class="value">${formatDateFi(meta.quoteDate)}</span></div>
+          <div class="row"><span class="label">Voimassa:</span><span class="value">${formatDateFi(data.validUntil)}</span></div>
+          <div class="row"><span class="label">Tuote:</span><span class="value">${esc(productTitle)}</span></div>
+        </div>
+        ${
+          introBullets.length
+            ? `<div class="tmk-lead"><strong>Tarjouksen sisältö</strong></div><ul class="tmk-bullets">${introBulletsHtml(introBullets)}</ul>`
+            : ''
+        }
+      </div>
+      ${
+        productFactsHtml
+          ? `<div class="tmk-quote-product" style="margin-top:4mm">${productFactsHtml}</div>`
+          : ''
+      }
+      ${pricingSectionHtml}
+      ${notesHtml}
+    </div>
+    ${footerHtml}
+  </div>
+</body>
+</html>`;
+}
+
+export async function prepareTermatekInternalPrintHtml(input: {
+  data: QuoteRequestData;
+  customer: QuotePrintCustomer;
+  meta: QuotePrintMeta;
+  feeMap?: BrandDeliveryFeeByCategoryMap | null;
+}): Promise<string> {
+  const data = syncMainDeviceBrandPricing(normalizePumpDeviceSelection({ ...input.data }));
+  const assetBase = getTermatekAssetBase();
+  const assets = await embedTermatekAssets(buildTermatekAssetMap(assetBase));
+  return generateTermatekInternalPrintHtml({ ...input, data, assets });
 }

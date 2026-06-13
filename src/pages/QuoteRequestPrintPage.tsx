@@ -35,8 +35,10 @@ import {
 } from '../lib/quoteRequest/lampokatsastusPrintHtml';
 import {
   generateTermatekVilpPrintHtml,
+  generateTermatekInternalPrintHtml,
   isTermatekCompany,
   prepareTermatekVilpPrintHtml,
+  prepareTermatekInternalPrintHtml,
 } from '../lib/quoteRequest/termatekPrintHtml';
 
 import type { QuoteRequestData } from '../lib/quoteRequest/types';
@@ -137,12 +139,13 @@ export default function QuoteRequestPrintPage({ session }: Props) {
     setActiveDeviceRegistry(snapshotFromCompanySettings(meta?.settings ?? null));
   }, [meta?.settings]);
 
-  const useTermatekTemplate =
+  const isTermatekPumpOffer =
     printDocument === 'offer'
     && (quoteData?.type === 'vesi-ilma' || quoteData?.type === 'ilma-ilma')
-    && printMode === 'enduser'
     && !!meta
     && isTermatekCompany(meta);
+
+  const useTermatekTemplate = isTermatekPumpOffer;
 
   // Huolto/korjaus: sama pohja sisäiselle ja asiakastulosteelle (ei erillistä brändipohjaa).
   const useLampokatsastusTemplate = false;
@@ -155,14 +158,19 @@ export default function QuoteRequestPrintPage({ session }: Props) {
     }
     let cancelled = false;
     setTermatekHtmlLoading(true);
-    void prepareTermatekVilpPrintHtml({ data: printData, customer, meta, feeMap })
+    void (printMode === 'creator'
+      ? prepareTermatekInternalPrintHtml({ data: printData, customer, meta, feeMap })
+      : prepareTermatekVilpPrintHtml({ data: printData, customer, meta, feeMap })
+    )
       .then((nextHtml) => {
         if (!cancelled) setTermatekHtml(nextHtml);
       })
       .catch(() => {
         if (!cancelled) {
           setTermatekHtml(
-            generateTermatekVilpPrintHtml({ data: printData, customer, meta, feeMap }),
+            printMode === 'creator'
+              ? generateTermatekInternalPrintHtml({ data: printData, customer, meta, feeMap })
+              : generateTermatekVilpPrintHtml({ data: printData, customer, meta, feeMap }),
           );
         }
       })
@@ -172,7 +180,7 @@ export default function QuoteRequestPrintPage({ session }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [useTermatekTemplate, printData, customer, meta, feeMap]);
+  }, [useTermatekTemplate, printMode, printData, customer, meta, feeMap]);
 
   useEffect(() => {
     if (!useLampokatsastusTemplate || !quoteData || !customer || !meta) {
@@ -410,7 +418,10 @@ export default function QuoteRequestPrintPage({ session }: Props) {
     let printHtml = html;
     if (useTermatekTemplate && printData && customer && meta) {
       try {
-        printHtml = await prepareTermatekVilpPrintHtml({ data: printData, customer, meta, feeMap });
+        printHtml =
+          printMode === 'creator'
+            ? await prepareTermatekInternalPrintHtml({ data: printData, customer, meta, feeMap })
+            : await prepareTermatekVilpPrintHtml({ data: printData, customer, meta, feeMap });
       } catch {
         if (!printHtml) {
           setError('Tulosteen valmistelu epäonnistui. Yritä uudelleen.');
