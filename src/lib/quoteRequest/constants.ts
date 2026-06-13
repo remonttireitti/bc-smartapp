@@ -79,12 +79,14 @@ export const DEFAULT_IILP_OPTIONAL_ITEMS: Array<{ description: string; priceGros
 
 export const DEVICE_REGISTRY_BRANDS = ['Daikin', 'Inventor', 'Samsung'] as const;
 
+export const DEFAULT_TRAVEL_KM_RATE = 0.53;
+
 export const quoteTemplates: Record<QuoteType, Partial<QuoteRequestData>> = {
-  'vesi-ilma': { laborHours: 16, laborRate: 65, travelCost: 50, vatRate: 25.5 },
+  'vesi-ilma': { laborHours: 16, laborRate: 65, travelCost: 0, vatRate: 25.5 },
   'ilma-ilma': {
     laborHours: 0,
     laborRate: 65,
-    travelCost: 50,
+    travelCost: 0,
     vatRate: 25.5,
     iilpBaseInstallEnabled: true,
     iilpBaseInstallLaborGross: 890,

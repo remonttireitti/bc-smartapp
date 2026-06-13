@@ -28,12 +28,13 @@ import {
   resolveSubscriberIdForReport,
 } from '../lib/subscribers';
 import { partnershipModuleAccess, partnershipPermsActingOnOwner, parseCompanySettings } from '../lib/management';
-import { computeKotitalousDeduction, computePumpSizingNeedKw, computeQuoteTotals } from '../lib/quoteRequest/calculations';
+import { computeKotitalousDeduction, computePumpSizingNeedKw, computeQuoteTotals, computeTravelNet, travelCostLabel } from '../lib/quoteRequest/calculations';
 import { deliveryFeesFromCompanySettings } from '../lib/quoteRequest/deviceCatalog';
 import { setActiveDeviceRegistry, snapshotFromCompanySettings } from '../lib/quoteRequest/deviceRegistryState';
 import {
   BUILDING_TYPE_OPTIONS,
   QUOTE_REGION_LABELS,
+  DEFAULT_TRAVEL_KM_RATE,
   QUOTE_SECTION_LABELS,
   QUOTE_TYPE_LABELS,
   QUOTE_TYPE_ORDER,
@@ -1212,17 +1213,66 @@ export default function QuoteRequestEditPage({ session }: Props) {
                 />
               </label>
               {quoteUsesTravelCost(form.type) && (
-                <label>
-                  Matkakulut (€, alv 0)
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={form.travelCost}
-                    onChange={(e) => patchForm({ travelCost: Number(e.target.value) })}
-                    disabled={!canEdit}
-                  />
-                </label>
+                <div className="quote-travel-km panel-inset">
+                  <label className="checkbox-inline">
+                    <input
+                      type="checkbox"
+                      checked={form.travelKmEnabled}
+                      disabled={!canEdit}
+                      onChange={(e) =>
+                        patchForm({
+                          travelKmEnabled: e.target.checked,
+                          travelKmDistance: e.target.checked ? form.travelKmDistance || 0 : 0,
+                        })
+                      }
+                    />
+                    Laskuta km-korvaus
+                  </label>
+                  {form.travelKmEnabled && (
+                    <>
+                      <div className="quote-field-grid quote-field-grid-2">
+                        <label>
+                          Kilometrit
+                          <input
+                            type="number"
+                            min="0"
+                            step="1"
+                            value={form.travelKmDistance}
+                            onChange={(e) =>
+                              patchForm({ travelKmDistance: Number(e.target.value) })
+                            }
+                            disabled={!canEdit}
+                          />
+                        </label>
+                        <label>
+                          Korvaus (€/km, alv 0)
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={form.travelKmRate}
+                            onChange={(e) => patchForm({ travelKmRate: Number(e.target.value) })}
+                            disabled={!canEdit}
+                          />
+                        </label>
+                      </div>
+                      <p className="muted">
+                        Km-korvaus yhteensä:{' '}
+                        <strong>
+                          {computeTravelNet(form).toLocaleString('fi-FI', {
+                            style: 'currency',
+                            currency: 'EUR',
+                          })}
+                        </strong>{' '}
+                        ({form.travelKmDistance || 0} km × {form.travelKmRate || DEFAULT_TRAVEL_KM_RATE}{' '}
+                        €/km)
+                      </p>
+                    </>
+                  )}
+                  {!form.travelKmEnabled && (
+                    <p className="muted">Oletuksena ei laskuteta. Lisää km-korvaus tarvittaessa.</p>
+                  )}
+                </div>
               )}
               <div className="quote-vat-profile-field">
                 <span className="field-label">ALV / asiakastyyppi</span>
@@ -1299,6 +1349,17 @@ export default function QuoteRequestEditPage({ session }: Props) {
                 disabled={!canEdit}
               />
             </label>
+            {isPumpQuoteType(form.type) && (
+              <label>
+                Tarjousehdot (tuloste: takuut, perusasennus, huolto)
+                <textarea
+                  rows={14}
+                  value={form.quoteTermsText}
+                  onChange={(e) => patchForm({ quoteTermsText: e.target.value })}
+                  disabled={!canEdit}
+                />
+              </label>
+            )}
             <label>
               Huomautukset
               <textarea
@@ -1314,8 +1375,11 @@ export default function QuoteRequestEditPage({ session }: Props) {
               <div>
                 Tarvikkeet: {totals.materialsNet.toLocaleString('fi-FI', { style: 'currency', currency: 'EUR' })}
               </div>
-              {quoteUsesTravelCost(form.type) && (
-                <div>Matkat: {totals.travelNet.toLocaleString('fi-FI', { style: 'currency', currency: 'EUR' })}</div>
+              {quoteUsesTravelCost(form.type) && totals.travelNet > 0 && (
+                <div>
+                  {travelCostLabel(form)}:{' '}
+                  {totals.travelNet.toLocaleString('fi-FI', { style: 'currency', currency: 'EUR' })}
+                </div>
               )}
               <div>Laite/urakka: {totals.deviceNet.toLocaleString('fi-FI', { style: 'currency', currency: 'EUR' })}</div>
               <div>

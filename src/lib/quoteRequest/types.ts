@@ -92,6 +92,13 @@ export type QuoteRequestData = {
   laborHours: number;
   laborRate: number;
   travelCost: number;
+  /** Laskutetaanko km-korvaus (oletus: ei). */
+  travelKmEnabled: boolean;
+  travelKmDistance: number;
+  /** €/km, alv 0. */
+  travelKmRate: number;
+  /** Termatek / tulosteen takuu- ja asennusehdot (plain text). */
+  quoteTermsText: string;
   vatRate: number;
   deviceDiscountPercent: number;
   deviceMarginPercent: number;

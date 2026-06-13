@@ -1,6 +1,7 @@
 import type { BrandDeliveryFeeByCategoryMap } from '../../data/devicePricingShared';
 import type { HeatPumpDevice } from '../../data/pumpDeviceCatalog';
-import { computeKotitalousDeduction, computeQuoteTotals } from './calculations';
+import { computeKotitalousDeduction, computeQuoteTotals, computeTravelNet, travelCostLabel } from './calculations';
+import { quoteTermsPlainTextToHtml } from './termatekDefaultTerms';
 import { calculateDeviceSellNet, findDeviceById } from './deviceCatalog';
 import type { QuotePrintCustomer, QuotePrintMeta } from './printHtml';
 import {
@@ -112,6 +113,11 @@ function buildProductFactsHtml(data: QuoteRequestData, device: HeatPumpDevice | 
 }
 
 function buildTermsHtml(data: QuoteRequestData): string {
+  if (data.quoteTermsText?.trim()) {
+    return `
+      <div class="terms-title">Termatek – Takuut, huolto ja asennusehdot</div>
+      ${quoteTermsPlainTextToHtml(data.quoteTermsText.trim())}`;
+  }
   if (isIilpQuote(data)) {
     return `
       <div class="terms-title">Termatek – Takuut, huolto ja asennusehdot</div>
@@ -212,11 +218,12 @@ function workGrossRows(data: QuoteRequestData, vatMult: number): Array<{ desc: s
       gross: Number(data.laborHours) * Number(data.laborRate || 0) * vatMult,
     });
   }
-  if (Number(data.travelCost) > 0) {
+  const travelNet = computeTravelNet(data);
+  if (travelNet > 0) {
     rows.push({
-      desc: 'Matkakulut',
+      desc: travelCostLabel(data),
       hours: 0,
-      gross: Number(data.travelCost) * vatMult,
+      gross: travelNet * vatMult,
     });
   }
   return rows;

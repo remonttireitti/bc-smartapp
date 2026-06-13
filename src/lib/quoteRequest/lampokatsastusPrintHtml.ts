@@ -1,5 +1,5 @@
 import type { BrandDeliveryFeeByCategoryMap } from '../../data/devicePricingShared';
-import { computeQuoteTotals } from './calculations';
+import { computeQuoteTotals, computeTravelNet, travelCostLabel } from './calculations';
 import { embedUrlAsDataUrl } from './termatekAssets';
 import type { QuotePrintCustomer, QuotePrintMeta } from './printHtml';
 import type { QuoteRequestData } from './types';
@@ -174,12 +174,13 @@ function buildQuoteRows(data: QuoteRequestData, feeMap?: BrandDeliveryFeeByCateg
     }
   }
 
-  if (Number(data.travelCost) > 0) {
+  const travelNet = computeTravelNet(data);
+  if (travelNet > 0) {
     rows.push({
-      desc: 'Matkakulut',
+      desc: travelCostLabel(data),
       qtyLabel: '1 kpl',
-      unitNet: Number(data.travelCost),
-      rowNet: Number(data.travelCost),
+      unitNet: travelNet,
+      rowNet: travelNet,
     });
   }
 

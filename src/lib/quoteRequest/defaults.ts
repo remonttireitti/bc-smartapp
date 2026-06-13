@@ -2,8 +2,10 @@ import type { Partnership } from '../../types';
 import { partnershipPermsActingOnOwner } from '../management';
 import { applyLegacyQuoteFields } from './legacyImport';
 import { resolveLegacyDeviceIds } from './deviceCatalog';
+import { DEFAULT_TERMATEK_IILP_QUOTE_TERMS } from './termatekDefaultTerms';
 import {
   DEFAULT_IILP_OPTIONAL_ITEMS,
+  DEFAULT_TRAVEL_KM_RATE,
   inferQuoteVatProfile,
   isPumpQuoteType,
   isRepairQuoteType,
@@ -160,7 +162,11 @@ export function createEmptyQuoteRequestData(type: QuoteType = 'vesi-ilma'): Quot
     materials: [],
     laborHours: template.laborHours ?? 0,
     laborRate: template.laborRate ?? 65,
-    travelCost: template.travelCost ?? 50,
+    travelCost: 0,
+    travelKmEnabled: false,
+    travelKmDistance: 0,
+    travelKmRate: DEFAULT_TRAVEL_KM_RATE,
+    quoteTermsText: type === 'ilma-ilma' ? DEFAULT_TERMATEK_IILP_QUOTE_TERMS : '',
     vatRate: vatRateForQuoteProfile(quoteVatProfile),
     deviceDiscountPercent: 52.5,
     deviceMarginPercent: 25,
@@ -247,9 +253,16 @@ export function applyQuoteTypeChange(current: QuoteRequestData, nextType: QuoteT
     quoteVatProfile,
     laborHours: template.laborHours ?? current.laborHours,
     laborRate: template.laborRate ?? current.laborRate,
-    travelCost: quoteUsesTravelCost(nextType)
-      ? (template.travelCost ?? current.travelCost)
-      : 0,
+    travelCost: 0,
+    travelKmEnabled: nextType === current.type ? current.travelKmEnabled : false,
+    travelKmDistance: nextType === current.type ? current.travelKmDistance : 0,
+    travelKmRate: current.travelKmRate || DEFAULT_TRAVEL_KM_RATE,
+    quoteTermsText:
+      nextType === 'ilma-ilma'
+        ? current.quoteTermsText?.trim() || DEFAULT_TERMATEK_IILP_QUOTE_TERMS
+        : nextType === current.type
+          ? current.quoteTermsText
+          : '',
     vatRate: vatRateForQuoteProfile(quoteVatProfile),
     workItems,
     materials,
@@ -400,7 +413,11 @@ export function normalizeQuoteRequestData(raw: unknown): QuoteRequestData {
     materials,
     laborHours: Number(record.laborHours) || 0,
     laborRate: Number(record.laborRate) || 65,
-    travelCost: quoteUsesTravelCost(type) ? Number(record.travelCost) || 50 : 0,
+    travelCost: 0,
+    travelKmEnabled: normalizeTravelKmEnabled(record, type),
+    travelKmDistance: normalizeTravelKmDistance(record, type),
+    travelKmRate: normalizeTravelKmRate(record),
+    quoteTermsText: normalizeQuoteTermsText(record, type),
     quoteVatProfile:
       record.quoteVatProfile === 'consumer' || record.quoteVatProfile === 'business'
         ? record.quoteVatProfile
@@ -451,6 +468,38 @@ export function normalizeQuoteRequestData(raw: unknown): QuoteRequestData {
     legacyCustomerName:
       typeof record.legacyCustomerName === 'string' ? record.legacyCustomerName : undefined,
   };
+}
+
+function normalizeTravelKmRate(record: Record<string, unknown>): number {
+  const rate = Number(record.travelKmRate);
+  return Number.isFinite(rate) && rate > 0 ? rate : DEFAULT_TRAVEL_KM_RATE;
+}
+
+function normalizeTravelKmEnabled(record: Record<string, unknown>, type: QuoteType): boolean {
+  if (!quoteUsesTravelCost(type)) return false;
+  if (record.travelKmEnabled === true) return true;
+  if (record.travelKmEnabled === false) return false;
+  const legacyTravel = Number(record.travelCost) || 0;
+  return legacyTravel > 0;
+}
+
+function normalizeTravelKmDistance(record: Record<string, unknown>, type: QuoteType): number {
+  if (!quoteUsesTravelCost(type)) return 0;
+  const explicit = Number(record.travelKmDistance);
+  if (Number.isFinite(explicit) && explicit > 0) return explicit;
+  const legacyTravel = Number(record.travelCost) || 0;
+  if (legacyTravel > 0) {
+    const rate = normalizeTravelKmRate(record);
+    return Math.round((legacyTravel / rate) * 10) / 10;
+  }
+  return 0;
+}
+
+function normalizeQuoteTermsText(record: Record<string, unknown>, type: QuoteType): string {
+  if (typeof record.quoteTermsText === 'string' && record.quoteTermsText.trim()) {
+    return record.quoteTermsText;
+  }
+  return type === 'ilma-ilma' ? DEFAULT_TERMATEK_IILP_QUOTE_TERMS : '';
 }
 
 function normalizeOptionalItems(raw: unknown, type: QuoteType): QuoteOptionalItem[] {

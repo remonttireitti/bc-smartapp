@@ -174,6 +174,24 @@ export function computeIilpNeedKw(quote: QuoteRequestData): number {
   return Math.max(heating, cooling);
 }
 
+export function computeTravelNet(data: QuoteRequestData): number {
+  if (!quoteUsesTravelCost(data.type)) return 0;
+  if (data.travelKmEnabled) {
+    const km = Math.max(0, Number(data.travelKmDistance) || 0);
+    const rate = Math.max(0, Number(data.travelKmRate) || 0);
+    return Math.round(km * rate * 100) / 100;
+  }
+  return Math.max(0, Number(data.travelCost) || 0);
+}
+
+export function travelCostLabel(data: QuoteRequestData): string {
+  if (data.travelKmEnabled && Number(data.travelKmDistance) > 0) {
+    const rate = Number(data.travelKmRate) || 0;
+    return `Km-korvaus (${data.travelKmDistance} km × ${rate.toLocaleString('fi-FI', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €/km)`;
+  }
+  return 'Matkakulut';
+}
+
 export function computePumpSizingNeedKw(quote: QuoteRequestData): number | null {
   if (quote.type === 'ilma-ilma') return computeIilpNeedKw(quote);
   if (quote.type === 'vesi-ilma') return computeHeatingNeedKw(quote);
@@ -289,7 +307,7 @@ export function computeQuoteTotals(
     workNet += iilpBase.laborNet;
     materialsNet += iilpBase.materialsNet;
   }
-  const travelNet = quoteUsesTravelCost(data.type) ? Number(data.travelCost || 0) : 0;
+  const travelNet = computeTravelNet(data);
 
   let deviceNet = 0;
   if (isPumpQuoteType(data.type)) {
