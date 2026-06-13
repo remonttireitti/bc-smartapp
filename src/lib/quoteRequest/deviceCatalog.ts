@@ -256,3 +256,39 @@ export function powerFitLabel(pct: number | null): string {
   if (pct >= 65) return 'Rajatapaus';
   return 'Liian pieni teholtaan';
 }
+
+function iilpDeviceSizingPowerKw(
+  device: HeatPumpDevice,
+  purpose: QuoteRequestData['iilpPurpose'],
+): number {
+  if (purpose === 'cooling') {
+    return device.coolingPowerMax ?? device.iilpNominalKw ?? device.heatingPowerMax;
+  }
+  return device.heatingPowerMax;
+}
+
+/** Ehdota pienin riittävän tehon laite valitulle valmistajalle. */
+export function suggestBestIilpDeviceId(
+  form: QuoteRequestData,
+  needKw: number | null,
+): string | null {
+  if (!needKw || needKw <= 0 || !form.vilpBrandChoice) return null;
+
+  const purpose =
+    form.buildingType === 'kerrostalo' && form.iilpPurpose !== 'cooling_heating'
+      ? 'cooling'
+      : form.iilpPurpose || 'cooling_heating';
+
+  const devices = devicesForQuoteType('ilma-ilma', form, needKw).filter(
+    (device) => device.brand === form.vilpBrandChoice,
+  );
+  if (devices.length === 0) return null;
+
+  const powerOf = (device: HeatPumpDevice) => iilpDeviceSizingPowerKw(device, purpose);
+  const adequate = devices
+    .filter((device) => powerOf(device) >= needKw * 0.9)
+    .sort((a, b) => powerOf(a) - powerOf(b));
+  if (adequate.length > 0) return adequate[0].id;
+
+  return [...devices].sort((a, b) => powerOf(b) - powerOf(a))[0]?.id ?? null;
+}

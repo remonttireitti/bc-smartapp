@@ -14,12 +14,16 @@ import type { BrandDeliveryFeeByCategoryMap } from '../../data/devicePricingShar
 import type { HeatPumpDevice } from '../../data/pumpDeviceCatalog';
 import type { QuoteRequestData } from '../../lib/quoteRequest/types';
 
+type Variant = 'full' | 'selection' | 'pricing';
+
 type Props = {
   form: QuoteRequestData;
   canEdit: boolean;
   heatingNeedKw: number | null;
   feeMap?: BrandDeliveryFeeByCategoryMap | null;
   onChange: (patch: Partial<QuoteRequestData>) => void;
+  variant?: Variant;
+  suggestedDeviceId?: string | null;
 };
 
 function optionField(key: DeviceOptionKey, side: 'Good' | 'Bad'): keyof QuoteRequestData {
@@ -43,6 +47,8 @@ function DeviceOptionCard({
   feeMap,
   onChange,
   excludeIds,
+  variant,
+  suggestedDeviceId,
 }: {
   label: string;
   optionKey: DeviceOptionKey;
@@ -55,6 +61,8 @@ function DeviceOptionCard({
   feeMap?: BrandDeliveryFeeByCategoryMap | null;
   onChange: (patch: Partial<QuoteRequestData>) => void;
   excludeIds: string[];
+  variant: Variant;
+  suggestedDeviceId?: string | null;
 }) {
   const devices = devicesForQuoteType(form.type, form, heatingNeedKw).filter(
     (device: HeatPumpDevice) => !excludeIds.includes(device.id),
@@ -64,53 +72,77 @@ function DeviceOptionCard({
   const purchase = calculateDevicePurchaseNet(form, device, feeMap);
   const sell = calculateDeviceSellNet(form, device, feeMap);
   const powerPct = computeDevicePowerFitPercent(heatingNeedKw, device);
+  const isManualPick =
+    variant === 'selection' &&
+    optionKey === 'A' &&
+    selectedId &&
+    suggestedDeviceId &&
+    selectedId !== suggestedDeviceId;
+
+  const showSelection = variant === 'full' || variant === 'selection';
+  const showPricing = variant === 'full' || variant === 'pricing';
+
+  if (variant === 'pricing' && !device) return null;
 
   return (
     <div className="quote-device-card panel-inset">
       <div className="quote-line-head">
         <strong>{label}</strong>
-        {device && (
+        {showPricing && device && (
           <span className="muted">
             {purchase.toLocaleString('fi-FI', { style: 'currency', currency: 'EUR' })} →{' '}
             {sell.toLocaleString('fi-FI', { style: 'currency', currency: 'EUR' })}
           </span>
         )}
       </div>
-      {powerPct != null && (
+      {showSelection && powerPct != null && (
         <p className={`quote-power-fit quote-power-fit-${powerPct >= 80 ? 'ok' : powerPct >= 65 ? 'warn' : 'bad'}`}>
           Mitoitus: {powerPct}% tarpeesta — {powerFitLabel(powerPct)}
         </p>
       )}
-      <label>
-        Laite
-        {!device && deviceIdField === 'selectedDeviceId' && form.deviceModel.trim() && (
-          <p className="muted quote-legacy-device-note">
-            Tuodusta järjestelmästä: <strong>{form.deviceModel.trim()}</strong>. Valitse vastaava laite listasta.
-          </p>
-        )}
-        <select
-          value={selectedId}
-          disabled={!canEdit}
-          onChange={(e) => {
-            const nextId = e.target.value;
-            const nextDevice = findDeviceById(nextId);
-            let patch: Partial<QuoteRequestData> = { [deviceIdField]: nextId };
-            if (optionKey === 'A' && nextDevice) {
-              patch = { ...applyDeviceBrandDefaults(form, nextDevice), ...patch };
-            }
-            onChange(patch);
-          }}
-        >
-          <option value="">— Valitse laite —</option>
-          {devices.map((entry: HeatPumpDevice) => (
-            <option key={entry.id} value={entry.id}>
-              {formatDeviceLabel(entry)} • list {entry.listPrice.toLocaleString('fi-FI')} €
-            </option>
-          ))}
-        </select>
-      </label>
-      {device && (
-        <div className="line-form-grid">
+      {showSelection && isManualPick && (
+        <p className="quote-power-fit quote-power-fit-warn">
+          Valinta poikkeaa ehdotuksesta ({formatDeviceLabel(findDeviceById(suggestedDeviceId)!)}).
+        </p>
+      )}
+      {showSelection && (
+        <label>
+          Laite
+          {!device && deviceIdField === 'selectedDeviceId' && form.deviceModel.trim() && (
+            <p className="muted quote-legacy-device-note">
+              Tuodusta järjestelmästä: <strong>{form.deviceModel.trim()}</strong>. Valitse vastaava laite listasta.
+            </p>
+          )}
+          <select
+            value={selectedId}
+            disabled={!canEdit}
+            onChange={(e) => {
+              const nextId = e.target.value;
+              const nextDevice = findDeviceById(nextId);
+              let patch: Partial<QuoteRequestData> = { [deviceIdField]: nextId };
+              if (optionKey === 'A' && nextDevice) {
+                patch = { ...applyDeviceBrandDefaults(form, nextDevice), ...patch };
+              }
+              if (optionKey === 'A' && nextId !== suggestedDeviceId) {
+                patch.iilpDeviceSelectionNote = form.iilpDeviceSelectionNote;
+              } else if (optionKey === 'A' && nextId === suggestedDeviceId) {
+                patch.iilpDeviceSelectionNote = '';
+              }
+              onChange(patch);
+            }}
+          >
+            <option value="">— Valitse laite —</option>
+            {devices.map((entry: HeatPumpDevice) => (
+              <option key={entry.id} value={entry.id}>
+                {formatDeviceLabel(entry)}
+                {variant === 'full' ? ` • list ${entry.listPrice.toLocaleString('fi-FI')} €` : ''}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+      {showPricing && device && (
+        <div className="quote-field-grid quote-field-grid-2">
           <label>
             Alennus listasta (%)
             <input
@@ -135,7 +167,7 @@ function DeviceOptionCard({
           </label>
         </div>
       )}
-      {device && (
+      {showPricing && device && (
         <>
           <label>
             Hyvää (tuloste)
@@ -167,58 +199,134 @@ export default function QuotePumpDevicesSection({
   heatingNeedKw,
   feeMap,
   onChange,
+  variant = 'full',
+  suggestedDeviceId,
 }: Props) {
   const excludeForB = [form.selectedDeviceId, form.altDevice2Id].filter(Boolean);
   const excludeForC = [form.selectedDeviceId, form.altDevice1Id].filter(Boolean);
   const optionTotals = computeAllOptionTotals(form, feeMap);
 
+  const title =
+    variant === 'selection'
+      ? 'Laitteet (A / B / C)'
+      : variant === 'pricing'
+        ? 'Laitteen hinnoittelu'
+        : 'Lämpöpumppu (A / B / C)';
+
   return (
     <section className="form-section">
-      <h2>Lämpöpumppu (A / B / C)</h2>
-      <p className="muted">
-        Valitse päälaite ja halutessasi vaihtoehtoiset mallit. Hinnat: listahinta, alennus, toimitus (rekisteristä) ja
-        kate.
-      </p>
-      <DeviceOptionCard
-        label="Vaihtoehto A (päälaite)"
-        optionKey="A"
-        deviceIdField="selectedDeviceId"
-        discountField="deviceDiscountPercent"
-        marginField="deviceMarginPercent"
-        form={form}
-        canEdit={canEdit}
-        heatingNeedKw={heatingNeedKw}
-        feeMap={feeMap}
-        onChange={onChange}
-        excludeIds={[form.altDevice1Id, form.altDevice2Id].filter(Boolean)}
-      />
-      <DeviceOptionCard
-        label="Vaihtoehto B"
-        optionKey="B"
-        deviceIdField="altDevice1Id"
-        discountField="altDevice1DiscountPercent"
-        marginField="altDevice1MarginPercent"
-        form={form}
-        canEdit={canEdit}
-        heatingNeedKw={heatingNeedKw}
-        feeMap={feeMap}
-        onChange={onChange}
-        excludeIds={excludeForB}
-      />
-      <DeviceOptionCard
-        label="Vaihtoehto C"
-        optionKey="C"
-        deviceIdField="altDevice2Id"
-        discountField="altDevice2DiscountPercent"
-        marginField="altDevice2MarginPercent"
-        form={form}
-        canEdit={canEdit}
-        heatingNeedKw={heatingNeedKw}
-        feeMap={feeMap}
-        onChange={onChange}
-        excludeIds={excludeForC}
-      />
-      {optionTotals.length > 1 && (
+      <h2>{title}</h2>
+      {variant === 'full' && (
+        <p className="muted">
+          Valitse päälaite ja halutessasi vaihtoehtoiset mallit. Hinnat: listahinta, alennus, toimitus (rekisteristä) ja
+          kate.
+        </p>
+      )}
+      {variant === 'pricing' && (
+        <p className="muted">Alennus, kate ja laiteoikaisu valituille malleille.</p>
+      )}
+      {(variant === 'full' || variant === 'selection') && (
+        <>
+          <DeviceOptionCard
+            label="Vaihtoehto A (päälaite)"
+            optionKey="A"
+            deviceIdField="selectedDeviceId"
+            discountField="deviceDiscountPercent"
+            marginField="deviceMarginPercent"
+            form={form}
+            canEdit={canEdit}
+            heatingNeedKw={heatingNeedKw}
+            feeMap={feeMap}
+            onChange={onChange}
+            excludeIds={[form.altDevice1Id, form.altDevice2Id].filter(Boolean)}
+            variant={variant}
+            suggestedDeviceId={suggestedDeviceId}
+          />
+          <DeviceOptionCard
+            label="Vaihtoehto B"
+            optionKey="B"
+            deviceIdField="altDevice1Id"
+            discountField="altDevice1DiscountPercent"
+            marginField="altDevice1MarginPercent"
+            form={form}
+            canEdit={canEdit}
+            heatingNeedKw={heatingNeedKw}
+            feeMap={feeMap}
+            onChange={onChange}
+            excludeIds={excludeForB}
+            variant={variant}
+            suggestedDeviceId={suggestedDeviceId}
+          />
+          <DeviceOptionCard
+            label="Vaihtoehto C"
+            optionKey="C"
+            deviceIdField="altDevice2Id"
+            discountField="altDevice2DiscountPercent"
+            marginField="altDevice2MarginPercent"
+            form={form}
+            canEdit={canEdit}
+            heatingNeedKw={heatingNeedKw}
+            feeMap={feeMap}
+            onChange={onChange}
+            excludeIds={excludeForC}
+            variant={variant}
+            suggestedDeviceId={suggestedDeviceId}
+          />
+        </>
+      )}
+      {variant === 'pricing' && (
+        <>
+          {form.selectedDeviceId && (
+            <DeviceOptionCard
+              label="Vaihtoehto A (päälaite)"
+              optionKey="A"
+              deviceIdField="selectedDeviceId"
+              discountField="deviceDiscountPercent"
+              marginField="deviceMarginPercent"
+              form={form}
+              canEdit={canEdit}
+              heatingNeedKw={heatingNeedKw}
+              feeMap={feeMap}
+              onChange={onChange}
+              excludeIds={[]}
+              variant={variant}
+            />
+          )}
+          {form.altDevice1Id && (
+            <DeviceOptionCard
+              label="Vaihtoehto B"
+              optionKey="B"
+              deviceIdField="altDevice1Id"
+              discountField="altDevice1DiscountPercent"
+              marginField="altDevice1MarginPercent"
+              form={form}
+              canEdit={canEdit}
+              heatingNeedKw={heatingNeedKw}
+              feeMap={feeMap}
+              onChange={onChange}
+              excludeIds={[]}
+              variant={variant}
+            />
+          )}
+          {form.altDevice2Id && (
+            <DeviceOptionCard
+              label="Vaihtoehto C"
+              optionKey="C"
+              deviceIdField="altDevice2Id"
+              discountField="altDevice2DiscountPercent"
+              marginField="altDevice2MarginPercent"
+              form={form}
+              canEdit={canEdit}
+              heatingNeedKw={heatingNeedKw}
+              feeMap={feeMap}
+              onChange={onChange}
+              excludeIds={[]}
+              variant={variant}
+            />
+          )}
+        </>
+      )}
+      {variant === 'full' && optionTotals.length > 1 && (
         <div className="quote-option-compare">
           <h3>Vaihtoehtojen kokonaishinnat (sis. työt + tarvikkeet + laite)</h3>
           <div className="quote-option-compare-grid">
@@ -235,8 +343,8 @@ export default function QuotePumpDevicesSection({
           </div>
         </div>
       )}
-      {form.selectedDeviceId && (
-        <div className="line-form-grid">
+      {(variant === 'full' || variant === 'pricing') && form.selectedDeviceId && (
+        <div className="quote-field-grid quote-field-grid-2">
           <label>
             Myyntihinta yliajo (€, alv 0)
             <input

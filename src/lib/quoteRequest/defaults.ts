@@ -3,6 +3,7 @@ import { partnershipPermsActingOnOwner } from '../management';
 import { applyLegacyQuoteFields } from './legacyImport';
 import { resolveLegacyDeviceIds } from './deviceCatalog';
 import {
+  DEFAULT_IILP_OPTIONAL_ITEMS,
   inferQuoteVatProfile,
   isPumpQuoteType,
   isRepairQuoteType,
@@ -15,6 +16,7 @@ import type {
   QuoteBrandMode,
   QuoteLine,
   QuoteMaterial,
+  QuoteOptionalItem,
   QuoteRequestData,
   QuoteType,
   QuoteWorkItem,
@@ -102,6 +104,20 @@ export function createEmptyQuoteLine(partial?: Partial<QuoteLine>): QuoteLine {
   };
 }
 
+export function createEmptyOptionalItem(partial?: Partial<QuoteOptionalItem>): QuoteOptionalItem {
+  return {
+    id: newId(),
+    description: '',
+    priceGross: 0,
+    enabled: false,
+    ...partial,
+  };
+}
+
+export function defaultIilpOptionalItems(): QuoteOptionalItem[] {
+  return DEFAULT_IILP_OPTIONAL_ITEMS.map((item) => createEmptyOptionalItem(item));
+}
+
 export function createEmptyQuoteRequestData(type: QuoteType = 'vesi-ilma'): QuoteRequestData {
   const validUntil = new Date();
   validUntil.setDate(validUntil.getDate() + 30);
@@ -179,6 +195,8 @@ export function createEmptyQuoteRequestData(type: QuoteType = 'vesi-ilma'): Quot
     iilpBaseInstallEnabled: template.iilpBaseInstallEnabled ?? false,
     iilpBaseInstallLaborGross: template.iilpBaseInstallLaborGross ?? 890,
     iilpBaseInstallMaterialsGross: template.iilpBaseInstallMaterialsGross ?? 500,
+    iilpDeviceSelectionNote: '',
+    optionalItems: type === 'ilma-ilma' ? defaultIilpOptionalItems() : [],
   };
 }
 
@@ -426,10 +444,28 @@ export function normalizeQuoteRequestData(raw: unknown): QuoteRequestData {
     iilpBaseInstallEnabled: record.iilpBaseInstallEnabled === true,
     iilpBaseInstallLaborGross: Number(record.iilpBaseInstallLaborGross) || 890,
     iilpBaseInstallMaterialsGross: Number(record.iilpBaseInstallMaterialsGross) || 500,
+    iilpDeviceSelectionNote:
+      typeof record.iilpDeviceSelectionNote === 'string' ? record.iilpDeviceSelectionNote : '',
+    optionalItems: normalizeOptionalItems(record.optionalItems, type),
     lines,
     legacyCustomerName:
       typeof record.legacyCustomerName === 'string' ? record.legacyCustomerName : undefined,
   };
+}
+
+function normalizeOptionalItems(raw: unknown, type: QuoteType): QuoteOptionalItem[] {
+  if (!Array.isArray(raw) || raw.length === 0) {
+    return type === 'ilma-ilma' ? defaultIilpOptionalItems() : [];
+  }
+  return raw.map((entry, index) => {
+    const row = entry as Record<string, unknown>;
+    return createEmptyOptionalItem({
+      id: typeof row.id === 'string' ? row.id : `opt-${index}`,
+      description: typeof row.description === 'string' ? row.description : '',
+      priceGross: Number(row.priceGross) || 0,
+      enabled: row.enabled === true,
+    });
+  });
 }
 
 function normalizeVilpIndoorConfig(value: unknown): QuoteRequestData['vilpIndoorConfig'] {

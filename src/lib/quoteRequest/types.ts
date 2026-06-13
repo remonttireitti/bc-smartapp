@@ -45,6 +45,14 @@ export type QuoteLine = {
   equipmentName?: string;
 };
 
+/** Valinnainen lisä (ei sisälly tarjouksen kokonaishintaan). */
+export type QuoteOptionalItem = {
+  id: string;
+  description: string;
+  priceGross: number;
+  enabled: boolean;
+};
+
 export type QuoteRequestData = {
   type: QuoteType;
   /** Yritys (alv 0) tai yksityishenkilö (alv 25,5). */
@@ -117,6 +125,10 @@ export type QuoteRequestData = {
   iilpBaseInstallEnabled: boolean;
   iilpBaseInstallLaborGross: number;
   iilpBaseInstallMaterialsGross: number;
+  /** Huomautus kun laite valitaan käsin ehdotetun sijaan. */
+  iilpDeviceSelectionNote: string;
+  /** Valinnaiset lisät (eivät kokonaishinnassa). */
+  optionalItems: QuoteOptionalItem[];
   /** Preserved from Firestore import when customer FK was missing. */
   legacyCustomerName?: string;
   /** @deprecated use workItems/materials */

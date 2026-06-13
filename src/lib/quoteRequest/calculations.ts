@@ -129,23 +129,34 @@ const iilpRegionFactors: Record<QuoteRegion, number> = {
   pohjois: 1.2,
 };
 
-export function computeIilpHeatingNeedKw(quote: QuoteRequestData): number {
+/** Lämmitystarve W/m³ (ennen aluekerrointa). */
+export const IILP_HEATING_W_PER_M3 = 20;
+/** Jäähdytystarve W/m³ (375 m³ × ~23 W/m³ ≈ 8,6 kW @ 150 m² / 2,5 m). */
+export const IILP_COOLING_W_PER_M3 = 1000 / 17.5 / 2.5;
+
+export function iilpHeatingWPerM3ForRegion(region: QuoteRegion): number {
+  return IILP_HEATING_W_PER_M3 * (iilpRegionFactors[region] || 1.0);
+}
+
+export function computeIilpVolumeM3(quote: QuoteRequestData): number {
   const area = Math.max(0, Number(quote.heatedArea) || 0);
-  if (area <= 0) return 0;
   const height = Math.max(2.0, Number(quote.roomHeight) || 2.5);
-  const heatingWPerSqm = 25 * height;
+  return Math.round(area * height * 10) / 10;
+}
+
+export function computeIilpHeatingNeedKw(quote: QuoteRequestData): number {
+  const volume = computeIilpVolumeM3(quote);
+  if (volume <= 0) return 0;
   const regionFactor = iilpRegionFactors[quote.region] || 1.0;
-  const kw = (area * heatingWPerSqm * regionFactor) / 1000;
-  return Math.round(Math.max(2.0, Math.min(10.0, kw)) * 10) / 10;
+  const kw = (volume * IILP_HEATING_W_PER_M3 * regionFactor) / 1000;
+  return Math.round(Math.max(2.0, kw) * 10) / 10;
 }
 
 export function computeIilpCoolingNeedKw(quote: QuoteRequestData): number {
-  const area = Math.max(0, Number(quote.heatedArea) || 0);
-  if (area <= 0) return 0;
-  const height = Math.max(2.0, Number(quote.roomHeight) || 2.5);
-  const coolingWPerSqm = (1000 / 17.5) * (height / 2.5);
-  const kw = (area * coolingWPerSqm) / 1000;
-  return Math.round(Math.max(2.0, Math.min(10.0, kw)) * 10) / 10;
+  const volume = computeIilpVolumeM3(quote);
+  if (volume <= 0) return 0;
+  const kw = (volume * IILP_COOLING_W_PER_M3) / 1000;
+  return Math.round(Math.max(2.0, kw) * 10) / 10;
 }
 
 export function effectiveIilpPurpose(quote: QuoteRequestData): QuoteRequestData['iilpPurpose'] {

@@ -60,10 +60,6 @@ function defaultProductTitle(data: QuoteRequestData, device: HeatPumpDevice | nu
   return device?.name ?? (isIilpQuote(data) ? 'Ilmalämpöpumppu' : 'Vesi-ilmalämpöpumppu');
 }
 
-function unitsSubtitle(data: QuoteRequestData): string {
-  return isIilpQuote(data) ? 'Sisä- ja ulkoyksikkö' : 'Ulkoyksikkö + sisäyksikkö';
-}
-
 function deviceIntroBullets(data: QuoteRequestData, device: HeatPumpDevice | null): string[] {
   const name = defaultProductTitle(data, device);
   if (isIilpQuote(data)) {
@@ -152,6 +148,36 @@ function buildTermsHtml(data: QuoteRequestData): string {
       <p>Sopimukseen sovelletaan Suomen lakia. Kuluttaja-asiakkaiden osalta noudatetaan kuluttajansuojalainsäädäntöä.</p>`;
 }
 
+function buildContactSectionHtml(input: {
+  meta: QuotePrintMeta;
+  billing: { business_id?: string };
+  companyAddress: string;
+  coverLocationLine: string;
+  settings: { phone?: string; email?: string; website?: string };
+  websiteDisplay: string;
+}): string {
+  const { meta, billing, companyAddress, coverLocationLine, settings, websiteDisplay } = input;
+  return `
+      <div class="terms-contact-divider"></div>
+      <div class="summary-title terms-contact-title">Yritystiedot ja yhteystiedot</div>
+      <div class="tuu-info-grid">
+        <div class="tuu-info-block">
+          <div class="tuu-info-title">Yritystiedot</div>
+          <div class="tuu-line"><strong>${esc(meta.companyName)}</strong></div>
+          ${billing.business_id ? `<div class="tuu-line">Y-tunnus: ${esc(billing.business_id)}</div>` : ''}
+          ${companyAddress ? `<div class="tuu-line">${esc(companyAddress)}</div>` : ''}
+          ${coverLocationLine ? `<div class="tuu-line">${esc(coverLocationLine)}</div>` : ''}
+        </div>
+        <div class="tuu-info-block">
+          <div class="tuu-info-title">Yhteystiedot</div>
+          ${settings.phone ? `<div class="tuu-line">Puh: ${esc(settings.phone)}</div>` : ''}
+          ${settings.email ? `<div class="tuu-line">${esc(settings.email)}</div>` : ''}
+          ${websiteDisplay ? `<div class="tuu-line">${esc(websiteDisplay)}</div>` : ''}
+        </div>
+      </div>
+      <div class="tuu-muted"><strong>Palvelu:</strong> Huollot, lisätyöt ja mahdolliset muutostarpeet sovitaan aina tilaajan kanssa etukäteen. Laitteiden osalta noudatetaan valmistajan takuuehtoja. Asennustyölle myönnetään kahden (2) vuoden takuu.</div>`;
+}
+
 function buildDeliveryBullets(data: QuoteRequestData): string[] {
   if (isIilpQuote(data)) {
     return [
@@ -196,6 +222,128 @@ function workGrossRows(data: QuoteRequestData, vatMult: number): Array<{ desc: s
   return rows;
 }
 
+type PricingLine = { label: string; gross: number };
+
+function buildTermatekPricingLines(input: {
+  data: QuoteRequestData;
+  totals: ReturnType<typeof computeQuoteTotals>;
+  vatMult: number;
+  productTitle: string;
+  deviceGross: number;
+}): PricingLine[] {
+  const { data, totals, vatMult, productTitle, deviceGross } = input;
+  const lines: PricingLine[] = [];
+
+  const workRows = workGrossRows(data, vatMult);
+  for (const row of workRows) {
+    if (row.gross <= 0) continue;
+    lines.push({
+      label: row.hours > 0 ? `${row.desc} (${row.hours.toLocaleString('fi-FI', { maximumFractionDigits: 1 })} h)` : row.desc,
+      gross: row.gross,
+    });
+  }
+
+  if (totals.iilpBaseInstall.enabled && totals.iilpBaseInstall.laborGross > 0) {
+    const hasInstallLine = lines.some((line) => /asennustyö/i.test(line.label));
+    if (!hasInstallLine) {
+      lines.unshift({ label: 'Asennustyö', gross: totals.iilpBaseInstall.laborGross });
+    }
+  }
+
+  const targetWorkGross = (totals.workNet + totals.travelNet) * vatMult;
+  const listedWorkGross = lines.reduce((sum, line) => sum + line.gross, 0);
+  const workGap = Math.max(0, targetWorkGross - listedWorkGross);
+  if (workGap > 0.005) {
+    lines.push({ label: 'Työn osuus', gross: workGap });
+  } else if (!lines.length && targetWorkGross > 0) {
+    lines.push({ label: 'Työn osuus', gross: targetWorkGross });
+  }
+
+  const materialItems = data.materials.filter((m) => m.name.trim());
+  let listedMaterialsGross = 0;
+  if (materialItems.length > 0) {
+    for (const item of materialItems) {
+      const qty = Number(item.quantity) || 0;
+      const rowGross = qty * Number(item.sellPrice) * vatMult;
+      listedMaterialsGross += rowGross;
+      if (rowGross <= 0 && qty <= 0) continue;
+      lines.push({
+        label: qty > 0 ? `${item.name.trim()} (${qty} kpl)` : item.name.trim(),
+        gross: rowGross,
+      });
+    }
+  } else if (totals.iilpBaseInstall.enabled && totals.iilpBaseInstall.materialsGross > 0) {
+    listedMaterialsGross = totals.iilpBaseInstall.materialsGross;
+    lines.push({ label: 'Asennustarvikkeet', gross: totals.iilpBaseInstall.materialsGross });
+  }
+
+  const targetMaterialsGross = totals.materialsNet * vatMult;
+  const materialsGap = Math.max(0, targetMaterialsGross - listedMaterialsGross);
+  if (materialsGap > 0.005) {
+    lines.push({ label: 'Tarvikkeet', gross: materialsGap });
+  } else if (!materialItems.length && !totals.iilpBaseInstall.enabled && targetMaterialsGross > 0) {
+    lines.push({ label: 'Tarvikkeet', gross: targetMaterialsGross });
+  }
+
+  if (deviceGross > 0) {
+    lines.push({ label: `Laite: ${productTitle}`, gross: deviceGross });
+  }
+
+  return lines;
+}
+
+function buildPricingSectionHtml(input: {
+  lines: PricingLine[];
+  vatRate: number;
+  discountPct: number;
+  discountGross: number;
+  finalGross: number;
+  kotitalousHtml: string;
+  deliveryLine: string;
+  paymentLine: string;
+  extraWorkGross: number;
+  optionalNotesHtml: string;
+}): string {
+  const {
+    lines,
+    vatRate,
+    discountPct,
+    discountGross,
+    finalGross,
+    kotitalousHtml,
+    deliveryLine,
+    paymentLine,
+    extraWorkGross,
+    optionalNotesHtml,
+  } = input;
+
+  const lineRows = lines
+    .map(
+      (line) => `<tr><td>${esc(line.label)}</td><td class="num">${formatEuro(line.gross)}</td></tr>`,
+    )
+    .join('');
+
+  return `
+      <div class="summary-title">Hinnan muodostuminen</div>
+      <div class="summary-note-box">Hinnat ovat verollisia (sis. ALV ${vatRate}%).</div>
+      <table class="price-table price-table--summary">
+        <thead><tr><th>Kuvaus</th><th class="num">Yhteensä (sis. ALV ${vatRate}%)</th></tr></thead>
+        <tbody>
+          ${lineRows || '<tr><td colspan="2">—</td></tr>'}
+          ${discountPct > 0 ? `<tr><td>Kokonaisalennus ${discountPct}%</td><td class="num">- ${formatEuro(discountGross)}</td></tr>` : ''}
+          <tr class="total final"><td>Lopullinen tarjoushinta</td><td class="num">${formatEuro(finalGross)}</td></tr>
+        </tbody>
+      </table>
+      <div class="section-title">Lisätiedot</div>
+      <div class="extras-grid">
+        ${kotitalousHtml}
+        <span class="k">Toimitusehto ja aika</span><span>${esc(deliveryLine)}</span>
+        <span class="k">Maksuehto</span><span>${esc(paymentLine)}</span>
+        <span class="k">Lisätyöt</span><span>${formatEuro(extraWorkGross)} / h (sis. ALV ${vatRate}%)</span>
+      </div>
+      ${optionalNotesHtml ? `<div class="section-title">Tuotteet ja palvelut tarjouksen mukaisesti</div>${optionalNotesHtml}` : ''}`;
+}
+
 function termatekStyles(): string {
   return `
     @page { size: A4; margin: 0; }
@@ -227,6 +375,7 @@ function termatekStyles(): string {
     .content { padding: 24mm 15mm 20mm 15mm; box-sizing: border-box; font-size: 10.1pt; line-height: 1.32; }
     .tmk-kicker { font-size: 10pt; font-weight: 800; letter-spacing: .6px; color: #072855; text-transform: uppercase; }
     .tmk-hero-grid { display: grid; grid-template-columns: 1.15fr 0.85fr; gap: 10mm; margin-top: 4mm; }
+    .tmk-hero-grid--cover { grid-template-columns: 1fr; }
     .tmk-hero-title { margin-top: 2mm; font-size: 22pt; font-weight: 900; line-height: 1.08; color: #072855; }
     .tmk-hero-lead { margin-top: 4mm; font-size: 11.5pt; line-height: 1.45; color: #111; }
     .tmk-hero-cards { margin-top: 6mm; display: grid; grid-template-columns: 1fr; gap: 3.5mm; }
@@ -266,6 +415,13 @@ function termatekStyles(): string {
     .product-title { font-size: 14.5pt; font-weight: 700; margin-bottom: 3.5mm; }
     .product-subtitle { font-size: 10pt; color: #333; margin-top: -2mm; margin-bottom: 3.5mm; }
     .product-layout { display: grid; grid-template-columns: 1.08fr 0.92fr; gap: 6mm; align-items: start; }
+    .tmk-quote-product { margin-top: 5mm; padding-top: 4mm; border-top: 0.5mm solid #e5e7eb; }
+    .tmk-quote-product .product-title { font-size: 13pt; margin-bottom: 2.5mm; }
+    .tmk-quote-product .img-card img { height: 44mm; }
+    .tmk-quote-product .fact-k { font-size: 8.2pt; }
+    .tmk-quote-product .fact-v { font-size: 9.2pt; }
+    .tmk-quote-product .product-card { padding: 2.5mm 3mm; }
+    .tmk-quote-product .compact-list { font-size: 9.2pt; }
     .product-side { display: grid; gap: 3mm; }
     .img-grid { display: grid; gap: 6mm; margin: 4mm 0 8mm 0; }
     .img-grid.two { grid-template-columns: 1fr 1fr; }
@@ -287,36 +443,24 @@ function termatekStyles(): string {
     .price-table th { background: #f7f7f7; font-weight: 600; text-align: left; }
     .price-table .num { text-align: right; white-space: nowrap; }
     .price-table tr.total td { font-weight: 700; }
+    .price-table tr.final td { font-size: 11pt; border-top: 0.6mm solid #072855; padding-top: 8px; }
+    .price-table--summary { margin-bottom: 4mm; }
     .extras-grid { display: grid; grid-template-columns: 34mm 1fr; gap: 2mm 4mm; font-size: 9.5pt; margin-top: 4mm; }
     .extras-grid .k { font-weight: 600; color: #374151; }
     .terms-title { font-size: 12pt; font-weight: 600; margin-bottom: 2.5mm; color: #072855; }
     .terms-lead { font-size: 10pt; color: #111; margin-bottom: 4mm; }
     .terms h3 { font-size: 10.5pt; margin: 3mm 0 1.5mm 0; color: #072855; }
     .terms p { font-size: 10pt; margin: 0 0 2mm 0; }
+    .terms-contact-divider { margin: 5mm 0 4mm 0; border-top: 0.5mm solid #e5e7eb; }
+    .terms-contact-title { font-size: 12pt; margin-bottom: 3mm; }
+    .terms .tuu-info-grid { margin-top: 0; }
+    .terms .tuu-muted { margin-top: 3mm; font-size: 9.4pt; }
     .tuu-info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8mm; margin-top: 6mm; }
     .tuu-info-block { border: 1px solid #e5e7eb; border-radius: 12px; padding: 4mm 4.5mm; background: #fff; }
     .tuu-info-title { font-weight: 800; color: #072855; margin-bottom: 2.5mm; }
     .tuu-line { margin: 0.45mm 0; font-size: 9.7pt; line-height: 1.25; }
     .tuu-muted { margin-top: 4mm; font-size: 9.7pt; color: #111; line-height: 1.4; }
   `;
-}
-
-function heroProductImagesHtml(productImages: TermatekProductImage[]): string {
-  if (!productImages.length) return '';
-  const gridClass = productImages.length === 1 ? 'one' : productImages.length === 2 ? 'two' : 'three';
-  return `
-    <div class="hero-img-grid ${gridClass}">
-      ${productImages
-        .slice(0, 3)
-        .map(
-          (img) => `
-        <div class="hero-img-box">
-          <img src="${esc(img.src)}" alt="${esc(img.alt)}" />
-          <div class="hero-img-caption">${esc(img.label)}</div>
-        </div>`,
-        )
-        .join('')}
-    </div>`;
 }
 
 function productImagesHtml(productImages: TermatekProductImage[]): string {
@@ -357,7 +501,6 @@ export function generateTermatekVilpPrintHtml(input: {
   const offerNo = formatOfferNumber(meta);
   const productTitle = defaultProductTitle(data, device);
   const introBullets = deviceIntroBullets(data, device);
-  const unitLine = unitsSubtitle(data);
   const iilp = isIilpQuote(data);
   const productImages =
     input.productImages
@@ -368,13 +511,10 @@ export function generateTermatekVilpPrintHtml(input: {
       assets,
       productTitle,
     });
-  const workRows = workGrossRows(data, vatMult);
-  const workGross = workRows.reduce((sum, row) => sum + row.gross, 0);
-  const materialsGross = totals.materialsNet * vatMult;
   const deviceGross = device
     ? calculateDeviceSellNet(data, device, feeMap) * vatMult
     : totals.deviceNet * vatMult;
-  const subtotalGross = workGross + materialsGross + deviceGross;
+  const subtotalGross = totals.subtotalNet * vatMult;
   const discountPct = Math.max(0, Math.min(100, Number(data.overallDiscountPercent || 0)));
   const discountGross = subtotalGross * (discountPct / 100);
   const finalGross = subtotalGross - discountGross;
@@ -387,31 +527,6 @@ export function generateTermatekVilpPrintHtml(input: {
     .join(', ');
   const websiteDisplay = (settings.website || 'www.termatek.fi').replace(/^https?:\/\//i, '').replace(/\/+$/, '');
   const coverLocationLine = [settings.postal_code, settings.city].filter(Boolean).join(' ') || 'Vantaa, 01350';
-
-  const materialDetailRows = data.materials
-    .filter((m) => m.name.trim())
-    .map((m) => {
-      const qty = Number(m.quantity) || 0;
-      const unitGross = Number(m.sellPrice) * vatMult;
-      const rowGross = qty * unitGross;
-      return `<tr>
-        <td>${esc(m.name)}</td>
-        <td class="num">${esc(qty)}</td>
-        <td class="num">${formatEuro(unitGross)}</td>
-        <td class="num">${formatEuro(rowGross)}</td>
-      </tr>`;
-    })
-    .join('');
-
-  const workDetailRows = workRows
-    .map(
-      (row) => `<tr>
-        <td>${esc(row.desc)}</td>
-        <td class="num">${row.hours > 0 ? `${row.hours.toLocaleString('fi-FI', { maximumFractionDigits: 1 })}` : '—'}</td>
-        <td class="num">${formatEuro(row.gross)}</td>
-      </tr>`,
-    )
-    .join('');
 
   const situationHtml =
     data.situationReportEnabled && data.situationReportText.trim()
@@ -446,59 +561,18 @@ export function generateTermatekVilpPrintHtml(input: {
     ? ''
     : `<div class="product-subtitle">Sisäyksikkö: ${esc(vilpIndoorConfigLabel(data.vilpIndoorConfig))}</div>`;
 
-  const summaryRowsHtml = iilp
-    ? `
-          <tr><td>Työn osuus</td><td class="num">${formatEuro(workGross)}</td></tr>
-          <tr><td>Tarvikkeet</td><td class="num">${formatEuro(materialsGross)}</td></tr>
-          <tr><td>Laitehinta</td><td class="num">${formatEuro(deviceGross)}</td></tr>
-          ${discountPct > 0 ? `<tr><td>Kokonaisalennus ${discountPct}%</td><td class="num">- ${formatEuro(discountGross)}</td></tr>` : ''}
-          <tr class="total"><td>Lopullinen tarjoushinta</td><td class="num">${formatEuro(finalGross)}</td></tr>`
-    : `
-          <tr><td>Työn osuus</td><td class="num">${formatEuro(workGross)}</td></tr>
-          <tr><td>Tarvikkeet</td><td class="num">${formatEuro(materialsGross)}</td></tr>
-          <tr><td>Laitehinta</td><td class="num">${formatEuro(deviceGross)}</td></tr>
-          <tr class="total"><td>Välisumma</td><td class="num">${formatEuro(subtotalGross)}</td></tr>
-          ${discountPct > 0 ? `<tr><td>Kokonaisalennus ${discountPct}%</td><td class="num">- ${formatEuro(discountGross)}</td></tr>` : ''}
-          <tr class="total"><td>Lopullinen tarjoushinta</td><td class="num">${formatEuro(finalGross)}</td></tr>`;
-
-  const pricingExtrasSectionHtml = iilp
-    ? `
-      <div class="section-title">Lisätiedot</div>
-      <div class="extras-grid">
-        ${kotitalousHtml}
-        <span class="k">Toimitusehto ja aika</span><span>${esc(deliveryLine)}</span>
-        <span class="k">Maksuehto</span><span>${esc(paymentLine)}</span>
-        <span class="k">Lisätyöt</span><span>${formatEuro(extraWorkGross)} / h (sis. ALV ${vatRate}%)</span>
-      </div>
-      ${optionalNotesHtml ? `<div class="section-title">Tuotteet ja palvelut tarjouksen mukaisesti</div>${optionalNotesHtml}` : ''}
-      <div class="section-title">Työerittely</div>
-      <table class="price-table">
-        <thead><tr><th>Kuvaus</th><th class="num">Tunnit</th><th class="num">Yht (sis. ALV ${vatRate}%)</th></tr></thead>
-        <tbody>${workDetailRows || '<tr><td colspan="3">—</td></tr>'}<tr class="total"><td>Työ yhteensä</td><td></td><td class="num">${formatEuro(workGross)}</td></tr></tbody>
-      </table>
-      <div class="section-title">Tarvike-erittely</div>
-      <table class="price-table">
-        <thead><tr><th>Tarvike</th><th class="num">Määrä</th><th class="num">á (sis. ALV)</th><th class="num">Yht (sis. ALV)</th></tr></thead>
-        <tbody>${materialDetailRows || '<tr><td colspan="4">—</td></tr>'}<tr class="total"><td>Tarvikkeet yhteensä</td><td></td><td></td><td class="num">${formatEuro(materialsGross)}</td></tr></tbody>
-      </table>`
-    : `
-      <div class="section-title">Työerittely</div>
-      <table class="price-table">
-        <thead><tr><th>Kuvaus</th><th class="num">Tunnit</th><th class="num">Yht (sis. ALV ${vatRate}%)</th></tr></thead>
-        <tbody>${workDetailRows || '<tr><td colspan="3">—</td></tr>'}<tr class="total"><td>Työ yhteensä</td><td></td><td class="num">${formatEuro(workGross)}</td></tr></tbody>
-      </table>
-      <div class="section-title">Tarvike-erittely</div>
-      <table class="price-table">
-        <thead><tr><th>Tarvike</th><th class="num">Määrä</th><th class="num">á (sis. ALV)</th><th class="num">Yht (sis. ALV)</th></tr></thead>
-        <tbody>${materialDetailRows || '<tr><td colspan="4">—</td></tr>'}<tr class="total"><td>Tarvikkeet yhteensä</td><td></td><td></td><td class="num">${formatEuro(materialsGross)}</td></tr></tbody>
-      </table>
-      <div class="section-title">Lisätiedot</div>
-      <div class="extras-grid">
-        ${kotitalousHtml}
-        <span class="k">Toimitusehto ja aika</span><span>${esc(deliveryLine)}</span>
-        <span class="k">Maksuehto</span><span>${esc(paymentLine)}</span>
-        <span class="k">Lisätyöt</span><span>${formatEuro(extraWorkGross)} / h (sis. ALV ${vatRate}%)</span>
-      </div>`;
+  const pricingSectionHtml = buildPricingSectionHtml({
+    lines: buildTermatekPricingLines({ data, totals, vatMult, productTitle, deviceGross }),
+    vatRate,
+    discountPct,
+    discountGross,
+    finalGross,
+    kotitalousHtml,
+    deliveryLine,
+    paymentLine,
+    extraWorkGross,
+    optionalNotesHtml,
+  });
 
   return `<!DOCTYPE html>
 <html lang="fi">
@@ -513,7 +587,7 @@ export function generateTermatekVilpPrintHtml(input: {
     ${footerHtml}
     <div class="content">
       <div class="tmk-kicker">Lämmitysratkaisut avaimet käteen</div>
-      <div class="tmk-hero-grid">
+      <div class="tmk-hero-grid tmk-hero-grid--cover">
         <div>
           <div class="tmk-hero-title">Termatek lämmitysratkaisut – siisti ja huolellinen asennus, kerralla oikein.<br/>Tarjoamme jatkuvaa tukea ja olemme tavoitettavissa myös takuuajan jälkeen.</div>
           <div class="tmk-hero-lead">Toteutamme lämpöpumppuratkaisut suunnittelusta käyttöönottoon ammattitaidolla. Saat mitoitukseen sopivan laitteen, huolellisen asennuksen ja dokumentoidun käyttöönoton – sekä avun myös huolto- ja jatkotoimenpiteissä.</div>
@@ -523,15 +597,6 @@ export function generateTermatekVilpPrintHtml(input: {
             <div class="tmk-hero-card"><div class="t">Tuki, huolto ja jatkuvuus</div><div class="p">Tarjoamme erikseen sovittaessa huoltoja ja huoltosopimuksia, jotta järjestelmä toimii vuodesta toiseen.</div></div>
           </div>
           <div class="tmk-hero-badgebar"><div class="row"><div class="l">Tarjous # ${esc(offerNo)}</div><div class="r">${esc(customer.name)}</div></div></div>
-        </div>
-        <div>
-          <div class="product-card" style="padding:5mm;">
-            <div style="font-weight:800;color:#072855;font-size:11pt;">Tarjottu kokonaisuus</div>
-            <div style="font-size:16pt;font-weight:800;color:#111;margin-top:2mm;">${esc(productTitle)}</div>
-            <div style="font-size:10pt;color:#374151;margin-top:1mm;">${esc(unitLine)}</div>
-            <div style="font-size:9.5pt;color:#4b5563;margin-top:3mm;line-height:1.35;">Laite mitoitetaan kohteeseen sopivaksi ja asennetaan valmistajan ohjeiden mukaisesti.</div>
-            ${heroProductImagesHtml(productImages)}
-          </div>
         </div>
       </div>
     </div>
@@ -575,28 +640,23 @@ export function generateTermatekVilpPrintHtml(input: {
         <ul class="tmk-bullets">${introBulletsHtml(introBullets)}</ul>
       </div>
       ${situationHtml}
-    </div>
-  </div>
-
-  <div class="a4 page">
-    ${headerHtml}
-    ${footerHtml}
-    <div class="content">
-      <div class="product-title">${esc(productTitle)}</div>
-      ${productSubtitleHtml}
-      <div class="product-layout">
-        <div>${productImagesHtml(productImages)}</div>
-        <div class="product-side">
-          ${productFactsHtml}
-          <div class="product-card">
-            <div class="section-title" style="margin-top:0;">Tarjoukseen sisältyy</div>
-            <ul class="compact-list">${introBulletsHtml(introBullets)}</ul>
-          </div>
-          <div class="product-card">
-            <div class="section-title" style="margin-top:0;">Toimitus ja käyttöönotto</div>
-            <ul class="compact-list">
-              ${deliveryBullets.map((line) => `<li>${esc(line)}</li>`).join('')}
-            </ul>
+      <div class="tmk-quote-product">
+        <div class="product-title">${esc(productTitle)}</div>
+        ${productSubtitleHtml}
+        <div class="product-layout">
+          <div>${productImagesHtml(productImages)}</div>
+          <div class="product-side">
+            ${productFactsHtml}
+            <div class="product-card">
+              <div class="section-title" style="margin-top:0;">Tarjoukseen sisältyy</div>
+              <ul class="compact-list">${introBulletsHtml(introBullets)}</ul>
+            </div>
+            <div class="product-card">
+              <div class="section-title" style="margin-top:0;">Toimitus ja käyttöönotto</div>
+              <ul class="compact-list">
+                ${deliveryBullets.map((line) => `<li>${esc(line)}</li>`).join('')}
+              </ul>
+            </div>
           </div>
         </div>
       </div>
@@ -607,15 +667,7 @@ export function generateTermatekVilpPrintHtml(input: {
     ${headerHtml}
     ${footerHtml}
     <div class="content">
-      <div class="summary-title">Hinnan muodostuminen</div>
-      <div class="summary-note-box">Hinnat ovat verollisia (sis. ALV ${vatRate}%).</div>
-      <table class="price-table">
-        <thead><tr><th>Kuvaus</th><th class="num">Yhteensä (sis. ALV ${vatRate}%)</th></tr></thead>
-        <tbody>
-          ${summaryRowsHtml}
-        </tbody>
-      </table>
-      ${pricingExtrasSectionHtml}
+      ${pricingSectionHtml}
     </div>
   </div>
 
@@ -624,30 +676,14 @@ export function generateTermatekVilpPrintHtml(input: {
     ${footerHtml}
     <div class="content">
       ${buildTermsHtml(data)}
-    </div>
-  </div>
-
-  <div class="a4 page">
-    ${headerHtml}
-    ${footerHtml}
-    <div class="content">
-      <div class="summary-title">Yritystiedot ja yhteystiedot</div>
-      <div class="tuu-info-grid">
-        <div class="tuu-info-block">
-          <div class="tuu-info-title">Yritystiedot</div>
-          <div class="tuu-line"><strong>${esc(meta.companyName)}</strong></div>
-          ${billing.business_id ? `<div class="tuu-line">Y-tunnus: ${esc(billing.business_id)}</div>` : ''}
-          ${companyAddress ? `<div class="tuu-line">${esc(companyAddress)}</div>` : ''}
-          ${coverLocationLine ? `<div class="tuu-line">${esc(coverLocationLine)}</div>` : ''}
-        </div>
-        <div class="tuu-info-block">
-          <div class="tuu-info-title">Yhteystiedot</div>
-          ${settings.phone ? `<div class="tuu-line">Puh: ${esc(settings.phone)}</div>` : ''}
-          ${settings.email ? `<div class="tuu-line">${esc(settings.email)}</div>` : ''}
-          ${websiteDisplay ? `<div class="tuu-line">${esc(websiteDisplay)}</div>` : ''}
-        </div>
-      </div>
-      <div class="tuu-muted"><strong>Palvelu:</strong> Huollot, lisätyöt ja mahdolliset muutostarpeet sovitaan aina tilaajan kanssa etukäteen. Laitteiden osalta noudatetaan valmistajan takuuehtoja. Asennustyölle myönnetään kahden (2) vuoden takuu.</div>
+      ${buildContactSectionHtml({
+        meta,
+        billing,
+        companyAddress,
+        coverLocationLine,
+        settings,
+        websiteDisplay,
+      })}
     </div>
   </div>
 </body>

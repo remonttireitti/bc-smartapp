@@ -72,6 +72,11 @@ export const IILP_PURPOSE_LABELS: Record<QuoteRequestData['iilpPurpose'], string
   cooling_heating: 'Jäähdytys + lämmitys',
 };
 
+export const DEFAULT_IILP_OPTIONAL_ITEMS: Array<{ description: string; priceGross: number }> = [
+  { description: 'Ulkoyksikön suojakotelo', priceGross: 450 },
+  { description: 'Kondenssiveden pumppu (asennus)', priceGross: 280 },
+];
+
 export const DEVICE_REGISTRY_BRANDS = ['Daikin', 'Inventor', 'Samsung'] as const;
 
 export const quoteTemplates: Record<QuoteType, Partial<QuoteRequestData>> = {

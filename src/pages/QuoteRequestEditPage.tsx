@@ -6,8 +6,9 @@ import CustomerRegistryPicker, { type NewCustomerDraft } from '../components/Cus
 import EquipmentRegistryPicker, { type NewEquipmentDraft } from '../components/EquipmentRegistryPicker';
 import SubscriberPicker from '../components/SubscriberPicker';
 import NavigationBreadcrumb from '../components/NavigationBreadcrumb';
-import QuoteIilpConfigSection from '../components/quoteRequest/QuoteIilpConfigSection';
+import QuoteIilpDevicesSection from '../components/quoteRequest/QuoteIilpDevicesSection';
 import QuoteIilpSiteSection from '../components/quoteRequest/QuoteIilpSiteSection';
+import QuoteOptionalItemsSection from '../components/quoteRequest/QuoteOptionalItemsSection';
 import QuotePumpDevicesSection from '../components/quoteRequest/QuotePumpDevicesSection';
 import QuoteVilpConfigSection from '../components/quoteRequest/QuoteVilpConfigSection';
 import QuoteVilpSiteSection from '../components/quoteRequest/QuoteVilpSiteSection';
@@ -31,6 +32,8 @@ import { computeKotitalousDeduction, computePumpSizingNeedKw, computeQuoteTotals
 import { deliveryFeesFromCompanySettings } from '../lib/quoteRequest/deviceCatalog';
 import { setActiveDeviceRegistry, snapshotFromCompanySettings } from '../lib/quoteRequest/deviceRegistryState';
 import {
+  BUILDING_TYPE_OPTIONS,
+  QUOTE_REGION_LABELS,
   QUOTE_SECTION_LABELS,
   QUOTE_TYPE_LABELS,
   QUOTE_TYPE_ORDER,
@@ -701,7 +704,7 @@ export default function QuoteRequestEditPage({ session }: Props) {
       <form className="panel form-grid quote-form" onSubmit={onSubmit}>
         {activeSection === 'asiakas' && (
           <section className="form-section">
-            <h2>Asiakas ja laite</h2>
+            <h2>Asiakas</h2>
             {!customerId && form.legacyCustomerName?.trim() && (
               <p className="muted quote-legacy-customer-note">
                 Tuodussa tiedossa asiakas: <strong>{form.legacyCustomerName.trim()}</strong>. Valitse tai luo
@@ -764,16 +767,18 @@ export default function QuoteRequestEditPage({ session }: Props) {
             />
             {customerId && (
               <>
-                <EquipmentRegistryPicker
-                  equipment={equipment}
-                  equipmentId={equipmentId}
-                  disabled={!canEdit}
-                  busy={busy}
-                  onSelect={setEquipmentId}
-                  onClear={() => setEquipmentId('')}
-                  onCreate={onCreateEquipment}
-                />
-                <div className="line-form-grid">
+                {form.type !== 'ilma-ilma' ? (
+                  <EquipmentRegistryPicker
+                    equipment={equipment}
+                    equipmentId={equipmentId}
+                    disabled={!canEdit}
+                    busy={busy}
+                    onSelect={setEquipmentId}
+                    onClear={() => setEquipmentId('')}
+                    onCreate={onCreateEquipment}
+                  />
+                ) : null}
+                <div className="quote-field-grid">
                   <label>
                     Puhelin
                     <input
@@ -802,6 +807,45 @@ export default function QuoteRequestEditPage({ session }: Props) {
                 </div>
               </>
             )}
+
+            {form.type === 'ilma-ilma' && (
+              <div className="quote-subsection panel-inset">
+                <h3>Kohteen perustiedot</h3>
+                <div className="quote-field-grid">
+                  <label>
+                    Kiinteistön tyyppi
+                    <select
+                      value={form.buildingType}
+                      onChange={(e) => patchForm({ buildingType: e.target.value })}
+                      disabled={!canEdit}
+                    >
+                      {BUILDING_TYPE_OPTIONS.map((opt) => (
+                        <option key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    Sijainti
+                    <select
+                      value={form.region}
+                      onChange={(e) =>
+                        patchForm({ region: e.target.value as QuoteRequestData['region'] })
+                      }
+                      disabled={!canEdit}
+                    >
+                      {(Object.keys(QUOTE_REGION_LABELS) as QuoteRequestData['region'][]).map((key) => (
+                        <option key={key} value={key}>
+                          {QUOTE_REGION_LABELS[key]}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+              </div>
+            )}
+
             <label>
               Brändi tulosteessa
               <select
@@ -908,6 +952,15 @@ export default function QuoteRequestEditPage({ session }: Props) {
         )}
 
         {activeSection === 'tyot' && !isRepairQuoteType(form.type) && (
+          <>
+            {form.type === 'ilma-ilma' && (
+              <QuoteIilpDevicesSection
+                form={form}
+                canEdit={canEdit}
+                feeMap={deliveryFeeMap}
+                onChange={patchForm}
+              />
+            )}
           <section className="form-section">
             <h2>Työt ja tarvikkeet</h2>
             <div className="section-header-row">
@@ -1116,6 +1169,7 @@ export default function QuoteRequestEditPage({ session }: Props) {
               ))
             )}
           </section>
+          </>
         )}
 
         {activeSection === 'hinnoittelu' && (
@@ -1123,10 +1177,7 @@ export default function QuoteRequestEditPage({ session }: Props) {
             {form.type === 'vesi-ilma' && (
               <QuoteVilpConfigSection form={form} canEdit={canEdit} onChange={patchForm} />
             )}
-            {form.type === 'ilma-ilma' && (
-              <QuoteIilpConfigSection form={form} canEdit={canEdit} onChange={patchForm} />
-            )}
-            {isPumpQuoteType(form.type) && (
+            {form.type === 'vesi-ilma' && (
               <QuotePumpDevicesSection
                 form={form}
                 canEdit={canEdit}
@@ -1134,6 +1185,19 @@ export default function QuoteRequestEditPage({ session }: Props) {
                 feeMap={deliveryFeeMap}
                 onChange={patchForm}
               />
+            )}
+            {form.type === 'ilma-ilma' && (
+              <QuotePumpDevicesSection
+                form={form}
+                canEdit={canEdit}
+                heatingNeedKw={pumpSizingNeedKw}
+                feeMap={deliveryFeeMap}
+                onChange={patchForm}
+                variant="pricing"
+              />
+            )}
+            {form.type === 'ilma-ilma' && (
+              <QuoteOptionalItemsSection form={form} canEdit={canEdit} onChange={patchForm} />
             )}
             <section className="form-section">
             <h2>Hinnoittelu ja ehdot</h2>
@@ -1271,6 +1335,19 @@ export default function QuoteRequestEditPage({ session }: Props) {
                   currency: 'EUR',
                 })}
               </strong>
+              {(form.optionalItems ?? []).some((item) => item.enabled && item.description.trim()) && (
+                <div className="quote-optional-summary">
+                  <strong>Valinnaiset lisät (ei mukana yhteensä)</strong>
+                  {(form.optionalItems ?? [])
+                    .filter((item) => item.enabled && item.description.trim())
+                    .map((item) => (
+                      <div key={item.id}>
+                        {item.description.trim()} — hinta +{' '}
+                        {item.priceGross.toLocaleString('fi-FI', { style: 'currency', currency: 'EUR' })}
+                      </div>
+                    ))}
+                </div>
+              )}
               {quoteShowsKotitalousDeduction(form.type) && kotitalous.laborOnlyGross > 0 && (
                 <div>
                   {kotitalous.label}:{' '}
