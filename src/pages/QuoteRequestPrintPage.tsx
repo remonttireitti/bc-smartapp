@@ -41,6 +41,8 @@ import {
 
 import type { QuoteRequestData } from '../lib/quoteRequest/types';
 
+import { localQuoteDraftKey, readLocalQuoteDraft } from '../lib/quoteRequestDraftStorage';
+
 import { supabase } from '../lib/supabase';
 
 
@@ -117,7 +119,7 @@ export default function QuoteRequestPrintPage({ session }: Props) {
 
     void loadQuote(id);
 
-  }, [id]);
+  }, [id, session.user.id]);
 
 
 
@@ -260,7 +262,7 @@ export default function QuoteRequestPrintPage({ session }: Props) {
 
       .select(`
 
-        id, title, data, created_at, branding_company_id, owner_company_id, customer_id,
+        id, title, status, data, created_at, updated_at, branding_company_id, owner_company_id, customer_id,
 
         customers(name, address, city)
 
@@ -290,9 +292,13 @@ export default function QuoteRequestPrintPage({ session }: Props) {
 
       title: string;
 
+      status: 'draft' | 'sent';
+
       data: QuoteRequestData;
 
       created_at: string;
+
+      updated_at: string;
 
       branding_company_id: string | null;
 
@@ -346,17 +352,30 @@ export default function QuoteRequestPrintPage({ session }: Props) {
 
 
 
+    const settings = parseCompanySettingsFromRow((companyRow as { settings: unknown } | null)?.settings);
+    setActiveDeviceRegistry(snapshotFromCompanySettings(settings));
+
     const normalized = normalizeQuoteRequestData(row.data);
+    const draftKey = localQuoteDraftKey(row.id, session.user.id);
+    const draft = readLocalQuoteDraft<{ form: QuoteRequestData }>(draftKey);
+    const dbTime = new Date(row.updated_at || row.created_at).getTime();
+    const useDraft =
+      row.status === 'draft'
+      && draft?.payload?.form
+      && draft.savedAt > dbTime + 1000;
+    const formToUse = syncMainDeviceBrandPricing(
+      normalizePumpDeviceSelection(useDraft ? normalizeQuoteRequestData(draft.payload.form) : normalized),
+    );
 
     setTitle(
       resolveQuoteDisplayTitle({
         customerName: row.customers?.name,
-        quoteTypeLabel: QUOTE_TYPE_LABELS[normalized.type],
+        quoteTypeLabel: QUOTE_TYPE_LABELS[formToUse.type],
         storedTitle: row.title,
       }) || 'Tarjous',
     );
 
-    setQuoteData(normalized);
+    setQuoteData(formToUse);
 
     setCustomer({
 
@@ -374,7 +393,7 @@ export default function QuoteRequestPrintPage({ session }: Props) {
 
       logoUrl,
 
-      settings: parseCompanySettingsFromRow((companyRow as { settings: unknown } | null)?.settings),
+      settings,
 
       quoteNumber: row.id.slice(0, 8).toUpperCase(),
 
