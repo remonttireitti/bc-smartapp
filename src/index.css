@@ -2911,50 +2911,60 @@ button[type='submit']:disabled { opacity: .6; cursor: wait; }
   width: min(100%, 36rem);
 }
 
-.quote-site-defaults-checklist {
+.quote-site-defaults-review {
+  margin-bottom: 1rem;
+  border: 2px solid var(--warning, #d97706);
+  background: color-mix(in srgb, var(--warning, #d97706) 10%, var(--panel-bg, #fff));
+}
+
+.quote-site-defaults-review--highlight {
+  animation: quote-site-defaults-pulse 0.6s ease-in-out 2;
+}
+
+@keyframes quote-site-defaults-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 transparent; }
+  50% { box-shadow: 0 0 0 4px color-mix(in srgb, var(--warning, #d97706) 35%, transparent); }
+}
+
+.quote-site-defaults-review-title {
+  margin: 0 0 0.35rem;
+  font-size: 1.1rem;
+}
+
+.quote-site-defaults-review-list {
   list-style: none;
   margin: 1rem 0 0;
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: .5rem;
+  gap: 0.65rem;
 }
 
-.quote-site-defaults-check {
+.quote-site-defaults-review-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1rem;
+  padding: 0.5rem 0.65rem;
+  border-radius: 0.35rem;
+  background: color-mix(in srgb, var(--warning, #d97706) 6%, transparent);
+}
+
+.quote-site-defaults-review-check {
   display: flex;
   align-items: flex-start;
-  gap: .5rem;
+  gap: 0.5rem;
   cursor: pointer;
+  flex: 1 1 12rem;
 }
 
-.quote-site-defaults-hint {
-  margin: .75rem 0 0;
-  font-size: .9rem;
+.quote-site-defaults-review-goto {
+  font-size: 0.9rem;
+  white-space: nowrap;
 }
 
-.quote-site-defaults-actions {
-  justify-content: stretch;
-}
-
-.quote-site-defaults-actions .btn {
-  flex: 1 1 auto;
-  min-width: 0;
-}
-
-.quote-site-defaults-alert {
-  margin-bottom: 1rem;
-  border-left: 4px solid var(--warning, #d97706);
-  background: color-mix(in srgb, var(--warning, #d97706) 8%, transparent);
-}
-
-.quote-site-defaults-alert strong {
-  display: block;
-  margin-bottom: .35rem;
-}
-
-.quote-site-defaults-alert-list {
-  margin: 0 0 .75rem;
-  font-size: .92rem;
+.quote-site-defaults-review-actions {
+  margin-top: 0.85rem;
 }
 
 .daily-log-dialog {

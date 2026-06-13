@@ -87,14 +87,12 @@ export function listPendingSiteDefaults(data: QuoteRequestData): UnreviewedSiteD
   return listUnreviewedSiteDefaults(data).filter((item) => !accepted.has(item.key));
 }
 
+export function siteDefaultFieldSection(key: string): QuoteEditSection {
+  if (key === 'buildingType' || key === 'region') return 'asiakas';
+  return 'kohde';
+}
+
 export function siteDefaultsReviewSection(unchecked: UnreviewedSiteDefault[]): QuoteEditSection {
-  const kohdeKeys = new Set([
-    'heatedArea',
-    'roomHeight',
-    'iilpPurpose',
-    'buildingYear',
-    'projectType',
-  ]);
-  if (unchecked.some((item) => kohdeKeys.has(item.key))) return 'kohde';
-  return 'asiakas';
+  if (unchecked.length === 0) return 'kohde';
+  return siteDefaultFieldSection(unchecked[0].key);
 }

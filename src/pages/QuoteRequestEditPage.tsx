@@ -48,9 +48,10 @@ import {
   quoteVatPrintNotice,
   vatRateForQuoteProfile,
 } from '../lib/quoteRequest/constants';
-import QuoteSiteDefaultsReviewDialog from '../components/quoteRequest/QuoteSiteDefaultsReviewDialog';
+import QuoteSiteDefaultsReviewPanel from '../components/quoteRequest/QuoteSiteDefaultsReviewPanel';
 import {
   listPendingSiteDefaults,
+  siteDefaultFieldSection,
   siteDefaultsReviewSection,
 } from '../lib/quoteRequest/siteDefaultsReview';
 import {
@@ -117,11 +118,9 @@ export default function QuoteRequestEditPage({ session }: Props) {
   const [storedDbTitle, setStoredDbTitle] = useState<string | null>(null);
   const [registryMessage, setRegistryMessage] = useState<string | null>(null);
   const titleMigratedRef = useRef(false);
+  const siteDefaultsPanelRef = useRef<HTMLElement | null>(null);
+  const [siteDefaultsHighlight, setSiteDefaultsHighlight] = useState(false);
   const [companySettings, setCompanySettings] = useState<ReturnType<typeof parseCompanySettings> | null>(null);
-  const [siteDefaultsDialog, setSiteDefaultsDialog] = useState<{
-    pending: ReturnType<typeof listPendingSiteDefaults>;
-    nextStatus: 'draft' | 'sent';
-  } | null>(null);
   const quoteDraftStorageKey = localQuoteDraftKey(quoteId, session.user.id);
 
   const deliveryFeeMap = useMemo(
@@ -202,6 +201,33 @@ export default function QuoteRequestEditPage({ session }: Props) {
       partnerships,
     });
   }, [profile?.company_id, profile?.companies?.name, ownerCompanyId, partnerships]);
+
+  function acceptSiteDefaults(keys: string | string[]) {
+    const keyList = Array.isArray(keys) ? keys : [keys];
+    setForm((prev) => ({
+      ...prev,
+      acceptedSiteDefaults: [...new Set([...(prev.acceptedSiteDefaults ?? []), ...keyList])],
+    }));
+  }
+
+  function goToSiteDefaultField(key: string) {
+    setActiveSection(siteDefaultFieldSection(key));
+  }
+
+  function blockSaveForPendingSiteDefaults(): boolean {
+    if (!isPumpQuoteType(form.type)) return false;
+    const pending = listPendingSiteDefaults(form);
+    if (pending.length === 0) return false;
+
+    setError('Tallennus estetty: hyväksy oletusarvot alla tai muokkaa kenttiä.');
+    setSiteDefaultsHighlight(true);
+    setActiveSection(siteDefaultsReviewSection(pending));
+    window.setTimeout(() => {
+      siteDefaultsPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 0);
+    window.setTimeout(() => setSiteDefaultsHighlight(false), 2000);
+    return true;
+  }
 
   function patchForm(patch: Partial<QuoteRequestData>) {
     setForm((prev) => {
@@ -526,10 +552,7 @@ export default function QuoteRequestEditPage({ session }: Props) {
     });
   }, [quoteId, storedDbTitle, storedTitle]);
 
-  async function saveQuote(
-    nextStatus?: 'draft' | 'sent',
-    options?: { skipDefaultsCheck?: boolean; extraAcceptedKeys?: string[] },
-  ) {
+  async function saveQuote(nextStatus?: 'draft' | 'sent') {
     if (!profile?.company_id || !ownerCompanyId) {
       setError('Profiilista puuttuu yritys.');
       return false;
@@ -554,20 +577,9 @@ export default function QuoteRequestEditPage({ session }: Props) {
       return false;
     }
 
-    if (!options?.skipDefaultsCheck && isPumpQuoteType(form.type)) {
-      const pending = listPendingSiteDefaults(form);
-      if (pending.length > 0) {
-        setSiteDefaultsDialog({
-          pending,
-          nextStatus: nextStatus ?? status,
-        });
-        return false;
-      }
-    }
+    if (blockSaveForPendingSiteDefaults()) return false;
 
-    const acceptedSiteDefaults = [
-      ...new Set([...(form.acceptedSiteDefaults ?? []), ...(options?.extraAcceptedKeys ?? [])]),
-    ];
+    const acceptedSiteDefaults = form.acceptedSiteDefaults ?? [];
 
     setBusy(true);
     setError(null);
@@ -711,32 +723,10 @@ export default function QuoteRequestEditPage({ session }: Props) {
       partnerId: reportContext.partnerId,
       contextMode,
     });
-    if (customerId) await saveQuote('draft');
-  });
-
-  async function saveWithSiteDefaultsAcceptance(acceptedKeys: string[], acceptAll: boolean) {
-    const dialogState = siteDefaultsDialog;
-    if (!dialogState) return;
-
-    const keysToAccept = acceptAll
-      ? dialogState.pending.map((item) => item.key)
-      : acceptedKeys;
-    const nextStatus = dialogState.nextStatus;
-    const mergedAccepted = [
-      ...new Set([...(form.acceptedSiteDefaults ?? []), ...keysToAccept]),
-    ];
-
-    setSiteDefaultsDialog(null);
-    setForm((prev) => ({ ...prev, acceptedSiteDefaults: mergedAccepted }));
-
-    const ok = await saveQuote(nextStatus, {
-      skipDefaultsCheck: true,
-      extraAcceptedKeys: keysToAccept,
-    });
-    if (!ok) {
-      setSiteDefaultsDialog(dialogState);
+    if (customerId && listPendingSiteDefaults(form).length === 0) {
+      await saveQuote('draft');
     }
-  }
+  });
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
@@ -855,20 +845,16 @@ export default function QuoteRequestEditPage({ session }: Props) {
       </div>
 
       {error && <p className="error">{error}</p>}
-      {pendingSiteDefaults.length > 0 && (
-        <div className="panel quote-site-defaults-alert" role="status">
-          <strong>Kohdetiedoissa on tarkistamattomia oletusarvoja</strong>
-          <p className="muted quote-site-defaults-alert-list">
-            {pendingSiteDefaults.map((item) => item.label).join(' · ')}
-          </p>
-          <button
-            type="button"
-            className="btn btn-secondary btn-sm"
-            onClick={() => setActiveSection(siteDefaultsReviewSection(pendingSiteDefaults))}
-          >
-            Siirry kohde-välilehdelle
-          </button>
-        </div>
+      {isPumpQuoteType(form.type) && (
+        <QuoteSiteDefaultsReviewPanel
+          pending={pendingSiteDefaults}
+          canEdit={canEdit}
+          highlight={siteDefaultsHighlight}
+          panelRef={siteDefaultsPanelRef}
+          onAccept={(key) => acceptSiteDefaults(key)}
+          onAcceptAll={() => acceptSiteDefaults(pendingSiteDefaults.map((item) => item.key))}
+          onGoToField={goToSiteDefaultField}
+        />
       )}
       {registryMessage && <p className="muted">{registryMessage}</p>}
 
@@ -1721,21 +1707,6 @@ export default function QuoteRequestEditPage({ session }: Props) {
           )}
         </div>
       </form>
-
-      <QuoteSiteDefaultsReviewDialog
-        open={siteDefaultsDialog !== null}
-        pending={siteDefaultsDialog?.pending ?? []}
-        busy={busy}
-        onBackToEdit={() => {
-          const pending = siteDefaultsDialog?.pending ?? [];
-          setSiteDefaultsDialog(null);
-          if (pending.length > 0) {
-            setActiveSection(siteDefaultsReviewSection(pending));
-          }
-        }}
-        onSave={(acceptedKeys) => void saveWithSiteDefaultsAcceptance(acceptedKeys, false)}
-        onSaveAcceptAll={() => void saveWithSiteDefaultsAcceptance([], true)}
-      />
     </AppLayout>
   );
 }

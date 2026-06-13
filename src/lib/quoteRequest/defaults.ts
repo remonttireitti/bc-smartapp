@@ -591,6 +591,7 @@ export function prepareQuoteRequestDataForSave(data: QuoteRequestData): QuoteReq
 
   next = {
     ...next,
+    acceptedSiteDefaults: next.acceptedSiteDefaults ?? [],
     travelCost: 0,
     ...(next.travelKmEnabled
       ? {}
