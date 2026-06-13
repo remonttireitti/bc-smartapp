@@ -635,22 +635,20 @@ export default function QuoteRequestEditPage({ session }: Props) {
           .update(rowPayload)
           .eq('id', quoteId)
           .select('data')
-          .single();
+          .maybeSingle();
 
         if (updateError) {
           setError(updateError.message);
           return false;
         }
-        if (!updatedRow) {
-          setError('Tallennus epäonnistui — tarkista oikeudet.');
-          return false;
-        }
-        const verified = normalizeQuoteRequestData((updatedRow as { data: QuoteRequestData }).data);
+        const savedData = updatedRow
+          ? normalizeQuoteRequestData((updatedRow as { data: QuoteRequestData }).data)
+          : dataToSave;
         setForm({
-          ...verified,
+          ...savedData,
           acceptedSiteDefaults:
-            verified.acceptedSiteDefaults?.length
-              ? verified.acceptedSiteDefaults
+            savedData.acceptedSiteDefaults?.length
+              ? savedData.acceptedSiteDefaults
               : acceptedSiteDefaults,
         });
         clearLocalQuoteDraft(quoteDraftStorageKey);
@@ -659,10 +657,14 @@ export default function QuoteRequestEditPage({ session }: Props) {
           .from('quote_requests')
           .insert(rowPayload)
           .select('id, data')
-          .single();
+          .maybeSingle();
 
-        if (insertError || !data) {
-          setError(insertError?.message ?? 'Tallennus epäonnistui.');
+        if (insertError) {
+          setError(insertError.message);
+          return false;
+        }
+        if (!data) {
+          setError('Tallennus epäonnistui — tarkista oikeudet.');
           return false;
         }
 
