@@ -33,7 +33,7 @@ export default function QuoteIilpSiteSection({ form, canEdit, onChange }: Props)
           sijaintiin. Hinnoittelu on Hinnoittelu-välilehdellä.
         </p>
         <div className="quote-field-grid">
-          <label>
+          <label data-quote-field="heatedArea">
             Ilmalämpöpumpun vaikutusalue (m²)
             <input
               type="number"
@@ -43,7 +43,7 @@ export default function QuoteIilpSiteSection({ form, canEdit, onChange }: Props)
               disabled={!canEdit}
             />
           </label>
-          <label>
+          <label data-quote-field="roomHeight">
             Huonekorkeus (m)
             <input
               type="number"
@@ -54,7 +54,7 @@ export default function QuoteIilpSiteSection({ form, canEdit, onChange }: Props)
               disabled={!canEdit}
             />
           </label>
-          <label>
+          <label data-quote-field="iilpPurpose">
             Käyttötarkoitus
             <select
               value={form.buildingType === 'kerrostalo' ? 'cooling' : form.iilpPurpose}

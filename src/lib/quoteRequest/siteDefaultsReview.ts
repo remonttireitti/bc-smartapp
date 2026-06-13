@@ -87,12 +87,31 @@ export function listPendingSiteDefaults(data: QuoteRequestData): UnreviewedSiteD
   return listUnreviewedSiteDefaults(data).filter((item) => !accepted.has(item.key));
 }
 
-export function siteDefaultFieldSection(key: string): QuoteEditSection {
-  if (key === 'buildingType' || key === 'region') return 'asiakas';
+export function siteDefaultFieldSection(key: string, quoteType: QuoteRequestData['type']): QuoteEditSection {
+  if (quoteType === 'ilma-ilma' && (key === 'buildingType' || key === 'region')) {
+    return 'asiakas';
+  }
   return 'kohde';
 }
 
-export function siteDefaultsReviewSection(unchecked: UnreviewedSiteDefault[]): QuoteEditSection {
+export function siteDefaultsReviewSection(
+  unchecked: UnreviewedSiteDefault[],
+  quoteType: QuoteRequestData['type'],
+): QuoteEditSection {
   if (unchecked.length === 0) return 'kohde';
-  return siteDefaultFieldSection(unchecked[0].key);
+  return siteDefaultFieldSection(unchecked[0].key, quoteType);
+}
+
+export function scrollToQuoteField(key: string) {
+  requestAnimationFrame(() => {
+    window.setTimeout(() => {
+      const el = document.querySelector(`[data-quote-field="${key}"]`);
+      if (!el) return;
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      el.classList.add('quote-field-focus-target');
+      window.setTimeout(() => el.classList.remove('quote-field-focus-target'), 2200);
+      const focusable = el.querySelector<HTMLElement>('input, select, textarea, button');
+      focusable?.focus({ preventScroll: true });
+    }, 80);
+  });
 }

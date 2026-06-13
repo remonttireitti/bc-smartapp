@@ -2959,8 +2959,15 @@ button[type='submit']:disabled { opacity: .6; cursor: wait; }
 }
 
 .quote-site-defaults-review-goto {
-  font-size: 0.9rem;
+  margin-left: auto;
+  flex-shrink: 0;
   white-space: nowrap;
+}
+
+.quote-field-focus-target {
+  border-radius: 8px;
+  box-shadow: 0 0 0 3px color-mix(in srgb, #f97316 45%, transparent);
+  transition: box-shadow 0.2s ease;
 }
 
 .quote-site-defaults-review-actions {
@@ -6153,10 +6160,6 @@ textarea {
 
 .quote-vat-profile-field {
   grid-column: 1 / -1;
-}
-
-.quote-vat-profile-field .toggle-switch {
-  margin-top: .35rem;
 }
 
 .quote-vat-profile-hint {

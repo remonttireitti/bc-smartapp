@@ -49,7 +49,7 @@ export default function QuoteSiteDefaultsReviewPanel({
             />
             <button
               type="button"
-              className="link-button quote-site-defaults-review-goto"
+              className="btn btn-secondary btn-sm quote-site-defaults-review-goto"
               onClick={() => onGoToField(item.key)}
             >
               Siirry kentälle

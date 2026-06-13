@@ -20,7 +20,7 @@ import { isPumpQuoteType, isRepairQuoteType, QUOTE_TYPE_LABELS } from '../lib/qu
 import { deliveryFeesFromCompanySettings, syncMainDeviceBrandPricing } from '../lib/quoteRequest/deviceCatalog';
 import { setActiveDeviceRegistry, snapshotFromCompanySettings } from '../lib/quoteRequest/deviceRegistryState';
 
-import { normalizeQuoteRequestData, normalizePumpDeviceSelection, resolveQuoteDisplayTitle } from '../lib/quoteRequest/defaults';
+import { normalizePumpDeviceSelection, resolveQuoteDisplayTitle } from '../lib/quoteRequest/defaults';
 
 import {
   generateQuoteHeatCalcPrintHtml,
@@ -41,7 +41,7 @@ import {
 
 import type { QuoteRequestData } from '../lib/quoteRequest/types';
 
-import { localQuoteDraftKey, readLocalQuoteDraft } from '../lib/quoteRequestDraftStorage';
+import { localQuoteDraftKey, readLocalQuoteDraft, pickQuoteFormSource } from '../lib/quoteRequestDraftStorage';
 
 import { supabase } from '../lib/supabase';
 
@@ -355,17 +355,16 @@ export default function QuoteRequestPrintPage({ session }: Props) {
     const settings = parseCompanySettingsFromRow((companyRow as { settings: unknown } | null)?.settings);
     setActiveDeviceRegistry(snapshotFromCompanySettings(settings));
 
-    const normalized = normalizeQuoteRequestData(row.data);
     const draftKey = localQuoteDraftKey(row.id, session.user.id);
     const draft = readLocalQuoteDraft<{ form: QuoteRequestData }>(draftKey);
-    const dbTime = new Date(row.updated_at || row.created_at).getTime();
-    const useDraft =
-      row.status === 'draft'
-      && draft?.payload?.form
-      && draft.savedAt > dbTime + 1000;
-    const formToUse = syncMainDeviceBrandPricing(
-      normalizePumpDeviceSelection(useDraft ? normalizeQuoteRequestData(draft.payload.form) : normalized),
-    );
+    const { form: resolvedForm } = pickQuoteFormSource({
+      status: row.status,
+      dbData: row.data,
+      dbUpdatedAt: row.updated_at,
+      dbCreatedAt: row.created_at,
+      draft,
+    });
+    const formToUse = syncMainDeviceBrandPricing(normalizePumpDeviceSelection(resolvedForm));
 
     setTitle(
       resolveQuoteDisplayTitle({

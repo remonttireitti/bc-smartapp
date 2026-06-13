@@ -27,7 +27,7 @@ export default function QuoteVilpSiteSection({ form, canEdit, onChange }: Props)
       <section className="form-section">
         <h2>Kohteen tiedot</h2>
         <div className="line-form-grid">
-          <label>
+          <label data-quote-field="buildingType">
             Kiinteistön tyyppi
             <select
               value={form.buildingType}
@@ -41,7 +41,7 @@ export default function QuoteVilpSiteSection({ form, canEdit, onChange }: Props)
               ))}
             </select>
           </label>
-          <label>
+          <label data-quote-field="region">
             Sijainti
             <select
               value={form.region}
@@ -55,7 +55,7 @@ export default function QuoteVilpSiteSection({ form, canEdit, onChange }: Props)
               ))}
             </select>
           </label>
-          <label>
+          <label data-quote-field="heatedArea">
             Lämmitettävä pinta-ala (m²)
             <input
               type="number"
@@ -83,7 +83,7 @@ export default function QuoteVilpSiteSection({ form, canEdit, onChange }: Props)
       <section className="form-section">
         <h2>Projektin tiedot</h2>
         <div className="line-form-grid">
-          <label>
+          <label data-quote-field="projectType">
             Projektin tyyppi
             <select
               value={form.projectType}
@@ -101,7 +101,7 @@ export default function QuoteVilpSiteSection({ form, canEdit, onChange }: Props)
               )}
             </select>
           </label>
-          <label>
+          <label data-quote-field="buildingYear">
             Rakennusvuosi
             <input
               type="number"

@@ -48,7 +48,6 @@ import {
   QUOTE_SECTION_LABELS,
   QUOTE_TYPE_LABELS,
   QUOTE_TYPE_ORDER,
-  QUOTE_VAT_PROFILE_LABELS,
   isPumpQuoteType,
   isRepairQuoteType,
   quoteShowsKotitalousDeduction,
@@ -59,6 +58,7 @@ import {
 import QuoteSiteDefaultsReviewPanel from '../components/quoteRequest/QuoteSiteDefaultsReviewPanel';
 import {
   listPendingSiteDefaults,
+  scrollToQuoteField,
   siteDefaultFieldSection,
   siteDefaultsReviewSection,
 } from '../lib/quoteRequest/siteDefaultsReview';
@@ -79,7 +79,13 @@ import type { QuoteEditSection, QuoteRequestData, QuoteType, QuoteVatProfile } f
 import { quoteListTrail } from '../lib/navigationTrail';
 import { useProfile } from '../hooks/useProfile';
 import { useRegisterDraftSaver } from '../hooks/useRegisterDraftSaver';
-import { localQuoteDraftKey, writeLocalQuoteDraft, clearLocalQuoteDraft, readLocalQuoteDraft } from '../lib/quoteRequestDraftStorage';
+import {
+  localQuoteDraftKey,
+  writeLocalQuoteDraft,
+  clearLocalQuoteDraft,
+  readLocalQuoteDraft,
+  pickQuoteFormSource,
+} from '../lib/quoteRequestDraftStorage';
 import type { Company, Customer, Equipment, Partnership, Subscriber } from '../types';
 
 interface Props {
@@ -87,6 +93,7 @@ interface Props {
 }
 
 const SECTIONS: QuoteEditSection[] = ['asiakas', 'kohde', 'tyot', 'hinnoittelu'];
+const PENDING_QUOTE_SECTION_KEY = 'bc-smartapp:tarjous-section-pending';
 
 const SITE_CONFIG_FIELDS: (keyof QuoteRequestData)[] = [
   'buildingType',
@@ -222,8 +229,22 @@ export default function QuoteRequestEditPage({ session }: Props) {
     }));
   }
 
+  function applyPendingQuoteSection() {
+    try {
+      const pending = sessionStorage.getItem(PENDING_QUOTE_SECTION_KEY);
+      if (pending && SECTIONS.includes(pending as QuoteEditSection)) {
+        sessionStorage.removeItem(PENDING_QUOTE_SECTION_KEY);
+        setActiveSection(pending as QuoteEditSection);
+        window.scrollTo({ top: 0, behavior: 'auto' });
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+
   function goToSiteDefaultField(key: string) {
-    setActiveSection(siteDefaultFieldSection(key));
+    setActiveSection(siteDefaultFieldSection(key, form.type));
+    scrollToQuoteField(key);
   }
 
   function blockSaveForPendingSiteDefaults(): boolean {
@@ -233,7 +254,7 @@ export default function QuoteRequestEditPage({ session }: Props) {
 
     setError('Tallennus estetty: hyväksy oletusarvot alla tai muokkaa kenttiä.');
     setSiteDefaultsHighlight(true);
-    setActiveSection(siteDefaultsReviewSection(pending));
+    setActiveSection(siteDefaultsReviewSection(pending, form.type));
     window.setTimeout(() => {
       siteDefaultsPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }, 0);
@@ -491,7 +512,6 @@ export default function QuoteRequestEditPage({ session }: Props) {
       subscriber_id: string | null;
     };
 
-    const normalized = normalizeQuoteRequestData(row.data);
     const draftKey = localQuoteDraftKey(row.id, session.user.id);
     const draft = readLocalQuoteDraft<{
       form: QuoteRequestData;
@@ -499,14 +519,14 @@ export default function QuoteRequestEditPage({ session }: Props) {
       equipmentId: string;
       subscriberId: string;
     }>(draftKey);
-    const dbTime = new Date(row.updated_at || row.created_at).getTime();
-    const useDraft =
-      row.status === 'draft'
-      && draft?.payload?.form
-      && draft.savedAt > dbTime + 1000;
-    const formToUse = useDraft
-      ? normalizeQuoteRequestData(draft.payload.form)
-      : normalized;
+    const { form: formToUse, usedDraft } = pickQuoteFormSource({
+      status: row.status,
+      dbData: row.data,
+      dbUpdatedAt: row.updated_at,
+      dbCreatedAt: row.created_at,
+      draft,
+    });
+    const normalized = normalizeQuoteRequestData(row.data);
 
     setQuoteId(row.id);
     setStoredDbTitle(row.title);
@@ -515,7 +535,7 @@ export default function QuoteRequestEditPage({ session }: Props) {
     setForm(formToUse);
 
     let resolvedCustomerId = row.customer_id ?? '';
-    if (useDraft && draft.payload.customerId) {
+    if (usedDraft && draft?.payload.customerId) {
       resolvedCustomerId = draft.payload.customerId;
     }
     if (profile?.company_id) {
@@ -537,14 +557,15 @@ export default function QuoteRequestEditPage({ session }: Props) {
     }
 
     setCustomerId(resolvedCustomerId);
-    setSubscriberId(useDraft && draft.payload.subscriberId ? draft.payload.subscriberId : (row.subscriber_id ?? ''));
-    setEquipmentId(useDraft && draft.payload.equipmentId ? draft.payload.equipmentId : (row.equipment_id ?? ''));
+    setSubscriberId(usedDraft && draft?.payload.subscriberId ? draft.payload.subscriberId : (row.subscriber_id ?? ''));
+    setEquipmentId(usedDraft && draft?.payload.equipmentId ? draft.payload.equipmentId : (row.equipment_id ?? ''));
     setReportOwnerCompanyId(row.owner_company_id);
 
     await loadOwnerCompany(row.owner_company_id);
     if (resolvedCustomerId) await loadEquipment(resolvedCustomerId);
     setFormReady(true);
     setLoadingQuote(false);
+    applyPendingQuoteSection();
   }
 
   useEffect(() => {
@@ -557,7 +578,10 @@ export default function QuoteRequestEditPage({ session }: Props) {
     });
   }, [quoteId, storedDbTitle, storedTitle]);
 
-  async function saveQuote(nextStatus?: 'draft' | 'sent') {
+  async function saveQuote(
+    nextStatus?: 'draft' | 'sent',
+    options?: { skipSiteDefaultsCheck?: boolean; skipWorkValidation?: boolean },
+  ) {
     if (!profile?.company_id || !ownerCompanyId) {
       setError('Profiilista puuttuu yritys.');
       return false;
@@ -576,13 +600,18 @@ export default function QuoteRequestEditPage({ session }: Props) {
     const needsWorkLines =
       isRepairQuoteType(form.type)
       || (form.type === 'ilma-ilma' && resolveIilpLaborPricingMode(form) === 'tuntityo');
-    if (needsWorkLines && !hasWorkContent && !form.laborHours) {
+    if (
+      !options?.skipWorkValidation
+      && needsWorkLines
+      && !hasWorkContent
+      && !form.laborHours
+    ) {
       setError('Lisää vähintään yksi työ tai tarvike.');
       setActiveSection('tyot');
       return false;
     }
 
-    if (blockSaveForPendingSiteDefaults()) return false;
+    if (!options?.skipSiteDefaultsCheck && blockSaveForPendingSiteDefaults()) return false;
 
     const acceptedSiteDefaults = form.acceptedSiteDefaults ?? [];
 
@@ -700,7 +729,7 @@ export default function QuoteRequestEditPage({ session }: Props) {
   }
 
   useEffect(() => {
-    if (status !== 'draft') return;
+    if (!formReady || loadingQuote || status !== 'draft') return;
     writeLocalQuoteDraft(quoteDraftStorageKey, {
       form,
       customerId,
@@ -710,6 +739,8 @@ export default function QuoteRequestEditPage({ session }: Props) {
       contextMode,
     });
   }, [
+    formReady,
+    loadingQuote,
     form,
     customerId,
     equipmentId,
@@ -721,7 +752,7 @@ export default function QuoteRequestEditPage({ session }: Props) {
   ]);
 
   useRegisterDraftSaver(async () => {
-    if (status !== 'draft') return;
+    if (!formReady || loadingQuote || status !== 'draft') return;
     writeLocalQuoteDraft(quoteDraftStorageKey, {
       form,
       customerId,
@@ -738,6 +769,58 @@ export default function QuoteRequestEditPage({ session }: Props) {
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
     await saveQuote(status === 'sent' ? 'sent' : 'draft');
+  }
+
+  const activeSectionIndex = SECTIONS.indexOf(activeSection);
+  const isLastSection = activeSectionIndex >= SECTIONS.length - 1;
+
+  async function saveAndContinue() {
+    setError(null);
+    if (activeSection === 'asiakas' && !customerId) {
+      setError('Valitse asiakas ennen siirtymistä eteenpäin.');
+      return;
+    }
+    if (isLastSection) return;
+
+    const nextSection = SECTIONS[activeSectionIndex + 1];
+    const wasExistingQuote = Boolean(quoteId);
+
+    try {
+      sessionStorage.setItem(PENDING_QUOTE_SECTION_KEY, nextSection);
+    } catch {
+      /* ignore */
+    }
+
+    const saved = await saveQuote('draft', {
+      skipSiteDefaultsCheck: true,
+      skipWorkValidation: activeSection !== 'tyot',
+    });
+
+    if (!saved) {
+      try {
+        sessionStorage.removeItem(PENDING_QUOTE_SECTION_KEY);
+      } catch {
+        /* ignore */
+      }
+      return;
+    }
+
+    setActiveSection(nextSection);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+
+    if (wasExistingQuote) {
+      try {
+        sessionStorage.removeItem(PENDING_QUOTE_SECTION_KEY);
+      } catch {
+        /* ignore */
+      }
+    }
+  }
+
+  function goToPreviousSection() {
+    if (activeSectionIndex <= 0) return;
+    setActiveSection(SECTIONS[activeSectionIndex - 1]);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
   function onReportOwnerChange(companyId: string) {
@@ -1008,7 +1091,7 @@ export default function QuoteRequestEditPage({ session }: Props) {
               <div className="quote-subsection panel-inset">
                 <h3>Kohteen perustiedot</h3>
                 <div className="quote-field-grid">
-                  <label>
+                  <label data-quote-field="buildingType">
                     Kiinteistön tyyppi
                     <select
                       value={form.buildingType}
@@ -1022,7 +1105,7 @@ export default function QuoteRequestEditPage({ session }: Props) {
                       ))}
                     </select>
                   </label>
-                  <label>
+                  <label data-quote-field="region">
                     Sijainti
                     <select
                       value={form.region}
@@ -1473,17 +1556,36 @@ export default function QuoteRequestEditPage({ session }: Props) {
               )}
               <div className="quote-vat-profile-field">
                 <span className="field-label">ALV / asiakastyyppi</span>
-                <ToggleSwitch
-                  checked={(form.quoteVatProfile ?? 'business') === 'consumer'}
-                  disabled={!canEdit}
-                  label={QUOTE_VAT_PROFILE_LABELS.consumer}
-                  onChange={(checked) => changeVatProfile(checked ? 'consumer' : 'business')}
-                />
-                <p className="muted quote-vat-profile-hint">
-                  {(form.quoteVatProfile ?? 'business') === 'consumer'
-                    ? quoteVatPrintNotice(form.vatRate)
-                    : `${QUOTE_VAT_PROFILE_LABELS.business} — hinnat ilman arvonlisäveroa.`}
-                </p>
+                <div className="quote-labor-mode-grid">
+                  <button
+                    type="button"
+                    className={
+                      (form.quoteVatProfile ?? 'business') === 'business'
+                        ? 'quote-labor-mode-btn active'
+                        : 'quote-labor-mode-btn'
+                    }
+                    disabled={!canEdit}
+                    onClick={() => changeVatProfile('business')}
+                  >
+                    <span className="quote-labor-mode-title">Yritysasiakas</span>
+                    <span className="quote-labor-mode-desc">ALV 0 % — hinnat ilman arvonlisäveroa</span>
+                  </button>
+                  <button
+                    type="button"
+                    className={
+                      (form.quoteVatProfile ?? 'business') === 'consumer'
+                        ? 'quote-labor-mode-btn active'
+                        : 'quote-labor-mode-btn'
+                    }
+                    disabled={!canEdit}
+                    onClick={() => changeVatProfile('consumer')}
+                  >
+                    <span className="quote-labor-mode-title">Yksityishenkilö</span>
+                    <span className="quote-labor-mode-desc">
+                      ALV {form.vatRate} % — hinnat sisältävät arvonlisäveron
+                    </span>
+                  </button>
+                </div>
               </div>
               <label>
                 Alennus (%)
@@ -1682,7 +1784,22 @@ export default function QuoteRequestEditPage({ session }: Props) {
           <Link to={quoteListTrail().backTo} className="btn btn-secondary">
             Takaisin
           </Link>
-          {canEdit && status === 'draft' && (
+          {canEdit && activeSectionIndex > 0 && (
+            <button type="button" className="btn btn-secondary" onClick={goToPreviousSection}>
+              Edellinen
+            </button>
+          )}
+          {canEdit && status === 'draft' && !isLastSection && (
+            <button
+              type="button"
+              className="btn btn-primary"
+              disabled={busy}
+              onClick={() => void saveAndContinue()}
+            >
+              {busy ? 'Tallennetaan…' : 'Seuraava →'}
+            </button>
+          )}
+          {canEdit && status === 'draft' && isLastSection && (
             <>
               <button type="submit" className="btn btn-secondary" disabled={busy}>
                 {busy ? 'Tallennetaan…' : 'Tallenna luonnos'}
