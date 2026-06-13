@@ -18,7 +18,9 @@ import {
   defaultReportContext,
   loadAccessibleReportCustomers,
   loadReportPartnerships,
+  quoteReportOwnerTargets,
   resolveReportContextFromCustomer,
+  resolveReportContextFromOwner,
 } from '../lib/reportCustomerRegistry';
 import {
   loadAccessibleSubscribers,
@@ -83,6 +85,7 @@ export default function QuoteRequestEditPage({ session }: Props) {
   const [customerId, setCustomerId] = useState('');
   const [subscriberId, setSubscriberId] = useState('');
   const [subscribers, setSubscribers] = useState<Subscriber[]>([]);
+  const [reportOwnerCompanyId, setReportOwnerCompanyId] = useState('');
   const [equipmentId, setEquipmentId] = useState('');
   const [loadingQuote, setLoadingQuote] = useState(!isNew);
   const [error, setError] = useState<string | null>(null);
@@ -109,9 +112,33 @@ export default function QuoteRequestEditPage({ session }: Props) {
     if (selectedCustomer) {
       return resolveReportContextFromCustomer(selectedCustomer, profile.company_id, partnerships);
     }
+    if (reportOwnerCompanyId) {
+      return resolveReportContextFromOwner(reportOwnerCompanyId, profile.company_id, partnerships);
+    }
     return defaultReportContext(profile.company_id);
-  }, [selectedCustomer, profile?.company_id, partnerships]);
+  }, [selectedCustomer, reportOwnerCompanyId, profile?.company_id, partnerships]);
   const { contextMode, partnerId, ownerCompanyId } = reportContext;
+
+  const reportOwnerTargets = useMemo(() => {
+    if (!profile?.company_id) return [];
+    return quoteReportOwnerTargets(
+      profile.company_id,
+      profile.companies?.name ?? 'Oma rekisteri',
+      partnerships,
+    );
+  }, [profile?.company_id, profile?.companies?.name, partnerships]);
+
+  const reportOwnerName =
+    reportOwnerTargets.find((target) => target.companyId === (reportOwnerCompanyId || ownerCompanyId))?.label
+    ?? ownerCompany?.name
+    ?? profile?.companies?.name
+    ?? '—';
+
+  const customersForPicker = useMemo(() => {
+    const ownerId = ownerCompanyId || reportOwnerCompanyId || profile?.company_id;
+    if (!ownerId) return customers;
+    return customers.filter((customer) => customer.owner_company_id === ownerId);
+  }, [customers, ownerCompanyId, reportOwnerCompanyId, profile?.company_id]);
 
   const canEdit = isNew || status === 'draft' || status === 'sent';
   const pumpSizingNeedKw = useMemo(
@@ -203,9 +230,23 @@ export default function QuoteRequestEditPage({ session }: Props) {
   }, [subscribers, ownerCompanyId]);
 
   useEffect(() => {
-    if (!isNew || loadingQuote || profileLoading || !profile?.company_id || customerId) return;
-    void loadOwnerCompany(profile.company_id);
-  }, [isNew, loadingQuote, profileLoading, profile?.company_id, customerId]);
+    if (!reportOwnerCompanyId) return;
+    void loadOwnerCompany(reportOwnerCompanyId);
+  }, [reportOwnerCompanyId]);
+
+  useEffect(() => {
+    if (selectedCustomer) {
+      setReportOwnerCompanyId(selectedCustomer.owner_company_id);
+      return;
+    }
+    if (reportOwnerCompanyId) return;
+    if (profile?.company_id) setReportOwnerCompanyId(profile.company_id);
+  }, [selectedCustomer, profile?.company_id, reportOwnerCompanyId]);
+
+  useEffect(() => {
+    if (!isNew || loadingQuote || profileLoading || !profile?.company_id || customerId || reportOwnerCompanyId) return;
+    setReportOwnerCompanyId(profile.company_id);
+  }, [isNew, loadingQuote, profileLoading, profile?.company_id, customerId, reportOwnerCompanyId]);
 
   useEffect(() => {
     if (!isNew || !ownerCompanyId) return;
@@ -355,6 +396,7 @@ export default function QuoteRequestEditPage({ session }: Props) {
     setCustomerId(resolvedCustomerId);
     setSubscriberId(row.subscriber_id ?? '');
     setEquipmentId(row.equipment_id ?? '');
+    setReportOwnerCompanyId(row.owner_company_id);
 
     await loadOwnerCompany(row.owner_company_id);
     if (resolvedCustomerId) await loadEquipment(resolvedCustomerId);
@@ -510,10 +552,28 @@ export default function QuoteRequestEditPage({ session }: Props) {
     await saveQuote(status === 'sent' ? 'sent' : 'draft');
   }
 
+  function onReportOwnerChange(companyId: string) {
+    setReportOwnerCompanyId(companyId);
+    setCustomerId('');
+    setEquipmentId('');
+  }
+
   async function onCreateCustomer(draft: NewCustomerDraft): Promise<void> {
-    if (!profile?.company_id || !ownerCompanyId) return;
+    if (!profile?.company_id || !draft.name.trim()) {
+      setRegistryMessage('Asiakkaan nimi on pakollinen.');
+      return;
+    }
+
+    const targetCompanyId =
+      selectedCustomer?.owner_company_id ?? reportOwnerCompanyId ?? ownerCompanyId ?? profile.company_id;
+
+    if (!reportOwnerTargets.some((target) => target.companyId === targetCompanyId)) {
+      setRegistryMessage('Sinulla ei ole oikeutta luoda asiakasta valittuun rekisteriin.');
+      return;
+    }
+
     const { customer: created, error: insertError } = await createRegistryCustomer(supabase, {
-      ownerCompanyId,
+      ownerCompanyId: targetCompanyId,
       name: draft.name,
       address: draft.address,
       city: draft.city,
@@ -528,6 +588,7 @@ export default function QuoteRequestEditPage({ session }: Props) {
 
     setCustomers((prev) => [...prev, created].sort((a, b) => a.name.localeCompare(b.name, 'fi')));
     setCustomerId(created.id);
+    setReportOwnerCompanyId(created.owner_company_id);
     await loadOwnerCompany(created.owner_company_id);
     setRegistryMessage(`Asiakas “${created.name}” lisätty rekisteriin.`);
   }
@@ -581,7 +642,7 @@ export default function QuoteRequestEditPage({ session }: Props) {
         <div>
           <h1>{isNew ? 'Uusi tarjouspyyntö' : pageTitle}</h1>
           <p className="muted">
-            {ownerCompany?.name ?? profile?.companies?.name ?? '—'}
+            {ownerCompany?.name ?? reportOwnerName ?? profile?.companies?.name ?? '—'}
             {' • '}
             {QUOTE_TYPE_LABELS[form.type]}
             {status ? ` • ${status === 'draft' ? 'Luonnos' : 'Lähetetty'}` : ''}
@@ -656,18 +717,41 @@ export default function QuoteRequestEditPage({ session }: Props) {
               />
             ) : null}
 
+            {!customerId && reportOwnerTargets.length > 1 ? (
+              <label>
+                Tarjous laaditaan nimissä
+                <select
+                  value={reportOwnerCompanyId}
+                  onChange={(event) => onReportOwnerChange(event.target.value)}
+                  disabled={!canEdit || busy}
+                >
+                  {reportOwnerTargets.map((target) => (
+                    <option key={target.companyId} value={target.companyId}>
+                      {target.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : (
+              <p className="muted">
+                Tarjous laaditaan nimissä: <strong>{reportOwnerName}</strong>
+              </p>
+            )}
+
             <CustomerRegistryPicker
-              customers={customers}
+              customers={customersForPicker}
               customerId={customerId}
               myCompanyId={profile?.company_id ?? undefined}
               disabled={!canEdit}
-              createRegistryName={ownerCompany?.name ?? profile?.companies?.name ?? undefined}
+              createRegistryName={reportOwnerName}
+              brandingName={reportOwnerName}
               busy={busy}
               onSelect={(selectedId) => {
                 setCustomerId(selectedId);
                 setEquipmentId('');
                 const customer = customers.find((entry) => entry.id === selectedId);
                 if (customer) {
+                  setReportOwnerCompanyId(customer.owner_company_id);
                   void loadOwnerCompany(customer.owner_company_id);
                   if (customer.subscriber_id) setSubscriberId(customer.subscriber_id);
                 }
@@ -675,7 +759,6 @@ export default function QuoteRequestEditPage({ session }: Props) {
               onClear={() => {
                 setCustomerId('');
                 setEquipmentId('');
-                if (profile?.company_id) void loadOwnerCompany(profile.company_id);
               }}
               onCreate={onCreateCustomer}
             />

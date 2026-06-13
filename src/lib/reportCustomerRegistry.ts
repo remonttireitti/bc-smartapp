@@ -121,6 +121,14 @@ export function maintenanceReportOwnerTargets(
   return reportOwnerTargets(myCompanyId, myCompanyName, partnerships, 'maintenance_reports');
 }
 
+export function quoteReportOwnerTargets(
+  myCompanyId: string,
+  myCompanyName: string,
+  partnerships: Partnership[],
+): ReportOwnerTarget[] {
+  return reportOwnerTargets(myCompanyId, myCompanyName, partnerships, 'quotes');
+}
+
 export type WarehouseTarget = {
   companyId: string;
   label: string;
