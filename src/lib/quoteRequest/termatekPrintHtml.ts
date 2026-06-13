@@ -356,20 +356,22 @@ function termatekStyles(): string {
     @page { size: A4; margin: 0; }
     html, body { margin: 0; padding: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     body { font-family: Arial, sans-serif; color: #111; }
-    .a4 { width: 210mm; position: relative; }
-    .page {
+    .a4 { width: 210mm; position: relative; box-sizing: border-box; }
+    .page { page-break-after: always; break-after: page; box-sizing: border-box; }
+    .page:last-child { page-break-after: auto; break-after: auto; }
+    .page--cover {
+      min-height: 297mm;
       display: flex;
       flex-direction: column;
-      page-break-after: always;
-      break-after: page;
     }
-    .page:last-child { page-break-after: auto; break-after: auto; }
+    .page--cover .content { flex: 1 0 auto; padding: 8mm 15mm 6mm 15mm; }
+    .page--cover .footer { margin-top: auto; }
+    .page--sheet .content { padding: 6mm 15mm 5mm 15mm; }
     table { page-break-inside: auto; }
     thead { display: table-header-group; }
     tr { page-break-inside: avoid; break-inside: avoid; }
     .section-title, .summary-title, .product-title { break-after: avoid; page-break-after: avoid; }
     .header {
-      flex: 0 0 auto;
       height: 18mm;
       background: transparent;
       padding: 2mm 8mm;
@@ -391,15 +393,12 @@ function termatekStyles(): string {
       height: 18mm; width: 100%; max-width: none; object-fit: contain; display: block; margin: 0;
     }
     .footer.footer--bar {
-      flex: 0 0 auto;
       height: 12mm;
-      margin: 0 3mm;
+      margin: 0 3mm 3mm 3mm;
       background: #072855;
       padding: 0;
     }
     .content {
-      flex: 1 1 auto;
-      padding: 5mm 15mm 4mm 15mm;
       box-sizing: border-box;
       font-size: 10.1pt;
       line-height: 1.32;
@@ -409,11 +408,11 @@ function termatekStyles(): string {
     .tmk-hero-grid--cover { grid-template-columns: 1fr; }
     .tmk-hero-title { margin-top: 2mm; font-size: 22pt; font-weight: 900; line-height: 1.08; color: #072855; }
     .tmk-hero-lead { margin-top: 4mm; font-size: 11.5pt; line-height: 1.45; color: #111; }
-    .tmk-hero-cards { margin-top: 6mm; display: grid; grid-template-columns: 1fr; gap: 3.5mm; }
-    .tmk-hero-card { border: 0.5mm solid rgba(0,0,0,0.12); border-radius: 4mm; padding: 4mm 4.5mm; background: #fff; }
+    .tmk-hero-cards { margin-top: 8mm; display: grid; grid-template-columns: 1fr; gap: 4.5mm; }
+    .tmk-hero-card { border: 0.5mm solid rgba(0,0,0,0.12); border-radius: 4mm; padding: 5mm 5.5mm; background: #fff; }
     .tmk-hero-card .t { font-weight: 900; color: #072855; margin-bottom: 1.5mm; }
     .tmk-hero-card .p { font-size: 10.2pt; color: #111; line-height: 1.35; }
-    .tmk-hero-badgebar { margin-top: 7mm; border-radius: 5mm; background: #eff6ff; border: 1px solid #c7d2fe; padding: 4mm 5mm; }
+    .tmk-hero-badgebar { margin-top: 10mm; border-radius: 5mm; background: #eff6ff; border: 1px solid #c7d2fe; padding: 5mm 5.5mm; }
     .tmk-hero-badgebar .row { display: flex; justify-content: space-between; gap: 8mm; align-items: center; }
     .tmk-hero-badgebar .l, .tmk-hero-badgebar .r { font-weight: 900; color: #1f4e79; font-size: 11pt; }
     .tmk-hero-badgebar .r { white-space: nowrap; }
@@ -446,7 +445,7 @@ function termatekStyles(): string {
     .product-title { font-size: 14.5pt; font-weight: 700; margin-bottom: 3.5mm; }
     .product-subtitle { font-size: 10pt; color: #333; margin-top: -2mm; margin-bottom: 3.5mm; }
     .product-layout { display: grid; grid-template-columns: 1.08fr 0.92fr; gap: 6mm; align-items: start; }
-    .tmk-quote-product { margin-top: 4mm; padding-top: 3mm; border-top: 0.5mm solid #e5e7eb; }
+    .tmk-quote-product { margin-top: 0; padding-top: 0; border-top: 0; }
     .tmk-quote-product .product-title { font-size: 12pt; margin-bottom: 2mm; }
     .tmk-quote-product .img-card img { height: 38mm; }
     .tmk-quote-product .fact-k { font-size: 8.2pt; }
@@ -483,8 +482,9 @@ function termatekStyles(): string {
     .extras-grid .k { font-weight: 600; color: #374151; }
     .terms-title { font-size: 12pt; font-weight: 600; margin-bottom: 2.5mm; color: #072855; }
     .terms-lead { font-size: 10pt; color: #111; margin-bottom: 4mm; }
-    .terms h3 { font-size: 10.5pt; margin: 3mm 0 1.5mm 0; color: #072855; }
-    .terms p { font-size: 10pt; margin: 0 0 2mm 0; }
+    .terms h3 { font-size: 10.5pt; margin: 3mm 0 1.5mm 0; color: #072855; break-after: avoid; page-break-after: avoid; }
+    .terms p { font-size: 10pt; margin: 0 0 2mm 0; break-inside: auto; page-break-inside: auto; }
+    .terms ul { break-inside: auto; page-break-inside: auto; }
     .terms-contact-divider { margin: 5mm 0 4mm 0; border-top: 0.5mm solid #e5e7eb; }
     .terms-contact-title { font-size: 12pt; margin-bottom: 3mm; }
     .terms .tuu-info-grid { margin-top: 0; }
@@ -615,7 +615,7 @@ export function generateTermatekVilpPrintHtml(input: {
   <style>${termatekStyles()}</style>
 </head>
 <body>
-  <div class="a4 page">
+  <div class="a4 page page--cover">
     ${headerHtml}
     <div class="content">
       <div class="tmk-kicker">Lämmitysratkaisut avaimet käteen</div>
@@ -635,7 +635,7 @@ export function generateTermatekVilpPrintHtml(input: {
     ${footerHtml}
   </div>
 
-  <div class="a4 page">
+  <div class="a4 page page--sheet">
     ${headerHtml}
     <div class="content">
       <div class="tmk-intro-title-row">
@@ -672,6 +672,12 @@ export function generateTermatekVilpPrintHtml(input: {
         <ul class="tmk-bullets">${introBulletsHtml(introBullets)}</ul>
       </div>
       ${situationHtml}
+    </div>
+  </div>
+
+  <div class="a4 page page--sheet">
+    ${headerHtml}
+    <div class="content">
       <div class="tmk-quote-product">
         <div class="product-title">${esc(productTitle)}</div>
         ${productSubtitleHtml}
@@ -696,10 +702,9 @@ export function generateTermatekVilpPrintHtml(input: {
         ${pricingSectionHtml}
       </div>
     </div>
-    ${footerHtml}
   </div>
 
-  <div class="a4 page terms">
+  <div class="a4 page page--sheet terms">
     ${headerHtml}
     <div class="content">
       ${buildTermsHtml(data)}
