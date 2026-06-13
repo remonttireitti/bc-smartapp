@@ -1156,15 +1156,11 @@ export default function QuoteRequestEditPage({ session }: Props) {
                 onChange={patchForm}
               />
             )}
+            {!(
+              form.type === 'ilma-ilma' && resolveIilpLaborPricingMode(form) === 'urakka'
+            ) && (
           <section className="form-section">
             <h2>Työt ja tarvikkeet</h2>
-            {form.type === 'ilma-ilma' && resolveIilpLaborPricingMode(form) === 'urakka' ? (
-              <p className="muted panel-inset">
-                Asennustyö hinnoitellaan urakkahinnalla Hinnoittelu-välilehdellä. Asennustarvikkeet
-                lasketaan erikseen samalla välilehdellä.
-              </p>
-            ) : (
-              <>
             <div className="section-header-row">
               <h3>Työrivit</h3>
               {canEdit && (
@@ -1245,9 +1241,6 @@ export default function QuoteRequestEditPage({ session }: Props) {
                 </div>
               </div>
             ))}
-
-              </>
-            )}
 
             <div className="section-header-row">
               <h3>Tarvikkeet</h3>
@@ -1374,6 +1367,7 @@ export default function QuoteRequestEditPage({ session }: Props) {
               ))
             )}
           </section>
+            )}
           </>
         )}
 
