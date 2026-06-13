@@ -1,4 +1,5 @@
 import { computeHeatingNeedKw } from '../../lib/quoteRequest/calculations';
+import ToggleSwitch from '../ToggleSwitch';
 import {
   BUILDING_TYPE_OPTIONS,
   CURRENT_HEATING_OPTIONS,
@@ -161,25 +162,19 @@ export default function QuoteVilpSiteSection({ form, canEdit, onChange }: Props)
           )}
         </div>
         {showOilExtras && (
-          <div className="quote-checkbox-group">
-            <label className="checkbox-inline">
-              <input
-                type="checkbox"
-                checked={form.oilBoilerRemoval}
-                onChange={(e) => onChange({ oilBoilerRemoval: e.target.checked })}
-                disabled={!canEdit}
-              />
-              Tarjous sisältää öljykattilan purun
-            </label>
-            <label className="checkbox-inline">
-              <input
-                type="checkbox"
-                checked={form.oilTankEmptying}
-                onChange={(e) => onChange({ oilTankEmptying: e.target.checked })}
-                disabled={!canEdit}
-              />
-              Tarjous sisältää öljysäiliön tyhjennyksen
-            </label>
+          <div className="quote-toggle-group">
+            <ToggleSwitch
+              checked={form.oilBoilerRemoval}
+              disabled={!canEdit}
+              label="Tarjous sisältää öljykattilan purun"
+              onChange={(checked) => onChange({ oilBoilerRemoval: checked })}
+            />
+            <ToggleSwitch
+              checked={form.oilTankEmptying}
+              disabled={!canEdit}
+              label="Tarjous sisältää öljysäiliön tyhjennyksen"
+              onChange={(checked) => onChange({ oilTankEmptying: checked })}
+            />
           </div>
         )}
       </section>
@@ -226,15 +221,12 @@ export default function QuoteVilpSiteSection({ form, canEdit, onChange }: Props)
 
       <section className="form-section">
         <h2>Käyttöveden lämmitys</h2>
-        <label className="checkbox-inline">
-          <input
-            type="checkbox"
-            checked={form.domesticHotWater}
-            onChange={(e) => onChange({ domesticHotWater: e.target.checked })}
-            disabled={!canEdit}
-          />
-          Käyttöveden lämmitys mukana laskennassa
-        </label>
+        <ToggleSwitch
+          checked={form.domesticHotWater}
+          disabled={!canEdit}
+          label="Käyttöveden lämmitys mukana laskennassa"
+          onChange={(checked) => onChange({ domesticHotWater: checked })}
+        />
         {form.domesticHotWater && (
           <label>
             Henkilömäärä

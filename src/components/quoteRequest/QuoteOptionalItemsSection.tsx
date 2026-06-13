@@ -1,3 +1,4 @@
+import ToggleSwitch from '../ToggleSwitch';
 import { createEmptyOptionalItem } from '../../lib/quoteRequest/defaults';
 import type { QuoteOptionalItem, QuoteRequestData } from '../../lib/quoteRequest/types';
 
@@ -41,17 +42,14 @@ export default function QuoteOptionalItemsSection({ form, canEdit, onChange }: P
               </button>
             )}
           </div>
-          <label className="checkbox-inline">
-            <input
-              type="checkbox"
-              checked={item.enabled}
-              disabled={!canEdit}
-              onChange={(e) =>
-                onChange({ optionalItems: patchItem(items, item.id, { enabled: e.target.checked }) })
-              }
-            />
-            Tarjoa asiakkaalle
-          </label>
+          <ToggleSwitch
+            checked={item.enabled}
+            disabled={!canEdit}
+            label="Tarjoa asiakkaalle"
+            onChange={(checked) =>
+              onChange({ optionalItems: patchItem(items, item.id, { enabled: checked }) })
+            }
+          />
           <div className="quote-field-grid quote-field-grid-2">
             <label>
               Kuvaus

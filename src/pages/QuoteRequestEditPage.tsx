@@ -6,6 +6,7 @@ import CustomerRegistryPicker, { type NewCustomerDraft } from '../components/Cus
 import EquipmentRegistryPicker, { type NewEquipmentDraft } from '../components/EquipmentRegistryPicker';
 import SubscriberPicker from '../components/SubscriberPicker';
 import NavigationBreadcrumb from '../components/NavigationBreadcrumb';
+import ToggleSwitch from '../components/ToggleSwitch';
 import QuoteIilpDevicesSection from '../components/quoteRequest/QuoteIilpDevicesSection';
 import QuoteIilpSiteSection from '../components/quoteRequest/QuoteIilpSiteSection';
 import QuoteIilpOptionsSection from '../components/quoteRequest/QuoteIilpOptionsSection';
@@ -1096,15 +1097,12 @@ export default function QuoteRequestEditPage({ session }: Props) {
                     disabled={!canEdit}
                   />
                 </label>
-                <label className="checkbox-inline">
-                  <input
-                    type="checkbox"
-                    checked={form.situationReportEnabled}
-                    onChange={(e) => patchForm({ situationReportEnabled: e.target.checked })}
-                    disabled={!canEdit}
-                  />
-                  Sisällytä tilanneraportti tulosteeseen
-                </label>
+                <ToggleSwitch
+                  checked={form.situationReportEnabled}
+                  disabled={!canEdit}
+                  label="Sisällytä tilanneraportti tulosteeseen"
+                  onChange={(checked) => patchForm({ situationReportEnabled: checked })}
+                />
                 {form.situationReportEnabled && (
                   <>
                     <label>
@@ -1415,21 +1413,18 @@ export default function QuoteRequestEditPage({ session }: Props) {
               </label>
               {quoteUsesTravelCost(form.type) && (
                 <div className="quote-travel-km panel-inset">
-                  <label className="checkbox-inline">
-                    <input
-                      type="checkbox"
-                      checked={form.travelKmEnabled}
-                      disabled={!canEdit}
-                      onChange={(e) =>
-                        patchForm({
-                          travelKmEnabled: e.target.checked,
-                          travelKmDistance: e.target.checked ? form.travelKmDistance || 0 : 0,
-                          travelCost: 0,
-                        })
-                      }
-                    />
-                    Laskuta km-korvaus
-                  </label>
+                  <ToggleSwitch
+                    checked={form.travelKmEnabled}
+                    disabled={!canEdit}
+                    label="Laskuta km-korvaus"
+                    onChange={(checked) =>
+                      patchForm({
+                        travelKmEnabled: checked,
+                        travelKmDistance: checked ? form.travelKmDistance || 0 : 0,
+                        travelCost: 0,
+                      })
+                    }
+                  />
                   {form.travelKmEnabled && (
                     <>
                       <div className="quote-field-grid quote-field-grid-2">
@@ -1478,22 +1473,17 @@ export default function QuoteRequestEditPage({ session }: Props) {
               )}
               <div className="quote-vat-profile-field">
                 <span className="field-label">ALV / asiakastyyppi</span>
-                <div className="quote-vat-profile-options" role="radiogroup" aria-label="ALV / asiakastyyppi">
-                  {(Object.keys(QUOTE_VAT_PROFILE_LABELS) as QuoteVatProfile[]).map((profile) => (
-                    <label key={profile} className="quote-vat-profile-option">
-                      <input
-                        type="radio"
-                        name="quoteVatProfile"
-                        value={profile}
-                        checked={(form.quoteVatProfile ?? 'business') === profile}
-                        disabled={!canEdit}
-                        onChange={() => changeVatProfile(profile)}
-                      />
-                      <span>{QUOTE_VAT_PROFILE_LABELS[profile]}</span>
-                    </label>
-                  ))}
-                </div>
-                <p className="muted quote-vat-profile-hint">{quoteVatPrintNotice(form.vatRate)}</p>
+                <ToggleSwitch
+                  checked={(form.quoteVatProfile ?? 'business') === 'consumer'}
+                  disabled={!canEdit}
+                  label={QUOTE_VAT_PROFILE_LABELS.consumer}
+                  onChange={(checked) => changeVatProfile(checked ? 'consumer' : 'business')}
+                />
+                <p className="muted quote-vat-profile-hint">
+                  {(form.quoteVatProfile ?? 'business') === 'consumer'
+                    ? quoteVatPrintNotice(form.vatRate)
+                    : `${QUOTE_VAT_PROFILE_LABELS.business} — hinnat ilman arvonlisäveroa.`}
+                </p>
               </div>
               <label>
                 Alennus (%)

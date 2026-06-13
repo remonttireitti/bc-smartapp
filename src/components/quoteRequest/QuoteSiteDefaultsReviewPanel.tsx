@@ -1,4 +1,5 @@
 import type { RefObject } from 'react';
+import ToggleSwitch from '../ToggleSwitch';
 import type { UnreviewedSiteDefault } from '../../lib/quoteRequest/siteDefaultsReview';
 
 type Props = {
@@ -37,16 +38,15 @@ export default function QuoteSiteDefaultsReviewPanel({
       <ul className="quote-site-defaults-review-list">
         {pending.map((item) => (
           <li key={item.key} className="quote-site-defaults-review-row">
-            <label className="checkbox-inline quote-site-defaults-review-check">
-              <input
-                type="checkbox"
-                disabled={!canEdit}
-                onChange={(event) => {
-                  if (event.target.checked) onAccept(item.key);
-                }}
-              />
-              <span>{item.label}</span>
-            </label>
+            <ToggleSwitch
+              checked={false}
+              disabled={!canEdit}
+              label={item.label}
+              className="quote-site-defaults-review-check"
+              onChange={(checked) => {
+                if (checked) onAccept(item.key);
+              }}
+            />
             <button
               type="button"
               className="link-button quote-site-defaults-review-goto"

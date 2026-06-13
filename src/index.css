@@ -6155,36 +6155,37 @@ textarea {
   grid-column: 1 / -1;
 }
 
-.quote-vat-profile-options {
-  display: flex;
-  flex-direction: column;
-  gap: .45rem;
+.quote-vat-profile-field .toggle-switch {
   margin-top: .35rem;
-}
-
-.quote-vat-profile-option {
-  display: flex;
-  align-items: flex-start;
-  gap: .5rem;
-  padding: .55rem .7rem;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--bg-muted);
-  cursor: pointer;
-}
-
-.quote-vat-profile-option:has(input:checked) {
-  border-color: #f97316;
-  background: #fff7ed;
-}
-
-.quote-vat-profile-option input {
-  margin-top: .15rem;
 }
 
 .quote-vat-profile-hint {
   margin: .45rem 0 0;
   font-size: .85rem;
+}
+
+.quote-travel-km .toggle-switch {
+  margin-bottom: .35rem;
+}
+
+.quote-toggle-group {
+  display: flex;
+  flex-direction: column;
+  gap: .85rem;
+  margin-top: .5rem;
+}
+
+.quote-site-defaults-review-row .quote-site-defaults-review-check {
+  flex: 1 1 auto;
+  align-items: center;
+}
+
+.quote-site-defaults-review-check .toggle-switch-label {
+  line-height: 1.35;
+}
+
+.quote-form .form-toggle-row.quote-terms-print-toggles {
+  margin-top: .5rem;
 }
 
 .quote-labor-mode-grid {
