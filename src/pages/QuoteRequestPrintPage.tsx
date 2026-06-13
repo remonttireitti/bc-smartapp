@@ -17,10 +17,10 @@ import { quoteListTrail, withNavTrail } from '../lib/navigationTrail';
 
 import { isPumpQuoteType, isRepairQuoteType, QUOTE_TYPE_LABELS } from '../lib/quoteRequest/constants';
 
-import { deliveryFeesFromCompanySettings } from '../lib/quoteRequest/deviceCatalog';
+import { deliveryFeesFromCompanySettings, syncMainDeviceBrandPricing } from '../lib/quoteRequest/deviceCatalog';
 import { setActiveDeviceRegistry, snapshotFromCompanySettings } from '../lib/quoteRequest/deviceRegistryState';
 
-import { normalizeQuoteRequestData, resolveQuoteDisplayTitle } from '../lib/quoteRequest/defaults';
+import { normalizeQuoteRequestData, normalizePumpDeviceSelection, resolveQuoteDisplayTitle } from '../lib/quoteRequest/defaults';
 
 import {
   generateQuoteHeatCalcPrintHtml,
@@ -123,6 +123,14 @@ export default function QuoteRequestPrintPage({ session }: Props) {
 
   const feeMap = useMemo(() => deliveryFeesFromCompanySettings(meta?.settings), [meta?.settings]);
 
+  const printData = useMemo(
+    () =>
+      quoteData
+        ? syncMainDeviceBrandPricing(normalizePumpDeviceSelection(quoteData))
+        : null,
+    [quoteData],
+  );
+
   useEffect(() => {
     setActiveDeviceRegistry(snapshotFromCompanySettings(meta?.settings ?? null));
   }, [meta?.settings]);
@@ -138,21 +146,21 @@ export default function QuoteRequestPrintPage({ session }: Props) {
   const useLampokatsastusTemplate = false;
 
   useEffect(() => {
-    if (!useTermatekTemplate || !quoteData || !customer || !meta) {
+    if (!useTermatekTemplate || !printData || !customer || !meta) {
       setTermatekHtml('');
       setTermatekHtmlLoading(false);
       return;
     }
     let cancelled = false;
     setTermatekHtmlLoading(true);
-    void prepareTermatekVilpPrintHtml({ data: quoteData, customer, meta, feeMap })
+    void prepareTermatekVilpPrintHtml({ data: printData, customer, meta, feeMap })
       .then((nextHtml) => {
         if (!cancelled) setTermatekHtml(nextHtml);
       })
       .catch(() => {
         if (!cancelled) {
           setTermatekHtml(
-            generateTermatekVilpPrintHtml({ data: quoteData, customer, meta, feeMap }),
+            generateTermatekVilpPrintHtml({ data: printData, customer, meta, feeMap }),
           );
         }
       })
@@ -162,7 +170,7 @@ export default function QuoteRequestPrintPage({ session }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [useTermatekTemplate, quoteData, customer, meta, feeMap]);
+  }, [useTermatekTemplate, printData, customer, meta, feeMap]);
 
   useEffect(() => {
     if (!useLampokatsastusTemplate || !quoteData || !customer || !meta) {
@@ -216,7 +224,7 @@ export default function QuoteRequestPrintPage({ session }: Props) {
     }
 
     return generateQuoteOfferPrintHtml({
-      data: quoteData,
+      data: printData ?? quoteData,
       customer,
       meta,
       mode: printMode,
@@ -224,6 +232,7 @@ export default function QuoteRequestPrintPage({ session }: Props) {
     });
   }, [
     quoteData,
+    printData,
     customer,
     meta,
     printMode,
@@ -381,9 +390,9 @@ export default function QuoteRequestPrintPage({ session }: Props) {
 
   async function handlePrint() {
     let printHtml = html;
-    if (useTermatekTemplate && quoteData && customer && meta) {
+    if (useTermatekTemplate && printData && customer && meta) {
       try {
-        printHtml = await prepareTermatekVilpPrintHtml({ data: quoteData, customer, meta, feeMap });
+        printHtml = await prepareTermatekVilpPrintHtml({ data: printData, customer, meta, feeMap });
       } catch {
         if (!printHtml) {
           setError('Tulosteen valmistelu epäonnistui. Yritä uudelleen.');

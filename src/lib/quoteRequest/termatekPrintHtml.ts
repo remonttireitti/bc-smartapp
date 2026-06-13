@@ -11,7 +11,8 @@ import {
   resolveQuoteTermsPrintFlags,
 } from './termatekDefaultTerms';
 import type { QuoteTermsPrintFlags } from './types';
-import { calculateDeviceSellNet, findDeviceById, resolveQuoteMainDeviceForTotals } from './deviceCatalog';
+import { calculateDeviceSellNet, resolveQuoteMainDeviceForTotals, syncMainDeviceBrandPricing } from './deviceCatalog';
+import { normalizePumpDeviceSelection } from './defaults';
 import type { QuotePrintCustomer, QuotePrintMeta } from './printHtml';
 import {
   buildTermatekAssetMap,
@@ -188,7 +189,6 @@ function buildKotitalousExtrasHtml(
       ? ` (kahdella yhteensä enintään ${formatEuro(kotitalous.withSpouse)})`
       : '';
   return `
-    <span class="k">Asennustyön osuus</span><span>${formatEuro(kotitalous.laborOnlyGross)} (sis. ALV ${vatRate} %)</span>
     <span class="k">Kotitalousvähennykseen oikeuttava työn osuus</span><span>${formatEuro(kotitalous.laborOnlyGross)} (sis. ALV ${vatRate} %)</span>
     <span class="k">Arvioitu kotitalousvähennys</span><span>${formatEuro(kotitalous.onePerson)}${spouseNote} — ${pct} %, enintään ${formatEuro(kotitalous.maxPerPerson)} / hlö</span>`;
 }
@@ -490,9 +490,9 @@ function buildTermatekPricingLines(input: {
   totals: ReturnType<typeof computeQuoteTotals>;
   vatMult: number;
   productTitle: string;
-  deviceGross: number;
+  feeMap?: BrandDeliveryFeeByCategoryMap | null;
 }): PricingLine[] {
-  const { data, totals, vatMult, productTitle, deviceGross } = input;
+  const { data, totals, vatMult, productTitle, feeMap = null } = input;
   const lines: PricingLine[] = [];
   const isUrakka = data.type === 'ilma-ilma' && resolveIilpLaborPricingMode(data) === 'urakka';
 
@@ -541,10 +541,13 @@ function buildTermatekPricingLines(input: {
     lines.push({ label: 'Tarvikkeet', gross: targetMaterialsGross });
   }
 
-  const resolvedDeviceGross = totals.deviceNet * vatMult;
-  const displayDeviceGross = deviceGross > 0 ? deviceGross : resolvedDeviceGross;
-  if (displayDeviceGross > 0) {
-    lines.push({ label: `Laite: ${productTitle}`, gross: displayDeviceGross });
+  const device = resolveQuoteMainDeviceForTotals(data, computePumpSizingNeedKw(data));
+  const deviceGross = device
+    ? calculateDeviceSellNet(data, device, feeMap) * vatMult
+    : totals.deviceNet * vatMult;
+  if (deviceGross > 0.005) {
+    const deviceLabel = device?.name?.trim() || productTitle;
+    lines.push({ label: `Laite: ${deviceLabel}`, gross: deviceGross });
   }
 
   return lines;
@@ -747,8 +750,9 @@ function termatekStyles(): string {
     .price-table tr.total td { font-weight: 700; }
     .price-table tr.final td { font-size: 11pt; border-top: 0.6mm solid #072855; padding-top: 8px; }
     .price-table--summary { margin-bottom: 4mm; }
-    .extras-grid { display: grid; grid-template-columns: 34mm 1fr; gap: 2mm 4mm; font-size: 9.5pt; margin-top: 4mm; }
-    .extras-grid .k { font-weight: 600; color: #374151; }
+    .extras-grid { display: grid; grid-template-columns: minmax(0, 46%) minmax(0, 1fr); gap: 2.5mm 4mm; font-size: 9.5pt; margin-top: 4mm; align-items: start; }
+    .extras-grid .k { font-weight: 600; color: #374151; line-height: 1.35; }
+    .extras-grid span:not(.k) { line-height: 1.35; word-break: break-word; }
     .terms-title { font-size: 12pt; font-weight: 600; margin-bottom: 2.5mm; color: #072855; }
     .terms-lead { font-size: 10pt; color: #111; margin-bottom: 4mm; }
     .terms h3 { font-size: 10.5pt; margin: 3mm 0 1.5mm 0; color: #072855; break-after: avoid; page-break-after: avoid; }
@@ -806,7 +810,8 @@ export function generateTermatekVilpPrintHtml(input: {
   assets?: TermatekAssetMap;
   productImages?: TermatekProductImage[];
 }) {
-  const { data, customer, meta, feeMap = null } = input;
+  const { customer, meta, feeMap = null } = input;
+  const data = syncMainDeviceBrandPricing(normalizePumpDeviceSelection({ ...input.data }));
   const assetBase = getTermatekAssetBase();
   const assets = input.assets ?? buildTermatekAssetMap(assetBase);
   const settings = meta.settings ?? {};
@@ -829,9 +834,6 @@ export function generateTermatekVilpPrintHtml(input: {
       assets,
       productTitle,
     });
-  const deviceGross = device
-    ? calculateDeviceSellNet(data, device, feeMap) * vatMult
-    : totals.deviceNet * vatMult;
   const subtotalGross = totals.subtotalNet * vatMult;
   const discountPct = Math.max(0, Math.min(100, Number(data.overallDiscountPercent || 0)));
   const discountGross = subtotalGross * (discountPct / 100);
@@ -888,7 +890,7 @@ export function generateTermatekVilpPrintHtml(input: {
     : `<div class="product-subtitle">Sisäyksikkö: ${esc(vilpIndoorConfigLabel(data.vilpIndoorConfig))}</div>`;
 
   const pricingSectionHtml = buildPricingSectionHtml({
-    lines: buildTermatekPricingLines({ data, totals, vatMult, productTitle, deviceGross }),
+    lines: buildTermatekPricingLines({ data, totals, vatMult, productTitle, feeMap }),
     vatRate,
     discountPct,
     discountGross,
@@ -1005,20 +1007,21 @@ export async function prepareTermatekVilpPrintHtml(input: {
   meta: QuotePrintMeta;
   feeMap?: BrandDeliveryFeeByCategoryMap | null;
 }): Promise<string> {
+  const data = syncMainDeviceBrandPricing(normalizePumpDeviceSelection({ ...input.data }));
   const assetBase = getTermatekAssetBase();
   const assets = await embedTermatekAssets(buildTermatekAssetMap(assetBase));
   if (input.meta.logoUrl) {
     assets.logo = await embedUrlAsDataUrl(input.meta.logoUrl);
   }
-  const device = findDeviceById(input.data.selectedDeviceId);
-  const productTitle = defaultProductTitle(input.data, device);
+  const device = resolveQuoteMainDeviceForTotals(data, computePumpSizingNeedKw(data));
+  const productTitle = defaultProductTitle(data, device);
   let productImages = resolveTermatekProductImages({
-    quoteType: input.data.type,
-    data: input.data,
+    quoteType: data.type,
+    data,
     device,
     assets,
     productTitle,
   });
   productImages = await embedTermatekProductImages(productImages);
-  return generateTermatekVilpPrintHtml({ ...input, assets, productImages });
+  return generateTermatekVilpPrintHtml({ ...input, data, assets, productImages });
 }
