@@ -6187,6 +6187,59 @@ textarea {
   font-size: .85rem;
 }
 
+.quote-labor-mode-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: .65rem;
+  margin-top: .5rem;
+}
+
+.quote-labor-mode-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: .2rem;
+  padding: .75rem .85rem;
+  border: 2px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-surface);
+  color: var(--text);
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+
+.quote-labor-mode-btn.active {
+  border-color: #f97316;
+  background: #fff7ed;
+  color: #c2410c;
+}
+
+.quote-labor-mode-btn:disabled {
+  opacity: .7;
+  cursor: default;
+}
+
+.quote-labor-mode-title {
+  font-weight: 600;
+}
+
+.quote-labor-mode-desc {
+  font-size: .85rem;
+  color: var(--text-muted, #64748b);
+  line-height: 1.35;
+}
+
+.quote-labor-mode-btn.active .quote-labor-mode-desc {
+  color: #9a3412;
+}
+
+@media (max-width: 520px) {
+  .quote-labor-mode-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 .tile-disabled {
   opacity: .72;
   cursor: not-allowed;

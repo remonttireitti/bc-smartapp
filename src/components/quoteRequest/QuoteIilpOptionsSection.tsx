@@ -33,29 +33,25 @@ export default function QuoteIilpOptionsSection({ form, canEdit, onChange }: Pro
         Työ hinnoitellaan oletuksena urakkahinnalla. Vaihtoehtoisesti tuntityönä Työt &amp; tarvikkeet
         -välilehdellä. Asennustarvikkeet lasketaan aina erikseen.
       </p>
-      <div className="quote-vat-profile-options">
-        <label className="quote-vat-profile-option">
-          <input
-            type="radio"
-            name="iilpLaborPricingMode"
-            value="urakka"
-            checked={mode === 'urakka'}
-            disabled={!canEdit}
-            onChange={() => setMode('urakka')}
-          />
-          <span>Urakkahinta</span>
-        </label>
-        <label className="quote-vat-profile-option">
-          <input
-            type="radio"
-            name="iilpLaborPricingMode"
-            value="tuntityo"
-            checked={mode === 'tuntityo'}
-            disabled={!canEdit}
-            onChange={() => setMode('tuntityo')}
-          />
-          <span>Tuntityönä</span>
-        </label>
+      <div className="quote-labor-mode-grid">
+        <button
+          type="button"
+          className={mode === 'urakka' ? 'quote-labor-mode-btn active' : 'quote-labor-mode-btn'}
+          disabled={!canEdit}
+          onClick={() => setMode('urakka')}
+        >
+          <span className="quote-labor-mode-title">Urakkahinta</span>
+          <span className="quote-labor-mode-desc">Kiinteä asennushinta (oletus)</span>
+        </button>
+        <button
+          type="button"
+          className={mode === 'tuntityo' ? 'quote-labor-mode-btn active' : 'quote-labor-mode-btn'}
+          disabled={!canEdit}
+          onClick={() => setMode('tuntityo')}
+        >
+          <span className="quote-labor-mode-title">Tuntityönä</span>
+          <span className="quote-labor-mode-desc">Tunnit Työt-välilehdellä</span>
+        </button>
       </div>
 
       {mode === 'urakka' && (
