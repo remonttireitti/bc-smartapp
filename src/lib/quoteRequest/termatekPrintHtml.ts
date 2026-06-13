@@ -719,7 +719,7 @@ export function generateTermatekVilpPrintHtml(input: {
     </div>
   </div>
 
-  <div class="a4 page--terms-flow">
+  <div class="a4 page--terms-flow page--sheet">
     ${headerHtml}
     <div class="content terms terms-compact">
       ${buildTermsHtml(data)}
