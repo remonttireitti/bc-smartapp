@@ -5,6 +5,7 @@ import { resolveLegacyDeviceIds } from './deviceCatalog';
 import { DEFAULT_TERMATEK_IILP_QUOTE_TERMS } from './termatekDefaultTerms';
 import {
   DEFAULT_IILP_OPTIONAL_ITEMS,
+  DEFAULT_IILP_PAYMENT_TERMS,
   DEFAULT_TRAVEL_KM_RATE,
   inferQuoteVatProfile,
   isPumpQuoteType,
@@ -133,7 +134,7 @@ export function createEmptyQuoteRequestData(type: QuoteType = 'vesi-ilma'): Quot
     notes: '',
     validUntil: validUntil.toISOString().slice(0, 10),
     brandMode: 'auto',
-    paymentTermsText: '14 pv netto',
+    paymentTermsText: type === 'ilma-ilma' ? DEFAULT_IILP_PAYMENT_TERMS : '14 pv netto',
     deliveryTermsText: 'Työt sovitaan erikseen asiakkaan kanssa.',
     customerPhone: '',
     customerEmail: '',
@@ -203,6 +204,12 @@ export function createEmptyQuoteRequestData(type: QuoteType = 'vesi-ilma'): Quot
     iilpBaseInstallMaterialsGross: template.iilpBaseInstallMaterialsGross ?? 500,
     iilpDeviceSelectionNote: '',
     optionalItems: type === 'ilma-ilma' ? defaultIilpOptionalItems() : [],
+    iilpIndoorPlacement: '',
+    iilpOutdoorPlacement: '',
+    iilpPipeLengthM: 0,
+    iilpElectricalNotes: '',
+    iilpCondensateNotes: '',
+    iilpEnergySavingsText: '',
   };
 }
 
@@ -464,6 +471,17 @@ export function normalizeQuoteRequestData(raw: unknown): QuoteRequestData {
     iilpDeviceSelectionNote:
       typeof record.iilpDeviceSelectionNote === 'string' ? record.iilpDeviceSelectionNote : '',
     optionalItems: normalizeOptionalItems(record.optionalItems, type),
+    iilpIndoorPlacement:
+      typeof record.iilpIndoorPlacement === 'string' ? record.iilpIndoorPlacement : '',
+    iilpOutdoorPlacement:
+      typeof record.iilpOutdoorPlacement === 'string' ? record.iilpOutdoorPlacement : '',
+    iilpPipeLengthM: Number(record.iilpPipeLengthM) || 0,
+    iilpElectricalNotes:
+      typeof record.iilpElectricalNotes === 'string' ? record.iilpElectricalNotes : '',
+    iilpCondensateNotes:
+      typeof record.iilpCondensateNotes === 'string' ? record.iilpCondensateNotes : '',
+    iilpEnergySavingsText:
+      typeof record.iilpEnergySavingsText === 'string' ? record.iilpEnergySavingsText : '',
     lines,
     legacyCustomerName:
       typeof record.legacyCustomerName === 'string' ? record.legacyCustomerName : undefined,

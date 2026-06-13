@@ -72,6 +72,12 @@ export const IILP_PURPOSE_LABELS: Record<QuoteRequestData['iilpPurpose'], string
   cooling_heating: 'Jäähdytys + lämmitys',
 };
 
+export const DEFAULT_IILP_PAYMENT_TERMS =
+  '30 % ennakkomaksu tilauksesta, loppu laskutetaan käyttöönoton jälkeen';
+
+export const DEFAULT_IILP_ENERGY_SAVINGS_TEXT =
+  'Arvioitu sähkönsäästö noin 500–1 000 €/vuosi kohteen käytöstä ja energiahintoihin riippuen.';
+
 export const DEFAULT_IILP_OPTIONAL_ITEMS: Array<{ description: string; priceGross: number }> = [
   { description: 'Ulkoyksikön suojakotelo', priceGross: 450 },
   { description: 'Kondenssiveden pumppu (asennus)', priceGross: 280 },

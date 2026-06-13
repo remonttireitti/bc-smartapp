@@ -106,6 +106,63 @@ export default function QuoteIilpSiteSection({ form, canEdit, onChange }: Props)
         </div>
       </section>
 
+      <section className="form-section">
+        <h2>Kohteen asennustiedot</h2>
+        <p className="muted">
+          Kohdekohtaiset tiedot näkyvät tarjouksen tulosteessa. Täytä ne, jotta tarjous näyttää yksilölliseltä.
+        </p>
+        <div className="quote-field-grid">
+          <label>
+            Sisäyksikön sijainti
+            <input
+              value={form.iilpIndoorPlacement}
+              onChange={(e) => onChange({ iilpIndoorPlacement: e.target.value })}
+              disabled={!canEdit}
+              placeholder="Esim. olohuoneeseen"
+            />
+          </label>
+          <label>
+            Ulkoyksikön sijainti
+            <input
+              value={form.iilpOutdoorPlacement}
+              onChange={(e) => onChange({ iilpOutdoorPlacement: e.target.value })}
+              disabled={!canEdit}
+              placeholder="Esim. maatelineelle"
+            />
+          </label>
+          <label>
+            Putkitus (m)
+            <input
+              type="number"
+              min="0"
+              step="0.5"
+              value={form.iilpPipeLengthM || ''}
+              onChange={(e) => onChange({ iilpPipeLengthM: Number(e.target.value) || 0 })}
+              disabled={!canEdit}
+              placeholder="Esim. 4"
+            />
+          </label>
+          <label>
+            Sähkösyöttö / liitäntä
+            <input
+              value={form.iilpElectricalNotes}
+              onChange={(e) => onChange({ iilpElectricalNotes: e.target.value })}
+              disabled={!canEdit}
+              placeholder="Esim. olemassa olevasta turvakytkimestä"
+            />
+          </label>
+          <label className="quote-field-grid-span-2">
+            Kondenssiveden johto
+            <input
+              value={form.iilpCondensateNotes}
+              onChange={(e) => onChange({ iilpCondensateNotes: e.target.value })}
+              disabled={!canEdit}
+              placeholder="Esim. johdetaan ulos"
+            />
+          </label>
+        </div>
+      </section>
+
       <QuoteIilpOptionsSection form={form} canEdit={canEdit} onChange={onChange} />
     </>
   );

@@ -1338,8 +1338,34 @@ export default function QuoteRequestEditPage({ session }: Props) {
                 value={form.paymentTermsText}
                 onChange={(e) => patchForm({ paymentTermsText: e.target.value })}
                 disabled={!canEdit}
+                placeholder={form.type === 'ilma-ilma' ? 'Esim. 30 % ennakkomaksu tilauksesta, loppu käyttöönoton jälkeen' : undefined}
               />
             </label>
+            {form.type === 'ilma-ilma' && (
+              <>
+                <label>
+                  Lisätyöt (€/h, alv 0)
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={form.laborRate}
+                    onChange={(e) => patchForm({ laborRate: Number(e.target.value) || 0 })}
+                    disabled={!canEdit}
+                  />
+                </label>
+                <label>
+                  Säästölaskelma (tuloste)
+                  <textarea
+                    rows={2}
+                    value={form.iilpEnergySavingsText}
+                    onChange={(e) => patchForm({ iilpEnergySavingsText: e.target.value })}
+                    disabled={!canEdit}
+                    placeholder="Tyhjä = oletusteksti (500–1 000 €/vuosi). Voit kirjoittaa kohdekohtaisen arvion."
+                  />
+                </label>
+              </>
+            )}
             <label>
               Toimitusehdot
               <textarea

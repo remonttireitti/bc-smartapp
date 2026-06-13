@@ -1,6 +1,7 @@
 import type { BrandDeliveryFeeByCategoryMap } from '../../data/devicePricingShared';
 import type { HeatPumpDevice } from '../../data/pumpDeviceCatalog';
 import { computeKotitalousDeduction, computeQuoteTotals, computeTravelNet, travelCostLabel } from './calculations';
+import { DEFAULT_IILP_ENERGY_SAVINGS_TEXT, DEFAULT_IILP_PAYMENT_TERMS } from './constants';
 import { quoteTermsPlainTextToHtml } from './termatekDefaultTerms';
 import { calculateDeviceSellNet, findDeviceById } from './deviceCatalog';
 import type { QuotePrintCustomer, QuotePrintMeta } from './printHtml';
@@ -61,13 +62,150 @@ function defaultProductTitle(data: QuoteRequestData, device: HeatPumpDevice | nu
   return device?.name ?? (isIilpQuote(data) ? 'Ilmalämpöpumppu' : 'Vesi-ilmalämpöpumppu');
 }
 
+function formatRoundedHourlyRate(gross: number, vatRate: number): string {
+  const rounded = Math.round(Number(gross) || 0);
+  return `${rounded} €/h (sis. ALV ${vatRate} %)`;
+}
+
+function buildInstallScopeBullets(data: QuoteRequestData): string[] {
+  const bullets: string[] = [];
+  if (data.iilpIndoorPlacement.trim()) {
+    bullets.push(`Sisäyksikkö sijoitetaan ${data.iilpIndoorPlacement.trim()}`);
+  }
+  if (data.iilpOutdoorPlacement.trim()) {
+    bullets.push(`Ulkoyksikkö ${data.iilpOutdoorPlacement.trim()}`);
+  }
+  if (Number(data.iilpPipeLengthM) > 0) {
+    bullets.push(`Putkitus noin ${data.iilpPipeLengthM} m`);
+  }
+  if (data.iilpElectricalNotes.trim()) {
+    bullets.push(data.iilpElectricalNotes.trim());
+  }
+  if (data.iilpCondensateNotes.trim()) {
+    bullets.push(data.iilpCondensateNotes.trim());
+  }
+  return bullets;
+}
+
+function resolveDevicePrintFeatures(device: HeatPumpDevice | null): string[] {
+  if (!device) return [];
+  const fromCatalog = device.printFeatures?.filter(Boolean) ?? [];
+  if (fromCatalog.length) return fromCatalog;
+  const brand = (device.brand || '').toLowerCase();
+  if (brand.includes('daikin')) {
+    return [
+      'Erittäin hiljainen käyttö',
+      'Wifi-ohjaus puhelimella (Daikin Onecta)',
+      'Tehokas jäähdytys suuriin tiloihin',
+      'Korkea energiatehokkuus',
+      'Tunnettu Daikin-laatu',
+    ];
+  }
+  if (brand.includes('inventor')) {
+    return [
+      'Wifi-ohjaus puhelimella',
+      'Tehokas jäähdytys ja lämmitys',
+      'Hiljainen käynti',
+      'Energiatehokas invertteritekniikka',
+    ];
+  }
+  if (brand.includes('samsung')) {
+    return [
+      'Wifi-ohjaus puhelimella',
+      'Tehokas jäähdytys ja lämmitys',
+      'Hiljainen käynti',
+      'Luotettava Samsung-laatu',
+    ];
+  }
+  return [];
+}
+
+function buildProductBenefitsHtml(device: HeatPumpDevice | null): string {
+  const features = resolveDevicePrintFeatures(device);
+  if (!features.length) return '';
+  return `
+    <div class="product-card">
+      <div class="section-title" style="margin-top:0;">Laitteen edut</div>
+      <ul class="compact-list">${features.map((f) => `<li>${esc(f)}</li>`).join('')}</ul>
+    </div>`;
+}
+
+function buildEnergySavingsHtml(data: QuoteRequestData): string {
+  if (!isIilpQuote(data)) return '';
+  const text = data.iilpEnergySavingsText.trim() || DEFAULT_IILP_ENERGY_SAVINGS_TEXT;
+  return `
+    <div class="savings-box">
+      <div class="section-title" style="margin-top:0;">Arvioitu sähkönsäästö</div>
+      <p class="savings-text">${esc(text)}</p>
+    </div>`;
+}
+
+function buildKotitalousExtrasHtml(
+  kotitalous: ReturnType<typeof computeKotitalousDeduction>,
+  vatRate: number,
+): string {
+  if (kotitalous.laborOnlyGross <= 0) return '';
+  const pct = (kotitalous.percent * 100).toFixed(0);
+  const spouseNote =
+    kotitalous.withSpouse > kotitalous.onePerson
+      ? ` (kahdella yhteensä enintään ${formatEuro(kotitalous.withSpouse)})`
+      : '';
+  return `
+    <span class="k">Asennustyön osuus</span><span>${formatEuro(kotitalous.laborOnlyGross)} (sis. ALV ${vatRate} %)</span>
+    <span class="k">Kotitalousvähennykseen oikeuttava työn osuus</span><span>${formatEuro(kotitalous.laborOnlyGross)} (sis. ALV ${vatRate} %)</span>
+    <span class="k">Arvioitu kotitalousvähennys</span><span>${formatEuro(kotitalous.onePerson)}${spouseNote} — ${pct} %, enintään ${formatEuro(kotitalous.maxPerPerson)} / hlö</span>`;
+}
+
+function companyInfoLines(input: {
+  meta: QuotePrintMeta;
+  billing: { business_id?: string; vat_id?: string };
+  settings: {
+    phone?: string;
+    email?: string;
+    tukes_number?: string;
+  };
+  companyAddress: string;
+  websiteDisplay: string;
+}): string {
+  const { meta, billing, settings, companyAddress, websiteDisplay } = input;
+  const lines: string[] = [`<div class="tmk-line"><strong>${esc(meta.companyName)}</strong></div>`];
+  if (billing.business_id) lines.push(`<div class="tmk-line">Y-tunnus: ${esc(billing.business_id)}</div>`);
+  if (billing.vat_id) lines.push(`<div class="tmk-line">ALV-tunnus: ${esc(billing.vat_id)}</div>`);
+  if (companyAddress) lines.push(`<div class="tmk-line">${esc(companyAddress)}</div>`);
+  if (settings.tukes_number) {
+    lines.push(`<div class="tmk-line">Tukes-pätevyys: ${esc(settings.tukes_number)}</div>`);
+  }
+  if (settings.phone) lines.push(`<div class="tmk-line">Puh: ${esc(settings.phone)}</div>`);
+  if (settings.email) lines.push(`<div class="tmk-line">${esc(settings.email)}</div>`);
+  if (websiteDisplay) lines.push(`<div class="tmk-line">${esc(websiteDisplay)}</div>`);
+  return lines.join('');
+}
+
+function buildAcceptanceSectionHtml(customer: QuotePrintCustomer): string {
+  return `
+      <div class="acceptance-section">
+        <div class="summary-title">Tarjouksen hyväksyntä</div>
+        <p class="acceptance-lead">Hyväksyn tarjouksen ja tilaan työn toteutettavaksi alla olevan mukaisesti.</p>
+        <div class="acceptance-grid">
+          <div class="acceptance-field">
+            <div class="acceptance-label">Asiakkaan nimi</div>
+            <div class="acceptance-line">${esc(customer.name)}</div>
+          </div>
+          <div class="acceptance-field">
+            <div class="acceptance-label">Päivämäärä</div>
+            <div class="acceptance-line"></div>
+          </div>
+          <div class="acceptance-field acceptance-field--wide">
+            <div class="acceptance-label">Allekirjoitus</div>
+            <div class="acceptance-line acceptance-line--sign"></div>
+          </div>
+        </div>
+      </div>`;
+}
 function deviceIntroBullets(data: QuoteRequestData, device: HeatPumpDevice | null): string[] {
   const name = defaultProductTitle(data, device);
   if (isIilpQuote(data)) {
-    return [
-      `Ilmalämpöpumpun asennus: ${name}`,
-      'Tarjous sisältää kohteeseen suunnitellun asennuksen',
-    ];
+    return [`Ilmalämpöpumpun asennus: ${name}`, ...buildInstallScopeBullets(data)];
   }
   const indoorLabel = vilpIndoorConfigLabel(data.vilpIndoorConfig);
   const indoor =
@@ -98,7 +236,6 @@ function buildProductFactsHtml(data: QuoteRequestData, device: HeatPumpDevice | 
       <div class="fact-card"><div class="fact-k">Jäähdytysteho</div><div class="fact-v">${formatPowerRange(device?.coolingPowerMin, device?.coolingPowerMax)}</div></div>
       <div class="fact-card"><div class="fact-k">Lämmitysteho</div><div class="fact-v">${formatPowerRange(device?.heatingPowerMin, device?.heatingPowerMax)}</div></div>
       <div class="fact-card"><div class="fact-k">Toimitussisältö</div><div class="fact-v">Sisä- ja ulkoyksikkö</div></div>
-      <div class="fact-card"><div class="fact-k">Asennus</div><div class="fact-v">Asennus laskettu annettujen tietojen perusteella</div></div>
     </div>`;
   }
   return `
@@ -108,7 +245,6 @@ function buildProductFactsHtml(data: QuoteRequestData, device: HeatPumpDevice | 
       <div class="fact-card"><div class="fact-k">Malli</div><div class="fact-v">${esc(device?.model ?? '—')}</div></div>
       <div class="fact-card"><div class="fact-k">Lämmitysteho</div><div class="fact-v">${formatPowerRange(device?.heatingPowerMin, device?.heatingPowerMax)}</div></div>
       <div class="fact-card"><div class="fact-k">Toimitussisältö</div><div class="fact-v">Ulkoyksikkö + sisäyksikkö</div></div>
-      <div class="fact-card"><div class="fact-k">Asennus</div><div class="fact-v">Asennus tarjouksen mukaisesti</div></div>
     </div>`;
 }
 
@@ -156,13 +292,14 @@ function buildTermsHtml(data: QuoteRequestData): string {
 
 function buildContactSectionHtml(input: {
   meta: QuotePrintMeta;
-  billing: { business_id?: string };
+  billing: { business_id?: string; vat_id?: string };
   companyAddress: string;
   coverLocationLine: string;
-  settings: { phone?: string; email?: string; website?: string };
+  settings: { phone?: string; email?: string; website?: string; tukes_number?: string };
   websiteDisplay: string;
+  customer: QuotePrintCustomer;
 }): string {
-  const { meta, billing, companyAddress, coverLocationLine, settings, websiteDisplay } = input;
+  const { meta, billing, companyAddress, coverLocationLine, settings, websiteDisplay, customer } = input;
   return `
       <div class="summary-title terms-contact-title">Yritystiedot ja yhteystiedot</div>
       <div class="tuu-info-grid">
@@ -170,8 +307,10 @@ function buildContactSectionHtml(input: {
           <div class="tuu-info-title">Yritystiedot</div>
           <div class="tuu-line"><strong>${esc(meta.companyName)}</strong></div>
           ${billing.business_id ? `<div class="tuu-line">Y-tunnus: ${esc(billing.business_id)}</div>` : ''}
+          ${billing.vat_id ? `<div class="tuu-line">ALV-tunnus: ${esc(billing.vat_id)}</div>` : ''}
           ${companyAddress ? `<div class="tuu-line">${esc(companyAddress)}</div>` : ''}
           ${coverLocationLine ? `<div class="tuu-line">${esc(coverLocationLine)}</div>` : ''}
+          ${settings.tukes_number ? `<div class="tuu-line">Tukes-pätevyys: ${esc(settings.tukes_number)}</div>` : ''}
         </div>
         <div class="tuu-info-block">
           <div class="tuu-info-title">Yhteystiedot</div>
@@ -180,22 +319,37 @@ function buildContactSectionHtml(input: {
           ${websiteDisplay ? `<div class="tuu-line">${esc(websiteDisplay)}</div>` : ''}
         </div>
       </div>
-      <div class="tuu-muted"><strong>Palvelu:</strong> Huollot, lisätyöt ja mahdolliset muutostarpeet sovitaan aina tilaajan kanssa etukäteen. Laitteiden osalta noudatetaan valmistajan takuuehtoja. Asennustyölle myönnetään kahden (2) vuoden takuu.</div>`;
+      <div class="tuu-muted">Asennus- ja takuuehdot on kuvattu tarjouksen ehtosivulla.</div>
+      ${buildAcceptanceSectionHtml(customer)}`;
 }
 
-function buildDeliveryBullets(data: QuoteRequestData): string[] {
-  if (isIilpQuote(data)) {
-    return [
-      'Laite valittu kohteen ja mitoituksen mukaisesti.',
-      'Asennus toteutetaan valmistajan ohjeiden ja viranomaismääräysten mukaan.',
-      'Käyttöönotto sisältää testauksen, luovutuksen ja käytön opastuksen.',
-    ];
-  }
-  return [
-    'Laite valitaan kohteen ja mitoituksen mukaisesti.',
-    'Asennus toteutetaan valmistajan ohjeiden ja viranomaismääräysten mukaan.',
-    'Käyttöönotto sisältää testauksen, luovutuksen ja käytön opastuksen.',
+function buildCoverPageHtml(input: {
+  offerNo: string;
+  customer: QuotePrintCustomer;
+  meta: QuotePrintMeta;
+  productLabel: string;
+}): string {
+  const { offerNo, customer, meta, productLabel } = input;
+  const benefits = [
+    'Mitoitus kohteen mukaan',
+    'Tukes-pätevä asennus',
+    'Käyttöönotto ja opastus',
+    '2 vuoden asennustakuu',
   ];
+  return `
+      <div class="cover-title">${esc(productLabel)}</div>
+      <div class="cover-lead">Tarjous asiakkaalle <strong>${esc(customer.name)}</strong>. Alla esitetty hinta, toimitussisältö ja ehdot.</div>
+      <div class="cover-benefits">
+        ${benefits
+          .map(
+            (benefit) =>
+              `<div class="cover-benefit"><span class="cover-benefit-mark">✓</span><span>${esc(benefit)}</span></div>`,
+          )
+          .join('')}
+      </div>
+      <div class="tmk-hero-badgebar cover-badgebar">
+        <div class="row"><div class="l">Tarjous # ${esc(offerNo)}</div><div class="r">${formatDateFi(meta.quoteDate)}</div></div>
+      </div>`;
 }
 
 function workGrossRows(data: QuoteRequestData, vatMult: number): Array<{ desc: string; hours: number; gross: number }> {
@@ -307,7 +461,7 @@ function buildPricingSectionHtml(input: {
   kotitalousHtml: string;
   deliveryLine: string;
   paymentLine: string;
-  extraWorkGross: number;
+  extraWorkRateLabel: string;
   optionalNotesHtml: string;
 }): string {
   const {
@@ -319,7 +473,7 @@ function buildPricingSectionHtml(input: {
     kotitalousHtml,
     deliveryLine,
     paymentLine,
-    extraWorkGross,
+    extraWorkRateLabel,
     optionalNotesHtml,
   } = input;
 
@@ -345,7 +499,7 @@ function buildPricingSectionHtml(input: {
         ${kotitalousHtml}
         <span class="k">Toimitusehto ja aika</span><span>${esc(deliveryLine)}</span>
         <span class="k">Maksuehto</span><span>${esc(paymentLine)}</span>
-        <span class="k">Lisätyöt</span><span>${formatEuro(extraWorkGross)} / h (sis. ALV ${vatRate}%)</span>
+        <span class="k">Lisätyöt</span><span>${esc(extraWorkRateLabel)}</span>
       </div>
       ${optionalNotesHtml ? `<div class="section-title">Tuotteet ja palvelut tarjouksen mukaisesti</div>${optionalNotesHtml}` : ''}`;
 }
@@ -415,6 +569,12 @@ function termatekStyles(): string {
     .tmk-kicker { font-size: 10pt; font-weight: 800; letter-spacing: .6px; color: #072855; text-transform: uppercase; }
     .tmk-hero-grid { display: grid; grid-template-columns: 1.15fr 0.85fr; gap: 10mm; margin-top: 4mm; }
     .tmk-hero-grid--cover { grid-template-columns: 1fr; }
+    .cover-title { margin-top: 8mm; font-size: 20pt; font-weight: 900; line-height: 1.15; color: #072855; }
+    .cover-lead { margin-top: 4mm; font-size: 11pt; line-height: 1.42; color: #111; max-width: 92%; }
+    .cover-benefits { margin-top: 10mm; display: grid; grid-template-columns: 1fr 1fr; gap: 3.5mm; }
+    .cover-benefit { display: flex; align-items: center; gap: 2.5mm; padding: 3.5mm 4mm; border: 0.4mm solid #c7d2fe; border-radius: 3mm; background: #eff6ff; font-size: 10pt; font-weight: 700; color: #072855; line-height: 1.25; }
+    .cover-benefit-mark { flex: 0 0 auto; color: #1f4e79; font-weight: 900; }
+    .cover-badgebar { margin-top: 14mm; }
     .tmk-hero-title { margin-top: 2mm; font-size: 22pt; font-weight: 900; line-height: 1.08; color: #072855; }
     .tmk-hero-lead { margin-top: 4mm; font-size: 11.5pt; line-height: 1.45; color: #111; }
     .tmk-hero-cards { margin-top: 8mm; display: grid; grid-template-columns: 1fr; gap: 4.5mm; }
@@ -509,6 +669,15 @@ function termatekStyles(): string {
     .tuu-info-title { font-weight: 800; color: #072855; margin-bottom: 2.5mm; }
     .tuu-line { margin: 0.45mm 0; font-size: 9.7pt; line-height: 1.25; }
     .tuu-muted { margin-top: 4mm; font-size: 9.7pt; color: #111; line-height: 1.4; }
+    .savings-box { margin-top: 4mm; padding: 4mm 4.5mm; border: 0.5mm solid #c7d2fe; border-radius: 4mm; background: #eff6ff; break-inside: avoid; page-break-inside: avoid; }
+    .savings-text { margin: 0; font-size: 9.5pt; line-height: 1.4; color: #1f2937; }
+    .acceptance-section { margin-top: 8mm; padding-top: 5mm; border-top: 0.5mm solid #e5e7eb; break-inside: avoid; page-break-inside: avoid; }
+    .acceptance-lead { font-size: 9.8pt; margin: 0 0 4mm 0; line-height: 1.4; }
+    .acceptance-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5mm 8mm; }
+    .acceptance-field--wide { grid-column: 1 / -1; }
+    .acceptance-label { font-size: 8.8pt; font-weight: 700; color: #072855; margin-bottom: 1.5mm; }
+    .acceptance-line { min-height: 8mm; border-bottom: 0.4mm solid #111; font-size: 10pt; padding-top: 1mm; }
+    .acceptance-line--sign { min-height: 14mm; }
   `;
 }
 
@@ -568,8 +737,12 @@ export function generateTermatekVilpPrintHtml(input: {
   const discountGross = subtotalGross * (discountPct / 100);
   const finalGross = subtotalGross - discountGross;
   const extraWorkGross = Number(data.laborRate || 0) * vatMult;
+  const extraWorkRateLabel = formatRoundedHourlyRate(extraWorkGross, vatRate);
   const deliveryLine = data.deliveryTermsText.trim() || 'Työt sovitaan erikseen asiakkaan kanssa.';
-  const paymentLine = data.paymentTermsText.trim() || billing.payment_terms || '14 pv netto';
+  const paymentLine =
+    data.paymentTermsText.trim()
+    || billing.payment_terms
+    || (iilp ? DEFAULT_IILP_PAYMENT_TERMS : '14 pv netto');
   const customerAddress = [customer.address, customer.city].filter(Boolean).join(', ');
   const companyAddress = [settings.address, [settings.postal_code, settings.city].filter(Boolean).join(' ')]
     .filter(Boolean)
@@ -588,7 +761,8 @@ export function generateTermatekVilpPrintHtml(input: {
   const headerHtml = `<div class="header header--termatek"><img class="brand-banner" src="${esc(assets.header)}" alt="${esc(meta.companyName)}" /></div>`;
   const footerHtml = `<div class="footer footer--bar"></div>`;
   const productFactsHtml = buildProductFactsHtml(data, device);
-  const deliveryBullets = buildDeliveryBullets(data);
+  const coverProductLabel = iilp ? 'Ilmalämpöpumpun tarjous' : 'Vesi-ilmalämpöpumpun tarjous';
+  const coverPageHtml = buildCoverPageHtml({ offerNo, customer, meta, productLabel: coverProductLabel });
   const optionalNotesHtml = data.notes.trim()
     ? data.notes
         .trim()
@@ -598,12 +772,9 @@ export function generateTermatekVilpPrintHtml(input: {
         .join('')
     : '';
 
-  const kotitalousHtml =
-    kotitalous.laborOnlyGross > 0
-      ? iilp
-        ? `<span class="k">Kotitalousvähennys (maksimiarvio)</span><span>${formatEuro(kotitalous.onePerson)}</span>`
-        : `<span class="k">Kotitalousvähennys (maksimiarvio)</span><span>${formatEuro(kotitalous.onePerson)} — laskettu työn osuudesta ${formatEuro(kotitalous.laborOnlyGross)} (sis. ALV), ${(kotitalous.percent * 100).toFixed(0)}%, enintään ${formatEuro(kotitalous.maxPerPerson)} / hlö.</span>`
-      : '';
+  const productBenefitsHtml = buildProductBenefitsHtml(device);
+  const energySavingsHtml = buildEnergySavingsHtml(data);
+  const kotitalousHtml = buildKotitalousExtrasHtml(kotitalous, vatRate);
 
   const productSubtitleHtml = iilp
     ? ''
@@ -618,7 +789,7 @@ export function generateTermatekVilpPrintHtml(input: {
     kotitalousHtml,
     deliveryLine,
     paymentLine,
-    extraWorkGross,
+    extraWorkRateLabel,
     optionalNotesHtml,
   });
 
@@ -633,19 +804,7 @@ export function generateTermatekVilpPrintHtml(input: {
   <div class="a4 page page--cover">
     ${headerHtml}
     <div class="content">
-      <div class="tmk-kicker">Lämmitysratkaisut avaimet käteen</div>
-      <div class="tmk-hero-grid tmk-hero-grid--cover">
-        <div>
-          <div class="tmk-hero-title">Termatek lämmitysratkaisut – siisti ja huolellinen asennus, kerralla oikein.<br/>Tarjoamme jatkuvaa tukea ja olemme tavoitettavissa myös takuuajan jälkeen.</div>
-          <div class="tmk-hero-lead">Toteutamme lämpöpumppuratkaisut suunnittelusta käyttöönottoon ammattitaidolla. Saat mitoitukseen sopivan laitteen, huolellisen asennuksen ja dokumentoidun käyttöönoton – sekä avun myös huolto- ja jatkotoimenpiteissä.</div>
-          <div class="tmk-hero-cards">
-            <div class="tmk-hero-card"><div class="t">Mitoitus ja toteutus kunnolla</div><div class="p">Valitaan oikea teholuokka, huomioidaan kohteen lämmönjako ja varmistetaan toimivuus käytännössä.</div></div>
-            <div class="tmk-hero-card"><div class="t">Siisti asennus ja turvallinen käyttöönotto</div><div class="p">Asennus valmistajan ohjeiden ja määräysten mukaan. Käyttöönotossa testaus, luovutus ja ohjeistus.</div></div>
-            <div class="tmk-hero-card"><div class="t">Tuki, huolto ja jatkuvuus</div><div class="p">Tarjoamme erikseen sovittaessa huoltoja ja huoltosopimuksia, jotta järjestelmä toimii vuodesta toiseen.</div></div>
-          </div>
-          <div class="tmk-hero-badgebar"><div class="row"><div class="l">Tarjous # ${esc(offerNo)}</div><div class="r">${esc(customer.name)}</div></div></div>
-        </div>
-      </div>
+      ${coverPageHtml}
     </div>
     ${footerHtml}
   </div>
@@ -660,11 +819,7 @@ export function generateTermatekVilpPrintHtml(input: {
       <div class="tmk-info-grid">
         <div class="tmk-info-block">
           <div class="tmk-info-title">Yritystiedot</div>
-          ${billing.business_id ? `<div class="tmk-line">Y-tunnus: ${esc(billing.business_id)}</div>` : ''}
-          ${companyAddress ? `<div class="tmk-line">${esc(companyAddress)}</div>` : ''}
-          ${settings.phone ? `<div class="tmk-line">Puh: ${esc(settings.phone)}</div>` : ''}
-          ${settings.email ? `<div class="tmk-line">${esc(settings.email)}</div>` : ''}
-          ${websiteDisplay ? `<div class="tmk-line">${esc(websiteDisplay)}</div>` : ''}
+          ${companyInfoLines({ meta, billing, settings, companyAddress, websiteDisplay })}
         </div>
         <div class="tmk-info-block">
           <div class="tmk-info-title">Asiakastiedot</div>
@@ -680,10 +835,10 @@ export function generateTermatekVilpPrintHtml(input: {
           <div class="row"><span class="label">Tarjous voimassa:</span><span class="value">${formatDateFi(data.validUntil)}</span></div>
           <div class="row"><span class="label">Toimitusehto ja aika:</span><span class="value">${esc(deliveryLine)}</span></div>
           <div class="row"><span class="label">Maksuehto:</span><span class="value">${esc(paymentLine)}</span></div>
-          <div class="row"><span class="label">Lisätyöt:</span><span class="value">${formatEuro(extraWorkGross)} / h (sis. ALV ${vatRate}%)</span></div>
+          <div class="row"><span class="label">Lisätyöt:</span><span class="value">${esc(extraWorkRateLabel)}</span></div>
           <div class="row"><span class="label">Huom.:</span><span class="value">Mikäli työn aikana havaitaan aiheutuvia lisä- ja/tai muutostöitä, veloitetaan ne erikseen tilaajan hyväksynnällä.</span></div>
         </div>
-        <div class="tmk-lead"><strong>Kiitämme tarjouspyynnöstänne ja tarjoamme Teille seuraavasti:</strong></div>
+        <div class="tmk-lead"><strong>Tarjouksen sisältö</strong></div>
         <ul class="tmk-bullets">${introBulletsHtml(introBullets)}</ul>
       </div>
       ${situationHtml}
@@ -700,19 +855,11 @@ export function generateTermatekVilpPrintHtml(input: {
           <div>${productImagesHtml(productImages)}</div>
           <div class="product-side">
             ${productFactsHtml}
-            <div class="product-card">
-              <div class="section-title" style="margin-top:0;">Tarjoukseen sisältyy</div>
-              <ul class="compact-list">${introBulletsHtml(introBullets)}</ul>
-            </div>
-            <div class="product-card">
-              <div class="section-title" style="margin-top:0;">Toimitus ja käyttöönotto</div>
-              <ul class="compact-list">
-                ${deliveryBullets.map((line) => `<li>${esc(line)}</li>`).join('')}
-              </ul>
-            </div>
+            ${productBenefitsHtml}
           </div>
         </div>
       </div>
+      ${energySavingsHtml}
       <div class="tmk-quote-pricing">
         ${pricingSectionHtml}
       </div>
@@ -736,6 +883,7 @@ export function generateTermatekVilpPrintHtml(input: {
         coverLocationLine,
         settings,
         websiteDisplay,
+        customer,
       })}
     </div>
   </div>

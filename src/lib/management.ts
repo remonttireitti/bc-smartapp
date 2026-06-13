@@ -87,6 +87,8 @@ export type CompanySettings = {
   phone?: string;
   email?: string;
   website?: string;
+  /** Tukes-pätevyysnumero (kylmälaiteasennukset), näytetään tarjouksessa. */
+  tukes_number?: string;
   /** Tarjousten allekirjoittajan nimi (esim. Lämpökatsastus-tuloste). */
   quote_signatory_name?: string;
   /** Oma kustannus / kumppanille kirjattava km-hinta (€/km). */

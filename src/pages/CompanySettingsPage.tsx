@@ -227,6 +227,7 @@ export default function CompanySettingsPage() {
           <label>Puhelin<input value={settings.phone ?? ''} onChange={(e) => setSettings((s) => ({ ...s, phone: e.target.value }))} /></label>
           <label>Sähköposti<input type="email" value={settings.email ?? ''} onChange={(e) => setSettings((s) => ({ ...s, email: e.target.value }))} /></label>
           <label>Verkkosivu<input value={settings.website ?? ''} onChange={(e) => setSettings((s) => ({ ...s, website: e.target.value }))} /></label>
+          <label>Tukes-pätevyys (kylmälaiteasennukset)<input value={settings.tukes_number ?? ''} onChange={(e) => setSettings((s) => ({ ...s, tukes_number: e.target.value }))} placeholder="Esim. TUKES123456" /></label>
         </div>
       </section>
 

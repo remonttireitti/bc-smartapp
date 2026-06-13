@@ -136,6 +136,18 @@ export type QuoteRequestData = {
   iilpDeviceSelectionNote: string;
   /** Valinnaiset lisät (eivät kokonaishinnassa). */
   optionalItems: QuoteOptionalItem[];
+  /** IILP: sisäyksikön sijainti (tuloste). */
+  iilpIndoorPlacement: string;
+  /** IILP: ulkoyksikön sijainti (tuloste). */
+  iilpOutdoorPlacement: string;
+  /** IILP: putkituksen pituus (m), tuloste. */
+  iilpPipeLengthM: number;
+  /** IILP: sähkösyöttö / liitäntä (tuloste). */
+  iilpElectricalNotes: string;
+  /** IILP: kondenssiveden johto (tuloste). */
+  iilpCondensateNotes: string;
+  /** IILP: arvioitu sähkönsäästö -teksti tulosteelle (tyhjä = oletusteksti). */
+  iilpEnergySavingsText: string;
   /** Preserved from Firestore import when customer FK was missing. */
   legacyCustomerName?: string;
   /** @deprecated use workItems/materials */
