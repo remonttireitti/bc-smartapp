@@ -76,14 +76,27 @@ function formatRoundedHourlyRate(gross: number, vatRate: number): string {
   return `${rounded} €/h (sis. ALV ${vatRate} %)`;
 }
 
+function installPlacementBullet(value: string, unitPattern: RegExp, prefix: string): string {
+  const trimmed = value.trim();
+  if (!trimmed) return '';
+  return unitPattern.test(trimmed) ? trimmed : `${prefix}${trimmed}`;
+}
+
 function buildInstallScopeBullets(data: QuoteRequestData): string[] {
   const bullets: string[] = [];
-  if (data.iilpIndoorPlacement.trim()) {
-    bullets.push(`Sisäyksikkö sijoitetaan ${data.iilpIndoorPlacement.trim()}`);
-  }
-  if (data.iilpOutdoorPlacement.trim()) {
-    bullets.push(`Ulkoyksikkö ${data.iilpOutdoorPlacement.trim()}`);
-  }
+  const indoor = installPlacementBullet(
+    data.iilpIndoorPlacement,
+    /sisä(y)?ksikkö/i,
+    'Sisäyksikkö sijoitetaan ',
+  );
+  if (indoor) bullets.push(indoor);
+
+  const outdoor = installPlacementBullet(
+    data.iilpOutdoorPlacement,
+    /ulkoyksikkö/i,
+    'Ulkoyksikkö sijoitetaan ',
+  );
+  if (outdoor) bullets.push(outdoor);
   if (Number(data.iilpPipeLengthM) > 0) {
     bullets.push(`Putkitus noin ${data.iilpPipeLengthM} m`);
   }
