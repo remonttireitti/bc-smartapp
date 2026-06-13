@@ -475,8 +475,11 @@ export function normalizeQuoteRequestData(raw: unknown): QuoteRequestData {
     vilpCooling: record.vilpCooling !== false,
     iilpPurpose: record.iilpPurpose === 'cooling' ? 'cooling' : 'cooling_heating',
     iilpLaborPricingMode: normalizeIilpLaborPricingMode(record),
-    iilpBaseInstallLaborGross: Number(record.iilpBaseInstallLaborGross) || 890,
-    iilpBaseInstallMaterialsGross: Number(record.iilpBaseInstallMaterialsGross) || 500,
+    iilpBaseInstallLaborGross: readStoredNumber(record.iilpBaseInstallLaborGross, base.iilpBaseInstallLaborGross),
+    iilpBaseInstallMaterialsGross: readStoredNumber(
+      record.iilpBaseInstallMaterialsGross,
+      base.iilpBaseInstallMaterialsGross,
+    ),
     iilpDeviceSelectionNote:
       typeof record.iilpDeviceSelectionNote === 'string' ? record.iilpDeviceSelectionNote : '',
     optionalItems: normalizeOptionalItems(record.optionalItems, type),
@@ -508,17 +511,15 @@ function normalizeSelectedDeviceId(
   record: Record<string, unknown>,
   legacyIds: ReturnType<typeof resolveLegacyDeviceIds>,
 ): string {
-  const raw = typeof record.selectedDeviceId === 'string' ? record.selectedDeviceId : '';
-  if (raw && findDeviceById(raw)) return raw;
-  if (legacyIds.selectedDeviceId && findDeviceById(legacyIds.selectedDeviceId)) {
-    return legacyIds.selectedDeviceId;
-  }
-  return '';
+  const raw = typeof record.selectedDeviceId === 'string' ? record.selectedDeviceId.trim() : '';
+  if (raw) return raw;
+  const legacy = legacyIds.selectedDeviceId?.trim() ?? '';
+  return legacy || '';
 }
 
-function normalizePumpDeviceSelection(data: QuoteRequestData): QuoteRequestData {
+export function normalizePumpDeviceSelection(data: QuoteRequestData): QuoteRequestData {
   if (!isPumpQuoteType(data.type)) return data;
-  if (data.selectedDeviceId && findDeviceById(data.selectedDeviceId)) return data;
+  if (data.selectedDeviceId?.trim()) return data;
 
   const needKw = computePumpSizingNeedKw(data);
   const resolved = resolveQuoteMainDeviceForTotals(data, needKw);

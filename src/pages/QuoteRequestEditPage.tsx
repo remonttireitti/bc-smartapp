@@ -31,7 +31,7 @@ import {
 } from '../lib/subscribers';
 import { partnershipModuleAccess, partnershipPermsActingOnOwner, parseCompanySettings } from '../lib/management';
 import { computeKotitalousDeduction, computePumpSizingNeedKw, computeQuoteTotals, computeTravelNet, resolveIilpLaborPricingMode, travelCostLabel } from '../lib/quoteRequest/calculations';
-import { deliveryFeesFromCompanySettings, suggestBestIilpDeviceId, deviceBrandDefaultsPatch, findDeviceById } from '../lib/quoteRequest/deviceCatalog';
+import { deliveryFeesFromCompanySettings, suggestBestIilpDeviceId, findDeviceById } from '../lib/quoteRequest/deviceCatalog';
 import { setActiveDeviceRegistry, snapshotFromCompanySettings } from '../lib/quoteRequest/deviceRegistryState';
 import {
   BUILDING_TYPE_OPTIONS,
@@ -49,7 +49,6 @@ import {
   vatRateForQuoteProfile,
 } from '../lib/quoteRequest/constants';
 import {
-  confirmUnreviewedSiteDefaults,
   listUnreviewedSiteDefaults,
   siteDefaultsReviewSection,
 } from '../lib/quoteRequest/siteDefaultsReview';
@@ -170,6 +169,10 @@ export default function QuoteRequestEditPage({ session }: Props) {
   );
   const totals = useMemo(() => computeQuoteTotals(form, deliveryFeeMap), [form, deliveryFeeMap]);
   const kotitalous = useMemo(() => computeKotitalousDeduction(form), [form]);
+  const unreviewedSiteDefaults = useMemo(
+    () => (isPumpQuoteType(form.type) ? listUnreviewedSiteDefaults(form) : []),
+    [form],
+  );
   const quoteTypeLabel = QUOTE_TYPE_LABELS[form.type];
   const pageTitle = useMemo(
     () =>
@@ -324,7 +327,6 @@ export default function QuoteRequestEditPage({ session }: Props) {
       if (!device) return prev;
       return {
         ...prev,
-        ...deviceBrandDefaultsPatch(device),
         selectedDeviceId: suggestedId,
         iilpDeviceSelectionNote: '',
         deviceBrand: device.brand,
@@ -410,6 +412,7 @@ export default function QuoteRequestEditPage({ session }: Props) {
   }
 
   async function loadQuote(quoteIdToLoad: string) {
+    setFormReady(false);
     setLoadingQuote(true);
     const { data, error: loadError } = await supabase
       .from('quote_requests')
@@ -511,101 +514,94 @@ export default function QuoteRequestEditPage({ session }: Props) {
       return false;
     }
 
-    let siteConfigConfirmed = form.siteConfigConfirmed === true;
-    if (isPumpQuoteType(form.type)) {
-      const unreviewed = listUnreviewedSiteDefaults(form);
-      if (unreviewed.length > 0 && !siteConfigConfirmed) {
-        if (!confirmUnreviewedSiteDefaults(form)) {
-          setActiveSection(siteDefaultsReviewSection(unreviewed));
-          return false;
-        }
-        siteConfigConfirmed = true;
-      }
-    }
+    const siteConfigConfirmed = true;
 
     setBusy(true);
     setError(null);
 
-    const partnership = contextMode === 'partner' ? partnerships.find((p) => p.id === partnerId) : null;
-    if (contextMode === 'partner') {
-      if (!partnership) {
-        setError('Valitse kumppanuus, jonka nimissä tarjous laaditaan.');
-        setBusy(false);
-        return false;
-      }
-      const partnerPerms = partnershipPermsActingOnOwner(
-        partnership,
-        profile.company_id,
-        ownerCompanyId,
-      );
-      if (!partnershipModuleAccess(partnerPerms, 'quotes', 'write')) {
-        setError(
-          'Kumppani ei ole myöntänyt tarjouspyynnön luontioikeutta. Pyydä oikeutta kohdasta Hallinta → Kumppanuudet.',
+    try {
+      const partnership = contextMode === 'partner' ? partnerships.find((p) => p.id === partnerId) : null;
+      if (contextMode === 'partner') {
+        if (!partnership) {
+          setError('Valitse kumppanuus, jonka nimissä tarjous laaditaan.');
+          return false;
+        }
+        const partnerPerms = partnershipPermsActingOnOwner(
+          partnership,
+          profile.company_id,
+          ownerCompanyId,
         );
-        setBusy(false);
-        return false;
+        if (!partnershipModuleAccess(partnerPerms, 'quotes', 'write')) {
+          setError(
+            'Kumppani ei ole myöntänyt tarjouspyynnön luontioikeutta. Pyydä oikeutta kohdasta Hallinta → Kumppanuudet.',
+          );
+          return false;
+        }
       }
+
+      const brandingCompanyId = resolveQuoteBrandingCompanyId({
+        brandMode: form.brandMode,
+        myCompanyId: profile.company_id,
+        ownerCompanyId,
+        partnership: partnership ?? null,
+      });
+
+      const dataToSave = prepareQuoteRequestDataForSave({
+        ...form,
+        siteConfigConfirmed,
+      });
+
+      const rowPayload = {
+        owner_company_id: ownerCompanyId,
+        created_by_company_id: profile.company_id,
+        branding_company_id: brandingCompanyId,
+        partnership_id: partnership?.id ?? null,
+        customer_id: customerId,
+        subscriber_id: resolveSubscriberIdForReport(customerId, subscriberId, customers),
+        equipment_id: equipmentId || null,
+        title: storedTitle,
+        status: nextStatus ?? status,
+        data: dataToSave,
+      };
+
+      if (quoteId) {
+        const { error: updateError } = await supabase
+          .from('quote_requests')
+          .update(rowPayload)
+          .eq('id', quoteId);
+
+        if (updateError) {
+          setError(updateError.message);
+          return false;
+        }
+      } else {
+        const { data, error: insertError } = await supabase
+          .from('quote_requests')
+          .insert(rowPayload)
+          .select('id')
+          .single();
+
+        if (insertError || !data) {
+          setError(insertError?.message ?? 'Tallennus epäonnistui.');
+          return false;
+        }
+
+        setQuoteId((data as { id: string }).id);
+        navigate(`/tarjouspyynnot/${(data as { id: string }).id}`, { replace: true });
+      }
+
+      setStatus(nextStatus ?? status);
+      setSavedAt(new Date().toLocaleTimeString('fi-FI', { hour: '2-digit', minute: '2-digit' }));
+      setForm(dataToSave);
+      clearLocalQuoteDraft(quoteDraftStorageKey);
+      return true;
+    } catch (saveError) {
+      console.error('Tarjouksen tallennus epäonnistui:', saveError);
+      setError(saveError instanceof Error ? saveError.message : 'Tallennus epäonnistui.');
+      return false;
+    } finally {
+      setBusy(false);
     }
-
-    const brandingCompanyId = resolveQuoteBrandingCompanyId({
-      brandMode: form.brandMode,
-      myCompanyId: profile.company_id,
-      ownerCompanyId,
-      partnership: partnership ?? null,
-    });
-
-    const dataToSave = prepareQuoteRequestDataForSave({
-      ...form,
-      siteConfigConfirmed,
-    });
-
-    const rowPayload = {
-      owner_company_id: ownerCompanyId,
-      created_by_company_id: profile.company_id,
-      branding_company_id: brandingCompanyId,
-      partnership_id: partnership?.id ?? null,
-      customer_id: customerId,
-      subscriber_id: resolveSubscriberIdForReport(customerId, subscriberId, customers),
-      equipment_id: equipmentId || null,
-      title: storedTitle,
-      status: nextStatus ?? status,
-      data: dataToSave,
-    };
-
-    if (quoteId) {
-      const { error: updateError } = await supabase
-        .from('quote_requests')
-        .update(rowPayload)
-        .eq('id', quoteId);
-
-      if (updateError) {
-        setError(updateError.message);
-        setBusy(false);
-        return false;
-      }
-    } else {
-      const { data, error: insertError } = await supabase
-        .from('quote_requests')
-        .insert(rowPayload)
-        .select('id')
-        .single();
-
-      if (insertError || !data) {
-        setError(insertError?.message ?? 'Tallennus epäonnistui.');
-        setBusy(false);
-        return false;
-      }
-
-      setQuoteId((data as { id: string }).id);
-      navigate(`/tarjouspyynnot/${(data as { id: string }).id}`, { replace: true });
-    }
-
-    setStatus(nextStatus ?? status);
-    setSavedAt(new Date().toLocaleTimeString('fi-FI', { hour: '2-digit', minute: '2-digit' }));
-    setForm(dataToSave);
-    clearLocalQuoteDraft(quoteDraftStorageKey);
-    setBusy(false);
-    return true;
   }
 
   useEffect(() => {
@@ -759,6 +755,20 @@ export default function QuoteRequestEditPage({ session }: Props) {
       </div>
 
       {error && <p className="error">{error}</p>}
+      {unreviewedSiteDefaults.length > 0 && (
+        <p className="quote-site-defaults-warn">
+          Kohdetiedoissa on oletusarvoja ({unreviewedSiteDefaults.map((item) => item.label).join(', ')}).
+          {' '}
+          <button
+            type="button"
+            className="link-button"
+            onClick={() => setActiveSection(siteDefaultsReviewSection(unreviewedSiteDefaults))}
+          >
+            Tarkista kohde-välilehdellä
+          </button>
+          {' '}— tallennus toimii silti.
+        </p>
+      )}
       {registryMessage && <p className="muted">{registryMessage}</p>}
 
       <section className="panel quote-type-grid">
