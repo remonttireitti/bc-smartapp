@@ -1,7 +1,7 @@
 import type { Partnership } from '../../types';
 import { partnershipPermsActingOnOwner } from '../management';
 import { applyLegacyQuoteFields } from './legacyImport';
-import { resolveLegacyDeviceIds } from './deviceCatalog';
+import { resolveLegacyDeviceIds, resolveQuoteMainDevice } from './deviceCatalog';
 import { DEFAULT_TERMATEK_IILP_QUOTE_TERMS } from './termatekDefaultTerms';
 import {
   DEFAULT_IILP_OPTIONAL_ITEMS,
@@ -375,7 +375,7 @@ export function normalizeQuoteRequestData(raw: unknown): QuoteRequestData {
     });
   });
 
-  return {
+  return normalizePumpDeviceSelection({
     ...base,
     type,
     introText: typeof record.introText === 'string' ? record.introText : base.introText,
@@ -485,6 +485,20 @@ export function normalizeQuoteRequestData(raw: unknown): QuoteRequestData {
     lines,
     legacyCustomerName:
       typeof record.legacyCustomerName === 'string' ? record.legacyCustomerName : undefined,
+  });
+}
+
+function normalizePumpDeviceSelection(data: QuoteRequestData): QuoteRequestData {
+  if (!isPumpQuoteType(data.type) || data.selectedDeviceId) return data;
+  const resolved = resolveQuoteMainDevice(data);
+  if (!resolved) return data;
+  return {
+    ...data,
+    selectedDeviceId: resolved.id,
+    deviceBrand: data.deviceBrand || resolved.brand,
+    deviceModel: data.deviceModel || resolved.model,
+    vilpBrandChoice:
+      data.type === 'ilma-ilma' && !data.vilpBrandChoice ? resolved.brand : data.vilpBrandChoice,
   };
 }
 

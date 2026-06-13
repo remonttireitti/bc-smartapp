@@ -5,6 +5,7 @@ import {
   calculateDevicePurchaseNet,
   calculateDeviceSellNet,
   findDeviceById,
+  resolveQuoteMainDevice,
   selectedDevices,
 } from './deviceCatalog';
 import { isPumpQuoteType } from './constants';
@@ -174,6 +175,56 @@ export function computeIilpNeedKw(quote: QuoteRequestData): number {
   return Math.max(heating, cooling);
 }
 
+export type IilpCoolingEnergyEstimate = {
+  peakCoolingKw: number;
+  avgLoadKw: number;
+  hoursPerDay: number;
+  cop: number;
+  kwhPerDay: number;
+  eurPerDay: number;
+  kwhPerDayMin: number;
+  kwhPerDayMax: number;
+  eurPerDayMin: number;
+  eurPerDayMax: number;
+};
+
+/** Arvio jäähdytyksen sähkönkulutuksesta (ei säästövaikutusta). */
+export function computeIilpCoolingEnergyEstimate(
+  data: QuoteRequestData,
+  device: import('../../data/pumpDeviceCatalog').HeatPumpDevice | null,
+): IilpCoolingEnergyEstimate | null {
+  let peakCoolingKw = computeIilpCoolingNeedKw(data);
+  if (device?.coolingPowerMax && device.coolingPowerMax > 0) {
+    peakCoolingKw = Math.min(peakCoolingKw, device.coolingPowerMax);
+  }
+  if (peakCoolingKw <= 0) return null;
+
+  const avgLoadKw = Math.round(peakCoolingKw * 0.65 * 10) / 10;
+  const hoursPerDay = data.buildingType === 'kerrostalo' ? 6 : 8;
+  const cop = 3.5;
+  const elecPrice = 0.2;
+
+  const kwhPerDay = Math.round(((avgLoadKw / cop) * hoursPerDay) * 10) / 10;
+  const eurPerDay = Math.round(kwhPerDay * elecPrice * 100) / 100;
+  const kwhPerDayMin = Math.round(kwhPerDay * 0.75 * 10) / 10;
+  const kwhPerDayMax = Math.round(kwhPerDay * 1.35 * 10) / 10;
+  const eurPerDayMin = Math.round(kwhPerDayMin * elecPrice * 100) / 100;
+  const eurPerDayMax = Math.round(kwhPerDayMax * elecPrice * 100) / 100;
+
+  return {
+    peakCoolingKw,
+    avgLoadKw,
+    hoursPerDay,
+    cop,
+    kwhPerDay,
+    eurPerDay,
+    kwhPerDayMin,
+    kwhPerDayMax,
+    eurPerDayMin,
+    eurPerDayMax,
+  };
+}
+
 export function computeTravelNet(data: QuoteRequestData): number {
   if (!quoteUsesTravelCost(data.type)) return 0;
   if (data.travelKmEnabled) {
@@ -245,7 +296,7 @@ export function computeQuoteInternalTotals(
   let devicePurchaseNet = 0;
   let deviceSellNet = quoteTotals.deviceNet;
   if (isPumpQuoteType(data.type)) {
-    const mainDevice = findDeviceById(data.selectedDeviceId);
+    const mainDevice = resolveQuoteMainDevice(data);
     if (mainDevice) {
       devicePurchaseNet = calculateDevicePurchaseNet(data, mainDevice, feeMap);
     }
@@ -311,7 +362,7 @@ export function computeQuoteTotals(
 
   let deviceNet = 0;
   if (isPumpQuoteType(data.type)) {
-    const mainDevice = findDeviceById(data.selectedDeviceId);
+    const mainDevice = resolveQuoteMainDevice(data);
     deviceNet = mainDevice ? calculateDeviceSellNet(data, mainDevice, feeMap) : 0;
   } else {
     deviceNet = Number(data.deviceSaleOverrideNet || 0);

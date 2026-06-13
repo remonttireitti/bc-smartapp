@@ -1,9 +1,9 @@
 import type { BrandDeliveryFeeByCategoryMap } from '../../data/devicePricingShared';
 import type { HeatPumpDevice } from '../../data/pumpDeviceCatalog';
-import { computeKotitalousDeduction, computeQuoteTotals, computeTravelNet, travelCostLabel } from './calculations';
+import { computeKotitalousDeduction, computeIilpCoolingEnergyEstimate, computeQuoteTotals, computeTravelNet, effectiveIilpPurpose, travelCostLabel } from './calculations';
 import { DEFAULT_IILP_ENERGY_SAVINGS_TEXT, DEFAULT_IILP_PAYMENT_TERMS } from './constants';
 import { quoteTermsPlainTextToHtml } from './termatekDefaultTerms';
-import { calculateDeviceSellNet, findDeviceById } from './deviceCatalog';
+import { calculateDeviceSellNet, findDeviceById, resolveQuoteMainDevice } from './deviceCatalog';
 import type { QuotePrintCustomer, QuotePrintMeta } from './printHtml';
 import {
   buildTermatekAssetMap,
@@ -130,13 +130,42 @@ function buildProductBenefitsHtml(device: HeatPumpDevice | null): string {
     </div>`;
 }
 
-function buildEnergySavingsHtml(data: QuoteRequestData): string {
+function formatKwh(value: number): string {
+  return value.toLocaleString('fi-FI', { maximumFractionDigits: 1 });
+}
+
+function buildEnergySavingsHtml(data: QuoteRequestData, device: HeatPumpDevice | null): string {
   if (!isIilpQuote(data)) return '';
-  const text = data.iilpEnergySavingsText.trim() || DEFAULT_IILP_ENERGY_SAVINGS_TEXT;
+  const purpose = effectiveIilpPurpose(data);
+  const isCoolingOnly = purpose === 'cooling';
+
+  if (data.iilpEnergySavingsText.trim()) {
+    const title = isCoolingOnly ? 'Arvioitu jäähdytyskulutus' : 'Arvioitu sähkönsäästö';
+    return `
+    <div class="savings-box">
+      <div class="section-title" style="margin-top:0;">${title}</div>
+      <p class="savings-text">${esc(data.iilpEnergySavingsText.trim())}</p>
+    </div>`;
+  }
+
+  if (isCoolingOnly) {
+    const est = computeIilpCoolingEnergyEstimate(data, device);
+    if (!est) return '';
+    const text =
+      `Arvioitu energiankulutus jäähdytyksessä noin ${formatKwh(est.kwhPerDayMin)}–${formatKwh(est.kwhPerDayMax)} kWh/päivä ` +
+      `(noin ${formatEuro(est.eurPerDayMin)}–${formatEuro(est.eurPerDayMax)}/päivä) tyypillisellä ${est.hoursPerDay} h käytöllä. ` +
+      `Arvio perustuu kohteen mitoitukseen (${formatKwh(est.peakCoolingKw)} kW huippujäähdytys, SCOP ~${est.cop.toLocaleString('fi-FI')}).`;
+    return `
+    <div class="savings-box">
+      <div class="section-title" style="margin-top:0;">Arvioitu jäähdytyskulutus</div>
+      <p class="savings-text">${esc(text)}</p>
+    </div>`;
+  }
+
   return `
     <div class="savings-box">
       <div class="section-title" style="margin-top:0;">Arvioitu sähkönsäästö</div>
-      <p class="savings-text">${esc(text)}</p>
+      <p class="savings-text">${esc(DEFAULT_IILP_ENERGY_SAVINGS_TEXT)}</p>
     </div>`;
 }
 
@@ -719,7 +748,7 @@ export function generateTermatekVilpPrintHtml(input: {
   const billing = settings.billing ?? {};
   const totals = computeQuoteTotals(data, feeMap);
   const kotitalous = computeKotitalousDeduction(data);
-  const device = findDeviceById(data.selectedDeviceId);
+  const device = resolveQuoteMainDevice(data);
   const vatRate = Number(data.vatRate) || 0;
   const vatMult = 1 + vatRate / 100;
   const offerNo = formatOfferNumber(meta);
@@ -785,7 +814,7 @@ export function generateTermatekVilpPrintHtml(input: {
     : '';
 
   const productBenefitsHtml = buildProductBenefitsHtml(device);
-  const energySavingsHtml = buildEnergySavingsHtml(data);
+  const energySavingsHtml = buildEnergySavingsHtml(data, device);
   const kotitalousHtml = buildKotitalousExtrasHtml(kotitalous, vatRate);
 
   const productSubtitleHtml = iilp

@@ -121,7 +121,13 @@ function DeviceOptionCard({
               const nextDevice = findDeviceById(nextId);
               let patch: Partial<QuoteRequestData> = { [deviceIdField]: nextId };
               if (optionKey === 'A' && nextDevice) {
-                patch = { ...applyDeviceBrandDefaults(form, nextDevice), ...patch };
+                patch = {
+                  ...applyDeviceBrandDefaults(form, nextDevice),
+                  ...patch,
+                  deviceBrand: nextDevice.brand,
+                  deviceModel: nextDevice.model,
+                  ...(form.type === 'ilma-ilma' ? { vilpBrandChoice: nextDevice.brand } : {}),
+                };
               }
               if (optionKey === 'A' && nextId !== suggestedDeviceId) {
                 patch.iilpDeviceSelectionNote = form.iilpDeviceSelectionNote;

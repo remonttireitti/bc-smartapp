@@ -103,10 +103,16 @@ function resolveLegacyDeviceId(
   currentId: string,
   modelHint: string | undefined,
   type: QuoteType,
+  brandHint?: string,
 ): string {
   if (currentId && findDeviceById(currentId)) return currentId;
-  if (typeof modelHint === 'string' && modelHint.trim()) {
-    const match = findDeviceByModelHint(modelHint, type);
+  const hints = [
+    modelHint?.trim(),
+    [brandHint, modelHint].filter(Boolean).join(' ').trim(),
+    brandHint?.trim(),
+  ].filter(Boolean) as string[];
+  for (const hint of hints) {
+    const match = findDeviceByModelHint(hint, type);
     if (match) return match.id;
   }
   return currentId && findDeviceById(currentId) ? currentId : '';
@@ -117,11 +123,13 @@ export function resolveLegacyDeviceIds(
   type: QuoteType,
 ): { selectedDeviceId: string; altDevice1Id: string; altDevice2Id: string } {
   const modelHint = typeof record.deviceModel === 'string' ? record.deviceModel : undefined;
+  const brandHint = typeof record.deviceBrand === 'string' ? record.deviceBrand : undefined;
   return {
     selectedDeviceId: resolveLegacyDeviceId(
       typeof record.selectedDeviceId === 'string' ? record.selectedDeviceId : '',
       modelHint,
       type,
+      brandHint,
     ),
     altDevice1Id: resolveLegacyDeviceId(
       typeof record.altDevice1Id === 'string' ? record.altDevice1Id : '',
@@ -265,6 +273,33 @@ function iilpDeviceSizingPowerKw(
     return device.coolingPowerMax ?? device.iilpNominalKw ?? device.heatingPowerMax;
   }
   return device.heatingPowerMax;
+}
+
+/** Tunnista päälaite id:stä, mallitekstistä tai valinnaisesta ehdotuksesta. */
+export function resolveQuoteMainDevice(
+  data: QuoteRequestData,
+  options?: { needKw?: number | null; allowSuggest?: boolean },
+): HeatPumpDevice | null {
+  const fromId = findDeviceById(data.selectedDeviceId);
+  if (fromId) return fromId;
+
+  const hints: string[] = [];
+  if (data.deviceModel?.trim()) hints.push(data.deviceModel.trim());
+  const combined = [data.deviceBrand, data.deviceModel].filter(Boolean).join(' ').trim();
+  if (combined) hints.push(combined);
+  if (data.deviceBrand?.trim() && !data.deviceModel?.trim()) hints.push(data.deviceBrand.trim());
+
+  for (const hint of hints) {
+    const match = findDeviceByModelHint(hint, data.type);
+    if (match) return match;
+  }
+
+  if (options?.allowSuggest && data.type === 'ilma-ilma' && data.vilpBrandChoice && options.needKw) {
+    const suggestedId = suggestBestIilpDeviceId(data, options.needKw);
+    if (suggestedId) return findDeviceById(suggestedId);
+  }
+
+  return null;
 }
 
 /** Ehdota pienin riittävän tehon laite valitulle valmistajalle. */

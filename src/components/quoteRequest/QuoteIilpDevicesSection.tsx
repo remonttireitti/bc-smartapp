@@ -30,7 +30,14 @@ export default function QuoteIilpDevicesSection({ form, canEdit, feeMap, onChang
       onChange({
         selectedDeviceId: suggestedId,
         iilpDeviceSelectionNote: '',
-        ...(device ? applyDeviceBrandDefaults(form, device) : {}),
+        ...(device
+          ? {
+              ...applyDeviceBrandDefaults(form, device),
+              deviceBrand: device.brand,
+              deviceModel: device.model,
+              vilpBrandChoice: device.brand,
+            }
+          : {}),
       });
     }
   }, [canEdit, form.vilpBrandChoice, form.selectedDeviceId, needKw, suggestedId, onChange]);

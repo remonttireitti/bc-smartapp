@@ -1355,13 +1355,19 @@ export default function QuoteRequestEditPage({ session }: Props) {
                   />
                 </label>
                 <label>
-                  Säästölaskelma (tuloste)
+                  {form.iilpPurpose === 'cooling' || form.buildingType === 'kerrostalo'
+                    ? 'Jäähdytyskulutus (tuloste)'
+                    : 'Säästölaskelma (tuloste)'}
                   <textarea
                     rows={2}
                     value={form.iilpEnergySavingsText}
                     onChange={(e) => patchForm({ iilpEnergySavingsText: e.target.value })}
                     disabled={!canEdit}
-                    placeholder="Tyhjä = oletusteksti (500–1 000 €/vuosi). Voit kirjoittaa kohdekohtaisen arvion."
+                    placeholder={
+                      form.iilpPurpose === 'cooling' || form.buildingType === 'kerrostalo'
+                        ? 'Tyhjä = arvio kWh/€ per päivä jäähdytyksessä. Voit kirjoittaa kohdekohtaisen arvion.'
+                        : 'Tyhjä = oletusteksti (500–1 000 €/vuosi). Voit kirjoittaa kohdekohtaisen arvion.'
+                    }
                   />
                 </label>
               </>
