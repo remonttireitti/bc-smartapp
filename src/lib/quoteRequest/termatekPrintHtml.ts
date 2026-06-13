@@ -356,30 +356,54 @@ function termatekStyles(): string {
     @page { size: A4; margin: 0; }
     html, body { margin: 0; padding: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     body { font-family: Arial, sans-serif; color: #111; }
-    .a4 { width: 210mm; min-height: 297mm; position: relative; overflow: visible; }
-    .page { page-break-after: always; break-after: page; }
+    .a4 { width: 210mm; position: relative; }
+    .page {
+      display: flex;
+      flex-direction: column;
+      page-break-after: always;
+      break-after: page;
+    }
     .page:last-child { page-break-after: auto; break-after: auto; }
     table { page-break-inside: auto; }
     thead { display: table-header-group; }
     tr { page-break-inside: avoid; break-inside: avoid; }
     .section-title, .summary-title, .product-title { break-after: avoid; page-break-after: avoid; }
     .header {
-      position: absolute; left: 0; right: 0; top: 0; height: 18mm;
-      background: transparent; padding: 2mm 8mm; box-sizing: border-box;
-      display: flex; align-items: center; border-bottom: 0.3mm solid #d0d7de; overflow: hidden;
+      flex: 0 0 auto;
+      height: 18mm;
+      background: transparent;
+      padding: 2mm 8mm;
+      box-sizing: border-box;
+      display: flex;
+      align-items: center;
+      border-bottom: 0.3mm solid #d0d7de;
+      overflow: hidden;
     }
     .header.header--termatek {
-      justify-content: center; padding: 2mm 3mm; height: 22mm; overflow: hidden;
-      left: 3mm; right: 3mm; background: #072855; border-bottom: 0;
+      justify-content: center;
+      padding: 2mm 3mm;
+      height: 22mm;
+      overflow: hidden;
+      background: #072855;
+      border-bottom: 0;
     }
     .header.header--termatek .brand-banner {
       height: 18mm; width: 100%; max-width: none; object-fit: contain; display: block; margin: 0;
     }
     .footer.footer--bar {
-      position: absolute; left: 3mm; right: 3mm; bottom: 0; height: 12mm;
-      background: #072855; padding: 0;
+      flex: 0 0 auto;
+      height: 12mm;
+      margin: 0 3mm;
+      background: #072855;
+      padding: 0;
     }
-    .content { padding: 24mm 15mm 20mm 15mm; box-sizing: border-box; font-size: 10.1pt; line-height: 1.32; }
+    .content {
+      flex: 1 1 auto;
+      padding: 5mm 15mm 4mm 15mm;
+      box-sizing: border-box;
+      font-size: 10.1pt;
+      line-height: 1.32;
+    }
     .tmk-kicker { font-size: 10pt; font-weight: 800; letter-spacing: .6px; color: #072855; text-transform: uppercase; }
     .tmk-hero-grid { display: grid; grid-template-columns: 1.15fr 0.85fr; gap: 10mm; margin-top: 4mm; }
     .tmk-hero-grid--cover { grid-template-columns: 1fr; }
@@ -422,20 +446,23 @@ function termatekStyles(): string {
     .product-title { font-size: 14.5pt; font-weight: 700; margin-bottom: 3.5mm; }
     .product-subtitle { font-size: 10pt; color: #333; margin-top: -2mm; margin-bottom: 3.5mm; }
     .product-layout { display: grid; grid-template-columns: 1.08fr 0.92fr; gap: 6mm; align-items: start; }
-    .tmk-quote-product { margin-top: 5mm; padding-top: 4mm; border-top: 0.5mm solid #e5e7eb; }
-    .tmk-quote-product .product-title { font-size: 13pt; margin-bottom: 2.5mm; }
-    .tmk-quote-product .img-card img { height: 44mm; }
+    .tmk-quote-product { margin-top: 4mm; padding-top: 3mm; border-top: 0.5mm solid #e5e7eb; }
+    .tmk-quote-product .product-title { font-size: 12pt; margin-bottom: 2mm; }
+    .tmk-quote-product .img-card img { height: 38mm; }
     .tmk-quote-product .fact-k { font-size: 8.2pt; }
     .tmk-quote-product .fact-v { font-size: 9.2pt; }
     .tmk-quote-product .product-card { padding: 2.5mm 3mm; }
     .tmk-quote-product .compact-list { font-size: 9.2pt; }
+    .tmk-quote-pricing { margin-top: 4mm; padding-top: 3mm; border-top: 0.5mm solid #e5e7eb; }
+    .tmk-quote-pricing .summary-title { font-size: 12pt; margin-bottom: 3mm; }
+    .tmk-quote-pricing .price-table { font-size: 9.2pt; }
     .product-side { display: grid; gap: 3mm; }
-    .img-grid { display: grid; gap: 6mm; margin: 4mm 0 8mm 0; }
+    .img-grid { display: grid; gap: 4mm; margin: 2mm 0 4mm 0; }
     .img-grid.two { grid-template-columns: 1fr 1fr; }
     .img-grid.three { grid-template-columns: 1fr 1fr 1fr; }
     .img-card { border: 0.5mm solid rgba(0,0,0,0.12); border-radius: 3mm; padding: 4mm; background: #fff; }
     .img-label { font-weight: 600; font-size: 10.5pt; margin-bottom: 2mm; }
-    .img-card img { width: 100%; height: 55mm; object-fit: contain; display: block; }
+    .img-card img { width: 100%; height: 42mm; object-fit: contain; display: block; }
     .fact-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2mm; }
     .fact-card { border: 0.5mm solid rgba(0,0,0,0.10); border-radius: 3mm; padding: 2.2mm 2.8mm; background: #fff; }
     .fact-k { font-size: 8.8pt; text-transform: uppercase; letter-spacing: .4px; color: #6b7280; font-weight: 700; }
@@ -545,7 +572,6 @@ export function generateTermatekVilpPrintHtml(input: {
 
   const headerHtml = `<div class="header header--termatek"><img class="brand-banner" src="${esc(assets.header)}" alt="${esc(meta.companyName)}" /></div>`;
   const footerHtml = `<div class="footer footer--bar"></div>`;
-
   const productFactsHtml = buildProductFactsHtml(data, device);
   const deliveryBullets = buildDeliveryBullets(data);
   const optionalNotesHtml = data.notes.trim()
@@ -591,7 +617,6 @@ export function generateTermatekVilpPrintHtml(input: {
 <body>
   <div class="a4 page">
     ${headerHtml}
-    ${footerHtml}
     <div class="content">
       <div class="tmk-kicker">Lämmitysratkaisut avaimet käteen</div>
       <div class="tmk-hero-grid tmk-hero-grid--cover">
@@ -607,11 +632,11 @@ export function generateTermatekVilpPrintHtml(input: {
         </div>
       </div>
     </div>
+    ${footerHtml}
   </div>
 
   <div class="a4 page">
     ${headerHtml}
-    ${footerHtml}
     <div class="content">
       <div class="tmk-intro-title-row">
         <div class="tmk-intro-title">Tarjous</div>
@@ -667,20 +692,15 @@ export function generateTermatekVilpPrintHtml(input: {
           </div>
         </div>
       </div>
+      <div class="tmk-quote-pricing">
+        ${pricingSectionHtml}
+      </div>
     </div>
-  </div>
-
-  <div class="a4 page">
-    ${headerHtml}
     ${footerHtml}
-    <div class="content">
-      ${pricingSectionHtml}
-    </div>
   </div>
 
   <div class="a4 page terms">
     ${headerHtml}
-    ${footerHtml}
     <div class="content">
       ${buildTermsHtml(data)}
       ${buildContactSectionHtml({
@@ -692,6 +712,7 @@ export function generateTermatekVilpPrintHtml(input: {
         websiteDisplay,
       })}
     </div>
+    ${footerHtml}
   </div>
 </body>
 </html>`;
