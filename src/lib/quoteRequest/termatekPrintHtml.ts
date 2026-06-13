@@ -328,8 +328,9 @@ function buildCoverPageHtml(input: {
   customer: QuotePrintCustomer;
   meta: QuotePrintMeta;
   productLabel: string;
+  coverImageSrc: string;
 }): string {
-  const { offerNo, customer, meta, productLabel } = input;
+  const { offerNo, customer, meta, productLabel, coverImageSrc } = input;
   const benefits = [
     'Mitoitus kohteen mukaan',
     'Tukes-pätevä asennus',
@@ -337,6 +338,9 @@ function buildCoverPageHtml(input: {
     '2 vuoden asennustakuu',
   ];
   return `
+      <div class="cover-hero">
+        <img src="${esc(coverImageSrc)}" alt="${esc(meta.companyName)}" />
+      </div>
       <div class="cover-title">${esc(productLabel)}</div>
       <div class="cover-lead">Tarjous asiakkaalle <strong>${esc(customer.name)}</strong>. Alla esitetty hinta, toimitussisältö ja ehdot.</div>
       <div class="cover-benefits">
@@ -569,7 +573,9 @@ function termatekStyles(): string {
     .tmk-kicker { font-size: 10pt; font-weight: 800; letter-spacing: .6px; color: #072855; text-transform: uppercase; }
     .tmk-hero-grid { display: grid; grid-template-columns: 1.15fr 0.85fr; gap: 10mm; margin-top: 4mm; }
     .tmk-hero-grid--cover { grid-template-columns: 1fr; }
-    .cover-title { margin-top: 8mm; font-size: 20pt; font-weight: 900; line-height: 1.15; color: #072855; }
+    .cover-hero { margin-top: 3mm; border-radius: 4mm; overflow: hidden; border: 0.4mm solid #dbeafe; break-inside: avoid; page-break-inside: avoid; }
+    .cover-hero img { width: 100%; height: 58mm; object-fit: cover; object-position: center 42%; display: block; }
+    .cover-title { margin-top: 5mm; font-size: 20pt; font-weight: 900; line-height: 1.15; color: #072855; }
     .cover-lead { margin-top: 4mm; font-size: 11pt; line-height: 1.42; color: #111; max-width: 92%; }
     .cover-benefits { margin-top: 10mm; display: grid; grid-template-columns: 1fr 1fr; gap: 3.5mm; }
     .cover-benefit { display: flex; align-items: center; gap: 2.5mm; padding: 3.5mm 4mm; border: 0.4mm solid #c7d2fe; border-radius: 3mm; background: #eff6ff; font-size: 10pt; font-weight: 700; color: #072855; line-height: 1.25; }
@@ -762,7 +768,13 @@ export function generateTermatekVilpPrintHtml(input: {
   const footerHtml = `<div class="footer footer--bar"></div>`;
   const productFactsHtml = buildProductFactsHtml(data, device);
   const coverProductLabel = iilp ? 'Ilmalämpöpumpun tarjous' : 'Vesi-ilmalämpöpumpun tarjous';
-  const coverPageHtml = buildCoverPageHtml({ offerNo, customer, meta, productLabel: coverProductLabel });
+  const coverPageHtml = buildCoverPageHtml({
+    offerNo,
+    customer,
+    meta,
+    productLabel: coverProductLabel,
+    coverImageSrc: assets.coverBg,
+  });
   const optionalNotesHtml = data.notes.trim()
     ? data.notes
         .trim()
