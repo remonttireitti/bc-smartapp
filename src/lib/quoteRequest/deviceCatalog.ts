@@ -218,9 +218,11 @@ export function calculateDeviceSellNet(
   feeMap?: BrandDeliveryFeeByCategoryMap | null,
 ): number {
   if (!device) return 0;
-  if (data.selectedDeviceId && device.id === data.selectedDeviceId && data.deviceSaleOverrideNet != null) {
-    const override = Number(data.deviceSaleOverrideNet) || 0;
-    if (override > 0) return round2(override);
+  const isMainDevice =
+    !data.selectedDeviceId?.trim() || device.id === data.selectedDeviceId.trim();
+  if (isMainDevice && data.deviceSaleOverrideNet != null) {
+    const override = Number(data.deviceSaleOverrideNet);
+    if (Number.isFinite(override) && override > 0) return round2(override);
   }
   const { marginPct } = getDevicePricingParams(data, device);
   return calcSellFromPurchase(calculateDevicePurchaseNet(data, device, feeMap), marginPct);
@@ -302,8 +304,9 @@ export function resolveQuoteMainDevice(
     if (match) return match;
   }
 
-  if (options?.allowSuggest && data.type === 'ilma-ilma' && data.vilpBrandChoice && options.needKw) {
-    const suggestedId = suggestBestIilpDeviceId(data, options.needKw);
+  if (options?.allowSuggest && data.type === 'ilma-ilma' && data.vilpBrandChoice) {
+    const needKw = options.needKw ?? null;
+    const suggestedId = suggestBestIilpDeviceId(data, needKw && needKw > 0 ? needKw : null);
     if (suggestedId) return findDeviceById(suggestedId);
   }
 
@@ -326,7 +329,7 @@ export function suggestBestIilpDeviceId(
   form: QuoteRequestData,
   needKw: number | null,
 ): string | null {
-  if (!needKw || needKw <= 0 || !form.vilpBrandChoice) return null;
+  if (!form.vilpBrandChoice) return null;
 
   const purpose =
     form.buildingType === 'kerrostalo' && form.iilpPurpose !== 'cooling_heating'
@@ -339,6 +342,11 @@ export function suggestBestIilpDeviceId(
   if (devices.length === 0) return null;
 
   const powerOf = (device: HeatPumpDevice) => iilpDeviceSizingPowerKw(device, purpose);
+
+  if (!needKw || needKw <= 0) {
+    return [...devices].sort((a, b) => powerOf(a) - powerOf(b))[0]?.id ?? null;
+  }
+
   const adequate = devices
     .filter((device) => powerOf(device) >= needKw * 0.9)
     .sort((a, b) => powerOf(a) - powerOf(b));

@@ -47,15 +47,22 @@ export default function QuoteIilpDevicesSection({ form, canEdit, feeMap, onChang
           <select
             value={form.vilpBrandChoice}
             disabled={!canEdit}
-            onChange={(e) =>
+            onChange={(e) => {
+              const vilpBrandChoice = e.target.value as QuoteRequestData['vilpBrandChoice'];
+              const nextForm = { ...form, vilpBrandChoice, selectedDeviceId: '', altDevice1Id: '', altDevice2Id: '' };
+              const suggestedId = suggestBestIilpDeviceId(nextForm, needKw);
+              const suggested = suggestedId ? findDeviceById(suggestedId) : null;
               onChange({
-                vilpBrandChoice: e.target.value as QuoteRequestData['vilpBrandChoice'],
-                selectedDeviceId: '',
+                vilpBrandChoice,
+                selectedDeviceId: suggested?.id ?? '',
                 altDevice1Id: '',
                 altDevice2Id: '',
                 iilpDeviceSelectionNote: '',
-              })
-            }
+                ...(suggested
+                  ? { deviceBrand: suggested.brand, deviceModel: suggested.model }
+                  : { deviceBrand: '', deviceModel: '' }),
+              });
+            }}
           >
             {VILP_BRAND_OPTIONS.map((opt) => (
               <option key={opt.value || 'none'} value={opt.value}>

@@ -31,7 +31,7 @@ import {
 } from '../lib/subscribers';
 import { partnershipModuleAccess, partnershipPermsActingOnOwner, parseCompanySettings } from '../lib/management';
 import { computeKotitalousDeduction, computePumpSizingNeedKw, computeQuoteTotals, computeTravelNet, resolveIilpLaborPricingMode, travelCostLabel } from '../lib/quoteRequest/calculations';
-import { deliveryFeesFromCompanySettings, suggestBestIilpDeviceId, findDeviceById } from '../lib/quoteRequest/deviceCatalog';
+import { deliveryFeesFromCompanySettings, findDeviceById, resolveQuoteMainDeviceForTotals, formatDeviceLabel } from '../lib/quoteRequest/deviceCatalog';
 import { setActiveDeviceRegistry, snapshotFromCompanySettings } from '../lib/quoteRequest/deviceRegistryState';
 import {
   BUILDING_TYPE_OPTIONS,
@@ -168,6 +168,10 @@ export default function QuoteRequestEditPage({ session }: Props) {
     [form],
   );
   const totals = useMemo(() => computeQuoteTotals(form, deliveryFeeMap), [form, deliveryFeeMap]);
+  const mainDevice = useMemo(
+    () => (isPumpQuoteType(form.type) ? resolveQuoteMainDeviceForTotals(form, pumpSizingNeedKw) : null),
+    [form, pumpSizingNeedKw],
+  );
   const kotitalous = useMemo(() => computeKotitalousDeduction(form), [form]);
   const unreviewedSiteDefaults = useMemo(
     () => (isPumpQuoteType(form.type) ? listUnreviewedSiteDefaults(form) : []),
@@ -317,35 +321,36 @@ export default function QuoteRequestEditPage({ session }: Props) {
   }, [formReady, selectedCustomer?.id, equipmentId, equipment.length]);
 
   useEffect(() => {
-    if (!formReady || form.type !== 'ilma-ilma' || !canEdit || !form.vilpBrandChoice || !pumpSizingNeedKw) return;
+    if (!formReady || form.type !== 'ilma-ilma' || !canEdit) return;
     setForm((prev) => {
-      if (prev.type !== 'ilma-ilma' || !prev.vilpBrandChoice) return prev;
+      if (prev.type !== 'ilma-ilma') return prev;
       if (prev.selectedDeviceId && findDeviceById(prev.selectedDeviceId)) return prev;
-      const suggestedId = suggestBestIilpDeviceId(prev, pumpSizingNeedKw);
-      if (!suggestedId) return prev;
-      const device = findDeviceById(suggestedId);
-      if (!device) return prev;
+      if (!prev.vilpBrandChoice) return prev;
+      const needKw = computePumpSizingNeedKw(prev);
+      const resolved = resolveQuoteMainDeviceForTotals(prev, needKw);
+      if (!resolved) return prev;
       return {
         ...prev,
-        selectedDeviceId: suggestedId,
+        selectedDeviceId: resolved.id,
         iilpDeviceSelectionNote: '',
-        deviceBrand: device.brand,
-        deviceModel: device.model,
-        vilpBrandChoice: device.brand,
+        deviceBrand: resolved.brand,
+        deviceModel: resolved.model,
+        vilpBrandChoice: prev.vilpBrandChoice || resolved.brand,
       };
     });
   }, [
     formReady,
     form.type,
+    canEdit,
     form.vilpBrandChoice,
     form.selectedDeviceId,
+    form.deviceBrand,
+    form.deviceModel,
     form.heatedArea,
     form.roomHeight,
     form.iilpPurpose,
     form.buildingType,
     form.region,
-    canEdit,
-    pumpSizingNeedKw,
   ]);
 
   useEffect(() => {
@@ -1530,7 +1535,15 @@ export default function QuoteRequestEditPage({ session }: Props) {
                   {totals.travelNet.toLocaleString('fi-FI', { style: 'currency', currency: 'EUR' })}
                 </div>
               )}
-              <div>Laite/urakka: {totals.deviceNet.toLocaleString('fi-FI', { style: 'currency', currency: 'EUR' })}</div>
+              <div>
+                Laite/urakka: {totals.deviceNet.toLocaleString('fi-FI', { style: 'currency', currency: 'EUR' })}
+                {mainDevice ? ` (${formatDeviceLabel(mainDevice)})` : ''}
+              </div>
+              {isPumpQuoteType(form.type) && !mainDevice && (
+                <p className="error">
+                  Laite puuttuu laskennasta — valitse valmistaja ja laite Työt-välilehdellä.
+                </p>
+              )}
               <div>
                 Yhteensä (alv 0): {totals.discountedNet.toLocaleString('fi-FI', { style: 'currency', currency: 'EUR' })}
               </div>

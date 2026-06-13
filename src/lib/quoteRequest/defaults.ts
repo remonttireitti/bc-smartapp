@@ -519,7 +519,21 @@ function normalizeSelectedDeviceId(
 
 export function normalizePumpDeviceSelection(data: QuoteRequestData): QuoteRequestData {
   if (!isPumpQuoteType(data.type)) return data;
-  if (data.selectedDeviceId?.trim()) return data;
+
+  const existingId = data.selectedDeviceId?.trim() ?? '';
+  if (existingId) {
+    const existing = findDeviceById(existingId);
+    if (existing) {
+      return {
+        ...data,
+        selectedDeviceId: existing.id,
+        deviceBrand: data.deviceBrand || existing.brand,
+        deviceModel: data.deviceModel || existing.model,
+        vilpBrandChoice:
+          data.type === 'ilma-ilma' && !data.vilpBrandChoice ? existing.brand : data.vilpBrandChoice,
+      };
+    }
+  }
 
   const needKw = computePumpSizingNeedKw(data);
   const resolved = resolveQuoteMainDeviceForTotals(data, needKw);
@@ -549,14 +563,18 @@ export function prepareQuoteRequestDataForSave(data: QuoteRequestData): QuoteReq
     };
   }
 
-  const device = findDeviceById(next.selectedDeviceId);
-  if (device) {
-    next = {
-      ...next,
-      deviceBrand: device.brand,
-      deviceModel: device.model,
-      ...(next.type === 'ilma-ilma' && !next.vilpBrandChoice ? { vilpBrandChoice: device.brand } : {}),
-    };
+  if (isPumpQuoteType(next.type)) {
+    const device = findDeviceById(next.selectedDeviceId)
+      ?? resolveQuoteMainDeviceForTotals(next, computePumpSizingNeedKw(next));
+    if (device) {
+      next = {
+        ...next,
+        selectedDeviceId: device.id,
+        deviceBrand: device.brand,
+        deviceModel: device.model,
+        ...(next.type === 'ilma-ilma' ? { vilpBrandChoice: next.vilpBrandChoice || device.brand } : {}),
+      };
+    }
   }
 
   return next;
