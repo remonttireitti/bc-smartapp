@@ -91,7 +91,7 @@ import {
   shouldCalculateCustomerBilling,
 } from '../lib/workReportCustomerBilling';
 import { refreshAndPersistCustomerBillable } from '../lib/workReportCustomerBillingPersist';
-import { refreshAndPersistPartnerBillable } from '../lib/workReportPartnerBillingPersist';
+import { refreshAndPersistPartnerBillable, markPartnerBillableRecalcNeeded } from '../lib/workReportPartnerBillingPersist';
 import {
   formatEuro,
   hasBillableUserFlags,
@@ -1457,6 +1457,8 @@ export default function WorkReportDetailPage({ session }: Props) {
     if (!isPartnerReport) {
       return;
     }
+
+    await markPartnerBillableRecalcNeeded(supabase, reportRow.id);
 
     const { logs, error } = await fetchWorkReportDetailLogs(supabase, reportRow.id);
     if (error) {

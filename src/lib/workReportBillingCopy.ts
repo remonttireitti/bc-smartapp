@@ -46,6 +46,7 @@ export type BillingListRow = {
     customer_total?: number;
     customer_calculation?: import('./workReportBilling').BillableCalculation;
     calculated_at?: string | null;
+    partner_recalc_needed?: boolean;
   } | null;
   customer_id?: string | null;
 };
@@ -87,6 +88,10 @@ export function billingRowHasStoredCalculation(row: BillingListRow, mode: 'partn
   const calc =
     mode === 'customer' ? row.billable?.customer_calculation : row.billable?.calculation;
   return ((calc as { byUser?: unknown[] } | null | undefined)?.byUser?.length ?? 0) > 0;
+}
+
+export function billingRowNeedsPartnerRecalc(row: BillingListRow): boolean {
+  return row.billable?.partner_recalc_needed === true;
 }
 
 export function billingRowHasCalculation(row: BillingListRow, mode: 'partner' | 'customer'): boolean {

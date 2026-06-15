@@ -130,14 +130,18 @@ export async function refreshAndPersistPartnerBillable(
     tripKmRate: parseTripKmRate(settings),
   });
 
-  await supabase.from('work_report_billable').upsert({
+  const { error: billableError } = await supabase.from('work_report_billable').upsert({
     work_report_id: reportRow.id,
     partner_total: calculation.grandTotal,
     calculation,
     calculated_at: new Date().toISOString(),
+    partner_recalc_needed: false,
     use_custom_rates: storedUseCustom,
     billing_rates_override: storedUseCustom ? storedOverride : null,
   });
+  if (billableError) {
+    throw new Error(billableError.message);
+  }
 
   const { data: existingBilling } = await supabase
     .from('work_report_billing')
@@ -165,6 +169,18 @@ export async function refreshAndPersistPartnerBillable(
   });
 
   return calculation;
+}
+
+export async function markPartnerBillableRecalcNeeded(
+  supabase: SupabaseClient,
+  workReportId: string,
+): Promise<void> {
+  const { error } = await supabase.rpc('mark_partner_billable_recalc_needed', {
+    p_work_report_id: workReportId,
+  });
+  if (error) {
+    console.error('Kumppanilaskelman merkintä epäonnistui:', error.message);
+  }
 }
 
 export async function ensurePartnerBillableCalculated(

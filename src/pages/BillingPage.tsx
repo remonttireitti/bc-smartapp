@@ -29,6 +29,7 @@ import {
   isBillablePartnerReport,
   isBillableCustomerReport,
   billingRowHasStoredCalculation,
+  billingRowNeedsPartnerRecalc,
   loadBillingCopyText,
   markPartnerReportBilled,
   markCustomerReportBilled,
@@ -79,7 +80,7 @@ const REPORT_SELECT = `
     partner_invoice_status, partner_invoice_amount, partner_billed_amount,
     customer_invoice_status, customer_invoice_amount, customer_billed_at
   ),
-  billable:work_report_billable(partner_total, calculation, customer_total, customer_calculation, calculated_at)
+  billable:work_report_billable(partner_total, calculation, customer_total, customer_calculation, calculated_at, partner_recalc_needed)
 `;
 
 export default function BillingPage({ session }: Props) {
@@ -202,11 +203,16 @@ export default function BillingPage({ session }: Props) {
       })),
     );
 
-    if (stalePartnerIds.length === 0) return;
+    const flaggedPartnerIds = partnerRowsForCreator
+      .filter((row) => billingRowNeedsPartnerRecalc(row))
+      .map((row) => row.id);
+    const workIds = [...new Set([...stalePartnerIds, ...flaggedPartnerIds])];
 
-    setRecalcState({ total: stalePartnerIds.length, done: 0 });
+    if (workIds.length === 0) return;
 
-    await runWithConcurrency(stalePartnerIds, 3, async (reportId) => {
+    setRecalcState({ total: workIds.length, done: 0 });
+
+    await runWithConcurrency(workIds, 3, async (reportId) => {
       setRecalculatingIds((prev) => new Set(prev).add(reportId));
       try {
         await ensurePartnerBillableCalculated(supabase, reportId);
@@ -364,7 +370,11 @@ export default function BillingPage({ session }: Props) {
       if (statusFilter === 'unbilled') {
         if (mode === 'customer') {
           if (billingRowState(row, mode) === 'billed') return false;
-        } else if (openAmount <= 0.005) {
+        } else if (
+          openAmount <= 0.005
+          && !billingRowNeedsPartnerRecalc(row)
+          && billingRowHasStoredCalculation(row, mode)
+        ) {
           return false;
         }
       }
@@ -1206,6 +1216,8 @@ function BillingReportCard({
               <span className="billing-calc-badge billing-calc-badge-ready" title={calculatedAtLabel ?? undefined}>
                 Laskettu{calculatedAtLabel ? ` · ${calculatedAtLabel}` : ''}
               </span>
+            ) : billingEnabled && billingRowNeedsPartnerRecalc(row) ? (
+              <span className="billing-calc-badge billing-calc-badge-none">Päivitettävä</span>
             ) : billingEnabled ? (
               <span className="billing-calc-badge billing-calc-badge-none">Ei laskettu</span>
             ) : null}
