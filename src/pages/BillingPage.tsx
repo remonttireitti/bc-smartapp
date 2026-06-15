@@ -28,9 +28,7 @@ import {
   effectiveBillingRowMode,
   isBillablePartnerReport,
   isBillableCustomerReport,
-  billingRowHasCustomerCalculation,
-  billingRowHasPartnerCalculation,
-  billingRowHasCalculation,
+  billingRowHasStoredCalculation,
   loadBillingCopyText,
   markPartnerReportBilled,
   markCustomerReportBilled,
@@ -202,7 +200,8 @@ export default function BillingPage({ session }: Props) {
         customerRows.map((row) => ({
           workReportId: row.id,
           calculatedAt: row.billable?.calculated_at,
-          hasCalculation: billingRowHasCustomerCalculation(row),
+          hasCalculation: billingRowHasStoredCalculation(row, 'customer'),
+          calculation: row.billable?.customer_calculation,
         })),
       ),
       findStaleBillableReportIds(
@@ -210,7 +209,8 @@ export default function BillingPage({ session }: Props) {
         partnerRowsForCreator.map((row) => ({
           workReportId: row.id,
           calculatedAt: row.billable?.calculated_at,
-          hasCalculation: billingRowHasPartnerCalculation(row),
+          hasCalculation: billingRowHasStoredCalculation(row, 'partner'),
+          calculation: row.billable?.calculation,
         })),
       ),
     ]);
@@ -1183,7 +1183,7 @@ function BillingReportCard({
       : amounts.state === 'partial'
         ? 'in_progress'
         : 'scheduled';
-  const hasCalculation = billingRowHasCalculation(row, mode);
+  const hasCalculation = billingRowHasStoredCalculation(row, mode);
   const calculatedAtLabel = row.billable?.calculated_at
     ? formatDateTime(row.billable.calculated_at)
     : null;

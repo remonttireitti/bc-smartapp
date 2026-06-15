@@ -11,7 +11,7 @@ import {
   shouldCalculateCustomerBilling,
 } from './workReportCustomerBilling';
 import { fetchCustomerBillingLogs } from './workReportDailyLogSelect';
-import { workReportBillableNeedsRecalculation } from './workReportBillableStale';
+import { findStaleBillableReportIds } from './workReportBillableStale';
 
 export async function loadWorkReportDailyLogs(
   supabase: SupabaseClient,
@@ -115,16 +115,18 @@ export async function ensureCustomerBillableCalculated(
   if (!reportData) return;
 
   const calc = billableRow?.customer_calculation as { byUser?: unknown[] } | null | undefined;
-  const hasCalculation =
-    Number(billableRow?.customer_total ?? 0) > 0 && (calc?.byUser?.length ?? 0) > 0;
+  const hasCalculation = (calc?.byUser?.length ?? 0) > 0;
 
   if (hasCalculation && !options?.skipStaleCheck) {
-    const stale = await workReportBillableNeedsRecalculation(
-      supabase,
-      reportId,
-      billableRow?.calculated_at,
-    );
-    if (!stale) return;
+    const staleIds = await findStaleBillableReportIds(supabase, [
+      {
+        workReportId: reportId,
+        calculatedAt: billableRow?.calculated_at,
+        hasCalculation: true,
+        calculation: billableRow?.customer_calculation,
+      },
+    ]);
+    if (!staleIds.includes(reportId)) return;
   }
 
   const logs = await loadWorkReportDailyLogs(supabase, reportId);

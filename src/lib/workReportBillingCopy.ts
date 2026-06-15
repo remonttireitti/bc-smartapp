@@ -82,6 +82,13 @@ export function billingRowHasCustomerCalculation(row: BillingListRow): boolean {
   return Number(row.billable?.customer_total ?? 0) > 0 && (calc?.byUser?.length ?? 0) > 0;
 }
 
+/** Onko tietokannassa laskelmarakenne (käytetään vanhentuneisuuden tunnistukseen). */
+export function billingRowHasStoredCalculation(row: BillingListRow, mode: 'partner' | 'customer'): boolean {
+  const calc =
+    mode === 'customer' ? row.billable?.customer_calculation : row.billable?.calculation;
+  return ((calc as { byUser?: unknown[] } | null | undefined)?.byUser?.length ?? 0) > 0;
+}
+
 export function billingRowHasCalculation(row: BillingListRow, mode: 'partner' | 'customer'): boolean {
   return mode === 'customer' ? billingRowHasCustomerCalculation(row) : billingRowHasPartnerCalculation(row);
 }

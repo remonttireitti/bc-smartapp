@@ -91,6 +91,7 @@ import {
   shouldCalculateCustomerBilling,
 } from '../lib/workReportCustomerBilling';
 import { refreshAndPersistCustomerBillable } from '../lib/workReportCustomerBillingPersist';
+import { syncWorkReportBillingAfterLogChange } from '../lib/workReportBillingSync';
 import { refreshAndPersistPartnerBillable } from '../lib/workReportPartnerBillingPersist';
 import {
   formatEuro,
@@ -1005,6 +1006,7 @@ export default function WorkReportDetailPage({ session }: Props) {
     const billingApplies = shouldCalculatePartnerBilling(logs, users);
     if (!billingApplies) {
       setBillableCalculation(null);
+      await refreshAndPersistPartnerBillable(supabase, reportRow, logs, rateOptions);
       return;
     }
 
@@ -1446,6 +1448,10 @@ export default function WorkReportDetailPage({ session }: Props) {
     }
   }
 
+  async function persistBillingAfterLogChange(reportRow: WorkReport) {
+    await syncWorkReportBillingAfterLogChange(supabase, reportRow, profile?.company_id);
+  }
+
   async function addDailyLog(e: FormEvent) {
     e.preventDefault();
     if (!report || !logForm.work_done.trim()) {
@@ -1556,6 +1562,7 @@ export default function WorkReportDetailPage({ session }: Props) {
     closeLogDialog();
     setLogDialogBusy(false);
     setDailyLogNotice(dailyLogSavedNotice(false));
+    await persistBillingAfterLogChange(report);
     await load(report.id);
   }
 
@@ -1802,6 +1809,7 @@ export default function WorkReportDetailPage({ session }: Props) {
     closeLogDialog();
     setLogDialogBusy(false);
     setDailyLogNotice(dailyLogSavedNotice(true));
+    await persistBillingAfterLogChange(report);
     await load(report.id);
   }
 
@@ -1832,6 +1840,7 @@ export default function WorkReportDetailPage({ session }: Props) {
       await supabase.storage.from(BUCKET).remove(log.images.map((img) => img.storage_path));
     }
     await supabase.from('work_report_daily_logs').delete().eq('id', logId);
+    await persistBillingAfterLogChange(report);
     await load(report.id);
   }
 
