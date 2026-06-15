@@ -37,6 +37,7 @@ export type BillingListRow = {
     partner_invoice_status: InvoiceStatus;
     partner_invoice_amount: number | null;
     partner_billed_amount: number | null;
+    partner_billed_at: string | null;
     customer_invoice_status: InvoiceStatus;
     customer_invoice_amount: number | null;
     customer_billed_at: string | null;
@@ -377,6 +378,32 @@ export function isBillingRowOpen(row: BillingListRow): boolean {
 export function billingRowDate(row: BillingListRow): Date {
   const raw = row.completed_at ?? row.scheduled_start ?? row.created_at;
   return new Date(raw);
+}
+
+/** Milloin laskutettu summa kohdistuu (laskutushetki tai raportin päivä). */
+export function billingRowBilledDate(row: BillingListRow, mode: BillingModuleMode = 'partner'): Date {
+  if (mode === 'customer') {
+    const raw = row.billing?.customer_billed_at;
+    if (raw) return new Date(raw);
+  } else {
+    const raw = row.billing?.partner_billed_at;
+    if (raw) return new Date(raw);
+  }
+  return billingRowDate(row);
+}
+
+export type BillingSummaryPeriod = 'this_month' | 'this_year' | 'all';
+
+export function isBillingSummaryPeriod(date: Date, period: BillingSummaryPeriod, anchor = new Date()): boolean {
+  if (period === 'all') return true;
+  if (period === 'this_year') return date.getFullYear() === anchor.getFullYear();
+  return date.getFullYear() === anchor.getFullYear() && date.getMonth() === anchor.getMonth();
+}
+
+export function billingSummaryPeriodLabel(period: BillingSummaryPeriod): string {
+  if (period === 'this_month') return 'Tämä kuukausi';
+  if (period === 'this_year') return 'Tämä vuosi';
+  return 'Kaikki';
 }
 
 export async function companyHasBillableBilling(

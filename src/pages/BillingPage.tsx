@@ -22,6 +22,10 @@ import {
   resolvePartnerBillingAmounts,
   BILLING_LIST_STATUSES,
   billingRowDate,
+  billingRowBilledDate,
+  isBillingSummaryPeriod,
+  billingSummaryPeriodLabel,
+  type BillingSummaryPeriod,
   companyHasBillableBilling,
   companyHasCustomerBillableBilling,
   companyPartnerBillingAvailable,
@@ -68,6 +72,7 @@ type Tab = 'list' | 'calendar';
 type StatusFilter = 'all' | 'unbilled' | 'billed';
 type CalendarPeriod = 'this_week' | 'this_month' | 'this_year' | 'custom';
 type CalendarLayout = 'week' | 'month';
+type SummaryPeriod = BillingSummaryPeriod;
 
 const WEEKDAY_LABELS = ['Ma', 'Ti', 'Ke', 'To', 'Pe', 'La', 'Su'];
 const MONTH_SHORT = ['Tammi', 'Helmi', 'Maalis', 'Huhti', 'Touko', 'Kesä', 'Heinä', 'Elo', 'Syys', 'Loka', 'Marras', 'Joulu'];
@@ -80,7 +85,7 @@ const REPORT_SELECT = `
   creator_company:companies!work_reports_created_by_company_id_fkey(name),
   delegate_company:companies!work_reports_delegate_company_id_fkey(name),
   billing:work_report_billing(
-    partner_invoice_status, partner_invoice_amount, partner_billed_amount,
+    partner_invoice_status, partner_invoice_amount, partner_billed_amount, partner_billed_at,
     customer_invoice_status, customer_invoice_amount, customer_billed_at
   ),
   billable:work_report_billable(partner_total, calculation, customer_total, customer_calculation, calculated_at, partner_recalc_needed)
@@ -124,6 +129,7 @@ export default function BillingPage({ session }: Props) {
   const [recalcState, setRecalcState] = useState<{ total: number; done: number } | null>(null);
   const [recalculatingIds, setRecalculatingIds] = useState<Set<string>>(() => new Set());
   const [partnerOptions, setPartnerOptions] = useState<Array<{ id: string; name: string }>>([]);
+  const [summaryPeriod, setSummaryPeriod] = useState<SummaryPeriod>('this_month');
 
   useEffect(() => {
     if (searchParams.get('mode') === 'customer') {
@@ -394,22 +400,25 @@ export default function BillingPage({ session }: Props) {
     let openMaterials = 0;
     let openCount = 0;
     let billedCount = 0;
+    const periodAnchor = new Date();
 
     for (const row of rows) {
       const mode = effectiveBillingRowMode(billingMode, row);
-      if (billingMode === 'partner' && partnerFilter && billToPartnerId(row, profile?.company_id) !== partnerFilter) continue;
+      if (billingMode === 'partner' && partnerFilter && billToPartnerId(row, profile?.company_id) !== partnerFilter) {
+        continue;
+      }
       if (billingMode === 'customer' && customerFilter && billToCustomerKey(row) !== customerFilter) {
         continue;
       }
-      if (!billingRowVisibleInList(row, mode, statusFilter)) continue;
 
       const openAmount = billingRowOpenAmount(row, mode);
       const billedAmount = billingRowBilledAmount(row, mode);
       const breakdown = billingRowBreakdown(row, mode);
+      if (openAmount <= 0.005 && billedAmount <= 0.005) continue;
+      if (breakdown.total <= 0.005 && billedAmount <= 0.005) continue;
 
-      if (statusFilter === 'all' || statusFilter === 'unbilled') {
+      if (openAmount > 0.005 && isBillingSummaryPeriod(billingRowDate(row), summaryPeriod, periodAnchor)) {
         const partnerOpenTotal = mode === 'customer' ? breakdown.total : openAmount;
-        if (partnerOpenTotal <= 0.005) continue;
         openTotal += partnerOpenTotal;
         if (breakdown.total > 0.005 && openAmount > 0.005 && openAmount < breakdown.total - 0.005) {
           const ratio = openAmount / breakdown.total;
@@ -421,15 +430,24 @@ export default function BillingPage({ session }: Props) {
         }
         openCount += 1;
       }
-      if (statusFilter === 'all' || statusFilter === 'billed') {
-        if (billedAmount <= 0.005) continue;
+
+      if (billedAmount > 0.005 && isBillingSummaryPeriod(billingRowBilledDate(row, mode), summaryPeriod, periodAnchor)) {
         billedTotal += billedAmount;
         billedCount += 1;
       }
     }
 
-    return { openTotal, billedTotal, openWork, openMaterials, openCount, billedCount, grandTotal: openTotal + billedTotal, totalCount: openCount + billedCount };
-  }, [rows, partnerFilter, customerFilter, billingMode, statusFilter, profile?.company_id]);
+    return {
+      openTotal,
+      billedTotal,
+      openWork,
+      openMaterials,
+      openCount,
+      billedCount,
+      grandTotal: openTotal + billedTotal,
+      totalCount: openCount + billedCount,
+    };
+  }, [rows, partnerFilter, customerFilter, billingMode, summaryPeriod, profile?.company_id]);
 
   const weekDays = useMemo(
     () => Array.from({ length: 7 }, (_, index) => addDays(rangeAnchor, index)),
@@ -801,6 +819,23 @@ export default function BillingPage({ session }: Props) {
             </p>
           ) : null}
           <>
+          <div className="billing-summary-header">
+            <p className="billing-summary-period-label muted">
+              Yhteenveto · {billingSummaryPeriodLabel(summaryPeriod).toLowerCase()}
+            </p>
+            <div className="billing-summary-period-pills">
+              {(['this_month', 'this_year', 'all'] as const).map((period) => (
+                <button
+                  key={period}
+                  type="button"
+                  className={summaryPeriod === period ? 'billing-pill active' : 'billing-pill'}
+                  onClick={() => setSummaryPeriod(period)}
+                >
+                  {billingSummaryPeriodLabel(period)}
+                </button>
+              ))}
+            </div>
+          </div>
           <div className="billing-summary-grid">
             <article className="billing-stat-card billing-stat-open">
               <span className="billing-stat-label">Laskuttamatta</span>

@@ -6416,6 +6416,25 @@ textarea {
   gap: 1rem;
 }
 
+.billing-summary-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: .65rem;
+}
+
+.billing-summary-period-label {
+  margin: 0;
+  font-size: .85rem;
+}
+
+.billing-summary-period-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .45rem;
+}
+
 .billing-summary-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));

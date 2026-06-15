@@ -1974,6 +1974,7 @@ export default function WorkReportDetailPage({ session }: Props) {
           partner_invoice_status: billing.partner_invoice_status,
           partner_invoice_amount: billing.partner_invoice_amount,
           partner_billed_amount: billing.partner_billed_amount,
+          partner_billed_at: billing.partner_billed_at,
           customer_invoice_status: billing.customer_invoice_status,
           customer_invoice_amount: billing.customer_invoice_amount,
           customer_billed_at: billing.customer_billed_at,
