@@ -77,9 +77,16 @@ export async function refreshAndPersistPartnerBillable(
     && reportRow.owner_company_id === rateOptions.viewerCompanyId
     && reportRow.created_by_company_id !== rateOptions.viewerCompanyId;
 
+  const isDelegateViewer =
+    !!rateOptions?.viewerCompanyId
+    && reportRow.delegate_company_id === rateOptions.viewerCompanyId
+    && reportRow.created_by_company_id === reportRow.owner_company_id;
+
+  const loadViewerSettings = isIncomingToViewer || isDelegateViewer;
+
   const [{ data: companyRow }, { data: viewerCompanyRow }, { data: billableRow }] = await Promise.all([
     supabase.from('companies').select('settings').eq('id', reportRow.created_by_company_id).single(),
-    isIncomingToViewer
+    loadViewerSettings
       ? supabase.from('companies').select('settings').eq('id', rateOptions!.viewerCompanyId!).single()
       : Promise.resolve({ data: null }),
     supabase
@@ -134,6 +141,19 @@ export async function refreshAndPersistPartnerBillable(
         }
       }
     }
+
+    if (isDelegateViewer && rateOptions?.viewerCompanyId) {
+      const delegateRates = readPartnershipBillingRates(
+        partnership,
+        reportRow.created_by_company_id,
+        reportRow.delegate_company_id!,
+      );
+      if (hasPartnerBillingRates(delegateRates.primary)) {
+        partnershipRates = delegateRates.primary;
+      } else if (hasPartnerBillingRates(delegateRates.fallback)) {
+        partnershipRates = delegateRates.fallback;
+      }
+    }
   }
 
   const storedUseCustom = rateOptions?.useCustomRates ?? billableRow?.use_custom_rates ?? false;
@@ -141,7 +161,7 @@ export async function refreshAndPersistPartnerBillable(
     rateOptions?.reportRates ?? billableRow?.billing_rates_override,
   );
 
-  const companyDefaults = isIncomingToViewer
+  const companyDefaults = loadViewerSettings
     ? {
         ...(settings.billing?.partner_rates ?? {}),
         ...(viewerSettings.billing?.partner_rates ?? {}),

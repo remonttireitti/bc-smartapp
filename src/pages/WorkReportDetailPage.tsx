@@ -1476,6 +1476,10 @@ export default function WorkReportDetailPage({ session }: Props) {
       || (
         profile?.company_id === reportRow.owner_company_id
         && reportRow.created_by_company_id !== reportRow.owner_company_id
+      )
+      || (
+        isDelegatedOrder
+        && profile?.company_id === reportRow.delegate_company_id
       );
     if (canPersistPartnerBillable) {
       await refreshBillable(reportRow, logs, { viewerCompanyId: profile?.company_id });

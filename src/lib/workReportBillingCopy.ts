@@ -32,6 +32,7 @@ export type BillingListRow = {
   customers: { name: string } | null;
   owner_company: { name: string } | null;
   delegate_company: { name: string } | null;
+  creator_company?: { name: string } | null;
   billing: {
     partner_invoice_status: InvoiceStatus;
     partner_invoice_amount: number | null;
@@ -129,6 +130,20 @@ export function billingRowVisibleInList(
 }
 
 /** Voiko katsoja laskea / päivittää kumppanilaskelman tähän raporttiin. */
+export function isDelegatedPartnerOrder(
+  row: Pick<BillingListRow, 'owner_company_id' | 'created_by_company_id' | 'delegate_company_id'>,
+): boolean {
+  return !!row.delegate_company_id && row.created_by_company_id === row.owner_company_id;
+}
+
+export function isDelegatedPartnerBill(
+  row: BillingListRow,
+  viewerCompanyId: string | null | undefined,
+): boolean {
+  if (!viewerCompanyId || !isDelegatedPartnerOrder(row)) return false;
+  return row.delegate_company_id === viewerCompanyId;
+}
+
 export function canViewerRecalcPartnerBill(
   row: BillingListRow,
   viewerCompanyId: string | null | undefined,
@@ -136,6 +151,7 @@ export function canViewerRecalcPartnerBill(
   if (!viewerCompanyId || !isBillablePartnerReport(row)) return false;
   if (isOutgoingPartnerBill(row, viewerCompanyId)) return true;
   if (isIncomingPartnerBill(row, viewerCompanyId)) return true;
+  if (isDelegatedPartnerBill(row, viewerCompanyId)) return true;
   return false;
 }
 
@@ -283,15 +299,39 @@ export const BILLING_LIST_STATUSES = [
   'billed_customer',
 ] as const;
 
-export function billToPartnerId(row: BillingListRow): string {
-  if (row.delegate_company_id && row.created_by_company_id === row.owner_company_id) {
-    return row.delegate_company_id;
+export function billToPartnerId(row: BillingListRow, viewerCompanyId?: string | null): string {
+  if (viewerCompanyId && isDelegatedPartnerOrder(row)) {
+    return viewerCompanyId === row.delegate_company_id
+      ? row.owner_company_id
+      : row.delegate_company_id!;
+  }
+  if (viewerCompanyId && viewerCompanyId === row.created_by_company_id) {
+    return isDelegatedPartnerOrder(row) ? row.delegate_company_id! : row.owner_company_id;
+  }
+  if (viewerCompanyId && viewerCompanyId === row.owner_company_id && row.created_by_company_id !== row.owner_company_id) {
+    return row.created_by_company_id;
+  }
+  if (isDelegatedPartnerOrder(row)) {
+    return row.delegate_company_id!;
   }
   return row.owner_company_id;
 }
 
-export function billToPartnerName(row: BillingListRow): string {
-  if (row.delegate_company_id && row.created_by_company_id === row.owner_company_id) {
+export function billToPartnerName(row: BillingListRow, viewerCompanyId?: string | null): string {
+  if (viewerCompanyId && isDelegatedPartnerOrder(row)) {
+    return viewerCompanyId === row.delegate_company_id
+      ? (row.owner_company?.name ?? '—')
+      : (row.delegate_company?.name ?? '—');
+  }
+  if (viewerCompanyId && viewerCompanyId === row.created_by_company_id) {
+    return isDelegatedPartnerOrder(row)
+      ? (row.delegate_company?.name ?? '—')
+      : (row.owner_company?.name ?? '—');
+  }
+  if (viewerCompanyId && viewerCompanyId === row.owner_company_id && row.created_by_company_id !== row.owner_company_id) {
+    return row.creator_company?.name ?? '—';
+  }
+  if (isDelegatedPartnerOrder(row)) {
     return row.delegate_company?.name ?? '—';
   }
   return row.owner_company?.name ?? '—';

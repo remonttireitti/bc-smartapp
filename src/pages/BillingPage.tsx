@@ -77,6 +77,7 @@ const REPORT_SELECT = `
   owner_company_id, created_by_company_id, delegate_company_id, customer_id,
   customers(name),
   owner_company:companies!work_reports_owner_company_id_fkey(name),
+  creator_company:companies!work_reports_created_by_company_id_fkey(name),
   delegate_company:companies!work_reports_delegate_company_id_fkey(name),
   billing:work_report_billing(
     partner_invoice_status, partner_invoice_amount, partner_billed_amount,
@@ -263,17 +264,17 @@ export default function BillingPage({ session }: Props) {
     let loadError = null as { message: string } | null;
     let all: BillingListRow[] = [];
 
+    const companyScope = `created_by_company_id.eq.${profile.company_id},owner_company_id.eq.${profile.company_id},delegate_company_id.eq.${profile.company_id}`;
+
     if (mode === 'total') {
-      const { data, error } = await query.or(
-        `created_by_company_id.eq.${profile.company_id},owner_company_id.eq.${profile.company_id}`,
-      );
+      const { data, error } = await query.or(companyScope);
       loadError = error;
       all = (data as unknown as BillingListRow[]) ?? [];
     } else {
       const { data, error } =
         mode === 'customer'
           ? await query.eq('owner_company_id', profile.company_id)
-          : await query.eq('created_by_company_id', profile.company_id);
+          : await query.or(companyScope);
       loadError = error;
       all = (data as unknown as BillingListRow[]) ?? [];
     }
@@ -330,17 +331,17 @@ export default function BillingPage({ session }: Props) {
       map.set(option.id, { name: option.name, count: 0 });
     }
     for (const row of rows) {
-      const id = billToPartnerId(row);
+      const id = billToPartnerId(row, profile?.company_id);
       const prev = map.get(id);
       map.set(id, {
-        name: prev?.name ?? billToPartnerName(row),
+        name: prev?.name ?? billToPartnerName(row, profile?.company_id),
         count: (prev?.count ?? 0) + 1,
       });
     }
     return [...map.entries()]
       .map(([id, { name, count }]) => ({ id, name, count }))
       .sort((a, b) => a.name.localeCompare(b.name, 'fi'));
-  }, [partnerOptions, rows, billingMode]);
+  }, [partnerOptions, rows, billingMode, profile?.company_id]);
 
   const customers = useMemo(() => {
     if (billingMode !== 'customer') return [];
@@ -369,7 +370,7 @@ export default function BillingPage({ session }: Props) {
   const filteredRows = useMemo(() => {
     return rows.filter((row) => {
       const mode = effectiveBillingRowMode(billingMode, row);
-      if (billingMode === 'partner' && partnerFilter && billToPartnerId(row) !== partnerFilter) return false;
+      if (billingMode === 'partner' && partnerFilter && billToPartnerId(row, profile?.company_id) !== partnerFilter) return false;
       if (billingMode === 'customer' && customerFilter && billToCustomerKey(row) !== customerFilter) {
         return false;
       }
@@ -380,7 +381,7 @@ export default function BillingPage({ session }: Props) {
       }
       return true;
     });
-  }, [rows, partnerFilter, customerFilter, statusFilter, selectedDay, billingMode]);
+  }, [rows, partnerFilter, customerFilter, statusFilter, selectedDay, billingMode, profile?.company_id]);
 
   const summary = useMemo(() => {
     let openTotal = 0;
@@ -392,7 +393,7 @@ export default function BillingPage({ session }: Props) {
 
     for (const row of rows) {
       const mode = effectiveBillingRowMode(billingMode, row);
-      if (billingMode === 'partner' && partnerFilter && billToPartnerId(row) !== partnerFilter) continue;
+      if (billingMode === 'partner' && partnerFilter && billToPartnerId(row, profile?.company_id) !== partnerFilter) continue;
       if (billingMode === 'customer' && customerFilter && billToCustomerKey(row) !== customerFilter) {
         continue;
       }
@@ -424,7 +425,7 @@ export default function BillingPage({ session }: Props) {
     }
 
     return { openTotal, billedTotal, openWork, openMaterials, openCount, billedCount, grandTotal: openTotal + billedTotal, totalCount: openCount + billedCount };
-  }, [rows, partnerFilter, customerFilter, billingMode, statusFilter]);
+  }, [rows, partnerFilter, customerFilter, billingMode, statusFilter, profile?.company_id]);
 
   const weekDays = useMemo(
     () => Array.from({ length: 7 }, (_, index) => addDays(rangeAnchor, index)),
@@ -435,7 +436,7 @@ export default function BillingPage({ session }: Props) {
     const map = new Map<string, { open: number; billed: number }>();
     for (const row of rows) {
       const mode = effectiveBillingRowMode(billingMode, row);
-      if (billingMode === 'partner' && partnerFilter && billToPartnerId(row) !== partnerFilter) continue;
+      if (billingMode === 'partner' && partnerFilter && billToPartnerId(row, profile?.company_id) !== partnerFilter) continue;
       if (billingMode === 'customer' && customerFilter && billToCustomerKey(row) !== customerFilter) {
         continue;
       }
@@ -1132,6 +1133,7 @@ export default function BillingPage({ session }: Props) {
                   billingEnabled={moduleEnabled ?? false}
                   busy={busyId === row.id}
                   isRecalculating={recalculatingIds.has(row.id)}
+                  viewerCompanyId={profile?.company_id}
                   onCopy={() => void copyBillingText(row)}
                   onMarkBilled={() => void markBilled(row)}
                   onUnmarkBilled={() => void unmarkBilled(row)}
@@ -1162,6 +1164,7 @@ function BillingReportCard({
   onMarkBilled,
   onUnmarkBilled,
   onRecalcPartner,
+  viewerCompanyId,
 }: {
   row: BillingListRow;
   mode: 'partner' | 'customer';
@@ -1173,6 +1176,7 @@ function BillingReportCard({
   onMarkBilled: () => void;
   onUnmarkBilled: () => void;
   onRecalcPartner?: () => void;
+  viewerCompanyId?: string | null;
 }) {
   const breakdown = billingRowBreakdown(row, mode);
   const amounts =
@@ -1228,10 +1232,10 @@ function BillingReportCard({
             {pageMode === 'total'
               ? mode === 'customer'
                 ? `Oma asiakas · ${billToCustomerName(row)}`
-                : `Kumppani · ${billToPartnerName(row)}`
+                : `Kumppani · ${billToPartnerName(row, viewerCompanyId)}`
               : mode === 'customer'
                 ? billToCustomerName(row)
-                : billToPartnerName(row)}
+                : billToPartnerName(row, viewerCompanyId)}
           </p>
           {mode === 'partner' && row.customers?.name && (
             <p className="billing-report-meta">
