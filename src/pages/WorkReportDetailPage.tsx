@@ -429,7 +429,11 @@ function DailyLogFields({
         </label>
       </DailyLogFormSection>
 
-      <DailyLogFormSection title="Tunnit" collapseKey="daily-log:hours">
+      <DailyLogFormSection
+        title="Tunnit"
+        collapseKey="daily-log:hours"
+        defaultOpen={!!(showHourlyRate || showCustomerHourlyRate)}
+      >
         <div className="line-form-grid">
         {showRegular && (
           <label>
@@ -1003,12 +1007,18 @@ export default function WorkReportDetailPage({ session }: Props) {
     }
     setBillableUsers(users);
 
-    const billingApplies = shouldCalculatePartnerBilling(logs, users);
-    if (!billingApplies) {
+    const isDelegatedOrder =
+      !!reportRow.delegate_company_id && reportRow.created_by_company_id === reportRow.owner_company_id;
+    const isPartnerReport =
+      reportRow.created_by_company_id !== reportRow.owner_company_id || isDelegatedOrder;
+    if (!isPartnerReport) {
       setBillableCalculation(null);
-      await refreshAndPersistPartnerBillable(supabase, reportRow, logs, rateOptions);
       return;
     }
+
+    const billedCompanyId = isDelegatedOrder
+      ? reportRow.delegate_company_id!
+      : reportRow.owner_company_id;
 
     const [{ data: companyRow }, { data: billableRow }] = await Promise.all([
       supabase.from('companies').select('settings').eq('id', reportRow.created_by_company_id).single(),
@@ -1020,43 +1030,34 @@ export default function WorkReportDetailPage({ session }: Props) {
     ]);
 
     const settings = parseCompanySettings((companyRow as { settings: unknown } | null)?.settings);
-    const isDelegatedOrder =
-      !!reportRow.delegate_company_id && reportRow.created_by_company_id === reportRow.owner_company_id;
-    const isPartnerReport =
-      reportRow.created_by_company_id !== reportRow.owner_company_id || isDelegatedOrder;
-    const billedCompanyId = isDelegatedOrder
-      ? reportRow.delegate_company_id!
-      : reportRow.owner_company_id;
 
     let partnershipRates: PartnerBillingRates = {};
     let partnershipRatesFallback: PartnerBillingRates = {};
-    if (isPartnerReport) {
-      const partnershipQuery = reportRow.partnership_id
-        ? supabase
-            .from('company_partnerships')
-            .select('company_a_id, company_b_id, billing_rates_a_to_b, billing_rates_b_to_a')
-            .eq('id', reportRow.partnership_id)
-            .maybeSingle()
-        : supabase
-            .from('company_partnerships')
-            .select('company_a_id, company_b_id, billing_rates_a_to_b, billing_rates_b_to_a')
-            .eq('status', 'active')
-            .or(
-              `and(company_a_id.eq.${reportRow.created_by_company_id},company_b_id.eq.${billedCompanyId}),and(company_a_id.eq.${billedCompanyId},company_b_id.eq.${reportRow.created_by_company_id})`,
-            )
-            .maybeSingle();
+    const partnershipQuery = reportRow.partnership_id
+      ? supabase
+          .from('company_partnerships')
+          .select('company_a_id, company_b_id, billing_rates_a_to_b, billing_rates_b_to_a')
+          .eq('id', reportRow.partnership_id)
+          .maybeSingle()
+      : supabase
+          .from('company_partnerships')
+          .select('company_a_id, company_b_id, billing_rates_a_to_b, billing_rates_b_to_a')
+          .eq('status', 'active')
+          .or(
+            `and(company_a_id.eq.${reportRow.created_by_company_id},company_b_id.eq.${billedCompanyId}),and(company_a_id.eq.${billedCompanyId},company_b_id.eq.${reportRow.created_by_company_id})`,
+          )
+          .maybeSingle();
 
-      const { data: partnership } = await partnershipQuery;
+    const { data: partnership } = await partnershipQuery;
 
-      if (partnership) {
-        const rates = readPartnershipBillingRates(
-          partnership,
-          reportRow.created_by_company_id,
-          billedCompanyId,
-        );
-        partnershipRates = rates.primary;
-        partnershipRatesFallback = rates.fallback;
-      }
+    if (partnership) {
+      const rates = readPartnershipBillingRates(
+        partnership,
+        reportRow.created_by_company_id,
+        billedCompanyId,
+      );
+      partnershipRates = rates.primary;
+      partnershipRatesFallback = rates.fallback;
     }
 
     const storedUseCustom = rateOptions?.useCustomRates ?? billableRow?.use_custom_rates ?? false;
@@ -1090,16 +1091,17 @@ export default function WorkReportDetailPage({ session }: Props) {
     );
     setBillableCalculation(calculation);
 
-    if (isPartnerReport) {
-      const { data: billingRow } = await supabase
-        .from('work_report_billing')
-        .select('*')
-        .eq('work_report_id', reportRow.id)
-        .maybeSingle();
+    const billingApplies = shouldCalculatePartnerBilling(logs, users);
+    if (!billingApplies) return;
 
-      if (billingRow) {
-        setBilling(billingRow as WorkReportBilling);
-      }
+    const { data: billingRow } = await supabase
+      .from('work_report_billing')
+      .select('*')
+      .eq('work_report_id', reportRow.id)
+      .maybeSingle();
+
+    if (billingRow) {
+      setBilling(billingRow as WorkReportBilling);
     }
   }
 
@@ -1921,6 +1923,8 @@ export default function WorkReportDetailPage({ session }: Props) {
     : (report.owner_company?.name ?? '—');
   const showMoneyBilling =
     isPartnerReport && canSeeCreatorBilling && !!billableCalculation;
+  const showPartnerDailyLogHourlyRate =
+    !!isPartnerReport && canSeeCreatorBilling && partnerBillingEnabled !== false;
   const showCustomerMoney = customerInvoicingEnabled;
   const canManageCustomerBillingRates = isOwnerCompany && customerInvoicingEnabled;
   const showCustomerMoneyBilling =
@@ -2715,12 +2719,22 @@ export default function WorkReportDetailPage({ session }: Props) {
           setForm={(next) => setLogForm(next)}
           expenseDrafts={expenseDrafts}
           setExpenseDrafts={setExpenseDrafts}
-          showHourlyRate={showMoneyBilling}
+          showHourlyRate={showPartnerDailyLogHourlyRate}
           showCustomerHourlyRate={customerInvoicingEnabled}
           showPartnerExpenseFields={isPartnerReport}
           showCustomerExpenseFields={customerInvoicingEnabled}
-          defaultHourlyRate={billableCalculation?.ratesUsed.hourly_regular ?? null}
-          defaultCustomerHourlyRate={customerBillableCalculation?.ratesUsed.hourly_regular ?? null}
+          defaultHourlyRate={
+            billableCalculation?.ratesUsed.hourly_regular
+            ?? partnershipRatesPreview.hourly_regular
+            ?? reportRatesDraft.hourly_regular
+            ?? null
+          }
+          defaultCustomerHourlyRate={
+            customerBillableCalculation?.ratesUsed.hourly_regular
+            ?? companyCustomerRatesPreview.hourly_regular
+            ?? customerReportRatesDraft.hourly_regular
+            ?? null
+          }
         />
         <DailyLogRefrigerantFields
           drafts={refrigerantDrafts}
