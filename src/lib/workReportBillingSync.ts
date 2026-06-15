@@ -1,7 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { WorkReport } from '../types';
-import { loadCompanyTracksCustomerInvoicing } from './management';
-import { refreshAndPersistCustomerBillable } from './workReportCustomerBillingPersist';
 import { refreshAndPersistPartnerBillable } from './workReportPartnerBillingPersist';
 import { fetchWorkReportDetailLogs } from './workReportDailyLogSelect';
 
@@ -13,7 +11,7 @@ function isPartnerReport(
   return report.created_by_company_id !== report.owner_company_id || isDelegatedOrder;
 }
 
-/** Pakota laskelman tallennus heti päiväkirjausmuutoksen jälkeen. */
+/** Pakota kumppanilaskelman tallennus heti päiväkirjausmuutoksen jälkeen. Asiakaslaskua ei lasketa tähän (vain tulostus). */
 export async function syncWorkReportBillingAfterLogChange(
   supabase: SupabaseClient,
   report: Pick<
@@ -29,22 +27,15 @@ export async function syncWorkReportBillingAfterLogChange(
   >,
   viewerCompanyId: string | null | undefined,
 ): Promise<void> {
+  if (!isPartnerReport(report) || viewerCompanyId !== report.created_by_company_id) {
+    return;
+  }
+
   const { logs, error } = await fetchWorkReportDetailLogs(supabase, report.id);
   if (error) {
     console.error('Päiväkirjausten lataus laskentaa varten epäonnistui:', error.message);
     return;
   }
 
-  const tasks: Promise<unknown>[] = [];
-
-  if (isPartnerReport(report) && viewerCompanyId === report.created_by_company_id) {
-    tasks.push(refreshAndPersistPartnerBillable(supabase, report, logs));
-  }
-
-  const tracksCustomer = await loadCompanyTracksCustomerInvoicing(supabase, report.owner_company_id);
-  if (tracksCustomer) {
-    tasks.push(refreshAndPersistCustomerBillable(supabase, report, logs));
-  }
-
-  await Promise.all(tasks);
+  await refreshAndPersistPartnerBillable(supabase, report, logs);
 }

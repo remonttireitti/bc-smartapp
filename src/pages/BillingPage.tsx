@@ -98,7 +98,9 @@ export default function BillingPage({ session }: Props) {
         ? 'partner'
         : urlMode === 'total'
           ? 'total'
-          : 'customer';
+          : partnershipsEnabled !== false
+            ? 'partner'
+            : 'customer';
   const [tab, setTab] = useState<Tab>('list');
   const [billingMode, setBillingMode] = useState<BillingModuleMode>(initialMode);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('unbilled');
@@ -128,7 +130,7 @@ export default function BillingPage({ session }: Props) {
     } else if (searchParams.get('mode') === 'partner') {
       setBillingMode(partnershipsEnabled === false ? 'customer' : 'partner');
     } else if (searchParams.get('mode') === 'total' || !searchParams.get('mode')) {
-      setBillingMode(partnershipsEnabled === false ? 'customer' : 'total');
+      setBillingMode(partnershipsEnabled === false ? 'customer' : 'partner');
     }
   }, [searchParams, partnershipsEnabled]);
 
@@ -188,14 +190,18 @@ export default function BillingPage({ session }: Props) {
     setRows((prev) => prev.map((row) => (row.id === reportId ? updated : row)));
   }
 
-  async function startBackgroundRecalc(filtered: BillingListRow[], companyId: string) {
-    const customerRows = filtered.filter(isBillableCustomerReport);
-    const partnerRowsForCreator = filtered.filter(
-      (row) => isBillablePartnerReport(row) && row.created_by_company_id === companyId,
-    );
+  async function startBackgroundRecalc(
+    filtered: BillingListRow[],
+    companyId: string,
+    mode: BillingModuleMode,
+    customerEnabled: boolean | null,
+    partnerAvailable: boolean | null,
+  ) {
+    const work: RecalcJob[] = [];
 
-    const [staleCustomerIds, stalePartnerIds] = await Promise.all([
-      findStaleBillableReportIds(
+    if ((mode === 'customer' || mode === 'total') && customerEnabled !== false) {
+      const customerRows = filtered.filter(isBillableCustomerReport);
+      const staleCustomerIds = await findStaleBillableReportIds(
         supabase,
         customerRows.map((row) => ({
           workReportId: row.id,
@@ -203,8 +209,15 @@ export default function BillingPage({ session }: Props) {
           hasCalculation: billingRowHasStoredCalculation(row, 'customer'),
           calculation: row.billable?.customer_calculation,
         })),
-      ),
-      findStaleBillableReportIds(
+      );
+      work.push(...staleCustomerIds.map((id) => ({ id, kind: 'customer' as const })));
+    }
+
+    if ((mode === 'partner' || mode === 'total') && partnerAvailable !== false) {
+      const partnerRowsForCreator = filtered.filter(
+        (row) => isBillablePartnerReport(row) && row.created_by_company_id === companyId,
+      );
+      const stalePartnerIds = await findStaleBillableReportIds(
         supabase,
         partnerRowsForCreator.map((row) => ({
           workReportId: row.id,
@@ -212,13 +225,9 @@ export default function BillingPage({ session }: Props) {
           hasCalculation: billingRowHasStoredCalculation(row, 'partner'),
           calculation: row.billable?.calculation,
         })),
-      ),
-    ]);
-
-    const work: RecalcJob[] = [
-      ...staleCustomerIds.map((id) => ({ id, kind: 'customer' as const })),
-      ...stalePartnerIds.map((id) => ({ id, kind: 'partner' as const })),
-    ];
+      );
+      work.push(...stalePartnerIds.map((id) => ({ id, kind: 'partner' as const })));
+    }
 
     if (work.length === 0) return;
 
@@ -309,7 +318,7 @@ export default function BillingPage({ session }: Props) {
     setRows(filtered);
     setLoading(false);
 
-    void startBackgroundRecalc(filtered, profile.company_id);
+    void startBackgroundRecalc(filtered, profile.company_id, mode, customerEnabled, partnerAvailable);
   }
 
   const partners = useMemo(() => {

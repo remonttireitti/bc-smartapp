@@ -37,7 +37,6 @@ export async function refreshAndPersistCustomerBillable(
       work_report_id: reportRow.id,
       customer_total: 0,
       customer_calculation: {},
-      calculated_at: new Date().toISOString(),
     });
     return null;
   }
@@ -77,7 +76,6 @@ export async function refreshAndPersistCustomerBillable(
       work_report_id: reportRow.id,
       customer_total: calculation.grandTotal,
       customer_calculation: calculation,
-      calculated_at: new Date().toISOString(),
     }),
     supabase.from('work_report_billing').upsert({
       work_report_id: reportRow.id,
