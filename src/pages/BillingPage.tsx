@@ -28,6 +28,8 @@ import {
   effectiveBillingRowMode,
   isBillablePartnerReport,
   isBillableCustomerReport,
+  isIncomingPartnerBill,
+  isOutgoingPartnerBill,
   billingRowHasStoredCalculation,
   billingRowNeedsPartnerRecalc,
   loadBillingCopyText,
@@ -204,7 +206,7 @@ export default function BillingPage({ session }: Props) {
     );
 
     const flaggedPartnerIds = partnerRowsForCreator
-      .filter((row) => billingRowNeedsPartnerRecalc(row))
+      .filter((row) => billingRowNeedsPartnerRecalc(row, companyId))
       .map((row) => row.id);
     const workIds = [...new Set([...stalePartnerIds, ...flaggedPartnerIds])];
 
@@ -367,14 +369,20 @@ export default function BillingPage({ session }: Props) {
       }
       const openAmount = billingRowOpenAmount(row, mode);
       const billedAmount = billingRowBilledAmount(row, mode);
+      const incomingPartner = isIncomingPartnerBill(row, profile?.company_id);
       if (statusFilter === 'unbilled') {
         if (mode === 'customer') {
           if (billingRowState(row, mode) === 'billed') return false;
+        } else if (incomingPartner) {
+          if (openAmount <= 0.005) return false;
+          if (billingRowState(row, mode) === 'billed') return false;
         } else if (
           openAmount <= 0.005
-          && !billingRowNeedsPartnerRecalc(row)
+          && !billingRowNeedsPartnerRecalc(row, profile?.company_id)
           && billingRowHasStoredCalculation(row, mode)
         ) {
+          return false;
+        } else if (billingRowState(row, mode) === 'billed') {
           return false;
         }
       }
@@ -385,7 +393,7 @@ export default function BillingPage({ session }: Props) {
       }
       return true;
     });
-  }, [rows, partnerFilter, customerFilter, statusFilter, selectedDay, billingMode]);
+  }, [rows, partnerFilter, customerFilter, statusFilter, selectedDay, billingMode, profile?.company_id]);
 
   const summary = useMemo(() => {
     let openTotal = 0;
@@ -404,12 +412,28 @@ export default function BillingPage({ session }: Props) {
       const openAmount = billingRowOpenAmount(row, mode);
       const billedAmount = billingRowBilledAmount(row, mode);
       const breakdown = billingRowBreakdown(row, mode);
+      const incomingPartner = isIncomingPartnerBill(row, profile?.company_id);
       const isOpen =
-        mode === 'customer' ? billingRowState(row, mode) !== 'billed' : openAmount > 0.005;
-      if (isOpen) {
-        openTotal += mode === 'customer' ? breakdown.total : openAmount;
-        if (breakdown.total > 0.005 && openAmount > 0.005 && openAmount < breakdown.total - 0.005) {
-          const ratio = openAmount / breakdown.total;
+        mode === 'customer'
+          ? billingRowState(row, mode) !== 'billed'
+          : incomingPartner
+            ? openAmount > 0.005 && billingRowState(row, mode) !== 'billed'
+            : openAmount > 0.005 || billingRowNeedsPartnerRecalc(row, profile?.company_id);
+      if (statusFilter === 'unbilled' && !isOpen) continue;
+      if (statusFilter === 'billed' && billedAmount <= 0.005) continue;
+      if (statusFilter === 'all' ? isOpen : statusFilter === 'unbilled') {
+        const partnerOpenTotal =
+          mode === 'customer'
+            ? breakdown.total
+            : incomingPartner
+              ? openAmount
+              : openAmount > 0.005
+                ? openAmount
+                : breakdown.total;
+        if (mode !== 'customer' && partnerOpenTotal <= 0.005) continue;
+        openTotal += partnerOpenTotal;
+        if (breakdown.total > 0.005 && partnerOpenTotal > 0.005 && partnerOpenTotal < breakdown.total - 0.005) {
+          const ratio = partnerOpenTotal / breakdown.total;
           openWork += breakdown.work * ratio;
           openMaterials += breakdown.materials * ratio;
         } else {
@@ -418,14 +442,14 @@ export default function BillingPage({ session }: Props) {
         }
         openCount += 1;
       }
-      if (billedAmount > 0.005) {
+      if (billedAmount > 0.005 && (statusFilter === 'all' || statusFilter === 'billed')) {
         billedTotal += billedAmount;
         billedCount += 1;
       }
     }
 
     return { openTotal, billedTotal, openWork, openMaterials, openCount, billedCount, grandTotal: openTotal + billedTotal, totalCount: openCount + billedCount };
-  }, [rows, partnerFilter, customerFilter, billingMode]);
+  }, [rows, partnerFilter, customerFilter, billingMode, statusFilter, profile?.company_id]);
 
   const weekDays = useMemo(
     () => Array.from({ length: 7 }, (_, index) => addDays(rangeAnchor, index)),
@@ -1137,8 +1161,11 @@ export default function BillingPage({ session }: Props) {
                   onMarkBilled={() => void markBilled(row)}
                   onUnmarkBilled={() => void unmarkBilled(row)}
                   onRecalcPartner={
-                    rowBillingMode(row) === 'partner' ? () => void recalcPartnerRow(row.id) : undefined
+                    isOutgoingPartnerBill(row, profile?.company_id)
+                      ? () => void recalcPartnerRow(row.id)
+                      : undefined
                   }
+                  viewerCompanyId={profile?.company_id}
                 />
               ))}
             </div>
@@ -1161,6 +1188,7 @@ function BillingReportCard({
   onMarkBilled,
   onUnmarkBilled,
   onRecalcPartner,
+  viewerCompanyId,
 }: {
   row: BillingListRow;
   mode: 'partner' | 'customer';
@@ -1172,7 +1200,9 @@ function BillingReportCard({
   onMarkBilled: () => void;
   onUnmarkBilled: () => void;
   onRecalcPartner?: () => void;
+  viewerCompanyId?: string | null;
 }) {
+  const incomingPartner = isIncomingPartnerBill(row, viewerCompanyId);
   const breakdown = billingRowBreakdown(row, mode);
   const amounts =
     mode === 'customer'
@@ -1214,9 +1244,12 @@ function BillingReportCard({
               <span className="billing-calc-badge billing-calc-badge-updating">Lasketaan…</span>
             ) : billingEnabled && hasCalculation ? (
               <span className="billing-calc-badge billing-calc-badge-ready" title={calculatedAtLabel ?? undefined}>
-                Laskettu{calculatedAtLabel ? ` · ${calculatedAtLabel}` : ''}
+                {incomingPartner ? 'Kumppani lasketti' : 'Laskettu'}
+                {calculatedAtLabel ? ` · ${calculatedAtLabel}` : ''}
               </span>
-            ) : billingEnabled && billingRowNeedsPartnerRecalc(row) ? (
+            ) : billingEnabled && incomingPartner ? (
+              <span className="billing-calc-badge billing-calc-badge-none">Odottaa kumppanin laskelmaa</span>
+            ) : billingEnabled && billingRowNeedsPartnerRecalc(row, viewerCompanyId) ? (
               <span className="billing-calc-badge billing-calc-badge-none">Päivitettävä</span>
             ) : billingEnabled ? (
               <span className="billing-calc-badge billing-calc-badge-none">Ei laskettu</span>

@@ -87,10 +87,20 @@ export function billingRowHasCustomerCalculation(row: BillingListRow): boolean {
 export function billingRowHasStoredCalculation(row: BillingListRow, mode: 'partner' | 'customer'): boolean {
   const calc =
     mode === 'customer' ? row.billable?.customer_calculation : row.billable?.calculation;
-  return ((calc as { byUser?: unknown[] } | null | undefined)?.byUser?.length ?? 0) > 0;
+  if ((calc as { byUser?: unknown[] } | null | undefined)?.byUser?.length) {
+    return true;
+  }
+  if (mode === 'partner' && Number(row.billing?.partner_invoice_amount ?? 0) > 0.005) {
+    return true;
+  }
+  return false;
 }
 
-export function billingRowNeedsPartnerRecalc(row: BillingListRow): boolean {
+export function billingRowNeedsPartnerRecalc(
+  row: BillingListRow,
+  viewerCompanyId?: string | null,
+): boolean {
+  if (viewerCompanyId && isIncomingPartnerBill(row, viewerCompanyId)) return false;
   return row.billable?.partner_recalc_needed === true;
 }
 
@@ -202,7 +212,10 @@ export function billingRowBreakdown(
       total: Number(calc.grandTotal ?? total),
     };
   }
-  return { work: total, materials: 0, total };
+  if (total > 0.005) {
+    return { work: total, materials: 0, total };
+  }
+  return { work: 0, materials: 0, total: 0 };
 }
 
 export function isBillablePartnerReport(
@@ -212,6 +225,18 @@ export function isBillablePartnerReport(
     row.owner_company_id !== row.created_by_company_id
     || (!!row.delegate_company_id && row.created_by_company_id === row.owner_company_id)
   );
+}
+
+/** Kumppani lähetti raportin meille — emme laske laskelmaa, kumppani laskuttaa meitä. */
+export function isIncomingPartnerBill(row: BillingListRow, viewerCompanyId: string | null | undefined): boolean {
+  if (!viewerCompanyId || !isBillablePartnerReport(row)) return false;
+  return row.owner_company_id === viewerCompanyId && row.created_by_company_id !== viewerCompanyId;
+}
+
+/** Me lähetimme / teimme raportin kumppanille — me laskemme laskutettavan summan. */
+export function isOutgoingPartnerBill(row: BillingListRow, viewerCompanyId: string | null | undefined): boolean {
+  if (!viewerCompanyId || !isBillablePartnerReport(row)) return false;
+  return row.created_by_company_id === viewerCompanyId;
 }
 
 /** Statuses where partner billing can appear (matches work report detail, not only "Valmis"). */
