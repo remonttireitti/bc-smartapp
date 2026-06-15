@@ -92,8 +92,8 @@ import {
   shouldCalculateCustomerBilling,
 } from '../lib/workReportCustomerBilling';
 import { refreshAndPersistCustomerBillable } from '../lib/workReportCustomerBillingPersist';
+import { refreshAndPersistPartnerBillable } from '../lib/workReportPartnerBillingPersist';
 import {
-  calculateWorkReportBillable,
   formatEuro,
   hasBillableUserFlags,
   hasZeroHourlyRates,
@@ -1007,6 +1007,7 @@ export default function WorkReportDetailPage({ session }: Props) {
     const billingApplies = shouldCalculatePartnerBilling(logs, users);
     if (!billingApplies) {
       setBillableCalculation(null);
+      await refreshAndPersistPartnerBillable(supabase, reportRow, logs, rateOptions);
       return;
     }
 
@@ -1064,7 +1065,7 @@ export default function WorkReportDetailPage({ session }: Props) {
       rateOptions?.reportRates ?? billableRow?.billing_rates_override,
     );
 
-    const { rates, source } = resolveBillingRates({
+    const { rates } = resolveBillingRates({
       companyDefaults: settings.billing?.partner_rates ?? {},
       partnershipRates,
       partnershipRatesFallback,
@@ -1082,58 +1083,20 @@ export default function WorkReportDetailPage({ session }: Props) {
       storedUseCustom ? storedOverride : { ...effectivePartnershipRates, ...rates },
     );
 
-    const calculation = calculateWorkReportBillable({
+    const calculation = await refreshAndPersistPartnerBillable(
+      supabase,
+      reportRow,
       logs,
-      users,
-      rates,
-      ratesSource: source,
-      billToCompanyId: isPartnerReport ? billedCompanyId : null,
-      billToCompanyName: isPartnerReport
-        ? isDelegatedOrder
-          ? (reportRow.delegate_company?.name ?? null)
-          : (reportRow.owner_company?.name ?? null)
-        : null,
-    });
-
+      rateOptions,
+    );
     setBillableCalculation(calculation);
 
-    await supabase.from('work_report_billable').upsert({
-      work_report_id: reportRow.id,
-      partner_total: calculation.grandTotal,
-      calculation,
-      calculated_at: new Date().toISOString(),
-      use_custom_rates: storedUseCustom,
-      billing_rates_override: storedUseCustom ? storedOverride : null,
-    });
-
     if (isPartnerReport) {
-      const { data: existingBilling } = await supabase
-        .from('work_report_billing')
-        .select('partner_billed_amount, partner_invoice_status')
-        .eq('work_report_id', reportRow.id)
-        .maybeSingle();
-
-      const billedAmount = Number(existingBilling?.partner_billed_amount ?? 0);
-      const grandTotal = calculation.grandTotal;
-      let invoiceStatus = (existingBilling?.partner_invoice_status ?? 'none') as WorkReportBilling['partner_invoice_status'];
-
-      if (billedAmount > 0.005) {
-        invoiceStatus = grandTotal > billedAmount + 0.005 ? 'partial' : 'paid';
-      } else if (invoiceStatus === 'paid' || invoiceStatus === 'partial') {
-        invoiceStatus = 'none';
-      }
-
       const { data: billingRow } = await supabase
         .from('work_report_billing')
-        .upsert({
-          work_report_id: reportRow.id,
-          partner_invoice_amount: grandTotal,
-          billed_to_company_id: billedCompanyId,
-          partner_invoice_status: invoiceStatus,
-          ...(billedAmount > 0.005 ? { partner_billed_amount: billedAmount } : {}),
-        })
         .select('*')
-        .single();
+        .eq('work_report_id', reportRow.id)
+        .maybeSingle();
 
       if (billingRow) {
         setBilling(billingRow as WorkReportBilling);

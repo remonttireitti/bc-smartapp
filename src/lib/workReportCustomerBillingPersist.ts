@@ -91,29 +91,15 @@ export async function ensureCustomerBillableCalculated(
   supabase: SupabaseClient,
   reportId: string,
 ): Promise<void> {
-  const [{ data: reportData }, { data: billableRow }] = await Promise.all([
-    supabase
-      .from('work_reports')
-      .select('id, owner_company_id, customers(name)')
-      .eq('id', reportId)
-      .single(),
-    supabase
-      .from('work_report_billable')
-      .select('customer_total, customer_calculation')
-      .eq('work_report_id', reportId)
-      .maybeSingle(),
-  ]);
+  const { data: reportData } = await supabase
+    .from('work_reports')
+    .select('id, owner_company_id, customers(name)')
+    .eq('id', reportId)
+    .single();
 
   if (!reportData) return;
 
-  const calc = billableRow?.customer_calculation as { byUser?: unknown[] } | null | undefined;
-  if (Number(billableRow?.customer_total ?? 0) > 0 && (calc?.byUser?.length ?? 0) > 0) {
-    return;
-  }
-
   const logs = await loadWorkReportDailyLogs(supabase, reportId);
-  if (!shouldCalculateCustomerBilling(logs)) return;
-
   await refreshAndPersistCustomerBillable(
     supabase,
     reportData as unknown as Pick<WorkReport, 'id' | 'owner_company_id' | 'customers'>,
