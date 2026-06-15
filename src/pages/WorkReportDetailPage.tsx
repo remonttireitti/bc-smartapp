@@ -1007,7 +1007,6 @@ export default function WorkReportDetailPage({ session }: Props) {
     const billingApplies = shouldCalculatePartnerBilling(logs, users);
     if (!billingApplies) {
       setBillableCalculation(null);
-      await refreshAndPersistPartnerBillable(supabase, reportRow, logs, rateOptions);
       return;
     }
 
@@ -1112,6 +1111,7 @@ export default function WorkReportDetailPage({ session }: Props) {
     const billingApplies = shouldCalculateCustomerBilling(logs);
     if (!billingApplies) {
       setCustomerBillableCalculation(null);
+      await refreshAndPersistCustomerBillable(supabase, reportRow, logs, rateOptions);
       return;
     }
 

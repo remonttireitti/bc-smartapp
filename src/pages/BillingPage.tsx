@@ -36,7 +36,7 @@ import {
   type BillingModuleMode,
 } from '../lib/workReportBillingCopy';
 import { ensureCustomerBillableCalculated } from '../lib/workReportCustomerBillingPersist';
-import { ensurePartnerBillableCalculated } from '../lib/workReportPartnerBillingPersist';
+import { ensurePartnerBillableCalculatedIfStale } from '../lib/workReportPartnerBillingPersist';
 import { getWorkStatusLabel } from '../types';
 import {
   addDays,
@@ -227,17 +227,15 @@ export default function BillingPage({ session }: Props) {
           : all.filter(isBillablePartnerReport);
 
     const customerRows = filtered.filter(isBillableCustomerReport);
-    const partnerRows = filtered.filter(isBillablePartnerReport);
-    const rowsNeedingRecalc = [...customerRows, ...partnerRows];
+    const partnerRowsForCreator = filtered.filter(
+      (row) => isBillablePartnerReport(row) && row.created_by_company_id === profile.company_id,
+    );
 
-    if (rowsNeedingRecalc.length > 0) {
-      await Promise.all(
-        rowsNeedingRecalc.map((row) =>
-          isBillablePartnerReport(row)
-            ? ensurePartnerBillableCalculated(supabase, row.id)
-            : ensureCustomerBillableCalculated(supabase, row.id),
-        ),
-      );
+    if (customerRows.length > 0 || partnerRowsForCreator.length > 0) {
+      await Promise.all([
+        ...customerRows.map((row) => ensureCustomerBillableCalculated(supabase, row.id)),
+        ...partnerRowsForCreator.map((row) => ensurePartnerBillableCalculatedIfStale(supabase, row.id)),
+      ]);
       const ids = filtered.map((row) => row.id);
       const { data: refreshed } = await supabase.from('work_reports').select(REPORT_SELECT).in('id', ids);
       const refreshedRows = (refreshed as unknown as BillingListRow[]) ?? [];

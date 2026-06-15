@@ -14,6 +14,7 @@ import {
 } from './workReportBilling';
 import { isBillablePartnerReport } from './workReportBillingCopy';
 import { fetchWorkReportDetailLogs } from './workReportDailyLogSelect';
+import { workReportBillableNeedsRecalculation } from './workReportBillableStale';
 
 type PartnerBillableReport = Pick<
   WorkReport,
@@ -150,11 +151,12 @@ export async function refreshAndPersistPartnerBillable(
 
   const billedAmount = Number(existingBilling?.partner_billed_amount ?? 0);
   const grandTotal = calculation.grandTotal;
-  let invoiceStatus = (existingBilling?.partner_invoice_status ?? 'none') as InvoiceStatus;
+  const existingStatus = (existingBilling?.partner_invoice_status ?? 'none') as InvoiceStatus;
+  let invoiceStatus = existingStatus;
 
   if (billedAmount > 0.005) {
     invoiceStatus = grandTotal > billedAmount + 0.005 ? 'partial' : 'paid';
-  } else if (invoiceStatus === 'paid' || invoiceStatus === 'partial') {
+  } else if (existingStatus !== 'paid' && existingStatus !== 'partial') {
     invoiceStatus = 'none';
   }
 
@@ -192,19 +194,33 @@ export async function ensurePartnerBillableCalculated(
   }
 
   const users = await loadBillableUsers(supabase, logs);
-  if (!shouldCalculatePartnerBilling(logs, users)) {
-    await supabase.from('work_report_billable').upsert({
-      work_report_id: reportId,
-      partner_total: 0,
-      calculation: {},
-      calculated_at: new Date().toISOString(),
-    });
-    return;
-  }
+  if (!shouldCalculatePartnerBilling(logs, users)) return;
 
   await refreshAndPersistPartnerBillable(
     supabase,
     reportData as unknown as PartnerBillableReport,
     logs,
   );
+}
+
+export async function ensurePartnerBillableCalculatedIfStale(
+  supabase: SupabaseClient,
+  reportId: string,
+): Promise<void> {
+  const { data: billableRow } = await supabase
+    .from('work_report_billable')
+    .select('calculated_at')
+    .eq('work_report_id', reportId)
+    .maybeSingle();
+
+  if (!billableRow?.calculated_at) return;
+
+  const stale = await workReportBillableNeedsRecalculation(
+    supabase,
+    reportId,
+    billableRow.calculated_at,
+  );
+  if (!stale) return;
+
+  await ensurePartnerBillableCalculated(supabase, reportId);
 }

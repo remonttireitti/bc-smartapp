@@ -11,6 +11,7 @@ import {
   shouldCalculateCustomerBilling,
 } from './workReportCustomerBilling';
 import { fetchCustomerBillingLogs } from './workReportDailyLogSelect';
+import { workReportBillableNeedsRecalculation } from './workReportBillableStale';
 
 export async function loadWorkReportDailyLogs(
   supabase: SupabaseClient,
@@ -45,7 +46,9 @@ export async function refreshAndPersistCustomerBillable(
     supabase.from('companies').select('settings').eq('id', reportRow.owner_company_id).single(),
     supabase
       .from('work_report_billing')
-      .select('customer_rates_override, use_custom_customer_rates')
+      .select(
+        'customer_rates_override, use_custom_customer_rates, customer_invoice_status, customer_billed_at',
+      )
       .eq('work_report_id', reportRow.id)
       .maybeSingle(),
   ]);
@@ -81,6 +84,10 @@ export async function refreshAndPersistCustomerBillable(
       customer_invoice_amount: calculation.grandTotal,
       use_custom_customer_rates: storedUseCustom,
       customer_rates_override: storedUseCustom ? storedOverride : null,
+      ...(billingRow?.customer_invoice_status
+        ? { customer_invoice_status: billingRow.customer_invoice_status }
+        : {}),
+      ...(billingRow?.customer_billed_at ? { customer_billed_at: billingRow.customer_billed_at } : {}),
     }),
   ]);
 
@@ -91,15 +98,37 @@ export async function ensureCustomerBillableCalculated(
   supabase: SupabaseClient,
   reportId: string,
 ): Promise<void> {
-  const { data: reportData } = await supabase
-    .from('work_reports')
-    .select('id, owner_company_id, customers(name)')
-    .eq('id', reportId)
-    .single();
+  const [{ data: reportData }, { data: billableRow }] = await Promise.all([
+    supabase
+      .from('work_reports')
+      .select('id, owner_company_id, customers(name)')
+      .eq('id', reportId)
+      .single(),
+    supabase
+      .from('work_report_billable')
+      .select('customer_total, customer_calculation, calculated_at')
+      .eq('work_report_id', reportId)
+      .maybeSingle(),
+  ]);
 
   if (!reportData) return;
 
+  const calc = billableRow?.customer_calculation as { byUser?: unknown[] } | null | undefined;
+  const hasCalculation =
+    Number(billableRow?.customer_total ?? 0) > 0 && (calc?.byUser?.length ?? 0) > 0;
+
+  if (hasCalculation) {
+    const stale = await workReportBillableNeedsRecalculation(
+      supabase,
+      reportId,
+      billableRow?.calculated_at,
+    );
+    if (!stale) return;
+  }
+
   const logs = await loadWorkReportDailyLogs(supabase, reportId);
+  if (!shouldCalculateCustomerBilling(logs) && !hasCalculation) return;
+
   await refreshAndPersistCustomerBillable(
     supabase,
     reportData as unknown as Pick<WorkReport, 'id' | 'owner_company_id' | 'customers'>,
