@@ -29,7 +29,7 @@ import {
   isBillablePartnerReport,
   isBillableCustomerReport,
   isIncomingPartnerBill,
-  isOutgoingPartnerBill,
+  canViewerRecalcPartnerBill,
   billingRowHasStoredCalculation,
   billingRowNeedsPartnerRecalc,
   loadBillingCopyText,
@@ -191,13 +191,11 @@ export default function BillingPage({ session }: Props) {
   }
 
   async function startStalePartnerRecalc(filtered: BillingListRow[], companyId: string) {
-    const partnerRowsForCreator = filtered.filter(
-      (row) => isBillablePartnerReport(row) && row.created_by_company_id === companyId,
-    );
+    const partnerRowsForRecalc = filtered.filter((row) => canViewerRecalcPartnerBill(row, companyId));
 
     const stalePartnerIds = await findStaleBillableReportIds(
       supabase,
-      partnerRowsForCreator.map((row) => ({
+      partnerRowsForRecalc.map((row) => ({
         workReportId: row.id,
         calculatedAt: row.billable?.calculated_at,
         hasCalculation: billingRowHasStoredCalculation(row, 'partner'),
@@ -205,8 +203,8 @@ export default function BillingPage({ session }: Props) {
       })),
     );
 
-    const flaggedPartnerIds = partnerRowsForCreator
-      .filter((row) => billingRowNeedsPartnerRecalc(row, companyId))
+    const flaggedPartnerIds = partnerRowsForRecalc
+      .filter((row) => billingRowNeedsPartnerRecalc(row))
       .map((row) => row.id);
     const workIds = [...new Set([...stalePartnerIds, ...flaggedPartnerIds])];
 
@@ -217,7 +215,7 @@ export default function BillingPage({ session }: Props) {
     await runWithConcurrency(workIds, 3, async (reportId) => {
       setRecalculatingIds((prev) => new Set(prev).add(reportId));
       try {
-        await ensurePartnerBillableCalculated(supabase, reportId);
+        await ensurePartnerBillableCalculated(supabase, reportId, companyId);
         await refreshBillingRow(reportId);
       } catch (recalcError) {
         console.error('Kumppanilaskelman päivitys epäonnistui:', reportId, recalcError);
@@ -303,7 +301,7 @@ export default function BillingPage({ session }: Props) {
   async function recalcPartnerRow(reportId: string) {
     setRecalculatingIds((prev) => new Set(prev).add(reportId));
     try {
-      await ensurePartnerBillableCalculated(supabase, reportId);
+      await ensurePartnerBillableCalculated(supabase, reportId, profile?.company_id);
       await refreshBillingRow(reportId);
     } catch (recalcError) {
       console.error('Kumppanilaskelman päivitys epäonnistui:', reportId, recalcError);
@@ -378,7 +376,7 @@ export default function BillingPage({ session }: Props) {
           if (billingRowState(row, mode) === 'billed') return false;
         } else if (
           openAmount <= 0.005
-          && !billingRowNeedsPartnerRecalc(row, profile?.company_id)
+          && !billingRowNeedsPartnerRecalc(row)
           && billingRowHasStoredCalculation(row, mode)
         ) {
           return false;
@@ -418,7 +416,7 @@ export default function BillingPage({ session }: Props) {
           ? billingRowState(row, mode) !== 'billed'
           : incomingPartner
             ? openAmount > 0.005 && billingRowState(row, mode) !== 'billed'
-            : openAmount > 0.005 || billingRowNeedsPartnerRecalc(row, profile?.company_id);
+            : openAmount > 0.005 || billingRowNeedsPartnerRecalc(row);
       if (statusFilter === 'unbilled' && !isOpen) continue;
       if (statusFilter === 'billed' && billedAmount <= 0.005) continue;
       if (statusFilter === 'all' ? isOpen : statusFilter === 'unbilled') {
@@ -1161,11 +1159,10 @@ export default function BillingPage({ session }: Props) {
                   onMarkBilled={() => void markBilled(row)}
                   onUnmarkBilled={() => void unmarkBilled(row)}
                   onRecalcPartner={
-                    isOutgoingPartnerBill(row, profile?.company_id)
+                    canViewerRecalcPartnerBill(row, profile?.company_id)
                       ? () => void recalcPartnerRow(row.id)
                       : undefined
                   }
-                  viewerCompanyId={profile?.company_id}
                 />
               ))}
             </div>
@@ -1188,7 +1185,6 @@ function BillingReportCard({
   onMarkBilled,
   onUnmarkBilled,
   onRecalcPartner,
-  viewerCompanyId,
 }: {
   row: BillingListRow;
   mode: 'partner' | 'customer';
@@ -1200,9 +1196,7 @@ function BillingReportCard({
   onMarkBilled: () => void;
   onUnmarkBilled: () => void;
   onRecalcPartner?: () => void;
-  viewerCompanyId?: string | null;
 }) {
-  const incomingPartner = isIncomingPartnerBill(row, viewerCompanyId);
   const breakdown = billingRowBreakdown(row, mode);
   const amounts =
     mode === 'customer'
@@ -1244,12 +1238,9 @@ function BillingReportCard({
               <span className="billing-calc-badge billing-calc-badge-updating">Lasketaan…</span>
             ) : billingEnabled && hasCalculation ? (
               <span className="billing-calc-badge billing-calc-badge-ready" title={calculatedAtLabel ?? undefined}>
-                {incomingPartner ? 'Kumppani lasketti' : 'Laskettu'}
-                {calculatedAtLabel ? ` · ${calculatedAtLabel}` : ''}
+                Laskettu{calculatedAtLabel ? ` · ${calculatedAtLabel}` : ''}
               </span>
-            ) : billingEnabled && incomingPartner ? (
-              <span className="billing-calc-badge billing-calc-badge-none">Odottaa kumppanin laskelmaa</span>
-            ) : billingEnabled && billingRowNeedsPartnerRecalc(row, viewerCompanyId) ? (
+            ) : billingEnabled && billingRowNeedsPartnerRecalc(row) ? (
               <span className="billing-calc-badge billing-calc-badge-none">Päivitettävä</span>
             ) : billingEnabled ? (
               <span className="billing-calc-badge billing-calc-badge-none">Ei laskettu</span>

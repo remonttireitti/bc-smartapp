@@ -47,7 +47,11 @@ export async function refreshAndPersistPartnerBillable(
   supabase: SupabaseClient,
   reportRow: PartnerBillableReport,
   logs: WorkReportDailyLog[],
-  rateOptions?: { useCustomRates?: boolean; reportRates?: PartnerBillingRates },
+  rateOptions?: {
+    useCustomRates?: boolean;
+    reportRates?: PartnerBillingRates;
+    viewerCompanyId?: string | null;
+  },
 ) {
   const users = await loadBillableUsers(supabase, logs);
   const billingApplies = shouldCalculatePartnerBilling(logs, users);
@@ -66,8 +70,16 @@ export async function refreshAndPersistPartnerBillable(
     ? reportRow.delegate_company_id!
     : reportRow.owner_company_id;
 
-  const [{ data: companyRow }, { data: billableRow }] = await Promise.all([
+  const isIncomingToViewer =
+    !!rateOptions?.viewerCompanyId
+    && reportRow.owner_company_id === rateOptions.viewerCompanyId
+    && reportRow.created_by_company_id !== rateOptions.viewerCompanyId;
+
+  const [{ data: companyRow }, { data: viewerCompanyRow }, { data: billableRow }] = await Promise.all([
     supabase.from('companies').select('settings').eq('id', reportRow.created_by_company_id).single(),
+    isIncomingToViewer
+      ? supabase.from('companies').select('settings').eq('id', rateOptions!.viewerCompanyId!).single()
+      : Promise.resolve({ data: null }),
     supabase
       .from('work_report_billable')
       .select('billing_rates_override, use_custom_rates')
@@ -76,6 +88,9 @@ export async function refreshAndPersistPartnerBillable(
   ]);
 
   const settings = parseCompanySettings((companyRow as { settings: unknown } | null)?.settings);
+  const viewerSettings = parseCompanySettings(
+    (viewerCompanyRow as { settings: unknown } | null)?.settings,
+  );
 
   let partnershipRates: PartnerBillingRates = {};
   let partnershipRatesFallback: PartnerBillingRates = {};
@@ -127,7 +142,7 @@ export async function refreshAndPersistPartnerBillable(
     billToCompanyName: isDelegatedOrder
       ? (reportRow.delegate_company?.name ?? null)
       : (reportRow.owner_company?.name ?? null),
-    tripKmRate: parseTripKmRate(settings),
+    tripKmRate: parseTripKmRate(settings) ?? parseTripKmRate(viewerSettings),
   });
 
   const { error: billableError } = await supabase.from('work_report_billable').upsert({
@@ -160,13 +175,16 @@ export async function refreshAndPersistPartnerBillable(
     invoiceStatus = 'none';
   }
 
-  await supabase.from('work_report_billing').upsert({
+  const { error: billingError } = await supabase.from('work_report_billing').upsert({
     work_report_id: reportRow.id,
     partner_invoice_amount: grandTotal,
     billed_to_company_id: billedCompanyId,
     partner_invoice_status: invoiceStatus,
     ...(billedAmount > 0.005 ? { partner_billed_amount: billedAmount } : {}),
   });
+  if (billingError) {
+    throw new Error(billingError.message);
+  }
 
   return calculation;
 }
@@ -186,6 +204,7 @@ export async function markPartnerBillableRecalcNeeded(
 export async function ensurePartnerBillableCalculated(
   supabase: SupabaseClient,
   reportId: string,
+  viewerCompanyId?: string | null,
 ): Promise<void> {
   const { data: reportData } = await supabase
     .from('work_reports')
@@ -212,6 +231,7 @@ export async function ensurePartnerBillableCalculated(
     supabase,
     reportData as unknown as PartnerBillableReport,
     logs,
+    { viewerCompanyId },
   );
 }
 

@@ -71,6 +71,7 @@ export async function findStaleBillableReportIds(
 
   const logIds = [...logToReport.keys()];
   const expenseCountByLogId = new Map<string, number>();
+  const tripLegCountByLogId = new Map<string, number>();
   const refrigerantCountByLogId = new Map<string, number>();
 
   if (logIds.length > 0) {
@@ -87,7 +88,7 @@ export async function findStaleBillableReportIds(
       expenseCountByLogId.set(row.daily_log_id, (expenseCountByLogId.get(row.daily_log_id) ?? 0) + 1);
     }
     for (const row of tripLegs ?? []) {
-      expenseCountByLogId.set(row.daily_log_id, (expenseCountByLogId.get(row.daily_log_id) ?? 0) + 1);
+      tripLegCountByLogId.set(row.daily_log_id, (tripLegCountByLogId.get(row.daily_log_id) ?? 0) + 1);
     }
     for (const row of refrigerantLines ?? []) {
       refrigerantCountByLogId.set(row.daily_log_id, (refrigerantCountByLogId.get(row.daily_log_id) ?? 0) + 1);
@@ -118,6 +119,7 @@ export async function findStaleBillableReportIds(
         calculationLogIds: calcLogIds,
         expenseCountByLogId,
         refrigerantCountByLogId,
+        tripLegCountByLogId,
       })
     ) {
       staleIds.push(snapshot.workReportId);

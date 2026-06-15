@@ -96,12 +96,19 @@ export function billingRowHasStoredCalculation(row: BillingListRow, mode: 'partn
   return false;
 }
 
-export function billingRowNeedsPartnerRecalc(
-  row: BillingListRow,
-  viewerCompanyId?: string | null,
-): boolean {
-  if (viewerCompanyId && isIncomingPartnerBill(row, viewerCompanyId)) return false;
+export function billingRowNeedsPartnerRecalc(row: BillingListRow): boolean {
   return row.billable?.partner_recalc_needed === true;
+}
+
+/** Voiko katsoja laskea / päivittää kumppanilaskelman tähän raporttiin. */
+export function canViewerRecalcPartnerBill(
+  row: BillingListRow,
+  viewerCompanyId: string | null | undefined,
+): boolean {
+  if (!viewerCompanyId || !isBillablePartnerReport(row)) return false;
+  if (isOutgoingPartnerBill(row, viewerCompanyId)) return true;
+  if (isIncomingPartnerBill(row, viewerCompanyId)) return true;
+  return false;
 }
 
 export function billingRowHasCalculation(row: BillingListRow, mode: 'partner' | 'customer'): boolean {

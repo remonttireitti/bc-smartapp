@@ -992,7 +992,11 @@ export default function WorkReportDetailPage({ session }: Props) {
   async function refreshBillable(
     reportRow: WorkReport,
     logs: WorkReportDailyLog[],
-    rateOptions?: { useCustomRates?: boolean; reportRates?: PartnerBillingRates },
+    rateOptions?: {
+      useCustomRates?: boolean;
+      reportRates?: PartnerBillingRates;
+      viewerCompanyId?: string | null;
+    },
   ) {
     const userIds = [...new Set(logs.map((l) => l.created_by).filter(Boolean))] as string[];
     let users: UserBillingProfile[] = [];
@@ -1466,10 +1470,15 @@ export default function WorkReportDetailPage({ session }: Props) {
       return;
     }
 
-    // Kumppanilaskelma tallennetaan aina raportin laajan yrityksen nimissä (RLS).
-    // Toimeksisaaja voi kirjata työt — laskenta päivittyy kun laatija avaa laskutuksen tai tallentaa itse.
-    if (profile?.company_id === reportRow.created_by_company_id) {
-      await refreshBillable(reportRow, logs);
+    // Kumppanilaskelma: laatija tai saapuvan raportin omistaja (jos kumppanilla ei ole laskutusta).
+    const canPersistPartnerBillable =
+      profile?.company_id === reportRow.created_by_company_id
+      || (
+        profile?.company_id === reportRow.owner_company_id
+        && reportRow.created_by_company_id !== reportRow.owner_company_id
+      );
+    if (canPersistPartnerBillable) {
+      await refreshBillable(reportRow, logs, { viewerCompanyId: profile?.company_id });
     }
   }
 
