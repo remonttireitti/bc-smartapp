@@ -37,9 +37,7 @@ import {
   type BillingListRow,
   type BillingModuleMode,
 } from '../lib/workReportBillingCopy';
-import { ensureCustomerBillableCalculated } from '../lib/workReportCustomerBillingPersist';
 import { ensurePartnerBillableCalculated } from '../lib/workReportPartnerBillingPersist';
-import { findStaleBillableReportIds, runWithConcurrency } from '../lib/workReportBillableStale';
 import {
   addDays,
   addMonths,
@@ -83,8 +81,6 @@ const REPORT_SELECT = `
   billable:work_report_billable(partner_total, calculation, customer_total, customer_calculation, calculated_at)
 `;
 
-type RecalcJob = { id: string; kind: 'customer' | 'partner' };
-
 export default function BillingPage({ session }: Props) {
   const { profile } = useProfile(session);
   const billingModuleEnabled = useCompanyBillingModuleEnabled(profile?.company_id, session);
@@ -99,7 +95,7 @@ export default function BillingPage({ session }: Props) {
         : urlMode === 'total'
           ? 'total'
           : partnershipsEnabled !== false
-            ? 'partner'
+            ? 'total'
             : 'customer';
   const [tab, setTab] = useState<Tab>('list');
   const [billingMode, setBillingMode] = useState<BillingModuleMode>(initialMode);
@@ -120,7 +116,6 @@ export default function BillingPage({ session }: Props) {
   const [customFrom, setCustomFrom] = useState('');
   const [customTo, setCustomTo] = useState('');
   const [busyId, setBusyId] = useState<string | null>(null);
-  const [recalcState, setRecalcState] = useState<{ total: number; done: number } | null>(null);
   const [recalculatingIds, setRecalculatingIds] = useState<Set<string>>(() => new Set());
   const [partnerOptions, setPartnerOptions] = useState<Array<{ id: string; name: string }>>([]);
 
@@ -130,7 +125,7 @@ export default function BillingPage({ session }: Props) {
     } else if (searchParams.get('mode') === 'partner') {
       setBillingMode(partnershipsEnabled === false ? 'customer' : 'partner');
     } else if (searchParams.get('mode') === 'total' || !searchParams.get('mode')) {
-      setBillingMode(partnershipsEnabled === false ? 'customer' : 'partner');
+      setBillingMode(partnershipsEnabled === false ? 'customer' : 'total');
     }
   }, [searchParams, partnershipsEnabled]);
 
@@ -190,78 +185,10 @@ export default function BillingPage({ session }: Props) {
     setRows((prev) => prev.map((row) => (row.id === reportId ? updated : row)));
   }
 
-  async function startBackgroundRecalc(
-    filtered: BillingListRow[],
-    companyId: string,
-    mode: BillingModuleMode,
-    customerEnabled: boolean | null,
-    partnerAvailable: boolean | null,
-  ) {
-    const work: RecalcJob[] = [];
-
-    if ((mode === 'customer' || mode === 'total') && customerEnabled !== false) {
-      const customerRows = filtered.filter(isBillableCustomerReport);
-      const staleCustomerIds = await findStaleBillableReportIds(
-        supabase,
-        customerRows.map((row) => ({
-          workReportId: row.id,
-          calculatedAt: row.billable?.calculated_at,
-          hasCalculation: billingRowHasStoredCalculation(row, 'customer'),
-          calculation: row.billable?.customer_calculation,
-        })),
-      );
-      work.push(...staleCustomerIds.map((id) => ({ id, kind: 'customer' as const })));
-    }
-
-    if ((mode === 'partner' || mode === 'total') && partnerAvailable !== false) {
-      const partnerRowsForCreator = filtered.filter(
-        (row) => isBillablePartnerReport(row) && row.created_by_company_id === companyId,
-      );
-      const stalePartnerIds = await findStaleBillableReportIds(
-        supabase,
-        partnerRowsForCreator.map((row) => ({
-          workReportId: row.id,
-          calculatedAt: row.billable?.calculated_at,
-          hasCalculation: billingRowHasStoredCalculation(row, 'partner'),
-          calculation: row.billable?.calculation,
-        })),
-      );
-      work.push(...stalePartnerIds.map((id) => ({ id, kind: 'partner' as const })));
-    }
-
-    if (work.length === 0) return;
-
-    setRecalcState({ total: work.length, done: 0 });
-
-    await runWithConcurrency(work, 3, async (item) => {
-      setRecalculatingIds((prev) => new Set(prev).add(item.id));
-      try {
-        if (item.kind === 'customer') {
-          await ensureCustomerBillableCalculated(supabase, item.id, { skipStaleCheck: true });
-        } else {
-          await ensurePartnerBillableCalculated(supabase, item.id);
-        }
-        await refreshBillingRow(item.id);
-      } catch (recalcError) {
-        console.error('Laskelman päivitys epäonnistui:', item.id, recalcError);
-      } finally {
-        setRecalcState((state) => (state ? { total: state.total, done: state.done + 1 } : null));
-        setRecalculatingIds((prev) => {
-          const next = new Set(prev);
-          next.delete(item.id);
-          return next;
-        });
-      }
-    });
-
-    setRecalcState(null);
-  }
-
   async function load(mode: BillingModuleMode = billingMode) {
     if (!profile?.company_id) return;
     setLoading(true);
     setError(null);
-    setRecalcState(null);
     setRecalculatingIds(new Set());
 
     const [enabled, customerEnabled, partnerAvailable] = await Promise.all([
@@ -317,8 +244,23 @@ export default function BillingPage({ session }: Props) {
 
     setRows(filtered);
     setLoading(false);
+  }
 
-    void startBackgroundRecalc(filtered, profile.company_id, mode, customerEnabled, partnerAvailable);
+  async function recalcPartnerRow(reportId: string) {
+    setRecalculatingIds((prev) => new Set(prev).add(reportId));
+    try {
+      await ensurePartnerBillableCalculated(supabase, reportId);
+      await refreshBillingRow(reportId);
+    } catch (recalcError) {
+      console.error('Kumppanilaskelman päivitys epäonnistui:', reportId, recalcError);
+      setError('Laskelman päivitys epäonnistui. Yritä uudelleen.');
+    } finally {
+      setRecalculatingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(reportId);
+        return next;
+      });
+    }
   }
 
   const partners = useMemo(() => {
@@ -828,18 +770,6 @@ export default function BillingPage({ session }: Props) {
             </article>
           </div>
 
-          {recalcState ? (
-            <div className="billing-recalc-banner panel" role="status" aria-live="polite">
-              <span className="billing-recalc-spinner" aria-hidden="true" />
-              <div>
-                <strong>Päivitetään laskelmia taustalla</strong>
-                <p className="muted billing-recalc-meta">
-                  {recalcState.done} / {recalcState.total} valmis — lista näkyy heti, summat päivittyvät
-                  rivi kerrallaan.
-                </p>
-              </div>
-            </div>
-          ) : null}
 
           <div className="billing-toolbar panel">
             <div className="billing-filter-pills">
@@ -1138,6 +1068,9 @@ export default function BillingPage({ session }: Props) {
                   onCopy={() => void copyBillingText(row)}
                   onMarkBilled={() => void markBilled(row)}
                   onUnmarkBilled={() => void unmarkBilled(row)}
+                  onRecalcPartner={
+                    rowBillingMode(row) === 'partner' ? () => void recalcPartnerRow(row.id) : undefined
+                  }
                 />
               ))}
             </div>
@@ -1159,6 +1092,7 @@ function BillingReportCard({
   onCopy,
   onMarkBilled,
   onUnmarkBilled,
+  onRecalcPartner,
 }: {
   row: BillingListRow;
   mode: 'partner' | 'customer';
@@ -1169,6 +1103,7 @@ function BillingReportCard({
   onCopy: () => void;
   onMarkBilled: () => void;
   onUnmarkBilled: () => void;
+  onRecalcPartner?: () => void;
 }) {
   const breakdown = billingRowBreakdown(row, mode);
   const amounts =
@@ -1269,6 +1204,16 @@ function BillingReportCard({
       </div>
 
       <div className="billing-report-actions">
+        {onRecalcPartner && billingEnabled && (
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm"
+            disabled={busy || isRecalculating}
+            onClick={onRecalcPartner}
+          >
+            {isRecalculating ? 'Lasketaan…' : 'Päivitä laskelma'}
+          </button>
+        )}
         <button type="button" className="btn btn-secondary btn-sm" disabled={busy} onClick={onCopy}>
           Kopioi laskutusteksti
         </button>

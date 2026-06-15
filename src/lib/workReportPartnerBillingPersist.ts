@@ -14,7 +14,7 @@ import {
 } from './workReportBilling';
 import { isBillablePartnerReport } from './workReportBillingCopy';
 import { fetchWorkReportDetailLogs } from './workReportDailyLogSelect';
-import { workReportBillableNeedsRecalculation } from './workReportBillableStale';
+import { findStaleBillableReportIds } from './workReportBillableStale';
 
 type PartnerBillableReport = Pick<
   WorkReport,
@@ -52,12 +52,6 @@ export async function refreshAndPersistPartnerBillable(
   const billingApplies = shouldCalculatePartnerBilling(logs, users);
 
   if (!billingApplies) {
-    await supabase.from('work_report_billable').upsert({
-      work_report_id: reportRow.id,
-      partner_total: 0,
-      calculation: {},
-      calculated_at: new Date().toISOString(),
-    });
     return null;
   }
 
@@ -218,12 +212,15 @@ export async function ensurePartnerBillableCalculatedWhenNeeded(
     Number(billableRow?.partner_total ?? 0) > 0 && (calc?.byUser?.length ?? 0) > 0;
 
   if (hasPartnerCalculation && billableRow?.calculated_at) {
-    const stale = await workReportBillableNeedsRecalculation(
-      supabase,
-      reportId,
-      billableRow.calculated_at,
-    );
-    if (!stale) return;
+    const staleIds = await findStaleBillableReportIds(supabase, [
+      {
+        workReportId: reportId,
+        calculatedAt: billableRow.calculated_at,
+        hasCalculation: true,
+        calculation: billableRow.calculation,
+      },
+    ]);
+    if (!staleIds.includes(reportId)) return;
   }
 
   await ensurePartnerBillableCalculated(supabase, reportId);

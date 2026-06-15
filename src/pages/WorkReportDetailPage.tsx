@@ -91,7 +91,6 @@ import {
   shouldCalculateCustomerBilling,
 } from '../lib/workReportCustomerBilling';
 import { refreshAndPersistCustomerBillable } from '../lib/workReportCustomerBillingPersist';
-import { syncWorkReportBillingAfterLogChange } from '../lib/workReportBillingSync';
 import { refreshAndPersistPartnerBillable } from '../lib/workReportPartnerBillingPersist';
 import {
   formatEuro,
@@ -1451,7 +1450,21 @@ export default function WorkReportDetailPage({ session }: Props) {
   }
 
   async function persistBillingAfterLogChange(reportRow: WorkReport) {
-    await syncWorkReportBillingAfterLogChange(supabase, reportRow, profile?.company_id);
+    const isDelegatedOrder =
+      !!reportRow.delegate_company_id && reportRow.created_by_company_id === reportRow.owner_company_id;
+    const isPartnerReport =
+      reportRow.created_by_company_id !== reportRow.owner_company_id || isDelegatedOrder;
+    if (!isPartnerReport || profile?.company_id !== reportRow.created_by_company_id) {
+      return;
+    }
+
+    const { logs, error } = await fetchWorkReportDetailLogs(supabase, reportRow.id);
+    if (error) {
+      console.error('Päiväkirjausten lataus laskentaa varten epäonnistui:', error.message);
+      return;
+    }
+
+    await refreshBillable(reportRow, logs);
   }
 
   async function addDailyLog(e: FormEvent) {
