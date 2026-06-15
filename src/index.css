@@ -6770,6 +6770,66 @@ textarea {
   border-top: 1px solid var(--border);
 }
 
+.billing-recalc-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: .75rem;
+  margin-bottom: 1rem;
+  border-left: 3px solid var(--primary);
+}
+
+.billing-recalc-meta {
+  margin: .25rem 0 0;
+  font-size: .875rem;
+}
+
+.billing-recalc-spinner {
+  width: 1.1rem;
+  height: 1.1rem;
+  margin-top: .15rem;
+  border: 2px solid color-mix(in srgb, var(--primary) 25%, transparent);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: billing-recalc-spin .75s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes billing-recalc-spin {
+  to { transform: rotate(360deg); }
+}
+
+.billing-calc-badge {
+  font-size: .72rem;
+  font-weight: 600;
+  padding: .15rem .45rem;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.billing-calc-badge-updating {
+  background: color-mix(in srgb, var(--primary) 12%, var(--surface));
+  color: var(--primary);
+}
+
+.billing-calc-badge-ready {
+  background: color-mix(in srgb, #22c55e 12%, var(--surface));
+  color: #15803d;
+}
+
+.billing-calc-badge-none {
+  background: var(--bg-muted);
+  color: var(--text-muted);
+}
+
+.billing-report-card-recalculating {
+  opacity: .92;
+}
+
+.billing-report-summary-pending {
+  margin: .35rem 0 0;
+  font-size: .875rem;
+}
+
 @media (max-width: 760px) {
   .billing-report-main {
     grid-template-columns: 1fr;

@@ -45,6 +45,7 @@ export type BillingListRow = {
     calculation?: import('./workReportBilling').BillableCalculation;
     customer_total?: number;
     customer_calculation?: import('./workReportBilling').BillableCalculation;
+    calculated_at?: string | null;
   } | null;
   customer_id?: string | null;
 };
@@ -69,6 +70,20 @@ export function isBillableCustomerReport(
   row: Pick<BillingListRow, 'owner_company_id' | 'created_by_company_id' | 'delegate_company_id'>,
 ): boolean {
   return !isBillablePartnerReport(row);
+}
+
+export function billingRowHasPartnerCalculation(row: BillingListRow): boolean {
+  const calc = row.billable?.calculation as { byUser?: unknown[] } | null | undefined;
+  return Number(row.billable?.partner_total ?? 0) > 0 && (calc?.byUser?.length ?? 0) > 0;
+}
+
+export function billingRowHasCustomerCalculation(row: BillingListRow): boolean {
+  const calc = row.billable?.customer_calculation as { byUser?: unknown[] } | null | undefined;
+  return Number(row.billable?.customer_total ?? 0) > 0 && (calc?.byUser?.length ?? 0) > 0;
+}
+
+export function billingRowHasCalculation(row: BillingListRow, mode: 'partner' | 'customer'): boolean {
+  return mode === 'customer' ? billingRowHasCustomerCalculation(row) : billingRowHasPartnerCalculation(row);
 }
 
 export function billingRowAmount(row: BillingListRow, mode: BillingModuleMode = 'partner'): number {

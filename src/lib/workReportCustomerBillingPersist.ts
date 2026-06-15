@@ -97,6 +97,7 @@ export async function refreshAndPersistCustomerBillable(
 export async function ensureCustomerBillableCalculated(
   supabase: SupabaseClient,
   reportId: string,
+  options?: { skipStaleCheck?: boolean },
 ): Promise<void> {
   const [{ data: reportData }, { data: billableRow }] = await Promise.all([
     supabase
@@ -117,7 +118,7 @@ export async function ensureCustomerBillableCalculated(
   const hasCalculation =
     Number(billableRow?.customer_total ?? 0) > 0 && (calc?.byUser?.length ?? 0) > 0;
 
-  if (hasCalculation) {
+  if (hasCalculation && !options?.skipStaleCheck) {
     const stale = await workReportBillableNeedsRecalculation(
       supabase,
       reportId,
