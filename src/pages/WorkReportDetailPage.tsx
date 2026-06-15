@@ -21,7 +21,6 @@ import Tooltip from '../components/Tooltip';
 import WorkReportBillingBreakdown from '../components/WorkReportBillingBreakdown';
 import WorkReportStatusBadges from '../components/WorkReportStatusBadges';
 import { useCompanyCustomerBillingEnabled } from '../hooks/useCompanyCustomerBillingEnabled';
-import { useCompanyBillingEnabled } from '../hooks/useCompanyBillingEnabled';
 import { useCompanyBillingModuleEnabled } from '../hooks/useCompanyBillingModuleEnabled';
 import { useProfile } from '../hooks/useProfile';
 import { canDeleteWorkReport } from '../lib/deletePermissions';
@@ -895,9 +894,8 @@ export default function WorkReportDetailPage({ session }: Props) {
   const [reportAttachments, setReportAttachments] = useState<WorkReportAttachment[]>([]);
 
   const billingModuleEnabled = useCompanyBillingModuleEnabled(profile?.company_id, session);
-  const creatorPartnerBilling = useCompanyBillingEnabled(report?.created_by_company_id, session);
   const ownerCustomerInvoicing = useCompanyCustomerBillingEnabled(report?.owner_company_id, session);
-  const partnerBillingEnabled = billingModuleEnabled !== false && creatorPartnerBilling;
+  const partnerBillingEnabled = billingModuleEnabled !== false;
   const customerInvoicingEnabled = ownerCustomerInvoicing === true;
 
   useEffect(() => {

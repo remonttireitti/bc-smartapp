@@ -6,7 +6,11 @@ import {
   type InvoiceStatus,
   type WorkReportDailyLog,
 } from '../types';
-import { loadCompanyTracksCustomerInvoicing } from './management';
+import {
+  companyBillingModuleEnabled,
+  loadCompanyTracksCustomerInvoicing,
+  parseCompanySettings,
+} from './management';
 import {
   formatRefrigerantLineLabel,
   refrigerantBillingReminder,
@@ -247,6 +251,25 @@ export async function companyHasBillableBilling(
   }
 
   return (data ?? []).some((row) => row.bill_hours_enabled || row.bill_expenses_enabled);
+}
+
+/** Omalle yritykselle kumppanilaskutus: riittää moduuli, ei kumppanin moduulia eikä käyttäjäkohtaisia kytkimiä. */
+export async function companyPartnerBillingAvailable(
+  supabase: SupabaseClient,
+  companyId: string,
+): Promise<boolean> {
+  const { data: moduleRpc, error: moduleError } = await supabase.rpc('company_billing_module_enabled', {
+    p_company_id: companyId,
+  });
+  if (!moduleError) return moduleRpc !== false;
+
+  const { data, error } = await supabase.from('companies').select('settings').eq('id', companyId).single();
+  if (error) {
+    console.error('Laskutusmoduulin tarkistus epäonnistui:', error.message);
+    return false;
+  }
+  const settings = parseCompanySettings((data as { settings: unknown } | null)?.settings);
+  return companyBillingModuleEnabled(settings);
 }
 
 export function formatWorkReportBillingCopy(input: {

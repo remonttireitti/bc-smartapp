@@ -203,24 +203,28 @@ export async function ensurePartnerBillableCalculated(
   );
 }
 
-export async function ensurePartnerBillableCalculatedIfStale(
+export async function ensurePartnerBillableCalculatedWhenNeeded(
   supabase: SupabaseClient,
   reportId: string,
 ): Promise<void> {
   const { data: billableRow } = await supabase
     .from('work_report_billable')
-    .select('calculated_at')
+    .select('calculated_at, partner_total, calculation')
     .eq('work_report_id', reportId)
     .maybeSingle();
 
-  if (!billableRow?.calculated_at) return;
+  const calc = billableRow?.calculation as { byUser?: unknown[] } | null | undefined;
+  const hasPartnerCalculation =
+    Number(billableRow?.partner_total ?? 0) > 0 && (calc?.byUser?.length ?? 0) > 0;
 
-  const stale = await workReportBillableNeedsRecalculation(
-    supabase,
-    reportId,
-    billableRow.calculated_at,
-  );
-  if (!stale) return;
+  if (hasPartnerCalculation && billableRow?.calculated_at) {
+    const stale = await workReportBillableNeedsRecalculation(
+      supabase,
+      reportId,
+      billableRow.calculated_at,
+    );
+    if (!stale) return;
+  }
 
   await ensurePartnerBillableCalculated(supabase, reportId);
 }

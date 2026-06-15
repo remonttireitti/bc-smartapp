@@ -24,6 +24,7 @@ import {
   billingRowDate,
   companyHasBillableBilling,
   companyHasCustomerBillableBilling,
+  companyPartnerBillingAvailable,
   effectiveBillingRowMode,
   isBillablePartnerReport,
   isBillableCustomerReport,
@@ -36,7 +37,7 @@ import {
   type BillingModuleMode,
 } from '../lib/workReportBillingCopy';
 import { ensureCustomerBillableCalculated } from '../lib/workReportCustomerBillingPersist';
-import { ensurePartnerBillableCalculatedIfStale } from '../lib/workReportPartnerBillingPersist';
+import { ensurePartnerBillableCalculatedWhenNeeded } from '../lib/workReportPartnerBillingPersist';
 import { getWorkStatusLabel } from '../types';
 import {
   addDays,
@@ -102,6 +103,7 @@ export default function BillingPage({ session }: Props) {
   const [rows, setRows] = useState<BillingListRow[]>([]);
   const [billingEnabled, setBillingEnabled] = useState<boolean | null>(null);
   const [customerBillingEnabled, setCustomerBillingEnabled] = useState<boolean | null>(null);
+  const [partnerBillingAvailable, setPartnerBillingAvailable] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -177,12 +179,14 @@ export default function BillingPage({ session }: Props) {
     setLoading(true);
     setError(null);
 
-    const [enabled, customerEnabled] = await Promise.all([
+    const [enabled, customerEnabled, partnerAvailable] = await Promise.all([
       companyHasBillableBilling(supabase, profile.company_id),
       companyHasCustomerBillableBilling(supabase, profile.company_id),
+      companyPartnerBillingAvailable(supabase, profile.company_id),
     ]);
     setBillingEnabled(enabled);
     setCustomerBillingEnabled(customerEnabled);
+    setPartnerBillingAvailable(partnerAvailable);
 
     if (mode === 'partner' || mode === 'total') {
       await loadPartnershipPartners(profile.company_id);
@@ -234,7 +238,7 @@ export default function BillingPage({ session }: Props) {
     if (customerRows.length > 0 || partnerRowsForCreator.length > 0) {
       await Promise.all([
         ...customerRows.map((row) => ensureCustomerBillableCalculated(supabase, row.id)),
-        ...partnerRowsForCreator.map((row) => ensurePartnerBillableCalculatedIfStale(supabase, row.id)),
+        ...partnerRowsForCreator.map((row) => ensurePartnerBillableCalculatedWhenNeeded(supabase, row.id)),
       ]);
       const ids = filtered.map((row) => row.id);
       const { data: refreshed } = await supabase.from('work_reports').select(REPORT_SELECT).in('id', ids);
@@ -292,10 +296,10 @@ export default function BillingPage({ session }: Props) {
   const moduleEnabled =
     billingModuleEnabled !== false
     && (billingMode === 'total'
-      ? customerBillingEnabled !== false || billingEnabled !== false
+      ? customerBillingEnabled !== false || partnerBillingAvailable !== false
       : billingMode === 'customer'
         ? customerBillingEnabled !== false
-        : billingEnabled !== false);
+        : partnerBillingAvailable !== false);
 
   const filteredRows = useMemo(() => {
     return rows.filter((row) => {
@@ -724,14 +728,14 @@ export default function BillingPage({ session }: Props) {
           </div>
 
           {partnerModeActive && billingEnabled === false ? (
-            <section className="panel">
-              <p className="muted">
-                Kumppanilaskutus on pois päältä kaikilta käyttäjiltä. Ota tunnit tai kulut mukaan laskutukseen
-                kohdassa <Link to="/hallinta/kayttajat">Hallinta → Käyttäjät</Link>.
-              </p>
-            </section>
-          ) : (
-            <>
+            <p className="muted panel" style={{ marginBottom: '1rem' }}>
+              Käyttäjien laskutusasetukset (tunnit/kulut) vaikuttavat laskurivien sisältöön. Kumppanin
+              laskutusmoduuli ei vaikuta — lasket mitä kumppanille laskutat omista työraporteistasi.
+              Tarvittaessa ota tunnit tai kulut mukaan kohdassa{' '}
+              <Link to="/hallinta/kayttajat">Hallinta → Käyttäjät</Link>.
+            </p>
+          ) : null}
+          <>
           <div className="billing-summary-grid">
             <article className="billing-stat-card billing-stat-open">
               <span className="billing-stat-label">Laskuttamatta</span>
@@ -1061,8 +1065,7 @@ export default function BillingPage({ session }: Props) {
               ))}
             </div>
           )}
-            </>
-          )}
+          </>
         </div>
       )}
     </AppLayout>
