@@ -136,6 +136,35 @@ export function isDelegatedPartnerOrder(
   return !!row.delegate_company_id && row.created_by_company_id === row.owner_company_id;
 }
 
+/** Kenelle kumppanilasku kohdistuu (laskutettava yritys). */
+export function resolvePartnerBilledCompanyId(
+  row: Pick<BillingListRow, 'owner_company_id' | 'created_by_company_id' | 'delegate_company_id'>,
+): string {
+  if (isDelegatedPartnerOrder(row)) {
+    return row.delegate_company_id!;
+  }
+  return row.owner_company_id;
+}
+
+/** Voiko katsoja tallentaa kumppanilaskelman tähän raporttiin. */
+export function canPersistPartnerBillable(
+  row: Pick<BillingListRow, 'owner_company_id' | 'created_by_company_id' | 'delegate_company_id'>,
+  viewerCompanyId: string | null | undefined,
+): boolean {
+  if (!viewerCompanyId) return false;
+  if (viewerCompanyId === row.created_by_company_id) return true;
+  if (
+    viewerCompanyId === row.owner_company_id
+    && row.created_by_company_id !== row.owner_company_id
+  ) {
+    return true;
+  }
+  if (isDelegatedPartnerOrder(row) && viewerCompanyId === row.delegate_company_id) {
+    return true;
+  }
+  return false;
+}
+
 export function isDelegatedPartnerBill(
   row: BillingListRow,
   viewerCompanyId: string | null | undefined,
@@ -583,6 +612,7 @@ export async function markPartnerReportBilled(
   const { data, error: loadError } = await supabase
     .from('work_reports')
     .select(`
+      owner_company_id, created_by_company_id, delegate_company_id,
       billable:work_report_billable(partner_total),
       billing:work_report_billing(partner_invoice_amount)
     `)
@@ -592,11 +622,15 @@ export async function markPartnerReportBilled(
   if (loadError) throw loadError;
 
   const row = data as unknown as {
+    owner_company_id: string;
+    created_by_company_id: string;
+    delegate_company_id: string | null;
     billable: { partner_total: number } | null;
     billing: { partner_invoice_amount: number | null } | null;
   };
 
   const total = Number(row.billable?.partner_total ?? row.billing?.partner_invoice_amount ?? 0);
+  const billedToCompanyId = resolvePartnerBilledCompanyId(row);
 
   const { error } = await supabase.from('work_report_billing').upsert({
     work_report_id: workReportId,
@@ -604,6 +638,7 @@ export async function markPartnerReportBilled(
     partner_billed_amount: total,
     partner_billed_at: new Date().toISOString(),
     partner_invoice_amount: total,
+    billed_to_company_id: billedToCompanyId,
   });
   if (error) throw error;
 }

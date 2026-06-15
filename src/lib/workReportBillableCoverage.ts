@@ -24,7 +24,6 @@ export function logRowHasBillableContent(
   log: MinimalLogRow,
   expenseLineCount: number,
   refrigerantLineCount: number,
-  tripLegCount = 0,
 ): boolean {
   return (
     Number(log.hours_regular) > 0
@@ -34,7 +33,6 @@ export function logRowHasBillableContent(
     || Number(log.commission_amount) > 0
     || expenseLineCount > 0
     || refrigerantLineCount > 0
-    || tripLegCount > 0
   );
 }
 
@@ -43,7 +41,6 @@ export function calculationMissingBillableLogs(input: {
   calculationLogIds: Set<string>;
   expenseCountByLogId: Map<string, number>;
   refrigerantCountByLogId: Map<string, number>;
-  tripLegCountByLogId?: Map<string, number>;
 }): boolean {
   for (const log of input.logRows) {
     if (input.calculationLogIds.has(log.id)) continue;
@@ -52,7 +49,6 @@ export function calculationMissingBillableLogs(input: {
         log,
         input.expenseCountByLogId.get(log.id) ?? 0,
         input.refrigerantCountByLogId.get(log.id) ?? 0,
-        input.tripLegCountByLogId?.get(log.id) ?? 0,
       )
     ) {
       return true;

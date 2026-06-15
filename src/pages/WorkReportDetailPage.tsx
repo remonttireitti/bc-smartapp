@@ -76,8 +76,10 @@ import {
   billingPartnerState,
   billingPartnerStatusLabel,
   isCustomerInvoicePaid,
+  canPersistPartnerBillable,
   markCustomerReportBilled,
   resolvePartnerBillingAmounts,
+  resolvePartnerBilledCompanyId,
   unmarkCustomerReportBilled,
 } from '../lib/workReportBillingCopy';
 import {
@@ -974,7 +976,7 @@ export default function WorkReportDetailPage({ session }: Props) {
     const isPartnerReport =
       reportRow.created_by_company_id !== reportRow.owner_company_id || isDelegatedOrder;
 
-    if (isPartnerReport && profile?.company_id === reportRow.created_by_company_id) {
+    if (isPartnerReport && canPersistPartnerBillable(reportRow, profile?.company_id)) {
       await refreshBillable(reportRow, logs);
     } else {
       setBillableCalculation(null);
@@ -1019,9 +1021,7 @@ export default function WorkReportDetailPage({ session }: Props) {
       return;
     }
 
-    const billedCompanyId = isDelegatedOrder
-      ? reportRow.delegate_company_id!
-      : reportRow.owner_company_id;
+    const billedCompanyId = resolvePartnerBilledCompanyId(reportRow);
 
     const [{ data: companyRow }, { data: billableRow }] = await Promise.all([
       supabase.from('companies').select('settings').eq('id', reportRow.created_by_company_id).single(),
@@ -1470,18 +1470,7 @@ export default function WorkReportDetailPage({ session }: Props) {
       return;
     }
 
-    // Kumppanilaskelma: laatija tai saapuvan raportin omistaja (jos kumppanilla ei ole laskutusta).
-    const canPersistPartnerBillable =
-      profile?.company_id === reportRow.created_by_company_id
-      || (
-        profile?.company_id === reportRow.owner_company_id
-        && reportRow.created_by_company_id !== reportRow.owner_company_id
-      )
-      || (
-        isDelegatedOrder
-        && profile?.company_id === reportRow.delegate_company_id
-      );
-    if (canPersistPartnerBillable) {
+    if (canPersistPartnerBillable(reportRow, profile?.company_id)) {
       await refreshBillable(reportRow, logs, { viewerCompanyId: profile?.company_id });
     }
   }

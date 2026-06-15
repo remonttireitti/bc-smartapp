@@ -1283,7 +1283,7 @@ function BillingReportCard({
       </div>
 
       <div className="billing-report-actions">
-        {onRecalcPartner && billingEnabled && (
+        {onRecalcPartner && billingEnabled && amounts.state !== 'billed' && (
           <button
             type="button"
             className="btn btn-secondary btn-sm"

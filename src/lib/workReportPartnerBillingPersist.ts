@@ -14,7 +14,7 @@ import {
   shouldCalculatePartnerBilling,
   type UserBillingProfile,
 } from './workReportBilling';
-import { isBillablePartnerReport } from './workReportBillingCopy';
+import { isBillablePartnerReport, resolvePartnerBilledCompanyId } from './workReportBillingCopy';
 import { fetchWorkReportDetailLogs } from './workReportDailyLogSelect';
 import { findStaleBillableReportIds } from './workReportBillableStale';
 import { parseTripKmRate } from './tripKmExpense';
@@ -45,6 +45,66 @@ async function loadBillableUsers(
   return (profileRows as UserBillingProfile[]) ?? [];
 }
 
+const EMPTY_PARTNER_CALCULATION = {
+  version: 2 as const,
+  billToCompanyId: null,
+  billToCompanyName: null,
+  ratesUsed: { hourly_regular: 0, hourly_overtime: 0, hourly_on_call: 0 },
+  ratesSource: 'company_default' as const,
+  byUser: [],
+  grandTotal: 0,
+  excludedTotal: 0,
+};
+
+async function clearPartnerBillableWhenEmpty(
+  supabase: SupabaseClient,
+  reportRow: PartnerBillableReport,
+) {
+  const billedCompanyId = resolvePartnerBilledCompanyId(reportRow);
+  const { data: existingBilling } = await supabase
+    .from('work_report_billing')
+    .select('partner_invoice_status, partner_billed_amount')
+    .eq('work_report_id', reportRow.id)
+    .maybeSingle();
+
+  const isPaid = existingBilling?.partner_invoice_status === 'paid';
+  const billedAmount = Number(existingBilling?.partner_billed_amount ?? 0);
+
+  const { error: billableError } = await supabase.from('work_report_billable').upsert({
+    work_report_id: reportRow.id,
+    partner_total: 0,
+    calculation: EMPTY_PARTNER_CALCULATION,
+    calculated_at: new Date().toISOString(),
+    partner_recalc_needed: false,
+  });
+  if (billableError) throw new Error(billableError.message);
+
+  if (isPaid) return;
+
+  const { error: billingError } = await supabase.from('work_report_billing').upsert({
+    work_report_id: reportRow.id,
+    partner_invoice_amount: 0,
+    billed_to_company_id: billedCompanyId,
+    partner_invoice_status: billedAmount > 0.005 ? 'partial' : 'none',
+    ...(billedAmount > 0.005 ? { partner_billed_amount: billedAmount } : {}),
+  });
+  if (billingError) throw new Error(billingError.message);
+}
+
+function resolvePartnerInvoiceStatus(
+  existingStatus: InvoiceStatus,
+  grandTotal: number,
+  billedAmount: number,
+): InvoiceStatus {
+  if (billedAmount > 0.005) {
+    return grandTotal > billedAmount + 0.005 ? 'partial' : 'paid';
+  }
+  if (existingStatus === 'paid' || existingStatus === 'partial') {
+    return grandTotal > 0.005 ? 'partial' : existingStatus;
+  }
+  return 'none';
+}
+
 export async function refreshAndPersistPartnerBillable(
   supabase: SupabaseClient,
   reportRow: PartnerBillableReport,
@@ -59,6 +119,7 @@ export async function refreshAndPersistPartnerBillable(
   const billingApplies = shouldCalculatePartnerBilling(logs, users);
 
   if (!billingApplies) {
+    await clearPartnerBillableWhenEmpty(supabase, reportRow);
     return null;
   }
 
@@ -68,9 +129,7 @@ export async function refreshAndPersistPartnerBillable(
     reportRow.created_by_company_id !== reportRow.owner_company_id || isDelegatedOrder;
   if (!isPartnerReport) return null;
 
-  const billedCompanyId = isDelegatedOrder
-    ? reportRow.delegate_company_id!
-    : reportRow.owner_company_id;
+  const billedCompanyId = resolvePartnerBilledCompanyId(reportRow);
 
   const isIncomingToViewer =
     !!rateOptions?.viewerCompanyId
@@ -210,17 +269,7 @@ export async function refreshAndPersistPartnerBillable(
   const billedAmount = Number(existingBilling?.partner_billed_amount ?? 0);
   const grandTotal = calculation.grandTotal;
   const existingStatus = (existingBilling?.partner_invoice_status ?? 'none') as InvoiceStatus;
-  let invoiceStatus = existingStatus;
-
-  if (existingStatus === 'paid') {
-    invoiceStatus = 'paid';
-  } else if (existingStatus === 'partial') {
-    invoiceStatus = grandTotal > billedAmount + 0.005 ? 'partial' : 'paid';
-  } else if (billedAmount > 0.005) {
-    invoiceStatus = grandTotal > billedAmount + 0.005 ? 'partial' : 'paid';
-  } else {
-    invoiceStatus = 'none';
-  }
+  const invoiceStatus = resolvePartnerInvoiceStatus(existingStatus, grandTotal, billedAmount);
 
   const upsertBilling: Record<string, unknown> = {
     work_report_id: reportRow.id,
@@ -229,7 +278,7 @@ export async function refreshAndPersistPartnerBillable(
     partner_invoice_status: invoiceStatus,
   };
 
-  if (existingStatus === 'paid') {
+  if (invoiceStatus === 'paid') {
     upsertBilling.partner_billed_amount = billedAmount > 0.005 ? billedAmount : grandTotal;
   } else if (billedAmount > 0.005) {
     upsertBilling.partner_billed_amount = billedAmount;
@@ -271,6 +320,25 @@ export async function ensurePartnerBillableCalculated(
     .single();
 
   if (!reportData || !isBillablePartnerReport(reportData)) return;
+
+  const { data: existingBilling } = await supabase
+    .from('work_report_billing')
+    .select('partner_invoice_status, partner_billed_amount')
+    .eq('work_report_id', reportId)
+    .maybeSingle();
+
+  const { data: billableFlags } = await supabase
+    .from('work_report_billable')
+    .select('partner_recalc_needed')
+    .eq('work_report_id', reportId)
+    .maybeSingle();
+
+  const isFullyPaid =
+    existingBilling?.partner_invoice_status === 'paid'
+    && Number(existingBilling.partner_billed_amount ?? 0) > 0.005
+    && billableFlags?.partner_recalc_needed !== true;
+
+  if (isFullyPaid) return;
 
   const { logs, error } = await fetchWorkReportDetailLogs(supabase, reportId);
   if (error) {
