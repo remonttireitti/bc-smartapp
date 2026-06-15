@@ -212,19 +212,30 @@ export async function refreshAndPersistPartnerBillable(
   const existingStatus = (existingBilling?.partner_invoice_status ?? 'none') as InvoiceStatus;
   let invoiceStatus = existingStatus;
 
-  if (billedAmount > 0.005) {
+  if (existingStatus === 'paid') {
+    invoiceStatus = 'paid';
+  } else if (existingStatus === 'partial') {
     invoiceStatus = grandTotal > billedAmount + 0.005 ? 'partial' : 'paid';
-  } else if (existingStatus !== 'paid' && existingStatus !== 'partial') {
+  } else if (billedAmount > 0.005) {
+    invoiceStatus = grandTotal > billedAmount + 0.005 ? 'partial' : 'paid';
+  } else {
     invoiceStatus = 'none';
   }
 
-  const { error: billingError } = await supabase.from('work_report_billing').upsert({
+  const upsertBilling: Record<string, unknown> = {
     work_report_id: reportRow.id,
     partner_invoice_amount: grandTotal,
     billed_to_company_id: billedCompanyId,
     partner_invoice_status: invoiceStatus,
-    ...(billedAmount > 0.005 ? { partner_billed_amount: billedAmount } : {}),
-  });
+  };
+
+  if (existingStatus === 'paid') {
+    upsertBilling.partner_billed_amount = billedAmount > 0.005 ? billedAmount : grandTotal;
+  } else if (billedAmount > 0.005) {
+    upsertBilling.partner_billed_amount = billedAmount;
+  }
+
+  const { error: billingError } = await supabase.from('work_report_billing').upsert(upsertBilling);
   if (billingError) {
     throw new Error(billingError.message);
   }

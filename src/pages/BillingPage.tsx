@@ -192,7 +192,11 @@ export default function BillingPage({ session }: Props) {
   }
 
   async function startStalePartnerRecalc(filtered: BillingListRow[], companyId: string) {
-    const partnerRowsForRecalc = filtered.filter((row) => canViewerRecalcPartnerBill(row, companyId));
+    const partnerRowsForRecalc = filtered.filter((row) => {
+      if (!canViewerRecalcPartnerBill(row, companyId)) return false;
+      if (billingPartnerState(row) === 'billed') return false;
+      return true;
+    });
 
     const stalePartnerIds = await findStaleBillableReportIds(
       supabase,
