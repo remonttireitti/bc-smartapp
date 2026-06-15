@@ -1,8 +1,10 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { InvoiceStatus, WorkReport, WorkReportDailyLog } from '../types';
 import {
+  hasPartnerBillingRates,
   parseCompanySettings,
   parsePartnerBillingRates,
+  partnershipBillingRatesFieldPartnerChargesOwner,
   readPartnershipBillingRates,
   resolveBillingRates,
   type PartnerBillingRates,
@@ -118,6 +120,20 @@ export async function refreshAndPersistPartnerBillable(
     );
     partnershipRates = rates.primary;
     partnershipRatesFallback = rates.fallback;
+
+    if (isIncomingToViewer && rateOptions?.viewerCompanyId) {
+      const ownerChargeField = partnershipBillingRatesFieldPartnerChargesOwner(
+        partnership,
+        rateOptions.viewerCompanyId,
+        reportRow.created_by_company_id,
+      );
+      if (ownerChargeField) {
+        const ownerChargeRates = parsePartnerBillingRates(partnership[ownerChargeField]);
+        if (hasPartnerBillingRates(ownerChargeRates)) {
+          partnershipRates = ownerChargeRates;
+        }
+      }
+    }
   }
 
   const storedUseCustom = rateOptions?.useCustomRates ?? billableRow?.use_custom_rates ?? false;
@@ -125,8 +141,15 @@ export async function refreshAndPersistPartnerBillable(
     rateOptions?.reportRates ?? billableRow?.billing_rates_override,
   );
 
+  const companyDefaults = isIncomingToViewer
+    ? {
+        ...(settings.billing?.partner_rates ?? {}),
+        ...(viewerSettings.billing?.partner_rates ?? {}),
+      }
+    : (settings.billing?.partner_rates ?? {});
+
   const { rates, source } = resolveBillingRates({
-    companyDefaults: settings.billing?.partner_rates ?? {},
+    companyDefaults,
     partnershipRates,
     partnershipRatesFallback,
     reportOverride: storedOverride,

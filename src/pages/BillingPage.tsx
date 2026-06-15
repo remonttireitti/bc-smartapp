@@ -28,10 +28,10 @@ import {
   effectiveBillingRowMode,
   isBillablePartnerReport,
   isBillableCustomerReport,
-  isIncomingPartnerBill,
   canViewerRecalcPartnerBill,
   billingRowHasStoredCalculation,
   billingRowNeedsPartnerRecalc,
+  billingRowVisibleInList,
   loadBillingCopyText,
   markPartnerReportBilled,
   markCustomerReportBilled,
@@ -198,7 +198,9 @@ export default function BillingPage({ session }: Props) {
       partnerRowsForRecalc.map((row) => ({
         workReportId: row.id,
         calculatedAt: row.billable?.calculated_at,
-        hasCalculation: billingRowHasStoredCalculation(row, 'partner'),
+        hasCalculation:
+          Number(row.billable?.partner_total ?? 0) > 0.005
+          && ((row.billable?.calculation as { byUser?: unknown[] } | null | undefined)?.byUser?.length ?? 0) > 0,
         calculation: row.billable?.calculation,
       })),
     );
@@ -291,11 +293,17 @@ export default function BillingPage({ session }: Props) {
           : all.filter(isBillablePartnerReport);
 
     setRows(filtered);
-    setLoading(false);
 
     if ((mode === 'partner' || mode === 'total') && partnerAvailable !== false) {
-      void startStalePartnerRecalc(filtered, profile.company_id);
+      try {
+        await startStalePartnerRecalc(filtered, profile.company_id);
+      } catch (recalcError) {
+        console.error('Kumppanilaskelmien taustapaivitys epaonnistui:', recalcError);
+        setError('Joidenkin laskelmien paivitys epaonnistui. Kokeile Paivita laskelma -painiketta.');
+      }
     }
+
+    setLoading(false);
   }
 
   async function recalcPartnerRow(reportId: string) {
@@ -365,33 +373,14 @@ export default function BillingPage({ session }: Props) {
       if (billingMode === 'customer' && customerFilter && billToCustomerKey(row) !== customerFilter) {
         return false;
       }
-      const openAmount = billingRowOpenAmount(row, mode);
-      const billedAmount = billingRowBilledAmount(row, mode);
-      const incomingPartner = isIncomingPartnerBill(row, profile?.company_id);
-      if (statusFilter === 'unbilled') {
-        if (mode === 'customer') {
-          if (billingRowState(row, mode) === 'billed') return false;
-        } else if (incomingPartner) {
-          if (openAmount <= 0.005) return false;
-          if (billingRowState(row, mode) === 'billed') return false;
-        } else if (
-          openAmount <= 0.005
-          && !billingRowNeedsPartnerRecalc(row)
-          && billingRowHasStoredCalculation(row, mode)
-        ) {
-          return false;
-        } else if (billingRowState(row, mode) === 'billed') {
-          return false;
-        }
-      }
-      if (statusFilter === 'billed' && billedAmount <= 0.005) return false;
+      if (!billingRowVisibleInList(row, mode, statusFilter)) return false;
       if (selectedDay) {
         const ymd = toLocalYmd(billingRowDate(row));
         if (ymd !== selectedDay) return false;
       }
       return true;
     });
-  }, [rows, partnerFilter, customerFilter, statusFilter, selectedDay, billingMode, profile?.company_id]);
+  }, [rows, partnerFilter, customerFilter, statusFilter, selectedDay, billingMode]);
 
   const summary = useMemo(() => {
     let openTotal = 0;
@@ -407,31 +396,18 @@ export default function BillingPage({ session }: Props) {
       if (billingMode === 'customer' && customerFilter && billToCustomerKey(row) !== customerFilter) {
         continue;
       }
+      if (!billingRowVisibleInList(row, mode, statusFilter)) continue;
+
       const openAmount = billingRowOpenAmount(row, mode);
       const billedAmount = billingRowBilledAmount(row, mode);
       const breakdown = billingRowBreakdown(row, mode);
-      const incomingPartner = isIncomingPartnerBill(row, profile?.company_id);
-      const isOpen =
-        mode === 'customer'
-          ? billingRowState(row, mode) !== 'billed'
-          : incomingPartner
-            ? openAmount > 0.005 && billingRowState(row, mode) !== 'billed'
-            : openAmount > 0.005 || billingRowNeedsPartnerRecalc(row);
-      if (statusFilter === 'unbilled' && !isOpen) continue;
-      if (statusFilter === 'billed' && billedAmount <= 0.005) continue;
-      if (statusFilter === 'all' ? isOpen : statusFilter === 'unbilled') {
-        const partnerOpenTotal =
-          mode === 'customer'
-            ? breakdown.total
-            : incomingPartner
-              ? openAmount
-              : openAmount > 0.005
-                ? openAmount
-                : breakdown.total;
-        if (mode !== 'customer' && partnerOpenTotal <= 0.005) continue;
+
+      if (statusFilter === 'all' || statusFilter === 'unbilled') {
+        const partnerOpenTotal = mode === 'customer' ? breakdown.total : openAmount;
+        if (partnerOpenTotal <= 0.005) continue;
         openTotal += partnerOpenTotal;
-        if (breakdown.total > 0.005 && partnerOpenTotal > 0.005 && partnerOpenTotal < breakdown.total - 0.005) {
-          const ratio = partnerOpenTotal / breakdown.total;
+        if (breakdown.total > 0.005 && openAmount > 0.005 && openAmount < breakdown.total - 0.005) {
+          const ratio = openAmount / breakdown.total;
           openWork += breakdown.work * ratio;
           openMaterials += breakdown.materials * ratio;
         } else {
@@ -440,14 +416,15 @@ export default function BillingPage({ session }: Props) {
         }
         openCount += 1;
       }
-      if (billedAmount > 0.005 && (statusFilter === 'all' || statusFilter === 'billed')) {
+      if (statusFilter === 'all' || statusFilter === 'billed') {
+        if (billedAmount <= 0.005) continue;
         billedTotal += billedAmount;
         billedCount += 1;
       }
     }
 
     return { openTotal, billedTotal, openWork, openMaterials, openCount, billedCount, grandTotal: openTotal + billedTotal, totalCount: openCount + billedCount };
-  }, [rows, partnerFilter, customerFilter, billingMode, statusFilter, profile?.company_id]);
+  }, [rows, partnerFilter, customerFilter, billingMode, statusFilter]);
 
   const weekDays = useMemo(
     () => Array.from({ length: 7 }, (_, index) => addDays(rangeAnchor, index)),

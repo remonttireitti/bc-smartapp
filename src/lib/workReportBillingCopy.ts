@@ -100,6 +100,34 @@ export function billingRowNeedsPartnerRecalc(row: BillingListRow): boolean {
   return row.billable?.partner_recalc_needed === true;
 }
 
+/** Näytetäänkö rivi laskutuslistassa (0 € -rivit piilotetaan). */
+export function billingRowVisibleInList(
+  row: BillingListRow,
+  mode: 'partner' | 'customer',
+  statusFilter: 'all' | 'unbilled' | 'billed',
+): boolean {
+  const openAmount = billingRowOpenAmount(row, mode);
+  const billedAmount = billingRowBilledAmount(row, mode);
+  const breakdown = billingRowBreakdown(row, mode);
+
+  if (statusFilter === 'billed') {
+    return billedAmount > 0.005;
+  }
+
+  if (mode === 'customer') {
+    if (statusFilter === 'unbilled') {
+      return billingRowState(row, mode) !== 'billed' && breakdown.total > 0.005;
+    }
+    return breakdown.total > 0.005 || billedAmount > 0.005;
+  }
+
+  if (statusFilter === 'unbilled') {
+    return openAmount > 0.005 && billingRowState(row, mode) !== 'billed';
+  }
+
+  return openAmount > 0.005 || billedAmount > 0.005;
+}
+
 /** Voiko katsoja laskea / päivittää kumppanilaskelman tähän raporttiin. */
 export function canViewerRecalcPartnerBill(
   row: BillingListRow,
