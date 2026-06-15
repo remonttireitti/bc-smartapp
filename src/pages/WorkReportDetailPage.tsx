@@ -1454,7 +1454,7 @@ export default function WorkReportDetailPage({ session }: Props) {
       !!reportRow.delegate_company_id && reportRow.created_by_company_id === reportRow.owner_company_id;
     const isPartnerReport =
       reportRow.created_by_company_id !== reportRow.owner_company_id || isDelegatedOrder;
-    if (!isPartnerReport || profile?.company_id !== reportRow.created_by_company_id) {
+    if (!isPartnerReport) {
       return;
     }
 
@@ -1464,7 +1464,11 @@ export default function WorkReportDetailPage({ session }: Props) {
       return;
     }
 
-    await refreshBillable(reportRow, logs);
+    // Kumppanilaskelma tallennetaan aina raportin laajan yrityksen nimissä (RLS).
+    // Toimeksisaaja voi kirjata työt — laskenta päivittyy kun laatija avaa laskutuksen tai tallentaa itse.
+    if (profile?.company_id === reportRow.created_by_company_id) {
+      await refreshBillable(reportRow, logs);
+    }
   }
 
   async function addDailyLog(e: FormEvent) {

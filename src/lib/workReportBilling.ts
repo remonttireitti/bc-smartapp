@@ -135,7 +135,8 @@ export function shouldCalculatePartnerBilling(
     || Number(log.fixed_price_amount) > 0
     || Number(log.commission_amount) > 0
     || (log.expense_lines?.length ?? 0) > 0
-    || (log.refrigerant_lines?.length ?? 0) > 0,
+    || (log.refrigerant_lines?.length ?? 0) > 0
+    || (log.trip_legs ?? []).some((leg) => Number(leg.distance_km) > 0),
   );
 }
 
@@ -146,6 +147,7 @@ export function calculateWorkReportBillable(input: {
   ratesSource: BillableRatesSource;
   billToCompanyId: string | null;
   billToCompanyName: string | null;
+  tripKmRate?: number | null;
 }): BillableCalculation {
   const rates = { ...DEFAULT_RATES, ...input.rates };
   const userMap = new Map(input.users.map((u) => [u.id, u]));
@@ -260,6 +262,33 @@ export function calculateWorkReportBillable(input: {
         description: expense.description,
         qty: Number(expense.qty),
         unitPrice: Number(expense.unit_price),
+        total,
+        included,
+      });
+      if (included) summary.expensesTotal += total;
+      else summary.excludedSubtotal += total;
+    }
+
+    const tripKm = (log.trip_legs ?? []).reduce(
+      (sum, leg) => sum + (Number(leg.distance_km) > 0 ? Number(leg.distance_km) : 0),
+      0,
+    );
+    const hasKmExpenseLine = (log.expense_lines ?? []).some(
+      (line) => line.expense_type === 'km' && Number(line.qty) > 0,
+    );
+    const kmRate =
+      input.tripKmRate != null && Number(input.tripKmRate) > 0 ? Number(input.tripKmRate) : null;
+    if (tripKm > 0 && kmRate && !hasKmExpenseLine) {
+      const qty = Math.round(tripKm * 10) / 10;
+      const total = lineTotal(qty, kmRate);
+      const included = expensesEnabled;
+      summary.lines.push({
+        logId: log.id,
+        logDate: log.log_date,
+        kind: 'expense',
+        description: `Ajomatkat (${qty} km)`,
+        qty,
+        unitPrice: kmRate,
         total,
         included,
       });

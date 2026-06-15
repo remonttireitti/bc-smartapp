@@ -15,6 +15,7 @@ import {
 import { isBillablePartnerReport } from './workReportBillingCopy';
 import { fetchWorkReportDetailLogs } from './workReportDailyLogSelect';
 import { findStaleBillableReportIds } from './workReportBillableStale';
+import { parseTripKmRate } from './tripKmExpense';
 
 type PartnerBillableReport = Pick<
   WorkReport,
@@ -126,6 +127,7 @@ export async function refreshAndPersistPartnerBillable(
     billToCompanyName: isDelegatedOrder
       ? (reportRow.delegate_company?.name ?? null)
       : (reportRow.owner_company?.name ?? null),
+    tripKmRate: parseTripKmRate(settings),
   });
 
   await supabase.from('work_report_billable').upsert({

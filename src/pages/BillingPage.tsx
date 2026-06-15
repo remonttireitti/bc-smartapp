@@ -38,6 +38,7 @@ import {
   type BillingModuleMode,
 } from '../lib/workReportBillingCopy';
 import { ensurePartnerBillableCalculated } from '../lib/workReportPartnerBillingPersist';
+import { findStaleBillableReportIds, runWithConcurrency } from '../lib/workReportBillableStale';
 import {
   addDays,
   addMonths,
@@ -116,6 +117,7 @@ export default function BillingPage({ session }: Props) {
   const [customFrom, setCustomFrom] = useState('');
   const [customTo, setCustomTo] = useState('');
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [recalcState, setRecalcState] = useState<{ total: number; done: number } | null>(null);
   const [recalculatingIds, setRecalculatingIds] = useState<Set<string>>(() => new Set());
   const [partnerOptions, setPartnerOptions] = useState<Array<{ id: string; name: string }>>([]);
 
@@ -185,10 +187,50 @@ export default function BillingPage({ session }: Props) {
     setRows((prev) => prev.map((row) => (row.id === reportId ? updated : row)));
   }
 
+  async function startStalePartnerRecalc(filtered: BillingListRow[], companyId: string) {
+    const partnerRowsForCreator = filtered.filter(
+      (row) => isBillablePartnerReport(row) && row.created_by_company_id === companyId,
+    );
+
+    const stalePartnerIds = await findStaleBillableReportIds(
+      supabase,
+      partnerRowsForCreator.map((row) => ({
+        workReportId: row.id,
+        calculatedAt: row.billable?.calculated_at,
+        hasCalculation: billingRowHasStoredCalculation(row, 'partner'),
+        calculation: row.billable?.calculation,
+      })),
+    );
+
+    if (stalePartnerIds.length === 0) return;
+
+    setRecalcState({ total: stalePartnerIds.length, done: 0 });
+
+    await runWithConcurrency(stalePartnerIds, 3, async (reportId) => {
+      setRecalculatingIds((prev) => new Set(prev).add(reportId));
+      try {
+        await ensurePartnerBillableCalculated(supabase, reportId);
+        await refreshBillingRow(reportId);
+      } catch (recalcError) {
+        console.error('Kumppanilaskelman päivitys epäonnistui:', reportId, recalcError);
+      } finally {
+        setRecalcState((state) => (state ? { total: state.total, done: state.done + 1 } : null));
+        setRecalculatingIds((prev) => {
+          const next = new Set(prev);
+          next.delete(reportId);
+          return next;
+        });
+      }
+    });
+
+    setRecalcState(null);
+  }
+
   async function load(mode: BillingModuleMode = billingMode) {
     if (!profile?.company_id) return;
     setLoading(true);
     setError(null);
+    setRecalcState(null);
     setRecalculatingIds(new Set());
 
     const [enabled, customerEnabled, partnerAvailable] = await Promise.all([
@@ -244,6 +286,10 @@ export default function BillingPage({ session }: Props) {
 
     setRows(filtered);
     setLoading(false);
+
+    if ((mode === 'partner' || mode === 'total') && partnerAvailable !== false) {
+      void startStalePartnerRecalc(filtered, profile.company_id);
+    }
   }
 
   async function recalcPartnerRow(reportId: string) {
@@ -770,6 +816,18 @@ export default function BillingPage({ session }: Props) {
             </article>
           </div>
 
+
+          {recalcState ? (
+            <div className="billing-recalc-banner panel" role="status" aria-live="polite">
+              <span className="billing-recalc-spinner" aria-hidden="true" />
+              <div>
+                <strong>Päivitetään vanhentuneita kumppanilaskelmia</strong>
+                <p className="muted billing-recalc-meta">
+                  {recalcState.done} / {recalcState.total} valmis — vain muuttuneet raportit, ei kaikkia vanhoja.
+                </p>
+              </div>
+            </div>
+          ) : null}
 
           <div className="billing-toolbar panel">
             <div className="billing-filter-pills">
