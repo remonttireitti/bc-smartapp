@@ -1,5 +1,10 @@
 import type { SisayksikkoData } from './types';
-import { formatKonvektoriLampotila } from './konvektoriTypes';
+import {
+  formatKonvektoriLampotila,
+  konvektoriImageUrl,
+  konvektoriOverlayPositions,
+  type KonvektoriAsennustyyppi,
+} from './konvektoriTypes';
 
 /** Sisäyksikön asennustyyppi (ilmalämpöpumppu). */
 export type SisayksikkoAsennustyyppi = 'seina' | 'kattokasetti' | 'kanavoitava' | 'konsooli' | 'katto-pinta';
@@ -24,13 +29,13 @@ const TYYPPI_LABEL: Record<SisayksikkoAsennustyyppi, string> = {
   kanavoitava: 'Kanavoitava',
 };
 
-const TYYPPI_IMAGE: Record<SisayksikkoAsennustyyppi, string> = {
-  seina: 'seina.svg',
-  kattokasetti: 'kattokasetti.svg',
-  konsooli: 'seina.svg',
-  'katto-pinta': 'kattokasetti.svg',
-  kanavoitava: 'kanavoitava.svg',
-};
+/** Sama pohjakuva kuin konvektorilla. */
+function sisayksikkoKonvektoriImageTyyppi(tyyppi: SisayksikkoAsennustyyppi): KonvektoriAsennustyyppi {
+  if (tyyppi === 'kattokasetti' || tyyppi === 'katto-pinta') return 'katto';
+  if (tyyppi === 'kanavoitava') return 'kanavoitava';
+  if (tyyppi === 'konsooli') return 'lattia';
+  return 'seina';
+}
 
 export function normalizeSisayksikkoTyyppi(value: unknown): SisayksikkoAsennustyyppi | '' {
   const raw = String(value ?? '').trim().toLowerCase();
@@ -53,57 +58,26 @@ export function sisayksikkoSupportsSchematic(tyyppi: unknown): boolean {
   return normalized === 'seina' || normalized === 'kattokasetti' || normalized === 'kanavoitava';
 }
 
-export function sisayksikkoImageFile(tyyppi: unknown): string {
-  const normalized = normalizeSisayksikkoTyyppi(tyyppi);
-  return normalized ? TYYPPI_IMAGE[normalized] : TYYPPI_IMAGE.seina;
-}
-
 export function sisayksikkoImageUrl(tyyppi: unknown, origin = ''): string {
-  const file = sisayksikkoImageFile(tyyppi);
-  const base = (import.meta.env.BASE_URL || '/').replace(/\/?$/, '/');
-  const path = `${base}assets/sisayksikot/${file}`;
-  if (origin) return `${origin.replace(/\/$/, '')}${path.startsWith('/') ? path : `/${path}`}`;
-  return path;
+  const normalized = normalizeSisayksikkoTyyppi(tyyppi) || 'seina';
+  return konvektoriImageUrl(sisayksikkoKonvektoriImageTyyppi(normalized), origin);
 }
 
 type OverlayAnchor = { top?: string; bottom?: string; left?: string; right?: string };
 
-/** Ilma-ilmalämpö: ei vesipiiriä — vain huone, puhallus ja paluu. */
-const OVERLAY_BY_TYYPPI: Record<SisayksikkoAsennustyyppi, {
+/** Sama kuva kuin konvektorilla — overlayt kohdistettu konvektorin imu/puhallus/vasen-pino -pisteisiin. */
+export function sisayksikkoOverlayPositions(tyyppi: unknown): {
   huone: OverlayAnchor;
   puhallus: OverlayAnchor;
   paluu: OverlayAnchor;
-}> = {
-  seina: {
-    huone: { top: '8%', right: '6%' },
-    puhallus: { bottom: '18%', left: '32%' },
-    paluu: { top: '36%', left: '8%' },
-  },
-  kattokasetti: {
-    huone: { top: '6%', left: '38%' },
-    puhallus: { bottom: '8%', left: '28%' },
-    paluu: { top: '28%', right: '8%' },
-  },
-  kanavoitava: {
-    huone: { bottom: '6%', left: '34%' },
-    puhallus: { top: '8%', right: '10%' },
-    paluu: { top: '32%', left: '6%' },
-  },
-  konsooli: {
-    huone: { top: '8%', right: '6%' },
-    puhallus: { bottom: '18%', left: '32%' },
-    paluu: { top: '36%', left: '8%' },
-  },
-  'katto-pinta': {
-    huone: { top: '6%', left: '38%' },
-    puhallus: { bottom: '8%', left: '28%' },
-    paluu: { top: '28%', right: '8%' },
-  },
-};
-
-export function sisayksikkoOverlayPositions(tyyppi: unknown): typeof OVERLAY_BY_TYYPPI.seina {
+} {
   const normalized = normalizeSisayksikkoTyyppi(tyyppi) || 'seina';
-  return OVERLAY_BY_TYYPPI[normalized];
+  const kPos = konvektoriOverlayPositions(sisayksikkoKonvektoriImageTyyppi(normalized));
+  return {
+    huone: kPos.imu,
+    puhallus: kPos.output,
+    paluu: kPos.water,
+  };
 }
 
 export type SisayksikkoTempOverlay = {
