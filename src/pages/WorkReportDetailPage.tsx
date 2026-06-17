@@ -63,6 +63,7 @@ import {
 import {
   BILLABLE_RATES_SOURCE_LABELS,
   hasPartnerBillingRates,
+  loadCompanyBillingModuleEnabled,
   loadCompanyTracksCustomerInvoicing,
   parseCompanySettings,
   parseCustomerBillingRates,
@@ -901,8 +902,11 @@ export default function WorkReportDetailPage({ session }: Props) {
 
   const billingModuleEnabled = useCompanyBillingModuleEnabled(profile?.company_id, session);
   const ownerCustomerInvoicing = useCompanyCustomerBillingEnabled(report?.owner_company_id, session);
-  const partnerBillingEnabled = billingModuleEnabled !== false;
+  const viewerBillingAllowed = billingModuleEnabled !== false;
   const customerInvoicingEnabled = ownerCustomerInvoicing === true;
+  const customerBillingFieldsActive = (reportRow: WorkReport | null) =>
+    customerInvoicingEnabled
+    || (!!reportRow && profile?.company_id === reportRow.owner_company_id && viewerBillingAllowed);
 
   useEffect(() => {
     if (!logDialogOpen || !editingLogId) return;
@@ -984,7 +988,13 @@ export default function WorkReportDetailPage({ session }: Props) {
     }
 
     const tracksCustomer = await loadCompanyTracksCustomerInvoicing(supabase, reportRow.owner_company_id);
-    if (tracksCustomer) {
+    const viewerBillingModule = profile?.company_id
+      ? await loadCompanyBillingModuleEnabled(supabase, profile.company_id)
+      : false;
+    const loadCustomerBillable =
+      tracksCustomer
+      || (profile?.company_id === reportRow.owner_company_id && viewerBillingModule !== false);
+    if (loadCustomerBillable) {
       await refreshCustomerBillable(reportRow, logs);
     } else {
       setCustomerBillableCalculation(null);
@@ -1420,7 +1430,7 @@ export default function WorkReportDetailPage({ session }: Props) {
   async function saveDailyLogTripLegs(dailyLogId: string) {
     if (!report) return null;
     try {
-      await saveTripLegs(supabase, dailyLogId, tripDrafts, customerInvoicingEnabled);
+      await saveTripLegs(supabase, dailyLogId, tripDrafts, customerBillingFieldsActive(report));
       return null;
     } catch (err) {
       return err instanceof Error ? err : new Error('Ajomatkojen tallennus epäonnistui.');
@@ -1531,7 +1541,7 @@ export default function WorkReportDetailPage({ session }: Props) {
     const expenseError = await saveExpenseLines(
       logRow.id,
       expenseDrafts,
-      expenseSaveOptionsForReport(report, customerInvoicingEnabled),
+      expenseSaveOptionsForReport(report, customerBillingFieldsActive(report)),
     );
     if (expenseError) {
       setLogDialogBusy(false);
@@ -1786,7 +1796,7 @@ export default function WorkReportDetailPage({ session }: Props) {
     const expenseError = await saveExpenseLines(
       editingLogId,
       expenseDrafts,
-      expenseSaveOptionsForReport(report, customerInvoicingEnabled),
+      expenseSaveOptionsForReport(report, customerBillingFieldsActive(report)),
     );
     if (expenseError) {
       setLogDialogBusy(false);
@@ -1933,23 +1943,34 @@ export default function WorkReportDetailPage({ session }: Props) {
   const descriptionDirty = descriptionDraft.trim() !== savedDescription.trim();
   const ordererDirty = ordererDraft.trim() !== savedOrderer;
   const basicsDirty = headingDirty || descriptionDirty || ordererDirty;
-  const canSeeCreatorBilling = isCreatorCompany;
+  const canSeeCreatorBilling = isCreatorCompany && viewerBillingAllowed;
   const canSeePartnerSummary =
     !!billing?.partner_summary_shared &&
     ((isOwnerCompany && report.created_by_company_id !== report.owner_company_id) ||
       (isDelegateCompany && isDelegatedOrder));
-  const canManageBilling = canSeeCreatorBilling || canSeePartnerSummary;
+  const canManageBilling =
+    canSeeCreatorBilling
+    || canSeePartnerSummary
+    || (isOwnerCompany && viewerBillingAllowed && isPartnerReport);
   const billedPartnerName = isDelegatedOrder
     ? (report.delegate_company?.name ?? '—')
     : (report.owner_company?.name ?? '—');
-  const showMoneyBilling =
+  const showCustomerBillingFeatures =
+    isOwnerCompany && (customerInvoicingEnabled || viewerBillingAllowed);
+  const showOutgoingPartnerBilling =
     isPartnerReport && canSeeCreatorBilling && !!billableCalculation;
-  const showPartnerDailyLogHourlyRate =
-    !!isPartnerReport && canSeeCreatorBilling && partnerBillingEnabled !== false;
-  const showCustomerMoney = customerInvoicingEnabled;
-  const canManageCustomerBillingRates = isOwnerCompany && customerInvoicingEnabled;
+  const showIncomingPartnerBilling =
+    isPartnerReport
+    && isOwnerCompany
+    && !isCreatorCompany
+    && viewerBillingAllowed
+    && !!billableCalculation;
+  const showPartnerBillableSection = showOutgoingPartnerBilling || showIncomingPartnerBilling;
+  const showPartnerDailyLogHourlyRate = !!showOutgoingPartnerBilling;
+  const showCustomerMoney = showCustomerBillingFeatures;
+  const canManageCustomerBillingRates = isOwnerCompany && showCustomerBillingFeatures;
   const showCustomerMoneyBilling =
-    customerInvoicingEnabled
+    showCustomerBillingFeatures
     && !!customerBillableCalculation
     && (isOwnerCompany || (isPartnerReport && canSeeCreatorBilling));
   const portalReadOnly = isPortalReadOnly(profile);
@@ -1985,10 +2006,8 @@ export default function WorkReportDetailPage({ session }: Props) {
       }
     : null;
   const partnerBillingState = partnerBillingListRow ? billingPartnerState(partnerBillingListRow) : null;
-  const showPartnerBillingStatus =
-    !!isPartnerReport && partnerBillingEnabled === true && !!canSeeCreatorBilling;
-  const showCustomerBillingStatus =
-    customerInvoicingEnabled === true && isOwnerCompany;
+  const showPartnerBillingStatus = showPartnerBillableSection;
+  const showCustomerBillingStatus = showCustomerBillingFeatures;
   const canManageCustomerBilling =
     !portalReadOnly
     && showCustomerBillingStatus
@@ -2354,7 +2373,7 @@ export default function WorkReportDetailPage({ session }: Props) {
                     <div className="daily-log-head-meta">
                       <strong>{formatDate(log.log_date)}</strong>
                       <span>{HOUR_ENTRY_LABELS[log.entry_type]}</span>
-                      <span>{formatHourEntry(log, { showMoney: showMoneyBilling || showCustomerMoney })}</span>
+                      <span>{formatHourEntry(log, { showMoney: showPartnerBillableSection || showCustomerMoney })}</span>
                       {expenseLines.length > 0 && (
                         <span>
                           Kulut {expenseLines.reduce((s, line) => s + expenseLineTotal(line), 0).toFixed(2)} €
@@ -2462,16 +2481,21 @@ export default function WorkReportDetailPage({ session }: Props) {
         )}
       </CollapsibleSection>
 
-      {showMoneyBilling && billableCalculation && (
+      {showPartnerBillableSection && billableCalculation && (
         <CollapsibleSection
-          title={`Kumppanille laskutettava · ${formatEuro(billableCalculation.grandTotal)}`}
+          title={
+            showOutgoingPartnerBilling
+              ? `Kumppanille laskutettava · ${formatEuro(billableCalculation.grandTotal)}`
+              : `Kumppanilta laskutettava · ${formatEuro(billableCalculation.grandTotal)}`
+          }
           defaultOpen={false}
           variant="plain"
           className="panel work-report-section"
         >
             <div className="billing-rates-bar">
               <p className="muted" style={{ margin: 0 }}>
-                Laskutettava: <strong>{billedPartnerName}</strong>
+                {showOutgoingPartnerBilling ? 'Laskutettava' : 'Kumppanin lasku'}:{' '}
+                <strong>{billedPartnerName}</strong>
                 {' · '}
                 <Tooltip label="Hinta haetaan automaattisesti kumppanuudesta tai yrityksen oletuksista, ellei raporttikohtaisia hintoja ole päällä.">
                   <span>
@@ -2480,6 +2504,7 @@ export default function WorkReportDetailPage({ session }: Props) {
                   </span>
                 </Tooltip>
               </p>
+              {showOutgoingPartnerBilling ? (
               <Tooltip label="Poikkea vain tämän raportin hinnasta (esim. suullinen sopimus työmaalla). Oletuksena kumppanuushinnat.">
                 <label className="compact-option">
                   <input
@@ -2491,9 +2516,14 @@ export default function WorkReportDetailPage({ session }: Props) {
                   Raporttihinnat
                 </label>
               </Tooltip>
+              ) : (
+                <span className="muted">
+                  Raportin laatija: {report.created_by_company?.name ?? '—'}
+                </span>
+              )}
             </div>
 
-            {useCustomRates && (
+            {showOutgoingPartnerBilling && useCustomRates && (
               <div className="billing-rates-inline">
                 <PartnerBillingRatesFields
                   rates={reportRatesDraft}
@@ -2551,7 +2581,7 @@ export default function WorkReportDetailPage({ session }: Props) {
                 </p>
               );
             })()}
-            {canSeeCreatorBilling
+            {showOutgoingPartnerBilling && canSeeCreatorBilling
               && billing?.partner_invoice_status
               && billing.partner_invoice_status !== 'paid'
               && billing.partner_invoice_status !== 'partial'
@@ -2573,6 +2603,7 @@ export default function WorkReportDetailPage({ session }: Props) {
               </p>
             )}
             <WorkReportBillingBreakdown calculation={billableCalculation} />
+            {showOutgoingPartnerBilling ? (
             <div className="form-actions" style={{ justifyContent: 'flex-start' }}>
               <Tooltip label="Sisäinen tuloste: kumppanilaskutus, asiakkaalta laskutettava ja kaikki hinnat.">
                 <Link
@@ -2600,6 +2631,11 @@ export default function WorkReportDetailPage({ session }: Props) {
                 </button>
               </Tooltip>
             </div>
+            ) : (
+              <p className="muted">
+                Kumppanilla ei ole laskutusmoduulia käytössä — tämä yhteenveto näkyy vain sinulle.
+              </p>
+            )}
         </CollapsibleSection>
       )}
 
@@ -2703,7 +2739,7 @@ export default function WorkReportDetailPage({ session }: Props) {
         </CollapsibleSection>
       )}
 
-      {canSeePartnerSummary && !canSeeCreatorBilling && (
+      {canSeePartnerSummary && !showIncomingPartnerBilling && (
         <CollapsibleSection title="Kumppanilaskutuksen yhteenveto" defaultOpen={false} variant="plain" className="panel work-report-section">
           <p className="muted">
             Raportin laatija ({report.created_by_company?.name ?? '—'}) on jakanut laskutettavan summan.
@@ -2714,7 +2750,7 @@ export default function WorkReportDetailPage({ session }: Props) {
         </CollapsibleSection>
       )}
 
-      {!canManageBilling && isOwnerCompany && isPartnerReport && (
+      {!canManageBilling && isOwnerCompany && isPartnerReport && !viewerBillingAllowed && (
         <p className="muted">
           Kumppanin laskutettava summa ei ole jaettu. Raportin laatija voi tulostaa laskutusyhteenvedon.
         </p>
@@ -2732,7 +2768,7 @@ export default function WorkReportDetailPage({ session }: Props) {
           drafts={tripDrafts}
           setDrafts={setTripDrafts}
           departureLabel={tripDepartureLabel}
-          showCustomerFields={customerInvoicingEnabled}
+          showCustomerFields={showCustomerBillingFeatures}
           destinationOptions={tripDestinationOptions}
           tripKmRate={tripKmRate}
         />
@@ -2742,9 +2778,9 @@ export default function WorkReportDetailPage({ session }: Props) {
           expenseDrafts={expenseDrafts}
           setExpenseDrafts={setExpenseDrafts}
           showHourlyRate={showPartnerDailyLogHourlyRate}
-          showCustomerHourlyRate={customerInvoicingEnabled}
+          showCustomerHourlyRate={showCustomerBillingFeatures}
           showPartnerExpenseFields={isPartnerReport}
-          showCustomerExpenseFields={customerInvoicingEnabled}
+          showCustomerExpenseFields={showCustomerBillingFeatures}
           defaultHourlyRate={
             billableCalculation?.ratesUsed.hourly_regular
             ?? partnershipRatesPreview.hourly_regular
@@ -2765,7 +2801,7 @@ export default function WorkReportDetailPage({ session }: Props) {
           companyUsers={refrigerantCompanyUsers}
           ownCompanyId={profile?.company_id ?? null}
           hasPartnerCompanies={hasPartnerRefrigerantCompanies}
-          showCustomerBillingFields={customerInvoicingEnabled}
+          showCustomerBillingFields={showCustomerBillingFeatures}
         />
         {report && (
           <DailyLogFormSection
