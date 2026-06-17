@@ -39,6 +39,7 @@ import {
 } from './kokeAikaUtils';
 import { buildMaintenanceReportPrintTitle, hideMaintenancePrintWarnings } from './defaults';
 import { generateKonvektoritGridPrintHtml, konvektoriVerkostoKoideFromReport } from './konvektoriPrint';
+import { generateSisayksikotGridPrintHtml } from './sisayksikkoPrint';
 import { formatHuomioPrintHtml, RICH_COMMENT_PRINT_CSS } from './formatHuomioPrintHtml';
 import { isMaintenancePrintPhotoImage } from '../maintenanceReportPrintImages';
 import type { HuoltoReportData } from './types';
@@ -3111,53 +3112,12 @@ export function generatePrintHTML(data: {
 
   ${ulkoyksikkoHtml}
 
-  ${data.laiteTyyppi === 'lämpöpumppu' && data.sisayksikkoData && data.sisayksikkoData.length > 0 ? (() => {
-    const tyyppiLabels: Record<string, string> = {
-      'seina': 'Seinä-asenteinen',
-      'kattokasetti': 'Kattokasetti',
-      'konsooli': 'Konsooli',
-      'katto-pinta': 'Katto-pinta',
-      'kanavoitava': 'Kanavoitava'
-    };
-
-    const checkboxRowSisa = (c: boolean | undefined, lbl: string, borderBottom = true) => {
-      if (c !== true && c !== false) return '';
-      const mark =
-        c === true
-          ? '<span style="color: #16a34a; font-weight: bold;">✓</span>'
-          : '<span style="color: #dc2626; font-weight: bold;">✗</span>';
-      const bb = borderBottom ? 'border-bottom: 1px solid #E65100; ' : '';
-      return `<div style="${bb}padding: 2px 0; font-size: 11px;">${mark} ${esc(lbl)}</div>`;
-    };
-
-    let html = `
-    <div class="box-content" style="border-color: #E65100; page-break-inside: avoid; break-inside: avoid;">
-      <div style="border-bottom: 2px solid #E65100; padding-bottom: 2px; margin-bottom: 4px;">
-        <strong style="font-size: 18px; color: #E65100; text-decoration: underline;">SISÄYKSIKÖT</strong>
-      </div>`;
-
-    data.sisayksikkoData.forEach((yksikko, index) => {
-      const pumppuMalliHtml = yksikko.kondenssivesi === 'pumpulla' && yksikko.pumppuMalli ?
-        `<div style="border-bottom: 1px solid #E65100; padding: 2px 0; font-size: 11px;">Pumpun malli: ${yksikko.pumppuMalli}</div>` : '';
-
-      html += `
-      <div style="margin-top: 8px; padding: 8px; background: #fff3e0; border-radius: 4px; border-left: 3px solid #E65100;">
-        <div style="font-size: 14px; font-weight: bold; color: #E65100; margin-bottom: 6px;">Sisäyksikkö ${index + 1}</div>
-        <div style="border-bottom: 1px solid #E65100; padding: 2px 0; font-size: 11px;">Tyyppi: ${tyyppiLabels[yksikko.tyyppi] || '-'}</div>
-        <div style="border-bottom: 1px solid #E65100; padding: 2px 0; font-size: 11px;">Malli: ${yksikko.malli || '-'}</div>
-        <div style="border-bottom: 1px solid #E65100; padding: 2px 0; font-size: 11px;">Sarjanumero: ${yksikko.sarjanumero || '-'}</div>
-        <div style="border-bottom: 1px solid #E65100; padding: 2px 0; font-size: 11px;">Kondenssivesi: ${yksikko.kondenssivesi === 'pumpulla' ? 'Pumpulla' : 'Painovoimainen'}</div>
-        ${pumppuMalliHtml}
-        ${checkboxRowSisa(yksikko.asennettu, 'Asennettu vaatimusten mukaisesti')}
-        ${checkboxRowSisa(yksikko.kennoPuhdas, 'Kenno ja siipipyörä puhdas/puhdistettu')}
-        ${checkboxRowSisa(yksikko.eiAania, 'Ei kuulu sivuääniä')}
-        ${checkboxRowSisa(yksikko.kondenssiTestattu, 'Kondenssiveden poisto testattu/kunnossa', false)}
-      </div>`;
-    });
-
-    html += `</div>`;
-    return html;
-  })() : ''}
+  ${data.laiteTyyppi === 'lämpöpumppu' && data.sisayksikkoData && data.sisayksikkoData.length > 0
+    ? generateSisayksikotGridPrintHtml(data.sisayksikkoData, data.mittausSisayksikot, esc, {
+        origin: typeof window !== 'undefined' ? window.location.origin : '',
+        unitCount: data.sisayksikkoMaara ?? data.sisayksikkoData.length,
+      })
+    : ''}
 
   ${data.laiteTyyppi === 'lämpöpumppu' && data.mittausSisayksikot && data.mittausSisayksikot.length > 0 ? (() => {
     const mittausRuksi = (c: boolean | undefined, lbl: string, bottom = true) => {

@@ -84,6 +84,9 @@ export function createEmptySisayksikkoData(): SisayksikkoData {
     kennoPuhdas: false,
     eiAania: false,
     kondenssiTestattu: false,
+    huoneLampotila: '',
+    huomio: '',
+    huomioTyyppi: 'kommentti',
   };
 }
 

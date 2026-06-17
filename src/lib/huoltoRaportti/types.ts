@@ -270,6 +270,10 @@ export interface SisayksikkoData {
   kennoPuhdas: boolean;
   eiAania: boolean;
   kondenssiTestattu: boolean;
+  /** Huoneen lämpötila tarkastuksessa (°C) — näytetään kuvan päällä. */
+  huoneLampotila?: string;
+  huomio?: string;
+  huomioTyyppi?: HuomioLuonne;
 }
 
 export interface MittausSisayksikkoData {

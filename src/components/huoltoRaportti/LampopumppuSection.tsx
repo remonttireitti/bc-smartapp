@@ -1,8 +1,9 @@
-import type { HuoltoReportData } from '../../lib/huoltoRaportti/types';
+import type { HuoltoReportData, SisayksikkoData } from '../../lib/huoltoRaportti/types';
 import {
   createEmptySisayksikkoData,
   createEmptySisayksikkoMittausData,
 } from '../../lib/huoltoRaportti/defaults';
+import { sisayksikkoTarkastusSummary } from '../../lib/huoltoRaportti/sisayksikkoTarkastus';
 import { FormCheckbox } from './FormCheckbox';
 import { FormInput } from './FormInput';
 import {
@@ -11,6 +12,9 @@ import {
   lampopumppuUlkoyksikkoTitle,
 } from '../../lib/huoltoRaportti/sectionTitles';
 import { HuoltoModuleSection } from './HuoltoModuleSection';
+import { SisayksikkoSchematicPreview } from './SisayksikkoSchematicPreview';
+import { SisayksikkoTarkastusDialog } from './SisayksikkoTarkastusDialog';
+import { useState } from 'react';
 
 interface Props {
   form: HuoltoReportData;
@@ -18,6 +22,23 @@ interface Props {
   showUlkoyksikko?: boolean;
   showSisayksikko?: boolean;
   showMittaukset?: boolean;
+}
+
+function sisayksikkoStatusLabel(unit: SisayksikkoData): { text: string; className: string } {
+  const summary = sisayksikkoTarkastusSummary(unit);
+  if (unit.huomioTyyppi === 'vika' || unit.huomio?.trim()) {
+    return {
+      text: unit.huomioTyyppi === 'vika' ? 'Vika' : 'Huomio',
+      className: unit.huomioTyyppi === 'vika' ? 'konvektori-status konvektori-status--vika' : 'konvektori-status konvektori-status--note',
+    };
+  }
+  if (!summary.complete) {
+    return { text: `Tarkastus ${summary.answered}/${summary.total}`, className: 'konvektori-status konvektori-status--pending' };
+  }
+  if (summary.anyNo) {
+    return { text: 'Huomioita', className: 'konvektori-status konvektori-status--warn' };
+  }
+  return { text: 'OK', className: 'konvektori-status konvektori-status--ok' };
 }
 
 export function LampopumppuSection({
@@ -31,6 +52,7 @@ export function LampopumppuSection({
   const sisayksikkoData = form.sisayksikkoData ?? [createEmptySisayksikkoData()];
   const sisaSama = form.sisaSamaKuinEnsimmainen ?? [];
   const mittausSisayksikot = form.mittausSisayksikot ?? [createEmptySisayksikkoMittausData()];
+  const [tarkastusIndex, setTarkastusIndex] = useState<number | null>(null);
   const mittausSama = form.mittausSamaKuinEnsimmainen ?? [];
 
   function setSisayksikkoMaara(count: number) {
@@ -153,6 +175,9 @@ export function LampopumppuSection({
 
       {showSisayksikko && (
         <HuoltoModuleSection moduleKey="sisayksikko" title={lampopumppuSisayksikkoTitle(form.laiteTyyppi)}>
+          <p className="muted huolto-help">
+            Valitse tyyppi ja täytä tunnistetiedot. Tarkastus, lämpötilat ja huomiot avataan popupista. Tuloste näyttää kuvan ja lämpötilat (ei virtauslaskentaa).
+          </p>
           <div className="btn-group">
             {[1, 2, 3, 4, 5].map((num) => (
               <button
@@ -166,9 +191,15 @@ export function LampopumppuSection({
             ))}
           </div>
 
-          {sisayksikkoData.slice(0, sisayksikkoMaara).map((yksikko, index) => (
+          {sisayksikkoData.slice(0, sisayksikkoMaara).map((yksikko, index) => {
+            const mittaus = mittausSisayksikot[index] ?? createEmptySisayksikkoMittausData();
+            const status = sisayksikkoStatusLabel(yksikko);
+            return (
             <div key={index} className="huolto-submodule">
-              <h3>Sisäyksikkö {index + 1}</h3>
+              <div className="sisayksikko-submodule-head">
+                <h3>Sisäyksikkö {index + 1}</h3>
+                <span className={status.className}>{status.text}</span>
+              </div>
               {index > 0 && (
                 <FormCheckbox
                   id={`sisayksikko-${index}-sama-kuin-1`}
@@ -258,54 +289,37 @@ export function LampopumppuSection({
                   />
                 )}
               </div>
-              <div className="checkbox-grid">
-                <FormCheckbox
-                  id={`sisayksikko-${index}-asennettu`}
-                  label="Asennettu vaatimusten mukaisesti"
-                  checked={yksikko.asennettu}
-                  onChange={(v) => {
-                    const next = [...sisayksikkoData];
-                    next[index] = { ...next[index], asennettu: v };
-                    onChange({ sisayksikkoData: next });
-                  }}
+              <SisayksikkoSchematicPreview unit={yksikko} mittaus={mittaus} />
+              <div className="sisayksikko-submodule-actions">
+                <button
+                  type="button"
+                  className="btn btn-primary btn-sm"
                   disabled={!!sisaSama[index]}
-                />
-                <FormCheckbox
-                  id={`sisayksikko-${index}-kenno-puhdas`}
-                  label="Kenno ja siipipyörä puhdas/puhdistettu"
-                  checked={yksikko.kennoPuhdas}
-                  onChange={(v) => {
-                    const next = [...sisayksikkoData];
-                    next[index] = { ...next[index], kennoPuhdas: v };
-                    onChange({ sisayksikkoData: next });
-                  }}
-                  disabled={!!sisaSama[index]}
-                />
-                <FormCheckbox
-                  id={`sisayksikko-${index}-ei-aania`}
-                  label="Ei kuulu sivuääniä"
-                  checked={yksikko.eiAania}
-                  onChange={(v) => {
-                    const next = [...sisayksikkoData];
-                    next[index] = { ...next[index], eiAania: v };
-                    onChange({ sisayksikkoData: next });
-                  }}
-                  disabled={!!sisaSama[index]}
-                />
-                <FormCheckbox
-                  id={`sisayksikko-${index}-kondenssi-testattu`}
-                  label="Kondenssiveden poisto testattu/kunnossa"
-                  checked={yksikko.kondenssiTestattu}
-                  onChange={(v) => {
-                    const next = [...sisayksikkoData];
-                    next[index] = { ...next[index], kondenssiTestattu: v };
-                    onChange({ sisayksikkoData: next });
-                  }}
-                  disabled={!!sisaSama[index]}
-                />
+                  onClick={() => setTarkastusIndex(index)}
+                >
+                  Tarkastus
+                </button>
               </div>
             </div>
-          ))}
+            );
+          })}
+
+          {tarkastusIndex != null && sisayksikkoData[tarkastusIndex] && (
+            <SisayksikkoTarkastusDialog
+              open
+              unit={sisayksikkoData[tarkastusIndex]}
+              mittaus={mittausSisayksikot[tarkastusIndex] ?? createEmptySisayksikkoMittausData()}
+              rowLabel={`Sisäyksikkö ${tarkastusIndex + 1}`}
+              onClose={() => setTarkastusIndex(null)}
+              onSave={(nextUnit, nextMittaus) => {
+                const nextData = [...sisayksikkoData];
+                nextData[tarkastusIndex] = nextUnit;
+                const nextMittausList = [...mittausSisayksikot];
+                nextMittausList[tarkastusIndex] = nextMittaus;
+                onChange({ sisayksikkoData: nextData, mittausSisayksikot: nextMittausList });
+              }}
+            />
+          )}
         </HuoltoModuleSection>
       )}
 

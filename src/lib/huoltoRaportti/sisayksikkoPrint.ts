@@ -1,0 +1,145 @@
+import { formatHuomioPrintHtml, huomioPrintTextStyle } from './formatHuomioPrintHtml';
+import { SISAYKSIKKO_TARKASTUS_ITEMS, sisayksikkoTarkastusSummary } from './sisayksikkoTarkastus';
+import {
+  sisayksikkoImageUrl,
+  sisayksikkoOverlayPositions,
+  sisayksikkoSupportsSchematic,
+  sisayksikkoTempOverlay,
+  sisayksikkoTyyppiLabel,
+} from './sisayksikkoTypes';
+import type { MittausSisayksikkoData, SisayksikkoData } from './types';
+
+const CHECK_SHORT: Record<string, string> = {
+  asennettu: 'Asenn',
+  kennoPuhdas: 'Kenno',
+  eiAania: 'Ääni',
+  kondenssiTestattu: 'Kond',
+};
+
+function anchorStyle(anchor: { top?: string; bottom?: string; left?: string; right?: string }): string {
+  const parts = ['position:absolute', 'z-index:2', 'pointer-events:none'];
+  if (anchor.top) parts.push(`top:${anchor.top}`);
+  if (anchor.bottom) parts.push(`bottom:${anchor.bottom}`);
+  if (anchor.left) parts.push(`left:${anchor.left}`);
+  if (anchor.right) parts.push(`right:${anchor.right}`);
+  return parts.join(';');
+}
+
+function overlayChip(text: string): string {
+  return `<div style="padding:1px 3px;border-radius:2px;background:rgba(255,255,255,0.96);border:1px solid #cbd5e1;font-size:6px;font-weight:600;color:#0f172a;white-space:nowrap;line-height:1.25;">${text}</div>`;
+}
+
+function renderCheckMark(checked: boolean | null | undefined): string {
+  if (checked === true) return '<span style="color:#16a34a;font-weight:700;">✓</span>';
+  if (checked === false) return '<span style="color:#dc2626;font-weight:700;">✗</span>';
+  return '<span style="color:#9ca3af;">–</span>';
+}
+
+function cardColors(unit: SisayksikkoData): { background: string; border: string } {
+  const summary = sisayksikkoTarkastusSummary(unit);
+  const isVika = unit.huomioTyyppi === 'vika' || summary.anyNo;
+  if (isVika) return { background: '#fef2f2', border: '#fca5a5' };
+  if (summary.complete && summary.allYes) return { background: '#f0fdf4', border: '#86efac' };
+  return { background: '#fff', border: '#cbd5e1' };
+}
+
+function renderSisayksikkoCard(
+  unit: SisayksikkoData,
+  mittaus: MittausSisayksikkoData | undefined,
+  index: number,
+  esc: (v: unknown) => string,
+  escAttr: (v: unknown) => string,
+  origin: string,
+): string {
+  const typeLabel = sisayksikkoTyyppiLabel(unit.tyyppi) || 'Sisäyksikkö';
+  const schematic = sisayksikkoSupportsSchematic(unit.tyyppi);
+  const metaParts = [unit.malli?.trim(), unit.sarjanumero?.trim()].filter(Boolean);
+  const kondenssi =
+    unit.kondenssivesi === 'pumpulla'
+      ? `Kondenssivesi: pumpulla${unit.pumppuMalli?.trim() ? ` (${unit.pumppuMalli.trim()})` : ''}`
+      : unit.kondenssivesi === 'painovoimainen'
+        ? 'Kondenssivesi: painovoimainen'
+        : '';
+
+  const checks = SISAYKSIKKO_TARKASTUS_ITEMS.map((item) => {
+    const short = CHECK_SHORT[item.field] ?? item.field;
+    const val = unit[item.field];
+    return `<span title="${esc(item.label)}" style="margin-right:3px;">${esc(short)} ${renderCheckMark(val)}</span>`;
+  }).join('');
+
+  const isVika = unit.huomioTyyppi === 'vika';
+  const huom = unit.huomio?.trim()
+    ? formatHuomioPrintHtml(unit.huomio, esc)
+    : '<span style="color:#94a3b8;">—</span>';
+  const huomioStyle = [huomioPrintTextStyle, isVika ? 'color:#b91c1c;' : ''].filter(Boolean).join(' ');
+
+  const colors = cardColors(unit);
+
+  let schematicHtml = '';
+  if (schematic) {
+    const overlay = sisayksikkoOverlayPositions(unit.tyyppi);
+    const temps = sisayksikkoTempOverlay(unit, mittaus);
+    const imgUrl = sisayksikkoImageUrl(unit.tyyppi, origin);
+    const overlayHtml = [
+      temps.huone ? `<div style="${anchorStyle(overlay.huone)}">${overlayChip(`Huone ${esc(temps.huone)}`)}</div>` : '',
+      temps.puhallus ? `<div style="${anchorStyle(overlay.puhallus)}">${overlayChip(`Puhallus ${esc(temps.puhallus)}`)}</div>` : '',
+      temps.paluu ? `<div style="${anchorStyle(overlay.paluu)}">${overlayChip(`Paluu ${esc(temps.paluu)}`)}</div>` : '',
+    ].filter(Boolean).join('');
+
+    schematicHtml = `
+      <div style="position:relative;width:100%;height:88px;margin-bottom:3px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:3px;overflow:visible;">
+        <img src="${escAttr(imgUrl)}" alt="" style="width:100%;height:100%;object-fit:contain;display:block;" />
+        ${overlayHtml}
+      </div>`;
+  }
+
+  const techLine = [kondenssi].filter(Boolean).join(' · ');
+
+  return `
+    <div style="border:1px solid ${colors.border};border-radius:4px;padding:4px;background:${colors.background};page-break-inside:avoid;display:flex;flex-direction:column;min-height:0;">
+      <div style="font-size:7px;font-weight:700;color:#E65100;line-height:1.2;margin-bottom:2px;">${index + 1}. ${esc(typeLabel)}</div>
+      <div style="font-size:6px;color:#334155;line-height:1.25;margin-bottom:3px;word-wrap:break-word;">${metaParts.length ? esc(metaParts.join(' · ')) : '—'}</div>
+      ${techLine ? `<div style="font-size:6px;color:#475569;line-height:1.25;margin-bottom:3px;">${esc(techLine)}</div>` : ''}
+      ${schematicHtml}
+      <div style="font-size:5.5px;line-height:1.3;color:#475569;margin-bottom:2px;flex-wrap:wrap;">${checks}</div>
+      <div style="font-size:6px;line-height:1.25;border-top:1px solid #e2e8f0;padding-top:2px;margin-top:auto;${huomioStyle}">${huom}</div>
+    </div>`;
+}
+
+export function generateSisayksikotGridPrintHtml(
+  units: SisayksikkoData[] | undefined | null,
+  mittaukset: MittausSisayksikkoData[] | undefined | null,
+  esc: (v: unknown) => string,
+  options?: {
+    origin?: string;
+    columns?: number;
+    escAttr?: (v: unknown) => string;
+    unitCount?: number;
+  },
+): string {
+  const count = options?.unitCount ?? units?.length ?? 0;
+  const list = (units ?? []).slice(0, count).filter((row) => row && typeof row === 'object');
+  if (list.length === 0) return '';
+
+  const origin = options?.origin ?? (typeof window !== 'undefined' ? window.location.origin : '');
+  const columns = Math.min(options?.columns ?? 3, list.length);
+  const escAttr = options?.escAttr ?? esc;
+  const mittausList = mittaukset ?? [];
+
+  const cards = list
+    .map((unit, idx) => renderSisayksikkoCard(unit, mittausList[idx], idx, esc, escAttr, origin))
+    .join('');
+
+  return `
+  <div class="box-content" style="border-color:#E65100;page-break-inside:avoid;margin-top:6px;">
+    <div style="border-bottom:2px solid #E65100;padding-bottom:2px;margin-bottom:4px;">
+      <strong style="font-size:12px;color:#E65100;">SISÄYKSIKÖT</strong>
+    </div>
+    <p style="font-size:8px;color:#444;margin:0 0 4px 0;line-height:1.25;">
+      Kylmäainepiirin sisäyksiköt. Kuvassa lämpötilat (ei vesivirtauslaskentaa). ✓ = OK · ✗ = ei OK · – = ei vastattu.
+    </p>
+    <div style="display:grid;grid-template-columns:repeat(${columns},minmax(0,1fr));gap:6px;align-items:stretch;">
+      ${cards}
+    </div>
+  </div>`;
+}
