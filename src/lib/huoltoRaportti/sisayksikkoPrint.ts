@@ -43,6 +43,20 @@ function cardColors(unit: SisayksikkoData): { background: string; border: string
   return { background: '#fff', border: '#cbd5e1' };
 }
 
+function renderSisayksikkoCheckLegend(esc: (v: unknown) => string): string {
+  const rows = SISAYKSIKKO_TARKASTUS_ITEMS.map((item) => {
+    const short = CHECK_SHORT[item.field] ?? item.field;
+    return `<div style="margin:0 0 2px 0;"><strong>${esc(short)}</strong> — ${esc(item.label)}</div>`;
+  }).join('');
+
+  return `
+    <div style="font-size:7px;color:#334155;line-height:1.35;margin:0 0 6px 0;padding:5px 7px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:3px;">
+      <div style="font-weight:700;margin-bottom:4px;color:#E65100;">Tarkastuskohdat (✓ = OK, ✗ = ei OK, – = ei vastattu)</div>
+      ${rows}
+      <div style="margin-top:4px;color:#64748b;">Ruudun tausta: vihreä = kaikki OK · punertava = vika tai jokin kohta pois päältä. Kuvassa lämpötilat (ei virtauslaskentaa).</div>
+    </div>`;
+}
+
 function renderSisayksikkoCard(
   unit: SisayksikkoData,
   mittaus: MittausSisayksikkoData | undefined,
@@ -135,9 +149,7 @@ export function generateSisayksikotGridPrintHtml(
     <div style="border-bottom:2px solid #E65100;padding-bottom:2px;margin-bottom:4px;">
       <strong style="font-size:12px;color:#E65100;">SISÄYKSIKÖT</strong>
     </div>
-    <p style="font-size:8px;color:#444;margin:0 0 4px 0;line-height:1.25;">
-      Kylmäainepiirin sisäyksiköt. Kuvassa lämpötilat (ei vesivirtauslaskentaa). ✓ = OK · ✗ = ei OK · – = ei vastattu.
-    </p>
+    ${renderSisayksikkoCheckLegend(esc)}
     <div style="display:grid;grid-template-columns:repeat(${columns},minmax(0,1fr));gap:6px;align-items:stretch;">
       ${cards}
     </div>

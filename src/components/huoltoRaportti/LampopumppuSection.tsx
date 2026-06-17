@@ -176,7 +176,7 @@ export function LampopumppuSection({
       {showSisayksikko && (
         <HuoltoModuleSection moduleKey="sisayksikko" title={lampopumppuSisayksikkoTitle(form.laiteTyyppi)}>
           <p className="muted huolto-help">
-            Valitse tyyppi ja täytä tunnistetiedot. Tarkastus, lämpötilat ja huomiot avataan popupista. Tuloste näyttää kuvan ja lämpötilat (ei virtauslaskentaa).
+            Valitse tyyppi ja täytä tunnistetiedot. Merkitse tarkastuskohdat kytkimillä tai avaa Tarkastus-popup lämpötiloille ja huomioille.
           </p>
           <div className="btn-group">
             {[1, 2, 3, 4, 5].map((num) => (
@@ -290,6 +290,52 @@ export function LampopumppuSection({
                 )}
               </div>
               <SisayksikkoSchematicPreview unit={yksikko} mittaus={mittaus} />
+              <div className="checkbox-grid">
+                <FormCheckbox
+                  id={`sisayksikko-${index}-asennettu`}
+                  label="Asennettu vaatimusten mukaisesti"
+                  checked={yksikko.asennettu}
+                  onChange={(v) => {
+                    const next = [...sisayksikkoData];
+                    next[index] = { ...next[index], asennettu: v };
+                    onChange({ sisayksikkoData: next });
+                  }}
+                  disabled={!!sisaSama[index]}
+                />
+                <FormCheckbox
+                  id={`sisayksikko-${index}-kenno-puhdas`}
+                  label="Kenno ja siipipyörä puhdas/puhdistettu"
+                  checked={yksikko.kennoPuhdas}
+                  onChange={(v) => {
+                    const next = [...sisayksikkoData];
+                    next[index] = { ...next[index], kennoPuhdas: v };
+                    onChange({ sisayksikkoData: next });
+                  }}
+                  disabled={!!sisaSama[index]}
+                />
+                <FormCheckbox
+                  id={`sisayksikko-${index}-ei-aania`}
+                  label="Ei kuulu sivuääniä"
+                  checked={yksikko.eiAania}
+                  onChange={(v) => {
+                    const next = [...sisayksikkoData];
+                    next[index] = { ...next[index], eiAania: v };
+                    onChange({ sisayksikkoData: next });
+                  }}
+                  disabled={!!sisaSama[index]}
+                />
+                <FormCheckbox
+                  id={`sisayksikko-${index}-kondenssi-testattu`}
+                  label="Kondenssiveden poisto testattu/kunnossa"
+                  checked={yksikko.kondenssiTestattu}
+                  onChange={(v) => {
+                    const next = [...sisayksikkoData];
+                    next[index] = { ...next[index], kondenssiTestattu: v };
+                    onChange({ sisayksikkoData: next });
+                  }}
+                  disabled={!!sisaSama[index]}
+                />
+              </div>
               <div className="sisayksikko-submodule-actions">
                 <button
                   type="button"
