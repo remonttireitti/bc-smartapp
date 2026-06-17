@@ -1103,7 +1103,8 @@ export default function MaintenanceReportEditPage({ session }: Props) {
   }, [form, customerId, equipmentId, contextMode, partnerId, status, draftStorageKey]);
 
   useEffect(() => {
-    if (skipAutoSaveRef.current || status !== 'draft' || busy) return;
+    if (skipAutoSaveRef.current || busy) return;
+    if (status !== 'draft' && !canEditPublishedReport) return;
     if (!form.laiteTyyppi) return;
     if (!customerId && !form.asiakas.trim()) return;
 
@@ -1113,11 +1114,11 @@ export default function MaintenanceReportEditPage({ session }: Props) {
     }
 
     const timer = window.setTimeout(() => {
-      void saveReport('draft', { auto: true });
+      void saveReport(status === 'draft' ? 'draft' : undefined, { auto: true });
     }, 2500);
 
     return () => window.clearTimeout(timer);
-  }, [form, customerId, equipmentId, contextMode, partnerId, ownerCompanyId, status, isOnline, busy]);
+  }, [form, customerId, equipmentId, contextMode, partnerId, ownerCompanyId, status, isOnline, busy, canEditPublishedReport]);
 
   useRegisterDraftSaver(async () => {
     if (status !== 'draft') return;

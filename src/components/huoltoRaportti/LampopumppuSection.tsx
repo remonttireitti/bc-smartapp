@@ -103,6 +103,7 @@ export function LampopumppuSection({
           </div>
           <div className="checkbox-grid">
             <FormCheckbox
+              id="ulkoyksikko-kennos-puhdas"
               label="Kenno puhdistettu tai puhdas"
               checked={!!form.ulkoyksikkoKennosPuhdas}
               onChange={(v) =>
@@ -121,23 +122,27 @@ export function LampopumppuSection({
               />
             )}
             <FormCheckbox
+              id="ulkoyksikko-sulatusvesi-keraily"
               label="Ulkoyksiköllä sulatusveden keräily/ohjaus"
               checked={!!form.ulkoyksikkoSulatausVedenKeraily}
               onChange={(v) => onChange({ ulkoyksikkoSulatausVedenKeraily: v })}
             />
             {form.ulkoyksikkoSulatausVedenKeraily && (
               <FormCheckbox
+                id="ulkoyksikko-sulatusvesi-tarkistettu"
                 label="Sulatusveden keräily tarkistettu/kunnossa"
                 checked={!!form.ulkoyksikkoSulatausVedenTarkistettu}
                 onChange={(v) => onChange({ ulkoyksikkoSulatausVedenTarkistettu: v })}
               />
             )}
             <FormCheckbox
+              id="ulkoyksikko-turvakytkin"
               label="Ulkoyksikön vieressä turvakytkin"
               checked={!!form.ulkoyksikkoTurvakytkin}
               onChange={(v) => onChange({ ulkoyksikkoTurvakytkin: v })}
             />
             <FormCheckbox
+              id="ulkoyksikko-suojakotelo"
               label="Ulkoyksiköllä suojakotelo"
               checked={!!form.ulkoyksikkoSuojakotelo}
               onChange={(v) => onChange({ ulkoyksikkoSuojakotelo: v })}
@@ -166,6 +171,7 @@ export function LampopumppuSection({
               <h3>Sisäyksikkö {index + 1}</h3>
               {index > 0 && (
                 <FormCheckbox
+                  id={`sisayksikko-${index}-sama-kuin-1`}
                   label={`Sisäyksikkö ${index + 1}: sama kuin sisäyksikkö 1`}
                   checked={!!sisaSama[index]}
                   onChange={(v) => {
@@ -254,6 +260,7 @@ export function LampopumppuSection({
               </div>
               <div className="checkbox-grid">
                 <FormCheckbox
+                  id={`sisayksikko-${index}-asennettu`}
                   label="Asennettu vaatimusten mukaisesti"
                   checked={yksikko.asennettu}
                   onChange={(v) => {
@@ -264,6 +271,7 @@ export function LampopumppuSection({
                   disabled={!!sisaSama[index]}
                 />
                 <FormCheckbox
+                  id={`sisayksikko-${index}-kenno-puhdas`}
                   label="Kenno ja siipipyörä puhdas/puhdistettu"
                   checked={yksikko.kennoPuhdas}
                   onChange={(v) => {
@@ -274,6 +282,7 @@ export function LampopumppuSection({
                   disabled={!!sisaSama[index]}
                 />
                 <FormCheckbox
+                  id={`sisayksikko-${index}-ei-aania`}
                   label="Ei kuulu sivuääniä"
                   checked={yksikko.eiAania}
                   onChange={(v) => {
@@ -284,6 +293,7 @@ export function LampopumppuSection({
                   disabled={!!sisaSama[index]}
                 />
                 <FormCheckbox
+                  id={`sisayksikko-${index}-kondenssi-testattu`}
                   label="Kondenssiveden poisto testattu/kunnossa"
                   checked={yksikko.kondenssiTestattu}
                   onChange={(v) => {
@@ -303,11 +313,13 @@ export function LampopumppuSection({
         <HuoltoModuleSection moduleKey="mittaukset" title={lampopumppuMittauksetTitle(form.laiteTyyppi)}>
           <div className="line-form-grid">
             <FormCheckbox
+              id="mittaus-jaahdytys-testattu"
               label="Jäähdytys toiminto testattu"
               checked={!!form.mittausJaahdytysTestattu}
               onChange={(v) => onChange({ mittausJaahdytysTestattu: v })}
             />
             <FormCheckbox
+              id="mittaus-lammitys-testattu"
               label="Lämmitys toiminto testattu"
               checked={!!form.mittausLammitysTestattu}
               onChange={(v) => onChange({ mittausLammitysTestattu: v })}
@@ -331,6 +343,7 @@ export function LampopumppuSection({
               <h3>Sisäyksikkö {index + 1} mittaukset</h3>
               {index > 0 && (
                 <FormCheckbox
+                  id={`mittaus-${index}-sama-kuin-1`}
                   label={`Sisäyksikkö ${index + 1} mittaukset: sama kuin sisäyksikkö 1`}
                   checked={!!mittausSama[index]}
                   onChange={(v) => {

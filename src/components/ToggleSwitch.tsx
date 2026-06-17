@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useId, type ReactNode } from 'react';
 
 interface ToggleSwitchProps {
   checked: boolean;
@@ -19,13 +19,13 @@ export default function ToggleSwitch({
   id,
   className = '',
 }: ToggleSwitchProps) {
-  const switchId = id ?? (label ? `toggle-${label.replace(/\s+/g, '-').toLowerCase()}` : undefined);
+  const autoId = useId();
+  const switchId = id ?? autoId;
   const ariaLabel = label ?? (icon ? 'Kytkin' : undefined);
 
   return (
     <label
       className={`toggle-switch ${disabled ? 'toggle-switch-disabled' : ''} ${className}`.trim()}
-      htmlFor={switchId}
     >
       {icon ? <span className="toggle-switch-icon">{icon}</span> : null}
       <input

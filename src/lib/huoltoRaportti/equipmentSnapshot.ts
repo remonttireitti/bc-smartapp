@@ -1,9 +1,11 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import {
+  createEmptySisayksikkoData,
   ensureCondenserData,
   ensureEvaporatorData,
   ensureMlpData,
   ensureRefrigerantCircuitData,
+  ensureSisayksikkoData,
   mergeHuoltoReportData,
 } from './defaults';
 import {
@@ -535,7 +537,12 @@ export function applyEquipmentSnapshotToForm(
   if (snap.sisayksikko) {
     patch.sisayksikkoMaara = snap.sisayksikko.maara;
     if (Array.isArray(snap.sisayksikko.data)) {
-      patch.sisayksikkoData = snap.sisayksikko.data as SisayksikkoData[];
+      patch.sisayksikkoData = snap.sisayksikko.data.map((snapUnit, index) =>
+        ensureSisayksikkoData({
+          ...(form.sisayksikkoData[index] ?? createEmptySisayksikkoData()),
+          ...(snapUnit as Partial<SisayksikkoData>),
+        }),
+      );
     }
   }
 

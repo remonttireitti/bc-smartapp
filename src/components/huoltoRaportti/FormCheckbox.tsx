@@ -6,6 +6,7 @@ interface FormCheckboxProps {
   onChange: (checked: boolean) => void;
   className?: string;
   disabled?: boolean;
+  id?: string;
 }
 
 export function FormCheckbox({
@@ -14,9 +15,11 @@ export function FormCheckbox({
   onChange,
   className = '',
   disabled = false,
+  id,
 }: FormCheckboxProps) {
   return (
     <ToggleSwitch
+      id={id}
       label={label}
       checked={checked === true}
       disabled={disabled}
