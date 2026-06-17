@@ -66,17 +66,27 @@ export function sisayksikkoImageUrl(tyyppi: unknown, origin = ''): string {
 type OverlayAnchor = { top?: string; bottom?: string; left?: string; right?: string };
 
 /** Sama kuva kuin konvektorilla — overlayt kohdistettu konvektorin imu/puhallus/vasen-pino -pisteisiin. */
+const PALUU_BY_TYYPPI: Record<SisayksikkoAsennustyyppi, OverlayAnchor> = {
+  seina: { top: '36%', left: '8%' },
+  kattokasetti: { top: '28%', right: '8%' },
+  kanavoitava: { top: '32%', left: '6%' },
+  konsooli: { top: '36%', left: '8%' },
+  'katto-pinta': { top: '28%', right: '8%' },
+};
+
 export function sisayksikkoOverlayPositions(tyyppi: unknown): {
   huone: OverlayAnchor;
   puhallus: OverlayAnchor;
   paluu: OverlayAnchor;
+  paineet: OverlayAnchor;
 } {
   const normalized = normalizeSisayksikkoTyyppi(tyyppi) || 'seina';
   const kPos = konvektoriOverlayPositions(sisayksikkoKonvektoriImageTyyppi(normalized));
   return {
     huone: kPos.imu,
     puhallus: kPos.output,
-    paluu: kPos.water,
+    paluu: PALUU_BY_TYYPPI[normalized],
+    paineet: kPos.water,
   };
 }
 
@@ -97,5 +107,39 @@ export function sisayksikkoTempOverlay(
     ...(huone ? { huone } : {}),
     ...(puhallus ? { puhallus } : {}),
     ...(paluu ? { paluu } : {}),
+  };
+}
+
+export function formatSisayksikkoPaine(value: unknown): string {
+  const s = String(value ?? '').trim();
+  if (!s) return '';
+  if (/bar/i.test(s)) return s;
+  return `${s} bar`;
+}
+
+export type SisayksikkoPaineOverlay = {
+  imuJ?: string;
+  kpJ?: string;
+  imuL?: string;
+  kpL?: string;
+};
+
+export function sisayksikkoPaineOverlay(
+  mittaus?: {
+    imupaineJaahdytys?: string;
+    korkeapaineJaahdytys?: string;
+    imupaineLammitys?: string;
+    korkeapaineLammitys?: string;
+  },
+): SisayksikkoPaineOverlay {
+  const imuJ = formatSisayksikkoPaine(mittaus?.imupaineJaahdytys);
+  const kpJ = formatSisayksikkoPaine(mittaus?.korkeapaineJaahdytys);
+  const imuL = formatSisayksikkoPaine(mittaus?.imupaineLammitys);
+  const kpL = formatSisayksikkoPaine(mittaus?.korkeapaineLammitys);
+  return {
+    ...(imuJ ? { imuJ } : {}),
+    ...(kpJ ? { kpJ } : {}),
+    ...(imuL ? { imuL } : {}),
+    ...(kpL ? { kpL } : {}),
   };
 }

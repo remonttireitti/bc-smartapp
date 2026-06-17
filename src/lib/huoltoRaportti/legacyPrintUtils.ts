@@ -2644,6 +2644,23 @@ export function generatePrintHTML(data: {
       ? `<div style="border-bottom: 1px solid #E64A19; padding: 2px 0; font-size: 11px;">Asennustapa: ${esc(asennustapaLabel)}</div>`
       : '';
 
+    const ulkoMittSolu = (label: string, val: unknown, yks: string) =>
+      hasPrintableValue(val)
+        ? `<div style="border-bottom: 1px solid #E64A19; padding: 2px 0; font-size: 11px;">${label}: ${esc(String(val).trim())} ${yks}</div>`
+        : '';
+    const ulkoSyotto = hasPrintableValue(data.mittausVaiheMaara)
+      ? `<div style="border-bottom: 1px solid #E64A19; padding: 2px 0; font-size: 11px;">Syötön tyyppi: ${data.mittausVaiheMaara === '3' ? '3-vaiheinen' : '1-vaiheinen'}</div>`
+      : '';
+    let ulkoVirta = '';
+    if (data.mittausVaiheMaara === '3') {
+      const l1 = ulkoMittSolu('L1', data.mittausAmpeeriL1, 'A');
+      const l2 = ulkoMittSolu('L2', data.mittausAmpeeriL2, 'A');
+      const l3 = ulkoMittSolu('L3', data.mittausAmpeeriL3, 'A');
+      ulkoVirta = [l1, l2, l3].filter(Boolean).join('');
+    } else {
+      ulkoVirta = ulkoMittSolu('Virta', data.mittausAmpeeriL1, 'A');
+    }
+
     return `
     <div class="box-content" style="border-color: #E64A19; page-break-inside: avoid; break-inside: avoid;">
       <div style="border-bottom: 2px solid #E64A19; padding-bottom: 2px; margin-bottom: 4px;">
@@ -2659,7 +2676,9 @@ export function generatePrintHTML(data: {
       ${ulkoRuksi(data.ulkoyksikkoSulatausVedenKeraily, 'Ulkoyksiköllä sulatusveden keräily/ohjaus')}
       ${data.ulkoyksikkoSulatausVedenKeraily === true ? ulkoRuksi(data.ulkoyksikkoSulatausVedenTarkistettu, 'Sulatusveden keräily tarkistettu/kunnossa') : ''}
       ${ulkoRuksi(data.ulkoyksikkoTurvakytkin, 'Ulkoyksikön vieressä turvakytkin')}
-      ${ulkoRuksi(data.ulkoyksikkoSuojakotelo, 'Ulkoyksiköllä suojakotelo', false)}
+      ${ulkoRuksi(data.ulkoyksikkoSuojakotelo, 'Ulkoyksiköllä suojakotelo')}
+      ${ulkoSyotto}
+      ${ulkoVirta}
     </div>
   `;
       })()
@@ -3116,80 +3135,14 @@ export function generatePrintHTML(data: {
     ? generateSisayksikotGridPrintHtml(data.sisayksikkoData, data.mittausSisayksikot, esc, {
         origin: typeof window !== 'undefined' ? window.location.origin : '',
         unitCount: data.sisayksikkoMaara ?? data.sisayksikkoData.length,
+        testInfo: {
+          jaahdytysTestattu: data.mittausJaahdytysTestattu,
+          lammitysTestattu: data.mittausLammitysTestattu,
+          testausLampotila: data.mittausTestausLampotila,
+          ulkoLampotila: data.mittausUlkoLampotila,
+        },
       })
     : ''}
-
-  ${data.laiteTyyppi === 'lämpöpumppu' && data.mittausSisayksikot && data.mittausSisayksikot.length > 0 ? (() => {
-    const mittausRuksi = (c: boolean | undefined, lbl: string, bottom = true) => {
-      if (c !== true && c !== false) return '';
-      const mark =
-        c === true
-          ? '<span style="color: #16a34a; font-weight: bold;">✓</span>'
-          : '<span style="color: #dc2626; font-weight: bold;">✗</span>';
-      const bb = bottom ? 'border-bottom: 1px solid #00838F; ' : '';
-      return `<div style="${bb}padding: 2px 0; font-size: 11px;">${mark} ${esc(lbl)}</div>`;
-    };
-
-    let html = `
-    <div class="box-content" style="border-color: #00838F; page-break-inside: avoid; break-inside: avoid;">
-      <div style="border-bottom: 2px solid #00838F; padding-bottom: 2px; margin-bottom: 4px;">
-        <strong style="font-size: 18px; color: #00838F; text-decoration: underline;">MITTAUKSET</strong>
-      </div>
-      ${mittausRuksi(data.mittausJaahdytysTestattu, 'Jäähdytys toiminto testattu')}
-      ${mittausRuksi(data.mittausLammitysTestattu, 'Lämmitys toiminto testattu')}
-      ${hasPrintableValue(data.mittausTestausLampotila) ? `<div style="border-bottom: 1px solid #00838F; padding: 2px 0; font-size: 11px;">Lämpötila testauksen aikana: ${esc(data.mittausTestausLampotila)} °C</div>` : ''}
-      ${hasPrintableValue(data.mittausUlkoLampotila) ? `<div style="border-bottom: 1px solid #00838F; padding: 2px 0; font-size: 11px;">Ulkolämpötila: ${esc(data.mittausUlkoLampotila)} °C</div>` : ''}`;
-
-    const mittSolu = (label: string, val: unknown, yks: string) =>
-      hasPrintableValue(val)
-        ? `<div>${label}: ${esc(String(val).trim())} ${yks}</div>`
-        : '';
-
-    data.mittausSisayksikot.forEach((mittaus, index) => {
-      const sisaSolut = [
-        mittSolu('Imu (J)', mittaus.imupaineJaahdytys, 'bar'),
-        mittSolu('KP (J)', mittaus.korkeapaineJaahdytys, 'bar'),
-        mittSolu('Imu (L)', mittaus.imupaineLammitys, 'bar'),
-        mittSolu('KP (L)', mittaus.korkeapaineLammitys, 'bar'),
-        mittSolu('Sisä', mittaus.sisalampotila, '°C'),
-        mittSolu('Paluu', mittaus.paluuLampotila, '°C'),
-        mittSolu('Puhallus', mittaus.puhallusLampotila, '°C'),
-      ].filter(Boolean);
-      if (sisaSolut.length === 0) return;
-      html += `
-      <div style="margin-top: 8px; padding: 8px; background: #e0f7fa; border-radius: 4px; border-left: 3px solid #00838F;">
-        <div style="font-size: 14px; font-weight: bold; color: #00838F; margin-bottom: 6px;">Sisäyksikkö ${index + 1} mittaukset</div>
-        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; font-size: 11px;">
-          ${sisaSolut.join('')}
-        </div>
-      </div>`;
-    });
-
-    // Ulkoyksikön mittaukset
-    const ulkoSyotto = `<div style="font-size: 11px; margin-bottom: 4px;">Syötön tyyppi: ${data.mittausVaiheMaara === '3' ? '3-vaiheinen' : '1-vaiheinen'}</div>`;
-    let ulkoVirta = '';
-    if (data.mittausVaiheMaara === '3') {
-      const l1 = mittSolu('L1', data.mittausAmpeeriL1, 'A');
-      const l2 = mittSolu('L2', data.mittausAmpeeriL2, 'A');
-      const l3 = mittSolu('L3', data.mittausAmpeeriL3, 'A');
-      const amps = [l1, l2, l3].filter(Boolean);
-      if (amps.length)
-        ulkoVirta = `<div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; font-size: 11px;">${amps.join('')}</div>`;
-    } else if (hasPrintableValue(data.mittausAmpeeriL1)) {
-      ulkoVirta = `<div style="font-size: 11px;">Virta: ${esc(String(data.mittausAmpeeriL1).trim())} A</div>`;
-    }
-
-    html += `
-      <div style="margin-top: 8px; padding: 8px; background: #e0f7fa; border-radius: 4px; border-left: 3px solid #00838F;">
-        <div style="font-size: 14px; font-weight: bold; color: #00838F; margin-bottom: 6px;">Ulkoyksikkö mittaukset</div>
-        ${ulkoSyotto}
-        ${ulkoVirta}
-    `;
-
-    html += `</div>`;
-    html += `</div>`;
-    return html;
-  })() : ''}
 
   ${data.laiteTyyppi !== 'lämpöpumppu' && data.kylmaainePiireja !== '0' ? measurementsHtml : ''}
 
