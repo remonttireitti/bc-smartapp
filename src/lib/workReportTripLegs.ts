@@ -1,7 +1,20 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 import type { CompanySettings } from './management';
-import type { DailyTripLeg, WorkReport, WorkReportDailyLog } from '../types';
+import { addDays, toLocalYmd, type DailyTripLeg, type WorkReport, type WorkReportDailyLog } from '../types';
+
+export type TripLegDeparture = {
+  startLabel: string;
+  returnLabel: string;
+};
+
+export type PreviousDayTripContext = {
+  logId: string;
+  logDate: string;
+  workReportId: string;
+  workReportTitle: string;
+  endLabel: string;
+};
 
 export type TripLegDraft = {
   key: string;
@@ -71,18 +84,24 @@ export function resolveWorkReportSiteLabel(
   return 'Kohde';
 }
 
-export function buildDefaultTripLegs(departureLabel: string, siteLabel: string): TripLegDraft[] {
+export function tripLegDeparture(startLabel: string, returnLabel?: string): TripLegDeparture {
+  const start = startLabel.trim();
+  const ret = (returnLabel ?? startLabel).trim();
+  return { startLabel: start, returnLabel: ret || start };
+}
+
+export function buildDefaultTripLegs(departure: TripLegDeparture, siteLabel: string): TripLegDraft[] {
   return normalizeTripLegDrafts(
     [
       {
         key: crypto.randomUUID(),
-        from_label: departureLabel,
+        from_label: departure.startLabel,
         to_label: siteLabel,
         distance_km: '',
         bill_to_customer: true,
       },
     ],
-    departureLabel,
+    departure,
   );
 }
 
@@ -90,28 +109,28 @@ function labelsMatch(a: string, b: string): boolean {
   return a.trim().toLowerCase() === b.trim().toLowerCase();
 }
 
-export function isReturnToDepartureLeg(leg: TripLegDraft, departureLabel: string): boolean {
-  return labelsMatch(leg.to_label, departureLabel);
+export function isReturnToDepartureLeg(leg: TripLegDraft, returnLabel: string): boolean {
+  return labelsMatch(leg.to_label, returnLabel);
 }
 
-export function findReturnLegIndex(drafts: TripLegDraft[], departureLabel: string): number {
+export function findReturnLegIndex(drafts: TripLegDraft[], returnLabel: string): number {
   if (drafts.length <= 1) return -1;
   const lastIndex = drafts.length - 1;
-  return isReturnToDepartureLeg(drafts[lastIndex], departureLabel) ? lastIndex : -1;
+  return isReturnToDepartureLeg(drafts[lastIndex], returnLabel) ? lastIndex : -1;
 }
 
-export function normalizeTripLegDrafts(drafts: TripLegDraft[], departureLabel: string): TripLegDraft[] {
+export function normalizeTripLegDrafts(drafts: TripLegDraft[], departure: TripLegDeparture): TripLegDraft[] {
   if (drafts.length === 0) return drafts;
 
   const next = drafts.map((row) => ({ ...row }));
-  next[0] = { ...next[0], from_label: departureLabel };
+  next[0] = { ...next[0], from_label: departure.startLabel };
 
-  const returnIndex = findReturnLegIndex(next, departureLabel);
+  const returnIndex = findReturnLegIndex(next, departure.returnLabel);
   if (returnIndex > 0) {
     const previous = next[returnIndex - 1];
     next[returnIndex] = {
       ...next[returnIndex],
-      to_label: departureLabel,
+      to_label: departure.returnLabel,
       from_label: previous?.to_label?.trim() ? previous.to_label : next[returnIndex].from_label,
     };
   }
@@ -123,16 +142,16 @@ export function updateTripLegDraft(
   drafts: TripLegDraft[],
   index: number,
   patch: Partial<TripLegDraft>,
-  departureLabel: string,
+  departure: TripLegDeparture,
 ): TripLegDraft[] {
   const next = drafts.map((row, rowIndex) => (rowIndex === index ? { ...row, ...patch } : row));
-  return normalizeTripLegDrafts(next, departureLabel);
+  return normalizeTripLegDrafts(next, departure);
 }
 
 export function appendReturnTripLeg(
   drafts: TripLegDraft[],
   sourceIndex: number,
-  departureLabel: string,
+  departure: TripLegDeparture,
 ): { drafts: TripLegDraft[]; newLegIndex: number } {
   const sourceLeg = drafts[sourceIndex];
   if (!sourceLeg?.to_label.trim()) {
@@ -140,7 +159,7 @@ export function appendReturnTripLeg(
   }
 
   let next = [...drafts];
-  const existingReturnIndex = findReturnLegIndex(next, departureLabel);
+  const existingReturnIndex = findReturnLegIndex(next, departure.returnLabel);
   if (existingReturnIndex >= 0) {
     next = next.filter((_, index) => index !== existingReturnIndex);
   }
@@ -153,24 +172,24 @@ export function appendReturnTripLeg(
   const returnLeg: TripLegDraft = {
     key: crypto.randomUUID(),
     from_label: next[adjustedSourceIndex].to_label.trim(),
-    to_label: departureLabel,
+    to_label: departure.returnLabel,
     distance_km: '',
     bill_to_customer: next[adjustedSourceIndex].bill_to_customer,
   };
 
   next.push(returnLeg);
-  next = normalizeTripLegDrafts(next, departureLabel);
+  next = normalizeTripLegDrafts(next, departure);
   return { drafts: next, newLegIndex: next.length - 1 };
 }
 
-export function insertIntermediateTripLeg(drafts: TripLegDraft[], departureLabel: string): TripLegDraft[] {
-  const returnIndex = findReturnLegIndex(drafts, departureLabel);
+export function insertIntermediateTripLeg(drafts: TripLegDraft[], departure: TripLegDeparture): TripLegDraft[] {
+  const returnIndex = findReturnLegIndex(drafts, departure.returnLabel);
   const insertAt = returnIndex >= 0 ? returnIndex : drafts.length;
   const previous = insertAt > 0 ? drafts[insertAt - 1] : null;
 
   const newLeg: TripLegDraft = {
     key: crypto.randomUUID(),
-    from_label: previous?.to_label?.trim() || departureLabel,
+    from_label: previous?.to_label?.trim() || departure.startLabel,
     to_label: '',
     distance_km: '',
     bill_to_customer: true,
@@ -178,15 +197,131 @@ export function insertIntermediateTripLeg(drafts: TripLegDraft[], departureLabel
 
   const next = [...drafts];
   next.splice(insertAt, 0, newLeg);
-  return normalizeTripLegDrafts(next, departureLabel);
+  return normalizeTripLegDrafts(next, departure);
 }
 
-export function removeTripLegAt(drafts: TripLegDraft[], index: number, departureLabel: string): TripLegDraft[] {
+export function removeTripLegAt(drafts: TripLegDraft[], index: number, departure: TripLegDeparture): TripLegDraft[] {
   if (index === 0) return drafts;
   return normalizeTripLegDrafts(
     drafts.filter((_, rowIndex) => rowIndex !== index),
-    departureLabel,
+    departure,
   );
+}
+
+export function resolveLogTripEndLabel(
+  log: Pick<WorkReportDailyLog, 'trip_legs'>,
+  report: Pick<WorkReport, 'location_text' | 'customers'>,
+): string {
+  const legs = [...(log.trip_legs ?? [])].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+  if (legs.length > 0) {
+    const last = legs[legs.length - 1];
+    const to = last.to_label?.trim();
+    if (to) return to;
+  }
+  return resolveWorkReportSiteLabel(report);
+}
+
+function formatPreviousLogReportTitle(input: {
+  location_text?: string | null;
+  customers?: { name?: string | null } | null;
+}): string {
+  const customer = input.customers?.name?.trim();
+  if (customer) return customer;
+  const location = input.location_text?.trim();
+  if (location) return location;
+  return 'Työraportti';
+}
+
+export async function loadPreviousDayTripContext(
+  supabase: SupabaseClient,
+  input: {
+    performerUserId: string;
+    beforeLogDate: string;
+    excludeLogId?: string;
+  },
+): Promise<PreviousDayTripContext | null> {
+  let query = supabase
+    .from('work_report_daily_logs')
+    .select(
+      `
+      id, log_date, work_report_id,
+      trip_legs:work_report_daily_trip_legs(from_label, to_label, distance_km, sort_order),
+      work_report:work_reports(location_text, customers(name, address, city))
+    `,
+    )
+    .eq('created_by', input.performerUserId)
+    .lt('log_date', input.beforeLogDate)
+    .order('log_date', { ascending: false })
+    .order('created_at', { ascending: false })
+    .limit(1);
+
+  if (input.excludeLogId) {
+    query = query.neq('id', input.excludeLogId);
+  }
+
+  const { data, error } = await query.maybeSingle();
+  if (error || !data) return null;
+
+  const row = data as unknown as {
+    id: string;
+    log_date: string;
+    work_report_id: string;
+    trip_legs: Array<Pick<DailyTripLeg, 'from_label' | 'to_label' | 'sort_order'>> | null;
+    work_report: {
+      location_text: string | null;
+      customers: { name: string | null; address: string | null; city: string | null } | null;
+    } | null;
+  };
+
+  const workReport = row.work_report;
+  if (!workReport) return null;
+
+  const endLabel = resolveLogTripEndLabel(
+    { trip_legs: (row.trip_legs ?? []) as DailyTripLeg[] },
+    {
+      location_text: workReport.location_text,
+      customers: workReport.customers
+        ? {
+            name: workReport.customers.name ?? '',
+            address: workReport.customers.address,
+            city: workReport.customers.city,
+          }
+        : null,
+    },
+  );
+  if (!endLabel.trim()) return null;
+
+  return {
+    logId: row.id,
+    logDate: row.log_date,
+    workReportId: row.work_report_id,
+    workReportTitle: formatPreviousLogReportTitle(workReport),
+    endLabel,
+  };
+}
+
+export function dayBeforeYmd(ymd: string): string {
+  const d = new Date(`${ymd}T12:00:00`);
+  return toLocalYmd(addDays(d, -1));
+}
+
+export function shouldDefaultTripStartFromPreviousDay(
+  previous: PreviousDayTripContext | null,
+  logDateYmd: string,
+): boolean {
+  if (!previous) return false;
+  return previous.logDate === dayBeforeYmd(logDateYmd);
+}
+
+export function inferTripStartSource(input: {
+  firstLegFromLabel: string | undefined;
+  returnLabel: string;
+  previousDay: PreviousDayTripContext | null;
+}): 'base' | 'previous_day' {
+  const firstFrom = input.firstLegFromLabel?.trim();
+  if (!firstFrom || labelsMatch(firstFrom, input.returnLabel)) return 'base';
+  if (input.previousDay && labelsMatch(firstFrom, input.previousDay.endLabel)) return 'previous_day';
+  return 'base';
 }
 
 export function sumTripLegDraftKm(drafts: TripLegDraft[]): number {

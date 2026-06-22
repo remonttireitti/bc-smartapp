@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
 import AppLayout from '../components/AppLayout';
@@ -118,12 +118,17 @@ import {
 import {
   buildDefaultTripLegs,
   formatTripLegSummary,
+  inferTripStartSource,
+  loadPreviousDayTripContext,
   normalizeTripLegDrafts,
   resolveUserDepartureLabel,
   resolveWorkReportSiteLabel,
   saveTripLegs,
+  shouldDefaultTripStartFromPreviousDay,
   sumDailyTripKm,
+  tripLegDeparture,
   tripLegsToDrafts,
+  type PreviousDayTripContext,
   type TripLegDraft,
 } from '../lib/workReportTripLegs';
 import {
@@ -878,6 +883,9 @@ export default function WorkReportDetailPage({ session }: Props) {
   const [tripDrafts, setTripDrafts] = useState<TripLegDraft[]>([]);
   const [tripDestinationOptions, setTripDestinationOptions] = useState<TripDestinationOption[]>([]);
   const [tripDepartureLabel, setTripDepartureLabel] = useState('');
+  const [tripStartSource, setTripStartSource] = useState<'base' | 'previous_day'>('base');
+  const [previousDayTripContext, setPreviousDayTripContext] = useState<PreviousDayTripContext | null>(null);
+  const tripLogDateRef = useRef<string | null>(null);
   const [tripKmRate, setTripKmRate] = useState<number | null>(null);
   const [tripKmCustomerRate, setTripKmCustomerRate] = useState<number | null>(null);
   const [refrigerantDrafts, setRefrigerantDrafts] = useState<RefrigerantLineDraft[]>([]);
@@ -1615,6 +1623,133 @@ export default function WorkReportDetailPage({ session }: Props) {
     });
   }
 
+  function buildTripDepartureForSource(
+    returnLabel: string,
+    source: 'base' | 'previous_day',
+    previousDay: PreviousDayTripContext | null,
+    existingFirstFrom?: string,
+  ) {
+    if (source === 'previous_day' && previousDay?.endLabel) {
+      return tripLegDeparture(previousDay.endLabel, returnLabel);
+    }
+    const firstFrom = existingFirstFrom?.trim();
+    if (firstFrom && firstFrom.toLowerCase() !== returnLabel.trim().toLowerCase()) {
+      return tripLegDeparture(firstFrom, returnLabel);
+    }
+    return tripLegDeparture(returnLabel, returnLabel);
+  }
+
+  async function setupTripLegsForDialog(input: {
+    logDateYmd: string;
+    excludeLogId?: string;
+    existingLegs?: TripLegDraft[];
+  }) {
+    if (!report) return;
+
+    const performerId = resolveReportPerformerUserId(report) ?? session.user.id;
+    const [returnLabel, kmRates, previousDay] = await Promise.all([
+      resolveTripDepartureLabel(report.owner_company_id),
+      loadTripKmRatesForReport(report),
+      loadPreviousDayTripContext(supabase, {
+        performerUserId: performerId,
+        beforeLogDate: input.logDateYmd,
+        excludeLogId: input.excludeLogId,
+      }),
+    ]);
+
+    setTripDepartureLabel(returnLabel);
+    setTripKmRate(kmRates.kmRate);
+    setTripKmCustomerRate(kmRates.customerKmRate);
+    setPreviousDayTripContext(previousDay);
+    await loadTripDestinationOptionsForDialog(report);
+
+    const siteLabel = resolveWorkReportSiteLabel(report);
+    const existingLegs = input.existingLegs ?? [];
+    const firstFrom = existingLegs[0]?.from_label;
+
+    let startSource: 'base' | 'previous_day' = 'base';
+    if (existingLegs.length > 0) {
+      startSource = inferTripStartSource({
+        firstLegFromLabel: firstFrom,
+        returnLabel,
+        previousDay,
+      });
+    } else if (shouldDefaultTripStartFromPreviousDay(previousDay, input.logDateYmd)) {
+      startSource = 'previous_day';
+    }
+
+    setTripStartSource(startSource);
+    const departure = buildTripDepartureForSource(returnLabel, startSource, previousDay, firstFrom);
+    const drafts =
+      existingLegs.length > 0
+        ? normalizeTripLegDrafts(existingLegs, departure)
+        : buildDefaultTripLegs(departure, siteLabel);
+    setTripDrafts(drafts);
+
+    if (existingLegs.length > 0) {
+      setExpenseDrafts((current) =>
+        syncTripKmExpenseDrafts(current, drafts, kmRates.kmRate, kmRates.customerKmRate),
+      );
+    }
+
+    return drafts;
+  }
+
+  function handleTripStartSourceChange(source: 'base' | 'previous_day') {
+    setTripStartSource(source);
+    if (!report || !tripDepartureLabel.trim()) return;
+
+    const departure = buildTripDepartureForSource(tripDepartureLabel, source, previousDayTripContext);
+    setTripDrafts((current) => normalizeTripLegDrafts(current, departure));
+  }
+
+  useEffect(() => {
+    if (!logDialogOpen || !report || !logForm.log_date) {
+      tripLogDateRef.current = null;
+      return;
+    }
+
+    const previousDate = tripLogDateRef.current;
+    tripLogDateRef.current = logForm.log_date;
+    if (previousDate === null || previousDate === logForm.log_date) return;
+
+    void (async () => {
+      const performerId = resolveReportPerformerUserId(report) ?? session.user.id;
+      const previousDay = await loadPreviousDayTripContext(supabase, {
+        performerUserId: performerId,
+        beforeLogDate: logForm.log_date,
+        excludeLogId: editingLogId ?? undefined,
+      });
+      setPreviousDayTripContext(previousDay);
+
+      if (!editingLogId && shouldDefaultTripStartFromPreviousDay(previousDay, logForm.log_date)) {
+        setTripStartSource('previous_day');
+        const departure = buildTripDepartureForSource(tripDepartureLabel, 'previous_day', previousDay);
+        const siteLabel = resolveWorkReportSiteLabel(report);
+        setTripDrafts((current) =>
+          current.length === 0
+            ? buildDefaultTripLegs(departure, siteLabel)
+            : normalizeTripLegDrafts(current, departure),
+        );
+        return;
+      }
+
+      setTripStartSource((currentSource) => {
+        if (currentSource === 'previous_day' && previousDay) {
+          const departure = buildTripDepartureForSource(tripDepartureLabel, 'previous_day', previousDay);
+          setTripDrafts((current) => normalizeTripLegDrafts(current, departure));
+          return 'previous_day';
+        }
+        if (currentSource === 'previous_day' && !previousDay) {
+          const departure = buildTripDepartureForSource(tripDepartureLabel, 'base', null);
+          setTripDrafts((current) => normalizeTripLegDrafts(current, departure));
+          return 'base';
+        }
+        return currentSource;
+      });
+    })();
+  }, [logDialogOpen, logForm.log_date, editingLogId, report?.id, session.user.id, tripDepartureLabel]);
+
   async function loadTripKmRatesForReport(activeReport: WorkReport) {
     const [{ data: creatorRow }, { data: ownerRow }] = await Promise.all([
       supabase
@@ -1673,17 +1808,7 @@ export default function WorkReportDetailPage({ session }: Props) {
     setLogDialogOpen(true);
     void loadRefrigerantContext();
     if (report) {
-      void (async () => {
-        const [departureLabel, kmRates] = await Promise.all([
-          resolveTripDepartureLabel(report.owner_company_id),
-          loadTripKmRatesForReport(report),
-        ]);
-        setTripDepartureLabel(departureLabel);
-        setTripKmRate(kmRates.kmRate);
-        setTripKmCustomerRate(kmRates.customerKmRate);
-        await loadTripDestinationOptionsForDialog(report);
-        setTripDrafts(buildDefaultTripLegs(departureLabel, resolveWorkReportSiteLabel(report)));
-      })();
+      void setupTripLegsForDialog({ logDateYmd: initialLogForm().log_date });
     } else {
       setTripDrafts([]);
       setTripDestinationOptions([]);
@@ -1705,21 +1830,11 @@ export default function WorkReportDetailPage({ session }: Props) {
     setDailyLogNotice(null);
     setLogDialogOpen(true);
     if (report) {
-      void (async () => {
-        const [departureLabel, kmRates] = await Promise.all([
-          resolveTripDepartureLabel(report.owner_company_id),
-          loadTripKmRatesForReport(report),
-        ]);
-        setTripDepartureLabel(departureLabel);
-        setTripKmRate(kmRates.kmRate);
-        setTripKmCustomerRate(kmRates.customerKmRate);
-        await loadTripDestinationOptionsForDialog(report);
-        const normalizedLegs = normalizeTripLegDrafts(tripLegsToDrafts(log.trip_legs), departureLabel);
-        setTripDrafts(normalizedLegs);
-        setExpenseDrafts((current) =>
-          syncTripKmExpenseDrafts(current, normalizedLegs, kmRates.kmRate, kmRates.customerKmRate),
-        );
-      })();
+      void setupTripLegsForDialog({
+        logDateYmd: log.log_date.slice(0, 10),
+        excludeLogId: log.id,
+        existingLegs: tripLegsToDrafts(log.trip_legs),
+      });
     } else {
       setTripDepartureLabel('');
       setTripKmRate(null);
@@ -1738,6 +1853,9 @@ export default function WorkReportDetailPage({ session }: Props) {
     setTripDrafts([]);
     setTripDestinationOptions([]);
     setTripDepartureLabel('');
+    setTripStartSource('base');
+    setPreviousDayTripContext(null);
+    tripLogDateRef.current = null;
     setTripKmRate(null);
     setTripKmCustomerRate(null);
     setRefrigerantDrafts([]);
@@ -2767,7 +2885,13 @@ export default function WorkReportDetailPage({ session }: Props) {
         <DailyLogTripLegFields
           drafts={tripDrafts}
           setDrafts={setTripDrafts}
-          departureLabel={tripDepartureLabel}
+          tripDeparture={tripLegDeparture(
+            tripDrafts[0]?.from_label?.trim() || tripDepartureLabel,
+            tripDepartureLabel,
+          )}
+          previousDayContext={previousDayTripContext}
+          tripStartSource={tripStartSource}
+          onTripStartSourceChange={handleTripStartSourceChange}
           showCustomerFields={showCustomerBillingFeatures}
           destinationOptions={tripDestinationOptions}
           tripKmRate={tripKmRate}

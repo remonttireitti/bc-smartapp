@@ -12,15 +12,21 @@ import {
   removeTripLegAt,
   sumTripLegDraftKm,
   updateTripLegDraft,
+  type PreviousDayTripContext,
+  type TripLegDeparture,
   type TripLegDraft,
 } from '../lib/workReportTripLegs';
+import { formatDate } from '../types';
 import { formatTripKmRateLabel } from '../lib/tripKmExpense';
 import DailyLogFormSection from './DailyLogFormSection';
 
 type Props = {
   drafts: TripLegDraft[];
   setDrafts: (next: TripLegDraft[]) => void;
-  departureLabel: string;
+  tripDeparture: TripLegDeparture;
+  previousDayContext?: PreviousDayTripContext | null;
+  tripStartSource?: 'base' | 'previous_day';
+  onTripStartSourceChange?: (source: 'base' | 'previous_day') => void;
   showCustomerFields?: boolean;
   destinationOptions?: TripDestinationOption[];
   tripKmRate?: number | null;
@@ -29,13 +35,17 @@ type Props = {
 export default function DailyLogTripLegFields({
   drafts,
   setDrafts,
-  departureLabel,
+  tripDeparture,
+  previousDayContext = null,
+  tripStartSource = 'base',
+  onTripStartSourceChange,
   showCustomerFields,
   destinationOptions = [],
   tripKmRate = null,
 }: Props) {
+  const { returnLabel } = tripDeparture;
   const totalKm = sumTripLegDraftKm(drafts);
-  const returnLegIndex = findReturnLegIndex(drafts, departureLabel);
+  const returnLegIndex = findReturnLegIndex(drafts, returnLabel);
   const [busy, setBusy] = useState(false);
   const [rowBusyKey, setRowBusyKey] = useState<string | null>(null);
   const [calcError, setCalcError] = useState<string | null>(null);
@@ -93,7 +103,7 @@ export default function DailyLogTripLegFields({
   }
 
   async function addReturnTrip(index: number) {
-    const { drafts: nextDrafts, newLegIndex } = appendReturnTripLeg(drafts, index, departureLabel);
+    const { drafts: nextDrafts, newLegIndex } = appendReturnTripLeg(drafts, index, tripDeparture);
     if (newLegIndex < 0) return;
 
     setDrafts(nextDrafts);
@@ -114,7 +124,7 @@ export default function DailyLogTripLegFields({
   }
 
   function patchLeg(index: number, patch: Partial<TripLegDraft>) {
-    setDrafts(updateTripLegDraft(drafts, index, patch, departureLabel));
+    setDrafts(updateTripLegDraft(drafts, index, patch, tripDeparture));
   }
 
   const sectionTitle =
@@ -137,19 +147,46 @@ export default function DailyLogTripLegFields({
           <button
             type="button"
             className="btn btn-secondary"
-            disabled={busy || rowBusyKey != null || !departureLabel.trim()}
-            onClick={() => setDrafts(insertIntermediateTripLeg(drafts, departureLabel))}
+            disabled={busy || rowBusyKey != null || !returnLabel.trim()}
+            onClick={() => setDrafts(insertIntermediateTripLeg(drafts, tripDeparture))}
           >
             + Lisää väliajo
           </button>
       </div>
       <p className="muted trip-leg-hint">
-        Päivä alkaa aina toimipisteestä/kodista ja päättyy sinne. Kirjoita kohteeseen — ehdotukset haetaan rekisteristä.
+        Päivä voi alkaa toimipisteestä/kodista tai edellisen työpäivän viimeisestä kohteesta (myös toiselta työraportilta).
+        Päivä päättyy aina toimipisteeseen/kotiin. Kirjoita kohteeseen — ehdotukset haetaan rekisteristä.
         Paluumatka lisätään aina viimeiseksi ja km lasketaan heti.
         {formatTripKmRateLabel(tripKmRate)
           ? ` Km-korvausrivi (${formatTripKmRateLabel(tripKmRate)}) päivittyy kulut-osiossa automaattisesti.`
           : ' Aseta €/km-hinta kohdassa Hallinta → Yritys, jolloin km-korvausrivi luodaan automaattisesti.'}
       </p>
+      {previousDayContext && onTripStartSourceChange && (
+        <fieldset className="trip-departure-source-fieldset">
+          <legend>Lähtöpiste</legend>
+          <label className="compact-option">
+            <input
+              type="radio"
+              name="trip_start_source"
+              checked={tripStartSource === 'base'}
+              disabled={busy || rowBusyKey != null}
+              onChange={() => onTripStartSourceChange('base')}
+            />
+            {returnLabel || 'Toimipiste tai koti'}
+          </label>
+          <label className="compact-option">
+            <input
+              type="radio"
+              name="trip_start_source"
+              checked={tripStartSource === 'previous_day'}
+              disabled={busy || rowBusyKey != null}
+              onChange={() => onTripStartSourceChange('previous_day')}
+            />
+            Edellinen päivä ({formatDate(previousDayContext.logDate)}): {previousDayContext.endLabel}
+            <span className="muted"> · {previousDayContext.workReportTitle}</span>
+          </label>
+        </fieldset>
+      )}
       {calcError && <p className="error trip-leg-calc-error">{calcError}</p>}
       {drafts.length === 0 ? (
         <p className="muted">Ei ajomatkoja — lisää rivi tai käytä oletusreittiä.</p>
@@ -157,7 +194,7 @@ export default function DailyLogTripLegFields({
         drafts.map((row, index) => {
           const rowBusy = rowBusyKey === row.key;
           const isFirstLeg = index === 0;
-          const isReturnLeg = isReturnToDepartureLeg(row, departureLabel) && index === returnLegIndex;
+          const isReturnLeg = isReturnToDepartureLeg(row, returnLabel) && index === returnLegIndex;
           const canAddReturn =
             !isReturnLeg &&
             row.to_label.trim().length > 0 &&
@@ -226,7 +263,7 @@ export default function DailyLogTripLegFields({
                     type="button"
                     className="btn btn-secondary btn-sm"
                     disabled={busy || rowBusy}
-                    onClick={() => setDrafts(removeTripLegAt(drafts, index, departureLabel))}
+                    onClick={() => setDrafts(removeTripLegAt(drafts, index, tripDeparture))}
                   >
                     Poista
                   </button>
