@@ -80,7 +80,7 @@ CREATE POLICY work_reports_select ON work_reports FOR SELECT
         )
         OR (
           public.report_visible_to_subscriber(subscriber_id, customer_id)
-          AND public.subscriber_portal_report_visible(subscriber_portal_visibility, status, 'work')
+          AND public.subscriber_portal_report_visible(subscriber_portal_visibility, status::text, 'work')
         )
       WHEN public.is_customer_user() THEN
         (
@@ -89,7 +89,7 @@ CREATE POLICY work_reports_select ON work_reports FOR SELECT
         )
         OR (
           customer_id = public.current_customer_id()
-          AND public.subscriber_portal_report_visible(subscriber_portal_visibility, status, 'work')
+          AND public.subscriber_portal_report_visible(subscriber_portal_visibility, status::text, 'work')
         )
       ELSE
         delegate_company_id = public.current_company_id()
