@@ -1,4 +1,5 @@
 import type { WorkReport, WorkReportDailyLog } from '../types';
+import { normalizeWorkflowStatus, type WorkStatus } from '../types';
 import { isAdminOrManager } from './deletePermissions';
 import { isPortalPreviewActive } from './portalPreview';
 
@@ -87,4 +88,15 @@ export function dailyLogHasBillableContent(log: WorkReportDailyLog) {
     || Number(log.commission_amount) > 0
     || (log.expense_lines?.length ?? 0) > 0
   );
+}
+
+/** Päiväkirjauksen lisäys nostaa raportin vähintään työn alle -tilaan. */
+export function buildWorkReportPatchAfterDailyLogAdded(status: WorkStatus): Record<string, unknown> | null {
+  if (status === 'in_progress') return null;
+
+  const patch: Record<string, unknown> = { status: 'in_progress' };
+  if (normalizeWorkflowStatus(status) === 'completed') {
+    patch.completed_at = null;
+  }
+  return patch;
 }

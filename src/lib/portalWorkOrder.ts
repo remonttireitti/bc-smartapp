@@ -1,6 +1,10 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { CUSTOMER_SELECT, EQUIPMENT_SELECT } from './customers';
 import { isPortalView } from './portalPreview';
+import {
+  subscriberPortalReportVisible,
+  type SubscriberPortalVisibility,
+} from './subscriberPortalVisibility';
 import type { Customer, Equipment, Profile, WorkStatus } from '../types';
 
 /** Tilaajan/asiakkaan näkemät valmiit työraportit. */
@@ -13,8 +17,18 @@ export const PORTAL_COMPLETED_WORK_STATUSES: WorkStatus[] = [
 /** Oma työtilaus ennen kuin yritys ottaa sen käsittelyyn. */
 export const PORTAL_OWN_ORDER_OPEN_STATUSES: WorkStatus[] = ['draft'];
 
-export function isWorkReportVisibleToPortal(status: string) {
-  return PORTAL_COMPLETED_WORK_STATUSES.includes(status as WorkStatus);
+export function isWorkReportVisibleToPortal(
+  status: string,
+  visibility?: SubscriberPortalVisibility | string | null,
+) {
+  return subscriberPortalReportVisible({ kind: 'work', visibility, status });
+}
+
+export function isWorkReportVisibleToPortalSubscriber(report: {
+  status: string;
+  subscriber_portal_visibility?: SubscriberPortalVisibility | string | null;
+}) {
+  return isWorkReportVisibleToPortal(report.status, report.subscriber_portal_visibility);
 }
 
 /** Tilaajan portaaliin lähetetty luonnos (ei näy yrityksen yleisessä luonnoslistassa). */

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 
 import type { Session } from '@supabase/supabase-js';
 
@@ -35,6 +35,7 @@ import {
   companySubscriberOrderEditPath,
   isInternalCompanyOrderDraft,
   isSubscriberPortalWorkOrder,
+  isWorkReportVisibleToPortalSubscriber,
   needsPortalClientFilter,
   PORTAL_COMPLETED_WORK_STATUSES,
   PORTAL_OWN_ORDER_OPEN_STATUSES,
@@ -42,6 +43,7 @@ import {
 } from '../lib/portalWorkOrder';
 import { usePortalPreview } from '../hooks/usePortalPreview';
 import { useCompanyPartnershipsEnabled } from '../hooks/useCompanyPartnershipsEnabled';
+import { useCompanyBillingModuleEnabled } from '../hooks/useCompanyBillingModuleEnabled';
 
 import { useProfile } from '../hooks/useProfile';
 
@@ -85,6 +87,18 @@ interface Props {
 
 type Tab = 'calendar' | 'list' | 'history';
 
+const TAB_STORAGE_KEY = 'bc-smartapp.work-reports-tab.v1';
+
+function readInitialTab(): Tab {
+  try {
+    const stored = localStorage.getItem(TAB_STORAGE_KEY);
+    if (stored === 'calendar' || stored === 'list' || stored === 'history') return stored;
+  } catch {
+    /* ignore */
+  }
+  return 'list';
+}
+
 
 
 const HISTORY_STATUSES: WorkStatus[] = ['completed', 'billed_partner', 'billed_customer'];
@@ -92,6 +106,31 @@ const HISTORY_STATUSES: WorkStatus[] = ['completed', 'billed_partner', 'billed_c
 const ACTIVE_STATUSES: WorkStatus[] = ['scheduled', 'in_progress'];
 
 const DRAFT_STATUS: WorkStatus = 'draft';
+
+function reportLikelyHasDailyLogs(
+  report: WorkReport,
+  logsByReportId: Map<string, WorkReportDailyLog[]>,
+): boolean {
+  const logs = logsByReportId.get(report.id);
+  if (logs && logs.length > 0) return true;
+  return report.status === 'in_progress' || report.status === 'completed';
+}
+
+function reportListItemProps(
+  report: WorkReport,
+  logsByReportId: Map<string, WorkReportDailyLog[]>,
+  companyId: string,
+  billingModuleEnabled: boolean | null,
+  onStatusChanged?: () => void,
+) {
+  return {
+    report,
+    viewerCompanyId: companyId,
+    hasDailyLogs: reportLikelyHasDailyLogs(report, logsByReportId),
+    billingModuleEnabled: billingModuleEnabled === true,
+    onStatusChanged,
+  };
+}
 
 
 
@@ -105,7 +144,7 @@ const DELEGATION_SELECT = `
 
   partnership_id, customer_id, equipment_id, assigned_user_id,
 
-  delegate_company_id, delegated_at, created_at, subscriber_id, is_onboarding_demo,
+  delegate_company_id, delegated_at, created_at, subscriber_id, subscriber_portal_visibility, is_onboarding_demo,
 
   customers(name, subscriber_id),
 
@@ -121,7 +160,11 @@ const DELEGATION_SELECT = `
 
   created_by_user:profiles!work_reports_created_by_user_id_fkey(display_name, email),
 
-  assigned_user:profiles!work_reports_assigned_user_id_fkey(display_name)
+  assigned_user:profiles!work_reports_assigned_user_id_fkey(display_name),
+
+  billing:work_report_billing(partner_invoice_status, partner_billed_amount, partner_billed_at, customer_invoice_status),
+
+  billable:work_report_billable(partner_total)
 
 `;
 
@@ -131,11 +174,13 @@ export default function WorkReportsPage({ session }: Props) {
 
   const { profile } = useProfile(session);
   const partnershipsEnabled = useCompanyPartnershipsEnabled(profile?.company_id, session);
+  const billingModuleEnabled = useCompanyBillingModuleEnabled(profile?.company_id, session);
   const portalPreview = usePortalPreview();
   const portalSubscriberId = getPortalSubscriberId(profile);
+  const location = useLocation();
   const [subscriberCustomerIds, setSubscriberCustomerIds] = useState<Set<string>>(() => new Set());
 
-  const [tab, setTab] = useState<Tab>('calendar');
+  const [tab, setTab] = useState<Tab>(() => readInitialTab());
 
   const [brandingFilter, setBrandingFilter] = useState('');
   const [personFilter, setPersonFilter] = useState('');
@@ -158,10 +203,17 @@ export default function WorkReportsPage({ session }: Props) {
 
 
   useEffect(() => {
+    try {
+      localStorage.setItem(TAB_STORAGE_KEY, tab);
+    } catch {
+      /* ignore */
+    }
+  }, [tab]);
 
+  useEffect(() => {
+    if (location.pathname !== '/tyoraportit') return;
     if (companyId) void loadReports();
-
-  }, [session.user.id, companyId, partnershipsEnabled]);
+  }, [location.pathname, location.key, session.user.id, companyId, partnershipsEnabled]);
 
 
 
@@ -427,7 +479,11 @@ export default function WorkReportsPage({ session }: Props) {
   }, [reports, myPortalOrders, adminSubscriberPreview, portalSubscriberId, subscriberCustomerIds]);
 
   const portalHistoryOrders = useMemo(() => {
-    let list = reports.filter((r) => PORTAL_COMPLETED_WORK_STATUSES.includes(r.status));
+    let list = reports.filter(
+      (r) =>
+        isWorkReportVisibleToPortalSubscriber(r)
+        && PORTAL_COMPLETED_WORK_STATUSES.includes(r.status),
+    );
     if (adminSubscriberPreview && portalSubscriberId) {
       list = list.filter((r) =>
         reportMatchesPortalSubscriber(r, portalSubscriberId, subscriberCustomerIds),
@@ -437,6 +493,25 @@ export default function WorkReportsPage({ session }: Props) {
       const aTime = a.completed_at ?? a.scheduled_start ?? a.created_at;
       const bTime = b.completed_at ?? b.scheduled_start ?? b.created_at;
       return new Date(bTime).getTime() - new Date(aTime).getTime();
+    });
+  }, [reports, adminSubscriberPreview, portalSubscriberId, subscriberCustomerIds]);
+
+  const portalInProgressReports = useMemo(() => {
+    let list = reports.filter(
+      (r) =>
+        isWorkReportVisibleToPortalSubscriber(r)
+        && !PORTAL_COMPLETED_WORK_STATUSES.includes(r.status)
+        && !PORTAL_OWN_ORDER_OPEN_STATUSES.includes(r.status),
+    );
+    if (adminSubscriberPreview && portalSubscriberId) {
+      list = list.filter((r) =>
+        reportMatchesPortalSubscriber(r, portalSubscriberId, subscriberCustomerIds),
+      );
+    }
+    return list.sort((a, b) => {
+      const aTime = a.scheduled_start ?? a.created_at;
+      const bTime = b.scheduled_start ?? b.created_at;
+      return new Date(aTime).getTime() - new Date(bTime).getTime();
     });
   }, [reports, adminSubscriberPreview, portalSubscriberId, subscriberCustomerIds]);
 
@@ -454,8 +529,8 @@ export default function WorkReportsPage({ session }: Props) {
             </p>
             {isSubscriberPortal && (
               <p className="muted" style={{ marginTop: '0.5rem' }}>
-                Näet valmiit työraportit kohteista, jotka on linkitetty tilaajaan (asiakaskortilla tai raportin
-                tilaaja-kentällä). Keskeneräiset yrityksen raportit eivät näy — vain valmis / laskutettu.
+                Oletusarvoisesti näet vain valmiit työraportit. Palveluyritys voi sallia poikkeuksen, jolloin
+                luonnos tai käynnissä oleva työ näkyy tilaajalle.
               </p>
             )}
           </div>
@@ -475,7 +550,7 @@ export default function WorkReportsPage({ session }: Props) {
               {portalOpenOrders.length === 0 ? (
                 <p className="muted">Ei avoimia tilauksia.</p>
               ) : (
-                <ul className="report-list">
+                <ul className="report-list report-list-modern">
                   {portalOpenOrders.map((report) => (
                     <li key={report.id}>
                       <Link
@@ -499,12 +574,36 @@ export default function WorkReportsPage({ session }: Props) {
               )}
             </section>
 
+            {portalInProgressReports.length > 0 && (
+              <section className="panel">
+                <h2>Käynnissä olevat työt</h2>
+                <ul className="report-list report-list-modern">
+                  {portalInProgressReports.map((report) => (
+                    <li key={report.id}>
+                      <Link to={`/tyoraportit/${report.id}`} className="report-link">
+                        <div className="report-link-body">
+                          <strong>{report.title}</strong>
+                          <span className="muted">
+                            {getWorkStatusLabel(report.status)}
+                            {report.customers?.name ? ` • ${report.customers.name}` : ''}
+                            {report.scheduled_start
+                              ? ` • ${formatDateTime(report.scheduled_start)}`
+                              : ''}
+                          </span>
+                        </div>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
+
             <section className="panel">
               <h2>Valmiit työraportit</h2>
               {portalHistoryOrders.length === 0 ? (
                 <p className="muted">Ei valmiita raportteja vielä.</p>
               ) : (
-                <ul className="report-list">
+                <ul className="report-list report-list-modern">
                   {portalHistoryOrders.map((report) => (
                     <li key={report.id}>
                       <Link to={`/tyoraportit/${report.id}`} className="report-link">
@@ -754,13 +853,13 @@ export default function WorkReportsPage({ session }: Props) {
 
               <p className="muted">Kumppanit lähettäneet työtehtäviä — määritä tekijä raportin sivulta.</p>
 
-              <ul className="report-list">
+              <ul className="report-list report-list-modern">
 
                 {incomingDelegated.map((r) => (
 
                   <li key={r.id}>
 
-                    <ReportListItem report={r} variant="incoming" />
+                    <ReportListItem {...reportListItemProps(r, logsByReportId, companyId, billingModuleEnabled, loadReports)} variant="incoming" />
 
                   </li>
 
@@ -782,13 +881,13 @@ export default function WorkReportsPage({ session }: Props) {
 
               <p className="muted">Odottaa kumppanin tekijän määrittämistä.</p>
 
-              <ul className="report-list">
+              <ul className="report-list report-list-modern">
 
                 {sentDelegated.map((r) => (
 
                   <li key={r.id}>
 
-                    <ReportListItem report={r} variant="sent" />
+                    <ReportListItem {...reportListItemProps(r, logsByReportId, companyId, billingModuleEnabled, loadReports)} variant="sent" />
 
                   </li>
 
@@ -818,7 +917,7 @@ export default function WorkReportsPage({ session }: Props) {
 
                 <li key={r.id}>
 
-                  <ReportListItem report={r} />
+                  <ReportListItem {...reportListItemProps(r, logsByReportId, companyId, billingModuleEnabled, loadReports)} showStatusMenu />
 
                 </li>
 
@@ -836,7 +935,7 @@ export default function WorkReportsPage({ session }: Props) {
               <p className="muted">
                 Asiakasportaalista tulleet tilaukset — ota vastaan omaan kalenteriin tai siirrä kumppanille.
               </p>
-              <ul className="report-list">
+              <ul className="report-list report-list-modern">
                 {subscriberPortalOrders.map((r) => (
                   <li key={r.id}>
                     <Link to={draftEditPath(r)} className="report-link">
@@ -861,7 +960,7 @@ export default function WorkReportsPage({ session }: Props) {
 
               <h2>Luonnokset</h2>
 
-              <ul className="report-list">
+              <ul className="report-list report-list-modern">
 
                 {draftReports.map((r) => (
 
@@ -911,7 +1010,7 @@ export default function WorkReportsPage({ session }: Props) {
 
                 <li key={r.id}>
 
-                  <ReportListItem report={r} />
+                  <ReportListItem {...reportListItemProps(r, logsByReportId, companyId, billingModuleEnabled, loadReports)} showStatusMenu />
 
                 </li>
 

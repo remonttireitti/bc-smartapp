@@ -3,8 +3,10 @@ import {
   EXPENSE_TYPE_LABELS,
   formatDate,
   formatHourEntry,
+  normalizeWorkflowStatus,
   type InvoiceStatus,
   type WorkReportDailyLog,
+  type WorkStatus,
 } from '../types';
 import {
   companyBillingModuleEnabled,
@@ -630,6 +632,26 @@ export async function loadBillingCopyText(
     logs: (logs as unknown as WorkReportDailyLog[]) ?? [],
     showMoney: false,
   });
+}
+
+export type PartnerBillWorkflowChoice = 'mark_completed' | 'keep_in_progress';
+
+export function shouldPromptPartnerBillWorkflow(status: WorkStatus | string): boolean {
+  return normalizeWorkflowStatus(status as WorkStatus) !== 'completed';
+}
+
+export async function applyPartnerBillWorkflowChoice(
+  supabase: SupabaseClient,
+  workReportId: string,
+  choice: PartnerBillWorkflowChoice,
+): Promise<void> {
+  if (choice !== 'mark_completed') return;
+
+  const { error } = await supabase
+    .from('work_reports')
+    .update({ status: 'completed', completed_at: new Date().toISOString() })
+    .eq('id', workReportId);
+  if (error) throw error;
 }
 
 export async function markPartnerReportBilled(

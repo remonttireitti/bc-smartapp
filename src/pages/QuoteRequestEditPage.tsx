@@ -5,6 +5,7 @@ import AppLayout from '../components/AppLayout';
 import CustomerRegistryPicker, { type NewCustomerDraft } from '../components/CustomerRegistryPicker';
 import EquipmentRegistryPicker, { type NewEquipmentDraft } from '../components/EquipmentRegistryPicker';
 import SubscriberPicker from '../components/SubscriberPicker';
+import SubscriberPortalVisibilityField from '../components/SubscriberPortalVisibilityField';
 import NavigationBreadcrumb from '../components/NavigationBreadcrumb';
 import ToggleSwitch from '../components/ToggleSwitch';
 import QuoteIilpDevicesSection from '../components/quoteRequest/QuoteIilpDevicesSection';
@@ -26,6 +27,11 @@ import {
   resolveReportContextFromCustomer,
   resolveReportContextFromOwner,
 } from '../lib/reportCustomerRegistry';
+import {
+  SUBSCRIBER_PORTAL_VISIBILITY_DEFAULT,
+  reportHasSubscriberLink,
+  type SubscriberPortalVisibility,
+} from '../lib/subscriberPortalVisibility';
 import {
   loadAccessibleSubscribers,
   resolveSubscriberIdForReport,
@@ -122,6 +128,8 @@ export default function QuoteRequestEditPage({ session }: Props) {
   const [equipment, setEquipment] = useState<Equipment[]>([]);
   const [customerId, setCustomerId] = useState('');
   const [subscriberId, setSubscriberId] = useState('');
+  const [subscriberPortalVisibility, setSubscriberPortalVisibility] =
+    useState<SubscriberPortalVisibility>(SUBSCRIBER_PORTAL_VISIBILITY_DEFAULT);
   const [subscribers, setSubscribers] = useState<Subscriber[]>([]);
   const [reportOwnerCompanyId, setReportOwnerCompanyId] = useState('');
   const [equipmentId, setEquipmentId] = useState('');
@@ -487,7 +495,7 @@ export default function QuoteRequestEditPage({ session }: Props) {
       .from('quote_requests')
       .select(`
         id, title, status, data, updated_at, created_at, owner_company_id, created_by_company_id,
-        branding_company_id, partnership_id, customer_id, equipment_id, subscriber_id
+        branding_company_id, partnership_id, customer_id, equipment_id, subscriber_id, subscriber_portal_visibility
       `)
       .eq('id', quoteIdToLoad)
       .single();
@@ -510,6 +518,7 @@ export default function QuoteRequestEditPage({ session }: Props) {
       customer_id: string | null;
       equipment_id: string | null;
       subscriber_id: string | null;
+      subscriber_portal_visibility: SubscriberPortalVisibility | null;
     };
 
     const draftKey = localQuoteDraftKey(row.id, session.user.id);
@@ -558,6 +567,9 @@ export default function QuoteRequestEditPage({ session }: Props) {
 
     setCustomerId(resolvedCustomerId);
     setSubscriberId(usedDraft && draft?.payload.subscriberId ? draft.payload.subscriberId : (row.subscriber_id ?? ''));
+    setSubscriberPortalVisibility(
+      row.subscriber_portal_visibility ?? SUBSCRIBER_PORTAL_VISIBILITY_DEFAULT,
+    );
     setEquipmentId(usedDraft && draft?.payload.equipmentId ? draft.payload.equipmentId : (row.equipment_id ?? ''));
     setReportOwnerCompanyId(row.owner_company_id);
 
@@ -657,6 +669,7 @@ export default function QuoteRequestEditPage({ session }: Props) {
         partnership_id: partnership?.id ?? null,
         customer_id: customerId,
         subscriber_id: resolveSubscriberIdForReport(customerId, subscriberId, customers),
+        subscriber_portal_visibility: subscriberPortalVisibility,
         equipment_id: equipmentId || null,
         title: storedTitle,
         status: nextStatus ?? status,
@@ -996,6 +1009,18 @@ export default function QuoteRequestEditPage({ session }: Props) {
                 subscriberId={subscriberId}
                 disabled={!canEdit || busy}
                 onChange={setSubscriberId}
+              />
+            ) : null}
+
+            {reportHasSubscriberLink({
+              subscriber_id: subscriberId,
+              customer_subscriber_id: selectedCustomer?.subscriber_id,
+            }) ? (
+              <SubscriberPortalVisibilityField
+                value={subscriberPortalVisibility}
+                reportKind="quote"
+                disabled={!canEdit || busy}
+                onChange={setSubscriberPortalVisibility}
               />
             ) : null}
 

@@ -110,12 +110,18 @@ export async function loadCustomerLinkedDocuments(
       id: string;
       title: string | null;
       status: WorkStatus;
+      subscriber_portal_visibility?: string | null;
       created_at: string;
       updated_at: string;
       equipment_id: string | null;
       equipment: unknown;
     };
-    if (portalReadOnly && !isWorkReportVisibleToPortal(report.status)) continue;
+    if (
+      portalReadOnly
+      && !isWorkReportVisibleToPortal(report.status, report.subscriber_portal_visibility)
+    ) {
+      continue;
+    }
     linked.push({
       id: report.id,
       kind: 'work_report',

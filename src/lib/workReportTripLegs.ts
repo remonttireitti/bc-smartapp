@@ -1,19 +1,11 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 import type { CompanySettings } from './management';
-import { addDays, toLocalYmd, type DailyTripLeg, type WorkReport, type WorkReportDailyLog } from '../types';
+import type { DailyTripLeg, WorkReport, WorkReportDailyLog } from '../types';
 
 export type TripLegDeparture = {
   startLabel: string;
   returnLabel: string;
-};
-
-export type PreviousDayTripContext = {
-  logId: string;
-  logDate: string;
-  workReportId: string;
-  workReportTitle: string;
-  endLabel: string;
 };
 
 export type TripLegDraft = {
@@ -206,122 +198,6 @@ export function removeTripLegAt(drafts: TripLegDraft[], index: number, departure
     drafts.filter((_, rowIndex) => rowIndex !== index),
     departure,
   );
-}
-
-export function resolveLogTripEndLabel(
-  log: Pick<WorkReportDailyLog, 'trip_legs'>,
-  report: Pick<WorkReport, 'location_text' | 'customers'>,
-): string {
-  const legs = [...(log.trip_legs ?? [])].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
-  if (legs.length > 0) {
-    const last = legs[legs.length - 1];
-    const to = last.to_label?.trim();
-    if (to) return to;
-  }
-  return resolveWorkReportSiteLabel(report);
-}
-
-function formatPreviousLogReportTitle(input: {
-  location_text?: string | null;
-  customers?: { name?: string | null } | null;
-}): string {
-  const customer = input.customers?.name?.trim();
-  if (customer) return customer;
-  const location = input.location_text?.trim();
-  if (location) return location;
-  return 'Työraportti';
-}
-
-export async function loadPreviousDayTripContext(
-  supabase: SupabaseClient,
-  input: {
-    performerUserId: string;
-    beforeLogDate: string;
-    excludeLogId?: string;
-  },
-): Promise<PreviousDayTripContext | null> {
-  let query = supabase
-    .from('work_report_daily_logs')
-    .select(
-      `
-      id, log_date, work_report_id,
-      trip_legs:work_report_daily_trip_legs(from_label, to_label, distance_km, sort_order),
-      work_report:work_reports(location_text, customers(name, address, city))
-    `,
-    )
-    .eq('created_by', input.performerUserId)
-    .lt('log_date', input.beforeLogDate)
-    .order('log_date', { ascending: false })
-    .order('created_at', { ascending: false })
-    .limit(1);
-
-  if (input.excludeLogId) {
-    query = query.neq('id', input.excludeLogId);
-  }
-
-  const { data, error } = await query.maybeSingle();
-  if (error || !data) return null;
-
-  const row = data as unknown as {
-    id: string;
-    log_date: string;
-    work_report_id: string;
-    trip_legs: Array<Pick<DailyTripLeg, 'from_label' | 'to_label' | 'sort_order'>> | null;
-    work_report: {
-      location_text: string | null;
-      customers: { name: string | null; address: string | null; city: string | null } | null;
-    } | null;
-  };
-
-  const workReport = row.work_report;
-  if (!workReport) return null;
-
-  const endLabel = resolveLogTripEndLabel(
-    { trip_legs: (row.trip_legs ?? []) as DailyTripLeg[] },
-    {
-      location_text: workReport.location_text,
-      customers: workReport.customers
-        ? {
-            name: workReport.customers.name ?? '',
-            address: workReport.customers.address,
-            city: workReport.customers.city,
-          }
-        : null,
-    },
-  );
-  if (!endLabel.trim()) return null;
-
-  return {
-    logId: row.id,
-    logDate: row.log_date,
-    workReportId: row.work_report_id,
-    workReportTitle: formatPreviousLogReportTitle(workReport),
-    endLabel,
-  };
-}
-
-export function dayBeforeYmd(ymd: string): string {
-  const d = new Date(`${ymd}T12:00:00`);
-  return toLocalYmd(addDays(d, -1));
-}
-
-export function shouldDefaultTripStartFromPreviousDay(
-  previous: PreviousDayTripContext | null,
-  logDateYmd: string,
-): boolean {
-  if (!previous) return false;
-  return previous.logDate === dayBeforeYmd(logDateYmd);
-}
-
-export function inferTripStartSource(input: {
-  firstLegFromLabel: string | undefined;
-  returnLabel: string;
-  previousDay: PreviousDayTripContext | null;
-}): 'base' | 'previous_day' {
-  const firstFrom = input.firstLegFromLabel?.trim();
-  if (!firstFrom || labelsMatch(firstFrom, input.returnLabel)) return 'base';
-  if (input.previousDay && labelsMatch(firstFrom, input.previousDay.endLabel)) return 'previous_day';
-  return 'base';
 }
 
 export function sumTripLegDraftKm(drafts: TripLegDraft[]): number {

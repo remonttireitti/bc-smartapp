@@ -12,11 +12,9 @@ import {
   removeTripLegAt,
   sumTripLegDraftKm,
   updateTripLegDraft,
-  type PreviousDayTripContext,
   type TripLegDeparture,
   type TripLegDraft,
 } from '../lib/workReportTripLegs';
-import { formatDate } from '../types';
 import { formatTripKmRateLabel } from '../lib/tripKmExpense';
 import DailyLogFormSection from './DailyLogFormSection';
 
@@ -24,9 +22,6 @@ type Props = {
   drafts: TripLegDraft[];
   setDrafts: (next: TripLegDraft[]) => void;
   tripDeparture: TripLegDeparture;
-  previousDayContext?: PreviousDayTripContext | null;
-  tripStartSource?: 'base' | 'previous_day';
-  onTripStartSourceChange?: (source: 'base' | 'previous_day') => void;
   showCustomerFields?: boolean;
   destinationOptions?: TripDestinationOption[];
   tripKmRate?: number | null;
@@ -36,9 +31,6 @@ export default function DailyLogTripLegFields({
   drafts,
   setDrafts,
   tripDeparture,
-  previousDayContext = null,
-  tripStartSource = 'base',
-  onTripStartSourceChange,
   showCustomerFields,
   destinationOptions = [],
   tripKmRate = null,
@@ -154,39 +146,13 @@ export default function DailyLogTripLegFields({
           </button>
       </div>
       <p className="muted trip-leg-hint">
-        Päivä voi alkaa toimipisteestä/kodista tai edellisen työpäivän viimeisestä kohteesta (myös toiselta työraportilta).
-        Päivä päättyy aina toimipisteeseen/kotiin. Kirjoita kohteeseen — ehdotukset haetaan rekisteristä.
-        Paluumatka lisätään aina viimeiseksi ja km lasketaan heti.
+        Laske matka toimipisteestä/kodista kohteeseen, tarvittaessa väliajo ja paluu toimipisteeseen/kotiin.
+        Kirjoita kohteeseen — ehdotukset haetaan rekisteristä. Paluumatka lisätään aina viimeiseksi ja km lasketaan heti.
+        Alle 35 € ajomatkat laskutetaan minimilaskutuksella huoltoautosta.
         {formatTripKmRateLabel(tripKmRate)
           ? ` Km-korvausrivi (${formatTripKmRateLabel(tripKmRate)}) päivittyy kulut-osiossa automaattisesti.`
           : ' Aseta €/km-hinta kohdassa Hallinta → Yritys, jolloin km-korvausrivi luodaan automaattisesti.'}
       </p>
-      {previousDayContext && onTripStartSourceChange && (
-        <fieldset className="trip-departure-source-fieldset">
-          <legend>Lähtöpiste</legend>
-          <label className="compact-option">
-            <input
-              type="radio"
-              name="trip_start_source"
-              checked={tripStartSource === 'base'}
-              disabled={busy || rowBusyKey != null}
-              onChange={() => onTripStartSourceChange('base')}
-            />
-            {returnLabel || 'Toimipiste tai koti'}
-          </label>
-          <label className="compact-option">
-            <input
-              type="radio"
-              name="trip_start_source"
-              checked={tripStartSource === 'previous_day'}
-              disabled={busy || rowBusyKey != null}
-              onChange={() => onTripStartSourceChange('previous_day')}
-            />
-            Edellinen päivä ({formatDate(previousDayContext.logDate)}): {previousDayContext.endLabel}
-            <span className="muted"> · {previousDayContext.workReportTitle}</span>
-          </label>
-        </fieldset>
-      )}
       {calcError && <p className="error trip-leg-calc-error">{calcError}</p>}
       {drafts.length === 0 ? (
         <p className="muted">Ei ajomatkoja — lisää rivi tai käytä oletusreittiä.</p>

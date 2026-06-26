@@ -177,7 +177,7 @@ function buildEnergySavingsHtml(data: QuoteRequestData, device: HeatPumpDevice |
     const text =
       `Arvioitu energiankulutus jäähdytyksessä noin ${formatKwh(est.kwhPerDayMin)}–${formatKwh(est.kwhPerDayMax)} kWh/päivä ` +
       `(noin ${formatEuro(est.eurPerDayMin)}–${formatEuro(est.eurPerDayMax)}/päivä) tyypillisellä ${est.hoursPerDay} h käytöllä. ` +
-      `Arvio perustuu kohteen mitoitukseen (${formatKwh(est.peakCoolingKw)} kW huippujäähdytys, SCOP ~${est.cop.toLocaleString('fi-FI')}).`;
+      `Arvio perustuu kohteen jäähdytystarpeeseen (noin ${formatKwh(est.peakCoolingKw)} kW huippujäähdytys).`;
     return `
     <div class="savings-box">
       <div class="section-title" style="margin-top:0;">Arvioitu jäähdytyskulutus</div>

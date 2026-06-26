@@ -819,12 +819,85 @@ button[type='submit']:disabled { opacity: .6; cursor: wait; }
   display: flex;
   flex-wrap: wrap;
   gap: .5rem 1rem;
-  align-items: center;
-  padding: .85rem 1rem;
+  align-items: stretch;
+  padding: 0;
   background: var(--bg-subtle);
   border: 1px solid var(--border-strong);
-  border-radius: 8px;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+  border-radius: 10px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.report-list.report-list-modern li:hover {
+  border-color: #cbd5e1;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
+}
+
+.report-list-row-pro {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  width: 100%;
+  min-width: 0;
+  padding: .85rem 1rem;
+}
+
+.report-list-row-aside {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.4rem;
+  flex-shrink: 0;
+}
+
+.report-status-menu-trigger {
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+}
+
+.report-status-menu-panel {
+  min-width: 11rem;
+  padding: 0.35rem;
+}
+
+.report-status-menu-title {
+  margin: 0.25rem 0.5rem 0.35rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.report-status-menu-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 0.45rem 0.65rem;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.report-status-menu-item:hover,
+.report-status-menu-item.active {
+  background: var(--bg-inset);
+}
+
+.subscriber-portal-visibility-field label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.subscriber-portal-visibility-hint {
+  margin: 0.35rem 0 0;
+  font-size: 0.85rem;
 }
 
 .report-list-item {
@@ -2284,6 +2357,23 @@ button[type='submit']:disabled { opacity: .6; cursor: wait; }
 
 .report-link .badge {
   flex-shrink: 0;
+}
+
+.report-link-badges {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.35rem;
+  flex-shrink: 0;
+}
+
+.report-link-badges .badge {
+  white-space: nowrap;
+}
+
+.work-report-status-badges.report-link-badges {
+  flex-direction: column;
+  align-items: flex-end;
 }
 
 .report-link-body,
@@ -7871,6 +7961,29 @@ textarea {
 
 .expense-billing-options .compact-option {
   margin: 0;
+}
+
+.expense-section-hint {
+  margin: 0 0 0.75rem;
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.expense-billing-mode-fieldset {
+  grid-column: 1 / -1;
+  margin: 0.25rem 0 0;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.expense-billing-mode-fieldset legend {
+  padding: 0 0.35rem;
+  font-size: 0.9rem;
+  color: var(--text-muted);
 }
 
 .expense-row-auto {

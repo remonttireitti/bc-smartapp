@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
 import AppLayout from '../components/AppLayout';
+import PartnerBillWorkflowDialog from '../components/PartnerBillWorkflowDialog';
 import { useCompanyBillingModuleEnabled } from '../hooks/useCompanyBillingModuleEnabled';
 import { useCompanyPartnershipsEnabled } from '../hooks/useCompanyPartnershipsEnabled';
 import { useProfile } from '../hooks/useProfile';
@@ -39,6 +40,9 @@ import {
   loadBillingCopyText,
   markPartnerReportBilled,
   markCustomerReportBilled,
+  applyPartnerBillWorkflowChoice,
+  shouldPromptPartnerBillWorkflow,
+  type PartnerBillWorkflowChoice,
   unmarkPartnerReportBilled,
   unmarkCustomerReportBilled,
   type BillingListRow,
@@ -126,6 +130,8 @@ export default function BillingPage({ session }: Props) {
   const [customFrom, setCustomFrom] = useState('');
   const [customTo, setCustomTo] = useState('');
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [partnerBillPromptRow, setPartnerBillPromptRow] = useState<BillingListRow | null>(null);
+  const [partnerBillPromptBusy, setPartnerBillPromptBusy] = useState(false);
   const [recalcState, setRecalcState] = useState<{ total: number; done: number } | null>(null);
   const [recalculatingIds, setRecalculatingIds] = useState<Set<string>>(() => new Set());
   const [partnerOptions, setPartnerOptions] = useState<Array<{ id: string; name: string }>>([]);
@@ -664,30 +670,54 @@ export default function BillingPage({ session }: Props) {
     }
   }
 
-  async function markBilled(row: BillingListRow) {
+  async function finishPartnerBill(row: BillingListRow, workflow: PartnerBillWorkflowChoice) {
     setError(null);
     setMessage(null);
+    setPartnerBillPromptBusy(true);
     setBusyId(row.id);
     try {
-      const mode = rowBillingMode(row);
-      if (mode === 'customer') {
-        await markCustomerReportBilled(supabase, row.id);
-        setMessage(`Merkitty laskutetuksi asiakkaalta: ${row.title}`);
-      } else {
-        const wasPartial = billingPartnerState(row) === 'partial';
-        await markPartnerReportBilled(supabase, row.id);
-        setMessage(
-          wasPartial
-            ? `Avoin summa merkitty laskutetuksi: ${row.title}`
-            : `Merkitty laskutetuksi: ${row.title}`,
-        );
-      }
+      const wasPartial = billingPartnerState(row) === 'partial';
+      await markPartnerReportBilled(supabase, row.id);
+      await applyPartnerBillWorkflowChoice(supabase, row.id, workflow);
+      setPartnerBillPromptRow(null);
+      setMessage(
+        wasPartial
+          ? `Avoin summa merkitty laskutetuksi: ${row.title}`
+          : `Merkitty laskutetuksi: ${row.title}`,
+      );
       await load(billingMode);
     } catch (markError) {
       setError(markError instanceof Error ? markError.message : 'Merkitseminen epäonnistui.');
     } finally {
+      setPartnerBillPromptBusy(false);
       setBusyId(null);
     }
+  }
+
+  async function markBilled(row: BillingListRow) {
+    const mode = rowBillingMode(row);
+    if (mode === 'customer') {
+      setError(null);
+      setMessage(null);
+      setBusyId(row.id);
+      try {
+        await markCustomerReportBilled(supabase, row.id);
+        setMessage(`Merkitty laskutetuksi asiakkaalta: ${row.title}`);
+        await load(billingMode);
+      } catch (markError) {
+        setError(markError instanceof Error ? markError.message : 'Merkitseminen epäonnistui.');
+      } finally {
+        setBusyId(null);
+      }
+      return;
+    }
+
+    if (shouldPromptPartnerBillWorkflow(row.status)) {
+      setPartnerBillPromptRow(row);
+      return;
+    }
+
+    await finishPartnerBill(row, 'keep_in_progress');
   }
 
   async function unmarkBilled(row: BillingListRow) {
@@ -1188,6 +1218,21 @@ export default function BillingPage({ session }: Props) {
           </>
         </div>
       )}
+      <PartnerBillWorkflowDialog
+        open={!!partnerBillPromptRow}
+        busy={partnerBillPromptBusy}
+        reportTitle={partnerBillPromptRow?.title ?? ''}
+        currentStatus={partnerBillPromptRow?.status ?? 'in_progress'}
+        onMarkCompleted={() => {
+          if (partnerBillPromptRow) void finishPartnerBill(partnerBillPromptRow, 'mark_completed');
+        }}
+        onKeepInProgress={() => {
+          if (partnerBillPromptRow) void finishPartnerBill(partnerBillPromptRow, 'keep_in_progress');
+        }}
+        onCancel={() => {
+          if (!partnerBillPromptBusy) setPartnerBillPromptRow(null);
+        }}
+      />
     </AppLayout>
   );
 }

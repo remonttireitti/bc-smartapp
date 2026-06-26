@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
 import AppLayout from '../components/AppLayout';
@@ -29,9 +29,17 @@ import {
   isInternalCompanyOrderDraft,
   isPortalReadOnly,
   isSubscriberPortalWorkOrder,
-  isWorkReportVisibleToPortal,
+  isWorkReportVisibleToPortalSubscriber,
 } from '../lib/portalWorkOrder';
-import { canEditWorkReportDescription, canManageWorkReportDailyLogs } from '../lib/workReportDailyLogs';
+import SubscriberPortalVisibilityField from '../components/SubscriberPortalVisibilityField';
+import {
+  SUBSCRIBER_PORTAL_VISIBILITY_DEFAULT,
+  reportHasSubscriberLink,
+  subscriberPortalVisibilityLabel,
+  type SubscriberPortalVisibility,
+} from '../lib/subscriberPortalVisibility';
+import { buildWorkReportStatusPatch } from '../lib/workReportStatusUpdate';
+import { canEditWorkReportDescription, canManageWorkReportDailyLogs, buildWorkReportPatchAfterDailyLogAdded } from '../lib/workReportDailyLogs';
 import {
   canAcceptDelegatedWorkOrder,
   canAssignDelegatedWorkOrder,
@@ -75,7 +83,6 @@ import {
 } from '../lib/management';
 import {
   billingPartnerState,
-  billingPartnerStatusLabel,
   isCustomerInvoicePaid,
   canPersistPartnerBillable,
   markCustomerReportBilled,
@@ -118,19 +125,20 @@ import {
 import {
   buildDefaultTripLegs,
   formatTripLegSummary,
-  inferTripStartSource,
-  loadPreviousDayTripContext,
   normalizeTripLegDrafts,
   resolveUserDepartureLabel,
   resolveWorkReportSiteLabel,
   saveTripLegs,
-  shouldDefaultTripStartFromPreviousDay,
   sumDailyTripKm,
   tripLegDeparture,
   tripLegsToDrafts,
-  type PreviousDayTripContext,
   type TripLegDraft,
 } from '../lib/workReportTripLegs';
+import {
+  formatUnbilledLogDatesLabel,
+  isDailyLogUnbilledForPartner,
+  resolveWorkReportStatusDisplay,
+} from '../lib/workReportViewerStatus';
 import {
   EXPENSE_TYPE_LABELS,
   EXPENSE_TYPE_OPTIONS,
@@ -182,10 +190,10 @@ const REPORT_SELECT = `
   scheduled_start, scheduled_end, completed_at,
   owner_company_id, created_by_company_id, created_by_user_id, branding_company_id,
   partnership_id, customer_id, equipment_id, assigned_user_id,
-  delegate_company_id, delegated_at, created_at, subscriber_id,
+  delegate_company_id, delegated_at, created_at, subscriber_id, subscriber_portal_visibility,
   created_by_user_name_snapshot, created_by_user_deleted,
   assigned_user_name_snapshot, assigned_user_deleted,
-  customers(name, address, city),
+  customers(name, address, city, subscriber_id),
   equipment(name, tag),
   owner_company:companies!work_reports_owner_company_id_fkey(name),
   branding_company:companies!work_reports_branding_company_id_fkey(name),
@@ -198,7 +206,7 @@ const REPORT_SELECT = `
 function emptyExpense(): ExpenseDraft {
   return {
     key: crypto.randomUUID(),
-    expense_type: 'parking',
+    expense_type: '',
     description: '',
     qty: '1',
     unit_price: '',
@@ -206,6 +214,23 @@ function emptyExpense(): ExpenseDraft {
     bill_to_customer: true,
     customer_unit_price: '',
   };
+}
+
+type ExpenseBillingMode = 'partner_and_customer' | 'customer_only';
+
+function resolveExpenseBillingMode(row: ExpenseDraft): ExpenseBillingMode {
+  return row.bill_to_partner ? 'partner_and_customer' : 'customer_only';
+}
+
+function applyExpenseBillingMode(row: ExpenseDraft, mode: ExpenseBillingMode): ExpenseDraft {
+  if (mode === 'partner_and_customer') {
+    return { ...row, bill_to_partner: true, bill_to_customer: true };
+  }
+  return { ...row, bill_to_partner: false, bill_to_customer: true };
+}
+
+function isNewExpenseRow(row: ExpenseDraft): boolean {
+  return !row.description.trim() && !row.expense_type;
 }
 
 function initialLogForm() {
@@ -306,12 +331,19 @@ function expenseRowSectionTitle(
   showPartner: boolean,
   showCustomer: boolean,
 ): string {
-  const type = EXPENSE_TYPE_LABELS[row.expense_type] ?? row.expense_type;
-  const desc = row.description.trim() || 'Uusi rivi';
+  const type = row.expense_type
+    ? (EXPENSE_TYPE_LABELS[row.expense_type] ?? row.expense_type)
+    : 'Uusi kulu';
+  const desc = row.description.trim() || 'Täytä tiedot';
   const parts = [type, desc];
   if (row.qty.trim()) parts.push(`${row.qty} kpl`);
-  if (showPartner && !row.bill_to_partner) parts.push('kumppanin piikki');
-  if (showCustomer) {
+  if (showPartner && showCustomer) {
+    parts.push(
+      row.bill_to_partner ? 'laskutetaan kumppanilta' : 'kumppani laskuttaa asiakkaalta',
+    );
+  } else if (showPartner && !row.bill_to_partner) {
+    parts.push('ei kumppanilaskutusta');
+  } else if (showCustomer) {
     const customerPrice = row.customer_unit_price.trim() || row.unit_price.trim();
     parts.push(
       row.bill_to_customer
@@ -609,16 +641,20 @@ function DailyLogFields({
 
       <DailyLogFormSection title={expenseSectionTitle} collapseKey="daily-log:expenses">
         <div className="expense-section expense-section-in-dialog">
+          <p className="muted expense-section-hint">
+            Lisää rivi ja valitse sen jälkeen tyyppi, kuvaus ja laskutus. Kumppaniraportilla: joko laatija laskuttaa
+            kumppania (asiakas laskutetaan aina) tai kumppani laskuttaa suoraan asiakasta ilman keskinäistä kuluriviä.
+          </p>
           <button
             type="button"
             className="btn btn-secondary"
             onClick={() => setExpenseDrafts([...expenseDrafts, emptyExpense()])}
           >
-            + Lisää rivi
+            + Lisää kulu tai tarvike
           </button>
           {expenseDrafts.length === 0 ? (
             <p className="muted">
-              Esim. pysäköinti, km-korvaus, varaosat… Km-korvausrivi syntyy automaattisesti ajomatkoista, jos
+              Esim. pysäköinti, varaosat, tarvikkeet… Km-korvausrivi syntyy automaattisesti ajomatkoista, jos
               yrityksellä on €/km-hinta.
             </p>
           ) : (
@@ -629,12 +665,14 @@ function DailyLogFields({
                 : showCustomerPrices
                   ? 'Ostohinta (€)'
                   : 'á hinta (€)';
+              const billingMode = resolveExpenseBillingMode(row);
               return (
                 <DailyLogFormSection
                   key={row.key}
                   title={expenseRowSectionTitle(row, showPartnerPrices, showCustomerPrices)}
                   collapseKey={`daily-log:expense:${row.key}`}
                   className="expense-line-section"
+                  defaultOpen={isNewExpenseRow(row)}
                 >
                   <div className={`expense-row-fields${autoTripKm ? ' expense-row-auto' : ''}`}>
                     <label>
@@ -650,6 +688,7 @@ function DailyLogFields({
                           )
                         }
                       >
+                        <option value="">Valitse tyyppi…</option>
                         {EXPENSE_TYPE_OPTIONS.map((opt) => (
                           <option key={opt.value} value={opt.value}>
                             {opt.label}
@@ -707,7 +746,7 @@ function DailyLogFields({
                                 ),
                               )
                             }
-                            placeholder={showPartnerPrices ? '0 = kumppanin piikki' : undefined}
+                            placeholder={showPartnerPrices ? '0 = ei kumppanilaskutusta' : undefined}
                           />
                         </label>
                         {showCustomerPrices && (
@@ -755,42 +794,79 @@ function DailyLogFields({
                     {autoTripKm && (
                       <p className="muted expense-auto-note">Päivittyy automaattisesti ajomatkoista</p>
                     )}
-                    {(showPartnerPrices || showCustomerPrices) && (
+                    {showPartnerPrices && showCustomerPrices && (
+                      <fieldset className="expense-billing-mode-fieldset">
+                        <legend>Laskutus</legend>
+                        <label className="compact-option">
+                          <input
+                            type="radio"
+                            name={`expense_billing_${row.key}`}
+                            checked={billingMode === 'partner_and_customer'}
+                            disabled={autoTripKm}
+                            onChange={() =>
+                              setExpenseDrafts(
+                                expenseDrafts.map((r, i) =>
+                                  i === index ? applyExpenseBillingMode(r, 'partner_and_customer') : r,
+                                ),
+                              )
+                            }
+                          />
+                          Laatija laskuttaa kumppania — asiakas laskutetaan myös
+                        </label>
+                        <label className="compact-option">
+                          <input
+                            type="radio"
+                            name={`expense_billing_${row.key}`}
+                            checked={billingMode === 'customer_only'}
+                            disabled={autoTripKm}
+                            onChange={() =>
+                              setExpenseDrafts(
+                                expenseDrafts.map((r, i) =>
+                                  i === index ? applyExpenseBillingMode(r, 'customer_only') : r,
+                                ),
+                              )
+                            }
+                          />
+                          Ei kumppanilaskutusta — kumppani laskuttaa asiakkaalta
+                        </label>
+                      </fieldset>
+                    )}
+                    {showPartnerPrices && !showCustomerPrices && (
                       <div className="expense-billing-options">
-                        {showPartnerPrices && (
-                          <label className="compact-option">
-                            <input
-                              type="checkbox"
-                              checked={!row.bill_to_partner}
-                              disabled={autoTripKm}
-                              onChange={(e) =>
-                                setExpenseDrafts(
-                                  expenseDrafts.map((r, i) =>
-                                    i === index ? { ...r, bill_to_partner: !e.target.checked } : r,
-                                  ),
-                                )
-                              }
-                            />
-                            Kumppanin piikki (ei keskinäistä laskutusta)
-                          </label>
-                        )}
-                        {showCustomerPrices && (
-                          <label className="compact-option">
-                            <input
-                              type="checkbox"
-                              checked={row.bill_to_customer}
-                              disabled={autoTripKm}
-                              onChange={(e) =>
-                                setExpenseDrafts(
-                                  expenseDrafts.map((r, i) =>
-                                    i === index ? { ...r, bill_to_customer: e.target.checked } : r,
-                                  ),
-                                )
-                              }
-                            />
-                            Laskutetaan asiakkaalta
-                          </label>
-                        )}
+                        <label className="compact-option">
+                          <input
+                            type="checkbox"
+                            checked={row.bill_to_partner}
+                            disabled={autoTripKm}
+                            onChange={(e) =>
+                              setExpenseDrafts(
+                                expenseDrafts.map((r, i) =>
+                                  i === index ? { ...r, bill_to_partner: e.target.checked } : r,
+                                ),
+                              )
+                            }
+                          />
+                          Laskutetaan kumppanilta
+                        </label>
+                      </div>
+                    )}
+                    {!showPartnerPrices && showCustomerPrices && (
+                      <div className="expense-billing-options">
+                        <label className="compact-option">
+                          <input
+                            type="checkbox"
+                            checked={row.bill_to_customer}
+                            disabled={autoTripKm}
+                            onChange={(e) =>
+                              setExpenseDrafts(
+                                expenseDrafts.map((r, i) =>
+                                  i === index ? { ...r, bill_to_customer: e.target.checked } : r,
+                                ),
+                              )
+                            }
+                          />
+                          Laskutetaan asiakkaalta
+                        </label>
                       </div>
                     )}
                     {!autoTripKm && (
@@ -819,7 +895,9 @@ async function saveExpenseLines(
   options: { includeCustomerFields: boolean; includePartnerFields: boolean },
 ) {
   await supabase.from('work_report_daily_expense_lines').delete().eq('daily_log_id', dailyLogId);
-  const validExpenses = expenseDrafts.filter((row) => row.description.trim());
+  const validExpenses = expenseDrafts.filter(
+    (row) => row.description.trim() && (row.expense_type || isAutoTripKmExpense(row)),
+  );
   if (validExpenses.length === 0) return null;
   const buildRows = (includePartnerField: boolean) =>
     validExpenses.map((row, index) => {
@@ -827,7 +905,7 @@ async function saveExpenseLines(
       const customerUnitPrice = customerPriceRaw ? Number(customerPriceRaw) : null;
       return {
         daily_log_id: dailyLogId,
-        expense_type: row.expense_type,
+        expense_type: row.expense_type || 'other',
         description: row.description.trim(),
         qty: Number(row.qty || 1),
         unit_price: Number(row.unit_price || 0),
@@ -883,9 +961,6 @@ export default function WorkReportDetailPage({ session }: Props) {
   const [tripDrafts, setTripDrafts] = useState<TripLegDraft[]>([]);
   const [tripDestinationOptions, setTripDestinationOptions] = useState<TripDestinationOption[]>([]);
   const [tripDepartureLabel, setTripDepartureLabel] = useState('');
-  const [tripStartSource, setTripStartSource] = useState<'base' | 'previous_day'>('base');
-  const [previousDayTripContext, setPreviousDayTripContext] = useState<PreviousDayTripContext | null>(null);
-  const tripLogDateRef = useRef<string | null>(null);
   const [tripKmRate, setTripKmRate] = useState<number | null>(null);
   const [tripKmCustomerRate, setTripKmCustomerRate] = useState<number | null>(null);
   const [refrigerantDrafts, setRefrigerantDrafts] = useState<RefrigerantLineDraft[]>([]);
@@ -935,7 +1010,7 @@ export default function WorkReportDetailPage({ session }: Props) {
 
   useEffect(() => {
     if (!report || !isPortalReadOnly(profile)) return;
-    if (!isWorkReportVisibleToPortal(report.status)) {
+    if (!isWorkReportVisibleToPortalSubscriber(report)) {
       navigate('/tyoraportit', { replace: true });
     }
   }, [report, profile, navigate]);
@@ -1334,10 +1409,9 @@ export default function WorkReportDetailPage({ session }: Props) {
 
   async function updateStatus(nextStatus: WorkStatus) {
     if (!report) return;
-    if (nextStatus === 'billed_partner' || nextStatus === 'billed_customer') return;
 
-    const patch: Record<string, unknown> = { status: nextStatus };
-    if (nextStatus === 'completed') patch.completed_at = new Date().toISOString();
+    const patch = buildWorkReportStatusPatch(report.status, nextStatus);
+    if (!patch) return;
 
     const { error: updateError } = await supabase.from('work_reports').update(patch).eq('id', report.id);
     if (updateError) {
@@ -1345,6 +1419,22 @@ export default function WorkReportDetailPage({ session }: Props) {
       return;
     }
     await load(report.id);
+  }
+
+  async function saveSubscriberPortalVisibility(nextVisibility: SubscriberPortalVisibility) {
+    if (!report) return;
+    setError(null);
+    const { error: updateError } = await supabase
+      .from('work_reports')
+      .update({ subscriber_portal_visibility: nextVisibility })
+      .eq('id', report.id);
+    if (updateError) {
+      setError(updateError.message);
+      return;
+    }
+    setReport((current) =>
+      current ? { ...current, subscriber_portal_visibility: nextVisibility } : current,
+    );
   }
 
   async function saveDescription() {
@@ -1596,8 +1686,9 @@ export default function WorkReportDetailPage({ session }: Props) {
       }
     }
 
-    if (report.status === 'scheduled') {
-      await supabase.from('work_reports').update({ status: 'in_progress' }).eq('id', report.id);
+    const statusPatch = buildWorkReportPatchAfterDailyLogAdded(report.status);
+    if (statusPatch) {
+      await supabase.from('work_reports').update(statusPatch).eq('id', report.id);
     }
 
     closeLogDialog();
@@ -1623,70 +1714,29 @@ export default function WorkReportDetailPage({ session }: Props) {
     });
   }
 
-  function buildTripDepartureForSource(
-    returnLabel: string,
-    source: 'base' | 'previous_day',
-    previousDay: PreviousDayTripContext | null,
-    existingFirstFrom?: string,
-  ) {
-    if (source === 'previous_day' && previousDay?.endLabel) {
-      return tripLegDeparture(previousDay.endLabel, returnLabel);
-    }
-    const firstFrom = existingFirstFrom?.trim();
-    if (firstFrom && firstFrom.toLowerCase() !== returnLabel.trim().toLowerCase()) {
-      return tripLegDeparture(firstFrom, returnLabel);
-    }
-    return tripLegDeparture(returnLabel, returnLabel);
-  }
-
-  async function setupTripLegsForDialog(input: {
-    logDateYmd: string;
-    excludeLogId?: string;
-    existingLegs?: TripLegDraft[];
-  }) {
+  async function setupTripLegsForDialog(existingLegs?: TripLegDraft[]) {
     if (!report) return;
 
-    const performerId = resolveReportPerformerUserId(report) ?? session.user.id;
-    const [returnLabel, kmRates, previousDay] = await Promise.all([
+    const [departureLabel, kmRates] = await Promise.all([
       resolveTripDepartureLabel(report.owner_company_id),
       loadTripKmRatesForReport(report),
-      loadPreviousDayTripContext(supabase, {
-        performerUserId: performerId,
-        beforeLogDate: input.logDateYmd,
-        excludeLogId: input.excludeLogId,
-      }),
     ]);
 
-    setTripDepartureLabel(returnLabel);
+    setTripDepartureLabel(departureLabel);
     setTripKmRate(kmRates.kmRate);
     setTripKmCustomerRate(kmRates.customerKmRate);
-    setPreviousDayTripContext(previousDay);
     await loadTripDestinationOptionsForDialog(report);
 
+    const departure = tripLegDeparture(departureLabel, departureLabel);
     const siteLabel = resolveWorkReportSiteLabel(report);
-    const existingLegs = input.existingLegs ?? [];
-    const firstFrom = existingLegs[0]?.from_label;
-
-    let startSource: 'base' | 'previous_day' = 'base';
-    if (existingLegs.length > 0) {
-      startSource = inferTripStartSource({
-        firstLegFromLabel: firstFrom,
-        returnLabel,
-        previousDay,
-      });
-    } else if (shouldDefaultTripStartFromPreviousDay(previousDay, input.logDateYmd)) {
-      startSource = 'previous_day';
-    }
-
-    setTripStartSource(startSource);
-    const departure = buildTripDepartureForSource(returnLabel, startSource, previousDay, firstFrom);
+    const legs = existingLegs ?? [];
     const drafts =
-      existingLegs.length > 0
-        ? normalizeTripLegDrafts(existingLegs, departure)
+      legs.length > 0
+        ? normalizeTripLegDrafts(legs, departure)
         : buildDefaultTripLegs(departure, siteLabel);
     setTripDrafts(drafts);
 
-    if (existingLegs.length > 0) {
+    if (legs.length > 0) {
       setExpenseDrafts((current) =>
         syncTripKmExpenseDrafts(current, drafts, kmRates.kmRate, kmRates.customerKmRate),
       );
@@ -1694,61 +1744,6 @@ export default function WorkReportDetailPage({ session }: Props) {
 
     return drafts;
   }
-
-  function handleTripStartSourceChange(source: 'base' | 'previous_day') {
-    setTripStartSource(source);
-    if (!report || !tripDepartureLabel.trim()) return;
-
-    const departure = buildTripDepartureForSource(tripDepartureLabel, source, previousDayTripContext);
-    setTripDrafts((current) => normalizeTripLegDrafts(current, departure));
-  }
-
-  useEffect(() => {
-    if (!logDialogOpen || !report || !logForm.log_date) {
-      tripLogDateRef.current = null;
-      return;
-    }
-
-    const previousDate = tripLogDateRef.current;
-    tripLogDateRef.current = logForm.log_date;
-    if (previousDate === null || previousDate === logForm.log_date) return;
-
-    void (async () => {
-      const performerId = resolveReportPerformerUserId(report) ?? session.user.id;
-      const previousDay = await loadPreviousDayTripContext(supabase, {
-        performerUserId: performerId,
-        beforeLogDate: logForm.log_date,
-        excludeLogId: editingLogId ?? undefined,
-      });
-      setPreviousDayTripContext(previousDay);
-
-      if (!editingLogId && shouldDefaultTripStartFromPreviousDay(previousDay, logForm.log_date)) {
-        setTripStartSource('previous_day');
-        const departure = buildTripDepartureForSource(tripDepartureLabel, 'previous_day', previousDay);
-        const siteLabel = resolveWorkReportSiteLabel(report);
-        setTripDrafts((current) =>
-          current.length === 0
-            ? buildDefaultTripLegs(departure, siteLabel)
-            : normalizeTripLegDrafts(current, departure),
-        );
-        return;
-      }
-
-      setTripStartSource((currentSource) => {
-        if (currentSource === 'previous_day' && previousDay) {
-          const departure = buildTripDepartureForSource(tripDepartureLabel, 'previous_day', previousDay);
-          setTripDrafts((current) => normalizeTripLegDrafts(current, departure));
-          return 'previous_day';
-        }
-        if (currentSource === 'previous_day' && !previousDay) {
-          const departure = buildTripDepartureForSource(tripDepartureLabel, 'base', null);
-          setTripDrafts((current) => normalizeTripLegDrafts(current, departure));
-          return 'base';
-        }
-        return currentSource;
-      });
-    })();
-  }, [logDialogOpen, logForm.log_date, editingLogId, report?.id, session.user.id, tripDepartureLabel]);
 
   async function loadTripKmRatesForReport(activeReport: WorkReport) {
     const [{ data: creatorRow }, { data: ownerRow }] = await Promise.all([
@@ -1808,7 +1803,7 @@ export default function WorkReportDetailPage({ session }: Props) {
     setLogDialogOpen(true);
     void loadRefrigerantContext();
     if (report) {
-      void setupTripLegsForDialog({ logDateYmd: initialLogForm().log_date });
+      void setupTripLegsForDialog();
     } else {
       setTripDrafts([]);
       setTripDestinationOptions([]);
@@ -1830,11 +1825,7 @@ export default function WorkReportDetailPage({ session }: Props) {
     setDailyLogNotice(null);
     setLogDialogOpen(true);
     if (report) {
-      void setupTripLegsForDialog({
-        logDateYmd: log.log_date.slice(0, 10),
-        excludeLogId: log.id,
-        existingLegs: tripLegsToDrafts(log.trip_legs),
-      });
+      void setupTripLegsForDialog(tripLegsToDrafts(log.trip_legs));
     } else {
       setTripDepartureLabel('');
       setTripKmRate(null);
@@ -1853,9 +1844,6 @@ export default function WorkReportDetailPage({ session }: Props) {
     setTripDrafts([]);
     setTripDestinationOptions([]);
     setTripDepartureLabel('');
-    setTripStartSource('base');
-    setPreviousDayTripContext(null);
-    tripLogDateRef.current = null;
     setTripKmRate(null);
     setTripKmCustomerRate(null);
     setRefrigerantDrafts([]);
@@ -2132,6 +2120,26 @@ export default function WorkReportDetailPage({ session }: Props) {
     && report.status !== 'draft'
     && report.status !== 'delegated';
   const customerBilled = isCustomerInvoicePaid(billing);
+  const workReportStatusDisplay = resolveWorkReportStatusDisplay({
+    context: {
+      status: report.status,
+      owner_company_id: report.owner_company_id,
+      created_by_company_id: report.created_by_company_id,
+      delegate_company_id: report.delegate_company_id,
+      billing: billing
+        ? {
+            partner_invoice_status: billing.partner_invoice_status,
+            partner_billed_amount: billing.partner_billed_amount,
+            partner_billed_at: billing.partner_billed_at,
+          }
+        : null,
+      billable: billableCalculation ? { partner_total: billableCalculation.grandTotal } : null,
+    },
+    viewerCompanyId: profile?.company_id,
+    hasDailyLogs: dailyLogs.length > 0,
+    dailyLogs,
+    billingModuleEnabled: viewerBillingAllowed,
+  });
 
   async function markCustomerBilled() {
     if (!report) return;
@@ -2191,8 +2199,24 @@ export default function WorkReportDetailPage({ session }: Props) {
           <span className="action-toolbar-sep" aria-hidden="true" />
           <WorkReportStatusBadges
             workflowStatus={report.status}
-            showPartnerBilling={showPartnerBillingStatus}
-            partnerBillingState={partnerBillingState}
+            context={{
+              status: report.status,
+              owner_company_id: report.owner_company_id,
+              created_by_company_id: report.created_by_company_id,
+              delegate_company_id: report.delegate_company_id,
+              billing: billing
+                ? {
+                    partner_invoice_status: billing.partner_invoice_status,
+                    partner_billed_amount: billing.partner_billed_amount,
+                    partner_billed_at: billing.partner_billed_at,
+                  }
+                : null,
+              billable: billableCalculation ? { partner_total: billableCalculation.grandTotal } : null,
+            }}
+            viewerCompanyId={profile?.company_id}
+            hasDailyLogs={dailyLogs.length > 0}
+            dailyLogs={dailyLogs}
+            billingModuleEnabled={viewerBillingAllowed}
             showCustomerBilling={showCustomerBillingStatus}
             customerBilled={customerBilled}
           />
@@ -2226,6 +2250,26 @@ export default function WorkReportDetailPage({ session }: Props) {
               savedOrderer || '—'
             )}
           </dd>
+          {reportHasSubscriberLink({
+            subscriber_id: report.subscriber_id,
+            customer_subscriber_id: report.customers?.subscriber_id,
+          }) && (
+            <>
+              <dt>Tilaajan näkyvyys</dt>
+              <dd>
+                {canEditDescription ? (
+                  <SubscriberPortalVisibilityField
+                    value={report.subscriber_portal_visibility ?? SUBSCRIBER_PORTAL_VISIBILITY_DEFAULT}
+                    reportKind="work"
+                    disabled={descriptionBusy}
+                    onChange={(value) => void saveSubscriberPortalVisibility(value)}
+                  />
+                ) : (
+                  subscriberPortalVisibilityLabel(report.subscriber_portal_visibility)
+                )}
+              </dd>
+            </>
+          )}
           <dt>Laite</dt>
           <dd className={report.equipment ? undefined : 'muted'}>{formatWorkReportEquipment(report.equipment)}</dd>
           <dt>Otsikko</dt>
@@ -2328,7 +2372,13 @@ export default function WorkReportDetailPage({ session }: Props) {
             <>
               <dt>Kumppanilaskutus</dt>
               <dd>
-                <strong>{billingPartnerStatusLabel(partnerBillingState ?? 'open')}</strong>
+                <strong>{workReportStatusDisplay.primaryLabel}</strong>
+                {workReportStatusDisplay.secondaryLabel && (
+                  <>
+                    {' · '}
+                    <strong>{workReportStatusDisplay.secondaryLabel}</strong>
+                  </>
+                )}
                 {partnerBillingState === 'partial' && billableCalculation && billing && (() => {
                   const amounts = resolvePartnerBillingAmounts(
                     billableCalculation.grandTotal,
@@ -2342,6 +2392,12 @@ export default function WorkReportDetailPage({ session }: Props) {
                     </>
                   );
                 })()}
+                {workReportStatusDisplay.unbilledLogDates.length > 0 && (
+                  <>
+                    {' · '}
+                    Laskuttamattomat päivät: {formatUnbilledLogDatesLabel(workReportStatusDisplay.unbilledLogDates)}
+                  </>
+                )}
                 {' · '}
                 <Link to="/laskutus?mode=partner">Laskutus-moduuli</Link>
               </dd>
@@ -2490,6 +2546,9 @@ export default function WorkReportDetailPage({ session }: Props) {
                   <div className="daily-log-head">
                     <div className="daily-log-head-meta">
                       <strong>{formatDate(log.log_date)}</strong>
+                      {isDailyLogUnbilledForPartner(log, workReportStatusDisplay) && (
+                        <span className="badge badge-scheduled">Laskuttamatta</span>
+                      )}
                       <span>{HOUR_ENTRY_LABELS[log.entry_type]}</span>
                       <span>{formatHourEntry(log, { showMoney: showPartnerBillableSection || showCustomerMoney })}</span>
                       {expenseLines.length > 0 && (
@@ -2885,13 +2944,7 @@ export default function WorkReportDetailPage({ session }: Props) {
         <DailyLogTripLegFields
           drafts={tripDrafts}
           setDrafts={setTripDrafts}
-          tripDeparture={tripLegDeparture(
-            tripDrafts[0]?.from_label?.trim() || tripDepartureLabel,
-            tripDepartureLabel,
-          )}
-          previousDayContext={previousDayTripContext}
-          tripStartSource={tripStartSource}
-          onTripStartSourceChange={handleTripStartSourceChange}
+          tripDeparture={tripLegDeparture(tripDepartureLabel, tripDepartureLabel)}
           showCustomerFields={showCustomerBillingFeatures}
           destinationOptions={tripDestinationOptions}
           tripKmRate={tripKmRate}

@@ -167,7 +167,7 @@ export default function MaintenanceReportsPage({ session }: Props) {
 
         id, status, data, updated_at, created_at,
 
-        customer_id, subscriber_id, equipment_id, owner_company_id, branding_company_id,
+        customer_id, subscriber_id, subscriber_portal_visibility, equipment_id, owner_company_id, branding_company_id,
 
         customers(name, subscriber_id),
 

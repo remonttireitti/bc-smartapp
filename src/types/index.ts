@@ -1,3 +1,5 @@
+export type SubscriberPortalVisibility = 'when_ready' | 'as_draft' | 'as_in_progress';
+
 export type WorkStatus =
   | 'draft'
   | 'delegated'
@@ -203,6 +205,7 @@ export type WorkReport = {
   description: string | null;
   orderer_name: string | null;
   subscriber_id?: string | null;
+  subscriber_portal_visibility?: SubscriberPortalVisibility | null;
   location_text: string | null;
   status: WorkStatus;
   scheduled_start: string | null;
@@ -224,7 +227,7 @@ export type WorkReport = {
   delegated_at: string | null;
   is_onboarding_demo?: boolean;
   created_at: string;
-  customers: { name: string; address?: string | null; city?: string | null } | null;
+  customers: { name: string; address?: string | null; city?: string | null; subscriber_id?: string | null } | null;
   equipment: { name: string; tag: string | null } | null;
   owner_company: { name: string } | null;
   branding_company: { name: string } | null;
@@ -232,6 +235,11 @@ export type WorkReport = {
   delegate_company: { name: string } | null;
   created_by_user: { display_name: string | null; email: string | null } | null;
   created_by_company: { name: string } | null;
+  billing?: Pick<
+    WorkReportBilling,
+    'partner_invoice_status' | 'partner_billed_amount' | 'partner_billed_at' | 'customer_invoice_status'
+  > | null;
+  billable?: { partner_total?: number | null } | null;
 };
 
 export type WorkReportLine = {

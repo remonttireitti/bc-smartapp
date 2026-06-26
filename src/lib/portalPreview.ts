@@ -1,4 +1,4 @@
-import { isMaintenanceReportPublished } from './maintenanceReportStatus';
+import { subscriberPortalReportVisible } from './subscriberPortalVisibility';
 import type { Profile } from '../types';
 
 export type SubscriberPortalPreview = {
@@ -114,7 +114,11 @@ export function reportMatchesPortalSubscriber(
 }
 
 export function filterMaintenanceReportsForPortalView<
-  T extends PortalSubscriberReportRef & { status: string; id?: string },
+  T extends PortalSubscriberReportRef & {
+    status: string;
+    id?: string;
+    subscriber_portal_visibility?: string | null;
+  },
 >(
   reports: T[],
   profile: Pick<Profile, 'role' | 'subscriber_id' | 'customer_id'> | null | undefined,
@@ -122,7 +126,13 @@ export function filterMaintenanceReportsForPortalView<
 ): T[] {
   if (!isPortalView(profile)) return reports;
 
-  let list = reports.filter((r) => isMaintenanceReportPublished(r.status));
+  let list = reports.filter((r) =>
+    subscriberPortalReportVisible({
+      kind: 'maintenance',
+      visibility: r.subscriber_portal_visibility,
+      status: r.status,
+    }),
+  );
 
   const subscriberId = getPortalSubscriberId(profile);
   const customerId = getPortalCustomerId(profile);

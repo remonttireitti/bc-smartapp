@@ -1,6 +1,7 @@
 import { sumTripLegDraftKm, type TripLegDraft } from './workReportTripLegs';
 
 export const AUTO_TRIP_KM_EXPENSE_KEY = 'auto-trip-km';
+export const TRIP_VEHICLE_MIN_BILLING_EUR = 35;
 
 export type TripKmExpenseDraft = {
   key: string;
@@ -11,6 +12,12 @@ export type TripKmExpenseDraft = {
   bill_to_partner: boolean;
   bill_to_customer: boolean;
   customer_unit_price: string;
+};
+
+export type TripKmBillingLine = {
+  qty: number;
+  unitPrice: number;
+  usesMinimum: boolean;
 };
 
 function parseKmRateField(raw: unknown): number | null {
@@ -39,6 +46,35 @@ function isLikelyAutoTripKmExpense(expense: Pick<TripKmExpenseDraft, 'key' | 'ex
   return expense.expense_type === 'km' && /^Ajomatkat\s*\(/i.test(expense.description.trim());
 }
 
+export function resolveTripKmBillingLine(totalKm: number, rate: number): TripKmBillingLine {
+  const qty = Math.round(totalKm * 10) / 10;
+  const unitPrice = Math.round(rate * 100) / 100;
+  const total = Math.round(qty * unitPrice * 100) / 100;
+
+  if (qty > 0 && total > 0 && total < TRIP_VEHICLE_MIN_BILLING_EUR) {
+    return {
+      qty,
+      unitPrice: Math.round((TRIP_VEHICLE_MIN_BILLING_EUR / qty) * 100) / 100,
+      usesMinimum: true,
+    };
+  }
+
+  return { qty, unitPrice, usesMinimum: false };
+}
+
+export function tripKmLineTotal(qty: number, unitPrice: number, usesMinimum: boolean): number {
+  if (usesMinimum) return TRIP_VEHICLE_MIN_BILLING_EUR;
+  return Math.round(qty * unitPrice * 100) / 100;
+}
+
+export function formatTripKmExpenseDescription(totalKm: number, usesMinimum: boolean): string {
+  const qtyStr = String(Math.round(totalKm * 10) / 10);
+  if (usesMinimum) {
+    return `Ajomatkat (${qtyStr} km, minimilaskutus huoltoautosta)`;
+  }
+  return `Ajomatkat (${qtyStr} km)`;
+}
+
 export function syncTripKmExpenseDrafts<T extends TripKmExpenseDraft>(
   expenseDrafts: T[],
   tripDrafts: TripLegDraft[],
@@ -57,21 +93,21 @@ export function syncTripKmExpenseDrafts<T extends TripKmExpenseDraft>(
     return withoutAuto;
   }
 
-  const qtyStr = String(Math.round(totalKm * 10) / 10);
-  const priceStr = String(Math.round(rate * 100) / 100);
-  const customerPriceStr = String(Math.round((customerRate ?? rate) * 100) / 100);
+  const partnerLine = resolveTripKmBillingLine(totalKm, rate);
+  const customerLine = resolveTripKmBillingLine(totalKm, customerRate ?? rate);
+  const usesMinimum = partnerLine.usesMinimum || customerLine.usesMinimum;
   const billToCustomer =
     tripDrafts.length > 0 && tripDrafts.every((leg) => leg.bill_to_customer !== false);
 
   const autoDraft = {
     key: AUTO_TRIP_KM_EXPENSE_KEY,
     expense_type: 'km',
-    description: `Ajomatkat (${qtyStr} km)`,
-    qty: qtyStr,
-    unit_price: priceStr,
+    description: formatTripKmExpenseDescription(totalKm, usesMinimum),
+    qty: String(partnerLine.qty),
+    unit_price: String(partnerLine.unitPrice),
     bill_to_partner: true,
     bill_to_customer: billToCustomer,
-    customer_unit_price: customerPriceStr,
+    customer_unit_price: String(customerLine.unitPrice),
   } as T;
 
   return [...withoutAuto, autoDraft];

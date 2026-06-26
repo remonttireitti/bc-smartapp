@@ -2,6 +2,11 @@ import type { WorkReportDailyLog } from '../types';
 import { resolveDailyLogAuthorLabel } from '../types';
 import type { BillableRatesSource, PartnerBillingRates } from './management';
 import { formatRefrigerantLineLabel } from './refrigerantInventory';
+import {
+  formatTripKmExpenseDescription,
+  resolveTripKmBillingLine,
+  tripKmLineTotal,
+} from './tripKmExpense';
 
 export type UserBillingProfile = {
   id: string;
@@ -279,16 +284,16 @@ export function calculateWorkReportBillable(input: {
     const kmRate =
       input.tripKmRate != null && Number(input.tripKmRate) > 0 ? Number(input.tripKmRate) : null;
     if (tripKm > 0 && kmRate && !hasKmExpenseLine) {
-      const qty = Math.round(tripKm * 10) / 10;
-      const total = lineTotal(qty, kmRate);
+      const billing = resolveTripKmBillingLine(tripKm, kmRate);
+      const total = tripKmLineTotal(billing.qty, billing.unitPrice, billing.usesMinimum);
       const included = expensesEnabled;
       summary.lines.push({
         logId: log.id,
         logDate: log.log_date,
         kind: 'expense',
-        description: `Ajomatkat (${qty} km)`,
-        qty,
-        unitPrice: kmRate,
+        description: formatTripKmExpenseDescription(tripKm, billing.usesMinimum),
+        qty: billing.qty,
+        unitPrice: billing.unitPrice,
         total,
         included,
       });

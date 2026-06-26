@@ -10,6 +10,7 @@ import AppLayout from '../components/AppLayout';
 import CustomerRegistryPicker, { type NewCustomerDraft } from '../components/CustomerRegistryPicker';
 import EquipmentRegistryPicker, { type NewEquipmentDraft } from '../components/EquipmentRegistryPicker';
 import SubscriberPicker from '../components/SubscriberPicker';
+import SubscriberPortalVisibilityField from '../components/SubscriberPortalVisibilityField';
 import CollapsibleSection from '../components/CollapsibleSection';
 import ToggleSwitch from '../components/ToggleSwitch';
 import { CondensersSection } from '../components/huoltoRaportti/CondensersSection';
@@ -58,6 +59,11 @@ import {
   loadAccessibleSubscribers,
   resolveSubscriberIdForReport,
 } from '../lib/subscribers';
+import {
+  SUBSCRIBER_PORTAL_VISIBILITY_DEFAULT,
+  reportHasSubscriberLink,
+  type SubscriberPortalVisibility,
+} from '../lib/subscriberPortalVisibility';
 import {
   deviceTypes,
   moduleSelectionOptions,
@@ -146,6 +152,8 @@ export default function MaintenanceReportEditPage({ session }: Props) {
   const [equipment, setEquipment] = useState<Equipment[]>([]);
   const [customerId, setCustomerId] = useState('');
   const [subscriberId, setSubscriberId] = useState('');
+  const [subscriberPortalVisibility, setSubscriberPortalVisibility] =
+    useState<SubscriberPortalVisibility>(SUBSCRIBER_PORTAL_VISIBILITY_DEFAULT);
   const [subscribers, setSubscribers] = useState<Subscriber[]>([]);
   const [equipmentId, setEquipmentId] = useState('');
   const [loadingReport, setLoadingReport] = useState(!isNew);
@@ -546,7 +554,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
       .from('maintenance_reports')
       .select(`
         id, status, title, data, owner_company_id, created_by_company_id,
-        branding_company_id, partnership_id, customer_id, equipment_id, subscriber_id
+        branding_company_id, partnership_id, customer_id, equipment_id, subscriber_id, subscriber_portal_visibility
       `)
       .eq('id', reportIdToLoad)
       .single();
@@ -568,6 +576,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
       customer_id: string | null;
       equipment_id: string | null;
       subscriber_id: string | null;
+      subscriber_portal_visibility: SubscriberPortalVisibility | null;
     };
 
     const normalized = normalizeHuoltoReportData({ ...createEmptyHuoltoReportData(), ...row.data });
@@ -619,6 +628,9 @@ export default function MaintenanceReportEditPage({ session }: Props) {
     setForm(formToUse);
     setCustomerId(nextCustomerId);
     setSubscriberId(row.subscriber_id ?? '');
+    setSubscriberPortalVisibility(
+      row.subscriber_portal_visibility ?? SUBSCRIBER_PORTAL_VISIBILITY_DEFAULT,
+    );
     if (nextEquipmentId) {
       skipEquipmentRegistryHydrateRef.current = nextEquipmentId;
     }
@@ -1009,6 +1021,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
         partnership_id: partnership?.id ?? null,
         customer_id: customerId || null,
         subscriber_id: resolveSubscriberIdForReport(customerId, subscriberId, customers),
+        subscriber_portal_visibility: subscriberPortalVisibility,
         equipment_id: equipmentId || null,
         assigned_user_id: session.user.id,
         title,
@@ -1342,6 +1355,18 @@ export default function MaintenanceReportEditPage({ session }: Props) {
                     disabled={busy}
                     hint="Valinnainen. Moniasiakas-tilaaja näkee kaikki tähän linkitetyt kohteet ja raportit."
                     onChange={setSubscriberId}
+                  />
+                ) : null}
+
+                {reportHasSubscriberLink({
+                  subscriber_id: subscriberId,
+                  customer_subscriber_id: selectedCustomer?.subscriber_id,
+                }) ? (
+                  <SubscriberPortalVisibilityField
+                    value={subscriberPortalVisibility}
+                    reportKind="maintenance"
+                    disabled={busy}
+                    onChange={setSubscriberPortalVisibility}
                   />
                 ) : null}
 
