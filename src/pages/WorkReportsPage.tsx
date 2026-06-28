@@ -44,6 +44,7 @@ import {
 import { usePortalPreview } from '../hooks/usePortalPreview';
 import { useCompanyPartnershipsEnabled } from '../hooks/useCompanyPartnershipsEnabled';
 import { useCompanyBillingModuleEnabled } from '../hooks/useCompanyBillingModuleEnabled';
+import { useCompanyCustomerBillingEnabled } from '../hooks/useCompanyCustomerBillingEnabled';
 
 import { useProfile } from '../hooks/useProfile';
 
@@ -52,6 +53,7 @@ import {
   WORK_STATUS_LABELS,
 
   getWorkStatusLabel,
+  getPortalWorkStatusLabel,
 
   buildWorkReportTitle,
 
@@ -87,7 +89,7 @@ interface Props {
 
 type Tab = 'calendar' | 'list' | 'history';
 
-const TAB_STORAGE_KEY = 'bc-smartapp.work-reports-tab.v1';
+const TAB_STORAGE_KEY = 'bc-smartapp.work-reports-tab.v2';
 
 function readInitialTab(): Tab {
   try {
@@ -121,13 +123,20 @@ function reportListItemProps(
   logsByReportId: Map<string, WorkReportDailyLog[]>,
   companyId: string,
   billingModuleEnabled: boolean | null,
+  customerBillingEnabled: boolean | null,
   onStatusChanged?: () => void,
+  options?: { showStatusMenu?: boolean; portalView?: boolean },
 ) {
+  const logs = logsByReportId.get(report.id) ?? [];
   return {
     report,
     viewerCompanyId: companyId,
     hasDailyLogs: reportLikelyHasDailyLogs(report, logsByReportId),
+    dailyLogs: logs,
     billingModuleEnabled: billingModuleEnabled === true,
+    customerBillingEnabled: customerBillingEnabled === true,
+    showStatusMenu: options?.showStatusMenu ?? false,
+    portalView: options?.portalView ?? false,
     onStatusChanged,
   };
 }
@@ -164,7 +173,7 @@ const DELEGATION_SELECT = `
 
   billing:work_report_billing(partner_invoice_status, partner_billed_amount, partner_billed_at, customer_invoice_status),
 
-  billable:work_report_billable(partner_total)
+  billable:work_report_billable(partner_total, customer_total)
 
 `;
 
@@ -175,6 +184,7 @@ export default function WorkReportsPage({ session }: Props) {
   const { profile } = useProfile(session);
   const partnershipsEnabled = useCompanyPartnershipsEnabled(profile?.company_id, session);
   const billingModuleEnabled = useCompanyBillingModuleEnabled(profile?.company_id, session);
+  const customerBillingEnabled = useCompanyCustomerBillingEnabled(profile?.company_id, session);
   const portalPreview = usePortalPreview();
   const portalSubscriberId = getPortalSubscriberId(profile);
   const location = useLocation();
@@ -300,9 +310,14 @@ export default function WorkReportsPage({ session }: Props) {
 
       setReports(loaded);
 
-      const calendarIds = loaded.filter((r) => CALENDAR_DISPLAY_STATUSES.includes(r.status)).map((r) => r.id);
+      const logReportIds = loaded
+        .filter(
+          (r) =>
+            CALENDAR_DISPLAY_STATUSES.includes(r.status) || HISTORY_STATUSES.includes(r.status),
+        )
+        .map((r) => r.id);
 
-      if (calendarIds.length === 0) {
+      if (logReportIds.length === 0) {
 
         setLogsByReportId(new Map());
 
@@ -314,7 +329,7 @@ export default function WorkReportsPage({ session }: Props) {
 
           .select(CALENDAR_LOG_SELECT)
 
-          .in('work_report_id', calendarIds);
+          .in('work_report_id', logReportIds);
 
         const map = new Map<string, WorkReportDailyLog[]>();
 
@@ -560,7 +575,7 @@ export default function WorkReportsPage({ session }: Props) {
                         <div className="report-link-body">
                           <strong>{report.title}</strong>
                           <span className="muted">
-                            {getWorkStatusLabel(report.status)}
+                            {getPortalWorkStatusLabel(report.status)}
                             {report.customers?.name ? ` • ${report.customers.name}` : ''}
                             {report.scheduled_start
                               ? ` • ${formatDateTime(report.scheduled_start)}`
@@ -584,7 +599,7 @@ export default function WorkReportsPage({ session }: Props) {
                         <div className="report-link-body">
                           <strong>{report.title}</strong>
                           <span className="muted">
-                            {getWorkStatusLabel(report.status)}
+                            {getPortalWorkStatusLabel(report.status)}
                             {report.customers?.name ? ` • ${report.customers.name}` : ''}
                             {report.scheduled_start
                               ? ` • ${formatDateTime(report.scheduled_start)}`
@@ -610,7 +625,7 @@ export default function WorkReportsPage({ session }: Props) {
                         <div className="report-link-body">
                           <strong>{report.title}</strong>
                           <span className="muted">
-                            {getWorkStatusLabel(report.status)}
+                            {getPortalWorkStatusLabel(report.status)}
                             {report.completed_at
                               ? ` • ${formatDateTime(report.completed_at)}`
                               : ''}
@@ -859,7 +874,7 @@ export default function WorkReportsPage({ session }: Props) {
 
                   <li key={r.id}>
 
-                    <ReportListItem {...reportListItemProps(r, logsByReportId, companyId, billingModuleEnabled, loadReports)} variant="incoming" />
+                    <ReportListItem {...reportListItemProps(r, logsByReportId, companyId, billingModuleEnabled, customerBillingEnabled, loadReports)} variant="incoming" />
 
                   </li>
 
@@ -887,7 +902,7 @@ export default function WorkReportsPage({ session }: Props) {
 
                   <li key={r.id}>
 
-                    <ReportListItem {...reportListItemProps(r, logsByReportId, companyId, billingModuleEnabled, loadReports)} variant="sent" />
+                    <ReportListItem {...reportListItemProps(r, logsByReportId, companyId, billingModuleEnabled, customerBillingEnabled, loadReports)} variant="sent" />
 
                   </li>
 
@@ -917,7 +932,7 @@ export default function WorkReportsPage({ session }: Props) {
 
                 <li key={r.id}>
 
-                  <ReportListItem {...reportListItemProps(r, logsByReportId, companyId, billingModuleEnabled, loadReports)} showStatusMenu />
+                  <ReportListItem {...reportListItemProps(r, logsByReportId, companyId, billingModuleEnabled, customerBillingEnabled, loadReports, { showStatusMenu: true })} />
 
                 </li>
 
@@ -1010,7 +1025,7 @@ export default function WorkReportsPage({ session }: Props) {
 
                 <li key={r.id}>
 
-                  <ReportListItem {...reportListItemProps(r, logsByReportId, companyId, billingModuleEnabled, loadReports)} showStatusMenu />
+                  <ReportListItem {...reportListItemProps(r, logsByReportId, companyId, billingModuleEnabled, customerBillingEnabled, loadReports)} />
 
                 </li>
 

@@ -239,7 +239,7 @@ export type WorkReport = {
     WorkReportBilling,
     'partner_invoice_status' | 'partner_billed_amount' | 'partner_billed_at' | 'customer_invoice_status'
   > | null;
-  billable?: { partner_total?: number | null } | null;
+  billable?: { partner_total?: number | null; customer_total?: number | null } | null;
 };
 
 export type WorkReportLine = {
@@ -287,6 +287,15 @@ export const WORK_STATUS_LABELS: Record<WorkStatus, string> = {
 export function getWorkStatusLabel(status: string | null | undefined): string {
   const key = String(status ?? '').trim().toLowerCase() as WorkStatus;
   return WORK_STATUS_LABELS[key] ?? 'Valmis';
+}
+
+/** Tilaaja/asiakasportaali: ei näytetä laskutustiloja. */
+export function getPortalWorkStatusLabel(status: string | null | undefined): string {
+  const key = String(status ?? '').trim().toLowerCase() as WorkStatus;
+  if (key === 'billed_partner' || key === 'billed_customer') {
+    return WORK_STATUS_LABELS.completed;
+  }
+  return getWorkStatusLabel(status);
 }
 
 export const MAINTENANCE_REPORT_STATUS_LABELS: Record<string, string> = {

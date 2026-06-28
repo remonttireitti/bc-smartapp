@@ -1,4 +1,5 @@
 import {
+  billingCustomerState,
   billingPartnerState,
   billingPartnerStatusLabel,
   isIncomingPartnerBill,
@@ -8,6 +9,7 @@ import {
 } from './workReportBillingCopy';
 import {
   formatDate,
+  getPortalWorkStatusLabel,
   getWorkStatusLabel,
   normalizeWorkflowStatus,
   type InvoiceStatus,
@@ -25,9 +27,11 @@ export type WorkReportStatusContext = {
     partner_invoice_status?: InvoiceStatus | null;
     partner_billed_amount?: number | null;
     partner_billed_at?: string | null;
+    customer_invoice_status?: InvoiceStatus | null;
   } | null;
   billable?: {
     partner_total?: number | null;
+    customer_total?: number | null;
   } | null;
 };
 
@@ -40,6 +44,8 @@ export type WorkReportStatusDisplay = {
   hint: string;
   showWorkflowBadge: boolean;
   partnerBillingState: BillingPartnerState | null;
+  customerBillingState: BillingPartnerState | null;
+  showCustomerBilling: boolean;
   unbilledLogDates: string[];
 };
 
@@ -96,7 +102,7 @@ function toBillingListRow(context: WorkReportStatusContext): BillingListRow {
           partner_invoice_amount: null,
           partner_billed_amount: context.billing.partner_billed_amount ?? null,
           partner_billed_at: context.billing.partner_billed_at ?? null,
-          customer_invoice_status: 'none',
+          customer_invoice_status: context.billing.customer_invoice_status ?? 'none',
           customer_invoice_amount: null,
           customer_billed_at: null,
         }
@@ -115,18 +121,52 @@ export function resolveWorkReportStatusDisplay(input: {
   hasDailyLogs?: boolean;
   dailyLogs?: Array<{ log_date: string; created_at: string }>;
   billingModuleEnabled?: boolean;
+  customerBillingEnabled?: boolean;
+  portalView?: boolean;
 }): WorkReportStatusDisplay {
-  const { context, viewerCompanyId, hasDailyLogs = false, dailyLogs = [], billingModuleEnabled = false } = input;
+  const {
+    context,
+    viewerCompanyId,
+    hasDailyLogs = false,
+    dailyLogs = [],
+    billingModuleEnabled = false,
+    customerBillingEnabled = false,
+    portalView = false,
+  } = input;
   const viewerRole = resolveWorkReportViewerRole(context, viewerCompanyId);
   const normalizedStatus = normalizeWorkflowStatus(context.status);
   const billingRow = toBillingListRow(context);
   const partnerTotal = Number(context.billable?.partner_total ?? 0);
   const partnerBillingState =
     billingModuleEnabled && partnerTotal > 0.005 ? billingPartnerState(billingRow) : null;
+  const isOwnerViewer = viewerCompanyId === context.owner_company_id;
+  const showCustomerBilling =
+    !portalView
+    && customerBillingEnabled
+    && isOwnerViewer
+    && viewerRole !== 'creator'
+    && normalizedStatus !== 'draft'
+    && normalizedStatus !== 'delegated';
+  const customerBillingState = showCustomerBilling ? billingCustomerState(billingRow) : null;
   const unbilledLogDates =
     partnerBillingState === 'partial'
       ? resolveUnbilledDailyLogDates(dailyLogs, context.billing?.partner_billed_at)
       : [];
+
+  if (portalView) {
+    const portalLabel = getPortalWorkStatusLabel(context.status);
+    return {
+      viewerRole,
+      primaryLabel: portalLabel,
+      primaryBadgeClass: normalizedStatus,
+      hint: portalLabel,
+      showWorkflowBadge: true,
+      partnerBillingState: null,
+      customerBillingState: null,
+      showCustomerBilling: false,
+      unbilledLogDates: [],
+    };
+  }
 
   if (viewerRole === 'creator') {
     return {
@@ -139,19 +179,32 @@ export function resolveWorkReportStatusDisplay(input: {
           : getWorkStatusLabel(normalizedStatus),
       showWorkflowBadge: true,
       partnerBillingState,
+      customerBillingState: null,
+      showCustomerBilling: false,
       unbilledLogDates: [],
     };
   }
 
   if (viewerRole === 'incoming_partner' && billingModuleEnabled) {
+    const customerLabel =
+      customerBillingState === 'billed'
+        ? 'Laskutettu asiakkaalta'
+        : showCustomerBilling
+          ? 'Asiakaslaskutus auki'
+          : undefined;
+
     if (partnerBillingState === 'billed') {
       return {
         viewerRole,
         primaryLabel: 'Laskutettu',
         primaryBadgeClass: 'completed',
+        secondaryLabel: customerLabel,
+        secondaryBadgeClass: customerBillingState === 'billed' ? 'completed' : 'scheduled',
         hint: 'Kumppanilaskutus on kuitattu kokonaan.',
         showWorkflowBadge: false,
         partnerBillingState,
+        customerBillingState,
+        showCustomerBilling,
         unbilledLogDates: [],
       };
     }
@@ -167,13 +220,15 @@ export function resolveWorkReportStatusDisplay(input: {
         viewerRole,
         primaryLabel: 'Osittain laskutettu',
         primaryBadgeClass: 'in_progress',
-        secondaryLabel: unbilledLabel ? `Laskuttamatta: ${unbilledLabel}` : undefined,
-        secondaryBadgeClass: 'scheduled',
+        secondaryLabel: unbilledLabel ? `Laskuttamatta: ${unbilledLabel}` : customerLabel,
+        secondaryBadgeClass: unbilledLabel ? 'scheduled' : customerBillingState === 'billed' ? 'completed' : 'scheduled',
         hint: unbilledLabel
           ? `Laskutettu ${amounts.billed.toFixed(2).replace('.', ',')} €, avoinna ${amounts.open.toFixed(2).replace('.', ',')} €. Uudet päivät: ${unbilledLabel}.`
           : `Laskutettu ${amounts.billed.toFixed(2).replace('.', ',')} €, avoinna ${amounts.open.toFixed(2).replace('.', ',')} €.`,
         showWorkflowBadge: false,
         partnerBillingState,
+        customerBillingState,
+        showCustomerBilling,
         unbilledLogDates,
       };
     }
@@ -184,13 +239,15 @@ export function resolveWorkReportStatusDisplay(input: {
         viewerRole,
         primaryLabel: 'Raportoitu',
         primaryBadgeClass: 'in_progress',
-        secondaryLabel: hasBillable ? 'Laskuttamatta' : undefined,
-        secondaryBadgeClass: hasBillable ? 'scheduled' : undefined,
+        secondaryLabel: hasBillable ? 'Laskuttamatta' : customerLabel,
+        secondaryBadgeClass: hasBillable ? 'scheduled' : customerBillingState === 'billed' ? 'completed' : 'scheduled',
         hint: hasBillable
           ? 'Kumppani on raportoinut työtä. Laskutusta ei ole vielä kuitattu.'
           : 'Kumppani on raportoinut työtä.',
         showWorkflowBadge: false,
         partnerBillingState: partnerBillingState ?? 'open',
+        customerBillingState,
+        showCustomerBilling,
         unbilledLogDates: [],
       };
     }
@@ -202,6 +259,28 @@ export function resolveWorkReportStatusDisplay(input: {
       hint: 'Työraportti odottaa vielä raportointia.',
       showWorkflowBadge: false,
       partnerBillingState,
+      customerBillingState,
+      showCustomerBilling,
+      unbilledLogDates: [],
+    };
+  }
+
+  if (isOwnerViewer && showCustomerBilling) {
+    return {
+      viewerRole,
+      primaryLabel: getWorkStatusLabel(normalizedStatus),
+      primaryBadgeClass: normalizedStatus,
+      secondaryLabel:
+        customerBillingState === 'billed' ? 'Laskutettu asiakkaalta' : 'Asiakaslaskutus auki',
+      secondaryBadgeClass: customerBillingState === 'billed' ? 'completed' : 'scheduled',
+      hint:
+        customerBillingState === 'billed'
+          ? 'Asiakaslaskutus on merkitty tehdyksi.'
+          : 'Asiakasta ei ole vielä merkitty laskutetuksi.',
+      showWorkflowBadge: true,
+      partnerBillingState,
+      customerBillingState,
+      showCustomerBilling,
       unbilledLogDates: [],
     };
   }
@@ -213,6 +292,8 @@ export function resolveWorkReportStatusDisplay(input: {
     hint: getWorkStatusLabel(normalizedStatus),
     showWorkflowBadge: true,
     partnerBillingState,
+    customerBillingState,
+    showCustomerBilling: false,
     unbilledLogDates: [],
   };
 }

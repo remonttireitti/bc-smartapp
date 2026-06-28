@@ -6,9 +6,25 @@ import WorkReportStatusBadges from './WorkReportStatusBadges';
 
 import WorkReportStatusMenu from './WorkReportStatusMenu';
 
+import WorkReportBillingStatusMenu from './WorkReportBillingStatusMenu';
+
 import { subscriberPortalVisibilityLabel } from '../lib/subscriberPortalVisibility';
 
-import { getWorkStatusLabel, reportPartyLabels, type WorkReport } from '../types';
+import {
+
+  isIncomingPartnerBill,
+
+  type BillingListRow,
+
+} from '../lib/workReportBillingCopy';
+
+import {
+  getWorkStatusLabel,
+  getPortalWorkStatusLabel,
+  reportPartyLabels,
+  type WorkReport,
+  type WorkReportDailyLog,
+} from '../types';
 
 
 
@@ -26,9 +42,15 @@ export function ReportListItem({
 
   hasDailyLogs = false,
 
+  dailyLogs = [],
+
   billingModuleEnabled = false,
 
+  customerBillingEnabled = false,
+
   showStatusMenu = false,
+
+  portalView = false,
 
   onStatusChanged,
 
@@ -42,9 +64,15 @@ export function ReportListItem({
 
   hasDailyLogs?: boolean;
 
+  dailyLogs?: WorkReportDailyLog[];
+
   billingModuleEnabled?: boolean;
 
+  customerBillingEnabled?: boolean;
+
   showStatusMenu?: boolean;
+
+  portalView?: boolean;
 
   onStatusChanged?: () => void;
 
@@ -69,6 +97,82 @@ export function ReportListItem({
   };
 
   const hasSubscriberLink = !!(report.subscriber_id || report.customers?.subscriber_id);
+
+  const billingRow: BillingListRow = {
+
+    id: report.id,
+
+    title: report.title,
+
+    status: report.status,
+
+    completed_at: report.completed_at,
+
+    scheduled_start: report.scheduled_start,
+
+    created_at: report.created_at,
+
+    owner_company_id: report.owner_company_id,
+
+    created_by_company_id: report.created_by_company_id,
+
+    delegate_company_id: report.delegate_company_id,
+
+    customers: report.customers,
+
+    owner_company: report.owner_company,
+
+    delegate_company: report.delegate_company,
+
+    billing: report.billing
+
+      ? {
+
+          partner_invoice_status: report.billing.partner_invoice_status ?? 'none',
+
+          partner_invoice_amount: null,
+
+          partner_billed_amount: report.billing.partner_billed_amount ?? null,
+
+          partner_billed_at: report.billing.partner_billed_at ?? null,
+
+          customer_invoice_status: report.billing.customer_invoice_status ?? 'none',
+
+          customer_invoice_amount: null,
+
+          customer_billed_at: null,
+
+        }
+
+      : null,
+
+    billable: report.billable
+
+      ? {
+
+          partner_total: Number(report.billable.partner_total ?? 0),
+
+          customer_total: Number(report.billable.customer_total ?? 0),
+
+        }
+
+      : null,
+
+  };
+
+  const showBillingMenu =
+
+    !portalView
+
+    && !!viewerCompanyId
+
+    && billingModuleEnabled
+
+    && variant === 'default'
+
+    && (isIncomingPartnerBill(billingRow, viewerCompanyId)
+
+      || (customerBillingEnabled && viewerCompanyId === report.owner_company_id));
 
 
 
@@ -160,7 +264,7 @@ export function ReportListItem({
 
               : ''}
 
-            {hasSubscriberLink && (
+            {hasSubscriberLink && !portalView && (
 
               <> • Tilaajalle: {subscriberPortalVisibilityLabel(report.subscriber_portal_visibility)}</>
 
@@ -176,7 +280,7 @@ export function ReportListItem({
 
       <div className="report-list-row-aside">
 
-        {showStatusMenu && variant === 'default' ? (
+        {showStatusMenu && variant === 'default' && !portalView ? (
 
           <WorkReportStatusMenu
 
@@ -190,7 +294,27 @@ export function ReportListItem({
 
         ) : null}
 
-        {billingModuleEnabled && viewerCompanyId ? (
+
+
+        {showBillingMenu && viewerCompanyId ? (
+
+          <WorkReportBillingStatusMenu
+
+            report={report}
+
+            viewerCompanyId={viewerCompanyId}
+
+            customerBillingEnabled={customerBillingEnabled}
+
+            onChanged={onStatusChanged}
+
+          />
+
+        ) : null}
+
+
+
+        {billingModuleEnabled && viewerCompanyId && !portalView ? (
 
           <WorkReportStatusBadges
 
@@ -202,11 +326,19 @@ export function ReportListItem({
 
             hasDailyLogs={hasDailyLogs}
 
+            dailyLogs={dailyLogs}
+
             billingModuleEnabled={billingModuleEnabled}
+
+            customerBillingEnabled={customerBillingEnabled}
 
             compact
 
           />
+
+        ) : portalView ? (
+
+          <span className={`badge badge-${report.status}`}>{getPortalWorkStatusLabel(report.status)}</span>
 
         ) : !showStatusMenu || variant !== 'default' ? (
 
