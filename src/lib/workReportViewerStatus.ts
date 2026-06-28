@@ -133,7 +133,6 @@ export function resolveWorkReportStatusDisplay(input: {
     viewerCompanyId,
     hasDailyLogs = false,
     dailyLogs = [],
-    billingModuleEnabled = false,
     customerBillingEnabled = false,
     portalView = false,
   } = input;
@@ -142,8 +141,7 @@ export function resolveWorkReportStatusDisplay(input: {
   const billingRow = toBillingListRow(context);
   const partnerTotal = billingRowAmount(billingRow, 'partner');
   const trackPartnerBilling =
-    billingModuleEnabled
-    && isBillablePartnerReport(billingRow)
+    isBillablePartnerReport(billingRow)
     && (viewerRole === 'incoming_partner' || viewerRole === 'creator')
     && hasPartnerBillingActivity(billingRow, hasDailyLogs);
   const partnerBillingState = trackPartnerBilling ? billingPartnerState(billingRow) : null;
@@ -206,7 +204,7 @@ export function resolveWorkReportStatusDisplay(input: {
     };
   }
 
-  if (viewerRole === 'incoming_partner' && billingModuleEnabled) {
+  if (viewerRole === 'incoming_partner') {
     const customerLabel =
       customerBillingState === 'billed'
         ? 'Laskutettu asiakkaalta'

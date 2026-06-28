@@ -12,6 +12,7 @@ import { subscriberPortalVisibilityLabel } from '../lib/subscriberPortalVisibili
 
 import {
   canManageIncomingPartnerBilling,
+  canViewOutgoingPartnerBilling,
   type BillingListRow,
 } from '../lib/workReportBillingCopy';
 
@@ -157,19 +158,28 @@ export function ReportListItem({
 
   };
 
-  const showBillingMenu =
+  const showPartnerBilling =
     !portalView
     && !!viewerCompanyId
-    && billingModuleEnabled
     && variant === 'default'
     && (canManageIncomingPartnerBilling(billingRow, viewerCompanyId, hasDailyLogs)
-      || (customerBillingEnabled && viewerCompanyId === report.owner_company_id));
+      || canViewOutgoingPartnerBilling(billingRow, viewerCompanyId, hasDailyLogs));
+
+  const showBillingMenu =
+    showPartnerBilling
+    || (billingModuleEnabled
+      && customerBillingEnabled
+      && viewerCompanyId === report.owner_company_id
+      && report.status !== 'draft'
+      && report.status !== 'delegated');
 
   const showWorkflowStatusMenu =
     showStatusMenu
     && variant === 'default'
     && !portalView
     && !canManageIncomingPartnerBilling(billingRow, viewerCompanyId, hasDailyLogs);
+
+  const showStatusBadges = !portalView && !!viewerCompanyId && (showPartnerBilling || billingModuleEnabled);
 
 
 
@@ -313,7 +323,7 @@ export function ReportListItem({
 
 
 
-        {billingModuleEnabled && viewerCompanyId && !portalView ? (
+        {showStatusBadges ? (
 
           <WorkReportStatusBadges
 
@@ -327,7 +337,7 @@ export function ReportListItem({
 
             dailyLogs={dailyLogs}
 
-            billingModuleEnabled={billingModuleEnabled}
+            billingModuleEnabled={billingModuleEnabled || showPartnerBilling}
 
             customerBillingEnabled={customerBillingEnabled}
 
