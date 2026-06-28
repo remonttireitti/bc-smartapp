@@ -660,9 +660,13 @@ export default function BillingPage({ session }: Props) {
     setMessage(null);
     setBusyId(row.id);
     try {
-      const text = await loadBillingCopyText(supabase, row, rowBillingMode(row));
+      const { text, partialUnbilledOnly } = await loadBillingCopyText(supabase, row, rowBillingMode(row));
       await navigator.clipboard.writeText(text);
-      setMessage('Laskutusteksti kopioitu leikepöydälle.');
+      setMessage(
+        partialUnbilledOnly
+          ? 'Laskuttamatta oleva teksti kopioitu leikepöydälle.'
+          : 'Laskutusteksti kopioitu leikepöydälle.',
+      );
     } catch (copyError) {
       setError(copyError instanceof Error ? copyError.message : 'Kopiointi epäonnistui.');
     } finally {

@@ -7,6 +7,7 @@ import {
   billingPartnerState,
   billingPartnerStatusLabel,
   canManageIncomingPartnerBilling,
+  loadBillingCopyText,
   markCustomerReportBilled,
   markPartnerReportBilled,
   shouldPromptPartnerBillWorkflow,
@@ -26,6 +27,7 @@ type Props = {
   dailyLogs?: WorkReportDailyLog[];
   onChanged?: () => void;
   onError?: (message: string) => void;
+  onNotice?: (message: string) => void;
 };
 
 function toBillingRow(report: WorkReport): BillingListRow {
@@ -78,6 +80,7 @@ export default function WorkReportBillingStatusMenu({
   dailyLogs = [],
   onChanged,
   onError,
+  onNotice,
 }: Props) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -111,6 +114,24 @@ export default function WorkReportBillingStatusMenu({
       : canManagePartner
         ? partnerMenuLabel(partnerState ?? 'open')
         : customerMenuLabel(customerState ?? 'open');
+
+  async function copyPartnerBillingText() {
+    setBusy(true);
+    try {
+      const { text, partialUnbilledOnly } = await loadBillingCopyText(supabase, billingRow, 'partner');
+      await navigator.clipboard.writeText(text);
+      setOpen(false);
+      onNotice?.(
+        partialUnbilledOnly
+          ? 'Laskuttamatta oleva teksti kopioitu leikepöydälle.'
+          : 'Laskutusteksti kopioitu leikepöydälle.',
+      );
+    } catch (error) {
+      onError?.(error instanceof Error ? error.message : 'Kopiointi epäonnistui.');
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function finishPartnerBill(workflow: PartnerBillWorkflowChoice) {
     setBusy(true);
@@ -208,6 +229,19 @@ export default function WorkReportBillingStatusMenu({
             {canManagePartner && (
               <>
                 <p className="report-status-menu-title">Kumppanilaskutus</p>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="report-status-menu-item"
+                  disabled={busy}
+                  onClick={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    void copyPartnerBillingText();
+                  }}
+                >
+                  Kopioi laskutusteksti
+                </button>
                 {(partnerState === 'open' || partnerState === 'partial') && (
                   <button
                     type="button"

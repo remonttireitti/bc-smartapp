@@ -956,6 +956,7 @@ export default function WorkReportDetailPage({ session }: Props) {
   const [loading, setLoading] = useState(true);
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [billingNotice, setBillingNotice] = useState<string | null>(null);
   const [logDialogOpen, setLogDialogOpen] = useState(false);
   const [logDialogBusy, setLogDialogBusy] = useState(false);
   const [dailyLogNotice, setDailyLogNotice] = useState<DailyLogActionNotice | null>(null);
@@ -2241,12 +2242,14 @@ export default function WorkReportDetailPage({ session }: Props) {
               dailyLogs={dailyLogs}
               onChanged={() => void load(report.id)}
               onError={setError}
+              onNotice={setBillingNotice}
             />
           )}
         </div>
       </div>
 
       {error && !logDialogOpen && <p className="error">{error}</p>}
+      {billingNotice && !logDialogOpen && <p className="muted">{billingNotice}</p>}
 
       <CollapsibleSection title="Perustiedot" defaultOpen variant="plain" className="panel work-report-section">
         <dl className="detail-list compact-detail-list">
