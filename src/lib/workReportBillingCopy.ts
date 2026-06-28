@@ -322,6 +322,38 @@ export function isOutgoingPartnerBill(row: BillingListRow, viewerCompanyId: stri
   return row.created_by_company_id === viewerCompanyId;
 }
 
+/** Onko raportilla kumppanilaskutusta seurattavaa (myös ennen laskelman valmistumista). */
+export function hasPartnerBillingActivity(
+  row: Pick<BillingListRow, 'owner_company_id' | 'created_by_company_id' | 'delegate_company_id' | 'billing' | 'billable'>,
+  hasDailyLogs = false,
+): boolean {
+  if (!isBillablePartnerReport(row)) return false;
+  if (Number(row.billable?.partner_total ?? 0) > 0.005) return true;
+  if (Number(row.billing?.partner_billed_amount ?? 0) > 0.005) return true;
+  if (row.billing?.partner_invoice_status === 'paid' || row.billing?.partner_invoice_status === 'partial') {
+    return true;
+  }
+  return hasDailyLogs;
+}
+
+/** Omistaja voi merkitä kumppanilaskun listasta. */
+export function canManageIncomingPartnerBilling(
+  row: BillingListRow,
+  viewerCompanyId: string | null | undefined,
+  hasDailyLogs = false,
+): boolean {
+  return isIncomingPartnerBill(row, viewerCompanyId) && hasPartnerBillingActivity(row, hasDailyLogs);
+}
+
+/** Kumppani (laatija) näkee oman laskutuksensa tilan listassa. */
+export function canViewOutgoingPartnerBilling(
+  row: BillingListRow,
+  viewerCompanyId: string | null | undefined,
+  hasDailyLogs = false,
+): boolean {
+  return isOutgoingPartnerBill(row, viewerCompanyId) && hasPartnerBillingActivity(row, hasDailyLogs);
+}
+
 /** Statuses where partner billing can appear (matches work report detail, not only "Valmis"). */
 export const BILLING_LIST_STATUSES = [
   'scheduled',

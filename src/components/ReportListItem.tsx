@@ -11,11 +11,8 @@ import WorkReportBillingStatusMenu from './WorkReportBillingStatusMenu';
 import { subscriberPortalVisibilityLabel } from '../lib/subscriberPortalVisibility';
 
 import {
-
-  isIncomingPartnerBill,
-
+  canManageIncomingPartnerBilling,
   type BillingListRow,
-
 } from '../lib/workReportBillingCopy';
 
 import {
@@ -161,18 +158,18 @@ export function ReportListItem({
   };
 
   const showBillingMenu =
-
     !portalView
-
     && !!viewerCompanyId
-
     && billingModuleEnabled
-
     && variant === 'default'
-
-    && (isIncomingPartnerBill(billingRow, viewerCompanyId)
-
+    && (canManageIncomingPartnerBilling(billingRow, viewerCompanyId, hasDailyLogs)
       || (customerBillingEnabled && viewerCompanyId === report.owner_company_id));
+
+  const showWorkflowStatusMenu =
+    showStatusMenu
+    && variant === 'default'
+    && !portalView
+    && !canManageIncomingPartnerBilling(billingRow, viewerCompanyId, hasDailyLogs);
 
 
 
@@ -280,7 +277,7 @@ export function ReportListItem({
 
       <div className="report-list-row-aside">
 
-        {showStatusMenu && variant === 'default' && !portalView ? (
+        {showWorkflowStatusMenu ? (
 
           <WorkReportStatusMenu
 
@@ -305,6 +302,8 @@ export function ReportListItem({
             viewerCompanyId={viewerCompanyId}
 
             customerBillingEnabled={customerBillingEnabled}
+
+            hasDailyLogs={hasDailyLogs}
 
             onChanged={onStatusChanged}
 
@@ -340,7 +339,7 @@ export function ReportListItem({
 
           <span className={`badge badge-${report.status}`}>{getPortalWorkStatusLabel(report.status)}</span>
 
-        ) : !showStatusMenu || variant !== 'default' ? (
+        ) : !showWorkflowStatusMenu || variant !== 'default' ? (
 
           <span className={`badge badge-${report.status}`}>{getWorkStatusLabel(report.status)}</span>
 

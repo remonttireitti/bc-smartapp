@@ -2,6 +2,10 @@ import {
   billingCustomerState,
   billingPartnerState,
   billingPartnerStatusLabel,
+  billingRowAmount,
+  canViewOutgoingPartnerBilling,
+  hasPartnerBillingActivity,
+  isBillablePartnerReport,
   isIncomingPartnerBill,
   resolvePartnerBillingAmounts,
   type BillingListRow,
@@ -136,9 +140,13 @@ export function resolveWorkReportStatusDisplay(input: {
   const viewerRole = resolveWorkReportViewerRole(context, viewerCompanyId);
   const normalizedStatus = normalizeWorkflowStatus(context.status);
   const billingRow = toBillingListRow(context);
-  const partnerTotal = Number(context.billable?.partner_total ?? 0);
-  const partnerBillingState =
-    billingModuleEnabled && partnerTotal > 0.005 ? billingPartnerState(billingRow) : null;
+  const partnerTotal = billingRowAmount(billingRow, 'partner');
+  const trackPartnerBilling =
+    billingModuleEnabled
+    && isBillablePartnerReport(billingRow)
+    && (viewerRole === 'incoming_partner' || viewerRole === 'creator')
+    && hasPartnerBillingActivity(billingRow, hasDailyLogs);
+  const partnerBillingState = trackPartnerBilling ? billingPartnerState(billingRow) : null;
   const isOwnerViewer = viewerCompanyId === context.owner_company_id;
   const showCustomerBilling =
     !portalView
@@ -169,14 +177,27 @@ export function resolveWorkReportStatusDisplay(input: {
   }
 
   if (viewerRole === 'creator') {
+    const partnerReceiptLabel =
+      partnerBillingState && canViewOutgoingPartnerBilling(billingRow, viewerCompanyId, hasDailyLogs)
+        ? billingPartnerStatusLabel(partnerBillingState)
+        : undefined;
     return {
       viewerRole,
       primaryLabel: getWorkStatusLabel(normalizedStatus),
       primaryBadgeClass: normalizedStatus,
+      secondaryLabel: partnerReceiptLabel,
+      secondaryBadgeClass:
+        partnerBillingState === 'billed'
+          ? 'completed'
+          : partnerBillingState === 'partial'
+            ? 'in_progress'
+            : 'scheduled',
       hint:
-        normalizedStatus === 'completed'
-          ? 'Työ on valmis. Kumppani näkee raportin omana tilamerkintänään.'
-          : getWorkStatusLabel(normalizedStatus),
+        partnerReceiptLabel
+          ? `Omistaja on merkinnyt: ${partnerReceiptLabel.toLowerCase()}.`
+          : normalizedStatus === 'completed'
+            ? 'Työ on valmis. Kumppani näkee raportin omana tilamerkintänään.'
+            : getWorkStatusLabel(normalizedStatus),
       showWorkflowBadge: true,
       partnerBillingState,
       customerBillingState: null,
@@ -234,7 +255,7 @@ export function resolveWorkReportStatusDisplay(input: {
     }
 
     if (hasDailyLogs || normalizedStatus === 'completed' || normalizedStatus === 'in_progress') {
-      const hasBillable = partnerTotal > 0.005;
+      const hasBillable = hasPartnerBillingActivity(billingRow, hasDailyLogs);
       return {
         viewerRole,
         primaryLabel: 'Raportoitu',

@@ -5,7 +5,8 @@ import {
   applyPartnerBillWorkflowChoice,
   billingCustomerState,
   billingPartnerState,
-  isIncomingPartnerBill,
+  billingPartnerStatusLabel,
+  canManageIncomingPartnerBilling,
   markCustomerReportBilled,
   markPartnerReportBilled,
   shouldPromptPartnerBillWorkflow,
@@ -21,6 +22,7 @@ type Props = {
   report: WorkReport;
   viewerCompanyId: string;
   customerBillingEnabled: boolean;
+  hasDailyLogs?: boolean;
   onChanged?: () => void;
   onError?: (message: string) => void;
 };
@@ -60,19 +62,18 @@ function toBillingRow(report: WorkReport): BillingListRow {
 }
 
 function partnerMenuLabel(state: ReturnType<typeof billingPartnerState>): string {
-  if (state === 'billed') return 'Kumppani: laskutettu';
-  if (state === 'partial') return 'Kumppani: osittain laskutettu';
-  return 'Kumppani: laskuttamatta';
+  return billingPartnerStatusLabel(state);
 }
 
 function customerMenuLabel(state: ReturnType<typeof billingCustomerState>): string {
-  return state === 'billed' ? 'Asiakas: laskutettu' : 'Asiakas: laskuttamatta';
+  return state === 'billed' ? 'Laskutettu asiakkaalta' : 'Laskuttamatta asiakkaalta';
 }
 
 export default function WorkReportBillingStatusMenu({
   report,
   viewerCompanyId,
   customerBillingEnabled,
+  hasDailyLogs = false,
   onChanged,
   onError,
 }: Props) {
@@ -81,9 +82,7 @@ export default function WorkReportBillingStatusMenu({
   const [workflowOpen, setWorkflowOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const billingRow = toBillingRow(report);
-  const canManagePartner =
-    isIncomingPartnerBill(billingRow, viewerCompanyId)
-    && Number(report.billable?.partner_total ?? 0) > 0.005;
+  const canManagePartner = canManageIncomingPartnerBilling(billingRow, viewerCompanyId, hasDailyLogs);
   const canManageCustomer =
     customerBillingEnabled
     && viewerCompanyId === report.owner_company_id
