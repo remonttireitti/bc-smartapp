@@ -8,6 +8,7 @@ import {
   isBillablePartnerReport,
   isIncomingPartnerBill,
   resolvePartnerBillingAmounts,
+  resolveUnbilledPartnerDailyLogDates,
   type BillingListRow,
   type BillingPartnerState,
 } from './workReportBillingCopy';
@@ -67,18 +68,7 @@ export function resolveUnbilledDailyLogDates(
   logs: Array<{ log_date: string; created_at: string }>,
   partnerBilledAt: string | null | undefined,
 ): string[] {
-  if (!partnerBilledAt) return [];
-  const billedAtMs = new Date(partnerBilledAt).getTime();
-  if (!Number.isFinite(billedAtMs)) return [];
-
-  const dates = new Set<string>();
-  for (const log of logs) {
-    const createdMs = new Date(log.created_at).getTime();
-    if (Number.isFinite(createdMs) && createdMs > billedAtMs) {
-      dates.add(log.log_date.slice(0, 10));
-    }
-  }
-  return [...dates].sort();
+  return resolveUnbilledPartnerDailyLogDates(logs, partnerBilledAt);
 }
 
 export function formatUnbilledLogDatesLabel(dates: string[]): string {
@@ -124,7 +114,6 @@ export function resolveWorkReportStatusDisplay(input: {
   viewerCompanyId: string | null | undefined;
   hasDailyLogs?: boolean;
   dailyLogs?: Array<{ log_date: string; created_at: string }>;
-  billingModuleEnabled?: boolean;
   customerBillingEnabled?: boolean;
   portalView?: boolean;
 }): WorkReportStatusDisplay {
@@ -144,7 +133,7 @@ export function resolveWorkReportStatusDisplay(input: {
     isBillablePartnerReport(billingRow)
     && (viewerRole === 'incoming_partner' || viewerRole === 'creator')
     && hasPartnerBillingActivity(billingRow, hasDailyLogs);
-  const partnerBillingState = trackPartnerBilling ? billingPartnerState(billingRow) : null;
+  const partnerBillingState = trackPartnerBilling ? billingPartnerState(billingRow, dailyLogs) : null;
   const isOwnerViewer = viewerCompanyId === context.owner_company_id;
   const showCustomerBilling =
     !portalView
@@ -235,6 +224,7 @@ export function resolveWorkReportStatusDisplay(input: {
         context.billing?.partner_invoice_status,
       );
       const unbilledLabel = formatUnbilledLogDatesLabel(unbilledLogDates);
+      const hasAmountInfo = amounts.total > 0.005;
       return {
         viewerRole,
         primaryLabel: 'Osittain laskutettu',
@@ -242,8 +232,12 @@ export function resolveWorkReportStatusDisplay(input: {
         secondaryLabel: unbilledLabel ? `Laskuttamatta: ${unbilledLabel}` : customerLabel,
         secondaryBadgeClass: unbilledLabel ? 'scheduled' : customerBillingState === 'billed' ? 'completed' : 'scheduled',
         hint: unbilledLabel
-          ? `Laskutettu ${amounts.billed.toFixed(2).replace('.', ',')} €, avoinna ${amounts.open.toFixed(2).replace('.', ',')} €. Uudet päivät: ${unbilledLabel}.`
-          : `Laskutettu ${amounts.billed.toFixed(2).replace('.', ',')} €, avoinna ${amounts.open.toFixed(2).replace('.', ',')} €.`,
+          ? hasAmountInfo
+            ? `Laskutettu ${amounts.billed.toFixed(2).replace('.', ',')} €, avoinna ${amounts.open.toFixed(2).replace('.', ',')} €. Uudet päivät: ${unbilledLabel}.`
+            : `Uudet päiväkirjaukset laskuttamatta: ${unbilledLabel}.`
+          : hasAmountInfo
+            ? `Laskutettu ${amounts.billed.toFixed(2).replace('.', ',')} €, avoinna ${amounts.open.toFixed(2).replace('.', ',')} €.`
+            : 'Osittain laskutettu — uusia päiväkirjauksia on lisätty laskutuksen jälkeen.',
         showWorkflowBadge: false,
         partnerBillingState,
         customerBillingState,

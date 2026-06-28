@@ -19,6 +19,7 @@ import { IconPrint, IconTrash } from '../components/icons';
 import PartnerBillingRatesFields from '../components/PartnerBillingRatesFields';
 import Tooltip from '../components/Tooltip';
 import WorkReportBillingBreakdown from '../components/WorkReportBillingBreakdown';
+import WorkReportBillingStatusMenu from '../components/WorkReportBillingStatusMenu';
 import WorkReportStatusBadges from '../components/WorkReportStatusBadges';
 import { useCompanyCustomerBillingEnabled } from '../hooks/useCompanyCustomerBillingEnabled';
 import { useCompanyBillingModuleEnabled } from '../hooks/useCompanyBillingModuleEnabled';
@@ -83,6 +84,8 @@ import {
 } from '../lib/management';
 import {
   billingPartnerState,
+  canManageIncomingPartnerBilling,
+  hasPartnerBillingActivity,
   isCustomerInvoicePaid,
   canPersistPartnerBillable,
   markCustomerReportBilled,
@@ -2054,10 +2057,6 @@ export default function WorkReportDetailPage({ session }: Props) {
     !!billing?.partner_summary_shared &&
     ((isOwnerCompany && report.created_by_company_id !== report.owner_company_id) ||
       (isDelegateCompany && isDelegatedOrder));
-  const canManageBilling =
-    canSeeCreatorBilling
-    || canSeePartnerSummary
-    || (isOwnerCompany && viewerBillingAllowed && isPartnerReport);
   const billedPartnerName = isDelegatedOrder
     ? (report.delegate_company?.name ?? '—')
     : (report.owner_company?.name ?? '—');
@@ -2083,7 +2082,7 @@ export default function WorkReportDetailPage({ session }: Props) {
   const canDeleteReport =
     !portalReadOnly && canDeleteWorkReport(report, session.user.id, profile?.is_global_admin, profile?.role);
   const displayPeople = resolveWorkReportDisplayPeople(report, { hideAssignee: hideAssigneeFromViewer });
-  const partnerBillingListRow = report && billing
+  const partnerBillingListRow = report
     ? {
         id: report.id,
         title: report.title,
@@ -2097,22 +2096,30 @@ export default function WorkReportDetailPage({ session }: Props) {
         customers: report.customers,
         owner_company: report.owner_company,
         delegate_company: report.delegate_company,
-        billing: {
-          partner_invoice_status: billing.partner_invoice_status,
-          partner_invoice_amount: billing.partner_invoice_amount,
-          partner_billed_amount: billing.partner_billed_amount,
-          partner_billed_at: billing.partner_billed_at,
-          customer_invoice_status: billing.customer_invoice_status,
-          customer_invoice_amount: billing.customer_invoice_amount,
-          customer_billed_at: billing.customer_billed_at,
-        },
+        billing: billing
+          ? {
+              partner_invoice_status: billing.partner_invoice_status,
+              partner_invoice_amount: billing.partner_invoice_amount,
+              partner_billed_amount: billing.partner_billed_amount,
+              partner_billed_at: billing.partner_billed_at,
+              customer_invoice_status: billing.customer_invoice_status,
+              customer_invoice_amount: billing.customer_invoice_amount,
+              customer_billed_at: billing.customer_billed_at,
+            }
+          : null,
         billable: billableCalculation
           ? { partner_total: billableCalculation.grandTotal, calculation: billableCalculation }
           : null,
       }
     : null;
-  const partnerBillingState = partnerBillingListRow ? billingPartnerState(partnerBillingListRow) : null;
-  const showPartnerBillingStatus = showPartnerBillableSection;
+  const partnerBillingState = partnerBillingListRow
+    ? billingPartnerState(partnerBillingListRow, dailyLogs)
+    : null;
+  const canManageIncomingPartnerBillingStatus =
+    !portalReadOnly
+    && !!partnerBillingListRow
+    && !!profile?.company_id
+    && canManageIncomingPartnerBilling(partnerBillingListRow, profile.company_id, dailyLogs.length > 0);
   const showCustomerBillingStatus = showCustomerBillingFeatures;
   const canManageCustomerBilling =
     !portalReadOnly
@@ -2138,8 +2145,13 @@ export default function WorkReportDetailPage({ session }: Props) {
     viewerCompanyId: profile?.company_id,
     hasDailyLogs: dailyLogs.length > 0,
     dailyLogs,
-    billingModuleEnabled: viewerBillingAllowed,
   });
+
+  const showPartnerBillingStatusInBasics =
+    !!partnerBillingListRow
+    && hasPartnerBillingActivity(partnerBillingListRow, dailyLogs.length > 0)
+    && (workReportStatusDisplay.viewerRole === 'incoming_partner'
+      || workReportStatusDisplay.viewerRole === 'creator');
 
   async function markCustomerBilled() {
     if (!report) return;
@@ -2217,10 +2229,20 @@ export default function WorkReportDetailPage({ session }: Props) {
             viewerCompanyId={profile?.company_id}
             hasDailyLogs={dailyLogs.length > 0}
             dailyLogs={dailyLogs}
-            billingModuleEnabled={viewerBillingAllowed}
-            customerBillingEnabled={customerInvoicingEnabled || viewerBillingAllowed}
+            customerBillingEnabled={customerInvoicingEnabled}
             portalView={portalReadOnly}
           />
+          {canManageIncomingPartnerBillingStatus && profile?.company_id && (
+            <WorkReportBillingStatusMenu
+              report={report}
+              viewerCompanyId={profile.company_id}
+              customerBillingEnabled={customerInvoicingEnabled}
+              hasDailyLogs={dailyLogs.length > 0}
+              dailyLogs={dailyLogs}
+              onChanged={() => void load(report.id)}
+              onError={setError}
+            />
+          )}
         </div>
       </div>
 
@@ -2369,7 +2391,7 @@ export default function WorkReportDetailPage({ session }: Props) {
           )}
           <dt>Toivottu aloitus</dt>
           <dd>{formatDateTime(report.scheduled_start)}</dd>
-          {showPartnerBillingStatus && (
+          {showPartnerBillingStatusInBasics && (
             <>
               <dt>Kumppanilaskutus</dt>
               <dd>
@@ -2386,12 +2408,12 @@ export default function WorkReportDetailPage({ session }: Props) {
                     billing.partner_billed_amount,
                     billing.partner_invoice_status,
                   );
-                  return (
+                  return amounts.total > 0.005 ? (
                     <>
                       {' · '}
                       Laskutettu {formatEuro(amounts.billed)} · Avoin {formatEuro(amounts.open)}
                     </>
-                  );
+                  ) : null;
                 })()}
                 {workReportStatusDisplay.unbilledLogDates.length > 0 && (
                   <>
@@ -2399,8 +2421,12 @@ export default function WorkReportDetailPage({ session }: Props) {
                     Laskuttamattomat päivät: {formatUnbilledLogDatesLabel(workReportStatusDisplay.unbilledLogDates)}
                   </>
                 )}
-                {' · '}
-                <Link to="/laskutus?mode=partner">Laskutus-moduuli</Link>
+                {viewerBillingAllowed && (
+                  <>
+                    {' · '}
+                    <Link to="/laskutus?mode=partner">Laskutus-moduuli</Link>
+                  </>
+                )}
               </dd>
             </>
           )}
@@ -2926,12 +2952,6 @@ export default function WorkReportDetailPage({ session }: Props) {
             <strong>{formatEuro(Number(billing?.partner_invoice_amount ?? 0))}</strong>
           </p>
         </CollapsibleSection>
-      )}
-
-      {!canManageBilling && isOwnerCompany && isPartnerReport && !viewerBillingAllowed && (
-        <p className="muted">
-          Kumppanin laskutettava summa ei ole jaettu. Raportin laatija voi tulostaa laskutusyhteenvedon.
-        </p>
       )}
 
       <DailyLogDialog

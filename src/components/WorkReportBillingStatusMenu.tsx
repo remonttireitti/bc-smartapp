@@ -16,13 +16,14 @@ import {
   type PartnerBillWorkflowChoice,
 } from '../lib/workReportBillingCopy';
 import { supabase } from '../lib/supabase';
-import { type WorkReport } from '../types';
+import { type WorkReport, type WorkReportDailyLog } from '../types';
 
 type Props = {
   report: WorkReport;
   viewerCompanyId: string;
   customerBillingEnabled: boolean;
   hasDailyLogs?: boolean;
+  dailyLogs?: WorkReportDailyLog[];
   onChanged?: () => void;
   onError?: (message: string) => void;
 };
@@ -74,6 +75,7 @@ export default function WorkReportBillingStatusMenu({
   viewerCompanyId,
   customerBillingEnabled,
   hasDailyLogs = false,
+  dailyLogs = [],
   onChanged,
   onError,
 }: Props) {
@@ -88,7 +90,7 @@ export default function WorkReportBillingStatusMenu({
     && viewerCompanyId === report.owner_company_id
     && report.status !== 'draft'
     && report.status !== 'delegated';
-  const partnerState = canManagePartner ? billingPartnerState(billingRow) : null;
+  const partnerState = canManagePartner ? billingPartnerState(billingRow, dailyLogs) : null;
   const customerState = canManageCustomer ? billingCustomerState(billingRow) : null;
 
   useEffect(() => {

@@ -200,6 +200,32 @@ export function billingRowAmount(row: BillingListRow, mode: BillingModuleMode = 
 
 export type BillingPartnerState = 'open' | 'partial' | 'billed';
 
+/** Päiväkirjaukset, jotka on lisätty kumppanilaskutuksen merkinnän jälkeen. */
+export function resolveUnbilledPartnerDailyLogDates(
+  dailyLogs: Array<{ log_date: string; created_at: string }>,
+  partnerBilledAt: string | null | undefined,
+): string[] {
+  if (!partnerBilledAt) return [];
+  const billedAtMs = new Date(partnerBilledAt).getTime();
+  if (!Number.isFinite(billedAtMs)) return [];
+
+  const dates = new Set<string>();
+  for (const log of dailyLogs) {
+    const createdMs = new Date(log.created_at).getTime();
+    if (Number.isFinite(createdMs) && createdMs > billedAtMs) {
+      dates.add(log.log_date.slice(0, 10));
+    }
+  }
+  return [...dates].sort();
+}
+
+export function hasUnbilledPartnerDailyLogsAfterBilling(
+  dailyLogs: Array<{ log_date: string; created_at: string }>,
+  partnerBilledAt: string | null | undefined,
+): boolean {
+  return resolveUnbilledPartnerDailyLogDates(dailyLogs, partnerBilledAt).length > 0;
+}
+
 export function resolvePartnerBillingAmounts(
   total: number,
   partnerBilledAmount: number | null | undefined,
@@ -246,12 +272,27 @@ export function billingRowOpenAmount(row: BillingListRow, mode: BillingModuleMod
   ).open;
 }
 
-export function billingPartnerState(row: BillingListRow): BillingPartnerState {
-  return resolvePartnerBillingAmounts(
+/** Kumppanilaskutuksen tila — riippumaton laskutusmoduulin summalaskennasta. */
+export function billingPartnerState(
+  row: BillingListRow,
+  dailyLogs: Array<{ log_date: string; created_at: string }> = [],
+): BillingPartnerState {
+  const amountState = resolvePartnerBillingAmounts(
     billingRowAmount(row, 'partner'),
     row.billing?.partner_billed_amount,
     row.billing?.partner_invoice_status,
   ).state;
+  const partnerBilledAt = row.billing?.partner_billed_at;
+  if (
+    partnerBilledAt
+    && hasUnbilledPartnerDailyLogsAfterBilling(dailyLogs, partnerBilledAt)
+    && (amountState === 'billed'
+      || amountState === 'partial'
+      || row.billing?.partner_invoice_status === 'paid')
+  ) {
+    return 'partial';
+  }
+  return amountState;
 }
 
 export function billingCustomerState(row: BillingListRow): BillingPartnerState {

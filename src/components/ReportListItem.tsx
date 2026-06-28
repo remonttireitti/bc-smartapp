@@ -315,6 +315,8 @@ export function ReportListItem({
 
             hasDailyLogs={hasDailyLogs}
 
+            dailyLogs={dailyLogs}
+
             onChanged={onStatusChanged}
 
           />
@@ -336,8 +338,6 @@ export function ReportListItem({
             hasDailyLogs={hasDailyLogs}
 
             dailyLogs={dailyLogs}
-
-            billingModuleEnabled={billingModuleEnabled || showPartnerBilling}
 
             customerBillingEnabled={customerBillingEnabled}
 

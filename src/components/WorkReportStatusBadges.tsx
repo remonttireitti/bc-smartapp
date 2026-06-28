@@ -30,8 +30,6 @@ type Props = {
 
   dailyLogs?: Array<{ log_date: string; created_at: string }>;
 
-  billingModuleEnabled?: boolean;
-
   customerBillingEnabled?: boolean;
 
   portalView?: boolean;
@@ -204,8 +202,6 @@ export default function WorkReportStatusBadges({
 
   dailyLogs = [],
 
-  billingModuleEnabled = false,
-
   customerBillingEnabled = false,
 
   portalView = false,
@@ -225,8 +221,6 @@ export default function WorkReportStatusBadges({
     hasDailyLogs,
 
     dailyLogs,
-
-    billingModuleEnabled,
 
     customerBillingEnabled,
 
@@ -276,7 +270,6 @@ export default function WorkReportStatusBadges({
 
       {display.viewerRole === 'creator'
         && display.partnerBillingState
-        && billingModuleEnabled
         && display.secondaryLabel && (
           <BillingChip
             label={display.secondaryLabel}
