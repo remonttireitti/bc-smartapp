@@ -55,6 +55,7 @@ export type WorkReportPrintSummary = {
 export type WorkReportPrintLogImage = {
   fileName: string;
   url: string;
+  caption?: string;
 };
 
 export function getWorkReportPrintSummary(
@@ -301,7 +302,7 @@ export function generateWorkReportPrintHtml(input: {
               <div class="log-images">${images
                 .map(
                   (image) =>
-                    `<figure class="log-image"><a href="${esc(image.url)}" class="log-image-full-link" target="_blank" rel="noopener noreferrer"><img src="${esc(image.url)}" alt="${esc(image.fileName)}" /></a><figcaption>${esc(image.fileName)}</figcaption></figure>`,
+                    `<figure class="log-image"><a href="${esc(image.url)}" class="log-image-full-link" target="_blank" rel="noopener noreferrer"><img src="${esc(image.url)}" alt="${esc(image.caption?.trim() || image.fileName)}" /></a><figcaption>${esc(image.caption?.trim() || image.fileName)}</figcaption></figure>`,
                 )
                 .join('')}</div>
             </div>`

@@ -140,6 +140,12 @@ export type DailyLogImage = {
   storage_path: string;
   file_name: string;
   mime_type: string | null;
+  caption?: string | null;
+};
+
+export type PendingDailyLogImage = {
+  file: File;
+  caption: string;
 };
 
 export type WorkReportAttachment = {
@@ -648,8 +654,24 @@ export function formatWorkReportEquipment(equipment: WorkReport['equipment']) {
   return equipment.tag ? `${equipment.tag} — ${equipment.name}` : equipment.name;
 }
 
-export function expenseLineTotal(line: Pick<DailyExpenseLine, 'qty' | 'unit_price'>) {
-  return Number(line.qty) * Number(line.unit_price);
+const TRIP_KM_MIN_BILLING_EUR = 35;
+
+export function expenseLineTotal(
+  line: Pick<DailyExpenseLine, 'expense_type' | 'qty' | 'unit_price' | 'customer_unit_price'>,
+  options?: { customer?: boolean },
+) {
+  const qty = Number(line.qty);
+  const unitPrice =
+    options?.customer
+    && line.customer_unit_price != null
+    && Number(line.customer_unit_price) > 0
+      ? Number(line.customer_unit_price)
+      : Number(line.unit_price);
+  if (line.expense_type === 'km' && qty > 0 && unitPrice > 0) {
+    const raw = Math.round(qty * unitPrice * 100) / 100;
+    if (raw > 0 && raw < TRIP_KM_MIN_BILLING_EUR) return TRIP_KM_MIN_BILLING_EUR;
+  }
+  return Math.round(qty * unitPrice * 100) / 100;
 }
 
 export function sumDailyHours(logs: WorkReportDailyLog[]) {

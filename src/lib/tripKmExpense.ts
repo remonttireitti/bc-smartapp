@@ -67,6 +67,36 @@ export function tripKmLineTotal(qty: number, unitPrice: number, usesMinimum: boo
   return Math.round(qty * unitPrice * 100) / 100;
 }
 
+/** Kumppani-/asiakaslaskun km-kulu: 35 € minimi ellei km-määrä × €/km ylitä sitä. */
+export function tripKmExpenseBillingTotal(
+  expense: Pick<{ expense_type: string; qty: number | string; unit_price: number | string }, 'expense_type' | 'qty' | 'unit_price'>,
+): number {
+  const qty = Number(expense.qty);
+  const rate = Number(expense.unit_price);
+  if (expense.expense_type !== 'km' || !(qty > 0) || !(rate > 0)) {
+    return Math.round(qty * rate * 100) / 100;
+  }
+  const billing = resolveTripKmBillingLine(qty, rate);
+  return tripKmLineTotal(billing.qty, billing.unitPrice, billing.usesMinimum);
+}
+
+export function tripKmExpenseBillingLine(
+  expense: Pick<{ expense_type: string; qty: number | string; unit_price: number | string }, 'expense_type' | 'qty' | 'unit_price'>,
+): { qty: number; unitPrice: number; total: number } {
+  const qty = Number(expense.qty);
+  const rate = Number(expense.unit_price);
+  if (expense.expense_type !== 'km' || !(qty > 0) || !(rate > 0)) {
+    return { qty, unitPrice: rate, total: Math.round(qty * rate * 100) / 100 };
+  }
+  const billing = resolveTripKmBillingLine(qty, rate);
+  const total = tripKmLineTotal(billing.qty, billing.unitPrice, billing.usesMinimum);
+  return {
+    qty: billing.qty,
+    unitPrice: billing.unitPrice,
+    total,
+  };
+}
+
 export function formatTripKmExpenseDescription(totalKm: number, usesMinimum: boolean): string {
   const qtyStr = String(Math.round(totalKm * 10) / 10);
   if (usesMinimum) {

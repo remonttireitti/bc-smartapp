@@ -5,6 +5,7 @@ import { formatRefrigerantLineLabel } from './refrigerantInventory';
 import {
   formatTripKmExpenseDescription,
   resolveTripKmBillingLine,
+  tripKmExpenseBillingLine,
   tripKmLineTotal,
 } from './tripKmExpense';
 
@@ -257,21 +258,28 @@ export function calculateWorkReportBillable(input: {
     }
 
     for (const expense of log.expense_lines ?? []) {
-      const total = lineTotal(Number(expense.qty), Number(expense.unit_price));
       const billToPartner = expense.bill_to_partner !== false;
       const included = expensesEnabled && billToPartner;
+      const billed =
+        expense.expense_type === 'km'
+          ? tripKmExpenseBillingLine(expense)
+          : {
+              qty: Number(expense.qty),
+              unitPrice: Number(expense.unit_price),
+              total: lineTotal(Number(expense.qty), Number(expense.unit_price)),
+            };
       summary.lines.push({
         logId: log.id,
         logDate: log.log_date,
         kind: 'expense',
         description: expense.description,
-        qty: Number(expense.qty),
-        unitPrice: Number(expense.unit_price),
-        total,
+        qty: billed.qty,
+        unitPrice: billed.unitPrice,
+        total: billed.total,
         included,
       });
-      if (included) summary.expensesTotal += total;
-      else summary.excludedSubtotal += total;
+      if (included) summary.expensesTotal += billed.total;
+      else summary.excludedSubtotal += billed.total;
     }
 
     const tripKm = (log.trip_legs ?? []).reduce(

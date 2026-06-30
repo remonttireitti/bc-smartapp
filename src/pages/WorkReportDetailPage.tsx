@@ -169,6 +169,7 @@ import {
   type WorkReportAttachment,
   type WorkReportBilling,
   type WorkReportDailyLog,
+  type PendingDailyLogImage,
   type WorkStatus,
 } from '../types';
 import type { RefrigerantCylinder } from '../types/inventory';
@@ -974,7 +975,7 @@ export default function WorkReportDetailPage({ session }: Props) {
   >([]);
   const [editingLogId, setEditingLogId] = useState<string | null>(null);
   const [editingLog, setEditingLog] = useState<WorkReportDailyLog | null>(null);
-  const [pendingImages, setPendingImages] = useState<File[]>([]);
+  const [pendingImages, setPendingImages] = useState<PendingDailyLogImage[]>([]);
   const [companyUsers, setCompanyUsers] = useState<
     { id: string; display_name: string | null; email: string | null }[]
   >([]);
@@ -2625,10 +2626,7 @@ export default function WorkReportDetailPage({ session }: Props) {
                           line.customer_unit_price != null && Number(line.customer_unit_price) > 0
                             ? Number(line.customer_unit_price)
                             : Number(line.unit_price);
-                        const customerTotal = expenseLineTotal({
-                          ...line,
-                          unit_price: customerUnit,
-                        });
+                        const customerTotal = expenseLineTotal(line, { customer: true });
                         return (
                           <li key={line.id}>
                             {EXPENSE_TYPE_LABELS[line.expense_type] ?? line.expense_type}: {line.description}{' '}

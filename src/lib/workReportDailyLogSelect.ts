@@ -43,7 +43,7 @@ export function buildWorkReportDetailLogSelect(includeBillToPartner: boolean): s
     warehouse_company:companies!work_report_refrigerant_lines_warehouse_company_id_fkey(name),
     owner_user:profiles!work_report_refrigerant_lines_owner_user_id_fkey(display_name)
   ),
-  images:work_report_daily_log_images(id, daily_log_id, storage_path, file_name, mime_type)
+  images:work_report_daily_log_images(id, daily_log_id, storage_path, file_name, mime_type, caption)
 `;
 }
 
@@ -64,7 +64,7 @@ export function buildWorkReportPrintLogSelect(includeBillToPartner: boolean): st
     warehouse_company:companies!work_report_refrigerant_lines_warehouse_company_id_fkey(name),
     owner_user:profiles!work_report_refrigerant_lines_owner_user_id_fkey(display_name)
   ),
-  images:work_report_daily_log_images(id, daily_log_id, storage_path, file_name, mime_type)
+  images:work_report_daily_log_images(id, daily_log_id, storage_path, file_name, mime_type, caption)
 `;
 }
 

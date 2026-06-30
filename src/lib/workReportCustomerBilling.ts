@@ -8,6 +8,7 @@ import {
 } from './refrigerantInventory';
 import type { BillableLineKind, BillableCalculation, UserBillingProfile } from './workReportBilling';
 import type { BillableRatesSource } from './management';
+import { tripKmExpenseBillingLine } from './tripKmExpense';
 
 const DEFAULT_RATES: Required<PartnerBillingRates> = {
   hourly_regular: 0,
@@ -177,19 +178,30 @@ export function calculateWorkReportCustomerBillable(input: {
       if (expense.bill_to_customer === false) continue;
       const unitPrice = customerExpenseUnitPrice(expense);
       const priceMissing = customerExpensePriceMissing(expense);
-      const total = lineTotal(Number(expense.qty), unitPrice);
+      const billed =
+        expense.expense_type === 'km'
+          ? tripKmExpenseBillingLine({
+              expense_type: 'km',
+              qty: expense.qty,
+              unit_price: unitPrice,
+            })
+          : {
+              qty: Number(expense.qty),
+              unitPrice,
+              total: lineTotal(Number(expense.qty), unitPrice),
+            };
       summary.lines.push({
         logId: log.id,
         logDate: log.log_date,
         kind: 'expense',
         description: expense.description,
-        qty: Number(expense.qty),
-        unitPrice,
-        total,
+        qty: billed.qty,
+        unitPrice: billed.unitPrice,
+        total: billed.total,
         included: true,
         priceMissing,
       });
-      summary.expensesTotal += total;
+      summary.expensesTotal += billed.total;
     }
 
     for (const refLine of log.refrigerant_lines ?? []) {
