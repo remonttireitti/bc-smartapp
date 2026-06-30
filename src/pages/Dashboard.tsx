@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
 import { Navigate } from 'react-router-dom';
 import AppLayout from '../components/AppLayout';
-import DashboardTrialBanner from '../components/DashboardTrialBanner';
 import DashboardWelcomeCard from '../components/DashboardWelcomeCard';
 import OnboardingDemoPanel from '../components/OnboardingDemoPanel';
 import PendingWorkOrdersBanner from '../components/PendingWorkOrdersBanner';
@@ -125,9 +124,6 @@ export default function Dashboard({ session }: Props) {
     return <Navigate to={monitorReaderHubPath()} replace />;
   }
 
-  const showTrialBanner =
-    !portalView && license && license.enrollment !== 'legacy'
-    && (license.effective_status === 'trial' || license.effective_status === 'pending_trial');
   const isAdmin = profile?.role === 'admin';
 
   return (
@@ -151,8 +147,6 @@ export default function Dashboard({ session }: Props) {
           onChanged={() => setOnboardingRefreshKey((value) => value + 1)}
         />
       )}
-
-      {showTrialBanner && license && <DashboardTrialBanner license={license} />}
 
       {!portalView && pendingOrders.total > 0 && (
         <PendingWorkOrdersBanner counts={pendingOrders} />

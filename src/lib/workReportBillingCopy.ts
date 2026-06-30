@@ -20,6 +20,10 @@ import {
   refrigerantIncludedInCustomerBilling,
   refrigerantLineTotal,
 } from './refrigerantInventory';
+import {
+  breakdownFromBillableCalculation,
+  type BillableCalculation,
+} from './workReportBilling';
 import { formatTripLegSummary } from './workReportTripLegs';
 
 export type BillingListRow = {
@@ -322,20 +326,7 @@ export function billingRowBreakdown(
   const calc =
     mode === 'customer' ? row.billable?.customer_calculation : row.billable?.calculation;
   if (calc?.byUser?.length) {
-    const work = calc.byUser.reduce((sum, user) => sum + Number(user.hoursTotal || 0), 0);
-    const materials = calc.byUser.reduce(
-      (sum, user) =>
-        sum
-        + Number(user.expensesTotal || 0)
-        + Number(user.fixedTotal || 0)
-        + Number(user.commissionTotal || 0),
-      0,
-    );
-    return {
-      work: Math.round(work * 100) / 100,
-      materials: Math.round(materials * 100) / 100,
-      total: Number(calc.grandTotal ?? total),
-    };
+    return breakdownFromBillableCalculation(calc as BillableCalculation);
   }
   if (total > 0.005) {
     return { work: total, materials: 0, total };

@@ -33,12 +33,15 @@ type Props = {
   onSelectCompany?: (companyId: string) => void;
   onExtendTrial?: (companyId: string, days: number) => Promise<void>;
   extendTrialBusyId?: string | null;
+  /** Kasvata arvoa pakottaaksesi taulukon uudelleenlatauksen (esim. kokeilun jatkon jälkeen). */
+  reloadToken?: number;
 };
 
 export default function GlobalAdminLicenseOverview({
   onSelectCompany,
   onExtendTrial,
   extendTrialBusyId,
+  reloadToken = 0,
 }: Props) {
   const [rows, setRows] = useState<LicenseOverviewRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -58,7 +61,7 @@ export default function GlobalAdminLicenseOverview({
 
   useEffect(() => {
     void load();
-  }, []);
+  }, [reloadToken]);
 
   const legacyCount = rows.filter((r) => r.snapshot.enrollment === 'legacy').length;
   const subscriptionCount = rows.length - legacyCount;

@@ -1,9 +1,9 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { billableCalculationNeedsRefresh } from './workReportBilling';
 import {
   calculationLogIds,
   calculationMissingBillableLogs,
 } from './workReportBillableCoverage';
-
 export type BillableSnapshot = {
   workReportId: string;
   calculatedAt: string | null | undefined;
@@ -117,6 +117,11 @@ export async function findStaleBillableReportIds(
         refrigerantCountByLogId,
       })
     ) {
+      staleIds.push(snapshot.workReportId);
+      continue;
+    }
+
+    if (billableCalculationNeedsRefresh(snapshot.calculation)) {
       staleIds.push(snapshot.workReportId);
       continue;
     }

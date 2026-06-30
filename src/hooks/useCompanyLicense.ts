@@ -10,6 +10,11 @@ import { supabase } from '../lib/supabase';
 const licenseCache = new Map<string, CompanyLicenseSnapshot>();
 const trialStartedUserIds = new Set<string>();
 
+export function invalidateCompanyLicenseCache(companyId?: string) {
+  if (companyId) licenseCache.delete(companyId);
+  else licenseCache.clear();
+}
+
 async function fetchLicenseSnapshot(
   companyId: string,
   session: Session,

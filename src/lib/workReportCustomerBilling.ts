@@ -249,7 +249,7 @@ export function calculateWorkReportCustomerBillable(input: {
   const grandTotal = byUser.reduce((sum, user) => sum + user.subtotal, 0);
 
   return {
-    version: 2,
+    version: 3,
     billToCompanyId: null,
     billToCompanyName: input.customerName,
     ratesUsed: rates,

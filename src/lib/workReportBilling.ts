@@ -56,7 +56,7 @@ export type BillableUserSummary = {
 };
 
 export type BillableCalculation = {
-  version: 2;
+  version: 3;
   billToCompanyId: string | null;
   billToCompanyName: string | null;
   ratesUsed: Required<PartnerBillingRates>;
@@ -361,7 +361,7 @@ export function calculateWorkReportBillable(input: {
   const excludedTotal = byUser.reduce((sum, u) => sum + u.excludedSubtotal, 0);
 
   return {
-    version: 2,
+    version: 3,
     billToCompanyId: input.billToCompanyId,
     billToCompanyName: input.billToCompanyName,
     ratesUsed: rates,
@@ -370,6 +370,67 @@ export function calculateWorkReportBillable(input: {
     grandTotal: Math.round(grandTotal * 100) / 100,
     excludedTotal: Math.round(excludedTotal * 100) / 100,
   };
+}
+
+export const BILLABLE_CALCULATION_VERSION = 3;
+
+const BILLABLE_HOUR_KINDS = new Set<BillableLineKind>([
+  'hours_regular',
+  'hours_overtime',
+  'hours_on_call',
+]);
+
+const BILLABLE_MATERIAL_KINDS = new Set<BillableLineKind>([
+  'expense',
+  'refrigerant',
+  'fixed_price',
+  'commission',
+]);
+
+function isTripKmBillableLine(line: BillableLine): boolean {
+  return line.kind === 'expense' && /^Ajomatkat\s*\(/i.test(line.description.trim());
+}
+
+/** Näytettävä rivisumma — km-kulut käyttävät aina 35 € minimiä. */
+export function billableLineDisplayTotal(line: BillableLine): number {
+  if (!line.included) return 0;
+  if (isTripKmBillableLine(line)) {
+    return tripKmExpenseBillingLine({
+      expense_type: 'km',
+      qty: line.qty,
+      unit_price: line.unitPrice,
+    }).total;
+  }
+  return line.total;
+}
+
+export function breakdownFromBillableCalculation(calc: BillableCalculation): {
+  work: number;
+  materials: number;
+  total: number;
+} {
+  let work = 0;
+  let materials = 0;
+  for (const user of calc.byUser) {
+    for (const line of user.lines) {
+      if (!line.included) continue;
+      const amount = billableLineDisplayTotal(line);
+      if (BILLABLE_HOUR_KINDS.has(line.kind)) work += amount;
+      else if (BILLABLE_MATERIAL_KINDS.has(line.kind)) materials += amount;
+    }
+  }
+  work = Math.round(work * 100) / 100;
+  materials = Math.round(materials * 100) / 100;
+  return {
+    work,
+    materials,
+    total: Math.round((work + materials) * 100) / 100,
+  };
+}
+
+export function billableCalculationNeedsRefresh(calculation: unknown): boolean {
+  const version = (calculation as BillableCalculation | null | undefined)?.version;
+  return version == null || version < BILLABLE_CALCULATION_VERSION;
 }
 
 function normalizeBillableUserName(name: string) {

@@ -16,6 +16,7 @@ import { LICENSE_SECTION_TITLES } from '../../lib/licenseTermsFi';
 import GlobalAdminLicenseOverview from './GlobalAdminLicenseOverview';
 import { companyBillingModuleEnabled, parseCompanySettings } from '../../lib/management';
 import { supabase } from '../../lib/supabase';
+import { invalidateCompanyLicenseCache } from '../../hooks/useCompanyLicense';
 import type { Company } from '../../types';
 
 type Props = {
@@ -64,6 +65,16 @@ export default function GlobalAdminLicensesSection({
   const [licenseEnrollment, setLicenseEnrollment] = useState<'legacy' | 'subscription'>('subscription');
   const [preserveLegacy, setPreserveLegacy] = useState(false);
   const [extendTrialBusyId, setExtendTrialBusyId] = useState<string | null>(null);
+  const [overviewReloadToken, setOverviewReloadToken] = useState(0);
+  const [actionNotice, setActionNotice] = useState<{ type: 'error' | 'success'; text: string } | null>(
+    null,
+  );
+
+  useEffect(() => {
+    if (!actionNotice) return;
+    const timer = window.setTimeout(() => setActionNotice(null), 8000);
+    return () => window.clearTimeout(timer);
+  }, [actionNotice]);
 
   useEffect(() => {
     void loadLicenseCatalog();
@@ -176,21 +187,30 @@ export default function GlobalAdminLicensesSection({
   async function extendTrialForCompany(companyId: string, days: number) {
     setExtendTrialBusyId(companyId);
     setLicenseError(null);
+    setLicenseMessage(null);
+    setActionNotice(null);
     const { data, error: extendError } = await supabase.rpc('global_admin_extend_company_trial', {
       p_company_id: companyId,
       p_extra_days: days,
     });
     setExtendTrialBusyId(null);
     if (extendError) {
-      setLicenseError(extendError.message);
+      const message = extendError.message || 'Kokeilun jatko epäonnistui.';
+      setLicenseError(message);
+      setActionNotice({ type: 'error', text: message });
       return;
     }
+    invalidateCompanyLicenseCache(companyId);
     if (licenseCompanyId === companyId) {
-      setLicenseSnapshot(parseCompanyLicenseSnapshot(data));
       const snapshot = parseCompanyLicenseSnapshot(data);
+      setLicenseSnapshot(snapshot);
       if (snapshot) setLicenseStatus(snapshot.status);
     }
-    setLicenseMessage(`Kokeilua jatkettu ${days} päivää.`);
+    const message = `Kokeilua jatkettu ${days} päivää.`;
+    setLicenseMessage(message);
+    setActionNotice({ type: 'success', text: message });
+    setOverviewReloadToken((token) => token + 1);
+    await onRefresh();
   }
 
   function openCompanyEditor(companyId: string) {
@@ -327,7 +347,25 @@ export default function GlobalAdminLicensesSection({
 
   return (
     <>
+      {actionNotice && (
+        <div
+          className={`global-admin-toast global-admin-toast--${actionNotice.type}`}
+          role="status"
+          aria-live="polite"
+        >
+          <span>{actionNotice.text}</span>
+          <button
+            type="button"
+            className="global-admin-toast-close"
+            aria-label="Sulje ilmoitus"
+            onClick={() => setActionNotice(null)}
+          >
+            ×
+          </button>
+        </div>
+      )}
       <GlobalAdminLicenseOverview
+        reloadToken={overviewReloadToken}
         extendTrialBusyId={extendTrialBusyId}
         onExtendTrial={extendTrialForCompany}
         onSelectCompany={openCompanyEditor}

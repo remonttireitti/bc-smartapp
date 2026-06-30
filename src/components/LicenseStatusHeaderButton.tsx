@@ -28,6 +28,14 @@ export default function LicenseStatusHeaderButton({ session }: Props) {
     !portalView && !!profile?.company_id && !loading && !!license && license.enrollment !== 'legacy';
 
   const daysLeft = trialDaysRemaining(license);
+  const isTrial =
+    license?.effective_status === 'trial' || license?.effective_status === 'pending_trial';
+  const buttonTitle =
+    license?.effective_status === 'trial' && daysLeft != null
+      ? `Kokeilujakso – ${daysLeft} päivää jäljellä (päättyy ${license.trial_ends_at ? new Date(license.trial_ends_at).toLocaleDateString('fi-FI') : '—'})`
+      : license?.effective_status === 'pending_trial'
+        ? `Kokeilujakso alkaa ensimmäisestä kirjautumisesta (${license.trial_days} pv)`
+        : LICENSE_SECTION_TITLES.companyPanel;
 
   useEffect(() => {
     if (!open) return;
@@ -44,18 +52,21 @@ export default function LicenseStatusHeaderButton({ session }: Props) {
     <>
       <button
         type="button"
-        className="topbar-license-btn"
+        className={`topbar-license-btn${isTrial ? ' topbar-license-btn--trial' : ''}`}
         aria-expanded={open}
         aria-haspopup="dialog"
-        title={LICENSE_SECTION_TITLES.companyPanel}
+        title={buttonTitle}
         onClick={() => setOpen(true)}
       >
         <span className="topbar-license-btn-icon" aria-hidden>
-          i
+          🔑
         </span>
-        <span className="topbar-license-btn-label">{LICENSE_SECTION_TITLES.companyPanel}</span>
-        {license?.effective_status === 'trial' && daysLeft != null && (
+        {license?.effective_status === 'trial' && daysLeft != null ? (
           <span className="topbar-license-btn-badge">{daysLeft} pv</span>
+        ) : license?.effective_status === 'pending_trial' ? (
+          <span className="topbar-license-btn-badge">Kokeilu</span>
+        ) : (
+          <span className="topbar-license-btn-label">{LICENSE_SECTION_TITLES.companyPanel}</span>
         )}
       </button>
 

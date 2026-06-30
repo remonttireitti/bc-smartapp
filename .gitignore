@@ -21,3 +21,4 @@ tsconfig.tsbuildinfo
 firmware/esp32-temp-monitor/include/secrets.h
 
 .vercel
+.env*
