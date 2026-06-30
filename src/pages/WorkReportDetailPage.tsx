@@ -133,6 +133,8 @@ import {
   resolveWorkReportSiteLabel,
   saveTripLegs,
   sumDailyTripKm,
+  sumDailyExpensesWithTrips,
+  dailyLogExpensesTotal,
   tripLegDeparture,
   tripLegsToDrafts,
   type TripLegDraft,
@@ -161,7 +163,6 @@ import {
   OFFICE_HOUR_OPTIONS,
   roundTimeToHalfHour,
   resolveWorkReportDisplayPeople,
-  sumDailyExpenses,
   sumDailyHours,
   todayIsoDate,
   type DailyHourEntryType,
@@ -967,6 +968,7 @@ export default function WorkReportDetailPage({ session }: Props) {
   const [tripDestinationOptions, setTripDestinationOptions] = useState<TripDestinationOption[]>([]);
   const [tripDepartureLabel, setTripDepartureLabel] = useState('');
   const [tripKmRate, setTripKmRate] = useState<number | null>(null);
+  const [reportTripKmRate, setReportTripKmRate] = useState<number | null>(null);
   const [tripKmCustomerRate, setTripKmCustomerRate] = useState<number | null>(null);
   const [refrigerantDrafts, setRefrigerantDrafts] = useState<RefrigerantLineDraft[]>([]);
   const [refrigerantCylinders, setRefrigerantCylinders] = useState<RefrigerantCylinder[]>([]);
@@ -1056,6 +1058,10 @@ export default function WorkReportDetailPage({ session }: Props) {
     setHeadingDraft(reportRow.heading?.trim() ?? '');
     setOrdererDraft(reportRow.orderer_name?.trim() ?? '');
     setLoading(false);
+
+    void loadTripKmRatesForReport(reportRow).then((rates) => {
+      setReportTripKmRate(rates.kmRate);
+    });
 
     try {
       setReportAttachments(await loadWorkReportAttachments(reportId));
@@ -1396,7 +1402,10 @@ export default function WorkReportDetailPage({ session }: Props) {
   }, [report?.status, report?.delegate_company_id, profile?.company_id, profile?.role]);
 
   const totalHours = useMemo(() => sumDailyHours(dailyLogs), [dailyLogs]);
-  const totalExpenses = useMemo(() => sumDailyExpenses(dailyLogs), [dailyLogs]);
+  const totalExpenses = useMemo(
+    () => sumDailyExpensesWithTrips(dailyLogs, reportTripKmRate),
+    [dailyLogs, reportTripKmRate],
+  );
   const totalTripKm = useMemo(() => sumDailyTripKm(dailyLogs), [dailyLogs]);
   const refrigerantPartnerReminders = useMemo(
     () =>
@@ -1641,17 +1650,6 @@ export default function WorkReportDetailPage({ session }: Props) {
       return;
     }
 
-    const expenseError = await saveExpenseLines(
-      logRow.id,
-      expenseDrafts,
-      expenseSaveOptionsForReport(report, customerBillingFieldsActive(report)),
-    );
-    if (expenseError) {
-      setLogDialogBusy(false);
-      setDailyLogNotice(dailyLogNoticeFromError(expenseError.message));
-      return;
-    }
-
     const tripError = await saveDailyLogTripLegs(logRow.id);
     if (tripError) {
       setLogDialogBusy(false);
@@ -1661,6 +1659,23 @@ export default function WorkReportDetailPage({ session }: Props) {
         message: `Työkirjaus tallennettiin, mutta ajomatkat jäivät tallentamatta: ${tripError.message} Korjaa rivit ja tallenna uudelleen (muokkaa työkirjausta).`,
       });
       await load(report.id);
+      return;
+    }
+
+    const expensesToSave = syncTripKmExpenseDrafts(
+      expenseDrafts,
+      tripDrafts,
+      tripKmRate,
+      tripKmCustomerRate,
+    );
+    const expenseError = await saveExpenseLines(
+      logRow.id,
+      expensesToSave,
+      expenseSaveOptionsForReport(report, customerBillingFieldsActive(report)),
+    );
+    if (expenseError) {
+      setLogDialogBusy(false);
+      setDailyLogNotice(dailyLogNoticeFromError(expenseError.message));
       return;
     }
 
@@ -1904,21 +1919,27 @@ export default function WorkReportDetailPage({ session }: Props) {
       return;
     }
 
+    const tripError = await saveDailyLogTripLegs(editingLogId);
+    if (tripError) {
+      setLogDialogBusy(false);
+      setDailyLogNotice(dailyLogNoticeFromError(tripError.message, 'Ajomatkojen tallennus epäonnistui'));
+      return;
+    }
+
+    const expensesToSave = syncTripKmExpenseDrafts(
+      expenseDrafts,
+      tripDrafts,
+      tripKmRate,
+      tripKmCustomerRate,
+    );
     const expenseError = await saveExpenseLines(
       editingLogId,
-      expenseDrafts,
+      expensesToSave,
       expenseSaveOptionsForReport(report, customerBillingFieldsActive(report)),
     );
     if (expenseError) {
       setLogDialogBusy(false);
       setDailyLogNotice(dailyLogNoticeFromError(expenseError.message));
-      return;
-    }
-
-    const tripError = await saveDailyLogTripLegs(editingLogId);
-    if (tripError) {
-      setLogDialogBusy(false);
-      setDailyLogNotice(dailyLogNoticeFromError(tripError.message, 'Ajomatkojen tallennus epäonnistui'));
       return;
     }
 
@@ -2568,10 +2589,10 @@ export default function WorkReportDetailPage({ session }: Props) {
         ) : (
           <ul className="daily-log-list compact-daily-log-list">
             {dailyLogs.map((log) => {
-              const expenseLines = log.expense_lines ?? [];
               const tripLegs = log.trip_legs ?? [];
               const tripKm = tripLegs.reduce((s, leg) => s + Number(leg.distance_km || 0), 0);
               const refrigerantLines = log.refrigerant_lines ?? [];
+              const logExpensesTotal = dailyLogExpensesTotal(log, reportTripKmRate);
               return (
                 <li key={log.id}>
                   <div className="daily-log-head">
@@ -2582,9 +2603,9 @@ export default function WorkReportDetailPage({ session }: Props) {
                       )}
                       <span>{HOUR_ENTRY_LABELS[log.entry_type]}</span>
                       <span>{formatHourEntry(log, { showMoney: showPartnerBillableSection || showCustomerMoney })}</span>
-                      {expenseLines.length > 0 && (
+                      {logExpensesTotal > 0.005 && (
                         <span>
-                          Kulut {expenseLines.reduce((s, line) => s + expenseLineTotal(line), 0).toFixed(2)} €
+                          Kulut {logExpensesTotal.toFixed(2)} €
                         </span>
                       )}
                       {tripKm > 0 && <span>Ajomatka {tripKm.toFixed(1)} km</span>}

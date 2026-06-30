@@ -1,7 +1,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 import type { CompanySettings } from './management';
-import type { DailyTripLeg, WorkReport, WorkReportDailyLog } from '../types';
+import { expenseLineTotal, type DailyTripLeg, type WorkReport, type WorkReportDailyLog } from '../types';
+import { resolveTripKmBillingLine, tripKmLineTotal } from './tripKmExpense';
 
 export type TripLegDeparture = {
   startLabel: string;
@@ -212,6 +213,48 @@ export function sumDailyTripKm(logs: WorkReportDailyLog[]): number {
     const legSum = (log.trip_legs ?? []).reduce((s, leg) => s + Number(leg.distance_km || 0), 0);
     return sum + legSum;
   }, 0);
+}
+
+function logHasKmExpenseLine(log: WorkReportDailyLog): boolean {
+  return (log.expense_lines ?? []).some(
+    (line) =>
+      line.expense_type === 'km'
+      && Number(line.qty) > 0
+      && (Number(line.unit_price) > 0 || /^Ajomatkat\s*\(/i.test(line.description.trim())),
+  );
+}
+
+/** Km-korvaus ajomatkoista, jos erillistä km-kuluriviä ei ole vielä tallennettu. */
+export function dailyLogTripKmExpenseTotal(
+  log: WorkReportDailyLog,
+  tripKmRate: number | null | undefined,
+): number {
+  if (logHasKmExpenseLine(log)) return 0;
+  const tripKm = (log.trip_legs ?? []).reduce(
+    (sum, leg) => sum + (Number(leg.distance_km) > 0 ? Number(leg.distance_km) : 0),
+    0,
+  );
+  if (!(tripKm > 0) || tripKmRate == null || !(tripKmRate > 0)) return 0;
+  const billing = resolveTripKmBillingLine(tripKm, tripKmRate);
+  return tripKmLineTotal(billing.qty, billing.unitPrice, billing.usesMinimum);
+}
+
+export function dailyLogExpensesTotal(
+  log: WorkReportDailyLog,
+  tripKmRate?: number | null,
+): number {
+  const expenseTotal = (log.expense_lines ?? []).reduce(
+    (sum, line) => sum + expenseLineTotal(line),
+    0,
+  );
+  return Math.round((expenseTotal + dailyLogTripKmExpenseTotal(log, tripKmRate)) * 100) / 100;
+}
+
+export function sumDailyExpensesWithTrips(
+  logs: WorkReportDailyLog[],
+  tripKmRate?: number | null,
+): number {
+  return logs.reduce((sum, log) => sum + dailyLogExpensesTotal(log, tripKmRate), 0);
 }
 
 export function formatTripLegSummary(leg: DailyTripLeg): string {
