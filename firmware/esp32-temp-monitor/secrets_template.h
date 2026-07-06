@@ -15,7 +15,7 @@
 /** Valinnainen: oman yrityksen laitteen avain temp_devices-taulusta */
 // #define DEVICE_KEY "123456789012"
 
-/** Näyteväli ms (oletus 20 s) */
-// #define READ_INTERVAL_MS 20000UL
+/** Näyteväli ms (oletus 2 min) */
+// #define READ_INTERVAL_MS 120000UL
 
 #endif

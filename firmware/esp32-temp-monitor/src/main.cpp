@@ -11,7 +11,7 @@
 #include <DallasTemperature.h>
 
 #ifndef READ_INTERVAL_MS
-#define READ_INTERVAL_MS 20000UL
+#define READ_INTERVAL_MS 120000UL
 #endif
 #ifndef FIRST_SEND_DELAY_MS
 #define FIRST_SEND_DELAY_MS 5000UL
