@@ -1,6 +1,11 @@
 import type { BillableCalculation } from './workReportBilling';
 import { formatEuro } from './workReportBilling';
 import { BILLABLE_RATES_SOURCE_LABELS } from './management';
+import {
+  computePartnerNetMargin,
+  parseBillingQuoteSettings,
+  type BillingQuoteSettings,
+} from './workReportBillingQuote';
 
 const LINE_KIND_LABELS: Record<string, string> = {
   hours_regular: 'Tunnit',
@@ -17,9 +22,12 @@ export function generatePartnerBillingHtml(input: {
   ownerCompanyName: string;
   customerName: string | null;
   calculation: BillableCalculation;
+  billingQuote?: BillingQuoteSettings | null;
   logoUrl?: string;
 }) {
   const { calculation } = input;
+  const billingQuote = parseBillingQuoteSettings(input.billingQuote ?? {});
+  const partnerMargin = computePartnerNetMargin(billingQuote, calculation.grandTotal);
   const ratesSource =
     calculation.ratesSource && BILLABLE_RATES_SOURCE_LABELS[calculation.ratesSource]
       ? calculation.ratesSource
@@ -107,6 +115,21 @@ export function generatePartnerBillingHtml(input: {
   </table>
 
   <p class="total"><strong>Laskutettava yhteensä: ${formatEuro(calculation.grandTotal)}</strong></p>
+  ${
+    partnerMargin
+      ? `<h2>Kate tarjouksesta</h2>
+  <table>
+    <tbody>
+      <tr><td>Tarjoushinta (alv 0 %)</td><td class="num">${formatEuro(partnerMargin.quoteSaleNet)}</td></tr>
+      <tr><td>Asennuskulut (työ + ajot + kulut)</td><td class="num">− ${formatEuro(partnerMargin.installationCostNet)}</td></tr>
+      <tr><td>Todellinen hankinta (alv 0 %)</td><td class="num">− ${formatEuro(partnerMargin.actualPurchaseNet)}</td></tr>
+      <tr><td><strong>Puhdas kate</strong></td><td class="num"><strong>${formatEuro(partnerMargin.netMarginNet)}</strong></td></tr>
+    </tbody>
+  </table>
+  ${billingQuote.quote_title ? `<p class="meta">Tarjous: ${escapeHtml(billingQuote.quote_title)}</p>` : ''}
+  ${billingQuote.notes?.trim() ? `<p class="meta">Huom: ${escapeHtml(billingQuote.notes.trim())}</p>` : ''}`
+      : ''
+  }
   ${
     calculation.excludedTotal > 0
       ? `<p class="meta">Ei laskutukseen: ${formatEuro(calculation.excludedTotal)} (henkilön laskutus pois käytöstä)</p>`

@@ -46,7 +46,7 @@ export default function WorkReportPartnerBillingPrintPage({ session }: Props) {
           .single(),
         supabase
           .from('work_report_billable')
-          .select('calculation')
+          .select('calculation, billing_quote')
           .eq('work_report_id', reportId)
           .maybeSingle(),
       ]);
@@ -96,6 +96,7 @@ export default function WorkReportPartnerBillingPrintPage({ session }: Props) {
         ownerCompanyName: report.owner_company?.name ?? '—',
         customerName: report.customers?.name ?? null,
         calculation: billableData.calculation as BillableCalculation,
+        billingQuote: billableData.billing_quote as import('../lib/workReportBillingQuote').BillingQuoteSettings,
         logoUrl,
       }),
     );

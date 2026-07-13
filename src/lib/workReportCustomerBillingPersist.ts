@@ -10,6 +10,12 @@ import {
   calculateWorkReportCustomerBillable,
   shouldCalculateCustomerBilling,
 } from './workReportCustomerBilling';
+import {
+  calculateWorkReportCustomerBillableFromQuote,
+  customerUsesFixedQuote,
+  parseBillingQuoteSettings,
+  type BillingQuoteSettings,
+} from './workReportBillingQuote';
 import { fetchCustomerBillingLogs } from './workReportDailyLogSelect';
 import { findStaleBillableReportIds } from './workReportBillableStale';
 
@@ -29,19 +35,13 @@ export async function refreshAndPersistCustomerBillable(
   supabase: SupabaseClient,
   reportRow: Pick<WorkReport, 'id' | 'owner_company_id' | 'customers'>,
   logs: WorkReportDailyLog[],
-  rateOptions?: { useCustomRates?: boolean; reportRates?: PartnerBillingRates },
+  rateOptions?: {
+    useCustomRates?: boolean;
+    reportRates?: PartnerBillingRates;
+    billingQuote?: BillingQuoteSettings;
+  },
 ) {
-  const billingApplies = shouldCalculateCustomerBilling(logs);
-  if (!billingApplies) {
-    await supabase.from('work_report_billable').upsert({
-      work_report_id: reportRow.id,
-      customer_total: 0,
-      customer_calculation: {},
-    });
-    return null;
-  }
-
-  const [{ data: companyRow }, { data: billingRow }] = await Promise.all([
+  const [{ data: companyRow }, { data: billingRow }, { data: billableRow }] = await Promise.all([
     supabase.from('companies').select('settings').eq('id', reportRow.owner_company_id).single(),
     supabase
       .from('work_report_billing')
@@ -50,7 +50,27 @@ export async function refreshAndPersistCustomerBillable(
       )
       .eq('work_report_id', reportRow.id)
       .maybeSingle(),
+    supabase
+      .from('work_report_billable')
+      .select('billing_quote')
+      .eq('work_report_id', reportRow.id)
+      .maybeSingle(),
   ]);
+
+  const billingQuote = parseBillingQuoteSettings(
+    rateOptions?.billingQuote ?? billableRow?.billing_quote ?? {},
+  );
+  const useFixedQuote = customerUsesFixedQuote(billingQuote);
+
+  const billingApplies = useFixedQuote || shouldCalculateCustomerBilling(logs);
+  if (!billingApplies) {
+    await supabase.from('work_report_billable').upsert({
+      work_report_id: reportRow.id,
+      customer_total: 0,
+      customer_calculation: {},
+    });
+    return null;
+  }
 
   const settings = parseCompanySettings((companyRow as { settings: unknown } | null)?.settings);
   const storedUseCustom = rateOptions?.useCustomRates ?? billingRow?.use_custom_customer_rates ?? false;
@@ -64,12 +84,18 @@ export async function refreshAndPersistCustomerBillable(
     useReportRates: storedUseCustom,
   });
 
-  const calculation = calculateWorkReportCustomerBillable({
-    logs,
-    rates,
-    ratesSource: source,
-    customerName: reportRow.customers?.name ?? null,
-  });
+  const calculation =
+    calculateWorkReportCustomerBillableFromQuote({
+      settings: billingQuote,
+      customerName: reportRow.customers?.name ?? null,
+      ratesSource: source,
+    })
+    ?? calculateWorkReportCustomerBillable({
+      logs,
+      rates,
+      ratesSource: source,
+      customerName: reportRow.customers?.name ?? null,
+    });
 
   await Promise.all([
     supabase.from('work_report_billable').upsert({
@@ -105,17 +131,19 @@ export async function ensureCustomerBillableCalculated(
       .single(),
     supabase
       .from('work_report_billable')
-      .select('customer_total, customer_calculation, calculated_at')
+      .select('customer_total, customer_calculation, calculated_at, billing_quote')
       .eq('work_report_id', reportId)
       .maybeSingle(),
   ]);
 
   if (!reportData) return;
 
-  const calc = billableRow?.customer_calculation as { byUser?: unknown[] } | null | undefined;
+  const billingQuote = parseBillingQuoteSettings(billableRow?.billing_quote ?? {});
+  const useFixedQuote = customerUsesFixedQuote(billingQuote);
+  const calc = billableRow?.customer_calculation as { byUser?: unknown[]; billingMode?: string } | null | undefined;
   const hasCalculation = (calc?.byUser?.length ?? 0) > 0;
 
-  if (hasCalculation && !options?.skipStaleCheck) {
+  if (hasCalculation && !options?.skipStaleCheck && !useFixedQuote) {
     const staleIds = await findStaleBillableReportIds(supabase, [
       {
         workReportId: reportId,
@@ -128,11 +156,12 @@ export async function ensureCustomerBillableCalculated(
   }
 
   const logs = await loadWorkReportDailyLogs(supabase, reportId);
-  if (!shouldCalculateCustomerBilling(logs) && !hasCalculation) return;
+  if (!shouldCalculateCustomerBilling(logs) && !hasCalculation && !useFixedQuote) return;
 
   await refreshAndPersistCustomerBillable(
     supabase,
     reportData as unknown as Pick<WorkReport, 'id' | 'owner_company_id' | 'customers'>,
     logs,
+    { billingQuote },
   );
 }

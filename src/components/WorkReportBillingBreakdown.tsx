@@ -47,9 +47,17 @@ type Props = {
 export default function WorkReportBillingBreakdown({ calculation }: Props) {
   const billedLines = collectDetailRows(calculation, true);
   const excludedLines = collectDetailRows(calculation, false);
+  const isQuoteFixed = calculation.billingMode === 'quote_fixed';
 
   return (
     <div className="billing-breakdown">
+      {isQuoteFixed ? (
+        <p className="muted">
+          Kiinteä tarjoushinta
+          {calculation.quoteTitle ? `: ${calculation.quoteTitle}` : ''}. Tunti- ja ajolaskentaa ei
+          käytetä asiakaslaskutuksessa.
+        </p>
+      ) : null}
       <div className="table-wrap">
         <table className="billing-table billing-table-summary">
           <thead>

@@ -19,6 +19,7 @@ import { IconPrint, IconTrash } from '../components/icons';
 import PartnerBillingRatesFields from '../components/PartnerBillingRatesFields';
 import Tooltip from '../components/Tooltip';
 import WorkReportBillingBreakdown from '../components/WorkReportBillingBreakdown';
+import WorkReportBillingQuotePanel from '../components/WorkReportBillingQuotePanel';
 import WorkReportBillingStatusMenu from '../components/WorkReportBillingStatusMenu';
 import WorkReportStatusBadges from '../components/WorkReportStatusBadges';
 import { useCompanyCustomerBillingEnabled } from '../hooks/useCompanyCustomerBillingEnabled';
@@ -104,6 +105,11 @@ import {
   shouldCalculateCustomerBilling,
 } from '../lib/workReportCustomerBilling';
 import { refreshAndPersistCustomerBillable } from '../lib/workReportCustomerBillingPersist';
+import {
+  customerUsesFixedQuote,
+  parseBillingQuoteSettings,
+  type BillingQuoteSettings,
+} from '../lib/workReportBillingQuote';
 import { refreshAndPersistPartnerBillable, markPartnerBillableRecalcNeeded } from '../lib/workReportPartnerBillingPersist';
 import {
   formatEuro,
@@ -945,6 +951,9 @@ export default function WorkReportDetailPage({ session }: Props) {
   const [billing, setBilling] = useState<WorkReportBilling | null>(null);
   const [billableCalculation, setBillableCalculation] = useState<BillableCalculation | null>(null);
   const [customerBillableCalculation, setCustomerBillableCalculation] = useState<BillableCalculation | null>(null);
+  const [billingQuoteSettings, setBillingQuoteSettings] = useState<BillingQuoteSettings>(() =>
+    parseBillingQuoteSettings({}),
+  );
   const [billableUsers, setBillableUsers] = useState<UserBillingProfile[]>([]);
   const [useCustomRates, setUseCustomRates] = useState(false);
   const [useCustomCustomerRates, setUseCustomCustomerRates] = useState(false);
@@ -1029,11 +1038,16 @@ export default function WorkReportDetailPage({ session }: Props) {
     setCustomerBillableCalculation(null);
     setBillableUsers([]);
 
-    const [{ data: reportData, error: reportError }, { data: billingData }, logsResult] =
+    const [{ data: reportData, error: reportError }, { data: billingData }, logsResult, { data: billableQuoteRow }] =
       await Promise.all([
         supabase.from('work_reports').select(REPORT_SELECT).eq('id', reportId).single(),
         supabase.from('work_report_billing').select('*').eq('work_report_id', reportId).maybeSingle(),
         fetchWorkReportDetailLogs(supabase, reportId),
+        supabase
+          .from('work_report_billable')
+          .select('billing_quote')
+          .eq('work_report_id', reportId)
+          .maybeSingle(),
       ]);
 
     if (reportError || !reportData) {
@@ -1053,6 +1067,7 @@ export default function WorkReportDetailPage({ session }: Props) {
 
     setReport(reportRow);
     setBilling((billingData as WorkReportBilling | null) ?? null);
+    setBillingQuoteSettings(parseBillingQuoteSettings(billableQuoteRow?.billing_quote ?? {}));
     setDailyLogs(logs);
     setDescriptionDraft(resolveWorkReportDescription(reportRow));
     setHeadingDraft(reportRow.heading?.trim() ?? '');
@@ -1215,9 +1230,15 @@ export default function WorkReportDetailPage({ session }: Props) {
   async function refreshCustomerBillable(
     reportRow: WorkReport,
     logs: WorkReportDailyLog[],
-    rateOptions?: { useCustomRates?: boolean; reportRates?: PartnerBillingRates },
+    rateOptions?: {
+      useCustomRates?: boolean;
+      reportRates?: PartnerBillingRates;
+      billingQuote?: BillingQuoteSettings;
+    },
   ) {
-    const billingApplies = shouldCalculateCustomerBilling(logs);
+    const billingQuote = parseBillingQuoteSettings(rateOptions?.billingQuote ?? billingQuoteSettings);
+    const useFixedQuote = customerUsesFixedQuote(billingQuote);
+    const billingApplies = useFixedQuote || shouldCalculateCustomerBilling(logs);
     if (!billingApplies) {
       setCustomerBillableCalculation(null);
       await refreshAndPersistCustomerBillable(supabase, reportRow, logs, rateOptions);
@@ -1251,7 +1272,10 @@ export default function WorkReportDetailPage({ session }: Props) {
     setUseCustomCustomerRates(storedUseCustom);
     setCustomerReportRatesDraft(storedUseCustom ? storedOverride : { ...companyDefaults, ...rates });
 
-    const calculation = await refreshAndPersistCustomerBillable(supabase, reportRow, logs, rateOptions);
+    const calculation = await refreshAndPersistCustomerBillable(supabase, reportRow, logs, {
+      ...rateOptions,
+      billingQuote: rateOptions?.billingQuote ?? billingQuoteSettings,
+    });
     setCustomerBillableCalculation(calculation);
 
     const { data: billingRowUpdated } = await supabase
@@ -1263,6 +1287,12 @@ export default function WorkReportDetailPage({ session }: Props) {
     if (billingRowUpdated) {
       setBilling((prev) => ({ ...(prev ?? {}), ...(billingRowUpdated as WorkReportBilling) }));
     }
+  }
+
+  async function handleBillingQuoteSaved(settings: BillingQuoteSettings) {
+    setBillingQuoteSettings(settings);
+    if (!report) return;
+    await refreshCustomerBillable(report, dailyLogs, { billingQuote: settings });
   }
 
   async function saveCustomerReportRates() {
@@ -2865,6 +2895,23 @@ export default function WorkReportDetailPage({ session }: Props) {
         </CollapsibleSection>
       )}
 
+      {(showOutgoingPartnerBilling || showCustomerMoneyBilling) && report && (
+        <WorkReportBillingQuotePanel
+          workReportId={report.id}
+          customerId={report.customer_id}
+          ownerCompanyId={report.owner_company_id}
+          installationCostNet={billableCalculation?.grandTotal ?? null}
+          initialSettings={billingQuoteSettings}
+          showPartnerMargin={!!showOutgoingPartnerBilling}
+          showCustomerQuoteMode={!!showCustomerMoneyBilling && !!canManageCustomerBillingRates}
+          readOnly={!showOutgoingPartnerBilling && !canManageCustomerBillingRates}
+          printHref={
+            showOutgoingPartnerBilling ? `/tyoraportit/${report.id}/laskutus/tuloste` : undefined
+          }
+          onSaved={(settings) => void handleBillingQuoteSaved(settings)}
+        />
+      )}
+
       {showCustomerMoneyBilling && customerBillableCalculation && (
         <CollapsibleSection
           title={`Asiakkaalta laskutettava · ${formatEuro(customerBillableCalculation.grandTotal)}`}
@@ -2875,15 +2922,27 @@ export default function WorkReportDetailPage({ session }: Props) {
           <div className="billing-rates-bar">
             <p className="muted" style={{ margin: 0 }}>
               Asiakas: <strong>{report.customers?.name ?? '—'}</strong>
-              {' · '}
-              <Tooltip label="Hinta haetaan raportin omistavan yrityksen asiakashinnoista, ellei raporttikohtaisia hintoja ole päällä.">
-                <span>
-                  {BILLABLE_RATES_SOURCE_LABELS[customerBillableCalculation.ratesSource]} · tunti{' '}
-                  {formatEuro(customerBillableCalculation.ratesUsed.hourly_regular)}
-                </span>
-              </Tooltip>
+              {customerBillableCalculation.billingMode === 'quote_fixed' ? (
+                <>
+                  {' · '}
+                  <strong>Kiinteä tarjoushinta</strong>
+                  {customerBillableCalculation.quoteTitle
+                    ? ` · ${customerBillableCalculation.quoteTitle}`
+                    : ''}
+                </>
+              ) : (
+                <>
+                  {' · '}
+                  <Tooltip label="Hinta haetaan raportin omistavan yrityksen asiakashinnoista, ellei raporttikohtaisia hintoja ole päällä.">
+                    <span>
+                      {BILLABLE_RATES_SOURCE_LABELS[customerBillableCalculation.ratesSource]} · tunti{' '}
+                      {formatEuro(customerBillableCalculation.ratesUsed.hourly_regular)}
+                    </span>
+                  </Tooltip>
+                </>
+              )}
             </p>
-            {canManageCustomerBillingRates ? (
+            {canManageCustomerBillingRates && customerBillableCalculation.billingMode !== 'quote_fixed' ? (
               <Tooltip label="Poikkea vain tämän raportin asiakashinnoista.">
                 <label className="compact-option">
                   <input
@@ -2905,7 +2964,9 @@ export default function WorkReportDetailPage({ session }: Props) {
             </p>
           )}
 
-          {canManageCustomerBillingRates && useCustomCustomerRates && (
+          {canManageCustomerBillingRates
+            && customerBillableCalculation.billingMode !== 'quote_fixed'
+            && useCustomCustomerRates && (
             <div className="billing-rates-inline">
               <PartnerBillingRatesFields
                 rates={customerReportRatesDraft}
@@ -2925,7 +2986,9 @@ export default function WorkReportDetailPage({ session }: Props) {
             </div>
           )}
 
-          {hasZeroHourlyRates(customerBillableCalculation) && billableHoursQty(customerBillableCalculation) > 0 && (
+          {customerBillableCalculation.billingMode !== 'quote_fixed'
+            && hasZeroHourlyRates(customerBillableCalculation)
+            && billableHoursQty(customerBillableCalculation) > 0 && (
             <p className="error">
               Asiakkaan tuntihinta on 0 € — {billableHoursQty(customerBillableCalculation).toFixed(2)} h kirjattu.
               {useCustomCustomerRates

@@ -64,6 +64,10 @@ export type BillableCalculation = {
   byUser: BillableUserSummary[];
   grandTotal: number;
   excludedTotal: number;
+  /** Kiinteä tarjoushinta asiakkaalle — ei tunti-/ajolaskentaa. */
+  billingMode?: 'daily_log' | 'quote_fixed';
+  quoteRequestId?: string | null;
+  quoteTitle?: string | null;
 };
 
 export type WorkReportBillableRow = {
