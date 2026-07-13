@@ -5,6 +5,14 @@ export type WorkReportPrintMode = 'customer' | 'internal';
 import { formatEuro } from './workReportBilling';
 import { BILLABLE_RATES_SOURCE_LABELS } from './management';
 import {
+  billingQuoteHasData,
+  computePartnerNetMargin,
+  customerUsesFixedQuote,
+  parseBillingQuoteSettings,
+  quoteHasVat,
+  type BillingQuoteSettings,
+} from './workReportBillingQuote';
+import {
   formatRefrigerantLineLabel,
   refrigerantBillingReminder,
   refrigerantCustomerUnitPrice,
@@ -135,7 +143,33 @@ function formatBillablePriceCell(unitPrice: number, priceMissing?: boolean): str
 function customerBillingPrintSection(
   customerCalculation: BillableCalculation,
   customerLabel: string,
+  billingQuote?: BillingQuoteSettings | null,
 ): string {
+  const isQuoteFixed = customerCalculation.billingMode === 'quote_fixed';
+
+  if (isQuoteFixed) {
+    const quoteTitle = customerCalculation.quoteTitle ?? billingQuote?.quote_title ?? 'Tarjous';
+    const vatRate = Number(billingQuote?.quote_vat_rate) || 0;
+    const vatNote = quoteHasVat(vatRate) ? ` (sis. ALV ${vatRate} %)` : ' (alv 0 %)';
+    return printBox(
+      'Asiakkaalta laskutettava',
+      `<p class="meta-line">Asiakas: <strong>${esc(customerLabel)}</strong></p>
+      <p class="meta-line">Kiinteä tarjoushinta — tunti- ja ajolaskentaa ei käytetä.</p>
+      <table>
+        <thead>
+          <tr><th>Tarjous</th><th class="num">Summa</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>${esc(quoteTitle)}${esc(vatNote)}</td>
+            <td class="num"><strong>${formatEuro(customerCalculation.grandTotal)}</strong></td>
+          </tr>
+        </tbody>
+      </table>
+      <p class="grand-total"><strong>Asiakkaalta laskutettava yhteensä: ${formatEuro(customerCalculation.grandTotal)}</strong></p>`,
+    );
+  }
+
   const detailRows = customerCalculation.byUser
     .flatMap((user) =>
       user.lines
@@ -186,6 +220,59 @@ function customerBillingPrintSection(
   );
 }
 
+function quoteMarginPrintSection(
+  billingQuote: BillingQuoteSettings,
+  partnerCalculation: BillableCalculation | null,
+): string {
+  if (!billingQuoteHasData(billingQuote)) return '';
+
+  const partnerMargin = partnerCalculation
+    ? computePartnerNetMargin(billingQuote, partnerCalculation.grandTotal)
+    : null;
+
+  const rows: string[] = [];
+  if (billingQuote.quote_title?.trim()) {
+    rows.push(`<tr><td>Tarjous</td><td>${esc(billingQuote.quote_title.trim())}</td></tr>`);
+  }
+  if (billingQuote.quote_sale_net != null) {
+    rows.push(
+      `<tr><td>Tarjoushinta (alv 0 %)</td><td class="num">${formatEuro(billingQuote.quote_sale_net)}</td></tr>`,
+    );
+  }
+  if (partnerMargin) {
+    rows.push(
+      `<tr><td>Asennuskulut (työ + ajot + kulut)</td><td class="num">− ${formatEuro(partnerMargin.installationCostNet)}</td></tr>`,
+      `<tr><td>Tarjouksen hankinta (alv 0 %)</td><td class="num">${formatEuro(partnerMargin.quotePurchaseNet)}</td></tr>`,
+      `<tr><td>Todellinen hankinta (alv 0 %)</td><td class="num">− ${formatEuro(partnerMargin.actualPurchaseNet)}</td></tr>`,
+      `<tr class="profit-row"><td><strong>Puhdas kate</strong></td><td class="num"><strong>${formatEuro(partnerMargin.netMarginNet)}</strong></td></tr>`,
+    );
+  } else if (billingQuote.quote_purchase_net != null) {
+    rows.push(
+      `<tr><td>Tarjouksen hankinta (alv 0 %)</td><td class="num">${formatEuro(billingQuote.quote_purchase_net)}</td></tr>`,
+    );
+    if (billingQuote.actual_purchase_net != null) {
+      rows.push(
+        `<tr><td>Todellinen hankinta (alv 0 %)</td><td class="num">${formatEuro(billingQuote.actual_purchase_net)}</td></tr>`,
+      );
+    }
+  }
+
+  if (rows.length === 0) return '';
+
+  return printBox(
+    'Tarjous ja kate',
+    `<table>
+      <tbody>${rows.join('')}</tbody>
+    </table>
+    ${
+      partnerMargin
+        ? '<p class="meta-line">Kate = tarjoushinta − asennuskulut − todellinen hankinta.</p>'
+        : ''
+    }
+    ${billingQuote.notes?.trim() ? `<p class="meta-line">Huom: ${esc(billingQuote.notes.trim())}</p>` : ''}`,
+  );
+}
+
 export function generateWorkReportPrintHtml(input: {
   report: WorkReport;
   logs: WorkReportDailyLog[];
@@ -194,6 +281,7 @@ export function generateWorkReportPrintHtml(input: {
   showPartnerPrices: boolean;
   calculation: BillableCalculation | null;
   customerCalculation?: BillableCalculation | null;
+  billingQuote?: BillingQuoteSettings | null;
   meta: WorkReportPrintMeta;
   hideAssignee?: boolean;
 }) {
@@ -205,10 +293,15 @@ export function generateWorkReportPrintHtml(input: {
     showPartnerPrices,
     calculation,
     customerCalculation,
+    billingQuote: inputBillingQuote,
     meta,
     hideAssignee,
   } = input;
+  const billingQuote = parseBillingQuoteSettings(inputBillingQuote ?? {});
+  const customerQuoteFixed = customerUsesFixedQuote(billingQuote);
   const showInternalPrices = printMode === 'internal';
+  const showCustomerPricesInPrint =
+    showInternalPrices && !!customerCalculation && !customerQuoteFixed;
   const isDelegatedOrder =
     !!report.delegate_company_id && report.created_by_company_id === report.owner_company_id;
   const billedPartnerName = isDelegatedOrder
@@ -221,7 +314,7 @@ export function generateWorkReportPrintHtml(input: {
     .map((log) => {
       const expenses = log.expense_lines ?? [];
       const refrigerantLines = log.refrigerant_lines ?? [];
-      const showCustomerExpensePrices = showInternalPrices && !!customerCalculation;
+      const showCustomerExpensePrices = showCustomerPricesInPrint;
       const expenseRows = expenses
         .map((line) => {
           const label = EXPENSE_TYPE_LABELS[line.expense_type] ?? line.expense_type;
@@ -254,7 +347,7 @@ export function generateWorkReportPrintHtml(input: {
         })
         .join('');
 
-      const showCustomerRefrigerantPrices = showInternalPrices && !!customerCalculation;
+      const showCustomerRefrigerantPrices = showCustomerPricesInPrint;
       const refrigerantRows = refrigerantLines
         .map((line) => {
           const reminder = refrigerantBillingReminder(line);
@@ -281,7 +374,11 @@ export function generateWorkReportPrintHtml(input: {
         })
         .join('');
 
-      const hourSummary = formatHourEntryForPrint(log, showInternalPrices && (showPartnerPrices || !!customerCalculation));
+      const hourSummary = formatHourEntryForPrint(
+        log,
+        showInternalPrices && (showPartnerPrices || showCustomerPricesInPrint),
+        showCustomerPricesInPrint,
+      );
       const logAuthor = resolveDailyLogAuthorLabel(log);
       const logAuthorLabel = logAuthor.deleted
         ? `${logAuthor.name}*`
@@ -531,7 +628,12 @@ export function generateWorkReportPrintHtml(input: {
     showInternalPrices &&
     customerCalculation &&
     customerCalculation.byUser.some((user) => user.lines.some((line) => line.included))
-      ? customerBillingPrintSection(customerCalculation, billingCustomerName)
+      ? customerBillingPrintSection(customerCalculation, billingCustomerName, billingQuote)
+      : '';
+
+  const quoteMarginSection =
+    showInternalPrices && billingQuoteHasData(billingQuote)
+      ? quoteMarginPrintSection(billingQuote, calculation ?? null)
       : '';
 
   return `<!doctype html>
@@ -547,6 +649,7 @@ export function generateWorkReportPrintHtml(input: {
     ${detailsBox}
     ${logsBox}
     ${billingSection}
+    ${quoteMarginSection}
     ${customerBillingSection}
     <div class="footer">
       ${esc(meta.companyName)} • Tulostettu ${new Date().toLocaleString('fi-FI')}${
@@ -780,6 +883,10 @@ const PRINT_CSS = `
     font-size: 11pt;
     text-align: right;
   }
+  tr.profit-row td {
+    border-top: 2px solid var(--border-strong);
+    background: #f0fdf4;
+  }
   .billing-subheading {
     margin: 12px 0 6px;
     font-size: 10pt;
@@ -841,8 +948,12 @@ function formatPrintUserLabel(name: string, deleted?: boolean) {
   return esc(name);
 }
 
-function formatHourEntryForPrint(log: WorkReportDailyLog, showPrices: boolean) {
-  return formatHourEntry(log, { showMoney: showPrices });
+function formatHourEntryForPrint(
+  log: WorkReportDailyLog,
+  showPrices: boolean,
+  showCustomerMoney = showPrices,
+) {
+  return formatHourEntry(log, { showMoney: showPrices, showCustomerMoney });
 }
 
 function summarizeLogs(logs: WorkReportDailyLog[], showPrices: boolean) {

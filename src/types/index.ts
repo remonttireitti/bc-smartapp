@@ -705,14 +705,15 @@ export function sumDailyFixedPrice(logs: WorkReportDailyLog[]) {
   }, 0);
 }
 
-export function formatHourEntry(log: WorkReportDailyLog, options?: { showMoney?: boolean }) {
+export function formatHourEntry(log: WorkReportDailyLog, options?: { showMoney?: boolean; showCustomerMoney?: boolean }) {
   const showMoney = options?.showMoney ?? true;
+  const showCustomerMoney = options?.showCustomerMoney ?? showMoney;
   const partnerRateHint =
     showMoney && log.hourly_rate_override != null && Number(log.hourly_rate_override) > 0
       ? ` × ${Number(log.hourly_rate_override).toFixed(2)} €/h`
       : '';
   const customerRateHint =
-    showMoney && log.customer_hourly_rate_override != null && Number(log.customer_hourly_rate_override) > 0
+    showCustomerMoney && log.customer_hourly_rate_override != null && Number(log.customer_hourly_rate_override) > 0
       ? ` (asiakas ${Number(log.customer_hourly_rate_override).toFixed(2)} €/h)`
       : '';
   const rateHint = partnerRateHint || customerRateHint;

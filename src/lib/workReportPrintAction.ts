@@ -5,6 +5,12 @@ import { openPrintHtml } from './openPrintWindow';
 import { supabase } from './supabase';
 import type { BillableCalculation } from './workReportBilling';
 import { fetchWorkReportPrintLogs } from './workReportDailyLogSelect';
+import {
+  calculateWorkReportCustomerBillableFromQuote,
+  customerUsesFixedQuote,
+  parseBillingQuoteSettings,
+  type BillingQuoteSettings,
+} from './workReportBillingQuote';
 import { generateWorkReportPrintHtml, type WorkReportPrintMode } from './workReportPrintHtml';
 import type { WorkReport, WorkReportDailyLog } from '../types';
 
@@ -55,11 +61,29 @@ function resolvePrintContext(
   return { isPartnerReport, hideAssignee };
 }
 
+function resolvePrintCustomerCalculation(
+  billingQuote: BillingQuoteSettings,
+  stored: BillableCalculation | null,
+  customerName: string | null,
+): BillableCalculation | null {
+  if (customerUsesFixedQuote(billingQuote)) {
+    return (
+      calculateWorkReportCustomerBillableFromQuote({
+        settings: billingQuote,
+        customerName,
+        ratesSource: stored?.ratesSource ?? 'company_default',
+      }) ?? stored
+    );
+  }
+  return stored;
+}
+
 export async function buildWorkReportPrintHtmlDocument(input: {
   report: WorkReport;
   logs: WorkReportDailyLog[];
   calculation?: BillableCalculation | null;
   customerCalculation?: BillableCalculation | null;
+  billingQuote?: BillingQuoteSettings | null;
   printMode?: WorkReportPrintMode;
   /** @deprecated Käytä printMode='internal' */
   showPartnerPrices?: boolean;
@@ -93,6 +117,14 @@ export async function buildWorkReportPrintHtmlDocument(input: {
   const showInternalPrices = printMode === 'internal';
   const partnerCalculation =
     showInternalPrices && isPartnerReport ? (input.calculation ?? null) : null;
+  const billingQuote = parseBillingQuoteSettings(input.billingQuote ?? {});
+  const customerCalculation = showInternalPrices
+    ? resolvePrintCustomerCalculation(
+        billingQuote,
+        input.customerCalculation ?? null,
+        input.report.customers?.name ?? null,
+      )
+    : null;
 
   return generateWorkReportPrintHtml({
     report: input.report,
@@ -101,7 +133,8 @@ export async function buildWorkReportPrintHtmlDocument(input: {
     printMode,
     showPartnerPrices: showInternalPrices && isPartnerReport && !!partnerCalculation,
     calculation: partnerCalculation,
-    customerCalculation: showInternalPrices ? (input.customerCalculation ?? null) : null,
+    customerCalculation,
+    billingQuote,
     meta: { companyName, logoUrl },
     hideAssignee,
   });
@@ -124,7 +157,7 @@ export async function loadWorkReportPrintBundle(
       fetchWorkReportPrintLogs(db, reportId),
       db
         .from('work_report_billable')
-        .select('calculation, customer_calculation, customer_total')
+        .select('calculation, customer_calculation, customer_total, billing_quote')
         .eq('work_report_id', reportId)
         .maybeSingle(),
     ]);
@@ -141,14 +174,21 @@ export async function loadWorkReportPrintBundle(
   const logs = logsResult.logs;
   const { isPartnerReport } = resolvePrintContext(report, options?.viewerCompanyId);
   const calculation = (billableData?.calculation as BillableCalculation | undefined) ?? null;
-  const customerCalculation =
+  const storedCustomerCalculation =
     (billableData?.customer_calculation as BillableCalculation | undefined) ?? null;
+  const billingQuote = parseBillingQuoteSettings(billableData?.billing_quote ?? {});
+  const customerCalculation = resolvePrintCustomerCalculation(
+    billingQuote,
+    storedCustomerCalculation,
+    (reportData as { customers?: { name?: string } }).customers?.name ?? null,
+  );
 
   const html = await buildWorkReportPrintHtmlDocument({
     report,
     logs,
     calculation: isPartnerReport ? calculation : null,
     customerCalculation,
+    billingQuote,
     printMode: options?.printMode,
     showPartnerPrices: options?.showPartnerPrices,
     viewerCompanyId: options?.viewerCompanyId,
