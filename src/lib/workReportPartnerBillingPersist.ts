@@ -14,7 +14,7 @@ import {
   shouldCalculatePartnerBilling,
   type UserBillingProfile,
 } from './workReportBilling';
-import { isBillablePartnerReport, resolvePartnerBilledCompanyId } from './workReportBillingCopy';
+import { isBillablePartnerReport, resolvePartnerBilledCompanyId, shouldAutoClosePartnerKmMinimumRemainder } from './workReportBillingCopy';
 import { fetchWorkReportDetailLogs } from './workReportDailyLogSelect';
 import { findStaleBillableReportIds } from './workReportBillableStale';
 import { parseTripKmRate } from './tripKmExpense';
@@ -262,14 +262,28 @@ export async function refreshAndPersistPartnerBillable(
 
   const { data: existingBilling } = await supabase
     .from('work_report_billing')
-    .select('partner_billed_amount, partner_invoice_status')
+    .select('partner_billed_amount, partner_invoice_status, partner_billed_at')
     .eq('work_report_id', reportRow.id)
     .maybeSingle();
 
   const billedAmount = Number(existingBilling?.partner_billed_amount ?? 0);
   const grandTotal = calculation.grandTotal;
   const existingStatus = (existingBilling?.partner_invoice_status ?? 'none') as InvoiceStatus;
-  const invoiceStatus = resolvePartnerInvoiceStatus(existingStatus, grandTotal, billedAmount);
+  let invoiceStatus = resolvePartnerInvoiceStatus(existingStatus, grandTotal, billedAmount);
+  let finalBilledAmount = billedAmount;
+
+  if (
+    invoiceStatus === 'partial'
+    && shouldAutoClosePartnerKmMinimumRemainder(
+      grandTotal,
+      billedAmount,
+      existingBilling?.partner_billed_at,
+      logs,
+    )
+  ) {
+    invoiceStatus = 'paid';
+    finalBilledAmount = grandTotal;
+  }
 
   const upsertBilling: Record<string, unknown> = {
     work_report_id: reportRow.id,
@@ -279,9 +293,9 @@ export async function refreshAndPersistPartnerBillable(
   };
 
   if (invoiceStatus === 'paid') {
-    upsertBilling.partner_billed_amount = billedAmount > 0.005 ? billedAmount : grandTotal;
-  } else if (billedAmount > 0.005) {
-    upsertBilling.partner_billed_amount = billedAmount;
+    upsertBilling.partner_billed_amount = finalBilledAmount > 0.005 ? finalBilledAmount : grandTotal;
+  } else if (finalBilledAmount > 0.005) {
+    upsertBilling.partner_billed_amount = finalBilledAmount;
   }
 
   const { error: billingError } = await supabase.from('work_report_billing').upsert(upsertBilling);

@@ -20,6 +20,7 @@ import {
   refrigerantIncludedInCustomerBilling,
   refrigerantLineTotal,
 } from './refrigerantInventory';
+import { TRIP_VEHICLE_MIN_BILLING_EUR } from './tripKmExpense';
 import {
   breakdownFromBillableCalculation,
   type BillableCalculation,
@@ -229,6 +230,19 @@ export function hasUnbilledPartnerDailyLogsAfterBilling(
   partnerBilledAt: string | null | undefined,
 ): boolean {
   return resolveUnbilledPartnerDailyLogDates(dailyLogs, partnerBilledAt).length > 0;
+}
+
+/** Sulje avoin erä automaattisesti, jos se johtuu yhdestä 35 € minimilaskutuksesta eikä uusia päiviä ole lisätty. */
+export function shouldAutoClosePartnerKmMinimumRemainder(
+  grandTotal: number,
+  billedAmount: number,
+  partnerBilledAt: string | null | undefined,
+  dailyLogs: Array<{ log_date: string; created_at: string }>,
+): boolean {
+  if (billedAmount <= 0.005 || !partnerBilledAt) return false;
+  const open = Math.max(0, Math.round((grandTotal - billedAmount) * 100) / 100);
+  if (open <= 0.005 || open > TRIP_VEHICLE_MIN_BILLING_EUR) return false;
+  return !hasUnbilledPartnerDailyLogsAfterBilling(dailyLogs, partnerBilledAt);
 }
 
 export function resolvePartnerBillingAmounts(
