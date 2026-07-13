@@ -5,12 +5,17 @@ import {
   billingQuoteHasData,
   computePartnerNetMargin,
   loadBillingQuoteOptions,
+  normalizeBillingQuoteSettings,
   parseBillingQuoteSettings,
   quoteHasVat,
+  resolveActualPurchaseTotal,
+  resolveQuotePurchaseTotal,
   saveBillingQuoteSettings,
   type BillingQuoteOption,
+  type BillingQuotePurchaseLine,
   type BillingQuoteSettings,
 } from '../lib/workReportBillingQuote';
+import { extractQuotePurchaseLines } from '../lib/quotePurchaseLines';
 import { formatEuro } from '../lib/workReportBilling';
 import { supabase } from '../lib/supabase';
 
@@ -84,6 +89,28 @@ export default function WorkReportBillingQuotePanel({
     };
   }, [customerId, ownerCompanyId, readOnly]);
 
+  useEffect(() => {
+    if (!settings.quote_request_id || (settings.purchase_lines?.length ?? 0) > 0 || readOnly) return;
+    let cancelled = false;
+    void supabase
+      .from('quote_requests')
+      .select('data')
+      .eq('id', settings.quote_request_id)
+      .single()
+      .then(({ data }) => {
+        if (cancelled || !data) return;
+        setSettings((prev) =>
+          normalizeBillingQuoteSettings({
+            ...prev,
+            purchase_lines: extractQuotePurchaseLines(data.data),
+          }),
+        );
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [settings.quote_request_id, settings.purchase_lines?.length, readOnly]);
+
   const partnerMargin = useMemo(
     () =>
       installationCostNet != null
@@ -100,22 +127,37 @@ export default function WorkReportBillingQuotePanel({
       .single()
       .then(({ data }) => {
         if (!data) return;
-        setSettings((prev) => ({
-          ...billingQuoteFromQuoteRow(option.id, option.title, data.data, {
+        setSettings((prev) =>
+          billingQuoteFromQuoteRow(option.id, option.title, data.data, {
             fixedCustomerBilling: prev.customer_mode !== 'daily_log',
+            previous: prev,
           }),
-          notes: prev.notes ?? null,
-          actual_purchase_net: prev.actual_purchase_net ?? option.quote_purchase_net,
-        }));
+        );
       });
     setExpanded(true);
+  }
+
+  function updatePurchaseLine(id: string, actualPurchaseNet: number | null) {
+    setSettings((prev) =>
+      normalizeBillingQuoteSettings({
+        ...prev,
+        purchase_lines: (prev.purchase_lines ?? []).map((line) =>
+          line.id === id
+            ? {
+                ...line,
+                actual_purchase_net: actualPurchaseNet ?? line.quote_purchase_net,
+              }
+            : line,
+        ),
+      }),
+    );
   }
 
   async function saveSettings() {
     setBusy(true);
     setError(null);
     try {
-      const payload = parseBillingQuoteSettings(settings);
+      const payload = normalizeBillingQuoteSettings(parseBillingQuoteSettings(settings));
       await saveBillingQuoteSettings(supabase, workReportId, payload);
       setSettings(payload);
       onSaved?.(payload);
@@ -131,6 +173,77 @@ export default function WorkReportBillingQuotePanel({
   const customerTotalLabel = quoteHasVat(settings.quote_vat_rate)
     ? 'Asiakkaalta laskutettava (sis. alv)'
     : 'Asiakkaalta laskutettava (alv 0 %)';
+
+  const purchaseLines = settings.purchase_lines ?? [];
+  const quotePurchaseTotal = resolveQuotePurchaseTotal(settings);
+  const actualPurchaseTotal = resolveActualPurchaseTotal(settings);
+
+  function renderPurchaseLinesTable(lines: BillingQuotePurchaseLine[], editable: boolean) {
+    if (lines.length === 0) return null;
+    return (
+      <div className="table-wrap billing-purchase-lines-wrap">
+        <h4 className="billing-breakdown-heading">Hankintakorjaukset</h4>
+        <p className="muted billing-purchase-lines-hint">
+          Tarjouksen hankintahinnat ovat vain luku -tilassa. Korjaa todelliset hankintakulut raportilla.
+        </p>
+        <table className="billing-table billing-purchase-lines-table">
+          <thead>
+            <tr>
+              <th>Rivi</th>
+              <th className="num">Tarjous hankinta</th>
+              <th className="num">Todellinen hankinta</th>
+            </tr>
+          </thead>
+          <tbody>
+            {lines.map((line) => {
+              const changed = line.actual_purchase_net !== line.quote_purchase_net;
+              return (
+                <tr key={line.id} className={changed ? 'billing-purchase-line-changed' : undefined}>
+                  <td>
+                    {line.label}
+                    {line.quantity != null && line.unit ? (
+                      <span className="muted">
+                        {' '}
+                        · {line.quantity} {line.unit}
+                      </span>
+                    ) : null}
+                  </td>
+                  <td className="num">{formatEuro(line.quote_purchase_net)}</td>
+                  <td className="num">
+                    {editable ? (
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        className="billing-purchase-line-input"
+                        value={moneyInputValue(line.actual_purchase_net)}
+                        disabled={busy}
+                        onChange={(e) => updatePurchaseLine(line.id, parseMoneyInput(e.target.value))}
+                      />
+                    ) : (
+                      formatEuro(line.actual_purchase_net)
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+          <tfoot>
+            <tr>
+              <td>
+                <strong>Yhteensä</strong>
+              </td>
+              <td className="num">
+                <strong>{formatEuro(quotePurchaseTotal)}</strong>
+              </td>
+              <td className="num">
+                <strong>{formatEuro(actualPurchaseTotal)}</strong>
+              </td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    );
+  }
 
   return (
     <div className="billing-margin-panel">
@@ -252,36 +365,16 @@ export default function WorkReportBillingQuotePanel({
               </label>
 
               <label className="form-field">
-                <span>Tarjouksen hankinta (alv 0 %)</span>
-                <input
-                  type="text"
-                  inputMode="decimal"
-                  value={moneyInputValue(settings.quote_purchase_net)}
-                  disabled={busy}
-                  onChange={(e) =>
-                    setSettings((prev) => ({
-                      ...prev,
-                      quote_purchase_net: parseMoneyInput(e.target.value),
-                    }))
-                  }
-                />
+                <span>Tarjouksen hankinta yhteensä (alv 0 %)</span>
+                <input type="text" value={formatEuro(quotePurchaseTotal)} disabled readOnly />
               </label>
 
               <label className="form-field">
-                <span>Todellinen hankinta (alv 0 %)</span>
-                <input
-                  type="text"
-                  inputMode="decimal"
-                  value={moneyInputValue(settings.actual_purchase_net)}
-                  disabled={busy}
-                  onChange={(e) =>
-                    setSettings((prev) => ({
-                      ...prev,
-                      actual_purchase_net: parseMoneyInput(e.target.value),
-                    }))
-                  }
-                />
+                <span>Todellinen hankinta yhteensä (alv 0 %)</span>
+                <input type="text" value={formatEuro(actualPurchaseTotal)} disabled readOnly />
               </label>
+
+              <div className="span-2">{renderPurchaseLinesTable(purchaseLines, true)}</div>
 
               <label className="form-field span-2">
                 <span>Huomio kumppanille</span>
@@ -335,14 +428,14 @@ export default function WorkReportBillingQuotePanel({
               ) : null}
               {settings.quote_purchase_net != null ? (
                 <>
-                  <dt>Tarjouksen hankinta (alv 0 %)</dt>
-                  <dd>{formatEuro(settings.quote_purchase_net)}</dd>
+                  <dt>Tarjouksen hankinta yhteensä (alv 0 %)</dt>
+                  <dd>{formatEuro(quotePurchaseTotal)}</dd>
                 </>
               ) : null}
               {settings.actual_purchase_net != null ? (
                 <>
-                  <dt>Todellinen hankinta (alv 0 %)</dt>
-                  <dd>{formatEuro(settings.actual_purchase_net)}</dd>
+                  <dt>Todellinen hankinta yhteensä (alv 0 %)</dt>
+                  <dd>{formatEuro(actualPurchaseTotal)}</dd>
                 </>
               ) : null}
               {settings.notes?.trim() ? (
@@ -353,6 +446,8 @@ export default function WorkReportBillingQuotePanel({
               ) : null}
             </dl>
           )}
+
+          {renderPurchaseLinesTable(purchaseLines, false)}
 
           {showPartnerMargin && partnerMargin ? (
             <div className="table-wrap">
@@ -368,7 +463,7 @@ export default function WorkReportBillingQuotePanel({
                     <td className="num">− {formatEuro(partnerMargin.installationCostNet)}</td>
                   </tr>
                   <tr>
-                    <td>Todellinen hankinta (alv 0 %)</td>
+                    <td>Todellinen hankinta yhteensä (alv 0 %)</td>
                     <td className="num">− {formatEuro(partnerMargin.actualPurchaseNet)}</td>
                   </tr>
                   <tr className="billing-margin-total">

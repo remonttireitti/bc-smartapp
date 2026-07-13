@@ -10,6 +10,7 @@ import {
   customerUsesFixedQuote,
   parseBillingQuoteSettings,
   quoteHasVat,
+  renderBillingQuotePurchaseLinesHtml,
   type BillingQuoteSettings,
 } from './workReportBillingQuote';
 import {
@@ -257,11 +258,16 @@ function quoteMarginPrintSection(
     }
   }
 
-  if (rows.length === 0) return '';
+  const purchaseLinesHtml = renderBillingQuotePurchaseLinesHtml(billingQuote.purchase_lines ?? [], {
+    escapeHtml: esc,
+  });
+
+  if (rows.length === 0 && !purchaseLinesHtml) return '';
 
   return printBox(
     'Tarjous ja kate',
-    `<table>
+    `${purchaseLinesHtml}
+    <table>
       <tbody>${rows.join('')}</tbody>
     </table>
     ${
@@ -886,6 +892,9 @@ const PRINT_CSS = `
   tr.profit-row td {
     border-top: 2px solid var(--border-strong);
     background: #f0fdf4;
+  }
+  tr.changed-row td {
+    background: #fffbeb;
   }
   .billing-subheading {
     margin: 12px 0 6px;

@@ -8088,6 +8088,33 @@ textarea {
   font-size: 0.88rem;
 }
 
+.billing-purchase-lines-wrap {
+  margin-top: 0.35rem;
+}
+
+.billing-purchase-lines-hint {
+  margin: 0 0 0.65rem;
+  font-size: 0.88rem;
+}
+
+.billing-purchase-lines-table tfoot td {
+  border-top: 2px solid var(--border-color, #d1d5db);
+}
+
+.billing-purchase-line-changed td {
+  background: #fffbeb;
+}
+
+.billing-purchase-line-input {
+  width: 100%;
+  max-width: 8rem;
+  text-align: right;
+  padding: 0.35rem 0.45rem;
+  border: 1px solid var(--border-color, #d1d5db);
+  border-radius: 0.4rem;
+  font: inherit;
+}
+
 .billing-table-detail th,
 .billing-table-detail td {
   font-size: 0.88rem;

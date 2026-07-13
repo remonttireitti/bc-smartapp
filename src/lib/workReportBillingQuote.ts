@@ -4,6 +4,15 @@ import { normalizeQuoteRequestData } from './quoteRequest/defaults';
 import type { BillableRatesSource } from './management';
 import type { BillableCalculation } from './workReportBilling';
 import { formatEuro } from './workReportBilling';
+import {
+  extractQuotePurchaseLines,
+  mergeQuotePurchaseLines,
+  parseBillingQuotePurchaseLines,
+  sumQuotePurchaseLines,
+  type BillingQuotePurchaseLine,
+} from './quotePurchaseLines';
+
+export type { BillingQuotePurchaseLine } from './quotePurchaseLines';
 
 export type CustomerBillingMode = 'daily_log' | 'quote_fixed';
 
@@ -21,6 +30,8 @@ export type BillingQuoteSettings = {
   customer_mode?: CustomerBillingMode;
   quote_vat_rate?: number | null;
   notes?: string | null;
+  /** Tarjouksen hankintarivit — korjattavissa vain työraportilla. */
+  purchase_lines?: BillingQuotePurchaseLine[];
 };
 
 export type BillingQuoteOption = {
@@ -60,7 +71,8 @@ export function parseBillingQuoteSettings(raw: unknown): BillingQuoteSettings {
     return Number.isFinite(parsed) ? roundMoney(parsed) : null;
   };
   const mode = record.customer_mode === 'quote_fixed' ? 'quote_fixed' : 'daily_log';
-  return {
+  const purchaseLines = parseBillingQuotePurchaseLines(record.purchase_lines);
+  const settings: BillingQuoteSettings = {
     quote_request_id:
       typeof record.quote_request_id === 'string' && record.quote_request_id.trim()
         ? record.quote_request_id.trim()
@@ -76,7 +88,43 @@ export function parseBillingQuoteSettings(raw: unknown): BillingQuoteSettings {
     customer_mode: mode,
     quote_vat_rate: num('quote_vat_rate'),
     notes: typeof record.notes === 'string' ? record.notes : null,
+    purchase_lines: purchaseLines.length > 0 ? purchaseLines : undefined,
   };
+  return normalizeBillingQuoteSettings(settings);
+}
+
+export function normalizeBillingQuoteSettings(settings: BillingQuoteSettings): BillingQuoteSettings {
+  const lines = settings.purchase_lines ?? [];
+  if (lines.length > 0) {
+    const normalizedLines = lines.map((line) => ({
+      ...line,
+      quote_purchase_net: roundMoney(line.quote_purchase_net),
+      actual_purchase_net: roundMoney(line.actual_purchase_net ?? line.quote_purchase_net),
+    }));
+    return {
+      ...settings,
+      purchase_lines: normalizedLines,
+      quote_purchase_net: sumQuotePurchaseLines(normalizedLines, 'quote_purchase_net'),
+      actual_purchase_net: sumQuotePurchaseLines(normalizedLines, 'actual_purchase_net'),
+    };
+  }
+  return settings;
+}
+
+export function resolveQuotePurchaseTotal(settings: BillingQuoteSettings): number {
+  const normalized = normalizeBillingQuoteSettings(parseBillingQuoteSettings(settings));
+  if (normalized.purchase_lines?.length) {
+    return sumQuotePurchaseLines(normalized.purchase_lines, 'quote_purchase_net');
+  }
+  return roundMoney(normalized.quote_purchase_net ?? 0);
+}
+
+export function resolveActualPurchaseTotal(settings: BillingQuoteSettings): number {
+  const normalized = normalizeBillingQuoteSettings(parseBillingQuoteSettings(settings));
+  if (normalized.purchase_lines?.length) {
+    return sumQuotePurchaseLines(normalized.purchase_lines, 'actual_purchase_net');
+  }
+  return roundMoney(normalized.actual_purchase_net ?? normalized.quote_purchase_net ?? 0);
 }
 
 export function billingQuoteHasData(settings: BillingQuoteSettings): boolean {
@@ -84,6 +132,7 @@ export function billingQuoteHasData(settings: BillingQuoteSettings): boolean {
     !!settings.quote_request_id
     || settings.quote_sale_net != null
     || settings.customer_invoice_total != null
+    || (settings.purchase_lines?.length ?? 0) > 0
     || !!settings.notes?.trim()
   );
 }
@@ -114,8 +163,8 @@ export function computePartnerNetMargin(
   const quoteSaleNet = settings.quote_sale_net;
   if (quoteSaleNet == null || quoteSaleNet <= 0) return null;
 
-  const actualPurchaseNet = settings.actual_purchase_net ?? settings.quote_purchase_net ?? 0;
-  const quotePurchaseNet = settings.quote_purchase_net ?? actualPurchaseNet;
+  const actualPurchaseNet = resolveActualPurchaseTotal(settings);
+  const quotePurchaseNet = resolveQuotePurchaseTotal(settings);
   const installation = roundMoney(Math.max(0, installationCostNet));
 
   return {
@@ -131,7 +180,7 @@ export function billingQuoteFromQuoteRow(
   quoteId: string,
   quoteTitle: string,
   data: unknown,
-  options?: { fixedCustomerBilling?: boolean },
+  options?: { fixedCustomerBilling?: boolean; previous?: BillingQuoteSettings | null },
 ): BillingQuoteSettings {
   const normalized = normalizeQuoteRequestData(data);
   const internal = computeQuoteInternalTotals(normalized, null);
@@ -139,8 +188,12 @@ export function billingQuoteFromQuoteRow(
   const customerTotal = quoteHasVat(internal.vatRate)
     ? totals.grossTotal
     : internal.discountedSellNet;
+  const purchaseLines = mergeQuotePurchaseLines(
+    extractQuotePurchaseLines(data, null),
+    options?.previous?.purchase_lines,
+  );
 
-  return {
+  const base: BillingQuoteSettings = {
     quote_request_id: quoteId,
     quote_title: quoteTitle,
     quote_sale_net: roundMoney(internal.discountedSellNet),
@@ -149,7 +202,10 @@ export function billingQuoteFromQuoteRow(
     customer_invoice_total: roundMoney(customerTotal),
     customer_mode: options?.fixedCustomerBilling === false ? 'daily_log' : 'quote_fixed',
     quote_vat_rate: roundMoney(internal.vatRate),
+    purchase_lines: purchaseLines.length > 0 ? purchaseLines : undefined,
+    notes: options?.previous?.notes ?? null,
   };
+  return normalizeBillingQuoteSettings(base);
 }
 
 export async function loadBillingQuoteOptions(
@@ -204,7 +260,7 @@ export async function saveBillingQuoteSettings(
   workReportId: string,
   settings: BillingQuoteSettings,
 ): Promise<void> {
-  const payload = parseBillingQuoteSettings(settings);
+  const payload = normalizeBillingQuoteSettings(parseBillingQuoteSettings(settings));
   const { error } = await supabase
     .from('work_report_billable')
     .update({ billing_quote: payload })
@@ -291,6 +347,13 @@ export function formatPartnerMarginLines(
     `Todellinen hankinta (alv 0 %): ${formatEuro(computed.actualPurchaseNet)}`,
     `Puhdas kate: ${formatEuro(computed.netMarginNet)}`,
   ];
+  for (const line of settings.purchase_lines ?? []) {
+    if (line.actual_purchase_net !== line.quote_purchase_net) {
+      lines.push(
+        `${line.label}: tarjous ${formatEuro(line.quote_purchase_net)} → todellinen ${formatEuro(line.actual_purchase_net)}`,
+      );
+    }
+  }
   if (settings.quote_title?.trim()) {
     lines.splice(1, 0, `Tarjous: ${settings.quote_title.trim()}`);
   }
@@ -298,4 +361,40 @@ export function formatPartnerMarginLines(
     lines.push(`Huom: ${settings.notes.trim()}`);
   }
   return lines;
+}
+
+export function renderBillingQuotePurchaseLinesHtml(
+  lines: BillingQuotePurchaseLine[],
+  options?: { escapeHtml?: (value: string) => string },
+): string {
+  if (lines.length === 0) return '';
+  const esc = options?.escapeHtml ?? ((value: string) => value);
+  const rows = lines
+    .map((line) => {
+      const qtyLabel =
+        line.quantity != null && line.unit
+          ? `<div class="line-sub">${esc(String(line.quantity))} ${esc(line.unit)}</div>`
+          : '';
+      const changed = line.actual_purchase_net !== line.quote_purchase_net;
+      return `<tr${changed ? ' class="changed-row"' : ''}>
+        <td>${esc(line.label)}${qtyLabel}</td>
+        <td class="num">${formatEuro(line.quote_purchase_net)}</td>
+        <td class="num">${formatEuro(line.actual_purchase_net)}</td>
+      </tr>`;
+    })
+    .join('');
+  return `<h3 class="billing-subheading">Hankintakorjaukset</h3>
+  <table>
+    <thead>
+      <tr><th>Rivi</th><th class="num">Tarjous hankinta</th><th class="num">Todellinen hankinta</th></tr>
+    </thead>
+    <tbody>${rows}</tbody>
+    <tfoot>
+      <tr>
+        <td><strong>Yhteensä</strong></td>
+        <td class="num"><strong>${formatEuro(sumQuotePurchaseLines(lines, 'quote_purchase_net'))}</strong></td>
+        <td class="num"><strong>${formatEuro(sumQuotePurchaseLines(lines, 'actual_purchase_net'))}</strong></td>
+      </tr>
+    </tfoot>
+  </table>`;
 }

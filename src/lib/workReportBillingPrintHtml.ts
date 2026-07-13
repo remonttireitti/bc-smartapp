@@ -4,6 +4,7 @@ import { BILLABLE_RATES_SOURCE_LABELS } from './management';
 import {
   computePartnerNetMargin,
   parseBillingQuoteSettings,
+  renderBillingQuotePurchaseLinesHtml,
   type BillingQuoteSettings,
 } from './workReportBillingQuote';
 
@@ -117,12 +118,13 @@ export function generatePartnerBillingHtml(input: {
   <p class="total"><strong>Laskutettava yhteensä: ${formatEuro(calculation.grandTotal)}</strong></p>
   ${
     partnerMargin
-      ? `<h2>Kate tarjouksesta</h2>
+      ? `${renderBillingQuotePurchaseLinesHtml(billingQuote.purchase_lines ?? [], { escapeHtml })}
+  <h2>Kate tarjouksesta</h2>
   <table>
     <tbody>
       <tr><td>Tarjoushinta (alv 0 %)</td><td class="num">${formatEuro(partnerMargin.quoteSaleNet)}</td></tr>
       <tr><td>Asennuskulut (työ + ajot + kulut)</td><td class="num">− ${formatEuro(partnerMargin.installationCostNet)}</td></tr>
-      <tr><td>Todellinen hankinta (alv 0 %)</td><td class="num">− ${formatEuro(partnerMargin.actualPurchaseNet)}</td></tr>
+      <tr><td>Todellinen hankinta yhteensä (alv 0 %)</td><td class="num">− ${formatEuro(partnerMargin.actualPurchaseNet)}</td></tr>
       <tr><td><strong>Puhdas kate</strong></td><td class="num"><strong>${formatEuro(partnerMargin.netMarginNet)}</strong></td></tr>
     </tbody>
   </table>
