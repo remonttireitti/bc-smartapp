@@ -37,7 +37,8 @@ export default function DailyLogTripLegFields({
 }: Props) {
   const { returnLabel } = tripDeparture;
   const totalKm = sumTripLegDraftKm(drafts);
-  const returnLegIndex = findReturnLegIndex(drafts, returnLabel);
+  const returnLegIndex = findReturnLegIndex(drafts, tripDeparture);
+  const effectiveReturnLabel = drafts[0]?.from_label?.trim() || returnLabel;
   const [busy, setBusy] = useState(false);
   const [rowBusyKey, setRowBusyKey] = useState<string | null>(null);
   const [calcError, setCalcError] = useState<string | null>(null);
@@ -139,15 +140,16 @@ export default function DailyLogTripLegFields({
           <button
             type="button"
             className="btn btn-secondary"
-            disabled={busy || rowBusyKey != null || !returnLabel.trim()}
+            disabled={busy || rowBusyKey != null || !effectiveReturnLabel.trim()}
             onClick={() => setDrafts(insertIntermediateTripLeg(drafts, tripDeparture))}
           >
             + Lisää väliajo
           </button>
       </div>
       <p className="muted trip-leg-hint">
-        Laske matka toimipisteestä/kodista kohteeseen, tarvittaessa väliajo ja paluu toimipisteeseen/kotiin.
-        Kirjoita kohteeseen — ehdotukset haetaan rekisteristä. Paluumatka lisätään aina viimeiseksi ja km lasketaan heti.
+        Laske matka lähtöpisteestä kohteeseen, tarvittaessa väliajo ja paluu lähtöpisteeseen.
+        Kirjoita lähtöön ja kohteeseen — ehdotukset haetaan asiakasrekisteristä, tallennetuista kohteista ja profiilin osoitteista.
+        Paluumatka lisätään aina viimeiseksi ja km lasketaan heti.
         Alle 35 € ajomatkat laskutetaan minimilaskutuksella huoltoautosta.
         {formatTripKmRateLabel(tripKmRate)
           ? ` Km-korvausrivi (${formatTripKmRateLabel(tripKmRate)}) päivittyy kulut-osiossa automaattisesti.`
@@ -160,7 +162,7 @@ export default function DailyLogTripLegFields({
         drafts.map((row, index) => {
           const rowBusy = rowBusyKey === row.key;
           const isFirstLeg = index === 0;
-          const isReturnLeg = isReturnToDepartureLeg(row, returnLabel) && index === returnLegIndex;
+          const isReturnLeg = isReturnToDepartureLeg(row, effectiveReturnLabel) && index === returnLegIndex;
           const canAddReturn =
             !isReturnLeg &&
             row.to_label.trim().length > 0 &&
@@ -168,16 +170,26 @@ export default function DailyLogTripLegFields({
 
           return (
             <div key={row.key} className={`trip-leg-row${isReturnLeg ? ' trip-leg-row-return' : ''}`}>
-              <label>
-                Lähtö
-                <input
+              {isFirstLeg ? (
+                <TripDestinationInput
+                  label="Lähtö"
                   value={row.from_label}
-                  readOnly={isFirstLeg || isReturnLeg}
-                  disabled={isFirstLeg || isReturnLeg || busy || rowBusy}
-                  onChange={(event) => patchLeg(index, { from_label: event.target.value })}
-                  placeholder="Toimipiste tai koti"
+                  placeholder="Kirjoita tai valitse lähtö"
+                  options={destinationOptions}
+                  disabled={busy || rowBusy}
+                  onChange={(value) => patchLeg(index, { from_label: value })}
                 />
-              </label>
+              ) : (
+                <label>
+                  Lähtö
+                  <input
+                    value={row.from_label}
+                    readOnly
+                    disabled
+                    placeholder="Edellinen kohde"
+                  />
+                </label>
+              )}
               {isReturnLeg ? (
                 <label>
                   Kohde

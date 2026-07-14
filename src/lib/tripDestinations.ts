@@ -61,10 +61,45 @@ export async function loadTripDestinations(supabase: SupabaseClient, companyId: 
   return (data as TripDestination[]) ?? [];
 }
 
+export type TripLocationProfileOptions = {
+  workplaceAddress?: string | null;
+  homeAddress?: string | null;
+};
+
+export function prependProfileTripLocationOptions(
+  options: TripDestinationOption[],
+  profile?: TripLocationProfileOptions,
+): TripDestinationOption[] {
+  const extra: TripDestinationOption[] = [];
+  const workplace = profile?.workplaceAddress?.trim();
+  const home = profile?.homeAddress?.trim();
+  if (workplace) {
+    extra.push({
+      id: 'profile-workplace',
+      label: 'Toimipaikka',
+      address: workplace,
+      group: 'custom',
+    });
+  }
+  if (home) {
+    extra.push({
+      id: 'profile-home',
+      label: 'Koti',
+      address: home,
+      group: 'custom',
+    });
+  }
+
+  const seen = new Set(extra.map((option) => option.address.toLowerCase()));
+  const rest = options.filter((option) => !seen.has(option.address.toLowerCase()));
+  return [...extra, ...rest];
+}
+
 export async function loadTripDestinationOptions(
   supabase: SupabaseClient,
   companyId: string,
   reportCustomer?: { id: string; name: string; address?: string | null; city?: string | null } | null,
+  profile?: TripLocationProfileOptions,
 ): Promise<TripDestinationOption[]> {
   const [destinations, customersResult] = await Promise.all([
     loadTripDestinations(supabase, companyId),
@@ -110,7 +145,7 @@ export async function loadTripDestinationOptions(
     });
   }
 
-  return options;
+  return prependProfileTripLocationOptions(options, profile);
 }
 
 export function filterTripDestinationOptions(

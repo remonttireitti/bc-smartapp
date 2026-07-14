@@ -106,26 +106,53 @@ export function isReturnToDepartureLeg(leg: TripLegDraft, returnLabel: string): 
   return labelsMatch(leg.to_label, returnLabel);
 }
 
-export function findReturnLegIndex(drafts: TripLegDraft[], returnLabel: string): number {
+export function resolveEffectiveReturnLabel(
+  drafts: TripLegDraft[],
+  departure: TripLegDeparture,
+): string {
+  const firstFrom = drafts[0]?.from_label?.trim();
+  return firstFrom || departure.returnLabel || departure.startLabel;
+}
+
+export function findReturnLegIndex(drafts: TripLegDraft[], departure: TripLegDeparture): number {
   if (drafts.length <= 1) return -1;
   const lastIndex = drafts.length - 1;
-  return isReturnToDepartureLeg(drafts[lastIndex], returnLabel) ? lastIndex : -1;
+  const last = drafts[lastIndex];
+  const effectiveReturn = resolveEffectiveReturnLabel(drafts, departure);
+  if (
+    isReturnToDepartureLeg(last, departure.returnLabel)
+    || isReturnToDepartureLeg(last, effectiveReturn)
+  ) {
+    return lastIndex;
+  }
+  return -1;
 }
 
 export function normalizeTripLegDrafts(drafts: TripLegDraft[], departure: TripLegDeparture): TripLegDraft[] {
   if (drafts.length === 0) return drafts;
 
   const next = drafts.map((row) => ({ ...row }));
-  next[0] = { ...next[0], from_label: departure.startLabel };
+  if (!next[0].from_label.trim()) {
+    next[0] = { ...next[0], from_label: departure.startLabel };
+  }
 
-  const returnIndex = findReturnLegIndex(next, departure.returnLabel);
+  const effectiveReturn = resolveEffectiveReturnLabel(next, departure);
+  const returnIndex = findReturnLegIndex(next, departure);
   if (returnIndex > 0) {
     const previous = next[returnIndex - 1];
     next[returnIndex] = {
       ...next[returnIndex],
-      to_label: departure.returnLabel,
+      to_label: effectiveReturn,
       from_label: previous?.to_label?.trim() ? previous.to_label : next[returnIndex].from_label,
     };
+  }
+
+  for (let index = 1; index < next.length; index += 1) {
+    if (index === returnIndex) continue;
+    const previous = next[index - 1];
+    if (previous?.to_label?.trim()) {
+      next[index] = { ...next[index], from_label: previous.to_label };
+    }
   }
 
   return next;
@@ -152,7 +179,7 @@ export function appendReturnTripLeg(
   }
 
   let next = [...drafts];
-  const existingReturnIndex = findReturnLegIndex(next, departure.returnLabel);
+  const existingReturnIndex = findReturnLegIndex(next, departure);
   if (existingReturnIndex >= 0) {
     next = next.filter((_, index) => index !== existingReturnIndex);
   }
@@ -165,7 +192,7 @@ export function appendReturnTripLeg(
   const returnLeg: TripLegDraft = {
     key: crypto.randomUUID(),
     from_label: next[adjustedSourceIndex].to_label.trim(),
-    to_label: departure.returnLabel,
+    to_label: resolveEffectiveReturnLabel(next, departure),
     distance_km: '',
     bill_to_customer: next[adjustedSourceIndex].bill_to_customer,
   };
@@ -176,7 +203,7 @@ export function appendReturnTripLeg(
 }
 
 export function insertIntermediateTripLeg(drafts: TripLegDraft[], departure: TripLegDeparture): TripLegDraft[] {
-  const returnIndex = findReturnLegIndex(drafts, departure.returnLabel);
+  const returnIndex = findReturnLegIndex(drafts, departure);
   const insertAt = returnIndex >= 0 ? returnIndex : drafts.length;
   const previous = insertAt > 0 ? drafts[insertAt - 1] : null;
 

@@ -1834,6 +1834,10 @@ export default function WorkReportDetailPage({ session }: Props) {
               city: activeReport.customers.city,
             }
           : null,
+        {
+          workplaceAddress: profile.workplace_address,
+          homeAddress: profile.home_address,
+        },
       );
       setTripDestinationOptions(options);
     } catch {
