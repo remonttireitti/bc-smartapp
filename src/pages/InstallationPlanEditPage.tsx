@@ -14,6 +14,7 @@ import {
   resolveReportContextFromOwner,
 } from '../lib/reportCustomerRegistry';
 import { resolveCompanyLogoUrl } from '../lib/companyLogo';
+import { parseCompanySettings } from '../lib/management';
 import {
   createEmptyInstallationPlanData,
   installationPlanStoredTitle,
@@ -63,6 +64,9 @@ export default function InstallationPlanEditPage({ session }: Props) {
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [companyName, setCompanyName] = useState('');
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const [companySettings, setCompanySettings] = useState<ReturnType<typeof parseCompanySettings> | null>(
+    null,
+  );
 
   const selectedCustomer = customers.find((customer) => customer.id === customerId);
   const reportContext = useMemo(() => {
@@ -93,6 +97,23 @@ export default function InstallationPlanEditPage({ session }: Props) {
   }, [customers, ownerCompanyId, reportOwnerCompanyId, profile?.company_id]);
 
   const displayTitle = resolveInstallationPlanDisplayTitle(form, selectedCustomer?.name);
+
+  useEffect(() => {
+    if (!profile?.company_id || planId) return;
+    setCompanyName(profile.companies?.name ?? '');
+    void supabase
+      .from('companies')
+      .select('name, settings, logo_url')
+      .eq('id', profile.company_id)
+      .maybeSingle()
+      .then(async ({ data }) => {
+        if (!data) return;
+        const row = data as { name?: string | null; settings?: unknown; logo_url?: string | null };
+        setCompanyName(row.name ?? profile.companies?.name ?? '');
+        setCompanySettings(parseCompanySettings(row.settings));
+        setLogoUrl(await resolveCompanyLogoUrl(row.logo_url ?? null));
+      });
+  }, [profile?.company_id, profile?.companies?.name, planId]);
 
   useEffect(() => {
     if (!profile?.company_id) return;
@@ -146,6 +167,7 @@ export default function InstallationPlanEditPage({ session }: Props) {
     setReportOwnerCompanyId(row.owner_company_id);
     setSavedAt(row.updated_at);
     setCompanyName(row.branding_company?.name ?? profile?.companies?.name ?? '');
+    setCompanySettings(parseCompanySettings(row.branding_company?.settings));
     setLogoUrl(await resolveCompanyLogoUrl(row.branding_company?.logo_url ?? null));
     setAttachments(await loadInstallationPlanAttachments(planIdToLoad));
     setLoading(false);
@@ -247,11 +269,24 @@ export default function InstallationPlanEditPage({ session }: Props) {
   }
 
   async function handlePrintPreview() {
+    if (!selectedCustomer) {
+      setError('Valitse asiakas ennen esikatselua.');
+      setActiveSection('asiakas');
+      return;
+    }
     const html = generateInstallationPlanPrintHtml({
       data: form,
-      companyName: companyName || profile?.companies?.name || '—',
-      logoUrl,
-      customerName: selectedCustomer?.name,
+      customer: {
+        name: selectedCustomer.name,
+        address: selectedCustomer.address,
+        city: selectedCustomer.city,
+      },
+      meta: {
+        companyName: companyName || profile?.companies?.name || '—',
+        logoUrl,
+        settings: companySettings,
+        documentDate: savedAt,
+      },
       attachments,
     });
     await openPrintWindow(html);

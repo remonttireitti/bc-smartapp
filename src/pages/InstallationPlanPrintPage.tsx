@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
 import AppLayout from '../components/AppLayout';
 import { resolveCompanyLogoUrl } from '../lib/companyLogo';
+import { parseCompanySettings } from '../lib/management';
 import { normalizeInstallationPlanData, resolveInstallationPlanDisplayTitle } from '../lib/installationPlan/defaults';
 import { generateInstallationPlanPrintHtml } from '../lib/installationPlan/printHtml';
 import type { InstallationPlanAttachment, InstallationPlanData } from '../lib/installationPlan/types';
@@ -17,9 +18,13 @@ interface Props {
 export default function InstallationPlanPrintPage({ session }: Props) {
   const { id } = useParams();
   const [form, setForm] = useState<InstallationPlanData | null>(null);
-  const [customerName, setCustomerName] = useState<string | null>(null);
+  const [customer, setCustomer] = useState<{ name: string; address?: string | null; city?: string | null } | null>(
+    null,
+  );
   const [companyName, setCompanyName] = useState('—');
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const [companySettings, setCompanySettings] = useState<ReturnType<typeof parseCompanySettings> | null>(null);
+  const [documentDate, setDocumentDate] = useState<string | null>(null);
   const [attachments, setAttachments] = useState<InstallationPlanAttachment[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -34,9 +39,9 @@ export default function InstallationPlanPrintPage({ session }: Props) {
     const { data, error: loadError } = await supabase
       .from('installation_plans')
       .select(`
-        data,
-        customers(name),
-        branding_company:companies!installation_plans_branding_company_id_fkey(name, logo_url)
+        data, updated_at,
+        customers(name, address, city),
+        branding_company:companies!installation_plans_branding_company_id_fkey(name, logo_url, settings)
       `)
       .eq('id', planId)
       .single();
@@ -49,28 +54,48 @@ export default function InstallationPlanPrintPage({ session }: Props) {
 
     const row = data as {
       data: InstallationPlanData;
-      customers?: { name?: string | null } | null;
-      branding_company?: { name?: string | null; logo_url?: string | null } | null;
+      updated_at: string;
+      customers?: { name?: string | null; address?: string | null; city?: string | null } | null;
+      branding_company?: { name?: string | null; logo_url?: string | null; settings?: unknown } | null;
     };
 
     const normalized = normalizeInstallationPlanData(row.data);
     setForm(normalized);
-    setCustomerName(row.customers?.name ?? null);
+    setCustomer(
+      row.customers?.name
+        ? {
+            name: row.customers.name,
+            address: row.customers.address,
+            city: row.customers.city,
+          }
+        : null,
+    );
     setCompanyName(row.branding_company?.name ?? '—');
+    setCompanySettings(parseCompanySettings(row.branding_company?.settings));
+    setDocumentDate(row.updated_at);
     setLogoUrl(await resolveCompanyLogoUrl(row.branding_company?.logo_url ?? null));
     setAttachments(await loadInstallationPlanAttachments(planId));
     setLoading(false);
   }
 
-  async function handlePrint() {
-    if (!form) return;
-    const html = generateInstallationPlanPrintHtml({
+  function buildPrintHtml() {
+    if (!form || !customer) return '';
+    return generateInstallationPlanPrintHtml({
       data: form,
-      companyName,
-      logoUrl,
-      customerName,
+      customer,
+      meta: {
+        companyName,
+        logoUrl,
+        settings: companySettings,
+        documentDate,
+      },
       attachments,
     });
+  }
+
+  async function handlePrint() {
+    const html = buildPrintHtml();
+    if (!html) return;
     await openPrintWindow(html);
   }
 
@@ -82,15 +107,16 @@ export default function InstallationPlanPrintPage({ session }: Props) {
     );
   }
 
-  if (error || !form) {
+  if (error || !form || !customer) {
     return (
       <AppLayout session={session}>
-        <p className="error">{error ?? 'Suunnitelmaa ei löytynyt.'}</p>
+        <p className="error">{error ?? 'Suunnitelmaa tai asiakasta ei löytynyt.'}</p>
       </AppLayout>
     );
   }
 
-  const title = resolveInstallationPlanDisplayTitle(form, customerName);
+  const title = resolveInstallationPlanDisplayTitle(form, customer.name);
+  const printHtml = buildPrintHtml();
 
   return (
     <AppLayout session={session}>
@@ -113,13 +139,7 @@ export default function InstallationPlanPrintPage({ session }: Props) {
       <iframe
         title="Asennus suunnittelu tuloste"
         className="print-preview-frame"
-        srcDoc={generateInstallationPlanPrintHtml({
-          data: form,
-          companyName,
-          logoUrl,
-          customerName,
-          attachments,
-        })}
+        srcDoc={printHtml}
       />
     </AppLayout>
   );
