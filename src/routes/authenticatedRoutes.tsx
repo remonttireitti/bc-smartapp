@@ -32,6 +32,10 @@ import QuoteRequestsPage from '../pages/QuoteRequestsPage';
 import QuoteRequestHubPage from '../pages/QuoteRequestHubPage';
 import QuoteRequestEditPage from '../pages/QuoteRequestEditPage';
 import QuoteRequestPrintPage from '../pages/QuoteRequestPrintPage';
+import InstallationPlanHubPage from '../pages/InstallationPlanHubPage';
+import InstallationPlansPage from '../pages/InstallationPlansPage';
+import InstallationPlanEditPage from '../pages/InstallationPlanEditPage';
+import InstallationPlanPrintPage from '../pages/InstallationPlanPrintPage';
 import GlobalAdminPage from '../pages/GlobalAdminPage';
 import PumpDeviceRegistryPage from '../pages/PumpDeviceRegistryPage';
 import InventoryPage from '../pages/InventoryPage';
@@ -96,6 +100,10 @@ const LicensedQuoteRequestsPage = withLicenseModule('quotes', QuoteRequestsPage)
 const LicensedPumpDeviceRegistryPage = withLicenseModule('quotes', PumpDeviceRegistryPage);
 const LicensedQuoteRequestEditPage = withLicenseModule('quotes', QuoteRequestEditPage);
 const LicensedQuoteRequestPrintPage = withLicenseModule('quotes', QuoteRequestPrintPage);
+const LicensedInstallationPlanHubPage = withLicenseModule('quotes', InstallationPlanHubPage);
+const LicensedInstallationPlansPage = withLicenseModule('quotes', InstallationPlansPage);
+const LicensedInstallationPlanEditPage = withLicenseModule('quotes', InstallationPlanEditPage);
+const LicensedInstallationPlanPrintPage = withLicenseModule('quotes', InstallationPlanPrintPage);
 const LicensedRemoteMonitoringHubPage = withLicenseModule('remote_monitoring', RemoteMonitoringHubPage);
 const LicensedTempMonitoringPage = withLicenseModule('remote_monitoring', TempMonitoringPage);
 const LicensedTempMonitorDetailPage = withLicenseModule('remote_monitoring', TempMonitorDetailPage);
@@ -195,6 +203,11 @@ export function buildAuthenticatedRoutes(session: Session): RouteObject[] {
     { path: '/tarjouspyynnot/uusi', element: <LicensedQuoteRequestEditPage session={session} /> },
     { path: '/tarjouspyynnot/:id/tuloste', element: <LicensedQuoteRequestPrintPage session={session} /> },
     { path: '/tarjouspyynnot/:id', element: <LicensedQuoteRequestEditPage session={session} /> },
+    { path: '/asennus-suunnittelu', element: <LicensedInstallationPlanHubPage session={session} /> },
+    { path: '/asennus-suunnittelu/lista', element: <LicensedInstallationPlansPage session={session} /> },
+    { path: '/asennus-suunnittelu/uusi', element: <LicensedInstallationPlanEditPage session={session} /> },
+    { path: '/asennus-suunnittelu/:id/tuloste', element: <LicensedInstallationPlanPrintPage session={session} /> },
+    { path: '/asennus-suunnittelu/:id', element: <LicensedInstallationPlanEditPage session={session} /> },
     { path: '*', element: <Navigate to="/" replace /> },
   ];
 }

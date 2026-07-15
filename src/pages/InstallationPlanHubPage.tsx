@@ -9,32 +9,20 @@ interface Props {
 
 const TILES = [
   {
-    title: 'Tallennetut tarjouspyynnöt',
+    title: 'Tallennetut suunnitelmat',
     desc: 'Lista, haku ja muokkaus',
-    href: '/tarjouspyynnot/lista',
-    color: '#f97316',
-  },
-  {
-    title: 'Uusi tarjouspyyntö',
-    desc: 'Laske ja laadi tarjous',
-    href: '/tarjouspyynnot/uusi',
-    color: '#fb923c',
-  },
-  {
-    title: 'Asennus suunnittelu',
-    desc: 'Taloyhtiöselosteet ja liitteet',
-    href: '/asennus-suunnittelu',
+    href: '/asennus-suunnittelu/lista',
     color: '#6366f1',
   },
   {
-    title: 'Lämpöpumppujen rekisteri',
-    desc: 'Hinnasto ja mallit',
-    href: '/tarjouspyynnot/laiterekisteri',
-    color: '#14b8a6',
+    title: 'Uusi asennus suunnittelu',
+    desc: 'Taloyhtiöseloste pohjalla',
+    href: '/asennus-suunnittelu/uusi',
+    color: '#818cf8',
   },
 ];
 
-export default function QuoteRequestHubPage({ session }: Props) {
+export default function InstallationPlanHubPage({ session }: Props) {
   const { profile } = useProfile(session);
 
   return (
@@ -42,10 +30,10 @@ export default function QuoteRequestHubPage({ session }: Props) {
       <div className="page-header">
         <div>
           <p className="breadcrumb">
-            <Link to="/">Etusivu</Link> / Tarjouspyyntö
+            <Link to="/">Etusivu</Link> / <Link to="/tarjouspyynnot">Tarjouspyyntö</Link> / Asennus suunnittelu
           </p>
-          <h1>Tarjouspyyntö</h1>
-          <p className="muted">{profile?.companies?.name ?? '—'} • valitse toiminto</p>
+          <h1>Asennus suunnittelu</h1>
+          <p className="muted">{profile?.companies?.name ?? '—'} • taloyhtiöselosteet ja liitteet</p>
         </div>
       </div>
 

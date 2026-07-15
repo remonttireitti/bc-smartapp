@@ -6540,6 +6540,45 @@ textarea {
   background: #fff;
 }
 
+.installation-plan-form .section-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.installation-plan-sections {
+  display: grid;
+  gap: 16px;
+}
+
+.installation-plan-section-card {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  background: var(--surface-elevated, #fff);
+}
+
+.installation-plan-section-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.installation-plan-section-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.installation-plan-attachments-field {
+  display: grid;
+  gap: 12px;
+}
+
+
 /* Tarjouksen tuloste — mobiili / PWA: kiinnitetty takaisin-navigaatio */
 .quote-print-sticky-nav {
   display: none;

@@ -93,7 +93,7 @@ export const LICENSE_MODULE_DESCRIPTIONS: Record<LicenseModuleKey, string> = {
 
 export const LICENSE_MODULE_HREFS: Record<LicenseModuleKey, string[]> = {
   base: ['/tyoraportit', '/varasto', '/huoltoraportit', '/asiakkaat'],
-  quotes: ['/tarjouspyynnot'],
+  quotes: ['/tarjouspyynnot', '/asennus-suunnittelu'],
   billing: ['/laskutus', '/hallinta/kumppanilaskutus'],
   remote_monitoring: ['/etaseuranta', '/lampotila'],
   tools: ['/tyokalut'],
@@ -126,6 +126,7 @@ const MODULE_BY_PATH_PREFIX: Array<{ prefix: string; module: LicenseModuleKey }>
   { prefix: '/laskutus', module: 'billing' },
   { prefix: '/hallinta/kumppanilaskutus', module: 'billing' },
   { prefix: '/tarjouspyynnot', module: 'quotes' },
+  { prefix: '/asennus-suunnittelu', module: 'quotes' },
   { prefix: '/etaseuranta', module: 'remote_monitoring' },
   { prefix: '/lampotila', module: 'remote_monitoring' },
   { prefix: '/tyokalut', module: 'tools' },
