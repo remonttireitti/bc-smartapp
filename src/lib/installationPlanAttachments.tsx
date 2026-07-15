@@ -67,6 +67,21 @@ async function resolveAttachmentUrl(storagePath: string, expiresIn = 3600) {
   return data?.signedUrl ?? null;
 }
 
+export type InstallationPlanPrintAttachment = InstallationPlanAttachment & {
+  url: string | null;
+};
+
+export async function resolveInstallationPlanAttachmentsForPrint(
+  attachments: InstallationPlanAttachment[],
+): Promise<InstallationPlanPrintAttachment[]> {
+  return Promise.all(
+    attachments.map(async (attachment) => ({
+      ...attachment,
+      url: await resolveAttachmentUrl(attachment.storage_path, 7200),
+    })),
+  );
+}
+
 export function InstallationPlanAttachmentGallery({
   attachments,
   onDelete,

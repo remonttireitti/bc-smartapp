@@ -1,6 +1,7 @@
 import type { CompanySettings } from '../management';
+import { isInstallationPlanImageMime, type InstallationPlanPrintAttachment } from '../installationPlanAttachments';
 import { INSTALLATION_PLAN_DOCUMENT_TITLE } from './defaultTemplate';
-import type { InstallationPlanAttachment, InstallationPlanData } from './types';
+import type { InstallationPlanData } from './types';
 
 export type InstallationPlanPrintCustomer = {
   name: string;
@@ -195,8 +196,38 @@ function installationPlanPrintStyles(): string {
       color: #0f172a;
     }
     .attachment-list {
-      margin: 0;
+      margin: 0 0 12px;
       padding-left: 1.2rem;
+    }
+    .attachment-gallery {
+      display: grid;
+      gap: 14px;
+      margin-top: 10px;
+    }
+    .attachment-figure {
+      margin: 0;
+      break-inside: avoid-page;
+      page-break-inside: avoid;
+    }
+    .attachment-figure img {
+      display: block;
+      width: 100%;
+      max-height: 240mm;
+      object-fit: contain;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      background: #fff;
+    }
+    .attachment-figure figcaption {
+      margin-top: 6px;
+      color: #64748b;
+      font-size: 10px;
+      text-align: center;
+    }
+    .attachment-file-row {
+      margin-top: 8px;
+      color: #475569;
+      font-size: 10px;
     }
     .signature-block {
       margin-top: 18px;
@@ -213,11 +244,54 @@ function installationPlanPrintStyles(): string {
   `;
 }
 
+function renderAttachmentsSection(
+  attachmentsNote: string,
+  attachments: InstallationPlanPrintAttachment[],
+): string {
+  const noteItems = attachmentsNote
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => `<li>${esc(line.replace(/^[•-]\s*/, ''))}</li>`);
+
+  const imageAttachments = attachments.filter(
+    (attachment) => isInstallationPlanImageMime(attachment.mime_type) && attachment.url,
+  );
+  const fileAttachments = attachments.filter(
+    (attachment) => !isInstallationPlanImageMime(attachment.mime_type),
+  );
+
+  const imagesHtml = imageAttachments
+    .map(
+      (attachment) => `<figure class="attachment-figure">
+        <img src="${attrUrl(attachment.url!)}" alt="${esc(attachment.file_name)}" />
+        <figcaption>${esc(attachment.file_name)}</figcaption>
+      </figure>`,
+    )
+    .join('');
+
+  const filesHtml = fileAttachments
+    .map(
+      (attachment) =>
+        `<div class="attachment-file-row">${attachment.url ? `<a href="${attrUrl(attachment.url)}">${esc(attachment.file_name)}</a>` : esc(attachment.file_name)}</div>`,
+    )
+    .join('');
+
+  if (noteItems.length === 0 && imagesHtml === '' && filesHtml === '') return '';
+
+  return `<section class="attachments-box">
+    <h2>Liitteet</h2>
+    ${noteItems.length > 0 ? `<ul class="attachment-list">${noteItems.join('')}</ul>` : ''}
+    ${imagesHtml ? `<div class="attachment-gallery">${imagesHtml}</div>` : ''}
+    ${filesHtml}
+  </section>`;
+}
+
 export function generateInstallationPlanPrintHtml(input: {
   data: InstallationPlanData;
   customer: InstallationPlanPrintCustomer;
   meta: InstallationPlanPrintMeta;
-  attachments?: InstallationPlanAttachment[];
+  attachments?: InstallationPlanPrintAttachment[];
 }): string {
   const { data, customer, meta, attachments = [] } = input;
   const logo = meta.logoUrl || smartappFallbackLogoSvg(meta.companyName);
@@ -239,14 +313,7 @@ export function generateInstallationPlanPrintHtml(input: {
     )
     .join('');
 
-  const attachmentItems = [
-    ...data.attachmentsNote
-      .split('\n')
-      .map((line) => line.trim())
-      .filter(Boolean)
-      .map((line) => `<li>${esc(line.replace(/^[•-]\s*/, ''))}</li>`),
-    ...attachments.map((attachment) => `<li>${esc(attachment.file_name)}</li>`),
-  ];
+  const attachmentsHtml = renderAttachmentsSection(data.attachmentsNote, attachments);
 
   const infoRows = [
     data.propertyName.trim()
@@ -306,11 +373,7 @@ export function generateInstallationPlanPrintHtml(input: {
 
     ${sectionsHtml}
 
-    ${
-      attachmentItems.length > 0
-        ? `<section class="attachments-box"><h2>Liitteet</h2><ul class="attachment-list">${attachmentItems.join('')}</ul></section>`
-        : ''
-    }
+    ${attachmentsHtml}
 
     ${
       data.closingText.trim()

@@ -6,8 +6,8 @@ import { resolveCompanyLogoUrl } from '../lib/companyLogo';
 import { parseCompanySettings } from '../lib/management';
 import { normalizeInstallationPlanData, resolveInstallationPlanDisplayTitle } from '../lib/installationPlan/defaults';
 import { generateInstallationPlanPrintHtml } from '../lib/installationPlan/printHtml';
-import type { InstallationPlanAttachment, InstallationPlanData } from '../lib/installationPlan/types';
-import { loadInstallationPlanAttachments } from '../lib/installationPlanAttachments';
+import type { InstallationPlanData } from '../lib/installationPlan/types';
+import { loadInstallationPlanAttachments, resolveInstallationPlanAttachmentsForPrint, type InstallationPlanPrintAttachment } from '../lib/installationPlanAttachments';
 import { openPrintWindow } from '../lib/quoteRequest/printWindowUtils';
 import { supabase } from '../lib/supabase';
 
@@ -25,7 +25,7 @@ export default function InstallationPlanPrintPage({ session }: Props) {
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [companySettings, setCompanySettings] = useState<ReturnType<typeof parseCompanySettings> | null>(null);
   const [documentDate, setDocumentDate] = useState<string | null>(null);
-  const [attachments, setAttachments] = useState<InstallationPlanAttachment[]>([]);
+  const [attachments, setAttachments] = useState<InstallationPlanPrintAttachment[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -74,7 +74,7 @@ export default function InstallationPlanPrintPage({ session }: Props) {
     setCompanySettings(parseCompanySettings(row.branding_company?.settings));
     setDocumentDate(row.updated_at);
     setLogoUrl(await resolveCompanyLogoUrl(row.branding_company?.logo_url ?? null));
-    setAttachments(await loadInstallationPlanAttachments(planId));
+    setAttachments(await resolveInstallationPlanAttachmentsForPrint(await loadInstallationPlanAttachments(planId)));
     setLoading(false);
   }
 

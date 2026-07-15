@@ -28,6 +28,7 @@ import type { InstallationPlanAttachment, InstallationPlanData } from '../lib/in
 import {
   InstallationPlanAttachmentsField,
   loadInstallationPlanAttachments,
+  resolveInstallationPlanAttachmentsForPrint,
   uploadInstallationPlanAttachments,
 } from '../lib/installationPlanAttachments';
 import { openPrintWindow } from '../lib/quoteRequest/printWindowUtils';
@@ -274,6 +275,7 @@ export default function InstallationPlanEditPage({ session }: Props) {
       setActiveSection('asiakas');
       return;
     }
+    const printAttachments = await resolveInstallationPlanAttachmentsForPrint(attachments);
     const html = generateInstallationPlanPrintHtml({
       data: form,
       customer: {
@@ -287,7 +289,7 @@ export default function InstallationPlanEditPage({ session }: Props) {
         settings: companySettings,
         documentDate: savedAt,
       },
-      attachments,
+      attachments: printAttachments,
     });
     await openPrintWindow(html);
   }
