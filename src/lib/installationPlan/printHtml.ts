@@ -212,7 +212,8 @@ function installationPlanPrintStyles(): string {
     .attachment-figure img {
       display: block;
       width: 100%;
-      max-height: 240mm;
+      max-width: 180mm;
+      max-height: 180mm;
       object-fit: contain;
       border: 1px solid #cbd5e1;
       border-radius: 8px;

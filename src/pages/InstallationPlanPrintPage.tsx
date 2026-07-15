@@ -7,7 +7,7 @@ import { parseCompanySettings } from '../lib/management';
 import { normalizeInstallationPlanData, resolveInstallationPlanDisplayTitle } from '../lib/installationPlan/defaults';
 import { generateInstallationPlanPrintHtml } from '../lib/installationPlan/printHtml';
 import type { InstallationPlanData } from '../lib/installationPlan/types';
-import { loadInstallationPlanAttachments, resolveInstallationPlanAttachmentsForPrint, type InstallationPlanPrintAttachment } from '../lib/installationPlanAttachments';
+import { loadInstallationPlanAttachments, resolveInstallationPlanAttachmentsForPrint, embedPrintImageUrl, type InstallationPlanPrintAttachment } from '../lib/installationPlanAttachments';
 import { openPrintWindow } from '../lib/quoteRequest/printWindowUtils';
 import { supabase } from '../lib/supabase';
 
@@ -27,6 +27,7 @@ export default function InstallationPlanPrintPage({ session }: Props) {
   const [documentDate, setDocumentDate] = useState<string | null>(null);
   const [attachments, setAttachments] = useState<InstallationPlanPrintAttachment[]>([]);
   const [loading, setLoading] = useState(true);
+  const [printBusy, setPrintBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -73,7 +74,8 @@ export default function InstallationPlanPrintPage({ session }: Props) {
     setCompanyName(row.branding_company?.name ?? '—');
     setCompanySettings(parseCompanySettings(row.branding_company?.settings));
     setDocumentDate(row.updated_at);
-    setLogoUrl(await resolveCompanyLogoUrl(row.branding_company?.logo_url ?? null));
+    const resolvedLogo = await resolveCompanyLogoUrl(row.branding_company?.logo_url ?? null);
+    setLogoUrl(await embedPrintImageUrl(resolvedLogo));
     setAttachments(await resolveInstallationPlanAttachmentsForPrint(await loadInstallationPlanAttachments(planId)));
     setLoading(false);
   }
@@ -96,7 +98,15 @@ export default function InstallationPlanPrintPage({ session }: Props) {
   async function handlePrint() {
     const html = buildPrintHtml();
     if (!html) return;
-    await openPrintWindow(html);
+    setPrintBusy(true);
+    try {
+      const opened = await openPrintWindow(html);
+      if (!opened) {
+        setError('Selain esti tulostusikkunan. Salli ponnahdusikkunat tälle sivustolle.');
+      }
+    } finally {
+      setPrintBusy(false);
+    }
   }
 
   if (loading) {
@@ -130,8 +140,8 @@ export default function InstallationPlanPrintPage({ session }: Props) {
           <h1>{title}</h1>
         </div>
         <div className="page-header-actions">
-          <button type="button" className="btn btn-primary" onClick={() => void handlePrint()}>
-            Tulosta / PDF
+          <button type="button" className="btn btn-primary" disabled={printBusy} onClick={() => void handlePrint()}>
+            {printBusy ? 'Valmistellaan PDF…' : 'Tulosta / PDF'}
           </button>
         </div>
       </div>

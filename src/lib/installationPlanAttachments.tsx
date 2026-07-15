@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { embedUrlAsDataUrl } from './quoteRequest/termatekAssets';
 import { supabase } from './supabase';
 import { toSupabaseStoragePath } from './storageUrl';
 import type { InstallationPlanAttachment } from './installationPlan/types';
@@ -71,14 +72,78 @@ export type InstallationPlanPrintAttachment = InstallationPlanAttachment & {
   url: string | null;
 };
 
+const PRINT_IMAGE_MAX_WIDTH = 1600;
+
+async function resizeDataUrlForPrint(dataUrl: string, maxWidth = PRINT_IMAGE_MAX_WIDTH): Promise<string> {
+  if (!dataUrl.startsWith('data:image/') || typeof window === 'undefined') return dataUrl;
+
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const width = img.naturalWidth || img.width;
+      const height = img.naturalHeight || img.height;
+      if (!width || !height || width <= maxWidth) {
+        resolve(dataUrl);
+        return;
+      }
+      const scale = maxWidth / width;
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.max(1, Math.round(width * scale));
+      canvas.height = Math.max(1, Math.round(height * scale));
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        resolve(dataUrl);
+        return;
+      }
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      const mime = dataUrl.includes('image/png') ? 'image/png' : 'image/jpeg';
+      resolve(canvas.toDataURL(mime, mime === 'image/jpeg' ? 0.85 : undefined));
+    };
+    img.onerror = () => resolve(dataUrl);
+    img.src = dataUrl;
+  });
+}
+
+async function embedInstallationPlanImageForPrint(url: string): Promise<string> {
+  const embedded = await embedUrlAsDataUrl(url);
+  if (!embedded.startsWith('data:')) return embedded;
+  return resizeDataUrlForPrint(embedded);
+}
+
+export async function embedPrintImageUrl(url: string | null | undefined): Promise<string | null> {
+  if (!url) return null;
+  if (url.startsWith('data:')) return resizeDataUrlForPrint(url);
+  try {
+    return await embedInstallationPlanImageForPrint(url);
+  } catch {
+    return url;
+  }
+}
+
 export async function resolveInstallationPlanAttachmentsForPrint(
   attachments: InstallationPlanAttachment[],
 ): Promise<InstallationPlanPrintAttachment[]> {
-  return Promise.all(
+  const withUrls = await Promise.all(
     attachments.map(async (attachment) => ({
       ...attachment,
       url: await resolveAttachmentUrl(attachment.storage_path, 7200),
     })),
+  );
+
+  return Promise.all(
+    withUrls.map(async (attachment) => {
+      if (!isInstallationPlanImageMime(attachment.mime_type) || !attachment.url) {
+        return attachment;
+      }
+      try {
+        return {
+          ...attachment,
+          url: await embedInstallationPlanImageForPrint(attachment.url),
+        };
+      } catch {
+        return attachment;
+      }
+    }),
   );
 }
 
