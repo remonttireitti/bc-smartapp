@@ -183,6 +183,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
   const loadedReportIdRef = useRef<string | null>(null);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const copyFromLoadedRef = useRef(false);
+  const moreActionsRef = useRef<HTMLDetailsElement>(null);
   const [copySiblingMode, setCopySiblingMode] = useState(false);
   const [copySourceEquipmentId, setCopySourceEquipmentId] = useState<string | null>(null);
 
@@ -312,6 +313,16 @@ export default function MaintenanceReportEditPage({ session }: Props) {
   useEffect(() => {
     persistMaintenanceReportActiveTab(reportViewKey, activeTab);
   }, [reportViewKey, activeTab]);
+
+  useEffect(() => {
+    const media = window.matchMedia('(min-width: 901px)');
+    const syncMoreActions = () => {
+      if (moreActionsRef.current) moreActionsRef.current.open = media.matches;
+    };
+    syncMoreActions();
+    media.addEventListener('change', syncMoreActions);
+    return () => media.removeEventListener('change', syncMoreActions);
+  }, []);
 
   const optionalMaintenanceModules = useMemo(
     () => getManualModuleOptions(form.laiteTyyppi).filter((opt) => opt.key === 'tiiveyskoe' || opt.key === 'tyhjiointi'),
@@ -1859,29 +1870,39 @@ export default function MaintenanceReportEditPage({ session }: Props) {
         {error && <p className="error">{error}</p>}
 
         <div className="form-actions maintenance-form-actions">
-          <details className="maintenance-actions-more">
+          {canDeleteMaintenance && (
+            <button
+              type="button"
+              className="btn btn-danger maintenance-actions-delete"
+              disabled={deleteBusy || busy}
+              onClick={() => void deleteReport()}
+            >
+              Poista raportti
+            </button>
+          )}
+          <button
+            type="button"
+            className="btn btn-secondary maintenance-actions-back"
+            onClick={() => leaveGuard.requestLeave(navigation.backTo)}
+          >
+            ← Takaisin
+          </button>
+          <span className={`badge badge-${status === 'draft' ? 'scheduled' : 'completed'} maintenance-actions-status`}>
+            {getMaintenanceReportStatusLabel(status)}
+          </span>
+          {reportId && (
+            <button
+              type="button"
+              className="btn btn-secondary maintenance-actions-print"
+              disabled={printBusy || busy}
+              onClick={() => void openPrintPreview()}
+            >
+              {printBusy ? 'Avataan…' : 'Tulosta / PDF'}
+            </button>
+          )}
+          <details ref={moreActionsRef} className="maintenance-actions-more">
             <summary className="maintenance-actions-more-toggle">Muut toiminnot</summary>
             <div className="maintenance-actions-more-panel">
-              {canDeleteMaintenance && (
-                <button
-                  type="button"
-                  className="btn btn-danger"
-                  disabled={deleteBusy || busy}
-                  onClick={() => void deleteReport()}
-                >
-                  Poista raportti
-                </button>
-              )}
-              {reportId && (
-                <button
-                  type="button"
-                  className="btn btn-secondary"
-                  disabled={printBusy || busy}
-                  onClick={() => void openPrintPreview()}
-                >
-                  {printBusy ? 'Avataan…' : 'Tulosta / PDF'}
-                </button>
-              )}
               {customerId && reportId && status === 'draft' && !copySiblingMode && (
                 <button
                   type="button"
@@ -1928,60 +1949,38 @@ export default function MaintenanceReportEditPage({ session }: Props) {
                   Palauta luonnokseksi
                 </button>
               )}
-              <button
-                type="button"
-                className="btn btn-secondary maintenance-actions-back"
-                onClick={() => leaveGuard.requestLeave(navigation.backTo)}
-              >
-                ← Takaisin
-              </button>
             </div>
           </details>
-
-          <div className="maintenance-actions-core">
-            <span className={`badge badge-${status === 'draft' ? 'scheduled' : 'completed'}`}>
-              {getMaintenanceReportStatusLabel(status)}
-            </span>
-            <div className="maintenance-actions-primary">
+          {status === 'draft' && (
+            <>
               <button
                 type="button"
-                className="btn btn-secondary maintenance-actions-back-desktop"
-                onClick={() => leaveGuard.requestLeave(navigation.backTo)}
+                className="btn btn-secondary maintenance-actions-save"
+                disabled={busy || !form.laiteTyyppi}
+                onClick={() => void saveReport('draft')}
               >
-                ← Takaisin
+                {busy ? 'Tallennetaan…' : 'Tallenna luonnos'}
               </button>
-              {status === 'draft' && (
-                <>
-                  <button
-                    type="button"
-                    className="btn btn-secondary"
-                    disabled={busy || !form.laiteTyyppi}
-                    onClick={() => void saveReport('draft')}
-                  >
-                    {busy ? 'Tallennetaan…' : 'Tallenna luonnos'}
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn-primary"
-                    disabled={busy || !form.laiteTyyppi}
-                    onClick={() => void saveReport('submitted')}
-                  >
-                    Merkitse valmiiksi
-                  </button>
-                </>
-              )}
-              {canEditPublishedReport && (
-                <button
-                  type="button"
-                  className="btn btn-primary"
-                  disabled={busy || !form.laiteTyyppi}
-                  onClick={() => void saveReport()}
-                >
-                  {busy ? 'Tallennetaan…' : 'Tallenna muutokset'}
-                </button>
-              )}
-            </div>
-          </div>
+              <button
+                type="button"
+                className="btn btn-primary maintenance-actions-submit"
+                disabled={busy || !form.laiteTyyppi}
+                onClick={() => void saveReport('submitted')}
+              >
+                Merkitse valmiiksi
+              </button>
+            </>
+          )}
+          {canEditPublishedReport && (
+            <button
+              type="button"
+              className="btn btn-primary maintenance-actions-save"
+              disabled={busy || !form.laiteTyyppi}
+              onClick={() => void saveReport()}
+            >
+              {busy ? 'Tallennetaan…' : 'Tallenna muutokset'}
+            </button>
+          )}
         </div>
       </form>
       </HuoltoEditUiProvider>

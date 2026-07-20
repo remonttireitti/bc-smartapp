@@ -4730,15 +4730,34 @@ textarea {
     position: sticky;
     bottom: 0;
     z-index: 3;
-    flex-direction: column;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
     align-items: stretch;
-    gap: .55rem;
+    gap: .5rem;
     margin: 0 -1rem;
     padding: .65rem 1rem;
     padding-bottom: calc(.65rem + env(safe-area-inset-bottom, 0px));
     background: var(--bg-surface);
     border-top: 1px solid var(--border-strong);
     box-shadow: 0 -4px 16px rgba(15, 23, 42, .08);
+  }
+
+  .maintenance-form-actions > .maintenance-actions-status,
+  .maintenance-form-actions > .maintenance-actions-more,
+  .maintenance-form-actions > .maintenance-actions-delete,
+  .maintenance-form-actions > .maintenance-actions-back,
+  .maintenance-form-actions > .maintenance-actions-print {
+    grid-column: 1 / -1;
+  }
+
+  .maintenance-form-actions > .maintenance-actions-status {
+    justify-self: center;
+    margin: 0;
+    font-size: .82rem;
+  }
+
+  .maintenance-form-actions > .btn-primary:only-of-type {
+    grid-column: 1 / -1;
   }
 
   .maintenance-actions-more {
@@ -4792,40 +4811,11 @@ textarea {
     min-height: 2.75rem;
   }
 
-  .maintenance-actions-core {
-    display: flex;
-    flex-direction: column;
-    gap: .55rem;
-  }
-
-  .maintenance-actions-core > .badge {
-    align-self: center;
-    margin: 0;
-    font-size: .82rem;
-  }
-
-  .maintenance-actions-primary {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: .5rem;
-  }
-
-  .maintenance-actions-primary .btn:only-child {
-    grid-column: 1 / -1;
-  }
-
-  .maintenance-actions-primary .btn {
+  .maintenance-form-actions > .btn,
+  .maintenance-form-actions > a.btn {
     width: 100%;
     min-height: 2.85rem;
     margin: 0;
-  }
-
-  .maintenance-actions-back {
-    display: inline-flex;
-  }
-
-  .maintenance-actions-back-desktop {
-    display: none;
   }
 
   .maintenance-form .info-box-select {
@@ -5240,32 +5230,18 @@ textarea {
   margin-right: .25rem;
 }
 
-.maintenance-actions-more {
-  display: contents;
-}
+@media (min-width: 901px) {
+  .maintenance-actions-more {
+    display: contents;
+  }
 
-.maintenance-actions-more-toggle {
-  display: none;
-}
+  .maintenance-actions-more-toggle {
+    display: none;
+  }
 
-.maintenance-actions-more-panel {
-  display: contents;
-}
-
-.maintenance-actions-core {
-  display: contents;
-}
-
-.maintenance-actions-primary {
-  display: contents;
-}
-
-.maintenance-actions-back {
-  display: none;
-}
-
-.maintenance-actions-back-desktop {
-  display: inline-flex;
+  .maintenance-actions-more-panel {
+    display: contents;
+  }
 }
 
 .maintenance-report-tab-section {
