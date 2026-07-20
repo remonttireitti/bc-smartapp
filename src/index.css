@@ -4603,7 +4603,15 @@ textarea {
   .maintenance-form .huolto-module-body,
   .maintenance-form .huolto-part-body,
   .maintenance-form .huolto-submodule {
-    padding: .85rem;
+    padding: 0;
+  }
+
+  .maintenance-form .huolto-submodule .huolto-submodule {
+    padding-top: .75rem;
+  }
+
+  .maintenance-form .huolto-part-body {
+    padding-top: .75rem;
   }
 
   .panel {
@@ -5273,6 +5281,110 @@ textarea {
 .huolto-module-flat .huolto-module-body {
   border: 0;
   padding: 1rem;
+}
+
+/* Huoltoraportin muokkaus: tasoisa hierarkia ilman laatikko-laatikossa -ulkoasua */
+.maintenance-form .huolto-module-flat {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  overflow: visible;
+}
+
+.maintenance-form .huolto-module-flat .huolto-module-body {
+  padding: 0;
+}
+
+.maintenance-form .huolto-submodule {
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  background: transparent;
+  padding: 0;
+  margin-top: 1.25rem;
+  gap: .85rem;
+}
+
+.maintenance-form .huolto-submodule:first-child {
+  margin-top: 0;
+}
+
+.maintenance-form .huolto-submodule .huolto-submodule {
+  margin-top: .85rem;
+  padding: .85rem 0 0;
+  border-top: 1px solid var(--border);
+}
+
+.maintenance-form .huolto-submodule > h3,
+.maintenance-form .huolto-submodule > h4,
+.maintenance-form .huolto-submodule > h5,
+.maintenance-form .huolto-circuit-header h3,
+.maintenance-form .huolto-circuit-header h4,
+.maintenance-form .huolto-circuit-header h5 {
+  margin: 0;
+  font-size: .95rem;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.maintenance-form .huolto-submodule .huolto-submodule > h4,
+.maintenance-form .huolto-submodule .huolto-submodule > h5 {
+  font-size: .88rem;
+  font-weight: 600;
+  color: #475569;
+}
+
+.maintenance-form .huolto-circuit-header {
+  padding-bottom: .35rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.maintenance-form .huolto-part-section {
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  background: transparent;
+  overflow: visible;
+  margin-top: 1.25rem;
+}
+
+.maintenance-form .huolto-part-section:first-child {
+  margin-top: 0;
+}
+
+.maintenance-form .huolto-part-header {
+  padding: 0 0 .55rem;
+  border: 0;
+  border-bottom: 1px solid var(--border-strong);
+  border-radius: 0;
+  background: transparent;
+}
+
+.maintenance-form .huolto-part-header:hover {
+  background: transparent;
+}
+
+.maintenance-form .huolto-part-body {
+  padding: .85rem 0 0;
+  border: 0;
+  background: transparent;
+}
+
+.maintenance-form .huolto-circuit-body {
+  margin-top: .75rem;
+}
+
+.maintenance-form .huolto-field-group-title {
+  margin: 0 0 .5rem;
+  padding-bottom: .35rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.maintenance-form .huolto-modules-stack {
+  border-top: 0;
+  padding-top: 0;
+  margin-top: 0;
+  gap: 1.25rem;
 }
 
 .maintenance-form .line-form-grid,
