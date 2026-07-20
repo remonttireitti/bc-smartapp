@@ -8,7 +8,6 @@ import { useDraftLeaveGuard } from '../hooks/useDraftLeaveGuard';
 import type { Session } from '@supabase/supabase-js';
 import AppLayout from '../components/AppLayout';
 import CustomerRegistryPicker, { type NewCustomerDraft } from '../components/CustomerRegistryPicker';
-import EquipmentRegistryPicker, { type NewEquipmentDraft } from '../components/EquipmentRegistryPicker';
 import SubscriberPicker from '../components/SubscriberPicker';
 import SubscriberPortalVisibilityField from '../components/SubscriberPortalVisibilityField';
 import MaintenanceReportTabNav from '../components/huoltoRaportti/MaintenanceReportTabNav';
@@ -153,7 +152,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
   const [partnerships, setPartnerships] = useState<Partnership[]>([]);
   const [ownerCompany, setOwnerCompany] = useState<Company | null>(null);
   const [customers, setCustomers] = useState<Customer[]>([]);
-  const [equipment, setEquipment] = useState<Equipment[]>([]);
+  const [, setEquipment] = useState<Equipment[]>([]);
   const [customerId, setCustomerId] = useState('');
   const [subscriberId, setSubscriberId] = useState('');
   const [subscriberPortalVisibility, setSubscriberPortalVisibility] =
@@ -270,7 +269,6 @@ export default function MaintenanceReportEditPage({ session }: Props) {
   const maintenanceTabs = useMemo(
     () =>
       buildMaintenanceReportTabs({
-        hasProfile: Boolean(profile?.company_id),
         laiteTyyppi: form.laiteTyyppi,
         selectedModules: form.selectedModules,
         showEvaporatorSection,
@@ -834,56 +832,6 @@ export default function MaintenanceReportEditPage({ session }: Props) {
     setBusy(false);
   }
 
-  async function createEquipmentAndSelect(draft: NewEquipmentDraft) {
-    if (!ownerCompanyId || !customerId) {
-      setError('Valitse ensin asiakas.');
-      return;
-    }
-    const name = draft.name.trim() || form.laiteTunnus.trim() || form.laiteMalli.trim();
-    if (!name) {
-      setError('Laitteen nimi, tunnus tai malli on pakollinen.');
-      return;
-    }
-    setBusy(true);
-    setError(null);
-    const { data, error: insertError } = await supabase
-      .from('equipment')
-      .insert({
-        owner_company_id: ownerCompanyId,
-        customer_id: customerId,
-        name,
-        tag: draft.tag.trim() || form.laiteTunnus.trim() || null,
-        model: draft.model.trim() || form.laiteMalli.trim() || null,
-        serial_number: draft.serial_number.trim() || form.laiteSarjanumero.trim() || null,
-        location: draft.location.trim() || form.laiteSijainti.trim() || null,
-        device_type: form.laiteTyyppi || null,
-      })
-      .select('id, name, tag, model, serial_number, location, customer_id')
-      .single();
-
-    if (insertError || !data) {
-      setError(insertError?.message ?? 'Laitteen luonti epäonnistui.');
-      setBusy(false);
-      return;
-    }
-
-    const created = data as Equipment;
-    setEquipment((prev) => [...prev, created].sort((a, b) => a.name.localeCompare(b.name, 'fi')));
-    setEquipmentId(created.id);
-    patchForm({
-      laiteTunnus: created.tag || created.name || form.laiteTunnus,
-      laiteMalli: created.model || form.laiteMalli,
-      laiteSarjanumero: created.serial_number || form.laiteSarjanumero,
-      laiteSijainti: created.location || form.laiteSijainti,
-    });
-    if (copySiblingMode) {
-      setCopySiblingMode(false);
-      setCopySourceEquipmentId(null);
-    }
-    setRegistryMessage('Laite luotu rekisteriin ja valittu raportille.');
-    setBusy(false);
-  }
-
   async function saveEquipmentToRegistry() {
     if (!ownerCompanyId || !customerId) {
       setError('Valitse asiakas ennen laitteen tallennusta rekisteriin.');
@@ -1333,38 +1281,6 @@ export default function MaintenanceReportEditPage({ session }: Props) {
               ' · Valmis raportti — muutokset tallennetaan manuaalisesti.'}
           </p>
         </div>
-        <div className="page-header-actions">
-          {canDeleteMaintenance && (
-            <button
-              type="button"
-              className="btn btn-danger btn-sm"
-              disabled={deleteBusy || busy}
-              onClick={() => void deleteReport()}
-            >
-              Poista raportti
-            </button>
-          )}
-          <button
-            type="button"
-            className="btn btn-secondary btn-sm"
-            onClick={() => leaveGuard.requestLeave(navigation.backTo)}
-          >
-            ← Takaisin
-          </button>
-          <span className={`badge badge-${status === 'draft' ? 'scheduled' : 'completed'}`}>
-            {getMaintenanceReportStatusLabel(status)}
-          </span>
-          {reportId && (
-            <button
-              type="button"
-              className="btn btn-secondary btn-sm"
-              disabled={printBusy || busy}
-              onClick={() => void openPrintPreview()}
-            >
-              {printBusy ? 'Avataan…' : 'Tulosta / PDF'}
-            </button>
-          )}
-        </div>
       </div>
 
       {!profile?.company_id && (
@@ -1423,11 +1339,9 @@ export default function MaintenanceReportEditPage({ session }: Props) {
               vain kumppanit, joilla on huoltoraportin luontioikeus.
             </p>
           )}
-        </section>
-        )}
 
-        {activeTab === 'asiakas' && profile?.company_id && (
-        <section className="maintenance-report-tab-section">
+          {profile?.company_id && (
+            <>
             <p className="muted">
               Hae asiakasta kaikista rekistereistä joihin sinulla on pääsy. Raportti luodaan automaattisesti
               sen yrityksen nimissä, jonka rekisteriin asiakas kuuluu. Uusi asiakas tallennetaan aina omaan
@@ -1482,48 +1396,11 @@ export default function MaintenanceReportEditPage({ session }: Props) {
                   onCreate={createCustomerAndSelect}
                 />
 
-                {customerId && reportId && status === 'draft' && (
-                  <p className="form-actions">
-                    <button
-                      type="button"
-                      className="btn btn-secondary"
-                      disabled={busy}
-                      onClick={() =>
-                        navigate(
-                          `/huoltoraportit/uusi?customerId=${encodeURIComponent(customerId)}&copyFrom=${encodeURIComponent(reportId)}`,
-                        )
-                      }
-                    >
-                      Tallenna kopio uudelle laitteelle
-                    </button>
-                  </p>
-                )}
-
                 {copySiblingMode && (
                   <p className="muted">
-                    Kopioit pöytäkirjan toiselle laitteelle — määritä uusi laitetunnus alla tai luo uusi laite
-                    rekisteriin.
+                    Kopioit pöytäkirjan toiselle laitteelle — määritä uusi laitetunnus Laitetiedot-välilehdellä
+                    ja tallenna kopio alareunan painikkeesta.
                   </p>
-                )}
-
-                {customerId && (
-                  <EquipmentRegistryPicker
-                    equipment={equipment}
-                    equipmentId={equipmentId}
-                    busy={busy}
-                    excludeEquipmentIds={copySourceEquipmentId ? [copySourceEquipmentId] : []}
-                    autoOpenCreate={copySiblingMode}
-                    placeholders={{
-                      name: form.laiteTunnus || form.laiteMalli || undefined,
-                      tag: form.laiteTunnus || undefined,
-                      model: form.laiteMalli || undefined,
-                      serial_number: form.laiteSarjanumero || undefined,
-                      location: form.laiteSijainti || undefined,
-                    }}
-                    onSelect={setEquipmentId}
-                    onClear={() => setEquipmentId('')}
-                    onCreate={createEquipmentAndSelect}
-                  />
                 )}
               </>
             ) : (
@@ -1533,17 +1410,6 @@ export default function MaintenanceReportEditPage({ session }: Props) {
                   <strong>{form.asiakas || selectedCustomer?.name || '—'}</strong>
                   <span className="muted">{form.osoite}</span>
                 </div>
-                {equipmentId && (
-                  <div className="info-box">
-                    <span className="info-label">Laite rekisterissä</span>
-                    <strong>
-                      {equipment.find((e) => e.id === equipmentId)?.tag ||
-                        equipment.find((e) => e.id === equipmentId)?.name ||
-                        form.laiteTunnus ||
-                        '—'}
-                    </strong>
-                  </div>
-                )}
               </div>
             )}
 
@@ -1600,60 +1466,38 @@ export default function MaintenanceReportEditPage({ session }: Props) {
                 />
               </label>
             </div>
+            </>
+          )}
         </section>
         )}
 
-        {activeTab === 'laitetyyppi' && (
+        {activeTab === 'laitetiedot' && (
         <section className="maintenance-report-tab-section">
-          <div className="chip-grid">
-            {deviceTypes.map((dt) => (
-              <label key={dt.value} className={`chip ${form.laiteTyyppi === dt.value ? 'chip-active' : ''}`}>
-                <input
-                  type="radio"
-                  name="laiteTyyppi"
-                  value={dt.value}
-                  checked={form.laiteTyyppi === dt.value}
-                  onChange={() => onDeviceTypeChange(dt.value)}
-                />
-                {dt.label}
+              <label className="maintenance-device-type-select">
+                Laitetyyppi
+                <select
+                  value={form.laiteTyyppi}
+                  onChange={(e) => onDeviceTypeChange(e.target.value)}
+                >
+                  <option value="">— Valitse laitetyyppi —</option>
+                  {deviceTypes.map((dt) => (
+                    <option key={dt.value} value={dt.value}>
+                      {dt.label}
+                    </option>
+                  ))}
+                </select>
               </label>
-            ))}
-          </div>
-        </section>
-        )}
 
-        {activeTab === 'laitetiedot' && form.laiteTyyppi && (
-        <section className="maintenance-report-tab-section">
+              {!form.laiteTyyppi ? (
+                <p className="muted">Valitse laitetyyppi nähdäksesi laitteen perustiedot ja muut moduulit.</p>
+              ) : (
+              <>
               {registryMessage && <p className="muted">{registryMessage}</p>}
               {copySiblingMode && (
                 <p className="muted">
-                  Kopioit pöytäkirjan uudelle laitteelle. Täytä <strong>Laitetunnus</strong> ja paina{' '}
-                  <strong>Tallenna kopio uudelle laitteelle</strong> — tai luo laite yllä olevasta valitsimesta.
+                  Kopioit pöytäkirjan uudelle laitteelle. Täytä <strong>Laitetunnus</strong> ja paina alareunan{' '}
+                  <strong>Tallenna kopio uudelle laitteelle</strong>.
                 </p>
-              )}
-              {customerId && (
-                <div className="form-actions" style={{ marginBottom: '1rem' }}>
-                  <button
-                    type="button"
-                    className="btn btn-secondary"
-                    disabled={busy}
-                    onClick={() => void saveEquipmentToRegistry()}
-                  >
-                    {copySiblingMode
-                      ? 'Tallenna kopio uudelle laitteelle'
-                      : equipmentId
-                        ? 'Päivitä laite rekisteriin'
-                        : 'Tallenna laite rekisteriin'}
-                  </button>
-                  {equipmentId && selectedCustomer && (
-                    <Link
-                      to={`/asiakkaat/${selectedCustomer.id}`}
-                      className="btn btn-secondary"
-                    >
-                      Avaa asiakkaan laiterekisteri
-                    </Link>
-                  )}
-                </div>
               )}
               {isKonvektoritDevice(form.laiteTyyppi) ? (
                 <>
@@ -1763,6 +1607,8 @@ export default function MaintenanceReportEditPage({ session }: Props) {
                 </>
                 )}
               </div>
+              )}
+              </>
               )}
         </section>
         )}
@@ -2012,54 +1858,130 @@ export default function MaintenanceReportEditPage({ session }: Props) {
 
         {error && <p className="error">{error}</p>}
 
-        <div className="form-actions">
-          <button
-            type="button"
-            className="btn btn-secondary"
-            onClick={() => leaveGuard.requestLeave(navigation.backTo)}
-          >
-            Takaisin
-          </button>
-          {status === 'draft' && (
-            <>
+        <div className="form-actions maintenance-form-actions">
+          <details className="maintenance-actions-more">
+            <summary className="maintenance-actions-more-toggle">Muut toiminnot</summary>
+            <div className="maintenance-actions-more-panel">
+              {canDeleteMaintenance && (
+                <button
+                  type="button"
+                  className="btn btn-danger"
+                  disabled={deleteBusy || busy}
+                  onClick={() => void deleteReport()}
+                >
+                  Poista raportti
+                </button>
+              )}
+              {reportId && (
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  disabled={printBusy || busy}
+                  onClick={() => void openPrintPreview()}
+                >
+                  {printBusy ? 'Avataan…' : 'Tulosta / PDF'}
+                </button>
+              )}
+              {customerId && reportId && status === 'draft' && !copySiblingMode && (
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  disabled={busy}
+                  onClick={() =>
+                    navigate(
+                      `/huoltoraportit/uusi?customerId=${encodeURIComponent(customerId)}&copyFrom=${encodeURIComponent(reportId)}`,
+                    )
+                  }
+                >
+                  Tallenna kopio uudelle laitteelle
+                </button>
+              )}
+              {customerId && form.laiteTyyppi && (
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  disabled={busy}
+                  onClick={() => void saveEquipmentToRegistry()}
+                >
+                  {copySiblingMode
+                    ? 'Tallenna kopio uudelle laitteelle'
+                    : equipmentId
+                      ? 'Päivitä laite rekisteriin'
+                      : 'Tallenna laite rekisteriin'}
+                </button>
+              )}
+              {equipmentId && selectedCustomer && (
+                <Link
+                  to={`/asiakkaat/${selectedCustomer.id}`}
+                  className="btn btn-secondary"
+                >
+                  Avaa laiterekisteri
+                </Link>
+              )}
+              {canEditPublishedReport && (
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  disabled={busy || !form.laiteTyyppi}
+                  onClick={() => void saveReport('draft')}
+                >
+                  Palauta luonnokseksi
+                </button>
+              )}
               <button
                 type="button"
-                className="btn btn-secondary"
-                disabled={busy || !form.laiteTyyppi}
-                onClick={() => void saveReport('draft')}
+                className="btn btn-secondary maintenance-actions-back"
+                onClick={() => leaveGuard.requestLeave(navigation.backTo)}
               >
-                {busy ? 'Tallennetaan…' : 'Tallenna luonnos'}
+                ← Takaisin
               </button>
+            </div>
+          </details>
+
+          <div className="maintenance-actions-core">
+            <span className={`badge badge-${status === 'draft' ? 'scheduled' : 'completed'}`}>
+              {getMaintenanceReportStatusLabel(status)}
+            </span>
+            <div className="maintenance-actions-primary">
               <button
                 type="button"
-                className="btn btn-primary"
-                disabled={busy || !form.laiteTyyppi}
-                onClick={() => void saveReport('submitted')}
+                className="btn btn-secondary maintenance-actions-back-desktop"
+                onClick={() => leaveGuard.requestLeave(navigation.backTo)}
               >
-                Merkitse valmiiksi
+                ← Takaisin
               </button>
-            </>
-          )}
-          {canEditPublishedReport && (
-            <>
-              <button
-                type="button"
-                className="btn btn-primary"
-                disabled={busy || !form.laiteTyyppi}
-                onClick={() => void saveReport()}
-              >
-                {busy ? 'Tallennetaan…' : 'Tallenna muutokset'}
-              </button>
-              <button
-                type="button"
-                className="btn btn-secondary"
-                disabled={busy || !form.laiteTyyppi}
-                onClick={() => void saveReport('draft')}
-              >
-                Palauta luonnokseksi
-              </button>
-            </>
-          )}
+              {status === 'draft' && (
+                <>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    disabled={busy || !form.laiteTyyppi}
+                    onClick={() => void saveReport('draft')}
+                  >
+                    {busy ? 'Tallennetaan…' : 'Tallenna luonnos'}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    disabled={busy || !form.laiteTyyppi}
+                    onClick={() => void saveReport('submitted')}
+                  >
+                    Merkitse valmiiksi
+                  </button>
+                </>
+              )}
+              {canEditPublishedReport && (
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  disabled={busy || !form.laiteTyyppi}
+                  onClick={() => void saveReport()}
+                >
+                  {busy ? 'Tallennetaan…' : 'Tallenna muutokset'}
+                </button>
+              )}
+            </div>
+          </div>
         </div>
       </form>
       </HuoltoEditUiProvider>

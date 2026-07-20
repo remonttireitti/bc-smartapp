@@ -1,10 +1,7 @@
 import { huoltoTiedotSectionTitle, kylmaaineChargeTitle, kylmaainePiiriSectionTitle, hoyrystinSectionTitle, lauhdutinSectionTitle, konvektoritSectionTitle, huomiotSectionTitle, jaahdytysvesiSectionTitle, nestelauhduttimetSectionTitle, lauhdutuspiiriSectionTitle } from './sectionTitles';
-import { isChillerLikeDevice } from './deviceModuleLogic';
 
 export type MaintenanceReportTabId =
   | 'raportointi'
-  | 'asiakas'
-  | 'laitetyyppi'
   | 'laitetiedot'
   | 'kylmaaine'
   | 'kylmaainePiiri'
@@ -27,7 +24,6 @@ export type MaintenanceReportTabItem = {
 };
 
 type TabVisibilityInput = {
-  hasProfile: boolean;
   laiteTyyppi: string;
   selectedModules: Record<string, boolean>;
   showEvaporatorSection: boolean;
@@ -45,21 +41,15 @@ type TabVisibilityInput = {
 export function buildMaintenanceReportTabs(input: TabVisibilityInput): MaintenanceReportTabItem[] {
   const { laiteTyyppi } = input;
   const tabs: MaintenanceReportTabItem[] = [
-    { id: 'raportointi', label: 'Raportointi' },
+    { id: 'raportointi', label: 'Raportointi ja asiakas' },
   ];
-
-  if (input.hasProfile) {
-    tabs.push({ id: 'asiakas', label: 'Asiakas ja laite' });
-  }
-
-  tabs.push({ id: 'laitetyyppi', label: 'Laitetyyppi' });
-
-  if (!laiteTyyppi) return tabs;
 
   tabs.push({
     id: 'laitetiedot',
-    label: laiteTyyppi === 'konvektorit' ? 'Konvektoriverkosto' : isChillerLikeDevice(laiteTyyppi) ? 'Perustiedot' : 'Laitetiedot',
+    label: laiteTyyppi === 'konvektorit' ? 'Konvektoriverkosto' : 'Laitetiedot',
   });
+
+  if (!laiteTyyppi) return tabs;
 
   if (input.selectedModules.kylmaainePiiri || laiteTyyppi === 'lämpöpumppu') {
     tabs.push({ id: 'kylmaaine', label: kylmaaineChargeTitle(laiteTyyppi) });
@@ -118,7 +108,10 @@ export function buildMaintenanceReportTabs(input: TabVisibilityInput): Maintenan
 export function readMaintenanceReportActiveTab(viewKey: string): MaintenanceReportTabId | null {
   try {
     const raw = sessionStorage.getItem(`${viewKey}:activeTab`);
-    return raw as MaintenanceReportTabId | null;
+    if (!raw) return null;
+    if (raw === 'laitetyyppi') return 'laitetiedot';
+    if (raw === 'asiakas') return 'raportointi';
+    return raw as MaintenanceReportTabId;
   } catch {
     return null;
   }

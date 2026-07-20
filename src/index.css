@@ -4694,7 +4694,153 @@ textarea {
     min-width: 0;
     max-width: 100%;
     overflow-x: clip;
-    padding-bottom: calc(11rem + env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(14rem + env(safe-area-inset-bottom, 0px));
+  }
+
+  .maintenance-form .line-form-grid,
+  .maintenance-form .collapsible-body .line-form-grid,
+  .maintenance-form .huolto-measurement-grid,
+  .huolto-module-body .line-form-grid,
+  .huolto-module-body .huolto-measurement-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .maintenance-device-type-select {
+    max-width: none;
+  }
+
+  .maintenance-report-tabs {
+    gap: .5rem;
+    padding: .35rem 0 1rem;
+    margin: 0 -.25rem;
+    padding-left: .25rem;
+    padding-right: .25rem;
+    scroll-snap-type: x proximity;
+    mask-image: linear-gradient(to right, transparent, #000 .75rem, #000 calc(100% - .75rem), transparent);
+  }
+
+  .maintenance-report-tab {
+    min-height: 2.75rem;
+    padding: .55rem 1rem;
+    font-size: .9rem;
+    scroll-snap-align: center;
+  }
+
+  .maintenance-form-actions {
+    position: sticky;
+    bottom: 0;
+    z-index: 3;
+    flex-direction: column;
+    align-items: stretch;
+    gap: .55rem;
+    margin: 0 -1rem;
+    padding: .65rem 1rem;
+    padding-bottom: calc(.65rem + env(safe-area-inset-bottom, 0px));
+    background: var(--bg-surface);
+    border-top: 1px solid var(--border-strong);
+    box-shadow: 0 -4px 16px rgba(15, 23, 42, .08);
+  }
+
+  .maintenance-actions-more {
+    display: block;
+  }
+
+  .maintenance-actions-more-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    min-height: 2.75rem;
+    padding: .55rem .85rem;
+    border: 1px solid var(--border-strong);
+    border-radius: 8px;
+    background: var(--bg-subtle);
+    color: inherit;
+    font: inherit;
+    font-size: .9rem;
+    font-weight: 600;
+    cursor: pointer;
+    list-style: none;
+  }
+
+  .maintenance-actions-more-toggle::-webkit-details-marker {
+    display: none;
+  }
+
+  .maintenance-actions-more-toggle::after {
+    content: '▾';
+    margin-left: .4rem;
+    font-size: .85rem;
+    opacity: .7;
+    transition: transform .15s ease;
+  }
+
+  .maintenance-actions-more[open] .maintenance-actions-more-toggle::after {
+    transform: rotate(180deg);
+  }
+
+  .maintenance-actions-more-panel {
+    display: flex;
+    flex-direction: column;
+    gap: .45rem;
+    margin-top: .45rem;
+  }
+
+  .maintenance-actions-more-panel .btn,
+  .maintenance-actions-more-panel a.btn {
+    width: 100%;
+    min-height: 2.75rem;
+  }
+
+  .maintenance-actions-core {
+    display: flex;
+    flex-direction: column;
+    gap: .55rem;
+  }
+
+  .maintenance-actions-core > .badge {
+    align-self: center;
+    margin: 0;
+    font-size: .82rem;
+  }
+
+  .maintenance-actions-primary {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: .5rem;
+  }
+
+  .maintenance-actions-primary .btn:only-child {
+    grid-column: 1 / -1;
+  }
+
+  .maintenance-actions-primary .btn {
+    width: 100%;
+    min-height: 2.85rem;
+    margin: 0;
+  }
+
+  .maintenance-actions-back {
+    display: inline-flex;
+  }
+
+  .maintenance-actions-back-desktop {
+    display: none;
+  }
+
+  .maintenance-form .info-box-select {
+    width: 100%;
+    min-height: 2.9rem;
+  }
+
+  .maintenance-form:has(.maintenance-actions-more[open]) {
+    padding-bottom: calc(24rem + env(safe-area-inset-bottom, 0px));
+  }
+
+  .maintenance-report-tab,
+  .maintenance-form-actions .btn,
+  .maintenance-actions-more-toggle {
+    touch-action: manipulation;
   }
 
   .maintenance-form input,
@@ -5074,6 +5220,52 @@ textarea {
   flex-direction: column;
   gap: 1rem;
   min-height: 12rem;
+}
+
+.maintenance-device-type-select {
+  display: block;
+  max-width: 28rem;
+  margin-bottom: .25rem;
+}
+
+.maintenance-device-type-select select {
+  width: 100%;
+}
+
+.maintenance-form-actions {
+  align-items: center;
+}
+
+.maintenance-form-actions .badge {
+  margin-right: .25rem;
+}
+
+.maintenance-actions-more {
+  display: contents;
+}
+
+.maintenance-actions-more-toggle {
+  display: none;
+}
+
+.maintenance-actions-more-panel {
+  display: contents;
+}
+
+.maintenance-actions-core {
+  display: contents;
+}
+
+.maintenance-actions-primary {
+  display: contents;
+}
+
+.maintenance-actions-back {
+  display: none;
+}
+
+.maintenance-actions-back-desktop {
+  display: inline-flex;
 }
 
 .maintenance-report-tab-section {
