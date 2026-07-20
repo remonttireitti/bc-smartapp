@@ -239,21 +239,39 @@ export async function loadCustomerSharingByPartnerships(
   return result;
 }
 
+export type CustomerShareMutationResult =
+  | { changed: true }
+  | { changed: false; reason: 'unchanged' | 'report_linked' | 'already_visible' };
+
 export async function setCustomerSharedWithPartner(
   supabase: SupabaseClient,
   partnershipId: string,
   customerId: string,
   shared: boolean,
   currentSharing: CustomerSharingState,
-): Promise<void> {
-  if (isCustomerReportLinkedWithPartner(currentSharing, customerId)) return;
+  allOwnerCustomerIds: string[] = [],
+): Promise<CustomerShareMutationResult> {
+  if (!shared && isCustomerReportLinkedWithPartner(currentSharing, customerId)) {
+    return { changed: false, reason: 'report_linked' };
+  }
+
+  if (!currentSharing.restricted) {
+    if (shared) return { changed: false, reason: 'already_visible' };
+    const nextSharedIds = allOwnerCustomerIds.filter((id) => id !== customerId);
+    if (nextSharedIds.length === allOwnerCustomerIds.length) {
+      return { changed: false, reason: 'unchanged' };
+    }
+    await saveCustomerSharingForPartnership(supabase, partnershipId, nextSharedIds);
+    return { changed: true };
+  }
 
   const currentlyShared = isCustomerExplicitlySharedWithPartner(currentSharing, customerId);
-  if (currentlyShared === shared) return;
+  if (currentlyShared === shared) return { changed: false, reason: 'unchanged' };
 
   const nextSharedIds = shared
     ? [...new Set([...currentSharing.sharedCustomerIds, customerId])]
     : currentSharing.sharedCustomerIds.filter((id) => id !== customerId);
 
   await saveCustomerSharingForPartnership(supabase, partnershipId, nextSharedIds);
+  return { changed: true };
 }

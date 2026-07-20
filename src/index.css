@@ -3885,6 +3885,10 @@ textarea {
   margin: 0;
 }
 
+.detail-list > div {
+  display: contents;
+}
+
 .detail-list dt { color: var(--text-muted); }
 .detail-list dd { margin: 0; }
 
@@ -5858,6 +5862,14 @@ textarea {
   border: 1px solid var(--border);
 }
 
+.installation-print-page .installation-print-host {
+  background: #fff;
+  color: #111827;
+  padding: 1rem;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+
 .work-report-print-page .work-report-print-host {
   background: #fff;
   color: #111827;
@@ -5997,6 +6009,12 @@ textarea {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   gap: .65rem;
+  align-items: start;
+  padding: .85rem 1rem;
+}
+
+.report-list li.customer-equipment-row {
+  display: grid;
   align-items: start;
 }
 
@@ -7220,9 +7238,11 @@ textarea {
   .app-layout nav,
   .app-layout .sidebar,
   .maintenance-print-page .page-header,
+  .installation-print-page .page-header,
   .work-report-print-page .page-header,
   .temp-report-print-page .page-header { display: none !important; }
   .maintenance-print-page .maintenance-print-host,
+  .installation-print-page .installation-print-host,
   .work-report-print-page .work-report-print-host,
   .temp-report-print-page .temp-report-print-host {
     border: none;

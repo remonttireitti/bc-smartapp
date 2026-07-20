@@ -52,6 +52,16 @@ function waitForPrintWindowReady(printWindow: Window, timeoutMs: number): Promis
   });
 }
 
+export async function printIframeContent(iframe: HTMLIFrameElement | null, timeoutMs = 10000): Promise<boolean> {
+  const frameWindow = iframe?.contentWindow;
+  if (!frameWindow?.document) return false;
+
+  await waitForDocumentImages(frameWindow.document, timeoutMs);
+  frameWindow.focus();
+  frameWindow.print();
+  return true;
+}
+
 export async function openPrintWindow(html: string, timeoutMs = 12000): Promise<boolean> {
   const printWindow = window.open('', '_blank');
   if (!printWindow) return false;

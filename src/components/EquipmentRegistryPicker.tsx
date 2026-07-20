@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { equipmentToOption } from '../lib/registrySearch';
 import type { Equipment } from '../types';
 import RegistryCombobox from './RegistryCombobox';
@@ -26,6 +26,8 @@ type Props = {
   disabled?: boolean;
   busy?: boolean;
   placeholders?: Partial<NewEquipmentDraft>;
+  excludeEquipmentIds?: string[];
+  autoOpenCreate?: boolean;
   onSelect: (equipmentId: string) => void;
   onClear: () => void;
   onCreate: (draft: NewEquipmentDraft) => Promise<void>;
@@ -38,14 +40,25 @@ export default function EquipmentRegistryPicker({
   disabled,
   busy,
   placeholders,
+  excludeEquipmentIds = [],
+  autoOpenCreate = false,
   onSelect,
   onClear,
   onCreate,
 }: Props) {
-  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [showCreateForm, setShowCreateForm] = useState(autoOpenCreate);
   const [draft, setDraft] = useState<NewEquipmentDraft>(emptyDraft);
 
-  const options = useMemo(() => equipment.map(equipmentToOption), [equipment]);
+  const excluded = useMemo(() => new Set(excludeEquipmentIds), [excludeEquipmentIds]);
+  const visibleEquipment = useMemo(
+    () => equipment.filter((entry) => !excluded.has(entry.id)),
+    [equipment, excluded],
+  );
+  const options = useMemo(() => visibleEquipment.map(equipmentToOption), [visibleEquipment]);
+
+  useEffect(() => {
+    if (autoOpenCreate) setShowCreateForm(true);
+  }, [autoOpenCreate]);
 
   function openCreateForm(name: string) {
     setDraft({
@@ -79,13 +92,18 @@ export default function EquipmentRegistryPicker({
         onCreateClick={openCreateForm}
       />
 
-      {equipment.length === 0 && !showCreateForm && (
+      {visibleEquipment.length === 0 && !showCreateForm && (
         <p className="muted">Asiakkaalla ei vielä laitteita rekisterissä. Kirjoita hakeaksesi tai luo uusi.</p>
+      )}
+
+      {excludeEquipmentIds.length > 0 && visibleEquipment.length > 0 && (
+        <p className="muted">Lähde laite on piilotettu valinnasta — valitse toinen laite tai luo uusi tunnus.</p>
       )}
 
       {showCreateForm && (
         <div className="expense-section registry-create-form">
           <h3>Uusi laite</h3>
+          <p className="muted">Anna uuden koneen tunnus (tagi) ja muut tiedot — ne tallentuvat laiterekisteriin.</p>
           <div className="line-form-grid">
             <label>
               Nimi *

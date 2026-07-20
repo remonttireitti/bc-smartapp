@@ -28,8 +28,7 @@ import type { InstallationPlanAttachment, InstallationPlanData } from '../lib/in
 import {
   InstallationPlanAttachmentsField,
   loadInstallationPlanAttachments,
-  resolveInstallationPlanAttachmentsForPrint,
-  embedPrintImageUrl,
+  resolveInstallationPlanAttachmentUrls,
   uploadInstallationPlanAttachments,
 } from '../lib/installationPlanAttachments';
 import { openPrintWindow } from '../lib/quoteRequest/printWindowUtils';
@@ -276,8 +275,7 @@ export default function InstallationPlanEditPage({ session }: Props) {
       setActiveSection('asiakas');
       return;
     }
-    const printAttachments = await resolveInstallationPlanAttachmentsForPrint(attachments);
-    const embeddedLogo = await embedPrintImageUrl(logoUrl);
+    const printAttachments = await resolveInstallationPlanAttachmentUrls(attachments);
     const html = generateInstallationPlanPrintHtml({
       data: form,
       customer: {
@@ -287,7 +285,7 @@ export default function InstallationPlanEditPage({ session }: Props) {
       },
       meta: {
         companyName: companyName || profile?.companies?.name || '—',
-        logoUrl: embeddedLogo,
+        logoUrl,
         settings: companySettings,
         documentDate: savedAt,
       },

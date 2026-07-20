@@ -180,6 +180,8 @@ export default function MaintenanceReportEditPage({ session }: Props) {
   const loadedReportIdRef = useRef<string | null>(null);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const copyFromLoadedRef = useRef(false);
+  const [copySiblingMode, setCopySiblingMode] = useState(false);
+  const [copySourceEquipmentId, setCopySourceEquipmentId] = useState<string | null>(null);
 
   const draftStorageKey = localDraftKey(reportId, session.user.id);
   const reportViewKey = maintenanceReportViewKey(reportId, session.user.id);
@@ -434,6 +436,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
 
   useEffect(() => {
     if (!isNew || !ownerCompanyId) return;
+    if (searchParams.get('copyFrom')) return;
     const cid = searchParams.get('customerId');
     const eid = searchParams.get('equipmentId');
     if (cid) setCustomerId(cid);
@@ -448,7 +451,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
     void (async () => {
       const { data, error: copyError } = await supabase
         .from('maintenance_reports')
-        .select('data, customer_id, owner_company_id, subscriber_id')
+        .select('data, customer_id, owner_company_id, subscriber_id, equipment_id')
         .eq('id', copyFromId)
         .maybeSingle();
 
@@ -462,16 +465,19 @@ export default function MaintenanceReportEditPage({ session }: Props) {
         customer_id: string | null;
         owner_company_id: string;
         subscriber_id: string | null;
+        equipment_id: string | null;
       };
 
       setForm(cloneHuoltoReportForSiblingEquipment(row.data));
+      setCopySourceEquipmentId(row.equipment_id);
+      setCopySiblingMode(true);
       setEquipmentId('');
       if (row.customer_id) setCustomerId(row.customer_id);
       if (row.owner_company_id) setReportOwnerCompanyId(row.owner_company_id);
       if (row.subscriber_id) setSubscriberId(row.subscriber_id);
       setHasUnsavedChanges(true);
       setRegistryMessage(
-        'Tiedot kopioitu edellisestä pöytäkirjasta — valitse toisen laitteen tunnus rekisteristä.',
+        'Tiedot kopioitu edellisestä pöytäkirjasta — määritä uuden koneen tunnus alla ja tallenna uusi laite rekisteriin.',
       );
     })();
   }, [isNew, searchParams, profileLoading]);
@@ -815,6 +821,10 @@ export default function MaintenanceReportEditPage({ session }: Props) {
       laiteSarjanumero: created.serial_number || form.laiteSarjanumero,
       laiteSijainti: created.location || form.laiteSijainti,
     });
+    if (copySiblingMode) {
+      setCopySiblingMode(false);
+      setCopySourceEquipmentId(null);
+    }
     setRegistryMessage('Laite luotu rekisteriin ja valittu raportille.');
     setBusy(false);
   }
@@ -828,18 +838,27 @@ export default function MaintenanceReportEditPage({ session }: Props) {
       setError('Valitse laitetyyppi ennen rekisteriin tallennusta.');
       return;
     }
+    if (!form.laiteTunnus.trim() && copySiblingMode) {
+      setError('Anna uuden koneen tunnus ennen kopion tallennusta.');
+      return;
+    }
     setBusy(true);
     setError(null);
     setRegistryMessage(null);
     try {
+      const creatingSiblingCopy =
+        copySiblingMode && (!equipmentId || equipmentId === copySourceEquipmentId);
+      const targetEquipmentId = creatingSiblingCopy ? null : equipmentId || null;
       const savedEquipmentId = await saveEquipmentFromReport(
         form,
         customerId,
         ownerCompanyId,
-        equipmentId || null,
+        targetEquipmentId,
         supabase,
       );
       setEquipmentId(savedEquipmentId);
+      setCopySiblingMode(false);
+      setCopySourceEquipmentId(null);
       if (reportId) {
         await supabase
           .from('maintenance_reports')
@@ -848,7 +867,11 @@ export default function MaintenanceReportEditPage({ session }: Props) {
       }
       await loadEquipment(customerId);
       setRegistryMessage(
-        equipmentId ? 'Laite päivitetty rekisteriin.' : 'Laite tallennettu rekisteriin ja linkitetty raporttiin.',
+        targetEquipmentId
+          ? 'Laite päivitetty rekisteriin.'
+          : creatingSiblingCopy
+            ? 'Uusi laite tallennettu rekisteriin ja linkitetty kopioon.'
+            : 'Laite tallennettu rekisteriin ja linkitetty raporttiin.',
       );
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Laitteen tallennus epäonnistui.');
@@ -1394,7 +1417,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
                   onCreate={createCustomerAndSelect}
                 />
 
-                {customerId && equipment.length >= 2 && reportId && status === 'draft' && (
+                {customerId && reportId && status === 'draft' && (
                   <p className="form-actions">
                     <button
                       type="button"
@@ -1406,8 +1429,15 @@ export default function MaintenanceReportEditPage({ session }: Props) {
                         )
                       }
                     >
-                      Lisää pöytäkirja toiselle laitteelle (kopioi tiedot)
+                      Tallenna kopio uudelle laitteelle
                     </button>
+                  </p>
+                )}
+
+                {copySiblingMode && (
+                  <p className="muted">
+                    Kopioit pöytäkirjan toiselle laitteelle — määritä uusi laitetunnus alla tai luo uusi laite
+                    rekisteriin.
                   </p>
                 )}
 
@@ -1416,6 +1446,8 @@ export default function MaintenanceReportEditPage({ session }: Props) {
                     equipment={equipment}
                     equipmentId={equipmentId}
                     busy={busy}
+                    excludeEquipmentIds={copySourceEquipmentId ? [copySourceEquipmentId] : []}
+                    autoOpenCreate={copySiblingMode}
                     placeholders={{
                       name: form.laiteTunnus || form.laiteMalli || undefined,
                       tag: form.laiteTunnus || undefined,
@@ -1530,6 +1562,12 @@ export default function MaintenanceReportEditPage({ session }: Props) {
               collapseKey="page:laitetiedot"
             >
               {registryMessage && <p className="muted">{registryMessage}</p>}
+              {copySiblingMode && (
+                <p className="muted">
+                  Kopioit pöytäkirjan uudelle laitteelle. Täytä <strong>Laitetunnus</strong> ja paina{' '}
+                  <strong>Tallenna kopio uudelle laitteelle</strong> — tai luo laite yllä olevasta valitsimesta.
+                </p>
+              )}
               {customerId && (
                 <div className="form-actions" style={{ marginBottom: '1rem' }}>
                   <button
@@ -1538,7 +1576,11 @@ export default function MaintenanceReportEditPage({ session }: Props) {
                     disabled={busy}
                     onClick={() => void saveEquipmentToRegistry()}
                   >
-                    {equipmentId ? 'Päivitä laite rekisteriin' : 'Tallenna laite rekisteriin'}
+                    {copySiblingMode
+                      ? 'Tallenna kopio uudelle laitteelle'
+                      : equipmentId
+                        ? 'Päivitä laite rekisteriin'
+                        : 'Tallenna laite rekisteriin'}
                   </button>
                   {equipmentId && selectedCustomer && (
                     <Link

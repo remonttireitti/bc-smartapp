@@ -72,12 +72,20 @@ export type InstallationPlanPrintAttachment = InstallationPlanAttachment & {
   url: string | null;
 };
 
-const PRINT_IMAGE_MAX_WIDTH = 1600;
+const PRINT_IMAGE_MAX_WIDTH = 1200;
+const PRINT_IMAGE_TIMEOUT_MS = 10_000;
+
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, fallback: T): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((resolve) => window.setTimeout(() => resolve(fallback), timeoutMs)),
+  ]);
+}
 
 async function resizeDataUrlForPrint(dataUrl: string, maxWidth = PRINT_IMAGE_MAX_WIDTH): Promise<string> {
   if (!dataUrl.startsWith('data:image/') || typeof window === 'undefined') return dataUrl;
 
-  return new Promise((resolve) => {
+  const resizePromise = new Promise<string>((resolve) => {
     const img = new Image();
     img.onload = () => {
       const width = img.naturalWidth || img.width;
@@ -102,12 +110,26 @@ async function resizeDataUrlForPrint(dataUrl: string, maxWidth = PRINT_IMAGE_MAX
     img.onerror = () => resolve(dataUrl);
     img.src = dataUrl;
   });
+
+  return withTimeout(resizePromise, PRINT_IMAGE_TIMEOUT_MS, dataUrl);
 }
 
 async function embedInstallationPlanImageForPrint(url: string): Promise<string> {
-  const embedded = await embedUrlAsDataUrl(url);
+  const embedded = await withTimeout(embedUrlAsDataUrl(url), PRINT_IMAGE_TIMEOUT_MS, url);
   if (!embedded.startsWith('data:')) return embedded;
   return resizeDataUrlForPrint(embedded);
+}
+
+export async function resolveInstallationPlanAttachmentUrls(
+  attachments: InstallationPlanAttachment[],
+  expiresIn = 3600,
+): Promise<InstallationPlanPrintAttachment[]> {
+  return Promise.all(
+    attachments.map(async (attachment) => ({
+      ...attachment,
+      url: await resolveAttachmentUrl(attachment.storage_path, expiresIn),
+    })),
+  );
 }
 
 export async function embedPrintImageUrl(url: string | null | undefined): Promise<string | null> {

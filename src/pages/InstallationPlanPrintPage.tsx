@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
 import AppLayout from '../components/AppLayout';
@@ -7,8 +7,12 @@ import { parseCompanySettings } from '../lib/management';
 import { normalizeInstallationPlanData, resolveInstallationPlanDisplayTitle } from '../lib/installationPlan/defaults';
 import { generateInstallationPlanPrintHtml } from '../lib/installationPlan/printHtml';
 import type { InstallationPlanData } from '../lib/installationPlan/types';
-import { loadInstallationPlanAttachments, resolveInstallationPlanAttachmentsForPrint, embedPrintImageUrl, type InstallationPlanPrintAttachment } from '../lib/installationPlanAttachments';
-import { openPrintWindow } from '../lib/quoteRequest/printWindowUtils';
+import {
+  loadInstallationPlanAttachments,
+  resolveInstallationPlanAttachmentUrls,
+  type InstallationPlanPrintAttachment,
+} from '../lib/installationPlanAttachments';
+import { printIframeContent } from '../lib/quoteRequest/printWindowUtils';
 import { supabase } from '../lib/supabase';
 
 interface Props {
@@ -17,6 +21,7 @@ interface Props {
 
 export default function InstallationPlanPrintPage({ session }: Props) {
   const { id } = useParams();
+  const iframeRef = useRef<HTMLIFrameElement>(null);
   const [form, setForm] = useState<InstallationPlanData | null>(null);
   const [customer, setCustomer] = useState<{ name: string; address?: string | null; city?: string | null } | null>(
     null,
@@ -28,7 +33,8 @@ export default function InstallationPlanPrintPage({ session }: Props) {
   const [attachments, setAttachments] = useState<InstallationPlanPrintAttachment[]>([]);
   const [loading, setLoading] = useState(true);
   const [printBusy, setPrintBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [printError, setPrintError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!id) return;
@@ -48,7 +54,7 @@ export default function InstallationPlanPrintPage({ session }: Props) {
       .single();
 
     if (loadError || !data) {
-      setError(loadError?.message ?? 'Suunnitelmaa ei löytynyt.');
+      setLoadError(loadError?.message ?? 'Suunnitelmaa ei löytynyt.');
       setLoading(false);
       return;
     }
@@ -74,9 +80,10 @@ export default function InstallationPlanPrintPage({ session }: Props) {
     setCompanyName(row.branding_company?.name ?? '—');
     setCompanySettings(parseCompanySettings(row.branding_company?.settings));
     setDocumentDate(row.updated_at);
-    const resolvedLogo = await resolveCompanyLogoUrl(row.branding_company?.logo_url ?? null);
-    setLogoUrl(await embedPrintImageUrl(resolvedLogo));
-    setAttachments(await resolveInstallationPlanAttachmentsForPrint(await loadInstallationPlanAttachments(planId)));
+    setLogoUrl(await resolveCompanyLogoUrl(row.branding_company?.logo_url ?? null));
+    setAttachments(
+      await resolveInstallationPlanAttachmentUrls(await loadInstallationPlanAttachments(planId), 7200),
+    );
     setLoading(false);
   }
 
@@ -96,13 +103,12 @@ export default function InstallationPlanPrintPage({ session }: Props) {
   }
 
   async function handlePrint() {
-    const html = buildPrintHtml();
-    if (!html) return;
     setPrintBusy(true);
+    setPrintError(null);
     try {
-      const opened = await openPrintWindow(html);
-      if (!opened) {
-        setError('Selain esti tulostusikkunan. Salli ponnahdusikkunat tälle sivustolle.');
+      const printed = await printIframeContent(iframeRef.current);
+      if (!printed) {
+        setPrintError('Tulosteen valmistelu epäonnistui. Päivitä sivu ja yritä uudelleen.');
       }
     } finally {
       setPrintBusy(false);
@@ -117,10 +123,10 @@ export default function InstallationPlanPrintPage({ session }: Props) {
     );
   }
 
-  if (error || !form || !customer) {
+  if (loadError || !form || !customer) {
     return (
       <AppLayout session={session}>
-        <p className="error">{error ?? 'Suunnitelmaa tai asiakasta ei löytynyt.'}</p>
+        <p className="error">{loadError ?? 'Suunnitelmaa tai asiakasta ei löytynyt.'}</p>
       </AppLayout>
     );
   }
@@ -130,27 +136,32 @@ export default function InstallationPlanPrintPage({ session }: Props) {
 
   return (
     <AppLayout session={session}>
-      <div className="page-header">
-        <div>
-          <p className="breadcrumb">
-            <Link to="/">Etusivu</Link> / <Link to="/tarjouspyynnot">Tarjouspyyntö</Link> /{' '}
-            <Link to="/asennus-suunnittelu">Asennus suunnittelu</Link> /{' '}
-            <Link to={`/asennus-suunnittelu/${id}`}>Muokkaa</Link> / Tuloste
-          </p>
-          <h1>{title}</h1>
+      <div className="installation-print-page">
+        <div className="page-header no-print">
+          <div>
+            <p className="breadcrumb">
+              <Link to="/">Etusivu</Link> / <Link to="/tarjouspyynnot">Tarjouspyyntö</Link> /{' '}
+              <Link to="/asennus-suunnittelu">Asennus suunnittelu</Link> /{' '}
+              <Link to={`/asennus-suunnittelu/${id}`}>Muokkaa</Link> / Tuloste
+            </p>
+            <h1>{title}</h1>
+          </div>
+          <div className="page-header-actions">
+            {printError && <p className="error no-print">{printError}</p>}
+            <button type="button" className="btn btn-primary" disabled={printBusy} onClick={() => void handlePrint()}>
+              {printBusy ? 'Valmistellaan PDF…' : 'Tulosta / PDF'}
+            </button>
+          </div>
         </div>
-        <div className="page-header-actions">
-          <button type="button" className="btn btn-primary" disabled={printBusy} onClick={() => void handlePrint()}>
-            {printBusy ? 'Valmistellaan PDF…' : 'Tulosta / PDF'}
-          </button>
-        </div>
-      </div>
 
-      <iframe
-        title="Asennus suunnittelu tuloste"
-        className="print-preview-frame"
-        srcDoc={printHtml}
-      />
+        <iframe
+          ref={iframeRef}
+          title="Asennus suunnittelu tuloste"
+          className="installation-print-host"
+          srcDoc={printHtml}
+          style={{ width: '100%', border: 'none', minHeight: '80vh' }}
+        />
+      </div>
     </AppLayout>
   );
 }

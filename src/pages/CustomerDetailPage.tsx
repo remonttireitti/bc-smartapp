@@ -99,6 +99,7 @@ export default function CustomerDetailPage({ session }: Props) {
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [shareablePartners, setShareablePartners] = useState<ShareablePartner[]>([]);
+  const [ownerCustomerIds, setOwnerCustomerIds] = useState<string[]>([]);
   const [sharingBusyId, setSharingBusyId] = useState<string | null>(null);
   const [maintenanceRows, setMaintenanceRows] = useState<
     Awaited<ReturnType<typeof loadCustomerMaintenanceContext>>['maintenanceRows']
@@ -196,17 +197,21 @@ export default function CustomerDetailPage({ session }: Props) {
         if (!grantField) return false;
         return partnershipGrantsRegistryAccess(partnership[grantField]);
       });
-      const sharingByPartnership = await loadCustomerSharingByPartnerships(
-        supabase,
-        profile.company_id,
-        grantable.map((partnership) => ({
-          id: partnership.id,
-          partnerCompanyId:
-            partnership.company_a_id === profile.company_id
-              ? partnership.company_b_id
-              : partnership.company_a_id,
-        })),
-      );
+      const [{ data: ownCustomerRows }, sharingByPartnership] = await Promise.all([
+        supabase.from('customers').select('id').eq('owner_company_id', profile.company_id).order('name'),
+        loadCustomerSharingByPartnerships(
+          supabase,
+          profile.company_id,
+          grantable.map((partnership) => ({
+            id: partnership.id,
+            partnerCompanyId:
+              partnership.company_a_id === profile.company_id
+                ? partnership.company_b_id
+                : partnership.company_a_id,
+          })),
+        ),
+      ]);
+      setOwnerCustomerIds((ownCustomerRows ?? []).map((row) => row.id as string));
       setShareablePartners(
         grantable.map((partnership) => ({
           partnership,
@@ -219,6 +224,7 @@ export default function CustomerDetailPage({ session }: Props) {
       );
     } else {
       setShareablePartners([]);
+      setOwnerCustomerIds([]);
     }
 
     setLoading(false);
@@ -232,13 +238,20 @@ export default function CustomerDetailPage({ session }: Props) {
     try {
       const entry = shareablePartners.find((row) => row.partnership.id === partnershipId);
       if (!entry) return;
-      await setCustomerSharedWithPartner(
+      const result = await setCustomerSharedWithPartner(
         supabase,
         partnershipId,
         customer.id,
         shared,
         entry.sharing,
+        ownerCustomerIds,
       );
+      if (!result.changed) {
+        if (result.reason === 'report_linked') {
+          setError('Asiakas näkyy kumppanille raportin vuoksi — jakoa ei voi poistaa.');
+        }
+        return;
+      }
       setMessage(shared ? 'Asiakas jaettu kumppanille.' : 'Asiakas piilotettu kumppanilta.');
       await load();
     } catch (shareError) {
@@ -663,6 +676,7 @@ export default function CustomerDetailPage({ session }: Props) {
               const reportLinked = isCustomerReportLinkedWithPartner(sharing, customer.id);
               const explicitlyShared = isCustomerExplicitlySharedWithPartner(sharing, customer.id);
               const visible = isCustomerVisibleToPartner(sharing, customer.id);
+              const toggleChecked = sharing.restricted ? explicitlyShared : visible;
               const busyForPartner = sharingBusyId === partnership.id;
               return (
                 <li key={partnership.id}>
@@ -685,7 +699,7 @@ export default function CustomerDetailPage({ session }: Props) {
                   ) : (
                     <Tooltip label="Salli kumppanin nähdä asiakas ennen raporttia (esim. raportin luontia varten).">
                       <ToggleSwitch
-                        checked={explicitlyShared}
+                        checked={toggleChecked}
                         disabled={busyForPartner}
                         label="Jaettu"
                         onChange={(checked) => void togglePartnerSharing(partnership.id, checked)}

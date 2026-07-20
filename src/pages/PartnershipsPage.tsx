@@ -173,7 +173,9 @@ export default function PartnershipsPage() {
         loadCustomerSharingForPartnership(supabase, p.id, profile.company_id, partnerId),
       ]);
       setOwnCustomers(customers);
-      setSelectedCustomerIds(sharing.sharedCustomerIds);
+      setSelectedCustomerIds(
+        sharing.restricted ? sharing.sharedCustomerIds : customers.map((customer) => customer.id),
+      );
       setReportLinkedCustomerIds(sharing.reportLinkedCustomerIds);
     } catch (loadError) {
       setEditingCustomersId(null);
