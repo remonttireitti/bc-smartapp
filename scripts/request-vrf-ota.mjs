@@ -9,7 +9,7 @@ import { execSync } from 'node:child_process';
 const DEVICE_KEY = process.argv[2]?.trim() || '383519714695';
 const SUPABASE_URL = process.env.SUPABASE_URL ?? 'https://qvqmemeexberatbqxivw.supabase.co';
 const OTA_URL =
-  process.env.VRF_OTA_URL ?? 'https://bc-smartapp.vercel.app/vrf-firmware/firmware.bin';
+  process.env.VRF_OTA_URL ?? 'https://bc-smartapp.pages.dev/vrf-firmware/firmware.bin';
 
 function serviceKey() {
   if (process.env.SUPABASE_SERVICE_ROLE_KEY) return process.env.SUPABASE_SERVICE_ROLE_KEY;

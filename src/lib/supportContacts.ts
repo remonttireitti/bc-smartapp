@@ -4,7 +4,7 @@ export const GLOBAL_ADMIN_SUPPORT = {
   organization: 'BC Smartapp / Remonttireitti',
   email: 'info@remonttireitti.fi',
   website: 'https://www.remonttireitti.fi',
-  appUrl: 'https://bc-smartapp.vercel.app',
+  appUrl: 'https://bc-smartapp.pages.dev',
 } as const;
 
 export function formatGlobalAdminSupportBlock() {

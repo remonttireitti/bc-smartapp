@@ -1216,7 +1216,7 @@ export default function VrfMonitorDetailPage({ session }: Props) {
                 <legend>Firmware OTA</legend>
                 <p className="muted vrf-settings-fieldset-lead">
                   Etäpäivitys ilman USB:tä. Lataa{' '}
-                  <a href="https://bc-smartapp.vercel.app/vrf-firmware/firmware.bin" target="_blank" rel="noreferrer">
+                  <a href="https://bc-smartapp.pages.dev/vrf-firmware/firmware.bin" target="_blank" rel="noreferrer">
                     bc-smartapp/vrf-firmware
                   </a>
                   . Nykyinen: {device.firmware_version ?? '—'}.

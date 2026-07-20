@@ -892,7 +892,7 @@ export function buildAlarmShutdownResetSettings(
 
 export function buildOtaRequestSettings(
   current: VrfDeviceSettings | Record<string, unknown> | null | undefined,
-  url = 'https://bc-smartapp.vercel.app/vrf-firmware/firmware.bin',
+  url = 'https://bc-smartapp.pages.dev/vrf-firmware/firmware.bin',
 ): Record<string, unknown> {
   const base =
     current && typeof current === 'object' && !Array.isArray(current)

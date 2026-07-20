@@ -6,7 +6,7 @@ title: BC Smartapp — Käyttöohje
 
 **Versio:** 2026-06 · LV- ja kiinteistöpalveluiden työnhallinta
 
-Sovellus toimii selaimessa puhelimella ja tietokoneella. Kirjaudu osoitteessa **https://bc-smartapp.vercel.app**.
+Sovellus toimii selaimessa puhelimella ja tietokoneella. Kirjaudu osoitteessa **https://bc-smartapp.pages.dev**.
 
 ---
 
@@ -213,7 +213,7 @@ BC Smartapp / Remonttireitti
 
 - **Sähköposti:** info@remonttireitti.fi
 - **Verkkosivu:** https://www.remonttireitti.fi
-- **Sovellus:** https://bc-smartapp.vercel.app
+- **Sovellus:** https://bc-smartapp.pages.dev
 
 ---
 

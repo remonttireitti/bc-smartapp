@@ -29,7 +29,7 @@ Supabase Studio: http://127.0.0.1:54323
 
 | | |
 |---|---|
-| Sovellus | https://bc-smartapp.vercel.app |
+| Sovellus | https://bc-smartapp.pages.dev |
 | Supabase | https://qvqmemeexberatbqxivw.supabase.co |
 | Studio | https://supabase.com/dashboard/project/qvqmemeexberatbqxivw |
 
@@ -46,16 +46,19 @@ supabase link --project-ref qvqmemeexberatbqxivw
 supabase db push
 ```
 
-Aseta Vercel-ympäristöön `VITE_SUPABASE_URL` ja `VITE_SUPABASE_ANON_KEY` (katso `.env.production.example`).
+Aseta Cloudflare Pages -ympäristöön `VITE_SUPABASE_URL` ja `VITE_SUPABASE_ANON_KEY` (katso `.env.production.example`).
 
-### Git + Vercel (suositeltu)
+### Git + Cloudflare Pages (tuotanto)
 
 | | |
 |---|---|
 | GitHub | https://github.com/remonttireitti/bc-smartapp |
-| Tuotanto | https://bc-smartapp.vercel.app |
+| Tuotanto | https://bc-smartapp.pages.dev |
 
-Muutokset: commit → `git push origin main` → Vercel deployaa automaattisesti.
+Muutokset: commit → `git push origin main` → Cloudflare Pages deployaa automaattisesti (jos repo on kytketty).
+
+Cloudflare Dashboard: **Workers & Pages** → projekti → **Deployments**.  
+Build: `npm run build` · output: `dist`
 
 Ensimmäinen asennus (uudessa koneessa):
 
@@ -63,10 +66,9 @@ Ensimmäinen asennus (uudessa koneessa):
 git clone https://github.com/remonttireitti/bc-smartapp.git
 cd bc-smartapp
 npm install
-npx vercel link --yes --project bc-smartapp
 ```
 
-Manuaalinen julkaisu (hätätilanteessa): `npm run build` ja `npx vercel deploy --prod --yes`
+Manuaalinen build paikallisesti: `npm run build` (vaatii `.env.production` tai Cloudflare-muuttujat).
 
 ## Tietomalli (lyhyesti)
 

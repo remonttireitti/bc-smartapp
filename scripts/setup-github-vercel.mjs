@@ -56,4 +56,4 @@ run(`npx vercel git connect https://github.com/${repoOwner}/${repoName}.git --ye
 
 console.log('\nValmis: GitHub + Vercel Git deploy yhdistetty.');
 console.log(`Repo: https://github.com/${repoOwner}/${repoName}`);
-console.log('Tuotanto: https://bc-smartapp.vercel.app');
+console.log('Tuotanto: https://bc-smartapp.pages.dev');
