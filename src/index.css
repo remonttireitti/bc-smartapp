@@ -4601,16 +4601,16 @@ textarea {
   }
 
   .maintenance-form .huolto-module-body,
-  .maintenance-form .huolto-part-body,
   .maintenance-form .huolto-submodule {
     padding: 0;
   }
 
-  .maintenance-form .huolto-submodule .huolto-submodule {
-    padding-top: .75rem;
+  .maintenance-form .huolto-module-flat:not(:has(.huolto-part-section)) .huolto-module-body,
+  .maintenance-form .huolto-part-body {
+    padding: 1rem;
   }
 
-  .maintenance-form .huolto-part-body {
+  .maintenance-form .huolto-submodule .huolto-submodule {
     padding-top: .75rem;
   }
 
@@ -5283,7 +5283,7 @@ textarea {
   padding: 1rem;
 }
 
-/* Huoltoraportin muokkaus: tasoisa hierarkia ilman laatikko-laatikossa -ulkoasua */
+/* Huoltoraportin muokkaus: yksi ulompi reunaviiva, ei sisäkkäisiä laatikoita */
 .maintenance-form .huolto-module-flat {
   border: 0;
   border-radius: 0;
@@ -5291,8 +5291,19 @@ textarea {
   overflow: visible;
 }
 
+.maintenance-form .huolto-module-flat:not(:has(.huolto-part-section)) {
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  background: #fff;
+  overflow: hidden;
+}
+
 .maintenance-form .huolto-module-flat .huolto-module-body {
   padding: 0;
+}
+
+.maintenance-form .huolto-module-flat:not(:has(.huolto-part-section)) .huolto-module-body {
+  padding: 1rem;
 }
 
 .maintenance-form .huolto-submodule {
@@ -5340,11 +5351,11 @@ textarea {
 }
 
 .maintenance-form .huolto-part-section {
-  border: 0;
-  border-radius: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
   box-shadow: none;
-  background: transparent;
-  overflow: visible;
+  background: #fff;
+  overflow: hidden;
   margin-top: 1.25rem;
 }
 
@@ -5353,19 +5364,19 @@ textarea {
 }
 
 .maintenance-form .huolto-part-header {
-  padding: 0 0 .55rem;
+  padding: .75rem 1rem .55rem;
   border: 0;
-  border-bottom: 1px solid var(--border-strong);
+  border-bottom: 1px solid var(--border);
   border-radius: 0;
   background: transparent;
 }
 
 .maintenance-form .huolto-part-header:hover {
-  background: transparent;
+  background: var(--bg-subtle);
 }
 
 .maintenance-form .huolto-part-body {
-  padding: .85rem 0 0;
+  padding: 1rem;
   border: 0;
   background: transparent;
 }
