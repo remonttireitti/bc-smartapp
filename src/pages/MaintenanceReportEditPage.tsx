@@ -1,4 +1,4 @@
-import { FormEvent, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { huoltoPerformerFields } from '../lib/huoltoRaportti/performerFromProfile';
 import NavigationBreadcrumb from '../components/NavigationBreadcrumb';
@@ -11,7 +11,8 @@ import CustomerRegistryPicker, { type NewCustomerDraft } from '../components/Cus
 import EquipmentRegistryPicker, { type NewEquipmentDraft } from '../components/EquipmentRegistryPicker';
 import SubscriberPicker from '../components/SubscriberPicker';
 import SubscriberPortalVisibilityField from '../components/SubscriberPortalVisibilityField';
-import CollapsibleSection from '../components/CollapsibleSection';
+import MaintenanceReportTabNav from '../components/huoltoRaportti/MaintenanceReportTabNav';
+import { HuoltoModulePresentationProvider } from '../components/huoltoRaportti/HuoltoModulePresentationContext';
 import ToggleSwitch from '../components/ToggleSwitch';
 import { CondensersSection } from '../components/huoltoRaportti/CondensersSection';
 import { EvaporatorCircuitsSync } from '../components/huoltoRaportti/EvaporatorCircuitsSync';
@@ -72,7 +73,6 @@ import {
   type ModuleKey,
 } from '../lib/huoltoRaportti/constants';
 import {
-  getActiveModuleLabels,
   getManualModuleOptions,
   isChillerLikeDevice,
   isKonvektoritDevice,
@@ -87,7 +87,6 @@ import {
   showVjLauhdutuspiiriModules,
   usesManualModuleMenu,
 } from '../lib/huoltoRaportti/deviceModuleLogic';
-import { getModuleTheme, moduleThemeKeyForOption } from '../lib/huoltoRaportti/moduleThemes';
 import {
   applyEquipmentSnapshotToForm,
   buildHuoltoEquipmentTechnicalSnapshot,
@@ -115,7 +114,12 @@ interface Props {
 }
 
 
-import { huoltoTiedotSectionTitle } from '../lib/huoltoRaportti/sectionTitles';
+import {
+  buildMaintenanceReportTabs,
+  persistMaintenanceReportActiveTab,
+  readMaintenanceReportActiveTab,
+  type MaintenanceReportTabId,
+} from '../lib/huoltoRaportti/maintenanceReportTabs';
 import { HuoltoEditUiProvider } from '../components/huoltoRaportti/HuoltoEditUiContext';
 import { cloneHuoltoReportForSiblingEquipment } from '../lib/huoltoRaportti/cloneReportForSiblingEquipment';
 import {
@@ -243,12 +247,6 @@ export default function MaintenanceReportEditPage({ session }: Props) {
     customerName: selectedCustomer?.name ?? (form.asiakas.trim() || null),
     reportTitle,
   });
-  const manualModuleOptions = getManualModuleOptions(form.laiteTyyppi);
-  const activeModuleLabels = getActiveModuleLabels(form.selectedModules, form.laiteTyyppi);
-  const implementedModules: ModuleKey[] = moduleSelectionOptions.map((o) => o.key);
-  const pendingModuleKeys = (Object.keys(form.selectedModules) as ModuleKey[]).filter(
-    (k) => form.selectedModules[k] && !implementedModules.includes(k),
-  );
   const showEvaporatorSection = showEvaporatorModules(form.laiteTyyppi, form.selectedModules);
   const showCondenserSection = showCondenserModules(form.laiteTyyppi, form.selectedModules);
   const showMlpSection = showMlpModules(form.laiteTyyppi, form.selectedModules);
@@ -264,6 +262,63 @@ export default function MaintenanceReportEditPage({ session }: Props) {
   const showVapaajahdytysSection = form.selectedModules.vapaajahdytys;
   const lampopumppuParts = lampopumppuSubmodules(form.laiteTyyppi, form.selectedModules);
   const showLampopumppuSection = showLampopumppuModules(form.laiteTyyppi, form.selectedModules);
+  const implementedModules: ModuleKey[] = moduleSelectionOptions.map((o) => o.key);
+  const pendingModuleKeys = (Object.keys(form.selectedModules) as ModuleKey[]).filter(
+    (k) => form.selectedModules[k] && !implementedModules.includes(k),
+  );
+
+  const maintenanceTabs = useMemo(
+    () =>
+      buildMaintenanceReportTabs({
+        hasProfile: Boolean(profile?.company_id),
+        laiteTyyppi: form.laiteTyyppi,
+        selectedModules: form.selectedModules,
+        showEvaporatorSection,
+        showCondenserSection,
+        showLauhdutuspiiriSection,
+        showNestelauhduttimetSection,
+        showJaahdytysvesiSection,
+        showVapaajahdytysSection,
+        showKonvektoritSection,
+        showLampopumppuSection,
+        showMlpSection,
+        isVj,
+      }),
+    [
+      profile?.company_id,
+      form.laiteTyyppi,
+      form.selectedModules,
+      showEvaporatorSection,
+      showCondenserSection,
+      showLauhdutuspiiriSection,
+      showNestelauhduttimetSection,
+      showJaahdytysvesiSection,
+      showVapaajahdytysSection,
+      showKonvektoritSection,
+      showLampopumppuSection,
+      showMlpSection,
+      isVj,
+    ],
+  );
+
+  const [activeTab, setActiveTab] = useState<MaintenanceReportTabId>(() => {
+    const saved = readMaintenanceReportActiveTab(reportViewKey);
+    return saved ?? 'raportointi';
+  });
+
+  useEffect(() => {
+    if (maintenanceTabs.some((tab) => tab.id === activeTab)) return;
+    setActiveTab(maintenanceTabs[0]?.id ?? 'raportointi');
+  }, [maintenanceTabs, activeTab]);
+
+  useEffect(() => {
+    persistMaintenanceReportActiveTab(reportViewKey, activeTab);
+  }, [reportViewKey, activeTab]);
+
+  const optionalMaintenanceModules = useMemo(
+    () => getManualModuleOptions(form.laiteTyyppi).filter((opt) => opt.key === 'tiiveyskoe' || opt.key === 'tyhjiointi'),
+    [form.laiteTyyppi],
+  );
 
   const persistDraftLocally = useCallback(
     (nextForm: HuoltoReportData) => {
@@ -1320,8 +1375,17 @@ export default function MaintenanceReportEditPage({ session }: Props) {
 
       <HuoltoEditUiProvider viewKey={reportViewKey}>
       <form className="panel form-grid maintenance-form" onSubmit={onSubmit}>
-        <CollapsibleSection title="Raportointikonteksti" collapseKey="page:raportointi">
-          <div className="info-grid">
+        <MaintenanceReportTabNav
+          tabs={maintenanceTabs}
+          activeId={activeTab}
+          onChange={(id) => setActiveTab(id as MaintenanceReportTabId)}
+        />
+
+        <HuoltoModulePresentationProvider value="flat">
+        <div className="maintenance-report-tab-panel">
+        {activeTab === 'raportointi' && (
+        <section className="maintenance-report-tab-section">
+        <div className="info-grid">
             <div className="info-box">
               <span className="info-label">Yrityksen nimissä (brändi tulosteessa)</span>
               {!customerId && reportOwnerTargets.length > 1 ? (
@@ -1359,10 +1423,11 @@ export default function MaintenanceReportEditPage({ session }: Props) {
               vain kumppanit, joilla on huoltoraportin luontioikeus.
             </p>
           )}
-        </CollapsibleSection>
+        </section>
+        )}
 
-        {profile?.company_id && (
-          <CollapsibleSection title="Asiakas ja laite" collapseKey="page:asiakas-laite">
+        {activeTab === 'asiakas' && profile?.company_id && (
+        <section className="maintenance-report-tab-section">
             <p className="muted">
               Hae asiakasta kaikista rekistereistä joihin sinulla on pääsy. Raportti luodaan automaattisesti
               sen yrityksen nimissä, jonka rekisteriin asiakas kuuluu. Uusi asiakas tallennetaan aina omaan
@@ -1535,10 +1600,11 @@ export default function MaintenanceReportEditPage({ session }: Props) {
                 />
               </label>
             </div>
-          </CollapsibleSection>
+        </section>
         )}
 
-        <CollapsibleSection title="Laitetyyppi" collapseKey="page:laitetyyppi">
+        {activeTab === 'laitetyyppi' && (
+        <section className="maintenance-report-tab-section">
           <div className="chip-grid">
             {deviceTypes.map((dt) => (
               <label key={dt.value} className={`chip ${form.laiteTyyppi === dt.value ? 'chip-active' : ''}`}>
@@ -1553,14 +1619,11 @@ export default function MaintenanceReportEditPage({ session }: Props) {
               </label>
             ))}
           </div>
-        </CollapsibleSection>
+        </section>
+        )}
 
-        {form.laiteTyyppi && (
-          <>
-            <CollapsibleSection
-              title={isKonvektoritDevice(form.laiteTyyppi) ? 'Konvektoriverkosto' : isChillerLikeDevice(form.laiteTyyppi) ? 'Laite — perustiedot' : 'Laitetiedot'}
-              collapseKey="page:laitetiedot"
-            >
+        {activeTab === 'laitetiedot' && form.laiteTyyppi && (
+        <section className="maintenance-report-tab-section">
               {registryMessage && <p className="muted">{registryMessage}</p>}
               {copySiblingMode && (
                 <p className="muted">
@@ -1701,75 +1764,17 @@ export default function MaintenanceReportEditPage({ session }: Props) {
                 )}
               </div>
               )}
-            </CollapsibleSection>
+        </section>
+        )}
 
-            <CollapsibleSection title="Moduulit" collapseKey="page:moduulit">
-              {usesManualModuleMenu(form.laiteTyyppi) ? (
-                <>
-                  <p className="muted">
-                    Valitse raportin osiot. Jokainen moduuli avautuu värikoodattuna laatikona — klikkaa otsikkoa
-                    avataksesi tai sulkeaksesi.
-                  </p>
-                  <div className="module-toggle-grid">
-                    {manualModuleOptions.map((opt) => {
-                      const theme = getModuleTheme(moduleThemeKeyForOption(opt.key));
-                      const active = form.selectedModules[opt.key];
-                      return (
-                        <div
-                          key={opt.key}
-                          className={`module-toggle-card ${active ? 'module-toggle-card-active' : ''}`}
-                          style={
-                            {
-                              '--module-accent': theme.header,
-                              '--module-bg': theme.bg,
-                              '--module-border': theme.border,
-                            } as CSSProperties
-                          }
-                        >
-                          <ToggleSwitch
-                            label={opt.label}
-                            checked={active}
-                            onChange={(checked) => toggleModule(opt.key, checked)}
-                          />
-                        </div>
-                      );
-                    })}
-                  </div>
-                </>
-              ) : (
-                <>
-                  <p className="muted">
-                    Moduulit valitaan automaattisesti laitetyypin ja lauhdutinvalinnan mukaan. Tiiveyskoe ja
-                    tyhjiöinti ovat aina valittavissa.
-                  </p>
-                  {activeModuleLabels.length > 0 && (
-                    <div className="chip-grid">
-                      {activeModuleLabels.map((label) => (
-                        <span key={label} className="chip chip-active">
-                          {label}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                  <div className="module-toggle-grid">
-                    {manualModuleOptions.map((opt) => (
-                      <div key={opt.key} className="module-toggle-card">
-                        <ToggleSwitch
-                          label={opt.label}
-                          checked={form.selectedModules[opt.key]}
-                          onChange={(checked) => toggleModule(opt.key, checked)}
-                        />
-                      </div>
-                    ))}
-                  </div>
-                </>
-              )}
-            </CollapsibleSection>
+        {activeTab === 'kylmaaine' && form.laiteTyyppi && (form.selectedModules.kylmaainePiiri || form.laiteTyyppi === 'lämpöpumppu') && (
+        <section className="maintenance-report-tab-section huolto-modules-stack">
+            <RefrigerantChargeSection form={form} onChange={patchForm} />
+        </section>
+        )}
 
-            <div className="huolto-modules-stack">
-            {form.selectedModules.kylmaainePiiri && (
-              <>
-                <RefrigerantChargeSection form={form} onChange={patchForm} />
+        {activeTab === 'kylmaainePiiri' && form.selectedModules.kylmaainePiiri && (
+        <section className="maintenance-report-tab-section huolto-modules-stack">
                 {isVj && (
                   <VjLauhdutinSection
                     form={form}
@@ -1779,46 +1784,70 @@ export default function MaintenanceReportEditPage({ session }: Props) {
                   />
                 )}
                 <RefrigerantCircuitsSection form={form} onChange={patchForm} />
-              </>
-            )}
+        </section>
+        )}
 
-            {form.laiteTyyppi === 'lämpöpumppu' && (
-              <RefrigerantChargeSection form={form} onChange={patchForm} />
-            )}
-
+        {activeTab === 'hoyrystin' && showEvaporatorSection && (
+        <section className="maintenance-report-tab-section huolto-modules-stack">
             {showEvaporatorSection && <EvaporatorCircuitsSync form={form} onChange={syncForm} />}
-
             {showEvaporatorSection && !isChillerLikeDevice(form.laiteTyyppi) && (
               <EvaporatorsSection form={form} onChange={patchForm} />
             )}
+        </section>
+        )}
 
-            {showCondenserSection && <CondensersSection form={form} onChange={patchForm} />}
+        {activeTab === 'lauhdutin' && showCondenserSection && (
+        <section className="maintenance-report-tab-section huolto-modules-stack">
+            <CondensersSection form={form} onChange={patchForm} />
+        </section>
+        )}
 
-            {showLauhdutuspiiriSection && <LauhdutuspiiriSection form={form} onChange={patchForm} />}
+        {activeTab === 'lauhdutuspiiri' && showLauhdutuspiiriSection && (
+        <section className="maintenance-report-tab-section huolto-modules-stack">
+            <LauhdutuspiiriSection form={form} onChange={patchForm} />
+        </section>
+        )}
 
-            {showNestelauhduttimetSection && (
+        {activeTab === 'nestelauhduttimet' && showNestelauhduttimetSection && (
+        <section className="maintenance-report-tab-section huolto-modules-stack">
               <NestelauhduttimetSection
                 units={form.nestelauhduttimetVj ?? []}
                 shared={!!form.vjNestelauhdutusJaettu}
                 laiteTyyppi={form.laiteTyyppi}
                 onChange={(units) => patchForm({ nestelauhduttimetVj: units })}
               />
-            )}
+        </section>
+        )}
 
-            {showJaahdytysvesiSection && <JaahdytysvesiSection form={form} onChange={patchForm} />}
+        {activeTab === 'jaahdytysvesi' && showJaahdytysvesiSection && (
+        <section className="maintenance-report-tab-section huolto-modules-stack">
+            <JaahdytysvesiSection form={form} onChange={patchForm} />
+        </section>
+        )}
 
-            {isVj && <VjOhjausSection form={form} onChange={patchForm} />}
+        {activeTab === 'vjOhjaus' && isVj && (
+        <section className="maintenance-report-tab-section huolto-modules-stack">
+            <VjOhjausSection form={form} onChange={patchForm} />
+        </section>
+        )}
 
-            {showVapaajahdytysSection && <VapaajahdytysSection form={form} onChange={patchForm} />}
+        {activeTab === 'vapaajahdytys' && showVapaajahdytysSection && (
+        <section className="maintenance-report-tab-section huolto-modules-stack">
+            <VapaajahdytysSection form={form} onChange={patchForm} />
+        </section>
+        )}
 
-            {showKonvektoritSection && (
+        {activeTab === 'konvektorit' && showKonvektoritSection && (
+        <section className="maintenance-report-tab-section huolto-modules-stack">
               <KonvektoritSection
                 rows={form.konvektoriRows ?? []}
                 onChange={(rows) => patchForm({ konvektoriRows: rows })}
               />
-            )}
+        </section>
+        )}
 
-            {showLampopumppuSection && (
+        {activeTab === 'lampopumppu' && showLampopumppuSection && (
+        <section className="maintenance-report-tab-section huolto-modules-stack">
               <LampopumppuSection
                 form={form}
                 onChange={patchForm}
@@ -1826,54 +1855,40 @@ export default function MaintenanceReportEditPage({ session }: Props) {
                 showSisayksikko={lampopumppuParts.sisayksikko}
                 showMittaukset={lampopumppuParts.mittaukset}
               />
-            )}
+        </section>
+        )}
 
-            {showMlpSection && form.mlpData && <MlpSection form={form} onChange={patchForm} />}
+        {activeTab === 'mlp' && showMlpSection && form.mlpData && (
+        <section className="maintenance-report-tab-section huolto-modules-stack">
+            <MlpSection form={form} onChange={patchForm} />
+        </section>
+        )}
 
-            {form.selectedModules.tiiveyskoe && (
-              <TiiveyskoeSection
-                form={form}
-                onChange={patchForm}
-                reportId={reportId}
-                userId={session.user.id}
-              />
-            )}
-
-            {form.selectedModules.tyhjiointi && (
-              <TyhjiointiSection
-                form={form}
-                onChange={patchForm}
-                reportId={reportId}
-                userId={session.user.id}
-              />
-            )}
-
-            {pendingModuleKeys.length > 0 && (
-              <CollapsibleSection title="Valitut moduulit" defaultOpen={false}>
-                {pendingModuleKeys.map((key) => (
-                  <div key={key} className="expense-section module-placeholder">
-                    <h3>{moduleLabel(key)}</h3>
-                    <p className="muted">
-                      Moduulin lomake tulossa — rakenne kopioitu BC HuoltoRaportti-esimerkistä (
-                      {key}).
-                    </p>
-                  </div>
-                ))}
-              </CollapsibleSection>
-            )}
-
+        {activeTab === 'huomiot' && form.laiteTyyppi && (
+        <section className="maintenance-report-tab-section huolto-modules-stack">
             <HuomiotSection
               form={form}
               onChange={patchForm}
               reportId={reportId ?? undefined}
               userId={session.user.id}
             />
-            </div>
+            {pendingModuleKeys.length > 0 && (
+              <div className="expense-section module-placeholder">
+                {pendingModuleKeys.map((key) => (
+                  <div key={key}>
+                    <h3>{moduleLabel(key)}</h3>
+                    <p className="muted">
+                      Moduulin lomake tulossa — rakenne kopioitu BC HuoltoRaportti-esimerkistä ({key}).
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
+        </section>
+        )}
 
-            <CollapsibleSection
-              title={huoltoTiedotSectionTitle(form.laiteTyyppi)}
-              collapseKey="page:huoltotiedot"
-            >
+        {activeTab === 'huoltotiedot' && form.laiteTyyppi && (
+        <section className="maintenance-report-tab-section">
               {showHuoltoVsKayttoonottoSelector(form.laiteTyyppi) && (
                 <label style={{ maxWidth: '280px' }}>
                   Raportin tyyppi
@@ -1952,9 +1967,48 @@ export default function MaintenanceReportEditPage({ session }: Props) {
                   />
                 </label>
               </div>
-            </CollapsibleSection>
-          </>
+
+              <div className="maintenance-optional-modules">
+                <p className="muted">Valinnaiset mittaukset — moduulit valitaan laitetyypin mukaan automaattisesti.</p>
+                <div className="module-toggle-grid">
+                  {optionalMaintenanceModules.map((opt) => (
+                    <div key={opt.key} className="module-toggle-card">
+                      <ToggleSwitch
+                        label={opt.label}
+                        checked={form.selectedModules[opt.key]}
+                        onChange={(checked) => toggleModule(opt.key, checked)}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {form.selectedModules.tiiveyskoe && (
+                <div className="huolto-modules-stack maintenance-embedded-module">
+                  <TiiveyskoeSection
+                    form={form}
+                    onChange={patchForm}
+                    reportId={reportId}
+                    userId={session.user.id}
+                  />
+                </div>
+              )}
+
+              {form.selectedModules.tyhjiointi && (
+                <div className="huolto-modules-stack maintenance-embedded-module">
+                  <TyhjiointiSection
+                    form={form}
+                    onChange={patchForm}
+                    reportId={reportId}
+                    userId={session.user.id}
+                  />
+                </div>
+              )}
+        </section>
         )}
+
+        </div>
+        </HuoltoModulePresentationProvider>
 
         {error && <p className="error">{error}</p>}
 

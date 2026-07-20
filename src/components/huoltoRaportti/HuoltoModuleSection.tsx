@@ -1,6 +1,7 @@
 import { useId, type ReactNode } from 'react';
 import type { ModuleThemeKey } from '../../lib/huoltoRaportti/moduleThemes';
 import { useHuoltoCollapse } from './HuoltoEditUiContext';
+import { useHuoltoModulePresentation } from './HuoltoModulePresentationContext';
 
 interface Props {
   moduleKey: ModuleThemeKey;
@@ -16,8 +17,17 @@ export function HuoltoModuleSection({
   children,
   defaultOpen = false,
 }: Props) {
+  const presentation = useHuoltoModulePresentation();
   const { open, toggle } = useHuoltoCollapse(`module:${moduleKey}`, defaultOpen);
   const contentId = useId();
+
+  if (presentation === 'flat') {
+    return (
+      <section data-module={moduleKey} className="huolto-module-section huolto-module-flat">
+        <div className="huolto-module-body">{children}</div>
+      </section>
+    );
+  }
 
   return (
     <section

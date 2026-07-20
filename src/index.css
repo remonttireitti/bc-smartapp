@@ -5025,11 +5025,86 @@ textarea {
 .huolto-submodule h4 { margin: 0; font-size: .95rem; color: #0f172a; }
 
 /* Huoltoraportti: väli kenttien, ruudukoiden ja kytkimien välillä (kaikki moduulit) */
-.maintenance-form .collapsible-body,
+.maintenance-form.panel,
 .huolto-form-stack {
   display: flex;
   flex-direction: column;
   gap: 1rem;
+}
+
+.maintenance-report-tabs {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: .4rem;
+  overflow-x: auto;
+  padding: .25rem 0 1rem;
+  margin: 0 0 .25rem;
+  border-bottom: 1px solid var(--border-strong);
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+}
+
+.maintenance-report-tab {
+  flex-shrink: 0;
+  padding: .45rem .9rem;
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+  background: var(--bg-subtle);
+  color: inherit;
+  font: inherit;
+  font-size: .88rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.maintenance-report-tab:hover {
+  border-color: #94a3b8;
+  background: #fff;
+}
+
+.maintenance-report-tab.is-active {
+  background: var(--primary, #2563eb);
+  border-color: var(--primary, #2563eb);
+  color: #fff;
+}
+
+.maintenance-report-tab-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  min-height: 12rem;
+}
+
+.maintenance-report-tab-section {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.maintenance-report-tab-section.huolto-modules-stack {
+  gap: 1rem;
+}
+
+.maintenance-optional-modules {
+  margin-top: .5rem;
+  padding-top: 1rem;
+  border-top: 1px dashed var(--border-strong);
+}
+
+.maintenance-embedded-module {
+  margin-top: .75rem;
+}
+
+.huolto-module-flat {
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.huolto-module-flat .huolto-module-body {
+  border: 0;
+  padding: 1rem;
 }
 
 .maintenance-form .line-form-grid,
