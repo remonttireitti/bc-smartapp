@@ -78,11 +78,18 @@ import {
   parseCompanySettings,
   parseCustomerBillingRates,
   parsePartnerBillingRates,
+  partnershipModuleAccess,
+  partnershipPermsActingOnOwner,
   readPartnershipBillingRates,
   resolveBillingRates,
   resolveCustomerBillingRates,
   type PartnerBillingRates,
 } from '../lib/management';
+import {
+  customerCreateTargets,
+  loadReportPartnerships,
+  resolveReportContextFromOwner,
+} from '../lib/reportCustomerRegistry';
 import {
   billingPartnerState,
   canManageIncomingPartnerBilling,
@@ -179,6 +186,7 @@ import {
   type PendingDailyLogImage,
   type WorkStatus,
 } from '../types';
+import type { Partnership } from '../types';
 import type { RefrigerantCylinder } from '../types/inventory';
 
 interface Props {
@@ -998,6 +1006,8 @@ export default function WorkReportDetailPage({ session }: Props) {
   const [ordererDraft, setOrdererDraft] = useState('');
   const [descriptionBusy, setDescriptionBusy] = useState(false);
   const [reportAttachments, setReportAttachments] = useState<WorkReportAttachment[]>([]);
+  const [partnerships, setPartnerships] = useState<Partnership[]>([]);
+  const [ownerCompanyDraft, setOwnerCompanyDraft] = useState('');
 
   const billingModuleEnabled = useCompanyBillingModuleEnabled(profile?.company_id, session);
   const ownerCustomerInvoicing = useCompanyCustomerBillingEnabled(report?.owner_company_id, session);
@@ -1023,6 +1033,11 @@ export default function WorkReportDetailPage({ session }: Props) {
   useEffect(() => {
     if (id && profile?.company_id) void load(id);
   }, [id, profile?.company_id]);
+
+  useEffect(() => {
+    if (!profile?.company_id) return;
+    void loadReportPartnerships(supabase, profile.company_id, 'work_reports', 'write').then(setPartnerships);
+  }, [profile?.company_id]);
 
   useEffect(() => {
     if (!report || !isPortalReadOnly(profile)) return;
@@ -1072,6 +1087,7 @@ export default function WorkReportDetailPage({ session }: Props) {
     setDescriptionDraft(resolveWorkReportDescription(reportRow));
     setHeadingDraft(reportRow.heading?.trim() ?? '');
     setOrdererDraft(reportRow.orderer_name?.trim() ?? '');
+    setOwnerCompanyDraft(reportRow.owner_company_id ?? '');
     setLoading(false);
 
     void loadTripKmRatesForReport(reportRow).then((rates) => {
@@ -1451,6 +1467,15 @@ export default function WorkReportDetailPage({ session }: Props) {
     [dailyLogs],
   );
 
+  const reportOwnerTargets = useMemo(() => {
+    if (!profile?.company_id) return [];
+    return customerCreateTargets(
+      profile.company_id,
+      profile.companies?.name ?? 'Oma rekisteri',
+      partnerships,
+    );
+  }, [profile?.company_id, profile?.companies?.name, partnerships]);
+
   async function updateStatus(nextStatus: WorkStatus) {
     if (!report) return;
 
@@ -1482,20 +1507,75 @@ export default function WorkReportDetailPage({ session }: Props) {
   }
 
   async function saveDescription() {
-    if (!report) return;
+    if (!report || !profile?.company_id) return;
     setDescriptionBusy(true);
     setError(null);
 
     const trimmed = descriptionDraft.trim();
     const trimmedHeading = headingDraft.trim();
     const trimmedOrderer = ordererDraft.trim();
+    const ownerChanged = ownerCompanyDraft !== report.owner_company_id;
+
+    if (ownerChanged) {
+      const targets = customerCreateTargets(
+        profile.company_id,
+        profile.companies?.name ?? 'Oma rekisteri',
+        partnerships,
+      );
+      if (!targets.some((target) => target.companyId === ownerCompanyDraft)) {
+        setDescriptionBusy(false);
+        setError('Sinulla ei ole oikeutta luoda raporttia valitun yrityksen nimissä.');
+        return;
+      }
+
+      const ownerContext = resolveReportContextFromOwner(
+        ownerCompanyDraft,
+        profile.company_id,
+        partnerships,
+      );
+      if (ownerContext.contextMode === 'partner') {
+        const partnership = partnerships.find((entry) => entry.id === ownerContext.partnerId);
+        if (!partnership) {
+          setDescriptionBusy(false);
+          setError('Kumppanuutta ei löytynyt valitulle yritykselle.');
+          return;
+        }
+        const partnerPerms = partnershipPermsActingOnOwner(
+          partnership,
+          profile.company_id,
+          ownerContext.ownerCompanyId,
+        );
+        if (!partnershipModuleAccess(partnerPerms, 'work_reports', 'write')) {
+          setDescriptionBusy(false);
+          setError(
+            'Kumppani ei ole myöntänyt työraportin luontioikeutta. Pyydä kumppanin ylläpitäjää antamaan oikeus kohdassa Hallinta → Kumppanuudet.',
+          );
+          return;
+        }
+      }
+    }
+
+    const clearCustomer = ownerChanged && !!report.customer_id;
+    const titleCustomerName = clearCustomer ? null : report.customers?.name ?? null;
+    const ownerContext = ownerChanged
+      ? resolveReportContextFromOwner(ownerCompanyDraft, profile.company_id, partnerships)
+      : null;
+
     const { error: updateError } = await supabase
       .from('work_reports')
       .update({
         heading: trimmedHeading || null,
         description: trimmed || null,
         orderer_name: trimmedOrderer || null,
-        title: buildWorkReportTitle(report.customers?.name, trimmedHeading || trimmed),
+        title: buildWorkReportTitle(titleCustomerName, trimmedHeading || trimmed),
+        ...(ownerChanged && ownerContext
+          ? {
+              owner_company_id: ownerCompanyDraft,
+              branding_company_id: ownerCompanyDraft,
+              partnership_id: ownerContext.partnerId || null,
+              ...(clearCustomer ? { customer_id: null, equipment_id: null } : {}),
+            }
+          : {}),
       })
       .eq('id', report.id);
 
@@ -2102,13 +2182,17 @@ export default function WorkReportDetailPage({ session }: Props) {
     companyId: profile?.company_id,
     role: profile?.role,
   });
+  const canEditOwnerCompany =
+    canEditDescription && !isDelegatedOrder && reportOwnerTargets.length > 1;
   const savedDescription = resolveWorkReportDescription(report);
   const savedHeading = report.heading?.trim() ?? '';
   const savedOrderer = report.orderer_name?.trim() ?? '';
+  const savedOwnerCompanyId = report.owner_company_id ?? '';
   const headingDirty = headingDraft.trim() !== savedHeading;
   const descriptionDirty = descriptionDraft.trim() !== savedDescription.trim();
   const ordererDirty = ordererDraft.trim() !== savedOrderer;
-  const basicsDirty = headingDirty || descriptionDirty || ordererDirty;
+  const ownerDirty = ownerCompanyDraft !== savedOwnerCompanyId;
+  const basicsDirty = headingDirty || descriptionDirty || ordererDirty || ownerDirty;
   const canSeeCreatorBilling = isCreatorCompany && viewerBillingAllowed;
   const canSeePartnerSummary =
     !!billing?.partner_summary_shared &&
@@ -2310,7 +2394,31 @@ export default function WorkReportDetailPage({ session }: Props) {
       <CollapsibleSection title="Perustiedot" defaultOpen variant="plain" className="panel work-report-section">
         <dl className="detail-list compact-detail-list">
           <dt>Yrityksen nimissä</dt>
-          <dd>{report.branding_company?.name ?? '—'}</dd>
+          <dd>
+            {canEditOwnerCompany ? (
+              <div className="detail-description-edit">
+                <select
+                  value={ownerCompanyDraft}
+                  onChange={(event) => setOwnerCompanyDraft(event.target.value)}
+                  disabled={descriptionBusy}
+                >
+                  {reportOwnerTargets.map((target) => (
+                    <option key={target.companyId} value={target.companyId}>
+                      {target.label}
+                    </option>
+                  ))}
+                </select>
+                {report.customer_id && ownerDirty && (
+                  <p className="muted" style={{ margin: '.35rem 0 0' }}>
+                    Jos valitset toisen yrityksen kuin asiakkaan rekisteri, asiakas ja laite poistuvat
+                    raportilta tallennuksen yhteydessä.
+                  </p>
+                )}
+              </div>
+            ) : (
+              report.branding_company?.name ?? '—'
+            )}
+          </dd>
           <dt>Raportin laatija</dt>
           <dd>
             <DeletedUserLabel name={displayPeople.authorName} deleted={displayPeople.authorDeleted} />
@@ -2400,6 +2508,7 @@ export default function WorkReportDetailPage({ session }: Props) {
                         setHeadingDraft(savedHeading);
                         setDescriptionDraft(savedDescription);
                         setOrdererDraft(savedOrderer);
+                        setOwnerCompanyDraft(savedOwnerCompanyId);
                       }}
                     >
                       Peruuta
