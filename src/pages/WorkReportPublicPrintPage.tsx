@@ -1,13 +1,11 @@
 import { useEffect, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { MaintenanceReportImageLightbox } from '../components/huoltoRaportti/MaintenanceReportImageLightbox';
-import { IconPrint } from '../components/icons';
 import {
   loadWorkReportPrintSharePublic,
   type WorkReportPrintShareBundle,
 } from '../lib/workReportPrintShares';
 import { generateWorkReportPrintHtml, buildWorkReportPrintTitle } from '../lib/workReportPrintHtml';
-import { buildWorkReportPrintHeadline } from '../types';
 
 export default function WorkReportPublicPrintPage() {
   const { token } = useParams<{ token: string }>();
@@ -85,43 +83,25 @@ export default function WorkReportPublicPrintPage() {
 
   if (loading) {
     return (
-      <div className="monitor-reader-public">
-        <p className="muted">Ladataan työraporttia…</p>
+      <div className="work-report-public-print-page">
+        <p className="work-report-public-print-status">Ladataan työraporttia…</p>
       </div>
     );
   }
 
   if (error || !bundle) {
     return (
-      <div className="monitor-reader-public">
-        <p className="error">{error ?? 'Työraporttia ei löytynyt.'}</p>
-        <Link to="/login">Kirjaudu sisään</Link>
+      <div className="work-report-public-print-page">
+        <p className="work-report-public-print-status work-report-public-print-error">
+          {error ?? 'Työraporttia ei löytynyt.'}
+        </p>
       </div>
     );
   }
 
   return (
-    <div className="monitor-reader-public">
-      <header className="monitor-reader-public-topbar no-print">
-        <span className="brand-icon" aria-hidden="true">
-          🏢
-        </span>
-        <span>{bundle.meta.companyName} — työraportti</span>
-        <div className="action-toolbar">
-          <button type="button" className="btn btn-primary btn-sm" onClick={() => window.print()}>
-            <IconPrint /> Tulosta / PDF
-          </button>
-          <Link to="/login" className="btn btn-secondary btn-sm monitor-reader-login-link">
-            Kirjaudu
-          </Link>
-        </div>
-      </header>
-
-      <main className="main monitor-reader-public-main">
-        <p className="muted no-print">{buildWorkReportPrintHeadline(bundle.report)}</p>
-        <div className="work-report-print-host" dangerouslySetInnerHTML={{ __html: html }} />
-      </main>
-
+    <div className="work-report-public-print-page">
+      <div className="work-report-print-host" dangerouslySetInnerHTML={{ __html: html }} />
       {lightboxUrl ? (
         <MaintenanceReportImageLightbox url={lightboxUrl} onClose={() => setLightboxUrl(null)} />
       ) : null}

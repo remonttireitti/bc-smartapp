@@ -82,6 +82,24 @@ type SummaryPeriod = BillingSummaryPeriod;
 const WEEKDAY_LABELS = ['Ma', 'Ti', 'Ke', 'To', 'Pe', 'La', 'Su'];
 const MONTH_SHORT = ['Tammi', 'Helmi', 'Maalis', 'Huhti', 'Touko', 'Kesä', 'Heinä', 'Elo', 'Syys', 'Loka', 'Marras', 'Joulu'];
 
+function billingRowSearchText(row: BillingListRow, viewerCompanyId?: string | null): string {
+  const reportDate = formatDate(billingRowDate(row).toISOString().slice(0, 10));
+  return [
+    row.title,
+    billToCustomerName(row),
+    billToPartnerName(row, viewerCompanyId),
+    row.customers?.name,
+    row.owner_company?.name,
+    row.delegate_company?.name,
+    row.creator_company?.name,
+    getWorkStatusLabel(row.status),
+    reportDate,
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
+}
+
 const REPORT_SELECT = `
   id, title, status, completed_at, scheduled_start, created_at,
   owner_company_id, created_by_company_id, delegate_company_id, customer_id,
@@ -115,6 +133,7 @@ export default function BillingPage({ session }: Props) {
   const [tab, setTab] = useState<Tab>('list');
   const [billingMode, setBillingMode] = useState<BillingModuleMode>(initialMode);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('unbilled');
+  const [search, setSearch] = useState('');
   const [partnerFilter, setPartnerFilter] = useState('');
   const [customerFilter, setCustomerFilter] = useState('');
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
@@ -385,6 +404,7 @@ export default function BillingPage({ session }: Props) {
         : partnerBillingAvailable !== false);
 
   const filteredRows = useMemo(() => {
+    const query = search.trim().toLowerCase();
     return rows.filter((row) => {
       const mode = effectiveBillingRowMode(billingMode, row);
       if (billingMode === 'partner' && partnerFilter && billToPartnerId(row, profile?.company_id) !== partnerFilter) return false;
@@ -396,9 +416,10 @@ export default function BillingPage({ session }: Props) {
         const ymd = toLocalYmd(billingRowDate(row));
         if (ymd !== selectedDay) return false;
       }
+      if (query && !billingRowSearchText(row, profile?.company_id).includes(query)) return false;
       return true;
     });
-  }, [rows, partnerFilter, customerFilter, statusFilter, selectedDay, billingMode, profile?.company_id]);
+  }, [rows, partnerFilter, customerFilter, statusFilter, selectedDay, billingMode, profile?.company_id, search]);
 
   const summary = useMemo(() => {
     let openTotal = 0;
@@ -929,6 +950,18 @@ export default function BillingPage({ session }: Props) {
             </div>
           ) : null}
 
+          <div className="toolbar">
+            <label className="search-field-grow">
+              Hae laskutettavia
+              <input
+                type="search"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Raportti, asiakas, kumppani, päivä…"
+              />
+            </label>
+          </div>
+
           <div className="billing-toolbar panel">
             <div className="billing-filter-pills">
               <button
@@ -1210,7 +1243,9 @@ export default function BillingPage({ session }: Props) {
             <section className="panel billing-empty-state">Ladataan raporttilistaa…</section>
           ) : filteredRows.length === 0 ? (
             <section className="panel billing-empty-state">
-              Ei laskutettavia työraportteja valituilla suodattimilla.
+              {search.trim()
+                ? `Ei tuloksia haulle “${search.trim()}”.`
+                : 'Ei laskutettavia työraportteja valituilla suodattimilla.'}
             </section>
           ) : (
             <div className="billing-card-list">

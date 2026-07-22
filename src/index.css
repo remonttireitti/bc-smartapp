@@ -10192,6 +10192,45 @@ button.vrf-toggle:not(:disabled) {
   gap: 0.45rem;
 }
 
+.work-report-public-print-page {
+  min-height: 100vh;
+  background: #fff;
+  color: #111827;
+}
+
+.work-report-public-print-page .work-report-print-host {
+  background: #fff;
+  color: #111827;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+}
+
+.work-report-public-print-status {
+  margin: 2rem auto;
+  max-width: 40rem;
+  padding: 0 1rem;
+  text-align: center;
+  color: #64748b;
+}
+
+.work-report-public-print-error {
+  color: #b91c1c;
+}
+
+@media print {
+  .app-shell:has(.work-report-public-print-page) > .offline-banner,
+  .app-shell:has(.work-report-public-print-page) > .pwa-update-banner,
+  .app-shell:has(.work-report-public-print-page) > .pwa-install-banner {
+    display: none !important;
+  }
+
+  .work-report-public-print-page .work-report-print-host {
+    padding: 0;
+    border: none;
+  }
+}
+
 .monitor-reader-public {
   min-height: 100vh;
   background: var(--bg-page, #0f172a);
