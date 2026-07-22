@@ -1,4 +1,9 @@
-import { mlpNestOptions } from '../../lib/huoltoRaportti/constants';
+import {
+  LAUHDUTIN_PAINEVENTTIILI_HELP,
+  LAUHDUTIN_PAINEVENTTIILI_LABEL,
+  LAUHDUTIN_PAINEVENTTIILI_MALLI_LABEL,
+  mlpNestOptions,
+} from '../../lib/huoltoRaportti/constants';
 import type { LauhdutuspiiriData, NestepiiriData } from '../../lib/huoltoRaportti/types';
 import { FormCheckbox } from './FormCheckbox';
 import { FormInput } from './FormInput';
@@ -113,15 +118,16 @@ export function NestepiiriFields({ data, onChange, showLauhdutinTarkistukset, sh
 
       {lauhdutus && (
         <div className="huolto-submodule">
+          <p className="muted huolto-help">{LAUHDUTIN_PAINEVENTTIILI_HELP}</p>
           <div className="line-form-grid">
             <FormCheckbox
-              label="Painesäädin tarkistettu"
+              label={LAUHDUTIN_PAINEVENTTIILI_LABEL}
               checked={lauhdutus.painesäätimenTarkistettu}
               onChange={(v) => onChange({ painesäätimenTarkistettu: v })}
             />
             {lauhdutus.painesäätimenTarkistettu && (
               <FormInput
-                label="Painesäätimen malli/koko"
+                label={LAUHDUTIN_PAINEVENTTIILI_MALLI_LABEL}
                 value={lauhdutus.painesäätimenMalli}
                 onChange={(v) => onChange({ painesäätimenMalli: v })}
               />

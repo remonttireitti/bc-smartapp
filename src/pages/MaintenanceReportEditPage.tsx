@@ -21,7 +21,6 @@ import { LauhdutuspiiriSection } from '../components/huoltoRaportti/Lauhdutuspii
 import { HuomiotSection } from '../components/huoltoRaportti/HuomiotSection';
 import { VapaajahdytysSection } from '../components/huoltoRaportti/VapaajahdytysSection';
 import { VjLauhdutinSection } from '../components/huoltoRaportti/VjLauhdutinSection';
-import { VjOhjausSection } from '../components/huoltoRaportti/VjOhjausSection';
 import { KonvektoritSection } from '../components/huoltoRaportti/KonvektoritSection';
 import { LampopumppuSection } from '../components/huoltoRaportti/LampopumppuSection';
 import { MlpSection } from '../components/huoltoRaportti/MlpSection';
@@ -37,6 +36,7 @@ import {
   createEmptyHuoltoReportData,
   createEmptyMlpData,
   createEmptyKonvektoriRow,
+  createEmptyVjOhjausData,
   ensureChillerLiquidCondenserData,
   konvektoriRowsMaintenanceScore,
   mergeHuoltoReportData,
@@ -67,7 +67,6 @@ import {
 import {
   deviceTypes,
   moduleSelectionOptions,
-  refrigerantTypes,
   showHuoltoVsKayttoonottoSelector,
   type ModuleKey,
 } from '../lib/huoltoRaportti/constants';
@@ -287,7 +286,6 @@ export default function MaintenanceReportEditPage({ session }: Props) {
         showMlpSection,
         showChillerKiinteistoSection: showChillerKiinteistoTab,
         showChillerEnergySection: showChillerEnergyTab,
-        isVj,
       }),
     [
       profile?.company_id,
@@ -304,7 +302,6 @@ export default function MaintenanceReportEditPage({ session }: Props) {
       showMlpSection,
       showChillerKiinteistoTab,
       showChillerEnergyTab,
-      isVj,
     ],
   );
 
@@ -1319,7 +1316,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
         <HuoltoModulePresentationProvider value="flat">
         <div className="maintenance-report-tab-panel">
         {activeTab === 'raportointi' && (
-        <section className="maintenance-report-tab-section">
+        <section className={`maintenance-report-tab-section${form.laiteTyyppi && (form.selectedModules.kylmaainePiiri || form.laiteTyyppi === 'lämpöpumppu') ? ' huolto-modules-stack' : ''}`}>
         <div className="info-grid">
             <div className="info-box">
               <span className="info-label">Yrityksen nimissä (brändi tulosteessa)</span>
@@ -1417,7 +1414,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
 
                 {copySiblingMode && (
                   <p className="muted">
-                    Kopioit pöytäkirjan toiselle laitteelle — määritä uusi laitetunnus Laitetiedot-välilehdellä
+                    Kopioit pöytäkirjan toiselle laitteelle — määritä uusi laitetunnus alla
                     ja tallenna kopio alareunan painikkeesta.
                   </p>
                 )}
@@ -1487,11 +1484,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
             </div>
             </>
           )}
-        </section>
-        )}
 
-        {activeTab === 'laitetiedot' && (
-        <section className="maintenance-report-tab-section">
               <label className="maintenance-device-type-select">
                 Laitetyyppi
                 <select
@@ -1597,44 +1590,30 @@ export default function MaintenanceReportEditPage({ session }: Props) {
                     onChange={(e) => patchForm({ laiteKayttotarkoitus: e.target.value })}
                   />
                 </label>
-                {!isChillerLikeDevice(form.laiteTyyppi) && form.laiteTyyppi !== 'konvektorit' && form.laiteTyyppi !== 'lämpöpumppu' && (
-                <>
-                <label>
-                  Kylmäaine
-                  <select
-                    value={form.kylmaaineTyyppi}
-                    onChange={(e) => patchForm({ kylmaaineTyyppi: e.target.value })}
-                  >
-                    <option value="">— Valitse —</option>
-                    {refrigerantTypes.map((r) => (
-                      <option key={r} value={r}>
-                        {r}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label>
-                  Kylmäainepiirejä
-                  <input
-                    type="number"
-                    min={1}
-                    max={8}
-                    value={form.kylmaainePiireja}
-                    onChange={(e) => patchForm({ kylmaainePiireja: e.target.value })}
-                  />
-                </label>
-                </>
+                {isChillerLikeDevice(form.laiteTyyppi) && (
+                  <label className="huolto-span-all">
+                    Asetusarvot
+                    <input
+                      value={form.vjOhjausData?.asetusArvot ?? ''}
+                      onChange={(e) =>
+                        patchForm({
+                          vjOhjausData: {
+                            ...(form.vjOhjausData ?? createEmptyVjOhjausData()),
+                            asetusArvot: e.target.value,
+                          },
+                        })
+                      }
+                      placeholder="Esim. meno/paluu, ΔT, paineet…"
+                    />
+                  </label>
                 )}
               </div>
               )}
+              {form.laiteTyyppi && (form.selectedModules.kylmaainePiiri || form.laiteTyyppi === 'lämpöpumppu') && (
+                <RefrigerantChargeSection form={form} onChange={patchForm} />
+              )}
               </>
               )}
-        </section>
-        )}
-
-        {activeTab === 'kylmaaine' && form.laiteTyyppi && (form.selectedModules.kylmaainePiiri || form.laiteTyyppi === 'lämpöpumppu') && (
-        <section className="maintenance-report-tab-section huolto-modules-stack">
-            <RefrigerantChargeSection form={form} onChange={patchForm} />
         </section>
         )}
 
@@ -1687,12 +1666,6 @@ export default function MaintenanceReportEditPage({ session }: Props) {
         {activeTab === 'jaahdytysvesi' && showJaahdytysvesiSection && (
         <section className="maintenance-report-tab-section huolto-modules-stack">
             <JaahdytysvesiSection form={form} onChange={patchForm} />
-        </section>
-        )}
-
-        {activeTab === 'vjOhjaus' && isVj && (
-        <section className="maintenance-report-tab-section huolto-modules-stack">
-            <VjOhjausSection form={form} onChange={patchForm} />
         </section>
         )}
 

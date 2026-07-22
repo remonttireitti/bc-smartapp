@@ -1,9 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import {
-  EXPENSE_TYPE_LABELS,
-  formatDate,
-  formatHourEntry,
   normalizeWorkflowStatus,
+  sumDailyHours,
   type InvoiceStatus,
   type WorkReportDailyLog,
   type WorkStatus,
@@ -13,19 +11,15 @@ import {
   loadCompanyTracksCustomerInvoicing,
   parseCompanySettings,
 } from './management';
-import {
-  formatRefrigerantLineLabel,
-  refrigerantBillingReminder,
-  refrigerantCustomerUnitPrice,
-  refrigerantIncludedInCustomerBilling,
-  refrigerantLineTotal,
-} from './refrigerantInventory';
 import { TRIP_VEHICLE_MIN_BILLING_EUR } from './tripKmExpense';
+import {
+  ensureWorkReportPrintShare,
+  workReportPrintShareUrl,
+} from './workReportPrintShares';
 import {
   breakdownFromBillableCalculation,
   type BillableCalculation,
 } from './workReportBilling';
-import { formatTripLegSummary } from './workReportTripLegs';
 
 export type BillingListRow = {
   id: string;
@@ -573,38 +567,111 @@ export function filterPartnerBillingCopyLogs(
   return { logs: filtered, partialUnbilledOnly: true };
 }
 
-function appendPartnerBillingCopyLogLines(
-  lines: string[],
-  log: WorkReportDailyLog,
-): void {
-  const hours = formatHourEntry(log, { showMoney: false });
-  if (hours !== '—') lines.push(hours);
-  if (log.work_done?.trim()) lines.push(log.work_done.trim());
-  if (log.commission_note?.trim()) lines.push(`Provisio: ${log.commission_note.trim()}`);
+const BILLING_COPY_MAX_LENGTH = 100;
 
-  const tripLegs = [...(log.trip_legs ?? [])].sort(
-    (a, b) => Number(a.sort_order ?? 0) - Number(b.sort_order ?? 0),
-  );
-  const hasTripLegs = tripLegs.some((leg) => Number(leg.distance_km) > 0);
-  for (const leg of tripLegs) {
-    if (Number(leg.distance_km) > 0) {
-      lines.push(`KM-korvaus: ${formatTripLegSummary(leg)}`);
+function formatCompactBillingDate(isoDate: string): string {
+  const date = new Date(`${isoDate.slice(0, 10)}T12:00:00`);
+  return date.toLocaleDateString('fi-FI', { day: 'numeric', month: 'numeric' });
+}
+
+function formatCompactBillingDates(logDates: string[]): string {
+  const unique = [...new Set(logDates.map((date) => date.slice(0, 10)))].sort();
+  if (unique.length === 0) return '';
+  if (unique.length === 1) return formatCompactBillingDate(unique[0]);
+
+  const consecutive = unique.every((date, index) => {
+    if (index === 0) return true;
+    const previous = new Date(`${unique[index - 1]}T12:00:00`);
+    previous.setDate(previous.getDate() + 1);
+    return previous.toISOString().slice(0, 10) === date;
+  });
+
+  if (consecutive) {
+    return `${formatCompactBillingDate(unique[0])}-${formatCompactBillingDate(unique[unique.length - 1])}`;
+  }
+
+  return unique.map(formatCompactBillingDate).join(', ');
+}
+
+function formatCompactBillingHours(hours: number): string {
+  if (!(hours > 0)) return '';
+  const rounded = Math.round(hours * 100) / 100;
+  const label = Number.isInteger(rounded)
+    ? String(rounded)
+    : rounded.toFixed(2).replace(/0+$/, '').replace(/\.$/, '');
+  return `${label}h`;
+}
+
+function summarizeBillingCopyTravel(
+  logs: WorkReportDailyLog[],
+  target: 'partner' | 'customer',
+): string {
+  let totalKm = 0;
+  let usesMinimum = false;
+  let hasTravel = false;
+
+  for (const log of logs) {
+    const tripLegs = [...(log.trip_legs ?? [])].sort(
+      (a, b) => Number(a.sort_order ?? 0) - Number(b.sort_order ?? 0),
+    );
+    const legKm = tripLegs.reduce((sum, leg) => {
+      if (target === 'customer' && leg.bill_to_customer === false) return sum;
+      return sum + (Number(leg.distance_km) > 0 ? Number(leg.distance_km) : 0);
+    }, 0);
+
+    if (legKm > 0) {
+      hasTravel = true;
+      totalKm += legKm;
+    }
+
+    const hasTripLegs = tripLegs.some((leg) => Number(leg.distance_km) > 0);
+    for (const expense of log.expense_lines ?? []) {
+      const bills =
+        target === 'partner'
+          ? expense.bill_to_partner !== false
+          : expense.bill_to_customer !== false;
+      if (!bills || expense.expense_type !== 'km') continue;
+
+      if (/minimilaskutus/i.test(expense.description)) {
+        usesMinimum = true;
+      }
+
+      if (hasTripLegs && isLikelyAutoTripKmExpenseLine(expense)) continue;
+
+      const qty = Number(expense.qty);
+      if (qty > 0) {
+        hasTravel = true;
+        totalKm += qty;
+      }
     }
   }
 
-  for (const expense of log.expense_lines ?? []) {
-    if (expense.bill_to_partner === false) continue;
-    if (hasTripLegs && isLikelyAutoTripKmExpenseLine(expense)) continue;
-    const typeLabel = EXPENSE_TYPE_LABELS[expense.expense_type] ?? expense.expense_type;
-    const qty = Number(expense.qty);
-    const qtyLabel = Number.isInteger(qty) ? `${qty} kpl` : `${qty} kpl`;
-    lines.push(`${typeLabel}: ${expense.description} (${qtyLabel})`);
+  if (!hasTravel) return '';
+  if (usesMinimum) return 'min.ajo';
+  const km = Math.round(totalKm * 10) / 10;
+  return `${km}km`;
+}
+
+function buildCompactBillingCopyText(input: {
+  subject: string;
+  logs: WorkReportDailyLog[];
+  travelTarget: 'partner' | 'customer';
+}): string {
+  const dates = formatCompactBillingDates(input.logs.map((log) => log.log_date));
+  const hours = formatCompactBillingHours(sumDailyHours(input.logs));
+  const travel = summarizeBillingCopyTravel(input.logs, input.travelTarget);
+  const suffix = [dates, hours, travel].filter(Boolean).join(' ');
+  const suffixLength = suffix ? suffix.length + 1 : 0;
+  const maxSubjectLength = Math.max(1, BILLING_COPY_MAX_LENGTH - suffixLength);
+
+  let subject = input.subject.trim();
+  if (subject.length > maxSubjectLength) {
+    subject = `${subject.slice(0, Math.max(1, maxSubjectLength - 1)).trimEnd()}…`;
   }
 
-  for (const refLine of log.refrigerant_lines ?? []) {
-    const qtyLabel = `${Number(refLine.qty_kg).toFixed(3)} kg`;
-    lines.push(`Kylmäaine: ${formatRefrigerantLineLabel(refLine)} (${qtyLabel})`);
-  }
+  const text = [subject, suffix].filter(Boolean).join(' ').trim();
+  if (text.length <= BILLING_COPY_MAX_LENGTH) return text;
+  return `${text.slice(0, BILLING_COPY_MAX_LENGTH - 1).trimEnd()}…`;
 }
 
 export function formatWorkReportBillingCopy(input: {
@@ -614,33 +681,11 @@ export function formatWorkReportBillingCopy(input: {
   logs: WorkReportDailyLog[];
   partialUnbilledOnly?: boolean;
 }): string {
-  const lines: string[] = [
-    `Työraportti: ${input.title}`,
-    `Kumppani: ${input.partnerName}`,
-  ];
-  if (input.customerName) lines.push(`Asiakas: ${input.customerName}`);
-  if (input.partialUnbilledOnly) {
-    lines.push('', 'Laskuttamatta (uudet päiväkirjaukset):');
-  }
-  lines.push('');
-
-  if (input.logs.length === 0) {
-    if (input.partialUnbilledOnly) {
-      lines.push('Ei uusia laskuttamattomia kirjauksia.');
-    } else {
-      lines.push('Ei päiväkirjauksia.');
-    }
-    return lines.join('\n').trim();
-  }
-
-  const sorted = [...input.logs].sort((a, b) => a.log_date.localeCompare(b.log_date));
-  for (const log of sorted) {
-    lines.push(formatDate(log.log_date));
-    appendPartnerBillingCopyLogLines(lines, log);
-    lines.push('');
-  }
-
-  return lines.join('\n').trim();
+  return buildCompactBillingCopyText({
+    subject: input.customerName ?? input.title,
+    logs: input.logs,
+    travelTarget: 'partner',
+  });
 }
 
 export function billToCustomerName(row: BillingListRow): string {
@@ -665,60 +710,11 @@ export function formatWorkReportCustomerBillingCopy(input: {
   logs: WorkReportDailyLog[];
   showMoney?: boolean;
 }): string {
-  const lines: string[] = [`Työraportti: ${input.title}`];
-  if (input.customerName) lines.push(`Asiakas: ${input.customerName}`);
-  lines.push('');
-
-  const sorted = [...input.logs].sort((a, b) => a.log_date.localeCompare(b.log_date));
-  for (const log of sorted) {
-    lines.push(formatDate(log.log_date));
-    const hours = formatHourEntry(log, { showMoney: input.showMoney ?? false });
-    if (hours !== '—') lines.push(hours);
-    if (log.work_done?.trim()) lines.push(log.work_done.trim());
-    if (log.commission_note?.trim()) lines.push(`Provisio: ${log.commission_note.trim()}`);
-    for (const expense of log.expense_lines ?? []) {
-      if (expense.bill_to_customer === false) continue;
-      const typeLabel = EXPENSE_TYPE_LABELS[expense.expense_type] ?? expense.expense_type;
-      const qty = Number(expense.qty);
-      const qtyLabel = Number.isInteger(qty) ? `${qty} kpl` : `${qty} kpl`;
-      const customerUnit =
-        expense.customer_unit_price != null && Number(expense.customer_unit_price) > 0
-          ? Number(expense.customer_unit_price)
-          : Number(expense.unit_price);
-      const priceMissing =
-        !(expense.customer_unit_price != null && Number(expense.customer_unit_price) > 0) &&
-        !(Number(expense.unit_price) > 0);
-      const priceSuffix = input.showMoney
-        ? priceMissing
-          ? ' (hinta ?)'
-          : customerUnit > 0
-            ? ` (${customerUnit.toFixed(2)} €/kpl)`
-            : ''
-        : '';
-      lines.push(`${typeLabel}: ${expense.description} (${qtyLabel})${priceSuffix}`);
-    }
-    for (const refLine of log.refrigerant_lines ?? []) {
-      const qtyLabel = `${Number(refLine.qty_kg).toFixed(3)} kg`;
-      const reminder = refrigerantBillingReminder(refLine);
-      if (refrigerantIncludedInCustomerBilling(refLine)) {
-        const unit = refrigerantCustomerUnitPrice(refLine);
-        const priceMissing = !(unit > 0);
-        const priceSuffix = input.showMoney
-          ? priceMissing
-            ? ' (hinta ?)'
-            : ` (${unit.toFixed(2)} €/kg = ${refrigerantLineTotal(refLine).toFixed(2)} €)`
-          : '';
-        lines.push(`Kylmäaine: ${formatRefrigerantLineLabel(refLine)} (${qtyLabel})${priceSuffix}`);
-      } else if (reminder) {
-        lines.push(`Kylmäaine: ${formatRefrigerantLineLabel(refLine)} (${qtyLabel}) — ${reminder}`);
-      } else {
-        lines.push(`Kylmäaine: ${formatRefrigerantLineLabel(refLine)} (${qtyLabel})`);
-      }
-    }
-    lines.push('');
-  }
-
-  return lines.join('\n').trim();
+  return buildCompactBillingCopyText({
+    subject: input.customerName ?? input.title,
+    logs: input.logs,
+    travelTarget: 'customer',
+  });
 }
 
 export async function loadCustomerBillingCopyText(
@@ -729,16 +725,11 @@ export async function loadCustomerBillingCopyText(
     .from('work_report_daily_logs')
     .select(`
       id, log_date, entry_type, hours_regular, hours_overtime, hours_on_call,
-      fixed_price_amount, hourly_rate_override, customer_hourly_rate_override, commission_note, work_done,
       expense_lines:work_report_daily_expense_lines(
-        id, expense_type, description, qty, unit_price, bill_to_customer, customer_unit_price
+        id, expense_type, description, qty, bill_to_customer
       ),
-      refrigerant_lines:work_report_refrigerant_lines(
-        id, source, supplier_paid_by, unit_price, customer_unit_price, bill_to_customer,
-        refrigerant_type, qty_kg, supplier_name,
-        cylinder:refrigerant_cylinders(serial_number),
-        warehouse_company:companies!work_report_refrigerant_lines_warehouse_company_id_fkey(name),
-        owner_user:profiles!work_report_refrigerant_lines_owner_user_id_fkey(display_name)
+      trip_legs:work_report_daily_trip_legs(
+        id, distance_km, sort_order, bill_to_customer
       )
     `)
     .eq('work_report_id', row.id)
@@ -754,16 +745,12 @@ export async function loadCustomerBillingCopyText(
 
 const PARTNER_BILLING_COPY_LOG_SELECT = `
   id, log_date, entry_type, hours_regular, hours_overtime, hours_on_call,
-  fixed_price_amount, hourly_rate_override, commission_note, work_done, created_at,
+  created_at,
   expense_lines:work_report_daily_expense_lines(
-    id, expense_type, description, qty, unit_price, bill_to_partner
+    id, expense_type, description, qty, bill_to_partner
   ),
   trip_legs:work_report_daily_trip_legs(
-    id, from_label, to_label, distance_km, sort_order
-  ),
-  refrigerant_lines:work_report_refrigerant_lines(
-    id, refrigerant_type, qty_kg, supplier_name,
-    cylinder:refrigerant_cylinders(serial_number)
+    id, distance_km, sort_order
   )
 `;
 
@@ -796,6 +783,21 @@ export async function loadBillingCopyText(
       partialUnbilledOnly,
     }),
     partialUnbilledOnly,
+  };
+}
+
+export async function loadBillingCopyTextWithPrintLink(
+  supabase: SupabaseClient,
+  row: BillingListRow,
+  mode: BillingModuleMode,
+  companyId: string,
+): Promise<{ text: string; partialUnbilledOnly: boolean }> {
+  const result = await loadBillingCopyText(supabase, row, mode);
+  const token = await ensureWorkReportPrintShare(row.id, companyId);
+  const url = workReportPrintShareUrl(token);
+  return {
+    text: `${result.text}\n${url}`,
+    partialUnbilledOnly: result.partialUnbilledOnly,
   };
 }
 

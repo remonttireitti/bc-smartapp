@@ -13,10 +13,11 @@ import type { MaintenanceReportPhotoItem } from '../maintenanceReportImages';
 import {
   resolveMaintenancePrintPhotoHref,
 } from '../maintenanceReportPrintImages';
-import { expansionValveTypes } from './constants';
+import { expansionValveTypes, LAUHDUTIN_PAINEVENTTIILI_LABEL, LAUHDUTIN_PAINEVENTTIILI_MALLI_LABEL } from './constants';
 import {
   isChillerLikeDevice,
   isSharedEvaporatorAcrossCircuits,
+  isWaterCooledChiller,
   refrigerantCircuitHasMagnetValve,
 } from './deviceModuleLogic';
 import {
@@ -367,6 +368,7 @@ function renderCircuitsHtml(data: HuoltoReportData): string {
 
   const inlineEvaporators =
     isChillerLikeDevice(data.laiteTyyppi) &&
+    !isWaterCooledChiller(data.laiteTyyppi) &&
     (data.selectedModules.hoyrystin || data.laiteTyyppi === 'pakastin' || data.laiteTyyppi === 'kylmäkoneikko');
   const sharedEvaporator = isSharedEvaporatorAcrossCircuits(
     data.laiteTyyppi,
@@ -415,7 +417,7 @@ function renderCondensers(data: HuoltoReportData): string {
         gridField('Nopeussäädin', co.nopeussäädinMalli),
         gridField('Taajuusmuuntaja', co.taajusmuuntajaMalli),
         checkRow(co.lauhdutinPuhdistettu, 'Lauhdutin puhdistettu'),
-        checkRow(co.painesäätimenTarkistettu, 'Painesäädin tarkistettu'),
+        checkRow(co.painesäätimenTarkistettu, LAUHDUTIN_PAINEVENTTIILI_LABEL),
         checkRow(co.virtausRiittävä, 'Virtaus riittävä'),
         checkRow(co.talvivarustus, 'Talvivarustus'),
         fanHtml,
@@ -444,8 +446,8 @@ function renderNestepiiriFields(color: string, piiri: NestepiiriData | Lauhdutus
   const lp = piiri as LauhdutuspiiriData;
   if ('painesäätimenTarkistettu' in lp) {
     rows.push(
-      checkRow(lp.painesäätimenTarkistettu, 'Painesäädin tarkistettu'),
-      lp.painesäätimenTarkistettu ? row('Painesäätimen malli', lp.painesäätimenMalli, color) : '',
+      checkRow(lp.painesäätimenTarkistettu, LAUHDUTIN_PAINEVENTTIILI_LABEL),
+      lp.painesäätimenTarkistettu ? row(LAUHDUTIN_PAINEVENTTIILI_MALLI_LABEL, lp.painesäätimenMalli, color) : '',
       checkRow(lp.virtausRiittävä !== false, 'Virtaus riittävä'),
       lp.virtausRiittävä === false && lp.virtausOngelma
         ? row('Virtausongelma', lp.virtausOngelma, color)

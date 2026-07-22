@@ -38,6 +38,7 @@ import {
   billingRowNeedsPartnerRecalc,
   billingRowVisibleInList,
   loadBillingCopyText,
+  loadBillingCopyTextWithPrintLink,
   markPartnerReportBilled,
   markCustomerReportBilled,
   applyPartnerBillWorkflowChoice,
@@ -674,6 +675,31 @@ export default function BillingPage({ session }: Props) {
     }
   }
 
+  async function copyBillingTextWithLink(row: BillingListRow) {
+    if (!profile?.company_id) return;
+    setError(null);
+    setMessage(null);
+    setBusyId(row.id);
+    try {
+      const { text, partialUnbilledOnly } = await loadBillingCopyTextWithPrintLink(
+        supabase,
+        row,
+        rowBillingMode(row),
+        profile.company_id,
+      );
+      await navigator.clipboard.writeText(text);
+      setMessage(
+        partialUnbilledOnly
+          ? 'Laskutusteksti ja tulostelinkki kopioitu leikepöydälle (vain uudet kirjaukset).'
+          : 'Laskutusteksti ja tulostelinkki kopioitu leikepöydälle.',
+      );
+    } catch (copyError) {
+      setError(copyError instanceof Error ? copyError.message : 'Kopiointi epäonnistui.');
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   async function finishPartnerBill(row: BillingListRow, workflow: PartnerBillWorkflowChoice) {
     setError(null);
     setMessage(null);
@@ -1208,6 +1234,7 @@ export default function BillingPage({ session }: Props) {
                   isRecalculating={recalculatingIds.has(row.id)}
                   viewerCompanyId={profile?.company_id}
                   onCopy={() => void copyBillingText(row)}
+                  onCopyWithLink={() => void copyBillingTextWithLink(row)}
                   onMarkBilled={() => void markBilled(row)}
                   onUnmarkBilled={() => void unmarkBilled(row)}
                   onRecalcPartner={
@@ -1249,6 +1276,7 @@ function BillingReportCard({
   busy,
   isRecalculating,
   onCopy,
+  onCopyWithLink,
   onMarkBilled,
   onUnmarkBilled,
   onRecalcPartner,
@@ -1261,6 +1289,7 @@ function BillingReportCard({
   busy: boolean;
   isRecalculating: boolean;
   onCopy: () => void;
+  onCopyWithLink: () => void;
   onMarkBilled: () => void;
   onUnmarkBilled: () => void;
   onRecalcPartner?: () => void;
@@ -1379,6 +1408,9 @@ function BillingReportCard({
         )}
         <button type="button" className="btn btn-secondary btn-sm" disabled={busy} onClick={onCopy}>
           Kopioi laskutusteksti
+        </button>
+        <button type="button" className="btn btn-secondary btn-sm" disabled={busy} onClick={onCopyWithLink}>
+          Kopioi teksti + linkki
         </button>
         {(mode === 'customer' ? amounts.state !== 'billed' : amounts.open > 0.005) && (
           <button type="button" className="btn btn-primary btn-sm" disabled={busy} onClick={onMarkBilled}>

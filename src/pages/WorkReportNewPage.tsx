@@ -216,10 +216,16 @@ export default function WorkReportNewPage({ session }: Props) {
     }
     if (reportOwnerCompanyId) return;
     if (profile?.company_id) setReportOwnerCompanyId(profile.company_id);
-  }, [selectedCustomer, profile?.company_id, reportOwnerCompanyId]);
+  }, [selectedCustomer?.id, selectedCustomer?.owner_company_id, profile?.company_id]);
 
   function onReportOwnerChange(companyId: string) {
     setReportOwnerCompanyId(companyId);
+    if (!customerId) return;
+    const customer = customers.find((entry) => entry.id === customerId);
+    if (customer && customer.owner_company_id !== companyId) {
+      setCustomerId('');
+      setEquipmentId('');
+    }
   }
 
   const canAutoSave = Boolean(description.trim() || customerId);
@@ -1268,7 +1274,7 @@ export default function WorkReportNewPage({ session }: Props) {
 
               <span className="info-label">Yrityksen nimissä</span>
 
-              {!customerId && reportOwnerTargets.length > 1 ? (
+              {reportOwnerTargets.length > 1 ? (
                 <select
                   className="info-box-select"
                   value={reportOwnerCompanyId}
@@ -1309,22 +1315,11 @@ export default function WorkReportNewPage({ session }: Props) {
 
 
 
-          {selectedCustomer && contextMode === 'partner' && (
-
+          {reportOwnerTargets.length > 1 && (
             <p className="muted">
-
-              Valittu asiakas kuuluu kumppanin rekisteriin — raportti luodaan yrityksen{' '}
-
-              <strong>{brandingName}</strong> nimissä. Yritys määräytyy valitusta asiakkaasta.
-
-            </p>
-
-          )}
-
-          {!customerId && reportOwnerTargets.length > 1 && (
-            <p className="muted">
-              Valitse ensin yritys, jonka nimissä raportti laaditaan. Uusi asiakas tallennetaan samaan
-              rekisteriin.
+              Valitse yritys, jonka nimissä raportti laaditaan. Asiakasvalinta asettaa oletuksen, mutta
+              valintaa voi muuttaa myöhemmin — jos valitset toisen yrityksen kuin asiakkaan rekisteri,
+              asiakas poistuu valinnasta.
             </p>
           )}
 

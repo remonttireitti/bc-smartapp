@@ -1,5 +1,5 @@
 import { createEmptyJaahdytysvesiData } from '../../lib/huoltoRaportti/defaults';
-import { isChillerLikeDevice } from '../../lib/huoltoRaportti/deviceModuleLogic';
+import { isWaterCooledChiller } from '../../lib/huoltoRaportti/deviceModuleLogic';
 import type { HuoltoReportData } from '../../lib/huoltoRaportti/types';
 import ToggleSwitch from '../ToggleSwitch';
 import { HuoltoModuleSection } from './HuoltoModuleSection';
@@ -13,7 +13,8 @@ interface Props {
 
 export function JaahdytysvesiSection({ form, onChange }: Props) {
   const data = form.jaahdytysvesiData ?? createEmptyJaahdytysvesiData();
-  const isVj = isChillerLikeDevice(form.laiteTyyppi);
+  const isVj = isWaterCooledChiller(form.laiteTyyppi);
+  const isVak = form.laiteTyyppi === 'vakioilmastointtikone';
 
   const patch = (next: Partial<typeof data>) =>
     onChange({ jaahdytysvesiData: { ...data, ...next } });
@@ -25,10 +26,12 @@ export function JaahdytysvesiSection({ form, onChange }: Props) {
     >
       <p className="muted huolto-help">
         {isVj
-          ? 'Höyrystimen jäähdytyspiir ja jäähdytysveden piiri ovat sama nestekiertue. Höyrystimen tekniset tiedot täytetään kylmäainepiirin kohdalla.'
-          : 'Nestekiertoinen jäähdytysveden piiri kuuluu aina vedenjäähdytyskoneeseen ja vakioilmastointikoneeseen.'}
+          ? 'Jäähdytysveden nestekierto kuuluu vedenjäähdytyskoneeseen.'
+          : isVak
+            ? 'Höyrystimen jäähdytyspiir ja jäähdytysveden piiri ovat sama nestekiertue. Höyrystimen tekniset tiedot täytetään kylmäainepiirin kohdalla.'
+            : 'Nestekiertoinen jäähdytysveden piiri kuuluu aina vedenjäähdytyskoneeseen ja vakioilmastointikoneeseen.'}
       </p>
-      {isVj && (
+      {isVak && (
         <label className="checkbox-inline huolto-span-all">
           <ToggleSwitch
             label="Yhteinen höyrystin kaikille kylmäainepiireille"

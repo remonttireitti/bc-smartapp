@@ -138,3 +138,24 @@ export function konvektoritSectionTitle(deviceType: string): string {
   if (deviceType === 'konvektorit') return '2. Konvektorit';
   return 'Konvektorit';
 }
+
+export function raportointiLaitetiedotTabTitle(deviceType: string, showKylmaaineCharge: boolean): string {
+  let devicePart: string;
+  if (deviceType === 'konvektorit') {
+    devicePart = 'konvektoriverkosto';
+  } else if (showKylmaaineCharge) {
+    devicePart = 'laitetiedot ja kylmäaine';
+  } else {
+    devicePart = 'laitetiedot';
+  }
+  const base = `Raportointi, asiakas ja ${devicePart}`;
+  if (usesLegacySectionNumbers(deviceType) && deviceType !== 'konvektorit') {
+    return `1. ${base}`;
+  }
+  return base;
+}
+
+/** @deprecated Prefer raportointiLaitetiedotTabTitle */
+export function laitetiedotTabTitle(deviceType: string, showKylmaaineCharge: boolean): string {
+  return raportointiLaitetiedotTabTitle(deviceType, showKylmaaineCharge);
+}

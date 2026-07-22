@@ -1,4 +1,5 @@
 import type { CondenserData, EvaporatorData, NestelauhdutinUnitData } from './types';
+import { LAUHDUTIN_PAINEVENTTIILI_MALLI_LABEL } from './constants';
 import {
   LAUHDUTIN_TYYPIT,
   MLP_LAITEKORTTI_ROWS,
@@ -281,7 +282,7 @@ export function buildEquipmentCardSnapshotPrintHtml(snapshot: ParsedEquipmentSna
       { label: 'Nopeussäätimen malli', value: snapVal(row.nopeussäädinMalli) },
       { label: 'Taajuusmuuntajan malli', value: snapVal(row.taajusmuuntajaMalli) },
       { label: 'KP-painestatin malli', value: snapVal(row.kpPressostaattiMalli) },
-      { label: 'Painesäätimen malli', value: snapVal(row.painesäätimenMalli) },
+      { label: LAUHDUTIN_PAINEVENTTIILI_MALLI_LABEL, value: snapVal(row.painesäätimenMalli) },
     ]);
     if (airBlk) lauhdeParts.push(airBlk);
   }

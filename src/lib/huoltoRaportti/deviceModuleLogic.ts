@@ -20,6 +20,10 @@ export function isChillerLikeDevice(deviceType: string): boolean {
   return deviceType === 'vedenjäähdytyskone' || deviceType === 'vakioilmastointtikone';
 }
 
+export function isWaterCooledChiller(deviceType: string): boolean {
+  return deviceType === 'vedenjäähdytyskone';
+}
+
 /** Vedenjäähdytyskone + elektroninen EEV: ei erillistä magneettiventtiiliä. */
 export function refrigerantCircuitHasMagnetValve(
   laiteTyyppi: string,
@@ -192,6 +196,19 @@ export function resolveAutoModules(input: {
 
   switch (deviceType as DeviceTypeValue) {
     case 'vedenjäähdytyskone':
+      modules.kylmaainePiiri = true;
+      modules.vedenjajahdytyskone = true;
+      if (isLiquidCondenserType(condenserType)) {
+        modules.nestelauhduttimet = true;
+        modules.lauhdutin = true;
+      }
+      if (isAirCondenserType(condenserType)) {
+        modules.lauhdutin = true;
+      }
+      if (input.vapaajahdytysKaytossa) {
+        modules.vapaajahdytys = true;
+      }
+      break;
     case 'vakioilmastointtikone':
       modules.kylmaainePiiri = true;
       modules.hoyrystin = true;
@@ -250,9 +267,10 @@ export function moduleIsActive(modules: Record<ModuleKey, boolean>, key: ModuleK
 }
 
 export function showEvaporatorModules(
-  _deviceType: string,
+  deviceType: string,
   modules: Record<ModuleKey, boolean>,
 ): boolean {
+  if (isWaterCooledChiller(deviceType)) return false;
   return moduleIsActive(modules, 'hoyrystin');
 }
 
@@ -260,6 +278,7 @@ export function showEvaporatorInCircuit(
   deviceType: string,
   modules: Record<ModuleKey, boolean>,
 ): boolean {
+  if (isWaterCooledChiller(deviceType)) return false;
   return isChillerLikeDevice(deviceType) && showEvaporatorModules(deviceType, modules);
 }
 

@@ -1,10 +1,7 @@
 import { huomioLuonneOptions } from '../../lib/huoltoRaportti/constants';
 import { ensureHuomiotLiite } from '../../lib/huoltoRaportti/defaults';
 import type { HuoltoReportData, HuomioLuonne, HuomiotImageAttachment } from '../../lib/huoltoRaportti/types';
-import {
-  normalizeMaintenanceReportPhotos,
-  type MaintenanceReportPhotoItem,
-} from '../../lib/maintenanceReportImages';
+import type { MaintenanceReportPhotoItem } from '../../lib/maintenanceReportImages';
 import { EvidencePhotoUpload } from './EvidencePhotoUpload';
 import { huomiotSectionTitle } from '../../lib/huoltoRaportti/sectionTitles';
 import { HuoltoModuleSection } from './HuoltoModuleSection';
@@ -18,12 +15,12 @@ interface Props {
 }
 
 function liitteetToPhotoItems(liitteet: HuomiotImageAttachment[] | undefined): MaintenanceReportPhotoItem[] {
-  return normalizeMaintenanceReportPhotos(
-    (liitteet ?? []).map((a) => ({
-      storagePath: a.storagePath ?? a.id,
+  return (liitteet ?? [])
+    .map((a) => ({
+      storagePath: String(a.storagePath ?? a.id ?? '').trim(),
       comment: a.comment ?? '',
-    })),
-  );
+    }))
+    .filter((item) => item.storagePath);
 }
 
 function photoItemsToLiitteet(

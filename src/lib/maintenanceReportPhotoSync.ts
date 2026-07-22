@@ -30,7 +30,7 @@ function commentForPath(
   storagePath: string,
 ): string {
   const match = jsonItems.find((item) => pathKey(item.storagePath ?? item.id) === storagePath);
-  return match?.comment?.trim() ?? '';
+  return match?.comment ?? '';
 }
 
 function pathsMatchDb(

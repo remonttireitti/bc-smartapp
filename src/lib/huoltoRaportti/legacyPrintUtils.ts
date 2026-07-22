@@ -38,6 +38,7 @@ import {
   resolveKoePaivamaaraJaKello,
 } from './kokeAikaUtils';
 import { buildMaintenanceReportPrintTitle, hideMaintenancePrintWarnings } from './defaults';
+import { LAUHDUTIN_PAINEVENTTIILI_LABEL, LAUHDUTIN_PAINEVENTTIILI_MALLI_LABEL } from './constants';
 import { generateKonvektoritGridPrintHtml, konvektoriVerkostoKoideFromReport } from './konvektoriPrint';
 import { generateSisayksikotGridPrintHtml } from './sisayksikkoPrint';
 import { formatHuomioPrintHtml, RICH_COMMENT_PRINT_CSS } from './formatHuomioPrintHtml';
@@ -490,12 +491,12 @@ export function generateCondenserPrintHtml(
       const nesteCells: string[] = [];
       if (condenserData.painesäätimenTarkistettu === true) {
         nesteCells.push(`<div>
-            <div style="color: #666; margin-bottom: 2px;">Painesäädin tarkistettu</div>
+            <div style="color: #666; margin-bottom: 2px;">${LAUHDUTIN_PAINEVENTTIILI_LABEL}</div>
             <div style="padding: 4px; background: #fff; border: 1px solid #ddd; border-radius: 4px;">Kyllä</div>
           </div>`);
         if (hasPrintableValue(condenserData.painesäätimenMalli)) {
           nesteCells.push(`<div>
-            <div style="color: #666; margin-bottom: 2px;">Painesäätimen malli/koko</div>
+            <div style="color: #666; margin-bottom: 2px;">${LAUHDUTIN_PAINEVENTTIILI_MALLI_LABEL}</div>
             <div style="padding: 4px; background: #fff; border: 1px solid #ddd; border-radius: 4px;">${normalizePrintText(condenserData.painesäätimenMalli)}</div>
           </div>`);
         }

@@ -231,7 +231,9 @@ export function inferModulesFromLegacyData(data: Partial<HuoltoReportData>): Par
     inferred.kylmaainePiiri = true;
   }
   if (data.evaporatorData?.some((ev) => hasAnyString(ev.valmistaja, ev.malli, ev.sarjanumero))) {
-    inferred.hoyrystin = true;
+    if (data.laiteTyyppi !== 'vedenjäähdytyskone') {
+      inferred.hoyrystin = true;
+    }
   }
   if (data.condenserData?.some((c) => hasAnyString(c.tyyppi, c.lauhdutinPuhdistusTapa, c.painesäätimenMalli))) {
     inferred.lauhdutin = true;

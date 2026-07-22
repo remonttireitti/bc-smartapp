@@ -21,7 +21,7 @@ export function normalizeMaintenanceReportPhotos(raw: unknown): MaintenanceRepor
           '',
       ).trim();
       if (!path) continue;
-      const comment = String((item as { comment?: string }).comment ?? '').trim();
+      const comment = String((item as { comment?: string }).comment ?? '');
       out.push({ storagePath: path, comment });
     }
   }

@@ -236,3 +236,9 @@ export const mlpNestOptions = [
   { value: '3.2', label: 'Propyleeniglykoli 30%' },
   { value: '3.0', label: 'Propyleeniglykoli 40%' },
 ];
+
+/** Nestelauhduttimen ohitus- / paineensäätöventtiili (lauhdutuspiiri, nestekiertoinen lauhdutin). */
+export const LAUHDUTIN_PAINEVENTTIILI_LABEL = 'Ohitus- / paineensäätöventtiili tarkistettu';
+export const LAUHDUTIN_PAINEVENTTIILI_HELP =
+  'Nestelauhduttimen putkistossa oleva venttiili, joka tasaa virtausta ja painetta koneen ja ulkoisen lauhduttimen välillä.';
+export const LAUHDUTIN_PAINEVENTTIILI_MALLI_LABEL = 'Venttiilin malli/koko';

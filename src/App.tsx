@@ -8,6 +8,7 @@ import { ProfileProvider } from './contexts/ProfileContext';
 import Login from './pages/Login';
 import PublicLandingPage from './pages/PublicLandingPage';
 import MonitorReaderTokenPage from './pages/MonitorReaderTokenPage';
+import WorkReportPublicPrintPage from './pages/WorkReportPublicPrintPage';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import ResetPasswordPage from './pages/ResetPasswordPage';
 import OfflineBanner from './components/OfflineBanner';
@@ -35,6 +36,7 @@ function AppRoutes() {
         <Route path="/unohdin-salasana" element={<ForgotPasswordPage />} />
         <Route path="/aseta-uusi-salasana" element={<ResetPasswordPage />} />
         <Route path="/seuranta/luku/:token" element={<MonitorReaderTokenPage />} />
+        <Route path="/tyoraportti/jako/:token" element={<WorkReportPublicPrintPage />} />
         <Route path="*" element={<RequireLoginRedirect />} />
       </Routes>
     );

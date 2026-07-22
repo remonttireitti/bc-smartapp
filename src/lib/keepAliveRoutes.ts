@@ -6,6 +6,7 @@ const NEVER_CACHE_PREFIXES = [
   '/unohdin-salasana',
   '/aseta-uusi-salasana',
   '/seuranta/luku',
+  '/tyoraportti/jako',
 ] as const;
 
 export function keepAliveRouteKey(pathname: string, search = '', hash = '') {

@@ -1,4 +1,4 @@
-import { Navigate, useParams, type RouteObject } from 'react-router-dom';
+import { Navigate, useLocation, useParams, type RouteObject } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
 import type { ComponentType } from 'react';
 import LicenseModuleGate from '../components/LicenseModuleGate';
@@ -46,6 +46,7 @@ import TempMonitorReportPrintPage from '../pages/TempMonitorReportPrintPage';
 import RemoteMonitoringHubPage from '../pages/RemoteMonitoringHubPage';
 import VrfMonitoringPage from '../pages/VrfMonitoringPage';
 import MonitorReaderTokenPage from '../pages/MonitorReaderTokenPage';
+import WorkReportPublicPrintPage from '../pages/WorkReportPublicPrintPage';
 import MonitorReaderHubPage from '../pages/MonitorReaderHubPage';
 import MonitorReaderVrfPage from '../pages/MonitorReaderVrfPage';
 import VrfMonitorDetailPage from '../pages/VrfMonitorDetailPage';
@@ -85,6 +86,12 @@ const LicensedWorkReportsPage = withLicenseModule('base', WorkReportsPage);
 const LicensedWorkReportDetailPage = withLicenseModule('base', WorkReportDetailPage);
 const LicensedWorkReportNewPage = withLicenseModule('base', WorkReportNewPage);
 const LicensedWorkReportOrderPage = withLicenseModule('base', WorkReportOrderPage);
+
+/** Uusi vs. muokkaus jakaa saman sivukomponentin — key pakottaa tyhjän lomakkeen /uusi-polulla. */
+function LicensedWorkReportNewRoute({ session }: { session: Session }) {
+  const location = useLocation();
+  return <LicensedWorkReportNewPage session={session} key={location.pathname} />;
+}
 const LicensedWorkReportPrintPage = withLicenseModule('base', WorkReportPrintPage);
 const LicensedWorkReportPartnerBillingPrintPage = withLicenseModule('billing', WorkReportPartnerBillingPrintPage);
 const LicensedBillingPage = withLicenseModule('billing', BillingPage);
@@ -143,6 +150,7 @@ export function buildAuthenticatedRoutes(session: Session): RouteObject[] {
     { path: '/etaseuranta/luku', element: <MonitorReaderHubPage session={session} /> },
     { path: '/etaseuranta/luku/vrf/:deviceId', element: <MonitorReaderVrfPage session={session} /> },
     { path: '/seuranta/luku/:token', element: <MonitorReaderTokenPage /> },
+    { path: '/tyoraportti/jako/:token', element: <WorkReportPublicPrintPage /> },
     { path: '/etaseuranta/lampotila', element: <LicensedTempMonitoringPage session={session} /> },
     {
       path: '/etaseuranta/lampotila/raportit/:reportId/tuloste',
@@ -180,10 +188,10 @@ export function buildAuthenticatedRoutes(session: Session): RouteObject[] {
     },
     { path: '/tyoraportit/tilaus/uusi', element: <PortalWorkOrderPage session={session} /> },
     { path: '/tyoraportit/tilaus/:id/muokkaa', element: <PortalWorkOrderPage session={session} /> },
-    { path: '/tyoraportit/uusi', element: <LicensedWorkReportNewPage session={session} /> },
+    { path: '/tyoraportit/uusi', element: <LicensedWorkReportNewRoute session={session} /> },
     { path: '/tyoraportit/toimeksianto/uusi', element: <LicensedWorkReportOrderPage session={session} /> },
     { path: '/tyoraportit/toimeksianto/:id/muokkaa', element: <LicensedWorkReportOrderPage session={session} /> },
-    { path: '/tyoraportit/:id/muokkaa', element: <LicensedWorkReportNewPage session={session} /> },
+    { path: '/tyoraportit/:id/muokkaa', element: <LicensedWorkReportNewRoute session={session} /> },
     {
       path: '/tyoraportit/:id/laskutus/tuloste',
       element: <LicensedWorkReportPartnerBillingPrintPage session={session} />,

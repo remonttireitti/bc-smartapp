@@ -1,4 +1,4 @@
-import { lauhdutinTypeOptions, puhallinOhjausOptions } from '../../lib/huoltoRaportti/constants';
+import { lauhdutinTypeOptions, puhallinOhjausOptions, LAUHDUTIN_PAINEVENTTIILI_HELP, LAUHDUTIN_PAINEVENTTIILI_LABEL, LAUHDUTIN_PAINEVENTTIILI_MALLI_LABEL } from '../../lib/huoltoRaportti/constants';
 import type { CondenserData, LauhdutinType, PuhallinOhjausType } from '../../lib/huoltoRaportti/types';
 import { EvaporatorPuhaltimetFields } from './EvaporatorPuhaltimetFields';
 import { FormCheckbox } from './FormCheckbox';
@@ -143,16 +143,17 @@ export function CondenserModule({ index, titleLabel, data, onChange }: Props) {
       {isLiquidType && (
         <div className="huolto-submodule">
           <h4>Nestekiertoinen lauhdutin</h4>
+          <p className="muted huolto-help">{LAUHDUTIN_PAINEVENTTIILI_HELP}</p>
           <div className="line-form-grid">
             <FormCheckbox
-              label="Painesäädin tarkistettu"
+              label={LAUHDUTIN_PAINEVENTTIILI_LABEL}
               checked={!!data.painesäätimenTarkistettu}
               onChange={(checked) => onChange({ ...data, painesäätimenTarkistettu: checked })}
             />
 
             {data.painesäätimenTarkistettu && (
               <FormInput
-                label="Painesäätimen malli/koko"
+                label={LAUHDUTIN_PAINEVENTTIILI_MALLI_LABEL}
                 value={data.painesäätimenMalli || ''}
                 onChange={(v) => onChange({ ...data, painesäätimenMalli: v })}
               />
