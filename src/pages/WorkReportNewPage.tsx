@@ -204,6 +204,12 @@ export default function WorkReportNewPage({ session }: Props) {
 
   const createRegistryName = reportOwnerName;
 
+  const customersForPicker = useMemo(() => {
+    const ownerId = ownerCompanyId || reportOwnerCompanyId || profile?.company_id;
+    if (!ownerId || reportOwnerTargets.length <= 1) return customers;
+    return customers.filter((customer) => customer.owner_company_id === ownerId);
+  }, [customers, ownerCompanyId, reportOwnerCompanyId, profile?.company_id, reportOwnerTargets.length]);
+
   useEffect(() => {
     if (!reportOwnerCompanyId) return;
     void loadOwnerCompany(reportOwnerCompanyId);
@@ -220,12 +226,8 @@ export default function WorkReportNewPage({ session }: Props) {
 
   function onReportOwnerChange(companyId: string) {
     setReportOwnerCompanyId(companyId);
-    if (!customerId) return;
-    const customer = customers.find((entry) => entry.id === customerId);
-    if (customer && customer.owner_company_id !== companyId) {
-      setCustomerId('');
-      setEquipmentId('');
-    }
+    setCustomerId('');
+    setEquipmentId('');
   }
 
   const canAutoSave = Boolean(description.trim() || customerId);
@@ -1351,7 +1353,7 @@ export default function WorkReportNewPage({ session }: Props) {
 
           <CustomerRegistryPicker
 
-            customers={customers}
+            customers={customersForPicker}
 
             customerId={customerId}
 

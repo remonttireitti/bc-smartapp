@@ -4754,7 +4754,8 @@ textarea {
   .maintenance-form-actions > .maintenance-actions-more,
   .maintenance-form-actions > .maintenance-actions-delete,
   .maintenance-form-actions > .maintenance-actions-back,
-  .maintenance-form-actions > .maintenance-actions-print {
+  .maintenance-form-actions > .maintenance-actions-print,
+  .maintenance-form-actions > .maintenance-form-actions-equipment {
     grid-column: 1 / -1;
   }
 
@@ -5232,6 +5233,17 @@ textarea {
 
 .maintenance-form-actions {
   align-items: center;
+}
+
+.maintenance-equipment-registry-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .5rem;
+  align-items: center;
+}
+
+.maintenance-form-actions > .maintenance-form-actions-equipment {
+  flex: 1 1 100%;
 }
 
 .maintenance-form-actions .badge {

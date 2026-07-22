@@ -203,6 +203,14 @@ export default function MaintenanceReportEditPage({ session }: Props) {
   const isPublished = isMaintenanceReportPublished(status);
   const canEditCustomerEquipment = !portalMode && (isNew || status === 'draft');
   const canEditPublishedReport = !portalMode && isPublished;
+  const showEquipmentRegistryActions =
+    !portalMode
+    && Boolean(customerId && form.laiteTyyppi)
+    && (canEditCustomerEquipment || canEditPublishedReport || copySiblingMode);
+  const showCopyToSiblingAction =
+    showEquipmentRegistryActions
+    && Boolean(reportId && !copySiblingMode)
+    && (status === 'draft' || canEditPublishedReport);
 
   const selectedCustomer = customers.find((c) => c.id === customerId);
   const reportContext = useMemo(() => {
@@ -1265,6 +1273,47 @@ export default function MaintenanceReportEditPage({ session }: Props) {
       )
     : false;
 
+  function renderEquipmentRegistryActions(className?: string) {
+    if (!showEquipmentRegistryActions) return null;
+    return (
+      <div
+        className={['maintenance-equipment-registry-actions', className].filter(Boolean).join(' ')}
+      >
+        {showCopyToSiblingAction ? (
+          <button
+            type="button"
+            className="btn btn-secondary"
+            disabled={busy}
+            onClick={() =>
+              navigate(
+                `/huoltoraportit/uusi?customerId=${encodeURIComponent(customerId)}&copyFrom=${encodeURIComponent(reportId!)}`,
+              )
+            }
+          >
+            Tallenna kopio uudelle laitteelle
+          </button>
+        ) : null}
+        <button
+          type="button"
+          className="btn btn-secondary"
+          disabled={busy}
+          onClick={() => void saveEquipmentToRegistry()}
+        >
+          {copySiblingMode
+            ? 'Tallenna kopio uudelle laitteelle'
+            : equipmentId
+              ? 'Päivitä laite rekisteriin'
+              : 'Tallenna laite rekisteriin'}
+        </button>
+        {equipmentId && selectedCustomer ? (
+          <Link to={`/asiakkaat/${selectedCustomer.id}`} className="btn btn-secondary">
+            Avaa laiterekisteri
+          </Link>
+        ) : null}
+      </div>
+    );
+  }
+
   return (
     <AppLayout session={session}>
       <LeaveDraftDialog
@@ -1414,8 +1463,8 @@ export default function MaintenanceReportEditPage({ session }: Props) {
 
                 {copySiblingMode && (
                   <p className="muted">
-                    Kopioit pöytäkirjan toiselle laitteelle — määritä uusi laitetunnus alla
-                    ja tallenna kopio alareunan painikkeesta.
+                    Kopioit pöytäkirjan toiselle laitteelle — määritä uusi laitetunnus laitetiedoissa
+                    ja tallenna kopio laitetietojen tai alareunan painikkeesta.
                   </p>
                 )}
               </>
@@ -1507,8 +1556,8 @@ export default function MaintenanceReportEditPage({ session }: Props) {
               {registryMessage && <p className="muted">{registryMessage}</p>}
               {copySiblingMode && (
                 <p className="muted">
-                  Kopioit pöytäkirjan uudelle laitteelle. Täytä <strong>Laitetunnus</strong> ja paina alareunan{' '}
-                  <strong>Tallenna kopio uudelle laitteelle</strong>.
+                  Kopioit pöytäkirjan uudelle laitteelle. Täytä <strong>Laitetunnus</strong> ja paina{' '}
+                  <strong>Tallenna laite rekisteriin</strong> tai <strong>Tallenna kopio uudelle laitteelle</strong>.
                 </p>
               )}
               {isKonvektoritDevice(form.laiteTyyppi) ? (
@@ -1609,6 +1658,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
                 )}
               </div>
               )}
+              {renderEquipmentRegistryActions()}
               {form.laiteTyyppi && (form.selectedModules.kylmaainePiiri || form.laiteTyyppi === 'lämpöpumppu') && (
                 <RefrigerantChargeSection form={form} onChange={patchForm} />
               )}
@@ -1893,57 +1943,22 @@ export default function MaintenanceReportEditPage({ session }: Props) {
               {printBusy ? 'Avataan…' : 'Tulosta / PDF'}
             </button>
           )}
+          {renderEquipmentRegistryActions('maintenance-form-actions-equipment')}
+          {canEditPublishedReport ? (
           <details ref={moreActionsRef} className="maintenance-actions-more">
             <summary className="maintenance-actions-more-toggle">Muut toiminnot</summary>
             <div className="maintenance-actions-more-panel">
-              {customerId && reportId && status === 'draft' && !copySiblingMode && (
-                <button
-                  type="button"
-                  className="btn btn-secondary"
-                  disabled={busy}
-                  onClick={() =>
-                    navigate(
-                      `/huoltoraportit/uusi?customerId=${encodeURIComponent(customerId)}&copyFrom=${encodeURIComponent(reportId)}`,
-                    )
-                  }
-                >
-                  Tallenna kopio uudelle laitteelle
-                </button>
-              )}
-              {customerId && form.laiteTyyppi && (
-                <button
-                  type="button"
-                  className="btn btn-secondary"
-                  disabled={busy}
-                  onClick={() => void saveEquipmentToRegistry()}
-                >
-                  {copySiblingMode
-                    ? 'Tallenna kopio uudelle laitteelle'
-                    : equipmentId
-                      ? 'Päivitä laite rekisteriin'
-                      : 'Tallenna laite rekisteriin'}
-                </button>
-              )}
-              {equipmentId && selectedCustomer && (
-                <Link
-                  to={`/asiakkaat/${selectedCustomer.id}`}
-                  className="btn btn-secondary"
-                >
-                  Avaa laiterekisteri
-                </Link>
-              )}
-              {canEditPublishedReport && (
-                <button
-                  type="button"
-                  className="btn btn-secondary"
-                  disabled={busy || !form.laiteTyyppi}
-                  onClick={() => void saveReport('draft')}
-                >
-                  Palauta luonnokseksi
-                </button>
-              )}
+              <button
+                type="button"
+                className="btn btn-secondary"
+                disabled={busy || !form.laiteTyyppi}
+                onClick={() => void saveReport('draft')}
+              >
+                Palauta luonnokseksi
+              </button>
             </div>
           </details>
+          ) : null}
           {status === 'draft' && (
             <>
               <button

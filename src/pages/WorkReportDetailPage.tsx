@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
 import AppLayout from '../components/AppLayout';
+import CustomerRegistryPicker, { type NewCustomerDraft } from '../components/CustomerRegistryPicker';
 import DeletedUserLabel from '../components/DeletedUserLabel';
 import CollapsibleSection from '../components/CollapsibleSection';
 import ActionStatusDialog from '../components/ActionStatusDialog';
@@ -85,9 +86,12 @@ import {
   resolveCustomerBillingRates,
   type PartnerBillingRates,
 } from '../lib/management';
+import { createRegistryCustomer } from '../lib/createRegistryCustomer';
 import {
   customerCreateTargets,
+  loadAccessibleReportCustomers,
   loadReportPartnerships,
+  resolveReportContextFromCustomer,
   resolveReportContextFromOwner,
 } from '../lib/reportCustomerRegistry';
 import {
@@ -186,7 +190,7 @@ import {
   type PendingDailyLogImage,
   type WorkStatus,
 } from '../types';
-import type { Partnership } from '../types';
+import type { Customer, Partnership } from '../types';
 import type { RefrigerantCylinder } from '../types/inventory';
 
 interface Props {
@@ -1008,6 +1012,8 @@ export default function WorkReportDetailPage({ session }: Props) {
   const [reportAttachments, setReportAttachments] = useState<WorkReportAttachment[]>([]);
   const [partnerships, setPartnerships] = useState<Partnership[]>([]);
   const [ownerCompanyDraft, setOwnerCompanyDraft] = useState('');
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [customerIdDraft, setCustomerIdDraft] = useState('');
 
   const billingModuleEnabled = useCompanyBillingModuleEnabled(profile?.company_id, session);
   const ownerCustomerInvoicing = useCompanyCustomerBillingEnabled(report?.owner_company_id, session);
@@ -1038,6 +1044,16 @@ export default function WorkReportDetailPage({ session }: Props) {
     if (!profile?.company_id) return;
     void loadReportPartnerships(supabase, profile.company_id, 'work_reports', 'write').then(setPartnerships);
   }, [profile?.company_id]);
+
+  useEffect(() => {
+    if (!profile?.company_id) return;
+    void loadAccessibleReportCustomers(supabase, profile.company_id, partnerships)
+      .then(setCustomers)
+      .catch((loadError) => {
+        console.error('Asiakkaiden lataus epäonnistui:', loadError);
+        setCustomers([]);
+      });
+  }, [profile?.company_id, partnerships]);
 
   useEffect(() => {
     if (!report || !isPortalReadOnly(profile)) return;
@@ -1088,6 +1104,7 @@ export default function WorkReportDetailPage({ session }: Props) {
     setHeadingDraft(reportRow.heading?.trim() ?? '');
     setOrdererDraft(reportRow.orderer_name?.trim() ?? '');
     setOwnerCompanyDraft(reportRow.owner_company_id ?? '');
+    setCustomerIdDraft(reportRow.customer_id ?? '');
     setLoading(false);
 
     void loadTripKmRatesForReport(reportRow).then((rates) => {
@@ -1476,6 +1493,18 @@ export default function WorkReportDetailPage({ session }: Props) {
     );
   }, [profile?.company_id, profile?.companies?.name, partnerships]);
 
+  const customersForPicker = useMemo(() => {
+    const ownerId = ownerCompanyDraft || report?.owner_company_id || profile?.company_id;
+    if (!ownerId || reportOwnerTargets.length <= 1) return customers;
+    return customers.filter((customer) => customer.owner_company_id === ownerId);
+  }, [customers, ownerCompanyDraft, report?.owner_company_id, profile?.company_id, reportOwnerTargets.length]);
+
+  const ownerCompanyPickerName =
+    reportOwnerTargets.find((target) => target.companyId === ownerCompanyDraft)?.label
+    ?? report?.branding_company?.name
+    ?? profile?.companies?.name
+    ?? '—';
+
   async function updateStatus(nextStatus: WorkStatus) {
     if (!report) return;
 
@@ -1514,7 +1543,18 @@ export default function WorkReportDetailPage({ session }: Props) {
     const trimmed = descriptionDraft.trim();
     const trimmedHeading = headingDraft.trim();
     const trimmedOrderer = ordererDraft.trim();
+    const savedCustomerId = report.customer_id ?? '';
+    const customerChanged = customerIdDraft !== savedCustomerId;
     const ownerChanged = ownerCompanyDraft !== report.owner_company_id;
+    const selectedCustomer = customerIdDraft
+      ? customers.find((entry) => entry.id === customerIdDraft)
+      : undefined;
+
+    if (customerIdDraft && !selectedCustomer) {
+      setDescriptionBusy(false);
+      setError('Valittua asiakasta ei löytynyt rekisteristä.');
+      return;
+    }
 
     if (ownerChanged) {
       const targets = customerCreateTargets(
@@ -1555,11 +1595,45 @@ export default function WorkReportDetailPage({ session }: Props) {
       }
     }
 
-    const clearCustomer = ownerChanged && !!report.customer_id;
-    const titleCustomerName = clearCustomer ? null : report.customers?.name ?? null;
-    const ownerContext = ownerChanged
-      ? resolveReportContextFromOwner(ownerCompanyDraft, profile.company_id, partnerships)
-      : null;
+    let finalOwnerId = ownerCompanyDraft || report.owner_company_id;
+    let finalPartnershipId: string | null = report.partnership_id ?? null;
+    let finalCustomerId: string | null = customerIdDraft || null;
+    let finalEquipmentId: string | null = report.equipment_id ?? null;
+
+    if (selectedCustomer) {
+      const customerContext = resolveReportContextFromCustomer(
+        selectedCustomer,
+        profile.company_id,
+        partnerships,
+      );
+      finalOwnerId = customerContext.ownerCompanyId;
+      finalPartnershipId = customerContext.partnerId || null;
+      if (customerChanged) {
+        finalEquipmentId = null;
+      }
+    } else if (ownerChanged) {
+      const ownerContext = resolveReportContextFromOwner(
+        ownerCompanyDraft,
+        profile.company_id,
+        partnerships,
+      );
+      finalOwnerId = ownerContext.ownerCompanyId;
+      finalPartnershipId = ownerContext.partnerId || null;
+      if (report.customer_id) {
+        finalCustomerId = null;
+        finalEquipmentId = null;
+      }
+    } else if (customerChanged) {
+      finalCustomerId = null;
+      finalEquipmentId = null;
+    }
+
+    const titleCustomerName = selectedCustomer?.name ?? (customerChanged ? null : report.customers?.name ?? null);
+    const needsRegistryPatch =
+      ownerChanged
+      || customerChanged
+      || finalOwnerId !== report.owner_company_id
+      || finalCustomerId !== (report.customer_id ?? null);
 
     const { error: updateError } = await supabase
       .from('work_reports')
@@ -1568,12 +1642,13 @@ export default function WorkReportDetailPage({ session }: Props) {
         description: trimmed || null,
         orderer_name: trimmedOrderer || null,
         title: buildWorkReportTitle(titleCustomerName, trimmedHeading || trimmed),
-        ...(ownerChanged && ownerContext
+        ...(needsRegistryPatch
           ? {
-              owner_company_id: ownerCompanyDraft,
-              branding_company_id: ownerCompanyDraft,
-              partnership_id: ownerContext.partnerId || null,
-              ...(clearCustomer ? { customer_id: null, equipment_id: null } : {}),
+              owner_company_id: finalOwnerId,
+              branding_company_id: finalOwnerId,
+              partnership_id: finalPartnershipId,
+              customer_id: finalCustomerId,
+              equipment_id: finalEquipmentId,
             }
           : {}),
       })
@@ -1587,6 +1662,42 @@ export default function WorkReportDetailPage({ session }: Props) {
     }
 
     await load(report.id);
+  }
+
+  async function createCustomerAndSelect(draft: NewCustomerDraft) {
+    if (!report || !profile?.company_id || !draft.name.trim()) {
+      setError('Asiakkaan nimi on pakollinen.');
+      return;
+    }
+
+    const targetCompanyId = ownerCompanyDraft || report.owner_company_id;
+    if (!reportOwnerTargets.some((target) => target.companyId === targetCompanyId)) {
+      setError('Sinulla ei ole oikeutta luoda asiakasta valittuun rekisteriin.');
+      return;
+    }
+
+    setDescriptionBusy(true);
+    setError(null);
+
+    const { customer: created, error: insertError } = await createRegistryCustomer(supabase, {
+      ownerCompanyId: targetCompanyId,
+      name: draft.name,
+      address: draft.address,
+      city: draft.city,
+      phone: draft.phone,
+      subscriberId: report.subscriber_id ?? null,
+    });
+
+    setDescriptionBusy(false);
+
+    if (insertError || !created) {
+      setError(insertError ?? 'Asiakkaan luonti epäonnistui.');
+      return;
+    }
+
+    setCustomers((prev) => [...prev, created].sort((a, b) => a.name.localeCompare(b.name, 'fi')));
+    setCustomerIdDraft(created.id);
+    setOwnerCompanyDraft(created.owner_company_id);
   }
 
   async function assignDelegatedWork(userId: string) {
@@ -2184,15 +2295,18 @@ export default function WorkReportDetailPage({ session }: Props) {
   });
   const canEditOwnerCompany =
     canEditDescription && !isDelegatedOrder && reportOwnerTargets.length > 1;
+  const canEditCustomer = canEditDescription && !isDelegatedOrder;
   const savedDescription = resolveWorkReportDescription(report);
   const savedHeading = report.heading?.trim() ?? '';
   const savedOrderer = report.orderer_name?.trim() ?? '';
   const savedOwnerCompanyId = report.owner_company_id ?? '';
+  const savedCustomerId = report.customer_id ?? '';
   const headingDirty = headingDraft.trim() !== savedHeading;
   const descriptionDirty = descriptionDraft.trim() !== savedDescription.trim();
   const ordererDirty = ordererDraft.trim() !== savedOrderer;
   const ownerDirty = ownerCompanyDraft !== savedOwnerCompanyId;
-  const basicsDirty = headingDirty || descriptionDirty || ordererDirty || ownerDirty;
+  const customerDirty = customerIdDraft !== savedCustomerId;
+  const basicsDirty = headingDirty || descriptionDirty || ordererDirty || ownerDirty || customerDirty;
   const canSeeCreatorBilling = isCreatorCompany && viewerBillingAllowed;
   const canSeePartnerSummary =
     !!billing?.partner_summary_shared &&
@@ -2399,7 +2513,16 @@ export default function WorkReportDetailPage({ session }: Props) {
               <div className="detail-description-edit">
                 <select
                   value={ownerCompanyDraft}
-                  onChange={(event) => setOwnerCompanyDraft(event.target.value)}
+                  onChange={(event) => {
+                    const nextOwner = event.target.value;
+                    setOwnerCompanyDraft(nextOwner);
+                    if (customerIdDraft) {
+                      const customer = customers.find((entry) => entry.id === customerIdDraft);
+                      if (customer && customer.owner_company_id !== nextOwner) {
+                        setCustomerIdDraft('');
+                      }
+                    }
+                  }}
                   disabled={descriptionBusy}
                 >
                   {reportOwnerTargets.map((target) => (
@@ -2410,8 +2533,8 @@ export default function WorkReportDetailPage({ session }: Props) {
                 </select>
                 {report.customer_id && ownerDirty && (
                   <p className="muted" style={{ margin: '.35rem 0 0' }}>
-                    Jos valitset toisen yrityksen kuin asiakkaan rekisteri, asiakas ja laite poistuvat
-                    raportilta tallennuksen yhteydessä.
+                    Jos valitset toisen yrityksen kuin asiakkaan rekisteri, nykyinen asiakas poistuu
+                    valinnasta. Valitse asiakas uudesta rekisteristä ennen tallennusta.
                   </p>
                 )}
               </div>
@@ -2424,7 +2547,35 @@ export default function WorkReportDetailPage({ session }: Props) {
             <DeletedUserLabel name={displayPeople.authorName} deleted={displayPeople.authorDeleted} />
           </dd>
           <dt>Asiakas</dt>
-          <dd>{report.customers?.name ?? '—'}</dd>
+          <dd>
+            {canEditCustomer ? (
+              <div className="detail-description-edit">
+                <CustomerRegistryPicker
+                  customers={customersForPicker}
+                  customerId={customerIdDraft}
+                  myCompanyId={profile?.company_id ?? undefined}
+                  disabled={descriptionBusy || !ownerCompanyDraft}
+                  createRegistryName={ownerCompanyPickerName}
+                  brandingName={ownerCompanyPickerName}
+                  busy={descriptionBusy}
+                  onSelect={(id) => {
+                    setCustomerIdDraft(id);
+                    const customer = customers.find((entry) => entry.id === id);
+                    if (customer) setOwnerCompanyDraft(customer.owner_company_id);
+                  }}
+                  onClear={() => setCustomerIdDraft('')}
+                  onCreate={createCustomerAndSelect}
+                />
+                {!customerIdDraft && ownerCompanyDraft && (
+                  <p className="muted" style={{ margin: '.35rem 0 0' }}>
+                    Hae asiakasta valitun yrityksen rekisteristä ({ownerCompanyPickerName}).
+                  </p>
+                )}
+              </div>
+            ) : (
+              report.customers?.name ?? '—'
+            )}
+          </dd>
           <dt>Tilaaja</dt>
           <dd>
             {canEditDescription ? (
@@ -2509,6 +2660,7 @@ export default function WorkReportDetailPage({ session }: Props) {
                         setDescriptionDraft(savedDescription);
                         setOrdererDraft(savedOrderer);
                         setOwnerCompanyDraft(savedOwnerCompanyId);
+                        setCustomerIdDraft(savedCustomerId);
                       }}
                     >
                       Peruuta
