@@ -786,19 +786,12 @@ export async function loadBillingCopyText(
   };
 }
 
-export async function loadBillingCopyTextWithPrintLink(
-  supabase: SupabaseClient,
-  row: BillingListRow,
-  mode: BillingModuleMode,
+export async function loadBillingPrintShareLink(
+  row: Pick<BillingListRow, 'id'>,
   companyId: string,
-): Promise<{ text: string; partialUnbilledOnly: boolean }> {
-  const result = await loadBillingCopyText(supabase, row, mode);
+): Promise<string> {
   const token = await ensureWorkReportPrintShare(row.id, companyId);
-  const url = workReportPrintShareUrl(token);
-  return {
-    text: `${result.text}\n${url}`,
-    partialUnbilledOnly: result.partialUnbilledOnly,
-  };
+  return workReportPrintShareUrl(token);
 }
 
 export type PartnerBillWorkflowChoice = 'mark_completed' | 'keep_in_progress';

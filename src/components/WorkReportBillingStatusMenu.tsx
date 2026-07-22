@@ -8,7 +8,7 @@ import {
   billingPartnerStatusLabel,
   canManageIncomingPartnerBilling,
   loadBillingCopyText,
-  loadBillingCopyTextWithPrintLink,
+  loadBillingPrintShareLink,
   markCustomerReportBilled,
   markPartnerReportBilled,
   shouldPromptPartnerBillWorkflow,
@@ -116,24 +116,31 @@ export default function WorkReportBillingStatusMenu({
         ? partnerMenuLabel(partnerState ?? 'open')
         : customerMenuLabel(customerState ?? 'open');
 
-  async function copyPartnerBillingText(withLink = false) {
+  async function copyPartnerBillingText() {
     setBusy(true);
     try {
-      const loader = withLink
-        ? loadBillingCopyTextWithPrintLink(supabase, billingRow, 'partner', viewerCompanyId)
-        : loadBillingCopyText(supabase, billingRow, 'partner');
-      const { text, partialUnbilledOnly } = await loader;
+      const { text, partialUnbilledOnly } = await loadBillingCopyText(supabase, billingRow, 'partner');
       await navigator.clipboard.writeText(text);
       setOpen(false);
       onNotice?.(
-        withLink
-          ? partialUnbilledOnly
-            ? 'Laskutusteksti ja tulostelinkki kopioitu (vain uudet kirjaukset).'
-            : 'Laskutusteksti ja tulostelinkki kopioitu leikepöydälle.'
-          : partialUnbilledOnly
-            ? 'Laskuttamatta oleva teksti kopioitu leikepöydälle.'
-            : 'Laskutusteksti kopioitu leikepöydälle.',
+        partialUnbilledOnly
+          ? 'Laskuttamatta oleva teksti kopioitu leikepöydälle.'
+          : 'Laskutusteksti kopioitu leikepöydälle.',
       );
+    } catch (error) {
+      onError?.(error instanceof Error ? error.message : 'Kopiointi epäonnistui.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function copyPartnerPrintLink() {
+    setBusy(true);
+    try {
+      const url = await loadBillingPrintShareLink(billingRow, viewerCompanyId);
+      await navigator.clipboard.writeText(url);
+      setOpen(false);
+      onNotice?.('Tulostelinkki kopioitu leikepöydälle.');
     } catch (error) {
       onError?.(error instanceof Error ? error.message : 'Kopiointi epäonnistui.');
     } finally {
@@ -258,10 +265,10 @@ export default function WorkReportBillingStatusMenu({
                   onClick={(event) => {
                     event.preventDefault();
                     event.stopPropagation();
-                    void copyPartnerBillingText(true);
+                    void copyPartnerPrintLink();
                   }}
                 >
-                  Kopioi teksti + tulostelinkki
+                  Kopioi tulostelinkki
                 </button>
                 {(partnerState === 'open' || partnerState === 'partial') && (
                   <button
