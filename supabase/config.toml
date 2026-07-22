@@ -63,3 +63,9 @@ verify_jwt = false
 
 [functions.platform-backup-download]
 verify_jwt = false
+
+[functions.work-report-print-share]
+verify_jwt = false
+
+[functions.monitor-share-view]
+verify_jwt = false

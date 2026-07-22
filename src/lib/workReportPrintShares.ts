@@ -27,37 +27,23 @@ export function workReportPrintShareFunctionUrl(): string {
 
 export async function ensureWorkReportPrintShare(
   workReportId: string,
-  companyId: string,
+  _companyId?: string,
 ): Promise<string> {
-  const { data: existing, error: existingError } = await supabase
-    .from('work_report_print_shares')
-    .select('access_token, enabled')
-    .eq('work_report_id', workReportId)
-    .maybeSingle();
+  void _companyId;
+  const { data, error } = await supabase.rpc('ensure_work_report_print_share', {
+    p_work_report_id: workReportId,
+  });
 
-  if (existingError) throw new Error(existingError.message);
-  if (existing?.access_token && existing.enabled !== false) {
-    return existing.access_token;
+  if (error) {
+    throw new Error(error.message);
   }
 
-  const { data, error } = await supabase
-    .from('work_report_print_shares')
-    .upsert(
-      {
-        work_report_id: workReportId,
-        company_id: companyId,
-        enabled: true,
-      },
-      { onConflict: 'work_report_id' },
-    )
-    .select('access_token')
-    .single();
-
-  if (error || !data?.access_token) {
-    throw new Error(error?.message ?? 'Tulostelinkin luonti epäonnistui.');
+  const token = typeof data === 'string' ? data.trim() : '';
+  if (!token) {
+    throw new Error('Tulostelinkin luonti epäonnistui.');
   }
 
-  return String(data.access_token);
+  return token;
 }
 
 export async function loadWorkReportPrintSharePublic(token: string): Promise<WorkReportPrintShareBundle> {

@@ -132,7 +132,15 @@ Deno.serve(async (req) => {
       .eq('access_token', token)
       .maybeSingle();
 
-    if (shareError || !share) {
+    if (shareError) {
+      console.error('work-report-print-share lookup failed', shareError.message);
+      return new Response(JSON.stringify({ error: 'Jakolinkin haku epäonnistui' }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    if (!share) {
       return new Response(JSON.stringify({ error: 'Jakolinkki ei ole voimassa' }), {
         status: 404,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
