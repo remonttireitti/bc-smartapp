@@ -1,4 +1,5 @@
-import { huoltoTiedotSectionTitle, kylmaaineChargeTitle, kylmaainePiiriSectionTitle, hoyrystinSectionTitle, lauhdutinSectionTitle, konvektoritSectionTitle, huomiotSectionTitle, jaahdytysvesiSectionTitle, nestelauhduttimetSectionTitle, lauhdutuspiiriSectionTitle } from './sectionTitles';
+import { huoltoTiedotSectionTitle, kylmaaineChargeTitle, kylmaainePiiriSectionTitle, hoyrystinSectionTitle, lauhdutinSectionTitle, konvektoritSectionTitle, huomiotSectionTitle, jaahdytysvesiSectionTitle, nestelauhduttimetSectionTitle, lauhdutuspiiriSectionTitle, kiinteistoPiiriSectionTitle, energiatehokkuusSectionTitle } from './sectionTitles';
+import { mlpSectionTitle } from './deviceModuleLogic';
 
 export type MaintenanceReportTabId =
   | 'raportointi'
@@ -15,6 +16,8 @@ export type MaintenanceReportTabId =
   | 'konvektorit'
   | 'lampopumppu'
   | 'mlp'
+  | 'kiinteistoJahdytys'
+  | 'energia'
   | 'huomiot'
   | 'huoltotiedot';
 
@@ -35,6 +38,8 @@ type TabVisibilityInput = {
   showKonvektoritSection: boolean;
   showLampopumppuSection: boolean;
   showMlpSection: boolean;
+  showChillerKiinteistoSection: boolean;
+  showChillerEnergySection: boolean;
   isVj: boolean;
 };
 
@@ -96,7 +101,15 @@ export function buildMaintenanceReportTabs(input: TabVisibilityInput): Maintenan
   }
 
   if (input.showMlpSection) {
-    tabs.push({ id: 'mlp', label: 'MLP-piirit' });
+    tabs.push({ id: 'mlp', label: mlpSectionTitle(laiteTyyppi) });
+  }
+
+  if (input.showChillerKiinteistoSection) {
+    tabs.push({ id: 'kiinteistoJahdytys', label: kiinteistoPiiriSectionTitle(laiteTyyppi) });
+  }
+
+  if (input.showChillerEnergySection) {
+    tabs.push({ id: 'energia', label: energiatehokkuusSectionTitle(laiteTyyppi) });
   }
 
   tabs.push({ id: 'huomiot', label: huomiotSectionTitle(laiteTyyppi) });

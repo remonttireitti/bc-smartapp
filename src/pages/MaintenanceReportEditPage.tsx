@@ -82,6 +82,8 @@ import {
   showEvaporatorModules,
   showLampopumppuModules,
   showMlpModules,
+  showChillerKiinteistoSection,
+  showChillerEnergySection,
   showNestelauhduttimetModules,
   showVjLauhdutuspiiriModules,
   usesManualModuleMenu,
@@ -250,6 +252,8 @@ export default function MaintenanceReportEditPage({ session }: Props) {
   const showEvaporatorSection = showEvaporatorModules(form.laiteTyyppi, form.selectedModules);
   const showCondenserSection = showCondenserModules(form.laiteTyyppi, form.selectedModules);
   const showMlpSection = showMlpModules(form.laiteTyyppi, form.selectedModules);
+  const showChillerKiinteistoTab = showChillerKiinteistoSection(form.laiteTyyppi);
+  const showChillerEnergyTab = showChillerEnergySection(form.laiteTyyppi);
   const showKonvektoritSection = form.selectedModules.konvektorit;
   const showNestelauhduttimetSection = showNestelauhduttimetModules(form.selectedModules);
   const showLauhdutuspiiriSection = showVjLauhdutuspiiriModules(
@@ -281,6 +285,8 @@ export default function MaintenanceReportEditPage({ session }: Props) {
         showKonvektoritSection,
         showLampopumppuSection,
         showMlpSection,
+        showChillerKiinteistoSection: showChillerKiinteistoTab,
+        showChillerEnergySection: showChillerEnergyTab,
         isVj,
       }),
     [
@@ -296,6 +302,8 @@ export default function MaintenanceReportEditPage({ session }: Props) {
       showKonvektoritSection,
       showLampopumppuSection,
       showMlpSection,
+      showChillerKiinteistoTab,
+      showChillerEnergyTab,
       isVj,
     ],
   );
@@ -432,10 +440,10 @@ export default function MaintenanceReportEditPage({ session }: Props) {
   ]);
 
   useEffect(() => {
-    if (showMlpSection && !form.mlpData) {
+    if ((showMlpSection || showChillerKiinteistoTab || showChillerEnergyTab) && !form.mlpData) {
       syncForm({ mlpData: createEmptyMlpData() });
     }
-  }, [showMlpSection, form.mlpData]);
+  }, [showMlpSection, showChillerKiinteistoTab, showChillerEnergyTab, form.mlpData]);
 
   useEffect(() => {
     if (!profile?.company_id) return;
@@ -1718,6 +1726,18 @@ export default function MaintenanceReportEditPage({ session }: Props) {
         {activeTab === 'mlp' && showMlpSection && form.mlpData && (
         <section className="maintenance-report-tab-section huolto-modules-stack">
             <MlpSection form={form} onChange={patchForm} />
+        </section>
+        )}
+
+        {activeTab === 'kiinteistoJahdytys' && showChillerKiinteistoTab && form.mlpData && (
+        <section className="maintenance-report-tab-section huolto-modules-stack">
+            <MlpSection form={form} onChange={patchForm} part="kiinteisto" />
+        </section>
+        )}
+
+        {activeTab === 'energia' && showChillerEnergyTab && form.mlpData && (
+        <section className="maintenance-report-tab-section huolto-modules-stack">
+            <MlpSection form={form} onChange={patchForm} part="energia" />
         </section>
         )}
 

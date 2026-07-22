@@ -196,7 +196,6 @@ export function resolveAutoModules(input: {
       modules.kylmaainePiiri = true;
       modules.hoyrystin = true;
       modules.vedenjajahdytyskone = true;
-      modules.mlpPiirit = true;
       if (isLiquidCondenserType(condenserType)) {
         modules.nestelauhduttimet = true;
         modules.lauhdutin = true;
@@ -306,10 +305,17 @@ export function showVjLauhdutuspiiriModules(
 }
 
 export function showMlpModules(deviceType: string, modules: Record<ModuleKey, boolean>): boolean {
-  if (isChillerLikeDevice(deviceType)) {
-    return moduleIsActive(modules, 'mlpPiirit');
-  }
   return isHeatPumpCircuitsDevice(deviceType) && moduleIsActive(modules, 'mlpPiirit');
+}
+
+/** Näytä VJ/VAK:n kiinteistön jäähdytyspiiri (5.4). */
+export function showChillerKiinteistoSection(deviceType: string): boolean {
+  return isChillerLikeDevice(deviceType);
+}
+
+/** Näytä VJ/VAK:n energiatehokkuus (5.5). */
+export function showChillerEnergySection(deviceType: string): boolean {
+  return isChillerLikeDevice(deviceType);
 }
 
 /** Näytä MLP:n 4.1 / 4.1b (maa/vesi) — MLP ja VIL. */

@@ -31,6 +31,8 @@ import { HuoltoModuleSection } from './HuoltoModuleSection';
 interface Props {
   form: HuoltoReportData;
   onChange: (patch: Partial<HuoltoReportData>) => void;
+  /** VJ/VAK: näytä vain yksi osio omalla välilehdellä. */
+  part?: 'kiinteisto' | 'energia';
 }
 
 function calcPower(virtaus: string, meno: string, tulo: string, c: number): string | null {
@@ -42,7 +44,7 @@ function calcPower(virtaus: string, meno: string, tulo: string, c: number): stri
   return null;
 }
 
-export function MlpSection({ form, onChange }: Props) {
+export function MlpSection({ form, onChange, part }: Props) {
   const mlp = form.mlpData;
   if (!mlp) return null;
 
@@ -77,9 +79,12 @@ export function MlpSection({ form, onChange }: Props) {
     patchMlp({ lampoPiireja: String(count), lampoPiirit: next.slice(0, count) });
   }
 
+  const showKiinteistoBlock = (showHeatPumpCircuits || showChillerParts) && (!part || part === 'kiinteisto');
+  const showEnergyBlock = (showMaalampoOnly || showChillerParts) && (!part || part === 'energia');
+
   return (
     <>
-      {showKeruupiiri && (
+      {showKeruupiiri && !part && (
       <HuoltoModuleSection moduleKey="mlpKeruupiiri" title={mlpKeruupiiriSectionTitle(form.laiteTyyppi)}>
         <div className="checkbox-grid huolto-toggle-grid">
           <FormCheckbox label="Paine tarkastettu" checked={mlp.keruupiirinPaineTarkastettu} onChange={(v) => patchMlp({ keruupiirinPaineTarkastettu: v, ...(v ? {} : { keruupiiriPaineBar: '' }) })} />
@@ -137,7 +142,7 @@ export function MlpSection({ form, onChange }: Props) {
       </HuoltoModuleSection>
       )}
 
-      {showMaalampoOnly && (
+      {showMaalampoOnly && !part && (
       <HuoltoModuleSection moduleKey="mlpJaahdytyspiiri" title={mlpJaahdytyspiiriSectionTitle(form.laiteTyyppi)}>
         <div className="checkbox-grid huolto-toggle-grid">
           <FormCheckbox label="Erillinen piiri" checked={mlp.keruuJaahdytysPiiri} onChange={(v) => patchMlp({ keruuJaahdytysPiiri: v })} />
@@ -172,7 +177,7 @@ export function MlpSection({ form, onChange }: Props) {
       </HuoltoModuleSection>
       )}
 
-      {showLatauspiiri && showHeatPumpCircuits && (
+      {showLatauspiiri && showHeatPumpCircuits && !part && (
       <HuoltoModuleSection moduleKey="mlpLatauspiiri" title="5.2 Latauspiiri">
         <div className="checkbox-grid huolto-toggle-grid">
           <FormCheckbox label="Paine tarkastettu" checked={mlp.latausPaineTarkastettu} onChange={(v) => patchMlp({ latausPaineTarkastettu: v, ...(v ? {} : { latausPaineBar: '' }) })} />
@@ -318,7 +323,7 @@ export function MlpSection({ form, onChange }: Props) {
       </HuoltoModuleSection>
       )}
 
-      {showHeatPumpCircuits && (
+      {showHeatPumpCircuits && !part && (
       <HuoltoModuleSection moduleKey="mlpKayttovesi" title="5.3 Käyttöveden lämmitys">
         <FormCheckbox label="Käyttövesi mukana" checked={mlp.kayttovesiEnabled} onChange={(v) => patchMlp({ kayttovesiEnabled: v })} />
         {mlp.kayttovesiEnabled && (
@@ -441,10 +446,14 @@ export function MlpSection({ form, onChange }: Props) {
       </HuoltoModuleSection>
       )}
 
-      {(showHeatPumpCircuits || showChillerParts) && (
+      {showKiinteistoBlock && (
       <HuoltoModuleSection moduleKey="mlpLampopiirit" title={kiinteistoPiiriSectionTitle(form.laiteTyyppi)}>
         <FormCheckbox
-          label="Tulosta ja tallenna laitekorttiin (kiinteistön lämmityspiiri)"
+          label={
+            isChillerLikeDevice(form.laiteTyyppi)
+              ? 'Tulosta ja tallenna laitekorttiin (kiinteistön jäähdytyspiiri)'
+              : 'Tulosta ja tallenna laitekorttiin (kiinteistön lämmityspiiri)'
+          }
           checked={mlp.kiinteistoPiiritSisallytetaan !== false}
           onChange={(v) => patchMlp({ kiinteistoPiiritSisallytetaan: v })}
           className="huolto-lampopiirit-wide"
@@ -600,7 +609,7 @@ export function MlpSection({ form, onChange }: Props) {
       </HuoltoModuleSection>
       )}
 
-      {(showMaalampoOnly || showChillerParts) && (
+      {showEnergyBlock && (
       <HuoltoModuleSection moduleKey="mlpEnergia" title={energiatehokkuusSectionTitle(form.laiteTyyppi)}>
         <FormCheckbox
           label="Mittaan koko laitteiston sähkönkulutuksen COP-laskentaan"
