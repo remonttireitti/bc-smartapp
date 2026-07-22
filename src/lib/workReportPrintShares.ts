@@ -12,7 +12,7 @@ export type WorkReportPrintShareBundle = {
 };
 
 export function workReportPrintSharePath(token: string): string {
-  return `/tyoraportti/jako/${token}`;
+  return `/j/${token}`;
 }
 
 export function workReportPrintShareUrl(token: string): string {

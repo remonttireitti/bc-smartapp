@@ -36,6 +36,7 @@ function AppRoutes() {
         <Route path="/unohdin-salasana" element={<ForgotPasswordPage />} />
         <Route path="/aseta-uusi-salasana" element={<ResetPasswordPage />} />
         <Route path="/seuranta/luku/:token" element={<MonitorReaderTokenPage />} />
+        <Route path="/j/:token" element={<WorkReportPublicPrintPage />} />
         <Route path="/tyoraportti/jako/:token" element={<WorkReportPublicPrintPage />} />
         <Route path="*" element={<RequireLoginRedirect />} />
       </Routes>

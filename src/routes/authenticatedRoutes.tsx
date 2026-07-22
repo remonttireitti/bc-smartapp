@@ -150,6 +150,7 @@ export function buildAuthenticatedRoutes(session: Session): RouteObject[] {
     { path: '/etaseuranta/luku', element: <MonitorReaderHubPage session={session} /> },
     { path: '/etaseuranta/luku/vrf/:deviceId', element: <MonitorReaderVrfPage session={session} /> },
     { path: '/seuranta/luku/:token', element: <MonitorReaderTokenPage /> },
+    { path: '/j/:token', element: <WorkReportPublicPrintPage /> },
     { path: '/tyoraportti/jako/:token', element: <WorkReportPublicPrintPage /> },
     { path: '/etaseuranta/lampotila', element: <LicensedTempMonitoringPage session={session} /> },
     {

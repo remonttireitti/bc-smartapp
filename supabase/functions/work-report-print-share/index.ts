@@ -129,7 +129,7 @@ Deno.serve(async (req) => {
     const { data: share, error: shareError } = await admin
       .from('work_report_print_shares')
       .select('id, work_report_id, enabled, expires_at')
-      .eq('access_token', token)
+      .or(`short_token.eq.${token},access_token.eq.${token}`)
       .maybeSingle();
 
     if (shareError) {
