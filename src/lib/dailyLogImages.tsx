@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type MouseEvent } from 'react';
 import { MaintenanceReportImageLightbox } from '../components/huoltoRaportti/MaintenanceReportImageLightbox';
 import { prepareImageFileForUpload } from './prepareUploadImage';
+import { shrinkLogImagesForPrint } from './printImageEmbed';
 import { toSupabaseStoragePath } from './storageUrl';
 import { supabase } from './supabase';
 import type { DailyLogImage, PendingDailyLogImage } from '../types';
@@ -12,6 +13,32 @@ export const DAILY_LOG_IMAGE_SOFT_WARN = 20;
 
 /** Pakkaus ennen tallennusta (kamera/tabletti). */
 export const DAILY_LOG_MAX_IMAGE_BYTES = 10 * 1024 * 1024;
+
+/** Pienennä kamerakuvat aina ennen päiväkirjan kuvien tallennusta. */
+export const DAILY_LOG_UPLOAD_MAX_EDGE = 1920;
+
+const UPLOAD_CONCURRENCY = 3;
+
+async function mapWithConcurrency<T, R>(
+  items: T[],
+  limit: number,
+  fn: (item: T, index: number) => Promise<R>,
+): Promise<R[]> {
+  if (items.length === 0) return [];
+  const results = new Array<R>(items.length);
+  let nextIndex = 0;
+
+  async function worker() {
+    while (nextIndex < items.length) {
+      const index = nextIndex;
+      nextIndex += 1;
+      results[index] = await fn(items[index], index);
+    }
+  }
+
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, () => worker()));
+  return results;
+}
 
 export const DAILY_LOG_IMAGE_ACCEPT =
   'image/jpeg,image/png,image/webp,image/gif,image/heic,image/heif';
@@ -25,24 +52,27 @@ export async function resolveDailyLogImageUrls(
   images: DailyLogImage[],
   expiresIn = 86400,
 ): Promise<Array<{ fileName: string; url: string; caption: string }>> {
-  const result: Array<{ fileName: string; url: string; caption: string }> = [];
-
-  for (const image of images) {
-    const path = toSupabaseStoragePath(image.storage_path);
-    if (!path) continue;
-    const { data } = await supabase.storage
-      .from(BUCKET)
-      .createSignedUrl(path, expiresIn);
-    if (data?.signedUrl) {
-      result.push({
+  const resolved = await Promise.all(
+    images.map(async (image) => {
+      const path = toSupabaseStoragePath(image.storage_path);
+      if (!path) return null;
+      const { data } = await supabase.storage.from(BUCKET).createSignedUrl(path, expiresIn);
+      if (!data?.signedUrl) return null;
+      return {
         fileName: image.file_name,
         url: data.signedUrl,
         caption: image.caption?.trim() ?? '',
-      });
-    }
-  }
+      };
+    }),
+  );
+  return resolved.filter((row): row is { fileName: string; url: string; caption: string } => row !== null);
+}
 
-  return result;
+export async function resolveDailyLogImagesForPrint(
+  logs: Array<{ id: string; images?: DailyLogImage[] }>,
+): Promise<Record<string, Array<{ fileName: string; url: string; caption: string }>>> {
+  const raw = await resolveDailyLogImagesByLogId(logs, 7200);
+  return shrinkLogImagesForPrint(raw);
 }
 
 export async function resolveDailyLogImagesByLogId(
@@ -65,10 +95,12 @@ export async function uploadDailyLogImages(
   files: Array<PendingDailyLogImage | File>,
   userId: string,
 ) {
-  for (const entry of files) {
+  await mapWithConcurrency(files, UPLOAD_CONCURRENCY, async (entry) => {
     const file = entry instanceof File ? entry : entry.file;
     const caption = entry instanceof File ? '' : entry.caption.trim();
-    const prepared = await prepareImageFileForUpload(file, DAILY_LOG_MAX_IMAGE_BYTES);
+    const prepared = await prepareImageFileForUpload(file, DAILY_LOG_MAX_IMAGE_BYTES, DAILY_LOG_UPLOAD_MAX_EDGE, {
+      alwaysResize: true,
+    });
     const safeName = prepared.name.replace(/[^a-zA-Z0-9._-]/g, '_');
     const storagePath = `${reportId}/${dailyLogId}/${crypto.randomUUID()}-${safeName}`;
 
@@ -91,7 +123,7 @@ export async function uploadDailyLogImages(
       await supabase.storage.from(BUCKET).remove([storagePath]);
       throw new Error(metaError.message);
     }
-  }
+  });
 }
 
 export async function updateDailyLogImageCaption(imageId: string, caption: string) {

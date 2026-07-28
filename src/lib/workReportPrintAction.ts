@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { resolveCompanyLogoUrl } from './companyLogo';
-import { resolveDailyLogImagesByLogId } from './dailyLogImages';
+import { resolveDailyLogImagesForPrint } from './dailyLogImages';
 import { openPrintHtml } from './openPrintWindow';
 import { supabase } from './supabase';
 import type { BillableCalculation } from './workReportBilling';
@@ -93,7 +93,7 @@ export async function buildWorkReportPrintHtmlDocument(input: {
   const db = input.client ?? supabase;
   const { isPartnerReport, hideAssignee } = resolvePrintContext(input.report, input.viewerCompanyId);
   const logs = sortLogsForPrint(input.logs);
-  const logImages = await resolveDailyLogImagesByLogId(logs);
+  const logImages = await resolveDailyLogImagesForPrint(logs);
 
   const brandingCompanyId = input.report.branding_company_id ?? input.report.owner_company_id;
   const { data: companyRow } = await db

@@ -45,12 +45,13 @@ export async function prepareImageFileForUpload(
   file: File,
   maxBytes: number,
   maxEdge = 2048,
+  options?: { alwaysResize?: boolean },
 ): Promise<File> {
   if (!isImageFile(file)) {
     throw new Error('Vain kuvatiedostot ovat sallittuja.');
   }
 
-  if (file.size <= maxBytes) {
+  if (!options?.alwaysResize && file.size <= maxBytes) {
     return file;
   }
 

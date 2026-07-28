@@ -6,6 +6,7 @@ import {
   type WorkReportPrintShareBundle,
 } from '../lib/workReportPrintShares';
 import { generateWorkReportPrintHtml, buildWorkReportPrintTitle } from '../lib/workReportPrintHtml';
+import { shrinkLogImagesForPrint } from '../lib/printImageEmbed';
 
 export default function WorkReportPublicPrintPage() {
   const { token } = useParams<{ token: string }>();
@@ -24,14 +25,15 @@ export default function WorkReportPublicPrintPage() {
 
     let cancelled = false;
     void loadWorkReportPrintSharePublic(token)
-      .then((loaded) => {
+      .then(async (loaded) => {
         if (cancelled) return;
         setBundle(loaded);
+        const logImages = await shrinkLogImagesForPrint(loaded.logImages);
         setHtml(
           generateWorkReportPrintHtml({
             report: loaded.report,
             logs: loaded.logs,
-            logImages: loaded.logImages,
+            logImages,
             printMode: 'customer',
             showPartnerPrices: false,
             calculation: null,

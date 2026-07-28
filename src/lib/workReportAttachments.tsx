@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { prepareImageFileForUpload } from './prepareUploadImage';
 import { supabase } from './supabase';
 import { toSupabaseStoragePath } from './storageUrl';
 import type { WorkReportAttachment } from '../types';
@@ -7,6 +8,31 @@ export const BUCKET = 'work-report-images';
 
 export const ATTACHMENT_ACCEPT =
   'image/jpeg,image/png,image/webp,image/gif,image/heic,image/heif,application/pdf';
+
+const ATTACHMENT_MAX_IMAGE_BYTES = 10 * 1024 * 1024;
+const ATTACHMENT_UPLOAD_MAX_EDGE = 1920;
+const UPLOAD_CONCURRENCY = 3;
+
+async function mapWithConcurrency<T, R>(
+  items: T[],
+  limit: number,
+  fn: (item: T, index: number) => Promise<R>,
+): Promise<R[]> {
+  if (items.length === 0) return [];
+  const results = new Array<R>(items.length);
+  let nextIndex = 0;
+
+  async function worker() {
+    while (nextIndex < items.length) {
+      const index = nextIndex;
+      nextIndex += 1;
+      results[index] = await fn(items[index], index);
+    }
+  }
+
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, () => worker()));
+  return results;
+}
 
 export function isImageMimeType(mimeType: string | null | undefined) {
   return !!mimeType && mimeType.startsWith('image/');
@@ -28,21 +54,27 @@ export async function uploadWorkReportAttachments(
   files: File[],
   userId: string,
 ) {
-  for (const file of files) {
-    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+  await mapWithConcurrency(files, UPLOAD_CONCURRENCY, async (file) => {
+    const prepared =
+      file.type.startsWith('image/') || /\.(jpe?g|png|webp|gif|heic|heif)$/i.test(file.name)
+        ? await prepareImageFileForUpload(file, ATTACHMENT_MAX_IMAGE_BYTES, ATTACHMENT_UPLOAD_MAX_EDGE, {
+            alwaysResize: true,
+          })
+        : file;
+    const safeName = prepared.name.replace(/[^a-zA-Z0-9._-]/g, '_');
     const storagePath = `${reportId}/attachments/${crypto.randomUUID()}-${safeName}`;
 
     const { error: uploadError } = await supabase.storage
       .from(BUCKET)
-      .upload(storagePath, file, { contentType: file.type, upsert: false });
+      .upload(storagePath, prepared, { contentType: prepared.type, upsert: false });
 
     if (uploadError) throw new Error(uploadError.message);
 
     const { error: metaError } = await supabase.from('work_report_attachments').insert({
       work_report_id: reportId,
       storage_path: storagePath,
-      file_name: file.name,
-      mime_type: file.type,
+      file_name: prepared.name,
+      mime_type: prepared.type,
       uploaded_by: userId,
     });
 
@@ -50,7 +82,7 @@ export async function uploadWorkReportAttachments(
       await supabase.storage.from(BUCKET).remove([storagePath]);
       throw new Error(metaError.message);
     }
-  }
+  });
 }
 
 export async function deleteWorkReportAttachment(attachment: WorkReportAttachment) {
@@ -80,11 +112,13 @@ export function WorkReportAttachmentGallery({
     let cancelled = false;
 
     async function loadUrls() {
-      const next: Record<string, string> = {};
-      for (const attachment of attachments) {
-        const url = await resolveAttachmentUrl(attachment.storage_path);
-        if (url) next[attachment.id] = url;
-      }
+      const entries = await Promise.all(
+        attachments.map(async (attachment) => {
+          const url = await resolveAttachmentUrl(attachment.storage_path);
+          return url ? ([attachment.id, url] as const) : null;
+        }),
+      );
+      const next = Object.fromEntries(entries.filter((entry): entry is [string, string] => entry !== null));
       if (!cancelled) setUrls(next);
     }
 

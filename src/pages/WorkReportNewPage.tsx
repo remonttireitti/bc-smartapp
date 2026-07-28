@@ -96,6 +96,7 @@ export default function WorkReportNewPage({ session }: Props) {
   const { profile, loading: profileLoading } = useProfile(session);
 
   const [reportId, setReportId] = useState<string | null>(editId ?? null);
+  const reportLoadedRef = useRef<string | null>(editId ?? null);
 
   const [status, setStatus] = useState<'draft' | 'scheduled'>('draft');
 
@@ -254,6 +255,8 @@ export default function WorkReportNewPage({ session }: Props) {
   useEffect(() => {
 
     if (isNew || !editId) return;
+
+    if (reportLoadedRef.current === editId) return;
 
     void loadReport(editId);
 
@@ -472,6 +475,8 @@ export default function WorkReportNewPage({ session }: Props) {
     }
 
     setLoadingReport(false);
+
+    reportLoadedRef.current = id;
 
   }
 
@@ -980,8 +985,6 @@ export default function WorkReportNewPage({ session }: Props) {
         navigate('/tyoraportit');
       } else if (intent === 'schedule') {
         navigate(`/tyoraportit/${newId}`);
-      } else {
-        navigate(`/tyoraportit/${newId}/muokkaa`, { replace: true });
       }
     }
 
@@ -1391,7 +1394,6 @@ export default function WorkReportNewPage({ session }: Props) {
 
               if (customer) {
                 setReportOwnerCompanyId(customer.owner_company_id);
-                void loadOwnerCompany(customer.owner_company_id);
                 if (customer.subscriber_id) setSubscriberId(customer.subscriber_id);
               }
 
@@ -1405,7 +1407,6 @@ export default function WorkReportNewPage({ session }: Props) {
 
               if (profile?.company_id) {
                 setReportOwnerCompanyId(profile.company_id);
-                void loadOwnerCompany(profile.company_id);
               }
 
             }}
