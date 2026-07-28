@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 
 import type { Session } from '@supabase/supabase-js';
 
@@ -70,6 +70,7 @@ import {
   loadPerformerCalendarContext,
   validateFutureSchedule,
 } from '../lib/workReportCalendar';
+import { isActiveWorkReportEditorPath } from '../lib/workReportEditorRoutes';
 
 import type { Company, Customer, Equipment, Partnership, Subscriber } from '../types';
 
@@ -88,6 +89,7 @@ export default function WorkReportNewPage({ session }: Props) {
   const { id: editId } = useParams<{ id: string }>();
 
   const navigate = useNavigate();
+  const location = useLocation();
 
   const isNew = !editId;
 
@@ -231,6 +233,11 @@ export default function WorkReportNewPage({ session }: Props) {
   }
 
   const canAutoSave = Boolean(description.trim() || customerId);
+
+  const isActiveEditorRoute = useMemo(
+    () => isActiveWorkReportEditorPath(location.pathname, reportId, editId),
+    [location.pathname, reportId, editId],
+  );
 
 
 
@@ -715,6 +722,11 @@ export default function WorkReportNewPage({ session }: Props) {
   async function saveReport(intent: WorkReportSaveIntent = 'save') {
     const isAuto = intent === 'autosave';
 
+    if (!isActiveWorkReportEditorPath(location.pathname, reportId, editId)) {
+      if (isAuto) return true;
+      return false;
+    }
+
     if (!profile?.company_id || !ownerCompanyId) {
 
       if (!isAuto) {
@@ -1050,7 +1062,7 @@ export default function WorkReportNewPage({ session }: Props) {
 
   useEffect(() => {
 
-    if (skipAutoSaveRef.current || status !== 'draft' || busy) return;
+    if (!isActiveEditorRoute || skipAutoSaveRef.current || status !== 'draft' || busy) return;
 
     if (!canAutoSave) return;
 
@@ -1103,22 +1115,24 @@ export default function WorkReportNewPage({ session }: Props) {
 
     canAutoSave,
 
+    isActiveEditorRoute,
+
   ]);
 
 
 
   useEffect(() => {
 
-    if (!isOnline || skipAutoSaveRef.current || status !== 'draft' || busy) return;
+    if (!isActiveEditorRoute || !isOnline || skipAutoSaveRef.current || status !== 'draft' || busy) return;
 
     if (!canAutoSave) return;
 
     void saveReport('autosave');
 
-  }, [isOnline]);
+  }, [isOnline, isActiveEditorRoute]);
 
   useRegisterDraftSaver(async () => {
-    if (status !== 'draft') return;
+    if (!isActiveEditorRoute || status !== 'draft') return;
     writeLocalWorkDraft(draftStorageKey, {
       heading,
       description,

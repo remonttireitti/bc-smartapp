@@ -1,3 +1,5 @@
+import { isWorkReportEditorPath } from './workReportEditorRoutes';
+
 /** Max number of visited screens kept mounted (LRU eviction). */
 export const KEEP_ALIVE_MAX_ROUTES = 16;
 
@@ -18,6 +20,7 @@ export function shouldKeepAliveRoute(pathname: string): boolean {
   if (!pathname || pathname === '/') return true;
   if (NEVER_CACHE_PREFIXES.some((prefix) => pathname.startsWith(prefix))) return false;
   if (pathname.includes('/tuloste')) return false;
+  if (isWorkReportEditorPath(pathname)) return false;
   return true;
 }
 
