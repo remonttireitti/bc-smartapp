@@ -4,30 +4,37 @@ export const KONVEKTORI_TARKASTUS_ITEMS = [
   {
     field: 'suodatinPuhdistettu',
     label: 'Suodatin puhdistettu ja ehjä',
+    faultLabel: 'Suodatin ei puhdas tai ei ehjä',
   },
   {
     field: 'kennoPuhdistettu',
     label: 'Kenno puhdas',
+    faultLabel: 'Kenno ei puhdas',
   },
   {
     field: 'kondenssiTarkastettu',
     label: 'Kondenssiveden poisto testattu',
+    faultLabel: 'Kondenssiveden poisto ei kunnossa',
   },
   {
     field: 'puhallinTarkastettu',
     label: 'Puhallin nopeudet toimii eikä ole sivuääniä',
+    faultLabel: 'Puhallin ei toimi kunnolla tai sivuääniä',
   },
   {
     field: 'venttiiliTarkastettu',
     label: 'Venttiili ja toimilaite testattu ja toimii',
+    faultLabel: 'Venttiili tai toimilaite ei toimi',
   },
   {
     field: 'ohjausToimii',
     label: 'Ohjaus toimii tarkoituksenmukaisesti',
+    faultLabel: 'Ohjaus ei toimi tarkoituksenmukaisesti',
   },
 ] as const satisfies ReadonlyArray<{
   field: keyof KonvektoriRowData;
   label: string;
+  faultLabel: string;
 }>;
 
 export type KonvektoriTarkastusField = (typeof KONVEKTORI_TARKASTUS_ITEMS)[number]['field'];
@@ -64,17 +71,30 @@ export function konvektoriRowIsFaulty(row: KonvektoriRowData): boolean {
   return row.huomioTyyppi === 'vika' || summary.anyNo;
 }
 
+/** Poistaa HTML/markdown-muotoilun vikalistaa varten. */
+function huomioPlainForFaultList(text: string): string {
+  return text
+    .replace(/\*\*(.+?)\*\*/g, '$1')
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 /** Luettelo viallisista kohdista tulostetta varten. */
 export function konvektoriFaultLabels(row: KonvektoriRowData): string[] {
+  const huomio = row.huomio?.trim();
+  if (row.huomioTyyppi === 'vika' && huomio) {
+    return [huomioPlainForFaultList(huomio)];
+  }
+
   const labels: string[] = [];
   for (const item of KONVEKTORI_TARKASTUS_ITEMS) {
     if (konvektoriTarkastusValue(row, item.field) === false) {
-      labels.push(item.label);
+      labels.push(item.faultLabel);
     }
   }
-  const huomio = row.huomio?.trim();
-  if (row.huomioTyyppi === 'vika') {
-    labels.push(huomio || 'Vika merkitty');
+  if (labels.length === 0 && row.huomioTyyppi === 'vika') {
+    labels.push('Vika merkitty');
   }
   return labels;
 }
