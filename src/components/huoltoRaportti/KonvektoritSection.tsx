@@ -14,6 +14,8 @@ import { KonvektoriTarkastusDialog } from './KonvektoriTarkastusDialog';
 interface Props {
   rows: KonvektoriRowData[];
   onChange: (rows: KonvektoriRowData[]) => void;
+  onPrintFaults?: () => void;
+  printFaultsBusy?: boolean;
 }
 
 function rowStatusLabel(row: KonvektoriRowData): { text: string; className: string } {
@@ -33,7 +35,7 @@ function rowStatusLabel(row: KonvektoriRowData): { text: string; className: stri
   return { text: 'OK', className: 'konvektori-status konvektori-status--ok' };
 }
 
-export function KonvektoritSection({ rows, onChange }: Props) {
+export function KonvektoritSection({ rows, onChange, onPrintFaults, printFaultsBusy }: Props) {
   const effectiveRows = useMemo(() => ensureKonvektoriRowsList(rows), [rows]);
   const [dialogIndex, setDialogIndex] = useState<number | null>(null);
 
@@ -66,6 +68,16 @@ export function KonvektoritSection({ rows, onChange }: Props) {
         Valitse tyyppi ja täytä tunnistetiedot. Mittaukset ja tarkastus avataan popupista. Tuloste näyttää konvektorit ruudukkona kuvineen.
       </p>
       <div className="btn-group konvektori-list-actions">
+        {onPrintFaults ? (
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm"
+            disabled={printFaultsBusy}
+            onClick={onPrintFaults}
+          >
+            {printFaultsBusy ? 'Avataan…' : 'Tulosta vialliset'}
+          </button>
+        ) : null}
         <button
           type="button"
           className="btn btn-secondary btn-sm"

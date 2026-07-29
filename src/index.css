@@ -5580,122 +5580,6 @@ textarea {
   display: none;
 }
 
-.konvektori-list-actions {
-  flex-direction: row;
-  flex-wrap: wrap;
-  margin-bottom: .5rem;
-}
-
-.konvektori-compact-list {
-  display: flex;
-  flex-direction: column;
-  gap: .5rem;
-  min-width: 0;
-  max-width: 100%;
-}
-
-.konvektori-compact-head,
-.konvektori-compact-row {
-  display: grid;
-  grid-template-columns: 2rem minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr) 5.5rem minmax(9rem, auto);
-  gap: .4rem .5rem;
-  align-items: center;
-  min-width: 0;
-}
-
-.konvektori-compact-head {
-  font-size: .75rem;
-  font-weight: 600;
-  color: var(--text-muted, #64748b);
-  padding: 0 .25rem;
-}
-
-.konvektori-compact-row {
-  padding: .55rem .45rem;
-  border: 1px solid var(--border-strong);
-  border-radius: 8px;
-  background: var(--bg-surface, #fff);
-}
-
-.konvektori-compact-num {
-  text-align: center;
-  font-weight: 600;
-  color: var(--text-muted, #64748b);
-}
-
-.konvektori-compact-field {
-  display: flex;
-  min-width: 0;
-}
-
-.konvektori-compact-field input {
-  width: 100%;
-  min-width: 0;
-  min-height: 2.5rem;
-  font-size: .9rem;
-}
-
-.konvektori-compact-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: .35rem;
-  justify-content: flex-end;
-}
-
-.konvektori-status {
-  display: inline-block;
-  font-size: .72rem;
-  font-weight: 700;
-  padding: .2rem .45rem;
-  border-radius: 999px;
-  text-align: center;
-  white-space: nowrap;
-}
-
-.konvektori-status--ok {
-  background: #dcfce7;
-  color: #166534;
-}
-
-.konvektori-status--pending {
-  background: #fef3c7;
-  color: #92400e;
-}
-
-.konvektori-status--warn {
-  background: #ffedd5;
-  color: #c2410c;
-}
-
-.konvektori-status--note {
-  background: #e0e7ff;
-  color: #3730a3;
-}
-
-.konvektori-status--vika {
-  background: #fee2e2;
-  color: #b91c1c;
-}
-
-.konvektori-huomio-field {
-  display: flex;
-  flex-direction: column;
-  gap: .35rem;
-  font-weight: 600;
-  margin-bottom: 1rem;
-}
-
-.konvektori-huomio-field textarea,
-.konvektori-huomio-field .rich-comment-editor {
-  width: 100%;
-  min-height: 6rem;
-  resize: vertical;
-  font-weight: 400;
-  font-family: inherit;
-  line-height: 1.4;
-  box-sizing: border-box;
-}
-
 .rich-comment-editor-wrap {
   display: flex;
   flex-direction: column;
@@ -5829,53 +5713,6 @@ textarea {
   clip: rect(0, 0, 0, 0);
   white-space: nowrap;
   border: 0;
-}
-
-.konvektori-dialog-actions {
-  margin-top: 0;
-}
-
-@media (max-width: 900px) {
-  .konvektori-compact-head {
-    display: none;
-  }
-
-  .konvektori-compact-row {
-    grid-template-columns: 1fr 1fr;
-    grid-template-areas:
-      'num num'
-      'tunnus tunnus'
-      'valmistaja malli'
-      'sarja sarja'
-      'status status'
-      'actions actions';
-    gap: .5rem;
-  }
-
-  .konvektori-compact-num {
-    grid-area: num;
-    text-align: left;
-  }
-
-  .konvektori-compact-row .konvektori-compact-field:nth-of-type(1) { grid-area: tunnus; }
-  .konvektori-compact-row .konvektori-compact-field:nth-of-type(2) { grid-area: valmistaja; }
-  .konvektori-compact-row .konvektori-compact-field:nth-of-type(3) { grid-area: malli; }
-  .konvektori-compact-row .konvektori-compact-field:nth-of-type(4) { grid-area: sarja; }
-
-  .konvektori-compact-row > .konvektori-status {
-    grid-area: status;
-    justify-self: start;
-  }
-
-  .konvektori-compact-actions {
-    grid-area: actions;
-    justify-content: stretch;
-  }
-
-  .konvektori-compact-actions .btn {
-    flex: 1;
-    min-height: 2.75rem;
-  }
 }
 
 @media (min-width: 901px) {
@@ -11966,73 +11803,94 @@ button.vrf-toggle:not(:disabled) {
   }
 }
 
-/* Konvektorit — kompakti lista + tarkastusdialogi */
+/* Konvektorit — kompakti lista + tarkastusdialogi (mobiili ensin) */
 .konvektori-list-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
   margin-bottom: 0.75rem;
 }
 
 .konvektori-compact-list {
   display: flex;
   flex-direction: column;
-  gap: 0.35rem;
-  overflow-x: auto;
+  gap: 0.5rem;
   min-width: 0;
-}
-
-.konvektori-compact-head,
-.konvektori-compact-row {
-  display: grid;
-  grid-template-columns:
-    2rem
-    minmax(7.5rem, 0.9fr)
-    minmax(4.5rem, 0.7fr)
-    minmax(4rem, 0.6fr)
-    minmax(4.5rem, 0.7fr)
-    minmax(4.5rem, 0.7fr)
-    minmax(5rem, 0.75fr)
-    minmax(4.5rem, 0.55fr)
-    minmax(9rem, auto);
-  gap: 0.35rem;
-  align-items: center;
-  min-width: 52rem;
+  max-width: 100%;
 }
 
 .konvektori-compact-head {
-  font-size: 0.72rem;
-  font-weight: 600;
-  color: var(--text-muted);
-  padding: 0 0.15rem 0.25rem;
-  border-bottom: 1px solid var(--border);
+  display: none;
 }
 
 .konvektori-compact-row {
-  padding: 0.35rem 0.15rem;
-  border-bottom: 1px solid var(--border);
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-areas:
+    "num status"
+    "type type"
+    "tunnus huone"
+    "valm malli"
+    "sarja sarja"
+    "actions actions";
+  gap: 0.5rem;
+  align-items: center;
+  min-width: 0;
+  padding: 0.65rem;
+  border: 1px solid var(--border-strong, var(--border));
+  border-radius: 8px;
+  background: var(--bg-surface, #fff);
 }
 
 .konvektori-compact-num {
+  grid-area: num;
   font-size: 0.82rem;
   font-weight: 600;
   color: var(--text-muted);
-  text-align: center;
+  text-align: left;
+}
+
+.konvektori-compact-field {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.konvektori-compact-row > .konvektori-compact-field:nth-of-type(1) { grid-area: type; }
+.konvektori-compact-row > .konvektori-compact-field:nth-of-type(2) { grid-area: tunnus; }
+.konvektori-compact-row > .konvektori-compact-field:nth-of-type(3) { grid-area: huone; }
+.konvektori-compact-row > .konvektori-compact-field:nth-of-type(4) { grid-area: valm; }
+.konvektori-compact-row > .konvektori-compact-field:nth-of-type(5) { grid-area: malli; }
+.konvektori-compact-row > .konvektori-compact-field:nth-of-type(6) { grid-area: sarja; }
+
+.konvektori-compact-row > .konvektori-status {
+  grid-area: status;
+  justify-self: end;
+}
+
+.konvektori-compact-actions {
+  grid-area: actions;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  justify-content: stretch;
+}
+
+.konvektori-compact-actions .btn {
+  flex: 1;
+  min-height: 2.75rem;
 }
 
 .konvektori-compact-field input,
 .konvektori-compact-field select {
   width: 100%;
   min-width: 0;
-  font-size: 0.82rem;
+  min-height: 2.5rem;
+  font-size: 0.9rem;
   padding: 0.35rem 0.45rem;
   border: 1px solid var(--border);
   border-radius: 6px;
   background: var(--bg-surface);
-}
-
-.konvektori-compact-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.25rem;
-  justify-content: flex-end;
 }
 
 .konvektori-status {
@@ -12050,6 +11908,71 @@ button.vrf-toggle:not(:disabled) {
 .konvektori-status--warn { background: #ffedd5; color: #c2410c; }
 .konvektori-status--note { background: #e0f2fe; color: #0369a1; }
 .konvektori-status--vika { background: #fee2e2; color: #b91c1c; }
+
+@media (min-width: 901px) {
+  .konvektori-compact-list {
+    gap: 0.35rem;
+    overflow-x: auto;
+  }
+
+  .konvektori-compact-head,
+  .konvektori-compact-row {
+    display: grid;
+    grid-template-columns:
+      2rem
+      minmax(7.5rem, 0.9fr)
+      minmax(4.5rem, 0.7fr)
+      minmax(4rem, 0.6fr)
+      minmax(4.5rem, 0.7fr)
+      minmax(4.5rem, 0.7fr)
+      minmax(5rem, 0.75fr)
+      minmax(4.5rem, 0.55fr)
+      minmax(9rem, auto);
+    grid-template-areas: none;
+    gap: 0.35rem;
+    align-items: center;
+    min-width: 52rem;
+  }
+
+  .konvektori-compact-head {
+    display: grid;
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    padding: 0 0.15rem 0.25rem;
+    border-bottom: 1px solid var(--border);
+    background: transparent;
+    border-radius: 0;
+  }
+
+  .konvektori-compact-row {
+    padding: 0.35rem 0.15rem;
+    border: none;
+    border-bottom: 1px solid var(--border);
+    border-radius: 0;
+  }
+
+  .konvektori-compact-num {
+    text-align: center;
+  }
+
+  .konvektori-compact-row > .konvektori-compact-field:nth-of-type(n) {
+    grid-area: auto;
+  }
+
+  .konvektori-compact-row > .konvektori-status {
+    justify-self: center;
+  }
+
+  .konvektori-compact-actions {
+    justify-content: flex-end;
+  }
+
+  .konvektori-compact-actions .btn {
+    flex: 0 1 auto;
+    min-height: 0;
+  }
+}
 
 .konvektori-dialog-overlay {
   z-index: 1200;
@@ -12246,38 +12169,7 @@ button.vrf-toggle:not(:disabled) {
   margin-top: 0;
 }
 
-@media (max-width: 720px) {
-  .konvektori-compact-head {
-    display: none;
-  }
-
-  .konvektori-compact-row {
-    grid-template-columns: 1fr 1fr;
-    grid-template-areas:
-      "num status"
-      "type type"
-      "tunnus huone"
-      "valm malli"
-      "sarja sarja"
-      "actions actions";
-    min-width: 0;
-    padding: 0.65rem;
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    margin-bottom: 0.35rem;
-  }
-
-  .konvektori-compact-num { grid-area: num; text-align: left; }
-  .konvektori-compact-row > .konvektori-status { grid-area: status; justify-self: end; }
-  .konvektori-compact-row > .konvektori-compact-field:nth-of-type(1) { grid-area: type; }
-  .konvektori-compact-row > .konvektori-compact-field:nth-of-type(2) { grid-area: tunnus; }
-  .konvektori-compact-row > .konvektori-compact-field:nth-of-type(3) { grid-area: huone; }
-  .konvektori-compact-row > .konvektori-compact-field:nth-of-type(4) { grid-area: valm; }
-  .konvektori-compact-row > .konvektori-compact-field:nth-of-type(5) { grid-area: malli; }
-  .konvektori-compact-row > .konvektori-compact-field:nth-of-type(6) { grid-area: sarja; }
-  .konvektori-compact-actions { grid-area: actions; justify-content: stretch; }
-  .konvektori-compact-actions .btn { flex: 1; }
-
+@media (max-width: 900px) {
   .konvektori-mittaukset-grid {
     grid-template-columns: 1fr;
   }

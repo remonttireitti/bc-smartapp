@@ -86,6 +86,7 @@ import {
   showNestelauhduttimetModules,
   showVjLauhdutuspiiriModules,
   usesManualModuleMenu,
+  usesRefrigerantServiceExtras,
 } from '../lib/huoltoRaportti/deviceModuleLogic';
 import {
   applyEquipmentSnapshotToForm,
@@ -100,7 +101,8 @@ import {
   readLocalMaintenanceDraft,
   writeLocalMaintenanceDraft,
 } from '../lib/maintenanceReportDraftStorage';
-import { openMaintenanceReportPrint } from '../lib/maintenanceReportPrintAction';
+import { openMaintenanceReportKonvektoriFaultPrint, openMaintenanceReportPrint } from '../lib/maintenanceReportPrintAction';
+import { filterFaultyKonvektoriRows } from '../lib/huoltoRaportti/konvektoriTarkastus';
 import { syncMaintenanceReportPhotosFromDb } from '../lib/maintenanceReportPhotoSync';
 import { isPortalUser } from '../lib/portalWorkOrder';
 import { useProfile } from '../hooks/useProfile';
@@ -209,6 +211,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
     && (canEditCustomerEquipment || canEditPublishedReport || copySiblingMode);
   const showCopyToSiblingAction =
     showEquipmentRegistryActions
+    && !isKonvektoritDevice(form.laiteTyyppi)
     && Boolean(reportId && !copySiblingMode)
     && (status === 'draft' || canEditPublishedReport);
 
@@ -262,6 +265,12 @@ export default function MaintenanceReportEditPage({ session }: Props) {
   const showChillerKiinteistoTab = showChillerKiinteistoSection(form.laiteTyyppi);
   const showChillerEnergyTab = showChillerEnergySection(form.laiteTyyppi);
   const showKonvektoritSection = form.selectedModules.konvektorit;
+  const hasFaultyKonvektorit = useMemo(
+    () =>
+      isKonvektoritDevice(form.laiteTyyppi)
+      && filterFaultyKonvektoriRows(form.konvektoriRows).length > 0,
+    [form.laiteTyyppi, form.konvektoriRows],
+  );
   const showNestelauhduttimetSection = showNestelauhduttimetModules(form.selectedModules);
   const showLauhdutuspiiriSection = showVjLauhdutuspiiriModules(
     form.laiteTyyppi,
@@ -512,6 +521,12 @@ export default function MaintenanceReportEditPage({ session }: Props) {
   }
 
   useEffect(() => {
+    if (!isKonvektoritDevice(form.laiteTyyppi) || !copySiblingMode) return;
+    setCopySiblingMode(false);
+    setCopySourceEquipmentId(null);
+  }, [form.laiteTyyppi, copySiblingMode]);
+
+  useEffect(() => {
     if (!isNew || !ownerCompanyId) return;
     if (searchParams.get('copyFrom')) return;
     const cid = searchParams.get('customerId');
@@ -544,6 +559,11 @@ export default function MaintenanceReportEditPage({ session }: Props) {
         subscriber_id: string | null;
         equipment_id: string | null;
       };
+
+      if (isKonvektoritDevice(row.data?.laiteTyyppi ?? '')) {
+        setError('Konvektoriverkoston pöytäkirjaa ei voi kopioida uudelle laitteelle.');
+        return;
+      }
 
       setForm(cloneHuoltoReportForSiblingEquipment(row.data));
       setCopySourceEquipmentId(row.equipment_id);
@@ -947,6 +967,9 @@ export default function MaintenanceReportEditPage({ session }: Props) {
   }
 
   function toggleModule(key: ModuleKey, checked: boolean) {
+    if (!usesRefrigerantServiceExtras(form.laiteTyyppi) && (key === 'tiiveyskoe' || key === 'tyhjiointi')) {
+      return;
+    }
     if (usesManualModuleMenu(form.laiteTyyppi)) {
       syncResolvedModules({
         selectedModules: { ...form.selectedModules, [key]: checked },
@@ -1219,6 +1242,19 @@ export default function MaintenanceReportEditPage({ session }: Props) {
     });
   }
 
+  async function openKonvektoriFaultPrint() {
+    if (!reportId) return;
+    setPrintBusy(true);
+    setError(null);
+    try {
+      await openMaintenanceReportKonvektoriFaultPrint(reportId, buildReportDataPayload());
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Viallisten tulosteen avaus epäonnistui.');
+    } finally {
+      setPrintBusy(false);
+    }
+  }
+
   async function openPrintPreview() {
     if (!reportId) return;
     setPrintBusy(true);
@@ -1299,7 +1335,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
           disabled={busy}
           onClick={() => void saveEquipmentToRegistry()}
         >
-          {copySiblingMode
+          {copySiblingMode && !isKonvektoritDevice(form.laiteTyyppi)
             ? 'Tallenna kopio uudelle laitteelle'
             : equipmentId
               ? 'Päivitä laite rekisteriin'
@@ -1461,7 +1497,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
                   onCreate={createCustomerAndSelect}
                 />
 
-                {copySiblingMode && (
+                {copySiblingMode && !isKonvektoritDevice(form.laiteTyyppi) && (
                   <p className="muted">
                     Kopioit pöytäkirjan toiselle laitteelle — määritä uusi laitetunnus laitetiedoissa
                     ja tallenna kopio laitetietojen tai alareunan painikkeesta.
@@ -1554,7 +1590,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
               ) : (
               <>
               {registryMessage && <p className="muted">{registryMessage}</p>}
-              {copySiblingMode && (
+              {copySiblingMode && !isKonvektoritDevice(form.laiteTyyppi) && (
                 <p className="muted">
                   Kopioit pöytäkirjan uudelle laitteelle. Täytä <strong>Laitetunnus</strong> ja paina{' '}
                   <strong>Tallenna laite rekisteriin</strong> tai <strong>Tallenna kopio uudelle laitteelle</strong>.
@@ -1658,7 +1694,6 @@ export default function MaintenanceReportEditPage({ session }: Props) {
                 )}
               </div>
               )}
-              {renderEquipmentRegistryActions()}
               {form.laiteTyyppi && (form.selectedModules.kylmaainePiiri || form.laiteTyyppi === 'lämpöpumppu') && (
                 <RefrigerantChargeSection form={form} onChange={patchForm} />
               )}
@@ -1730,6 +1765,8 @@ export default function MaintenanceReportEditPage({ session }: Props) {
               <KonvektoritSection
                 rows={form.konvektoriRows ?? []}
                 onChange={(rows) => patchForm({ konvektoriRows: rows })}
+                onPrintFaults={hasFaultyKonvektorit ? () => void openKonvektoriFaultPrint() : undefined}
+                printFaultsBusy={printBusy}
               />
         </section>
         )}
@@ -1813,23 +1850,27 @@ export default function MaintenanceReportEditPage({ session }: Props) {
                   checked={form.huoltoSuoritettu}
                   onChange={(checked) => patchForm({ huoltoSuoritettu: checked })}
                 />
-                <ToggleSwitch
-                  label="Kylmäaine / vuototarkastus"
-                  checked={form.huoltoKylmaaineVuotoTarkastus}
-                  onChange={(checked) => patchForm({ huoltoKylmaaineVuotoTarkastus: checked })}
-                />
+                {usesRefrigerantServiceExtras(form.laiteTyyppi) ? (
+                  <>
+                    <ToggleSwitch
+                      label="Kylmäaine / vuototarkastus"
+                      checked={form.huoltoKylmaaineVuotoTarkastus}
+                      onChange={(checked) => patchForm({ huoltoKylmaaineVuotoTarkastus: checked })}
+                    />
+                    <ToggleSwitch
+                      label="Piilota varoitukset tulosteessa (HUOMIOITAVAA, COP-ohjeet)"
+                      checked={hideMaintenancePrintWarnings(form)}
+                      onChange={(checked) => {
+                        patchForm({ piilotaVaroitukset: checked });
+                        if (reportId && isOnline) void saveReport('draft', { auto: true });
+                      }}
+                    />
+                  </>
+                ) : null}
                 <ToggleSwitch
                   label="Laitteessa vika / puutteita"
                   checked={form.huoltoLaiteessaVika}
                   onChange={(checked) => patchForm({ huoltoLaiteessaVika: checked })}
-                />
-                <ToggleSwitch
-                  label="Piilota varoitukset tulosteessa (HUOMIOITAVAA, COP-ohjeet)"
-                  checked={hideMaintenancePrintWarnings(form)}
-                  onChange={(checked) => {
-                    patchForm({ piilotaVaroitukset: checked });
-                    if (reportId && isOnline) void saveReport('draft', { auto: true });
-                  }}
                 />
               </div>
               <div className="line-form-grid">
@@ -1868,6 +1909,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
                 </label>
               </div>
 
+              {optionalMaintenanceModules.length > 0 && (
               <div className="maintenance-optional-modules">
                 <p className="muted">Valinnaiset mittaukset — moduulit valitaan laitetyypin mukaan automaattisesti.</p>
                 <div className="module-toggle-grid">
@@ -1882,8 +1924,9 @@ export default function MaintenanceReportEditPage({ session }: Props) {
                   ))}
                 </div>
               </div>
+              )}
 
-              {form.selectedModules.tiiveyskoe && (
+              {usesRefrigerantServiceExtras(form.laiteTyyppi) && form.selectedModules.tiiveyskoe && (
                 <div className="huolto-modules-stack maintenance-embedded-module">
                   <TiiveyskoeSection
                     form={form}
@@ -1894,7 +1937,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
                 </div>
               )}
 
-              {form.selectedModules.tyhjiointi && (
+              {usesRefrigerantServiceExtras(form.laiteTyyppi) && form.selectedModules.tyhjiointi && (
                 <div className="huolto-modules-stack maintenance-embedded-module">
                   <TyhjiointiSection
                     form={form}
@@ -1941,6 +1984,16 @@ export default function MaintenanceReportEditPage({ session }: Props) {
               onClick={() => void openPrintPreview()}
             >
               {printBusy ? 'Avataan…' : 'Tulosta / PDF'}
+            </button>
+          )}
+          {reportId && hasFaultyKonvektorit && (
+            <button
+              type="button"
+              className="btn btn-secondary maintenance-actions-print-faults"
+              disabled={printBusy || busy}
+              onClick={() => void openKonvektoriFaultPrint()}
+            >
+              {printBusy ? 'Avataan…' : 'Tulosta vialliset'}
             </button>
           )}
           {renderEquipmentRegistryActions('maintenance-form-actions-equipment')}

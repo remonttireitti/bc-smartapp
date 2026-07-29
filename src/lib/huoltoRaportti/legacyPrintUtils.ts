@@ -40,6 +40,7 @@ import {
 import { buildMaintenanceReportPrintTitle, hideMaintenancePrintWarnings } from './defaults';
 import { LAUHDUTIN_PAINEVENTTIILI_LABEL, LAUHDUTIN_PAINEVENTTIILI_MALLI_LABEL } from './constants';
 import { generateKonvektoritGridPrintHtml, konvektoriVerkostoKoideFromReport } from './konvektoriPrint';
+import { isKonvektoritDevice, usesRefrigerantServiceExtras } from './deviceModuleLogic';
 import { generateSisayksikotGridPrintHtml } from './sisayksikkoPrint';
 import { formatHuomioPrintHtml, RICH_COMMENT_PRINT_CSS } from './formatHuomioPrintHtml';
 import { isMaintenancePrintPhotoImage } from '../maintenanceReportPrintImages';
@@ -2292,7 +2293,9 @@ export function generatePrintHTML(data: {
     '#b2dfdb'
   );
   const tiiveyskoeOsioHtml =
-    sm.tiiveyskoe && (tiiveyskoeSisalto.trim() || tiiveyskoeKuvatHtmlOsio)
+    usesRefrigerantServiceExtras(data.laiteTyyppi) &&
+    sm.tiiveyskoe &&
+    (tiiveyskoeSisalto.trim() || tiiveyskoeKuvatHtmlOsio)
       ? `
   <div class="box-content" style="border-color: #00695C; page-break-inside: avoid; margin-top: 10px;">
     <div style="border-bottom: 2px solid #00695C; padding-bottom: 2px; margin-bottom: 4px;">
@@ -2338,7 +2341,9 @@ export function generatePrintHTML(data: {
     '#81d4fa'
   );
   const tyhjiointiOsioHtml =
-    sm.tyhjiointi && (tyhjiointiSisalto.trim() || tyhjiointiKuvatHtmlOsio)
+    usesRefrigerantServiceExtras(data.laiteTyyppi) &&
+    sm.tyhjiointi &&
+    (tyhjiointiSisalto.trim() || tyhjiointiKuvatHtmlOsio)
       ? `
   <div class="box-content" style="border-color: #0277BD; page-break-inside: avoid; margin-top: 10px;">
     <div style="border-bottom: 2px solid #0277BD; padding-bottom: 2px; margin-bottom: 4px;">
@@ -2432,13 +2437,15 @@ export function generatePrintHTML(data: {
     return warnings;
   };
 
-  const kylmaainepiiriWarnings: string[] = [
-    ...buildLegacyCircuitWarnings(data.kp1Data),
-    ...(data.kylmaainePiireja !== '1' ? buildLegacyCircuitWarnings(data.kp2Data) : []),
-    ...(data.kylmaainePiireja === '3' || data.kylmaainePiireja === '4'
-      ? buildLegacyCircuitWarnings(data.kp3Data)
-      : []),
-  ];
+  const kylmaainepiiriWarnings: string[] = isKonvektoritDevice(data.laiteTyyppi)
+    ? []
+    : [
+        ...buildLegacyCircuitWarnings(data.kp1Data),
+        ...(data.kylmaainePiireja !== '1' ? buildLegacyCircuitWarnings(data.kp2Data) : []),
+        ...(data.kylmaainePiireja === '3' || data.kylmaainePiireja === '4'
+          ? buildLegacyCircuitWarnings(data.kp3Data)
+          : []),
+      ];
 
   const logoSrc = String(
     (data.companyInfo as LegacyCompanyInfo | null)?.logoBase64 ?? '',
@@ -2593,10 +2600,12 @@ export function generatePrintHTML(data: {
   }
 
   const hasRefrigerantData =
-    hasPrintableValue(data.kylmaaineTyyppi) ||
-    circuitRows.length > 0 ||
-    (hasPrintableValue(data.kylmaaineMaaraYhteensa) && Number(String(data.kylmaaineMaaraYhteensa).replace(',', '.')) > 0) ||
-    (hasPrintableValue(data.kylmaaineCO2Ekv) && co2SavedT > 0);
+    !isKonvektoritDevice(data.laiteTyyppi) &&
+    (hasPrintableValue(data.kylmaaineTyyppi) ||
+      circuitRows.length > 0 ||
+      (hasPrintableValue(data.kylmaaineMaaraYhteensa) &&
+        Number(String(data.kylmaaineMaaraYhteensa).replace(',', '.')) > 0) ||
+      (hasPrintableValue(data.kylmaaineCO2Ekv) && co2SavedT > 0));
   const refrigerantInfoBoxHtml = hasRefrigerantData
     ? `
     <div class="box-content" style="border-color: #FF6D00; page-break-inside: avoid; break-inside: avoid;">
@@ -2687,6 +2696,7 @@ export function generatePrintHTML(data: {
 
   // Generate measurements HTML for refrigerant circuits
   const measurementsHtml = (() => {
+    if (isKonvektoritDevice(data.laiteTyyppi)) return '';
     // Helper function to calculate superheat for a circuit
     const calcSuperheat = (kpData: Partial<RefrigerantCircuitData> | null | undefined) => {
       if (!kpData) return '-';
@@ -3145,7 +3155,7 @@ export function generatePrintHTML(data: {
       })
     : ''}
 
-  ${data.laiteTyyppi !== 'lämpöpumppu' && data.kylmaainePiireja !== '0' ? measurementsHtml : ''}
+  ${data.laiteTyyppi !== 'lämpöpumppu' && !isKonvektoritDevice(data.laiteTyyppi) && data.kylmaainePiireja !== '0' ? measurementsHtml : ''}
 
   ${(data.laiteTyyppi === 'kylmäkoneikko' || data.laiteTyyppi === 'pakastin') && data.evaporatorData && data.evaporatorData.length > 0 ? generateEvaporatorPrintHtml(data.evaporatorData, data.laiteTyyppi === 'kylmäkoneikko' ? 'hoyrystin' : 'piiri') : ''}
 

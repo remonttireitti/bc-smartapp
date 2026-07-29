@@ -57,3 +57,30 @@ export function konvektoriTarkastusSummary(row: KonvektoriRowData): {
     complete: answered === values.length,
   };
 }
+
+/** Konvektori on viallinen jos huomio on merkitty vikaksi tai jokin tarkastuskohta on Ei. */
+export function konvektoriRowIsFaulty(row: KonvektoriRowData): boolean {
+  const summary = konvektoriTarkastusSummary(row);
+  return row.huomioTyyppi === 'vika' || summary.anyNo;
+}
+
+/** Luettelo viallisista kohdista tulostetta varten. */
+export function konvektoriFaultLabels(row: KonvektoriRowData): string[] {
+  const labels: string[] = [];
+  for (const item of KONVEKTORI_TARKASTUS_ITEMS) {
+    if (konvektoriTarkastusValue(row, item.field) === false) {
+      labels.push(item.label);
+    }
+  }
+  const huomio = row.huomio?.trim();
+  if (row.huomioTyyppi === 'vika') {
+    labels.push(huomio || 'Vika merkitty');
+  }
+  return labels;
+}
+
+export function filterFaultyKonvektoriRows(
+  rows: KonvektoriRowData[] | undefined | null,
+): KonvektoriRowData[] {
+  return (rows ?? []).filter((row) => row && typeof row === 'object' && konvektoriRowIsFaulty(row));
+}

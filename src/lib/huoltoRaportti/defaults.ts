@@ -1089,6 +1089,8 @@ export function applyDeviceTypeDefaults(
   }
   if (deviceType === 'konvektorit') {
     patch.konvektoriRows = ensureKonvektoriRowsList(data.konvektoriRows);
+    patch.kylmaainePiireja = '0';
+    patch.huoltoKylmaaineVuotoTarkastus = false;
   } else if (data.selectedModules?.konvektorit) {
     patch.konvektoriRows = ensureKonvektoriRowsList(data.konvektoriRows);
   } else {

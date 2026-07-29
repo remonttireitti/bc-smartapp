@@ -1,11 +1,13 @@
 import { buildMaintenanceReportPrintTitle, normalizeHuoltoReportData } from './huoltoRaportti/defaults';
 import { generateLegacyMaintenanceReportHtml } from './huoltoRaportti/legacyPrintAdapter';
+import { generateKonvektoriFaultPrintHtml } from './huoltoRaportti/konvektoriPrint';
 import type { HuoltoReportData } from './huoltoRaportti/types';
 import { resolveMaintenanceReportImageUrls } from './maintenanceReportImageUrl';
 import { collectMaintenancePrintImagePaths } from './maintenanceReportPrintImages';
 import { syncMaintenanceReportPhotosFromDb } from './maintenanceReportPhotoSync';
 import { resolveCompanyLogoUrl } from './companyLogo';
 import { openPrintHtml } from './openPrintWindow';
+import { shrinkUrlMapForPrint } from './printImageEmbed';
 import { escapeHtmlPrint } from './printDocumentShell';
 import { supabase } from './supabase';
 
@@ -97,7 +99,8 @@ export async function loadMaintenanceReportPrintBundle(
       .eq('id', reportId);
   }
 
-  const imageUrls = await resolveMaintenancePrintImageUrls(reportData);
+  const rawImageUrls = await resolveMaintenancePrintImageUrls(reportData);
+  const imageUrls = await shrinkUrlMapForPrint(rawImageUrls);
   const html = generateLegacyMaintenanceReportHtml(reportData, { companyName, logoUrl, imageUrls });
   const documentTitle = buildMaintenanceReportPrintTitle(reportData);
 
@@ -115,4 +118,72 @@ export async function openMaintenanceReportPrint(
 ) {
   const bundle = await loadMaintenanceReportPrintBundle(reportId, dataOverride);
   openPrintHtml(bundle.html);
+}
+
+async function loadMaintenanceReportKonvektoriFaultPrintBundle(
+  reportId: string,
+  dataOverride?: HuoltoReportData,
+) {
+  const { data, error: loadError } = await supabase
+    .from('maintenance_reports')
+    .select('id, data, branding_company_id, owner_company_id, customer_id')
+    .eq('id', reportId)
+    .single();
+
+  if (loadError || !data) {
+    throw new Error(loadError?.message ?? 'Raporttia ei löytynyt.');
+  }
+
+  const row = data as {
+    data: HuoltoReportData;
+    branding_company_id: string | null;
+    owner_company_id: string;
+    customer_id: string | null;
+  };
+
+  const companyId = row.branding_company_id ?? row.owner_company_id;
+  const { data: companyRow } = await supabase
+    .from('companies')
+    .select('name, logo_url')
+    .eq('id', companyId)
+    .single();
+
+  const companyName = (companyRow as { name: string } | null)?.name ?? '—';
+  let logoUrl: string | undefined;
+  try {
+    const resolved = await resolveCompanyLogoUrl(
+      (companyRow as { logo_url: string | null } | null)?.logo_url,
+    );
+    if (resolved) logoUrl = resolved;
+  } catch {
+    /* optional logo */
+  }
+
+  const reportData = normalizeHuoltoReportData(
+    dataOverride
+      ? {
+          ...dataOverride,
+          customerId: dataOverride.customerId ?? row.customer_id ?? undefined,
+        }
+      : {
+          ...row.data,
+          customerId: row.data.customerId ?? row.customer_id ?? undefined,
+        },
+  );
+
+  const html = generateKonvektoriFaultPrintHtml(reportData, { companyName, logoUrl });
+
+  return {
+    data: reportData,
+    html,
+    documentTitle: `${buildMaintenanceReportPrintTitle(reportData)} — vialliset`,
+  };
+}
+
+export async function openMaintenanceReportKonvektoriFaultPrint(
+  reportId: string,
+  dataOverride?: HuoltoReportData,
+) {
+  const bundle = await loadMaintenanceReportKonvektoriFaultPrintBundle(reportId, dataOverride);
+  openPrintHtml(bundle.html, { imageWaitMs: 2_000 });
 }

@@ -16,7 +16,9 @@ import {
 import { expansionValveTypes, LAUHDUTIN_PAINEVENTTIILI_LABEL, LAUHDUTIN_PAINEVENTTIILI_MALLI_LABEL } from './constants';
 import {
   isChillerLikeDevice,
+  isKonvektoritDevice,
   isSharedEvaporatorAcrossCircuits,
+  usesRefrigerantServiceExtras,
   isWaterCooledChiller,
   refrigerantCircuitHasMagnetValve,
 } from './deviceModuleLogic';
@@ -43,7 +45,6 @@ import {
   konvektoriVerkostoKoideFromReport,
 } from './konvektoriPrint';
 import { formatHuomioPrintHtml } from './formatHuomioPrintHtml';
-import { isKonvektoritDevice } from './deviceModuleLogic';
 import { generateMlpFullPrintHtml } from './printMlpFull';
 import { renderCompressorCurrentHtml, renderFanPhaseCardHtml } from './printPhaseHelpers';
 import {
@@ -364,6 +365,7 @@ function renderEvaporators(data: HuoltoReportData): string {
 }
 
 function renderCircuitsHtml(data: HuoltoReportData): string {
+  if (isKonvektoritDevice(data.laiteTyyppi)) return '';
   if (!data.selectedModules.kylmaainePiiri || data.kylmaainePiireja === '0') return '';
 
   const inlineEvaporators =
@@ -765,6 +767,7 @@ function renderLegacyCompanyBox(data: HuoltoReportData, meta: MaintenancePrintMe
 }
 
 function renderCircuitWarningsBanner(data: HuoltoReportData): string {
+  if (isKonvektoritDevice(data.laiteTyyppi)) return '';
   const warnings = buildRefrigerantCircuitWarnings(data);
   if (!warnings.length) return '';
   const list = warnings.map((w) => `<li style="margin-bottom:4px;">${esc(w)}</li>`).join('');
@@ -850,13 +853,17 @@ export function generateMaintenanceReportHtml(
         .join(''),
     );
 
-  const refrigerantBox = data.selectedModules.kylmaainePiiri || data.kylmaaineTyyppi
-    ? renderRefrigerantCharge(data)
-    : '';
+  const refrigerantBox =
+    !isKonvektoritDevice(data.laiteTyyppi) &&
+    (data.selectedModules.kylmaainePiiri || data.kylmaaineTyyppi)
+      ? renderRefrigerantCharge(data)
+      : '';
 
   let circuitsHtml = renderCircuitsHtml(data);
 
-  const vuotoStatus = renderVuototarkastusStatus(data.huoltoKylmaaineVuotoTarkastus);
+  const vuotoStatus = usesRefrigerantServiceExtras(data.laiteTyyppi)
+    ? renderVuototarkastusStatus(data.huoltoKylmaaineVuotoTarkastus)
+    : '';
   const statusHtml = `<div class="huolto-status">
     ${checkRow(data.huoltoSuoritettu, 'Huolto suoritettu')}
     ${vuotoStatus ? `<div style="padding:2px 0;">${vuotoStatus}</div>` : ''}
@@ -895,8 +902,8 @@ export function generateMaintenanceReportHtml(
   ${renderChillerEnergy(data)}
   ${generateMlpFullPrintHtml(data)}
   ${renderKonvektoritTable(data)}
-  ${renderTiiveyskoe(data, imageUrls)}
-  ${renderTyhjiointi(data, imageUrls)}
+  ${usesRefrigerantServiceExtras(data.laiteTyyppi) ? renderTiiveyskoe(data, imageUrls) : ''}
+  ${usesRefrigerantServiceExtras(data.laiteTyyppi) ? renderTyhjiointi(data, imageUrls) : ''}
   ${renderHuomiot(data, imageUrls)}
 
   <div class="footer">

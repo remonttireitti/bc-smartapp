@@ -74,6 +74,11 @@ export function isKonvektoritDevice(deviceType: string): boolean {
   return deviceType === 'konvektorit';
 }
 
+/** Kylmäaine, vuototarkastus, tiiveyskoe ja tyhjiöinti — ei konvektoriverkostolla. */
+export function usesRefrigerantServiceExtras(deviceType: string): boolean {
+  return Boolean(deviceType) && !isKonvektoritDevice(deviceType);
+}
+
 export function isAirCondenserType(tyyppi: LauhdutinType | '' | undefined): boolean {
   return tyyppi === 'erillinen_ilma' || tyyppi === 'koneseen_integroitu';
 }
@@ -160,11 +165,7 @@ export function getActiveModuleLabels(
     ];
   }
   if (deviceType === 'konvektorit') {
-    return [
-      '2. Konvektorit',
-      ...(modules.tiiveyskoe ? ['Tiiveyskoe'] : []),
-      ...(modules.tyhjiointi ? ['Tyhjiöinti'] : []),
-    ];
+    return ['2. Konvektorit'];
   }
 
   return (Object.keys(modules) as ModuleKey[])
@@ -250,12 +251,13 @@ export function resolveAutoModules(input: {
       break;
   }
 
-  modules.tiiveyskoe = manual.tiiveyskoe ?? false;
-  modules.tyhjiointi = manual.tyhjiointi ?? false;
+  modules.tiiveyskoe = isKonvektoritDevice(deviceType) ? false : (manual.tiiveyskoe ?? false);
+  modules.tyhjiointi = isKonvektoritDevice(deviceType) ? false : (manual.tyhjiointi ?? false);
   return modules;
 }
 
 export function getManualModuleOptions(deviceType: string) {
+  if (isKonvektoritDevice(deviceType)) return [];
   if (!usesManualModuleMenu(deviceType)) {
     return moduleSelectionOptions.filter((o) => ALWAYS_OPTIONAL_MODULES.includes(o.key));
   }
