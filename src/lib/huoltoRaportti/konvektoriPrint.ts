@@ -237,7 +237,7 @@ function renderKonvektoriFaultTable(
 ): string {
   const body = rows
     .map((row, index) => {
-      const tyyppi = konvektoriTyyppiLabel(normalizeKonvektoriTyyppi(row.tyyppi) || 'seina') || 'Konvektori';
+      const malli = row.malli?.trim() || '—';
       const sarja = row.sarjanumero?.trim() || '—';
       const faults = konvektoriFaultLabels(row);
       const faultsHtml = faults.length
@@ -248,7 +248,7 @@ function renderKonvektoriFaultTable(
 
       return `<tr>
         <td style="width:6%;text-align:center;">${index + 1}</td>
-        <td style="width:22%;">${esc(tyyppi)}</td>
+        <td style="width:22%;">${esc(malli)}</td>
         <td style="width:22%;">${esc(sarja)}</td>
         <td>${faultsHtml}</td>
       </tr>`;
@@ -261,7 +261,7 @@ function renderKonvektoriFaultTable(
       <thead>
         <tr>
           <th>#</th>
-          <th>Tyyppi</th>
+          <th>Malli</th>
           <th>Sarjanumero</th>
           <th>Viallisuudet</th>
         </tr>
