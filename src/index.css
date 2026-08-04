@@ -5263,7 +5263,58 @@ textarea {
   display: flex;
   flex-direction: column;
   gap: 1rem;
-  min-height: 12rem;
+}
+
+.maintenance-report-tab-launcher {
+  padding: 1.25rem 1rem;
+  border: 1px dashed var(--border-strong);
+  border-radius: 10px;
+  background: var(--bg-subtle);
+  text-align: center;
+}
+
+.maintenance-report-tab-launcher p {
+  margin: 0;
+  font-size: 0.92rem;
+}
+
+.maintenance-report-tab-overlay {
+  z-index: 1050;
+  align-items: flex-start;
+  padding: 1rem;
+  overflow-y: auto;
+}
+
+.maintenance-report-tab-dialog {
+  width: min(960px, calc(100vw - 2rem));
+  max-height: none;
+  margin: auto;
+  pointer-events: auto;
+}
+
+.maintenance-report-tab-dialog-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--border-strong);
+}
+
+.maintenance-report-tab-dialog-header h2 {
+  margin: 0;
+  font-size: 1.15rem;
+  line-height: 1.3;
+}
+
+.maintenance-report-tab-dialog-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  max-height: calc(100vh - 8rem);
+  overflow-y: auto;
+  padding-right: 0.15rem;
 }
 
 .maintenance-device-type-select {

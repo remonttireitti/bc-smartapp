@@ -11,6 +11,7 @@ import CustomerRegistryPicker, { type NewCustomerDraft } from '../components/Cus
 import SubscriberPicker from '../components/SubscriberPicker';
 import SubscriberPortalVisibilityField from '../components/SubscriberPortalVisibilityField';
 import MaintenanceReportTabNav from '../components/huoltoRaportti/MaintenanceReportTabNav';
+import { MaintenanceReportTabDialog } from '../components/huoltoRaportti/MaintenanceReportTabDialog';
 import { HuoltoModulePresentationProvider } from '../components/huoltoRaportti/HuoltoModulePresentationContext';
 import ToggleSwitch from '../components/ToggleSwitch';
 import { CondensersSection } from '../components/huoltoRaportti/CondensersSection';
@@ -119,8 +120,6 @@ interface Props {
 
 import {
   buildMaintenanceReportTabs,
-  persistMaintenanceReportActiveTab,
-  readMaintenanceReportActiveTab,
   type MaintenanceReportTabId,
 } from '../lib/huoltoRaportti/maintenanceReportTabs';
 import { HuoltoEditUiProvider } from '../components/huoltoRaportti/HuoltoEditUiContext';
@@ -334,19 +333,14 @@ export default function MaintenanceReportEditPage({ session }: Props) {
     ],
   );
 
-  const [activeTab, setActiveTab] = useState<MaintenanceReportTabId>(() => {
-    const saved = readMaintenanceReportActiveTab(reportViewKey);
-    return saved ?? 'raportointi';
-  });
+  const [openTabId, setOpenTabId] = useState<MaintenanceReportTabId | null>(null);
 
   useEffect(() => {
-    if (maintenanceTabs.some((tab) => tab.id === activeTab)) return;
-    setActiveTab(maintenanceTabs[0]?.id ?? 'raportointi');
-  }, [maintenanceTabs, activeTab]);
-
-  useEffect(() => {
-    persistMaintenanceReportActiveTab(reportViewKey, activeTab);
-  }, [reportViewKey, activeTab]);
+    if (!openTabId) return;
+    if (!maintenanceTabs.some((tab) => tab.id === openTabId)) {
+      setOpenTabId(null);
+    }
+  }, [maintenanceTabs, openTabId]);
 
   useEffect(() => {
     const media = window.matchMedia('(min-width: 901px)');
@@ -1494,13 +1488,27 @@ export default function MaintenanceReportEditPage({ session }: Props) {
       <form className="panel form-grid maintenance-form" onSubmit={onSubmit}>
         <MaintenanceReportTabNav
           tabs={maintenanceTabs}
-          activeId={activeTab}
-          onChange={(id) => setActiveTab(id as MaintenanceReportTabId)}
+          activeId={openTabId ?? ''}
+          onChange={(id) => {
+            const tabId = id as MaintenanceReportTabId;
+            setOpenTabId((prev) => (prev === tabId ? null : tabId));
+          }}
         />
 
+        <div className="maintenance-report-tab-launcher">
+          <p className="muted">
+            Avaa osio ylävalikon painikkeesta. Tarkastukset ja mittaukset avautuvat ponnahdusikkunoihin osion sisällä.
+          </p>
+        </div>
+
+        <MaintenanceReportTabDialog
+          open={openTabId !== null}
+          title={maintenanceTabs.find((tab) => tab.id === openTabId)?.label ?? ''}
+          onClose={() => setOpenTabId(null)}
+        >
         <HuoltoModulePresentationProvider value="flat">
         <div className="maintenance-report-tab-panel">
-        {activeTab === 'raportointi' && (
+        {openTabId === 'raportointi' && (
         <section className={`maintenance-report-tab-section${form.laiteTyyppi && (form.selectedModules.kylmaainePiiri || form.laiteTyyppi === 'lämpöpumppu') ? ' huolto-modules-stack' : ''}`}>
         <div className="info-grid">
             <div className="info-box">
@@ -1800,7 +1808,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
         </section>
         )}
 
-        {activeTab === 'kylmaainePiiri' && form.selectedModules.kylmaainePiiri && (
+        {openTabId === 'kylmaainePiiri' && form.selectedModules.kylmaainePiiri && (
         <section className="maintenance-report-tab-section huolto-modules-stack">
                 {isVj && (
                   <VjLauhdutinSection
@@ -1814,7 +1822,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
         </section>
         )}
 
-        {activeTab === 'hoyrystin' && showEvaporatorSection && (
+        {openTabId === 'hoyrystin' && showEvaporatorSection && (
         <section className="maintenance-report-tab-section huolto-modules-stack">
             {showEvaporatorSection && <EvaporatorCircuitsSync form={form} onChange={syncForm} />}
             {showEvaporatorSection && !isChillerLikeDevice(form.laiteTyyppi) && (
@@ -1823,19 +1831,19 @@ export default function MaintenanceReportEditPage({ session }: Props) {
         </section>
         )}
 
-        {activeTab === 'lauhdutin' && showCondenserSection && (
+        {openTabId === 'lauhdutin' && showCondenserSection && (
         <section className="maintenance-report-tab-section huolto-modules-stack">
             <CondensersSection form={form} onChange={patchForm} />
         </section>
         )}
 
-        {activeTab === 'lauhdutuspiiri' && showLauhdutuspiiriSection && (
+        {openTabId === 'lauhdutuspiiri' && showLauhdutuspiiriSection && (
         <section className="maintenance-report-tab-section huolto-modules-stack">
             <LauhdutuspiiriSection form={form} onChange={patchForm} />
         </section>
         )}
 
-        {activeTab === 'nestelauhduttimet' && showNestelauhduttimetSection && (
+        {openTabId === 'nestelauhduttimet' && showNestelauhduttimetSection && (
         <section className="maintenance-report-tab-section huolto-modules-stack">
               <NestelauhduttimetSection
                 units={form.nestelauhduttimetVj ?? []}
@@ -1846,19 +1854,19 @@ export default function MaintenanceReportEditPage({ session }: Props) {
         </section>
         )}
 
-        {activeTab === 'jaahdytysvesi' && showJaahdytysvesiSection && (
+        {openTabId === 'jaahdytysvesi' && showJaahdytysvesiSection && (
         <section className="maintenance-report-tab-section huolto-modules-stack">
             <JaahdytysvesiSection form={form} onChange={patchForm} />
         </section>
         )}
 
-        {activeTab === 'vapaajahdytys' && showVapaajahdytysSection && (
+        {openTabId === 'vapaajahdytys' && showVapaajahdytysSection && (
         <section className="maintenance-report-tab-section huolto-modules-stack">
             <VapaajahdytysSection form={form} onChange={patchForm} />
         </section>
         )}
 
-        {activeTab === 'konvektorit' && showKonvektoritSection && (
+        {openTabId === 'konvektorit' && showKonvektoritSection && (
         <section className="maintenance-report-tab-section huolto-modules-stack">
               <KonvektoritSection
                 rows={form.konvektoriRows ?? []}
@@ -1869,7 +1877,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
         </section>
         )}
 
-        {activeTab === 'lampopumppu' && showLampopumppuSection && (
+        {openTabId === 'lampopumppu' && showLampopumppuSection && (
         <section className="maintenance-report-tab-section huolto-modules-stack">
               <LampopumppuSection
                 form={form}
@@ -1881,25 +1889,25 @@ export default function MaintenanceReportEditPage({ session }: Props) {
         </section>
         )}
 
-        {activeTab === 'mlp' && showMlpSection && form.mlpData && (
+        {openTabId === 'mlp' && showMlpSection && form.mlpData && (
         <section className="maintenance-report-tab-section huolto-modules-stack">
             <MlpSection form={form} onChange={patchForm} />
         </section>
         )}
 
-        {activeTab === 'kiinteistoJahdytys' && showChillerKiinteistoTab && form.mlpData && (
+        {openTabId === 'kiinteistoJahdytys' && showChillerKiinteistoTab && form.mlpData && (
         <section className="maintenance-report-tab-section huolto-modules-stack">
             <MlpSection form={form} onChange={patchForm} part="kiinteisto" />
         </section>
         )}
 
-        {activeTab === 'energia' && showChillerEnergyTab && form.mlpData && (
+        {openTabId === 'energia' && showChillerEnergyTab && form.mlpData && (
         <section className="maintenance-report-tab-section huolto-modules-stack">
             <MlpSection form={form} onChange={patchForm} part="energia" />
         </section>
         )}
 
-        {activeTab === 'huomiot' && form.laiteTyyppi && (
+        {openTabId === 'huomiot' && form.laiteTyyppi && (
         <section className="maintenance-report-tab-section huolto-modules-stack">
             <HuomiotSection
               form={form}
@@ -1922,7 +1930,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
         </section>
         )}
 
-        {activeTab === 'huoltotiedot' && form.laiteTyyppi && (
+        {openTabId === 'huoltotiedot' && form.laiteTyyppi && (
         <section className="maintenance-report-tab-section">
               {showHuoltoVsKayttoonottoSelector(form.laiteTyyppi) && (
                 <label style={{ maxWidth: '280px' }}>
@@ -2050,6 +2058,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
 
         </div>
         </HuoltoModulePresentationProvider>
+        </MaintenanceReportTabDialog>
 
         {error && <p className="error">{error}</p>}
 

@@ -32,7 +32,7 @@ export default function MaintenanceReportTabNav({ tabs, activeId, onChange }: Pr
           }}
           type="button"
           className={`maintenance-report-tab${activeId === tab.id ? ' is-active' : ''}`}
-          aria-current={activeId === tab.id ? 'page' : undefined}
+          aria-pressed={activeId === tab.id ? true : undefined}
           onClick={() => onChange(tab.id)}
         >
           {tab.label}
