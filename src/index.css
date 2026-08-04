@@ -5851,6 +5851,21 @@ textarea {
   align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.maintenance-device-summary-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.maintenance-equipment-registry-actions--prominent {
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  background: var(--bg-subtle);
 }
 
 .maintenance-device-summary-head h3 {

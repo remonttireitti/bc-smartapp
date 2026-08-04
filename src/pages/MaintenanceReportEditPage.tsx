@@ -12,6 +12,7 @@ import MaintenanceReportTabNav from '../components/huoltoRaportti/MaintenanceRep
 import { MaintenanceReportTabDialog } from '../components/huoltoRaportti/MaintenanceReportTabDialog';
 import { MaintenanceReportBasicsPanel } from '../components/huoltoRaportti/MaintenanceReportBasicsPanel';
 import { MaintenanceDeviceDialog } from '../components/huoltoRaportti/MaintenanceDeviceDialog';
+import { MaintenanceDeviceSummary } from '../components/huoltoRaportti/MaintenanceDeviceSummary';
 import { HuoltoModulePresentationProvider } from '../components/huoltoRaportti/HuoltoModulePresentationContext';
 import ToggleSwitch from '../components/ToggleSwitch';
 import { CondensersSection } from '../components/huoltoRaportti/CondensersSection';
@@ -65,7 +66,6 @@ import {
   type SubscriberPortalVisibility,
 } from '../lib/subscriberPortalVisibility';
 import {
-  deviceTypes,
   moduleSelectionOptions,
   showHuoltoVsKayttoonottoSelector,
   type ModuleKey,
@@ -1679,10 +1679,11 @@ export default function MaintenanceReportEditPage({ session }: Props) {
       )
     : false;
 
+  const deviceButtonLabel = form.laiteTyyppi ? 'Muokkaa laitetietoja' : 'Laitetiedot';
+
   const hasSecondaryMaintenanceActions =
     canDeleteMaintenance
     || !!reportId
-    || showEquipmentRegistryActions
     || canEditPublishedReport;
 
   function renderEquipmentRegistryActions(className?: string) {
@@ -1806,7 +1807,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
             onBack={handleSetupBack}
             onNext={handleSetupNext}
             onOpenDevice={openDeviceDialog}
-            deviceButtonLabel={form.laiteTyyppi ? 'Muokkaa laitetietoja' : 'Laitetiedot'}
+            deviceButtonLabel={deviceButtonLabel}
           >
             {setupStep === 'raportointi' ? (
               <>
@@ -1851,65 +1852,12 @@ export default function MaintenanceReportEditPage({ session }: Props) {
                   onSubscriberChange={setSubscriberId}
                   onSubscriberPortalVisibilityChange={setSubscriberPortalVisibility}
                 />
-                <div className="maintenance-device-summary">
-                  <div className="maintenance-device-summary-head">
-                    <h3>Laitetiedot</h3>
-                    {raportointiComplete ? (
-                      <span className="badge badge-completed">Valmis</span>
-                    ) : (
-                      <span className="badge badge-scheduled">Puuttuu</span>
-                    )}
-                  </div>
-                  {form.laiteTyyppi ? (
-                    <div className="info-grid">
-                      <div className="info-box">
-                        <span className="info-label">Laitetyyppi</span>
-                        <strong>{deviceTypes.find((dt) => dt.value === form.laiteTyyppi)?.label ?? form.laiteTyyppi}</strong>
-                      </div>
-                      {isKonvektoritDevice(form.laiteTyyppi) ? (
-                        <>
-                          <div className="info-box">
-                            <span className="info-label">Verkoston kuvaus</span>
-                            <strong>{form.laiteKayttotarkoitus || '—'}</strong>
-                          </div>
-                          <div className="info-box">
-                            <span className="info-label">Alue</span>
-                            <strong>{form.laiteSijainti || '—'}</strong>
-                          </div>
-                        </>
-                      ) : (
-                        <>
-                          <div className="info-box">
-                            <span className="info-label">Laite</span>
-                            <strong>
-                              {[form.laiteValmistaja, form.laiteMalli].filter(Boolean).join(' ') || '—'}
-                            </strong>
-                            <span className="muted">
-                              {[form.laiteTunnus, form.laiteSarjanumero].filter(Boolean).join(' · ')}
-                            </span>
-                          </div>
-                          <div className="info-box">
-                            <span className="info-label">Sijainti</span>
-                            <strong>{form.laiteSijainti || '—'}</strong>
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  ) : (
-                    <p className="muted">
-                      Täytä laitteen perustiedot painamalla Laitetiedot — tarvitaan ennen seuraavaa vaihetta.
-                    </p>
-                  )}
-                  {Object.keys(deviceFieldErrors).length > 0 ? (
-                    <div className="maintenance-device-summary-errors">
-                      {Object.values(deviceFieldErrors).map((message) => (
-                        <p key={message} className="error">
-                          {message}
-                        </p>
-                      ))}
-                    </div>
-                  ) : null}
-                </div>
+                <MaintenanceDeviceSummary
+                  form={form}
+                  deviceFieldErrors={deviceFieldErrors}
+                  complete={raportointiComplete}
+                  emptyHint="Täytä laitteen perustiedot painamalla Laitetiedot — tarvitaan ennen seuraavaa vaihetta."
+                />
               </>
             ) : (
               <>
@@ -1945,6 +1893,16 @@ export default function MaintenanceReportEditPage({ session }: Props) {
               </button>
             </div>
 
+            <MaintenanceDeviceSummary
+              form={form}
+              deviceFieldErrors={deviceFieldErrors}
+              complete={basicsComplete}
+              onEdit={openDeviceDialog}
+              editButtonLabel={deviceButtonLabel}
+            />
+
+            {renderEquipmentRegistryActions('maintenance-equipment-registry-actions--prominent')}
+
             <MaintenanceModuleStructureDialog
               open={moduleStructureDialogOpen}
               form={form}
@@ -1960,6 +1918,13 @@ export default function MaintenanceReportEditPage({ session }: Props) {
               open={openTabId !== null}
               title={maintenanceTabs.find((tab) => tab.id === openTabId)?.label ?? ''}
               onClose={() => setOpenTabId(null)}
+              footer={
+                openTabId === 'raportointi' ? (
+                  <button type="button" className="btn btn-secondary" onClick={openDeviceDialog}>
+                    {deviceButtonLabel}
+                  </button>
+                ) : undefined
+              }
             >
             <HuoltoModulePresentationProvider value="flat">
             <div className="maintenance-report-tab-panel">
@@ -2005,6 +1970,13 @@ export default function MaintenanceReportEditPage({ session }: Props) {
                 onCreateCustomer={createCustomerAndSelect}
                 onSubscriberChange={setSubscriberId}
                 onSubscriberPortalVisibilityChange={setSubscriberPortalVisibility}
+              />
+              <MaintenanceDeviceSummary
+                form={form}
+                deviceFieldErrors={deviceFieldErrors}
+                complete={basicsComplete}
+                onEdit={openDeviceDialog}
+                editButtonLabel={deviceButtonLabel}
               />
             </section>
             )}
@@ -2280,6 +2252,8 @@ export default function MaintenanceReportEditPage({ session }: Props) {
 
         {error && <p className="error">{error}</p>}
 
+        {!basicsComplete ? renderEquipmentRegistryActions('maintenance-form-actions-equipment') : null}
+
         <div className="form-actions maintenance-form-actions">
           <div className="maintenance-actions-primary">
             <button
@@ -2359,7 +2333,6 @@ export default function MaintenanceReportEditPage({ session }: Props) {
                     {printBusy ? 'Avataan…' : 'Tulosta vialliset'}
                   </button>
                 )}
-                {renderEquipmentRegistryActions('maintenance-form-actions-equipment')}
                 {canEditPublishedReport ? (
                   <button
                     type="button"
