@@ -68,6 +68,7 @@ export function EvaporatorModule({
   const [draft, setDraft] = useState(data);
   const disabled = locked || !!sameAsFirst;
   const chillerHx = isChillerLikeDevice(laiteTyyppi);
+  const isVak = laiteTyyppi === 'vakioilmastointtikone';
   const status = entityInspectionStatus(data);
   const subtitle = [
     chillerHx ? null : data.huoneenTunnus,
@@ -95,7 +96,11 @@ export function EvaporatorModule({
   const showDetails = draftStatus === 'ok' || draftStatus === 'faulty';
   const showFansDefrost = evaporatorShowsFansAndDefrost(draft.tyyppi);
   const selectValue =
-    chillerHx && !isHeatExchangerEvaporatorType(draft.tyyppi) ? '' : draft.tyyppi;
+    chillerHx
+    && !isHeatExchangerEvaporatorType(draft.tyyppi)
+    && draft.tyyppi !== 'suorahoyrystin'
+      ? ''
+      : draft.tyyppi;
 
   return (
     <>
@@ -160,6 +165,7 @@ export function EvaporatorModule({
                         <option value="" disabled>Valitse…</option>
                         <option value="levy">Levy lämmönvaihdin</option>
                         <option value="putki">Putkilämmönvaihdin</option>
+                        {isVak ? <option value="suorahoyrystin">Suorahöyrystin</option> : null}
                       </>
                     ) : (
                       <>

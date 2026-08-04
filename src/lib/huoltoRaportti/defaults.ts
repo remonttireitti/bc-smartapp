@@ -9,6 +9,7 @@ import {
   stripMagnetValveFromCircuit,
 } from './deviceModuleLogic';
 import { applyLegacyHuoltoFields, inferModulesFromLegacyData, mapLegacyMlpKeruupiiriToJaahdytysvesi, mergeLegacySelectedModules } from './legacyImport';
+import { normalizeCustomReportModules } from './customModuleTypes';
 import { normalizeEvaporatorForDevice } from './evaporatorHelpers';
 import { buildMaintenanceReportTitle } from '../../types';
 import { deviceTypes, isMlpVesiNeste, type ModuleKey } from './constants';
@@ -924,6 +925,7 @@ export function normalizeHuoltoReportData(data: Partial<HuoltoReportData>): Huol
         manualModules: { ...base.selectedModules, ...manualModules },
       }) as HuoltoReportData['selectedModules'];
     })(),
+    customModules: normalizeCustomReportModules(legacy.customModules),
   };
 
   let result = normalized;
@@ -975,6 +977,7 @@ export function createEmptyHuoltoReportData(): HuoltoReportData {
     osoite: '',
     laiteTyyppi: '',
     selectedModules: emptySelectedModules(),
+    customModules: [],
     laiteValmistaja: '',
     laiteMalli: '',
     laiteTunnus: '',
@@ -995,6 +998,7 @@ export function createEmptyHuoltoReportData(): HuoltoReportData {
     kylmaaineCO2Ekv: '',
     hoyrystimienMaara: '',
     hoyrystinTyyppi: '',
+    lauhdutinLmvTyyppi: '',
     sulatusKaytossa: false,
     sulatusTapa: '',
     kylmaainePiiri1: createEmptyRefrigerantCircuitData(),

@@ -1,5 +1,5 @@
 import type { EvaporatorData, EvaporatorType } from './types';
-import { isChillerLikeDevice } from './deviceModuleLogic';
+import { isChillerLikeDevice, isWaterCooledChiller } from './deviceModuleLogic';
 
 /** Vedenjäähdytyskone / VAK: levy- tai putkilämmönvaihdin (ei puhaltimia eikä sulatusta). */
 export function isHeatExchangerEvaporatorType(tyyppi: EvaporatorType | string | undefined): boolean {
@@ -7,7 +7,7 @@ export function isHeatExchangerEvaporatorType(tyyppi: EvaporatorType | string | 
 }
 
 export function evaporatorShowsFansAndDefrost(tyyppi: EvaporatorType | string | undefined): boolean {
-  return tyyppi === 'puhallin' || tyyppi === 'staatinen';
+  return tyyppi === 'puhallin' || tyyppi === 'staatinen' || tyyppi === 'suorahoyrystin';
 }
 
 export function defaultEvaporatorTypeForDevice(laiteTyyppi: string): EvaporatorType {
@@ -19,6 +19,7 @@ export function evapTyyppiLabel(value: string | undefined): string {
   if (value === 'staatinen') return 'Staattinen höyrystin';
   if (value === 'levy') return 'Levy lämmönvaihdin';
   if (value === 'putki') return 'Putkilämmönvaihdin';
+  if (value === 'suorahoyrystin') return 'Suorahöyrystin';
   return value?.trim() || '—';
 }
 
@@ -46,7 +47,12 @@ export function normalizeEvaporatorForDevice(
   laiteTyyppi: string,
 ): EvaporatorData {
   if (!isChillerLikeDevice(laiteTyyppi)) return ev;
-  if (isHeatExchangerEvaporatorType(ev.tyyppi)) return ev;
+  if (isHeatExchangerEvaporatorType(ev.tyyppi) || ev.tyyppi === 'suorahoyrystin') {
+    if (isWaterCooledChiller(laiteTyyppi) && ev.tyyppi === 'suorahoyrystin') {
+      return { ...ev, tyyppi: defaultEvaporatorTypeForDevice(laiteTyyppi), puhaltimienMaara: 0, puhaltimet: [] };
+    }
+    return ev;
+  }
   return {
     ...ev,
     tyyppi: defaultEvaporatorTypeForDevice(laiteTyyppi),

@@ -6,7 +6,8 @@ export type ParsedEquipmentSnapshot = EquipmentSnapshot & Record<string, unknown
 export const LAUHDUTIN_TYYPIT: Record<string, string> = {
   koneseen_integroitu: 'Koneseen integroitu ilmalauhdutin',
   erillinen_ilma: 'Erillinen ilmalauhdutin',
-  nestekiertoinen: 'Levy- tai putkilämmönvaihdin + nestekiertoinen ilmalauhdutin',
+  nestekiertoinen: 'Levy- tai putkilämmönvaihdin + nestelauhdutin',
+  nestekiertoinen_vain_lmv: 'Levy- tai putkilämmönvaihdin (ilman nestelauhdutinta)',
 };
 
 export const NESTE_VJ_OHJAUS_TAPA: Record<string, string> = {

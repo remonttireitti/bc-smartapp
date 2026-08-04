@@ -72,7 +72,7 @@ export function validateMaintenanceCustomerBasics(input: CustomerBasicsInput): V
   return result(errors);
 }
 
-function showRefrigerantBasics(input: DeviceBasicsInput): boolean {
+export function showRefrigerantBasics(input: DeviceBasicsInput): boolean {
   return Boolean(input.laiteTyyppi)
     && (input.selectedModules.kylmaainePiiri || input.laiteTyyppi === 'lämpöpumppu');
 }
@@ -111,24 +111,40 @@ export function validateMaintenanceDeviceBasics(input: DeviceBasicsInput): Valid
     errors.laiteSijainti = 'Sijainti on pakollinen.';
   }
 
-  if (showRefrigerantBasics(input)) {
-    if (!input.kylmaaineTyyppi.trim()) {
-      errors.kylmaaineTyyppi = 'Valitse kylmäaine.';
-    }
-    if (input.laiteTyyppi !== 'lämpöpumppu' && !input.kylmaainePiireja.trim()) {
-      errors.kylmaainePiireja = 'Valitse kylmäainepiirejä.';
-    }
+  return result(errors);
+}
+
+export function validateMaintenanceRefrigerantBasics(input: DeviceBasicsInput): ValidationResult {
+  const errors: Record<string, string> = {};
+
+  if (!showRefrigerantBasics(input)) {
+    return result(errors);
+  }
+
+  if (!input.kylmaaineTyyppi.trim()) {
+    errors.kylmaaineTyyppi = 'Valitse kylmäaine.';
+  }
+  if (input.laiteTyyppi !== 'lämpöpumppu' && !input.kylmaainePiireja.trim()) {
+    errors.kylmaainePiireja = 'Valitse kylmäainepiirejä.';
   }
 
   return result(errors);
+}
+
+export function isRaportointiBasicsComplete(
+  customerInput: CustomerBasicsInput,
+  deviceInput: DeviceBasicsInput,
+): boolean {
+  return validateMaintenanceCustomerBasics(customerInput).ok
+    && validateMaintenanceDeviceBasics(deviceInput).ok;
 }
 
 export function isMaintenanceBasicsComplete(
   customerInput: CustomerBasicsInput,
   deviceInput: DeviceBasicsInput,
 ): boolean {
-  return validateMaintenanceCustomerBasics(customerInput).ok
-    && validateMaintenanceDeviceBasics(deviceInput).ok;
+  if (!isRaportointiBasicsComplete(customerInput, deviceInput)) return false;
+  return validateMaintenanceRefrigerantBasics(deviceInput).ok;
 }
 
 export { isChillerLikeDevice, isKonvektoritDevice };

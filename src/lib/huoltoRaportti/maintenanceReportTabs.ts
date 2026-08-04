@@ -1,8 +1,12 @@
-import { huoltoTiedotSectionTitle, kylmaainePiiriSectionTitle, hoyrystinSectionTitle, lauhdutinSectionTitle, konvektoritSectionTitle, huomiotSectionTitle, jaahdytysvesiSectionTitle, nestelauhduttimetSectionTitle, lauhdutuspiiriSectionTitle, kiinteistoPiiriSectionTitle, energiatehokkuusSectionTitle, raportointiLaitetiedotTabTitle } from './sectionTitles';
+import { huoltoTiedotSectionTitle, kylmaaineChargeTitle, kylmaainePiiriSectionTitle, hoyrystinSectionTitle, lauhdutinSectionTitle, konvektoritSectionTitle, huomiotSectionTitle, jaahdytysvesiSectionTitle, nestelauhduttimetSectionTitle, lauhdutuspiiriSectionTitle, kiinteistoPiiriSectionTitle, energiatehokkuusSectionTitle, raportointiLaitetiedotTabTitle } from './sectionTitles';
+import { customModuleTabId } from './customModuleTypes';
+import type { CustomReportModule } from './customModuleTypes';
 import { mlpSectionTitle } from './deviceModuleLogic';
+import { applyMaintenanceTabCustomization } from './maintenanceReportTabCustomization';
 
-export type MaintenanceReportTabId =
+export type BuiltInMaintenanceReportTabId =
   | 'raportointi'
+  | 'kylmaaine'
   | 'kylmaainePiiri'
   | 'hoyrystin'
   | 'lauhdutin'
@@ -18,12 +22,14 @@ export type MaintenanceReportTabId =
   | 'huomiot'
   | 'huoltotiedot';
 
+export type MaintenanceReportTabId = BuiltInMaintenanceReportTabId | `custom:${string}`;
+
 export type MaintenanceReportTabItem = {
   id: MaintenanceReportTabId;
   label: string;
 };
 
-type TabVisibilityInput = {
+export type MaintenanceReportTabBuildInput = {
   laiteTyyppi: string;
   selectedModules: Record<string, boolean>;
   showEvaporatorSection: boolean;
@@ -37,9 +43,12 @@ type TabVisibilityInput = {
   showMlpSection: boolean;
   showChillerKiinteistoSection: boolean;
   showChillerEnergySection: boolean;
+  customModules?: CustomReportModule[];
+  hiddenTabIds?: MaintenanceReportTabId[];
+  moduleTabOrder?: MaintenanceReportTabId[];
 };
 
-export function buildMaintenanceReportTabs(input: TabVisibilityInput): MaintenanceReportTabItem[] {
+export function buildMaintenanceReportTabs(input: MaintenanceReportTabBuildInput): MaintenanceReportTabItem[] {
   const { laiteTyyppi } = input;
   const tabs: MaintenanceReportTabItem[] = [];
 
@@ -49,10 +58,14 @@ export function buildMaintenanceReportTabs(input: TabVisibilityInput): Maintenan
 
   tabs.push({
     id: 'raportointi',
-    label: raportointiLaitetiedotTabTitle(laiteTyyppi, showKylmaaineCharge),
+    label: raportointiLaitetiedotTabTitle(laiteTyyppi, false),
   });
 
   if (!laiteTyyppi) return tabs;
+
+  if (showKylmaaineCharge) {
+    tabs.push({ id: 'kylmaaine', label: kylmaaineChargeTitle(laiteTyyppi) });
+  }
 
   if (input.selectedModules.kylmaainePiiri) {
     tabs.push({ id: 'kylmaainePiiri', label: kylmaainePiiriSectionTitle(laiteTyyppi) });
@@ -102,10 +115,21 @@ export function buildMaintenanceReportTabs(input: TabVisibilityInput): Maintenan
     tabs.push({ id: 'energia', label: energiatehokkuusSectionTitle(laiteTyyppi) });
   }
 
+  for (const customModule of input.customModules ?? []) {
+    tabs.push({
+      id: customModuleTabId(customModule.id) as MaintenanceReportTabId,
+      label: customModule.title,
+    });
+  }
+
   tabs.push({ id: 'huomiot', label: huomiotSectionTitle(laiteTyyppi) });
   tabs.push({ id: 'huoltotiedot', label: huoltoTiedotSectionTitle(laiteTyyppi) });
 
-  return tabs;
+  return applyMaintenanceTabCustomization(
+    tabs,
+    input.hiddenTabIds,
+    input.moduleTabOrder,
+  );
 }
 
 export function readMaintenanceReportActiveTab(viewKey: string): MaintenanceReportTabId | null {
@@ -114,7 +138,6 @@ export function readMaintenanceReportActiveTab(viewKey: string): MaintenanceRepo
     if (!raw) return null;
     if (
       raw === 'laitetyyppi'
-      || raw === 'kylmaaine'
       || raw === 'vjOhjaus'
       || raw === 'laitetiedot'
       || raw === 'asiakas'

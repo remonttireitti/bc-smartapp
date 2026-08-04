@@ -1,6 +1,6 @@
 import type { HuoltoReportData } from '../../lib/huoltoRaportti/types';
 import { chillerLauhdutinTypeOptions } from '../../lib/huoltoRaportti/constants';
-import { isLiquidCondenserType } from '../../lib/huoltoRaportti/deviceModuleLogic';
+import { hasExternalNestelauhdutin } from '../../lib/huoltoRaportti/deviceModuleLogic';
 import ToggleSwitch from '../ToggleSwitch';
 import { HuoltoModuleSection } from './HuoltoModuleSection';
 
@@ -20,7 +20,7 @@ export function VjLauhdutinSection({
   return (
     <HuoltoModuleSection moduleKey="lauhdutin" title="Lauhdutin">
       <p className="muted huolto-help">
-        Levy- tai putkilämmönvaihdin + ulkoinen nestelauhdutin, tai ilmalauhdutin (integroitu / erillinen).
+        Ilmalauhdutin (integroitu / erillinen) tai levy-/putkilämmönvaihdin — joko ulkoisen nestelauhduttimen kanssa tai ilman.
       </p>
       <label className="huolto-span-all">
         Lauhdutustapa
@@ -37,7 +37,7 @@ export function VjLauhdutinSection({
           ))}
         </select>
       </label>
-      {isLiquidCondenserType(form.lauhdutinTyyppiLaite) && (
+      {hasExternalNestelauhdutin(form.lauhdutinTyyppiLaite) && (
         <label className="checkbox-inline huolto-span-all">
           <ToggleSwitch
             label="Yhteinen nestelauhdutus kaikille kylmäainepiireille"

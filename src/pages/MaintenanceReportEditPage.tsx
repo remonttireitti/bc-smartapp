@@ -9,7 +9,6 @@ import type { Session } from '@supabase/supabase-js';
 import AppLayout from '../components/AppLayout';
 import { type NewCustomerDraft } from '../components/CustomerRegistryPicker';
 import MaintenanceReportTabNav from '../components/huoltoRaportti/MaintenanceReportTabNav';
-import { MaintenanceReportTabDialog } from '../components/huoltoRaportti/MaintenanceReportTabDialog';
 import { MaintenanceReportBasicsPanel } from '../components/huoltoRaportti/MaintenanceReportBasicsPanel';
 import { MaintenanceDeviceDialog } from '../components/huoltoRaportti/MaintenanceDeviceDialog';
 import { HuoltoModulePresentationProvider } from '../components/huoltoRaportti/HuoltoModulePresentationContext';
@@ -28,6 +27,7 @@ import { LampopumppuSection } from '../components/huoltoRaportti/LampopumppuSect
 import { MlpSection } from '../components/huoltoRaportti/MlpSection';
 import { NestelauhduttimetSection } from '../components/huoltoRaportti/NestelauhduttimetSection';
 import { RefrigerantCircuitsSection } from '../components/huoltoRaportti/RefrigerantCircuitsSection';
+import { RefrigerantChargeSection } from '../components/huoltoRaportti/RefrigerantChargeSection';
 import { TiiveyskoeSection } from '../components/huoltoRaportti/TiiveyskoeSection';
 import { TyhjiointiSection } from '../components/huoltoRaportti/TyhjiointiSection';
 import {
@@ -117,13 +117,21 @@ interface Props {
 
 import {
   buildMaintenanceReportTabs,
-  type MaintenanceReportTabId,
 } from '../lib/huoltoRaportti/maintenanceReportTabs';
 import {
   isMaintenanceBasicsComplete,
+  isRaportointiBasicsComplete,
+  showRefrigerantBasics,
   validateMaintenanceCustomerBasics,
   validateMaintenanceDeviceBasics,
+  validateMaintenanceRefrigerantBasics,
 } from '../lib/huoltoRaportti/maintenanceReportBasicsValidation';
+import { MaintenanceSetupWizard, type MaintenanceSetupStep } from '../components/huoltoRaportti/MaintenanceSetupWizard';
+import { CustomModuleFormSection } from '../components/huoltoRaportti/CustomModuleFormSection';
+import { MaintenanceModuleStructureDialog } from '../components/huoltoRaportti/MaintenanceModuleStructureDialog';
+import { isCustomModuleTabId, parseCustomModuleTabId } from '../lib/huoltoRaportti/customModuleTypes';
+import { getHiddenMaintenanceTabs } from '../lib/huoltoRaportti/maintenanceReportTabCustomization';
+import { kylmaaineChargeTitle, raportointiLaitetiedotTabTitle } from '../lib/huoltoRaportti/sectionTitles';
 import { HuoltoEditUiProvider } from '../components/huoltoRaportti/HuoltoEditUiContext';
 import { cloneHuoltoReportForSiblingEquipment } from '../lib/huoltoRaportti/cloneReportForSiblingEquipment';
 import {
@@ -284,7 +292,10 @@ export default function MaintenanceReportEditPage({ session }: Props) {
       && filterFaultyKonvektoriRows(form.konvektoriRows).length > 0,
     [form.laiteTyyppi, form.konvektoriRows],
   );
-  const showNestelauhduttimetSection = showNestelauhduttimetModules(form.selectedModules);
+  const showNestelauhduttimetSection = showNestelauhduttimetModules(
+    form.selectedModules,
+    form.lauhdutinTyyppiLaite,
+  );
   const showLauhdutuspiiriSection = showVjLauhdutuspiiriModules(
     form.laiteTyyppi,
     form.lauhdutinTyyppiLaite,
@@ -348,15 +359,31 @@ export default function MaintenanceReportEditPage({ session }: Props) {
     ],
   );
 
+  const showKylmaaineCharge = useMemo(
+    () => showRefrigerantBasics(deviceBasicsInput),
+    [deviceBasicsInput],
+  );
+
+  const raportointiComplete = useMemo(
+    () => isRaportointiBasicsComplete(customerBasicsInput, deviceBasicsInput),
+    [customerBasicsInput, deviceBasicsInput],
+  );
+
+  const kylmaaineComplete = useMemo(
+    () => !showKylmaaineCharge || validateMaintenanceRefrigerantBasics(deviceBasicsInput).ok,
+    [showKylmaaineCharge, deviceBasicsInput],
+  );
+
   const basicsComplete = useMemo(
     () => isMaintenanceBasicsComplete(customerBasicsInput, deviceBasicsInput),
     [customerBasicsInput, deviceBasicsInput],
   );
 
-  const maintenanceTabs = useMemo(() => {
-    const tabs = buildMaintenanceReportTabs({
+  const maintenanceTabBuildInput = useMemo(
+    () => ({
       laiteTyyppi: form.laiteTyyppi,
       selectedModules: form.selectedModules,
+      customModules: form.customModules ?? [],
       showEvaporatorSection,
       showCondenserSection,
       showLauhdutuspiiriSection,
@@ -368,51 +395,118 @@ export default function MaintenanceReportEditPage({ session }: Props) {
       showMlpSection,
       showChillerKiinteistoSection: showChillerKiinteistoTab,
       showChillerEnergySection: showChillerEnergyTab,
-    });
-    if (basicsComplete) return tabs;
-    return tabs.filter((tab) => tab.id === 'raportointi');
-  }, [
-    basicsComplete,
-    form.laiteTyyppi,
-    form.selectedModules,
-    showEvaporatorSection,
-    showCondenserSection,
-    showLauhdutuspiiriSection,
-    showNestelauhduttimetSection,
-    showJaahdytysvesiSection,
-    showVapaajahdytysSection,
-    showKonvektoritSection,
-    showLampopumppuSection,
-    showMlpSection,
-    showChillerKiinteistoTab,
-    showChillerEnergyTab,
-  ]);
+    }),
+    [
+      form.laiteTyyppi,
+      form.selectedModules,
+      form.customModules,
+      showEvaporatorSection,
+      showCondenserSection,
+      showLauhdutuspiiriSection,
+      showNestelauhduttimetSection,
+      showJaahdytysvesiSection,
+      showVapaajahdytysSection,
+      showKonvektoritSection,
+      showLampopumppuSection,
+      showMlpSection,
+      showChillerKiinteistoTab,
+      showChillerEnergyTab,
+    ],
+  );
 
-  const [openTabId, setOpenTabId] = useState<MaintenanceReportTabId | null>(null);
+  const defaultMaintenanceTabs = useMemo(
+    () =>
+      buildMaintenanceReportTabs({
+        ...maintenanceTabBuildInput,
+        hiddenTabIds: [],
+        moduleTabOrder: [],
+      }),
+    [maintenanceTabBuildInput],
+  );
+
+  const allMaintenanceTabs = useMemo(
+    () =>
+      buildMaintenanceReportTabs({
+        ...maintenanceTabBuildInput,
+        hiddenTabIds: form.hiddenTabIds,
+        moduleTabOrder: form.moduleTabOrder,
+      }),
+    [maintenanceTabBuildInput, form.hiddenTabIds, form.moduleTabOrder],
+  );
+
+  const hiddenMaintenanceTabCount = useMemo(
+    () => getHiddenMaintenanceTabs(defaultMaintenanceTabs, allMaintenanceTabs).length,
+    [defaultMaintenanceTabs, allMaintenanceTabs],
+  );
+
+  const maintenanceTabs = useMemo(
+    () => (basicsComplete ? allMaintenanceTabs : []),
+    [allMaintenanceTabs, basicsComplete],
+  );
+
+  const setupSteps = useMemo(() => {
+    const steps: { id: MaintenanceSetupStep; label: string }[] = [
+      {
+        id: 'raportointi',
+        label: raportointiLaitetiedotTabTitle(form.laiteTyyppi, false),
+      },
+    ];
+    if (showKylmaaineCharge) {
+      steps.push({
+        id: 'kylmaaine',
+        label: kylmaaineChargeTitle(form.laiteTyyppi),
+      });
+    }
+    return steps;
+  }, [form.laiteTyyppi, showKylmaaineCharge]);
+
+  const [openTabId, setOpenTabId] = useState<string | null>(null);
+  const [setupStep, setSetupStep] = useState<MaintenanceSetupStep>('raportointi');
   const [deviceDialogOpen, setDeviceDialogOpen] = useState(false);
   const [basicsFieldErrors, setBasicsFieldErrors] = useState<Record<string, string>>({});
   const [deviceFieldErrors, setDeviceFieldErrors] = useState<Record<string, string>>({});
+  const [kylmaaineFieldErrors, setKylmaaineFieldErrors] = useState<Record<string, string>>({});
   const [basicsGateMessage, setBasicsGateMessage] = useState<string | null>(null);
-  const basicsPromptedRef = useRef(false);
+  const [moduleStructureDialogOpen, setModuleStructureDialogOpen] = useState(false);
+  const basicsJustCompletedRef = useRef(false);
+  const activeCustomModule = useMemo(() => {
+    if (!openTabId || !isCustomModuleTabId(openTabId)) return null;
+    const moduleId = parseCustomModuleTabId(openTabId);
+    if (!moduleId) return null;
+    return (form.customModules ?? []).find((entry) => entry.id === moduleId) ?? null;
+  }, [openTabId, form.customModules]);
+
+  useEffect(() => {
+    if (basicsComplete) return;
+    if (!raportointiComplete) {
+      setSetupStep('raportointi');
+      return;
+    }
+    if (showKylmaaineCharge && !kylmaaineComplete) {
+      setSetupStep('kylmaaine');
+    }
+  }, [basicsComplete, raportointiComplete, showKylmaaineCharge, kylmaaineComplete]);
 
   useEffect(() => {
     if (!openTabId) return;
     if (!maintenanceTabs.some((tab) => tab.id === openTabId)) {
-      setOpenTabId(basicsComplete ? null : 'raportointi');
+      setOpenTabId(null);
     }
-  }, [maintenanceTabs, openTabId, basicsComplete]);
+  }, [maintenanceTabs, openTabId]);
 
   useEffect(() => {
-    if (openTabId && openTabId !== 'raportointi' && !basicsComplete) {
-      setOpenTabId('raportointi');
+    if (!basicsComplete) {
+      basicsJustCompletedRef.current = false;
+      return;
     }
-  }, [openTabId, basicsComplete]);
-
-  useEffect(() => {
-    if (profileLoading || loadingReport || basicsComplete || basicsPromptedRef.current) return;
-    basicsPromptedRef.current = true;
-    setOpenTabId('raportointi');
-  }, [profileLoading, loadingReport, basicsComplete]);
+    if (basicsJustCompletedRef.current) return;
+    basicsJustCompletedRef.current = true;
+    const firstTab =
+      maintenanceTabs.find(
+        (tab) => tab.id !== 'raportointi' && tab.id !== 'huomiot' && tab.id !== 'huoltotiedot',
+      ) ?? maintenanceTabs[0];
+    if (firstTab) setOpenTabId(firstTab.id);
+  }, [basicsComplete, maintenanceTabs]);
 
   useEffect(() => {
     if (basicsComplete) setBasicsGateMessage(null);
@@ -470,6 +564,17 @@ export default function MaintenanceReportEditPage({ session }: Props) {
   const patchForm = useCallback(
     (patch: Partial<HuoltoReportData>) => applyFormPatch(patch, { markDirty: true }),
     [applyFormPatch],
+  );
+
+  const patchCustomModuleValues = useCallback(
+    (moduleId: string, values: Record<string, string | boolean>) => {
+      patchForm({
+        customModules: (form.customModules ?? []).map((entry) =>
+          entry.id === moduleId ? { ...entry, values } : entry,
+        ),
+      });
+    },
+    [form.customModules, patchForm],
   );
 
   const syncForm = useCallback(
@@ -1107,7 +1212,11 @@ export default function MaintenanceReportEditPage({ session }: Props) {
 
   function onDeviceTypeChange(deviceType: string) {
     setHasUnsavedChanges(true);
-    setForm((prev) => applyDeviceTypeDefaults(prev, deviceType));
+    setForm((prev) => ({
+      ...applyDeviceTypeDefaults(prev, deviceType),
+      hiddenTabIds: [],
+      moduleTabOrder: [],
+    }));
   }
 
   function onCondenserTypeChange(condenserType: HuoltoReportData['lauhdutinTyyppiLaite']) {
@@ -1191,7 +1300,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
       osoite: currentForm.osoite,
       canEditCustomerEquipment,
     });
-    const deviceBasics = validateMaintenanceDeviceBasics({
+    const deviceBasicsInputForSave = {
       laiteTyyppi: currentForm.laiteTyyppi,
       laiteValmistaja: currentForm.laiteValmistaja,
       laiteMalli: currentForm.laiteMalli,
@@ -1202,13 +1311,23 @@ export default function MaintenanceReportEditPage({ session }: Props) {
       kylmaaineTyyppi: currentForm.kylmaaineTyyppi,
       kylmaainePiireja: currentForm.kylmaainePiireja,
       selectedModules: currentForm.selectedModules,
-    });
+    };
+    const deviceBasics = validateMaintenanceDeviceBasics(deviceBasicsInputForSave);
     if (!customerBasics.ok || !deviceBasics.ok) {
       if (!options?.auto) {
         setBasicsFieldErrors(customerBasics.fieldErrors);
         setDeviceFieldErrors(deviceBasics.fieldErrors);
-        setOpenTabId('raportointi');
+        setSetupStep('raportointi');
         setError([...customerBasics.errors, ...deviceBasics.errors][0] ?? 'Täytä raportoinnin pakolliset tiedot.');
+      }
+      return false;
+    }
+    const refrigerantBasics = validateMaintenanceRefrigerantBasics(deviceBasicsInputForSave);
+    if (!refrigerantBasics.ok) {
+      if (!options?.auto) {
+        setKylmaaineFieldErrors(refrigerantBasics.fieldErrors);
+        setSetupStep('kylmaaine');
+        setError(refrigerantBasics.errors[0] ?? 'Täytä kylmäaineen pakolliset tiedot.');
       }
       return false;
     }
@@ -1491,41 +1610,10 @@ export default function MaintenanceReportEditPage({ session }: Props) {
   const brandingName = ownerCompany?.name ?? reportOwnerName;
 
   function handleMaintenanceTabChange(id: string) {
-    const tabId = id as MaintenanceReportTabId;
-    if (openTabId === tabId) {
-      if (tabId === 'raportointi' && !basicsComplete) {
-        const customerResult = validateMaintenanceCustomerBasics(customerBasicsInput);
-        const deviceResult = validateMaintenanceDeviceBasics(deviceBasicsInput);
-        setBasicsFieldErrors(customerResult.fieldErrors);
-        setDeviceFieldErrors(deviceResult.fieldErrors);
-        setBasicsGateMessage('Täytä kaikki pakolliset raportointi- ja laitetiedot ennen muihin osioihin siirtymistä.');
-        return;
-      }
-      setOpenTabId(null);
-      setBasicsGateMessage(null);
-      return;
+    setOpenTabId((current) => (current === id ? null : id));
+    if (id === 'raportointi') {
+      setBasicsFieldErrors(validateMaintenanceCustomerBasics(customerBasicsInput).fieldErrors);
     }
-
-    if (tabId !== 'raportointi' && !basicsComplete) {
-      const customerResult = validateMaintenanceCustomerBasics(customerBasicsInput);
-      const deviceResult = validateMaintenanceDeviceBasics(deviceBasicsInput);
-      setBasicsFieldErrors(customerResult.fieldErrors);
-      setDeviceFieldErrors(deviceResult.fieldErrors);
-      setBasicsGateMessage('Täytä kaikki pakolliset raportointi- ja laitetiedot ennen muihin osioihin siirtymistä.');
-      setOpenTabId('raportointi');
-      if (customerResult.ok && !deviceResult.ok) {
-        setDeviceDialogOpen(true);
-      }
-      return;
-    }
-
-    if (tabId === 'raportointi') {
-      const customerResult = validateMaintenanceCustomerBasics(customerBasicsInput);
-      setBasicsFieldErrors(customerResult.fieldErrors);
-    }
-
-    setBasicsGateMessage(null);
-    setOpenTabId(tabId);
   }
 
   function openDeviceDialog() {
@@ -1557,7 +1645,32 @@ export default function MaintenanceReportEditPage({ session }: Props) {
       return;
     }
     setBasicsGateMessage(null);
-    setOpenTabId(null);
+    if (showKylmaaineCharge && !kylmaaineComplete) {
+      setSetupStep('kylmaaine');
+    }
+  }
+
+  function completeKylmaaineTab() {
+    const refrigerantResult = validateMaintenanceRefrigerantBasics(deviceBasicsInput);
+    setKylmaaineFieldErrors(refrigerantResult.fieldErrors);
+    if (!refrigerantResult.ok) {
+      setBasicsGateMessage('Täytä kylmäaineen pakolliset tiedot ennen muihin osioihin siirtymistä.');
+      return;
+    }
+    setBasicsGateMessage(null);
+  }
+
+  function handleSetupNext() {
+    if (setupStep === 'raportointi') {
+      completeRaportointiTab();
+      return;
+    }
+    completeKylmaaineTab();
+  }
+
+  function handleSetupBack() {
+    setBasicsGateMessage(null);
+    setSetupStep('raportointi');
   }
 
   const canDeleteMaintenance = !isNew && reportOwnerCompanyId
@@ -1679,172 +1792,238 @@ export default function MaintenanceReportEditPage({ session }: Props) {
       )}
 
       <HuoltoEditUiProvider viewKey={reportViewKey}>
-      <form className={`panel form-grid maintenance-form${openTabId ? ' maintenance-tab-dialog-open' : ''}`} onSubmit={onSubmit}>
-        <MaintenanceReportTabNav
-          tabs={maintenanceTabs}
-          activeId={openTabId ?? ''}
-          onChange={handleMaintenanceTabChange}
-        />
-
-        <div className="maintenance-report-tab-launcher">
-          {!basicsComplete ? (
-            <p className="error maintenance-report-basics-gate">
-              Täytä raportoinnin pakolliset tiedot (yritys, asiakas, osoite ja laitetiedot) — muut osiot avautuvat
-              vasta sen jälkeen.
-            </p>
-          ) : (
-            <p className="muted">
-              Avaa osio ylävalikon painikkeesta. Tarkastukset ja mittaukset avautuvat ponnahdusikkunoihin osion sisällä.
-            </p>
-          )}
-          {basicsGateMessage ? <p className="error">{basicsGateMessage}</p> : null}
-        </div>
-
-        <MaintenanceReportTabDialog
-          open={openTabId !== null}
-          title={maintenanceTabs.find((tab) => tab.id === openTabId)?.label ?? ''}
-          onClose={() => {
-            if (openTabId === 'raportointi' && !basicsComplete) return;
-            setOpenTabId(null);
-          }}
-          footer={
-            openTabId === 'raportointi' ? (
+      <form className="panel form-grid maintenance-form" onSubmit={onSubmit}>
+        {!basicsComplete ? (
+          <MaintenanceSetupWizard
+            step={setupStep}
+            steps={setupSteps}
+            gateMessage={basicsGateMessage}
+            nextLabel={
+              setupStep === 'raportointi'
+                ? showKylmaaineCharge
+                  ? 'Seuraava'
+                  : 'Valmis'
+                : 'Valmis — jatka raporttiin'
+            }
+            showBack={setupStep === 'kylmaaine'}
+            onBack={handleSetupBack}
+            onNext={handleSetupNext}
+            onOpenDevice={openDeviceDialog}
+            deviceButtonLabel={form.laiteTyyppi ? 'Muokkaa laitetietoja' : 'Laitetiedot'}
+          >
+            {setupStep === 'raportointi' ? (
               <>
-                <button
-                  type="button"
-                  className="btn btn-secondary"
-                  disabled={!basicsComplete}
-                  onClick={() => setOpenTabId(null)}
-                >
-                  Sulje
-                </button>
-                <button type="button" className="btn btn-secondary" onClick={openDeviceDialog}>
-                  {form.laiteTyyppi ? 'Muokkaa laitetietoja' : 'Laitetiedot'}
-                </button>
-                <button type="button" className="btn btn-primary" onClick={completeRaportointiTab}>
-                  Valmis
-                </button>
-              </>
-            ) : undefined
-          }
-        >
-        <HuoltoModulePresentationProvider value="flat">
-        <div className="maintenance-report-tab-panel">
-        {openTabId === 'raportointi' && (
-        <section className="maintenance-report-tab-section">
-          <MaintenanceReportBasicsPanel
-            form={form}
-            fieldErrors={basicsFieldErrors}
-            profileCompanyId={profile?.company_id}
-            reportOwnerCompanyId={reportOwnerCompanyId}
-            reportOwnerTargets={reportOwnerTargets}
-            brandingName={brandingName}
-            creatorCompanyName={creatorCompanyName}
-            creatorDisplayName={profile?.display_name ?? session.user.email ?? '—'}
-            creatorEmail={session.user.email}
-            canEditCustomerEquipment={canEditCustomerEquipment}
-            customerId={customerId}
-            customers={customers}
-            selectedCustomer={selectedCustomer}
-            contextMode={contextMode}
-            ownerCompanyId={ownerCompanyId}
-            subscribersForOwner={subscribersForOwner}
-            subscriberId={subscriberId}
-            subscriberPortalVisibility={subscriberPortalVisibility}
-            busy={busy}
-            copySiblingMode={copySiblingMode}
-            onReportOwnerChange={onReportOwnerChange}
-            onPatchForm={patchForm}
-            onSelectCustomer={(id) => {
-              setCustomerId(id);
-              setEquipmentId('');
-              const customer = customers.find((entry) => entry.id === id);
-              if (customer) {
-                void loadOwnerCompany(customer.owner_company_id);
-                if (customer.subscriber_id) setSubscriberId(customer.subscriber_id);
-              }
-            }}
-            onClearCustomer={() => {
-              setCustomerId('');
-              setEquipmentId('');
-              if (profile?.company_id) void loadOwnerCompany(profile.company_id);
-            }}
-            onCreateCustomer={createCustomerAndSelect}
-            onSubscriberChange={setSubscriberId}
-            onSubscriberPortalVisibilityChange={setSubscriberPortalVisibility}
-          />
-
-          <div className="maintenance-device-summary">
-            <div className="maintenance-device-summary-head">
-              <h3>Laitetiedot</h3>
-              {basicsComplete ? (
-                <span className="badge badge-completed">Valmis</span>
-              ) : (
-                <span className="badge badge-scheduled">Puuttuu</span>
-              )}
-            </div>
-            {form.laiteTyyppi ? (
-              <div className="info-grid">
-                <div className="info-box">
-                  <span className="info-label">Laitetyyppi</span>
-                  <strong>{deviceTypes.find((dt) => dt.value === form.laiteTyyppi)?.label ?? form.laiteTyyppi}</strong>
-                </div>
-                {isKonvektoritDevice(form.laiteTyyppi) ? (
-                  <>
-                    <div className="info-box">
-                      <span className="info-label">Verkoston kuvaus</span>
-                      <strong>{form.laiteKayttotarkoitus || '—'}</strong>
-                    </div>
-                    <div className="info-box">
-                      <span className="info-label">Alue</span>
-                      <strong>{form.laiteSijainti || '—'}</strong>
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <div className="info-box">
-                      <span className="info-label">Laite</span>
-                      <strong>
-                        {[form.laiteValmistaja, form.laiteMalli].filter(Boolean).join(' ') || '—'}
-                      </strong>
-                      <span className="muted">
-                        {[form.laiteTunnus, form.laiteSarjanumero].filter(Boolean).join(' · ')}
-                      </span>
-                    </div>
-                    <div className="info-box">
-                      <span className="info-label">Sijainti</span>
-                      <strong>{form.laiteSijainti || '—'}</strong>
-                    </div>
-                    {(form.selectedModules.kylmaainePiiri || form.laiteTyyppi === 'lämpöpumppu') && (
-                      <div className="info-box">
-                        <span className="info-label">Kylmäaine</span>
-                        <strong>{form.kylmaaineTyyppi || '—'}</strong>
-                        {form.kylmaainePiireja ? (
-                          <span className="muted">{form.kylmaainePiireja} piiriä</span>
-                        ) : null}
-                      </div>
+                <MaintenanceReportBasicsPanel
+                  form={form}
+                  fieldErrors={basicsFieldErrors}
+                  profileCompanyId={profile?.company_id}
+                  reportOwnerCompanyId={reportOwnerCompanyId}
+                  reportOwnerTargets={reportOwnerTargets}
+                  brandingName={brandingName}
+                  creatorCompanyName={creatorCompanyName}
+                  creatorDisplayName={profile?.display_name ?? session.user.email ?? '—'}
+                  creatorEmail={session.user.email}
+                  canEditCustomerEquipment={canEditCustomerEquipment}
+                  customerId={customerId}
+                  customers={customers}
+                  selectedCustomer={selectedCustomer}
+                  contextMode={contextMode}
+                  ownerCompanyId={ownerCompanyId}
+                  subscribersForOwner={subscribersForOwner}
+                  subscriberId={subscriberId}
+                  subscriberPortalVisibility={subscriberPortalVisibility}
+                  busy={busy}
+                  copySiblingMode={copySiblingMode}
+                  onReportOwnerChange={onReportOwnerChange}
+                  onPatchForm={patchForm}
+                  onSelectCustomer={(id) => {
+                    setCustomerId(id);
+                    setEquipmentId('');
+                    const customer = customers.find((entry) => entry.id === id);
+                    if (customer) {
+                      void loadOwnerCompany(customer.owner_company_id);
+                      if (customer.subscriber_id) setSubscriberId(customer.subscriber_id);
+                    }
+                  }}
+                  onClearCustomer={() => {
+                    setCustomerId('');
+                    setEquipmentId('');
+                    if (profile?.company_id) void loadOwnerCompany(profile.company_id);
+                  }}
+                  onCreateCustomer={createCustomerAndSelect}
+                  onSubscriberChange={setSubscriberId}
+                  onSubscriberPortalVisibilityChange={setSubscriberPortalVisibility}
+                />
+                <div className="maintenance-device-summary">
+                  <div className="maintenance-device-summary-head">
+                    <h3>Laitetiedot</h3>
+                    {raportointiComplete ? (
+                      <span className="badge badge-completed">Valmis</span>
+                    ) : (
+                      <span className="badge badge-scheduled">Puuttuu</span>
                     )}
-                  </>
-                )}
-              </div>
+                  </div>
+                  {form.laiteTyyppi ? (
+                    <div className="info-grid">
+                      <div className="info-box">
+                        <span className="info-label">Laitetyyppi</span>
+                        <strong>{deviceTypes.find((dt) => dt.value === form.laiteTyyppi)?.label ?? form.laiteTyyppi}</strong>
+                      </div>
+                      {isKonvektoritDevice(form.laiteTyyppi) ? (
+                        <>
+                          <div className="info-box">
+                            <span className="info-label">Verkoston kuvaus</span>
+                            <strong>{form.laiteKayttotarkoitus || '—'}</strong>
+                          </div>
+                          <div className="info-box">
+                            <span className="info-label">Alue</span>
+                            <strong>{form.laiteSijainti || '—'}</strong>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <div className="info-box">
+                            <span className="info-label">Laite</span>
+                            <strong>
+                              {[form.laiteValmistaja, form.laiteMalli].filter(Boolean).join(' ') || '—'}
+                            </strong>
+                            <span className="muted">
+                              {[form.laiteTunnus, form.laiteSarjanumero].filter(Boolean).join(' · ')}
+                            </span>
+                          </div>
+                          <div className="info-box">
+                            <span className="info-label">Sijainti</span>
+                            <strong>{form.laiteSijainti || '—'}</strong>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="muted">
+                      Täytä laitteen perustiedot painamalla Laitetiedot — tarvitaan ennen seuraavaa vaihetta.
+                    </p>
+                  )}
+                  {Object.keys(deviceFieldErrors).length > 0 ? (
+                    <div className="maintenance-device-summary-errors">
+                      {Object.values(deviceFieldErrors).map((message) => (
+                        <p key={message} className="error">
+                          {message}
+                        </p>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+              </>
             ) : (
-              <p className="muted">
-                Täytä laitteen perustiedot (tyyppi, valmistaja, malli, tunnus, sarjanumero, sijainti ja kylmäaine)
-                ennen muiden osioiden avaamista.
-              </p>
+              <>
+                <RefrigerantChargeSection form={form} onChange={patchForm} defaultOpen />
+                {Object.keys(kylmaaineFieldErrors).length > 0 ? (
+                  <div className="maintenance-device-summary-errors">
+                    {Object.values(kylmaaineFieldErrors).map((message) => (
+                      <p key={message} className="error">
+                        {message}
+                      </p>
+                    ))}
+                  </div>
+                ) : null}
+              </>
             )}
-            {Object.keys(deviceFieldErrors).length > 0 ? (
-              <div className="maintenance-device-summary-errors">
-                {Object.values(deviceFieldErrors).map((message) => (
-                  <p key={message} className="error">
-                    {message}
-                  </p>
-                ))}
-              </div>
-            ) : null}
-          </div>
-        </section>
-        )}
+          </MaintenanceSetupWizard>
+        ) : (
+          <>
+            <div className="maintenance-report-module-toolbar">
+              <MaintenanceReportTabNav
+                tabs={maintenanceTabs}
+                activeId={openTabId ?? ''}
+                onChange={handleMaintenanceTabChange}
+              />
+              <button
+                type="button"
+                className="btn btn-secondary maintenance-module-structure-btn"
+                onClick={() => setModuleStructureDialogOpen(true)}
+              >
+                Moduulirakenne
+                {hiddenMaintenanceTabCount > 0 ? ` (+${hiddenMaintenanceTabCount} piilotettu)` : ''}
+              </button>
+            </div>
+
+            <div className="maintenance-report-tab-launcher">
+              <p className="muted">
+                Valitse osio ylävalikosta. Täytä kentät alla avautuvassa paneelissa. Moduulirakenne: piilota, järjestä tai luo omia osioita.
+              </p>
+            </div>
+
+            <MaintenanceModuleStructureDialog
+              open={moduleStructureDialogOpen}
+              form={form}
+              tabBuildInput={maintenanceTabBuildInput}
+              onSave={(patch) => {
+                patchForm(patch);
+                setHasUnsavedChanges(true);
+              }}
+              onClose={() => setModuleStructureDialogOpen(false)}
+            />
+
+            {openTabId ? (
+            <section className="maintenance-report-tab-panel panel" aria-labelledby="maintenance-active-tab-title">
+              <header className="maintenance-report-tab-panel-header">
+                <h2 id="maintenance-active-tab-title">
+                  {maintenanceTabs.find((tab) => tab.id === openTabId)?.label ?? ''}
+                </h2>
+              </header>
+            <HuoltoModulePresentationProvider value="flat">
+            <div className="maintenance-report-tab-panel-body">
+            {openTabId === 'raportointi' && (
+            <section className="maintenance-report-tab-section">
+              <MaintenanceReportBasicsPanel
+                form={form}
+                fieldErrors={basicsFieldErrors}
+                profileCompanyId={profile?.company_id}
+                reportOwnerCompanyId={reportOwnerCompanyId}
+                reportOwnerTargets={reportOwnerTargets}
+                brandingName={brandingName}
+                creatorCompanyName={creatorCompanyName}
+                creatorDisplayName={profile?.display_name ?? session.user.email ?? '—'}
+                creatorEmail={session.user.email}
+                canEditCustomerEquipment={canEditCustomerEquipment}
+                customerId={customerId}
+                customers={customers}
+                selectedCustomer={selectedCustomer}
+                contextMode={contextMode}
+                ownerCompanyId={ownerCompanyId}
+                subscribersForOwner={subscribersForOwner}
+                subscriberId={subscriberId}
+                subscriberPortalVisibility={subscriberPortalVisibility}
+                busy={busy}
+                copySiblingMode={copySiblingMode}
+                onReportOwnerChange={onReportOwnerChange}
+                onPatchForm={patchForm}
+                onSelectCustomer={(id) => {
+                  setCustomerId(id);
+                  setEquipmentId('');
+                  const customer = customers.find((entry) => entry.id === id);
+                  if (customer) {
+                    void loadOwnerCompany(customer.owner_company_id);
+                    if (customer.subscriber_id) setSubscriberId(customer.subscriber_id);
+                  }
+                }}
+                onClearCustomer={() => {
+                  setCustomerId('');
+                  setEquipmentId('');
+                  if (profile?.company_id) void loadOwnerCompany(profile.company_id);
+                }}
+                onCreateCustomer={createCustomerAndSelect}
+                onSubscriberChange={setSubscriberId}
+                onSubscriberPortalVisibilityChange={setSubscriberPortalVisibility}
+              />
+            </section>
+            )}
+
+            {openTabId === 'kylmaaine' && showKylmaaineCharge && (
+            <section className="maintenance-report-tab-section">
+              <RefrigerantChargeSection form={form} onChange={patchForm} defaultOpen />
+            </section>
+            )}
 
         {openTabId === 'kylmaainePiiri' && form.selectedModules.kylmaainePiiri && (
         <section className="maintenance-report-tab-section huolto-modules-stack">
@@ -1944,6 +2123,15 @@ export default function MaintenanceReportEditPage({ session }: Props) {
             <MlpSection form={form} onChange={patchForm} part="energia" />
         </section>
         )}
+
+        {activeCustomModule ? (
+        <section className="maintenance-report-tab-section">
+          <CustomModuleFormSection
+            module={activeCustomModule}
+            onChange={(values) => patchCustomModuleValues(activeCustomModule.id, values)}
+          />
+        </section>
+        ) : null}
 
         {openTabId === 'huomiot' && form.laiteTyyppi && (
         <section className="maintenance-report-tab-section huolto-modules-stack">
@@ -2096,7 +2284,12 @@ export default function MaintenanceReportEditPage({ session }: Props) {
 
         </div>
         </HuoltoModulePresentationProvider>
-        </MaintenanceReportTabDialog>
+            </section>
+            ) : (
+              <p className="muted maintenance-report-tab-empty">Valitse osio ylävalikosta.</p>
+            )}
+          </>
+        )}
 
         {error && <p className="error">{error}</p>}
 

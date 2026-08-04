@@ -1,6 +1,7 @@
 import type { MaintenanceReportPhotoItem } from '../maintenanceReportImages';
 import type { ModuleKey } from './constants';
 import type { HuoltoInspectionStatus } from './huoltoInspectionStatus';
+import type { MaintenanceReportTabId } from './maintenanceReportTabs';
 
 export type KompressorinVaiheValinta = '' | '1' | '3';
 export type PumpunSyottoValinta = '' | '230_1' | '400_3';
@@ -102,10 +103,16 @@ export interface CondenserFanData {
   virtaL3?: string;
 }
 
-export type EvaporatorType = 'puhallin' | 'staatinen' | 'levy' | 'putki';
+export type EvaporatorType = 'puhallin' | 'staatinen' | 'levy' | 'putki' | 'suorahoyrystin';
 export type SulatusType = 'ilma' | 'sahko' | 'kuumakaasu';
 export type SulatusOhjausType = 'huonesäädin' | 'kello' | 'muu';
-export type LauhdutinType = 'koneseen_integroitu' | 'erillinen_ilma' | 'nestekiertoinen';
+export type LauhdutinType =
+  | 'koneseen_integroitu'
+  | 'erillinen_ilma'
+  | 'nestekiertoinen'
+  | 'nestekiertoinen_vain_lmv';
+/** Laitteen höyrystin-/LMV-puolen tyyppi (VAK, MLP). */
+export type LmvTyyppi = 'levy' | 'putki' | 'suorahoyrystin';
 export type PuhallinOhjausType =
   | 'nopeussäädin'
   | 'taajusmuuntaja'
@@ -540,6 +547,9 @@ export type HuoltoReportData = {
   osoite: string;
   laiteTyyppi: string;
   selectedModules: Record<ModuleKey, boolean> & Record<string, boolean>;
+  hiddenTabIds?: MaintenanceReportTabId[];
+  moduleTabOrder?: MaintenanceReportTabId[];
+  customModules?: import('./customModuleTypes').CustomReportModule[];
   laiteValmistaja: string;
   laiteMalli: string;
   laiteTunnus: string;
@@ -560,6 +570,8 @@ export type HuoltoReportData = {
   kylmaaineCO2Ekv: string;
   hoyrystimienMaara: string;
   hoyrystinTyyppi: string;
+  /** Maalämpöpumppu: lauhdutinpuolen levy-/putkilämmönvaihdin. */
+  lauhdutinLmvTyyppi?: LmvTyyppi | '';
   sulatusKaytossa: boolean;
   sulatusTapa: string;
   kylmaainePiiri1: RefrigerantCircuitData;

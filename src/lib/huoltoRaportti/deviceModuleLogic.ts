@@ -83,8 +83,18 @@ export function isAirCondenserType(tyyppi: LauhdutinType | '' | undefined): bool
   return tyyppi === 'erillinen_ilma' || tyyppi === 'koneseen_integroitu';
 }
 
-export function isLiquidCondenserType(tyyppi: LauhdutinType | '' | undefined): boolean {
+/** Levy-/putki-LMV lauhdutinpuolella (VJ/VAK). */
+export function isLiquidHeatExchangerCondenser(tyyppi: LauhdutinType | '' | undefined): boolean {
+  return tyyppi === 'nestekiertoinen' || tyyppi === 'nestekiertoinen_vain_lmv';
+}
+
+/** Ulkoinen nestelauhdutin mukana. */
+export function hasExternalNestelauhdutin(tyyppi: LauhdutinType | '' | undefined): boolean {
   return tyyppi === 'nestekiertoinen';
+}
+
+export function isLiquidCondenserType(tyyppi: LauhdutinType | '' | undefined): boolean {
+  return isLiquidHeatExchangerCondenser(tyyppi);
 }
 
 export function defaultCondenserTypeForDevice(deviceType: string): LauhdutinType | '' {
@@ -199,9 +209,11 @@ export function resolveAutoModules(input: {
     case 'vedenjäähdytyskone':
       modules.kylmaainePiiri = true;
       modules.vedenjajahdytyskone = true;
-      if (isLiquidCondenserType(condenserType)) {
-        modules.nestelauhduttimet = true;
+      if (isLiquidHeatExchangerCondenser(condenserType)) {
         modules.lauhdutin = true;
+        if (hasExternalNestelauhdutin(condenserType)) {
+          modules.nestelauhduttimet = true;
+        }
       }
       if (isAirCondenserType(condenserType)) {
         modules.lauhdutin = true;
@@ -214,9 +226,11 @@ export function resolveAutoModules(input: {
       modules.kylmaainePiiri = true;
       modules.hoyrystin = true;
       modules.vedenjajahdytyskone = true;
-      if (isLiquidCondenserType(condenserType)) {
-        modules.nestelauhduttimet = true;
+      if (isLiquidHeatExchangerCondenser(condenserType)) {
         modules.lauhdutin = true;
+        if (hasExternalNestelauhdutin(condenserType)) {
+          modules.nestelauhduttimet = true;
+        }
       }
       if (isAirCondenserType(condenserType)) {
         modules.lauhdutin = true;
@@ -309,8 +323,11 @@ export function showChillerCondenserInCircuit(
   return isAirCondenserType(condenserType);
 }
 
-export function showNestelauhduttimetModules(modules: Record<ModuleKey, boolean>): boolean {
-  return moduleIsActive(modules, 'nestelauhduttimet');
+export function showNestelauhduttimetModules(
+  modules: Record<ModuleKey, boolean>,
+  condenserType?: LauhdutinType | '',
+): boolean {
+  return moduleIsActive(modules, 'nestelauhduttimet') && hasExternalNestelauhdutin(condenserType);
 }
 
 export function showVjLauhdutuspiiriModules(

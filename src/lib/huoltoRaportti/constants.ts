@@ -170,9 +170,34 @@ export const chillerLauhdutinTypeOptions = [
     value: 'nestekiertoinen',
     label: 'Levy-/putkilämmönvaihdin + nestelauhdutin',
   },
+  {
+    value: 'nestekiertoinen_vain_lmv',
+    label: 'Levy-/putkilämmönvaihdin (ilman nestelauhdutinta)',
+  },
   { value: 'koneseen_integroitu', label: 'Ilmalauhdutin (koneseen integroitu)' },
   { value: 'erillinen_ilma', label: 'Ilmalauhdutin (erillinen)' },
-];
+] as const;
+
+export const lmvTyyppiOptions = [
+  { value: '', label: 'Valitse…' },
+  { value: 'levy', label: 'Levy lämmönvaihdin' },
+  { value: 'putki', label: 'Putkilämmönvaihdin' },
+] as const;
+
+export const vakHoyrystinTyyppiOptions = [
+  { value: '', label: 'Valitse…' },
+  { value: 'levy', label: 'Levy lämmönvaihdin' },
+  { value: 'putki', label: 'Putkilämmönvaihdin' },
+  { value: 'suorahoyrystin', label: 'Suorahöyrystin' },
+] as const;
+
+export function lauhdutinTypeLabel(tyyppi: string | undefined): string {
+  if (tyyppi === 'koneseen_integroitu') return 'Ilmalauhdutin (koneseen integroitu)';
+  if (tyyppi === 'erillinen_ilma') return 'Ilmalauhdutin (erillinen)';
+  if (tyyppi === 'nestekiertoinen_vain_lmv') return 'Levy-/putkilämmönvaihdin (ilman nestelauhdutinta)';
+  if (tyyppi === 'nestekiertoinen') return 'Levy-/putkilämmönvaihdin + nestelauhdutin';
+  return tyyppi?.trim() || '—';
+}
 
 export const huomioLuonneOptions = [
   { value: 'kommentti', label: 'Kommentti / suositus' },

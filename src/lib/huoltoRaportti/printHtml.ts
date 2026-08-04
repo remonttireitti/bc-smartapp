@@ -13,8 +13,10 @@ import type { MaintenanceReportPhotoItem } from '../maintenanceReportImages';
 import {
   resolveMaintenancePrintPhotoHref,
 } from '../maintenanceReportPrintImages';
-import { expansionValveTypes, LAUHDUTIN_PAINEVENTTIILI_LABEL, LAUHDUTIN_PAINEVENTTIILI_MALLI_LABEL } from './constants';
+import { renderCustomModulesPrintHtml } from './customModulePrintHtml';
+import { expansionValveTypes, lauhdutinTypeLabel, LAUHDUTIN_PAINEVENTTIILI_LABEL, LAUHDUTIN_PAINEVENTTIILI_MALLI_LABEL } from './constants';
 import {
+  hasExternalNestelauhdutin,
   isChillerLikeDevice,
   isKonvektoritDevice,
   isSharedEvaporatorAcrossCircuits,
@@ -138,9 +140,7 @@ function getSulatusText(sulatus: string): string {
 }
 
 function getLauhdutinTypeText(tyyppi: string): string {
-  if (tyyppi === 'koneseen_integroitu') return 'Koneseen integroitu ilmalauhdutin';
-  if (tyyppi === 'erillinen_ilma') return 'Erillinen ilmalauhdutin';
-  return 'Nestekiertoinen lauhdutin';
+  return lauhdutinTypeLabel(tyyppi);
 }
 
 function getOhjausText(ohjaus: string, muu?: string): string {
@@ -500,7 +500,7 @@ function renderJaahdytysvesi(data: HuoltoReportData): string {
 }
 
 function renderLauhdutuspiiri(data: HuoltoReportData): string {
-  if (!data.selectedModules.lauhdutin || data.lauhdutinTyyppiLaite !== 'nestekiertoinen') return '';
+  if (!data.selectedModules.lauhdutin || !hasExternalNestelauhdutin(data.lauhdutinTyyppiLaite)) return '';
   const inner = renderNestepiiriFields('#1565C0', data.lauhdutuspiiriData);
   if (!inner) return '';
   return box('LAUHDUTUSPIIRI', '#1565C0', inner);
@@ -935,6 +935,7 @@ export function generateMaintenanceReportHtml(
   ${renderKonvektoritTable(data)}
   ${usesRefrigerantServiceExtras(data.laiteTyyppi) ? renderTiiveyskoe(data, imageUrls) : ''}
   ${usesRefrigerantServiceExtras(data.laiteTyyppi) ? renderTyhjiointi(data, imageUrls) : ''}
+  ${renderCustomModulesPrintHtml(data.customModules)}
   ${renderHuomiot(data, imageUrls)}
 
   <div class="footer">

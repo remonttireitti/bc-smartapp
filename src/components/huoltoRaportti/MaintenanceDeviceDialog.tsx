@@ -6,7 +6,6 @@ import {
 } from '../../lib/huoltoRaportti/maintenanceReportBasicsValidation';
 import { createEmptyVjOhjausData } from '../../lib/huoltoRaportti/defaults';
 import type { HuoltoReportData } from '../../lib/huoltoRaportti/types';
-import { RefrigerantChargeSection } from './RefrigerantChargeSection';
 
 type Props = {
   open: boolean;
@@ -50,10 +49,6 @@ export function MaintenanceDeviceDialog({
   }, [open]);
 
   if (!open) return null;
-
-  const showRefrigerant =
-    Boolean(form.laiteTyyppi)
-    && (form.selectedModules.kylmaainePiiri || form.laiteTyyppi === 'lämpöpumppu');
 
   return (
     <div
@@ -228,18 +223,6 @@ export function MaintenanceDeviceDialog({
                   ) : null}
                 </div>
               )}
-
-              {showRefrigerant ? (
-                <div className={fieldErrors.kylmaaineTyyppi || fieldErrors.kylmaainePiireja ? 'maintenance-device-refrigerant-errors' : undefined}>
-                  <RefrigerantChargeSection form={form} onChange={onChange} defaultOpen />
-                  {fieldErrors.kylmaaineTyyppi ? (
-                    <p className="error">{fieldErrors.kylmaaineTyyppi}</p>
-                  ) : null}
-                  {fieldErrors.kylmaainePiireja ? (
-                    <p className="error">{fieldErrors.kylmaainePiireja}</p>
-                  ) : null}
-                </div>
-              ) : null}
             </>
           )}
         </div>
