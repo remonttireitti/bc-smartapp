@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import type { RefrigerantCircuitData } from '../../lib/huoltoRaportti/types';
 import { expansionValveTypes } from '../../lib/huoltoRaportti/constants';
 import { refrigerantCircuitHasMagnetValve } from '../../lib/huoltoRaportti/deviceModuleLogic';
@@ -56,6 +57,18 @@ export function RefrigerantCircuitPartDialog({
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [open, onClose]);
 
+  useEffect(() => {
+    if (!open) return;
+    const prevBody = document.body.style.overflow;
+    const prevHtml = document.documentElement.style.overflow;
+    document.body.style.overflow = 'hidden';
+    document.documentElement.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = prevBody;
+      document.documentElement.style.overflow = prevHtml;
+    };
+  }, [open]);
+
   if (!open) return null;
 
   const title =
@@ -86,7 +99,7 @@ export function RefrigerantCircuitPartDialog({
 
   const showDetails = currentStatus === 'ok' || currentStatus === 'faulty';
 
-  return (
+  return createPortal(
     <div className="leave-draft-overlay konvektori-dialog-overlay" role="presentation" onClick={onClose}>
       <div
         className="leave-draft-dialog panel konvektori-tarkastus-dialog"
@@ -256,7 +269,8 @@ export function RefrigerantCircuitPartDialog({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

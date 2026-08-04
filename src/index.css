@@ -5083,31 +5083,54 @@ textarea {
   .maintenance-report-tab-overlay {
     align-items: flex-end;
     padding: 0;
+    overscroll-behavior: contain;
   }
 
   .maintenance-report-tab-dialog {
     width: 100%;
     max-width: none;
-    max-height: min(92dvh, 100%);
-    height: min(92dvh, 100%);
+    max-height: 92dvh;
+    height: auto;
     min-height: 0;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-    border-radius: 16px 16px 0 0;
-    margin: 0;
-    padding-bottom: 0;
-  }
-
-  .maintenance-report-tab-dialog-body {
-    flex: 1 1 auto;
-    min-height: 0;
+    display: block;
     overflow-x: hidden;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
     overscroll-behavior: contain;
     touch-action: pan-y;
-    padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+    border-radius: 16px 16px 0 0;
+    margin: 0;
+    padding-bottom: calc(1.25rem + env(safe-area-inset-bottom, 0px));
+  }
+
+  .maintenance-report-tab-dialog-header {
+    position: sticky;
+    top: 0;
+    z-index: 3;
+    background: var(--bg-surface);
+    margin: -1.25rem -1.25rem 0;
+    padding: 1.25rem 1.25rem 0.75rem;
+    border-bottom: 1px solid var(--border-strong);
+  }
+
+  .maintenance-report-tab-dialog-body {
+    display: block;
+    flex: none;
+    min-height: 0;
+    max-height: none;
+    overflow: visible;
+    padding: 1rem 0 0;
+    touch-action: auto;
+  }
+
+  .maintenance-report-tab-dialog-body > * {
+    flex-shrink: 0;
+    min-height: 0;
+  }
+
+  .maintenance-report-tab-dialog-body .huolto-module-flat,
+  .maintenance-report-tab-dialog-body .huolto-module-section {
+    overflow: visible;
   }
 
   .maintenance-report-tab-dialog-footer {
@@ -5124,7 +5147,21 @@ textarea {
   }
 
   .maintenance-device-dialog.maintenance-report-tab-dialog {
-    max-height: min(100dvh, 100%);
+    max-height: 92dvh;
+  }
+
+  .konvektori-tarkastus-dialog {
+    width: 100%;
+    max-width: none;
+    max-height: 92dvh;
+    margin: 0;
+    border-radius: 16px 16px 0 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    touch-action: pan-y;
+    padding-bottom: calc(1.25rem + env(safe-area-inset-bottom, 0px));
   }
 }
 
@@ -5760,6 +5797,10 @@ textarea {
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
   touch-action: pan-y;
+}
+
+.maintenance-report-tab-dialog-body > * {
+  flex-shrink: 0;
 }
 
 .maintenance-report-tab-dialog-footer {

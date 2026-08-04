@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import type { CompressorData, KompressorinVaiheValinta } from '../../lib/huoltoRaportti/types';
 import { ohjaustapaOptions } from '../../lib/huoltoRaportti/constants';
 import { compressorKolmeVaijetta, getCompressorVaiheValinta } from '../../lib/huoltoRaportti/sahkoVaiheUtils';
@@ -39,6 +40,18 @@ export function CompressorModule({
     }
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
+  }, [dialogOpen]);
+
+  useEffect(() => {
+    if (!dialogOpen) return;
+    const prevBody = document.body.style.overflow;
+    const prevHtml = document.documentElement.style.overflow;
+    document.body.style.overflow = 'hidden';
+    document.documentElement.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = prevBody;
+      document.documentElement.style.overflow = prevHtml;
+    };
   }, [dialogOpen]);
 
   const vaiheValinta = getCompressorVaiheValinta(draft);
@@ -91,7 +104,8 @@ export function CompressorModule({
         onInspect={() => setDialogOpen(true)}
       />
 
-      {dialogOpen ? (
+      {dialogOpen
+        ? createPortal(
         <div className="leave-draft-overlay konvektori-dialog-overlay" role="presentation" onClick={() => setDialogOpen(false)}>
           <div
             className="leave-draft-dialog panel konvektori-tarkastus-dialog"
@@ -289,8 +303,10 @@ export function CompressorModule({
               </button>
             </div>
           </div>
-        </div>
-      ) : null}
+        </div>,
+        document.body,
+        )
+        : null}
     </>
   );
 }
