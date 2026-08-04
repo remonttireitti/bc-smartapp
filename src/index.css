@@ -4759,6 +4759,7 @@ textarea {
     width: 100%;
     align-self: stretch;
     min-height: 2.75rem;
+    order: 0;
   }
 
   .maintenance-form-actions {
@@ -4938,11 +4939,12 @@ textarea {
 
   .huolto-part-inspection-row {
     grid-template-columns: 1fr;
-    gap: .4rem;
+    gap: .35rem;
   }
 
-  .huolto-part-inspection-row > .btn {
-    width: 100%;
+  .huolto-part-inspection-row-hint,
+  .huolto-part-inspection-row-check {
+    justify-self: start;
   }
 
   .huolto-circuit-count-field {
@@ -5340,21 +5342,20 @@ textarea {
 
 .maintenance-report-tabs {
   display: flex;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   gap: .4rem;
-  overflow-x: auto;
+  overflow: visible;
   padding: .25rem 0 1rem;
   margin: 0 0 .25rem;
   border-bottom: 1px solid var(--border-strong);
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: thin;
   position: relative;
   z-index: 2;
   background: var(--bg-surface);
 }
 
 .maintenance-report-tab {
-  flex-shrink: 0;
+  flex: 1 1 10rem;
+  max-width: 100%;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -5368,7 +5369,6 @@ textarea {
   font-size: .88rem;
   font-weight: 600;
   cursor: pointer;
-  white-space: nowrap;
   text-align: left;
 }
 
@@ -5469,13 +5469,15 @@ textarea {
 }
 
 .maintenance-report-module-toolbar .maintenance-report-tabs {
-  flex: 1 1 16rem;
+  flex: 1 1 100%;
+  width: 100%;
   min-width: 0;
 }
 
 .maintenance-module-structure-btn {
   flex-shrink: 0;
-  align-self: center;
+  align-self: flex-end;
+  order: -1;
 }
 
 .maintenance-module-structure-dialog {
@@ -6012,13 +6014,42 @@ textarea {
 
 .huolto-part-inspection-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: .5rem .65rem;
   align-items: center;
+  width: 100%;
+  margin: 0;
   padding: .55rem .65rem;
   border: 1px solid var(--border-strong);
   border-radius: 8px;
   background: var(--bg-subtle);
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.huolto-part-inspection-row:not(:disabled):hover {
+  border-color: var(--accent, #2563eb);
+  background: var(--bg-hover, var(--bg-subtle));
+}
+
+.huolto-part-inspection-row:disabled {
+  cursor: not-allowed;
+}
+
+.huolto-part-inspection-row-main {
+  min-width: 0;
+}
+
+.huolto-part-inspection-row-check {
+  flex-shrink: 0;
+}
+
+.huolto-part-inspection-row-hint {
+  flex-shrink: 0;
+  font-size: .78rem;
+  white-space: nowrap;
 }
 
 .huolto-part-inspection-row--disabled {

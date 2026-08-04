@@ -7,16 +7,19 @@ import {
   applyDryerInspectionPatch,
   applyExpansionValveInspectionPatch,
   applyMagnetValveInspectionPatch,
-  dryerInspectionStatus,
-  expansionValveInspectionStatus,
-  magnetValveInspectionStatus,
-  type HuoltoInspectionStatus,
 } from '../../lib/huoltoRaportti/huoltoInspectionStatus';
+import {
+  binaryChoiceFromStatus,
+  circuitPartHasData,
+  circuitPartStatus,
+  finalizeCircuitPartDraft,
+  type RefrigerantCircuitPartKey,
+} from '../../lib/huoltoRaportti/circuitPartInspection';
 import { FormCheckbox } from './FormCheckbox';
 import { FormInput } from './FormInput';
-import { TriStateInspectionToggle } from './TriStateInspectionToggle';
+import { BinaryInspectionToggle } from './BinaryInspectionToggle';
 
-export type RefrigerantCircuitPartKey = 'paisuntaventtiili' | 'magneettiventtiili' | 'kuivain';
+export type { RefrigerantCircuitPartKey };
 
 interface Props {
   open: boolean;
@@ -42,11 +45,14 @@ export function RefrigerantCircuitPartDialog({
   onSave,
 }: Props) {
   const [draft, setDraft] = useState(data);
+  const [okChoice, setOkChoice] = useState<boolean | null>(null);
   const showMagnetValve = refrigerantCircuitHasMagnetValve(laiteTyyppi, draft.paisuntaventtiiliTyyppi);
 
   useEffect(() => {
-    if (open) setDraft(data);
-  }, [open, data]);
+    if (!open) return;
+    setDraft(data);
+    setOkChoice(binaryChoiceFromStatus(circuitPartStatus(data, part)));
+  }, [open, data, part]);
 
   useEffect(() => {
     if (!open) return;
@@ -78,26 +84,44 @@ export function RefrigerantCircuitPartDialog({
         ? `Magneettiventtiili — piiri ${circuitNumber}`
         : `Kuivain — piiri ${circuitNumber}`;
 
-  const setStatus = (status: Exclude<HuoltoInspectionStatus, null>) => {
+  const hasData = circuitPartHasData(draft, part);
+  const canSave = !hasData || okChoice !== null;
+
+  const setStatusPatch = (ok: boolean) => {
     if (part === 'paisuntaventtiili') {
-      setDraft((prev) => ({ ...prev, ...applyExpansionValveInspectionPatch(status) }));
+      setDraft((prev) => ({ ...prev, ...applyExpansionValveInspectionPatch(ok ? 'ok' : 'faulty') }));
       return;
     }
     if (part === 'magneettiventtiili') {
-      setDraft((prev) => ({ ...prev, ...applyMagnetValveInspectionPatch(status) }));
+      setDraft((prev) => ({ ...prev, ...applyMagnetValveInspectionPatch(ok ? 'ok' : 'faulty') }));
       return;
     }
-    setDraft((prev) => ({ ...prev, ...applyDryerInspectionPatch(status) }));
+    setDraft((prev) => ({ ...prev, ...applyDryerInspectionPatch(ok ? 'ok' : 'faulty') }));
   };
 
-  const currentStatus =
-    part === 'paisuntaventtiili'
-      ? expansionValveInspectionStatus(draft)
-      : part === 'magneettiventtiili'
-        ? magnetValveInspectionStatus(draft)
-        : dryerInspectionStatus(draft);
+  const handleOkChoice = (next: boolean) => {
+    setOkChoice(next);
+    setStatusPatch(next);
+  };
 
-  const showDetails = currentStatus === 'ok' || currentStatus === 'faulty';
+  const faultNote =
+    part === 'paisuntaventtiili'
+      ? draft.paisuntaventtiiliHuomio ?? ''
+      : part === 'magneettiventtiili'
+        ? draft.magneettiventtiiliHuomio ?? ''
+        : draft.kuivainLisatieto ?? '';
+
+  const setFaultNote = (value: string) => {
+    if (part === 'paisuntaventtiili') {
+      setDraft((prev) => ({ ...prev, paisuntaventtiiliHuomio: value }));
+      return;
+    }
+    if (part === 'magneettiventtiili') {
+      setDraft((prev) => ({ ...prev, magneettiventtiiliHuomio: value }));
+      return;
+    }
+    setDraft((prev) => ({ ...prev, kuivainLisatieto: value }));
+  };
 
   return createPortal(
     <div className="leave-draft-overlay konvektori-dialog-overlay" role="presentation" onClick={onClose}>
@@ -110,19 +134,11 @@ export function RefrigerantCircuitPartDialog({
       >
         <h2 id="circuit-part-dialog-title">{title}</h2>
         <p className="muted konvektori-dialog-help">
-          Valitse onko osa tarkastettu ja kunnossa, viallinen vai ei kuulu tarkastukseen (ei laitteessa).
+          Täytä tiedot jos osa on laitteessa. Jätä tyhjäksi jos osaa ei ole — tyhjä tulkataan &quot;ei laitteessa&quot;.
+          Merkitse lopuksi kunnossa tai ei kunnossa.
         </p>
 
-        <div className="konvektori-tarkastus-item">
-          <span className="konvektori-tarkastus-label">Tarkastuksen tulos</span>
-          <TriStateInspectionToggle
-            name={`${part}-tila`}
-            value={currentStatus}
-            onChange={setStatus}
-          />
-        </div>
-
-        {showDetails && part === 'paisuntaventtiili' ? (
+        {part === 'paisuntaventtiili' ? (
           <div className="line-form-grid konvektori-mittaukset-grid">
             <label>
               Paisuntaventtiilin tyyppi
@@ -177,7 +193,7 @@ export function RefrigerantCircuitPartDialog({
           </div>
         ) : null}
 
-        {showDetails && part === 'magneettiventtiili' ? (
+        {part === 'magneettiventtiili' ? (
           <div className="line-form-grid konvektori-mittaukset-grid">
             <FormInput
               label="Valmistaja"
@@ -197,7 +213,7 @@ export function RefrigerantCircuitPartDialog({
           </div>
         ) : null}
 
-        {showDetails && part === 'kuivain' ? (
+        {part === 'kuivain' ? (
           <div className="line-form-grid konvektori-mittaukset-grid">
             <FormInput
               label="Valmistaja"
@@ -215,41 +231,31 @@ export function RefrigerantCircuitPartDialog({
               onChange={(v) => setDraft((prev) => ({ ...prev, kuivainKivienMaara: v }))}
               type="number"
             />
-            {currentStatus === 'ok' ? (
-              <FormInput
-                label="Lisätieto"
-                value={draft.kuivainLisatieto ?? ''}
-                onChange={(v) => setDraft((prev) => ({ ...prev, kuivainLisatieto: v }))}
-              />
-            ) : null}
           </div>
         ) : null}
 
-        {currentStatus === 'faulty' ? (
-          <label className="konvektori-huomio-field">
-            <span className="konvektori-tarkastus-label">Mikä on vikana?</span>
-            <textarea
-              rows={3}
-              value={
-                part === 'paisuntaventtiili'
-                  ? draft.paisuntaventtiiliHuomio ?? ''
-                  : part === 'magneettiventtiili'
-                    ? draft.magneettiventtiiliHuomio ?? ''
-                    : draft.kuivainLisatieto ?? ''
-              }
-              onChange={(e) => {
-                const value = e.target.value;
-                if (part === 'paisuntaventtiili') {
-                  setDraft((prev) => ({ ...prev, paisuntaventtiiliHuomio: value }));
-                } else if (part === 'magneettiventtiili') {
-                  setDraft((prev) => ({ ...prev, magneettiventtiiliHuomio: value }));
-                } else {
-                  setDraft((prev) => ({ ...prev, kuivainLisatieto: value }));
-                }
-              }}
-              placeholder="Kuvaile vika…"
-            />
-          </label>
+        {hasData ? (
+          <>
+            <div className="konvektori-tarkastus-item">
+              <span className="konvektori-tarkastus-label">Tarkastuksen tulos</span>
+              <BinaryInspectionToggle
+                name={`${part}-tila`}
+                value={okChoice}
+                onChange={handleOkChoice}
+              />
+            </div>
+            {okChoice === false ? (
+              <label className="konvektori-huomio-field">
+                <span className="konvektori-tarkastus-label">Huomio / vika</span>
+                <textarea
+                  rows={3}
+                  value={faultNote}
+                  onChange={(e) => setFaultNote(e.target.value)}
+                  placeholder="Kuvaile vika tai puute…"
+                />
+              </label>
+            ) : null}
+          </>
         ) : null}
 
         <div className="leave-draft-actions konvektori-dialog-actions">
@@ -259,9 +265,9 @@ export function RefrigerantCircuitPartDialog({
           <button
             type="button"
             className="btn btn-primary"
-            disabled={currentStatus === null}
+            disabled={!canSave}
             onClick={() => {
-              onSave(draft);
+              onSave(finalizeCircuitPartDraft(draft, part, okChoice));
               onClose();
             }}
           >
@@ -279,6 +285,9 @@ export function circuitPartSubtitle(
   data: RefrigerantCircuitData,
   laiteTyyppi = '',
 ): string {
+  const status = circuitPartStatus(data, part);
+  if (status === 'na' || !circuitPartHasData(data, part)) return '';
+
   if (part === 'paisuntaventtiili') {
     const tyyppi = data.paisuntaventtiiliTyyppi
       ? expansionValveTypeLabel(data.paisuntaventtiiliTyyppi)
@@ -289,7 +298,7 @@ export function circuitPartSubtitle(
       .join(' · ');
   }
   if (part === 'magneettiventtiili') {
-    if (!refrigerantCircuitHasMagnetValve(laiteTyyppi, data.paisuntaventtiiliTyyppi)) return 'Ei magneettiventtiiliä';
+    if (!refrigerantCircuitHasMagnetValve(laiteTyyppi, data.paisuntaventtiiliTyyppi)) return '';
     return [data.magneettiventtiiliValmistaja, data.magneettiventtiiliMalli]
       .map((v) => String(v ?? '').trim())
       .filter(Boolean)

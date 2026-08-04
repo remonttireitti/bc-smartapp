@@ -25,15 +25,13 @@ import { FormCheckbox } from './FormCheckbox';
 import { FormInput } from './FormInput';
 import { HuoltoPartInspectionRow } from './HuoltoPartInspectionRow';
 import {
+  circuitPartDisplayStatus,
+  type RefrigerantCircuitPartKey,
+} from '../../lib/huoltoRaportti/circuitPartInspection';
+import {
   circuitPartSubtitle,
   RefrigerantCircuitPartDialog,
-  type RefrigerantCircuitPartKey,
 } from './RefrigerantCircuitPartDialog';
-import {
-  dryerInspectionStatus,
-  expansionValveInspectionStatus,
-  magnetValveInspectionStatus,
-} from '../../lib/huoltoRaportti/huoltoInspectionStatus';
 
 interface RefrigerantCircuitModuleProps {
   circuitNumber: number;
@@ -668,56 +666,53 @@ export function RefrigerantCircuitModule({
           )}
 
           <div className="huolto-circuit-part-module">
+            <h3 className="huolto-circuit-part-module-title">Piirin osat</h3>
             {hasCrossCircuitSync && (
-              <FormCheckbox
-                label={`Piiri ${circuitNumber}: sama paisuntaventtiili kuin piirissä 1`}
-                checked={!!data.paisuntaventtiiliSamaKuinPiiri1}
-                onChange={(v) => setCrossCircuitFlag('paisuntaventtiiliSamaKuinPiiri1', v)}
-              />
-            )}
-            <HuoltoPartInspectionRow
-              title="Paisuntaventtiili"
-              subtitle={circuitPartSubtitle('paisuntaventtiili', data, laiteTyyppi) || undefined}
-              status={expansionValveInspectionStatus(data)}
-              disabled={!!data.paisuntaventtiiliSamaKuinPiiri1}
-              onInspect={() => setOpenPartDialog('paisuntaventtiili')}
-            />
-          </div>
-
-          {showMagnetValve ? (
-            <div className="huolto-circuit-part-module">
-              {hasCrossCircuitSync && (
+              <div className="huolto-part-inspection-sync">
                 <FormCheckbox
-                  label={`Piiri ${circuitNumber}: sama magneettiventtiili kuin piirissä 1`}
-                  checked={!!data.magneettiventtiiliSamaKuinPiiri1}
-                  onChange={(v) => setCrossCircuitFlag('magneettiventtiiliSamaKuinPiiri1', v)}
+                  label={`Piiri ${circuitNumber}: sama paisuntaventtiili kuin piirissä 1`}
+                  checked={!!data.paisuntaventtiiliSamaKuinPiiri1}
+                  onChange={(v) => setCrossCircuitFlag('paisuntaventtiiliSamaKuinPiiri1', v)}
                 />
-              )}
+                {showMagnetValve ? (
+                  <FormCheckbox
+                    label={`Piiri ${circuitNumber}: sama magneettiventtiili kuin piirissä 1`}
+                    checked={!!data.magneettiventtiiliSamaKuinPiiri1}
+                    onChange={(v) => setCrossCircuitFlag('magneettiventtiiliSamaKuinPiiri1', v)}
+                  />
+                ) : null}
+                <FormCheckbox
+                  label={`Piiri ${circuitNumber}: sama kuivain kuin piirissä 1`}
+                  checked={!!data.kuivainSamaKuinPiiri1}
+                  onChange={(v) => setCrossCircuitFlag('kuivainSamaKuinPiiri1', v)}
+                />
+              </div>
+            )}
+            <div className="huolto-part-inspection-list huolto-part-inspection-list--flat">
               <HuoltoPartInspectionRow
-                title="Magneettiventtiili"
-                subtitle={circuitPartSubtitle('magneettiventtiili', data, laiteTyyppi) || undefined}
-                status={magnetValveInspectionStatus(data)}
-                disabled={!!data.magneettiventtiiliSamaKuinPiiri1}
-                onInspect={() => setOpenPartDialog('magneettiventtiili')}
+                title="Paisuntaventtiili"
+                subtitle={circuitPartSubtitle('paisuntaventtiili', data, laiteTyyppi) || undefined}
+                status={circuitPartDisplayStatus(data, 'paisuntaventtiili')}
+                disabled={!!data.paisuntaventtiiliSamaKuinPiiri1}
+                onInspect={() => setOpenPartDialog('paisuntaventtiili')}
+              />
+              {showMagnetValve ? (
+                <HuoltoPartInspectionRow
+                  title="Magneettiventtiili"
+                  subtitle={circuitPartSubtitle('magneettiventtiili', data, laiteTyyppi) || undefined}
+                  status={circuitPartDisplayStatus(data, 'magneettiventtiili')}
+                  disabled={!!data.magneettiventtiiliSamaKuinPiiri1}
+                  onInspect={() => setOpenPartDialog('magneettiventtiili')}
+                />
+              ) : null}
+              <HuoltoPartInspectionRow
+                title="Kuivain"
+                subtitle={circuitPartSubtitle('kuivain', data, laiteTyyppi) || undefined}
+                status={circuitPartDisplayStatus(data, 'kuivain')}
+                disabled={!!data.kuivainSamaKuinPiiri1}
+                onInspect={() => setOpenPartDialog('kuivain')}
               />
             </div>
-          ) : null}
-
-          <div className="huolto-circuit-part-module">
-            {hasCrossCircuitSync && (
-              <FormCheckbox
-                label={`Piiri ${circuitNumber}: sama kuivain kuin piirissä 1`}
-                checked={!!data.kuivainSamaKuinPiiri1}
-                onChange={(v) => setCrossCircuitFlag('kuivainSamaKuinPiiri1', v)}
-              />
-            )}
-            <HuoltoPartInspectionRow
-              title="Kuivain"
-              subtitle={circuitPartSubtitle('kuivain', data, laiteTyyppi) || undefined}
-              status={dryerInspectionStatus(data)}
-              disabled={!!data.kuivainSamaKuinPiiri1}
-              onInspect={() => setOpenPartDialog('kuivain')}
-            />
           </div>
 
           <RefrigerantCircuitPartDialog

@@ -5,13 +5,13 @@ import { ohjaustapaOptions } from '../../lib/huoltoRaportti/constants';
 import { compressorKolmeVaijetta, getCompressorVaiheValinta } from '../../lib/huoltoRaportti/sahkoVaiheUtils';
 import {
   compressorInspectionStatus,
-  normalizeHuoltoInspectionStatus,
   type HuoltoInspectionStatus,
 } from '../../lib/huoltoRaportti/huoltoInspectionStatus';
+import { binaryChoiceFromStatus } from '../../lib/huoltoRaportti/circuitPartInspection';
 import { FormCheckbox } from './FormCheckbox';
 import { FormInput } from './FormInput';
 import { HuoltoPartInspectionRow } from './HuoltoPartInspectionRow';
-import { TriStateInspectionToggle } from './TriStateInspectionToggle';
+import { BinaryInspectionToggle } from './BinaryInspectionToggle';
 
 interface CompressorModuleProps {
   number: number;
@@ -28,9 +28,13 @@ export function CompressorModule({
 }: CompressorModuleProps) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [draft, setDraft] = useState(data);
+  const [okChoice, setOkChoice] = useState<boolean | null>(null);
 
   useEffect(() => {
-    if (dialogOpen) setDraft(data);
+    if (dialogOpen) {
+      setDraft(data);
+      setOkChoice(binaryChoiceFromStatus(compressorInspectionStatus(data)));
+    }
   }, [dialogOpen, data]);
 
   useEffect(() => {
@@ -88,12 +92,11 @@ export function CompressorModule({
   const syncLegacyTyyppi = (val: string, mall: string) =>
     [val, mall].map((s) => String(s ?? '').trim()).filter(Boolean).join(' ');
 
-  const setInspectionStatus = (next: Exclude<HuoltoInspectionStatus, null>) => {
-    setDraft((prev) => ({ ...prev, tarkastusTila: next }));
+  const setInspectionOk = (next: boolean) => {
+    setOkChoice(next);
+    const tila: Exclude<HuoltoInspectionStatus, null | 'na'> = next ? 'ok' : 'faulty';
+    setDraft((prev) => ({ ...prev, tarkastusTila: tila }));
   };
-
-  const draftStatus = normalizeHuoltoInspectionStatus(draft.tarkastusTila) ?? compressorInspectionStatus(draft);
-  const showDetails = draftStatus === 'ok' || draftStatus === 'faulty';
 
   return (
     <>
@@ -116,165 +119,163 @@ export function CompressorModule({
           >
             <h2 id={`compressor-dialog-title-${number}`}>Kompressori {number}</h2>
             <p className="muted konvektori-dialog-help">
-              Valitse tarkastuksen tulos ja täytä kompressorin tiedot.
+              Täytä kompressorin tiedot ja merkitse lopuksi kunnossa tai ei kunnossa.
             </p>
 
-            <div className="konvektori-tarkastus-item">
-              <span className="konvektori-tarkastus-label">Tarkastuksen tulos</span>
-              <TriStateInspectionToggle
-                name={`kompressori-${number}-tila`}
-                value={draftStatus}
-                onChange={setInspectionStatus}
+            <div className="line-form-grid">
+              <FormInput
+                label="Valmistaja"
+                value={draft.valmistaja ?? ''}
+                onChange={(v) =>
+                  setDraft((prev) => ({ ...prev, valmistaja: v, tyyppi: syncLegacyTyyppi(v, prev.malli ?? '') }))
+                }
+                disabled={lockManufacturerModel}
+              />
+              <FormInput
+                label="Malli"
+                value={draft.malli ?? ''}
+                onChange={(v) =>
+                  setDraft((prev) => ({ ...prev, malli: v, tyyppi: syncLegacyTyyppi(prev.valmistaja ?? '', v) }))
+                }
+                disabled={lockManufacturerModel}
+              />
+              {lockManufacturerModel ? (
+                <p className="muted huolto-span-all">Valmistaja ja malli haetaan kompressorista 1.</p>
+              ) : null}
+
+              <label className="huolto-span-all">
+                Syöttöjännite
+                <select
+                  value={vaiheValinta}
+                  onChange={(e) => setVaiheValinta(e.target.value as KompressorinVaiheValinta)}
+                >
+                  <option value="">Valitse</option>
+                  <option value="1">230 V (1-vaihe)</option>
+                  <option value="3">400 V (3-vaihe)</option>
+                </select>
+              </label>
+
+              {vaiheValinta === '1' && (
+                <FormInput
+                  label="Ampeeri kulutus (A)"
+                  value={draft.virta1vaihe}
+                  onChange={(v) => setDraft((prev) => ({ ...prev, virta1vaihe: v }))}
+                  placeholder="0.0"
+                  type="number"
+                  className="huolto-span-all"
+                />
+              )}
+
+              {vaiheValinta === '3' && (
+                <div className="huolto-span-all">
+                  <div className="line-form-grid huolto-phase-grid">
+                    <FormInput label="L1 (A)" value={draft.virtaL1} onChange={(v) => setDraft((prev) => ({ ...prev, virtaL1: v }))} type="number" />
+                    <FormInput label="L2 (A)" value={draft.virtaL2} onChange={(v) => setDraft((prev) => ({ ...prev, virtaL2: v }))} type="number" />
+                    <FormInput label="L3 (A)" value={draft.virtaL3} onChange={(v) => setDraft((prev) => ({ ...prev, virtaL3: v }))} type="number" />
+                  </div>
+                  {imbalance && imbalance.level !== 'ok' ? (
+                    <div className={`huolto-alert huolto-alert-${imbalance.level}`}>
+                      Vaihevirta epätasainen ({imbalance.percentage.toFixed(1)} %)
+                    </div>
+                  ) : null}
+                </div>
+              )}
+
+              <label className="huolto-span-all">
+                Ohjaustapa
+                <select
+                  value={draft.ohjaustapa}
+                  onChange={(e) => setDraft((prev) => ({ ...prev, ohjaustapa: e.target.value }))}
+                >
+                  {ohjaustapaOptions.map((type) => (
+                    <option key={type.value} value={type.value}>
+                      {type.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              {draft.ohjaustapa === 'suorakaynnistys' && (
+                <>
+                  <FormCheckbox
+                    label="Kontaktorit tarkastettu"
+                    checked={draft.kontaktoritTarkastettu}
+                    onChange={(v) => setDraft((prev) => ({ ...prev, kontaktoritTarkastettu: v }))}
+                  />
+                  <FormInput
+                    label="Kontaktorin tyyppi"
+                    value={draft.kontaktoriTyyppi}
+                    onChange={(v) => setDraft((prev) => ({ ...prev, kontaktoriTyyppi: v }))}
+                  />
+                </>
+              )}
+
+              {draft.ohjaustapa === 'pehmokaynnistys' && (
+                <>
+                  <FormCheckbox
+                    label="Pehmokäynnistin tarkastettu"
+                    checked={draft.pehmokaynnistinTarkastettu}
+                    onChange={(v) => setDraft((prev) => ({ ...prev, pehmokaynnistinTarkastettu: v }))}
+                  />
+                  <FormInput
+                    label="Pehmokäynnistimen tyyppi/malli"
+                    value={draft.pehmokaynnistinTyyppi}
+                    onChange={(v) => setDraft((prev) => ({ ...prev, pehmokaynnistinTyyppi: v }))}
+                  />
+                </>
+              )}
+
+              {draft.ohjaustapa === 'taajuusmuuttaja' && (
+                <>
+                  <FormCheckbox
+                    label="Taajuusmuuttaja tarkastettu"
+                    checked={draft.taajuusmuuttajaTarkastettu}
+                    onChange={(v) => setDraft((prev) => ({ ...prev, taajuusmuuttajaTarkastettu: v }))}
+                  />
+                  <FormInput
+                    label="Taajuusmuuttajan tyyppi/malli"
+                    value={draft.taajuusmuuttajaTyyppi}
+                    onChange={(v) => setDraft((prev) => ({ ...prev, taajuusmuuttajaTyyppi: v }))}
+                  />
+                </>
+              )}
+
+              {draft.ohjaustapa === 'muu' && (
+                <FormInput
+                  label="Ohjaustapa (vapaamuotoinen kuvaus)"
+                  value={draft.ohjaustapaMuu}
+                  onChange={(v) => setDraft((prev) => ({ ...prev, ohjaustapaMuu: v }))}
+                  className="huolto-span-all"
+                />
+              )}
+
+              <FormCheckbox
+                label="Öljy määrä oikea"
+                checked={draft.oljyMaaraOikea}
+                onChange={(v) => setDraft((prev) => ({ ...prev, oljyMaaraOikea: v }))}
+              />
+              <FormCheckbox
+                label="Öljy kirkas"
+                checked={draft.oljyKirkas}
+                onChange={(v) => setDraft((prev) => ({ ...prev, oljyKirkas: v }))}
+              />
+              <FormInput
+                label="Öljy määrä/Laatu"
+                value={draft.oljyMaaraLaatu}
+                onChange={(v) => setDraft((prev) => ({ ...prev, oljyMaaraLaatu: v }))}
               />
             </div>
 
-            {showDetails ? (
-              <div className="line-form-grid">
-                <FormInput
-                  label="Valmistaja"
-                  value={draft.valmistaja ?? ''}
-                  onChange={(v) =>
-                    setDraft((prev) => ({ ...prev, valmistaja: v, tyyppi: syncLegacyTyyppi(v, prev.malli ?? '') }))
-                  }
-                  disabled={lockManufacturerModel}
-                />
-                <FormInput
-                  label="Malli"
-                  value={draft.malli ?? ''}
-                  onChange={(v) =>
-                    setDraft((prev) => ({ ...prev, malli: v, tyyppi: syncLegacyTyyppi(prev.valmistaja ?? '', v) }))
-                  }
-                  disabled={lockManufacturerModel}
-                />
-                {lockManufacturerModel ? (
-                  <p className="muted huolto-span-all">Valmistaja ja malli haetaan kompressorista 1.</p>
-                ) : null}
+            <div className="konvektori-tarkastus-item">
+              <span className="konvektori-tarkastus-label">Tarkastuksen tulos</span>
+              <BinaryInspectionToggle
+                name={`kompressori-${number}-tila`}
+                value={okChoice}
+                onChange={setInspectionOk}
+              />
+            </div>
 
-                <label className="huolto-span-all">
-                  Syöttöjännite
-                  <select
-                    value={vaiheValinta}
-                    onChange={(e) => setVaiheValinta(e.target.value as KompressorinVaiheValinta)}
-                  >
-                    <option value="">Valitse</option>
-                    <option value="1">230 V (1-vaihe)</option>
-                    <option value="3">400 V (3-vaihe)</option>
-                  </select>
-                </label>
-
-                {vaiheValinta === '1' && (
-                  <FormInput
-                    label="Ampeeri kulutus (A)"
-                    value={draft.virta1vaihe}
-                    onChange={(v) => setDraft((prev) => ({ ...prev, virta1vaihe: v }))}
-                    placeholder="0.0"
-                    type="number"
-                    className="huolto-span-all"
-                  />
-                )}
-
-                {vaiheValinta === '3' && (
-                  <div className="huolto-span-all">
-                    <div className="line-form-grid huolto-phase-grid">
-                      <FormInput label="L1 (A)" value={draft.virtaL1} onChange={(v) => setDraft((prev) => ({ ...prev, virtaL1: v }))} type="number" />
-                      <FormInput label="L2 (A)" value={draft.virtaL2} onChange={(v) => setDraft((prev) => ({ ...prev, virtaL2: v }))} type="number" />
-                      <FormInput label="L3 (A)" value={draft.virtaL3} onChange={(v) => setDraft((prev) => ({ ...prev, virtaL3: v }))} type="number" />
-                    </div>
-                    {imbalance && imbalance.level !== 'ok' ? (
-                      <div className={`huolto-alert huolto-alert-${imbalance.level}`}>
-                        Vaihevirta epätasainen ({imbalance.percentage.toFixed(1)} %)
-                      </div>
-                    ) : null}
-                  </div>
-                )}
-
-                <label className="huolto-span-all">
-                  Ohjaustapa
-                  <select
-                    value={draft.ohjaustapa}
-                    onChange={(e) => setDraft((prev) => ({ ...prev, ohjaustapa: e.target.value }))}
-                  >
-                    {ohjaustapaOptions.map((type) => (
-                      <option key={type.value} value={type.value}>
-                        {type.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-
-                {draft.ohjaustapa === 'suorakaynnistys' && (
-                  <>
-                    <FormCheckbox
-                      label="Kontaktorit tarkastettu"
-                      checked={draft.kontaktoritTarkastettu}
-                      onChange={(v) => setDraft((prev) => ({ ...prev, kontaktoritTarkastettu: v }))}
-                    />
-                    <FormInput
-                      label="Kontaktorin tyyppi"
-                      value={draft.kontaktoriTyyppi}
-                      onChange={(v) => setDraft((prev) => ({ ...prev, kontaktoriTyyppi: v }))}
-                    />
-                  </>
-                )}
-
-                {draft.ohjaustapa === 'pehmokaynnistys' && (
-                  <>
-                    <FormCheckbox
-                      label="Pehmokäynnistin tarkastettu"
-                      checked={draft.pehmokaynnistinTarkastettu}
-                      onChange={(v) => setDraft((prev) => ({ ...prev, pehmokaynnistinTarkastettu: v }))}
-                    />
-                    <FormInput
-                      label="Pehmokäynnistimen tyyppi/malli"
-                      value={draft.pehmokaynnistinTyyppi}
-                      onChange={(v) => setDraft((prev) => ({ ...prev, pehmokaynnistinTyyppi: v }))}
-                    />
-                  </>
-                )}
-
-                {draft.ohjaustapa === 'taajuusmuuttaja' && (
-                  <>
-                    <FormCheckbox
-                      label="Taajuusmuuttaja tarkastettu"
-                      checked={draft.taajuusmuuttajaTarkastettu}
-                      onChange={(v) => setDraft((prev) => ({ ...prev, taajuusmuuttajaTarkastettu: v }))}
-                    />
-                    <FormInput
-                      label="Taajuusmuuttajan tyyppi/malli"
-                      value={draft.taajuusmuuttajaTyyppi}
-                      onChange={(v) => setDraft((prev) => ({ ...prev, taajuusmuuttajaTyyppi: v }))}
-                    />
-                  </>
-                )}
-
-                {draft.ohjaustapa === 'muu' && (
-                  <FormInput
-                    label="Ohjaustapa (vapaamuotoinen kuvaus)"
-                    value={draft.ohjaustapaMuu}
-                    onChange={(v) => setDraft((prev) => ({ ...prev, ohjaustapaMuu: v }))}
-                    className="huolto-span-all"
-                  />
-                )}
-
-                <FormCheckbox
-                  label="Öljy määrä oikea"
-                  checked={draft.oljyMaaraOikea}
-                  onChange={(v) => setDraft((prev) => ({ ...prev, oljyMaaraOikea: v }))}
-                />
-                <FormCheckbox
-                  label="Öljy kirkas"
-                  checked={draft.oljyKirkas}
-                  onChange={(v) => setDraft((prev) => ({ ...prev, oljyKirkas: v }))}
-                />
-                <FormInput
-                  label="Öljy määrä/Laatu"
-                  value={draft.oljyMaaraLaatu}
-                  onChange={(v) => setDraft((prev) => ({ ...prev, oljyMaaraLaatu: v }))}
-                />
-              </div>
-            ) : null}
-
-            {draftStatus === 'faulty' ? (
+            {okChoice === false ? (
               <label className="konvektori-huomio-field">
                 <span className="konvektori-tarkastus-label">Mikä on vikana?</span>
                 <textarea
@@ -293,7 +294,7 @@ export function CompressorModule({
               <button
                 type="button"
                 className="btn btn-primary"
-                disabled={draftStatus === null}
+                disabled={okChoice === null}
                 onClick={() => {
                   onChange(draft);
                   setDialogOpen(false);

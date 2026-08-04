@@ -18,6 +18,7 @@ export default function MaintenanceReportTabNav({ tabs, activeId, tabCompletion,
   const tabRefs = useRef(new Map<string, HTMLButtonElement>());
 
   useEffect(() => {
+    if (!window.matchMedia('(max-width: 900px)').matches) return;
     const activeTab = tabRefs.current.get(activeId);
     activeTab?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
   }, [activeId, tabs]);
