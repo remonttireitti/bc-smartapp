@@ -37,15 +37,17 @@ export function CondensersSection({ form, onChange }: Props) {
 
   return (
     <HuoltoModuleSection moduleKey="lauhdutin" title={lauhdutinSectionTitle(form.laiteTyyppi)}>
-      {form.condenserData.slice(0, circuitCount).map((condenser, index) => (
-        <CondenserModule
-          key={index}
-          index={index}
-          titleLabel={lauhdutinUnitTitle(form.laiteTyyppi, index)}
-          data={condenser}
-          onChange={(data) => updateCondenser(index, data)}
-        />
-      ))}
+      <div className="huolto-part-inspection-list">
+        {form.condenserData.slice(0, circuitCount).map((condenser, index) => (
+          <CondenserModule
+            key={index}
+            index={index}
+            titleLabel={lauhdutinUnitTitle(form.laiteTyyppi, index)}
+            data={condenser}
+            onChange={(data) => updateCondenser(index, data)}
+          />
+        ))}
+      </div>
     </HuoltoModuleSection>
   );
 }

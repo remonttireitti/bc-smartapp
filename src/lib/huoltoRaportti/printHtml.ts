@@ -54,6 +54,15 @@ import {
   renderCheckbox,
   renderVuototarkastusStatus,
 } from './utils';
+import { renderInspectionHuomioRow, renderInspectionStatusRow } from './inspectionPrint';
+import {
+  compressorInspectionStatus,
+  condenserInspectionStatus,
+  entityInspectionStatus,
+  lauhdutuspiiriInspectionStatus,
+  nestepiiriInspectionStatus,
+  ulkoyksikkoInspectionStatus,
+} from './huoltoInspectionStatus';
 
 export interface MaintenancePrintMeta {
   companyName: string;
@@ -206,10 +215,15 @@ function renderCompressorBlock(comp: Partial<CompressorData>, index: number): st
     gridField('Taajuusmuuttaja', comp.taajuusmuuttajaTyyppi),
   ].filter(Boolean);
   const checks = [checkRow(comp.oljyMaaraOikea, 'Öljy määrä oikea'), checkRow(comp.oljyKirkas, 'Öljy kirkas')].filter(Boolean);
+  const inspection = [
+    renderInspectionStatusRow(comp.tarkastusTila ?? compressorInspectionStatus(comp), 'Tarkastus', esc),
+    renderInspectionHuomioRow(comp.tarkastusHuomio, esc),
+  ].filter(Boolean).join('');
   const virta = renderCompressorCurrentHtml(comp);
-  if (!parts.length && !checks.length && !virta) return '';
+  if (!parts.length && !checks.length && !virta && !inspection) return '';
   return `<div style="margin-bottom:8px;padding:8px;background:#fafafa;border:1px solid #e0e0e0;border-radius:4px;">
     <div style="font-weight:bold;color:#E64A19;margin-bottom:4px;">Kompressori ${index}</div>
+    ${inspection}
     ${parts.length ? `<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:6px;">${parts.join('')}</div>` : ''}
     ${checks.join('')}${virta}
   </div>`;
@@ -337,6 +351,8 @@ function renderSingleEvaporatorHtml(
           .join('')
       : '';
   const inner = [
+    renderInspectionStatusRow(ev.tarkastusTila ?? entityInspectionStatus(ev), 'Tarkastus', esc),
+    renderInspectionHuomioRow(ev.tarkastusHuomio, esc),
     gridField(chillerHx ? 'Lämmönvaihdin' : 'Tyyppi', evapTyyppiLabel(ev.tyyppi)),
     !chillerHx ? gridField('Huoneen tunnus', ev.huoneenTunnus) : '',
     showDefrost ? gridField('Sulatus', getSulatusText(ev.sulatus)) : '',
@@ -413,6 +429,8 @@ function renderCondensers(data: HuoltoReportData): string {
             .join('')}</div>`
         : '';
       const inner = [
+        renderInspectionStatusRow(co.tarkastusTila ?? condenserInspectionStatus(co), 'Tarkastus', esc),
+        renderInspectionHuomioRow(co.tarkastusHuomio, esc),
         gridField('Tyyppi', co.tyyppi ? getLauhdutinTypeText(co.tyyppi) : ''),
         gridField('Puhaltimien määrä', co.puhaltimienMaara),
         gridField('Ohjaus', co.puhallinOhjaus ? getOhjausText(co.puhallinOhjaus, co.puhallinOhjausMuu) : ''),
@@ -433,7 +451,13 @@ function renderCondensers(data: HuoltoReportData): string {
 
 function renderNestepiiriFields(color: string, piiri: NestepiiriData | LauhdutuspiiriData | undefined): string {
   if (!piiri) return '';
+  const isLauhdutus = 'painesäätimenTarkistettu' in piiri;
+  const status = isLauhdutus
+    ? lauhdutuspiiriInspectionStatus(piiri as LauhdutuspiiriData)
+    : nestepiiriInspectionStatus(piiri);
   const rows = [
+    renderInspectionStatusRow(piiri.tarkastusTila ?? status, 'Tarkastus', esc),
+    renderInspectionHuomioRow(piiri.tarkastusHuomio, esc),
     row('Neste', piiri.neste, color),
     row('Virtaus (m³/h)', piiri.virtaus, color),
     row('Meno (°C)', piiri.meno, color),
@@ -444,6 +468,11 @@ function renderNestepiiriFields(color: string, piiri: NestepiiriData | Lauhdutus
     checkRow(piiri.paisuntaAstiaTarkistettu, 'Paisunta-astia tarkistettu'),
     piiri.paisuntaAstiaTarkistettu ? row('Paisunta-astia koko', piiri.paisuntaAstiaKoko, color) : '',
     piiri.paisuntaAstiaTarkistettu ? row('Esipaine (bar)', piiri.paisuntaAstiaEsipaine, color) : '',
+    checkRow(piiri.paineTarkastettu, 'Paine tarkastettu'),
+    piiri.paineTarkastettu ? row('Mitattu paine (bar)', piiri.paineBar, color) : '',
+    checkRow(piiri.automaattinenIlmausTarkistettu, 'Automaattinen ilmaus tarkistettu'),
+    checkRow(piiri.mutapussiPuhdistettu, 'Mutapussi puhdistettu'),
+    checkRow(piiri.toimilaitteetOK, 'Toimilaitteet OK'),
   ];
   const lp = piiri as LauhdutuspiiriData;
   if ('painesäätimenTarkistettu' in lp) {
@@ -515,6 +544,8 @@ function renderLampopumppuSections(data: HuoltoReportData): string {
   if (data.laiteTyyppi !== 'lämpöpumppu') return '';
 
   const ulko = [
+    renderInspectionStatusRow(data.ulkoyksikkoTarkastusTila ?? ulkoyksikkoInspectionStatus(data), 'Tarkastus', esc),
+    renderInspectionHuomioRow(data.ulkoyksikkoTarkastusHuomio, esc),
     row('Malli', strField(data, 'ulkoyksikkoMalli'), '#E64A19'),
     row('Sarjanumero', strField(data, 'ulkoyksikkoSarjanumero'), '#E64A19'),
     row('Jäähdytysteho (kW)', strField(data, 'ulkoyksikkoJaahdytysTeho'), '#E64A19'),

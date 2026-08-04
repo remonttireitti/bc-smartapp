@@ -2,17 +2,23 @@ import { normalizeHuoltoReportData } from './defaults';
 import type { HuoltoReportData } from './types';
 
 /** Tyhjennetään laitteen yksilöivät kentät kopioitaessa pöytäkirja toiselle laitteelle samalla kohteella. */
-export function cloneHuoltoReportForSiblingEquipment(source: HuoltoReportData): HuoltoReportData {
+export function cloneHuoltoReportForSiblingEquipment(
+  source: HuoltoReportData,
+  options?: { keepModel?: boolean },
+): HuoltoReportData {
   const next = normalizeHuoltoReportData(
     structuredClone(source) as HuoltoReportData,
   );
 
   next.laiteTunnus = '';
-  next.laiteMalli = '';
   next.laiteSarjanumero = '';
   next.laiteSijainti = '';
-  next.laiteValmistaja = '';
   next.equipmentSnapshot = undefined;
+
+  if (!options?.keepModel) {
+    next.laiteMalli = '';
+    next.laiteValmistaja = '';
+  }
 
   if (next.ulkoyksikkoSarjanumero != null) next.ulkoyksikkoSarjanumero = '';
 

@@ -1,3 +1,4 @@
+import { normalizeLegacyInspectionStatus } from './huoltoInspectionStatus';
 import {
   defaultCondenserTypeForDevice,
   isChillerLikeDevice,
@@ -80,10 +81,10 @@ export function createEmptySisayksikkoData(): SisayksikkoData {
     sarjanumero: '',
     kondenssivesi: '',
     pumppuMalli: '',
-    asennettu: false,
-    kennoPuhdas: false,
-    eiAania: false,
-    kondenssiTestattu: false,
+    asennettu: null,
+    kennoPuhdas: null,
+    eiAania: null,
+    kondenssiTestattu: null,
     huoneLampotila: '',
     huomio: '',
     huomioTyyppi: 'kommentti',
@@ -271,7 +272,14 @@ export function pickBestKonvektoriRows(
 export function ensureSisayksikkoData(data: Partial<SisayksikkoData> | undefined): SisayksikkoData {
   const base = createEmptySisayksikkoData();
   if (!data) return base;
-  return { ...base, ...data };
+  return {
+    ...base,
+    ...data,
+    asennettu: normalizeLegacyInspectionStatus(data.asennettu),
+    kennoPuhdas: normalizeLegacyInspectionStatus(data.kennoPuhdas),
+    eiAania: normalizeLegacyInspectionStatus(data.eiAania),
+    kondenssiTestattu: normalizeLegacyInspectionStatus(data.kondenssiTestattu),
+  };
 }
 
 export function ensureMittausSisayksikkoData(

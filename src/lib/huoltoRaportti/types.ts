@@ -1,5 +1,6 @@
 import type { MaintenanceReportPhotoItem } from '../maintenanceReportImages';
 import type { ModuleKey } from './constants';
+import type { HuoltoInspectionStatus } from './huoltoInspectionStatus';
 
 export type KompressorinVaiheValinta = '' | '1' | '3';
 export type PumpunSyottoValinta = '' | '230_1' | '400_3';
@@ -27,6 +28,9 @@ export interface CompressorData {
   taajuusmuuttajaTarkastettu: boolean;
   taajuusmuuttajaTyyppi: string;
   ohjaustapaMuu: string;
+  /** Kokonaistarkastus: kunnossa / vika / ei kuulu / vastaamatta. */
+  tarkastusTila?: HuoltoInspectionStatus;
+  tarkastusHuomio?: string;
 }
 
 export interface RefrigerantCircuitData {
@@ -43,11 +47,16 @@ export interface RefrigerantCircuitData {
   paisuntaventtiiliMuu?: string;
   paisuntaventtiiliMalli?: string;
   paisuntaventtiiliValmistaja?: string;
+  paisuntaventtiiliTila?: HuoltoInspectionStatus;
+  paisuntaventtiiliHuomio?: string;
   magneettiventtiiliTestattu?: boolean;
   magneettiventtiiliValmistaja?: string;
   magneettiventtiiliMalli?: string;
+  magneettiventtiiliTila?: HuoltoInspectionStatus;
+  magneettiventtiiliHuomio?: string;
   nestelasiKuiva?: boolean;
   kuivainOK?: boolean;
+  kuivainTila?: HuoltoInspectionStatus;
   kuivainLisatieto?: string;
   kuivainValmistaja?: string;
   kuivainMalli?: string;
@@ -124,6 +133,8 @@ export interface CondenserData {
   painesäätimenMalli?: string;
   virtausRiittävä?: boolean;
   virtausOngelma?: string;
+  tarkastusTila?: HuoltoInspectionStatus;
+  tarkastusHuomio?: string;
 }
 
 export interface TiiveyskoeData {
@@ -171,6 +182,8 @@ export interface EvaporatorData {
   sulatusLopetusLämpötila?: string;
   puhaltimienMaara: number;
   puhaltimet: CondenserFanData[];
+  tarkastusTila?: HuoltoInspectionStatus;
+  tarkastusHuomio?: string;
 }
 
 export interface HeatingElementData {
@@ -258,6 +271,8 @@ export interface NestelauhdutinUnitData {
   ohjausLahde: NestelauhdutinOhjausLahde | '';
   puhallinMoottoriVirratMitattu: boolean;
   puhaltimet: CondenserFanData[];
+  tarkastusTila?: HuoltoInspectionStatus;
+  tarkastusHuomio?: string;
 }
 
 export interface SisayksikkoData {
@@ -266,10 +281,10 @@ export interface SisayksikkoData {
   sarjanumero: string;
   kondenssivesi: string;
   pumppuMalli: string;
-  asennettu: boolean;
-  kennoPuhdas: boolean;
-  eiAania: boolean;
-  kondenssiTestattu: boolean;
+  asennettu: HuoltoInspectionStatus;
+  kennoPuhdas: HuoltoInspectionStatus;
+  eiAania: HuoltoInspectionStatus;
+  kondenssiTestattu: HuoltoInspectionStatus;
   /** Huoneen lämpötila tarkastuksessa (°C) — näytetään kuvan päällä. */
   huoneLampotila?: string;
   huomio?: string;
@@ -331,6 +346,8 @@ export interface LiquidCircuitData {
 
 /** Nestekierron peruskentät (jäähdytysvesi, lauhdutuspiiri, höyrystinpiir). */
 export interface NestepiiriData extends LiquidCircuitData {
+  tarkastusTila?: HuoltoInspectionStatus;
+  tarkastusHuomio?: string;
   paisuntaAstiaTarkistettu: boolean;
   paisuntaAstiaKoko: string;
   paisuntaAstiaEsipaine: string;
@@ -350,6 +367,8 @@ export interface LauhdutuspiiriData extends NestepiiriData {
 }
 
 export interface VapaajahdytysData extends LiquidCircuitData {
+  tarkastusTila?: HuoltoInspectionStatus;
+  tarkastusHuomio?: string;
   ohjaus: VapaajahdytysOhjaus;
 }
 
@@ -385,6 +404,12 @@ export interface HeatingCircuitData {
 }
 
 export interface MlpData {
+  keruupiiriTarkastusTila?: HuoltoInspectionStatus;
+  keruupiiriTarkastusHuomio?: string;
+  latausTarkastusTila?: HuoltoInspectionStatus;
+  latausTarkastusHuomio?: string;
+  lampoTarkastusTila?: HuoltoInspectionStatus;
+  lampoTarkastusHuomio?: string;
   keruupiirinPaineTarkastettu: boolean;
   keruupiiriPaineBar: string;
   keruupiirissaMutapussiPuhdistettu: boolean;
@@ -575,6 +600,8 @@ export type HuoltoReportData = {
   ulkoyksikkoSulatausVedenTarkistettu: boolean;
   ulkoyksikkoTurvakytkin: boolean;
   ulkoyksikkoSuojakotelo: boolean;
+  ulkoyksikkoTarkastusTila?: HuoltoInspectionStatus;
+  ulkoyksikkoTarkastusHuomio?: string;
   sisayksikkoMaara: number;
   sisayksikkoData: SisayksikkoData[];
   sisaSamaKuinEnsimmainen: boolean[];

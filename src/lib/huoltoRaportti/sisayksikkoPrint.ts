@@ -1,6 +1,6 @@
 import { formatHuomioPrintHtml, huomioPrintTextStyle } from './formatHuomioPrintHtml';
-import { SISAYKSIKKO_TARKASTUS_ITEMS, sisayksikkoTarkastusSummary } from './sisayksikkoTarkastus';
-import {
+import { normalizeLegacyInspectionStatus, type HuoltoInspectionStatus } from './huoltoInspectionStatus';
+import { SISAYKSIKKO_TARKASTUS_ITEMS, sisayksikkoTarkastusSummary } from './sisayksikkoTarkastus';import {
   sisayksikkoImageUrl,
   sisayksikkoOverlayPositions,
   sisayksikkoPaineOverlay,
@@ -46,12 +46,12 @@ function renderTestCheckMark(checked: boolean | undefined): string {
   return '<span style="color:#9ca3af;">–</span>';
 }
 
-function renderCheckMark(checked: boolean | null | undefined): string {
-  if (checked === true) return '<span style="color:#16a34a;font-weight:700;">✓</span>';
-  if (checked === false) return '<span style="color:#dc2626;font-weight:700;">✗</span>';
+function renderInspectionCheckMark(status: HuoltoInspectionStatus): string {
+  if (status === 'ok') return '<span style="color:#16a34a;font-weight:700;">✓</span>';
+  if (status === 'faulty') return '<span style="color:#dc2626;font-weight:700;">✗</span>';
+  if (status === 'na') return '<span style="color:#64748b;font-weight:700;">N/A</span>';
   return '<span style="color:#9ca3af;">–</span>';
 }
-
 function renderSisayksikkoTestSummary(
   testInfo: SisayksikkoPrintTestInfo | undefined,
   esc: (v: unknown) => string,
@@ -74,12 +74,11 @@ function renderSisayksikkoTestSummary(
 
 function cardColors(unit: SisayksikkoData): { background: string; border: string } {
   const summary = sisayksikkoTarkastusSummary(unit);
-  const isVika = unit.huomioTyyppi === 'vika' || summary.anyNo;
+  const isVika = unit.huomioTyyppi === 'vika' || summary.anyFaulty;
   if (isVika) return { background: '#fef2f2', border: '#fca5a5' };
-  if (summary.complete && summary.allYes) return { background: '#f0fdf4', border: '#86efac' };
+  if (summary.complete && summary.allOk) return { background: '#f0fdf4', border: '#86efac' };
   return { background: '#fff', border: '#cbd5e1' };
 }
-
 function renderSisayksikkoCheckLegend(esc: (v: unknown) => string): string {
   const rows = SISAYKSIKKO_TARKASTUS_ITEMS.map((item) => {
     const short = CHECK_SHORT[item.field] ?? item.field;
@@ -88,8 +87,7 @@ function renderSisayksikkoCheckLegend(esc: (v: unknown) => string): string {
 
   return `
     <div style="font-size:7px;color:#334155;line-height:1.35;margin:0 0 6px 0;padding:5px 7px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:3px;">
-      <div style="font-weight:700;margin-bottom:4px;color:#E65100;">Tarkastuskohdat (✓ = OK, ✗ = ei OK, – = ei vastattu)</div>
-      ${rows}
+      <div style="font-weight:700;margin-bottom:4px;color:#E65100;">Tarkastuskohdat (✓ = OK, ✗ = vika, N/A = ei kuulu, – = ei vastattu)</div>      ${rows}
       <div style="margin-top:4px;color:#64748b;">Ruudun tausta: vihreä = kaikki OK · punertava = vika tai jokin kohta pois päältä. Kuvassa lämpötilat ja paineet.</div>
     </div>`;
 }
@@ -114,10 +112,9 @@ function renderSisayksikkoCard(
 
   const checks = SISAYKSIKKO_TARKASTUS_ITEMS.map((item) => {
     const short = CHECK_SHORT[item.field] ?? item.field;
-    const val = unit[item.field];
-    return `<span title="${esc(item.label)}" style="margin-right:3px;">${esc(short)} ${renderCheckMark(val)}</span>`;
+    const val = normalizeLegacyInspectionStatus(unit[item.field]);
+    return `<span title="${esc(item.label)}" style="margin-right:3px;">${esc(short)} ${renderInspectionCheckMark(val)}</span>`;
   }).join('');
-
   const isVika = unit.huomioTyyppi === 'vika';
   const huom = unit.huomio?.trim()
     ? formatHuomioPrintHtml(unit.huomio, esc)

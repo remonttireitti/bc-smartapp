@@ -36,20 +36,22 @@ export function EvaporatorsSection({ form, onChange }: Props) {
         </label>
       )}
 
-      {form.evaporatorData.slice(0, circuitCount).map((evaporator, index) => (
-        <EvaporatorModule
-          key={index}
-          index={index}
-          laiteTyyppi={form.laiteTyyppi}
-          titleLabel={evaporatorTitleForIndex(form, index)}
-          data={evaporator}
-          locked={false}
-          showSameAsFirst={index > 0}
-          sameAsFirst={form.evaporatorSamaKuinEnsimmainen[index]}
-          onSameAsFirstChange={(v) => setSameAsFirst(index, v)}
-          onChange={(data) => updateEvaporator(index, data)}
-        />
-      ))}
+      <div className="huolto-part-inspection-list">
+        {form.evaporatorData.slice(0, circuitCount).map((evaporator, index) => (
+          <EvaporatorModule
+            key={index}
+            index={index}
+            laiteTyyppi={form.laiteTyyppi}
+            titleLabel={evaporatorTitleForIndex(form, index)}
+            data={evaporator}
+            locked={false}
+            showSameAsFirst={index > 0}
+            sameAsFirst={form.evaporatorSamaKuinEnsimmainen[index]}
+            onSameAsFirstChange={(v) => setSameAsFirst(index, v)}
+            onChange={(data) => updateEvaporator(index, data)}
+          />
+        ))}
+      </div>
     </HuoltoModuleSection>
   );
 }

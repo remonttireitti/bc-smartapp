@@ -4702,7 +4702,11 @@ textarea {
     min-width: 0;
     max-width: 100%;
     overflow-x: clip;
-    padding-bottom: calc(14rem + env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(5.75rem + env(safe-area-inset-bottom, 0px));
+  }
+
+  .maintenance-form:has(.maintenance-actions-more[open]) {
+    padding-bottom: calc(11rem + env(safe-area-inset-bottom, 0px));
   }
 
   .maintenance-form .line-form-grid,
@@ -4738,35 +4742,63 @@ textarea {
     position: sticky;
     bottom: 0;
     z-index: 3;
-    display: grid;
-    grid-template-columns: 1fr 1fr;
+    display: flex;
+    flex-direction: column;
     align-items: stretch;
-    gap: .5rem;
+    gap: .35rem;
     margin: 0 -1rem;
-    padding: .65rem 1rem;
-    padding-bottom: calc(.65rem + env(safe-area-inset-bottom, 0px));
+    padding: .45rem .65rem;
+    padding-bottom: calc(.45rem + env(safe-area-inset-bottom, 0px));
     background: var(--bg-surface);
     border-top: 1px solid var(--border-strong);
     box-shadow: 0 -4px 16px rgba(15, 23, 42, .08);
   }
 
-  .maintenance-form-actions > .maintenance-actions-status,
-  .maintenance-form-actions > .maintenance-actions-more,
-  .maintenance-form-actions > .maintenance-actions-delete,
-  .maintenance-form-actions > .maintenance-actions-back,
-  .maintenance-form-actions > .maintenance-actions-print,
-  .maintenance-form-actions > .maintenance-form-actions-equipment {
-    grid-column: 1 / -1;
+  .maintenance-actions-primary {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) minmax(0, 1fr);
+    gap: .35rem;
+    align-items: stretch;
   }
 
-  .maintenance-form-actions > .maintenance-actions-status {
+  .maintenance-actions-primary > .maintenance-actions-back {
+    grid-row: 1 / span 2;
+    align-self: stretch;
+    min-width: 2.5rem;
+    padding: .35rem .45rem;
+  }
+
+  .maintenance-actions-primary > .maintenance-actions-status {
+    grid-column: 2 / -1;
     justify-self: center;
+    align-self: center;
     margin: 0;
-    font-size: .82rem;
+    font-size: .72rem;
+    line-height: 1.2;
+    padding: .15rem .45rem;
+    max-width: 100%;
+    text-align: center;
   }
 
-  .maintenance-form-actions > .btn-primary:only-of-type {
-    grid-column: 1 / -1;
+  .maintenance-actions-primary > .maintenance-actions-save:only-of-type {
+    grid-column: 2 / -1;
+  }
+
+  .maintenance-actions-primary > .btn {
+    min-height: 2.25rem;
+    padding: .35rem .5rem;
+    font-size: .8125rem;
+    line-height: 1.2;
+    margin: 0;
+  }
+
+  .maintenance-actions-back-short {
+    display: inline;
+    margin-right: 0;
+  }
+
+  .maintenance-actions-back-label {
+    display: none;
   }
 
   .maintenance-actions-more {
@@ -4778,14 +4810,14 @@ textarea {
     align-items: center;
     justify-content: center;
     width: 100%;
-    min-height: 2.75rem;
-    padding: .55rem .85rem;
+    min-height: 2rem;
+    padding: .3rem .55rem;
     border: 1px solid var(--border-strong);
     border-radius: 8px;
     background: var(--bg-subtle);
     color: inherit;
     font: inherit;
-    font-size: .9rem;
+    font-size: .8125rem;
     font-weight: 600;
     cursor: pointer;
     list-style: none;
@@ -4797,8 +4829,8 @@ textarea {
 
   .maintenance-actions-more-toggle::after {
     content: '▾';
-    margin-left: .4rem;
-    font-size: .85rem;
+    margin-left: .35rem;
+    font-size: .8rem;
     opacity: .7;
     transition: transform .15s ease;
   }
@@ -4810,30 +4842,34 @@ textarea {
   .maintenance-actions-more-panel {
     display: flex;
     flex-direction: column;
-    gap: .45rem;
-    margin-top: .45rem;
+    gap: .35rem;
+    margin-top: .35rem;
+    max-height: min(42vh, 16rem);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
   }
 
   .maintenance-actions-more-panel .btn,
-  .maintenance-actions-more-panel a.btn {
+  .maintenance-actions-more-panel a.btn,
+  .maintenance-actions-more-panel .maintenance-equipment-registry-actions .btn,
+  .maintenance-actions-more-panel .maintenance-equipment-registry-actions a.btn {
     width: 100%;
-    min-height: 2.75rem;
+    min-height: 2.25rem;
+    padding: .35rem .55rem;
+    font-size: .8125rem;
+    margin: 0;
   }
 
-  .maintenance-form-actions > .btn,
-  .maintenance-form-actions > a.btn {
+  .maintenance-actions-more-panel .maintenance-equipment-registry-actions {
+    display: flex;
+    flex-direction: column;
+    gap: .35rem;
     width: 100%;
-    min-height: 2.85rem;
-    margin: 0;
   }
 
   .maintenance-form .info-box-select {
     width: 100%;
     min-height: 2.9rem;
-  }
-
-  .maintenance-form:has(.maintenance-actions-more[open]) {
-    padding-bottom: calc(24rem + env(safe-area-inset-bottom, 0px));
   }
 
   .maintenance-report-tab,
@@ -4845,7 +4881,7 @@ textarea {
   .maintenance-form input,
   .maintenance-form select,
   .maintenance-form textarea {
-    scroll-margin-bottom: 10rem;
+    scroll-margin-bottom: 6.5rem;
   }
 
   .huolto-module-section {
@@ -4875,6 +4911,15 @@ textarea {
 
   .huolto-konvektori-checks label {
     min-height: 2.75rem;
+  }
+
+  .huolto-part-inspection-row {
+    grid-template-columns: 1fr;
+    gap: .4rem;
+  }
+
+  .huolto-part-inspection-row > .btn {
+    width: 100%;
   }
 
   .quote-form .section-header-row {
@@ -5235,6 +5280,14 @@ textarea {
   align-items: center;
 }
 
+.maintenance-actions-primary {
+  display: contents;
+}
+
+.maintenance-actions-back-short {
+  margin-right: .15rem;
+}
+
 .maintenance-equipment-registry-actions {
   display: flex;
   flex-wrap: wrap;
@@ -5250,6 +5303,87 @@ textarea {
   margin-right: .25rem;
 }
 
+.sibling-equipment-copy-dialog {
+  width: min(100%, 28rem);
+}
+
+.sibling-equipment-copy-dialog .konvektori-mittaus-field {
+  display: block;
+  margin-bottom: .75rem;
+}
+
+.sibling-equipment-copy-same-model {
+  margin: .25rem 0 .85rem;
+  align-items: flex-start;
+}
+
+.sibling-equipment-copy-same-model input[type='checkbox'] {
+  margin-top: .2rem;
+}
+
+.sibling-equipment-copy-source-model {
+  display: block;
+  font-size: .875rem;
+}
+
+.sibling-equipment-copy-model-fields {
+  margin-bottom: .5rem;
+}
+
+.huolto-part-inspection-list {
+  display: flex;
+  flex-direction: column;
+  gap: .5rem;
+  margin: .75rem 0 1rem;
+}
+
+.huolto-part-inspection-list-title {
+  margin: 0 0 .25rem;
+  font-size: .95rem;
+  font-weight: 700;
+}
+
+.huolto-part-inspection-sync {
+  display: flex;
+  flex-direction: column;
+  gap: .35rem;
+  margin-bottom: .35rem;
+}
+
+.huolto-part-inspection-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: .5rem .65rem;
+  align-items: center;
+  padding: .55rem .65rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--bg-subtle);
+}
+
+.huolto-part-inspection-row--disabled {
+  opacity: .72;
+}
+
+.huolto-part-inspection-row-title {
+  font-weight: 600;
+  font-size: .9rem;
+}
+
+.huolto-part-inspection-row-subtitle {
+  font-size: .78rem;
+  margin-top: .1rem;
+}
+
+.huolto-tristate-inspection {
+  flex-wrap: wrap;
+}
+
+.huolto-tristate-inspection .konvektori-yesno-btn {
+  font-size: .78rem;
+  padding: .35rem .5rem;
+}
+
 @media (min-width: 901px) {
   .maintenance-actions-more {
     display: contents;
@@ -5261,6 +5395,10 @@ textarea {
 
   .maintenance-actions-more-panel {
     display: contents;
+  }
+
+  .maintenance-actions-back-label {
+    display: inline;
   }
 }
 

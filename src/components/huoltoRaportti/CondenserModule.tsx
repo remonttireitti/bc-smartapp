@@ -1,9 +1,16 @@
+import { useEffect, useState } from 'react';
 import { lauhdutinTypeOptions, puhallinOhjausOptions, LAUHDUTIN_PAINEVENTTIILI_HELP, LAUHDUTIN_PAINEVENTTIILI_LABEL, LAUHDUTIN_PAINEVENTTIILI_MALLI_LABEL } from '../../lib/huoltoRaportti/constants';
 import type { CondenserData, LauhdutinType, PuhallinOhjausType } from '../../lib/huoltoRaportti/types';
+import {
+  condenserInspectionStatus,
+  normalizeHuoltoInspectionStatus,
+  type HuoltoInspectionStatus,
+} from '../../lib/huoltoRaportti/huoltoInspectionStatus';
 import { EvaporatorPuhaltimetFields } from './EvaporatorPuhaltimetFields';
 import { FormCheckbox } from './FormCheckbox';
 import { FormInput } from './FormInput';
-import { HuoltoPartSection } from './HuoltoPartSection';
+import { HuoltoPartInspectionRow } from './HuoltoPartInspectionRow';
+import { TriStateInspectionToggle } from './TriStateInspectionToggle';
 
 interface Props {
   index: number;
@@ -13,169 +20,252 @@ interface Props {
 }
 
 export function CondenserModule({ index, titleLabel, data, onChange }: Props) {
-  const isAirType = data.tyyppi === 'koneseen_integroitu' || data.tyyppi === 'erillinen_ilma';
-  const isLiquidType = data.tyyppi === 'nestekiertoinen';
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [draft, setDraft] = useState(data);
+  const status = condenserInspectionStatus(data);
+  const subtitle = lauhdutinTypeOptions.find((o) => o.value === data.tyyppi)?.label ?? '';
+
+  useEffect(() => {
+    if (dialogOpen) setDraft(data);
+  }, [dialogOpen, data]);
+
+  useEffect(() => {
+    if (!dialogOpen) return;
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') setDialogOpen(false);
+    }
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [dialogOpen]);
+
+  const draftStatus = normalizeHuoltoInspectionStatus(draft.tarkastusTila) ?? condenserInspectionStatus(draft);
+  const showDetails = draftStatus === 'ok' || draftStatus === 'faulty';
+  const isAirType = draft.tyyppi === 'koneseen_integroitu' || draft.tyyppi === 'erillinen_ilma';
+  const isLiquidType = draft.tyyppi === 'nestekiertoinen';
 
   return (
-    <HuoltoPartSection title={titleLabel} partKey={`cond-${index}`} defaultOpen={index === 0}>
+    <>
+      <HuoltoPartInspectionRow
+        title={titleLabel}
+        subtitle={subtitle || undefined}
+        status={status}
+        onInspect={() => setDialogOpen(true)}
+      />
 
-      <div className="line-form-grid">
-        <label className="huolto-span-all">
-          Lauhdutin tyyppi
-          <select
-            value={data.tyyppi || ''}
-            onChange={(e) =>
-              onChange({
-                ...data,
-                tyyppi: (e.target.value || undefined) as LauhdutinType | undefined,
-              })
-            }
+      {dialogOpen ? (
+        <div className="leave-draft-overlay konvektori-dialog-overlay" role="presentation" onClick={() => setDialogOpen(false)}>
+          <div
+            className="leave-draft-dialog panel konvektori-tarkastus-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby={`cond-dialog-title-${index}`}
+            onClick={(event) => event.stopPropagation()}
           >
-            {lauhdutinTypeOptions.map((opt) => (
-              <option key={opt.value || 'empty'} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
-        </label>
+            <h2 id={`cond-dialog-title-${index}`}>{titleLabel}</h2>
 
-        <FormCheckbox
-          label="Lauhdutin puhdistettu"
-          checked={!!data.lauhdutinPuhdistettu}
-          onChange={(checked) => onChange({ ...data, lauhdutinPuhdistettu: checked })}
-        />
-
-        {data.lauhdutinPuhdistettu && (
-          <FormInput
-            label="Puhdistustapa"
-            value={data.lauhdutinPuhdistusTapa || ''}
-            onChange={(v) => onChange({ ...data, lauhdutinPuhdistusTapa: v })}
-            className="huolto-span-all"
-          />
-        )}
-      </div>
-
-      {isAirType && (
-        <>
-          <div className="line-form-grid">
-            <label className="huolto-span-all">
-              Puhaltimen ohjaustapa
-              <select
-                value={data.puhallinOhjaus || ''}
-                onChange={(e) =>
-                  onChange({
-                    ...data,
-                    puhallinOhjaus: (e.target.value || undefined) as PuhallinOhjausType | undefined,
-                  })
+            <div className="konvektori-tarkastus-item">
+              <span className="konvektori-tarkastus-label">Tarkastuksen tulos</span>
+              <TriStateInspectionToggle
+                name={`cond-${index}-tila`}
+                value={draftStatus}
+                onChange={(next: Exclude<HuoltoInspectionStatus, null>) =>
+                  setDraft((prev) => ({ ...prev, tarkastusTila: next }))
                 }
+              />
+            </div>
+
+            {showDetails ? (
+              <>
+                <div className="line-form-grid">
+                  <label className="huolto-span-all">
+                    Lauhdutin tyyppi
+                    <select
+                      value={draft.tyyppi || ''}
+                      onChange={(e) =>
+                        setDraft((prev) => ({
+                          ...prev,
+                          tyyppi: (e.target.value || undefined) as LauhdutinType | undefined,
+                        }))
+                      }
+                    >
+                      {lauhdutinTypeOptions.map((opt) => (
+                        <option key={opt.value || 'empty'} value={opt.value}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <FormCheckbox
+                    label="Lauhdutin puhdistettu"
+                    checked={!!draft.lauhdutinPuhdistettu}
+                    onChange={(checked) => setDraft((prev) => ({ ...prev, lauhdutinPuhdistettu: checked }))}
+                  />
+
+                  {draft.lauhdutinPuhdistettu ? (
+                    <FormInput
+                      label="Puhdistustapa"
+                      value={draft.lauhdutinPuhdistusTapa || ''}
+                      onChange={(v) => setDraft((prev) => ({ ...prev, lauhdutinPuhdistusTapa: v }))}
+                      className="huolto-span-all"
+                    />
+                  ) : null}
+                </div>
+
+                {isAirType ? (
+                  <>
+                    <div className="line-form-grid">
+                      <label className="huolto-span-all">
+                        Puhaltimen ohjaustapa
+                        <select
+                          value={draft.puhallinOhjaus || ''}
+                          onChange={(e) =>
+                            setDraft((prev) => ({
+                              ...prev,
+                              puhallinOhjaus: (e.target.value || undefined) as PuhallinOhjausType | undefined,
+                            }))
+                          }
+                        >
+                          {puhallinOhjausOptions.map((opt) => (
+                            <option key={opt.value || 'empty'} value={opt.value}>
+                              {opt.label}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+
+                      {draft.puhallinOhjaus === 'muu' ? (
+                        <FormInput
+                          label="Muu ohjaus"
+                          value={draft.puhallinOhjausMuu || ''}
+                          onChange={(v) => setDraft((prev) => ({ ...prev, puhallinOhjausMuu: v }))}
+                          className="huolto-span-all"
+                        />
+                      ) : null}
+
+                      {draft.puhallinOhjaus === 'nopeussäädin' ? (
+                        <FormInput
+                          label="Nopeussäätimen malli"
+                          value={draft.nopeussäädinMalli || ''}
+                          onChange={(v) => setDraft((prev) => ({ ...prev, nopeussäädinMalli: v }))}
+                        />
+                      ) : null}
+
+                      {draft.puhallinOhjaus === 'taajusmuuntaja' ? (
+                        <FormInput
+                          label="Taajusmuuntajan malli"
+                          value={draft.taajusmuuntajaMalli || ''}
+                          onChange={(v) => setDraft((prev) => ({ ...prev, taajusmuuntajaMalli: v }))}
+                        />
+                      ) : null}
+
+                      {draft.puhallinOhjaus === 'kp_pressostaatti' ? (
+                        <FormInput
+                          label="KP-pressostaatin malli"
+                          value={draft.kpPressostaattiMalli || ''}
+                          onChange={(v) => setDraft((prev) => ({ ...prev, kpPressostaattiMalli: v }))}
+                        />
+                      ) : null}
+
+                      <FormCheckbox
+                        label="Talvivarustus"
+                        checked={!!draft.talvivarustus}
+                        onChange={(checked) => setDraft((prev) => ({ ...prev, talvivarustus: checked }))}
+                      />
+
+                      {draft.talvivarustus ? (
+                        <FormInput
+                          label="Talvivarustuksen toteutustapa"
+                          value={draft.talvivarustusTapa || ''}
+                          onChange={(v) => setDraft((prev) => ({ ...prev, talvivarustusTapa: v }))}
+                          className="huolto-span-all"
+                        />
+                      ) : null}
+                    </div>
+
+                    <EvaporatorPuhaltimetFields
+                      puhaltimienMaara={draft.puhaltimienMaara || 1}
+                      puhaltimet={draft.puhaltimet || []}
+                      onChange={(patch) =>
+                        setDraft((prev) => ({
+                          ...prev,
+                          puhaltimienMaara: patch.puhaltimienMaara ?? prev.puhaltimienMaara,
+                          puhaltimet: patch.puhaltimet ?? prev.puhaltimet,
+                        }))
+                      }
+                    />
+                  </>
+                ) : null}
+
+                {isLiquidType ? (
+                  <div className="huolto-submodule">
+                    <h4>Nestekiertoinen lauhdutin</h4>
+                    <p className="muted huolto-help">{LAUHDUTIN_PAINEVENTTIILI_HELP}</p>
+                    <div className="line-form-grid">
+                      <FormCheckbox
+                        label={LAUHDUTIN_PAINEVENTTIILI_LABEL}
+                        checked={!!draft.painesäätimenTarkistettu}
+                        onChange={(checked) => setDraft((prev) => ({ ...prev, painesäätimenTarkistettu: checked }))}
+                      />
+
+                      {draft.painesäätimenTarkistettu ? (
+                        <FormInput
+                          label={LAUHDUTIN_PAINEVENTTIILI_MALLI_LABEL}
+                          value={draft.painesäätimenMalli || ''}
+                          onChange={(v) => setDraft((prev) => ({ ...prev, painesäätimenMalli: v }))}
+                        />
+                      ) : null}
+
+                      <FormCheckbox
+                        label="Virtaus riittävä"
+                        checked={draft.virtausRiittävä !== false}
+                        onChange={(checked) => setDraft((prev) => ({ ...prev, virtausRiittävä: checked }))}
+                      />
+
+                      {draft.virtausRiittävä === false ? (
+                        <FormInput
+                          label="Kuvaile virtausongelma"
+                          value={draft.virtausOngelma || ''}
+                          onChange={(v) => setDraft((prev) => ({ ...prev, virtausOngelma: v }))}
+                          className="huolto-span-all"
+                        />
+                      ) : null}
+                    </div>
+                  </div>
+                ) : null}
+              </>
+            ) : null}
+
+            {draftStatus === 'faulty' ? (
+              <label className="konvektori-huomio-field">
+                <span className="konvektori-tarkastus-label">Mikä on vikana?</span>
+                <textarea
+                  rows={3}
+                  value={draft.tarkastusHuomio ?? ''}
+                  onChange={(e) => setDraft((prev) => ({ ...prev, tarkastusHuomio: e.target.value }))}
+                />
+              </label>
+            ) : null}
+
+            <div className="leave-draft-actions konvektori-dialog-actions">
+              <button type="button" className="btn btn-secondary" onClick={() => setDialogOpen(false)}>
+                Peruuta
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                disabled={draftStatus === null}
+                onClick={() => {
+                  onChange(draft);
+                  setDialogOpen(false);
+                }}
               >
-                {puhallinOhjausOptions.map((opt) => (
-                  <option key={opt.value || 'empty'} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            {data.puhallinOhjaus === 'muu' && (
-              <FormInput
-                label="Muu ohjaus"
-                value={data.puhallinOhjausMuu || ''}
-                onChange={(v) => onChange({ ...data, puhallinOhjausMuu: v })}
-                className="huolto-span-all"
-              />
-            )}
-
-            {data.puhallinOhjaus === 'nopeussäädin' && (
-              <FormInput
-                label="Nopeussäätimen malli"
-                value={data.nopeussäädinMalli || ''}
-                onChange={(v) => onChange({ ...data, nopeussäädinMalli: v })}
-              />
-            )}
-
-            {data.puhallinOhjaus === 'taajusmuuntaja' && (
-              <FormInput
-                label="Taajusmuuntajan malli"
-                value={data.taajusmuuntajaMalli || ''}
-                onChange={(v) => onChange({ ...data, taajusmuuntajaMalli: v })}
-              />
-            )}
-
-            {data.puhallinOhjaus === 'kp_pressostaatti' && (
-              <FormInput
-                label="KP-pressostaatin malli"
-                value={data.kpPressostaattiMalli || ''}
-                onChange={(v) => onChange({ ...data, kpPressostaattiMalli: v })}
-              />
-            )}
-
-            <FormCheckbox
-              label="Talvivarustus"
-              checked={!!data.talvivarustus}
-              onChange={(checked) => onChange({ ...data, talvivarustus: checked })}
-            />
-
-            {data.talvivarustus && (
-              <FormInput
-                label="Talvivarustuksen toteutustapa"
-                value={data.talvivarustusTapa || ''}
-                onChange={(v) => onChange({ ...data, talvivarustusTapa: v })}
-                className="huolto-span-all"
-              />
-            )}
-          </div>
-
-          <EvaporatorPuhaltimetFields
-            puhaltimienMaara={data.puhaltimienMaara || 1}
-            puhaltimet={data.puhaltimet || []}
-            onChange={(patch) =>
-              onChange({
-                ...data,
-                puhaltimienMaara: patch.puhaltimienMaara ?? data.puhaltimienMaara,
-                puhaltimet: patch.puhaltimet ?? data.puhaltimet,
-              })
-            }
-          />
-        </>
-      )}
-
-      {isLiquidType && (
-        <div className="huolto-submodule">
-          <h4>Nestekiertoinen lauhdutin</h4>
-          <p className="muted huolto-help">{LAUHDUTIN_PAINEVENTTIILI_HELP}</p>
-          <div className="line-form-grid">
-            <FormCheckbox
-              label={LAUHDUTIN_PAINEVENTTIILI_LABEL}
-              checked={!!data.painesäätimenTarkistettu}
-              onChange={(checked) => onChange({ ...data, painesäätimenTarkistettu: checked })}
-            />
-
-            {data.painesäätimenTarkistettu && (
-              <FormInput
-                label={LAUHDUTIN_PAINEVENTTIILI_MALLI_LABEL}
-                value={data.painesäätimenMalli || ''}
-                onChange={(v) => onChange({ ...data, painesäätimenMalli: v })}
-              />
-            )}
-
-            <FormCheckbox
-              label="Virtaus riittävä"
-              checked={data.virtausRiittävä !== false}
-              onChange={(checked) => onChange({ ...data, virtausRiittävä: checked })}
-            />
-
-            {data.virtausRiittävä === false && (
-              <FormInput
-                label="Kuvaile virtausongelma"
-                value={data.virtausOngelma || ''}
-                onChange={(v) => onChange({ ...data, virtausOngelma: v })}
-                className="huolto-span-all"
-              />
-            )}
+                Tallenna
+              </button>
+            </div>
           </div>
         </div>
-      )}
-    </HuoltoPartSection>
+      ) : null}
+    </>
   );
 }

@@ -4,9 +4,14 @@ import {
   SISAYKSIKKO_TARKASTUS_ITEMS,
   type SisayksikkoTarkastusField,
 } from '../../lib/huoltoRaportti/sisayksikkoTarkastus';
+import {
+  normalizeLegacyInspectionStatus,
+  type HuoltoInspectionStatus,
+} from '../../lib/huoltoRaportti/huoltoInspectionStatus';
 import { sisayksikkoTyyppiLabel } from '../../lib/huoltoRaportti/sisayksikkoTypes';
 import { RichCommentEditor } from './RichCommentEditor';
 import { SisayksikkoSchematicPreview } from './SisayksikkoSchematicPreview';
+import { TriStateInspectionToggle } from './TriStateInspectionToggle';
 
 interface Props {
   open: boolean;
@@ -15,37 +20,6 @@ interface Props {
   rowLabel: string;
   onClose: () => void;
   onSave: (unit: SisayksikkoData, mittaus: MittausSisayksikkoData) => void;
-}
-
-function YesNoToggle({
-  value,
-  onChange,
-  name,
-}: {
-  value: boolean | null;
-  onChange: (next: boolean) => void;
-  name: string;
-}) {
-  return (
-    <div className="konvektori-yesno" role="group" aria-label={name}>
-      <button
-        type="button"
-        className={`konvektori-yesno-btn${value === true ? ' konvektori-yesno-btn--active konvektori-yesno-btn--yes' : ''}`}
-        aria-pressed={value === true}
-        onClick={() => onChange(true)}
-      >
-        Kyllä
-      </button>
-      <button
-        type="button"
-        className={`konvektori-yesno-btn${value === false ? ' konvektori-yesno-btn--active konvektori-yesno-btn--no' : ''}`}
-        aria-pressed={value === false}
-        onClick={() => onChange(false)}
-      >
-        Ei
-      </button>
-    </div>
-  );
 }
 
 export function SisayksikkoTarkastusDialog({
@@ -77,7 +51,7 @@ export function SisayksikkoTarkastusDialog({
 
   if (!open) return null;
 
-  const patchCheck = (field: SisayksikkoTarkastusField, value: boolean) => {
+  const patchCheck = (field: SisayksikkoTarkastusField, value: Exclude<HuoltoInspectionStatus, null>) => {
     setDraftUnit((prev) => ({ ...prev, [field]: value }));
   };
 
@@ -156,13 +130,9 @@ export function SisayksikkoTarkastusDialog({
           {SISAYKSIKKO_TARKASTUS_ITEMS.map((item) => (
             <div key={item.field} className="konvektori-tarkastus-item">
               <span className="konvektori-tarkastus-label">{item.label}</span>
-              <YesNoToggle
+              <TriStateInspectionToggle
                 name={item.label}
-                value={
-                  draftUnit[item.field] === true || draftUnit[item.field] === false
-                    ? (draftUnit[item.field] as boolean)
-                    : null
-                }
+                value={normalizeLegacyInspectionStatus(draftUnit[item.field])}
                 onChange={(value) => patchCheck(item.field, value)}
               />
             </div>

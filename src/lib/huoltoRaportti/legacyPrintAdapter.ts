@@ -1,5 +1,6 @@
 import { generatePrintHTML } from './legacyPrintUtils';
 import { hideMaintenancePrintWarnings } from './defaults';
+import { mapSisayksikkoForLegacyPrint } from './sisayksikkoTarkastus';
 import type { HuoltoReportData } from './types';
 import type { MaintenancePrintMeta } from './printHtml';
 import {
@@ -75,7 +76,7 @@ export function generateLegacyMaintenanceReportHtml(
     kylmaaineLisattyMaara: data.kylmaaineLisattyMaara,
     kylmaainePutkimatka: data.kylmaainePutkimatka,
     sisayksikkoMaara: data.sisayksikkoMaara,
-    sisayksikkoData: data.sisayksikkoData,
+    sisayksikkoData: data.sisayksikkoData?.map(mapSisayksikkoForLegacyPrint),
     mittausJaahdytysTestattu: data.mittausJaahdytysTestattu,
     mittausLammitysTestattu: data.mittausLammitysTestattu,
     mittausTestausLampotila: data.mittausTestausLampotila,

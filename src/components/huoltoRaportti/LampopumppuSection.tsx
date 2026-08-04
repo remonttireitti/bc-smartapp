@@ -14,6 +14,7 @@ import {
 import { HuoltoModuleSection } from './HuoltoModuleSection';
 import { SisayksikkoSchematicPreview } from './SisayksikkoSchematicPreview';
 import { SisayksikkoTarkastusDialog } from './SisayksikkoTarkastusDialog';
+import { UlkoyksikkoInspection } from './UlkoyksikkoInspection';
 import { useState } from 'react';
 
 interface Props {
@@ -35,10 +36,13 @@ function sisayksikkoStatusLabel(unit: SisayksikkoData): { text: string; classNam
   if (!summary.complete) {
     return { text: `Tarkastus ${summary.answered}/${summary.total}`, className: 'konvektori-status konvektori-status--pending' };
   }
-  if (summary.anyNo) {
-    return { text: 'Huomioita', className: 'konvektori-status konvektori-status--warn' };
+  if (summary.anyFaulty) {
+    return { text: 'Vika', className: 'konvektori-status konvektori-status--vika' };
   }
-  return { text: 'OK', className: 'konvektori-status konvektori-status--ok' };
+  if (summary.allOk) {
+    return { text: 'OK', className: 'konvektori-status konvektori-status--ok' };
+  }
+  return { text: 'Huomioita', className: 'konvektori-status konvektori-status--warn' };
 }
 
 export function LampopumppuSection({
@@ -123,52 +127,8 @@ export function LampopumppuSection({
               />
             )}
           </div>
-          <div className="checkbox-grid">
-            <FormCheckbox
-              id="ulkoyksikko-kennos-puhdas"
-              label="Kenno puhdistettu tai puhdas"
-              checked={!!form.ulkoyksikkoKennosPuhdas}
-              onChange={(v) =>
-                onChange({
-                  ulkoyksikkoKennosPuhdas: v,
-                  ...(v ? {} : { ulkoyksikkoKennoPuhdistustapa: '' }),
-                })
-              }
-            />
-            {form.ulkoyksikkoKennosPuhdas && (
-              <FormInput
-                label="Kennon puhdistustapa"
-                value={form.ulkoyksikkoKennoPuhdistustapa || ''}
-                onChange={(v) => onChange({ ulkoyksikkoKennoPuhdistustapa: v })}
-                className="huolto-span-all"
-              />
-            )}
-            <FormCheckbox
-              id="ulkoyksikko-sulatusvesi-keraily"
-              label="Ulkoyksiköllä sulatusveden keräily/ohjaus"
-              checked={!!form.ulkoyksikkoSulatausVedenKeraily}
-              onChange={(v) => onChange({ ulkoyksikkoSulatausVedenKeraily: v })}
-            />
-            {form.ulkoyksikkoSulatausVedenKeraily && (
-              <FormCheckbox
-                id="ulkoyksikko-sulatusvesi-tarkistettu"
-                label="Sulatusveden keräily tarkistettu/kunnossa"
-                checked={!!form.ulkoyksikkoSulatausVedenTarkistettu}
-                onChange={(v) => onChange({ ulkoyksikkoSulatausVedenTarkistettu: v })}
-              />
-            )}
-            <FormCheckbox
-              id="ulkoyksikko-turvakytkin"
-              label="Ulkoyksikön vieressä turvakytkin"
-              checked={!!form.ulkoyksikkoTurvakytkin}
-              onChange={(v) => onChange({ ulkoyksikkoTurvakytkin: v })}
-            />
-            <FormCheckbox
-              id="ulkoyksikko-suojakotelo"
-              label="Ulkoyksiköllä suojakotelo"
-              checked={!!form.ulkoyksikkoSuojakotelo}
-              onChange={(v) => onChange({ ulkoyksikkoSuojakotelo: v })}
-            />
+          <div className="huolto-part-inspection-list">
+            <UlkoyksikkoInspection form={form} onChange={onChange} />
           </div>
         </HuoltoModuleSection>
       )}
@@ -290,52 +250,6 @@ export function LampopumppuSection({
                 )}
               </div>
               <SisayksikkoSchematicPreview unit={yksikko} mittaus={mittaus} />
-              <div className="checkbox-grid">
-                <FormCheckbox
-                  id={`sisayksikko-${index}-asennettu`}
-                  label="Asennettu vaatimusten mukaisesti"
-                  checked={yksikko.asennettu}
-                  onChange={(v) => {
-                    const next = [...sisayksikkoData];
-                    next[index] = { ...next[index], asennettu: v };
-                    onChange({ sisayksikkoData: next });
-                  }}
-                  disabled={!!sisaSama[index]}
-                />
-                <FormCheckbox
-                  id={`sisayksikko-${index}-kenno-puhdas`}
-                  label="Kenno ja siipipyörä puhdas/puhdistettu"
-                  checked={yksikko.kennoPuhdas}
-                  onChange={(v) => {
-                    const next = [...sisayksikkoData];
-                    next[index] = { ...next[index], kennoPuhdas: v };
-                    onChange({ sisayksikkoData: next });
-                  }}
-                  disabled={!!sisaSama[index]}
-                />
-                <FormCheckbox
-                  id={`sisayksikko-${index}-ei-aania`}
-                  label="Ei kuulu sivuääniä"
-                  checked={yksikko.eiAania}
-                  onChange={(v) => {
-                    const next = [...sisayksikkoData];
-                    next[index] = { ...next[index], eiAania: v };
-                    onChange({ sisayksikkoData: next });
-                  }}
-                  disabled={!!sisaSama[index]}
-                />
-                <FormCheckbox
-                  id={`sisayksikko-${index}-kondenssi-testattu`}
-                  label="Kondenssiveden poisto testattu/kunnossa"
-                  checked={yksikko.kondenssiTestattu}
-                  onChange={(v) => {
-                    const next = [...sisayksikkoData];
-                    next[index] = { ...next[index], kondenssiTestattu: v };
-                    onChange({ sisayksikkoData: next });
-                  }}
-                  disabled={!!sisaSama[index]}
-                />
-              </div>
               <div className="sisayksikko-submodule-actions">
                 <button
                   type="button"

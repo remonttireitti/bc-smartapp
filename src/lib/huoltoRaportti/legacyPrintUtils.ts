@@ -2052,10 +2052,10 @@ export function generatePrintHTML(data: {
     sarjanumero: string;
     kondenssivesi: string;
     pumppuMalli: string;
-    asennettu: boolean;
-    kennoPuhdas: boolean;
-    eiAania: boolean;
-    kondenssiTestattu: boolean;
+    asennettu?: boolean;
+    kennoPuhdas?: boolean;
+    eiAania?: boolean;
+    kondenssiTestattu?: boolean;
   }>;
   // Mittaukset
   mittausJaahdytysTestattu?: boolean;
