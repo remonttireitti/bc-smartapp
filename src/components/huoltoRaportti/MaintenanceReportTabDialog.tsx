@@ -5,9 +5,10 @@ interface Props {
   open: boolean;
   onClose: () => void;
   children: ReactNode;
+  footer?: ReactNode;
 }
 
-export function MaintenanceReportTabDialog({ title, open, onClose, children }: Props) {
+export function MaintenanceReportTabDialog({ title, open, onClose, children, footer }: Props) {
   useEffect(() => {
     if (!open) return;
     function onKeyDown(event: KeyboardEvent) {
@@ -48,6 +49,9 @@ export function MaintenanceReportTabDialog({ title, open, onClose, children }: P
           </button>
         </header>
         <div className="maintenance-report-tab-dialog-body">{children}</div>
+        {footer ? (
+          <footer className="maintenance-report-tab-dialog-footer leave-draft-actions">{footer}</footer>
+        ) : null}
       </div>
     </div>
   );

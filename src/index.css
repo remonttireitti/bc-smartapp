@@ -5047,6 +5047,38 @@ textarea {
     max-height: min(92dvh, 100%);
     border-radius: 16px 16px 0 0;
   }
+
+  .maintenance-report-tab-overlay {
+    align-items: flex-end;
+    padding: 0;
+  }
+
+  .maintenance-report-tab-dialog {
+    width: 100%;
+    max-width: none;
+    max-height: min(100dvh, 100%);
+    min-height: 0;
+    border-radius: 16px 16px 0 0;
+    margin: 0;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  .maintenance-report-tab-dialog-footer {
+    flex-direction: column;
+    align-items: stretch;
+    margin: 0 -1.25rem 0;
+    padding: 0.75rem 1.25rem;
+    padding-bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px));
+  }
+
+  .maintenance-report-tab-dialog-footer .btn {
+    width: 100%;
+    min-height: 2.75rem;
+  }
+
+  .maintenance-device-dialog.maintenance-report-tab-dialog {
+    max-height: min(100dvh, 100%);
+  }
 }
 
 .form-help-details {
@@ -5232,6 +5264,9 @@ textarea {
   border-bottom: 1px solid var(--border-strong);
   -webkit-overflow-scrolling: touch;
   scrollbar-width: thin;
+  position: relative;
+  z-index: 2;
+  background: var(--bg-surface);
 }
 
 .maintenance-report-tab {
@@ -5278,18 +5313,30 @@ textarea {
   font-size: 0.92rem;
 }
 
+.maintenance-report-basics-gate {
+  font-weight: 600;
+}
+
 .maintenance-report-tab-overlay {
   z-index: 1050;
-  align-items: flex-start;
+  align-items: center;
+  justify-content: center;
   padding: 1rem;
-  overflow-y: auto;
+  overflow: hidden;
+}
+
+.maintenance-device-dialog-overlay {
+  z-index: 1100;
 }
 
 .maintenance-report-tab-dialog {
   width: min(960px, calc(100vw - 2rem));
-  max-height: none;
-  margin: auto;
+  max-height: min(calc(100dvh - 2rem), 100%);
+  margin: 0;
   pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 
 .maintenance-report-tab-dialog-header {
@@ -5297,7 +5344,8 @@ textarea {
   align-items: flex-start;
   justify-content: space-between;
   gap: 1rem;
-  margin-bottom: 1rem;
+  flex-shrink: 0;
+  margin-bottom: 0;
   padding-bottom: 0.75rem;
   border-bottom: 1px solid var(--border-strong);
 }
@@ -5312,9 +5360,89 @@ textarea {
   display: flex;
   flex-direction: column;
   gap: 1rem;
-  max-height: calc(100vh - 8rem);
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
-  padding-right: 0.15rem;
+  max-height: none;
+  padding: 1rem 0.15rem 0.5rem 0;
+  -webkit-overflow-scrolling: touch;
+}
+
+.maintenance-report-tab-dialog-footer {
+  flex-shrink: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  justify-content: flex-end;
+  margin: 0;
+  padding: 0.75rem 0 0;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  border-top: 1px solid var(--border-strong);
+  background: var(--bg-surface);
+}
+
+.maintenance-report-tab-dialog-footer .btn {
+  min-height: 2.5rem;
+}
+
+.maintenance-form.maintenance-tab-dialog-open .maintenance-report-tabs {
+  visibility: hidden;
+  pointer-events: none;
+  height: 0;
+  overflow: hidden;
+  padding: 0;
+  margin: 0;
+  border: 0;
+}
+
+.maintenance-report-basics-panel,
+.maintenance-device-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.maintenance-device-summary {
+  padding: 1rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  background: var(--bg-subtle);
+}
+
+.maintenance-device-summary-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.maintenance-device-summary-head h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.maintenance-device-summary-errors {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.maintenance-device-summary-errors .error {
+  margin: 0;
+}
+
+.field-error-input,
+.field-error-input:focus {
+  border-color: #dc2626;
+  box-shadow: 0 0 0 1px #dc2626;
+}
+
+.field-error-text {
+  display: block;
+  margin-top: 0.25rem;
+  color: #dc2626;
+  font-size: 0.82rem;
+  font-weight: 600;
 }
 
 .maintenance-device-type-select {

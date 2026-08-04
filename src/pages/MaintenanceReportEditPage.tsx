@@ -7,11 +7,11 @@ import { useMaintenanceReportNavigation } from '../hooks/useMaintenanceReportNav
 import { useDraftLeaveGuard } from '../hooks/useDraftLeaveGuard';
 import type { Session } from '@supabase/supabase-js';
 import AppLayout from '../components/AppLayout';
-import CustomerRegistryPicker, { type NewCustomerDraft } from '../components/CustomerRegistryPicker';
-import SubscriberPicker from '../components/SubscriberPicker';
-import SubscriberPortalVisibilityField from '../components/SubscriberPortalVisibilityField';
+import { type NewCustomerDraft } from '../components/CustomerRegistryPicker';
 import MaintenanceReportTabNav from '../components/huoltoRaportti/MaintenanceReportTabNav';
 import { MaintenanceReportTabDialog } from '../components/huoltoRaportti/MaintenanceReportTabDialog';
+import { MaintenanceReportBasicsPanel } from '../components/huoltoRaportti/MaintenanceReportBasicsPanel';
+import { MaintenanceDeviceDialog } from '../components/huoltoRaportti/MaintenanceDeviceDialog';
 import { HuoltoModulePresentationProvider } from '../components/huoltoRaportti/HuoltoModulePresentationContext';
 import ToggleSwitch from '../components/ToggleSwitch';
 import { CondensersSection } from '../components/huoltoRaportti/CondensersSection';
@@ -27,7 +27,6 @@ import { SiblingEquipmentCopyDialog } from '../components/huoltoRaportti/Sibling
 import { LampopumppuSection } from '../components/huoltoRaportti/LampopumppuSection';
 import { MlpSection } from '../components/huoltoRaportti/MlpSection';
 import { NestelauhduttimetSection } from '../components/huoltoRaportti/NestelauhduttimetSection';
-import { RefrigerantChargeSection } from '../components/huoltoRaportti/RefrigerantChargeSection';
 import { RefrigerantCircuitsSection } from '../components/huoltoRaportti/RefrigerantCircuitsSection';
 import { TiiveyskoeSection } from '../components/huoltoRaportti/TiiveyskoeSection';
 import { TyhjiointiSection } from '../components/huoltoRaportti/TyhjiointiSection';
@@ -38,7 +37,6 @@ import {
   createEmptyHuoltoReportData,
   createEmptyMlpData,
   createEmptyKonvektoriRow,
-  createEmptyVjOhjausData,
   ensureChillerLiquidCondenserData,
   konvektoriRowsMaintenanceScore,
   mergeHuoltoReportData,
@@ -63,7 +61,6 @@ import {
 } from '../lib/subscribers';
 import {
   SUBSCRIBER_PORTAL_VISIBILITY_DEFAULT,
-  reportHasSubscriberLink,
   type SubscriberPortalVisibility,
 } from '../lib/subscriberPortalVisibility';
 import {
@@ -122,6 +119,11 @@ import {
   buildMaintenanceReportTabs,
   type MaintenanceReportTabId,
 } from '../lib/huoltoRaportti/maintenanceReportTabs';
+import {
+  isMaintenanceBasicsComplete,
+  validateMaintenanceCustomerBasics,
+  validateMaintenanceDeviceBasics,
+} from '../lib/huoltoRaportti/maintenanceReportBasicsValidation';
 import { HuoltoEditUiProvider } from '../components/huoltoRaportti/HuoltoEditUiContext';
 import { cloneHuoltoReportForSiblingEquipment } from '../lib/huoltoRaportti/cloneReportForSiblingEquipment';
 import {
@@ -298,27 +300,63 @@ export default function MaintenanceReportEditPage({ session }: Props) {
     (k) => form.selectedModules[k] && !implementedModules.includes(k),
   );
 
-  const maintenanceTabs = useMemo(
-    () =>
-      buildMaintenanceReportTabs({
-        laiteTyyppi: form.laiteTyyppi,
-        selectedModules: form.selectedModules,
-        showEvaporatorSection,
-        showCondenserSection,
-        showLauhdutuspiiriSection,
-        showNestelauhduttimetSection,
-        showJaahdytysvesiSection,
-        showVapaajahdytysSection,
-        showKonvektoritSection,
-        showLampopumppuSection,
-        showMlpSection,
-        showChillerKiinteistoSection: showChillerKiinteistoTab,
-        showChillerEnergySection: showChillerEnergyTab,
-      }),
+  const customerBasicsInput = useMemo(
+    () => ({
+      profileCompanyId: profile?.company_id,
+      reportOwnerCompanyId,
+      reportOwnerTargets,
+      customerId,
+      asiakas: form.asiakas,
+      osoite: form.osoite,
+      canEditCustomerEquipment,
+    }),
     [
       profile?.company_id,
+      reportOwnerCompanyId,
+      reportOwnerTargets,
+      customerId,
+      form.asiakas,
+      form.osoite,
+      canEditCustomerEquipment,
+    ],
+  );
+
+  const deviceBasicsInput = useMemo(
+    () => ({
+      laiteTyyppi: form.laiteTyyppi,
+      laiteValmistaja: form.laiteValmistaja,
+      laiteMalli: form.laiteMalli,
+      laiteTunnus: form.laiteTunnus,
+      laiteSarjanumero: form.laiteSarjanumero,
+      laiteSijainti: form.laiteSijainti,
+      laiteKayttotarkoitus: form.laiteKayttotarkoitus,
+      kylmaaineTyyppi: form.kylmaaineTyyppi,
+      kylmaainePiireja: form.kylmaainePiireja,
+      selectedModules: form.selectedModules,
+    }),
+    [
       form.laiteTyyppi,
+      form.laiteValmistaja,
+      form.laiteMalli,
+      form.laiteTunnus,
+      form.laiteSarjanumero,
+      form.laiteSijainti,
+      form.laiteKayttotarkoitus,
+      form.kylmaaineTyyppi,
+      form.kylmaainePiireja,
       form.selectedModules,
+    ],
+  );
+
+  const basicsComplete = useMemo(
+    () => isMaintenanceBasicsComplete(customerBasicsInput, deviceBasicsInput),
+    [customerBasicsInput, deviceBasicsInput],
+  );
+
+  const maintenanceTabs = useMemo(() => {
+    const tabs = buildMaintenanceReportTabs({
+      laiteTyyppi: form.laiteTyyppi,
+      selectedModules: form.selectedModules,
       showEvaporatorSection,
       showCondenserSection,
       showLauhdutuspiiriSection,
@@ -328,19 +366,57 @@ export default function MaintenanceReportEditPage({ session }: Props) {
       showKonvektoritSection,
       showLampopumppuSection,
       showMlpSection,
-      showChillerKiinteistoTab,
-      showChillerEnergyTab,
-    ],
-  );
+      showChillerKiinteistoSection: showChillerKiinteistoTab,
+      showChillerEnergySection: showChillerEnergyTab,
+    });
+    if (basicsComplete) return tabs;
+    return tabs.filter((tab) => tab.id === 'raportointi');
+  }, [
+    basicsComplete,
+    form.laiteTyyppi,
+    form.selectedModules,
+    showEvaporatorSection,
+    showCondenserSection,
+    showLauhdutuspiiriSection,
+    showNestelauhduttimetSection,
+    showJaahdytysvesiSection,
+    showVapaajahdytysSection,
+    showKonvektoritSection,
+    showLampopumppuSection,
+    showMlpSection,
+    showChillerKiinteistoTab,
+    showChillerEnergyTab,
+  ]);
 
   const [openTabId, setOpenTabId] = useState<MaintenanceReportTabId | null>(null);
+  const [deviceDialogOpen, setDeviceDialogOpen] = useState(false);
+  const [basicsFieldErrors, setBasicsFieldErrors] = useState<Record<string, string>>({});
+  const [deviceFieldErrors, setDeviceFieldErrors] = useState<Record<string, string>>({});
+  const [basicsGateMessage, setBasicsGateMessage] = useState<string | null>(null);
+  const basicsPromptedRef = useRef(false);
 
   useEffect(() => {
     if (!openTabId) return;
     if (!maintenanceTabs.some((tab) => tab.id === openTabId)) {
-      setOpenTabId(null);
+      setOpenTabId(basicsComplete ? null : 'raportointi');
     }
-  }, [maintenanceTabs, openTabId]);
+  }, [maintenanceTabs, openTabId, basicsComplete]);
+
+  useEffect(() => {
+    if (openTabId && openTabId !== 'raportointi' && !basicsComplete) {
+      setOpenTabId('raportointi');
+    }
+  }, [openTabId, basicsComplete]);
+
+  useEffect(() => {
+    if (profileLoading || loadingReport || basicsComplete || basicsPromptedRef.current) return;
+    basicsPromptedRef.current = true;
+    setOpenTabId('raportointi');
+  }, [profileLoading, loadingReport, basicsComplete]);
+
+  useEffect(() => {
+    if (basicsComplete) setBasicsGateMessage(null);
+  }, [basicsComplete]);
 
   useEffect(() => {
     const media = window.matchMedia('(min-width: 901px)');
@@ -518,8 +594,10 @@ export default function MaintenanceReportEditPage({ session }: Props) {
       return;
     }
     if (reportOwnerCompanyId) return;
-    if (profile?.company_id) setReportOwnerCompanyId(profile.company_id);
-  }, [selectedCustomer, profile?.company_id, reportOwnerCompanyId]);
+    if (profile?.company_id && reportOwnerTargets.length <= 1) {
+      setReportOwnerCompanyId(profile.company_id);
+    }
+  }, [selectedCustomer, profile?.company_id, reportOwnerCompanyId, reportOwnerTargets.length]);
 
   function onReportOwnerChange(companyId: string) {
     setReportOwnerCompanyId(companyId);
@@ -1100,6 +1178,40 @@ export default function MaintenanceReportEditPage({ session }: Props) {
       if (!options?.auto) setError('Valitse asiakas tai täytä asiakastiedot.');
       return false;
     }
+    if (!currentForm.osoite.trim()) {
+      if (!options?.auto) setError('Asiakkaan kohteen osoite on pakollinen.');
+      return false;
+    }
+    const customerBasics = validateMaintenanceCustomerBasics({
+      profileCompanyId: profile?.company_id,
+      reportOwnerCompanyId,
+      reportOwnerTargets,
+      customerId,
+      asiakas: currentForm.asiakas,
+      osoite: currentForm.osoite,
+      canEditCustomerEquipment,
+    });
+    const deviceBasics = validateMaintenanceDeviceBasics({
+      laiteTyyppi: currentForm.laiteTyyppi,
+      laiteValmistaja: currentForm.laiteValmistaja,
+      laiteMalli: currentForm.laiteMalli,
+      laiteTunnus: currentForm.laiteTunnus,
+      laiteSarjanumero: currentForm.laiteSarjanumero,
+      laiteSijainti: currentForm.laiteSijainti,
+      laiteKayttotarkoitus: currentForm.laiteKayttotarkoitus,
+      kylmaaineTyyppi: currentForm.kylmaaineTyyppi,
+      kylmaainePiireja: currentForm.kylmaainePiireja,
+      selectedModules: currentForm.selectedModules,
+    });
+    if (!customerBasics.ok || !deviceBasics.ok) {
+      if (!options?.auto) {
+        setBasicsFieldErrors(customerBasics.fieldErrors);
+        setDeviceFieldErrors(deviceBasics.fieldErrors);
+        setOpenTabId('raportointi');
+        setError([...customerBasics.errors, ...deviceBasics.errors][0] ?? 'Täytä raportoinnin pakolliset tiedot.');
+      }
+      return false;
+    }
     if (!isOnline && options?.auto) {
       setAutoSaveState('offline');
       return false;
@@ -1377,6 +1489,77 @@ export default function MaintenanceReportEditPage({ session }: Props) {
   }
 
   const brandingName = ownerCompany?.name ?? reportOwnerName;
+
+  function handleMaintenanceTabChange(id: string) {
+    const tabId = id as MaintenanceReportTabId;
+    if (openTabId === tabId) {
+      if (tabId === 'raportointi' && !basicsComplete) {
+        const customerResult = validateMaintenanceCustomerBasics(customerBasicsInput);
+        const deviceResult = validateMaintenanceDeviceBasics(deviceBasicsInput);
+        setBasicsFieldErrors(customerResult.fieldErrors);
+        setDeviceFieldErrors(deviceResult.fieldErrors);
+        setBasicsGateMessage('Täytä kaikki pakolliset raportointi- ja laitetiedot ennen muihin osioihin siirtymistä.');
+        return;
+      }
+      setOpenTabId(null);
+      setBasicsGateMessage(null);
+      return;
+    }
+
+    if (tabId !== 'raportointi' && !basicsComplete) {
+      const customerResult = validateMaintenanceCustomerBasics(customerBasicsInput);
+      const deviceResult = validateMaintenanceDeviceBasics(deviceBasicsInput);
+      setBasicsFieldErrors(customerResult.fieldErrors);
+      setDeviceFieldErrors(deviceResult.fieldErrors);
+      setBasicsGateMessage('Täytä kaikki pakolliset raportointi- ja laitetiedot ennen muihin osioihin siirtymistä.');
+      setOpenTabId('raportointi');
+      if (customerResult.ok && !deviceResult.ok) {
+        setDeviceDialogOpen(true);
+      }
+      return;
+    }
+
+    if (tabId === 'raportointi') {
+      const customerResult = validateMaintenanceCustomerBasics(customerBasicsInput);
+      setBasicsFieldErrors(customerResult.fieldErrors);
+    }
+
+    setBasicsGateMessage(null);
+    setOpenTabId(tabId);
+  }
+
+  function openDeviceDialog() {
+    const customerResult = validateMaintenanceCustomerBasics(customerBasicsInput);
+    setBasicsFieldErrors(customerResult.fieldErrors);
+    if (!customerResult.ok) return;
+    setDeviceFieldErrors({});
+    setDeviceDialogOpen(true);
+  }
+
+  function saveDeviceDialog() {
+    const deviceResult = validateMaintenanceDeviceBasics(deviceBasicsInput);
+    setDeviceFieldErrors(deviceResult.fieldErrors);
+    if (!deviceResult.ok) return;
+    setDeviceDialogOpen(false);
+    setHasUnsavedChanges(true);
+  }
+
+  function completeRaportointiTab() {
+    const customerResult = validateMaintenanceCustomerBasics(customerBasicsInput);
+    const deviceResult = validateMaintenanceDeviceBasics(deviceBasicsInput);
+    setBasicsFieldErrors(customerResult.fieldErrors);
+    setDeviceFieldErrors(deviceResult.fieldErrors);
+    if (!customerResult.ok || !deviceResult.ok) {
+      setBasicsGateMessage('Täytä kaikki pakolliset raportointi- ja laitetiedot ennen muihin osioihin siirtymistä.');
+      if (customerResult.ok && !deviceResult.ok) {
+        setDeviceDialogOpen(true);
+      }
+      return;
+    }
+    setBasicsGateMessage(null);
+    setOpenTabId(null);
+  }
+
   const canDeleteMaintenance = !isNew && reportOwnerCompanyId
     ? canDeleteCompanyOwnedEntity(
         reportOwnerCompanyId,
@@ -1453,6 +1636,17 @@ export default function MaintenanceReportEditPage({ session }: Props) {
         onConfirm={(input) => void confirmSiblingEquipmentCopy(input)}
         onCancel={cancelSiblingEquipmentCopy}
       />
+      <MaintenanceDeviceDialog
+        open={deviceDialogOpen}
+        form={form}
+        fieldErrors={deviceFieldErrors}
+        registryMessage={registryMessage}
+        copySiblingMode={copySiblingMode}
+        onChange={patchForm}
+        onDeviceTypeChange={onDeviceTypeChange}
+        onSave={saveDeviceDialog}
+        onCancel={() => setDeviceDialogOpen(false)}
+      />
       <div className="page-header">
         <div>
           <NavigationBreadcrumb
@@ -1485,326 +1679,170 @@ export default function MaintenanceReportEditPage({ session }: Props) {
       )}
 
       <HuoltoEditUiProvider viewKey={reportViewKey}>
-      <form className="panel form-grid maintenance-form" onSubmit={onSubmit}>
+      <form className={`panel form-grid maintenance-form${openTabId ? ' maintenance-tab-dialog-open' : ''}`} onSubmit={onSubmit}>
         <MaintenanceReportTabNav
           tabs={maintenanceTabs}
           activeId={openTabId ?? ''}
-          onChange={(id) => {
-            const tabId = id as MaintenanceReportTabId;
-            setOpenTabId((prev) => (prev === tabId ? null : tabId));
-          }}
+          onChange={handleMaintenanceTabChange}
         />
 
         <div className="maintenance-report-tab-launcher">
-          <p className="muted">
-            Avaa osio ylävalikon painikkeesta. Tarkastukset ja mittaukset avautuvat ponnahdusikkunoihin osion sisällä.
-          </p>
+          {!basicsComplete ? (
+            <p className="error maintenance-report-basics-gate">
+              Täytä raportoinnin pakolliset tiedot (yritys, asiakas, osoite ja laitetiedot) — muut osiot avautuvat
+              vasta sen jälkeen.
+            </p>
+          ) : (
+            <p className="muted">
+              Avaa osio ylävalikon painikkeesta. Tarkastukset ja mittaukset avautuvat ponnahdusikkunoihin osion sisällä.
+            </p>
+          )}
+          {basicsGateMessage ? <p className="error">{basicsGateMessage}</p> : null}
         </div>
 
         <MaintenanceReportTabDialog
           open={openTabId !== null}
           title={maintenanceTabs.find((tab) => tab.id === openTabId)?.label ?? ''}
-          onClose={() => setOpenTabId(null)}
+          onClose={() => {
+            if (openTabId === 'raportointi' && !basicsComplete) return;
+            setOpenTabId(null);
+          }}
+          footer={
+            openTabId === 'raportointi' ? (
+              <>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  disabled={!basicsComplete}
+                  onClick={() => setOpenTabId(null)}
+                >
+                  Sulje
+                </button>
+                <button type="button" className="btn btn-secondary" onClick={openDeviceDialog}>
+                  {form.laiteTyyppi ? 'Muokkaa laitetietoja' : 'Laitetiedot'}
+                </button>
+                <button type="button" className="btn btn-primary" onClick={completeRaportointiTab}>
+                  Valmis
+                </button>
+              </>
+            ) : undefined
+          }
         >
         <HuoltoModulePresentationProvider value="flat">
         <div className="maintenance-report-tab-panel">
         {openTabId === 'raportointi' && (
-        <section className={`maintenance-report-tab-section${form.laiteTyyppi && (form.selectedModules.kylmaainePiiri || form.laiteTyyppi === 'lämpöpumppu') ? ' huolto-modules-stack' : ''}`}>
-        <div className="info-grid">
-            <div className="info-box">
-              <span className="info-label">Yrityksen nimissä (brändi tulosteessa)</span>
-              {!customerId && reportOwnerTargets.length > 1 ? (
-                <select
-                  className="info-box-select"
-                  value={reportOwnerCompanyId ?? ''}
-                  onChange={(event) => onReportOwnerChange(event.target.value)}
-                  disabled={busy || !canEditCustomerEquipment}
-                >
-                  {reportOwnerTargets.map((target) => (
-                    <option key={target.companyId} value={target.companyId}>
-                      {target.label}
-                    </option>
-                  ))}
-                </select>
+        <section className="maintenance-report-tab-section">
+          <MaintenanceReportBasicsPanel
+            form={form}
+            fieldErrors={basicsFieldErrors}
+            profileCompanyId={profile?.company_id}
+            reportOwnerCompanyId={reportOwnerCompanyId}
+            reportOwnerTargets={reportOwnerTargets}
+            brandingName={brandingName}
+            creatorCompanyName={creatorCompanyName}
+            creatorDisplayName={profile?.display_name ?? session.user.email ?? '—'}
+            creatorEmail={session.user.email}
+            canEditCustomerEquipment={canEditCustomerEquipment}
+            customerId={customerId}
+            customers={customers}
+            selectedCustomer={selectedCustomer}
+            contextMode={contextMode}
+            ownerCompanyId={ownerCompanyId}
+            subscribersForOwner={subscribersForOwner}
+            subscriberId={subscriberId}
+            subscriberPortalVisibility={subscriberPortalVisibility}
+            busy={busy}
+            copySiblingMode={copySiblingMode}
+            onReportOwnerChange={onReportOwnerChange}
+            onPatchForm={patchForm}
+            onSelectCustomer={(id) => {
+              setCustomerId(id);
+              setEquipmentId('');
+              const customer = customers.find((entry) => entry.id === id);
+              if (customer) {
+                void loadOwnerCompany(customer.owner_company_id);
+                if (customer.subscriber_id) setSubscriberId(customer.subscriber_id);
+              }
+            }}
+            onClearCustomer={() => {
+              setCustomerId('');
+              setEquipmentId('');
+              if (profile?.company_id) void loadOwnerCompany(profile.company_id);
+            }}
+            onCreateCustomer={createCustomerAndSelect}
+            onSubscriberChange={setSubscriberId}
+            onSubscriberPortalVisibilityChange={setSubscriberPortalVisibility}
+          />
+
+          <div className="maintenance-device-summary">
+            <div className="maintenance-device-summary-head">
+              <h3>Laitetiedot</h3>
+              {basicsComplete ? (
+                <span className="badge badge-completed">Valmis</span>
               ) : (
-                <strong>{brandingName}</strong>
+                <span className="badge badge-scheduled">Puuttuu</span>
               )}
             </div>
-            <div className="info-box">
-              <span className="info-label">Laatija</span>
-              <strong>{profile?.display_name ?? session.user.email}</strong>
-              <span className="muted">{creatorCompanyName}</span>
-            </div>
-          </div>
-          {canEditCustomerEquipment && selectedCustomer && contextMode === 'partner' && (
-            <p className="muted">
-              Valittu asiakas kuuluu kumppanin rekisteriin — raportti luodaan yrityksen{' '}
-              <strong>{brandingName}</strong> nimissä.
-            </p>
-          )}
-          {canEditCustomerEquipment && !customerId && reportOwnerTargets.length > 1 && (
-            <p className="muted">
-              Valitse ensin yritys, jonka nimissä raportti laaditaan. Asiakasrekisteristä näytetään
-              vain kumppanit, joilla on huoltoraportin luontioikeus.
-            </p>
-          )}
-
-          {profile?.company_id && (
-            <>
-            <p className="muted">
-              Hae asiakasta kaikista rekistereistä joihin sinulla on pääsy. Raportti luodaan automaattisesti
-              sen yrityksen nimissä, jonka rekisteriin asiakas kuuluu. Uusi asiakas tallennetaan aina omaan
-              rekisteriisi ({creatorCompanyName}).
-            </p>
-
-            {canEditCustomerEquipment ? (
-              <>
-                {ownerCompanyId ? (
-                  <SubscriberPicker
-                    subscribers={subscribersForOwner}
-                    subscriberId={subscriberId}
-                    disabled={busy}
-                    hint="Valinnainen. Moniasiakas-tilaaja näkee kaikki tähän linkitetyt kohteet ja raportit."
-                    onChange={setSubscriberId}
-                  />
-                ) : null}
-
-                {reportHasSubscriberLink({
-                  subscriber_id: subscriberId,
-                  customer_subscriber_id: selectedCustomer?.subscriber_id,
-                }) ? (
-                  <SubscriberPortalVisibilityField
-                    value={subscriberPortalVisibility}
-                    reportKind="maintenance"
-                    disabled={busy}
-                    onChange={setSubscriberPortalVisibility}
-                  />
-                ) : null}
-
-                <CustomerRegistryPicker
-                  customers={customers}
-                  customerId={customerId}
-                  myCompanyId={profile.company_id}
-                  disabled={!profile?.company_id}
-                  createRegistryName={creatorCompanyName}
-                  busy={busy}
-                  onSelect={(id) => {
-                    setCustomerId(id);
-                    setEquipmentId('');
-                    const customer = customers.find((entry) => entry.id === id);
-                    if (customer) {
-                      void loadOwnerCompany(customer.owner_company_id);
-                      if (customer.subscriber_id) setSubscriberId(customer.subscriber_id);
-                    }
-                  }}
-                  onClear={() => {
-                    setCustomerId('');
-                    setEquipmentId('');
-                    if (profile?.company_id) void loadOwnerCompany(profile.company_id);
-                  }}
-                  onCreate={createCustomerAndSelect}
-                />
-
-                {copySiblingMode && !isKonvektoritDevice(form.laiteTyyppi) && (
-                  <p className="muted">
-                    Täytä uuden laitteen tiedot ponnahdusikkunassa — laite ja huoltopöytäkirja luodaan kerralla.
-                  </p>
-                )}
-              </>
-            ) : (
+            {form.laiteTyyppi ? (
               <div className="info-grid">
                 <div className="info-box">
-                  <span className="info-label">Asiakas</span>
-                  <strong>{form.asiakas || selectedCustomer?.name || '—'}</strong>
-                  <span className="muted">{form.osoite}</span>
+                  <span className="info-label">Laitetyyppi</span>
+                  <strong>{deviceTypes.find((dt) => dt.value === form.laiteTyyppi)?.label ?? form.laiteTyyppi}</strong>
                 </div>
+                {isKonvektoritDevice(form.laiteTyyppi) ? (
+                  <>
+                    <div className="info-box">
+                      <span className="info-label">Verkoston kuvaus</span>
+                      <strong>{form.laiteKayttotarkoitus || '—'}</strong>
+                    </div>
+                    <div className="info-box">
+                      <span className="info-label">Alue</span>
+                      <strong>{form.laiteSijainti || '—'}</strong>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="info-box">
+                      <span className="info-label">Laite</span>
+                      <strong>
+                        {[form.laiteValmistaja, form.laiteMalli].filter(Boolean).join(' ') || '—'}
+                      </strong>
+                      <span className="muted">
+                        {[form.laiteTunnus, form.laiteSarjanumero].filter(Boolean).join(' · ')}
+                      </span>
+                    </div>
+                    <div className="info-box">
+                      <span className="info-label">Sijainti</span>
+                      <strong>{form.laiteSijainti || '—'}</strong>
+                    </div>
+                    {(form.selectedModules.kylmaainePiiri || form.laiteTyyppi === 'lämpöpumppu') && (
+                      <div className="info-box">
+                        <span className="info-label">Kylmäaine</span>
+                        <strong>{form.kylmaaineTyyppi || '—'}</strong>
+                        {form.kylmaainePiireja ? (
+                          <span className="muted">{form.kylmaainePiireja} piiriä</span>
+                        ) : null}
+                      </div>
+                    )}
+                  </>
+                )}
               </div>
+            ) : (
+              <p className="muted">
+                Täytä laitteen perustiedot (tyyppi, valmistaja, malli, tunnus, sarjanumero, sijainti ja kylmäaine)
+                ennen muiden osioiden avaamista.
+              </p>
             )}
-
-            <div className="line-form-grid">
-              <label>
-                Asiakas (tuloste)
-                <input
-                  value={form.asiakas}
-                  onChange={(e) => patchForm({ asiakas: e.target.value })}
-                  disabled={!canEditCustomerEquipment}
-                />
-              </label>
-              <label>
-                Osoite
-                <input
-                  value={form.osoite}
-                  onChange={(e) => patchForm({ osoite: e.target.value })}
-                  disabled={!canEditCustomerEquipment}
-                />
-              </label>
-            </div>
-            <div className="line-form-grid">
-              <label>
-                Y-tunnus
-                <input
-                  value={form.asiakasYtunnus ?? ''}
-                  onChange={(e) => patchForm({ asiakasYtunnus: e.target.value })}
-                  disabled={!canEditCustomerEquipment}
-                />
-              </label>
-              <label>
-                Yhteyshenkilö
-                <input
-                  value={form.asiakasYhteyshenkilo ?? ''}
-                  onChange={(e) => patchForm({ asiakasYhteyshenkilo: e.target.value })}
-                  disabled={!canEditCustomerEquipment}
-                />
-              </label>
-              <label>
-                Puhelin
-                <input
-                  value={form.asiakasPuhelin ?? ''}
-                  onChange={(e) => patchForm({ asiakasPuhelin: e.target.value })}
-                  disabled={!canEditCustomerEquipment}
-                />
-              </label>
-              <label>
-                Sähköposti
-                <input
-                  type="email"
-                  value={form.asiakasEmail ?? ''}
-                  onChange={(e) => patchForm({ asiakasEmail: e.target.value })}
-                  disabled={!canEditCustomerEquipment}
-                />
-              </label>
-            </div>
-            </>
-          )}
-
-              <label className="maintenance-device-type-select">
-                Laitetyyppi
-                <select
-                  value={form.laiteTyyppi}
-                  onChange={(e) => onDeviceTypeChange(e.target.value)}
-                >
-                  <option value="">— Valitse laitetyyppi —</option>
-                  {deviceTypes.map((dt) => (
-                    <option key={dt.value} value={dt.value}>
-                      {dt.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              {!form.laiteTyyppi ? (
-                <p className="muted">Valitse laitetyyppi nähdäksesi laitteen perustiedot ja muut moduulit.</p>
-              ) : (
-              <>
-              {registryMessage && <p className="muted">{registryMessage}</p>}
-              {copySiblingMode && !isKonvektoritDevice(form.laiteTyyppi) && (
-                <p className="muted">
-                  Täytä uuden laitteen tunnus ponnahdusikkunassa. Laite rekisteriin ja uusi huoltopöytäkirja luodaan samalla.
-                </p>
-              )}
-              {isKonvektoritDevice(form.laiteTyyppi) ? (
-                <>
-                  <p className="muted">
-                    Kuvaa kohde verkostotasolla — ei yksittäistä konvektoria. Jokaisen konvektorin valmistaja,
-                    malli ja mittaukset täytetään konvektorilistassa alla.
+            {Object.keys(deviceFieldErrors).length > 0 ? (
+              <div className="maintenance-device-summary-errors">
+                {Object.values(deviceFieldErrors).map((message) => (
+                  <p key={message} className="error">
+                    {message}
                   </p>
-                  <div className="line-form-grid">
-                    <label style={{ gridColumn: '1 / -1' }}>
-                      Verkoston kuvaus
-                      <input
-                        value={form.laiteKayttotarkoitus}
-                        onChange={(e) => patchForm({ laiteKayttotarkoitus: e.target.value })}
-                        placeholder="esim. Kiinteistö X, 3. krs konvektoriverkosto"
-                      />
-                    </label>
-                    <label>
-                      Alue / rakennus / kerros
-                      <input
-                        value={form.laiteSijainti}
-                        onChange={(e) => patchForm({ laiteSijainti: e.target.value })}
-                        placeholder="esim. Rakennus A, kerrokset 2–4"
-                      />
-                    </label>
-                    <label>
-                      Kohteen tunnus (valinnainen)
-                      <input
-                        value={form.laiteTunnus}
-                        onChange={(e) => patchForm({ laiteTunnus: e.target.value })}
-                        placeholder="esim. KV-2024-01"
-                      />
-                    </label>
-                  </div>
-                </>
-              ) : (
-              <div className="line-form-grid">
-                <label>
-                  Valmistaja
-                  <input
-                    value={form.laiteValmistaja}
-                    onChange={(e) => patchForm({ laiteValmistaja: e.target.value })}
-                  />
-                </label>
-                <label>
-                  Malli
-                  <input
-                    value={form.laiteMalli}
-                    onChange={(e) => patchForm({ laiteMalli: e.target.value })}
-                  />
-                </label>
-                <label>
-                  Laitetunnus
-                  <input
-                    value={form.laiteTunnus}
-                    onChange={(e) => patchForm({ laiteTunnus: e.target.value })}
-                  />
-                </label>
-                {form.laiteTyyppi !== 'lämpöpumppu' && (
-                  <label>
-                    Sarjanumero
-                    <input
-                      value={form.laiteSarjanumero}
-                      onChange={(e) => patchForm({ laiteSarjanumero: e.target.value })}
-                    />
-                  </label>
-                )}
-                <label>
-                  Sijainti
-                  <input
-                    value={form.laiteSijainti}
-                    onChange={(e) => patchForm({ laiteSijainti: e.target.value })}
-                  />
-                </label>
-                <label>
-                  Käyttötarkoitus
-                  <input
-                    value={form.laiteKayttotarkoitus}
-                    onChange={(e) => patchForm({ laiteKayttotarkoitus: e.target.value })}
-                  />
-                </label>
-                {isChillerLikeDevice(form.laiteTyyppi) && (
-                  <label className="huolto-span-all">
-                    Asetusarvot
-                    <input
-                      value={form.vjOhjausData?.asetusArvot ?? ''}
-                      onChange={(e) =>
-                        patchForm({
-                          vjOhjausData: {
-                            ...(form.vjOhjausData ?? createEmptyVjOhjausData()),
-                            asetusArvot: e.target.value,
-                          },
-                        })
-                      }
-                      placeholder="Esim. meno/paluu, ΔT, paineet…"
-                    />
-                  </label>
-                )}
+                ))}
               </div>
-              )}
-              {form.laiteTyyppi && (form.selectedModules.kylmaainePiiri || form.laiteTyyppi === 'lämpöpumppu') && (
-                <RefrigerantChargeSection form={form} onChange={patchForm} />
-              )}
-              </>
-              )}
+            ) : null}
+          </div>
         </section>
         )}
 
@@ -2080,7 +2118,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
                 <button
                   type="button"
                   className="btn btn-secondary maintenance-actions-save"
-                  disabled={busy || !form.laiteTyyppi}
+                  disabled={busy || !basicsComplete}
                   onClick={() => void saveReport('draft')}
                 >
                   {busy ? 'Tallennetaan…' : 'Tallenna luonnos'}
@@ -2088,7 +2126,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
                 <button
                   type="button"
                   className="btn btn-primary maintenance-actions-submit"
-                  disabled={busy || !form.laiteTyyppi}
+                  disabled={busy || !basicsComplete}
                   onClick={() => void saveReport('submitted')}
                 >
                   Merkitse valmiiksi
@@ -2099,7 +2137,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
               <button
                 type="button"
                 className="btn btn-primary maintenance-actions-save"
-                disabled={busy || !form.laiteTyyppi}
+                disabled={busy || !basicsComplete}
                 onClick={() => void saveReport()}
               >
                 {busy ? 'Tallennetaan…' : 'Tallenna muutokset'}
