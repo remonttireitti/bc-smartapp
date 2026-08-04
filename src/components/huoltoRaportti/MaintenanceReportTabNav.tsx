@@ -1,4 +1,6 @@
 import { useEffect, useRef } from 'react';
+import type { MaintenanceTabCompletionState } from '../../lib/huoltoRaportti/maintenanceReportTabCompletion';
+import { maintenanceTabCompletionLabel } from '../../lib/huoltoRaportti/maintenanceReportTabCompletion';
 
 export type MaintenanceReportTabItem = {
   id: string;
@@ -8,10 +10,11 @@ export type MaintenanceReportTabItem = {
 type Props = {
   tabs: MaintenanceReportTabItem[];
   activeId: string;
+  tabCompletion?: Partial<Record<string, MaintenanceTabCompletionState>>;
   onChange: (id: string) => void;
 };
 
-export default function MaintenanceReportTabNav({ tabs, activeId, onChange }: Props) {
+export default function MaintenanceReportTabNav({ tabs, activeId, tabCompletion, onChange }: Props) {
   const tabRefs = useRef(new Map<string, HTMLButtonElement>());
 
   useEffect(() => {
@@ -35,7 +38,19 @@ export default function MaintenanceReportTabNav({ tabs, activeId, onChange }: Pr
           aria-pressed={activeId === tab.id ? true : undefined}
           onClick={() => onChange(tab.id)}
         >
-          {tab.label}
+          <span className="maintenance-report-tab-label">{tab.label}</span>
+          {tabCompletion?.[tab.id] === 'ok' ? (
+            <span className="maintenance-report-tab-check" aria-label={maintenanceTabCompletionLabel('ok')}>
+              ✓
+            </span>
+          ) : tabCompletion?.[tab.id] === 'attention' ? (
+            <span
+              className="maintenance-report-tab-check maintenance-report-tab-check--attention"
+              aria-label={maintenanceTabCompletionLabel('attention')}
+            >
+              !
+            </span>
+          ) : null}
         </button>
       ))}
     </nav>

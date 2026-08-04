@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { deviceTypes } from '../../lib/huoltoRaportti/constants';
 import {
   isChillerLikeDevice,
@@ -50,7 +51,7 @@ export function MaintenanceDeviceDialog({
 
   if (!open) return null;
 
-  return (
+  return createPortal(
     <div
       className="maintenance-report-tab-overlay maintenance-device-dialog-overlay leave-draft-overlay"
       role="presentation"
@@ -236,6 +237,7 @@ export function MaintenanceDeviceDialog({
           </button>
         </footer>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

@@ -1,5 +1,5 @@
-import type { EvaporatorData, EvaporatorType } from './types';
-import { isChillerLikeDevice, isWaterCooledChiller } from './deviceModuleLogic';
+import type { EvaporatorData, EvaporatorType, HuoltoReportData } from './types';
+import { isChillerLikeDevice, isSharedEvaporatorAcrossCircuits, isWaterCooledChiller } from './deviceModuleLogic';
 
 /** Vedenjäähdytyskone / VAK: levy- tai putkilämmönvaihdin (ei puhaltimia eikä sulatusta). */
 export function isHeatExchangerEvaporatorType(tyyppi: EvaporatorType | string | undefined): boolean {
@@ -21,6 +21,14 @@ export function evapTyyppiLabel(value: string | undefined): string {
   if (value === 'putki') return 'Putkilämmönvaihdin';
   if (value === 'suorahoyrystin') return 'Suorahöyrystin';
   return value?.trim() || '—';
+}
+
+export function getEvaporatorCircuitCount(form: HuoltoReportData): number {
+  if (form.laiteTyyppi === 'kylmäkoneikko') return form.evaporatorData.length;
+  if (isSharedEvaporatorAcrossCircuits(form.laiteTyyppi, form.hoyrystinYhteinenPiireissa)) {
+    return 1;
+  }
+  return Math.min(3, Math.max(1, parseInt(form.kylmaainePiireja, 10) || 1));
 }
 
 export function evaporatorSnapshotRowIsMeaningful(ev: {

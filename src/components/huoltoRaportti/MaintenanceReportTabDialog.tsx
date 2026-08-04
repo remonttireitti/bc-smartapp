@@ -1,4 +1,5 @@
 import { useEffect, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 
 interface Props {
   title: string;
@@ -29,7 +30,7 @@ export function MaintenanceReportTabDialog({ title, open, onClose, children, foo
 
   if (!open) return null;
 
-  return (
+  return createPortal(
     <div
       className="maintenance-report-tab-overlay leave-draft-overlay"
       role="presentation"
@@ -53,6 +54,7 @@ export function MaintenanceReportTabDialog({ title, open, onClose, children, foo
           <footer className="maintenance-report-tab-dialog-footer leave-draft-actions">{footer}</footer>
         ) : null}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

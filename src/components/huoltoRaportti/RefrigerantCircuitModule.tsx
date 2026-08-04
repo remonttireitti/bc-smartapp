@@ -377,10 +377,10 @@ export function RefrigerantCircuitModule({
     const sameKey = sameAsFirstByIndex[index];
     if (!key) return null;
     return (
-      <>
+      <div key={key} className="huolto-circuit-compressor-item">
         {index > 1 && sameKey && (
           <FormCheckbox
-            label={`Kompressori ${index}: sama kompressori kuin kompressori 1 (valmistaja + malli)`}
+            label={`Sama kuin kompressori 1 (valmistaja + malli)`}
             checked={!!data[sameKey]}
             onChange={(v) => setSameAsFirst(index, v)}
           />
@@ -394,7 +394,7 @@ export function RefrigerantCircuitModule({
           }
           onChange={(newData) => updateCompressor(index, newData)}
         />
-      </>
+      </div>
     );
   };
 
@@ -413,6 +413,8 @@ export function RefrigerantCircuitModule({
 
       {expanded && data.onKaytossa && (
         <div className="huolto-circuit-body">
+          <div className="huolto-circuit-part-module">
+            <h3 className="huolto-circuit-part-module-title">Mittaukset</h3>
           <div className="line-form-grid">
             <FormInput
               label="Imupaine (bar)"
@@ -605,9 +607,10 @@ export function RefrigerantCircuitModule({
               .
             </div>
           )}
+          </div>
 
-          <div>
-            <p className="muted">Kompressoreita piirissä</p>
+          <div className="huolto-circuit-part-module">
+            <h3 className="huolto-circuit-part-module-title">Kompressorit</h3>
             {hasCrossCircuitSync && (
               <FormCheckbox
                 label={`Piiri ${circuitNumber}: sama kompressorimäärä ja kompressorit kuin piirissä 1`}
@@ -615,27 +618,29 @@ export function RefrigerantCircuitModule({
                 onChange={(v) => setCrossCircuitFlag('kompressoritSamaKuinPiiri1', v)}
               />
             )}
-            <div className="btn-group">
-              {['1', '2', '3', '4', '5', '6'].map((num) => (
-                <button
-                  key={num}
-                  type="button"
-                  disabled={!!data.kompressoritSamaKuinPiiri1}
-                  className={`btn btn-secondary btn-sm ${data.kompressorienMaara === num ? 'btn-active' : ''}`}
-                  onClick={() => onChange({ ...data, kompressorienMaara: num })}
-                >
-                  {num}
-                </button>
-              ))}
+            <label className="huolto-circuit-count-field">
+              Kompressoreita piirissä
+              <select
+                value={data.kompressorienMaara || '1'}
+                disabled={!!data.kompressoritSamaKuinPiiri1}
+                onChange={(e) => onChange({ ...data, kompressorienMaara: e.target.value })}
+              >
+                {[1, 2, 3, 4, 5, 6].map((count) => (
+                  <option key={count} value={String(count)}>
+                    {count}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div className="huolto-part-inspection-list huolto-part-inspection-list--flat">
+              {parseInt(data.kompressorienMaara, 10) >= 1 && renderCompressor(1)}
+              {parseInt(data.kompressorienMaara, 10) >= 2 && renderCompressor(2)}
+              {parseInt(data.kompressorienMaara, 10) >= 3 && renderCompressor(3)}
+              {parseInt(data.kompressorienMaara, 10) >= 4 && renderCompressor(4)}
+              {parseInt(data.kompressorienMaara, 10) >= 5 && renderCompressor(5)}
+              {parseInt(data.kompressorienMaara, 10) >= 6 && renderCompressor(6)}
             </div>
           </div>
-
-          {parseInt(data.kompressorienMaara, 10) >= 1 && renderCompressor(1)}
-          {parseInt(data.kompressorienMaara, 10) >= 2 && renderCompressor(2)}
-          {parseInt(data.kompressorienMaara, 10) >= 3 && renderCompressor(3)}
-          {parseInt(data.kompressorienMaara, 10) >= 4 && renderCompressor(4)}
-          {parseInt(data.kompressorienMaara, 10) >= 5 && renderCompressor(5)}
-          {parseInt(data.kompressorienMaara, 10) >= 6 && renderCompressor(6)}
 
           {isMLP && (
             <div className="line-form-grid">
@@ -662,28 +667,13 @@ export function RefrigerantCircuitModule({
             </div>
           )}
 
-          <div className="huolto-part-inspection-list">
-            <h3 className="huolto-part-inspection-list-title">Piirin osat</h3>
+          <div className="huolto-circuit-part-module">
             {hasCrossCircuitSync && (
-              <div className="huolto-part-inspection-sync">
-                <FormCheckbox
-                  label={`Piiri ${circuitNumber}: sama paisuntaventtiili kuin piirissä 1`}
-                  checked={!!data.paisuntaventtiiliSamaKuinPiiri1}
-                  onChange={(v) => setCrossCircuitFlag('paisuntaventtiiliSamaKuinPiiri1', v)}
-                />
-                {showMagnetValve ? (
-                  <FormCheckbox
-                    label={`Piiri ${circuitNumber}: sama magneettiventtiili kuin piirissä 1`}
-                    checked={!!data.magneettiventtiiliSamaKuinPiiri1}
-                    onChange={(v) => setCrossCircuitFlag('magneettiventtiiliSamaKuinPiiri1', v)}
-                  />
-                ) : null}
-                <FormCheckbox
-                  label={`Piiri ${circuitNumber}: sama kuivain kuin piirissä 1`}
-                  checked={!!data.kuivainSamaKuinPiiri1}
-                  onChange={(v) => setCrossCircuitFlag('kuivainSamaKuinPiiri1', v)}
-                />
-              </div>
+              <FormCheckbox
+                label={`Piiri ${circuitNumber}: sama paisuntaventtiili kuin piirissä 1`}
+                checked={!!data.paisuntaventtiiliSamaKuinPiiri1}
+                onChange={(v) => setCrossCircuitFlag('paisuntaventtiiliSamaKuinPiiri1', v)}
+              />
             )}
             <HuoltoPartInspectionRow
               title="Paisuntaventtiili"
@@ -692,7 +682,17 @@ export function RefrigerantCircuitModule({
               disabled={!!data.paisuntaventtiiliSamaKuinPiiri1}
               onInspect={() => setOpenPartDialog('paisuntaventtiili')}
             />
-            {showMagnetValve ? (
+          </div>
+
+          {showMagnetValve ? (
+            <div className="huolto-circuit-part-module">
+              {hasCrossCircuitSync && (
+                <FormCheckbox
+                  label={`Piiri ${circuitNumber}: sama magneettiventtiili kuin piirissä 1`}
+                  checked={!!data.magneettiventtiiliSamaKuinPiiri1}
+                  onChange={(v) => setCrossCircuitFlag('magneettiventtiiliSamaKuinPiiri1', v)}
+                />
+              )}
               <HuoltoPartInspectionRow
                 title="Magneettiventtiili"
                 subtitle={circuitPartSubtitle('magneettiventtiili', data, laiteTyyppi) || undefined}
@@ -700,7 +700,17 @@ export function RefrigerantCircuitModule({
                 disabled={!!data.magneettiventtiiliSamaKuinPiiri1}
                 onInspect={() => setOpenPartDialog('magneettiventtiili')}
               />
-            ) : null}
+            </div>
+          ) : null}
+
+          <div className="huolto-circuit-part-module">
+            {hasCrossCircuitSync && (
+              <FormCheckbox
+                label={`Piiri ${circuitNumber}: sama kuivain kuin piirissä 1`}
+                checked={!!data.kuivainSamaKuinPiiri1}
+                onChange={(v) => setCrossCircuitFlag('kuivainSamaKuinPiiri1', v)}
+              />
+            )}
             <HuoltoPartInspectionRow
               title="Kuivain"
               subtitle={circuitPartSubtitle('kuivain', data, laiteTyyppi) || undefined}

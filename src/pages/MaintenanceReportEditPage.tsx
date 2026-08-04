@@ -127,6 +127,7 @@ import {
   validateMaintenanceDeviceBasics,
   validateMaintenanceRefrigerantBasics,
 } from '../lib/huoltoRaportti/maintenanceReportBasicsValidation';
+import { buildMaintenanceReportTabCompletion } from '../lib/huoltoRaportti/maintenanceReportTabCompletion';
 import { MaintenanceSetupWizard, type MaintenanceSetupStep } from '../components/huoltoRaportti/MaintenanceSetupWizard';
 import { CustomModuleFormSection } from '../components/huoltoRaportti/CustomModuleFormSection';
 import { MaintenanceModuleStructureDialog } from '../components/huoltoRaportti/MaintenanceModuleStructureDialog';
@@ -443,6 +444,16 @@ export default function MaintenanceReportEditPage({ session }: Props) {
   const maintenanceTabs = useMemo(
     () => (basicsComplete ? allMaintenanceTabs : []),
     [allMaintenanceTabs, basicsComplete],
+  );
+
+  const tabCompletion = useMemo(
+    () =>
+      buildMaintenanceReportTabCompletion(form, customerBasicsInput, deviceBasicsInput, {
+        ...maintenanceTabBuildInput,
+        hiddenTabIds: form.hiddenTabIds,
+        moduleTabOrder: form.moduleTabOrder,
+      }),
+    [form, customerBasicsInput, deviceBasicsInput, maintenanceTabBuildInput],
   );
 
   const setupSteps = useMemo(() => {
@@ -1921,6 +1932,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
               <MaintenanceReportTabNav
                 tabs={maintenanceTabs}
                 activeId={openTabId ?? ''}
+                tabCompletion={tabCompletion}
                 onChange={handleMaintenanceTabChange}
               />
               <button
