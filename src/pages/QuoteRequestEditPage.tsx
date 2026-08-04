@@ -1581,9 +1581,11 @@ export default function QuoteRequestEditPage({ session }: Props) {
                   )}
                 </div>
               )}
-              {!isPumpQuoteType(form.type) && (
-                <QuoteManualDevicePricingSection form={form} canEdit={canEdit} onChange={patchForm} />
-              )}
+            </div>
+            {!isPumpQuoteType(form.type) && (
+              <QuoteManualDevicePricingSection form={form} canEdit={canEdit} onChange={patchForm} />
+            )}
+            <div className="line-form-grid">
               <div className="quote-vat-profile-field">
                 <span className="field-label">ALV / asiakastyyppi</span>
                 <div className="quote-labor-mode-grid">

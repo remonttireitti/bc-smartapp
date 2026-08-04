@@ -7429,6 +7429,25 @@ textarea {
   grid-column: 1 / -1;
 }
 
+.quote-manual-device-pricing {
+  margin: .75rem 0 1rem;
+}
+
+.quote-manual-device-pricing-title {
+  margin: 0 0 .35rem;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.quote-manual-device-pricing-help {
+  margin: 0 0 .65rem;
+  font-size: .85rem;
+}
+
+.quote-manual-device-pricing-grid {
+  margin: 0;
+}
+
 .quote-vat-profile-hint {
   margin: .45rem 0 0;
   font-size: .85rem;

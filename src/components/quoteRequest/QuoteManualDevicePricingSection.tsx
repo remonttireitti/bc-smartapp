@@ -13,14 +13,12 @@ export function QuoteManualDevicePricingSection({ form, canEdit, onChange }: Pro
   }
 
   return (
-    <section className="form-section quote-manual-device-pricing">
-      <h3>Laite / urakka</h3>
-      <p className="muted">
-        Syötä laitteen hankintahinta ja kate — myyntihinta lasketaan kuten tarvikkeilla. Laitteen nimi
-        tulostuu Kohde-välilehden merkki/malli -kentistä.
+    <div className="quote-manual-device-pricing panel-inset">
+      <h3 className="quote-manual-device-pricing-title">Laite / urakka</h3>
+      <p className="muted quote-manual-device-pricing-help">
+        Hankintahinta + kate → myyntihinta. Nimi tulee Kohde-välilehden merkki/malli -kentistä.
       </p>
-      <div className="quote-line-row panel-inset">
-        <div className="line-form-grid">
+      <div className="line-form-grid quote-manual-device-pricing-grid">
           <label>
             Hankintahinta (€, alv 0)
             <input
@@ -66,8 +64,7 @@ export function QuoteManualDevicePricingSection({ form, canEdit, onChange }: Pro
               disabled={!canEdit}
             />
           </label>
-        </div>
       </div>
-    </section>
+    </div>
   );
 }
