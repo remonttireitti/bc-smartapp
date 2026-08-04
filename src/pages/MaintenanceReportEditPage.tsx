@@ -9,6 +9,7 @@ import type { Session } from '@supabase/supabase-js';
 import AppLayout from '../components/AppLayout';
 import { type NewCustomerDraft } from '../components/CustomerRegistryPicker';
 import MaintenanceReportTabNav from '../components/huoltoRaportti/MaintenanceReportTabNav';
+import { MaintenanceReportTabDialog } from '../components/huoltoRaportti/MaintenanceReportTabDialog';
 import { MaintenanceReportBasicsPanel } from '../components/huoltoRaportti/MaintenanceReportBasicsPanel';
 import { MaintenanceDeviceDialog } from '../components/huoltoRaportti/MaintenanceDeviceDialog';
 import { HuoltoModulePresentationProvider } from '../components/huoltoRaportti/HuoltoModulePresentationContext';
@@ -468,7 +469,6 @@ export default function MaintenanceReportEditPage({ session }: Props) {
   const [kylmaaineFieldErrors, setKylmaaineFieldErrors] = useState<Record<string, string>>({});
   const [basicsGateMessage, setBasicsGateMessage] = useState<string | null>(null);
   const [moduleStructureDialogOpen, setModuleStructureDialogOpen] = useState(false);
-  const basicsJustCompletedRef = useRef(false);
   const activeCustomModule = useMemo(() => {
     if (!openTabId || !isCustomModuleTabId(openTabId)) return null;
     const moduleId = parseCustomModuleTabId(openTabId);
@@ -493,20 +493,6 @@ export default function MaintenanceReportEditPage({ session }: Props) {
       setOpenTabId(null);
     }
   }, [maintenanceTabs, openTabId]);
-
-  useEffect(() => {
-    if (!basicsComplete) {
-      basicsJustCompletedRef.current = false;
-      return;
-    }
-    if (basicsJustCompletedRef.current) return;
-    basicsJustCompletedRef.current = true;
-    const firstTab =
-      maintenanceTabs.find(
-        (tab) => tab.id !== 'raportointi' && tab.id !== 'huomiot' && tab.id !== 'huoltotiedot',
-      ) ?? maintenanceTabs[0];
-    if (firstTab) setOpenTabId(firstTab.id);
-  }, [basicsComplete, maintenanceTabs]);
 
   useEffect(() => {
     if (basicsComplete) setBasicsGateMessage(null);
@@ -1610,7 +1596,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
   const brandingName = ownerCompany?.name ?? reportOwnerName;
 
   function handleMaintenanceTabChange(id: string) {
-    setOpenTabId((current) => (current === id ? null : id));
+    setOpenTabId(id);
     if (id === 'raportointi') {
       setBasicsFieldErrors(validateMaintenanceCustomerBasics(customerBasicsInput).fieldErrors);
     }
@@ -1792,7 +1778,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
       )}
 
       <HuoltoEditUiProvider viewKey={reportViewKey}>
-      <form className="panel form-grid maintenance-form" onSubmit={onSubmit}>
+      <form className={`panel form-grid maintenance-form${openTabId ? ' maintenance-tab-dialog-open' : ''}`} onSubmit={onSubmit}>
         {!basicsComplete ? (
           <MaintenanceSetupWizard
             step={setupStep}
@@ -1947,12 +1933,6 @@ export default function MaintenanceReportEditPage({ session }: Props) {
               </button>
             </div>
 
-            <div className="maintenance-report-tab-launcher">
-              <p className="muted">
-                Valitse osio ylävalikosta. Täytä kentät alla avautuvassa paneelissa. Moduulirakenne: piilota, järjestä tai luo omia osioita.
-              </p>
-            </div>
-
             <MaintenanceModuleStructureDialog
               open={moduleStructureDialogOpen}
               form={form}
@@ -1964,15 +1944,13 @@ export default function MaintenanceReportEditPage({ session }: Props) {
               onClose={() => setModuleStructureDialogOpen(false)}
             />
 
-            {openTabId ? (
-            <section className="maintenance-report-tab-panel panel" aria-labelledby="maintenance-active-tab-title">
-              <header className="maintenance-report-tab-panel-header">
-                <h2 id="maintenance-active-tab-title">
-                  {maintenanceTabs.find((tab) => tab.id === openTabId)?.label ?? ''}
-                </h2>
-              </header>
+            <MaintenanceReportTabDialog
+              open={openTabId !== null}
+              title={maintenanceTabs.find((tab) => tab.id === openTabId)?.label ?? ''}
+              onClose={() => setOpenTabId(null)}
+            >
             <HuoltoModulePresentationProvider value="flat">
-            <div className="maintenance-report-tab-panel-body">
+            <div className="maintenance-report-tab-panel">
             {openTabId === 'raportointi' && (
             <section className="maintenance-report-tab-section">
               <MaintenanceReportBasicsPanel
@@ -2284,10 +2262,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
 
         </div>
         </HuoltoModulePresentationProvider>
-            </section>
-            ) : (
-              <p className="muted maintenance-report-tab-empty">Valitse osio ylävalikosta.</p>
-            )}
+        </MaintenanceReportTabDialog>
           </>
         )}
 

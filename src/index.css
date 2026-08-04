@@ -4722,20 +4722,43 @@ textarea {
   }
 
   .maintenance-report-tabs {
-    gap: .5rem;
-    padding: .35rem 0 1rem;
-    margin: 0 -.25rem;
-    padding-left: .25rem;
-    padding-right: .25rem;
-    scroll-snap-type: x proximity;
-    mask-image: linear-gradient(to right, transparent, #000 .75rem, #000 calc(100% - .75rem), transparent);
+    flex-direction: column;
+    flex-wrap: nowrap;
+    gap: .4rem;
+    padding: 0 0 .75rem;
+    margin: 0;
+    overflow: visible;
+    scroll-snap-type: none;
+    mask-image: none;
+    border-bottom: 1px solid var(--border-strong);
   }
 
   .maintenance-report-tab {
+    width: 100%;
     min-height: 2.75rem;
-    padding: .55rem 1rem;
-    font-size: .9rem;
-    scroll-snap-align: center;
+    padding: .65rem 1rem;
+    font-size: .95rem;
+    border-radius: 10px;
+    white-space: normal;
+    text-align: left;
+    scroll-snap-align: none;
+    flex-shrink: 1;
+  }
+
+  .maintenance-report-module-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .maintenance-report-module-toolbar .maintenance-report-tabs {
+    flex: 1 1 auto;
+    width: 100%;
+  }
+
+  .maintenance-module-structure-btn {
+    width: 100%;
+    align-self: stretch;
+    min-height: 2.75rem;
   }
 
   .maintenance-form-actions {

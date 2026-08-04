@@ -16,7 +16,7 @@ export default function MaintenanceReportTabNav({ tabs, activeId, onChange }: Pr
 
   useEffect(() => {
     const activeTab = tabRefs.current.get(activeId);
-    activeTab?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+    activeTab?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
   }, [activeId, tabs]);
 
   if (tabs.length === 0) return null;
