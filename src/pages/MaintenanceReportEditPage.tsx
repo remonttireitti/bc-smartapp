@@ -1723,6 +1723,32 @@ export default function MaintenanceReportEditPage({ session }: Props) {
     );
   }
 
+  function renderPrintActions(className?: string) {
+    if (!reportId) return null;
+    return (
+      <div className={['maintenance-print-actions', className].filter(Boolean).join(' ')}>
+        <button
+          type="button"
+          className="btn btn-secondary maintenance-actions-print"
+          disabled={printBusy || busy}
+          onClick={() => void openPrintPreview()}
+        >
+          {printBusy ? 'Avataan…' : 'Tulosta / PDF'}
+        </button>
+        {hasFaultyKonvektorit ? (
+          <button
+            type="button"
+            className="btn btn-secondary maintenance-actions-print-faults"
+            disabled={printBusy || busy}
+            onClick={() => void openKonvektoriFaultPrint()}
+          >
+            {printBusy ? 'Avataan…' : 'Tulosta vialliset'}
+          </button>
+        ) : null}
+      </div>
+    );
+  }
+
   return (
     <AppLayout session={session}>
       <LeaveDraftDialog
@@ -1902,6 +1928,8 @@ export default function MaintenanceReportEditPage({ session }: Props) {
             />
 
             {renderEquipmentRegistryActions('maintenance-equipment-registry-actions--prominent')}
+
+            {renderPrintActions('maintenance-equipment-registry-actions--prominent')}
 
             <MaintenanceModuleStructureDialog
               open={moduleStructureDialogOpen}
@@ -2253,6 +2281,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
         {error && <p className="error">{error}</p>}
 
         {!basicsComplete ? renderEquipmentRegistryActions('maintenance-form-actions-equipment') : null}
+        {!basicsComplete ? renderPrintActions('maintenance-form-actions-equipment') : null}
 
         <div className="form-actions maintenance-form-actions">
           <div className="maintenance-actions-primary">
@@ -2311,26 +2340,6 @@ export default function MaintenanceReportEditPage({ session }: Props) {
                     onClick={() => void deleteReport()}
                   >
                     Poista raportti
-                  </button>
-                )}
-                {reportId && (
-                  <button
-                    type="button"
-                    className="btn btn-secondary maintenance-actions-print"
-                    disabled={printBusy || busy}
-                    onClick={() => void openPrintPreview()}
-                  >
-                    {printBusy ? 'Avataan…' : 'Tulosta / PDF'}
-                  </button>
-                )}
-                {reportId && hasFaultyKonvektorit && (
-                  <button
-                    type="button"
-                    className="btn btn-secondary maintenance-actions-print-faults"
-                    disabled={printBusy || busy}
-                    onClick={() => void openKonvektoriFaultPrint()}
-                  >
-                    {printBusy ? 'Avataan…' : 'Tulosta vialliset'}
                   </button>
                 )}
                 {canEditPublishedReport ? (

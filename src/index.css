@@ -5868,6 +5868,13 @@ textarea {
   background: var(--bg-subtle);
 }
 
+.maintenance-print-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
 .maintenance-device-summary-head h3 {
   margin: 0;
   font-size: 1rem;
