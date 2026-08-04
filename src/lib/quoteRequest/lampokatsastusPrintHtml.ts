@@ -1,5 +1,6 @@
 import type { BrandDeliveryFeeByCategoryMap } from '../../data/devicePricingShared';
 import { computeQuoteTotals, computeTravelNet, travelCostLabel } from './calculations';
+import { manualDevicePrintLabel, resolveNonPumpDeviceSellNet } from './manualDevicePricing';
 import { embedUrlAsDataUrl } from './termatekAssets';
 import type { QuotePrintCustomer, QuotePrintMeta } from './printHtml';
 import type { QuoteRequestData } from './types';
@@ -97,7 +98,7 @@ type QuoteRow = {
   rowNet: number;
 };
 
-function buildQuoteRows(data: QuoteRequestData, feeMap?: BrandDeliveryFeeByCategoryMap | null): QuoteRow[] {
+function buildQuoteRows(data: QuoteRequestData, _feeMap?: BrandDeliveryFeeByCategoryMap | null): QuoteRow[] {
   const rows: QuoteRow[] = [];
   let hasTaskContent = false;
 
@@ -184,13 +185,13 @@ function buildQuoteRows(data: QuoteRequestData, feeMap?: BrandDeliveryFeeByCateg
     });
   }
 
-  const totals = computeQuoteTotals(data, feeMap ?? null);
-  if (Number(totals.deviceNet) > 0.005) {
+  const deviceNet = resolveNonPumpDeviceSellNet(data);
+  if (deviceNet > 0.005) {
     rows.push({
-      desc: [data.deviceBrand, data.deviceModel].filter(Boolean).join(' ').trim() || 'Laite / urakka',
+      desc: manualDevicePrintLabel(data),
       qtyLabel: '1 kpl',
-      unitNet: totals.deviceNet,
-      rowNet: totals.deviceNet,
+      unitNet: deviceNet,
+      rowNet: deviceNet,
     });
   }
 

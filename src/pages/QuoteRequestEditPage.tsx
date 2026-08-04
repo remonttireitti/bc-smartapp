@@ -17,6 +17,7 @@ import QuotePumpDevicesSection from '../components/quoteRequest/QuotePumpDevices
 import QuoteVilpConfigSection from '../components/quoteRequest/QuoteVilpConfigSection';
 import QuoteVilpSiteSection from '../components/quoteRequest/QuoteVilpSiteSection';
 import QuoteRepairWorkItemsSection from '../components/quoteRequest/QuoteRepairWorkItemsSection';
+import { QuoteManualDevicePricingSection } from '../components/quoteRequest/QuoteManualDevicePricingSection';
 import { supabase } from '../lib/supabase';
 import { createRegistryCustomer } from '../lib/createRegistryCustomer';
 import {
@@ -203,6 +204,7 @@ export default function QuoteRequestEditPage({ session }: Props) {
     () => (mainDevice ? calculateDeviceSellNet(form, mainDevice, deliveryFeeMap) : 0),
     [form, mainDevice, deliveryFeeMap],
   );
+  const displayDeviceNet = isPumpQuoteType(form.type) ? mainDeviceSellNet : totals.deviceNet;
   const kotitalous = useMemo(() => computeKotitalousDeduction(form), [form]);
   const pendingSiteDefaults = useMemo(
     () => (isPumpQuoteType(form.type) ? listPendingSiteDefaults(form) : []),
@@ -1579,6 +1581,9 @@ export default function QuoteRequestEditPage({ session }: Props) {
                   )}
                 </div>
               )}
+              {!isPumpQuoteType(form.type) && (
+                <QuoteManualDevicePricingSection form={form} canEdit={canEdit} onChange={patchForm} />
+              )}
               <div className="quote-vat-profile-field">
                 <span className="field-label">ALV / asiakastyyppi</span>
                 <div className="quote-labor-mode-grid">
@@ -1624,23 +1629,6 @@ export default function QuoteRequestEditPage({ session }: Props) {
                   disabled={!canEdit}
                 />
               </label>
-              {!isPumpQuoteType(form.type) && (
-                <label>
-                  Laite / urakka (€, alv 0)
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={form.deviceSaleOverrideNet ?? ''}
-                    onChange={(e) =>
-                      patchForm({
-                        deviceSaleOverrideNet: e.target.value === '' ? null : Number(e.target.value),
-                      })
-                    }
-                    disabled={!canEdit}
-                  />
-                </label>
-              )}
             </div>
             <label>
               Esittelyteksti
@@ -1743,12 +1731,12 @@ export default function QuoteRequestEditPage({ session }: Props) {
               <div>
                 Laite
                 {mainDevice ? `: ${formatDeviceLabel(mainDevice)}` : ''}:{' '}
-                {mainDeviceSellNet.toLocaleString('fi-FI', { style: 'currency', currency: 'EUR' })}
+                {displayDeviceNet.toLocaleString('fi-FI', { style: 'currency', currency: 'EUR' })}
                 {form.vatRate > 0 && (
                   <>
                     {' '}
                     (
-                    {(mainDeviceSellNet * (1 + form.vatRate / 100)).toLocaleString('fi-FI', {
+                    {(displayDeviceNet * (1 + form.vatRate / 100)).toLocaleString('fi-FI', {
                       style: 'currency',
                       currency: 'EUR',
                     })}{' '}

@@ -1,6 +1,6 @@
 import type { BrandDeliveryFeeByCategoryMap } from '../../data/devicePricingShared';
 import type { QuoteMaterial, QuoteRegion, QuoteRequestData, QuoteWorkItem } from './types';
-import { isRepairQuoteType, quoteShowsKotitalousDeduction, quoteUsesTravelCost } from './constants';
+import { isPumpQuoteType, isRepairQuoteType, quoteShowsKotitalousDeduction, quoteUsesTravelCost } from './constants';
 import {
   calculateDevicePurchaseNet,
   calculateDeviceSellNet,
@@ -8,7 +8,7 @@ import {
   resolveQuoteMainDeviceForTotals,
   selectedDevices,
 } from './deviceCatalog';
-import { isPumpQuoteType } from './constants';
+import { resolveNonPumpDeviceSellNet } from './manualDevicePricing';
 
 export type IilpBaseInstallParts = ReturnType<typeof getIilpBaseInstallParts>;
 
@@ -388,7 +388,7 @@ export function computeQuoteTotals(
     const mainDevice = resolveQuoteMainDeviceForTotals(data, computePumpSizingNeedKw(data));
     deviceNet = mainDevice ? calculateDeviceSellNet(data, mainDevice, feeMap) : 0;
   } else {
-    deviceNet = Number(data.deviceSaleOverrideNet || 0);
+    deviceNet = resolveNonPumpDeviceSellNet(data);
   }
 
   const subtotalNet = workNet + materialsNet + travelNet + deviceNet;

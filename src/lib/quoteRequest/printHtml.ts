@@ -24,6 +24,7 @@ import {
   computeQuoteTotals,
   resolveIilpLaborPricingMode,
 } from './calculations';
+import { manualDevicePrintLabel, resolveNonPumpDeviceSellNet } from './manualDevicePricing';
 import type { QuoteLine, QuoteMaterial } from './types';
 import { quoteLineTotal } from './defaults';
 import { optionalItemsPrintHtml } from './optionalItemsPrint';
@@ -580,10 +581,11 @@ export function generateQuoteOfferPrintHtml(input: {
         const label = esc(formatDeviceLabel(mainDevice));
         return printDeviceRow(label, mode, { purchase, sell, marginPct });
       })()
-    : data.deviceSaleOverrideNet
-      ? printDeviceRow('Laite / urakka', mode, {
+    : resolveNonPumpDeviceSellNet(data) > 0.005
+      ? printDeviceRow(esc(manualDevicePrintLabel(data)), mode, {
           purchase: Number(data.devicePurchaseOverrideNet ?? 0),
-          sell: Number(data.deviceSaleOverrideNet),
+          sell: resolveNonPumpDeviceSellNet(data),
+          marginPct: Number(data.deviceMarginPercent) || undefined,
         })
       : '';
 
@@ -814,6 +816,23 @@ function buildServiceTaskPrintRows(data: QuoteRequestData, mode: QuotePrintMode)
     for (const item of data.materials) {
       if (!item.name.trim()) continue;
       sections.push(printMaterialRow(item, mode));
+    }
+  }
+
+  const deviceSell = resolveNonPumpDeviceSellNet(data);
+  if (deviceSell > 0.005) {
+    const purchase = Number(data.devicePurchaseOverrideNet) || 0;
+    const label = esc(manualDevicePrintLabel(data));
+    if (mode === 'creator' && purchase > 0.005) {
+      sections.push(
+        printDeviceRow(label, mode, {
+          purchase,
+          sell: deviceSell,
+          marginPct: Number(data.deviceMarginPercent) || undefined,
+        }),
+      );
+    } else {
+      sections.push(printWorkRow(manualDevicePrintLabel(data), '1 kpl', deviceSell, deviceSell, mode));
     }
   }
 

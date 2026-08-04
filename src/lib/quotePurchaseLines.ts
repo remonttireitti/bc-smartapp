@@ -9,6 +9,7 @@ import {
   resolveIilpLaborPricingMode,
 } from './quoteRequest/calculations';
 import { isPumpQuoteType } from './quoteRequest/constants';
+import { resolveNonPumpDeviceSellNet } from './quoteRequest/manualDevicePricing';
 import { normalizeQuoteRequestData } from './quoteRequest/defaults';
 import type { QuoteMaterial, QuoteRequestData } from './quoteRequest/types';
 
@@ -124,7 +125,10 @@ export function extractQuotePurchaseLines(
         actual_purchase_net: roundMoney(internal.devicePurchaseNet),
         source: 'device',
       });
-    } else if (Number(normalized.devicePurchaseOverrideNet) > 0.005) {
+    } else if (
+      !isPumpQuoteType(normalized.type)
+      && (Number(normalized.devicePurchaseOverrideNet) > 0.005 || resolveNonPumpDeviceSellNet(normalized) > 0.005)
+    ) {
       lines.push({
         id: 'device:override',
         label: 'Laite / urakka',
