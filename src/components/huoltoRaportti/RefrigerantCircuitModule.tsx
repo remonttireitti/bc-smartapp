@@ -24,6 +24,16 @@ import { CompressorModule } from './CompressorModule';
 import { FormCheckbox } from './FormCheckbox';
 import { FormInput } from './FormInput';
 import { HuoltoPartInspectionRow } from './HuoltoPartInspectionRow';
+import { useHuoltoPrintFormLayout } from '../../hooks/useHuoltoPrintFormLayout';
+import { PRINT_BOX_COLORS } from '../../lib/huoltoRaportti/printBoxColors';
+import {
+  PrintFieldGrid,
+  PrintGridField,
+  PrintInnerBox,
+  PrintSubBox,
+  PrintTextInput,
+} from './print/MaintenancePrintLayout';
+import { RefrigerantCircuitPartFields } from './RefrigerantCircuitPartFields';
 import {
   circuitPartDisplayStatus,
   type RefrigerantCircuitPartKey,
@@ -73,6 +83,7 @@ export function RefrigerantCircuitModule({
   showChillerCondenserInCircuit = false,
   printSettingsInPopup = true,
 }: RefrigerantCircuitModuleProps) {
+  const printLayout = useHuoltoPrintFormLayout();
   const [expanded, setExpanded] = useState(true);
   const [openPartDialog, setOpenPartDialog] = useState<RefrigerantCircuitPartKey | null>(null);
   const calcRefrigerant =
@@ -399,23 +410,56 @@ export function RefrigerantCircuitModule({
     );
   };
 
-  return (
-    <div className="huolto-submodule huolto-circuit">
-      <div className="huolto-circuit-header">
-        <FormCheckbox
-          label={`Piiri ${circuitNumber}`}
-          checked={data.onKaytossa}
-          onChange={(v) => onChange({ ...data, onKaytossa: v })}
-        />
-        <button type="button" className="btn btn-secondary btn-sm" onClick={() => setExpanded((v) => !v)}>
-          {expanded ? 'Piilota' : 'Näytä'}
-        </button>
-      </div>
-
-      {expanded && data.onKaytossa && (
+  const circuitBody = data.onKaytossa ? (
         <div className="huolto-circuit-body">
           <div className="huolto-circuit-part-module">
             <h3 className="huolto-circuit-part-module-title">Mittaukset</h3>
+          {printLayout ? (
+            <PrintFieldGrid columns={3}>
+              <PrintGridField label="Imupaine (bar)">
+                <PrintTextInput
+                  type="number"
+                  value={data.imupaine}
+                  onChange={(v) => onChange({ ...data, imupaine: v })}
+                  placeholder="0.0"
+                  className={showLowSuperheatWarning ? 'input-warning' : ''}
+                />
+              </PrintGridField>
+              <PrintGridField label="Imulämpötila (°C)">
+                <PrintTextInput
+                  type="number"
+                  value={data.imuLampotila}
+                  onChange={(v) => onChange({ ...data, imuLampotila: v })}
+                  placeholder="0.0"
+                />
+              </PrintGridField>
+              <PrintGridField label="Korkeapaine (bar)">
+                <PrintTextInput
+                  type="number"
+                  value={data.korkeapaine}
+                  onChange={(v) => onChange({ ...data, korkeapaine: v })}
+                  placeholder="0.0"
+                />
+              </PrintGridField>
+              <PrintGridField label="Nesteputki (°C)">
+                <PrintTextInput
+                  type="number"
+                  value={data.nestePutkiLampotila}
+                  onChange={(v) => onChange({ ...data, nestePutkiLampotila: v })}
+                  placeholder="0.0"
+                  className={showLowSubcoolingWarning ? 'input-warning' : ''}
+                />
+              </PrintGridField>
+              <PrintGridField label="Kuumakaasu (°C)">
+                <PrintTextInput
+                  type="number"
+                  value={data.kuumakaasuLampotila}
+                  onChange={(v) => onChange({ ...data, kuumakaasuLampotila: v })}
+                  placeholder="0.0"
+                />
+              </PrintGridField>
+            </PrintFieldGrid>
+          ) : (
           <div className="line-form-grid">
             <FormInput
               label="Imupaine (bar)"
@@ -455,6 +499,7 @@ export function RefrigerantCircuitModule({
               type="number"
             />
           </div>
+          )}
 
           <div className="huolto-calc-row">
             <div className="huolto-calc-metric">
@@ -699,7 +744,41 @@ export function RefrigerantCircuitModule({
                 />
               </div>
             )}
-            <div className="huolto-part-inspection-list huolto-part-inspection-list--flat">
+            <div className="huolto-part-inspection-list huolto-part-inspection-list--print-inline">
+              {printLayout ? (
+                <>
+                  <PrintSubBox title="PAISUNTAVENTTIILI" accent={PRINT_BOX_COLORS.circuit}>
+                    <RefrigerantCircuitPartFields
+                      part="paisuntaventtiili"
+                      data={data}
+                      laiteTyyppi={laiteTyyppi}
+                      disabled={!!data.paisuntaventtiiliSamaKuinPiiri1}
+                      onChange={onChange}
+                    />
+                  </PrintSubBox>
+                  {showMagnetValve ? (
+                    <PrintSubBox title="MAGNEETTIVENTTIILI" accent={PRINT_BOX_COLORS.circuit}>
+                      <RefrigerantCircuitPartFields
+                        part="magneettiventtiili"
+                        data={data}
+                        laiteTyyppi={laiteTyyppi}
+                        disabled={!!data.magneettiventtiiliSamaKuinPiiri1}
+                        onChange={onChange}
+                      />
+                    </PrintSubBox>
+                  ) : null}
+                  <PrintSubBox title="KUIVAIN" accent={PRINT_BOX_COLORS.circuit}>
+                    <RefrigerantCircuitPartFields
+                      part="kuivain"
+                      data={data}
+                      laiteTyyppi={laiteTyyppi}
+                      disabled={!!data.kuivainSamaKuinPiiri1}
+                      onChange={onChange}
+                    />
+                  </PrintSubBox>
+                </>
+              ) : (
+                <>
               <HuoltoPartInspectionRow
                 title="Paisuntaventtiili"
                 subtitle={circuitPartSubtitle('paisuntaventtiili', data, laiteTyyppi) || undefined}
@@ -723,9 +802,12 @@ export function RefrigerantCircuitModule({
                 disabled={!!data.kuivainSamaKuinPiiri1}
                 onInspect={() => setOpenPartDialog('kuivain')}
               />
+                </>
+              )}
             </div>
           </div>
 
+          {!printLayout ? (
           <RefrigerantCircuitPartDialog
             open={openPartDialog !== null}
             part={openPartDialog ?? 'paisuntaventtiili'}
@@ -735,6 +817,7 @@ export function RefrigerantCircuitModule({
             onClose={() => setOpenPartDialog(null)}
             onSave={onChange}
           />
+          ) : null}
 
           {showChillerCondenserInCircuit && chillerCondenser && onChillerCondenserChange && (
             <ChillerCondenserInCircuit
@@ -744,6 +827,37 @@ export function RefrigerantCircuitModule({
             />
           )}
         </div>
+  ) : null;
+
+  return (
+    <div className={`huolto-submodule huolto-circuit${printLayout ? ' huolto-circuit--print' : ''}`}>
+      {printLayout ? (
+        <PrintInnerBox
+          title={`KYLMÄAINEPIIRI ${circuitNumber}`}
+          accent={PRINT_BOX_COLORS.circuit}
+          className="huolto-circuit-print-box"
+        >
+          <FormCheckbox
+            label={`Piiri ${circuitNumber} käytössä`}
+            checked={data.onKaytossa}
+            onChange={(v) => onChange({ ...data, onKaytossa: v })}
+          />
+          {circuitBody}
+        </PrintInnerBox>
+      ) : (
+        <>
+          <div className="huolto-circuit-header">
+            <FormCheckbox
+              label={`Piiri ${circuitNumber}`}
+              checked={data.onKaytossa}
+              onChange={(v) => onChange({ ...data, onKaytossa: v })}
+            />
+            <button type="button" className="btn btn-secondary btn-sm" onClick={() => setExpanded((v) => !v)}>
+              {expanded ? 'Piilota' : 'Näytä'}
+            </button>
+          </div>
+          {expanded ? circuitBody : null}
+        </>
       )}
     </div>
   );

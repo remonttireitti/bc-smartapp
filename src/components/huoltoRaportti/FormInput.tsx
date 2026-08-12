@@ -1,3 +1,6 @@
+import { useHuoltoPrintFormLayout } from '../../hooks/useHuoltoPrintFormLayout';
+import { PrintGridField, PrintTextInput } from './print/MaintenancePrintLayout';
+
 interface FormInputProps {
   label: string;
   value: string;
@@ -19,6 +22,22 @@ export function FormInput({
   className = '',
   disabled = false,
 }: FormInputProps) {
+  const printLayout = useHuoltoPrintFormLayout();
+
+  if (printLayout) {
+    return (
+      <PrintGridField label={label} required={required} className={className}>
+        <PrintTextInput
+          type={type}
+          value={value}
+          onChange={onChange}
+          placeholder={placeholder}
+          disabled={disabled}
+        />
+      </PrintGridField>
+    );
+  }
+
   return (
     <label className={className}>
       {label}

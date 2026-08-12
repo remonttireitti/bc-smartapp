@@ -1,13 +1,15 @@
-import { useId, type ReactNode } from 'react';
+import { type ReactNode } from 'react';
+import { useHuoltoPrintFormLayout } from '../../hooks/useHuoltoPrintFormLayout';
 import { useHuoltoCollapse } from './HuoltoEditUiContext';
+import { PrintSubBox } from './print/MaintenancePrintLayout';
 
 interface Props {
   title: string;
   children: ReactNode;
-  /** Uniikki avain osion muistille (esim. evap-0, comp-2). */
   partKey?: string;
   defaultOpen?: boolean;
   className?: string;
+  accent?: string;
 }
 
 export function HuoltoPartSection({
@@ -16,10 +18,19 @@ export function HuoltoPartSection({
   partKey,
   defaultOpen = false,
   className = '',
+  accent,
 }: Props) {
+  const printLayout = useHuoltoPrintFormLayout();
   const key = partKey ?? `part:${title}`;
-  const { open, toggle } = useHuoltoCollapse(key, defaultOpen);
-  const contentId = useId();
+  const { open, toggle } = useHuoltoCollapse(key, printLayout ? true : defaultOpen);
+
+  if (printLayout) {
+    return (
+      <PrintSubBox title={title.toUpperCase()} accent={accent} className={className}>
+        {children}
+      </PrintSubBox>
+    );
+  }
 
   return (
     <div
@@ -30,16 +41,11 @@ export function HuoltoPartSection({
         className="huolto-part-header"
         onClick={toggle}
         aria-expanded={open}
-        aria-controls={contentId}
       >
         <span className="huolto-part-title">{title}</span>
         <span className="huolto-part-chevron" aria-hidden="true" />
       </button>
-      {open ? (
-        <div id={contentId} className="huolto-part-body">
-          {children}
-        </div>
-      ) : null}
+      {open ? <div className="huolto-part-body">{children}</div> : null}
     </div>
   );
 }

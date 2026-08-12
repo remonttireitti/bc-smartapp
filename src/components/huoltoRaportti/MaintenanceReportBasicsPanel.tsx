@@ -5,6 +5,13 @@ import type { ReportOwnerTarget } from '../../lib/huoltoRaportti/maintenanceRepo
 import type { HuoltoReportData } from '../../lib/huoltoRaportti/types';
 import { reportHasSubscriberLink } from '../../lib/subscriberPortalVisibility';
 import type { Customer, SubscriberPortalVisibility } from '../../types';
+import { useHuoltoPrintFormLayout } from '../../hooks/useHuoltoPrintFormLayout';
+import {
+  PrintColumnRow,
+  PrintFieldRow,
+  PrintInnerBox,
+  PrintTextInput,
+} from './print/MaintenancePrintLayout';
 
 type Props = {
   form: HuoltoReportData;
@@ -65,12 +72,64 @@ export function MaintenanceReportBasicsPanel({
   onSubscriberChange,
   onSubscriberPortalVisibilityChange,
 }: Props) {
+  const printLayout = useHuoltoPrintFormLayout();
   const needsExplicitOwner = !customerId && reportOwnerTargets.length > 1;
+
+  const customerFields = (
+    <>
+      <PrintFieldRow label="Asiakas" error={fieldErrors.customer}>
+        <PrintTextInput
+          value={form.asiakas}
+          disabled={!canEditCustomerEquipment}
+          onChange={(v) => onPatchForm({ asiakas: v })}
+          className={fieldErrors.customer ? 'field-error-input' : undefined}
+        />
+      </PrintFieldRow>
+      <PrintFieldRow label="Osoite" error={fieldErrors.osoite}>
+        <PrintTextInput
+          value={form.osoite}
+          disabled={!canEditCustomerEquipment}
+          onChange={(v) => onPatchForm({ osoite: v })}
+          className={fieldErrors.osoite ? 'field-error-input' : undefined}
+        />
+      </PrintFieldRow>
+      <PrintFieldRow label="Y-tunnus">
+        <PrintTextInput
+          value={form.asiakasYtunnus ?? ''}
+          disabled={!canEditCustomerEquipment}
+          onChange={(v) => onPatchForm({ asiakasYtunnus: v })}
+        />
+      </PrintFieldRow>
+      <PrintFieldRow label="Yhteyshenkilö">
+        <PrintTextInput
+          value={form.asiakasYhteyshenkilo ?? ''}
+          disabled={!canEditCustomerEquipment}
+          onChange={(v) => onPatchForm({ asiakasYhteyshenkilo: v })}
+        />
+      </PrintFieldRow>
+      <PrintFieldRow label="Puhelin">
+        <PrintTextInput
+          value={form.asiakasPuhelin ?? ''}
+          disabled={!canEditCustomerEquipment}
+          onChange={(v) => onPatchForm({ asiakasPuhelin: v })}
+        />
+      </PrintFieldRow>
+      <PrintFieldRow label="Sähköposti">
+        <PrintTextInput
+          type="email"
+          value={form.asiakasEmail ?? ''}
+          disabled={!canEditCustomerEquipment}
+          onChange={(v) => onPatchForm({ asiakasEmail: v })}
+        />
+      </PrintFieldRow>
+    </>
+  );
 
   return (
     <section className="maintenance-report-basics-panel">
       {fieldErrors.profile ? <p className="error">{fieldErrors.profile}</p> : null}
 
+      {!printLayout ? (
       <div className="info-grid">
         <div className="info-box">
           <span className="info-label">Yrityksen nimissä (brändi tulosteessa)</span>
@@ -104,6 +163,7 @@ export function MaintenanceReportBasicsPanel({
           {creatorEmail ? <span className="muted">{creatorEmail}</span> : null}
         </div>
       </div>
+      ) : null}
 
       {canEditCustomerEquipment && selectedCustomer && contextMode === 'partner' ? (
         <p className="muted">
@@ -121,11 +181,13 @@ export function MaintenanceReportBasicsPanel({
 
       {profileCompanyId ? (
         <>
-          <p className="muted">
-            Hae asiakasta kaikista rekistereistä joihin sinulla on pääsy. Raportti luodaan automaattisesti
-            sen yrityksen nimissä, jonka rekisteriin asiakas kuuluu. Uusi asiakas tallennetaan aina omaan
-            rekisteriisi ({creatorCompanyName}).
-          </p>
+          {!printLayout ? (
+            <p className="muted">
+              Hae asiakasta kaikista rekistereistä joihin sinulla on pääsy. Raportti luodaan automaattisesti
+              sen yrityksen nimissä, jonka rekisteriin asiakas kuuluu. Uusi asiakas tallennetaan aina omaan
+              rekisteriisi ({creatorCompanyName}).
+            </p>
+          ) : null}
 
           {canEditCustomerEquipment ? (
             <>
@@ -183,63 +245,100 @@ export function MaintenanceReportBasicsPanel({
             </div>
           )}
 
-          <div className="line-form-grid">
-            <label>
-              Asiakas (tuloste)
-              <input
-                className={fieldErrors.customer ? 'field-error-input' : undefined}
-                value={form.asiakas}
-                onChange={(e) => onPatchForm({ asiakas: e.target.value })}
-                disabled={!canEditCustomerEquipment}
-              />
-            </label>
-            <label>
-              Osoite *
-              <input
-                className={fieldErrors.osoite ? 'field-error-input' : undefined}
-                value={form.osoite}
-                onChange={(e) => onPatchForm({ osoite: e.target.value })}
-                disabled={!canEditCustomerEquipment}
-                required
-              />
-              {fieldErrors.osoite ? <span className="field-error-text">{fieldErrors.osoite}</span> : null}
-            </label>
-          </div>
-          <div className="line-form-grid">
-            <label>
-              Y-tunnus
-              <input
-                value={form.asiakasYtunnus ?? ''}
-                onChange={(e) => onPatchForm({ asiakasYtunnus: e.target.value })}
-                disabled={!canEditCustomerEquipment}
-              />
-            </label>
-            <label>
-              Yhteyshenkilö
-              <input
-                value={form.asiakasYhteyshenkilo ?? ''}
-                onChange={(e) => onPatchForm({ asiakasYhteyshenkilo: e.target.value })}
-                disabled={!canEditCustomerEquipment}
-              />
-            </label>
-            <label>
-              Puhelin
-              <input
-                value={form.asiakasPuhelin ?? ''}
-                onChange={(e) => onPatchForm({ asiakasPuhelin: e.target.value })}
-                disabled={!canEditCustomerEquipment}
-              />
-            </label>
-            <label>
-              Sähköposti
-              <input
-                type="email"
-                value={form.asiakasEmail ?? ''}
-                onChange={(e) => onPatchForm({ asiakasEmail: e.target.value })}
-                disabled={!canEditCustomerEquipment}
-              />
-            </label>
-          </div>
+          {printLayout ? (
+            <PrintColumnRow>
+              <PrintInnerBox title="YRITYSTIEDOT" accent="#9E9E9E">
+                <PrintFieldRow label="Brändi tulosteessa">
+                  {canEditCustomerEquipment && needsExplicitOwner ? (
+                    <select
+                      className={fieldErrors.reportOwnerCompanyId ? 'field-error-input' : undefined}
+                      value={reportOwnerCompanyId ?? ''}
+                      onChange={(event) => onReportOwnerChange(event.target.value)}
+                      disabled={busy}
+                    >
+                      <option value="">— Valitse yritys —</option>
+                      {reportOwnerTargets.map((target) => (
+                        <option key={target.companyId} value={target.companyId}>
+                          {target.label}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <strong>{brandingName}</strong>
+                  )}
+                </PrintFieldRow>
+                <PrintFieldRow label="Laatija">
+                  <span>
+                    {creatorDisplayName}
+                    {creatorEmail ? ` · ${creatorEmail}` : ''}
+                  </span>
+                </PrintFieldRow>
+              </PrintInnerBox>
+              <PrintInnerBox title="ASIAKASTIEDOT" accent="#1976D2">
+                {customerFields}
+              </PrintInnerBox>
+            </PrintColumnRow>
+          ) : (
+            <>
+              <div className="line-form-grid">
+                <label>
+                  Asiakas (tuloste)
+                  <input
+                    className={fieldErrors.customer ? 'field-error-input' : undefined}
+                    value={form.asiakas}
+                    onChange={(e) => onPatchForm({ asiakas: e.target.value })}
+                    disabled={!canEditCustomerEquipment}
+                  />
+                </label>
+                <label>
+                  Osoite *
+                  <input
+                    className={fieldErrors.osoite ? 'field-error-input' : undefined}
+                    value={form.osoite}
+                    onChange={(e) => onPatchForm({ osoite: e.target.value })}
+                    disabled={!canEditCustomerEquipment}
+                    required
+                  />
+                  {fieldErrors.osoite ? <span className="field-error-text">{fieldErrors.osoite}</span> : null}
+                </label>
+              </div>
+              <div className="line-form-grid">
+                <label>
+                  Y-tunnus
+                  <input
+                    value={form.asiakasYtunnus ?? ''}
+                    onChange={(e) => onPatchForm({ asiakasYtunnus: e.target.value })}
+                    disabled={!canEditCustomerEquipment}
+                  />
+                </label>
+                <label>
+                  Yhteyshenkilö
+                  <input
+                    value={form.asiakasYhteyshenkilo ?? ''}
+                    onChange={(e) => onPatchForm({ asiakasYhteyshenkilo: e.target.value })}
+                    disabled={!canEditCustomerEquipment}
+                  />
+                </label>
+                <label>
+                  Puhelin
+                  <input
+                    value={form.asiakasPuhelin ?? ''}
+                    onChange={(e) => onPatchForm({ asiakasPuhelin: e.target.value })}
+                    disabled={!canEditCustomerEquipment}
+                  />
+                </label>
+                <label>
+                  Sähköposti
+                  <input
+                    type="email"
+                    value={form.asiakasEmail ?? ''}
+                    onChange={(e) => onPatchForm({ asiakasEmail: e.target.value })}
+                    disabled={!canEditCustomerEquipment}
+                  />
+                </label>
+              </div>
+            </>
+          )}
         </>
       ) : null}
     </section>

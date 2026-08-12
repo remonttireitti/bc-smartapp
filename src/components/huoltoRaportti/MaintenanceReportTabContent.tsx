@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
 import ToggleSwitch from '../ToggleSwitch';
+import { useHuoltoPrintFormLayout } from '../../hooks/useHuoltoPrintFormLayout';
 import { MaintenanceReportSectionSettingsLink } from './MaintenanceReportSectionSettingsLink';
 import { MaintenanceReportBasicsPanel } from './MaintenanceReportBasicsPanel';
 import { MaintenanceDeviceSummary } from './MaintenanceDeviceSummary';
@@ -30,6 +31,7 @@ import { isCustomModuleTabId, parseCustomModuleTabId } from '../../lib/huoltoRap
 import type { HuoltoReportData } from '../../lib/huoltoRaportti/types';
 import type { Customer, Subscriber } from '../../types';
 import type { SubscriberPortalVisibility } from '../../lib/subscriberPortalVisibility';
+import { PrintCheckField, PrintFieldRow, PrintInnerBox, PrintStatusBanner, PrintTextInput } from './print/MaintenancePrintLayout';
 
 export type MaintenanceReportTabContentProps = {
   tabId: MaintenanceReportTabId;
@@ -153,6 +155,7 @@ export function MaintenanceReportTabContent({
   patchCustomModuleValues,
   toggleModule,
 }: MaintenanceReportTabContentProps) {
+  const printLayout = useHuoltoPrintFormLayout();
   const customModuleId = isCustomModuleTabId(tabId) ? parseCustomModuleTabId(tabId) : null;
   const customModule =
     customModuleId != null
@@ -374,43 +377,94 @@ export function MaintenanceReportTabContent({
   }
 
   if (tabId === 'huoltotiedot' && form.laiteTyyppi) {
+    const footerFields = printLayout ? (
+      <PrintInnerBox title="ALATUNNISTE" accent="#64748b">
+        <PrintFieldRow label="Suorittaja">
+          <PrintTextInput value={form.huoltoSuorittajaNimi} readOnly disabled />
+        </PrintFieldRow>
+        <PrintFieldRow label="TUKES">
+          <PrintTextInput
+            value={form.huoltoSuorittajaTUKES}
+            readOnly
+            disabled
+            placeholder={profile?.tukes_number ? undefined : 'Lisää omissa tiedoissa'}
+          />
+        </PrintFieldRow>
+        {!form.huoltoSuorittajaTUKES.trim() ? (
+          <p className="muted huolto-span-all">
+            TUKES-numero puuttuu profiilista. <Link to="/hallinta/omat">Täytä omat tiedot</Link>
+          </p>
+        ) : null}
+        <PrintFieldRow label="Päivämäärä">
+          <PrintTextInput
+            type="date"
+            value={form.huoltoPaivamaara}
+            onChange={(v) => onPatchForm({ huoltoPaivamaara: v })}
+          />
+        </PrintFieldRow>
+      </PrintInnerBox>
+    ) : (
+      <div className="line-form-grid">
+        <label>
+          Suorittaja (raportin laatija)
+          <input
+            value={form.huoltoSuorittajaNimi}
+            readOnly
+            disabled
+            title="Haetaan omista tiedoista (Hallinta → Omat tiedot)"
+          />
+        </label>
+        <label>
+          TUKES-numero
+          <input
+            value={form.huoltoSuorittajaTUKES}
+            readOnly
+            disabled
+            placeholder={profile?.tukes_number ? undefined : 'Lisää omissa tiedoissa'}
+            title="Haetaan omista tiedoista (Hallinta → Omat tiedot)"
+          />
+        </label>
+        {!form.huoltoSuorittajaTUKES.trim() ? (
+          <p className="muted huolto-span-all">
+            TUKES-numero puuttuu profiilista. <Link to="/hallinta/omat">Täytä omat tiedot</Link>
+          </p>
+        ) : null}
+        <label>
+          Päivämäärä
+          <input
+            type="date"
+            value={form.huoltoPaivamaara}
+            onChange={(e) => onPatchForm({ huoltoPaivamaara: e.target.value })}
+          />
+        </label>
+      </div>
+    );
+
     return (
       <section className="maintenance-report-tab-section">
         <MaintenanceReportSectionSettingsLink tabId="huoltotiedot" />
-        <div className="line-form-grid">
-          <label>
-            Suorittaja (raportin laatija)
-            <input
-              value={form.huoltoSuorittajaNimi}
-              readOnly
-              disabled
-              title="Haetaan omista tiedoista (Hallinta → Omat tiedot)"
+        {printLayout ? (
+          <PrintStatusBanner>
+            <PrintCheckField
+              label="Huolto suoritettu"
+              checked={!!form.huoltoSuoritettu}
+              onChange={(checked) => onPatchForm({ huoltoSuoritettu: checked })}
             />
-          </label>
-          <label>
-            TUKES-numero
-            <input
-              value={form.huoltoSuorittajaTUKES}
-              readOnly
-              disabled
-              placeholder={profile?.tukes_number ? undefined : 'Lisää omissa tiedoissa'}
-              title="Haetaan omista tiedoista (Hallinta → Omat tiedot)"
+            {usesRefrigerantServiceExtras(form.laiteTyyppi) ? (
+              <PrintCheckField
+                label="Kylmäaine / vuototarkastus"
+                checked={!!form.huoltoKylmaaineVuotoTarkastus}
+                onChange={(checked) => onPatchForm({ huoltoKylmaaineVuotoTarkastus: checked })}
+              />
+            ) : null}
+            <PrintCheckField
+              label="Laitteessa vika / puutteita"
+              checked={!!form.huoltoLaiteessaVika}
+              onChange={(checked) => onPatchForm({ huoltoLaiteessaVika: checked })}
             />
-          </label>
-          {!form.huoltoSuorittajaTUKES.trim() ? (
-            <p className="muted huolto-span-all">
-              TUKES-numero puuttuu profiilista. <Link to="/hallinta/omat">Täytä omat tiedot</Link>
-            </p>
-          ) : null}
-          <label>
-            Päivämäärä
-            <input
-              type="date"
-              value={form.huoltoPaivamaara}
-              onChange={(e) => onPatchForm({ huoltoPaivamaara: e.target.value })}
-            />
-          </label>
-        </div>
+          </PrintStatusBanner>
+        ) : null}
+        {footerFields}
 
         {optionalMaintenanceModules.length > 0 ? (
           <div className="maintenance-optional-modules">

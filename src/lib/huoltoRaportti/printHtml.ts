@@ -68,6 +68,7 @@ import {
   ulkoyksikkoInspectionStatus,
   vapaajahdytysInspectionStatus,
 } from './huoltoInspectionStatus';
+import { hasPrintableValue, normalizePrintText } from './printFieldVisibility';
 
 export interface MaintenancePrintMeta {
   companyName: string;
@@ -88,17 +89,6 @@ function escAttr(v: unknown): string {
     .replace(/&/g, '&amp;')
     .replace(/"/g, '&quot;')
     .replace(/</g, '&lt;');
-}
-
-function normalizePrintText(val: unknown): string {
-  if (val == null) return '';
-  return String(val).replace(/\s+/g, ' ').trim();
-}
-
-function hasPrintableValue(val: unknown): boolean {
-  const s = normalizePrintText(val);
-  if (!s || s === '-' || s === '—' || s === '–') return false;
-  return !/^[-–—]\s*(A|V|bar|°C|K|kg|g|mbar|micron|m³\/h)?$/i.test(s);
 }
 
 function field(data: HuoltoReportData, key: string): unknown {

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import type {
   EvaporatorData,
   EvaporatorType,
@@ -16,11 +16,18 @@ import {
   entityInspectionStatus,
   normalizeHuoltoInspectionStatus,
 } from '../../lib/huoltoRaportti/huoltoInspectionStatus';
+import { PRINT_BOX_COLORS } from '../../lib/huoltoRaportti/printBoxColors';
+import { useHuoltoPrintFormLayout } from '../../hooks/useHuoltoPrintFormLayout';
 import { EvaporatorPuhaltimetFields } from './EvaporatorPuhaltimetFields';
 import { FormCheckbox } from './FormCheckbox';
 import { FormInput } from './FormInput';
 import { HuoltoPartInspectionRow } from './HuoltoPartInspectionRow';
 import { TriStateInspectionToggle } from './TriStateInspectionToggle';
+import {
+  PrintGridField,
+  PrintInspectionBlock,
+  PrintSubBox,
+} from './print/MaintenancePrintLayout';
 
 interface Props {
   index: number;
@@ -64,6 +71,7 @@ export function EvaporatorModule({
   onSameAsFirstChange,
   onChange,
 }: Props) {
+  const printLayout = useHuoltoPrintFormLayout();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [draft, setDraft] = useState(data);
   const disabled = locked || !!sameAsFirst;
@@ -101,6 +109,238 @@ export function EvaporatorModule({
     && draft.tyyppi !== 'suorahoyrystin'
       ? ''
       : draft.tyyppi;
+
+  const inlineSetDraft = useCallback(
+    (updater: EvaporatorData | ((prev: EvaporatorData) => EvaporatorData)) => {
+      const next = typeof updater === 'function' ? updater(data) : updater;
+      onChange(next);
+    },
+    [data, onChange],
+  );
+
+  const renderFormBody = (
+    source: EvaporatorData,
+    setSource: (updater: EvaporatorData | ((prev: EvaporatorData) => EvaporatorData)) => void,
+    sourceStatus: ReturnType<typeof normalizeHuoltoInspectionStatus>,
+  ) => {
+    const detailsVisible = sourceStatus === 'ok' || sourceStatus === 'faulty';
+    const fansDefrost = evaporatorShowsFansAndDefrost(source.tyyppi);
+    const selectVal =
+      chillerHx && !isHeatExchangerEvaporatorType(source.tyyppi) && source.tyyppi !== 'suorahoyrystin'
+        ? ''
+        : source.tyyppi;
+
+    return (
+      <>
+        {detailsVisible ? (
+          <div className="line-form-grid">
+            {!chillerHx && (
+              <FormInput
+                label="Huoneen tunnus"
+                value={source.huoneenTunnus || ''}
+                onChange={(v) => setSource((prev) => ({ ...prev, huoneenTunnus: v }))}
+                className="huolto-span-all"
+                disabled={disabled}
+              />
+            )}
+            <label className={chillerHx ? 'huolto-span-all' : undefined}>
+              {chillerHx ? 'Lämmönvaihtimen tyyppi' : 'Höyrystimen tyyppi'}
+              <select
+                value={selectVal}
+                disabled={disabled}
+                onChange={(e) => {
+                  const next = e.target.value as EvaporatorType;
+                  if (!next) return;
+                  setSource((prev) => applyEvaporatorTypeChange(prev, next));
+                }}
+              >
+                {chillerHx ? (
+                  <>
+                    <option value="" disabled>Valitse…</option>
+                    <option value="levy">Levy lämmönvaihdin</option>
+                    <option value="putki">Putkilämmönvaihdin</option>
+                    {isVak ? <option value="suorahoyrystin">Suorahöyrystin</option> : null}
+                  </>
+                ) : (
+                  <>
+                    <option value="staatinen">Staattinen höyrystin</option>
+                    <option value="puhallin">Puhallinhöyrystin</option>
+                  </>
+                )}
+              </select>
+            </label>
+            <FormInput label="Valmistaja" value={source.valmistaja} disabled={disabled} onChange={(v) => setSource((prev) => ({ ...prev, valmistaja: v }))} />
+            <FormInput label="Malli" value={source.malli} disabled={disabled} onChange={(v) => setSource((prev) => ({ ...prev, malli: v }))} />
+            <FormInput label="Sarjanumero" value={source.sarjanumero} disabled={disabled} onChange={(v) => setSource((prev) => ({ ...prev, sarjanumero: v }))} />
+
+            {fansDefrost && (
+              <label>
+                Sulatustapa
+                <select
+                  value={source.sulatus}
+                  disabled={disabled}
+                  onChange={(e) => setSource((prev) => ({ ...prev, sulatus: e.target.value as SulatusType }))}
+                >
+                  <option value="ilma">Ilmasulatus</option>
+                  <option value="sahko">Sähkösulatus</option>
+                  <option value="kuumakaasu">Kuumakaasu sulatus</option>
+                </select>
+              </label>
+            )}
+
+            {fansDefrost && source.sulatus === 'sahko' && (
+              <>
+                <label>
+                  Jännite
+                  <select
+                    value={source.sahkoJannite || '230'}
+                    disabled={disabled}
+                    onChange={(e) =>
+                      setSource((prev) => ({ ...prev, sahkoJannite: e.target.value as SahkoJanniteType }))
+                    }
+                  >
+                    <option value="230">230 V</option>
+                    <option value="400">400 V</option>
+                  </select>
+                </label>
+                <FormCheckbox
+                  label="Virrat mitattu"
+                  checked={!!source.sahkoVirtaMitattu}
+                  disabled={disabled}
+                  onChange={(v) => setSource((prev) => ({ ...prev, sahkoVirtaMitattu: v }))}
+                />
+                <label className="huolto-span-all">
+                  Sulatuksen ohjaus
+                  <select
+                    value={source.sulatusOhjaus || ''}
+                    disabled={disabled}
+                    onChange={(e) =>
+                      setSource((prev) => ({ ...prev, sulatusOhjaus: e.target.value as SulatusOhjausType }))
+                    }
+                  >
+                    <option value="">Valitse…</option>
+                    <option value="huonesäädin">Huonesäädin ohjaa</option>
+                    <option value="kello">Sulatuskello ohjaa</option>
+                    <option value="muu">Joku muu</option>
+                  </select>
+                </label>
+                {source.sulatusOhjaus === 'muu' && (
+                  <FormInput
+                    label="Muu ohjaus"
+                    value={source.sulatusOhjausMuu || ''}
+                    disabled={disabled}
+                    onChange={(v) => setSource((prev) => ({ ...prev, sulatusOhjausMuu: v }))}
+                    className="huolto-span-all"
+                  />
+                )}
+                {source.sulatusOhjaus === 'kello' && (
+                  <FormInput
+                    label="Sulatuskellon malli"
+                    value={source.sulatusKelloMalli || ''}
+                    disabled={disabled}
+                    onChange={(v) => setSource((prev) => ({ ...prev, sulatusKelloMalli: v }))}
+                  />
+                )}
+                {source.sulatusOhjaus === 'huonesäädin' && (
+                  <FormInput
+                    label="Säätimen malli"
+                    value={source.sulatusSäädinMalli || ''}
+                    disabled={disabled}
+                    onChange={(v) => setSource((prev) => ({ ...prev, sulatusSäädinMalli: v }))}
+                  />
+                )}
+                <FormInput
+                  label="Sulatuskertaa/päivä"
+                  value={source.sulatusKertojaPäivässä || ''}
+                  disabled={disabled}
+                  onChange={(v) => setSource((prev) => ({ ...prev, sulatusKertojaPäivässä: v }))}
+                />
+                <FormInput
+                  label="Sulatusaika"
+                  value={source.sulatusAika || ''}
+                  disabled={disabled}
+                  onChange={(v) => setSource((prev) => ({ ...prev, sulatusAika: v }))}
+                />
+                <FormInput
+                  label="Lopetuslämpötila (°C)"
+                  value={source.sulatusLopetusLämpötila || ''}
+                  disabled={disabled}
+                  onChange={(v) => setSource((prev) => ({ ...prev, sulatusLopetusLämpötila: v }))}
+                  type="number"
+                />
+              </>
+            )}
+
+            {fansDefrost && source.sulatus === 'sahko' && source.sahkoVirtaMitattu && (
+              <div className="huolto-submodule huolto-span-all">
+                <h4>Sähkösulatuksen virrat</h4>
+                <div className="line-form-grid huolto-phase-grid">
+                  <FormInput
+                    label={source.sahkoJannite === '400' ? 'L1 (A)' : 'Virta (A)'}
+                    value={source.sahkoVirtaL1 || ''}
+                    disabled={disabled}
+                    onChange={(v) => setSource((prev) => ({ ...prev, sahkoVirtaL1: v }))}
+                    type="number"
+                  />
+                  {source.sahkoJannite === '400' && (
+                    <>
+                      <FormInput label="L2 (A)" value={source.sahkoVirtaL2 || ''} disabled={disabled} onChange={(v) => setSource((prev) => ({ ...prev, sahkoVirtaL2: v }))} type="number" />
+                      <FormInput label="L3 (A)" value={source.sahkoVirtaL3 || ''} disabled={disabled} onChange={(v) => setSource((prev) => ({ ...prev, sahkoVirtaL3: v }))} type="number" />
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {source.tyyppi === 'puhallin' && (
+              <div className="huolto-span-all">
+                <EvaporatorPuhaltimetFields
+                  puhaltimienMaara={source.puhaltimienMaara}
+                  puhaltimet={source.puhaltimet || []}
+                  onChange={(patch) => setSource((prev) => ({ ...prev, ...patch }))}
+                />
+              </div>
+            )}
+          </div>
+        ) : null}
+
+        {sourceStatus === 'faulty' ? (
+          <PrintGridField label="Mikä on vikana?" className="huolto-span-all">
+            <textarea
+              rows={3}
+              value={source.tarkastusHuomio ?? ''}
+              disabled={disabled}
+              onChange={(e) => setSource((prev) => ({ ...prev, tarkastusHuomio: e.target.value }))}
+            />
+          </PrintGridField>
+        ) : null}
+      </>
+    );
+  };
+
+  if (printLayout) {
+    const inlineStatus = normalizeHuoltoInspectionStatus(data.tarkastusTila) ?? entityInspectionStatus(data);
+    return (
+      <PrintSubBox title={titleLabel.toUpperCase()} accent={PRINT_BOX_COLORS.evaporator}>
+        {showSameAsFirst && onSameAsFirstChange ? (
+          <FormCheckbox
+            label={`Piiri ${index + 1}: sama höyrystin kuin piirissä 1 (ei mittauskenttiä)`}
+            checked={!!sameAsFirst}
+            onChange={onSameAsFirstChange}
+          />
+        ) : null}
+        <PrintInspectionBlock label="Tarkastuksen tulos">
+          <TriStateInspectionToggle
+            name={`evap-${index}-tila-inline`}
+            value={inlineStatus}
+            disabled={disabled}
+            onChange={(next) => onChange({ ...data, tarkastusTila: next })}
+          />
+        </PrintInspectionBlock>
+        {renderFormBody(data, inlineSetDraft, inlineStatus)}
+      </PrintSubBox>
+    );
+  }
 
   return (
     <>

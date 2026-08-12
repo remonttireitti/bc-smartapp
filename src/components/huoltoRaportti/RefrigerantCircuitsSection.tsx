@@ -9,11 +9,15 @@ import {
   showChillerCondenserInCircuit,
   showEvaporatorInCircuit,
 } from '../../lib/huoltoRaportti/deviceModuleLogic';
+import { buildRefrigerantCircuitWarnings } from '../../lib/huoltoRaportti/mlpEnergyCalc';
+import { hideMaintenancePrintWarnings } from '../../lib/huoltoRaportti/defaults';
 import { kylmaainePiiriCircuitLabel, kylmaainePiiriSectionTitle } from '../../lib/huoltoRaportti/sectionTitles';
+import { useHuoltoPrintFormLayout } from '../../hooks/useHuoltoPrintFormLayout';
 import ToggleSwitch from '../ToggleSwitch';
 import { EvaporatorModule } from './EvaporatorModule';
 import { HuoltoModuleSection } from './HuoltoModuleSection';
 import { RefrigerantCircuitModule } from './RefrigerantCircuitModule';
+import { PrintWarningBanner } from './print/MaintenancePrintLayout';
 import {
   createEvaporatorActions,
   evaporatorTitleForIndex,
@@ -25,6 +29,7 @@ interface Props {
 }
 
 export function RefrigerantCircuitsSection({ form, onChange }: Props) {
+  const printLayout = useHuoltoPrintFormLayout();
   const circuitCount = Math.min(3, Math.max(1, parseInt(form.kylmaainePiireja, 10) || 1));
   const isMLP = form.laiteTyyppi === 'mlp';
   const splitHeatPumpCircuits = isHeatPumpCircuitsDevice(form.laiteTyyppi);
@@ -159,6 +164,22 @@ export function RefrigerantCircuitsSection({ form, onChange }: Props) {
     </>
   );
 
+  const circuitWarnings =
+    printLayout && !hideMaintenancePrintWarnings(form) && form.laiteTyyppi !== 'lämpöpumppu'
+      ? buildRefrigerantCircuitWarnings(form)
+      : [];
+
+  const warningsBanner =
+    circuitWarnings.length > 0 ? (
+      <PrintWarningBanner title="Huomioitavaa — kylmäainepiiri">
+        <ul>
+          {circuitWarnings.map((warning) => (
+            <li key={warning}>{warning}</li>
+          ))}
+        </ul>
+      </PrintWarningBanner>
+    ) : null;
+
   if (splitHeatPumpCircuits) {
     return (
       <>
@@ -184,6 +205,7 @@ export function RefrigerantCircuitsSection({ form, onChange }: Props) {
             {renderCircuitBlock(3, form.kylmaainePiiri3, 2)}
           </HuoltoModuleSection>
         ) : null}
+        {warningsBanner}
       </>
     );
   }
@@ -197,6 +219,7 @@ export function RefrigerantCircuitsSection({ form, onChange }: Props) {
       {renderCircuitBlock(1, form.kylmaainePiiri1, 0)}
       {circuitCount >= 2 && form.kylmaainePiiri2 ? renderCircuitBlock(2, form.kylmaainePiiri2, 1) : null}
       {circuitCount >= 3 && form.kylmaainePiiri3 ? renderCircuitBlock(3, form.kylmaainePiiri3, 2) : null}
+      {warningsBanner}
     </HuoltoModuleSection>
   );
 }

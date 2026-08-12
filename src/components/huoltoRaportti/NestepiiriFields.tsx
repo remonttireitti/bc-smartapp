@@ -5,8 +5,16 @@ import {
   mlpNestOptions,
 } from '../../lib/huoltoRaportti/constants';
 import type { LauhdutuspiiriData, NestepiiriData } from '../../lib/huoltoRaportti/types';
+import { useHuoltoPrintFormLayout } from '../../hooks/useHuoltoPrintFormLayout';
 import { FormCheckbox } from './FormCheckbox';
 import { FormInput } from './FormInput';
+import {
+  PrintCheckField,
+  PrintFieldGrid,
+  PrintGridField,
+  PrintSelectInput,
+  PrintTextInput,
+} from './print/MaintenancePrintLayout';
 
 type Data = NestepiiriData | LauhdutuspiiriData;
 
@@ -17,14 +25,153 @@ function isLauhdutuspiiri(data: Data): data is LauhdutuspiiriData {
 interface Props {
   data: Data;
   onChange: (patch: Partial<Data>) => void;
-  /** Näytä painesäädin ja virtaus (ulkoinen nestelauhdutin). */
   showLauhdutinTarkistukset?: boolean;
-  /** Paine, ilmaus, mutapussi, toimilaitteet (VJ nestepiirit). */
   showPiiriTarkistukset?: boolean;
 }
 
 export function NestepiiriFields({ data, onChange, showLauhdutinTarkistukset, showPiiriTarkistukset }: Props) {
+  const printLayout = useHuoltoPrintFormLayout();
   const lauhdutus = showLauhdutinTarkistukset && isLauhdutuspiiri(data) ? data : null;
+
+  if (printLayout) {
+    return (
+      <>
+        <PrintFieldGrid columns={3}>
+          <PrintGridField label="Neste">
+            <PrintSelectInput value={data.neste} onChange={(value) => onChange({ neste: value })}>
+              <option value="">Valitse…</option>
+              {mlpNestOptions.map((opt) => (
+                <option key={opt.label} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </PrintSelectInput>
+          </PrintGridField>
+          <PrintGridField label="Virtaus (m³/h)">
+            <PrintTextInput
+              type="number"
+              value={data.virtaus}
+              onChange={(v) => onChange({ virtaus: v })}
+            />
+          </PrintGridField>
+          <PrintGridField label="Meno (°C)">
+            <PrintTextInput type="number" value={data.meno} onChange={(v) => onChange({ meno: v })} />
+          </PrintGridField>
+          <PrintGridField label="Paluu (°C)">
+            <PrintTextInput type="number" value={data.tulo} onChange={(v) => onChange({ tulo: v })} />
+          </PrintGridField>
+        </PrintFieldGrid>
+
+        <PrintCheckField
+          label="Pumppu tarkastettu"
+          checked={Boolean(data.pumppuTarkastettu)}
+          onChange={(v) => onChange({ pumppuTarkastettu: v })}
+        />
+        {data.pumppuTarkastettu ? (
+          <PrintFieldGrid columns={2}>
+            <PrintGridField label="Pumpun valmistaja">
+              <PrintTextInput
+                value={data.pumppuValmistaja}
+                onChange={(v) => onChange({ pumppuValmistaja: v })}
+              />
+            </PrintGridField>
+            <PrintGridField label="Pumpun malli">
+              <PrintTextInput value={data.pumppuMalli} onChange={(v) => onChange({ pumppuMalli: v })} />
+            </PrintGridField>
+          </PrintFieldGrid>
+        ) : null}
+
+        <PrintCheckField
+          label="Paisunta-astia tarkastettu"
+          checked={Boolean(data.paisuntaAstiaTarkistettu)}
+          onChange={(v) => onChange({ paisuntaAstiaTarkistettu: v })}
+        />
+        {data.paisuntaAstiaTarkistettu ? (
+          <PrintFieldGrid columns={2}>
+            <PrintGridField label="Paisunta-astia koko" className="huolto-span-all">
+              <PrintTextInput
+                value={data.paisuntaAstiaKoko}
+                onChange={(v) => onChange({ paisuntaAstiaKoko: v })}
+              />
+            </PrintGridField>
+            <PrintGridField label="Esipaine (bar)">
+              <PrintTextInput
+                type="number"
+                value={data.paisuntaAstiaEsipaine}
+                onChange={(v) => onChange({ paisuntaAstiaEsipaine: v })}
+              />
+            </PrintGridField>
+          </PrintFieldGrid>
+        ) : null}
+
+        {showPiiriTarkistukset ? (
+          <>
+            <PrintCheckField
+              label="Paine tarkastettu"
+              checked={Boolean(data.paineTarkastettu)}
+              onChange={(v) => onChange({ paineTarkastettu: v, ...(v ? {} : { paineBar: '' }) })}
+            />
+            <PrintCheckField
+              label="Automaattinen ilmaus tarkistettu"
+              checked={Boolean(data.automaattinenIlmausTarkistettu)}
+              onChange={(v) => onChange({ automaattinenIlmausTarkistettu: v })}
+            />
+            <PrintCheckField
+              label="Mutapussi puhdistettu"
+              checked={Boolean(data.mutapussiPuhdistettu)}
+              onChange={(v) => onChange({ mutapussiPuhdistettu: v })}
+            />
+            <PrintCheckField
+              label="Toimilaitteet OK"
+              checked={Boolean(data.toimilaitteetOK)}
+              onChange={(v) => onChange({ toimilaitteetOK: v })}
+            />
+            {data.paineTarkastettu ? (
+              <PrintGridField label="Mitattu paine (bar)">
+                <PrintTextInput
+                  type="number"
+                  value={data.paineBar}
+                  onChange={(v) => onChange({ paineBar: v })}
+                />
+              </PrintGridField>
+            ) : null}
+          </>
+        ) : null}
+
+        {lauhdutus ? (
+          <div className="huolto-print-subsection">
+            <p className="muted huolto-help">{LAUHDUTIN_PAINEVENTTIILI_HELP}</p>
+            <PrintCheckField
+              label={LAUHDUTIN_PAINEVENTTIILI_LABEL}
+              checked={Boolean(lauhdutus.painesäätimenTarkistettu)}
+              onChange={(v) => onChange({ painesäätimenTarkistettu: v })}
+            />
+            {lauhdutus.painesäätimenTarkistettu ? (
+              <PrintGridField label={LAUHDUTIN_PAINEVENTTIILI_MALLI_LABEL}>
+                <PrintTextInput
+                  value={lauhdutus.painesäätimenMalli}
+                  onChange={(v) => onChange({ painesäätimenMalli: v })}
+                />
+              </PrintGridField>
+            ) : null}
+            <PrintCheckField
+              label="Virtaus riittävä"
+              checked={lauhdutus.virtausRiittävä !== false}
+              onChange={(v) => onChange({ virtausRiittävä: v, ...(v ? { virtausOngelma: '' } : {}) })}
+            />
+            {lauhdutus.virtausRiittävä === false ? (
+              <PrintGridField label="Kuvaile virtausongelma" className="huolto-span-all">
+                <PrintTextInput
+                  value={lauhdutus.virtausOngelma}
+                  onChange={(v) => onChange({ virtausOngelma: v })}
+                />
+              </PrintGridField>
+            ) : null}
+          </div>
+        ) : null}
+      </>
+    );
+  }
 
   return (
     <>

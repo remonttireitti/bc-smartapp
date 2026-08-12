@@ -5600,6 +5600,400 @@ textarea {
   cursor: pointer;
 }
 
+/* WYSIWYG: lomake käyttää tulosteen rivi/grid-asettelua */
+.huolto-print-form {
+  font-size: .85rem;
+  line-height: 1.45;
+}
+
+.huolto-print-column-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .65rem;
+  align-items: stretch;
+}
+
+.huolto-print-column-row > .huolto-print-inner-box {
+  flex: 1 1 16rem;
+  min-width: 0;
+}
+
+.huolto-print-inner-box {
+  border: 1px solid var(--print-box-accent, #ccc);
+  border-radius: 6px;
+  padding: .55rem .65rem .65rem;
+  background: #fff;
+}
+
+.huolto-print-inner-box-title {
+  border-bottom: 2px solid var(--print-box-accent, #ccc);
+  padding-bottom: .2rem;
+  margin-bottom: .45rem;
+  font-size: .88rem;
+  font-weight: 700;
+  color: var(--print-box-accent, var(--text));
+}
+
+.huolto-print-inner-box-body {
+  display: flex;
+  flex-direction: column;
+  gap: .15rem;
+}
+
+.huolto-print-sub-box {
+  border: 1px solid var(--print-box-accent, #e0e0e0);
+  border-radius: 4px;
+  padding: .45rem .55rem;
+  margin: .35rem 0;
+  background: #fafafa;
+}
+
+.huolto-print-sub-box-title {
+  font-size: .78rem;
+  font-weight: 700;
+  color: var(--print-box-accent, #616161);
+  margin-bottom: .35rem;
+  text-transform: uppercase;
+  letter-spacing: .02em;
+}
+
+.huolto-print-sub-box-body {
+  display: flex;
+  flex-direction: column;
+  gap: .15rem;
+}
+
+.huolto-print-calc-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .5rem 1rem;
+  margin: .35rem 0;
+  padding: .35rem .5rem;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 4px;
+  font-size: .82rem;
+}
+
+.huolto-print-status-banner {
+  margin: .5rem 0;
+  padding: .5rem .65rem;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: .25rem;
+}
+
+.huolto-print-fault-banner {
+  margin: 0;
+  color: #b91c1c;
+  font-weight: 700;
+  font-size: .84rem;
+}
+
+.huolto-print-warning-banner {
+  margin: .5rem 0;
+  padding: .5rem .65rem;
+  border: 1px solid #d32f2f;
+  border-radius: 6px;
+  background: #fff5f5;
+}
+
+.huolto-print-warning-banner-title {
+  font-size: .88rem;
+  font-weight: 700;
+  color: #d32f2f;
+  margin-bottom: .35rem;
+  text-transform: uppercase;
+}
+
+.huolto-print-warning-banner-body {
+  margin: 0;
+  padding-left: 1.1rem;
+  font-size: .82rem;
+  color: #c62828;
+}
+
+.huolto-print-warning-banner-body li {
+  margin-bottom: .2rem;
+}
+
+.huolto-print-inspection-block {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .35rem .65rem;
+  padding: .35rem 0;
+  border-top: 1px solid #e5e7eb;
+  margin-top: .25rem;
+}
+
+.huolto-print-inspection-label {
+  font-size: .78rem;
+  font-weight: 600;
+  color: #666;
+}
+
+.huolto-print-form .huolto-print-grid-value textarea {
+  min-height: 4rem;
+  resize: vertical;
+}
+
+.huolto-print-form .huolto-module-print-box {
+  margin-bottom: .5rem;
+}
+
+.huolto-print-form .huolto-circuit-print-box {
+  margin-top: .35rem;
+}
+
+.huolto-print-form .huolto-circuit-print-box > .huolto-print-inner-box-body {
+  gap: .35rem;
+}
+
+.huolto-print-form .huolto-part-inspection-list--print-inline {
+  display: flex;
+  flex-direction: column;
+  gap: .25rem;
+}
+
+.huolto-print-field-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .35rem .5rem;
+  padding: .2rem 0;
+  border-bottom: 1px solid #e5e7eb;
+  margin: 0;
+}
+
+.huolto-print-field-row-label {
+  flex: 0 0 auto;
+  color: var(--text);
+  font-weight: 500;
+}
+
+.huolto-print-field-row-value {
+  flex: 1 1 8rem;
+  min-width: 0;
+}
+
+.huolto-print-field-row-value input,
+.huolto-print-field-row-value select {
+  width: 100%;
+  padding: .25rem .4rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font: inherit;
+  background: #fff;
+}
+
+.huolto-print-readonly-row {
+  padding: .2rem 0;
+  border-bottom: 1px solid #e5e7eb;
+  font-size: .84rem;
+}
+
+.huolto-print-field-grid {
+  display: grid;
+  gap: .5rem;
+  margin: .35rem 0;
+}
+
+.huolto-print-field-grid--2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.huolto-print-field-grid--3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.huolto-print-field-grid--4 {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.huolto-print-grid-field {
+  display: flex;
+  flex-direction: column;
+  gap: .15rem;
+  margin: 0;
+  min-width: 0;
+}
+
+.huolto-print-grid-label {
+  font-size: .75rem;
+  color: #666;
+}
+
+.huolto-print-grid-value input,
+.huolto-print-grid-value select,
+.huolto-print-grid-value textarea {
+  width: 100%;
+  padding: .4rem .5rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font: inherit;
+  background: #f5f5f5;
+}
+
+.huolto-print-grid-value input:focus,
+.huolto-print-grid-value select:focus,
+.huolto-print-grid-value textarea:focus {
+  background: #fff;
+  outline: 2px solid rgba(240, 129, 15, .35);
+}
+
+.huolto-print-check-field {
+  display: flex;
+  align-items: center;
+  gap: .45rem;
+  padding: .25rem 0;
+  margin: 0;
+  font-size: .84rem;
+  cursor: pointer;
+}
+
+.huolto-print-form .line-form-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: .5rem;
+}
+
+.huolto-print-form .line-form-grid > label {
+  display: flex;
+  flex-direction: column;
+  gap: .15rem;
+  margin: 0;
+  font-size: .75rem;
+  color: #666;
+}
+
+.huolto-print-form .line-form-grid > label > input,
+.huolto-print-form .line-form-grid > label > select,
+.huolto-print-form .line-form-grid > label > textarea {
+  font-size: .85rem;
+  color: var(--text);
+  padding: .4rem .5rem;
+  background: #f5f5f5;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+.huolto-print-form .line-form-grid > label > input:focus,
+.huolto-print-form .line-form-grid > label > select:focus {
+  background: #fff;
+}
+
+.huolto-print-form .huolto-measurement-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.huolto-print-form .huolto-circuit {
+  border: 1px solid #e64a19;
+  border-radius: 6px;
+  padding: .5rem .65rem;
+  margin-top: .35rem;
+  background: #fffdfb;
+}
+
+.huolto-print-form .huolto-circuit-part-module-title,
+.huolto-print-form .huolto-circuit-part-module h3 {
+  font-size: .82rem;
+  font-weight: 700;
+  color: #e64a19;
+  margin: 0 0 .35rem;
+  text-transform: uppercase;
+  letter-spacing: .02em;
+}
+
+.huolto-print-form .huolto-calc-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .5rem;
+  margin: .35rem 0;
+  padding: .4rem .5rem;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+}
+
+.huolto-print-form .maintenance-device-summary {
+  border: 1px solid #388e3c;
+  border-radius: 6px;
+  padding: .55rem .65rem;
+  background: #fff;
+}
+
+.huolto-print-form .maintenance-device-summary-head h3 {
+  font-size: .88rem;
+  font-weight: 700;
+  color: #388e3c;
+  margin: 0;
+}
+
+.huolto-print-form .maintenance-device-summary .info-grid {
+  display: flex;
+  flex-direction: column;
+  gap: .1rem;
+}
+
+.huolto-print-form .maintenance-device-summary .info-box {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .25rem .5rem;
+  padding: .15rem 0;
+  border-bottom: 1px solid #e5e7eb;
+  background: transparent;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.huolto-print-form .maintenance-report-basics-panel .info-grid {
+  gap: .65rem;
+}
+
+@media (max-width: 720px) {
+  .huolto-print-field-grid--3,
+  .huolto-print-field-grid--4,
+  .huolto-print-form .line-form-grid,
+  .huolto-print-form .huolto-measurement-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 480px) {
+  .huolto-print-field-grid--2,
+  .huolto-print-field-grid--3,
+  .huolto-print-field-grid--4,
+  .huolto-print-form .line-form-grid,
+  .huolto-print-form .huolto-measurement-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .huolto-print-column-row {
+    flex-direction: column;
+  }
+}
+
+.huolto-print-grid-field.huolto-span-all {
+  grid-column: 1 / -1;
+}
+
+.huolto-print-form .maintenance-device-summary-head {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: .35rem;
+}
+
+.huolto-print-circuit-count {
+  display: flex;
+  flex-direction: column;
+  gap: .25rem;
+  margin: .35rem 0;
+}
+
 .maintenance-section-settings-dialog {
   max-width: min(92vw, 28rem);
 }

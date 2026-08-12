@@ -17,6 +17,7 @@ import {
 } from '../../lib/huoltoRaportti/maintenanceDocumentTabSummary';
 import type { MaintenanceReportTabItem } from '../../lib/huoltoRaportti/maintenanceReportTabs';
 import { useMaintenanceReportSectionSettings } from './MaintenanceReportSectionSettingsProvider';
+import { HuoltoPrintForm } from './print/MaintenancePrintLayout';
 
 type Props = Omit<MaintenanceReportTabContentProps, 'tabId'> & {
   tabs: MaintenanceReportTabItem[];
@@ -43,29 +44,31 @@ export function MaintenanceReportDocumentView({
 
   return (
     <HuoltoModulePresentationProvider value="flat">
-      <div className="maintenance-report-document">
-        {tabs.map((tab) => {
-          const completion = tabCompletion?.[tab.id];
-          const defaultOpen = completion !== 'ok';
-          const theme = maintenanceDocumentTheme(tab.id);
+      <HuoltoPrintForm>
+        <div className="maintenance-report-document">
+          {tabs.map((tab) => {
+            const completion = tabCompletion?.[tab.id];
+            const defaultOpen = completion !== 'ok';
+            const theme = maintenanceDocumentTheme(tab.id);
 
-          return (
-            <MaintenanceReportDocumentSection
-              key={tab.id}
-              tabId={tab.id}
-              title={tab.label}
-              theme={theme}
-              summary={buildMaintenanceDocumentTabSummary(tab.id, contentProps.form)}
-              completion={completion}
-              defaultOpen={defaultOpen}
-              showSettings={maintenanceTabHasPrintSettings(tab.id, contentProps.form)}
-              onOpenSettings={() => sectionSettings?.openSettings(tab.id)}
-            >
-              <MaintenanceReportTabContent tabId={tab.id} {...contentProps} />
-            </MaintenanceReportDocumentSection>
-          );
-        })}
-      </div>
+            return (
+              <MaintenanceReportDocumentSection
+                key={tab.id}
+                tabId={tab.id}
+                title={tab.label}
+                theme={theme}
+                summary={buildMaintenanceDocumentTabSummary(tab.id, contentProps.form)}
+                completion={completion}
+                defaultOpen={defaultOpen}
+                showSettings={maintenanceTabHasPrintSettings(tab.id, contentProps.form)}
+                onOpenSettings={() => sectionSettings?.openSettings(tab.id)}
+              >
+                <MaintenanceReportTabContent tabId={tab.id} {...contentProps} />
+              </MaintenanceReportDocumentSection>
+            );
+          })}
+        </div>
+      </HuoltoPrintForm>
     </HuoltoModulePresentationProvider>
   );
 }

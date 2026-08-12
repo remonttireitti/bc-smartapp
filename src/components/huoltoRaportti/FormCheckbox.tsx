@@ -1,4 +1,6 @@
+import { useHuoltoPrintFormLayout } from '../../hooks/useHuoltoPrintFormLayout';
 import ToggleSwitch from '../ToggleSwitch';
+import { PrintCheckField } from './print/MaintenancePrintLayout';
 
 interface FormCheckboxProps {
   label: string;
@@ -17,6 +19,19 @@ export function FormCheckbox({
   disabled = false,
   id,
 }: FormCheckboxProps) {
+  const printLayout = useHuoltoPrintFormLayout();
+
+  if (printLayout) {
+    return (
+      <PrintCheckField
+        label={label}
+        checked={checked === true}
+        disabled={disabled}
+        onChange={onChange}
+      />
+    );
+  }
+
   return (
     <ToggleSwitch
       id={id}

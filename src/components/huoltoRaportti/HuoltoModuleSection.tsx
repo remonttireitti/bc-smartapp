@@ -2,6 +2,7 @@ import { useId, type ReactNode } from 'react';
 import type { ModuleThemeKey } from '../../lib/huoltoRaportti/moduleThemes';
 import { useHuoltoCollapse } from './HuoltoEditUiContext';
 import { useHuoltoModulePresentation } from './HuoltoModulePresentationContext';
+import { PrintInnerBox } from './print/MaintenancePrintLayout';
 
 interface Props {
   moduleKey: ModuleThemeKey;
@@ -9,6 +10,8 @@ interface Props {
   children: ReactNode;
   /** @deprecated Käytä vain ilman HuoltoEditUiProvideria. Oletus: kiinni. */
   defaultOpen?: boolean;
+  /** Tulosteen laatikko flat-tilassa (WYSIWYG). */
+  printBox?: { title: string; accent: string };
 }
 
 export function HuoltoModuleSection({
@@ -16,15 +19,26 @@ export function HuoltoModuleSection({
   title,
   children,
   defaultOpen = false,
+  printBox,
 }: Props) {
   const presentation = useHuoltoModulePresentation();
   const { open, toggle } = useHuoltoCollapse(`module:${moduleKey}`, defaultOpen);
   const contentId = useId();
 
   if (presentation === 'flat') {
+    const body = <div className="huolto-module-body">{children}</div>;
+    if (printBox) {
+      return (
+        <section data-module={moduleKey} className="huolto-module-section huolto-module-flat huolto-module-print-box">
+          <PrintInnerBox title={printBox.title} accent={printBox.accent}>
+            {body}
+          </PrintInnerBox>
+        </section>
+      );
+    }
     return (
       <section data-module={moduleKey} className="huolto-module-section huolto-module-flat">
-        <div className="huolto-module-body">{children}</div>
+        {body}
       </section>
     );
   }
