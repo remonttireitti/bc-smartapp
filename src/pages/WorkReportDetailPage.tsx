@@ -1130,7 +1130,7 @@ async function saveExpenseLines(
     (row) => row.description.trim() && (row.expense_type || isAutoTripKmExpense(row)),
   );
   if (validExpenses.length === 0) return null;
-  const buildRows = (includePartnerField: boolean) =>
+  const buildRows = (includeBillToPartner: boolean) =>
     validExpenses.map((row, index) => {
       const customerPriceRaw = String(row.customer_unit_price ?? '').trim();
       const customerUnitPrice = customerPriceRaw ? Number(customerPriceRaw) : null;
@@ -1140,12 +1140,10 @@ async function saveExpenseLines(
         description: row.description.trim(),
         qty: Number(row.qty || 1),
         unit_price: Number(row.unit_price || 0),
-        ...(includePartnerField && options.includePartnerFields
-          ? { bill_to_partner: row.bill_to_partner }
-          : {}),
+        ...(includeBillToPartner ? { bill_to_partner: row.bill_to_partner } : {}),
+        bill_to_customer: row.bill_to_customer,
         ...(options.includeCustomerFields
           ? {
-              bill_to_customer: row.bill_to_customer,
               customer_unit_price:
                 customerUnitPrice != null && Number.isFinite(customerUnitPrice) && customerUnitPrice > 0
                   ? customerUnitPrice
@@ -1157,7 +1155,7 @@ async function saveExpenseLines(
     });
 
   let { error } = await supabase.from('work_report_daily_expense_lines').insert(buildRows(true));
-  if (error && options.includePartnerFields && isMissingBillToPartnerColumn(error)) {
+  if (error && isMissingBillToPartnerColumn(error)) {
     ({ error } = await supabase.from('work_report_daily_expense_lines').insert(buildRows(false)));
   }
   return error;

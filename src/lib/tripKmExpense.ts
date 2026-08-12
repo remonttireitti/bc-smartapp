@@ -114,6 +114,7 @@ export function syncTripKmExpenseDrafts<T extends TripKmExpenseDraft>(
   customerKmRate?: number | null | undefined,
 ): T[] {
   const withoutAuto = expenseDrafts.filter((row) => !isLikelyAutoTripKmExpense(row));
+  const billingSource = expenseDrafts.find(isLikelyAutoTripKmExpense);
   const totalKm = sumTripLegDraftKm(tripDrafts);
   const rate = kmRate != null && Number.isFinite(kmRate) && kmRate > 0 ? kmRate : null;
   const customerRate =
@@ -122,6 +123,8 @@ export function syncTripKmExpenseDrafts<T extends TripKmExpenseDraft>(
       : rate;
 
   if (!rate || totalKm <= 0) {
+    // Trip legs load async when editing — don't wipe auto km row (and its billing flags) yet.
+    if (tripDrafts.length === 0) return expenseDrafts;
     return withoutAuto;
   }
 
@@ -130,9 +133,8 @@ export function syncTripKmExpenseDrafts<T extends TripKmExpenseDraft>(
   const usesMinimum = partnerLine.usesMinimum || customerLine.usesMinimum;
   const defaultBillToCustomer =
     tripDrafts.length > 0 && tripDrafts.every((leg) => leg.bill_to_customer !== false);
-  const existingAuto = expenseDrafts.find(isLikelyAutoTripKmExpense);
-  const billToPartner = existingAuto?.bill_to_partner ?? true;
-  const billToCustomer = existingAuto?.bill_to_customer ?? defaultBillToCustomer;
+  const billToPartner = billingSource?.bill_to_partner ?? true;
+  const billToCustomer = billingSource?.bill_to_customer ?? defaultBillToCustomer;
 
   const autoDraft = {
     key: AUTO_TRIP_KM_EXPENSE_KEY,
