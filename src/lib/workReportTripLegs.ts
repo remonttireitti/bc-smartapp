@@ -326,7 +326,6 @@ export async function saveTripLegs(
   supabase: SupabaseClient,
   dailyLogId: string,
   drafts: TripLegDraft[],
-  includeCustomerFields: boolean,
 ) {
   const validationError = validateTripLegDrafts(drafts);
   if (validationError) throw new Error(validationError);
@@ -347,7 +346,7 @@ export async function saveTripLegs(
       from_label: row.from_label.trim(),
       to_label: row.to_label.trim(),
       distance_km: Number(row.distance_km),
-      ...(includeCustomerFields ? { bill_to_customer: row.bill_to_customer } : {}),
+      bill_to_customer: row.bill_to_customer,
       sort_order: index,
     })),
   );

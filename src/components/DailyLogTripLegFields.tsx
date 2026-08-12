@@ -50,7 +50,7 @@ export default function DailyLogTripLegFields({
   const [busy, setBusy] = useState(false);
   const [rowBusyKey, setRowBusyKey] = useState<string | null>(null);
   const [calcError, setCalcError] = useState<string | null>(null);
-  const showBillingPanel = totalKm > 0 && (showPartnerBilling || showCustomerBilling);
+  const showBillingPanel = totalKm > 0 && !!onTripBillingModeChange;
   const rateLabel = formatTripKmRateLabel(tripKmRate);
 
   async function applyDistanceResults(nextDrafts: TripLegDraft[], indices: number[]) {
