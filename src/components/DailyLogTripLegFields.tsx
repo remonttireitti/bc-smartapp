@@ -1,9 +1,11 @@
 import { useState } from 'react';
 
 import TripDestinationInput from './TripDestinationInput';
+import { TripLegBillingPanel } from './TripLegBillingPanel';
 import { supabase } from '../lib/supabase';
 import { calculateTripLegDistances } from '../lib/tripDistanceApi';
 import type { TripDestinationOption } from '../lib/tripDestinations';
+import type { ExpenseBillingMode } from '../lib/workReportExpenseBilling';
 import {
   appendReturnTripLeg,
   findReturnLegIndex,
@@ -22,7 +24,10 @@ type Props = {
   drafts: TripLegDraft[];
   setDrafts: (next: TripLegDraft[]) => void;
   tripDeparture: TripLegDeparture;
-  showCustomerFields?: boolean;
+  showPartnerBilling?: boolean;
+  showCustomerBilling?: boolean;
+  tripBillingMode?: ExpenseBillingMode;
+  onTripBillingModeChange?: (mode: ExpenseBillingMode) => void;
   destinationOptions?: TripDestinationOption[];
   tripKmRate?: number | null;
 };
@@ -31,7 +36,10 @@ export default function DailyLogTripLegFields({
   drafts,
   setDrafts,
   tripDeparture,
-  showCustomerFields,
+  showPartnerBilling = false,
+  showCustomerBilling = false,
+  tripBillingMode = 'partner_and_customer',
+  onTripBillingModeChange,
   destinationOptions = [],
   tripKmRate = null,
 }: Props) {
@@ -42,6 +50,8 @@ export default function DailyLogTripLegFields({
   const [busy, setBusy] = useState(false);
   const [rowBusyKey, setRowBusyKey] = useState<string | null>(null);
   const [calcError, setCalcError] = useState<string | null>(null);
+  const showBillingPanel = totalKm > 0 && (showPartnerBilling || showCustomerBilling);
+  const rateLabel = formatTripKmRateLabel(tripKmRate);
 
   async function applyDistanceResults(nextDrafts: TripLegDraft[], indices: number[]) {
     if (indices.length === 0) return nextDrafts;
@@ -125,144 +135,145 @@ export default function DailyLogTripLegFields({
 
   return (
     <DailyLogFormSection title={sectionTitle} collapseKey="daily-log:trips" className="trip-leg-dialog-section">
-    <div className="trip-leg-section">
-      <div className="trip-leg-head-actions">
-          {drafts.length > 0 && (
+      <div className="trip-leg-section">
+        <div className="trip-leg-toolbar">
+          <div className="trip-leg-toolbar-actions">
+            {drafts.length > 0 ? (
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                disabled={busy || rowBusyKey != null}
+                onClick={() => void calculateAll()}
+              >
+                {busy ? 'Lasketaan…' : 'Laske kaikki reitit'}
+              </button>
+            ) : null}
             <button
               type="button"
               className="btn btn-secondary btn-sm"
-              disabled={busy || rowBusyKey != null}
-              onClick={() => void calculateAll()}
+              disabled={busy || rowBusyKey != null || !effectiveReturnLabel.trim()}
+              onClick={() => setDrafts(insertIntermediateTripLeg(drafts, tripDeparture))}
             >
-              {busy ? 'Lasketaan…' : 'Laske kaikki reitit'}
+              Lisää väliajo
             </button>
-          )}
-          <button
-            type="button"
-            className="btn btn-secondary"
-            disabled={busy || rowBusyKey != null || !effectiveReturnLabel.trim()}
-            onClick={() => setDrafts(insertIntermediateTripLeg(drafts, tripDeparture))}
-          >
-            + Lisää väliajo
-          </button>
-      </div>
-      <p className="muted trip-leg-hint">
-        Laske matka lähtöpisteestä kohteeseen, tarvittaessa väliajo ja paluu lähtöpisteeseen.
-        Kirjoita lähtöön ja kohteeseen — ehdotukset haetaan asiakasrekisteristä, tallennetuista kohteista ja profiilin osoitteista.
-        Paluumatka lisätään aina viimeiseksi ja km lasketaan heti.
-        Alle 35 € ajomatkat laskutetaan minimilaskutuksella huoltoautosta.
-        {formatTripKmRateLabel(tripKmRate)
-          ? ` Km-korvausrivi (${formatTripKmRateLabel(tripKmRate)}) päivittyy kulut-osiossa automaattisesti.`
-          : ' Aseta €/km-hinta kohdassa Hallinta → Yritys, jolloin km-korvausrivi luodaan automaattisesti.'}
-      </p>
-      {calcError && <p className="error trip-leg-calc-error">{calcError}</p>}
-      {drafts.length === 0 ? (
-        <p className="muted">Ei ajomatkoja — lisää rivi tai käytä oletusreittiä.</p>
-      ) : (
-        drafts.map((row, index) => {
-          const rowBusy = rowBusyKey === row.key;
-          const isFirstLeg = index === 0;
-          const isReturnLeg = isReturnToDepartureLeg(row, effectiveReturnLabel) && index === returnLegIndex;
-          const canAddReturn =
-            !isReturnLeg &&
-            row.to_label.trim().length > 0 &&
-            (returnLegIndex < 0 || index < returnLegIndex);
-
-          return (
-            <div key={row.key} className={`trip-leg-row${isReturnLeg ? ' trip-leg-row-return' : ''}`}>
-              {isFirstLeg ? (
-                <TripDestinationInput
-                  label="Lähtö"
-                  value={row.from_label}
-                  placeholder="Kirjoita tai valitse lähtö"
-                  options={destinationOptions}
-                  disabled={busy || rowBusy}
-                  onChange={(value) => patchLeg(index, { from_label: value })}
-                />
-              ) : (
-                <label>
-                  Lähtö
-                  <input
-                    value={row.from_label}
-                    readOnly
-                    disabled
-                    placeholder="Edellinen kohde"
-                  />
-                </label>
-              )}
-              {isReturnLeg ? (
-                <label>
-                  Kohde
-                  <input value={row.to_label} readOnly disabled />
-                </label>
-              ) : (
-                <TripDestinationInput
-                  label="Kohde"
-                  value={row.to_label}
-                  placeholder="Kirjoita tai valitse kohde"
-                  options={destinationOptions}
-                  disabled={busy || rowBusy}
-                  onChange={(value) => patchLeg(index, { to_label: value })}
-                />
-              )}
-              <label className="trip-leg-km-field">
-                km
-                <input
-                  type="number"
-                  step="0.1"
-                  min="0"
-                  value={row.distance_km}
-                  disabled={busy || rowBusy}
-                  onChange={(event) => patchLeg(index, { distance_km: event.target.value })}
-                  placeholder="0"
-                />
-              </label>
-              <div className="trip-leg-row-actions">
-                <button
-                  type="button"
-                  className="btn btn-secondary btn-sm"
-                  disabled={busy || rowBusy}
-                  onClick={() => void calculateOne(index)}
-                >
-                  {rowBusy ? '…' : 'Laske reitti'}
-                </button>
-                {canAddReturn && (
-                  <button
-                    type="button"
-                    className="btn btn-secondary btn-sm"
-                    disabled={busy || rowBusy}
-                    onClick={() => void addReturnTrip(index)}
-                  >
-                    Lisää paluumatka
-                  </button>
-                )}
-                {!isFirstLeg && (
-                  <button
-                    type="button"
-                    className="btn btn-secondary btn-sm"
-                    disabled={busy || rowBusy}
-                    onClick={() => setDrafts(removeTripLegAt(drafts, index, tripDeparture))}
-                  >
-                    Poista
-                  </button>
-                )}
-              </div>
-              {showCustomerFields && (
-                <label className="compact-option trip-leg-bill-check">
-                  <input
-                    type="checkbox"
-                    checked={row.bill_to_customer}
-                    disabled={busy || rowBusy}
-                    onChange={(event) => patchLeg(index, { bill_to_customer: event.target.checked })}
-                  />
-                  Laskutetaan asiakkaalta
-                </label>
-              )}
+          </div>
+          {totalKm > 0 ? (
+            <div className="trip-leg-toolbar-meta">
+              <span className="trip-leg-total">{totalKm.toFixed(1)} km yhteensä</span>
+              {rateLabel ? <span className="muted">{rateLabel}</span> : null}
             </div>
-          );
-        })
-      )}
-    </div>
+          ) : null}
+        </div>
+
+        {showBillingPanel && onTripBillingModeChange ? (
+          <TripLegBillingPanel
+            mode={tripBillingMode}
+            onChange={onTripBillingModeChange}
+            showPartnerBilling={showPartnerBilling}
+            showCustomerBilling={showCustomerBilling}
+            disabled={busy || rowBusyKey != null}
+          />
+        ) : null}
+
+        <p className="muted trip-leg-hint">
+          Laske matka lähtöpisteestä kohteeseen. Paluumatka lisätään viimeiseksi.
+          {rateLabel
+            ? ` Km-korvaus (${rateLabel}) lasketaan automaattisesti.`
+            : ' Aseta €/km-hinta kohdassa Hallinta → Yritys.'}
+        </p>
+        {calcError ? <p className="error trip-leg-calc-error">{calcError}</p> : null}
+
+        {drafts.length === 0 ? (
+          <p className="muted">Ei ajomatkoja — lisää väliajo tai käytä oletusreittiä.</p>
+        ) : (
+          drafts.map((row, index) => {
+            const rowBusy = rowBusyKey === row.key;
+            const isFirstLeg = index === 0;
+            const isReturnLeg = isReturnToDepartureLeg(row, effectiveReturnLabel) && index === returnLegIndex;
+            const canAddReturn =
+              !isReturnLeg &&
+              row.to_label.trim().length > 0 &&
+              (returnLegIndex < 0 || index < returnLegIndex);
+
+            return (
+              <div key={row.key} className={`trip-leg-row${isReturnLeg ? ' trip-leg-row-return' : ''}`}>
+                {isFirstLeg ? (
+                  <TripDestinationInput
+                    label="Lähtö"
+                    value={row.from_label}
+                    placeholder="Kirjoita tai valitse lähtö"
+                    options={destinationOptions}
+                    disabled={busy || rowBusy}
+                    onChange={(value) => patchLeg(index, { from_label: value })}
+                  />
+                ) : (
+                  <label>
+                    Lähtö
+                    <input value={row.from_label} readOnly disabled placeholder="Edellinen kohde" />
+                  </label>
+                )}
+                {isReturnLeg ? (
+                  <label>
+                    Kohde
+                    <input value={row.to_label} readOnly disabled />
+                  </label>
+                ) : (
+                  <TripDestinationInput
+                    label="Kohde"
+                    value={row.to_label}
+                    placeholder="Kirjoita tai valitse kohde"
+                    options={destinationOptions}
+                    disabled={busy || rowBusy}
+                    onChange={(value) => patchLeg(index, { to_label: value })}
+                  />
+                )}
+                <label className="trip-leg-km-field">
+                  km
+                  <input
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    value={row.distance_km}
+                    disabled={busy || rowBusy}
+                    onChange={(event) => patchLeg(index, { distance_km: event.target.value })}
+                    placeholder="0"
+                  />
+                </label>
+                <div className="trip-leg-row-actions">
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    disabled={busy || rowBusy}
+                    onClick={() => void calculateOne(index)}
+                  >
+                    {rowBusy ? '…' : 'Laske reitti'}
+                  </button>
+                  {canAddReturn ? (
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      disabled={busy || rowBusy}
+                      onClick={() => void addReturnTrip(index)}
+                    >
+                      Paluu
+                    </button>
+                  ) : null}
+                  {!isFirstLeg ? (
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      disabled={busy || rowBusy}
+                      onClick={() => setDrafts(removeTripLegAt(drafts, index, tripDeparture))}
+                    >
+                      Poista
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
     </DailyLogFormSection>
   );
 }

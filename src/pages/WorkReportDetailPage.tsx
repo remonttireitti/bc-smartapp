@@ -121,6 +121,10 @@ import {
   parseBillingQuoteSettings,
   type BillingQuoteSettings,
 } from '../lib/workReportBillingQuote';
+import {
+  computePartnerUrakkaFromCustomer,
+  DEFAULT_PARTNER_URAKKA_MARGIN_PERCENT,
+} from '../lib/workReportUrakkaBilling';
 import { refreshAndPersistPartnerBillable, markPartnerBillableRecalcNeeded } from '../lib/workReportPartnerBillingPersist';
 import {
   formatEuro,
@@ -138,12 +142,17 @@ import {
 } from '../lib/workReportDailyLogSelect';
 import {
   applyExpenseBillingMode,
+  applyTripBillingToExpenses,
   expenseBillingSummaryLabel,
   expenseIncludedInContract,
   resolveExpenseBillingMode,
+  resolveTripBillingFromExpenses,
+  tripLegsBillToCustomer,
+  type ExpenseBillingMode,
 } from '../lib/workReportExpenseBilling';
 import {
   isAutoTripKmExpense,
+  isLikelyAutoTripKmExpense,
   parseTripKmCustomerRate,
   parseTripKmRate,
   syncTripKmExpenseDrafts,
@@ -258,6 +267,9 @@ function initialLogForm() {
     hours_overtime: '',
     hours_on_call: '',
     fixed_price_amount: '',
+    customer_fixed_price_amount: '',
+    partner_urakka_margin_percent: String(DEFAULT_PARTNER_URAKKA_MARGIN_PERCENT),
+    partner_urakka_manual: false,
     hourly_rate_override: '',
     customer_hourly_rate_override: '',
     commission_amount: '',
@@ -298,6 +310,18 @@ function logToForm(log: WorkReportDailyLog): DailyLogFormState {
       log.fixed_price_amount != null && Number(log.fixed_price_amount) > 0
         ? String(log.fixed_price_amount)
         : '',
+    customer_fixed_price_amount:
+      log.customer_fixed_price_amount != null && Number(log.customer_fixed_price_amount) > 0
+        ? String(log.customer_fixed_price_amount)
+        : '',
+    partner_urakka_margin_percent:
+      log.partner_urakka_margin_percent != null
+        ? String(log.partner_urakka_margin_percent)
+        : String(DEFAULT_PARTNER_URAKKA_MARGIN_PERCENT),
+    partner_urakka_manual:
+      Number(log.customer_fixed_price_amount) > 0
+      && Number(log.fixed_price_amount) > 0
+      && log.partner_urakka_margin_percent == null,
     hourly_rate_override:
       log.hourly_rate_override != null && Number(log.hourly_rate_override) > 0
         ? String(log.hourly_rate_override)
@@ -367,6 +391,26 @@ function buildLogPayload(form: DailyLogFormState) {
   const hourlyOverride = !showFixed && hourlyOverrideRaw ? Number(hourlyOverrideRaw) : null;
   const customerHourlyRaw = String(form.customer_hourly_rate_override ?? '').trim();
   const customerHourlyOverride = !showFixed && customerHourlyRaw ? Number(customerHourlyRaw) : null;
+
+  const customerFixedRaw = String(form.customer_fixed_price_amount ?? '').trim();
+  const customerFixedAmount =
+    showFixed && customerFixedRaw && Number(customerFixedRaw) > 0 ? Number(customerFixedRaw) : null;
+  const marginRaw = String(form.partner_urakka_margin_percent ?? '').trim();
+  const marginPercent =
+    marginRaw && Number.isFinite(Number(marginRaw)) ? Number(marginRaw) : DEFAULT_PARTNER_URAKKA_MARGIN_PERCENT;
+
+  let partnerFixedAmount: number | null = null;
+  let storedMargin: number | null = null;
+  if (showFixed) {
+    if (customerFixedAmount != null && !form.partner_urakka_manual) {
+      partnerFixedAmount = computePartnerUrakkaFromCustomer(customerFixedAmount, marginPercent);
+      storedMargin = marginPercent;
+    } else {
+      const partnerRaw = String(form.fixed_price_amount ?? '').trim();
+      partnerFixedAmount = partnerRaw && Number(partnerRaw) > 0 ? Number(partnerRaw) : null;
+    }
+  }
+
   return {
     log_date: form.log_date,
     log_start_time: roundTimeToHalfHour(form.log_start_time),
@@ -374,7 +418,9 @@ function buildLogPayload(form: DailyLogFormState) {
     hours_regular: showRegular ? Number(form.hours_regular || 0) : 0,
     hours_overtime: showOvertime ? Number(form.hours_overtime || 0) : 0,
     hours_on_call: showOnCall ? Number(form.hours_on_call || 0) : 0,
-    fixed_price_amount: showFixed ? Number(form.fixed_price_amount || 0) : null,
+    fixed_price_amount: partnerFixedAmount,
+    customer_fixed_price_amount: customerFixedAmount,
+    partner_urakka_margin_percent: storedMargin,
     hourly_rate_override:
       hourlyOverride != null && Number.isFinite(hourlyOverride) && hourlyOverride > 0 ? hourlyOverride : null,
     customer_hourly_rate_override:
@@ -385,6 +431,44 @@ function buildLogPayload(form: DailyLogFormState) {
     commission_note: form.commission_note.trim() || null,
     work_done: form.work_done.trim(),
   };
+}
+
+function previewPartnerUrakkaAmount(form: DailyLogFormState): number | null {
+  if (form.partner_urakka_manual) {
+    const manual = Number(form.fixed_price_amount);
+    return manual > 0 ? manual : null;
+  }
+  const customer = Number(form.customer_fixed_price_amount);
+  if (customer > 0) {
+    const margin = Number(form.partner_urakka_margin_percent) || DEFAULT_PARTNER_URAKKA_MARGIN_PERCENT;
+    return computePartnerUrakkaFromCustomer(customer, margin);
+  }
+  const legacy = Number(form.fixed_price_amount);
+  return legacy > 0 ? legacy : null;
+}
+
+function applyUrakkaCustomerPrice(form: DailyLogFormState, customerValue: string): DailyLogFormState {
+  const next = { ...form, customer_fixed_price_amount: customerValue };
+  if (!form.partner_urakka_manual) {
+    const customer = Number(customerValue);
+    if (customer > 0) {
+      const margin = Number(form.partner_urakka_margin_percent) || DEFAULT_PARTNER_URAKKA_MARGIN_PERCENT;
+      next.fixed_price_amount = String(computePartnerUrakkaFromCustomer(customer, margin));
+    }
+  }
+  return next;
+}
+
+function applyUrakkaMargin(form: DailyLogFormState, marginValue: string): DailyLogFormState {
+  const next = { ...form, partner_urakka_margin_percent: marginValue };
+  if (!form.partner_urakka_manual) {
+    const customer = Number(form.customer_fixed_price_amount);
+    if (customer > 0) {
+      const margin = Number(marginValue) || DEFAULT_PARTNER_URAKKA_MARGIN_PERCENT;
+      next.fixed_price_amount = String(computePartnerUrakkaFromCustomer(customer, margin));
+    }
+  }
+  return next;
 }
 
 function DailyLogFields({
@@ -415,8 +499,12 @@ function DailyLogFields({
   const quickHourSteps = [0.5, 1, 2, 4];
   const showPartnerPrices = !!showPartnerExpenseFields;
   const showCustomerPrices = !!showCustomerExpenseFields;
+  const manualExpenseDrafts = expenseDrafts.filter((row) => !isLikelyAutoTripKmExpense(row));
   const expenseSectionTitle =
-    expenseDrafts.length > 0 ? `Kulut ja tarvikkeet (${expenseDrafts.length})` : 'Kulut ja tarvikkeet';
+    manualExpenseDrafts.length > 0
+      ? `Kulut ja tarvikkeet (${manualExpenseDrafts.length})`
+      : 'Kulut ja tarvikkeet';
+  const partnerUrakkaPreview = previewPartnerUrakkaAmount(form);
 
   return (
     <>
@@ -560,9 +648,51 @@ function DailyLogFields({
             </div>
           </label>
         )}
-        {showFixed && (
+        {showFixed && showCustomerHourlyRate && (
+          <>
+            <label>
+              Urakkahinta asiakkaalle (€)
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                value={form.customer_fixed_price_amount}
+                onChange={(e) => setForm(applyUrakkaCustomerPrice(form, e.target.value))}
+              />
+            </label>
+            {showHourlyRate && (
+              <>
+                {!form.partner_urakka_manual ? (
+                  <label>
+                    Kate kumppanille (%)
+                    <input
+                      type="number"
+                      step="0.1"
+                      min="0"
+                      max="99.99"
+                      value={form.partner_urakka_margin_percent}
+                      onChange={(e) => setForm(applyUrakkaMargin(form, e.target.value))}
+                    />
+                  </label>
+                ) : (
+                  <label>
+                    Urakkahinta kumppanille (€)
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={form.fixed_price_amount}
+                      onChange={(e) => setForm({ ...form, fixed_price_amount: e.target.value })}
+                    />
+                  </label>
+                )}
+              </>
+            )}
+          </>
+        )}
+        {showFixed && !showCustomerHourlyRate && (
           <label>
-            Urakkahinta (€)
+            Urakkahinta kumppanille (€)
             <input
               type="number"
               step="0.01"
@@ -618,6 +748,52 @@ function DailyLogFields({
           asiakastuntihinta poikkeaa.
         </p>
       )}
+      {showFixed && showCustomerHourlyRate && showHourlyRate && (
+        <div className="urakka-billing-split">
+          <label className="compact-option">
+            <input
+              type="checkbox"
+              checked={form.partner_urakka_manual}
+              onChange={(e) =>
+                setForm({
+                  ...form,
+                  partner_urakka_manual: e.target.checked,
+                  partner_urakka_margin_percent: e.target.checked
+                    ? form.partner_urakka_margin_percent
+                    : String(DEFAULT_PARTNER_URAKKA_MARGIN_PERCENT),
+                })
+              }
+            />
+            Kumppanihinta sovittu erikseen
+          </label>
+          {!form.partner_urakka_manual && partnerUrakkaPreview != null ? (
+            <p className="muted" style={{ margin: '0 0 .65rem' }}>
+              Kumppanille laskutettava: <strong>{formatEuro(partnerUrakkaPreview)}</strong>
+              {Number(form.customer_fixed_price_amount) > 0 ? (
+                <>
+                  {' '}
+                  (asiakas {formatEuro(Number(form.customer_fixed_price_amount))} − kate{' '}
+                  {form.partner_urakka_margin_percent || DEFAULT_PARTNER_URAKKA_MARGIN_PERCENT} %)
+                </>
+              ) : null}
+            </p>
+          ) : null}
+          {form.partner_urakka_manual ? (
+            <p className="muted" style={{ margin: '0 0 .65rem' }}>
+              Syötä kumppanin kanssa sovittu urakkahinta. Asiakashinta pysyy erillisenä yllä.
+            </p>
+          ) : (
+            <p className="muted" style={{ margin: '0 0 .65rem' }}>
+              Asiakkaan kanssa sovittu urakkahinta ja kate-% — kumppanihinta lasketaan automaattisesti.
+            </p>
+          )}
+        </div>
+      )}
+      {showFixed && showCustomerHourlyRate && !showHourlyRate && (
+        <p className="muted" style={{ margin: '0 0 .65rem' }}>
+          Urakkahinta laskutetaan asiakkaalta. Kumppanilaskutusta ei käytetä tälle raportille.
+        </p>
+      )}
       </DailyLogFormSection>
 
       <DailyLogFormSection title="Provisio" collapseKey="daily-log:commission">
@@ -647,8 +823,8 @@ function DailyLogFields({
       <DailyLogFormSection title={expenseSectionTitle} collapseKey="daily-log:expenses">
         <div className="expense-section expense-section-in-dialog">
           <p className="muted expense-section-hint">
-            Lisää rivi ja valitse sen jälkeen tyyppi, kuvaus ja laskutus. Km-korvausrivi syntyy automaattisesti
-            ajomatkoista. Matkakulu voi kuulua urakkaan — valitse silloin &quot;Kuulu urakkaan — ei veloiteta&quot;.
+            Lisää pysäköinti, varaosat ja muut kulut. Ajomatkan km-korvaus ja laskutus valitaan yllä olevassa
+            ajomatka-osiossa.
           </p>
           <button
             type="button"
@@ -657,13 +833,13 @@ function DailyLogFields({
           >
             + Lisää kulu tai tarvike
           </button>
-          {expenseDrafts.length === 0 ? (
+          {manualExpenseDrafts.length === 0 ? (
             <p className="muted">
-              Esim. pysäköinti, varaosat, tarvikkeet… Km-korvausrivi syntyy automaattisesti ajomatkoista, jos
-              yrityksellä on €/km-hinta.
+              Esim. pysäköinti, varaosat, tarvikkeet…
             </p>
           ) : (
             expenseDrafts.map((row, index) => {
+              if (isLikelyAutoTripKmExpense(row)) return null;
               const autoTripKm = isAutoTripKmExpense(row);
               const partnerUnitLabel = showPartnerPrices
                 ? 'Kumppanihinta (€)'
@@ -3155,7 +3331,7 @@ export default function WorkReportDetailPage({ session }: Props) {
                 Käyttäjien laskutusasetukset olivat pois — lasketaan silti päiväkirjauksista (oletus päällä).
               </p>
             )}
-            <WorkReportBillingBreakdown calculation={billableCalculation} />
+            <WorkReportBillingBreakdown calculation={billableCalculation} billingSide="partner" />
             {showOutgoingPartnerBilling ? (
             <div className="form-actions" style={{ justifyContent: 'flex-start' }}>
               <Tooltip label="Sisäinen tuloste: kumppanilaskutus, asiakkaalta laskutettava ja kaikki hinnat.">
@@ -3304,7 +3480,7 @@ export default function WorkReportDetailPage({ session }: Props) {
             </div>
           )}
 
-          <WorkReportBillingBreakdown calculation={customerBillableCalculation} />
+          <WorkReportBillingBreakdown calculation={customerBillableCalculation} billingSide="customer" />
           <div className="form-actions" style={{ justifyContent: 'flex-start' }}>
             <Tooltip label="Työraportti asiakkaalle ilman yhtään hintaa.">
               <Link to={`/tyoraportit/${report.id}/tuloste`} className="btn btn-secondary">
@@ -3348,7 +3524,15 @@ export default function WorkReportDetailPage({ session }: Props) {
           drafts={tripDrafts}
           setDrafts={setTripDrafts}
           tripDeparture={tripLegDeparture(tripDepartureLabel, tripDepartureLabel)}
-          showCustomerFields={showCustomerBillingFeatures}
+          showPartnerBilling={isPartnerReport}
+          showCustomerBilling={showCustomerBillingFeatures}
+          tripBillingMode={resolveTripBillingFromExpenses(expenseDrafts)}
+          onTripBillingModeChange={(mode: ExpenseBillingMode) => {
+            setExpenseDrafts((current) => applyTripBillingToExpenses(current, mode));
+            setTripDrafts((current) =>
+              current.map((leg) => ({ ...leg, bill_to_customer: tripLegsBillToCustomer(mode) })),
+            );
+          }}
           destinationOptions={tripDestinationOptions}
           tripKmRate={tripKmRate}
         />

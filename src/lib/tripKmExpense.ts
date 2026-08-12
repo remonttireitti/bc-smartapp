@@ -46,6 +46,8 @@ function isLikelyAutoTripKmExpense(expense: Pick<TripKmExpenseDraft, 'key' | 'ex
   return expense.expense_type === 'km' && /^Ajomatkat\s*\(/i.test(expense.description.trim());
 }
 
+export { isLikelyAutoTripKmExpense };
+
 export function resolveTripKmBillingLine(totalKm: number, rate: number): TripKmBillingLine {
   const qty = Math.round(totalKm * 10) / 10;
   const unitPrice = Math.round(rate * 100) / 100;

@@ -1,3 +1,5 @@
+import { isLikelyAutoTripKmExpense } from './tripKmExpense';
+
 export type ExpenseBillingMode = 'partner_and_customer' | 'customer_only' | 'included_in_contract';
 
 export type ExpenseBillingFlags = {
@@ -61,4 +63,36 @@ export function expensePrintBillingNote(
   if (options.showPartner && row.bill_to_partner === false) return ' · ei veloiteta';
   if (options.showCustomer && row.bill_to_customer === false) return ' · ei laskuteta asiakkaalta';
   return '';
+}
+
+export function findAutoTripKmExpense<T extends ExpenseBillingFlags & { key?: string; expense_type?: string; description?: string }>(
+  expenseDrafts: T[],
+): T | undefined {
+  return expenseDrafts.find(
+    (row) =>
+      row.key === 'auto-trip-km'
+      || (row.expense_type === 'km' && /^Ajomatkat\s*\(/i.test(String(row.description ?? '').trim())),
+  );
+}
+
+export function resolveTripBillingFromExpenses(
+  expenseDrafts: ExpenseBillingFlags[],
+): ExpenseBillingMode {
+  const auto = findAutoTripKmExpense(expenseDrafts);
+  return auto ? resolveExpenseBillingMode(auto) : 'partner_and_customer';
+}
+
+export function applyTripBillingToExpenses<T extends ExpenseBillingFlags & { key?: string; expense_type?: string; description?: string }>(
+  expenseDrafts: T[],
+  mode: ExpenseBillingMode,
+): T[] {
+  return expenseDrafts.map((row) =>
+    isLikelyAutoTripKmExpense(row as Parameters<typeof isLikelyAutoTripKmExpense>[0])
+      ? applyExpenseBillingMode(row, mode)
+      : row,
+  );
+}
+
+export function tripLegsBillToCustomer(mode: ExpenseBillingMode): boolean {
+  return mode !== 'included_in_contract';
 }

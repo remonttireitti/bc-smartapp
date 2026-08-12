@@ -9594,14 +9594,83 @@ textarea {
 }
 
 .trip-leg-section {
-  margin-top: 1rem;
-  padding-top: 0.75rem;
-  border-top: 1px solid var(--border);
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
 }
 
-.trip-leg-hint {
-  margin: 0 0 0.75rem;
+.trip-leg-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.trip-leg-toolbar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  align-items: center;
+}
+
+.trip-leg-toolbar-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem 0.75rem;
+  font-size: 0.9rem;
+}
+
+.trip-leg-billing-panel {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.65rem 1rem;
+  padding: 0.65rem 0.75rem;
+  margin-bottom: 0.75rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  background: var(--bg-subtle);
+}
+
+.trip-leg-billing-label {
+  font-weight: 600;
+  font-size: 0.9rem;
+  white-space: nowrap;
+}
+
+.trip-leg-billing-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.trip-leg-billing-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.75rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background: #fff;
   font-size: 0.88rem;
+  cursor: pointer;
+  user-select: none;
+}
+
+.trip-leg-billing-option input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.trip-leg-billing-option.is-active {
+  border-color: #2563eb;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-weight: 600;
 }
 
 .trip-leg-head-actions {
@@ -9609,6 +9678,11 @@ textarea {
   flex-wrap: wrap;
   gap: 0.35rem;
   align-items: center;
+}
+
+.trip-leg-hint {
+  margin: 0 0 0.75rem;
+  font-size: 0.88rem;
 }
 
 .trip-leg-calc-error {
@@ -9793,6 +9867,21 @@ textarea {
 .billing-breakdown {
   display: grid;
   gap: 0.85rem;
+}
+
+.urakka-billing-split {
+  margin: 0 0 0.65rem;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--border-color, #d1d5db);
+  border-radius: 0.55rem;
+  background: var(--surface-muted, #f9fafb);
+}
+
+.urakka-billing-split .compact-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 0.35rem;
 }
 
 .billing-breakdown-heading {

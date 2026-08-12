@@ -28,8 +28,9 @@ export function buildWorkReportDetailLogSelect(includeBillToPartner: boolean): s
   const expenseLines = expenseLinesSelectFragment(includeBillToPartner);
   return `
   id, work_report_id, log_date, log_start_time, entry_type,
-  hours_regular, hours_overtime, hours_on_call, fixed_price_amount, hourly_rate_override,
-  customer_hourly_rate_override,
+  hours_regular, hours_overtime, hours_on_call, fixed_price_amount,
+  customer_fixed_price_amount, partner_urakka_margin_percent,
+  hourly_rate_override, customer_hourly_rate_override,
   commission_amount, commission_note, work_done, created_by, created_at,
   author_name_snapshot, author_deleted,
   author:profiles!work_report_daily_logs_created_by_fkey(display_name),
@@ -51,7 +52,9 @@ export function buildWorkReportPrintLogSelect(includeBillToPartner: boolean): st
   const expenseLines = expenseLinesSelectFragment(includeBillToPartner);
   return `
   id, work_report_id, log_date, entry_type,
-  hours_regular, hours_overtime, hours_on_call, fixed_price_amount, hourly_rate_override,
+  hours_regular, hours_overtime, hours_on_call, fixed_price_amount,
+  customer_fixed_price_amount, partner_urakka_margin_percent,
+  hourly_rate_override, customer_hourly_rate_override,
   commission_amount, commission_note, work_done, created_by, created_at,
   author_name_snapshot, author_deleted,
   author:profiles!work_report_daily_logs_created_by_fkey(display_name),
@@ -72,8 +75,9 @@ export function buildCustomerBillingLogSelect(includeBillToPartner: boolean): st
   const expenseLines = expenseLinesSelectFragment(includeBillToPartner);
   return `
   id, work_report_id, log_date, log_start_time, entry_type,
-  hours_regular, hours_overtime, hours_on_call, fixed_price_amount, hourly_rate_override,
-  customer_hourly_rate_override,
+  hours_regular, hours_overtime, hours_on_call, fixed_price_amount,
+  customer_fixed_price_amount, partner_urakka_margin_percent,
+  hourly_rate_override, customer_hourly_rate_override,
   commission_amount, commission_note, work_done, created_by, created_at,
   author_name_snapshot, author_deleted,
   ${expenseLines},

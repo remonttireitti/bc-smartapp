@@ -42,15 +42,22 @@ function collectDetailRows(calculation: BillableCalculation, includedOnly: boole
 
 type Props = {
   calculation: BillableCalculation;
+  billingSide?: 'partner' | 'customer';
 };
 
-export default function WorkReportBillingBreakdown({ calculation }: Props) {
+const BILLING_SIDE_INTRO: Record<'partner' | 'customer', string> = {
+  partner: 'Nämä rivit muodostavat kumppanille tai kumppanilta laskutettavan summan.',
+  customer: 'Nämä rivit muodostavat loppuasiakkaalta laskutettavan summan.',
+};
+
+export default function WorkReportBillingBreakdown({ calculation, billingSide }: Props) {
   const billedLines = collectDetailRows(calculation, true);
   const excludedLines = collectDetailRows(calculation, false);
   const isQuoteFixed = calculation.billingMode === 'quote_fixed';
 
   return (
     <div className="billing-breakdown">
+      {billingSide ? <p className="muted">{BILLING_SIDE_INTRO[billingSide]}</p> : null}
       {isQuoteFixed ? (
         <p className="muted">
           Kiinteä tarjoushinta

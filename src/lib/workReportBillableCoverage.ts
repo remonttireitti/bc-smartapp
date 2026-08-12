@@ -6,6 +6,7 @@ type MinimalLogRow = {
   hours_overtime?: number | null;
   hours_on_call?: number | null;
   fixed_price_amount?: number | null;
+  customer_fixed_price_amount?: number | null;
   commission_amount?: number | null;
 };
 
@@ -30,6 +31,7 @@ export function logRowHasBillableContent(
     || Number(log.hours_overtime) > 0
     || Number(log.hours_on_call) > 0
     || Number(log.fixed_price_amount) > 0
+    || Number(log.customer_fixed_price_amount) > 0
     || Number(log.commission_amount) > 0
     || expenseLineCount > 0
     || refrigerantLineCount > 0

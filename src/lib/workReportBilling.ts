@@ -8,6 +8,10 @@ import {
   tripKmExpenseBillingLine,
   tripKmLineTotal,
 } from './tripKmExpense';
+import {
+  resolveUrakkaPartnerAmount,
+  urakkaPartnerLineDescription,
+} from './workReportUrakkaBilling';
 
 export type UserBillingProfile = {
   id: string;
@@ -143,6 +147,7 @@ export function shouldCalculatePartnerBilling(
     || Number(log.hours_overtime) > 0
     || Number(log.hours_on_call) > 0
     || Number(log.fixed_price_amount) > 0
+    || Number(log.customer_fixed_price_amount) > 0
     || Number(log.commission_amount) > 0
     || (log.expense_lines?.length ?? 0) > 0
     || (log.refrigerant_lines?.length ?? 0) > 0
@@ -226,14 +231,15 @@ export function calculateWorkReportBillable(input: {
         label: 'Päivystystunnit',
       });
     }
-    if (log.entry_type === 'fixed_price' && Number(log.fixed_price_amount) > 0) {
-      const total = Number(log.fixed_price_amount);
+    if (log.entry_type === 'fixed_price') {
+      const total = resolveUrakkaPartnerAmount(log);
+      if (total == null || total <= 0) continue;
       const included = hoursEnabled;
       summary.lines.push({
         logId: log.id,
         logDate: log.log_date,
         kind: 'fixed_price',
-        description: 'Urakkahinta',
+        description: urakkaPartnerLineDescription(log),
         qty: 1,
         unitPrice: total,
         total,

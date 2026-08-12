@@ -167,6 +167,8 @@ export type WorkReportDailyLog = {
   hours_overtime: number;
   hours_on_call: number;
   fixed_price_amount: number | null;
+  customer_fixed_price_amount?: number | null;
+  partner_urakka_margin_percent?: number | null;
   hourly_rate_override?: number | null;
   customer_hourly_rate_override?: number | null;
   commission_amount: number;
@@ -728,9 +730,26 @@ export function formatHourEntry(log: WorkReportDailyLog, options?: { showMoney?:
       return `${Number(log.hours_on_call).toFixed(2)} päivystys h${rateHint}`;
     case 'fixed_price': {
       const calendarHours = Number(log.hours_regular) || 0;
-      const pricePart = showMoney
-        ? `Urakka ${Number(log.fixed_price_amount || 0).toFixed(2)} €`
-        : 'Urakka';
+      const customerAmount =
+        log.customer_fixed_price_amount != null && Number(log.customer_fixed_price_amount) > 0
+          ? Number(log.customer_fixed_price_amount)
+          : null;
+      const partnerAmount =
+        log.fixed_price_amount != null && Number(log.fixed_price_amount) > 0
+          ? Number(log.fixed_price_amount)
+          : null;
+      const legacyAmount = Number(log.fixed_price_amount || 0);
+      const priceParts: string[] = [];
+      if (showCustomerMoney) {
+        const customer = customerAmount ?? (partnerAmount == null ? legacyAmount : null);
+        if (customer != null && customer > 0) priceParts.push(`asiakas ${customer.toFixed(2)} €`);
+      }
+      if (showMoney) {
+        const partner = partnerAmount ?? (customerAmount == null ? legacyAmount : null);
+        if (partner != null && partner > 0) priceParts.push(`kumppani ${partner.toFixed(2)} €`);
+      }
+      const pricePart =
+        priceParts.length > 0 ? `Urakka · ${priceParts.join(' · ')}` : 'Urakka';
       if (calendarHours > 0) {
         return `${pricePart} · ${calendarHours.toFixed(2)} h (kalenteri, ei laskuteta)`;
       }
