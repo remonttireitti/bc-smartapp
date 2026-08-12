@@ -22,18 +22,8 @@ export function JaahdytysvesiSection({ form, onChange }: Props) {
   const patch = (next: Partial<typeof data>) =>
     onChange({ jaahdytysvesiData: { ...data, ...next } });
 
-  const inspection = (
-    <NestepiiriInspection
-      title={title}
-      data={data}
-      onChange={patch}
-      showPiiriTarkistukset
-      documentModuleKey={documentLayout ? 'jaahdytysvesi' : undefined}
-    />
-  );
-
-  return (
-    <HuoltoModuleSection moduleKey="vedenjajahdytyskone" title={title}>
+  const content = (
+    <>
       {!documentLayout ? (
         <p className="muted huolto-help">
           {isVj
@@ -52,11 +42,21 @@ export function JaahdytysvesiSection({ form, onChange }: Props) {
           />
         </label>
       ) : null}
-      {documentLayout ? (
-        <div className="sr-only" aria-hidden="true">{inspection}</div>
-      ) : (
-        <div className="huolto-part-inspection-list">{inspection}</div>
-      )}
+      <NestepiiriInspection
+        title={title}
+        data={data}
+        onChange={patch}
+        showPiiriTarkistukset
+        documentModuleKey={documentLayout ? 'jaahdytysvesi' : undefined}
+      />
+    </>
+  );
+
+  if (documentLayout) return content;
+
+  return (
+    <HuoltoModuleSection moduleKey="vedenjajahdytyskone" title={title}>
+      {content}
     </HuoltoModuleSection>
   );
 }

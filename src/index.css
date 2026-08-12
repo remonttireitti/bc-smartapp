@@ -6490,6 +6490,10 @@ textarea {
   flex-wrap: wrap;
 }
 
+.maintenance-device-summary-head:not(:has(h3)) {
+  justify-content: flex-end;
+}
+
 .maintenance-device-summary-actions {
   display: flex;
   align-items: center;
@@ -6524,6 +6528,24 @@ textarea {
 
 .maintenance-device-summary-errors .error {
   margin: 0;
+}
+
+.huolto-module-summary-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.huolto-module-summary-empty {
+  margin: 0;
+}
+
+.maintenance-form .huolto-module-summary.maintenance-device-summary {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 0;
+  gap: 0.75rem;
 }
 
 .field-error-input,

@@ -1,8 +1,10 @@
 import { useEffect } from 'react';
 import type { NestelauhdutinUnitData } from '../../lib/huoltoRaportti/types';
 import { createEmptyNestelauhdutinUnit } from '../../lib/huoltoRaportti/defaults';
+import { useMaintenanceDocumentLayout } from '../../hooks/useMaintenanceDocumentLayout';
 import { HuoltoModuleSection } from './HuoltoModuleSection';
 import { NestelauhdutinUnitModule } from './NestelauhdutinUnitModule';
+import { NestelauhduttimetInspection } from './NestelauhduttimetInspection';
 import { nestelauhduttimetSectionTitle } from '../../lib/huoltoRaportti/sectionTitles';
 
 interface Props {
@@ -13,6 +15,8 @@ interface Props {
 }
 
 export function NestelauhduttimetSection({ units, shared = false, laiteTyyppi = '', onChange }: Props) {
+  const documentLayout = useMaintenanceDocumentLayout();
+  const title = nestelauhduttimetSectionTitle(laiteTyyppi);
   const lkm = shared ? 1 : Math.min(4, Math.max(1, units.length || 1));
 
   useEffect(() => {
@@ -37,8 +41,20 @@ export function NestelauhduttimetSection({ units, shared = false, laiteTyyppi = 
     onChange(next);
   };
 
+  if (documentLayout) {
+    return (
+      <NestelauhduttimetInspection
+        title={title}
+        units={units}
+        shared={shared}
+        onChange={onChange}
+        documentModuleKey="nestelauhduttimet"
+      />
+    );
+  }
+
   return (
-    <HuoltoModuleSection moduleKey="nestelauhduttimet" title={nestelauhduttimetSectionTitle(laiteTyyppi)}>
+    <HuoltoModuleSection moduleKey="nestelauhduttimet" title={title}>
       {!shared && (
         <div className="huolto-submodule">
           <label>

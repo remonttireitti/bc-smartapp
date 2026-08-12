@@ -4,7 +4,9 @@ import type { MaintenanceReportTabId } from './maintenanceReportTabs';
 export const MAINTENANCE_DIALOG_LAUNCHER_TABS = new Set<MaintenanceReportTabId>([
   'raportointi',
   'kylmaaine',
+  'kylmaainePiiri',
   'lauhdutuspiiri',
+  'nestelauhduttimet',
   'jaahdytysvesi',
   'vapaajahdytys',
   'huomiot',

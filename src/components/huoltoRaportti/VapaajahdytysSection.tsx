@@ -24,7 +24,7 @@ export function VapaajahdytysSection({ form, onChange }: Props) {
   const patch = (next: Partial<VapaajahdytysData>) =>
     onChange({ vapaajahdytysData: { ...data, ...next } });
 
-  const inspection = (
+  const content = (
     <VapaajahdytysInspection
       data={data}
       onChange={patch}
@@ -32,13 +32,11 @@ export function VapaajahdytysSection({ form, onChange }: Props) {
     />
   );
 
+  if (documentLayout) return content;
+
   return (
     <HuoltoModuleSection moduleKey="vapaajahdytys" title="Vapaajäähdytys">
-      {documentLayout ? (
-        <div className="sr-only" aria-hidden="true">{inspection}</div>
-      ) : (
-        <div className="huolto-part-inspection-list">{inspection}</div>
-      )}
+      <div className="huolto-part-inspection-list">{content}</div>
     </HuoltoModuleSection>
   );
 }

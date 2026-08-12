@@ -17,32 +17,30 @@ export function LauhdutuspiiriSection({ form, onChange }: Props) {
   const patch = (next: Partial<typeof data>) =>
     onChange({ lauhdutuspiiriData: { ...data, ...next } });
 
-  const inspection = (
-    <NestepiiriInspection
-      title={title}
-      data={data}
-      onChange={patch}
-      showLauhdutinTarkistukset
-      showPiiriTarkistukset
-      documentModuleKey={documentLayout ? 'lauhdutuspiiri' : undefined}
-    />
+  const content = (
+    <>
+      {!documentLayout ? (
+        <p className="muted huolto-help">
+          Yhteinen nestekierto koneen levy-/putkilämmönvaihtimen ja ulkoisen nestelauhduttimen välillä.
+          Nestelauhdutin-moduulissa täytetään vain yksikön omat tiedot (kenno, puhaltimet).
+        </p>
+      ) : null}
+      <NestepiiriInspection
+        title={title}
+        data={data}
+        onChange={patch}
+        showLauhdutinTarkistukset
+        showPiiriTarkistukset
+        documentModuleKey={documentLayout ? 'lauhdutuspiiri' : undefined}
+      />
+    </>
   );
+
+  if (documentLayout) return content;
 
   return (
     <HuoltoModuleSection moduleKey="lauhdutin" title={title}>
-      {!documentLayout ? (
-        <>
-          <p className="muted huolto-help">
-            Yhteinen nestekierto koneen levy-/putkilämmönvaihtimen ja ulkoisen nestelauhduttimen välillä.
-            Nestelauhdutin-moduulissa täytetään vain yksikön omat tiedot (kenno, puhaltimet).
-          </p>
-          <div className="huolto-part-inspection-list">{inspection}</div>
-        </>
-      ) : (
-        <div className="sr-only" aria-hidden="true">
-          {inspection}
-        </div>
-      )}
+      {content}
     </HuoltoModuleSection>
   );
 }
