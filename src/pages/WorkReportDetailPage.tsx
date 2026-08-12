@@ -478,6 +478,8 @@ function DailyLogFields({
   setExpenseDrafts,
   showHourlyRate,
   showCustomerHourlyRate,
+  showUrakkaPartnerSplit,
+  showUrakkaCustomerPrice,
   showPartnerExpenseFields,
   showCustomerExpenseFields,
   defaultHourlyRate,
@@ -489,6 +491,8 @@ function DailyLogFields({
   setExpenseDrafts: (next: ExpenseDraft[]) => void;
   showHourlyRate?: boolean;
   showCustomerHourlyRate?: boolean;
+  showUrakkaPartnerSplit?: boolean;
+  showUrakkaCustomerPrice?: boolean;
   showPartnerExpenseFields?: boolean;
   showCustomerExpenseFields?: boolean;
   defaultHourlyRate?: number | null;
@@ -505,6 +509,7 @@ function DailyLogFields({
       ? `Kulut ja tarvikkeet (${manualExpenseDrafts.length})`
       : 'Kulut ja tarvikkeet';
   const partnerUrakkaPreview = previewPartnerUrakkaAmount(form);
+  const showUrakkaBillingFields = !!(showUrakkaPartnerSplit || showUrakkaCustomerPrice);
 
   return (
     <>
@@ -564,7 +569,7 @@ function DailyLogFields({
       <DailyLogFormSection
         title="Tunnit"
         collapseKey="daily-log:hours"
-        defaultOpen={!!(showHourlyRate || showCustomerHourlyRate)}
+        defaultOpen={!!(showHourlyRate || showCustomerHourlyRate || showUrakkaBillingFields)}
       >
         <div className="line-form-grid">
         {showRegular && (
@@ -648,7 +653,7 @@ function DailyLogFields({
             </div>
           </label>
         )}
-        {showFixed && showCustomerHourlyRate && (
+        {showFixed && showUrakkaBillingFields && (
           <>
             <label>
               Urakkahinta asiakkaalle (€)
@@ -660,11 +665,11 @@ function DailyLogFields({
                 onChange={(e) => setForm(applyUrakkaCustomerPrice(form, e.target.value))}
               />
             </label>
-            {showHourlyRate && (
+            {showUrakkaPartnerSplit && (
               <>
                 {!form.partner_urakka_manual ? (
                   <label>
-                    Kate kumppanille (%)
+                    Provisio / kate kumppanille (%)
                     <input
                       type="number"
                       step="0.1"
@@ -690,7 +695,7 @@ function DailyLogFields({
             )}
           </>
         )}
-        {showFixed && !showCustomerHourlyRate && (
+        {showFixed && !showUrakkaBillingFields && (
           <label>
             Urakkahinta kumppanille (€)
             <input
@@ -748,7 +753,7 @@ function DailyLogFields({
           asiakastuntihinta poikkeaa.
         </p>
       )}
-      {showFixed && showCustomerHourlyRate && showHourlyRate && (
+      {showFixed && showUrakkaPartnerSplit && (
         <div className="urakka-billing-split">
           <label className="compact-option">
             <input
@@ -772,7 +777,7 @@ function DailyLogFields({
               {Number(form.customer_fixed_price_amount) > 0 ? (
                 <>
                   {' '}
-                  (asiakas {formatEuro(Number(form.customer_fixed_price_amount))} − kate{' '}
+                  (asiakas {formatEuro(Number(form.customer_fixed_price_amount))} − provisio{' '}
                   {form.partner_urakka_margin_percent || DEFAULT_PARTNER_URAKKA_MARGIN_PERCENT} %)
                 </>
               ) : null}
@@ -784,12 +789,12 @@ function DailyLogFields({
             </p>
           ) : (
             <p className="muted" style={{ margin: '0 0 .65rem' }}>
-              Asiakkaan kanssa sovittu urakkahinta ja kate-% — kumppanihinta lasketaan automaattisesti.
+              Asiakkaan urakkahinta ja provisio-% — kumppanihinta lasketaan automaattisesti.
             </p>
           )}
         </div>
       )}
-      {showFixed && showCustomerHourlyRate && !showHourlyRate && (
+      {showFixed && showUrakkaCustomerPrice && !showUrakkaPartnerSplit && (
         <p className="muted" style={{ margin: '0 0 .65rem' }}>
           Urakkahinta laskutetaan asiakkaalta. Kumppanilaskutusta ei käytetä tälle raportille.
         </p>
@@ -2520,6 +2525,8 @@ export default function WorkReportDetailPage({ session }: Props) {
     : (report.owner_company?.name ?? '—');
   const showCustomerBillingFeatures =
     isOwnerCompany && (customerInvoicingEnabled || viewerBillingAllowed);
+  const showDailyLogUrakkaPartnerSplit = isOwnerCompany && isPartnerReport;
+  const showDailyLogUrakkaCustomerPrice = isOwnerCompany && showCustomerBillingFeatures;
   const showOutgoingPartnerBilling =
     isPartnerReport && canSeeCreatorBilling && !!billableCalculation;
   const showIncomingPartnerBilling =
@@ -3543,6 +3550,8 @@ export default function WorkReportDetailPage({ session }: Props) {
           setExpenseDrafts={setExpenseDrafts}
           showHourlyRate={showPartnerDailyLogHourlyRate}
           showCustomerHourlyRate={showCustomerBillingFeatures}
+          showUrakkaPartnerSplit={showDailyLogUrakkaPartnerSplit}
+          showUrakkaCustomerPrice={showDailyLogUrakkaCustomerPrice}
           showPartnerExpenseFields={isPartnerReport}
           showCustomerExpenseFields={showCustomerBillingFeatures}
           defaultHourlyRate={
