@@ -126,8 +126,11 @@ export function syncTripKmExpenseDrafts<T extends TripKmExpenseDraft>(
   const partnerLine = resolveTripKmBillingLine(totalKm, rate);
   const customerLine = resolveTripKmBillingLine(totalKm, customerRate ?? rate);
   const usesMinimum = partnerLine.usesMinimum || customerLine.usesMinimum;
-  const billToCustomer =
+  const defaultBillToCustomer =
     tripDrafts.length > 0 && tripDrafts.every((leg) => leg.bill_to_customer !== false);
+  const existingAuto = expenseDrafts.find(isLikelyAutoTripKmExpense);
+  const billToPartner = existingAuto?.bill_to_partner ?? true;
+  const billToCustomer = existingAuto?.bill_to_customer ?? defaultBillToCustomer;
 
   const autoDraft = {
     key: AUTO_TRIP_KM_EXPENSE_KEY,
@@ -135,7 +138,7 @@ export function syncTripKmExpenseDrafts<T extends TripKmExpenseDraft>(
     description: formatTripKmExpenseDescription(totalKm, usesMinimum),
     qty: String(partnerLine.qty),
     unit_price: String(partnerLine.unitPrice),
-    bill_to_partner: true,
+    bill_to_partner: billToPartner,
     bill_to_customer: billToCustomer,
     customer_unit_price: String(customerLine.unitPrice),
   } as T;

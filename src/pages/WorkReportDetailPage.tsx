@@ -137,6 +137,12 @@ import {
   isMissingBillToPartnerColumn,
 } from '../lib/workReportDailyLogSelect';
 import {
+  applyExpenseBillingMode,
+  expenseBillingSummaryLabel,
+  expenseIncludedInContract,
+  resolveExpenseBillingMode,
+} from '../lib/workReportExpenseBilling';
+import {
   isAutoTripKmExpense,
   parseTripKmCustomerRate,
   parseTripKmRate,
@@ -237,19 +243,6 @@ function emptyExpense(): ExpenseDraft {
     bill_to_customer: true,
     customer_unit_price: '',
   };
-}
-
-type ExpenseBillingMode = 'partner_and_customer' | 'customer_only';
-
-function resolveExpenseBillingMode(row: ExpenseDraft): ExpenseBillingMode {
-  return row.bill_to_partner ? 'partner_and_customer' : 'customer_only';
-}
-
-function applyExpenseBillingMode(row: ExpenseDraft, mode: ExpenseBillingMode): ExpenseDraft {
-  if (mode === 'partner_and_customer') {
-    return { ...row, bill_to_partner: true, bill_to_customer: true };
-  }
-  return { ...row, bill_to_partner: false, bill_to_customer: true };
 }
 
 function isNewExpenseRow(row: ExpenseDraft): boolean {
@@ -360,22 +353,11 @@ function expenseRowSectionTitle(
   const desc = row.description.trim() || 'Täytä tiedot';
   const parts = [type, desc];
   if (row.qty.trim()) parts.push(`${row.qty} kpl`);
-  if (showPartner && showCustomer) {
-    parts.push(
-      row.bill_to_partner ? 'laskutetaan kumppanilta' : 'kumppani laskuttaa asiakkaalta',
-    );
-  } else if (showPartner && !row.bill_to_partner) {
-    parts.push('ei kumppanilaskutusta');
-  } else if (showCustomer) {
-    const customerPrice = row.customer_unit_price.trim() || row.unit_price.trim();
-    parts.push(
-      row.bill_to_customer
-        ? customerPrice
-          ? `asiakas ${customerPrice} €`
-          : 'laskutetaan asiakkaalta'
-        : 'ei asiakaslaskua',
-    );
-  }
+  const billingLabel = expenseBillingSummaryLabel(row, {
+    showPartner,
+    showCustomer,
+  });
+  if (billingLabel) parts.push(billingLabel);
   return parts.join(' · ');
 }
 
@@ -665,8 +647,8 @@ function DailyLogFields({
       <DailyLogFormSection title={expenseSectionTitle} collapseKey="daily-log:expenses">
         <div className="expense-section expense-section-in-dialog">
           <p className="muted expense-section-hint">
-            Lisää rivi ja valitse sen jälkeen tyyppi, kuvaus ja laskutus. Kumppaniraportilla: joko laatija laskuttaa
-            kumppania (asiakas laskutetaan aina) tai kumppani laskuttaa suoraan asiakasta ilman keskinäistä kuluriviä.
+            Lisää rivi ja valitse sen jälkeen tyyppi, kuvaus ja laskutus. Km-korvausrivi syntyy automaattisesti
+            ajomatkoista. Matkakulu voi kuulua urakkaan — valitse silloin &quot;Kuulu urakkaan — ei veloiteta&quot;.
           </p>
           <button
             type="button"
@@ -825,7 +807,6 @@ function DailyLogFields({
                             type="radio"
                             name={`expense_billing_${row.key}`}
                             checked={billingMode === 'partner_and_customer'}
-                            disabled={autoTripKm}
                             onChange={() =>
                               setExpenseDrafts(
                                 expenseDrafts.map((r, i) =>
@@ -841,7 +822,6 @@ function DailyLogFields({
                             type="radio"
                             name={`expense_billing_${row.key}`}
                             checked={billingMode === 'customer_only'}
-                            disabled={autoTripKm}
                             onChange={() =>
                               setExpenseDrafts(
                                 expenseDrafts.map((r, i) =>
@@ -852,45 +832,92 @@ function DailyLogFields({
                           />
                           Ei kumppanilaskutusta — kumppani laskuttaa asiakkaalta
                         </label>
+                        <label className="compact-option">
+                          <input
+                            type="radio"
+                            name={`expense_billing_${row.key}`}
+                            checked={billingMode === 'included_in_contract'}
+                            onChange={() =>
+                              setExpenseDrafts(
+                                expenseDrafts.map((r, i) =>
+                                  i === index ? applyExpenseBillingMode(r, 'included_in_contract') : r,
+                                ),
+                              )
+                            }
+                          />
+                          Kuulu urakkaan — ei veloiteta
+                        </label>
                       </fieldset>
                     )}
                     {showPartnerPrices && !showCustomerPrices && (
-                      <div className="expense-billing-options">
+                      <fieldset className="expense-billing-mode-fieldset">
+                        <legend>Laskutus</legend>
                         <label className="compact-option">
                           <input
-                            type="checkbox"
+                            type="radio"
+                            name={`expense_billing_${row.key}`}
                             checked={row.bill_to_partner}
-                            disabled={autoTripKm}
-                            onChange={(e) =>
+                            onChange={() =>
                               setExpenseDrafts(
                                 expenseDrafts.map((r, i) =>
-                                  i === index ? { ...r, bill_to_partner: e.target.checked } : r,
+                                  i === index ? applyExpenseBillingMode(r, 'partner_and_customer') : r,
                                 ),
                               )
                             }
                           />
                           Laskutetaan kumppanilta
                         </label>
-                      </div>
-                    )}
-                    {!showPartnerPrices && showCustomerPrices && (
-                      <div className="expense-billing-options">
                         <label className="compact-option">
                           <input
-                            type="checkbox"
-                            checked={row.bill_to_customer}
-                            disabled={autoTripKm}
-                            onChange={(e) =>
+                            type="radio"
+                            name={`expense_billing_${row.key}`}
+                            checked={!row.bill_to_partner}
+                            onChange={() =>
                               setExpenseDrafts(
                                 expenseDrafts.map((r, i) =>
-                                  i === index ? { ...r, bill_to_customer: e.target.checked } : r,
+                                  i === index ? applyExpenseBillingMode(r, 'included_in_contract') : r,
+                                ),
+                              )
+                            }
+                          />
+                          Kuulu urakkaan — ei veloiteta
+                        </label>
+                      </fieldset>
+                    )}
+                    {!showPartnerPrices && showCustomerPrices && (
+                      <fieldset className="expense-billing-mode-fieldset">
+                        <legend>Laskutus</legend>
+                        <label className="compact-option">
+                          <input
+                            type="radio"
+                            name={`expense_billing_${row.key}`}
+                            checked={row.bill_to_customer}
+                            onChange={() =>
+                              setExpenseDrafts(
+                                expenseDrafts.map((r, i) =>
+                                  i === index ? applyExpenseBillingMode(r, 'partner_and_customer') : r,
                                 ),
                               )
                             }
                           />
                           Laskutetaan asiakkaalta
                         </label>
-                      </div>
+                        <label className="compact-option">
+                          <input
+                            type="radio"
+                            name={`expense_billing_${row.key}`}
+                            checked={!row.bill_to_customer}
+                            onChange={() =>
+                              setExpenseDrafts(
+                                expenseDrafts.map((r, i) =>
+                                  i === index ? applyExpenseBillingMode(r, 'included_in_contract') : r,
+                                ),
+                              )
+                            }
+                          />
+                          Kuulu urakkaan — ei veloiteta
+                        </label>
+                      </fieldset>
                     )}
                     {!autoTripKm && (
                       <button
@@ -2937,6 +2964,7 @@ export default function WorkReportDetailPage({ session }: Props) {
                   {(log.expense_lines ?? []).length > 0 && (
                     <ul className="expense-line-list compact-expense-line-list">
                       {(log.expense_lines ?? []).map((line) => {
+                        const includedInContract = expenseIncludedInContract(line);
                         const billedToCustomer = line.bill_to_customer !== false;
                         const customerUnit =
                           line.customer_unit_price != null && Number(line.customer_unit_price) > 0
@@ -2946,7 +2974,9 @@ export default function WorkReportDetailPage({ session }: Props) {
                         return (
                           <li key={line.id}>
                             {EXPENSE_TYPE_LABELS[line.expense_type] ?? line.expense_type}: {line.description}{' '}
-                            {showCustomerMoney ? (
+                            {includedInContract ? (
+                              <span className="muted">(kuulu urakkaan · ei veloiteta)</span>
+                            ) : showCustomerMoney ? (
                               billedToCustomer ? (
                                 <>
                                   (asiakas {Number(line.qty)} × {customerUnit.toFixed(2)} € ={' '}
@@ -2955,6 +2985,8 @@ export default function WorkReportDetailPage({ session }: Props) {
                               ) : (
                                 <span className="muted">(ei laskuteta asiakkaalta)</span>
                               )
+                            ) : line.bill_to_partner === false ? (
+                              <span className="muted">(kuulu urakkaan · ei veloiteta)</span>
                             ) : (
                               <>
                                 ({Number(line.qty)} × {Number(line.unit_price).toFixed(2)} € ={' '}

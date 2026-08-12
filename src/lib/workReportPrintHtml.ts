@@ -1,4 +1,5 @@
 import type { BillableCalculation } from './workReportBilling';
+import { expensePrintBillingNote } from './workReportExpenseBilling';
 
 /** Asiakas = vain työn kuvaus ilman hintoja. Sisäinen = kumppani- ja asiakaslaskutus mukana. */
 export type WorkReportPrintMode = 'customer' | 'internal';
@@ -333,7 +334,10 @@ export function generateWorkReportPrintHtml(input: {
               : unit;
           const customerTotal = expenseLineTotal({ ...line, unit_price: customerUnit });
           if (showPartnerPrices) {
-            const partnerNote = line.bill_to_partner === false ? ' · kumppanin piikki' : '';
+            const partnerNote = expensePrintBillingNote(line, {
+              showPartner: true,
+              showCustomer: showCustomerExpensePrices,
+            });
             const customerNote =
               showCustomerExpensePrices && line.bill_to_customer !== false && customerUnit !== unit
                 ? ` · asiakas ${formatEuro(customerUnit)} = ${formatEuro(customerTotal)}`
