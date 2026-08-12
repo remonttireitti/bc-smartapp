@@ -176,15 +176,16 @@ export default function DailyLogTripLegFields({
         ) : null}
 
         <p className="muted trip-leg-hint">
-          Laske matka lähtöpisteestä kohteeseen. Paluumatka lisätään viimeiseksi.
+          Ajomatka on valinnainen — jätä tyhjäksi jos et käytä autoa tai et halua km-korvausta.
+          Voit laskea matkan lähtöpisteestä kohteeseen tai syöttää kilometrit käsin.
           {rateLabel
-            ? ` Km-korvaus (${rateLabel}) lasketaan automaattisesti.`
+            ? ` Km-korvaus (${rateLabel}) lasketaan automaattisesti täytetyistä matkoista.`
             : ' Aseta €/km-hinta kohdassa Hallinta → Yritys.'}
         </p>
         {calcError ? <p className="error trip-leg-calc-error">{calcError}</p> : null}
 
         {drafts.length === 0 ? (
-          <p className="muted">Ei ajomatkoja — lisää väliajo tai käytä oletusreittiä.</p>
+          <p className="muted">Ei ajomatkoja — lisää matka vain jos haluat km-korvauksen.</p>
         ) : (
           drafts.map((row, index) => {
             const rowBusy = rowBusyKey === row.key;

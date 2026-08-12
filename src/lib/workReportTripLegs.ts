@@ -290,33 +290,17 @@ export function formatTripLegSummary(leg: DailyTripLeg): string {
   return `${leg.from_label} → ${leg.to_label} · ${kmLabel}`;
 }
 
-function isDraftRowFilled(row: TripLegDraft): boolean {
-  return (
-    row.from_label.trim().length > 0 ||
-    row.to_label.trim().length > 0 ||
-    (Number(row.distance_km) > 0 && Number.isFinite(Number(row.distance_km)))
-  );
-}
-
 function isDraftRowValid(row: TripLegDraft): boolean {
   const km = Number(row.distance_km);
   if (!Number.isFinite(km) || km <= 0) return false;
   return row.from_label.trim().length > 0 && row.to_label.trim().length > 0;
 }
 
-export function validateTripLegDrafts(drafts: TripLegDraft[]): string | null {
-  const attempted = drafts.filter(isDraftRowFilled);
-  const valid = drafts.filter(isDraftRowValid);
-  if (attempted.length > 0 && valid.length === 0) {
-    return 'Täytä ajomatkoihin lähtö, kohde ja kilometrit (km).';
-  }
-  for (const row of attempted) {
-    if (!row.from_label.trim() || !row.to_label.trim()) {
-      return 'Jokaisella ajomatkalla pitää olla lähtö ja kohde.';
-    }
+export function tripLegDraftHint(drafts: TripLegDraft[]): string | null {
+  for (const row of drafts) {
     const km = Number(row.distance_km);
-    if (!Number.isFinite(km) || km <= 0) {
-      return 'Anna ajomatkan pituus kilometreinä.';
+    if (Number.isFinite(km) && km > 0 && !isDraftRowValid(row)) {
+      return 'Ajomatkalla puuttuu lähtö tai kohde — riviä ei tallenneta.';
     }
   }
   return null;
@@ -327,9 +311,6 @@ export async function saveTripLegs(
   dailyLogId: string,
   drafts: TripLegDraft[],
 ) {
-  const validationError = validateTripLegDrafts(drafts);
-  if (validationError) throw new Error(validationError);
-
   const valid = drafts.filter(isDraftRowValid);
 
   const { error: deleteError } = await supabase

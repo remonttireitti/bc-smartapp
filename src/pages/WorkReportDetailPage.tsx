@@ -158,11 +158,9 @@ import {
   syncTripKmExpenseDrafts,
 } from '../lib/tripKmExpense';
 import {
-  buildDefaultTripLegs,
   formatTripLegSummary,
   normalizeTripLegDrafts,
   resolveUserDepartureLabel,
-  resolveWorkReportSiteLabel,
   saveTripLegs,
   sumDailyTripKm,
   sumDailyExpensesWithTrips,
@@ -2151,12 +2149,11 @@ export default function WorkReportDetailPage({ session }: Props) {
     await loadTripDestinationOptionsForDialog(report);
 
     const departure = tripLegDeparture(departureLabel, departureLabel);
-    const siteLabel = resolveWorkReportSiteLabel(report);
     const legs = existingLegs ?? [];
     const drafts =
       legs.length > 0
         ? normalizeTripLegDrafts(legs, departure)
-        : buildDefaultTripLegs(departure, siteLabel);
+        : [];
     setTripDrafts(drafts);
 
     if (legs.length > 0) {
