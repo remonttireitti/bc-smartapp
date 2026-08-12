@@ -12,9 +12,17 @@ type Props = {
   activeId: string;
   tabCompletion?: Partial<Record<string, MaintenanceTabCompletionState>>;
   onChange: (id: string) => void;
+  /** Mobiilidokumentti: vaakasuora hyppyvalikko ilman modaalia */
+  variant?: 'modal' | 'document';
 };
 
-export default function MaintenanceReportTabNav({ tabs, activeId, tabCompletion, onChange }: Props) {
+export default function MaintenanceReportTabNav({
+  tabs,
+  activeId,
+  tabCompletion,
+  onChange,
+  variant = 'modal',
+}: Props) {
   const tabRefs = useRef(new Map<string, HTMLButtonElement>());
 
   useEffect(() => {
@@ -26,7 +34,10 @@ export default function MaintenanceReportTabNav({ tabs, activeId, tabCompletion,
   if (tabs.length === 0) return null;
 
   return (
-    <nav className="maintenance-report-tabs" aria-label="Raportin osiot">
+    <nav
+      className={`maintenance-report-tabs${variant === 'document' ? ' maintenance-report-tabs--document' : ''}`}
+      aria-label="Raportin osiot"
+    >
       {tabs.map((tab) => (
         <button
           key={tab.id}

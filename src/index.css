@@ -4733,6 +4733,31 @@ textarea {
     border-bottom: 1px solid var(--border-strong);
   }
 
+  .maintenance-report-tabs--document {
+    flex-direction: row;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overflow-y: hidden;
+    gap: .35rem;
+    padding: .15rem 0 .45rem;
+    margin: 0;
+    border-bottom: none;
+  }
+
+  .maintenance-report-tabs--document .maintenance-report-tab {
+    width: auto;
+    min-height: 2.35rem;
+    padding: .4rem .75rem;
+    font-size: .82rem;
+    white-space: nowrap;
+    text-align: center;
+  }
+
+  .maintenance-report-module-toolbar--document {
+    margin: -.25rem -.65rem 0;
+    padding: .35rem .65rem .5rem;
+  }
+
   .maintenance-report-tab {
     width: 100%;
     min-height: 2.75rem;
@@ -5421,6 +5446,194 @@ textarea {
   display: flex;
   flex-direction: column;
   gap: 1rem;
+}
+
+.maintenance-form--document {
+  gap: .75rem;
+}
+
+.maintenance-report-module-toolbar--document {
+  position: sticky;
+  top: 0;
+  z-index: 4;
+  margin: -.25rem -1rem 0;
+  padding: .35rem 1rem .5rem;
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border-strong);
+  box-shadow: 0 2px 8px rgba(15, 23, 42, .06);
+}
+
+.maintenance-report-tabs--document {
+  flex-direction: row;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  overflow-y: hidden;
+  gap: .35rem;
+  padding: .15rem 0 .45rem;
+  margin: 0;
+  border-bottom: none;
+  scroll-snap-type: x proximity;
+  -webkit-overflow-scrolling: touch;
+}
+
+.maintenance-report-tabs--document .maintenance-report-tab {
+  flex: 0 0 auto;
+  width: auto;
+  min-height: 2.35rem;
+  padding: .4rem .75rem;
+  font-size: .82rem;
+  white-space: nowrap;
+  scroll-snap-align: start;
+}
+
+.maintenance-report-document {
+  display: flex;
+  flex-direction: column;
+  gap: .65rem;
+}
+
+.maintenance-report-document-section {
+  border: 2px solid var(--doc-section-border, var(--border-strong));
+  border-radius: 10px;
+  background: var(--doc-section-bg, var(--bg-subtle));
+  overflow: hidden;
+}
+
+.maintenance-report-document-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .65rem;
+  width: 100%;
+  padding: .65rem .85rem;
+  border: 0;
+  border-bottom: 2px solid var(--doc-section-header, var(--border-strong));
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.maintenance-report-document-section.is-collapsed .maintenance-report-document-section-header {
+  border-bottom: 0;
+}
+
+.maintenance-report-document-section-heading {
+  display: flex;
+  flex-direction: column;
+  gap: .15rem;
+  min-width: 0;
+}
+
+.maintenance-report-document-section-title {
+  font-size: .95rem;
+  font-weight: 700;
+  color: var(--doc-section-header, var(--text));
+}
+
+.maintenance-report-document-section-summary {
+  font-size: .78rem;
+  line-height: 1.25;
+}
+
+.maintenance-report-document-section-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: .35rem;
+  flex-shrink: 0;
+}
+
+.maintenance-report-document-section-chevron {
+  width: .55rem;
+  height: .55rem;
+  border-right: 2px solid var(--doc-section-accent, #64748b);
+  border-bottom: 2px solid var(--doc-section-accent, #64748b);
+  transform: rotate(45deg);
+  transition: transform .15s ease;
+  margin-top: -.15rem;
+}
+
+.maintenance-report-document-section.is-open .maintenance-report-document-section-chevron {
+  transform: rotate(-135deg);
+  margin-top: .15rem;
+}
+
+.maintenance-report-document-section-body {
+  padding: .65rem .75rem .85rem;
+  display: flex;
+  flex-direction: column;
+  gap: .75rem;
+}
+
+.maintenance-report-document-section-body .maintenance-report-tab-section {
+  gap: .75rem;
+}
+
+.maintenance-report-document-section-body .huolto-module-flat:not(:has(.huolto-part-section)) .huolto-module-body,
+.maintenance-report-document-section-body .huolto-part-body {
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.maintenance-print-box {
+  box-shadow: 0 1px 2px rgba(15, 23, 42, .04);
+}
+
+.maintenance-report-document-section-summary {
+  font-size: .78rem;
+  line-height: 1.3;
+  color: #475569;
+}
+
+.maintenance-report-document-section-settings {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 8px;
+  border: 1px solid var(--doc-section-border, var(--border-strong));
+  background: #fff;
+  font-size: .95rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.maintenance-section-settings-dialog {
+  max-width: min(92vw, 28rem);
+}
+
+.maintenance-section-settings-body {
+  display: flex;
+  flex-direction: column;
+  gap: .85rem;
+}
+
+.maintenance-section-settings-hint {
+  margin: 0;
+  font-size: .82rem;
+}
+
+.maintenance-section-settings-panel {
+  display: flex;
+  flex-direction: column;
+  gap: .85rem;
+}
+
+.maintenance-section-settings-group h3 {
+  margin: 0 0 .5rem;
+  font-size: .92rem;
+}
+
+.maintenance-section-settings-field {
+  display: flex;
+  flex-direction: column;
+  gap: .35rem;
+}
+
+.maintenance-section-settings-link {
+  align-self: flex-start;
 }
 
 .maintenance-report-tab-launcher {

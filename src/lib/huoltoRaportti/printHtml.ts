@@ -8,12 +8,14 @@ import type {
   LauhdutuspiiriData,
   NestepiiriData,
   RefrigerantCircuitData,
+  VapaajahdytysData,
 } from './types';
 import type { MaintenanceReportPhotoItem } from '../maintenanceReportImages';
 import {
   resolveMaintenancePrintPhotoHref,
 } from '../maintenanceReportPrintImages';
 import { renderCustomModulesPrintHtml } from './customModulePrintHtml';
+import { hideMaintenancePrintWarnings } from './defaults';
 import { expansionValveTypes, lauhdutinTypeLabel, LAUHDUTIN_PAINEVENTTIILI_LABEL, LAUHDUTIN_PAINEVENTTIILI_MALLI_LABEL } from './constants';
 import {
   hasExternalNestelauhdutin,
@@ -64,6 +66,7 @@ import {
   lauhdutuspiiriInspectionStatus,
   nestepiiriInspectionStatus,
   ulkoyksikkoInspectionStatus,
+  vapaajahdytysInspectionStatus,
 } from './huoltoInspectionStatus';
 
 export interface MaintenancePrintMeta {
@@ -488,6 +491,36 @@ function renderNestepiiriFields(color: string, piiri: NestepiiriData | Lauhdutus
   return rows.filter(Boolean).join('');
 }
 
+function renderLiquidCircuitFields(color: string, piiri: VapaajahdytysData | undefined): string {
+  if (!piiri) return '';
+  const status = vapaajahdytysInspectionStatus(piiri);
+  return [
+    renderInspectionStatusRow(piiri.tarkastusTila ?? status, 'Tarkastus', esc),
+    renderInspectionHuomioRow(piiri.tarkastusHuomio, esc),
+    row('Neste', piiri.neste, color),
+    row('Virtaus (m³/h)', piiri.virtaus, color),
+    row('Meno (°C)', piiri.meno, color),
+    row('Paluu (°C)', piiri.tulo, color),
+    checkRow(piiri.pumppuTarkastettu, 'Pumppu tarkastettu'),
+    piiri.pumppuTarkastettu ? row('Pumpun valmistaja', piiri.pumppuValmistaja, color) : '',
+    piiri.pumppuTarkastettu ? row('Pumpun malli', piiri.pumppuMalli, color) : '',
+    piiri.ohjaus === 'kone'
+      ? row('Ohjaus', 'Kone', color)
+      : piiri.ohjaus === 'taloautomaatio'
+        ? row('Ohjaus', 'Taloautomaatio', color)
+        : '',
+  ]
+    .filter(Boolean)
+    .join('');
+}
+
+function renderVapaajahdytys(data: HuoltoReportData): string {
+  if (!data.selectedModules.vapaajahdytys) return '';
+  const inner = renderLiquidCircuitFields('#0891b2', data.vapaajahdytysData);
+  if (!inner) return '';
+  return box('VAPAAJÄÄHDYTYS', '#0891b2', inner);
+}
+
 function renderJaahdytysvesi(data: HuoltoReportData): string {
   if (!data.selectedModules.vedenjajahdytyskone) return '';
   const inner = renderNestepiiriFields('#01579B', data.jaahdytysvesiData);
@@ -798,7 +831,7 @@ function renderLegacyCompanyBox(data: HuoltoReportData, meta: MaintenancePrintMe
 }
 
 function renderCircuitWarningsBanner(data: HuoltoReportData): string {
-  if (isKonvektoritDevice(data.laiteTyyppi)) return '';
+  if (isKonvektoritDevice(data.laiteTyyppi) || hideMaintenancePrintWarnings(data)) return '';
   const warnings = buildRefrigerantCircuitWarnings(data);
   if (!warnings.length) return '';
   const list = warnings.map((w) => `<li style="margin-bottom:4px;">${esc(w)}</li>`).join('');
@@ -930,6 +963,7 @@ export function generateMaintenanceReportHtml(
   ${renderLauhdutuspiiri(data)}
   ${renderNestelauhduttimet(data)}
   ${renderJaahdytysvesi(data)}
+  ${renderVapaajahdytys(data)}
   ${renderChillerEnergy(data)}
   ${generateMlpFullPrintHtml(data)}
   ${renderKonvektoritTable(data)}

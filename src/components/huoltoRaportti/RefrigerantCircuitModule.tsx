@@ -44,6 +44,8 @@ interface RefrigerantCircuitModuleProps {
   chillerCondenser?: CondenserData;
   onChillerCondenserChange?: (patch: Partial<CondenserData>) => void;
   showChillerCondenserInCircuit?: boolean;
+  /** Tulistus/alijäähdytys -valinnat osion ⚙-asetuksista, ei inline-vivuista. */
+  printSettingsInPopup?: boolean;
 }
 function deviceTypeForLimits(laiteTyyppi: string): string {
   const map: Record<string, string> = {
@@ -69,6 +71,7 @@ export function RefrigerantCircuitModule({
   chillerCondenser,
   onChillerCondenserChange,
   showChillerCondenserInCircuit = false,
+  printSettingsInPopup = true,
 }: RefrigerantCircuitModuleProps) {
   const [expanded, setExpanded] = useState(true);
   const [openPartDialog, setOpenPartDialog] = useState<RefrigerantCircuitPartKey | null>(null);
@@ -457,12 +460,14 @@ export function RefrigerantCircuitModule({
             <div className="huolto-calc-metric">
               <div className="huolto-calc-metric-head">
                 <span className="muted">Tulistus (K)</span>
-                <ToggleSwitch
-                  checked={showSuperheatCalc}
-                  onChange={(v) => onChange({ ...data, tulistusTulosteeseen: v })}
-                  label="Tulosteeseen"
-                  className="toggle-switch-inline huolto-calc-print-toggle"
-                />
+                {!printSettingsInPopup ? (
+                  <ToggleSwitch
+                    checked={showSuperheatCalc}
+                    onChange={(v) => onChange({ ...data, tulistusTulosteeseen: v })}
+                    label="Tulosteeseen"
+                    className="toggle-switch-inline huolto-calc-print-toggle"
+                  />
+                ) : null}
               </div>
               {showSuperheatCalc ? (
                 <strong
@@ -477,18 +482,22 @@ export function RefrigerantCircuitModule({
                   {calculatedSuperheat || '—'}
                 </strong>
               ) : (
-                <span className="muted huolto-calc-off-hint">Laskelmaa ei tulosteta</span>
+                <span className="muted huolto-calc-off-hint">
+                  {printSettingsInPopup ? 'Ei tulosteeseen (⚙ asetukset)' : 'Laskelmaa ei tulosteta'}
+                </span>
               )}
             </div>
             <div className="huolto-calc-metric">
               <div className="huolto-calc-metric-head">
                 <span className="muted">Alijäähdytys (K)</span>
-                <ToggleSwitch
-                  checked={showSubcoolingCalc}
-                  onChange={(v) => onChange({ ...data, alijahdytysTulosteeseen: v })}
-                  label="Tulosteeseen"
-                  className="toggle-switch-inline huolto-calc-print-toggle"
-                />
+                {!printSettingsInPopup ? (
+                  <ToggleSwitch
+                    checked={showSubcoolingCalc}
+                    onChange={(v) => onChange({ ...data, alijahdytysTulosteeseen: v })}
+                    label="Tulosteeseen"
+                    className="toggle-switch-inline huolto-calc-print-toggle"
+                  />
+                ) : null}
               </div>
               {showSubcoolingCalc ? (
                 <strong
@@ -503,7 +512,9 @@ export function RefrigerantCircuitModule({
                   {calculatedSubcooling || '—'}
                 </strong>
               ) : (
-                <span className="muted huolto-calc-off-hint">Laskelmaa ei tulosteta</span>
+                <span className="muted huolto-calc-off-hint">
+                  {printSettingsInPopup ? 'Ei tulosteeseen (⚙ asetukset)' : 'Laskelmaa ei tulosteta'}
+                </span>
               )}
             </div>
           </div>

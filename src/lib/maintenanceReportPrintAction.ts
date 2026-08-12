@@ -1,5 +1,5 @@
 import { buildMaintenanceReportPrintTitle, normalizeHuoltoReportData } from './huoltoRaportti/defaults';
-import { generateLegacyMaintenanceReportHtml } from './huoltoRaportti/legacyPrintAdapter';
+import { generateMaintenanceReportPrintDocument } from './huoltoRaportti/maintenanceReportPrintHtml';
 import { generateKonvektoriFaultPrintHtml } from './huoltoRaportti/konvektoriPrint';
 import type { HuoltoReportData } from './huoltoRaportti/types';
 import { resolveMaintenanceReportImageUrls } from './maintenanceReportImageUrl';
@@ -101,7 +101,7 @@ export async function loadMaintenanceReportPrintBundle(
 
   const rawImageUrls = await resolveMaintenancePrintImageUrls(reportData);
   const imageUrls = await shrinkUrlMapForPrint(rawImageUrls);
-  const html = generateLegacyMaintenanceReportHtml(reportData, { companyName, logoUrl, imageUrls });
+  const html = generateMaintenanceReportPrintDocument(reportData, { companyName, logoUrl, imageUrls });
   const documentTitle = buildMaintenanceReportPrintTitle(reportData);
 
   return {

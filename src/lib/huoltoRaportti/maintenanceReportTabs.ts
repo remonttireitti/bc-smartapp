@@ -1,119 +1,45 @@
-import { huoltoTiedotSectionTitle, kylmaaineChargeTitle, kylmaainePiiriSectionTitle, hoyrystinSectionTitle, lauhdutinSectionTitle, konvektoritSectionTitle, huomiotSectionTitle, jaahdytysvesiSectionTitle, nestelauhduttimetSectionTitle, lauhdutuspiiriSectionTitle, kiinteistoPiiriSectionTitle, energiatehokkuusSectionTitle, raportointiLaitetiedotTabTitle } from './sectionTitles';
 import { customModuleTabId } from './customModuleTypes';
-import type { CustomReportModule } from './customModuleTypes';
-import { mlpSectionTitle } from './deviceModuleLogic';
 import { applyMaintenanceTabCustomization } from './maintenanceReportTabCustomization';
+import { MAINTENANCE_REPORT_BUILTIN_SECTIONS } from './maintenanceReportSectionCatalog';
+import type {
+  BuiltInMaintenanceReportTabId,
+  MaintenanceReportTabBuildInput,
+  MaintenanceReportTabId,
+  MaintenanceReportTabItem,
+} from './maintenanceReportTabTypes';
 
-export type BuiltInMaintenanceReportTabId =
-  | 'raportointi'
-  | 'kylmaaine'
-  | 'kylmaainePiiri'
-  | 'hoyrystin'
-  | 'lauhdutin'
-  | 'lauhdutuspiiri'
-  | 'nestelauhduttimet'
-  | 'jaahdytysvesi'
-  | 'vapaajahdytys'
-  | 'konvektorit'
-  | 'lampopumppu'
-  | 'mlp'
-  | 'kiinteistoJahdytys'
-  | 'energia'
-  | 'huomiot'
-  | 'huoltotiedot';
+export type {
+  BuiltInMaintenanceReportTabId,
+  MaintenanceReportTabBuildInput,
+  MaintenanceReportTabId,
+  MaintenanceReportTabItem,
+} from './maintenanceReportTabTypes';
 
-export type MaintenanceReportTabId = BuiltInMaintenanceReportTabId | `custom:${string}`;
+const TRAILING_TAB_IDS = new Set<BuiltInMaintenanceReportTabId>(['huomiot', 'huoltotiedot']);
 
-export type MaintenanceReportTabItem = {
-  id: MaintenanceReportTabId;
-  label: string;
-};
-
-export type MaintenanceReportTabBuildInput = {
-  laiteTyyppi: string;
-  selectedModules: Record<string, boolean>;
-  showEvaporatorSection: boolean;
-  showCondenserSection: boolean;
-  showLauhdutuspiiriSection: boolean;
-  showNestelauhduttimetSection: boolean;
-  showJaahdytysvesiSection: boolean;
-  showVapaajahdytysSection: boolean;
-  showKonvektoritSection: boolean;
-  showLampopumppuSection: boolean;
-  showMlpSection: boolean;
-  showChillerKiinteistoSection: boolean;
-  showChillerEnergySection: boolean;
-  customModules?: CustomReportModule[];
-  hiddenTabIds?: MaintenanceReportTabId[];
-  moduleTabOrder?: MaintenanceReportTabId[];
-};
+function appendVisibleSections(
+  tabs: MaintenanceReportTabItem[],
+  input: MaintenanceReportTabBuildInput,
+  trailingOnly: boolean,
+) {
+  for (const section of MAINTENANCE_REPORT_BUILTIN_SECTIONS) {
+    const isTrailing = TRAILING_TAB_IDS.has(section.id);
+    if (trailingOnly !== isTrailing) continue;
+    if (section.id !== 'raportointi' && !input.laiteTyyppi) {
+      if (!trailingOnly) break;
+      continue;
+    }
+    if (!section.isVisible(input)) continue;
+    tabs.push({
+      id: section.id,
+      label: section.label(input.laiteTyyppi),
+    });
+  }
+}
 
 export function buildMaintenanceReportTabs(input: MaintenanceReportTabBuildInput): MaintenanceReportTabItem[] {
-  const { laiteTyyppi } = input;
   const tabs: MaintenanceReportTabItem[] = [];
-
-  const showKylmaaineCharge =
-    Boolean(laiteTyyppi)
-    && (input.selectedModules.kylmaainePiiri || laiteTyyppi === 'lämpöpumppu');
-
-  tabs.push({
-    id: 'raportointi',
-    label: raportointiLaitetiedotTabTitle(laiteTyyppi, false),
-  });
-
-  if (!laiteTyyppi) return tabs;
-
-  if (showKylmaaineCharge) {
-    tabs.push({ id: 'kylmaaine', label: kylmaaineChargeTitle(laiteTyyppi) });
-  }
-
-  if (input.selectedModules.kylmaainePiiri) {
-    tabs.push({ id: 'kylmaainePiiri', label: kylmaainePiiriSectionTitle(laiteTyyppi) });
-  }
-
-  if (input.showEvaporatorSection) {
-    tabs.push({ id: 'hoyrystin', label: hoyrystinSectionTitle(laiteTyyppi) });
-  }
-
-  if (input.showCondenserSection) {
-    tabs.push({ id: 'lauhdutin', label: lauhdutinSectionTitle(laiteTyyppi) });
-  }
-
-  if (input.showLauhdutuspiiriSection) {
-    tabs.push({ id: 'lauhdutuspiiri', label: lauhdutuspiiriSectionTitle(laiteTyyppi) });
-  }
-
-  if (input.showNestelauhduttimetSection) {
-    tabs.push({ id: 'nestelauhduttimet', label: nestelauhduttimetSectionTitle(laiteTyyppi) });
-  }
-
-  if (input.showJaahdytysvesiSection) {
-    tabs.push({ id: 'jaahdytysvesi', label: jaahdytysvesiSectionTitle(laiteTyyppi) });
-  }
-
-  if (input.showVapaajahdytysSection) {
-    tabs.push({ id: 'vapaajahdytys', label: 'Vapaajäähdytys' });
-  }
-
-  if (input.showKonvektoritSection) {
-    tabs.push({ id: 'konvektorit', label: konvektoritSectionTitle(laiteTyyppi) });
-  }
-
-  if (input.showLampopumppuSection) {
-    tabs.push({ id: 'lampopumppu', label: 'Lämpöpumppu' });
-  }
-
-  if (input.showMlpSection) {
-    tabs.push({ id: 'mlp', label: mlpSectionTitle(laiteTyyppi) });
-  }
-
-  if (input.showChillerKiinteistoSection) {
-    tabs.push({ id: 'kiinteistoJahdytys', label: kiinteistoPiiriSectionTitle(laiteTyyppi) });
-  }
-
-  if (input.showChillerEnergySection) {
-    tabs.push({ id: 'energia', label: energiatehokkuusSectionTitle(laiteTyyppi) });
-  }
+  appendVisibleSections(tabs, input, false);
 
   for (const customModule of input.customModules ?? []) {
     tabs.push({
@@ -122,8 +48,7 @@ export function buildMaintenanceReportTabs(input: MaintenanceReportTabBuildInput
     });
   }
 
-  tabs.push({ id: 'huomiot', label: huomiotSectionTitle(laiteTyyppi) });
-  tabs.push({ id: 'huoltotiedot', label: huoltoTiedotSectionTitle(laiteTyyppi) });
+  appendVisibleSections(tabs, input, true);
 
   return applyMaintenanceTabCustomization(
     tabs,
