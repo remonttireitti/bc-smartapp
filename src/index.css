@@ -5453,14 +5453,13 @@ textarea {
 }
 
 .maintenance-report-module-toolbar--document {
-  position: sticky;
-  top: 0;
-  z-index: 4;
-  margin: -.25rem -1rem 0;
-  padding: .35rem 1rem .5rem;
-  background: var(--bg-surface);
-  border-bottom: 1px solid var(--border-strong);
-  box-shadow: 0 2px 8px rgba(15, 23, 42, .06);
+  position: static;
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  border-bottom: none;
+  box-shadow: none;
+  justify-content: flex-end;
 }
 
 .maintenance-report-tabs--document {
@@ -5557,6 +5556,19 @@ textarea {
 .maintenance-report-document-section.is-open .maintenance-report-document-section-chevron {
   transform: rotate(-135deg);
   margin-top: .15rem;
+}
+
+.maintenance-report-document-section.is-dialog-launcher .maintenance-report-document-section-chevron {
+  display: none;
+}
+
+.maintenance-report-document-section.is-dialog-launcher.is-open .maintenance-report-document-section-header {
+  border-bottom: 0;
+}
+
+.maintenance-report-document-section.is-dialog-launcher .maintenance-report-document-section-body:not(:has(.checkbox-inline, .huolto-help, .maintenance-report-tab-section > :not(.sr-only))) {
+  padding: 0;
+  gap: 0;
 }
 
 .maintenance-report-document-section-body {
@@ -6028,6 +6040,23 @@ textarea {
 
 .maintenance-section-settings-link {
   align-self: flex-start;
+}
+
+.huolto-chiller-lauhdutin-config,
+.huolto-chiller-circuit-help {
+  display: flex;
+  flex-direction: column;
+  gap: .5rem;
+  margin-bottom: .65rem;
+}
+
+.huolto-print-form .huolto-chiller-lauhdutin-config {
+  padding-bottom: .65rem;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.huolto-chiller-lauhdutin-help {
+  margin: 0;
 }
 
 .maintenance-report-tab-launcher {

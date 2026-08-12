@@ -1,11 +1,9 @@
-import { huomioLuonneOptions } from '../../lib/huoltoRaportti/constants';
-import { ensureHuomiotLiite } from '../../lib/huoltoRaportti/defaults';
-import type { HuoltoReportData, HuomioLuonne, HuomiotImageAttachment } from '../../lib/huoltoRaportti/types';
-import type { MaintenanceReportPhotoItem } from '../../lib/maintenanceReportImages';
-import { EvidencePhotoUpload } from './EvidencePhotoUpload';
+import type { HuoltoReportData } from '../../lib/huoltoRaportti/types';
 import { huomiotSectionTitle } from '../../lib/huoltoRaportti/sectionTitles';
+import { useMaintenanceDocumentLayout } from '../../hooks/useMaintenanceDocumentLayout';
+import { useHuoltoPrintFormLayout } from '../../hooks/useHuoltoPrintFormLayout';
 import { HuoltoModuleSection } from './HuoltoModuleSection';
-import { RichCommentEditor } from './RichCommentEditor';
+import { HuomiotInspection } from './HuomiotInspection';
 
 interface Props {
   form: HuoltoReportData;
@@ -14,91 +12,36 @@ interface Props {
   userId?: string;
 }
 
-function liitteetToPhotoItems(liitteet: HuomiotImageAttachment[] | undefined): MaintenanceReportPhotoItem[] {
-  return (liitteet ?? [])
-    .map((a) => ({
-      storagePath: String(a.storagePath ?? a.id ?? '').trim(),
-      comment: a.comment ?? '',
-    }))
-    .filter((item) => item.storagePath);
-}
-
-function photoItemsToLiitteet(
-  items: MaintenanceReportPhotoItem[],
-  prev: HuomiotImageAttachment[] | undefined,
-): HuomiotImageAttachment[] {
-  const previous = prev ?? [];
-  return items.map((item) => {
-    const existing = previous.find((a) => (a.storagePath ?? a.id) === item.storagePath);
-    return ensureHuomiotLiite({
-      ...existing,
-      id: item.storagePath,
-      storagePath: item.storagePath,
-      comment: item.comment,
-      fileName: existing?.fileName ?? item.storagePath.split('/').pop(),
-      contentType: existing?.contentType ?? 'image/jpeg',
-    });
-  });
-}
-
 export function HuomiotSection({ form, onChange, reportId, userId }: Props) {
-  const luonne = form.huomiotLuonne ?? 'kommentti';
-  const photoItems = liitteetToPhotoItems(form.huomiotLiitteet);
+  const printLayout = useHuoltoPrintFormLayout();
+  const documentLayout = useMaintenanceDocumentLayout();
+  const title = huomiotSectionTitle(form.laiteTyyppi);
+
+  const inspection = (
+    <HuomiotInspection
+      form={form}
+      onChange={onChange}
+      reportId={reportId}
+      userId={userId}
+      documentModuleKey={documentLayout ? 'huomiot' : undefined}
+    />
+  );
+
+  if (printLayout && documentLayout) {
+    return <div className="sr-only" aria-hidden="true">{inspection}</div>;
+  }
+
+  if (printLayout) {
+    return (
+      <div className="huolto-part-inspection-list huolto-part-inspection-list--print-inline">
+        {inspection}
+      </div>
+    );
+  }
 
   return (
-    <HuoltoModuleSection
-      moduleKey="huomiot"
-      title={huomiotSectionTitle(form.laiteTyyppi)}
-    >
-      <div className="huolto-submodule">
-        <label style={{ maxWidth: '360px' }}>
-          Tekstin luonne
-          <select
-            value={luonne}
-            onChange={(e) => onChange({ huomiotLuonne: e.target.value as HuomioLuonne })}
-          >
-            {huomioLuonneOptions.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="huolto-span-all">
-          Huomiot ja suositukset
-          <RichCommentEditor
-            value={form.huomiot}
-            onChange={(huomiot) => onChange({ huomiot })}
-            rows={5}
-            placeholder="Kirjoita huomiot…"
-          />
-        </label>
-      </div>
-
-      {reportId && userId ? (
-        <EvidencePhotoUpload
-          reportId={reportId}
-          section="huomiot"
-          items={photoItems}
-          onChange={(next) =>
-            onChange({ huomiotLiitteet: photoItemsToLiitteet(next, form.huomiotLiitteet) })
-          }
-          userId={userId}
-        />
-      ) : (
-        <div className="huolto-submodule">
-          <p className="muted">Kuvien liittäminen vaatii tallennetun raportin.</p>
-          {photoItems.length > 0 && (
-            <ul className="huolto-evidence-photo-list">
-              {photoItems.map((item) => (
-                <li key={item.storagePath}>
-                  {item.comment.trim() || <span className="muted">(ei kommenttia)</span>}
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      )}
+    <HuoltoModuleSection moduleKey="huomiot" title={title}>
+      {inspection}
     </HuoltoModuleSection>
   );
 }

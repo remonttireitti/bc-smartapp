@@ -13,8 +13,8 @@ import { buildRefrigerantCircuitWarnings } from '../../lib/huoltoRaportti/mlpEne
 import { hideMaintenancePrintWarnings } from '../../lib/huoltoRaportti/defaults';
 import { kylmaainePiiriCircuitLabel, kylmaainePiiriSectionTitle } from '../../lib/huoltoRaportti/sectionTitles';
 import { useHuoltoPrintFormLayout } from '../../hooks/useHuoltoPrintFormLayout';
-import ToggleSwitch from '../ToggleSwitch';
 import { EvaporatorModule } from './EvaporatorModule';
+import { FormCheckbox } from './FormCheckbox';
 import { HuoltoModuleSection } from './HuoltoModuleSection';
 import { RefrigerantCircuitModule } from './RefrigerantCircuitModule';
 import { PrintWarningBanner } from './print/MaintenancePrintLayout';
@@ -139,29 +139,27 @@ export function RefrigerantCircuitsSection({ form, onChange }: Props) {
   }
 
   const chillerHelp = (
-    <>
-      {isAirCondenserType(condenserType) && (
+    <div className="huolto-chiller-circuit-help">
+      {isAirCondenserType(condenserType) ? (
         <p className="muted huolto-help">
           Ilmalauhduttimen tiedot täytetään kylmäainepiirin alle. Nestekiertoista lauhdutuspiiriä ei käytetä.
         </p>
-      )}
-      {showInlineEvaporator && form.laiteTyyppi === 'vakioilmastointtikone' && (
-        <label className="checkbox-inline huolto-span-all">
-          <ToggleSwitch
-            label="Yhteinen höyrystin kaikille kylmäainepiireille"
-            checked={form.hoyrystinYhteinenPiireissa ?? true}
-            onChange={(checked) => onChange({ hoyrystinYhteinenPiireissa: checked })}
-          />
-        </label>
-      )}
-      {showInlineEvaporator && (
+      ) : null}
+      {showInlineEvaporator && form.laiteTyyppi === 'vakioilmastointtikone' ? (
+        <FormCheckbox
+          label="Yhteinen höyrystin kaikille kylmäainepiireille"
+          checked={form.hoyrystinYhteinenPiireissa ?? true}
+          onChange={(checked) => onChange({ hoyrystinYhteinenPiireissa: checked })}
+        />
+      ) : null}
+      {showInlineEvaporator ? (
         <p className="muted huolto-help">
           {sharedEvaporator
             ? 'Yhteinen höyrystin — täytä tiedot vain ensimmäisen piirin alle.'
             : 'Höyrystimen tiedot täytetään kylmäainepiirin alle. Täytä ensin piirin mittaukset ja komponentit, sitten höyrystin.'}
         </p>
-      )}
-    </>
+      ) : null}
+    </div>
   );
 
   const circuitWarnings =

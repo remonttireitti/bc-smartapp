@@ -2533,11 +2533,11 @@ export function generatePrintHTML(data: {
   `;
 
   // Build refrigerant circuit rows based on number of circuits
-  /** Sama logiikka kuin buildPrintDocument (HuoltoRaporttiPage): vain yksi piiri → grammat; useampi → kg / piiri. */
+  /** Sama logiikka kuin buildPrintDocument: yksi piiri → kg-kentät; useampi → kg / piiri. */
   const circuitRows: string[] = [];
   const gwp = getRefrigerantGWP(data.kylmaaineTyyppi);
   const piirejaStr = String(data.kylmaainePiireja ?? '').trim();
-  const useSingleCircuitGrams = piirejaStr === '1' || piirejaStr === '';
+  const useSingleCircuitKg = piirejaStr === '1' || piirejaStr === '';
   const hasRefrigerantKind = data.laiteTyyppi === 'lämpöpumppu' || Boolean(data.kylmaaineTyyppi);
 
   const pushCo2Line = (tonnes: number) => {
@@ -2546,19 +2546,17 @@ export function generatePrintHTML(data: {
     }
   };
 
-  if (hasRefrigerantKind && useSingleCircuitGrams) {
-    // Yhden piirin kentät syötetään UI:ssa grammoina (lämpöpumppu, VJK 1 piiri, …)
-    const valmistajaG = parseFloat(data.kylmaaineValmistajaMaara) || 0;
-    const lisattyG = parseFloat(data.kylmaaineLisattyMaara) || 0;
-    const totalG = valmistajaG + lisattyG;
-    const totalKg = totalG / 1000;
+  if (hasRefrigerantKind && useSingleCircuitKg) {
+    const valmistajaKg = parseFloat(data.kylmaaineValmistajaMaara) || 0;
+    const lisattyKg = parseFloat(data.kylmaaineLisattyMaara) || 0;
+    const totalKg = valmistajaKg + lisattyKg;
     const co2Tonnes = gwp > 0 && totalKg > 0 ? (totalKg * gwp) / 1000 : 0;
 
-    if (valmistajaG > 0) {
-      circuitRows.push(`<div style="border-bottom: 1px solid #FF6D00; padding: 2px 0; font-size: 11px;">Valmistajan kylmäaine määrä: ${valmistajaG.toFixed(0)} g</div>`);
+    if (valmistajaKg > 0) {
+      circuitRows.push(`<div style="border-bottom: 1px solid #FF6D00; padding: 2px 0; font-size: 11px;">Valmistajan kylmäaine määrä: ${valmistajaKg} kg</div>`);
     }
-    if (lisattyG > 0) {
-      circuitRows.push(`<div style="border-bottom: 1px solid #FF6D00; padding: 2px 0; font-size: 11px;">Lisätty kylmäaine määrä: ${lisattyG.toFixed(0)} g</div>`);
+    if (lisattyKg > 0) {
+      circuitRows.push(`<div style="border-bottom: 1px solid #FF6D00; padding: 2px 0; font-size: 11px;">Lisätty kylmäaine määrä: ${lisattyKg} kg</div>`);
     }
     if (data.kylmaainePutkimatka) {
       circuitRows.push(`<div style="border-bottom: 1px solid #FF6D00; padding: 2px 0; font-size: 11px;">Putkimatka: ${data.kylmaainePutkimatka} m</div>`);
@@ -2566,12 +2564,12 @@ export function generatePrintHTML(data: {
     if (hasPrintableValue(data.kylmaainePiireja) && String(data.kylmaainePiireja) !== '0') {
       circuitRows.push(`<div style="border-bottom: 1px solid #FF6D00; padding: 2px 0; font-size: 11px;">Piirejä: ${esc(data.kylmaainePiireja)}</div>`);
     }
-    if (totalG > 0) {
-      circuitRows.push(`<div style="border-bottom: 1px solid #FF6D00; padding: 2px 0; font-size: 11px; font-weight: bold;">Kylmäaineen määrä yhteensä: ${totalG.toFixed(0)} g</div>`);
+    if (totalKg > 0) {
+      circuitRows.push(`<div style="border-bottom: 1px solid #FF6D00; padding: 2px 0; font-size: 11px; font-weight: bold;">Kylmäaineen määrä yhteensä: ${totalKg.toFixed(2)} kg</div>`);
     }
     pushCo2Line(co2Tonnes);
   } else if (piirejaStr !== '0' && piirejaStr !== '') {
-    // Useampi piiri (esim. vedenjäähdytyskone): määrät kg / piiri — ei voi jättää ensimmäiseen haaraan (grammat 0 → CO₂ puuttui)
+    // Useampi piiri (esim. vedenjäähdytyskone): määrät kg / piiri
     const totalKg = parseFloat(String(data.kylmaaineMaaraYhteensa).replace(',', '.')) || 0;
     const co2Tonnes = gwp > 0 && totalKg > 0 ? (totalKg * gwp) / 1000 : 0;
 

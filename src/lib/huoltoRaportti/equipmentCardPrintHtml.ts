@@ -30,6 +30,12 @@ function snapVal(value: unknown): string {
   return s || '—';
 }
 
+function formatKg(value: unknown): string {
+  const s = value == null ? '' : String(value).trim();
+  if (!s) return '—';
+  return `${s} kg`;
+}
+
 function isPrintValueFilled(value: string): boolean {
   const v = String(value ?? '').trim();
   return v.length > 0 && v !== '—' && v !== '–' && v !== '-';
@@ -116,8 +122,8 @@ export function buildEquipmentCardSnapshotPrintHtml(snapshot: ParsedEquipmentSna
   ];
   if (kylmaaineYksiRivi) kylmaRows.push({ label: 'Kylmäaine', value: kylmaaineYksiRivi });
   kylmaRows.push(
-    { label: 'Valmistajan täyttömäärä', value: snapVal(snapshot.kylmaaineValmistajaMaara) },
-    { label: 'Lisätty määrä', value: snapVal(snapshot.kylmaaineLisattyMaara) },
+    { label: 'Valmistajan täyttömäärä (kg)', value: formatKg(snapshot.kylmaaineValmistajaMaara) },
+    { label: 'Lisätty määrä (kg)', value: formatKg(snapshot.kylmaaineLisattyMaara) },
     { label: 'Putkimatka / huomio', value: snapVal(snapshot.kylmaainePutkimatka) },
   );
   for (const row of piiriMaarat) kylmaRows.push(row);

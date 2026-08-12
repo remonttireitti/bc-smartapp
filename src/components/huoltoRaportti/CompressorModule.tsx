@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useState, type Dispatch, type SetStateAction } from 'react';
-import { createPortal } from 'react-dom';
 import type { CompressorData, KompressorinVaiheValinta } from '../../lib/huoltoRaportti/types';
 import { ohjaustapaOptions } from '../../lib/huoltoRaportti/constants';
 import { compressorKolmeVaijetta, getCompressorVaiheValinta } from '../../lib/huoltoRaportti/sahkoVaiheUtils';
@@ -8,16 +7,14 @@ import {
   type HuoltoInspectionStatus,
 } from '../../lib/huoltoRaportti/huoltoInspectionStatus';
 import { binaryChoiceFromStatus } from '../../lib/huoltoRaportti/circuitPartInspection';
-import { PRINT_BOX_COLORS } from '../../lib/huoltoRaportti/printBoxColors';
-import { useHuoltoPrintFormLayout } from '../../hooks/useHuoltoPrintFormLayout';
 import { FormCheckbox } from './FormCheckbox';
 import { FormInput } from './FormInput';
 import { HuoltoPartInspectionRow } from './HuoltoPartInspectionRow';
+import { HuoltoInspectionDialogShell } from './HuoltoInspectionDialogShell';
 import { BinaryInspectionToggle } from './BinaryInspectionToggle';
 import {
   PrintGridField,
   PrintInspectionBlock,
-  PrintSubBox,
 } from './print/MaintenancePrintLayout';
 
 interface CompressorModuleProps {
@@ -267,7 +264,6 @@ export function CompressorModule({
   onChange,
   lockManufacturerModel = false,
 }: CompressorModuleProps) {
-  const printLayout = useHuoltoPrintFormLayout();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [draft, setDraft] = useState(data);
   const [okChoice, setOkChoice] = useState<boolean | null>(null);
@@ -275,26 +271,11 @@ export function CompressorModule({
   const status = compressorInspectionStatus(data);
   const subtitle = [data.valmistaja, data.malli].map((v) => String(v ?? '').trim()).filter(Boolean).join(' · ');
 
-  const setInspectionOk = useCallback(
-    (next: boolean) => {
-      const tila: Exclude<HuoltoInspectionStatus, null | 'na'> = next ? 'ok' : 'faulty';
-      if (printLayout) {
-        onChange({ ...data, tarkastusTila: tila });
-        return;
-      }
-      setOkChoice(next);
-      setDraft((prev) => ({ ...prev, tarkastusTila: tila }));
-    },
-    [data, onChange, printLayout],
-  );
-
-  const inlineSetDraft: DraftSetter = useCallback(
-    (updater) => {
-      const next = typeof updater === 'function' ? updater(data) : updater;
-      onChange(next);
-    },
-    [data, onChange],
-  );
+  const setInspectionOk = useCallback((next: boolean) => {
+    const tila: Exclude<HuoltoInspectionStatus, null | 'na'> = next ? 'ok' : 'faulty';
+    setOkChoice(next);
+    setDraft((prev) => ({ ...prev, tarkastusTila: tila }));
+  }, []);
 
   useEffect(() => {
     if (dialogOpen) {
@@ -303,42 +284,10 @@ export function CompressorModule({
     }
   }, [dialogOpen, data]);
 
-  useEffect(() => {
-    if (!dialogOpen) return;
-    function onKeyDown(event: KeyboardEvent) {
-      if (event.key === 'Escape') setDialogOpen(false);
-    }
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [dialogOpen]);
-
-  useEffect(() => {
-    if (!dialogOpen) return;
-    const prevBody = document.body.style.overflow;
-    const prevHtml = document.documentElement.style.overflow;
-    document.body.style.overflow = 'hidden';
-    document.documentElement.style.overflow = 'hidden';
-    return () => {
-      document.body.style.overflow = prevBody;
-      document.documentElement.style.overflow = prevHtml;
-    };
-  }, [dialogOpen]);
-
-  if (printLayout) {
-    const inlineOkChoice = binaryChoiceFromStatus(status);
-    return (
-      <PrintSubBox title={`KOMPRESSORI ${number}`} accent={PRINT_BOX_COLORS.compressor}>
-        <CompressorFormFields
-          draft={data}
-          setDraft={inlineSetDraft}
-          number={number}
-          lockManufacturerModel={lockManufacturerModel}
-          okChoice={inlineOkChoice}
-          onOkChoice={setInspectionOk}
-        />
-      </PrintSubBox>
-    );
-  }
+  const closeDialog = useCallback(() => {
+    if (okChoice !== null) onChange(draft);
+    setDialogOpen(false);
+  }, [okChoice, draft, onChange]);
 
   return (
     <>
@@ -349,52 +298,26 @@ export function CompressorModule({
         onInspect={() => setDialogOpen(true)}
       />
 
-      {dialogOpen
-        ? createPortal(
-            <div className="leave-draft-overlay konvektori-dialog-overlay" role="presentation" onClick={() => setDialogOpen(false)}>
-              <div
-                className="leave-draft-dialog panel konvektori-tarkastus-dialog"
-                role="dialog"
-                aria-modal="true"
-                aria-labelledby={`compressor-dialog-title-${number}`}
-                onClick={(event) => event.stopPropagation()}
-              >
-                <h2 id={`compressor-dialog-title-${number}`}>Kompressori {number}</h2>
-                <p className="muted konvektori-dialog-help">
-                  Täytä kompressorin tiedot ja merkitse lopuksi kunnossa tai ei kunnossa.
-                </p>
+      <HuoltoInspectionDialogShell
+        open={dialogOpen}
+        title={`Kompressori ${number}`}
+        titleId={`compressor-dialog-title-${number}`}
+        onClose={closeDialog}
+      >
+        <p className="muted konvektori-dialog-help">
+          Täytä kompressorin tiedot ja merkitse lopuksi kunnossa tai ei kunnossa.
+        </p>
 
-                <CompressorFormFields
-                  draft={draft}
-                  setDraft={setDraft}
-                  number={number}
-                  lockManufacturerModel={lockManufacturerModel}
-                  okChoice={okChoice}
-                  onOkChoice={setInspectionOk}
-                  variant="dialog"
-                />
-
-                <div className="leave-draft-actions konvektori-dialog-actions">
-                  <button type="button" className="btn btn-secondary" onClick={() => setDialogOpen(false)}>
-                    Peruuta
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn-primary"
-                    disabled={okChoice === null}
-                    onClick={() => {
-                      onChange(draft);
-                      setDialogOpen(false);
-                    }}
-                  >
-                    Tallenna
-                  </button>
-                </div>
-              </div>
-            </div>,
-            document.body,
-          )
-        : null}
+        <CompressorFormFields
+          draft={draft}
+          setDraft={setDraft}
+          number={number}
+          lockManufacturerModel={lockManufacturerModel}
+          okChoice={okChoice}
+          onOkChoice={setInspectionOk}
+          variant="dialog"
+        />
+      </HuoltoInspectionDialogShell>
     </>
   );
 }

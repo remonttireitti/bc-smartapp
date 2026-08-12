@@ -6,11 +6,12 @@ import type { HuoltoReportData } from '../../lib/huoltoRaportti/types';
 import { reportHasSubscriberLink } from '../../lib/subscriberPortalVisibility';
 import type { Customer, SubscriberPortalVisibility } from '../../types';
 import { useHuoltoPrintFormLayout } from '../../hooks/useHuoltoPrintFormLayout';
+import { useMaintenanceDocumentLayout } from '../../hooks/useMaintenanceDocumentLayout';
+import { MaintenanceReportBasicsDialog } from './MaintenanceReportBasicsDialog';
 import {
   PrintColumnRow,
   PrintFieldRow,
   PrintInnerBox,
-  PrintTextInput,
 } from './print/MaintenancePrintLayout';
 
 type Props = {
@@ -73,57 +74,8 @@ export function MaintenanceReportBasicsPanel({
   onSubscriberPortalVisibilityChange,
 }: Props) {
   const printLayout = useHuoltoPrintFormLayout();
+  const documentLayout = useMaintenanceDocumentLayout();
   const needsExplicitOwner = !customerId && reportOwnerTargets.length > 1;
-
-  const customerFields = (
-    <>
-      <PrintFieldRow label="Asiakas" error={fieldErrors.customer}>
-        <PrintTextInput
-          value={form.asiakas}
-          disabled={!canEditCustomerEquipment}
-          onChange={(v) => onPatchForm({ asiakas: v })}
-          className={fieldErrors.customer ? 'field-error-input' : undefined}
-        />
-      </PrintFieldRow>
-      <PrintFieldRow label="Osoite" error={fieldErrors.osoite}>
-        <PrintTextInput
-          value={form.osoite}
-          disabled={!canEditCustomerEquipment}
-          onChange={(v) => onPatchForm({ osoite: v })}
-          className={fieldErrors.osoite ? 'field-error-input' : undefined}
-        />
-      </PrintFieldRow>
-      <PrintFieldRow label="Y-tunnus">
-        <PrintTextInput
-          value={form.asiakasYtunnus ?? ''}
-          disabled={!canEditCustomerEquipment}
-          onChange={(v) => onPatchForm({ asiakasYtunnus: v })}
-        />
-      </PrintFieldRow>
-      <PrintFieldRow label="Yhteyshenkilö">
-        <PrintTextInput
-          value={form.asiakasYhteyshenkilo ?? ''}
-          disabled={!canEditCustomerEquipment}
-          onChange={(v) => onPatchForm({ asiakasYhteyshenkilo: v })}
-        />
-      </PrintFieldRow>
-      <PrintFieldRow label="Puhelin">
-        <PrintTextInput
-          value={form.asiakasPuhelin ?? ''}
-          disabled={!canEditCustomerEquipment}
-          onChange={(v) => onPatchForm({ asiakasPuhelin: v })}
-        />
-      </PrintFieldRow>
-      <PrintFieldRow label="Sähköposti">
-        <PrintTextInput
-          type="email"
-          value={form.asiakasEmail ?? ''}
-          disabled={!canEditCustomerEquipment}
-          onChange={(v) => onPatchForm({ asiakasEmail: v })}
-        />
-      </PrintFieldRow>
-    </>
-  );
 
   return (
     <section className="maintenance-report-basics-panel">
@@ -246,38 +198,64 @@ export function MaintenanceReportBasicsPanel({
           )}
 
           {printLayout ? (
-            <PrintColumnRow>
-              <PrintInnerBox title="YRITYSTIEDOT" accent="#9E9E9E">
-                <PrintFieldRow label="Brändi tulosteessa">
-                  {canEditCustomerEquipment && needsExplicitOwner ? (
-                    <select
-                      className={fieldErrors.reportOwnerCompanyId ? 'field-error-input' : undefined}
-                      value={reportOwnerCompanyId ?? ''}
-                      onChange={(event) => onReportOwnerChange(event.target.value)}
-                      disabled={busy}
-                    >
-                      <option value="">— Valitse yritys —</option>
-                      {reportOwnerTargets.map((target) => (
-                        <option key={target.companyId} value={target.companyId}>
-                          {target.label}
-                        </option>
-                      ))}
-                    </select>
-                  ) : (
+            <>
+              <MaintenanceReportBasicsDialog
+                form={form}
+                fieldErrors={fieldErrors}
+                customerId={customerId}
+                reportOwnerCompanyId={reportOwnerCompanyId}
+                reportOwnerTargets={reportOwnerTargets}
+                brandingName={brandingName}
+                creatorDisplayName={creatorDisplayName}
+                creatorEmail={creatorEmail}
+                canEditCustomerEquipment={canEditCustomerEquipment}
+                busy={busy}
+                onReportOwnerChange={onReportOwnerChange}
+                onPatchForm={onPatchForm}
+                documentModuleKey={documentLayout ? 'raportointi' : undefined}
+              />
+              <PrintColumnRow>
+                <PrintInnerBox title="YRITYSTIEDOT" accent="#9E9E9E">
+                  <PrintFieldRow label="Brändi tulosteessa">
                     <strong>{brandingName}</strong>
-                  )}
-                </PrintFieldRow>
-                <PrintFieldRow label="Laatija">
-                  <span>
-                    {creatorDisplayName}
-                    {creatorEmail ? ` · ${creatorEmail}` : ''}
-                  </span>
-                </PrintFieldRow>
-              </PrintInnerBox>
-              <PrintInnerBox title="ASIAKASTIEDOT" accent="#1976D2">
-                {customerFields}
-              </PrintInnerBox>
-            </PrintColumnRow>
+                  </PrintFieldRow>
+                  <PrintFieldRow label="Laatija">
+                    <span>
+                      {creatorDisplayName}
+                      {creatorEmail ? ` · ${creatorEmail}` : ''}
+                    </span>
+                  </PrintFieldRow>
+                </PrintInnerBox>
+                <PrintInnerBox title="ASIAKASTIEDOT" accent="#1976D2">
+                  <PrintFieldRow label="Asiakas">
+                    <strong>{form.asiakas || selectedCustomer?.name || '—'}</strong>
+                  </PrintFieldRow>
+                  <PrintFieldRow label="Osoite">
+                    <span>{form.osoite || '—'}</span>
+                  </PrintFieldRow>
+                  {form.asiakasYtunnus?.trim() ? (
+                    <PrintFieldRow label="Y-tunnus">
+                      <span>{form.asiakasYtunnus}</span>
+                    </PrintFieldRow>
+                  ) : null}
+                  {form.asiakasYhteyshenkilo?.trim() ? (
+                    <PrintFieldRow label="Yhteyshenkilö">
+                      <span>{form.asiakasYhteyshenkilo}</span>
+                    </PrintFieldRow>
+                  ) : null}
+                  {form.asiakasPuhelin?.trim() ? (
+                    <PrintFieldRow label="Puhelin">
+                      <span>{form.asiakasPuhelin}</span>
+                    </PrintFieldRow>
+                  ) : null}
+                  {form.asiakasEmail?.trim() ? (
+                    <PrintFieldRow label="Sähköposti">
+                      <span>{form.asiakasEmail}</span>
+                    </PrintFieldRow>
+                  ) : null}
+                </PrintInnerBox>
+              </PrintColumnRow>
+            </>
           ) : (
             <>
               <div className="line-form-grid">

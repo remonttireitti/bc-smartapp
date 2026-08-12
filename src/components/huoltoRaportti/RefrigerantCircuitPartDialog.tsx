@@ -1,5 +1,4 @@
-import { useEffect, useState } from 'react';
-import { createPortal } from 'react-dom';
+import { useCallback, useEffect, useState } from 'react';
 import type { RefrigerantCircuitData } from '../../lib/huoltoRaportti/types';
 import { expansionValveTypes } from '../../lib/huoltoRaportti/constants';
 import { refrigerantCircuitHasMagnetValve } from '../../lib/huoltoRaportti/deviceModuleLogic';
@@ -17,6 +16,7 @@ import {
 } from '../../lib/huoltoRaportti/circuitPartInspection';
 import { FormCheckbox } from './FormCheckbox';
 import { FormInput } from './FormInput';
+import { HuoltoInspectionDialogShell } from './HuoltoInspectionDialogShell';
 import { BinaryInspectionToggle } from './BinaryInspectionToggle';
 
 export type { RefrigerantCircuitPartKey };
@@ -54,28 +54,13 @@ export function RefrigerantCircuitPartDialog({
     setOkChoice(binaryChoiceFromStatus(circuitPartStatus(data, part)));
   }, [open, data, part]);
 
-  useEffect(() => {
-    if (!open) return;
-    function onKeyDown(event: KeyboardEvent) {
-      if (event.key === 'Escape') onClose();
-    }
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [open, onClose]);
+  const hasData = circuitPartHasData(draft, part);
+  const canSave = !hasData || okChoice !== null;
 
-  useEffect(() => {
-    if (!open) return;
-    const prevBody = document.body.style.overflow;
-    const prevHtml = document.documentElement.style.overflow;
-    document.body.style.overflow = 'hidden';
-    document.documentElement.style.overflow = 'hidden';
-    return () => {
-      document.body.style.overflow = prevBody;
-      document.documentElement.style.overflow = prevHtml;
-    };
-  }, [open]);
-
-  if (!open) return null;
+  const handleClose = useCallback(() => {
+    if (canSave) onSave(finalizeCircuitPartDraft(draft, part, okChoice));
+    onClose();
+  }, [canSave, draft, okChoice, onClose, onSave, part]);
 
   const title =
     part === 'paisuntaventtiili'
@@ -83,9 +68,6 @@ export function RefrigerantCircuitPartDialog({
       : part === 'magneettiventtiili'
         ? `Magneettiventtiili — piiri ${circuitNumber}`
         : `Kuivain — piiri ${circuitNumber}`;
-
-  const hasData = circuitPartHasData(draft, part);
-  const canSave = !hasData || okChoice !== null;
 
   const setStatusPatch = (ok: boolean) => {
     if (part === 'paisuntaventtiili') {
@@ -123,160 +105,138 @@ export function RefrigerantCircuitPartDialog({
     setDraft((prev) => ({ ...prev, kuivainLisatieto: value }));
   };
 
-  return createPortal(
-    <div className="leave-draft-overlay konvektori-dialog-overlay" role="presentation" onClick={onClose}>
-      <div
-        className="leave-draft-dialog panel konvektori-tarkastus-dialog"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="circuit-part-dialog-title"
-        onClick={(event) => event.stopPropagation()}
-      >
-        <h2 id="circuit-part-dialog-title">{title}</h2>
-        <p className="muted konvektori-dialog-help">
-          Täytä tiedot jos osa on laitteessa. Jätä tyhjäksi jos osaa ei ole — tyhjä tulkataan &quot;ei laitteessa&quot;.
-          Merkitse lopuksi kunnossa tai ei kunnossa.
-        </p>
+  return (
+    <HuoltoInspectionDialogShell
+      open={open}
+      title={title}
+      titleId="circuit-part-dialog-title"
+      onClose={handleClose}
+    >
+      <p className="muted konvektori-dialog-help">
+        Täytä tiedot jos osa on laitteessa. Jätä tyhjäksi jos osaa ei ole — tyhjä tulkataan &quot;ei laitteessa&quot;.
+        Merkitse lopuksi kunnossa tai ei kunnossa.
+      </p>
 
-        {part === 'paisuntaventtiili' ? (
-          <div className="line-form-grid konvektori-mittaukset-grid">
-            <label>
-              Paisuntaventtiilin tyyppi
-              <select
-                value={draft.paisuntaventtiiliTyyppi}
-                onChange={(e) => {
-                  const tyyppi = e.target.value;
-                  setDraft((prev) => {
-                    const next = { ...prev, paisuntaventtiiliTyyppi: tyyppi };
-                    if (!refrigerantCircuitHasMagnetValve(laiteTyyppi, tyyppi)) {
-                      next.magneettiventtiiliTila = 'na';
-                      next.magneettiventtiiliTestattu = false;
-                      next.magneettiventtiiliValmistaja = '';
-                      next.magneettiventtiiliMalli = '';
-                    }
-                    return next;
-                  });
-                }}
-              >
-                <option value="">Valitse…</option>
-                {expansionValveTypes.map((type) => (
-                  <option key={type.value} value={type.value}>
-                    {type.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-            {draft.paisuntaventtiiliTyyppi === 'MUU' ? (
-              <FormInput
-                label="Muu tyyppi"
-                value={draft.paisuntaventtiiliMuu ?? ''}
-                onChange={(v) => setDraft((prev) => ({ ...prev, paisuntaventtiiliMuu: v }))}
-              />
-            ) : null}
+      {part === 'paisuntaventtiili' ? (
+        <div className="line-form-grid konvektori-mittaukset-grid">
+          <label>
+            Paisuntaventtiilin tyyppi
+            <select
+              value={draft.paisuntaventtiiliTyyppi}
+              onChange={(e) => {
+                const tyyppi = e.target.value;
+                setDraft((prev) => {
+                  const next = { ...prev, paisuntaventtiiliTyyppi: tyyppi };
+                  if (!refrigerantCircuitHasMagnetValve(laiteTyyppi, tyyppi)) {
+                    next.magneettiventtiiliTila = 'na';
+                    next.magneettiventtiiliTestattu = false;
+                    next.magneettiventtiiliValmistaja = '';
+                    next.magneettiventtiiliMalli = '';
+                  }
+                  return next;
+                });
+              }}
+            >
+              <option value="">Valitse…</option>
+              {expansionValveTypes.map((type) => (
+                <option key={type.value} value={type.value}>
+                  {type.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          {draft.paisuntaventtiiliTyyppi === 'MUU' ? (
             <FormInput
-              label="Valmistaja"
-              value={draft.paisuntaventtiiliValmistaja ?? ''}
-              onChange={(v) => setDraft((prev) => ({ ...prev, paisuntaventtiiliValmistaja: v }))}
+              label="Muu tyyppi"
+              value={draft.paisuntaventtiiliMuu ?? ''}
+              onChange={(v) => setDraft((prev) => ({ ...prev, paisuntaventtiiliMuu: v }))}
             />
-            <FormInput
-              label="Malli"
-              value={draft.paisuntaventtiiliMalli ?? ''}
-              onChange={(v) => setDraft((prev) => ({ ...prev, paisuntaventtiiliMalli: v }))}
-            />
-            {!showMagnetValve ? (
-              <FormCheckbox
-                label="Nestelasi kuiva"
-                checked={!!draft.nestelasiKuiva}
-                onChange={(v) => setDraft((prev) => ({ ...prev, nestelasiKuiva: v }))}
-              />
-            ) : null}
-          </div>
-        ) : null}
-
-        {part === 'magneettiventtiili' ? (
-          <div className="line-form-grid konvektori-mittaukset-grid">
-            <FormInput
-              label="Valmistaja"
-              value={draft.magneettiventtiiliValmistaja ?? ''}
-              onChange={(v) => setDraft((prev) => ({ ...prev, magneettiventtiiliValmistaja: v }))}
-            />
-            <FormInput
-              label="Malli"
-              value={draft.magneettiventtiiliMalli ?? ''}
-              onChange={(v) => setDraft((prev) => ({ ...prev, magneettiventtiiliMalli: v }))}
-            />
+          ) : null}
+          <FormInput
+            label="Valmistaja"
+            value={draft.paisuntaventtiiliValmistaja ?? ''}
+            onChange={(v) => setDraft((prev) => ({ ...prev, paisuntaventtiiliValmistaja: v }))}
+          />
+          <FormInput
+            label="Malli"
+            value={draft.paisuntaventtiiliMalli ?? ''}
+            onChange={(v) => setDraft((prev) => ({ ...prev, paisuntaventtiiliMalli: v }))}
+          />
+          {!showMagnetValve ? (
             <FormCheckbox
               label="Nestelasi kuiva"
               checked={!!draft.nestelasiKuiva}
               onChange={(v) => setDraft((prev) => ({ ...prev, nestelasiKuiva: v }))}
             />
-          </div>
-        ) : null}
-
-        {part === 'kuivain' ? (
-          <div className="line-form-grid konvektori-mittaukset-grid">
-            <FormInput
-              label="Valmistaja"
-              value={draft.kuivainValmistaja ?? ''}
-              onChange={(v) => setDraft((prev) => ({ ...prev, kuivainValmistaja: v }))}
-            />
-            <FormInput
-              label="Malli"
-              value={draft.kuivainMalli ?? ''}
-              onChange={(v) => setDraft((prev) => ({ ...prev, kuivainMalli: v }))}
-            />
-            <FormInput
-              label="Kivien määrä"
-              value={draft.kuivainKivienMaara ?? ''}
-              onChange={(v) => setDraft((prev) => ({ ...prev, kuivainKivienMaara: v }))}
-              type="number"
-            />
-          </div>
-        ) : null}
-
-        {hasData ? (
-          <>
-            <div className="konvektori-tarkastus-item">
-              <span className="konvektori-tarkastus-label">Tarkastuksen tulos</span>
-              <BinaryInspectionToggle
-                name={`${part}-tila`}
-                value={okChoice}
-                onChange={handleOkChoice}
-              />
-            </div>
-            {okChoice === false ? (
-              <label className="konvektori-huomio-field">
-                <span className="konvektori-tarkastus-label">Huomio / vika</span>
-                <textarea
-                  rows={3}
-                  value={faultNote}
-                  onChange={(e) => setFaultNote(e.target.value)}
-                  placeholder="Kuvaile vika tai puute…"
-                />
-              </label>
-            ) : null}
-          </>
-        ) : null}
-
-        <div className="leave-draft-actions konvektori-dialog-actions">
-          <button type="button" className="btn btn-secondary" onClick={onClose}>
-            Peruuta
-          </button>
-          <button
-            type="button"
-            className="btn btn-primary"
-            disabled={!canSave}
-            onClick={() => {
-              onSave(finalizeCircuitPartDraft(draft, part, okChoice));
-              onClose();
-            }}
-          >
-            Tallenna
-          </button>
+          ) : null}
         </div>
-      </div>
-    </div>,
-    document.body,
+      ) : null}
+
+      {part === 'magneettiventtiili' ? (
+        <div className="line-form-grid konvektori-mittaukset-grid">
+          <FormInput
+            label="Valmistaja"
+            value={draft.magneettiventtiiliValmistaja ?? ''}
+            onChange={(v) => setDraft((prev) => ({ ...prev, magneettiventtiiliValmistaja: v }))}
+          />
+          <FormInput
+            label="Malli"
+            value={draft.magneettiventtiiliMalli ?? ''}
+            onChange={(v) => setDraft((prev) => ({ ...prev, magneettiventtiiliMalli: v }))}
+          />
+          <FormCheckbox
+            label="Nestelasi kuiva"
+            checked={!!draft.nestelasiKuiva}
+            onChange={(v) => setDraft((prev) => ({ ...prev, nestelasiKuiva: v }))}
+          />
+        </div>
+      ) : null}
+
+      {part === 'kuivain' ? (
+        <div className="line-form-grid konvektori-mittaukset-grid">
+          <FormInput
+            label="Valmistaja"
+            value={draft.kuivainValmistaja ?? ''}
+            onChange={(v) => setDraft((prev) => ({ ...prev, kuivainValmistaja: v }))}
+          />
+          <FormInput
+            label="Malli"
+            value={draft.kuivainMalli ?? ''}
+            onChange={(v) => setDraft((prev) => ({ ...prev, kuivainMalli: v }))}
+          />
+          <FormInput
+            label="Kivien määrä"
+            value={draft.kuivainKivienMaara ?? ''}
+            onChange={(v) => setDraft((prev) => ({ ...prev, kuivainKivienMaara: v }))}
+            type="number"
+          />
+        </div>
+      ) : null}
+
+      {hasData ? (
+        <>
+          <div className="konvektori-tarkastus-item">
+            <span className="konvektori-tarkastus-label">Tarkastuksen tulos</span>
+            <BinaryInspectionToggle
+              name={`${part}-tila`}
+              value={okChoice}
+              onChange={handleOkChoice}
+            />
+          </div>
+          {okChoice === false ? (
+            <label className="konvektori-huomio-field">
+              <span className="konvektori-tarkastus-label">Huomio / vika</span>
+              <textarea
+                rows={3}
+                value={faultNote}
+                onChange={(e) => setFaultNote(e.target.value)}
+                placeholder="Kuvaile vika tai puute…"
+              />
+            </label>
+          ) : null}
+        </>
+      ) : null}
+    </HuoltoInspectionDialogShell>
   );
 }
 

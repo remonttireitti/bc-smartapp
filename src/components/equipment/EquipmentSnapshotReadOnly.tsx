@@ -109,8 +109,8 @@ export default function EquipmentSnapshotReadOnly({ snapshot }: { snapshot: Pars
         <OptionalRow label="Käyttötarkoitus" value={snapshot.laiteKayttotarkoitus} />
         <OptionalRow label="Kylmäainepiirejä" value={snapshot.kylmaainePiireja} />
         {kylmaaineYksiRivi ? <DetailRow label="Kylmäaine" value={kylmaaineYksiRivi} /> : null}
-        <OptionalRow label="Valmistajan täyttömäärä" value={snapshot.kylmaaineValmistajaMaara} />
-        <OptionalRow label="Lisätty määrä" value={snapshot.kylmaaineLisattyMaara} />
+        <OptionalRow label="Valmistajan täyttömäärä (kg)" value={snapshot.kylmaaineValmistajaMaara} />
+        <OptionalRow label="Lisätty määrä (kg)" value={snapshot.kylmaaineLisattyMaara} />
         <OptionalRow label="Putkimatka / huomio" value={snapshot.kylmaainePutkimatka} />
         {piiriMaarat.map(({ label, value }) => (
           <OptionalRow key={label} label={label} value={value} />

@@ -1628,14 +1628,6 @@ export default function MaintenanceReportEditPage({ session }: Props) {
     setDeviceDialogOpen(true);
   }
 
-  function saveDeviceDialog() {
-    const deviceResult = validateMaintenanceDeviceBasics(deviceBasicsInput);
-    setDeviceFieldErrors(deviceResult.fieldErrors);
-    if (!deviceResult.ok) return;
-    setDeviceDialogOpen(false);
-    setHasUnsavedChanges(true);
-  }
-
   function completeRaportointiTab() {
     const customerResult = validateMaintenanceCustomerBasics(customerBasicsInput);
     const deviceResult = validateMaintenanceDeviceBasics(deviceBasicsInput);
@@ -1859,8 +1851,10 @@ export default function MaintenanceReportEditPage({ session }: Props) {
         copySiblingMode={copySiblingMode}
         onChange={patchForm}
         onDeviceTypeChange={onDeviceTypeChange}
-        onSave={saveDeviceDialog}
-        onCancel={() => setDeviceDialogOpen(false)}
+        onClose={() => {
+          setDeviceDialogOpen(false);
+          setHasUnsavedChanges(true);
+        }}
       />
       <div className="page-header">
         <div>
@@ -1993,13 +1987,15 @@ export default function MaintenanceReportEditPage({ session }: Props) {
             <div
               className={`maintenance-report-module-toolbar${documentLayout ? ' maintenance-report-module-toolbar--document' : ''}`}
             >
-              <MaintenanceReportTabNav
-                tabs={maintenanceTabs}
-                activeId={documentLayout ? activeDocumentTabId : (openTabId ?? '')}
-                tabCompletion={tabCompletion}
-                onChange={handleMaintenanceTabChange}
-                variant={documentLayout ? 'document' : 'modal'}
-              />
+              {!documentLayout ? (
+                <MaintenanceReportTabNav
+                  tabs={maintenanceTabs}
+                  activeId={openTabId ?? ''}
+                  tabCompletion={tabCompletion}
+                  onChange={handleMaintenanceTabChange}
+                  variant="modal"
+                />
+              ) : null}
               <button
                 type="button"
                 className="btn btn-secondary maintenance-module-structure-btn"

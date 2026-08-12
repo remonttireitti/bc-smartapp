@@ -1,5 +1,6 @@
 import { createEmptyLauhdutuspiiriData } from '../../lib/huoltoRaportti/defaults';
 import type { HuoltoReportData } from '../../lib/huoltoRaportti/types';
+import { useMaintenanceDocumentLayout } from '../../hooks/useMaintenanceDocumentLayout';
 import { HuoltoModuleSection } from './HuoltoModuleSection';
 import { lauhdutuspiiriSectionTitle } from '../../lib/huoltoRaportti/sectionTitles';
 import { NestepiiriInspection } from './NestepiiriInspection';
@@ -10,20 +11,38 @@ interface Props {
 }
 
 export function LauhdutuspiiriSection({ form, onChange }: Props) {
+  const documentLayout = useMaintenanceDocumentLayout();
   const data = form.lauhdutuspiiriData ?? createEmptyLauhdutuspiiriData();
   const title = lauhdutuspiiriSectionTitle(form.laiteTyyppi);
   const patch = (next: Partial<typeof data>) =>
     onChange({ lauhdutuspiiriData: { ...data, ...next } });
 
+  const inspection = (
+    <NestepiiriInspection
+      title={title}
+      data={data}
+      onChange={patch}
+      showLauhdutinTarkistukset
+      showPiiriTarkistukset
+      documentModuleKey={documentLayout ? 'lauhdutuspiiri' : undefined}
+    />
+  );
+
   return (
     <HuoltoModuleSection moduleKey="lauhdutin" title={title}>
-      <p className="muted huolto-help">
-        Yhteinen nestekierto koneen levy-/putkilämmönvaihtimen ja ulkoisen nestelauhduttimen välillä.
-        Nestelauhdutin-moduulissa täytetään vain yksikön omat tiedot (kenno, puhaltimet).
-      </p>
-      <div className="huolto-part-inspection-list">
-        <NestepiiriInspection title={title} data={data} onChange={patch} showLauhdutinTarkistukset showPiiriTarkistukset />
-      </div>
+      {!documentLayout ? (
+        <>
+          <p className="muted huolto-help">
+            Yhteinen nestekierto koneen levy-/putkilämmönvaihtimen ja ulkoisen nestelauhduttimen välillä.
+            Nestelauhdutin-moduulissa täytetään vain yksikön omat tiedot (kenno, puhaltimet).
+          </p>
+          <div className="huolto-part-inspection-list">{inspection}</div>
+        </>
+      ) : (
+        <div className="sr-only" aria-hidden="true">
+          {inspection}
+        </div>
+      )}
     </HuoltoModuleSection>
   );
 }

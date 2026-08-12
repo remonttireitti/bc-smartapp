@@ -1,6 +1,8 @@
 import { useEffect } from 'react';
+import { HuoltoModuleDialogProvider, useHuoltoModuleDialog } from './HuoltoModuleDialogContext';
 import { HuoltoModulePresentationProvider } from './HuoltoModulePresentationContext';
 import { useHuoltoEditUi } from './HuoltoEditUiContext';
+import { maintenanceTabUsesDialogLauncher } from '../../lib/huoltoRaportti/maintenanceDocumentDialogTabs';
 import {
   MaintenanceReportDocumentSection,
   maintenanceSectionDomId,
@@ -26,7 +28,15 @@ type Props = Omit<MaintenanceReportTabContentProps, 'tabId'> & {
   onNavTargetHandled?: () => void;
 };
 
-export function MaintenanceReportDocumentView({
+export function MaintenanceReportDocumentView(props: Props) {
+  return (
+    <HuoltoModuleDialogProvider>
+      <MaintenanceReportDocumentViewInner {...props} />
+    </HuoltoModuleDialogProvider>
+  );
+}
+
+function MaintenanceReportDocumentViewInner({
   tabs,
   tabCompletion,
   navTargetTabId,
@@ -35,12 +45,16 @@ export function MaintenanceReportDocumentView({
 }: Props) {
   const ui = useHuoltoEditUi();
   const sectionSettings = useMaintenanceReportSectionSettings();
+  const moduleDialog = useHuoltoModuleDialog();
 
   useEffect(() => {
     if (!navTargetTabId || !ui) return;
     openMaintenanceDocumentSection(navTargetTabId, ui.setOpen);
+    if (maintenanceTabUsesDialogLauncher(navTargetTabId)) {
+      window.requestAnimationFrame(() => moduleDialog?.open(navTargetTabId));
+    }
     onNavTargetHandled?.();
-  }, [navTargetTabId, ui, onNavTargetHandled]);
+  }, [navTargetTabId, ui, moduleDialog, onNavTargetHandled]);
 
   return (
     <HuoltoModulePresentationProvider value="flat">
@@ -48,7 +62,8 @@ export function MaintenanceReportDocumentView({
         <div className="maintenance-report-document">
           {tabs.map((tab) => {
             const completion = tabCompletion?.[tab.id];
-            const defaultOpen = completion !== 'ok';
+            const dialogLauncher = maintenanceTabUsesDialogLauncher(tab.id);
+            const defaultOpen = dialogLauncher ? true : completion !== 'ok';
             const theme = maintenanceDocumentTheme(tab.id);
 
             return (
@@ -60,6 +75,7 @@ export function MaintenanceReportDocumentView({
                 summary={buildMaintenanceDocumentTabSummary(tab.id, contentProps.form)}
                 completion={completion}
                 defaultOpen={defaultOpen}
+                dialogLauncher={dialogLauncher}
                 showSettings={maintenanceTabHasPrintSettings(tab.id, contentProps.form)}
                 onOpenSettings={() => sectionSettings?.openSettings(tab.id)}
               >

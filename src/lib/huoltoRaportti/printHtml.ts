@@ -654,9 +654,9 @@ function renderRefrigerantCharge(data: HuoltoReportData): string {
   if (single) {
     const valm = parseFloat(strField(data, 'kylmaaineValmistajaMaara')) || 0;
     const lis = parseFloat(strField(data, 'kylmaaineLisattyMaara')) || 0;
-    if (valm > 0) rows.push(row('Valmistajan määrä', `${valm.toFixed(0)} g`, '#FF6D00'));
-    if (lis > 0) rows.push(row('Lisätty määrä', `${lis.toFixed(0)} g`, '#FF6D00'));
-    if (valm + lis > 0) rows.push(row('Yhteensä', `${(valm + lis).toFixed(0)} g`, '#FF6D00'));
+    if (valm > 0) rows.push(row('Valmistajan määrä', `${valm} kg`, '#FF6D00'));
+    if (lis > 0) rows.push(row('Lisätty määrä', `${lis} kg`, '#FF6D00'));
+    if (valm + lis > 0) rows.push(row('Yhteensä', `${(valm + lis).toFixed(2)} kg`, '#FF6D00'));
     const putki = strField(data, 'kylmaainePutkimatka');
     if (putki) rows.push(row('Putkimatka', `${putki} m`, '#FF6D00'));
   } else {

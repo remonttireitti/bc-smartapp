@@ -1,4 +1,3 @@
-import { useEffect, useState } from 'react';
 import type { MlpData, PumpunSyottoValinta } from '../../lib/huoltoRaportti/types';
 import { isMlpVesiNeste, mlpNestOptions } from '../../lib/huoltoRaportti/constants';
 import {
@@ -10,6 +9,7 @@ import { getMlpPumpSyottoValinta } from '../../lib/huoltoRaportti/sahkoVaiheUtil
 import { FormCheckbox } from './FormCheckbox';
 import { FormInput } from './FormInput';
 import { HuoltoPartInspectionRow } from './HuoltoPartInspectionRow';
+import { HuoltoInspectionDialogShell, useHuoltoInspectionDialog } from './HuoltoInspectionDialogShell';
 import { PumpSupplyMeasurementBlock } from './PumpSupplyMeasurementBlock';
 import { TriStateInspectionToggle } from './TriStateInspectionToggle';
 
@@ -29,22 +29,17 @@ function calcPower(virtaus: string, meno: string, tulo: string, c: number): stri
 }
 
 export function MlpLatauspiiriInspection({ mlp, onChange, latausPower }: Props) {
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [draft, setDraft] = useState(mlp);
   const status = mlpLatauspiiriInspectionStatus(mlp);
 
-  useEffect(() => {
-    if (dialogOpen) setDraft(mlp);
-  }, [dialogOpen, mlp]);
-
-  useEffect(() => {
-    if (!dialogOpen) return;
-    function onKeyDown(event: KeyboardEvent) {
-      if (event.key === 'Escape') setDialogOpen(false);
-    }
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [dialogOpen]);
+  const { open, openDialog, closeDialog, draft, setDraft } = useHuoltoInspectionDialog({
+    data: mlp,
+    onChange,
+    canSave: (next) => {
+      const nextStatus =
+        normalizeHuoltoInspectionStatus(next.latausTarkastusTila) ?? mlpLatauspiiriInspectionStatus(next);
+      return nextStatus !== null;
+    },
+  });
 
   const draftStatus = normalizeHuoltoInspectionStatus(draft.latausTarkastusTila) ?? mlpLatauspiiriInspectionStatus(draft);
   const showDetails = draftStatus === 'ok' || draftStatus === 'faulty';
@@ -54,136 +49,125 @@ export function MlpLatauspiiriInspection({ mlp, onChange, latausPower }: Props) 
 
   return (
     <>
-      <HuoltoPartInspectionRow title="Latauspiiri" status={status} onInspect={() => setDialogOpen(true)} />
+      <HuoltoPartInspectionRow title="Latauspiiri" status={status} onInspect={openDialog} />
 
-      {dialogOpen ? (
-        <div className="leave-draft-overlay konvektori-dialog-overlay" role="presentation" onClick={() => setDialogOpen(false)}>
-          <div className="leave-draft-dialog panel konvektori-tarkastus-dialog" role="dialog" aria-modal="true" aria-labelledby="mlp-lataus-dialog-title" onClick={(e) => e.stopPropagation()}>
-            <h2 id="mlp-lataus-dialog-title">Latauspiiri</h2>
+      <HuoltoInspectionDialogShell open={open} title="Latauspiiri" titleId="mlp-lataus-dialog-title" onClose={closeDialog}>
+        <div className="konvektori-tarkastus-item">
+          <span className="konvektori-tarkastus-label">Tarkastuksen tulos</span>
+          <TriStateInspectionToggle name="mlp-lataus-tila" value={draftStatus} onChange={(next: Exclude<HuoltoInspectionStatus, null>) => patchDraft({ latausTarkastusTila: next })} />
+        </div>
 
-            <div className="konvektori-tarkastus-item">
-              <span className="konvektori-tarkastus-label">Tarkastuksen tulos</span>
-              <TriStateInspectionToggle name="mlp-lataus-tila" value={draftStatus} onChange={(next: Exclude<HuoltoInspectionStatus, null>) => patchDraft({ latausTarkastusTila: next })} />
+        {showDetails ? (
+          <>
+            <div className="checkbox-grid huolto-toggle-grid">
+              <FormCheckbox label="Paine tarkastettu" checked={draft.latausPaineTarkastettu} onChange={(v) => patchDraft({ latausPaineTarkastettu: v, ...(v ? {} : { latausPaineBar: '' }) })} />
+              <FormCheckbox label="Mutapussi puhdistettu" checked={draft.latausMutapussiPuhdistettu} onChange={(v) => patchDraft({ latausMutapussiPuhdistettu: v })} />
+              <FormCheckbox label="Pumppu tarkastettu" checked={draft.latausPumppuTarkastettu} onChange={(v) => patchDraft({ latausPumppuTarkastettu: v })} />
+              <FormCheckbox label="Eristeet kunnossa" checked={draft.latausEristeetKunnossa} onChange={(v) => patchDraft({ latausEristeetKunnossa: v })} />
+              <FormCheckbox label="Automaattinen ilmaus tarkistettu" checked={draft.latausAutomaattinenIlmausTarkistettu} onChange={(v) => patchDraft({ latausAutomaattinenIlmausTarkistettu: v })} />
+              <FormCheckbox label="Paisunta-astia tarkistettu" checked={draft.latausPaisuntaAstiaTarkistettu} onChange={(v) => patchDraft({ latausPaisuntaAstiaTarkistettu: v })} />
+              <FormCheckbox label="Tulistuspiiri" checked={draft.latausTulistuspiiri} onChange={(v) => patchDraft({ latausTulistuspiiri: v })} />
             </div>
-
-            {showDetails ? (
+            {draft.latausPaisuntaAstiaTarkistettu ? (
+              <div className="line-form-grid">
+                <FormInput label="Paisunta-astian koko" value={draft.latausPaisuntaAstiaKoko} onChange={(v) => patchDraft({ latausPaisuntaAstiaKoko: v })} className="huolto-span-all" />
+                <FormInput label="Esipaine (bar)" value={draft.latausPaisuntaAstiaEsipaine} onChange={(v) => patchDraft({ latausPaisuntaAstiaEsipaine: v })} type="number" />
+              </div>
+            ) : null}
+            {draft.latausPaineTarkastettu ? (
+              <FormInput label="Mitattu paine (bar)" value={draft.latausPaineBar} onChange={(v) => patchDraft({ latausPaineBar: v })} type="number" />
+            ) : null}
+            {draft.latausPumppuTarkastettu ? (
               <>
-                <div className="checkbox-grid huolto-toggle-grid">
-                  <FormCheckbox label="Paine tarkastettu" checked={draft.latausPaineTarkastettu} onChange={(v) => patchDraft({ latausPaineTarkastettu: v, ...(v ? {} : { latausPaineBar: '' }) })} />
-                  <FormCheckbox label="Mutapussi puhdistettu" checked={draft.latausMutapussiPuhdistettu} onChange={(v) => patchDraft({ latausMutapussiPuhdistettu: v })} />
-                  <FormCheckbox label="Pumppu tarkastettu" checked={draft.latausPumppuTarkastettu} onChange={(v) => patchDraft({ latausPumppuTarkastettu: v })} />
-                  <FormCheckbox label="Eristeet kunnossa" checked={draft.latausEristeetKunnossa} onChange={(v) => patchDraft({ latausEristeetKunnossa: v })} />
-                  <FormCheckbox label="Automaattinen ilmaus tarkistettu" checked={draft.latausAutomaattinenIlmausTarkistettu} onChange={(v) => patchDraft({ latausAutomaattinenIlmausTarkistettu: v })} />
-                  <FormCheckbox label="Paisunta-astia tarkistettu" checked={draft.latausPaisuntaAstiaTarkistettu} onChange={(v) => patchDraft({ latausPaisuntaAstiaTarkistettu: v })} />
-                  <FormCheckbox label="Tulistuspiiri" checked={draft.latausTulistuspiiri} onChange={(v) => patchDraft({ latausTulistuspiiri: v })} />
+                <div className="line-form-grid">
+                  <FormInput label="Pumpun valmistaja" value={draft.latausPumpunValmistaja} onChange={(v) => patchDraft({ latausPumpunValmistaja: v })} />
+                  <FormInput label="Pumpun malli" value={draft.latausPumpunMalli} onChange={(v) => patchDraft({ latausPumpunMalli: v })} />
                 </div>
-                {draft.latausPaisuntaAstiaTarkistettu ? (
-                  <div className="line-form-grid">
-                    <FormInput label="Paisunta-astian koko" value={draft.latausPaisuntaAstiaKoko} onChange={(v) => patchDraft({ latausPaisuntaAstiaKoko: v })} className="huolto-span-all" />
-                    <FormInput label="Esipaine (bar)" value={draft.latausPaisuntaAstiaEsipaine} onChange={(v) => patchDraft({ latausPaisuntaAstiaEsipaine: v })} type="number" />
-                  </div>
-                ) : null}
-                {draft.latausPaineTarkastettu ? (
-                  <FormInput label="Mitattu paine (bar)" value={draft.latausPaineBar} onChange={(v) => patchDraft({ latausPaineBar: v })} type="number" />
-                ) : null}
-                {draft.latausPumppuTarkastettu ? (
+                <PumpSupplyMeasurementBlock
+                  syottoValinta={getMlpPumpSyottoValinta(draft.latausPumpunSyottoValinta, draft.latausPumppuKolmeVaihetta)}
+                  onSyottoValintaChange={(v: PumpunSyottoValinta) => patchDraft({ latausPumpunSyottoValinta: v, latausPumppuKolmeVaihetta: v === '400_3' ? true : v === '230_1' ? false : undefined })}
+                  virta1vaihe={draft.latausPumppuVirta1vaihe}
+                  virtaL1={draft.latausPumppuVirtaL1}
+                  virtaL2={draft.latausPumppuVirtaL2}
+                  virtaL3={draft.latausPumppuVirtaL3}
+                  onVirta1vaihe={(v) => patchDraft({ latausPumppuVirta1vaihe: v })}
+                  onVirtaL1={(v) => patchDraft({ latausPumppuVirtaL1: v })}
+                  onVirtaL2={(v) => patchDraft({ latausPumppuVirtaL2: v })}
+                  onVirtaL3={(v) => patchDraft({ latausPumppuVirtaL3: v })}
+                />
+              </>
+            ) : null}
+            <div className="line-form-grid">
+              <FormInput label="Virtaus (l/s)" value={draft.latausVirtaus} onChange={(v) => patchDraft({ latausVirtaus: v })} type="number" />
+              <FormInput label="Meno (°C)" value={draft.latausMeno} onChange={(v) => patchDraft({ latausMeno: v })} type="number" />
+              <FormInput label="Tulo (°C)" value={draft.latausTulo} onChange={(v) => patchDraft({ latausTulo: v })} type="number" />
+              <label>
+                Neste
+                <select
+                  value={draft.latausNeste}
+                  onChange={(e) => {
+                    const neste = e.target.value;
+                    patchDraft({ latausNeste: neste, latausJarjestelmanNeste: '', ...(isMlpVesiNeste(neste) ? { latausGlykoliPakkaskestavyys: '' } : {}) });
+                  }}
+                >
+                  {mlpNestOptions.map((o) => (
+                    <option key={`l-${o.label}`} value={o.value}>{o.label}</option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            {draftPower ? <div className="huolto-alert huolto-alert-success">Latauspiirin teho: {draftPower} kW</div> : null}
+            {!isMlpVesiNeste(draft.latausNeste) && draft.latausNeste !== '' ? (
+              <FormInput label="Glykolin pakkaskestävyys (°C)" value={draft.latausGlykoliPakkaskestavyys} onChange={(v) => patchDraft({ latausGlykoliPakkaskestavyys: v })} type="number" />
+            ) : null}
+            {draft.latausTulistuspiiri ? (
+              <div className="huolto-submodule">
+                <FormCheckbox label="Tulistuspiirissä pumppu" checked={draft.latausTulistuspiiriPumppu} onChange={(v) => patchDraft({ latausTulistuspiiriPumppu: v })} />
+                {draft.latausTulistuspiiriPumppu ? (
                   <>
                     <div className="line-form-grid">
-                      <FormInput label="Pumpun valmistaja" value={draft.latausPumpunValmistaja} onChange={(v) => patchDraft({ latausPumpunValmistaja: v })} />
-                      <FormInput label="Pumpun malli" value={draft.latausPumpunMalli} onChange={(v) => patchDraft({ latausPumpunMalli: v })} />
+                      <FormInput label="Pumpun valmistaja" value={draft.latausTulistusPumpunValmistaja} onChange={(v) => patchDraft({ latausTulistusPumpunValmistaja: v })} />
+                      <FormInput label="Pumpun malli" value={draft.latausTulistusPumpunMalli} onChange={(v) => patchDraft({ latausTulistusPumpunMalli: v })} />
                     </div>
                     <PumpSupplyMeasurementBlock
-                      syottoValinta={getMlpPumpSyottoValinta(draft.latausPumpunSyottoValinta, draft.latausPumppuKolmeVaihetta)}
-                      onSyottoValintaChange={(v: PumpunSyottoValinta) => patchDraft({ latausPumpunSyottoValinta: v, latausPumppuKolmeVaihetta: v === '400_3' ? true : v === '230_1' ? false : undefined })}
-                      virta1vaihe={draft.latausPumppuVirta1vaihe}
-                      virtaL1={draft.latausPumppuVirtaL1}
-                      virtaL2={draft.latausPumppuVirtaL2}
-                      virtaL3={draft.latausPumppuVirtaL3}
-                      onVirta1vaihe={(v) => patchDraft({ latausPumppuVirta1vaihe: v })}
-                      onVirtaL1={(v) => patchDraft({ latausPumppuVirtaL1: v })}
-                      onVirtaL2={(v) => patchDraft({ latausPumppuVirtaL2: v })}
-                      onVirtaL3={(v) => patchDraft({ latausPumppuVirtaL3: v })}
+                      syottoValinta={getMlpPumpSyottoValinta(draft.latausTulistusPumpunSyottoValinta, draft.latausTulistusPumppuKolmeVaihetta)}
+                      onSyottoValintaChange={(v: PumpunSyottoValinta) => patchDraft({ latausTulistusPumpunSyottoValinta: v, latausTulistusPumppuKolmeVaihetta: v === '400_3' ? true : v === '230_1' ? false : undefined })}
+                      virta1vaihe={draft.latausTulistusPumppuVirta1vaihe}
+                      virtaL1={draft.latausTulistusPumppuVirtaL1}
+                      virtaL2={draft.latausTulistusPumppuVirtaL2}
+                      virtaL3={draft.latausTulistusPumppuVirtaL3}
+                      onVirta1vaihe={(v) => patchDraft({ latausTulistusPumppuVirta1vaihe: v })}
+                      onVirtaL1={(v) => patchDraft({ latausTulistusPumppuVirtaL1: v })}
+                      onVirtaL2={(v) => patchDraft({ latausTulistusPumppuVirtaL2: v })}
+                      onVirtaL3={(v) => patchDraft({ latausTulistusPumppuVirtaL3: v })}
                     />
                   </>
                 ) : null}
                 <div className="line-form-grid">
-                  <FormInput label="Virtaus (l/s)" value={draft.latausVirtaus} onChange={(v) => patchDraft({ latausVirtaus: v })} type="number" />
-                  <FormInput label="Meno (°C)" value={draft.latausMeno} onChange={(v) => patchDraft({ latausMeno: v })} type="number" />
-                  <FormInput label="Tulo (°C)" value={draft.latausTulo} onChange={(v) => patchDraft({ latausTulo: v })} type="number" />
                   <label>
                     Neste
-                    <select
-                      value={draft.latausNeste}
-                      onChange={(e) => {
-                        const neste = e.target.value;
-                        patchDraft({ latausNeste: neste, latausJarjestelmanNeste: '', ...(isMlpVesiNeste(neste) ? { latausGlykoliPakkaskestavyys: '' } : {}) });
-                      }}
-                    >
+                    <select value={draft.latausTulistusNeste} onChange={(e) => patchDraft({ latausTulistusNeste: e.target.value })}>
                       {mlpNestOptions.map((o) => (
-                        <option key={`l-${o.label}`} value={o.value}>{o.label}</option>
+                        <option key={`t-${o.label}`} value={o.value}>{o.label}</option>
                       ))}
                     </select>
                   </label>
+                  <FormInput label="Virtaus (l/s)" value={draft.latausTulistusVirtaus} onChange={(v) => patchDraft({ latausTulistusVirtaus: v })} type="number" />
+                  <FormInput label="Meno (°C)" value={draft.latausTulistusMeno} onChange={(v) => patchDraft({ latausTulistusMeno: v })} type="number" />
+                  <FormInput label="Tulo (°C)" value={draft.latausTulistusTulo} onChange={(v) => patchDraft({ latausTulistusTulo: v })} type="number" />
                 </div>
-                {draftPower ? <div className="huolto-alert huolto-alert-success">Latauspiirin teho: {draftPower} kW</div> : null}
-                {!isMlpVesiNeste(draft.latausNeste) && draft.latausNeste !== '' ? (
-                  <FormInput label="Glykolin pakkaskestävyys (°C)" value={draft.latausGlykoliPakkaskestavyys} onChange={(v) => patchDraft({ latausGlykoliPakkaskestavyys: v })} type="number" />
-                ) : null}
-                {draft.latausTulistuspiiri ? (
-                  <div className="huolto-submodule">
-                    <FormCheckbox label="Tulistuspiirissä pumppu" checked={draft.latausTulistuspiiriPumppu} onChange={(v) => patchDraft({ latausTulistuspiiriPumppu: v })} />
-                    {draft.latausTulistuspiiriPumppu ? (
-                      <>
-                        <div className="line-form-grid">
-                          <FormInput label="Pumpun valmistaja" value={draft.latausTulistusPumpunValmistaja} onChange={(v) => patchDraft({ latausTulistusPumpunValmistaja: v })} />
-                          <FormInput label="Pumpun malli" value={draft.latausTulistusPumpunMalli} onChange={(v) => patchDraft({ latausTulistusPumpunMalli: v })} />
-                        </div>
-                        <PumpSupplyMeasurementBlock
-                          syottoValinta={getMlpPumpSyottoValinta(draft.latausTulistusPumpunSyottoValinta, draft.latausTulistusPumppuKolmeVaihetta)}
-                          onSyottoValintaChange={(v: PumpunSyottoValinta) => patchDraft({ latausTulistusPumpunSyottoValinta: v, latausTulistusPumppuKolmeVaihetta: v === '400_3' ? true : v === '230_1' ? false : undefined })}
-                          virta1vaihe={draft.latausTulistusPumppuVirta1vaihe}
-                          virtaL1={draft.latausTulistusPumppuVirtaL1}
-                          virtaL2={draft.latausTulistusPumppuVirtaL2}
-                          virtaL3={draft.latausTulistusPumppuVirtaL3}
-                          onVirta1vaihe={(v) => patchDraft({ latausTulistusPumppuVirta1vaihe: v })}
-                          onVirtaL1={(v) => patchDraft({ latausTulistusPumppuVirtaL1: v })}
-                          onVirtaL2={(v) => patchDraft({ latausTulistusPumppuVirtaL2: v })}
-                          onVirtaL3={(v) => patchDraft({ latausTulistusPumppuVirtaL3: v })}
-                        />
-                      </>
-                    ) : null}
-                    <div className="line-form-grid">
-                      <label>
-                        Neste
-                        <select value={draft.latausTulistusNeste} onChange={(e) => patchDraft({ latausTulistusNeste: e.target.value })}>
-                          {mlpNestOptions.map((o) => (
-                            <option key={`t-${o.label}`} value={o.value}>{o.label}</option>
-                          ))}
-                        </select>
-                      </label>
-                      <FormInput label="Virtaus (l/s)" value={draft.latausTulistusVirtaus} onChange={(v) => patchDraft({ latausTulistusVirtaus: v })} type="number" />
-                      <FormInput label="Meno (°C)" value={draft.latausTulistusMeno} onChange={(v) => patchDraft({ latausTulistusMeno: v })} type="number" />
-                      <FormInput label="Tulo (°C)" value={draft.latausTulistusTulo} onChange={(v) => patchDraft({ latausTulistusTulo: v })} type="number" />
-                    </div>
-                  </div>
-                ) : null}
-              </>
+              </div>
             ) : null}
+          </>
+        ) : null}
 
-            {draftStatus === 'faulty' ? (
-              <label className="konvektori-huomio-field">
-                <span className="konvektori-tarkastus-label">Mikä on vikana?</span>
-                <textarea rows={3} value={draft.latausTarkastusHuomio ?? ''} onChange={(e) => patchDraft({ latausTarkastusHuomio: e.target.value })} />
-              </label>
-            ) : null}
-
-            <div className="leave-draft-actions konvektori-dialog-actions">
-              <button type="button" className="btn btn-secondary" onClick={() => setDialogOpen(false)}>Peruuta</button>
-              <button type="button" className="btn btn-primary" disabled={draftStatus === null} onClick={() => { onChange(draft); setDialogOpen(false); }}>Tallenna</button>
-            </div>
-          </div>
-        </div>
-      ) : null}
+        {draftStatus === 'faulty' ? (
+          <label className="konvektori-huomio-field">
+            <span className="konvektori-tarkastus-label">Mikä on vikana?</span>
+            <textarea rows={3} value={draft.latausTarkastusHuomio ?? ''} onChange={(e) => patchDraft({ latausTarkastusHuomio: e.target.value })} />
+          </label>
+        ) : null}
+      </HuoltoInspectionDialogShell>
     </>
   );
 }

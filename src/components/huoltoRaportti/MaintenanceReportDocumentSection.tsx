@@ -3,6 +3,7 @@ import type { MaintenanceTabCompletionState } from '../../lib/huoltoRaportti/mai
 import { maintenanceTabCompletionLabel } from '../../lib/huoltoRaportti/maintenanceReportTabCompletion';
 import type { ModuleTheme } from '../../lib/huoltoRaportti/moduleThemes';
 import { useHuoltoCollapse } from './HuoltoEditUiContext';
+import { useHuoltoModuleDialog } from './HuoltoModuleDialogContext';
 
 export function maintenanceSectionDomId(tabId: string): string {
   return `maintenance-section-${tabId.replace(/:/g, '-')}`;
@@ -18,6 +19,8 @@ type Props = {
   showSettings?: boolean;
   onOpenSettings?: () => void;
   headerExtra?: ReactNode;
+  /** Otsikon klikkaus avaa moduulin popupin (ei laajennusta). */
+  dialogLauncher?: boolean;
   children: ReactNode;
 };
 
@@ -37,11 +40,22 @@ export function MaintenanceReportDocumentSection({
   showSettings = false,
   onOpenSettings,
   headerExtra,
+  dialogLauncher = false,
   children,
 }: Props) {
   const contentId = useId();
+  const moduleDialog = useHuoltoModuleDialog();
   const { open, toggle } = useHuoltoCollapse(`document:${tabId}`, defaultOpen);
+  const expanded = dialogLauncher || open;
   const collapsedSummary = summary?.trim() || fallbackSummary(completion);
+
+  function handleHeaderClick() {
+    if (dialogLauncher && moduleDialog?.has(tabId)) {
+      moduleDialog.open(tabId);
+      return;
+    }
+    toggle();
+  }
 
   function handleSettingsClick(event: React.MouseEvent) {
     event.stopPropagation();
@@ -51,7 +65,7 @@ export function MaintenanceReportDocumentSection({
   return (
     <section
       id={maintenanceSectionDomId(tabId)}
-      className={`maintenance-report-document-section maintenance-print-box${open ? ' is-open' : ' is-collapsed'}`}
+      className={`maintenance-report-document-section maintenance-print-box${expanded ? ' is-open' : ' is-collapsed'}${dialogLauncher ? ' is-dialog-launcher' : ''}`}
       style={
         {
           '--doc-section-accent': theme.accent,
@@ -64,13 +78,13 @@ export function MaintenanceReportDocumentSection({
       <button
         type="button"
         className="maintenance-report-document-section-header"
-        onClick={toggle}
-        aria-expanded={open}
+        onClick={handleHeaderClick}
+        aria-expanded={expanded}
         aria-controls={contentId}
       >
         <span className="maintenance-report-document-section-heading">
           <span className="maintenance-report-document-section-title">{title}</span>
-          {!open ? (
+          {!expanded || dialogLauncher ? (
             <span className="maintenance-report-document-section-summary">{collapsedSummary}</span>
           ) : null}
         </span>
@@ -108,7 +122,7 @@ export function MaintenanceReportDocumentSection({
           <span className="maintenance-report-document-section-chevron" aria-hidden="true" />
         </span>
       </button>
-      {open ? (
+      {expanded ? (
         <div id={contentId} className="maintenance-report-document-section-body">
           {headerExtra}
           {children}

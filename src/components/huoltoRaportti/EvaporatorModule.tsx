@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+﻿import { useCallback, useEffect, useState } from 'react';
 import type {
   EvaporatorData,
   EvaporatorType,
@@ -16,18 +16,12 @@ import {
   entityInspectionStatus,
   normalizeHuoltoInspectionStatus,
 } from '../../lib/huoltoRaportti/huoltoInspectionStatus';
-import { PRINT_BOX_COLORS } from '../../lib/huoltoRaportti/printBoxColors';
-import { useHuoltoPrintFormLayout } from '../../hooks/useHuoltoPrintFormLayout';
 import { EvaporatorPuhaltimetFields } from './EvaporatorPuhaltimetFields';
 import { FormCheckbox } from './FormCheckbox';
 import { FormInput } from './FormInput';
 import { HuoltoPartInspectionRow } from './HuoltoPartInspectionRow';
+import { HuoltoInspectionDialogShell } from './HuoltoInspectionDialogShell';
 import { TriStateInspectionToggle } from './TriStateInspectionToggle';
-import {
-  PrintGridField,
-  PrintInspectionBlock,
-  PrintSubBox,
-} from './print/MaintenancePrintLayout';
 
 interface Props {
   index: number;
@@ -71,7 +65,6 @@ export function EvaporatorModule({
   onSameAsFirstChange,
   onChange,
 }: Props) {
-  const printLayout = useHuoltoPrintFormLayout();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [draft, setDraft] = useState(data);
   const disabled = locked || !!sameAsFirst;
@@ -85,38 +78,20 @@ export function EvaporatorModule({
   ]
     .map((v) => String(v ?? '').trim())
     .filter(Boolean)
-    .join(' · ');
+    .join(' Â· ');
 
   useEffect(() => {
     if (dialogOpen) setDraft(data);
   }, [dialogOpen, data]);
 
-  useEffect(() => {
-    if (!dialogOpen) return;
-    function onKeyDown(event: KeyboardEvent) {
-      if (event.key === 'Escape') setDialogOpen(false);
-    }
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [dialogOpen]);
-
   const draftStatus = normalizeHuoltoInspectionStatus(draft.tarkastusTila) ?? entityInspectionStatus(draft);
   const showDetails = draftStatus === 'ok' || draftStatus === 'faulty';
-  const showFansDefrost = evaporatorShowsFansAndDefrost(draft.tyyppi);
-  const selectValue =
-    chillerHx
-    && !isHeatExchangerEvaporatorType(draft.tyyppi)
-    && draft.tyyppi !== 'suorahoyrystin'
-      ? ''
-      : draft.tyyppi;
 
-  const inlineSetDraft = useCallback(
-    (updater: EvaporatorData | ((prev: EvaporatorData) => EvaporatorData)) => {
-      const next = typeof updater === 'function' ? updater(data) : updater;
-      onChange(next);
-    },
-    [data, onChange],
-  );
+  const closeDialog = useCallback(() => {
+    const status = normalizeHuoltoInspectionStatus(draft.tarkastusTila) ?? entityInspectionStatus(draft);
+    if (status !== null) onChange(draft);
+    setDialogOpen(false);
+  }, [draft, onChange]);
 
   const renderFormBody = (
     source: EvaporatorData,
@@ -144,7 +119,7 @@ export function EvaporatorModule({
               />
             )}
             <label className={chillerHx ? 'huolto-span-all' : undefined}>
-              {chillerHx ? 'Lämmönvaihtimen tyyppi' : 'Höyrystimen tyyppi'}
+              {chillerHx ? 'LÃ¤mmÃ¶nvaihtimen tyyppi' : 'HÃ¶yrystimen tyyppi'}
               <select
                 value={selectVal}
                 disabled={disabled}
@@ -156,15 +131,15 @@ export function EvaporatorModule({
               >
                 {chillerHx ? (
                   <>
-                    <option value="" disabled>Valitse…</option>
-                    <option value="levy">Levy lämmönvaihdin</option>
-                    <option value="putki">Putkilämmönvaihdin</option>
-                    {isVak ? <option value="suorahoyrystin">Suorahöyrystin</option> : null}
+                    <option value="" disabled>Valitseâ€¦</option>
+                    <option value="levy">Levy lÃ¤mmÃ¶nvaihdin</option>
+                    <option value="putki">PutkilÃ¤mmÃ¶nvaihdin</option>
+                    {isVak ? <option value="suorahoyrystin">SuorahÃ¶yrystin</option> : null}
                   </>
                 ) : (
                   <>
-                    <option value="staatinen">Staattinen höyrystin</option>
-                    <option value="puhallin">Puhallinhöyrystin</option>
+                    <option value="staatinen">Staattinen hÃ¶yrystin</option>
+                    <option value="puhallin">PuhallinhÃ¶yrystin</option>
                   </>
                 )}
               </select>
@@ -182,7 +157,7 @@ export function EvaporatorModule({
                   onChange={(e) => setSource((prev) => ({ ...prev, sulatus: e.target.value as SulatusType }))}
                 >
                   <option value="ilma">Ilmasulatus</option>
-                  <option value="sahko">Sähkösulatus</option>
+                  <option value="sahko">SÃ¤hkÃ¶sulatus</option>
                   <option value="kuumakaasu">Kuumakaasu sulatus</option>
                 </select>
               </label>
@@ -191,7 +166,7 @@ export function EvaporatorModule({
             {fansDefrost && source.sulatus === 'sahko' && (
               <>
                 <label>
-                  Jännite
+                  JÃ¤nnite
                   <select
                     value={source.sahkoJannite || '230'}
                     disabled={disabled}
@@ -218,7 +193,7 @@ export function EvaporatorModule({
                       setSource((prev) => ({ ...prev, sulatusOhjaus: e.target.value as SulatusOhjausType }))
                     }
                   >
-                    <option value="">Valitse…</option>
+                    <option value="">Valitseâ€¦</option>
                     <option value="huonesäädin">Huonesäädin ohjaa</option>
                     <option value="kello">Sulatuskello ohjaa</option>
                     <option value="muu">Joku muu</option>
@@ -273,7 +248,7 @@ export function EvaporatorModule({
 
             {fansDefrost && source.sulatus === 'sahko' && source.sahkoVirtaMitattu && (
               <div className="huolto-submodule huolto-span-all">
-                <h4>Sähkösulatuksen virrat</h4>
+                <h4>SÃ¤hkÃ¶sulatuksen virrat</h4>
                 <div className="line-form-grid huolto-phase-grid">
                   <FormInput
                     label={source.sahkoJannite === '400' ? 'L1 (A)' : 'Virta (A)'}
@@ -305,48 +280,25 @@ export function EvaporatorModule({
         ) : null}
 
         {sourceStatus === 'faulty' ? (
-          <PrintGridField label="Mikä on vikana?" className="huolto-span-all">
+          <label className="konvektori-huomio-field">
+            <span className="konvektori-tarkastus-label">MikÃ¤ on vikana?</span>
             <textarea
               rows={3}
               value={source.tarkastusHuomio ?? ''}
               disabled={disabled}
               onChange={(e) => setSource((prev) => ({ ...prev, tarkastusHuomio: e.target.value }))}
             />
-          </PrintGridField>
+          </label>
         ) : null}
       </>
     );
   };
 
-  if (printLayout) {
-    const inlineStatus = normalizeHuoltoInspectionStatus(data.tarkastusTila) ?? entityInspectionStatus(data);
-    return (
-      <PrintSubBox title={titleLabel.toUpperCase()} accent={PRINT_BOX_COLORS.evaporator}>
-        {showSameAsFirst && onSameAsFirstChange ? (
-          <FormCheckbox
-            label={`Piiri ${index + 1}: sama höyrystin kuin piirissä 1 (ei mittauskenttiä)`}
-            checked={!!sameAsFirst}
-            onChange={onSameAsFirstChange}
-          />
-        ) : null}
-        <PrintInspectionBlock label="Tarkastuksen tulos">
-          <TriStateInspectionToggle
-            name={`evap-${index}-tila-inline`}
-            value={inlineStatus}
-            disabled={disabled}
-            onChange={(next) => onChange({ ...data, tarkastusTila: next })}
-          />
-        </PrintInspectionBlock>
-        {renderFormBody(data, inlineSetDraft, inlineStatus)}
-      </PrintSubBox>
-    );
-  }
-
   return (
     <>
       {showSameAsFirst && onSameAsFirstChange ? (
         <FormCheckbox
-          label={`Piiri ${index + 1}: sama höyrystin kuin piirissä 1 (ei mittauskenttiä)`}
+          label={`Piiri ${index + 1}: sama hÃ¶yrystin kuin piirissÃ¤ 1 (ei mittauskenttiÃ¤)`}
           checked={!!sameAsFirst}
           onChange={onSameAsFirstChange}
         />
@@ -360,215 +312,24 @@ export function EvaporatorModule({
         onInspect={() => setDialogOpen(true)}
       />
 
-      {dialogOpen ? (
-        <div className="leave-draft-overlay konvektori-dialog-overlay" role="presentation" onClick={() => setDialogOpen(false)}>
-          <div
-            className="leave-draft-dialog panel konvektori-tarkastus-dialog"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby={`evap-dialog-title-${index}`}
-            onClick={(event) => event.stopPropagation()}
-          >
-            <h2 id={`evap-dialog-title-${index}`}>{titleLabel}</h2>
-
-            <div className="konvektori-tarkastus-item">
-              <span className="konvektori-tarkastus-label">Tarkastuksen tulos</span>
-              <TriStateInspectionToggle
-                name={`evap-${index}-tila`}
-                value={draftStatus}
-                onChange={(next) => setDraft((prev) => ({ ...prev, tarkastusTila: next }))}
-              />
-            </div>
-
-            {showDetails ? (
-              <div className="line-form-grid">
-                {!chillerHx && (
-                  <FormInput
-                    label="Huoneen tunnus"
-                    value={draft.huoneenTunnus || ''}
-                    onChange={(v) => setDraft((prev) => ({ ...prev, huoneenTunnus: v }))}
-                    className="huolto-span-all"
-                  />
-                )}
-                <label className={chillerHx ? 'huolto-span-all' : undefined}>
-                  {chillerHx ? 'Lämmönvaihtimen tyyppi' : 'Höyrystimen tyyppi'}
-                  <select
-                    value={selectValue}
-                    onChange={(e) => {
-                      const next = e.target.value as EvaporatorType;
-                      if (!next) return;
-                      setDraft((prev) => applyEvaporatorTypeChange(prev, next));
-                    }}
-                  >
-                    {chillerHx ? (
-                      <>
-                        <option value="" disabled>Valitse…</option>
-                        <option value="levy">Levy lämmönvaihdin</option>
-                        <option value="putki">Putkilämmönvaihdin</option>
-                        {isVak ? <option value="suorahoyrystin">Suorahöyrystin</option> : null}
-                      </>
-                    ) : (
-                      <>
-                        <option value="staatinen">Staattinen höyrystin</option>
-                        <option value="puhallin">Puhallinhöyrystin</option>
-                      </>
-                    )}
-                  </select>
-                </label>
-                <FormInput label="Valmistaja" value={draft.valmistaja} onChange={(v) => setDraft((prev) => ({ ...prev, valmistaja: v }))} />
-                <FormInput label="Malli" value={draft.malli} onChange={(v) => setDraft((prev) => ({ ...prev, malli: v }))} />
-                <FormInput label="Sarjanumero" value={draft.sarjanumero} onChange={(v) => setDraft((prev) => ({ ...prev, sarjanumero: v }))} />
-
-                {showFansDefrost && (
-                  <label>
-                    Sulatustapa
-                    <select
-                      value={draft.sulatus}
-                      onChange={(e) => setDraft((prev) => ({ ...prev, sulatus: e.target.value as SulatusType }))}
-                    >
-                      <option value="ilma">Ilmasulatus</option>
-                      <option value="sahko">Sähkösulatus</option>
-                      <option value="kuumakaasu">Kuumakaasu sulatus</option>
-                    </select>
-                  </label>
-                )}
-
-                {showFansDefrost && draft.sulatus === 'sahko' && (
-                  <>
-                    <label>
-                      Jännite
-                      <select
-                        value={draft.sahkoJannite || '230'}
-                        onChange={(e) =>
-                          setDraft((prev) => ({ ...prev, sahkoJannite: e.target.value as SahkoJanniteType }))
-                        }
-                      >
-                        <option value="230">230 V</option>
-                        <option value="400">400 V</option>
-                      </select>
-                    </label>
-                    <FormCheckbox
-                      label="Virrat mitattu"
-                      checked={!!draft.sahkoVirtaMitattu}
-                      onChange={(v) => setDraft((prev) => ({ ...prev, sahkoVirtaMitattu: v }))}
-                    />
-                    <label className="huolto-span-all">
-                      Sulatuksen ohjaus
-                      <select
-                        value={draft.sulatusOhjaus || ''}
-                        onChange={(e) =>
-                          setDraft((prev) => ({ ...prev, sulatusOhjaus: e.target.value as SulatusOhjausType }))
-                        }
-                      >
-                        <option value="">Valitse…</option>
-                        <option value="huonesäädin">Huonesäädin ohjaa</option>
-                        <option value="kello">Sulatuskello ohjaa</option>
-                        <option value="muu">Joku muu</option>
-                      </select>
-                    </label>
-                    {draft.sulatusOhjaus === 'muu' && (
-                      <FormInput
-                        label="Muu ohjaus"
-                        value={draft.sulatusOhjausMuu || ''}
-                        onChange={(v) => setDraft((prev) => ({ ...prev, sulatusOhjausMuu: v }))}
-                        className="huolto-span-all"
-                      />
-                    )}
-                    {draft.sulatusOhjaus === 'kello' && (
-                      <FormInput
-                        label="Sulatuskellon malli"
-                        value={draft.sulatusKelloMalli || ''}
-                        onChange={(v) => setDraft((prev) => ({ ...prev, sulatusKelloMalli: v }))}
-                      />
-                    )}
-                    {draft.sulatusOhjaus === 'huonesäädin' && (
-                      <FormInput
-                        label="Säätimen malli"
-                        value={draft.sulatusSäädinMalli || ''}
-                        onChange={(v) => setDraft((prev) => ({ ...prev, sulatusSäädinMalli: v }))}
-                      />
-                    )}
-                    <FormInput
-                      label="Sulatuskertaa/päivä"
-                      value={draft.sulatusKertojaPäivässä || ''}
-                      onChange={(v) => setDraft((prev) => ({ ...prev, sulatusKertojaPäivässä: v }))}
-                    />
-                    <FormInput
-                      label="Sulatusaika"
-                      value={draft.sulatusAika || ''}
-                      onChange={(v) => setDraft((prev) => ({ ...prev, sulatusAika: v }))}
-                    />
-                    <FormInput
-                      label="Lopetuslämpötila (°C)"
-                      value={draft.sulatusLopetusLämpötila || ''}
-                      onChange={(v) => setDraft((prev) => ({ ...prev, sulatusLopetusLämpötila: v }))}
-                      type="number"
-                    />
-                  </>
-                )}
-
-                {showFansDefrost && draft.sulatus === 'sahko' && draft.sahkoVirtaMitattu && (
-                  <div className="huolto-submodule huolto-span-all">
-                    <h4>Sähkösulatuksen virrat</h4>
-                    <div className="line-form-grid huolto-phase-grid">
-                      <FormInput
-                        label={draft.sahkoJannite === '400' ? 'L1 (A)' : 'Virta (A)'}
-                        value={draft.sahkoVirtaL1 || ''}
-                        onChange={(v) => setDraft((prev) => ({ ...prev, sahkoVirtaL1: v }))}
-                        type="number"
-                      />
-                      {draft.sahkoJannite === '400' && (
-                        <>
-                          <FormInput label="L2 (A)" value={draft.sahkoVirtaL2 || ''} onChange={(v) => setDraft((prev) => ({ ...prev, sahkoVirtaL2: v }))} type="number" />
-                          <FormInput label="L3 (A)" value={draft.sahkoVirtaL3 || ''} onChange={(v) => setDraft((prev) => ({ ...prev, sahkoVirtaL3: v }))} type="number" />
-                        </>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {draft.tyyppi === 'puhallin' && (
-                  <div className="huolto-span-all">
-                    <EvaporatorPuhaltimetFields
-                      puhaltimienMaara={draft.puhaltimienMaara}
-                      puhaltimet={draft.puhaltimet || []}
-                      onChange={(patch) => setDraft((prev) => ({ ...prev, ...patch }))}
-                    />
-                  </div>
-                )}
-              </div>
-            ) : null}
-
-            {draftStatus === 'faulty' ? (
-              <label className="konvektori-huomio-field">
-                <span className="konvektori-tarkastus-label">Mikä on vikana?</span>
-                <textarea
-                  rows={3}
-                  value={draft.tarkastusHuomio ?? ''}
-                  onChange={(e) => setDraft((prev) => ({ ...prev, tarkastusHuomio: e.target.value }))}
-                />
-              </label>
-            ) : null}
-
-            <div className="leave-draft-actions konvektori-dialog-actions">
-              <button type="button" className="btn btn-secondary" onClick={() => setDialogOpen(false)}>
-                Peruuta
-              </button>
-              <button
-                type="button"
-                className="btn btn-primary"
-                disabled={draftStatus === null}
-                onClick={() => {
-                  onChange(draft);
-                  setDialogOpen(false);
-                }}
-              >
-                Tallenna
-              </button>
-            </div>
-          </div>
+      <HuoltoInspectionDialogShell
+        open={dialogOpen}
+        title={titleLabel}
+        titleId={`evap-dialog-title-${index}`}
+        onClose={closeDialog}
+      >
+        <div className="konvektori-tarkastus-item">
+          <span className="konvektori-tarkastus-label">Tarkastuksen tulos</span>
+          <TriStateInspectionToggle
+            name={`evap-${index}-tila`}
+            value={draftStatus}
+            disabled={disabled}
+            onChange={(next) => setDraft((prev) => ({ ...prev, tarkastusTila: next }))}
+          />
         </div>
-      ) : null}
+
+        {showDetails ? renderFormBody(draft, setDraft, draftStatus) : null}
+      </HuoltoInspectionDialogShell>
     </>
   );
 }

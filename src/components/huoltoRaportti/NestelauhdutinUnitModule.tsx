@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import type {
   CondenserFanData,
   FanPhaseType,
@@ -15,14 +15,8 @@ import {
 import { FormCheckbox } from './FormCheckbox';
 import { FormInput } from './FormInput';
 import { HuoltoPartInspectionRow } from './HuoltoPartInspectionRow';
+import { HuoltoInspectionDialogShell } from './HuoltoInspectionDialogShell';
 import { TriStateInspectionToggle } from './TriStateInspectionToggle';
-import { PRINT_BOX_COLORS } from '../../lib/huoltoRaportti/printBoxColors';
-import { useHuoltoPrintFormLayout } from '../../hooks/useHuoltoPrintFormLayout';
-import {
-  PrintGridField,
-  PrintInspectionBlock,
-  PrintSubBox,
-} from './print/MaintenancePrintLayout';
 
 interface Props {
   index: number;
@@ -31,7 +25,6 @@ interface Props {
 }
 
 export function NestelauhdutinUnitModule({ index, unit, onChange }: Props) {
-  const printLayout = useHuoltoPrintFormLayout();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [draft, setDraft] = useState(unit);
   const status = nestelauhdutinInspectionStatus(unit);
@@ -41,42 +34,23 @@ export function NestelauhdutinUnitModule({ index, unit, onChange }: Props) {
     if (dialogOpen) setDraft(unit);
   }, [dialogOpen, unit]);
 
-  useEffect(() => {
-    if (!dialogOpen) return;
-    function onKeyDown(event: KeyboardEvent) {
-      if (event.key === 'Escape') setDialogOpen(false);
-    }
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [dialogOpen]);
-
   const draftStatus = normalizeHuoltoInspectionStatus(draft.tarkastusTila) ?? nestelauhdutinInspectionStatus(draft);
   const showDetails = draftStatus === 'ok' || draftStatus === 'faulty';
-  const fanCount = Math.min(16, Math.max(0, draft.puhaltimienMaara ?? 0));
 
-  const updateFans = (fn: (prev: CondenserFanData[]) => CondenserFanData[]) => {
-    setDraft((prev) => ({ ...prev, puhaltimet: fn(prev.puhaltimet || []) }));
-  };
+  const closeDialog = useCallback(() => {
+    const status = normalizeHuoltoInspectionStatus(draft.tarkastusTila) ?? nestelauhdutinInspectionStatus(draft);
+    if (status !== null) onChange(draft);
+    setDialogOpen(false);
+  }, [draft, onChange]);
 
-  const syncSyottoFans = (sy: SahkoJanniteType) => {
-    setDraft((prev) => {
-      const u = { ...prev, puhallinSyotto: sy };
-      u.puhaltimet = (u.puhaltimet || []).map((p) =>
-        sy === '400' ? { ...p, jannite: sy, phase: 3 as FanPhaseType } : { ...p, jannite: sy },
-      );
-      return u;
-    });
-  };
-
-  const inlinePatch = useCallback(
-    (patch: Partial<NestelauhdutinUnitData>) => onChange({ ...unit, ...patch }),
-    [unit, onChange],
-  );
-
-  const renderInlineBody = (source: NestelauhdutinUnitData, patch: (p: Partial<NestelauhdutinUnitData>) => void) => {
+  const renderDetails = (
+    source: NestelauhdutinUnitData,
+    setSource: (updater: NestelauhdutinUnitData | ((prev: NestelauhdutinUnitData) => NestelauhdutinUnitData)) => void,
+  ) => {
     const fanCnt = Math.min(16, Math.max(0, source.puhaltimienMaara ?? 0));
-    const updateFansInline = (fn: (prev: CondenserFanData[]) => CondenserFanData[]) => {
-      patch({ puhaltimet: fn(source.puhaltimet || []) });
+
+    const updateFans = (fn: (prev: CondenserFanData[]) => CondenserFanData[]) => {
+      setSource((prev) => ({ ...prev, puhaltimet: fn(prev.puhaltimet || []) }));
     };
 
     return (
@@ -84,21 +58,21 @@ export function NestelauhdutinUnitModule({ index, unit, onChange }: Props) {
         <FormCheckbox
           label="Lauhdutin (kenno) puhdistettu tai ei tarvitse puhdistusta"
           checked={!!source.lauhdutinPuhdistettu}
-          onChange={(v) => patch({ lauhdutinPuhdistettu: v })}
+          onChange={(v) => setSource((prev) => ({ ...prev, lauhdutinPuhdistettu: v }))}
         />
         {source.lauhdutinPuhdistettu ? (
           <FormInput
             label="Puhdistustapa"
             value={source.lauhdutinPuhdistusTapa || ''}
-            onChange={(v) => patch({ lauhdutinPuhdistusTapa: v })}
+            onChange={(v) => setSource((prev) => ({ ...prev, lauhdutinPuhdistusTapa: v }))}
             className="huolto-span-all"
           />
         ) : null}
 
         <div className="line-form-grid huolto-measurement-grid">
-          <FormInput label="Valmistaja" value={source.valmistaja} onChange={(v) => patch({ valmistaja: v })} />
-          <FormInput label="Malli" value={source.malli} onChange={(v) => patch({ malli: v })} />
-          <FormInput label="Sarjanumero" value={source.sarjanumero} onChange={(v) => patch({ sarjanumero: v })} />
+          <FormInput label="Valmistaja" value={source.valmistaja} onChange={(v) => setSource((prev) => ({ ...prev, valmistaja: v }))} />
+          <FormInput label="Malli" value={source.malli} onChange={(v) => setSource((prev) => ({ ...prev, malli: v }))} />
+          <FormInput label="Sarjanumero" value={source.sarjanumero} onChange={(v) => setSource((prev) => ({ ...prev, sarjanumero: v }))} />
         </div>
 
         <div className="line-form-grid huolto-measurement-grid">
@@ -132,7 +106,7 @@ export function NestelauhdutinUnitModule({ index, unit, onChange }: Props) {
                         jannite: source.puhallinSyotto,
                         phase: source.puhallinSyotto === '400' ? (3 as FanPhaseType) : p.phase === 3 ? 3 : 1,
                       }));
-                patch({ puhaltimienMaara: maara, puhaltimet: uudet });
+                setSource((prev) => ({ ...prev, puhaltimienMaara: maara, puhaltimet: uudet }));
               }}
             >
               {Array.from({ length: 17 }, (_, n) => n).map((n) => (
@@ -146,19 +120,21 @@ export function NestelauhdutinUnitModule({ index, unit, onChange }: Props) {
               value={source.puhallinSyotto}
               onChange={(e) => {
                 const sy = e.target.value as SahkoJanniteType;
-                const next = { ...source, puhallinSyotto: sy };
-                next.puhaltimet = (next.puhaltimet || []).map((p) =>
-                  sy === '400' ? { ...p, jannite: sy, phase: 3 as FanPhaseType } : { ...p, jannite: sy },
-                );
-                onChange(next);
+                setSource((prev) => {
+                  const next = { ...prev, puhallinSyotto: sy };
+                  next.puhaltimet = (next.puhaltimet || []).map((p) =>
+                    sy === '400' ? { ...p, jannite: sy, phase: 3 as FanPhaseType } : { ...p, jannite: sy },
+                  );
+                  return next;
+                });
               }}
             >
               <option value="230">230 V</option>
               <option value="400">400 V</option>
             </select>
           </label>
-          <FormInput label="Puhaltimien valmistaja" value={source.puhaltimienValmistaja} onChange={(v) => patch({ puhaltimienValmistaja: v })} />
-          <FormInput label="Puhaltimien malli" value={source.puhaltimienMalli} onChange={(v) => patch({ puhaltimienMalli: v })} />
+          <FormInput label="Puhaltimien valmistaja" value={source.puhaltimienValmistaja} onChange={(v) => setSource((prev) => ({ ...prev, puhaltimienValmistaja: v }))} />
+          <FormInput label="Puhaltimien malli" value={source.puhaltimienMalli} onChange={(v) => setSource((prev) => ({ ...prev, puhaltimienMalli: v }))} />
         </div>
 
         <div className="line-form-grid huolto-measurement-grid">
@@ -167,7 +143,10 @@ export function NestelauhdutinUnitModule({ index, unit, onChange }: Props) {
             <select
               value={source.puhallinOhjausTapa || ''}
               onChange={(e) =>
-                patch({ puhallinOhjausTapa: e.target.value as NestelauhdutinPuhallinOhjausTapa | '' })
+                setSource((prev) => ({
+                  ...prev,
+                  puhallinOhjausTapa: e.target.value as NestelauhdutinPuhallinOhjausTapa | '',
+                }))
               }
             >
               <option value="">Valitse…</option>
@@ -180,7 +159,7 @@ export function NestelauhdutinUnitModule({ index, unit, onChange }: Props) {
             Puhaltimen ohjaus tulee
             <select
               value={source.ohjausLahde || ''}
-              onChange={(e) => patch({ ohjausLahde: e.target.value as NestelauhdutinOhjausLahde | '' })}
+              onChange={(e) => setSource((prev) => ({ ...prev, ohjausLahde: e.target.value as NestelauhdutinOhjausLahde | '' }))}
             >
               <option value="">Valitse…</option>
               <option value="talo_automaatio">Taloautomaatiosta</option>
@@ -194,7 +173,7 @@ export function NestelauhdutinUnitModule({ index, unit, onChange }: Props) {
         <FormCheckbox
           label="Puhaltimoottorien virrat mitattu"
           checked={source.puhallinMoottoriVirratMitattu}
-          onChange={(v) => patch({ puhallinMoottoriVirratMitattu: v })}
+          onChange={(v) => setSource((prev) => ({ ...prev, puhallinMoottoriVirratMitattu: v }))}
         />
 
         {source.puhallinMoottoriVirratMitattu && fanCnt > 0 ? (
@@ -210,7 +189,7 @@ export function NestelauhdutinUnitModule({ index, unit, onChange }: Props) {
                       label={effectivePhase === 1 ? 'Virta (A)' : 'L1 (A)'}
                       value={puhallin.virtaL1}
                       onChange={(v) => {
-                        updateFansInline((prev) => {
+                        updateFans((prev) => {
                           const u = [...prev];
                           u[fidx] = { ...u[fidx], virtaL1: v };
                           return u;
@@ -224,7 +203,7 @@ export function NestelauhdutinUnitModule({ index, unit, onChange }: Props) {
                           label="L2 (A)"
                           value={puhallin.virtaL2 || ''}
                           onChange={(v) => {
-                            updateFansInline((prev) => {
+                            updateFans((prev) => {
                               const u = [...prev];
                               u[fidx] = { ...u[fidx], virtaL2: v };
                               return u;
@@ -236,7 +215,7 @@ export function NestelauhdutinUnitModule({ index, unit, onChange }: Props) {
                           label="L3 (A)"
                           value={puhallin.virtaL3 || ''}
                           onChange={(v) => {
-                            updateFansInline((prev) => {
+                            updateFans((prev) => {
                               const u = [...prev];
                               u[fidx] = { ...u[fidx], virtaL3: v };
                               return u;
@@ -256,32 +235,6 @@ export function NestelauhdutinUnitModule({ index, unit, onChange }: Props) {
     );
   };
 
-  if (printLayout) {
-    const inlineStatus = normalizeHuoltoInspectionStatus(unit.tarkastusTila) ?? nestelauhdutinInspectionStatus(unit);
-    const showDetails = inlineStatus === 'ok' || inlineStatus === 'faulty';
-    return (
-      <PrintSubBox title={`NESTELAUHDUTIN ${index + 1}`} accent={PRINT_BOX_COLORS.nestelauhdutin}>
-        <PrintInspectionBlock label="Tarkastuksen tulos">
-          <TriStateInspectionToggle
-            name={`neste-${index}-tila-inline`}
-            value={inlineStatus}
-            onChange={(next: Exclude<HuoltoInspectionStatus, null>) => onChange({ ...unit, tarkastusTila: next })}
-          />
-        </PrintInspectionBlock>
-        {showDetails ? renderInlineBody(unit, inlinePatch) : null}
-        {inlineStatus === 'faulty' ? (
-          <PrintGridField label="Mikä on vikana?" className="huolto-span-all">
-            <textarea
-              rows={3}
-              value={unit.tarkastusHuomio ?? ''}
-              onChange={(e) => onChange({ ...unit, tarkastusHuomio: e.target.value })}
-            />
-          </PrintGridField>
-        ) : null}
-      </PrintSubBox>
-    );
-  }
-
   return (
     <>
       <HuoltoPartInspectionRow
@@ -291,229 +244,36 @@ export function NestelauhdutinUnitModule({ index, unit, onChange }: Props) {
         onInspect={() => setDialogOpen(true)}
       />
 
-      {dialogOpen ? (
-        <div className="leave-draft-overlay konvektori-dialog-overlay" role="presentation" onClick={() => setDialogOpen(false)}>
-          <div
-            className="leave-draft-dialog panel konvektori-tarkastus-dialog"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby={`neste-dialog-title-${index}`}
-            onClick={(event) => event.stopPropagation()}
-          >
-            <h2 id={`neste-dialog-title-${index}`}>Nestelauhdutin {index + 1}</h2>
-
-            <div className="konvektori-tarkastus-item">
-              <span className="konvektori-tarkastus-label">Tarkastuksen tulos</span>
-              <TriStateInspectionToggle
-                name={`neste-${index}-tila`}
-                value={draftStatus}
-                onChange={(next: Exclude<HuoltoInspectionStatus, null>) =>
-                  setDraft((prev) => ({ ...prev, tarkastusTila: next }))
-                }
-              />
-            </div>
-
-            {showDetails ? (
-              <>
-                <FormCheckbox
-                  label="Lauhdutin (kenno) puhdistettu tai ei tarvitse puhdistusta"
-                  checked={!!draft.lauhdutinPuhdistettu}
-                  onChange={(v) => setDraft((prev) => ({ ...prev, lauhdutinPuhdistettu: v }))}
-                />
-                {draft.lauhdutinPuhdistettu ? (
-                  <FormInput
-                    label="Puhdistustapa"
-                    value={draft.lauhdutinPuhdistusTapa || ''}
-                    onChange={(v) => setDraft((prev) => ({ ...prev, lauhdutinPuhdistusTapa: v }))}
-                    className="huolto-span-all"
-                  />
-                ) : null}
-
-                <div className="line-form-grid huolto-measurement-grid">
-                  <FormInput label="Valmistaja" value={draft.valmistaja} onChange={(v) => setDraft((prev) => ({ ...prev, valmistaja: v }))} />
-                  <FormInput label="Malli" value={draft.malli} onChange={(v) => setDraft((prev) => ({ ...prev, malli: v }))} />
-                  <FormInput label="Sarjanumero" value={draft.sarjanumero} onChange={(v) => setDraft((prev) => ({ ...prev, sarjanumero: v }))} />
-                </div>
-
-                <div className="line-form-grid huolto-measurement-grid">
-                  <label>
-                    Puhaltimien määrä
-                    <select
-                      value={draft.puhaltimienMaara ?? 0}
-                      onChange={(e) => {
-                        const raw = parseInt(e.target.value, 10);
-                        const maara = Number.isFinite(raw) ? Math.min(16, Math.max(0, raw)) : 0;
-                        const prevFans = draft.puhaltimet || [];
-                        const phDefault: FanPhaseType = draft.puhallinSyotto === '400' ? 3 : 1;
-                        const uudet =
-                          maara === 0
-                            ? []
-                            : Array.from({ length: maara }, (_, i) => {
-                                const ex = prevFans[i];
-                                return (
-                                  ex || {
-                                    id: i + 1,
-                                    phase: phDefault,
-                                    jannite: draft.puhallinSyotto,
-                                    virtaL1: '',
-                                    virtaL2: phDefault === 3 ? '' : '',
-                                    virtaL3: phDefault === 3 ? '' : '',
-                                  }
-                                );
-                              }).map((p, i) => ({
-                                ...p,
-                                id: i + 1,
-                                jannite: draft.puhallinSyotto,
-                                phase: draft.puhallinSyotto === '400' ? (3 as FanPhaseType) : p.phase === 3 ? 3 : 1,
-                              }));
-                        setDraft((prev) => ({ ...prev, puhaltimienMaara: maara, puhaltimet: uudet }));
-                      }}
-                    >
-                      {Array.from({ length: 17 }, (_, n) => n).map((n) => (
-                        <option key={n} value={n}>{n}</option>
-                      ))}
-                    </select>
-                  </label>
-                  <label>
-                    Puhaltimien syöttö
-                    <select value={draft.puhallinSyotto} onChange={(e) => syncSyottoFans(e.target.value as SahkoJanniteType)}>
-                      <option value="230">230 V</option>
-                      <option value="400">400 V</option>
-                    </select>
-                  </label>
-                  <FormInput label="Puhaltimien valmistaja" value={draft.puhaltimienValmistaja} onChange={(v) => setDraft((prev) => ({ ...prev, puhaltimienValmistaja: v }))} />
-                  <FormInput label="Puhaltimien malli" value={draft.puhaltimienMalli} onChange={(v) => setDraft((prev) => ({ ...prev, puhaltimienMalli: v }))} />
-                </div>
-
-                <div className="line-form-grid huolto-measurement-grid">
-                  <label className="huolto-span-all">
-                    Puhaltimen ohjaustapa
-                    <select
-                      value={draft.puhallinOhjausTapa || ''}
-                      onChange={(e) =>
-                        setDraft((prev) => ({
-                          ...prev,
-                          puhallinOhjausTapa: e.target.value as NestelauhdutinPuhallinOhjausTapa | '',
-                        }))
-                      }
-                    >
-                      <option value="">Valitse…</option>
-                      <option value="on_off">ON/OFF</option>
-                      <option value="erillinen_taajuus">Erillinen taajuusmuuntaja</option>
-                      <option value="sisainen_nopeussaato">Puhaltimen sisään rakennettu nopeussäätö</option>
-                    </select>
-                  </label>
-                  <label className="huolto-span-all">
-                    Puhaltimen ohjaus tulee
-                    <select
-                      value={draft.ohjausLahde || ''}
-                      onChange={(e) =>
-                        setDraft((prev) => ({ ...prev, ohjausLahde: e.target.value as NestelauhdutinOhjausLahde | '' }))
-                      }
-                    >
-                      <option value="">Valitse…</option>
-                      <option value="talo_automaatio">Taloautomaatiosta</option>
-                      <option value="vedenjaahdytyskone">Vedenjäähdytyskoneesta</option>
-                      <option value="lampotila">Suora lämpötilan mukainen ohjaus</option>
-                      <option value="korkeapaine">Suora korkeapaineen mukainen ohjaus</option>
-                    </select>
-                  </label>
-                </div>
-
-                <FormCheckbox
-                  label="Puhaltimoottorien virrat mitattu"
-                  checked={draft.puhallinMoottoriVirratMitattu}
-                  onChange={(v) => setDraft((prev) => ({ ...prev, puhallinMoottoriVirratMitattu: v }))}
-                />
-
-                {draft.puhallinMoottoriVirratMitattu && fanCount > 0 ? (
-                  <div className="line-form-grid huolto-measurement-grid">
-                    {(draft.puhaltimet || []).slice(0, fanCount).map((puhallin, fidx) => {
-                      const syotto400 = draft.puhallinSyotto === '400';
-                      const effectivePhase: FanPhaseType = syotto400 ? 3 : 1;
-                      return (
-                        <div key={puhallin.id} className="huolto-submodule huolto-span-all">
-                          <h4>Puhallin {fidx + 1}</h4>
-                          <div className="line-form-grid">
-                            <FormInput
-                              label={effectivePhase === 1 ? 'Virta (A)' : 'L1 (A)'}
-                              value={puhallin.virtaL1}
-                              onChange={(v) => {
-                                updateFans((prev) => {
-                                  const u = [...prev];
-                                  u[fidx] = { ...u[fidx], virtaL1: v };
-                                  return u;
-                                });
-                              }}
-                              type="number"
-                            />
-                            {effectivePhase === 3 ? (
-                              <>
-                                <FormInput
-                                  label="L2 (A)"
-                                  value={puhallin.virtaL2 || ''}
-                                  onChange={(v) => {
-                                    updateFans((prev) => {
-                                      const u = [...prev];
-                                      u[fidx] = { ...u[fidx], virtaL2: v };
-                                      return u;
-                                    });
-                                  }}
-                                  type="number"
-                                />
-                                <FormInput
-                                  label="L3 (A)"
-                                  value={puhallin.virtaL3 || ''}
-                                  onChange={(v) => {
-                                    updateFans((prev) => {
-                                      const u = [...prev];
-                                      u[fidx] = { ...u[fidx], virtaL3: v };
-                                      return u;
-                                    });
-                                  }}
-                                  type="number"
-                                />
-                              </>
-                            ) : null}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                ) : null}
-              </>
-            ) : null}
-
-            {draftStatus === 'faulty' ? (
-              <label className="konvektori-huomio-field">
-                <span className="konvektori-tarkastus-label">Mikä on vikana?</span>
-                <textarea
-                  rows={3}
-                  value={draft.tarkastusHuomio ?? ''}
-                  onChange={(e) => setDraft((prev) => ({ ...prev, tarkastusHuomio: e.target.value }))}
-                />
-              </label>
-            ) : null}
-
-            <div className="leave-draft-actions konvektori-dialog-actions">
-              <button type="button" className="btn btn-secondary" onClick={() => setDialogOpen(false)}>
-                Peruuta
-              </button>
-              <button
-                type="button"
-                className="btn btn-primary"
-                disabled={draftStatus === null}
-                onClick={() => {
-                  onChange(draft);
-                  setDialogOpen(false);
-                }}
-              >
-                Tallenna
-              </button>
-            </div>
-          </div>
+      <HuoltoInspectionDialogShell
+        open={dialogOpen}
+        title={`Nestelauhdutin ${index + 1}`}
+        titleId={`neste-dialog-title-${index}`}
+        onClose={closeDialog}
+      >
+        <div className="konvektori-tarkastus-item">
+          <span className="konvektori-tarkastus-label">Tarkastuksen tulos</span>
+          <TriStateInspectionToggle
+            name={`neste-${index}-tila`}
+            value={draftStatus}
+            onChange={(next: Exclude<HuoltoInspectionStatus, null>) =>
+              setDraft((prev) => ({ ...prev, tarkastusTila: next }))
+            }
+          />
         </div>
-      ) : null}
+
+        {showDetails ? renderDetails(draft, setDraft) : null}
+
+        {draftStatus === 'faulty' ? (
+          <label className="konvektori-huomio-field">
+            <span className="konvektori-tarkastus-label">Mikä on vikana?</span>
+            <textarea
+              rows={3}
+              value={draft.tarkastusHuomio ?? ''}
+              onChange={(e) => setDraft((prev) => ({ ...prev, tarkastusHuomio: e.target.value }))}
+            />
+          </label>
+        ) : null}
+      </HuoltoInspectionDialogShell>
     </>
   );
 }

@@ -1,8 +1,7 @@
 import type { HuoltoReportData } from '../../lib/huoltoRaportti/types';
-import { chillerLauhdutinTypeOptions } from '../../lib/huoltoRaportti/constants';
-import { hasExternalNestelauhdutin } from '../../lib/huoltoRaportti/deviceModuleLogic';
-import ToggleSwitch from '../ToggleSwitch';
+import { useHuoltoPrintFormLayout } from '../../hooks/useHuoltoPrintFormLayout';
 import { HuoltoModuleSection } from './HuoltoModuleSection';
+import { VjLauhdutinConfigInspection } from './VjLauhdutinConfigInspection';
 
 interface Props {
   form: HuoltoReportData;
@@ -11,48 +10,29 @@ interface Props {
   onChange: (patch: Partial<HuoltoReportData>) => void;
 }
 
-export function VjLauhdutinSection({
-  form,
-  onCondenserTypeChange,
-  onFreeCoolingChange,
-  onChange,
-}: Props) {
+export function VjLauhdutinSection(props: Props) {
+  const printLayout = useHuoltoPrintFormLayout();
+
+  const config = (
+    <VjLauhdutinConfigInspection
+      form={props.form}
+      onChange={props.onChange}
+      onCondenserTypeChange={props.onCondenserTypeChange}
+      onFreeCoolingChange={props.onFreeCoolingChange}
+    />
+  );
+
+  if (printLayout) {
+    return (
+      <div className="huolto-part-inspection-list huolto-part-inspection-list--print-inline">
+        {config}
+      </div>
+    );
+  }
+
   return (
     <HuoltoModuleSection moduleKey="lauhdutin" title="Lauhdutin">
-      <p className="muted huolto-help">
-        Ilmalauhdutin (integroitu / erillinen) tai levy-/putkilämmönvaihdin — joko ulkoisen nestelauhduttimen kanssa tai ilman.
-      </p>
-      <label className="huolto-span-all">
-        Lauhdutustapa
-        <select
-          value={form.lauhdutinTyyppiLaite ?? ''}
-          onChange={(e) =>
-            onCondenserTypeChange(e.target.value as HuoltoReportData['lauhdutinTyyppiLaite'])
-          }
-        >
-          {chillerLauhdutinTypeOptions.map((opt) => (
-            <option key={opt.value || 'empty'} value={opt.value}>
-              {opt.label}
-            </option>
-          ))}
-        </select>
-      </label>
-      {hasExternalNestelauhdutin(form.lauhdutinTyyppiLaite) && (
-        <label className="checkbox-inline huolto-span-all">
-          <ToggleSwitch
-            label="Yhteinen nestelauhdutus kaikille kylmäainepiireille"
-            checked={form.vjNestelauhdutusJaettu ?? true}
-            onChange={(checked) => onChange({ vjNestelauhdutusJaettu: checked })}
-          />
-        </label>
-      )}
-      <label className="checkbox-inline huolto-span-all">
-        <ToggleSwitch
-          label="Vapaajäähdytys käytössä"
-          checked={!!form.vapaajahdytysKaytossa}
-          onChange={onFreeCoolingChange}
-        />
-      </label>
+      {config}
     </HuoltoModuleSection>
   );
 }

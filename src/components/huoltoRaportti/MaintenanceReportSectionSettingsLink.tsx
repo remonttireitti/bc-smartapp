@@ -1,4 +1,5 @@
 import type { MaintenanceReportTabId } from '../../lib/huoltoRaportti/maintenanceReportTabs';
+import { useMaintenanceDocumentLayout } from '../../hooks/useMaintenanceDocumentLayout';
 import { useMaintenanceReportSectionSettings } from './MaintenanceReportSectionSettingsProvider';
 
 type Props = {
@@ -10,8 +11,9 @@ export function MaintenanceReportSectionSettingsLink({
   tabId,
   label = 'Tulostus- ja raporttiasetukset',
 }: Props) {
+  const documentLayout = useMaintenanceDocumentLayout();
   const settings = useMaintenanceReportSectionSettings();
-  if (!settings) return null;
+  if (!settings || documentLayout) return null;
 
   return (
     <button
