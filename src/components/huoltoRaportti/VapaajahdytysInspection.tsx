@@ -1,10 +1,6 @@
 import type { VapaajahdytysData, VapaajahdytysOhjaus } from '../../lib/huoltoRaportti/types';
 import { mlpNestOptions } from '../../lib/huoltoRaportti/constants';
 import {
-  moduleSummaryComplete,
-  vapaajahdytysSummaryRows,
-} from '../../lib/huoltoRaportti/moduleSummaryRows';
-import {
   normalizeHuoltoInspectionStatus,
   vapaajahdytysInspectionStatus,
   type HuoltoInspectionStatus,
@@ -12,7 +8,6 @@ import {
 import { useMaintenanceDocumentLayout } from '../../hooks/useMaintenanceDocumentLayout';
 import { FormCheckbox } from './FormCheckbox';
 import { FormInput } from './FormInput';
-import { HuoltoModuleSummaryPanel } from './HuoltoModuleSummaryPanel';
 import { HuoltoPartInspectionRow } from './HuoltoPartInspectionRow';
 import { HuoltoInspectionDialogShell, useHuoltoInspectionDialog } from './HuoltoInspectionDialogShell';
 import { useRegisterHuoltoModuleDialog } from './HuoltoModuleDialogContext';
@@ -44,10 +39,6 @@ export function VapaajahdytysInspection({ data, onChange, documentModuleKey }: P
 
   useRegisterHuoltoModuleDialog(documentModuleKey, openDialog);
 
-  const resolvedStatus =
-    normalizeHuoltoInspectionStatus(data.tarkastusTila) ?? status;
-  const summaryRows = vapaajahdytysSummaryRows(data);
-
   const draftStatus =
     normalizeHuoltoInspectionStatus(draft.tarkastusTila) ?? vapaajahdytysInspectionStatus(draft);
   const showDetails = draftStatus === 'ok' || draftStatus === 'faulty';
@@ -55,16 +46,9 @@ export function VapaajahdytysInspection({ data, onChange, documentModuleKey }: P
 
   return (
     <>
-      {hideLauncher ? (
-        <HuoltoModuleSummaryPanel
-          rows={summaryRows}
-          complete={moduleSummaryComplete(resolvedStatus)}
-          onEdit={openDialog}
-          editLabel="Muokkaa vapaajäähdytystä"
-        />
-      ) : (
+      {!hideLauncher ? (
         <HuoltoPartInspectionRow title="Vapaajäähdytys" status={status} onInspect={openDialog} />
-      )}
+      ) : null}
 
       <HuoltoInspectionDialogShell open={open} title="Vapaajäähdytys" titleId="vapaajahdytys-dialog-title" onClose={closeDialog}>
         <div className="konvektori-tarkastus-item">

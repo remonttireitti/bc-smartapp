@@ -5486,9 +5486,41 @@ textarea {
 }
 
 .maintenance-report-document {
-  display: flex;
-  flex-direction: column;
-  gap: .65rem;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: .5rem;
+}
+
+.maintenance-report-document-section.is-dialog-launcher {
+  min-height: 0;
+}
+
+.maintenance-report-document-section.is-dialog-launcher .maintenance-report-document-section-header {
+  padding: .5rem .65rem;
+}
+
+.maintenance-report-document-section.is-dialog-launcher .maintenance-report-document-section-title {
+  font-size: .88rem;
+}
+
+.maintenance-report-document-section.is-dialog-launcher .maintenance-report-document-section-summary {
+  font-size: .72rem;
+}
+
+.maintenance-report-document-section:not(.is-dialog-launcher) {
+  grid-column: 1 / -1;
+}
+
+.maintenance-report-document-section-body--launcher-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .maintenance-report-document-section {

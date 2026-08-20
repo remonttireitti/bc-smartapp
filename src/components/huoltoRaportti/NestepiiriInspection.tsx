@@ -1,9 +1,4 @@
 import { useMaintenanceDocumentLayout } from '../../hooks/useMaintenanceDocumentLayout';
-import {
-  lauhdutuspiiriSummaryRows,
-  moduleSummaryComplete,
-  nestepiiriSummaryRows,
-} from '../../lib/huoltoRaportti/moduleSummaryRows';
 import { useHuoltoInspectionDialog, HuoltoInspectionDialogShell } from './HuoltoInspectionDialogShell';
 import { useRegisterHuoltoModuleDialog } from './HuoltoModuleDialogContext';
 import type { LauhdutuspiiriData, NestepiiriData } from '../../lib/huoltoRaportti/types';
@@ -13,7 +8,6 @@ import {
   normalizeHuoltoInspectionStatus,
   type HuoltoInspectionStatus,
 } from '../../lib/huoltoRaportti/huoltoInspectionStatus';
-import { HuoltoModuleSummaryPanel } from './HuoltoModuleSummaryPanel';
 import { HuoltoPartInspectionRow } from './HuoltoPartInspectionRow';
 import { NestepiiriFields } from './NestepiiriFields';
 import { TriStateInspectionToggle } from './TriStateInspectionToggle';
@@ -62,12 +56,6 @@ export function NestepiiriInspection<T extends Data>({
 
   useRegisterHuoltoModuleDialog(documentModuleKey, openDialog);
 
-  const resolvedStatus =
-    normalizeHuoltoInspectionStatus(data.tarkastusTila) ?? status;
-  const summaryRows = showLauhdutinTarkistukset
-    ? lauhdutuspiiriSummaryRows(data as LauhdutuspiiriData)
-    : nestepiiriSummaryRows(data);
-
   const draftStatus =
     normalizeHuoltoInspectionStatus(draft.tarkastusTila) ??
     (showLauhdutinTarkistukset
@@ -77,16 +65,9 @@ export function NestepiiriInspection<T extends Data>({
 
   return (
     <>
-      {hideLauncher ? (
-        <HuoltoModuleSummaryPanel
-          rows={summaryRows}
-          complete={moduleSummaryComplete(resolvedStatus)}
-          onEdit={openDialog}
-          editLabel={`Muokkaa ${title.toLowerCase()}`}
-        />
-      ) : (
+      {!hideLauncher ? (
         <HuoltoPartInspectionRow title={title} status={status} onInspect={openDialog} />
-      )}
+      ) : null}
 
       <HuoltoInspectionDialogShell open={open} title={title} onClose={closeDialog}>
         <div className="konvektori-tarkastus-item">

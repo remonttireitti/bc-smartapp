@@ -4,7 +4,6 @@ import { useMaintenanceDocumentLayout } from '../../hooks/useMaintenanceDocument
 import { HuoltoInspectionDialogShell, useHuoltoInspectionDialog } from './HuoltoInspectionDialogShell';
 import { useRegisterHuoltoModuleDialog } from './HuoltoModuleDialogContext';
 import { HuoltoModulePresentationProvider } from './HuoltoModulePresentationContext';
-import { HuoltoModuleSummaryPanel } from './HuoltoModuleSummaryPanel';
 
 type Props<T> = {
   data: T;
@@ -12,7 +11,7 @@ type Props<T> = {
   documentModuleKey?: string;
   title: string;
   titleId?: string;
-  summaryRows: ModuleSummaryRow[];
+  summaryRows?: ModuleSummaryRow[];
   complete?: boolean;
   editLabel?: string;
   emptyHint?: string;
@@ -26,10 +25,6 @@ export function DocumentModuleInspection<T extends object>({
   documentModuleKey,
   title,
   titleId,
-  summaryRows,
-  complete = false,
-  editLabel = 'Muokkaa',
-  emptyHint,
   canSave,
   children,
 }: Props<T>) {
@@ -51,19 +46,10 @@ export function DocumentModuleInspection<T extends object>({
   }
 
   return (
-    <>
-      <HuoltoModuleSummaryPanel
-        rows={summaryRows}
-        complete={complete}
-        onEdit={openDialog}
-        editLabel={editLabel}
-        emptyHint={emptyHint}
-      />
-      <HuoltoInspectionDialogShell open={open} title={title} titleId={titleId} onClose={closeDialog}>
-        <HuoltoModulePresentationProvider value="accordion">
-          {children(draft, patchDraft)}
-        </HuoltoModulePresentationProvider>
-      </HuoltoInspectionDialogShell>
-    </>
+    <HuoltoInspectionDialogShell open={open} title={title} titleId={titleId} onClose={closeDialog}>
+      <HuoltoModulePresentationProvider value="accordion">
+        {children(draft, patchDraft)}
+      </HuoltoModulePresentationProvider>
+    </HuoltoInspectionDialogShell>
   );
 }

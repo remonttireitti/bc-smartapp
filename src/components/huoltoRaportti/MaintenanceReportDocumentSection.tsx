@@ -27,7 +27,7 @@ type Props = {
 function fallbackSummary(completion?: MaintenanceTabCompletionState): string {
   if (completion === 'ok') return 'Valmis';
   if (completion === 'attention') return 'Tarkista';
-  return 'Avaa täyttääksesi';
+  return 'Täytä';
 }
 
 export function MaintenanceReportDocumentSection({
@@ -46,12 +46,14 @@ export function MaintenanceReportDocumentSection({
   const contentId = useId();
   const moduleDialog = useHuoltoModuleDialog();
   const { open, toggle } = useHuoltoCollapse(`document:${tabId}`, defaultOpen);
-  const expanded = dialogLauncher || open;
-  const collapsedSummary = summary?.trim() || fallbackSummary(completion);
+  const visuallyExpanded = dialogLauncher ? false : open;
+  const collapsedSummary = dialogLauncher
+    ? fallbackSummary(completion)
+    : summary?.trim() || fallbackSummary(completion);
 
   function handleHeaderClick() {
-    if (dialogLauncher && moduleDialog?.has(tabId)) {
-      moduleDialog.open(tabId);
+    if (dialogLauncher) {
+      moduleDialog?.open(tabId);
       return;
     }
     toggle();
@@ -65,7 +67,7 @@ export function MaintenanceReportDocumentSection({
   return (
     <section
       id={maintenanceSectionDomId(tabId)}
-      className={`maintenance-report-document-section maintenance-print-box${expanded ? ' is-open' : ' is-collapsed'}${dialogLauncher ? ' is-dialog-launcher' : ''}`}
+      className={`maintenance-report-document-section maintenance-print-box${visuallyExpanded ? ' is-open' : ' is-collapsed'}${dialogLauncher ? ' is-dialog-launcher' : ''}`}
       style={
         {
           '--doc-section-accent': theme.accent,
@@ -79,12 +81,12 @@ export function MaintenanceReportDocumentSection({
         type="button"
         className="maintenance-report-document-section-header"
         onClick={handleHeaderClick}
-        aria-expanded={expanded}
+        aria-expanded={visuallyExpanded}
         aria-controls={contentId}
       >
         <span className="maintenance-report-document-section-heading">
           <span className="maintenance-report-document-section-title">{title}</span>
-          {!expanded || dialogLauncher ? (
+          {!visuallyExpanded ? (
             <span className="maintenance-report-document-section-summary">{collapsedSummary}</span>
           ) : null}
         </span>
@@ -119,10 +121,21 @@ export function MaintenanceReportDocumentSection({
               !
             </span>
           ) : null}
-          <span className="maintenance-report-document-section-chevron" aria-hidden="true" />
+          {!dialogLauncher ? (
+            <span className="maintenance-report-document-section-chevron" aria-hidden="true" />
+          ) : null}
         </span>
       </button>
-      {expanded ? (
+      {dialogLauncher ? (
+        <div
+          id={contentId}
+          className="maintenance-report-document-section-body maintenance-report-document-section-body--launcher-hidden"
+          aria-hidden="true"
+        >
+          {headerExtra}
+          {children}
+        </div>
+      ) : visuallyExpanded ? (
         <div id={contentId} className="maintenance-report-document-section-body">
           {headerExtra}
           {children}

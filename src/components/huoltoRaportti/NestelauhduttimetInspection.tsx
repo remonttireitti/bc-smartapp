@@ -1,7 +1,6 @@
 import { useEffect } from 'react';
 import { createEmptyNestelauhdutinUnit } from '../../lib/huoltoRaportti/defaults';
 import {
-  nestelauhduttimetSummaryRows,
   moduleSummaryComplete,
 } from '../../lib/huoltoRaportti/moduleSummaryRows';
 import {
@@ -13,7 +12,6 @@ import type { NestelauhdutinUnitData } from '../../lib/huoltoRaportti/types';
 import { useMaintenanceDocumentLayout } from '../../hooks/useMaintenanceDocumentLayout';
 import { HuoltoInspectionDialogShell, useHuoltoInspectionDialog } from './HuoltoInspectionDialogShell';
 import { useRegisterHuoltoModuleDialog } from './HuoltoModuleDialogContext';
-import { HuoltoModuleSummaryPanel } from './HuoltoModuleSummaryPanel';
 import { HuoltoPartInspectionRow } from './HuoltoPartInspectionRow';
 import { NestelauhdutinUnitFields } from './NestelauhdutinUnitFields';
 import { TriStateInspectionToggle } from './TriStateInspectionToggle';
@@ -88,20 +86,11 @@ export function NestelauhduttimetInspection({
     });
   };
 
-  const summaryRows = nestelauhduttimetSummaryRows(visibleUnits);
-
   return (
     <>
-      {hideLauncher ? (
-        <HuoltoModuleSummaryPanel
-          rows={summaryRows}
-          complete={unitsComplete(visibleUnits)}
-          onEdit={openDialog}
-          editLabel="Muokkaa nestelauhduttimet"
-        />
-      ) : (
+      {!hideLauncher ? (
         <HuoltoPartInspectionRow title={title} status={aggregateStatus} onInspect={openDialog} />
-      )}
+      ) : null}
 
       <HuoltoInspectionDialogShell open={open} title={title} onClose={closeDialog}>
         {!shared ? (

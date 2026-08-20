@@ -49,9 +49,13 @@ function MaintenanceReportDocumentViewInner({
 
   useEffect(() => {
     if (!navTargetTabId || !ui) return;
-    openMaintenanceDocumentSection(navTargetTabId, ui.setOpen);
     if (maintenanceTabUsesDialogLauncher(navTargetTabId)) {
-      window.requestAnimationFrame(() => moduleDialog?.open(navTargetTabId));
+      window.requestAnimationFrame(() => {
+        scrollToMaintenanceSection(navTargetTabId);
+        moduleDialog?.open(navTargetTabId);
+      });
+    } else {
+      openMaintenanceDocumentSection(navTargetTabId, ui.setOpen);
     }
     onNavTargetHandled?.();
   }, [navTargetTabId, ui, moduleDialog, onNavTargetHandled]);
@@ -63,7 +67,7 @@ function MaintenanceReportDocumentViewInner({
           {tabs.map((tab) => {
             const completion = tabCompletion?.[tab.id];
             const dialogLauncher = maintenanceTabUsesDialogLauncher(tab.id);
-            const defaultOpen = dialogLauncher ? true : completion !== 'ok';
+            const defaultOpen = dialogLauncher ? false : completion !== 'ok';
             const theme = maintenanceDocumentTheme(tab.id);
 
             return (
@@ -72,7 +76,11 @@ function MaintenanceReportDocumentViewInner({
                 tabId={tab.id}
                 title={tab.label}
                 theme={theme}
-                summary={buildMaintenanceDocumentTabSummary(tab.id, contentProps.form)}
+                summary={
+                  dialogLauncher
+                    ? undefined
+                    : buildMaintenanceDocumentTabSummary(tab.id, contentProps.form)
+                }
                 completion={completion}
                 defaultOpen={defaultOpen}
                 dialogLauncher={dialogLauncher}
