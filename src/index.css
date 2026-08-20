@@ -13415,8 +13415,6 @@ button.vrf-toggle:not(:disabled) {
   gap: 0.5rem;
   min-width: 0;
   max-width: 100%;
-  container-type: inline-size;
-  container-name: konvektori-list;
 }
 
 .konvektori-compact-head {
@@ -13427,11 +13425,12 @@ button.vrf-toggle:not(:disabled) {
   display: grid;
   grid-template-columns: 1fr 1fr;
   grid-template-areas:
-    "num status"
+    "num num"
     "type type"
     "tunnus huone"
     "valm malli"
     "sarja sarja"
+    "status status"
     "actions actions";
   gap: 0.5rem;
   align-items: center;
@@ -13465,22 +13464,9 @@ button.vrf-toggle:not(:disabled) {
 
 .konvektori-compact-row > .konvektori-compact-status {
   grid-area: status;
-  justify-self: end;
+  justify-self: start;
   min-width: 0;
   max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.konvektori-compact-status--in-actions {
-  display: none;
-}
-
-.konvektori-compact-action-btns {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem;
-  flex-shrink: 0;
 }
 
 .konvektori-compact-actions {
@@ -13494,7 +13480,7 @@ button.vrf-toggle:not(:disabled) {
 }
 
 .konvektori-compact-actions .btn {
-  flex: 1;
+  flex: 1 1 8rem;
   min-height: 2.75rem;
 }
 
@@ -13544,7 +13530,7 @@ button.vrf-toggle:not(:disabled) {
 .konvektori-status--note { background: #e0f2fe; color: #0369a1; }
 .konvektori-status--vika { background: #fee2e2; color: #b91c1c; }
 
-@container konvektori-list (min-width: 52rem) {
+@media (min-width: 768px) {
   .konvektori-compact-list {
     gap: 0.35rem;
     overflow-x: auto;
@@ -13555,17 +13541,18 @@ button.vrf-toggle:not(:disabled) {
     display: grid;
     grid-template-columns:
       2rem
-      minmax(7.5rem, 0.9fr)
-      minmax(4.5rem, 0.7fr)
-      minmax(4rem, 0.6fr)
-      minmax(4.5rem, 0.7fr)
-      minmax(4.5rem, 0.7fr)
-      minmax(5rem, 0.75fr)
-      minmax(12rem, auto);
+      minmax(7rem, 0.95fr)
+      minmax(4.25rem, 0.75fr)
+      minmax(3.75rem, 0.65fr)
+      minmax(4.25rem, 0.75fr)
+      minmax(4.25rem, 0.75fr)
+      minmax(4.75rem, 0.8fr)
+      minmax(4.5rem, 0.55fr)
+      minmax(10.5rem, auto);
     grid-template-areas: none;
     gap: 0.35rem;
     align-items: center;
-    min-width: 48rem;
+    min-width: 44rem;
   }
 
   .konvektori-compact-head {
@@ -13577,10 +13564,6 @@ button.vrf-toggle:not(:disabled) {
     border-bottom: 1px solid var(--border);
     background: transparent;
     border-radius: 0;
-  }
-
-  .konvektori-compact-head-status {
-    display: none;
   }
 
   .konvektori-compact-head-actions {
@@ -13603,26 +13586,19 @@ button.vrf-toggle:not(:disabled) {
     min-width: 0;
   }
 
-  .konvektori-compact-row > .konvektori-compact-status:not(.konvektori-compact-status--in-actions) {
-    display: none;
-  }
-
-  .konvektori-compact-status--in-actions {
-    display: inline-block;
-    flex: 0 1 auto;
-    min-width: 0;
-    max-width: 5.5rem;
+  .konvektori-compact-row > .konvektori-compact-status {
+    grid-area: auto;
+    justify-self: start;
+    max-width: 5.75rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .konvektori-compact-actions {
+    grid-area: auto;
     justify-content: flex-end;
     flex-wrap: nowrap;
-    gap: 0.5rem;
-    min-width: 0;
-  }
-
-  .konvektori-compact-action-btns {
-    flex-wrap: nowrap;
+    gap: 0.35rem;
   }
 
   .konvektori-compact-actions .btn {

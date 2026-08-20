@@ -169,26 +169,20 @@ export function KonvektoritSection({ rows, onChange, onPrintFaults, printFaultsB
                   placeholder="Sarjanumero"
                 />
               </label>
-              <span className={`konvektori-compact-status ${status.className}`}>{status.text}</span>
+              <span className={`konvektori-compact-status ${status.className}`} title={status.text}>
+                {status.text}
+              </span>
               <div className="konvektori-compact-actions">
-                <span
-                  className={`konvektori-compact-status konvektori-compact-status--in-actions ${status.className}`}
-                  title={status.text}
+                <button
+                  type="button"
+                  className="btn btn-primary btn-sm"
+                  onClick={() => setDialogIndex(index)}
                 >
-                  {status.text}
-                </span>
-                <div className="konvektori-compact-action-btns">
-                  <button
-                    type="button"
-                    className="btn btn-primary btn-sm"
-                    onClick={() => setDialogIndex(index)}
-                  >
-                    Tarkastus
-                  </button>
-                  <button type="button" className="btn btn-secondary btn-sm" onClick={() => removeRow(index)}>
-                    Poista
-                  </button>
-                </div>
+                  Tarkastus
+                </button>
+                <button type="button" className="btn btn-secondary btn-sm" onClick={() => removeRow(index)}>
+                  Poista
+                </button>
               </div>
             </div>
           );

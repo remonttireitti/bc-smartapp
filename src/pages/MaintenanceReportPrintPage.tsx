@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
 import AppLayout from '../components/AppLayout';
 import NavigationBreadcrumb from '../components/NavigationBreadcrumb';
 import { useMaintenancePrintNavigation } from '../hooks/useMaintenancePrintNavigation';
 import { useProfile } from '../hooks/useProfile';
-import { applyPrintDocumentTitle, formatPrintSaveFileName, guardPrintTitle } from '../lib/printDocumentShell';
+import { formatPrintSaveFileName, guardPrintTitle } from '../lib/printDocumentShell';
 import { loadMaintenanceReportPrintBundle } from '../lib/maintenanceReportPrintAction';
 import { isPortalReadOnly } from '../lib/portalWorkOrder';
 import type { HuoltoReportData } from '../lib/huoltoRaportti/types';
@@ -17,6 +17,8 @@ interface Props {
 
 export default function MaintenanceReportPrintPage({ session }: Props) {
   const { id } = useParams();
+  const [searchParams] = useSearchParams();
+  const autoPrint = searchParams.get('print') === '1';
   const { profile } = useProfile(session);
   const [html, setHtml] = useState('');
   const [printTitle, setPrintTitle] = useState('');
@@ -25,7 +27,7 @@ export default function MaintenanceReportPrintPage({ session }: Props) {
   const [error, setError] = useState<string | null>(null);
   const navigation = useMaintenancePrintNavigation(id, reportData);
   const portalReadOnly = isPortalReadOnly(profile);
-  const printHostRef = useRef<HTMLIFrameElement>(null);
+  const autoPrintTriggeredRef = useRef(false);
 
   useEffect(() => {
     if (!id) {
@@ -38,16 +40,24 @@ export default function MaintenanceReportPrintPage({ session }: Props) {
 
   useEffect(() => {
     if (!printTitle) return;
-    const previous = document.title;
     document.title = printTitle;
-    const frame = printHostRef.current;
-    if (frame?.contentDocument) {
-      frame.contentDocument.title = printTitle;
-    }
     return () => {
-      document.title = previous;
+      document.title = 'BC Smartapp';
     };
-  }, [printTitle, html]);
+  }, [printTitle]);
+
+  useEffect(() => {
+    if (!autoPrint || loading || !html || !printTitle || autoPrintTriggeredRef.current) return;
+    autoPrintTriggeredRef.current = true;
+    const releaseTitle = guardPrintTitle(printTitle);
+    const timer = window.setTimeout(() => {
+      window.print();
+    }, 400);
+    return () => {
+      window.clearTimeout(timer);
+      releaseTitle();
+    };
+  }, [autoPrint, html, loading, printTitle]);
 
   async function loadReport(reportId: string) {
     setLoading(true);
@@ -56,13 +66,25 @@ export default function MaintenanceReportPrintPage({ session }: Props) {
     try {
       const bundle = await loadMaintenanceReportPrintBundle(reportId);
       setReportData(bundle.data);
-      setHtml(bundle.fragment);
+      setHtml(bundle.html);
       setPrintTitle(formatPrintSaveFileName(bundle.documentTitle));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Raporttia ei löytynyt.');
     } finally {
       setLoading(false);
     }
+  }
+
+  function triggerPrint() {
+    if (!printTitle) {
+      window.print();
+      return;
+    }
+    const releaseTitle = guardPrintTitle(printTitle);
+    window.setTimeout(() => {
+      window.print();
+      window.setTimeout(releaseTitle, 3_500);
+    }, 150);
   }
 
   if (loading) {
@@ -93,27 +115,10 @@ export default function MaintenanceReportPrintPage({ session }: Props) {
           <div>
             <NavigationBreadcrumb items={navigation.breadcrumb} />
             <h1>Huoltoraportin tuloste</h1>
+            {printTitle ? <p className="muted">Tiedostonimi: {printTitle}</p> : null}
           </div>
           <div className="btn-group">
-            <button
-              type="button"
-              className="btn btn-primary"
-              onClick={() => {
-                const frame = printHostRef.current;
-                const frameWindow = frame?.contentWindow;
-                if (frameWindow && printTitle) {
-                  applyPrintDocumentTitle(frameWindow.document, printTitle);
-                  guardPrintTitle(printTitle, frameWindow);
-                  frameWindow.focus();
-                  frameWindow.print();
-                  return;
-                }
-                if (printTitle) {
-                  guardPrintTitle(printTitle);
-                }
-                window.print();
-              }}
-            >
+            <button type="button" className="btn btn-primary" onClick={triggerPrint}>
               Tulosta
             </button>
             {navigation.linkToEdit && !portalReadOnly && (
@@ -124,13 +129,7 @@ export default function MaintenanceReportPrintPage({ session }: Props) {
           </div>
         </div>
 
-        <iframe
-          ref={printHostRef}
-          title="Huoltoraportin tuloste"
-          className="maintenance-print-host"
-          srcDoc={html}
-          style={{ width: '100%', border: 'none', minHeight: '80vh' }}
-        />
+        <div className="maintenance-print-host" dangerouslySetInnerHTML={{ __html: html }} />
       </div>
     </AppLayout>
   );
