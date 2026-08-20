@@ -17,6 +17,7 @@ import { useMaintenanceDocumentLayout } from '../hooks/useMaintenanceDocumentLay
 import { MaintenanceReportBasicsPanel } from '../components/huoltoRaportti/MaintenanceReportBasicsPanel';
 import { MaintenanceDeviceDialog } from '../components/huoltoRaportti/MaintenanceDeviceDialog';
 import { MaintenanceDeviceSummary } from '../components/huoltoRaportti/MaintenanceDeviceSummary';
+import { KonvektoritSection } from '../components/huoltoRaportti/KonvektoritSection';
 import { HuoltoModulePresentationProvider } from '../components/huoltoRaportti/HuoltoModulePresentationContext';
 import { SiblingEquipmentCopyDialog } from '../components/huoltoRaportti/SiblingEquipmentCopyDialog';
 import { RefrigerantChargeSection } from '../components/huoltoRaportti/RefrigerantChargeSection';
@@ -2054,6 +2055,14 @@ export default function MaintenanceReportEditPage({ session }: Props) {
                   complete={raportointiComplete}
                   emptyHint="Täytä laitteen perustiedot painamalla Laitetiedot — tarvitaan ennen seuraavaa vaihetta."
                 />
+                {showKonvektoritSection ? (
+                  <KonvektoritSection
+                    rows={form.konvektoriRows ?? []}
+                    onChange={(rows) => patchForm({ konvektoriRows: rows })}
+                    onPrintFaults={hasFaultyKonvektorit ? () => void openKonvektoriFaultPrint() : undefined}
+                    printFaultsBusy={printBusy}
+                  />
+                ) : null}
               </>
             ) : (
               <>

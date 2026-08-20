@@ -108,7 +108,8 @@ export const MAINTENANCE_REPORT_BUILTIN_SECTIONS: readonly MaintenanceReportSect
     themeKey: 'konvektorit',
     printBlocks: ['konvektorit'],
     label: konvektoritSectionTitle,
-    isVisible: (input) => input.showKonvektoritSection,
+    // Konvektorilista näytetään raportointi-välilehdellä (ei erillistä osiota).
+    isVisible: () => false,
   },
   {
     id: 'lampopumppu',

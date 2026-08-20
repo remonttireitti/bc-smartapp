@@ -1,6 +1,6 @@
 import { konvektoriTarkastusSummary, konvektoriRowIsFaulty } from './konvektoriTarkastus';
 import { hideMaintenancePrintWarnings } from './defaults';
-import { usesRefrigerantServiceExtras } from './deviceModuleLogic';
+import { isKonvektoritDevice, usesRefrigerantServiceExtras } from './deviceModuleLogic';
 import type { MaintenanceReportTabId } from './maintenanceReportTabs';
 import { maintenanceSectionHasPrintSettings } from './maintenanceReportSectionCatalog';
 import type { HuoltoReportData, RefrigerantCircuitData } from './types';
@@ -102,6 +102,13 @@ export function buildMaintenanceDocumentTabSummary(
 ): string {
   switch (tabId) {
     case 'raportointi':
+      if (isKonvektoritDevice(form.laiteTyyppi)) {
+        return joinParts([
+          trim(form.asiakas) || 'Asiakas puuttuu',
+          trim(form.laiteKayttotarkoitus) || 'Verkosto puuttuu',
+          konvektoritSummary(form),
+        ]);
+      }
       return joinParts([trim(form.asiakas) || 'Asiakas puuttuu', deviceLabel(form) || 'Laite puuttuu']);
 
     case 'kylmaaine':

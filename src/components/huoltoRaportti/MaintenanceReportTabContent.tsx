@@ -223,6 +223,14 @@ export function MaintenanceReportTabContent({
           onEdit={onOpenDeviceDialog}
           editButtonLabel={deviceButtonLabel}
         />
+        {showKonvektoritSection ? (
+          <KonvektoritSection
+            rows={form.konvektoriRows ?? []}
+            onChange={(rows) => onPatchForm({ konvektoriRows: rows })}
+            onPrintFaults={onPrintKonvektoriFaults}
+            printFaultsBusy={printBusy}
+          />
+        ) : null}
       </section>
     );
   }
