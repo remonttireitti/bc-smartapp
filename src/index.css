@@ -5624,19 +5624,6 @@ button.tile.maintenance-report-document-tile {
   margin-top: .15rem;
 }
 
-.maintenance-report-document-section.is-dialog-launcher .maintenance-report-document-section-chevron {
-  display: none;
-}
-
-.maintenance-report-document-section.is-dialog-launcher.is-open .maintenance-report-document-section-header {
-  border-bottom: 0;
-}
-
-.maintenance-report-document-section.is-dialog-launcher .maintenance-report-document-section-body:not(:has(.checkbox-inline, .huolto-help, .maintenance-report-tab-section > :not(.sr-only))) {
-  padding: 0;
-  gap: 0;
-}
-
 .maintenance-report-document-section-body {
   padding: .65rem .75rem .85rem;
   display: flex;
