@@ -39,6 +39,15 @@ export default function MaintenanceReportPrintPage({ session }: Props) {
   }, [id]);
 
   useEffect(() => {
+    if (!printTitle) return undefined;
+    const previousTitle = document.title;
+    document.title = printTitle;
+    return () => {
+      document.title = previousTitle;
+    };
+  }, [printTitle]);
+
+  useEffect(() => {
     if (!autoPrint || loading || !html || !printTitle || autoPrintTriggeredRef.current) return;
     autoPrintTriggeredRef.current = true;
     openPrintHtml(html, { documentTitle: printTitle });

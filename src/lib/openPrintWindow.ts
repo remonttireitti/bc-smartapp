@@ -104,15 +104,25 @@ function createPrintFrame(html: string, documentTitle: string): PrintTarget {
   return { printWindow, printDocument, cleanup };
 }
 
+function attachBeforePrintTitle(doc: Document, title: string): () => void {
+  const handler = () => applyPrintDocumentTitle(doc, title);
+  doc.addEventListener('beforeprint', handler);
+  return () => doc.removeEventListener('beforeprint', handler);
+}
+
 function openPrintTarget(
   target: PrintTarget,
   documentTitle: string,
   imageWaitMs: number,
 ) {
   const { printWindow, printDocument } = target;
+  const detachBeforePrintTarget = attachBeforePrintTitle(printDocument, documentTitle);
+  const detachBeforePrintParent = attachBeforePrintTitle(document, documentTitle);
 
   const triggerPrint = async () => {
     applyPrintDocumentTitle(printDocument, documentTitle);
+    // Chrome käyttää iframe-tulostuksessa pääikkunan title-arvoa PDF-tiedostonimeen.
+    guardPrintTitle(documentTitle);
     guardPrintTitle(documentTitle, printWindow);
     await delay(PRINT_TITLE_SETTLE_MS);
     applyPrintDocumentTitle(printDocument, documentTitle);
@@ -128,12 +138,23 @@ function openPrintTarget(
     }
   };
 
+  const finish = () => {
+    detachBeforePrintTarget();
+    detachBeforePrintParent();
+  };
+
   if (printDocument.readyState === 'complete') {
-    void run();
+    void run().finally(finish);
     return;
   }
 
-  printWindow.addEventListener('load', () => void run(), { once: true });
+  printWindow.addEventListener(
+    'load',
+    () => {
+      void run().finally(finish);
+    },
+    { once: true },
+  );
 }
 
 export function openPrintHtml(

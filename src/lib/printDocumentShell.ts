@@ -50,7 +50,7 @@ export function applyPrintDocumentTitle(doc: Document, title: string) {
   if (titleEl) titleEl.textContent = safeTitle;
 }
 
-const PRINT_TITLE_HOLD_MS = 3_000;
+const PRINT_TITLE_HOLD_MS = 12_000;
 
 /**
  * Chrome/Edge käyttävät iframe-tulostuksessa pääikkunan document.title -arvoa
