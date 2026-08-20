@@ -145,8 +145,8 @@ export function MaintenanceReportBasicsPanel({
 
       {canEditCustomerEquipment && needsExplicitOwner ? (
         <p className="muted">
-          Valitse ensin yritys, jonka nimissä raportti laaditaan. Asiakasrekisteristä näytetään vain
-          kumppanit, joilla on huoltoraportin luontioikeus.
+          Valitse ensin yritys, jonka nimissä raportti laaditaan. Asiakasvalinnassa näytetään vain valitun
+          yrityksen asiakasrekisteri.
         </p>
       ) : null}
 
@@ -154,9 +154,17 @@ export function MaintenanceReportBasicsPanel({
         <>
           {!printLayout ? (
             <p className="muted">
-              Hae asiakasta kaikista rekistereistä joihin sinulla on pääsy. Raportti luodaan automaattisesti
-              sen yrityksen nimissä, jonka rekisteriin asiakas kuuluu. Uusi asiakas tallennetaan aina omaan
-              rekisteriisi ({creatorCompanyName}).
+              {needsExplicitOwner ? (
+                <>
+                  Hae asiakasta valitun yrityksen ({brandingName}) rekisteristä. Uuden asiakkaan voit
+                  tallentaa samaan rekisteriin.
+                </>
+              ) : (
+                <>
+                  Hae asiakasta omasta rekisteristäsi. Uusi asiakas tallennetaan rekisteriisi (
+                  {creatorCompanyName}).
+                </>
+              )}
             </p>
           ) : null}
 
@@ -189,7 +197,7 @@ export function MaintenanceReportBasicsPanel({
                 customerId={customerId}
                 myCompanyId={profileCompanyId}
                 disabled={!profileCompanyId || (needsExplicitOwner && !reportOwnerCompanyId)}
-                createRegistryName={creatorCompanyName}
+                createRegistryName={needsExplicitOwner ? brandingName : creatorCompanyName}
                 busy={busy}
                 onSelect={onSelectCustomer}
                 onClear={onClearCustomer}

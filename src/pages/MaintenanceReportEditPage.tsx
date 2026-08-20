@@ -251,6 +251,12 @@ export default function MaintenanceReportEditPage({ session }: Props) {
     ownerCompany?.name ??
     creatorCompanyName;
 
+  const customersForPicker = useMemo(() => {
+    const ownerId = ownerCompanyId || reportOwnerCompanyId || profile?.company_id;
+    if (!ownerId || reportOwnerTargets.length <= 1) return customers;
+    return customers.filter((customer) => customer.owner_company_id === ownerId);
+  }, [customers, ownerCompanyId, reportOwnerCompanyId, profile?.company_id, reportOwnerTargets.length]);
+
   const reportTitle = useMemo(
     () =>
       resolveMaintenanceReportTitle(
@@ -673,6 +679,8 @@ export default function MaintenanceReportEditPage({ session }: Props) {
 
   function onReportOwnerChange(companyId: string) {
     setReportOwnerCompanyId(companyId);
+    setCustomerId('');
+    setEquipmentId('');
     setHasUnsavedChanges(true);
   }
 
@@ -1801,7 +1809,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
     canEditCustomerEquipment,
     canEditCustomerPrintFields,
     customerId,
-    customers,
+    customers: customersForPicker,
     selectedCustomer,
     contextMode,
     ownerCompanyId,
