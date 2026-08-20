@@ -14,13 +14,10 @@ import { MaintenanceReportTabDialog } from '../components/huoltoRaportti/Mainten
 import { MaintenanceReportDocumentView } from '../components/huoltoRaportti/MaintenanceReportDocumentView';
 import { MaintenanceReportTabContent } from '../components/huoltoRaportti/MaintenanceReportTabContent';
 import { useMaintenanceDocumentLayout } from '../hooks/useMaintenanceDocumentLayout';
-import { MaintenanceReportBasicsPanel } from '../components/huoltoRaportti/MaintenanceReportBasicsPanel';
 import { MaintenanceDeviceDialog } from '../components/huoltoRaportti/MaintenanceDeviceDialog';
 import { MaintenanceDeviceSummary } from '../components/huoltoRaportti/MaintenanceDeviceSummary';
-import { KonvektoritSection } from '../components/huoltoRaportti/KonvektoritSection';
 import { HuoltoModulePresentationProvider } from '../components/huoltoRaportti/HuoltoModulePresentationContext';
 import { SiblingEquipmentCopyDialog } from '../components/huoltoRaportti/SiblingEquipmentCopyDialog';
-import { RefrigerantChargeSection } from '../components/huoltoRaportti/RefrigerantChargeSection';
 import {
   applyDeviceTypeDefaults,
   buildMaintenanceReportTitleFromData,
@@ -110,7 +107,6 @@ import {
 } from '../lib/huoltoRaportti/maintenanceReportTabs';
 import {
   isMaintenanceBasicsComplete,
-  isRaportointiBasicsComplete,
   fillMissingDeviceBasics,
   showRefrigerantBasics,
   validateMaintenanceCustomerBasics,
@@ -118,10 +114,8 @@ import {
   validateMaintenanceRefrigerantBasics,
 } from '../lib/huoltoRaportti/maintenanceReportBasicsValidation';
 import { buildMaintenanceReportTabCompletion } from '../lib/huoltoRaportti/maintenanceReportTabCompletion';
-import { MaintenanceSetupWizard, type MaintenanceSetupStep } from '../components/huoltoRaportti/MaintenanceSetupWizard';
 import { MaintenanceModuleStructureDialog } from '../components/huoltoRaportti/MaintenanceModuleStructureDialog';
 import { getHiddenMaintenanceTabs } from '../lib/huoltoRaportti/maintenanceReportTabCustomization';
-import { kylmaaineChargeTitle, raportointiLaitetiedotTabTitle } from '../lib/huoltoRaportti/sectionTitles';
 import { HuoltoEditUiProvider } from '../components/huoltoRaportti/HuoltoEditUiContext';
 import { MaintenanceReportSectionSettingsProvider } from '../components/huoltoRaportti/MaintenanceReportSectionSettingsProvider';
 import { cloneHuoltoReportForSiblingEquipment } from '../lib/huoltoRaportti/cloneReportForSiblingEquipment';
@@ -357,22 +351,18 @@ export default function MaintenanceReportEditPage({ session }: Props) {
     [deviceBasicsInput],
   );
 
-  const raportointiComplete = useMemo(
-    () => isRaportointiBasicsComplete(customerBasicsInput, deviceBasicsInput),
-    [customerBasicsInput, deviceBasicsInput],
-  );
-
-  const kylmaaineComplete = useMemo(
-    () => !showKylmaaineCharge || validateMaintenanceRefrigerantBasics(deviceBasicsInput).ok,
-    [showKylmaaineCharge, deviceBasicsInput],
-  );
-
   const basicsComplete = useMemo(
     () => isMaintenanceBasicsComplete(customerBasicsInput, deviceBasicsInput),
     [customerBasicsInput, deviceBasicsInput],
   );
 
-  const showSetupWizard = isNew && !basicsComplete;
+  const canSaveDraft = useMemo(
+    () =>
+      Boolean(form.laiteTyyppi.trim())
+      && Boolean(form.osoite.trim())
+      && Boolean(customerId || form.asiakas.trim()),
+    [form.laiteTyyppi, form.osoite, customerId, form.asiakas],
+  );
 
   const maintenanceTabBuildInput = useMemo(
     () => ({
@@ -434,10 +424,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
     [defaultMaintenanceTabs, allMaintenanceTabs],
   );
 
-  const maintenanceTabs = useMemo(
-    () => (showSetupWizard ? [] : allMaintenanceTabs),
-    [allMaintenanceTabs, showSetupWizard],
-  );
+  const maintenanceTabs = allMaintenanceTabs;
 
   const tabCompletion = useMemo(
     () =>
@@ -449,44 +436,21 @@ export default function MaintenanceReportEditPage({ session }: Props) {
     [form, customerBasicsInput, deviceBasicsInput, maintenanceTabBuildInput],
   );
 
-  const setupSteps = useMemo(() => {
-    const steps: { id: MaintenanceSetupStep; label: string }[] = [
-      {
-        id: 'raportointi',
-        label: raportointiLaitetiedotTabTitle(form.laiteTyyppi, false),
-      },
-    ];
-    if (showKylmaaineCharge) {
-      steps.push({
-        id: 'kylmaaine',
-        label: kylmaaineChargeTitle(form.laiteTyyppi),
-      });
-    }
-    return steps;
-  }, [form.laiteTyyppi, showKylmaaineCharge]);
-
   const [openTabId, setOpenTabId] = useState<string | null>(null);
   const documentLayout = useMaintenanceDocumentLayout();
   const [activeDocumentTabId, setActiveDocumentTabId] = useState<MaintenanceReportTabId>('raportointi');
   const [documentNavTarget, setDocumentNavTarget] = useState<MaintenanceReportTabId | null>(null);
-  const [setupStep, setSetupStep] = useState<MaintenanceSetupStep>('raportointi');
+  const newReportRaportointiOpenedRef = useRef(false);
   const [deviceDialogOpen, setDeviceDialogOpen] = useState(false);
   const [basicsFieldErrors, setBasicsFieldErrors] = useState<Record<string, string>>({});
   const [deviceFieldErrors, setDeviceFieldErrors] = useState<Record<string, string>>({});
-  const [kylmaaineFieldErrors, setKylmaaineFieldErrors] = useState<Record<string, string>>({});
-  const [basicsGateMessage, setBasicsGateMessage] = useState<string | null>(null);
   const [moduleStructureDialogOpen, setModuleStructureDialogOpen] = useState(false);
 
   useEffect(() => {
-    if (basicsComplete) return;
-    if (!raportointiComplete) {
-      setSetupStep('raportointi');
-      return;
-    }
-    if (showKylmaaineCharge && !kylmaaineComplete) {
-      setSetupStep('kylmaaine');
-    }
-  }, [basicsComplete, raportointiComplete, showKylmaaineCharge, kylmaaineComplete]);
+    if (!isNew || profileLoading || basicsComplete || newReportRaportointiOpenedRef.current) return;
+    newReportRaportointiOpenedRef.current = true;
+    setDocumentNavTarget('raportointi');
+  }, [isNew, profileLoading, basicsComplete]);
 
   useEffect(() => {
     if (documentLayout) {
@@ -514,10 +478,6 @@ export default function MaintenanceReportEditPage({ session }: Props) {
       setOpenTabId(null);
     }
   }, [documentLayout, maintenanceTabs, openTabId]);
-
-  useEffect(() => {
-    if (basicsComplete) setBasicsGateMessage(null);
-  }, [basicsComplete]);
 
   useEffect(() => {
     const media = window.matchMedia('(min-width: 901px)');
@@ -1414,7 +1374,10 @@ export default function MaintenanceReportEditPage({ session }: Props) {
     }
     let currentForm = formStateRef.current.form;
     if (!currentForm.laiteTyyppi) {
-      if (!options?.auto) setError('Valitse laitetyyppi.');
+      if (!options?.auto) {
+        setError('Valitse laitetyyppi.');
+        setDocumentNavTarget('raportointi');
+      }
       return false;
     }
     if (!customerId && !currentForm.asiakas.trim()) {
@@ -1436,6 +1399,18 @@ export default function MaintenanceReportEditPage({ session }: Props) {
       }
       return false;
     }
+
+    const isSubmitting = nextStatus === 'submitted';
+    const isDraftSave = nextStatus === 'draft' || (nextStatus === undefined && status === 'draft');
+
+    if (isDraftSave || options?.auto) {
+      const devicePatch = fillMissingDeviceBasics(currentForm);
+      if (Object.keys(devicePatch).length > 0) {
+        currentForm = mergeHuoltoReportData(currentForm, devicePatch);
+        patchForm(devicePatch);
+      }
+    }
+
     const customerBasics = validateMaintenanceCustomerBasics({
       profileCompanyId: profile?.company_id,
       reportOwnerCompanyId,
@@ -1462,19 +1437,20 @@ export default function MaintenanceReportEditPage({ session }: Props) {
       if (!options?.auto) {
         setBasicsFieldErrors(customerBasics.fieldErrors);
         setDeviceFieldErrors(deviceBasics.fieldErrors);
-        setSetupStep('raportointi');
+        setDocumentNavTarget('raportointi');
         setError([...customerBasics.errors, ...deviceBasics.errors][0] ?? 'Täytä raportoinnin pakolliset tiedot.');
       }
       return false;
     }
-    const refrigerantBasics = validateMaintenanceRefrigerantBasics(deviceBasicsInputForSave);
-    if (!refrigerantBasics.ok) {
-      if (!options?.auto) {
-        setKylmaaineFieldErrors(refrigerantBasics.fieldErrors);
-        setSetupStep('kylmaaine');
-        setError(refrigerantBasics.errors[0] ?? 'Täytä kylmäaineen pakolliset tiedot.');
+    if (isSubmitting) {
+      const refrigerantBasics = validateMaintenanceRefrigerantBasics(deviceBasicsInputForSave);
+      if (!refrigerantBasics.ok) {
+        if (!options?.auto) {
+          setDocumentNavTarget('kylmaaine');
+          setError(refrigerantBasics.errors[0] ?? 'Täytä kylmäaineen pakolliset tiedot.');
+        }
+        return false;
       }
-      return false;
     }
     if (!isOnline && options?.auto) {
       setAutoSaveState('offline');
@@ -1781,47 +1757,6 @@ export default function MaintenanceReportEditPage({ session }: Props) {
     setDeviceDialogOpen(true);
   }
 
-  function completeRaportointiTab() {
-    const customerResult = validateMaintenanceCustomerBasics(customerBasicsInput);
-    const deviceResult = validateMaintenanceDeviceBasics(deviceBasicsInput);
-    setBasicsFieldErrors(customerResult.fieldErrors);
-    setDeviceFieldErrors(deviceResult.fieldErrors);
-    if (!customerResult.ok || !deviceResult.ok) {
-      setBasicsGateMessage('Täytä kaikki pakolliset raportointi- ja laitetiedot ennen muihin osioihin siirtymistä.');
-      if (customerResult.ok && !deviceResult.ok) {
-        setDeviceDialogOpen(true);
-      }
-      return;
-    }
-    setBasicsGateMessage(null);
-    if (showKylmaaineCharge && !kylmaaineComplete) {
-      setSetupStep('kylmaaine');
-    }
-  }
-
-  function completeKylmaaineTab() {
-    const refrigerantResult = validateMaintenanceRefrigerantBasics(deviceBasicsInput);
-    setKylmaaineFieldErrors(refrigerantResult.fieldErrors);
-    if (!refrigerantResult.ok) {
-      setBasicsGateMessage('Täytä kylmäaineen pakolliset tiedot ennen muihin osioihin siirtymistä.');
-      return;
-    }
-    setBasicsGateMessage(null);
-  }
-
-  function handleSetupNext() {
-    if (setupStep === 'raportointi') {
-      completeRaportointiTab();
-      return;
-    }
-    completeKylmaaineTab();
-  }
-
-  function handleSetupBack() {
-    setBasicsGateMessage(null);
-    setSetupStep('raportointi');
-  }
-
   const canDeleteMaintenance = !isNew && reportOwnerCompanyId
     ? canDeleteCompanyOwnedEntity(
         reportOwnerCompanyId,
@@ -2051,98 +1986,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
         className={`panel form-grid maintenance-form${documentLayout ? ' maintenance-form--document' : ''}${!documentLayout && openTabId ? ' maintenance-tab-dialog-open' : ''}`}
         onSubmit={onSubmit}
       >
-        {showSetupWizard ? (
-          <MaintenanceSetupWizard
-            step={setupStep}
-            steps={setupSteps}
-            gateMessage={basicsGateMessage}
-            nextLabel={
-              setupStep === 'raportointi'
-                ? showKylmaaineCharge
-                  ? 'Seuraava'
-                  : 'Valmis'
-                : 'Valmis — jatka raporttiin'
-            }
-            showBack={setupStep === 'kylmaaine'}
-            onBack={handleSetupBack}
-            onNext={handleSetupNext}
-            onOpenDevice={openDeviceDialog}
-            deviceButtonLabel={deviceButtonLabel}
-          >
-            {setupStep === 'raportointi' ? (
-              <>
-                <MaintenanceReportBasicsPanel
-                  form={form}
-                  fieldErrors={basicsFieldErrors}
-                  profileCompanyId={profile?.company_id}
-                  reportOwnerCompanyId={reportOwnerCompanyId}
-                  reportOwnerTargets={reportOwnerTargets}
-                  brandingName={brandingName}
-                  creatorCompanyName={creatorCompanyName}
-                  creatorDisplayName={profile?.display_name ?? session.user.email ?? '—'}
-                  creatorEmail={session.user.email}
-                  canEditCustomerEquipment={canEditCustomerEquipment}
-                  canEditCustomerPrintFields={canEditCustomerPrintFields}
-                  customerId={customerId}
-                  customers={customers}
-                  selectedCustomer={selectedCustomer}
-                  contextMode={contextMode}
-                  ownerCompanyId={ownerCompanyId}
-                  subscribersForOwner={subscribersForOwner}
-                  subscriberId={subscriberId}
-                  subscriberPortalVisibility={subscriberPortalVisibility}
-                  busy={busy}
-                  copySiblingMode={copySiblingMode}
-                  equipment={equipment}
-                  equipmentId={equipmentId}
-                  copySourceEquipmentId={copySourceEquipmentId}
-                  onReportOwnerChange={onReportOwnerChange}
-                  onPatchForm={patchForm}
-                  onSelectCustomer={selectCustomerFromRegistry}
-                  onClearCustomer={() => {
-                    setCustomerId('');
-                    setEquipmentId('');
-                    if (profile?.company_id) void loadOwnerCompany(profile.company_id);
-                  }}
-                  onCreateCustomer={createCustomerAndSelect}
-                  onSelectEquipment={setEquipmentId}
-                  onClearEquipment={() => setEquipmentId('')}
-                  onCreateEquipment={createEquipmentAndSelect}
-                  onSubscriberChange={setSubscriberId}
-                  onSubscriberPortalVisibilityChange={setSubscriberPortalVisibility}
-                />
-                <MaintenanceDeviceSummary
-                  form={form}
-                  deviceFieldErrors={deviceFieldErrors}
-                  complete={raportointiComplete}
-                  emptyHint="Täytä laitteen perustiedot painamalla Laitetiedot — tarvitaan ennen seuraavaa vaihetta."
-                />
-                {showKonvektoritSection ? (
-                  <KonvektoritSection
-                    rows={form.konvektoriRows ?? []}
-                    onChange={(rows) => patchForm({ konvektoriRows: rows })}
-                    onPrintFaults={hasFaultyKonvektorit ? () => void openKonvektoriFaultPrint() : undefined}
-                    printFaultsBusy={printBusy}
-                  />
-                ) : null}
-              </>
-            ) : (
-              <>
-                <RefrigerantChargeSection form={form} onChange={patchForm} defaultOpen />
-                {Object.keys(kylmaaineFieldErrors).length > 0 ? (
-                  <div className="maintenance-device-summary-errors">
-                    {Object.values(kylmaaineFieldErrors).map((message) => (
-                      <p key={message} className="error">
-                        {message}
-                      </p>
-                    ))}
-                  </div>
-                ) : null}
-              </>
-            )}
-          </MaintenanceSetupWizard>
-        ) : (
-          <>
+        <>
             <div
               className={`maintenance-report-module-toolbar${documentLayout ? ' maintenance-report-module-toolbar--document' : ''}`}
             >
@@ -2223,13 +2067,9 @@ export default function MaintenanceReportEditPage({ session }: Props) {
                 </HuoltoModulePresentationProvider>
               </MaintenanceReportTabDialog>
             )}
-          </>
-        )}
+        </>
 
         {error && <p className="error">{error}</p>}
-
-        {showSetupWizard ? renderEquipmentRegistryActions('maintenance-form-actions-equipment') : null}
-        {showSetupWizard ? renderPrintActions('maintenance-form-actions-equipment') : null}
 
         <div className="form-actions maintenance-form-actions">
           <div className="maintenance-actions-primary">
@@ -2249,7 +2089,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
                 <button
                   type="button"
                   className="btn btn-secondary maintenance-actions-save"
-                  disabled={busy || !basicsComplete}
+                  disabled={busy || !canSaveDraft}
                   onClick={() => void saveReport('draft')}
                 >
                   {busy ? 'Tallennetaan…' : 'Tallenna luonnos'}
