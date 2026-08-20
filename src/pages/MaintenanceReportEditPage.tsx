@@ -954,7 +954,22 @@ export default function MaintenanceReportEditPage({ session }: Props) {
     }
     setEquipmentId(nextEquipmentId);
 
-    await loadAccessibleCustomers();
+    const customerRows = await loadAccessibleCustomers();
+    if (nextCustomerId && !formToUse.osoite.trim()) {
+      const linkedCustomer = customerRows.find((entry) => entry.id === nextCustomerId);
+      const registryAddress = [linkedCustomer?.address, linkedCustomer?.city]
+        .filter(Boolean)
+        .join(', ');
+      if (registryAddress) {
+        formToUse = mergeHuoltoReportData(formToUse, { osoite: registryAddress });
+        formStateRef.current = {
+          form: formToUse,
+          customerId: nextCustomerId,
+          equipmentId: nextEquipmentId,
+        };
+        setForm(formToUse);
+      }
+    }
     await loadOwnerCompany(row.owner_company_id);
     if (row.customer_id) await loadEquipment(row.customer_id);
     setReportReady(true);
@@ -1005,14 +1020,16 @@ export default function MaintenanceReportEditPage({ session }: Props) {
     setPartnerships(enriched);
   }
 
-  async function loadAccessibleCustomers() {
-    if (!profile?.company_id) return;
+  async function loadAccessibleCustomers(): Promise<Customer[]> {
+    if (!profile?.company_id) return [];
     try {
       const rows = await loadAccessibleReportCustomers(supabase, profile.company_id, partnerships);
       setCustomers(rows);
+      return rows;
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : 'Asiakkaiden lataus epäonnistui.');
       setCustomers([]);
+      return [];
     }
   }
 
@@ -1396,7 +1413,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
       if (!options?.auto) setError('Profiilista puuttuu yritys.');
       return false;
     }
-    const currentForm = formStateRef.current.form;
+    let currentForm = formStateRef.current.form;
     if (!currentForm.laiteTyyppi) {
       if (!options?.auto) setError('Valitse laitetyyppi.');
       return false;
@@ -1405,8 +1422,19 @@ export default function MaintenanceReportEditPage({ session }: Props) {
       if (!options?.auto) setError('Valitse asiakas tai täytä asiakastiedot.');
       return false;
     }
+    const registryAddress = [selectedCustomer?.address, selectedCustomer?.city]
+      .filter(Boolean)
+      .join(', ');
+    if (!currentForm.osoite.trim() && registryAddress) {
+      patchForm({ osoite: registryAddress });
+      currentForm = { ...currentForm, osoite: registryAddress };
+    }
     if (!currentForm.osoite.trim()) {
-      if (!options?.auto) setError('Asiakkaan kohteen osoite on pakollinen.');
+      if (!options?.auto) {
+        setError('Asiakkaan kohteen osoite on pakollinen.');
+        setBasicsFieldErrors({ osoite: 'Asiakkaan kohteen osoite on pakollinen.' });
+        setDocumentNavTarget('raportointi');
+      }
       return false;
     }
     const customerBasics = validateMaintenanceCustomerBasics({

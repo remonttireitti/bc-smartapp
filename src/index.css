@@ -6475,6 +6475,15 @@ textarea {
   gap: 1rem;
 }
 
+.maintenance-report-basics-address-hint {
+  margin: 0;
+}
+
+.maintenance-report-basics-edit-btn {
+  align-self: flex-start;
+  margin-top: .15rem;
+}
+
 .maintenance-device-summary {
   padding: 1rem;
   border: 1px solid var(--border-strong);
