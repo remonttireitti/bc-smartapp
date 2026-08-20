@@ -1,13 +1,20 @@
 import type { MaintenanceReportTabId } from './maintenanceReportTabs';
 
-/** Dokumenttinäkymässä yksi popup-moduuli — otsikon klikkaus avaa dialogin suoraan. */
+/** Dokumenttinäkymässä otsikon klikkaus avaa popup-dialogin (kuten huomiot-moduuli). */
 export const MAINTENANCE_DIALOG_LAUNCHER_TABS = new Set<MaintenanceReportTabId>([
+  'raportointi',
   'kylmaaine',
   'kylmaainePiiri',
+  'hoyrystin',
+  'lauhdutin',
   'lauhdutuspiiri',
   'nestelauhduttimet',
   'jaahdytysvesi',
   'vapaajahdytys',
+  'lampopumppu',
+  'mlp',
+  'kiinteistoJahdytys',
+  'energia',
   'huomiot',
   'huoltotiedot',
 ]);

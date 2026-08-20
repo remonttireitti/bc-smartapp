@@ -1,4 +1,5 @@
 import type { HuoltoReportData } from '../../lib/huoltoRaportti/types';
+import { useMaintenanceDocumentLayout } from '../../hooks/useMaintenanceDocumentLayout';
 import { RefrigerantCircuitsInspection } from './RefrigerantCircuitsInspection';
 
 interface Props {
@@ -7,11 +8,13 @@ interface Props {
 }
 
 export function RefrigerantCircuitsSection({ form, onChange }: Props) {
+  const documentLayout = useMaintenanceDocumentLayout();
+
   return (
     <RefrigerantCircuitsInspection
       form={form}
       onChange={onChange}
-      documentModuleKey="kylmaainePiiri"
+      documentModuleKey={documentLayout ? 'kylmaainePiiri' : undefined}
     />
   );
 }

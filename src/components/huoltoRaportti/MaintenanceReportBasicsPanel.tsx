@@ -10,12 +10,10 @@ import type { Customer, Equipment, SubscriberPortalVisibility } from '../../type
 import { useHuoltoPrintFormLayout } from '../../hooks/useHuoltoPrintFormLayout';
 import { useMaintenanceDocumentLayout } from '../../hooks/useMaintenanceDocumentLayout';
 import { MaintenanceReportBasicsDialog } from './MaintenanceReportBasicsDialog';
-import { useHuoltoModuleDialog } from './HuoltoModuleDialogContext';
 import {
   PrintColumnRow,
   PrintFieldRow,
   PrintInnerBox,
-  PrintTextInput,
 } from './print/MaintenancePrintLayout';
 
 type Props = {
@@ -53,6 +51,7 @@ type Props = {
   onCreateEquipment: (draft: NewEquipmentDraft) => Promise<void>;
   onSubscriberChange: (id: string) => void;
   onSubscriberPortalVisibilityChange: (value: SubscriberPortalVisibility) => void;
+  embeddedInParentDialog?: boolean;
 };
 
 export function MaintenanceReportBasicsPanel({
@@ -90,12 +89,12 @@ export function MaintenanceReportBasicsPanel({
   onCreateEquipment,
   onSubscriberChange,
   onSubscriberPortalVisibilityChange,
+  embeddedInParentDialog = false,
 }: Props) {
   const printLayout = useHuoltoPrintFormLayout();
   const documentLayout = useMaintenanceDocumentLayout();
-  const moduleDialog = useHuoltoModuleDialog();
   const needsExplicitOwner = !customerId && reportOwnerTargets.length > 1;
-  const missingAddress = !form.osoite.trim();
+  const showStandaloneDialog = documentLayout && !embeddedInParentDialog;
 
   return (
     <section className="maintenance-report-basics-panel">
@@ -239,24 +238,26 @@ export function MaintenanceReportBasicsPanel({
             </div>
           )}
 
-          {printLayout ? (
+          {printLayout && !embeddedInParentDialog ? (
             <>
-              <MaintenanceReportBasicsDialog
-                form={form}
-                fieldErrors={fieldErrors}
-                customerId={customerId}
-                reportOwnerCompanyId={reportOwnerCompanyId}
-                reportOwnerTargets={reportOwnerTargets}
-                brandingName={brandingName}
-                creatorDisplayName={creatorDisplayName}
-                creatorEmail={creatorEmail}
-                canEditCustomerEquipment={canEditCustomerEquipment}
-                canEditCustomerPrintFields={canEditCustomerPrintFields}
-                busy={busy}
-                onReportOwnerChange={onReportOwnerChange}
-                onPatchForm={onPatchForm}
-                documentModuleKey={documentLayout ? 'raportointi' : undefined}
-              />
+              {showStandaloneDialog ? (
+                <MaintenanceReportBasicsDialog
+                  form={form}
+                  fieldErrors={fieldErrors}
+                  customerId={customerId}
+                  reportOwnerCompanyId={reportOwnerCompanyId}
+                  reportOwnerTargets={reportOwnerTargets}
+                  brandingName={brandingName}
+                  creatorDisplayName={creatorDisplayName}
+                  creatorEmail={creatorEmail}
+                  canEditCustomerEquipment={canEditCustomerEquipment}
+                  canEditCustomerPrintFields={canEditCustomerPrintFields}
+                  busy={busy}
+                  onReportOwnerChange={onReportOwnerChange}
+                  onPatchForm={onPatchForm}
+                  documentModuleKey="raportointi"
+                />
+              ) : null}
               <PrintColumnRow>
                 <PrintInnerBox title="YRITYSTIEDOT" accent="#9E9E9E">
                   <PrintFieldRow label="Brändi tulosteessa">
@@ -270,47 +271,12 @@ export function MaintenanceReportBasicsPanel({
                   </PrintFieldRow>
                 </PrintInnerBox>
                 <PrintInnerBox title="ASIAKASTIEDOT" accent="#1976D2">
-                  <PrintFieldRow label="Asiakas" error={fieldErrors.customer}>
-                    {canEditCustomerPrintFields ? (
-                      <PrintTextInput
-                        value={form.asiakas}
-                        disabled={busy}
-                        placeholder={selectedCustomer?.name || 'Asiakkaan nimi'}
-                        onChange={(value) => onPatchForm({ asiakas: value })}
-                        className={fieldErrors.customer ? 'field-error-input' : undefined}
-                      />
-                    ) : (
-                      <strong>{form.asiakas || selectedCustomer?.name || '—'}</strong>
-                    )}
+                  <PrintFieldRow label="Asiakas">
+                    <strong>{form.asiakas || selectedCustomer?.name || '—'}</strong>
                   </PrintFieldRow>
-                  <PrintFieldRow label="Osoite *" error={fieldErrors.osoite}>
-                    {canEditCustomerPrintFields ? (
-                      <PrintTextInput
-                        value={form.osoite}
-                        disabled={busy}
-                        placeholder="Katuosoite, postinumero ja kaupunki"
-                        onChange={(value) => onPatchForm({ osoite: value })}
-                        className={fieldErrors.osoite || missingAddress ? 'field-error-input' : undefined}
-                      />
-                    ) : (
-                      <span>{form.osoite || '—'}</span>
-                    )}
+                  <PrintFieldRow label="Osoite" error={fieldErrors.osoite}>
+                    <span>{form.osoite || '—'}</span>
                   </PrintFieldRow>
-                  {canEditCustomerPrintFields && missingAddress ? (
-                    <p className="field-error-text maintenance-report-basics-address-hint">
-                      Osoite on pakollinen ennen tallennusta. Voit myös täyttää sen asiakaskortilla.
-                    </p>
-                  ) : null}
-                  {canEditCustomerPrintFields && documentLayout ? (
-                    <button
-                      type="button"
-                      className="btn btn-secondary btn-sm maintenance-report-basics-edit-btn"
-                      disabled={busy}
-                      onClick={() => moduleDialog?.open('raportointi')}
-                    >
-                      Muokkaa kaikkia asiakastietoja
-                    </button>
-                  ) : null}
                   {form.asiakasYtunnus?.trim() ? (
                     <PrintFieldRow label="Y-tunnus">
                       <span>{form.asiakasYtunnus}</span>

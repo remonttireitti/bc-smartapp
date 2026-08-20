@@ -1,7 +1,9 @@
 import type { HuoltoReportData } from '../../lib/huoltoRaportti/types';
 import { EvaporatorModule } from './EvaporatorModule';
 import { hoyrystinSectionTitle } from '../../lib/huoltoRaportti/sectionTitles';
+import { evaporatorsSummaryRows } from '../../lib/huoltoRaportti/moduleSummaryRows';
 import { HuoltoModuleSection } from './HuoltoModuleSection';
+import { DocumentModuleInspection } from './DocumentModuleInspection';
 import {
   createEvaporatorActions,
   evaporatorTitleForIndex,
@@ -11,15 +13,25 @@ import {
 interface Props {
   form: HuoltoReportData;
   onChange: (patch: Partial<HuoltoReportData>) => void;
+  documentModuleKey?: string;
+  embedded?: boolean;
 }
 
-export function EvaporatorsSection({ form, onChange }: Props) {
+function EvaporatorsEditor({
+  form,
+  onChange,
+  embedded = false,
+}: {
+  form: HuoltoReportData;
+  onChange: (patch: Partial<HuoltoReportData>) => void;
+  embedded?: boolean;
+}) {
   const isKylmakoneikko = form.laiteTyyppi === 'kylmäkoneikko';
   const circuitCount = getEvaporatorCircuitCount(form);
   const { updateEvaporator, setCount, setSameAsFirst } = createEvaporatorActions(form, onChange);
 
-  return (
-    <HuoltoModuleSection moduleKey="hoyrystin" title={hoyrystinSectionTitle(form.laiteTyyppi)}>
+  const content = (
+    <>
       {isKylmakoneikko && (
         <label>
           Höyrystimien määrä (1–10)
@@ -52,6 +64,35 @@ export function EvaporatorsSection({ form, onChange }: Props) {
           />
         ))}
       </div>
+    </>
+  );
+
+  if (embedded) return content;
+
+  return (
+    <HuoltoModuleSection moduleKey="hoyrystin" title={hoyrystinSectionTitle(form.laiteTyyppi)}>
+      {content}
     </HuoltoModuleSection>
+  );
+}
+
+export function EvaporatorsSection({ form, onChange, documentModuleKey, embedded }: Props) {
+  const title = hoyrystinSectionTitle(form.laiteTyyppi);
+
+  return (
+    <DocumentModuleInspection
+      data={form}
+      onChange={(next) => onChange(next)}
+      documentModuleKey={documentModuleKey}
+      title={title}
+      titleId="hoyrystin-dialog-title"
+      summaryRows={evaporatorsSummaryRows(form)}
+      editLabel="Muokkaa höyrystimiä"
+      emptyHint="Täytä höyrystinten tiedot painamalla Muokkaa."
+    >
+      {(draft, patchDraft) => (
+        <EvaporatorsEditor form={draft} onChange={patchDraft} embedded={embedded ?? true} />
+      )}
+    </DocumentModuleInspection>
   );
 }

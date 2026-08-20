@@ -179,3 +179,46 @@ export function refrigerantCircuitsSummaryComplete(form: HuoltoReportData): bool
     return Boolean(formatCircuitPressures(circuit));
   });
 }
+
+export function evaporatorsSummaryRows(form: HuoltoReportData): ModuleSummaryRow[] {
+  const count = form.evaporatorData?.length ?? 0;
+  if (count === 0) return [];
+  return [{ label: 'Höyrystimiä', value: `${count} kpl` }];
+}
+
+export function condensersSummaryRows(form: HuoltoReportData): ModuleSummaryRow[] {
+  const count = Math.min(3, Math.max(1, parseInt(form.kylmaainePiireja, 10) || 1));
+  return [{ label: 'Lauhduttimia', value: `${count} kpl` }];
+}
+
+export function lampopumppuSummaryRows(form: HuoltoReportData): ModuleSummaryRow[] {
+  const rows: ModuleSummaryRow[] = [];
+  pushRow(rows, 'Ulkoyksikkö', [form.ulkoyksikkoValmistaja, form.ulkoyksikkoMalli].filter(Boolean).join(' '));
+  pushRow(rows, 'Teho', form.ulkoyksikkoJaahdytysTeho ? `${form.ulkoyksikkoJaahdytysTeho} kW` : '');
+  const sisaCount = form.sisayksikkoMaara ?? form.sisayksikkoData?.length ?? 0;
+  if (sisaCount > 0) pushRow(rows, 'Sisäyksiköt', `${sisaCount} kpl`);
+  return rows;
+}
+
+export function mlpSummaryRows(form: HuoltoReportData, part?: 'kiinteisto' | 'energia'): ModuleSummaryRow[] {
+  const mlp = form.mlpData;
+  if (!mlp) return [];
+  const rows: ModuleSummaryRow[] = [];
+  if (!part || part === 'kiinteisto') {
+    pushRow(rows, 'Keruupiiri', mlp.keruupiiriVirtaus ? `${mlp.keruupiiriVirtaus} m³/h` : '');
+    pushRow(rows, 'Lämpöpiirit', mlp.lampoPiireja || '');
+  }
+  if (!part || part === 'energia') {
+    pushRow(rows, 'Latauspiiri', mlp.latausVirtaus ? `${mlp.latausVirtaus} m³/h` : '');
+    pushRow(rows, 'Teho', mlp.keruupiiriTehoLaskenta ? `${mlp.keruupiiriTehoLaskenta} kW` : '');
+  }
+  return rows;
+}
+
+export function raportointiSummaryRows(form: HuoltoReportData): ModuleSummaryRow[] {
+  const rows: ModuleSummaryRow[] = [];
+  pushRow(rows, 'Asiakas', form.asiakas);
+  pushRow(rows, 'Osoite', form.osoite);
+  pushRow(rows, 'Laite', [form.laiteValmistaja, form.laiteMalli, form.laiteTunnus].filter(Boolean).join(' · '));
+  return rows;
+}

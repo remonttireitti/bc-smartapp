@@ -4,8 +4,6 @@ import ToggleSwitch from '../ToggleSwitch';
 import { useHuoltoPrintFormLayout } from '../../hooks/useHuoltoPrintFormLayout';
 import { useMaintenanceDocumentLayout } from '../../hooks/useMaintenanceDocumentLayout';
 import { MaintenanceReportSectionSettingsLink } from './MaintenanceReportSectionSettingsLink';
-import { MaintenanceReportBasicsPanel } from './MaintenanceReportBasicsPanel';
-import { MaintenanceDeviceSummary } from './MaintenanceDeviceSummary';
 import { HuoltotiedotStatusDialog } from './HuoltotiedotStatusDialog';
 import { CondensersSection } from './CondensersSection';
 import { CustomModuleFormSection } from './CustomModuleFormSection';
@@ -14,9 +12,10 @@ import { EvaporatorsSection } from './EvaporatorsSection';
 import { HuomiotSection } from './HuomiotSection';
 import { JaahdytysvesiSection } from './JaahdytysvesiSection';
 import { KonvektoritSection } from './KonvektoritSection';
-import { LampopumppuSection } from './LampopumppuSection';
+import { LampopumppuDocumentSection } from './LampopumppuDocumentSection';
 import { LauhdutuspiiriSection } from './LauhdutuspiiriSection';
-import { MlpSection } from './MlpSection';
+import { MlpDocumentSection } from './MlpDocumentSection';
+import { RaportointiTabSection } from './RaportointiTabSection';
 import { NestelauhduttimetSection } from './NestelauhduttimetSection';
 import { RefrigerantCircuitsSection } from './RefrigerantCircuitsSection';
 import { RefrigerantChargeSection } from './RefrigerantChargeSection';
@@ -183,9 +182,11 @@ export function MaintenanceReportTabContent({
   if (tabId === 'raportointi') {
     return (
       <section className="maintenance-report-tab-section">
-        <MaintenanceReportBasicsPanel
+        <RaportointiTabSection
           form={form}
-          fieldErrors={basicsFieldErrors}
+          basicsFieldErrors={basicsFieldErrors}
+          deviceFieldErrors={deviceFieldErrors}
+          basicsComplete={basicsComplete}
           profileCompanyId={profile?.company_id}
           reportOwnerCompanyId={reportOwnerCompanyId}
           reportOwnerTargets={reportOwnerTargets}
@@ -208,32 +209,22 @@ export function MaintenanceReportTabContent({
           equipment={equipment}
           equipmentId={equipmentId}
           copySourceEquipmentId={copySourceEquipmentId}
-          onSelectEquipment={onSelectEquipment}
-          onClearEquipment={onClearEquipment}
-          onCreateEquipment={onCreateEquipment}
-          onReportOwnerChange={onReportOwnerChange}
+          showKonvektoritSection={showKonvektoritSection}
+          printBusy={printBusy}
+          deviceButtonLabel={deviceButtonLabel}
           onPatchForm={onPatchForm}
+          onOpenDeviceDialog={onOpenDeviceDialog}
+          onReportOwnerChange={onReportOwnerChange}
           onSelectCustomer={onSelectCustomer}
           onClearCustomer={onClearCustomer}
           onCreateCustomer={onCreateCustomer}
+          onSelectEquipment={onSelectEquipment}
+          onClearEquipment={onClearEquipment}
+          onCreateEquipment={onCreateEquipment}
           onSubscriberChange={onSubscriberChange}
           onSubscriberPortalVisibilityChange={onSubscriberPortalVisibilityChange}
+          onPrintKonvektoriFaults={onPrintKonvektoriFaults}
         />
-        <MaintenanceDeviceSummary
-          form={form}
-          deviceFieldErrors={deviceFieldErrors}
-          complete={basicsComplete}
-          onEdit={onOpenDeviceDialog}
-          editButtonLabel={deviceButtonLabel}
-        />
-        {showKonvektoritSection ? (
-          <KonvektoritSection
-            rows={form.konvektoriRows ?? []}
-            onChange={(rows) => onPatchForm({ konvektoriRows: rows })}
-            onPrintFaults={onPrintKonvektoriFaults}
-            printFaultsBusy={printBusy}
-          />
-        ) : null}
       </section>
     );
   }
@@ -271,7 +262,11 @@ export function MaintenanceReportTabContent({
       <section className="maintenance-report-tab-section huolto-modules-stack">
         <EvaporatorCircuitsSync form={form} onChange={onSyncForm} />
         {!isChillerLikeDevice(form.laiteTyyppi) ? (
-          <EvaporatorsSection form={form} onChange={onPatchForm} />
+          <EvaporatorsSection
+            form={form}
+            onChange={onPatchForm}
+            documentModuleKey={documentLayout ? 'hoyrystin' : undefined}
+          />
         ) : null}
       </section>
     );
@@ -280,7 +275,11 @@ export function MaintenanceReportTabContent({
   if (tabId === 'lauhdutin' && showCondenserSection) {
     return (
       <section className="maintenance-report-tab-section huolto-modules-stack">
-        <CondensersSection form={form} onChange={onPatchForm} />
+        <CondensersSection
+          form={form}
+          onChange={onPatchForm}
+          documentModuleKey={documentLayout ? 'lauhdutin' : undefined}
+        />
       </section>
     );
   }
@@ -338,7 +337,7 @@ export function MaintenanceReportTabContent({
   if (tabId === 'lampopumppu' && showLampopumppuSection) {
     return (
       <section className="maintenance-report-tab-section huolto-modules-stack">
-        <LampopumppuSection
+        <LampopumppuDocumentSection
           form={form}
           onChange={onPatchForm}
           showUlkoyksikko={lampopumppuParts.ulkoyksikko}
@@ -352,7 +351,7 @@ export function MaintenanceReportTabContent({
   if (tabId === 'mlp' && showMlpSection && form.mlpData) {
     return (
       <section className="maintenance-report-tab-section huolto-modules-stack">
-        <MlpSection form={form} onChange={onPatchForm} />
+        <MlpDocumentSection form={form} onChange={onPatchForm} />
       </section>
     );
   }
@@ -360,7 +359,7 @@ export function MaintenanceReportTabContent({
   if (tabId === 'kiinteistoJahdytys' && showChillerKiinteistoTab && form.mlpData) {
     return (
       <section className="maintenance-report-tab-section huolto-modules-stack">
-        <MlpSection form={form} onChange={onPatchForm} part="kiinteisto" />
+        <MlpDocumentSection form={form} onChange={onPatchForm} part="kiinteisto" />
       </section>
     );
   }
@@ -368,7 +367,7 @@ export function MaintenanceReportTabContent({
   if (tabId === 'energia' && showChillerEnergyTab && form.mlpData) {
     return (
       <section className="maintenance-report-tab-section huolto-modules-stack">
-        <MlpSection form={form} onChange={onPatchForm} part="energia" />
+        <MlpDocumentSection form={form} onChange={onPatchForm} part="energia" />
       </section>
     );
   }
