@@ -142,7 +142,7 @@ export function RaportointiTabSection({
         onSubscriberPortalVisibilityChange={onSubscriberPortalVisibilityChange}
       />
       <MaintenanceDeviceSummary
-        form={draft}
+        form={form}
         deviceFieldErrors={deviceFieldErrors}
         complete={basicsComplete}
         onEdit={onOpenDeviceDialog}

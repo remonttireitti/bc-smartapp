@@ -74,10 +74,6 @@ export function useHuoltoInspectionDialog<T>({
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState(data);
 
-  useEffect(() => {
-    if (open) setDraft(data);
-  }, [open, data]);
-
   const closeDialog = useCallback(() => {
     const saveOk = canSave ? canSave(draft) : true;
     if (saveOk) onChange(draft);
@@ -85,8 +81,9 @@ export function useHuoltoInspectionDialog<T>({
   }, [canSave, draft, onChange]);
 
   const openDialog = useCallback(() => {
+    setDraft(data);
     setOpen(true);
-  }, []);
+  }, [data]);
 
   return {
     open,

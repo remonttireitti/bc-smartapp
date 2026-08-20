@@ -1312,15 +1312,6 @@ export default function MaintenanceReportEditPage({ session }: Props) {
     });
   }
 
-  function onDeviceTypeChange(deviceType: string) {
-    setHasUnsavedChanges(true);
-    setForm((prev) => ({
-      ...applyDeviceTypeDefaults(prev, deviceType),
-      hiddenTabIds: [],
-      moduleTabOrder: [],
-    }));
-  }
-
   function onCondenserTypeChange(condenserType: HuoltoReportData['lauhdutinTyyppiLaite']) {
     syncResolvedModules({
       lauhdutinTyyppiLaite: condenserType,
@@ -1757,6 +1748,51 @@ export default function MaintenanceReportEditPage({ session }: Props) {
     }
   }
 
+  function applyDeviceDialogClose(deviceDraft: HuoltoReportData): boolean {
+    const validation = validateMaintenanceDeviceBasics({
+      laiteTyyppi: deviceDraft.laiteTyyppi,
+      laiteValmistaja: deviceDraft.laiteValmistaja,
+      laiteMalli: deviceDraft.laiteMalli,
+      laiteTunnus: deviceDraft.laiteTunnus,
+      laiteSarjanumero: deviceDraft.laiteSarjanumero,
+      laiteSijainti: deviceDraft.laiteSijainti,
+      laiteKayttotarkoitus: deviceDraft.laiteKayttotarkoitus,
+      kylmaaineTyyppi: deviceDraft.kylmaaineTyyppi,
+      kylmaainePiireja: deviceDraft.kylmaainePiireja,
+      selectedModules: deviceDraft.selectedModules,
+    });
+    if (!validation.ok) {
+      setDeviceFieldErrors(validation.fieldErrors);
+      return false;
+    }
+
+    setDeviceFieldErrors({});
+    setHasUnsavedChanges(true);
+    const base = formStateRef.current.form;
+    const withDefaults: HuoltoReportData =
+      deviceDraft.laiteTyyppi !== base.laiteTyyppi
+        ? {
+            ...applyDeviceTypeDefaults(base, deviceDraft.laiteTyyppi),
+            hiddenTabIds: [],
+            moduleTabOrder: [],
+          }
+        : base;
+    const next = mergeHuoltoReportData(withDefaults, {
+      laiteTyyppi: deviceDraft.laiteTyyppi,
+      laiteValmistaja: deviceDraft.laiteValmistaja,
+      laiteMalli: deviceDraft.laiteMalli,
+      laiteTunnus: deviceDraft.laiteTunnus,
+      laiteSarjanumero: deviceDraft.laiteSarjanumero,
+      laiteSijainti: deviceDraft.laiteSijainti,
+      laiteKayttotarkoitus: deviceDraft.laiteKayttotarkoitus,
+      vjOhjausData: deviceDraft.vjOhjausData,
+    });
+    formStateRef.current = { ...formStateRef.current, form: next };
+    persistDraftLocally(next);
+    setForm(next);
+    return true;
+  }
+
   function openDeviceDialog() {
     const customerResult = validateMaintenanceCustomerBasics(customerBasicsInput);
     setBasicsFieldErrors(customerResult.fieldErrors);
@@ -1944,8 +1980,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
         fieldErrors={deviceFieldErrors}
         registryMessage={registryMessage}
         copySiblingMode={copySiblingMode}
-        onChange={patchForm}
-        onDeviceTypeChange={onDeviceTypeChange}
+        onApply={applyDeviceDialogClose}
         onClose={() => {
           setDeviceDialogOpen(false);
           setHasUnsavedChanges(true);

@@ -14,8 +14,7 @@ type Props = {
   fieldErrors: Record<string, string>;
   registryMessage?: string | null;
   copySiblingMode: boolean;
-  onChange: (patch: Partial<HuoltoReportData>) => void;
-  onDeviceTypeChange: (deviceType: string) => void;
+  onApply: (draft: HuoltoReportData) => boolean;
   onClose: () => void;
 };
 
@@ -25,8 +24,7 @@ export function MaintenanceDeviceDialog({
   fieldErrors,
   registryMessage,
   copySiblingMode,
-  onChange,
-  onDeviceTypeChange,
+  onApply,
   onClose,
 }: Props) {
   const [draft, setDraft] = useState(form);
@@ -38,18 +36,7 @@ export function MaintenanceDeviceDialog({
   const patchDraft = (patch: Partial<HuoltoReportData>) => setDraft((prev) => ({ ...prev, ...patch }));
 
   const handleClose = () => {
-    if (draft.laiteTyyppi !== form.laiteTyyppi) {
-      onDeviceTypeChange(draft.laiteTyyppi);
-    }
-    onChange({
-      laiteValmistaja: draft.laiteValmistaja,
-      laiteMalli: draft.laiteMalli,
-      laiteTunnus: draft.laiteTunnus,
-      laiteSarjanumero: draft.laiteSarjanumero,
-      laiteSijainti: draft.laiteSijainti,
-      laiteKayttotarkoitus: draft.laiteKayttotarkoitus,
-      vjOhjausData: draft.vjOhjausData,
-    });
+    if (!onApply(draft)) return;
     onClose();
   };
 
