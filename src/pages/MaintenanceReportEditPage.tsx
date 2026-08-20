@@ -8,6 +8,7 @@ import { useDraftLeaveGuard } from '../hooks/useDraftLeaveGuard';
 import type { Session } from '@supabase/supabase-js';
 import AppLayout from '../components/AppLayout';
 import { type NewCustomerDraft } from '../components/CustomerRegistryPicker';
+import { type NewEquipmentDraft } from '../components/EquipmentRegistryPicker';
 import MaintenanceReportTabNav from '../components/huoltoRaportti/MaintenanceReportTabNav';
 import { MaintenanceReportTabDialog } from '../components/huoltoRaportti/MaintenanceReportTabDialog';
 import { MaintenanceReportDocumentView } from '../components/huoltoRaportti/MaintenanceReportDocumentView';
@@ -26,6 +27,7 @@ import {
   createEmptyMlpData,
   createEmptyKonvektoriRow,
   ensureChillerLiquidCondenserData,
+  konvektoriRowsHaveMaintenanceData,
   konvektoriRowsMaintenanceScore,
   mergeHuoltoReportData,
   normalizeHuoltoReportData,
@@ -156,7 +158,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
   const [partnerships, setPartnerships] = useState<Partnership[]>([]);
   const [ownerCompany, setOwnerCompany] = useState<Company | null>(null);
   const [customers, setCustomers] = useState<Customer[]>([]);
-  const [, setEquipment] = useState<Equipment[]>([]);
+  const [equipment, setEquipment] = useState<Equipment[]>([]);
   const [customerId, setCustomerId] = useState('');
   const [subscriberId, setSubscriberId] = useState('');
   const [subscriberPortalVisibility, setSubscriberPortalVisibility] =
@@ -1022,22 +1024,96 @@ export default function MaintenanceReportEditPage({ session }: Props) {
 
     const currentForm = formStateRef.current.form;
     const deviceType = eq.device_type ?? currentForm.laiteTyyppi;
-    const basePatch: Partial<HuoltoReportData> = {
-      laiteTunnus: String(eq.tag || eq.name || '').trim(),
-      laiteMalli: String(eq.model || '').trim(),
-      laiteSarjanumero:
-        deviceType === 'lämpöpumppu' ? '' : String(eq.serial_number || '').trim(),
-      laiteSijainti: String(eq.location || '').trim(),
-    };
+    const basePatch: Partial<HuoltoReportData> = isKonvektoritDevice(deviceType)
+      ? {
+          laiteKayttotarkoitus: String(eq.name || '').trim(),
+          laiteTunnus: String(eq.tag || '').trim(),
+          laiteSijainti: String(eq.location || '').trim(),
+        }
+      : {
+          laiteTunnus: String(eq.tag || eq.name || '').trim(),
+          laiteMalli: String(eq.model || '').trim(),
+          laiteSarjanumero:
+            deviceType === 'lämpöpumppu' ? '' : String(eq.serial_number || '').trim(),
+          laiteSijainti: String(eq.location || '').trim(),
+        };
     if (eq.device_type) basePatch.laiteTyyppi = eq.device_type;
 
     const snapshotPatch = applyEquipmentSnapshotToForm(currentForm, eq.huolto_technical_snapshot);
-    delete snapshotPatch.konvektoriRows;
+    if (konvektoriRowsHaveMaintenanceData(currentForm.konvektoriRows)) {
+      delete snapshotPatch.konvektoriRows;
+    }
     const merged = mergeHuoltoReportData(currentForm, { ...basePatch, ...snapshotPatch });
     const finalForm = eq.device_type ? applyDeviceTypeDefaults(merged, eq.device_type) : merged;
     formStateRef.current = { ...formStateRef.current, form: finalForm };
     setHasUnsavedChanges(true);
     setForm(finalForm);
+  }
+
+  async function createEquipmentAndSelect(draft: NewEquipmentDraft) {
+    if (!ownerCompanyId || !customerId) {
+      setError('Valitse ensin asiakas.');
+      return;
+    }
+    const name =
+      draft.name.trim()
+      || (isKonvektoritDevice(form.laiteTyyppi) ? form.laiteKayttotarkoitus.trim() : '')
+      || form.laiteTunnus.trim()
+      || form.laiteMalli.trim();
+    if (!name) {
+      setError(
+        isKonvektoritDevice(form.laiteTyyppi)
+          ? 'Laitteen nimi tai verkoston kuvaus on pakollinen.'
+          : 'Laitteen nimi, tunnus tai malli on pakollinen.',
+      );
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    const { data, error: insertError } = await supabase
+      .from('equipment')
+      .insert({
+        owner_company_id: ownerCompanyId,
+        customer_id: customerId,
+        name,
+        tag: draft.tag.trim() || form.laiteTunnus.trim() || null,
+        model: draft.model.trim() || form.laiteMalli.trim() || null,
+        serial_number: draft.serial_number.trim() || form.laiteSarjanumero.trim() || null,
+        location: draft.location.trim() || form.laiteSijainti.trim() || null,
+        device_type: form.laiteTyyppi || null,
+      })
+      .select('id, name, tag, model, serial_number, location, customer_id, device_type')
+      .single();
+
+    if (insertError || !data) {
+      setError(insertError?.message ?? 'Laitteen luonti epäonnistui.');
+      setBusy(false);
+      return;
+    }
+
+    const created = data as Equipment;
+    setEquipment((prev) => [...prev, created].sort((a, b) => a.name.localeCompare(b.name, 'fi')));
+    setEquipmentId(created.id);
+    if (isKonvektoritDevice(form.laiteTyyppi)) {
+      patchForm({
+        laiteKayttotarkoitus: created.name || form.laiteKayttotarkoitus,
+        laiteTunnus: created.tag || form.laiteTunnus,
+        laiteSijainti: created.location || form.laiteSijainti,
+      });
+    } else {
+      patchForm({
+        laiteTunnus: created.tag || created.name || form.laiteTunnus,
+        laiteMalli: created.model || form.laiteMalli,
+        laiteSarjanumero: created.serial_number || form.laiteSarjanumero,
+        laiteSijainti: created.location || form.laiteSijainti,
+      });
+    }
+    if (copySiblingMode) {
+      setCopySiblingMode(false);
+      setCopySourceEquipmentId(null);
+    }
+    setRegistryMessage('Laite luotu rekisteriin ja valittu raportille.');
+    setBusy(false);
   }
 
   async function createCustomerAndSelect(draft: NewCustomerDraft) {
@@ -1721,6 +1797,9 @@ export default function MaintenanceReportEditPage({ session }: Props) {
     subscriberPortalVisibility,
     busy,
     copySiblingMode,
+    equipment,
+    equipmentId,
+    copySourceEquipmentId: copySourceEquipmentId,
     deviceButtonLabel,
     isOnline,
     onReportOwnerChange,
@@ -1741,6 +1820,9 @@ export default function MaintenanceReportEditPage({ session }: Props) {
       if (profile?.company_id) void loadOwnerCompany(profile.company_id);
     },
     onCreateCustomer: createCustomerAndSelect,
+    onSelectEquipment: setEquipmentId,
+    onClearEquipment: () => setEquipmentId(''),
+    onCreateEquipment: createEquipmentAndSelect,
     onSubscriberChange: setSubscriberId,
     onSubscriberPortalVisibilityChange: setSubscriberPortalVisibility,
     onOpenDeviceDialog: openDeviceDialog,
@@ -1940,6 +2022,9 @@ export default function MaintenanceReportEditPage({ session }: Props) {
                   subscriberPortalVisibility={subscriberPortalVisibility}
                   busy={busy}
                   copySiblingMode={copySiblingMode}
+                  equipment={equipment}
+                  equipmentId={equipmentId}
+                  copySourceEquipmentId={copySourceEquipmentId}
                   onReportOwnerChange={onReportOwnerChange}
                   onPatchForm={patchForm}
                   onSelectCustomer={(id) => {
@@ -1957,6 +2042,9 @@ export default function MaintenanceReportEditPage({ session }: Props) {
                     if (profile?.company_id) void loadOwnerCompany(profile.company_id);
                   }}
                   onCreateCustomer={createCustomerAndSelect}
+                  onSelectEquipment={setEquipmentId}
+                  onClearEquipment={() => setEquipmentId('')}
+                  onCreateEquipment={createEquipmentAndSelect}
                   onSubscriberChange={setSubscriberId}
                   onSubscriberPortalVisibilityChange={setSubscriberPortalVisibility}
                 />

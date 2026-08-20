@@ -25,13 +25,14 @@ import { TyhjiointiSection } from './TyhjiointiSection';
 import { VapaajahdytysSection } from './VapaajahdytysSection';
 import { VjLauhdutinSection } from './VjLauhdutinSection';
 import type { NewCustomerDraft } from '../CustomerRegistryPicker';
+import type { NewEquipmentDraft } from '../EquipmentRegistryPicker';
 import type { ReportOwnerTarget } from '../../lib/huoltoRaportti/maintenanceReportBasicsValidation';
 import type { ModuleKey } from '../../lib/huoltoRaportti/constants';
 import { isChillerLikeDevice, usesRefrigerantServiceExtras } from '../../lib/huoltoRaportti/deviceModuleLogic';
 import type { MaintenanceReportTabId } from '../../lib/huoltoRaportti/maintenanceReportTabs';
 import { isCustomModuleTabId, parseCustomModuleTabId } from '../../lib/huoltoRaportti/customModuleTypes';
 import type { HuoltoReportData } from '../../lib/huoltoRaportti/types';
-import type { Customer, Subscriber } from '../../types';
+import type { Customer, Equipment, Subscriber } from '../../types';
 import type { SubscriberPortalVisibility } from '../../lib/subscriberPortalVisibility';
 import { PrintFieldRow, PrintInnerBox, PrintTextInput } from './print/MaintenancePrintLayout';
 
@@ -81,6 +82,9 @@ export type MaintenanceReportTabContentProps = {
   subscriberPortalVisibility: SubscriberPortalVisibility;
   busy: boolean;
   copySiblingMode: boolean;
+  equipment: Equipment[];
+  equipmentId: string;
+  copySourceEquipmentId: string | null;
   deviceButtonLabel: string;
   isOnline: boolean;
   onReportOwnerChange: (companyId: string) => void;
@@ -89,6 +93,9 @@ export type MaintenanceReportTabContentProps = {
   onSelectCustomer: (id: string) => void;
   onClearCustomer: () => void;
   onCreateCustomer: (draft: NewCustomerDraft) => Promise<void>;
+  onSelectEquipment: (id: string) => void;
+  onClearEquipment: () => void;
+  onCreateEquipment: (draft: NewEquipmentDraft) => Promise<void>;
   onSubscriberChange: (id: string) => void;
   onSubscriberPortalVisibilityChange: (value: SubscriberPortalVisibility) => void;
   onOpenDeviceDialog: () => void;
@@ -141,6 +148,9 @@ export function MaintenanceReportTabContent({
   subscriberPortalVisibility,
   busy,
   copySiblingMode,
+  equipment,
+  equipmentId,
+  copySourceEquipmentId,
   deviceButtonLabel,
   onReportOwnerChange,
   onPatchForm,
@@ -148,6 +158,9 @@ export function MaintenanceReportTabContent({
   onSelectCustomer,
   onClearCustomer,
   onCreateCustomer,
+  onSelectEquipment,
+  onClearEquipment,
+  onCreateEquipment,
   onSubscriberChange,
   onSubscriberPortalVisibilityChange,
   onOpenDeviceDialog,
@@ -189,6 +202,12 @@ export function MaintenanceReportTabContent({
           subscriberPortalVisibility={subscriberPortalVisibility}
           busy={busy}
           copySiblingMode={copySiblingMode}
+          equipment={equipment}
+          equipmentId={equipmentId}
+          copySourceEquipmentId={copySourceEquipmentId}
+          onSelectEquipment={onSelectEquipment}
+          onClearEquipment={onClearEquipment}
+          onCreateEquipment={onCreateEquipment}
           onReportOwnerChange={onReportOwnerChange}
           onPatchForm={onPatchForm}
           onSelectCustomer={onSelectCustomer}

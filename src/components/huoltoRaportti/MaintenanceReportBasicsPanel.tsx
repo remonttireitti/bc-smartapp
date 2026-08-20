@@ -1,10 +1,12 @@
 import CustomerRegistryPicker, { type NewCustomerDraft } from '../CustomerRegistryPicker';
+import EquipmentRegistryPicker, { type NewEquipmentDraft } from '../EquipmentRegistryPicker';
 import SubscriberPicker from '../SubscriberPicker';
 import SubscriberPortalVisibilityField from '../SubscriberPortalVisibilityField';
 import type { ReportOwnerTarget } from '../../lib/huoltoRaportti/maintenanceReportBasicsValidation';
 import type { HuoltoReportData } from '../../lib/huoltoRaportti/types';
 import { reportHasSubscriberLink } from '../../lib/subscriberPortalVisibility';
-import type { Customer, SubscriberPortalVisibility } from '../../types';
+import { isKonvektoritDevice } from '../../lib/huoltoRaportti/deviceModuleLogic';
+import type { Customer, Equipment, SubscriberPortalVisibility } from '../../types';
 import { useHuoltoPrintFormLayout } from '../../hooks/useHuoltoPrintFormLayout';
 import { useMaintenanceDocumentLayout } from '../../hooks/useMaintenanceDocumentLayout';
 import { MaintenanceReportBasicsDialog } from './MaintenanceReportBasicsDialog';
@@ -35,11 +37,17 @@ type Props = {
   subscriberPortalVisibility: SubscriberPortalVisibility;
   busy: boolean;
   copySiblingMode: boolean;
+  equipment: Equipment[];
+  equipmentId: string;
+  copySourceEquipmentId: string | null;
   onReportOwnerChange: (companyId: string) => void;
   onPatchForm: (patch: Partial<HuoltoReportData>) => void;
   onSelectCustomer: (id: string) => void;
   onClearCustomer: () => void;
   onCreateCustomer: (draft: NewCustomerDraft) => Promise<void>;
+  onSelectEquipment: (id: string) => void;
+  onClearEquipment: () => void;
+  onCreateEquipment: (draft: NewEquipmentDraft) => Promise<void>;
   onSubscriberChange: (id: string) => void;
   onSubscriberPortalVisibilityChange: (value: SubscriberPortalVisibility) => void;
 };
@@ -65,11 +73,17 @@ export function MaintenanceReportBasicsPanel({
   subscriberPortalVisibility,
   busy,
   copySiblingMode,
+  equipment,
+  equipmentId,
+  copySourceEquipmentId,
   onReportOwnerChange,
   onPatchForm,
   onSelectCustomer,
   onClearCustomer,
   onCreateCustomer,
+  onSelectEquipment,
+  onClearEquipment,
+  onCreateEquipment,
   onSubscriberChange,
   onSubscriberPortalVisibilityChange,
 }: Props) {
@@ -185,6 +199,28 @@ export function MaintenanceReportBasicsPanel({
                 <p className="muted">
                   Täytä uuden laitteen tiedot ponnahdusikkunassa — laite ja huoltopöytäkirja luodaan kerralla.
                 </p>
+              ) : null}
+
+              {customerId ? (
+                <EquipmentRegistryPicker
+                  equipment={equipment}
+                  equipmentId={equipmentId}
+                  busy={busy}
+                  excludeEquipmentIds={copySourceEquipmentId ? [copySourceEquipmentId] : []}
+                  autoOpenCreate={copySiblingMode}
+                  placeholders={{
+                    name: isKonvektoritDevice(form.laiteTyyppi)
+                      ? form.laiteKayttotarkoitus || undefined
+                      : form.laiteTunnus || form.laiteMalli || undefined,
+                    tag: form.laiteTunnus || undefined,
+                    model: form.laiteMalli || undefined,
+                    serial_number: form.laiteSarjanumero || undefined,
+                    location: form.laiteSijainti || undefined,
+                  }}
+                  onSelect={onSelectEquipment}
+                  onClear={onClearEquipment}
+                  onCreate={onCreateEquipment}
+                />
               ) : null}
             </>
           ) : (
