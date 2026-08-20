@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
-import AppLayout from '../components/AppLayout';
 import NavigationBreadcrumb from '../components/NavigationBreadcrumb';
 import { useMaintenancePrintNavigation } from '../hooks/useMaintenancePrintNavigation';
 import { useProfile } from '../hooks/useProfile';
-import { formatPrintSaveFileName, guardPrintTitle } from '../lib/printDocumentShell';
+import { formatPrintSaveFileName } from '../lib/printDocumentShell';
 import { loadMaintenanceReportPrintBundle } from '../lib/maintenanceReportPrintAction';
+import { openPrintHtml } from '../lib/openPrintWindow';
 import { isPortalReadOnly } from '../lib/portalWorkOrder';
 import type { HuoltoReportData } from '../lib/huoltoRaportti/types';
 import { maintenanceListTrail } from '../lib/navigationTrail';
@@ -39,24 +39,9 @@ export default function MaintenanceReportPrintPage({ session }: Props) {
   }, [id]);
 
   useEffect(() => {
-    if (!printTitle) return;
-    document.title = printTitle;
-    return () => {
-      document.title = 'BC Smartapp';
-    };
-  }, [printTitle]);
-
-  useEffect(() => {
     if (!autoPrint || loading || !html || !printTitle || autoPrintTriggeredRef.current) return;
     autoPrintTriggeredRef.current = true;
-    const releaseTitle = guardPrintTitle(printTitle);
-    const timer = window.setTimeout(() => {
-      window.print();
-    }, 400);
-    return () => {
-      window.clearTimeout(timer);
-      releaseTitle();
-    };
+    openPrintHtml(html, { documentTitle: printTitle });
   }, [autoPrint, html, loading, printTitle]);
 
   async function loadReport(reportId: string) {
@@ -76,61 +61,62 @@ export default function MaintenanceReportPrintPage({ session }: Props) {
   }
 
   function triggerPrint() {
-    if (!printTitle) {
-      window.print();
-      return;
-    }
-    const releaseTitle = guardPrintTitle(printTitle);
-    window.setTimeout(() => {
-      window.print();
-      window.setTimeout(releaseTitle, 3_500);
-    }, 150);
+    if (!html) return;
+    openPrintHtml(html, { documentTitle: printTitle || undefined });
   }
 
   if (loading) {
     return (
-      <AppLayout session={session}>
+      <div className="maintenance-print-page maintenance-print-page--standalone">
         <p className="muted">Ladataan tulostetta…</p>
-      </AppLayout>
+      </div>
     );
   }
 
   if (error) {
     return (
-      <AppLayout session={session}>
+      <div className="maintenance-print-page maintenance-print-page--standalone">
         <section className="panel">
           <p className="error">{error}</p>
           <Link to={maintenanceListTrail().backTo} className="btn btn-secondary">
             Takaisin listaan
           </Link>
         </section>
-      </AppLayout>
+      </div>
     );
   }
 
   return (
-    <AppLayout session={session}>
-      <div className="maintenance-print-page">
-        <div className="page-header no-print">
-          <div>
-            <NavigationBreadcrumb items={navigation.breadcrumb} />
-            <h1>Huoltoraportin tuloste</h1>
-            {printTitle ? <p className="muted">Tiedostonimi: {printTitle}</p> : null}
-          </div>
-          <div className="btn-group">
-            <button type="button" className="btn btn-primary" onClick={triggerPrint}>
-              Tulosta
-            </button>
-            {navigation.linkToEdit && !portalReadOnly && (
-              <Link {...navigation.linkToEdit} className="btn btn-secondary">
-                Muokkaa raporttia
-              </Link>
-            )}
-          </div>
+    <div className="maintenance-print-page maintenance-print-page--standalone">
+      <div className="page-header no-print maintenance-print-toolbar">
+        <div>
+          <NavigationBreadcrumb items={navigation.breadcrumb} />
+          <h1>Huoltoraportin tuloste</h1>
+          {printTitle ? (
+            <p className="muted maintenance-print-filename-hint">
+              PDF-tiedostonimi: <strong>{printTitle}</strong>
+            </p>
+          ) : null}
+          <p className="muted maintenance-print-help">
+            Tulostus avautuu erillisessä ikkunassa ilman sovelluksen valikkoa. Valitse tulostimena{' '}
+            <strong>Tallenna PDF-muodossa</strong> — tiedostonimi täyttyy automaattisesti. Poista
+            valinnasta <strong>Ylätunnisteet ja alatunnisteet</strong>, jotta päivämäärä ja otsikko
+            eivät tule paperille.
+          </p>
         </div>
-
-        <div className="maintenance-print-host" dangerouslySetInnerHTML={{ __html: html }} />
+        <div className="btn-group">
+          <button type="button" className="btn btn-primary" onClick={triggerPrint}>
+            Tulosta
+          </button>
+          {navigation.linkToEdit && !portalReadOnly && (
+            <Link {...navigation.linkToEdit} className="btn btn-secondary">
+              Muokkaa raporttia
+            </Link>
+          )}
+        </div>
       </div>
-    </AppLayout>
+
+      <div className="maintenance-print-host" dangerouslySetInnerHTML={{ __html: html }} />
+    </div>
   );
 }

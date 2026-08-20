@@ -7586,6 +7586,26 @@ textarea {
   border: 1px solid var(--border);
 }
 
+.maintenance-print-page--standalone {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 1rem 1.25rem 2rem;
+}
+
+.maintenance-print-toolbar {
+  margin-bottom: 1rem;
+}
+
+.maintenance-print-help {
+  font-size: 0.88rem;
+  max-width: 44rem;
+  margin-top: 0.35rem;
+}
+
+.maintenance-print-filename-hint {
+  margin-top: 0.25rem;
+}
+
 .installation-print-page .installation-print-host {
   background: #fff;
   color: #111827;
@@ -8951,10 +8971,13 @@ textarea {
   .no-print { display: none !important; }
   .dashboard:has(.work-report-print-page) > .topbar,
   .dashboard:has(.temp-report-print-page) > .topbar,
+  .dashboard:has(.maintenance-print-page) > .topbar,
   .dashboard:has(.work-report-print-page) > .footer,
-  .dashboard:has(.temp-report-print-page) > .footer { display: none !important; }
+  .dashboard:has(.temp-report-print-page) > .footer,
+  .dashboard:has(.maintenance-print-page) > .footer { display: none !important; }
   .dashboard:has(.work-report-print-page) > .main,
-  .dashboard:has(.temp-report-print-page) > .main {
+  .dashboard:has(.temp-report-print-page) > .main,
+  .dashboard:has(.maintenance-print-page) > .main {
     padding: 0 !important;
     margin: 0 !important;
     max-width: none !important;

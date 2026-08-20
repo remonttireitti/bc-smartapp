@@ -58,6 +58,37 @@ const PRINT_TITLE_HOLD_MS = 3_000;
  */
 export function guardPrintTitle(title: string, printWindow?: Window | null): () => void {
   const safeTitle = formatPrintSaveFileName(title);
+
+  if (printWindow?.document) {
+    const printDoc = printWindow.document;
+    const previousTitle = printDoc.title;
+    const printTitleEl = printDoc.querySelector('title');
+
+    const applyPopup = () => {
+      applyPrintDocumentTitle(printDoc, safeTitle);
+    };
+
+    applyPopup();
+
+    const observer = new MutationObserver(() => applyPopup());
+    if (printDoc.head) {
+      observer.observe(printDoc.head, { childList: true, subtree: true, characterData: true });
+    }
+
+    let released = false;
+    const release = () => {
+      if (released) return;
+      released = true;
+      observer.disconnect();
+      printDoc.title = previousTitle;
+      if (printTitleEl) printTitleEl.textContent = previousTitle;
+    };
+
+    printWindow.addEventListener('afterprint', release, { once: true });
+    window.setTimeout(release, PRINT_TITLE_HOLD_MS);
+    return release;
+  }
+
   const previous = document.title;
   const titleEl = document.querySelector('title');
 
@@ -85,38 +116,51 @@ export function guardPrintTitle(title: string, printWindow?: Window | null): () 
     if (titleEl) titleEl.textContent = previous;
   };
 
-  const windows = [window, printWindow].filter((w): w is Window => Boolean(w));
-  for (const w of windows) {
-    w.addEventListener('afterprint', release, { once: true });
-  }
+  window.addEventListener('afterprint', release, { once: true });
   window.setTimeout(release, PRINT_TITLE_HOLD_MS);
 
   return release;
+}
+
+const PRINT_DOC_RESET_STYLE = `<style data-print-doc-reset>
+@media print {
+  html, body { margin: 0 !important; padding: 0 !important; background: #fff !important; }
+}
+</style>`;
+
+function injectPrintDocumentReset(html: string): string {
+  if (html.includes('data-print-doc-reset')) return html;
+  if (/<head[\s>]/i.test(html)) {
+    return html.replace(/<head([^>]*)>/i, `<head$1>${PRINT_DOC_RESET_STYLE}`);
+  }
+  return html;
 }
 
 /** Varmista että tuloste-HTML:ssä on oikea <title> (PDF-tiedostonimi). */
 export function ensurePrintHtmlDocumentTitle(html: string, documentTitle: string): string {
   const safeTitle = formatPrintSaveFileName(documentTitle);
   const escapedTitle = escapeHtmlPrint(safeTitle);
+  let prepared: string;
   if (!/<html[\s>]/i.test(html)) {
-    return `<!doctype html>
+    prepared = `<!doctype html>
 <html lang="fi">
 <head>
 <meta charset="utf-8" />
 <title>${escapedTitle}</title>
+${PRINT_DOC_RESET_STYLE}
 </head>
 <body>
 ${html}
 </body>
 </html>`;
+  } else if (/<title[\s>]/i.test(html)) {
+    prepared = html.replace(/<title[^>]*>[\s\S]*?<\/title>/i, `<title>${escapedTitle}</title>`);
+  } else if (/<head[\s>]/i.test(html)) {
+    prepared = html.replace(/<head([^>]*)>/i, `<head$1><title>${escapedTitle}</title>`);
+  } else {
+    prepared = html.replace(/<html([^>]*)>/i, `<html$1><head><title>${escapedTitle}</title></head>`);
   }
-  if (/<title[\s>]/i.test(html)) {
-    return html.replace(/<title[^>]*>[\s\S]*?<\/title>/i, `<title>${escapedTitle}</title>`);
-  }
-  if (/<head[\s>]/i.test(html)) {
-    return html.replace(/<head([^>]*)>/i, `<head$1><title>${escapedTitle}</title>`);
-  }
-  return html.replace(/<html([^>]*)>/i, `<html$1><head><title>${escapedTitle}</title></head>`);
+  return injectPrintDocumentReset(prepared);
 }
 
 export type PrintBranding = {
