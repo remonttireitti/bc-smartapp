@@ -3,6 +3,7 @@ import {
   defaultCondenserTypeForDevice,
   isChillerLikeDevice,
   isHeatPumpCircuitsDevice,
+  isKonvektoritDevice,
   isLiquidCondenserType,
   resolveAutoModules,
   usesManualModuleMenu,
@@ -1190,10 +1191,18 @@ export function buildMaintenanceReportPrintTitle(
   const kohde = data.osoite?.trim() ?? '';
   const customerSite = kohde ? (asiakas ? `${asiakas} / ${kohde}` : kohde) : asiakas || '—';
 
-  const laite =
-    data.laiteTunnus?.trim() ||
-    [data.laiteValmistaja, data.laiteMalli].map((s) => s?.trim()).filter(Boolean).join(' ') ||
-    '—';
+  const laite = isKonvektoritDevice(data.laiteTyyppi)
+    ? (
+        data.laiteKayttotarkoitus?.trim()
+        || data.laiteTunnus?.trim()
+        || data.laiteSijainti?.trim()
+        || '—'
+      )
+    : (
+        data.laiteTunnus?.trim()
+        || [data.laiteValmistaja, data.laiteMalli].map((s) => s?.trim()).filter(Boolean).join(' ')
+        || '—'
+      );
 
   const deviceTypeLabel =
     deviceTypes.find((d) => d.value === data.laiteTyyppi)?.label?.trim() ||

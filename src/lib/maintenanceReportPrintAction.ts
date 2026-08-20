@@ -117,7 +117,7 @@ export async function openMaintenanceReportPrint(
   dataOverride?: HuoltoReportData,
 ) {
   const bundle = await loadMaintenanceReportPrintBundle(reportId, dataOverride);
-  openPrintHtml(bundle.html);
+  openPrintHtml(bundle.html, { documentTitle: bundle.documentTitle });
 }
 
 async function loadMaintenanceReportKonvektoriFaultPrintBundle(
@@ -185,5 +185,8 @@ export async function openMaintenanceReportKonvektoriFaultPrint(
   dataOverride?: HuoltoReportData,
 ) {
   const bundle = await loadMaintenanceReportKonvektoriFaultPrintBundle(reportId, dataOverride);
-  openPrintHtml(bundle.html, { imageWaitMs: 2_000 });
+  openPrintHtml(bundle.html, {
+    documentTitle: bundle.documentTitle,
+    imageWaitMs: 2_000,
+  });
 }

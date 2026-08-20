@@ -34,7 +34,10 @@ function waitForPrintImages(doc: Document, timeoutMs: number): Promise<void> {
   });
 }
 
-export function openPrintHtml(html: string, options?: { imageWaitMs?: number }) {
+export function openPrintHtml(
+  html: string,
+  options?: { imageWaitMs?: number; documentTitle?: string },
+) {
   const imageWaitMs = options?.imageWaitMs ?? DEFAULT_IMAGE_WAIT_MS;
   const printWindow = window.open('', '_blank');
   if (!printWindow) {
@@ -46,7 +49,22 @@ export function openPrintHtml(html: string, options?: { imageWaitMs?: number }) 
   printWindow.document.close();
   printWindow.focus();
 
+  const applyDocumentTitle = () => {
+    const explicit = options?.documentTitle?.trim();
+    if (explicit) {
+      printWindow.document.title = explicit;
+      return;
+    }
+    const fromHead = printWindow.document.querySelector('title')?.textContent?.trim();
+    if (fromHead) {
+      printWindow.document.title = fromHead;
+    }
+  };
+
+  applyDocumentTitle();
+
   const triggerPrint = () => {
+    applyDocumentTitle();
     printWindow.focus();
     printWindow.print();
   };

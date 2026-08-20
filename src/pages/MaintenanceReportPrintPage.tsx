@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
 import AppLayout from '../components/AppLayout';
@@ -24,6 +24,7 @@ export default function MaintenanceReportPrintPage({ session }: Props) {
   const [error, setError] = useState<string | null>(null);
   const navigation = useMaintenancePrintNavigation(id, reportData);
   const portalReadOnly = isPortalReadOnly(profile);
+  const printHostRef = useRef<HTMLIFrameElement>(null);
 
   useEffect(() => {
     if (!id) {
@@ -38,10 +39,14 @@ export default function MaintenanceReportPrintPage({ session }: Props) {
     if (!printTitle) return;
     const previous = document.title;
     document.title = printTitle;
+    const frame = printHostRef.current;
+    if (frame?.contentDocument) {
+      frame.contentDocument.title = printTitle;
+    }
     return () => {
       document.title = previous;
     };
-  }, [printTitle]);
+  }, [printTitle, html]);
 
   async function loadReport(reportId: string) {
     setLoading(true);
@@ -89,7 +94,21 @@ export default function MaintenanceReportPrintPage({ session }: Props) {
             <h1>Huoltoraportin tuloste</h1>
           </div>
           <div className="btn-group">
-            <button type="button" className="btn btn-primary" onClick={() => window.print()}>
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={() => {
+                const frame = printHostRef.current;
+                const frameWindow = frame?.contentWindow;
+                if (frameWindow && printTitle) {
+                  frameWindow.document.title = printTitle;
+                  frameWindow.focus();
+                  frameWindow.print();
+                  return;
+                }
+                window.print();
+              }}
+            >
               Tulosta
             </button>
             {navigation.linkToEdit && !portalReadOnly && (
@@ -101,6 +120,7 @@ export default function MaintenanceReportPrintPage({ session }: Props) {
         </div>
 
         <iframe
+          ref={printHostRef}
           title="Huoltoraportin tuloste"
           className="maintenance-print-host"
           srcDoc={html}
