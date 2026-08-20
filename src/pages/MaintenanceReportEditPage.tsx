@@ -112,6 +112,7 @@ import {
 import {
   isMaintenanceBasicsComplete,
   isRaportointiBasicsComplete,
+  fillMissingDeviceBasics,
   showRefrigerantBasics,
   validateMaintenanceCustomerBasics,
   validateMaintenanceDeviceBasics,
@@ -372,6 +373,8 @@ export default function MaintenanceReportEditPage({ session }: Props) {
     [customerBasicsInput, deviceBasicsInput],
   );
 
+  const showSetupWizard = isNew && !basicsComplete;
+
   const maintenanceTabBuildInput = useMemo(
     () => ({
       laiteTyyppi: form.laiteTyyppi,
@@ -433,8 +436,8 @@ export default function MaintenanceReportEditPage({ session }: Props) {
   );
 
   const maintenanceTabs = useMemo(
-    () => (basicsComplete ? allMaintenanceTabs : []),
-    [allMaintenanceTabs, basicsComplete],
+    () => (showSetupWizard ? [] : allMaintenanceTabs),
+    [allMaintenanceTabs, showSetupWizard],
   );
 
   const tabCompletion = useMemo(
@@ -800,18 +803,22 @@ export default function MaintenanceReportEditPage({ session }: Props) {
   }, [isNew, loadingReport, profileLoading, profile?.company_id, customerId]);
 
   useEffect(() => {
-    if (!isNew || !customerId) {
-      if (!customerId) hydratedNewReportCustomerIdRef.current = '';
+    if (!customerId) {
+      hydratedNewReportCustomerIdRef.current = '';
       return;
     }
-    if (hydratedNewReportCustomerIdRef.current === customerId) return;
     const c = customers.find((x) => x.id === customerId);
     if (!c) return;
-    hydratedNewReportCustomerIdRef.current = customerId;
+    const registryAddress = [c.address, c.city].filter(Boolean).join(', ');
+    const current = formStateRef.current.form;
+    const shouldHydrateNew = isNew && hydratedNewReportCustomerIdRef.current !== customerId;
+    const shouldHydrateExisting = !isNew && !current.osoite.trim() && Boolean(registryAddress);
+    if (!shouldHydrateNew && !shouldHydrateExisting) return;
+    if (isNew) hydratedNewReportCustomerIdRef.current = customerId;
     patchForm({
       customerId,
-      asiakas: c.name,
-      osoite: [c.address, c.city].filter(Boolean).join(', '),
+      asiakas: current.asiakas.trim() || c.name,
+      osoite: current.osoite.trim() || registryAddress,
     });
   }, [customerId, customers, isNew]);
 
@@ -915,6 +922,11 @@ export default function MaintenanceReportEditPage({ session }: Props) {
         .from('maintenance_reports')
         .update({ data: formToUse, updated_at: new Date().toISOString() })
         .eq('id', reportIdToLoad);
+    }
+
+    const deviceBasicsPatch = fillMissingDeviceBasics(formToUse);
+    if (Object.keys(deviceBasicsPatch).length > 0) {
+      formToUse = mergeHuoltoReportData(formToUse, deviceBasicsPatch);
     }
 
     const nextCustomerId = row.customer_id ?? row.data.customerId ?? sessionEditor?.customerId ?? '';
@@ -1040,7 +1052,8 @@ export default function MaintenanceReportEditPage({ session }: Props) {
         }
       : {
           laiteTunnus: String(eq.tag || eq.name || '').trim(),
-          laiteMalli: String(eq.model || '').trim(),
+          laiteMalli: String(eq.model || eq.name || '').trim(),
+          laiteValmistaja: String(currentForm.laiteValmistaja || '').trim(),
           laiteSarjanumero:
             deviceType === 'lämpöpumppu' ? '' : String(eq.serial_number || '').trim(),
           laiteSijainti: String(eq.location || '').trim(),
@@ -1052,7 +1065,8 @@ export default function MaintenanceReportEditPage({ session }: Props) {
       delete snapshotPatch.konvektoriRows;
     }
     const merged = mergeHuoltoReportData(currentForm, { ...basePatch, ...snapshotPatch });
-    const finalForm = eq.device_type ? applyDeviceTypeDefaults(merged, eq.device_type) : merged;
+    const withDefaults = eq.device_type ? applyDeviceTypeDefaults(merged, eq.device_type) : merged;
+    const finalForm = mergeHuoltoReportData(withDefaults, fillMissingDeviceBasics(withDefaults));
     formStateRef.current = { ...formStateRef.current, form: finalForm };
     setHasUnsavedChanges(true);
     setForm(finalForm);
@@ -1131,10 +1145,11 @@ export default function MaintenanceReportEditPage({ session }: Props) {
     if (customer) {
       void loadOwnerCompany(customer.owner_company_id);
       if (customer.subscriber_id) setSubscriberId(customer.subscriber_id);
+      const registryAddress = [customer.address, customer.city].filter(Boolean).join(', ');
       patchForm({
         customerId: id,
-        asiakas: customer.name,
-        osoite: [customer.address, customer.city].filter(Boolean).join(', '),
+        asiakas: formStateRef.current.form.asiakas.trim() || customer.name,
+        osoite: formStateRef.current.form.osoite.trim() || registryAddress,
       });
     }
   }
@@ -2010,7 +2025,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
         className={`panel form-grid maintenance-form${documentLayout ? ' maintenance-form--document' : ''}${!documentLayout && openTabId ? ' maintenance-tab-dialog-open' : ''}`}
         onSubmit={onSubmit}
       >
-        {!basicsComplete ? (
+        {!showSetupWizard ? (
           <MaintenanceSetupWizard
             step={setupStep}
             steps={setupSteps}
@@ -2187,8 +2202,8 @@ export default function MaintenanceReportEditPage({ session }: Props) {
 
         {error && <p className="error">{error}</p>}
 
-        {!basicsComplete ? renderEquipmentRegistryActions('maintenance-form-actions-equipment') : null}
-        {!basicsComplete ? renderPrintActions('maintenance-form-actions-equipment') : null}
+        {!showSetupWizard ? null : renderEquipmentRegistryActions('maintenance-form-actions-equipment')}
+        {!showSetupWizard ? null : renderPrintActions('maintenance-form-actions-equipment')}
 
         <div className="form-actions maintenance-form-actions">
           <div className="maintenance-actions-primary">

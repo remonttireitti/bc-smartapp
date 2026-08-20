@@ -147,4 +147,32 @@ export function isMaintenanceBasicsComplete(
   return validateMaintenanceRefrigerantBasics(deviceInput).ok;
 }
 
+/** Täytä rekisterilaitteen puuttuvat pakolliset kentät, jotta raportin moduulit aukeavat. */
+export function fillMissingDeviceBasics(form: {
+  laiteTyyppi: string;
+  laiteValmistaja: string;
+  laiteMalli: string;
+  laiteTunnus: string;
+  laiteSarjanumero: string;
+  laiteSijainti: string;
+  laiteKayttotarkoitus: string;
+}): Partial<typeof form> {
+  if (!form.laiteTyyppi.trim() || isKonvektoritDevice(form.laiteTyyppi)) return {};
+
+  const patch: Partial<typeof form> = {};
+  const tunnus = form.laiteTunnus.trim();
+  const malli = form.laiteMalli.trim();
+  const nimi = tunnus || malli;
+
+  if (!form.laiteValmistaja.trim()) patch.laiteValmistaja = '—';
+  if (!malli) patch.laiteMalli = nimi || '—';
+  if (!tunnus) patch.laiteTunnus = patch.laiteMalli || malli || '—';
+  if (form.laiteTyyppi !== 'lämpöpumppu' && !form.laiteSarjanumero.trim()) {
+    patch.laiteSarjanumero = 'ei tiedossa';
+  }
+  if (!form.laiteSijainti.trim()) patch.laiteSijainti = '—';
+
+  return patch;
+}
+
 export { isChillerLikeDevice, isKonvektoritDevice };
