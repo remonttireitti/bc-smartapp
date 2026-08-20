@@ -179,6 +179,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
   );
   const [registryMessage, setRegistryMessage] = useState<string | null>(null);
   const previousCustomerIdRef = useRef('');
+  const hydratedNewReportCustomerIdRef = useRef('');
   /** Estää raportin avauksessa rekisterin snapshotin ylikirjoittamasta tallennettua dataa. */
   const skipEquipmentRegistryHydrateRef = useRef<string | null>(null);
   const equipmentHydrateGenRef = useRef(0);
@@ -216,6 +217,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
   const isPublished = isMaintenanceReportPublished(status);
   const canEditCustomerEquipment = !portalMode && (isNew || status === 'draft');
   const canEditPublishedReport = !portalMode && isPublished;
+  const canEditCustomerPrintFields = canEditCustomerEquipment || canEditPublishedReport;
   const showEquipmentRegistryActions =
     !portalMode
     && Boolean(customerId && form.laiteTyyppi)
@@ -797,15 +799,19 @@ export default function MaintenanceReportEditPage({ session }: Props) {
   }, [isNew, loadingReport, profileLoading, profile?.company_id, customerId]);
 
   useEffect(() => {
-    if (!isNew || !customerId) return;
-    const c = customers.find((x) => x.id === customerId);
-    if (c) {
-      patchForm({
-        customerId,
-        asiakas: c.name,
-        osoite: [c.address, c.city].filter(Boolean).join(', '),
-      });
+    if (!isNew || !customerId) {
+      if (!customerId) hydratedNewReportCustomerIdRef.current = '';
+      return;
     }
+    if (hydratedNewReportCustomerIdRef.current === customerId) return;
+    const c = customers.find((x) => x.id === customerId);
+    if (!c) return;
+    hydratedNewReportCustomerIdRef.current = customerId;
+    patchForm({
+      customerId,
+      asiakas: c.name,
+      osoite: [c.address, c.city].filter(Boolean).join(', '),
+    });
   }, [customerId, customers, isNew]);
 
   useEffect(() => {
@@ -1117,6 +1123,21 @@ export default function MaintenanceReportEditPage({ session }: Props) {
     setBusy(false);
   }
 
+  function selectCustomerFromRegistry(id: string) {
+    setCustomerId(id);
+    setEquipmentId('');
+    const customer = customers.find((entry) => entry.id === id);
+    if (customer) {
+      void loadOwnerCompany(customer.owner_company_id);
+      if (customer.subscriber_id) setSubscriberId(customer.subscriber_id);
+      patchForm({
+        customerId: id,
+        asiakas: customer.name,
+        osoite: [customer.address, customer.city].filter(Boolean).join(', '),
+      });
+    }
+  }
+
   async function createCustomerAndSelect(draft: NewCustomerDraft) {
     if (!profile?.company_id || !draft.name.trim()) {
       setError('Asiakkaan nimi on pakollinen.');
@@ -1143,6 +1164,11 @@ export default function MaintenanceReportEditPage({ session }: Props) {
     setCustomers((prev) => [...prev, created].sort((a, b) => a.name.localeCompare(b.name, 'fi')));
     setCustomerId(created.id);
     void loadOwnerCompany(created.owner_company_id);
+    patchForm({
+      customerId: created.id,
+      asiakas: created.name,
+      osoite: [created.address, created.city].filter(Boolean).join(', '),
+    });
     setBusy(false);
   }
 
@@ -1467,7 +1493,8 @@ export default function MaintenanceReportEditPage({ session }: Props) {
         }
       }
 
-      const customerName = selectedCustomer?.name ?? (formStateRef.current.form.asiakas.trim() || null);
+      const customerName =
+        formStateRef.current.form.asiakas.trim() || selectedCustomer?.name || null;
       const title = buildMaintenanceReportTitleFromData(customerName, dataPayload);
 
       const resolvedStatus = nextStatus ?? status;
@@ -1615,13 +1642,15 @@ export default function MaintenanceReportEditPage({ session }: Props) {
 
   function buildReportDataPayload(): HuoltoReportData {
     const currentForm = formStateRef.current.form;
+    const registryAddress = [selectedCustomer?.address, selectedCustomer?.city]
+      .filter(Boolean)
+      .join(', ');
     return normalizeHuoltoReportData({
       ...currentForm,
       ...huoltoPerformerFields(profile, session),
       customerId: customerId || currentForm.customerId,
-      asiakas: selectedCustomer?.name ?? currentForm.asiakas,
-      osoite:
-        [selectedCustomer?.address, selectedCustomer?.city].filter(Boolean).join(', ') || currentForm.osoite,
+      asiakas: currentForm.asiakas.trim() || selectedCustomer?.name || '',
+      osoite: currentForm.osoite.trim() || registryAddress || '',
       equipmentSnapshot: buildHuoltoEquipmentTechnicalSnapshot(currentForm) as unknown as EquipmentSnapshot,
     });
   }
@@ -1788,6 +1817,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
     brandingName,
     creatorCompanyName,
     canEditCustomerEquipment,
+    canEditCustomerPrintFields,
     customerId,
     customers,
     selectedCustomer,
@@ -1806,15 +1836,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
     onReportOwnerChange,
     onPatchForm: patchForm,
     onSyncForm: syncForm,
-    onSelectCustomer: (id: string) => {
-      setCustomerId(id);
-      setEquipmentId('');
-      const customer = customers.find((entry) => entry.id === id);
-      if (customer) {
-        void loadOwnerCompany(customer.owner_company_id);
-        if (customer.subscriber_id) setSubscriberId(customer.subscriber_id);
-      }
-    },
+    onSelectCustomer: selectCustomerFromRegistry,
     onClearCustomer: () => {
       setCustomerId('');
       setEquipmentId('');
@@ -2013,6 +2035,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
                   creatorDisplayName={profile?.display_name ?? session.user.email ?? '—'}
                   creatorEmail={session.user.email}
                   canEditCustomerEquipment={canEditCustomerEquipment}
+                  canEditCustomerPrintFields={canEditCustomerPrintFields}
                   customerId={customerId}
                   customers={customers}
                   selectedCustomer={selectedCustomer}
@@ -2028,15 +2051,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
                   copySourceEquipmentId={copySourceEquipmentId}
                   onReportOwnerChange={onReportOwnerChange}
                   onPatchForm={patchForm}
-                  onSelectCustomer={(id) => {
-                    setCustomerId(id);
-                    setEquipmentId('');
-                    const customer = customers.find((entry) => entry.id === id);
-                    if (customer) {
-                      void loadOwnerCompany(customer.owner_company_id);
-                      if (customer.subscriber_id) setSubscriberId(customer.subscriber_id);
-                    }
-                  }}
+                  onSelectCustomer={selectCustomerFromRegistry}
                   onClearCustomer={() => {
                     setCustomerId('');
                     setEquipmentId('');

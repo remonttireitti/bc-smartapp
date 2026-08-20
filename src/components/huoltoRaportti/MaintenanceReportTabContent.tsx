@@ -72,6 +72,7 @@ export type MaintenanceReportTabContentProps = {
   brandingName: string;
   creatorCompanyName: string;
   canEditCustomerEquipment: boolean;
+  canEditCustomerPrintFields: boolean;
   customerId: string;
   customers: Customer[];
   selectedCustomer: Customer | null | undefined;
@@ -138,6 +139,7 @@ export function MaintenanceReportTabContent({
   brandingName,
   creatorCompanyName,
   canEditCustomerEquipment,
+  canEditCustomerPrintFields,
   customerId,
   customers,
   selectedCustomer,
@@ -192,6 +194,7 @@ export function MaintenanceReportTabContent({
           creatorDisplayName={profile?.display_name ?? session.user.email ?? '—'}
           creatorEmail={session.user.email}
           canEditCustomerEquipment={canEditCustomerEquipment}
+          canEditCustomerPrintFields={canEditCustomerPrintFields}
           customerId={customerId}
           customers={customers}
           selectedCustomer={selectedCustomer}

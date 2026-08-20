@@ -25,6 +25,7 @@ type Props = {
   creatorDisplayName: string;
   creatorEmail: string | undefined;
   canEditCustomerEquipment: boolean;
+  canEditCustomerPrintFields: boolean;
   busy: boolean;
   onReportOwnerChange: (companyId: string) => void;
   onPatchForm: (patch: Partial<HuoltoReportData>) => void;
@@ -52,6 +53,7 @@ export function MaintenanceReportBasicsDialog({
   creatorDisplayName,
   creatorEmail,
   canEditCustomerEquipment,
+  canEditCustomerPrintFields,
   busy,
   onReportOwnerChange,
   onPatchForm,
@@ -110,7 +112,7 @@ export function MaintenanceReportBasicsDialog({
           <PrintFieldRow label="Asiakas" error={fieldErrors.customer}>
             <PrintTextInput
               value={draft.asiakas}
-              disabled={!canEditCustomerEquipment}
+              disabled={!canEditCustomerPrintFields}
               onChange={(v) => patchDraft({ asiakas: v })}
               className={fieldErrors.customer ? 'field-error-input' : undefined}
             />
@@ -118,7 +120,7 @@ export function MaintenanceReportBasicsDialog({
           <PrintFieldRow label="Osoite" error={fieldErrors.osoite}>
             <PrintTextInput
               value={draft.osoite}
-              disabled={!canEditCustomerEquipment}
+              disabled={!canEditCustomerPrintFields}
               onChange={(v) => patchDraft({ osoite: v })}
               className={fieldErrors.osoite ? 'field-error-input' : undefined}
             />
@@ -126,21 +128,21 @@ export function MaintenanceReportBasicsDialog({
           <PrintFieldRow label="Y-tunnus">
             <PrintTextInput
               value={draft.asiakasYtunnus ?? ''}
-              disabled={!canEditCustomerEquipment}
+              disabled={!canEditCustomerPrintFields}
               onChange={(v) => patchDraft({ asiakasYtunnus: v })}
             />
           </PrintFieldRow>
           <PrintFieldRow label="Yhteyshenkilö">
             <PrintTextInput
               value={draft.asiakasYhteyshenkilo ?? ''}
-              disabled={!canEditCustomerEquipment}
+              disabled={!canEditCustomerPrintFields}
               onChange={(v) => patchDraft({ asiakasYhteyshenkilo: v })}
             />
           </PrintFieldRow>
           <PrintFieldRow label="Puhelin">
             <PrintTextInput
               value={draft.asiakasPuhelin ?? ''}
-              disabled={!canEditCustomerEquipment}
+              disabled={!canEditCustomerPrintFields}
               onChange={(v) => patchDraft({ asiakasPuhelin: v })}
             />
           </PrintFieldRow>
@@ -148,7 +150,7 @@ export function MaintenanceReportBasicsDialog({
             <PrintTextInput
               type="email"
               value={draft.asiakasEmail ?? ''}
-              disabled={!canEditCustomerEquipment}
+              disabled={!canEditCustomerPrintFields}
               onChange={(v) => patchDraft({ asiakasEmail: v })}
             />
           </PrintFieldRow>

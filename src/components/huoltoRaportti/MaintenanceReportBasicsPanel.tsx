@@ -27,6 +27,7 @@ type Props = {
   creatorDisplayName: string;
   creatorEmail: string | undefined;
   canEditCustomerEquipment: boolean;
+  canEditCustomerPrintFields: boolean;
   customerId: string;
   customers: Customer[];
   selectedCustomer: Customer | null | undefined;
@@ -63,6 +64,7 @@ export function MaintenanceReportBasicsPanel({
   creatorDisplayName,
   creatorEmail,
   canEditCustomerEquipment,
+  canEditCustomerPrintFields,
   customerId,
   customers,
   selectedCustomer,
@@ -245,6 +247,7 @@ export function MaintenanceReportBasicsPanel({
                 creatorDisplayName={creatorDisplayName}
                 creatorEmail={creatorEmail}
                 canEditCustomerEquipment={canEditCustomerEquipment}
+                canEditCustomerPrintFields={canEditCustomerPrintFields}
                 busy={busy}
                 onReportOwnerChange={onReportOwnerChange}
                 onPatchForm={onPatchForm}
@@ -301,7 +304,7 @@ export function MaintenanceReportBasicsPanel({
                     className={fieldErrors.customer ? 'field-error-input' : undefined}
                     value={form.asiakas}
                     onChange={(e) => onPatchForm({ asiakas: e.target.value })}
-                    disabled={!canEditCustomerEquipment}
+                    disabled={!canEditCustomerPrintFields}
                   />
                 </label>
                 <label>
@@ -310,7 +313,7 @@ export function MaintenanceReportBasicsPanel({
                     className={fieldErrors.osoite ? 'field-error-input' : undefined}
                     value={form.osoite}
                     onChange={(e) => onPatchForm({ osoite: e.target.value })}
-                    disabled={!canEditCustomerEquipment}
+                    disabled={!canEditCustomerPrintFields}
                     required
                   />
                   {fieldErrors.osoite ? <span className="field-error-text">{fieldErrors.osoite}</span> : null}
@@ -322,7 +325,7 @@ export function MaintenanceReportBasicsPanel({
                   <input
                     value={form.asiakasYtunnus ?? ''}
                     onChange={(e) => onPatchForm({ asiakasYtunnus: e.target.value })}
-                    disabled={!canEditCustomerEquipment}
+                    disabled={!canEditCustomerPrintFields}
                   />
                 </label>
                 <label>
@@ -330,7 +333,7 @@ export function MaintenanceReportBasicsPanel({
                   <input
                     value={form.asiakasYhteyshenkilo ?? ''}
                     onChange={(e) => onPatchForm({ asiakasYhteyshenkilo: e.target.value })}
-                    disabled={!canEditCustomerEquipment}
+                    disabled={!canEditCustomerPrintFields}
                   />
                 </label>
                 <label>
@@ -338,7 +341,7 @@ export function MaintenanceReportBasicsPanel({
                   <input
                     value={form.asiakasPuhelin ?? ''}
                     onChange={(e) => onPatchForm({ asiakasPuhelin: e.target.value })}
-                    disabled={!canEditCustomerEquipment}
+                    disabled={!canEditCustomerPrintFields}
                   />
                 </label>
                 <label>
@@ -347,7 +350,7 @@ export function MaintenanceReportBasicsPanel({
                     type="email"
                     value={form.asiakasEmail ?? ''}
                     onChange={(e) => onPatchForm({ asiakasEmail: e.target.value })}
-                    disabled={!canEditCustomerEquipment}
+                    disabled={!canEditCustomerPrintFields}
                   />
                 </label>
               </div>
