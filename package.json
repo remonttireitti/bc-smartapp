@@ -16,6 +16,7 @@
     "setup:dev": "node scripts/setup-dev-users.mjs",
     "invite:user": "node scripts/invite-user.mjs",
     "docs:pdf": "node scripts/generate-user-guide-pdf.mjs",
+    "test:device-draft": "npx tsx scripts/test-device-draft.mjs",
     "fix:firebase-urls": "node scripts/fix-legacy-firebase-urls.mjs --production",
     "fix:firebase-urls:apply": "node scripts/fix-legacy-firebase-urls.mjs --production --apply",
     "fix:maintenance-photos": "node scripts/sync-maintenance-report-photos.mjs --production",
