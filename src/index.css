@@ -13415,6 +13415,8 @@ button.vrf-toggle:not(:disabled) {
   gap: 0.5rem;
   min-width: 0;
   max-width: 100%;
+  container-type: inline-size;
+  container-name: konvektori-list;
 }
 
 .konvektori-compact-head {
@@ -13464,6 +13466,10 @@ button.vrf-toggle:not(:disabled) {
 .konvektori-compact-row > .konvektori-status {
   grid-area: status;
   justify-self: end;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .konvektori-compact-actions {
@@ -13472,6 +13478,10 @@ button.vrf-toggle:not(:disabled) {
   flex-wrap: wrap;
   gap: 0.35rem;
   justify-content: stretch;
+  min-width: 0;
+  position: relative;
+  z-index: 1;
+  background: var(--bg-surface, #fff);
 }
 
 .konvektori-compact-actions .btn {
@@ -13499,6 +13509,10 @@ button.vrf-toggle:not(:disabled) {
   border-radius: 999px;
   white-space: nowrap;
   text-align: center;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: middle;
 }
 
 .konvektori-status--ok { background: #dcfce7; color: #166534; }
@@ -13507,7 +13521,7 @@ button.vrf-toggle:not(:disabled) {
 .konvektori-status--note { background: #e0f2fe; color: #0369a1; }
 .konvektori-status--vika { background: #fee2e2; color: #b91c1c; }
 
-@media (min-width: 901px) {
+@container konvektori-list (min-width: 52rem) {
   .konvektori-compact-list {
     gap: 0.35rem;
     overflow-x: auto;
@@ -13525,7 +13539,7 @@ button.vrf-toggle:not(:disabled) {
       minmax(4.5rem, 0.7fr)
       minmax(5rem, 0.75fr)
       minmax(4.5rem, 0.55fr)
-      minmax(9rem, auto);
+      minmax(10.5rem, auto);
     grid-template-areas: none;
     gap: 0.35rem;
     align-items: center;
@@ -13560,15 +13574,20 @@ button.vrf-toggle:not(:disabled) {
 
   .konvektori-compact-row > .konvektori-status {
     justify-self: center;
+    max-width: none;
   }
 
   .konvektori-compact-actions {
     justify-content: flex-end;
+    flex-wrap: nowrap;
+    flex-shrink: 0;
+    background: transparent;
   }
 
   .konvektori-compact-actions .btn {
     flex: 0 1 auto;
     min-height: 0;
+    white-space: nowrap;
   }
 }
 

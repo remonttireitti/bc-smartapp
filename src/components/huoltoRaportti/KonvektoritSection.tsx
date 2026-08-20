@@ -27,7 +27,7 @@ function rowStatusLabel(row: KonvektoriRowData): { text: string; className: stri
     };
   }
   if (!summary.complete) {
-    return { text: `Tarkastus ${summary.answered}/${summary.total}`, className: 'konvektori-status konvektori-status--pending' };
+    return { text: `${summary.answered}/${summary.total}`, className: 'konvektori-status konvektori-status--pending' };
   }
   if (summary.anyNo) {
     return { text: 'Huomioita', className: 'konvektori-status konvektori-status--warn' };
