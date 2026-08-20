@@ -4,9 +4,12 @@ import type { Session } from '@supabase/supabase-js';
 import NavigationBreadcrumb from '../components/NavigationBreadcrumb';
 import { useMaintenancePrintNavigation } from '../hooks/useMaintenancePrintNavigation';
 import { useProfile } from '../hooks/useProfile';
-import { formatPrintSaveFileName } from '../lib/printDocumentShell';
 import { loadMaintenanceReportPrintBundle } from '../lib/maintenanceReportPrintAction';
-import { openPrintHtml } from '../lib/openPrintWindow';
+import {
+  extractPrintableHtmlFragment,
+  formatPrintSaveFileName,
+  printCurrentDocument,
+} from '../lib/printDocumentShell';
 import { isPortalReadOnly } from '../lib/portalWorkOrder';
 import type { HuoltoReportData } from '../lib/huoltoRaportti/types';
 import { maintenanceListTrail } from '../lib/navigationTrail';
@@ -28,6 +31,7 @@ export default function MaintenanceReportPrintPage({ session }: Props) {
   const navigation = useMaintenancePrintNavigation(id, reportData);
   const portalReadOnly = isPortalReadOnly(profile);
   const autoPrintTriggeredRef = useRef(false);
+  const printCleanupRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     if (!id) {
@@ -50,7 +54,11 @@ export default function MaintenanceReportPrintPage({ session }: Props) {
   useEffect(() => {
     if (!autoPrint || loading || !html || !printTitle || autoPrintTriggeredRef.current) return;
     autoPrintTriggeredRef.current = true;
-    openPrintHtml(html, { documentTitle: printTitle });
+    printCleanupRef.current = printCurrentDocument(printTitle, 400);
+    return () => {
+      printCleanupRef.current?.();
+      printCleanupRef.current = null;
+    };
   }, [autoPrint, html, loading, printTitle]);
 
   async function loadReport(reportId: string) {
@@ -60,7 +68,7 @@ export default function MaintenanceReportPrintPage({ session }: Props) {
     try {
       const bundle = await loadMaintenanceReportPrintBundle(reportId);
       setReportData(bundle.data);
-      setHtml(bundle.html);
+      setHtml(extractPrintableHtmlFragment(bundle.html));
       setPrintTitle(formatPrintSaveFileName(bundle.documentTitle));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Raporttia ei löytynyt.');
@@ -70,8 +78,9 @@ export default function MaintenanceReportPrintPage({ session }: Props) {
   }
 
   function triggerPrint() {
-    if (!html) return;
-    openPrintHtml(html, { documentTitle: printTitle || undefined });
+    if (!printTitle) return;
+    printCleanupRef.current?.();
+    printCleanupRef.current = printCurrentDocument(printTitle);
   }
 
   if (loading) {
@@ -107,15 +116,14 @@ export default function MaintenanceReportPrintPage({ session }: Props) {
             </p>
           ) : null}
           <p className="muted maintenance-print-help">
-            Tulostus avautuu erillisessä ikkunassa ilman sovelluksen valikkoa. Valitse tulostimena{' '}
-            <strong>Tallenna PDF-muodossa</strong> — tiedostonimi täyttyy automaattisesti. Poista
-            valinnasta <strong>Ylätunnisteet ja alatunnisteet</strong>, jotta päivämäärä ja otsikko
-            eivät tule paperille.
+            Valitse tulostimena <strong>Tallenna PDF-muodossa</strong> — tiedostonimi täyttyy automaattisesti
+            yllä olevasta otsikosta. Poista valinnasta <strong>Ylätunnisteet ja alatunnisteet</strong>, jotta
+            selaimen omat ylä- ja alatunnisteet eivät tule paperille.
           </p>
         </div>
         <div className="btn-group">
           <button type="button" className="btn btn-primary" onClick={triggerPrint}>
-            Tulosta
+            Tulosta / PDF
           </button>
           {navigation.linkToEdit && !portalReadOnly && (
             <Link {...navigation.linkToEdit} className="btn btn-secondary">

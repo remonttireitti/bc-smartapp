@@ -50,6 +50,24 @@ export function applyPrintDocumentTitle(doc: Document, title: string) {
   if (titleEl) titleEl.textContent = safeTitle;
 }
 
+export function extractPrintableHtmlFragment(html: string): string {
+  const bodyMatch = html.match(/<body[^>]*>([\s\S]*)<\/body>/i);
+  if (bodyMatch?.[1]) return bodyMatch[1].trim();
+  return html;
+}
+
+/** Tulosta nykyinen sivu — sama malli kuin työraportin tulostesivulla (luotettava PDF-nimi). */
+export function printCurrentDocument(documentTitle: string, delayMs = 200): () => void {
+  const releaseTitle = guardPrintTitle(documentTitle);
+  const timer = window.setTimeout(() => {
+    window.print();
+  }, delayMs);
+  return () => {
+    window.clearTimeout(timer);
+    releaseTitle();
+  };
+}
+
 const PRINT_TITLE_HOLD_MS = 12_000;
 
 /**
@@ -127,6 +145,48 @@ const PRINT_DOC_RESET_STYLE = `<style data-print-doc-reset>
   html, body { margin: 0 !important; padding: 0 !important; background: #fff !important; }
 }
 </style>`;
+
+const PRINT_BOOTSTRAP_ATTR = 'data-print-bootstrap';
+
+export function injectPrintDocumentBootstrap(html: string, documentTitle: string): string {
+  if (html.includes(PRINT_BOOTSTRAP_ATTR)) return html;
+
+  const safeTitle = formatPrintSaveFileName(documentTitle);
+  const escapedTitle = escapeHtmlPrint(safeTitle);
+  const titleJson = JSON.stringify(safeTitle);
+  const banner = `<div class="no-print" style="padding:12px 16px;background:#ecfdf5;border:1px solid #86efac;margin:0 0 12px;font-family:system-ui,sans-serif;font-size:14px;line-height:1.45;">
+<strong>PDF-tiedostonimi:</strong> ${escapedTitle}<br/>
+Valitse tulostimena <strong>Tallenna PDF-muodossa</strong>. Poista valinnasta ylä- ja alatunnisteet.
+<button type="button" onclick="window.print()" style="margin-left:12px;padding:6px 12px;cursor:pointer;">Tulosta / PDF</button>
+</div>`;
+  const script = `<script ${PRINT_BOOTSTRAP_ATTR}>
+(function () {
+  var title = ${titleJson};
+  function applyTitle() {
+    document.title = title;
+    var el = document.querySelector('title');
+    if (el) el.textContent = title;
+  }
+  function printDoc() {
+    applyTitle();
+    window.focus();
+    window.print();
+  }
+  applyTitle();
+  if (window.__bcPrintBootstrap) return;
+  window.__bcPrintBootstrap = true;
+  function schedule() { window.setTimeout(printDoc, 300); }
+  if (document.readyState === 'complete') schedule();
+  else window.addEventListener('load', schedule, { once: true });
+})();
+</script>`;
+
+  const payload = `${banner}${script}`;
+  if (/<\/body>/i.test(html)) {
+    return html.replace(/<\/body>/i, `${payload}</body>`);
+  }
+  return `${html}${payload}`;
+}
 
 function injectPrintDocumentReset(html: string): string {
   if (html.includes('data-print-doc-reset')) return html;

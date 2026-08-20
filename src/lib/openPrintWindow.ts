@@ -2,11 +2,11 @@ import {
   applyPrintDocumentTitle,
   ensurePrintHtmlDocumentTitle,
   guardPrintTitle,
+  injectPrintDocumentBootstrap,
   resolvePrintDocumentTitle,
 } from './printDocumentShell';
 
 const DEFAULT_IMAGE_WAIT_MS = 10_000;
-const PRINT_TITLE_SETTLE_MS = 250;
 
 function waitForPrintImages(doc: Document, timeoutMs: number): Promise<void> {
   return new Promise((resolve) => {
@@ -42,12 +42,6 @@ function waitForPrintImages(doc: Document, timeoutMs: number): Promise<void> {
   });
 }
 
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => {
-    window.setTimeout(resolve, ms);
-  });
-}
-
 type PrintTarget = {
   printWindow: Window;
   printDocument: Document;
@@ -58,6 +52,7 @@ function createPrintPopup(html: string, documentTitle: string): PrintTarget | nu
   const printWindow = window.open('', '_blank');
   if (!printWindow) return null;
 
+  printWindow.document.open();
   printWindow.document.write(html);
   printWindow.document.close();
   applyPrintDocumentTitle(printWindow.document, documentTitle);
@@ -70,7 +65,7 @@ function createPrintPopup(html: string, documentTitle: string): PrintTarget | nu
     }
   };
   printWindow.addEventListener('afterprint', cleanup, { once: true });
-  window.setTimeout(cleanup, 60_000);
+  window.setTimeout(cleanup, 120_000);
 
   return { printWindow, printDocument: printWindow.document, cleanup };
 }
@@ -99,7 +94,7 @@ function createPrintFrame(html: string, documentTitle: string): PrintTarget {
     if (frame.parentNode) frame.parentNode.removeChild(frame);
   };
   printWindow.addEventListener('afterprint', cleanup, { once: true });
-  window.setTimeout(cleanup, 60_000);
+  window.setTimeout(cleanup, 120_000);
 
   return { printWindow, printDocument, cleanup };
 }
@@ -110,48 +105,43 @@ function attachBeforePrintTitle(doc: Document, title: string): () => void {
   return () => doc.removeEventListener('beforeprint', handler);
 }
 
-function openPrintTarget(
+function watchPrintBootstrap(
   target: PrintTarget,
   documentTitle: string,
   imageWaitMs: number,
 ) {
   const { printWindow, printDocument } = target;
+  guardPrintTitle(documentTitle);
+  guardPrintTitle(documentTitle, printWindow);
   const detachBeforePrintTarget = attachBeforePrintTitle(printDocument, documentTitle);
   const detachBeforePrintParent = attachBeforePrintTitle(document, documentTitle);
 
-  const triggerPrint = async () => {
-    applyPrintDocumentTitle(printDocument, documentTitle);
-    // Chrome käyttää iframe-tulostuksessa pääikkunan title-arvoa PDF-tiedostonimeen.
-    guardPrintTitle(documentTitle);
-    guardPrintTitle(documentTitle, printWindow);
-    await delay(PRINT_TITLE_SETTLE_MS);
-    applyPrintDocumentTitle(printDocument, documentTitle);
-    printWindow.focus();
-    printWindow.print();
+  const detachListeners = () => {
+    detachBeforePrintTarget();
+    detachBeforePrintParent();
   };
+
+  printWindow.addEventListener('afterprint', detachListeners, { once: true });
+  window.setTimeout(detachListeners, 120_000);
 
   const run = async () => {
     try {
       await waitForPrintImages(printDocument, imageWaitMs);
     } finally {
-      await triggerPrint();
+      applyPrintDocumentTitle(printDocument, documentTitle);
+      // Tulostus käynnistyy HTML:n sisäisestä bootstrap-skriptistä (window.print dokumentin kontekstissa).
     }
   };
 
-  const finish = () => {
-    detachBeforePrintTarget();
-    detachBeforePrintParent();
-  };
-
   if (printDocument.readyState === 'complete') {
-    void run().finally(finish);
+    void run();
     return;
   }
 
   printWindow.addEventListener(
     'load',
     () => {
-      void run().finally(finish);
+      void run();
     },
     { once: true },
   );
@@ -163,17 +153,20 @@ export function openPrintHtml(
 ) {
   const imageWaitMs = options?.imageWaitMs ?? DEFAULT_IMAGE_WAIT_MS;
   const documentTitle = resolvePrintDocumentTitle(html, options?.documentTitle);
-  const preparedHtml = ensurePrintHtmlDocumentTitle(html, documentTitle);
+  const preparedHtml = injectPrintDocumentBootstrap(
+    ensurePrintHtmlDocumentTitle(html, documentTitle),
+    documentTitle,
+  );
 
   const popup = createPrintPopup(preparedHtml, documentTitle);
   if (popup) {
-    openPrintTarget(popup, documentTitle, imageWaitMs);
+    watchPrintBootstrap(popup, documentTitle, imageWaitMs);
     return;
   }
 
   try {
     const frame = createPrintFrame(preparedHtml, documentTitle);
-    openPrintTarget(frame, documentTitle, imageWaitMs);
+    watchPrintBootstrap(frame, documentTitle, imageWaitMs);
   } catch {
     window.alert('Tulostusikkunaa ei voitu avata. Salli ponnahdusikkunat tälle sivustolle.');
   }

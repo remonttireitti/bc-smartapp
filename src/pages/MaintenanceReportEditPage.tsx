@@ -89,8 +89,7 @@ import {
   readLocalMaintenanceDraft,
   writeLocalMaintenanceDraft,
 } from '../lib/maintenanceReportDraftStorage';
-import { openMaintenanceReportKonvektoriFaultPrint, loadMaintenanceReportPrintBundle } from '../lib/maintenanceReportPrintAction';
-import { openPrintHtml } from '../lib/openPrintWindow';
+import { openMaintenanceReportKonvektoriFaultPrint } from '../lib/maintenanceReportPrintAction';
 import { filterFaultyKonvektoriRows } from '../lib/huoltoRaportti/konvektoriTarkastus';
 import { syncMaintenanceReportPhotosFromDb } from '../lib/maintenanceReportPhotoSync';
 import { isPortalUser } from '../lib/portalWorkOrder';
@@ -1721,8 +1720,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
         const ok = await saveReport(status === 'draft' ? 'draft' : undefined);
         if (!ok) return;
       }
-      const bundle = await loadMaintenanceReportPrintBundle(reportId, buildReportDataPayload());
-      openPrintHtml(bundle.html, { documentTitle: bundle.documentTitle });
+      navigate(`/huoltoraportit/${reportId}/tuloste?print=1`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Tulosteen avaus epäonnistui.');
     } finally {
