@@ -2025,7 +2025,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
         className={`panel form-grid maintenance-form${documentLayout ? ' maintenance-form--document' : ''}${!documentLayout && openTabId ? ' maintenance-tab-dialog-open' : ''}`}
         onSubmit={onSubmit}
       >
-        {!showSetupWizard ? (
+        {showSetupWizard ? (
           <MaintenanceSetupWizard
             step={setupStep}
             steps={setupSteps}
@@ -2202,8 +2202,8 @@ export default function MaintenanceReportEditPage({ session }: Props) {
 
         {error && <p className="error">{error}</p>}
 
-        {!showSetupWizard ? null : renderEquipmentRegistryActions('maintenance-form-actions-equipment')}
-        {!showSetupWizard ? null : renderPrintActions('maintenance-form-actions-equipment')}
+        {showSetupWizard ? renderEquipmentRegistryActions('maintenance-form-actions-equipment') : null}
+        {showSetupWizard ? renderPrintActions('maintenance-form-actions-equipment') : null}
 
         <div className="form-actions maintenance-form-actions">
           <div className="maintenance-actions-primary">
