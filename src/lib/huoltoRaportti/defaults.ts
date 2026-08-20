@@ -14,6 +14,7 @@ import { normalizeCustomReportModules } from './customModuleTypes';
 import { normalizeEvaporatorForDevice } from './evaporatorHelpers';
 import { buildMaintenanceReportTitle } from '../../types';
 import { deviceTypes, isMlpVesiNeste, type ModuleKey } from './constants';
+import { formatPrintSaveFileName } from '../printDocumentShell';
 import type {
   CompressorData,
   CondenserData,
@@ -1211,12 +1212,14 @@ export function buildMaintenanceReportPrintTitle(
 
   const pvm = formatMaintenanceReportPrintPvm(data.huoltoPaivamaara);
 
-  return [
-    sanitizeMaintenancePrintFileNamePart(customerSite, 60),
-    sanitizeMaintenancePrintFileNamePart(laite, 40),
-    sanitizeMaintenancePrintFileNamePart(deviceTypeLabel, 35),
-    sanitizeMaintenancePrintFileNamePart(pvm, 20),
-  ].join(' — ');
+  return formatPrintSaveFileName(
+    [
+      sanitizeMaintenancePrintFileNamePart(customerSite, 60),
+      sanitizeMaintenancePrintFileNamePart(laite, 40),
+      sanitizeMaintenancePrintFileNamePart(deviceTypeLabel, 35),
+      sanitizeMaintenancePrintFileNamePart(pvm, 20),
+    ].join(' - '),
+  );
 }
 
 /** Lyhyt kuvaus listanimeä varten (laite / tyyppi), sama idea kuin työraportin kuvaus. */

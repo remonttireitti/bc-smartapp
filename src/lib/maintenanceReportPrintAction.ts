@@ -8,24 +8,11 @@ import { syncMaintenanceReportPhotosFromDb } from './maintenanceReportPhotoSync'
 import { resolveCompanyLogoUrl } from './companyLogo';
 import { openPrintHtml } from './openPrintWindow';
 import { shrinkUrlMapForPrint } from './printImageEmbed';
-import { escapeHtmlPrint } from './printDocumentShell';
+import { ensurePrintHtmlDocumentTitle } from './printDocumentShell';
 import { supabase } from './supabase';
 
 export function buildMaintenanceReportPrintDocument(fragment: string, documentTitle: string): string {
-  // Legacy print already returns a full HTML document.
-  if (/<!doctype html/i.test(fragment) || /<html[\s>]/i.test(fragment)) {
-    return fragment;
-  }
-  return `<!doctype html>
-<html lang="fi">
-<head>
-<meta charset="utf-8" />
-<title>${escapeHtmlPrint(documentTitle)}</title>
-</head>
-<body>
-${fragment}
-</body>
-</html>`;
+  return ensurePrintHtmlDocumentTitle(fragment, documentTitle);
 }
 
 function collectPrintImagePaths(data: HuoltoReportData): string[] {
@@ -101,8 +88,11 @@ export async function loadMaintenanceReportPrintBundle(
 
   const rawImageUrls = await resolveMaintenancePrintImageUrls(reportData);
   const imageUrls = await shrinkUrlMapForPrint(rawImageUrls);
-  const html = generateMaintenanceReportPrintDocument(reportData, { companyName, logoUrl, imageUrls });
   const documentTitle = buildMaintenanceReportPrintTitle(reportData);
+  const html = ensurePrintHtmlDocumentTitle(
+    generateMaintenanceReportPrintDocument(reportData, { companyName, logoUrl, imageUrls }),
+    documentTitle,
+  );
 
   return {
     data: reportData,
@@ -172,11 +162,12 @@ async function loadMaintenanceReportKonvektoriFaultPrintBundle(
   );
 
   const html = generateKonvektoriFaultPrintHtml(reportData, { companyName, logoUrl });
+  const documentTitle = `${buildMaintenanceReportPrintTitle(reportData)} - vialliset`;
 
   return {
     data: reportData,
-    html,
-    documentTitle: `${buildMaintenanceReportPrintTitle(reportData)} — vialliset`,
+    html: ensurePrintHtmlDocumentTitle(html, documentTitle),
+    documentTitle,
   };
 }
 

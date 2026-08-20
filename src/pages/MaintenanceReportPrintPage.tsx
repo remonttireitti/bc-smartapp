@@ -5,6 +5,7 @@ import AppLayout from '../components/AppLayout';
 import NavigationBreadcrumb from '../components/NavigationBreadcrumb';
 import { useMaintenancePrintNavigation } from '../hooks/useMaintenancePrintNavigation';
 import { useProfile } from '../hooks/useProfile';
+import { applyPrintDocumentTitle, formatPrintSaveFileName, guardPrintTitle } from '../lib/printDocumentShell';
 import { loadMaintenanceReportPrintBundle } from '../lib/maintenanceReportPrintAction';
 import { isPortalReadOnly } from '../lib/portalWorkOrder';
 import type { HuoltoReportData } from '../lib/huoltoRaportti/types';
@@ -56,7 +57,7 @@ export default function MaintenanceReportPrintPage({ session }: Props) {
       const bundle = await loadMaintenanceReportPrintBundle(reportId);
       setReportData(bundle.data);
       setHtml(bundle.fragment);
-      setPrintTitle(bundle.documentTitle);
+      setPrintTitle(formatPrintSaveFileName(bundle.documentTitle));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Raporttia ei löytynyt.');
     } finally {
@@ -101,10 +102,14 @@ export default function MaintenanceReportPrintPage({ session }: Props) {
                 const frame = printHostRef.current;
                 const frameWindow = frame?.contentWindow;
                 if (frameWindow && printTitle) {
-                  frameWindow.document.title = printTitle;
+                  applyPrintDocumentTitle(frameWindow.document, printTitle);
+                  guardPrintTitle(printTitle, frameWindow);
                   frameWindow.focus();
                   frameWindow.print();
                   return;
+                }
+                if (printTitle) {
+                  guardPrintTitle(printTitle);
                 }
                 window.print();
               }}

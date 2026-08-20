@@ -1,4 +1,12 @@
+import {
+  applyPrintDocumentTitle,
+  ensurePrintHtmlDocumentTitle,
+  guardPrintTitle,
+  resolvePrintDocumentTitle,
+} from './printDocumentShell';
+
 const DEFAULT_IMAGE_WAIT_MS = 10_000;
+const PRINT_TITLE_SETTLE_MS = 250;
 
 function waitForPrintImages(doc: Document, timeoutMs: number): Promise<void> {
   return new Promise((resolve) => {
@@ -34,53 +42,118 @@ function waitForPrintImages(doc: Document, timeoutMs: number): Promise<void> {
   });
 }
 
-export function openPrintHtml(
-  html: string,
-  options?: { imageWaitMs?: number; documentTitle?: string },
-) {
-  const imageWaitMs = options?.imageWaitMs ?? DEFAULT_IMAGE_WAIT_MS;
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, ms);
+  });
+}
+
+type PrintTarget = {
+  printWindow: Window;
+  printDocument: Document;
+  cleanup: () => void;
+};
+
+function createPrintPopup(html: string, documentTitle: string): PrintTarget | null {
   const printWindow = window.open('', '_blank');
-  if (!printWindow) {
-    window.alert('Selain esti tulostusikkunan. Salli ponnahdusikkunat tälle sivustolle.');
-    return;
-  }
+  if (!printWindow) return null;
 
   printWindow.document.write(html);
   printWindow.document.close();
-  printWindow.focus();
+  applyPrintDocumentTitle(printWindow.document, documentTitle);
 
-  const applyDocumentTitle = () => {
-    const explicit = options?.documentTitle?.trim();
-    if (explicit) {
-      printWindow.document.title = explicit;
-      return;
-    }
-    const fromHead = printWindow.document.querySelector('title')?.textContent?.trim();
-    if (fromHead) {
-      printWindow.document.title = fromHead;
+  const cleanup = () => {
+    try {
+      printWindow.close();
+    } catch {
+      /* already closed */
     }
   };
+  printWindow.addEventListener('afterprint', cleanup, { once: true });
+  window.setTimeout(cleanup, 60_000);
 
-  applyDocumentTitle();
+  return { printWindow, printDocument: printWindow.document, cleanup };
+}
 
-  const triggerPrint = () => {
-    applyDocumentTitle();
+function createPrintFrame(html: string, documentTitle: string): PrintTarget {
+  const frame = document.createElement('iframe');
+  frame.setAttribute('aria-hidden', 'true');
+  frame.tabIndex = -1;
+  frame.style.cssText =
+    'position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden;';
+  document.body.appendChild(frame);
+
+  const printWindow = frame.contentWindow;
+  const printDocument = frame.contentDocument;
+  if (!printWindow || !printDocument) {
+    frame.remove();
+    throw new Error('Tulostusikkunaa ei voitu avata.');
+  }
+
+  printDocument.open();
+  printDocument.write(html);
+  printDocument.close();
+  applyPrintDocumentTitle(printDocument, documentTitle);
+
+  const cleanup = () => {
+    if (frame.parentNode) frame.parentNode.removeChild(frame);
+  };
+  printWindow.addEventListener('afterprint', cleanup, { once: true });
+  window.setTimeout(cleanup, 60_000);
+
+  return { printWindow, printDocument, cleanup };
+}
+
+function openPrintTarget(
+  target: PrintTarget,
+  documentTitle: string,
+  imageWaitMs: number,
+) {
+  const { printWindow, printDocument } = target;
+
+  const triggerPrint = async () => {
+    applyPrintDocumentTitle(printDocument, documentTitle);
+    guardPrintTitle(documentTitle, printWindow);
+    await delay(PRINT_TITLE_SETTLE_MS);
+    applyPrintDocumentTitle(printDocument, documentTitle);
     printWindow.focus();
     printWindow.print();
   };
 
   const run = async () => {
     try {
-      await waitForPrintImages(printWindow.document, imageWaitMs);
+      await waitForPrintImages(printDocument, imageWaitMs);
     } finally {
-      triggerPrint();
+      await triggerPrint();
     }
   };
 
-  if (printWindow.document.readyState === 'complete') {
+  if (printDocument.readyState === 'complete') {
     void run();
     return;
   }
 
   printWindow.addEventListener('load', () => void run(), { once: true });
+}
+
+export function openPrintHtml(
+  html: string,
+  options?: { imageWaitMs?: number; documentTitle?: string },
+) {
+  const imageWaitMs = options?.imageWaitMs ?? DEFAULT_IMAGE_WAIT_MS;
+  const documentTitle = resolvePrintDocumentTitle(html, options?.documentTitle);
+  const preparedHtml = ensurePrintHtmlDocumentTitle(html, documentTitle);
+
+  const popup = createPrintPopup(preparedHtml, documentTitle);
+  if (popup) {
+    openPrintTarget(popup, documentTitle, imageWaitMs);
+    return;
+  }
+
+  try {
+    const frame = createPrintFrame(preparedHtml, documentTitle);
+    openPrintTarget(frame, documentTitle, imageWaitMs);
+  } catch {
+    window.alert('Tulostusikkunaa ei voitu avata. Salli ponnahdusikkunat tälle sivustolle.');
+  }
 }

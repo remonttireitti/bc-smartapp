@@ -6,6 +6,119 @@ export function escapeHtmlPrint(v: unknown): string {
     .replace(/"/g, '&quot;');
 }
 
+/** Windows PDF -tallennuksen oletusnimi: ASCII-turvallinen, ei polkuerottimia. */
+export function formatPrintSaveFileName(value: string, maxLength = 180): string {
+  return (
+    value
+      .replace(/[\u2013\u2014]/g, '-')
+      .replace(/[\r\n]+/g, ' ')
+      .replace(/[\\/:*?"<>|]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .replace(/\.+$/, '')
+      .slice(0, maxLength)
+      .trim() || 'Dokumentti'
+  );
+}
+
+function decodeHtmlEntities(value: string): string {
+  if (typeof document === 'undefined') return value;
+  const el = document.createElement('textarea');
+  el.innerHTML = value;
+  return el.value;
+}
+
+export function resolvePrintDocumentTitle(html: string, explicitTitle?: string): string {
+  const explicit = explicitTitle?.trim();
+  if (explicit) return formatPrintSaveFileName(explicit);
+  const match = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+  if (match?.[1]) {
+    return formatPrintSaveFileName(decodeHtmlEntities(match[1]));
+  }
+  return 'Dokumentti';
+}
+
+export function applyPrintDocumentTitle(doc: Document, title: string) {
+  const safeTitle = formatPrintSaveFileName(title);
+  doc.title = safeTitle;
+  let titleEl = doc.querySelector('title');
+  if (!titleEl) {
+    titleEl = doc.createElement('title');
+    const head = doc.head ?? doc.getElementsByTagName('head')[0];
+    if (head) head.appendChild(titleEl);
+  }
+  if (titleEl) titleEl.textContent = safeTitle;
+}
+
+const PRINT_TITLE_HOLD_MS = 3_000;
+
+/**
+ * Chrome/Edge käyttävät iframe-tulostuksessa pääikkunan document.title -arvoa
+ * PDF-tiedostonimen oletuksena. Pidä otsikko voimassa tulostuksen ajan.
+ */
+export function guardPrintTitle(title: string, printWindow?: Window | null): () => void {
+  const safeTitle = formatPrintSaveFileName(title);
+  const previous = document.title;
+  const titleEl = document.querySelector('title');
+
+  const apply = () => {
+    if (document.title !== safeTitle) document.title = safeTitle;
+    if (titleEl && titleEl.textContent !== safeTitle) titleEl.textContent = safeTitle;
+  };
+
+  apply();
+
+  const observer = new MutationObserver(() => apply());
+  if (titleEl) {
+    observer.observe(titleEl, { childList: true, characterData: true, subtree: true });
+  }
+  if (document.head) {
+    observer.observe(document.head, { childList: true, subtree: true });
+  }
+
+  let released = false;
+  const release = () => {
+    if (released) return;
+    released = true;
+    observer.disconnect();
+    document.title = previous;
+    if (titleEl) titleEl.textContent = previous;
+  };
+
+  const windows = [window, printWindow].filter((w): w is Window => Boolean(w));
+  for (const w of windows) {
+    w.addEventListener('afterprint', release, { once: true });
+  }
+  window.setTimeout(release, PRINT_TITLE_HOLD_MS);
+
+  return release;
+}
+
+/** Varmista että tuloste-HTML:ssä on oikea <title> (PDF-tiedostonimi). */
+export function ensurePrintHtmlDocumentTitle(html: string, documentTitle: string): string {
+  const safeTitle = formatPrintSaveFileName(documentTitle);
+  const escapedTitle = escapeHtmlPrint(safeTitle);
+  if (!/<html[\s>]/i.test(html)) {
+    return `<!doctype html>
+<html lang="fi">
+<head>
+<meta charset="utf-8" />
+<title>${escapedTitle}</title>
+</head>
+<body>
+${html}
+</body>
+</html>`;
+  }
+  if (/<title[\s>]/i.test(html)) {
+    return html.replace(/<title[^>]*>[\s\S]*?<\/title>/i, `<title>${escapedTitle}</title>`);
+  }
+  if (/<head[\s>]/i.test(html)) {
+    return html.replace(/<head([^>]*)>/i, `<head$1><title>${escapedTitle}</title>`);
+  }
+  return html.replace(/<html([^>]*)>/i, `<html$1><head><title>${escapedTitle}</title></head>`);
+}
+
 export type PrintBranding = {
   companyName: string;
   logoUrl?: string | null;
