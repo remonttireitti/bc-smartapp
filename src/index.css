@@ -5486,74 +5486,62 @@ textarea {
 }
 
 .maintenance-report-document {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-  gap: 1rem;
   margin-bottom: .5rem;
 }
 
-.maintenance-report-document-section.is-dialog-launcher {
-  min-height: 0;
-  border: none;
-  border-radius: 0;
-  background: transparent;
-  overflow: visible;
+.maintenance-report-document-tile-wrap {
+  min-width: 0;
 }
 
-.maintenance-report-document-section.is-dialog-launcher .maintenance-report-document-section-header {
+button.tile.maintenance-report-document-tile {
   position: relative;
-  aspect-ratio: 1;
   width: 100%;
-  padding: 1rem;
   border: none;
-  border-radius: 12px;
-  border-bottom: none;
-  background: var(--doc-section-header, var(--primary, #2563eb));
-  color: #fff;
-  box-shadow: var(--shadow-tile, 0 2px 8px rgba(15, 23, 42, .12));
-  flex-direction: column;
-  justify-content: flex-end;
-  align-items: stretch;
-  gap: .35rem;
-  transition: transform .15s, box-shadow .15s;
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  text-decoration: none;
 }
 
-.maintenance-report-document-section.is-dialog-launcher .maintenance-report-document-section-header:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.16);
-}
-
-.maintenance-report-document-section.is-dialog-launcher .maintenance-report-document-section-heading {
-  gap: .35rem;
-}
-
-.maintenance-report-document-section.is-dialog-launcher .maintenance-report-document-section-title {
-  font-size: 1rem;
-  font-weight: 700;
-  color: #fff;
-}
-
-.maintenance-report-document-section.is-dialog-launcher .maintenance-report-document-section-summary {
-  font-size: .85rem;
-  color: rgba(255, 255, 255, .9);
-}
-
-.maintenance-report-document-section.is-dialog-launcher .maintenance-report-document-section-meta {
+.maintenance-report-document-tile-check {
   position: absolute;
   top: .65rem;
   right: .65rem;
-}
-
-.maintenance-report-document-section.is-dialog-launcher .maintenance-report-tab-check {
+  width: 1.35rem;
+  height: 1.35rem;
+  border-radius: 999px;
   background: #fff;
   color: #16a34a;
+  font-size: 0.82rem;
+  font-weight: 800;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.maintenance-report-document-section.is-dialog-launcher .maintenance-report-tab-check--attention {
+.maintenance-report-document-tile-check--attention {
   color: #ea580c;
 }
 
-.maintenance-report-document-section:not(.is-dialog-launcher) {
+.maintenance-report-document-tile-settings {
+  position: absolute;
+  top: .65rem;
+  left: .65rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, .45);
+  background: rgba(255, 255, 255, .18);
+  font-size: .95rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.maintenance-report-document-section--full {
   grid-column: 1 / -1;
 }
 

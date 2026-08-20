@@ -13,6 +13,7 @@ import {
   MaintenanceReportDocumentSection,
   maintenanceSectionDomId,
 } from './MaintenanceReportDocumentSection';
+import { MaintenanceReportDocumentTile } from './MaintenanceReportDocumentTile';
 import {
   MaintenanceReportTabContent,
   type MaintenanceReportTabContentProps,
@@ -89,7 +90,7 @@ function MaintenanceReportDocumentViewInner({
       <HuoltoPrintForm>
         {hasEvaporatorUnits ? <EvaporatorCircuitsSync form={form} onChange={onSyncForm} /> : null}
         {hasCondenserUnits ? <CondenserCircuitsSync form={form} onChange={onPatchForm} /> : null}
-        <div className="maintenance-report-document">
+        <div className="grid maintenance-report-document">
           {entries.map((entry) => {
             const completion = documentEntryCompletion(entry, form, tabCompletion);
             const dialogLauncher =
@@ -105,6 +106,59 @@ function MaintenanceReportDocumentViewInner({
 
             const tabIdForSettings = entry.kind === 'tab' ? (entry.tabId as MaintenanceReportTabId) : null;
 
+            const hiddenChildren =
+              entry.kind === 'evaporatorUnit' && entry.unitIndex != null ? (
+                <EvaporatorModule
+                  index={entry.unitIndex}
+                  laiteTyyppi={form.laiteTyyppi}
+                  titleLabel={evaporatorTitleForIndex(form, entry.unitIndex)}
+                  data={form.evaporatorData[entry.unitIndex]}
+                  locked={false}
+                  showSameAsFirst={entry.unitIndex > 0}
+                  sameAsFirst={form.evaporatorSamaKuinEnsimmainen[entry.unitIndex]}
+                  onSameAsFirstChange={(value) =>
+                    evaporatorActions.setSameAsFirst(entry.unitIndex!, value)
+                  }
+                  onChange={(data) => evaporatorActions.updateEvaporator(entry.unitIndex!, data)}
+                  documentUnitKey={entry.tabId}
+                  hidePartRow
+                />
+              ) : entry.kind === 'condenserUnit' && entry.unitIndex != null ? (
+                <CondenserModule
+                  index={entry.unitIndex}
+                  titleLabel={lauhdutinUnitTitle(form.laiteTyyppi, entry.unitIndex)}
+                  data={form.condenserData[entry.unitIndex]}
+                  onChange={(data) => {
+                    const next = [...form.condenserData];
+                    next[entry.unitIndex!] = data;
+                    onPatchForm({ condenserData: next });
+                  }}
+                  documentUnitKey={entry.tabId}
+                  hidePartRow
+                />
+              ) : (
+                <MaintenanceReportTabContent
+                  tabId={entry.tabId as MaintenanceReportTabContentProps['tabId']}
+                  {...contentProps}
+                />
+              );
+
+            if (dialogLauncher) {
+              return (
+                <MaintenanceReportDocumentTile
+                  key={entry.key}
+                  tabId={entry.tabId}
+                  title={entry.title}
+                  theme={theme}
+                  completion={completion}
+                  showSettings={tabIdForSettings ? maintenanceTabHasPrintSettings(tabIdForSettings, form) : false}
+                  onOpenSettings={() => tabIdForSettings && sectionSettings?.openSettings(tabIdForSettings)}
+                >
+                  {hiddenChildren}
+                </MaintenanceReportDocumentTile>
+              );
+            }
+
             return (
               <MaintenanceReportDocumentSection
                 key={entry.key}
@@ -112,53 +166,17 @@ function MaintenanceReportDocumentViewInner({
                 title={entry.title}
                 theme={theme}
                 summary={
-                  dialogLauncher
-                    ? undefined
-                    : tabIdForSettings
-                      ? buildMaintenanceDocumentTabSummary(tabIdForSettings, form)
-                      : undefined
+                  tabIdForSettings
+                    ? buildMaintenanceDocumentTabSummary(tabIdForSettings, form)
+                    : undefined
                 }
                 completion={completion}
                 defaultOpen={defaultOpen}
-                dialogLauncher={dialogLauncher}
+                dialogLauncher={false}
                 showSettings={tabIdForSettings ? maintenanceTabHasPrintSettings(tabIdForSettings, form) : false}
                 onOpenSettings={() => tabIdForSettings && sectionSettings?.openSettings(tabIdForSettings)}
               >
-                {entry.kind === 'evaporatorUnit' && entry.unitIndex != null ? (
-                  <EvaporatorModule
-                    index={entry.unitIndex}
-                    laiteTyyppi={form.laiteTyyppi}
-                    titleLabel={evaporatorTitleForIndex(form, entry.unitIndex)}
-                    data={form.evaporatorData[entry.unitIndex]}
-                    locked={false}
-                    showSameAsFirst={entry.unitIndex > 0}
-                    sameAsFirst={form.evaporatorSamaKuinEnsimmainen[entry.unitIndex]}
-                    onSameAsFirstChange={(value) =>
-                      evaporatorActions.setSameAsFirst(entry.unitIndex!, value)
-                    }
-                    onChange={(data) => evaporatorActions.updateEvaporator(entry.unitIndex!, data)}
-                    documentUnitKey={entry.tabId}
-                    hidePartRow
-                  />
-                ) : entry.kind === 'condenserUnit' && entry.unitIndex != null ? (
-                  <CondenserModule
-                    index={entry.unitIndex}
-                    titleLabel={lauhdutinUnitTitle(form.laiteTyyppi, entry.unitIndex)}
-                    data={form.condenserData[entry.unitIndex]}
-                    onChange={(data) => {
-                      const next = [...form.condenserData];
-                      next[entry.unitIndex!] = data;
-                      onPatchForm({ condenserData: next });
-                    }}
-                    documentUnitKey={entry.tabId}
-                    hidePartRow
-                  />
-                ) : (
-                  <MaintenanceReportTabContent
-                    tabId={entry.tabId as MaintenanceReportTabContentProps['tabId']}
-                    {...contentProps}
-                  />
-                )}
+                {hiddenChildren}
               </MaintenanceReportDocumentSection>
             );
           })}

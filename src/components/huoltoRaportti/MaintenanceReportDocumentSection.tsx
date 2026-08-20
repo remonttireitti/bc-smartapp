@@ -67,7 +67,7 @@ export function MaintenanceReportDocumentSection({
   return (
     <section
       id={maintenanceSectionDomId(tabId)}
-      className={`maintenance-report-document-section maintenance-print-box${visuallyExpanded ? ' is-open' : ' is-collapsed'}${dialogLauncher ? ' is-dialog-launcher' : ''}`}
+      className={`maintenance-report-document-section maintenance-report-document-section--full maintenance-print-box${visuallyExpanded ? ' is-open' : ' is-collapsed'}`}
       style={
         {
           '--doc-section-accent': theme.accent,
