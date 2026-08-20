@@ -21,6 +21,7 @@ import { FormCheckbox } from './FormCheckbox';
 import { FormInput } from './FormInput';
 import { HuoltoPartInspectionRow } from './HuoltoPartInspectionRow';
 import { HuoltoInspectionDialogShell } from './HuoltoInspectionDialogShell';
+import { useRegisterHuoltoModuleDialog } from './HuoltoModuleDialogContext';
 import { TriStateInspectionToggle } from './TriStateInspectionToggle';
 
 interface Props {
@@ -33,6 +34,9 @@ interface Props {
   sameAsFirst?: boolean;
   onSameAsFirstChange?: (value: boolean) => void;
   onChange: (data: EvaporatorData) => void;
+  /** Dokumenttinäkymä: rekisteröi yksikön popup avattavaksi ruudukkokortista. */
+  documentUnitKey?: string;
+  hidePartRow?: boolean;
 }
 
 function applyEvaporatorTypeChange(data: EvaporatorData, tyyppi: EvaporatorType): EvaporatorData {
@@ -64,6 +68,8 @@ export function EvaporatorModule({
   sameAsFirst,
   onSameAsFirstChange,
   onChange,
+  documentUnitKey,
+  hidePartRow = false,
 }: Props) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [draft, setDraft] = useState(data);
@@ -92,6 +98,12 @@ export function EvaporatorModule({
     if (status !== null) onChange(draft);
     setDialogOpen(false);
   }, [draft, onChange]);
+
+  const openDialog = useCallback(() => {
+    setDialogOpen(true);
+  }, []);
+
+  useRegisterHuoltoModuleDialog(documentUnitKey, openDialog);
 
   const renderFormBody = (
     source: EvaporatorData,
@@ -304,13 +316,15 @@ export function EvaporatorModule({
         />
       ) : null}
 
-      <HuoltoPartInspectionRow
-        title={titleLabel}
-        subtitle={subtitle || undefined}
-        status={status}
-        disabled={disabled}
-        onInspect={() => setDialogOpen(true)}
-      />
+      {!hidePartRow ? (
+        <HuoltoPartInspectionRow
+          title={titleLabel}
+          subtitle={subtitle || undefined}
+          status={status}
+          disabled={disabled}
+          onInspect={openDialog}
+        />
+      ) : null}
 
       <HuoltoInspectionDialogShell
         open={dialogOpen}

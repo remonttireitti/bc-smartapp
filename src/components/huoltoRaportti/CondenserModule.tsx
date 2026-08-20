@@ -11,6 +11,7 @@ import { FormCheckbox } from './FormCheckbox';
 import { FormInput } from './FormInput';
 import { HuoltoPartInspectionRow } from './HuoltoPartInspectionRow';
 import { HuoltoInspectionDialogShell } from './HuoltoInspectionDialogShell';
+import { useRegisterHuoltoModuleDialog } from './HuoltoModuleDialogContext';
 import { TriStateInspectionToggle } from './TriStateInspectionToggle';
 
 interface Props {
@@ -18,9 +19,11 @@ interface Props {
   titleLabel: string;
   data: CondenserData;
   onChange: (data: CondenserData) => void;
+  documentUnitKey?: string;
+  hidePartRow?: boolean;
 }
 
-export function CondenserModule({ index, titleLabel, data, onChange }: Props) {
+export function CondenserModule({ index, titleLabel, data, onChange, documentUnitKey, hidePartRow = false }: Props) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [draft, setDraft] = useState(data);
   const status = condenserInspectionStatus(data);
@@ -38,6 +41,12 @@ export function CondenserModule({ index, titleLabel, data, onChange }: Props) {
     if (status !== null) onChange(draft);
     setDialogOpen(false);
   }, [draft, onChange]);
+
+  const openDialog = useCallback(() => {
+    setDialogOpen(true);
+  }, []);
+
+  useRegisterHuoltoModuleDialog(documentUnitKey, openDialog);
 
   const renderDetails = (
     source: CondenserData,
@@ -226,12 +235,14 @@ export function CondenserModule({ index, titleLabel, data, onChange }: Props) {
 
   return (
     <>
-      <HuoltoPartInspectionRow
-        title={titleLabel}
-        subtitle={subtitle || undefined}
-        status={status}
-        onInspect={() => setDialogOpen(true)}
-      />
+      {!hidePartRow ? (
+        <HuoltoPartInspectionRow
+          title={titleLabel}
+          subtitle={subtitle || undefined}
+          status={status}
+          onInspect={openDialog}
+        />
+      ) : null}
 
       <HuoltoInspectionDialogShell
         open={dialogOpen}

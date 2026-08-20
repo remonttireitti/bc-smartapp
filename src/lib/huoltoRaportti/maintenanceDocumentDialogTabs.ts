@@ -5,8 +5,6 @@ export const MAINTENANCE_DIALOG_LAUNCHER_TABS = new Set<MaintenanceReportTabId>(
   'raportointi',
   'kylmaaine',
   'kylmaainePiiri',
-  'hoyrystin',
-  'lauhdutin',
   'lauhdutuspiiri',
   'nestelauhduttimet',
   'jaahdytysvesi',

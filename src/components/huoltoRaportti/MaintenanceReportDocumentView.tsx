@@ -1,8 +1,14 @@
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { HuoltoModuleDialogProvider, useHuoltoModuleDialog } from './HuoltoModuleDialogContext';
 import { HuoltoModulePresentationProvider } from './HuoltoModulePresentationContext';
 import { useHuoltoEditUi } from './HuoltoEditUiContext';
 import { maintenanceTabUsesDialogLauncher } from '../../lib/huoltoRaportti/maintenanceDocumentDialogTabs';
+import {
+  buildMaintenanceDocumentEntries,
+  documentEntryCompletion,
+  documentEntryUsesDialogLauncher,
+  documentNavTargetTabId,
+} from '../../lib/huoltoRaportti/maintenanceDocumentUnitEntries';
 import {
   MaintenanceReportDocumentSection,
   maintenanceSectionDomId,
@@ -11,15 +17,21 @@ import {
   MaintenanceReportTabContent,
   type MaintenanceReportTabContentProps,
 } from './MaintenanceReportTabContent';
-import type { MaintenanceTabCompletionState } from '../../lib/huoltoRaportti/maintenanceReportTabCompletion';
 import { maintenanceDocumentTheme } from '../../lib/huoltoRaportti/maintenanceDocumentTheme';
 import {
   buildMaintenanceDocumentTabSummary,
   maintenanceTabHasPrintSettings,
 } from '../../lib/huoltoRaportti/maintenanceDocumentTabSummary';
-import type { MaintenanceReportTabItem } from '../../lib/huoltoRaportti/maintenanceReportTabs';
+import type { MaintenanceReportTabItem, MaintenanceReportTabId } from '../../lib/huoltoRaportti/maintenanceReportTabs';
 import { useMaintenanceReportSectionSettings } from './MaintenanceReportSectionSettingsProvider';
 import { HuoltoPrintForm } from './print/MaintenancePrintLayout';
+import { EvaporatorCircuitsSync } from './EvaporatorCircuitsSync';
+import { CondenserCircuitsSync } from './CondenserCircuitsSync';
+import { EvaporatorModule } from './EvaporatorModule';
+import { CondenserModule } from './CondenserModule';
+import { createEvaporatorActions, evaporatorTitleForIndex } from './useEvaporatorCircuits';
+import { lauhdutinUnitTitle } from '../../lib/huoltoRaportti/sectionTitles';
+import type { MaintenanceTabCompletionState } from '../../lib/huoltoRaportti/maintenanceReportTabCompletion';
 
 type Props = Omit<MaintenanceReportTabContentProps, 'tabId'> & {
   tabs: MaintenanceReportTabItem[];
@@ -46,48 +58,107 @@ function MaintenanceReportDocumentViewInner({
   const ui = useHuoltoEditUi();
   const sectionSettings = useMaintenanceReportSectionSettings();
   const moduleDialog = useHuoltoModuleDialog();
+  const { form, onPatchForm, onSyncForm } = contentProps;
+
+  const entries = useMemo(() => buildMaintenanceDocumentEntries(tabs, form), [tabs, form]);
+  const hasEvaporatorUnits = entries.some((entry) => entry.kind === 'evaporatorUnit');
+  const hasCondenserUnits = entries.some((entry) => entry.kind === 'condenserUnit');
+  const evaporatorActions = useMemo(
+    () => createEvaporatorActions(form, onPatchForm),
+    [form, onPatchForm],
+  );
 
   useEffect(() => {
     if (!navTargetTabId || !ui) return;
-    if (maintenanceTabUsesDialogLauncher(navTargetTabId)) {
+    const targetId = documentNavTargetTabId(navTargetTabId, form);
+    const opensDialog =
+      targetId.includes(':') || maintenanceTabUsesDialogLauncher(targetId as never);
+    if (opensDialog) {
       window.requestAnimationFrame(() => {
-        scrollToMaintenanceSection(navTargetTabId);
-        moduleDialog?.open(navTargetTabId);
+        scrollToMaintenanceSection(targetId);
+        moduleDialog?.open(targetId);
       });
     } else {
-      openMaintenanceDocumentSection(navTargetTabId, ui.setOpen);
+      openMaintenanceDocumentSection(targetId, ui.setOpen);
     }
     onNavTargetHandled?.();
-  }, [navTargetTabId, ui, moduleDialog, onNavTargetHandled]);
+  }, [navTargetTabId, ui, moduleDialog, onNavTargetHandled, form]);
 
   return (
     <HuoltoModulePresentationProvider value="flat">
       <HuoltoPrintForm>
+        {hasEvaporatorUnits ? <EvaporatorCircuitsSync form={form} onChange={onSyncForm} /> : null}
+        {hasCondenserUnits ? <CondenserCircuitsSync form={form} onChange={onPatchForm} /> : null}
         <div className="maintenance-report-document">
-          {tabs.map((tab) => {
-            const completion = tabCompletion?.[tab.id];
-            const dialogLauncher = maintenanceTabUsesDialogLauncher(tab.id);
+          {entries.map((entry) => {
+            const completion = documentEntryCompletion(entry, form, tabCompletion);
+            const dialogLauncher =
+              documentEntryUsesDialogLauncher(entry) || maintenanceTabUsesDialogLauncher(entry.tabId);
             const defaultOpen = dialogLauncher ? false : completion !== 'ok';
-            const theme = maintenanceDocumentTheme(tab.id);
+            const theme = maintenanceDocumentTheme(
+              entry.kind === 'evaporatorUnit'
+                ? 'hoyrystin'
+                : entry.kind === 'condenserUnit'
+                  ? 'lauhdutin'
+                  : (entry.tabId as Parameters<typeof maintenanceDocumentTheme>[0]),
+            );
+
+            const tabIdForSettings = entry.kind === 'tab' ? (entry.tabId as MaintenanceReportTabId) : null;
 
             return (
               <MaintenanceReportDocumentSection
-                key={tab.id}
-                tabId={tab.id}
-                title={tab.label}
+                key={entry.key}
+                tabId={entry.tabId}
+                title={entry.title}
                 theme={theme}
                 summary={
                   dialogLauncher
                     ? undefined
-                    : buildMaintenanceDocumentTabSummary(tab.id, contentProps.form)
+                    : tabIdForSettings
+                      ? buildMaintenanceDocumentTabSummary(tabIdForSettings, form)
+                      : undefined
                 }
                 completion={completion}
                 defaultOpen={defaultOpen}
                 dialogLauncher={dialogLauncher}
-                showSettings={maintenanceTabHasPrintSettings(tab.id, contentProps.form)}
-                onOpenSettings={() => sectionSettings?.openSettings(tab.id)}
+                showSettings={tabIdForSettings ? maintenanceTabHasPrintSettings(tabIdForSettings, form) : false}
+                onOpenSettings={() => tabIdForSettings && sectionSettings?.openSettings(tabIdForSettings)}
               >
-                <MaintenanceReportTabContent tabId={tab.id} {...contentProps} />
+                {entry.kind === 'evaporatorUnit' && entry.unitIndex != null ? (
+                  <EvaporatorModule
+                    index={entry.unitIndex}
+                    laiteTyyppi={form.laiteTyyppi}
+                    titleLabel={evaporatorTitleForIndex(form, entry.unitIndex)}
+                    data={form.evaporatorData[entry.unitIndex]}
+                    locked={false}
+                    showSameAsFirst={entry.unitIndex > 0}
+                    sameAsFirst={form.evaporatorSamaKuinEnsimmainen[entry.unitIndex]}
+                    onSameAsFirstChange={(value) =>
+                      evaporatorActions.setSameAsFirst(entry.unitIndex!, value)
+                    }
+                    onChange={(data) => evaporatorActions.updateEvaporator(entry.unitIndex!, data)}
+                    documentUnitKey={entry.tabId}
+                    hidePartRow
+                  />
+                ) : entry.kind === 'condenserUnit' && entry.unitIndex != null ? (
+                  <CondenserModule
+                    index={entry.unitIndex}
+                    titleLabel={lauhdutinUnitTitle(form.laiteTyyppi, entry.unitIndex)}
+                    data={form.condenserData[entry.unitIndex]}
+                    onChange={(data) => {
+                      const next = [...form.condenserData];
+                      next[entry.unitIndex!] = data;
+                      onPatchForm({ condenserData: next });
+                    }}
+                    documentUnitKey={entry.tabId}
+                    hidePartRow
+                  />
+                ) : (
+                  <MaintenanceReportTabContent
+                    tabId={entry.tabId as MaintenanceReportTabContentProps['tabId']}
+                    {...contentProps}
+                  />
+                )}
               </MaintenanceReportDocumentSection>
             );
           })}
