@@ -1,34 +1,11 @@
 import type { ReactNode } from 'react';
 import type { ModuleSummaryRow } from '../../lib/huoltoRaportti/moduleSummaryRows';
-import { mergeHuoltoReportData } from '../../lib/huoltoRaportti/defaults';
+import { mergeRaportointiDialogClose } from '../../lib/huoltoRaportti/maintenanceDeviceDraft';
 import type { HuoltoReportData } from '../../lib/huoltoRaportti/types';
 import { useMaintenanceDocumentLayout } from '../../hooks/useMaintenanceDocumentLayout';
 import { HuoltoInspectionDialogShell, useHuoltoInspectionDialog } from './HuoltoInspectionDialogShell';
 import { useRegisterHuoltoModuleDialog } from './HuoltoModuleDialogContext';
 import { HuoltoModulePresentationProvider } from './HuoltoModulePresentationContext';
-
-function mergeRaportointiDialogDraft(
-  live: HuoltoReportData,
-  draft: HuoltoReportData,
-): HuoltoReportData {
-  const merged = mergeHuoltoReportData(live, draft);
-  if (live.laiteTyyppi.trim() && !draft.laiteTyyppi.trim()) {
-    return mergeHuoltoReportData(merged, {
-      laiteTyyppi: live.laiteTyyppi,
-      laiteValmistaja: live.laiteValmistaja,
-      laiteMalli: live.laiteMalli,
-      laiteTunnus: live.laiteTunnus,
-      laiteSarjanumero: live.laiteSarjanumero,
-      laiteSijainti: live.laiteSijainti,
-      laiteKayttotarkoitus: live.laiteKayttotarkoitus,
-      vjOhjausData: live.vjOhjausData,
-      selectedModules: live.selectedModules,
-      hiddenTabIds: live.hiddenTabIds,
-      moduleTabOrder: live.moduleTabOrder,
-    });
-  }
-  return merged;
-}
 
 type Props<T> = {
   data: T;
@@ -61,7 +38,7 @@ export function DocumentModuleInspection<T extends object>({
     onChange: (draftData) => {
       if (documentModuleKey === 'raportointi') {
         onChange(
-          mergeRaportointiDialogDraft(
+          mergeRaportointiDialogClose(
             data as HuoltoReportData,
             draftData as HuoltoReportData,
           ) as T,

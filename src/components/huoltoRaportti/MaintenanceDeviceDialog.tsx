@@ -15,6 +15,7 @@ type Props = {
   registryMessage?: string | null;
   copySiblingMode: boolean;
   onApply: (draft: HuoltoReportData) => boolean;
+  onDeviceTypeSelect: (deviceType: string) => void;
   onClose: () => void;
 };
 
@@ -25,13 +26,14 @@ export function MaintenanceDeviceDialog({
   registryMessage,
   copySiblingMode,
   onApply,
+  onDeviceTypeSelect,
   onClose,
 }: Props) {
   const [draft, setDraft] = useState(form);
 
   useEffect(() => {
     if (open) setDraft(form);
-  }, [open, form]);
+  }, [open]);
 
   const patchDraft = (patch: Partial<HuoltoReportData>) => setDraft((prev) => ({ ...prev, ...patch }));
 
@@ -52,7 +54,11 @@ export function MaintenanceDeviceDialog({
         <select
           className={fieldErrors.laiteTyyppi ? 'field-error-input' : undefined}
           value={draft.laiteTyyppi}
-          onChange={(e) => patchDraft({ laiteTyyppi: e.target.value })}
+          onChange={(e) => {
+            const laiteTyyppi = e.target.value;
+            patchDraft({ laiteTyyppi });
+            if (laiteTyyppi) onDeviceTypeSelect(laiteTyyppi);
+          }}
         >
           <option value="">— Valitse laitetyyppi —</option>
           {deviceTypes.map((dt) => (

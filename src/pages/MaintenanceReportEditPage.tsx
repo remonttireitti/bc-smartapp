@@ -32,6 +32,10 @@ import {
   pickBestKonvektoriRows,
   resolveMaintenanceReportTitle,
 } from '../lib/huoltoRaportti/defaults';
+import {
+  applyDeviceTypeSelection,
+  buildDeviceDialogApplyResult,
+} from '../lib/huoltoRaportti/maintenanceDeviceDraft';
 import { supabase } from '../lib/supabase';
 import { createRegistryCustomer } from '../lib/createRegistryCustomer';
 import { partnershipModuleAccess, partnershipPermsActingOnOwner } from '../lib/management';
@@ -1748,48 +1752,33 @@ export default function MaintenanceReportEditPage({ session }: Props) {
     }
   }
 
-  function applyDeviceDialogClose(deviceDraft: HuoltoReportData): boolean {
-    const validation = validateMaintenanceDeviceBasics({
-      laiteTyyppi: deviceDraft.laiteTyyppi,
-      laiteValmistaja: deviceDraft.laiteValmistaja,
-      laiteMalli: deviceDraft.laiteMalli,
-      laiteTunnus: deviceDraft.laiteTunnus,
-      laiteSarjanumero: deviceDraft.laiteSarjanumero,
-      laiteSijainti: deviceDraft.laiteSijainti,
-      laiteKayttotarkoitus: deviceDraft.laiteKayttotarkoitus,
-      kylmaaineTyyppi: deviceDraft.kylmaaineTyyppi,
-      kylmaainePiireja: deviceDraft.kylmaainePiireja,
-      selectedModules: deviceDraft.selectedModules,
+  function applyDeviceTypeFromDialog(deviceType: string) {
+    if (!deviceType.trim()) return;
+    setHasUnsavedChanges(true);
+    const next = applyDeviceTypeSelection(formStateRef.current.form, deviceType);
+    if (next === formStateRef.current.form) return;
+    formStateRef.current = { ...formStateRef.current, form: next };
+    persistDraftLocally(next);
+    setForm(next);
+    setDeviceFieldErrors((prev) => {
+      if (!prev.laiteTyyppi) return prev;
+      const { laiteTyyppi: _removed, ...rest } = prev;
+      return rest;
     });
-    if (!validation.ok) {
-      setDeviceFieldErrors(validation.fieldErrors);
+  }
+
+  function applyDeviceDialogClose(deviceDraft: HuoltoReportData): boolean {
+    const result = buildDeviceDialogApplyResult(formStateRef.current.form, deviceDraft);
+    if (!result.ok) {
+      setDeviceFieldErrors(result.fieldErrors);
       return false;
     }
 
     setDeviceFieldErrors({});
     setHasUnsavedChanges(true);
-    const base = formStateRef.current.form;
-    const withDefaults: HuoltoReportData =
-      deviceDraft.laiteTyyppi !== base.laiteTyyppi
-        ? {
-            ...applyDeviceTypeDefaults(base, deviceDraft.laiteTyyppi),
-            hiddenTabIds: [],
-            moduleTabOrder: [],
-          }
-        : base;
-    const next = mergeHuoltoReportData(withDefaults, {
-      laiteTyyppi: deviceDraft.laiteTyyppi,
-      laiteValmistaja: deviceDraft.laiteValmistaja,
-      laiteMalli: deviceDraft.laiteMalli,
-      laiteTunnus: deviceDraft.laiteTunnus,
-      laiteSarjanumero: deviceDraft.laiteSarjanumero,
-      laiteSijainti: deviceDraft.laiteSijainti,
-      laiteKayttotarkoitus: deviceDraft.laiteKayttotarkoitus,
-      vjOhjausData: deviceDraft.vjOhjausData,
-    });
-    formStateRef.current = { ...formStateRef.current, form: next };
-    persistDraftLocally(next);
-    setForm(next);
+    formStateRef.current = { ...formStateRef.current, form: result.next };
+    persistDraftLocally(result.next);
+    setForm(result.next);
     return true;
   }
 
@@ -1981,6 +1970,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
         registryMessage={registryMessage}
         copySiblingMode={copySiblingMode}
         onApply={applyDeviceDialogClose}
+        onDeviceTypeSelect={applyDeviceTypeFromDialog}
         onClose={() => {
           setDeviceDialogOpen(false);
           setHasUnsavedChanges(true);
