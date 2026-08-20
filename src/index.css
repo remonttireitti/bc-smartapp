@@ -13463,7 +13463,7 @@ button.vrf-toggle:not(:disabled) {
 .konvektori-compact-row > .konvektori-compact-field:nth-of-type(5) { grid-area: malli; }
 .konvektori-compact-row > .konvektori-compact-field:nth-of-type(6) { grid-area: sarja; }
 
-.konvektori-compact-row > .konvektori-status {
+.konvektori-compact-row > .konvektori-compact-status {
   grid-area: status;
   justify-self: end;
   min-width: 0;
@@ -13472,16 +13472,25 @@ button.vrf-toggle:not(:disabled) {
   text-overflow: ellipsis;
 }
 
+.konvektori-compact-status--in-actions {
+  display: none;
+}
+
+.konvektori-compact-action-btns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  flex-shrink: 0;
+}
+
 .konvektori-compact-actions {
   grid-area: actions;
   display: flex;
   flex-wrap: wrap;
   gap: 0.35rem;
   justify-content: stretch;
+  align-items: center;
   min-width: 0;
-  position: relative;
-  z-index: 1;
-  background: var(--bg-surface, #fff);
 }
 
 .konvektori-compact-actions .btn {
@@ -13502,6 +13511,20 @@ button.vrf-toggle:not(:disabled) {
 }
 
 .konvektori-status {
+  display: inline-block;
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 0.2rem 0.45rem;
+  border-radius: 999px;
+  white-space: nowrap;
+  text-align: center;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: middle;
+}
+
+.konvektori-compact-status {
   display: inline-block;
   font-size: 0.72rem;
   font-weight: 600;
@@ -13538,12 +13561,11 @@ button.vrf-toggle:not(:disabled) {
       minmax(4.5rem, 0.7fr)
       minmax(4.5rem, 0.7fr)
       minmax(5rem, 0.75fr)
-      minmax(4.5rem, 0.55fr)
-      minmax(10.5rem, auto);
+      minmax(12rem, auto);
     grid-template-areas: none;
     gap: 0.35rem;
     align-items: center;
-    min-width: 52rem;
+    min-width: 48rem;
   }
 
   .konvektori-compact-head {
@@ -13555,6 +13577,14 @@ button.vrf-toggle:not(:disabled) {
     border-bottom: 1px solid var(--border);
     background: transparent;
     border-radius: 0;
+  }
+
+  .konvektori-compact-head-status {
+    display: none;
+  }
+
+  .konvektori-compact-head-actions {
+    text-align: right;
   }
 
   .konvektori-compact-row {
@@ -13570,22 +13600,33 @@ button.vrf-toggle:not(:disabled) {
 
   .konvektori-compact-row > .konvektori-compact-field:nth-of-type(n) {
     grid-area: auto;
+    min-width: 0;
   }
 
-  .konvektori-compact-row > .konvektori-status {
-    justify-self: center;
-    max-width: none;
+  .konvektori-compact-row > .konvektori-compact-status:not(.konvektori-compact-status--in-actions) {
+    display: none;
+  }
+
+  .konvektori-compact-status--in-actions {
+    display: inline-block;
+    flex: 0 1 auto;
+    min-width: 0;
+    max-width: 5.5rem;
   }
 
   .konvektori-compact-actions {
     justify-content: flex-end;
     flex-wrap: nowrap;
-    flex-shrink: 0;
-    background: transparent;
+    gap: 0.5rem;
+    min-width: 0;
+  }
+
+  .konvektori-compact-action-btns {
+    flex-wrap: nowrap;
   }
 
   .konvektori-compact-actions .btn {
-    flex: 0 1 auto;
+    flex: 0 0 auto;
     min-height: 0;
     white-space: nowrap;
   }

@@ -108,8 +108,8 @@ export function KonvektoritSection({ rows, onChange, onPrintFaults, printFaultsB
           <span>Valmistaja</span>
           <span>Malli</span>
           <span>Sarjanumero</span>
-          <span>Tila</span>
-          <span>Toiminnot</span>
+          <span className="konvektori-compact-head-status">Tila</span>
+          <span className="konvektori-compact-head-actions">Toiminnot</span>
         </div>
 
         {effectiveRows.map((row, index) => {
@@ -169,18 +169,26 @@ export function KonvektoritSection({ rows, onChange, onPrintFaults, printFaultsB
                   placeholder="Sarjanumero"
                 />
               </label>
-              <span className={status.className}>{status.text}</span>
+              <span className={`konvektori-compact-status ${status.className}`}>{status.text}</span>
               <div className="konvektori-compact-actions">
-                <button
-                  type="button"
-                  className="btn btn-primary btn-sm"
-                  onClick={() => setDialogIndex(index)}
+                <span
+                  className={`konvektori-compact-status konvektori-compact-status--in-actions ${status.className}`}
+                  title={status.text}
                 >
-                  Tarkastus
-                </button>
-                <button type="button" className="btn btn-secondary btn-sm" onClick={() => removeRow(index)}>
-                  Poista
-                </button>
+                  {status.text}
+                </span>
+                <div className="konvektori-compact-action-btns">
+                  <button
+                    type="button"
+                    className="btn btn-primary btn-sm"
+                    onClick={() => setDialogIndex(index)}
+                  >
+                    Tarkastus
+                  </button>
+                  <button type="button" className="btn btn-secondary btn-sm" onClick={() => removeRow(index)}>
+                    Poista
+                  </button>
+                </div>
               </div>
             </div>
           );
