@@ -36,7 +36,7 @@ export type MaintenanceTabCompletionState = 'incomplete' | 'attention' | 'ok';
 export type MaintenanceTabCompletionMap = Partial<Record<MaintenanceReportTabId, MaintenanceTabCompletionState>>;
 
 function aggregateInspectionStatuses(statuses: HuoltoInspectionStatus[]): MaintenanceTabCompletionState {
-  if (statuses.length === 0) return 'ok';
+  if (statuses.length === 0) return 'incomplete';
   if (statuses.some((status) => status === null)) return 'incomplete';
   if (statuses.some((status) => status === 'faulty')) return 'attention';
   return 'ok';
@@ -112,7 +112,7 @@ function isKylmaaineChargeComplete(form: HuoltoReportData): MaintenanceTabComple
 
 function isCustomModuleComplete(module: CustomReportModule): MaintenanceTabCompletionState {
   const requiredFields = module.fields.filter((field) => field.required);
-  if (requiredFields.length === 0) return 'ok';
+  if (requiredFields.length === 0) return 'incomplete';
 
   const allFilled = requiredFields.every((field) => {
     const value = module.values[field.id];
@@ -201,6 +201,7 @@ function completionForTab(
     }
 
     case 'huomiot':
+      if (!form.huomiot.trim()) return 'incomplete';
       return 'ok';
 
     case 'huoltotiedot': {
@@ -239,7 +240,7 @@ export function buildMaintenanceReportTabCompletion(
 
 export function maintenanceTabCompletionLabel(state: MaintenanceTabCompletionState | undefined): string {
   if (state === 'ok') return 'Valmis';
-  if (state === 'attention') return 'Täytetty, huomioita';
+  if (state === 'attention') return 'Tarkastettu, huomioita';
   return 'Kesken';
 }
 

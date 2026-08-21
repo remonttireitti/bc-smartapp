@@ -9,6 +9,8 @@ interface Props {
   collapseKey?: string;
   variant?: 'form' | 'plain';
   className?: string;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
 export default function CollapsibleSection({
@@ -18,9 +20,14 @@ export default function CollapsibleSection({
   collapseKey,
   variant = 'form',
   className = '',
+  open: controlledOpen,
+  onOpenChange,
 }: Props) {
   const key = collapseKey ?? `page:${title}`;
-  const { open, toggle } = useHuoltoCollapse(key, defaultOpen);
+  const collapse = useHuoltoCollapse(key, defaultOpen);
+  const open = controlledOpen ?? collapse.open;
+  const setOpen = onOpenChange ?? collapse.setOpen;
+  const toggle = () => setOpen(!open);
   const contentId = useId();
 
   return (

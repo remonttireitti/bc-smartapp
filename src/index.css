@@ -5493,6 +5493,59 @@ textarea {
   min-width: 0;
 }
 
+.work-report-list-grid,
+.work-report-section-grid {
+  margin-bottom: 1.25rem;
+}
+
+.work-report-list-tile-wrap {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: .5rem;
+}
+
+a.tile.work-report-list-tile,
+button.tile.work-report-section-tile {
+  position: relative;
+  width: 100%;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  text-decoration: none;
+  color: white;
+}
+
+a.tile.work-report-list-tile:hover {
+  color: white;
+}
+
+.work-report-list-tile-status {
+  position: absolute;
+  top: .65rem;
+  right: .65rem;
+  font-size: .72rem;
+  font-weight: 700;
+  background: rgba(255, 255, 255, .18);
+  border-radius: 999px;
+  padding: .15rem .45rem;
+}
+
+.work-report-list-tile-meta {
+  opacity: .88;
+  font-size: .78rem;
+}
+
+.work-report-list-tile-aside {
+  padding: 0 .25rem;
+}
+
+.work-report-section-tile--active {
+  outline: 3px solid rgba(255, 255, 255, .55);
+  outline-offset: 2px;
+}
+
 button.tile.maintenance-report-document-tile {
   position: relative;
   width: 100%;

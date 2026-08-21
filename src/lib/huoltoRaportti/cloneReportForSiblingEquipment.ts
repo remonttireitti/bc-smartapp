@@ -50,5 +50,7 @@ export function cloneHuoltoReportForSiblingEquipment(
     }));
   }
 
+  next.visitedModuleIds = [];
+
   return next;
 }

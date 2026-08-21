@@ -5,6 +5,7 @@ import AppLayout from '../components/AppLayout';
 import CustomerRegistryPicker, { type NewCustomerDraft } from '../components/CustomerRegistryPicker';
 import DeletedUserLabel from '../components/DeletedUserLabel';
 import CollapsibleSection from '../components/CollapsibleSection';
+import { WorkReportSectionTile, WorkReportSectionTileGrid } from '../components/WorkReportSectionTile';
 import ActionStatusDialog from '../components/ActionStatusDialog';
 import DailyLogDialog from '../components/DailyLogDialog';
 import DailyLogFormSection from '../components/DailyLogFormSection';
@@ -1161,6 +1162,7 @@ export default function WorkReportDetailPage({ session }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [billingNotice, setBillingNotice] = useState<string | null>(null);
   const [logDialogOpen, setLogDialogOpen] = useState(false);
+  const [openWorkSection, setOpenWorkSection] = useState('basics');
   const [logDialogBusy, setLogDialogBusy] = useState(false);
   const [dailyLogNotice, setDailyLogNotice] = useState<DailyLogActionNotice | null>(null);
   const [logForm, setLogForm] = useState(initialLogForm);
@@ -2512,6 +2514,15 @@ export default function WorkReportDetailPage({ session }: Props) {
     showCustomerBillingFeatures
     && !!customerBillableCalculation
     && (isOwnerCompany || (isPartnerReport && canSeeCreatorBilling));
+  const focusWorkSection = (sectionId: string) => {
+    setOpenWorkSection(sectionId);
+    window.requestAnimationFrame(() => {
+      document.getElementById(`work-report-section-${sectionId}`)?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start',
+      });
+    });
+  };
   const portalReadOnly = isPortalReadOnly(profile);
   const canDeleteReport =
     !portalReadOnly && canDeleteWorkReport(report, session.user.id, profile?.is_global_admin, profile?.role);
@@ -2684,7 +2695,50 @@ export default function WorkReportDetailPage({ session }: Props) {
       {error && !logDialogOpen && <p className="error">{error}</p>}
       {billingNotice && !logDialogOpen && <p className="muted">{billingNotice}</p>}
 
-      <CollapsibleSection title="Perustiedot" defaultOpen variant="plain" className="panel work-report-section">
+      <WorkReportSectionTileGrid>
+        <WorkReportSectionTile
+          title="Perustiedot"
+          subtitle="Asiakas, tilaaja ja kuvaus"
+          color="#1976D2"
+          active={openWorkSection === 'basics'}
+          onClick={() => focusWorkSection('basics')}
+        />
+        <WorkReportSectionTile
+          title="Työkirjaukset"
+          subtitle={`${totalHours.toFixed(2)} h · ${dailyLogs.length} kirjausta`}
+          color="#388E3C"
+          active={openWorkSection === 'logs'}
+          onClick={() => focusWorkSection('logs')}
+        />
+        {showPartnerBillableSection && billableCalculation ? (
+          <WorkReportSectionTile
+            title={showOutgoingPartnerBilling ? 'Kumppanille laskutettava' : 'Kumppanilta laskutettava'}
+            subtitle={formatEuro(billableCalculation.grandTotal)}
+            color="#6366f1"
+            active={openWorkSection === 'partner-billing'}
+            onClick={() => focusWorkSection('partner-billing')}
+          />
+        ) : null}
+        {showCustomerMoneyBilling && customerBillableCalculation ? (
+          <WorkReportSectionTile
+            title="Asiakkaalta laskutettava"
+            subtitle={formatEuro(customerBillableCalculation.grandTotal)}
+            color="#f59e0b"
+            active={openWorkSection === 'customer-billing'}
+            onClick={() => focusWorkSection('customer-billing')}
+          />
+        ) : null}
+      </WorkReportSectionTileGrid>
+
+      <div id="work-report-section-basics">
+      <CollapsibleSection
+        title="Perustiedot"
+        defaultOpen
+        variant="plain"
+        className="panel work-report-section"
+        open={openWorkSection === 'basics'}
+        onOpenChange={(open) => open && setOpenWorkSection('basics')}
+      >
         <dl className="detail-list compact-detail-list">
           <dt>Yrityksen nimissä</dt>
           <dd>
@@ -3032,12 +3086,16 @@ export default function WorkReportDetailPage({ session }: Props) {
           </button>
         </div>
       </CollapsibleSection>
+      </div>
 
+      <div id="work-report-section-logs">
       <CollapsibleSection
         title={`Työkirjaukset · ${totalHours.toFixed(2)} h · kulut ${totalExpenses.toFixed(2)} €${totalTripKm > 0 ? ` · ${totalTripKm.toFixed(1)} km` : ''}`}
         defaultOpen
         variant="plain"
         className="panel work-report-section"
+        open={openWorkSection === 'logs'}
+        onOpenChange={(open) => open && setOpenWorkSection('logs')}
       >
         <div className="section-head compact-section-head">
           {canAddDailyLogs && (
@@ -3185,8 +3243,10 @@ export default function WorkReportDetailPage({ session }: Props) {
           </ul>
         )}
       </CollapsibleSection>
+      </div>
 
       {showPartnerBillableSection && billableCalculation && (
+        <div id="work-report-section-partner-billing">
         <CollapsibleSection
           title={
             showOutgoingPartnerBilling
@@ -3196,6 +3256,8 @@ export default function WorkReportDetailPage({ session }: Props) {
           defaultOpen={false}
           variant="plain"
           className="panel work-report-section"
+          open={openWorkSection === 'partner-billing'}
+          onOpenChange={(open) => open && setOpenWorkSection('partner-billing')}
         >
             <div className="billing-rates-bar">
               <p className="muted" style={{ margin: 0 }}>
@@ -3342,6 +3404,7 @@ export default function WorkReportDetailPage({ session }: Props) {
               </p>
             )}
         </CollapsibleSection>
+        </div>
       )}
 
       {(showOutgoingPartnerBilling || showCustomerMoneyBilling) && report && (
@@ -3362,11 +3425,14 @@ export default function WorkReportDetailPage({ session }: Props) {
       )}
 
       {showCustomerMoneyBilling && customerBillableCalculation && (
+        <div id="work-report-section-customer-billing">
         <CollapsibleSection
           title={`Asiakkaalta laskutettava · ${formatEuro(customerBillableCalculation.grandTotal)}`}
           defaultOpen={false}
           variant="plain"
           className="panel work-report-section"
+          open={openWorkSection === 'customer-billing'}
+          onOpenChange={(open) => open && setOpenWorkSection('customer-billing')}
         >
           <div className="billing-rates-bar">
             <p className="muted" style={{ margin: 0 }}>
@@ -3475,6 +3541,7 @@ export default function WorkReportDetailPage({ session }: Props) {
             )}
           </div>
         </CollapsibleSection>
+        </div>
       )}
 
       {canSeePartnerSummary && !showIncomingPartnerBilling && (

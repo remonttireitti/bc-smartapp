@@ -122,6 +122,9 @@ import { MaintenanceModuleStructureDialog } from '../components/huoltoRaportti/M
 import { getHiddenMaintenanceTabs } from '../lib/huoltoRaportti/maintenanceReportTabCustomization';
 import { HuoltoEditUiProvider } from '../components/huoltoRaportti/HuoltoEditUiContext';
 import { MaintenanceReportSectionSettingsProvider } from '../components/huoltoRaportti/MaintenanceReportSectionSettingsProvider';
+import {
+  markMaintenanceModuleVisited,
+} from '../lib/huoltoRaportti/maintenanceModuleVisit';
 import { cloneHuoltoReportForSiblingEquipment } from '../lib/huoltoRaportti/cloneReportForSiblingEquipment';
 import {
   createSiblingMaintenanceReport,
@@ -1782,6 +1785,12 @@ export default function MaintenanceReportEditPage({ session }: Props) {
     return true;
   }
 
+  function markModuleVisited(tabId: string) {
+    const nextVisited = markMaintenanceModuleVisited(form.visitedModuleIds, tabId);
+    if (nextVisited === form.visitedModuleIds) return;
+    patchForm({ visitedModuleIds: nextVisited });
+  }
+
   function openDeviceDialog() {
     const customerResult = validateMaintenanceCustomerBasics(customerBasicsInput);
     setBasicsFieldErrors(customerResult.fieldErrors);
@@ -1863,7 +1872,11 @@ export default function MaintenanceReportEditPage({ session }: Props) {
     onCreateEquipment: createEquipmentAndSelect,
     onSubscriberChange: setSubscriberId,
     onSubscriberPortalVisibilityChange: setSubscriberPortalVisibility,
-    onOpenDeviceDialog: openDeviceDialog,
+    onOpenDeviceDialog: () => {
+      markModuleVisited('raportointi');
+      openDeviceDialog();
+    },
+    onModuleVisited: markModuleVisited,
     onCondenserTypeChange,
     onFreeCoolingChange,
     onPrintKonvektoriFaults: hasFaultyKonvektorit ? () => void openKonvektoriFaultPrint() : undefined,

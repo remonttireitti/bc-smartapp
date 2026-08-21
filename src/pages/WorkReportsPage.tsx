@@ -13,6 +13,7 @@ import WorkReportFilters, {
 } from '../components/WorkReportFilters';
 
 import { ReportListItem } from '../components/ReportListItem';
+import { WorkReportListGrid, WorkReportListTile } from '../components/WorkReportListTile';
 
 import WorkReportCalendarTimeline, {
   calendarDayHoursLabel,
@@ -49,8 +50,6 @@ import { useCompanyCustomerBillingEnabled } from '../hooks/useCompanyCustomerBil
 import { useProfile } from '../hooks/useProfile';
 
 import {
-
-  WORK_STATUS_LABELS,
 
   getWorkStatusLabel,
   getPortalWorkStatusLabel,
@@ -926,19 +925,14 @@ export default function WorkReportsPage({ session }: Props) {
 
           ) : (
 
-            <ul className="report-list">
-
+            <WorkReportListGrid>
               {activeReports.map((r) => (
-
-                <li key={r.id}>
-
-                  <ReportListItem {...reportListItemProps(r, logsByReportId, companyId, billingModuleEnabled, customerBillingEnabled, loadReports, { showStatusMenu: true })} />
-
-                </li>
-
+                <WorkReportListTile
+                  key={r.id}
+                  {...reportListItemProps(r, logsByReportId, companyId, billingModuleEnabled, customerBillingEnabled, loadReports, { showStatusMenu: true })}
+                />
               ))}
-
-            </ul>
+            </WorkReportListGrid>
 
           )}
 
@@ -975,31 +969,16 @@ export default function WorkReportsPage({ session }: Props) {
 
               <h2>Luonnokset</h2>
 
-              <ul className="report-list report-list-modern">
-
+              <WorkReportListGrid>
                 {draftReports.map((r) => (
-
-                  <li key={r.id}>
-
-                    <Link to={draftEditPath(r)} className="report-link">
-
-                      <div className="report-link-body">
-
-                        <strong>{workReportListTitle(r)}</strong>
-
-                        <span className="muted">{r.customers?.name ?? r.location_text ?? '—'}</span>
-
-                      </div>
-
-                      <span className="badge badge-draft">{WORK_STATUS_LABELS.draft}</span>
-
-                    </Link>
-
-                  </li>
-
+                  <WorkReportListTile
+                    key={r.id}
+                    report={r}
+                    linkTo={draftEditPath(r)}
+                    viewerCompanyId={companyId}
+                  />
                 ))}
-
-              </ul>
+              </WorkReportListGrid>
 
             </>
 
@@ -1019,19 +998,14 @@ export default function WorkReportsPage({ session }: Props) {
 
           ) : (
 
-            <ul className="report-list">
-
+            <WorkReportListGrid>
               {historyReports.map((r) => (
-
-                <li key={r.id}>
-
-                  <ReportListItem {...reportListItemProps(r, logsByReportId, companyId, billingModuleEnabled, customerBillingEnabled, loadReports)} />
-
-                </li>
-
+                <WorkReportListTile
+                  key={r.id}
+                  {...reportListItemProps(r, logsByReportId, companyId, billingModuleEnabled, customerBillingEnabled, loadReports)}
+                />
               ))}
-
-            </ul>
+            </WorkReportListGrid>
 
           )}
 

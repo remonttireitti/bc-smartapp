@@ -549,6 +549,8 @@ export type HuoltoReportData = {
   selectedModules: Record<ModuleKey, boolean> & Record<string, boolean>;
   hiddenTabIds?: MaintenanceReportTabId[];
   moduleTabOrder?: MaintenanceReportTabId[];
+  /** Moduulit joita käyttäjä on avannut tarkastettavaksi. */
+  visitedModuleIds?: string[];
   customModules?: import('./customModuleTypes').CustomReportModule[];
   laiteValmistaja: string;
   laiteMalli: string;

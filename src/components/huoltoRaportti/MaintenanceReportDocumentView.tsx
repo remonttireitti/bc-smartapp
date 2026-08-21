@@ -39,6 +39,7 @@ type Props = Omit<MaintenanceReportTabContentProps, 'tabId'> & {
   tabCompletion?: Partial<Record<string, MaintenanceTabCompletionState>>;
   navTargetTabId?: string | null;
   onNavTargetHandled?: () => void;
+  onModuleVisited?: (tabId: string) => void;
 };
 
 export function MaintenanceReportDocumentView(props: Props) {
@@ -54,6 +55,7 @@ function MaintenanceReportDocumentViewInner({
   tabCompletion,
   navTargetTabId,
   onNavTargetHandled,
+  onModuleVisited,
   ...contentProps
 }: Props) {
   const ui = useHuoltoEditUi();
@@ -77,13 +79,15 @@ function MaintenanceReportDocumentViewInner({
     if (opensDialog) {
       window.requestAnimationFrame(() => {
         scrollToMaintenanceSection(targetId);
+        onModuleVisited?.(targetId);
         moduleDialog?.open(targetId);
       });
     } else {
+      onModuleVisited?.(targetId);
       openMaintenanceDocumentSection(targetId, ui.setOpen);
     }
     onNavTargetHandled?.();
-  }, [navTargetTabId, ui, moduleDialog, onNavTargetHandled, form]);
+  }, [navTargetTabId, ui, moduleDialog, onNavTargetHandled, form, onModuleVisited]);
 
   return (
     <HuoltoModulePresentationProvider value="flat">
@@ -150,9 +154,11 @@ function MaintenanceReportDocumentViewInner({
                   tabId={entry.tabId}
                   title={entry.title}
                   theme={theme}
+                  form={form}
                   completion={completion}
                   showSettings={tabIdForSettings ? maintenanceTabHasPrintSettings(tabIdForSettings, form) : false}
                   onOpenSettings={() => tabIdForSettings && sectionSettings?.openSettings(tabIdForSettings)}
+                  onModuleVisited={onModuleVisited}
                 >
                   {hiddenChildren}
                 </MaintenanceReportDocumentTile>

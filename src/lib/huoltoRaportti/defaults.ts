@@ -979,6 +979,7 @@ export function createEmptyHuoltoReportData(): HuoltoReportData {
     osoite: '',
     laiteTyyppi: '',
     selectedModules: emptySelectedModules(),
+    visitedModuleIds: [],
     customModules: [],
     laiteValmistaja: '',
     laiteMalli: '',

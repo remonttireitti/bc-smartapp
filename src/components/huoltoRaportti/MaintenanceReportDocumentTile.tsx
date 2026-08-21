@@ -1,6 +1,10 @@
 import { useId, type ReactNode } from 'react';
+import {
+  resolveModuleTilePresentation,
+} from '../../lib/huoltoRaportti/maintenanceModuleVisit';
 import type { MaintenanceTabCompletionState } from '../../lib/huoltoRaportti/maintenanceReportTabCompletion';
 import { maintenanceTabCompletionLabel } from '../../lib/huoltoRaportti/maintenanceReportTabCompletion';
+import type { HuoltoReportData } from '../../lib/huoltoRaportti/types';
 import type { ModuleTheme } from '../../lib/huoltoRaportti/moduleThemes';
 import { useHuoltoModuleDialog } from './HuoltoModuleDialogContext';
 import { maintenanceSectionDomId } from './MaintenanceReportDocumentSection';
@@ -9,31 +13,31 @@ type Props = {
   tabId: string;
   title: string;
   theme: ModuleTheme;
+  form: HuoltoReportData;
   completion?: MaintenanceTabCompletionState;
   showSettings?: boolean;
   onOpenSettings?: () => void;
+  onModuleVisited?: (tabId: string) => void;
   children: ReactNode;
 };
-
-function tileSubtitle(completion?: MaintenanceTabCompletionState): string {
-  if (completion === 'ok') return 'Valmis';
-  if (completion === 'attention') return 'Tarkista';
-  return 'Avaa täyttääksesi';
-}
 
 export function MaintenanceReportDocumentTile({
   tabId,
   title,
   theme,
+  form,
   completion,
   showSettings = false,
   onOpenSettings,
+  onModuleVisited,
   children,
 }: Props) {
   const contentId = useId();
   const moduleDialog = useHuoltoModuleDialog();
+  const presentation = resolveModuleTilePresentation(tabId, form, completion);
 
   function handleClick() {
+    onModuleVisited?.(tabId);
     moduleDialog?.open(tabId);
   }
 
@@ -70,14 +74,14 @@ export function MaintenanceReportDocumentTile({
             ⚙
           </span>
         ) : null}
-        {completion === 'ok' ? (
+        {presentation.showCheck ? (
           <span
             className="maintenance-report-document-tile-check"
             aria-label={maintenanceTabCompletionLabel('ok')}
           >
             ✓
           </span>
-        ) : completion === 'attention' ? (
+        ) : presentation.showAttention ? (
           <span
             className="maintenance-report-document-tile-check maintenance-report-document-tile-check--attention"
             aria-label={maintenanceTabCompletionLabel('attention')}
@@ -86,7 +90,7 @@ export function MaintenanceReportDocumentTile({
           </span>
         ) : null}
         <strong>{title}</strong>
-        <span>{tileSubtitle(completion)}</span>
+        <span>{presentation.subtitle}</span>
       </button>
       <div
         id={contentId}
