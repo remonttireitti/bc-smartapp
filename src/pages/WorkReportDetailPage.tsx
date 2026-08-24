@@ -2525,21 +2525,12 @@ export default function WorkReportDetailPage({ session }: Props) {
       });
     });
   };
-  const dailyLogEntryTiles = useMemo(
-    () =>
-      dailyLogs.flatMap((log) =>
-        buildDailyLogEntryTiles(log, {
-          formatDate,
-          logExpensesTotal: (entry) => dailyLogExpensesTotal(entry, reportTripKmRate),
-          showMoney: showPartnerBillableSection || showCustomerMoney,
-        }),
-      ),
-    [
-      dailyLogs,
-      reportTripKmRate,
-      showPartnerBillableSection,
-      showCustomerMoney,
-    ],
+  const dailyLogEntryTiles = dailyLogs.flatMap((log) =>
+    buildDailyLogEntryTiles(log, {
+      formatDate,
+      logExpensesTotal: (entry) => dailyLogExpensesTotal(entry, reportTripKmRate),
+      showMoney: showPartnerBillableSection || showCustomerMoney,
+    }),
   );
   const portalReadOnly = isPortalReadOnly(profile);
   const canDeleteReport =
