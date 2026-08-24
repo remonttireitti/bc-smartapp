@@ -1,6 +1,46 @@
 import { isLikelyAutoTripKmExpense } from './tripKmExpense';
+import {
+  DEFAULT_PARTNER_URAKKA_MARGIN_PERCENT,
+  roundUrakkaMoney,
+} from './workReportUrakkaBilling';
 
 export type ExpenseBillingMode = 'partner_and_customer' | 'customer_only' | 'included_in_contract';
+
+export const DEFAULT_PARTNER_EXPENSE_MARGIN_PERCENT = DEFAULT_PARTNER_URAKKA_MARGIN_PERCENT;
+
+export function computeCustomerPriceFromPartnerCost(
+  partnerCost: number,
+  marginPercent: number = DEFAULT_PARTNER_EXPENSE_MARGIN_PERCENT,
+): number {
+  const margin = Number.isFinite(marginPercent) ? marginPercent : DEFAULT_PARTNER_EXPENSE_MARGIN_PERCENT;
+  const clamped = Math.max(0, Math.min(margin, 99.99));
+  const divisor = 1 - clamped / 100;
+  if (divisor <= 0) return roundUrakkaMoney(partnerCost);
+  return roundUrakkaMoney(partnerCost / divisor);
+}
+
+export function inferPartnerExpenseMarginPercent(
+  partnerCost: number,
+  customerPrice: number,
+  fallback: number = DEFAULT_PARTNER_EXPENSE_MARGIN_PERCENT,
+): number {
+  if (!(partnerCost > 0) || !(customerPrice > 0) || customerPrice < partnerCost) return fallback;
+  return roundUrakkaMoney((1 - partnerCost / customerPrice) * 100);
+}
+
+export function expenseCustomerPriceMissing(
+  row: ExpenseBillingFlags & { unit_price?: number | string | null; customer_unit_price?: number | string | null },
+): boolean {
+  const mode = resolveExpenseBillingMode(row);
+  const customerRaw = row.customer_unit_price;
+  const customerPrice =
+    customerRaw != null && String(customerRaw).trim() !== '' ? Number(customerRaw) : null;
+  if (customerPrice != null && customerPrice > 0) return false;
+  if (mode === 'customer_only') return true;
+  if (mode === 'included_in_contract') return false;
+  const partnerPrice = Number(row.unit_price || 0);
+  return !(partnerPrice > 0);
+}
 
 export type ExpenseBillingFlags = {
   bill_to_partner?: boolean;
@@ -34,8 +74,8 @@ export function expenseIncludedInContract(row: ExpenseBillingFlags): boolean {
 
 export function expenseBillingModeShortLabel(mode: ExpenseBillingMode): string {
   if (mode === 'included_in_contract') return 'kuulu urakkaan · ei veloiteta';
-  if (mode === 'customer_only') return 'kumppani laskuttaa asiakkaalta';
-  return 'laskutetaan kumppanilta ja asiakkaalta';
+  if (mode === 'customer_only') return 'ei laskuteta kumppanilta';
+  return 'laskutetaan kumppanilta';
 }
 
 export function expenseBillingSummaryLabel(
@@ -47,7 +87,9 @@ export function expenseBillingSummaryLabel(
   if (options.showPartner && options.showCustomer) {
     return mode === 'customer_only' ? expenseBillingModeShortLabel(mode) : null;
   }
-  if (options.showPartner && !row.bill_to_partner) return 'ei veloiteta';
+  if (options.showPartner && !row.bill_to_partner) {
+    return mode === 'customer_only' ? expenseBillingModeShortLabel(mode) : 'ei veloiteta';
+  }
   if (options.showCustomer && !row.bill_to_customer) return 'ei veloiteta asiakkaalta';
   return null;
 }
@@ -57,8 +99,8 @@ export function expensePrintBillingNote(
   options: { showPartner: boolean; showCustomer: boolean },
 ): string {
   if (expenseIncludedInContract(row)) return ' · kuulu urakkaan · ei veloiteta';
-  if (options.showPartner && row.bill_to_partner === false && options.showCustomer && row.bill_to_customer !== false) {
-    return ' · kumppani laskuttaa asiakkaalta';
+  if (options.showPartner && row.bill_to_partner === false && row.bill_to_customer !== false) {
+    return ' · ei laskuteta kumppanilta';
   }
   if (options.showPartner && row.bill_to_partner === false) return ' · ei veloiteta';
   if (options.showCustomer && row.bill_to_customer === false) return ' · ei laskuteta asiakkaalta';

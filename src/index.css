@@ -10387,6 +10387,79 @@ button.tile.maintenance-report-document-tile {
   gap: 0.5rem;
 }
 
+.expense-billing-panel {
+  grid-column: 1 / -1;
+  margin-top: 0.25rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-muted, rgba(0, 0, 0, 0.02));
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.expense-billing-panel-title {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+
+.expense-billing-choices {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.expense-billing-choice {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+  margin: 0;
+  padding: 0.6rem 0.7rem;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.expense-billing-choice.is-selected {
+  border-color: var(--border);
+  background: var(--surface, #fff);
+}
+
+.expense-billing-choice input[type='radio'] {
+  margin: 0.15rem 0 0;
+  flex-shrink: 0;
+}
+
+.expense-billing-choice-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  font-size: 0.88rem;
+  line-height: 1.35;
+}
+
+.expense-billing-choice-text strong {
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.expense-billing-fields {
+  margin: 0 0 0.15rem 1.85rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.expense-billing-preview {
+  margin: 0;
+  font-size: 0.85rem;
+  line-height: 1.4;
+}
+
 .expense-billing-mode-fieldset legend {
   padding: 0 0.35rem;
   font-size: 0.9rem;

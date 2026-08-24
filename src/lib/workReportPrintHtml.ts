@@ -1,5 +1,5 @@
 import type { BillableCalculation } from './workReportBilling';
-import { expensePrintBillingNote } from './workReportExpenseBilling';
+import { expenseCustomerPriceMissing, expensePrintBillingNote } from './workReportExpenseBilling';
 
 /** Asiakas = vain työn kuvaus ilman hintoja. Sisäinen = kumppani- ja asiakaslaskutus mukana. */
 export type WorkReportPrintMode = 'customer' | 'internal';
@@ -338,6 +338,14 @@ export function generateWorkReportPrintHtml(input: {
               showPartner: true,
               showCustomer: showCustomerExpensePrices,
             });
+            const customerOnly = line.bill_to_partner === false && line.bill_to_customer !== false;
+            if (customerOnly) {
+              const priceMissing = expenseCustomerPriceMissing(line);
+              const priceCell = priceMissing
+                ? `${qty} · <span class="billing-price-missing">?</span>`
+                : `${qty} × ${formatEuro(customerUnit)} = ${formatEuro(customerTotal)}`;
+              return `<tr><td>${esc(label)}</td><td>${esc(line.description)}</td><td class="num">${priceCell}${esc(partnerNote)}</td></tr>`;
+            }
             const customerNote =
               showCustomerExpensePrices && line.bill_to_customer !== false && customerUnit !== unit
                 ? ` · asiakas ${formatEuro(customerUnit)} = ${formatEuro(customerTotal)}`
@@ -347,7 +355,7 @@ export function generateWorkReportPrintHtml(input: {
             return `<tr><td>${esc(label)}</td><td>${esc(line.description)}</td><td class="num">${qty} × ${formatEuro(unit)} = ${formatEuro(total)}${esc(partnerNote)}${esc(customerNote)}</td></tr>`;
           }
           if (showCustomerExpensePrices && line.bill_to_customer !== false) {
-            const priceMissing = !(customerUnit > 0);
+            const priceMissing = expenseCustomerPriceMissing(line);
             const priceCell = priceMissing
               ? `${qty} · <span class="billing-price-missing">?</span>`
               : `${qty} × ${formatEuro(customerUnit)} = ${formatEuro(customerTotal)}`;

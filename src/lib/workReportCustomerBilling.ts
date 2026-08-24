@@ -11,6 +11,7 @@ import {
   resolveUrakkaCustomerAmount,
   urakkaCustomerLineDescription,
 } from './workReportUrakkaBilling';
+import { expenseCustomerPriceMissing } from './workReportExpenseBilling';
 import type { BillableRatesSource } from './management';
 import { tripKmExpenseBillingLine } from './tripKmExpense';
 
@@ -45,13 +46,12 @@ function resolveCustomerHourUnitPrice(
 function customerExpenseUnitPrice(line: NonNullable<WorkReportDailyLog['expense_lines']>[number]): number {
   const customerPrice = line.customer_unit_price != null ? Number(line.customer_unit_price) : null;
   if (customerPrice != null && customerPrice > 0) return customerPrice;
+  if (line.bill_to_partner === false) return 0;
   return Number(line.unit_price || 0);
 }
 
 function customerExpensePriceMissing(line: NonNullable<WorkReportDailyLog['expense_lines']>[number]): boolean {
-  const customerPrice = line.customer_unit_price != null ? Number(line.customer_unit_price) : null;
-  if (customerPrice != null && customerPrice > 0) return false;
-  return !(Number(line.unit_price) > 0);
+  return expenseCustomerPriceMissing(line);
 }
 
 function refrigerantCustomerPriceMissing(
