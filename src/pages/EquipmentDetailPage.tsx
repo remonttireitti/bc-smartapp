@@ -2,9 +2,12 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
 import AppLayout from '../components/AppLayout';
-import EquipmentSnapshotReadOnly from '../components/equipment/EquipmentSnapshotReadOnly';
-import { DeviceCardIcon, HistoryIcon, PrinterIcon } from '../components/PrintIcons';
+import { CustomerDocumentGrid, CustomerDocumentTile } from '../components/CustomerDocumentTile';
+import EquipmentSnapshotTileView from '../components/equipment/EquipmentSnapshotTileView';
+import { DeviceCardIcon, HistoryIcon } from '../components/PrintIcons';
 import Tooltip from '../components/Tooltip';
+import { WorkReportSectionTile, WorkReportSectionTileGrid } from '../components/WorkReportSectionTile';
+import WorkReportSectionDialog from '../components/WorkReportSectionDialog';
 import { resolveCompanyLogoUrl } from '../lib/companyLogo';
 import { CUSTOMER_SELECT, EQUIPMENT_SELECT, customerAddressLine } from '../lib/customers';
 import {
@@ -16,10 +19,12 @@ import {
   loadCustomerMaintenanceContext,
 } from '../lib/equipmentMaintenanceHistory';
 import {
-  CUSTOMER_DOCUMENT_KIND_LABELS,
-  loadCustomerLinkedDocuments,
-  type CustomerLinkedDocument,
-} from '../lib/customerDocuments';
+  EQUIPMENT_SECTION_COLORS,
+  equipmentDocumentsSubtitle,
+  equipmentInfoSubtitle,
+  equipmentSnapshotSubtitle,
+} from '../lib/equipmentSectionHelpers';
+import { loadCustomerLinkedDocuments, type CustomerLinkedDocument } from '../lib/customerDocuments';
 import { deviceTypeLabel, parseEquipmentSnapshot } from '../lib/huoltoRaportti/equipmentSnapshotDisplay';
 import { customerDetailTrail, equipmentDetailTrail, withNavTrail } from '../lib/navigationTrail';
 import { openPrintHtml } from '../lib/openPrintWindow';
@@ -31,6 +36,8 @@ import type { Customer, Equipment } from '../types';
 interface Props {
   session: Session;
 }
+
+type EquipmentSectionDialog = 'info' | 'snapshot' | 'documents';
 
 function equipmentTitle(eq: Equipment): string {
   return eq.tag ? `${eq.tag} — ${eq.name}` : eq.name;
@@ -51,6 +58,7 @@ export default function EquipmentDetailPage({ session }: Props) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [printBusy, setPrintBusy] = useState<'card' | 'history' | null>(null);
+  const [sectionDialog, setSectionDialog] = useState<EquipmentSectionDialog | null>(null);
 
   useEffect(() => {
     if (customerId && equipmentId) void load();
@@ -106,6 +114,8 @@ export default function EquipmentDetailPage({ session }: Props) {
     [equipment?.huolto_technical_snapshot],
   );
 
+  const latestMaintenanceYmd = equipment ? latestMaintenanceByEquipment[equipment.id] ?? null : null;
+
   async function loadPrintBranding(ownerCompanyId: string) {
     const { data } = await supabase.from('companies').select('name, logo_url').eq('id', ownerCompanyId).single();
     const row = data as { name: string; logo_url: string | null } | null;
@@ -156,6 +166,10 @@ export default function EquipmentDetailPage({ session }: Props) {
     } finally {
       setPrintBusy(null);
     }
+  }
+
+  function closeSectionDialog() {
+    setSectionDialog(null);
   }
 
   if (loading) {
@@ -232,8 +246,31 @@ export default function EquipmentDetailPage({ session }: Props) {
 
       {error && <p className="error">{error}</p>}
 
-      <section className="panel">
-        <h2>Laiteperustiedot</h2>
+      <WorkReportSectionTileGrid>
+        <WorkReportSectionTile
+          title="Laiteperustiedot"
+          subtitle={equipmentInfoSubtitle(equipment, latestMaintenanceYmd)}
+          color={EQUIPMENT_SECTION_COLORS.info}
+          active={sectionDialog === 'info'}
+          onClick={() => setSectionDialog('info')}
+        />
+        <WorkReportSectionTile
+          title="Kiinteät laitetiedot"
+          subtitle={equipmentSnapshotSubtitle(snapshot)}
+          color={EQUIPMENT_SECTION_COLORS.snapshot}
+          active={sectionDialog === 'snapshot'}
+          onClick={() => setSectionDialog('snapshot')}
+        />
+        <WorkReportSectionTile
+          title={`Dokumentit (${documents.length})`}
+          subtitle={equipmentDocumentsSubtitle(documents)}
+          color={EQUIPMENT_SECTION_COLORS.documents}
+          active={sectionDialog === 'documents'}
+          onClick={() => setSectionDialog('documents')}
+        />
+      </WorkReportSectionTileGrid>
+
+      <WorkReportSectionDialog open={sectionDialog === 'info'} title="Laiteperustiedot" onClose={closeSectionDialog}>
         <dl className="detail-list">
           <div>
             <dt>Asiakas</dt>
@@ -269,69 +306,47 @@ export default function EquipmentDetailPage({ session }: Props) {
           </div>
           <div>
             <dt>Viimeisin huolto</dt>
-            <dd>
-              {latestMaintenanceByEquipment[equipment.id]
-                ? formatMaintenanceDateFi(latestMaintenanceByEquipment[equipment.id])
-                : '—'}
-            </dd>
+            <dd>{latestMaintenanceYmd ? formatMaintenanceDateFi(latestMaintenanceYmd) : '—'}</dd>
           </div>
           <div>
             <dt>Huomiot</dt>
             <dd>{equipment.notes || '—'}</dd>
           </div>
         </dl>
-      </section>
+      </WorkReportSectionDialog>
 
-      <section className="panel">
-        <h2>Kiinteät laitetiedot</h2>
-        <p className="muted">
-          Huoltopöytäkirjasta laiterekisteriin tallennetut tiedot: pumput, kompressorit, puhaltimet, paisuntaventtiilit
-          ja mallit. Mittaukset ja tarkastukset eivät näy tässä.
-        </p>
+      <WorkReportSectionDialog
+        open={sectionDialog === 'snapshot'}
+        title="Kiinteät laitetiedot"
+        onClose={closeSectionDialog}
+        wide
+      >
         {snapshot ? (
-          <EquipmentSnapshotReadOnly snapshot={snapshot} />
+          <EquipmentSnapshotTileView snapshot={snapshot} />
         ) : (
           <p className="muted">
             Ei vielä tallennettua teknistä tilannekuvaa. Tiedot päivittyvät, kun huoltopöytäkirja tallentaa laiterekisteriin.
           </p>
         )}
-      </section>
+      </WorkReportSectionDialog>
 
-      <section className="panel">
-        <h2>Dokumentit ({documents.length})</h2>
+      <WorkReportSectionDialog
+        open={sectionDialog === 'documents'}
+        title={`Dokumentit (${documents.length})`}
+        onClose={closeSectionDialog}
+        wide
+      >
+        <p className="muted">Tälle laitteelle kohdistetut työraportit, huoltoraportit ja tarjouspyynnöt.</p>
         {documents.length === 0 ? (
           <p className="muted">Ei tälle laitteelle kohdistettuja raportteja tai tarjouksia.</p>
         ) : (
-          <ul className="report-list compact customer-document-list">
+          <CustomerDocumentGrid>
             {documents.map((doc) => (
-              <li key={`${doc.kind}:${doc.id}`} className="customer-document-row">
-                <Link to={doc.href} className="customer-document-link">
-                  <div className="report-link-body">
-                    <strong>{doc.title}</strong>
-                    <span className="muted">
-                      {CUSTOMER_DOCUMENT_KIND_LABELS[doc.kind]}
-                      {doc.statusLabel ? ` • ${doc.statusLabel}` : ''}
-                      {' • '}
-                      {new Date(doc.date).toLocaleDateString('fi-FI')}
-                    </span>
-                  </div>
-                </Link>
-                {doc.printHref ? (
-                  <Link
-                    to={doc.printHref}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="icon-action-btn customer-document-print"
-                    aria-label="Tulosta"
-                  >
-                    <PrinterIcon title="Tulosta" />
-                  </Link>
-                ) : null}
-              </li>
+              <CustomerDocumentTile key={`${doc.kind}:${doc.id}`} document={doc} />
             ))}
-          </ul>
+          </CustomerDocumentGrid>
         )}
-      </section>
+      </WorkReportSectionDialog>
     </AppLayout>
   );
 }

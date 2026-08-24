@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import type { EquipmentSnapshotSectionId } from '../../lib/equipmentSectionHelpers';
 import type { CondenserData, EvaporatorData, NestelauhdutinUnitData } from '../../lib/huoltoRaportti/types';
 import {
   LAUHDUTIN_TYYPIT,
@@ -37,10 +38,18 @@ function OptionalRow({ label, value }: { label: string; value: ReactNode }) {
   return <DetailRow label={label} value={value} />;
 }
 
-function Section({ title, children }: { title: string; children: ReactNode }) {
+function Section({
+  title,
+  children,
+  hideTitle = false,
+}: {
+  title: string;
+  children: ReactNode;
+  hideTitle?: boolean;
+}) {
   return (
     <section className="equipment-snapshot-section">
-      <h3>{title}</h3>
+      {hideTitle ? null : <h3>{title}</h3>}
       <dl>{children}</dl>
     </section>
   );
@@ -55,7 +64,14 @@ function SubCard({ title, children }: { title: string; children: ReactNode }) {
   );
 }
 
-export default function EquipmentSnapshotReadOnly({ snapshot }: { snapshot: ParsedEquipmentSnapshot }) {
+type Props = {
+  snapshot: ParsedEquipmentSnapshot;
+  sections?: EquipmentSnapshotSectionId[];
+  hideSectionTitles?: boolean;
+};
+
+export default function EquipmentSnapshotReadOnly({ snapshot, sections, hideSectionTitles = false }: Props) {
+  const showSection = (id: EquipmentSnapshotSectionId) => !sections || sections.includes(id);
   const ulko = snapshot.ulkoyksikko as Record<string, unknown>;
   const piirejaCount = Math.max(1, parseInt(String(snapshot.kylmaainePiireja || '1').trim(), 10) || 1);
   const compressorCircuitSlots = Math.min(3, piirejaCount);
@@ -83,13 +99,14 @@ export default function EquipmentSnapshotReadOnly({ snapshot }: { snapshot: Pars
   ].slice(0, Math.min(4, piirejaCount));
 
   if (snapshot.laiteTyyppi === 'konvektorit') {
+    if (!showSection('konvektorit')) return null;
     const rows = snapshot.konvektorit ?? [];
     if (rows.length === 0) {
       return <p className="muted">Ei tallennettuja konvektoritietoja huoltopöytäkirjasta.</p>;
     }
     return (
       <div className="equipment-snapshot-root">
-        <Section title="Konvektorit">
+        <Section title="Konvektorit" hideTitle={hideSectionTitles}>
           {rows.map((row, index) => (
             <SubCard key={index} title={`Konvektori ${index + 1}`}>
               <DetailRow label="Tunnus" value={row.tunnus} />
@@ -105,7 +122,8 @@ export default function EquipmentSnapshotReadOnly({ snapshot }: { snapshot: Pars
 
   return (
     <div className="equipment-snapshot-root">
-      <Section title="Käyttötarkoitus ja kylmäaine">
+      {showSection('kylmaaine') ? (
+      <Section title="Käyttötarkoitus ja kylmäaine" hideTitle={hideSectionTitles}>
         <OptionalRow label="Käyttötarkoitus" value={snapshot.laiteKayttotarkoitus} />
         <OptionalRow label="Kylmäainepiirejä" value={snapshot.kylmaainePiireja} />
         {kylmaaineYksiRivi ? <DetailRow label="Kylmäaine" value={kylmaaineYksiRivi} /> : null}
@@ -118,8 +136,10 @@ export default function EquipmentSnapshotReadOnly({ snapshot }: { snapshot: Pars
         <OptionalRow label="Kylmäainetta yhteensä" value={snapshot.kylmaaineMaaraYhteensa} />
         <OptionalRow label="Laskettu CO₂-ekvivalentti (t)" value={snapshot.kylmaaineCO2Ekv} />
       </Section>
+      ) : null}
 
-      <Section title="Piirit ja kompressorit">
+      {showSection('piirit') ? (
+      <Section title="Piirit ja kompressorit" hideTitle={hideSectionTitles}>
         {sumCompressors > 0 ? <DetailRow label="Kompressoreita yhteensä" value={`${sumCompressors} kpl`} /> : null}
         {circuits.map(({ label, data }) => {
           if (data.onKaytossa === false) return null;
@@ -178,8 +198,10 @@ export default function EquipmentSnapshotReadOnly({ snapshot }: { snapshot: Pars
           <p className="muted">Ei täytettyjä tietoja</p>
         ) : null}
       </Section>
+      ) : null}
 
-      <Section title="Ulkoyksikkö">
+      {showSection('ulkoyksikko') ? (
+      <Section title="Ulkoyksikkö" hideTitle={hideSectionTitles}>
         <OptionalRow label="Malli" value={snapVal(ulko.ulkoyksikkoMalli)} />
         <OptionalRow label="Sarjanumero" value={snapVal(ulko.ulkoyksikkoSarjanumero)} />
         <OptionalRow label="Jäähdytysteho" value={snapVal(ulko.ulkoyksikkoJaahdytysTeho)} />
@@ -187,9 +209,10 @@ export default function EquipmentSnapshotReadOnly({ snapshot }: { snapshot: Pars
         <OptionalRow label="Asennustapa" value={snapVal(ulko.ulkoyksikkoAsennustapa)} />
         <OptionalRow label="Asennustapa (muu)" value={snapVal(ulko.ulkoyksikkoAsennustapaMuu)} />
       </Section>
+      ) : null}
 
-      {huoltoTechnicalSnapshotShowsEvaporatorHeading(snapshot.laiteTyyppi) ? (
-        <Section title="Höyrystimet">
+      {showSection('hoyrystimet') && huoltoTechnicalSnapshotShowsEvaporatorHeading(snapshot.laiteTyyppi) ? (
+        <Section title="Höyrystimet" hideTitle={hideSectionTitles}>
           {(() => {
             const evs = (snapshot.evaporatorData || []).filter((row) =>
               evaporatorSnapshotRowIsMeaningful(row),
@@ -211,7 +234,8 @@ export default function EquipmentSnapshotReadOnly({ snapshot }: { snapshot: Pars
         </Section>
       ) : null}
 
-      <Section title="Lauhduttimet">
+      {showSection('lauhduttimet') ? (
+      <Section title="Lauhduttimet" hideTitle={hideSectionTitles}>
         {(() => {
           const nestSnapshot = (snapshot.nestelauhduttimetVj || []).filter((unit) =>
             nestelauhdutinRegistryUnitIsMeaningful(unit as NestelauhdutinUnitData),
@@ -284,9 +308,13 @@ export default function EquipmentSnapshotReadOnly({ snapshot }: { snapshot: Pars
           );
         })()}
       </Section>
+      ) : null}
 
-      {snapshot.isMLP && snapshot.mlpData && mlpSnapshotSectionHasContent(snapshot.mlpData as Record<string, unknown>) ? (
-        <Section title="Lämpöpumppu / kiertovedet (MLP)">
+      {showSection('mlp') &&
+      snapshot.isMLP &&
+      snapshot.mlpData &&
+      mlpSnapshotSectionHasContent(snapshot.mlpData as Record<string, unknown>) ? (
+        <Section title="Lämpöpumppu / kiertovedet (MLP)" hideTitle={hideSectionTitles}>
           {(() => {
             const m = snapshot.mlpData as Record<string, unknown>;
             return (
@@ -343,8 +371,8 @@ export default function EquipmentSnapshotReadOnly({ snapshot }: { snapshot: Pars
         </Section>
       ) : null}
 
-      {showSisayksikotInSnapshot(snapshot) ? (
-        <Section title="Sisäyksiköt">
+      {showSection('sisayksikot') && showSisayksikotInSnapshot(snapshot) ? (
+        <Section title="Sisäyksiköt" hideTitle={hideSectionTitles}>
           <OptionalRow label="Määrä" value={snapshot.sisayksikko?.maara} />
           {(() => {
             const rows = (snapshot.sisayksikko?.data || []) as {
