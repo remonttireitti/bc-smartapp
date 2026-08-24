@@ -6,6 +6,23 @@ import type { Session } from '@supabase/supabase-js';
 
 import AppLayout from '../components/AppLayout';
 
+import { WorkReportSectionTile, WorkReportSectionTileGrid } from '../components/WorkReportSectionTile';
+import WorkReportSectionDialog from '../components/WorkReportSectionDialog';
+import {
+  attachmentsSubtitle,
+  basicsSubtitle,
+  customerSubtitle,
+  EMPTY_WORK_REPORT_CREATE_VISITED,
+  isBasicsComplete,
+  isCustomerComplete,
+  isReadyForScheduled,
+  isTaskComplete,
+  missingScheduledRequirements,
+  taskSubtitle,
+  type WorkReportCreateSection,
+  type WorkReportCreateVisited,
+} from '../lib/workReportCreateSections';
+
 import CustomerRegistryPicker, { type NewCustomerDraft } from '../components/CustomerRegistryPicker';
 
 import EquipmentRegistryPicker, { type NewEquipmentDraft } from '../components/EquipmentRegistryPicker';
@@ -152,8 +169,21 @@ export default function WorkReportNewPage({ session }: Props) {
   const [pendingAttachments, setPendingAttachments] = useState<File[]>([]);
 
   const [portalOrderCreatorUserId, setPortalOrderCreatorUserId] = useState<string | null>(null);
+  const [openSection, setOpenSection] = useState<WorkReportCreateSection | null>(null);
+  const [visitedSections, setVisitedSections] = useState<WorkReportCreateVisited>(
+    EMPTY_WORK_REPORT_CREATE_VISITED,
+  );
 
   const draftStorageKey = localWorkDraftKey(reportId, session.user.id);
+
+  const markSectionVisited = (section: WorkReportCreateSection) => {
+    setVisitedSections((current) => (current[section] ? current : { ...current, [section]: true }));
+  };
+
+  const openCreateSection = (section: WorkReportCreateSection) => {
+    markSectionVisited(section);
+    setOpenSection(section);
+  };
 
   useEffect(() => {
     if (profileLoading) return;
@@ -236,6 +266,18 @@ export default function WorkReportNewPage({ session }: Props) {
   }
 
   const canAutoSave = Boolean(description.trim() || customerId);
+  const selectedCustomerName = selectedCustomer?.name;
+  const attachmentCount = savedAttachments.length + pendingAttachments.length;
+  const readyForScheduled = isReadyForScheduled(visitedSections, {
+    ownerCompanyId: reportOwnerCompanyId || ownerCompanyId,
+    customerId,
+    description,
+  });
+  const missingForScheduled = missingScheduledRequirements(visitedSections, {
+    ownerCompanyId: reportOwnerCompanyId || ownerCompanyId,
+    customerId,
+    description,
+  });
 
   const isActiveEditorRoute = useMemo(
     () => isActiveWorkReportEditorPath(location.pathname, reportId, editId),
@@ -485,6 +527,13 @@ export default function WorkReportNewPage({ session }: Props) {
     setLoadingReport(false);
 
     reportLoadedRef.current = id;
+
+    setVisitedSections({
+      basics: true,
+      customer: !!data.customer_id,
+      task: !!(String(data.description ?? '').trim() || String(data.heading ?? '').trim()),
+      attachments: true,
+    });
 
   }
 
@@ -772,6 +821,16 @@ export default function WorkReportNewPage({ session }: Props) {
 
     }
 
+    if (intent === 'schedule' && !readyForScheduled) {
+
+      if (!isAuto) {
+        setError(`Täytä ensin: ${missingForScheduled.join(', ')} ennen kalenteriin merkitsemistä.`);
+      }
+
+      return false;
+
+    }
+
     if (!isOnline && isAuto) {
 
       setAutoSaveState('offline');
@@ -848,7 +907,18 @@ export default function WorkReportNewPage({ session }: Props) {
 
     const locationText = [selectedCustomer?.address, selectedCustomer?.city].filter(Boolean).join(', ') || null;
 
-    const targetStatus = isAuto ? 'draft' : 'scheduled';
+    const targetStatus =
+      isAuto
+        ? 'draft'
+        : intent === 'schedule'
+          ? 'scheduled'
+          : readyForScheduled
+            ? 'scheduled'
+            : 'draft';
+
+    if (intent === 'save' && !isAuto && !readyForScheduled) {
+      setError(`Työ tallennetaan luonnoksena. Avaa ja täytä: ${missingForScheduled.join(', ')}.`);
+    }
 
     if (intent === 'schedule' && !isAuto) {
       if (!combineDateAndHour(scheduledDate, scheduledHour)) {
@@ -1316,18 +1386,117 @@ export default function WorkReportNewPage({ session }: Props) {
         </section>
       )}
 
-      <form className="panel form-grid work-report-form" onSubmit={onSubmit}>
+      <form className="panel work-report-form work-report-create-form" onSubmit={onSubmit}>
+        <WorkReportSectionTileGrid>
+          <WorkReportSectionTile
+            title="Perustiedot"
+            subtitle={basicsSubtitle(reportOwnerName, visitedSections.basics)}
+            color="#1976D2"
+            active={openSection === 'basics'}
+            incomplete={!visitedSections.basics || !isBasicsComplete(reportOwnerCompanyId || ownerCompanyId)}
+            onClick={() => openCreateSection('basics')}
+          />
+          <WorkReportSectionTile
+            title="Asiakas"
+            subtitle={customerSubtitle(selectedCustomerName, visitedSections.customer)}
+            color="#388E3C"
+            active={openSection === 'customer'}
+            incomplete={!visitedSections.customer || !isCustomerComplete(customerId)}
+            onClick={() => openCreateSection('customer')}
+          />
+          <WorkReportSectionTile
+            title="Tehtävä"
+            subtitle={taskSubtitle(description, heading, visitedSections.task)}
+            color="#f59e0b"
+            active={openSection === 'task'}
+            incomplete={!visitedSections.task || !isTaskComplete(description)}
+            onClick={() => openCreateSection('task')}
+          />
+          <WorkReportSectionTile
+            title="Kuvat ja tiedostot"
+            subtitle={attachmentsSubtitle(attachmentCount, visitedSections.attachments)}
+            color="#6366f1"
+            active={openSection === 'attachments'}
+            incomplete={false}
+            onClick={() => openCreateSection('attachments')}
+          />
+        </WorkReportSectionTileGrid>
 
-        <section className="form-section">
+        {!readyForScheduled && missingForScheduled.length > 0 ? (
+          <p className="muted work-report-create-hint">
+            Avaa ja täytä: <strong>{missingForScheduled.join(', ')}</strong> ennen kuin työn voi merkitä
+            tulossa-tilaan. Muuten tallennus jää keskeneräiseksi luonnokseksi.
+          </p>
+        ) : null}
 
-          <h2>Perustiedot</h2>
+        <details className="form-section work-report-schedule-details">
+          <summary>Toive työn aloituksen ajankohdasta (valinnainen)</summary>
+          <p className="muted">
+            Raportin voi tallentaa ilman ajankohtaa. Jos haluat merkitä työn kalenteriin, valitse tuleva päivä ja klo
+            07:00–16:30 (puolen tunnin tarkkuudella) ja paina &quot;Merkitse kalenteriin&quot;.
+          </p>
+          <div className="line-form-grid">
+            <label>
+              Päivä (valinnainen)
+              <input type="date" value={scheduledDate} onChange={(e) => setScheduledDate(e.target.value)} />
+            </label>
+            <label>
+              Klo (valinnainen)
+              <select value={scheduledHour} onChange={(e) => setScheduledHour(e.target.value)}>
+                <option value="">— Ei valittu —</option>
+                {OFFICE_HOUR_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+          <div className="form-actions" style={{ marginTop: '0.75rem' }}>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              disabled={busy || !profile?.company_id || !readyForScheduled}
+              onClick={(e) => void onSchedule(e)}
+            >
+              {busy ? 'Tallennetaan…' : 'Merkitse kalenteriin'}
+            </button>
+          </div>
+        </details>
 
+        {error && <p className="error">{error}</p>}
+
+        <div className="form-actions">
+          <Link to="/tyoraportit" className="btn btn-secondary">Peruuta</Link>
+          {isSubscriberPortalOrder && reportId && (
+            <Link to={`/tyoraportit/toimeksianto/${reportId}/muokkaa`} className="btn btn-secondary">
+              Siirrä kumppanille
+            </Link>
+          )}
+          <button type="submit" className="btn btn-primary" disabled={busy || !profile?.company_id || !canAutoSave}>
+            {busy
+              ? 'Tallennetaan…'
+              : isSubscriberPortalOrder
+                ? 'Ota vastaan'
+                : readyForScheduled
+                  ? 'Tallenna (Tulossa)'
+                  : 'Tallenna luonnos'}
+          </button>
+          {canDeleteDraft ? (
+            <button type="button" className="btn btn-secondary" disabled={busy} onClick={() => void deleteDraft()}>
+              Poista luonnos
+            </button>
+          ) : null}
+        </div>
+
+        <WorkReportSectionDialog
+          open={openSection === 'basics'}
+          title="Perustiedot"
+          onClose={() => setOpenSection(null)}
+        >
           <div className="info-grid">
-
             <div className="info-box">
-
               <span className="info-label">Yrityksen nimissä</span>
-
               {reportOwnerTargets.length > 1 ? (
                 <select
                   className="info-box-select"
@@ -1344,56 +1513,38 @@ export default function WorkReportNewPage({ session }: Props) {
               ) : (
                 <strong>{brandingName}</strong>
               )}
-
             </div>
-
             <div className="info-box">
-
               <span className="info-label">Raportin laatija</span>
-
               <strong>{profile?.display_name ?? session.user.email}</strong>
-
               <span className="muted">{creatorCompanyName}</span>
-
             </div>
-
             <div className="info-box">
-
               <span className="info-label">Tila</span>
-
-              <strong>{reportId ? 'Tallennettu' : 'Uusi'}</strong>
-
+              <strong>{readyForScheduled ? 'Tulossa' : reportId ? 'Luonnos' : 'Uusi luonnos'}</strong>
             </div>
-
           </div>
-
-
-
           {reportOwnerTargets.length > 1 && (
             <p className="muted">
-              Valitse yritys, jonka nimissä raportti laaditaan. Asiakasvalinta asettaa oletuksen, mutta
-              valintaa voi muuttaa myöhemmin — jos valitset toisen yrityksen kuin asiakkaan rekisteri,
-              asiakas poistuu valinnasta.
+              Valitse yritys, jonka nimissä raportti laaditaan. Asiakasvalinta asettaa oletuksen, mutta valintaa voi
+              muuttaa myöhemmin — jos valitset toisen yrityksen kuin asiakkaan rekisteri, asiakas poistuu valinnasta.
             </p>
           )}
+        </WorkReportSectionDialog>
 
-        </section>
-
-
-
-        <section className="form-section">
-
-          <h2>Asiakas ja tehtävä</h2>
-
+        <WorkReportSectionDialog
+          open={openSection === 'customer'}
+          title="Asiakas"
+          onClose={() => setOpenSection(null)}
+          wide
+        >
           <details className="form-help-details">
             <summary>Ohje asiakkaan valintaan</summary>
             <p className="muted">
               Hae asiakasta kaikista rekistereistä joihin sinulla on pääsy. Raportin yritys määräytyy valitusta
-              asiakkaasta tai yllä olevasta &quot;Yrityksen nimissä&quot; -valinnasta. Uuden asiakkaan voit tallentaa
-              valittuun rekisteriin, jos sinulla on oikeus luoda työraportteja kyseiselle kumppanille.
+              asiakkaasta tai perustiedoista. Uuden asiakkaan voit tallentaa valittuun rekisteriin.
             </p>
           </details>
-
           {ownerCompanyId ? (
             <SubscriberPicker
               subscribers={subscribersForOwner}
@@ -1402,98 +1553,54 @@ export default function WorkReportNewPage({ session }: Props) {
               onChange={setSubscriberId}
             />
           ) : null}
-
           <CustomerRegistryPicker
-
             customers={customersForPicker}
-
             customerId={customerId}
-
             myCompanyId={profile?.company_id ?? undefined}
-
             disabled={!profile?.company_id}
-
             createRegistryName={createRegistryName}
-
             brandingName={createRegistryName}
-
             busy={busy}
-
             onSelect={(id) => {
-
               setCustomerId(id);
-
               setEquipmentId('');
-
               const customer = customers.find((entry) => entry.id === id);
-
               if (customer) {
                 setReportOwnerCompanyId(customer.owner_company_id);
                 if (customer.subscriber_id) setSubscriberId(customer.subscriber_id);
               }
-
             }}
-
             onClear={() => {
-
               setCustomerId('');
-
               setEquipmentId('');
-
               if (profile?.company_id) {
                 setReportOwnerCompanyId(profile.company_id);
               }
-
             }}
-
             onCreate={createCustomerAndSelect}
-
           />
-
-
-
-          {customerId && (
-
+          {customerId ? (
             <EquipmentRegistryPicker
-
               equipment={equipment}
-
               equipmentId={equipmentId}
-
               busy={busy}
-
               onSelect={setEquipmentId}
-
               onClear={() => setEquipmentId('')}
-
               onCreate={createEquipmentAndSelect}
-
             />
-
-          )}
-
-
-
+          ) : null}
           <label>
-
             Tilaajan yhteyshenkilö (vapaa teksti)
-
             <input
-
               type="text"
-
               value={ordererName}
-
               onChange={(e) => setOrdererName(e.target.value)}
-
               placeholder="Esim. kiinteistönhoitaja (valinnainen)"
-
             />
-
           </label>
+        </WorkReportSectionDialog>
 
-
-
+        <WorkReportSectionDialog open={openSection === 'task'} title="Tehtävä" onClose={() => setOpenSection(null)} wide>
           <label>
             Otsikko (tuloste / tiedostonimi)
             <input
@@ -1503,162 +1610,35 @@ export default function WorkReportNewPage({ session }: Props) {
               placeholder="Esim. ILK 22A korjaukset"
             />
           </label>
-
           <label>
-
             Tehtävän kuvaus *
-
             <textarea
-
               value={description}
-
               onChange={(e) => setDescription(e.target.value)}
-
-              rows={5}
-
+              rows={6}
               placeholder="Mitä työ sisältää?"
-
             />
-
           </label>
+        </WorkReportSectionDialog>
 
-        </section>
-
-
-
-        <section className="form-section">
-
+        <WorkReportSectionDialog
+          open={openSection === 'attachments'}
+          title="Kuvat ja tiedostot"
+          onClose={() => setOpenSection(null)}
+          wide
+        >
           <WorkReportAttachmentsField
-
             reportId={reportId}
-
             userId={session.user.id}
-
             savedAttachments={savedAttachments}
-
             pendingFiles={pendingAttachments}
-
             disabled={busy || !profile?.company_id}
-
             onSavedAttachmentsChange={setSavedAttachments}
-
             onPendingFilesChange={setPendingAttachments}
-
           />
-
-        </section>
-
-
-
-        <details className="form-section work-report-schedule-details">
-
-          <summary>Toive työn aloituksen ajankohdasta (valinnainen)</summary>
-
-          <p className="muted">
-            Raportin voi tallentaa ilman ajankohtaa. Jos haluat merkitä työn kalenteriin, valitse tuleva päivä ja klo
-            07:00–16:30 (puolen tunnin tarkkuudella) ja paina &quot;Merkitse kalenteriin&quot;.
-          </p>
-
-          <div className="line-form-grid">
-
-            <label>
-
-              Päivä (valinnainen)
-
-              <input
-
-                type="date"
-
-                value={scheduledDate}
-
-                onChange={(e) => setScheduledDate(e.target.value)}
-
-              />
-
-            </label>
-
-            <label>
-
-              Klo (valinnainen)
-
-              <select value={scheduledHour} onChange={(e) => setScheduledHour(e.target.value)}>
-
-                <option value="">— Ei valittu —</option>
-
-                {OFFICE_HOUR_OPTIONS.map((opt) => (
-
-                  <option key={opt.value} value={opt.value}>
-
-                    {opt.label}
-
-                  </option>
-
-                ))}
-
-              </select>
-
-            </label>
-
-          </div>
-
-          <div className="form-actions" style={{ marginTop: '0.75rem' }}>
-
-            <button
-              type="button"
-              className="btn btn-secondary"
-              disabled={busy || !profile?.company_id}
-              onClick={(e) => void onSchedule(e)}
-            >
-              {busy ? 'Tallennetaan…' : 'Merkitse kalenteriin'}
-            </button>
-
-          </div>
-
-        </details>
-
-
-
-        {error && <p className="error">{error}</p>}
-
-
-
-        <div className="form-actions">
-
-          <Link to="/tyoraportit" className="btn btn-secondary">Peruuta</Link>
-
-          {isSubscriberPortalOrder && reportId && (
-            <Link
-              to={`/tyoraportit/toimeksianto/${reportId}/muokkaa`}
-              className="btn btn-secondary"
-            >
-              Siirrä kumppanille
-            </Link>
-          )}
-
-          <button type="submit" className="btn btn-primary" disabled={busy || !profile?.company_id}>
-
-            {busy
-              ? 'Tallennetaan…'
-              : isSubscriberPortalOrder
-                ? 'Ota vastaan'
-                : 'Tallenna'}
-
-          </button>
-
-          {canDeleteDraft ? (
-            <button
-              type="button"
-              className="btn btn-secondary"
-              disabled={busy}
-              onClick={() => void deleteDraft()}
-            >
-              Poista luonnos
-            </button>
-          ) : null}
-
-        </div>
-
+        </WorkReportSectionDialog>
       </form>
+
 
     </AppLayout>
 

@@ -5608,6 +5608,22 @@ a.tile.work-report-list-tile:hover {
   outline-offset: 2px;
 }
 
+.work-report-section-tile--incomplete {
+  outline: 2px dashed rgba(255, 255, 255, .5);
+  outline-offset: 2px;
+}
+
+.work-report-create-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.work-report-create-hint {
+  margin: 0;
+  font-size: .88rem;
+}
+
 .work-report-add-log-bar {
   display: flex;
   flex-wrap: wrap;

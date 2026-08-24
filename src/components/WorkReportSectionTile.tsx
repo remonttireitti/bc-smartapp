@@ -3,14 +3,22 @@ type Props = {
   subtitle: string;
   color: string;
   active?: boolean;
+  incomplete?: boolean;
   onClick: () => void;
 };
 
-export function WorkReportSectionTile({ title, subtitle, color, active = false, onClick }: Props) {
+export function WorkReportSectionTile({
+  title,
+  subtitle,
+  color,
+  active = false,
+  incomplete = false,
+  onClick,
+}: Props) {
   return (
     <button
       type="button"
-      className={`tile work-report-section-tile${active ? ' work-report-section-tile--active' : ''}`}
+      className={`tile work-report-section-tile${active ? ' work-report-section-tile--active' : ''}${incomplete ? ' work-report-section-tile--incomplete' : ''}`}
       style={{ background: color }}
       onClick={onClick}
     >
