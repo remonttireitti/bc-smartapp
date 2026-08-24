@@ -367,6 +367,9 @@ export default function WorkReportOrderPage({ session }: Props) {
   }
 
   if (partnershipsEnabled === false) {
+    if (editId) {
+      return <Navigate to={`/tyoraportit/${editId}/muokkaa`} replace />;
+    }
     return <Navigate to="/tyoraportit" replace />;
   }
 

@@ -48,6 +48,8 @@ import { useCompanyBillingModuleEnabled } from '../hooks/useCompanyBillingModule
 import { useCompanyCustomerBillingEnabled } from '../hooks/useCompanyCustomerBillingEnabled';
 
 import { useProfile } from '../hooks/useProfile';
+import { canDeleteWorkReport } from '../lib/deletePermissions';
+import { deleteWorkReportById } from '../lib/deleteWorkReport';
 
 import {
 
@@ -206,6 +208,7 @@ export default function WorkReportsPage({ session }: Props) {
   const [sentDelegated, setSentDelegated] = useState<WorkReport[]>([]);
 
   const [loading, setLoading] = useState(true);
+  const [deletingDraftId, setDeletingDraftId] = useState<string | null>(null);
 
   const companyId = profile?.company_id ?? '';
 
@@ -467,9 +470,28 @@ export default function WorkReportsPage({ session }: Props) {
       return companySubscriberOrderEditPath(report.id);
     }
 
-    return isInternalCompanyOrderDraft(report)
-      ? `/tyoraportit/toimeksianto/${report.id}/muokkaa`
-      : `/tyoraportit/${report.id}/muokkaa`;
+    if (partnershipsEnabled && isInternalCompanyOrderDraft(report)) {
+      return `/tyoraportit/toimeksianto/${report.id}/muokkaa`;
+    }
+
+    return `/tyoraportit/${report.id}/muokkaa`;
+  }
+
+  async function deleteDraftReport(report: WorkReport) {
+    if (!canDeleteWorkReport(report, session.user.id, profile?.is_global_admin, profile?.role)) {
+      return;
+    }
+    if (!window.confirm(`Poistetaanko luonnos "${workReportListTitle(report)}" pysyvästi?`)) {
+      return;
+    }
+    setDeletingDraftId(report.id);
+    const { error: deleteError } = await deleteWorkReportById(supabase, report.id);
+    setDeletingDraftId(null);
+    if (deleteError) {
+      window.alert(deleteError.message);
+      return;
+    }
+    await loadReports();
   }
 
   const portalMode = isPortalUser(profile);
@@ -976,6 +998,12 @@ export default function WorkReportsPage({ session }: Props) {
                     report={r}
                     linkTo={draftEditPath(r)}
                     viewerCompanyId={companyId}
+                    onDelete={
+                      canDeleteWorkReport(r, session.user.id, profile?.is_global_admin, profile?.role)
+                        ? () => void deleteDraftReport(r)
+                        : undefined
+                    }
+                    deleteBusy={deletingDraftId === r.id}
                   />
                 ))}
               </WorkReportListGrid>

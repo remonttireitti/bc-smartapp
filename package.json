@@ -18,6 +18,7 @@
     "docs:pdf": "node scripts/generate-user-guide-pdf.mjs",
     "test:device-draft": "npx tsx scripts/test-device-draft.mjs",
     "test:module-visit": "npx tsx scripts/test-module-visit.mjs",
+    "test:portal-work-order-draft": "npx tsx scripts/test-portal-work-order-draft.mjs",
     "fix:firebase-urls": "node scripts/fix-legacy-firebase-urls.mjs --production",
     "fix:firebase-urls:apply": "node scripts/fix-legacy-firebase-urls.mjs --production --apply",
     "fix:maintenance-photos": "node scripts/sync-maintenance-report-photos.mjs --production",

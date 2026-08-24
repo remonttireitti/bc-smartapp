@@ -42,6 +42,8 @@ type Props = {
   dailyLogs?: WorkReportDailyLog[];
   customerBillingEnabled?: boolean;
   linkTo?: string;
+  onDelete?: () => void;
+  deleteBusy?: boolean;
 };
 
 export function WorkReportListTile({
@@ -53,6 +55,8 @@ export function WorkReportListTile({
   dailyLogs = [],
   customerBillingEnabled = false,
   linkTo,
+  onDelete,
+  deleteBusy = false,
 }: Props) {
   const href = linkTo ?? `/tyoraportit/${report.id}`;
   const statusLabel = portalView
@@ -85,6 +89,16 @@ export function WorkReportListTile({
           </span>
         ) : null}
       </Link>
+      {onDelete ? (
+        <button
+          type="button"
+          className="btn btn-secondary btn-sm work-report-list-tile-delete"
+          disabled={deleteBusy}
+          onClick={onDelete}
+        >
+          {deleteBusy ? 'Poistetaan…' : 'Poista luonnos'}
+        </button>
+      ) : null}
       {!portalView && viewerCompanyId ? (
         <div className="work-report-list-tile-aside">
           <WorkReportStatusBadges

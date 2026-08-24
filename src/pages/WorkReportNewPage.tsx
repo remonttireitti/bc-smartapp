@@ -43,7 +43,9 @@ import {
 
 import { useProfile } from '../hooks/useProfile';
 import { useRegisterDraftSaver } from '../hooks/useRegisterDraftSaver';
-import { isPortalReadOnly, isSubscriberPortalWorkOrder } from '../lib/portalWorkOrder';
+import { canDeleteWorkReport } from '../lib/deletePermissions';
+import { deleteWorkReportById } from '../lib/deleteWorkReport';
+import { isPortalReadOnly, isInternalCompanyOrderDraft, isSubscriberPortalWorkOrder } from '../lib/portalWorkOrder';
 
 import {
   loadWorkReportAttachments,
@@ -372,7 +374,7 @@ export default function WorkReportNewPage({ session }: Props) {
       .from('work_reports')
 
       .select(
-        'id, status, heading, description, orderer_name, subscriber_id, title, owner_company_id, created_by_company_id, created_by_user_id, assigned_user_id, partnership_id, customer_id, equipment_id, scheduled_start, customers(name)',
+        'id, status, heading, description, orderer_name, subscriber_id, title, owner_company_id, created_by_company_id, created_by_user_id, assigned_user_id, partnership_id, delegate_company_id, customer_id, equipment_id, scheduled_start, customers(name)',
       )
 
       .eq('id', id)
@@ -402,9 +404,15 @@ export default function WorkReportNewPage({ session }: Props) {
     }
 
     if (
-      !data.assigned_user_id &&
-      data.created_by_company_id === data.owner_company_id &&
-      !data.subscriber_id
+      isInternalCompanyOrderDraft({
+        status: data.status,
+        subscriber_id: data.subscriber_id,
+        assigned_user_id: data.assigned_user_id,
+        created_by_company_id: data.created_by_company_id,
+        owner_company_id: data.owner_company_id,
+        partnership_id: data.partnership_id,
+        delegate_company_id: null,
+      })
     ) {
       navigate(`/tyoraportit/toimeksianto/${id}/muokkaa`, { replace: true });
       return;
@@ -1169,6 +1177,33 @@ export default function WorkReportNewPage({ session }: Props) {
 
   }
 
+  async function deleteDraft() {
+    if (!reportId || !profile) return;
+    if (!canDeleteWorkReport({ created_by_user_id: portalOrderCreatorUserId ?? session.user.id }, session.user.id, profile.is_global_admin, profile.role)) {
+      return;
+    }
+    if (!window.confirm('Poistetaanko luonnos pysyvästi? Tätä toimintoa ei voi perua.')) return;
+    setBusy(true);
+    setError(null);
+    const { error: deleteError } = await deleteWorkReportById(supabase, reportId);
+    setBusy(false);
+    if (deleteError) {
+      setError(deleteError.message);
+      return;
+    }
+    clearLocalWorkDraft(draftStorageKey);
+    navigate('/tyoraportit');
+  }
+
+  const canDeleteDraft =
+    !!reportId
+    && canDeleteWorkReport(
+      { created_by_user_id: portalOrderCreatorUserId ?? session.user.id },
+      session.user.id,
+      profile?.is_global_admin,
+      profile?.role,
+    );
+
 
 
   if (profileLoading || loadingReport) {
@@ -1609,6 +1644,17 @@ export default function WorkReportNewPage({ session }: Props) {
                 : 'Tallenna'}
 
           </button>
+
+          {canDeleteDraft ? (
+            <button
+              type="button"
+              className="btn btn-secondary"
+              disabled={busy}
+              onClick={() => void deleteDraft()}
+            >
+              Poista luonnos
+            </button>
+          ) : null}
 
         </div>
 

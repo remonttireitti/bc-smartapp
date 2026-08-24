@@ -31,6 +31,7 @@ import WorkReportBillingStatusMenu from '../components/WorkReportBillingStatusMe
 import WorkReportStatusBadges from '../components/WorkReportStatusBadges';
 import { useCompanyCustomerBillingEnabled } from '../hooks/useCompanyCustomerBillingEnabled';
 import { useCompanyBillingModuleEnabled } from '../hooks/useCompanyBillingModuleEnabled';
+import { useCompanyPartnershipsEnabled } from '../hooks/useCompanyPartnershipsEnabled';
 import { useProfile } from '../hooks/useProfile';
 import { canDeleteWorkReport } from '../lib/deletePermissions';
 import {
@@ -1136,6 +1137,7 @@ export default function WorkReportDetailPage({ session }: Props) {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { profile } = useProfile(session);
+  const partnershipsEnabled = useCompanyPartnershipsEnabled(profile?.company_id, session);
   const [report, setReport] = useState<WorkReport | null>(null);
   const [billing, setBilling] = useState<WorkReportBilling | null>(null);
   const [billableCalculation, setBillableCalculation] = useState<BillableCalculation | null>(null);
@@ -1599,7 +1601,7 @@ export default function WorkReportDetailPage({ session }: Props) {
         return;
       }
       navigate(
-        isInternalCompanyOrderDraft(report)
+        partnershipsEnabled && isInternalCompanyOrderDraft(report)
           ? `/tyoraportit/toimeksianto/${id}/muokkaa`
           : `/tyoraportit/${id}/muokkaa`,
         { replace: true },
@@ -1612,6 +1614,9 @@ export default function WorkReportDetailPage({ session }: Props) {
     report?.owner_company_id,
     report?.subscriber_id,
     report?.created_by_user_id,
+    report?.partnership_id,
+    report?.delegate_company_id,
+    partnershipsEnabled,
     id,
     navigate,
     session.user.id,

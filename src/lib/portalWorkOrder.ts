@@ -62,19 +62,22 @@ export function companySubscriberOrderEditPath(reportId: string) {
   return `/tyoraportit/${reportId}/muokkaa`;
 }
 
-/** Sisäinen toimeksiantoluonnos (ei tilaajan portaalitilaus). */
+/** Sisäinen toimeksiantoluonnos kumppanille (ei tilaajan portaalitilaus eikä tavallinen työraporttiluonnos). */
 export function isInternalCompanyOrderDraft(report: {
   status: string;
   subscriber_id?: string | null;
   assigned_user_id?: string | null;
   created_by_company_id?: string | null;
   owner_company_id?: string | null;
+  partnership_id?: string | null;
+  delegate_company_id?: string | null;
 }) {
   return (
     report.status === 'draft'
     && !report.subscriber_id
     && !report.assigned_user_id
     && report.created_by_company_id === report.owner_company_id
+    && (!!report.partnership_id || !!report.delegate_company_id)
   );
 }
 

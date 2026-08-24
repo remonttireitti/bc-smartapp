@@ -5541,6 +5541,10 @@ a.tile.work-report-list-tile:hover {
   padding: 0 .25rem;
 }
 
+.work-report-list-tile-delete {
+  align-self: flex-start;
+}
+
 .work-report-section-tile--active {
   outline: 3px solid rgba(255, 255, 255, .55);
   outline-offset: 2px;
