@@ -5546,6 +5546,96 @@ a.tile.work-report-list-tile:hover {
   outline-offset: 2px;
 }
 
+.work-report-add-log-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .75rem;
+  margin-bottom: 1rem;
+}
+
+.work-report-entries-empty {
+  margin-bottom: 1.25rem;
+}
+
+.work-report-entries-anchor {
+  height: 0;
+  margin: 0;
+  scroll-margin-top: 5rem;
+}
+
+.work-report-entry-grid {
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: .75rem;
+  margin-bottom: 1.25rem;
+}
+
+.work-report-entry-tile-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: .4rem;
+  min-width: 0;
+}
+
+button.tile.work-report-entry-tile {
+  position: relative;
+  width: 100%;
+  min-height: 6.5rem;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  color: white;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: .25rem;
+}
+
+button.tile.work-report-entry-tile strong {
+  font-size: .92rem;
+  line-height: 1.25;
+}
+
+button.tile.work-report-entry-tile span {
+  font-size: .78rem;
+  opacity: .92;
+  line-height: 1.35;
+}
+
+.work-report-entry-tile-delete {
+  align-self: flex-start;
+}
+
+.work-report-section-dialog {
+  width: min(42rem, calc(100vw - 2rem));
+  max-height: min(90vh, 900px);
+  display: flex;
+  flex-direction: column;
+}
+
+.work-report-section-dialog--wide {
+  width: min(52rem, calc(100vw - 2rem));
+}
+
+.work-report-section-dialog-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.work-report-section-dialog-head h2 {
+  margin: 0;
+}
+
+.work-report-section-dialog-body {
+  overflow: auto;
+  flex: 1;
+  min-height: 0;
+}
+
 button.tile.maintenance-report-document-tile {
   position: relative;
   width: 100%;

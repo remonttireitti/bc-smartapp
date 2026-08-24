@@ -4,8 +4,13 @@ import type { Session } from '@supabase/supabase-js';
 import AppLayout from '../components/AppLayout';
 import CustomerRegistryPicker, { type NewCustomerDraft } from '../components/CustomerRegistryPicker';
 import DeletedUserLabel from '../components/DeletedUserLabel';
-import CollapsibleSection from '../components/CollapsibleSection';
+import {
+  buildDailyLogEntryTiles,
+  DailyLogEntryTile,
+  DailyLogEntryTileGrid,
+} from '../components/DailyLogEntryTile';
 import { WorkReportSectionTile, WorkReportSectionTileGrid } from '../components/WorkReportSectionTile';
+import WorkReportSectionDialog from '../components/WorkReportSectionDialog';
 import ActionStatusDialog from '../components/ActionStatusDialog';
 import DailyLogDialog from '../components/DailyLogDialog';
 import DailyLogFormSection from '../components/DailyLogFormSection';
@@ -52,7 +57,6 @@ import DailyLogRefrigerantFields from '../components/inventory/DailyLogRefrigera
 import DailyLogTripLegFields from '../components/DailyLogTripLegFields';
 import {
   BUCKET,
-  DailyLogImageGallery,
   DailyLogImageSection,
   uploadDailyLogImages,
 } from '../lib/dailyLogImages';
@@ -62,11 +66,8 @@ import {
   WorkReportAttachmentsField,
 } from '../lib/workReportAttachments';
 import {
-  formatRefrigerantLineLabel,
   loadRefrigerantCylindersForReport,
   refrigerantBillingReminder,
-  refrigerantCustomerUnitPrice,
-  refrigerantLineTotal,
   refrigerantLinesToDrafts,
   restoreCylinderQuantities,
   saveRefrigerantLines,
@@ -145,7 +146,6 @@ import {
   applyExpenseBillingMode,
   applyTripBillingToExpenses,
   expenseBillingSummaryLabel,
-  expenseIncludedInContract,
   resolveExpenseBillingMode,
   resolveTripBillingFromExpenses,
   tripLegsBillToCustomer,
@@ -159,7 +159,6 @@ import {
   syncTripKmExpenseDrafts,
 } from '../lib/tripKmExpense';
 import {
-  formatTripLegSummary,
   normalizeTripLegDrafts,
   resolveUserDepartureLabel,
   saveTripLegs,
@@ -172,7 +171,6 @@ import {
 } from '../lib/workReportTripLegs';
 import {
   formatUnbilledLogDatesLabel,
-  isDailyLogUnbilledForPartner,
   resolveWorkReportStatusDisplay,
 } from '../lib/workReportViewerStatus';
 import {
@@ -183,10 +181,8 @@ import {
   WORKFLOW_STATUS_ORDER,
   WORK_STATUS_LABELS,
   normalizeWorkflowStatus,
-  expenseLineTotal,
   formatDate,
   formatDateTime,
-  formatHourEntry,
   formatWorkReportEquipment,
   buildWorkReportTitle,
   resolveWorkReportDescription,
@@ -1162,7 +1158,9 @@ export default function WorkReportDetailPage({ session }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [billingNotice, setBillingNotice] = useState<string | null>(null);
   const [logDialogOpen, setLogDialogOpen] = useState(false);
-  const [openWorkSection, setOpenWorkSection] = useState('basics');
+  const [sectionDialog, setSectionDialog] = useState<
+    null | 'basics' | 'partner-billing' | 'customer-billing' | 'partner-summary'
+  >(null);
   const [logDialogBusy, setLogDialogBusy] = useState(false);
   const [dailyLogNotice, setDailyLogNotice] = useState<DailyLogActionNotice | null>(null);
   const [logForm, setLogForm] = useState(initialLogForm);
@@ -2514,15 +2512,30 @@ export default function WorkReportDetailPage({ session }: Props) {
     showCustomerBillingFeatures
     && !!customerBillableCalculation
     && (isOwnerCompany || (isPartnerReport && canSeeCreatorBilling));
-  const focusWorkSection = (sectionId: string) => {
-    setOpenWorkSection(sectionId);
+  const scrollToDailyLogEntries = () => {
     window.requestAnimationFrame(() => {
-      document.getElementById(`work-report-section-${sectionId}`)?.scrollIntoView({
+      document.getElementById('work-report-entries')?.scrollIntoView({
         behavior: 'smooth',
         block: 'start',
       });
     });
   };
+  const dailyLogEntryTiles = useMemo(
+    () =>
+      dailyLogs.flatMap((log) =>
+        buildDailyLogEntryTiles(log, {
+          formatDate,
+          logExpensesTotal: (entry) => dailyLogExpensesTotal(entry, reportTripKmRate),
+          showMoney: showPartnerBillableSection || showCustomerMoney,
+        }),
+      ),
+    [
+      dailyLogs,
+      reportTripKmRate,
+      showPartnerBillableSection,
+      showCustomerMoney,
+    ],
+  );
   const portalReadOnly = isPortalReadOnly(profile);
   const canDeleteReport =
     !portalReadOnly && canDeleteWorkReport(report, session.user.id, profile?.is_global_admin, profile?.role);
@@ -2700,23 +2713,20 @@ export default function WorkReportDetailPage({ session }: Props) {
           title="Perustiedot"
           subtitle="Asiakas, tilaaja ja kuvaus"
           color="#1976D2"
-          active={openWorkSection === 'basics'}
-          onClick={() => focusWorkSection('basics')}
+          onClick={() => setSectionDialog('basics')}
         />
         <WorkReportSectionTile
           title="Työkirjaukset"
-          subtitle={`${totalHours.toFixed(2)} h · ${dailyLogs.length} kirjausta`}
+          subtitle={`${totalHours.toFixed(2)} h · kulut ${totalExpenses.toFixed(2)} €${totalTripKm > 0 ? ` · ${totalTripKm.toFixed(1)} km` : ''} · ${dailyLogs.length} kirjausta`}
           color="#388E3C"
-          active={openWorkSection === 'logs'}
-          onClick={() => focusWorkSection('logs')}
+          onClick={scrollToDailyLogEntries}
         />
         {showPartnerBillableSection && billableCalculation ? (
           <WorkReportSectionTile
             title={showOutgoingPartnerBilling ? 'Kumppanille laskutettava' : 'Kumppanilta laskutettava'}
             subtitle={formatEuro(billableCalculation.grandTotal)}
             color="#6366f1"
-            active={openWorkSection === 'partner-billing'}
-            onClick={() => focusWorkSection('partner-billing')}
+            onClick={() => setSectionDialog('partner-billing')}
           />
         ) : null}
         {showCustomerMoneyBilling && customerBillableCalculation ? (
@@ -2724,20 +2734,85 @@ export default function WorkReportDetailPage({ session }: Props) {
             title="Asiakkaalta laskutettava"
             subtitle={formatEuro(customerBillableCalculation.grandTotal)}
             color="#f59e0b"
-            active={openWorkSection === 'customer-billing'}
-            onClick={() => focusWorkSection('customer-billing')}
+            onClick={() => setSectionDialog('customer-billing')}
+          />
+        ) : null}
+        {canSeePartnerSummary && !showIncomingPartnerBilling ? (
+          <WorkReportSectionTile
+            title="Kumppanilaskutuksen yhteenveto"
+            subtitle={formatEuro(Number(billing?.partner_invoice_amount ?? 0))}
+            color="#475569"
+            onClick={() => setSectionDialog('partner-summary')}
           />
         ) : null}
       </WorkReportSectionTileGrid>
+      <div className="work-report-add-log-bar">
+        {canAddDailyLogs && (
+          <button
+            type="button"
+            className="btn btn-primary work-report-add-log-btn"
+            onClick={openAddLogDialog}
+          >
+            + Lisää työkirjaus
+          </button>
+        )}
+        {report.status === 'delegated' && !canAddDailyLogs && (
+          <p className="muted">
+            {canAcceptDelegated
+              ? 'Ota toimeksianto vastaan perustiedoissa aloittaaksesi työkirjaukset.'
+              : 'Odottaa toimeksisaajan vastaanottoa ennen työkirjausta.'}
+          </p>
+        )}
+      </div>
 
-      <div id="work-report-section-basics">
-      <CollapsibleSection
+      {dailyLogs.length === 0 ? (
+        <p className="muted work-report-entries-empty">Ei työkirjauksia vielä.</p>
+      ) : (
+        <>
+          <div id="work-report-entries" className="work-report-entries-anchor" aria-hidden="true" />
+          <DailyLogEntryTileGrid>
+          {dailyLogEntryTiles.map((descriptor) => {
+            const log = dailyLogs.find((entry) => entry.id === descriptor.logId);
+            if (!log) return null;
+            return (
+              <DailyLogEntryTile
+                key={descriptor.key}
+                descriptor={descriptor}
+                onClick={() => openEditLogDialog(log)}
+                onDelete={
+                  canEditDailyLogs && descriptor.kind === 'work'
+                    ? () => void deleteDailyLog(log.id)
+                    : undefined
+                }
+              />
+            );
+          })}
+          </DailyLogEntryTileGrid>
+        </>
+      )}
+
+      {(showOutgoingPartnerBilling || showCustomerMoneyBilling) && report && (
+        <WorkReportBillingQuotePanel
+          workReportId={report.id}
+          customerId={report.customer_id}
+          ownerCompanyId={report.owner_company_id}
+          installationCostNet={billableCalculation?.grandTotal ?? null}
+          initialSettings={billingQuoteSettings}
+          showPartnerMargin={!!showOutgoingPartnerBilling}
+          showCustomerQuoteMode={!!showCustomerMoneyBilling && !!canManageCustomerBillingRates}
+          readOnly={!showOutgoingPartnerBilling && !canManageCustomerBillingRates}
+          printHref={
+            showOutgoingPartnerBilling ? `/tyoraportit/${report.id}/laskutus/tuloste` : undefined
+          }
+          onSaved={(settings) => void handleBillingQuoteSaved(settings)}
+        />
+      )}
+
+
+      <WorkReportSectionDialog
+        open={sectionDialog === 'basics'}
         title="Perustiedot"
-        defaultOpen
-        variant="plain"
-        className="panel work-report-section"
-        open={openWorkSection === 'basics'}
-        onOpenChange={(open) => open && setOpenWorkSection('basics')}
+        onClose={() => setSectionDialog(null)}
       >
         <dl className="detail-list compact-detail-list">
           <dt>Yrityksen nimissä</dt>
@@ -3085,179 +3160,14 @@ export default function WorkReportDetailPage({ session }: Props) {
             Takaisin listaan
           </button>
         </div>
-      </CollapsibleSection>
-      </div>
+      </WorkReportSectionDialog>
 
-      <div id="work-report-section-logs">
-      <CollapsibleSection
-        title={`Työkirjaukset · ${totalHours.toFixed(2)} h · kulut ${totalExpenses.toFixed(2)} €${totalTripKm > 0 ? ` · ${totalTripKm.toFixed(1)} km` : ''}`}
-        defaultOpen
-        variant="plain"
-        className="panel work-report-section"
-        open={openWorkSection === 'logs'}
-        onOpenChange={(open) => open && setOpenWorkSection('logs')}
-      >
-        <div className="section-head compact-section-head">
-          {canAddDailyLogs && (
-            <button
-              type="button"
-              className="btn btn-primary work-report-add-log-btn"
-              onClick={openAddLogDialog}
-            >
-              + Lisää työkirjaus
-            </button>
-          )}
-          {report.status === 'delegated' && !canAddDailyLogs && (
-            <p className="muted">
-              {canAcceptDelegated
-                ? 'Ota toimeksianto vastaan perustiedoissa aloittaaksesi työkirjaukset.'
-                : 'Odottaa toimeksisaajan vastaanottoa ennen työkirjausta.'}
-            </p>
-          )}
-        </div>
-
-        {dailyLogs.length === 0 ? (
-          <p className="muted">Ei työkirjauksia vielä.</p>
-        ) : (
-          <ul className="daily-log-list compact-daily-log-list">
-            {dailyLogs.map((log) => {
-              const tripLegs = log.trip_legs ?? [];
-              const tripKm = tripLegs.reduce((s, leg) => s + Number(leg.distance_km || 0), 0);
-              const refrigerantLines = log.refrigerant_lines ?? [];
-              const logExpensesTotal = dailyLogExpensesTotal(log, reportTripKmRate);
-              return (
-                <li key={log.id}>
-                  <div className="daily-log-head">
-                    <div className="daily-log-head-meta">
-                      <strong>{formatDate(log.log_date)}</strong>
-                      {isDailyLogUnbilledForPartner(log, workReportStatusDisplay) && (
-                        <span className="badge badge-scheduled">Laskuttamatta</span>
-                      )}
-                      <span>{HOUR_ENTRY_LABELS[log.entry_type]}</span>
-                      <span>{formatHourEntry(log, { showMoney: showPartnerBillableSection || showCustomerMoney })}</span>
-                      {logExpensesTotal > 0.005 && (
-                        <span>
-                          Kulut {logExpensesTotal.toFixed(2)} €
-                        </span>
-                      )}
-                      {tripKm > 0 && <span>Ajomatka {tripKm.toFixed(1)} km</span>}
-                      {refrigerantLines.length > 0 && (
-                        <span>
-                          Kylmäaine{' '}
-                          {refrigerantLines
-                            .reduce((s, line) => s + Number(line.qty_kg), 0)
-                            .toFixed(3)}{' '}
-                          kg
-                        </span>
-                      )}
-                    </div>
-                    {canEditDailyLogs && (
-                      <div className="daily-log-actions">
-                        <button
-                          type="button"
-                          className="btn btn-secondary btn-sm"
-                          onClick={() => openEditLogDialog(log)}
-                        >
-                          Muokkaa
-                        </button>
-                        <button
-                          type="button"
-                          className="btn btn-secondary btn-sm"
-                          onClick={() => void deleteDailyLog(log.id)}
-                        >
-                          Poista
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                  <p className="daily-log-summary">{log.work_done}</p>
-                  {(log.expense_lines ?? []).length > 0 && (
-                    <ul className="expense-line-list compact-expense-line-list">
-                      {(log.expense_lines ?? []).map((line) => {
-                        const includedInContract = expenseIncludedInContract(line);
-                        const billedToCustomer = line.bill_to_customer !== false;
-                        const customerUnit =
-                          line.customer_unit_price != null && Number(line.customer_unit_price) > 0
-                            ? Number(line.customer_unit_price)
-                            : Number(line.unit_price);
-                        const customerTotal = expenseLineTotal(line, { customer: true });
-                        return (
-                          <li key={line.id}>
-                            {EXPENSE_TYPE_LABELS[line.expense_type] ?? line.expense_type}: {line.description}{' '}
-                            {includedInContract ? (
-                              <span className="muted">(kuulu urakkaan · ei veloiteta)</span>
-                            ) : showCustomerMoney ? (
-                              billedToCustomer ? (
-                                <>
-                                  (asiakas {Number(line.qty)} × {customerUnit.toFixed(2)} € ={' '}
-                                  {customerTotal.toFixed(2)} €)
-                                </>
-                              ) : (
-                                <span className="muted">(ei laskuteta asiakkaalta)</span>
-                              )
-                            ) : line.bill_to_partner === false ? (
-                              <span className="muted">(kuulu urakkaan · ei veloiteta)</span>
-                            ) : (
-                              <>
-                                ({Number(line.qty)} × {Number(line.unit_price).toFixed(2)} € ={' '}
-                                {expenseLineTotal(line).toFixed(2)} €)
-                              </>
-                            )}
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  )}
-                  {tripLegs.length > 0 && (
-                    <ul className="expense-line-list compact-expense-line-list">
-                      {tripLegs.map((leg) => (
-                        <li key={leg.id}>{formatTripLegSummary(leg)}</li>
-                      ))}
-                    </ul>
-                  )}
-                  {refrigerantLines.length > 0 && (
-                    <ul className="expense-line-list compact-expense-line-list">
-                      {refrigerantLines.map((line) => {
-                        const reminder = refrigerantBillingReminder(line);
-                        return (
-                          <li key={line.id}>
-                            {formatRefrigerantLineLabel(line)}
-                            {line.bill_to_customer && showCustomerMoney ? (
-                              <>
-                                {' '}
-                                (asiakas {Number(line.qty_kg).toFixed(3)} kg ×{' '}
-                                {refrigerantCustomerUnitPrice(line).toFixed(2)} €/kg ={' '}
-                                {refrigerantLineTotal(line).toFixed(2)} €)
-                              </>
-                            ) : null}
-                            {reminder ? <span className="muted"> · {reminder}</span> : null}
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  )}
-                  {(log.images ?? []).length > 0 && <DailyLogImageGallery images={log.images ?? []} />}
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </CollapsibleSection>
-      </div>
-
-      {showPartnerBillableSection && billableCalculation && (
-        <div id="work-report-section-partner-billing">
-        <CollapsibleSection
-          title={
-            showOutgoingPartnerBilling
-              ? `Kumppanille laskutettava · ${formatEuro(billableCalculation.grandTotal)}`
-              : `Kumppanilta laskutettava · ${formatEuro(billableCalculation.grandTotal)}`
-          }
-          defaultOpen={false}
-          variant="plain"
-          className="panel work-report-section"
-          open={openWorkSection === 'partner-billing'}
-          onOpenChange={(open) => open && setOpenWorkSection('partner-billing')}
+      {showPartnerBillableSection && billableCalculation ? (
+        <WorkReportSectionDialog
+          open={sectionDialog === 'partner-billing'}
+          title={showOutgoingPartnerBilling ? 'Kumppanille laskutettava' : 'Kumppanilta laskutettava'}
+          onClose={() => setSectionDialog(null)}
+          wide
         >
             <div className="billing-rates-bar">
               <p className="muted" style={{ margin: 0 }}>
@@ -3403,36 +3313,15 @@ export default function WorkReportDetailPage({ session }: Props) {
                 Kumppanilla ei ole laskutusmoduulia käytössä — tämä yhteenveto näkyy vain sinulle.
               </p>
             )}
-        </CollapsibleSection>
-        </div>
-      )}
+        </WorkReportSectionDialog>
+      ) : null}
 
-      {(showOutgoingPartnerBilling || showCustomerMoneyBilling) && report && (
-        <WorkReportBillingQuotePanel
-          workReportId={report.id}
-          customerId={report.customer_id}
-          ownerCompanyId={report.owner_company_id}
-          installationCostNet={billableCalculation?.grandTotal ?? null}
-          initialSettings={billingQuoteSettings}
-          showPartnerMargin={!!showOutgoingPartnerBilling}
-          showCustomerQuoteMode={!!showCustomerMoneyBilling && !!canManageCustomerBillingRates}
-          readOnly={!showOutgoingPartnerBilling && !canManageCustomerBillingRates}
-          printHref={
-            showOutgoingPartnerBilling ? `/tyoraportit/${report.id}/laskutus/tuloste` : undefined
-          }
-          onSaved={(settings) => void handleBillingQuoteSaved(settings)}
-        />
-      )}
-
-      {showCustomerMoneyBilling && customerBillableCalculation && (
-        <div id="work-report-section-customer-billing">
-        <CollapsibleSection
-          title={`Asiakkaalta laskutettava · ${formatEuro(customerBillableCalculation.grandTotal)}`}
-          defaultOpen={false}
-          variant="plain"
-          className="panel work-report-section"
-          open={openWorkSection === 'customer-billing'}
-          onOpenChange={(open) => open && setOpenWorkSection('customer-billing')}
+      {showCustomerMoneyBilling && customerBillableCalculation ? (
+        <WorkReportSectionDialog
+          open={sectionDialog === 'customer-billing'}
+          title="Asiakkaalta laskutettava"
+          onClose={() => setSectionDialog(null)}
+          wide
         >
           <div className="billing-rates-bar">
             <p className="muted" style={{ margin: 0 }}>
@@ -3540,20 +3429,23 @@ export default function WorkReportDetailPage({ session }: Props) {
               </Link>
             )}
           </div>
-        </CollapsibleSection>
-        </div>
-      )}
+        </WorkReportSectionDialog>
+      ) : null}
 
-      {canSeePartnerSummary && !showIncomingPartnerBilling && (
-        <CollapsibleSection title="Kumppanilaskutuksen yhteenveto" defaultOpen={false} variant="plain" className="panel work-report-section">
+      {canSeePartnerSummary && !showIncomingPartnerBilling ? (
+        <WorkReportSectionDialog
+          open={sectionDialog === 'partner-summary'}
+          title="Kumppanilaskutuksen yhteenveto"
+          onClose={() => setSectionDialog(null)}
+        >
           <p className="muted">
             Raportin laatija ({report.created_by_company?.name ?? '—'}) on jakanut laskutettavan summan.
           </p>
           <p>
             <strong>{formatEuro(Number(billing?.partner_invoice_amount ?? 0))}</strong>
           </p>
-        </CollapsibleSection>
-      )}
+        </WorkReportSectionDialog>
+      ) : null}
 
       <DailyLogDialog
         open={logDialogOpen}
