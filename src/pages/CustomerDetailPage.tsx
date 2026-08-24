@@ -1,13 +1,16 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
 import AppLayout from '../components/AppLayout';
-import CollapsibleSection from '../components/CollapsibleSection';
-import { DeviceCardIcon, HistoryIcon, PrinterIcon } from '../components/PrintIcons';
+import { CustomerDocumentGrid, CustomerDocumentTile } from '../components/CustomerDocumentTile';
+import { CustomerEquipmentGrid, CustomerEquipmentTile } from '../components/CustomerEquipmentTile';
+import { HistoryIcon } from '../components/PrintIcons';
 import Tooltip from '../components/Tooltip';
 import ToggleSwitch from '../components/ToggleSwitch';
 import SubscriberPicker from '../components/SubscriberPicker';
 import CustomerPortalSection from '../components/CustomerPortalSection';
+import { WorkReportSectionTile, WorkReportSectionTileGrid } from '../components/WorkReportSectionTile';
+import WorkReportSectionDialog from '../components/WorkReportSectionDialog';
 import {
   isCustomerExplicitlySharedWithPartner,
   isCustomerReportLinkedWithPartner,
@@ -51,12 +54,22 @@ import {
   type CustomerDocumentFilter,
   type CustomerLinkedDocument,
 } from '../lib/customerDocuments';
+import {
+  CUSTOMER_SECTION_COLORS,
+  customerDocumentsSubtitle,
+  customerEquipmentSubtitle,
+  customerInfoSubtitle,
+  customerListTileColor,
+  customerSharingSubtitle,
+} from '../lib/customerSectionHelpers';
 import { useProfile } from '../hooks/useProfile';
 import type { Customer, Equipment, Partnership, Subscriber } from '../types';
 
 interface Props {
   session: Session;
 }
+
+type CustomerSectionDialog = 'info' | 'portal' | 'sharing' | 'equipment' | 'documents';
 
 type ShareablePartner = {
   partnership: Partnership;
@@ -73,6 +86,7 @@ function partnershipGrantsRegistryAccess(raw: unknown) {
 
 export default function CustomerDetailPage({ session }: Props) {
   const { id } = useParams<{ id: string }>();
+  const location = useLocation();
   const navigate = useNavigate();
   const { profile } = useProfile(session);
   const [customer, setCustomer] = useState<Customer | null>(null);
@@ -80,7 +94,8 @@ export default function CustomerDetailPage({ session }: Props) {
   const [documents, setDocuments] = useState<CustomerLinkedDocument[]>([]);
   const [documentFilter, setDocumentFilter] = useState<CustomerDocumentFilter>('all');
   const [canWrite, setCanWrite] = useState(false);
-  const [editing, setEditing] = useState(false);
+  const [sectionDialog, setSectionDialog] = useState<CustomerSectionDialog | null>(null);
+  const [infoEditing, setInfoEditing] = useState(false);
   const [form, setForm] = useState({
     name: '',
     address: '',
@@ -114,6 +129,12 @@ export default function CustomerDetailPage({ session }: Props) {
   useEffect(() => {
     if (id) void load();
   }, [id, profile?.company_id]);
+
+  useEffect(() => {
+    if (!customer || location.hash !== '#customer-portal') return;
+    setSectionDialog('portal');
+    navigate(`${location.pathname}${location.search}`, { replace: true });
+  }, [customer, location.hash, location.pathname, location.search, navigate]);
 
   async function loadPartnerships() {
     if (!profile?.company_id) return [];
@@ -299,7 +320,8 @@ export default function CustomerDetailPage({ session }: Props) {
     }
 
     setMessage('Asiakastiedot tallennettu.');
-    setEditing(false);
+    setInfoEditing(false);
+    setSectionDialog(null);
     await load();
   }
 
@@ -515,10 +537,22 @@ export default function CustomerDetailPage({ session }: Props) {
 
   function openCustomerEdit() {
     if (!customer) return;
-    setEditing(true);
+    setSectionDialog('info');
+    setInfoEditing(true);
     if (managesRegistry) {
       void loadRegistrySubscribers(customer.owner_company_id);
     }
+  }
+
+  const sharedPartnerCount = shareablePartners.filter(({ sharing }) =>
+    isCustomerVisibleToPartner(sharing, customer.id),
+  ).length;
+  const equipmentNavTrail = withNavTrail(customerDetailTrail(customer.id, customer.name));
+
+  function closeSectionDialog() {
+    setSectionDialog(null);
+    setInfoEditing(false);
+    setShowNewEquipment(false);
   }
 
   return (
@@ -534,7 +568,7 @@ export default function CustomerDetailPage({ session }: Props) {
             {!canWrite && ' • vain luku'}
           </p>
         </div>
-        {canWrite && !editing && (
+        {canWrite && (
           <div className="page-header-actions">
             <Link
               to={`/huoltoraportit/uusi?customerId=${customer.id}`}
@@ -543,18 +577,6 @@ export default function CustomerDetailPage({ session }: Props) {
             >
               + Uusi huoltoraportti
             </Link>
-            {!customer.subscriber_id && profile?.role === 'admin' && (
-              <button
-                type="button"
-                className="btn btn-secondary"
-                onClick={() => document.getElementById('customer-portal')?.scrollIntoView({ behavior: 'smooth' })}
-              >
-                Asiakasportaali
-              </button>
-            )}
-            <button type="button" className="btn btn-secondary" onClick={openCustomerEdit}>
-              Muokkaa
-            </button>
             {canDeleteRegistry && (
               <button
                 type="button"
@@ -572,10 +594,58 @@ export default function CustomerDetailPage({ session }: Props) {
       {error && <p className="error">{error}</p>}
       {message && <p className="muted">{message}</p>}
 
-      {editing ? (
-        <form className="panel form-grid" onSubmit={saveCustomer}>
-          <section className="form-section">
-            <h2>Muokkaa asiakasta</h2>
+      <WorkReportSectionTileGrid>
+        <WorkReportSectionTile
+          title="Asiakastiedot"
+          subtitle={customerInfoSubtitle(customer)}
+          color={CUSTOMER_SECTION_COLORS.info}
+          active={sectionDialog === 'info'}
+          onClick={() => {
+            setInfoEditing(false);
+            setSectionDialog('info');
+          }}
+        />
+        <WorkReportSectionTile
+          title={`Laitteet (${equipment.length})`}
+          subtitle={customerEquipmentSubtitle(equipment.length)}
+          color={CUSTOMER_SECTION_COLORS.equipment}
+          active={sectionDialog === 'equipment'}
+          onClick={() => setSectionDialog('equipment')}
+        />
+        <WorkReportSectionTile
+          title={`Dokumentit (${documents.length})`}
+          subtitle={customerDocumentsSubtitle(documents)}
+          color={CUSTOMER_SECTION_COLORS.documents}
+          active={sectionDialog === 'documents'}
+          onClick={() => setSectionDialog('documents')}
+        />
+        {managesRegistry && (
+          <WorkReportSectionTile
+            title="Asiakasportaali"
+            subtitle={customer.subscriber_id ? customer.subscriber?.name ?? 'Tilaaja' : 'Kutsu asiakas'}
+            color={CUSTOMER_SECTION_COLORS.portal}
+            active={sectionDialog === 'portal'}
+            onClick={() => setSectionDialog('portal')}
+          />
+        )}
+        {managesRegistry && shareablePartners.length > 0 && (
+          <WorkReportSectionTile
+            title="Kumppanijako"
+            subtitle={customerSharingSubtitle(sharedPartnerCount, shareablePartners.length)}
+            color={CUSTOMER_SECTION_COLORS.sharing}
+            active={sectionDialog === 'sharing'}
+            onClick={() => setSectionDialog('sharing')}
+          />
+        )}
+      </WorkReportSectionTileGrid>
+
+      <WorkReportSectionDialog
+        open={sectionDialog === 'info'}
+        title="Asiakastiedot"
+        onClose={closeSectionDialog}
+      >
+        {infoEditing ? (
+          <form className="form-grid" onSubmit={saveCustomer}>
             {managesRegistry ? (
               <SubscriberPicker
                 subscribers={subscribers}
@@ -594,66 +664,112 @@ export default function CustomerDetailPage({ session }: Props) {
                 onChange={(id) => setForm((f) => ({ ...f, subscriber_id: id }))}
               />
             ) : canWrite ? (
-              <p className="muted" style={{ marginBottom: '1rem' }}>
+              <p className="muted">
                 Tilaajan voi asettaa vain rekisterin omistaja (
-                <strong>{customer.owner_company?.name ?? '—'}</strong>). Jos olet ylläpitäjä toisella yrityksellä,
-                kirjaudu {customer.owner_company?.name ?? 'rekisterinomistajan'} tilillä tai pyydä heitä linkittämään
-                kohde tilaajaan.
+                <strong>{customer.owner_company?.name ?? '—'}</strong>).
               </p>
             ) : null}
             <div className="line-form-grid">
-              <label>Nimi *<input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} required /></label>
-              <label>Y-tunnus<input value={form.business_id} onChange={(e) => setForm((f) => ({ ...f, business_id: e.target.value }))} /></label>
-              <label>Osoite<input value={form.address} onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))} /></label>
-              <label>Kaupunki<input value={form.city} onChange={(e) => setForm((f) => ({ ...f, city: e.target.value }))} /></label>
-              <label>Puhelin<input value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} /></label>
-              <label>Sähköposti<input type="email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} /></label>
+              <label>
+                Nimi *
+                <input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} required />
+              </label>
+              <label>
+                Y-tunnus
+                <input
+                  value={form.business_id}
+                  onChange={(e) => setForm((f) => ({ ...f, business_id: e.target.value }))}
+                />
+              </label>
+              <label>
+                Osoite
+                <input value={form.address} onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))} />
+              </label>
+              <label>
+                Kaupunki
+                <input value={form.city} onChange={(e) => setForm((f) => ({ ...f, city: e.target.value }))} />
+              </label>
+              <label>
+                Puhelin
+                <input value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} />
+              </label>
+              <label>
+                Sähköposti
+                <input
+                  type="email"
+                  value={form.email}
+                  onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
+                />
+              </label>
             </div>
-            <label>Muistiinpanot<textarea rows={3} value={form.notes} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} /></label>
-          </section>
-          <div className="form-actions">
-            <button type="button" className="btn btn-secondary" onClick={() => setEditing(false)}>Peruuta</button>
-            <button type="submit" className="btn btn-primary" disabled={busy}>Tallenna</button>
-          </div>
-        </form>
-      ) : (
-        <section className="panel">
-          <h2>Asiakastiedot</h2>
-          <dl className="detail-list">
-            <div>
-              <dt>Tilaaja</dt>
-              <dd>
-                {subscriberLabel(customer.subscriber ?? null)}
-                {!customer.subscriber_id && managesRegistry && profile?.role === 'admin' && (
-                  <>
-                    {' '}
-                    <button type="button" className="btn btn-secondary btn-sm" onClick={openCustomerEdit}>
-                      Aseta tilaaja
-                    </button>
-                  </>
-                )}
-              </dd>
+            <label>
+              Muistiinpanot
+              <textarea
+                rows={3}
+                value={form.notes}
+                onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
+              />
+            </label>
+            <div className="form-actions">
+              <button type="button" className="btn btn-secondary" onClick={() => setInfoEditing(false)}>
+                Peruuta
+              </button>
+              <button type="submit" className="btn btn-primary" disabled={busy}>
+                Tallenna
+              </button>
             </div>
-            <div><dt>Osoite</dt><dd>{customerAddressLine(customer)}</dd></div>
-            <div><dt>Puhelin</dt><dd>{customer.phone ?? '—'}</dd></div>
-            <div><dt>Sähköposti</dt><dd>{customer.email ?? '—'}</dd></div>
-            <div><dt>Y-tunnus</dt><dd>{customer.business_id ?? '—'}</dd></div>
-            <div><dt>Muistiinpanot</dt><dd>{customer.notes ?? '—'}</dd></div>
-          </dl>
-        </section>
-      )}
+          </form>
+        ) : (
+          <>
+            <dl className="detail-list">
+              <div>
+                <dt>Tilaaja</dt>
+                <dd>{subscriberLabel(customer.subscriber ?? null)}</dd>
+              </div>
+              <div>
+                <dt>Osoite</dt>
+                <dd>{customerAddressLine(customer)}</dd>
+              </div>
+              <div>
+                <dt>Puhelin</dt>
+                <dd>{customer.phone ?? '—'}</dd>
+              </div>
+              <div>
+                <dt>Sähköposti</dt>
+                <dd>{customer.email ?? '—'}</dd>
+              </div>
+              <div>
+                <dt>Y-tunnus</dt>
+                <dd>{customer.business_id ?? '—'}</dd>
+              </div>
+              <div>
+                <dt>Muistiinpanot</dt>
+                <dd>{customer.notes ?? '—'}</dd>
+              </div>
+            </dl>
+            {canWrite ? (
+              <div className="form-actions">
+                <button type="button" className="btn btn-primary" onClick={openCustomerEdit}>
+                  Muokkaa
+                </button>
+              </div>
+            ) : null}
+          </>
+        )}
+      </WorkReportSectionDialog>
 
-      {!editing && customer.owner_company_id === profile?.company_id && (
-        customer.subscriber_id ? (
-          <section className="panel">
-            <h2>Asiakasportaali</h2>
-            <p className="muted">
-              Kohde on linkitetty tilaajaan{' '}
-              <strong>{customer.subscriber?.name ?? '—'}</strong>. Monikohteinen portaali hallitaan tilaajan
-              kautta — <Link to="/hallinta/tilaajat">Hallinta → Tilaajat</Link> → valitse tilaaja →
-              tilaajaportaali.
-            </p>
-          </section>
+      <WorkReportSectionDialog
+        open={sectionDialog === 'portal'}
+        title="Asiakasportaali"
+        onClose={closeSectionDialog}
+        wide
+      >
+        {customer.subscriber_id ? (
+          <p className="muted">
+            Kohde on linkitetty tilaajaan <strong>{customer.subscriber?.name ?? '—'}</strong>. Monikohteinen
+            portaali hallitaan tilaajan kautta —{' '}
+            <Link to="/hallinta/tilaajat">Hallinta → Tilaajat</Link> → valitse tilaaja → tilaajaportaali.
+          </p>
         ) : (
           <CustomerPortalSection
             customerId={customer.id}
@@ -661,63 +777,65 @@ export default function CustomerDetailPage({ session }: Props) {
             companyId={customer.owner_company_id}
             canManage={profile?.role === 'admin'}
           />
-        )
-      )}
+        )}
+      </WorkReportSectionDialog>
 
-      {customer.owner_company_id === profile?.company_id && shareablePartners.length > 0 && (
-        <section className="panel">
-          <h2>Kumppanijako</h2>
-          <p className="muted">
-            Oletus: kumppani ei näe asiakasta. Asiakas avautuu automaattisesti, kun kumppani on laatinut
-            sille raportin. Voit jakaa asiakkaan etukäteen raportin luontia varten.
-          </p>
-          <ul className="report-list compact">
-            {shareablePartners.map(({ partnership, sharing }) => {
-              const reportLinked = isCustomerReportLinkedWithPartner(sharing, customer.id);
-              const explicitlyShared = isCustomerExplicitlySharedWithPartner(sharing, customer.id);
-              const visible = isCustomerVisibleToPartner(sharing, customer.id);
-              const toggleChecked = sharing.restricted ? explicitlyShared : visible;
-              const busyForPartner = sharingBusyId === partnership.id;
-              return (
-                <li key={partnership.id}>
-                  <div className="report-link-body">
-                    <strong>{partnership.partner_company.name}</strong>
-                    <span className="muted">
-                      {reportLinked
-                        ? 'Näkyy raportin kautta'
-                        : explicitlyShared
-                          ? 'Jaettu manuaalisesti'
-                          : visible
-                            ? 'Näkyy kumppanille'
-                            : 'Piilotettu'}
-                    </span>
-                  </div>
-                  {reportLinked ? (
-                    <Tooltip label="Kumppani on laatinut raportin — asiakas pysyy näkyvissä automaattisesti.">
-                      <span className="partner-customer-picker-badge open">Raportti</span>
-                    </Tooltip>
-                  ) : (
-                    <Tooltip label="Salli kumppanin nähdä asiakas ennen raporttia (esim. raportin luontia varten).">
-                      <ToggleSwitch
-                        checked={toggleChecked}
-                        disabled={busyForPartner}
-                        label="Jaettu"
-                        onChange={(checked) => void togglePartnerSharing(partnership.id, checked)}
-                      />
-                    </Tooltip>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
-        </section>
-      )}
+      <WorkReportSectionDialog
+        open={sectionDialog === 'sharing'}
+        title="Kumppanijako"
+        onClose={closeSectionDialog}
+        wide
+      >
+        <p className="muted">
+          Oletus: kumppani ei näe asiakasta. Asiakas avautuu automaattisesti, kun kumppani on laatinut sille
+          raportin. Voit jakaa asiakkaan etukäteen raportin luontia varten.
+        </p>
+        <ul className="report-list compact">
+          {shareablePartners.map(({ partnership, sharing }) => {
+            const reportLinked = isCustomerReportLinkedWithPartner(sharing, customer.id);
+            const explicitlyShared = isCustomerExplicitlySharedWithPartner(sharing, customer.id);
+            const visible = isCustomerVisibleToPartner(sharing, customer.id);
+            const toggleChecked = sharing.restricted ? explicitlyShared : visible;
+            const busyForPartner = sharingBusyId === partnership.id;
+            return (
+              <li key={partnership.id}>
+                <div className="report-link-body">
+                  <strong>{partnership.partner_company.name}</strong>
+                  <span className="muted">
+                    {reportLinked
+                      ? 'Näkyy raportin kautta'
+                      : explicitlyShared
+                        ? 'Jaettu manuaalisesti'
+                        : visible
+                          ? 'Näkyy kumppanille'
+                          : 'Piilotettu'}
+                  </span>
+                </div>
+                {reportLinked ? (
+                  <Tooltip label="Kumppani on laatinut raportin — asiakas pysyy näkyvissä automaattisesti.">
+                    <span className="partner-customer-picker-badge open">Raportti</span>
+                  </Tooltip>
+                ) : (
+                  <Tooltip label="Salli kumppanin nähdä asiakas ennen raporttia (esim. raportin luontia varten).">
+                    <ToggleSwitch
+                      checked={toggleChecked}
+                      disabled={busyForPartner}
+                      label="Jaettu"
+                      onChange={(checked) => void togglePartnerSharing(partnership.id, checked)}
+                    />
+                  </Tooltip>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      </WorkReportSectionDialog>
 
-      <CollapsibleSection
+      <WorkReportSectionDialog
+        open={sectionDialog === 'equipment'}
         title={`Laitteet (${equipment.length})`}
-        defaultOpen={false}
-        variant="plain"
-        className="panel customer-detail-collapsible"
+        onClose={closeSectionDialog}
+        wide
       >
         {canWrite && (
           <div className="section-head compact-section-head">
@@ -730,13 +848,43 @@ export default function CustomerDetailPage({ session }: Props) {
         {showNewEquipment && (
           <form className="form-grid nested-form" onSubmit={addEquipment}>
             <div className="line-form-grid">
-              <label>Nimi *<input value={newEquipment.name} onChange={(e) => setNewEquipment((f) => ({ ...f, name: e.target.value }))} required /></label>
-              <label>Tagi<input value={newEquipment.tag} onChange={(e) => setNewEquipment((f) => ({ ...f, tag: e.target.value }))} /></label>
-              <label>Malli<input value={newEquipment.model} onChange={(e) => setNewEquipment((f) => ({ ...f, model: e.target.value }))} /></label>
-              <label>Sarjanumero<input value={newEquipment.serial_number} onChange={(e) => setNewEquipment((f) => ({ ...f, serial_number: e.target.value }))} /></label>
-              <label>Sijainti<input value={newEquipment.location} onChange={(e) => setNewEquipment((f) => ({ ...f, location: e.target.value }))} /></label>
+              <label>
+                Nimi *
+                <input
+                  value={newEquipment.name}
+                  onChange={(e) => setNewEquipment((f) => ({ ...f, name: e.target.value }))}
+                  required
+                />
+              </label>
+              <label>
+                Tagi
+                <input value={newEquipment.tag} onChange={(e) => setNewEquipment((f) => ({ ...f, tag: e.target.value }))} />
+              </label>
+              <label>
+                Malli
+                <input
+                  value={newEquipment.model}
+                  onChange={(e) => setNewEquipment((f) => ({ ...f, model: e.target.value }))}
+                />
+              </label>
+              <label>
+                Sarjanumero
+                <input
+                  value={newEquipment.serial_number}
+                  onChange={(e) => setNewEquipment((f) => ({ ...f, serial_number: e.target.value }))}
+                />
+              </label>
+              <label>
+                Sijainti
+                <input
+                  value={newEquipment.location}
+                  onChange={(e) => setNewEquipment((f) => ({ ...f, location: e.target.value }))}
+                />
+              </label>
             </div>
-            <button type="submit" className="btn btn-primary" disabled={busy}>Tallenna laite</button>
+            <button type="submit" className="btn btn-primary" disabled={busy}>
+              Tallenna laite
+            </button>
           </form>
         )}
 
@@ -779,92 +927,42 @@ export default function CustomerDetailPage({ session }: Props) {
               </div>
             </div>
             <p className="muted customer-equipment-bulk-hint">
-              Kytke laitteet päälle ja tulosta valittujen huoltohistoria, tai tulosta kaikkien laitteiden historia
-              kerralla.
+              Valitse laitteet ruudun valintaruudulla ja tulosta valittujen huoltohistoria.
             </p>
-            <ul className="report-list">
-            {equipment.map((eq) => (
-              <li key={eq.id} className="customer-equipment-row">
-                <ToggleSwitch
-                  className="customer-equipment-toggle"
-                  checked={selectedEquipmentIds.has(eq.id)}
-                  onChange={(checked) => toggleEquipmentSelection(eq.id, checked)}
-                  label={`Valitse ${eq.name}`}
+            <CustomerEquipmentGrid>
+              {equipment.map((eq, index) => (
+                <CustomerEquipmentTile
+                  key={eq.id}
+                  equipment={eq}
+                  customerId={customer.id}
+                  color={customerListTileColor(index)}
+                  latestMaintenanceLabel={
+                    latestMaintenanceByEquipment[eq.id]
+                      ? formatMaintenanceDateFi(latestMaintenanceByEquipment[eq.id])
+                      : null
+                  }
+                  selected={selectedEquipmentIds.has(eq.id)}
+                  canWrite={canWrite}
+                  canDelete={canDeleteRegistry}
+                  busy={busy}
+                  printBusyId={printBusyId}
+                  navTrail={equipmentNavTrail}
+                  onToggleSelected={(checked) => toggleEquipmentSelection(eq.id, checked)}
+                  onPrintCard={() => void printEquipmentCard(eq)}
+                  onPrintHistory={() => void printEquipmentHistory(eq)}
+                  onDelete={() => void deleteEquipmentItem(eq.id, eq.name)}
                 />
-                <Link
-                  to={`/asiakkaat/${customer.id}/laitteet/${eq.id}`}
-                  className="customer-equipment-link"
-                  {...withNavTrail(customerDetailTrail(customer.id, customer.name))}
-                >
-                  <div className="report-link-body">
-                    <strong>{eq.name}</strong>
-                    <span className="muted">
-                      {[eq.tag, eq.model, eq.serial_number].filter(Boolean).join(' • ') || '—'}
-                    </span>
-                    {eq.location && <span className="muted">{eq.location}</span>}
-                    <span className="muted">
-                      Viimeisin huolto:{' '}
-                      {latestMaintenanceByEquipment[eq.id]
-                        ? formatMaintenanceDateFi(latestMaintenanceByEquipment[eq.id])
-                        : '—'}
-                    </span>
-                  </div>
-                </Link>
-                <div className="customer-equipment-actions">
-                  <Tooltip label="Tulosta laitekortti">
-                    <button
-                      type="button"
-                      className="icon-action-btn"
-                      disabled={printBusyId === `card:${eq.id}`}
-                      onClick={() => void printEquipmentCard(eq)}
-                      aria-label="Tulosta laitekortti"
-                    >
-                      <DeviceCardIcon />
-                    </button>
-                  </Tooltip>
-                  <Tooltip label="Tulosta huoltohistoria">
-                    <button
-                      type="button"
-                      className="icon-action-btn"
-                      disabled={printBusyId === `history:${eq.id}`}
-                      onClick={() => void printEquipmentHistory(eq)}
-                      aria-label="Tulosta huoltohistoria"
-                    >
-                      <HistoryIcon />
-                    </button>
-                  </Tooltip>
-                  {canWrite && (
-                    <Link
-                      to={`/huoltoraportit/uusi?customerId=${customer.id}&equipmentId=${eq.id}`}
-                      className="btn btn-secondary btn-sm"
-                      {...withNavTrail(customerDetailTrail(customer.id, customer.name))}
-                    >
-                      Uusi huoltoraportti
-                    </Link>
-                  )}
-                  {canDeleteRegistry && (
-                    <button
-                      type="button"
-                      className="btn btn-danger btn-sm"
-                      disabled={busy}
-                      onClick={() => void deleteEquipmentItem(eq.id, eq.name)}
-                    >
-                      Poista
-                    </button>
-                  )}
-                </div>
-              </li>
-            ))}
-          </ul>
+              ))}
+            </CustomerEquipmentGrid>
           </>
         )}
-      </CollapsibleSection>
+      </WorkReportSectionDialog>
 
-      <CollapsibleSection
+      <WorkReportSectionDialog
+        open={sectionDialog === 'documents'}
         title={`Dokumentit (${documents.length})`}
-        defaultOpen={false}
-        variant="plain"
-        className="panel customer-detail-collapsible"
+        onClose={closeSectionDialog}
+        wide
       >
         <p className="muted">
           Asiakkaaseen kohdistetut työraportit, huoltoraportit, tarjouspyynnöt ja ladatut tiedostot.
@@ -901,55 +999,13 @@ export default function CustomerDetailPage({ session }: Props) {
               : 'Ei dokumentteja valitulla suodattimella.'}
           </p>
         ) : (
-          <ul className="report-list compact customer-document-list">
+          <CustomerDocumentGrid>
             {filteredDocuments.map((doc) => (
-              <li key={`${doc.kind}:${doc.id}`} className="customer-document-row">
-                {doc.kind === 'file' ? (
-                  <div className="customer-document-link is-static">
-                    <div className="report-link-body">
-                      <strong>{doc.title}</strong>
-                      <span className="muted">
-                        {CUSTOMER_DOCUMENT_KIND_LABELS[doc.kind]}
-                        {' • '}
-                        {new Date(doc.date).toLocaleDateString('fi-FI')}
-                        {doc.equipmentLabel ? ` • ${doc.equipmentLabel}` : ''}
-                      </span>
-                    </div>
-                  </div>
-                ) : (
-                  <>
-                    <Link to={doc.href} className="customer-document-link">
-                      <div className="report-link-body">
-                        <strong>{doc.title}</strong>
-                        <span className="muted">
-                          {CUSTOMER_DOCUMENT_KIND_LABELS[doc.kind]}
-                          {doc.subtitle ? ` • ${doc.subtitle}` : ''}
-                          {doc.statusLabel ? ` • ${doc.statusLabel}` : ''}
-                          {' • '}
-                          {new Date(doc.date).toLocaleDateString('fi-FI')}
-                          {doc.equipmentLabel ? ` • ${doc.equipmentLabel}` : ''}
-                        </span>
-                      </div>
-                    </Link>
-                    {doc.printHref ? (
-                      <Link
-                        to={doc.printHref}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="icon-action-btn customer-document-print"
-                        aria-label="Tulosta"
-                        onClick={(event) => event.stopPropagation()}
-                      >
-                        <PrinterIcon title="Tulosta" />
-                      </Link>
-                    ) : null}
-                  </>
-                )}
-              </li>
+              <CustomerDocumentTile key={`${doc.kind}:${doc.id}`} document={doc} />
             ))}
-          </ul>
+          </CustomerDocumentGrid>
         )}
-      </CollapsibleSection>
+      </WorkReportSectionDialog>
     </AppLayout>
   );
 }
