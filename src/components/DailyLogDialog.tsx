@@ -7,6 +7,7 @@ interface Props {
   busy?: boolean;
   onClose: () => void;
   onSubmit: (event: FormEvent) => void;
+  onDelete?: () => void;
   children: ReactNode;
 }
 
@@ -17,6 +18,7 @@ export default function DailyLogDialog({
   busy = false,
   onClose,
   onSubmit,
+  onDelete,
   children,
 }: Props) {
   useEffect(() => {
@@ -45,13 +47,25 @@ export default function DailyLogDialog({
         </p>
         <form className="daily-log-form" onSubmit={onSubmit}>
           {children}
-          <div className="leave-draft-actions">
-            <button type="button" className="btn btn-secondary" onClick={onClose} disabled={busy}>
-              Peruuta
-            </button>
-            <button type="submit" className="btn btn-primary" disabled={busy}>
-              {busy ? 'Tallennetaan…' : submitLabel}
-            </button>
+          <div className="leave-draft-actions daily-log-dialog-actions">
+            {onDelete ? (
+              <button
+                type="button"
+                className="btn btn-secondary daily-log-dialog-delete"
+                disabled={busy}
+                onClick={onDelete}
+              >
+                Poista työkirjaus
+              </button>
+            ) : null}
+            <div className="daily-log-dialog-actions-main">
+              <button type="button" className="btn btn-secondary" onClick={onClose} disabled={busy}>
+                Peruuta
+              </button>
+              <button type="submit" className="btn btn-primary" disabled={busy}>
+                {busy ? 'Tallennetaan…' : submitLabel}
+              </button>
+            </div>
           </div>
         </form>
       </div>

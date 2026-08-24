@@ -2774,11 +2774,6 @@ export default function WorkReportDetailPage({ session }: Props) {
                 key={descriptor.key}
                 descriptor={descriptor}
                 onClick={() => openEditLogDialog(log)}
-                onDelete={
-                  canEditDailyLogs && descriptor.kind === 'work'
-                    ? () => void deleteDailyLog(log.id)
-                    : undefined
-                }
               />
             );
           })}
@@ -3449,6 +3444,14 @@ export default function WorkReportDetailPage({ session }: Props) {
         busy={logDialogBusy}
         onClose={closeLogDialog}
         onSubmit={(event) => void (editingLogId ? saveDailyLogEdit(event) : addDailyLog(event))}
+        onDelete={
+          editingLogId && canEditDailyLogs
+            ? () => {
+                if (!window.confirm('Poistetaanko tämä työkirjaus?')) return;
+                void deleteDailyLog(editingLogId).then(() => closeLogDialog());
+              }
+            : undefined
+        }
       >
         <DailyLogTripLegFields
           drafts={tripDrafts}

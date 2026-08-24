@@ -118,28 +118,20 @@ export function buildDailyLogEntryTiles(
 type TileProps = {
   descriptor: DailyLogEntryTileDescriptor;
   onClick: () => void;
-  onDelete?: () => void;
 };
 
-export function DailyLogEntryTile({ descriptor, onClick, onDelete }: TileProps) {
+export function DailyLogEntryTile({ descriptor, onClick }: TileProps) {
   return (
-    <div className={`work-report-entry-tile-wrap work-report-entry-tile-wrap--${descriptor.kind}`}>
-      <button
-        type="button"
-        className={`tile work-report-entry-tile work-report-entry-tile--${descriptor.kind}`}
-        style={{ background: DAILY_LOG_ENTRY_TILE_COLORS[descriptor.kind] }}
-        onClick={onClick}
-      >
-        <span className="work-report-entry-tile-kind">{KIND_LABELS[descriptor.kind]}</span>
-        <strong>{descriptor.title}</strong>
-        <span className="work-report-entry-tile-meta">{descriptor.subtitle}</span>
-      </button>
-      {descriptor.kind === 'work' && onDelete ? (
-        <button type="button" className="btn btn-secondary btn-sm work-report-entry-tile-delete" onClick={onDelete}>
-          Poista
-        </button>
-      ) : null}
-    </div>
+    <button
+      type="button"
+      className={`tile work-report-entry-tile work-report-entry-tile--${descriptor.kind}`}
+      style={{ background: DAILY_LOG_ENTRY_TILE_COLORS[descriptor.kind] }}
+      onClick={onClick}
+    >
+      <span className="work-report-entry-tile-kind">{KIND_LABELS[descriptor.kind]}</span>
+      <strong>{descriptor.title}</strong>
+      <span className="work-report-entry-tile-meta">{descriptor.subtitle}</span>
+    </button>
   );
 }
 
