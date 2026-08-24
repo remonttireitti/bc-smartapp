@@ -1,5 +1,7 @@
 import { FormEvent, useEffect, type ReactNode } from 'react';
 
+import { DailyLogSectionProvider, useDailyLogSectionOpen } from './DailyLogSectionContext';
+
 interface Props {
   open: boolean;
   title: string;
@@ -11,8 +13,7 @@ interface Props {
   children: ReactNode;
 }
 
-export default function DailyLogDialog({
-  open,
+function DailyLogDialogFrame({
   title,
   submitLabel,
   busy = false,
@@ -20,20 +21,24 @@ export default function DailyLogDialog({
   onSubmit,
   onDelete,
   children,
-}: Props) {
+}: Omit<Props, 'open'>) {
+  const nestedSectionOpen = useDailyLogSectionOpen();
+
   useEffect(() => {
-    if (!open) return;
     function onKeyDown(event: KeyboardEvent) {
-      if (event.key === 'Escape' && !busy) onClose();
+      if (event.key !== 'Escape' || busy || nestedSectionOpen) return;
+      onClose();
     }
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [open, busy, onClose]);
-
-  if (!open) return null;
+  }, [busy, nestedSectionOpen, onClose]);
 
   return (
-    <div className="leave-draft-overlay" role="presentation" onClick={busy ? undefined : onClose}>
+    <div
+      className="leave-draft-overlay"
+      role="presentation"
+      onClick={busy || nestedSectionOpen ? undefined : onClose}
+    >
       <div
         className="leave-draft-dialog daily-log-dialog panel"
         role="dialog"
@@ -43,10 +48,11 @@ export default function DailyLogDialog({
       >
         <h2 id="daily-log-dialog-title">{title}</h2>
         <p className="muted daily-log-dialog-hint">
-          Kirjaa päivän työt, tunnit ja tarvikkeet. Voit lisätä kuvia ennen tallennusta.
+          Kirjaa päivän työt, tunnit ja tarvikkeet. Avaa ruudut täyttääksesi tiedot. Voit lisätä kuvia ennen
+          tallennusta.
         </p>
         <form className="daily-log-form" onSubmit={onSubmit}>
-          {children}
+          <div className="grid work-report-section-grid daily-log-section-grid">{children}</div>
           <div className="leave-draft-actions daily-log-dialog-actions">
             {onDelete ? (
               <button
@@ -70,5 +76,15 @@ export default function DailyLogDialog({
         </form>
       </div>
     </div>
+  );
+}
+
+export default function DailyLogDialog({ open, ...props }: Props) {
+  if (!open) return null;
+
+  return (
+    <DailyLogSectionProvider dialogOpen={open}>
+      <DailyLogDialogFrame {...props} />
+    </DailyLogSectionProvider>
   );
 }

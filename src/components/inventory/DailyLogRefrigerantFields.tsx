@@ -5,7 +5,11 @@ import {
   shouldShowRefrigerantCustomerPriceFields,
 } from '../../lib/refrigerantInventory';
 import { refrigerantTypes } from '../../lib/huoltoRaportti/constants';
-import DailyLogFormSection from '../DailyLogFormSection';
+import DailyLogTileSection from '../DailyLogTileSection';
+import {
+  DAILY_LOG_SECTION_COLORS,
+  dailyLogRefrigerantSubtitle,
+} from '../../lib/dailyLogSectionHelpers';
 import {
   REFRIGERANT_CYLINDER_DISPOSITION_LABELS,
   REFRIGERANT_SOURCE_LABELS,
@@ -95,10 +99,16 @@ export default function DailyLogRefrigerantFields({
     ([value]) => value !== 'partner_warehouse' || hasPartnerCompanies,
   );
 
-  const sectionTitle = drafts.length > 0 ? `Kylmäaine (${drafts.length})` : 'Kylmäaine';
+  const sectionTitle = 'Kylmäaine';
 
   return (
-    <DailyLogFormSection title={sectionTitle} collapseKey="daily-log:refrigerant" className="refrigerant-dialog-section">
+    <DailyLogTileSection
+      sectionKey="refrigerant"
+      title={sectionTitle}
+      subtitle={dailyLogRefrigerantSubtitle(drafts.length)}
+      color={DAILY_LOG_SECTION_COLORS.refrigerant}
+      wide
+    >
     <div className="expense-section expense-section-in-dialog">
       <button type="button" className="btn btn-secondary" onClick={() => setDrafts([...drafts, emptyRow()])}>
         + Lisää kylmäaine
@@ -277,6 +287,6 @@ export default function DailyLogRefrigerantFields({
         })
       )}
     </div>
-    </DailyLogFormSection>
+    </DailyLogTileSection>
   );
 }

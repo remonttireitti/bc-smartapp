@@ -14,6 +14,16 @@ import WorkReportSectionDialog from '../components/WorkReportSectionDialog';
 import ActionStatusDialog from '../components/ActionStatusDialog';
 import DailyLogDialog from '../components/DailyLogDialog';
 import DailyLogFormSection from '../components/DailyLogFormSection';
+import DailyLogTileSection from '../components/DailyLogTileSection';
+import {
+  DAILY_LOG_SECTION_COLORS,
+  dailyLogCommissionSubtitle,
+  dailyLogDaySubtitle,
+  dailyLogExpensesSubtitle,
+  dailyLogHoursSubtitle,
+  dailyLogWorkSubtitle,
+  dailyLogImagesSubtitle,
+} from '../lib/dailyLogSectionHelpers';
 import {
   dailyLogNoticeFromError,
   dailyLogNoticeFromWarning,
@@ -530,15 +540,19 @@ function DailyLogFields({
   const showPartnerPrices = !!showPartnerExpenseFields;
   const showCustomerPrices = !!showCustomerExpenseFields;
   const manualExpenseDrafts = expenseDrafts.filter((row) => !isLikelyAutoTripKmExpense(row));
-  const expenseSectionTitle =
-    manualExpenseDrafts.length > 0
-      ? `Kulut ja tarvikkeet (${manualExpenseDrafts.length})`
-      : 'Kulut ja tarvikkeet';
+  const hasAutoTripKm = expenseDrafts.some(isLikelyAutoTripKmExpense);
+  const expenseSectionTitle = 'Kulut ja tarvikkeet';
   const partnerUrakkaPreview = previewPartnerUrakkaAmount(form);
 
   return (
     <>
-      <DailyLogFormSection title="Päivä ja aika" defaultOpen collapseKey="daily-log:day">
+      <DailyLogTileSection
+        sectionKey="day"
+        title="Päivä ja aika"
+        subtitle={dailyLogDaySubtitle(form)}
+        color={DAILY_LOG_SECTION_COLORS.day}
+        incomplete={!form.log_date.trim()}
+      >
         <div className="line-form-grid">
           <label>
             Päivä
@@ -576,9 +590,15 @@ function DailyLogFields({
             </select>
           </label>
         </div>
-      </DailyLogFormSection>
+      </DailyLogTileSection>
 
-      <DailyLogFormSection title="Mitä tein" defaultOpen collapseKey="daily-log:work">
+      <DailyLogTileSection
+        sectionKey="work"
+        title="Mitä tein"
+        subtitle={dailyLogWorkSubtitle(form.work_done)}
+        color={DAILY_LOG_SECTION_COLORS.work}
+        incomplete={!form.work_done.trim()}
+      >
         <label>
           Kuvaus
           <textarea
@@ -589,12 +609,19 @@ function DailyLogFields({
             required
           />
         </label>
-      </DailyLogFormSection>
+      </DailyLogTileSection>
 
-      <DailyLogFormSection
+      <DailyLogTileSection
+        sectionKey="hours"
         title="Tunnit"
-        collapseKey="daily-log:hours"
-        defaultOpen={!!(showHourlyRate || showCustomerHourlyRate || showFixed)}
+        subtitle={dailyLogHoursSubtitle(form)}
+        color={DAILY_LOG_SECTION_COLORS.hours}
+        incomplete={
+          form.entry_type === 'fixed_price'
+            ? !(Number(form.customer_fixed_price_amount) > 0 || Number(form.fixed_price_amount) > 0)
+            : false
+        }
+        wide
       >
         <div className="line-form-grid">
         {showRegular && (
@@ -805,9 +832,14 @@ function DailyLogFields({
           )}
         </div>
       )}
-      </DailyLogFormSection>
+      </DailyLogTileSection>
 
-      <DailyLogFormSection title="Provisio" collapseKey="daily-log:commission">
+      <DailyLogTileSection
+        sectionKey="commission"
+        title="Provisio"
+        subtitle={dailyLogCommissionSubtitle(form.commission_amount, form.commission_note)}
+        color={DAILY_LOG_SECTION_COLORS.commission}
+      >
         <div className="line-form-grid">
           <label>
             Myyntiprovisio (€)
@@ -829,9 +861,15 @@ function DailyLogFields({
             />
           </label>
         </div>
-      </DailyLogFormSection>
+      </DailyLogTileSection>
 
-      <DailyLogFormSection title={expenseSectionTitle} collapseKey="daily-log:expenses">
+      <DailyLogTileSection
+        sectionKey="expenses"
+        title={expenseSectionTitle}
+        subtitle={dailyLogExpensesSubtitle(manualExpenseDrafts.length, hasAutoTripKm)}
+        color={DAILY_LOG_SECTION_COLORS.expenses}
+        wide
+      >
         <div className="expense-section expense-section-in-dialog">
           <p className="muted expense-section-hint">
             Lisää pysäköinti, varaosat ja muut kulut. Ajomatkan km-korvaus ja laskutus valitaan yllä olevassa
@@ -1152,7 +1190,7 @@ function DailyLogFields({
             })
           )}
         </div>
-      </DailyLogFormSection>
+      </DailyLogTileSection>
     </>
   );
 }
@@ -3566,10 +3604,15 @@ export default function WorkReportDetailPage({ session }: Props) {
           showCustomerBillingFields={showCustomerBillingFeatures}
         />
         {report && (
-          <DailyLogFormSection
+          <DailyLogTileSection
+            sectionKey="images"
             title="Kuvat"
-            collapseKey="daily-log:images"
-            className="daily-log-images-section"
+            subtitle={dailyLogImagesSubtitle(
+              editingLog?.images?.length ?? 0,
+              pendingImages.length,
+            )}
+            color={DAILY_LOG_SECTION_COLORS.images}
+            wide
           >
           <DailyLogImageSection
             reportId={report.id}
@@ -3594,7 +3637,7 @@ export default function WorkReportDetailPage({ session }: Props) {
               })
             }
           />
-          </DailyLogFormSection>
+          </DailyLogTileSection>
         )}
       </DailyLogDialog>
 

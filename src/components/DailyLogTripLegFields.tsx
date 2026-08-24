@@ -18,7 +18,11 @@ import {
   type TripLegDraft,
 } from '../lib/workReportTripLegs';
 import { formatTripKmRateLabel } from '../lib/tripKmExpense';
-import DailyLogFormSection from './DailyLogFormSection';
+import {
+  DAILY_LOG_SECTION_COLORS,
+  dailyLogTripsSubtitle,
+} from '../lib/dailyLogSectionHelpers';
+import DailyLogTileSection from './DailyLogTileSection';
 
 type Props = {
   drafts: TripLegDraft[];
@@ -130,11 +134,16 @@ export default function DailyLogTripLegFields({
     setDrafts(updateTripLegDraft(drafts, index, patch, tripDeparture));
   }
 
-  const sectionTitle =
-    totalKm > 0 ? `Ajomatkat (${totalKm.toFixed(1)} km)` : 'Ajomatkat';
+  const sectionTitle = 'Ajomatkat';
 
   return (
-    <DailyLogFormSection title={sectionTitle} collapseKey="daily-log:trips" className="trip-leg-dialog-section">
+    <DailyLogTileSection
+      sectionKey="trips"
+      title={sectionTitle}
+      subtitle={dailyLogTripsSubtitle(drafts)}
+      color={DAILY_LOG_SECTION_COLORS.trips}
+      wide
+    >
       <div className="trip-leg-section">
         <div className="trip-leg-toolbar">
           <div className="trip-leg-toolbar-actions">
@@ -275,6 +284,6 @@ export default function DailyLogTripLegFields({
           })
         )}
       </div>
-    </DailyLogFormSection>
+    </DailyLogTileSection>
   );
 }
