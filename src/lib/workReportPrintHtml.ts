@@ -1,5 +1,10 @@
 import type { BillableCalculation } from './workReportBilling';
 import { expenseCustomerPriceMissing, expensePrintBillingNote } from './workReportExpenseBilling';
+import {
+  billableUsers,
+  billableUserLines,
+  hasIncludedBillableLines,
+} from './workReportPrintBillingGuards';
 
 /** Asiakas = vain työn kuvaus ilman hintoja. Sisäinen = kumppani- ja asiakaslaskutus mukana. */
 export type WorkReportPrintMode = 'customer' | 'internal';
@@ -128,11 +133,12 @@ function formatBillableLineQty(kind: string, qty: number): string {
 }
 
 function partnerBillingLinesForPrint(
-  lines: BillableCalculation['byUser'][number]['lines'],
+  lines: BillableCalculation['byUser'][number]['lines'] | undefined,
   showPartnerPrices: boolean,
 ) {
-  if (!showPartnerPrices) return lines;
-  return lines.filter((line) => line.included || line.kind === 'refrigerant');
+  const safeLines = lines ?? [];
+  if (!showPartnerPrices) return safeLines;
+  return safeLines.filter((line) => line.included || line.kind === 'refrigerant');
 }
 
 function formatBillablePriceCell(unitPrice: number, priceMissing?: boolean): string {
@@ -172,9 +178,10 @@ function customerBillingPrintSection(
     );
   }
 
-  const detailRows = customerCalculation.byUser
+  const users = billableUsers(customerCalculation);
+  const detailRows = users
     .flatMap((user) =>
-      user.lines
+      billableUserLines(user)
         .filter((line) => line.included)
         .map(
           (line) => `<tr>
@@ -198,7 +205,7 @@ function customerBillingPrintSection(
         <tr><th>Henkilö</th><th class="num">Työt (€)</th><th class="num">Kulut / urakat</th><th class="num">Yhteensä</th></tr>
       </thead>
       <tbody>
-        ${customerCalculation.byUser
+        ${users
           .map(
             (u) => `<tr>
               <td>${esc(u.userName)}</td>
@@ -565,7 +572,7 @@ export function generateWorkReportPrintHtml(input: {
   );
 
   const billingSection =
-    showInternalPrices && isPartnerReport && calculation
+    showInternalPrices && isPartnerReport && calculation && billableUsers(calculation).length > 0
       ? printBox(
           'Keskenään laskutettava',
           `<p class="meta-line">
@@ -585,7 +592,7 @@ export function generateWorkReportPrintHtml(input: {
                     <tr><th>Henkilö</th><th class="num">Työt (€)</th><th class="num">Kulut / urakat</th><th class="num">Yhteensä</th></tr>
                   </thead>
                   <tbody>
-                    ${calculation.byUser
+                    ${billableUsers(calculation)
                       .map(
                         (u) => `<tr>
                           <td>${esc(u.userName)}</td>
@@ -607,7 +614,7 @@ export function generateWorkReportPrintHtml(input: {
             </thead>
             <tbody>
               ${
-                calculation.byUser
+                billableUsers(calculation)
                   .flatMap((u) =>
                     partnerBillingLinesForPrint(u.lines, showPartnerPrices).map(
                       (l) => `<tr>
@@ -643,9 +650,7 @@ export function generateWorkReportPrintHtml(input: {
 
   const billingCustomerName = report.customers?.name ?? customerLabel;
   const customerBillingSection =
-    showInternalPrices &&
-    customerCalculation &&
-    customerCalculation.byUser.some((user) => user.lines.some((line) => line.included))
+    showInternalPrices && customerCalculation && hasIncludedBillableLines(customerCalculation)
       ? customerBillingPrintSection(customerCalculation, billingCustomerName, billingQuote)
       : '';
 

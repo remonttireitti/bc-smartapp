@@ -21,6 +21,7 @@
     "test:portal-work-order-draft": "npx tsx scripts/test-portal-work-order-draft.mjs",
     "test:work-report-create-sections": "npx tsx scripts/test-work-report-create-sections.mjs",
     "test:expense-billing": "npx tsx scripts/test-expense-billing.mjs",
+    "test:work-report-print-billing": "npx tsx scripts/test-work-report-print-billing.mjs",
     "fix:firebase-urls": "node scripts/fix-legacy-firebase-urls.mjs --production",
     "fix:firebase-urls:apply": "node scripts/fix-legacy-firebase-urls.mjs --production --apply",
     "fix:maintenance-photos": "node scripts/sync-maintenance-report-photos.mjs --production",

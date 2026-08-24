@@ -7,6 +7,7 @@ import {
   renderBillingQuotePurchaseLinesHtml,
   type BillingQuoteSettings,
 } from './workReportBillingQuote';
+import { billableUsers } from './workReportPrintBillingGuards';
 
 const LINE_KIND_LABELS: Record<string, string> = {
   hours_regular: 'Tunnit',
@@ -38,7 +39,7 @@ export function generatePartnerBillingHtml(input: {
     hourly_overtime: 0,
     hourly_on_call: 0,
   };
-  const userRows = calculation.byUser
+  const userRows = billableUsers(calculation)
     .map(
       (u) => `
       <tr>
@@ -50,9 +51,9 @@ export function generatePartnerBillingHtml(input: {
     )
     .join('');
 
-  const detailRows = calculation.byUser
+  const detailRows = billableUsers(calculation)
     .flatMap((u) =>
-      u.lines
+      (u.lines ?? [])
         .filter((l) => l.included)
         .map(
           (l) => `
