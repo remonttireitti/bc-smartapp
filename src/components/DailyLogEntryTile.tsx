@@ -3,6 +3,12 @@ import { EXPENSE_TYPE_LABELS, HOUR_ENTRY_LABELS } from '../types';
 
 export type DailyLogEntryTileKind = 'work' | 'expenses' | 'materials';
 
+const KIND_LABELS: Record<DailyLogEntryTileKind, string> = {
+  work: 'Työ',
+  expenses: 'Kulut',
+  materials: 'Tarvikkeet',
+};
+
 export const DAILY_LOG_ENTRY_TILE_COLORS: Record<DailyLogEntryTileKind, string> = {
   work: '#388E3C',
   expenses: '#D97706',
@@ -54,7 +60,7 @@ export function buildDailyLogEntryTiles(
     key: `${log.id}:work`,
     kind: 'work',
     logId: log.id,
-    title: `Työkirjaus · ${dateLabel}`,
+    title: dateLabel,
     subtitle: workSubtitleParts.join(' · '),
   });
 
@@ -78,7 +84,7 @@ export function buildDailyLogEntryTiles(
       key: `${log.id}:expenses`,
       kind: 'expenses',
       logId: log.id,
-      title: `Kulut · ${dateLabel}`,
+      title: dateLabel,
       subtitle: subtitleParts.join(' · '),
     });
   }
@@ -101,7 +107,7 @@ export function buildDailyLogEntryTiles(
       key: `${log.id}:materials`,
       kind: 'materials',
       logId: log.id,
-      title: `Tarvikkeet · ${dateLabel}`,
+      title: dateLabel,
       subtitle: truncate(subtitleParts.join(' · '), 72),
     });
   }
@@ -124,8 +130,9 @@ export function DailyLogEntryTile({ descriptor, onClick, onDelete }: TileProps) 
         style={{ background: DAILY_LOG_ENTRY_TILE_COLORS[descriptor.kind] }}
         onClick={onClick}
       >
+        <span className="work-report-entry-tile-kind">{KIND_LABELS[descriptor.kind]}</span>
         <strong>{descriptor.title}</strong>
-        <span>{descriptor.subtitle}</span>
+        <span className="work-report-entry-tile-meta">{descriptor.subtitle}</span>
       </button>
       {descriptor.kind === 'work' && onDelete ? (
         <button type="button" className="btn btn-secondary btn-sm work-report-entry-tile-delete" onClick={onDelete}>

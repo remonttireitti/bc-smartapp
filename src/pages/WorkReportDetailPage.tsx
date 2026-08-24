@@ -2517,14 +2517,6 @@ export default function WorkReportDetailPage({ session }: Props) {
     showCustomerBillingFeatures
     && !!customerBillableCalculation
     && (isOwnerCompany || (isPartnerReport && canSeeCreatorBilling));
-  const scrollToDailyLogEntries = () => {
-    window.requestAnimationFrame(() => {
-      document.getElementById('work-report-entries')?.scrollIntoView({
-        behavior: 'smooth',
-        block: 'start',
-      });
-    });
-  };
   const dailyLogEntryTiles = dailyLogs.flatMap((log) =>
     buildDailyLogEntryTiles(log, {
       formatDate,
@@ -2711,12 +2703,6 @@ export default function WorkReportDetailPage({ session }: Props) {
           color="#1976D2"
           onClick={() => setSectionDialog('basics')}
         />
-        <WorkReportSectionTile
-          title="Työkirjaukset"
-          subtitle={`${totalHours.toFixed(2)} h · kulut ${totalExpenses.toFixed(2)} €${totalTripKm > 0 ? ` · ${totalTripKm.toFixed(1)} km` : ''} · ${dailyLogs.length} kirjausta`}
-          color="#388E3C"
-          onClick={scrollToDailyLogEntries}
-        />
         {showPartnerBillableSection && billableCalculation ? (
           <WorkReportSectionTile
             title={showOutgoingPartnerBilling ? 'Kumppanille laskutettava' : 'Kumppanilta laskutettava'}
@@ -2742,6 +2728,21 @@ export default function WorkReportDetailPage({ session }: Props) {
           />
         ) : null}
       </WorkReportSectionTileGrid>
+
+      <div className="work-report-entries-section" id="work-report-entries">
+        <div className="work-report-entries-heading">
+          <h2>Työkirjaukset</h2>
+          {dailyLogs.length > 0 ? (
+            <p className="muted">
+              {totalHours.toFixed(2)} h
+              {' · '}
+              kulut {totalExpenses.toFixed(2)} €
+              {totalTripKm > 0 ? ` · ${totalTripKm.toFixed(1)} km` : ''}
+              {' · '}
+              {dailyLogs.length} kirjausta
+            </p>
+          ) : null}
+        </div>
       <div className="work-report-add-log-bar">
         {canAddDailyLogs && (
           <button
@@ -2764,9 +2765,7 @@ export default function WorkReportDetailPage({ session }: Props) {
       {dailyLogs.length === 0 ? (
         <p className="muted work-report-entries-empty">Ei työkirjauksia vielä.</p>
       ) : (
-        <>
-          <div id="work-report-entries" className="work-report-entries-anchor" aria-hidden="true" />
-          <DailyLogEntryTileGrid>
+        <DailyLogEntryTileGrid>
           {dailyLogEntryTiles.map((descriptor) => {
             const log = dailyLogs.find((entry) => entry.id === descriptor.logId);
             if (!log) return null;
@@ -2783,9 +2782,9 @@ export default function WorkReportDetailPage({ session }: Props) {
               />
             );
           })}
-          </DailyLogEntryTileGrid>
-        </>
+        </DailyLogEntryTileGrid>
       )}
+      </div>
 
       {(showOutgoingPartnerBilling || showCustomerMoneyBilling) && report && (
         <WorkReportBillingQuotePanel
