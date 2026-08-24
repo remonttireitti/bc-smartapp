@@ -5498,11 +5498,18 @@ textarea {
   margin-bottom: 1.25rem;
 }
 
+.work-report-list-grid {
+  grid-template-columns: repeat(auto-fill, minmax(12.5rem, 1fr));
+  align-items: stretch;
+  gap: .75rem;
+}
+
 .work-report-list-tile-wrap {
   min-width: 0;
+  height: 100%;
   display: flex;
   flex-direction: column;
-  gap: .5rem;
+  gap: .4rem;
 }
 
 a.tile.work-report-list-tile,
@@ -5517,28 +5524,79 @@ button.tile.work-report-section-tile {
   color: white;
 }
 
-a.tile.work-report-list-tile:hover {
-  color: white;
+a.tile.work-report-list-tile {
+  aspect-ratio: auto;
+  min-height: 10.5rem;
+  height: 100%;
+  padding: .75rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: .55rem;
+  box-shadow: 0 1px 4px rgba(15, 23, 42, .12);
 }
 
-.work-report-list-tile-status {
-  position: absolute;
-  top: .65rem;
-  right: .65rem;
-  font-size: .72rem;
-  font-weight: 700;
-  background: rgba(255, 255, 255, .18);
-  border-radius: 999px;
-  padding: .15rem .45rem;
+a.tile.work-report-list-tile:hover {
+  color: white;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(15, 23, 42, .16);
+}
+
+.work-report-list-tile-body {
+  display: flex;
+  flex-direction: column;
+  gap: .2rem;
+  min-height: 0;
+  flex: 1;
+}
+
+.work-report-list-tile-title {
+  font-size: .92rem;
+  line-height: 1.3;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  margin: 0;
+}
+
+.work-report-list-tile-line {
+  font-size: .8rem;
+  line-height: 1.25;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .work-report-list-tile-meta {
   opacity: .88;
-  font-size: .78rem;
+  font-size: .74rem;
+  line-height: 1.25;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
-.work-report-list-tile-aside {
-  padding: 0 .25rem;
+.work-report-list-tile-footer {
+  margin-top: auto;
+  padding-top: .35rem;
+}
+
+.work-report-list-tile-footer .report-link-badges {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: flex-start;
+  gap: .3rem;
+}
+
+.work-report-list-tile .report-link-badges .badge {
+  background: rgba(255, 255, 255, .2);
+  color: white;
+  border: 1px solid rgba(255, 255, 255, .28);
+  font-size: .68rem;
+  padding: .12rem .4rem;
 }
 
 .work-report-list-tile-delete {

@@ -3,8 +3,6 @@ import { Link } from 'react-router-dom';
 import WorkReportStatusBadges from './WorkReportStatusBadges';
 import { subscriberPortalVisibilityLabel } from '../lib/subscriberPortalVisibility';
 import {
-  getWorkStatusLabel,
-  getPortalWorkStatusLabel,
   reportPartyLabels,
   type WorkReport,
   type WorkReportDailyLog,
@@ -59,9 +57,6 @@ export function WorkReportListTile({
   deleteBusy = false,
 }: Props) {
   const href = linkTo ?? `/tyoraportit/${report.id}`;
-  const statusLabel = portalView
-    ? getPortalWorkStatusLabel(report.status)
-    : getWorkStatusLabel(report.status);
   const scheduleLabel = report.scheduled_start
     ? new Date(report.scheduled_start).toLocaleString('fi-FI', {
         day: 'numeric',
@@ -70,6 +65,7 @@ export function WorkReportListTile({
         minute: '2-digit',
       })
     : 'Ei ajastettu';
+  const showStatusBadges = !portalView && !!viewerCompanyId;
 
   return (
     <div className="work-report-list-tile-wrap">
@@ -78,15 +74,36 @@ export function WorkReportListTile({
         className="tile work-report-list-tile"
         style={{ background: tileColor(report.status) }}
       >
-        <span className="work-report-list-tile-status">{statusLabel}</span>
-        <strong>{report.title}</strong>
-        <span>{report.customers?.name ?? '—'}</span>
-        <span>{scheduleLabel}</span>
-        <span className="work-report-list-tile-meta">{tileSubtitle(report, variant)}</span>
-        {report.subscriber_id || report.customers?.subscriber_id ? (
-          <span className="work-report-list-tile-meta">
-            {subscriberPortalVisibilityLabel(report.subscriber_portal_visibility)}
-          </span>
+        <div className="work-report-list-tile-body">
+          <strong className="work-report-list-tile-title">{report.title}</strong>
+          <span className="work-report-list-tile-line">{report.customers?.name ?? '—'}</span>
+          <span className="work-report-list-tile-line">{scheduleLabel}</span>
+          <span className="work-report-list-tile-meta">{tileSubtitle(report, variant)}</span>
+          {report.subscriber_id || report.customers?.subscriber_id ? (
+            <span className="work-report-list-tile-meta">
+              {subscriberPortalVisibilityLabel(report.subscriber_portal_visibility)}
+            </span>
+          ) : null}
+        </div>
+        {showStatusBadges ? (
+          <div className="work-report-list-tile-footer">
+            <WorkReportStatusBadges
+              workflowStatus={report.status}
+              context={{
+                status: report.status,
+                owner_company_id: report.owner_company_id,
+                created_by_company_id: report.created_by_company_id,
+                delegate_company_id: report.delegate_company_id,
+                billing: report.billing,
+                billable: report.billable,
+              }}
+              viewerCompanyId={viewerCompanyId}
+              hasDailyLogs={hasDailyLogs}
+              dailyLogs={dailyLogs}
+              customerBillingEnabled={customerBillingEnabled}
+              compact
+            />
+          </div>
         ) : null}
       </Link>
       {onDelete ? (
@@ -98,26 +115,6 @@ export function WorkReportListTile({
         >
           {deleteBusy ? 'Poistetaan…' : 'Poista luonnos'}
         </button>
-      ) : null}
-      {!portalView && viewerCompanyId ? (
-        <div className="work-report-list-tile-aside">
-          <WorkReportStatusBadges
-            workflowStatus={report.status}
-            context={{
-              status: report.status,
-              owner_company_id: report.owner_company_id,
-              created_by_company_id: report.created_by_company_id,
-              delegate_company_id: report.delegate_company_id,
-              billing: report.billing,
-              billable: report.billable,
-            }}
-            viewerCompanyId={viewerCompanyId}
-            hasDailyLogs={hasDailyLogs}
-            dailyLogs={dailyLogs}
-            customerBillingEnabled={customerBillingEnabled}
-            compact
-          />
-        </div>
       ) : null}
     </div>
   );
