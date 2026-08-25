@@ -8,6 +8,31 @@ export type PumpunSyottoValinta = '' | '230_1' | '400_3';
 export type FanPhaseType = 1 | 3;
 export type SahkoJanniteType = '230' | '400';
 
+export type RefrigerantCircuitComponentType =
+  | 'paisuntaventtiili'
+  | 'magneettiventtiili'
+  | 'nestelasi'
+  | 'kuivain'
+  | 'imusuodatin'
+  | 'lauhdutimenTalvivarustus'
+  | 'tarinavaimennin'
+  | 'custom';
+
+export interface RefrigerantCircuitComponent {
+  id: string;
+  type: RefrigerantCircuitComponentType;
+  customName?: string;
+  valmistaja?: string;
+  malli?: string;
+  kommentti?: string;
+  tila?: HuoltoInspectionStatus;
+  paisuntaventtiiliTyyppi?: string;
+  paisuntaventtiiliMuu?: string;
+  nestelasiKuiva?: boolean;
+  kuivainKivienMaara?: string;
+  magneettiventtiiliTestattu?: boolean;
+}
+
 export interface CompressorData {
   tyyppi: string;
   valmistaja?: string;
@@ -82,6 +107,7 @@ export interface RefrigerantCircuitData {
   paisuntaventtiiliSamaKuinPiiri1?: boolean;
   magneettiventtiiliSamaKuinPiiri1?: boolean;
   kuivainSamaKuinPiiri1?: boolean;
+  kompponentit?: RefrigerantCircuitComponent[];
 }
 
 export interface FanData {

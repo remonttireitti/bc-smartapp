@@ -15,7 +15,11 @@ import {
   circuitSubcoolingPrintEnabled,
   circuitSuperheatPrintEnabled,
 } from '../../lib/huoltoRaportti/refrigerantCircuitPrint';
-import type { HuoltoInspectionStatus } from '../../lib/huoltoRaportti/huoltoInspectionStatus';
+export { circuitMeasurementsStatus, circuitMeasurementsSubtitle } from '../../lib/huoltoRaportti/refrigerantCircuitHelpers';
+import {
+  circuitMeasurementsStatus,
+  circuitMeasurementsSubtitle,
+} from '../../lib/huoltoRaportti/refrigerantCircuitHelpers';
 import ToggleSwitch from '../ToggleSwitch';
 import { FormInput } from './FormInput';
 import { HuoltoPartInspectionRow } from './HuoltoPartInspectionRow';
@@ -44,20 +48,7 @@ function deviceTypeForLimits(laiteTyyppi: string): string {
   return map[laiteTyyppi] ?? (laiteTyyppi || 'muu');
 }
 
-export function circuitMeasurementsStatus(data: RefrigerantCircuitData): HuoltoInspectionStatus {
-  if (!data.onKaytossa) return 'na';
-  const hasPressure = Boolean(data.imupaine?.trim() || data.korkeapaine?.trim());
-  return hasPressure ? 'ok' : null;
-}
-
-export function circuitMeasurementsSubtitle(data: RefrigerantCircuitData): string {
-  const low = data.imupaine?.trim();
-  const high = data.korkeapaine?.trim();
-  if (!low && !high) return '';
-  return `${low || '—'}/${high || '—'} bar`;
-}
-
-function CircuitMeasurementsFields({
+export function CircuitMeasurementsFields({
   data,
   onChange,
   refrigerantType = '',

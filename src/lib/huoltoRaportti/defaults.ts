@@ -15,6 +15,10 @@ import { normalizeEvaporatorForDevice } from './evaporatorHelpers';
 import { buildMaintenanceReportTitle } from '../../types';
 import { deviceTypes, isMlpVesiNeste, type ModuleKey } from './constants';
 import { formatPrintSaveFileName } from '../printDocumentShell';
+import {
+  ensureRefrigerantCircuitComponents,
+  syncLegacyFieldsFromComponents,
+} from './refrigerantCircuitComponents';
 import type {
   CompressorData,
   CondenserData,
@@ -801,6 +805,7 @@ export function createEmptyRefrigerantCircuitData(): RefrigerantCircuitData {
     kompressori4: { ...kompressori },
     kompressori5: { ...kompressori },
     kompressori6: { ...kompressori },
+    kompponentit: [],
   };
 }
 
@@ -809,7 +814,7 @@ export function ensureRefrigerantCircuitData(
 ): RefrigerantCircuitData {
   const base = createEmptyRefrigerantCircuitData();
   if (!data) return base;
-  return {
+  const merged: RefrigerantCircuitData = {
     ...base,
     ...data,
     kompressori1: { ...base.kompressori1, ...data.kompressori1 },
@@ -819,6 +824,10 @@ export function ensureRefrigerantCircuitData(
     kompressori5: { ...base.kompressori5, ...data.kompressori5 },
     kompressori6: { ...base.kompressori6, ...data.kompressori6 },
   };
+  return syncLegacyFieldsFromComponents({
+    ...merged,
+    kompponentit: ensureRefrigerantCircuitComponents(merged),
+  });
 }
 
 export function normalizeHuoltoReportData(data: Partial<HuoltoReportData>): HuoltoReportData {

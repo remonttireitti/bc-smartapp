@@ -1,9 +1,8 @@
 import { parseCustomModuleTabId, type CustomReportModule } from './customModuleTypes';
-import { refrigerantCircuitHasMagnetValve } from './deviceModuleLogic';
 import {
-  circuitPartDisplayStatus,
-  type RefrigerantCircuitPartKey,
-} from './circuitPartInspection';
+  circuitComponentsInspectionStatuses,
+} from './refrigerantCircuitComponents';
+import { circuitMeasurementsStatus } from './refrigerantCircuitHelpers';
 import {
   compressorInspectionStatus,
   condenserInspectionStatus,
@@ -45,7 +44,7 @@ function aggregateInspectionStatuses(statuses: HuoltoInspectionStatus[]): Mainte
 
 function isRefrigerantCircuitComplete(
   circuit: RefrigerantCircuitData,
-  laiteTyyppi: string,
+  _laiteTyyppi: string,
 ): MaintenanceTabCompletionState {
   if (!circuit.onKaytossa) return 'ok';
 
@@ -58,21 +57,13 @@ function isRefrigerantCircuitComplete(
     'kompressori5',
     'kompressori6',
   ] as const;
-  const statuses: HuoltoInspectionStatus[] = [];
+  const statuses: HuoltoInspectionStatus[] = [circuitMeasurementsStatus(circuit)];
 
   for (let index = 0; index < count; index += 1) {
     statuses.push(compressorInspectionStatus(circuit[compressorKeys[index]] as CompressorData));
   }
 
-  const parts: RefrigerantCircuitPartKey[] = ['paisuntaventtiili', 'magneettiventtiili', 'kuivain'];
-  for (const part of parts) {
-    if (part === 'magneettiventtiili' && !refrigerantCircuitHasMagnetValve(laiteTyyppi, circuit.paisuntaventtiiliTyyppi)) {
-      continue;
-    }
-    const displayStatus = circuitPartDisplayStatus(circuit, part);
-    if (displayStatus === 'na') continue;
-    statuses.push(displayStatus);
-  }
+  statuses.push(...circuitComponentsInspectionStatuses(circuit));
 
   return aggregateInspectionStatuses(statuses);
 }

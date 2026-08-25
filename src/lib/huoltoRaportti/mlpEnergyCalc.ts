@@ -23,10 +23,16 @@ export function calcLiquidPowerKw(virtausLs: string, meno: string, tulo: string,
 function compressorElectricKw(kp: RefrigerantCircuitData): number | null {
   const compCount = parseInt(String(kp.kompressorienMaara ?? ''), 10) || 1;
   let total = 0;
+  const compressorKeys = [
+    'kompressori1',
+    'kompressori2',
+    'kompressori3',
+    'kompressori4',
+    'kompressori5',
+    'kompressori6',
+  ] as const;
   for (let i = 1; i <= compCount; i++) {
-    const compKey = `kompressori${i}` as keyof RefrigerantCircuitData;
-    const comp = kp[compKey];
-    if (!comp || typeof comp !== 'object') return null;
+    const comp = kp[compressorKeys[i - 1]];
     const cv = getCompressorVaiheValinta(comp);
     if (cv === '1') {
       if (!String(comp.virta1vaihe ?? '').trim()) return null;

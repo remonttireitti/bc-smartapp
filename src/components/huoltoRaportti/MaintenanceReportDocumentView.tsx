@@ -28,10 +28,19 @@ import { useMaintenanceReportSectionSettings } from './MaintenanceReportSectionS
 import { HuoltoPrintForm } from './print/MaintenancePrintLayout';
 import { EvaporatorCircuitsSync } from './EvaporatorCircuitsSync';
 import { CondenserCircuitsSync } from './CondenserCircuitsSync';
+import { RefrigerantCircuitsSync } from './RefrigerantCircuitsSync';
 import { EvaporatorModule } from './EvaporatorModule';
 import { CondenserModule } from './CondenserModule';
+import { RefrigerantCircuitMeasurementsUnit } from './RefrigerantCircuitMeasurementsUnit';
+import { CompressorModule } from './CompressorModule';
+import { RefrigerantCircuitComponentsModule } from './RefrigerantCircuitComponentsModule';
 import { createEvaporatorActions, evaporatorTitleForIndex } from './useEvaporatorCircuits';
 import { lauhdutinUnitTitle } from '../../lib/huoltoRaportti/sectionTitles';
+import {
+  getRefrigerantCircuitByIndex,
+  patchRefrigerantCircuitAtIndex,
+  refrigerantCircuitCompressorTitle,
+} from '../../lib/huoltoRaportti/refrigerantCircuitHelpers';
 import type { ModuleKey } from '../../lib/huoltoRaportti/constants';
 import { usesRefrigerantServiceExtras } from '../../lib/huoltoRaportti/deviceModuleLogic';
 import type { MaintenanceTabCompletionState } from '../../lib/huoltoRaportti/maintenanceReportTabCompletion';
@@ -72,6 +81,11 @@ function MaintenanceReportDocumentViewInner({
     usesRefrigerantServiceExtras(form.laiteTyyppi) && Boolean(onEnableOptionalModule);
   const hasEvaporatorUnits = entries.some((entry) => entry.kind === 'evaporatorUnit');
   const hasCondenserUnits = entries.some((entry) => entry.kind === 'condenserUnit');
+  const hasRefrigerantCircuitUnits = entries.some((entry) =>
+    entry.kind === 'circuitMeasurementsUnit'
+    || entry.kind === 'circuitCompressorUnit'
+    || entry.kind === 'circuitComponentsUnit',
+  );
   const evaporatorActions = useMemo(
     () => createEvaporatorActions(form, onPatchForm),
     [form, onPatchForm],
@@ -122,6 +136,7 @@ function MaintenanceReportDocumentViewInner({
         ) : null}
         {hasEvaporatorUnits ? <EvaporatorCircuitsSync form={form} onChange={onSyncForm} /> : null}
         {hasCondenserUnits ? <CondenserCircuitsSync form={form} onChange={onPatchForm} /> : null}
+        {hasRefrigerantCircuitUnits ? <RefrigerantCircuitsSync form={form} onChange={onPatchForm} /> : null}
         <div className="grid maintenance-report-document">
           {entries.map((entry) => {
             const completion = documentEntryCompletion(entry, form, tabCompletion);
@@ -133,7 +148,11 @@ function MaintenanceReportDocumentViewInner({
                 ? 'hoyrystin'
                 : entry.kind === 'condenserUnit'
                   ? 'lauhdutin'
-                  : (entry.tabId as Parameters<typeof maintenanceDocumentTheme>[0]),
+                  : entry.kind === 'circuitMeasurementsUnit'
+                    || entry.kind === 'circuitCompressorUnit'
+                    || entry.kind === 'circuitComponentsUnit'
+                    ? 'kylmaainePiiri'
+                    : (entry.tabId as Parameters<typeof maintenanceDocumentTheme>[0]),
             );
 
             const tabIdForSettings = entry.kind === 'tab' ? (entry.tabId as MaintenanceReportTabId) : null;
@@ -168,7 +187,82 @@ function MaintenanceReportDocumentViewInner({
                   documentUnitKey={entry.tabId}
                   hidePartRow
                 />
-              ) : (
+              ) : entry.kind === 'circuitMeasurementsUnit' && entry.unitIndex != null ? (
+                (() => {
+                  const circuit = getRefrigerantCircuitByIndex(form, entry.unitIndex);
+                  if (!circuit) return null;
+                  return (
+                    <RefrigerantCircuitMeasurementsUnit
+                      circuitNumber={entry.unitIndex + 1}
+                      data={circuit}
+                      onChange={(data) => onPatchForm(patchRefrigerantCircuitAtIndex(form, entry.unitIndex!, data))}
+                      refrigerantType={form.kylmaaineTyyppi}
+                      laiteTyyppi={form.laiteTyyppi}
+                      documentUnitKey={entry.tabId}
+                      hidePartRow
+                    />
+                  );
+                })()
+              ) : entry.kind === 'circuitCompressorUnit'
+                && entry.unitIndex != null
+                && entry.subIndex != null ? (
+                  (() => {
+                    const circuit = getRefrigerantCircuitByIndex(form, entry.unitIndex!);
+                    if (!circuit) return null;
+                    const compressorKeys = [
+                      'kompressori1',
+                      'kompressori2',
+                      'kompressori3',
+                      'kompressori4',
+                      'kompressori5',
+                      'kompressori6',
+                    ] as const;
+                    const compressorKey = compressorKeys[entry.subIndex!];
+                    const compressorNumber = entry.subIndex! + 1;
+                    const sameAsFirstKey =
+                      compressorNumber > 1
+                        ? (`kompressori${compressorNumber}SamaKuin1` as keyof typeof circuit)
+                        : null;
+                    const lockManufacturerModel =
+                      (sameAsFirstKey ? !!circuit[sameAsFirstKey] : false)
+                      || (!!circuit.kompressoritSamaKuinPiiri1 && entry.unitIndex! > 0);
+                    return (
+                      <CompressorModule
+                        number={compressorNumber}
+                        titleLabel={refrigerantCircuitCompressorTitle(entry.unitIndex! + 1, compressorNumber)}
+                        data={circuit[compressorKey]}
+                        lockManufacturerModel={lockManufacturerModel}
+                        onChange={(compressorData) => {
+                          onPatchForm(
+                            patchRefrigerantCircuitAtIndex(form, entry.unitIndex!, {
+                              ...circuit,
+                              [compressorKey]: compressorData,
+                            }),
+                          );
+                        }}
+                        documentUnitKey={entry.tabId}
+                        hidePartRow
+                      />
+                    );
+                  })()
+                ) : entry.kind === 'circuitComponentsUnit' && entry.unitIndex != null ? (
+                  (() => {
+                    const circuit = getRefrigerantCircuitByIndex(form, entry.unitIndex!);
+                    if (!circuit) return null;
+                    return (
+                      <RefrigerantCircuitComponentsModule
+                        circuitNumber={entry.unitIndex! + 1}
+                        data={circuit}
+                        onChange={(data) => onPatchForm(patchRefrigerantCircuitAtIndex(form, entry.unitIndex!, data))}
+                        laiteTyyppi={form.laiteTyyppi}
+                        isMLP={form.laiteTyyppi === 'mlp'}
+                        firstCircuitData={entry.unitIndex! > 0 ? form.kylmaainePiiri1 : undefined}
+                        documentUnitKey={entry.tabId}
+                        hidePartRow
+                      />
+                    );
+                  })()
+                ) : (
                 <MaintenanceReportTabContent
                   tabId={entry.tabId as MaintenanceReportTabContentProps['tabId']}
                   {...contentProps}

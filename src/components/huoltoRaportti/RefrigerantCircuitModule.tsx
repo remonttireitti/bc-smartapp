@@ -1,24 +1,14 @@
 import { useEffect, useState } from 'react';
 import type { CondenserData, RefrigerantCircuitData } from '../../lib/huoltoRaportti/types';
-import { piiriOhjaustapaOptions } from '../../lib/huoltoRaportti/constants';
 import { refrigerantCircuitHasMagnetValve } from '../../lib/huoltoRaportti/deviceModuleLogic';
 import { ChillerCondenserInCircuit } from './ChillerCondenserInCircuit';
 import { CompressorModule } from './CompressorModule';
 import { FormCheckbox } from './FormCheckbox';
-import { FormInput } from './FormInput';
-import { HuoltoPartInspectionRow } from './HuoltoPartInspectionRow';
 import { RefrigerantCircuitMeasurementsDialog } from './RefrigerantCircuitMeasurementsDialog';
+import { RefrigerantCircuitComponentsModule } from './RefrigerantCircuitComponentsModule';
 import { useHuoltoPrintFormLayout } from '../../hooks/useHuoltoPrintFormLayout';
 import { PRINT_BOX_COLORS } from '../../lib/huoltoRaportti/printBoxColors';
 import { PrintInnerBox } from './print/MaintenancePrintLayout';
-import {
-  circuitPartDisplayStatus,
-  type RefrigerantCircuitPartKey,
-} from '../../lib/huoltoRaportti/circuitPartInspection';
-import {
-  circuitPartSubtitle,
-  RefrigerantCircuitPartDialog,
-} from './RefrigerantCircuitPartDialog';
 
 interface RefrigerantCircuitModuleProps {
   circuitNumber: number;
@@ -50,7 +40,6 @@ export function RefrigerantCircuitModule({
 }: RefrigerantCircuitModuleProps) {
   const printLayout = useHuoltoPrintFormLayout();
   const [expanded, setExpanded] = useState(true);
-  const [openPartDialog, setOpenPartDialog] = useState<RefrigerantCircuitPartKey | null>(null);
 
   type CompressorKey =
     | 'kompressori1'
@@ -203,7 +192,6 @@ export function RefrigerantCircuitModule({
   };
 
   const hasCrossCircuitSync = circuitNumber > 1 && !!firstCircuitData;
-  const showMagnetValve = refrigerantCircuitHasMagnetValve(laiteTyyppi, data.paisuntaventtiiliTyyppi);
 
   useEffect(() => {
     if (!hasCrossCircuitSync || !firstCircuitData) return;
@@ -297,89 +285,13 @@ export function RefrigerantCircuitModule({
             </div>
           </div>
 
-          {isMLP && (
-            <div className="line-form-grid">
-              <label>
-                Piirin ohjaustapa
-                <select
-                  value={data.ohjaustapa}
-                  onChange={(e) => onChange({ ...data, ohjaustapa: e.target.value })}
-                >
-                  {piiriOhjaustapaOptions.map((type) => (
-                    <option key={type.value} value={type.value}>
-                      {type.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              {data.ohjaustapa === 'muu' && (
-                <FormInput
-                  label="Muu ohjaustapa"
-                  value={data.ohjaustapaMuu ?? ''}
-                  onChange={(v) => onChange({ ...data, ohjaustapaMuu: v })}
-                />
-              )}
-            </div>
-          )}
-
-          <div className="huolto-circuit-part-module">
-            <h3 className="huolto-circuit-part-module-title">Piirin osat</h3>
-            {hasCrossCircuitSync && (
-              <div className="huolto-part-inspection-sync">
-                <FormCheckbox
-                  label={`Piiri ${circuitNumber}: sama paisuntaventtiili kuin piirissä 1`}
-                  checked={!!data.paisuntaventtiiliSamaKuinPiiri1}
-                  onChange={(v) => setCrossCircuitFlag('paisuntaventtiiliSamaKuinPiiri1', v)}
-                />
-                {showMagnetValve ? (
-                  <FormCheckbox
-                    label={`Piiri ${circuitNumber}: sama magneettiventtiili kuin piirissä 1`}
-                    checked={!!data.magneettiventtiiliSamaKuinPiiri1}
-                    onChange={(v) => setCrossCircuitFlag('magneettiventtiiliSamaKuinPiiri1', v)}
-                  />
-                ) : null}
-                <FormCheckbox
-                  label={`Piiri ${circuitNumber}: sama kuivain kuin piirissä 1`}
-                  checked={!!data.kuivainSamaKuinPiiri1}
-                  onChange={(v) => setCrossCircuitFlag('kuivainSamaKuinPiiri1', v)}
-                />
-              </div>
-            )}
-            <div className="huolto-part-inspection-list huolto-part-inspection-list--print-inline">
-              <HuoltoPartInspectionRow
-                title="Paisuntaventtiili"
-                subtitle={circuitPartSubtitle('paisuntaventtiili', data, laiteTyyppi) || undefined}
-                status={circuitPartDisplayStatus(data, 'paisuntaventtiili')}
-                disabled={!!data.paisuntaventtiiliSamaKuinPiiri1}
-                onInspect={() => setOpenPartDialog('paisuntaventtiili')}
-              />
-              {showMagnetValve ? (
-                <HuoltoPartInspectionRow
-                  title="Magneettiventtiili"
-                  subtitle={circuitPartSubtitle('magneettiventtiili', data, laiteTyyppi) || undefined}
-                  status={circuitPartDisplayStatus(data, 'magneettiventtiili')}
-                  disabled={!!data.magneettiventtiiliSamaKuinPiiri1}
-                  onInspect={() => setOpenPartDialog('magneettiventtiili')}
-                />
-              ) : null}
-              <HuoltoPartInspectionRow
-                title="Kuivain"
-                subtitle={circuitPartSubtitle('kuivain', data, laiteTyyppi) || undefined}
-                status={circuitPartDisplayStatus(data, 'kuivain')}
-                disabled={!!data.kuivainSamaKuinPiiri1}
-                onInspect={() => setOpenPartDialog('kuivain')}
-              />
-            </div>
-          </div>
-
-          <RefrigerantCircuitPartDialog
-            open={openPartDialog !== null}
-            part={openPartDialog ?? 'paisuntaventtiili'}
+          <RefrigerantCircuitComponentsModule
             circuitNumber={circuitNumber}
             data={data}
+            onChange={onChange}
             laiteTyyppi={laiteTyyppi}
-            onClose={() => setOpenPartDialog(null)}
-            onSave={onChange}
+            isMLP={isMLP}
+            firstCircuitData={firstCircuitData}
           />
 
           {showChillerCondenserInCircuit && chillerCondenser && onChillerCondenserChange && (
