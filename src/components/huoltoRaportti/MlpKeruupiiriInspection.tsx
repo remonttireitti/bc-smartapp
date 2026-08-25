@@ -10,6 +10,7 @@ import { FormCheckbox } from './FormCheckbox';
 import { FormInput } from './FormInput';
 import { HuoltoPartInspectionRow } from './HuoltoPartInspectionRow';
 import { HuoltoInspectionDialogShell, useHuoltoInspectionDialog } from './HuoltoInspectionDialogShell';
+import { useRegisterHuoltoModuleDialog } from './HuoltoModuleDialogContext';
 import { PumpSupplyMeasurementBlock } from './PumpSupplyMeasurementBlock';
 import { TriStateInspectionToggle } from './TriStateInspectionToggle';
 
@@ -18,6 +19,8 @@ interface Props {
   mlp: MlpData;
   onChange: (patch: Partial<MlpData>) => void;
   keruuPower: string | null;
+  documentUnitKey?: string;
+  hidePartRow?: boolean;
 }
 
 function calcPower(virtaus: string, meno: string, tulo: string, c: number): string | null {
@@ -29,7 +32,14 @@ function calcPower(virtaus: string, meno: string, tulo: string, c: number): stri
   return null;
 }
 
-export function MlpKeruupiiriInspection({ title, mlp, onChange, keruuPower }: Props) {
+export function MlpKeruupiiriInspection({
+  title,
+  mlp,
+  onChange,
+  keruuPower,
+  documentUnitKey,
+  hidePartRow = false,
+}: Props) {
   const status = mlpKeruupiiriInspectionStatus(mlp);
 
   const { open, openDialog, closeDialog, draft, setDraft } = useHuoltoInspectionDialog({
@@ -51,9 +61,13 @@ export function MlpKeruupiiriInspection({ title, mlp, onChange, keruuPower }: Pr
 
   const patchDraft = (patch: Partial<MlpData>) => setDraft((prev) => ({ ...prev, ...patch }));
 
+  useRegisterHuoltoModuleDialog(documentUnitKey, openDialog);
+
   return (
     <>
-      <HuoltoPartInspectionRow title={title} status={status} onInspect={openDialog} />
+      {!hidePartRow ? (
+        <HuoltoPartInspectionRow title={title} status={status} onInspect={openDialog} />
+      ) : null}
 
       <HuoltoInspectionDialogShell open={open} title={title} titleId="mlp-keruu-dialog-title" onClose={closeDialog}>
         <div className="konvektori-tarkastus-item">

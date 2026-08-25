@@ -30,8 +30,10 @@ import { EvaporatorCircuitsSync } from './EvaporatorCircuitsSync';
 import { CondenserCircuitsSync } from './CondenserCircuitsSync';
 import { EvaporatorModule } from './EvaporatorModule';
 import { CondenserModule } from './CondenserModule';
+import { MlpDocumentUnit } from './MlpDocumentUnit';
 import { createEvaporatorActions, evaporatorTitleForIndex } from './useEvaporatorCircuits';
 import { lauhdutinUnitTitle } from '../../lib/huoltoRaportti/sectionTitles';
+import { getModuleTheme, type ModuleThemeKey } from '../../lib/huoltoRaportti/moduleThemes';
 import type { ModuleKey } from '../../lib/huoltoRaportti/constants';
 import { usesRefrigerantServiceExtras } from '../../lib/huoltoRaportti/deviceModuleLogic';
 import type { MaintenanceTabCompletionState } from '../../lib/huoltoRaportti/maintenanceReportTabCompletion';
@@ -128,13 +130,15 @@ function MaintenanceReportDocumentViewInner({
             const dialogLauncher =
               documentEntryUsesDialogLauncher(entry) || maintenanceTabUsesDialogLauncher(entry.tabId);
             const defaultOpen = dialogLauncher ? false : completion !== 'ok';
-            const theme = maintenanceDocumentTheme(
-              entry.kind === 'evaporatorUnit'
-                ? 'hoyrystin'
-                : entry.kind === 'condenserUnit'
-                  ? 'lauhdutin'
-                  : (entry.tabId as Parameters<typeof maintenanceDocumentTheme>[0]),
-            );
+            const theme = entry.kind === 'mlpUnit' && entry.themeKey
+              ? getModuleTheme(entry.themeKey as ModuleThemeKey)
+              : maintenanceDocumentTheme(
+                entry.kind === 'evaporatorUnit'
+                  ? 'hoyrystin'
+                  : entry.kind === 'condenserUnit'
+                    ? 'lauhdutin'
+                    : (entry.tabId as Parameters<typeof maintenanceDocumentTheme>[0]),
+              );
 
             const tabIdForSettings = entry.kind === 'tab' ? (entry.tabId as MaintenanceReportTabId) : null;
 
@@ -165,6 +169,14 @@ function MaintenanceReportDocumentViewInner({
                     next[entry.unitIndex!] = data;
                     onPatchForm({ condenserData: next });
                   }}
+                  documentUnitKey={entry.tabId}
+                  hidePartRow
+                />
+              ) : entry.kind === 'mlpUnit' && entry.mlpUnitId ? (
+                <MlpDocumentUnit
+                  form={form}
+                  unitId={entry.mlpUnitId}
+                  onChange={onPatchForm}
                   documentUnitKey={entry.tabId}
                   hidePartRow
                 />

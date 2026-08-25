@@ -5,12 +5,22 @@ import {
   entityInspectionStatus,
   type HuoltoInspectionStatus,
 } from './huoltoInspectionStatus';
+import {
+  mlpKeruupiiriInspectionStatus,
+  mlpLampoInspectionStatus,
+  mlpLatauspiiriInspectionStatus,
+} from './huoltoInspectionStatus';
 import type { MaintenanceTabCompletionState } from './maintenanceReportTabCompletion';
 import type { MaintenanceReportTabItem } from './maintenanceReportTabs';
 import type { HuoltoReportData } from './types';
 import { getEvaporatorCircuitCount } from './evaporatorHelpers';
+import {
+  buildMlpDocumentUnits,
+  mlpDocumentUnitIdFromTabId,
+  type MlpDocumentUnitId,
+} from './mlpDocumentHelpers';
 
-export type MaintenanceDocumentEntryKind = 'tab' | 'evaporatorUnit' | 'condenserUnit';
+export type MaintenanceDocumentEntryKind = 'tab' | 'evaporatorUnit' | 'condenserUnit' | 'mlpUnit';
 
 export type MaintenanceDocumentEntry = {
   key: string;
@@ -18,6 +28,8 @@ export type MaintenanceDocumentEntry = {
   tabId: string;
   title: string;
   unitIndex?: number;
+  mlpUnitId?: MlpDocumentUnitId;
+  themeKey?: string;
 };
 
 export function inspectionStatusToDocumentCompletion(
@@ -67,6 +79,21 @@ export function buildMaintenanceDocumentEntries(
       continue;
     }
 
+    if (tab.id === 'mlp' || tab.id === 'kiinteistoJahdytys' || tab.id === 'energia') {
+      const units = buildMlpDocumentUnits(form, tab.id);
+      for (const unit of units) {
+        entries.push({
+          key: unit.tabId,
+          kind: 'mlpUnit',
+          tabId: unit.tabId,
+          title: unit.title,
+          mlpUnitId: unit.id,
+          themeKey: unit.themeKey,
+        });
+      }
+      continue;
+    }
+
     entries.push({
       key: tab.id,
       kind: 'tab',
@@ -109,6 +136,9 @@ export function documentEntryCompletion(
   if (entry.kind === 'condenserUnit' && entry.unitIndex != null) {
     return inspectionStatusToDocumentCompletion(condenserInspectionStatus(form.condenserData[entry.unitIndex]));
   }
+  if (entry.kind === 'mlpUnit' && entry.mlpUnitId) {
+    return mlpDocumentUnitCompletion(form, entry.mlpUnitId);
+  }
   if (entry.tabId === 'tiiveyskoe') {
     return tabCompletion?.tiiveyskoe ?? tiiveyskoeTabCompletion(form.tiiveyskoeData);
   }
@@ -119,6 +149,19 @@ export function documentEntryCompletion(
 }
 
 export function documentNavTargetTabId(tabId: string, form: HuoltoReportData): string {
+  if (tabId.startsWith('mlp:')) return tabId;
+  if (tabId === 'mlp') {
+    const units = buildMlpDocumentUnits(form, 'mlp');
+    return units[0]?.tabId ?? tabId;
+  }
+  if (tabId === 'kiinteistoJahdytys') {
+    const units = buildMlpDocumentUnits(form, 'kiinteistoJahdytys');
+    return units[0]?.tabId ?? tabId;
+  }
+  if (tabId === 'energia') {
+    const units = buildMlpDocumentUnits(form, 'energia');
+    return units[0]?.tabId ?? tabId;
+  }
   if (tabId !== 'hoyrystin' && tabId !== 'lauhdutin') return tabId;
   if (tabId === 'hoyrystin' && !isChillerLikeDevice(form.laiteTyyppi)) {
     const count = getEvaporatorCircuitCount(form);
@@ -132,6 +175,41 @@ export function documentNavTargetTabId(tabId: string, form: HuoltoReportData): s
 }
 
 export function documentEntryUsesDialogLauncher(entry: MaintenanceDocumentEntry): boolean {
-  if (entry.kind === 'evaporatorUnit' || entry.kind === 'condenserUnit') return true;
-  return false;
+  return (
+    entry.kind === 'evaporatorUnit'
+    || entry.kind === 'condenserUnit'
+    || entry.kind === 'mlpUnit'
+  );
 }
+
+function mlpDocumentUnitCompletion(
+  form: HuoltoReportData,
+  unitId: MlpDocumentUnitId,
+): MaintenanceTabCompletionState {
+  const mlp = form.mlpData;
+  if (!mlp) return 'incomplete';
+
+  if (unitId === 'keruupiiri') {
+    return inspectionStatusToDocumentCompletion(mlpKeruupiiriInspectionStatus(mlp));
+  }
+  if (unitId === 'latauspiiri') {
+    return inspectionStatusToDocumentCompletion(mlpLatauspiiriInspectionStatus(mlp));
+  }
+  if (unitId === 'lampopiirit') {
+    return inspectionStatusToDocumentCompletion(mlpLampoInspectionStatus(mlp));
+  }
+  if (unitId === 'jaahdytyspiiri') {
+    return !mlp.keruuJaahdytysPiiri ? 'ok' : mlp.keruuJaahdytysVirtaus?.trim() ? 'ok' : 'incomplete';
+  }
+  if (unitId === 'kayttovesi') {
+    return !mlp.kayttovesiEnabled ? 'ok' : mlp.kayttovesiTilavuus?.trim() ? 'ok' : 'incomplete';
+  }
+  if (unitId === 'energia') {
+    return mlp.mittaaKokoLaiteSahko && !mlp.kokoLaiteVirta1vaihe?.trim() && !mlp.kokoLaiteVirtaL1?.trim()
+      ? 'incomplete'
+      : 'ok';
+  }
+  return 'incomplete';
+}
+
+export { mlpDocumentUnitIdFromTabId };

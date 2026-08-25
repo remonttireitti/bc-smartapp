@@ -10,6 +10,7 @@ import { FormCheckbox } from './FormCheckbox';
 import { FormInput } from './FormInput';
 import { HuoltoPartInspectionRow } from './HuoltoPartInspectionRow';
 import { HuoltoInspectionDialogShell, useHuoltoInspectionDialog } from './HuoltoInspectionDialogShell';
+import { useRegisterHuoltoModuleDialog } from './HuoltoModuleDialogContext';
 import { PumpSupplyMeasurementBlock } from './PumpSupplyMeasurementBlock';
 import { TriStateInspectionToggle } from './TriStateInspectionToggle';
 
@@ -17,6 +18,8 @@ interface Props {
   mlp: MlpData;
   onChange: (patch: Partial<MlpData>) => void;
   latausPower: string | null;
+  documentUnitKey?: string;
+  hidePartRow?: boolean;
 }
 
 function calcPower(virtaus: string, meno: string, tulo: string, c: number): string | null {
@@ -28,7 +31,14 @@ function calcPower(virtaus: string, meno: string, tulo: string, c: number): stri
   return null;
 }
 
-export function MlpLatauspiiriInspection({ mlp, onChange, latausPower }: Props) {
+export function MlpLatauspiiriInspection({
+  mlp,
+  onChange,
+  latausPower,
+  documentUnitKey,
+  hidePartRow = false,
+}: Props) {
+  const title = 'Latauspiiri';
   const status = mlpLatauspiiriInspectionStatus(mlp);
 
   const { open, openDialog, closeDialog, draft, setDraft } = useHuoltoInspectionDialog({
@@ -47,11 +57,15 @@ export function MlpLatauspiiriInspection({ mlp, onChange, latausPower }: Props) 
     calcPower(draft.latausVirtaus, draft.latausMeno, draft.latausTulo, parseFloat(draft.latausNeste) || 0) ?? latausPower;
   const patchDraft = (patch: Partial<MlpData>) => setDraft((prev) => ({ ...prev, ...patch }));
 
+  useRegisterHuoltoModuleDialog(documentUnitKey, openDialog);
+
   return (
     <>
-      <HuoltoPartInspectionRow title="Latauspiiri" status={status} onInspect={openDialog} />
+      {!hidePartRow ? (
+        <HuoltoPartInspectionRow title={title} status={status} onInspect={openDialog} />
+      ) : null}
 
-      <HuoltoInspectionDialogShell open={open} title="Latauspiiri" titleId="mlp-lataus-dialog-title" onClose={closeDialog}>
+      <HuoltoInspectionDialogShell open={open} title={title} titleId="mlp-lataus-dialog-title" onClose={closeDialog}>
         <div className="konvektori-tarkastus-item">
           <span className="konvektori-tarkastus-label">Tarkastuksen tulos</span>
           <TriStateInspectionToggle name="mlp-lataus-tila" value={draftStatus} onChange={(next: Exclude<HuoltoInspectionStatus, null>) => patchDraft({ latausTarkastusTila: next })} />
