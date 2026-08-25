@@ -1,4 +1,5 @@
 import type { HuoltoReportData } from '../../lib/huoltoRaportti/types';
+import { useMaintenanceDocumentLayout } from '../../hooks/useMaintenanceDocumentLayout';
 import { useHuoltoPrintFormLayout } from '../../hooks/useHuoltoPrintFormLayout';
 import { HuoltoModuleSection } from './HuoltoModuleSection';
 import { TiiveyskoeInspection } from './TiiveyskoeInspection';
@@ -12,7 +13,21 @@ interface Props {
 
 export function TiiveyskoeSection({ form, onChange, reportId, userId }: Props) {
   const printLayout = useHuoltoPrintFormLayout();
-  const inspection = <TiiveyskoeInspection form={form} onChange={onChange} reportId={reportId} userId={userId} />;
+  const documentLayout = useMaintenanceDocumentLayout();
+
+  const inspection = (
+    <TiiveyskoeInspection
+      form={form}
+      onChange={onChange}
+      reportId={reportId}
+      userId={userId}
+      documentModuleKey={documentLayout ? 'tiiveyskoe' : undefined}
+    />
+  );
+
+  if (printLayout && documentLayout) {
+    return <div className="sr-only" aria-hidden="true">{inspection}</div>;
+  }
 
   if (printLayout) {
     return (

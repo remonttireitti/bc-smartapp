@@ -11,11 +11,13 @@ import type {
   TyhjiointiData,
   TyhjiointiPaineYksikko,
 } from '../../lib/huoltoRaportti/types';
+import { useMaintenanceDocumentLayout } from '../../hooks/useMaintenanceDocumentLayout';
 import { useHuoltoPrintFormLayout } from '../../hooks/useHuoltoPrintFormLayout';
 import { EvidencePhotoUpload } from './EvidencePhotoUpload';
 import { FormInput } from './FormInput';
 import { HuoltoPartInspectionRow } from './HuoltoPartInspectionRow';
 import { HuoltoInspectionDialogShell, useHuoltoInspectionDialog } from './HuoltoInspectionDialogShell';
+import { useRegisterHuoltoModuleDialog } from './HuoltoModuleDialogContext';
 import { RichCommentEditor } from './RichCommentEditor';
 
 interface Props {
@@ -23,6 +25,7 @@ interface Props {
   onChange: (patch: Partial<HuoltoReportData>) => void;
   reportId?: string | null;
   userId?: string;
+  documentModuleKey?: string;
 }
 
 function tyhjiointiStatus(data: TyhjiointiData): HuoltoInspectionStatus {
@@ -141,8 +144,10 @@ function TyhjiointiFields({
   );
 }
 
-export function TyhjiointiInspection({ form, onChange, reportId, userId }: Props) {
+export function TyhjiointiInspection({ form, onChange, reportId, userId, documentModuleKey }: Props) {
   const printLayout = useHuoltoPrintFormLayout();
+  const documentLayout = useMaintenanceDocumentLayout();
+  const hideLauncher = documentLayout && !!documentModuleKey;
   const data = form.tyhjiointiData;
   const status = tyhjiointiStatus(data);
   const subtitle = tyhjiointiSubtitle(data);
@@ -153,6 +158,8 @@ export function TyhjiointiInspection({ form, onChange, reportId, userId }: Props
     data,
     onChange: applyDraft,
   });
+
+  useRegisterHuoltoModuleDialog(documentModuleKey, openDialog);
 
   const patchDraft = (patch: Partial<TyhjiointiData>) => setDraft((prev) => ({ ...prev, ...patch }));
 
@@ -170,12 +177,14 @@ export function TyhjiointiInspection({ form, onChange, reportId, userId }: Props
 
   return (
     <>
-      <HuoltoPartInspectionRow
-        title="Tyhjiöinti"
-        subtitle={subtitle || undefined}
-        status={status}
-        onInspect={openDialog}
-      />
+      {!hideLauncher ? (
+        <HuoltoPartInspectionRow
+          title="Tyhjiöinti"
+          subtitle={subtitle || undefined}
+          status={status}
+          onInspect={openDialog}
+        />
+      ) : null}
 
       <HuoltoInspectionDialogShell open={open} title="Tyhjiöinti" titleId="tyhjiointi-dialog-title" onClose={closeDialog}>
         <TyhjiointiFields
