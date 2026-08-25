@@ -2,15 +2,36 @@ import { isChillerLikeDevice, usesRefrigerantServiceExtras } from './deviceModul
 import { tiiveyskoeTabCompletion, tyhjiointiTabCompletion } from './maintenanceReportTabCompletion';
 import {
   condenserInspectionStatus,
+  compressorInspectionStatus,
   entityInspectionStatus,
   type HuoltoInspectionStatus,
 } from './huoltoInspectionStatus';
 import type { MaintenanceTabCompletionState } from './maintenanceReportTabCompletion';
 import type { MaintenanceReportTabItem } from './maintenanceReportTabs';
-import type { HuoltoReportData } from './types';
+import type { CompressorData, HuoltoReportData } from './types';
 import { getEvaporatorCircuitCount } from './evaporatorHelpers';
+import {
+  circuitMeasurementsStatus,
+} from './refrigerantCircuitHelpers';
+import {
+  circuitComponentsInspectionStatuses,
+} from './refrigerantCircuitComponents';
+import {
+  getRefrigerantCircuitByIndex,
+  getRefrigerantCircuitCompressorCount,
+  getRefrigerantCircuitCount,
+  refrigerantCircuitComponentsTitle,
+  refrigerantCircuitCompressorTitle,
+  refrigerantCircuitMeasurementsTitle,
+} from './refrigerantCircuitHelpers';
 
-export type MaintenanceDocumentEntryKind = 'tab' | 'evaporatorUnit' | 'condenserUnit';
+export type MaintenanceDocumentEntryKind =
+  | 'tab'
+  | 'evaporatorUnit'
+  | 'condenserUnit'
+  | 'circuitMeasurementsUnit'
+  | 'circuitCompressorUnit'
+  | 'circuitComponentsUnit';
 
 export type MaintenanceDocumentEntry = {
   key: string;
@@ -18,6 +39,7 @@ export type MaintenanceDocumentEntry = {
   tabId: string;
   title: string;
   unitIndex?: number;
+  subIndex?: number;
 };
 
 export function inspectionStatusToDocumentCompletion(
@@ -67,6 +89,11 @@ export function buildMaintenanceDocumentEntries(
       continue;
     }
 
+    if (tab.id === 'kylmaainePiiri' && form.selectedModules.kylmaainePiiri) {
+      appendRefrigerantCircuitUnitEntries(entries, form);
+      continue;
+    }
+
     entries.push({
       key: tab.id,
       kind: 'tab',
@@ -76,6 +103,43 @@ export function buildMaintenanceDocumentEntries(
   }
 
   return entries;
+}
+
+function appendRefrigerantCircuitUnitEntries(entries: MaintenanceDocumentEntry[], form: HuoltoReportData) {
+  const circuitCount = getRefrigerantCircuitCount(form);
+  for (let circuitIndex = 0; circuitIndex < circuitCount; circuitIndex += 1) {
+    const circuitNumber = circuitIndex + 1;
+    const circuit = getRefrigerantCircuitByIndex(form, circuitIndex);
+    if (!circuit?.onKaytossa) continue;
+
+    entries.push({
+      key: `kylmaainePiiri:${circuitIndex}:measurements`,
+      kind: 'circuitMeasurementsUnit',
+      tabId: `kylmaainePiiri:${circuitIndex}:measurements`,
+      title: refrigerantCircuitMeasurementsTitle(circuitNumber),
+      unitIndex: circuitIndex,
+    });
+
+    const compressorCount = getRefrigerantCircuitCompressorCount(circuit);
+    for (let compressorIndex = 0; compressorIndex < compressorCount; compressorIndex += 1) {
+      entries.push({
+        key: `kylmaainePiiri:${circuitIndex}:compressor:${compressorIndex}`,
+        kind: 'circuitCompressorUnit',
+        tabId: `kylmaainePiiri:${circuitIndex}:compressor:${compressorIndex}`,
+        title: refrigerantCircuitCompressorTitle(circuitNumber, compressorIndex + 1),
+        unitIndex: circuitIndex,
+        subIndex: compressorIndex,
+      });
+    }
+
+    entries.push({
+      key: `kylmaainePiiri:${circuitIndex}:components`,
+      kind: 'circuitComponentsUnit',
+      tabId: `kylmaainePiiri:${circuitIndex}:components`,
+      title: refrigerantCircuitComponentsTitle(circuitNumber),
+      unitIndex: circuitIndex,
+    });
+  }
 }
 
 function appendOptionalServiceMeasurementEntries(entries: MaintenanceDocumentEntry[], form: HuoltoReportData) {
@@ -109,6 +173,39 @@ export function documentEntryCompletion(
   if (entry.kind === 'condenserUnit' && entry.unitIndex != null) {
     return inspectionStatusToDocumentCompletion(condenserInspectionStatus(form.condenserData[entry.unitIndex]));
   }
+  if (entry.kind === 'circuitMeasurementsUnit' && entry.unitIndex != null) {
+    const circuit = getRefrigerantCircuitByIndex(form, entry.unitIndex);
+    return inspectionStatusToDocumentCompletion(circuit ? circuitMeasurementsStatus(circuit) : null);
+  }
+  if (
+    entry.kind === 'circuitCompressorUnit'
+    && entry.unitIndex != null
+    && entry.subIndex != null
+  ) {
+    const circuit = getRefrigerantCircuitByIndex(form, entry.unitIndex);
+    if (!circuit) return 'incomplete';
+    const compressorKeys = [
+      'kompressori1',
+      'kompressori2',
+      'kompressori3',
+      'kompressori4',
+      'kompressori5',
+      'kompressori6',
+    ] as const;
+    const compressor = circuit[compressorKeys[entry.subIndex]] as CompressorData | undefined;
+    return inspectionStatusToDocumentCompletion(
+      compressor ? compressorInspectionStatus(compressor) : null,
+    );
+  }
+  if (entry.kind === 'circuitComponentsUnit' && entry.unitIndex != null) {
+    const circuit = getRefrigerantCircuitByIndex(form, entry.unitIndex);
+    if (!circuit) return 'incomplete';
+    const statuses = circuitComponentsInspectionStatuses(circuit);
+    if (statuses.length === 0) return 'ok';
+    if (statuses.some((status) => status === null)) return 'incomplete';
+    if (statuses.some((status) => status === 'faulty')) return 'attention';
+    return 'ok';
+  }
   if (entry.tabId === 'tiiveyskoe') {
     return tabCompletion?.tiiveyskoe ?? tiiveyskoeTabCompletion(form.tiiveyskoeData);
   }
@@ -119,6 +216,11 @@ export function documentEntryCompletion(
 }
 
 export function documentNavTargetTabId(tabId: string, form: HuoltoReportData): string {
+  if (tabId.startsWith('kylmaainePiiri:')) return tabId;
+  if (tabId === 'kylmaainePiiri' && form.selectedModules.kylmaainePiiri) {
+    const count = getRefrigerantCircuitCount(form);
+    return count > 0 ? 'kylmaainePiiri:0:measurements' : tabId;
+  }
   if (tabId !== 'hoyrystin' && tabId !== 'lauhdutin') return tabId;
   if (tabId === 'hoyrystin' && !isChillerLikeDevice(form.laiteTyyppi)) {
     const count = getEvaporatorCircuitCount(form);
@@ -132,6 +234,11 @@ export function documentNavTargetTabId(tabId: string, form: HuoltoReportData): s
 }
 
 export function documentEntryUsesDialogLauncher(entry: MaintenanceDocumentEntry): boolean {
-  if (entry.kind === 'evaporatorUnit' || entry.kind === 'condenserUnit') return true;
-  return false;
+  return (
+    entry.kind === 'evaporatorUnit'
+    || entry.kind === 'condenserUnit'
+    || entry.kind === 'circuitMeasurementsUnit'
+    || entry.kind === 'circuitCompressorUnit'
+    || entry.kind === 'circuitComponentsUnit'
+  );
 }

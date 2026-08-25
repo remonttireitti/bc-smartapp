@@ -12,6 +12,7 @@ import { FormInput } from './FormInput';
 import { HuoltoPartInspectionRow } from './HuoltoPartInspectionRow';
 import { HuoltoInspectionDialogShell } from './HuoltoInspectionDialogShell';
 import { BinaryInspectionToggle } from './BinaryInspectionToggle';
+import { useRegisterHuoltoModuleDialog } from './HuoltoModuleDialogContext';
 import {
   PrintGridField,
   PrintInspectionBlock,
@@ -22,6 +23,9 @@ interface CompressorModuleProps {
   data: CompressorData;
   onChange: (data: CompressorData) => void;
   lockManufacturerModel?: boolean;
+  titleLabel?: string;
+  documentUnitKey?: string;
+  hidePartRow?: boolean;
 }
 
 type DraftSetter = Dispatch<SetStateAction<CompressorData>>;
@@ -263,11 +267,15 @@ export function CompressorModule({
   data,
   onChange,
   lockManufacturerModel = false,
+  titleLabel,
+  documentUnitKey,
+  hidePartRow = false,
 }: CompressorModuleProps) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [draft, setDraft] = useState(data);
   const [okChoice, setOkChoice] = useState<boolean | null>(null);
 
+  const title = titleLabel ?? `Kompressori ${number}`;
   const status = compressorInspectionStatus(data);
   const subtitle = [data.valmistaja, data.malli].map((v) => String(v ?? '').trim()).filter(Boolean).join(' · ');
 
@@ -289,18 +297,26 @@ export function CompressorModule({
     setDialogOpen(false);
   }, [okChoice, draft, onChange]);
 
+  const openDialog = useCallback(() => {
+    setDialogOpen(true);
+  }, []);
+
+  useRegisterHuoltoModuleDialog(documentUnitKey, openDialog);
+
   return (
     <>
-      <HuoltoPartInspectionRow
-        title={`Kompressori ${number}`}
-        subtitle={subtitle || undefined}
-        status={status}
-        onInspect={() => setDialogOpen(true)}
-      />
+      {!hidePartRow ? (
+        <HuoltoPartInspectionRow
+          title={title}
+          subtitle={subtitle || undefined}
+          status={status}
+          onInspect={openDialog}
+        />
+      ) : null}
 
       <HuoltoInspectionDialogShell
         open={dialogOpen}
-        title={`Kompressori ${number}`}
+        title={title}
         titleId={`compressor-dialog-title-${number}`}
         onClose={closeDialog}
       >
