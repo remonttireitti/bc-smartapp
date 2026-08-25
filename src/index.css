@@ -5494,17 +5494,20 @@ textarea {
 }
 
 .work-report-list-grid,
+.maintenance-report-list-grid,
 .work-report-section-grid {
   margin-bottom: 1.25rem;
 }
 
-.work-report-list-grid {
+.work-report-list-grid,
+.maintenance-report-list-grid {
   grid-template-columns: repeat(auto-fill, minmax(12.5rem, 1fr));
   align-items: stretch;
   gap: .75rem;
 }
 
-.work-report-list-tile-wrap {
+.work-report-list-tile-wrap,
+.maintenance-report-list-tile-wrap {
   min-width: 0;
   height: 100%;
   display: flex;
@@ -5513,6 +5516,7 @@ textarea {
 }
 
 a.tile.work-report-list-tile,
+a.tile.maintenance-report-list-tile,
 button.tile.work-report-section-tile {
   position: relative;
   width: 100%;
@@ -5524,7 +5528,8 @@ button.tile.work-report-section-tile {
   color: white;
 }
 
-a.tile.work-report-list-tile {
+a.tile.work-report-list-tile,
+a.tile.maintenance-report-list-tile {
   aspect-ratio: auto;
   min-height: 10.5rem;
   height: 100%;
@@ -5536,13 +5541,15 @@ a.tile.work-report-list-tile {
   box-shadow: 0 1px 4px rgba(15, 23, 42, .12);
 }
 
-a.tile.work-report-list-tile:hover {
+a.tile.work-report-list-tile:hover,
+a.tile.maintenance-report-list-tile:hover {
   color: white;
   transform: translateY(-1px);
   box-shadow: 0 4px 12px rgba(15, 23, 42, .16);
 }
 
-.work-report-list-tile-body {
+.work-report-list-tile-body,
+.maintenance-report-list-tile-body {
   display: flex;
   flex-direction: column;
   gap: .2rem;
@@ -5550,7 +5557,8 @@ a.tile.work-report-list-tile:hover {
   flex: 1;
 }
 
-.work-report-list-tile-title {
+.work-report-list-tile-title,
+.maintenance-report-list-tile-title {
   font-size: .92rem;
   line-height: 1.3;
   display: -webkit-box;
@@ -5560,7 +5568,8 @@ a.tile.work-report-list-tile:hover {
   margin: 0;
 }
 
-.work-report-list-tile-line {
+.work-report-list-tile-line,
+.maintenance-report-list-tile-line {
   font-size: .8rem;
   line-height: 1.25;
   white-space: nowrap;
@@ -5568,7 +5577,8 @@ a.tile.work-report-list-tile:hover {
   text-overflow: ellipsis;
 }
 
-.work-report-list-tile-meta {
+.work-report-list-tile-meta,
+.maintenance-report-list-tile-meta {
   opacity: .88;
   font-size: .74rem;
   line-height: 1.25;
@@ -5578,7 +5588,8 @@ a.tile.work-report-list-tile:hover {
   overflow: hidden;
 }
 
-.work-report-list-tile-footer {
+.work-report-list-tile-footer,
+.maintenance-report-list-tile-footer {
   margin-top: auto;
   padding-top: .35rem;
 }
@@ -5591,7 +5602,8 @@ a.tile.work-report-list-tile:hover {
   gap: .3rem;
 }
 
-.work-report-list-tile .report-link-badges .badge {
+.work-report-list-tile .report-link-badges .badge,
+.maintenance-report-list-tile .badge {
   background: rgba(255, 255, 255, .2);
   color: white;
   border: 1px solid rgba(255, 255, 255, .28);
