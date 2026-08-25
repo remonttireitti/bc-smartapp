@@ -32,6 +32,8 @@ import { EvaporatorModule } from './EvaporatorModule';
 import { CondenserModule } from './CondenserModule';
 import { createEvaporatorActions, evaporatorTitleForIndex } from './useEvaporatorCircuits';
 import { lauhdutinUnitTitle } from '../../lib/huoltoRaportti/sectionTitles';
+import type { ModuleKey } from '../../lib/huoltoRaportti/constants';
+import { usesRefrigerantServiceExtras } from '../../lib/huoltoRaportti/deviceModuleLogic';
 import type { MaintenanceTabCompletionState } from '../../lib/huoltoRaportti/maintenanceReportTabCompletion';
 
 type Props = Omit<MaintenanceReportTabContentProps, 'tabId'> & {
@@ -40,6 +42,7 @@ type Props = Omit<MaintenanceReportTabContentProps, 'tabId'> & {
   navTargetTabId?: string | null;
   onNavTargetHandled?: () => void;
   onModuleVisited?: (tabId: string) => void;
+  onEnableOptionalModule?: (key: ModuleKey) => void;
 };
 
 export function MaintenanceReportDocumentView(props: Props) {
@@ -56,6 +59,7 @@ function MaintenanceReportDocumentViewInner({
   navTargetTabId,
   onNavTargetHandled,
   onModuleVisited,
+  onEnableOptionalModule,
   ...contentProps
 }: Props) {
   const ui = useHuoltoEditUi();
@@ -64,6 +68,8 @@ function MaintenanceReportDocumentViewInner({
   const { form, onPatchForm, onSyncForm } = contentProps;
 
   const entries = useMemo(() => buildMaintenanceDocumentEntries(tabs, form), [tabs, form]);
+  const showOptionalMeasurementActions =
+    usesRefrigerantServiceExtras(form.laiteTyyppi) && Boolean(onEnableOptionalModule);
   const hasEvaporatorUnits = entries.some((entry) => entry.kind === 'evaporatorUnit');
   const hasCondenserUnits = entries.some((entry) => entry.kind === 'condenserUnit');
   const evaporatorActions = useMemo(
@@ -92,6 +98,28 @@ function MaintenanceReportDocumentViewInner({
   return (
     <HuoltoModulePresentationProvider value="flat">
       <HuoltoPrintForm>
+        {showOptionalMeasurementActions ? (
+          <div className="maintenance-optional-module-actions">
+            {!form.selectedModules.tiiveyskoe ? (
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                onClick={() => onEnableOptionalModule?.('tiiveyskoe')}
+              >
+                + Lisää tiiveyskoe
+              </button>
+            ) : null}
+            {!form.selectedModules.tyhjiointi ? (
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                onClick={() => onEnableOptionalModule?.('tyhjiointi')}
+              >
+                + Lisää tyhjiöinti
+              </button>
+            ) : null}
+          </div>
+        ) : null}
         {hasEvaporatorUnits ? <EvaporatorCircuitsSync form={form} onChange={onSyncForm} /> : null}
         {hasCondenserUnits ? <CondenserCircuitsSync form={form} onChange={onPatchForm} /> : null}
         <div className="grid maintenance-report-document">

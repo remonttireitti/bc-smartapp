@@ -10,8 +10,10 @@ const RAPORTOINTI_THEME: ModuleTheme = {
   header: '#1d4ed8',
 };
 
-export function maintenanceDocumentTheme(tabId: MaintenanceReportTabId): ModuleTheme {
+export function maintenanceDocumentTheme(tabId: MaintenanceReportTabId | string): ModuleTheme {
   if (tabId === 'raportointi') return RAPORTOINTI_THEME;
+  if (tabId === 'tiiveyskoe') return getModuleTheme('tiiveyskoe');
+  if (tabId === 'tyhjiointi') return getModuleTheme('tyhjiointi');
   if (isCustomModuleTabId(tabId)) return getModuleTheme('huomiot');
   const themeKey = maintenanceSectionThemeKey(tabId);
   return themeKey ? getModuleTheme(themeKey) : RAPORTOINTI_THEME;

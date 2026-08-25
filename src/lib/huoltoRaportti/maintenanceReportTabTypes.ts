@@ -15,6 +15,8 @@ export type BuiltInMaintenanceReportTabId =
   | 'mlp'
   | 'kiinteistoJahdytys'
   | 'energia'
+  | 'tiiveyskoe'
+  | 'tyhjiointi'
   | 'huomiot'
   | 'huoltotiedot';
 

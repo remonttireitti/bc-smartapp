@@ -30,20 +30,10 @@ export function resolveModuleTilePresentation(
   const visited = isMaintenanceModuleVisited(form, tabId);
   const completion = dataCompletion ?? 'incomplete';
 
-  if (!visited) {
-    return {
-      completion: 'incomplete',
-      visited: false,
-      subtitle: 'Täyttämättä',
-      showCheck: false,
-      showAttention: false,
-    };
-  }
-
   if (completion === 'ok') {
     return {
       completion: 'ok',
-      visited: true,
+      visited,
       subtitle: 'Valmis',
       showCheck: true,
       showAttention: false,
@@ -53,10 +43,20 @@ export function resolveModuleTilePresentation(
   if (completion === 'attention') {
     return {
       completion: 'attention',
-      visited: true,
+      visited,
       subtitle: 'Tarkastettu, huomioita',
       showCheck: false,
       showAttention: true,
+    };
+  }
+
+  if (!visited) {
+    return {
+      completion: 'incomplete',
+      visited: false,
+      subtitle: 'Täyttämättä',
+      showCheck: false,
+      showAttention: false,
     };
   }
 

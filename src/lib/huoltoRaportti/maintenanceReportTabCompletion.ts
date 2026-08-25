@@ -28,7 +28,8 @@ import {
 } from './maintenanceReportBasicsValidation';
 import type { MaintenanceReportTabId } from './maintenanceReportTabs';
 import { buildMaintenanceReportTabs, type MaintenanceReportTabBuildInput } from './maintenanceReportTabs';
-import type { CompressorData, HuoltoReportData, RefrigerantCircuitData } from './types';
+import { usesRefrigerantServiceExtras } from './deviceModuleLogic';
+import type { CompressorData, HuoltoReportData, RefrigerantCircuitData, TiiveyskoeData, TyhjiointiData } from './types';
 import { getEvaporatorCircuitCount } from './evaporatorHelpers';
 
 export type MaintenanceTabCompletionState = 'incomplete' | 'attention' | 'ok';
@@ -108,6 +109,22 @@ function isKylmaaineChargeComplete(form: HuoltoReportData): MaintenanceTabComple
     form.kylmaaineMaaraPiiri4,
   ].slice(0, circuitCount);
   return amounts.every((value) => String(value ?? '').trim() !== '') ? 'ok' : 'incomplete';
+}
+
+export function tiiveyskoeTabCompletion(data: TiiveyskoeData): MaintenanceTabCompletionState {
+  if (data.tulos?.trim()) {
+    return data.tulos === 'hyvaksytty' ? 'ok' : 'attention';
+  }
+  if (data.testipaineBar?.trim()) return 'ok';
+  return 'incomplete';
+}
+
+export function tyhjiointiTabCompletion(data: TyhjiointiData): MaintenanceTabCompletionState {
+  if (data.tulos?.trim()) {
+    return data.tulos === 'hyvaksytty' ? 'ok' : 'attention';
+  }
+  if (data.loppupaineArvo?.trim()) return 'ok';
+  return 'incomplete';
 }
 
 function isCustomModuleComplete(module: CustomReportModule): MaintenanceTabCompletionState {
@@ -233,6 +250,13 @@ export function buildMaintenanceReportTabCompletion(
 
   for (const tab of tabs) {
     completion[tab.id] = completionForTab(tab.id, form, customerInput, deviceInput);
+  }
+
+  if (usesRefrigerantServiceExtras(form.laiteTyyppi) && form.selectedModules.tiiveyskoe) {
+    completion.tiiveyskoe = tiiveyskoeTabCompletion(form.tiiveyskoeData);
+  }
+  if (usesRefrigerantServiceExtras(form.laiteTyyppi) && form.selectedModules.tyhjiointi) {
+    completion.tyhjiointi = tyhjiointiTabCompletion(form.tyhjiointiData);
   }
 
   return completion;

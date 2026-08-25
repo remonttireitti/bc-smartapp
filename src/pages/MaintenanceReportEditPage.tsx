@@ -2053,6 +2053,34 @@ export default function MaintenanceReportEditPage({ session }: Props) {
                 Moduulirakenne
                 {hiddenMaintenanceTabCount > 0 ? ` (+${hiddenMaintenanceTabCount} piilotettu)` : ''}
               </button>
+              {documentLayout && usesRefrigerantServiceExtras(form.laiteTyyppi) ? (
+                <>
+                  {!form.selectedModules.tiiveyskoe ? (
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      onClick={() => {
+                        toggleModule('tiiveyskoe', true);
+                        setDocumentNavTarget('tiiveyskoe');
+                      }}
+                    >
+                      + Tiiveyskoe
+                    </button>
+                  ) : null}
+                  {!form.selectedModules.tyhjiointi ? (
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      onClick={() => {
+                        toggleModule('tyhjiointi', true);
+                        setDocumentNavTarget('tyhjiointi');
+                      }}
+                    >
+                      + Tyhjiöinti
+                    </button>
+                  ) : null}
+                </>
+              ) : null}
             </div>
 
             {!documentLayout ? (
@@ -2086,6 +2114,10 @@ export default function MaintenanceReportEditPage({ session }: Props) {
                 tabCompletion={tabCompletion}
                 navTargetTabId={documentNavTarget}
                 onNavTargetHandled={() => setDocumentNavTarget(null)}
+                onEnableOptionalModule={(key) => {
+                  toggleModule(key, true);
+                  setDocumentNavTarget(key);
+                }}
                 {...maintenanceTabContentProps}
               />
             ) : (

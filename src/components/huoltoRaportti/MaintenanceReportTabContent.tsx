@@ -383,6 +383,32 @@ export function MaintenanceReportTabContent({
     );
   }
 
+  if (tabId === 'tiiveyskoe' && usesRefrigerantServiceExtras(form.laiteTyyppi) && form.selectedModules.tiiveyskoe) {
+    return (
+      <section className="maintenance-report-tab-section huolto-modules-stack">
+        <TiiveyskoeSection
+          form={form}
+          onChange={onPatchForm}
+          reportId={reportId}
+          userId={session.user.id}
+        />
+      </section>
+    );
+  }
+
+  if (tabId === 'tyhjiointi' && usesRefrigerantServiceExtras(form.laiteTyyppi) && form.selectedModules.tyhjiointi) {
+    return (
+      <section className="maintenance-report-tab-section huolto-modules-stack">
+        <TyhjiointiSection
+          form={form}
+          onChange={onPatchForm}
+          reportId={reportId}
+          userId={session.user.id}
+        />
+      </section>
+    );
+  }
+
   if (tabId === 'huomiot' && form.laiteTyyppi) {
     return (
       <section className="maintenance-report-tab-section huolto-modules-stack">
@@ -500,7 +526,7 @@ export function MaintenanceReportTabContent({
           </div>
         ) : null}
 
-        {usesRefrigerantServiceExtras(form.laiteTyyppi) && form.selectedModules.tiiveyskoe ? (
+        {usesRefrigerantServiceExtras(form.laiteTyyppi) && form.selectedModules.tiiveyskoe && !documentLayout ? (
           <div className="huolto-modules-stack maintenance-embedded-module">
             <TiiveyskoeSection
               form={form}
@@ -511,7 +537,7 @@ export function MaintenanceReportTabContent({
           </div>
         ) : null}
 
-        {usesRefrigerantServiceExtras(form.laiteTyyppi) && form.selectedModules.tyhjiointi ? (
+        {usesRefrigerantServiceExtras(form.laiteTyyppi) && form.selectedModules.tyhjiointi && !documentLayout ? (
           <div className="huolto-modules-stack maintenance-embedded-module">
             <TyhjiointiSection
               form={form}

@@ -18,13 +18,23 @@ function test(name, fn) {
 
 const empty = createEmptyHuoltoReportData();
 
-test('unvisited module shows Täyttämättä even when data looks complete', () => {
+test('completed module shows Valmis even when not visited', () => {
   const form = {
     ...empty,
     huomiot: 'Kaikki ok',
     visitedModuleIds: [],
   };
   const presentation = resolveModuleTilePresentation('huomiot', form, 'ok');
+  assert.equal(presentation.subtitle, 'Valmis');
+  assert.equal(presentation.showCheck, true);
+});
+
+test('unvisited incomplete module shows Täyttämättä', () => {
+  const form = {
+    ...empty,
+    visitedModuleIds: [],
+  };
+  const presentation = resolveModuleTilePresentation('kylmaaine', form, 'incomplete');
   assert.equal(presentation.subtitle, 'Täyttämättä');
   assert.equal(presentation.showCheck, false);
 });

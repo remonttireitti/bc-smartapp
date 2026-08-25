@@ -15,6 +15,8 @@ export const MAINTENANCE_DIALOG_LAUNCHER_TABS = new Set<MaintenanceReportTabId>(
   'energia',
   'huomiot',
   'huoltotiedot',
+  'tiiveyskoe',
+  'tyhjiointi',
 ]);
 
 export function maintenanceTabUsesDialogLauncher(tabId: string): tabId is MaintenanceReportTabId {

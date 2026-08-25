@@ -1,4 +1,5 @@
-import { isChillerLikeDevice } from './deviceModuleLogic';
+import { isChillerLikeDevice, usesRefrigerantServiceExtras } from './deviceModuleLogic';
+import { tiiveyskoeTabCompletion, tyhjiointiTabCompletion } from './maintenanceReportTabCompletion';
 import {
   condenserInspectionStatus,
   entityInspectionStatus,
@@ -34,6 +35,10 @@ export function buildMaintenanceDocumentEntries(
   const entries: MaintenanceDocumentEntry[] = [];
 
   for (const tab of tabs) {
+    if (tab.id === 'huomiot') {
+      appendOptionalServiceMeasurementEntries(entries, form);
+    }
+
     if (tab.id === 'hoyrystin' && !isChillerLikeDevice(form.laiteTyyppi)) {
       const count = getEvaporatorCircuitCount(form);
       for (let index = 0; index < count; index += 1) {
@@ -73,6 +78,26 @@ export function buildMaintenanceDocumentEntries(
   return entries;
 }
 
+function appendOptionalServiceMeasurementEntries(entries: MaintenanceDocumentEntry[], form: HuoltoReportData) {
+  if (!usesRefrigerantServiceExtras(form.laiteTyyppi)) return;
+  if (form.selectedModules.tiiveyskoe) {
+    entries.push({
+      key: 'tiiveyskoe',
+      kind: 'tab',
+      tabId: 'tiiveyskoe',
+      title: 'Tiiveyskoe',
+    });
+  }
+  if (form.selectedModules.tyhjiointi) {
+    entries.push({
+      key: 'tyhjiointi',
+      kind: 'tab',
+      tabId: 'tyhjiointi',
+      title: 'Tyhjiöinti',
+    });
+  }
+}
+
 export function documentEntryCompletion(
   entry: MaintenanceDocumentEntry,
   form: HuoltoReportData,
@@ -83,6 +108,12 @@ export function documentEntryCompletion(
   }
   if (entry.kind === 'condenserUnit' && entry.unitIndex != null) {
     return inspectionStatusToDocumentCompletion(condenserInspectionStatus(form.condenserData[entry.unitIndex]));
+  }
+  if (entry.tabId === 'tiiveyskoe') {
+    return tabCompletion?.tiiveyskoe ?? tiiveyskoeTabCompletion(form.tiiveyskoeData);
+  }
+  if (entry.tabId === 'tyhjiointi') {
+    return tabCompletion?.tyhjiointi ?? tyhjiointiTabCompletion(form.tyhjiointiData);
   }
   return tabCompletion?.[entry.tabId];
 }
