@@ -5,10 +5,11 @@ import NavigationBreadcrumb from '../components/NavigationBreadcrumb';
 import { useMaintenancePrintNavigation } from '../hooks/useMaintenancePrintNavigation';
 import { useProfile } from '../hooks/useProfile';
 import { loadMaintenanceReportPrintBundle } from '../lib/maintenanceReportPrintAction';
+import { openPrintHtml } from '../lib/openPrintWindow';
 import {
+  applyPrintDocumentTitle,
   extractPrintableHtmlFragment,
   formatPrintSaveFileName,
-  printCurrentDocument,
 } from '../lib/printDocumentShell';
 import { isPortalReadOnly } from '../lib/portalWorkOrder';
 import type { HuoltoReportData } from '../lib/huoltoRaportti/types';
@@ -24,6 +25,7 @@ export default function MaintenanceReportPrintPage({ session }: Props) {
   const autoPrint = searchParams.get('print') === '1';
   const { profile } = useProfile(session);
   const [html, setHtml] = useState('');
+  const [printHtml, setPrintHtml] = useState('');
   const [printTitle, setPrintTitle] = useState('');
   const [reportData, setReportData] = useState<HuoltoReportData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -31,7 +33,6 @@ export default function MaintenanceReportPrintPage({ session }: Props) {
   const navigation = useMaintenancePrintNavigation(id, reportData);
   const portalReadOnly = isPortalReadOnly(profile);
   const autoPrintTriggeredRef = useRef(false);
-  const printCleanupRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     if (!id) {
@@ -46,20 +47,21 @@ export default function MaintenanceReportPrintPage({ session }: Props) {
     if (!printTitle) return undefined;
     const previousTitle = document.title;
     document.title = printTitle;
+    const onBeforePrint = () => {
+      applyPrintDocumentTitle(document, printTitle);
+    };
+    window.addEventListener('beforeprint', onBeforePrint);
     return () => {
+      window.removeEventListener('beforeprint', onBeforePrint);
       document.title = previousTitle;
     };
   }, [printTitle]);
 
   useEffect(() => {
-    if (!autoPrint || loading || !html || !printTitle || autoPrintTriggeredRef.current) return;
+    if (!autoPrint || loading || !printHtml || !printTitle || autoPrintTriggeredRef.current) return;
     autoPrintTriggeredRef.current = true;
-    printCleanupRef.current = printCurrentDocument(printTitle, 400);
-    return () => {
-      printCleanupRef.current?.();
-      printCleanupRef.current = null;
-    };
-  }, [autoPrint, html, loading, printTitle]);
+    openPrintHtml(printHtml, { documentTitle: printTitle });
+  }, [autoPrint, loading, printHtml, printTitle]);
 
   async function loadReport(reportId: string) {
     setLoading(true);
@@ -68,6 +70,7 @@ export default function MaintenanceReportPrintPage({ session }: Props) {
     try {
       const bundle = await loadMaintenanceReportPrintBundle(reportId);
       setReportData(bundle.data);
+      setPrintHtml(bundle.html);
       setHtml(extractPrintableHtmlFragment(bundle.html));
       setPrintTitle(formatPrintSaveFileName(bundle.documentTitle));
     } catch (err) {
@@ -78,9 +81,8 @@ export default function MaintenanceReportPrintPage({ session }: Props) {
   }
 
   function triggerPrint() {
-    if (!printTitle) return;
-    printCleanupRef.current?.();
-    printCleanupRef.current = printCurrentDocument(printTitle);
+    if (!printHtml || !printTitle) return;
+    openPrintHtml(printHtml, { documentTitle: printTitle });
   }
 
   if (loading) {

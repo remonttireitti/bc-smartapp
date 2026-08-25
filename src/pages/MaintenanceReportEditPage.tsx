@@ -452,7 +452,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
   const [openTabId, setOpenTabId] = useState<string | null>(null);
   const documentLayout = useMaintenanceDocumentLayout();
   const [activeDocumentTabId, setActiveDocumentTabId] = useState<MaintenanceReportTabId>('raportointi');
-  const [documentNavTarget, setDocumentNavTarget] = useState<MaintenanceReportTabId | null>(null);
+  const [documentNavTarget, setDocumentNavTarget] = useState<string | null>(null);
   const newReportRaportointiOpenedRef = useRef(false);
   const [deviceDialogOpen, setDeviceDialogOpen] = useState(false);
   const [basicsFieldErrors, setBasicsFieldErrors] = useState<Record<string, string>>({});
