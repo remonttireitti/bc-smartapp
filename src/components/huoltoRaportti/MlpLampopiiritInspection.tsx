@@ -1,5 +1,7 @@
 import type { MlpData, PumpunSyottoValinta } from '../../lib/huoltoRaportti/types';
 import { lampoJakotapaOptions } from '../../lib/huoltoRaportti/constants';
+import { createEmptyHeatingCircuitData } from '../../lib/huoltoRaportti/defaults';
+import { isChillerLikeDevice } from '../../lib/huoltoRaportti/deviceModuleLogic';
 import {
   mlpLampoInspectionStatus,
   normalizeHuoltoInspectionStatus,
@@ -10,6 +12,7 @@ import { FormCheckbox } from './FormCheckbox';
 import { FormInput } from './FormInput';
 import { HuoltoPartInspectionRow } from './HuoltoPartInspectionRow';
 import { HuoltoInspectionDialogShell, useHuoltoInspectionDialog } from './HuoltoInspectionDialogShell';
+import { useRegisterHuoltoModuleDialog } from './HuoltoModuleDialogContext';
 import { PumpSupplyMeasurementBlock } from './PumpSupplyMeasurementBlock';
 import { TriStateInspectionToggle } from './TriStateInspectionToggle';
 
@@ -17,9 +20,19 @@ interface Props {
   title: string;
   mlp: MlpData;
   onChange: (patch: Partial<MlpData>) => void;
+  laiteTyyppi?: string;
+  documentUnitKey?: string;
+  hidePartRow?: boolean;
 }
 
-export function MlpLampopiiritInspection({ title, mlp, onChange }: Props) {
+export function MlpLampopiiritInspection({
+  title,
+  mlp,
+  onChange,
+  laiteTyyppi = '',
+  documentUnitKey,
+  hidePartRow = false,
+}: Props) {
   const status = mlpLampoInspectionStatus(mlp);
 
   const { open, openDialog, closeDialog, draft, setDraft } = useHuoltoInspectionDialog({
@@ -36,11 +49,42 @@ export function MlpLampopiiritInspection({ title, mlp, onChange }: Props) {
   const showDetails = draftStatus === 'ok' || draftStatus === 'faulty';
   const patchDraft = (patch: Partial<MlpData>) => setDraft((prev) => ({ ...prev, ...patch }));
 
+  useRegisterHuoltoModuleDialog(documentUnitKey, openDialog);
+
   return (
     <>
-      <HuoltoPartInspectionRow title={title} status={status} onInspect={openDialog} />
+      {!hidePartRow ? (
+        <HuoltoPartInspectionRow title={title} status={status} onInspect={openDialog} />
+      ) : null}
 
       <HuoltoInspectionDialogShell open={open} title={title} titleId="mlp-lampo-dialog-title" onClose={closeDialog}>
+        <FormCheckbox
+          label={
+            isChillerLikeDevice(laiteTyyppi)
+              ? 'Tulosta ja tallenna laitekorttiin (kiinteistön jäähdytyspiiri)'
+              : 'Tulosta ja tallenna laitekorttiin (kiinteistön lämmityspiiri)'
+          }
+          checked={draft.kiinteistoPiiritSisallytetaan !== false}
+          onChange={(v) => patchDraft({ kiinteistoPiiritSisallytetaan: v })}
+          className="huolto-lampopiirit-wide"
+        />
+        <label className="huolto-lampopiirit-piireja">
+          Piirejä
+          <select
+            value={draft.lampoPiirit.length || parseInt(draft.lampoPiireja, 10) || 0}
+            onChange={(e) => {
+              const count = parseInt(e.target.value, 10);
+              const next = [...draft.lampoPiirit];
+              while (next.length < count) next.push(createEmptyHeatingCircuitData());
+              patchDraft({ lampoPiireja: String(count), lampoPiirit: next.slice(0, count) });
+            }}
+          >
+            {[0, 1, 2, 3, 4, 5, 6].map((n) => (
+              <option key={n} value={n}>{n}</option>
+            ))}
+          </select>
+        </label>
+
         <div className="konvektori-tarkastus-item">
           <span className="konvektori-tarkastus-label">Tarkastuksen tulos</span>
           <TriStateInspectionToggle name="mlp-lampo-tila" value={draftStatus} onChange={(next: Exclude<HuoltoInspectionStatus, null>) => patchDraft({ lampoTarkastusTila: next })} />

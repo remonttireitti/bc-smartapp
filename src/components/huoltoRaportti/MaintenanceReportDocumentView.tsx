@@ -34,6 +34,7 @@ import { CondenserModule } from './CondenserModule';
 import { RefrigerantCircuitMeasurementsUnit } from './RefrigerantCircuitMeasurementsUnit';
 import { CompressorModule } from './CompressorModule';
 import { RefrigerantCircuitComponentsModule } from './RefrigerantCircuitComponentsModule';
+import { MlpDocumentUnit } from './MlpDocumentUnit';
 import { createEvaporatorActions, evaporatorTitleForIndex } from './useEvaporatorCircuits';
 import { lauhdutinUnitTitle } from '../../lib/huoltoRaportti/sectionTitles';
 import {
@@ -41,6 +42,7 @@ import {
   patchRefrigerantCircuitAtIndex,
   refrigerantCircuitCompressorTitle,
 } from '../../lib/huoltoRaportti/refrigerantCircuitHelpers';
+import { getModuleTheme, type ModuleThemeKey } from '../../lib/huoltoRaportti/moduleThemes';
 import type { ModuleKey } from '../../lib/huoltoRaportti/constants';
 import { usesRefrigerantServiceExtras } from '../../lib/huoltoRaportti/deviceModuleLogic';
 import type { MaintenanceTabCompletionState } from '../../lib/huoltoRaportti/maintenanceReportTabCompletion';
@@ -143,17 +145,19 @@ function MaintenanceReportDocumentViewInner({
             const dialogLauncher =
               documentEntryUsesDialogLauncher(entry) || maintenanceTabUsesDialogLauncher(entry.tabId);
             const defaultOpen = dialogLauncher ? false : completion !== 'ok';
-            const theme = maintenanceDocumentTheme(
-              entry.kind === 'evaporatorUnit'
-                ? 'hoyrystin'
-                : entry.kind === 'condenserUnit'
-                  ? 'lauhdutin'
-                  : entry.kind === 'circuitMeasurementsUnit'
-                    || entry.kind === 'circuitCompressorUnit'
-                    || entry.kind === 'circuitComponentsUnit'
-                    ? 'kylmaainePiiri'
-                    : (entry.tabId as Parameters<typeof maintenanceDocumentTheme>[0]),
-            );
+            const theme = entry.kind === 'mlpUnit' && entry.themeKey
+              ? getModuleTheme(entry.themeKey as ModuleThemeKey)
+              : maintenanceDocumentTheme(
+                entry.kind === 'evaporatorUnit'
+                  ? 'hoyrystin'
+                  : entry.kind === 'condenserUnit'
+                    ? 'lauhdutin'
+                    : entry.kind === 'circuitMeasurementsUnit'
+                      || entry.kind === 'circuitCompressorUnit'
+                      || entry.kind === 'circuitComponentsUnit'
+                      ? 'kylmaainePiiri'
+                      : (entry.tabId as Parameters<typeof maintenanceDocumentTheme>[0]),
+              );
 
             const tabIdForSettings = entry.kind === 'tab' ? (entry.tabId as MaintenanceReportTabId) : null;
 
@@ -262,7 +266,15 @@ function MaintenanceReportDocumentViewInner({
                       />
                     );
                   })()
-                ) : (
+                ) : entry.kind === 'mlpUnit' && entry.mlpUnitId ? (
+                <MlpDocumentUnit
+                  form={form}
+                  unitId={entry.mlpUnitId}
+                  onChange={onPatchForm}
+                  documentUnitKey={entry.tabId}
+                  hidePartRow
+                />
+              ) : (
                 <MaintenanceReportTabContent
                   tabId={entry.tabId as MaintenanceReportTabContentProps['tabId']}
                   {...contentProps}
