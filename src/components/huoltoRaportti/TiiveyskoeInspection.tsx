@@ -6,11 +6,13 @@ import {
 } from '../../lib/huoltoRaportti/kokeAikaUtils';
 import type { HuoltoInspectionStatus } from '../../lib/huoltoRaportti/huoltoInspectionStatus';
 import type { HuoltoReportData, TiiveyskoeData, TiiveyskoeTulos } from '../../lib/huoltoRaportti/types';
+import { useMaintenanceDocumentLayout } from '../../hooks/useMaintenanceDocumentLayout';
 import { useHuoltoPrintFormLayout } from '../../hooks/useHuoltoPrintFormLayout';
 import { EvidencePhotoUpload } from './EvidencePhotoUpload';
 import { FormInput } from './FormInput';
 import { HuoltoPartInspectionRow } from './HuoltoPartInspectionRow';
 import { HuoltoInspectionDialogShell, useHuoltoInspectionDialog } from './HuoltoInspectionDialogShell';
+import { useRegisterHuoltoModuleDialog } from './HuoltoModuleDialogContext';
 import { RichCommentEditor } from './RichCommentEditor';
 
 interface Props {
@@ -18,6 +20,7 @@ interface Props {
   onChange: (patch: Partial<HuoltoReportData>) => void;
   reportId?: string | null;
   userId?: string;
+  documentModuleKey?: string;
 }
 
 function tiiveyskoeStatus(data: TiiveyskoeData): HuoltoInspectionStatus {
@@ -125,8 +128,10 @@ function TiiveyskoeFields({
   );
 }
 
-export function TiiveyskoeInspection({ form, onChange, reportId, userId }: Props) {
+export function TiiveyskoeInspection({ form, onChange, reportId, userId, documentModuleKey }: Props) {
   const printLayout = useHuoltoPrintFormLayout();
+  const documentLayout = useMaintenanceDocumentLayout();
+  const hideLauncher = documentLayout && !!documentModuleKey;
   const data = form.tiiveyskoeData;
   const status = tiiveyskoeStatus(data);
   const subtitle = tiiveyskoeSubtitle(data);
@@ -137,6 +142,8 @@ export function TiiveyskoeInspection({ form, onChange, reportId, userId }: Props
     data,
     onChange: applyDraft,
   });
+
+  useRegisterHuoltoModuleDialog(documentModuleKey, openDialog);
 
   const patchDraft = (patch: Partial<TiiveyskoeData>) => setDraft((prev) => ({ ...prev, ...patch }));
 
@@ -154,7 +161,9 @@ export function TiiveyskoeInspection({ form, onChange, reportId, userId }: Props
 
   return (
     <>
-      <HuoltoPartInspectionRow title="Tiiveyskoe" subtitle={subtitle || undefined} status={status} onInspect={openDialog} />
+      {!hideLauncher ? (
+        <HuoltoPartInspectionRow title="Tiiveyskoe" subtitle={subtitle || undefined} status={status} onInspect={openDialog} />
+      ) : null}
 
       <HuoltoInspectionDialogShell open={open} title="Tiiveyskoe" titleId="tiiveyskoe-dialog-title" onClose={closeDialog}>
         <TiiveyskoeFields
