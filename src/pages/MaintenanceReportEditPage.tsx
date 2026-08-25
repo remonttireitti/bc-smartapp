@@ -118,7 +118,7 @@ import {
   validateMaintenanceDeviceBasics,
   validateMaintenanceRefrigerantBasics,
 } from '../lib/huoltoRaportti/maintenanceReportBasicsValidation';
-import { buildMaintenanceReportTabCompletion } from '../lib/huoltoRaportti/maintenanceReportTabCompletion';
+import { buildMaintenanceReportTabCompletion, isMaintenanceReportModulesComplete } from '../lib/huoltoRaportti/maintenanceReportTabCompletion';
 import { MaintenanceModuleStructureDialog } from '../components/huoltoRaportti/MaintenanceModuleStructureDialog';
 import { getHiddenMaintenanceTabs } from '../lib/huoltoRaportti/maintenanceReportTabCustomization';
 import { HuoltoEditUiProvider } from '../components/huoltoRaportti/HuoltoEditUiContext';
@@ -188,6 +188,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
   const equipmentHydrateGenRef = useRef(0);
   const skipAutoSaveRef = useRef(true);
   const saveInFlightRef = useRef(false);
+  const autoSubmitOnCompleteRef = useRef(false);
   const formStateRef = useRef({ form, customerId, equipmentId });
   formStateRef.current = { form, customerId, equipmentId };
   const lastSavedKonvektoriScoreRef = useRef(0);
@@ -449,6 +450,13 @@ export default function MaintenanceReportEditPage({ session }: Props) {
       }),
     [form, customerBasicsInput, deviceBasicsInput, maintenanceTabBuildInput],
   );
+
+  const modulesComplete = useMemo(
+    () => isMaintenanceReportModulesComplete(tabCompletion),
+    [tabCompletion],
+  );
+
+  const displayStatus = modulesComplete && status === 'draft' ? 'submitted' : status;
 
   const [openTabId, setOpenTabId] = useState<string | null>(null);
   const documentLayout = useMaintenanceDocumentLayout();
@@ -1657,11 +1665,35 @@ export default function MaintenanceReportEditPage({ session }: Props) {
     }
 
     const timer = window.setTimeout(() => {
-      void saveReport(status === 'draft' ? 'draft' : undefined, { auto: true });
+      void saveReport(
+        status === 'draft' ? (modulesComplete ? 'submitted' : 'draft') : undefined,
+        { auto: true },
+      );
     }, 2500);
 
     return () => window.clearTimeout(timer);
-  }, [form, customerId, equipmentId, contextMode, partnerId, ownerCompanyId, status, isOnline, busy, canEditPublishedReport]);
+  }, [form, customerId, equipmentId, contextMode, partnerId, ownerCompanyId, status, isOnline, busy, canEditPublishedReport, modulesComplete]);
+
+  useEffect(() => {
+    if (profileLoading || loadingReport || skipAutoSaveRef.current) return;
+    if (!modulesComplete) {
+      autoSubmitOnCompleteRef.current = false;
+      return;
+    }
+    if (status !== 'draft' || !reportId || !canSaveDraft || busy || saveInFlightRef.current) return;
+    if (autoSubmitOnCompleteRef.current) return;
+
+    autoSubmitOnCompleteRef.current = true;
+    void saveReport('submitted', { auto: true });
+  }, [
+    modulesComplete,
+    status,
+    reportId,
+    canSaveDraft,
+    busy,
+    profileLoading,
+    loadingReport,
+  ]);
 
   useRegisterDraftSaver(async () => {
     if (status !== 'draft') return;
@@ -2180,8 +2212,8 @@ export default function MaintenanceReportEditPage({ session }: Props) {
               <span className="maintenance-actions-back-short" aria-hidden="true">←</span>
               <span className="maintenance-actions-back-label">Takaisin</span>
             </button>
-            <span className={`badge badge-${status === 'draft' ? 'scheduled' : 'completed'} maintenance-actions-status`}>
-              {getMaintenanceReportStatusLabel(status)}
+            <span className={`badge badge-${displayStatus === 'draft' ? 'scheduled' : 'completed'} maintenance-actions-status`}>
+              {getMaintenanceReportStatusLabel(displayStatus)}
             </span>
             {status === 'draft' && (
               <>
@@ -2196,7 +2228,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
                 <button
                   type="button"
                   className="btn btn-primary maintenance-actions-submit"
-                  disabled={busy || !basicsComplete}
+                  disabled={busy || !modulesComplete}
                   onClick={() => void saveReport('submitted')}
                 >
                   Merkitse valmiiksi
@@ -2207,7 +2239,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
               <button
                 type="button"
                 className="btn btn-primary maintenance-actions-save"
-                disabled={busy || !basicsComplete}
+                disabled={busy || !modulesComplete}
                 onClick={() => void saveReport()}
               >
                 {busy ? 'Tallennetaan…' : 'Tallenna muutokset'}

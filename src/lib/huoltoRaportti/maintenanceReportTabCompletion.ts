@@ -262,6 +262,15 @@ export function buildMaintenanceReportTabCompletion(
   return completion;
 }
 
+/** Kaikki näkyvät moduulit vihreällä (Valmis) — raportti voidaan merkitä valmiiksi. */
+export function isMaintenanceReportModulesComplete(
+  completion: MaintenanceTabCompletionMap,
+): boolean {
+  const states = Object.values(completion);
+  if (states.length === 0) return false;
+  return states.every((state) => state === 'ok');
+}
+
 export function maintenanceTabCompletionLabel(state: MaintenanceTabCompletionState | undefined): string {
   if (state === 'ok') return 'Valmis';
   if (state === 'attention') return 'Tarkastettu, huomioita';
