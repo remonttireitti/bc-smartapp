@@ -105,8 +105,7 @@ function konvektoriImageAirOutput(row: KonvektoriRowData): { label: string; valu
 
 function renderCheckMark(checked: boolean | null | undefined): string {
   if (checked === true) return '<span style="color:#16a34a;font-weight:700;">✓</span>';
-  if (checked === false) return '<span style="color:#dc2626;font-weight:700;">✗</span>';
-  return '<span style="color:#9ca3af;">–</span>';
+  return '';
 }
 
 function konvektoriCardColors(row: KonvektoriRowData): { background: string; border: string } {
@@ -175,10 +174,11 @@ function renderKonvektoriCard(
     ? `<div style="font-size:6px;color:#475569;line-height:1.25;margin-bottom:3px;word-wrap:break-word;">${esc(nesteVirtausParts.join(' · '))}</div>`
     : '';
 
-  const checks = KONVEKTORI_TARKASTUS_ITEMS.map((item) => {
+  const checks = KONVEKTORI_TARKASTUS_ITEMS
+    .filter((item) => row[item.field as keyof KonvektoriRowData] === true)
+    .map((item) => {
     const short = CHECK_SHORT[item.field] ?? item.field;
-    const val = row[item.field as keyof KonvektoriRowData];
-    return `<span title="${esc(item.label)}" style="margin-right:3px;">${esc(short)} ${renderCheckMark(val as boolean | null | undefined)}</span>`;
+    return `<span title="${esc(item.label)}" style="margin-right:3px;">${esc(short)} ${renderCheckMark(true)}</span>`;
   }).join('');
 
   const isVika = row.huomioTyyppi === 'vika';

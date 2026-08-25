@@ -42,8 +42,7 @@ function renderOverlayColumn(
 
 function renderTestCheckMark(checked: boolean | undefined): string {
   if (checked === true) return '<span style="color:#16a34a;font-weight:700;">✓</span>';
-  if (checked === false) return '<span style="color:#dc2626;font-weight:700;">✗</span>';
-  return '<span style="color:#9ca3af;">–</span>';
+  return '';
 }
 
 function renderInspectionCheckMark(status: HuoltoInspectionStatus): string {
@@ -58,11 +57,11 @@ function renderSisayksikkoTestSummary(
 ): string {
   if (!testInfo) return '';
   const parts: string[] = [];
-  if (testInfo.jaahdytysTestattu === true || testInfo.jaahdytysTestattu === false) {
-    parts.push(`${renderTestCheckMark(testInfo.jaahdytysTestattu)} Jäähdytys testattu`);
+  if (testInfo.jaahdytysTestattu === true) {
+    parts.push(`${renderTestCheckMark(true)} Jäähdytys testattu`);
   }
-  if (testInfo.lammitysTestattu === true || testInfo.lammitysTestattu === false) {
-    parts.push(`${renderTestCheckMark(testInfo.lammitysTestattu)} Lämmitys testattu`);
+  if (testInfo.lammitysTestattu === true) {
+    parts.push(`${renderTestCheckMark(true)} Lämmitys testattu`);
   }
   const testausLampo = String(testInfo.testausLampotila ?? '').trim();
   if (testausLampo) parts.push(`Testilämpö ${esc(testausLampo)} °C`);

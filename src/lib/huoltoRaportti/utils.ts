@@ -73,13 +73,10 @@ export function getSpecificHeatCapacity(fluidName: string): number {
 }
 
 // Helper function to render checkbox with label for print
-/** true = Kyllä ✓, false = Ei ✗, undefined = ei tulosteta (kenttää ei ole täytetty) */
+/** true = Kyllä ✓, false/undefined = ei tulosteta */
 export function renderCheckbox(val: boolean | undefined, label: string = ''): string {
   if (val === true) {
     return '<span style="color: #16a34a; font-weight: bold;">Kyllä ✓' + (label ? ' ' + label : '') + '</span>';
-  }
-  if (val === false) {
-    return '<span style="color: #dc2626; font-weight: bold;">Ei ✗' + (label ? ' ' + label : '') + '</span>';
   }
   return '';
 }
@@ -88,9 +85,6 @@ export function renderCheckbox(val: boolean | undefined, label: string = ''): st
 export function renderVuototarkastusStatus(checked: boolean | undefined): string {
   if (checked === true) {
     return '<span style="color:#16a34a;font-weight:bold;">Vuototarkastus suoritettu, ei vuotoja ✓</span>';
-  }
-  if (checked === false) {
-    return '<span style="color:#dc2626;font-weight:bold;">Ei tarkastettu tai vuotoja ✗</span>';
   }
   return '';
 }

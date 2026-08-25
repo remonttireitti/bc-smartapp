@@ -22,10 +22,11 @@ export function FormCheckbox({
   const printLayout = useHuoltoPrintFormLayout();
 
   if (printLayout) {
+    if (checked !== true) return null;
     return (
       <PrintCheckField
         label={label}
-        checked={checked === true}
+        checked
         disabled={disabled}
         onChange={onChange}
       />

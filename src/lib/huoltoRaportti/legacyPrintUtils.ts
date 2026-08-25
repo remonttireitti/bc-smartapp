@@ -2357,13 +2357,10 @@ export function generatePrintHTML(data: {
   `
       : '';
 
-  /** Vain eksplisiittinen kyllä/ei; täyttämätön (undefined) = ei merkkiä (ei "tyhjää ruksia") */
+  /** Vain eksplisiittinen kyllä; ei/ei vastattu = ei merkkiä */
   const renderCheck = (checked: boolean | undefined) => {
     if (checked === true) {
       return `<span style="color: #16a34a; font-weight: bold;">✓</span>`;
-    }
-    if (checked === false) {
-      return `<span style="color: #dc2626; font-weight: bold;">✗</span>`;
     }
     return '';
   };
@@ -2372,9 +2369,6 @@ export function generatePrintHTML(data: {
   const renderCheckKonv = (checked: boolean | null | undefined) => {
     if (checked === true) {
       return `<span style="color:#16a34a;font-weight:700;font-size:7px;line-height:1;">✓</span>`;
-    }
-    if (checked === false) {
-      return `<span style="color:#dc2626;font-weight:700;font-size:7px;line-height:1;">✗</span>`;
     }
     return `<span style="color:#9ca3af;font-size:7px;">–</span>`;
   };
@@ -2633,11 +2627,8 @@ export function generatePrintHTML(data: {
       return `<div style="${bb}padding: 2px 0; font-size: 11px;">${label}: ${esc(val)}</div>`;
     };
     const ulkoRuksi = (checked: boolean | undefined, label: string, bottomBorder = true): string => {
-      if (checked !== true && checked !== false) return '';
-      const mark =
-        checked === true
-          ? '<span style="color: #16a34a; font-weight: bold;">✓</span>'
-          : '<span style="color: #dc2626; font-weight: bold;">✗</span>';
+      if (checked !== true) return '';
+      const mark = '<span style="color: #16a34a; font-weight: bold;">✓</span>';
       const bb = bottomBorder ? 'border-bottom: 1px solid #E64A19; ' : '';
       return `<div style="${bb}padding: 2px 0; font-size: 11px;">${mark} ${esc(label)}</div>`;
     };
@@ -2720,12 +2711,8 @@ export function generatePrintHTML(data: {
     };
 
     const renderCheck = (val: boolean | undefined, label: string) => {
-      if (val !== true && val !== false) return '';
-      const mark =
-        val === true
-          ? '<span style="color: #16a34a; font-weight: bold;">✓</span>'
-          : '<span style="color: #dc2626; font-weight: bold;">✗</span>';
-      return `${mark} ${label}`;
+      if (val !== true) return '';
+      return `<span style="color: #16a34a; font-weight: bold;">✓</span> ${label}`;
     };
 
     // Helper function to render field value
