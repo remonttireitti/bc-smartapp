@@ -38,6 +38,7 @@ import {
 } from '../lib/huoltoRaportti/maintenanceDeviceDraft';
 import { supabase } from '../lib/supabase';
 import { createRegistryCustomer } from '../lib/createRegistryCustomer';
+import { syncCustomerFromMaintenanceReport } from '../lib/updateRegistryCustomer';
 import { partnershipModuleAccess, partnershipPermsActingOnOwner } from '../lib/management';
 import { EQUIPMENT_SELECT } from '../lib/customers';
 import {
@@ -1601,6 +1602,26 @@ export default function MaintenanceReportEditPage({ session }: Props) {
         try {
           const snapshot = buildHuoltoEquipmentTechnicalSnapshot(dataPayload);
           await syncEquipmentFromReport(equipmentId, snapshot, supabase);
+        } catch (syncErr) {
+          console.error(syncErr);
+        }
+      }
+
+      const linkedCustomerId = customerId || dataPayload.customerId;
+      if (linkedCustomerId) {
+        try {
+          const existingCustomer = customers.find((entry) => entry.id === linkedCustomerId) ?? selectedCustomer;
+          const { customer: syncedCustomer } = await syncCustomerFromMaintenanceReport(
+            supabase,
+            linkedCustomerId,
+            dataPayload,
+            existingCustomer,
+          );
+          if (syncedCustomer) {
+            setCustomers((prev) =>
+              prev.map((entry) => (entry.id === syncedCustomer.id ? { ...entry, ...syncedCustomer } : entry)),
+            );
+          }
         } catch (syncErr) {
           console.error(syncErr);
         }

@@ -25,6 +25,7 @@ import {
   canEditCustomersAsStaff,
   customerAddressLine,
 } from '../lib/customers';
+import { updateRegistryCustomer } from '../lib/updateRegistryCustomer';
 import { loadSubscribersForOwner, subscriberLabel } from '../lib/subscribers';
 import { canDeleteCompanyOwnedEntity } from '../lib/deletePermissions';
 import {
@@ -284,33 +285,41 @@ export default function CustomerDetailPage({ session }: Props) {
 
   async function saveCustomer(e: FormEvent) {
     e.preventDefault();
-    if (!customer || !canWrite) return;
+    if (!customer) return;
+    if (!canWrite) {
+      setError('Sinulla ei ole oikeutta muokata asiakastietoja.');
+      return;
+    }
+    if (!form.name.trim()) {
+      setError('Asiakkaan nimi on pakollinen.');
+      return;
+    }
 
     setBusy(true);
     setError(null);
 
-    const patch: Record<string, string | null> = {
-      name: form.name.trim(),
+    const isOwner = customer.owner_company_id === profile?.company_id;
+
+    const { customer: updated, error: updateError } = await updateRegistryCustomer(supabase, {
+      customerId: customer.id,
+      name: form.name,
       address: form.address.trim() || null,
       city: form.city.trim() || null,
       phone: form.phone.trim() || null,
       email: form.email.trim() || null,
       business_id: form.business_id.trim() || null,
       notes: form.notes.trim() || null,
-    };
-    if (customer.owner_company_id === profile?.company_id) {
-      patch.subscriber_id = form.subscriber_id || null;
-    }
-
-    const { error: updateError } = await supabase.from('customers').update(patch).eq('id', customer.id);
+      subscriberId: form.subscriber_id || null,
+      touchSubscriberId: isOwner,
+    });
 
     setBusy(false);
-    if (updateError) {
-      setError(updateError.message);
+    if (updateError || !updated) {
+      setError(updateError ?? 'Asiakkaan tallennus epäonnistui.');
       return;
     }
 
-    if (customer.owner_company_id === profile?.company_id) {
+    if (isOwner) {
       const subscriberId = form.subscriber_id || null;
       await Promise.all([
         supabase.from('maintenance_reports').update({ subscriber_id: subscriberId }).eq('customer_id', customer.id),
