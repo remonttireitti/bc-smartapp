@@ -1,12 +1,10 @@
 import { createEmptyMaterial } from '../../lib/quoteRequest/defaults';
 import {
   generateInstallationSuppliesPrintHtml,
-  installationLaborPurchaseNet,
   installationSuppliesNetMarginNet,
   installationSuppliesProductMarginNet,
   installationSuppliesPurchaseNet,
   installationSuppliesSellNet,
-  installationVehiclePurchaseNet,
   patchInstallationSupplies,
   syncInstallationSupplyRow,
 } from '../../lib/quoteRequest/installationSupplies';
@@ -33,8 +31,6 @@ export default function QuoteInstallationSuppliesProductsSection({
   const productPurchase = installationSuppliesPurchaseNet(items);
   const sellTotal = installationSuppliesSellNet(items);
   const productMargin = installationSuppliesProductMarginNet(form);
-  const laborPurchase = installationLaborPurchaseNet(form);
-  const vehiclePurchase = installationVehiclePurchaseNet(form);
   const netMargin = installationSuppliesNetMarginNet(form);
 
   function updateItems(nextItems: QuoteMaterial[]) {
@@ -174,11 +170,7 @@ export default function QuoteInstallationSuppliesProductsSection({
         <div>Tuotteiden hankinta: {formatEuro(productPurchase)}</div>
         <div>Tuotteiden myynti: {formatEuro(sellTotal)}</div>
         <div>Tuotteiden kate: {formatEuro(productMargin)}</div>
-        {laborPurchase > 0 ? <div>Työn hankinta: {formatEuro(laborPurchase)}</div> : null}
-        {vehiclePurchase > 0 ? (
-          <div>Huoltoautokorvaus: {formatEuro(vehiclePurchase)}</div>
-        ) : null}
-        <strong>Kokonaiskate: {formatEuro(netMargin)}</strong>
+        <strong>Kokonaiskate (sis. työn hankinta): {formatEuro(netMargin)}</strong>
       </div>
 
       <div className="quote-installation-supplies-actions">

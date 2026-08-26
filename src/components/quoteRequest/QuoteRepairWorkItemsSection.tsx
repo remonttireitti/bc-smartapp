@@ -2,7 +2,7 @@ import type { Equipment } from '../../types';
 import { createServiceWorkItem } from '../../lib/quoteRequest/defaults';
 import type { QuoteRequestData, QuoteWorkItem } from '../../lib/quoteRequest/types';
 import { equipmentToOption } from '../../lib/registrySearch';
-import QuoteInstallationLaborSection from './QuoteInstallationLaborSection';
+import QuoteWorkLaborFields, { syncInstallationLaborHours } from './QuoteWorkLaborFields';
 
 type Props = {
   form: QuoteRequestData;
@@ -30,7 +30,14 @@ export default function QuoteRepairWorkItemsSection({
   hideHeader = false,
 }: Props) {
   function patchWorkItems(workItems: QuoteWorkItem[]) {
-    onChange({ workItems });
+    onChange({
+      workItems,
+      installationLaborHours: syncInstallationLaborHours(workItems),
+    });
+  }
+
+  function patchWorkItem(workId: string, patch: Partial<QuoteWorkItem>) {
+    patchWorkItems(updateWorkItem(form.workItems, workId, patch));
   }
 
   return (
@@ -58,7 +65,7 @@ export default function QuoteRepairWorkItemsSection({
       {form.workItems.map((item, index) => (
         <div key={item.id} className="quote-line-row panel-inset">
           <div className="quote-line-head">
-            <strong>Työ {index + 1}</strong>
+            <strong>{item.description.trim() || `Asennustyö ${index + 1}`}</strong>
             {canEdit && form.workItems.length > 1 && (
               <button
                 type="button"
@@ -71,14 +78,12 @@ export default function QuoteRepairWorkItemsSection({
           </div>
 
           <label>
-            Kuvaus
+            Otsikko
             <input
               value={item.description}
-              onChange={(e) =>
-                patchWorkItems(updateWorkItem(form.workItems, item.id, { description: e.target.value }))
-              }
+              onChange={(e) => patchWorkItem(item.id, { description: e.target.value })}
               disabled={!canEdit}
-              placeholder="Esim. asennus, kytkentä ja käyttöönotto"
+              placeholder="Esim. asennustyö"
             />
           </label>
 
@@ -89,12 +94,10 @@ export default function QuoteRepairWorkItemsSection({
               onChange={(e) => {
                 const nextId = e.target.value || undefined;
                 const selected = equipment.find((row) => row.id === nextId);
-                patchWorkItems(
-                  updateWorkItem(form.workItems, item.id, {
-                    equipmentId: nextId,
-                    equipmentName: selected ? equipmentToOption(selected).label : undefined,
-                  }),
-                );
+                patchWorkItem(item.id, {
+                  equipmentId: nextId,
+                  equipmentName: selected ? equipmentToOption(selected).label : undefined,
+                });
               }}
               disabled={!canEdit || !customerSelected}
             >
@@ -110,42 +113,16 @@ export default function QuoteRepairWorkItemsSection({
             <p className="muted quote-work-equipment-hint">Valitse ensin asiakas laitteen kohdistusta varten.</p>
           ) : null}
 
-          <div className="line-form-grid">
-            <label>
-              Tunnit
-              <input
-                type="number"
-                step="0.25"
-                min="0"
-                value={item.hours}
-                onChange={(e) =>
-                  patchWorkItems(
-                    updateWorkItem(form.workItems, item.id, { hours: Number(e.target.value) }),
-                  )
-                }
-                disabled={!canEdit}
-              />
-            </label>
-            <label>
-              Tuntihinta (€)
-              <input
-                type="number"
-                step="0.01"
-                min="0"
-                value={item.pricePerHour}
-                onChange={(e) =>
-                  patchWorkItems(
-                    updateWorkItem(form.workItems, item.id, { pricePerHour: Number(e.target.value) }),
-                  )
-                }
-                disabled={!canEdit}
-              />
-            </label>
-          </div>
+          <QuoteWorkLaborFields
+            form={form}
+            workItem={item}
+            canEdit={canEdit}
+            showVehicleFields={index === form.workItems.length - 1}
+            onChange={onChange}
+            onWorkChange={(patch) => patchWorkItem(item.id, patch)}
+          />
         </div>
       ))}
-
-      <QuoteInstallationLaborSection form={form} canEdit={canEdit} onChange={onChange} />
     </section>
   );
 }

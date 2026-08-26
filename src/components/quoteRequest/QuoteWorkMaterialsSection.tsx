@@ -1,6 +1,6 @@
 import { createEmptyWorkItem } from '../../lib/quoteRequest/defaults';
-import type { QuoteRequestData } from '../../lib/quoteRequest/types';
-import QuoteInstallationLaborSection from './QuoteInstallationLaborSection';
+import type { QuoteRequestData, QuoteWorkItem } from '../../lib/quoteRequest/types';
+import QuoteWorkLaborFields, { syncInstallationLaborHours } from './QuoteWorkLaborFields';
 
 type Props = {
   form: QuoteRequestData;
@@ -8,6 +8,14 @@ type Props = {
   onChange: (patch: Partial<QuoteRequestData>) => void;
   variant?: 'all' | 'work' | 'materials';
 };
+
+function updateWorkItem(
+  workItems: QuoteWorkItem[],
+  workId: string,
+  patch: Partial<QuoteWorkItem>,
+): QuoteWorkItem[] {
+  return workItems.map((row) => (row.id === workId ? { ...row, ...patch } : row));
+}
 
 export default function QuoteWorkMaterialsSection({
   form,
@@ -19,6 +27,17 @@ export default function QuoteWorkMaterialsSection({
 
   if (!showWork) return null;
 
+  function patchWorkItems(workItems: QuoteWorkItem[]) {
+    onChange({
+      workItems,
+      installationLaborHours: syncInstallationLaborHours(workItems),
+    });
+  }
+
+  function patchWorkItem(workId: string, patch: Partial<QuoteWorkItem>) {
+    patchWorkItems(updateWorkItem(form.workItems, workId, patch));
+  }
+
   return (
     <>
       <div className="section-header-row">
@@ -27,7 +46,7 @@ export default function QuoteWorkMaterialsSection({
           <button
             type="button"
             className="btn btn-secondary"
-            onClick={() => onChange({ workItems: [...form.workItems, createEmptyWorkItem()] })}
+            onClick={() => patchWorkItems([...form.workItems, createEmptyWorkItem()])}
           >
             + Lisää työ
           </button>
@@ -36,73 +55,36 @@ export default function QuoteWorkMaterialsSection({
       {form.workItems.map((item, index) => (
         <div key={item.id} className="quote-line-row panel-inset">
           <div className="quote-line-head">
-            <strong>Työ {index + 1}</strong>
+            <strong>{item.description.trim() || `Työ ${index + 1}`}</strong>
             {canEdit && form.workItems.length > 1 && (
               <button
                 type="button"
                 className="link-btn"
-                onClick={() =>
-                  onChange({ workItems: form.workItems.filter((row) => row.id !== item.id) })
-                }
+                onClick={() => patchWorkItems(form.workItems.filter((row) => row.id !== item.id))}
               >
                 Poista
               </button>
             )}
           </div>
           <label>
-            Kuvaus
+            Otsikko
             <input
               value={item.description}
-              onChange={(e) =>
-                onChange({
-                  workItems: form.workItems.map((row) =>
-                    row.id === item.id ? { ...row, description: e.target.value } : row,
-                  ),
-                })
-              }
+              onChange={(e) => patchWorkItem(item.id, { description: e.target.value })}
               disabled={!canEdit}
+              placeholder="Esim. asennustyö"
             />
           </label>
-          <div className="line-form-grid">
-            <label>
-              Tunnit
-              <input
-                type="number"
-                step="0.25"
-                min="0"
-                value={item.hours}
-                onChange={(e) =>
-                  onChange({
-                    workItems: form.workItems.map((row) =>
-                      row.id === item.id ? { ...row, hours: Number(e.target.value) } : row,
-                    ),
-                  })
-                }
-                disabled={!canEdit}
-              />
-            </label>
-            <label>
-              Tuntihinta (€)
-              <input
-                type="number"
-                step="0.01"
-                min="0"
-                value={item.pricePerHour}
-                onChange={(e) =>
-                  onChange({
-                    workItems: form.workItems.map((row) =>
-                      row.id === item.id ? { ...row, pricePerHour: Number(e.target.value) } : row,
-                    ),
-                  })
-                }
-                disabled={!canEdit}
-              />
-            </label>
-          </div>
+          <QuoteWorkLaborFields
+            form={form}
+            workItem={item}
+            canEdit={canEdit}
+            showVehicleFields={index === form.workItems.length - 1}
+            onChange={onChange}
+            onWorkChange={(patch) => patchWorkItem(item.id, patch)}
+          />
         </div>
       ))}
-
-      <QuoteInstallationLaborSection form={form} canEdit={canEdit} onChange={onChange} />
     </>
   );
 }

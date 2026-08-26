@@ -24,10 +24,9 @@ function workItemsSubtitle(form: QuoteRequestData): string {
   if (count > 0) {
     parts.push(`${count} työ${count > 1 ? 'tä' : ''} · ${hours} h`);
   }
-  const laborHours = Number(form.installationLaborHours) || 0;
   const laborRate = Number(form.installationLaborPurchaseRate) || 0;
-  if (laborHours > 0 && laborRate > 0) {
-    parts.push(`${laborHours} h × ${formatEuro(laborRate)}/h`);
+  if (hours > 0 && laborRate > 0) {
+    parts.push(`${formatEuro(laborRate)}/h hankinta`);
   }
   return parts.length > 0 ? parts.join(' · ') : 'Ei työrivejä';
 }

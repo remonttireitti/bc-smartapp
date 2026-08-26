@@ -170,20 +170,15 @@ function formatEuro(value: number): string {
 export function installationSuppliesSubtitle(form: QuoteRequestData): string {
   const items = (form.installationSupplies ?? []).filter((row) => row.name.trim());
   const sellNet = installationSuppliesSellNet(items);
-  const hours = Number(form.installationLaborHours) || 0;
   const parts: string[] = [];
 
   if (items.length > 0) {
     parts.push(`${items.length} tuotetta`);
   }
-  if (hours > 0) {
-    const rate = Number(form.installationLaborPurchaseRate) || 0;
-    parts.push(rate > 0 ? `${hours} h × ${formatEuro(rate)}/h` : `${hours} h työtä`);
-  }
   if (sellNet > 0) {
     parts.push(formatEuro(sellNet));
   } else if (parts.length === 0) {
-    return 'Laskuri sisäiseen hinnoitteluun';
+    return 'Ei tarvikkeita';
   } else if (items.length > 0) {
     parts.push('täytä hinnat');
   }
