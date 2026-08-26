@@ -29,6 +29,7 @@ import {
 } from '../lib/subscribers';
 import { partnershipModuleAccess, partnershipPermsActingOnOwner, parseCompanySettings } from '../lib/management';
 import { computeKotitalousDeduction, computePumpSizingNeedKw, computeQuoteTotals, resolveIilpLaborPricingMode } from '../lib/quoteRequest/calculations';
+import { quoteInstallationDefaultsFromCompanySettings } from '../lib/quoteRequest/installationSupplies';
 import {
   applyMainDeviceSelection,
   calculateDeviceSellNet,
@@ -123,6 +124,7 @@ export default function QuoteRequestEditPage({ session }: Props) {
   const [storedDbTitle, setStoredDbTitle] = useState<string | null>(null);
   const [registryMessage, setRegistryMessage] = useState<string | null>(null);
   const titleMigratedRef = useRef(false);
+  const installationDefaultsAppliedRef = useRef(false);
   const siteDefaultsPanelRef = useRef<HTMLElement | null>(null);
   const [siteDefaultsHighlight, setSiteDefaultsHighlight] = useState(false);
   const [companySettings, setCompanySettings] = useState<ReturnType<typeof parseCompanySettings> | null>(null);
@@ -136,6 +138,16 @@ export default function QuoteRequestEditPage({ session }: Props) {
   useEffect(() => {
     setActiveDeviceRegistry(snapshotFromCompanySettings(companySettings));
   }, [companySettings]);
+
+  useEffect(() => {
+    if (!companySettings || !isNew || installationDefaultsAppliedRef.current) return;
+    installationDefaultsAppliedRef.current = true;
+    const defaults = quoteInstallationDefaultsFromCompanySettings(companySettings);
+    setForm((prev) => ({
+      ...prev,
+      ...defaults,
+    }));
+  }, [companySettings, isNew]);
 
   const selectedCustomer = customers.find((c) => c.id === customerId);
   const reportContext = useMemo(() => {

@@ -246,6 +246,76 @@ export default function CompanySettingsPage() {
       <DeviceRegistrySettingsFields settings={settings} onChange={setSettings} />
 
       <section className="form-section">
+        <h2>Tarjouspyynnöt</h2>
+        <p className="muted">
+          Oletusarvot asennustarvikke-laskurin sisäiseen hinnoitteluun (Työt → Asennus tarvikkeet). Voit
+          muuttaa arvoja myös tarjouskohtaisesti.
+        </p>
+        <div className="line-form-grid">
+          <label>
+            Työn hankintahinta (€/h, alv 0)
+            <input
+              type="number"
+              step="0.01"
+              min="0"
+              value={settings.quotes?.installation_labor_purchase_rate ?? ''}
+              onChange={(e) => {
+                const raw = e.target.value.trim();
+                setSettings((current) => ({
+                  ...current,
+                  quotes: {
+                    ...current.quotes,
+                    installation_labor_purchase_rate: raw ? Number(raw) : undefined,
+                  },
+                }));
+              }}
+              placeholder="50"
+            />
+          </label>
+          <label>
+            Huoltoautokorvaus (€, alv 0)
+            <input
+              type="number"
+              step="0.01"
+              min="0"
+              value={settings.quotes?.installation_vehicle_allowance ?? ''}
+              onChange={(e) => {
+                const raw = e.target.value.trim();
+                setSettings((current) => ({
+                  ...current,
+                  quotes: {
+                    ...current.quotes,
+                    installation_vehicle_allowance: raw ? Number(raw) : undefined,
+                  },
+                }));
+              }}
+              placeholder="50"
+            />
+          </label>
+          <label>
+            Tunnit per korvausjakso
+            <input
+              type="number"
+              step="1"
+              min="1"
+              value={settings.quotes?.installation_vehicle_hours_per_block ?? ''}
+              onChange={(e) => {
+                const raw = e.target.value.trim();
+                setSettings((current) => ({
+                  ...current,
+                  quotes: {
+                    ...current.quotes,
+                    installation_vehicle_hours_per_block: raw ? Number(raw) : undefined,
+                  },
+                }));
+              }}
+              placeholder="8"
+            />
+          </label>
+        </div>
+      </section>
+
+      <section className="form-section">
         <h2>Ajomatkat</h2>
         <p className="muted">
           Km-hintoja käytetään työkirjauksen automaattiseen km-korvausriviin. Oma hinta on kustannus tai

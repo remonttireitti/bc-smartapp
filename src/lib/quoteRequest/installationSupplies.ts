@@ -1,7 +1,31 @@
 import type { QuoteMaterial, QuoteRequestData } from './types';
 import { materialPurchaseTotal, materialSellTotal } from './calculations';
+import type { CompanySettings } from '../management';
 
 export const INSTALLATION_SUPPLIES_PRINT_LABEL = 'Asennus tarvikkeet';
+
+export const DEFAULT_INSTALLATION_LABOR_PURCHASE_RATE = 50;
+export const DEFAULT_INSTALLATION_VEHICLE_ALLOWANCE = 50;
+export const DEFAULT_INSTALLATION_VEHICLE_HOURS_PER_BLOCK = 8;
+
+export function quoteInstallationDefaultsFromCompanySettings(
+  settings: CompanySettings | null | undefined,
+): Pick<
+  QuoteRequestData,
+  | 'installationLaborPurchaseRate'
+  | 'installationVehicleAllowance'
+  | 'installationVehicleHoursPerBlock'
+> {
+  return {
+    installationLaborPurchaseRate:
+      settings?.quotes?.installation_labor_purchase_rate ?? DEFAULT_INSTALLATION_LABOR_PURCHASE_RATE,
+    installationVehicleAllowance:
+      settings?.quotes?.installation_vehicle_allowance ?? DEFAULT_INSTALLATION_VEHICLE_ALLOWANCE,
+    installationVehicleHoursPerBlock:
+      settings?.quotes?.installation_vehicle_hours_per_block
+      ?? DEFAULT_INSTALLATION_VEHICLE_HOURS_PER_BLOCK,
+  };
+}
 
 function roundMoney(value: number): number {
   return Math.round(value * 100) / 100;
@@ -153,7 +177,8 @@ export function installationSuppliesSubtitle(form: QuoteRequestData): string {
     parts.push(`${items.length} tuotetta`);
   }
   if (hours > 0) {
-    parts.push(`${hours} h työtä`);
+    const rate = Number(form.installationLaborPurchaseRate) || 0;
+    parts.push(rate > 0 ? `${hours} h × ${formatEuro(rate)}/h` : `${hours} h työtä`);
   }
   if (sellNet > 0) {
     parts.push(formatEuro(sellNet));

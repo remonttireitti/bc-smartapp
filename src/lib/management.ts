@@ -95,6 +95,15 @@ export type CompanySettings = {
   trip_km_rate?: number;
   /** Asiakkaalle laskutettava km-hinta (€/km). */
   trip_km_customer_rate?: number;
+  /** Tarjouspyyntöjen oletusarvot. */
+  quotes?: {
+    /** Asentajan työn hankintahinta €/h (alv 0) asennustarvikke-laskurissa. */
+    installation_labor_purchase_rate?: number;
+    /** Huoltoautokorvaus € per jakso (alv 0). */
+    installation_vehicle_allowance?: number;
+    /** Tuntimäärä per huoltoautokorvausjakso. */
+    installation_vehicle_hours_per_block?: number;
+  };
   billing?: {
     business_id?: string;
     vat_id?: string;
@@ -337,6 +346,19 @@ export function parseCompanySettings(raw: unknown): CompanySettings {
     ...s,
     trip_km_rate: parseOptionalPositiveNumber(s.trip_km_rate),
     trip_km_customer_rate: parseOptionalPositiveNumber(s.trip_km_customer_rate),
+    quotes: s.quotes
+      ? {
+          installation_labor_purchase_rate: parseOptionalPositiveNumber(
+            s.quotes.installation_labor_purchase_rate,
+          ),
+          installation_vehicle_allowance: parseOptionalPositiveNumber(
+            s.quotes.installation_vehicle_allowance,
+          ),
+          installation_vehicle_hours_per_block: parseOptionalPositiveNumber(
+            s.quotes.installation_vehicle_hours_per_block,
+          ),
+        }
+      : undefined,
     partnerships_enabled: s.partnerships_enabled === true,
     billing: {
       ...base.billing,
