@@ -1,6 +1,9 @@
 import type { BrandDeliveryFeeByCategoryMap } from '../../data/devicePricingShared';
 import type { QuoteMaterial, QuoteRegion, QuoteRequestData, QuoteWorkItem } from './types';
-import { installationSuppliesPurchaseNet, installationSuppliesSellNet } from './installationSupplies';
+import {
+  installationSuppliesSellNet,
+  installationSuppliesTotalPurchaseNet,
+} from './installationSupplies';
 import {
   isPumpQuoteType,
   isRepairQuoteType,
@@ -327,7 +330,7 @@ export function computeQuoteInternalTotals(
     materialsPurchaseNet = materialPurchaseTotal(data.materials);
     materialsSellNet = materialSellTotal(data.materials);
   }
-  materialsPurchaseNet += installationSuppliesPurchaseNet(data.installationSupplies);
+  materialsPurchaseNet += installationSuppliesTotalPurchaseNet(data);
   materialsSellNet += installationSuppliesSellNet(data.installationSupplies);
 
   let devicePurchaseNet = 0;

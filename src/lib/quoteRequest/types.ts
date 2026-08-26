@@ -93,6 +93,14 @@ export type QuoteRequestData = {
   materials: QuoteMaterial[];
   /** Sisäinen asennustarvikke-laskuri; tulostuu asiakkaalle yhtenä rivinä. */
   installationSupplies: QuoteMaterial[];
+  /** Asennustarvikke-laskurin työtunnit (sisäinen hankintalaskenta). */
+  installationLaborHours: number;
+  /** Asentajan työn hankintahinta €/h (alv 0). */
+  installationLaborPurchaseRate: number;
+  /** Huoltoautokorvaus € per jakso (alv 0). */
+  installationVehicleAllowance: number;
+  /** Tuntimäärä per huoltoautokorvausjakso. */
+  installationVehicleHoursPerBlock: number;
   laborHours: number;
   laborRate: number;
   travelCost: number;
