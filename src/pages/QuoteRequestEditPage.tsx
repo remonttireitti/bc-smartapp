@@ -1040,6 +1040,7 @@ export default function QuoteRequestEditPage({ session }: Props) {
             equipment={equipment}
             customerSelected={Boolean(customerId)}
             deliveryFeeMap={deliveryFeeMap}
+            companyName={reportOwnerName}
           />
         )}
 

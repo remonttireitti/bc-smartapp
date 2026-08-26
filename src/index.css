@@ -8137,9 +8137,14 @@ button.tile.quote-document-tile span {
   background: transparent;
 }
 
-.quote-module-dialog-body .form-section h2,
-.quote-module-dialog-body .form-section h3 {
-  margin-top: 0;
+.quote-installation-supplies-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: .5rem;
+}
+
+.quote-installation-supplies .quote-summary-box {
+  margin-top: .75rem;
 }
 
 .quote-form .section-header-row {

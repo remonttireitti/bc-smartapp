@@ -24,6 +24,10 @@ import {
   computeQuoteTotals,
   resolveIilpLaborPricingMode,
 } from './calculations';
+import {
+  INSTALLATION_SUPPLIES_PRINT_LABEL,
+  installationSuppliesSellNet,
+} from './installationSupplies';
 import { manualDevicePrintLabel, resolveNonPumpDeviceSellNet } from './manualDevicePricing';
 import type { QuoteLine, QuoteMaterial } from './types';
 import { quoteLineTotal } from './defaults';
@@ -490,6 +494,17 @@ function buildSituationReportHtml(data: QuoteRequestData): string {
   </div>`;
 }
 
+function printInstallationSuppliesRows(data: QuoteRequestData, mode: QuotePrintMode): string {
+  const items = (data.installationSupplies ?? []).filter((row) => row.name.trim());
+  const totalSell = installationSuppliesSellNet(items);
+  if (totalSell <= 0.005) return '';
+
+  if (mode === 'creator') {
+    return items.map((row) => printMaterialRow(row, mode)).join('');
+  }
+  return printWorkRow(INSTALLATION_SUPPLIES_PRINT_LABEL, '1 kpl', totalSell, totalSell, mode);
+}
+
 function iilpBaseInstallRows(data: QuoteRequestData, mode: QuotePrintMode = 'enduser'): string {
   const base = computeQuoteTotals(data).iilpBaseInstall;
   if (!base.enabled) return '';
@@ -589,7 +604,7 @@ export function generateQuoteOfferPrintHtml(input: {
         })
       : '';
 
-  const lineRows = `${workRows}${materialRows}${legacyLineRows}`;
+  const lineRows = `${workRows}${materialRows}${legacyLineRows}${printInstallationSuppliesRows(data, mode)}`;
   const tableBody = `${lineRows}${iilpBaseInstallRows(data, mode)}${deviceRows}`;
 
   const kotitalous =
@@ -818,6 +833,8 @@ function buildServiceTaskPrintRows(data: QuoteRequestData, mode: QuotePrintMode)
       sections.push(printMaterialRow(item, mode));
     }
   }
+
+  sections.push(printInstallationSuppliesRows(data, mode));
 
   const deviceSell = resolveNonPumpDeviceSellNet(data);
   if (deviceSell > 0.005) {

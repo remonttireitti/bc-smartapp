@@ -27,6 +27,10 @@ import {
 } from './termatekAssets';
 import type { QuoteRequestData } from './types';
 import { vilpIndoorConfigLabel } from './vilpCompatibility';
+import {
+  INSTALLATION_SUPPLIES_PRINT_LABEL,
+  installationSuppliesSellNet,
+} from './installationSupplies';
 
 function esc(v: unknown): string {
   return String(v ?? '')
@@ -545,6 +549,13 @@ function buildTermatekPricingLines(input: {
   } else if (totals.iilpBaseInstall.materialsGross > 0) {
     listedMaterialsGross = totals.iilpBaseInstall.materialsGross;
     lines.push({ label: 'Asennustarvikkeet', gross: totals.iilpBaseInstall.materialsGross });
+  }
+
+  const installSuppliesNet = installationSuppliesSellNet(data.installationSupplies);
+  if (installSuppliesNet > 0.005) {
+    const gross = installSuppliesNet * vatMult;
+    listedMaterialsGross += gross;
+    lines.push({ label: INSTALLATION_SUPPLIES_PRINT_LABEL, gross });
   }
 
   const targetMaterialsGross = totals.materialsNet * vatMult;

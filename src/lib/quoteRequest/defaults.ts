@@ -71,7 +71,7 @@ export function defaultWorkItemsForType(type: QuoteType): QuoteWorkItem[] {
   return [createEmptyWorkItem({ pricePerHour: rate })];
 }
 
-function normalizeWorkItemMaterials(raw: unknown): QuoteMaterial[] {
+function normalizeMaterialList(raw: unknown): QuoteMaterial[] {
   if (!Array.isArray(raw)) return [];
   return raw.map((entry, index) => {
     const row = entry as Record<string, unknown>;
@@ -84,6 +84,10 @@ function normalizeWorkItemMaterials(raw: unknown): QuoteMaterial[] {
       sellPrice: Number(row.sellPrice) || 0,
     });
   });
+}
+
+function normalizeWorkItemMaterials(raw: unknown): QuoteMaterial[] {
+  return normalizeMaterialList(raw);
 }
 
 export function createEmptyMaterial(partial?: Partial<QuoteMaterial>): QuoteMaterial {
@@ -163,6 +167,7 @@ export function createEmptyQuoteRequestData(type: QuoteType = 'vesi-ilma'): Quot
     situationReportText: '',
     workItems: defaultWorkItemsForType(type),
     materials: [],
+    installationSupplies: [],
     laborHours: template.laborHours ?? 0,
     laborRate: template.laborRate ?? 65,
     travelCost: 0,
@@ -356,17 +361,8 @@ export function normalizeQuoteRequestData(raw: unknown): QuoteRequestData {
     workItems = defaultWorkItemsForType(type);
   }
 
-  let materials: QuoteMaterial[] = materialsRaw.map((entry, index) => {
-    const row = entry as Record<string, unknown>;
-    return createEmptyMaterial({
-      id: typeof row.id === 'string' ? row.id : `mat-${index}`,
-      name: typeof row.name === 'string' ? row.name : '',
-      quantity: Number(row.quantity) || 0,
-      purchasePrice: Number(row.purchasePrice) || 0,
-      marginPercent: Number(row.marginPercent) || 0,
-      sellPrice: Number(row.sellPrice) || 0,
-    });
-  });
+  let materials: QuoteMaterial[] = normalizeMaterialList(materialsRaw);
+  const installationSupplies = normalizeMaterialList(record.installationSupplies);
 
   if (isRepairQuoteType(type)) {
     const nestedMaterialCount = workItems.reduce((sum, item) => sum + item.materials.length, 0);
@@ -435,6 +431,7 @@ export function normalizeQuoteRequestData(raw: unknown): QuoteRequestData {
       typeof record.situationReportText === 'string' ? record.situationReportText : '',
     workItems,
     materials,
+    installationSupplies,
     laborHours: Number(record.laborHours) || 0,
     laborRate: Number(record.laborRate) || 65,
     travelCost: 0,

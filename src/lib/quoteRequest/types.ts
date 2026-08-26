@@ -91,6 +91,8 @@ export type QuoteRequestData = {
   situationReportText: string;
   workItems: QuoteWorkItem[];
   materials: QuoteMaterial[];
+  /** Sisäinen asennustarvikke-laskuri; tulostuu asiakkaalle yhtenä rivinä. */
+  installationSupplies: QuoteMaterial[];
   laborHours: number;
   laborRate: number;
   travelCost: number;

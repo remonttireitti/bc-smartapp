@@ -1,9 +1,15 @@
 import { resolveIilpLaborPricingMode } from './calculations';
+import { installationSuppliesSubtitle } from './installationSupplies';
 import { isRepairQuoteType } from './constants';
 import type { QuoteDocumentTileEntry } from './quoteDocumentThemes';
 import type { QuoteRequestData } from './types';
 
-export type QuoteTyotTileId = 'huolto-tyot' | 'iilp-laitteet' | 'tyorivit' | 'tarvikkeet';
+export type QuoteTyotTileId =
+  | 'huolto-tyot'
+  | 'iilp-laitteet'
+  | 'asennus-tarvikkeet'
+  | 'tyorivit'
+  | 'tarvikkeet';
 
 export type QuoteTyotTileEntry = QuoteDocumentTileEntry<QuoteTyotTileId>;
 
@@ -60,6 +66,13 @@ export function buildQuoteTyotTiles(form: QuoteRequestData): QuoteTyotTileEntry[
       themeKey: 'work',
     });
   }
+
+  entries.push({
+    id: 'asennus-tarvikkeet',
+    title: 'Asennus tarvikkeet',
+    subtitle: installationSuppliesSubtitle(form),
+    themeKey: 'work',
+  });
 
   return entries;
 }

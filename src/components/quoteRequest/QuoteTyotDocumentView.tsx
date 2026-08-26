@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import QuoteDocumentSectionView from './QuoteDocumentSectionView';
+import QuoteInstallationSuppliesSection from './QuoteInstallationSuppliesSection';
 import QuoteIilpDevicesSection from './QuoteIilpDevicesSection';
 import QuoteRepairWorkItemsSection from './QuoteRepairWorkItemsSection';
 import QuoteWorkMaterialsSection from './QuoteWorkMaterialsSection';
@@ -15,6 +16,7 @@ type Props = {
   equipment: Equipment[];
   customerSelected: boolean;
   deliveryFeeMap: BrandDeliveryFeeByCategoryMap | null;
+  companyName?: string;
 };
 
 export default function QuoteTyotDocumentView({
@@ -24,6 +26,7 @@ export default function QuoteTyotDocumentView({
   equipment,
   customerSelected,
   deliveryFeeMap,
+  companyName,
 }: Props) {
   const tiles = buildQuoteTyotTiles(form);
 
@@ -54,6 +57,15 @@ export default function QuoteTyotDocumentView({
       case 'tarvikkeet':
         return (
           <QuoteWorkMaterialsSection form={form} canEdit={canEdit} onChange={onChange} variant="materials" />
+        );
+      case 'asennus-tarvikkeet':
+        return (
+          <QuoteInstallationSuppliesSection
+            form={form}
+            canEdit={canEdit}
+            onChange={onChange}
+            companyName={companyName}
+          />
         );
       default:
         return null;
