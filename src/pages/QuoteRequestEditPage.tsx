@@ -10,14 +10,9 @@ import NavigationBreadcrumb from '../components/NavigationBreadcrumb';
 import ToggleSwitch from '../components/ToggleSwitch';
 import QuoteIilpDevicesSection from '../components/quoteRequest/QuoteIilpDevicesSection';
 import QuoteIilpSiteSection from '../components/quoteRequest/QuoteIilpSiteSection';
-import QuoteIilpOptionsSection from '../components/quoteRequest/QuoteIilpOptionsSection';
-import QuoteTermsPrintSection from '../components/quoteRequest/QuoteTermsPrintSection';
-import QuoteOptionalItemsSection from '../components/quoteRequest/QuoteOptionalItemsSection';
-import QuotePumpDevicesSection from '../components/quoteRequest/QuotePumpDevicesSection';
-import QuoteVilpConfigSection from '../components/quoteRequest/QuoteVilpConfigSection';
+import QuoteHinnoitteluDocumentView, { QuotePricingSummaryBox } from '../components/quoteRequest/QuoteHinnoitteluDocumentView';
 import QuoteVilpSiteSection from '../components/quoteRequest/QuoteVilpSiteSection';
 import QuoteRepairWorkItemsSection from '../components/quoteRequest/QuoteRepairWorkItemsSection';
-import { QuoteManualDevicePricingSection } from '../components/quoteRequest/QuoteManualDevicePricingSection';
 import { supabase } from '../lib/supabase';
 import { createRegistryCustomer } from '../lib/createRegistryCustomer';
 import {
@@ -38,28 +33,23 @@ import {
   resolveSubscriberIdForReport,
 } from '../lib/subscribers';
 import { partnershipModuleAccess, partnershipPermsActingOnOwner, parseCompanySettings } from '../lib/management';
-import { computeKotitalousDeduction, computePumpSizingNeedKw, computeQuoteTotals, computeTravelNet, resolveIilpLaborPricingMode, travelCostLabel } from '../lib/quoteRequest/calculations';
+import { computeKotitalousDeduction, computePumpSizingNeedKw, computeQuoteTotals, resolveIilpLaborPricingMode } from '../lib/quoteRequest/calculations';
 import {
   applyMainDeviceSelection,
   calculateDeviceSellNet,
   deliveryFeesFromCompanySettings,
   findDeviceById,
-  formatDeviceLabel,
   resolveQuoteMainDeviceForTotals,
 } from '../lib/quoteRequest/deviceCatalog';
 import { setActiveDeviceRegistry, snapshotFromCompanySettings } from '../lib/quoteRequest/deviceRegistryState';
 import {
   BUILDING_TYPE_OPTIONS,
   QUOTE_REGION_LABELS,
-  DEFAULT_TRAVEL_KM_RATE,
   QUOTE_SECTION_LABELS,
   QUOTE_TYPE_LABELS,
   QUOTE_TYPE_ORDER,
   isPumpQuoteType,
   isRepairQuoteType,
-  quoteShowsKotitalousDeduction,
-  quoteUsesTravelCost,
-  quoteVatPrintNotice,
   vatRateForQuoteProfile,
 } from '../lib/quoteRequest/constants';
 import QuoteSiteDefaultsReviewPanel from '../components/quoteRequest/QuoteSiteDefaultsReviewPanel';
@@ -1480,317 +1470,23 @@ export default function QuoteRequestEditPage({ session }: Props) {
         )}
 
         {activeSection === 'hinnoittelu' && (
-          <>
-            {form.type === 'vesi-ilma' && (
-              <QuoteVilpConfigSection form={form} canEdit={canEdit} onChange={patchForm} />
-            )}
-            {form.type === 'vesi-ilma' && (
-              <QuotePumpDevicesSection
+          <QuoteHinnoitteluDocumentView
+            form={form}
+            canEdit={canEdit}
+            onChange={patchForm}
+            pumpSizingNeedKw={pumpSizingNeedKw}
+            deliveryFeeMap={deliveryFeeMap}
+            onVatProfileChange={changeVatProfile}
+            summary={
+              <QuotePricingSummaryBox
                 form={form}
-                canEdit={canEdit}
-                heatingNeedKw={pumpSizingNeedKw}
-                feeMap={deliveryFeeMap}
-                onChange={patchForm}
+                totals={totals}
+                displayDeviceNet={displayDeviceNet}
+                mainDevice={mainDevice}
+                kotitalous={kotitalous}
               />
-            )}
-            {form.type === 'ilma-ilma' && (
-              <QuoteIilpOptionsSection form={form} canEdit={canEdit} onChange={patchForm} />
-            )}
-            {form.type === 'ilma-ilma' && (
-              <QuotePumpDevicesSection
-                form={form}
-                canEdit={canEdit}
-                heatingNeedKw={pumpSizingNeedKw}
-                feeMap={deliveryFeeMap}
-                onChange={patchForm}
-                variant="pricing"
-              />
-            )}
-            {form.type === 'ilma-ilma' && (
-              <QuoteOptionalItemsSection form={form} canEdit={canEdit} onChange={patchForm} />
-            )}
-            <section className="form-section">
-            <h2>Hinnoittelu ja ehdot</h2>
-            <div className="line-form-grid">
-              <label>
-                Voimassa asti
-                <input
-                  type="date"
-                  value={form.validUntil}
-                  onChange={(e) => patchForm({ validUntil: e.target.value })}
-                  disabled={!canEdit}
-                />
-              </label>
-              {quoteUsesTravelCost(form.type) && (
-                <div className="quote-travel-km panel-inset">
-                  <ToggleSwitch
-                    checked={form.travelKmEnabled}
-                    disabled={!canEdit}
-                    label="Laskuta km-korvaus"
-                    onChange={(checked) =>
-                      patchForm({
-                        travelKmEnabled: checked,
-                        travelKmDistance: checked ? form.travelKmDistance || 0 : 0,
-                        travelCost: 0,
-                      })
-                    }
-                  />
-                  {form.travelKmEnabled && (
-                    <>
-                      <div className="quote-field-grid quote-field-grid-2">
-                        <label>
-                          Kilometrit
-                          <input
-                            type="number"
-                            min="0"
-                            step="1"
-                            value={form.travelKmDistance}
-                            onChange={(e) =>
-                              patchForm({ travelKmDistance: Number(e.target.value) })
-                            }
-                            disabled={!canEdit}
-                          />
-                        </label>
-                        <label>
-                          Korvaus (€/km, alv 0)
-                          <input
-                            type="number"
-                            min="0"
-                            step="0.01"
-                            value={form.travelKmRate}
-                            onChange={(e) => patchForm({ travelKmRate: Number(e.target.value) })}
-                            disabled={!canEdit}
-                          />
-                        </label>
-                      </div>
-                      <p className="muted">
-                        Km-korvaus yhteensä:{' '}
-                        <strong>
-                          {computeTravelNet(form).toLocaleString('fi-FI', {
-                            style: 'currency',
-                            currency: 'EUR',
-                          })}
-                        </strong>{' '}
-                        ({form.travelKmDistance || 0} km × {form.travelKmRate || DEFAULT_TRAVEL_KM_RATE}{' '}
-                        €/km)
-                      </p>
-                    </>
-                  )}
-                  {!form.travelKmEnabled && (
-                    <p className="muted">Oletuksena ei laskuteta. Lisää km-korvaus tarvittaessa.</p>
-                  )}
-                </div>
-              )}
-              {!isPumpQuoteType(form.type) && (
-                <QuoteManualDevicePricingSection form={form} canEdit={canEdit} onChange={patchForm} />
-              )}
-              <div className="quote-vat-profile-field">
-                <span className="field-label">ALV / asiakastyyppi</span>
-                <div className="quote-labor-mode-grid">
-                  <button
-                    type="button"
-                    className={
-                      (form.quoteVatProfile ?? 'business') === 'business'
-                        ? 'quote-labor-mode-btn active'
-                        : 'quote-labor-mode-btn'
-                    }
-                    disabled={!canEdit}
-                    onClick={() => changeVatProfile('business')}
-                  >
-                    <span className="quote-labor-mode-title">Yritysasiakas</span>
-                    <span className="quote-labor-mode-desc">ALV 0 % — hinnat ilman arvonlisäveroa</span>
-                  </button>
-                  <button
-                    type="button"
-                    className={
-                      (form.quoteVatProfile ?? 'business') === 'consumer'
-                        ? 'quote-labor-mode-btn active'
-                        : 'quote-labor-mode-btn'
-                    }
-                    disabled={!canEdit}
-                    onClick={() => changeVatProfile('consumer')}
-                  >
-                    <span className="quote-labor-mode-title">Yksityishenkilö</span>
-                    <span className="quote-labor-mode-desc">
-                      ALV {form.vatRate} % — hinnat sisältävät arvonlisäveron
-                    </span>
-                  </button>
-                </div>
-              </div>
-              <label>
-                Alennus (%)
-                <input
-                  type="number"
-                  min="0"
-                  max="100"
-                  step="0.1"
-                  value={form.overallDiscountPercent}
-                  onChange={(e) => patchForm({ overallDiscountPercent: Number(e.target.value) })}
-                  disabled={!canEdit}
-                />
-              </label>
-            </div>
-            <label>
-              Esittelyteksti
-              <textarea
-                rows={2}
-                value={form.introText}
-                onChange={(e) => patchForm({ introText: e.target.value })}
-                disabled={!canEdit}
-              />
-            </label>
-            <label>
-              Maksuehdot
-              <input
-                value={form.paymentTermsText}
-                onChange={(e) => patchForm({ paymentTermsText: e.target.value })}
-                disabled={!canEdit}
-                placeholder={form.type === 'ilma-ilma' ? 'Esim. 30 % ennakkomaksu tilauksesta, loppu käyttöönoton jälkeen' : undefined}
-              />
-            </label>
-            {form.type === 'ilma-ilma' && (
-              <>
-                <label>
-                  Lisätyöt (€/h, alv 0)
-                  <input
-                    type="number"
-                    min="0"
-                    step="1"
-                    value={form.laborRate}
-                    onChange={(e) => patchForm({ laborRate: Number(e.target.value) || 0 })}
-                    disabled={!canEdit}
-                  />
-                </label>
-                <label>
-                  {form.iilpPurpose === 'cooling' || form.buildingType === 'kerrostalo'
-                    ? 'Jäähdytyskulutus (tuloste)'
-                    : 'Säästölaskelma (tuloste)'}
-                  <textarea
-                    rows={2}
-                    value={form.iilpEnergySavingsText}
-                    onChange={(e) => patchForm({ iilpEnergySavingsText: e.target.value })}
-                    disabled={!canEdit}
-                    placeholder={
-                      form.iilpPurpose === 'cooling' || form.buildingType === 'kerrostalo'
-                        ? 'Tyhjä = arvio kWh/€ per päivä jäähdytyksessä. Voit kirjoittaa kohdekohtaisen arvion.'
-                        : 'Tyhjä = oletusteksti (500–1 000 €/vuosi). Voit kirjoittaa kohdekohtaisen arvion.'
-                    }
-                  />
-                </label>
-              </>
-            )}
-            <label>
-              Toimitusehdot
-              <textarea
-                rows={2}
-                value={form.deliveryTermsText}
-                onChange={(e) => patchForm({ deliveryTermsText: e.target.value })}
-                disabled={!canEdit}
-              />
-            </label>
-            {isPumpQuoteType(form.type) && (
-              <QuoteTermsPrintSection form={form} canEdit={canEdit} onChange={patchForm} />
-            )}
-            {isPumpQuoteType(form.type) && (
-              <label>
-                Tarjousehdot (teksti)
-                <textarea
-                  rows={14}
-                  value={form.quoteTermsText}
-                  onChange={(e) => patchForm({ quoteTermsText: e.target.value })}
-                  disabled={!canEdit}
-                />
-              </label>
-            )}
-            <label>
-              Huomautukset
-              <textarea
-                rows={3}
-                value={form.notes}
-                onChange={(e) => patchForm({ notes: e.target.value })}
-                disabled={!canEdit}
-              />
-            </label>
-            <div className="quote-summary-box">
-              <p className="quote-vat-notice">{quoteVatPrintNotice(form.vatRate)}</p>
-              <div>
-                {form.type === 'ilma-ilma' && resolveIilpLaborPricingMode(form) === 'urakka'
-                  ? 'Asennustyö (urakka)'
-                  : 'Työt'}
-                : {totals.workNet.toLocaleString('fi-FI', { style: 'currency', currency: 'EUR' })}
-              </div>
-              <div>
-                Tarvikkeet: {totals.materialsNet.toLocaleString('fi-FI', { style: 'currency', currency: 'EUR' })}
-              </div>
-              {quoteUsesTravelCost(form.type) && totals.travelNet > 0 && (
-                <div>
-                  {travelCostLabel(form)}:{' '}
-                  {totals.travelNet.toLocaleString('fi-FI', { style: 'currency', currency: 'EUR' })}
-                </div>
-              )}
-              <div>
-                Laite
-                {mainDevice ? `: ${formatDeviceLabel(mainDevice)}` : ''}:{' '}
-                {displayDeviceNet.toLocaleString('fi-FI', { style: 'currency', currency: 'EUR' })}
-                {form.vatRate > 0 && (
-                  <>
-                    {' '}
-                    (
-                    {(displayDeviceNet * (1 + form.vatRate / 100)).toLocaleString('fi-FI', {
-                      style: 'currency',
-                      currency: 'EUR',
-                    })}{' '}
-                    sis. ALV)
-                  </>
-                )}
-              </div>
-              {isPumpQuoteType(form.type) && !mainDevice && (
-                <p className="error">
-                  Laite puuttuu laskennasta — valitse valmistaja ja laite Työt-välilehdellä.
-                </p>
-              )}
-              <div>
-                Yhteensä (alv 0): {totals.discountedNet.toLocaleString('fi-FI', { style: 'currency', currency: 'EUR' })}
-              </div>
-              {form.vatRate > 0 && (
-                <div>
-                  ALV {form.vatRate}%:{' '}
-                  {totals.vatAmount.toLocaleString('fi-FI', { style: 'currency', currency: 'EUR' })}
-                </div>
-              )}
-              <strong>
-                Tarjous yhteensä
-                {form.vatRate > 0 ? ` (sis. ALV ${form.vatRate}%)` : ' (alv 0 %)'}:{' '}
-                {(form.vatRate > 0 ? totals.grossTotal : totals.discountedNet).toLocaleString('fi-FI', {
-                  style: 'currency',
-                  currency: 'EUR',
-                })}
-              </strong>
-              {(form.optionalItems ?? []).some((item) => item.enabled && item.description.trim()) && (
-                <div className="quote-optional-summary">
-                  <strong>Valinnaiset lisät (ei mukana yhteensä)</strong>
-                  {(form.optionalItems ?? [])
-                    .filter((item) => item.enabled && item.description.trim())
-                    .map((item) => (
-                      <div key={item.id}>
-                        {item.description.trim()} — hinta +{' '}
-                        {item.priceGross.toLocaleString('fi-FI', { style: 'currency', currency: 'EUR' })}
-                      </div>
-                    ))}
-                </div>
-              )}
-              {quoteShowsKotitalousDeduction(form.type) && kotitalous.laborOnlyGross > 0 && (
-                <div>
-                  {kotitalous.label}:{' '}
-                  {kotitalous.onePerson.toLocaleString('fi-FI', { style: 'currency', currency: 'EUR' })}
-                  {kotitalous.withSpouse > kotitalous.onePerson
-                    ? ` (kahdella ${kotitalous.withSpouse.toLocaleString('fi-FI', { style: 'currency', currency: 'EUR' })})`
-                    : ''}
-                </div>
-              )}
-            </div>
-          </section>
-          </>
+            }
+          />
         )}
 
         <div className="form-actions">

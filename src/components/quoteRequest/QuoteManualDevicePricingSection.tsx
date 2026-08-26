@@ -5,20 +5,30 @@ type Props = {
   form: QuoteRequestData;
   canEdit: boolean;
   onChange: (patch: Partial<QuoteRequestData>) => void;
+  hideHeader?: boolean;
 };
 
-export function QuoteManualDevicePricingSection({ form, canEdit, onChange }: Props) {
+export function QuoteManualDevicePricingSection({ form, canEdit, onChange, hideHeader = false }: Props) {
   function patchDevice(patch: Partial<QuoteRequestData>) {
     onChange(syncManualDeviceSalePatch(form, patch));
   }
 
   return (
-    <section className="form-section quote-manual-device-pricing">
-      <h3>Laite / urakka</h3>
-      <p className="muted">
-        Syötä laitteen hankintahinta ja kate — myyntihinta lasketaan kuten tarvikkeilla. Laitteen nimi
-        tulostuu Kohde-välilehden merkki/malli -kentistä.
-      </p>
+    <section className={`quote-manual-device-pricing${hideHeader ? '' : ' form-section'}`}>
+      {!hideHeader ? (
+        <>
+          <h3>Laite / urakka</h3>
+          <p className="muted">
+            Syötä laitteen hankintahinta ja kate — myyntihinta lasketaan kuten tarvikkeilla. Laitteen nimi
+            tulostuu Kohde-välilehden merkki/malli -kentistä.
+          </p>
+        </>
+      ) : (
+        <p className="muted">
+          Syötä laitteen hankintahinta ja kate — myyntihinta lasketaan kuten tarvikkeilla. Laitteen nimi
+          tulostuu Kohde-välilehden merkki/malli -kentistä.
+        </p>
+      )}
       <div className="quote-line-row panel-inset">
         <div className="line-form-grid">
           <label>

@@ -8071,6 +8071,76 @@ button.tile.maintenance-report-document-tile {
   font-size: 1rem;
 }
 
+.quote-hinnoittelu-document-hint {
+  margin: 0;
+}
+
+.quote-document-grid {
+  grid-template-columns: repeat(auto-fill, minmax(12.5rem, 1fr));
+  align-items: stretch;
+  gap: .75rem;
+  margin-bottom: 1rem;
+}
+
+.quote-document-tile-wrap {
+  min-width: 0;
+}
+
+button.tile.quote-document-tile {
+  position: relative;
+  width: 100%;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+}
+
+button.tile.quote-document-tile span {
+  font-size: .78rem;
+  opacity: .92;
+  line-height: 1.35;
+}
+
+.quote-document-section-body--hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.quote-module-dialog {
+  max-width: min(52rem, 96vw);
+  max-height: min(90vh, 900px);
+  display: flex;
+  flex-direction: column;
+}
+
+.quote-module-dialog-body {
+  overflow: auto;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: .85rem;
+}
+
+.quote-module-dialog-body .form-section {
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+}
+
+.quote-module-dialog-body .form-section h2,
+.quote-module-dialog-body .form-section h3 {
+  margin-top: 0;
+}
+
 .quote-form .section-header-row {
   display: flex;
   justify-content: space-between;
