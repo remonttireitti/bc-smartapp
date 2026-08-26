@@ -350,7 +350,9 @@ function printWorkRow(
   unitSell: number,
   lineSell: number,
   mode: QuotePrintMode,
+  options?: { purchase?: number },
 ): string {
+  const purchase = Number(options?.purchase) || 0;
   if (mode === 'enduser') {
     return `<tr>
       <td>${esc(label)}</td>
@@ -360,12 +362,16 @@ function printWorkRow(
       <td class="num">${formatEuro(lineSell)}</td>
     </tr>`;
   }
+  const margin = lineSell - purchase;
+  const marginPct = lineSell > 0 ? Math.round((margin / lineSell) * 1000) / 10 : 0;
   return `<tr>
     <td>${esc(label)}</td>
     <td class="num">${esc(qtyLabel)}</td>
-    <td class="num col-internal">—</td>
+    <td class="num col-internal">${purchase > 0.005 ? formatEuro(purchase) : '—'}</td>
     <td class="num">${formatEuro(lineSell)}</td>
-    <td class="num col-internal">${formatEuro(lineSell)}</td>
+    <td class="num col-internal">${formatEuro(margin)}${
+      purchase > 0.005 ? `<div class="line-sub">${marginPct}%</div>` : ''
+    }</td>
   </tr>`;
 }
 
@@ -571,6 +577,7 @@ export function generateQuoteOfferPrintHtml(input: {
   const totalRowLabel = quoteTotalRowLabel(vatRate);
 
   const isIilpUrakka = data.type === 'ilma-ilma' && resolveIilpLaborPricingMode(data) === 'urakka';
+  const laborPurchaseRate = Number(data.installationLaborPurchaseRate) || 0;
 
   const workRows = isIilpUrakka
     ? ''
@@ -578,7 +585,10 @@ export function generateQuoteOfferPrintHtml(input: {
         .filter((item) => item.description.trim() && Number(item.hours) > 0)
         .map((item) => {
           const sell = item.hours * item.pricePerHour;
-          return printWorkRow(item.description, `${item.hours} h`, item.pricePerHour, sell, mode);
+          const purchase = (Number(item.hours) || 0) * laborPurchaseRate;
+          return printWorkRow(item.description, `${item.hours} h`, item.pricePerHour, sell, mode, {
+            purchase,
+          });
         })
         .join('');
 
@@ -803,6 +813,7 @@ export function generateQuoteHeatCalcPrintHtml(input: {
 function buildServiceTaskPrintRows(data: QuoteRequestData, mode: QuotePrintMode): string {
   const sections: string[] = [];
   let hasTaskContent = false;
+  const laborPurchaseRate = Number(data.installationLaborPurchaseRate) || 0;
 
   for (const item of data.workItems) {
     const desc = item.description.trim();
@@ -825,7 +836,10 @@ function buildServiceTaskPrintRows(data: QuoteRequestData, mode: QuotePrintMode)
 
     if (hours > 0 || (desc && rate > 0)) {
       const sell = hours * rate;
-      sections.push(printWorkRow(`${desc || 'Työ'} — työ`, `${hours} h`, rate, sell, mode));
+      const purchase = hours * laborPurchaseRate;
+      sections.push(
+        printWorkRow(`${desc || 'Työ'} — työ`, `${hours} h`, rate, sell, mode, { purchase }),
+      );
     }
 
     sections.push(printSummedMaterialsRow(materials, mode));
@@ -835,7 +849,8 @@ function buildServiceTaskPrintRows(data: QuoteRequestData, mode: QuotePrintMode)
     const hours = Number(data.laborHours);
     const rate = Number(data.laborRate) || 0;
     const sell = hours * rate;
-    sections.push(printWorkRow('Työ', `${hours} h`, rate, sell, mode));
+    const purchase = hours * laborPurchaseRate;
+    sections.push(printWorkRow('Työ', `${hours} h`, rate, sell, mode, { purchase }));
     hasTaskContent = true;
   }
 
