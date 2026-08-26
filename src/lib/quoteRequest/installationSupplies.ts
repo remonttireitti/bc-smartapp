@@ -163,6 +163,36 @@ export function patchInstallationSupplies(items: QuoteMaterial[]): Partial<Quote
   return { installationSupplies: items };
 }
 
+/** Siirtää vanhat työkohtaiset ja ylätason tarvikkeet installationSupplies-kenttään. */
+export function migrateLegacyMaterialsToInstallationSupplies(
+  data: QuoteRequestData,
+): QuoteRequestData {
+  const existing = (data.installationSupplies ?? []).filter((row) => row.name.trim());
+  if (existing.length > 0) return data;
+
+  const nested = data.workItems
+    .flatMap((item) => item.materials ?? [])
+    .filter((row) => row.name.trim());
+  if (nested.length > 0) {
+    return {
+      ...data,
+      installationSupplies: nested.map((row) => ({ ...row })),
+      workItems: data.workItems.map((item) => ({ ...item, materials: [] })),
+    };
+  }
+
+  const topLevel = (data.materials ?? []).filter((row) => row.name.trim());
+  if (topLevel.length > 0) {
+    return {
+      ...data,
+      installationSupplies: topLevel.map((row) => ({ ...row })),
+      materials: [],
+    };
+  }
+
+  return data;
+}
+
 function formatEuro(value: number): string {
   return value.toLocaleString('fi-FI', { style: 'currency', currency: 'EUR' });
 }

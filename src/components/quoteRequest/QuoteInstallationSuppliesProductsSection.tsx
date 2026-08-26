@@ -1,8 +1,10 @@
+import { useEffect, useMemo } from 'react';
 import { createEmptyMaterial } from '../../lib/quoteRequest/defaults';
 import {
   installationSuppliesProductMarginNet,
   installationSuppliesPurchaseNet,
   installationSuppliesSellNet,
+  migrateLegacyMaterialsToInstallationSupplies,
   patchInstallationSupplies,
   syncInstallationSupplyRow,
 } from '../../lib/quoteRequest/installationSupplies';
@@ -24,6 +26,27 @@ export default function QuoteInstallationSuppliesProductsSection({
   onChange,
 }: Props) {
   const items = form.installationSupplies ?? [];
+  const legacyMaterialCount = useMemo(
+    () =>
+      form.workItems.flatMap((item) => item.materials ?? []).filter((row) => row.name.trim()).length
+      + (form.materials ?? []).filter((row) => row.name.trim()).length,
+    [form.workItems, form.materials],
+  );
+  const supplyCount = useMemo(
+    () => items.filter((row) => row.name.trim()).length,
+    [items],
+  );
+
+  useEffect(() => {
+    if (supplyCount > 0 || legacyMaterialCount === 0) return;
+    const migrated = migrateLegacyMaterialsToInstallationSupplies(form);
+    onChange({
+      installationSupplies: migrated.installationSupplies,
+      workItems: migrated.workItems,
+      materials: migrated.materials,
+    });
+  }, [form, legacyMaterialCount, supplyCount, onChange]);
+
   const productPurchase = installationSuppliesPurchaseNet(items);
   const sellTotal = installationSuppliesSellNet(items);
   const productMargin = installationSuppliesProductMarginNet(form);

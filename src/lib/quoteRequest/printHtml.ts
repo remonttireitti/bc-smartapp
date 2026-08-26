@@ -28,6 +28,7 @@ import {
 import {
   INSTALLATION_SUPPLIES_PRINT_LABEL,
   installationSuppliesSellNet,
+  migrateLegacyMaterialsToInstallationSupplies,
 } from './installationSupplies';
 import { manualDevicePrintLabel, resolveNonPumpDeviceSellNet } from './manualDevicePricing';
 import type { QuoteLine, QuoteMaterial } from './types';
@@ -560,7 +561,8 @@ export function generateQuoteOfferPrintHtml(input: {
   mode?: QuotePrintMode;
   feeMap?: BrandDeliveryFeeByCategoryMap | null;
 }) {
-  const { data, customer, meta, mode = 'enduser', feeMap = null } = input;
+  const { data: rawData, customer, meta, mode = 'enduser', feeMap = null } = input;
+  const data = migrateLegacyMaterialsToInstallationSupplies(rawData);
   const totals = computeQuoteTotals(data, feeMap);
   const internal = mode === 'creator' ? computeQuoteInternalTotals(data, feeMap) : null;
   const logo = meta.logoUrl || smartappFallbackLogoSvg(meta.companyName);
@@ -874,7 +876,8 @@ export function generateQuoteServicePrintHtml(input: {
   mode?: QuotePrintMode;
   feeMap?: BrandDeliveryFeeByCategoryMap | null;
 }) {
-  const { data, customer, meta, mode = 'enduser' } = input;
+  const { data: rawData, customer, meta, mode = 'enduser' } = input;
+  const data = migrateLegacyMaterialsToInstallationSupplies(rawData);
   const totals = computeQuoteTotals(data, input.feeMap ?? null);
   const internal = mode === 'creator' ? computeQuoteInternalTotals(data, input.feeMap ?? null) : null;
   const logo = meta.logoUrl || smartappFallbackLogoSvg(meta.companyName);

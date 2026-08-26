@@ -3,6 +3,7 @@ import { partnershipPermsActingOnOwner } from '../management';
 import { applyLegacyQuoteFields } from './legacyImport';
 import { resolveLegacyDeviceIds, findDeviceById, resolveQuoteMainDeviceForTotals, applyMainDeviceSelection, syncMainDeviceBrandPricing } from './deviceCatalog';
 import { computePumpSizingNeedKw, resolveIilpLaborPricingMode } from './calculations';
+import { migrateLegacyMaterialsToInstallationSupplies } from './installationSupplies';
 import { DEFAULT_TERMATEK_IILP_QUOTE_TERMS, DEFAULT_QUOTE_TERMS_PRINT } from './termatekDefaultTerms';
 import {
   DEFAULT_IILP_OPTIONAL_ITEMS,
@@ -394,7 +395,8 @@ export function normalizeQuoteRequestData(raw: unknown): QuoteRequestData {
 
   const workHoursSum = workItems.reduce((sum, item) => sum + (Number(item.hours) || 0), 0);
 
-  return normalizePumpDeviceSelection({
+  return migrateLegacyMaterialsToInstallationSupplies(
+    normalizePumpDeviceSelection({
     ...base,
     type,
     introText: typeof record.introText === 'string' ? record.introText : base.introText,
@@ -533,7 +535,8 @@ export function normalizeQuoteRequestData(raw: unknown): QuoteRequestData {
     lines,
     legacyCustomerName:
       typeof record.legacyCustomerName === 'string' ? record.legacyCustomerName : undefined,
-  });
+    }),
+  );
 }
 
 function readStoredNumber(value: unknown, fallback: number): number {
@@ -622,7 +625,7 @@ export function prepareQuoteRequestDataForSave(data: QuoteRequestData): QuoteReq
         }),
   };
 
-  return next;
+  return migrateLegacyMaterialsToInstallationSupplies(next);
 }
 
 function normalizeIilpLaborPricingMode(record: Record<string, unknown>): QuoteRequestData['iilpLaborPricingMode'] {
