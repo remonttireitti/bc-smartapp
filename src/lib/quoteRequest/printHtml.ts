@@ -229,6 +229,20 @@ function quotePrintStyles(): string {
       border-top: 2px solid #34d399;
     }
     .summary-row.purchase td { color: #475569; }
+    .summary-row.discount td {
+      background: #fff7ed;
+      color: #c2410c;
+      border-top: 1px solid #fdba74;
+    }
+    .discount-notice {
+      margin: 10px 0 12px;
+      padding: 10px 12px;
+      border: 1px solid #fdba74;
+      border-radius: 8px;
+      background: #fff7ed;
+      color: #9a3412;
+      font-weight: 600;
+    }
     .mutual-billing-box {
       margin: 14px 0 0;
       padding: 12px 14px;
@@ -476,16 +490,54 @@ function creatorSummaryFooter(
     <tr class="total-row"><td colspan="4">${esc(totalRowLabel)}</td><td class="num">${customerTotal}</td></tr>`;
 }
 
+function quoteDiscountNoticeHtml(data: QuoteRequestData, mode: QuotePrintMode): string {
+  if (mode === 'creator') return '';
+  const discount = Math.max(0, Math.min(100, Number(data.overallDiscountPercent) || 0));
+  if (discount <= 0) return '';
+  return `<div class="discount-notice">Tarjoukseen on laskettu <strong>${discount.toLocaleString('fi-FI', { maximumFractionDigits: 1 })} % alennus</strong>.</div>`;
+}
+
 function enduserSummaryFooter(
   totals: ReturnType<typeof computeQuoteTotals>,
   totalRowLabel: string,
   vatRate: number,
+  discountPercent: number,
 ): string {
+  const discount = Math.max(0, Math.min(100, discountPercent));
+  const discountAmount = totals.subtotalNet - totals.discountedNet;
+  const hasDiscount = discount > 0.005 && discountAmount > 0.005;
+  const rows: string[] = [];
+
+  if (hasDiscount) {
+    const subtotalLabel = quoteHasVat(vatRate)
+      ? 'Yhteensä ennen alennusta (veroton)'
+      : 'Yhteensä ennen alennusta (alv 0 %)';
+    rows.push(
+      `<tr class="summary-row"><td colspan="4">${subtotalLabel}</td><td class="num">${formatEuro(totals.subtotalNet)}</td></tr>`,
+    );
+    rows.push(
+      `<tr class="summary-row discount"><td colspan="4">Alennus ${discount.toLocaleString('fi-FI', { maximumFractionDigits: 1 })} %</td><td class="num">−${formatEuro(discountAmount)}</td></tr>`,
+    );
+    const afterDiscountLabel = quoteHasVat(vatRate)
+      ? 'Myynti alennuksen jälkeen (veroton)'
+      : 'Myynti alennuksen jälkeen (alv 0 %)';
+    rows.push(
+      `<tr class="summary-row"><td colspan="4">${afterDiscountLabel}</td><td class="num">${formatEuro(totals.discountedNet)}</td></tr>`,
+    );
+  }
+
+  if (quoteHasVat(vatRate)) {
+    rows.push(
+      `<tr class="summary-row"><td colspan="4">ALV ${vatRate}%</td><td class="num">${formatEuro(totals.vatAmount)}</td></tr>`,
+    );
+  }
+
   const amount = quoteHasVat(vatRate) ? totals.grossTotal : totals.discountedNet;
-  return `<tr class="total-row">
-    <td colspan="4">${esc(totalRowLabel)}</td>
-    <td class="num">${formatEuro(amount)}</td>
-  </tr>`;
+  rows.push(
+    `<tr class="total-row"><td colspan="4">${esc(totalRowLabel)}</td><td class="num">${formatEuro(amount)}</td></tr>`,
+  );
+
+  return rows.join('');
 }
 
 function quotePrintTableFooter(
@@ -504,6 +556,7 @@ function quotePrintTableFooter(
     input.totals,
     input.totalRowLabel,
     Number(input.data.vatRate) > 0 ? Number(input.data.vatRate) : 0,
+    Number(input.data.overallDiscountPercent) || 0,
   );
 }
 
@@ -732,6 +785,8 @@ export function generateQuoteOfferPrintHtml(input: {
 
     ${quoteVatNoticeHtml(vatRate)}
 
+    ${quoteDiscountNoticeHtml(data, mode)}
+
     <table>
       ${quotePrintTableHead(mode)}
       <tbody>
@@ -959,6 +1014,8 @@ export function generateQuoteServicePrintHtml(input: {
     ${buildSituationReportHtml(data)}
 
     ${quoteVatNoticeHtml(vatRate)}
+
+    ${quoteDiscountNoticeHtml(data, mode)}
 
     <table>
       ${quotePrintTableHead(mode)}
