@@ -26,7 +26,6 @@ export default function QuoteTyotDocumentView({
   equipment,
   customerSelected,
   deliveryFeeMap,
-  companyName,
 }: Props) {
   const tiles = buildQuoteTyotTiles(form);
 
@@ -50,7 +49,6 @@ export default function QuoteTyotDocumentView({
             form={form}
             canEdit={canEdit}
             onChange={onChange}
-            companyName={companyName}
           />
         );
       case 'iilp-laitteet':

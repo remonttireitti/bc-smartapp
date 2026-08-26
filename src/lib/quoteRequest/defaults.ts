@@ -392,6 +392,8 @@ export function normalizeQuoteRequestData(raw: unknown): QuoteRequestData {
     });
   });
 
+  const workHoursSum = workItems.reduce((sum, item) => sum + (Number(item.hours) || 0), 0);
+
   return normalizePumpDeviceSelection({
     ...base,
     type,
@@ -436,7 +438,10 @@ export function normalizeQuoteRequestData(raw: unknown): QuoteRequestData {
     workItems,
     materials,
     installationSupplies,
-    installationLaborHours: readStoredNumber(record.installationLaborHours, base.installationLaborHours),
+    installationLaborHours:
+      workHoursSum > 0
+        ? workHoursSum
+        : readStoredNumber(record.installationLaborHours, base.installationLaborHours),
     installationLaborPurchaseRate: readStoredNumber(
       record.installationLaborPurchaseRate,
       base.installationLaborPurchaseRate,

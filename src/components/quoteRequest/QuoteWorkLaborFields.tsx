@@ -1,9 +1,5 @@
 import type { QuoteRequestData, QuoteWorkItem } from '../../lib/quoteRequest/types';
-import {
-  installationLaborPurchaseNet,
-  installationVehicleBlocks,
-  installationVehiclePurchaseNet,
-} from '../../lib/quoteRequest/installationSupplies';
+import { installationVehicleBlocks } from '../../lib/quoteRequest/installationSupplies';
 
 type Props = {
   form: QuoteRequestData;
@@ -26,12 +22,15 @@ export default function QuoteWorkLaborFields({
   onChange,
   onWorkChange,
 }: Props) {
-  const laborPurchase = installationLaborPurchaseNet(form);
+  const hours = Number(workItem.hours) || 0;
+  const purchaseRate = Number(form.installationLaborPurchaseRate) || 0;
+  const laborPurchase = hours * purchaseRate;
   const vehicleBlocks = installationVehicleBlocks(
-    form.installationLaborHours,
+    hours,
     form.installationVehicleHoursPerBlock,
   );
-  const vehiclePurchase = installationVehiclePurchaseNet(form);
+  const vehicleAllowance = Number(form.installationVehicleAllowance) || 0;
+  const vehiclePurchase = vehicleBlocks > 0 && vehicleAllowance > 0 ? vehicleBlocks * vehicleAllowance : 0;
 
   return (
     <>
@@ -102,17 +101,16 @@ export default function QuoteWorkLaborFields({
         </div>
       ) : null}
 
-      {(laborPurchase > 0 || vehiclePurchase > 0) && showVehicleFields ? (
+      {showVehicleFields && (laborPurchase > 0 || vehiclePurchase > 0) ? (
         <div className="quote-summary-box" style={{ marginTop: '0.5rem' }}>
           {laborPurchase > 0 ? (
             <div>
-              Työn hankinta: {form.installationLaborHours} h ×{' '}
-              {formatEuro(form.installationLaborPurchaseRate)} = {formatEuro(laborPurchase)}
+              Työn hankinta: {hours} h × {formatEuro(purchaseRate)} = {formatEuro(laborPurchase)}
             </div>
           ) : null}
           {vehiclePurchase > 0 ? (
             <div>
-              Huoltoautokorvaus: {vehicleBlocks} × {formatEuro(form.installationVehicleAllowance)} ={' '}
+              Huoltoautokorvaus: {vehicleBlocks} × {formatEuro(vehicleAllowance)} ={' '}
               {formatEuro(vehiclePurchase)}
             </div>
           ) : null}
