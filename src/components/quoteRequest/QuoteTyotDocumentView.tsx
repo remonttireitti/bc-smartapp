@@ -1,8 +1,7 @@
 import type { ReactNode } from 'react';
 import QuoteDocumentSectionView from './QuoteDocumentSectionView';
-import QuoteInstallationSuppliesSection from './QuoteInstallationSuppliesSection';
+import QuoteInstallationSuppliesProductsSection from './QuoteInstallationSuppliesProductsSection';
 import QuoteIilpDevicesSection from './QuoteIilpDevicesSection';
-import QuoteRepairMaterialsSection from './QuoteRepairMaterialsSection';
 import QuoteRepairWorkItemsSection from './QuoteRepairWorkItemsSection';
 import QuoteWorkMaterialsSection from './QuoteWorkMaterialsSection';
 import type { BrandDeliveryFeeByCategoryMap } from '../../data/devicePricingShared';
@@ -45,7 +44,15 @@ export default function QuoteTyotDocumentView({
           />
         );
       case 'huolto-tarvikkeet':
-        return <QuoteRepairMaterialsSection form={form} canEdit={canEdit} onChange={onChange} />;
+      case 'tarvikkeet':
+        return (
+          <QuoteInstallationSuppliesProductsSection
+            form={form}
+            canEdit={canEdit}
+            onChange={onChange}
+            companyName={companyName}
+          />
+        );
       case 'iilp-laitteet':
         return (
           <QuoteIilpDevicesSection
@@ -57,19 +64,6 @@ export default function QuoteTyotDocumentView({
         );
       case 'tyorivit':
         return <QuoteWorkMaterialsSection form={form} canEdit={canEdit} onChange={onChange} variant="work" />;
-      case 'tarvikkeet':
-        return (
-          <QuoteWorkMaterialsSection form={form} canEdit={canEdit} onChange={onChange} variant="materials" />
-        );
-      case 'asennus-tarvikkeet':
-        return (
-          <QuoteInstallationSuppliesSection
-            form={form}
-            canEdit={canEdit}
-            onChange={onChange}
-            companyName={companyName}
-          />
-        );
       default:
         return null;
     }

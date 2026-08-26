@@ -1,4 +1,4 @@
-import { materialSellTotal, resolveIilpLaborPricingMode } from './calculations';
+import { resolveIilpLaborPricingMode } from './calculations';
 import { installationSuppliesSubtitle } from './installationSupplies';
 import { isRepairQuoteType } from './constants';
 import type { QuoteDocumentTileEntry } from './quoteDocumentThemes';
@@ -8,35 +8,28 @@ export type QuoteTyotTileId =
   | 'huolto-tyot'
   | 'huolto-tarvikkeet'
   | 'iilp-laitteet'
-  | 'asennus-tarvikkeet'
   | 'tyorivit'
   | 'tarvikkeet';
 
 export type QuoteTyotTileEntry = QuoteDocumentTileEntry<QuoteTyotTileId>;
 
+function formatEuro(value: number): string {
+  return value.toLocaleString('fi-FI', { style: 'currency', currency: 'EUR' });
+}
+
 function workItemsSubtitle(form: QuoteRequestData): string {
   const count = form.workItems.length;
   const hours = form.workItems.reduce((sum, item) => sum + (Number(item.hours) || 0), 0);
-  if (count === 0) return 'Ei työrivejä';
-  return `${count} työ${count > 1 ? 'tä' : ''} · ${hours} h`;
-}
-
-function materialsSubtitle(form: QuoteRequestData): string {
-  const count = form.materials.length;
-  if (count === 0) return 'Ei tarvikkeita';
-  const total = form.materials.reduce(
-    (sum, item) => sum + (Number(item.sellPrice) || 0) * (Number(item.quantity) || 0),
-    0,
-  );
-  return `${count} riviä · ${total.toLocaleString('fi-FI', { style: 'currency', currency: 'EUR' })}`;
-}
-
-function repairMaterialsSubtitle(form: QuoteRequestData): string {
-  const materials = form.workItems.flatMap((item) => item.materials ?? []);
-  const count = materials.filter((row) => row.name.trim()).length;
-  if (count === 0) return 'Ei tarvikkeita';
-  const total = materialSellTotal(materials);
-  return `${count} riviä · ${total.toLocaleString('fi-FI', { style: 'currency', currency: 'EUR' })}`;
+  const parts: string[] = [];
+  if (count > 0) {
+    parts.push(`${count} työ${count > 1 ? 'tä' : ''} · ${hours} h`);
+  }
+  const laborHours = Number(form.installationLaborHours) || 0;
+  const laborRate = Number(form.installationLaborPurchaseRate) || 0;
+  if (laborHours > 0 && laborRate > 0) {
+    parts.push(`${laborHours} h × ${formatEuro(laborRate)}/h`);
+  }
+  return parts.length > 0 ? parts.join(' · ') : 'Ei työrivejä';
 }
 
 export function buildQuoteTyotTiles(form: QuoteRequestData): QuoteTyotTileEntry[] {
@@ -52,12 +45,6 @@ export function buildQuoteTyotTiles(form: QuoteRequestData): QuoteTyotTileEntry[
     entries.push({
       id: 'huolto-tarvikkeet',
       title: 'Tarvikkeet',
-      subtitle: repairMaterialsSubtitle(form),
-      themeKey: 'work',
-    });
-    entries.push({
-      id: 'asennus-tarvikkeet',
-      title: 'Asennus tarvikkeet',
       subtitle: installationSuppliesSubtitle(form),
       themeKey: 'work',
     });
@@ -86,17 +73,10 @@ export function buildQuoteTyotTiles(form: QuoteRequestData): QuoteTyotTileEntry[
     entries.push({
       id: 'tarvikkeet',
       title: 'Tarvikkeet',
-      subtitle: materialsSubtitle(form),
+      subtitle: installationSuppliesSubtitle(form),
       themeKey: 'work',
     });
   }
-
-  entries.push({
-    id: 'asennus-tarvikkeet',
-    title: 'Asennus tarvikkeet',
-    subtitle: installationSuppliesSubtitle(form),
-    themeKey: 'work',
-  });
 
   return entries;
 }

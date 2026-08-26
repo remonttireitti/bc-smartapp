@@ -2,6 +2,7 @@ import type { Equipment } from '../../types';
 import { createServiceWorkItem } from '../../lib/quoteRequest/defaults';
 import type { QuoteRequestData, QuoteWorkItem } from '../../lib/quoteRequest/types';
 import { equipmentToOption } from '../../lib/registrySearch';
+import QuoteInstallationLaborSection from './QuoteInstallationLaborSection';
 
 type Props = {
   form: QuoteRequestData;
@@ -52,7 +53,7 @@ export default function QuoteRepairWorkItemsSection({
         )}
       </div>
 
-      <p className="muted">Tarvikkeet lisätään erillisestä Tarvikkeet-ruudusta.</p>
+      <p className="muted">Tarvikkeet lisätään Tarvikkeet-ruudusta.</p>
 
       {form.workItems.map((item, index) => (
         <div key={item.id} className="quote-line-row panel-inset">
@@ -143,6 +144,8 @@ export default function QuoteRepairWorkItemsSection({
           </div>
         </div>
       ))}
+
+      <QuoteInstallationLaborSection form={form} canEdit={canEdit} onChange={onChange} />
     </section>
   );
 }

@@ -380,7 +380,8 @@ export function quoteMaterialsNet(data: QuoteRequestData): number {
   );
   const fromTopLevel = materialSellTotal(data.materials);
   if (isRepairQuoteType(data.type)) {
-    return fromWorkItems > 0 ? fromWorkItems : fromTopLevel;
+    const fromInstallation = installationSuppliesSellNet(data.installationSupplies);
+    return (fromWorkItems > 0 ? fromWorkItems : fromTopLevel) + fromInstallation;
   }
   return fromTopLevel + fromWorkItems + installationSuppliesSellNet(data.installationSupplies);
 }
