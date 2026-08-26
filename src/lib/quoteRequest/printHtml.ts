@@ -22,6 +22,7 @@ import {
   computeKotitalousDeduction,
   computeQuoteInternalTotals,
   computeQuoteTotals,
+  materialSellTotal,
   resolveIilpLaborPricingMode,
 } from './calculations';
 import {
@@ -300,6 +301,21 @@ function quotePrintTableHead(mode: QuotePrintMode): string {
       <th class="num">Yhteensä</th>
     </tr>
   </thead>`;
+}
+
+function printSummedMaterialsRow(
+  materials: QuoteMaterial[],
+  mode: QuotePrintMode,
+  label = INSTALLATION_SUPPLIES_PRINT_LABEL,
+): string {
+  const rows = materials.filter((row) => row.name.trim());
+  if (rows.length === 0) return '';
+  if (mode === 'creator') {
+    return rows.map((row) => printMaterialRow(row, mode)).join('');
+  }
+  const totalSell = materialSellTotal(rows);
+  if (totalSell <= 0.005) return '';
+  return printWorkRow(label, '1 kpl', totalSell, totalSell, mode);
 }
 
 function printMaterialRow(mat: QuoteMaterial, mode: QuotePrintMode): string {
@@ -810,9 +826,7 @@ function buildServiceTaskPrintRows(data: QuoteRequestData, mode: QuotePrintMode)
       sections.push(printWorkRow(`${desc || 'Työ'} — työ`, `${hours} h`, rate, sell, mode));
     }
 
-    for (const mat of materials) {
-      sections.push(printMaterialRow(mat, mode));
-    }
+    sections.push(printSummedMaterialsRow(materials, mode));
   }
 
   if (!hasTaskContent && Number(data.laborHours) > 0) {
@@ -828,10 +842,7 @@ function buildServiceTaskPrintRows(data: QuoteRequestData, mode: QuotePrintMode)
     0,
   );
   if (nestedMaterialCount === 0) {
-    for (const item of data.materials) {
-      if (!item.name.trim()) continue;
-      sections.push(printMaterialRow(item, mode));
-    }
+    sections.push(printSummedMaterialsRow(data.materials, mode));
   }
 
   sections.push(printInstallationSuppliesRows(data, mode));

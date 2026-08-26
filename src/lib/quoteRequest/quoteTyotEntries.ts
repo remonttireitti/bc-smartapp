@@ -1,4 +1,4 @@
-import { resolveIilpLaborPricingMode } from './calculations';
+import { materialSellTotal, resolveIilpLaborPricingMode } from './calculations';
 import { installationSuppliesSubtitle } from './installationSupplies';
 import { isRepairQuoteType } from './constants';
 import type { QuoteDocumentTileEntry } from './quoteDocumentThemes';
@@ -6,6 +6,7 @@ import type { QuoteRequestData } from './types';
 
 export type QuoteTyotTileId =
   | 'huolto-tyot'
+  | 'huolto-tarvikkeet'
   | 'iilp-laitteet'
   | 'asennus-tarvikkeet'
   | 'tyorivit'
@@ -23,7 +24,18 @@ function workItemsSubtitle(form: QuoteRequestData): string {
 function materialsSubtitle(form: QuoteRequestData): string {
   const count = form.materials.length;
   if (count === 0) return 'Ei tarvikkeita';
-  const total = form.materials.reduce((sum, item) => sum + (Number(item.sellPrice) || 0) * (Number(item.quantity) || 0), 0);
+  const total = form.materials.reduce(
+    (sum, item) => sum + (Number(item.sellPrice) || 0) * (Number(item.quantity) || 0),
+    0,
+  );
+  return `${count} riviä · ${total.toLocaleString('fi-FI', { style: 'currency', currency: 'EUR' })}`;
+}
+
+function repairMaterialsSubtitle(form: QuoteRequestData): string {
+  const materials = form.workItems.flatMap((item) => item.materials ?? []);
+  const count = materials.filter((row) => row.name.trim()).length;
+  if (count === 0) return 'Ei tarvikkeita';
+  const total = materialSellTotal(materials);
   return `${count} riviä · ${total.toLocaleString('fi-FI', { style: 'currency', currency: 'EUR' })}`;
 }
 
@@ -33,8 +45,20 @@ export function buildQuoteTyotTiles(form: QuoteRequestData): QuoteTyotTileEntry[
   if (isRepairQuoteType(form.type)) {
     entries.push({
       id: 'huolto-tyot',
-      title: 'Työt ja tarvikkeet',
-      subtitle: `${form.workItems.length} työtä`,
+      title: 'Työt',
+      subtitle: workItemsSubtitle(form),
+      themeKey: 'work',
+    });
+    entries.push({
+      id: 'huolto-tarvikkeet',
+      title: 'Tarvikkeet',
+      subtitle: repairMaterialsSubtitle(form),
+      themeKey: 'work',
+    });
+    entries.push({
+      id: 'asennus-tarvikkeet',
+      title: 'Asennus tarvikkeet',
+      subtitle: installationSuppliesSubtitle(form),
       themeKey: 'work',
     });
     return entries;

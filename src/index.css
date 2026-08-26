@@ -8147,6 +8147,60 @@ button.tile.quote-document-tile span {
   margin-top: .75rem;
 }
 
+.quote-repair-materials-group {
+  margin-bottom: .85rem;
+}
+
+.quote-repair-materials-group-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: .75rem;
+  margin-bottom: .65rem;
+}
+
+.quote-materials-table-wrap {
+  overflow-x: auto;
+}
+
+.quote-materials-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: .88rem;
+}
+
+.quote-materials-table th,
+.quote-materials-table td {
+  border: 1px solid var(--border);
+  padding: .45rem .55rem;
+  vertical-align: middle;
+}
+
+.quote-materials-table th {
+  background: #f8fafc;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.quote-materials-table .num {
+  text-align: right;
+}
+
+.quote-materials-table-input {
+  width: 100%;
+  min-width: 4.5rem;
+  box-sizing: border-box;
+}
+
+.quote-materials-table-input.num {
+  text-align: right;
+}
+
+.quote-materials-table-actions {
+  width: 1%;
+  white-space: nowrap;
+}
+
 .quote-installation-labor {
   margin-bottom: .75rem;
 }

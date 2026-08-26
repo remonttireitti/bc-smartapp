@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import QuoteDocumentSectionView from './QuoteDocumentSectionView';
 import QuoteInstallationSuppliesSection from './QuoteInstallationSuppliesSection';
 import QuoteIilpDevicesSection from './QuoteIilpDevicesSection';
+import QuoteRepairMaterialsSection from './QuoteRepairMaterialsSection';
 import QuoteRepairWorkItemsSection from './QuoteRepairWorkItemsSection';
 import QuoteWorkMaterialsSection from './QuoteWorkMaterialsSection';
 import type { BrandDeliveryFeeByCategoryMap } from '../../data/devicePricingShared';
@@ -43,6 +44,8 @@ export default function QuoteTyotDocumentView({
             hideHeader
           />
         );
+      case 'huolto-tarvikkeet':
+        return <QuoteRepairMaterialsSection form={form} canEdit={canEdit} onChange={onChange} />;
       case 'iilp-laitteet':
         return (
           <QuoteIilpDevicesSection
