@@ -2,17 +2,13 @@ import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
 import AppLayout from '../components/AppLayout';
-import CustomerRegistryPicker, { type NewCustomerDraft } from '../components/CustomerRegistryPicker';
-import EquipmentRegistryPicker, { type NewEquipmentDraft } from '../components/EquipmentRegistryPicker';
-import SubscriberPicker from '../components/SubscriberPicker';
-import SubscriberPortalVisibilityField from '../components/SubscriberPortalVisibilityField';
+import type { NewCustomerDraft } from '../components/CustomerRegistryPicker';
+import type { NewEquipmentDraft } from '../components/EquipmentRegistryPicker';
 import NavigationBreadcrumb from '../components/NavigationBreadcrumb';
-import ToggleSwitch from '../components/ToggleSwitch';
-import QuoteIilpDevicesSection from '../components/quoteRequest/QuoteIilpDevicesSection';
-import QuoteIilpSiteSection from '../components/quoteRequest/QuoteIilpSiteSection';
+import QuoteAsiakasDocumentView from '../components/quoteRequest/QuoteAsiakasDocumentView';
 import QuoteHinnoitteluDocumentView, { QuotePricingSummaryBox } from '../components/quoteRequest/QuoteHinnoitteluDocumentView';
-import QuoteVilpSiteSection from '../components/quoteRequest/QuoteVilpSiteSection';
-import QuoteRepairWorkItemsSection from '../components/quoteRequest/QuoteRepairWorkItemsSection';
+import QuoteKohdeDocumentView from '../components/quoteRequest/QuoteKohdeDocumentView';
+import QuoteTyotDocumentView from '../components/quoteRequest/QuoteTyotDocumentView';
 import { supabase } from '../lib/supabase';
 import { createRegistryCustomer } from '../lib/createRegistryCustomer';
 import {
@@ -25,7 +21,6 @@ import {
 } from '../lib/reportCustomerRegistry';
 import {
   SUBSCRIBER_PORTAL_VISIBILITY_DEFAULT,
-  reportHasSubscriberLink,
   type SubscriberPortalVisibility,
 } from '../lib/subscriberPortalVisibility';
 import {
@@ -43,8 +38,6 @@ import {
 } from '../lib/quoteRequest/deviceCatalog';
 import { setActiveDeviceRegistry, snapshotFromCompanySettings } from '../lib/quoteRequest/deviceRegistryState';
 import {
-  BUILDING_TYPE_OPTIONS,
-  QUOTE_REGION_LABELS,
   QUOTE_SECTION_LABELS,
   QUOTE_TYPE_LABELS,
   QUOTE_TYPE_ORDER,
@@ -62,9 +55,7 @@ import {
 import {
   applyQuoteTypeChange,
   brandModeOptions,
-  createEmptyMaterial,
   createEmptyQuoteRequestData,
-  createEmptyWorkItem,
   normalizeQuoteRequestData,
   prepareQuoteRequestDataForSave,
   quoteRequestStoredTitle,
@@ -196,6 +187,11 @@ export default function QuoteRequestEditPage({ session }: Props) {
   );
   const displayDeviceNet = isPumpQuoteType(form.type) ? mainDeviceSellNet : totals.deviceNet;
   const kotitalous = useMemo(() => computeKotitalousDeduction(form), [form]);
+  const selectedEquipmentLabel = useMemo(() => {
+    if (!equipmentId) return '';
+    const item = equipment.find((entry) => entry.id === equipmentId);
+    return item?.name ?? '';
+  }, [equipment, equipmentId]);
   const pendingSiteDefaults = useMemo(
     () => (isPumpQuoteType(form.type) ? listPendingSiteDefaults(form) : []),
     [form],
@@ -987,486 +983,64 @@ export default function QuoteRequestEditPage({ session }: Props) {
 
       <form className="panel form-grid quote-form" onSubmit={onSubmit}>
         {activeSection === 'asiakas' && (
-          <section className="form-section">
-            <h2>Asiakas</h2>
-            {!customerId && form.legacyCustomerName?.trim() && (
-              <p className="muted quote-legacy-customer-note">
-                Tuodussa tiedossa asiakas: <strong>{form.legacyCustomerName.trim()}</strong>. Valitse tai luo
-                vastaava asiakas rekisteristä.
-              </p>
-            )}
-            {ownerCompanyId ? (
-              <SubscriberPicker
-                subscribers={subscribersForOwner}
-                subscriberId={subscriberId}
-                disabled={!canEdit || busy}
-                onChange={setSubscriberId}
-              />
-            ) : null}
-
-            {reportHasSubscriberLink({
-              subscriber_id: subscriberId,
-              customer_subscriber_id: selectedCustomer?.subscriber_id,
-            }) ? (
-              <SubscriberPortalVisibilityField
-                value={subscriberPortalVisibility}
-                reportKind="quote"
-                disabled={!canEdit || busy}
-                onChange={setSubscriberPortalVisibility}
-              />
-            ) : null}
-
-            {!customerId && reportOwnerTargets.length > 1 ? (
-              <label>
-                Tarjous laaditaan nimissä
-                <select
-                  value={reportOwnerCompanyId}
-                  onChange={(event) => onReportOwnerChange(event.target.value)}
-                  disabled={!canEdit || busy}
-                >
-                  {reportOwnerTargets.map((target) => (
-                    <option key={target.companyId} value={target.companyId}>
-                      {target.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            ) : (
-              <p className="muted">
-                Tarjous laaditaan nimissä: <strong>{reportOwnerName}</strong>
-              </p>
-            )}
-
-            <CustomerRegistryPicker
-              customers={customersForPicker}
-              customerId={customerId}
-              myCompanyId={profile?.company_id ?? undefined}
-              disabled={!canEdit}
-              createRegistryName={reportOwnerName}
-              brandingName={reportOwnerName}
-              busy={busy}
-              onSelect={(selectedId) => {
-                setCustomerId(selectedId);
-                setEquipmentId('');
-                const customer = customers.find((entry) => entry.id === selectedId);
-                if (customer) {
-                  setReportOwnerCompanyId(customer.owner_company_id);
-                  void loadOwnerCompany(customer.owner_company_id);
-                  if (customer.subscriber_id) setSubscriberId(customer.subscriber_id);
-                }
-              }}
-              onClear={() => {
-                setCustomerId('');
-                setEquipmentId('');
-              }}
-              onCreate={onCreateCustomer}
-            />
-            {customerId && (
-              <>
-                {form.type !== 'ilma-ilma' ? (
-                  <EquipmentRegistryPicker
-                    equipment={equipment}
-                    equipmentId={equipmentId}
-                    disabled={!canEdit}
-                    busy={busy}
-                    onSelect={setEquipmentId}
-                    onClear={() => setEquipmentId('')}
-                    onCreate={onCreateEquipment}
-                  />
-                ) : null}
-                <div className="quote-field-grid">
-                  <label>
-                    Puhelin
-                    <input
-                      value={form.customerPhone}
-                      onChange={(e) => patchForm({ customerPhone: e.target.value })}
-                      disabled={!canEdit}
-                    />
-                  </label>
-                  <label>
-                    Sähköposti
-                    <input
-                      type="email"
-                      value={form.customerEmail}
-                      onChange={(e) => patchForm({ customerEmail: e.target.value })}
-                      disabled={!canEdit}
-                    />
-                  </label>
-                  <label>
-                    Yhteyshenkilö
-                    <input
-                      value={form.customerContactPerson}
-                      onChange={(e) => patchForm({ customerContactPerson: e.target.value })}
-                      disabled={!canEdit}
-                    />
-                  </label>
-                </div>
-              </>
-            )}
-
-            {form.type === 'ilma-ilma' && (
-              <div className="quote-subsection panel-inset">
-                <h3>Kohteen perustiedot</h3>
-                <div className="quote-field-grid">
-                  <label data-quote-field="buildingType">
-                    Kiinteistön tyyppi
-                    <select
-                      value={form.buildingType}
-                      onChange={(e) => patchForm({ buildingType: e.target.value })}
-                      disabled={!canEdit}
-                    >
-                      {BUILDING_TYPE_OPTIONS.map((opt) => (
-                        <option key={opt.value} value={opt.value}>
-                          {opt.label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label data-quote-field="region">
-                    Sijainti
-                    <select
-                      value={form.region}
-                      onChange={(e) =>
-                        patchForm({ region: e.target.value as QuoteRequestData['region'] })
-                      }
-                      disabled={!canEdit}
-                    >
-                      {(Object.keys(QUOTE_REGION_LABELS) as QuoteRequestData['region'][]).map((key) => (
-                        <option key={key} value={key}>
-                          {QUOTE_REGION_LABELS[key]}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                </div>
-              </div>
-            )}
-
-            <label>
-              Brändi tulosteessa
-              <select
-                value={form.brandMode}
-                onChange={(e) => patchForm({ brandMode: e.target.value as QuoteRequestData['brandMode'] })}
-                disabled={!canEdit}
-              >
-                {brandOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </section>
-        )}
-
-        {activeSection === 'kohde' && (
-          <>
-            {form.type === 'ilma-ilma' && (
-              <QuoteIilpSiteSection form={form} canEdit={canEdit} onChange={patchForm} />
-            )}
-            {form.type === 'vesi-ilma' && (
-              <QuoteVilpSiteSection form={form} canEdit={canEdit} onChange={patchForm} />
-            )}
-            {isRepairQuoteType(form.type) && (
-              <section className="form-section">
-                <h2>Kohde ja laite</h2>
-                <div className="line-form-grid">
-                  <label>
-                    Laitteen merkki
-                    <input
-                      value={form.deviceBrand}
-                      onChange={(e) => patchForm({ deviceBrand: e.target.value })}
-                      disabled={!canEdit}
-                    />
-                  </label>
-                  <label>
-                    Laitteen malli
-                    <input
-                      value={form.deviceModel}
-                      onChange={(e) => patchForm({ deviceModel: e.target.value })}
-                      disabled={!canEdit}
-                    />
-                  </label>
-                </div>
-                <label>
-                  Vikakuvaus / työnkuvaus
-                  <textarea
-                    rows={4}
-                    value={form.faultDescription}
-                    onChange={(e) => patchForm({ faultDescription: e.target.value })}
-                    disabled={!canEdit}
-                  />
-                </label>
-                <ToggleSwitch
-                  checked={form.situationReportEnabled}
-                  disabled={!canEdit}
-                  label="Sisällytä tilanneraportti tulosteeseen"
-                  onChange={(checked) => patchForm({ situationReportEnabled: checked })}
-                />
-                {form.situationReportEnabled && (
-                  <>
-                    <label>
-                      Tilanneraportin otsikko
-                      <input
-                        value={form.situationReportTitle}
-                        onChange={(e) => patchForm({ situationReportTitle: e.target.value })}
-                        disabled={!canEdit}
-                      />
-                    </label>
-                    <label>
-                      Tilanneraportin teksti
-                      <textarea
-                        rows={4}
-                        value={form.situationReportText}
-                        onChange={(e) => patchForm({ situationReportText: e.target.value })}
-                        disabled={!canEdit}
-                      />
-                    </label>
-                  </>
-                )}
-              </section>
-            )}
-            {!isPumpQuoteType(form.type) && !isRepairQuoteType(form.type) && (
-              <section className="form-section">
-                <p className="muted">Valitse tarjouksen tyyppi ylhäältä.</p>
-              </section>
-            )}
-          </>
-        )}
-
-        {activeSection === 'tyot' && isRepairQuoteType(form.type) && (
-          <QuoteRepairWorkItemsSection
+          <QuoteAsiakasDocumentView
             form={form}
             canEdit={canEdit}
-            equipment={equipment}
-            customerSelected={Boolean(customerId)}
+            busy={busy}
             onChange={patchForm}
+            customerId={customerId}
+            customerName={selectedCustomer?.name}
+            customersForPicker={customersForPicker}
+            myCompanyId={profile?.company_id ?? undefined}
+            equipmentId={equipmentId}
+            equipmentLabel={selectedEquipmentLabel}
+            equipment={equipment}
+            subscriberId={subscriberId}
+            subscribersForOwner={subscribersForOwner}
+            subscriberPortalVisibility={subscriberPortalVisibility}
+            onSubscriberPortalVisibilityChange={setSubscriberPortalVisibility}
+            selectedCustomer={selectedCustomer}
+            reportOwnerCompanyId={reportOwnerCompanyId}
+            reportOwnerName={reportOwnerName}
+            reportOwnerTargets={reportOwnerTargets}
+            ownerCompanyId={ownerCompanyId}
+            brandOptions={brandOptions}
+            onCustomerSelect={(selectedId) => {
+              setCustomerId(selectedId);
+              setEquipmentId('');
+              const customer = customers.find((entry) => entry.id === selectedId);
+              if (customer) {
+                setReportOwnerCompanyId(customer.owner_company_id);
+                void loadOwnerCompany(customer.owner_company_id);
+                if (customer.subscriber_id) setSubscriberId(customer.subscriber_id);
+              }
+            }}
+            onCustomerClear={() => {
+              setCustomerId('');
+              setEquipmentId('');
+            }}
+            onCreateCustomer={onCreateCustomer}
+            onEquipmentSelect={setEquipmentId}
+            onEquipmentClear={() => setEquipmentId('')}
+            onCreateEquipment={onCreateEquipment}
+            onSubscriberChange={setSubscriberId}
+            onReportOwnerChange={onReportOwnerChange}
           />
         )}
 
-        {activeSection === 'tyot' && !isRepairQuoteType(form.type) && (
-          <>
-            {form.type === 'ilma-ilma' && (
-              <QuoteIilpDevicesSection
-                form={form}
-                canEdit={canEdit}
-                feeMap={deliveryFeeMap}
-                onChange={patchForm}
-              />
-            )}
-            {!(
-              form.type === 'ilma-ilma' && resolveIilpLaborPricingMode(form) === 'urakka'
-            ) && (
-          <section className="form-section">
-            <h2>Työt ja tarvikkeet</h2>
-            <div className="section-header-row">
-              <h3>Työrivit</h3>
-              {canEdit && (
-                <button
-                  type="button"
-                  className="btn btn-secondary"
-                  onClick={() => patchForm({ workItems: [...form.workItems, createEmptyWorkItem()] })}
-                >
-                  + Lisää työ
-                </button>
-              )}
-            </div>
-            {form.workItems.map((item, index) => (
-              <div key={item.id} className="quote-line-row panel-inset">
-                <div className="quote-line-head">
-                  <strong>Työ {index + 1}</strong>
-                  {canEdit && form.workItems.length > 1 && (
-                    <button
-                      type="button"
-                      className="link-btn"
-                      onClick={() =>
-                        patchForm({ workItems: form.workItems.filter((row) => row.id !== item.id) })
-                      }
-                    >
-                      Poista
-                    </button>
-                  )}
-                </div>
-                <label>
-                  Kuvaus
-                  <input
-                    value={item.description}
-                    onChange={(e) =>
-                      patchForm({
-                        workItems: form.workItems.map((row) =>
-                          row.id === item.id ? { ...row, description: e.target.value } : row,
-                        ),
-                      })
-                    }
-                    disabled={!canEdit}
-                  />
-                </label>
-                <div className="line-form-grid">
-                  <label>
-                    Tunnit
-                    <input
-                      type="number"
-                      step="0.25"
-                      min="0"
-                      value={item.hours}
-                      onChange={(e) =>
-                        patchForm({
-                          workItems: form.workItems.map((row) =>
-                            row.id === item.id ? { ...row, hours: Number(e.target.value) } : row,
-                          ),
-                        })
-                      }
-                      disabled={!canEdit}
-                    />
-                  </label>
-                  <label>
-                    Tuntihinta (€)
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={item.pricePerHour}
-                      onChange={(e) =>
-                        patchForm({
-                          workItems: form.workItems.map((row) =>
-                            row.id === item.id ? { ...row, pricePerHour: Number(e.target.value) } : row,
-                          ),
-                        })
-                      }
-                      disabled={!canEdit}
-                    />
-                  </label>
-                </div>
-              </div>
-            ))}
+        {activeSection === 'kohde' && (
+          <QuoteKohdeDocumentView form={form} canEdit={canEdit} onChange={patchForm} />
+        )}
 
-            <div className="section-header-row">
-              <h3>Tarvikkeet</h3>
-              {canEdit && (
-                <button
-                  type="button"
-                  className="btn btn-secondary"
-                  onClick={() => patchForm({ materials: [...form.materials, createEmptyMaterial()] })}
-                >
-                  + Lisää tarvike
-                </button>
-              )}
-            </div>
-            {form.materials.length === 0 ? (
-              <p className="muted">Ei tarvikkeita vielä.</p>
-            ) : (
-              form.materials.map((item, index) => (
-                <div key={item.id} className="quote-line-row panel-inset">
-                  <div className="quote-line-head">
-                    <strong>Tarvike {index + 1}</strong>
-                    {canEdit && (
-                      <button
-                        type="button"
-                        className="link-btn"
-                        onClick={() =>
-                          patchForm({ materials: form.materials.filter((row) => row.id !== item.id) })
-                        }
-                      >
-                        Poista
-                      </button>
-                    )}
-                  </div>
-                  <div className="line-form-grid">
-                    <label>
-                      Nimi
-                      <input
-                        value={item.name}
-                        onChange={(e) =>
-                          patchForm({
-                            materials: form.materials.map((row) =>
-                              row.id === item.id ? { ...row, name: e.target.value } : row,
-                            ),
-                          })
-                        }
-                        disabled={!canEdit}
-                      />
-                    </label>
-                    <label>
-                      Määrä
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.001"
-                        value={item.quantity}
-                        onChange={(e) =>
-                          patchForm({
-                            materials: form.materials.map((row) =>
-                              row.id === item.id ? { ...row, quantity: Number(e.target.value) } : row,
-                            ),
-                          })
-                        }
-                        disabled={!canEdit}
-                      />
-                    </label>
-                    <label>
-                      Hankintahinta (€)
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        value={item.purchasePrice}
-                        onChange={(e) => {
-                          const purchasePrice = Number(e.target.value);
-                          const sellPrice =
-                            purchasePrice * (1 + (Number(item.marginPercent) || 0) / 100);
-                          patchForm({
-                            materials: form.materials.map((row) =>
-                              row.id === item.id ? { ...row, purchasePrice, sellPrice } : row,
-                            ),
-                          });
-                        }}
-                        disabled={!canEdit}
-                      />
-                    </label>
-                    <label>
-                      Kate (%)
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.1"
-                        value={item.marginPercent}
-                        onChange={(e) => {
-                          const marginPercent = Number(e.target.value);
-                          const sellPrice =
-                            Number(item.purchasePrice) * (1 + marginPercent / 100);
-                          patchForm({
-                            materials: form.materials.map((row) =>
-                              row.id === item.id ? { ...row, marginPercent, sellPrice } : row,
-                            ),
-                          });
-                        }}
-                        disabled={!canEdit}
-                      />
-                    </label>
-                    <label>
-                      Myyntihinta (€)
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        value={item.sellPrice}
-                        onChange={(e) =>
-                          patchForm({
-                            materials: form.materials.map((row) =>
-                              row.id === item.id ? { ...row, sellPrice: Number(e.target.value) } : row,
-                            ),
-                          })
-                        }
-                        disabled={!canEdit}
-                      />
-                    </label>
-                  </div>
-                </div>
-              ))
-            )}
-          </section>
-            )}
-          </>
+        {activeSection === 'tyot' && (
+          <QuoteTyotDocumentView
+            form={form}
+            canEdit={canEdit}
+            onChange={patchForm}
+            equipment={equipment}
+            customerSelected={Boolean(customerId)}
+            deliveryFeeMap={deliveryFeeMap}
+          />
         )}
 
         {activeSection === 'hinnoittelu' && (

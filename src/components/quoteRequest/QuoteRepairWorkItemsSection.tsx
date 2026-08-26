@@ -9,6 +9,7 @@ type Props = {
   equipment: Equipment[];
   customerSelected: boolean;
   onChange: (patch: Partial<QuoteRequestData>) => void;
+  hideHeader?: boolean;
 };
 
 function updateWorkItem(
@@ -41,15 +42,16 @@ export default function QuoteRepairWorkItemsSection({
   equipment,
   customerSelected,
   onChange,
+  hideHeader = false,
 }: Props) {
   function patchWorkItems(workItems: QuoteWorkItem[]) {
     onChange({ workItems });
   }
 
   return (
-    <section className="form-section">
+    <section className={hideHeader ? 'quote-repair-work-items' : 'form-section'}>
       <div className="section-header-row">
-        <h2>Työt ja tarvikkeet</h2>
+        {!hideHeader ? <h2>Työt ja tarvikkeet</h2> : <span aria-hidden="true" />}
         {canEdit && (
           <button
             type="button"

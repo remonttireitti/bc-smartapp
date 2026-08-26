@@ -14,9 +14,10 @@ type Props = {
   form: QuoteRequestData;
   canEdit: boolean;
   onChange: (patch: Partial<QuoteRequestData>) => void;
+  variant?: 'all' | 'mitoitus' | 'asennus';
 };
 
-export default function QuoteIilpSiteSection({ form, canEdit, onChange }: Props) {
+export default function QuoteIilpSiteSection({ form, canEdit, onChange, variant = 'all' }: Props) {
   const purpose = effectiveIilpPurpose(form);
   const volumeM3 = computeIilpVolumeM3(form);
   const heatingKw = computeIilpHeatingNeedKw(form);
@@ -24,8 +25,12 @@ export default function QuoteIilpSiteSection({ form, canEdit, onChange }: Props)
   const needKw = computeIilpNeedKw(form);
   const heatingWPerM3 = iilpHeatingWPerM3ForRegion(form.region);
 
+  const showMitoitus = variant === 'all' || variant === 'mitoitus';
+  const showAsennus = variant === 'all' || variant === 'asennus';
+
   return (
     <>
+      {showMitoitus ? (
       <section className="form-section">
         <h2>Mitoitus</h2>
         <p className="muted">
@@ -104,7 +109,9 @@ export default function QuoteIilpSiteSection({ form, canEdit, onChange }: Props)
           )}
         </div>
       </section>
+      ) : null}
 
+      {showAsennus ? (
       <section className="form-section">
         <h2>Kohteen asennustiedot</h2>
         <p className="muted">
@@ -161,6 +168,7 @@ export default function QuoteIilpSiteSection({ form, canEdit, onChange }: Props)
           </label>
         </div>
       </section>
+      ) : null}
     </>
   );
 }

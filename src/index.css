@@ -8071,7 +8071,8 @@ button.tile.maintenance-report-document-tile {
   font-size: 1rem;
 }
 
-.quote-hinnoittelu-document-hint {
+.quote-hinnoittelu-document-hint,
+.quote-document-section-hint {
   margin: 0;
 }
 

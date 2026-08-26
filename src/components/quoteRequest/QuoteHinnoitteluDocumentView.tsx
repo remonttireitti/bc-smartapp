@@ -1,14 +1,12 @@
-import { useCallback, useState, type ReactNode } from 'react';
+import { type ReactNode } from 'react';
 import ToggleSwitch from '../ToggleSwitch';
+import QuoteDocumentSectionView from './QuoteDocumentSectionView';
 import QuoteIilpOptionsSection from './QuoteIilpOptionsSection';
 import QuoteOptionalItemsSection from './QuoteOptionalItemsSection';
 import QuotePumpDevicesSection from './QuotePumpDevicesSection';
 import QuoteTermsPrintSection from './QuoteTermsPrintSection';
 import QuoteVilpConfigSection from './QuoteVilpConfigSection';
 import { QuoteManualDevicePricingSection } from './QuoteManualDevicePricingSection';
-import { QuoteDialogShell } from './QuoteDialogShell';
-import { QuoteDocumentTile } from './QuoteDocumentTile';
-import { QuoteModuleDialogProvider, useRegisterQuoteModuleDialog } from './QuoteModuleDialogContext';
 import { computeTravelNet, resolveIilpLaborPricingMode, travelCostLabel } from '../../lib/quoteRequest/calculations';
 import type { BrandDeliveryFeeByCategoryMap } from '../../data/devicePricingShared';
 import {
@@ -20,7 +18,6 @@ import {
 } from '../../lib/quoteRequest/constants';
 import {
   buildQuoteHinnoitteluTiles,
-  QUOTE_TILE_THEMES,
   type QuoteHinnoitteluTileId,
 } from '../../lib/quoteRequest/quoteHinnoitteluEntries';
 import type { QuoteRequestData, QuoteVatProfile } from '../../lib/quoteRequest/types';
@@ -39,29 +36,7 @@ type Props = {
   summary: ReactNode;
 };
 
-function QuoteTileDialogUnit({
-  tileId,
-  title,
-  children,
-}: {
-  tileId: QuoteHinnoitteluTileId;
-  title: string;
-  children: ReactNode;
-}) {
-  const [open, setOpen] = useState(false);
-  const openDialog = useCallback(() => setOpen(true), []);
-  const closeDialog = useCallback(() => setOpen(false), []);
-
-  useRegisterQuoteModuleDialog(tileId, openDialog);
-
-  return (
-    <QuoteDialogShell open={open} title={title} titleId={`quote-dialog-${tileId}`} onClose={closeDialog}>
-      {children}
-    </QuoteDialogShell>
-  );
-}
-
-function QuoteHinnoitteluDocumentViewInner({
+export default function QuoteHinnoitteluDocumentView({
   form,
   canEdit,
   onChange,
@@ -272,11 +247,6 @@ function QuoteHinnoitteluDocumentViewInner({
                     value={form.iilpEnergySavingsText}
                     onChange={(e) => onChange({ iilpEnergySavingsText: e.target.value })}
                     disabled={!canEdit}
-                    placeholder={
-                      form.iilpPurpose === 'cooling' || form.buildingType === 'kerrostalo'
-                        ? 'Tyhjä = arvio kWh/€ per päivä jäähdytyksessä. Voit kirjoittaa kohdekohtaisen arvion.'
-                        : 'Tyhjä = oletusteksti (500–1 000 €/vuosi). Voit kirjoittaa kohdekohtaisen arvion.'
-                    }
                   />
                 </label>
               </>
@@ -324,36 +294,13 @@ function QuoteHinnoitteluDocumentViewInner({
   }
 
   return (
-    <section className="form-section quote-hinnoittelu-document">
-      <h2>Hinnoittelu</h2>
-      <p className="muted quote-hinnoittelu-document-hint">
-        Avaa osio ruudusta — kuten huoltoraportin moduuleissa.
-      </p>
-      <div className="grid quote-document-grid">
-        {tiles.map((tile) => (
-          <QuoteDocumentTile
-            key={tile.id}
-            tileId={tile.id}
-            title={tile.title}
-            subtitle={tile.subtitle}
-            theme={QUOTE_TILE_THEMES[tile.themeKey]}
-          >
-            <QuoteTileDialogUnit tileId={tile.id} title={tile.title}>
-              {renderTileContent(tile.id)}
-            </QuoteTileDialogUnit>
-          </QuoteDocumentTile>
-        ))}
-      </div>
-      {summary}
-    </section>
-  );
-}
-
-export default function QuoteHinnoitteluDocumentView(props: Props) {
-  return (
-    <QuoteModuleDialogProvider>
-      <QuoteHinnoitteluDocumentViewInner {...props} />
-    </QuoteModuleDialogProvider>
+    <QuoteDocumentSectionView
+      sectionTitle="Hinnoittelu"
+      hint="Avaa osio ruudusta — kuten huoltoraportin moduuleissa."
+      tiles={tiles}
+      renderTileContent={renderTileContent}
+      footer={summary}
+    />
   );
 }
 

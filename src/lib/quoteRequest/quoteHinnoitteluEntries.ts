@@ -7,6 +7,8 @@ import {
 import { manualDevicePrintLabel, resolveNonPumpDeviceSellNet } from './manualDevicePricing';
 import type { QuoteRequestData } from './types';
 
+import type { QuoteDocumentTileEntry } from './quoteDocumentThemes';
+
 export type QuoteHinnoitteluTileId =
   | 'vilp-config'
   | 'pump-devices'
@@ -19,20 +21,7 @@ export type QuoteHinnoitteluTileId =
   | 'terms'
   | 'notes';
 
-export type QuoteHinnoitteluTileEntry = {
-  id: QuoteHinnoitteluTileId;
-  title: string;
-  subtitle: string;
-  themeKey: 'config' | 'device' | 'pricing' | 'terms' | 'notes';
-};
-
-export const QUOTE_TILE_THEMES = {
-  config: { header: 'linear-gradient(135deg, #0d9488 0%, #14b8a6 100%)' },
-  device: { header: 'linear-gradient(135deg, #ea580c 0%, #f97316 100%)' },
-  pricing: { header: 'linear-gradient(135deg, #2563eb 0%, #3b82f6 100%)' },
-  terms: { header: 'linear-gradient(135deg, #7c3aed 0%, #8b5cf6 100%)' },
-  notes: { header: 'linear-gradient(135deg, #64748b 0%, #94a3b8 100%)' },
-} as const;
+export type QuoteHinnoitteluTileEntry = QuoteDocumentTileEntry<QuoteHinnoitteluTileId>;
 
 function formatEuro(value: number): string {
   return value.toLocaleString('fi-FI', { style: 'currency', currency: 'EUR' });
