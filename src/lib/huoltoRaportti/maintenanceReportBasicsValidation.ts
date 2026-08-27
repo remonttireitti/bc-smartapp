@@ -65,10 +65,6 @@ export function validateMaintenanceCustomerBasics(input: CustomerBasicsInput): V
     errors.customer = 'Valitse asiakas tai täytä asiakkaan nimi.';
   }
 
-  if (!input.osoite.trim()) {
-    errors.osoite = 'Asiakkaan kohteen osoite on pakollinen.';
-  }
-
   return result(errors);
 }
 
@@ -136,7 +132,8 @@ export function isRaportointiBasicsComplete(
   deviceInput: DeviceBasicsInput,
 ): boolean {
   return validateMaintenanceCustomerBasics(customerInput).ok
-    && validateMaintenanceDeviceBasics(deviceInput).ok;
+    && validateMaintenanceDeviceBasics(deviceInput).ok
+    && Boolean(customerInput.osoite.trim());
 }
 
 export function isMaintenanceBasicsComplete(

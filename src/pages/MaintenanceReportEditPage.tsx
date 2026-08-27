@@ -374,9 +374,8 @@ export default function MaintenanceReportEditPage({ session }: Props) {
   const canSaveDraft = useMemo(
     () =>
       Boolean(form.laiteTyyppi.trim())
-      && Boolean(form.osoite.trim())
       && Boolean(customerId || form.asiakas.trim()),
-    [form.laiteTyyppi, form.osoite, customerId, form.asiakas],
+    [form.laiteTyyppi, customerId, form.asiakas],
   );
 
   const maintenanceTabBuildInput = useMemo(
@@ -1405,14 +1404,6 @@ export default function MaintenanceReportEditPage({ session }: Props) {
     if (!currentForm.osoite.trim() && registryAddress) {
       patchForm({ osoite: registryAddress });
       currentForm = { ...currentForm, osoite: registryAddress };
-    }
-    if (!currentForm.osoite.trim()) {
-      if (!options?.auto) {
-        setError('Asiakkaan kohteen osoite on pakollinen.');
-        setBasicsFieldErrors({ osoite: 'Asiakkaan kohteen osoite on pakollinen.' });
-        setDocumentNavTarget('raportointi');
-      }
-      return false;
     }
 
     const isSubmitting = nextStatus === 'submitted';

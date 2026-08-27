@@ -321,13 +321,12 @@ export function MaintenanceReportBasicsPanel({
                   />
                 </label>
                 <label>
-                  Osoite *
+                  Osoite
                   <input
                     className={fieldErrors.osoite ? 'field-error-input' : undefined}
                     value={form.osoite}
                     onChange={(e) => onPatchForm({ osoite: e.target.value })}
                     disabled={!canEditCustomerPrintFields}
-                    required
                   />
                   {fieldErrors.osoite ? <span className="field-error-text">{fieldErrors.osoite}</span> : null}
                 </label>
