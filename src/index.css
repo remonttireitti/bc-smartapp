@@ -833,6 +833,55 @@ button[type='submit']:disabled { opacity: .6; cursor: wait; }
   box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
 }
 
+.quote-request-list li {
+  background: #f8fafc;
+}
+
+a.quote-request-list-link {
+  display: flex;
+  flex-direction: column;
+  gap: .45rem;
+  width: 100%;
+  min-width: 0;
+  padding: .85rem 1rem;
+  text-decoration: none;
+  color: inherit;
+}
+
+.quote-request-list-head {
+  display: flex;
+  flex-direction: column;
+  gap: .2rem;
+  min-width: 0;
+}
+
+.quote-request-list-head strong {
+  font-size: 1rem;
+  line-height: 1.35;
+}
+
+.quote-request-list-head .muted {
+  font-size: .88rem;
+  line-height: 1.35;
+}
+
+.quote-request-list-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .45rem 1rem;
+  font-size: .88rem;
+}
+
+.quote-request-list-price {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.quote-request-list-meta .badge {
+  flex-shrink: 0;
+}
+
 .report-list-row-pro {
   display: flex;
   align-items: center;

@@ -2,16 +2,10 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
 import AppLayout from '../components/AppLayout';
+import { QuoteRequestListItem } from '../components/quoteRequest/QuoteRequestListItem';
 import { supabase } from '../lib/supabase';
 import { quoteListTrail, withNavTrail } from '../lib/navigationTrail';
-import { computeQuoteTotals } from '../lib/quoteRequest/calculations';
-import { QUOTE_TYPE_LABELS } from '../lib/quoteRequest/constants';
-import {
-  QUOTE_STATUS_LABELS,
-  normalizeQuoteRequestData,
-  resolveQuoteDisplayTitle,
-} from '../lib/quoteRequest/defaults';
-import { quoteCustomerDisplayName, quoteDeviceDisplayLabel } from '../lib/quoteRequest/legacyImport';
+import { normalizeQuoteRequestData } from '../lib/quoteRequest/defaults';
 import type { QuoteRequestRow } from '../lib/quoteRequest/types';
 import { useProfile } from '../hooks/useProfile';
 
@@ -133,9 +127,9 @@ export default function QuoteRequestsPage({ session }: Props) {
           {grouped.drafts.length > 0 && (
             <section className="panel">
               <h2>Luonnokset ({grouped.drafts.length})</h2>
-              <ul className="report-list">
+              <ul className="report-list report-list-modern quote-request-list">
                 {grouped.drafts.map((row) => (
-                  <QuoteListItem key={row.id} row={row} />
+                  <QuoteRequestListItem key={row.id} row={row} />
                 ))}
               </ul>
             </section>
@@ -144,9 +138,9 @@ export default function QuoteRequestsPage({ session }: Props) {
           {grouped.sent.length > 0 && (
             <section className="panel">
               <h2>Lähetetyt ({grouped.sent.length})</h2>
-              <ul className="report-list">
+              <ul className="report-list report-list-modern quote-request-list">
                 {grouped.sent.map((row) => (
-                  <QuoteListItem key={row.id} row={row} />
+                  <QuoteRequestListItem key={row.id} row={row} />
                 ))}
               </ul>
             </section>
@@ -154,45 +148,5 @@ export default function QuoteRequestsPage({ session }: Props) {
         </>
       )}
     </AppLayout>
-  );
-}
-
-function QuoteListItem({ row }: { row: QuoteRequestRow }) {
-  const data = normalizeQuoteRequestData(row.data);
-  const total = computeQuoteTotals(data).grossTotal;
-  const updated = new Date(row.updated_at).toLocaleString('fi-FI');
-  const displayTitle = resolveQuoteDisplayTitle({
-    customerName: row.customers?.name,
-    quoteTypeLabel: QUOTE_TYPE_LABELS[data.type],
-    storedTitle: row.title,
-  });
-
-  return (
-    <li>
-      <Link to={`/tarjouspyynnot/${row.id}`} {...withNavTrail(quoteListTrail())}>
-        <div className="report-list-main">
-          <strong>{displayTitle}</strong>
-          <span className="muted">
-            {QUOTE_TYPE_LABELS[data.type]}
-            {' • '}
-            {(() => {
-              const deviceLabel = quoteDeviceDisplayLabel(data, row.equipment?.name ?? row.equipment?.tag);
-              return (
-                <>
-                  {quoteCustomerDisplayName(row)}
-                  {deviceLabel ? ` • ${deviceLabel}` : ''}
-                </>
-              );
-            })()}
-          </span>
-        </div>
-        <div className="report-list-meta">
-          <span className="badge">{QUOTE_STATUS_LABELS[row.status] ?? row.status}</span>
-          <span>{total.toLocaleString('fi-FI', { style: 'currency', currency: 'EUR' })}</span>
-          <span className="muted">{row.branding_company?.name ?? '—'}</span>
-          <span className="muted">{updated}</span>
-        </div>
-      </Link>
-    </li>
   );
 }
