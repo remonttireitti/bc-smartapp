@@ -47,6 +47,7 @@ import { applyLegacyImportInference } from './legacyImportInference';
 import { inferLegacyMlpFlags } from './mlpLegacyFlags';
 import { normalizeMaintenanceReportPhotos } from '../maintenanceReportPhotoUtils';
 import { normalizeKonvektoriTyyppi } from './konvektoriTypes';
+import { sortKonvektoriRowsByTunnus } from './konvektoriRows';
 import { generateId, resolveKylmaaineTyyppi } from './utils';
 
 export function createEmptyKonvektoriRow(): KonvektoriRowData {
@@ -245,6 +246,7 @@ export function ensureKonvektoriRow(data: Partial<KonvektoriRowData> | undefined
     huomio: String(data.huomio ?? raw.huomio ?? '').trim(),
     huomioTyyppi: data.huomioTyyppi === 'vika' || raw.huomioTyyppi === 'vika' ? 'vika' : 'kommentti',
   };
+  if (!next.id) next.id = generateId();
   for (const field of KONVEKTORI_CHECKBOX_FIELDS) {
     next[field] = coerceKonvektoriTriState(raw[field] ?? data[field]);
   }
@@ -257,7 +259,8 @@ export function ensureKonvektoriRow(data: Partial<KonvektoriRowData> | undefined
 /** Vähintään yksi rivi konvektoritaulukossa. */
 export function ensureKonvektoriRowsList(rows: KonvektoriRowData[] | undefined | null): KonvektoriRowData[] {
   const list = (rows ?? []).map((row) => ensureKonvektoriRow(row));
-  return list.length > 0 ? list : [createEmptyKonvektoriRow()];
+  const normalized = list.length > 0 ? list : [createEmptyKonvektoriRow()];
+  return sortKonvektoriRowsByTunnus(normalized);
 }
 
 export function pickBestKonvektoriRows(

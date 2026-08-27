@@ -1,4 +1,5 @@
 import type { KonvektoriRowData } from './types';
+import { sortKonvektoriRowsByTunnus } from './konvektoriRows';
 
 export const KONVEKTORI_TARKASTUS_ITEMS = [
   {
@@ -102,5 +103,7 @@ export function konvektoriFaultLabels(row: KonvektoriRowData): string[] {
 export function filterFaultyKonvektoriRows(
   rows: KonvektoriRowData[] | undefined | null,
 ): KonvektoriRowData[] {
-  return (rows ?? []).filter((row) => row && typeof row === 'object' && konvektoriRowIsFaulty(row));
+  return sortKonvektoriRowsByTunnus(
+    (rows ?? []).filter((row) => row && typeof row === 'object' && konvektoriRowIsFaulty(row)),
+  );
 }

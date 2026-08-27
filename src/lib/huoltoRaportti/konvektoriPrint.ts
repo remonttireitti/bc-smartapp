@@ -2,6 +2,7 @@ import {
   KONVEKTORI_TARKASTUS_ITEMS,
   konvektoriTarkastusSummary,
 } from './konvektoriTarkastus';
+import { sortKonvektoriRowsByTunnus } from './konvektoriRows';
 import {
   formatKonvektoriLampotila,
   formatKonvektoriTeho,
@@ -228,7 +229,7 @@ export function generateKonvektoritGridPrintHtml(
     verkosto?: KonvektoriVerkostoKoide;
   },
 ): string {
-  const list = (rows ?? []).filter((row) => row && typeof row === 'object');
+  const list = sortKonvektoriRowsByTunnus((rows ?? []).filter((row) => row && typeof row === 'object'));
   if (list.length === 0) return '';
 
   const origin = options?.origin ?? (typeof window !== 'undefined' ? window.location.origin : '');

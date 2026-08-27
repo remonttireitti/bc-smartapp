@@ -5,6 +5,7 @@ import {
   createEmptyKonvektoriRow,
   ensureKonvektoriRowsList,
 } from '../../lib/huoltoRaportti/defaults';
+import { sortKonvektoriRowsByTunnus } from '../../lib/huoltoRaportti/konvektoriRows';
 import { konvektoriTarkastusSummary } from '../../lib/huoltoRaportti/konvektoriTarkastus';
 import { KONVEKTORI_TYYPPI_OPTIONS } from '../../lib/huoltoRaportti/konvektoriTypes';
 import { konvektoritSectionTitle } from '../../lib/huoltoRaportti/sectionTitles';
@@ -47,31 +48,45 @@ export function KonvektoritSection({
   printFaultsBusy,
   embeddedInParentDialog = false,
 }: Props) {
-  const effectiveRows = useMemo(() => ensureKonvektoriRowsList(rows), [rows]);
-  const [dialogIndex, setDialogIndex] = useState<number | null>(null);
+  const sortedRows = useMemo(
+    () => sortKonvektoriRowsByTunnus(ensureKonvektoriRowsList(rows)),
+    [rows],
+  );
+  const [dialogRowId, setDialogRowId] = useState<string | null>(null);
 
   const commitRows = (nextRows: KonvektoriRowData[]) => {
-    onChange(nextRows);
+    onChange(sortKonvektoriRowsByTunnus(ensureKonvektoriRowsList(nextRows)));
   };
 
-  const patchRow = (index: number, patch: Partial<KonvektoriRowData>) => {
-    commitRows(effectiveRows.map((row, i) => (i === index ? { ...row, ...patch } : row)));
+  const patchRow = (rowId: string, patch: Partial<KonvektoriRowData>) => {
+    const list = ensureKonvektoriRowsList(rows);
+    const next = list.map((row) => (row.id === rowId ? { ...row, ...patch } : row));
+    if ('tunnus' in patch) {
+      onChange(next);
+      return;
+    }
+    commitRows(next);
   };
 
-  const removeRow = (index: number) => {
+  const sortRowsByTunnus = () => {
+    commitRows(rows);
+  };
+
+  const removeRow = (rowId: string) => {
+    const list = ensureKonvektoriRowsList(rows);
     commitRows(
-      effectiveRows.length > 1
-        ? effectiveRows.filter((_, i) => i !== index)
+      list.length > 1
+        ? list.filter((row) => row.id !== rowId)
         : [createEmptyKonvektoriRow()],
     );
   };
 
-  const dialogRow = dialogIndex != null ? effectiveRows[dialogIndex] : null;
+  const dialogRow = dialogRowId ? sortedRows.find((row) => row.id === dialogRowId) ?? null : null;
   const dialogLabel =
     dialogRow?.tunnus.trim()
     || dialogRow?.huone?.trim()
     || [dialogRow?.valmistaja, dialogRow?.malli].filter(Boolean).join(' ')
-    || (dialogIndex != null ? `Konvektori ${dialogIndex + 1}` : '');
+    || (dialogRowId ? `Konvektori ${sortedRows.findIndex((row) => row.id === dialogRowId) + 1}` : '');
 
   const body = (
     <>
@@ -94,8 +109,8 @@ export function KonvektoritSection({
           className="btn btn-secondary btn-sm"
           onClick={() =>
             commitRows([
-              ...effectiveRows,
-              cloneKonvektoriRow(effectiveRows[effectiveRows.length - 1]),
+              ...ensureKonvektoriRowsList(rows),
+              cloneKonvektoriRow(sortedRows[sortedRows.length - 1]),
             ])
           }
         >
@@ -104,7 +119,7 @@ export function KonvektoritSection({
         <button
           type="button"
           className="btn btn-secondary btn-sm"
-          onClick={() => commitRows([...effectiveRows, createEmptyKonvektoriRow()])}
+          onClick={() => commitRows([...ensureKonvektoriRowsList(rows), createEmptyKonvektoriRow()])}
         >
           + Lisää rivi
         </button>
@@ -123,16 +138,17 @@ export function KonvektoritSection({
           <span className="konvektori-compact-head-actions">Toiminnot</span>
         </div>
 
-        {effectiveRows.map((row, index) => {
+        {sortedRows.map((row, index) => {
           const status = rowStatusLabel(row);
+          const rowId = row.id ?? `row-${index}`;
           return (
-            <div key={row.id ?? index} className="konvektori-compact-row">
+            <div key={rowId} className="konvektori-compact-row">
               <span className="konvektori-compact-num">{index + 1}</span>
               <label className="konvektori-compact-field konvektori-compact-field--type">
                 <span className={fieldLabelClass(embeddedInParentDialog)}>Tyyppi</span>
                 <select
                   value={row.tyyppi ?? ''}
-                  onChange={(e) => patchRow(index, { tyyppi: e.target.value as KonvektoriRowData['tyyppi'] })}
+                  onChange={(e) => patchRow(rowId, { tyyppi: e.target.value as KonvektoriRowData['tyyppi'] })}
                 >
                   <option value="">Valitse…</option>
                   {KONVEKTORI_TYYPPI_OPTIONS.map((opt) => (
@@ -144,7 +160,8 @@ export function KonvektoritSection({
                 <span className={fieldLabelClass(embeddedInParentDialog)}>Tunnus</span>
                 <input
                   value={row.tunnus}
-                  onChange={(e) => patchRow(index, { tunnus: e.target.value })}
+                  onChange={(e) => patchRow(rowId, { tunnus: e.target.value })}
+                  onBlur={sortRowsByTunnus}
                   placeholder="Tunnus"
                 />
               </label>
@@ -152,7 +169,7 @@ export function KonvektoritSection({
                 <span className={fieldLabelClass(embeddedInParentDialog)}>Huone</span>
                 <input
                   value={row.huone ?? ''}
-                  onChange={(e) => patchRow(index, { huone: e.target.value })}
+                  onChange={(e) => patchRow(rowId, { huone: e.target.value })}
                   placeholder="Huone"
                 />
               </label>
@@ -160,7 +177,7 @@ export function KonvektoritSection({
                 <span className={fieldLabelClass(embeddedInParentDialog)}>Valmistaja</span>
                 <input
                   value={row.valmistaja}
-                  onChange={(e) => patchRow(index, { valmistaja: e.target.value })}
+                  onChange={(e) => patchRow(rowId, { valmistaja: e.target.value })}
                   placeholder="Valmistaja"
                 />
               </label>
@@ -168,7 +185,7 @@ export function KonvektoritSection({
                 <span className={fieldLabelClass(embeddedInParentDialog)}>Malli</span>
                 <input
                   value={row.malli}
-                  onChange={(e) => patchRow(index, { malli: e.target.value })}
+                  onChange={(e) => patchRow(rowId, { malli: e.target.value })}
                   placeholder="Malli"
                 />
               </label>
@@ -176,7 +193,7 @@ export function KonvektoritSection({
                 <span className={fieldLabelClass(embeddedInParentDialog)}>Sarjanumero</span>
                 <input
                   value={row.sarjanumero}
-                  onChange={(e) => patchRow(index, { sarjanumero: e.target.value })}
+                  onChange={(e) => patchRow(rowId, { sarjanumero: e.target.value })}
                   placeholder="Sarjanumero"
                 />
               </label>
@@ -187,11 +204,11 @@ export function KonvektoritSection({
                 <button
                   type="button"
                   className="btn btn-primary btn-sm"
-                  onClick={() => setDialogIndex(index)}
+                  onClick={() => setDialogRowId(rowId)}
                 >
                   Tarkastus
                 </button>
-                <button type="button" className="btn btn-secondary btn-sm" onClick={() => removeRow(index)}>
+                <button type="button" className="btn btn-secondary btn-sm" onClick={() => removeRow(rowId)}>
                   Poista
                 </button>
               </div>
@@ -200,13 +217,16 @@ export function KonvektoritSection({
         })}
       </div>
 
-      {dialogRow && dialogIndex != null && (
+      {dialogRow && dialogRowId && (
         <KonvektoriTarkastusDialog
           open
           row={dialogRow}
           rowLabel={dialogLabel}
-          onClose={() => setDialogIndex(null)}
-          onSave={(nextRow) => patchRow(dialogIndex, nextRow)}
+          onClose={() => setDialogRowId(null)}
+          onSave={(nextRow) => {
+            patchRow(dialogRowId, nextRow);
+            sortRowsByTunnus();
+          }}
         />
       )}
     </>
