@@ -36,6 +36,10 @@ function rowStatusLabel(row: KonvektoriRowData): { text: string; className: stri
   return { text: 'OK', className: 'konvektori-status konvektori-status--ok' };
 }
 
+function fieldLabelClass(embeddedInParentDialog: boolean): string {
+  return embeddedInParentDialog ? 'konvektori-compact-label' : 'sr-only';
+}
+
 export function KonvektoritSection({
   rows,
   onChange,
@@ -125,7 +129,7 @@ export function KonvektoritSection({
             <div key={row.id ?? index} className="konvektori-compact-row">
               <span className="konvektori-compact-num">{index + 1}</span>
               <label className="konvektori-compact-field konvektori-compact-field--type">
-                <span className="sr-only">Tyyppi</span>
+                <span className={fieldLabelClass(embeddedInParentDialog)}>Tyyppi</span>
                 <select
                   value={row.tyyppi ?? ''}
                   onChange={(e) => patchRow(index, { tyyppi: e.target.value as KonvektoriRowData['tyyppi'] })}
@@ -137,7 +141,7 @@ export function KonvektoritSection({
                 </select>
               </label>
               <label className="konvektori-compact-field">
-                <span className="sr-only">Tunnus</span>
+                <span className={fieldLabelClass(embeddedInParentDialog)}>Tunnus</span>
                 <input
                   value={row.tunnus}
                   onChange={(e) => patchRow(index, { tunnus: e.target.value })}
@@ -145,7 +149,7 @@ export function KonvektoritSection({
                 />
               </label>
               <label className="konvektori-compact-field">
-                <span className="sr-only">Huone</span>
+                <span className={fieldLabelClass(embeddedInParentDialog)}>Huone</span>
                 <input
                   value={row.huone ?? ''}
                   onChange={(e) => patchRow(index, { huone: e.target.value })}
@@ -153,7 +157,7 @@ export function KonvektoritSection({
                 />
               </label>
               <label className="konvektori-compact-field">
-                <span className="sr-only">Valmistaja</span>
+                <span className={fieldLabelClass(embeddedInParentDialog)}>Valmistaja</span>
                 <input
                   value={row.valmistaja}
                   onChange={(e) => patchRow(index, { valmistaja: e.target.value })}
@@ -161,7 +165,7 @@ export function KonvektoritSection({
                 />
               </label>
               <label className="konvektori-compact-field">
-                <span className="sr-only">Malli</span>
+                <span className={fieldLabelClass(embeddedInParentDialog)}>Malli</span>
                 <input
                   value={row.malli}
                   onChange={(e) => patchRow(index, { malli: e.target.value })}
@@ -169,7 +173,7 @@ export function KonvektoritSection({
                 />
               </label>
               <label className="konvektori-compact-field">
-                <span className="sr-only">Sarjanumero</span>
+                <span className={fieldLabelClass(embeddedInParentDialog)}>Sarjanumero</span>
                 <input
                   value={row.sarjanumero}
                   onChange={(e) => patchRow(index, { sarjanumero: e.target.value })}

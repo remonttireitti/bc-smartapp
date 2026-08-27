@@ -35,6 +35,7 @@ export function KonvektoritTabSection({
       documentModuleKey={documentLayout ? 'konvektorit' : undefined}
       title={title}
       titleId="konvektorit-dialog-title"
+      dialogClassName="konvektori-list-dialog"
       summaryRows={konvektoritSummaryRows(form)}
       complete={complete && !hasFaults}
       editLabel="Muokkaa konvektoreita"

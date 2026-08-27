@@ -13,6 +13,7 @@ type Props<T> = {
   documentModuleKey?: string;
   title: string;
   titleId?: string;
+  dialogClassName?: string;
   summaryRows?: ModuleSummaryRow[];
   complete?: boolean;
   editLabel?: string;
@@ -27,6 +28,7 @@ export function DocumentModuleInspection<T extends object>({
   documentModuleKey,
   title,
   titleId,
+  dialogClassName,
   canSave,
   children,
 }: Props<T>) {
@@ -59,7 +61,13 @@ export function DocumentModuleInspection<T extends object>({
   }
 
   return (
-    <HuoltoInspectionDialogShell open={open} title={title} titleId={titleId} onClose={closeDialog}>
+    <HuoltoInspectionDialogShell
+      open={open}
+      title={title}
+      titleId={titleId}
+      dialogClassName={dialogClassName}
+      onClose={closeDialog}
+    >
       <HuoltoModulePresentationProvider value="accordion">
         {children(draft, patchDraft)}
       </HuoltoModulePresentationProvider>

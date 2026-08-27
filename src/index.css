@@ -5177,7 +5177,8 @@ textarea {
     max-height: 92dvh;
   }
 
-  .konvektori-tarkastus-dialog {
+  .konvektori-tarkastus-dialog,
+  .konvektori-list-dialog {
     width: 100%;
     max-width: none;
     max-height: 92dvh;
@@ -14442,6 +14443,100 @@ button.vrf-toggle:not(:disabled) {
     flex: 0 0 auto;
     min-height: 0;
     white-space: nowrap;
+  }
+}
+
+/* Konvektorilista popupissa: aina korttirivi (ei leveää taulukkoa dialogin sisällä). */
+.konvektori-list-dialog {
+  width: min(100%, calc(100vw - 1.5rem));
+  max-height: min(92dvh, calc(100vh - 2rem));
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.konvektorit-section--embedded {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.konvektorit-section--embedded .konvektori-compact-list {
+  overflow-x: visible;
+}
+
+.konvektorit-section--embedded .konvektori-compact-head {
+  display: none !important;
+}
+
+.konvektorit-section--embedded .konvektori-compact-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-areas:
+    "num num"
+    "type type"
+    "tunnus huone"
+    "valm malli"
+    "sarja sarja"
+    "status status"
+    "actions actions";
+  gap: 0.5rem;
+  align-items: stretch;
+  min-width: 0;
+  padding: 0.65rem;
+  border: 1px solid var(--border-strong, var(--border));
+  border-radius: 8px;
+  background: var(--bg-surface, #fff);
+}
+
+.konvektorit-section--embedded .konvektori-compact-num {
+  grid-area: num;
+  text-align: left;
+}
+
+.konvektorit-section--embedded .konvektori-compact-row > .konvektori-compact-field:nth-of-type(1) { grid-area: type; }
+.konvektorit-section--embedded .konvektori-compact-row > .konvektori-compact-field:nth-of-type(2) { grid-area: tunnus; }
+.konvektorit-section--embedded .konvektori-compact-row > .konvektori-compact-field:nth-of-type(3) { grid-area: huone; }
+.konvektorit-section--embedded .konvektori-compact-row > .konvektori-compact-field:nth-of-type(4) { grid-area: valm; }
+.konvektorit-section--embedded .konvektori-compact-row > .konvektori-compact-field:nth-of-type(5) { grid-area: malli; }
+.konvektorit-section--embedded .konvektori-compact-row > .konvektori-compact-field:nth-of-type(6) { grid-area: sarja; }
+
+.konvektorit-section--embedded .konvektori-compact-row > .konvektori-compact-status {
+  grid-area: status;
+  justify-self: start;
+}
+
+.konvektorit-section--embedded .konvektori-compact-actions {
+  grid-area: actions;
+  justify-content: stretch;
+  flex-wrap: wrap;
+}
+
+.konvektorit-section--embedded .konvektori-compact-actions .btn {
+  flex: 1 1 8rem;
+  min-height: 2.75rem;
+  white-space: normal;
+}
+
+.konvektorit-section--embedded .konvektori-compact-label {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-bottom: 0.15rem;
+}
+
+@media (max-width: 420px) {
+  .konvektorit-section--embedded .konvektori-compact-row {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "num"
+      "type"
+      "tunnus"
+      "huone"
+      "valm"
+      "malli"
+      "sarja"
+      "status"
+      "actions";
   }
 }
 

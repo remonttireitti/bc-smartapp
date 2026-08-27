@@ -6,6 +6,7 @@ interface Props {
   open: boolean;
   title: string;
   titleId?: string;
+  dialogClassName?: string;
   onClose: () => void;
   children: ReactNode;
 }
@@ -14,6 +15,7 @@ export function HuoltoInspectionDialogShell({
   open,
   title,
   titleId = 'huolto-inspection-dialog-title',
+  dialogClassName,
   onClose,
   children,
 }: Props) {
@@ -43,7 +45,9 @@ export function HuoltoInspectionDialogShell({
   return createPortal(
     <div className="leave-draft-overlay konvektori-dialog-overlay" role="presentation" onClick={onClose}>
       <div
-        className="leave-draft-dialog panel konvektori-tarkastus-dialog"
+        className={['leave-draft-dialog', 'panel', 'konvektori-tarkastus-dialog', dialogClassName]
+          .filter(Boolean)
+          .join(' ')}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
