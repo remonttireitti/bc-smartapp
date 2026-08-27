@@ -124,17 +124,27 @@ function buildMaintenancePrintBundle(
 
 export async function loadMaintenanceReportPrintBundle(
   reportId: string,
-  dataOverride?: HuoltoReportData,
+  options?: { dataOverride?: HuoltoReportData; faultyKonvektoritOnly?: boolean },
 ) {
-  const ctx = await loadMaintenancePrintContext(reportId, dataOverride);
-  return buildMaintenancePrintBundle(ctx, ctx.reportData);
+  const ctx = await loadMaintenancePrintContext(reportId, options?.dataOverride);
+  let reportData = ctx.reportData;
+  if (options?.faultyKonvektoritOnly) {
+    const faultyRows = filterFaultyKonvektoriRows(reportData.konvektoriRows);
+    if (faultyRows.length === 0) {
+      throw new Error('Ei viallisia konvektoreita tulostettavaksi.');
+    }
+    reportData = { ...reportData, konvektoriRows: faultyRows };
+    const documentTitle = `${buildMaintenanceReportPrintTitle(reportData)} — vialliset konvektorit`;
+    return buildMaintenancePrintBundle(ctx, reportData, documentTitle);
+  }
+  return buildMaintenancePrintBundle(ctx, reportData);
 }
 
 export async function openMaintenanceReportPrint(
   reportId: string,
   dataOverride?: HuoltoReportData,
 ) {
-  const bundle = await loadMaintenanceReportPrintBundle(reportId, dataOverride);
+  const bundle = await loadMaintenanceReportPrintBundle(reportId, { dataOverride });
   openPrintHtml(bundle.html, { documentTitle: bundle.documentTitle });
 }
 
@@ -142,18 +152,7 @@ async function loadMaintenanceReportKonvektoriFaultPrintBundle(
   reportId: string,
   dataOverride?: HuoltoReportData,
 ) {
-  const ctx = await loadMaintenancePrintContext(reportId, dataOverride);
-  const faultyRows = filterFaultyKonvektoriRows(ctx.reportData.konvektoriRows);
-  if (faultyRows.length === 0) {
-    throw new Error('Ei viallisia konvektoreita tulostettavaksi.');
-  }
-
-  const reportData = {
-    ...ctx.reportData,
-    konvektoriRows: faultyRows,
-  };
-  const documentTitle = `${buildMaintenanceReportPrintTitle(reportData)} — vialliset konvektorit`;
-  return buildMaintenancePrintBundle(ctx, reportData, documentTitle);
+  return loadMaintenanceReportPrintBundle(reportId, { dataOverride, faultyKonvektoritOnly: true });
 }
 
 export async function openMaintenanceReportKonvektoriFaultPrint(

@@ -82,8 +82,15 @@ export function guardPrintTitle(title: string, printWindow?: Window | null): () 
     const previousTitle = printDoc.title;
     const printTitleEl = printDoc.querySelector('title');
 
+    let applyingPopup = false;
     const applyPopup = () => {
-      applyPrintDocumentTitle(printDoc, safeTitle);
+      if (applyingPopup) return;
+      applyingPopup = true;
+      try {
+        applyPrintDocumentTitle(printDoc, safeTitle);
+      } finally {
+        applyingPopup = false;
+      }
     };
 
     applyPopup();
@@ -110,9 +117,16 @@ export function guardPrintTitle(title: string, printWindow?: Window | null): () 
   const previous = document.title;
   const titleEl = document.querySelector('title');
 
+  let applying = false;
   const apply = () => {
-    if (document.title !== safeTitle) document.title = safeTitle;
-    if (titleEl && titleEl.textContent !== safeTitle) titleEl.textContent = safeTitle;
+    if (applying) return;
+    applying = true;
+    try {
+      if (document.title !== safeTitle) document.title = safeTitle;
+      if (titleEl && titleEl.textContent !== safeTitle) titleEl.textContent = safeTitle;
+    } finally {
+      applying = false;
+    }
   };
 
   apply();
@@ -148,9 +162,14 @@ const PRINT_DOC_RESET_STYLE = `<style data-print-doc-reset>
 
 const PRINT_BOOTSTRAP_ATTR = 'data-print-bootstrap';
 
-export function injectPrintDocumentBootstrap(html: string, documentTitle: string): string {
+export function injectPrintDocumentBootstrap(
+  html: string,
+  documentTitle: string,
+  options?: { autoPrint?: boolean },
+): string {
   if (html.includes(PRINT_BOOTSTRAP_ATTR)) return html;
 
+  const autoPrint = options?.autoPrint !== false;
   const safeTitle = formatPrintSaveFileName(documentTitle);
   const escapedTitle = escapeHtmlPrint(safeTitle);
   const titleJson = JSON.stringify(safeTitle);
@@ -159,6 +178,11 @@ export function injectPrintDocumentBootstrap(html: string, documentTitle: string
 Valitse tulostimena <strong>Tallenna PDF-muodossa</strong>. Poista valinnasta ylä- ja alatunnisteet.
 <button type="button" onclick="window.print()" style="margin-left:12px;padding:6px 12px;cursor:pointer;">Tulosta / PDF</button>
 </div>`;
+  const autoPrintScript = autoPrint
+    ? `  function schedule() { window.setTimeout(printDoc, 300); }
+  if (document.readyState === 'complete') schedule();
+  else window.addEventListener('load', schedule, { once: true });`
+    : '';
   const script = `<script ${PRINT_BOOTSTRAP_ATTR}>
 (function () {
   var title = ${titleJson};
@@ -175,9 +199,7 @@ Valitse tulostimena <strong>Tallenna PDF-muodossa</strong>. Poista valinnasta yl
   applyTitle();
   if (window.__bcPrintBootstrap) return;
   window.__bcPrintBootstrap = true;
-  function schedule() { window.setTimeout(printDoc, 300); }
-  if (document.readyState === 'complete') schedule();
-  else window.addEventListener('load', schedule, { once: true });
+${autoPrintScript}
 })();
 </script>`;
 

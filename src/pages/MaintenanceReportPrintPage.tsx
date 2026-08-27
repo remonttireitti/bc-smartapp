@@ -5,11 +5,11 @@ import NavigationBreadcrumb from '../components/NavigationBreadcrumb';
 import { useMaintenancePrintNavigation } from '../hooks/useMaintenancePrintNavigation';
 import { useProfile } from '../hooks/useProfile';
 import { loadMaintenanceReportPrintBundle } from '../lib/maintenanceReportPrintAction';
-import { openPrintHtml } from '../lib/openPrintWindow';
 import {
   applyPrintDocumentTitle,
   extractPrintableHtmlFragment,
   formatPrintSaveFileName,
+  printCurrentDocument,
 } from '../lib/printDocumentShell';
 import { isPortalReadOnly } from '../lib/portalWorkOrder';
 import type { HuoltoReportData } from '../lib/huoltoRaportti/types';
@@ -23,9 +23,9 @@ export default function MaintenanceReportPrintPage({ session }: Props) {
   const { id } = useParams();
   const [searchParams] = useSearchParams();
   const autoPrint = searchParams.get('print') === '1';
+  const faultyKonvektoritOnly = searchParams.get('vialliset') === '1';
   const { profile } = useProfile(session);
   const [html, setHtml] = useState('');
-  const [printHtml, setPrintHtml] = useState('');
   const [printTitle, setPrintTitle] = useState('');
   const [reportData, setReportData] = useState<HuoltoReportData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -33,6 +33,7 @@ export default function MaintenanceReportPrintPage({ session }: Props) {
   const navigation = useMaintenancePrintNavigation(id, reportData);
   const portalReadOnly = isPortalReadOnly(profile);
   const autoPrintTriggeredRef = useRef(false);
+  const printCleanupRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     if (!id) {
@@ -41,7 +42,7 @@ export default function MaintenanceReportPrintPage({ session }: Props) {
       return;
     }
     void loadReport(id);
-  }, [id]);
+  }, [id, faultyKonvektoritOnly]);
 
   useEffect(() => {
     if (!printTitle) return undefined;
@@ -58,19 +59,28 @@ export default function MaintenanceReportPrintPage({ session }: Props) {
   }, [printTitle]);
 
   useEffect(() => {
-    if (!autoPrint || loading || !printHtml || !printTitle || autoPrintTriggeredRef.current) return;
+    if (!autoPrint || loading || !printTitle || autoPrintTriggeredRef.current) return;
     autoPrintTriggeredRef.current = true;
-    openPrintHtml(printHtml, { documentTitle: printTitle });
-  }, [autoPrint, loading, printHtml, printTitle]);
+    printCleanupRef.current?.();
+    printCleanupRef.current = printCurrentDocument(printTitle);
+  }, [autoPrint, loading, printTitle]);
+
+  useEffect(
+    () => () => {
+      printCleanupRef.current?.();
+      printCleanupRef.current = null;
+    },
+    [],
+  );
 
   async function loadReport(reportId: string) {
     setLoading(true);
     setError(null);
+    autoPrintTriggeredRef.current = false;
 
     try {
-      const bundle = await loadMaintenanceReportPrintBundle(reportId);
+      const bundle = await loadMaintenanceReportPrintBundle(reportId, { faultyKonvektoritOnly });
       setReportData(bundle.data);
-      setPrintHtml(bundle.html);
       setHtml(extractPrintableHtmlFragment(bundle.html));
       setPrintTitle(formatPrintSaveFileName(bundle.documentTitle));
     } catch (err) {
@@ -81,8 +91,9 @@ export default function MaintenanceReportPrintPage({ session }: Props) {
   }
 
   function triggerPrint() {
-    if (!printHtml || !printTitle) return;
-    openPrintHtml(printHtml, { documentTitle: printTitle });
+    if (!printTitle) return;
+    printCleanupRef.current?.();
+    printCleanupRef.current = printCurrentDocument(printTitle);
   }
 
   if (loading) {
@@ -111,7 +122,7 @@ export default function MaintenanceReportPrintPage({ session }: Props) {
       <div className="page-header no-print maintenance-print-toolbar">
         <div>
           <NavigationBreadcrumb items={navigation.breadcrumb} />
-          <h1>Huoltoraportin tuloste</h1>
+          <h1>{faultyKonvektoritOnly ? 'Vialliset konvektorit' : 'Huoltoraportin tuloste'}</h1>
           {printTitle ? (
             <p className="muted maintenance-print-filename-hint">
               PDF-tiedostonimi: <strong>{printTitle}</strong>

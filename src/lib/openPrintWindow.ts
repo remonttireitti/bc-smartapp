@@ -153,20 +153,26 @@ export function openPrintHtml(
 ) {
   const imageWaitMs = options?.imageWaitMs ?? DEFAULT_IMAGE_WAIT_MS;
   const documentTitle = resolvePrintDocumentTitle(html, options?.documentTitle);
-  const preparedHtml = injectPrintDocumentBootstrap(
-    ensurePrintHtmlDocumentTitle(html, documentTitle),
+  const titledHtml = ensurePrintHtmlDocumentTitle(html, documentTitle);
+
+  const popup = createPrintPopup(
+    injectPrintDocumentBootstrap(titledHtml, documentTitle, { autoPrint: true }),
     documentTitle,
   );
-
-  const popup = createPrintPopup(preparedHtml, documentTitle);
   if (popup) {
     watchPrintBootstrap(popup, documentTitle, imageWaitMs);
     return;
   }
 
   try {
-    const frame = createPrintFrame(preparedHtml, documentTitle);
+    const frame = createPrintFrame(
+      injectPrintDocumentBootstrap(titledHtml, documentTitle, { autoPrint: false }),
+      documentTitle,
+    );
     watchPrintBootstrap(frame, documentTitle, imageWaitMs);
+    window.alert(
+      'Tulostus avattiin sivulle. Paina vihreää Tulosta / PDF -painiketta tulosteen yläreunassa.',
+    );
   } catch {
     window.alert('Tulostusikkunaa ei voitu avata. Salli ponnahdusikkunat tälle sivustolle.');
   }

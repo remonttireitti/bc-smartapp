@@ -83,7 +83,7 @@ async function bitmapBlobToPrintDataUrl(blob: Blob, maxWidth: number): Promise<s
 }
 
 async function imageUrlToPrintDataUrl(url: string, maxWidth: number): Promise<string> {
-  return new Promise((resolve) => {
+  const loadPromise = new Promise<string>((resolve) => {
     const img = new Image();
     img.crossOrigin = 'anonymous';
     img.onload = () => {
@@ -94,6 +94,7 @@ async function imageUrlToPrintDataUrl(url: string, maxWidth: number): Promise<st
     img.onerror = () => resolve(url);
     img.src = url;
   });
+  return withTimeout(loadPromise, PRINT_IMAGE_TIMEOUT_MS, url);
 }
 
 async function fetchAndResizeForPrint(url: string, maxWidth: number): Promise<string> {
