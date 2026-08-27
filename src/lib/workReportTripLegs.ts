@@ -107,11 +107,10 @@ export function isReturnToDepartureLeg(leg: TripLegDraft, returnLabel: string): 
 }
 
 export function resolveEffectiveReturnLabel(
-  drafts: TripLegDraft[],
+  _drafts: TripLegDraft[],
   departure: TripLegDeparture,
 ): string {
-  const firstFrom = drafts[0]?.from_label?.trim();
-  return firstFrom || departure.returnLabel || departure.startLabel;
+  return departure.returnLabel.trim() || departure.startLabel.trim();
 }
 
 export function findReturnLegIndex(drafts: TripLegDraft[], departure: TripLegDeparture): number {
@@ -203,21 +202,16 @@ export function appendReturnTripLeg(
 }
 
 export function insertIntermediateTripLeg(drafts: TripLegDraft[], departure: TripLegDeparture): TripLegDraft[] {
-  const returnIndex = findReturnLegIndex(drafts, departure);
-  const insertAt = returnIndex >= 0 ? returnIndex : drafts.length;
-  const previous = insertAt > 0 ? drafts[insertAt - 1] : null;
-
+  const previous = drafts.length > 0 ? drafts[drafts.length - 1] : null;
   const newLeg: TripLegDraft = {
     key: crypto.randomUUID(),
     from_label: previous?.to_label?.trim() || departure.startLabel,
     to_label: '',
     distance_km: '',
-    bill_to_customer: true,
+    bill_to_customer: previous?.bill_to_customer ?? true,
   };
 
-  const next = [...drafts];
-  next.splice(insertAt, 0, newLeg);
-  return normalizeTripLegDrafts(next, departure);
+  return normalizeTripLegDrafts([...drafts, newLeg], departure);
 }
 
 export function removeTripLegAt(drafts: TripLegDraft[], index: number, departure: TripLegDeparture): TripLegDraft[] {

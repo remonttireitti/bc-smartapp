@@ -47,10 +47,10 @@ export default function DailyLogTripLegFields({
   destinationOptions = [],
   tripKmRate = null,
 }: Props) {
-  const { returnLabel } = tripDeparture;
+  const { returnLabel, startLabel } = tripDeparture;
   const totalKm = sumTripLegDraftKm(drafts);
   const returnLegIndex = findReturnLegIndex(drafts, tripDeparture);
-  const effectiveReturnLabel = drafts[0]?.from_label?.trim() || returnLabel;
+  const effectiveReturnLabel = returnLabel.trim() || startLabel.trim();
   const [busy, setBusy] = useState(false);
   const [rowBusyKey, setRowBusyKey] = useState<string | null>(null);
   const [calcError, setCalcError] = useState<string | null>(null);
@@ -203,6 +203,7 @@ export default function DailyLogTripLegFields({
             const canAddReturn =
               !isReturnLeg &&
               row.to_label.trim().length > 0 &&
+              !isReturnToDepartureLeg(row, effectiveReturnLabel) &&
               (returnLegIndex < 0 || index < returnLegIndex);
 
             return (
