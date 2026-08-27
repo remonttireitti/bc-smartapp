@@ -8,6 +8,7 @@ export const MAINTENANCE_DIALOG_LAUNCHER_TABS = new Set<MaintenanceReportTabId>(
   'nestelauhduttimet',
   'jaahdytysvesi',
   'vapaajahdytys',
+  'konvektorit',
   'lampopumppu',
   'huomiot',
   'huoltotiedot',

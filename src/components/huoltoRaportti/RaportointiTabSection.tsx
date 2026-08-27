@@ -8,7 +8,6 @@ import type { Customer, Equipment } from '../../types';
 import type { SubscriberPortalVisibility } from '../../lib/subscriberPortalVisibility';
 import { useMaintenanceDocumentLayout } from '../../hooks/useMaintenanceDocumentLayout';
 import { DocumentModuleInspection } from './DocumentModuleInspection';
-import { KonvektoritSection } from './KonvektoritSection';
 import { MaintenanceDeviceSummary } from './MaintenanceDeviceSummary';
 import { MaintenanceReportBasicsPanel } from './MaintenanceReportBasicsPanel';
 
@@ -39,8 +38,6 @@ type Props = {
   equipment: Equipment[];
   equipmentId: string;
   copySourceEquipmentId: string | null;
-  showKonvektoritSection: boolean;
-  printBusy: boolean;
   deviceButtonLabel: string;
   onPatchForm: (patch: Partial<HuoltoReportData>) => void;
   onOpenDeviceDialog: () => void;
@@ -53,7 +50,6 @@ type Props = {
   onCreateEquipment: (draft: NewEquipmentDraft) => Promise<void>;
   onSubscriberChange: (id: string) => void;
   onSubscriberPortalVisibilityChange: (value: SubscriberPortalVisibility) => void;
-  onPrintKonvektoriFaults?: () => void;
 };
 
 export function RaportointiTabSection({
@@ -83,8 +79,6 @@ export function RaportointiTabSection({
   equipment,
   equipmentId,
   copySourceEquipmentId,
-  showKonvektoritSection,
-  printBusy,
   deviceButtonLabel,
   onPatchForm,
   onOpenDeviceDialog,
@@ -97,7 +91,6 @@ export function RaportointiTabSection({
   onCreateEquipment,
   onSubscriberChange,
   onSubscriberPortalVisibilityChange,
-  onPrintKonvektoriFaults,
 }: Props) {
   const documentLayout = useMaintenanceDocumentLayout();
   const title = raportointiLaitetiedotTabTitle(form.laiteTyyppi, false);
@@ -148,14 +141,6 @@ export function RaportointiTabSection({
         onEdit={onOpenDeviceDialog}
         editButtonLabel={deviceButtonLabel}
       />
-      {showKonvektoritSection ? (
-        <KonvektoritSection
-          rows={draft.konvektoriRows ?? []}
-          onChange={(rows) => patchDraft({ konvektoriRows: rows })}
-          onPrintFaults={onPrintKonvektoriFaults}
-          printFaultsBusy={printBusy}
-        />
-      ) : null}
     </>
   );
 

@@ -16,6 +16,7 @@ interface Props {
   onChange: (rows: KonvektoriRowData[]) => void;
   onPrintFaults?: () => void;
   printFaultsBusy?: boolean;
+  embeddedInParentDialog?: boolean;
 }
 
 function rowStatusLabel(row: KonvektoriRowData): { text: string; className: string } {
@@ -35,7 +36,13 @@ function rowStatusLabel(row: KonvektoriRowData): { text: string; className: stri
   return { text: 'OK', className: 'konvektori-status konvektori-status--ok' };
 }
 
-export function KonvektoritSection({ rows, onChange, onPrintFaults, printFaultsBusy }: Props) {
+export function KonvektoritSection({
+  rows,
+  onChange,
+  onPrintFaults,
+  printFaultsBusy,
+  embeddedInParentDialog = false,
+}: Props) {
   const effectiveRows = useMemo(() => ensureKonvektoriRowsList(rows), [rows]);
   const [dialogIndex, setDialogIndex] = useState<number | null>(null);
 
@@ -62,8 +69,8 @@ export function KonvektoritSection({ rows, onChange, onPrintFaults, printFaultsB
     || [dialogRow?.valmistaja, dialogRow?.malli].filter(Boolean).join(' ')
     || (dialogIndex != null ? `Konvektori ${dialogIndex + 1}` : '');
 
-  return (
-    <HuoltoModuleSection moduleKey="konvektorit" title={konvektoritSectionTitle('konvektorit')}>
+  const body = (
+    <>
       <p className="muted huolto-help">
         Valitse tyyppi ja täytä tunnistetiedot. Mittaukset ja tarkastus avataan popupista. Tuloste näyttää konvektorit ruudukkona kuvineen.
       </p>
@@ -198,6 +205,16 @@ export function KonvektoritSection({ rows, onChange, onPrintFaults, printFaultsB
           onSave={(nextRow) => patchRow(dialogIndex, nextRow)}
         />
       )}
+    </>
+  );
+
+  if (embeddedInParentDialog) {
+    return <div className="konvektorit-section konvektorit-section--embedded">{body}</div>;
+  }
+
+  return (
+    <HuoltoModuleSection moduleKey="konvektorit" title={konvektoritSectionTitle('konvektorit')}>
+      {body}
     </HuoltoModuleSection>
   );
 }

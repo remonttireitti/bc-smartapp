@@ -106,7 +106,6 @@ export function buildMaintenanceDocumentTabSummary(
         return joinParts([
           trim(form.asiakas) || 'Asiakas puuttuu',
           trim(form.laiteKayttotarkoitus) || 'Verkosto puuttuu',
-          konvektoritSummary(form),
         ]);
       }
       return joinParts([trim(form.asiakas) || 'Asiakas puuttuu', deviceLabel(form) || 'Laite puuttuu']);

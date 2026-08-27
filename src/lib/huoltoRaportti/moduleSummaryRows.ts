@@ -1,4 +1,6 @@
 import { mlpNesteLabel } from './constants';
+import { isKonvektoritDevice } from './deviceModuleLogic';
+import { konvektoriRowIsFaulty, konvektoriTarkastusSummary } from './konvektoriTarkastus';
 import {
   lauhdutuspiiriInspectionStatus,
   nestelauhdutinInspectionStatus,
@@ -8,6 +10,7 @@ import {
 } from './huoltoInspectionStatus';
 import type {
   HuoltoReportData,
+  KonvektoriRowData,
   LauhdutuspiiriData,
   NestelauhdutinUnitData,
   NestepiiriData,
@@ -215,10 +218,36 @@ export function mlpSummaryRows(form: HuoltoReportData, part?: 'kiinteisto' | 'en
   return rows;
 }
 
+export function konvektoritSummaryRows(form: HuoltoReportData): ModuleSummaryRow[] {
+  const rows = form.konvektoriRows ?? [];
+  const summaryRows: ModuleSummaryRow[] = [];
+  pushRow(summaryRows, 'Konvektoreita', rows.length > 0 ? `${rows.length} kpl` : '');
+  const faulty = rows.filter((row) => konvektoriRowIsFaulty(row)).length;
+  if (faulty > 0) {
+    pushRow(summaryRows, 'Viallisia', `${faulty} kpl`);
+  }
+  const incomplete = rows.filter((row) => !konvektoriTarkastusSummary(row).complete).length;
+  if (incomplete > 0) {
+    pushRow(summaryRows, 'Kesken', `${incomplete} kpl`);
+  }
+  return summaryRows;
+}
+
+export function konvektoritTabComplete(rows: KonvektoriRowData[] | undefined | null): boolean {
+  const list = rows ?? [];
+  if (list.length === 0) return false;
+  return list.every((row) => konvektoriTarkastusSummary(row).complete);
+}
+
 export function raportointiSummaryRows(form: HuoltoReportData): ModuleSummaryRow[] {
   const rows: ModuleSummaryRow[] = [];
   pushRow(rows, 'Asiakas', form.asiakas);
   pushRow(rows, 'Osoite', form.osoite);
-  pushRow(rows, 'Laite', [form.laiteValmistaja, form.laiteMalli, form.laiteTunnus].filter(Boolean).join(' · '));
+  if (isKonvektoritDevice(form.laiteTyyppi)) {
+    pushRow(rows, 'Verkosto', form.laiteKayttotarkoitus);
+    pushRow(rows, 'Alue', form.laiteSijainti);
+  } else {
+    pushRow(rows, 'Laite', [form.laiteValmistaja, form.laiteMalli, form.laiteTunnus].filter(Boolean).join(' · '));
+  }
   return rows;
 }

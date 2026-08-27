@@ -142,13 +142,15 @@ export function konvektoritSectionTitle(deviceType: string): string {
 export function raportointiLaitetiedotTabTitle(deviceType: string, showKylmaaineCharge: boolean): string {
   let devicePart: string;
   if (deviceType === 'konvektorit') {
-    devicePart = 'konvektoriverkosto';
+    devicePart = 'asiakas';
   } else if (showKylmaaineCharge) {
     devicePart = 'laitetiedot ja kylmäaine';
   } else {
     devicePart = 'laitetiedot';
   }
-  const base = `Raportointi, asiakas ja ${devicePart}`;
+  const base = deviceType === 'konvektorit'
+    ? 'Raportointi ja asiakas'
+    : `Raportointi, asiakas ja ${devicePart}`;
   if (usesLegacySectionNumbers(deviceType) && deviceType !== 'konvektorit') {
     return `1. ${base}`;
   }

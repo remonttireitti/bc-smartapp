@@ -11,7 +11,7 @@ import { EvaporatorCircuitsSync } from './EvaporatorCircuitsSync';
 import { EvaporatorsSection } from './EvaporatorsSection';
 import { HuomiotSection } from './HuomiotSection';
 import { JaahdytysvesiSection } from './JaahdytysvesiSection';
-import { KonvektoritSection } from './KonvektoritSection';
+import { KonvektoritTabSection } from './KonvektoritTabSection';
 import { LampopumppuDocumentSection } from './LampopumppuDocumentSection';
 import { LauhdutuspiiriSection } from './LauhdutuspiiriSection';
 import { MlpDocumentSection } from './MlpDocumentSection';
@@ -209,8 +209,6 @@ export function MaintenanceReportTabContent({
           equipment={equipment}
           equipmentId={equipmentId}
           copySourceEquipmentId={copySourceEquipmentId}
-          showKonvektoritSection={showKonvektoritSection}
-          printBusy={printBusy}
           deviceButtonLabel={deviceButtonLabel}
           onPatchForm={onPatchForm}
           onOpenDeviceDialog={onOpenDeviceDialog}
@@ -223,7 +221,6 @@ export function MaintenanceReportTabContent({
           onCreateEquipment={onCreateEquipment}
           onSubscriberChange={onSubscriberChange}
           onSubscriberPortalVisibilityChange={onSubscriberPortalVisibilityChange}
-          onPrintKonvektoriFaults={onPrintKonvektoriFaults}
         />
       </section>
     );
@@ -324,11 +321,11 @@ export function MaintenanceReportTabContent({
   if (tabId === 'konvektorit' && showKonvektoritSection) {
     return (
       <section className="maintenance-report-tab-section huolto-modules-stack">
-        <KonvektoritSection
-          rows={form.konvektoriRows ?? []}
-          onChange={(rows) => onPatchForm({ konvektoriRows: rows })}
-          onPrintFaults={onPrintKonvektoriFaults}
-          printFaultsBusy={printBusy}
+        <KonvektoritTabSection
+          form={form}
+          onPatchForm={onPatchForm}
+          onPrintKonvektoriFaults={onPrintKonvektoriFaults}
+          printBusy={printBusy}
         />
       </section>
     );
