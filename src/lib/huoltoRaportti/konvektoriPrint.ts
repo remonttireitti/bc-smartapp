@@ -1,11 +1,7 @@
 import {
-  filterFaultyKonvektoriRows,
   KONVEKTORI_TARKASTUS_ITEMS,
-  konvektoriFaultLabels,
   konvektoriTarkastusSummary,
 } from './konvektoriTarkastus';
-import { buildMaintenanceReportPrintTitle } from './defaults';
-import { buildStyledPrintDocumentHtml, escapeHtmlPrint } from '../printDocumentShell';
 import {
   formatKonvektoriLampotila,
   formatKonvektoriTeho,
@@ -220,87 +216,6 @@ function renderKonvektoriCard(
       <div style="font-size:5.5px;line-height:1.3;color:#475569;margin-bottom:2px;flex-wrap:wrap;">${checks}</div>
       <div style="font-size:6px;line-height:1.25;border-top:1px solid #e2e8f0;padding-top:2px;margin-top:auto;${huomioStyle}">${huom}</div>
     </div>`;
-}
-
-function konvektoriFaultPrintSubtitle(data: HuoltoReportData): string {
-  const parts = [
-    data.asiakas?.trim(),
-    data.osoite?.trim(),
-    konvektoriVerkostoKoideFromReport(data).kuvaus,
-  ].filter(Boolean);
-  return parts.join(' · ');
-}
-
-function renderKonvektoriFaultTable(
-  rows: KonvektoriRowData[],
-  esc: (v: unknown) => string,
-): string {
-  const body = rows
-    .map((row, index) => {
-      const malli = row.malli?.trim() || '—';
-      const sarja = row.sarjanumero?.trim() || '—';
-      const faults = konvektoriFaultLabels(row);
-      const faultsHtml = faults.length
-        ? `<ul style="margin:0;padding-left:14px;line-height:1.35;">${faults
-            .map((label) => `<li>${esc(label)}</li>`)
-            .join('')}</ul>`
-        : `<span style="color:#94a3b8;">—</span>`;
-
-      return `<tr>
-        <td style="width:6%;text-align:center;">${index + 1}</td>
-        <td style="width:22%;">${esc(malli)}</td>
-        <td style="width:22%;">${esc(sarja)}</td>
-        <td>${faultsHtml}</td>
-      </tr>`;
-    })
-    .join('');
-
-  return `
-    <h2 class="sec-h2">Vialliset konvektorit</h2>
-    <table class="tbl">
-      <thead>
-        <tr>
-          <th>#</th>
-          <th>Malli</th>
-          <th>Sarjanumero</th>
-          <th>Viallisuudet</th>
-        </tr>
-      </thead>
-      <tbody>${body}</tbody>
-    </table>`;
-}
-
-export function generateKonvektoriFaultPrintHtml(
-  data: HuoltoReportData,
-  options: {
-    companyName: string;
-    logoUrl?: string | null;
-  },
-): string {
-  const esc = escapeHtmlPrint;
-  const faultyRows = filterFaultyKonvektoriRows(data.konvektoriRows);
-  const huoltoPvm = data.huoltoPaivamaara?.trim();
-  const rightColumnHtml = huoltoPvm
-    ? `<div>Huoltopäivä: <strong>${esc(huoltoPvm)}</strong></div>`
-    : undefined;
-  const subtitle = konvektoriFaultPrintSubtitle(data);
-  const mainHtml =
-    faultyRows.length > 0
-      ? renderKonvektoriFaultTable(faultyRows, esc)
-      : '<p class="print-card-muted">Ei viallisia konvektoreita.</p>';
-
-  return buildStyledPrintDocumentHtml({
-    documentTitle: `${buildMaintenanceReportPrintTitle(data)} — vialliset`,
-    pageH1: 'Konvektorit — vialliset',
-    subtitleEscaped: subtitle ? esc(subtitle) : '&nbsp;',
-    badge: faultyRows.length ? `${faultyRows.length} kpl` : undefined,
-    rightColumnHtml,
-    mainHtml,
-    branding: {
-      companyName: options.companyName,
-      logoUrl: options.logoUrl,
-    },
-  });
 }
 
 export function generateKonvektoritGridPrintHtml(
