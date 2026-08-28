@@ -9453,6 +9453,49 @@ button.tile.quote-document-tile span {
   font-size: .875rem;
 }
 
+.billing-refrigerant-deductions {
+  margin: .75rem 0 0;
+  padding: .75rem .9rem;
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: .5rem;
+  background: #f8fafc;
+}
+
+.billing-refrigerant-deductions h4 {
+  margin: 0 0 .5rem;
+  font-size: .9rem;
+}
+
+.billing-refrigerant-deduction-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: .45rem;
+}
+
+.billing-refrigerant-deduction-list li {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: .5rem;
+  align-items: center;
+  font-size: .875rem;
+}
+
+.billing-refrigerant-deduction-desc {
+  min-width: 0;
+}
+
+.billing-refrigerant-deduction-amount {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.billing-refrigerant-deduction-totals {
+  margin: .5rem 0 0;
+  font-size: .8125rem;
+}
+
 @media (max-width: 760px) {
   .billing-report-main {
     grid-template-columns: 1fr;

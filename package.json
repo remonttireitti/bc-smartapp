@@ -27,6 +27,7 @@
     "test:refrigerant-purchase-sale-list": "npx tsx scripts/test-refrigerant-purchase-sale-list.mjs",
     "test:refrigerant-visibility": "npx tsx scripts/test-refrigerant-visibility.mjs",
     "test:refrigerant-pass-through": "npx tsx scripts/test-refrigerant-pass-through.mjs",
+    "test:billing-refrigerant-deductions": "npx tsx scripts/test-billing-refrigerant-deductions.mjs",
     "fix:firebase-urls": "node scripts/fix-legacy-firebase-urls.mjs --production",
     "fix:firebase-urls:apply": "node scripts/fix-legacy-firebase-urls.mjs --production --apply",
     "fix:maintenance-photos": "node scripts/sync-maintenance-report-photos.mjs --production",

@@ -18,7 +18,9 @@ import {
 } from './workReportPrintShares';
 import {
   breakdownFromBillableCalculation,
+  billingPartnerNetTotal,
   type BillableCalculation,
+  warehouseDeductionTotalsFromCalculation,
 } from './workReportBilling';
 
 export type BillingListRow = {
@@ -126,10 +128,15 @@ export function billingRowVisibleInList(
   }
 
   if (statusFilter === 'unbilled') {
-    return openAmount > 0.005 && billingRowState(row, mode) !== 'billed';
+    const hasDeductions = mode === 'partner' && breakdown.deductionsPending > 0.005;
+    return (openAmount > 0.005 || hasDeductions) && billingRowState(row, mode) !== 'billed';
   }
 
-  return openAmount > 0.005 || billedAmount > 0.005;
+  return (
+    openAmount > 0.005
+    || billedAmount > 0.005
+    || (mode === 'partner' && breakdown.deductionsPending > 0.005)
+  );
 }
 
 /** Voiko katsoja laskea / päivittää kumppanilaskelman tähän raporttiin. */
@@ -278,11 +285,7 @@ export function billingRowOpenAmount(row: BillingListRow, mode: BillingModuleMod
   if (mode === 'customer') {
     return billingCustomerState(row) === 'billed' ? 0 : billingRowAmount(row, mode);
   }
-  return resolvePartnerBillingAmounts(
-    billingRowAmount(row, mode),
-    row.billing?.partner_billed_amount,
-    row.billing?.partner_invoice_status,
-  ).open;
+  return billingRowPartnerAmounts(row).open;
 }
 
 /** Kumppanilaskutuksen tila — riippumaton laskutusmoduulin summalaskennasta. */
@@ -291,7 +294,7 @@ export function billingPartnerState(
   dailyLogs: Array<{ log_date: string; created_at: string }> = [],
 ): BillingPartnerState {
   const amountState = resolvePartnerBillingAmounts(
-    billingRowAmount(row, 'partner'),
+    billingRowPartnerAmounts(row).netTotal,
     row.billing?.partner_billed_amount,
     row.billing?.partner_invoice_status,
   ).state;
@@ -329,17 +332,59 @@ export function billingRowBreakdown(
   work: number;
   materials: number;
   total: number;
+  deductionsPending: number;
+  deductionsDeducted: number;
+  netTotal: number;
 } {
-  const total = billingRowAmount(row, mode);
+  const grossTotal = billingRowAmount(row, mode);
   const calc =
     mode === 'customer' ? row.billable?.customer_calculation : row.billable?.calculation;
+  const deductions = warehouseDeductionTotalsFromCalculation(calc as BillableCalculation | undefined);
   if (calc?.byUser?.length) {
-    return breakdownFromBillableCalculation(calc as BillableCalculation);
+    const base = breakdownFromBillableCalculation(calc as BillableCalculation);
+    const netTotal =
+      mode === 'partner'
+        ? billingPartnerNetTotal(grossTotal, calc as BillableCalculation)
+        : grossTotal;
+    return {
+      ...base,
+      total: grossTotal,
+      deductionsPending: deductions.pending,
+      deductionsDeducted: deductions.deducted,
+      netTotal,
+    };
   }
-  if (total > 0.005) {
-    return { work: total, materials: 0, total };
+  if (grossTotal > 0.005) {
+    return {
+      work: grossTotal,
+      materials: 0,
+      total: grossTotal,
+      deductionsPending: 0,
+      deductionsDeducted: 0,
+      netTotal: grossTotal,
+    };
   }
-  return { work: 0, materials: 0, total: 0 };
+  return {
+    work: 0,
+    materials: 0,
+    total: 0,
+    deductionsPending: deductions.pending,
+    deductionsDeducted: deductions.deducted,
+    netTotal: Math.max(0, grossTotal - deductions.pending),
+  };
+}
+
+export function billingRowPartnerAmounts(row: BillingListRow) {
+  const grossTotal = billingRowAmount(row, 'partner');
+  const calc = row.billable?.calculation as BillableCalculation | undefined;
+  const netTotal = billingPartnerNetTotal(grossTotal, calc);
+  const deductions = warehouseDeductionTotalsFromCalculation(calc);
+  const amounts = resolvePartnerBillingAmounts(
+    netTotal,
+    row.billing?.partner_billed_amount,
+    row.billing?.partner_invoice_status,
+  );
+  return { grossTotal, netTotal, ...deductions, ...amounts };
 }
 
 export function isBillablePartnerReport(

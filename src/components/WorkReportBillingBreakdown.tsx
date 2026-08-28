@@ -14,12 +14,13 @@ const LINE_KIND_LABELS: Record<BillableLineKind, string> = {
   commission: 'Provisio',
   expense: 'Kulu / tarvike',
   refrigerant: 'Kylmäaine',
+  refrigerant_purchase_deduction: 'Kylmäaineosto (vähennys)',
 };
 
 type DetailRow = BillableLine & { userName: string };
 
 function formatBillableLineQty(kind: BillableLineKind, qty: number): string {
-  if (kind === 'refrigerant') return `${qty.toFixed(3)} kg`;
+  if (kind === 'refrigerant' || kind === 'refrigerant_purchase_deduction') return `${qty.toFixed(3)} kg`;
   if (kind === 'hours_regular' || kind === 'hours_overtime' || kind === 'hours_on_call') {
     return `${qty.toFixed(2)} h`;
   }

@@ -18,6 +18,7 @@ import {
   billingRowAmount,
   billingRowBilledAmount,
   billingRowOpenAmount,
+  billingRowPartnerAmounts,
   billingRowState,
   billingPartnerState,
   resolvePartnerBillingAmounts,
@@ -50,6 +51,8 @@ import {
   type BillingModuleMode,
 } from '../lib/workReportBillingCopy';
 import { ensurePartnerBillableCalculated } from '../lib/workReportPartnerBillingPersist';
+import { warehouseDeductionTotalsFromCalculation } from '../lib/workReportBilling';
+import BillingRefrigerantDeductions from '../components/BillingRefrigerantDeductions';
 import { findStaleBillableReportIds, runWithConcurrency } from '../lib/workReportBillableStale';
 import {
   addDays,
@@ -154,6 +157,7 @@ export default function BillingPage({ session }: Props) {
   const [partnerBillPromptBusy, setPartnerBillPromptBusy] = useState(false);
   const [recalcState, setRecalcState] = useState<{ total: number; done: number } | null>(null);
   const [recalculatingIds, setRecalculatingIds] = useState<Set<string>>(() => new Set());
+  const [refrigerantDeductionBusyId, setRefrigerantDeductionBusyId] = useState<string | null>(null);
   const [partnerOptions, setPartnerOptions] = useState<Array<{ id: string; name: string }>>([]);
   const [summaryPeriod, setSummaryPeriod] = useState<SummaryPeriod>('this_month');
 
@@ -214,6 +218,25 @@ export default function BillingPage({ session }: Props) {
         name: company.name,
       })),
     );
+  }
+
+  async function toggleRefrigerantWarehouseDeduction(reportId: string, lineId: string, deducted: boolean) {
+    if (!profile?.company_id) return;
+    setRefrigerantDeductionBusyId(lineId);
+    setError(null);
+    try {
+      const { error: updateError } = await supabase
+        .from('work_report_refrigerant_lines')
+        .update({ warehouse_cost_deducted: deducted })
+        .eq('id', lineId);
+      if (updateError) throw updateError;
+      await ensurePartnerBillableCalculated(supabase, reportId, profile.company_id);
+      await refreshBillingRow(reportId);
+    } catch (toggleError) {
+      setError(toggleError instanceof Error ? toggleError.message : 'Vähennyksen päivitys epäonnistui.');
+    } finally {
+      setRefrigerantDeductionBusyId(null);
+    }
   }
 
   async function refreshBillingRow(reportId: string) {
@@ -426,6 +449,7 @@ export default function BillingPage({ session }: Props) {
     let billedTotal = 0;
     let openWork = 0;
     let openMaterials = 0;
+    let openDeductions = 0;
     let openCount = 0;
     let billedCount = 0;
     const periodAnchor = new Date();
@@ -442,12 +466,18 @@ export default function BillingPage({ session }: Props) {
       const openAmount = billingRowOpenAmount(row, mode);
       const billedAmount = billingRowBilledAmount(row, mode);
       const breakdown = billingRowBreakdown(row, mode);
+      const partnerAmounts = mode === 'partner' ? billingRowPartnerAmounts(row) : null;
       if (openAmount <= 0.005 && billedAmount <= 0.005) continue;
-      if (breakdown.total <= 0.005 && billedAmount <= 0.005) continue;
+      if (breakdown.netTotal <= 0.005 && billedAmount <= 0.005 && (partnerAmounts?.pending ?? 0) <= 0.005) {
+        continue;
+      }
 
       if (openAmount > 0.005 && isBillingSummaryPeriod(billingRowDate(row), summaryPeriod, periodAnchor)) {
         const partnerOpenTotal = mode === 'customer' ? breakdown.total : openAmount;
         openTotal += partnerOpenTotal;
+        if (partnerAmounts && partnerAmounts.pending > 0.005) {
+          openDeductions += partnerAmounts.pending;
+        }
         if (breakdown.total > 0.005 && openAmount > 0.005 && openAmount < breakdown.total - 0.005) {
           const ratio = openAmount / breakdown.total;
           openWork += breakdown.work * ratio;
@@ -470,6 +500,7 @@ export default function BillingPage({ session }: Props) {
       billedTotal,
       openWork,
       openMaterials,
+      openDeductions,
       openCount,
       billedCount,
       grandTotal: openTotal + billedTotal,
@@ -917,6 +948,9 @@ export default function BillingPage({ session }: Props) {
               {moduleEnabled && (
                 <p className="billing-stat-meta">
                   Työ {formatEuro(summary.openWork)} • Kulut / urakat {formatEuro(summary.openMaterials)}
+                  {summary.openDeductions > 0.005
+                    ? ` • Kylmäaineostot −${formatEuro(summary.openDeductions)}`
+                    : ''}
                 </p>
               )}
               <span className="billing-stat-count">{summary.openCount} raporttia</span>
@@ -1268,6 +1302,10 @@ export default function BillingPage({ session }: Props) {
                       ? () => void recalcPartnerRow(row.id)
                       : undefined
                   }
+                  refrigerantDeductionBusyId={refrigerantDeductionBusyId}
+                  onToggleRefrigerantDeduction={(lineId, deducted) =>
+                    void toggleRefrigerantWarehouseDeduction(row.id, lineId, deducted)
+                  }
                 />
               ))}
             </div>
@@ -1307,6 +1345,8 @@ function BillingReportCard({
   onUnmarkBilled,
   onRecalcPartner,
   viewerCompanyId,
+  refrigerantDeductionBusyId,
+  onToggleRefrigerantDeduction,
 }: {
   row: BillingListRow;
   mode: 'partner' | 'customer';
@@ -1320,8 +1360,15 @@ function BillingReportCard({
   onUnmarkBilled: () => void;
   onRecalcPartner?: () => void;
   viewerCompanyId?: string | null;
+  refrigerantDeductionBusyId?: string | null;
+  onToggleRefrigerantDeduction?: (lineId: string, deducted: boolean) => void;
 }) {
   const breakdown = billingRowBreakdown(row, mode);
+  const partnerAmounts = mode === 'partner' ? billingRowPartnerAmounts(row) : null;
+  const deductionDetails =
+    mode === 'partner'
+      ? warehouseDeductionTotalsFromCalculation(row.billable?.calculation ?? undefined)
+      : { pending: 0, deducted: 0, lines: [] };
   const amounts =
     mode === 'customer'
       ? {
@@ -1329,12 +1376,10 @@ function BillingReportCard({
           billed: billingRowBilledAmount(row, mode),
           open: billingRowState(row, mode) === 'billed' ? 0 : breakdown.total,
           state: billingRowState(row, mode),
+          grossTotal: breakdown.total,
+          netTotal: breakdown.total,
         }
-      : resolvePartnerBillingAmounts(
-          breakdown.total,
-          row.billing?.partner_billed_amount,
-          row.billing?.partner_invoice_status,
-        );
+      : partnerAmounts!;
   const statusLabel = billingPartnerStatusLabel(amounts.state);
   const reportStatus = getWorkStatusLabel(row.status);
   const badgeClass =
@@ -1405,10 +1450,35 @@ function BillingReportCard({
                 <dt>Kulut / urakat</dt>
                 <dd>{formatEuro(breakdown.materials)}</dd>
               </div>
+              {mode === 'partner' && (deductionDetails.pending > 0.005 || deductionDetails.deducted > 0.005) ? (
+                <div>
+                  <dt>Kylmäaineostot</dt>
+                  <dd>
+                    {deductionDetails.pending > 0.005 ? `−${formatEuro(deductionDetails.pending)}` : '—'}
+                    {deductionDetails.deducted > 0.005
+                      ? ` (${formatEuro(deductionDetails.deducted)} vähennetty)`
+                      : ''}
+                  </dd>
+                </div>
+              ) : null}
               <div className="billing-report-total">
                 <dt>{amounts.state === 'partial' ? 'Avoinna' : 'Yhteensä'}</dt>
-                <dd>{formatEuro(amounts.state === 'partial' ? amounts.open : breakdown.total)}</dd>
+                <dd>
+                  {formatEuro(
+                    amounts.state === 'partial'
+                      ? amounts.open
+                      : mode === 'partner'
+                        ? amounts.netTotal
+                        : breakdown.total,
+                  )}
+                </dd>
               </div>
+              {mode === 'partner' && amounts.grossTotal > amounts.netTotal + 0.005 ? (
+                <div>
+                  <dt>Brutto</dt>
+                  <dd className="muted">{formatEuro(amounts.grossTotal)}</dd>
+                </div>
+              ) : null}
               {amounts.state === 'partial' && (
                 <div>
                   <dt>Laskutettu</dt>
@@ -1420,6 +1490,18 @@ function BillingReportCard({
           </aside>
         )}
       </div>
+
+      {mode === 'partner' && deductionDetails.lines.length > 0 ? (
+        <BillingRefrigerantDeductions
+          lines={deductionDetails.lines}
+          pending={deductionDetails.pending}
+          deducted={deductionDetails.deducted}
+          canEdit={!!onToggleRefrigerantDeduction}
+          busyLineId={refrigerantDeductionBusyId ?? null}
+          onToggle={(lineId, deducted) => onToggleRefrigerantDeduction?.(lineId, deducted)}
+          compact
+        />
+      ) : null}
 
       <div className="billing-report-actions">
         {onRecalcPartner && billingEnabled && amounts.state !== 'billed' && (
