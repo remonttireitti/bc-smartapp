@@ -158,6 +158,15 @@ export function summarizeRefrigerantHistoryBalance(
     .sort((a, b) => a.refrigerant_type.localeCompare(b.refrigerant_type, 'fi'));
 }
 
+export function workUseDedupBaseKey(
+  workReportId: string | null,
+  qtyKg: number,
+  refrigerantType: string,
+): string | null {
+  if (!workReportId) return null;
+  return `${workReportId}|${qtyKg.toFixed(3)}|${refrigerantType.trim()}`;
+}
+
 function movementToHistoryRow(movement: RawMovement): RefrigerantInventoryHistoryRow | null {
   const direction = MOVEMENT_DIRECTION[movement.movement_type];
   if (!direction) return null;
@@ -185,17 +194,10 @@ function movementToHistoryRow(movement: RawMovement): RefrigerantInventoryHistor
   };
 }
 
-function workUseDedupKey(
-  workReportId: string | null,
-  qtyKg: number,
-  refrigerantType: string,
-  serialNumber: string,
-): string | null {
-  if (!workReportId) return null;
-  return `${workReportId}|${qtyKg.toFixed(3)}|${refrigerantType.trim()}|${serialNumber.trim()}`;
-}
-
-function purchaseSaleToHistoryRow(row: RefrigerantPurchaseSaleRow): RefrigerantInventoryHistoryRow {
+function purchaseSaleToHistoryRow(
+  row: RefrigerantPurchaseSaleRow,
+  replacesWarehouseWorkUse = false,
+): RefrigerantInventoryHistoryRow {
   const eventLabel =
     row.kind === 'purchase' ? PURCHASE_SALE_EVENT_LABELS.purchase : PURCHASE_SALE_EVENT_LABELS.sale;
   return {
@@ -211,7 +213,8 @@ function purchaseSaleToHistoryRow(row: RefrigerantPurchaseSaleRow): RefrigerantI
     serial_number: row.serial_number,
     ownership: row.ownership,
     source_label: row.source_label,
-    affects_warehouse_balance: purchaseSaleRowAffectsWarehouseBalance(row),
+    affects_warehouse_balance:
+      replacesWarehouseWorkUse || purchaseSaleRowAffectsWarehouseBalance(row),
   };
 }
 
@@ -220,22 +223,25 @@ export function mergeRefrigerantInventoryHistoryRows(
   purchaseSaleRows: RefrigerantPurchaseSaleRow[],
 ): RefrigerantInventoryHistoryRow[] {
   const rows: RefrigerantInventoryHistoryRow[] = [];
-  const billedWorkUseKeys = new Set(
+  const billedWorkUseBaseKeys = new Set(
     purchaseSaleRows
       .filter((row) => row.kind === 'sale')
-      .map((row) => workUseDedupKey(row.work_report_id, row.qty_kg, row.refrigerant_type, row.serial_number))
+      .map((row) => workUseDedupBaseKey(row.work_report_id, row.qty_kg, row.refrigerant_type))
       .filter((key): key is string => key != null),
   );
+  const replacedWorkUseBaseKeys = new Set<string>();
 
   for (const movement of movements) {
     if (movement.movement_type === 'work_use') {
-      const dedupKey = workUseDedupKey(
+      const dedupKey = workUseDedupBaseKey(
         movement.work_report_id,
         Number(movement.qty_kg) || 0,
         movement.refrigerant_type ?? '',
-        movement.serial_number ?? '—',
       );
-      if (dedupKey && billedWorkUseKeys.has(dedupKey)) continue;
+      if (dedupKey && billedWorkUseBaseKeys.has(dedupKey)) {
+        replacedWorkUseBaseKeys.add(dedupKey);
+        continue;
+      }
     }
 
     const row = movementToHistoryRow(movement);
@@ -244,7 +250,17 @@ export function mergeRefrigerantInventoryHistoryRows(
 
   for (const purchaseSaleRow of purchaseSaleRows) {
     if (purchaseSaleRow.kind === 'retrieve') continue;
-    rows.push(purchaseSaleToHistoryRow(purchaseSaleRow));
+    const dedupKey = workUseDedupBaseKey(
+      purchaseSaleRow.work_report_id,
+      purchaseSaleRow.qty_kg,
+      purchaseSaleRow.refrigerant_type,
+    );
+    rows.push(
+      purchaseSaleToHistoryRow(
+        purchaseSaleRow,
+        purchaseSaleRow.kind === 'sale' && dedupKey != null && replacedWorkUseBaseKeys.has(dedupKey),
+      ),
+    );
   }
 
   return rows.sort((a, b) => b.at.localeCompare(a.at));

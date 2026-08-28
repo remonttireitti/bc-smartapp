@@ -46,6 +46,31 @@ const deduped = mergeRefrigerantInventoryHistoryRows([movement], [saleRow]);
 assert.equal(deduped.length, 1);
 assert.equal(deduped[0].eventLabel, 'Myynti');
 assert.equal(deduped[0].direction, 'out');
+assert.equal(deduped[0].affects_warehouse_balance, true);
+
+const serialMismatchSale = {
+  ...saleRow,
+  serial_number: '—',
+};
+
+const serialMismatchDeduped = mergeRefrigerantInventoryHistoryRows([movement], [serialMismatchSale]);
+assert.equal(serialMismatchDeduped.length, 1);
+assert.equal(serialMismatchDeduped[0].eventLabel, 'Myynti');
+assert.equal(serialMismatchDeduped[0].affects_warehouse_balance, true);
+
+const duplicateWorkUse = mergeRefrigerantInventoryHistoryRows(
+  [
+    movement,
+    {
+      ...movement,
+      id: 'm-1b',
+      created_at: '2026-08-28T10:31:00.000Z',
+    },
+  ],
+  [saleRow],
+);
+assert.equal(duplicateWorkUse.length, 1);
+assert.equal(duplicateWorkUse[0].eventLabel, 'Myynti');
 
 const purchaseMovement = {
   ...movement,
