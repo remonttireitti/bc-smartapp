@@ -60,8 +60,9 @@ npm run db:push
 *Cannot find project ref. Have you run supabase link?*
 
 **Vaihtoehto ilman CLI:tä:** Supabase Studio → SQL Editor → aja tiedostot
-`supabase/migrations/20260621000111_refrigerant_trading_permissions.sql` ja
-`supabase/migrations/20260621000112_refrigerant_pass_through_billing.sql` järjestyksessä.
+`supabase/migrations/20260621000111_refrigerant_trading_permissions.sql`,
+`supabase/migrations/20260621000112_refrigerant_pass_through_billing.sql` ja
+`supabase/migrations/20260621000113_refrigerant_partner_access_fix.sql` järjestyksessä.
 
 Aseta Cloudflare Pages -ympäristöön `VITE_SUPABASE_URL` ja `VITE_SUPABASE_ANON_KEY` (katso `.env.production.example`).
 

@@ -125,6 +125,14 @@ export default function DailyLogRefrigerantFields({
           const rowUsers = usersForRow(row);
           const showPassThroughPrices =
             partnerOwnedReport && (row.source === 'warehouse' || row.source === 'partner_warehouse');
+          const partnerWarehouseNames = [
+            ...new Set(
+              cylinders
+                .filter((c) => ownCompanyId && c.company_id !== ownCompanyId)
+                .map((c) => c.company_name?.trim())
+                .filter((name): name is string => !!name),
+            ),
+          ];
 
           return (
             <div key={row.key} className="expense-row refrigerant-row">
@@ -158,6 +166,14 @@ export default function DailyLogRefrigerantFields({
                       ))}
                     </select>
                   </label>
+                  {row.source === 'partner_warehouse' && rowCylinders.length === 0 ? (
+                    <p className="muted refrigerant-billing-note inventory-bottle-editor-wide">
+                      Kumppanivarastosta ei löytynyt pulloja.
+                      {partnerWarehouseNames.length > 0
+                        ? ` Saatavilla: ${partnerWarehouseNames.join(', ')}.`
+                        : ' Varmista kumppanuus ja varasto-/kylmäaineen kauppa-oikeus (esim. Lämpökatsastus Oy → Hallinta → Kumppanuudet tai yritysasetuksissa "Kaikki kumppanit saavat käyttää kylmäainetta").'}
+                    </p>
+                  ) : null}
                   <label>
                     Pullo työkäytön jälkeen
                     <select
