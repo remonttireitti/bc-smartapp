@@ -5,6 +5,7 @@ export type RefrigerantReportContext = {
   viewerCompanyId: string;
   ownerCompanyId: string;
   createdByCompanyId: string;
+  sellerLabel?: string | null;
 };
 
 export function isPartnerCreatedReportForOwner(ctx: Pick<RefrigerantReportContext, 'ownerCompanyId' | 'createdByCompanyId'>): boolean {

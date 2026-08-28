@@ -1,11 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
-import {
-  redactRefrigerantPartnerWarehouseName,
-  redactRefrigerantSupplierName,
-  type RefrigerantReportContext,
-  shouldHideRefrigerantSourceFromViewer,
-} from './refrigerantVisibility';
 import type {
   RefrigerantCylinder,
   RefrigerantCylinderDisposition,
@@ -13,11 +7,31 @@ import type {
   RefrigerantSupplierPaidBy,
   WorkReportRefrigerantLine,
 } from '../types/inventory';
-import { formatBottleLabel, formatBottleSizeLabel, bottleSize } from './refrigerantBottle';
 import {
   REFRIGERANT_PARTNER_BILLING_REMINDER,
   REFRIGERANT_SUPPLIER_PARTNER_REMINDER,
 } from '../types/inventory';
+import {
+  bottleSize,
+  formatBottleLabel,
+  formatBottleSizeLabel,
+} from './refrigerantBottle';
+import {
+  isRefrigerantStockPassThrough,
+  refrigerantSaleToOwnerUnitPrice,
+  refrigerantWarehouseCostUnitPrice,
+  shouldBillRefrigerantSaleToReportOwner,
+} from './refrigerantPassThrough';
+import {
+  redactRefrigerantPartnerWarehouseName,
+  redactRefrigerantSupplierName,
+  type RefrigerantReportContext,
+  shouldHideRefrigerantSourceFromViewer,
+} from './refrigerantVisibility';
+
+function formatRefrigerantEuro(amount: number): string {
+  return `${amount.toFixed(2).replace('.', ',')} €`;
+}
 
 export type RefrigerantLineDraft = {
   key: string;
@@ -186,7 +200,11 @@ export function resolveRefrigerantBilling(input: {
   return { billToCustomer: false, reminder: null };
 }
 
-export function refrigerantBillingReminder(line: WorkReportRefrigerantLine): string | null {
+export function refrigerantBillingReminder(
+  line: WorkReportRefrigerantLine,
+  report?: { owner_company_id: string; created_by_company_id: string } | null,
+): string | null {
+  if (report && shouldBillRefrigerantSaleToReportOwner(line, report)) return null;
   return resolveRefrigerantBilling({
     source: line.source,
     supplier_paid_by: line.supplier_paid_by,
@@ -205,7 +223,7 @@ export function refrigerantLineTotal(line: WorkReportRefrigerantLine): number {
 
 export function validateRefrigerantDrafts(
   drafts: RefrigerantLineDraft[],
-  options?: { requirePrices?: boolean },
+  options?: { requirePrices?: boolean; partnerOwnedReport?: boolean },
 ): string | null {
   for (const row of drafts) {
     const qty = Number(row.qty_kg);
@@ -215,6 +233,14 @@ export function validateRefrigerantDrafts(
     }
     if (isWarehouseSource(row.source) && !row.cylinder_disposition) {
       return 'Valitse mitä pulloon jää työkäytön jälkeen.';
+    }
+    if (options?.partnerOwnedReport && isWarehouseSource(row.source)) {
+      if (!Number(row.unit_price)) {
+        return 'Anna varastohinta (€/kg) — vähennetään seuraavasta laskutuksesta.';
+      }
+      if (!Number(row.customer_unit_price)) {
+        return 'Anna myyntihinta raportin omistajalle (€/kg).';
+      }
     }
     if (!options?.requirePrices) continue;
     const billing = resolveRefrigerantBilling({
@@ -305,6 +331,7 @@ async function reinsertRefrigerantLines(
       unit_price: line.unit_price,
       customer_unit_price: line.customer_unit_price,
       bill_to_customer: line.bill_to_customer,
+      warehouse_cost_deducted: line.warehouse_cost_deducted ?? false,
       refrigerant_type: line.refrigerant_type,
       qty_kg: line.qty_kg,
       notes: line.notes,
@@ -324,6 +351,7 @@ export async function saveRefrigerantLines(
     drafts: RefrigerantLineDraft[];
     previousLines?: WorkReportRefrigerantLine[];
     requirePrices?: boolean;
+    partnerOwnedReport?: boolean;
   },
 ) {
   const attempted = input.drafts.filter(isDraftRowFilled);
@@ -331,6 +359,7 @@ export async function saveRefrigerantLines(
 
   const validationError = validateRefrigerantDrafts(input.drafts, {
     requirePrices: input.requirePrices,
+    partnerOwnedReport: input.partnerOwnedReport,
   });
   if (validationError) throw new Error(validationError);
 
@@ -341,6 +370,7 @@ export async function saveRefrigerantLines(
   }
 
   const previousLines = input.previousLines ?? [];
+  const previousById = new Map(previousLines.map((line) => [line.id, line]));
   const deducted: { cylinderId: string; qty: number }[] = [];
 
   try {
@@ -413,6 +443,7 @@ export async function saveRefrigerantLines(
         unit_price: unitPrice,
         customer_unit_price: customerUnitPrice,
         bill_to_customer: billing.billToCustomer,
+        warehouse_cost_deducted: previousById.get(row.key)?.warehouse_cost_deducted ?? false,
         refrigerant_type: refrigerantType,
         qty_kg: qty,
         notes: row.notes.trim() || null,
@@ -464,9 +495,25 @@ export async function saveRefrigerantLines(
 export function formatRefrigerantLineLabel(
   line: WorkReportRefrigerantLine,
   view?: RefrigerantReportContext | null,
+  report?: { owner_company_id: string; created_by_company_id: string } | null,
 ): string {
   const hideSource = view ? shouldHideRefrigerantSourceFromViewer(view) : false;
   const qty = Number(line.qty_kg).toFixed(3);
+  const reportParties = report ?? (view
+    ? { owner_company_id: view.ownerCompanyId, created_by_company_id: view.createdByCompanyId }
+    : null);
+
+  if (
+    hideSource
+    && reportParties
+    && isRefrigerantStockPassThrough(line, reportParties)
+  ) {
+    const seller = view?.sellerLabel?.trim() || 'Raportin laatija';
+    const unit = refrigerantSaleToOwnerUnitPrice(line);
+    const pricePart = unit > 0 ? ` · ${formatRefrigerantEuro(unit)}/kg` : '';
+    return `${line.refrigerant_type} ${qty} kg · Ostettu: ${seller}${pricePart}`;
+  }
+
   if (line.source === 'warehouse' || line.source === 'partner_warehouse') {
     const bottleLabel = line.cylinder?.serial_number?.trim() || line.cylinder?.notes?.trim() || '—';
     const size =
@@ -484,7 +531,11 @@ export function formatRefrigerantLineLabel(
     const parts = [
       `${line.refrigerant_type} ${qty} kg`,
       partner,
-      size ? `${size} pullo ${bottleLabel}` : `pullo ${bottleLabel}`,
+      bottleLabel
+        ? size
+          ? `${size} pullo ${bottleLabel}`
+          : `pullo ${bottleLabel}`
+        : null,
       owner,
     ].filter(Boolean);
     return parts.join(' · ');
@@ -492,10 +543,24 @@ export function formatRefrigerantLineLabel(
   return `${line.refrigerant_type} ${qty} kg · ${redactRefrigerantSupplierName(line.supplier_name, hideSource)}`;
 }
 
+export function formatRefrigerantWarehouseCostLabel(
+  line: WorkReportRefrigerantLine,
+  deducted: boolean,
+): string {
+  const qty = Number(line.qty_kg).toFixed(3);
+  const unit = refrigerantWarehouseCostUnitPrice(line);
+  const total = Math.round(Number(line.qty_kg) * unit * 100) / 100;
+  const serial = line.cylinder?.serial_number?.trim();
+  const bottle = serial ? ` · pullo ${serial}` : '';
+  const status = deducted ? ' · vähennetty' : ' · ei vielä vähennetty';
+  return `Varastosta ${line.refrigerant_type} ${qty} kg${bottle} · ${formatRefrigerantEuro(unit)}/kg = ${formatRefrigerantEuro(total)}${status}`;
+}
+
 export function formatRefrigerantLineLabelForReport(
   line: WorkReportRefrigerantLine,
   report: Pick<{ owner_company_id: string; created_by_company_id: string }, 'owner_company_id' | 'created_by_company_id'>,
   viewerCompanyId?: string | null,
+  sellerLabel?: string | null,
 ): string {
   const view =
     viewerCompanyId != null
@@ -503,9 +568,10 @@ export function formatRefrigerantLineLabelForReport(
           viewerCompanyId,
           ownerCompanyId: report.owner_company_id,
           createdByCompanyId: report.created_by_company_id,
+          sellerLabel,
         }
       : null;
-  return formatRefrigerantLineLabel(line, view);
+  return formatRefrigerantLineLabel(line, view, report);
 }
 
 export function formatCylinderPickerLabel(c: RefrigerantCylinder): string {

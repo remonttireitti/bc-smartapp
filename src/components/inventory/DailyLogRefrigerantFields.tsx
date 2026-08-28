@@ -29,6 +29,7 @@ type Props = {
   ownCompanyId: string | null;
   hasPartnerCompanies: boolean;
   showCustomerBillingFields?: boolean;
+  partnerOwnedReport?: boolean;
 };
 
 function emptyRow(): RefrigerantLineDraft {
@@ -57,6 +58,7 @@ export default function DailyLogRefrigerantFields({
   ownCompanyId,
   hasPartnerCompanies,
   showCustomerBillingFields = false,
+  partnerOwnedReport = false,
 }: Props) {
   function updateRow(index: number, patch: Partial<RefrigerantLineDraft>) {
     setDrafts(drafts.map((row, i) => (i === index ? { ...row, ...patch } : row)));
@@ -121,6 +123,8 @@ export default function DailyLogRefrigerantFields({
         drafts.map((row, index) => {
           const rowCylinders = cylindersForSource(cylinders, row.source, ownCompanyId);
           const rowUsers = usersForRow(row);
+          const showPassThroughPrices =
+            partnerOwnedReport && (row.source === 'warehouse' || row.source === 'partner_warehouse');
 
           return (
             <div key={row.key} className="expense-row refrigerant-row">
@@ -272,6 +276,37 @@ export default function DailyLogRefrigerantFields({
                     />
                   </label>
                   <p className="muted refrigerant-billing-note">Lisätään asiakkaalle laskutettavaan summaan.</p>
+                </>
+              )}
+
+              {showPassThroughPrices && (
+                <>
+                  <label>
+                    Varastohinta (€/kg)
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={row.unit_price}
+                      onChange={(e) => updateRow(index, { unit_price: e.target.value })}
+                      required
+                    />
+                  </label>
+                  <label>
+                    Myyntihinta raportin omistajalle (€/kg)
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={row.customer_unit_price}
+                      onChange={(e) => updateRow(index, { customer_unit_price: e.target.value })}
+                      required
+                    />
+                  </label>
+                  <p className="muted refrigerant-billing-note inventory-bottle-editor-wide">
+                    Varastosta vähennetään automaattisesti. Omistajayritys näkee ostonsa raportin laatijalta — ei
+                    varaston nimeä tai pullonumeroa.
+                  </p>
                 </>
               )}
 

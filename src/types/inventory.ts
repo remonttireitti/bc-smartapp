@@ -119,6 +119,7 @@ export type WorkReportRefrigerantLine = {
   unit_price: number;
   customer_unit_price: number | null;
   bill_to_customer: boolean;
+  warehouse_cost_deducted?: boolean;
   refrigerant_type: string;
   qty_kg: number;
   notes: string | null;

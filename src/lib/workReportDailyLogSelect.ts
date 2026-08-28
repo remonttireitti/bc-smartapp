@@ -38,7 +38,7 @@ export function buildWorkReportDetailLogSelect(includeBillToPartner: boolean): s
   trip_legs:work_report_daily_trip_legs(id, daily_log_id, from_label, to_label, distance_km, bill_to_customer, sort_order),
   refrigerant_lines:work_report_refrigerant_lines(
     id, daily_log_id, work_report_id, source, cylinder_id, warehouse_company_id, owner_user_id, supplier_name,
-    supplier_paid_by, unit_price, customer_unit_price, bill_to_customer,
+    supplier_paid_by, unit_price, customer_unit_price, bill_to_customer, warehouse_cost_deducted,
     refrigerant_type, qty_kg, notes, cylinder_disposition, created_by, created_at,
     cylinder:refrigerant_cylinders(serial_number, refrigerant_type, bottle_size, notes),
     warehouse_company:companies!work_report_refrigerant_lines_warehouse_company_id_fkey(name),
@@ -61,7 +61,7 @@ export function buildWorkReportPrintLogSelect(includeBillToPartner: boolean): st
   ${expenseLines},
   refrigerant_lines:work_report_refrigerant_lines(
     id, daily_log_id, work_report_id, source, cylinder_id, warehouse_company_id, owner_user_id, supplier_name,
-    supplier_paid_by, unit_price, customer_unit_price, bill_to_customer,
+    supplier_paid_by, unit_price, customer_unit_price, bill_to_customer, warehouse_cost_deducted,
     refrigerant_type, qty_kg, notes, created_by, created_at,
     cylinder:refrigerant_cylinders(serial_number, refrigerant_type),
     warehouse_company:companies!work_report_refrigerant_lines_warehouse_company_id_fkey(name),
@@ -83,7 +83,7 @@ export function buildCustomerBillingLogSelect(includeBillToPartner: boolean): st
   ${expenseLines},
   refrigerant_lines:work_report_refrigerant_lines(
     id, daily_log_id, work_report_id, source, cylinder_id, warehouse_company_id, owner_user_id, supplier_name,
-    supplier_paid_by, unit_price, customer_unit_price, bill_to_customer,
+    supplier_paid_by, unit_price, customer_unit_price, bill_to_customer, warehouse_cost_deducted,
     refrigerant_type, qty_kg, notes, created_by, created_at,
     cylinder:refrigerant_cylinders(serial_number, refrigerant_type),
     warehouse_company:companies!work_report_refrigerant_lines_warehouse_company_id_fkey(name),

@@ -1,7 +1,12 @@
 import type { WorkReportDailyLog } from '../types';
 import { resolveDailyLogAuthorLabel } from '../types';
 import type { BillableRatesSource, PartnerBillingRates } from './management';
-import { formatRefrigerantLineLabelForReport } from './refrigerantInventory';
+import { formatRefrigerantLineLabelForReport, formatRefrigerantWarehouseCostLabel } from './refrigerantInventory';
+import {
+  isRefrigerantWarehouseCostLine,
+  refrigerantSaleToOwnerUnitPrice,
+  shouldBillRefrigerantSaleToReportOwner,
+} from './refrigerantPassThrough';
 import {
   formatTripKmExpenseDescription,
   resolveTripKmBillingLine,
@@ -324,6 +329,57 @@ export function calculateWorkReportBillable(input: {
     for (const refLine of log.refrigerant_lines ?? []) {
       const qty = Number(refLine.qty_kg);
       if (qty <= 0) continue;
+      const authorLabel = resolveDailyLogAuthorLabel(log);
+      const sellerLabel = authorLabel.name === '—' ? null : authorLabel.name;
+
+      if (input.report && shouldBillRefrigerantSaleToReportOwner(refLine, input.report)) {
+        const unitPrice = refrigerantSaleToOwnerUnitPrice(refLine);
+        const fullTotal = lineTotal(qty, unitPrice);
+        const billed = expensesEnabled;
+        const total = billed ? fullTotal : 0;
+        summary.lines.push({
+          logId: log.id,
+          logDate: log.log_date,
+          kind: 'refrigerant',
+          description: formatRefrigerantLineLabelForReport(
+            refLine,
+            input.report,
+            input.viewerCompanyId,
+            sellerLabel,
+          ),
+          qty,
+          unitPrice,
+          total,
+          included: true,
+          priceMissing: !(unitPrice > 0),
+        });
+        if (billed) summary.expensesTotal += total;
+        else summary.excludedSubtotal += fullTotal;
+        continue;
+      }
+
+      if (
+        input.report
+        && input.viewerCompanyId
+        && isRefrigerantWarehouseCostLine(refLine, input.viewerCompanyId)
+      ) {
+        const unitPrice = Number(refLine.unit_price) || 0;
+        const fullTotal = lineTotal(qty, unitPrice);
+        const deducted = Boolean(refLine.warehouse_cost_deducted);
+        summary.lines.push({
+          logId: log.id,
+          logDate: log.log_date,
+          kind: 'refrigerant',
+          description: formatRefrigerantWarehouseCostLabel(refLine, deducted),
+          qty,
+          unitPrice,
+          total: fullTotal,
+          included: !deducted,
+        });
+        if (!deducted) summary.excludedSubtotal += fullTotal;
+        continue;
+      }
+
       const billToPartner = refLine.bill_to_customer;
       const unitPrice = billToPartner ? Number(refLine.unit_price || 0) : 0;
       const fullTotal = lineTotal(qty, unitPrice);
@@ -335,7 +391,12 @@ export function calculateWorkReportBillable(input: {
         logDate: log.log_date,
         kind: 'refrigerant',
         description: input.report
-          ? formatRefrigerantLineLabelForReport(refLine, input.report, input.viewerCompanyId)
+          ? formatRefrigerantLineLabelForReport(
+              refLine,
+              input.report,
+              input.viewerCompanyId,
+              sellerLabel,
+            )
           : formatRefrigerantLineLabelForReport(refLine, {
               owner_company_id: input.billToCompanyId ?? '',
               created_by_company_id: input.billToCompanyId ?? '',

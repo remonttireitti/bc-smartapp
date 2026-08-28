@@ -65,6 +65,7 @@ import {
   canAssignDelegatedWorkOrder,
 } from '../lib/workReportDelegation';
 import DailyLogRefrigerantFields from '../components/inventory/DailyLogRefrigerantFields';
+import RefrigerantWarehouseDeductionPanel from '../components/inventory/RefrigerantWarehouseDeductionPanel';
 import DailyLogTripLegFields from '../components/DailyLogTripLegFields';
 import {
   BUCKET,
@@ -84,6 +85,7 @@ import {
   saveRefrigerantLines,
   type RefrigerantLineDraft,
 } from '../lib/refrigerantInventory';
+import { isRefrigerantWarehouseCostLine } from '../lib/refrigerantPassThrough';
 import {
   BILLABLE_RATES_SOURCE_LABELS,
   hasPartnerBillingRates,
@@ -1276,6 +1278,7 @@ export default function WorkReportDetailPage({ session }: Props) {
   const [tripKmRate, setTripKmRate] = useState<number | null>(null);
   const [reportTripKmRate, setReportTripKmRate] = useState<number | null>(null);
   const [tripKmCustomerRate, setTripKmCustomerRate] = useState<number | null>(null);
+  const [refrigerantDeductionBusyId, setRefrigerantDeductionBusyId] = useState<string | null>(null);
   const [refrigerantDrafts, setRefrigerantDrafts] = useState<RefrigerantLineDraft[]>([]);
   const [refrigerantCylinders, setRefrigerantCylinders] = useState<RefrigerantCylinder[]>([]);
   const [refrigerantCompanyUsers, setRefrigerantCompanyUsers] = useState<
@@ -1408,7 +1411,7 @@ export default function WorkReportDetailPage({ session }: Props) {
       reportRow.created_by_company_id !== reportRow.owner_company_id || isDelegatedOrder;
 
     if (isPartnerReport && canPersistPartnerBillable(reportRow, profile?.company_id)) {
-      await refreshBillable(reportRow, logs);
+      await refreshBillable(reportRow, logs, { viewerCompanyId: profile?.company_id });
     } else {
       setBillableCalculation(null);
       setBillableUsers([]);
@@ -1653,6 +1656,7 @@ export default function WorkReportDetailPage({ session }: Props) {
     await refreshBillable(report, dailyLogs, {
       useCustomRates: true,
       reportRates: reportRatesDraft,
+      viewerCompanyId: profile?.company_id,
     });
     setRatesBusy(false);
   }
@@ -1675,7 +1679,11 @@ export default function WorkReportDetailPage({ session }: Props) {
     setError(null);
     setUseCustomRates(false);
     setReportRatesDraft(partnershipRatesPreview);
-    await refreshBillable(report, dailyLogs, { useCustomRates: false, reportRates: {} });
+    await refreshBillable(report, dailyLogs, {
+      useCustomRates: false,
+      reportRates: {},
+      viewerCompanyId: profile?.company_id,
+    });
     setRatesBusy(false);
   }
 
@@ -1764,13 +1772,22 @@ export default function WorkReportDetailPage({ session }: Props) {
         new Set(
           dailyLogs.flatMap((log) =>
             (log.refrigerant_lines ?? [])
-              .map((line) => refrigerantBillingReminder(line))
+              .map((line) => refrigerantBillingReminder(line, report ?? undefined))
               .filter((msg): msg is string => !!msg),
           ),
         ),
       ),
-    [dailyLogs],
+    [dailyLogs, report],
   );
+
+  const showWarehouseRefrigerantDeductions = useMemo(() => {
+    if (!profile?.company_id) return false;
+    return dailyLogs.some((log) =>
+      (log.refrigerant_lines ?? []).some((line) =>
+        isRefrigerantWarehouseCostLine(line, profile.company_id),
+      ),
+    );
+  }, [dailyLogs, profile?.company_id]);
 
   const reportOwnerTargets = useMemo(() => {
     if (!profile?.company_id) return [];
@@ -2077,6 +2094,7 @@ export default function WorkReportDetailPage({ session }: Props) {
         drafts: refrigerantDrafts,
         previousLines,
         requirePrices,
+        partnerOwnedReport: isPartnerReport,
       });
       return null;
     } catch (err) {
@@ -2104,6 +2122,22 @@ export default function WorkReportDetailPage({ session }: Props) {
     if (canPersistPartnerBillable(reportRow, profile?.company_id)) {
       await refreshBillable(reportRow, logs, { viewerCompanyId: profile?.company_id });
     }
+  }
+
+  async function toggleRefrigerantWarehouseDeduction(lineId: string, deducted: boolean) {
+    if (!report) return;
+    setRefrigerantDeductionBusyId(lineId);
+    const { error } = await supabase
+      .from('work_report_refrigerant_lines')
+      .update({ warehouse_cost_deducted: deducted })
+      .eq('id', lineId);
+    setRefrigerantDeductionBusyId(null);
+    if (error) {
+      setError(error.message);
+      return;
+    }
+    await load(report.id);
+    await persistBillingAfterLogChange(report);
   }
 
   async function addDailyLog(e: FormEvent) {
@@ -3373,6 +3407,22 @@ export default function WorkReportDetailPage({ session }: Props) {
               </p>
             )}
             <WorkReportBillingBreakdown calculation={billableCalculation} billingSide="partner" />
+            {showWarehouseRefrigerantDeductions && profile?.company_id ? (
+              <RefrigerantWarehouseDeductionPanel
+                logs={dailyLogs}
+                warehouseCompanyId={profile.company_id}
+                canEdit={(partnerBillingListRow
+                  ? canManageIncomingPartnerBilling(
+                      partnerBillingListRow,
+                      profile.company_id,
+                      dailyLogs.length > 0,
+                    )
+                  : false)
+                  || profile.company_id === report.created_by_company_id}
+                busyLineId={refrigerantDeductionBusyId}
+                onToggle={(lineId, deducted) => void toggleRefrigerantWarehouseDeduction(lineId, deducted)}
+              />
+            ) : null}
             {showOutgoingPartnerBilling ? (
             <div className="form-actions" style={{ justifyContent: 'flex-start' }}>
               <Tooltip label="Sisäinen tuloste: kumppanilaskutus, asiakkaalta laskutettava ja kaikki hinnat.">
@@ -3602,6 +3652,7 @@ export default function WorkReportDetailPage({ session }: Props) {
           ownCompanyId={profile?.company_id ?? null}
           hasPartnerCompanies={hasPartnerRefrigerantCompanies}
           showCustomerBillingFields={showCustomerBillingFeatures}
+          partnerOwnedReport={isPartnerReport}
         />
         {report && (
           <DailyLogTileSection

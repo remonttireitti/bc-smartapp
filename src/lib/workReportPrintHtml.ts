@@ -377,11 +377,13 @@ export function generateWorkReportPrintHtml(input: {
       const showCustomerRefrigerantPrices = showCustomerPricesInPrint;
       const refrigerantRows = refrigerantLines
         .map((line) => {
-          const reminder = refrigerantBillingReminder(line);
+          const reminder = refrigerantBillingReminder(line, report);
           const includedInCustomerBilling = refrigerantIncludedInCustomerBilling(line);
           const customerUnit = refrigerantCustomerUnitPrice(line);
           const customerTotal = refrigerantLineTotal(line);
           const priceMissing = includedInCustomerBilling && !(customerUnit > 0);
+          const logAuthor = resolveDailyLogAuthorLabel(log);
+          const sellerLabel = logAuthor.name === '—' ? null : logAuthor.name;
           let billingNote = '';
           if (showInternalPrices) {
             if (showPartnerPrices && line.bill_to_customer) {
@@ -397,7 +399,7 @@ export function generateWorkReportPrintHtml(input: {
           const qtyCell = showCustomerRefrigerantPrices && includedInCustomerBilling
             ? `${Number(line.qty_kg).toFixed(3)} kg${priceMissing ? ' · ?' : ` · ${formatEuro(customerTotal)}`}`
             : `${Number(line.qty_kg).toFixed(3)} kg`;
-          return `<tr><td>${esc(formatRefrigerantLineLabelForReport(line, report, viewerCompanyId))}${esc(billingNote)}</td><td class="num">${qtyCell}</td></tr>`;
+          return `<tr><td>${esc(formatRefrigerantLineLabelForReport(line, report, viewerCompanyId, sellerLabel))}${esc(billingNote)}</td><td class="num">${qtyCell}</td></tr>`;
         })
         .join('');
 
