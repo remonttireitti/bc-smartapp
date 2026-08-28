@@ -40,11 +40,28 @@ Testikäyttäjät (salasana `test123456`):
 - `admin@z.test` — Lämpökatsastus Oy (ei kumppani)
 - `admin@t.test` — Termatek Oy (ei kumppani)
 
+CLI ei ole pakollinen globaalisti — käytä `npx`- tai npm-skriptejä:
+
 ```bash
-supabase login
-supabase link --project-ref qvqmemeexberatbqxivw
-supabase db push
+npm run db:login
+npm run db:link
+npm run db:push
 ```
+
+Tai suoraan:
+
+```bash
+npx supabase login
+npx supabase link --project-ref qvqmemeexberatbqxivw
+npm run db:push
+```
+
+`db:login` avaa selaimen (tai pyytää access tokenin). Ilman kirjautumista `db:push` epäonnistuu:
+*Cannot find project ref. Have you run supabase link?*
+
+**Vaihtoehto ilman CLI:tä:** Supabase Studio → SQL Editor → aja tiedostot
+`supabase/migrations/20260621000111_refrigerant_trading_permissions.sql` ja
+`supabase/migrations/20260621000112_refrigerant_pass_through_billing.sql` järjestyksessä.
 
 Aseta Cloudflare Pages -ympäristöön `VITE_SUPABASE_URL` ja `VITE_SUPABASE_ANON_KEY` (katso `.env.production.example`).
 
