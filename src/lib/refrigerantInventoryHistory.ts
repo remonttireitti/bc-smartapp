@@ -164,7 +164,82 @@ export function workUseDedupBaseKey(
   refrigerantType: string,
 ): string | null {
   if (!workReportId) return null;
-  return `${workReportId}|${qtyKg.toFixed(3)}|${refrigerantType.trim()}`;
+  return `wr|${workReportId}|${roundQtyKg(qtyKg)}|${normalizeRefrigerantTypeForKey(refrigerantType)}`;
+}
+
+function roundQtyKg(qtyKg: number): string {
+  return (Math.round(qtyKg * 1000) / 1000).toFixed(3);
+}
+
+function normalizeRefrigerantTypeForKey(refrigerantType: string): string {
+  return refrigerantType
+    .trim()
+    .replace(/\s+/g, '')
+    .replace(/[‐‑‒–—−]/g, '-')
+    .toUpperCase();
+}
+
+function workUseTitleDedupKey(
+  workReportTitle: string | null | undefined,
+  qtyKg: number,
+  refrigerantType: string,
+): string | null {
+  const title = workReportTitle?.trim();
+  if (!title || title === '—' || title === 'Työraportti') return null;
+  return `title|${title}|${roundQtyKg(qtyKg)}|${normalizeRefrigerantTypeForKey(refrigerantType)}`;
+}
+
+function workUseSerialDedupKey(
+  serialNumber: string | null | undefined,
+  qtyKg: number,
+  refrigerantType: string,
+  eventDate: string | null | undefined,
+): string | null {
+  const serial = serialNumber?.trim();
+  if (!serial || serial === '—') return null;
+  const date = eventDate?.trim().slice(0, 10);
+  if (!date) return null;
+  return `serial|${serial}|${date}|${roundQtyKg(qtyKg)}|${normalizeRefrigerantTypeForKey(refrigerantType)}`;
+}
+
+function collectSaleWorkUseDedupKeys(row: RefrigerantPurchaseSaleRow): string[] {
+  const keys = new Set<string>();
+  const qty = Number(row.qty_kg) || 0;
+  const type = row.refrigerant_type;
+
+  const base = workUseDedupBaseKey(row.work_report_id, qty, type);
+  if (base) keys.add(base);
+
+  const title = workUseTitleDedupKey(row.work_report_title, qty, type);
+  if (title) keys.add(title);
+
+  const serial = workUseSerialDedupKey(row.serial_number, qty, type, row.date);
+  if (serial) keys.add(serial);
+
+  return [...keys];
+}
+
+function collectMovementWorkUseDedupKeys(movement: RawMovement): string[] {
+  const keys = new Set<string>();
+  const qty = Number(movement.qty_kg) || 0;
+  const type = movement.refrigerant_type ?? '';
+  const workReport = unwrapOne(movement.work_report);
+
+  const base = workUseDedupBaseKey(movement.work_report_id, qty, type);
+  if (base) keys.add(base);
+
+  const title = workUseTitleDedupKey(workReport?.title ?? null, qty, type);
+  if (title) keys.add(title);
+
+  const serial = workUseSerialDedupKey(
+    movement.serial_number,
+    qty,
+    type,
+    movement.created_at,
+  );
+  if (serial) keys.add(serial);
+
+  return [...keys];
 }
 
 function movementToHistoryRow(movement: RawMovement): RefrigerantInventoryHistoryRow | null {
@@ -223,23 +298,22 @@ export function mergeRefrigerantInventoryHistoryRows(
   purchaseSaleRows: RefrigerantPurchaseSaleRow[],
 ): RefrigerantInventoryHistoryRow[] {
   const rows: RefrigerantInventoryHistoryRow[] = [];
-  const billedWorkUseBaseKeys = new Set(
-    purchaseSaleRows
-      .filter((row) => row.kind === 'sale')
-      .map((row) => workUseDedupBaseKey(row.work_report_id, row.qty_kg, row.refrigerant_type))
-      .filter((key): key is string => key != null),
+  const saleRows = purchaseSaleRows.filter((row) => row.kind === 'sale');
+  const saleDedupKeys = new Map<string, string[]>(
+    saleRows.map((row) => [row.id, collectSaleWorkUseDedupKeys(row)]),
   );
-  const replacedWorkUseBaseKeys = new Set<string>();
+  const billedWorkUseKeys = new Set(saleRows.flatMap((row) => collectSaleWorkUseDedupKeys(row)));
+  const replacedSaleIds = new Set<string>();
 
   for (const movement of movements) {
     if (movement.movement_type === 'work_use') {
-      const dedupKey = workUseDedupBaseKey(
-        movement.work_report_id,
-        Number(movement.qty_kg) || 0,
-        movement.refrigerant_type ?? '',
-      );
-      if (dedupKey && billedWorkUseBaseKeys.has(dedupKey)) {
-        replacedWorkUseBaseKeys.add(dedupKey);
+      const movementKeys = collectMovementWorkUseDedupKeys(movement);
+      if (movementKeys.some((key) => billedWorkUseKeys.has(key))) {
+        for (const [saleId, saleKeys] of saleDedupKeys) {
+          if (movementKeys.some((key) => saleKeys.includes(key))) {
+            replacedSaleIds.add(saleId);
+          }
+        }
         continue;
       }
     }
@@ -250,15 +324,10 @@ export function mergeRefrigerantInventoryHistoryRows(
 
   for (const purchaseSaleRow of purchaseSaleRows) {
     if (purchaseSaleRow.kind === 'retrieve') continue;
-    const dedupKey = workUseDedupBaseKey(
-      purchaseSaleRow.work_report_id,
-      purchaseSaleRow.qty_kg,
-      purchaseSaleRow.refrigerant_type,
-    );
     rows.push(
       purchaseSaleToHistoryRow(
         purchaseSaleRow,
-        purchaseSaleRow.kind === 'sale' && dedupKey != null && replacedWorkUseBaseKeys.has(dedupKey),
+        purchaseSaleRow.kind === 'sale' && replacedSaleIds.has(purchaseSaleRow.id),
       ),
     );
   }

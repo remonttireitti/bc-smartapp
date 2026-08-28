@@ -72,6 +72,26 @@ const duplicateWorkUse = mergeRefrigerantInventoryHistoryRows(
 assert.equal(duplicateWorkUse.length, 1);
 assert.equal(duplicateWorkUse[0].eventLabel, 'Myynti');
 
+const titleMatchedMovement = {
+  ...movement,
+  id: 'm-title',
+  work_report_id: null,
+  created_at: '2026-08-28T10:30:23.000Z',
+};
+
+const titleMatchedSale = {
+  ...saleRow,
+  id: 'sale:title',
+  work_report_id: 'wr-different',
+  work_report_title: 'Sinikalliontie 3 – Kylmiöt lämpönee',
+  date: '2026-08-28',
+};
+
+const titleMatched = mergeRefrigerantInventoryHistoryRows([titleMatchedMovement], [titleMatchedSale]);
+assert.equal(titleMatched.length, 1);
+assert.equal(titleMatched[0].eventLabel, 'Myynti');
+assert.equal(titleMatched[0].affects_warehouse_balance, true);
+
 const purchaseMovement = {
   ...movement,
   id: 'm-2',
