@@ -9496,6 +9496,55 @@ button.tile.quote-document-tile span {
   font-size: .8125rem;
 }
 
+.billing-refrigerant-purchases-panel {
+  margin-bottom: 1rem;
+}
+
+.billing-refrigerant-purchases-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: .75rem;
+}
+
+.billing-refrigerant-purchases-head h2 {
+  margin: 0 0 .25rem;
+  font-size: 1.1rem;
+}
+
+.billing-refrigerant-purchases-head p {
+  margin: 0;
+}
+
+.billing-refrigerant-purchases-summary {
+  display: flex;
+  gap: 1.25rem;
+}
+
+.billing-refrigerant-purchases-summary > div {
+  display: grid;
+  gap: .15rem;
+  text-align: right;
+}
+
+.billing-refrigerant-purchases-stat-label {
+  font-size: .75rem;
+  color: var(--muted, #64748b);
+  text-transform: uppercase;
+  letter-spacing: .03em;
+}
+
+.billing-refrigerant-purchases-table td:first-child,
+.billing-refrigerant-purchases-table th:first-child {
+  white-space: nowrap;
+}
+
+.billing-refrigerant-purchase-charged {
+  opacity: .72;
+}
+
 @media (max-width: 760px) {
   .billing-report-main {
     grid-template-columns: 1fr;

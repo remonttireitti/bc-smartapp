@@ -52,7 +52,10 @@ import {
 } from '../lib/workReportBillingCopy';
 import { ensurePartnerBillableCalculated } from '../lib/workReportPartnerBillingPersist';
 import { warehouseDeductionTotalsFromCalculation } from '../lib/workReportBilling';
-import BillingRefrigerantDeductions from '../components/BillingRefrigerantDeductions';
+import { collectRefrigerantBillingPurchases } from '../lib/refrigerantBillingPurchases';
+import BillingRefrigerantPurchasesPanel, {
+  type RefrigerantPurchaseFilter,
+} from '../components/BillingRefrigerantPurchasesPanel';
 import { findStaleBillableReportIds, runWithConcurrency } from '../lib/workReportBillableStale';
 import {
   addDays,
@@ -158,6 +161,7 @@ export default function BillingPage({ session }: Props) {
   const [recalcState, setRecalcState] = useState<{ total: number; done: number } | null>(null);
   const [recalculatingIds, setRecalculatingIds] = useState<Set<string>>(() => new Set());
   const [refrigerantDeductionBusyId, setRefrigerantDeductionBusyId] = useState<string | null>(null);
+  const [refrigerantPurchaseFilter, setRefrigerantPurchaseFilter] = useState<RefrigerantPurchaseFilter>('open');
   const [partnerOptions, setPartnerOptions] = useState<Array<{ id: string; name: string }>>([]);
   const [summaryPeriod, setSummaryPeriod] = useState<SummaryPeriod>('this_month');
 
@@ -425,6 +429,12 @@ export default function BillingPage({ session }: Props) {
       : billingMode === 'customer'
         ? customerBillingEnabled !== false
         : partnerBillingAvailable !== false);
+
+  const refrigerantPurchases = useMemo(() => {
+    if (!profile?.company_id) return [];
+    if (billingMode === 'customer') return [];
+    return collectRefrigerantBillingPurchases(rows, profile.company_id);
+  }, [rows, profile?.company_id, billingMode]);
 
   const filteredRows = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -1077,6 +1087,19 @@ export default function BillingPage({ session }: Props) {
           {error && <p className="error">{error}</p>}
           {message && <p className="billing-toast">{message}</p>}
 
+          {(partnerModeActive || totalModeActive) && moduleEnabled ? (
+            <BillingRefrigerantPurchasesPanel
+              rows={refrigerantPurchases}
+              filter={refrigerantPurchaseFilter}
+              onFilterChange={setRefrigerantPurchaseFilter}
+              canEdit
+              busyLineId={refrigerantDeductionBusyId}
+              onToggle={(reportId, lineId, charged) =>
+                void toggleRefrigerantWarehouseDeduction(reportId, lineId, charged)
+              }
+            />
+          ) : null}
+
           {tab === 'calendar' && (
             <section className="panel billing-calendar-panel">
               <div className="billing-calendar-head">
@@ -1302,10 +1325,6 @@ export default function BillingPage({ session }: Props) {
                       ? () => void recalcPartnerRow(row.id)
                       : undefined
                   }
-                  refrigerantDeductionBusyId={refrigerantDeductionBusyId}
-                  onToggleRefrigerantDeduction={(lineId, deducted) =>
-                    void toggleRefrigerantWarehouseDeduction(row.id, lineId, deducted)
-                  }
                 />
               ))}
             </div>
@@ -1345,8 +1364,6 @@ function BillingReportCard({
   onUnmarkBilled,
   onRecalcPartner,
   viewerCompanyId,
-  refrigerantDeductionBusyId,
-  onToggleRefrigerantDeduction,
 }: {
   row: BillingListRow;
   mode: 'partner' | 'customer';
@@ -1360,8 +1377,6 @@ function BillingReportCard({
   onUnmarkBilled: () => void;
   onRecalcPartner?: () => void;
   viewerCompanyId?: string | null;
-  refrigerantDeductionBusyId?: string | null;
-  onToggleRefrigerantDeduction?: (lineId: string, deducted: boolean) => void;
 }) {
   const breakdown = billingRowBreakdown(row, mode);
   const partnerAmounts = mode === 'partner' ? billingRowPartnerAmounts(row) : null;
@@ -1490,18 +1505,6 @@ function BillingReportCard({
           </aside>
         )}
       </div>
-
-      {mode === 'partner' && deductionDetails.lines.length > 0 ? (
-        <BillingRefrigerantDeductions
-          lines={deductionDetails.lines}
-          pending={deductionDetails.pending}
-          deducted={deductionDetails.deducted}
-          canEdit={!!onToggleRefrigerantDeduction}
-          busyLineId={refrigerantDeductionBusyId ?? null}
-          onToggle={(lineId, deducted) => onToggleRefrigerantDeduction?.(lineId, deducted)}
-          compact
-        />
-      ) : null}
 
       <div className="billing-report-actions">
         {onRecalcPartner && billingEnabled && amounts.state !== 'billed' && (

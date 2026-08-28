@@ -40,9 +40,9 @@ export default function RefrigerantWarehouseDeductionPanel({
 
   return (
     <section className="panel refrigerant-warehouse-deduction-panel">
-      <h3>Kylmäaineen varastovähennys</h3>
+      <h3>Kylmäaineostot</h3>
       <p className="muted">
-        Nämä rivit vähennetään seuraavasta kumppanilaskutuksesta. Merkitse kun vähennys on tehty.
+        Nämä ostot veloitetaan kumppanilaskutuksesta. Merkitse veloitettuksi kun osto on kuitattu.
       </p>
       <div className="table-wrap">
         <table className="data-table">
@@ -51,7 +51,7 @@ export default function RefrigerantWarehouseDeductionPanel({
               <th>Päivä</th>
               <th>Rivi</th>
               <th className="num">Yhteensä</th>
-              <th>Vähennetty</th>
+              <th>Veloitettu</th>
             </tr>
           </thead>
           <tbody>
@@ -71,7 +71,7 @@ export default function RefrigerantWarehouseDeductionPanel({
                         disabled={!canEdit || busyLineId === line.id}
                         onChange={(e) => onToggle(line.id, e.target.checked)}
                       />
-                      Vähennetty
+                      {line.warehouse_cost_deducted ? 'Veloitettu' : 'Veloitettava'}
                     </label>
                   </td>
                 </tr>
