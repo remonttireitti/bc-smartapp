@@ -22,6 +22,7 @@
     "test:work-report-create-sections": "npx tsx scripts/test-work-report-create-sections.mjs",
     "test:expense-billing": "npx tsx scripts/test-expense-billing.mjs",
     "test:work-report-trip-legs": "npx tsx scripts/test-work-report-trip-legs.mjs",
+    "test:refrigerant-purchase-sale-list": "npx tsx scripts/test-refrigerant-purchase-sale-list.mjs",
     "fix:firebase-urls": "node scripts/fix-legacy-firebase-urls.mjs --production",
     "fix:firebase-urls:apply": "node scripts/fix-legacy-firebase-urls.mjs --production --apply",
     "fix:maintenance-photos": "node scripts/sync-maintenance-report-photos.mjs --production",

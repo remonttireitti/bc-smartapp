@@ -1,4 +1,5 @@
 import { FormEvent, Fragment, useCallback, useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 
 import { IconScan } from '../icons';
 import RefrigerantBottleCard from './RefrigerantBottleCard';
@@ -23,6 +24,10 @@ import {
   loadRefrigerantPeriodReport,
   printRefrigerantPeriodReport,
 } from '../../lib/refrigerantInventoryReport';
+import {
+  loadRefrigerantPurchaseSaleList,
+  type RefrigerantPurchaseSaleRow,
+} from '../../lib/refrigerantPurchaseSaleList';
 import { resolveCylinderFromScan } from '../../lib/refrigerantCylinderCode';
 import { loadWarehouseCustomerPicker, type WarehouseCustomerPickerOption } from '../../lib/customers';
 import RefrigerantBottleScanDialog from './RefrigerantBottleScanDialog';
@@ -56,7 +61,12 @@ const MOVEMENT_SELECT = `
   customer:customers(name)
 `;
 
-type RefrigerantView = 'registry' | 'history' | 'report';
+type RefrigerantView = 'registry' | 'history' | 'purchaseSale' | 'report';
+
+const PURCHASE_SALE_KIND_LABELS = {
+  purchase: 'Osto',
+  sale: 'Myynti',
+} as const;
 
 type BottleFormState = {
   serial_number: string;
@@ -200,6 +210,9 @@ export default function RefrigerantInventorySection({
   });
   const [reportTo, setReportTo] = useState(() => new Date().toISOString().slice(0, 10));
   const [reportBusy, setReportBusy] = useState(false);
+  const [purchaseSaleRows, setPurchaseSaleRows] = useState<RefrigerantPurchaseSaleRow[]>([]);
+  const [purchaseSaleLoading, setPurchaseSaleLoading] = useState(false);
+  const [purchaseSaleLoaded, setPurchaseSaleLoaded] = useState(false);
   const [scanOpen, setScanOpen] = useState(false);
   const [scanBusy, setScanBusy] = useState(false);
   const [detailCylinder, setDetailCylinder] = useState<RefrigerantCylinder | null>(null);
@@ -253,6 +266,25 @@ export default function RefrigerantInventorySection({
     );
   }
 
+  const loadPurchaseSaleList = useCallback(async () => {
+    setPurchaseSaleLoading(true);
+    onError(null);
+    try {
+      const rows = await loadRefrigerantPurchaseSaleList(
+        supabase,
+        warehouseCompanyId,
+        reportFrom,
+        reportTo,
+      );
+      setPurchaseSaleRows(rows);
+      setPurchaseSaleLoaded(true);
+    } catch (err) {
+      onError(err instanceof Error ? err.message : 'Osto-/myyntilista epäonnistui');
+    } finally {
+      setPurchaseSaleLoading(false);
+    }
+  }, [warehouseCompanyId, reportFrom, reportTo, onError]);
+
   async function loadCustomers() {
     if (!warehouseCompanyId) {
       setCustomers([]);
@@ -268,12 +300,18 @@ export default function RefrigerantInventorySection({
     try {
       await loadStock();
       if (view === 'history') await loadHistory();
+      if (view === 'purchaseSale') await loadPurchaseSaleList();
     } catch (err) {
       onError(err instanceof Error ? err.message : 'Lataus epäonnistui');
     } finally {
       setLoading(false);
     }
   }
+
+  useEffect(() => {
+    setPurchaseSaleLoaded(false);
+    setPurchaseSaleRows([]);
+  }, [warehouseCompanyId]);
 
   useEffect(() => {
     void reload();
@@ -856,6 +894,16 @@ export default function RefrigerantInventorySection({
         </button>
         <button
           type="button"
+          className={view === 'purchaseSale' ? 'billing-pill active' : 'billing-pill'}
+          onClick={() => {
+            setView('purchaseSale');
+            if (!purchaseSaleLoaded) void loadPurchaseSaleList();
+          }}
+        >
+          Osto / myynti
+        </button>
+        <button
+          type="button"
           className={view === 'report' ? 'billing-pill active' : 'billing-pill'}
           onClick={() => setView('report')}
         >
@@ -998,6 +1046,74 @@ export default function RefrigerantInventorySection({
                       <td>{m.refrigerant_type}</td>
                       <td>{Number(m.qty_kg).toFixed(2)}</td>
                       <td>{m.customer?.name ?? '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      )}
+
+      {view === 'purchaseSale' && (
+        <section className="panel inventory-report-panel">
+          <h2>Ostot ja myynnit työraporteilta</h2>
+          <p className="muted">
+            Lista kylmäaineen ostoista (tukkurilta työmaalla) ja myynneistä (asiakkaalle laskutettu) työraporttien
+            päiväkirjoista.
+          </p>
+          <div className="inventory-report-dates">
+            <label>
+              Alku
+              <input type="date" value={reportFrom} onChange={(e) => setReportFrom(e.target.value)} />
+            </label>
+            <label>
+              Loppu
+              <input type="date" value={reportTo} onChange={(e) => setReportTo(e.target.value)} />
+            </label>
+            <button
+              type="button"
+              className="btn btn-primary"
+              disabled={purchaseSaleLoading}
+              onClick={() => void loadPurchaseSaleList()}
+            >
+              Päivitä
+            </button>
+          </div>
+          {purchaseSaleLoading ? (
+            <p className="muted">Ladataan…</p>
+          ) : purchaseSaleRows.length === 0 ? (
+            <p className="muted">Ei ostoja tai myyntejä valitulla jaksolla.</p>
+          ) : (
+            <div className="table-wrap">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Päivä</th>
+                    <th>Tapahtuma</th>
+                    <th>Työraportti</th>
+                    <th>Asiakas</th>
+                    <th>Aine</th>
+                    <th>kg</th>
+                    <th>Pullo</th>
+                    <th>Omistus</th>
+                    <th>Lähde</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {purchaseSaleRows.map((row) => (
+                    <tr key={row.id}>
+                      <td>{new Date(`${row.date}T12:00:00`).toLocaleDateString('fi-FI')}</td>
+                      <td>{PURCHASE_SALE_KIND_LABELS[row.kind]}</td>
+                      <td>
+                        <Link to={`/tyoraportit/${row.work_report_id}`}>{row.work_report_title}</Link>
+                      </td>
+                      <td>{row.customer_name}</td>
+                      <td>{row.refrigerant_type}</td>
+                      <td>{row.qty_kg.toFixed(2)}</td>
+                      <td>{row.serial_number}</td>
+                      <td>{row.ownership}</td>
+                      <td>{row.source_label}</td>
                     </tr>
                   ))}
                 </tbody>
