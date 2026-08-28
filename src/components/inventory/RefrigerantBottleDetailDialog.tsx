@@ -63,7 +63,7 @@ export default function RefrigerantBottleDetailDialog({
             canEdit={false}
             busy={busy}
             placeholder="bottle"
-            size="md"
+            size="xl"
           />
           <div className="inventory-bottle-detail-head-text">
             <h2 id="inventory-bottle-detail-title">{formatBottleLabel(cylinder)}</h2>

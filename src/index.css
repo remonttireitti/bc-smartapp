@@ -10089,9 +10089,15 @@ a.tile.customer-document-tile:hover {
 
 .inventory-bottle-detail-head {
   display: flex;
+  flex-direction: column;
   gap: 0.85rem;
-  align-items: flex-start;
+  align-items: stretch;
   margin-bottom: 1rem;
+}
+
+.inventory-bottle-detail-head .inventory-photo-thumb-xl {
+  align-self: center;
+  width: min(100%, 18rem);
 }
 
 .inventory-bottle-detail-head-text {
@@ -10186,8 +10192,8 @@ a.tile.customer-document-tile:hover {
 
 .inventory-bottle-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
-  gap: 0.85rem;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 1rem;
 }
 
 .inventory-bottle-grid-span {
@@ -10334,8 +10340,53 @@ a.tile.customer-document-tile:hover {
 .inventory-photo-thumb-md .inventory-photo-btn {
   width: 100%;
   aspect-ratio: 3 / 4;
-  max-height: 140px;
+  max-height: 180px;
   border-radius: 10px;
+}
+
+.inventory-photo-thumb-lg {
+  width: 100%;
+}
+
+.inventory-photo-thumb-lg .inventory-photo-btn {
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  max-height: 240px;
+  border-radius: 12px;
+}
+
+.inventory-photo-thumb-xl {
+  width: 100%;
+}
+
+.inventory-photo-thumb-xl .inventory-photo-btn {
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  max-height: 320px;
+  border-radius: 12px;
+}
+
+.inventory-photo-btn-previewable {
+  cursor: zoom-in;
+}
+
+.inventory-photo-edit {
+  position: absolute;
+  left: 0.35rem;
+  bottom: 0.35rem;
+  padding: 0.15rem 0.45rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  font-size: 0.68rem;
+  font-weight: 600;
+  line-height: 1.2;
+  cursor: pointer;
+}
+
+.inventory-photo-edit:disabled {
+  opacity: 0.6;
+  cursor: default;
 }
 
 .inventory-photo-btn-bottle {

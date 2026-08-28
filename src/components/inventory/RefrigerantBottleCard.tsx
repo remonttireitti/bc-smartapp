@@ -83,7 +83,7 @@ export default function RefrigerantBottleCard({
           canEdit={canEdit}
           busy={busy}
           placeholder="bottle"
-          size="md"
+          size="lg"
           onPick={onPickPhoto}
         />
         {!empty && (

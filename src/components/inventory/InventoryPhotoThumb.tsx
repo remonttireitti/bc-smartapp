@@ -1,4 +1,5 @@
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
+import { MaintenanceReportImageLightbox } from '../huoltoRaportti/MaintenanceReportImageLightbox';
 import { inventoryImagePublicUrl } from '../../lib/inventoryImages';
 
 export const DEFAULT_REFRIGERANT_BOTTLE_IMAGE = '/refrigerant-bottle-default.png';
@@ -9,7 +10,7 @@ type Props = {
   canEdit?: boolean;
   busy?: boolean;
   placeholder?: 'camera' | 'bottle';
-  size?: 'sm' | 'md';
+  size?: 'sm' | 'md' | 'lg' | 'xl';
   onPick?: (file: File) => void | Promise<void>;
   onRemove?: () => void | Promise<void>;
 };
@@ -25,29 +26,56 @@ export default function InventoryPhotoThumb({
   onRemove,
 }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
   const url = inventoryImagePublicUrl(imagePath);
+  const hasCustomImage = Boolean(url);
+  const previewUrl = url ?? (placeholder === 'bottle' ? DEFAULT_REFRIGERANT_BOTTLE_IMAGE : null);
+
+  function openPicker() {
+    if (canEdit && !busy) inputRef.current?.click();
+  }
+
+  function openPreview() {
+    if (previewUrl) setLightboxOpen(true);
+  }
 
   return (
     <div className={`inventory-photo-thumb inventory-photo-thumb-${size}`}>
       <button
         type="button"
-        className={`inventory-photo-btn${placeholder === 'bottle' ? ' inventory-photo-btn-bottle' : ''}`}
-        disabled={!canEdit || busy}
+        className={`inventory-photo-btn${placeholder === 'bottle' ? ' inventory-photo-btn-bottle' : ''}${hasCustomImage ? ' inventory-photo-btn-previewable' : ''}`}
+        disabled={busy || (!hasCustomImage && !canEdit)}
         onClick={() => {
-          if (canEdit) inputRef.current?.click();
+          if (hasCustomImage) openPreview();
+          else openPicker();
         }}
-        aria-label={url ? `${label}, vaihda kuva` : `${label}, lisää kuva`}
+        aria-label={
+          hasCustomImage
+            ? `${label}, näytä kuva suurena`
+            : canEdit
+              ? `${label}, lisää kuva`
+              : `${label}, ei kuvaa`
+        }
       >
-        {url ? (
-          <img src={url} alt="" loading="lazy" />
-        ) : placeholder === 'bottle' ? (
-          <img src={DEFAULT_REFRIGERANT_BOTTLE_IMAGE} alt="" loading="lazy" className="inventory-bottle-default-img" />
+        {previewUrl ? (
+          <img src={previewUrl} alt="" loading="lazy" className={placeholder === 'bottle' && !url ? 'inventory-bottle-default-img' : undefined} />
         ) : (
           <span className="inventory-photo-placeholder" aria-hidden>
             📷
           </span>
         )}
       </button>
+      {canEdit && hasCustomImage ? (
+        <button
+          type="button"
+          className="inventory-photo-edit"
+          disabled={busy}
+          onClick={openPicker}
+          aria-label={`${label}, vaihda kuva`}
+        >
+          Vaihda
+        </button>
+      ) : null}
       {canEdit && url && onRemove ? (
         <button type="button" className="inventory-photo-remove" disabled={busy} onClick={() => void onRemove()}>
           ×
@@ -65,6 +93,9 @@ export default function InventoryPhotoThumb({
           if (file && onPick) void onPick(file);
         }}
       />
+      {lightboxOpen && previewUrl ? (
+        <MaintenanceReportImageLightbox url={previewUrl} onClose={() => setLightboxOpen(false)} />
+      ) : null}
     </div>
   );
 }
