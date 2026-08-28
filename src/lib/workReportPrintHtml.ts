@@ -20,7 +20,7 @@ import {
   type BillingQuoteSettings,
 } from './workReportBillingQuote';
 import {
-  formatRefrigerantLineLabel,
+  formatRefrigerantLineLabelForReport,
   refrigerantBillingReminder,
   refrigerantCustomerUnitPrice,
   refrigerantIncludedInCustomerBilling,
@@ -298,6 +298,7 @@ export function generateWorkReportPrintHtml(input: {
   billingQuote?: BillingQuoteSettings | null;
   meta: WorkReportPrintMeta;
   hideAssignee?: boolean;
+  viewerCompanyId?: string | null;
 }) {
   const {
     report,
@@ -310,6 +311,7 @@ export function generateWorkReportPrintHtml(input: {
     billingQuote: inputBillingQuote,
     meta,
     hideAssignee,
+    viewerCompanyId,
   } = input;
   const billingQuote = parseBillingQuoteSettings(inputBillingQuote ?? {});
   const customerQuoteFixed = customerUsesFixedQuote(billingQuote);
@@ -395,7 +397,7 @@ export function generateWorkReportPrintHtml(input: {
           const qtyCell = showCustomerRefrigerantPrices && includedInCustomerBilling
             ? `${Number(line.qty_kg).toFixed(3)} kg${priceMissing ? ' · ?' : ` · ${formatEuro(customerTotal)}`}`
             : `${Number(line.qty_kg).toFixed(3)} kg`;
-          return `<tr><td>${esc(formatRefrigerantLineLabel(line))}${esc(billingNote)}</td><td class="num">${qtyCell}</td></tr>`;
+          return `<tr><td>${esc(formatRefrigerantLineLabelForReport(line, report, viewerCompanyId))}${esc(billingNote)}</td><td class="num">${qtyCell}</td></tr>`;
         })
         .join('');
 

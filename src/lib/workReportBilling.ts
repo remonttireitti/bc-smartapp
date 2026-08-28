@@ -1,7 +1,7 @@
 import type { WorkReportDailyLog } from '../types';
 import { resolveDailyLogAuthorLabel } from '../types';
 import type { BillableRatesSource, PartnerBillingRates } from './management';
-import { formatRefrigerantLineLabel } from './refrigerantInventory';
+import { formatRefrigerantLineLabelForReport } from './refrigerantInventory';
 import {
   formatTripKmExpenseDescription,
   resolveTripKmBillingLine,
@@ -163,6 +163,8 @@ export function calculateWorkReportBillable(input: {
   billToCompanyId: string | null;
   billToCompanyName: string | null;
   tripKmRate?: number | null;
+  report?: Pick<{ owner_company_id: string; created_by_company_id: string }, 'owner_company_id' | 'created_by_company_id'>;
+  viewerCompanyId?: string | null;
 }): BillableCalculation {
   const rates = { ...DEFAULT_RATES, ...input.rates };
   const userMap = new Map(input.users.map((u) => [u.id, u]));
@@ -332,7 +334,12 @@ export function calculateWorkReportBillable(input: {
         logId: log.id,
         logDate: log.log_date,
         kind: 'refrigerant',
-        description: formatRefrigerantLineLabel(refLine),
+        description: input.report
+          ? formatRefrigerantLineLabelForReport(refLine, input.report, input.viewerCompanyId)
+          : formatRefrigerantLineLabelForReport(refLine, {
+              owner_company_id: input.billToCompanyId ?? '',
+              created_by_company_id: input.billToCompanyId ?? '',
+            }, input.viewerCompanyId),
         qty,
         unitPrice: billToPartner ? unitPrice : 0,
         total,

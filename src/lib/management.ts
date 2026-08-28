@@ -5,6 +5,8 @@ export type PartnershipPermissions = {
   maintenance_reports: PartnershipAccessLevel;
   customers: PartnershipAccessLevel;
   inventory: PartnershipAccessLevel;
+  /** Kumppani saa käyttää oman yrityksen kylmäainetta työraporteilla. */
+  refrigerant_trading: PartnershipAccessLevel;
   tools: PartnershipAccessLevel;
   quotes: PartnershipAccessLevel;
   use_branding: boolean;
@@ -15,6 +17,7 @@ export const PARTNERSHIP_MODULES = [
   { key: 'maintenance_reports', label: 'Huoltoraportit' },
   { key: 'customers', label: 'Asiakkaat' },
   { key: 'inventory', label: 'Varasto' },
+  { key: 'refrigerant_trading', label: 'Kylmäaineen kauppa' },
   { key: 'tools', label: 'Työkalut' },
   { key: 'quotes', label: 'Tarjouspyynnöt' },
 ] as const;
@@ -128,6 +131,11 @@ export type CompanySettings = {
    * Oletus false — yksinyritystila. Yrityksen ylläpitäjä voi kytkeä päälle myöhemmin.
    */
   partnerships_enabled?: boolean;
+  /** Kylmäainevarasto ja kumppanuuskauppa. */
+  refrigerant?: {
+    /** Kaikki aktiiviset kumppanit saavat käyttää kylmäainetta ilman erillistä kumppanuusoikeutta. */
+    trading_open_to_all_partners?: boolean;
+  };
   /** Kevyt laiterekisteri: brändikohtaiset toimitusmaksut (€/yksikkö, alv 0). */
   device_registry?: {
     brand_delivery_fees_by_category?: Record<
@@ -192,10 +200,15 @@ export function emptyPartnershipPermissions(): PartnershipPermissions {
     maintenance_reports: 'none',
     customers: 'none',
     inventory: 'none',
+    refrigerant_trading: 'none',
     tools: 'none',
     quotes: 'none',
     use_branding: false,
   };
+}
+
+export function companyRefrigerantTradingOpenToAllPartners(settings: CompanySettings): boolean {
+  return settings.refrigerant?.trading_open_to_all_partners === true;
 }
 
 function migrateLegacyPermissions(raw: Record<string, unknown>): PartnershipPermissions {
@@ -360,6 +373,11 @@ export function parseCompanySettings(raw: unknown): CompanySettings {
         }
       : undefined,
     partnerships_enabled: s.partnerships_enabled === true,
+    refrigerant: s.refrigerant
+      ? {
+          trading_open_to_all_partners: s.refrigerant.trading_open_to_all_partners === true,
+        }
+      : undefined,
     billing: {
       ...base.billing,
       ...(s.billing ?? {}),

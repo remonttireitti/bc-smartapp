@@ -245,6 +245,8 @@ export async function refreshAndPersistPartnerBillable(
       ? (reportRow.delegate_company?.name ?? null)
       : (reportRow.owner_company?.name ?? null),
     tripKmRate: parseTripKmRate(settings) ?? parseTripKmRate(viewerSettings),
+    report: reportRow,
+    viewerCompanyId: rateOptions?.viewerCompanyId ?? null,
   });
 
   const { error: billableError } = await supabase.from('work_report_billable').upsert({

@@ -2,6 +2,11 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 
 import { refrigerantIncludedInCustomerBilling } from './refrigerantInventory';
 import {
+  redactRefrigerantSourceLabel,
+  shouldHideRefrigerantSourceFromViewer,
+  type RefrigerantReportContext,
+} from './refrigerantVisibility';
+import {
   REFRIGERANT_CYLINDER_OWNERSHIP_LABELS,
   REFRIGERANT_SOURCE_LABELS,
   type RefrigerantSource,
@@ -22,6 +27,9 @@ export type RefrigerantPurchaseSaleRow = {
   serial_number: string;
   ownership: string;
   source_label: string;
+  source: RefrigerantSource;
+  owner_company_id: string;
+  created_by_company_id: string;
 };
 
 type RawLine = {
@@ -41,6 +49,7 @@ type RawLine = {
     id: string;
     title: string | null;
     owner_company_id: string;
+    created_by_company_id: string;
     customers: { name: string | null } | { name: string | null }[] | null;
   } | null;
 };
@@ -62,6 +71,7 @@ const LINE_SELECT = `
     id,
     title,
     owner_company_id,
+    created_by_company_id,
     customers(name)
   )
 `;
@@ -104,6 +114,11 @@ function createPurchaseSaleRow(line: RawLine, kind: RefrigerantPurchaseSaleKind)
   const customer = unwrapOne(workReport?.customers ?? null);
   const cylinder = unwrapOne(line.cylinder);
   const qty = Number(line.qty_kg) || 0;
+  const sourceLabel = refrigerantPurchaseSaleSourceLabel({
+    kind,
+    source: line.source,
+    supplier_name: line.supplier_name,
+  });
 
   return {
     id: `${kind}:${line.id}`,
@@ -116,11 +131,10 @@ function createPurchaseSaleRow(line: RawLine, kind: RefrigerantPurchaseSaleKind)
     qty_kg: qty,
     serial_number: cylinder?.serial_number?.trim() || '—',
     ownership: formatRefrigerantOwnershipLabel(cylinder?.ownership_type),
-    source_label: refrigerantPurchaseSaleSourceLabel({
-      kind,
-      source: line.source,
-      supplier_name: line.supplier_name,
-    }),
+    source_label: sourceLabel,
+    source: line.source,
+    owner_company_id: workReport?.owner_company_id ?? '',
+    created_by_company_id: workReport?.created_by_company_id ?? '',
   };
 }
 
@@ -161,11 +175,51 @@ export function buildRefrigerantPurchaseSaleRows(
   return rows;
 }
 
+export function filterPurchaseSaleRowsForViewer(
+  rows: RefrigerantPurchaseSaleRow[],
+  viewerCompanyId: string,
+): RefrigerantPurchaseSaleRow[] {
+  return rows
+    .filter((row) => {
+      const ctx: RefrigerantReportContext = {
+        viewerCompanyId,
+        ownerCompanyId: row.owner_company_id,
+        createdByCompanyId: row.created_by_company_id,
+      };
+      if (row.kind === 'purchase' && shouldHideRefrigerantSourceFromViewer(ctx)) {
+        return false;
+      }
+      return true;
+    })
+    .map((row) => {
+      const ctx: RefrigerantReportContext = {
+        viewerCompanyId,
+        ownerCompanyId: row.owner_company_id,
+        createdByCompanyId: row.created_by_company_id,
+      };
+      const hideSource = shouldHideRefrigerantSourceFromViewer(ctx);
+      if (!hideSource) return row;
+      return {
+        ...row,
+        source_label: redactRefrigerantSourceLabel(
+          {
+            kind: row.kind,
+            source: row.source,
+            supplier_name: null,
+            source_label: row.source_label,
+          },
+          true,
+        ),
+      };
+    });
+}
+
 export async function loadRefrigerantPurchaseSaleList(
   supabase: SupabaseClient,
   companyId: string,
   fromDate: string,
   toDate: string,
+  viewerCompanyId: string = companyId,
 ): Promise<RefrigerantPurchaseSaleRow[]> {
   const { data, error } = await supabase
     .from('work_report_refrigerant_lines')
@@ -176,5 +230,6 @@ export async function loadRefrigerantPurchaseSaleList(
 
   if (error) throw error;
 
-  return buildRefrigerantPurchaseSaleRows((data as unknown as RawLine[]) ?? [], companyId);
+  const rows = buildRefrigerantPurchaseSaleRows((data as unknown as RawLine[]) ?? [], companyId);
+  return filterPurchaseSaleRowsForViewer(rows, viewerCompanyId);
 }

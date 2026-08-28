@@ -1,6 +1,11 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { CUSTOMER_SELECT } from './customers';
-import { partnershipPermsActingOnOwner, partnershipModuleAccess } from './management';
+import {
+  companyRefrigerantTradingOpenToAllPartners,
+  partnershipModuleAccess,
+  partnershipPermsActingOnOwner,
+  type CompanySettings,
+} from './management';
 import type { PartnershipModuleKey } from './management';
 import type { Customer, Partnership } from '../types';
 
@@ -188,6 +193,29 @@ export function warehouseAccessForCompany(
   if (partnershipModuleAccess(permissions, 'inventory', 'write')) return 'write';
   if (partnershipModuleAccess(permissions, 'inventory', 'read')) return 'read';
   return 'read';
+}
+
+export function partnershipRefrigerantTradingAllowed(
+  myCompanyId: string,
+  warehouseOwnerCompanyId: string,
+  partnerships: Partnership[],
+  ownerSettings?: CompanySettings | null,
+): boolean {
+  if (warehouseOwnerCompanyId === myCompanyId) return true;
+
+  const partnership = partnerships.find((entry) => {
+    const partnerCompanyId =
+      entry.company_a_id === myCompanyId ? entry.company_b_id : entry.company_a_id;
+    return partnerCompanyId === warehouseOwnerCompanyId;
+  });
+  if (!partnership) return false;
+
+  if (ownerSettings && companyRefrigerantTradingOpenToAllPartners(ownerSettings)) {
+    return true;
+  }
+
+  const permissions = partnershipPermsActingOnOwner(partnership, myCompanyId, warehouseOwnerCompanyId);
+  return partnershipModuleAccess(permissions, 'refrigerant_trading', 'read');
 }
 
 export function defaultReportContext(myCompanyId: string): ReportContext {

@@ -395,6 +395,30 @@ export default function CompanySettingsPage() {
       </section>
       )}
 
+      {showPartnershipSettings && (
+        <section className="form-section">
+          <h2>Kylmäaineen kauppa kumppaneille</h2>
+          <ToggleSwitch
+            label="Kaikki kumppanit saavat käyttää kylmäainetta työraporteilla"
+            checked={settings.refrigerant?.trading_open_to_all_partners === true}
+            onChange={(trading_open_to_all_partners) =>
+              setSettings((current) => ({
+                ...current,
+                refrigerant: {
+                  ...current.refrigerant,
+                  trading_open_to_all_partners,
+                },
+              }))
+            }
+          />
+          <p className="muted">
+            Oletuksena kumppani ei saa käyttää kylmäainettasi ilman erillistä oikeutta (Hallinta → Kumppanuudet →
+            Kylmäaineen kauppa). Kun tämä on päällä, jokainen aktiivinen kumppani voi käyttää pullojasi
+            työraporteillaan. Yksittäisiä kumppaneita voi silti rajata kumppanuusasetuksissa.
+          </p>
+        </section>
+      )}
+
       <section className="form-section">
         <h2>Asiakaslaskutuksen seuranta</h2>
         <ToggleSwitch

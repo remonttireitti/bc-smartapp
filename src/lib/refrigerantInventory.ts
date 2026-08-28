@@ -1,4 +1,11 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+
+import {
+  redactRefrigerantPartnerWarehouseName,
+  redactRefrigerantSupplierName,
+  type RefrigerantReportContext,
+  shouldHideRefrigerantSourceFromViewer,
+} from './refrigerantVisibility';
 import type {
   RefrigerantCylinder,
   RefrigerantCylinderDisposition,
@@ -454,7 +461,11 @@ export async function saveRefrigerantLines(
   }
 }
 
-export function formatRefrigerantLineLabel(line: WorkReportRefrigerantLine): string {
+export function formatRefrigerantLineLabel(
+  line: WorkReportRefrigerantLine,
+  view?: RefrigerantReportContext | null,
+): string {
+  const hideSource = view ? shouldHideRefrigerantSourceFromViewer(view) : false;
   const qty = Number(line.qty_kg).toFixed(3);
   if (line.source === 'warehouse' || line.source === 'partner_warehouse') {
     const bottleLabel = line.cylinder?.serial_number?.trim() || line.cylinder?.notes?.trim() || '—';
@@ -464,7 +475,11 @@ export function formatRefrigerantLineLabel(line: WorkReportRefrigerantLine): str
       line.cylinder?.bottle_size === 'large'
         ? formatBottleSizeLabel(line.cylinder.bottle_size)
         : '';
-    const partner = line.source === 'partner_warehouse' ? line.warehouse_company?.name ?? 'Kumppani' : null;
+    const partner =
+      line.source === 'partner_warehouse'
+        ? redactRefrigerantPartnerWarehouseName(line.warehouse_company?.name ?? 'Kumppani', hideSource) ??
+          (hideSource ? 'Kumppanin varastosta' : 'Kumppani')
+        : null;
     const owner = line.owner_user?.display_name ?? 'Yhteinen varasto';
     const parts = [
       `${line.refrigerant_type} ${qty} kg`,
@@ -474,7 +489,23 @@ export function formatRefrigerantLineLabel(line: WorkReportRefrigerantLine): str
     ].filter(Boolean);
     return parts.join(' · ');
   }
-  return `${line.refrigerant_type} ${qty} kg · ${line.supplier_name ?? 'Tukkuri'}`;
+  return `${line.refrigerant_type} ${qty} kg · ${redactRefrigerantSupplierName(line.supplier_name, hideSource)}`;
+}
+
+export function formatRefrigerantLineLabelForReport(
+  line: WorkReportRefrigerantLine,
+  report: Pick<{ owner_company_id: string; created_by_company_id: string }, 'owner_company_id' | 'created_by_company_id'>,
+  viewerCompanyId?: string | null,
+): string {
+  const view =
+    viewerCompanyId != null
+      ? {
+          viewerCompanyId,
+          ownerCompanyId: report.owner_company_id,
+          createdByCompanyId: report.created_by_company_id,
+        }
+      : null;
+  return formatRefrigerantLineLabel(line, view);
 }
 
 export function formatCylinderPickerLabel(c: RefrigerantCylinder): string {

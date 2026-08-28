@@ -137,6 +137,7 @@ export async function buildWorkReportPrintHtmlDocument(input: {
     billingQuote,
     meta: { companyName, logoUrl },
     hideAssignee,
+    viewerCompanyId: input.viewerCompanyId,
   });
 }
 

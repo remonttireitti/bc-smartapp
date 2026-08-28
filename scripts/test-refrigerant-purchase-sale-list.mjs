@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import {
   buildRefrigerantPurchaseSaleRows,
+  filterPurchaseSaleRowsForViewer,
   formatRefrigerantOwnershipLabel,
   lineBelongsToWarehouseCompany,
   refrigerantPurchaseSaleSourceLabel,
@@ -26,6 +27,7 @@ function baseLine(overrides = {}) {
       id: 'wr-1',
       title: 'Huolto asiakkaalle',
       owner_company_id: companyId,
+      created_by_company_id: 'creator-co',
       customers: { name: 'Testi Oy' },
     },
     ...overrides,
@@ -86,5 +88,9 @@ const filtered = buildRefrigerantPurchaseSaleRows(
   companyId,
 );
 assert.equal(filtered.length, 0);
+
+const ownerView = filterPurchaseSaleRowsForViewer(purchaseRows, companyId);
+assert.equal(ownerView.some((row) => row.kind === 'purchase'), false);
+assert.ok(ownerView.some((row) => row.kind === 'sale'));
 
 console.log('test-refrigerant-purchase-sale-list: ok');
