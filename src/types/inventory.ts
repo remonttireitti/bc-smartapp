@@ -4,6 +4,29 @@ export type RefrigerantSupplierPaidBy = 'own' | 'partner';
 
 export type RefrigerantCylinderOwnership = 'owned' | 'rental';
 
+export type RefrigerantRentalSupplier =
+  | 'darment'
+  | 'combi_cool'
+  | 'ecoscandic'
+  | 'onninen'
+  | 'refair';
+
+export const REFRIGERANT_RENTAL_SUPPLIER_LABELS: Record<RefrigerantRentalSupplier, string> = {
+  darment: 'Darment',
+  combi_cool: 'Combi Cool',
+  ecoscandic: 'Ecoscandic',
+  onninen: 'Onninen',
+  refair: 'Refair',
+};
+
+export const REFRIGERANT_RENTAL_SUPPLIER_ORDER: RefrigerantRentalSupplier[] = [
+  'darment',
+  'combi_cool',
+  'ecoscandic',
+  'onninen',
+  'refair',
+];
+
 export type RefrigerantStockSource = 'purchase' | 'customer_retrieved';
 
 export type BottleSize = 'small' | 'medium' | 'large';
@@ -46,6 +69,7 @@ export type RefrigerantCylinder = {
   capacity_kg: number;
   owner_user_id: string | null;
   ownership_type: RefrigerantCylinderOwnership;
+  rental_supplier: RefrigerantRentalSupplier | null;
   stock_source: RefrigerantStockSource;
   customer_id: string | null;
   location: string | null;

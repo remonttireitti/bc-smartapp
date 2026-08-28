@@ -5,6 +5,7 @@ import {
   formatBottleContent,
   formatBottleLabel,
   formatBottleSizeLabel,
+  formatRentalSupplierLabel,
   isBottleEmpty,
 } from '../../lib/refrigerantBottle';
 import type { RefrigerantCylinder } from '../../types/inventory';
@@ -81,6 +82,12 @@ export default function RefrigerantBottleDetailDialog({
           <dd>{formatBottleSizeLabel(cylinder.bottle_size)}</dd>
           <dt>Omistus</dt>
           <dd>{REFRIGERANT_CYLINDER_OWNERSHIP_LABELS[cylinder.ownership_type]}</dd>
+          {cylinder.ownership_type === 'rental' && formatRentalSupplierLabel(cylinder.rental_supplier) ? (
+            <>
+              <dt>Vuokraaja</dt>
+              <dd>{formatRentalSupplierLabel(cylinder.rental_supplier)}</dd>
+            </>
+          ) : null}
           <dt>Tila</dt>
           <dd>{REFRIGERANT_CYLINDER_STATUS_LABELS[cylinder.status] ?? cylinder.status}</dd>
           <dt>Lähde</dt>

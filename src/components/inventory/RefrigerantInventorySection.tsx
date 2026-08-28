@@ -38,17 +38,20 @@ import type {
   RefrigerantCylinder,
   RefrigerantCylinderMovement,
   RefrigerantCylinderOwnership,
+  RefrigerantRentalSupplier,
 } from '../../types/inventory';
 import {
   REFRIGERANT_CYLINDER_OWNERSHIP_LABELS,
   REFRIGERANT_MOVEMENT_TYPE_LABELS,
+  REFRIGERANT_RENTAL_SUPPLIER_LABELS,
+  REFRIGERANT_RENTAL_SUPPLIER_ORDER,
 } from '../../types/inventory';
 
 const ZERO_EPS = 0.0005;
 
 const CYLINDER_SELECT = `
   id, company_id, serial_number, bottle_size, non_recyclable, refrigerant_type,
-  purchased_kg, remaining_kg, capacity_kg, owner_user_id, ownership_type, stock_source,
+  purchased_kg, remaining_kg, capacity_kg, owner_user_id, ownership_type, rental_supplier, stock_source,
   customer_id, location, status, purchase_date, returned_at, notes, image_path,
   created_at, updated_at,
   owner_user:profiles!refrigerant_cylinders_owner_user_id_fkey(display_name, email),
@@ -72,6 +75,7 @@ type BottleFormState = {
   serial_number: string;
   bottle_size: BottleSize;
   ownership_type: RefrigerantCylinderOwnership;
+  rental_supplier: RefrigerantRentalSupplier | '';
   location: string;
   notes: string;
   has_content: boolean;
@@ -85,6 +89,7 @@ function emptyBottleForm(): BottleFormState {
     serial_number: '',
     bottle_size: 'medium',
     ownership_type: 'owned',
+    rental_supplier: '',
     location: '',
     notes: '',
     has_content: false,
@@ -107,6 +112,7 @@ function normalizeCylinder(row: Record<string, unknown>): RefrigerantCylinder {
     capacity_kg: cap,
     purchased_kg: cap > 0 ? cap : Number(c.purchased_kg),
     ownership_type: (c.ownership_type as RefrigerantCylinderOwnership) ?? 'owned',
+    rental_supplier: (c.rental_supplier as RefrigerantRentalSupplier | null) ?? null,
     stock_source: c.stock_source ?? 'purchase',
     customer_id: c.customer_id ?? null,
     location: c.location ?? null,
@@ -123,6 +129,7 @@ function formFromCylinder(c: RefrigerantCylinder): BottleFormState {
     serial_number: c.serial_number ?? '',
     bottle_size: bottleSize(c),
     ownership_type: c.ownership_type,
+    rental_supplier: c.rental_supplier ?? '',
     location: c.location ?? '',
     notes: c.notes ?? '',
     has_content: !empty,
@@ -417,6 +424,11 @@ export default function RefrigerantInventorySection({
     const maxKg = maxContentKgForSize(size);
     const serial = bottleForm.serial_number.trim() || null;
 
+    if (bottleForm.ownership_type === 'rental' && !bottleForm.rental_supplier) {
+      onError('Valitse vuokrapullon vuokraaja.');
+      return;
+    }
+
     let remaining = 0;
     let refType: string | null = null;
     if (bottleForm.has_content) {
@@ -439,6 +451,8 @@ export default function RefrigerantInventorySection({
       remaining_kg: remaining,
       refrigerant_type: refType,
       ownership_type: bottleForm.ownership_type,
+      rental_supplier:
+        bottleForm.ownership_type === 'rental' ? bottleForm.rental_supplier || null : null,
       location: bottleForm.location.trim() || null,
       notes: bottleForm.notes.trim() || null,
       non_recyclable: bottleForm.non_recyclable,
@@ -713,14 +727,41 @@ export default function RefrigerantInventorySection({
             Omistus *
             <select
               value={bottleForm.ownership_type}
-              onChange={(e) =>
-                setBottleForm({ ...bottleForm, ownership_type: e.target.value as RefrigerantCylinderOwnership })
-              }
+              onChange={(e) => {
+                const ownership_type = e.target.value as RefrigerantCylinderOwnership;
+                setBottleForm({
+                  ...bottleForm,
+                  ownership_type,
+                  rental_supplier: ownership_type === 'rental' ? bottleForm.rental_supplier : '',
+                });
+              }}
             >
               <option value="owned">{REFRIGERANT_CYLINDER_OWNERSHIP_LABELS.owned}</option>
               <option value="rental">{REFRIGERANT_CYLINDER_OWNERSHIP_LABELS.rental}</option>
             </select>
           </label>
+          {bottleForm.ownership_type === 'rental' ? (
+            <label>
+              Vuokraaja *
+              <select
+                value={bottleForm.rental_supplier}
+                onChange={(e) =>
+                  setBottleForm({
+                    ...bottleForm,
+                    rental_supplier: e.target.value as RefrigerantRentalSupplier,
+                  })
+                }
+                required
+              >
+                <option value="">Valitse vuokraaja</option>
+                {REFRIGERANT_RENTAL_SUPPLIER_ORDER.map((supplier) => (
+                  <option key={supplier} value={supplier}>
+                    {REFRIGERANT_RENTAL_SUPPLIER_LABELS[supplier]}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
           <label>
             Sijainti
             <input

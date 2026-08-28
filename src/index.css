@@ -10437,6 +10437,25 @@ a.tile.customer-document-tile:hover {
   text-align: center;
 }
 
+.inventory-bottle-rental-info-detail .inventory-bottle-rental-supplier {
+  margin: 0 0 0.25rem;
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: #1e40af;
+}
+
+.inventory-bottle-rental-supplier-inline {
+  display: block;
+  margin-bottom: 0.2rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #1e40af;
+}
+
 .inventory-bottle-rental-info-detail .inventory-bottle-rental-days {
   margin: 0;
   font-size: 1.75rem;

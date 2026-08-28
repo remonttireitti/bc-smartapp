@@ -1,6 +1,7 @@
 import {
   formatFinnishDayCount,
   formatRentalPeriodLabel,
+  formatRentalSupplierLabel,
   rentalDayCount,
   rentalRegisteredDate,
 } from '../../lib/refrigerantBottle';
@@ -20,10 +21,12 @@ export default function RefrigerantRentalInfo({ cylinder, variant = 'card' }: Pr
 
   const startDate = rentalRegisteredDate(cylinder);
   const returned = Boolean(cylinder.returned_at);
+  const supplierLabel = formatRentalSupplierLabel(cylinder.rental_supplier);
 
   if (variant === 'detail') {
     return (
       <div className="inventory-bottle-rental-info inventory-bottle-rental-info-detail">
+        {supplierLabel ? <p className="inventory-bottle-rental-supplier">{supplierLabel}</p> : null}
         <p className="inventory-bottle-rental-days">{formatFinnishDayCount(days)}</p>
         <p className="inventory-bottle-rental-meta muted">
           {returned
@@ -36,6 +39,7 @@ export default function RefrigerantRentalInfo({ cylinder, variant = 'card' }: Pr
 
   return (
     <p className="inventory-bottle-rental-info" title={formatRentalPeriodLabel(cylinder) ?? undefined}>
+      {supplierLabel ? <span className="inventory-bottle-rental-supplier-inline">{supplierLabel}</span> : null}
       <strong>{formatFinnishDayCount(days)}</strong>
       <span className="inventory-bottle-rental-meta">
         {returned

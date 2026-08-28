@@ -1,5 +1,5 @@
 import type { BottleSize, RefrigerantCylinder } from '../types/inventory';
-import { BOTTLE_SIZE_LABELS } from '../types/inventory';
+import { BOTTLE_SIZE_LABELS, REFRIGERANT_RENTAL_SUPPLIER_LABELS, type RefrigerantRentalSupplier } from '../types/inventory';
 import { daysBetweenInclusive, formatDate, toLocalYmd } from '../types';
 
 export type BottleFillFilter = 'all' | 'empty' | 'filled';
@@ -142,15 +142,24 @@ export function formatRentalDaysShort(
 }
 
 export function formatRentalPeriodLabel(
-  c: Pick<RefrigerantCylinder, 'ownership_type' | 'purchase_date' | 'created_at' | 'returned_at'>,
+  c: Pick<RefrigerantCylinder, 'ownership_type' | 'purchase_date' | 'created_at' | 'returned_at' | 'rental_supplier'>,
   asOf: Date = new Date(),
 ): string | null {
   if (c.ownership_type !== 'rental') return null;
   const days = rentalDayCount(c, asOf);
   if (days == null) return null;
+  const supplier = formatRentalSupplierLabel(c.rental_supplier);
   const startLabel = formatDate(rentalRegisteredDate(c));
+  const supplierPart = supplier ? `${supplier} · ` : '';
   if (c.returned_at) {
-    return `${formatFinnishDayCount(days)} vuokralla · ${startLabel} – ${formatDate(c.returned_at.slice(0, 10))}`;
+    return `${formatFinnishDayCount(days)} vuokralla · ${supplierPart}${startLabel} – ${formatDate(c.returned_at.slice(0, 10))}`;
   }
-  return `${formatFinnishDayCount(days)} vuokralla · varastoon ${startLabel}`;
+  return `${formatFinnishDayCount(days)} vuokralla · ${supplierPart}varastoon ${startLabel}`;
+}
+
+export function formatRentalSupplierLabel(
+  supplier: RefrigerantCylinder['rental_supplier'] | string | null | undefined,
+): string | null {
+  if (!supplier) return null;
+  return REFRIGERANT_RENTAL_SUPPLIER_LABELS[supplier as RefrigerantRentalSupplier] ?? null;
 }

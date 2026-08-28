@@ -40,4 +40,6 @@ const legacy = {
 };
 assert.equal(rentalRegisteredDate(legacy), '2026-06-15');
 
+assert.match(formatRentalPeriodLabel({ ...rental, rental_supplier: 'onninen' }) ?? '', /Onninen/);
+
 console.log('test-refrigerant-rental-days: ok');

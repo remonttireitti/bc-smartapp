@@ -122,6 +122,7 @@ export function mapRpcCylinders(rows: RefrigerantCylinderListRow[]): Refrigerant
     notes: row.notes ?? null,
     owner_user_id: row.owner_user_id,
     ownership_type: row.ownership_type === 'rental' ? 'rental' : 'owned',
+    rental_supplier: null,
     stock_source: 'purchase',
     customer_id: null,
     location: null,
