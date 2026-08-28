@@ -25,6 +25,7 @@
     "test:expense-billing": "npx tsx scripts/test-expense-billing.mjs",
     "test:work-report-trip-legs": "npx tsx scripts/test-work-report-trip-legs.mjs",
     "test:refrigerant-purchase-sale-list": "npx tsx scripts/test-refrigerant-purchase-sale-list.mjs",
+    "test:refrigerant-inventory-history": "npx tsx scripts/test-refrigerant-inventory-history.mjs",
     "test:refrigerant-visibility": "npx tsx scripts/test-refrigerant-visibility.mjs",
     "test:refrigerant-pass-through": "npx tsx scripts/test-refrigerant-pass-through.mjs",
     "test:billing-refrigerant-deductions": "npx tsx scripts/test-billing-refrigerant-deductions.mjs",

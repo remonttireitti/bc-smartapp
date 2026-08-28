@@ -25,9 +25,10 @@ import {
   printRefrigerantPeriodReport,
 } from '../../lib/refrigerantInventoryReport';
 import {
-  loadRefrigerantPurchaseSaleList,
-  type RefrigerantPurchaseSaleRow,
-} from '../../lib/refrigerantPurchaseSaleList';
+  loadRefrigerantInventoryHistory,
+  refrigerantHistoryDirectionLabel,
+  type RefrigerantInventoryHistoryRow,
+} from '../../lib/refrigerantInventoryHistory';
 import { resolveCylinderFromScan } from '../../lib/refrigerantCylinderCode';
 import { loadWarehouseCustomerPicker, type WarehouseCustomerPickerOption } from '../../lib/customers';
 import RefrigerantBottleScanDialog from './RefrigerantBottleScanDialog';
@@ -36,13 +37,11 @@ import { refrigerantTypes } from '../../lib/huoltoRaportti/constants';
 import type {
   BottleSize,
   RefrigerantCylinder,
-  RefrigerantCylinderMovement,
   RefrigerantCylinderOwnership,
   RefrigerantRentalSupplier,
 } from '../../types/inventory';
 import {
   REFRIGERANT_CYLINDER_OWNERSHIP_LABELS,
-  REFRIGERANT_MOVEMENT_TYPE_LABELS,
   REFRIGERANT_RENTAL_SUPPLIER_LABELS,
   REFRIGERANT_RENTAL_SUPPLIER_ORDER,
 } from '../../types/inventory';
@@ -58,19 +57,7 @@ const CYLINDER_SELECT = `
   customer:customers(name)
 `;
 
-const MOVEMENT_SELECT = `
-  id, company_id, cylinder_id, movement_type, qty_kg, refrigerant_type, serial_number,
-  customer_id, location, ownership_type, work_report_id, notes, created_at,
-  customer:customers(name)
-`;
-
-type RefrigerantView = 'registry' | 'history' | 'purchaseSale' | 'report';
-
-const PURCHASE_SALE_KIND_LABELS = {
-  purchase: 'Osto',
-  sale: 'Myynti',
-  retrieve: 'Asiakkaalta talteen',
-} as const;
+type RefrigerantView = 'registry' | 'history' | 'report';
 
 type BottleFormState = {
   serial_number: string;
@@ -191,7 +178,8 @@ export default function RefrigerantInventorySection({
   const [fillFilter, setFillFilter] = useState<BottleFillFilter>('all');
   const [sizeFilter, setSizeFilter] = useState<BottleSize | 'all'>('all');
   const [cylinders, setCylinders] = useState<RefrigerantCylinder[]>([]);
-  const [movements, setMovements] = useState<RefrigerantCylinderMovement[]>([]);
+  const [historyRows, setHistoryRows] = useState<RefrigerantInventoryHistoryRow[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
   const [customers, setCustomers] = useState<WarehouseCustomerPickerOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -218,9 +206,6 @@ export default function RefrigerantInventorySection({
   });
   const [reportTo, setReportTo] = useState(() => new Date().toISOString().slice(0, 10));
   const [reportBusy, setReportBusy] = useState(false);
-  const [purchaseSaleRows, setPurchaseSaleRows] = useState<RefrigerantPurchaseSaleRow[]>([]);
-  const [purchaseSaleLoading, setPurchaseSaleLoading] = useState(false);
-  const [purchaseSaleLoaded, setPurchaseSaleLoaded] = useState(false);
   const [scanOpen, setScanOpen] = useState(false);
   const [scanBusy, setScanBusy] = useState(false);
   const [detailCylinder, setDetailCylinder] = useState<RefrigerantCylinder | null>(null);
@@ -253,45 +238,22 @@ export default function RefrigerantInventorySection({
   }
 
   async function loadHistory() {
-    const { data, error } = await supabase
-      .from('refrigerant_cylinder_movements')
-      .select(MOVEMENT_SELECT)
-      .eq('company_id', warehouseCompanyId)
-      .order('created_at', { ascending: false })
-      .limit(300);
-    if (error) throw error;
-    setMovements(
-      ((data as unknown as Record<string, unknown>[]) ?? []).map((row) => {
-        const cust = row.customer;
-        const customer =
-          cust && typeof cust === 'object' && !Array.isArray(cust)
-            ? (cust as { name: string | null })
-            : Array.isArray(cust) && cust[0]
-              ? (cust[0] as { name: string | null })
-              : null;
-        return { ...(row as unknown as RefrigerantCylinderMovement), customer };
-      }),
-    );
-  }
-
-  const loadPurchaseSaleList = useCallback(async () => {
-    setPurchaseSaleLoading(true);
+    setHistoryLoading(true);
     onError(null);
     try {
-      const rows = await loadRefrigerantPurchaseSaleList(
+      const rows = await loadRefrigerantInventoryHistory(
         supabase,
         warehouseCompanyId,
         reportFrom,
         reportTo,
       );
-      setPurchaseSaleRows(rows);
-      setPurchaseSaleLoaded(true);
+      setHistoryRows(rows);
     } catch (err) {
-      onError(err instanceof Error ? err.message : 'Osto-/myyntilista epäonnistui');
+      onError(err instanceof Error ? err.message : 'Historian lataus epäonnistui');
     } finally {
-      setPurchaseSaleLoading(false);
+      setHistoryLoading(false);
     }
-  }, [warehouseCompanyId, reportFrom, reportTo, onError]);
+  }
 
   async function loadCustomers() {
     if (!warehouseCompanyId) {
@@ -308,18 +270,12 @@ export default function RefrigerantInventorySection({
     try {
       await loadStock();
       if (view === 'history') await loadHistory();
-      if (view === 'purchaseSale') await loadPurchaseSaleList();
     } catch (err) {
       onError(err instanceof Error ? err.message : 'Lataus epäonnistui');
     } finally {
       setLoading(false);
     }
   }
-
-  useEffect(() => {
-    setPurchaseSaleLoaded(false);
-    setPurchaseSaleRows([]);
-  }, [warehouseCompanyId]);
 
   useEffect(() => {
     void reload();
@@ -937,16 +893,6 @@ export default function RefrigerantInventorySection({
         </button>
         <button
           type="button"
-          className={view === 'purchaseSale' ? 'billing-pill active' : 'billing-pill'}
-          onClick={() => {
-            setView('purchaseSale');
-            if (!purchaseSaleLoaded) void loadPurchaseSaleList();
-          }}
-        >
-          Osto / myynti
-        </button>
-        <button
-          type="button"
           className={view === 'report' ? 'billing-pill active' : 'billing-pill'}
           onClick={() => setView('report')}
         >
@@ -1062,48 +1008,10 @@ export default function RefrigerantInventorySection({
       )}
 
       {view === 'history' && (
-        <section className="panel">
-          {loading ? (
-            <p className="muted">Ladataan…</p>
-          ) : movements.length === 0 ? (
-            <p className="muted">Ei liikkeitä.</p>
-          ) : (
-            <div className="table-wrap">
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th>Aika</th>
-                    <th>Tapahtuma</th>
-                    <th>Pullo</th>
-                    <th>Aine</th>
-                    <th>kg</th>
-                    <th>Asiakas</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {movements.map((m) => (
-                    <tr key={m.id}>
-                      <td>{new Date(m.created_at).toLocaleString('fi-FI')}</td>
-                      <td>{REFRIGERANT_MOVEMENT_TYPE_LABELS[m.movement_type]}</td>
-                      <td>{m.serial_number?.trim() || '—'}</td>
-                      <td>{m.refrigerant_type}</td>
-                      <td>{Number(m.qty_kg).toFixed(2)}</td>
-                      <td>{m.customer?.name ?? '—'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </section>
-      )}
-
-      {view === 'purchaseSale' && (
         <section className="panel inventory-report-panel">
-          <h2>Ostot ja myynnit</h2>
+          <h2>Historia</h2>
           <p className="muted">
-            Lista kylmäaineen ostoista (tukkurilta työmaalla), myynneistä (asiakkaalle laskutettu) työraporttien
-            päiväkirjoista sekä varastoon tulleista asiakkaalta talteenotetuista eristä.
+            Kaikki varastoon tulleet ja lähteneet erät: osto, myynti, käyttö työkohteella, talteenotto ja poisto.
           </p>
           <div className="inventory-report-dates">
             <label>
@@ -1117,47 +1025,59 @@ export default function RefrigerantInventorySection({
             <button
               type="button"
               className="btn btn-primary"
-              disabled={purchaseSaleLoading}
-              onClick={() => void loadPurchaseSaleList()}
+              disabled={historyLoading}
+              onClick={() => void loadHistory()}
             >
               Päivitä
             </button>
           </div>
-          {purchaseSaleLoading ? (
+          {historyLoading ? (
             <p className="muted">Ladataan…</p>
-          ) : purchaseSaleRows.length === 0 ? (
-            <p className="muted">Ei ostoja, myyntejä tai talteenottoja valitulla jaksolla.</p>
+          ) : historyRows.length === 0 ? (
+            <p className="muted">Ei tapahtumia valitulla jaksolla.</p>
           ) : (
             <div className="table-wrap">
-              <table className="data-table">
+              <table className="data-table inventory-history-table">
                 <thead>
                   <tr>
-                    <th>Päivä</th>
+                    <th>Aika</th>
+                    <th className="inventory-history-sign-col" aria-label="Suunta" />
                     <th>Tapahtuma</th>
                     <th>Työraportti</th>
                     <th>Asiakas</th>
                     <th>Aine</th>
-                    <th>kg</th>
+                    <th className="num">kg</th>
                     <th>Pullo</th>
                     <th>Omistus</th>
                     <th>Lähde</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {purchaseSaleRows.map((row) => (
+                  {historyRows.map((row) => (
                     <tr key={row.id}>
-                      <td>{new Date(`${row.date}T12:00:00`).toLocaleDateString('fi-FI')}</td>
-                      <td>{PURCHASE_SALE_KIND_LABELS[row.kind]}</td>
+                      <td>{new Date(row.at).toLocaleString('fi-FI')}</td>
+                      <td
+                        className={`inventory-history-sign inventory-history-sign-${row.direction}`}
+                        aria-hidden
+                      >
+                        {refrigerantHistoryDirectionLabel(row.direction)}
+                      </td>
+                      <td>{row.eventLabel}</td>
                       <td>
-                        {row.work_report_id ? (
+                        {row.work_report_id && row.work_report_title ? (
                           <Link to={`/tyoraportit/${row.work_report_id}`}>{row.work_report_title}</Link>
                         ) : (
-                          row.work_report_title
+                          '—'
                         )}
                       </td>
                       <td>{row.customer_name}</td>
                       <td>{row.refrigerant_type}</td>
-                      <td>{row.qty_kg.toFixed(2)}</td>
+                      <td className="num inventory-history-qty">
+                        <span className={`inventory-history-qty-sign inventory-history-qty-sign-${row.direction}`}>
+                          {refrigerantHistoryDirectionLabel(row.direction)}
+                        </span>
+                        {row.qty_kg.toFixed(2)}
+                      </td>
                       <td>{row.serial_number}</td>
                       <td>{row.ownership}</td>
                       <td>{row.source_label}</td>

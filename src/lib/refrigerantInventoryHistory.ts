@@ -1,0 +1,236 @@
+import type { SupabaseClient } from '@supabase/supabase-js';
+
+import {
+  buildRefrigerantPurchaseSaleRows,
+  filterPurchaseSaleRowsForViewer,
+  formatRefrigerantOwnershipLabel,
+  type RefrigerantPurchaseSaleRow,
+} from './refrigerantPurchaseSaleList';
+import {
+  REFRIGERANT_MOVEMENT_TYPE_LABELS,
+  type RefrigerantMovementType,
+} from '../types/inventory';
+
+export type RefrigerantInventoryHistoryDirection = 'in' | 'out';
+
+export type RefrigerantInventoryHistoryRow = {
+  id: string;
+  at: string;
+  eventLabel: string;
+  direction: RefrigerantInventoryHistoryDirection;
+  work_report_id: string | null;
+  work_report_title: string | null;
+  customer_name: string;
+  refrigerant_type: string;
+  qty_kg: number;
+  serial_number: string;
+  ownership: string;
+  source_label: string;
+};
+
+type RawMovement = {
+  id: string;
+  movement_type: RefrigerantMovementType;
+  qty_kg: number;
+  refrigerant_type: string;
+  serial_number: string | null;
+  ownership_type: string | null;
+  work_report_id: string | null;
+  created_at: string;
+  customer: { name: string | null } | { name: string | null }[] | null;
+  cylinder: { ownership_type?: string | null } | { ownership_type?: string | null }[] | null;
+  work_report: { title: string | null } | { title: string | null }[] | null;
+};
+
+const MOVEMENT_DIRECTION: Record<RefrigerantMovementType, RefrigerantInventoryHistoryDirection | null> = {
+  purchase: 'in',
+  customer_retrieve: 'in',
+  work_use: 'out',
+  recycle: 'out',
+  dispose: 'out',
+  return_rental: 'out',
+  adjustment: null,
+};
+
+const PURCHASE_SALE_EVENT_LABELS = {
+  purchase: 'Osto työmaalla',
+  sale: 'Myynti',
+} as const;
+
+const MOVEMENT_SELECT = `
+  id,
+  movement_type,
+  qty_kg,
+  refrigerant_type,
+  serial_number,
+  ownership_type,
+  work_report_id,
+  created_at,
+  customer:customers(name),
+  cylinder:refrigerant_cylinders(ownership_type),
+  work_report:work_reports(title)
+`;
+
+const LINE_SELECT = `
+  id,
+  work_report_id,
+  source,
+  supplier_name,
+  supplier_paid_by,
+  bill_to_customer,
+  warehouse_company_id,
+  refrigerant_type,
+  qty_kg,
+  created_at,
+  cylinder:refrigerant_cylinders(serial_number, ownership_type),
+  daily_log:work_report_daily_logs!inner(log_date),
+  work_report:work_reports!inner(
+    id,
+    title,
+    owner_company_id,
+    created_by_company_id,
+    customers(name)
+  )
+`;
+
+function unwrapOne<T>(value: T | T[] | null | undefined): T | null {
+  if (value == null) return null;
+  return Array.isArray(value) ? (value[0] ?? null) : value;
+}
+
+export function refrigerantHistoryDirectionLabel(direction: RefrigerantInventoryHistoryDirection): string {
+  return direction === 'in' ? '+' : '−';
+}
+
+function movementToHistoryRow(movement: RawMovement): RefrigerantInventoryHistoryRow | null {
+  const direction = MOVEMENT_DIRECTION[movement.movement_type];
+  if (!direction) return null;
+
+  const customer = unwrapOne(movement.customer);
+  const cylinder = unwrapOne(movement.cylinder);
+  const workReport = unwrapOne(movement.work_report);
+  const qty = Number(movement.qty_kg) || 0;
+  if (qty <= 0) return null;
+
+  return {
+    id: `movement:${movement.id}`,
+    at: movement.created_at,
+    eventLabel: REFRIGERANT_MOVEMENT_TYPE_LABELS[movement.movement_type],
+    direction,
+    work_report_id: movement.work_report_id,
+    work_report_title: workReport?.title?.trim() || null,
+    customer_name: customer?.name?.trim() || '—',
+    refrigerant_type: movement.refrigerant_type?.trim() || '—',
+    qty_kg: qty,
+    serial_number: movement.serial_number?.trim() || '—',
+    ownership: formatRefrigerantOwnershipLabel(movement.ownership_type ?? cylinder?.ownership_type),
+    source_label: REFRIGERANT_MOVEMENT_TYPE_LABELS[movement.movement_type],
+  };
+}
+
+function workUseDedupKey(
+  workReportId: string | null,
+  qtyKg: number,
+  refrigerantType: string,
+  serialNumber: string,
+): string | null {
+  if (!workReportId) return null;
+  return `${workReportId}|${qtyKg.toFixed(3)}|${refrigerantType.trim()}|${serialNumber.trim()}`;
+}
+
+function purchaseSaleToHistoryRow(row: RefrigerantPurchaseSaleRow): RefrigerantInventoryHistoryRow {
+  const eventLabel =
+    row.kind === 'purchase' ? PURCHASE_SALE_EVENT_LABELS.purchase : PURCHASE_SALE_EVENT_LABELS.sale;
+  return {
+    id: `report:${row.id}`,
+    at: `${row.date}T12:00:00.000Z`,
+    eventLabel,
+    direction: row.kind === 'purchase' ? 'in' : 'out',
+    work_report_id: row.work_report_id || null,
+    work_report_title: row.work_report_title === '—' ? null : row.work_report_title,
+    customer_name: row.customer_name,
+    refrigerant_type: row.refrigerant_type,
+    qty_kg: row.qty_kg,
+    serial_number: row.serial_number,
+    ownership: row.ownership,
+    source_label: row.source_label,
+  };
+}
+
+export function mergeRefrigerantInventoryHistoryRows(
+  movements: RawMovement[],
+  purchaseSaleRows: RefrigerantPurchaseSaleRow[],
+): RefrigerantInventoryHistoryRow[] {
+  const rows: RefrigerantInventoryHistoryRow[] = [];
+  const billedWorkUseKeys = new Set(
+    purchaseSaleRows
+      .filter((row) => row.kind === 'sale')
+      .map((row) => workUseDedupKey(row.work_report_id, row.qty_kg, row.refrigerant_type, row.serial_number))
+      .filter((key): key is string => key != null),
+  );
+
+  for (const movement of movements) {
+    if (movement.movement_type === 'work_use') {
+      const dedupKey = workUseDedupKey(
+        movement.work_report_id,
+        Number(movement.qty_kg) || 0,
+        movement.refrigerant_type ?? '',
+        movement.serial_number ?? '—',
+      );
+      if (dedupKey && billedWorkUseKeys.has(dedupKey)) continue;
+    }
+
+    const row = movementToHistoryRow(movement);
+    if (row) rows.push(row);
+  }
+
+  for (const purchaseSaleRow of purchaseSaleRows) {
+    if (purchaseSaleRow.kind === 'retrieve') continue;
+    rows.push(purchaseSaleToHistoryRow(purchaseSaleRow));
+  }
+
+  return rows.sort((a, b) => b.at.localeCompare(a.at));
+}
+
+export async function loadRefrigerantInventoryHistory(
+  supabase: SupabaseClient,
+  companyId: string,
+  fromDate: string,
+  toDate: string,
+  viewerCompanyId: string = companyId,
+): Promise<RefrigerantInventoryHistoryRow[]> {
+  const fromIso = `${fromDate}T00:00:00.000Z`;
+  const toIso = `${toDate}T23:59:59.999Z`;
+
+  const [movementsResult, linesResult] = await Promise.all([
+    supabase
+      .from('refrigerant_cylinder_movements')
+      .select(MOVEMENT_SELECT)
+      .eq('company_id', companyId)
+      .gte('created_at', fromIso)
+      .lte('created_at', toIso)
+      .order('created_at', { ascending: false }),
+    supabase
+      .from('work_report_refrigerant_lines')
+      .select(LINE_SELECT)
+      .gte('work_report_daily_logs.log_date', fromDate)
+      .lte('work_report_daily_logs.log_date', toDate)
+      .order('created_at', { ascending: false }),
+  ]);
+
+  if (movementsResult.error) throw movementsResult.error;
+  if (linesResult.error) throw linesResult.error;
+
+  const purchaseSaleRows = filterPurchaseSaleRowsForViewer(
+    buildRefrigerantPurchaseSaleRows(
+      (linesResult.data as unknown as Parameters<typeof buildRefrigerantPurchaseSaleRows>[0]) ?? [],
+      companyId,
+    ),
+    viewerCompanyId,
+  );
+
+  return mergeRefrigerantInventoryHistoryRows(
+    (movementsResult.data as unknown as RawMovement[]) ?? [],
+    purchaseSaleRows,
+  );
+}

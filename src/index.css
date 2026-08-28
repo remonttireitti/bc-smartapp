@@ -10550,6 +10550,47 @@ a.tile.customer-document-tile:hover {
   background: #fafafa;
 }
 
+.inventory-history-table .inventory-history-sign-col {
+  width: 2rem;
+  padding-left: 0.35rem;
+  padding-right: 0.35rem;
+}
+
+.inventory-history-sign {
+  font-size: 1.35rem;
+  font-weight: 800;
+  line-height: 1;
+  text-align: center;
+  vertical-align: middle;
+}
+
+.inventory-history-sign-in {
+  color: #c62828;
+}
+
+.inventory-history-sign-out {
+  color: var(--text-muted);
+}
+
+.inventory-history-qty {
+  white-space: nowrap;
+}
+
+.inventory-history-qty-sign {
+  display: inline-block;
+  min-width: 1.1rem;
+  margin-right: 0.2rem;
+  font-weight: 800;
+}
+
+.inventory-history-qty-sign-in {
+  color: #c62828;
+}
+
+.inventory-history-qty-sign-out {
+  color: var(--text-muted);
+}
+
 .offline-banner,
 .pwa-install-banner,
 .pwa-update-banner {
