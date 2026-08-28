@@ -311,6 +311,28 @@ function isDraftRowValid(row: RefrigerantLineDraft): boolean {
   return !!row.refrigerant_type.trim();
 }
 
+export function refrigerantWarehouseStockUnchanged(
+  previous: Pick<
+    WorkReportRefrigerantLine,
+    'source' | 'cylinder_id' | 'qty_kg' | 'cylinder_disposition'
+  >,
+  draft: Pick<RefrigerantLineDraft, 'source' | 'cylinder_id' | 'qty_kg' | 'cylinder_disposition'>,
+): boolean {
+  if (!isWarehouseSource(previous.source) || !isWarehouseSource(draft.source)) return false;
+  if (previous.source !== draft.source) return false;
+  if ((previous.cylinder_id ?? '') !== draft.cylinder_id) return false;
+  if (Math.abs(Number(previous.qty_kg) - Number(draft.qty_kg)) > 0.0005) return false;
+  const previousDisposition = previous.cylinder_disposition ?? 'partial_in_stock';
+  const draftDisposition = draft.cylinder_disposition || 'partial_in_stock';
+  return previousDisposition === draftDisposition;
+}
+
+function isWarehouseStockLine(
+  line: Pick<WorkReportRefrigerantLine, 'source' | 'cylinder_id' | 'qty_kg'>,
+): boolean {
+  return isWarehouseSource(line.source) && !!line.cylinder_id && Number(line.qty_kg) > 0;
+}
+
 async function reinsertRefrigerantLines(
   supabase: SupabaseClient,
   lines: WorkReportRefrigerantLine[],
@@ -374,8 +396,11 @@ export async function saveRefrigerantLines(
   const deducted: { cylinderId: string; qty: number }[] = [];
 
   try {
-    if (previousLines.length) {
-      await restoreCylinderQuantities(supabase, previousLines, input.workReportId);
+    for (const previousLine of previousLines) {
+      if (!isWarehouseStockLine(previousLine)) continue;
+      const draft = valid.find((row) => row.key === previousLine.id);
+      if (draft && refrigerantWarehouseStockUnchanged(previousLine, draft)) continue;
+      await restoreCylinderQuantities(supabase, [previousLine], input.workReportId);
     }
 
     const { error: deleteError } = await supabase
@@ -410,14 +435,17 @@ export async function saveRefrigerantLines(
         ownerUserId = row.owner_user_id || cylinder.owner_user_id || null;
         warehouseCompanyId = row.warehouse_company_id || cylinder.company_id || null;
 
-        await deductCylinderQuantity(
-          supabase,
-          cylinderId,
-          qty,
-          input.workReportId,
-          row.cylinder_disposition || 'partial_in_stock',
-        );
-        deducted.push({ cylinderId, qty });
+        const previousLine = previousById.get(row.key);
+        if (!previousLine || !refrigerantWarehouseStockUnchanged(previousLine, row)) {
+          await deductCylinderQuantity(
+            supabase,
+            cylinderId,
+            qty,
+            input.workReportId,
+            row.cylinder_disposition || 'partial_in_stock',
+          );
+          deducted.push({ cylinderId, qty });
+        }
       } else {
         supplierName = row.supplier_name.trim() || 'Tukkuri';
       }
