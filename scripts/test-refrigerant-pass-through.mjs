@@ -51,5 +51,38 @@ const ownerLabel = formatRefrigerantLineLabelForReport(
 assert.ok(ownerLabel.includes('Enn Kotselainen'));
 assert.equal(ownerLabel.includes('Lämpökatsastus'), false);
 assert.equal(ownerLabel.includes('V055171'), false);
+assert.equal(ownerLabel.includes('€'), false);
+assert.equal(ownerLabel.includes('/kg'), false);
+
+const customerPrintLabel = formatRefrigerantLineLabelForReport(
+  {
+    id: '1',
+    daily_log_id: 'd',
+    work_report_id: 'w',
+    source: 'partner_warehouse',
+    cylinder_id: 'c',
+    warehouse_company_id: 'lk',
+    owner_user_id: null,
+    supplier_name: null,
+    supplier_paid_by: null,
+    unit_price: 80,
+    customer_unit_price: 160,
+    bill_to_customer: false,
+    refrigerant_type: 'R-404A',
+    qty_kg: 2,
+    notes: null,
+    cylinder_disposition: 'partial_in_stock',
+    created_by: null,
+    created_at: '2026-01-01',
+    cylinder: { serial_number: 'V055171', bottle_size: 'medium', notes: null },
+    warehouse_company: { name: 'Lämpökatsastus Oy' },
+    owner_user: { display_name: 'Yhteinen varasto' },
+  },
+  report,
+  'owner',
+  'Enn Kotselainen',
+  { customerPrint: true },
+);
+assert.equal(customerPrintLabel, 'R-404A 2.000 kg');
 
 console.log('test-refrigerant-pass-through: ok');

@@ -6,6 +6,8 @@ export type RefrigerantReportContext = {
   ownerCompanyId: string;
   createdByCompanyId: string;
   sellerLabel?: string | null;
+  /** Asiakkaalle jaettava tuloste — ei hintoja eikä ostoketjua. */
+  customerPrint?: boolean;
 };
 
 export function isPartnerCreatedReportForOwner(ctx: Pick<RefrigerantReportContext, 'ownerCompanyId' | 'createdByCompanyId'>): boolean {

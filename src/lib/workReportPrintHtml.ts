@@ -399,7 +399,7 @@ export function generateWorkReportPrintHtml(input: {
           const qtyCell = showCustomerRefrigerantPrices && includedInCustomerBilling
             ? `${Number(line.qty_kg).toFixed(3)} kg${priceMissing ? ' · ?' : ` · ${formatEuro(customerTotal)}`}`
             : `${Number(line.qty_kg).toFixed(3)} kg`;
-          return `<tr><td>${esc(formatRefrigerantLineLabelForReport(line, report, viewerCompanyId, sellerLabel))}${esc(billingNote)}</td><td class="num">${qtyCell}</td></tr>`;
+          return `<tr><td>${esc(formatRefrigerantLineLabelForReport(line, report, viewerCompanyId, sellerLabel, { customerPrint: printMode === 'customer' }))}${esc(billingNote)}</td><td class="num">${qtyCell}</td></tr>`;
         })
         .join('');
 

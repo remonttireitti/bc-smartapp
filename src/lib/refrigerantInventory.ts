@@ -18,7 +18,6 @@ import {
 } from './refrigerantBottle';
 import {
   isRefrigerantStockPassThrough,
-  refrigerantSaleToOwnerUnitPrice,
   refrigerantWarehouseCostUnitPrice,
   shouldBillRefrigerantSaleToReportOwner,
 } from './refrigerantPassThrough';
@@ -508,10 +507,11 @@ export function formatRefrigerantLineLabel(
     && reportParties
     && isRefrigerantStockPassThrough(line, reportParties)
   ) {
+    if (view?.customerPrint) {
+      return `${line.refrigerant_type} ${qty} kg`;
+    }
     const seller = view?.sellerLabel?.trim() || 'Raportin laatija';
-    const unit = refrigerantSaleToOwnerUnitPrice(line);
-    const pricePart = unit > 0 ? ` · ${formatRefrigerantEuro(unit)}/kg` : '';
-    return `${line.refrigerant_type} ${qty} kg · Ostettu: ${seller}${pricePart}`;
+    return `${line.refrigerant_type} ${qty} kg · Ostettu: ${seller}`;
   }
 
   if (line.source === 'warehouse' || line.source === 'partner_warehouse') {
@@ -561,6 +561,7 @@ export function formatRefrigerantLineLabelForReport(
   report: Pick<{ owner_company_id: string; created_by_company_id: string }, 'owner_company_id' | 'created_by_company_id'>,
   viewerCompanyId?: string | null,
   sellerLabel?: string | null,
+  options?: { customerPrint?: boolean },
 ): string {
   const view =
     viewerCompanyId != null
@@ -569,8 +570,17 @@ export function formatRefrigerantLineLabelForReport(
           ownerCompanyId: report.owner_company_id,
           createdByCompanyId: report.created_by_company_id,
           sellerLabel,
+          customerPrint: options?.customerPrint,
         }
-      : null;
+      : options?.customerPrint
+        ? {
+            viewerCompanyId: report.owner_company_id,
+            ownerCompanyId: report.owner_company_id,
+            createdByCompanyId: report.created_by_company_id,
+            sellerLabel,
+            customerPrint: true,
+          }
+        : null;
   return formatRefrigerantLineLabel(line, view, report);
 }
 
