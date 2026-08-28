@@ -102,6 +102,53 @@ export function refrigerantHistoryDirectionLabel(direction: RefrigerantInventory
   return direction === 'in' ? '+' : '−';
 }
 
+export type RefrigerantHistoryBalanceSummary = {
+  refrigerant_type: string;
+  in_kg: number;
+  out_kg: number;
+  net_kg: number;
+};
+
+export function collectRefrigerantHistoryTypes(rows: RefrigerantInventoryHistoryRow[]): string[] {
+  const types = new Set<string>();
+  for (const row of rows) {
+    const type = row.refrigerant_type.trim();
+    if (type && type !== '—') types.add(type);
+  }
+  return [...types].sort((a, b) => a.localeCompare(b, 'fi'));
+}
+
+export function filterRefrigerantHistoryByType(
+  rows: RefrigerantInventoryHistoryRow[],
+  refrigerantType: string,
+): RefrigerantInventoryHistoryRow[] {
+  if (!refrigerantType || refrigerantType === 'all') return rows;
+  return rows.filter((row) => row.refrigerant_type === refrigerantType);
+}
+
+export function summarizeRefrigerantHistoryBalance(
+  rows: RefrigerantInventoryHistoryRow[],
+): RefrigerantHistoryBalanceSummary[] {
+  const byType = new Map<string, { in_kg: number; out_kg: number }>();
+
+  for (const row of rows) {
+    const type = row.refrigerant_type.trim() || '—';
+    const entry = byType.get(type) ?? { in_kg: 0, out_kg: 0 };
+    if (row.direction === 'in') entry.in_kg += row.qty_kg;
+    else entry.out_kg += row.qty_kg;
+    byType.set(type, entry);
+  }
+
+  return [...byType.entries()]
+    .map(([refrigerant_type, totals]) => ({
+      refrigerant_type,
+      in_kg: totals.in_kg,
+      out_kg: totals.out_kg,
+      net_kg: totals.in_kg - totals.out_kg,
+    }))
+    .sort((a, b) => a.refrigerant_type.localeCompare(b.refrigerant_type, 'fi'));
+}
+
 function movementToHistoryRow(movement: RawMovement): RefrigerantInventoryHistoryRow | null {
   const direction = MOVEMENT_DIRECTION[movement.movement_type];
   if (!direction) return null;

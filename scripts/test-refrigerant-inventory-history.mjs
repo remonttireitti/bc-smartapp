@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict';
 import {
+  collectRefrigerantHistoryTypes,
+  filterRefrigerantHistoryByType,
   mergeRefrigerantInventoryHistoryRows,
   refrigerantHistoryDirectionLabel,
+  summarizeRefrigerantHistoryBalance,
 } from '../src/lib/refrigerantInventoryHistory.ts';
 
 assert.equal(refrigerantHistoryDirectionLabel('in'), '+');
@@ -58,6 +61,7 @@ const retrieveMovement = {
   movement_type: 'customer_retrieve',
   work_report_id: null,
   refrigerant_type: 'R-410A',
+  qty_kg: 10,
   serial_number: '—',
   created_at: '2026-05-28T18:09:22.000Z',
   customer: { name: 'Cityvarasto Hyrylä' },
@@ -69,6 +73,7 @@ const retrieveRow = {
   id: 'retrieve:m-3',
   kind: 'retrieve',
   refrigerant_type: 'R-410A',
+  qty_kg: 10,
   serial_number: '—',
   customer_name: 'Cityvarasto Hyrylä',
   source_label: 'Asiakkaalta talteen',
@@ -81,5 +86,17 @@ const merged = mergeRefrigerantInventoryHistoryRows(
 assert.equal(merged.length, 2);
 assert.ok(merged.some((row) => row.eventLabel === 'Osto / varastoon' && row.direction === 'in'));
 assert.ok(merged.some((row) => row.eventLabel === 'Asiakkaalta talteen' && row.direction === 'in'));
+
+const balance = summarizeRefrigerantHistoryBalance(merged);
+assert.equal(balance.length, 2);
+const r410 = balance.find((row) => row.refrigerant_type === 'R-410A');
+assert.ok(r410);
+assert.equal(r410.in_kg, 10);
+assert.equal(r410.out_kg, 0);
+assert.equal(r410.net_kg, 10);
+
+const filtered = filterRefrigerantHistoryByType(merged, 'R-410A');
+assert.equal(filtered.length, 1);
+assert.deepEqual(collectRefrigerantHistoryTypes(merged), ['R-404A', 'R-410A']);
 
 console.log('test-refrigerant-inventory-history: ok');

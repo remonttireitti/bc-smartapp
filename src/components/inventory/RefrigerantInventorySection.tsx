@@ -25,8 +25,11 @@ import {
   printRefrigerantPeriodReport,
 } from '../../lib/refrigerantInventoryReport';
 import {
+  collectRefrigerantHistoryTypes,
+  filterRefrigerantHistoryByType,
   loadRefrigerantInventoryHistory,
   refrigerantHistoryDirectionLabel,
+  summarizeRefrigerantHistoryBalance,
   type RefrigerantInventoryHistoryRow,
 } from '../../lib/refrigerantInventoryHistory';
 import { resolveCylinderFromScan } from '../../lib/refrigerantCylinderCode';
@@ -180,6 +183,7 @@ export default function RefrigerantInventorySection({
   const [cylinders, setCylinders] = useState<RefrigerantCylinder[]>([]);
   const [historyRows, setHistoryRows] = useState<RefrigerantInventoryHistoryRow[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyTypeFilter, setHistoryTypeFilter] = useState('all');
   const [customers, setCustomers] = useState<WarehouseCustomerPickerOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -221,6 +225,31 @@ export default function RefrigerantInventorySection({
   }, [cylinders, sizeFilter, fillFilter]);
 
   const groupedBottles = useMemo(() => groupBottlesBySize(filteredBottles), [filteredBottles]);
+
+  const historyTypeOptions = useMemo(() => collectRefrigerantHistoryTypes(historyRows), [historyRows]);
+
+  const filteredHistoryRows = useMemo(
+    () => filterRefrigerantHistoryByType(historyRows, historyTypeFilter),
+    [historyRows, historyTypeFilter],
+  );
+
+  const historyBalanceSummaries = useMemo(
+    () => summarizeRefrigerantHistoryBalance(filteredHistoryRows),
+    [filteredHistoryRows],
+  );
+
+  const historyBalanceTotal = useMemo(
+    () =>
+      historyBalanceSummaries.reduce(
+        (totals, summary) => ({
+          in_kg: totals.in_kg + summary.in_kg,
+          out_kg: totals.out_kg + summary.out_kg,
+          net_kg: totals.net_kg + summary.net_kg,
+        }),
+        { in_kg: 0, out_kg: 0, net_kg: 0 },
+      ),
+    [historyBalanceSummaries],
+  );
 
   async function loadStock() {
     const { data, error } = await supabase
@@ -1022,6 +1051,17 @@ export default function RefrigerantInventorySection({
               Loppu
               <input type="date" value={reportTo} onChange={(e) => setReportTo(e.target.value)} />
             </label>
+            <label>
+              Kylmäaine
+              <select value={historyTypeFilter} onChange={(e) => setHistoryTypeFilter(e.target.value)}>
+                <option value="all">Kaikki</option>
+                {historyTypeOptions.map((type) => (
+                  <option key={type} value={type}>
+                    {type}
+                  </option>
+                ))}
+              </select>
+            </label>
             <button
               type="button"
               className="btn btn-primary"
@@ -1035,6 +1075,8 @@ export default function RefrigerantInventorySection({
             <p className="muted">Ladataan…</p>
           ) : historyRows.length === 0 ? (
             <p className="muted">Ei tapahtumia valitulla jaksolla.</p>
+          ) : filteredHistoryRows.length === 0 ? (
+            <p className="muted">Ei tapahtumia valitulla kylmäaineella.</p>
           ) : (
             <div className="table-wrap">
               <table className="data-table inventory-history-table">
@@ -1053,7 +1095,7 @@ export default function RefrigerantInventorySection({
                   </tr>
                 </thead>
                 <tbody>
-                  {historyRows.map((row) => (
+                  {filteredHistoryRows.map((row) => (
                     <tr key={row.id}>
                       <td>{new Date(row.at).toLocaleString('fi-FI')}</td>
                       <td
@@ -1084,6 +1126,49 @@ export default function RefrigerantInventorySection({
                     </tr>
                   ))}
                 </tbody>
+                <tfoot>
+                  {historyTypeFilter === 'all' ? (
+                    historyBalanceSummaries.map((summary) => (
+                      <tr key={summary.refrigerant_type} className="inventory-history-balance-row">
+                        <td colSpan={6}>
+                          <strong>Saldo {summary.refrigerant_type}</strong>
+                        </td>
+                        <td className="num inventory-history-balance-qty">
+                          <span className="inventory-history-qty-sign inventory-history-qty-sign-in">+</span>
+                          {summary.in_kg.toFixed(2)}
+                          <span className="inventory-history-balance-sep"> / </span>
+                          <span className="inventory-history-qty-sign inventory-history-qty-sign-out">−</span>
+                          {summary.out_kg.toFixed(2)}
+                          <span className="inventory-history-balance-sep"> = </span>
+                          <strong>
+                            {summary.net_kg >= 0 ? '+' : '−'}
+                            {Math.abs(summary.net_kg).toFixed(2)}
+                          </strong>
+                        </td>
+                        <td colSpan={3} />
+                      </tr>
+                    ))
+                  ) : (
+                    <tr className="inventory-history-balance-row">
+                      <td colSpan={6}>
+                        <strong>Varastosaldo ({historyTypeFilter})</strong>
+                      </td>
+                      <td className="num inventory-history-balance-qty">
+                        <span className="inventory-history-qty-sign inventory-history-qty-sign-in">+</span>
+                        {historyBalanceTotal.in_kg.toFixed(2)}
+                        <span className="inventory-history-balance-sep"> / </span>
+                        <span className="inventory-history-qty-sign inventory-history-qty-sign-out">−</span>
+                        {historyBalanceTotal.out_kg.toFixed(2)}
+                        <span className="inventory-history-balance-sep"> = </span>
+                        <strong>
+                          {historyBalanceTotal.net_kg >= 0 ? '+' : '−'}
+                          {Math.abs(historyBalanceTotal.net_kg).toFixed(2)}
+                        </strong>
+                      </td>
+                      <td colSpan={3} />
+                    </tr>
+                  )}
+                </tfoot>
               </table>
             </div>
           )}
