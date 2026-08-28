@@ -1,6 +1,5 @@
 import {
   formatFinnishDayCount,
-  formatRentalDaysShort,
   formatRentalPeriodLabel,
   rentalDayCount,
   rentalRegisteredDate,
