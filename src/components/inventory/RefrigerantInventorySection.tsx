@@ -69,6 +69,7 @@ type RefrigerantView = 'registry' | 'history' | 'purchaseSale' | 'report';
 const PURCHASE_SALE_KIND_LABELS = {
   purchase: 'Osto',
   sale: 'Myynti',
+  retrieve: 'Asiakkaalta talteen',
 } as const;
 
 type BottleFormState = {
@@ -1099,10 +1100,10 @@ export default function RefrigerantInventorySection({
 
       {view === 'purchaseSale' && (
         <section className="panel inventory-report-panel">
-          <h2>Ostot ja myynnit työraporteilta</h2>
+          <h2>Ostot ja myynnit</h2>
           <p className="muted">
-            Lista kylmäaineen ostoista (tukkurilta työmaalla) ja myynneistä (asiakkaalle laskutettu) työraporttien
-            päiväkirjoista.
+            Lista kylmäaineen ostoista (tukkurilta työmaalla), myynneistä (asiakkaalle laskutettu) työraporttien
+            päiväkirjoista sekä varastoon tulleista asiakkaalta talteenotetuista eristä.
           </p>
           <div className="inventory-report-dates">
             <label>
@@ -1125,7 +1126,7 @@ export default function RefrigerantInventorySection({
           {purchaseSaleLoading ? (
             <p className="muted">Ladataan…</p>
           ) : purchaseSaleRows.length === 0 ? (
-            <p className="muted">Ei ostoja tai myyntejä valitulla jaksolla.</p>
+            <p className="muted">Ei ostoja, myyntejä tai talteenottoja valitulla jaksolla.</p>
           ) : (
             <div className="table-wrap">
               <table className="data-table">
@@ -1148,7 +1149,11 @@ export default function RefrigerantInventorySection({
                       <td>{new Date(`${row.date}T12:00:00`).toLocaleDateString('fi-FI')}</td>
                       <td>{PURCHASE_SALE_KIND_LABELS[row.kind]}</td>
                       <td>
-                        <Link to={`/tyoraportit/${row.work_report_id}`}>{row.work_report_title}</Link>
+                        {row.work_report_id ? (
+                          <Link to={`/tyoraportit/${row.work_report_id}`}>{row.work_report_title}</Link>
+                        ) : (
+                          row.work_report_title
+                        )}
                       </td>
                       <td>{row.customer_name}</td>
                       <td>{row.refrigerant_type}</td>

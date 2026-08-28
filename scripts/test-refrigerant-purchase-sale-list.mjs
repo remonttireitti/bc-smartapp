@@ -1,9 +1,11 @@
 import assert from 'node:assert/strict';
 import {
+  buildCustomerRetrieveRows,
   buildRefrigerantPurchaseSaleRows,
   filterPurchaseSaleRowsForViewer,
   formatRefrigerantOwnershipLabel,
   lineBelongsToWarehouseCompany,
+  mergeRefrigerantPurchaseSaleRows,
   refrigerantPurchaseSaleSourceLabel,
 } from '../src/lib/refrigerantPurchaseSaleList.ts';
 
@@ -92,5 +94,41 @@ assert.equal(filtered.length, 0);
 const ownerView = filterPurchaseSaleRowsForViewer(purchaseRows, companyId);
 assert.equal(ownerView.some((row) => row.kind === 'purchase'), false);
 assert.ok(ownerView.some((row) => row.kind === 'sale'));
+
+assert.equal(
+  refrigerantPurchaseSaleSourceLabel({
+    kind: 'retrieve',
+    source: 'warehouse',
+    supplier_name: null,
+  }),
+  'Asiakkaalta talteen',
+);
+
+const retrieveRows = buildCustomerRetrieveRows(
+  [
+    {
+      id: 'mov-1',
+      company_id: companyId,
+      movement_type: 'customer_retrieve',
+      qty_kg: 10,
+      refrigerant_type: 'R-410A',
+      serial_number: 'V123',
+      ownership_type: 'owned',
+      work_report_id: null,
+      created_at: '2026-05-28T20:57:39.000Z',
+      customer: { name: 'Cityvarasto Hyrylä' },
+      cylinder: { ownership_type: 'owned' },
+    },
+  ],
+  companyId,
+);
+assert.equal(retrieveRows.length, 1);
+assert.equal(retrieveRows[0].kind, 'retrieve');
+assert.equal(retrieveRows[0].customer_name, 'Cityvarasto Hyrylä');
+assert.equal(retrieveRows[0].work_report_title, '—');
+
+const merged = mergeRefrigerantPurchaseSaleRows(saleRows, retrieveRows);
+assert.equal(merged.length, 2);
+assert.equal(merged[0].kind, 'retrieve');
 
 console.log('test-refrigerant-purchase-sale-list: ok');

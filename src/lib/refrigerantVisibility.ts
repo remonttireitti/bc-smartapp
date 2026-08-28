@@ -49,14 +49,14 @@ export function redactRefrigerantPartnerWarehouseName(
 
 export function redactRefrigerantSourceLabel(
   input: {
-    kind: 'purchase' | 'sale';
+    kind: 'purchase' | 'sale' | 'retrieve';
     source: WorkReportRefrigerantLine['source'];
     supplier_name: string | null;
     source_label: string;
   },
   hideSource: boolean,
 ): string {
-  if (!hideSource) return input.source_label;
+  if (!hideSource || input.kind === 'retrieve') return input.source_label;
   if (input.kind === 'purchase') return 'Tukkuri';
   if (input.source === 'partner_warehouse') return REFRIGERANT_SOURCE_LABELS.partner_warehouse;
   if (input.source === 'supplier') return REFRIGERANT_SOURCE_LABELS.supplier;

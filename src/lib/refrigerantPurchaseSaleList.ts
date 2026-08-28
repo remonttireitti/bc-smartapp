@@ -13,7 +13,7 @@ import {
   type RefrigerantSupplierPaidBy,
 } from '../types/inventory';
 
-export type RefrigerantPurchaseSaleKind = 'purchase' | 'sale';
+export type RefrigerantPurchaseSaleKind = 'purchase' | 'sale' | 'retrieve';
 
 export type RefrigerantPurchaseSaleRow = {
   id: string;
@@ -76,6 +76,50 @@ const LINE_SELECT = `
   )
 `;
 
+type RawMovement = {
+  id: string;
+  company_id: string;
+  movement_type: string;
+  qty_kg: number;
+  refrigerant_type: string;
+  serial_number: string | null;
+  ownership_type: string | null;
+  work_report_id: string | null;
+  created_at: string;
+  customer: { name: string | null } | { name: string | null }[] | null;
+  cylinder: { ownership_type?: string | null } | { ownership_type?: string | null }[] | null;
+};
+
+const MOVEMENT_SELECT = `
+  id,
+  company_id,
+  movement_type,
+  qty_kg,
+  refrigerant_type,
+  serial_number,
+  ownership_type,
+  work_report_id,
+  created_at,
+  customer:customers(name),
+  cylinder:refrigerant_cylinders(ownership_type)
+`;
+
+const KIND_SORT_ORDER: Record<RefrigerantPurchaseSaleKind, number> = {
+  purchase: 0,
+  retrieve: 1,
+  sale: 2,
+};
+
+function sortPurchaseSaleRows(rows: RefrigerantPurchaseSaleRow[]): RefrigerantPurchaseSaleRow[] {
+  return rows.sort((a, b) => {
+    const dateCmp = b.date.localeCompare(a.date);
+    if (dateCmp !== 0) return dateCmp;
+    const kindCmp = KIND_SORT_ORDER[a.kind] - KIND_SORT_ORDER[b.kind];
+    if (kindCmp !== 0) return kindCmp;
+    return a.work_report_title.localeCompare(b.work_report_title, 'fi');
+  });
+}
+
 function unwrapOne<T>(value: T | T[] | null | undefined): T | null {
   if (value == null) return null;
   return Array.isArray(value) ? (value[0] ?? null) : value;
@@ -92,6 +136,7 @@ export function refrigerantPurchaseSaleSourceLabel(line: {
   source: RefrigerantSource;
   supplier_name: string | null;
 }): string {
+  if (line.kind === 'retrieve') return 'Asiakkaalta talteen';
   if (line.kind === 'purchase') {
     const supplier = line.supplier_name?.trim();
     return supplier ? `Tukkuri: ${supplier}` : REFRIGERANT_SOURCE_LABELS.supplier;
@@ -138,6 +183,50 @@ function createPurchaseSaleRow(line: RawLine, kind: RefrigerantPurchaseSaleKind)
   };
 }
 
+function createCustomerRetrieveRow(movement: RawMovement, companyId: string): RefrigerantPurchaseSaleRow {
+  const customer = unwrapOne(movement.customer);
+  const cylinder = unwrapOne(movement.cylinder);
+  const qty = Number(movement.qty_kg) || 0;
+
+  return {
+    id: `retrieve:${movement.id}`,
+    kind: 'retrieve',
+    date: movement.created_at.slice(0, 10),
+    work_report_id: movement.work_report_id ?? '',
+    work_report_title: '—',
+    customer_name: customer?.name?.trim() || '—',
+    refrigerant_type: movement.refrigerant_type?.trim() || '—',
+    qty_kg: qty,
+    serial_number: movement.serial_number?.trim() || '—',
+    ownership: formatRefrigerantOwnershipLabel(movement.ownership_type ?? cylinder?.ownership_type),
+    source_label: refrigerantPurchaseSaleSourceLabel({
+      kind: 'retrieve',
+      source: 'warehouse',
+      supplier_name: null,
+    }),
+    source: 'warehouse',
+    owner_company_id: companyId,
+    created_by_company_id: companyId,
+  };
+}
+
+export function buildCustomerRetrieveRows(
+  movements: RawMovement[],
+  companyId: string,
+): RefrigerantPurchaseSaleRow[] {
+  const rows: RefrigerantPurchaseSaleRow[] = [];
+
+  for (const movement of movements) {
+    if (movement.company_id !== companyId) continue;
+    if (movement.movement_type !== 'customer_retrieve') continue;
+    const qty = Number(movement.qty_kg) || 0;
+    if (qty <= 0) continue;
+    rows.push(createCustomerRetrieveRow(movement, companyId));
+  }
+
+  return rows;
+}
+
 export function buildRefrigerantPurchaseSaleRows(
   lines: RawLine[],
   companyId: string,
@@ -165,14 +254,14 @@ export function buildRefrigerantPurchaseSaleRows(
     }
   }
 
-  rows.sort((a, b) => {
-    const dateCmp = b.date.localeCompare(a.date);
-    if (dateCmp !== 0) return dateCmp;
-    if (a.kind !== b.kind) return a.kind === 'purchase' ? -1 : 1;
-    return a.work_report_title.localeCompare(b.work_report_title, 'fi');
-  });
+  return sortPurchaseSaleRows(rows);
+}
 
-  return rows;
+export function mergeRefrigerantPurchaseSaleRows(
+  lineRows: RefrigerantPurchaseSaleRow[],
+  retrieveRows: RefrigerantPurchaseSaleRow[],
+): RefrigerantPurchaseSaleRow[] {
+  return sortPurchaseSaleRows([...lineRows, ...retrieveRows]);
 }
 
 export function filterPurchaseSaleRowsForViewer(
@@ -221,15 +310,37 @@ export async function loadRefrigerantPurchaseSaleList(
   toDate: string,
   viewerCompanyId: string = companyId,
 ): Promise<RefrigerantPurchaseSaleRow[]> {
-  const { data, error } = await supabase
-    .from('work_report_refrigerant_lines')
-    .select(LINE_SELECT)
-    .gte('work_report_daily_logs.log_date', fromDate)
-    .lte('work_report_daily_logs.log_date', toDate)
-    .order('created_at', { ascending: false });
+  const fromIso = `${fromDate}T00:00:00.000Z`;
+  const toIso = `${toDate}T23:59:59.999Z`;
 
-  if (error) throw error;
+  const [linesResult, movementsResult] = await Promise.all([
+    supabase
+      .from('work_report_refrigerant_lines')
+      .select(LINE_SELECT)
+      .gte('work_report_daily_logs.log_date', fromDate)
+      .lte('work_report_daily_logs.log_date', toDate)
+      .order('created_at', { ascending: false }),
+    supabase
+      .from('refrigerant_cylinder_movements')
+      .select(MOVEMENT_SELECT)
+      .eq('company_id', companyId)
+      .eq('movement_type', 'customer_retrieve')
+      .gte('created_at', fromIso)
+      .lte('created_at', toIso)
+      .order('created_at', { ascending: false }),
+  ]);
 
-  const rows = buildRefrigerantPurchaseSaleRows((data as unknown as RawLine[]) ?? [], companyId);
+  if (linesResult.error) throw linesResult.error;
+  if (movementsResult.error) throw movementsResult.error;
+
+  const lineRows = buildRefrigerantPurchaseSaleRows(
+    (linesResult.data as unknown as RawLine[]) ?? [],
+    companyId,
+  );
+  const retrieveRows = buildCustomerRetrieveRows(
+    (movementsResult.data as unknown as RawMovement[]) ?? [],
+    companyId,
+  );
+  const rows = mergeRefrigerantPurchaseSaleRows(lineRows, retrieveRows);
   return filterPurchaseSaleRowsForViewer(rows, viewerCompanyId);
 }
