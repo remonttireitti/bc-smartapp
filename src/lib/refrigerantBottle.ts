@@ -1,5 +1,6 @@
 import type { BottleSize, RefrigerantCylinder } from '../types/inventory';
 import { BOTTLE_SIZE_LABELS } from '../types/inventory';
+import { daysBetweenInclusive, formatDate, toLocalYmd } from '../types';
 
 export type BottleFillFilter = 'all' | 'empty' | 'filled';
 
@@ -107,4 +108,49 @@ export function groupBottlesBySize(bottles: RefrigerantCylinder[]): Map<BottleSi
     if (list?.length) ordered.set(size, list);
   }
   return ordered;
+}
+
+export function rentalRegisteredDate(
+  c: Pick<RefrigerantCylinder, 'purchase_date' | 'created_at'>,
+): string {
+  if (c.purchase_date) return c.purchase_date.slice(0, 10);
+  return c.created_at.slice(0, 10);
+}
+
+export function rentalDayCount(
+  c: Pick<RefrigerantCylinder, 'ownership_type' | 'purchase_date' | 'created_at' | 'returned_at'>,
+  asOf: Date = new Date(),
+): number | null {
+  if (c.ownership_type !== 'rental') return null;
+  const start = new Date(`${rentalRegisteredDate(c)}T12:00:00`);
+  const endYmd = c.returned_at?.slice(0, 10) ?? toLocalYmd(asOf);
+  const end = new Date(`${endYmd}T12:00:00`);
+  return daysBetweenInclusive(start, end).length;
+}
+
+export function formatFinnishDayCount(count: number): string {
+  return count === 1 ? '1 päivä' : `${count} päivää`;
+}
+
+export function formatRentalDaysShort(
+  c: Pick<RefrigerantCylinder, 'ownership_type' | 'purchase_date' | 'created_at' | 'returned_at'>,
+  asOf: Date = new Date(),
+): string | null {
+  const days = rentalDayCount(c, asOf);
+  if (days == null) return null;
+  return formatFinnishDayCount(days);
+}
+
+export function formatRentalPeriodLabel(
+  c: Pick<RefrigerantCylinder, 'ownership_type' | 'purchase_date' | 'created_at' | 'returned_at'>,
+  asOf: Date = new Date(),
+): string | null {
+  if (c.ownership_type !== 'rental') return null;
+  const days = rentalDayCount(c, asOf);
+  if (days == null) return null;
+  const startLabel = formatDate(rentalRegisteredDate(c));
+  if (c.returned_at) {
+    return `${formatFinnishDayCount(days)} vuokralla · ${startLabel} – ${formatDate(c.returned_at.slice(0, 10))}`;
+  }
+  return `${formatFinnishDayCount(days)} vuokralla · varastoon ${startLabel}`;
 }

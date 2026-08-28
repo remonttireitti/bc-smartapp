@@ -10415,6 +10415,41 @@ a.tile.customer-document-tile:hover {
   color: #4b5563;
 }
 
+.inventory-bottle-rental-info {
+  margin: 0.5rem 0 0;
+  padding: 0.55rem 0.65rem;
+  border-radius: 8px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  color: #1e3a8a;
+  font-size: 0.82rem;
+  line-height: 1.35;
+}
+
+.inventory-bottle-rental-info strong {
+  font-size: 1rem;
+  font-weight: 800;
+}
+
+.inventory-bottle-rental-info-detail {
+  margin: 0 0 1rem;
+  padding: 0.85rem 1rem;
+  text-align: center;
+}
+
+.inventory-bottle-rental-info-detail .inventory-bottle-rental-days {
+  margin: 0;
+  font-size: 1.75rem;
+  font-weight: 800;
+  line-height: 1.1;
+  color: #1d4ed8;
+}
+
+.inventory-bottle-rental-info-detail .inventory-bottle-rental-meta {
+  margin: 0.35rem 0 0;
+  font-size: 0.9rem;
+}
+
 .inventory-bottle-state {
   font-weight: 600;
   margin: 0.35rem 0 0.25rem;

@@ -463,6 +463,7 @@ export default function RefrigerantInventorySection({
             company_id: warehouseCompanyId,
             stock_source: 'purchase',
             customer_id: null,
+            purchase_date: new Date().toISOString().slice(0, 10),
           })
           .select(CYLINDER_SELECT)
           .single();

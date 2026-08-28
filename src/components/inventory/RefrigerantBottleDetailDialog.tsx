@@ -13,6 +13,7 @@ import {
   REFRIGERANT_CYLINDER_STATUS_LABELS,
   REFRIGERANT_STOCK_SOURCE_LABELS,
 } from '../../types/inventory';
+import RefrigerantRentalInfo from './RefrigerantRentalInfo';
 
 type Props = {
   open: boolean;
@@ -72,6 +73,8 @@ export default function RefrigerantBottleDetailDialog({
             </p>
           </div>
         </div>
+
+        <RefrigerantRentalInfo cylinder={cylinder} variant="detail" />
 
         <dl className="detail-list inventory-bottle-detail-list">
           <dt>Koko</dt>

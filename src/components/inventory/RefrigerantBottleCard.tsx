@@ -9,6 +9,7 @@ import {
   formatBottleSizeLabel,
   isBottleEmpty,
 } from '../../lib/refrigerantBottle';
+import RefrigerantRentalInfo from './RefrigerantRentalInfo';
 import type { RefrigerantCylinder } from '../../types/inventory';
 import { REFRIGERANT_CYLINDER_OWNERSHIP_LABELS } from '../../types/inventory';
 
@@ -188,6 +189,8 @@ export default function RefrigerantBottleCard({
           <span className="inventory-bottle-badge inventory-bottle-badge-muted">Ei kierrätys</span>
         )}
       </div>
+
+      <RefrigerantRentalInfo cylinder={c} />
 
       {locationLine ? <p className="inventory-bottle-card-meta muted">{locationLine}</p> : null}
       {c.notes ? <p className="inventory-bottle-card-note muted">{c.notes}</p> : null}
