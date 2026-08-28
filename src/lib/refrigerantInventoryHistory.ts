@@ -26,6 +26,8 @@ export type RefrigerantInventoryHistoryRow = {
   serial_number: string;
   ownership: string;
   source_label: string;
+  /** Varastosaldoon lasketaan vain oikeat varastoliikkeet, ei tukkurin välitysmyyntiä. */
+  affects_warehouse_balance: boolean;
 };
 
 type RawMovement = {
@@ -102,6 +104,12 @@ export function refrigerantHistoryDirectionLabel(direction: RefrigerantInventory
   return direction === 'in' ? '+' : '−';
 }
 
+/** Tukkurilta suoraan asiakkaalle: ei vaikuta varastosaldoon (+x −x = 0). */
+export function purchaseSaleRowAffectsWarehouseBalance(row: RefrigerantPurchaseSaleRow): boolean {
+  if (row.source === 'supplier' || row.source === 'partner_warehouse') return false;
+  return row.kind === 'sale' && row.source === 'warehouse';
+}
+
 export type RefrigerantHistoryBalanceSummary = {
   refrigerant_type: string;
   in_kg: number;
@@ -132,6 +140,7 @@ export function summarizeRefrigerantHistoryBalance(
   const byType = new Map<string, { in_kg: number; out_kg: number }>();
 
   for (const row of rows) {
+    if (!row.affects_warehouse_balance) continue;
     const type = row.refrigerant_type.trim() || '—';
     const entry = byType.get(type) ?? { in_kg: 0, out_kg: 0 };
     if (row.direction === 'in') entry.in_kg += row.qty_kg;
@@ -172,6 +181,7 @@ function movementToHistoryRow(movement: RawMovement): RefrigerantInventoryHistor
     serial_number: movement.serial_number?.trim() || '—',
     ownership: formatRefrigerantOwnershipLabel(movement.ownership_type ?? cylinder?.ownership_type),
     source_label: REFRIGERANT_MOVEMENT_TYPE_LABELS[movement.movement_type],
+    affects_warehouse_balance: true,
   };
 }
 
@@ -201,6 +211,7 @@ function purchaseSaleToHistoryRow(row: RefrigerantPurchaseSaleRow): RefrigerantI
     serial_number: row.serial_number,
     ownership: row.ownership,
     source_label: row.source_label,
+    affects_warehouse_balance: purchaseSaleRowAffectsWarehouseBalance(row),
   };
 }
 

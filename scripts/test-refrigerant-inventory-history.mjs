@@ -3,6 +3,7 @@ import {
   collectRefrigerantHistoryTypes,
   filterRefrigerantHistoryByType,
   mergeRefrigerantInventoryHistoryRows,
+  purchaseSaleRowAffectsWarehouseBalance,
   refrigerantHistoryDirectionLabel,
   summarizeRefrigerantHistoryBalance,
 } from '../src/lib/refrigerantInventoryHistory.ts';
@@ -98,5 +99,36 @@ assert.equal(r410.net_kg, 10);
 const filtered = filterRefrigerantHistoryByType(merged, 'R-410A');
 assert.equal(filtered.length, 1);
 assert.deepEqual(collectRefrigerantHistoryTypes(merged), ['R-404A', 'R-410A']);
+
+const supplierPurchase = {
+  ...saleRow,
+  id: 'purchase:line-2',
+  kind: 'purchase',
+  refrigerant_type: 'R-410A',
+  qty_kg: 27,
+  source: 'supplier',
+  source_label: 'Tukkuri: Testi',
+};
+
+const supplierSale = {
+  ...supplierPurchase,
+  id: 'sale:line-2',
+  kind: 'sale',
+  source_label: 'Tukkurilta',
+};
+
+assert.equal(purchaseSaleRowAffectsWarehouseBalance(supplierPurchase), false);
+assert.equal(purchaseSaleRowAffectsWarehouseBalance(supplierSale), false);
+
+const passThroughHistory = mergeRefrigerantInventoryHistoryRows([], [supplierPurchase, supplierSale]);
+assert.equal(passThroughHistory.length, 2);
+assert.ok(passThroughHistory.every((row) => row.affects_warehouse_balance === false));
+
+const passThroughBalance = summarizeRefrigerantHistoryBalance([...merged, ...passThroughHistory]);
+const r410Balance = passThroughBalance.find((row) => row.refrigerant_type === 'R-410A');
+assert.ok(r410Balance);
+assert.equal(r410Balance.in_kg, 10);
+assert.equal(r410Balance.out_kg, 0);
+assert.equal(r410Balance.net_kg, 10);
 
 console.log('test-refrigerant-inventory-history: ok');
