@@ -48,6 +48,26 @@ const purchase = movementToPeriodReportRow({
 assert.ok(purchase);
 assert.equal(purchase.party_name, 'Vuokra: Darment');
 
+const purchaseOnRetrievedBottle = movementToPeriodReportRow({
+  movement_type: 'purchase',
+  qty_kg: 15,
+  refrigerant_type: 'R-410A',
+  serial_number: null,
+  location: null,
+  ownership_type: 'owned',
+  work_report_id: null,
+  notes: 'Varastoon',
+  created_at: '2026-05-28T20:57:39.000Z',
+  customer: null,
+  work_report: null,
+  cylinder: { rental_supplier: null, stock_source: 'customer_retrieved', ownership_type: 'owned' },
+});
+
+assert.ok(purchaseOnRetrievedBottle);
+assert.equal(purchaseOnRetrievedBottle.typeLabel, 'Osto / varastoon');
+assert.equal(purchaseOnRetrievedBottle.party_name, 'Ostettu varastoon');
+assert.notEqual(purchaseOnRetrievedBottle.party_name, 'Asiakkaalta talteen');
+
 const retrieve = movementToPeriodReportRow({
   movement_type: 'customer_retrieve',
   qty_kg: 10,
@@ -64,7 +84,9 @@ const retrieve = movementToPeriodReportRow({
 });
 
 assert.ok(retrieve);
+assert.equal(retrieve.typeLabel, 'Asiakkaalta talteen');
 assert.equal(retrieve.party_name, 'Cityvarasto Hyrylä');
+assert.equal(retrieve.notes, '');
 
 const supplierSale = supplierLineToPeriodReportRow({
   source: 'supplier',

@@ -7,7 +7,6 @@ import type { RefrigerantMovementType, RefrigerantRentalSupplier, RefrigerantSou
 import {
   REFRIGERANT_MOVEMENT_TYPE_LABELS,
   REFRIGERANT_RENTAL_SUPPLIER_LABELS,
-  REFRIGERANT_STOCK_SOURCE_LABELS,
 } from '../types/inventory';
 
 export type RefrigerantPeriodReportRow = {
@@ -137,9 +136,6 @@ export function purchaseMovementPartyName(
   if (rentalSupplier && REFRIGERANT_RENTAL_SUPPLIER_LABELS[rentalSupplier]) {
     return `Vuokra: ${REFRIGERANT_RENTAL_SUPPLIER_LABELS[rentalSupplier]}`;
   }
-  if (cylinder?.stock_source === 'customer_retrieved') {
-    return REFRIGERANT_STOCK_SOURCE_LABELS.customer_retrieved;
-  }
   const notes = movement.notes?.trim();
   if (notes && notes !== 'Varastoon') return notes;
   return 'Ostettu varastoon';
@@ -164,7 +160,7 @@ export function movementToPeriodReportRow(movement: RawMovement): RefrigerantPer
     if (!notes) notes = 'Varastoon';
   } else if (type === 'customer_retrieve') {
     partyName = partyOrDash(customer?.name);
-    if (!notes) notes = 'Asiakkaalta talteen';
+    notes = '';
   } else if (type === 'work_use') {
     typeLabel = 'Myynti asiakkaalle';
     partyName = partyOrDash(workCustomer?.name);
