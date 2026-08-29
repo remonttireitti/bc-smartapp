@@ -3,7 +3,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { refrigerantIncludedInCustomerBilling } from './refrigerantInventory';
 import { formatRefrigerantOwnershipLabel } from './refrigerantPurchaseSaleList';
 import { openSimplePrintHtml } from './openPrintWindow';
-import type { RefrigerantMovementType, RefrigerantRentalSupplier, RefrigerantSource } from '../types/inventory';
+import type { RefrigerantMovementType, RefrigerantRentalSupplier, RefrigerantSource, RefrigerantSupplierPaidBy } from '../types/inventory';
 import {
   REFRIGERANT_MOVEMENT_TYPE_LABELS,
   REFRIGERANT_RENTAL_SUPPLIER_LABELS,
@@ -40,6 +40,12 @@ export type RefrigerantStockSnapshotRow = {
   status_label: string;
 };
 
+type RawCylinder = {
+  rental_supplier: RefrigerantRentalSupplier | null;
+  stock_source: string | null;
+  ownership_type: string | null;
+};
+
 type RawMovement = {
   movement_type: RefrigerantMovementType;
   qty_kg: number;
@@ -61,24 +67,13 @@ type RawMovement = {
         customers: { name: string | null } | { name: string | null }[] | null;
       }[]
     | null;
-  cylinder:
-    | {
-        rental_supplier: RefrigerantRentalSupplier | null;
-        stock_source: string | null;
-        ownership_type: string | null;
-      }
-    | {
-        rental_supplier: RefrigerantRentalSupplier | null;
-        stock_source: string | null;
-        ownership_type: string | null;
-      }[]
-    | null;
+  cylinder: RawCylinder | RawCylinder[] | null;
 };
 
 type RawReportLine = {
   source: RefrigerantSource;
   supplier_name: string | null;
-  supplier_paid_by: string | null;
+  supplier_paid_by: RefrigerantSupplierPaidBy | null;
   bill_to_customer: boolean;
   warehouse_company_id: string | null;
   refrigerant_type: string;
@@ -136,7 +131,7 @@ function partyOrDash(name: string | null | undefined): string {
 
 export function purchaseMovementPartyName(
   movement: Pick<RawMovement, 'notes' | 'ownership_type'>,
-  cylinder: Pick<NonNullable<RawMovement['cylinder']>, 'rental_supplier' | 'stock_source'> | null,
+  cylinder: RawCylinder | null,
 ): string {
   const rentalSupplier = cylinder?.rental_supplier;
   if (rentalSupplier && REFRIGERANT_RENTAL_SUPPLIER_LABELS[rentalSupplier]) {
