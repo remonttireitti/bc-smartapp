@@ -52,7 +52,7 @@ import {
 } from '../lib/workReportBillingCopy';
 import { ensurePartnerBillableCalculated } from '../lib/workReportPartnerBillingPersist';
 import { warehouseDeductionTotalsFromCalculation } from '../lib/workReportBilling';
-import { collectRefrigerantBillingPurchases } from '../lib/refrigerantBillingPurchases';
+import { collectPartnerBillingDeductions } from '../lib/partnerBillingDeductions';
 import BillingRefrigerantPurchasesPanel, {
   type RefrigerantPurchaseFilter,
 } from '../components/BillingRefrigerantPurchasesPanel';
@@ -224,15 +224,22 @@ export default function BillingPage({ session }: Props) {
     );
   }
 
-  async function toggleRefrigerantWarehouseDeduction(reportId: string, lineId: string, deducted: boolean) {
+  async function togglePartnerBillingDeduction(
+    reportId: string,
+    lineId: string,
+    lineKind: 'refrigerant' | 'partner_purchase',
+    deducted: boolean,
+  ) {
     if (!profile?.company_id) return;
     setRefrigerantDeductionBusyId(lineId);
     setError(null);
     try {
-      const { error: updateError } = await supabase
-        .from('work_report_refrigerant_lines')
-        .update({ warehouse_cost_deducted: deducted })
-        .eq('id', lineId);
+      const table =
+        lineKind === 'partner_purchase'
+          ? 'work_report_partner_purchase_lines'
+          : 'work_report_refrigerant_lines';
+      const column = lineKind === 'partner_purchase' ? 'cost_deducted' : 'warehouse_cost_deducted';
+      const { error: updateError } = await supabase.from(table).update({ [column]: deducted }).eq('id', lineId);
       if (updateError) throw updateError;
       await ensurePartnerBillableCalculated(supabase, reportId, profile.company_id);
       await refreshBillingRow(reportId);
@@ -401,6 +408,18 @@ export default function BillingPage({ session }: Props) {
         count: (prev?.count ?? 0) + 1,
       });
     }
+    if (profile?.company_id) {
+      for (const deduction of collectPartnerBillingDeductions(rows, profile.company_id)) {
+        if (!deduction.deductionPartnerId) continue;
+        const prev = map.get(deduction.deductionPartnerId);
+        if (!prev) {
+          map.set(deduction.deductionPartnerId, {
+            name: deduction.deductionPartnerName,
+            count: 0,
+          });
+        }
+      }
+    }
     return [...map.entries()]
       .map(([id, { name, count }]) => ({ id, name, count }))
       .sort((a, b) => a.name.localeCompare(b.name, 'fi'));
@@ -430,11 +449,11 @@ export default function BillingPage({ session }: Props) {
         ? customerBillingEnabled !== false
         : partnerBillingAvailable !== false);
 
-  const refrigerantPurchases = useMemo(() => {
+  const partnerDeductions = useMemo(() => {
     if (!profile?.company_id) return [];
     if (billingMode === 'customer') return [];
-    return collectRefrigerantBillingPurchases(rows, profile.company_id);
-  }, [rows, profile?.company_id, billingMode]);
+    return collectPartnerBillingDeductions(rows, profile.company_id, partnerFilter || null);
+  }, [rows, profile?.company_id, billingMode, partnerFilter]);
 
   const filteredRows = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -959,7 +978,7 @@ export default function BillingPage({ session }: Props) {
                 <p className="billing-stat-meta">
                   Työ {formatEuro(summary.openWork)} • Kulut / urakat {formatEuro(summary.openMaterials)}
                   {summary.openDeductions > 0.005
-                    ? ` • Kylmäaineostot −${formatEuro(summary.openDeductions)}`
+                    ? ` • Vähennykset −${formatEuro(summary.openDeductions)}`
                     : ''}
                 </p>
               )}
@@ -1089,13 +1108,13 @@ export default function BillingPage({ session }: Props) {
 
           {(partnerModeActive || totalModeActive) && moduleEnabled ? (
             <BillingRefrigerantPurchasesPanel
-              rows={refrigerantPurchases}
+              rows={partnerDeductions}
               filter={refrigerantPurchaseFilter}
               onFilterChange={setRefrigerantPurchaseFilter}
               canEdit
               busyLineId={refrigerantDeductionBusyId}
-              onToggle={(reportId, lineId, charged) =>
-                void toggleRefrigerantWarehouseDeduction(reportId, lineId, charged)
+              onToggle={(reportId, lineId, lineKind, charged) =>
+                void togglePartnerBillingDeduction(reportId, lineId, lineKind, charged)
               }
             />
           ) : null}
@@ -1467,7 +1486,7 @@ function BillingReportCard({
               </div>
               {mode === 'partner' && (deductionDetails.pending > 0.005 || deductionDetails.deducted > 0.005) ? (
                 <div>
-                  <dt>Kylmäaineostot</dt>
+                  <dt>Vähennykset</dt>
                   <dd>
                     {deductionDetails.pending > 0.005 ? `−${formatEuro(deductionDetails.pending)}` : '—'}
                     {deductionDetails.deducted > 0.005

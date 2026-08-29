@@ -1,21 +1,30 @@
 import { Link } from 'react-router-dom';
 import {
-  refrigerantBillingPurchaseTotals,
-  type RefrigerantBillingPurchaseRow,
-} from '../lib/refrigerantBillingPurchases';
+  partnerBillingDeductionTotals,
+  type PartnerBillingDeductionRow,
+} from '../lib/partnerBillingDeductions';
 import { formatEuro } from '../lib/workReportBilling';
 import { formatDate } from '../types';
 
 export type RefrigerantPurchaseFilter = 'open' | 'charged' | 'all';
 
 type Props = {
-  rows: RefrigerantBillingPurchaseRow[];
+  rows: PartnerBillingDeductionRow[];
   filter: RefrigerantPurchaseFilter;
   onFilterChange: (filter: RefrigerantPurchaseFilter) => void;
   canEdit: boolean;
   busyLineId: string | null;
-  onToggle: (reportId: string, lineId: string, charged: boolean) => void;
+  onToggle: (
+    reportId: string,
+    lineId: string,
+    lineKind: PartnerBillingDeductionRow['lineKind'],
+    charged: boolean,
+  ) => void;
 };
+
+function purchaseTypeLabel(kind: PartnerBillingDeductionRow['lineKind']): string {
+  return kind === 'refrigerant' ? 'Kylmäaine' : 'Työkalu/varaosa';
+}
 
 export default function BillingRefrigerantPurchasesPanel({
   rows,
@@ -25,7 +34,7 @@ export default function BillingRefrigerantPurchasesPanel({
   busyLineId,
   onToggle,
 }: Props) {
-  const totals = refrigerantBillingPurchaseTotals(rows);
+  const totals = partnerBillingDeductionTotals(rows);
   const filtered = rows.filter((row) => {
     if (filter === 'open') return !row.charged;
     if (filter === 'charged') return row.charged;
@@ -35,8 +44,8 @@ export default function BillingRefrigerantPurchasesPanel({
   if (rows.length === 0) {
     return (
       <section className="panel billing-refrigerant-purchases-panel">
-        <h2>Kylmäaineostot</h2>
-        <p className="muted">Ei kylmäaineostoja kumppanilaskutuksessa.</p>
+        <h2>Vähennykset (varasto ja piikki)</h2>
+        <p className="muted">Ei vähennettäviä ostoja kumppanilaskutuksessa.</p>
       </section>
     );
   }
@@ -45,19 +54,20 @@ export default function BillingRefrigerantPurchasesPanel({
     <section className="panel billing-refrigerant-purchases-panel">
       <div className="billing-refrigerant-purchases-head">
         <div>
-          <h2>Kylmäaineostot</h2>
+          <h2>Vähennykset (varasto ja piikki)</h2>
           <p className="muted">
-            Kumppanin työraporteilta käytetyt varasto-ostot. Merkitse veloitettuksi kun osto on kuitattu.
+            Kylmäaine- ja työkalu/varaosa-ostot kumppanin varastosta tai piikkiin. Merkitse vähennetyksi kun
+            osto on kuitattu.
           </p>
         </div>
         <div className="billing-refrigerant-purchases-summary">
           <div>
-            <span className="billing-refrigerant-purchases-stat-label">Veloitettavana</span>
+            <span className="billing-refrigerant-purchases-stat-label">Vähennettävänä</span>
             <strong>{formatEuro(totals.pending)}</strong>
             <span className="muted">{totals.pendingCount} kpl</span>
           </div>
           <div>
-            <span className="billing-refrigerant-purchases-stat-label">Veloitettu</span>
+            <span className="billing-refrigerant-purchases-stat-label">Vähennetty</span>
             <strong>{formatEuro(totals.charged)}</strong>
             <span className="muted">{totals.chargedCount} kpl</span>
           </div>
@@ -77,7 +87,7 @@ export default function BillingRefrigerantPurchasesPanel({
           className={filter === 'charged' ? 'billing-pill active' : 'billing-pill'}
           onClick={() => onFilterChange('charged')}
         >
-          Veloitettu ({totals.chargedCount})
+          Vähennetty ({totals.chargedCount})
         </button>
         <button
           type="button"
@@ -89,7 +99,7 @@ export default function BillingRefrigerantPurchasesPanel({
       </div>
 
       {filtered.length === 0 ? (
-        <p className="muted">Ei kylmäaineostoja valitulla suodattimella.</p>
+        <p className="muted">Ei vähennyksiä valitulla suodattimella.</p>
       ) : (
         <div className="table-wrap">
           <table className="data-table billing-refrigerant-purchases-table">
@@ -97,25 +107,27 @@ export default function BillingRefrigerantPurchasesPanel({
               <tr>
                 <th>Päivä</th>
                 <th>Raportti</th>
-                <th>Kumppani</th>
+                <th>Vähennetään kumppanilta</th>
                 <th>Asiakas</th>
-                <th>Kylmäaine</th>
+                <th>Tyyppi</th>
+                <th>Osto</th>
                 <th className="num">Määrä</th>
                 <th className="num">Summa</th>
-                <th>Veloitettu</th>
+                <th>Vähennetty</th>
               </tr>
             </thead>
             <tbody>
               {filtered.map((row) => (
-                <tr key={row.lineId} className={row.charged ? 'billing-refrigerant-purchase-charged' : undefined}>
+                <tr key={`${row.lineKind}:${row.lineId}`} className={row.charged ? 'billing-refrigerant-purchase-charged' : undefined}>
                   <td>{formatDate(row.logDate)}</td>
                   <td>
                     <Link to={`/tyoraportit/${row.reportId}`}>{row.reportTitle}</Link>
                   </td>
-                  <td>{row.partnerName}</td>
+                  <td>{row.deductionPartnerName}</td>
                   <td>{row.customerName ?? '—'}</td>
-                  <td>{row.refrigerantType}</td>
-                  <td className="num">{row.qtyKg.toFixed(3)} kg</td>
+                  <td>{purchaseTypeLabel(row.lineKind)}</td>
+                  <td>{row.purchaseLabel}</td>
+                  <td className="num">{row.qtyLabel}</td>
                   <td className="num">{formatEuro(row.total)}</td>
                   <td>
                     <label className="inventory-check">
@@ -123,9 +135,9 @@ export default function BillingRefrigerantPurchasesPanel({
                         type="checkbox"
                         checked={row.charged}
                         disabled={!canEdit || busyLineId === row.lineId}
-                        onChange={(e) => onToggle(row.reportId, row.lineId, e.target.checked)}
+                        onChange={(e) => onToggle(row.reportId, row.lineId, row.lineKind, e.target.checked)}
                       />
-                      {row.charged ? 'Veloitettu' : 'Veloitettava'}
+                      {row.charged ? 'Vähennetty' : 'Vähennettävä'}
                     </label>
                   </td>
                 </tr>

@@ -58,6 +58,9 @@ export type BillableLine = {
   refrigerantLineId?: string;
   /** Työkalu/varaosa-osto kumppanin piikkiin — vähennys kumppanilaskutuksesta. */
   partnerPurchaseLineId?: string;
+  /** Kumppani, jonka laskutuksesta vähennetään (varaston omistaja / piikin maksaja). */
+  deductionPartnerCompanyId?: string;
+  deductionPartnerName?: string;
   warehouseDeduction?: 'pending' | 'deducted';
 };
 
@@ -149,6 +152,8 @@ function pushRefrigerantPurchaseDeductionLine(
     total: fullTotal,
     included: false,
     refrigerantLineId: refLine.id,
+    deductionPartnerCompanyId: refLine.warehouse_company_id ?? undefined,
+    deductionPartnerName: refLine.warehouse_company?.name?.trim() || undefined,
     warehouseDeduction: deducted ? 'deducted' : 'pending',
   });
   if (!deducted) summary.excludedSubtotal += fullTotal;
@@ -187,6 +192,8 @@ function pushPartnerPurchaseDeductionLine(
     total: fullTotal,
     included: false,
     partnerPurchaseLineId: purchaseLine.id,
+    deductionPartnerCompanyId: purchaseLine.partner_company_id,
+    deductionPartnerName: purchaseLine.partner_company?.name?.trim() || undefined,
     warehouseDeduction: deducted ? 'deducted' : 'pending',
   });
   if (!deducted) summary.excludedSubtotal += fullTotal;
