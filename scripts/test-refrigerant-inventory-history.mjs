@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import {
+  collapseHistorySaleWorkUseDuplicates,
   collectRefrigerantHistoryTypes,
   filterRefrigerantHistoryByType,
   mergeRefrigerantInventoryHistoryRows,
@@ -14,6 +15,7 @@ assert.equal(refrigerantHistoryDirectionLabel('out'), '−');
 const movement = {
   id: 'm-1',
   movement_type: 'work_use',
+  cylinder_id: 'cyl-1',
   qty_kg: 2,
   refrigerant_type: 'R-404A',
   serial_number: 'V055171',
@@ -23,6 +25,28 @@ const movement = {
   customer: null,
   cylinder: { ownership_type: 'rental' },
   work_report: { title: 'Sinikalliontie 3' },
+};
+
+const billingLine = {
+  id: 'line-1',
+  work_report_id: 'wr-1',
+  cylinder_id: 'cyl-1',
+  source: 'partner_warehouse',
+  supplier_paid_by: null,
+  bill_to_customer: false,
+  warehouse_company_id: 'company-a',
+  refrigerant_type: 'R-404A',
+  qty_kg: 2,
+  created_at: '2026-08-28T10:00:00.000Z',
+  cylinder: { serial_number: 'V055171', ownership_type: 'rental' },
+  daily_log: { log_date: '2026-08-28' },
+  work_report: {
+    id: 'wr-1',
+    title: 'Sinikalliontie 3 – Kylmiöt lämpönee',
+    owner_company_id: 'company-a',
+    created_by_company_id: 'company-b',
+    customers: { name: 'Sinikalliontie 3' },
+  },
 };
 
 const saleRow = {
@@ -42,7 +66,7 @@ const saleRow = {
   created_by_company_id: 'company-b',
 };
 
-const deduped = mergeRefrigerantInventoryHistoryRows([movement], [saleRow]);
+const deduped = mergeRefrigerantInventoryHistoryRows([movement], [saleRow], [billingLine], 'company-a');
 assert.equal(deduped.length, 1);
 assert.equal(deduped[0].eventLabel, 'Myynti');
 assert.equal(deduped[0].direction, 'out');
@@ -53,7 +77,12 @@ const serialMismatchSale = {
   serial_number: '—',
 };
 
-const serialMismatchDeduped = mergeRefrigerantInventoryHistoryRows([movement], [serialMismatchSale]);
+const serialMismatchDeduped = mergeRefrigerantInventoryHistoryRows(
+  [movement],
+  [serialMismatchSale],
+  [billingLine],
+  'company-a',
+);
 assert.equal(serialMismatchDeduped.length, 1);
 assert.equal(serialMismatchDeduped[0].eventLabel, 'Myynti');
 assert.equal(serialMismatchDeduped[0].affects_warehouse_balance, true);
@@ -68,6 +97,8 @@ const duplicateWorkUse = mergeRefrigerantInventoryHistoryRows(
     },
   ],
   [saleRow],
+  [billingLine],
+  'company-a',
 );
 assert.equal(duplicateWorkUse.length, 1);
 assert.equal(duplicateWorkUse[0].eventLabel, 'Myynti');
@@ -76,7 +107,9 @@ const titleMatchedMovement = {
   ...movement,
   id: 'm-title',
   work_report_id: null,
+  cylinder_id: 'cyl-1',
   created_at: '2026-08-28T10:30:23.000Z',
+  work_report: { title: 'Sinikalliontie 3 - Kylmiot lamponee' },
 };
 
 const titleMatchedSale = {
@@ -87,10 +120,51 @@ const titleMatchedSale = {
   date: '2026-08-28',
 };
 
-const titleMatched = mergeRefrigerantInventoryHistoryRows([titleMatchedMovement], [titleMatchedSale]);
+const titleMatched = mergeRefrigerantInventoryHistoryRows(
+  [titleMatchedMovement],
+  [titleMatchedSale],
+  [billingLine],
+  'company-a',
+);
 assert.equal(titleMatched.length, 1);
 assert.equal(titleMatched[0].eventLabel, 'Myynti');
 assert.equal(titleMatched[0].affects_warehouse_balance, true);
+
+const collapseOnly = collapseHistorySaleWorkUseDuplicates([
+  {
+    id: 'report:sale:line-1',
+    at: '2026-08-28T12:00:00.000Z',
+    eventLabel: 'Myynti',
+    direction: 'out',
+    work_report_id: 'wr-1',
+    work_report_title: 'Sinikalliontie 3 – Kylmiöt lämpönee',
+    customer_name: 'Sinikalliontie 3',
+    refrigerant_type: 'R-404A',
+    qty_kg: 2,
+    serial_number: 'V055171',
+    ownership: 'Vuokra',
+    source_label: 'Kumppanin varastosta',
+    affects_warehouse_balance: false,
+  },
+  {
+    id: 'movement:m-1',
+    at: '2026-08-28T10:30:23.000Z',
+    eventLabel: 'Käyttö työkohteella',
+    direction: 'out',
+    work_report_id: 'wr-1',
+    work_report_title: 'Sinikalliontie 3 – Kylmiöt lämpönee',
+    customer_name: '—',
+    refrigerant_type: 'R-404A',
+    qty_kg: 2,
+    serial_number: 'V055171',
+    ownership: 'Vuokra',
+    source_label: 'Käyttö työkohteella',
+    affects_warehouse_balance: true,
+  },
+]);
+assert.equal(collapseOnly.length, 1);
+assert.equal(collapseOnly[0].eventLabel, 'Myynti');
+assert.equal(collapseOnly[0].affects_warehouse_balance, true);
 
 const purchaseMovement = {
   ...movement,
