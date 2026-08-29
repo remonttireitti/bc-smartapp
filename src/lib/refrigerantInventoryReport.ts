@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
+import { openPrintHtml } from './openPrintWindow';
 import type { RefrigerantCylinderMovement, RefrigerantMovementType } from '../types/inventory';
 import { REFRIGERANT_MOVEMENT_TYPE_LABELS } from '../types/inventory';
 
@@ -204,11 +205,6 @@ function escapeHtml(s: string): string {
     .replace(/"/g, '&quot;');
 }
 
-export function printRefrigerantPeriodReport(html: string): void {
-  const w = window.open('', '_blank', 'noopener,noreferrer');
-  if (!w) return;
-  w.document.write(html);
-  w.document.close();
-  w.focus();
-  w.onload = () => w.print();
+export function printRefrigerantPeriodReport(html: string, documentTitle?: string): void {
+  openPrintHtml(html, { documentTitle });
 }

@@ -672,6 +672,7 @@ export default function RefrigerantInventorySection({
           summary,
           rows,
         }),
+        `Kylmäaineraportti ${warehouseCompanyName}`,
       );
     } catch (err) {
       onError(err instanceof Error ? err.message : 'Raportti epäonnistui');
