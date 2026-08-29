@@ -665,11 +665,13 @@ export default function RefrigerantInventorySection({
 
     setReportBusy(true);
     try {
-      const { rows, summary } = await loadRefrigerantPeriodReport(
+      const { rows, summary, stock } = await loadRefrigerantPeriodReport(
         supabase,
         warehouseCompanyId,
         `${reportFrom}T00:00:00.000Z`,
         `${reportTo}T23:59:59.999Z`,
+        reportFrom,
+        reportTo,
       );
       printRefrigerantPeriodReport(
         buildRefrigerantPeriodReportHtml({
@@ -678,6 +680,7 @@ export default function RefrigerantInventorySection({
           toLabel: new Date(reportTo).toLocaleDateString('fi-FI'),
           summary,
           rows,
+          stock,
         }),
         `Kylmäaineraportti ${warehouseCompanyName}`,
         printWindow,
