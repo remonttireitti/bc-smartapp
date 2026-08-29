@@ -53,9 +53,11 @@ import {
 import { ensurePartnerBillableCalculated } from '../lib/workReportPartnerBillingPersist';
 import {
   collectPartnerBillingDeductions,
-  filterPartnerDeductionsByReportIds,
+  filterPartnerDeductionsByPartnerId,
+  filterPartnerDeductionsForSummary,
   loadPartnerBillingDeductionsFromSource,
   mergePartnerBillingDeductions,
+  partnerBillingDeductionTotals,
   type PartnerBillingDeductionRow,
 } from '../lib/partnerBillingDeductions';
 import BillingRefrigerantPurchasesPanel, {
@@ -488,33 +490,20 @@ export default function BillingPage({ session }: Props) {
         ? customerBillingEnabled !== false
         : partnerBillingAvailable !== false);
 
-  const partnerDeductionReportIds = useMemo(() => {
-    if (!partnerFilter || billingMode === 'customer' || !profile?.company_id) return null;
-    return new Set(
-      rows
-        .filter((row) => billToPartnerId(row, profile.company_id) === partnerFilter)
-        .map((row) => row.id),
-    );
-  }, [rows, partnerFilter, billingMode, profile?.company_id]);
-
-  const partnerDeductions = useMemo(() => {
+  const mergedPartnerDeductions = useMemo(() => {
     if (!profile?.company_id) return [];
     if (billingMode === 'customer') return [];
     const calculationRows = collectPartnerBillingDeductions(rows, profile.company_id);
-    const merged = mergePartnerBillingDeductions(
+    return mergePartnerBillingDeductions(
       sourcePartnerDeductions,
       calculationRows,
       { sourceLoaded: sourcePartnerDeductionsLoaded },
     );
-    return filterPartnerDeductionsByReportIds(merged, partnerDeductionReportIds);
-  }, [
-    rows,
-    profile?.company_id,
-    billingMode,
-    partnerDeductionReportIds,
-    sourcePartnerDeductions,
-    sourcePartnerDeductionsLoaded,
-  ]);
+  }, [rows, profile?.company_id, billingMode, sourcePartnerDeductions, sourcePartnerDeductionsLoaded]);
+
+  const partnerDeductions = useMemo(() => {
+    return filterPartnerDeductionsByPartnerId(mergedPartnerDeductions, partnerFilter || null);
+  }, [mergedPartnerDeductions, partnerFilter]);
 
   const filteredRows = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -539,7 +528,6 @@ export default function BillingPage({ session }: Props) {
     let billedTotal = 0;
     let openWork = 0;
     let openMaterials = 0;
-    let openDeductions = 0;
     let openCount = 0;
     let billedCount = 0;
     const periodAnchor = new Date();
@@ -556,18 +544,12 @@ export default function BillingPage({ session }: Props) {
       const openAmount = billingRowOpenAmount(row, mode);
       const billedAmount = billingRowBilledAmount(row, mode);
       const breakdown = billingRowBreakdown(row, mode);
-      const partnerAmounts = mode === 'partner' ? billingRowPartnerAmounts(row) : null;
       if (openAmount <= 0.005 && billedAmount <= 0.005) continue;
-      if (breakdown.netTotal <= 0.005 && billedAmount <= 0.005 && (partnerAmounts?.pending ?? 0) <= 0.005) {
-        continue;
-      }
+      if (breakdown.netTotal <= 0.005 && billedAmount <= 0.005) continue;
 
       if (openAmount > 0.005 && isBillingSummaryPeriod(billingRowDate(row), summaryPeriod, periodAnchor)) {
         const partnerOpenTotal = mode === 'customer' ? breakdown.total : openAmount;
         openTotal += partnerOpenTotal;
-        if (partnerAmounts && partnerAmounts.pending > 0.005) {
-          openDeductions += partnerAmounts.pending;
-        }
         if (breakdown.total > 0.005 && openAmount > 0.005 && openAmount < breakdown.total - 0.005) {
           const ratio = openAmount / breakdown.total;
           openWork += breakdown.work * ratio;
@@ -585,18 +567,39 @@ export default function BillingPage({ session }: Props) {
       }
     }
 
+    const summaryDeductionRows =
+      billingMode === 'customer'
+        ? []
+        : filterPartnerDeductionsForSummary(mergedPartnerDeductions, {
+            partnerFilterId: partnerFilter || null,
+            period: summaryPeriod,
+            anchor: periodAnchor,
+            pendingOnly: true,
+          });
+    const openDeductions = partnerBillingDeductionTotals(summaryDeductionRows).pending;
+    const openNet = Math.round((openTotal - openDeductions) * 100) / 100;
+
     return {
-      openTotal,
+      openTotal: openNet,
+      openGross: openTotal,
       billedTotal,
       openWork,
       openMaterials,
       openDeductions,
       openCount,
       billedCount,
-      grandTotal: openTotal + billedTotal,
+      grandTotal: Math.round((openNet + billedTotal) * 100) / 100,
       totalCount: openCount + billedCount,
     };
-  }, [rows, partnerFilter, customerFilter, billingMode, summaryPeriod, profile?.company_id]);
+  }, [
+    rows,
+    partnerFilter,
+    customerFilter,
+    billingMode,
+    summaryPeriod,
+    profile?.company_id,
+    mergedPartnerDeductions,
+  ]);
 
   const weekDays = useMemo(
     () => Array.from({ length: 7 }, (_, index) => addDays(rangeAnchor, index)),

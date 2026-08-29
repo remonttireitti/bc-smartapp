@@ -387,6 +387,48 @@ export function filterPartnerDeductionsByReportIds(
   return deductions.filter((row) => reportIds.has(row.reportId));
 }
 
+/** Rajaa vähennykset vähennettävältä kumppanilta (laskutuksen kumppanisuodatin). */
+export function filterPartnerDeductionsByPartnerId(
+  deductions: PartnerBillingDeductionRow[],
+  partnerFilterId: string | null | undefined,
+): PartnerBillingDeductionRow[] {
+  if (!partnerFilterId) return deductions;
+  return deductions.filter((row) => row.deductionPartnerId === partnerFilterId);
+}
+
+export type PartnerBillingSummaryPeriod = 'this_month' | 'this_year' | 'all';
+
+function isPartnerDeductionSummaryPeriod(
+  date: Date,
+  period: PartnerBillingSummaryPeriod,
+  anchor: Date,
+): boolean {
+  if (period === 'all') return true;
+  if (period === 'this_year') return date.getFullYear() === anchor.getFullYear();
+  return date.getFullYear() === anchor.getFullYear() && date.getMonth() === anchor.getMonth();
+}
+
+export function filterPartnerDeductionsForSummary(
+  deductions: PartnerBillingDeductionRow[],
+  options: {
+    partnerFilterId?: string | null;
+    period: PartnerBillingSummaryPeriod;
+    anchor?: Date;
+    pendingOnly?: boolean;
+  },
+): PartnerBillingDeductionRow[] {
+  const anchor = options.anchor ?? new Date();
+  const pendingOnly = options.pendingOnly !== false;
+  return deductions.filter((row) => {
+    if (pendingOnly && row.charged) return false;
+    if (options.partnerFilterId && row.deductionPartnerId !== options.partnerFilterId) return false;
+    if (!row.logDate) return options.period === 'all';
+    const logDate = new Date(`${row.logDate}T12:00:00`);
+    if (Number.isNaN(logDate.getTime())) return options.period === 'all';
+    return isPartnerDeductionSummaryPeriod(logDate, options.period, anchor);
+  });
+}
+
 export function collectRefrigerantBillingPurchases(
   rows: PartnerBillingDeductionSourceRow[],
   viewerCompanyId: string,
