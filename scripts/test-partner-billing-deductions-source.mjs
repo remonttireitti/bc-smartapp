@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import {
   buildPartnerBillingDeductionsFromSource,
   collectPartnerBillingDeductions,
+  filterPartnerDeductionsByReportIds,
   mergePartnerBillingDeductions,
 } from '../src/lib/partnerBillingDeductions.ts';
 
@@ -91,6 +92,35 @@ assert.equal(
 const merged = mergePartnerBillingDeductions(sourceDeductions, calculationDeductions);
 assert.equal(merged.length, 1);
 assert.equal(merged[0].deductionPartnerName, 'Lämpökatsastus Oy');
+
+const mergedWhenSourceLoaded = mergePartnerBillingDeductions([], calculationDeductions, {
+  sourceLoaded: true,
+});
+assert.equal(mergedWhenSourceLoaded.length, 0, 'älä käytä vanhaa laskelmaa kun lähdetiedot on ladattu');
+
+const filteredForUkhBilling = filterPartnerDeductionsByReportIds(
+  sourceDeductions,
+  new Set(['report-1']),
+);
+assert.equal(filteredForUkhBilling.length, 1);
+assert.equal(
+  filteredForUkhBilling[0].deductionPartnerName,
+  'Lämpökatsastus Oy',
+  'UKH-suodatin näyttää raportin vähennyksen oikealta kumppanilta',
+);
+
+const filteredByDeductionPartner = buildPartnerBillingDeductionsFromSource(
+  reports,
+  refrigerantLines,
+  [],
+  viewerCompanyId,
+  ownerCompanyId,
+);
+assert.equal(
+  filteredByDeductionPartner.length,
+  0,
+  'vähennyskumppanin suodatin ei saa sekoittua laskutettavaan kumppaniin',
+);
 
 const warehouseViewerDeductions = buildPartnerBillingDeductionsFromSource(
   reports,

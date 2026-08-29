@@ -371,9 +371,20 @@ export function collectPartnerBillingDeductions(
 export function mergePartnerBillingDeductions(
   sourceRows: PartnerBillingDeductionRow[],
   calculationRows: PartnerBillingDeductionRow[],
+  options?: { sourceLoaded?: boolean },
 ): PartnerBillingDeductionRow[] {
+  if (options?.sourceLoaded) return sourceRows;
   if (sourceRows.length > 0) return sourceRows;
   return calculationRows;
+}
+
+/** Rajaa vähennykset näkyviin raportteihin (laskutettava kumppani), ei vähennyskumppaniin. */
+export function filterPartnerDeductionsByReportIds(
+  deductions: PartnerBillingDeductionRow[],
+  reportIds: ReadonlySet<string> | null,
+): PartnerBillingDeductionRow[] {
+  if (!reportIds) return deductions;
+  return deductions.filter((row) => reportIds.has(row.reportId));
 }
 
 export function collectRefrigerantBillingPurchases(

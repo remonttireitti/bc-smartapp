@@ -54,6 +54,7 @@ import { ensurePartnerBillableCalculated } from '../lib/workReportPartnerBilling
 import { warehouseDeductionTotalsFromCalculation } from '../lib/workReportBilling';
 import {
   collectPartnerBillingDeductions,
+  filterPartnerDeductionsByReportIds,
   loadPartnerBillingDeductionsFromSource,
   mergePartnerBillingDeductions,
   type PartnerBillingDeductionRow,
@@ -169,6 +170,7 @@ export default function BillingPage({ session }: Props) {
   const [refrigerantPurchaseFilter, setRefrigerantPurchaseFilter] = useState<RefrigerantPurchaseFilter>('open');
   const [partnerOptions, setPartnerOptions] = useState<Array<{ id: string; name: string }>>([]);
   const [sourcePartnerDeductions, setSourcePartnerDeductions] = useState<PartnerBillingDeductionRow[]>([]);
+  const [sourcePartnerDeductionsLoaded, setSourcePartnerDeductionsLoaded] = useState(false);
   const [summaryPeriod, setSummaryPeriod] = useState<SummaryPeriod>('this_month');
 
   useEffect(() => {
@@ -237,6 +239,7 @@ export default function BillingPage({ session }: Props) {
     if (!profile?.company_id) return;
     if (mode === 'customer') {
       setSourcePartnerDeductions([]);
+      setSourcePartnerDeductionsLoaded(false);
       return;
     }
     try {
@@ -246,8 +249,10 @@ export default function BillingPage({ session }: Props) {
         profile.company_id,
       );
       setSourcePartnerDeductions(deductions);
+      setSourcePartnerDeductionsLoaded(true);
     } catch (reloadError) {
       console.error('Kumppanivähennysten lataus epäonnistui:', reloadError);
+      setSourcePartnerDeductionsLoaded(false);
     }
   }
 
@@ -339,6 +344,7 @@ export default function BillingPage({ session }: Props) {
     setError(null);
     setRecalcState(null);
     setRecalculatingIds(new Set());
+    setSourcePartnerDeductionsLoaded(false);
 
     const [enabled, customerEnabled, partnerAvailable] = await Promise.all([
       companyHasBillableBilling(supabase, profile.company_id),
@@ -441,6 +447,7 @@ export default function BillingPage({ session }: Props) {
       const allDeductions = mergePartnerBillingDeductions(
         sourcePartnerDeductions,
         collectPartnerBillingDeductions(rows, profile.company_id),
+        { sourceLoaded: sourcePartnerDeductionsLoaded },
       );
       for (const deduction of allDeductions) {
         if (!deduction.deductionPartnerId) continue;
@@ -456,7 +463,7 @@ export default function BillingPage({ session }: Props) {
     return [...map.entries()]
       .map(([id, { name, count }]) => ({ id, name, count }))
       .sort((a, b) => a.name.localeCompare(b.name, 'fi'));
-  }, [partnerOptions, rows, billingMode, profile?.company_id, sourcePartnerDeductions]);
+  }, [partnerOptions, rows, billingMode, profile?.company_id, sourcePartnerDeductions, sourcePartnerDeductionsLoaded]);
 
   const customers = useMemo(() => {
     if (billingMode !== 'customer') return [];
@@ -482,19 +489,33 @@ export default function BillingPage({ session }: Props) {
         ? customerBillingEnabled !== false
         : partnerBillingAvailable !== false);
 
+  const partnerDeductionReportIds = useMemo(() => {
+    if (!partnerFilter || billingMode === 'customer' || !profile?.company_id) return null;
+    return new Set(
+      rows
+        .filter((row) => billToPartnerId(row, profile.company_id) === partnerFilter)
+        .map((row) => row.id),
+    );
+  }, [rows, partnerFilter, billingMode, profile?.company_id]);
+
   const partnerDeductions = useMemo(() => {
     if (!profile?.company_id) return [];
     if (billingMode === 'customer') return [];
-    const calculationRows = collectPartnerBillingDeductions(
-      rows,
-      profile.company_id,
-      partnerFilter || null,
+    const calculationRows = collectPartnerBillingDeductions(rows, profile.company_id);
+    const merged = mergePartnerBillingDeductions(
+      sourcePartnerDeductions,
+      calculationRows,
+      { sourceLoaded: sourcePartnerDeductionsLoaded },
     );
-    const sourceRows = partnerFilter
-      ? sourcePartnerDeductions.filter((row) => row.deductionPartnerId === partnerFilter)
-      : sourcePartnerDeductions;
-    return mergePartnerBillingDeductions(sourceRows, calculationRows);
-  }, [rows, profile?.company_id, billingMode, partnerFilter, sourcePartnerDeductions]);
+    return filterPartnerDeductionsByReportIds(merged, partnerDeductionReportIds);
+  }, [
+    rows,
+    profile?.company_id,
+    billingMode,
+    partnerDeductionReportIds,
+    sourcePartnerDeductions,
+    sourcePartnerDeductionsLoaded,
+  ]);
 
   const filteredRows = useMemo(() => {
     const query = search.trim().toLowerCase();
