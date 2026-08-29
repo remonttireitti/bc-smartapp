@@ -4,10 +4,8 @@ import {
   buildRefrigerantPurchaseSaleRows,
   filterPurchaseSaleRowsForViewer,
   formatRefrigerantOwnershipLabel,
-  lineBelongsToWarehouseCompany,
   type RefrigerantPurchaseSaleRow,
 } from './refrigerantPurchaseSaleList';
-import { refrigerantIncludedInCustomerBilling } from './refrigerantInventory';
 import {
   REFRIGERANT_MOVEMENT_TYPE_LABELS,
   type RefrigerantMovementType,
@@ -53,6 +51,7 @@ type RawBillingLine = {
   work_report_id: string;
   cylinder_id: string | null;
   source: RefrigerantSource;
+  supplier_name: string | null;
   supplier_paid_by: string | null;
   bill_to_customer: boolean;
   warehouse_company_id: string | null;
@@ -138,6 +137,18 @@ export function purchaseSaleRowAffectsWarehouseBalance(row: RefrigerantPurchaseS
   return row.kind === 'sale' && row.source === 'warehouse';
 }
 
+/**
+ * Varaston historiassa näytetään varastoliikkeet (kirjaukset) ja tukkurin osto/myynti.
+ * Kumppanin laskutusmyynti (Myynti varastopulosta) ei kuulu varastonomistajan historiaan:
+ * varasto vähenee jo käyttö-kirjauksessa, eikä kevytyrittäjän myynti
+ * omalle asiakkaalleen ole varaston omistajan asia.
+ */
+export function filterPurchaseSaleRowsForWarehouseHistory(
+  rows: RefrigerantPurchaseSaleRow[],
+): RefrigerantPurchaseSaleRow[] {
+  return rows.filter((row) => row.source === 'supplier');
+}
+
 export type RefrigerantHistoryBalanceSummary = {
   refrigerant_type: string;
   in_kg: number;
@@ -216,20 +227,6 @@ function normalizeHistoryTitle(title: string | null | undefined): string | null 
   return normalized;
 }
 
-function isWarehouseStockSource(source: RefrigerantSource): boolean {
-  return source === 'warehouse' || source === 'partner_warehouse';
-}
-
-function stockLineWorkUseKey(
-  workReportId: string | null,
-  cylinderId: string | null,
-  qtyKg: number,
-  refrigerantType: string,
-): string | null {
-  if (!workReportId || !cylinderId) return null;
-  return `stock|${workReportId}|${cylinderId}|${roundQtyKg(qtyKg)}|${normalizeRefrigerantTypeForKey(refrigerantType)}`;
-}
-
 function workUseTitleDedupKey(
   workReportTitle: string | null | undefined,
   qtyKg: number,
@@ -240,19 +237,6 @@ function workUseTitleDedupKey(
   return `title|${title}|${roundQtyKg(qtyKg)}|${normalizeRefrigerantTypeForKey(refrigerantType)}`;
 }
 
-function workUseSerialDedupKey(
-  serialNumber: string | null | undefined,
-  qtyKg: number,
-  refrigerantType: string,
-  eventDate: string | null | undefined,
-): string | null {
-  const serial = serialNumber?.trim();
-  if (!serial || serial === '—') return null;
-  const date = eventDate?.trim().slice(0, 10);
-  if (!date) return null;
-  return `serial|${serial}|${date}|${roundQtyKg(qtyKg)}|${normalizeRefrigerantTypeForKey(refrigerantType)}`;
-}
-
 function workUseSerialQtyTypeKey(
   serialNumber: string | null | undefined,
   qtyKg: number,
@@ -261,80 +245,6 @@ function workUseSerialQtyTypeKey(
   const serial = serialNumber?.trim();
   if (!serial || serial === '—') return null;
   return `serialqty|${serial}|${roundQtyKg(qtyKg)}|${normalizeRefrigerantTypeForKey(refrigerantType)}`;
-}
-
-function collectBillingLineWorkUseKeys(line: RawBillingLine): string[] {
-  const keys = new Set<string>();
-  const qty = Number(line.qty_kg) || 0;
-  const type = line.refrigerant_type;
-  const workReport = line.work_report;
-  const cylinder = unwrapOne(line.cylinder);
-
-  const stock = stockLineWorkUseKey(line.work_report_id, line.cylinder_id, qty, type);
-  if (stock) keys.add(stock);
-
-  const base = workUseDedupBaseKey(line.work_report_id, qty, type);
-  if (base) keys.add(base);
-
-  const title = workUseTitleDedupKey(workReport?.title ?? null, qty, type);
-  if (title) keys.add(title);
-
-  const serial = workUseSerialDedupKey(cylinder?.serial_number ?? null, qty, type, unwrapOne(line.daily_log)?.log_date);
-  if (serial) keys.add(serial);
-
-  const serialQty = workUseSerialQtyTypeKey(cylinder?.serial_number ?? null, qty, type);
-  if (serialQty) keys.add(serialQty);
-
-  return [...keys];
-}
-
-function collectSaleWorkUseDedupKeys(row: RefrigerantPurchaseSaleRow): string[] {
-  const keys = new Set<string>();
-  const qty = Number(row.qty_kg) || 0;
-  const type = row.refrigerant_type;
-
-  const base = workUseDedupBaseKey(row.work_report_id, qty, type);
-  if (base) keys.add(base);
-
-  const title = workUseTitleDedupKey(row.work_report_title, qty, type);
-  if (title) keys.add(title);
-
-  const serial = workUseSerialDedupKey(row.serial_number, qty, type, row.date);
-  if (serial) keys.add(serial);
-
-  const serialQty = workUseSerialQtyTypeKey(row.serial_number, qty, type);
-  if (serialQty) keys.add(serialQty);
-
-  return [...keys];
-}
-
-function collectMovementWorkUseDedupKeys(movement: RawMovement): string[] {
-  const keys = new Set<string>();
-  const qty = Number(movement.qty_kg) || 0;
-  const type = movement.refrigerant_type ?? '';
-  const workReport = unwrapOne(movement.work_report);
-
-  const stock = stockLineWorkUseKey(movement.work_report_id, movement.cylinder_id, qty, type);
-  if (stock) keys.add(stock);
-
-  const base = workUseDedupBaseKey(movement.work_report_id, qty, type);
-  if (base) keys.add(base);
-
-  const title = workUseTitleDedupKey(workReport?.title ?? null, qty, type);
-  if (title) keys.add(title);
-
-  const serial = workUseSerialDedupKey(
-    movement.serial_number,
-    qty,
-    type,
-    movement.created_at,
-  );
-  if (serial) keys.add(serial);
-
-  const serialQty = workUseSerialQtyTypeKey(movement.serial_number, qty, type);
-  if (serialQty) keys.add(serialQty);
-
-  return [...keys];
 }
 
 function collectHistoryRowMatchKeys(row: RefrigerantInventoryHistoryRow): string[] {
@@ -348,42 +258,13 @@ function collectHistoryRowMatchKeys(row: RefrigerantInventoryHistoryRow): string
   const title = workUseTitleDedupKey(row.work_report_title, qty, type);
   if (title) keys.add(title);
 
-  const serial = workUseSerialDedupKey(row.serial_number, qty, type, row.at);
-  if (serial) keys.add(serial);
-
   const serialQty = workUseSerialQtyTypeKey(row.serial_number, qty, type);
   if (serialQty) keys.add(serialQty);
 
   return [...keys];
 }
 
-function buildBillingStockLineIndex(
-  lines: RawBillingLine[],
-  companyId: string,
-): Map<string, string> {
-  const index = new Map<string, string>();
-
-  for (const line of lines) {
-    if (!lineBelongsToWarehouseCompany(line, companyId)) continue;
-    if (!isWarehouseStockSource(line.source)) continue;
-    if (
-      !refrigerantIncludedInCustomerBilling({
-        source: line.source,
-        supplier_paid_by: line.supplier_paid_by as 'own' | 'partner' | null,
-        bill_to_customer: line.bill_to_customer,
-      })
-    ) {
-      continue;
-    }
-
-    for (const key of collectBillingLineWorkUseKeys(line)) {
-      index.set(key, line.id);
-    }
-  }
-
-  return index;
-}
-
+/** Poista laskutusmyynti, jos sama erä näkyy jo varaston käyttönä. */
 export function collapseHistorySaleWorkUseDuplicates(
   rows: RefrigerantInventoryHistoryRow[],
 ): RefrigerantInventoryHistoryRow[] {
@@ -391,36 +272,23 @@ export function collapseHistorySaleWorkUseDuplicates(
   const useRows = rows.filter((row) => row.eventLabel === 'Käyttö työkohteella');
   if (saleRows.length === 0 || useRows.length === 0) return rows;
 
-  const saleByKey = new Map<string, RefrigerantInventoryHistoryRow>();
-  for (const sale of saleRows) {
-    for (const key of collectHistoryRowMatchKeys(sale)) {
-      saleByKey.set(key, sale);
+  const useByKey = new Map<string, RefrigerantInventoryHistoryRow>();
+  for (const useRow of useRows) {
+    for (const key of collectHistoryRowMatchKeys(useRow)) {
+      useByKey.set(key, useRow);
     }
   }
 
   const dropIds = new Set<string>();
-  const balanceSaleIds = new Set<string>();
-
-  for (const useRow of useRows) {
-    const matchKeys = collectHistoryRowMatchKeys(useRow);
-    const matchedSale = matchKeys.map((key) => saleByKey.get(key)).find((sale) => sale != null);
-    if (!matchedSale) continue;
-
-    dropIds.add(useRow.id);
-    if (!matchedSale.affects_warehouse_balance && useRow.affects_warehouse_balance) {
-      balanceSaleIds.add(matchedSale.id);
+  for (const sale of saleRows) {
+    const matchKeys = collectHistoryRowMatchKeys(sale);
+    if (matchKeys.some((key) => useByKey.has(key))) {
+      dropIds.add(sale.id);
     }
   }
 
   if (dropIds.size === 0) return rows;
-
-  return rows
-    .filter((row) => !dropIds.has(row.id))
-    .map((row) =>
-      balanceSaleIds.has(row.id)
-        ? { ...row, affects_warehouse_balance: true }
-        : row,
-    );
+  return rows.filter((row) => !dropIds.has(row.id));
 }
 
 function movementToHistoryRow(movement: RawMovement): RefrigerantInventoryHistoryRow | null {
@@ -450,10 +318,7 @@ function movementToHistoryRow(movement: RawMovement): RefrigerantInventoryHistor
   };
 }
 
-function purchaseSaleToHistoryRow(
-  row: RefrigerantPurchaseSaleRow,
-  replacesWarehouseWorkUse = false,
-): RefrigerantInventoryHistoryRow {
+function purchaseSaleToHistoryRow(row: RefrigerantPurchaseSaleRow): RefrigerantInventoryHistoryRow {
   const eventLabel =
     row.kind === 'purchase' ? PURCHASE_SALE_EVENT_LABELS.purchase : PURCHASE_SALE_EVENT_LABELS.sale;
   return {
@@ -469,64 +334,24 @@ function purchaseSaleToHistoryRow(
     serial_number: row.serial_number,
     ownership: row.ownership,
     source_label: row.source_label,
-    affects_warehouse_balance:
-      replacesWarehouseWorkUse || purchaseSaleRowAffectsWarehouseBalance(row),
+    affects_warehouse_balance: purchaseSaleRowAffectsWarehouseBalance(row),
   };
 }
 
 export function mergeRefrigerantInventoryHistoryRows(
   movements: RawMovement[],
   purchaseSaleRows: RefrigerantPurchaseSaleRow[],
-  billingLines: RawBillingLine[] = [],
-  companyId = '',
 ): RefrigerantInventoryHistoryRow[] {
   const rows: RefrigerantInventoryHistoryRow[] = [];
-  const saleRows = purchaseSaleRows.filter((row) => row.kind === 'sale');
-  const saleDedupKeys = new Map<string, string[]>(
-    saleRows.map((row) => [row.id, collectSaleWorkUseDedupKeys(row)]),
-  );
-  const billedWorkUseKeys = new Set<string>([
-    ...saleRows.flatMap((row) => collectSaleWorkUseDedupKeys(row)),
-    ...billingLines.flatMap((line) => collectBillingLineWorkUseKeys(line)),
-  ]);
-  const billingLineIndex = companyId ? buildBillingStockLineIndex(billingLines, companyId) : new Map();
-  const replacedSaleIds = new Set<string>();
 
   for (const movement of movements) {
-    if (movement.movement_type === 'work_use') {
-      const movementKeys = collectMovementWorkUseDedupKeys(movement);
-      const matchedSaleIds = new Set<string>();
-
-      for (const key of movementKeys) {
-        const lineId = billingLineIndex.get(key);
-        if (lineId) matchedSaleIds.add(`sale:${lineId}`);
-      }
-
-      if (movementKeys.some((key) => billedWorkUseKeys.has(key))) {
-        for (const [saleId, saleKeys] of saleDedupKeys) {
-          if (movementKeys.some((key) => saleKeys.includes(key))) {
-            matchedSaleIds.add(saleId);
-          }
-        }
-        for (const saleId of matchedSaleIds) {
-          replacedSaleIds.add(saleId);
-        }
-        continue;
-      }
-    }
-
     const row = movementToHistoryRow(movement);
     if (row) rows.push(row);
   }
 
   for (const purchaseSaleRow of purchaseSaleRows) {
     if (purchaseSaleRow.kind === 'retrieve') continue;
-    rows.push(
-      purchaseSaleToHistoryRow(
-        purchaseSaleRow,
-        purchaseSaleRow.kind === 'sale' && replacedSaleIds.has(purchaseSaleRow.id),
-      ),
-    );
+    rows.push(purchaseSaleToHistoryRow(purchaseSaleRow));
   }
 
   return collapseHistorySaleWorkUseDuplicates(rows).sort((a, b) => b.at.localeCompare(a.at));
@@ -562,18 +387,18 @@ export async function loadRefrigerantInventoryHistory(
   if (linesResult.error) throw linesResult.error;
 
   const rawLines = (linesResult.data as unknown as RawBillingLine[]) ?? [];
-  const purchaseSaleRows = filterPurchaseSaleRowsForViewer(
-    buildRefrigerantPurchaseSaleRows(
-      rawLines as unknown as Parameters<typeof buildRefrigerantPurchaseSaleRows>[0],
-      companyId,
+  const purchaseSaleRows = filterPurchaseSaleRowsForWarehouseHistory(
+    filterPurchaseSaleRowsForViewer(
+      buildRefrigerantPurchaseSaleRows(
+        rawLines as unknown as Parameters<typeof buildRefrigerantPurchaseSaleRows>[0],
+        companyId,
+      ),
+      viewerCompanyId,
     ),
-    viewerCompanyId,
   );
 
   return mergeRefrigerantInventoryHistoryRows(
     (movementsResult.data as unknown as RawMovement[]) ?? [],
     purchaseSaleRows,
-    rawLines,
-    companyId,
   );
 }

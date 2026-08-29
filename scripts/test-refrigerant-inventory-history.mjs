@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import {
   collapseHistorySaleWorkUseDuplicates,
   collectRefrigerantHistoryTypes,
+  filterPurchaseSaleRowsForWarehouseHistory,
   filterRefrigerantHistoryByType,
   mergeRefrigerantInventoryHistoryRows,
   purchaseSaleRowAffectsWarehouseBalance,
@@ -24,29 +25,7 @@ const movement = {
   created_at: '2026-08-28T10:30:23.000Z',
   customer: null,
   cylinder: { ownership_type: 'rental' },
-  work_report: { title: 'Sinikalliontie 3' },
-};
-
-const billingLine = {
-  id: 'line-1',
-  work_report_id: 'wr-1',
-  cylinder_id: 'cyl-1',
-  source: 'partner_warehouse',
-  supplier_paid_by: null,
-  bill_to_customer: false,
-  warehouse_company_id: 'company-a',
-  refrigerant_type: 'R-404A',
-  qty_kg: 2,
-  created_at: '2026-08-28T10:00:00.000Z',
-  cylinder: { serial_number: 'V055171', ownership_type: 'rental' },
-  daily_log: { log_date: '2026-08-28' },
-  work_report: {
-    id: 'wr-1',
-    title: 'Sinikalliontie 3 – Kylmiöt lämpönee',
-    owner_company_id: 'company-a',
-    created_by_company_id: 'company-b',
-    customers: { name: 'Sinikalliontie 3' },
-  },
+  work_report: { title: 'Sinikalliontie 3 – Kylmiöt lämpönee' },
 };
 
 const saleRow = {
@@ -54,8 +33,8 @@ const saleRow = {
   kind: 'sale',
   date: '2026-08-28',
   work_report_id: 'wr-1',
-  work_report_title: 'Sinikalliontie 3',
-  customer_name: 'Testi Oy',
+  work_report_title: 'Sinikalliontie 3 – Kylmiöt lämpönee',
+  customer_name: 'Sinikalliontie 3',
   refrigerant_type: 'R-404A',
   qty_kg: 2,
   serial_number: 'V055171',
@@ -66,69 +45,20 @@ const saleRow = {
   created_by_company_id: 'company-b',
 };
 
-const deduped = mergeRefrigerantInventoryHistoryRows([movement], [saleRow], [billingLine], 'company-a');
-assert.equal(deduped.length, 1);
-assert.equal(deduped[0].eventLabel, 'Myynti');
-assert.equal(deduped[0].direction, 'out');
-assert.equal(deduped[0].affects_warehouse_balance, true);
+assert.deepEqual(filterPurchaseSaleRowsForWarehouseHistory([saleRow]), []);
 
-const serialMismatchSale = {
-  ...saleRow,
-  serial_number: '—',
-};
+const warehouseHistory = mergeRefrigerantInventoryHistoryRows([movement], [saleRow]);
+assert.equal(warehouseHistory.length, 1);
+assert.equal(warehouseHistory[0].eventLabel, 'Käyttö työkohteella');
+assert.equal(warehouseHistory[0].direction, 'out');
+assert.equal(warehouseHistory[0].affects_warehouse_balance, true);
 
-const serialMismatchDeduped = mergeRefrigerantInventoryHistoryRows(
+const filteredRows = mergeRefrigerantInventoryHistoryRows(
   [movement],
-  [serialMismatchSale],
-  [billingLine],
-  'company-a',
+  filterPurchaseSaleRowsForWarehouseHistory([saleRow]),
 );
-assert.equal(serialMismatchDeduped.length, 1);
-assert.equal(serialMismatchDeduped[0].eventLabel, 'Myynti');
-assert.equal(serialMismatchDeduped[0].affects_warehouse_balance, true);
-
-const duplicateWorkUse = mergeRefrigerantInventoryHistoryRows(
-  [
-    movement,
-    {
-      ...movement,
-      id: 'm-1b',
-      created_at: '2026-08-28T10:31:00.000Z',
-    },
-  ],
-  [saleRow],
-  [billingLine],
-  'company-a',
-);
-assert.equal(duplicateWorkUse.length, 1);
-assert.equal(duplicateWorkUse[0].eventLabel, 'Myynti');
-
-const titleMatchedMovement = {
-  ...movement,
-  id: 'm-title',
-  work_report_id: null,
-  cylinder_id: 'cyl-1',
-  created_at: '2026-08-28T10:30:23.000Z',
-  work_report: { title: 'Sinikalliontie 3 - Kylmiot lamponee' },
-};
-
-const titleMatchedSale = {
-  ...saleRow,
-  id: 'sale:title',
-  work_report_id: 'wr-different',
-  work_report_title: 'Sinikalliontie 3 – Kylmiöt lämpönee',
-  date: '2026-08-28',
-};
-
-const titleMatched = mergeRefrigerantInventoryHistoryRows(
-  [titleMatchedMovement],
-  [titleMatchedSale],
-  [billingLine],
-  'company-a',
-);
-assert.equal(titleMatched.length, 1);
-assert.equal(titleMatched[0].eventLabel, 'Myynti');
-assert.equal(titleMatched[0].affects_warehouse_balance, true);
+assert.equal(filteredRows.length, 1);
+assert.equal(filteredRows[0].eventLabel, 'Käyttö työkohteella');
 
 const collapseOnly = collapseHistorySaleWorkUseDuplicates([
   {
@@ -163,8 +93,7 @@ const collapseOnly = collapseHistorySaleWorkUseDuplicates([
   },
 ]);
 assert.equal(collapseOnly.length, 1);
-assert.equal(collapseOnly[0].eventLabel, 'Myynti');
-assert.equal(collapseOnly[0].affects_warehouse_balance, true);
+assert.equal(collapseOnly[0].eventLabel, 'Käyttö työkohteella');
 
 const purchaseMovement = {
   ...movement,
@@ -201,7 +130,7 @@ const retrieveRow = {
 
 const merged = mergeRefrigerantInventoryHistoryRows(
   [purchaseMovement, retrieveMovement],
-  [retrieveRow],
+  filterPurchaseSaleRowsForWarehouseHistory([retrieveRow]),
 );
 assert.equal(merged.length, 2);
 assert.ok(merged.some((row) => row.eventLabel === 'Osto / varastoon' && row.direction === 'in'));
@@ -239,7 +168,10 @@ const supplierSale = {
 assert.equal(purchaseSaleRowAffectsWarehouseBalance(supplierPurchase), false);
 assert.equal(purchaseSaleRowAffectsWarehouseBalance(supplierSale), false);
 
-const passThroughHistory = mergeRefrigerantInventoryHistoryRows([], [supplierPurchase, supplierSale]);
+const supplierRows = filterPurchaseSaleRowsForWarehouseHistory([supplierPurchase, supplierSale]);
+assert.equal(supplierRows.length, 2);
+
+const passThroughHistory = mergeRefrigerantInventoryHistoryRows([], supplierRows);
 assert.equal(passThroughHistory.length, 2);
 assert.ok(passThroughHistory.every((row) => row.affects_warehouse_balance === false));
 
@@ -249,5 +181,12 @@ assert.ok(r410Balance);
 assert.equal(r410Balance.in_kg, 10);
 assert.equal(r410Balance.out_kg, 0);
 assert.equal(r410Balance.net_kg, 10);
+
+const partnerSaleAndUse = mergeRefrigerantInventoryHistoryRows(
+  [movement, { ...movement, id: 'm-1b', created_at: '2026-08-28T10:31:00.000Z' }],
+  filterPurchaseSaleRowsForWarehouseHistory([saleRow]),
+);
+assert.equal(partnerSaleAndUse.length, 2);
+assert.ok(partnerSaleAndUse.every((row) => row.eventLabel === 'Käyttö työkohteella'));
 
 console.log('test-refrigerant-inventory-history: ok');

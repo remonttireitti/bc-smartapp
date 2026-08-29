@@ -1040,7 +1040,8 @@ export default function RefrigerantInventorySection({
         <section className="panel inventory-report-panel">
           <h2>Historia</h2>
           <p className="muted">
-            Kaikki varastoon tulleet ja lähteneet erät: osto, myynti, käyttö työkohteella, talteenotto ja poisto.
+            Varaston fyysiset liikkeet (osto, käyttö, talteenotto, poisto) ja tukkurin osto/myynti työmaalla.
+            Kumppanin laskutusmyynti omalle asiakkaalle ei näy tässä — varasto vähenee käyttö-kirjauksessa.
           </p>
           <div className="inventory-report-dates">
             <label>
