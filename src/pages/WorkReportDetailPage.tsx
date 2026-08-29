@@ -65,7 +65,8 @@ import {
   canAssignDelegatedWorkOrder,
 } from '../lib/workReportDelegation';
 import DailyLogRefrigerantFields from '../components/inventory/DailyLogRefrigerantFields';
-import ExpenseWarehouseDeductionPanel from '../components/inventory/ExpenseWarehouseDeductionPanel';
+import DailyLogPartnerPurchaseFields from '../components/inventory/DailyLogPartnerPurchaseFields';
+import PartnerPurchaseDeductionPanel from '../components/inventory/PartnerPurchaseDeductionPanel';
 import RefrigerantWarehouseDeductionPanel from '../components/inventory/RefrigerantWarehouseDeductionPanel';
 import DailyLogTripLegFields from '../components/DailyLogTripLegFields';
 import {
@@ -87,10 +88,12 @@ import {
   type RefrigerantLineDraft,
 } from '../lib/refrigerantInventory';
 import { isRefrigerantWarehouseCostLine } from '../lib/refrigerantPassThrough';
+import { isPartnerPurchaseOwedToViewer, partnerCompanyOptionsForReport } from '../lib/partnerPurchaseDeduction';
 import {
-  isExpenseWarehouseCostLine,
-  warehouseCompanyOptionsForReport,
-} from '../lib/expenseWarehouseDeduction';
+  partnerPurchasesToDrafts,
+  savePartnerPurchaseLines,
+  type PartnerPurchaseLineDraft,
+} from '../lib/partnerPurchaseLines';
 import {
   BILLABLE_RATES_SOURCE_LABELS,
   hasPartnerBillingRates,
@@ -159,7 +162,6 @@ import { loadTripDestinationOptions, type TripDestinationOption } from '../lib/t
 import {
   fetchWorkReportDetailLogs,
   isMissingBillToPartnerColumn,
-  isMissingWarehouseExpenseColumn,
 } from '../lib/workReportDailyLogSelect';
 import {
   applyExpenseBillingMode,
@@ -239,8 +241,6 @@ type ExpenseDraft = {
   bill_to_customer: boolean;
   customer_unit_price: string;
   partner_expense_margin_percent: string;
-  warehouse_company_id: string;
-  warehouse_cost_deducted?: boolean;
 };
 
 const REPORT_SELECT = `
@@ -272,7 +272,6 @@ function emptyExpense(): ExpenseDraft {
     bill_to_customer: true,
     customer_unit_price: '',
     partner_expense_margin_percent: String(DEFAULT_PARTNER_EXPENSE_MARGIN_PERCENT),
-    warehouse_company_id: '',
   };
 }
 
@@ -399,8 +398,6 @@ function expensesToDrafts(lines: WorkReportDailyLog['expense_lines']): ExpenseDr
       customer_unit_price:
         customerPrice != null && customerPrice > 0 ? String(customerPrice) : '',
       partner_expense_margin_percent: String(margin),
-      warehouse_company_id: line.warehouse_company_id ?? '',
-      warehouse_cost_deducted: line.warehouse_cost_deducted,
     };
   });
 }
@@ -533,7 +530,6 @@ function DailyLogFields({
   showCustomerHourlyRate,
   showPartnerExpenseFields,
   showCustomerExpenseFields,
-  warehouseCompanyOptions,
   defaultHourlyRate,
   defaultCustomerHourlyRate,
 }: {
@@ -545,7 +541,6 @@ function DailyLogFields({
   showCustomerHourlyRate?: boolean;
   showPartnerExpenseFields?: boolean;
   showCustomerExpenseFields?: boolean;
-  warehouseCompanyOptions?: { id: string; name: string }[];
   defaultHourlyRate?: number | null;
   defaultCustomerHourlyRate?: number | null;
 }) {
@@ -930,27 +925,13 @@ function DailyLogFields({
                       <select
                         value={row.expense_type}
                         disabled={autoTripKm}
-                        onChange={(e) => {
-                          const nextType = e.target.value;
-                          const defaultWarehouseId =
-                            nextType === 'warehouse_purchase'
-                              ? (warehouseCompanyOptions?.[0]?.id ?? '')
-                              : '';
+                        onChange={(e) =>
                           setExpenseDrafts(
                             expenseDrafts.map((r, i) =>
-                              i === index
-                                ? {
-                                    ...r,
-                                    expense_type: nextType,
-                                    warehouse_company_id:
-                                      nextType === 'warehouse_purchase'
-                                        ? r.warehouse_company_id || defaultWarehouseId
-                                        : '',
-                                  }
-                                : r,
+                              i === index ? { ...r, expense_type: e.target.value } : r,
                             ),
-                          );
-                        }}
+                          )
+                        }
                       >
                         <option value="">Valitse tyyppi…</option>
                         {EXPENSE_TYPE_OPTIONS.map((opt) => (
@@ -960,29 +941,6 @@ function DailyLogFields({
                         ))}
                       </select>
                     </label>
-                    {row.expense_type === 'warehouse_purchase' && (warehouseCompanyOptions?.length ?? 0) > 0 ? (
-                      <label>
-                        Varasto (kumppani)
-                        <select
-                          value={row.warehouse_company_id}
-                          onChange={(e) =>
-                            setExpenseDrafts(
-                              expenseDrafts.map((r, i) =>
-                                i === index ? { ...r, warehouse_company_id: e.target.value } : r,
-                              ),
-                            )
-                          }
-                          required
-                        >
-                          <option value="">Valitse varasto…</option>
-                          {warehouseCompanyOptions?.map((option) => (
-                            <option key={option.id} value={option.id}>
-                              {option.name}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                    ) : null}
                     <label>
                       Kuvaus
                       <input
@@ -1257,14 +1215,10 @@ async function saveExpenseLines(
     (row) => row.description.trim() && (row.expense_type || isAutoTripKmExpense(row)),
   );
   if (validExpenses.length === 0) return null;
-  const buildRows = (includeBillToPartner: boolean, includeWarehouse: boolean) =>
+  const buildRows = (includeBillToPartner: boolean) =>
     validExpenses.map((row, index) => {
       const customerPriceRaw = String(row.customer_unit_price ?? '').trim();
       const customerUnitPrice = customerPriceRaw ? Number(customerPriceRaw) : null;
-      const warehouseCompanyId =
-        row.expense_type === 'warehouse_purchase' && row.warehouse_company_id
-          ? row.warehouse_company_id
-          : null;
       return {
         daily_log_id: dailyLogId,
         expense_type: row.expense_type || 'other',
@@ -1281,25 +1235,13 @@ async function saveExpenseLines(
                   : null,
             }
           : {}),
-        ...(includeWarehouse
-          ? {
-              warehouse_company_id: warehouseCompanyId,
-              warehouse_cost_deducted: row.warehouse_cost_deducted ?? false,
-            }
-          : {}),
         sort_order: index,
       };
     });
 
-  let { error } = await supabase.from('work_report_daily_expense_lines').insert(buildRows(true, true));
-  if (error && isMissingWarehouseExpenseColumn(error)) {
-    ({ error } = await supabase.from('work_report_daily_expense_lines').insert(buildRows(true, false)));
-  }
+  let { error } = await supabase.from('work_report_daily_expense_lines').insert(buildRows(true));
   if (error && isMissingBillToPartnerColumn(error)) {
-    ({ error } = await supabase.from('work_report_daily_expense_lines').insert(buildRows(false, true)));
-    if (error && isMissingWarehouseExpenseColumn(error)) {
-      ({ error } = await supabase.from('work_report_daily_expense_lines').insert(buildRows(false, false)));
-    }
+    ({ error } = await supabase.from('work_report_daily_expense_lines').insert(buildRows(false)));
   }
   return error;
 }
@@ -1346,6 +1288,7 @@ export default function WorkReportDetailPage({ session }: Props) {
   const [tripKmCustomerRate, setTripKmCustomerRate] = useState<number | null>(null);
   const [refrigerantDeductionBusyId, setRefrigerantDeductionBusyId] = useState<string | null>(null);
   const [refrigerantDrafts, setRefrigerantDrafts] = useState<RefrigerantLineDraft[]>([]);
+  const [partnerPurchaseDrafts, setPartnerPurchaseDrafts] = useState<PartnerPurchaseLineDraft[]>([]);
   const [refrigerantCylinders, setRefrigerantCylinders] = useState<RefrigerantCylinder[]>([]);
   const [refrigerantCompanyUsers, setRefrigerantCompanyUsers] = useState<
     { id: string; display_name: string | null; email: string | null; company_id?: string }[]
@@ -1855,16 +1798,18 @@ export default function WorkReportDetailPage({ session }: Props) {
     );
   }, [dailyLogs, profile?.company_id]);
 
-  const showWarehouseExpenseDeductions = useMemo(() => {
+  const showPartnerPurchaseDeductions = useMemo(() => {
     if (!profile?.company_id) return false;
     return dailyLogs.some((log) =>
-      (log.expense_lines ?? []).some((line) => isExpenseWarehouseCostLine(line, profile.company_id)),
+      (log.partner_purchase_lines ?? []).some((line) =>
+        isPartnerPurchaseOwedToViewer(line, profile.company_id),
+      ),
     );
   }, [dailyLogs, profile?.company_id]);
 
-  const expenseWarehouseCompanyOptions = useMemo(() => {
+  const partnerPurchaseCompanyOptions = useMemo(() => {
     if (!report) return [];
-    return warehouseCompanyOptionsForReport(report, profile?.company_id);
+    return partnerCompanyOptionsForReport(report, profile?.company_id);
   }, [report, profile?.company_id]);
 
   const reportOwnerTargets = useMemo(() => {
@@ -2180,6 +2125,25 @@ export default function WorkReportDetailPage({ session }: Props) {
     }
   }
 
+  async function saveDailyLogPartnerPurchases(
+    dailyLogId: string,
+    previousLines?: WorkReportDailyLog['partner_purchase_lines'],
+  ) {
+    if (!report) return null;
+    try {
+      await savePartnerPurchaseLines(supabase, {
+        dailyLogId,
+        workReportId: report.id,
+        userId: session.user.id,
+        drafts: partnerPurchaseDrafts,
+        previousLines,
+      });
+      return null;
+    } catch (err) {
+      return err instanceof Error ? err : new Error('Työkalu/varaosa-oston tallennus epäonnistui.');
+    }
+  }
+
   async function persistBillingAfterLogChange(reportRow: WorkReport) {
     const isDelegatedOrder =
       !!reportRow.delegate_company_id && reportRow.created_by_company_id === reportRow.owner_company_id;
@@ -2218,12 +2182,12 @@ export default function WorkReportDetailPage({ session }: Props) {
     await persistBillingAfterLogChange(report);
   }
 
-  async function toggleExpenseWarehouseDeduction(lineId: string, deducted: boolean) {
+  async function togglePartnerPurchaseDeduction(lineId: string, deducted: boolean) {
     if (!report) return;
     setRefrigerantDeductionBusyId(lineId);
     const { error } = await supabase
-      .from('work_report_daily_expense_lines')
-      .update({ warehouse_cost_deducted: deducted })
+      .from('work_report_partner_purchase_lines')
+      .update({ cost_deducted: deducted })
       .eq('id', lineId);
     setRefrigerantDeductionBusyId(null);
     if (error) {
@@ -2323,6 +2287,18 @@ export default function WorkReportDetailPage({ session }: Props) {
         variant: 'warning',
         title: 'Osittain tallennettu',
         message: `Työkirjaus tallennettiin, mutta kylmäaine jäi tallentamatta: ${refrigerantError.message} Korjaa rivit ja tallenna uudelleen (muokkaa työkirjausta).`,
+      });
+      await load(report.id);
+      return;
+    }
+
+    const partnerPurchaseError = await saveDailyLogPartnerPurchases(logRow.id);
+    if (partnerPurchaseError) {
+      setLogDialogBusy(false);
+      setDailyLogNotice({
+        variant: 'warning',
+        title: 'Osittain tallennettu',
+        message: `Työkirjaus tallennettiin, mutta työkalu/varaosa-osto jäi tallentamatta: ${partnerPurchaseError.message} Korjaa rivit ja tallenna uudelleen (muokkaa työkirjausta).`,
       });
       await load(report.id);
       return;
@@ -2457,6 +2433,7 @@ export default function WorkReportDetailPage({ session }: Props) {
     setLogForm(initialLogForm());
     setExpenseDrafts([]);
     setRefrigerantDrafts([]);
+    setPartnerPurchaseDrafts([]);
     setPendingImages([]);
     setError(null);
     setDailyLogNotice(null);
@@ -2480,6 +2457,7 @@ export default function WorkReportDetailPage({ session }: Props) {
     setLogForm(logToForm(log));
     setExpenseDrafts(expensesToDrafts(log.expense_lines));
     setRefrigerantDrafts(drafts);
+    setPartnerPurchaseDrafts(partnerPurchasesToDrafts(log.partner_purchase_lines));
     setPendingImages([]);
     setError(null);
     setDailyLogNotice(null);
@@ -2507,6 +2485,7 @@ export default function WorkReportDetailPage({ session }: Props) {
     setTripKmRate(null);
     setTripKmCustomerRate(null);
     setRefrigerantDrafts([]);
+    setPartnerPurchaseDrafts([]);
     setPendingImages([]);
     setError(null);
     setDailyLogNotice(null);
@@ -2591,6 +2570,18 @@ export default function WorkReportDetailPage({ session }: Props) {
       setLogDialogBusy(false);
       setDailyLogNotice(
         dailyLogNoticeFromError(refrigerantError.message, 'Kylmäaineen tallennus epäonnistui'),
+      );
+      return;
+    }
+
+    const partnerPurchaseError = await saveDailyLogPartnerPurchases(
+      editingLogId,
+      editingLog?.partner_purchase_lines,
+    );
+    if (partnerPurchaseError) {
+      setLogDialogBusy(false);
+      setDailyLogNotice(
+        dailyLogNoticeFromError(partnerPurchaseError.message, 'Työkalu/varaosa-oston tallennus epäonnistui'),
       );
       return;
     }
@@ -3517,10 +3508,10 @@ export default function WorkReportDetailPage({ session }: Props) {
                 onToggle={(lineId, deducted) => void toggleRefrigerantWarehouseDeduction(lineId, deducted)}
               />
             ) : null}
-            {showWarehouseExpenseDeductions && profile?.company_id ? (
-              <ExpenseWarehouseDeductionPanel
+            {showPartnerPurchaseDeductions && profile?.company_id ? (
+              <PartnerPurchaseDeductionPanel
                 logs={dailyLogs}
-                warehouseCompanyId={profile.company_id}
+                partnerCompanyId={profile.company_id}
                 canEdit={(partnerBillingListRow
                   ? canManageIncomingPartnerBilling(
                       partnerBillingListRow,
@@ -3530,7 +3521,7 @@ export default function WorkReportDetailPage({ session }: Props) {
                   : false)
                   || profile.company_id === report.created_by_company_id}
                 busyLineId={refrigerantDeductionBusyId}
-                onToggle={(lineId, deducted) => void toggleExpenseWarehouseDeduction(lineId, deducted)}
+                onToggle={(lineId, deducted) => void togglePartnerPurchaseDeduction(lineId, deducted)}
               />
             ) : null}
             {showOutgoingPartnerBilling ? (
@@ -3741,7 +3732,6 @@ export default function WorkReportDetailPage({ session }: Props) {
           showCustomerHourlyRate={showCustomerBillingFeatures}
           showPartnerExpenseFields={isPartnerReport}
           showCustomerExpenseFields={showCustomerBillingFeatures}
-          warehouseCompanyOptions={expenseWarehouseCompanyOptions}
           defaultHourlyRate={
             billableCalculation?.ratesUsed.hourly_regular
             ?? partnershipRatesPreview.hourly_regular
@@ -3764,6 +3754,11 @@ export default function WorkReportDetailPage({ session }: Props) {
           hasPartnerCompanies={hasPartnerRefrigerantCompanies}
           showCustomerBillingFields={showCustomerBillingFeatures}
           partnerOwnedReport={isPartnerReport}
+        />
+        <DailyLogPartnerPurchaseFields
+          drafts={partnerPurchaseDrafts}
+          setDrafts={setPartnerPurchaseDrafts}
+          partnerOptions={partnerPurchaseCompanyOptions}
         />
         {report && (
           <DailyLogTileSection

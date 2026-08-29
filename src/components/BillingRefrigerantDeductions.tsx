@@ -28,7 +28,7 @@ export default function BillingRefrigerantDeductions({
       {lines.length > 0 ? (
         <ul className="billing-refrigerant-deduction-list">
           {lines.map((line) => {
-            const lineId = line.refrigerantLineId ?? line.expenseLineId;
+            const lineId = line.refrigerantLineId ?? line.partnerPurchaseLineId;
             const isDeducted = line.warehouseDeduction === 'deducted';
             return (
               <li key={lineId ?? `${line.logId}-${line.description}`}>

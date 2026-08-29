@@ -184,6 +184,7 @@ export type WorkReportDailyLog = {
   expense_lines?: DailyExpenseLine[];
   trip_legs?: DailyTripLeg[];
   refrigerant_lines?: import('./inventory').WorkReportRefrigerantLine[];
+  partner_purchase_lines?: import('./partnerPurchase').WorkReportPartnerPurchaseLine[];
   images?: DailyLogImage[];
 };
 
@@ -200,7 +201,6 @@ export const EXPENSE_TYPE_LABELS: Record<string, string> = {
   km: 'KM-korvaus',
   part: 'Varaosa',
   material: 'Tarvike',
-  warehouse_purchase: 'Työkalu/varaosa (varastosta)',
   other: 'Muu kulu',
 };
 

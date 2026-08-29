@@ -42,8 +42,32 @@ export function expenseLinesSelectFragment(includeBillToPartner: boolean, includ
   return `expense_lines:work_report_daily_expense_lines(${fields})`;
 }
 
-export function buildWorkReportDetailLogSelect(includeBillToPartner: boolean, includeWarehouse = true): string {
+export const PARTNER_PURCHASE_LINE_FIELDS =
+  'id, daily_log_id, work_report_id, partner_company_id, supplier_name, description, qty, unit_price, partner_margin_percent, cost_deducted, sort_order, created_by, created_at';
+
+export function isMissingPartnerPurchaseTable(error: PostgrestError | null | undefined): boolean {
+  if (!error?.message) return false;
+  const msg = error.message.toLowerCase();
+  return (
+    msg.includes('work_report_partner_purchase_lines') &&
+    (msg.includes('does not exist') ||
+      msg.includes('could not find') ||
+      msg.includes('schema cache'))
+  );
+}
+
+export function partnerPurchaseLinesSelectFragment(includePartnerPurchases = true): string {
+  if (!includePartnerPurchases) return '';
+  return `partner_purchase_lines:work_report_partner_purchase_lines(${PARTNER_PURCHASE_LINE_FIELDS}, partner_company:companies!work_report_partner_purchase_lines_partner_company_id_fkey(name))`;
+}
+
+export function buildWorkReportDetailLogSelect(
+  includeBillToPartner: boolean,
+  includeWarehouse = true,
+  includePartnerPurchases = true,
+): string {
   const expenseLines = expenseLinesSelectFragment(includeBillToPartner, includeWarehouse);
+  const partnerPurchases = partnerPurchaseLinesSelectFragment(includePartnerPurchases);
   return `
   id, work_report_id, log_date, log_start_time, entry_type,
   hours_regular, hours_overtime, hours_on_call, fixed_price_amount,
@@ -61,7 +85,7 @@ export function buildWorkReportDetailLogSelect(includeBillToPartner: boolean, in
     cylinder:refrigerant_cylinders(serial_number, refrigerant_type, bottle_size, notes),
     warehouse_company:companies!work_report_refrigerant_lines_warehouse_company_id_fkey(name),
     owner_user:profiles!work_report_refrigerant_lines_owner_user_id_fkey(display_name)
-  ),
+  )${partnerPurchases ? `,\n  ${partnerPurchases}` : ''},
   images:work_report_daily_log_images(id, daily_log_id, storage_path, file_name, mime_type, caption)
 `;
 }
@@ -131,18 +155,28 @@ export async function fetchWorkReportDetailLogs(
   error: PostgrestError | null;
   billToPartnerSupported: boolean;
 }> {
-  const run = (includeBillToPartner: boolean, includeWarehouse: boolean) =>
-    queryDailyLogs(supabase, workReportId, buildWorkReportDetailLogSelect(includeBillToPartner, includeWarehouse));
+  const run = (includeBillToPartner: boolean, includeWarehouse: boolean, includePartnerPurchases: boolean) =>
+    queryDailyLogs(
+      supabase,
+      workReportId,
+      buildWorkReportDetailLogSelect(includeBillToPartner, includeWarehouse, includePartnerPurchases),
+    );
 
-  let result = await run(true, true);
+  let result = await run(true, true, true);
+  if (isMissingPartnerPurchaseTable(result.error)) {
+    result = await run(true, true, false);
+  }
   if (isMissingWarehouseExpenseColumn(result.error)) {
-    result = await run(true, false);
+    result = await run(true, false, !isMissingPartnerPurchaseTable(result.error));
+  }
+  if (isMissingPartnerPurchaseTable(result.error)) {
+    result = await run(true, false, false);
   }
   if (isMissingBillToPartnerColumn(result.error)) {
-    result = await run(false, isMissingWarehouseExpenseColumn(result.error) ? false : true);
-    if (isMissingWarehouseExpenseColumn(result.error)) {
-      result = await run(false, false);
-    }
+    result = await run(false, true, true);
+    if (isMissingPartnerPurchaseTable(result.error)) result = await run(false, true, false);
+    if (isMissingWarehouseExpenseColumn(result.error)) result = await run(false, false, true);
+    if (isMissingPartnerPurchaseTable(result.error)) result = await run(false, false, false);
     return {
       logs: (result.data as unknown as WorkReportDailyLog[]) ?? [],
       error: result.error,

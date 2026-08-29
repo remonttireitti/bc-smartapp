@@ -3,11 +3,11 @@ import { resolveDailyLogAuthorLabel } from '../types';
 import type { BillableRatesSource, PartnerBillingRates } from './management';
 import { formatRefrigerantLineLabelForReport, formatRefrigerantWarehouseCostLabel } from './refrigerantInventory';
 import {
-  expenseWarehouseCostUnitPrice,
-  formatExpenseWarehouseCostLabel,
-  isExpenseWarehouseCostLine,
-  isExpenseWarehousePurchaseLine,
-} from './expenseWarehouseDeduction';
+  formatPartnerPurchaseDeductionLabel,
+  isPartnerPurchaseDeductionLine,
+  isPartnerPurchaseOwedToViewer,
+  partnerPurchaseLineTotal,
+} from './partnerPurchaseDeduction';
 import {
   isRefrigerantWarehouseCostLine,
   refrigerantSaleToOwnerUnitPrice,
@@ -41,7 +41,7 @@ export type BillableLineKind =
   | 'expense'
   | 'refrigerant'
   | 'refrigerant_purchase_deduction'
-  | 'expense_purchase_deduction';
+  | 'partner_purchase_deduction';
 
 export type BillableLine = {
   logId: string;
@@ -56,8 +56,8 @@ export type BillableLine = {
   priceMissing?: boolean;
   /** Kylmäaineen varasto-osto — vähennys kumppanilaskutuksesta. */
   refrigerantLineId?: string;
-  /** Työkalu/varaosa-osto — vähennys kumppanilaskutuksesta. */
-  expenseLineId?: string;
+  /** Työkalu/varaosa-osto kumppanin piikkiin — vähennys kumppanilaskutuksesta. */
+  partnerPurchaseLineId?: string;
   warehouseDeduction?: 'pending' | 'deducted';
 };
 
@@ -154,42 +154,39 @@ function pushRefrigerantPurchaseDeductionLine(
   if (!deducted) summary.excludedSubtotal += fullTotal;
 }
 
-function pushExpensePurchaseDeductionLine(
+function pushPartnerPurchaseDeductionLine(
   summary: BillableUserSummary,
   log: WorkReportDailyLog,
-  expense: NonNullable<WorkReportDailyLog['expense_lines']>[number],
+  purchaseLine: NonNullable<WorkReportDailyLog['partner_purchase_lines']>[number],
   viewerCompanyId: string | null | undefined,
   report?: Pick<{ owner_company_id: string; created_by_company_id: string }, 'owner_company_id' | 'created_by_company_id'>,
 ) {
-  if (!isExpenseWarehousePurchaseLine(expense)) return;
+  if (!isPartnerPurchaseDeductionLine(purchaseLine)) return;
+  if (!viewerCompanyId || !purchaseLine.partner_company_id) return;
 
-  const qty = Number(expense.qty);
-  if (qty <= 0 || !viewerCompanyId || !expense.warehouse_company_id) return;
-
-  const isWarehouseViewer = isExpenseWarehouseCostLine(expense, viewerCompanyId);
+  const isPartnerViewer = isPartnerPurchaseOwedToViewer(purchaseLine, viewerCompanyId);
   const isCreatorPurchase =
     !!report
     && viewerCompanyId === report.created_by_company_id
     && report.created_by_company_id !== report.owner_company_id
-    && expense.warehouse_company_id !== viewerCompanyId;
+    && purchaseLine.partner_company_id !== viewerCompanyId;
 
-  if (!isWarehouseViewer && !isCreatorPurchase) return;
+  if (!isPartnerViewer && !isCreatorPurchase) return;
 
-  const unitPrice = expenseWarehouseCostUnitPrice(expense);
-  if (!(unitPrice > 0)) return;
+  const fullTotal = partnerPurchaseLineTotal(purchaseLine);
+  if (!(fullTotal > 0)) return;
 
-  const fullTotal = lineTotal(qty, unitPrice);
-  const deducted = Boolean(expense.warehouse_cost_deducted);
+  const deducted = Boolean(purchaseLine.cost_deducted);
   summary.lines.push({
     logId: log.id,
     logDate: log.log_date,
-    kind: 'expense_purchase_deduction',
-    description: formatExpenseWarehouseCostLabel(expense, deducted),
-    qty,
-    unitPrice,
+    kind: 'partner_purchase_deduction',
+    description: formatPartnerPurchaseDeductionLabel(purchaseLine, deducted),
+    qty: Number(purchaseLine.qty),
+    unitPrice: fullTotal / Number(purchaseLine.qty),
     total: fullTotal,
     included: false,
-    expenseLineId: expense.id,
+    partnerPurchaseLineId: purchaseLine.id,
     warehouseDeduction: deducted ? 'deducted' : 'pending',
   });
   if (!deducted) summary.excludedSubtotal += fullTotal;
@@ -396,8 +393,10 @@ export function calculateWorkReportBillable(input: {
       });
       if (included) summary.expensesTotal += billed.total;
       else summary.excludedSubtotal += billed.total;
+    }
 
-      pushExpensePurchaseDeductionLine(summary, log, expense, input.viewerCompanyId, input.report);
+    for (const purchaseLine of log.partner_purchase_lines ?? []) {
+      pushPartnerPurchaseDeductionLine(summary, log, purchaseLine, input.viewerCompanyId, input.report);
     }
 
     const tripKm = (log.trip_legs ?? []).reduce(
@@ -582,7 +581,7 @@ export function warehouseDeductionTotalsFromUsers(
   let deducted = 0;
   for (const user of byUser) {
     for (const line of user.lines) {
-      if (line.kind !== 'refrigerant_purchase_deduction' && line.kind !== 'expense_purchase_deduction') continue;
+      if (line.kind !== 'refrigerant_purchase_deduction' && line.kind !== 'partner_purchase_deduction') continue;
       if (line.warehouseDeduction === 'deducted') deducted += line.total;
       else pending += line.total;
     }
@@ -602,7 +601,7 @@ export function warehouseDeductionTotalsFromCalculation(
   const totals = warehouseDeductionTotalsFromUsers(calc.byUser);
   const lines = calc.byUser.flatMap((user) =>
     user.lines.filter(
-      (line) => line.kind === 'refrigerant_purchase_deduction' || line.kind === 'expense_purchase_deduction',
+      (line) => line.kind === 'refrigerant_purchase_deduction' || line.kind === 'partner_purchase_deduction',
     ),
   );
   if (calc.warehouseDeductionsPending != null || calc.warehouseDeductionsDeducted != null) {

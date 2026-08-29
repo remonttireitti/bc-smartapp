@@ -15,14 +15,14 @@ const LINE_KIND_LABELS: Record<BillableLineKind, string> = {
   expense: 'Kulu / tarvike',
   refrigerant: 'Kylmäaine',
   refrigerant_purchase_deduction: 'Kylmäaineosto (vähennys)',
-  expense_purchase_deduction: 'Työkalu/varaosa-osto (vähennys)',
+  partner_purchase_deduction: 'Työkalu/varaosa-osto (vähennys)',
 };
 
 type DetailRow = BillableLine & { userName: string };
 
 function formatBillableLineQty(kind: BillableLineKind, qty: number): string {
   if (kind === 'refrigerant' || kind === 'refrigerant_purchase_deduction') return `${qty.toFixed(3)} kg`;
-  if (kind === 'expense_purchase_deduction') return Number.isInteger(qty) ? `${qty} kpl` : `${qty} kpl`;
+  if (kind === 'partner_purchase_deduction') return Number.isInteger(qty) ? `${qty} kpl` : `${qty} kpl`;
   if (kind === 'hours_regular' || kind === 'hours_overtime' || kind === 'hours_on_call') {
     return `${qty.toFixed(2)} h`;
   }
