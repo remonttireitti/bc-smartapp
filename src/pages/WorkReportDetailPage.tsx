@@ -41,6 +41,7 @@ import WorkReportBillingStatusMenu from '../components/WorkReportBillingStatusMe
 import WorkReportStatusBadges from '../components/WorkReportStatusBadges';
 import { useCompanyCustomerBillingEnabled } from '../hooks/useCompanyCustomerBillingEnabled';
 import { useCompanyBillingModuleEnabled } from '../hooks/useCompanyBillingModuleEnabled';
+import { useCompanyLicense } from '../hooks/useCompanyLicense';
 import { useCompanyPartnershipsEnabled } from '../hooks/useCompanyPartnershipsEnabled';
 import { useProfile } from '../hooks/useProfile';
 import { canDeleteWorkReport } from '../lib/deletePermissions';
@@ -1250,6 +1251,12 @@ export default function WorkReportDetailPage({ session }: Props) {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { profile } = useProfile(session);
+  const { license: companyLicense } = useCompanyLicense(
+    profile?.company_id,
+    session,
+    profile?.is_global_admin,
+  );
+  const toolsModuleEnabled = companyLicense?.modules.tools === true;
   const partnershipsEnabled = useCompanyPartnershipsEnabled(profile?.company_id, session);
   const [report, setReport] = useState<WorkReport | null>(null);
   const [billing, setBilling] = useState<WorkReportBilling | null>(null);
@@ -2129,12 +2136,13 @@ export default function WorkReportDetailPage({ session }: Props) {
     dailyLogId: string,
     previousLines?: WorkReportDailyLog['partner_purchase_lines'],
   ) {
-    if (!report) return null;
+    if (!report || !profile?.company_id) return null;
     try {
       await savePartnerPurchaseLines(supabase, {
         dailyLogId,
         workReportId: report.id,
         userId: session.user.id,
+        companyId: profile.company_id,
         drafts: partnerPurchaseDrafts,
         previousLines,
       });
@@ -3759,6 +3767,8 @@ export default function WorkReportDetailPage({ session }: Props) {
           drafts={partnerPurchaseDrafts}
           setDrafts={setPartnerPurchaseDrafts}
           partnerOptions={partnerPurchaseCompanyOptions}
+          inventoryCompanyId={profile?.company_id ?? null}
+          toolsModuleEnabled={toolsModuleEnabled}
         />
         {report && (
           <DailyLogTileSection

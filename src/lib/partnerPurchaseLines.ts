@@ -1,7 +1,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
+import { syncPartnerPurchaseInventory } from './partnerPurchaseInventory';
 import { DEFAULT_PARTNER_EXPENSE_MARGIN_PERCENT } from './workReportExpenseBilling';
-import type { WorkReportPartnerPurchaseLine } from '../types/partnerPurchase';
+import type { PartnerPurchaseInventoryKind, WorkReportPartnerPurchaseLine } from '../types/partnerPurchase';
 
 export type PartnerPurchaseLineDraft = {
   key: string;
@@ -12,6 +13,12 @@ export type PartnerPurchaseLineDraft = {
   unit_price: string;
   partner_margin_percent: string;
   cost_deducted?: boolean;
+  /** Valinnainen: kirjataanko osto inventaarioon. */
+  inventory_kind?: PartnerPurchaseInventoryKind | '';
+  /** Materiaalivaraston rivi (tyhjä = uusi varaosa). */
+  inventory_item_id?: string;
+  /** Onko osto jo kirjattu inventaarioon (lukitsee valinnat). */
+  inventory_recorded?: boolean;
 };
 
 export function emptyPartnerPurchaseRow(): PartnerPurchaseLineDraft {
@@ -23,6 +30,8 @@ export function emptyPartnerPurchaseRow(): PartnerPurchaseLineDraft {
     qty: '1',
     unit_price: '',
     partner_margin_percent: String(DEFAULT_PARTNER_EXPENSE_MARGIN_PERCENT),
+    inventory_kind: '',
+    inventory_item_id: '',
   };
 }
 
@@ -38,6 +47,11 @@ export function partnerPurchasesToDrafts(
     unit_price: String(line.unit_price),
     partner_margin_percent: String(line.partner_margin_percent ?? DEFAULT_PARTNER_EXPENSE_MARGIN_PERCENT),
     cost_deducted: line.cost_deducted,
+    inventory_kind: line.inventory_kind ?? '',
+    inventory_item_id: line.inventory_item_id ?? '',
+    inventory_recorded:
+      Boolean(line.inventory_item_id)
+      || Boolean(line.inventory_tool_ids && line.inventory_tool_ids.length > 0),
   }));
 }
 
@@ -59,6 +73,7 @@ export async function savePartnerPurchaseLines(
     dailyLogId: string;
     workReportId: string;
     userId: string;
+    companyId: string;
     drafts: PartnerPurchaseLineDraft[];
     previousLines?: WorkReportPartnerPurchaseLine[];
   },
@@ -82,19 +97,52 @@ export async function savePartnerPurchaseLines(
     const margin = marginRaw && Number.isFinite(Number(marginRaw))
       ? Number(marginRaw)
       : DEFAULT_PARTNER_EXPENSE_MARGIN_PERCENT;
-    const { error } = await supabase.from('work_report_partner_purchase_lines').insert({
-      daily_log_id: input.dailyLogId,
-      work_report_id: input.workReportId,
-      partner_company_id: row.partner_company_id,
-      supplier_name: row.supplier_name.trim() || null,
-      description: row.description.trim(),
-      qty: Number(row.qty),
-      unit_price: Number(row.unit_price),
-      partner_margin_percent: margin,
-      cost_deducted: previousById.get(row.key)?.cost_deducted ?? row.cost_deducted ?? false,
-      sort_order: index,
-      created_by: input.userId,
-    });
+    const previous = previousById.get(row.key);
+    const inventoryKind = row.inventory_kind === 'tool' || row.inventory_kind === 'material'
+      ? row.inventory_kind
+      : null;
+
+    const { data: inserted, error } = await supabase
+      .from('work_report_partner_purchase_lines')
+      .insert({
+        daily_log_id: input.dailyLogId,
+        work_report_id: input.workReportId,
+        partner_company_id: row.partner_company_id,
+        supplier_name: row.supplier_name.trim() || null,
+        description: row.description.trim(),
+        qty: Number(row.qty),
+        unit_price: Number(row.unit_price),
+        partner_margin_percent: margin,
+        cost_deducted: previous?.cost_deducted ?? row.cost_deducted ?? false,
+        inventory_kind: inventoryKind,
+        inventory_item_id: previous?.inventory_item_id ?? null,
+        inventory_tool_ids: previous?.inventory_tool_ids ?? [],
+        sort_order: index,
+        created_by: input.userId,
+      })
+      .select('id')
+      .single();
     if (error) throw error;
+
+    const inventory = await syncPartnerPurchaseInventory(supabase, {
+      companyId: input.companyId,
+      draft: row,
+      previousLine: previous ?? null,
+      purchaseLineId: inserted.id as string,
+    });
+
+    if (
+      inventory.inventory_item_id !== (previous?.inventory_item_id ?? null)
+      || inventory.inventory_tool_ids.length !== (previous?.inventory_tool_ids?.length ?? 0)
+    ) {
+      const { error: inventoryUpdateError } = await supabase
+        .from('work_report_partner_purchase_lines')
+        .update({
+          inventory_item_id: inventory.inventory_item_id,
+          inventory_tool_ids: inventory.inventory_tool_ids,
+        })
+        .eq('id', inserted.id);
+      if (inventoryUpdateError) throw inventoryUpdateError;
+    }
   }
 }

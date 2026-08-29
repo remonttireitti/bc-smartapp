@@ -43,6 +43,20 @@ export function expenseLinesSelectFragment(includeBillToPartner: boolean, includ
 }
 
 export const PARTNER_PURCHASE_LINE_FIELDS =
+  'id, daily_log_id, work_report_id, partner_company_id, supplier_name, description, qty, unit_price, partner_margin_percent, cost_deducted, inventory_kind, inventory_item_id, inventory_tool_ids, sort_order, created_by, created_at';
+
+export function isMissingPartnerPurchaseInventoryColumn(error: PostgrestError | null | undefined): boolean {
+  if (!error?.message) return false;
+  const msg = error.message.toLowerCase();
+  return (
+    (msg.includes('inventory_kind') || msg.includes('inventory_item_id') || msg.includes('inventory_tool_ids')) &&
+    (msg.includes('does not exist') ||
+      msg.includes('could not find') ||
+      msg.includes('schema cache'))
+  );
+}
+
+export const PARTNER_PURCHASE_LINE_FIELDS_LEGACY =
   'id, daily_log_id, work_report_id, partner_company_id, supplier_name, description, qty, unit_price, partner_margin_percent, cost_deducted, sort_order, created_by, created_at';
 
 export function isMissingPartnerPurchaseTable(error: PostgrestError | null | undefined): boolean {
@@ -56,18 +70,23 @@ export function isMissingPartnerPurchaseTable(error: PostgrestError | null | und
   );
 }
 
-export function partnerPurchaseLinesSelectFragment(includePartnerPurchases = true): string {
+export function partnerPurchaseLinesSelectFragment(
+  includePartnerPurchases = true,
+  includeInventory = true,
+): string {
   if (!includePartnerPurchases) return '';
-  return `partner_purchase_lines:work_report_partner_purchase_lines(${PARTNER_PURCHASE_LINE_FIELDS}, partner_company:companies!work_report_partner_purchase_lines_partner_company_id_fkey(name))`;
+  const fields = includeInventory ? PARTNER_PURCHASE_LINE_FIELDS : PARTNER_PURCHASE_LINE_FIELDS_LEGACY;
+  return `partner_purchase_lines:work_report_partner_purchase_lines(${fields}, partner_company:companies!work_report_partner_purchase_lines_partner_company_id_fkey(name))`;
 }
 
 export function buildWorkReportDetailLogSelect(
   includeBillToPartner: boolean,
   includeWarehouse = true,
   includePartnerPurchases = true,
+  includePartnerPurchaseInventory = true,
 ): string {
   const expenseLines = expenseLinesSelectFragment(includeBillToPartner, includeWarehouse);
-  const partnerPurchases = partnerPurchaseLinesSelectFragment(includePartnerPurchases);
+  const partnerPurchases = partnerPurchaseLinesSelectFragment(includePartnerPurchases, includePartnerPurchaseInventory);
   return `
   id, work_report_id, log_date, log_start_time, entry_type,
   hours_regular, hours_overtime, hours_on_call, fixed_price_amount,
@@ -155,28 +174,44 @@ export async function fetchWorkReportDetailLogs(
   error: PostgrestError | null;
   billToPartnerSupported: boolean;
 }> {
-  const run = (includeBillToPartner: boolean, includeWarehouse: boolean, includePartnerPurchases: boolean) =>
+  const run = (
+    includeBillToPartner: boolean,
+    includeWarehouse: boolean,
+    includePartnerPurchases: boolean,
+    includePartnerPurchaseInventory = true,
+  ) =>
     queryDailyLogs(
       supabase,
       workReportId,
-      buildWorkReportDetailLogSelect(includeBillToPartner, includeWarehouse, includePartnerPurchases),
+      buildWorkReportDetailLogSelect(
+        includeBillToPartner,
+        includeWarehouse,
+        includePartnerPurchases,
+        includePartnerPurchaseInventory,
+      ),
     );
 
-  let result = await run(true, true, true);
+  let result = await run(true, true, true, true);
+  if (isMissingPartnerPurchaseInventoryColumn(result.error)) {
+    result = await run(true, true, true, false);
+  }
   if (isMissingPartnerPurchaseTable(result.error)) {
-    result = await run(true, true, false);
+    result = await run(true, true, false, false);
   }
   if (isMissingWarehouseExpenseColumn(result.error)) {
-    result = await run(true, false, !isMissingPartnerPurchaseTable(result.error));
+    result = await run(true, false, !isMissingPartnerPurchaseTable(result.error), false);
   }
   if (isMissingPartnerPurchaseTable(result.error)) {
-    result = await run(true, false, false);
+    result = await run(true, false, false, false);
   }
   if (isMissingBillToPartnerColumn(result.error)) {
-    result = await run(false, true, true);
-    if (isMissingPartnerPurchaseTable(result.error)) result = await run(false, true, false);
-    if (isMissingWarehouseExpenseColumn(result.error)) result = await run(false, false, true);
-    if (isMissingPartnerPurchaseTable(result.error)) result = await run(false, false, false);
+    result = await run(false, true, true, true);
+    if (isMissingPartnerPurchaseInventoryColumn(result.error)) {
+      result = await run(false, true, true, false);
+    }
+    if (isMissingPartnerPurchaseTable(result.error)) result = await run(false, true, false, false);
+    if (isMissingWarehouseExpenseColumn(result.error)) result = await run(false, false, true, false);
+    if (isMissingPartnerPurchaseTable(result.error)) result = await run(false, false, false, false);
     return {
       logs: (result.data as unknown as WorkReportDailyLog[]) ?? [],
       error: result.error,

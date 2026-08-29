@@ -1,3 +1,5 @@
+export type PartnerPurchaseInventoryKind = 'tool' | 'material';
+
 export type WorkReportPartnerPurchaseLine = {
   id: string;
   daily_log_id: string;
@@ -12,5 +14,8 @@ export type WorkReportPartnerPurchaseLine = {
   sort_order: number;
   created_by?: string | null;
   created_at?: string;
+  inventory_kind?: PartnerPurchaseInventoryKind | null;
+  inventory_item_id?: string | null;
+  inventory_tool_ids?: string[];
   partner_company?: { name: string | null } | null;
 };
