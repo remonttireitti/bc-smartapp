@@ -70,6 +70,70 @@ function createPrintPopup(html: string, documentTitle: string): PrintTarget | nu
   return { printWindow, printDocument: printWindow.document, cleanup };
 }
 
+/** Avaa tulostusikkuna heti käyttäjän klikkauksesta (ennen async-latausta). */
+export function openSimplePrintPlaceholder(message = 'Ladataan raporttia…'): Window | null {
+  const printWindow = window.open('', '_blank');
+  if (!printWindow) return null;
+
+  printWindow.document.open();
+  printWindow.document.write(
+    `<!DOCTYPE html><html lang="fi"><head><meta charset="utf-8" /><title>Ladataan…</title></head><body><p>${message}</p></body></html>`,
+  );
+  printWindow.document.close();
+  return printWindow;
+}
+
+/** Kevyt tulostus pelkälle HTML:lle (ei kuvia) — ei koske pääsovelluksen otsikkoa. */
+export function openSimplePrintHtml(
+  html: string,
+  options?: { documentTitle?: string; printWindow?: Window | null },
+): void {
+  const documentTitle = resolvePrintDocumentTitle(html, options?.documentTitle);
+  const prepared = ensurePrintHtmlDocumentTitle(html, documentTitle);
+  const printWindow = options?.printWindow ?? window.open('', '_blank');
+  if (!printWindow) {
+    window.alert('Tulostusikkunaa ei voitu avata. Salli ponnahdusikkunat tälle sivustolle.');
+    return;
+  }
+
+  printWindow.document.open();
+  printWindow.document.write(prepared);
+  printWindow.document.close();
+  applyPrintDocumentTitle(printWindow.document, documentTitle);
+
+  let printed = false;
+  const runPrint = () => {
+    if (printed) return;
+    printed = true;
+    try {
+      printWindow.focus();
+      printWindow.print();
+    } catch {
+      /* best effort */
+    }
+  };
+
+  const schedulePrint = () => {
+    printWindow.setTimeout(runPrint, 300);
+  };
+
+  if (printWindow.document.readyState === 'complete') {
+    schedulePrint();
+  } else {
+    printWindow.addEventListener('load', schedulePrint, { once: true });
+  }
+
+  const cleanup = () => {
+    try {
+      printWindow.close();
+    } catch {
+      /* already closed */
+    }
+  };
+  printWindow.addEventListener('afterprint', cleanup, { once: true });
+  window.setTimeout(cleanup, 120_000);
+}
+
 function createPrintFrame(html: string, documentTitle: string): PrintTarget {
   const frame = document.createElement('iframe');
   frame.setAttribute('aria-hidden', 'true');

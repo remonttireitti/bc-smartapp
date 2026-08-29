@@ -40,6 +40,10 @@ export function resolvePrintDocumentTitle(html: string, explicitTitle?: string):
 
 export function applyPrintDocumentTitle(doc: Document, title: string) {
   const safeTitle = formatPrintSaveFileName(title);
+  if (doc.title === safeTitle) {
+    const titleEl = doc.querySelector('title');
+    if (!titleEl || titleEl.textContent === safeTitle) return;
+  }
   doc.title = safeTitle;
   let titleEl = doc.querySelector('title');
   if (!titleEl) {
@@ -47,7 +51,7 @@ export function applyPrintDocumentTitle(doc: Document, title: string) {
     const head = doc.head ?? doc.getElementsByTagName('head')[0];
     if (head) head.appendChild(titleEl);
   }
-  if (titleEl) titleEl.textContent = safeTitle;
+  if (titleEl && titleEl.textContent !== safeTitle) titleEl.textContent = safeTitle;
 }
 
 export function extractPrintableHtmlFragment(html: string): string {

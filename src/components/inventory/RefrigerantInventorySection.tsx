@@ -32,6 +32,7 @@ import {
   summarizeRefrigerantHistoryBalance,
   type RefrigerantInventoryHistoryRow,
 } from '../../lib/refrigerantInventoryHistory';
+import { openSimplePrintPlaceholder } from '../../lib/openPrintWindow';
 import { resolveCylinderFromScan } from '../../lib/refrigerantCylinderCode';
 import { loadWarehouseCustomerPicker, type WarehouseCustomerPickerOption } from '../../lib/customers';
 import RefrigerantBottleScanDialog from './RefrigerantBottleScanDialog';
@@ -656,6 +657,12 @@ export default function RefrigerantInventorySection({
   }
 
   async function runReportPrint() {
+    const printWindow = openSimplePrintPlaceholder();
+    if (!printWindow) {
+      onError('Tulostusikkunaa ei voitu avata. Salli ponnahdusikkunat tälle sivustolle.');
+      return;
+    }
+
     setReportBusy(true);
     try {
       const { rows, summary } = await loadRefrigerantPeriodReport(
@@ -673,8 +680,14 @@ export default function RefrigerantInventorySection({
           rows,
         }),
         `Kylmäaineraportti ${warehouseCompanyName}`,
+        printWindow,
       );
     } catch (err) {
+      try {
+        printWindow.close();
+      } catch {
+        /* already closed */
+      }
       onError(err instanceof Error ? err.message : 'Raportti epäonnistui');
     } finally {
       setReportBusy(false);
