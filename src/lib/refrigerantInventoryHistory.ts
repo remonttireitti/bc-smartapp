@@ -247,6 +247,77 @@ function workUseSerialQtyTypeKey(
   return `serialqty|${serial}|${roundQtyKg(qtyKg)}|${normalizeRefrigerantTypeForKey(refrigerantType)}`;
 }
 
+function stockLineWorkUseKey(
+  workReportId: string | null,
+  cylinderId: string | null,
+  qtyKg: number,
+  refrigerantType: string,
+): string | null {
+  if (!workReportId || !cylinderId) return null;
+  return `stock|${workReportId}|${cylinderId}|${roundQtyKg(qtyKg)}|${normalizeRefrigerantTypeForKey(refrigerantType)}`;
+}
+
+function workUseMovementDedupKey(movement: RawMovement): string | null {
+  const qty = Number(movement.qty_kg) || 0;
+  const type = movement.refrigerant_type ?? '';
+  return (
+    stockLineWorkUseKey(movement.work_report_id, movement.cylinder_id, qty, type) ??
+    workUseDedupBaseKey(movement.work_report_id, qty, type) ??
+    workUseSerialQtyTypeKey(movement.serial_number, qty, type)
+  );
+}
+
+/** Poista tietokannan tuplatyökäyttökirjaukset historianäkymästä. */
+export function dedupeWorkUseMovements(movements: RawMovement[]): RawMovement[] {
+  const seen = new Set<string>();
+  const kept: RawMovement[] = [];
+
+  for (const movement of movements) {
+    if (movement.movement_type !== 'work_use') {
+      kept.push(movement);
+      continue;
+    }
+
+    const key = workUseMovementDedupKey(movement);
+    if (!key) {
+      kept.push(movement);
+      continue;
+    }
+    if (seen.has(key)) continue;
+    seen.add(key);
+    kept.push(movement);
+  }
+
+  return kept;
+}
+
+function dedupeHistoryWorkUseRows(rows: RefrigerantInventoryHistoryRow[]): RefrigerantInventoryHistoryRow[] {
+  const seen = new Set<string>();
+  const kept: RefrigerantInventoryHistoryRow[] = [];
+
+  for (const row of rows) {
+    if (row.eventLabel !== 'Käyttö työkohteella') {
+      kept.push(row);
+      continue;
+    }
+
+    const key =
+      workUseDedupBaseKey(row.work_report_id, row.qty_kg, row.refrigerant_type) ??
+      workUseSerialQtyTypeKey(row.serial_number, row.qty_kg, row.refrigerant_type) ??
+      workUseTitleDedupKey(row.work_report_title, row.qty_kg, row.refrigerant_type);
+
+    if (!key) {
+      kept.push(row);
+      continue;
+    }
+    if (seen.has(key)) continue;
+    seen.add(key);
+    kept.push(row);
+  }
+
+  return kept;
+}
+
 function collectHistoryRowMatchKeys(row: RefrigerantInventoryHistoryRow): string[] {
   const keys = new Set<string>();
   const qty = row.qty_kg;
@@ -344,7 +415,7 @@ export function mergeRefrigerantInventoryHistoryRows(
 ): RefrigerantInventoryHistoryRow[] {
   const rows: RefrigerantInventoryHistoryRow[] = [];
 
-  for (const movement of movements) {
+  for (const movement of dedupeWorkUseMovements(movements)) {
     const row = movementToHistoryRow(movement);
     if (row) rows.push(row);
   }
@@ -354,7 +425,9 @@ export function mergeRefrigerantInventoryHistoryRows(
     rows.push(purchaseSaleToHistoryRow(purchaseSaleRow));
   }
 
-  return collapseHistorySaleWorkUseDuplicates(rows).sort((a, b) => b.at.localeCompare(a.at));
+  return dedupeHistoryWorkUseRows(collapseHistorySaleWorkUseDuplicates(rows)).sort((a, b) =>
+    b.at.localeCompare(a.at),
+  );
 }
 
 export async function loadRefrigerantInventoryHistory(

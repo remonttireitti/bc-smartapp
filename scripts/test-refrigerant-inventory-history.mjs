@@ -186,7 +186,7 @@ const partnerSaleAndUse = mergeRefrigerantInventoryHistoryRows(
   [movement, { ...movement, id: 'm-1b', created_at: '2026-08-28T10:31:00.000Z' }],
   filterPurchaseSaleRowsForWarehouseHistory([saleRow]),
 );
-assert.equal(partnerSaleAndUse.length, 2);
-assert.ok(partnerSaleAndUse.every((row) => row.eventLabel === 'Käyttö työkohteella'));
+assert.equal(partnerSaleAndUse.length, 1);
+assert.equal(partnerSaleAndUse[0].eventLabel, 'Käyttö työkohteella');
 
 console.log('test-refrigerant-inventory-history: ok');
