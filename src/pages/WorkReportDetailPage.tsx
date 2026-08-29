@@ -65,6 +65,7 @@ import {
   canAssignDelegatedWorkOrder,
 } from '../lib/workReportDelegation';
 import DailyLogRefrigerantFields from '../components/inventory/DailyLogRefrigerantFields';
+import ExpenseWarehouseDeductionPanel from '../components/inventory/ExpenseWarehouseDeductionPanel';
 import RefrigerantWarehouseDeductionPanel from '../components/inventory/RefrigerantWarehouseDeductionPanel';
 import DailyLogTripLegFields from '../components/DailyLogTripLegFields';
 import {
@@ -86,6 +87,10 @@ import {
   type RefrigerantLineDraft,
 } from '../lib/refrigerantInventory';
 import { isRefrigerantWarehouseCostLine } from '../lib/refrigerantPassThrough';
+import {
+  isExpenseWarehouseCostLine,
+  warehouseCompanyOptionsForReport,
+} from '../lib/expenseWarehouseDeduction';
 import {
   BILLABLE_RATES_SOURCE_LABELS,
   hasPartnerBillingRates,
@@ -154,6 +159,7 @@ import { loadTripDestinationOptions, type TripDestinationOption } from '../lib/t
 import {
   fetchWorkReportDetailLogs,
   isMissingBillToPartnerColumn,
+  isMissingWarehouseExpenseColumn,
 } from '../lib/workReportDailyLogSelect';
 import {
   applyExpenseBillingMode,
@@ -233,6 +239,8 @@ type ExpenseDraft = {
   bill_to_customer: boolean;
   customer_unit_price: string;
   partner_expense_margin_percent: string;
+  warehouse_company_id: string;
+  warehouse_cost_deducted?: boolean;
 };
 
 const REPORT_SELECT = `
@@ -264,6 +272,7 @@ function emptyExpense(): ExpenseDraft {
     bill_to_customer: true,
     customer_unit_price: '',
     partner_expense_margin_percent: String(DEFAULT_PARTNER_EXPENSE_MARGIN_PERCENT),
+    warehouse_company_id: '',
   };
 }
 
@@ -390,6 +399,8 @@ function expensesToDrafts(lines: WorkReportDailyLog['expense_lines']): ExpenseDr
       customer_unit_price:
         customerPrice != null && customerPrice > 0 ? String(customerPrice) : '',
       partner_expense_margin_percent: String(margin),
+      warehouse_company_id: line.warehouse_company_id ?? '',
+      warehouse_cost_deducted: line.warehouse_cost_deducted,
     };
   });
 }
@@ -522,6 +533,7 @@ function DailyLogFields({
   showCustomerHourlyRate,
   showPartnerExpenseFields,
   showCustomerExpenseFields,
+  warehouseCompanyOptions,
   defaultHourlyRate,
   defaultCustomerHourlyRate,
 }: {
@@ -533,6 +545,7 @@ function DailyLogFields({
   showCustomerHourlyRate?: boolean;
   showPartnerExpenseFields?: boolean;
   showCustomerExpenseFields?: boolean;
+  warehouseCompanyOptions?: { id: string; name: string }[];
   defaultHourlyRate?: number | null;
   defaultCustomerHourlyRate?: number | null;
 }) {
@@ -917,13 +930,27 @@ function DailyLogFields({
                       <select
                         value={row.expense_type}
                         disabled={autoTripKm}
-                        onChange={(e) =>
+                        onChange={(e) => {
+                          const nextType = e.target.value;
+                          const defaultWarehouseId =
+                            nextType === 'warehouse_purchase'
+                              ? (warehouseCompanyOptions?.[0]?.id ?? '')
+                              : '';
                           setExpenseDrafts(
                             expenseDrafts.map((r, i) =>
-                              i === index ? { ...r, expense_type: e.target.value } : r,
+                              i === index
+                                ? {
+                                    ...r,
+                                    expense_type: nextType,
+                                    warehouse_company_id:
+                                      nextType === 'warehouse_purchase'
+                                        ? r.warehouse_company_id || defaultWarehouseId
+                                        : '',
+                                  }
+                                : r,
                             ),
-                          )
-                        }
+                          );
+                        }}
                       >
                         <option value="">Valitse tyyppi…</option>
                         {EXPENSE_TYPE_OPTIONS.map((opt) => (
@@ -933,6 +960,29 @@ function DailyLogFields({
                         ))}
                       </select>
                     </label>
+                    {row.expense_type === 'warehouse_purchase' && (warehouseCompanyOptions?.length ?? 0) > 0 ? (
+                      <label>
+                        Varasto (kumppani)
+                        <select
+                          value={row.warehouse_company_id}
+                          onChange={(e) =>
+                            setExpenseDrafts(
+                              expenseDrafts.map((r, i) =>
+                                i === index ? { ...r, warehouse_company_id: e.target.value } : r,
+                              ),
+                            )
+                          }
+                          required
+                        >
+                          <option value="">Valitse varasto…</option>
+                          {warehouseCompanyOptions?.map((option) => (
+                            <option key={option.id} value={option.id}>
+                              {option.name}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    ) : null}
                     <label>
                       Kuvaus
                       <input
@@ -1207,10 +1257,14 @@ async function saveExpenseLines(
     (row) => row.description.trim() && (row.expense_type || isAutoTripKmExpense(row)),
   );
   if (validExpenses.length === 0) return null;
-  const buildRows = (includeBillToPartner: boolean) =>
+  const buildRows = (includeBillToPartner: boolean, includeWarehouse: boolean) =>
     validExpenses.map((row, index) => {
       const customerPriceRaw = String(row.customer_unit_price ?? '').trim();
       const customerUnitPrice = customerPriceRaw ? Number(customerPriceRaw) : null;
+      const warehouseCompanyId =
+        row.expense_type === 'warehouse_purchase' && row.warehouse_company_id
+          ? row.warehouse_company_id
+          : null;
       return {
         daily_log_id: dailyLogId,
         expense_type: row.expense_type || 'other',
@@ -1227,13 +1281,25 @@ async function saveExpenseLines(
                   : null,
             }
           : {}),
+        ...(includeWarehouse
+          ? {
+              warehouse_company_id: warehouseCompanyId,
+              warehouse_cost_deducted: row.warehouse_cost_deducted ?? false,
+            }
+          : {}),
         sort_order: index,
       };
     });
 
-  let { error } = await supabase.from('work_report_daily_expense_lines').insert(buildRows(true));
+  let { error } = await supabase.from('work_report_daily_expense_lines').insert(buildRows(true, true));
+  if (error && isMissingWarehouseExpenseColumn(error)) {
+    ({ error } = await supabase.from('work_report_daily_expense_lines').insert(buildRows(true, false)));
+  }
   if (error && isMissingBillToPartnerColumn(error)) {
-    ({ error } = await supabase.from('work_report_daily_expense_lines').insert(buildRows(false)));
+    ({ error } = await supabase.from('work_report_daily_expense_lines').insert(buildRows(false, true)));
+    if (error && isMissingWarehouseExpenseColumn(error)) {
+      ({ error } = await supabase.from('work_report_daily_expense_lines').insert(buildRows(false, false)));
+    }
   }
   return error;
 }
@@ -1789,6 +1855,18 @@ export default function WorkReportDetailPage({ session }: Props) {
     );
   }, [dailyLogs, profile?.company_id]);
 
+  const showWarehouseExpenseDeductions = useMemo(() => {
+    if (!profile?.company_id) return false;
+    return dailyLogs.some((log) =>
+      (log.expense_lines ?? []).some((line) => isExpenseWarehouseCostLine(line, profile.company_id)),
+    );
+  }, [dailyLogs, profile?.company_id]);
+
+  const expenseWarehouseCompanyOptions = useMemo(() => {
+    if (!report) return [];
+    return warehouseCompanyOptionsForReport(report, profile?.company_id);
+  }, [report, profile?.company_id]);
+
   const reportOwnerTargets = useMemo(() => {
     if (!profile?.company_id) return [];
     return customerCreateTargets(
@@ -2129,6 +2207,22 @@ export default function WorkReportDetailPage({ session }: Props) {
     setRefrigerantDeductionBusyId(lineId);
     const { error } = await supabase
       .from('work_report_refrigerant_lines')
+      .update({ warehouse_cost_deducted: deducted })
+      .eq('id', lineId);
+    setRefrigerantDeductionBusyId(null);
+    if (error) {
+      setError(error.message);
+      return;
+    }
+    await load(report.id);
+    await persistBillingAfterLogChange(report);
+  }
+
+  async function toggleExpenseWarehouseDeduction(lineId: string, deducted: boolean) {
+    if (!report) return;
+    setRefrigerantDeductionBusyId(lineId);
+    const { error } = await supabase
+      .from('work_report_daily_expense_lines')
       .update({ warehouse_cost_deducted: deducted })
       .eq('id', lineId);
     setRefrigerantDeductionBusyId(null);
@@ -3423,6 +3517,22 @@ export default function WorkReportDetailPage({ session }: Props) {
                 onToggle={(lineId, deducted) => void toggleRefrigerantWarehouseDeduction(lineId, deducted)}
               />
             ) : null}
+            {showWarehouseExpenseDeductions && profile?.company_id ? (
+              <ExpenseWarehouseDeductionPanel
+                logs={dailyLogs}
+                warehouseCompanyId={profile.company_id}
+                canEdit={(partnerBillingListRow
+                  ? canManageIncomingPartnerBilling(
+                      partnerBillingListRow,
+                      profile.company_id,
+                      dailyLogs.length > 0,
+                    )
+                  : false)
+                  || profile.company_id === report.created_by_company_id}
+                busyLineId={refrigerantDeductionBusyId}
+                onToggle={(lineId, deducted) => void toggleExpenseWarehouseDeduction(lineId, deducted)}
+              />
+            ) : null}
             {showOutgoingPartnerBilling ? (
             <div className="form-actions" style={{ justifyContent: 'flex-start' }}>
               <Tooltip label="Sisäinen tuloste: kumppanilaskutus, asiakkaalta laskutettava ja kaikki hinnat.">
@@ -3631,6 +3741,7 @@ export default function WorkReportDetailPage({ session }: Props) {
           showCustomerHourlyRate={showCustomerBillingFeatures}
           showPartnerExpenseFields={isPartnerReport}
           showCustomerExpenseFields={showCustomerBillingFeatures}
+          warehouseCompanyOptions={expenseWarehouseCompanyOptions}
           defaultHourlyRate={
             billableCalculation?.ratesUsed.hourly_regular
             ?? partnershipRatesPreview.hourly_regular

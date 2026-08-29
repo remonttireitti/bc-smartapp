@@ -121,6 +121,8 @@ export type DailyExpenseLine = {
   bill_to_partner?: boolean;
   bill_to_customer?: boolean;
   customer_unit_price?: number | null;
+  warehouse_company_id?: string | null;
+  warehouse_cost_deducted?: boolean;
   sort_order: number;
 };
 
@@ -198,6 +200,7 @@ export const EXPENSE_TYPE_LABELS: Record<string, string> = {
   km: 'KM-korvaus',
   part: 'Varaosa',
   material: 'Tarvike',
+  warehouse_purchase: 'Työkalu/varaosa (varastosta)',
   other: 'Muu kulu',
 };
 

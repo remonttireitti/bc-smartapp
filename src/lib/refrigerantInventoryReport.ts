@@ -291,27 +291,60 @@ export async function loadRefrigerantPeriodReport(
   toIso: string,
   fromDate: string,
   toDate: string,
+  options?: { cylinderId?: string },
 ): Promise<{
   rows: RefrigerantPeriodReportRow[];
   summary: RefrigerantPeriodSummary;
   stock: RefrigerantStockSnapshotRow[];
 }> {
+  const cylinderId = options?.cylinderId;
+
+  let movementsQuery = supabase
+    .from('refrigerant_cylinder_movements')
+    .select(MOVEMENT_SELECT)
+    .eq('company_id', companyId)
+    .gte('created_at', fromIso)
+    .lte('created_at', toIso)
+    .order('created_at', { ascending: true });
+  if (cylinderId) movementsQuery = movementsQuery.eq('cylinder_id', cylinderId);
+
+  let linesQuery = supabase
+    .from('work_report_refrigerant_lines')
+    .select(LINE_SELECT)
+    .eq('source', 'supplier')
+    .gte('work_report_daily_logs.log_date', fromDate)
+    .lte('work_report_daily_logs.log_date', toDate)
+    .order('created_at', { ascending: true });
+  if (cylinderId) linesQuery = linesQuery.eq('cylinder_id', cylinderId);
+
+  const stockPromise = cylinderId
+    ? supabase
+        .from('refrigerant_cylinders')
+        .select(STOCK_SELECT)
+        .eq('id', cylinderId)
+        .maybeSingle()
+        .then(({ data, error }) => {
+          if (error) throw error;
+          if (!data) return [] as RefrigerantStockSnapshotRow[];
+          const remaining = Number(data.remaining_kg) || 0;
+          const capacity = Number(data.capacity_kg) || Number(data.purchased_kg) || 0;
+          return [
+            {
+              serial_number: data.serial_number?.trim() || '—',
+              refrigerant_type: data.refrigerant_type?.trim() || '—',
+              remaining_kg: remaining,
+              capacity_kg: capacity,
+              ownership: formatRefrigerantOwnershipLabel(data.ownership_type),
+              status_label: data.status === 'empty' ? 'Tyhjä' : 'Varastossa',
+            },
+          ];
+        })
+    : loadRefrigerantStockSnapshot(supabase, companyId);
+
   const [movementsResult, linesResult, stock] = await Promise.all([
-    supabase
-      .from('refrigerant_cylinder_movements')
-      .select(MOVEMENT_SELECT)
-      .eq('company_id', companyId)
-      .gte('created_at', fromIso)
-      .lte('created_at', toIso)
-      .order('created_at', { ascending: true }),
-    supabase
-      .from('work_report_refrigerant_lines')
-      .select(LINE_SELECT)
-      .eq('source', 'supplier')
-      .gte('work_report_daily_logs.log_date', fromDate)
-      .lte('work_report_daily_logs.log_date', toDate)
-      .order('created_at', { ascending: true }),
-    loadRefrigerantStockSnapshot(supabase, companyId),
+    movementsQuery,
+    linesQuery,
+    stockPromise,
   ]);
 
   if (movementsResult.error) throw movementsResult.error;
@@ -331,6 +364,29 @@ export async function loadRefrigerantPeriodReport(
     summary: summarizePeriodReportRows(rows),
     stock,
   };
+}
+
+export function buildRefrigerantBottleReportHtml(opts: {
+  cylinderLabel: string;
+  companyName: string;
+  fromLabel: string;
+  toLabel: string;
+  summary: RefrigerantPeriodSummary;
+  rows: RefrigerantPeriodReportRow[];
+  stock: RefrigerantStockSnapshotRow[];
+}): string {
+  const title = `Kylmäainepullo ${opts.cylinderLabel}`;
+  return buildRefrigerantPeriodReportHtml({
+    companyName: `${opts.companyName} · ${title}`,
+    fromLabel: opts.fromLabel,
+    toLabel: opts.toLabel,
+    summary: opts.summary,
+    rows: opts.rows,
+    stock: opts.stock,
+  }).replace(
+    '<h1>Kylmäaineraportti</h1>',
+    `<h1>Kylmäainepullo</h1><p class="muted"><strong>${escapeHtml(opts.cylinderLabel)}</strong></p>`,
+  );
 }
 
 export function buildRefrigerantPeriodReportHtml(opts: {

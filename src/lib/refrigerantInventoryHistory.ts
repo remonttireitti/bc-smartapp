@@ -474,25 +474,28 @@ export async function loadRefrigerantInventoryHistory(
   fromDate: string,
   toDate: string,
   viewerCompanyId: string = companyId,
+  cylinderId?: string,
 ): Promise<RefrigerantInventoryHistoryRow[]> {
   const fromIso = `${fromDate}T00:00:00.000Z`;
   const toIso = `${toDate}T23:59:59.999Z`;
 
-  const [movementsResult, linesResult] = await Promise.all([
-    supabase
-      .from('refrigerant_cylinder_movements')
-      .select(MOVEMENT_SELECT)
-      .eq('company_id', companyId)
-      .gte('created_at', fromIso)
-      .lte('created_at', toIso)
-      .order('created_at', { ascending: false }),
-    supabase
-      .from('work_report_refrigerant_lines')
-      .select(LINE_SELECT)
-      .gte('work_report_daily_logs.log_date', fromDate)
-      .lte('work_report_daily_logs.log_date', toDate)
-      .order('created_at', { ascending: false }),
-  ]);
+  let movementsQuery = supabase
+    .from('refrigerant_cylinder_movements')
+    .select(MOVEMENT_SELECT)
+    .eq('company_id', companyId)
+    .gte('created_at', fromIso)
+    .lte('created_at', toIso)
+    .order('created_at', { ascending: false });
+  if (cylinderId) movementsQuery = movementsQuery.eq('cylinder_id', cylinderId);
+
+  let linesQuery = supabase
+    .from('work_report_refrigerant_lines')
+    .select(LINE_SELECT)
+    .gte('work_report_daily_logs.log_date', fromDate)
+    .lte('work_report_daily_logs.log_date', toDate)
+    .order('created_at', { ascending: false });
+  if (cylinderId) linesQuery = linesQuery.eq('cylinder_id', cylinderId);
+  const [movementsResult, linesResult] = await Promise.all([movementsQuery, linesQuery]);
 
   if (movementsResult.error) throw movementsResult.error;
   if (linesResult.error) throw linesResult.error;

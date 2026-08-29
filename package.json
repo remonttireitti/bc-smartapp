@@ -30,6 +30,7 @@
     "test:refrigerant-visibility": "npx tsx scripts/test-refrigerant-visibility.mjs",
     "test:refrigerant-pass-through": "npx tsx scripts/test-refrigerant-pass-through.mjs",
     "test:billing-refrigerant-deductions": "npx tsx scripts/test-billing-refrigerant-deductions.mjs",
+    "test:billing-expense-deductions": "npx tsx scripts/test-billing-expense-deductions.mjs",
     "test:refrigerant-billing-purchases": "npx tsx scripts/test-refrigerant-billing-purchases.mjs",
     "test:refrigerant-rental-days": "npx tsx scripts/test-refrigerant-rental-days.mjs",
     "test:refrigerant-warehouse-stock-unchanged": "npx tsx scripts/test-refrigerant-warehouse-stock-unchanged.mjs",

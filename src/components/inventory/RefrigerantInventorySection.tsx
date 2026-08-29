@@ -1221,9 +1221,12 @@ export default function RefrigerantInventorySection({
       <RefrigerantBottleDetailDialog
         open={detailCylinder != null}
         cylinder={detailCylinder}
+        warehouseCompanyId={warehouseCompanyId}
+        warehouseCompanyName={warehouseCompanyName}
         canEdit={canEditWarehouse}
         busy={scanBusy}
         onClose={() => setDetailCylinder(null)}
+        onError={onError}
         onEdit={
           detailCylinder
             ? () => {

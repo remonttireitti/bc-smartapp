@@ -24,14 +24,14 @@ export default function BillingRefrigerantDeductions({
 
   return (
     <div className={`billing-refrigerant-deductions${compact ? ' billing-refrigerant-deductions--compact' : ''}`}>
-      <h4>Kylmäaineostot (vähennys)</h4>
+      <h4>Varasto-ostot (vähennys)</h4>
       {lines.length > 0 ? (
         <ul className="billing-refrigerant-deduction-list">
           {lines.map((line) => {
-            const lineId = line.refrigerantLineId;
+            const lineId = line.refrigerantLineId ?? line.expenseLineId;
             const isDeducted = line.warehouseDeduction === 'deducted';
             return (
-              <li key={line.refrigerantLineId ?? `${line.logId}-${line.description}`}>
+              <li key={lineId ?? `${line.logId}-${line.description}`}>
                 <span className="billing-refrigerant-deduction-desc">{line.description}</span>
                 <span className="billing-refrigerant-deduction-amount">{formatEuro(line.total)}</span>
                 {lineId ? (
@@ -52,7 +52,7 @@ export default function BillingRefrigerantDeductions({
           })}
         </ul>
       ) : (
-        <p className="muted">Ei kylmäaineostorivejä.</p>
+        <p className="muted">Ei varasto-ostorivejä.</p>
       )}
       {(pending > 0.005 || deducted > 0.005) && (
         <p className="billing-refrigerant-deduction-totals muted">

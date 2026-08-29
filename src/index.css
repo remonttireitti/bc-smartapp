@@ -10084,7 +10084,22 @@ a.tile.customer-document-tile:hover {
 }
 
 .inventory-bottle-detail-dialog {
-  width: min(100%, 34rem);
+  width: min(100%, 52rem);
+  max-height: min(92vh, 52rem);
+  overflow: auto;
+}
+
+.inventory-bottle-detail-history {
+  margin: 0 0 1rem;
+}
+
+.inventory-bottle-detail-history h3 {
+  margin: 0 0 0.65rem;
+  font-size: 1rem;
+}
+
+.inventory-bottle-detail-history .inventory-report-dates {
+  margin-bottom: 0.75rem;
 }
 
 .inventory-bottle-detail-head {

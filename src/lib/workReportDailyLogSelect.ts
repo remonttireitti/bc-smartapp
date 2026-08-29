@@ -8,6 +8,9 @@ export const EXPENSE_LINE_FIELDS_BASE =
 export const EXPENSE_LINE_FIELDS_WITH_PARTNER =
   'id, daily_log_id, expense_type, description, qty, unit_price, bill_to_partner, bill_to_customer, customer_unit_price, sort_order';
 
+export const EXPENSE_LINE_FIELDS_WITH_WAREHOUSE =
+  'id, daily_log_id, expense_type, description, qty, unit_price, bill_to_partner, bill_to_customer, customer_unit_price, warehouse_company_id, warehouse_cost_deducted, sort_order';
+
 export function isMissingBillToPartnerColumn(error: PostgrestError | null | undefined): boolean {
   if (!error?.message) return false;
   const msg = error.message.toLowerCase();
@@ -19,13 +22,28 @@ export function isMissingBillToPartnerColumn(error: PostgrestError | null | unde
   );
 }
 
-export function expenseLinesSelectFragment(includeBillToPartner: boolean): string {
-  const fields = includeBillToPartner ? EXPENSE_LINE_FIELDS_WITH_PARTNER : EXPENSE_LINE_FIELDS_BASE;
+export function isMissingWarehouseExpenseColumn(error: PostgrestError | null | undefined): boolean {
+  if (!error?.message) return false;
+  const msg = error.message.toLowerCase();
+  return (
+    (msg.includes('warehouse_company_id') || msg.includes('warehouse_cost_deducted')) &&
+    (msg.includes('does not exist') ||
+      msg.includes('could not find') ||
+      msg.includes('schema cache'))
+  );
+}
+
+export function expenseLinesSelectFragment(includeBillToPartner: boolean, includeWarehouse = true): string {
+  const fields = includeWarehouse
+    ? EXPENSE_LINE_FIELDS_WITH_WAREHOUSE
+    : includeBillToPartner
+      ? EXPENSE_LINE_FIELDS_WITH_PARTNER
+      : EXPENSE_LINE_FIELDS_BASE;
   return `expense_lines:work_report_daily_expense_lines(${fields})`;
 }
 
-export function buildWorkReportDetailLogSelect(includeBillToPartner: boolean): string {
-  const expenseLines = expenseLinesSelectFragment(includeBillToPartner);
+export function buildWorkReportDetailLogSelect(includeBillToPartner: boolean, includeWarehouse = true): string {
+  const expenseLines = expenseLinesSelectFragment(includeBillToPartner, includeWarehouse);
   return `
   id, work_report_id, log_date, log_start_time, entry_type,
   hours_regular, hours_overtime, hours_on_call, fixed_price_amount,
@@ -48,8 +66,8 @@ export function buildWorkReportDetailLogSelect(includeBillToPartner: boolean): s
 `;
 }
 
-export function buildWorkReportPrintLogSelect(includeBillToPartner: boolean): string {
-  const expenseLines = expenseLinesSelectFragment(includeBillToPartner);
+export function buildWorkReportPrintLogSelect(includeBillToPartner: boolean, includeWarehouse = true): string {
+  const expenseLines = expenseLinesSelectFragment(includeBillToPartner, includeWarehouse);
   return `
   id, work_report_id, log_date, entry_type,
   hours_regular, hours_overtime, hours_on_call, fixed_price_amount,
@@ -71,8 +89,8 @@ export function buildWorkReportPrintLogSelect(includeBillToPartner: boolean): st
 `;
 }
 
-export function buildCustomerBillingLogSelect(includeBillToPartner: boolean): string {
-  const expenseLines = expenseLinesSelectFragment(includeBillToPartner);
+export function buildCustomerBillingLogSelect(includeBillToPartner: boolean, includeWarehouse = true): string {
+  const expenseLines = expenseLinesSelectFragment(includeBillToPartner, includeWarehouse);
   return `
   id, work_report_id, log_date, log_start_time, entry_type,
   hours_regular, hours_overtime, hours_on_call, fixed_price_amount,
@@ -113,11 +131,18 @@ export async function fetchWorkReportDetailLogs(
   error: PostgrestError | null;
   billToPartnerSupported: boolean;
 }> {
-  const withPartner = buildWorkReportDetailLogSelect(true);
-  let result = await queryDailyLogs(supabase, workReportId, withPartner);
+  const run = (includeBillToPartner: boolean, includeWarehouse: boolean) =>
+    queryDailyLogs(supabase, workReportId, buildWorkReportDetailLogSelect(includeBillToPartner, includeWarehouse));
+
+  let result = await run(true, true);
+  if (isMissingWarehouseExpenseColumn(result.error)) {
+    result = await run(true, false);
+  }
   if (isMissingBillToPartnerColumn(result.error)) {
-    const withoutPartner = buildWorkReportDetailLogSelect(false);
-    result = await queryDailyLogs(supabase, workReportId, withoutPartner);
+    result = await run(false, isMissingWarehouseExpenseColumn(result.error) ? false : true);
+    if (isMissingWarehouseExpenseColumn(result.error)) {
+      result = await run(false, false);
+    }
     return {
       logs: (result.data as unknown as WorkReportDailyLog[]) ?? [],
       error: result.error,
@@ -135,18 +160,23 @@ export async function fetchWorkReportPrintLogs(
   supabase: SupabaseClient,
   workReportId: string,
 ): Promise<{ logs: WorkReportDailyLog[]; error: PostgrestError | null }> {
-  const run = (logSelect: string) =>
+  const run = (includeBillToPartner: boolean, includeWarehouse: boolean) =>
     supabase
       .from('work_report_daily_logs')
-      .select(logSelect)
+      .select(buildWorkReportPrintLogSelect(includeBillToPartner, includeWarehouse))
       .eq('work_report_id', workReportId)
       .order('log_date', { ascending: true })
       .order('created_at', { ascending: true });
 
-  const withPartner = buildWorkReportPrintLogSelect(true);
-  let result = await run(withPartner);
+  let result = await run(true, true);
+  if (isMissingWarehouseExpenseColumn(result.error)) {
+    result = await run(true, false);
+  }
   if (isMissingBillToPartnerColumn(result.error)) {
-    result = await run(buildWorkReportPrintLogSelect(false));
+    result = await run(false, isMissingWarehouseExpenseColumn(result.error) ? false : true);
+    if (isMissingWarehouseExpenseColumn(result.error)) {
+      result = await run(false, false);
+    }
   }
   return {
     logs: (result.data as unknown as WorkReportDailyLog[]) ?? [],
@@ -158,18 +188,22 @@ export async function fetchCustomerBillingLogs(
   supabase: SupabaseClient,
   workReportId: string,
 ): Promise<{ logs: WorkReportDailyLog[]; error: PostgrestError | null }> {
-  const withPartner = buildCustomerBillingLogSelect(true);
-  let result = await supabase
-    .from('work_report_daily_logs')
-    .select(withPartner)
-    .eq('work_report_id', workReportId)
-    .order('log_date', { ascending: false });
-  if (isMissingBillToPartnerColumn(result.error)) {
-    result = await supabase
+  const run = (includeBillToPartner: boolean, includeWarehouse: boolean) =>
+    supabase
       .from('work_report_daily_logs')
-      .select(buildCustomerBillingLogSelect(false))
+      .select(buildCustomerBillingLogSelect(includeBillToPartner, includeWarehouse))
       .eq('work_report_id', workReportId)
       .order('log_date', { ascending: false });
+
+  let result = await run(true, true);
+  if (isMissingWarehouseExpenseColumn(result.error)) {
+    result = await run(true, false);
+  }
+  if (isMissingBillToPartnerColumn(result.error)) {
+    result = await run(false, isMissingWarehouseExpenseColumn(result.error) ? false : true);
+    if (isMissingWarehouseExpenseColumn(result.error)) {
+      result = await run(false, false);
+    }
   }
   return {
     logs: (result.data as unknown as WorkReportDailyLog[]) ?? [],
