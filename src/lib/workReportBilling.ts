@@ -1,17 +1,9 @@
 import type { WorkReportDailyLog } from '../types';
 import { resolveDailyLogAuthorLabel } from '../types';
 import type { BillableRatesSource, PartnerBillingRates } from './management';
-import { formatRefrigerantLineLabelForReport, formatRefrigerantWarehouseCostLabel } from './refrigerantInventory';
+import { formatRefrigerantLineLabelForReport } from './refrigerantInventory';
 import {
-  formatPartnerPurchaseDeductionLabel,
-  isPartnerPurchaseDeductionLine,
-  isPartnerPurchaseOwedToViewer,
-  partnerPurchaseLineTotal,
-} from './partnerPurchaseDeduction';
-import {
-  isRefrigerantWarehouseCostLine,
   refrigerantSaleToOwnerUnitPrice,
-  refrigerantWarehouseCostUnitPrice,
   shouldBillRefrigerantSaleToReportOwner,
 } from './refrigerantPassThrough';
 import {
@@ -82,7 +74,7 @@ export type BillableUserSummary = {
 };
 
 export type BillableCalculation = {
-  version: 3 | 4;
+  version: 3 | 4 | 5;
   billToCompanyId: string | null;
   billToCompanyName: string | null;
   ratesUsed: Required<PartnerBillingRates>;
@@ -115,88 +107,6 @@ const DEFAULT_RATES: Required<PartnerBillingRates> = {
 
 function lineTotal(qty: number, unitPrice: number) {
   return Math.round(qty * unitPrice * 100) / 100;
-}
-
-function pushRefrigerantPurchaseDeductionLine(
-  summary: BillableUserSummary,
-  log: WorkReportDailyLog,
-  refLine: NonNullable<WorkReportDailyLog['refrigerant_lines']>[number],
-  viewerCompanyId: string | null | undefined,
-  report?: Pick<{ owner_company_id: string; created_by_company_id: string }, 'owner_company_id' | 'created_by_company_id'>,
-) {
-  const qty = Number(refLine.qty_kg);
-  if (qty <= 0 || !viewerCompanyId || !refLine.warehouse_company_id) return;
-
-  const isWarehouseViewer = isRefrigerantWarehouseCostLine(refLine, viewerCompanyId);
-  const isCreatorPurchase =
-    !!report
-    && viewerCompanyId === report.created_by_company_id
-    && report.created_by_company_id !== report.owner_company_id
-    && refLine.warehouse_company_id !== viewerCompanyId
-    && (refLine.source === 'warehouse' || refLine.source === 'partner_warehouse');
-
-  if (!isWarehouseViewer && !isCreatorPurchase) return;
-
-  const unitPrice = refrigerantWarehouseCostUnitPrice(refLine);
-  if (!(unitPrice > 0)) return;
-
-  const fullTotal = lineTotal(qty, unitPrice);
-  const deducted = Boolean(refLine.warehouse_cost_deducted);
-  summary.lines.push({
-    logId: log.id,
-    logDate: log.log_date,
-    kind: 'refrigerant_purchase_deduction',
-    description: formatRefrigerantWarehouseCostLabel(refLine, deducted),
-    qty,
-    unitPrice,
-    total: fullTotal,
-    included: false,
-    refrigerantLineId: refLine.id,
-    deductionPartnerCompanyId: refLine.warehouse_company_id ?? undefined,
-    deductionPartnerName: refLine.warehouse_company?.name?.trim() || undefined,
-    warehouseDeduction: deducted ? 'deducted' : 'pending',
-  });
-  if (!deducted) summary.excludedSubtotal += fullTotal;
-}
-
-function pushPartnerPurchaseDeductionLine(
-  summary: BillableUserSummary,
-  log: WorkReportDailyLog,
-  purchaseLine: NonNullable<WorkReportDailyLog['partner_purchase_lines']>[number],
-  viewerCompanyId: string | null | undefined,
-  report?: Pick<{ owner_company_id: string; created_by_company_id: string }, 'owner_company_id' | 'created_by_company_id'>,
-) {
-  if (!isPartnerPurchaseDeductionLine(purchaseLine)) return;
-  if (!viewerCompanyId || !purchaseLine.partner_company_id) return;
-
-  const isPartnerViewer = isPartnerPurchaseOwedToViewer(purchaseLine, viewerCompanyId);
-  const isCreatorPurchase =
-    !!report
-    && viewerCompanyId === report.created_by_company_id
-    && report.created_by_company_id !== report.owner_company_id
-    && purchaseLine.partner_company_id !== viewerCompanyId;
-
-  if (!isPartnerViewer && !isCreatorPurchase) return;
-
-  const fullTotal = partnerPurchaseLineTotal(purchaseLine);
-  if (!(fullTotal > 0)) return;
-
-  const deducted = Boolean(purchaseLine.cost_deducted);
-  summary.lines.push({
-    logId: log.id,
-    logDate: log.log_date,
-    kind: 'partner_purchase_deduction',
-    description: formatPartnerPurchaseDeductionLabel(purchaseLine, deducted),
-    qty: Number(purchaseLine.qty),
-    unitPrice: fullTotal / Number(purchaseLine.qty),
-    total: fullTotal,
-    included: false,
-    partnerPurchaseLineId: purchaseLine.id,
-    deductionPartnerCompanyId: purchaseLine.partner_company_id,
-    deductionPartnerName: purchaseLine.partner_company?.name?.trim() || undefined,
-    warehouseDeduction: deducted ? 'deducted' : 'pending',
-  });
-  if (!deducted) summary.excludedSubtotal += fullTotal;
 }
 
 function resolveHourUnitPrice(
@@ -402,10 +312,6 @@ export function calculateWorkReportBillable(input: {
       else summary.excludedSubtotal += billed.total;
     }
 
-    for (const purchaseLine of log.partner_purchase_lines ?? []) {
-      pushPartnerPurchaseDeductionLine(summary, log, purchaseLine, input.viewerCompanyId, input.report);
-    }
-
     const tripKm = (log.trip_legs ?? []).reduce(
       (sum, leg) => sum + (Number(leg.distance_km) > 0 ? Number(leg.distance_km) : 0),
       0,
@@ -462,17 +368,6 @@ export function calculateWorkReportBillable(input: {
         });
         if (billed) summary.expensesTotal += total;
         else summary.excludedSubtotal += fullTotal;
-
-        pushRefrigerantPurchaseDeductionLine(summary, log, refLine, input.viewerCompanyId, input.report);
-        continue;
-      }
-
-      if (
-        input.report
-        && input.viewerCompanyId
-        && isRefrigerantWarehouseCostLine(refLine, input.viewerCompanyId)
-      ) {
-        pushRefrigerantPurchaseDeductionLine(summary, log, refLine, input.viewerCompanyId, input.report);
         continue;
       }
 
@@ -536,7 +431,7 @@ export function calculateWorkReportBillable(input: {
   const deductionTotals = warehouseDeductionTotalsFromUsers(byUser);
 
   return {
-    version: 4,
+    version: 5,
     billToCompanyId: input.billToCompanyId,
     billToCompanyName: input.billToCompanyName,
     ratesUsed: rates,
@@ -549,7 +444,7 @@ export function calculateWorkReportBillable(input: {
   };
 }
 
-export const BILLABLE_CALCULATION_VERSION = 4;
+export const BILLABLE_CALCULATION_VERSION = 5;
 
 const BILLABLE_HOUR_KINDS = new Set<BillableLineKind>([
   'hours_regular',
@@ -623,10 +518,11 @@ export function warehouseDeductionTotalsFromCalculation(
 
 export function billingPartnerNetTotal(
   grossTotal: number,
-  calc: BillableCalculation | null | undefined,
+  _calc: BillableCalculation | null | undefined,
 ): number {
-  const { pending } = warehouseDeductionTotalsFromCalculation(calc);
-  return Math.max(0, Math.round((grossTotal - pending) * 100) / 100);
+  // Varasto- ja piikkiostojen vähennykset käsitellään erikseen laskutuksen
+  // vähennyspaneelissa — ne eivät vähennä työraportin laskutettavaa summaa.
+  return Math.round(grossTotal * 100) / 100;
 }
 
 export function breakdownFromBillableCalculation(calc: BillableCalculation): {

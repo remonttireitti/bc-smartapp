@@ -73,15 +73,14 @@ const calc = calculateWorkReportBillable({
   viewerCompanyId: 'creator',
 });
 
-assert.equal(calc.version, 4);
+assert.equal(calc.version, 5);
 assert.equal(calc.grandTotal, 156);
-assert.equal(calc.warehouseDeductionsPending, 24);
+assert.equal(calc.warehouseDeductionsPending, 0);
 
 const deductions = warehouseDeductionTotalsFromCalculation(calc);
-assert.equal(deductions.pending, 24);
-assert.equal(deductions.lines.length, 1);
-assert.equal(deductions.lines[0].warehouseDeduction, 'pending');
+assert.equal(deductions.pending, 0);
+assert.equal(deductions.lines.length, 0);
 
-assert.equal(billingPartnerNetTotal(calc.grandTotal, calc), 132);
+assert.equal(billingPartnerNetTotal(calc.grandTotal, calc), 156);
 
 console.log('test-billing-refrigerant-deductions: ok');

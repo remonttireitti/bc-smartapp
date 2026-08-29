@@ -71,18 +71,15 @@ const calc = calculateWorkReportBillable({
   viewerCompanyId: 'creator',
 });
 
-assert.equal(calc.version, 4);
+assert.equal(calc.version, 5);
 assert.equal(calc.grandTotal, 100);
-assert.equal(calc.warehouseDeductionsPending, 111.11);
+assert.equal(calc.warehouseDeductionsPending, 0);
 
 const deductions = warehouseDeductionTotalsFromCalculation(calc);
-assert.equal(deductions.pending, 111.11);
-assert.equal(deductions.lines.length, 1);
-assert.equal(deductions.lines[0].kind, 'partner_purchase_deduction');
-assert.equal(deductions.lines[0].warehouseDeduction, 'pending');
-assert.equal(deductions.lines[0].partnerPurchaseLineId, 'pp-1');
+assert.equal(deductions.pending, 0);
+assert.equal(deductions.lines.length, 0);
 
-assert.equal(billingPartnerNetTotal(calc.grandTotal, calc), 0);
+assert.equal(billingPartnerNetTotal(calc.grandTotal, calc), 100);
 
 const ownerCalc = calculateWorkReportBillable({
   logs: [
@@ -139,7 +136,7 @@ const ownerCalc = calculateWorkReportBillable({
   viewerCompanyId: 'owner',
 });
 
-assert.equal(ownerCalc.warehouseDeductionsDeducted, 55.56);
+assert.equal(ownerCalc.warehouseDeductionsDeducted, 0);
 assert.equal(ownerCalc.warehouseDeductionsPending, 0);
 
 console.log('test-billing-expense-deductions: ok');

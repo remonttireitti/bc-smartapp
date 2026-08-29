@@ -51,7 +51,6 @@ import {
   type BillingModuleMode,
 } from '../lib/workReportBillingCopy';
 import { ensurePartnerBillableCalculated } from '../lib/workReportPartnerBillingPersist';
-import { warehouseDeductionTotalsFromCalculation } from '../lib/workReportBilling';
 import {
   collectPartnerBillingDeductions,
   filterPartnerDeductionsByReportIds,
@@ -1461,10 +1460,6 @@ function BillingReportCard({
 }) {
   const breakdown = billingRowBreakdown(row, mode);
   const partnerAmounts = mode === 'partner' ? billingRowPartnerAmounts(row) : null;
-  const deductionDetails =
-    mode === 'partner'
-      ? warehouseDeductionTotalsFromCalculation(row.billable?.calculation ?? undefined)
-      : { pending: 0, deducted: 0, lines: [] };
   const amounts =
     mode === 'customer'
       ? {
@@ -1546,17 +1541,6 @@ function BillingReportCard({
                 <dt>Kulut / urakat</dt>
                 <dd>{formatEuro(breakdown.materials)}</dd>
               </div>
-              {mode === 'partner' && (deductionDetails.pending > 0.005 || deductionDetails.deducted > 0.005) ? (
-                <div>
-                  <dt>Vähennykset</dt>
-                  <dd>
-                    {deductionDetails.pending > 0.005 ? `−${formatEuro(deductionDetails.pending)}` : '—'}
-                    {deductionDetails.deducted > 0.005
-                      ? ` (${formatEuro(deductionDetails.deducted)} vähennetty)`
-                      : ''}
-                  </dd>
-                </div>
-              ) : null}
               <div className="billing-report-total">
                 <dt>{amounts.state === 'partial' ? 'Avoinna' : 'Yhteensä'}</dt>
                 <dd>
@@ -1569,12 +1553,6 @@ function BillingReportCard({
                   )}
                 </dd>
               </div>
-              {mode === 'partner' && amounts.grossTotal > amounts.netTotal + 0.005 ? (
-                <div>
-                  <dt>Brutto</dt>
-                  <dd className="muted">{formatEuro(amounts.grossTotal)}</dd>
-                </div>
-              ) : null}
               {amounts.state === 'partial' && (
                 <div>
                   <dt>Laskutettu</dt>

@@ -370,7 +370,7 @@ export function billingRowBreakdown(
     total: 0,
     deductionsPending: deductions.pending,
     deductionsDeducted: deductions.deducted,
-    netTotal: Math.max(0, grossTotal - deductions.pending),
+    netTotal: grossTotal,
   };
 }
 
