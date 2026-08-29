@@ -189,4 +189,20 @@ const partnerSaleAndUse = mergeRefrigerantInventoryHistoryRows(
 assert.equal(partnerSaleAndUse.length, 1);
 assert.equal(partnerSaleAndUse[0].eventLabel, 'Käyttö työkohteella');
 
+const qtyMismatchDuplicate = mergeRefrigerantInventoryHistoryRows(
+  [
+    movement,
+    {
+      ...movement,
+      id: 'm-1-old',
+      qty_kg: 1.998,
+      created_at: '2026-08-28T09:30:23.000Z',
+    },
+  ],
+  [],
+);
+assert.equal(qtyMismatchDuplicate.length, 1);
+assert.equal(qtyMismatchDuplicate[0].qty_kg, 2);
+assert.equal(qtyMismatchDuplicate[0].eventLabel, 'Käyttö työkohteella');
+
 console.log('test-refrigerant-inventory-history: ok');

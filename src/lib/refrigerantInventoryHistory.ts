@@ -257,19 +257,45 @@ function stockLineWorkUseKey(
   return `stock|${workReportId}|${cylinderId}|${roundQtyKg(qtyKg)}|${normalizeRefrigerantTypeForKey(refrigerantType)}`;
 }
 
+function stockWorkUseKey(
+  workReportId: string | null,
+  cylinderId: string | null,
+  refrigerantType: string,
+): string | null {
+  if (!workReportId || !cylinderId) return null;
+  return `stockline|${workReportId}|${cylinderId}|${normalizeRefrigerantTypeForKey(refrigerantType)}`;
+}
+
+function workUseReportSerialKey(
+  workReportId: string | null,
+  serialNumber: string | null | undefined,
+  refrigerantType: string,
+): string | null {
+  if (!workReportId) return null;
+  const serial = serialNumber?.trim();
+  if (!serial || serial === '—') return null;
+  return `stockserial|${workReportId}|${serial}|${normalizeRefrigerantTypeForKey(refrigerantType)}`;
+}
+
 function workUseMovementDedupKey(movement: RawMovement): string | null {
   const qty = Number(movement.qty_kg) || 0;
   const type = movement.refrigerant_type ?? '';
   return (
+    stockWorkUseKey(movement.work_report_id, movement.cylinder_id, type) ??
+    workUseReportSerialKey(movement.work_report_id, movement.serial_number, type) ??
     stockLineWorkUseKey(movement.work_report_id, movement.cylinder_id, qty, type) ??
     workUseDedupBaseKey(movement.work_report_id, qty, type) ??
     workUseSerialQtyTypeKey(movement.serial_number, qty, type)
   );
 }
 
+function pickNewerWorkUseMovement(current: RawMovement, candidate: RawMovement): RawMovement {
+  return candidate.created_at > current.created_at ? candidate : current;
+}
+
 /** Poista tietokannan tuplatyökäyttökirjaukset historianäkymästä. */
 export function dedupeWorkUseMovements(movements: RawMovement[]): RawMovement[] {
-  const seen = new Set<string>();
+  const workUseByKey = new Map<string, RawMovement>();
   const kept: RawMovement[] = [];
 
   for (const movement of movements) {
@@ -283,16 +309,20 @@ export function dedupeWorkUseMovements(movements: RawMovement[]): RawMovement[] 
       kept.push(movement);
       continue;
     }
-    if (seen.has(key)) continue;
-    seen.add(key);
-    kept.push(movement);
+
+    const existing = workUseByKey.get(key);
+    if (!existing) {
+      workUseByKey.set(key, movement);
+      continue;
+    }
+    workUseByKey.set(key, pickNewerWorkUseMovement(existing, movement));
   }
 
-  return kept;
+  return [...kept, ...workUseByKey.values()];
 }
 
 function dedupeHistoryWorkUseRows(rows: RefrigerantInventoryHistoryRow[]): RefrigerantInventoryHistoryRow[] {
-  const seen = new Set<string>();
+  const workUseByKey = new Map<string, RefrigerantInventoryHistoryRow>();
   const kept: RefrigerantInventoryHistoryRow[] = [];
 
   for (const row of rows) {
@@ -302,6 +332,7 @@ function dedupeHistoryWorkUseRows(rows: RefrigerantInventoryHistoryRow[]): Refri
     }
 
     const key =
+      workUseReportSerialKey(row.work_report_id, row.serial_number, row.refrigerant_type) ??
       workUseDedupBaseKey(row.work_report_id, row.qty_kg, row.refrigerant_type) ??
       workUseSerialQtyTypeKey(row.serial_number, row.qty_kg, row.refrigerant_type) ??
       workUseTitleDedupKey(row.work_report_title, row.qty_kg, row.refrigerant_type);
@@ -310,18 +341,25 @@ function dedupeHistoryWorkUseRows(rows: RefrigerantInventoryHistoryRow[]): Refri
       kept.push(row);
       continue;
     }
-    if (seen.has(key)) continue;
-    seen.add(key);
-    kept.push(row);
+
+    const existing = workUseByKey.get(key);
+    if (!existing) {
+      workUseByKey.set(key, row);
+      continue;
+    }
+    workUseByKey.set(key, existing.at >= row.at ? existing : row);
   }
 
-  return kept;
+  return [...kept, ...workUseByKey.values()];
 }
 
 function collectHistoryRowMatchKeys(row: RefrigerantInventoryHistoryRow): string[] {
   const keys = new Set<string>();
   const qty = row.qty_kg;
   const type = row.refrigerant_type;
+
+  const reportSerial = workUseReportSerialKey(row.work_report_id, row.serial_number, type);
+  if (reportSerial) keys.add(reportSerial);
 
   const base = workUseDedupBaseKey(row.work_report_id, qty, type);
   if (base) keys.add(base);
