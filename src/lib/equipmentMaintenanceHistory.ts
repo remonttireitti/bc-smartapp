@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Equipment } from '../types';
 import { maintenanceReportListTitle, normalizeHuoltoReportData } from './huoltoRaportti/defaults';
+import { huoltoReportMatchesEquipment } from './equipmentHuoltoSnapshotSync';
 import { buildEquipmentCardPrintMainHtml } from './huoltoRaportti/equipmentCardPrintHtml';
 import { deviceTypeLabel } from './huoltoRaportti/equipmentSnapshotDisplay';
 import type { HuoltoReportData } from './huoltoRaportti/types';
@@ -70,18 +71,6 @@ function maintenanceDateYmd(row: MaintenanceReportRow, data: HuoltoReportData): 
   }
   if (row.completed_at) return row.completed_at.slice(0, 10);
   return row.updated_at.slice(0, 10);
-}
-
-function huoltoReportMatchesEquipment(data: HuoltoReportData, eq: Equipment): boolean {
-  const dt = String(eq.tag || eq.name || '').trim();
-  const sn = String(eq.serial_number || '').trim();
-  const rTunnus = String(data.laiteTunnus || '').trim();
-  const rSn = String(data.laiteSarjanumero || '').trim();
-  if (dt && rTunnus && dt === rTunnus) return true;
-  if (sn && rSn && sn === rSn) return true;
-  if (sn && rTunnus && sn === rTunnus) return true;
-  if (dt && rSn && dt === rSn) return true;
-  return false;
 }
 
 function equipmentLabel(eq: Equipment): string {

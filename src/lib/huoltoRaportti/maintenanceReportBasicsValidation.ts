@@ -164,7 +164,7 @@ export function fillMissingDeviceBasics(form: {
   if (!form.laiteValmistaja.trim()) patch.laiteValmistaja = '—';
   if (!malli) patch.laiteMalli = nimi || '—';
   if (!tunnus) patch.laiteTunnus = patch.laiteMalli || malli || '—';
-  if (form.laiteTyyppi !== 'lämpöpumppu' && !form.laiteSarjanumero.trim()) {
+  if (!form.laiteSarjanumero.trim()) {
     patch.laiteSarjanumero = 'ei tiedossa';
   }
   if (!form.laiteSijainti.trim()) patch.laiteSijainti = '—';

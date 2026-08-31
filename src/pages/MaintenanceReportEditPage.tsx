@@ -1406,14 +1406,11 @@ export default function MaintenanceReportEditPage({ session }: Props) {
     }
 
     const isSubmitting = nextStatus === 'submitted';
-    const isDraftSave = nextStatus === 'draft' || (nextStatus === undefined && status === 'draft');
 
-    if (isDraftSave || options?.auto) {
-      const devicePatch = fillMissingDeviceBasics(currentForm);
-      if (Object.keys(devicePatch).length > 0) {
-        currentForm = mergeHuoltoReportData(currentForm, devicePatch);
-        patchForm(devicePatch);
-      }
+    const devicePatch = fillMissingDeviceBasics(currentForm);
+    if (Object.keys(devicePatch).length > 0) {
+      currentForm = mergeHuoltoReportData(currentForm, devicePatch);
+      patchForm(devicePatch);
     }
 
     const customerBasics = validateMaintenanceCustomerBasics({
