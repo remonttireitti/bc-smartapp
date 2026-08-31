@@ -4,7 +4,7 @@ import type { Session } from '@supabase/supabase-js';
 import AppLayout from '../components/AppLayout';
 import { CustomerDocumentGrid, CustomerDocumentTile } from '../components/CustomerDocumentTile';
 import { CustomerEquipmentGrid, CustomerEquipmentTile } from '../components/CustomerEquipmentTile';
-import { HistoryIcon } from '../components/PrintIcons';
+import { HistoryIcon, PrinterIcon } from '../components/PrintIcons';
 import Tooltip from '../components/Tooltip';
 import ToggleSwitch from '../components/ToggleSwitch';
 import SubscriberPicker from '../components/SubscriberPicker';
@@ -43,6 +43,7 @@ import {
   formatMaintenanceDateFi,
   loadCustomerMaintenanceContext,
 } from '../lib/equipmentMaintenanceHistory';
+import { buildEquipmentListPrintHtml } from '../lib/equipmentListPrintHtml';
 import { openPrintHtml } from '../lib/openPrintWindow';
 import { isPortalUser } from '../lib/portalWorkOrder';
 import { supabase } from '../lib/supabase';
@@ -126,6 +127,7 @@ export default function CustomerDetailPage({ session }: Props) {
   const [printBusyId, setPrintBusyId] = useState<string | null>(null);
   const [selectedEquipmentIds, setSelectedEquipmentIds] = useState<Set<string>>(() => new Set());
   const [printingHistory, setPrintingHistory] = useState(false);
+  const [printingEquipmentList, setPrintingEquipmentList] = useState(false);
 
   useEffect(() => {
     if (id) void load();
@@ -479,6 +481,36 @@ export default function CustomerDetailPage({ session }: Props) {
       setError(printError instanceof Error ? printError.message : 'Huoltohistorian tulostus epäonnistui.');
     } finally {
       setPrintingHistory(false);
+    }
+  }
+
+  async function printEquipmentList(mode: 'all' | 'selected') {
+    if (!customer) return;
+    const list = mode === 'all' ? equipment : equipment.filter((eq) => selectedEquipmentIds.has(eq.id));
+    if (list.length === 0) {
+      setError(
+        mode === 'selected'
+          ? 'Valitse vähintään yksi laite (valintaruutu).'
+          : 'Ei laitteita luetteloon.',
+      );
+      return;
+    }
+
+    setPrintingEquipmentList(true);
+    setError(null);
+    try {
+      const branding = await loadPrintBranding(customer.owner_company_id);
+      openPrintHtml(
+        buildEquipmentListPrintHtml({
+          customerName: customer.name,
+          equipment: list,
+          branding,
+        }),
+      );
+    } catch (printError) {
+      setError(printError instanceof Error ? printError.message : 'Laiteluettelon tulostus epäonnistui.');
+    } finally {
+      setPrintingEquipmentList(false);
     }
   }
 
@@ -915,6 +947,24 @@ export default function CustomerDetailPage({ session }: Props) {
                 label="Valitse kaikki laitteet"
               />
               <div className="customer-equipment-bulk-actions">
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  disabled={printingEquipmentList || equipment.length === 0}
+                  onClick={() => void printEquipmentList('all')}
+                >
+                  <PrinterIcon />
+                  {printingEquipmentList ? 'Valmistellaan…' : 'Tulosta laiteluettelo (kaikki)'}
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  disabled={printingEquipmentList || selectedEquipmentIds.size === 0}
+                  onClick={() => void printEquipmentList('selected')}
+                >
+                  <PrinterIcon />
+                  {printingEquipmentList ? 'Valmistellaan…' : 'Tulosta laiteluettelo (valitut)'}
+                </button>
                 <button
                   type="button"
                   className="btn btn-secondary btn-sm"

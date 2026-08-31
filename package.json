@@ -34,6 +34,7 @@
     "test:refrigerant-billing-purchases": "npx tsx scripts/test-refrigerant-billing-purchases.mjs",
     "test:partner-billing-deductions-source": "npx tsx scripts/test-partner-billing-deductions-source.mjs",
     "test:partner-purchase-inventory": "npx tsx scripts/test-partner-purchase-inventory.mjs",
+    "test:equipment-list-print": "npx tsx scripts/test-equipment-list-print.mjs",
     "test:refrigerant-rental-days": "npx tsx scripts/test-refrigerant-rental-days.mjs",
     "test:refrigerant-warehouse-stock-unchanged": "npx tsx scripts/test-refrigerant-warehouse-stock-unchanged.mjs",
     "fix:firebase-urls": "node scripts/fix-legacy-firebase-urls.mjs --production",
