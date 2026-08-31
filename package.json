@@ -36,6 +36,7 @@
     "test:partner-purchase-inventory": "npx tsx scripts/test-partner-purchase-inventory.mjs",
     "test:equipment-list-print": "npx tsx scripts/test-equipment-list-print.mjs",
     "test:equipment-huolto-snapshot-sync": "npx tsx scripts/test-equipment-huolto-snapshot-sync.mjs",
+    "test:maintenance-report-delete-permissions": "npx tsx scripts/test-maintenance-report-delete-permissions.mjs",
     "sync:equipment-huolto-snapshots": "npx tsx scripts/sync-equipment-huolto-snapshots.mjs",
     "test:refrigerant-rental-days": "npx tsx scripts/test-refrigerant-rental-days.mjs",
     "test:refrigerant-warehouse-stock-unchanged": "npx tsx scripts/test-refrigerant-warehouse-stock-unchanged.mjs",

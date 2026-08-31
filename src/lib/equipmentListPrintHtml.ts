@@ -71,8 +71,9 @@ export function buildEquipmentListPrintHtml(input: {
 
   const tableRows = rows
     .map(
-      (row) => `
+      (row, index) => `
         <tr>
+          <td style="text-align:right">${index + 1}</td>
           <td>${escapeHtmlPrint(row.name)}</td>
           <td>${escapeHtmlPrint(row.tag)}</td>
           <td>${escapeHtmlPrint(row.type)}</td>
@@ -94,6 +95,7 @@ export function buildEquipmentListPrintHtml(input: {
           <table class="tbl" style="font-size:10px">
             <thead>
               <tr>
+                <th style="text-align:right">#</th>
                 <th>Laite</th>
                 <th>Tunnus</th>
                 <th>Tyyppi</th>

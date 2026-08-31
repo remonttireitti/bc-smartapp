@@ -50,6 +50,8 @@ const html = buildEquipmentListPrintHtml({
 });
 
 assert.match(html, /Laiteluettelo/);
+assert.match(html, /<th style="text-align:right">#<\/th>/);
+assert.match(html, /<td style="text-align:right">1<\/td>/);
 assert.match(html, /Vaikutusalue/);
 assert.match(html, /R-404A/);
 assert.match(html, /5\.1 t/);

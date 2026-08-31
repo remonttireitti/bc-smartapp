@@ -5661,7 +5661,8 @@ a.tile.maintenance-report-list-tile:hover {
   padding: .12rem .4rem;
 }
 
-.work-report-list-tile-delete {
+.work-report-list-tile-delete,
+.maintenance-report-list-tile-delete {
   align-self: flex-start;
 }
 

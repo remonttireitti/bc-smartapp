@@ -97,7 +97,7 @@ import { isPortalUser } from '../lib/portalWorkOrder';
 import { useProfile } from '../hooks/useProfile';
 import { useMaintenanceReportScrollRestore } from '../hooks/useMaintenanceReportScrollRestore';
 import { useRegisterDraftSaver } from '../hooks/useRegisterDraftSaver';
-import { canDeleteCompanyOwnedEntity } from '../lib/deletePermissions';
+import { canDeleteMaintenanceReport } from '../lib/deletePermissions';
 import type { Company, Customer, Equipment, Partnership, Subscriber } from '../types';
 
 interface Props {
@@ -156,6 +156,8 @@ export default function MaintenanceReportEditPage({ session }: Props) {
   const [reportId, setReportId] = useState<string | null>(id ?? null);
   const [savedReportTitle, setSavedReportTitle] = useState<string | null>(null);
   const [reportOwnerCompanyId, setReportOwnerCompanyId] = useState<string | null>(null);
+  const [createdByCompanyId, setCreatedByCompanyId] = useState<string | null>(null);
+  const [assignedUserId, setAssignedUserId] = useState<string | null>(null);
   const [status, setStatus] = useState('draft');
   const [form, setForm] = useState<HuoltoReportData>(() => createEmptyHuoltoReportData());
   const [partnerships, setPartnerships] = useState<Partnership[]>([]);
@@ -848,7 +850,8 @@ export default function MaintenanceReportEditPage({ session }: Props) {
       .from('maintenance_reports')
       .select(`
         id, status, title, data, owner_company_id, created_by_company_id,
-        branding_company_id, partnership_id, customer_id, equipment_id, subscriber_id, subscriber_portal_visibility
+        branding_company_id, partnership_id, customer_id, equipment_id, subscriber_id,
+        subscriber_portal_visibility, assigned_user_id
       `)
       .eq('id', reportIdToLoad)
       .single();
@@ -871,6 +874,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
       equipment_id: string | null;
       subscriber_id: string | null;
       subscriber_portal_visibility: SubscriberPortalVisibility | null;
+      assigned_user_id: string | null;
     };
 
     const normalized = normalizeHuoltoReportData({ ...createEmptyHuoltoReportData(), ...row.data });
@@ -923,6 +927,8 @@ export default function MaintenanceReportEditPage({ session }: Props) {
     setReportId(row.id);
     setSavedReportTitle(row.title);
     setReportOwnerCompanyId(row.owner_company_id);
+    setCreatedByCompanyId(row.created_by_company_id);
+    setAssignedUserId(row.assigned_user_id);
     setStatus(row.status);
     setForm(formToUse);
     setCustomerId(nextCustomerId);
@@ -1849,8 +1855,14 @@ export default function MaintenanceReportEditPage({ session }: Props) {
   }
 
   const canDeleteMaintenance = !isNew && reportOwnerCompanyId
-    ? canDeleteCompanyOwnedEntity(
-        reportOwnerCompanyId,
+    ? canDeleteMaintenanceReport(
+        {
+          status,
+          owner_company_id: reportOwnerCompanyId,
+          created_by_company_id: createdByCompanyId,
+          assigned_user_id: assignedUserId ?? session.user.id,
+        },
+        session.user.id,
         profile?.company_id,
         profile?.role,
         profile?.is_global_admin,
@@ -1934,7 +1946,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
   };
 
   const hasSecondaryMaintenanceActions =
-    canDeleteMaintenance
+    (canDeleteMaintenance && status !== 'draft')
     || !!reportId
     || canEditPublishedReport;
 
@@ -2211,6 +2223,16 @@ export default function MaintenanceReportEditPage({ session }: Props) {
             <span className={`badge badge-${displayStatus === 'draft' ? 'scheduled' : 'completed'} maintenance-actions-status`}>
               {getMaintenanceReportStatusLabel(displayStatus)}
             </span>
+            {status === 'draft' && canDeleteMaintenance ? (
+              <button
+                type="button"
+                className="btn btn-danger maintenance-actions-delete"
+                disabled={deleteBusy || busy}
+                onClick={() => void deleteReport()}
+              >
+                {deleteBusy ? 'Poistetaan…' : 'Poista luonnos'}
+              </button>
+            ) : null}
             {status === 'draft' && (
               <>
                 <button

@@ -18,6 +18,7 @@ import {
 import { getPortalSubscriberId } from '../lib/portalPreview';
 import { usePortalPreview } from '../hooks/usePortalPreview';
 import { supabase } from '../lib/supabase';
+import { canDeleteMaintenanceReport } from '../lib/deletePermissions';
 
 interface Props {
   session: Session;
@@ -29,6 +30,8 @@ type MaintenanceReportListRow = MaintenanceReportListItem & {
   subscriber_id: string | null;
   equipment_id: string | null;
   branding_company_id: string;
+  created_by_company_id: string;
+  assigned_user_id: string | null;
   customers: { name: string; subscriber_id: string | null } | null;
 };
 
@@ -40,6 +43,7 @@ export default function MaintenanceReportsPage({ session }: Props) {
   const [reports, setReports] = useState<MaintenanceReportListRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [deletingDraftId, setDeletingDraftId] = useState<string | null>(null);
   const portalMode = isPortalUser(profile);
 
   useEffect(() => {
@@ -72,7 +76,8 @@ export default function MaintenanceReportsPage({ session }: Props) {
       .from('maintenance_reports')
       .select(`
         id, status, title, data, updated_at, created_at,
-        customer_id, subscriber_id, subscriber_portal_visibility, equipment_id, owner_company_id, branding_company_id,
+        customer_id, subscriber_id, subscriber_portal_visibility, equipment_id,
+        owner_company_id, created_by_company_id, assigned_user_id, branding_company_id,
         customers(name, subscriber_id),
         equipment(name, tag),
         owner_company:companies!maintenance_reports_owner_company_id_fkey(name),
@@ -116,6 +121,31 @@ export default function MaintenanceReportsPage({ session }: Props) {
         && reportMatchesPortalSubscriber(r, portalSubscriberId, subscriberCustomerIds),
     ).length;
   }, [portalMode, profile, portalSubscriberId, reports, subscriberCustomerIds]);
+
+  async function deleteDraftReport(report: MaintenanceReportListRow) {
+    if (!window.confirm('Poistetaanko huoltoraportin luonnos pysyvästi? Tätä toimintoa ei voi perua.')) {
+      return;
+    }
+    setDeletingDraftId(report.id);
+    const { error } = await supabase.from('maintenance_reports').delete().eq('id', report.id);
+    setDeletingDraftId(null);
+    if (error) {
+      console.error(error);
+      window.alert(error.message);
+      return;
+    }
+    setReports((prev) => prev.filter((row) => row.id !== report.id));
+  }
+
+  function canDeleteDraft(report: MaintenanceReportListRow): boolean {
+    return canDeleteMaintenanceReport(
+      report,
+      session.user.id,
+      profile?.company_id,
+      profile?.role,
+      profile?.is_global_admin,
+    );
+  }
 
   const myCompanyId = profile?.company_id ?? null;
 
@@ -198,6 +228,8 @@ export default function MaintenanceReportsPage({ session }: Props) {
                     report={report}
                     myCompanyId={myCompanyId}
                     linkTo={reportHref(report)}
+                    onDelete={canDeleteDraft(report) ? () => void deleteDraftReport(report) : undefined}
+                    deleteBusy={deletingDraftId === report.id}
                   />
                 ))}
               </MaintenanceReportListGrid>
