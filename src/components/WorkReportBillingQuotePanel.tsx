@@ -120,7 +120,6 @@ export default function WorkReportBillingQuotePanel({
   );
   const quoteBillingEnabled =
     settings.customer_mode === 'quote_fixed' || settings.customer_mode === 'quote_plus_extras';
-  const quotePlusExtrasEnabled = settings.customer_mode === 'quote_plus_extras';
 
   function applyQuote(option: BillingQuoteOption) {
     void supabase
@@ -268,11 +267,6 @@ export default function WorkReportBillingQuotePanel({
               {' '}
               · kiinteä asiakashinta {formatEuro(settings.customer_invoice_total)}
             </span>
-          ) : settings.customer_mode === 'quote_plus_extras' && settings.customer_invoice_total ? (
-            <span className="billing-margin-headline">
-              {' '}
-              · tarjous {formatEuro(settings.customer_invoice_total)} + lisät
-            </span>
           ) : (
             <span className="muted"> · linkitä tarjous</span>
           )}
@@ -333,35 +327,17 @@ export default function WorkReportBillingQuotePanel({
                       onChange={(e) =>
                         setSettings((prev) => ({
                           ...prev,
-                        customer_mode: e.target.checked
-                          ? prev.customer_mode === 'quote_fixed'
-                            ? 'quote_fixed'
-                            : 'quote_plus_extras'
-                          : 'daily_log',
+                          customer_mode: e.target.checked ? 'quote_fixed' : 'daily_log',
                         }))
                       }
                     />
                     Asiakkaalta laskutetaan kiinteä tarjoushinta (ei tunti- ja ajolaskentaa)
                   </label>
                   {quoteBillingEnabled ? (
-                    <label className="form-field span-2 compact-option">
-                      <input
-                        type="checkbox"
-                        checked={quotePlusExtrasEnabled}
-                        disabled={busy || !settings.quote_request_id}
-                        onChange={(e) =>
-                          setSettings((prev) => ({
-                            ...prev,
-                            customer_mode: e.target.checked ? 'quote_plus_extras' : 'quote_fixed',
-                          }))
-                        }
-                      />
-                      Lisää lisätyöt ja -kulut tarjouksen päälle
-                    </label>
-                  ) : null}
-                  {quotePlusExtrasEnabled ? (
                     <p className="muted span-2" style={{ margin: 0 }}>
-                      Lisätyöt ja -kulut kirjataan päiväkirjan ruudusta <strong>Lisä työt ja kulut</strong>.
+                      Lisätyöt ja -kulut kirjataan päiväkirjan ruudusta{' '}
+                      <strong>Lisä työt ja kulut</strong>. Täytetyt kentät laskutetaan automaattisesti
+                      tarjouksen päälle.
                     </p>
                   ) : null}
                 </>
@@ -452,14 +428,9 @@ export default function WorkReportBillingQuotePanel({
               {settings.customer_mode === 'quote_fixed' && settings.customer_invoice_total != null ? (
                 <>
                   <dt>Asiakashinta</dt>
-                  <dd>{formatEuro(settings.customer_invoice_total)} (kiinteä tarjous)</dd>
-                </>
-              ) : null}
-              {settings.customer_mode === 'quote_plus_extras' && settings.customer_invoice_total != null ? (
-                <>
-                  <dt>Asiakashinta</dt>
                   <dd>
-                    {formatEuro(settings.customer_invoice_total)} (tarjous) + lisätyöt ja -kulut
+                    {formatEuro(settings.customer_invoice_total)} (kiinteä tarjous + mahdolliset lisät
+                    päiväkirjasta)
                   </dd>
                 </>
               ) : null}
@@ -490,7 +461,7 @@ export default function WorkReportBillingQuotePanel({
             </dl>
           )}
 
-          {quotePlusExtrasEnabled && !readOnly ? (
+          {quoteBillingEnabled && !readOnly ? (
             <p className="muted">
               Lisätyöt ja -kulut: avaa päiväkirjamerkintä → ruutu <strong>Lisä työt ja kulut</strong>.
             </p>

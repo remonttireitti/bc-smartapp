@@ -13,6 +13,10 @@ import {
   tripKmLineTotal,
 } from './tripKmExpense';
 import {
+  dailyLogCustomerExtraBillingHasData,
+  parseDailyLogCustomerExtraBilling,
+} from './dailyLogCustomerExtraBilling';
+import {
   resolveUrakkaPartnerAmount,
   urakkaPartnerLineDescription,
 } from './workReportUrakkaBilling';
@@ -171,8 +175,22 @@ export function shouldCalculatePartnerBilling(
     || Number(log.commission_amount) > 0
     || (log.expense_lines?.length ?? 0) > 0
     || (log.refrigerant_lines?.length ?? 0) > 0
-    || (log.trip_legs ?? []).some((leg) => Number(leg.distance_km) > 0),
+    || (log.trip_legs ?? []).some((leg) => Number(leg.distance_km) > 0)
+    || logsHavePartnerExtraBilling(logs),
   );
+}
+
+export function logsHavePartnerExtraBilling(logs: WorkReportDailyLog[]): boolean {
+  return logs.some((log) => {
+    const extra = parseDailyLogCustomerExtraBilling(log.customer_extra_billing);
+    if (!dailyLogCustomerExtraBillingHasData(extra)) return false;
+    if (Number(extra.hours) > 0) return true;
+    return (
+      extra.expense_bill_to_partner !== false
+      && Number(extra.expense_purchase_unit_price) > 0
+      && Number(extra.expense_qty) > 0
+    );
+  });
 }
 
 export function calculateWorkReportBillable(input: {
@@ -438,6 +456,126 @@ export function calculateWorkReportBillable(input: {
     billToCompanyName: input.billToCompanyName,
     ratesUsed: rates,
     ratesSource: input.ratesSource,
+    byUser,
+    grandTotal: Math.round(grandTotal * 100) / 100,
+    excludedTotal: Math.round(excludedTotal * 100) / 100,
+    warehouseDeductionsPending: deductionTotals.pending,
+    warehouseDeductionsDeducted: deductionTotals.deducted,
+  };
+}
+
+export function mergePartnerExtraBillingFromDailyLogs(
+  calculation: BillableCalculation,
+  input: {
+    logs: WorkReportDailyLog[];
+    rates: PartnerBillingRates;
+    users: UserBillingProfile[];
+  },
+): BillableCalculation {
+  const rates = { ...DEFAULT_RATES, ...input.rates };
+  const userMap = new Map(input.users.map((u) => [u.id, u]));
+  const byUserId = new Map(calculation.byUser.map((user) => [user.userId, { ...user, lines: [...user.lines] }]));
+
+  function ensureUser(user: UserBillingProfile) {
+    if (!byUserId.has(user.id)) {
+      const flags = resolveBillingFlags(user);
+      byUserId.set(user.id, {
+        userId: user.id,
+        userName: user.display_name ?? user.id,
+        billHoursEnabled: user.bill_hours_enabled,
+        billExpensesEnabled: user.bill_expenses_enabled,
+        effectiveBillHoursEnabled: flags.hoursEnabled,
+        effectiveBillExpensesEnabled: flags.expensesEnabled,
+        hoursQty: 0,
+        hoursTotal: 0,
+        expensesTotal: 0,
+        fixedTotal: 0,
+        commissionTotal: 0,
+        subtotal: 0,
+        excludedSubtotal: 0,
+        lines: [],
+      });
+    }
+    return byUserId.get(user.id)!;
+  }
+
+  for (const log of input.logs) {
+    const extra = parseDailyLogCustomerExtraBilling(log.customer_extra_billing);
+    if (!dailyLogCustomerExtraBillingHasData(extra)) continue;
+
+    const authorLabel = resolveDailyLogAuthorLabel(log);
+    const user = resolveUser(
+      log.created_by,
+      userMap,
+      authorLabel.name === '—' ? null : authorLabel.name,
+    );
+    const summary = ensureUser(user);
+    const { hoursEnabled, expensesEnabled } = resolveBillingFlags(user);
+    const logDate = log.log_date;
+    const title = extra.description?.trim() || 'Lisätyö';
+
+    const hours = Number(extra.hours) || 0;
+    if (hours > 0) {
+      const unitPrice = rates.hourly_regular;
+      const total = lineTotal(hours, unitPrice);
+      const included = hoursEnabled;
+      summary.lines.push({
+        logId: `${log.id}:extra-hours`,
+        logDate,
+        kind: 'hours_regular',
+        description: `Lisätyö: ${title}`,
+        qty: hours,
+        unitPrice,
+        total,
+        included,
+        priceMissing: !(unitPrice > 0),
+      });
+      if (included) {
+        summary.hoursQty += hours;
+        summary.hoursTotal += total;
+      } else {
+        summary.excludedSubtotal += total;
+      }
+    }
+
+    if (
+      extra.expense_description
+      && Number(extra.expense_qty) > 0
+      && Number(extra.expense_purchase_unit_price) > 0
+      && extra.expense_bill_to_partner !== false
+    ) {
+      const qty = Number(extra.expense_qty);
+      const unitPrice = Number(extra.expense_purchase_unit_price);
+      const total = lineTotal(qty, unitPrice);
+      const included = expensesEnabled;
+      summary.lines.push({
+        logId: `${log.id}:extra-expense`,
+        logDate,
+        kind: 'expense',
+        description: `Lisätarvike: ${extra.expense_description}`,
+        qty,
+        unitPrice,
+        total,
+        included,
+      });
+      if (included) summary.expensesTotal += total;
+      else summary.excludedSubtotal += total;
+    }
+  }
+
+  const byUser = Array.from(byUserId.values())
+    .map((user) => ({
+      ...user,
+      subtotal: user.hoursTotal + user.expensesTotal + user.fixedTotal + user.commissionTotal,
+    }))
+    .sort((a, b) => a.userName.localeCompare(b.userName, 'fi'));
+
+  const grandTotal = byUser.reduce((sum, user) => sum + user.subtotal, 0);
+  const excludedTotal = byUser.reduce((sum, user) => sum + user.excludedSubtotal, 0);
+  const deductionTotals = warehouseDeductionTotalsFromUsers(byUser);
+
+  return {
+    ...calculation,
     byUser,
     grandTotal: Math.round(grandTotal * 100) / 100,
     excludedTotal: Math.round(excludedTotal * 100) / 100,

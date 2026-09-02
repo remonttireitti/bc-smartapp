@@ -7,20 +7,14 @@ import {
   type PartnerBillingRates,
 } from './management';
 import {
-  shouldCalculateCustomerQuoteExtrasFromLogs,
-} from './dailyLogCustomerExtraBilling';
-import {
   calculateWorkReportCustomerBillable,
   shouldCalculateCustomerBilling,
 } from './workReportCustomerBilling';
 import {
-  calculateWorkReportCustomerBillableFromQuote,
   calculateWorkReportCustomerBillableQuotePlusExtras,
-  customerUsesFixedQuote,
   customerUsesQuoteBasedBilling,
-  customerUsesQuotePlusExtras,
-  getBillingQuoteExtraCustomerWork,
   parseBillingQuoteSettings,
+  shouldUseQuoteExtrasBilling,
   type BillingQuoteSettings,
 } from './workReportBillingQuote';
 import { fetchCustomerBillingLogs } from './workReportDailyLogSelect';
@@ -67,15 +61,13 @@ export async function refreshAndPersistCustomerBillable(
   const billingQuote = parseBillingQuoteSettings(
     rateOptions?.billingQuote ?? billableRow?.billing_quote ?? {},
   );
-  const useQuotePlusExtras = customerUsesQuotePlusExtras(billingQuote);
-  const useFixedQuote = customerUsesFixedQuote(billingQuote);
   const useQuoteBilling = customerUsesQuoteBasedBilling(billingQuote);
+  const useQuoteExtras = shouldUseQuoteExtrasBilling(billingQuote, logs);
 
-  const extraWorks = getBillingQuoteExtraCustomerWork(billingQuote);
   const billingApplies =
     useQuoteBilling
     || shouldCalculateCustomerBilling(logs)
-    || (useQuotePlusExtras && (shouldCalculateCustomerQuoteExtrasFromLogs(logs) || extraWorks.length > 0));
+    || useQuoteExtras;
   if (!billingApplies) {
     await supabase.from('work_report_billable').upsert({
       work_report_id: reportRow.id,
@@ -98,20 +90,13 @@ export async function refreshAndPersistCustomerBillable(
   });
 
   const calculation =
-    (useQuotePlusExtras
+    (useQuoteBilling
       ? calculateWorkReportCustomerBillableQuotePlusExtras({
           settings: billingQuote,
           logs,
           rates,
           ratesSource: source,
           customerName: reportRow.customers?.name ?? null,
-        })
-      : null)
-    ?? (useFixedQuote
-      ? calculateWorkReportCustomerBillableFromQuote({
-          settings: billingQuote,
-          customerName: reportRow.customers?.name ?? null,
-          ratesSource: source,
         })
       : null)
     ?? calculateWorkReportCustomerBillable({
@@ -164,12 +149,10 @@ export async function ensureCustomerBillableCalculated(
 
   const billingQuote = parseBillingQuoteSettings(billableRow?.billing_quote ?? {});
   const useQuoteBilling = customerUsesQuoteBasedBilling(billingQuote);
-  const useFixedQuote = customerUsesFixedQuote(billingQuote);
-  const useQuotePlusExtras = customerUsesQuotePlusExtras(billingQuote);
   const calc = billableRow?.customer_calculation as { byUser?: unknown[]; billingMode?: string } | null | undefined;
   const hasCalculation = (calc?.byUser?.length ?? 0) > 0;
 
-  if (hasCalculation && !options?.skipStaleCheck && !useFixedQuote) {
+  if (hasCalculation && !options?.skipStaleCheck && !useQuoteBilling) {
     const staleIds = await findStaleBillableReportIds(supabase, [
       {
         workReportId: reportId,
@@ -182,12 +165,12 @@ export async function ensureCustomerBillableCalculated(
   }
 
   const logs = await loadWorkReportDailyLogs(supabase, reportId);
-  const extraWorks = getBillingQuoteExtraCustomerWork(billingQuote);
+  const useQuoteExtras = shouldUseQuoteExtrasBilling(billingQuote, logs);
   if (
     !shouldCalculateCustomerBilling(logs)
     && !hasCalculation
     && !useQuoteBilling
-    && !(useQuotePlusExtras && (shouldCalculateCustomerQuoteExtrasFromLogs(logs) || extraWorks.length > 0))
+    && !useQuoteExtras
   ) {
     return;
   }

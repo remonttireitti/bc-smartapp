@@ -7,7 +7,7 @@ import { formatEuro } from './workReportBilling';
 import {
   calculateWorkReportCustomerQuoteExtras,
 } from './workReportCustomerBilling';
-import { extraCustomerWorkFromDailyLogs } from './dailyLogCustomerExtraBilling';
+import { extraCustomerWorkFromDailyLogs, shouldCalculateCustomerQuoteExtrasFromLogs } from './dailyLogCustomerExtraBilling';
 import type { PartnerBillingRates } from './management';
 import type { WorkReportDailyLog } from '../types';
 import {
@@ -194,6 +194,20 @@ export function customerUsesQuotePlusExtras(settings: BillingQuoteSettings | nul
   return parsed.customer_mode === 'quote_plus_extras' && resolveCustomerInvoiceTotal(parsed) != null;
 }
 
+/** Lisälaskutus kun päiväkirjassa tai asetuksissa on lisärivejä (ei erillistä käyttöönottoa). */
+export function shouldUseQuoteExtrasBilling(
+  settings: BillingQuoteSettings | null | undefined,
+  logs: WorkReportDailyLog[],
+): boolean {
+  const parsed = parseBillingQuoteSettings(settings ?? {});
+  if (resolveCustomerInvoiceTotal(parsed) == null) return false;
+  if (!customerUsesQuoteBasedBilling(parsed) && !parsed.quote_request_id) return false;
+  return (
+    shouldCalculateCustomerQuoteExtrasFromLogs(logs)
+    || getBillingQuoteExtraCustomerWork(parsed).length > 0
+  );
+}
+
 export function customerUsesQuoteBasedBilling(settings: BillingQuoteSettings | null | undefined): boolean {
   return customerUsesFixedQuote(settings) || customerUsesQuotePlusExtras(settings);
 }
@@ -264,9 +278,11 @@ export function billingQuoteFromQuoteRow(
     customer_mode:
       options?.fixedCustomerBilling === false
         ? 'daily_log'
-        : options?.previous?.customer_mode === 'quote_fixed'
+        : options?.previous?.customer_mode === 'daily_log'
           ? 'quote_fixed'
-          : 'quote_plus_extras',
+          : options?.previous?.customer_mode === 'quote_plus_extras'
+            ? 'quote_fixed'
+            : (options?.previous?.customer_mode ?? 'quote_fixed'),
     quote_vat_rate: roundMoney(internal.vatRate),
     purchase_lines: purchaseLines.length > 0 ? purchaseLines : undefined,
     notes: options?.previous?.notes ?? null,

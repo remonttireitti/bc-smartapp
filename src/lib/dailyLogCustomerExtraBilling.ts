@@ -9,6 +9,8 @@ export type DailyLogCustomerExtraBilling = {
   expense_qty?: number;
   expense_customer_unit_price?: number;
   expense_purchase_unit_price?: number | null;
+  /** false = kumppanin piikki, ei välihankintalaskutusta */
+  expense_bill_to_partner?: boolean;
 };
 
 function roundMoney(value: number): number {
@@ -33,6 +35,7 @@ export function parseDailyLogCustomerExtraBilling(raw: unknown): DailyLogCustome
   const expenseQty = num('expense_qty') ?? 0;
   const expenseCustomer = num('expense_customer_unit_price');
   const expensePurchase = num('expense_purchase_unit_price');
+  const billToPartner = record.expense_bill_to_partner;
   return {
     hours: hours > 0 ? hours : 0,
     hourly_rate: hourlyRate != null && hourlyRate > 0 ? hourlyRate : null,
@@ -43,6 +46,7 @@ export function parseDailyLogCustomerExtraBilling(raw: unknown): DailyLogCustome
       expenseCustomer != null && expenseCustomer > 0 ? expenseCustomer : undefined,
     expense_purchase_unit_price:
       expensePurchase != null && expensePurchase > 0 ? expensePurchase : null,
+    expense_bill_to_partner: billToPartner === false ? false : billToPartner === true ? true : undefined,
   };
 }
 
@@ -84,6 +88,7 @@ export type DailyLogExtraBillingFormFields = {
   extra_expense_qty: string;
   extra_expense_customer_price: string;
   extra_expense_purchase_price: string;
+  extra_expense_partner_billing: 'charge' | 'piikki';
 };
 
 export function emptyDailyLogExtraBillingForm(): DailyLogExtraBillingFormFields {
@@ -95,6 +100,7 @@ export function emptyDailyLogExtraBillingForm(): DailyLogExtraBillingFormFields 
     extra_expense_qty: '1',
     extra_expense_customer_price: '',
     extra_expense_purchase_price: '',
+    extra_expense_partner_billing: 'charge',
   };
 }
 
@@ -118,6 +124,8 @@ export function dailyLogExtraBillingToForm(
       parsed.expense_purchase_unit_price != null && parsed.expense_purchase_unit_price > 0
         ? String(parsed.expense_purchase_unit_price)
         : '',
+    extra_expense_partner_billing:
+      parsed.expense_bill_to_partner === false ? 'piikki' : 'charge',
   };
 }
 
@@ -137,6 +145,8 @@ export function dailyLogExtraBillingFromForm(
     expense_qty: expenseQty > 0 ? expenseQty : 0,
     expense_customer_unit_price: expenseCustomer > 0 ? expenseCustomer : undefined,
     expense_purchase_unit_price: expensePurchase > 0 ? expensePurchase : null,
+    expense_bill_to_partner:
+      form.extra_expense_partner_billing === 'piikki' ? false : expensePurchase > 0 ? true : undefined,
   });
 }
 
@@ -184,6 +194,7 @@ export function extraCustomerWorkFromDailyLogs(
               qty: extra.expense_qty,
               customer_unit_price: extra.expense_customer_unit_price,
               purchase_unit_price: extra.expense_purchase_unit_price ?? null,
+              bill_to_partner: extra.expense_bill_to_partner,
             },
           ]
         : undefined;

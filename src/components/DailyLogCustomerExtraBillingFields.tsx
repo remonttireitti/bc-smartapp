@@ -10,57 +10,32 @@ type Props = {
   form: DailyLogExtraBillingFormFields;
   setForm: (next: DailyLogExtraBillingFormFields) => void;
   defaultHourlyRate?: number | null;
-  enabled?: boolean;
-  blockedReason?: 'no_quote' | 'mode_off' | null;
+  showPartnerExpenseOptions?: boolean;
 };
 
 export default function DailyLogCustomerExtraBillingFields({
   form,
   setForm,
   defaultHourlyRate = null,
-  enabled = true,
-  blockedReason = null,
+  showPartnerExpenseOptions = false,
 }: Props) {
   function patch(fields: Partial<DailyLogExtraBillingFormFields>) {
     setForm({ ...form, ...fields });
   }
 
-  const subtitle = !enabled
-    ? blockedReason === 'no_quote'
-      ? 'Linkitä tarjous työraportille'
-      : 'Ota käyttöön tarjouspaneelista'
-    : dailyLogQuoteExtrasSubtitle(form);
-
   return (
     <DailyLogTileSection
       sectionKey="quote-extras"
       title="Lisä työt ja kulut"
-      subtitle={subtitle}
+      subtitle={dailyLogQuoteExtrasSubtitle(form)}
       color={DAILY_LOG_SECTION_COLORS.quoteExtras}
       incomplete={false}
       wide
     >
-      {!enabled ? (
-        <p className="muted" style={{ marginTop: 0 }}>
-          {blockedReason === 'no_quote' ? (
-            <>
-              Avaa työraportin <strong>Tarjous ja kate</strong> -osio, valitse tarjous ja tallenna.
-              Sen jälkeen voit kirjata lisätyöt ja -kulut tähän.
-            </>
-          ) : (
-            <>
-              Avaa työraportin <strong>Tarjous ja kate</strong> -osio, valitse{' '}
-              <strong>Lisää lisätyöt ja -kulut tarjouksen päälle</strong> ja tallenna tarjous.
-              Kumppanin raportilla voit ottaa tämän käyttöön itse tarjouspaneelista.
-            </>
-          )}
-        </p>
-      ) : (
-        <>
-        <p className="muted" style={{ marginTop: 0 }}>
-          Kirjaa tähän tarjouksen päälle laskutettavat lisätyöt. Nämä eivät ole sama asia kuin yllä
-          olevat kalenteritunnit.
-        </p>
+      <p className="muted" style={{ marginTop: 0 }}>
+        Kirjaa tarjouksen päälle laskutettavat lisätyöt ja -tarvikkeet. Täytetyt kentät sisältyvät
+        automaattisesti asiakas- ja kumppanilaskuihin. Nämä eivät ole sama asia kuin kalenteritunnit.
+      </p>
       <div className="line-form-grid">
         <label>
           Lisätyö tunnit
@@ -74,7 +49,7 @@ export default function DailyLogCustomerExtraBillingFields({
           />
         </label>
         <label>
-          Tunnin hinta (€)
+          Asiakkaan tunnin hinta (€)
           <input
             type="number"
             step="0.01"
@@ -143,9 +118,36 @@ export default function DailyLogCustomerExtraBillingFields({
             placeholder="0"
           />
         </label>
+        {showPartnerExpenseOptions ? (
+          <fieldset className="span-2 expense-billing-mode-fieldset">
+            <legend>Kumppanien välinen laskutus (tarvike)</legend>
+            <label className="compact-option">
+              <input
+                type="radio"
+                name="extra_expense_partner_billing"
+                checked={form.extra_expense_partner_billing === 'charge'}
+                onChange={() => patch({ extra_expense_partner_billing: 'charge' })}
+              />
+              Laskutetaan kumppanilta hankintahinnalla
+            </label>
+            <label className="compact-option">
+              <input
+                type="radio"
+                name="extra_expense_partner_billing"
+                checked={form.extra_expense_partner_billing === 'piikki'}
+                onChange={() => patch({ extra_expense_partner_billing: 'piikki' })}
+              />
+              Kumppanin piikki — ei välihankintalaskutusta
+            </label>
+          </fieldset>
+        ) : null}
       </div>
-        </>
-      )}
+      {showPartnerExpenseOptions ? (
+        <p className="muted" style={{ marginBottom: 0 }}>
+          Lisätyöt laskutetaan kumppanilta kumppanin hinnaston mukaan. Asiakkaalle laskutetaan yllä
+          oleva asiakashinta.
+        </p>
+      ) : null}
     </DailyLogTileSection>
   );
 }

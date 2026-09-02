@@ -4,6 +4,7 @@ export type BillingQuoteExtraExpenseLine = {
   qty: number;
   customer_unit_price: number;
   purchase_unit_price?: number | null;
+  bill_to_partner?: boolean;
 };
 
 export type BillingQuoteExtraCustomerWork = {

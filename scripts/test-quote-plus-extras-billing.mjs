@@ -1,8 +1,12 @@
 import assert from 'node:assert/strict';
 import {
+  calculateWorkReportBillable,
+  mergePartnerExtraBillingFromDailyLogs,
+} from '../src/lib/workReportBilling.ts';
+import {
   calculateWorkReportCustomerBillableQuotePlusExtras,
-  customerUsesQuotePlusExtras,
   parseBillingQuoteSettings,
+  shouldUseQuoteExtrasBilling,
 } from '../src/lib/workReportBillingQuote.ts';
 import {
   extraCustomerWorkFromDailyLogs,
@@ -14,7 +18,7 @@ const quoteSettings = parseBillingQuoteSettings({
   quote_title: 'Testitarjous',
   customer_invoice_total: 5000,
   quote_sale_net: 4000,
-  customer_mode: 'quote_plus_extras',
+  customer_mode: 'quote_fixed',
 });
 
 const logs = [
@@ -41,11 +45,12 @@ const logs = [
       expense_qty: 1,
       expense_customer_unit_price: 250,
       expense_purchase_unit_price: 133,
+      expense_bill_to_partner: true,
     },
   },
 ];
 
-assert.equal(customerUsesQuotePlusExtras(quoteSettings), true);
+assert.equal(shouldUseQuoteExtrasBilling(quoteSettings, logs), true);
 assert.equal(shouldCalculateCustomerQuoteExtrasFromLogs(logs), true);
 
 const works = extraCustomerWorkFromDailyLogs(logs);
@@ -64,5 +69,40 @@ const merged = calculateWorkReportCustomerBillableQuotePlusExtras({
 assert.ok(merged);
 assert.equal(merged.grandTotal, 5410); // 5000 + 160 + 250
 assert.equal(merged.quoteExtrasTotal, 410);
+
+const users = [
+  {
+    id: 'user-1',
+    display_name: 'Matti',
+    bill_hours_enabled: true,
+    bill_expenses_enabled: true,
+  },
+];
+const partnerRates = { hourly_regular: 55, hourly_overtime: 75, hourly_on_call: 85 };
+const basePartner = calculateWorkReportBillable({
+  logs,
+  users,
+  rates: partnerRates,
+  ratesSource: 'partnership',
+  billToCompanyId: 'owner-1',
+  billToCompanyName: 'Omistaja Oy',
+});
+const partnerMerged = mergePartnerExtraBillingFromDailyLogs(basePartner, {
+  logs,
+  rates: partnerRates,
+  users,
+});
+
+const extraHoursLine = partnerMerged.byUser
+  .flatMap((user) => user.lines)
+  .find((line) => line.logId === 'log-1:extra-hours');
+assert.ok(extraHoursLine);
+assert.equal(extraHoursLine.total, 110); // 2 h × 55 €
+
+const extraExpenseLine = partnerMerged.byUser
+  .flatMap((user) => user.lines)
+  .find((line) => line.logId === 'log-1:extra-expense');
+assert.ok(extraExpenseLine);
+assert.equal(extraExpenseLine.total, 133);
 
 console.log('test-quote-plus-extras-billing: ok');

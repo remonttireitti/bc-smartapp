@@ -11,6 +11,7 @@ import {
 } from './management';
 import {
   calculateWorkReportBillable,
+  mergePartnerExtraBillingFromDailyLogs,
   shouldCalculatePartnerBilling,
   type UserBillingProfile,
 } from './workReportBilling';
@@ -235,19 +236,22 @@ export async function refreshAndPersistPartnerBillable(
     useReportRates: storedUseCustom,
   });
 
-  const calculation = calculateWorkReportBillable({
-    logs,
-    users,
-    rates,
-    ratesSource: source,
-    billToCompanyId: billedCompanyId,
-    billToCompanyName: isDelegatedOrder
-      ? (reportRow.delegate_company?.name ?? null)
-      : (reportRow.owner_company?.name ?? null),
-    tripKmRate: parseTripKmRate(settings) ?? parseTripKmRate(viewerSettings),
-    report: reportRow,
-    viewerCompanyId: rateOptions?.viewerCompanyId ?? null,
-  });
+  const calculation = mergePartnerExtraBillingFromDailyLogs(
+    calculateWorkReportBillable({
+      logs,
+      users,
+      rates,
+      ratesSource: source,
+      billToCompanyId: billedCompanyId,
+      billToCompanyName: isDelegatedOrder
+        ? (reportRow.delegate_company?.name ?? null)
+        : (reportRow.owner_company?.name ?? null),
+      tripKmRate: parseTripKmRate(settings) ?? parseTripKmRate(viewerSettings),
+      report: reportRow,
+      viewerCompanyId: rateOptions?.viewerCompanyId ?? null,
+    }),
+    { logs, rates, users },
+  );
 
   const { error: billableError } = await supabase.from('work_report_billable').upsert({
     work_report_id: reportRow.id,

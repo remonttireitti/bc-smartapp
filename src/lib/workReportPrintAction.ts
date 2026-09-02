@@ -17,7 +17,6 @@ import {
   calculateWorkReportCustomerBillableQuotePlusExtras,
   customerUsesFixedQuote,
   customerUsesQuoteBasedBilling,
-  customerUsesQuotePlusExtras,
   parseBillingQuoteSettings,
   type BillingQuoteSettings,
 } from './workReportBillingQuote';
@@ -79,7 +78,7 @@ function resolvePrintCustomerCalculation(
   rates: PartnerBillingRates,
   ratesSource: BillableRatesSource,
 ): BillableCalculation | null {
-  if (customerUsesQuotePlusExtras(billingQuote)) {
+  if (customerUsesQuoteBasedBilling(billingQuote)) {
     return (
       calculateWorkReportCustomerBillableQuotePlusExtras({
         settings: billingQuote,
