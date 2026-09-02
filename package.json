@@ -13,6 +13,7 @@
     "db:login": "npx supabase login",
     "db:link": "npx supabase link --project-ref qvqmemeexberatbqxivw",
     "db:push": "npx supabase db push",
+    "migrate:production": "node scripts/apply-migration-production.mjs",
     "gen:types": "npx supabase gen types typescript --local > src/lib/database.types.ts",
     "setup:user": "node scripts/setup-dev-user.mjs",
     "setup:dev": "node scripts/setup-dev-users.mjs",
