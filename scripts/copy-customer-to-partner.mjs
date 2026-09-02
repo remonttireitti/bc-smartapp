@@ -292,6 +292,25 @@ async function resolveTargetCustomer(supabase, sourceCustomer, targetCompanyId, 
   return { customerId: data.id, subscriberId: data.subscriber_id, created: true, matchedBy: 'created' };
 }
 
+function isMeaningfulSerial(serial) {
+  const value = String(serial ?? '').trim().toLowerCase();
+  if (!value) return false;
+  if (value === 'ei tiedossa' || value === 'tuntematon' || value === '-') return false;
+  return true;
+}
+
+function equipmentIdentityMatches(sourceEquipment, targetRow) {
+  const sourceTag = String(sourceEquipment.tag ?? '').trim().toLowerCase();
+  const targetTag = String(targetRow.tag ?? '').trim().toLowerCase();
+  if (sourceTag && targetTag && sourceTag === targetTag) return true;
+
+  const sourceSerial = String(sourceEquipment.serial_number ?? '').trim().toLowerCase();
+  const targetSerial = String(targetRow.serial_number ?? '').trim().toLowerCase();
+  if (isMeaningfulSerial(sourceSerial) && sourceSerial === targetSerial) return true;
+
+  return false;
+}
+
 async function findOrCreateTargetEquipment(
   supabase,
   sourceEquipment,
@@ -310,15 +329,7 @@ async function findOrCreateTargetEquipment(
   );
   if (existing) return { equipmentId: existing.id, created: false };
 
-  const tag = String(sourceEquipment.tag ?? '').trim().toLowerCase();
-  const serial = String(sourceEquipment.serial_number ?? '').trim().toLowerCase();
-  const byIdentity = (existingRows ?? []).find((row) => {
-    const rowTag = String(row.tag ?? '').trim().toLowerCase();
-    const rowSerial = String(row.serial_number ?? '').trim().toLowerCase();
-    if (tag && rowTag && tag === rowTag) return true;
-    if (serial && rowSerial && serial === rowSerial) return true;
-    return false;
-  });
+  const byIdentity = (existingRows ?? []).find((row) => equipmentIdentityMatches(sourceEquipment, row));
   if (byIdentity) return { equipmentId: byIdentity.id, created: false };
 
   const payload = {
