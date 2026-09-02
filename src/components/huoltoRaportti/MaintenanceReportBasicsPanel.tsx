@@ -94,6 +94,10 @@ export function MaintenanceReportBasicsPanel({
   const printLayout = useHuoltoPrintFormLayout();
   const documentLayout = useMaintenanceDocumentLayout();
   const needsExplicitOwner = !customerId && reportOwnerTargets.length > 1;
+  const usesPartnerRegistry =
+    contextMode === 'partner' ||
+    Boolean(ownerCompanyId && profileCompanyId && ownerCompanyId !== profileCompanyId);
+  const customerRegistryName = usesPartnerRegistry || needsExplicitOwner ? brandingName : creatorCompanyName;
   const showStandaloneDialog = documentLayout && !embeddedInParentDialog;
 
   return (
@@ -154,10 +158,10 @@ export function MaintenanceReportBasicsPanel({
         <>
           {!printLayout ? (
             <p className="muted">
-              {needsExplicitOwner ? (
+              {usesPartnerRegistry || needsExplicitOwner ? (
                 <>
-                  Hae asiakasta valitun yrityksen ({brandingName}) rekisteristä. Uuden asiakkaan voit
-                  tallentaa samaan rekisteriin.
+                  Hae asiakasta yrityksen {brandingName} rekisteristä. Uusi asiakas tallennetaan samaan
+                  rekisteriin.
                 </>
               ) : (
                 <>
@@ -197,7 +201,7 @@ export function MaintenanceReportBasicsPanel({
                 customerId={customerId}
                 myCompanyId={profileCompanyId}
                 disabled={!profileCompanyId || (needsExplicitOwner && !reportOwnerCompanyId)}
-                createRegistryName={needsExplicitOwner ? brandingName : creatorCompanyName}
+                createRegistryName={customerRegistryName}
                 busy={busy}
                 onSelect={onSelectCustomer}
                 onClear={onClearCustomer}

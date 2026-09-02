@@ -7,7 +7,7 @@ import { collectMaintenancePrintImagePaths } from './maintenanceReportPrintImage
 import { syncMaintenanceReportPhotosFromDb } from './maintenanceReportPhotoSync';
 import { resolveCompanyLogoUrl } from './companyLogo';
 import { openPrintHtml } from './openPrintWindow';
-import { shrinkUrlMapForPrint } from './printImageEmbed';
+import { embedPrintThumbnail, shrinkUrlMapForPrint } from './printImageEmbed';
 import { ensurePrintHtmlDocumentTitle } from './printDocumentShell';
 import { supabase } from './supabase';
 
@@ -67,7 +67,10 @@ async function loadMaintenancePrintContext(
     const resolved = await resolveCompanyLogoUrl(
       (companyRow as { logo_url: string | null } | null)?.logo_url,
     );
-    if (resolved) logoUrl = resolved;
+    if (resolved) {
+      const embedded = await embedPrintThumbnail(resolved);
+      logoUrl = embedded.startsWith('data:') ? embedded : resolved;
+    }
   } catch {
     /* optional logo */
   }
