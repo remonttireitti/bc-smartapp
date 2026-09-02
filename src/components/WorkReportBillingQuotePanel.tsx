@@ -16,12 +16,6 @@ import {
   type BillingQuotePurchaseLine,
   type BillingQuoteSettings,
 } from '../lib/workReportBillingQuote';
-import {
-  newExtraCustomerWork,
-  newExtraExpenseLine,
-  type BillingQuoteExtraCustomerWork,
-  type BillingQuoteExtraExpenseLine,
-} from '../lib/billingQuoteExtraWork';
 import { extractQuotePurchaseLines } from '../lib/quotePurchaseLines';
 import { formatEuro } from '../lib/workReportBilling';
 import { supabase } from '../lib/supabase';
@@ -35,7 +29,6 @@ type Props = {
   dailyLogExpensePurchaseNet?: number;
   showPartnerMargin?: boolean;
   showCustomerQuoteMode?: boolean;
-  defaultCustomerHourlyRate?: number | null;
   readOnly?: boolean;
   printHref?: string;
   onSaved?: (settings: BillingQuoteSettings) => void;
@@ -62,7 +55,6 @@ export default function WorkReportBillingQuotePanel({
   dailyLogExpensePurchaseNet = 0,
   showPartnerMargin = false,
   showCustomerQuoteMode = false,
-  defaultCustomerHourlyRate = null,
   readOnly = false,
   printHref,
   onSaved,
@@ -132,291 +124,6 @@ export default function WorkReportBillingQuotePanel({
   const quoteBillingEnabled =
     settings.customer_mode === 'quote_fixed' || settings.customer_mode === 'quote_plus_extras';
   const quotePlusExtrasEnabled = settings.customer_mode === 'quote_plus_extras';
-  const extraCustomerWork = settings.extra_customer_work ?? [];
-
-  function updateExtraWork(id: string, patch: Partial<BillingQuoteExtraCustomerWork>) {
-    setSettings((prev) => ({
-      ...prev,
-      extra_customer_work: (prev.extra_customer_work ?? []).map((work) =>
-        work.id === id ? { ...work, ...patch } : work,
-      ),
-    }));
-  }
-
-  function updateExtraExpense(workId: string, expenseId: string, patch: Partial<BillingQuoteExtraExpenseLine>) {
-    setSettings((prev) => ({
-      ...prev,
-      extra_customer_work: (prev.extra_customer_work ?? []).map((work) =>
-        work.id !== workId
-          ? work
-          : {
-              ...work,
-              expense_lines: (work.expense_lines ?? []).map((line) =>
-                line.id === expenseId ? { ...line, ...patch } : line,
-              ),
-            },
-      ),
-    }));
-  }
-
-  function removeExtraWork(id: string) {
-    setSettings((prev) => ({
-      ...prev,
-      extra_customer_work: (prev.extra_customer_work ?? []).filter((work) => work.id !== id),
-    }));
-  }
-
-  function removeExtraExpense(workId: string, expenseId: string) {
-    setSettings((prev) => ({
-      ...prev,
-      extra_customer_work: (prev.extra_customer_work ?? []).map((work) =>
-        work.id !== workId
-          ? work
-          : {
-              ...work,
-              expense_lines: (work.expense_lines ?? []).filter((line) => line.id !== expenseId),
-            },
-      ),
-    }));
-  }
-
-  function renderExtraCustomerWorkSection(editable: boolean) {
-    if (!quotePlusExtrasEnabled) return null;
-    return (
-      <div className="span-2 billing-extra-customer-work">
-        <h4 className="billing-breakdown-heading">Lisätyöt asiakkaalle (tarjouksen päälle)</h4>
-        <p className="muted">
-          Syötä erikseen laskutettavat lisätyöt: tunnit, selitys ja kulut/tarvikkeet. Nämä eivät ole
-          sama asia kuin päiväkirjan kalenteritunnit.
-        </p>
-        {extraCustomerWork.length === 0 ? (
-          <p className="muted">Ei lisätyömerkintöjä.</p>
-        ) : (
-          extraCustomerWork.map((work, index) => (
-            <div key={work.id} className="billing-extra-work-card">
-              <div className="billing-extra-work-card-head">
-                <strong>Lisätyö {index + 1}</strong>
-                {editable ? (
-                  <button
-                    type="button"
-                    className="btn btn-secondary btn-sm"
-                    disabled={busy}
-                    onClick={() => removeExtraWork(work.id)}
-                  >
-                    Poista
-                  </button>
-                ) : null}
-              </div>
-              {editable ? (
-                <div className="form-grid billing-extra-work-form">
-                  <label className="form-field">
-                    <span>Päivä</span>
-                    <input
-                      type="date"
-                      value={work.work_date ?? ''}
-                      disabled={busy}
-                      onChange={(e) => updateExtraWork(work.id, { work_date: e.target.value })}
-                    />
-                  </label>
-                  <label className="form-field">
-                    <span>Laskutettavat tunnit</span>
-                    <input
-                      type="text"
-                      inputMode="decimal"
-                      value={moneyInputValue(work.hours)}
-                      disabled={busy}
-                      placeholder="0"
-                      onChange={(e) =>
-                        updateExtraWork(work.id, { hours: parseMoneyInput(e.target.value) ?? 0 })
-                      }
-                    />
-                  </label>
-                  <label className="form-field">
-                    <span>Tuntihinta (€)</span>
-                    <input
-                      type="text"
-                      inputMode="decimal"
-                      value={moneyInputValue(work.hourly_rate)}
-                      disabled={busy}
-                      placeholder={
-                        defaultCustomerHourlyRate != null && defaultCustomerHourlyRate > 0
-                          ? `oletus ${formatEuro(defaultCustomerHourlyRate)}`
-                          : 'oletus asiakashinnoista'
-                      }
-                      onChange={(e) =>
-                        updateExtraWork(work.id, { hourly_rate: parseMoneyInput(e.target.value) })
-                      }
-                    />
-                  </label>
-                  <label className="form-field span-2">
-                    <span>Selitys / mitä tehtiin</span>
-                    <textarea
-                      rows={2}
-                      value={work.description}
-                      disabled={busy}
-                      placeholder="Esim. väliaikainen syöttö asennettu lisätyönä"
-                      onChange={(e) => updateExtraWork(work.id, { description: e.target.value })}
-                    />
-                  </label>
-                </div>
-              ) : (
-                <dl className="billing-margin-readonly">
-                  <dt>Päivä</dt>
-                  <dd>{work.work_date ?? '—'}</dd>
-                  <dt>Selitys</dt>
-                  <dd>{work.description || '—'}</dd>
-                  <dt>Tunnit</dt>
-                  <dd>
-                    {work.hours > 0
-                      ? `${work.hours} h × ${formatEuro(work.hourly_rate ?? defaultCustomerHourlyRate ?? 0)}`
-                      : '—'}
-                  </dd>
-                </dl>
-              )}
-              <div className="billing-extra-expenses">
-                <h5 className="billing-breakdown-heading">Kulut ja tarvikkeet (asiakkaalle)</h5>
-                <div className="table-wrap">
-                  <table className="billing-table">
-                    <thead>
-                      <tr>
-                        <th>Kuvaus</th>
-                        <th className="num">Määrä</th>
-                        <th className="num">Hankinta €</th>
-                        <th className="num">Asiakas €</th>
-                        {editable ? <th /> : null}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {(work.expense_lines ?? []).length === 0 ? (
-                        <tr>
-                          <td colSpan={editable ? 5 : 4} className="muted">
-                            Ei kuluja.
-                          </td>
-                        </tr>
-                      ) : (
-                        (work.expense_lines ?? []).map((line) => (
-                          <tr key={line.id}>
-                            <td>
-                              {editable ? (
-                                <input
-                                  type="text"
-                                  value={line.description}
-                                  disabled={busy}
-                                  onChange={(e) =>
-                                    updateExtraExpense(work.id, line.id, { description: e.target.value })
-                                  }
-                                />
-                              ) : (
-                                line.description
-                              )}
-                            </td>
-                            <td className="num">
-                              {editable ? (
-                                <input
-                                  type="text"
-                                  inputMode="decimal"
-                                  value={moneyInputValue(line.qty)}
-                                  disabled={busy}
-                                  onChange={(e) =>
-                                    updateExtraExpense(work.id, line.id, {
-                                      qty: parseMoneyInput(e.target.value) ?? 0,
-                                    })
-                                  }
-                                />
-                              ) : (
-                                line.qty
-                              )}
-                            </td>
-                            <td className="num">
-                              {editable ? (
-                                <input
-                                  type="text"
-                                  inputMode="decimal"
-                                  value={moneyInputValue(line.purchase_unit_price)}
-                                  disabled={busy}
-                                  onChange={(e) =>
-                                    updateExtraExpense(work.id, line.id, {
-                                      purchase_unit_price: parseMoneyInput(e.target.value),
-                                    })
-                                  }
-                                />
-                              ) : line.purchase_unit_price != null ? (
-                                formatEuro(line.purchase_unit_price)
-                              ) : (
-                                '—'
-                              )}
-                            </td>
-                            <td className="num">
-                              {editable ? (
-                                <input
-                                  type="text"
-                                  inputMode="decimal"
-                                  value={moneyInputValue(line.customer_unit_price)}
-                                  disabled={busy}
-                                  onChange={(e) =>
-                                    updateExtraExpense(work.id, line.id, {
-                                      customer_unit_price: parseMoneyInput(e.target.value) ?? 0,
-                                    })
-                                  }
-                                />
-                              ) : (
-                                formatEuro(line.customer_unit_price)
-                              )}
-                            </td>
-                            {editable ? (
-                              <td>
-                                <button
-                                  type="button"
-                                  className="btn btn-secondary btn-sm"
-                                  disabled={busy}
-                                  onClick={() => removeExtraExpense(work.id, line.id)}
-                                >
-                                  Poista
-                                </button>
-                              </td>
-                            ) : null}
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-                {editable ? (
-                  <button
-                    type="button"
-                    className="btn btn-secondary btn-sm"
-                    disabled={busy}
-                    onClick={() =>
-                      updateExtraWork(work.id, {
-                        expense_lines: [...(work.expense_lines ?? []), newExtraExpenseLine()],
-                      })
-                    }
-                  >
-                    Lisää kulu / tarvike
-                  </button>
-                ) : null}
-              </div>
-            </div>
-          ))
-        )}
-        {editable ? (
-          <button
-            type="button"
-            className="btn btn-secondary btn-sm"
-            disabled={busy}
-            onClick={() =>
-              setSettings((prev) => ({
-                ...prev,
-                extra_customer_work: [...(prev.extra_customer_work ?? []), newExtraCustomerWork()],
-              }))
-            }
-          >
-            Lisää lisätyö
-          </button>
-        ) : null}
-      </div>
-    );
-  }
 
   function applyQuote(option: BillingQuoteOption) {
     void supabase
@@ -673,10 +380,13 @@ export default function WorkReportBillingQuotePanel({
                       Lisää lisätyöt ja -kulut tarjouksen päälle
                     </label>
                   ) : null}
+                  {quotePlusExtrasEnabled ? (
+                    <p className="muted span-2" style={{ margin: 0 }}>
+                      Lisätyöt ja -kulut kirjataan päiväkirjan ruudusta <strong>Lisä työt ja kulut</strong>.
+                    </p>
+                  ) : null}
                 </>
               ) : null}
-
-              {renderExtraCustomerWorkSection(true)}
 
               <label className="form-field">
                 <span>Tarjoushinta (alv 0 %)</span>
@@ -801,7 +511,11 @@ export default function WorkReportBillingQuotePanel({
             </dl>
           )}
 
-          {renderExtraCustomerWorkSection(false)}
+          {quotePlusExtrasEnabled && !readOnly ? (
+            <p className="muted">
+              Lisätyöt ja -kulut: avaa päiväkirjamerkintä → ruutu <strong>Lisä työt ja kulut</strong>.
+            </p>
+          ) : null}
 
           {renderPurchaseLinesTable(purchaseLines, false)}
 

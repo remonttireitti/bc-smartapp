@@ -7,9 +7,11 @@ import {
   type PartnerBillingRates,
 } from './management';
 import {
+  shouldCalculateCustomerQuoteExtrasFromLogs,
+} from './dailyLogCustomerExtraBilling';
+import {
   calculateWorkReportCustomerBillable,
   shouldCalculateCustomerBilling,
-  shouldCalculateCustomerQuoteExtras,
 } from './workReportCustomerBilling';
 import {
   calculateWorkReportCustomerBillableFromQuote,
@@ -73,7 +75,7 @@ export async function refreshAndPersistCustomerBillable(
   const billingApplies =
     useQuoteBilling
     || shouldCalculateCustomerBilling(logs)
-    || (useQuotePlusExtras && shouldCalculateCustomerQuoteExtras(extraWorks));
+    || (useQuotePlusExtras && (shouldCalculateCustomerQuoteExtrasFromLogs(logs) || extraWorks.length > 0));
   if (!billingApplies) {
     await supabase.from('work_report_billable').upsert({
       work_report_id: reportRow.id,
@@ -99,6 +101,7 @@ export async function refreshAndPersistCustomerBillable(
     (useQuotePlusExtras
       ? calculateWorkReportCustomerBillableQuotePlusExtras({
           settings: billingQuote,
+          logs,
           rates,
           ratesSource: source,
           customerName: reportRow.customers?.name ?? null,
@@ -184,7 +187,7 @@ export async function ensureCustomerBillableCalculated(
     !shouldCalculateCustomerBilling(logs)
     && !hasCalculation
     && !useQuoteBilling
-    && !(useQuotePlusExtras && shouldCalculateCustomerQuoteExtras(extraWorks))
+    && !(useQuotePlusExtras && (shouldCalculateCustomerQuoteExtrasFromLogs(logs) || extraWorks.length > 0))
   ) {
     return;
   }

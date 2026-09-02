@@ -7,7 +7,9 @@ import { formatEuro } from './workReportBilling';
 import {
   calculateWorkReportCustomerQuoteExtras,
 } from './workReportCustomerBilling';
+import { extraCustomerWorkFromDailyLogs } from './dailyLogCustomerExtraBilling';
 import type { PartnerBillingRates } from './management';
+import type { WorkReportDailyLog } from '../types';
 import {
   extraCustomerWorkHasBillableData,
   normalizeExtraCustomerWork,
@@ -430,6 +432,7 @@ export function calculateWorkReportCustomerBillableFromQuote(input: {
 
 export function calculateWorkReportCustomerBillableQuotePlusExtras(input: {
   settings: BillingQuoteSettings;
+  logs: WorkReportDailyLog[];
   rates: PartnerBillingRates;
   ratesSource: BillableRatesSource;
   customerName: string | null;
@@ -441,8 +444,12 @@ export function calculateWorkReportCustomerBillableQuotePlusExtras(input: {
   });
   if (!quoteCalc) return null;
 
+  const worksFromLogs = extraCustomerWorkFromDailyLogs(input.logs);
+  const worksFromQuote = getBillingQuoteExtraCustomerWork(input.settings);
+  const works = worksFromLogs.length > 0 ? worksFromLogs : worksFromQuote;
+
   const extrasCalc = calculateWorkReportCustomerQuoteExtras({
-    works: getBillingQuoteExtraCustomerWork(input.settings),
+    works,
     rates: input.rates,
     ratesSource: input.ratesSource,
     customerName: input.customerName,

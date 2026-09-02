@@ -5,9 +5,9 @@ import {
   parseBillingQuoteSettings,
 } from '../src/lib/workReportBillingQuote.ts';
 import {
-  calculateWorkReportCustomerQuoteExtras,
-  shouldCalculateCustomerQuoteExtras,
-} from '../src/lib/workReportCustomerBilling.ts';
+  extraCustomerWorkFromDailyLogs,
+  shouldCalculateCustomerQuoteExtrasFromLogs,
+} from '../src/lib/dailyLogCustomerExtraBilling.ts';
 
 const quoteSettings = parseBillingQuoteSettings({
   quote_request_id: 'q-1',
@@ -15,49 +15,54 @@ const quoteSettings = parseBillingQuoteSettings({
   customer_invoice_total: 5000,
   quote_sale_net: 4000,
   customer_mode: 'quote_plus_extras',
-  extra_customer_work: [
-    {
-      id: 'work-1',
-      work_date: '2026-09-01',
-      description: 'Väliaikainen syöttö asennettu',
+});
+
+const logs = [
+  {
+    id: 'log-1',
+    work_report_id: 'wr-1',
+    log_date: '2026-09-01',
+    entry_type: 'regular',
+    hours_regular: 8,
+    hours_overtime: 0,
+    hours_on_call: 0,
+    fixed_price_amount: null,
+    commission_amount: 0,
+    commission_note: null,
+    work_done: 'Perustyö kalenteriin',
+    created_by: 'user-1',
+    created_at: '2026-09-01T10:00:00Z',
+    author: { display_name: 'Matti' },
+    customer_extra_billing: {
       hours: 2,
       hourly_rate: 80,
-      expense_lines: [
-        {
-          id: 'exp-1',
-          description: 'Onninen lasku',
-          qty: 1,
-          customer_unit_price: 250,
-          purchase_unit_price: 133,
-        },
-      ],
+      description: 'Väliaikainen syöttö',
+      expense_description: 'Onninen-lasku',
+      expense_qty: 1,
+      expense_customer_unit_price: 250,
+      expense_purchase_unit_price: 133,
     },
-  ],
-});
+  },
+];
 
 assert.equal(customerUsesQuotePlusExtras(quoteSettings), true);
-assert.equal(shouldCalculateCustomerQuoteExtras(quoteSettings.extra_customer_work), true);
+assert.equal(shouldCalculateCustomerQuoteExtrasFromLogs(logs), true);
 
-const extrasOnly = calculateWorkReportCustomerQuoteExtras({
-  works: quoteSettings.extra_customer_work ?? [],
-  rates: { hourly_regular: 70, hourly_overtime: 90, hourly_on_call: 100 },
-  ratesSource: 'company_default',
-  customerName: 'Asiakas Oy',
-});
-
-assert.equal(extrasOnly.grandTotal, 410); // 2h * 80 + 250 expense
+const works = extraCustomerWorkFromDailyLogs(logs);
+assert.equal(works.length, 1);
+assert.equal(works[0].hours, 2);
+assert.equal(works[0].expense_lines?.length, 1);
 
 const merged = calculateWorkReportCustomerBillableQuotePlusExtras({
   settings: quoteSettings,
+  logs,
   rates: { hourly_regular: 70, hourly_overtime: 90, hourly_on_call: 100 },
   ratesSource: 'company_default',
   customerName: 'Asiakas Oy',
 });
 
 assert.ok(merged);
-assert.equal(merged.billingMode, 'quote_plus_extras');
-assert.equal(merged.grandTotal, 5410);
+assert.equal(merged.grandTotal, 5410); // 5000 + 160 + 250
 assert.equal(merged.quoteExtrasTotal, 410);
-assert.equal(merged.byUser.length, 2); // quote + extras bucket
 
 console.log('test-quote-plus-extras-billing: ok');

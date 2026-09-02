@@ -177,6 +177,8 @@ export type WorkReportDailyLog = {
   commission_note: string | null;
   /** Lisätyö tarjouksen päälle (asiakaslaskutus quote_plus_extras). */
   customer_extra_beyond_quote?: boolean;
+  /** Erillinen lisälaskutus: tunnit, selitys, kulu (ei kalenteritunnit). */
+  customer_extra_billing?: import('../lib/dailyLogCustomerExtraBilling').DailyLogCustomerExtraBilling | null;
   work_done: string;
   created_by: string | null;
   created_at: string;

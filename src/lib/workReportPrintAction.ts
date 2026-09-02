@@ -75,6 +75,7 @@ function resolvePrintCustomerCalculation(
   billingQuote: BillingQuoteSettings,
   stored: BillableCalculation | null,
   customerName: string | null,
+  logs: WorkReportDailyLog[],
   rates: PartnerBillingRates,
   ratesSource: BillableRatesSource,
 ): BillableCalculation | null {
@@ -82,6 +83,7 @@ function resolvePrintCustomerCalculation(
     return (
       calculateWorkReportCustomerBillableQuotePlusExtras({
         settings: billingQuote,
+        logs,
         rates,
         ratesSource,
         customerName,
@@ -180,6 +182,7 @@ export async function buildWorkReportPrintHtmlDocument(input: {
         billingQuote,
         input.customerCalculation ?? null,
         input.report.customers?.name ?? null,
+        logs,
         customerRates?.rates ?? {},
         customerRates?.ratesSource ?? 'company_default',
       )
@@ -242,6 +245,7 @@ export async function loadWorkReportPrintBundle(
     billingQuote,
     storedCustomerCalculation,
     (reportData as { customers?: { name?: string } }).customers?.name ?? null,
+    logs,
     customerRates.rates,
     customerRates.ratesSource,
   );

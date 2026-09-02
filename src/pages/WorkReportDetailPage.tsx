@@ -13,6 +13,7 @@ import { WorkReportSectionTile, WorkReportSectionTileGrid } from '../components/
 import WorkReportSectionDialog from '../components/WorkReportSectionDialog';
 import ActionStatusDialog from '../components/ActionStatusDialog';
 import DailyLogDialog from '../components/DailyLogDialog';
+import DailyLogCustomerExtraBillingFields from '../components/DailyLogCustomerExtraBillingFields';
 import DailyLogFormSection from '../components/DailyLogFormSection';
 import DailyLogTileSection from '../components/DailyLogTileSection';
 import {
@@ -142,9 +143,16 @@ import {
 import { refreshAndPersistCustomerBillable } from '../lib/workReportCustomerBillingPersist';
 import {
   customerUsesQuoteBasedBilling,
+  customerUsesQuotePlusExtras,
   parseBillingQuoteSettings,
   type BillingQuoteSettings,
 } from '../lib/workReportBillingQuote';
+import {
+  dailyLogExtraBillingFromForm,
+  dailyLogExtraBillingToForm,
+  emptyDailyLogExtraBillingForm,
+  serializeDailyLogCustomerExtraBilling,
+} from '../lib/dailyLogCustomerExtraBilling';
 import {
   computePartnerUrakkaFromCustomer,
   DEFAULT_PARTNER_URAKKA_MARGIN_PERCENT,
@@ -318,6 +326,7 @@ function initialLogForm() {
     commission_amount: '',
     commission_note: '',
     work_done: '',
+    ...emptyDailyLogExtraBillingForm(),
   };
 }
 
@@ -376,6 +385,7 @@ function logToForm(log: WorkReportDailyLog): DailyLogFormState {
     commission_amount: Number(log.commission_amount) > 0 ? String(log.commission_amount) : '',
     commission_note: log.commission_note ?? '',
     work_done: log.work_done,
+    ...dailyLogExtraBillingToForm(log.customer_extra_billing),
   };
 }
 
@@ -489,6 +499,7 @@ function buildLogPayload(form: DailyLogFormState) {
     commission_amount: Number(form.commission_amount || 0),
     commission_note: form.commission_note.trim() || null,
     work_done: form.work_done.trim(),
+    customer_extra_billing: serializeDailyLogCustomerExtraBilling(dailyLogExtraBillingFromForm(form)),
   };
 }
 
@@ -3050,11 +3061,6 @@ export default function WorkReportDetailPage({ session }: Props) {
           dailyLogExpensePurchaseNet={dailyLogExpensePurchaseNet}
           showPartnerMargin={!!showOutgoingPartnerBilling}
           showCustomerQuoteMode={!!showCustomerMoneyBilling && !!canManageCustomerBillingRates}
-          defaultCustomerHourlyRate={
-            customerBillableCalculation?.ratesUsed.hourly_regular
-            ?? companyCustomerRatesPreview.hourly_regular
-            ?? null
-          }
           readOnly={!showOutgoingPartnerBilling && !canManageCustomerBillingRates}
           printHref={
             showOutgoingPartnerBilling ? `/tyoraportit/${report.id}/laskutus/tuloste` : undefined
@@ -3796,6 +3802,18 @@ export default function WorkReportDetailPage({ session }: Props) {
             ?? null
           }
         />
+        {customerUsesQuotePlusExtras(billingQuoteSettings) ? (
+          <DailyLogCustomerExtraBillingFields
+            form={logForm}
+            setForm={(next) => setLogForm({ ...logForm, ...next })}
+            defaultHourlyRate={
+              customerBillableCalculation?.ratesUsed.hourly_regular
+              ?? companyCustomerRatesPreview.hourly_regular
+              ?? customerReportRatesDraft.hourly_regular
+              ?? null
+            }
+          />
+        ) : null}
         <DailyLogRefrigerantFields
           drafts={refrigerantDrafts}
           setDrafts={setRefrigerantDrafts}
