@@ -38,6 +38,7 @@
     "test:equipment-huolto-snapshot-sync": "npx tsx scripts/test-equipment-huolto-snapshot-sync.mjs",
     "test:maintenance-report-delete-permissions": "npx tsx scripts/test-maintenance-report-delete-permissions.mjs",
     "test:expense-purchase-price": "npx tsx scripts/test-expense-purchase-price.mjs",
+    "test:quote-plus-extras-billing": "npx tsx scripts/test-quote-plus-extras-billing.mjs",
     "sync:equipment-huolto-snapshots": "npx tsx scripts/sync-equipment-huolto-snapshots.mjs",
     "test:refrigerant-rental-days": "npx tsx scripts/test-refrigerant-rental-days.mjs",
     "test:refrigerant-warehouse-stock-unchanged": "npx tsx scripts/test-refrigerant-warehouse-stock-unchanged.mjs",

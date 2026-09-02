@@ -87,7 +87,9 @@ export type BillableCalculation = {
   /** Kylmäaineostot, jotka on jo merkitty vähennetyiksi. */
   warehouseDeductionsDeducted?: number;
   /** Kiinteä tarjoushinta asiakkaalle — ei tunti-/ajolaskentaa. */
-  billingMode?: 'daily_log' | 'quote_fixed';
+  billingMode?: 'daily_log' | 'quote_fixed' | 'quote_plus_extras';
+  /** Tarjouksen päälle laskutettavat lisät (quote_plus_extras). */
+  quoteExtrasTotal?: number;
   quoteRequestId?: string | null;
   quoteTitle?: string | null;
 };

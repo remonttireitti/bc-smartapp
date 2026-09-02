@@ -57,6 +57,7 @@ export default function WorkReportBillingBreakdown({ calculation, billingSide }:
   const billedLines = collectDetailRows(calculation, true);
   const excludedLines = collectDetailRows(calculation, false);
   const isQuoteFixed = calculation.billingMode === 'quote_fixed';
+  const isQuotePlusExtras = calculation.billingMode === 'quote_plus_extras';
 
   return (
     <div className="billing-breakdown">
@@ -66,6 +67,16 @@ export default function WorkReportBillingBreakdown({ calculation, billingSide }:
           Kiinteä tarjoushinta
           {calculation.quoteTitle ? `: ${calculation.quoteTitle}` : ''}. Tunti- ja ajolaskentaa ei
           käytetä asiakaslaskutuksessa.
+        </p>
+      ) : null}
+      {isQuotePlusExtras ? (
+        <p className="muted">
+          Tarjoushinta
+          {calculation.quoteTitle ? `: ${calculation.quoteTitle}` : ''}
+          {calculation.quoteExtrasTotal != null && calculation.quoteExtrasTotal > 0
+            ? ` + lisätyöt ${formatEuro(calculation.quoteExtrasTotal)}`
+            : ''}
+          . Perustyö laskutetaan tarjouksen mukaan; lisärivit näkyvät alla.
         </p>
       ) : null}
       <div className="table-wrap">

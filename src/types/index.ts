@@ -175,6 +175,8 @@ export type WorkReportDailyLog = {
   customer_hourly_rate_override?: number | null;
   commission_amount: number;
   commission_note: string | null;
+  /** Lisätyö tarjouksen päälle (asiakaslaskutus quote_plus_extras). */
+  customer_extra_beyond_quote?: boolean;
   work_done: string;
   created_by: string | null;
   created_at: string;

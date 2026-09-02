@@ -5,6 +5,11 @@ import type { BillableRatesSource } from './management';
 import type { BillableCalculation } from './workReportBilling';
 import { formatEuro } from './workReportBilling';
 import {
+  calculateWorkReportCustomerQuoteExtras,
+} from './workReportCustomerBilling';
+import type { PartnerBillingRates } from './management';
+import type { WorkReportDailyLog } from '../types';
+import {
   extractQuotePurchaseLines,
   mergeQuotePurchaseLines,
   parseBillingQuotePurchaseLines,
@@ -14,7 +19,16 @@ import {
 
 export type { BillingQuotePurchaseLine } from './quotePurchaseLines';
 
-export type CustomerBillingMode = 'daily_log' | 'quote_fixed';
+export type CustomerBillingMode = 'daily_log' | 'quote_fixed' | 'quote_plus_extras';
+
+export type BillingQuoteExtraCustomerLine = {
+  id: string;
+  description: string;
+  qty?: number | null;
+  unit_price?: number | null;
+  /** Jos asetettu, käytetään suoraan rivisummaa. */
+  amount?: number | null;
+};
 
 export type BillingQuoteSettings = {
   quote_request_id?: string | null;
@@ -28,6 +42,8 @@ export type BillingQuoteSettings = {
   /** Asiakkaalta laskutettava summa (sis. alv jos kuluttaja). */
   customer_invoice_total?: number | null;
   customer_mode?: CustomerBillingMode;
+  /** Manuaaliset lisätyöt / kulut asiakkaalle tarjouksen päälle. */
+  extra_customer_lines?: BillingQuoteExtraCustomerLine[];
   quote_vat_rate?: number | null;
   notes?: string | null;
   /** Tarjouksen hankintarivit — korjattavissa vain työraportilla. */
@@ -61,6 +77,46 @@ export function quoteHasVat(vatRate: number | null | undefined): boolean {
   return Number(vatRate) > 0;
 }
 
+function parseExtraCustomerLines(raw: unknown): BillingQuoteExtraCustomerLine[] {
+  if (!Array.isArray(raw)) return [];
+  const lines: BillingQuoteExtraCustomerLine[] = [];
+  raw.forEach((item, index) => {
+    if (!item || typeof item !== 'object') return;
+    const record = item as Record<string, unknown>;
+    const description =
+      typeof record.description === 'string' && record.description.trim()
+        ? record.description.trim()
+        : '';
+    if (!description) return;
+    const num = (key: string) => {
+      const value = record[key];
+      if (value == null || value === '') return null;
+      const parsed = Number(value);
+      return Number.isFinite(parsed) ? roundMoney(parsed) : null;
+    };
+    const amount = num('amount');
+    const qty = num('qty');
+    const unitPrice = num('unit_price');
+    const resolvedAmount =
+      amount != null && amount > 0
+        ? amount
+        : qty != null && unitPrice != null && qty > 0 && unitPrice > 0
+          ? roundMoney(qty * unitPrice)
+          : null;
+    if (resolvedAmount == null || resolvedAmount <= 0) return;
+    const id =
+      typeof record.id === 'string' && record.id.trim() ? record.id.trim() : `extra:${index}`;
+    lines.push({
+      id,
+      description,
+      qty: qty ?? 1,
+      unit_price: unitPrice ?? resolvedAmount,
+      amount: resolvedAmount,
+    });
+  });
+  return lines;
+}
+
 export function parseBillingQuoteSettings(raw: unknown): BillingQuoteSettings {
   if (!raw || typeof raw !== 'object') return { customer_mode: 'daily_log' };
   const record = raw as Record<string, unknown>;
@@ -70,8 +126,14 @@ export function parseBillingQuoteSettings(raw: unknown): BillingQuoteSettings {
     const parsed = Number(value);
     return Number.isFinite(parsed) ? roundMoney(parsed) : null;
   };
-  const mode = record.customer_mode === 'quote_fixed' ? 'quote_fixed' : 'daily_log';
+  const mode: CustomerBillingMode =
+    record.customer_mode === 'quote_fixed'
+      ? 'quote_fixed'
+      : record.customer_mode === 'quote_plus_extras'
+        ? 'quote_plus_extras'
+        : 'daily_log';
   const purchaseLines = parseBillingQuotePurchaseLines(record.purchase_lines);
+  const extraCustomerLines = parseExtraCustomerLines(record.extra_customer_lines);
   const settings: BillingQuoteSettings = {
     quote_request_id:
       typeof record.quote_request_id === 'string' && record.quote_request_id.trim()
@@ -86,6 +148,7 @@ export function parseBillingQuoteSettings(raw: unknown): BillingQuoteSettings {
     actual_purchase_net: num('actual_purchase_net'),
     customer_invoice_total: num('customer_invoice_total'),
     customer_mode: mode,
+    extra_customer_lines: extraCustomerLines.length > 0 ? extraCustomerLines : undefined,
     quote_vat_rate: num('quote_vat_rate'),
     notes: typeof record.notes === 'string' ? record.notes : null,
     purchase_lines: purchaseLines.length > 0 ? purchaseLines : undefined,
@@ -95,6 +158,29 @@ export function parseBillingQuoteSettings(raw: unknown): BillingQuoteSettings {
 
 export function normalizeBillingQuoteSettings(settings: BillingQuoteSettings): BillingQuoteSettings {
   const lines = settings.purchase_lines ?? [];
+  const extraLines: BillingQuoteExtraCustomerLine[] = [];
+  for (const line of settings.extra_customer_lines ?? []) {
+    const amount =
+      line.amount != null && line.amount > 0
+        ? roundMoney(line.amount)
+        : line.qty != null && line.unit_price != null && line.qty > 0 && line.unit_price > 0
+          ? roundMoney(line.qty * line.unit_price)
+          : null;
+    if (amount == null || amount <= 0 || !line.description.trim()) continue;
+    extraLines.push({
+      ...line,
+      description: line.description.trim(),
+      qty: line.qty ?? 1,
+      unit_price: line.unit_price ?? amount,
+      amount,
+    });
+  }
+
+  const withExtras =
+    extraLines.length > 0
+      ? { ...settings, extra_customer_lines: extraLines }
+      : { ...settings, extra_customer_lines: undefined };
+
   if (lines.length > 0) {
     const normalizedLines = lines.map((line) => ({
       ...line,
@@ -102,13 +188,13 @@ export function normalizeBillingQuoteSettings(settings: BillingQuoteSettings): B
       actual_purchase_net: roundMoney(line.actual_purchase_net ?? line.quote_purchase_net),
     }));
     return {
-      ...settings,
+      ...withExtras,
       purchase_lines: normalizedLines,
       quote_purchase_net: sumQuotePurchaseLines(normalizedLines, 'quote_purchase_net'),
       actual_purchase_net: sumQuotePurchaseLines(normalizedLines, 'actual_purchase_net'),
     };
   }
-  return settings;
+  return withExtras;
 }
 
 export function mergeDailyLogExpensePurchaseIntoQuoteSettings(
@@ -165,8 +251,18 @@ export function billingQuoteHasData(settings: BillingQuoteSettings): boolean {
     || settings.quote_sale_net != null
     || settings.customer_invoice_total != null
     || (settings.purchase_lines?.length ?? 0) > 0
+    || (settings.extra_customer_lines?.length ?? 0) > 0
     || !!settings.notes?.trim()
   );
+}
+
+export function customerUsesQuotePlusExtras(settings: BillingQuoteSettings | null | undefined): boolean {
+  const parsed = parseBillingQuoteSettings(settings ?? {});
+  return parsed.customer_mode === 'quote_plus_extras' && resolveCustomerInvoiceTotal(parsed) != null;
+}
+
+export function customerUsesQuoteBasedBilling(settings: BillingQuoteSettings | null | undefined): boolean {
+  return customerUsesFixedQuote(settings) || customerUsesQuotePlusExtras(settings);
 }
 
 export function customerUsesFixedQuote(settings: BillingQuoteSettings | null | undefined): boolean {
@@ -232,7 +328,12 @@ export function billingQuoteFromQuoteRow(
     quote_purchase_net: roundMoney(internal.purchaseNet),
     actual_purchase_net: roundMoney(internal.purchaseNet),
     customer_invoice_total: roundMoney(customerTotal),
-    customer_mode: options?.fixedCustomerBilling === false ? 'daily_log' : 'quote_fixed',
+    customer_mode:
+      options?.fixedCustomerBilling === false
+        ? 'daily_log'
+        : options?.previous?.customer_mode === 'quote_plus_extras'
+          ? 'quote_plus_extras'
+          : 'quote_fixed',
     quote_vat_rate: roundMoney(internal.vatRate),
     purchase_lines: purchaseLines.length > 0 ? purchaseLines : undefined,
     notes: options?.previous?.notes ?? null,
@@ -361,6 +462,40 @@ export function calculateWorkReportCustomerBillableFromQuote(input: {
     ],
     grandTotal: total,
     excludedTotal: 0,
+  };
+}
+
+export function calculateWorkReportCustomerBillableQuotePlusExtras(input: {
+  settings: BillingQuoteSettings;
+  logs: WorkReportDailyLog[];
+  rates: PartnerBillingRates;
+  ratesSource: BillableRatesSource;
+  customerName: string | null;
+}): BillableCalculation | null {
+  const quoteCalc = calculateWorkReportCustomerBillableFromQuote({
+    settings: input.settings,
+    customerName: input.customerName,
+    ratesSource: input.ratesSource,
+  });
+  if (!quoteCalc) return null;
+
+  const extrasCalc = calculateWorkReportCustomerQuoteExtras({
+    logs: input.logs,
+    rates: input.rates,
+    ratesSource: input.ratesSource,
+    customerName: input.customerName,
+    manualLines: input.settings.extra_customer_lines ?? [],
+  });
+
+  const quoteExtrasTotal = extrasCalc.grandTotal;
+  const mergedByUser = [...quoteCalc.byUser, ...extrasCalc.byUser];
+
+  return {
+    ...quoteCalc,
+    billingMode: 'quote_plus_extras',
+    byUser: mergedByUser,
+    quoteExtrasTotal,
+    grandTotal: roundMoney(quoteCalc.grandTotal + quoteExtrasTotal),
   };
 }
 

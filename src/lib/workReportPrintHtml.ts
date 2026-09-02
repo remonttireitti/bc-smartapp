@@ -13,7 +13,7 @@ import { BILLABLE_RATES_SOURCE_LABELS } from './management';
 import {
   billingQuoteHasData,
   computePartnerNetMargin,
-  customerUsesFixedQuote,
+  customerUsesQuoteBasedBilling,
   parseBillingQuoteSettings,
   quoteHasVat,
   renderBillingQuotePurchaseLinesHtml,
@@ -154,6 +154,7 @@ function customerBillingPrintSection(
   billingQuote?: BillingQuoteSettings | null,
 ): string {
   const isQuoteFixed = customerCalculation.billingMode === 'quote_fixed';
+  const isQuotePlusExtras = customerCalculation.billingMode === 'quote_plus_extras';
 
   if (isQuoteFixed) {
     const quoteTitle = customerCalculation.quoteTitle ?? billingQuote?.quote_title ?? 'Tarjous';
@@ -175,6 +176,57 @@ function customerBillingPrintSection(
         </tbody>
       </table>
       <p class="grand-total"><strong>Asiakkaalta laskutettava yhteensä: ${formatEuro(customerCalculation.grandTotal)}</strong></p>`,
+    );
+  }
+
+  if (isQuotePlusExtras) {
+    const quoteTitle = customerCalculation.quoteTitle ?? billingQuote?.quote_title ?? 'Tarjous';
+    const vatRate = Number(billingQuote?.quote_vat_rate) || 0;
+    const vatNote = quoteHasVat(vatRate) ? ` (sis. ALV ${vatRate} %)` : ' (alv 0 %)';
+    const quoteUser = customerCalculation.byUser.find((user) => user.userId === 'quote');
+    const quoteTotal = quoteUser?.subtotal ?? customerCalculation.grandTotal - (customerCalculation.quoteExtrasTotal ?? 0);
+    const extraUsers = customerCalculation.byUser.filter((user) => user.userId !== 'quote');
+    const extraRows = extraUsers
+      .flatMap((user) =>
+        billableUserLines(user)
+          .filter((line) => line.included)
+          .map(
+            (line) => `<tr>
+            <td>${esc(formatDate(line.logDate))}</td>
+            <td>${esc(user.userName)}</td>
+            <td>${esc(LINE_KIND_LABELS[line.kind] ?? line.kind)}</td>
+            <td>${esc(line.description)}</td>
+            <td class="num">${formatBillableLineQty(line.kind, line.qty)}</td>
+            <td class="num">${formatBillablePriceCell(line.unitPrice, line.priceMissing)}</td>
+            <td class="num"><strong>${line.priceMissing ? '<span class="billing-price-missing">?</span>' : formatEuro(line.total)}</strong></td>
+          </tr>`,
+          ),
+      )
+      .join('');
+    return printBox(
+      'Asiakkaalta laskutettava',
+      `<p class="meta-line">Asiakas: <strong>${esc(customerLabel)}</strong></p>
+      <p class="meta-line">Tarjoushinta + lisätyöt ja -kulut.</p>
+      <table>
+        <thead>
+          <tr><th>Tarjous</th><th class="num">Summa</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>${esc(quoteTitle)}${esc(vatNote)}</td>
+            <td class="num"><strong>${formatEuro(quoteTotal)}</strong></td>
+          </tr>
+        </tbody>
+      </table>
+      ${extraRows ? `<h3 class="billing-subheading">Lisätyöt ja -kulut</h3>
+      <table>
+        <thead>
+          <tr><th>Päivä</th><th>Henkilö</th><th>Tyyppi</th><th>Kuvaus</th><th class="num">Määrä</th><th class="num">á hinta</th><th class="num">Yhteensä</th></tr>
+        </thead>
+        <tbody>${extraRows}</tbody>
+      </table>` : ''}
+      <p class="grand-total"><strong>Asiakkaalta laskutettava yhteensä: ${formatEuro(customerCalculation.grandTotal)}</strong></p>
+      <p class="meta-line billing-price-missing-note">Punainen <span class="billing-price-missing">?</span> = hinta puuttuu, määritä asiakkaalle laskutettava hinta.</p>`,
     );
   }
 
@@ -314,10 +366,10 @@ export function generateWorkReportPrintHtml(input: {
     viewerCompanyId,
   } = input;
   const billingQuote = parseBillingQuoteSettings(inputBillingQuote ?? {});
-  const customerQuoteFixed = customerUsesFixedQuote(billingQuote);
+  const customerQuoteBased = customerUsesQuoteBasedBilling(billingQuote);
   const showInternalPrices = printMode === 'internal';
   const showCustomerPricesInPrint =
-    showInternalPrices && !!customerCalculation && !customerQuoteFixed;
+    showInternalPrices && !!customerCalculation && !customerQuoteBased;
   const isDelegatedOrder =
     !!report.delegate_company_id && report.created_by_company_id === report.owner_company_id;
   const billedPartnerName = isDelegatedOrder

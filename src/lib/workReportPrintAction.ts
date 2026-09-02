@@ -8,6 +8,7 @@ import { fetchWorkReportPrintLogs } from './workReportDailyLogSelect';
 import {
   calculateWorkReportCustomerBillableFromQuote,
   customerUsesFixedQuote,
+  customerUsesQuotePlusExtras,
   parseBillingQuoteSettings,
   type BillingQuoteSettings,
 } from './workReportBillingQuote';
@@ -66,6 +67,9 @@ function resolvePrintCustomerCalculation(
   stored: BillableCalculation | null,
   customerName: string | null,
 ): BillableCalculation | null {
+  if (customerUsesQuotePlusExtras(billingQuote)) {
+    return stored;
+  }
   if (customerUsesFixedQuote(billingQuote)) {
     return (
       calculateWorkReportCustomerBillableFromQuote({

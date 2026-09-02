@@ -14,6 +14,7 @@ import {
   saveBillingQuoteSettings,
   type BillingQuoteOption,
   type BillingQuotePurchaseLine,
+  type BillingQuoteExtraCustomerLine,
   type BillingQuoteSettings,
 } from '../lib/workReportBillingQuote';
 import { extractQuotePurchaseLines } from '../lib/quotePurchaseLines';
@@ -44,6 +45,16 @@ function parseMoneyInput(value: string): number | null {
 function moneyInputValue(value: number | null | undefined): string {
   if (value == null || !Number.isFinite(value)) return '';
   return String(value);
+}
+
+function newExtraCustomerLine(): BillingQuoteExtraCustomerLine {
+  return {
+    id: `extra:${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    description: '',
+    qty: 1,
+    unit_price: null,
+    amount: null,
+  };
 }
 
 export default function WorkReportBillingQuotePanel({
@@ -121,6 +132,125 @@ export default function WorkReportBillingQuotePanel({
         : null,
     [settings, installationCostNet],
   );
+  const quoteBillingEnabled =
+    settings.customer_mode === 'quote_fixed' || settings.customer_mode === 'quote_plus_extras';
+  const quotePlusExtrasEnabled = settings.customer_mode === 'quote_plus_extras';
+  const extraCustomerLines = settings.extra_customer_lines ?? [];
+
+  function updateExtraLine(id: string, patch: Partial<BillingQuoteExtraCustomerLine>) {
+    setSettings((prev) => ({
+      ...prev,
+      extra_customer_lines: (prev.extra_customer_lines ?? []).map((line) =>
+        line.id === id ? { ...line, ...patch } : line,
+      ),
+    }));
+  }
+
+  function removeExtraLine(id: string) {
+    setSettings((prev) => ({
+      ...prev,
+      extra_customer_lines: (prev.extra_customer_lines ?? []).filter((line) => line.id !== id),
+    }));
+  }
+
+  function renderExtraCustomerLinesSection(editable: boolean) {
+    if (!quotePlusExtrasEnabled) return null;
+    return (
+      <div className="span-2 billing-extra-customer-lines">
+        <h4 className="billing-breakdown-heading">Lisätyöt asiakkaalle (tarjouksen päälle)</h4>
+        <p className="muted">
+          Päiväkirjasta tulevat automaattisesti mukaan kulut, joissa valinta on „Vain asiakas
+          laskutetaan“, sekä merkinnät joissa on valittu „Lisätyö tarjouksen päälle“.
+        </p>
+        {editable ? (
+          <>
+            <div className="table-wrap">
+              <table className="billing-table">
+                <thead>
+                  <tr>
+                    <th>Kuvaus</th>
+                    <th className="num">Summa (€)</th>
+                    <th />
+                  </tr>
+                </thead>
+                <tbody>
+                  {extraCustomerLines.length === 0 ? (
+                    <tr>
+                      <td colSpan={3} className="muted">
+                        Ei manuaalisia lisärivejä — lisää tarvittaessa tai merkitse päiväkirjaan.
+                      </td>
+                    </tr>
+                  ) : (
+                    extraCustomerLines.map((line) => (
+                      <tr key={line.id}>
+                        <td>
+                          <input
+                            type="text"
+                            value={line.description}
+                            disabled={busy}
+                            placeholder="Esim. lisäasennustyö"
+                            onChange={(e) => updateExtraLine(line.id, { description: e.target.value })}
+                          />
+                        </td>
+                        <td className="num">
+                          <input
+                            type="text"
+                            inputMode="decimal"
+                            value={moneyInputValue(line.amount ?? line.unit_price)}
+                            disabled={busy}
+                            onChange={(e) =>
+                              updateExtraLine(line.id, {
+                                amount: parseMoneyInput(e.target.value),
+                                unit_price: parseMoneyInput(e.target.value),
+                                qty: 1,
+                              })
+                            }
+                          />
+                        </td>
+                        <td>
+                          <button
+                            type="button"
+                            className="btn btn-secondary btn-sm"
+                            disabled={busy}
+                            onClick={() => removeExtraLine(line.id)}
+                          >
+                            Poista
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              disabled={busy}
+              onClick={() =>
+                setSettings((prev) => ({
+                  ...prev,
+                  extra_customer_lines: [...(prev.extra_customer_lines ?? []), newExtraCustomerLine()],
+                }))
+              }
+            >
+              Lisää lisärivi
+            </button>
+          </>
+        ) : extraCustomerLines.length > 0 ? (
+          <ul>
+            {extraCustomerLines.map((line) => (
+              <li key={line.id}>
+                {line.description}: {formatEuro(line.amount ?? line.unit_price ?? 0)}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="muted">Ei manuaalisia lisärivejä.</p>
+        )}
+      </div>
+    );
+  }
 
   function applyQuote(option: BillingQuoteOption) {
     void supabase
@@ -286,6 +416,11 @@ export default function WorkReportBillingQuotePanel({
               {' '}
               · kiinteä asiakashinta {formatEuro(settings.customer_invoice_total)}
             </span>
+          ) : settings.customer_mode === 'quote_plus_extras' && settings.customer_invoice_total ? (
+            <span className="billing-margin-headline">
+              {' '}
+              · tarjous {formatEuro(settings.customer_invoice_total)} + lisät
+            </span>
           ) : (
             <span className="muted"> · linkitä tarjous</span>
           )}
@@ -337,21 +472,45 @@ export default function WorkReportBillingQuotePanel({
               </label>
 
               {showCustomerQuoteMode ? (
-                <label className="form-field span-2 compact-option">
-                  <input
-                    type="checkbox"
-                    checked={settings.customer_mode === 'quote_fixed'}
-                    disabled={busy || !settings.quote_request_id}
-                    onChange={(e) =>
-                      setSettings((prev) => ({
-                        ...prev,
-                        customer_mode: e.target.checked ? 'quote_fixed' : 'daily_log',
-                      }))
-                    }
-                  />
-                  Asiakkaalta laskutetaan kiinteä tarjoushinta (ei tunti- ja ajolaskentaa)
-                </label>
+                <>
+                  <label className="form-field span-2 compact-option">
+                    <input
+                      type="checkbox"
+                      checked={quoteBillingEnabled}
+                      disabled={busy || !settings.quote_request_id}
+                      onChange={(e) =>
+                        setSettings((prev) => ({
+                          ...prev,
+                          customer_mode: e.target.checked
+                            ? prev.customer_mode === 'quote_plus_extras'
+                              ? 'quote_plus_extras'
+                              : 'quote_fixed'
+                            : 'daily_log',
+                        }))
+                      }
+                    />
+                    Asiakkaalta laskutetaan kiinteä tarjoushinta (ei tunti- ja ajolaskentaa)
+                  </label>
+                  {quoteBillingEnabled ? (
+                    <label className="form-field span-2 compact-option">
+                      <input
+                        type="checkbox"
+                        checked={quotePlusExtrasEnabled}
+                        disabled={busy || !settings.quote_request_id}
+                        onChange={(e) =>
+                          setSettings((prev) => ({
+                            ...prev,
+                            customer_mode: e.target.checked ? 'quote_plus_extras' : 'quote_fixed',
+                          }))
+                        }
+                      />
+                      Lisää lisätyöt ja -kulut tarjouksen päälle
+                    </label>
+                  ) : null}
+                </>
               ) : null}
+
+              {renderExtraCustomerLinesSection(true)}
 
               <label className="form-field">
                 <span>Tarjoushinta (alv 0 %)</span>
@@ -441,6 +600,14 @@ export default function WorkReportBillingQuotePanel({
                   <dd>{formatEuro(settings.customer_invoice_total)} (kiinteä tarjous)</dd>
                 </>
               ) : null}
+              {settings.customer_mode === 'quote_plus_extras' && settings.customer_invoice_total != null ? (
+                <>
+                  <dt>Asiakashinta</dt>
+                  <dd>
+                    {formatEuro(settings.customer_invoice_total)} (tarjous) + lisätyöt ja -kulut
+                  </dd>
+                </>
+              ) : null}
               {settings.quote_sale_net != null ? (
                 <>
                   <dt>Tarjoushinta (alv 0 %)</dt>
@@ -467,6 +634,8 @@ export default function WorkReportBillingQuotePanel({
               ) : null}
             </dl>
           )}
+
+          {renderExtraCustomerLinesSection(false)}
 
           {renderPurchaseLinesTable(purchaseLines, false)}
 
