@@ -6,11 +6,11 @@
  *   SUPABASE_SERVICE_ROLE_KEY=... npm run copy:customer-to-partner -- --production --list-customers
  *   SUPABASE_SECRET_KEY=sb_secret_... npm run copy:customer-to-partner -- --production --list-customers
  *
- * Kuivajo (dry-run):
- *   SUPABASE_SERVICE_ROLE_KEY=... node scripts/copy-customer-to-partner.mjs --production --customer-id=<uuid>
+ * Kuivajo Messukeskus (molemmilla yrityksillä asiakas jo olemassa):
+ *   SUPABASE_SECRET_KEY=... npm run copy:customer-to-partner -- --production --customer-name=messukeskus
  *
  * Aja kopio:
- *   SUPABASE_SERVICE_ROLE_KEY=... node scripts/copy-customer-to-partner.mjs --production --customer-id=<uuid> --apply
+ *   SUPABASE_SECRET_KEY=... npm run copy:customer-to-partner -- --production --customer-name=messukeskus --apply
  */
 import { createClient } from '@supabase/supabase-js';
 import { execSync } from 'node:child_process';
@@ -43,10 +43,12 @@ const DRY_RUN = !args.includes('--apply');
 const PRODUCTION = args.includes('--production');
 const LIST_CUSTOMERS = args.includes('--list-customers');
 const CUSTOMER_ID = argMap['customer-id'] ?? null;
-const CUSTOMER_NAME = argMap['customer-name'] ?? null;
+const CUSTOMER_NAME = argMap['customer-name'] ?? 'messukeskus';
+const TARGET_CUSTOMER_ID = argMap['target-customer-id'] ?? null;
 const SOURCE_COMPANY = (argMap['source-company'] ?? 'uudenmaan').toLowerCase();
 const TARGET_COMPANY = (argMap['target-company'] ?? 'lampokatsastus').toLowerCase();
 const INCLUDE_WORK_REPORTS = !args.includes('--skip-work-reports');
+const CREATE_TARGET_CUSTOMER = args.includes('--create-target-customer');
 
 function loadEnvFile(relativePath) {
   const path = join(rootDir, relativePath);
@@ -90,6 +92,22 @@ function createAdminClient(supabaseUrl, serviceKey) {
     auth: { autoRefreshToken: false, persistSession: false },
     global: { headers: { apikey: serviceKey } },
   });
+}
+
+function normalizeCustomerSearch(value) {
+  return String(value ?? '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '')
+    .trim();
+}
+
+function customerNameMatches(sourceName, targetName, searchNeedle) {
+  const source = normalizeCustomerSearch(sourceName);
+  const target = normalizeCustomerSearch(targetName);
+  const needle = normalizeCustomerSearch(searchNeedle);
+  if (!needle) return source === target;
+  return target.includes(needle) || needle.includes(target) || source === target;
 }
 
 function companyMatches(name, needle) {
@@ -187,15 +205,57 @@ async function ensureTargetSubscriber(supabase, sourceSubscriberId, targetCompan
   return inserted.id;
 }
 
-async function findOrCreateTargetCustomer(supabase, sourceCustomer, targetCompanyId, dryRun) {
+async function resolveTargetCustomer(supabase, sourceCustomer, targetCompanyId, dryRun) {
+  if (TARGET_CUSTOMER_ID) {
+    const { data, error } = await supabase
+      .from('customers')
+      .select('id, name, notes, subscriber_id, owner_company_id')
+      .eq('id', TARGET_CUSTOMER_ID)
+      .maybeSingle();
+    if (error) throw error;
+    if (!data) throw new Error(`Kohdeasiakasta ei löytynyt: ${TARGET_CUSTOMER_ID}`);
+    if (data.owner_company_id !== targetCompanyId) {
+      throw new Error('Kohdeasiakas ei kuulu kohdeyritykselle.');
+    }
+    return { customerId: data.id, subscriberId: data.subscriber_id, created: false, matchedBy: 'target-id' };
+  }
+
   const { data: existingRows, error: existingError } = await supabase
     .from('customers')
     .select('id, name, notes, subscriber_id')
     .eq('owner_company_id', targetCompanyId);
   if (existingError) throw existingError;
 
-  const existing = (existingRows ?? []).find((row) => hasMarker(row.notes, COPY_CUSTOMER_MARKER, sourceCustomer.id));
-  if (existing) return { customerId: existing.id, subscriberId: existing.subscriber_id, created: false };
+  const byMarker = (existingRows ?? []).find((row) =>
+    hasMarker(row.notes, COPY_CUSTOMER_MARKER, sourceCustomer.id),
+  );
+  if (byMarker) {
+    return { customerId: byMarker.id, subscriberId: byMarker.subscriber_id, created: false, matchedBy: 'marker' };
+  }
+
+  const searchNeedle = CUSTOMER_NAME || sourceCustomer.name;
+  const byName = (existingRows ?? []).filter((row) =>
+    customerNameMatches(sourceCustomer.name, row.name, searchNeedle),
+  );
+  if (byName.length === 1) {
+    return {
+      customerId: byName[0].id,
+      subscriberId: byName[0].subscriber_id,
+      created: false,
+      matchedBy: 'name',
+    };
+  }
+  if (byName.length > 1) {
+    console.error('Useita kohdeasiakkaita — käytä --target-customer-id:');
+    for (const row of byName) console.error(`  ${row.id}  ${row.name}`);
+    throw new Error('Kohdeasiakashaku epäselvä');
+  }
+
+  if (!CREATE_TARGET_CUSTOMER) {
+    throw new Error(
+      `Kohdeyrityksellä ei ole asiakasta "${searchNeedle}". Anna --target-customer-id tai --create-target-customer.`,
+    );
+  }
 
   const targetSubscriberId = await ensureTargetSubscriber(
     supabase,
@@ -222,13 +282,14 @@ async function findOrCreateTargetCustomer(supabase, sourceCustomer, targetCompan
       customerId: `dry-run-customer-${sourceCustomer.id.slice(0, 8)}`,
       subscriberId: targetSubscriberId,
       created: true,
+      matchedBy: 'created',
       payload,
     };
   }
 
   const { data, error } = await supabase.from('customers').insert(payload).select('id, subscriber_id').single();
   if (error) throw error;
-  return { customerId: data.id, subscriberId: data.subscriber_id, created: true };
+  return { customerId: data.id, subscriberId: data.subscriber_id, created: true, matchedBy: 'created' };
 }
 
 async function findOrCreateTargetEquipment(
@@ -240,7 +301,7 @@ async function findOrCreateTargetEquipment(
 ) {
   const { data: existingRows, error } = await supabase
     .from('equipment')
-    .select('id, notes')
+    .select('id, notes, tag, serial_number')
     .eq('customer_id', targetCustomerId);
   if (error) throw error;
 
@@ -248,6 +309,17 @@ async function findOrCreateTargetEquipment(
     hasMarker(row.notes, COPY_EQUIPMENT_MARKER, sourceEquipment.id),
   );
   if (existing) return { equipmentId: existing.id, created: false };
+
+  const tag = String(sourceEquipment.tag ?? '').trim().toLowerCase();
+  const serial = String(sourceEquipment.serial_number ?? '').trim().toLowerCase();
+  const byIdentity = (existingRows ?? []).find((row) => {
+    const rowTag = String(row.tag ?? '').trim().toLowerCase();
+    const rowSerial = String(row.serial_number ?? '').trim().toLowerCase();
+    if (tag && rowTag && tag === rowTag) return true;
+    if (serial && rowSerial && serial === rowSerial) return true;
+    return false;
+  });
+  if (byIdentity) return { equipmentId: byIdentity.id, created: false };
 
   const payload = {
     owner_company_id: targetCompanyId,
@@ -589,9 +661,11 @@ async function main() {
   console.log('Työraportteja (historia):', workReports.length);
 
   const defaultUserId = await pickCompanyUserId(supabase, target.id);
-  const targetCustomer = await findOrCreateTargetCustomer(supabase, sourceCustomer, target.id, DRY_RUN);
+  const targetCustomer = await resolveTargetCustomer(supabase, sourceCustomer, target.id, DRY_RUN);
   console.log(
-    targetCustomer.created ? 'Luodaan kohdeasiakas' : 'Kohdeasiakas on jo olemassa',
+    targetCustomer.created
+      ? 'Luodaan kohdeasiakas'
+      : `Käytetään olemassa olevaa kohdeasiakasta (${targetCustomer.matchedBy})`,
     targetCustomer.customerId,
   );
 
