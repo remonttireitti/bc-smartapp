@@ -2789,13 +2789,19 @@ export default function WorkReportDetailPage({ session }: Props) {
     showCustomerBillingFeatures
     && !!customerBillableCalculation
     && (isOwnerCompany || (isPartnerReport && canSeeCreatorBilling));
+  const canManageQuoteCustomerMode =
+    canManageCustomerBillingRates || (isPartnerReport && canSeeCreatorBilling);
   const dailyLogQuoteExtrasEnabled = customerUsesQuotePlusExtras(billingQuoteSettings);
   const dailyLogQuoteExtrasBlockedReason = !billingQuoteSettings.quote_request_id
     ? ('no_quote' as const)
     : !dailyLogQuoteExtrasEnabled
       ? ('mode_off' as const)
       : null;
-  const showDailyLogQuoteExtras = showCustomerBillingFeatures;
+  const showDailyLogQuoteExtras =
+    showOutgoingPartnerBilling
+    || showCustomerMoneyBilling
+    || showCustomerBillingFeatures
+    || (isPartnerReport && canSeeCreatorBilling);
   const dailyLogEntryTiles = dailyLogs.flatMap((log) =>
     buildDailyLogEntryTiles(log, {
       formatDate,
@@ -3068,7 +3074,7 @@ export default function WorkReportDetailPage({ session }: Props) {
           installationCostNet={billableCalculation?.grandTotal ?? null}
           initialSettings={billingQuoteSettings}
           showPartnerMargin={!!showOutgoingPartnerBilling}
-          showCustomerQuoteMode={!!showCustomerMoneyBilling && !!canManageCustomerBillingRates}
+          showCustomerQuoteMode={!!canManageQuoteCustomerMode}
           readOnly={!showOutgoingPartnerBilling && !canManageCustomerBillingRates}
           printHref={
             showOutgoingPartnerBilling ? `/tyoraportit/${report.id}/laskutus/tuloste` : undefined

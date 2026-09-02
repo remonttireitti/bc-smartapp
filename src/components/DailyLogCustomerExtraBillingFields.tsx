@@ -51,6 +51,7 @@ export default function DailyLogCustomerExtraBillingFields({
             <>
               Avaa työraportin <strong>Tarjous ja kate</strong> -osio, valitse{' '}
               <strong>Lisää lisätyöt ja -kulut tarjouksen päälle</strong> ja tallenna tarjous.
+              Kumppanin raportilla voit ottaa tämän käyttöön itse tarjouspaneelista.
             </>
           )}
         </p>
