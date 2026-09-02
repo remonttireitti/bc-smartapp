@@ -74,9 +74,9 @@ export function dailyLogCustomerExtraBillingHasData(
 
 export function serializeDailyLogCustomerExtraBilling(
   billing: DailyLogCustomerExtraBilling,
-): Record<string, unknown> | null {
+): Record<string, unknown> {
   const normalized = normalizeDailyLogCustomerExtraBilling(billing);
-  if (!dailyLogCustomerExtraBillingHasData(normalized)) return null;
+  if (!dailyLogCustomerExtraBillingHasData(normalized)) return {};
   return normalized as Record<string, unknown>;
 }
 

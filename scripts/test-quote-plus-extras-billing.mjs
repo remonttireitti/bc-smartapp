@@ -12,6 +12,9 @@ import {
   extraCustomerWorkFromDailyLogs,
   shouldCalculateCustomerQuoteExtrasFromLogs,
   computeQuoteExtrasMarginFromLogs,
+  serializeDailyLogCustomerExtraBilling,
+  dailyLogExtraBillingFromForm,
+  emptyDailyLogExtraBillingForm,
 } from '../src/lib/dailyLogCustomerExtraBilling.ts';
 
 const quoteSettings = parseBillingQuoteSettings({
@@ -122,5 +125,11 @@ const marginOnlyWork = computeQuoteExtrasMarginFromLogs(
   { hourly_regular: 50 },
 );
 assert.equal(marginOnlyWork.extrasMarginNet, 15);
+
+// Tyhjä lisälaskutus tallennetaan {} eikä null (NOT NULL -sarake).
+assert.deepEqual(
+  serializeDailyLogCustomerExtraBilling(dailyLogExtraBillingFromForm(emptyDailyLogExtraBillingForm())),
+  {},
+);
 
 console.log('test-quote-plus-extras-billing: ok');
