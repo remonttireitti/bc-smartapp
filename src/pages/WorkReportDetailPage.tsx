@@ -142,7 +142,6 @@ import {
 import { refreshAndPersistCustomerBillable } from '../lib/workReportCustomerBillingPersist';
 import {
   customerUsesQuoteBasedBilling,
-  customerUsesQuotePlusExtras,
   parseBillingQuoteSettings,
   type BillingQuoteSettings,
 } from '../lib/workReportBillingQuote';
@@ -318,7 +317,6 @@ function initialLogForm() {
     customer_hourly_rate_override: '',
     commission_amount: '',
     commission_note: '',
-    customer_extra_beyond_quote: false,
     work_done: '',
   };
 }
@@ -377,7 +375,6 @@ function logToForm(log: WorkReportDailyLog): DailyLogFormState {
         : '',
     commission_amount: Number(log.commission_amount) > 0 ? String(log.commission_amount) : '',
     commission_note: log.commission_note ?? '',
-    customer_extra_beyond_quote: !!log.customer_extra_beyond_quote,
     work_done: log.work_done,
   };
 }
@@ -491,7 +488,6 @@ function buildLogPayload(form: DailyLogFormState) {
         : null,
     commission_amount: Number(form.commission_amount || 0),
     commission_note: form.commission_note.trim() || null,
-    customer_extra_beyond_quote: !!form.customer_extra_beyond_quote,
     work_done: form.work_done.trim(),
   };
 }
@@ -543,7 +539,6 @@ function DailyLogFields({
   showCustomerHourlyRate,
   showPartnerExpenseFields,
   showCustomerExpenseFields,
-  showCustomerExtraBeyondQuote,
   defaultHourlyRate,
   defaultCustomerHourlyRate,
 }: {
@@ -555,7 +550,6 @@ function DailyLogFields({
   showCustomerHourlyRate?: boolean;
   showPartnerExpenseFields?: boolean;
   showCustomerExpenseFields?: boolean;
-  showCustomerExtraBeyondQuote?: boolean;
   defaultHourlyRate?: number | null;
   defaultCustomerHourlyRate?: number | null;
 }) {
@@ -648,16 +642,6 @@ function DailyLogFields({
         }
         wide
       >
-        {showCustomerExtraBeyondQuote ? (
-          <label className="compact-option" style={{ marginBottom: '0.75rem' }}>
-            <input
-              type="checkbox"
-              checked={form.customer_extra_beyond_quote}
-              onChange={(e) => setForm({ ...form, customer_extra_beyond_quote: e.target.checked })}
-            />
-            Lisätyö tarjouksen päälle (laskutetaan asiakkaalta tarjouksen lisäksi)
-          </label>
-        ) : null}
         <div className="line-form-grid">
         {showRegular && (
           <label>
@@ -3066,6 +3050,11 @@ export default function WorkReportDetailPage({ session }: Props) {
           dailyLogExpensePurchaseNet={dailyLogExpensePurchaseNet}
           showPartnerMargin={!!showOutgoingPartnerBilling}
           showCustomerQuoteMode={!!showCustomerMoneyBilling && !!canManageCustomerBillingRates}
+          defaultCustomerHourlyRate={
+            customerBillableCalculation?.ratesUsed.hourly_regular
+            ?? companyCustomerRatesPreview.hourly_regular
+            ?? null
+          }
           readOnly={!showOutgoingPartnerBilling && !canManageCustomerBillingRates}
           printHref={
             showOutgoingPartnerBilling ? `/tyoraportit/${report.id}/laskutus/tuloste` : undefined
@@ -3794,7 +3783,6 @@ export default function WorkReportDetailPage({ session }: Props) {
           showCustomerHourlyRate={showCustomerBillingFeatures}
           showPartnerExpenseFields={isPartnerReport}
           showCustomerExpenseFields={showCustomerBillingFeatures}
-          showCustomerExtraBeyondQuote={customerUsesQuotePlusExtras(billingQuoteSettings)}
           defaultHourlyRate={
             billableCalculation?.ratesUsed.hourly_regular
             ?? partnershipRatesPreview.hourly_regular

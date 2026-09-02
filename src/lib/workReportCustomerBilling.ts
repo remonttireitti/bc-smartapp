@@ -13,11 +13,10 @@ import {
 } from './workReportUrakkaBilling';
 import {
   expenseCustomerPriceMissing,
-  resolveExpenseBillingMode,
 } from './workReportExpenseBilling';
-import type { BillableRatesSource } from './management';
 import { tripKmExpenseBillingLine } from './tripKmExpense';
-import type { BillingQuoteExtraCustomerLine } from './workReportBillingQuote';
+import type { BillingQuoteExtraCustomerWork } from './billingQuoteExtraWork';
+import type { BillableRatesSource } from './management';
 
 const DEFAULT_RATES: Required<PartnerBillingRates> = {
   hourly_regular: 0,
@@ -82,23 +81,15 @@ export function shouldCalculateCustomerBilling(logs: WorkReportDailyLog[]): bool
 }
 
 export function shouldCalculateCustomerQuoteExtras(
-  logs: WorkReportDailyLog[],
-  manualLines: BillingQuoteExtraCustomerLine[] = [],
+  works: BillingQuoteExtraCustomerWork[] = [],
 ): boolean {
-  if ((manualLines?.length ?? 0) > 0) return true;
-  return logs.some((log) => {
-    if (log.customer_extra_beyond_quote) {
-      return (
-        Number(log.hours_regular) > 0 ||
-        Number(log.hours_overtime) > 0 ||
-        Number(log.hours_on_call) > 0 ||
-        Number(log.customer_fixed_price_amount) > 0 ||
-        Number(log.commission_amount) > 0 ||
-        (log.refrigerant_lines ?? []).some((line) => refrigerantIncludedInCustomerBilling(line))
-      );
-    }
-    return (log.expense_lines ?? []).some((line) => resolveExpenseBillingMode(line) === 'customer_only');
-  });
+  return works.some(
+    (work) =>
+      Number(work.hours) > 0
+      || (work.expense_lines ?? []).some(
+        (line) => Number(line.qty) > 0 && Number(line.customer_unit_price) > 0,
+      ),
+  );
 }
 
 export function calculateWorkReportCustomerBillable(input: {
@@ -291,212 +282,75 @@ export function calculateWorkReportCustomerBillable(input: {
 }
 
 export function calculateWorkReportCustomerQuoteExtras(input: {
-  logs: WorkReportDailyLog[];
+  works: BillingQuoteExtraCustomerWork[];
   rates: PartnerBillingRates;
   ratesSource: BillableRatesSource;
   customerName: string | null;
-  manualLines?: BillingQuoteExtraCustomerLine[];
 }): BillableCalculation {
   const rates = { ...DEFAULT_RATES, ...input.rates };
-  const byUserId = new Map<string, BillableCalculation['byUser'][number]>();
+  const summary: BillableCalculation['byUser'][number] = {
+    userId: 'quote-extras',
+    userName: 'Lisätyöt asiakkaalle',
+    billHoursEnabled: true,
+    billExpensesEnabled: true,
+    effectiveBillHoursEnabled: true,
+    effectiveBillExpensesEnabled: true,
+    hoursQty: 0,
+    hoursTotal: 0,
+    expensesTotal: 0,
+    fixedTotal: 0,
+    commissionTotal: 0,
+    subtotal: 0,
+    excludedSubtotal: 0,
+    lines: [],
+  };
 
-  function ensureUser(user: UserBillingProfile) {
-    if (!byUserId.has(user.id)) {
-      byUserId.set(user.id, {
-        userId: user.id,
-        userName: user.display_name ?? user.id,
-        billHoursEnabled: true,
-        billExpensesEnabled: true,
-        effectiveBillHoursEnabled: true,
-        effectiveBillExpensesEnabled: true,
-        hoursQty: 0,
-        hoursTotal: 0,
-        expensesTotal: 0,
-        fixedTotal: 0,
-        commissionTotal: 0,
-        subtotal: 0,
-        excludedSubtotal: 0,
-        lines: [],
-      });
-    }
-    return byUserId.get(user.id)!;
-  }
-
-  for (const log of input.logs) {
-    const includeHours = !!log.customer_extra_beyond_quote;
-    const authorLabel = resolveDailyLogAuthorLabel(log);
-    const user: UserBillingProfile = {
-      id: log.created_by ?? 'unknown',
-      display_name: authorLabel.name === '—' ? 'Tuntematon' : authorLabel.name,
-      bill_hours_enabled: true,
-      bill_expenses_enabled: true,
-    };
-    const summary = ensureUser(user);
-
-    if (includeHours) {
-      const hourLines: Array<{ kind: BillableLineKind; qty: number; unitPrice: number; label: string }> = [];
-
-      if (log.entry_type === 'regular' || log.entry_type === 'regular_and_overtime') {
-        if (Number(log.hours_regular) > 0) {
-          hourLines.push({
-            kind: 'hours_regular',
-            qty: Number(log.hours_regular),
-            unitPrice: resolveCustomerHourUnitPrice(log, 'hours_regular', rates),
-            label: 'Lisätyö — tunnit',
-          });
-        }
-      }
-      if (log.entry_type === 'overtime' || log.entry_type === 'regular_and_overtime') {
-        if (Number(log.hours_overtime) > 0) {
-          hourLines.push({
-            kind: 'hours_overtime',
-            qty: Number(log.hours_overtime),
-            unitPrice: resolveCustomerHourUnitPrice(log, 'hours_overtime', rates),
-            label: 'Lisätyö — ylitötunnit',
-          });
-        }
-      }
-      if (log.entry_type === 'on_call' && Number(log.hours_on_call) > 0) {
-        hourLines.push({
-          kind: 'hours_on_call',
-          qty: Number(log.hours_on_call),
-          unitPrice: resolveCustomerHourUnitPrice(log, 'hours_on_call', rates),
-          label: 'Lisätyö — päivystystunnit',
-        });
-      }
-      if (log.entry_type === 'fixed_price') {
-        const total = resolveUrakkaCustomerAmount(log);
-        if (total != null && total > 0) {
-          summary.lines.push({
-            logId: log.id,
-            logDate: log.log_date,
-            kind: 'fixed_price',
-            description: `Lisätyö — ${urakkaCustomerLineDescription(log)}`,
-            qty: 1,
-            unitPrice: total,
-            total,
-            included: true,
-          });
-          summary.fixedTotal += total;
-        }
-      }
-
-      for (const hl of hourLines) {
-        const total = lineTotal(hl.qty, hl.unitPrice);
-        summary.lines.push({
-          logId: log.id,
-          logDate: log.log_date,
-          kind: hl.kind,
-          description: hl.label,
-          qty: hl.qty,
-          unitPrice: hl.unitPrice,
-          total,
-          included: true,
-        });
-        summary.hoursTotal += total;
-        summary.hoursQty += hl.qty;
-      }
-
-      for (const refLine of log.refrigerant_lines ?? []) {
-        if (!refrigerantIncludedInCustomerBilling(refLine)) continue;
-        const unitPrice = refrigerantCustomerUnitPrice(refLine);
-        const priceMissing = refrigerantCustomerPriceMissing(refLine);
-        const total = refrigerantLineTotal(refLine);
-        summary.lines.push({
-          logId: log.id,
-          logDate: log.log_date,
-          kind: 'refrigerant',
-          description: `Lisätyö — ${refLine.refrigerant_type} (kylmäaine)`,
-          qty: Number(refLine.qty_kg),
-          unitPrice,
-          total,
-          included: true,
-          priceMissing,
-        });
-        summary.expensesTotal += total;
-      }
-
-      if (Number(log.commission_amount) > 0) {
-        const total = Number(log.commission_amount);
-        summary.lines.push({
-          logId: log.id,
-          logDate: log.log_date,
-          kind: 'commission',
-          description: log.commission_note?.trim() || 'Lisätyö — myyntiprovisio',
-          qty: 1,
-          unitPrice: total,
-          total,
-          included: true,
-        });
-        summary.commissionTotal += total;
-      }
-    }
-
-    for (const expense of log.expense_lines ?? []) {
-      if (resolveExpenseBillingMode(expense) !== 'customer_only') continue;
-      const unitPrice = customerExpenseUnitPrice(expense);
-      const priceMissing = customerExpensePriceMissing(expense);
-      const billed =
-        expense.expense_type === 'km'
-          ? tripKmExpenseBillingLine({
-              expense_type: 'km',
-              qty: expense.qty,
-              unit_price: unitPrice,
-            })
-          : {
-              qty: Number(expense.qty),
-              unitPrice,
-              total: lineTotal(Number(expense.qty), unitPrice),
-            };
+  for (const work of input.works) {
+    const logDate = work.work_date ?? new Date().toISOString().slice(0, 10);
+    const title = work.description.trim() || 'Lisätyö';
+    const hours = Number(work.hours) || 0;
+    const hourlyRate =
+      work.hourly_rate != null && work.hourly_rate > 0
+        ? work.hourly_rate
+        : rates.hourly_regular;
+    if (hours > 0) {
+      const total = lineTotal(hours, hourlyRate);
+      const priceMissing = !(hourlyRate > 0);
       summary.lines.push({
-        logId: log.id,
-        logDate: log.log_date,
-        kind: 'expense',
-        description: expense.description,
-        qty: billed.qty,
-        unitPrice: billed.unitPrice,
-        total: billed.total,
+        logId: work.id,
+        logDate,
+        kind: 'hours_regular',
+        description: title,
+        qty: hours,
+        unitPrice: hourlyRate,
+        total,
         included: true,
         priceMissing,
       });
-      summary.expensesTotal += billed.total;
+      summary.hoursQty += hours;
+      summary.hoursTotal += total;
     }
-  }
 
-  const manualLines = input.manualLines ?? [];
-  if (manualLines.length > 0) {
-    const manualUser = ensureUser({
-      id: 'quote-extras-manual',
-      display_name: 'Lisätyöt (manuaalinen)',
-      bill_hours_enabled: true,
-      bill_expenses_enabled: true,
-    });
-    for (const line of manualLines) {
-      const amount = line.amount ?? lineTotal(Number(line.qty ?? 1), Number(line.unit_price ?? 0));
-      if (!(amount > 0)) continue;
-      manualUser.lines.push({
-        logId: line.id,
-        logDate: new Date().toISOString().slice(0, 10),
-        kind: 'fixed_price',
-        description: line.description,
-        qty: line.qty ?? 1,
-        unitPrice: line.unit_price ?? amount,
-        total: amount,
+    for (const expense of work.expense_lines ?? []) {
+      const qty = Number(expense.qty) || 0;
+      const unitPrice = Number(expense.customer_unit_price) || 0;
+      if (qty <= 0 || unitPrice <= 0) continue;
+      const total = lineTotal(qty, unitPrice);
+      summary.lines.push({
+        logId: `${work.id}:${expense.id}`,
+        logDate,
+        kind: 'expense',
+        description: expense.description,
+        qty,
+        unitPrice,
+        total,
         included: true,
       });
-      manualUser.fixedTotal += amount;
+      summary.expensesTotal += total;
     }
   }
 
-  const byUser = Array.from(byUserId.values())
-    .map((user) => ({
-      ...user,
-      subtotal: user.hoursTotal + user.expensesTotal + user.fixedTotal + user.commissionTotal,
-    }))
-    .filter((user) => user.subtotal > 0 || user.lines.length > 0)
-    .sort((a, b) => a.userName.localeCompare(b.userName, 'fi'));
-
-  const grandTotal = byUser.reduce((sum, user) => sum + user.subtotal, 0);
+  summary.subtotal = summary.hoursTotal + summary.expensesTotal + summary.fixedTotal + summary.commissionTotal;
 
   return {
     version: 3,
@@ -504,8 +358,8 @@ export function calculateWorkReportCustomerQuoteExtras(input: {
     billToCompanyName: input.customerName,
     ratesUsed: rates,
     ratesSource: input.ratesSource,
-    byUser,
-    grandTotal: Math.round(grandTotal * 100) / 100,
+    byUser: summary.subtotal > 0 || summary.lines.length > 0 ? [summary] : [],
+    grandTotal: Math.round(summary.subtotal * 100) / 100,
     excludedTotal: 0,
   };
 }

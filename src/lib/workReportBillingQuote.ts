@@ -8,7 +8,14 @@ import {
   calculateWorkReportCustomerQuoteExtras,
 } from './workReportCustomerBilling';
 import type { PartnerBillingRates } from './management';
-import type { WorkReportDailyLog } from '../types';
+import {
+  extraCustomerWorkHasBillableData,
+  normalizeExtraCustomerWork,
+  parseExtraCustomerWork,
+  resolveExtraCustomerWork,
+  type BillingQuoteExtraCustomerLine,
+  type BillingQuoteExtraCustomerWork,
+} from './billingQuoteExtraWork';
 import {
   extractQuotePurchaseLines,
   mergeQuotePurchaseLines,
@@ -19,16 +26,9 @@ import {
 
 export type { BillingQuotePurchaseLine } from './quotePurchaseLines';
 
-export type CustomerBillingMode = 'daily_log' | 'quote_fixed' | 'quote_plus_extras';
+export type { BillingQuoteExtraCustomerLine, BillingQuoteExtraCustomerWork, BillingQuoteExtraExpenseLine } from './billingQuoteExtraWork';
 
-export type BillingQuoteExtraCustomerLine = {
-  id: string;
-  description: string;
-  qty?: number | null;
-  unit_price?: number | null;
-  /** Jos asetettu, käytetään suoraan rivisummaa. */
-  amount?: number | null;
-};
+export type CustomerBillingMode = 'daily_log' | 'quote_fixed' | 'quote_plus_extras';
 
 export type BillingQuoteSettings = {
   quote_request_id?: string | null;
@@ -42,7 +42,9 @@ export type BillingQuoteSettings = {
   /** Asiakkaalta laskutettava summa (sis. alv jos kuluttaja). */
   customer_invoice_total?: number | null;
   customer_mode?: CustomerBillingMode;
-  /** Manuaaliset lisätyöt / kulut asiakkaalle tarjouksen päälle. */
+  /** Lisätyöt asiakkaalle tarjouksen päälle (tunnit + selitys + kulut). */
+  extra_customer_work?: BillingQuoteExtraCustomerWork[];
+  /** @deprecated Siirretty extra_customer_work */
   extra_customer_lines?: BillingQuoteExtraCustomerLine[];
   quote_vat_rate?: number | null;
   notes?: string | null;
@@ -77,44 +79,13 @@ export function quoteHasVat(vatRate: number | null | undefined): boolean {
   return Number(vatRate) > 0;
 }
 
-function parseExtraCustomerLines(raw: unknown): BillingQuoteExtraCustomerLine[] {
-  if (!Array.isArray(raw)) return [];
-  const lines: BillingQuoteExtraCustomerLine[] = [];
-  raw.forEach((item, index) => {
-    if (!item || typeof item !== 'object') return;
-    const record = item as Record<string, unknown>;
-    const description =
-      typeof record.description === 'string' && record.description.trim()
-        ? record.description.trim()
-        : '';
-    if (!description) return;
-    const num = (key: string) => {
-      const value = record[key];
-      if (value == null || value === '') return null;
-      const parsed = Number(value);
-      return Number.isFinite(parsed) ? roundMoney(parsed) : null;
-    };
-    const amount = num('amount');
-    const qty = num('qty');
-    const unitPrice = num('unit_price');
-    const resolvedAmount =
-      amount != null && amount > 0
-        ? amount
-        : qty != null && unitPrice != null && qty > 0 && unitPrice > 0
-          ? roundMoney(qty * unitPrice)
-          : null;
-    if (resolvedAmount == null || resolvedAmount <= 0) return;
-    const id =
-      typeof record.id === 'string' && record.id.trim() ? record.id.trim() : `extra:${index}`;
-    lines.push({
-      id,
-      description,
-      qty: qty ?? 1,
-      unit_price: unitPrice ?? resolvedAmount,
-      amount: resolvedAmount,
-    });
+export function getBillingQuoteExtraCustomerWork(
+  settings: BillingQuoteSettings | null | undefined,
+): BillingQuoteExtraCustomerWork[] {
+  return resolveExtraCustomerWork({
+    extra_customer_work: settings?.extra_customer_work,
+    extra_customer_lines: settings?.extra_customer_lines,
   });
-  return lines;
 }
 
 export function parseBillingQuoteSettings(raw: unknown): BillingQuoteSettings {
@@ -133,7 +104,7 @@ export function parseBillingQuoteSettings(raw: unknown): BillingQuoteSettings {
         ? 'quote_plus_extras'
         : 'daily_log';
   const purchaseLines = parseBillingQuotePurchaseLines(record.purchase_lines);
-  const extraCustomerLines = parseExtraCustomerLines(record.extra_customer_lines);
+  const extraCustomerWork = normalizeExtraCustomerWork(parseExtraCustomerWork(record.extra_customer_work));
   const settings: BillingQuoteSettings = {
     quote_request_id:
       typeof record.quote_request_id === 'string' && record.quote_request_id.trim()
@@ -148,7 +119,9 @@ export function parseBillingQuoteSettings(raw: unknown): BillingQuoteSettings {
     actual_purchase_net: num('actual_purchase_net'),
     customer_invoice_total: num('customer_invoice_total'),
     customer_mode: mode,
-    extra_customer_lines: extraCustomerLines.length > 0 ? extraCustomerLines : undefined,
+    extra_customer_work: extraCustomerWork.length > 0 ? extraCustomerWork : undefined,
+    extra_customer_lines:
+      record.extra_customer_lines != null ? (record.extra_customer_lines as BillingQuoteExtraCustomerLine[]) : undefined,
     quote_vat_rate: num('quote_vat_rate'),
     notes: typeof record.notes === 'string' ? record.notes : null,
     purchase_lines: purchaseLines.length > 0 ? purchaseLines : undefined,
@@ -158,28 +131,18 @@ export function parseBillingQuoteSettings(raw: unknown): BillingQuoteSettings {
 
 export function normalizeBillingQuoteSettings(settings: BillingQuoteSettings): BillingQuoteSettings {
   const lines = settings.purchase_lines ?? [];
-  const extraLines: BillingQuoteExtraCustomerLine[] = [];
-  for (const line of settings.extra_customer_lines ?? []) {
-    const amount =
-      line.amount != null && line.amount > 0
-        ? roundMoney(line.amount)
-        : line.qty != null && line.unit_price != null && line.qty > 0 && line.unit_price > 0
-          ? roundMoney(line.qty * line.unit_price)
-          : null;
-    if (amount == null || amount <= 0 || !line.description.trim()) continue;
-    extraLines.push({
-      ...line,
-      description: line.description.trim(),
-      qty: line.qty ?? 1,
-      unit_price: line.unit_price ?? amount,
-      amount,
-    });
-  }
+  const extraCustomerWork = normalizeExtraCustomerWork(
+    resolveExtraCustomerWork({
+      extra_customer_work: settings.extra_customer_work,
+      extra_customer_lines: settings.extra_customer_lines,
+    }),
+  );
 
-  const withExtras =
-    extraLines.length > 0
-      ? { ...settings, extra_customer_lines: extraLines }
-      : { ...settings, extra_customer_lines: undefined };
+  const withExtras: BillingQuoteSettings = {
+    ...settings,
+    extra_customer_work: extraCustomerWork.length > 0 ? extraCustomerWork : undefined,
+    extra_customer_lines: undefined,
+  };
 
   if (lines.length > 0) {
     const normalizedLines = lines.map((line) => ({
@@ -251,7 +214,7 @@ export function billingQuoteHasData(settings: BillingQuoteSettings): boolean {
     || settings.quote_sale_net != null
     || settings.customer_invoice_total != null
     || (settings.purchase_lines?.length ?? 0) > 0
-    || (settings.extra_customer_lines?.length ?? 0) > 0
+    || extraCustomerWorkHasBillableData(getBillingQuoteExtraCustomerWork(settings))
     || !!settings.notes?.trim()
   );
 }
@@ -467,7 +430,6 @@ export function calculateWorkReportCustomerBillableFromQuote(input: {
 
 export function calculateWorkReportCustomerBillableQuotePlusExtras(input: {
   settings: BillingQuoteSettings;
-  logs: WorkReportDailyLog[];
   rates: PartnerBillingRates;
   ratesSource: BillableRatesSource;
   customerName: string | null;
@@ -480,11 +442,10 @@ export function calculateWorkReportCustomerBillableQuotePlusExtras(input: {
   if (!quoteCalc) return null;
 
   const extrasCalc = calculateWorkReportCustomerQuoteExtras({
-    logs: input.logs,
+    works: getBillingQuoteExtraCustomerWork(input.settings),
     rates: input.rates,
     ratesSource: input.ratesSource,
     customerName: input.customerName,
-    manualLines: input.settings.extra_customer_lines ?? [],
   });
 
   const quoteExtrasTotal = extrasCalc.grandTotal;
