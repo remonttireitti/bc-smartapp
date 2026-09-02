@@ -3059,6 +3059,9 @@ export default function WorkReportDetailPage({ session }: Props) {
           ownerCompanyId={report.owner_company_id}
           installationCostNet={billableCalculation?.grandTotal ?? null}
           initialSettings={billingQuoteSettings}
+          dailyLogs={dailyLogs}
+          partnerCalculation={billableCalculation}
+          customerCalculation={customerBillableCalculation}
           showPartnerMargin={!!showOutgoingPartnerBilling}
           showCustomerQuoteMode={!!canManageQuoteCustomerMode}
           readOnly={!showOutgoingPartnerBilling && !canManageCustomerBillingRates}

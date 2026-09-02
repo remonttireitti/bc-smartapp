@@ -11,6 +11,9 @@ export type WorkReportPrintMode = 'customer' | 'internal';
 import { formatEuro } from './workReportBilling';
 import { BILLABLE_RATES_SOURCE_LABELS } from './management';
 import {
+  computeQuoteExtrasMarginFromLogs,
+} from './dailyLogCustomerExtraBilling';
+import {
   billingQuoteHasData,
   computePartnerNetMargin,
   customerUsesQuoteBasedBilling,
@@ -284,12 +287,28 @@ function customerBillingPrintSection(
 function quoteMarginPrintSection(
   billingQuote: BillingQuoteSettings,
   partnerCalculation: BillableCalculation | null,
+  logs: WorkReportDailyLog[],
+  customerCalculation?: BillableCalculation | null,
 ): string {
   if (!billingQuoteHasData(billingQuote)) return '';
 
   const partnerMargin = partnerCalculation
-    ? computePartnerNetMargin(billingQuote, partnerCalculation.grandTotal)
+    ? computePartnerNetMargin(billingQuote, partnerCalculation.grandTotal, {
+        logs,
+        partnerRates: partnerCalculation.ratesUsed,
+        customerRates: customerCalculation?.ratesUsed,
+        customerExtrasNet: customerCalculation?.quoteExtrasTotal,
+      })
     : null;
+
+  const extrasDetail =
+    logs.length && partnerCalculation
+      ? computeQuoteExtrasMarginFromLogs(
+          logs,
+          partnerCalculation.ratesUsed,
+          customerCalculation?.ratesUsed,
+        ).lines
+      : [];
 
   const rows: string[] = [];
   if (billingQuote.quote_title?.trim()) {
@@ -303,8 +322,27 @@ function quoteMarginPrintSection(
   if (partnerMargin) {
     rows.push(
       `<tr><td>Asennuskulut (työ + ajot + kulut)</td><td class="num">− ${formatEuro(partnerMargin.installationCostNet)}</td></tr>`,
+    );
+    if (partnerMargin.customerExtrasNet > 0.005) {
+      rows.push(
+        `<tr><td>Lisälaskutus asiakkaalta</td><td class="num">+ ${formatEuro(partnerMargin.customerExtrasNet)}</td></tr>`,
+      );
+    }
+    if (partnerMargin.piikkiMaterialCostNet > 0.005) {
+      rows.push(
+        `<tr><td>Piikki-tarvikkeiden hankinta</td><td class="num">− ${formatEuro(partnerMargin.piikkiMaterialCostNet)}</td></tr>`,
+      );
+    }
+    rows.push(
       `<tr><td>Tarjouksen hankinta (alv 0 %)</td><td class="num">${formatEuro(partnerMargin.quotePurchaseNet)}</td></tr>`,
       `<tr><td>Todellinen hankinta (alv 0 %)</td><td class="num">− ${formatEuro(partnerMargin.actualPurchaseNet)}</td></tr>`,
+    );
+    if (partnerMargin.extrasMarginNet > 0.005) {
+      rows.push(
+        `<tr><td>Lisien kate (asiakas − kumppani/piikki)</td><td class="num">+ ${formatEuro(partnerMargin.extrasMarginNet)}</td></tr>`,
+      );
+    }
+    rows.push(
       `<tr class="profit-row"><td><strong>Puhdas kate</strong></td><td class="num"><strong>${formatEuro(partnerMargin.netMarginNet)}</strong></td></tr>`,
     );
   } else if (billingQuote.quote_purchase_net != null) {
@@ -322,7 +360,29 @@ function quoteMarginPrintSection(
     escapeHtml: esc,
   });
 
-  if (rows.length === 0 && !purchaseLinesHtml) return '';
+  const extrasDetailHtml =
+    extrasDetail.length > 0
+      ? `<h3 class="billing-subheading">Lisälaskutuksen kate-erittely</h3>
+      <table>
+        <thead>
+          <tr><th>Päivä</th><th>Rivi</th><th class="num">Asiakas</th><th class="num">Kumppani</th><th class="num">Piikki-hankinta</th><th class="num">Kate</th></tr>
+        </thead>
+        <tbody>${extrasDetail
+          .map(
+            (line) => `<tr>
+            <td>${esc(formatDate(line.logDate))}</td>
+            <td>${esc(line.kind === 'extra_work' ? `Lisätyö: ${line.description}` : line.description)}</td>
+            <td class="num">${formatEuro(line.customerNet)}</td>
+            <td class="num">${line.partnerNet > 0 ? `− ${formatEuro(line.partnerNet)}` : '—'}</td>
+            <td class="num">${line.piikkiCostNet > 0 ? `− ${formatEuro(line.piikkiCostNet)}` : '—'}</td>
+            <td class="num"><strong>+ ${formatEuro(line.marginNet)}</strong></td>
+          </tr>`,
+          )
+          .join('')}</tbody>
+      </table>`
+      : '';
+
+  if (rows.length === 0 && !purchaseLinesHtml && !extrasDetailHtml) return '';
 
   return printBox(
     'Tarjous ja kate',
@@ -330,9 +390,10 @@ function quoteMarginPrintSection(
     <table>
       <tbody>${rows.join('')}</tbody>
     </table>
+    ${extrasDetailHtml}
     ${
       partnerMargin
-        ? '<p class="meta-line">Kate = tarjoushinta − asennuskulut − todellinen hankinta.</p>'
+        ? '<p class="meta-line">Kate = tarjoushinta + lisälaskutus asiakkaalta − asennuskulut − todellinen hankinta − piikki-hankinta.</p>'
         : ''
     }
     ${billingQuote.notes?.trim() ? `<p class="meta-line">Huom: ${esc(billingQuote.notes.trim())}</p>` : ''}`,
@@ -722,7 +783,7 @@ export function generateWorkReportPrintHtml(input: {
 
   const quoteMarginSection =
     showInternalPrices && billingQuoteHasData(billingQuote)
-      ? quoteMarginPrintSection(billingQuote, calculation ?? null)
+      ? quoteMarginPrintSection(billingQuote, calculation ?? null, logs, customerCalculation ?? null)
       : '';
 
   return `<!doctype html>

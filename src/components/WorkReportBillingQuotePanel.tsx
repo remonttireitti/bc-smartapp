@@ -16,7 +16,9 @@ import {
   type BillingQuoteSettings,
 } from '../lib/workReportBillingQuote';
 import { extractQuotePurchaseLines } from '../lib/quotePurchaseLines';
-import { formatEuro } from '../lib/workReportBilling';
+import { formatEuro, type BillableCalculation } from '../lib/workReportBilling';
+import { computeQuoteExtrasMarginFromLogs } from '../lib/dailyLogCustomerExtraBilling';
+import type { WorkReportDailyLog } from '../types';
 import { supabase } from '../lib/supabase';
 
 type Props = {
@@ -25,6 +27,9 @@ type Props = {
   ownerCompanyId: string | null | undefined;
   installationCostNet: number | null;
   initialSettings: BillingQuoteSettings;
+  dailyLogs?: WorkReportDailyLog[];
+  partnerCalculation?: BillableCalculation | null;
+  customerCalculation?: BillableCalculation | null;
   showPartnerMargin?: boolean;
   showCustomerQuoteMode?: boolean;
   readOnly?: boolean;
@@ -50,6 +55,9 @@ export default function WorkReportBillingQuotePanel({
   ownerCompanyId,
   installationCostNet,
   initialSettings,
+  dailyLogs = [],
+  partnerCalculation = null,
+  customerCalculation = null,
   showPartnerMargin = false,
   showCustomerQuoteMode = false,
   readOnly = false,
@@ -114,9 +122,32 @@ export default function WorkReportBillingQuotePanel({
   const partnerMargin = useMemo(
     () =>
       installationCostNet != null
-        ? computePartnerNetMargin(settings, installationCostNet)
+        ? computePartnerNetMargin(settings, installationCostNet, {
+            logs: dailyLogs,
+            partnerRates: partnerCalculation?.ratesUsed,
+            customerRates: customerCalculation?.ratesUsed,
+            customerExtrasNet: customerCalculation?.quoteExtrasTotal,
+          })
         : null,
-    [settings, installationCostNet],
+    [
+      settings,
+      installationCostNet,
+      dailyLogs,
+      partnerCalculation?.ratesUsed,
+      customerCalculation?.ratesUsed,
+      customerCalculation?.quoteExtrasTotal,
+    ],
+  );
+  const extrasMarginLines = useMemo(
+    () =>
+      dailyLogs.length && partnerCalculation
+        ? computeQuoteExtrasMarginFromLogs(
+            dailyLogs,
+            partnerCalculation.ratesUsed,
+            customerCalculation?.ratesUsed,
+          ).lines
+        : [],
+    [dailyLogs, partnerCalculation, customerCalculation?.ratesUsed],
   );
   const quoteBillingEnabled =
     settings.customer_mode === 'quote_fixed' || settings.customer_mode === 'quote_plus_extras';
@@ -482,10 +513,28 @@ export default function WorkReportBillingQuotePanel({
                     <td>Asennuskulut (työ + ajot + kulut)</td>
                     <td className="num">− {formatEuro(partnerMargin.installationCostNet)}</td>
                   </tr>
+                  {partnerMargin.customerExtrasNet > 0.005 ? (
+                    <tr>
+                      <td>Lisälaskutus asiakkaalta</td>
+                      <td className="num">+ {formatEuro(partnerMargin.customerExtrasNet)}</td>
+                    </tr>
+                  ) : null}
+                  {partnerMargin.piikkiMaterialCostNet > 0.005 ? (
+                    <tr>
+                      <td>Piikki-tarvikkeiden hankinta</td>
+                      <td className="num">− {formatEuro(partnerMargin.piikkiMaterialCostNet)}</td>
+                    </tr>
+                  ) : null}
                   <tr>
                     <td>Todellinen hankinta yhteensä (alv 0 %)</td>
                     <td className="num">− {formatEuro(partnerMargin.actualPurchaseNet)}</td>
                   </tr>
+                  {partnerMargin.extrasMarginNet > 0.005 ? (
+                    <tr>
+                      <td>Lisien kate (asiakas − kumppani/piikki)</td>
+                      <td className="num">+ {formatEuro(partnerMargin.extrasMarginNet)}</td>
+                    </tr>
+                  ) : null}
                   <tr className="billing-margin-total">
                     <td>
                       <strong>Puhdas kate</strong>
@@ -496,8 +545,41 @@ export default function WorkReportBillingQuotePanel({
                   </tr>
                 </tbody>
               </table>
+              {extrasMarginLines.length > 0 ? (
+                <table className="billing-table billing-margin-table">
+                  <thead>
+                    <tr>
+                      <th>Lisälaskutus</th>
+                      <th className="num">Asiakas</th>
+                      <th className="num">Kumppani</th>
+                      <th className="num">Piikki</th>
+                      <th className="num">Kate</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {extrasMarginLines.map((line) => (
+                      <tr key={`${line.logId}:${line.kind}:${line.description}`}>
+                        <td>
+                          {line.kind === 'extra_work' ? `Lisätyö: ${line.description}` : line.description}
+                        </td>
+                        <td className="num">{formatEuro(line.customerNet)}</td>
+                        <td className="num">
+                          {line.partnerNet > 0 ? `− ${formatEuro(line.partnerNet)}` : '—'}
+                        </td>
+                        <td className="num">
+                          {line.piikkiCostNet > 0 ? `− ${formatEuro(line.piikkiCostNet)}` : '—'}
+                        </td>
+                        <td className="num">
+                          <strong>+ {formatEuro(line.marginNet)}</strong>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : null}
               <p className="muted billing-margin-formula">
-                Kate = tarjoushinta − asennuskulut − todellinen hankinta.
+                Kate = tarjoushinta + lisälaskutus asiakkaalta − asennuskulut − todellinen hankinta −
+                piikki-hankinta.
                 {partnerMargin.quotePurchaseNet !== partnerMargin.actualPurchaseNet ? (
                   <>
                     {' '}

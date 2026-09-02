@@ -213,3 +213,100 @@ export function extraCustomerWorkFromDailyLogs(
 export function shouldCalculateCustomerQuoteExtrasFromLogs(logs: WorkReportDailyLog[]): boolean {
   return extraCustomerWorkFromDailyLogs(logs).length > 0;
 }
+
+export type QuoteExtrasMarginLine = {
+  logId: string;
+  logDate: string;
+  kind: 'extra_work' | 'extra_supply';
+  description: string;
+  customerNet: number;
+  partnerNet: number;
+  piikkiCostNet: number;
+  marginNet: number;
+};
+
+function lineTotal(qty: number, unitPrice: number): number {
+  return Math.round(qty * unitPrice * 100) / 100;
+}
+
+/** Lisälaskutuksen vaikutus katteeseen (asiakas − kumppanilasku − piikki-hankinta). */
+export function computeQuoteExtrasMarginFromLogs(
+  logs: WorkReportDailyLog[],
+  partnerRates: { hourly_regular?: number | null },
+  customerRates?: { hourly_regular?: number | null },
+): {
+  customerExtrasNet: number;
+  partnerBilledExtrasNet: number;
+  piikkiMaterialCostNet: number;
+  extrasMarginNet: number;
+  lines: QuoteExtrasMarginLine[];
+} {
+  const partnerHourly = Number(partnerRates.hourly_regular) || 0;
+  const customerHourlyDefault = Number(customerRates?.hourly_regular) || 0;
+  const lines: QuoteExtrasMarginLine[] = [];
+  let customerExtrasNet = 0;
+  let partnerBilledExtrasNet = 0;
+  let piikkiMaterialCostNet = 0;
+
+  for (const log of logs) {
+    const extra = parseDailyLogCustomerExtraBilling(log.customer_extra_billing);
+    if (!dailyLogCustomerExtraBillingHasData(extra)) continue;
+    const logDate = log.log_date.slice(0, 10);
+
+    const hours = Number(extra.hours) || 0;
+    if (hours > 0) {
+      const customerRate =
+        extra.hourly_rate != null && extra.hourly_rate > 0 ? extra.hourly_rate : customerHourlyDefault;
+      const customerNet = lineTotal(hours, customerRate);
+      const partnerNet = lineTotal(hours, partnerHourly);
+      const marginNet = roundMoney(customerNet - partnerNet);
+      customerExtrasNet += customerNet;
+      partnerBilledExtrasNet += partnerNet;
+      lines.push({
+        logId: log.id,
+        logDate,
+        kind: 'extra_work',
+        description: extra.description?.trim() || 'Lisätyö',
+        customerNet,
+        partnerNet,
+        piikkiCostNet: 0,
+        marginNet,
+      });
+    }
+
+    if (
+      extra.expense_description
+      && Number(extra.expense_qty) > 0
+      && Number(extra.expense_customer_unit_price) > 0
+    ) {
+      const qty = Number(extra.expense_qty);
+      const customerNet = lineTotal(qty, Number(extra.expense_customer_unit_price));
+      const purchase = Number(extra.expense_purchase_unit_price) || 0;
+      const billToPartner = extra.expense_bill_to_partner !== false && purchase > 0;
+      const partnerNet = billToPartner ? lineTotal(qty, purchase) : 0;
+      const piikkiCostNet = !billToPartner && purchase > 0 ? lineTotal(qty, purchase) : 0;
+      const marginNet = roundMoney(customerNet - partnerNet - piikkiCostNet);
+      customerExtrasNet += customerNet;
+      partnerBilledExtrasNet += partnerNet;
+      piikkiMaterialCostNet += piikkiCostNet;
+      lines.push({
+        logId: log.id,
+        logDate,
+        kind: 'extra_supply',
+        description: extra.expense_description,
+        customerNet,
+        partnerNet,
+        piikkiCostNet,
+        marginNet,
+      });
+    }
+  }
+
+  return {
+    customerExtrasNet: roundMoney(customerExtrasNet),
+    partnerBilledExtrasNet: roundMoney(partnerBilledExtrasNet),
+    piikkiMaterialCostNet: roundMoney(piikkiMaterialCostNet),
+    extrasMarginNet: roundMoney(customerExtrasNet - partnerBilledExtrasNet - piikkiMaterialCostNet),
+    lines,
+  };
+}

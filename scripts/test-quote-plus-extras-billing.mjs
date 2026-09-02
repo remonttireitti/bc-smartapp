@@ -11,6 +11,7 @@ import {
 import {
   extraCustomerWorkFromDailyLogs,
   shouldCalculateCustomerQuoteExtrasFromLogs,
+  computeQuoteExtrasMarginFromLogs,
 } from '../src/lib/dailyLogCustomerExtraBilling.ts';
 
 const quoteSettings = parseBillingQuoteSettings({
@@ -104,5 +105,22 @@ const extraExpenseLine = partnerMerged.byUser
   .find((line) => line.logId === 'log-1:extra-expense');
 assert.ok(extraExpenseLine);
 assert.equal(extraExpenseLine.total, 133);
+
+// Margin test: partner 50, customer 65 => +15 kate
+const marginOnlyWork = computeQuoteExtrasMarginFromLogs(
+  [
+    {
+      id: 'log-2',
+      log_date: '2026-09-02',
+      customer_extra_billing: {
+        hours: 1,
+        hourly_rate: 65,
+        description: 'Testi',
+      },
+    },
+  ],
+  { hourly_regular: 50 },
+);
+assert.equal(marginOnlyWork.extrasMarginNet, 15);
 
 console.log('test-quote-plus-extras-billing: ok');

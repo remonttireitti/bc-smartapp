@@ -25,11 +25,18 @@ export function generatePartnerBillingHtml(input: {
   customerName: string | null;
   calculation: BillableCalculation;
   billingQuote?: BillingQuoteSettings | null;
+  dailyLogs?: import('../types').WorkReportDailyLog[];
+  customerCalculation?: BillableCalculation | null;
   logoUrl?: string;
 }) {
   const { calculation } = input;
   const billingQuote = parseBillingQuoteSettings(input.billingQuote ?? {});
-  const partnerMargin = computePartnerNetMargin(billingQuote, calculation.grandTotal);
+  const partnerMargin = computePartnerNetMargin(billingQuote, calculation.grandTotal, {
+    logs: input.dailyLogs ?? [],
+    partnerRates: calculation.ratesUsed,
+    customerRates: input.customerCalculation?.ratesUsed,
+    customerExtrasNet: input.customerCalculation?.quoteExtrasTotal,
+  });
   const ratesSource =
     calculation.ratesSource && BILLABLE_RATES_SOURCE_LABELS[calculation.ratesSource]
       ? calculation.ratesSource
@@ -125,7 +132,10 @@ export function generatePartnerBillingHtml(input: {
     <tbody>
       <tr><td>Tarjoushinta (alv 0 %)</td><td class="num">${formatEuro(partnerMargin.quoteSaleNet)}</td></tr>
       <tr><td>Asennuskulut (työ + ajot + kulut)</td><td class="num">− ${formatEuro(partnerMargin.installationCostNet)}</td></tr>
+      ${partnerMargin.customerExtrasNet > 0.005 ? `<tr><td>Lisälaskutus asiakkaalta</td><td class="num">+ ${formatEuro(partnerMargin.customerExtrasNet)}</td></tr>` : ''}
+      ${partnerMargin.piikkiMaterialCostNet > 0.005 ? `<tr><td>Piikki-tarvikkeiden hankinta</td><td class="num">− ${formatEuro(partnerMargin.piikkiMaterialCostNet)}</td></tr>` : ''}
       <tr><td>Todellinen hankinta yhteensä (alv 0 %)</td><td class="num">− ${formatEuro(partnerMargin.actualPurchaseNet)}</td></tr>
+      ${partnerMargin.extrasMarginNet > 0.005 ? `<tr><td>Lisien kate</td><td class="num">+ ${formatEuro(partnerMargin.extrasMarginNet)}</td></tr>` : ''}
       <tr><td><strong>Puhdas kate</strong></td><td class="num"><strong>${formatEuro(partnerMargin.netMarginNet)}</strong></td></tr>
     </tbody>
   </table>

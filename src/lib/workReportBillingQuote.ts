@@ -7,7 +7,11 @@ import { formatEuro } from './workReportBilling';
 import {
   calculateWorkReportCustomerQuoteExtras,
 } from './workReportCustomerBilling';
-import { extraCustomerWorkFromDailyLogs, shouldCalculateCustomerQuoteExtrasFromLogs } from './dailyLogCustomerExtraBilling';
+import {
+  computeQuoteExtrasMarginFromLogs,
+  extraCustomerWorkFromDailyLogs,
+  shouldCalculateCustomerQuoteExtrasFromLogs,
+} from './dailyLogCustomerExtraBilling';
 import type { PartnerBillingRates } from './management';
 import type { WorkReportDailyLog } from '../types';
 import {
@@ -70,6 +74,9 @@ export type PartnerMarginComputed = {
   quotePurchaseNet: number;
   actualPurchaseNet: number;
   installationCostNet: number;
+  customerExtrasNet: number;
+  piikkiMaterialCostNet: number;
+  extrasMarginNet: number;
   netMarginNet: number;
 };
 
@@ -234,6 +241,12 @@ export function resolveCustomerInvoiceTotal(settings: BillingQuoteSettings): num
 export function computePartnerNetMargin(
   settings: BillingQuoteSettings,
   installationCostNet: number,
+  options?: {
+    logs?: WorkReportDailyLog[];
+    partnerRates?: PartnerBillingRates;
+    customerRates?: PartnerBillingRates;
+    customerExtrasNet?: number | null;
+  },
 ): PartnerMarginComputed | null {
   const quoteSaleNet = settings.quote_sale_net;
   if (quoteSaleNet == null || quoteSaleNet <= 0) return null;
@@ -242,12 +255,34 @@ export function computePartnerNetMargin(
   const quotePurchaseNet = resolveQuotePurchaseTotal(settings);
   const installation = roundMoney(Math.max(0, installationCostNet));
 
+  let customerExtrasNet = 0;
+  let piikkiMaterialCostNet = 0;
+  let extrasMarginNet = 0;
+
+  if (options?.logs?.length && options.partnerRates) {
+    const extras = computeQuoteExtrasMarginFromLogs(
+      options.logs,
+      options.partnerRates,
+      options.customerRates,
+    );
+    customerExtrasNet = extras.customerExtrasNet;
+    piikkiMaterialCostNet = extras.piikkiMaterialCostNet;
+    extrasMarginNet = extras.extrasMarginNet;
+  } else if (options?.customerExtrasNet != null && options.customerExtrasNet > 0) {
+    customerExtrasNet = roundMoney(options.customerExtrasNet);
+  }
+
   return {
     quoteSaleNet: roundMoney(quoteSaleNet),
     quotePurchaseNet: roundMoney(quotePurchaseNet),
     actualPurchaseNet: roundMoney(actualPurchaseNet),
     installationCostNet: installation,
-    netMarginNet: roundMoney(quoteSaleNet - installation - actualPurchaseNet),
+    customerExtrasNet,
+    piikkiMaterialCostNet,
+    extrasMarginNet,
+    netMarginNet: roundMoney(
+      quoteSaleNet + customerExtrasNet - installation - actualPurchaseNet - piikkiMaterialCostNet,
+    ),
   };
 }
 
@@ -454,18 +489,30 @@ export function calculateWorkReportCustomerBillableQuotePlusExtras(input: {
 export function formatPartnerMarginLines(
   settings: BillingQuoteSettings,
   installationCostNet: number,
+  options?: Parameters<typeof computePartnerNetMargin>[2],
 ): string[] {
-  const computed = computePartnerNetMargin(settings, installationCostNet);
+  const computed = computePartnerNetMargin(settings, installationCostNet, options);
   if (!computed) return [];
 
   const lines = [
     'Kate tarjouksesta',
     `Tarjoushinta (alv 0 %): ${formatEuro(computed.quoteSaleNet)}`,
-    `Asennuskulut (työ + ajot + kulut): ${formatEuro(computed.installationCostNet)}`,
+  ];
+  if (computed.customerExtrasNet > 0.005) {
+    lines.push(`Lisälaskutus asiakkaalta: + ${formatEuro(computed.customerExtrasNet)}`);
+    if (computed.extrasMarginNet > 0.005) {
+      lines.push(`Lisien kate: + ${formatEuro(computed.extrasMarginNet)}`);
+    }
+  }
+  lines.push(`Asennuskulut (työ + ajot + kulut): ${formatEuro(computed.installationCostNet)}`);
+  if (computed.piikkiMaterialCostNet > 0.005) {
+    lines.push(`Piikki-tarvikkeiden hankinta: ${formatEuro(computed.piikkiMaterialCostNet)}`);
+  }
+  lines.push(
     `Tarjouksen hankinta (alv 0 %): ${formatEuro(computed.quotePurchaseNet)}`,
     `Todellinen hankinta (alv 0 %): ${formatEuro(computed.actualPurchaseNet)}`,
     `Puhdas kate: ${formatEuro(computed.netMarginNet)}`,
-  ];
+  );
   for (const line of settings.purchase_lines ?? []) {
     if (line.actual_purchase_net !== line.quote_purchase_net) {
       lines.push(

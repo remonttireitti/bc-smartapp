@@ -5,7 +5,8 @@ import AppLayout from '../components/AppLayout';
 import { resolveCompanyLogoUrl } from '../lib/companyLogo';
 import { parseCompanySettings } from '../lib/management';
 import { supabase } from '../lib/supabase';
-import { type BillableCalculation } from '../lib/workReportBilling';
+import { fetchWorkReportDetailLogs } from '../lib/workReportDailyLogSelect';
+import type { BillableCalculation } from '../lib/workReportBilling';
 import { generatePartnerBillingHtml } from '../lib/workReportBillingPrintHtml';
 
 interface Props {
@@ -31,7 +32,7 @@ export default function WorkReportPartnerBillingPrintPage({ session }: Props) {
     setLoading(true);
     setError(null);
 
-    const [{ data: reportData, error: reportError }, { data: billableData, error: billableError }] =
+    const [{ data: reportData, error: reportError }, { data: billableData, error: billableError }, logsResult] =
       await Promise.all([
         supabase
           .from('work_reports')
@@ -46,9 +47,10 @@ export default function WorkReportPartnerBillingPrintPage({ session }: Props) {
           .single(),
         supabase
           .from('work_report_billable')
-          .select('calculation, billing_quote')
+          .select('calculation, billing_quote, customer_calculation')
           .eq('work_report_id', reportId)
           .maybeSingle(),
+        fetchWorkReportDetailLogs(supabase, reportId),
       ]);
 
     if (reportError || !reportData) {
@@ -97,6 +99,8 @@ export default function WorkReportPartnerBillingPrintPage({ session }: Props) {
         customerName: report.customers?.name ?? null,
         calculation: billableData.calculation as BillableCalculation,
         billingQuote: billableData.billing_quote as import('../lib/workReportBillingQuote').BillingQuoteSettings,
+        dailyLogs: logsResult.logs,
+        customerCalculation: billableData.customer_calculation as BillableCalculation | null,
         logoUrl,
       }),
     );
