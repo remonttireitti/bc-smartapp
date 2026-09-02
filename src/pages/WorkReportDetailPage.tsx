@@ -182,7 +182,6 @@ import {
   inferPartnerExpenseMarginPercent,
   resolveExpenseBillingMode,
   resolveTripBillingFromExpenses,
-  sumDailyLogExpensePurchaseNet,
   tripLegsBillToCustomer,
   type ExpenseBillingMode,
 } from '../lib/workReportExpenseBilling';
@@ -1817,10 +1816,6 @@ export default function WorkReportDetailPage({ session }: Props) {
     () => sumDailyExpensesWithTrips(dailyLogs, reportTripKmRate),
     [dailyLogs, reportTripKmRate],
   );
-  const dailyLogExpensePurchaseNet = useMemo(
-    () => sumDailyLogExpensePurchaseNet(dailyLogs),
-    [dailyLogs],
-  );
   const totalTripKm = useMemo(() => sumDailyTripKm(dailyLogs), [dailyLogs]);
   const refrigerantPartnerReminders = useMemo(
     () =>
@@ -3058,7 +3053,6 @@ export default function WorkReportDetailPage({ session }: Props) {
           ownerCompanyId={report.owner_company_id}
           installationCostNet={billableCalculation?.grandTotal ?? null}
           initialSettings={billingQuoteSettings}
-          dailyLogExpensePurchaseNet={dailyLogExpensePurchaseNet}
           showPartnerMargin={!!showOutgoingPartnerBilling}
           showCustomerQuoteMode={!!showCustomerMoneyBilling && !!canManageCustomerBillingRates}
           readOnly={!showOutgoingPartnerBilling && !canManageCustomerBillingRates}

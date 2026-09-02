@@ -4,7 +4,6 @@ import {
   expensePurchasePriceMissing,
   sumDailyLogExpensePurchaseNet,
 } from '../src/lib/workReportExpenseBilling.ts';
-import { mergeDailyLogExpensePurchaseIntoQuoteSettings } from '../src/lib/workReportBillingQuote.ts';
 
 assert.equal(
   expensePurchaseLineTotal({ qty: 2, unit_price: 15.5 }),
@@ -31,13 +30,5 @@ assert.equal(
   ]),
   125,
 );
-
-const merged = mergeDailyLogExpensePurchaseIntoQuoteSettings(
-  { customer_mode: 'quote_fixed', quote_sale_net: 1000 },
-  250,
-);
-assert.equal(merged.purchase_lines?.length, 1);
-assert.equal(merged.purchase_lines?.[0]?.actual_purchase_net, 250);
-assert.equal(merged.actual_purchase_net, 250);
 
 console.log('test-expense-purchase-price: ok');

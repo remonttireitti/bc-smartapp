@@ -5,7 +5,6 @@ import {
   billingQuoteHasData,
   computePartnerNetMargin,
   loadBillingQuoteOptions,
-  mergeDailyLogExpensePurchaseIntoQuoteSettings,
   normalizeBillingQuoteSettings,
   parseBillingQuoteSettings,
   quoteHasVat,
@@ -26,7 +25,6 @@ type Props = {
   ownerCompanyId: string | null | undefined;
   installationCostNet: number | null;
   initialSettings: BillingQuoteSettings;
-  dailyLogExpensePurchaseNet?: number;
   showPartnerMargin?: boolean;
   showCustomerQuoteMode?: boolean;
   readOnly?: boolean;
@@ -52,7 +50,6 @@ export default function WorkReportBillingQuotePanel({
   ownerCompanyId,
   installationCostNet,
   initialSettings,
-  dailyLogExpensePurchaseNet = 0,
   showPartnerMargin = false,
   showCustomerQuoteMode = false,
   readOnly = false,
@@ -192,24 +189,6 @@ export default function WorkReportBillingQuotePanel({
         <p className="muted billing-purchase-lines-hint">
           Tarjouksen hankintahinnat ovat vain luku -tilassa. Korjaa todelliset hankintakulut raportilla.
         </p>
-        {dailyLogExpensePurchaseNet > 0.005 && editable ? (
-          <p className="billing-purchase-lines-hint">
-            Päiväkirjan kulujen hankinta yhteensä: <strong>{formatEuro(dailyLogExpensePurchaseNet)}</strong>
-            {' · '}
-            <button
-              type="button"
-              className="btn btn-secondary btn-sm"
-              disabled={busy}
-              onClick={() =>
-                setSettings((prev) =>
-                  mergeDailyLogExpensePurchaseIntoQuoteSettings(prev, dailyLogExpensePurchaseNet),
-                )
-              }
-            >
-              Lisää työraportin kuluista
-            </button>
-          </p>
-        ) : null}
         <table className="billing-table billing-purchase-lines-table">
           <thead>
             <tr>
