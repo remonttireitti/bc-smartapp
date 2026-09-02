@@ -3,7 +3,8 @@
  * Alkuperäiset jäävät lähdeyritykselle — kopioilla on kohdeyrityksen omistus ja brändäys.
  *
  * Esimerkki (listaa Uudenmaan asiakkaat):
- *   SUPABASE_SERVICE_ROLE_KEY=... node scripts/copy-customer-to-partner.mjs --production --list-customers
+ *   SUPABASE_SERVICE_ROLE_KEY=... npm run copy:customer-to-partner -- --production --list-customers
+ *   SUPABASE_SECRET_KEY=sb_secret_... npm run copy:customer-to-partner -- --production --list-customers
  *
  * Kuivajo (dry-run):
  *   SUPABASE_SERVICE_ROLE_KEY=... node scripts/copy-customer-to-partner.mjs --production --customer-id=<uuid>
@@ -65,7 +66,11 @@ loadEnvFile('.env');
 if (PRODUCTION) loadEnvFile('.env.production');
 
 function getServiceKey() {
-  if (process.env.SUPABASE_SERVICE_ROLE_KEY) return process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const fromEnv =
+    process.env.SUPABASE_SERVICE_ROLE_KEY
+    ?? process.env.SUPABASE_SECRET_KEY
+    ?? process.env.SB_SECRET_KEY;
+  if (fromEnv) return fromEnv;
   const raw = execSync(`npx supabase projects api-keys --project-ref ${PROJECT_REF}`, {
     encoding: 'utf8',
     cwd: rootDir,
@@ -75,7 +80,16 @@ function getServiceKey() {
     const parts = line.split('|').map((p) => p.trim()).filter(Boolean);
     if (parts.length >= 2 && parts[0] === 'service_role') return parts[1];
   }
-  throw new Error('SUPABASE_SERVICE_ROLE_KEY puuttuu');
+  throw new Error(
+    'SUPABASE_SERVICE_ROLE_KEY tai SUPABASE_SECRET_KEY puuttuu (Dashboard → Project Settings → API).',
+  );
+}
+
+function createAdminClient(supabaseUrl, serviceKey) {
+  return createClient(supabaseUrl, serviceKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
+    global: { headers: { apikey: serviceKey } },
+  });
 }
 
 function companyMatches(name, needle) {
@@ -511,9 +525,7 @@ async function main() {
   const supabaseUrl = PRODUCTION
     ? (process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? PRODUCTION_URL)
     : (process.env.VITE_SUPABASE_URL ?? 'http://127.0.0.1:54321');
-  const supabase = createClient(supabaseUrl, getServiceKey(), {
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
+  const supabase = createAdminClient(supabaseUrl, getServiceKey());
 
   const { source, target } = await resolveCompanies(supabase);
   console.log(DRY_RUN ? '=== DRY RUN ===' : '=== APPLY ===');
