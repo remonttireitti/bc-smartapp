@@ -7,6 +7,7 @@ import {
   calculateWorkReportCustomerBillableQuotePlusExtras,
   parseBillingQuoteSettings,
   shouldUseQuoteExtrasBilling,
+  customerUsesQuoteBasedBilling,
 } from '../src/lib/workReportBillingQuote.ts';
 import {
   extraCustomerWorkFromDailyLogs,
@@ -130,6 +131,18 @@ assert.equal(marginOnlyWork.extrasMarginNet, 15);
 assert.deepEqual(
   serializeDailyLogCustomerExtraBilling(dailyLogExtraBillingFromForm(emptyDailyLogExtraBillingForm())),
   {},
+);
+
+assert.equal(customerUsesQuoteBasedBilling(parseBillingQuoteSettings({})), false);
+assert.equal(
+  customerUsesQuoteBasedBilling(
+    parseBillingQuoteSettings({
+      quote_request_id: 'q-1',
+      customer_mode: 'quote_fixed',
+      customer_invoice_total: 5000,
+    }),
+  ),
+  true,
 );
 
 console.log('test-quote-plus-extras-billing: ok');

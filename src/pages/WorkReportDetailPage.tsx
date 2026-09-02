@@ -2784,10 +2784,13 @@ export default function WorkReportDetailPage({ session }: Props) {
   const canManageQuoteCustomerMode =
     canManageCustomerBillingRates || (isPartnerReport && canSeeCreatorBilling);
   const showDailyLogQuoteExtras =
-    showOutgoingPartnerBilling
-    || showCustomerMoneyBilling
-    || showCustomerBillingFeatures
-    || (isPartnerReport && canSeeCreatorBilling);
+    customerUsesQuoteBasedBilling(billingQuoteSettings)
+    && (
+      showOutgoingPartnerBilling
+      || showCustomerMoneyBilling
+      || showCustomerBillingFeatures
+      || (isPartnerReport && canSeeCreatorBilling)
+    );
   const dailyLogEntryTiles = dailyLogs.flatMap((log) =>
     buildDailyLogEntryTiles(log, {
       formatDate,
