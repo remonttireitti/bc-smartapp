@@ -1,5 +1,5 @@
 import type { BillableCalculation } from './workReportBilling';
-import { expenseCustomerPriceMissing, expensePrintBillingNote, expensePurchaseLineTotal, expensePurchasePriceMissing } from './workReportExpenseBilling';
+import { expenseCustomerPriceMissing, expensePrintBillingNote, expensePurchaseLineTotal, expensePurchasePriceMissing, resolveExpenseBillingMode } from './workReportExpenseBilling';
 import {
   billableUsers,
   billableUserLines,
@@ -14,6 +14,7 @@ import {
   billingQuoteHasData,
   computePartnerNetMargin,
   customerUsesQuoteBasedBilling,
+  customerUsesQuotePlusExtras,
   parseBillingQuoteSettings,
   quoteHasVat,
   renderBillingQuotePurchaseLinesHtml,
@@ -218,7 +219,7 @@ function customerBillingPrintSection(
           </tr>
         </tbody>
       </table>
-      ${extraRows ? `<h3 class="billing-subheading">Lisätyöt ja -kulut</h3>
+      ${extraRows ? `<h3 class="billing-subheading">Lisätyöt ja -kulut (tarjouksen päälle)</h3>
       <table>
         <thead>
           <tr><th>Päivä</th><th>Henkilö</th><th>Tyyppi</th><th>Kuvaus</th><th class="num">Määrä</th><th class="num">á hinta</th><th class="num">Yhteensä</th></tr>
@@ -367,9 +368,12 @@ export function generateWorkReportPrintHtml(input: {
   } = input;
   const billingQuote = parseBillingQuoteSettings(inputBillingQuote ?? {});
   const customerQuoteBased = customerUsesQuoteBasedBilling(billingQuote);
+  const customerQuotePlusExtras = customerUsesQuotePlusExtras(billingQuote);
   const showInternalPrices = printMode === 'internal';
   const showCustomerPricesInPrint =
     showInternalPrices && !!customerCalculation && !customerQuoteBased;
+  const showCustomerExtraPricesInPrint =
+    showInternalPrices && customerQuotePlusExtras && !!customerCalculation;
   const isDelegatedOrder =
     !!report.delegate_company_id && report.created_by_company_id === report.owner_company_id;
   const billedPartnerName = isDelegatedOrder
@@ -382,24 +386,28 @@ export function generateWorkReportPrintHtml(input: {
     .map((log) => {
       const expenses = log.expense_lines ?? [];
       const refrigerantLines = log.refrigerant_lines ?? [];
-      const showCustomerExpensePrices = showCustomerPricesInPrint;
+      const showCustomerExpensePrices = showCustomerPricesInPrint || showCustomerExtraPricesInPrint;
       const expenseRows = expenses
         .map((line) => {
           const label = EXPENSE_TYPE_LABELS[line.expense_type] ?? line.expense_type;
           const qty = Number(line.qty);
           const unit = Number(line.unit_price);
           const total = expenseLineTotal(line);
+          const customerOnly = resolveExpenseBillingMode(line) === 'customer_only';
+          const showThisCustomerPrice =
+            showCustomerExpensePrices && (showCustomerPricesInPrint || customerOnly);
           const customerUnit =
             line.customer_unit_price != null && Number(line.customer_unit_price) > 0
               ? Number(line.customer_unit_price)
               : unit;
           const customerTotal = expenseLineTotal({ ...line, unit_price: customerUnit });
+          const extraCustomerNote =
+            showCustomerExtraPricesInPrint && customerOnly ? ' · lisälasku asiakkaalle' : '';
           if (showPartnerPrices) {
             const partnerNote = expensePrintBillingNote(line, {
               showPartner: true,
-              showCustomer: showCustomerExpensePrices,
+              showCustomer: showThisCustomerPrice,
             });
-            const customerOnly = line.bill_to_partner === false && line.bill_to_customer !== false;
             if (customerOnly) {
               const purchaseUnit = Number(line.unit_price) || 0;
               const purchaseTotal = expensePurchaseLineTotal(line);
@@ -411,17 +419,17 @@ export function generateWorkReportPrintHtml(input: {
               const customerCell = customerMissing
                 ? ` · asiakas <span class="billing-price-missing">?</span>`
                 : ` · asiakas ${qty} × ${formatEuro(customerUnit)} = ${formatEuro(customerTotal)}`;
-              return `<tr><td>${esc(label)}</td><td>${esc(line.description)}</td><td class="num">${purchaseCell}${customerCell}${esc(partnerNote)}</td></tr>`;
+              return `<tr><td>${esc(label)}</td><td>${esc(line.description)}</td><td class="num">${purchaseCell}${customerCell}${esc(partnerNote)}${esc(extraCustomerNote)}</td></tr>`;
             }
             const customerNote =
-              showCustomerExpensePrices && line.bill_to_customer !== false && customerUnit !== unit
+              showThisCustomerPrice && line.bill_to_customer !== false && customerUnit !== unit
                 ? ` · asiakas ${formatEuro(customerUnit)} = ${formatEuro(customerTotal)}`
-                : showCustomerExpensePrices && line.bill_to_customer !== false
+                : showThisCustomerPrice && line.bill_to_customer !== false
                   ? ` · asiakas ${formatEuro(customerTotal)}`
                   : '';
             return `<tr><td>${esc(label)}</td><td>${esc(line.description)}</td><td class="num">${qty} × ${formatEuro(unit)} = ${formatEuro(total)}${esc(partnerNote)}${esc(customerNote)}</td></tr>`;
           }
-          if (showCustomerExpensePrices && line.bill_to_customer !== false) {
+          if (showThisCustomerPrice && line.bill_to_customer !== false) {
             const priceMissing = expenseCustomerPriceMissing(line);
             const priceCell = priceMissing
               ? `${qty} · <span class="billing-price-missing">?</span>`
@@ -464,8 +472,14 @@ export function generateWorkReportPrintHtml(input: {
       const hourSummary = formatHourEntryForPrint(
         log,
         showInternalPrices && (showPartnerPrices || showCustomerPricesInPrint),
-        showCustomerPricesInPrint,
+        showCustomerPricesInPrint || (showCustomerExtraPricesInPrint && !!log.customer_extra_beyond_quote),
       );
+      const quoteHourNote =
+        customerQuoteBased && showInternalPrices
+          ? log.customer_extra_beyond_quote
+            ? ' · <span class="muted">lisätyö asiakkaalle</span>'
+            : ' · <span class="muted">kuuluu tarjoukseen</span>'
+          : '';
       const logAuthor = resolveDailyLogAuthorLabel(log);
       const logAuthorLabel = logAuthor.deleted
         ? `${logAuthor.name}*`
@@ -498,7 +512,7 @@ export function generateWorkReportPrintHtml(input: {
             <strong>${formatDate(log.log_date)}</strong>
             <span>${esc(logAuthorLabel)}</span>
             <span>${esc(HOUR_ENTRY_LABELS[log.entry_type])}</span>
-            <span>${esc(hourSummary)}</span>
+            <span>${esc(hourSummary)}${quoteHourNote}</span>
           </div>
           <div class="log-body">${esc(log.work_done).replace(/\n/g, '<br />')}</div>
           ${commission}

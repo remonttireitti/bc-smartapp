@@ -331,9 +331,9 @@ export function billingQuoteFromQuoteRow(
     customer_mode:
       options?.fixedCustomerBilling === false
         ? 'daily_log'
-        : options?.previous?.customer_mode === 'quote_plus_extras'
-          ? 'quote_plus_extras'
-          : 'quote_fixed',
+        : options?.previous?.customer_mode === 'quote_fixed'
+          ? 'quote_fixed'
+          : 'quote_plus_extras',
     quote_vat_rate: roundMoney(internal.vatRate),
     purchase_lines: purchaseLines.length > 0 ? purchaseLines : undefined,
     notes: options?.previous?.notes ?? null,

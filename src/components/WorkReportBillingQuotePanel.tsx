@@ -481,11 +481,11 @@ export default function WorkReportBillingQuotePanel({
                       onChange={(e) =>
                         setSettings((prev) => ({
                           ...prev,
-                          customer_mode: e.target.checked
-                            ? prev.customer_mode === 'quote_plus_extras'
-                              ? 'quote_plus_extras'
-                              : 'quote_fixed'
-                            : 'daily_log',
+                        customer_mode: e.target.checked
+                          ? prev.customer_mode === 'quote_fixed'
+                            ? 'quote_fixed'
+                            : 'quote_plus_extras'
+                          : 'daily_log',
                         }))
                       }
                     />

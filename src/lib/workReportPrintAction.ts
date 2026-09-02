@@ -6,8 +6,17 @@ import { supabase } from './supabase';
 import type { BillableCalculation } from './workReportBilling';
 import { fetchWorkReportPrintLogs } from './workReportDailyLogSelect';
 import {
+  parseCompanySettings,
+  parseCustomerBillingRates,
+  resolveCustomerBillingRates,
+  type BillableRatesSource,
+  type PartnerBillingRates,
+} from './management';
+import {
   calculateWorkReportCustomerBillableFromQuote,
+  calculateWorkReportCustomerBillableQuotePlusExtras,
   customerUsesFixedQuote,
+  customerUsesQuoteBasedBilling,
   customerUsesQuotePlusExtras,
   parseBillingQuoteSettings,
   type BillingQuoteSettings,
@@ -66,20 +75,60 @@ function resolvePrintCustomerCalculation(
   billingQuote: BillingQuoteSettings,
   stored: BillableCalculation | null,
   customerName: string | null,
+  logs: WorkReportDailyLog[],
+  rates: PartnerBillingRates,
+  ratesSource: BillableRatesSource,
 ): BillableCalculation | null {
   if (customerUsesQuotePlusExtras(billingQuote)) {
-    return stored;
+    return (
+      calculateWorkReportCustomerBillableQuotePlusExtras({
+        settings: billingQuote,
+        logs,
+        rates,
+        ratesSource,
+        customerName,
+      }) ?? stored
+    );
   }
   if (customerUsesFixedQuote(billingQuote)) {
     return (
       calculateWorkReportCustomerBillableFromQuote({
         settings: billingQuote,
         customerName,
-        ratesSource: stored?.ratesSource ?? 'company_default',
+        ratesSource: stored?.ratesSource ?? ratesSource,
       }) ?? stored
     );
   }
   return stored;
+}
+
+async function loadPrintCustomerRates(
+  db: SupabaseClient,
+  report: WorkReport,
+  storedCalculation: BillableCalculation | null,
+): Promise<{ rates: PartnerBillingRates; ratesSource: BillableRatesSource }> {
+  const [{ data: companyRow }, { data: billingRow }] = await Promise.all([
+    db.from('companies').select('settings').eq('id', report.owner_company_id).single(),
+    db
+      .from('work_report_billing')
+      .select('customer_rates_override, use_custom_customer_rates')
+      .eq('work_report_id', report.id)
+      .maybeSingle(),
+  ]);
+
+  const settings = parseCompanySettings((companyRow as { settings: unknown } | null)?.settings);
+  const storedOverride = parseCustomerBillingRates(billingRow?.customer_rates_override);
+  const useCustom = billingRow?.use_custom_customer_rates ?? false;
+  const resolved = resolveCustomerBillingRates({
+    companyDefaults: settings.billing?.customer_rates ?? {},
+    reportOverride: storedOverride,
+    useReportRates: useCustom,
+  });
+
+  return {
+    rates: resolved.rates,
+    ratesSource: storedCalculation?.ratesSource ?? resolved.source,
+  };
 }
 
 export async function buildWorkReportPrintHtmlDocument(input: {
@@ -122,11 +171,20 @@ export async function buildWorkReportPrintHtmlDocument(input: {
   const partnerCalculation =
     showInternalPrices && isPartnerReport ? (input.calculation ?? null) : null;
   const billingQuote = parseBillingQuoteSettings(input.billingQuote ?? {});
+  const needsCustomerPrintRates =
+    showInternalPrices
+    && (customerUsesQuoteBasedBilling(billingQuote) || !!input.customerCalculation);
+  const customerRates = needsCustomerPrintRates
+    ? await loadPrintCustomerRates(db, input.report, input.customerCalculation ?? null)
+    : null;
   const customerCalculation = showInternalPrices
     ? resolvePrintCustomerCalculation(
         billingQuote,
         input.customerCalculation ?? null,
         input.report.customers?.name ?? null,
+        logs,
+        customerRates?.rates ?? {},
+        customerRates?.ratesSource ?? 'company_default',
       )
     : null;
 
@@ -182,10 +240,14 @@ export async function loadWorkReportPrintBundle(
   const storedCustomerCalculation =
     (billableData?.customer_calculation as BillableCalculation | undefined) ?? null;
   const billingQuote = parseBillingQuoteSettings(billableData?.billing_quote ?? {});
+  const customerRates = await loadPrintCustomerRates(db, report, storedCustomerCalculation);
   const customerCalculation = resolvePrintCustomerCalculation(
     billingQuote,
     storedCustomerCalculation,
     (reportData as { customers?: { name?: string } }).customers?.name ?? null,
+    logs,
+    customerRates.rates,
+    customerRates.ratesSource,
   );
 
   const html = await buildWorkReportPrintHtmlDocument({
