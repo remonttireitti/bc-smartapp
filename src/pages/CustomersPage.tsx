@@ -7,7 +7,7 @@ import ToggleSwitch from '../components/ToggleSwitch';
 import { CustomerListGrid, CustomerListTile } from '../components/CustomerListTile';
 import { customerListTileColor } from '../lib/customerSectionHelpers';
 import { CUSTOMER_SELECT } from '../lib/customers';
-import { quickSearchHitPath, type QuickSearchHit } from '../lib/quickSearch';
+import type { QuickSearchHit } from '../lib/quickSearch';
 import { filterCustomersForPortalView, getPortalPreview, isPortalUser } from '../lib/portalPreview';
 import { supabase } from '../lib/supabase';
 import { useProfile } from '../hooks/useProfile';
@@ -55,7 +55,8 @@ export default function CustomersPage({ session }: Props) {
           setSearchHitsFor('');
           return;
         }
-        setSearchHits((data as SearchHit[]) ?? []);
+        const customerHits = ((data as SearchHit[]) ?? []).filter((hit) => hit.entity_type === 'customer');
+        setSearchHits(customerHits);
         setSearchHitsFor(normalized);
       });
     }, 250);
@@ -177,41 +178,17 @@ export default function CustomersPage({ session }: Props) {
 
       {loadError && <p className="error">{loadError}</p>}
 
-      {!portalMode && search.trim().length >= 2 && searchHitsFor === search.trim().toLowerCase() && searchHits.length > 0 && (
-        <section className="panel search-hits">
-          <h2>Hakutulokset</h2>
-          <ul className="report-list compact">
-            {searchHits.map((hit) => {
-              const path = quickSearchHitPath(hit);
-              return (
-                <li key={`${hit.entity_type}-${hit.entity_id}`}>
-                  {path ? (
-                    <Link to={path} className="report-link">
-                      <div className="report-link-body">
-                        <strong>{hit.title}</strong>
-                        <span className="muted">
-                          {hit.entity_type === 'customer' ? 'Asiakas' : hit.entity_type === 'equipment' ? 'Laite' : hit.entity_type}
-                          {hit.subtitle ? ` • ${hit.subtitle}` : ''}
-                        </span>
-                      </div>
-                    </Link>
-                  ) : (
-                    <span className="muted">
-                      {hit.title} {hit.subtitle ? `(${hit.subtitle})` : ''}
-                    </span>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
-        </section>
-      )}
-
       {loading ? (
         <p className="muted">Ladataan…</p>
       ) : (
         <section className="panel">
-          <h2>{portalMode ? `Kohteet (${filteredCustomers.length})` : `Asiakasrekisteri (${filteredCustomers.length})`}</h2>
+          <h2>
+            {portalMode
+              ? `Kohteet (${filteredCustomers.length})`
+              : search.trim()
+                ? `Hakutulokset (${filteredCustomers.length})`
+                : `Asiakasrekisteri (${filteredCustomers.length})`}
+          </h2>
           {filteredCustomers.length === 0 ? (
             portalMode ? (
               <p className="muted">
