@@ -170,9 +170,11 @@ import {
   computeCustomerPriceFromPartnerCost,
   DEFAULT_PARTNER_EXPENSE_MARGIN_PERCENT,
   expenseBillingSummaryLabel,
+  expensePurchaseLineTotal,
   inferPartnerExpenseMarginPercent,
   resolveExpenseBillingMode,
   resolveTripBillingFromExpenses,
+  sumDailyLogExpensePurchaseNet,
   tripLegsBillToCustomer,
   type ExpenseBillingMode,
 } from '../lib/workReportExpenseBilling';
@@ -428,6 +430,12 @@ function expenseRowSectionTitle(
   const desc = row.description.trim() || 'Täytä tiedot';
   const parts = [type, desc];
   if (row.qty.trim()) parts.push(`${row.qty} kpl`);
+  if (
+    resolveExpenseBillingMode(row) === 'customer_only'
+    && expensePurchaseLineTotal(row) > 0
+  ) {
+    parts.push(`hankinta ${expensePurchaseLineTotal(row).toFixed(2)} €`);
+  }
   const billingLabel = expenseBillingSummaryLabel(row, {
     showPartner,
     showCustomer,
@@ -1070,24 +1078,41 @@ function DailyLogFields({
                           </label>
                           {billingMode === 'customer_only' && (
                             <div className="expense-billing-fields">
-                              <label>
-                                Asiakashinta (€)
-                                <input
-                                  type="number"
-                                  step="0.01"
-                                  min="0"
-                                  value={row.customer_unit_price}
-                                  readOnly={autoTripKm}
-                                  disabled={autoTripKm}
-                                  onChange={(e) =>
-                                    updateExpenseRow({ ...row, customer_unit_price: e.target.value })
-                                  }
-                                  placeholder="Esim. laskutushinta asiakkaalle"
-                                />
-                              </label>
+                              <div className="expense-price-pair">
+                                <label>
+                                  Hankintahinta (€)
+                                  <input
+                                    type="number"
+                                    step="0.01"
+                                    min="0"
+                                    value={row.unit_price}
+                                    readOnly={autoTripKm}
+                                    disabled={autoTripKm}
+                                    onChange={(e) =>
+                                      updateExpenseRow({ ...row, unit_price: e.target.value })
+                                    }
+                                    placeholder="Esim. toimittajan lasku"
+                                  />
+                                </label>
+                                <label>
+                                  Asiakashinta (€)
+                                  <input
+                                    type="number"
+                                    step="0.01"
+                                    min="0"
+                                    value={row.customer_unit_price}
+                                    readOnly={autoTripKm}
+                                    disabled={autoTripKm}
+                                    onChange={(e) =>
+                                      updateExpenseRow({ ...row, customer_unit_price: e.target.value })
+                                    }
+                                    placeholder="Esim. laskutushinta asiakkaalle"
+                                  />
+                                </label>
+                              </div>
                               <p className="muted expense-billing-preview">
                                 Tulostukseen tulee punainen <span className="billing-price-missing">?</span>, jos
-                                hinta puuttuu.
+                                hankinta- tai asiakashinta puuttuu.
                               </p>
                             </div>
                           )}
@@ -1780,6 +1805,10 @@ export default function WorkReportDetailPage({ session }: Props) {
   const totalExpenses = useMemo(
     () => sumDailyExpensesWithTrips(dailyLogs, reportTripKmRate),
     [dailyLogs, reportTripKmRate],
+  );
+  const dailyLogExpensePurchaseNet = useMemo(
+    () => sumDailyLogExpensePurchaseNet(dailyLogs),
+    [dailyLogs],
   );
   const totalTripKm = useMemo(() => sumDailyTripKm(dailyLogs), [dailyLogs]);
   const refrigerantPartnerReminders = useMemo(
@@ -3018,6 +3047,7 @@ export default function WorkReportDetailPage({ session }: Props) {
           ownerCompanyId={report.owner_company_id}
           installationCostNet={billableCalculation?.grandTotal ?? null}
           initialSettings={billingQuoteSettings}
+          dailyLogExpensePurchaseNet={dailyLogExpensePurchaseNet}
           showPartnerMargin={!!showOutgoingPartnerBilling}
           showCustomerQuoteMode={!!showCustomerMoneyBilling && !!canManageCustomerBillingRates}
           readOnly={!showOutgoingPartnerBilling && !canManageCustomerBillingRates}

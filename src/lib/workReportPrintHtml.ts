@@ -1,5 +1,5 @@
 import type { BillableCalculation } from './workReportBilling';
-import { expenseCustomerPriceMissing, expensePrintBillingNote } from './workReportExpenseBilling';
+import { expenseCustomerPriceMissing, expensePrintBillingNote, expensePurchaseLineTotal, expensePurchasePriceMissing } from './workReportExpenseBilling';
 import {
   billableUsers,
   billableUserLines,
@@ -349,11 +349,17 @@ export function generateWorkReportPrintHtml(input: {
             });
             const customerOnly = line.bill_to_partner === false && line.bill_to_customer !== false;
             if (customerOnly) {
-              const priceMissing = expenseCustomerPriceMissing(line);
-              const priceCell = priceMissing
-                ? `${qty} · <span class="billing-price-missing">?</span>`
-                : `${qty} × ${formatEuro(customerUnit)} = ${formatEuro(customerTotal)}`;
-              return `<tr><td>${esc(label)}</td><td>${esc(line.description)}</td><td class="num">${priceCell}${esc(partnerNote)}</td></tr>`;
+              const purchaseUnit = Number(line.unit_price) || 0;
+              const purchaseTotal = expensePurchaseLineTotal(line);
+              const purchaseMissing = expensePurchasePriceMissing(line);
+              const customerMissing = expenseCustomerPriceMissing(line);
+              const purchaseCell = purchaseMissing
+                ? `hankinta <span class="billing-price-missing">?</span>`
+                : `hankinta ${qty} × ${formatEuro(purchaseUnit)} = ${formatEuro(purchaseTotal)}`;
+              const customerCell = customerMissing
+                ? ` · asiakas <span class="billing-price-missing">?</span>`
+                : ` · asiakas ${qty} × ${formatEuro(customerUnit)} = ${formatEuro(customerTotal)}`;
+              return `<tr><td>${esc(label)}</td><td>${esc(line.description)}</td><td class="num">${purchaseCell}${customerCell}${esc(partnerNote)}</td></tr>`;
             }
             const customerNote =
               showCustomerExpensePrices && line.bill_to_customer !== false && customerUnit !== unit

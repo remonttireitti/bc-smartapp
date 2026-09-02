@@ -111,6 +111,38 @@ export function normalizeBillingQuoteSettings(settings: BillingQuoteSettings): B
   return settings;
 }
 
+export function mergeDailyLogExpensePurchaseIntoQuoteSettings(
+  settings: BillingQuoteSettings,
+  expensePurchaseNet: number,
+): BillingQuoteSettings {
+  if (!(expensePurchaseNet > 0.005)) return settings;
+  const rounded = roundMoney(expensePurchaseNet);
+  const lines = [...(settings.purchase_lines ?? [])];
+  const existingIndex = lines.findIndex((line) => line.id === 'work-report:daily-expenses');
+  if (existingIndex >= 0) {
+    lines[existingIndex] = {
+      ...lines[existingIndex],
+      actual_purchase_net: rounded,
+      quote_purchase_net:
+        lines[existingIndex].quote_purchase_net > 0 ? lines[existingIndex].quote_purchase_net : rounded,
+    };
+  } else {
+    lines.push({
+      id: 'work-report:daily-expenses',
+      label: 'Työraportin kulut ja tarvikkeet',
+      quantity: 1,
+      unit: 'kpl',
+      quote_purchase_net: rounded,
+      actual_purchase_net: rounded,
+      source: 'group',
+    });
+  }
+  return normalizeBillingQuoteSettings({
+    ...settings,
+    purchase_lines: lines,
+  });
+}
+
 export function resolveQuotePurchaseTotal(settings: BillingQuoteSettings): number {
   const normalized = normalizeBillingQuoteSettings(parseBillingQuoteSettings(settings));
   if (normalized.purchase_lines?.length) {

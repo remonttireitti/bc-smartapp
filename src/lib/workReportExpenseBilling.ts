@@ -42,6 +42,34 @@ export function expenseCustomerPriceMissing(
   return !(partnerPrice > 0);
 }
 
+export function expensePurchasePriceMissing(
+  row: ExpenseBillingFlags & { unit_price?: number | string | null },
+): boolean {
+  if (resolveExpenseBillingMode(row) !== 'customer_only') return false;
+  return !(Number(row.unit_price || 0) > 0);
+}
+
+export function expensePurchaseLineTotal(
+  row: Pick<{ qty?: number | string | null; unit_price?: number | string | null }, 'qty' | 'unit_price'>,
+): number {
+  const qty = Number(row.qty || 0);
+  const unit = Number(row.unit_price || 0);
+  return Math.round(qty * unit * 100) / 100;
+}
+
+export function sumDailyLogExpensePurchaseNet(
+  logs: Array<{ expense_lines?: Array<{ qty?: number | string | null; unit_price?: number | string | null }> | null }>,
+): number {
+  let total = 0;
+  for (const log of logs) {
+    for (const line of log.expense_lines ?? []) {
+      const purchase = expensePurchaseLineTotal(line);
+      if (purchase > 0) total += purchase;
+    }
+  }
+  return Math.round(total * 100) / 100;
+}
+
 export type ExpenseBillingFlags = {
   bill_to_partner?: boolean;
   bill_to_customer?: boolean;
