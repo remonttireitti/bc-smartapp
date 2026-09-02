@@ -10,29 +10,56 @@ type Props = {
   form: DailyLogExtraBillingFormFields;
   setForm: (next: DailyLogExtraBillingFormFields) => void;
   defaultHourlyRate?: number | null;
+  enabled?: boolean;
+  blockedReason?: 'no_quote' | 'mode_off' | null;
 };
 
 export default function DailyLogCustomerExtraBillingFields({
   form,
   setForm,
   defaultHourlyRate = null,
+  enabled = true,
+  blockedReason = null,
 }: Props) {
   function patch(fields: Partial<DailyLogExtraBillingFormFields>) {
     setForm({ ...form, ...fields });
   }
 
+  const subtitle = !enabled
+    ? blockedReason === 'no_quote'
+      ? 'Linkitä tarjous työraportille'
+      : 'Ota käyttöön tarjouspaneelista'
+    : dailyLogQuoteExtrasSubtitle(form);
+
   return (
     <DailyLogTileSection
       sectionKey="quote-extras"
       title="Lisä työt ja kulut"
-      subtitle={dailyLogQuoteExtrasSubtitle(form)}
+      subtitle={subtitle}
       color={DAILY_LOG_SECTION_COLORS.quoteExtras}
+      incomplete={false}
       wide
     >
-      <p className="muted" style={{ marginTop: 0 }}>
-        Kirjaa tähän tarjouksen päälle laskutettavat lisätyöt. Nämä eivät ole sama asia kuin yllä
-        olevat kalenteritunnit.
-      </p>
+      {!enabled ? (
+        <p className="muted" style={{ marginTop: 0 }}>
+          {blockedReason === 'no_quote' ? (
+            <>
+              Avaa työraportin <strong>Tarjous ja kate</strong> -osio, valitse tarjous ja tallenna.
+              Sen jälkeen voit kirjata lisätyöt ja -kulut tähän.
+            </>
+          ) : (
+            <>
+              Avaa työraportin <strong>Tarjous ja kate</strong> -osio, valitse{' '}
+              <strong>Lisää lisätyöt ja -kulut tarjouksen päälle</strong> ja tallenna tarjous.
+            </>
+          )}
+        </p>
+      ) : (
+        <>
+        <p className="muted" style={{ marginTop: 0 }}>
+          Kirjaa tähän tarjouksen päälle laskutettavat lisätyöt. Nämä eivät ole sama asia kuin yllä
+          olevat kalenteritunnit.
+        </p>
       <div className="line-form-grid">
         <label>
           Lisätyö tunnit
@@ -116,6 +143,8 @@ export default function DailyLogCustomerExtraBillingFields({
           />
         </label>
       </div>
+        </>
+      )}
     </DailyLogTileSection>
   );
 }

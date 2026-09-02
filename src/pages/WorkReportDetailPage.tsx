@@ -453,7 +453,7 @@ function expenseRowSectionTitle(
   return parts.join(' · ');
 }
 
-function buildLogPayload(form: DailyLogFormState) {
+function buildLogPayload(form: DailyLogFormState, options?: { includeExtraBilling?: boolean }) {
   const { showRegular, showOvertime, showOnCall, showFixed } = hourFieldsForEntryType(form.entry_type);
   const hourlyOverrideRaw = String(form.hourly_rate_override ?? '').trim();
   const hourlyOverride = !showFixed && hourlyOverrideRaw ? Number(hourlyOverrideRaw) : null;
@@ -498,7 +498,10 @@ function buildLogPayload(form: DailyLogFormState) {
     commission_amount: Number(form.commission_amount || 0),
     commission_note: form.commission_note.trim() || null,
     work_done: form.work_done.trim(),
-    customer_extra_billing: serializeDailyLogCustomerExtraBilling(dailyLogExtraBillingFromForm(form)),
+    customer_extra_billing:
+      options?.includeExtraBilling === false
+        ? null
+        : serializeDailyLogCustomerExtraBilling(dailyLogExtraBillingFromForm(form)),
   };
 }
 
@@ -2250,7 +2253,9 @@ export default function WorkReportDetailPage({ session }: Props) {
 
     setDailyLogNotice(dailyLogSavingNotice(false));
     setLogDialogBusy(true);
-    const payload = buildLogPayload(logForm);
+    const payload = buildLogPayload(logForm, {
+      includeExtraBilling: customerUsesQuotePlusExtras(billingQuoteSettings),
+    });
 
     const performerId = resolveReportPerformerUserId(report) ?? session.user.id;
     const { reports, logsByReportId } = await loadPerformerCalendarContext(supabase, performerId);
@@ -2543,7 +2548,9 @@ export default function WorkReportDetailPage({ session }: Props) {
 
     setDailyLogNotice(dailyLogSavingNotice(true));
     setLogDialogBusy(true);
-    const payload = buildLogPayload(logForm);
+    const payload = buildLogPayload(logForm, {
+      includeExtraBilling: customerUsesQuotePlusExtras(billingQuoteSettings),
+    });
 
     const performerId = resolveReportPerformerUserId(report) ?? session.user.id;
     const { reports, logsByReportId } = await loadPerformerCalendarContext(supabase, performerId);
@@ -2782,6 +2789,13 @@ export default function WorkReportDetailPage({ session }: Props) {
     showCustomerBillingFeatures
     && !!customerBillableCalculation
     && (isOwnerCompany || (isPartnerReport && canSeeCreatorBilling));
+  const dailyLogQuoteExtrasEnabled = customerUsesQuotePlusExtras(billingQuoteSettings);
+  const dailyLogQuoteExtrasBlockedReason = !billingQuoteSettings.quote_request_id
+    ? ('no_quote' as const)
+    : !dailyLogQuoteExtrasEnabled
+      ? ('mode_off' as const)
+      : null;
+  const showDailyLogQuoteExtras = showCustomerBillingFeatures;
   const dailyLogEntryTiles = dailyLogs.flatMap((log) =>
     buildDailyLogEntryTiles(log, {
       formatDate,
@@ -3796,10 +3810,12 @@ export default function WorkReportDetailPage({ session }: Props) {
             ?? null
           }
         />
-        {customerUsesQuotePlusExtras(billingQuoteSettings) ? (
+        {showDailyLogQuoteExtras ? (
           <DailyLogCustomerExtraBillingFields
             form={logForm}
             setForm={(next) => setLogForm({ ...logForm, ...next })}
+            enabled={dailyLogQuoteExtrasEnabled}
+            blockedReason={dailyLogQuoteExtrasBlockedReason}
             defaultHourlyRate={
               customerBillableCalculation?.ratesUsed.hourly_regular
               ?? companyCustomerRatesPreview.hourly_regular
