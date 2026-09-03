@@ -57,17 +57,48 @@ export function expensePurchaseLineTotal(
   return Math.round(qty * unit * 100) / 100;
 }
 
-export function sumDailyLogExpensePurchaseNet(
-  logs: Array<{ expense_lines?: Array<{ qty?: number | string | null; unit_price?: number | string | null }> | null }>,
-): number {
-  let total = 0;
+export type DailyLogExpensePurchaseAnalysis = {
+  purchaseNet: number;
+  /** customer_only -kulu, josta puuttuu hankintahinta */
+  purchasePricesMissing: boolean;
+};
+
+export function analyzeDailyLogExpensePurchase(
+  logs: Array<{
+    expense_lines?: Array<{
+      qty?: number | string | null;
+      unit_price?: number | string | null;
+      bill_to_partner?: boolean;
+      bill_to_customer?: boolean;
+    }> | null;
+  }>,
+): DailyLogExpensePurchaseAnalysis {
+  let purchaseNet = 0;
+  let purchasePricesMissing = false;
+
   for (const log of logs) {
     for (const line of log.expense_lines ?? []) {
+      if (line.bill_to_customer === false) continue;
+      if (resolveExpenseBillingMode(line) !== 'customer_only') continue;
+      if (expensePurchasePriceMissing(line)) {
+        purchasePricesMissing = true;
+        continue;
+      }
       const purchase = expensePurchaseLineTotal(line);
-      if (purchase > 0) total += purchase;
+      if (purchase > 0) purchaseNet += purchase;
     }
   }
-  return Math.round(total * 100) / 100;
+
+  return {
+    purchaseNet: Math.round(purchaseNet * 100) / 100,
+    purchasePricesMissing,
+  };
+}
+
+export function sumDailyLogExpensePurchaseNet(
+  logs: Parameters<typeof analyzeDailyLogExpensePurchase>[0],
+): number {
+  return analyzeDailyLogExpensePurchase(logs).purchaseNet;
 }
 
 export type ExpenseBillingFlags = {

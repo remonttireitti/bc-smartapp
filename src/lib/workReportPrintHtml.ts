@@ -1,5 +1,6 @@
 import type { BillableCalculation } from './workReportBilling';
 import { expenseCustomerPriceMissing, expensePrintBillingNote, expensePurchaseLineTotal, expensePurchasePriceMissing } from './workReportExpenseBilling';
+import { computeBasicWorkReportNetMargin } from './workReportBasicNetMargin';
 import {
   billableUsers,
   billableUserLines,
@@ -281,6 +282,48 @@ function customerBillingPrintSection(
     </table>
     <p class="grand-total"><strong>Asiakkaalta laskutettava yhteensä: ${formatEuro(customerCalculation.grandTotal)}</strong></p>
     <p class="meta-line billing-price-missing-note">Punainen <span class="billing-price-missing">?</span> = hinta puuttuu, määritä asiakkaalle laskutettava hinta.</p>`,
+  );
+}
+
+function basicNetMarginPrintSection(
+  customerCalculation: BillableCalculation,
+  partnerCalculation: BillableCalculation | null,
+  logs: WorkReportDailyLog[],
+  showPartnerTotal: boolean,
+): string {
+  const margin = computeBasicWorkReportNetMargin({
+    customerCalculation,
+    partnerCalculation,
+    logs,
+  });
+
+  if (!margin.ok) {
+    return printBox(
+      'Puhdas kate',
+      `<p class="meta-line">${esc(margin.reason)}</p>
+      <p class="meta-line">Kate = asiakkaalta laskutettava − hankintahinta − kumppanilta laskutettava.</p>`,
+    );
+  }
+
+  const purchaseRow =
+    margin.purchaseNet > 0.005
+      ? `<tr><td>Hankintahinta (alv 0 %)</td><td class="num">− ${formatEuro(margin.purchaseNet)}</td></tr>`
+      : `<tr><td>Hankintahinta</td><td class="num muted">—</td></tr>`;
+  const partnerRow = showPartnerTotal
+    ? `<tr><td>Kumppanilta laskutettava</td><td class="num">− ${formatEuro(margin.partnerTotal)}</td></tr>`
+    : '';
+
+  return printBox(
+    'Puhdas kate',
+    `<table>
+      <tbody>
+        <tr><td>Asiakkaalta laskutettava</td><td class="num">${formatEuro(margin.customerTotal)}</td></tr>
+        ${purchaseRow}
+        ${partnerRow}
+        <tr class="profit-row"><td><strong>Puhdas kate</strong></td><td class="num"><strong>${formatEuro(margin.netMarginNet)}</strong></td></tr>
+      </tbody>
+    </table>
+    <p class="meta-line">Kate = asiakkaalta laskutettava − hankintahinta − kumppanilta laskutettava.</p>`,
   );
 }
 
@@ -786,6 +829,19 @@ export function generateWorkReportPrintHtml(input: {
       ? quoteMarginPrintSection(billingQuote, calculation ?? null, logs, customerCalculation ?? null)
       : '';
 
+  const basicNetMarginSection =
+    showInternalPrices
+    && !customerQuoteBased
+    && customerCalculation
+    && hasIncludedBillableLines(customerCalculation)
+      ? basicNetMarginPrintSection(
+          customerCalculation,
+          calculation ?? null,
+          logs,
+          isPartnerReport && !!calculation,
+        )
+      : '';
+
   return `<!doctype html>
 <html lang="fi">
 <head>
@@ -801,6 +857,7 @@ export function generateWorkReportPrintHtml(input: {
     ${billingSection}
     ${quoteMarginSection}
     ${customerBillingSection}
+    ${basicNetMarginSection}
     <div class="footer">
       ${esc(meta.companyName)} • Tulostettu ${new Date().toLocaleString('fi-FI')}${
         showInternalPrices ? ' • Sisäinen tuloste (hinnat mukana)' : ''
