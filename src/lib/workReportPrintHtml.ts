@@ -1,5 +1,5 @@
 import type { BillableCalculation } from './workReportBilling';
-import { expenseCustomerPriceMissing, expensePrintBillingNote, expensePurchaseLineTotal, expensePurchasePriceMissing } from './workReportExpenseBilling';
+import { expenseCustomerPriceMissing, expensePrintBillingNote, expensePurchaseLineTotal, expensePurchasePriceMissing, resolveExpensePurchaseUnitPrice } from './workReportExpenseBilling';
 import { computeBasicWorkReportNetMargin } from './workReportBasicNetMargin';
 import {
   billableUsers,
@@ -307,7 +307,12 @@ function basicNetMarginPrintSection(
 
   const purchaseRow =
     margin.purchaseNet > 0.005
-      ? `<tr><td>Hankintahinta (alv 0 %)</td><td class="num">− ${formatEuro(margin.purchaseNet)}</td></tr>`
+      ? margin.purchaseLines
+          .map(
+            (line) =>
+              `<tr><td>Hankinta: ${esc(line.description)}</td><td class="num">− ${formatEuro(line.total)}</td></tr>`,
+          )
+          .join('')
       : `<tr><td>Hankintahinta</td><td class="num muted">—</td></tr>`;
   const partnerRow = showPartnerTotal
     ? `<tr><td>Kumppanilta laskutettava</td><td class="num">− ${formatEuro(margin.partnerTotal)}</td></tr>`
@@ -505,7 +510,7 @@ export function generateWorkReportPrintHtml(input: {
             });
             const customerOnly = line.bill_to_partner === false && line.bill_to_customer !== false;
             if (customerOnly) {
-              const purchaseUnit = Number(line.unit_price) || 0;
+              const purchaseUnit = resolveExpensePurchaseUnitPrice(line) ?? 0;
               const purchaseTotal = expensePurchaseLineTotal(line);
               const purchaseMissing = expensePurchasePriceMissing(line);
               const customerMissing = expenseCustomerPriceMissing(line);

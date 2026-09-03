@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import {
   expensePurchaseLineTotal,
   expensePurchasePriceMissing,
+  resolveExpensePurchaseUnitPrice,
   sumDailyLogExpensePurchaseNet,
 } from '../src/lib/workReportExpenseBilling.ts';
 import { computeBasicWorkReportNetMargin } from '../src/lib/workReportBasicNetMargin.ts';
@@ -21,6 +22,26 @@ assert.equal(
 );
 
 assert.equal(
+  resolveExpensePurchaseUnitPrice({
+    bill_to_partner: false,
+    bill_to_customer: true,
+    unit_price: 3570.78,
+    customer_unit_price: 3570.78,
+  }),
+  null,
+);
+
+assert.equal(
+  resolveExpensePurchaseUnitPrice({
+    bill_to_partner: false,
+    bill_to_customer: true,
+    unit_price: 2100.46,
+    customer_unit_price: 3570.78,
+  }),
+  2100.46,
+);
+
+assert.equal(
   sumDailyLogExpensePurchaseNet([
     {
       expense_lines: [
@@ -29,12 +50,14 @@ assert.equal(
           unit_price: 100,
           bill_to_partner: false,
           bill_to_customer: true,
+          customer_unit_price: 150,
         },
         {
           qty: 2,
           unit_price: 12.5,
           bill_to_partner: false,
           bill_to_customer: true,
+          customer_unit_price: 20,
         },
         { qty: 5, unit_price: 20, bill_to_partner: true, bill_to_customer: true },
       ],
@@ -85,7 +108,8 @@ const margin = computeBasicWorkReportNetMargin({
       expense_lines: [
         {
           qty: 1,
-          unit_price: 3570.78,
+          unit_price: 2100.46,
+          customer_unit_price: 3570.78,
           bill_to_partner: false,
           bill_to_customer: true,
           description: 'Chiller Oy osto',
@@ -96,7 +120,46 @@ const margin = computeBasicWorkReportNetMargin({
 });
 assert.equal(margin.ok, true);
 if (margin.ok) {
-  assert.equal(margin.netMarginNet, 49.79);
+  assert.equal(margin.purchaseNet, 2100.46);
+  assert.equal(margin.netMarginNet, 1520.11);
 }
+
+const legacyMargin = computeBasicWorkReportNetMargin({
+  customerCalculation: {
+    version: 3,
+    billToCompanyId: null,
+    billToCompanyName: 'Asiakas',
+    ratesUsed: { hourly_regular: 65, hourly_overtime: 0, hourly_on_call: 0 },
+    ratesSource: 'company_default',
+    byUser: [],
+    grandTotal: 3805.68,
+    excludedTotal: 0,
+  },
+  partnerCalculation: {
+    version: 3,
+    billToCompanyId: null,
+    billToCompanyName: 'Kumppani',
+    ratesUsed: { hourly_regular: 50, hourly_overtime: 0, hourly_on_call: 0 },
+    ratesSource: 'partnership',
+    byUser: [],
+    grandTotal: 185.11,
+    excludedTotal: 0,
+  },
+  logs: [
+    {
+      expense_lines: [
+        {
+          qty: 1,
+          unit_price: 3570.78,
+          customer_unit_price: 3570.78,
+          bill_to_partner: false,
+          bill_to_customer: true,
+          description: 'Chiller Oy osto',
+        },
+      ],
+    },
+  ],
+});
+assert.equal(legacyMargin.ok, false);
 
 console.log('test-expense-purchase-price: ok');

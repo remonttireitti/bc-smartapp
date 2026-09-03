@@ -1,6 +1,11 @@
 import type { WorkReportDailyLog } from '../types';
 import type { BillableCalculation } from './workReportBilling';
-import { analyzeDailyLogExpensePurchase } from './workReportExpenseBilling';
+import {
+  analyzeDailyLogExpensePurchase,
+  type DailyLogExpensePurchaseAnalysis,
+} from './workReportExpenseBilling';
+
+export type { DailyLogExpensePurchaseAnalysis };
 
 export type BasicWorkReportNetMarginResult =
   | {
@@ -8,6 +13,7 @@ export type BasicWorkReportNetMarginResult =
       customerTotal: number;
       partnerTotal: number;
       purchaseNet: number;
+      purchaseLines: DailyLogExpensePurchaseAnalysis['lines'];
       netMarginNet: number;
     }
   | {
@@ -51,6 +57,7 @@ export function computeBasicWorkReportNetMargin(input: {
     customerTotal,
     partnerTotal,
     purchaseNet: purchase.purchaseNet,
+    purchaseLines: purchase.lines,
     netMarginNet,
   };
 }

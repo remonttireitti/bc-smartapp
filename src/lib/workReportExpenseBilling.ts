@@ -43,38 +43,71 @@ export function expenseCustomerPriceMissing(
 }
 
 export function expensePurchasePriceMissing(
-  row: ExpenseBillingFlags & { unit_price?: number | string | null },
+  row: ExpensePurchaseFields,
 ): boolean {
   if (resolveExpenseBillingMode(row) !== 'customer_only') return false;
-  return !(Number(row.unit_price || 0) > 0);
+  const purchase = resolveExpensePurchaseUnitPrice(row);
+  return purchase == null || !(purchase > 0);
 }
 
-export function expensePurchaseLineTotal(
-  row: Pick<{ qty?: number | string | null; unit_price?: number | string | null }, 'qty' | 'unit_price'>,
-): number {
-  const qty = Number(row.qty || 0);
+export type ExpensePurchaseFields = ExpenseBillingFlags & {
+  qty?: number | string | null;
+  unit_price?: number | string | null;
+  customer_unit_price?: number | string | null;
+  description?: string | null;
+};
+
+/**
+ * customer_only: hankinta on unit_price-kentässä. Vanhassa datassa unit_price voi olla
+ * sama kuin asiakashinta — silloin hankintaa ei voi päätellä.
+ */
+export function resolveExpensePurchaseUnitPrice(row: ExpensePurchaseFields): number | null {
+  if (resolveExpenseBillingMode(row) !== 'customer_only') {
+    const unit = Number(row.unit_price || 0);
+    return unit > 0 ? unit : null;
+  }
+
   const unit = Number(row.unit_price || 0);
-  return Math.round(qty * unit * 100) / 100;
+  const customerRaw = row.customer_unit_price;
+  const customer =
+    customerRaw != null && String(customerRaw).trim() !== '' ? Number(customerRaw) : null;
+
+  if (unit > 0 && customer != null && customer > 0) {
+    if (unit < customer) return unit;
+    if (Math.abs(unit - customer) < 0.005) return null;
+    return unit;
+  }
+
+  return unit > 0 ? unit : null;
 }
+
+export function expensePurchaseLineTotal(row: ExpensePurchaseFields): number {
+  const purchaseUnit = resolveExpensePurchaseUnitPrice(row);
+  if (purchaseUnit == null || !(purchaseUnit > 0)) return 0;
+  const qty = Number(row.qty || 0);
+  return Math.round(qty * purchaseUnit * 100) / 100;
+}
+
+export type DailyLogExpensePurchaseLine = {
+  description: string;
+  total: number;
+};
 
 export type DailyLogExpensePurchaseAnalysis = {
   purchaseNet: number;
   /** customer_only -kulu, josta puuttuu hankintahinta */
   purchasePricesMissing: boolean;
+  lines: DailyLogExpensePurchaseLine[];
 };
 
 export function analyzeDailyLogExpensePurchase(
   logs: Array<{
-    expense_lines?: Array<{
-      qty?: number | string | null;
-      unit_price?: number | string | null;
-      bill_to_partner?: boolean;
-      bill_to_customer?: boolean;
-    }> | null;
+    expense_lines?: Array<ExpensePurchaseFields> | null;
   }>,
 ): DailyLogExpensePurchaseAnalysis {
   let purchaseNet = 0;
   let purchasePricesMissing = false;
+  const lines: DailyLogExpensePurchaseLine[] = [];
 
   for (const log of logs) {
     for (const line of log.expense_lines ?? []) {
@@ -85,13 +118,20 @@ export function analyzeDailyLogExpensePurchase(
         continue;
       }
       const purchase = expensePurchaseLineTotal(line);
-      if (purchase > 0) purchaseNet += purchase;
+      if (purchase > 0) {
+        purchaseNet += purchase;
+        lines.push({
+          description: String(line.description ?? '').trim() || 'Ostokulu',
+          total: purchase,
+        });
+      }
     }
   }
 
   return {
     purchaseNet: Math.round(purchaseNet * 100) / 100,
     purchasePricesMissing,
+    lines,
   };
 }
 
