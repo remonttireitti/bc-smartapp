@@ -1580,7 +1580,7 @@ function BillingReportCard({
           </button>
         )}
         <button type="button" className="btn btn-secondary btn-sm" disabled={busy} onClick={onCopy}>
-          {mode === 'customer' ? 'Kopioi asiakaslaskutusteksti' : 'Kopioi kumppanilaskutusteksti'}
+          Kopioi laskutusteksti
         </button>
         <button type="button" className="btn btn-secondary btn-sm" disabled={busy} onClick={onCopyLink}>
           Kopioi tulostelinkki

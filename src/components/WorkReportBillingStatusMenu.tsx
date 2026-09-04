@@ -125,9 +125,7 @@ export default function WorkReportBillingStatusMenu({
       onNotice?.(
         partialUnbilledOnly
           ? 'Laskuttamatta oleva teksti kopioitu leikepöydälle.'
-          : mode === 'customer'
-            ? 'Asiakaslaskutusteksti kopioitu leikepöydälle.'
-            : 'Laskutusteksti kopioitu leikepöydälle.',
+          : 'Laskutusteksti kopioitu leikepöydälle.',
       );
     } catch (error) {
       onError?.(error instanceof Error ? error.message : 'Kopiointi epäonnistui.');
@@ -257,7 +255,7 @@ export default function WorkReportBillingStatusMenu({
                     void copyBillingText('partner');
                   }}
                 >
-                  Kopioi kumppanilaskutusteksti
+                  Kopioi laskutusteksti
                 </button>
                 <button
                   type="button"
@@ -318,7 +316,7 @@ export default function WorkReportBillingStatusMenu({
                     void copyBillingText('customer');
                   }}
                 >
-                  Kopioi asiakaslaskutusteksti
+                  Kopioi laskutusteksti
                 </button>
                 {customerState !== 'billed' && (
                   <button

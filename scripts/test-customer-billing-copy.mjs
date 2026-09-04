@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import {
   filterCustomerBillingCopyLogs,
+  filterPartnerBillingCopyLogs,
+  formatWorkReportBillingCopy,
   formatWorkReportCustomerBillingCopy,
 } from '../src/lib/workReportBillingCopy.ts';
 
@@ -100,6 +102,64 @@ test('customer billing copy partial header when only unbilled entries copied', (
     partialUnbilledOnly: true,
   });
   assert.match(text, /Laskuttamatta \(uudet päiväkirjaukset\):/);
+});
+
+test('partner billing copy is detailed with partner, customer, hours and expenses', () => {
+  const text = formatWorkReportBillingCopy({
+    title: 'Messukeskus – asennus',
+    partnerName: 'Lämpökatsastus Oy',
+    customerName: 'Messukeskus',
+    logs: [
+      {
+        ...baseLog,
+        expense_lines: baseLog.expense_lines.map((line) => ({
+          ...line,
+          bill_to_partner: true,
+        })),
+        commission_note: '5 % provisio',
+      },
+    ],
+  });
+  assert.match(text, /Työraportti: Messukeskus – asennus/);
+  assert.match(text, /Kumppani: Lämpökatsastus Oy/);
+  assert.match(text, /Asiakas: Messukeskus/);
+  assert.match(text, /3\.00 h/);
+  assert.match(text, /KM-korvaus: Ajomatkat/);
+  assert.match(text, /Provisio: 5 % provisio/);
+  assert.ok(text.length > 100, 'partner copy should not be truncated to 100 chars');
+});
+
+test('partner billing copy filters to unbilled logs after partner billed timestamp', () => {
+  const logs = [
+    { ...baseLog, id: 'old', created_at: '2026-09-03T08:00:00.000Z' },
+    {
+      ...baseLog,
+      id: 'new',
+      log_date: '2026-09-04',
+      created_at: '2026-09-04T09:00:00.000Z',
+    },
+  ];
+  const { logs: filtered, partialUnbilledOnly } = filterPartnerBillingCopyLogs(logs, {
+    owner_company_id: 'owner',
+    created_by_company_id: 'creator',
+    delegate_company_id: 'delegate',
+    billing: {
+      partner_invoice_status: 'paid',
+      partner_invoice_amount: 1000,
+      partner_billed_amount: 500,
+      partner_billed_at: '2026-09-03T12:00:00.000Z',
+      customer_invoice_status: 'none',
+      customer_invoice_amount: null,
+      customer_billed_at: null,
+    },
+    billable: {
+      partner_total: 1000,
+      calculation: { byUser: [{ lines: [] }] },
+    },
+  });
+  assert.equal(partialUnbilledOnly, true);
+  assert.equal(filtered.length, 1);
+  assert.equal(filtered[0].id, 'new');
 });
 
 console.log('All customer billing copy tests passed.');
