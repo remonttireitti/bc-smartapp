@@ -107,6 +107,40 @@ export function formatTripKmExpenseDescription(totalKm: number, usesMinimum: boo
   return `Ajomatkat (${qtyStr} km)`;
 }
 
+export function parseTripKmQuantityFromDescription(description: string): number | null {
+  const match = description.trim().match(/^Ajomatkat\s*\(\s*([\d.,]+)\s*km/i);
+  if (!match?.[1]) return null;
+  const value = Number(match[1].replace(',', '.'));
+  return Number.isFinite(value) && value > 0 ? value : null;
+}
+
+export function tripKmExpenseUsesMinimumBilling(description: string): boolean {
+  return /minimilaskutus\s+huoltoauto/i.test(description.trim());
+}
+
+/** Asiakastulosteen selkeä km-korvauksen selitys. */
+export function formatTripKmCustomerPrintDescription(totalKm: number, usesMinimum: boolean): string {
+  const qtyStr = (Math.round(totalKm * 10) / 10).toLocaleString('fi-FI', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 1,
+  });
+  if (usesMinimum) {
+    return `Ajomatkat ${qtyStr} km — ajo on niin vähäistä, että laskutetaan minimihuoltoautokorvauksen mukaan.`;
+  }
+  return `Ajomatkat ${qtyStr} km — laskutetaan ajettujen km mukaan.`;
+}
+
+export function resolveTripKmCustomerPrintDescription(
+  line: { expense_type: string; description: string; qty: number | string },
+): string | null {
+  if (line.expense_type !== 'km') return null;
+  const desc = String(line.description ?? '').trim();
+  const qtyKm = Number(line.qty);
+  const km = qtyKm > 0 ? qtyKm : parseTripKmQuantityFromDescription(desc);
+  if (km == null || !(km > 0)) return null;
+  return formatTripKmCustomerPrintDescription(km, tripKmExpenseUsesMinimumBilling(desc));
+}
+
 export function syncTripKmExpenseDrafts<T extends TripKmExpenseDraft>(
   expenseDrafts: T[],
   tripDrafts: TripLegDraft[],

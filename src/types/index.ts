@@ -403,6 +403,25 @@ export function formatDate(value: string | null) {
   return new Date(value).toLocaleDateString('fi-FI');
 }
 
+/** Ensimmäisen ja viimeisen työkirjauksen päivämäärät (YYYY-MM-DD). */
+export function resolveWorkReportLogPeriod(logs: WorkReportDailyLog[]): {
+  startDate: string | null;
+  endDate: string | null;
+} {
+  const dates = [...new Set(
+    logs
+      .map((log) => log.log_date?.trim().slice(0, 10))
+      .filter((value): value is string => Boolean(value)),
+  )].sort();
+  if (dates.length === 0) {
+    return { startDate: null, endDate: null };
+  }
+  return {
+    startDate: dates[0],
+    endDate: dates[dates.length - 1],
+  };
+}
+
 export function todayIsoDate() {
   return new Date().toISOString().slice(0, 10);
 }

@@ -30,6 +30,7 @@ import {
   refrigerantIncludedInCustomerBilling,
   refrigerantLineTotal,
 } from './refrigerantInventory';
+import { resolveTripKmCustomerPrintDescription } from './tripKmExpense';
 import {
   EXPENSE_TYPE_LABELS,
   HOUR_ENTRY_LABELS,
@@ -44,6 +45,7 @@ import {
   resolveWorkReportHeading,
   buildWorkReportPrintHeadline,
   resolveDailyLogAuthorLabel,
+  resolveWorkReportLogPeriod,
   type WorkReport,
   type WorkReportDailyLog,
 } from '../types';
@@ -487,6 +489,14 @@ export function generateWorkReportPrintHtml(input: {
   const isPartnerReport =
     report.created_by_company_id !== report.owner_company_id || isDelegatedOrder;
 
+  const logPeriod = resolveWorkReportLogPeriod(logs);
+  const workStartLabel = logPeriod.startDate
+    ? formatDate(logPeriod.startDate)
+    : formatDateTime(report.scheduled_start);
+  const workEndLabel = logPeriod.endDate
+    ? formatDate(logPeriod.endDate)
+    : formatDateTime(report.completed_at);
+
   const logSections = logs
     .map((log) => {
       const expenses = log.expense_lines ?? [];
@@ -495,6 +505,10 @@ export function generateWorkReportPrintHtml(input: {
       const expenseRows = expenses
         .map((line) => {
           const label = EXPENSE_TYPE_LABELS[line.expense_type] ?? line.expense_type;
+          const descriptionForPrint =
+            printMode === 'customer'
+              ? resolveTripKmCustomerPrintDescription(line) ?? line.description
+              : line.description;
           const qty = Number(line.qty);
           const unit = Number(line.unit_price);
           const total = expenseLineTotal(line);
@@ -520,7 +534,7 @@ export function generateWorkReportPrintHtml(input: {
               const customerCell = customerMissing
                 ? ` · asiakas <span class="billing-price-missing">?</span>`
                 : ` · asiakas ${qty} × ${formatEuro(customerUnit)} = ${formatEuro(customerTotal)}`;
-              return `<tr><td>${esc(label)}</td><td>${esc(line.description)}</td><td class="num">${purchaseCell}${customerCell}${esc(partnerNote)}</td></tr>`;
+              return `<tr><td>${esc(label)}</td><td>${esc(descriptionForPrint)}</td><td class="num">${purchaseCell}${customerCell}${esc(partnerNote)}</td></tr>`;
             }
             const customerNote =
               showCustomerExpensePrices && line.bill_to_customer !== false && customerUnit !== unit
@@ -528,16 +542,16 @@ export function generateWorkReportPrintHtml(input: {
                 : showCustomerExpensePrices && line.bill_to_customer !== false
                   ? ` · asiakas ${formatEuro(customerTotal)}`
                   : '';
-            return `<tr><td>${esc(label)}</td><td>${esc(line.description)}</td><td class="num">${qty} × ${formatEuro(unit)} = ${formatEuro(total)}${esc(partnerNote)}${esc(customerNote)}</td></tr>`;
+            return `<tr><td>${esc(label)}</td><td>${esc(descriptionForPrint)}</td><td class="num">${qty} × ${formatEuro(unit)} = ${formatEuro(total)}${esc(partnerNote)}${esc(customerNote)}</td></tr>`;
           }
           if (showCustomerExpensePrices && line.bill_to_customer !== false) {
             const priceMissing = expenseCustomerPriceMissing(line);
             const priceCell = priceMissing
               ? `${qty} · <span class="billing-price-missing">?</span>`
               : `${qty} × ${formatEuro(customerUnit)} = ${formatEuro(customerTotal)}`;
-            return `<tr><td>${esc(label)}</td><td>${esc(line.description)}</td><td class="num">${priceCell}</td></tr>`;
+            return `<tr><td>${esc(label)}</td><td>${esc(descriptionForPrint)}</td><td class="num">${priceCell}</td></tr>`;
           }
-          return `<tr><td>${esc(label)}</td><td>${esc(line.description)}</td><td class="num">${qty}</td></tr>`;
+          return `<tr><td>${esc(label)}</td><td>${esc(descriptionForPrint)}</td><td class="num">${qty}</td></tr>`;
         })
         .join('');
 
@@ -702,8 +716,8 @@ export function generateWorkReportPrintHtml(input: {
           : ''
       }
       <dt>Laite</dt><dd>${esc(formatWorkReportEquipment(report.equipment))}</dd>
-      <dt>Aloitus</dt><dd>${esc(formatDateTime(report.scheduled_start))}</dd>
-      <dt>Valmistuminen</dt><dd>${esc(formatDateTime(report.completed_at))}</dd>
+      <dt>Aloitus</dt><dd>${esc(workStartLabel)}</dd>
+      <dt>Valmistuminen</dt><dd>${esc(workEndLabel)}</dd>
       ${
         isDelegatedOrder
           ? `<dt>Toimeksisaaja</dt><dd>${esc(report.delegate_company?.name ?? '—')}</dd>`
