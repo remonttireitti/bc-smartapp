@@ -90,6 +90,10 @@ import {
   type RefrigerantLineDraft,
 } from '../lib/refrigerantInventory';
 import { isRefrigerantWarehouseCostLine } from '../lib/refrigerantPassThrough';
+import {
+  formatHourlyRateOverrideForForm,
+  parseOptionalHourlyRateOverride,
+} from '../lib/workReportHourlyRateOverride';
 import { isPartnerPurchaseOwedToViewer, partnerCompanyOptionsForReport } from '../lib/partnerPurchaseDeduction';
 import {
   partnerPurchasesToDrafts,
@@ -372,14 +376,8 @@ function logToForm(log: WorkReportDailyLog): DailyLogFormState {
       Number(log.customer_fixed_price_amount) > 0
       && Number(log.fixed_price_amount) > 0
       && log.partner_urakka_margin_percent == null,
-    hourly_rate_override:
-      log.hourly_rate_override != null && Number(log.hourly_rate_override) > 0
-        ? String(log.hourly_rate_override)
-        : '',
-    customer_hourly_rate_override:
-      log.customer_hourly_rate_override != null && Number(log.customer_hourly_rate_override) > 0
-        ? String(log.customer_hourly_rate_override)
-        : '',
+    hourly_rate_override: formatHourlyRateOverrideForForm(log.hourly_rate_override),
+    customer_hourly_rate_override: formatHourlyRateOverrideForForm(log.customer_hourly_rate_override),
     commission_amount: Number(log.commission_amount) > 0 ? String(log.commission_amount) : '',
     commission_note: log.commission_note ?? '',
     work_done: log.work_done,
@@ -454,10 +452,8 @@ function expenseRowSectionTitle(
 
 function buildLogPayload(form: DailyLogFormState) {
   const { showRegular, showOvertime, showOnCall, showFixed } = hourFieldsForEntryType(form.entry_type);
-  const hourlyOverrideRaw = String(form.hourly_rate_override ?? '').trim();
-  const hourlyOverride = !showFixed && hourlyOverrideRaw ? Number(hourlyOverrideRaw) : null;
-  const customerHourlyRaw = String(form.customer_hourly_rate_override ?? '').trim();
-  const customerHourlyOverride = !showFixed && customerHourlyRaw ? Number(customerHourlyRaw) : null;
+  const hourlyOverride = parseOptionalHourlyRateOverride(form.hourly_rate_override);
+  const customerHourlyOverride = parseOptionalHourlyRateOverride(form.customer_hourly_rate_override);
 
   const customerFixedRaw = String(form.customer_fixed_price_amount ?? '').trim();
   const customerFixedAmount =
@@ -489,11 +485,9 @@ function buildLogPayload(form: DailyLogFormState) {
     customer_fixed_price_amount: customerFixedAmount,
     partner_urakka_margin_percent: storedMargin,
     hourly_rate_override:
-      hourlyOverride != null && Number.isFinite(hourlyOverride) && hourlyOverride > 0 ? hourlyOverride : null,
+      !showFixed && hourlyOverride != null ? hourlyOverride : null,
     customer_hourly_rate_override:
-      customerHourlyOverride != null && Number.isFinite(customerHourlyOverride) && customerHourlyOverride > 0
-        ? customerHourlyOverride
-        : null,
+      !showFixed && customerHourlyOverride != null ? customerHourlyOverride : null,
     commission_amount: Number(form.commission_amount || 0),
     commission_note: form.commission_note.trim() || null,
     work_done: form.work_done.trim(),
@@ -810,13 +804,14 @@ function DailyLogFields({
       </div>
       {showHourlyRate && !showFixed && (
         <p className="muted" style={{ margin: '0 0 .65rem' }}>
-          Tyhjä = käytetään raportin kumppanuus- tai yrityshintaa. Täytä vain jos tämän päivän tuntihinta poikkeaa.
+          Tyhjä = käytetään raportin kumppanuus- tai yrityshintaa. Syötä 0 jos tunneista ei veloiteta (esim.
+          takuutyö).
         </p>
       )}
       {showCustomerHourlyRate && !showFixed && (
         <p className="muted" style={{ margin: '0 0 .65rem' }}>
-          Tyhjä = käytetään yrityksen asiakashintaa tai raporttikohtaisia hintoja. Täytä vain jos tämän päivän
-          asiakastuntihinta poikkeaa.
+          Tyhjä = käytetään yrityksen asiakashintaa tai raporttikohtaisia hintoja. Syötä 0 jos asiakkaalta ei
+          veloiteta tunneista.
         </p>
       )}
       {showFixed && (

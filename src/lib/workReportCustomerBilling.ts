@@ -17,6 +17,9 @@ import {
 import { tripKmExpenseBillingLine } from './tripKmExpense';
 import type { BillingQuoteExtraCustomerWork } from './billingQuoteExtraWork';
 import type { BillableRatesSource } from './management';
+import {
+  resolveStoredHourlyRateOverride,
+} from './workReportHourlyRateOverride';
 
 const DEFAULT_RATES: Required<PartnerBillingRates> = {
   hourly_regular: 0,
@@ -33,9 +36,8 @@ function resolveCustomerHourUnitPrice(
   kind: BillableLineKind,
   rates: Required<PartnerBillingRates>,
 ): number {
-  const override =
-    log.customer_hourly_rate_override != null ? Number(log.customer_hourly_rate_override) : null;
-  if (override != null && override > 0) {
+  const override = resolveStoredHourlyRateOverride(log.customer_hourly_rate_override);
+  if (override != null) {
     if (kind === 'hours_regular') return override;
     if (kind === 'hours_overtime' && log.entry_type === 'overtime') return override;
     if (kind === 'hours_on_call' && log.entry_type === 'on_call') return override;

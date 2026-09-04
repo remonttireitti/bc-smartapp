@@ -718,11 +718,17 @@ export function formatHourEntry(log: WorkReportDailyLog, options?: { showMoney?:
   const showMoney = options?.showMoney ?? true;
   const showCustomerMoney = options?.showCustomerMoney ?? showMoney;
   const partnerRateHint =
-    showMoney && log.hourly_rate_override != null && Number(log.hourly_rate_override) > 0
+    showMoney
+    && log.hourly_rate_override != null
+    && Number.isFinite(Number(log.hourly_rate_override))
+    && Number(log.hourly_rate_override) >= 0
       ? ` × ${Number(log.hourly_rate_override).toFixed(2)} €/h`
       : '';
   const customerRateHint =
-    showCustomerMoney && log.customer_hourly_rate_override != null && Number(log.customer_hourly_rate_override) > 0
+    showCustomerMoney
+    && log.customer_hourly_rate_override != null
+    && Number.isFinite(Number(log.customer_hourly_rate_override))
+    && Number(log.customer_hourly_rate_override) >= 0
       ? ` (asiakas ${Number(log.customer_hourly_rate_override).toFixed(2)} €/h)`
       : '';
   const rateHint = partnerRateHint || customerRateHint;

@@ -21,6 +21,10 @@ import {
   urakkaPartnerLineDescription,
 } from './workReportUrakkaBilling';
 
+import {
+  resolveStoredHourlyRateOverride,
+} from './workReportHourlyRateOverride';
+
 export type UserBillingProfile = {
   id: string;
   display_name: string | null;
@@ -120,8 +124,8 @@ function resolveHourUnitPrice(
   kind: BillableLineKind,
   rates: Required<PartnerBillingRates>,
 ): number {
-  const override = log.hourly_rate_override != null ? Number(log.hourly_rate_override) : null;
-  if (override != null && override > 0) {
+  const override = resolveStoredHourlyRateOverride(log.hourly_rate_override);
+  if (override != null) {
     if (kind === 'hours_regular') return override;
     if (kind === 'hours_overtime' && log.entry_type === 'overtime') return override;
     if (kind === 'hours_on_call' && log.entry_type === 'on_call') return override;
