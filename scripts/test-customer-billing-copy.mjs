@@ -162,4 +162,29 @@ test('partner billing copy filters to unbilled logs after partner billed timesta
   assert.equal(filtered[0].id, 'new');
 });
 
+test('partner billing copy keeps all logs when partial only from recalculated open amount', () => {
+  const logs = [{ ...baseLog, id: 'only', created_at: '2026-09-03T06:00:00.000Z' }];
+  const { logs: filtered, partialUnbilledOnly } = filterPartnerBillingCopyLogs(logs, {
+    owner_company_id: 'owner',
+    created_by_company_id: 'creator',
+    delegate_company_id: 'delegate',
+    billing: {
+      partner_invoice_status: 'none',
+      partner_invoice_amount: 1685.11,
+      partner_billed_amount: 835.11,
+      partner_billed_at: '2026-09-03T07:02:00.000Z',
+      customer_invoice_status: 'none',
+      customer_invoice_amount: null,
+      customer_billed_at: null,
+    },
+    billable: {
+      partner_total: 1685.11,
+      calculation: { byUser: [{ lines: [] }] },
+    },
+  });
+  assert.equal(partialUnbilledOnly, false);
+  assert.equal(filtered.length, 1);
+  assert.equal(filtered[0].id, 'only');
+});
+
 console.log('All customer billing copy tests passed.');

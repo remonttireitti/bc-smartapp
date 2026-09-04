@@ -748,22 +748,24 @@ export function filterPartnerBillingCopyLogs(
   if (state === 'billed') {
     return { logs: [], partialUnbilledOnly: false };
   }
-  if (state !== 'partial') {
-    return { logs, partialUnbilledOnly: false };
-  }
+
   const partnerBilledAt = row.billing?.partner_billed_at;
-  if (!partnerBilledAt) {
-    return { logs, partialUnbilledOnly: true };
+  const hasNewLogsAfterBilling =
+    !!partnerBilledAt && hasUnbilledPartnerDailyLogsAfterBilling(logs, partnerBilledAt);
+
+  if (state === 'partial' && hasNewLogsAfterBilling && partnerBilledAt) {
+    const billedAtMs = new Date(partnerBilledAt).getTime();
+    if (!Number.isFinite(billedAtMs)) {
+      return { logs, partialUnbilledOnly: true };
+    }
+    const filtered = logs.filter((log) => {
+      const createdMs = new Date(log.created_at).getTime();
+      return Number.isFinite(createdMs) && createdMs > billedAtMs;
+    });
+    return { logs: filtered, partialUnbilledOnly: true };
   }
-  const billedAtMs = new Date(partnerBilledAt).getTime();
-  if (!Number.isFinite(billedAtMs)) {
-    return { logs, partialUnbilledOnly: true };
-  }
-  const filtered = logs.filter((log) => {
-    const createdMs = new Date(log.created_at).getTime();
-    return Number.isFinite(createdMs) && createdMs > billedAtMs;
-  });
-  return { logs: filtered, partialUnbilledOnly: true };
+
+  return { logs, partialUnbilledOnly: false };
 }
 
 export function billToCustomerName(row: BillingListRow): string {
