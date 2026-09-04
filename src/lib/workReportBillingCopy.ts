@@ -1,5 +1,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import {
+  EXPENSE_TYPE_LABELS,
+  formatDate,
+  formatHourEntry,
   normalizeWorkflowStatus,
   sumDailyHours,
   type InvoiceStatus,
@@ -11,11 +14,14 @@ import {
   loadCompanyTracksCustomerInvoicing,
   parseCompanySettings,
 } from './management';
-import { TRIP_VEHICLE_MIN_BILLING_EUR } from './tripKmExpense';
 import {
-  ensureWorkReportPrintShare,
-  workReportPrintShareUrl,
-} from './workReportPrintShares';
+  formatRefrigerantLineLabel,
+  refrigerantBillingReminder,
+  refrigerantCustomerUnitPrice,
+  refrigerantIncludedInCustomerBilling,
+  refrigerantLineTotal,
+} from './refrigerantInventory';
+import { TRIP_VEHICLE_MIN_BILLING_EUR } from './tripKmExpense';
 import {
   breakdownFromBillableCalculation,
   billingPartnerNetTotal,
@@ -581,6 +587,33 @@ function isLikelyAutoTripKmExpenseLine(
   return expense.expense_type === 'km' && /^Ajomatkat\s*\(/i.test(expense.description.trim());
 }
 
+/** Valitsee asiakaslaskutuksen kopiointiin kuuluvat päiväkirjaukset. */
+export function filterCustomerBillingCopyLogs(
+  logs: WorkReportDailyLog[],
+  row: Pick<BillingListRow, 'billing'>,
+): { logs: WorkReportDailyLog[]; partialUnbilledOnly: boolean } {
+  const isPaid = row.billing?.customer_invoice_status === 'paid';
+  if (!isPaid) {
+    return { logs, partialUnbilledOnly: false };
+  }
+  const customerBilledAt = row.billing?.customer_billed_at;
+  if (!customerBilledAt) {
+    return { logs: [], partialUnbilledOnly: false };
+  }
+  if (!hasUnbilledPartnerDailyLogsAfterBilling(logs, customerBilledAt)) {
+    return { logs: [], partialUnbilledOnly: false };
+  }
+  const billedAtMs = new Date(customerBilledAt).getTime();
+  if (!Number.isFinite(billedAtMs)) {
+    return { logs, partialUnbilledOnly: true };
+  }
+  const filtered = logs.filter((log) => {
+    const createdMs = new Date(log.created_at).getTime();
+    return Number.isFinite(createdMs) && createdMs > billedAtMs;
+  });
+  return { logs: filtered, partialUnbilledOnly: true };
+}
+
 /** Valitsee kumppanilaskutuksen kopiointiin kuuluvat päiväkirjaukset. */
 export function filterPartnerBillingCopyLogs(
   logs: WorkReportDailyLog[],
@@ -754,38 +787,114 @@ export function formatWorkReportCustomerBillingCopy(input: {
   customerName: string | null;
   logs: WorkReportDailyLog[];
   showMoney?: boolean;
+  partialUnbilledOnly?: boolean;
 }): string {
-  return buildCompactBillingCopyText({
-    subject: input.customerName ?? input.title,
-    logs: input.logs,
-    travelTarget: 'customer',
-  });
+  const lines: string[] = [`Työraportti: ${input.title}`];
+  if (input.customerName) lines.push(`Asiakas: ${input.customerName}`);
+  if (input.partialUnbilledOnly) {
+    lines.push('', 'Laskuttamatta (uudet päiväkirjaukset):');
+  }
+  lines.push('');
+
+  if (input.logs.length === 0) {
+    if (input.partialUnbilledOnly) {
+      lines.push('Ei uusia laskuttamattomia kirjauksia.');
+    } else {
+      lines.push('Ei päiväkirjauksia.');
+    }
+    return lines.join('\n').trim();
+  }
+
+  const sorted = [...input.logs].sort((a, b) => a.log_date.localeCompare(b.log_date));
+  for (const log of sorted) {
+    lines.push(formatDate(log.log_date));
+    const hours = formatHourEntry(log, { showMoney: input.showMoney ?? false });
+    if (hours !== '—') lines.push(hours);
+    if (log.work_done?.trim()) lines.push(log.work_done.trim());
+    if (log.commission_note?.trim()) lines.push(`Provisio: ${log.commission_note.trim()}`);
+    for (const expense of log.expense_lines ?? []) {
+      if (expense.bill_to_customer === false) continue;
+      const typeLabel = EXPENSE_TYPE_LABELS[expense.expense_type] ?? expense.expense_type;
+      const qty = Number(expense.qty);
+      const qtyLabel = Number.isInteger(qty) ? `${qty} kpl` : `${qty} kpl`;
+      const customerUnit =
+        expense.customer_unit_price != null && Number(expense.customer_unit_price) > 0
+          ? Number(expense.customer_unit_price)
+          : Number(expense.unit_price);
+      const priceMissing =
+        !(expense.customer_unit_price != null && Number(expense.customer_unit_price) > 0)
+        && !(Number(expense.unit_price) > 0);
+      const priceSuffix = input.showMoney
+        ? priceMissing
+          ? ' (hinta ?)'
+          : customerUnit > 0
+            ? ` (${customerUnit.toFixed(2)} €/kpl)`
+            : ''
+        : '';
+      lines.push(`${typeLabel}: ${expense.description} (${qtyLabel})${priceSuffix}`);
+    }
+    for (const refLine of log.refrigerant_lines ?? []) {
+      const qtyLabel = `${Number(refLine.qty_kg).toFixed(3)} kg`;
+      const reminder = refrigerantBillingReminder(refLine);
+      if (refrigerantIncludedInCustomerBilling(refLine)) {
+        const unit = refrigerantCustomerUnitPrice(refLine);
+        const priceMissing = !(unit > 0);
+        const priceSuffix = input.showMoney
+          ? priceMissing
+            ? ' (hinta ?)'
+            : ` (${unit.toFixed(2)} €/kg = ${refrigerantLineTotal(refLine).toFixed(2)} €)`
+          : '';
+        lines.push(`Kylmäaine: ${formatRefrigerantLineLabel(refLine)} (${qtyLabel})${priceSuffix}`);
+      } else if (reminder) {
+        lines.push(`Kylmäaine: ${formatRefrigerantLineLabel(refLine)} (${qtyLabel}) — ${reminder}`);
+      } else {
+        lines.push(`Kylmäaine: ${formatRefrigerantLineLabel(refLine)} (${qtyLabel})`);
+      }
+    }
+    lines.push('');
+  }
+
+  return lines.join('\n').trim();
 }
+
+const CUSTOMER_BILLING_COPY_LOG_SELECT = `
+  id, log_date, entry_type, hours_regular, hours_overtime, hours_on_call,
+  fixed_price_amount, hourly_rate_override, customer_hourly_rate_override, commission_note, work_done, created_at,
+  expense_lines:work_report_daily_expense_lines(
+    id, expense_type, description, qty, unit_price, bill_to_customer, customer_unit_price
+  ),
+  refrigerant_lines:work_report_refrigerant_lines(
+    id, source, supplier_paid_by, unit_price, customer_unit_price, bill_to_customer,
+    refrigerant_type, qty_kg, supplier_name,
+    cylinder:refrigerant_cylinders(serial_number),
+    warehouse_company:companies!work_report_refrigerant_lines_warehouse_company_id_fkey(name),
+    owner_user:profiles!work_report_refrigerant_lines_owner_user_id_fkey(display_name)
+  )
+`;
 
 export async function loadCustomerBillingCopyText(
   supabase: SupabaseClient,
   row: BillingListRow,
-): Promise<string> {
+): Promise<{ text: string; partialUnbilledOnly: boolean }> {
   const { data: logs } = await supabase
     .from('work_report_daily_logs')
-    .select(`
-      id, log_date, entry_type, hours_regular, hours_overtime, hours_on_call,
-      expense_lines:work_report_daily_expense_lines(
-        id, expense_type, description, qty, bill_to_customer
-      ),
-      trip_legs:work_report_daily_trip_legs(
-        id, distance_km, sort_order, bill_to_customer
-      )
-    `)
+    .select(CUSTOMER_BILLING_COPY_LOG_SELECT)
     .eq('work_report_id', row.id)
     .order('log_date', { ascending: true });
 
-  return formatWorkReportCustomerBillingCopy({
-    title: row.title,
-    customerName: row.customers?.name ?? null,
-    logs: (logs as unknown as WorkReportDailyLog[]) ?? [],
-    showMoney: false,
-  });
+  const allLogs = (logs as unknown as WorkReportDailyLog[]) ?? [];
+  const { logs: copyLogs, partialUnbilledOnly } = filterCustomerBillingCopyLogs(allLogs, row);
+
+  return {
+    text: formatWorkReportCustomerBillingCopy({
+      title: row.title,
+      customerName: row.customers?.name ?? null,
+      logs: copyLogs,
+      showMoney: false,
+      partialUnbilledOnly,
+    }),
+    partialUnbilledOnly,
+  };
 }
 
 const PARTNER_BILLING_COPY_LOG_SELECT = `
@@ -805,10 +914,7 @@ export async function loadBillingCopyText(
   mode: BillingModuleMode = 'partner',
 ): Promise<{ text: string; partialUnbilledOnly: boolean }> {
   if (mode === 'customer') {
-    return {
-      text: await loadCustomerBillingCopyText(supabase, row),
-      partialUnbilledOnly: false,
-    };
+    return loadCustomerBillingCopyText(supabase, row);
   }
   const { data: logs } = await supabase
     .from('work_report_daily_logs')
@@ -835,6 +941,7 @@ export async function loadBillingPrintShareLink(
   row: Pick<BillingListRow, 'id'>,
   companyId: string,
 ): Promise<string> {
+  const { ensureWorkReportPrintShare, workReportPrintShareUrl } = await import('./workReportPrintShares');
   const token = await ensureWorkReportPrintShare(row.id, companyId);
   return workReportPrintShareUrl(token);
 }
