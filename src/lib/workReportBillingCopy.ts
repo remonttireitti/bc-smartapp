@@ -4,6 +4,7 @@ import {
   formatDate,
   formatHourEntry,
   normalizeWorkflowStatus,
+  sumDailyHours,
   type InvoiceStatus,
   type WorkReportDailyLog,
   type WorkStatus,
@@ -692,6 +693,119 @@ function formatDetailedWorkReportBillingCopy(input: {
   return lines.join('\n').trim();
 }
 
+const BILLING_COPY_MAX_LENGTH = 100;
+
+function isLikelyAutoTripKmExpenseLine(
+  expense: { expense_type: string; description: string },
+): boolean {
+  return expense.expense_type === 'km' && /^Ajomatkat\s*\(/i.test(expense.description.trim());
+}
+
+function formatCompactBillingDate(isoDate: string): string {
+  const date = new Date(`${isoDate.slice(0, 10)}T12:00:00`);
+  return date.toLocaleDateString('fi-FI', { day: 'numeric', month: 'numeric' });
+}
+
+function formatCompactBillingDates(logDates: string[]): string {
+  const unique = [...new Set(logDates.map((date) => date.slice(0, 10)))].sort();
+  if (unique.length === 0) return '';
+  if (unique.length === 1) return formatCompactBillingDate(unique[0]);
+
+  const consecutive = unique.every((date, index) => {
+    if (index === 0) return true;
+    const previous = new Date(`${unique[index - 1]}T12:00:00`);
+    previous.setDate(previous.getDate() + 1);
+    return previous.toISOString().slice(0, 10) === date;
+  });
+
+  if (consecutive) {
+    return `${formatCompactBillingDate(unique[0])}-${formatCompactBillingDate(unique[unique.length - 1])}`;
+  }
+
+  return unique.map(formatCompactBillingDate).join(', ');
+}
+
+function formatCompactBillingHours(hours: number): string {
+  if (!(hours > 0)) return '';
+  const rounded = Math.round(hours * 100) / 100;
+  const label = Number.isInteger(rounded)
+    ? String(rounded)
+    : rounded.toFixed(2).replace(/0+$/, '').replace(/\.$/, '');
+  return `${label}h`;
+}
+
+function summarizeBillingCopyTravel(
+  logs: WorkReportDailyLog[],
+  target: 'partner' | 'customer',
+): string {
+  let totalKm = 0;
+  let usesMinimum = false;
+  let hasTravel = false;
+
+  for (const log of logs) {
+    const tripLegs = [...(log.trip_legs ?? [])].sort(
+      (a, b) => Number(a.sort_order ?? 0) - Number(b.sort_order ?? 0),
+    );
+    const legKm = tripLegs.reduce((sum, leg) => {
+      if (target === 'customer' && leg.bill_to_customer === false) return sum;
+      return sum + (Number(leg.distance_km) > 0 ? Number(leg.distance_km) : 0);
+    }, 0);
+
+    if (legKm > 0) {
+      hasTravel = true;
+      totalKm += legKm;
+    }
+
+    const hasTripLegs = tripLegs.some((leg) => Number(leg.distance_km) > 0);
+    for (const expense of log.expense_lines ?? []) {
+      const bills =
+        target === 'partner'
+          ? expense.bill_to_partner !== false
+          : expense.bill_to_customer !== false;
+      if (!bills || expense.expense_type !== 'km') continue;
+
+      if (/minimilaskutus/i.test(expense.description)) {
+        usesMinimum = true;
+      }
+
+      if (hasTripLegs && isLikelyAutoTripKmExpenseLine(expense)) continue;
+
+      const qty = Number(expense.qty);
+      if (qty > 0) {
+        hasTravel = true;
+        totalKm += qty;
+      }
+    }
+  }
+
+  if (!hasTravel) return '';
+  if (usesMinimum) return 'min.ajo';
+  const km = Math.round(totalKm * 10) / 10;
+  return `${km}km`;
+}
+
+function buildCompactBillingCopyText(input: {
+  subject: string;
+  logs: WorkReportDailyLog[];
+  travelTarget: 'partner' | 'customer';
+}): string {
+  const dates = formatCompactBillingDates(input.logs.map((log) => log.log_date));
+  const hours = formatCompactBillingHours(sumDailyHours(input.logs));
+  const travel = summarizeBillingCopyTravel(input.logs, input.travelTarget);
+  const suffix = [dates, hours, travel].filter(Boolean).join(' ');
+  const suffixLength = suffix ? suffix.length + 1 : 0;
+  const maxSubjectLength = Math.max(1, BILLING_COPY_MAX_LENGTH - suffixLength);
+
+  let subject = input.subject.trim();
+  if (subject.length > maxSubjectLength) {
+    subject = `${subject.slice(0, Math.max(1, maxSubjectLength - 1)).trimEnd()}…`;
+  }
+
+  const text = [subject, suffix].filter(Boolean).join(' ').trim();
+  if (text.length <= BILLING_COPY_MAX_LENGTH) return text;
+  return `${text.slice(0, BILLING_COPY_MAX_LENGTH - 1).trimEnd()}…`;
+}
+
 export function formatWorkReportBillingCopy(input: {
   title: string;
   partnerName: string;
@@ -699,14 +813,10 @@ export function formatWorkReportBillingCopy(input: {
   logs: WorkReportDailyLog[];
   partialUnbilledOnly?: boolean;
 }): string {
-  return formatDetailedWorkReportBillingCopy({
-    title: input.title,
-    audience: 'partner',
-    partnerName: input.partnerName,
-    customerName: input.customerName,
+  return buildCompactBillingCopyText({
+    subject: input.customerName ?? input.title,
     logs: input.logs,
-    showMoney: false,
-    partialUnbilledOnly: input.partialUnbilledOnly,
+    travelTarget: 'partner',
   });
 }
 
@@ -818,6 +928,17 @@ const BILLING_COPY_LOG_SELECT = `
   )
 `;
 
+const PARTNER_BILLING_COPY_LOG_SELECT = `
+  id, log_date, entry_type, hours_regular, hours_overtime, hours_on_call,
+  created_at,
+  expense_lines:work_report_daily_expense_lines(
+    id, expense_type, description, qty, bill_to_partner
+  ),
+  trip_legs:work_report_daily_trip_legs(
+    id, distance_km, sort_order
+  )
+`;
+
 export async function loadCustomerBillingCopyText(
   supabase: SupabaseClient,
   row: BillingListRow,
@@ -853,7 +974,7 @@ export async function loadBillingCopyText(
   }
   const { data: logs } = await supabase
     .from('work_report_daily_logs')
-    .select(BILLING_COPY_LOG_SELECT)
+    .select(PARTNER_BILLING_COPY_LOG_SELECT)
     .eq('work_report_id', row.id)
     .order('log_date', { ascending: true });
 

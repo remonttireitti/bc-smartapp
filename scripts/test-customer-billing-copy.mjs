@@ -104,29 +104,35 @@ test('customer billing copy partial header when only unbilled entries copied', (
   assert.match(text, /Laskuttamatta \(uudet päiväkirjaukset\):/);
 });
 
-test('partner billing copy is detailed with partner, customer, hours and expenses', () => {
+test('partner billing copy is compact with customer, dates, hours and travel', () => {
   const text = formatWorkReportBillingCopy({
-    title: 'Messukeskus – asennus',
+    title: 'Messukeskus – Messutoimisto jäähdytyskasetin asennus',
     partnerName: 'Lämpökatsastus Oy',
     customerName: 'Messukeskus',
     logs: [
       {
         ...baseLog,
+        log_date: '2026-08-31',
+        hours_regular: 8,
         expense_lines: baseLog.expense_lines.map((line) => ({
           ...line,
           bill_to_partner: true,
         })),
-        commission_note: '5 % provisio',
+      },
+      {
+        ...baseLog,
+        id: 'log-2',
+        log_date: '2026-09-01',
+        hours_regular: 8,
+        expense_lines: [],
       },
     ],
   });
-  assert.match(text, /Työraportti: Messukeskus – asennus/);
-  assert.match(text, /Kumppani: Lämpökatsastus Oy/);
-  assert.match(text, /Asiakas: Messukeskus/);
-  assert.match(text, /3\.00 h/);
-  assert.match(text, /KM-korvaus: Ajomatkat/);
-  assert.match(text, /Provisio: 5 % provisio/);
-  assert.ok(text.length > 100, 'partner copy should not be truncated to 100 chars');
+  assert.match(text, /^Messukeskus/);
+  assert.match(text, /31\.8\.?-1\.9\.?/);
+  assert.match(text, /16h/);
+  assert.match(text, /min\.ajo/);
+  assert.ok(text.length <= 100, `partner copy should be max 100 chars, got ${text.length}: ${text}`);
 });
 
 test('partner billing copy filters to unbilled logs after partner billed timestamp', () => {
