@@ -116,16 +116,18 @@ export default function WorkReportBillingStatusMenu({
         ? partnerMenuLabel(partnerState ?? 'open')
         : customerMenuLabel(customerState ?? 'open');
 
-  async function copyPartnerBillingText() {
+  async function copyBillingText(mode: 'partner' | 'customer') {
     setBusy(true);
     try {
-      const { text, partialUnbilledOnly } = await loadBillingCopyText(supabase, billingRow, 'partner');
+      const { text, partialUnbilledOnly } = await loadBillingCopyText(supabase, billingRow, mode);
       await navigator.clipboard.writeText(text);
       setOpen(false);
       onNotice?.(
         partialUnbilledOnly
           ? 'Laskuttamatta oleva teksti kopioitu leikepöydälle.'
-          : 'Laskutusteksti kopioitu leikepöydälle.',
+          : mode === 'customer'
+            ? 'Asiakaslaskutusteksti kopioitu leikepöydälle.'
+            : 'Laskutusteksti kopioitu leikepöydälle.',
       );
     } catch (error) {
       onError?.(error instanceof Error ? error.message : 'Kopiointi epäonnistui.');
@@ -252,10 +254,10 @@ export default function WorkReportBillingStatusMenu({
                   onClick={(event) => {
                     event.preventDefault();
                     event.stopPropagation();
-                    void copyPartnerBillingText();
+                    void copyBillingText('partner');
                   }}
                 >
-                  Kopioi laskutusteksti
+                  Kopioi kumppanilaskutusteksti
                 </button>
                 <button
                   type="button"
@@ -305,6 +307,19 @@ export default function WorkReportBillingStatusMenu({
             {canManageCustomer && (
               <>
                 <p className="report-status-menu-title">Asiakaslaskutus</p>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="report-status-menu-item"
+                  disabled={busy}
+                  onClick={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    void copyBillingText('customer');
+                  }}
+                >
+                  Kopioi asiakaslaskutusteksti
+                </button>
                 {customerState !== 'billed' && (
                   <button
                     type="button"
