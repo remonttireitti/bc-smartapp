@@ -8,6 +8,7 @@ import {
   type WorkReportDailyLog,
   type WorkStatus,
 } from '../types';
+import type { WorkReportRefrigerantLine } from '../types/inventory';
 import {
   companyBillingModuleEnabled,
   loadCompanyTracksCustomerInvoicing,
@@ -592,11 +593,12 @@ function expenseBillsToAudience(
 }
 
 function refrigerantBillsToAudience(
-  line: { bill_to_partner?: boolean; bill_to_customer?: boolean },
+  line: Pick<WorkReportRefrigerantLine, 'bill_to_customer' | 'source' | 'supplier_paid_by'>,
   audience: BillingCopyAudience,
 ): boolean {
   if (audience === 'partner') {
-    return line.bill_to_partner !== false;
+    if (line.source === 'warehouse' || line.source === 'supplier') return true;
+    return line.bill_to_customer;
   }
   return refrigerantIncludedInCustomerBilling(line);
 }
@@ -808,7 +810,7 @@ const BILLING_COPY_LOG_SELECT = `
     id, expense_type, description, qty, unit_price, bill_to_partner, bill_to_customer, customer_unit_price
   ),
   refrigerant_lines:work_report_refrigerant_lines(
-    id, source, supplier_paid_by, unit_price, customer_unit_price, bill_to_partner, bill_to_customer,
+    id, source, supplier_paid_by, unit_price, customer_unit_price, bill_to_customer,
     refrigerant_type, qty_kg, supplier_name,
     cylinder:refrigerant_cylinders(serial_number),
     warehouse_company:companies!work_report_refrigerant_lines_warehouse_company_id_fkey(name),
