@@ -40,6 +40,7 @@
     "test:maintenance-report-delete-permissions": "npx tsx scripts/test-maintenance-report-delete-permissions.mjs",
     "test:expense-purchase-price": "npx tsx scripts/test-expense-purchase-price.mjs",
     "test:hourly-rate-zero-override": "npx tsx scripts/test-hourly-rate-zero-override.mjs",
+    "test:work-report-customer-print": "npx tsx scripts/test-work-report-customer-print.mjs",
     "test:quote-plus-extras-billing": "npx tsx scripts/test-quote-plus-extras-billing.mjs",
     "sync:equipment-huolto-snapshots": "npx tsx scripts/sync-equipment-huolto-snapshots.mjs",
     "copy:customer-to-partner": "node scripts/copy-customer-to-partner.mjs",
