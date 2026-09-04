@@ -91,7 +91,7 @@ export function KonvektoritSection({
   const body = (
     <>
       <p className="muted huolto-help">
-        Valitse tyyppi ja täytä tunnistetiedot. Mittaukset ja tarkastus avataan popupista. Tuloste näyttää konvektorit ruudukkona kuvineen.
+        Täytä konvektorin tunnistetiedot listaan. Kaikki mittaukset ja tarkastuskohdat syötetään vain Tarkastus-popupissa — niitä ei tarvitse toistaa muualla.
       </p>
       <div className="btn-group konvektori-list-actions">
         {onPrintFaults ? (
@@ -224,8 +224,8 @@ export function KonvektoritSection({
           rowLabel={dialogLabel}
           onClose={() => setDialogRowId(null)}
           onSave={(nextRow) => {
-            patchRow(dialogRowId, nextRow);
-            sortRowsByTunnus();
+            const list = ensureKonvektoriRowsList(rows);
+            commitRows(list.map((row) => (row.id === dialogRowId ? nextRow : row)));
           }}
         />
       )}

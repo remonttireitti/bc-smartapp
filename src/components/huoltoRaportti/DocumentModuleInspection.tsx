@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useCallback, type ReactNode } from 'react';
 import type { ModuleSummaryRow } from '../../lib/huoltoRaportti/moduleSummaryRows';
 import { mergeRaportointiDialogClose } from '../../lib/huoltoRaportti/maintenanceDeviceDraft';
 import type { HuoltoReportData } from '../../lib/huoltoRaportti/types';
@@ -35,29 +35,29 @@ export function DocumentModuleInspection<T extends object>({
   const documentLayout = useMaintenanceDocumentLayout();
   const hideLauncher = documentLayout && !!documentModuleKey;
 
-  const { open, openDialog, closeDialog, draft, setDraft } = useHuoltoInspectionDialog({
+  const commitPatch = useCallback((patch: Partial<T>) => {
+    if (documentModuleKey === 'raportointi') {
+      onChange(
+        mergeRaportointiDialogClose(
+          data as HuoltoReportData,
+          { ...(data as HuoltoReportData), ...(patch as Partial<HuoltoReportData>) },
+        ) as T,
+      );
+      return;
+    }
+    onChange({ ...data, ...patch });
+  }, [data, documentModuleKey, onChange]);
+
+  const { open, openDialog, closeDialog, draft, patchDraft } = useHuoltoInspectionDialog({
     data,
-    onChange: (draftData) => {
-      if (documentModuleKey === 'raportointi') {
-        onChange(
-          mergeRaportointiDialogClose(
-            data as HuoltoReportData,
-            draftData as HuoltoReportData,
-          ) as T,
-        );
-        return;
-      }
-      onChange(draftData);
-    },
+    onPatch: hideLauncher ? commitPatch : undefined,
     canSave,
   });
 
   useRegisterHuoltoModuleDialog(documentModuleKey, openDialog);
 
-  const patchDraft = (patch: Partial<T>) => setDraft((prev) => ({ ...prev, ...patch }));
-
   if (!hideLauncher) {
-    return <>{children(data, (patch) => onChange({ ...data, ...patch }))}</>;
+    return <>{children(data, commitPatch)}</>;
   }
 
   return (

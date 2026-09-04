@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { ReactNode } from 'react';
 
@@ -66,28 +66,56 @@ export function HuoltoInspectionDialogShell({
   );
 }
 
-export function useHuoltoInspectionDialog<T>({
+/** Palauttaa luonnoksen muuttuneet kentät verrattuna avaushetkeen. */
+export function diffInspectionDraftPatch<T extends object>(base: T, draft: T): Partial<T> {
+  const patch = {} as Partial<T>;
+  for (const key of Object.keys(draft) as (keyof T)[]) {
+    if (!Object.is(draft[key], base[key])) {
+      patch[key] = draft[key];
+    }
+  }
+  return patch;
+}
+
+export function useHuoltoInspectionDialog<T extends object>({
   data,
   onChange,
+  onPatch,
   canSave,
 }: {
   data: T;
-  onChange: (data: T) => void;
+  onChange?: (data: T) => void;
+  /** Kun annettu, sulku ja patchDraft synkronoivat vain muuttuneet kentät. */
+  onPatch?: (patch: Partial<T>) => void;
   canSave?: (draft: T) => boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState(data);
+  const baseRef = useRef(data);
 
   const closeDialog = useCallback(() => {
     const saveOk = canSave ? canSave(draft) : true;
-    if (saveOk) onChange(draft);
+    if (saveOk) {
+      if (onPatch) {
+        const patch = diffInspectionDraftPatch(baseRef.current, draft);
+        if (Object.keys(patch).length > 0) onPatch(patch);
+      } else {
+        onChange?.(draft);
+      }
+    }
     setOpen(false);
-  }, [canSave, draft, onChange]);
+  }, [canSave, draft, onChange, onPatch]);
 
   const openDialog = useCallback(() => {
+    baseRef.current = data;
     setDraft(data);
     setOpen(true);
   }, [data]);
+
+  const patchDraft = useCallback((patch: Partial<T>) => {
+    setDraft((prev) => ({ ...prev, ...patch }));
+    onPatch?.(patch);
+  }, [onPatch]);
 
   return {
     open,
@@ -96,5 +124,6 @@ export function useHuoltoInspectionDialog<T>({
     closeDialog,
     draft,
     setDraft,
+    patchDraft,
   };
 }
