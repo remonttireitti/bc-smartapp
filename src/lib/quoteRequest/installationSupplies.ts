@@ -31,16 +31,26 @@ function roundMoney(value: number): number {
   return Math.round(value * 100) / 100;
 }
 
+/** Myyntihinta per kpl hankinnasta ja kate-%:stä (markup). */
 export function computeInstallationSupplySellPrice(
   purchasePrice: number,
   marginPercent: number,
-  quantity = 1,
 ): number {
   const purchase = Number(purchasePrice) || 0;
-  const qty = Number(quantity) || 0;
-  if (purchase <= 0 || qty <= 0) return 0;
+  if (purchase <= 0) return 0;
   const margin = Number(marginPercent) || 0;
-  return roundMoney(purchase * qty * (1 + margin / 100));
+  return roundMoney(purchase * (1 + margin / 100));
+}
+
+/** Kate-% takaisinlaskenta kun myyntihinta per kpl muuttuu. */
+export function computeInstallationSupplyMarginPercent(
+  purchasePrice: number,
+  sellPrice: number,
+): number {
+  const purchase = Number(purchasePrice) || 0;
+  const sell = Number(sellPrice) || 0;
+  if (purchase <= 0 || sell <= 0) return 0;
+  return roundMoney(((sell / purchase) - 1) * 100);
 }
 
 export function installationSuppliesSellNet(items: QuoteMaterial[] | undefined): number {
@@ -148,14 +158,27 @@ export function syncInstallationSupplyRow(
   patch: Partial<QuoteMaterial>,
 ): QuoteMaterial {
   const next = { ...row, ...patch };
-  if ('purchasePrice' in patch || 'marginPercent' in patch || 'quantity' in patch) {
-    const sellPrice = computeInstallationSupplySellPrice(
-      next.purchasePrice,
-      next.marginPercent,
-      next.quantity,
-    );
-    return { ...next, sellPrice };
+
+  if ('sellPrice' in patch && !('purchasePrice' in patch) && !('marginPercent' in patch)) {
+    return {
+      ...next,
+      marginPercent: computeInstallationSupplyMarginPercent(
+        next.purchasePrice,
+        next.sellPrice,
+      ),
+    };
   }
+
+  if ('purchasePrice' in patch || 'marginPercent' in patch) {
+    return {
+      ...next,
+      sellPrice: computeInstallationSupplySellPrice(
+        next.purchasePrice,
+        next.marginPercent,
+      ),
+    };
+  }
+
   return next;
 }
 
