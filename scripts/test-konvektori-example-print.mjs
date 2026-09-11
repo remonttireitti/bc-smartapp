@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import {
   buildKonvektoriExampleReportData,
   buildRandomKonvektoriExampleDate,
+  KONVEKTORI_EXAMPLE_ROW_COUNT,
 } from '../src/lib/huoltoRaportti/konvektoriExamplePrint.ts';
 import { filterFaultyKonvektoriRows } from '../src/lib/huoltoRaportti/konvektoriTarkastus.ts';
 
@@ -12,10 +13,12 @@ const data = buildKonvektoriExampleReportData({ huoltoPaivamaara: '2026-03-15' }
 assert.equal(data.asiakas, 'Esimerkki asiakas Oy');
 assert.equal(data.huoltoSuorittajaNimi, 'Esimerkki tekijä');
 assert.equal(data.laiteTyyppi, 'konvektorit');
-assert.equal(data.konvektoriRows.length, 6);
+assert.equal(data.konvektoriRows.length, KONVEKTORI_EXAMPLE_ROW_COUNT);
+assert.equal(data.konvektoriRows[0]?.tunnus, 'K-101');
+assert.equal(data.konvektoriRows[data.konvektoriRows.length - 1]?.tunnus, `K-${100 + KONVEKTORI_EXAMPLE_ROW_COUNT}`);
 
 const faulty = filterFaultyKonvektoriRows(data.konvektoriRows);
-assert.equal(faulty.length, 3);
+assert.equal(faulty.length, 7);
 assert.ok(faulty.every((row) => row.huomioTyyppi === 'vika' || row.venttiiliTarkastettu === false || row.puhallinTarkastettu === false || row.kennoPuhdistettu === false || row.kondenssiTarkastettu === false || row.ohjausToimii === false));
 
 console.log('konvektori-example-print: ok');

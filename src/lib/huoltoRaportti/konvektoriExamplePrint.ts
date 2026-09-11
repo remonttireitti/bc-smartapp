@@ -2,8 +2,11 @@ import {
   applyDeviceTypeDefaults,
   createEmptyHuoltoReportData,
 } from './defaults';
+import type { KonvektoriAsennustyyppi } from './konvektoriTypes';
 import type { HuoltoReportData, KonvektoriRowData } from './types';
 import { generateId } from './utils';
+
+export const KONVEKTORI_EXAMPLE_ROW_COUNT = 35;
 
 /** Satunnainen esimerkkipäivä viimeisen vuoden ajalta (ISO yyyy-mm-dd). */
 export function buildRandomKonvektoriExampleDate(reference = new Date()): string {
@@ -47,144 +50,138 @@ function exampleKonvektoriRow(
   };
 }
 
+const EXAMPLE_KONVEKTORI_TYPES: KonvektoriAsennustyyppi[] = ['seina', 'katto', 'lattia', 'kanavoitava'];
+
+const EXAMPLE_ROOMS = [
+  'Neuvottelu 1',
+  'Open office',
+  'Aula',
+  'IT-tila',
+  'Neuvottelu 2',
+  'Kokous',
+  'Toimisto A',
+  'Toimisto B',
+  'Käytävä 2. krs',
+  'Käytävä 3. krs',
+  'Tauhuone',
+  'Vastaanotto',
+  'Arkisto',
+  'Neuvottelu 3',
+  'Työhuone',
+];
+
+const EXAMPLE_BRANDS = [
+  { valmistaja: 'Swegon', malli: 'Parma CL', prefix: 'SW' },
+  { valmistaja: 'Lindab', malli: 'Ultra BT', prefix: 'LB' },
+  { valmistaja: 'Halton', malli: 'FLO', prefix: 'HT' },
+  { valmistaja: 'Systemair', malli: 'DV', prefix: 'SA' },
+];
+
+const FAULT_SCENARIOS: Array<Partial<KonvektoriRowData>> = [
+  {
+    kennoPuhdistettu: false,
+    venttiiliTarkastettu: false,
+    huomio: '**Vika:** venttiili ei reagoi ohjaukseen. Kenno likainen — puhdistus tilattu.',
+    huomioTyyppi: 'vika',
+  },
+  {
+    puhallinTarkastettu: false,
+    huomio: 'Puhallimessa sivuääni — tarkistus jatketaan.',
+    huomioTyyppi: 'vika',
+  },
+  {
+    kondenssiTarkastettu: false,
+    ohjausToimii: false,
+    huomio: 'Kondenssiveden poisto ei toimi luotettavasti. Ohjaus ei vastaa asetusta.',
+    huomioTyyppi: 'vika',
+  },
+  {
+    suodatinPuhdistettu: false,
+    huomio: 'Suodatin vaihdettava — tilaus tehty.',
+    huomioTyyppi: 'vika',
+  },
+  {
+    venttiiliTarkastettu: false,
+    ohjausToimii: false,
+    huomio: 'Venttiilin toimilaite jumissa.',
+    huomioTyyppi: 'vika',
+  },
+  {
+    kennoPuhdistettu: false,
+    puhallinTarkastettu: false,
+    huomio: 'Kenno ja puhallin vaativat huoltoa.',
+    huomioTyyppi: 'vika',
+  },
+  {
+    kondenssiTarkastettu: false,
+    huomio: 'Kondenssiveden poisto tukossa.',
+    huomioTyyppi: 'vika',
+  },
+];
+
+function formatExampleDecimal(base: number, index: number, spread = 0.08): string {
+  const value = base + ((index % 7) - 3) * spread;
+  return value.toFixed(1).replace('.', ',');
+}
+
+function buildExampleKonvektoriRows(count = KONVEKTORI_EXAMPLE_ROW_COUNT): KonvektoriRowData[] {
+  return Array.from({ length: count }, (_, index) => {
+    const number = index + 101;
+    const tyyppi = EXAMPLE_KONVEKTORI_TYPES[index % EXAMPLE_KONVEKTORI_TYPES.length];
+    const brand = EXAMPLE_BRANDS[index % EXAMPLE_BRANDS.length];
+    const huone = `${EXAMPLE_ROOMS[index % EXAMPLE_ROOMS.length]}${index >= EXAMPLE_ROOMS.length ? ` ${Math.floor(index / EXAMPLE_ROOMS.length) + 1}` : ''}`;
+    const isFaulty = index % 5 === 2;
+    const fault = isFaulty ? FAULT_SCENARIOS[index % FAULT_SCENARIOS.length] : null;
+
+    const baseHuoneLampo = 22 + (index % 4) * 0.4;
+    const baseTulo = 14 - (index % 3) * 0.3;
+    const baseMeno = 17.5 + (index % 5) * 0.35;
+    const baseVirtaus = 0.4 + (index % 6) * 0.03;
+
+    return exampleKonvektoriRow({
+      tyyppi,
+      tunnus: `K-${number}`,
+      huone,
+      valmistaja: brand.valmistaja,
+      malli: brand.malli,
+      sarjanumero: `${brand.prefix}-${44000 + number}`,
+      huoneLampotila: formatExampleDecimal(baseHuoneLampo, index, 0.15),
+      huoneKosteusRh: String(38 + (index % 8)),
+      jaahdytysNeste: 'vesi',
+      virtausLs: formatExampleDecimal(baseVirtaus, index, 0.02),
+      tuloLampotila: formatExampleDecimal(baseTulo, index, 0.12),
+      menoLampotila: formatExampleDecimal(baseMeno, index, 0.12),
+      ilmanVirtausM3h: tyyppi === 'katto' || tyyppi === 'kanavoitava' ? String(360 + (index % 9) * 25) : '',
+      puhallusLampotila:
+        tyyppi === 'katto' || tyyppi === 'kanavoitava'
+          ? formatExampleDecimal(16.5 + (index % 4) * 0.2, index, 0.1)
+          : '',
+      suodatinPuhdistettu: fault?.suodatinPuhdistettu ?? true,
+      kennoPuhdistettu: fault?.kennoPuhdistettu ?? true,
+      kondenssiTarkastettu: fault?.kondenssiTarkastettu ?? true,
+      puhallinTarkastettu: fault?.puhallinTarkastettu ?? true,
+      venttiiliTarkastettu: fault?.venttiiliTarkastettu ?? true,
+      ohjausToimii: fault?.ohjausToimii ?? true,
+      huomio:
+        fault?.huomio
+        ?? (index % 11 === 0
+          ? 'Hieman alhaisempi ilmavirtaus — seuranta seuraavalla huollolla.'
+          : index === 0
+            ? 'Toimii normaalisti.'
+            : ''),
+      huomioTyyppi: fault?.huomioTyyppi ?? 'kommentti',
+    });
+  });
+}
+
 /** Esimerkkidata konvektoriverkoston huoltopöytäkirjan tulosteeseen. */
 export function buildKonvektoriExampleReportData(options?: {
   huoltoPaivamaara?: string;
+  rowCount?: number;
 }): HuoltoReportData {
   const base = createEmptyHuoltoReportData();
   const huoltoPaivamaara = options?.huoltoPaivamaara ?? buildRandomKonvektoriExampleDate();
-
-  const konvektoriRows: KonvektoriRowData[] = [
-    exampleKonvektoriRow({
-      tyyppi: 'seina',
-      tunnus: 'K-101',
-      huone: 'Neuvottelu 1',
-      valmistaja: 'Swegon',
-      malli: 'Parma CL',
-      sarjanumero: 'SW-44102',
-      huoneLampotila: '22,1',
-      huoneKosteusRh: '42',
-      jaahdytysNeste: 'vesi',
-      virtausLs: '0,42',
-      tuloLampotila: '14,2',
-      menoLampotila: '17,8',
-      suodatinPuhdistettu: true,
-      kennoPuhdistettu: true,
-      kondenssiTarkastettu: true,
-      puhallinTarkastettu: true,
-      venttiiliTarkastettu: true,
-      ohjausToimii: true,
-      huomio: 'Toimii normaalisti.',
-      huomioTyyppi: 'kommentti',
-    }),
-    exampleKonvektoriRow({
-      tyyppi: 'katto',
-      tunnus: 'K-102',
-      huone: 'Open office',
-      valmistaja: 'Lindab',
-      malli: 'Ultra BT',
-      sarjanumero: 'LB-90211',
-      huoneLampotila: '23,4',
-      huoneKosteusRh: '39',
-      jaahdytysNeste: 'vesi',
-      virtausLs: '0,55',
-      tuloLampotila: '13,8',
-      menoLampotila: '18,1',
-      ilmanVirtausM3h: '420',
-      puhallusLampotila: '16,9',
-      suodatinPuhdistettu: true,
-      kennoPuhdistettu: true,
-      kondenssiTarkastettu: true,
-      puhallinTarkastettu: true,
-      venttiiliTarkastettu: true,
-      ohjausToimii: true,
-      huomio: 'Hieman alhaisempi ilmavirtaus — seuranta seuraavalla huollolla.',
-      huomioTyyppi: 'kommentti',
-    }),
-    exampleKonvektoriRow({
-      tyyppi: 'lattia',
-      tunnus: 'K-103',
-      huone: 'Aula',
-      valmistaja: 'Halton',
-      malli: 'FLO',
-      sarjanumero: 'HT-33017',
-      huoneLampotila: '24,0',
-      jaahdytysNeste: 'vesi',
-      virtausLs: '0,38',
-      tuloLampotila: '15,1',
-      menoLampotila: '19,4',
-      suodatinPuhdistettu: true,
-      kennoPuhdistettu: false,
-      kondenssiTarkastettu: true,
-      puhallinTarkastettu: true,
-      venttiiliTarkastettu: false,
-      ohjausToimii: true,
-      huomio: '**Vika:** venttiili ei reagoi ohjaukseen. Kenno likainen — puhdistus tilattu.',
-      huomioTyyppi: 'vika',
-    }),
-    exampleKonvektoriRow({
-      tyyppi: 'kanavoitava',
-      tunnus: 'K-104',
-      huone: 'IT-tila',
-      valmistaja: 'Systemair',
-      malli: 'DV',
-      sarjanumero: 'SA-77104',
-      huoneLampotila: '21,8',
-      huoneKosteusRh: '35',
-      jaahdytysNeste: 'vesi',
-      virtausLs: '0,61',
-      tuloLampotila: '12,9',
-      menoLampotila: '17,2',
-      suodatinPuhdistettu: true,
-      kennoPuhdistettu: true,
-      kondenssiTarkastettu: true,
-      puhallinTarkastettu: false,
-      venttiiliTarkastettu: true,
-      ohjausToimii: true,
-      huomio: 'Puhallimessa sivuääni — tarkistus jatketaan.',
-      huomioTyyppi: 'vika',
-    }),
-    exampleKonvektoriRow({
-      tyyppi: 'seina',
-      tunnus: 'K-105',
-      huone: 'Neuvottelu 2',
-      valmistaja: 'Swegon',
-      malli: 'Parma CL',
-      sarjanumero: 'SW-44105',
-      huoneLampotila: '22,6',
-      jaahdytysNeste: 'vesi',
-      virtausLs: '0,47',
-      tuloLampotila: '14,0',
-      menoLampotila: '17,5',
-      suodatinPuhdistettu: true,
-      kennoPuhdistettu: true,
-      kondenssiTarkastettu: true,
-      puhallinTarkastettu: true,
-      venttiiliTarkastettu: true,
-      ohjausToimii: true,
-    }),
-    exampleKonvektoriRow({
-      tyyppi: 'katto',
-      tunnus: 'K-106',
-      huone: 'Kokous',
-      valmistaja: 'Lindab',
-      malli: 'Ultra BT',
-      sarjanumero: 'LB-90216',
-      huoneLampotila: '23,1',
-      jaahdytysNeste: 'vesi',
-      virtausLs: '0,51',
-      tuloLampotila: '13,5',
-      menoLampotila: '18,0',
-      suodatinPuhdistettu: true,
-      kennoPuhdistettu: true,
-      kondenssiTarkastettu: false,
-      puhallinTarkastettu: true,
-      venttiiliTarkastettu: true,
-      ohjausToimii: false,
-      huomio: 'Kondenssiveden poisto ei toimi luotettavasti. Ohjaus ei vastaa asetusta.',
-      huomioTyyppi: 'vika',
-    }),
-  ];
+  const konvektoriRows = buildExampleKonvektoriRows(options?.rowCount ?? KONVEKTORI_EXAMPLE_ROW_COUNT);
 
   const withBasics: HuoltoReportData = {
     ...base,
