@@ -9137,6 +9137,20 @@ button.tile.quote-document-tile span {
   gap: .75rem;
 }
 
+.billing-partner-toggles {
+  flex-direction: column;
+  align-items: stretch;
+  gap: .55rem;
+}
+
+.billing-partner-toggles-label {
+  margin: 0;
+  font-size: .82rem;
+  font-weight: 600;
+  letter-spacing: .02em;
+  text-transform: uppercase;
+}
+
 .billing-view-tabs {
   margin: 0;
 }

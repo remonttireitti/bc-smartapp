@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
 import AppLayout from '../components/AppLayout';
@@ -53,7 +53,7 @@ import {
 import { ensurePartnerBillableCalculated } from '../lib/workReportPartnerBillingPersist';
 import {
   collectPartnerBillingDeductions,
-  filterPartnerDeductionsByPartnerId,
+  filterPartnerDeductionsExcludingPartners,
   filterPartnerDeductionsForSummary,
   loadPartnerBillingDeductionsFromSource,
   mergePartnerBillingDeductions,
@@ -147,7 +147,7 @@ export default function BillingPage({ session }: Props) {
   const [billingMode, setBillingMode] = useState<BillingModuleMode>(initialMode);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('unbilled');
   const [search, setSearch] = useState('');
-  const [partnerFilter, setPartnerFilter] = useState('');
+  const [disabledPartnerIds, setDisabledPartnerIds] = useState<Set<string>>(() => new Set());
   const [customerFilter, setCustomerFilter] = useState('');
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
   const [rows, setRows] = useState<BillingListRow[]>([]);
@@ -430,8 +430,28 @@ export default function BillingPage({ session }: Props) {
     }
   }
 
+  const isPartnerBillingRowExcluded = useCallback(
+    (row: BillingListRow): boolean => {
+      if (billingMode === 'customer' || disabledPartnerIds.size === 0) return false;
+      const mode = effectiveBillingRowMode(billingMode, row);
+      if (mode !== 'partner') return false;
+      return disabledPartnerIds.has(billToPartnerId(row, profile?.company_id));
+    },
+    [billingMode, disabledPartnerIds, profile?.company_id],
+  );
+
+  function togglePartnerBilling(partnerId: string) {
+    setDisabledPartnerIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(partnerId)) next.delete(partnerId);
+      else next.add(partnerId);
+      return next;
+    });
+    setSelectedDay(null);
+  }
+
   const partners = useMemo(() => {
-    if (billingMode !== 'partner') return [];
+    if (billingMode === 'customer') return [];
     const map = new Map<string, { name: string; count: number }>();
     for (const option of partnerOptions) {
       map.set(option.id, { name: option.name, count: 0 });
@@ -502,14 +522,14 @@ export default function BillingPage({ session }: Props) {
   }, [rows, profile?.company_id, billingMode, sourcePartnerDeductions, sourcePartnerDeductionsLoaded]);
 
   const partnerDeductions = useMemo(() => {
-    return filterPartnerDeductionsByPartnerId(mergedPartnerDeductions, partnerFilter || null);
-  }, [mergedPartnerDeductions, partnerFilter]);
+    return filterPartnerDeductionsExcludingPartners(mergedPartnerDeductions, disabledPartnerIds);
+  }, [mergedPartnerDeductions, disabledPartnerIds]);
 
   const filteredRows = useMemo(() => {
     const query = search.trim().toLowerCase();
     return rows.filter((row) => {
       const mode = effectiveBillingRowMode(billingMode, row);
-      if (billingMode === 'partner' && partnerFilter && billToPartnerId(row, profile?.company_id) !== partnerFilter) return false;
+      if (isPartnerBillingRowExcluded(row)) return false;
       if (billingMode === 'customer' && customerFilter && billToCustomerKey(row) !== customerFilter) {
         return false;
       }
@@ -521,7 +541,7 @@ export default function BillingPage({ session }: Props) {
       if (query && !billingRowSearchText(row, profile?.company_id).includes(query)) return false;
       return true;
     });
-  }, [rows, partnerFilter, customerFilter, statusFilter, selectedDay, billingMode, profile?.company_id, search]);
+  }, [rows, isPartnerBillingRowExcluded, customerFilter, statusFilter, selectedDay, billingMode, profile?.company_id, search]);
 
   const summary = useMemo(() => {
     let openTotal = 0;
@@ -534,9 +554,7 @@ export default function BillingPage({ session }: Props) {
 
     for (const row of rows) {
       const mode = effectiveBillingRowMode(billingMode, row);
-      if (billingMode === 'partner' && partnerFilter && billToPartnerId(row, profile?.company_id) !== partnerFilter) {
-        continue;
-      }
+      if (isPartnerBillingRowExcluded(row)) continue;
       if (billingMode === 'customer' && customerFilter && billToCustomerKey(row) !== customerFilter) {
         continue;
       }
@@ -571,7 +589,7 @@ export default function BillingPage({ session }: Props) {
       billingMode === 'customer'
         ? []
         : filterPartnerDeductionsForSummary(mergedPartnerDeductions, {
-            partnerFilterId: partnerFilter || null,
+            disabledPartnerIds,
             period: summaryPeriod,
             anchor: periodAnchor,
             pendingOnly: true,
@@ -593,12 +611,13 @@ export default function BillingPage({ session }: Props) {
     };
   }, [
     rows,
-    partnerFilter,
+    isPartnerBillingRowExcluded,
     customerFilter,
     billingMode,
     summaryPeriod,
     profile?.company_id,
     mergedPartnerDeductions,
+    disabledPartnerIds,
   ]);
 
   const weekDays = useMemo(
@@ -610,7 +629,7 @@ export default function BillingPage({ session }: Props) {
     const map = new Map<string, { open: number; billed: number }>();
     for (const row of rows) {
       const mode = effectiveBillingRowMode(billingMode, row);
-      if (billingMode === 'partner' && partnerFilter && billToPartnerId(row, profile?.company_id) !== partnerFilter) continue;
+      if (isPartnerBillingRowExcluded(row)) continue;
       if (billingMode === 'customer' && customerFilter && billToCustomerKey(row) !== customerFilter) {
         continue;
       }
@@ -626,7 +645,7 @@ export default function BillingPage({ session }: Props) {
       map.set(ymd, prev);
     }
     return map;
-  }, [rows, partnerFilter, customerFilter, billingMode]);
+  }, [rows, isPartnerBillingRowExcluded, customerFilter, billingMode, profile?.company_id]);
 
   const customRange = useMemo(() => {
     if (calendarPeriod !== 'custom' || !customFrom || !customTo) return null;
@@ -969,7 +988,7 @@ export default function BillingPage({ session }: Props) {
                   className={totalModeActive ? 'billing-pill active' : 'billing-pill'}
                   onClick={() => {
                     setBillingMode('total');
-                    setPartnerFilter('');
+                    setDisabledPartnerIds(new Set());
                     setCustomerFilter('');
                     setSelectedDay(null);
                   }}
@@ -982,7 +1001,7 @@ export default function BillingPage({ session }: Props) {
                 className={customerModeActive ? 'billing-pill active' : 'billing-pill'}
                 onClick={() => {
                   setBillingMode('customer');
-                  setPartnerFilter('');
+                  setDisabledPartnerIds(new Set());
                   setCustomerFilter('');
                   setSelectedDay(null);
                 }}
@@ -995,7 +1014,7 @@ export default function BillingPage({ session }: Props) {
                   className={partnerModeActive ? 'billing-pill active' : 'billing-pill'}
                   onClick={() => {
                     setBillingMode('partner');
-                    setPartnerFilter('');
+                    setDisabledPartnerIds(new Set());
                     setCustomerFilter('');
                     setSelectedDay(null);
                   }}
@@ -1139,33 +1158,50 @@ export default function BillingPage({ session }: Props) {
                   Kalenteri
                 </button>
               </div>
-              <label>
-                {billingMode === 'customer' ? 'Asiakas' : 'Kumppani'}
-                <select
-                  value={billingMode === 'customer' ? customerFilter : partnerFilter}
-                  onChange={(event) => {
-                    if (billingMode === 'customer') {
+              {billingMode === 'customer' ? (
+                <label>
+                  Asiakas
+                  <select
+                    value={customerFilter}
+                    onChange={(event) => {
                       setCustomerFilter(event.target.value);
-                    } else {
-                      setPartnerFilter(event.target.value);
-                    }
-                    setSelectedDay(null);
-                  }}
-                >
-                  <option value="">
-                    {billingMode === 'customer'
-                      ? `Kaikki asiakkaat (${rows.length})`
-                      : `Kaikki kumppanit (${rows.length})`}
-                  </option>
-                  {(billingMode === 'customer' ? customers : partners).map((entry) => (
-                    <option key={entry.id} value={entry.id}>
-                      {entry.name} ({entry.count})
-                    </option>
-                  ))}
-                </select>
-              </label>
+                      setSelectedDay(null);
+                    }}
+                  >
+                    <option value="">Kaikki asiakkaat ({rows.length})</option>
+                    {customers.map((entry) => (
+                      <option key={entry.id} value={entry.id}>
+                        {entry.name} ({entry.count})
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : null}
             </div>
           </div>
+
+          {(billingMode === 'total' || billingMode === 'partner') && partners.length > 0 ? (
+            <div className="billing-toolbar panel billing-partner-toggles">
+              <p className="billing-partner-toggles-label muted">Kumppanit</p>
+              <div className="billing-filter-pills">
+                {partners.map((partner) => {
+                  const enabled = !disabledPartnerIds.has(partner.id);
+                  return (
+                    <button
+                      key={partner.id}
+                      type="button"
+                      className={enabled ? 'billing-pill active' : 'billing-pill'}
+                      aria-pressed={enabled}
+                      title={enabled ? 'Mukana laskutuksessa' : 'Ei mukana laskutuksessa'}
+                      onClick={() => togglePartnerBilling(partner.id)}
+                    >
+                      {partner.name} ({partner.count})
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ) : null}
 
           {error && <p className="error">{error}</p>}
           {message && <p className="billing-toast">{message}</p>}

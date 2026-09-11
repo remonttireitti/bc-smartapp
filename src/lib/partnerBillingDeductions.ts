@@ -396,6 +396,15 @@ export function filterPartnerDeductionsByPartnerId(
   return deductions.filter((row) => row.deductionPartnerId === partnerFilterId);
 }
 
+/** Poistaa pois kytketyt kumppanit vähennyksistä. */
+export function filterPartnerDeductionsExcludingPartners(
+  deductions: PartnerBillingDeductionRow[],
+  disabledPartnerIds: ReadonlySet<string>,
+): PartnerBillingDeductionRow[] {
+  if (disabledPartnerIds.size === 0) return deductions;
+  return deductions.filter((row) => !disabledPartnerIds.has(row.deductionPartnerId));
+}
+
 export type PartnerBillingSummaryPeriod = 'this_month' | 'this_year' | 'all';
 
 function isPartnerDeductionSummaryPeriod(
@@ -412,6 +421,7 @@ export function filterPartnerDeductionsForSummary(
   deductions: PartnerBillingDeductionRow[],
   options: {
     partnerFilterId?: string | null;
+    disabledPartnerIds?: ReadonlySet<string>;
     period: PartnerBillingSummaryPeriod;
     anchor?: Date;
     pendingOnly?: boolean;
@@ -419,8 +429,10 @@ export function filterPartnerDeductionsForSummary(
 ): PartnerBillingDeductionRow[] {
   const anchor = options.anchor ?? new Date();
   const pendingOnly = options.pendingOnly !== false;
+  const disabled = options.disabledPartnerIds;
   return deductions.filter((row) => {
     if (pendingOnly && row.charged) return false;
+    if (disabled?.size && disabled.has(row.deductionPartnerId)) return false;
     if (options.partnerFilterId && row.deductionPartnerId !== options.partnerFilterId) return false;
     if (!row.logDate) return options.period === 'all';
     const logDate = new Date(`${row.logDate}T12:00:00`);
