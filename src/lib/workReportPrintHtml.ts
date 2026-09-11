@@ -53,6 +53,8 @@ import {
 const LINE_KIND_LABELS: Record<string, string> = {
   hours_regular: 'Tunnit',
   hours_overtime: 'Ylitötunnit',
+  hours_overtime_50: 'Ylityö 50 %',
+  hours_overtime_100: 'Ylityö 100 %',
   hours_on_call: 'Päivystys',
   fixed_price: 'Urakka',
   commission: 'Provisio',
