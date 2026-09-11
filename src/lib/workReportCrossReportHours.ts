@@ -1,5 +1,6 @@
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type { PostgrestError, SupabaseClient } from '@supabase/supabase-js';
 import type { WorkReportDailyLog } from '../types';
+import { isMissingHoursAgreedRegularColumn } from './workReportDailyLogSelect';
 import {
   allocateDailyOvertimeBilling,
   buildDayHourSegment,
@@ -9,12 +10,16 @@ import {
 } from './workReportDailyOvertime';
 import {
   hourBillingModeForSide,
+  isMissingHourBillingColumn,
   parseHourBillingSettings,
   type HourBillingMode,
 } from './workReportHourBilling';
 
-const CROSS_REPORT_LOG_SELECT =
-  'id, work_report_id, log_date, log_start_time, entry_type, hours_regular, hours_overtime, hours_on_call, hours_agreed_regular, created_by, created_at';
+const CROSS_REPORT_LOG_SELECT_BASE =
+  'id, work_report_id, log_date, log_start_time, entry_type, hours_regular, hours_overtime, hours_on_call, created_by, created_at';
+
+const CROSS_REPORT_LOG_SELECT_WITH_AGREED =
+  `${CROSS_REPORT_LOG_SELECT_BASE}, hours_agreed_regular`;
 
 export async function loadCrossReportDaySegments(
   supabase: SupabaseClient,
@@ -28,11 +33,25 @@ export async function loadCrossReportDaySegments(
   const dates = [...new Set(input.logs.map((log) => log.log_date.slice(0, 10)))];
   if (performerIds.length === 0 || dates.length === 0) return [];
 
-  const { data: rows, error } = await supabase
+  let rows: WorkReportDailyLog[] | null = null;
+  let error: PostgrestError | null = null;
+  const primary = await supabase
     .from('work_report_daily_logs')
-    .select(CROSS_REPORT_LOG_SELECT)
+    .select(CROSS_REPORT_LOG_SELECT_WITH_AGREED)
     .in('created_by', performerIds)
     .in('log_date', dates);
+  rows = (primary.data as WorkReportDailyLog[] | null) ?? null;
+  error = primary.error;
+
+  if (isMissingHoursAgreedRegularColumn(error)) {
+    const legacy = await supabase
+      .from('work_report_daily_logs')
+      .select(CROSS_REPORT_LOG_SELECT_BASE)
+      .in('created_by', performerIds)
+      .in('log_date', dates);
+    rows = (legacy.data as WorkReportDailyLog[] | null) ?? null;
+    error = legacy.error;
+  }
 
   if (error || !rows?.length) {
     return buildSegmentsFromLogs(input.logs, input.side, new Map());
@@ -51,10 +70,14 @@ async function loadReportHourModes(
   const modes = new Map<string, { partner: HourBillingMode; customer: HourBillingMode }>();
   if (reportIds.length === 0) return modes;
 
-  const { data } = await supabase
+  let { data, error } = await supabase
     .from('work_report_billable')
     .select('work_report_id, hour_billing')
     .in('work_report_id', reportIds);
+
+  if (isMissingHourBillingColumn(error)) {
+    return modes;
+  }
 
   for (const row of data ?? []) {
     const settings = parseHourBillingSettings((row as { hour_billing?: unknown }).hour_billing);

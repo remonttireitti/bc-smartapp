@@ -40,6 +40,8 @@ import WorkReportBillingBreakdown from '../components/WorkReportBillingBreakdown
 import WorkReportBillingQuotePanel from '../components/WorkReportBillingQuotePanel';
 import { WorkReportHourBillingModePanel } from '../components/WorkReportHourBillingModeFields';
 import {
+  fetchBillableRowWithHourBillingFallback,
+  isMissingHourBillingColumn,
   parseHourBillingSettings,
   type HourBillingSettings,
 } from '../lib/workReportHourBilling';
@@ -458,7 +460,7 @@ function expenseRowSectionTitle(
   return parts.join(' · ');
 }
 
-function buildLogPayload(form: DailyLogFormState) {
+function buildLogPayload(form: DailyLogFormState, options?: { includeAgreedRegular?: boolean }) {
   const { showRegular, showOvertime, showOnCall, showFixed } = hourFieldsForEntryType(form.entry_type);
   const hourlyOverride = parseOptionalHourlyRateOverride(form.hourly_rate_override);
   const customerHourlyOverride = parseOptionalHourlyRateOverride(form.customer_hourly_rate_override);
@@ -499,7 +501,9 @@ function buildLogPayload(form: DailyLogFormState) {
     commission_amount: Number(form.commission_amount || 0),
     commission_note: form.commission_note.trim() || null,
     work_done: form.work_done.trim(),
-    hours_agreed_regular: Number(form.hours_agreed_regular || 0),
+    ...(options?.includeAgreedRegular
+      ? { hours_agreed_regular: Number(form.hours_agreed_regular || 0) }
+      : {}),
     customer_extra_billing: serializeDailyLogCustomerExtraBilling(dailyLogExtraBillingFromForm(form)),
   };
 }
@@ -1325,6 +1329,8 @@ export default function WorkReportDetailPage({ session }: Props) {
     parseHourBillingSettings({}),
   );
   const [hourBillingBusy, setHourBillingBusy] = useState(false);
+  const [hourBillingSupported, setHourBillingSupported] = useState(true);
+  const [agreedRegularSupported, setAgreedRegularSupported] = useState(true);
   const [billableUsers, setBillableUsers] = useState<UserBillingProfile[]>([]);
   const [useCustomRates, setUseCustomRates] = useState(false);
   const [useCustomCustomerRates, setUseCustomCustomerRates] = useState(false);
@@ -1433,16 +1439,12 @@ export default function WorkReportDetailPage({ session }: Props) {
     setCustomerBillableCalculation(null);
     setBillableUsers([]);
 
-    const [{ data: reportData, error: reportError }, { data: billingData }, logsResult, { data: billableQuoteRow }] =
+    const [{ data: reportData, error: reportError }, { data: billingData }, logsResult, billableFetch] =
       await Promise.all([
         supabase.from('work_reports').select(REPORT_SELECT).eq('id', reportId).single(),
         supabase.from('work_report_billing').select('*').eq('work_report_id', reportId).maybeSingle(),
         fetchWorkReportDetailLogs(supabase, reportId),
-        supabase
-          .from('work_report_billable')
-          .select('billing_quote, hour_billing')
-          .eq('work_report_id', reportId)
-          .maybeSingle(),
+        fetchBillableRowWithHourBillingFallback(supabase, reportId, 'billing_quote'),
       ]);
 
     if (reportError || !reportData) {
@@ -1462,8 +1464,14 @@ export default function WorkReportDetailPage({ session }: Props) {
 
     setReport(reportRow);
     setBilling((billingData as WorkReportBilling | null) ?? null);
-    setBillingQuoteSettings(parseBillingQuoteSettings(billableQuoteRow?.billing_quote ?? {}));
-    setHourBillingSettings(parseHourBillingSettings(billableQuoteRow?.hour_billing ?? {}));
+    setBillingQuoteSettings(parseBillingQuoteSettings(billableFetch.data?.billing_quote ?? {}));
+    setHourBillingSupported(billableFetch.hourBillingSupported);
+    setHourBillingSettings(
+      billableFetch.hourBillingSupported
+        ? parseHourBillingSettings(billableFetch.data?.hour_billing ?? {})
+        : parseHourBillingSettings({}),
+    );
+    setAgreedRegularSupported(logsResult.agreedRegularSupported);
     setDailyLogs(logs);
     setDescriptionDraft(resolveWorkReportDescription(reportRow));
     setHeadingDraft(reportRow.heading?.trim() ?? '');
@@ -1695,6 +1703,12 @@ export default function WorkReportDetailPage({ session }: Props) {
 
   async function saveHourBillingSettings(next: HourBillingSettings) {
     if (!report) return;
+    if (!hourBillingSupported) {
+      setError(
+        'Päivittäinen ylityölaskenta vaatii tietokantapäivityksen (migraatio 20260911000109). Pyydä ylläpitoa ajamaan db:push.',
+      );
+      return;
+    }
     setHourBillingBusy(true);
     setError(null);
     const { error } = await supabase.from('work_report_billable').upsert({
@@ -1702,7 +1716,14 @@ export default function WorkReportDetailPage({ session }: Props) {
       hour_billing: next,
     });
     if (error) {
-      setError(error.message);
+      if (isMissingHourBillingColumn(error)) {
+        setHourBillingSupported(false);
+        setError(
+          'Päivittäinen ylityölaskenta vaatii tietokantapäivityksen (migraatio 20260911000109). Pyydä ylläpitoa ajamaan db:push.',
+        );
+      } else {
+        setError(error.message);
+      }
       setHourBillingBusy(false);
       return;
     }
@@ -2301,7 +2322,7 @@ export default function WorkReportDetailPage({ session }: Props) {
 
     setDailyLogNotice(dailyLogSavingNotice(false));
     setLogDialogBusy(true);
-    const payload = buildLogPayload(logForm);
+    const payload = buildLogPayload(logForm, { includeAgreedRegular: agreedRegularSupported });
 
     const performerId = resolveReportPerformerUserId(report) ?? session.user.id;
     const { reports, logsByReportId } = await loadPerformerCalendarContext(supabase, performerId);
@@ -2594,7 +2615,7 @@ export default function WorkReportDetailPage({ session }: Props) {
 
     setDailyLogNotice(dailyLogSavingNotice(true));
     setLogDialogBusy(true);
-    const payload = buildLogPayload(logForm);
+    const payload = buildLogPayload(logForm, { includeAgreedRegular: agreedRegularSupported });
 
     const performerId = resolveReportPerformerUserId(report) ?? session.user.id;
     const { reports, logsByReportId } = await loadPerformerCalendarContext(supabase, performerId);
@@ -3115,11 +3136,17 @@ export default function WorkReportDetailPage({ session }: Props) {
             seuraavat +100 % normaalituntihinnasta. Huomioi saman tekijän tunnit muista
             työraporteista samana päivänä.
           </p>
+          {!hourBillingSupported ? (
+            <p className="error">
+              Päivittäinen ylityölaskenta ei ole vielä käytössä tuotannossa — tietokantamigraatio
+              20260911000109 pitää ajaa (npm run db:push).
+            </p>
+          ) : null}
           <WorkReportHourBillingModePanel
             settings={hourBillingSettings}
             showPartner={!!showOutgoingPartnerBilling}
             showCustomer={!!showCustomerMoneyBilling && canManageCustomerBillingRates}
-            disabled={hourBillingBusy}
+            disabled={hourBillingBusy || !hourBillingSupported}
             onChange={(next) => void saveHourBillingSettings(next)}
           />
         </div>
@@ -3878,8 +3905,9 @@ export default function WorkReportDetailPage({ session }: Props) {
             ?? null
           }
           showAgreedRegularHours={
-            hourBillingSettings.partner_mode === 'daily_overtime'
-            || hourBillingSettings.customer_mode === 'daily_overtime'
+            agreedRegularSupported
+            && (hourBillingSettings.partner_mode === 'daily_overtime'
+              || hourBillingSettings.customer_mode === 'daily_overtime')
           }
         />
         {showDailyLogQuoteExtras ? (

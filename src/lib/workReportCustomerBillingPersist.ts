@@ -21,6 +21,7 @@ import { fetchCustomerBillingLogs } from './workReportDailyLogSelect';
 import { findStaleBillableReportIds } from './workReportBillableStale';
 import { parseDailyOvertimePolicy } from './workReportDailyOvertime';
 import { buildDailyOvertimeBillingMap, hourBillingModeFromSettings } from './workReportCrossReportHours';
+import { fetchBillableRowWithHourBillingFallback } from './workReportHourBilling';
 
 export async function loadWorkReportDailyLogs(
   supabase: SupabaseClient,
@@ -44,7 +45,7 @@ export async function refreshAndPersistCustomerBillable(
     billingQuote?: BillingQuoteSettings;
   },
 ) {
-  const [{ data: companyRow }, { data: billingRow }, { data: billableRow }] = await Promise.all([
+  const [{ data: companyRow }, { data: billingRow }, billableFetch] = await Promise.all([
     supabase.from('companies').select('settings').eq('id', reportRow.owner_company_id).single(),
     supabase
       .from('work_report_billing')
@@ -53,12 +54,9 @@ export async function refreshAndPersistCustomerBillable(
       )
       .eq('work_report_id', reportRow.id)
       .maybeSingle(),
-    supabase
-      .from('work_report_billable')
-      .select('billing_quote, hour_billing')
-      .eq('work_report_id', reportRow.id)
-      .maybeSingle(),
+    fetchBillableRowWithHourBillingFallback(supabase, reportRow.id, 'billing_quote'),
   ]);
+  const billableRow = billableFetch.data;
 
   const billingQuote = parseBillingQuoteSettings(
     rateOptions?.billingQuote ?? billableRow?.billing_quote ?? {},
@@ -91,7 +89,9 @@ export async function refreshAndPersistCustomerBillable(
     useReportRates: storedUseCustom,
   });
 
-  const hourBillingMode = hourBillingModeFromSettings(billableRow?.hour_billing, 'customer');
+  const hourBillingMode = billableFetch.hourBillingSupported
+    ? hourBillingModeFromSettings(billableRow?.hour_billing, 'customer')
+    : 'manual';
   const overtimePolicy = parseDailyOvertimePolicy(settings.billing?.overtime_policy);
   const dailyOvertimeBilling = await buildDailyOvertimeBillingMap(supabase, {
     workReportId: reportRow.id,

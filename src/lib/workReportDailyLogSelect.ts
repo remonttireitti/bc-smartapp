@@ -11,6 +11,17 @@ export const EXPENSE_LINE_FIELDS_WITH_PARTNER =
 export const EXPENSE_LINE_FIELDS_WITH_WAREHOUSE =
   'id, daily_log_id, expense_type, description, qty, unit_price, bill_to_partner, bill_to_customer, customer_unit_price, warehouse_company_id, warehouse_cost_deducted, sort_order';
 
+export function isMissingHoursAgreedRegularColumn(error: PostgrestError | null | undefined): boolean {
+  if (!error?.message) return false;
+  const msg = error.message.toLowerCase();
+  return (
+    msg.includes('hours_agreed_regular') &&
+    (msg.includes('does not exist') ||
+      msg.includes('could not find') ||
+      msg.includes('schema cache'))
+  );
+}
+
 export function isMissingBillToPartnerColumn(error: PostgrestError | null | undefined): boolean {
   if (!error?.message) return false;
   const msg = error.message.toLowerCase();
@@ -79,17 +90,23 @@ export function partnerPurchaseLinesSelectFragment(
   return `partner_purchase_lines:work_report_partner_purchase_lines(${fields}, partner_company:companies!work_report_partner_purchase_lines_partner_company_id_fkey(name))`;
 }
 
+function dailyLogHourFields(includeAgreedRegular: boolean): string {
+  const agreed = includeAgreedRegular ? ', hours_agreed_regular' : '';
+  return `hours_regular, hours_overtime, hours_on_call${agreed}`;
+}
+
 export function buildWorkReportDetailLogSelect(
   includeBillToPartner: boolean,
   includeWarehouse = true,
   includePartnerPurchases = true,
   includePartnerPurchaseInventory = true,
+  includeAgreedRegular = true,
 ): string {
   const expenseLines = expenseLinesSelectFragment(includeBillToPartner, includeWarehouse);
   const partnerPurchases = partnerPurchaseLinesSelectFragment(includePartnerPurchases, includePartnerPurchaseInventory);
   return `
   id, work_report_id, log_date, log_start_time, entry_type,
-  hours_regular, hours_overtime, hours_on_call, hours_agreed_regular, fixed_price_amount,
+  ${dailyLogHourFields(includeAgreedRegular)}, fixed_price_amount,
   customer_fixed_price_amount, partner_urakka_margin_percent,
   hourly_rate_override, customer_hourly_rate_override,
   commission_amount, commission_note, customer_extra_beyond_quote, customer_extra_billing, work_done, created_by, created_at,
@@ -109,11 +126,15 @@ export function buildWorkReportDetailLogSelect(
 `;
 }
 
-export function buildWorkReportPrintLogSelect(includeBillToPartner: boolean, includeWarehouse = true): string {
+export function buildWorkReportPrintLogSelect(
+  includeBillToPartner: boolean,
+  includeWarehouse = true,
+  includeAgreedRegular = true,
+): string {
   const expenseLines = expenseLinesSelectFragment(includeBillToPartner, includeWarehouse);
   return `
   id, work_report_id, log_date, entry_type,
-  hours_regular, hours_overtime, hours_on_call, hours_agreed_regular, fixed_price_amount,
+  ${dailyLogHourFields(includeAgreedRegular)}, fixed_price_amount,
   customer_fixed_price_amount, partner_urakka_margin_percent,
   hourly_rate_override, customer_hourly_rate_override,
   commission_amount, commission_note, customer_extra_beyond_quote, customer_extra_billing, work_done, created_by, created_at,
@@ -132,11 +153,15 @@ export function buildWorkReportPrintLogSelect(includeBillToPartner: boolean, inc
 `;
 }
 
-export function buildCustomerBillingLogSelect(includeBillToPartner: boolean, includeWarehouse = true): string {
+export function buildCustomerBillingLogSelect(
+  includeBillToPartner: boolean,
+  includeWarehouse = true,
+  includeAgreedRegular = true,
+): string {
   const expenseLines = expenseLinesSelectFragment(includeBillToPartner, includeWarehouse);
   return `
   id, work_report_id, log_date, log_start_time, entry_type,
-  hours_regular, hours_overtime, hours_on_call, hours_agreed_regular, fixed_price_amount,
+  ${dailyLogHourFields(includeAgreedRegular)}, fixed_price_amount,
   customer_fixed_price_amount, partner_urakka_margin_percent,
   hourly_rate_override, customer_hourly_rate_override,
   commission_amount, commission_note, customer_extra_beyond_quote, customer_extra_billing, work_done, created_by, created_at,
@@ -173,12 +198,14 @@ export async function fetchWorkReportDetailLogs(
   logs: WorkReportDailyLog[];
   error: PostgrestError | null;
   billToPartnerSupported: boolean;
+  agreedRegularSupported: boolean;
 }> {
   const run = (
     includeBillToPartner: boolean,
     includeWarehouse: boolean,
     includePartnerPurchases: boolean,
     includePartnerPurchaseInventory = true,
+    includeAgreedRegular = true,
   ) =>
     queryDailyLogs(
       supabase,
@@ -188,40 +215,54 @@ export async function fetchWorkReportDetailLogs(
         includeWarehouse,
         includePartnerPurchases,
         includePartnerPurchaseInventory,
+        includeAgreedRegular,
       ),
     );
 
-  let result = await run(true, true, true, true);
+  let includeAgreedRegular = true;
+  let result = await run(true, true, true, true, includeAgreedRegular);
+  if (isMissingHoursAgreedRegularColumn(result.error)) {
+    includeAgreedRegular = false;
+    result = await run(true, true, true, true, includeAgreedRegular);
+  }
   if (isMissingPartnerPurchaseInventoryColumn(result.error)) {
-    result = await run(true, true, true, false);
+    result = await run(true, true, true, false, includeAgreedRegular);
   }
   if (isMissingPartnerPurchaseTable(result.error)) {
-    result = await run(true, true, false, false);
+    result = await run(true, true, false, false, includeAgreedRegular);
   }
   if (isMissingWarehouseExpenseColumn(result.error)) {
-    result = await run(true, false, !isMissingPartnerPurchaseTable(result.error), false);
+    result = await run(true, false, !isMissingPartnerPurchaseTable(result.error), false, includeAgreedRegular);
   }
   if (isMissingPartnerPurchaseTable(result.error)) {
-    result = await run(true, false, false, false);
+    result = await run(true, false, false, false, includeAgreedRegular);
   }
   if (isMissingBillToPartnerColumn(result.error)) {
-    result = await run(false, true, true, true);
+    result = await run(false, true, true, true, includeAgreedRegular);
     if (isMissingPartnerPurchaseInventoryColumn(result.error)) {
-      result = await run(false, true, true, false);
+      result = await run(false, true, true, false, includeAgreedRegular);
     }
-    if (isMissingPartnerPurchaseTable(result.error)) result = await run(false, true, false, false);
-    if (isMissingWarehouseExpenseColumn(result.error)) result = await run(false, false, true, false);
-    if (isMissingPartnerPurchaseTable(result.error)) result = await run(false, false, false, false);
+    if (isMissingPartnerPurchaseTable(result.error)) {
+      result = await run(false, true, false, false, includeAgreedRegular);
+    }
+    if (isMissingWarehouseExpenseColumn(result.error)) {
+      result = await run(false, false, true, false, includeAgreedRegular);
+    }
+    if (isMissingPartnerPurchaseTable(result.error)) {
+      result = await run(false, false, false, false, includeAgreedRegular);
+    }
     return {
       logs: (result.data as unknown as WorkReportDailyLog[]) ?? [],
       error: result.error,
       billToPartnerSupported: false,
+      agreedRegularSupported: includeAgreedRegular,
     };
   }
   return {
     logs: (result.data as unknown as WorkReportDailyLog[]) ?? [],
     error: result.error,
     billToPartnerSupported: true,
+    agreedRegularSupported: includeAgreedRegular,
   };
 }
 
@@ -229,15 +270,18 @@ export async function fetchWorkReportPrintLogs(
   supabase: SupabaseClient,
   workReportId: string,
 ): Promise<{ logs: WorkReportDailyLog[]; error: PostgrestError | null }> {
-  const run = (includeBillToPartner: boolean, includeWarehouse: boolean) =>
+  const run = (includeBillToPartner: boolean, includeWarehouse: boolean, includeAgreedRegular = true) =>
     supabase
       .from('work_report_daily_logs')
-      .select(buildWorkReportPrintLogSelect(includeBillToPartner, includeWarehouse))
+      .select(buildWorkReportPrintLogSelect(includeBillToPartner, includeWarehouse, includeAgreedRegular))
       .eq('work_report_id', workReportId)
       .order('log_date', { ascending: true })
       .order('created_at', { ascending: true });
 
-  let result = await run(true, true);
+  let result = await run(true, true, true);
+  if (isMissingHoursAgreedRegularColumn(result.error)) {
+    result = await run(true, true, false);
+  }
   if (isMissingWarehouseExpenseColumn(result.error)) {
     result = await run(true, false);
   }
@@ -257,14 +301,17 @@ export async function fetchCustomerBillingLogs(
   supabase: SupabaseClient,
   workReportId: string,
 ): Promise<{ logs: WorkReportDailyLog[]; error: PostgrestError | null }> {
-  const run = (includeBillToPartner: boolean, includeWarehouse: boolean) =>
+  const run = (includeBillToPartner: boolean, includeWarehouse: boolean, includeAgreedRegular = true) =>
     supabase
       .from('work_report_daily_logs')
-      .select(buildCustomerBillingLogSelect(includeBillToPartner, includeWarehouse))
+      .select(buildCustomerBillingLogSelect(includeBillToPartner, includeWarehouse, includeAgreedRegular))
       .eq('work_report_id', workReportId)
       .order('log_date', { ascending: false });
 
-  let result = await run(true, true);
+  let result = await run(true, true, true);
+  if (isMissingHoursAgreedRegularColumn(result.error)) {
+    result = await run(true, true, false);
+  }
   if (isMissingWarehouseExpenseColumn(result.error)) {
     result = await run(true, false);
   }

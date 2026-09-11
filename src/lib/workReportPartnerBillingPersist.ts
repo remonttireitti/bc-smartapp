@@ -21,6 +21,7 @@ import { findStaleBillableReportIds } from './workReportBillableStale';
 import { parseTripKmRate } from './tripKmExpense';
 import { parseDailyOvertimePolicy } from './workReportDailyOvertime';
 import { buildDailyOvertimeBillingMap, hourBillingModeFromSettings } from './workReportCrossReportHours';
+import { fetchBillableRowWithHourBillingFallback } from './workReportHourBilling';
 
 type PartnerBillableReport = Pick<
   WorkReport,
@@ -146,17 +147,18 @@ export async function refreshAndPersistPartnerBillable(
 
   const loadViewerSettings = isIncomingToViewer || isDelegateViewer;
 
-  const [{ data: companyRow }, { data: viewerCompanyRow }, { data: billableRow }] = await Promise.all([
+  const [{ data: companyRow }, { data: viewerCompanyRow }, billableFetch] = await Promise.all([
     supabase.from('companies').select('settings').eq('id', reportRow.created_by_company_id).single(),
     loadViewerSettings
       ? supabase.from('companies').select('settings').eq('id', rateOptions!.viewerCompanyId!).single()
       : Promise.resolve({ data: null }),
-    supabase
-      .from('work_report_billable')
-      .select('billing_rates_override, use_custom_rates, hour_billing')
-      .eq('work_report_id', reportRow.id)
-      .maybeSingle(),
+    fetchBillableRowWithHourBillingFallback(
+      supabase,
+      reportRow.id,
+      'billing_rates_override, use_custom_rates',
+    ),
   ]);
+  const billableRow = billableFetch.data;
 
   const settings = parseCompanySettings((companyRow as { settings: unknown } | null)?.settings);
   const viewerSettings = parseCompanySettings(
@@ -218,7 +220,7 @@ export async function refreshAndPersistPartnerBillable(
     }
   }
 
-  const storedUseCustom = rateOptions?.useCustomRates ?? billableRow?.use_custom_rates ?? false;
+  const storedUseCustom = rateOptions?.useCustomRates ?? billableRow?.use_custom_rates === true;
   const storedOverride = parsePartnerBillingRates(
     rateOptions?.reportRates ?? billableRow?.billing_rates_override,
   );
@@ -238,7 +240,9 @@ export async function refreshAndPersistPartnerBillable(
     useReportRates: storedUseCustom,
   });
 
-  const hourBillingMode = hourBillingModeFromSettings(billableRow?.hour_billing, 'partner');
+  const hourBillingMode = billableFetch.hourBillingSupported
+    ? hourBillingModeFromSettings(billableRow?.hour_billing, 'partner')
+    : 'manual';
   const overtimePolicy = parseDailyOvertimePolicy(settings.billing?.overtime_policy);
   const dailyOvertimeBilling = await buildDailyOvertimeBillingMap(supabase, {
     workReportId: reportRow.id,
