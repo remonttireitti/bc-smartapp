@@ -2,12 +2,10 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
 import NavigationBreadcrumb from '../components/NavigationBreadcrumb';
-import { useProfile } from '../hooks/useProfile';
-import { resolveCompanyLogoUrl } from '../lib/companyLogo';
-import { supabase } from '../lib/supabase';
 import {
   buildKonvektoriExampleReportData,
   buildRandomKonvektoriExampleDate,
+  KONVEKTORI_EXAMPLE_COMPANY_NAME,
 } from '../lib/huoltoRaportti/konvektoriExamplePrint';
 import { buildKonvektoriExamplePrintDocument } from '../lib/huoltoRaportti/konvektoriExamplePrintDocument';
 import { filterFaultyKonvektoriRows } from '../lib/huoltoRaportti/konvektoriTarkastus';
@@ -22,55 +20,23 @@ interface Props {
   session: Session;
 }
 
-export default function KonvektoriExamplePrintPage({ session }: Props) {
-  const { profile } = useProfile(session);
+export default function KonvektoriExamplePrintPage({ session: _session }: Props) {
   const [searchParams, setSearchParams] = useSearchParams();
   const faultyOnly = searchParams.get('vialliset') === '1';
   const autoPrint = searchParams.get('print') === '1';
-  const [logoUrl, setLogoUrl] = useState<string | undefined>();
   const [exampleDate] = useState(() => buildRandomKonvektoriExampleDate());
   const autoPrintTriggeredRef = useRef(false);
   const printCleanupRef = useRef<(() => void) | null>(null);
-
-  useEffect(() => {
-    if (!profile?.company_id) {
-      setLogoUrl(undefined);
-      return;
-    }
-    let cancelled = false;
-    void supabase
-      .from('companies')
-      .select('logo_url')
-      .eq('id', profile.company_id)
-      .single()
-      .then(async ({ data }) => {
-        if (cancelled) return;
-        const logoPath = (data as { logo_url: string | null } | null)?.logo_url;
-        if (!logoPath) {
-          setLogoUrl(undefined);
-          return;
-        }
-        try {
-          setLogoUrl((await resolveCompanyLogoUrl(logoPath)) ?? undefined);
-        } catch {
-          setLogoUrl(undefined);
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [profile?.company_id]);
 
   const bundle = useMemo(
     () =>
       buildKonvektoriExamplePrintDocument(
         {
-          companyName: profile?.companies?.name ?? 'Esimerkki yritys Oy',
-          logoUrl,
+          companyName: KONVEKTORI_EXAMPLE_COMPANY_NAME,
         },
         { faultyOnly, huoltoPaivamaara: exampleDate },
       ),
-    [profile?.companies?.name, logoUrl, faultyOnly, exampleDate],
+    [faultyOnly, exampleDate],
   );
 
   const html = useMemo(() => extractPrintableHtmlFragment(bundle.html), [bundle.html]);

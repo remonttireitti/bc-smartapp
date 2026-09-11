@@ -7,6 +7,8 @@ import type { HuoltoReportData, KonvektoriRowData } from './types';
 import { generateId } from './utils';
 
 export const KONVEKTORI_EXAMPLE_ROW_COUNT = 35;
+export const KONVEKTORI_EXAMPLE_COMPANY_NAME = 'Esimerkki yritys';
+export const KONVEKTORI_EXAMPLE_PERFORMER_NAME = 'Esimerkki asentaja';
 
 /** Satunnainen esimerkkipäivä viimeisen vuoden ajalta (ISO yyyy-mm-dd). */
 export function buildRandomKonvektoriExampleDate(reference = new Date()): string {
@@ -196,8 +198,8 @@ export function buildKonvektoriExampleReportData(options?: {
     konvektoriRows,
     huoltoSuoritettu: true,
     huoltoLaiteessaVika: true,
-    huoltoSuorittajaNimi: 'Esimerkki tekijä',
-    huoltoSuorittajaTUKES: 'TUKES-12345',
+    huoltoSuorittajaNimi: KONVEKTORI_EXAMPLE_PERFORMER_NAME,
+    huoltoSuorittajaTUKES: '',
     huoltoPaivamaara,
     huomiot:
       'Tämä on esimerkkipöytäkirja. Raportissa on sekä kunnossa olevia että viallisia konvektoreita — voit tulostaa vain vialliset erillisellä toiminnolla.',
