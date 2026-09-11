@@ -89,7 +89,7 @@ export function buildWorkReportDetailLogSelect(
   const partnerPurchases = partnerPurchaseLinesSelectFragment(includePartnerPurchases, includePartnerPurchaseInventory);
   return `
   id, work_report_id, log_date, log_start_time, entry_type,
-  hours_regular, hours_overtime, hours_on_call, fixed_price_amount,
+  hours_regular, hours_overtime, hours_on_call, hours_agreed_regular, fixed_price_amount,
   customer_fixed_price_amount, partner_urakka_margin_percent,
   hourly_rate_override, customer_hourly_rate_override,
   commission_amount, commission_note, customer_extra_beyond_quote, customer_extra_billing, work_done, created_by, created_at,
@@ -113,7 +113,7 @@ export function buildWorkReportPrintLogSelect(includeBillToPartner: boolean, inc
   const expenseLines = expenseLinesSelectFragment(includeBillToPartner, includeWarehouse);
   return `
   id, work_report_id, log_date, entry_type,
-  hours_regular, hours_overtime, hours_on_call, fixed_price_amount,
+  hours_regular, hours_overtime, hours_on_call, hours_agreed_regular, fixed_price_amount,
   customer_fixed_price_amount, partner_urakka_margin_percent,
   hourly_rate_override, customer_hourly_rate_override,
   commission_amount, commission_note, customer_extra_beyond_quote, customer_extra_billing, work_done, created_by, created_at,
@@ -136,7 +136,7 @@ export function buildCustomerBillingLogSelect(includeBillToPartner: boolean, inc
   const expenseLines = expenseLinesSelectFragment(includeBillToPartner, includeWarehouse);
   return `
   id, work_report_id, log_date, log_start_time, entry_type,
-  hours_regular, hours_overtime, hours_on_call, fixed_price_amount,
+  hours_regular, hours_overtime, hours_on_call, hours_agreed_regular, fixed_price_amount,
   customer_fixed_price_amount, partner_urakka_margin_percent,
   hourly_rate_override, customer_hourly_rate_override,
   commission_amount, commission_note, customer_extra_beyond_quote, customer_extra_billing, work_done, created_by, created_at,

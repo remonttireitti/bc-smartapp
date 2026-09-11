@@ -20,6 +20,10 @@ import type { BillableRatesSource } from './management';
 import {
   resolveStoredHourlyRateOverride,
 } from './workReportHourlyRateOverride';
+import type { DailyOvertimeAllocation, DailyOvertimePolicy } from './workReportDailyOvertime';
+import { DEFAULT_DAILY_OVERTIME_POLICY } from './workReportDailyOvertime';
+import { buildDailyOvertimeHourLines } from './workReportDailyOvertimeHourLines';
+import type { HourBillingMode } from './workReportHourBilling';
 
 const DEFAULT_RATES: Required<PartnerBillingRates> = {
   hourly_regular: 0,
@@ -99,8 +103,14 @@ export function calculateWorkReportCustomerBillable(input: {
   rates: PartnerBillingRates;
   ratesSource: BillableRatesSource;
   customerName: string | null;
+  hourBillingMode?: HourBillingMode;
+  overtimePolicy?: DailyOvertimePolicy;
+  dailyOvertimeBilling?: Map<string, DailyOvertimeAllocation>;
 }): BillableCalculation {
   const rates = { ...DEFAULT_RATES, ...input.rates };
+  const hourBillingMode = input.hourBillingMode ?? 'manual';
+  const overtimePolicy = input.overtimePolicy ?? DEFAULT_DAILY_OVERTIME_POLICY;
+  const dailyOvertimeBilling = input.dailyOvertimeBilling ?? new Map();
   const byUserId = new Map<string, BillableCalculation['byUser'][number]>();
 
   function ensureUser(user: UserBillingProfile) {
@@ -135,36 +145,14 @@ export function calculateWorkReportCustomerBillable(input: {
     };
     const summary = ensureUser(user);
 
-    const hourLines: Array<{ kind: BillableLineKind; qty: number; unitPrice: number; label: string }> = [];
-
-    if (log.entry_type === 'regular' || log.entry_type === 'regular_and_overtime') {
-      if (Number(log.hours_regular) > 0) {
-        hourLines.push({
-          kind: 'hours_regular',
-          qty: Number(log.hours_regular),
-          unitPrice: resolveCustomerHourUnitPrice(log, 'hours_regular', rates),
-          label: 'Tunnit',
-        });
-      }
-    }
-    if (log.entry_type === 'overtime' || log.entry_type === 'regular_and_overtime') {
-      if (Number(log.hours_overtime) > 0) {
-        hourLines.push({
-          kind: 'hours_overtime',
-          qty: Number(log.hours_overtime),
-          unitPrice: resolveCustomerHourUnitPrice(log, 'hours_overtime', rates),
-          label: 'Ylitötunnit',
-        });
-      }
-    }
-    if (log.entry_type === 'on_call' && Number(log.hours_on_call) > 0) {
-      hourLines.push({
-        kind: 'hours_on_call',
-        qty: Number(log.hours_on_call),
-        unitPrice: resolveCustomerHourUnitPrice(log, 'hours_on_call', rates),
-        label: 'Päivystystunnit',
-      });
-    }
+    const hourLines = buildDailyOvertimeHourLines({
+      log,
+      hourBillingMode,
+      allocation: dailyOvertimeBilling.get(log.id),
+      hourlyRegular: rates.hourly_regular,
+      policy: overtimePolicy,
+      resolveUnitPrice: (kind, hourLog) => resolveCustomerHourUnitPrice(hourLog, kind, rates),
+    });
     if (log.entry_type === 'fixed_price') {
       const total = resolveUrakkaCustomerAmount(log);
       if (total == null || total <= 0) continue;

@@ -19,6 +19,8 @@ import { isBillablePartnerReport, resolvePartnerBilledCompanyId, shouldAutoClose
 import { fetchWorkReportDetailLogs } from './workReportDailyLogSelect';
 import { findStaleBillableReportIds } from './workReportBillableStale';
 import { parseTripKmRate } from './tripKmExpense';
+import { parseDailyOvertimePolicy } from './workReportDailyOvertime';
+import { buildDailyOvertimeBillingMap, hourBillingModeFromSettings } from './workReportCrossReportHours';
 
 type PartnerBillableReport = Pick<
   WorkReport,
@@ -151,7 +153,7 @@ export async function refreshAndPersistPartnerBillable(
       : Promise.resolve({ data: null }),
     supabase
       .from('work_report_billable')
-      .select('billing_rates_override, use_custom_rates')
+      .select('billing_rates_override, use_custom_rates, hour_billing')
       .eq('work_report_id', reportRow.id)
       .maybeSingle(),
   ]);
@@ -236,6 +238,16 @@ export async function refreshAndPersistPartnerBillable(
     useReportRates: storedUseCustom,
   });
 
+  const hourBillingMode = hourBillingModeFromSettings(billableRow?.hour_billing, 'partner');
+  const overtimePolicy = parseDailyOvertimePolicy(settings.billing?.overtime_policy);
+  const dailyOvertimeBilling = await buildDailyOvertimeBillingMap(supabase, {
+    workReportId: reportRow.id,
+    logs,
+    side: 'partner',
+    hourBillingMode,
+    policy: overtimePolicy,
+  });
+
   const calculation = mergePartnerExtraBillingFromDailyLogs(
     calculateWorkReportBillable({
       logs,
@@ -249,6 +261,9 @@ export async function refreshAndPersistPartnerBillable(
       tripKmRate: parseTripKmRate(settings) ?? parseTripKmRate(viewerSettings),
       report: reportRow,
       viewerCompanyId: rateOptions?.viewerCompanyId ?? null,
+      hourBillingMode,
+      overtimePolicy,
+      dailyOvertimeBilling,
     }),
     { logs, rates, users },
   );

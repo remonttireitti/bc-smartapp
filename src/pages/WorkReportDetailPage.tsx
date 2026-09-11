@@ -38,6 +38,11 @@ import PartnerBillingRatesFields from '../components/PartnerBillingRatesFields';
 import Tooltip from '../components/Tooltip';
 import WorkReportBillingBreakdown from '../components/WorkReportBillingBreakdown';
 import WorkReportBillingQuotePanel from '../components/WorkReportBillingQuotePanel';
+import { WorkReportHourBillingModePanel } from '../components/WorkReportHourBillingModeFields';
+import {
+  parseHourBillingSettings,
+  type HourBillingSettings,
+} from '../lib/workReportHourBilling';
 import WorkReportBillingStatusMenu from '../components/WorkReportBillingStatusMenu';
 import WorkReportStatusBadges from '../components/WorkReportStatusBadges';
 import { useCompanyCustomerBillingEnabled } from '../hooks/useCompanyCustomerBillingEnabled';
@@ -328,6 +333,7 @@ function initialLogForm() {
     commission_amount: '',
     commission_note: '',
     work_done: '',
+    hours_agreed_regular: '',
     ...emptyDailyLogExtraBillingForm(),
   };
 }
@@ -381,6 +387,8 @@ function logToForm(log: WorkReportDailyLog): DailyLogFormState {
     commission_amount: Number(log.commission_amount) > 0 ? String(log.commission_amount) : '',
     commission_note: log.commission_note ?? '',
     work_done: log.work_done,
+    hours_agreed_regular:
+      Number(log.hours_agreed_regular) > 0 ? String(log.hours_agreed_regular) : '',
     ...dailyLogExtraBillingToForm(log.customer_extra_billing),
   };
 }
@@ -491,6 +499,7 @@ function buildLogPayload(form: DailyLogFormState) {
     commission_amount: Number(form.commission_amount || 0),
     commission_note: form.commission_note.trim() || null,
     work_done: form.work_done.trim(),
+    hours_agreed_regular: Number(form.hours_agreed_regular || 0),
     customer_extra_billing: serializeDailyLogCustomerExtraBilling(dailyLogExtraBillingFromForm(form)),
   };
 }
@@ -544,6 +553,7 @@ function DailyLogFields({
   showCustomerExpenseFields,
   defaultHourlyRate,
   defaultCustomerHourlyRate,
+  showAgreedRegularHours,
 }: {
   form: DailyLogFormState;
   setForm: (next: DailyLogFormState) => void;
@@ -555,6 +565,7 @@ function DailyLogFields({
   showCustomerExpenseFields?: boolean;
   defaultHourlyRate?: number | null;
   defaultCustomerHourlyRate?: number | null;
+  showAgreedRegularHours?: boolean;
 }) {
   const { showRegular, showOvertime, showOnCall, showFixed, calendarOnlyHours } =
     hourFieldsForEntryType(form.entry_type);
@@ -701,6 +712,22 @@ function DailyLogFields({
                 </button>
               ))}
             </div>
+          </label>
+        )}
+        {showAgreedRegularHours && !showFixed && !showOnCall && (
+          <label className="quote-material-row-span-all">
+            Sovittu normaalihintaiset (ylityöalueelta)
+            <input
+              type="number"
+              step="0.25"
+              min="0"
+              value={form.hours_agreed_regular}
+              onChange={(e) => setForm({ ...form, hours_agreed_regular: e.target.value })}
+            />
+            <span className="muted daily-log-calendar-hours-hint">
+              Tunteja, jotka päivittäisen ylityölaskennan mukaan olisivat ylityötä, mutta laskutetaan
+              normaalihintaisina.
+            </span>
           </label>
         )}
         {showOnCall && (
@@ -1294,6 +1321,10 @@ export default function WorkReportDetailPage({ session }: Props) {
   const [billingQuoteSettings, setBillingQuoteSettings] = useState<BillingQuoteSettings>(() =>
     parseBillingQuoteSettings({}),
   );
+  const [hourBillingSettings, setHourBillingSettings] = useState<HourBillingSettings>(() =>
+    parseHourBillingSettings({}),
+  );
+  const [hourBillingBusy, setHourBillingBusy] = useState(false);
   const [billableUsers, setBillableUsers] = useState<UserBillingProfile[]>([]);
   const [useCustomRates, setUseCustomRates] = useState(false);
   const [useCustomCustomerRates, setUseCustomCustomerRates] = useState(false);
@@ -1409,7 +1440,7 @@ export default function WorkReportDetailPage({ session }: Props) {
         fetchWorkReportDetailLogs(supabase, reportId),
         supabase
           .from('work_report_billable')
-          .select('billing_quote')
+          .select('billing_quote, hour_billing')
           .eq('work_report_id', reportId)
           .maybeSingle(),
       ]);
@@ -1432,6 +1463,7 @@ export default function WorkReportDetailPage({ session }: Props) {
     setReport(reportRow);
     setBilling((billingData as WorkReportBilling | null) ?? null);
     setBillingQuoteSettings(parseBillingQuoteSettings(billableQuoteRow?.billing_quote ?? {}));
+    setHourBillingSettings(parseHourBillingSettings(billableQuoteRow?.hour_billing ?? {}));
     setDailyLogs(logs);
     setDescriptionDraft(resolveWorkReportDescription(reportRow));
     setHeadingDraft(reportRow.heading?.trim() ?? '');
@@ -1659,6 +1691,31 @@ export default function WorkReportDetailPage({ session }: Props) {
     setBillingQuoteSettings(settings);
     if (!report) return;
     await refreshCustomerBillable(report, dailyLogs, { billingQuote: settings });
+  }
+
+  async function saveHourBillingSettings(next: HourBillingSettings) {
+    if (!report) return;
+    setHourBillingBusy(true);
+    setError(null);
+    const { error } = await supabase.from('work_report_billable').upsert({
+      work_report_id: report.id,
+      hour_billing: next,
+    });
+    if (error) {
+      setError(error.message);
+      setHourBillingBusy(false);
+      return;
+    }
+    setHourBillingSettings(next);
+    const isDelegatedOrder =
+      !!report.delegate_company_id && report.created_by_company_id === report.owner_company_id;
+    const isPartnerReport =
+      report.created_by_company_id !== report.owner_company_id || isDelegatedOrder;
+    if (isPartnerReport && canPersistPartnerBillable(report, profile?.company_id)) {
+      await refreshBillable(report, dailyLogs, { viewerCompanyId: profile?.company_id });
+    }
+    await refreshCustomerBillable(report, dailyLogs);
+    setHourBillingBusy(false);
   }
 
   async function saveCustomerReportRates() {
@@ -3051,6 +3108,24 @@ export default function WorkReportDetailPage({ session }: Props) {
       </div>
 
       {(showOutgoingPartnerBilling || showCustomerMoneyBilling) && report && (
+        <div className="panel work-report-section">
+          <h2>Tuntien laskutustapa</h2>
+          <p className="muted">
+            Päivittäinen ylityölaskenta: yli 8 h päivässä ensimmäiset 2 ylityötuntia +50 % ja
+            seuraavat +100 % normaalituntihinnasta. Huomioi saman tekijän tunnit muista
+            työraporteista samana päivänä.
+          </p>
+          <WorkReportHourBillingModePanel
+            settings={hourBillingSettings}
+            showPartner={!!showOutgoingPartnerBilling}
+            showCustomer={!!showCustomerMoneyBilling && canManageCustomerBillingRates}
+            disabled={hourBillingBusy}
+            onChange={(next) => void saveHourBillingSettings(next)}
+          />
+        </div>
+      )}
+
+      {(showOutgoingPartnerBilling || showCustomerMoneyBilling) && report && (
         <WorkReportBillingQuotePanel
           workReportId={report.id}
           customerId={report.customer_id}
@@ -3801,6 +3876,10 @@ export default function WorkReportDetailPage({ session }: Props) {
             ?? companyCustomerRatesPreview.hourly_regular
             ?? customerReportRatesDraft.hourly_regular
             ?? null
+          }
+          showAgreedRegularHours={
+            hourBillingSettings.partner_mode === 'daily_overtime'
+            || hourBillingSettings.customer_mode === 'daily_overtime'
           }
         />
         {showDailyLogQuoteExtras ? (

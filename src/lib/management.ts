@@ -125,6 +125,13 @@ export type CompanySettings = {
     partner_rates?: PartnerBillingRates;
     /** Oletustuntihinnat asiakkaalle omissa työraporteissa. */
     customer_rates?: CustomerBillingRates;
+    /** Päivittäisen ylityölaskennan säännöt (8 h + porrastus). */
+    overtime_policy?: {
+      daily_regular_hours?: number;
+      overtime_50_hours?: number;
+      overtime_50_multiplier?: number;
+      overtime_100_multiplier?: number;
+    };
   };
   /**
    * Näytetäänkö kumppanuus- ja moniyritystoiminnot (kumppanuudet, toimeksiannot, kumppanilaskutus).

@@ -9,6 +9,8 @@ import { formatDate } from '../types';
 const LINE_KIND_LABELS: Record<BillableLineKind, string> = {
   hours_regular: 'Tunnit',
   hours_overtime: 'Ylitötunnit',
+  hours_overtime_50: 'Ylityö 50 %',
+  hours_overtime_100: 'Ylityö 100 %',
   hours_on_call: 'Päivystys',
   fixed_price: 'Urakka',
   commission: 'Provisio',
@@ -23,7 +25,13 @@ type DetailRow = BillableLine & { userName: string };
 function formatBillableLineQty(kind: BillableLineKind, qty: number): string {
   if (kind === 'refrigerant' || kind === 'refrigerant_purchase_deduction') return `${qty.toFixed(3)} kg`;
   if (kind === 'partner_purchase_deduction') return Number.isInteger(qty) ? `${qty} kpl` : `${qty} kpl`;
-  if (kind === 'hours_regular' || kind === 'hours_overtime' || kind === 'hours_on_call') {
+  if (
+    kind === 'hours_regular'
+    || kind === 'hours_overtime'
+    || kind === 'hours_overtime_50'
+    || kind === 'hours_overtime_100'
+    || kind === 'hours_on_call'
+  ) {
     return `${qty.toFixed(2)} h`;
   }
   if (kind === 'fixed_price' || kind === 'commission') return '1 kpl';

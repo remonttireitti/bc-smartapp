@@ -19,6 +19,8 @@ import {
 } from './workReportBillingQuote';
 import { fetchCustomerBillingLogs } from './workReportDailyLogSelect';
 import { findStaleBillableReportIds } from './workReportBillableStale';
+import { parseDailyOvertimePolicy } from './workReportDailyOvertime';
+import { buildDailyOvertimeBillingMap, hourBillingModeFromSettings } from './workReportCrossReportHours';
 
 export async function loadWorkReportDailyLogs(
   supabase: SupabaseClient,
@@ -53,7 +55,7 @@ export async function refreshAndPersistCustomerBillable(
       .maybeSingle(),
     supabase
       .from('work_report_billable')
-      .select('billing_quote')
+      .select('billing_quote, hour_billing')
       .eq('work_report_id', reportRow.id)
       .maybeSingle(),
   ]);
@@ -89,6 +91,16 @@ export async function refreshAndPersistCustomerBillable(
     useReportRates: storedUseCustom,
   });
 
+  const hourBillingMode = hourBillingModeFromSettings(billableRow?.hour_billing, 'customer');
+  const overtimePolicy = parseDailyOvertimePolicy(settings.billing?.overtime_policy);
+  const dailyOvertimeBilling = await buildDailyOvertimeBillingMap(supabase, {
+    workReportId: reportRow.id,
+    logs,
+    side: 'customer',
+    hourBillingMode,
+    policy: overtimePolicy,
+  });
+
   const calculation =
     (useQuoteBilling
       ? calculateWorkReportCustomerBillableQuotePlusExtras({
@@ -104,6 +116,9 @@ export async function refreshAndPersistCustomerBillable(
       rates,
       ratesSource: source,
       customerName: reportRow.customers?.name ?? null,
+      hourBillingMode,
+      overtimePolicy,
+      dailyOvertimeBilling,
     });
 
   await Promise.all([

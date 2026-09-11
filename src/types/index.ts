@@ -168,6 +168,8 @@ export type WorkReportDailyLog = {
   hours_regular: number;
   hours_overtime: number;
   hours_on_call: number;
+  /** Laskennan mukaan ylityöalueelta, mutta sovittu normaalihintaisena. */
+  hours_agreed_regular?: number;
   fixed_price_amount: number | null;
   customer_fixed_price_amount?: number | null;
   partner_urakka_margin_percent?: number | null;

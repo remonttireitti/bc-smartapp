@@ -24,6 +24,10 @@ import {
 import {
   resolveStoredHourlyRateOverride,
 } from './workReportHourlyRateOverride';
+import type { DailyOvertimeAllocation, DailyOvertimePolicy } from './workReportDailyOvertime';
+import { DEFAULT_DAILY_OVERTIME_POLICY } from './workReportDailyOvertime';
+import { buildDailyOvertimeHourLines } from './workReportDailyOvertimeHourLines';
+import type { HourBillingMode } from './workReportHourBilling';
 
 export type UserBillingProfile = {
   id: string;
@@ -35,6 +39,8 @@ export type UserBillingProfile = {
 export type BillableLineKind =
   | 'hours_regular'
   | 'hours_overtime'
+  | 'hours_overtime_50'
+  | 'hours_overtime_100'
   | 'hours_on_call'
   | 'fixed_price'
   | 'commission'
@@ -207,8 +213,14 @@ export function calculateWorkReportBillable(input: {
   tripKmRate?: number | null;
   report?: Pick<{ owner_company_id: string; created_by_company_id: string }, 'owner_company_id' | 'created_by_company_id'>;
   viewerCompanyId?: string | null;
+  hourBillingMode?: HourBillingMode;
+  overtimePolicy?: DailyOvertimePolicy;
+  dailyOvertimeBilling?: Map<string, DailyOvertimeAllocation>;
 }): BillableCalculation {
   const rates = { ...DEFAULT_RATES, ...input.rates };
+  const hourBillingMode = input.hourBillingMode ?? 'manual';
+  const overtimePolicy = input.overtimePolicy ?? DEFAULT_DAILY_OVERTIME_POLICY;
+  const dailyOvertimeBilling = input.dailyOvertimeBilling ?? new Map();
   const userMap = new Map(input.users.map((u) => [u.id, u]));
   const byUserId = new Map<string, BillableUserSummary>();
 
@@ -245,36 +257,14 @@ export function calculateWorkReportBillable(input: {
     const summary = ensureUser(user);
     const { hoursEnabled, expensesEnabled } = resolveBillingFlags(user);
 
-    const hourLines: Array<{ kind: BillableLineKind; qty: number; unitPrice: number; label: string }> = [];
-
-    if (log.entry_type === 'regular' || log.entry_type === 'regular_and_overtime') {
-      if (Number(log.hours_regular) > 0) {
-        hourLines.push({
-          kind: 'hours_regular',
-          qty: Number(log.hours_regular),
-          unitPrice: resolveHourUnitPrice(log, 'hours_regular', rates),
-          label: 'Tunnit',
-        });
-      }
-    }
-    if (log.entry_type === 'overtime' || log.entry_type === 'regular_and_overtime') {
-      if (Number(log.hours_overtime) > 0) {
-        hourLines.push({
-          kind: 'hours_overtime',
-          qty: Number(log.hours_overtime),
-          unitPrice: resolveHourUnitPrice(log, 'hours_overtime', rates),
-          label: 'Ylitötunnit',
-        });
-      }
-    }
-    if (log.entry_type === 'on_call' && Number(log.hours_on_call) > 0) {
-      hourLines.push({
-        kind: 'hours_on_call',
-        qty: Number(log.hours_on_call),
-        unitPrice: resolveHourUnitPrice(log, 'hours_on_call', rates),
-        label: 'Päivystystunnit',
-      });
-    }
+    const hourLines = buildDailyOvertimeHourLines({
+      log,
+      hourBillingMode,
+      allocation: dailyOvertimeBilling.get(log.id),
+      hourlyRegular: rates.hourly_regular,
+      policy: overtimePolicy,
+      resolveUnitPrice: (kind, hourLog) => resolveHourUnitPrice(hourLog, kind, rates),
+    });
     if (log.entry_type === 'fixed_price') {
       const total = resolveUrakkaPartnerAmount(log);
       if (total == null || total <= 0) continue;
@@ -593,6 +583,8 @@ export const BILLABLE_CALCULATION_VERSION = 5;
 const BILLABLE_HOUR_KINDS = new Set<BillableLineKind>([
   'hours_regular',
   'hours_overtime',
+  'hours_overtime_50',
+  'hours_overtime_100',
   'hours_on_call',
 ]);
 
@@ -773,9 +765,9 @@ export function billableHoursQty(calculation: BillableCalculation) {
 }
 
 export function hasZeroHourlyRates(calculation: BillableCalculation) {
-  return (
-    calculation.ratesUsed.hourly_regular === 0
-    && calculation.ratesUsed.hourly_overtime === 0
-    && calculation.ratesUsed.hourly_on_call === 0
+  const hourLines = calculation.byUser.flatMap((user) =>
+    user.lines.filter((line) => BILLABLE_HOUR_KINDS.has(line.kind) && line.included && line.qty > 0),
   );
+  if (hourLines.length === 0) return false;
+  return hourLines.some((line) => line.unitPrice <= 0);
 }
