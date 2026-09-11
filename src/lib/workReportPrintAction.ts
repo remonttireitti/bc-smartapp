@@ -15,11 +15,13 @@ import {
 import {
   calculateWorkReportCustomerBillableFromQuote,
   calculateWorkReportCustomerBillableQuotePlusExtras,
+  billingQuoteHasData,
   customerUsesFixedQuote,
   customerUsesQuoteBasedBilling,
   parseBillingQuoteSettings,
   type BillingQuoteSettings,
 } from './workReportBillingQuote';
+import { parseTripKmRate } from './tripKmExpense';
 import { generateWorkReportPrintHtml, type WorkReportPrintMode } from './workReportPrintHtml';
 import type { WorkReport, WorkReportDailyLog } from '../types';
 
@@ -187,6 +189,23 @@ export async function buildWorkReportPrintHtmlDocument(input: {
       )
     : null;
 
+  const needsQuoteInstallationComparison =
+    showInternalPrices && billingQuoteHasData(billingQuote) && !!billingQuote.quote_request_id;
+  const [{ data: quoteRow }, { data: ownerCompanyRow }] = needsQuoteInstallationComparison
+    ? await Promise.all([
+        db
+          .from('quote_requests')
+          .select('data')
+          .eq('id', billingQuote.quote_request_id!)
+          .maybeSingle(),
+        db.from('companies').select('settings').eq('id', input.report.owner_company_id).single(),
+      ])
+    : [{ data: null }, { data: null }];
+  const quoteData = quoteRow?.data ?? null;
+  const tripKmRate = parseTripKmRate(
+    parseCompanySettings((ownerCompanyRow as { settings: unknown } | null)?.settings),
+  );
+
   return generateWorkReportPrintHtml({
     report: input.report,
     logs,
@@ -196,6 +215,8 @@ export async function buildWorkReportPrintHtmlDocument(input: {
     calculation: partnerCalculation,
     customerCalculation,
     billingQuote,
+    quoteData,
+    tripKmRate,
     meta: { companyName, logoUrl },
     hideAssignee,
     viewerCompanyId: input.viewerCompanyId,

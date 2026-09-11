@@ -24,6 +24,10 @@ import {
   type BillingQuoteSettings,
 } from './workReportBillingQuote';
 import {
+  compareQuoteInstallationToWorkReport,
+  renderInstallationComparisonHtml,
+} from './quoteInstallationComparison';
+import {
   formatRefrigerantLineLabelForReport,
   refrigerantBillingReminder,
   refrigerantCustomerUnitPrice,
@@ -341,6 +345,8 @@ function quoteMarginPrintSection(
   partnerCalculation: BillableCalculation | null,
   logs: WorkReportDailyLog[],
   customerCalculation?: BillableCalculation | null,
+  quoteData?: unknown,
+  tripKmRate?: number | null,
 ): string {
   if (!billingQuoteHasData(billingQuote)) return '';
 
@@ -412,6 +418,24 @@ function quoteMarginPrintSection(
     escapeHtml: esc,
   });
 
+  const installationComparison =
+    quoteData && partnerCalculation
+      ? compareQuoteInstallationToWorkReport({
+          quoteData,
+          partnerCalculation,
+          logs,
+          partnerRates: partnerCalculation.ratesUsed,
+          tripKmRate,
+        })
+      : null;
+  const installationComparisonHtml =
+    installationComparison
+      ? renderInstallationComparisonHtml(installationComparison, {
+          escapeHtml: esc,
+          formatEuro,
+        })
+      : '';
+
   const extrasDetailHtml =
     extrasDetail.length > 0
       ? `<h3 class="billing-subheading">Lisälaskutuksen kate-erittely</h3>
@@ -434,11 +458,14 @@ function quoteMarginPrintSection(
       </table>`
       : '';
 
-  if (rows.length === 0 && !purchaseLinesHtml && !extrasDetailHtml) return '';
+  if (rows.length === 0 && !purchaseLinesHtml && !installationComparisonHtml && !extrasDetailHtml) {
+    return '';
+  }
 
   return printBox(
     'Tarjous ja kate',
     `${purchaseLinesHtml}
+    ${installationComparisonHtml}
     <table>
       <tbody>${rows.join('')}</tbody>
     </table>
@@ -461,6 +488,8 @@ export function generateWorkReportPrintHtml(input: {
   calculation: BillableCalculation | null;
   customerCalculation?: BillableCalculation | null;
   billingQuote?: BillingQuoteSettings | null;
+  quoteData?: unknown;
+  tripKmRate?: number | null;
   meta: WorkReportPrintMeta;
   hideAssignee?: boolean;
   viewerCompanyId?: string | null;
@@ -474,6 +503,8 @@ export function generateWorkReportPrintHtml(input: {
     calculation,
     customerCalculation,
     billingQuote: inputBillingQuote,
+    quoteData,
+    tripKmRate,
     meta,
     hideAssignee,
     viewerCompanyId,
@@ -847,7 +878,14 @@ export function generateWorkReportPrintHtml(input: {
 
   const quoteMarginSection =
     showInternalPrices && billingQuoteHasData(billingQuote)
-      ? quoteMarginPrintSection(billingQuote, calculation ?? null, logs, customerCalculation ?? null)
+      ? quoteMarginPrintSection(
+          billingQuote,
+          calculation ?? null,
+          logs,
+          customerCalculation ?? null,
+          quoteData,
+          tripKmRate,
+        )
       : '';
 
   const basicNetMarginSection =

@@ -3162,6 +3162,7 @@ export default function WorkReportDetailPage({ session }: Props) {
           dailyLogs={dailyLogs}
           partnerCalculation={billableCalculation}
           customerCalculation={customerBillableCalculation}
+          tripKmRate={tripKmRate}
           showPartnerMargin={!!showOutgoingPartnerBilling}
           showCustomerQuoteMode={!!canManageQuoteCustomerMode}
           readOnly={!showOutgoingPartnerBilling && !canManageCustomerBillingRates}

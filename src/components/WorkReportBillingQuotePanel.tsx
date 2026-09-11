@@ -16,6 +16,10 @@ import {
   type BillingQuoteSettings,
 } from '../lib/workReportBillingQuote';
 import { extractQuotePurchaseLines } from '../lib/quotePurchaseLines';
+import {
+  compareQuoteInstallationToWorkReport,
+  type InstallationComparison,
+} from '../lib/quoteInstallationComparison';
 import { formatEuro, type BillableCalculation } from '../lib/workReportBilling';
 import { computeQuoteExtrasMarginFromLogs } from '../lib/dailyLogCustomerExtraBilling';
 import type { WorkReportDailyLog } from '../types';
@@ -30,6 +34,7 @@ type Props = {
   dailyLogs?: WorkReportDailyLog[];
   partnerCalculation?: BillableCalculation | null;
   customerCalculation?: BillableCalculation | null;
+  tripKmRate?: number | null;
   showPartnerMargin?: boolean;
   showCustomerQuoteMode?: boolean;
   readOnly?: boolean;
@@ -58,6 +63,7 @@ export default function WorkReportBillingQuotePanel({
   dailyLogs = [],
   partnerCalculation = null,
   customerCalculation = null,
+  tripKmRate = null,
   showPartnerMargin = false,
   showCustomerQuoteMode = false,
   readOnly = false,
@@ -72,6 +78,7 @@ export default function WorkReportBillingQuotePanel({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(() => billingQuoteHasData(initialSettings));
+  const [quoteData, setQuoteData] = useState<unknown>(null);
 
   useEffect(() => {
     setSettings(parseBillingQuoteSettings(initialSettings));
@@ -98,7 +105,10 @@ export default function WorkReportBillingQuotePanel({
   }, [customerId, ownerCompanyId, readOnly]);
 
   useEffect(() => {
-    if (!settings.quote_request_id || (settings.purchase_lines?.length ?? 0) > 0 || readOnly) return;
+    if (!settings.quote_request_id) {
+      setQuoteData(null);
+      return;
+    }
     let cancelled = false;
     void supabase
       .from('quote_requests')
@@ -107,6 +117,8 @@ export default function WorkReportBillingQuotePanel({
       .single()
       .then(({ data }) => {
         if (cancelled || !data) return;
+        setQuoteData(data.data);
+        if ((settings.purchase_lines?.length ?? 0) > 0 || readOnly) return;
         setSettings((prev) =>
           normalizeBillingQuoteSettings({
             ...prev,
@@ -138,6 +150,19 @@ export default function WorkReportBillingQuotePanel({
       customerCalculation?.quoteExtrasTotal,
     ],
   );
+  const installationComparison = useMemo(
+    () =>
+      quoteData && partnerCalculation
+        ? compareQuoteInstallationToWorkReport({
+            quoteData,
+            partnerCalculation,
+            logs: dailyLogs,
+            partnerRates: partnerCalculation.ratesUsed,
+            tripKmRate,
+          })
+        : null,
+    [quoteData, partnerCalculation, dailyLogs, tripKmRate],
+  );
   const extrasMarginLines = useMemo(
     () =>
       dailyLogs.length && partnerCalculation
@@ -160,6 +185,7 @@ export default function WorkReportBillingQuotePanel({
       .single()
       .then(({ data }) => {
         if (!data) return;
+        setQuoteData(data.data);
         setSettings((prev) =>
           billingQuoteFromQuoteRow(option.id, option.title, data.data, {
             fixedCustomerBilling: prev.customer_mode !== 'daily_log',
@@ -210,6 +236,70 @@ export default function WorkReportBillingQuotePanel({
   const purchaseLines = settings.purchase_lines ?? [];
   const quotePurchaseTotal = resolveQuotePurchaseTotal(settings);
   const actualPurchaseTotal = resolveActualPurchaseTotal(settings);
+
+  function formatComparisonQty(
+    row: InstallationComparison['rows'][number],
+    value: number | null,
+  ): string {
+    if (value == null) return '—';
+    const suffix =
+      row.key === 'hours' ? ' h' : row.key === 'travel_km' ? ' km' : '';
+    return `${value.toLocaleString('fi-FI', { maximumFractionDigits: 2 })}${suffix}`;
+  }
+
+  function renderInstallationComparisonTable(comparison: InstallationComparison) {
+    return (
+      <div className="table-wrap billing-purchase-lines-wrap">
+        <h4 className="billing-breakdown-heading">Tarjous vs toteutunut (työ ja ajot)</h4>
+        <p className="muted billing-purchase-lines-hint">
+          Vertailu käyttää tarjouksen työtunteja ja km-määrää sekä kumppanin tunti- ja km-hintoja.
+          Materiaalit ovat erillään hankintakorjauksissa.
+        </p>
+        <table className="billing-table billing-purchase-lines-table">
+          <thead>
+            <tr>
+              <th>Rivi</th>
+              <th className="num">Tarjous määrä</th>
+              <th className="num">Toteutunut määrä</th>
+              <th className="num">Tarjous €</th>
+              <th className="num">Toteutunut €</th>
+              <th className="num">Ero €</th>
+            </tr>
+          </thead>
+          <tbody>
+            {comparison.rows.map((row) => {
+              const changed = Math.abs(row.varianceNet) > 0.005;
+              const showMoney =
+                row.quoteCostNet > 0 || row.actualCostNet > 0 || row.key === 'total';
+              return (
+                <tr
+                  key={row.key}
+                  className={changed ? 'billing-purchase-line-changed' : undefined}
+                >
+                  <td>{row.label}</td>
+                  <td className="num">{formatComparisonQty(row, row.quoteQty)}</td>
+                  <td className="num">{formatComparisonQty(row, row.actualQty)}</td>
+                  <td className="num">
+                    {showMoney && (row.quoteCostNet > 0 || row.key === 'total')
+                      ? formatEuro(row.quoteCostNet)
+                      : '—'}
+                  </td>
+                  <td className="num">
+                    {showMoney && (row.actualCostNet > 0 || row.key === 'total')
+                      ? formatEuro(row.actualCostNet)
+                      : '—'}
+                  </td>
+                  <td className="num">
+                    {showMoney ? formatEuro(row.varianceNet) : '—'}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    );
+  }
 
   function renderPurchaseLinesTable(lines: BillingQuotePurchaseLine[], editable: boolean) {
     if (lines.length === 0) return null;
@@ -499,6 +589,8 @@ export default function WorkReportBillingQuotePanel({
           ) : null}
 
           {renderPurchaseLinesTable(purchaseLines, false)}
+
+          {installationComparison ? renderInstallationComparisonTable(installationComparison) : null}
 
           {showPartnerMargin && partnerMargin ? (
             <div className="table-wrap">

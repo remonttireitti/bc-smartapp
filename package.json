@@ -46,6 +46,7 @@
     "test:quote-plus-extras-billing": "npx tsx scripts/test-quote-plus-extras-billing.mjs",
     "test:installation-supplies-calc": "npx tsx scripts/test-installation-supplies-calc.mjs",
     "test:daily-overtime-billing": "npx tsx scripts/test-daily-overtime-billing.mjs",
+    "test:quote-installation-comparison": "npx tsx scripts/test-quote-installation-comparison.mjs",
     "sync:equipment-huolto-snapshots": "npx tsx scripts/sync-equipment-huolto-snapshots.mjs",
     "copy:customer-to-partner": "node scripts/copy-customer-to-partner.mjs",
     "test:refrigerant-rental-days": "npx tsx scripts/test-refrigerant-rental-days.mjs",
