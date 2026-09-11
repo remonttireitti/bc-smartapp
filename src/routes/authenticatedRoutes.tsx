@@ -17,6 +17,7 @@ import PartnershipsPage from '../pages/PartnershipsPage';
 import UsersPage from '../pages/UsersPage';
 import ProfileSettingsPage from '../pages/ProfileSettingsPage';
 import MaintenanceReportEditPage from '../pages/MaintenanceReportEditPage';
+import KonvektoriExamplePrintPage from '../pages/KonvektoriExamplePrintPage';
 import MaintenanceReportPrintPage from '../pages/MaintenanceReportPrintPage';
 import MaintenanceReportsPage from '../pages/MaintenanceReportsPage';
 import WorkReportDetailPage from '../pages/WorkReportDetailPage';
@@ -99,6 +100,7 @@ const LicensedInventoryPage = withLicenseModule('base', InventoryPage);
 const LicensedMaintenanceReportsPage = withLicenseModule('base', MaintenanceReportsPage);
 const LicensedMaintenanceReportEditPage = withLicenseModule('base', MaintenanceReportEditPage);
 const LicensedMaintenanceReportPrintPage = withLicenseModule('base', MaintenanceReportPrintPage);
+const LicensedKonvektoriExamplePrintPage = withLicenseModule('base', KonvektoriExamplePrintPage);
 const LicensedCustomersPage = withLicenseModule('base', CustomersPage);
 const LicensedCustomerDetailPage = withLicenseModule('base', CustomerDetailPage);
 const LicensedEquipmentDetailPage = withLicenseModule('base', EquipmentDetailPage);
@@ -201,6 +203,10 @@ export function buildAuthenticatedRoutes(session: Session): RouteObject[] {
     { path: '/tyoraportit/:id', element: <LicensedWorkReportDetailPage session={session} /> },
     { path: '/huoltoraportit', element: <LicensedMaintenanceReportsPage session={session} /> },
     { path: '/huoltoraportit/uusi', element: <LicensedMaintenanceReportEditPage session={session} /> },
+    {
+      path: '/huoltoraportit/esimerkki-konvektori/tuloste',
+      element: <LicensedKonvektoriExamplePrintPage session={session} />,
+    },
     {
       path: '/huoltoraportit/:id/tuloste',
       element: <LicensedMaintenanceReportPrintPage session={session} />,

@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import type { KonvektoriRowData } from '../../lib/huoltoRaportti/types';
 import {
   cloneKonvektoriRow,
@@ -92,6 +93,12 @@ export function KonvektoritSection({
     <>
       <p className="muted huolto-help">
         Täytä konvektorin tunnistetiedot listaan. Kaikki mittaukset ja tarkastuskohdat syötetään vain Tarkastus-popupissa — niitä ei tarvitse toistaa muualla.
+        {' '}
+        <Link to="/huoltoraportit/esimerkki-konvektori/tuloste" target="_blank" rel="noopener noreferrer">
+          Esimerkkituloste (PDF)
+        </Link>
+        {' '}
+        näyttää miltä pöytäkirja näyttää. Raportissa voit tulostaa vain vialliset konvektorit painikkeella alla.
       </p>
       <div className="btn-group konvektori-list-actions">
         {onPrintFaults ? (

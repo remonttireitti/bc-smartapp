@@ -177,6 +177,14 @@ export default function MaintenanceReportsPage({ session }: Props) {
 
         {!portalMode && (
           <div className="page-header-actions">
+            <Link
+              to="/huoltoraportit/esimerkki-konvektori/tuloste"
+              className="btn btn-secondary"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Konvektorin esimerkkituloste
+            </Link>
             <Link to="/huoltoraportit/uusi" className="btn btn-primary" {...withNavTrail(maintenanceListTrail())}>
               + Uusi huoltoraportti
             </Link>
