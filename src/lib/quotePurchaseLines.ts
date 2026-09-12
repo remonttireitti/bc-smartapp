@@ -9,6 +9,10 @@ import {
   resolveIilpLaborPricingMode,
 } from './quoteRequest/calculations';
 import { isPumpQuoteType } from './quoteRequest/constants';
+import {
+  installationSuppliesInternalCostsNet,
+  isOfferedDeviceRow,
+} from './quoteRequest/installationSupplies';
 import { resolveNonPumpDeviceSellNet } from './quoteRequest/manualDevicePricing';
 import { normalizeQuoteRequestData } from './quoteRequest/defaults';
 import type { QuoteMaterial, QuoteRequestData } from './quoteRequest/types';
@@ -77,6 +81,42 @@ function materialPurchaseLine(
   };
 }
 
+function collectInstallationSupplyLines(data: QuoteRequestData): BillingQuotePurchaseLine[] {
+  const lines: BillingQuotePurchaseLine[] = [];
+  for (const mat of data.installationSupplies ?? []) {
+    const name = mat.name.trim();
+    if (!name) continue;
+    const qty = Number(mat.quantity) || 0;
+    const purchase = roundMoney(qty * (Number(mat.purchasePrice) || 0));
+    if (purchase <= 0.005) continue;
+    const isDevice = isOfferedDeviceRow(mat);
+    lines.push({
+      id: isDevice ? `device:${mat.id}` : `material:${mat.id}`,
+      label: name,
+      quantity: qty,
+      unit: 'kpl',
+      quote_purchase_net: purchase,
+      actual_purchase_net: purchase,
+      source: isDevice ? 'device' : 'material',
+    });
+  }
+
+  const internalCosts = installationSuppliesInternalCostsNet(data);
+  if (internalCosts > 0.005) {
+    lines.push({
+      id: 'group:installation-internal',
+      label: 'Asennustyö (sisäinen hankinta)',
+      quantity: 1,
+      unit: 'kpl',
+      quote_purchase_net: roundMoney(internalCosts),
+      actual_purchase_net: roundMoney(internalCosts),
+      source: 'group',
+    });
+  }
+
+  return lines;
+}
+
 function collectMaterialLines(data: QuoteRequestData): BillingQuotePurchaseLine[] {
   const lines: BillingQuotePurchaseLine[] = [];
   const nestedCount = data.workItems.reduce(
@@ -108,9 +148,16 @@ export function extractQuotePurchaseLines(
 ): BillingQuotePurchaseLine[] {
   const normalized = normalizeQuoteRequestData(data);
   const internal = computeQuoteInternalTotals(normalized, feeMap);
-  const lines = collectMaterialLines(normalized);
+  const installationLines = collectInstallationSupplyLines(normalized);
+  const lines = installationLines.length > 0
+    ? installationLines
+    : collectMaterialLines(normalized);
+  const hasDeviceRowsFromSupplies = installationLines.some((line) => line.source === 'device');
 
-  if (internal.devicePurchaseNet > 0.005 || internal.deviceSellNet > 0.005) {
+  if (
+    !hasDeviceRowsFromSupplies
+    && (internal.devicePurchaseNet > 0.005 || internal.deviceSellNet > 0.005)
+  ) {
     if (isPumpQuoteType(normalized.type)) {
       const mainDevice = resolveQuoteMainDeviceForTotals(
         normalized,
@@ -145,7 +192,8 @@ export function extractQuotePurchaseLines(
     lines.filter((line) => line.source === 'material').reduce((sum, line) => sum + line.quote_purchase_net, 0),
   );
   if (
-    lines.every((line) => line.source !== 'material')
+    installationLines.length === 0
+    && lines.every((line) => line.source !== 'material')
     && internal.materialsPurchaseNet > 0.005
   ) {
     const isUrakka =
@@ -160,7 +208,8 @@ export function extractQuotePurchaseLines(
       source: 'group',
     });
   } else if (
-    materialTotal > 0.005
+    installationLines.length === 0
+    && materialTotal > 0.005
     && Math.abs(materialTotal - internal.materialsPurchaseNet) > 0.05
     && internal.materialsPurchaseNet > materialTotal
   ) {

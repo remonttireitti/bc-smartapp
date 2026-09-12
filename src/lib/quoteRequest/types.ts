@@ -27,6 +27,9 @@ export type QuoteWorkItem = {
   materials: QuoteMaterial[];
 };
 
+/** Tarvike vai tarjouksessa erikseen näkyvä laite (ei sekä että). */
+export type QuoteMaterialRowKind = 'supply' | 'device';
+
 export type QuoteMaterial = {
   id: string;
   name: string;
@@ -34,6 +37,8 @@ export type QuoteMaterial = {
   purchasePrice: number;
   marginPercent: number;
   sellPrice: number;
+  /** Oletus supply. device = tarjottu laite (esim. koneet tarvikeriveillä). */
+  rowKind?: QuoteMaterialRowKind;
 };
 
 /** Legacy simple line kept for older saved quotes. */

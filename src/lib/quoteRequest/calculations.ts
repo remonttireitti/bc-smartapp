@@ -1,8 +1,10 @@
 import type { BrandDeliveryFeeByCategoryMap } from '../../data/devicePricingShared';
 import type { QuoteMaterial, QuoteRegion, QuoteRequestData, QuoteWorkItem } from './types';
 import {
-  installationSuppliesSellNet,
-  installationSuppliesTotalPurchaseNet,
+  installationSuppliesDevicePurchaseNet,
+  installationSuppliesInternalCostsNet,
+  installationSuppliesSupplyPurchaseNet,
+  installationSuppliesSupplySellNet,
 } from './installationSupplies';
 import {
   isPumpQuoteType,
@@ -330,9 +332,11 @@ export function computeQuoteInternalTotals(
     materialsPurchaseNet = materialPurchaseTotal(data.materials);
     materialsSellNet = materialSellTotal(data.materials);
   }
-  materialsPurchaseNet += installationSuppliesTotalPurchaseNet(data);
-  materialsSellNet += installationSuppliesSellNet(data.installationSupplies);
+  materialsPurchaseNet += installationSuppliesSupplyPurchaseNet(data.installationSupplies)
+    + installationSuppliesInternalCostsNet(data);
+  materialsSellNet += installationSuppliesSupplySellNet(data.installationSupplies);
 
+  const deviceRowsPurchaseNet = installationSuppliesDevicePurchaseNet(data.installationSupplies);
   let devicePurchaseNet = 0;
   let deviceSellNet = quoteTotals.deviceNet;
   if (isPumpQuoteType(data.type)) {
@@ -340,6 +344,8 @@ export function computeQuoteInternalTotals(
     if (mainDevice) {
       devicePurchaseNet = calculateDevicePurchaseNet(data, mainDevice, feeMap);
     }
+  } else if (deviceRowsPurchaseNet > 0.005) {
+    devicePurchaseNet = deviceRowsPurchaseNet;
   } else if (data.devicePurchaseOverrideNet != null) {
     devicePurchaseNet = Number(data.devicePurchaseOverrideNet) || 0;
   }
@@ -380,10 +386,10 @@ export function quoteMaterialsNet(data: QuoteRequestData): number {
   );
   const fromTopLevel = materialSellTotal(data.materials);
   if (isRepairQuoteType(data.type)) {
-    const fromInstallation = installationSuppliesSellNet(data.installationSupplies);
+    const fromInstallation = installationSuppliesSupplySellNet(data.installationSupplies);
     return (fromWorkItems > 0 ? fromWorkItems : fromTopLevel) + fromInstallation;
   }
-  return fromTopLevel + fromWorkItems + installationSuppliesSellNet(data.installationSupplies);
+  return fromTopLevel + fromWorkItems + installationSuppliesSupplySellNet(data.installationSupplies);
 }
 
 export function computeQuoteTotals(

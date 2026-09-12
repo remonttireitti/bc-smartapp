@@ -1,4 +1,4 @@
-import type { QuoteMaterial, QuoteRequestData } from './types';
+import type { QuoteMaterial, QuoteMaterialRowKind, QuoteRequestData } from './types';
 import { materialPurchaseTotal, materialSellTotal } from './calculations';
 import type { CompanySettings } from '../management';
 
@@ -53,13 +53,50 @@ export function computeInstallationSupplyMarginPercent(
   return roundMoney(((sell / purchase) - 1) * 100);
 }
 
+export function resolveQuoteMaterialRowKind(row: QuoteMaterial): QuoteMaterialRowKind {
+  return row.rowKind === 'device' ? 'device' : 'supply';
+}
+
+export function isOfferedDeviceRow(row: QuoteMaterial): boolean {
+  return resolveQuoteMaterialRowKind(row) === 'device';
+}
+
+export function filterInstallationSupplyRows(
+  items: QuoteMaterial[] | undefined,
+  kind: QuoteMaterialRowKind,
+): QuoteMaterial[] {
+  return (items ?? []).filter(
+    (row) => row.name.trim() && resolveQuoteMaterialRowKind(row) === kind,
+  );
+}
+
 export function installationSuppliesSellNet(items: QuoteMaterial[] | undefined): number {
   return materialSellTotal(items ?? []);
+}
+
+export function installationSuppliesSupplySellNet(items: QuoteMaterial[] | undefined): number {
+  return materialSellTotal(filterInstallationSupplyRows(items, 'supply'));
+}
+
+export function installationSuppliesDeviceSellNet(items: QuoteMaterial[] | undefined): number {
+  return materialSellTotal(filterInstallationSupplyRows(items, 'device'));
 }
 
 /** Tuotteiden hankinta (ei sisällä työtä tai huoltoautoa). */
 export function installationSuppliesPurchaseNet(items: QuoteMaterial[] | undefined): number {
   return materialPurchaseTotal(items ?? []);
+}
+
+export function installationSuppliesSupplyPurchaseNet(items: QuoteMaterial[] | undefined): number {
+  return materialPurchaseTotal(filterInstallationSupplyRows(items, 'supply'));
+}
+
+export function installationSuppliesDevicePurchaseNet(items: QuoteMaterial[] | undefined): number {
+  return materialPurchaseTotal(filterInstallationSupplyRows(items, 'device'));
+}
+
+export function hasOfferedDeviceRows(items: QuoteMaterial[] | undefined): boolean {
+  return filterInstallationSupplyRows(items, 'device').length > 0;
 }
 
 export function installationVehicleBlocks(
@@ -124,7 +161,8 @@ export function installationSuppliesTotalPurchaseNet(
   >,
 ): number {
   return roundMoney(
-    installationSuppliesPurchaseNet(data.installationSupplies)
+    installationSuppliesSupplyPurchaseNet(data.installationSupplies)
+      + installationSuppliesDevicePurchaseNet(data.installationSupplies)
       + installationSuppliesInternalCostsNet(data),
   );
 }

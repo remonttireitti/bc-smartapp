@@ -1,5 +1,9 @@
 import type { QuoteRequestData } from './types';
-import { computeInstallationSupplyMarginPercent } from './installationSupplies';
+import {
+  computeInstallationSupplyMarginPercent,
+  installationSuppliesDevicePurchaseNet,
+  installationSuppliesDeviceSellNet,
+} from './installationSupplies';
 
 function roundMoney(value: number): number {
   return Math.round(value * 100) / 100;
@@ -16,10 +20,21 @@ export function computeManualDeviceSellNet(
 }
 
 export function resolveNonPumpDeviceSellNet(data: QuoteRequestData): number {
+  const fromRows = installationSuppliesDeviceSellNet(data.installationSupplies);
+  if (fromRows > 0.005) return fromRows;
   if (data.deviceSaleOverrideNet != null) {
     return Number(data.deviceSaleOverrideNet) || 0;
   }
   return computeManualDeviceSellNet(data.devicePurchaseOverrideNet, data.deviceMarginPercent);
+}
+
+export function resolveNonPumpDevicePurchaseNet(data: QuoteRequestData): number {
+  const fromRows = installationSuppliesDevicePurchaseNet(data.installationSupplies);
+  if (fromRows > 0.005) return fromRows;
+  if (data.devicePurchaseOverrideNet != null) {
+    return Number(data.devicePurchaseOverrideNet) || 0;
+  }
+  return 0;
 }
 
 export function manualDevicePrintLabel(data: QuoteRequestData): string {

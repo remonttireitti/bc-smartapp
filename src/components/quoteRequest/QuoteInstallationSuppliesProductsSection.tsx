@@ -1,14 +1,21 @@
 import { useEffect, useMemo } from 'react';
 import { createEmptyMaterial } from '../../lib/quoteRequest/defaults';
 import {
+  installationSuppliesDevicePurchaseNet,
+  installationSuppliesDeviceSellNet,
   installationSuppliesProductMarginNet,
   installationSuppliesPurchaseNet,
   installationSuppliesSellNet,
+  installationSuppliesSupplyPurchaseNet,
+  installationSuppliesSupplySellNet,
+  hasOfferedDeviceRows,
+  isOfferedDeviceRow,
   migrateLegacyMaterialsToInstallationSupplies,
   patchInstallationSupplies,
   resolveInstallationSupplyMarginPercent,
   syncInstallationSupplyRow,
 } from '../../lib/quoteRequest/installationSupplies';
+import type { QuoteMaterialRowKind } from '../../lib/quoteRequest/types';
 import type { QuoteMaterial, QuoteRequestData } from '../../lib/quoteRequest/types';
 
 type Props = {
@@ -48,9 +55,32 @@ export default function QuoteInstallationSuppliesProductsSection({
     });
   }, [form, legacyMaterialCount, supplyCount, onChange]);
 
+  useEffect(() => {
+    if (hasOfferedDeviceRows(items)) return;
+    const devicePurchase = Number(form.devicePurchaseOverrideNet) || 0;
+    if (!(devicePurchase > 0.005)) return;
+    const named = items.filter((row) => row.name.trim());
+    if (named.length !== 1) return;
+    const row = named[0];
+    const rowPurchase = (Number(row.quantity) || 0) * (Number(row.purchasePrice) || 0);
+    if (Math.abs(rowPurchase - devicePurchase) > 0.05) return;
+    onChange({
+      installationSupplies: items.map((entry) =>
+        entry.id === row.id ? { ...entry, rowKind: 'device' as const } : entry,
+      ),
+      devicePurchaseOverrideNet: null,
+      deviceSaleOverrideNet: null,
+    });
+  }, [form.devicePurchaseOverrideNet, items, onChange]);
+
+  const devicePurchase = installationSuppliesDevicePurchaseNet(items);
+  const deviceSell = installationSuppliesDeviceSellNet(items);
+  const supplyPurchase = installationSuppliesSupplyPurchaseNet(items);
+  const supplySell = installationSuppliesSupplySellNet(items);
   const productPurchase = installationSuppliesPurchaseNet(items);
   const sellTotal = installationSuppliesSellNet(items);
   const productMargin = installationSuppliesProductMarginNet(form);
+  const hasDeviceRows = devicePurchase > 0.005 || items.some((row) => isOfferedDeviceRow(row));
 
   function updateItems(nextItems: QuoteMaterial[]) {
     onChange(patchInstallationSupplies(nextItems));
@@ -65,21 +95,36 @@ export default function QuoteInstallationSuppliesProductsSection({
   return (
     <div className="quote-installation-supplies">
       <p className="muted">
-        Sisäisessä tulosteessa jokainen tarvike omalla rivillään. Asiakkaan tarjouksessa kaikki
-        yhdistyvät riviksi <strong>Asennus tarvikkeet</strong>. Kun myyntihinta on sovittu, hankinnan
-        muutos päivittää kate-%:n — asiakashinta pysyy ennallaan.
+        Merkitse koneet ja laitteet rivityypillä <strong>Tarjottu laite</strong> — tavalliset tarvikkeet
+        pysyvät <strong>Tarvike</strong>-tyyppinä. Asiakkaan tarjouksessa tarvikkeet yhdistyvät riviksi{' '}
+        <strong>Asennus tarvikkeet</strong>; laitteet näkyvät erikseen. Kun myyntihinta on sovittu,
+        hankinnan muutos päivittää kate-%:n.
       </p>
+      {hasDeviceRows ? (
+        <p className="muted">
+          Laitteet on merkitty tarvikeriveille — erillistä &quot;Laite / urakka&quot; -kenttää ei tarvita.
+        </p>
+      ) : null}
 
       <div className="section-header-row">
-        <h3>Tarvikerivit</h3>
+        <h3>Tarvike- ja laiterivit</h3>
         {canEdit ? (
-          <button
-            type="button"
-            className="btn btn-secondary btn-sm"
-            onClick={() => updateItems([...items, createEmptyMaterial({ quantity: 1 })])}
-          >
-            + Lisää rivi
-          </button>
+          <div className="form-actions" style={{ margin: 0 }}>
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              onClick={() => updateItems([...items, createEmptyMaterial({ quantity: 1, rowKind: 'supply' })])}
+            >
+              + Tarvike
+            </button>
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              onClick={() => updateItems([...items, createEmptyMaterial({ quantity: 1, rowKind: 'device' })])}
+            >
+              + Tarjottu laite
+            </button>
+          </div>
         ) : null}
       </div>
 
@@ -91,10 +136,17 @@ export default function QuoteInstallationSuppliesProductsSection({
             const qty = Number(item.quantity) || 0;
             const sell = qty * (Number(item.sellPrice) || 0);
             const displayMarginPercent = resolveInstallationSupplyMarginPercent(item);
+            const rowKind: QuoteMaterialRowKind = isOfferedDeviceRow(item) ? 'device' : 'supply';
             return (
-              <div key={item.id} className="quote-material-row panel-inset">
+              <div
+                key={item.id}
+                className={`quote-material-row panel-inset${rowKind === 'device' ? ' quote-material-row-device' : ''}`}
+              >
                 <div className="quote-line-head">
-                  <strong>Rivi {index + 1}</strong>
+                  <strong>
+                    Rivi {index + 1}
+                    {rowKind === 'device' ? ' · Tarjottu laite' : ' · Tarvike'}
+                  </strong>
                   {canEdit ? (
                     <button
                       type="button"
@@ -106,8 +158,23 @@ export default function QuoteInstallationSuppliesProductsSection({
                   ) : null}
                 </div>
                 <div className="quote-material-row-grid">
+                  <label>
+                    Rivin tyyppi
+                    <select
+                      value={rowKind}
+                      onChange={(e) =>
+                        updateRow(item.id, {
+                          rowKind: e.target.value === 'device' ? 'device' : 'supply',
+                        })
+                      }
+                      disabled={!canEdit}
+                    >
+                      <option value="supply">Tarvike</option>
+                      <option value="device">Tarjottu laite</option>
+                    </select>
+                  </label>
                   <label className="quote-material-row-span-all">
-                    Tuote
+                    {rowKind === 'device' ? 'Laite / tuote' : 'Tuote'}
                     <input
                       value={item.name}
                       onChange={(e) => updateRow(item.id, { name: e.target.value })}
@@ -171,6 +238,12 @@ export default function QuoteInstallationSuppliesProductsSection({
 
       {items.length > 0 ? (
         <div className="quote-summary-box">
+          {hasDeviceRows ? (
+            <>
+              <div>Tarjotut laitteet: hankinta {formatEuro(devicePurchase)} · myynti {formatEuro(deviceSell)}</div>
+              <div>Tarvikkeet: hankinta {formatEuro(supplyPurchase)} · myynti {formatEuro(supplySell)}</div>
+            </>
+          ) : null}
           <div>Hankinta yhteensä: {formatEuro(productPurchase)}</div>
           <div>Myynti yhteensä: {formatEuro(sellTotal)}</div>
           <strong>Kate: {formatEuro(productMargin)}</strong>

@@ -83,6 +83,7 @@ function normalizeMaterialList(raw: unknown): QuoteMaterial[] {
       purchasePrice: Number(row.purchasePrice) || 0,
       marginPercent: Number(row.marginPercent) || 0,
       sellPrice: Number(row.sellPrice) || 0,
+      rowKind: row.rowKind === 'device' ? 'device' : 'supply',
     });
   });
 }
@@ -100,6 +101,7 @@ export function createEmptyMaterial(partial?: Partial<QuoteMaterial>): QuoteMate
     marginPercent: 25,
     sellPrice: 0,
     ...partial,
+    rowKind: partial?.rowKind === 'device' ? 'device' : 'supply',
   };
 }
 

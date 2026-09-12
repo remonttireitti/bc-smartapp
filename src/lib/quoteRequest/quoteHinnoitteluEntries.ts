@@ -4,6 +4,7 @@ import {
   quoteUsesTravelCost,
   QUOTE_VAT_PROFILE_LABELS,
 } from './constants';
+import { hasOfferedDeviceRows } from './installationSupplies';
 import { manualDevicePrintLabel, resolveNonPumpDeviceSellNet } from './manualDevicePricing';
 import type { QuoteRequestData } from './types';
 
@@ -103,7 +104,7 @@ export function buildQuoteHinnoitteluTiles(form: QuoteRequestData): QuoteHinnoit
     });
   }
 
-  if (!isPumpQuoteType(form.type)) {
+  if (!isPumpQuoteType(form.type) && !hasOfferedDeviceRows(form.installationSupplies)) {
     entries.push({
       id: 'device-pricing',
       title: 'Laite / urakka',

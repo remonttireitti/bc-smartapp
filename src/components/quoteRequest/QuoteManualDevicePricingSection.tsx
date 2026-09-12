@@ -1,3 +1,4 @@
+import { hasOfferedDeviceRows } from '../../lib/quoteRequest/installationSupplies';
 import type { QuoteRequestData } from '../../lib/quoteRequest/types';
 import { syncManualDeviceSalePatch } from '../../lib/quoteRequest/manualDevicePricing';
 
@@ -11,6 +12,18 @@ type Props = {
 export function QuoteManualDevicePricingSection({ form, canEdit, onChange, hideHeader = false }: Props) {
   function patchDevice(patch: Partial<QuoteRequestData>) {
     onChange(syncManualDeviceSalePatch(form, patch));
+  }
+
+  if (hasOfferedDeviceRows(form.installationSupplies)) {
+    return (
+      <section className={`quote-manual-device-pricing${hideHeader ? '' : ' form-section'}`}>
+        <p className="muted">
+          Laitteet on merkitty <strong>Työt &amp; tarvikkeet</strong> -osion riveille tyypillä{' '}
+          <strong>Tarjottu laite</strong>. Tämä erillinen kenttä on piilotettu, jotta hankintaa ei
+          kirjata kahteen paikkaan.
+        </p>
+      </section>
+    );
   }
 
   return (

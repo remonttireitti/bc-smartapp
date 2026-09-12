@@ -52,6 +52,7 @@
     "test:manual-device-margin-sync": "npx tsx scripts/test-manual-device-margin-sync.mjs",
     "test:quote-purchase-margin-adjustment": "npx tsx scripts/test-quote-purchase-margin-adjustment.mjs",
     "test:work-report-actual-purchase": "npx tsx scripts/test-work-report-actual-purchase.mjs",
+    "test:quote-material-row-kind": "npx tsx scripts/test-quote-material-row-kind.mjs",
     "test:konvektori-example-print": "npx tsx scripts/test-konvektori-example-print.mjs",
     "sync:equipment-huolto-snapshots": "npx tsx scripts/sync-equipment-huolto-snapshots.mjs",
     "copy:customer-to-partner": "node scripts/copy-customer-to-partner.mjs",
