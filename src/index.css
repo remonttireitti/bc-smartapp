@@ -11117,6 +11117,11 @@ a.tile.customer-document-tile:hover {
   background: #fffbeb;
 }
 
+.billing-margin-table tr.billing-margin-customer-total td {
+  border-top-width: 2px;
+  background: #f0fdf4;
+}
+
 .billing-purchase-lines-wrap {
   margin-top: 0.35rem;
 }

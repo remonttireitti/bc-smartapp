@@ -298,6 +298,55 @@ export function resolveCustomerInvoiceTotal(settings: BillingQuoteSettings): num
   return null;
 }
 
+export type CustomerBillableGrandTotal = {
+  quoteTotal: number;
+  extrasTotal: number;
+  grandTotal: number;
+};
+
+export function resolveCustomerBillableGrandTotal(input: {
+  settings: BillingQuoteSettings;
+  logs: WorkReportDailyLog[];
+  customerCalculation?: BillableCalculation | null;
+  rates?: PartnerBillingRates;
+  ratesSource?: BillableRatesSource;
+  customerName?: string | null;
+}): CustomerBillableGrandTotal | null {
+  const quoteTotal = resolveCustomerInvoiceTotal(input.settings);
+  if (quoteTotal == null) return null;
+
+  if (input.customerCalculation?.grandTotal != null && input.customerCalculation.grandTotal > 0) {
+    const extrasTotal = roundMoney(input.customerCalculation.quoteExtrasTotal ?? 0);
+    return {
+      quoteTotal: roundMoney(quoteTotal),
+      extrasTotal,
+      grandTotal: roundMoney(input.customerCalculation.grandTotal),
+    };
+  }
+
+  const works = extraCustomerWorkFromDailyLogs(input.logs);
+  if (works.length === 0) {
+    return {
+      quoteTotal: roundMoney(quoteTotal),
+      extrasTotal: 0,
+      grandTotal: roundMoney(quoteTotal),
+    };
+  }
+
+  const extrasCalc = calculateWorkReportCustomerQuoteExtras({
+    works,
+    rates: input.rates ?? { hourly_regular: 0, hourly_overtime: 0, hourly_on_call: 0 },
+    ratesSource: input.ratesSource ?? 'company_default',
+    customerName: input.customerName ?? null,
+  });
+  const extrasTotal = roundMoney(extrasCalc.grandTotal);
+  return {
+    quoteTotal: roundMoney(quoteTotal),
+    extrasTotal,
+    grandTotal: roundMoney(quoteTotal + extrasTotal),
+  };
+}
+
 export function computePartnerNetMargin(
   settings: BillingQuoteSettings,
   installationCostNet: number,

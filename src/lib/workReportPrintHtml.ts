@@ -34,6 +34,7 @@ import {
   customerUsesQuoteBasedBilling,
   parseBillingQuoteSettings,
   quoteHasVat,
+  resolveCustomerBillableGrandTotal,
   renderBillingQuotePurchaseLinesHtml,
   type BillingQuoteSettings,
 } from './workReportBillingQuote';
@@ -398,6 +399,13 @@ function quoteMarginPrintSection(
           customerCalculation?.ratesUsed,
         )
       : [];
+  const customerBillableGrandTotal = resolveCustomerBillableGrandTotal({
+    settings: billingQuote,
+    logs,
+    customerCalculation,
+    rates: customerCalculation?.ratesUsed,
+    ratesSource: customerCalculation?.ratesSource,
+  });
 
   const purchaseLines = billingQuote.purchase_lines ?? [];
   const deviceActualTotal = roundMoney(
@@ -424,6 +432,11 @@ function quoteMarginPrintSection(
     if (partnerMargin.customerExtrasNet > 0.005) {
       rows.push(
         `<tr><td>Lisälaskutus asiakkaalta</td><td class="num">+ ${formatEuro(partnerMargin.customerExtrasNet)}</td></tr>`,
+      );
+    }
+    if (customerBillableGrandTotal && customerBillableGrandTotal.extrasTotal > 0.005) {
+      rows.push(
+        `<tr class="profit-row"><td><strong>Asiakkaalta laskutettava yhteensä</strong></td><td class="num"><strong>${formatEuro(customerBillableGrandTotal.grandTotal)}</strong></td></tr>`,
       );
     }
 
@@ -531,7 +544,12 @@ function quoteMarginPrintSection(
           </tr>`;
           })
           .join('')}</tbody>
-      </table>`
+      </table>
+      ${
+        customerBillableGrandTotal && customerBillableGrandTotal.extrasTotal > 0.005
+          ? `<p class="meta-line">Asiakkaalta laskutettava yhteensä: tarjous ${formatEuro(customerBillableGrandTotal.quoteTotal)} + lisät ${formatEuro(customerBillableGrandTotal.extrasTotal)} = <strong>${formatEuro(customerBillableGrandTotal.grandTotal)}</strong></p>`
+          : ''
+      }`
       : '';
 
   if (rows.length === 0 && !purchaseLinesHtml && !categoryComparisonHtml && !extrasDetailHtml) {

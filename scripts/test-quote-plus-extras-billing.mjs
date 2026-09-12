@@ -6,6 +6,7 @@ import {
 import {
   calculateWorkReportCustomerBillableQuotePlusExtras,
   parseBillingQuoteSettings,
+  resolveCustomerBillableGrandTotal,
   shouldUseQuoteExtrasBilling,
   customerUsesQuoteBasedBilling,
 } from '../src/lib/workReportBillingQuote.ts';
@@ -76,6 +77,25 @@ const merged = calculateWorkReportCustomerBillableQuotePlusExtras({
 assert.ok(merged);
 assert.equal(merged.grandTotal, 5410); // 5000 + 160 + 250
 assert.equal(merged.quoteExtrasTotal, 410);
+
+const customerBillableGrandTotal = resolveCustomerBillableGrandTotal({
+  settings: quoteSettings,
+  logs,
+  customerCalculation: merged,
+});
+assert.ok(customerBillableGrandTotal);
+assert.equal(customerBillableGrandTotal.quoteTotal, 5000);
+assert.equal(customerBillableGrandTotal.extrasTotal, 410);
+assert.equal(customerBillableGrandTotal.grandTotal, 5410);
+
+const quoteOnlyTotal = resolveCustomerBillableGrandTotal({
+  settings: quoteSettings,
+  logs: [],
+});
+assert.ok(quoteOnlyTotal);
+assert.equal(quoteOnlyTotal.quoteTotal, 5000);
+assert.equal(quoteOnlyTotal.extrasTotal, 0);
+assert.equal(quoteOnlyTotal.grandTotal, 5000);
 
 const users = [
   {

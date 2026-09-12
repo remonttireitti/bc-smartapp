@@ -10,6 +10,7 @@ import {
   parseBillingQuoteSettings,
   quoteHasVat,
   resolveActualPurchaseTotal,
+  resolveCustomerBillableGrandTotal,
   resolveQuotePurchaseTotal,
   saveBillingQuoteSettings,
   type BillingQuoteOption,
@@ -207,6 +208,19 @@ export default function WorkReportBillingQuotePanel({
   );
   const quoteBillingEnabled =
     settings.customer_mode === 'quote_fixed' || settings.customer_mode === 'quote_plus_extras';
+  const customerBillableGrandTotal = useMemo(
+    () =>
+      quoteBillingEnabled
+        ? resolveCustomerBillableGrandTotal({
+            settings: effectiveSettings,
+            logs: dailyLogs,
+            customerCalculation,
+            rates: customerCalculation?.ratesUsed,
+            ratesSource: customerCalculation?.ratesSource,
+          })
+        : null,
+    [effectiveSettings, dailyLogs, customerCalculation, quoteBillingEnabled],
+  );
 
   function applyQuote(option: BillingQuoteOption) {
     void supabase
@@ -552,6 +566,17 @@ export default function WorkReportBillingQuotePanel({
             <span className="billing-margin-headline">
               {' '}
               · puhdas kate {formatEuro(partnerMargin.netMarginNet)}
+              {customerBillableGrandTotal && customerBillableGrandTotal.extrasTotal > 0.005 ? (
+                <>
+                  {' '}
+                  · asiakkaalta {formatEuro(customerBillableGrandTotal.grandTotal)}
+                </>
+              ) : null}
+            </span>
+          ) : customerBillableGrandTotal ? (
+            <span className="billing-margin-headline">
+              {' '}
+              · asiakkaalta {formatEuro(customerBillableGrandTotal.grandTotal)}
             </span>
           ) : settings.customer_mode === 'quote_fixed' && settings.customer_invoice_total ? (
             <span className="billing-margin-headline">
@@ -793,6 +818,16 @@ export default function WorkReportBillingQuotePanel({
                       <td className="num">+ {formatEuro(partnerMargin.customerExtrasNet)}</td>
                     </tr>
                   ) : null}
+                  {customerBillableGrandTotal && customerBillableGrandTotal.extrasTotal > 0.005 ? (
+                    <tr className="billing-margin-customer-total">
+                      <td>
+                        <strong>Asiakkaalta laskutettava yhteensä</strong>
+                      </td>
+                      <td className="num">
+                        <strong>{formatEuro(customerBillableGrandTotal.grandTotal)}</strong>
+                      </td>
+                    </tr>
+                  ) : null}
                   {categoryComparison?.rows.map((row) => (
                     <tr key={`compare-${row.key}`} className="muted">
                       <td>{row.label} (vertailu arvio → toteutunut)</td>
@@ -948,6 +983,14 @@ export default function WorkReportBillingQuotePanel({
                     ))}
                   </tbody>
                 </table>
+              ) : null}
+              {customerBillableGrandTotal && customerBillableGrandTotal.extrasTotal > 0.005 ? (
+                <p className="muted billing-margin-formula">
+                  Asiakkaalta laskutettava yhteensä: tarjous{' '}
+                  {formatEuro(customerBillableGrandTotal.quoteTotal)} + lisät{' '}
+                  {formatEuro(customerBillableGrandTotal.extrasTotal)} ={' '}
+                  <strong>{formatEuro(customerBillableGrandTotal.grandTotal)}</strong>
+                </p>
               ) : null}
               <p className="muted billing-margin-formula">
                 Kate = tarjoushinta + lisälaskutus − työt − kulut − tarvikkeet − laite − katetta syövät
