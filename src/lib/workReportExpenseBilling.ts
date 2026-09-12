@@ -155,6 +155,71 @@ export type ExpenseBillingFlags = {
   customer_margin_percent?: number | string | null;
 };
 
+export type SupplyLineExtraBillingFlag = {
+  extra_billable: boolean;
+  extra_billing_allowed: boolean;
+  customer_margin_percent?: number | null;
+};
+
+export type ExpenseDraftLike = ExpenseBillingFlags & {
+  expense_type?: string;
+  description?: string;
+  qty?: string | number;
+  unit_price?: string | number | null;
+  key?: string;
+};
+
+function expenseDraftCountsForSave(row: ExpenseDraftLike): boolean {
+  const description = row.description?.trim() ?? '';
+  if (!description) return false;
+  if (row.expense_type) return true;
+  if (row.key && isLikelyAutoTripKmExpense(row as { key: string; expense_type: string; description: string })) {
+    return true;
+  }
+  return row.expense_type === 'km' && /^Ajomatkat\s*\(/i.test(description);
+}
+
+export function buildSupplyLineFlagsFromExpenseDrafts(
+  drafts: ExpenseDraftLike[],
+): SupplyLineExtraBillingFlag[] {
+  return drafts
+    .filter(expenseDraftCountsForSave)
+    .map((row) => {
+      const marginRaw = row.customer_margin_percent;
+      const margin =
+        marginRaw != null && String(marginRaw).trim() !== '' && Number.isFinite(Number(marginRaw))
+          ? Number(marginRaw)
+          : null;
+      return {
+        extra_billable: row.extra_billable === true,
+        extra_billing_allowed: row.extra_billing_allowed === true,
+        customer_margin_percent:
+          margin != null && margin >= 0 && margin < 100 ? margin : null,
+      };
+    });
+}
+
+/** Yhdistää DB-sarakkeen ja customer_extra_billing-varmuuskopion. */
+export function resolveExpenseExtraBillableFromSources(
+  line: ExpenseBillingFlags,
+  fallback?: SupplyLineExtraBillingFlag | null,
+): boolean {
+  if (line.extra_billable === true) return true;
+  if (line.extra_billable === false) return false;
+  if (fallback?.extra_billable === true) return true;
+  if (fallback?.extra_billable === false) return false;
+  return line.extra_billing_allowed === true;
+}
+
+export function resolveExpenseExtraBillingAllowedFromSources(
+  line: ExpenseBillingFlags,
+  fallback?: SupplyLineExtraBillingFlag | null,
+): boolean {
+  if (line.extra_billing_allowed === true) return true;
+  if (line.extra_billing_allowed === false) return false;
+  return fallback?.extra_billing_allowed === true;
+}
+
 /** Tarvike voi olla lisälaskutettavissa (ei sama kuin lupa). */
 export function expenseExtraBillable(
   row: ExpenseBillingFlags,

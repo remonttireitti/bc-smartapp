@@ -161,6 +161,7 @@ import {
   buildCustomerExtraBillingFromLogForm,
   dailyLogExtraBillingToForm,
   emptyDailyLogExtraBillingForm,
+  parseDailyLogCustomerExtraBilling,
   serializeDailyLogCustomerExtraBilling,
 } from '../lib/dailyLogCustomerExtraBilling';
 import {
@@ -202,7 +203,10 @@ import {
   inferPartnerExpenseMarginPercent,
   inferSupplyMarginPercent,
   resolveExpenseBillingMode,
+  resolveExpenseExtraBillableFromSources,
+  resolveExpenseExtraBillingAllowedFromSources,
   resolveTripBillingFromExpenses,
+  type SupplyLineExtraBillingFlag,
   tripLegsBillToCustomer,
   type ExpenseBillingMode,
 } from '../lib/workReportExpenseBilling';
@@ -415,8 +419,12 @@ function logToForm(log: WorkReportDailyLog): DailyLogFormState {
   };
 }
 
-function expensesToDrafts(lines: WorkReportDailyLog['expense_lines']): ExpenseDraft[] {
-  return (lines ?? []).map((line) => {
+function expensesToDrafts(
+  lines: WorkReportDailyLog['expense_lines'],
+  supplyLineFlags?: SupplyLineExtraBillingFlag[],
+): ExpenseDraft[] {
+  return (lines ?? []).map((line, index) => {
+    const fallback = supplyLineFlags?.[index] ?? null;
     const unitPrice = Number(line.unit_price);
     const customerPrice =
       line.customer_unit_price != null && Number(line.customer_unit_price) > 0
@@ -434,11 +442,9 @@ function expensesToDrafts(lines: WorkReportDailyLog['expense_lines']): ExpenseDr
             : unitPrice > 0 && customerPrice != null && customerPrice > 0
               ? inferPartnerExpenseMarginPercent(unitPrice, customerPrice)
               : DEFAULT_PARTNER_EXPENSE_MARGIN_PERCENT;
-    const extraBillable =
-      line.extra_billable === true
-      || (line.extra_billable == null && line.extra_billing_allowed === true)
-      || (isCustomerOnly && customerPrice != null && customerPrice > 0 && line.bill_to_customer !== false);
-    const extraBillingAllowed = line.extra_billing_allowed === true;
+    const extraBillable = resolveExpenseExtraBillableFromSources(line, fallback);
+    const extraBillingAllowed = resolveExpenseExtraBillingAllowedFromSources(line, fallback);
+    const fallbackMargin = fallback?.customer_margin_percent;
     return {
       key: line.id,
       expense_type: line.expense_type,
@@ -452,7 +458,13 @@ function expensesToDrafts(lines: WorkReportDailyLog['expense_lines']): ExpenseDr
       partner_expense_margin_percent: String(
         isCustomerOnly ? DEFAULT_PARTNER_EXPENSE_MARGIN_PERCENT : margin,
       ),
-      customer_margin_percent: String(isCustomerOnly ? margin : DEFAULT_SUPPLY_MARGIN_PERCENT),
+      customer_margin_percent: String(
+        isCustomerOnly
+          ? fallbackMargin != null
+            ? fallbackMargin
+            : margin
+          : DEFAULT_SUPPLY_MARGIN_PERCENT,
+      ),
       extra_billable: extraBillable,
       extra_billing_allowed: extraBillingAllowed,
     };
@@ -500,7 +512,10 @@ function expenseRowSectionTitle(
   return parts.join(' · ');
 }
 
-function buildLogPayload(form: DailyLogFormState, options?: { includeAgreedRegular?: boolean }) {
+function buildLogPayload(
+  form: DailyLogFormState,
+  options?: { includeAgreedRegular?: boolean; expenseDrafts?: ExpenseDraft[] },
+) {
   const { showRegular, showOvertime, showOnCall, showFixed } = hourFieldsForEntryType(form.entry_type);
   const hourlyOverride = parseOptionalHourlyRateOverride(form.hourly_rate_override);
   const customerHourlyOverride = parseOptionalHourlyRateOverride(form.customer_hourly_rate_override);
@@ -544,7 +559,9 @@ function buildLogPayload(form: DailyLogFormState, options?: { includeAgreedRegul
     ...(options?.includeAgreedRegular
       ? { hours_agreed_regular: Number(form.hours_agreed_regular || 0) }
       : {}),
-    customer_extra_billing: serializeDailyLogCustomerExtraBilling(buildCustomerExtraBillingFromLogForm(form)),
+    customer_extra_billing: serializeDailyLogCustomerExtraBilling(
+      buildCustomerExtraBillingFromLogForm(form, options?.expenseDrafts),
+    ),
   };
 }
 
@@ -2517,7 +2534,16 @@ export default function WorkReportDetailPage({ session }: Props) {
 
     setDailyLogNotice(dailyLogSavingNotice(false));
     setLogDialogBusy(true);
-    const payload = buildLogPayload(logForm, { includeAgreedRegular: agreedRegularSupported });
+    const expensesForPayload = syncTripKmExpenseDrafts(
+      expenseDrafts,
+      tripDrafts,
+      tripKmRate,
+      tripKmCustomerRate,
+    );
+    const payload = buildLogPayload(logForm, {
+      includeAgreedRegular: agreedRegularSupported,
+      expenseDrafts: expensesForPayload,
+    });
 
     const performerId = resolveReportPerformerUserId(report) ?? session.user.id;
     const { reports, logsByReportId } = await loadPerformerCalendarContext(supabase, performerId);
@@ -2765,7 +2791,12 @@ export default function WorkReportDetailPage({ session }: Props) {
     setEditingLogId(log.id);
     setEditingLog(log);
     setLogForm(logToForm(log));
-    setExpenseDrafts(expensesToDrafts(log.expense_lines));
+    setExpenseDrafts(
+      expensesToDrafts(
+        log.expense_lines,
+        parseDailyLogCustomerExtraBilling(log.customer_extra_billing).supply_line_flags,
+      ),
+    );
     setRefrigerantDrafts(drafts);
     setPartnerPurchaseDrafts(partnerPurchasesToDrafts(log.partner_purchase_lines));
     setPendingImages([]);
@@ -2810,7 +2841,16 @@ export default function WorkReportDetailPage({ session }: Props) {
 
     setDailyLogNotice(dailyLogSavingNotice(true));
     setLogDialogBusy(true);
-    const payload = buildLogPayload(logForm, { includeAgreedRegular: agreedRegularSupported });
+    const expensesForPayload = syncTripKmExpenseDrafts(
+      expenseDrafts,
+      tripDrafts,
+      tripKmRate,
+      tripKmCustomerRate,
+    );
+    const payload = buildLogPayload(logForm, {
+      includeAgreedRegular: agreedRegularSupported,
+      expenseDrafts: expensesForPayload,
+    });
 
     const performerId = resolveReportPerformerUserId(report) ?? session.user.id;
     const { reports, logsByReportId } = await loadPerformerCalendarContext(supabase, performerId);

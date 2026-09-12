@@ -1,11 +1,13 @@
 import type { WorkReportDailyLog } from '../types';
 import type { BillingQuoteExtraCustomerWork, BillingQuoteExtraExpenseLine } from './billingQuoteExtraWork';
 import {
+  buildSupplyLineFlagsFromExpenseDrafts,
   computeSupplyCustomerUnitPrice,
   expenseExtraBillingAllowed,
   resolveExpenseBillingMode,
   resolveExpensePurchaseUnitPrice,
   resolveSupplyMarginPercent,
+  type SupplyLineExtraBillingFlag,
 } from './workReportExpenseBilling';
 
 export type DailyLogCustomerExtraBilling = {
@@ -22,6 +24,8 @@ export type DailyLogCustomerExtraBilling = {
   expense_purchase_unit_price?: number | null;
   /** false = kumppanin piikki, ei välihankintalaskutusta */
   expense_bill_to_partner?: boolean;
+  /** Tarvike/kulu-rivien lisälaskutus (indeksi = tallennetun rivin järjestys). */
+  supply_line_flags?: SupplyLineExtraBillingFlag[];
 };
 
 function roundMoney(value: number): number {
@@ -49,6 +53,7 @@ export function parseDailyLogCustomerExtraBilling(raw: unknown): DailyLogCustome
   const billToPartner = record.expense_bill_to_partner;
   const hoursExtraBillable = record.hours_extra_billable === true;
   const hoursExtraBillingAllowed = record.hours_extra_billing_allowed === true;
+  const supplyLineFlags = parseSupplyLineFlags(record.supply_line_flags);
   return {
     hours: hours > 0 ? hours : 0,
     hourly_rate: hourlyRate != null && hourlyRate > 0 ? hourlyRate : null,
@@ -62,7 +67,30 @@ export function parseDailyLogCustomerExtraBilling(raw: unknown): DailyLogCustome
     expense_purchase_unit_price:
       expensePurchase != null && expensePurchase > 0 ? expensePurchase : null,
     expense_bill_to_partner: billToPartner === false ? false : billToPartner === true ? true : undefined,
+    supply_line_flags: supplyLineFlags.length > 0 ? supplyLineFlags : undefined,
   };
+}
+
+function parseSupplyLineFlags(raw: unknown): SupplyLineExtraBillingFlag[] {
+  if (!Array.isArray(raw)) return [];
+  const parsed: SupplyLineExtraBillingFlag[] = [];
+  for (const entry of raw) {
+    if (!entry || typeof entry !== 'object') continue;
+    const row = entry as Record<string, unknown>;
+    const marginRaw = row.customer_margin_percent;
+    const margin =
+      marginRaw != null && String(marginRaw).trim() !== '' && Number.isFinite(Number(marginRaw))
+        ? Number(marginRaw)
+        : null;
+    parsed.push({
+      extra_billable: row.extra_billable === true,
+      extra_billing_allowed: row.extra_billing_allowed === true,
+      ...(margin != null && margin >= 0 && margin < 100
+        ? { customer_margin_percent: margin }
+        : {}),
+    });
+  }
+  return parsed;
 }
 
 export function normalizeDailyLogCustomerExtraBilling(
@@ -90,6 +118,7 @@ export function dailyLogCustomerExtraBillingHasData(
   return (
     hoursExtraBillable(parsed)
     || dailyLogCustomerExtraBillingHasExpenseData(parsed)
+    || (parsed.supply_line_flags?.some((row) => row.extra_billable || row.extra_billing_allowed) ?? false)
   );
 }
 
@@ -129,6 +158,16 @@ export function serializeDailyLogCustomerExtraBilling(
       purchase != null && purchase > 0 ? purchase : null;
     if (billing.expense_bill_to_partner === false) out.expense_bill_to_partner = false;
     else if (billing.expense_bill_to_partner === true) out.expense_bill_to_partner = true;
+  }
+
+  if (billing.supply_line_flags?.length) {
+    out.supply_line_flags = billing.supply_line_flags.map((row) => ({
+      extra_billable: row.extra_billable === true,
+      extra_billing_allowed: row.extra_billing_allowed === true,
+      ...(row.customer_margin_percent != null
+        ? { customer_margin_percent: row.customer_margin_percent }
+        : {}),
+    }));
   }
 
   return out;
@@ -253,6 +292,17 @@ export function dailyLogExtraBillingToForm(
 
 export function buildCustomerExtraBillingFromLogForm(
   form: DailyLogExtraBillingLogForm,
+  expenseDrafts?: Array<{
+    expense_type: string;
+    description: string;
+    extra_billable: boolean;
+    extra_billing_allowed: boolean;
+    customer_margin_percent: string;
+    bill_to_partner: boolean;
+    bill_to_customer: boolean;
+    qty: string;
+    unit_price: string;
+  }>,
 ): DailyLogCustomerExtraBilling {
   const expenseQty = Number(form.extra_expense_qty || 0);
   const expenseCustomer = Number(form.extra_expense_customer_price || 0);
@@ -285,6 +335,11 @@ export function buildCustomerExtraBillingFromLogForm(
     payload.expense_purchase_unit_price = expensePurchase > 0 ? expensePurchase : null;
     payload.expense_bill_to_partner =
       form.extra_expense_partner_billing === 'piikki' ? false : expensePurchase > 0 ? true : undefined;
+  }
+
+  const supplyFlags = expenseDrafts ? buildSupplyLineFlagsFromExpenseDrafts(expenseDrafts) : [];
+  if (supplyFlags.length > 0) {
+    payload.supply_line_flags = supplyFlags;
   }
 
   return payload;

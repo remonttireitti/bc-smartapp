@@ -1,13 +1,21 @@
 import assert from 'node:assert/strict';
 import {
+  buildSupplyLineFlagsFromExpenseDrafts,
   computeSupplyCustomerUnitPrice,
   DEFAULT_SUPPLY_MARGIN_PERCENT,
   expenseExtraBillable,
   expenseExtraBillingAllowed,
   expenseSupplyExtraBillingLabel,
   resolveExpenseBillingMode,
+  resolveExpenseExtraBillableFromSources,
+  resolveExpenseExtraBillingAllowedFromSources,
   syncSupplyExpenseCustomerPrice,
 } from '../src/lib/workReportExpenseBilling.ts';
+import {
+  buildCustomerExtraBillingFromLogForm,
+  parseDailyLogCustomerExtraBilling,
+  serializeDailyLogCustomerExtraBilling,
+} from '../src/lib/dailyLogCustomerExtraBilling.ts';
 import {
   extraCustomerWorkFromDailyLogs,
   computeQuoteExtrasMarginFromLogs,
@@ -115,5 +123,69 @@ const eating = analyzeMarginEatingExpenses(logs);
 assert.equal(eating.total, 75);
 assert.equal(expenseExtraBillingAllowed(logs[0].expense_lines[0]), true);
 assert.equal(expenseExtraBillingAllowed(logs[0].expense_lines[1]), false);
+
+assert.equal(
+  resolveExpenseExtraBillableFromSources(
+    { extra_billable: undefined, extra_billing_allowed: false },
+    { extra_billable: true, extra_billing_allowed: false },
+  ),
+  true,
+);
+assert.equal(
+  resolveExpenseExtraBillableFromSources(
+    { extra_billable: false, extra_billing_allowed: false, customer_unit_price: 180 },
+    null,
+  ),
+  false,
+);
+assert.equal(
+  resolveExpenseExtraBillingAllowedFromSources(
+    { extra_billing_allowed: undefined },
+    { extra_billable: true, extra_billing_allowed: true },
+  ),
+  true,
+);
+
+const expenseDrafts = [
+  {
+    expense_type: 'supply',
+    description: 'Onninen',
+    qty: '1',
+    unit_price: '50',
+    bill_to_partner: false,
+    bill_to_customer: true,
+    extra_billable: true,
+    extra_billing_allowed: false,
+    customer_margin_percent: '80',
+  },
+];
+const flags = buildSupplyLineFlagsFromExpenseDrafts(expenseDrafts);
+assert.equal(flags.length, 1);
+assert.equal(flags[0].extra_billable, true);
+
+const serialized = serializeDailyLogCustomerExtraBilling(
+  buildCustomerExtraBillingFromLogForm(
+    {
+      hours_extra_billable: false,
+      hours_extra_billing_allowed: false,
+      hours_extra_hours: '',
+      extra_expense_description: '',
+      extra_expense_qty: '1',
+      extra_expense_customer_price: '',
+      extra_expense_purchase_price: '',
+      extra_expense_partner_billing: 'charge',
+      entry_type: 'regular',
+      hours_regular: '8',
+      hours_overtime: '',
+      hours_on_call: '',
+      work_done: 'Työ',
+      customer_hourly_rate_override: '',
+    },
+    expenseDrafts,
+  ),
+);
+const parsed = parseDailyLogCustomerExtraBilling(serialized);
+assert.equal(parsed.supply_line_flags?.[0]?.extra_billable, true);
+assert.equal(parsed.supply_line_flags?.[0]?.extra_billing_allowed, false);
 
 console.log('test-expense-supply-extra-billing: ok');
