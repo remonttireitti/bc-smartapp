@@ -2,7 +2,15 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { computeQuoteInternalTotals, computeQuoteTotals } from './quoteRequest/calculations';
 import { normalizeQuoteRequestData } from './quoteRequest/defaults';
 import type { BillableRatesSource } from './management';
-import type { BillableCalculation } from './workReportBilling';
+import {
+  breakdownPartnerBillingForQuoteMargin,
+  type BillableCalculation,
+} from './workReportBilling';
+import {
+  analyzeMarginEatingExpenses,
+  effectiveQuoteMaterialCostNet,
+  sumPartnerPurchaseCostNet,
+} from './workReportQuoteMargin';
 import { formatEuro } from './workReportBilling';
 import {
   calculateWorkReportCustomerQuoteExtras,
@@ -73,6 +81,17 @@ export type PartnerMarginComputed = {
   quoteSaleNet: number;
   quotePurchaseNet: number;
   actualPurchaseNet: number;
+  /** Työ + ajot (ei tarvikkeita). */
+  installationLaborTravelNet: number;
+  /** Kumppanille laskutetut tarvikkeet päiväkirjasta. */
+  partnerBilledMaterialsNet: number;
+  /** max(todellinen hankinta, kumppanilaskutetut tarvikkeet). */
+  effectiveMaterialCostNet: number;
+  /** Urakkaan kuuluvat / piikki-kulut ilman lisälaskutuslupaa. */
+  marginEatingExpenseNet: number;
+  /** Kumppanin piikkiostot (raaka hankinta). */
+  partnerPiikkiPurchaseNet: number;
+  /** @deprecated käytä installationLaborTravelNet */
   installationCostNet: number;
   customerExtrasNet: number;
   piikkiMaterialCostNet: number;
@@ -246,6 +265,7 @@ export function computePartnerNetMargin(
     partnerRates?: PartnerBillingRates;
     customerRates?: PartnerBillingRates;
     customerExtrasNet?: number | null;
+    partnerCalculation?: BillableCalculation | null;
   },
 ): PartnerMarginComputed | null {
   const quoteSaleNet = settings.quote_sale_net;
@@ -253,7 +273,25 @@ export function computePartnerNetMargin(
 
   const actualPurchaseNet = resolveActualPurchaseTotal(settings);
   const quotePurchaseNet = resolveQuotePurchaseTotal(settings);
-  const installation = roundMoney(Math.max(0, installationCostNet));
+
+  const partnerBreakdown = options?.partnerCalculation
+    ? breakdownPartnerBillingForQuoteMargin(options.partnerCalculation)
+    : null;
+  const installationLaborTravelNet = partnerBreakdown
+    ? partnerBreakdown.laborTravel
+    : roundMoney(Math.max(0, installationCostNet));
+  const partnerBilledMaterialsNet = partnerBreakdown?.billedMaterials ?? 0;
+  const effectiveMaterialCostNet = effectiveQuoteMaterialCostNet(
+    actualPurchaseNet,
+    partnerBilledMaterialsNet,
+  );
+
+  const marginEating = options?.logs?.length
+    ? analyzeMarginEatingExpenses(options.logs)
+    : { total: 0, lines: [] };
+  const partnerPiikkiPurchaseNet = options?.logs?.length
+    ? sumPartnerPurchaseCostNet(options.logs)
+    : 0;
 
   let customerExtrasNet = 0;
   let piikkiMaterialCostNet = 0;
@@ -272,17 +310,30 @@ export function computePartnerNetMargin(
     customerExtrasNet = roundMoney(options.customerExtrasNet);
   }
 
+  const netMarginNet = roundMoney(
+    quoteSaleNet
+    + customerExtrasNet
+    - installationLaborTravelNet
+    - effectiveMaterialCostNet
+    - marginEating.total
+    - partnerPiikkiPurchaseNet
+    - piikkiMaterialCostNet,
+  );
+
   return {
     quoteSaleNet: roundMoney(quoteSaleNet),
     quotePurchaseNet: roundMoney(quotePurchaseNet),
     actualPurchaseNet: roundMoney(actualPurchaseNet),
-    installationCostNet: installation,
+    installationLaborTravelNet,
+    partnerBilledMaterialsNet,
+    effectiveMaterialCostNet,
+    marginEatingExpenseNet: marginEating.total,
+    partnerPiikkiPurchaseNet,
+    installationCostNet: installationLaborTravelNet,
     customerExtrasNet,
     piikkiMaterialCostNet,
     extrasMarginNet,
-    netMarginNet: roundMoney(
-      quoteSaleNet + customerExtrasNet - installation - actualPurchaseNet - piikkiMaterialCostNet,
-    ),
+    netMarginNet,
   };
 }
 
@@ -504,9 +555,19 @@ export function formatPartnerMarginLines(
       lines.push(`Lisien kate: + ${formatEuro(computed.extrasMarginNet)}`);
     }
   }
-  lines.push(`Asennuskulut (työ + ajot + kulut): ${formatEuro(computed.installationCostNet)}`);
+  lines.push(`Työ ja ajot (kumppani): ${formatEuro(computed.installationLaborTravelNet)}`);
+  if (computed.partnerBilledMaterialsNet > 0.005) {
+    lines.push(`Kumppanille laskutetut tarvikkeet: ${formatEuro(computed.partnerBilledMaterialsNet)}`);
+  }
+  lines.push(`Hankinta (tarjous / tarvikkeet): ${formatEuro(computed.effectiveMaterialCostNet)}`);
+  if (computed.marginEatingExpenseNet > 0.005) {
+    lines.push(`Katetta syövät kulut (ei lisälaskutusta): ${formatEuro(computed.marginEatingExpenseNet)}`);
+  }
+  if (computed.partnerPiikkiPurchaseNet > 0.005) {
+    lines.push(`Kumppanin piikkiostot: ${formatEuro(computed.partnerPiikkiPurchaseNet)}`);
+  }
   if (computed.piikkiMaterialCostNet > 0.005) {
-    lines.push(`Piikki-tarvikkeiden hankinta: ${formatEuro(computed.piikkiMaterialCostNet)}`);
+    lines.push(`Lisätilauksen piikki-hankinta: ${formatEuro(computed.piikkiMaterialCostNet)}`);
   }
   lines.push(
     `Tarjouksen hankinta (alv 0 %): ${formatEuro(computed.quotePurchaseNet)}`,

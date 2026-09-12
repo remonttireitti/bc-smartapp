@@ -139,6 +139,7 @@ export default function WorkReportBillingQuotePanel({
             partnerRates: partnerCalculation?.ratesUsed,
             customerRates: customerCalculation?.ratesUsed,
             customerExtrasNet: customerCalculation?.quoteExtrasTotal,
+            partnerCalculation,
           })
         : null,
     [
@@ -601,32 +602,42 @@ export default function WorkReportBillingQuotePanel({
                     <td>Tarjoushinta (alv 0 %)</td>
                     <td className="num">{formatEuro(partnerMargin.quoteSaleNet)}</td>
                   </tr>
-                  <tr>
-                    <td>Asennuskulut (työ + ajot + kulut)</td>
-                    <td className="num">− {formatEuro(partnerMargin.installationCostNet)}</td>
-                  </tr>
                   {partnerMargin.customerExtrasNet > 0.005 ? (
                     <tr>
                       <td>Lisälaskutus asiakkaalta</td>
                       <td className="num">+ {formatEuro(partnerMargin.customerExtrasNet)}</td>
                     </tr>
                   ) : null}
+                  <tr>
+                    <td>Työ ja ajot (kumppani)</td>
+                    <td className="num">− {formatEuro(partnerMargin.installationLaborTravelNet)}</td>
+                  </tr>
+                  <tr>
+                    <td>Hankinta (tarjous / tarvikkeet)</td>
+                    <td className="num">− {formatEuro(partnerMargin.effectiveMaterialCostNet)}</td>
+                  </tr>
+                  {partnerMargin.marginEatingExpenseNet > 0.005 ? (
+                    <tr>
+                      <td>Katetta syövät kulut (ei lisälaskutusta)</td>
+                      <td className="num">− {formatEuro(partnerMargin.marginEatingExpenseNet)}</td>
+                    </tr>
+                  ) : null}
+                  {partnerMargin.partnerPiikkiPurchaseNet > 0.005 ? (
+                    <tr>
+                      <td>Kumppanin piikkiostot</td>
+                      <td className="num">− {formatEuro(partnerMargin.partnerPiikkiPurchaseNet)}</td>
+                    </tr>
+                  ) : null}
                   {partnerMargin.piikkiMaterialCostNet > 0.005 ? (
                     <tr>
-                      <td>Piikki-tarvikkeiden hankinta</td>
+                      <td>Lisätilauksen piikki-hankinta</td>
                       <td className="num">− {formatEuro(partnerMargin.piikkiMaterialCostNet)}</td>
                     </tr>
                   ) : null}
-                  <tr>
-                    <td>Todellinen hankinta yhteensä (alv 0 %)</td>
-                    <td className="num">− {formatEuro(partnerMargin.actualPurchaseNet)}</td>
+                  <tr className="muted">
+                    <td>Todellinen hankinta (tarjousrivit)</td>
+                    <td className="num">{formatEuro(partnerMargin.actualPurchaseNet)}</td>
                   </tr>
-                  {partnerMargin.extrasMarginNet > 0.005 ? (
-                    <tr>
-                      <td>Lisien kate (asiakas − kumppani/piikki)</td>
-                      <td className="num">+ {formatEuro(partnerMargin.extrasMarginNet)}</td>
-                    </tr>
-                  ) : null}
                   <tr className="billing-margin-total">
                     <td>
                       <strong>Puhdas kate</strong>
@@ -670,8 +681,8 @@ export default function WorkReportBillingQuotePanel({
                 </table>
               ) : null}
               <p className="muted billing-margin-formula">
-                Kate = tarjoushinta + lisälaskutus asiakkaalta − asennuskulut − todellinen hankinta −
-                piikki-hankinta.
+                Kate = tarjoushinta + lisälaskutus − työ ja ajot − hankinta (tarjous + tarvikkeet) −
+                katetta syövät kulut − piikkiostot.
                 {partnerMargin.quotePurchaseNet !== partnerMargin.actualPurchaseNet ? (
                   <>
                     {' '}

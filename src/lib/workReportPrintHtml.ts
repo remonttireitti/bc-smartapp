@@ -356,6 +356,7 @@ function quoteMarginPrintSection(
         partnerRates: partnerCalculation.ratesUsed,
         customerRates: customerCalculation?.ratesUsed,
         customerExtrasNet: customerCalculation?.quoteExtrasTotal,
+        partnerCalculation,
       })
     : null;
 
@@ -378,29 +379,33 @@ function quoteMarginPrintSection(
     );
   }
   if (partnerMargin) {
-    rows.push(
-      `<tr><td>Asennuskulut (työ + ajot + kulut)</td><td class="num">− ${formatEuro(partnerMargin.installationCostNet)}</td></tr>`,
-    );
     if (partnerMargin.customerExtrasNet > 0.005) {
       rows.push(
         `<tr><td>Lisälaskutus asiakkaalta</td><td class="num">+ ${formatEuro(partnerMargin.customerExtrasNet)}</td></tr>`,
       );
     }
+    rows.push(
+      `<tr><td>Työ ja ajot (kumppani)</td><td class="num">− ${formatEuro(partnerMargin.installationLaborTravelNet)}</td></tr>`,
+      `<tr><td>Hankinta (tarjous / tarvikkeet)</td><td class="num">− ${formatEuro(partnerMargin.effectiveMaterialCostNet)}</td></tr>`,
+    );
+    if (partnerMargin.marginEatingExpenseNet > 0.005) {
+      rows.push(
+        `<tr><td>Katetta syövät kulut (ei lisälaskutusta)</td><td class="num">− ${formatEuro(partnerMargin.marginEatingExpenseNet)}</td></tr>`,
+      );
+    }
+    if (partnerMargin.partnerPiikkiPurchaseNet > 0.005) {
+      rows.push(
+        `<tr><td>Kumppanin piikkiostot</td><td class="num">− ${formatEuro(partnerMargin.partnerPiikkiPurchaseNet)}</td></tr>`,
+      );
+    }
     if (partnerMargin.piikkiMaterialCostNet > 0.005) {
       rows.push(
-        `<tr><td>Piikki-tarvikkeiden hankinta</td><td class="num">− ${formatEuro(partnerMargin.piikkiMaterialCostNet)}</td></tr>`,
+        `<tr><td>Lisätilauksen piikki-hankinta</td><td class="num">− ${formatEuro(partnerMargin.piikkiMaterialCostNet)}</td></tr>`,
       );
     }
     rows.push(
       `<tr><td>Tarjouksen hankinta (alv 0 %)</td><td class="num">${formatEuro(partnerMargin.quotePurchaseNet)}</td></tr>`,
-      `<tr><td>Todellinen hankinta (alv 0 %)</td><td class="num">− ${formatEuro(partnerMargin.actualPurchaseNet)}</td></tr>`,
-    );
-    if (partnerMargin.extrasMarginNet > 0.005) {
-      rows.push(
-        `<tr><td>Lisien kate (asiakas − kumppani/piikki)</td><td class="num">+ ${formatEuro(partnerMargin.extrasMarginNet)}</td></tr>`,
-      );
-    }
-    rows.push(
+      `<tr><td>Todellinen hankinta (alv 0 %)</td><td class="num">${formatEuro(partnerMargin.actualPurchaseNet)}</td></tr>`,
       `<tr class="profit-row"><td><strong>Puhdas kate</strong></td><td class="num"><strong>${formatEuro(partnerMargin.netMarginNet)}</strong></td></tr>`,
     );
   } else if (billingQuote.quote_purchase_net != null) {
@@ -472,7 +477,7 @@ function quoteMarginPrintSection(
     ${extrasDetailHtml}
     ${
       partnerMargin
-        ? '<p class="meta-line">Kate = tarjoushinta + lisälaskutus asiakkaalta − asennuskulut − todellinen hankinta − piikki-hankinta.</p>'
+        ? '<p class="meta-line">Kate = tarjoushinta + lisälaskutus − työ ja ajot − hankinta (tarjous/tarvikkeet) − katetta syövät kulut − piikkiostot.</p>'
         : ''
     }
     ${billingQuote.notes?.trim() ? `<p class="meta-line">Huom: ${esc(billingQuote.notes.trim())}</p>` : ''}`,

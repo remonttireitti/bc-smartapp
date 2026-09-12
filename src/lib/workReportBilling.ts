@@ -595,7 +595,7 @@ const BILLABLE_MATERIAL_KINDS = new Set<BillableLineKind>([
   'commission',
 ]);
 
-function isTripKmBillableLine(line: BillableLine): boolean {
+export function isTripKmBillableLine(line: BillableLine): boolean {
   return line.kind === 'expense' && /^Ajomatkat\s*\(/i.test(line.description.trim());
 }
 
@@ -682,6 +682,30 @@ export function breakdownFromBillableCalculation(calc: BillableCalculation): {
     work,
     materials,
     total: Math.round((work + materials) * 100) / 100,
+  };
+}
+
+/** Tarjouslinkitetyn katelaskennan jako: työ+ajot vs. kumppanille laskutetut tarvikkeet. */
+export function breakdownPartnerBillingForQuoteMargin(calc: BillableCalculation): {
+  laborTravel: number;
+  billedMaterials: number;
+} {
+  let laborTravel = 0;
+  let billedMaterials = 0;
+  for (const user of calc.byUser) {
+    for (const line of user.lines) {
+      if (!line.included) continue;
+      const amount = billableLineDisplayTotal(line);
+      if (BILLABLE_HOUR_KINDS.has(line.kind) || isTripKmBillableLine(line)) {
+        laborTravel += amount;
+      } else if (BILLABLE_MATERIAL_KINDS.has(line.kind)) {
+        billedMaterials += amount;
+      }
+    }
+  }
+  return {
+    laborTravel: Math.round(laborTravel * 100) / 100,
+    billedMaterials: Math.round(billedMaterials * 100) / 100,
   };
 }
 

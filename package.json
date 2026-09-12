@@ -47,6 +47,7 @@
     "test:installation-supplies-calc": "npx tsx scripts/test-installation-supplies-calc.mjs",
     "test:daily-overtime-billing": "npx tsx scripts/test-daily-overtime-billing.mjs",
     "test:quote-installation-comparison": "npx tsx scripts/test-quote-installation-comparison.mjs",
+    "test:quote-margin-calculation": "npx tsx scripts/test-quote-margin-calculation.mjs",
     "test:konvektori-example-print": "npx tsx scripts/test-konvektori-example-print.mjs",
     "sync:equipment-huolto-snapshots": "npx tsx scripts/sync-equipment-huolto-snapshots.mjs",
     "copy:customer-to-partner": "node scripts/copy-customer-to-partner.mjs",
