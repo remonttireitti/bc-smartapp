@@ -279,6 +279,48 @@ export default function WorkReportBillingQuotePanel({
       && Math.abs(effectiveSettings.customer_invoice_total - effectiveSettings.quote_sale_net) > 0.01
     );
   const purchaseMarginAdjustment = computeQuotePurchaseMarginAdjustment(effectiveSettings);
+  const purchaseVarianceNet = roundMoney(actualPurchaseTotal - quotePurchaseTotal);
+
+  function renderQuoteVsActualIntro() {
+    return (
+      <p className="muted span-2" style={{ margin: 0 }}>
+        Tarjouspyynnön <strong>työt</strong>, <strong>tarvikkeet</strong> ja <strong>laitteet</strong>{' '}
+        vastaavat työraportin merkintöjä. Arviota ja toteutunutta <strong>verrataan</strong> — niitä ei
+        lasketa yhteen. Kateen laskennassa käytetään vain toteutuneita kustannuksia.
+      </p>
+    );
+  }
+
+  function renderQuoteVsActualSummary() {
+    return (
+      <div className="billing-quote-vs-actual-summary span-2">
+        {renderQuoteVsActualIntro()}
+        <dl className="billing-quote-vs-actual-dl">
+          {installationComparison ? (
+            <>
+              <dt>Työ ja ajot</dt>
+              <dd>
+                arvio {formatEuro(installationComparison.quoteTotalNet)} → toteutunut{' '}
+                {formatEuro(installationComparison.actualTotalNet)}
+                <span className="billing-variance">
+                  {' '}
+                  (ero {formatEuro(installationComparison.varianceNet)})
+                </span>
+              </dd>
+            </>
+          ) : null}
+          <dt>Laite ja tarvikkeet</dt>
+          <dd>
+            arvio {formatEuro(quotePurchaseTotal)} → toteutunut {formatEuro(actualPurchaseTotal)}
+            <span className="billing-variance">
+              {' '}
+              (ero {formatEuro(purchaseVarianceNet)})
+            </span>
+          </dd>
+        </dl>
+      </div>
+    );
+  }
 
   function formatComparisonQty(
     row: InstallationComparison['rows'][number],
@@ -293,20 +335,20 @@ export default function WorkReportBillingQuotePanel({
   function renderInstallationComparisonTable(comparison: InstallationComparison) {
     return (
       <div className="table-wrap billing-purchase-lines-wrap">
-        <h4 className="billing-breakdown-heading">Tarjous vs toteutunut (työ ja ajot)</h4>
+        <h4 className="billing-breakdown-heading">Työ ja ajot: tarjous vs toteutunut</h4>
         <p className="muted billing-purchase-lines-hint">
-          Vertailu käyttää tarjouksen työtunteja ja km-määrää sekä kumppanin tunti- ja km-hintoja.
-          Materiaalit ovat erillään hankintakorjauksissa.
+          Sama kategoria kuin tarjouspyynnön työt ja ajot — vertaillaan arviota ja päiväkirjan toteumaa.
+          Ero vaikuttaa katteeseen (ylitys syö, alitus nostaa).
         </p>
         <table className="billing-table billing-purchase-lines-table">
           <thead>
             <tr>
               <th>Rivi</th>
-              <th className="num">Tarjous määrä</th>
-              <th className="num">Toteutunut määrä</th>
+              <th className="num">Tarjous (arvio)</th>
+              <th className="num">Toteutunut</th>
               <th className="num">Tarjous €</th>
               <th className="num">Toteutunut €</th>
-              <th className="num">Ero €</th>
+              <th className="num">Ero</th>
             </tr>
           </thead>
           <tbody>
@@ -348,18 +390,17 @@ export default function WorkReportBillingQuotePanel({
     if (lines.length === 0) return null;
     return (
       <div className="table-wrap billing-purchase-lines-wrap">
-        <h4 className="billing-breakdown-heading">Hankinta: tarjous vs toteutunut</h4>
+        <h4 className="billing-breakdown-heading">Laite ja tarvikkeet: tarjous vs toteutunut</h4>
         <p className="muted billing-purchase-lines-hint">
-          <strong>Tarjous hankinta</strong> = tarjouspyynnön arvio (ei muutu). <strong>Toteutunut</strong> =
-          mitä työ maksoi. Laitteen oikaisu syötetään käsin; tarvikkeet lasketaan päiväkirjasta. Korkeampi
-          toteutunut kuin arvio syö katetta, matalampi nostaa.
+          Sama kategoria kuin tarjouspyynnön tarvikkeet ja tarjottu laite. Arvio ja toteutunut ovat rinnakkain —
+          niitä ei summata. Laitteen toteutunut syötetään oikaisukenttään; tarvikkeet tulevat päiväkirjasta.
         </p>
         <table className="billing-table billing-purchase-lines-table">
           <thead>
             <tr>
               <th>Rivi</th>
-              <th className="num">Tarjous hankinta</th>
-              <th className="num">Toteutunut hankinta</th>
+              <th className="num">Tarjous (arvio)</th>
+              <th className="num">Toteutunut</th>
               <th className="num">Ero</th>
             </tr>
           </thead>
@@ -632,25 +673,11 @@ export default function WorkReportBillingQuotePanel({
                 </p>
               )}
 
-              <label className="form-field">
-                <span>Tarjouksen hankinta yhteensä (alv 0 %)</span>
-                <input type="text" value={formatEuro(quotePurchaseTotal)} disabled readOnly />
-                <span className="muted field-hint">
-                  Tarjouspyynnön arvio (laite + tarvikkeet) — työraportti ei muuta tätä.
-                </span>
-              </label>
+              {renderQuoteVsActualSummary()}
 
-              <label className="form-field">
-                <span>Toteutunut hankinta yhteensä (alv 0 %)</span>
-                <input type="text" value={formatEuro(actualPurchaseTotal)} disabled readOnly />
-                <span className="muted field-hint">
-                  Laite (oikaisu) + tarvikkeet päiväkirjasta
-                  {purchaseCostAnalysis.lines.length > 0
-                    ? ` · ${purchaseCostAnalysis.lines.length} pv riviä`
-                    : ''}
-                  .
-                </span>
-              </label>
+              {installationComparison ? (
+                <div className="span-2">{renderInstallationComparisonTable(installationComparison)}</div>
+              ) : null}
 
               <div className="span-2">{renderPurchaseLinesTable(purchaseLines, true)}</div>
 
@@ -734,13 +761,21 @@ export default function WorkReportBillingQuotePanel({
             </p>
           ) : null}
 
-          {readOnly ? renderPurchaseLinesTable(purchaseLines, false) : null}
-
-          {installationComparison ? renderInstallationComparisonTable(installationComparison) : null}
+          {readOnly ? (
+            <>
+              {renderQuoteVsActualSummary()}
+              {installationComparison ? renderInstallationComparisonTable(installationComparison) : null}
+              {renderPurchaseLinesTable(purchaseLines, false)}
+            </>
+          ) : null}
 
           {showPartnerMargin && partnerMargin ? (
             <div className="table-wrap">
-              <h4 className="billing-breakdown-heading">Kate kumppanille</h4>
+              <h4 className="billing-breakdown-heading">Puhdas kate (toteutuneista kustannuksista)</h4>
+              <p className="muted billing-purchase-lines-hint">
+                Vähennetään vain toteutunut työ, ajot, laite ja tarvikkeet. Tarjousarviot ovat vertailua —
+                eivät lisäkulua.
+              </p>
               <table className="billing-table billing-margin-table">
                 <tbody>
                   <tr>
@@ -753,19 +788,28 @@ export default function WorkReportBillingQuotePanel({
                       <td className="num">+ {formatEuro(partnerMargin.customerExtrasNet)}</td>
                     </tr>
                   ) : null}
+                  {installationComparison ? (
+                    <tr className="muted">
+                      <td>Työ ja ajot (vertailu arvio → toteutunut)</td>
+                      <td className="num">
+                        {formatEuro(installationComparison.quoteTotalNet)} →{' '}
+                        {formatEuro(installationComparison.actualTotalNet)}
+                      </td>
+                    </tr>
+                  ) : null}
                   <tr>
-                    <td>Työ ja ajot (kumppani)</td>
+                    <td>Työ ja ajot (vähennetään katteesta)</td>
                     <td className="num">− {formatEuro(partnerMargin.installationLaborTravelNet)}</td>
                   </tr>
                   {deviceActualTotal > 0.005 ? (
                     <tr>
-                      <td>Laitteiden hankinta (toteutunut)</td>
+                      <td>Laite (toteutunut hankinta)</td>
                       <td className="num">− {formatEuro(deviceActualTotal)}</td>
                     </tr>
                   ) : null}
                   {suppliesActualTotal > 0.005 ? (
                     <tr>
-                      <td>Tarvikkeet ja kulut (päiväkirja)</td>
+                      <td>Tarvikkeet (toteutunut, päiväkirja)</td>
                       <td className="num">− {formatEuro(suppliesActualTotal)}</td>
                     </tr>
                   ) : null}

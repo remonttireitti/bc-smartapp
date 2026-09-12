@@ -11075,6 +11075,30 @@ a.tile.customer-document-tile:hover {
   margin: 0;
 }
 
+.billing-quote-vs-actual-summary {
+  margin: 0.25rem 0 0.5rem;
+}
+
+.billing-quote-vs-actual-dl {
+  display: grid;
+  grid-template-columns: minmax(8rem, 12rem) 1fr;
+  gap: 0.35rem 0.75rem;
+  margin: 0.5rem 0 0;
+}
+
+.billing-quote-vs-actual-dl dt {
+  margin: 0;
+  color: var(--text-secondary, #4b5563);
+}
+
+.billing-quote-vs-actual-dl dd {
+  margin: 0;
+}
+
+.billing-variance {
+  color: var(--text-secondary, #4b5563);
+}
+
 .billing-margin-table .billing-margin-total td {
   border-top-width: 2px;
 }
