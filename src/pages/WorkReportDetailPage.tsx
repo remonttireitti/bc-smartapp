@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { FormEvent, type ReactNode, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
 import AppLayout from '../components/AppLayout';
@@ -376,6 +376,56 @@ function hourFieldsForEntryType(entryType: DailyHourEntryType) {
   };
 }
 
+const QUICK_HOUR_STEPS = [0.5, 1, 2, 4];
+
+function DailyLogHourBlock({
+  label,
+  value,
+  onChange,
+  quickbarAriaLabel,
+  hint,
+  max,
+  placeholder,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  quickbarAriaLabel: string;
+  hint?: ReactNode;
+  max?: number;
+  placeholder?: string;
+}) {
+  return (
+    <div className="daily-log-hour-block">
+      <label className="daily-log-hour-block-label">
+        {label}
+        <input
+          type="number"
+          step="0.25"
+          min="0"
+          max={max}
+          value={value}
+          placeholder={placeholder}
+          onChange={(e) => onChange(e.target.value)}
+        />
+      </label>
+      {hint ? <span className="muted daily-log-hour-block-hint">{hint}</span> : null}
+      <div className="mobile-hour-quickbar daily-log-hour-block-quickbar" role="group" aria-label={quickbarAriaLabel}>
+        {QUICK_HOUR_STEPS.map((step) => (
+          <button
+            key={step}
+            type="button"
+            className="btn btn-secondary btn-sm"
+            onClick={() => onChange(addHourValue(value, step))}
+          >
+            +{step} h
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function addHourValue(current: string, delta: number): string {
   const next = Math.max(0, Number(current || 0) + delta);
   if (!Number.isFinite(next)) return String(delta);
@@ -634,7 +684,6 @@ function DailyLogFields({
 }) {
   const { showRegular, showOvertime, showOnCall, showFixed, calendarOnlyHours } =
     hourFieldsForEntryType(form.entry_type);
-  const quickHourSteps = [0.5, 1, 2, 4];
   const showPartnerPrices = !!showPartnerExpenseFields;
   const showCustomerPrices = !!showCustomerExpenseFields;
   const manualExpenseDrafts = expenseDrafts.filter((row) => !isLikelyAutoTripKmExpense(row));
@@ -727,63 +776,42 @@ function DailyLogFields({
             <span className="muted">Päivän tuntikirjaukset kuuluvat työkategoriaan.</span>
           </p>
         ) : null}
-        <div className="line-form-grid">
+        <div
+          className={`daily-log-hours-primary${
+            showHourlyRate && showCustomerHourlyRate && !showFixed ? ' daily-log-hours-primary--triple' : ''
+          }`}
+        >
         {showRegular && (
-          <label>
-            {calendarOnlyHours
-              ? 'Tunnit kalenteria varten'
-              : form.entry_type === 'regular'
-                ? 'Asennustyötunnit'
-                : 'Tunnit'}
-            <input
-              type="number"
-              step="0.25"
-              min="0"
-              value={form.hours_regular}
-              onChange={(e) => setForm({ ...form, hours_regular: e.target.value })}
-            />
-            {calendarOnlyHours && (
-              <span className="muted daily-log-calendar-hours-hint">
+          calendarOnlyHours ? (
+            <label className="daily-log-hour-block-label">
+              Tunnit kalenteria varten
+              <input
+                type="number"
+                step="0.25"
+                min="0"
+                value={form.hours_regular}
+                onChange={(e) => setForm({ ...form, hours_regular: e.target.value })}
+              />
+              <span className="muted daily-log-hour-block-hint">
                 Ei laskuteta — käytetään vain kalenterissa ja päällekkäisyystarkistuksessa.
               </span>
-            )}
-            <div className="mobile-hour-quickbar" role="group" aria-label="Lisää tunteja">
-              {quickHourSteps.map((step) => (
-                <button
-                  key={`regular-${step}`}
-                  type="button"
-                  className="btn btn-secondary btn-sm"
-                  onClick={() => setForm({ ...form, hours_regular: addHourValue(form.hours_regular, step) })}
-                >
-                  +{step} h
-                </button>
-              ))}
-            </div>
-          </label>
+            </label>
+          ) : (
+            <DailyLogHourBlock
+              label={form.entry_type === 'regular' ? 'Asennustyötunnit' : 'Tunnit'}
+              value={form.hours_regular}
+              onChange={(hours_regular) => setForm({ ...form, hours_regular })}
+              quickbarAriaLabel="Lisää tunteja"
+            />
+          )
         )}
         {showOvertime && (
-          <label>
-            Ylitötunnit
-            <input
-              type="number"
-              step="0.25"
-              min="0"
-              value={form.hours_overtime}
-              onChange={(e) => setForm({ ...form, hours_overtime: e.target.value })}
-            />
-            <div className="mobile-hour-quickbar" role="group" aria-label="Lisää ylitunteja">
-              {quickHourSteps.map((step) => (
-                <button
-                  key={`overtime-${step}`}
-                  type="button"
-                  className="btn btn-secondary btn-sm"
-                  onClick={() => setForm({ ...form, hours_overtime: addHourValue(form.hours_overtime, step) })}
-                >
-                  +{step} h
-                </button>
-              ))}
-            </div>
-          </label>
+          <DailyLogHourBlock
+            label="Ylitötunnit"
+            value={form.hours_overtime}
+            onChange={(hours_overtime) => setForm({ ...form, hours_overtime })}
+            quickbarAriaLabel="Lisää ylitunteja"
+          />
         )}
         {showAgreedRegularHours && !showFixed && !showOnCall && (
           <label className="quote-material-row-span-all">
@@ -802,28 +830,12 @@ function DailyLogFields({
           </label>
         )}
         {showOnCall && (
-          <label>
-            Päivystystunnit
-            <input
-              type="number"
-              step="0.25"
-              min="0"
-              value={form.hours_on_call}
-              onChange={(e) => setForm({ ...form, hours_on_call: e.target.value })}
-            />
-            <div className="mobile-hour-quickbar" role="group" aria-label="Lisää päivystystunteja">
-              {quickHourSteps.map((step) => (
-                <button
-                  key={`oncall-${step}`}
-                  type="button"
-                  className="btn btn-secondary btn-sm"
-                  onClick={() => setForm({ ...form, hours_on_call: addHourValue(form.hours_on_call, step) })}
-                >
-                  +{step} h
-                </button>
-              ))}
-            </div>
-          </label>
+          <DailyLogHourBlock
+            label="Päivystystunnit"
+            value={form.hours_on_call}
+            onChange={(hours_on_call) => setForm({ ...form, hours_on_call })}
+            quickbarAriaLabel="Lisää päivystystunteja"
+          />
         )}
         {showFixed && (
           <>
@@ -866,7 +878,7 @@ function DailyLogFields({
           </>
         )}
         {showHourlyRate && !showFixed && (
-          <label>
+          <label className="daily-log-hour-rate-field">
             € / h kumppani (valinnainen)
             <input
               type="number"
@@ -880,10 +892,14 @@ function DailyLogFields({
                   : 'Oletus kumppanuudesta'
               }
             />
+            <span className="muted daily-log-hour-block-hint">
+              Tyhjä = käytetään raportin kumppanuus- tai yrityshintaa. Syötä 0 jos tunneista ei veloiteta
+              (esim. takuutyö).
+            </span>
           </label>
         )}
         {showCustomerHourlyRate && !showFixed && (
-          <label>
+          <label className="daily-log-hour-rate-field">
             € / h asiakas (valinnainen)
             <input
               type="number"
@@ -897,21 +913,13 @@ function DailyLogFields({
                   : 'Oletus yrityksen asiakashinnasta'
               }
             />
+            <span className="muted daily-log-hour-block-hint">
+              Tyhjä = käytetään yrityksen asiakashintaa tai raporttikohtaisia hintoja. Syötä 0 jos asiakkaalta
+              ei veloiteta tunneista.
+            </span>
           </label>
         )}
       </div>
-      {showHourlyRate && !showFixed && (
-        <p className="muted" style={{ margin: '0 0 .65rem' }}>
-          Tyhjä = käytetään raportin kumppanuus- tai yrityshintaa. Syötä 0 jos tunneista ei veloiteta (esim.
-          takuutyö).
-        </p>
-      )}
-      {showCustomerHourlyRate && !showFixed && (
-        <p className="muted" style={{ margin: '0 0 .65rem' }}>
-          Tyhjä = käytetään yrityksen asiakashintaa tai raporttikohtaisia hintoja. Syötä 0 jos asiakkaalta ei
-          veloiteta tunneista.
-        </p>
-      )}
       {showQuoteLinkedExtraBilling && !showFixed && !calendarOnlyHours ? (
         <div className="hours-extra-billing-panel">
           <ExpenseExtraBillingToggles
@@ -942,43 +950,19 @@ function DailyLogFields({
             }
           />
           {form.hours_extra_billable ? (
-            <label className="hours-extra-billing-hours-field">
-              Lisälaskutettavia tunteja
-              <input
-                type="number"
-                step="0.25"
-                min="0"
-                max={billableHoursFromLogEntry(form) || undefined}
-                value={form.hours_extra_hours}
-                onChange={(e) => setForm({ ...form, hours_extra_hours: e.target.value })}
-                placeholder={
-                  billableHoursFromLogEntry(form) > 0
-                    ? `Esim. ${billableHoursFromLogEntry(form)} (max ${billableHoursFromLogEntry(form)} h)`
-                    : 'Syötä ensin tunnit yllä'
-                }
-              />
-              <div className="mobile-hour-quickbar" role="group" aria-label="Lisää lisälaskutettavia tunteja">
-                {quickHourSteps.map((step) => (
-                  <button
-                    key={`extra-hours-${step}`}
-                    type="button"
-                    className="btn btn-secondary btn-sm"
-                    onClick={() =>
-                      setForm({
-                        ...form,
-                        hours_extra_hours: addHourValue(form.hours_extra_hours, step),
-                      })
-                    }
-                  >
-                    +{step} h
-                  </button>
-                ))}
-              </div>
-              <span className="muted daily-log-calendar-hours-hint">
-                Voit merkitä vain osan päivän tunneista lisälaskutettaviksi (enintään{' '}
-                {billableHoursFromLogEntry(form) || 0} h).
-              </span>
-            </label>
+            <DailyLogHourBlock
+              label="Lisälaskutettavia tunteja"
+              value={form.hours_extra_hours}
+              max={billableHoursFromLogEntry(form) || undefined}
+              placeholder={
+                billableHoursFromLogEntry(form) > 0
+                  ? `Esim. ${billableHoursFromLogEntry(form)} (max ${billableHoursFromLogEntry(form)} h)`
+                  : 'Syötä ensin tunnit yllä'
+              }
+              onChange={(hours_extra_hours) => setForm({ ...form, hours_extra_hours })}
+              quickbarAriaLabel="Lisää lisälaskutettavia tunteja"
+              hint={`Voit merkitä vain osan päivän tunneista lisälaskutettaviksi (enintään ${billableHoursFromLogEntry(form) || 0} h).`}
+            />
           ) : null}
         </div>
       ) : null}

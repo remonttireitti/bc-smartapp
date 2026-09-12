@@ -4,6 +4,7 @@ type Props = {
   extraBillable: boolean;
   extraBillingAllowed: boolean;
   disabled?: boolean;
+  className?: string;
   billableLabel?: string;
   permissionLabel?: string;
   billableHint?: string;
@@ -18,6 +19,7 @@ export default function ExpenseExtraBillingToggles({
   extraBillable,
   extraBillingAllowed,
   disabled = false,
+  className = '',
   billableLabel = 'Lisälaskutettavissa',
   permissionLabel = 'Lupa lisälaskutukseen',
   billableHint = 'Tarvike voi olla lisälaskutettavissa tarjouksen päälle.',
@@ -27,34 +29,42 @@ export default function ExpenseExtraBillingToggles({
   onExtraBillableChange,
   onExtraBillingAllowedChange,
 }: Props) {
+  const permissionHint = extraBillable
+    ? extraBillingAllowed
+      ? permissionHintApproved
+      : permissionHintPending
+    : permissionHintDisabled;
+
   return (
-    <div className="expense-extra-billing-toggles">
+    <div className={`expense-extra-billing-toggles${className ? ` ${className}` : ''}`}>
       <div className="expense-extra-billing-toggle-row">
         <ToggleSwitch
           checked={extraBillable}
           disabled={disabled}
           label={billableLabel}
+          className="expense-extra-billing-toggle-switch"
           onChange={(checked) => {
             onExtraBillableChange(checked);
             if (!checked) onExtraBillingAllowedChange(false);
           }}
         />
-        <p className="muted expense-extra-billing-toggle-hint">{billableHint}</p>
+        <div className="expense-extra-billing-toggle-copy">
+          <span className="expense-extra-billing-toggle-title">{billableLabel}</span>
+          <p className="muted expense-extra-billing-toggle-hint">{billableHint}</p>
+        </div>
       </div>
       <div className="expense-extra-billing-toggle-row">
         <ToggleSwitch
           checked={extraBillingAllowed}
           disabled={disabled || !extraBillable}
           label={permissionLabel}
+          className="expense-extra-billing-toggle-switch"
           onChange={onExtraBillingAllowedChange}
         />
-        <p className="muted expense-extra-billing-toggle-hint">
-          {extraBillable
-            ? extraBillingAllowed
-              ? permissionHintApproved
-              : permissionHintPending
-            : permissionHintDisabled}
-        </p>
+        <div className="expense-extra-billing-toggle-copy">
+          <span className="expense-extra-billing-toggle-title">{permissionLabel}</span>
+          <p className="muted expense-extra-billing-toggle-hint">{permissionHint}</p>
+        </div>
       </div>
     </div>
   );
