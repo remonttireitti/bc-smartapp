@@ -12,7 +12,7 @@ import {
 const baseForm = {
   ...emptyDailyLogExtraBillingForm(),
   entry_type: 'regular',
-  hours_regular: '3',
+  hours_regular: '15',
   hours_overtime: '',
   hours_on_call: '',
   work_done: 'Ylimääräinen asennus',
@@ -34,29 +34,40 @@ const pending = buildCustomerExtraBillingFromLogForm({
   ...baseForm,
   hours_extra_billable: true,
   hours_extra_billing_allowed: false,
+  hours_extra_hours: '5',
 });
-assert.equal(hoursExtraBillingLabel(pending), 'lisälaskutettavissa · ei lupaa');
+assert.equal(hoursExtraBillingLabel(pending), '5 h · lisälaskutettavissa · ei lupaa');
 assert.equal(hoursExtraBillingApproved(pending), false);
 assert.deepEqual(serializeDailyLogCustomerExtraBilling(pending), {
   hours_extra_billable: true,
   hours_extra_billing_allowed: false,
+  hours: 5,
 });
 
 const approved = buildCustomerExtraBillingFromLogForm({
   ...baseForm,
   hours_extra_billable: true,
   hours_extra_billing_allowed: true,
+  hours_extra_hours: '5',
 });
-assert.equal(hoursExtraBillingLabel(approved), 'lisälaskutus luvalla');
-assert.equal(approved.hours, 3);
+assert.equal(hoursExtraBillingLabel(approved), '5 h · lisälaskutus luvalla');
+assert.equal(approved.hours, 5);
 assert.equal(approved.hourly_rate, 85);
+
+const capped = buildCustomerExtraBillingFromLogForm({
+  ...baseForm,
+  hours_extra_billable: true,
+  hours_extra_billing_allowed: true,
+  hours_extra_hours: '20',
+});
+assert.equal(capped.hours, 15, 'extra hours capped to total day hours');
 
 const logs = [
   {
     id: 'log-1',
     log_date: '2026-09-12',
     entry_type: 'regular',
-    hours_regular: 3,
+    hours_regular: 15,
     work_done: 'Ylimääräinen asennus',
     customer_extra_billing: approved,
   },
@@ -64,7 +75,15 @@ const logs = [
 
 const works = extraCustomerWorkFromDailyLogs(logs);
 assert.equal(works.length, 1);
-assert.equal(works[0].hours, 3);
-assert.equal(billableHoursFromLogEntry({ entry_type: 'regular_and_overtime', hours_regular: 2, hours_overtime: 1, hours_on_call: 0 }), 3);
+assert.equal(works[0].hours, 5);
+assert.equal(
+  billableHoursFromLogEntry({
+    entry_type: 'regular_and_overtime',
+    hours_regular: 2,
+    hours_overtime: 1,
+    hours_on_call: 0,
+  }),
+  3,
+);
 
 console.log('test-hours-extra-billing: ok');

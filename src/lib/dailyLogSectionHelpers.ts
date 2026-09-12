@@ -64,6 +64,7 @@ export function dailyLogHoursSubtitle(
   form: DailyLogHoursForm & {
     hours_extra_billable?: boolean;
     hours_extra_billing_allowed?: boolean;
+    hours_extra_hours?: string;
   },
 ): string {
   if (form.entry_type === 'fixed_price') {
@@ -79,9 +80,11 @@ export function dailyLogHoursSubtitle(
   if (Number(form.hours_overtime) > 0) parts.push(`ylityö ${form.hours_overtime} h`);
   if (Number(form.hours_on_call) > 0) parts.push(`päivystys ${form.hours_on_call} h`);
   if (form.hours_extra_billable) {
-    parts.push(
-      form.hours_extra_billing_allowed ? 'lisälaskutus luvalla' : 'lisälaskutettavissa · ei lupaa',
-    );
+    const extraHours = Number(form.hours_extra_hours) || 0;
+    const status = form.hours_extra_billing_allowed
+      ? 'lisälaskutus luvalla'
+      : 'lisälaskutettavissa · ei lupaa';
+    parts.push(extraHours > 0 ? `${extraHours} h lisälask. · ${status}` : status);
   }
   return parts.length > 0 ? parts.join(' · ') : 'Ei tunteja';
 }

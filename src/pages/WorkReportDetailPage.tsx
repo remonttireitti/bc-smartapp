@@ -157,6 +157,7 @@ import {
   type BillingQuoteSettings,
 } from '../lib/workReportBillingQuote';
 import {
+  billableHoursFromLogEntry,
   buildCustomerExtraBillingFromLogForm,
   dailyLogExtraBillingToForm,
   emptyDailyLogExtraBillingForm,
@@ -900,26 +901,74 @@ function DailyLogFields({
         </p>
       )}
       {showQuoteLinkedExtraBilling && !showFixed && !calendarOnlyHours ? (
-        <ExpenseExtraBillingToggles
-          extraBillable={form.hours_extra_billable}
-          extraBillingAllowed={form.hours_extra_billing_allowed}
-          billableLabel="Lisätyö laskutettavissa"
-          permissionLabel="Lupa lisälaskutukseen"
-          billableHint="Työ voi olla lisälaskutettavissa kiinteän tarjouksen päälle."
-          permissionHintApproved="Laskutetaan asiakkaalta yllä olevilla tunneilla ja asiakashinnalla."
-          permissionHintPending="Ilman lupaa työ kuuluu tarjoukseen eikä lisälaskuteta."
-          permissionHintDisabled="Ota ensin käyttöön lisätyö laskutettavissa."
-          onExtraBillableChange={(checked) =>
-            setForm({
-              ...form,
-              hours_extra_billable: checked,
-              hours_extra_billing_allowed: checked ? form.hours_extra_billing_allowed : false,
-            })
-          }
-          onExtraBillingAllowedChange={(checked) =>
-            setForm({ ...form, hours_extra_billing_allowed: checked })
-          }
-        />
+        <div className="hours-extra-billing-panel">
+          <ExpenseExtraBillingToggles
+            extraBillable={form.hours_extra_billable}
+            extraBillingAllowed={form.hours_extra_billing_allowed}
+            billableLabel="Lisätyö laskutettavissa"
+            permissionLabel="Lupa lisälaskutukseen"
+            billableHint="Työ voi olla lisälaskutettavissa kiinteän tarjouksen päälle."
+            permissionHintApproved="Laskutetaan asiakkaalta alla olevilla lisätunneilla ja asiakashinnalla."
+            permissionHintPending="Ilman lupaa lisätunnit kuuluvat tarjoukseen eikä lisälaskuteta."
+            permissionHintDisabled="Ota ensin käyttöön lisätyö laskutettavissa."
+            onExtraBillableChange={(checked) => {
+              const totalHours = billableHoursFromLogEntry(form);
+              setForm({
+                ...form,
+                hours_extra_billable: checked,
+                hours_extra_billing_allowed: checked ? form.hours_extra_billing_allowed : false,
+                hours_extra_hours:
+                  checked && !form.hours_extra_hours && totalHours > 0
+                    ? String(totalHours)
+                    : checked
+                      ? form.hours_extra_hours
+                      : '',
+              });
+            }}
+            onExtraBillingAllowedChange={(checked) =>
+              setForm({ ...form, hours_extra_billing_allowed: checked })
+            }
+          />
+          {form.hours_extra_billable ? (
+            <label className="hours-extra-billing-hours-field">
+              Lisälaskutettavia tunteja
+              <input
+                type="number"
+                step="0.25"
+                min="0"
+                max={billableHoursFromLogEntry(form) || undefined}
+                value={form.hours_extra_hours}
+                onChange={(e) => setForm({ ...form, hours_extra_hours: e.target.value })}
+                placeholder={
+                  billableHoursFromLogEntry(form) > 0
+                    ? `Esim. ${billableHoursFromLogEntry(form)} (max ${billableHoursFromLogEntry(form)} h)`
+                    : 'Syötä ensin tunnit yllä'
+                }
+              />
+              <div className="mobile-hour-quickbar" role="group" aria-label="Lisää lisälaskutettavia tunteja">
+                {quickHourSteps.map((step) => (
+                  <button
+                    key={`extra-hours-${step}`}
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    onClick={() =>
+                      setForm({
+                        ...form,
+                        hours_extra_hours: addHourValue(form.hours_extra_hours, step),
+                      })
+                    }
+                  >
+                    +{step} h
+                  </button>
+                ))}
+              </div>
+              <span className="muted daily-log-calendar-hours-hint">
+                Voit merkitä vain osan päivän tunneista lisälaskutettaviksi (enintään{' '}
+                {billableHoursFromLogEntry(form) || 0} h).
+              </span>
+            </label>
+          ) : null}
+        </div>
       ) : null}
       {showFixed && (
         <div className="urakka-billing-split">

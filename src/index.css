@@ -11257,6 +11257,25 @@ a.tile.customer-document-tile:hover {
   color: var(--text-muted);
 }
 
+.hours-extra-billing-panel {
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border);
+  display: grid;
+  gap: 0.85rem;
+}
+
+.hours-extra-billing-panel .expense-extra-billing-toggles {
+  padding-top: 0;
+  border-top: none;
+}
+
+.hours-extra-billing-hours-field {
+  display: grid;
+  gap: 0.45rem;
+  max-width: 22rem;
+}
+
 .expense-extra-billing-toggles {
   display: grid;
   gap: 0.75rem;

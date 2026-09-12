@@ -103,10 +103,10 @@ export function serializeDailyLogCustomerExtraBilling(
   if (hoursExtraBillable(billing)) {
     out.hours_extra_billable = true;
     out.hours_extra_billing_allowed = hoursExtraBillingApproved(billing);
-    if (hoursExtraBillingApproved(billing)) {
-      const hours = Number(billing.hours) || 0;
-      if (hours > 0) {
-        out.hours = hours;
+    const hours = resolveExtraBillableHours(billing);
+    if (hours > 0) {
+      out.hours = hours;
+      if (hoursExtraBillingApproved(billing)) {
         out.hourly_rate =
           billing.hourly_rate != null && billing.hourly_rate > 0 ? billing.hourly_rate : null;
         const description =
@@ -137,6 +137,8 @@ export function serializeDailyLogCustomerExtraBilling(
 export type DailyLogExtraBillingFormFields = {
   hours_extra_billable: boolean;
   hours_extra_billing_allowed: boolean;
+  /** Montako tuntia voi olla lisälaskutettavissa (≤ päivän tuntimäärä). */
+  hours_extra_hours: string;
   extra_expense_description: string;
   extra_expense_qty: string;
   extra_expense_customer_price: string;
@@ -157,6 +159,7 @@ export function emptyDailyLogExtraBillingForm(): DailyLogExtraBillingFormFields 
   return {
     hours_extra_billable: false,
     hours_extra_billing_allowed: false,
+    hours_extra_hours: '',
     extra_expense_description: '',
     extra_expense_qty: '1',
     extra_expense_customer_price: '',
@@ -204,12 +207,22 @@ export function hoursExtraBillingApproved(
   return Number(parsed.hours) > 0;
 }
 
+export function resolveExtraBillableHours(
+  billing: DailyLogCustomerExtraBilling | null | undefined,
+): number {
+  const parsed = parseDailyLogCustomerExtraBilling(billing ?? {});
+  if (!hoursExtraBillable(parsed)) return 0;
+  return Math.max(0, Number(parsed.hours) || 0);
+}
+
 export function hoursExtraBillingLabel(
   billing: DailyLogCustomerExtraBilling | null | undefined,
 ): string | null {
   if (!hoursExtraBillable(billing)) return 'kuuluu tarjoukseen';
-  if (!hoursExtraBillingApproved(billing)) return 'lisälaskutettavissa · ei lupaa';
-  return 'lisälaskutus luvalla';
+  const extraHours = resolveExtraBillableHours(billing);
+  const hoursPart = extraHours > 0 ? `${extraHours} h · ` : '';
+  if (!hoursExtraBillingApproved(billing)) return `${hoursPart}lisälaskutettavissa · ei lupaa`;
+  return `${hoursPart}lisälaskutus luvalla`;
 }
 
 export function dailyLogExtraBillingToForm(
@@ -220,6 +233,8 @@ export function dailyLogExtraBillingToForm(
   return {
     hours_extra_billable: parsed.hours_extra_billable === true || (parsed.hours_extra_billable !== false && legacyHours),
     hours_extra_billing_allowed: parsed.hours_extra_billing_allowed === true || (parsed.hours_extra_billable !== false && legacyHours),
+    hours_extra_hours:
+      parsed.hours != null && parsed.hours > 0 ? String(parsed.hours) : '',
     extra_expense_description: parsed.expense_description ?? '',
     extra_expense_qty:
       parsed.expense_qty != null && parsed.expense_qty > 0 ? String(parsed.expense_qty) : '1',
@@ -242,19 +257,24 @@ export function buildCustomerExtraBillingFromLogForm(
   const expenseQty = Number(form.extra_expense_qty || 0);
   const expenseCustomer = Number(form.extra_expense_customer_price || 0);
   const expensePurchase = Number(form.extra_expense_purchase_price || 0);
-  const hours = billableHoursFromLogEntry(form);
+  const totalHours = billableHoursFromLogEntry(form);
+  const extraHours = Math.min(
+    Math.max(0, Number(form.hours_extra_hours) || 0),
+    totalHours > 0 ? totalHours : Number.POSITIVE_INFINITY,
+  );
   const customerHourlyOverride = Number(form.customer_hourly_rate_override || 0);
   const payload: DailyLogCustomerExtraBilling = {};
 
   if (form.hours_extra_billable) {
     payload.hours_extra_billable = true;
     payload.hours_extra_billing_allowed = form.hours_extra_billing_allowed;
-  }
-
-  if (form.hours_extra_billable && form.hours_extra_billing_allowed && hours > 0) {
-    payload.hours = hours;
-    payload.hourly_rate = customerHourlyOverride > 0 ? customerHourlyOverride : null;
-    payload.description = form.work_done.trim() || 'Lisätyö';
+    if (extraHours > 0) {
+      payload.hours = extraHours;
+      if (form.hours_extra_billing_allowed) {
+        payload.hourly_rate = customerHourlyOverride > 0 ? customerHourlyOverride : null;
+        payload.description = form.work_done.trim() || 'Lisätyö';
+      }
+    }
   }
 
   const expenseDescription = form.extra_expense_description.trim();
@@ -291,8 +311,8 @@ export function dailyLogQuoteExtrasSubtitle(form: DailyLogExtraBillingLogForm): 
   const parts: string[] = [];
   const hourLabel = hoursExtraBillingLabel(billing);
   if (hourLabel && hoursExtraBillable(billing)) {
-    const hours = billableHoursFromLogEntry(form);
-    if (hours > 0) parts.push(`${hours} h · ${hourLabel}`);
+    const extraHours = resolveExtraBillableHours(billing);
+    if (extraHours > 0) parts.push(`${extraHours} h · ${hourLabel}`);
     else parts.push(hourLabel);
   }
   if (
