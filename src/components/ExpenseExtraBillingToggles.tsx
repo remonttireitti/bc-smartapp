@@ -15,6 +15,49 @@ type Props = {
   onExtraBillingAllowedChange: (value: boolean) => void;
 };
 
+type ToggleRowProps = {
+  checked: boolean;
+  disabled?: boolean;
+  label: string;
+  hint: string;
+  onChange: (value: boolean) => void;
+};
+
+function ExpenseExtraBillingToggleRow({
+  checked,
+  disabled = false,
+  label,
+  hint,
+  onChange,
+}: ToggleRowProps) {
+  const toggle = () => {
+    if (disabled) return;
+    onChange(!checked);
+  };
+
+  return (
+    <div className={`expense-extra-billing-toggle-row${disabled ? ' expense-extra-billing-toggle-row-disabled' : ''}`}>
+      <ToggleSwitch
+        checked={checked}
+        disabled={disabled}
+        label={label}
+        className="expense-extra-billing-toggle-switch"
+        onChange={onChange}
+      />
+      <button
+        type="button"
+        className="expense-extra-billing-toggle-copy"
+        disabled={disabled}
+        aria-pressed={checked}
+        onClick={toggle}
+      >
+        <span className="expense-extra-billing-toggle-title">{label}</span>
+        <p className="muted expense-extra-billing-toggle-hint">{hint}</p>
+      </button>
+    </div>
+  );
+}
+
 export default function ExpenseExtraBillingToggles({
   extraBillable,
   extraBillingAllowed,
@@ -37,32 +80,20 @@ export default function ExpenseExtraBillingToggles({
 
   return (
     <div className={`expense-extra-billing-toggles${className ? ` ${className}` : ''}`}>
-      <div className="expense-extra-billing-toggle-row">
-        <ToggleSwitch
-          checked={extraBillable}
-          disabled={disabled}
-          label={billableLabel}
-          className="expense-extra-billing-toggle-switch"
-          onChange={onExtraBillableChange}
-        />
-        <div className="expense-extra-billing-toggle-copy">
-          <span className="expense-extra-billing-toggle-title">{billableLabel}</span>
-          <p className="muted expense-extra-billing-toggle-hint">{billableHint}</p>
-        </div>
-      </div>
-      <div className="expense-extra-billing-toggle-row">
-        <ToggleSwitch
-          checked={extraBillingAllowed}
-          disabled={disabled || !extraBillable}
-          label={permissionLabel}
-          className="expense-extra-billing-toggle-switch"
-          onChange={onExtraBillingAllowedChange}
-        />
-        <div className="expense-extra-billing-toggle-copy">
-          <span className="expense-extra-billing-toggle-title">{permissionLabel}</span>
-          <p className="muted expense-extra-billing-toggle-hint">{permissionHint}</p>
-        </div>
-      </div>
+      <ExpenseExtraBillingToggleRow
+        checked={extraBillable}
+        disabled={disabled}
+        label={billableLabel}
+        hint={billableHint}
+        onChange={onExtraBillableChange}
+      />
+      <ExpenseExtraBillingToggleRow
+        checked={extraBillingAllowed}
+        disabled={disabled || !extraBillable}
+        label={permissionLabel}
+        hint={permissionHint}
+        onChange={onExtraBillingAllowedChange}
+      />
     </div>
   );
 }

@@ -935,21 +935,23 @@ function DailyLogFields({
             permissionHintPending="Ilman lupaa lisätunnit kuuluvat tarjoukseen eikä lisälaskuteta."
             permissionHintDisabled="Ota ensin käyttöön lisätyö laskutettavissa."
             onExtraBillableChange={(checked) => {
-              const totalHours = billableHoursFromLogEntry(form);
-              setForm({
-                ...form,
-                hours_extra_billable: checked,
-                hours_extra_billing_allowed: checked ? form.hours_extra_billing_allowed : false,
-                hours_extra_hours:
-                  checked && !form.hours_extra_hours && totalHours > 0
-                    ? String(totalHours)
-                    : checked
-                      ? form.hours_extra_hours
-                      : '',
+              setForm((current) => {
+                const totalHours = billableHoursFromLogEntry(current);
+                return {
+                  ...current,
+                  hours_extra_billable: checked,
+                  hours_extra_billing_allowed: checked ? current.hours_extra_billing_allowed : false,
+                  hours_extra_hours:
+                    checked && !current.hours_extra_hours && totalHours > 0
+                      ? String(totalHours)
+                      : checked
+                        ? current.hours_extra_hours
+                        : '',
+                };
               });
             }}
             onExtraBillingAllowedChange={(checked) =>
-              setForm({ ...form, hours_extra_billing_allowed: checked })
+              setForm((current) => ({ ...current, hours_extra_billing_allowed: checked }))
             }
           />
           {form.hours_extra_billable ? (
@@ -1070,7 +1072,7 @@ function DailyLogFields({
               const autoTripKm = isAutoTripKmExpense(row);
               const billingMode = resolveExpenseBillingMode(row);
               const updateExpenseRow = (nextRow: ExpenseDraft) =>
-                setExpenseDrafts(expenseDrafts.map((r, i) => (i === index ? nextRow : r)));
+                setExpenseDrafts((current) => current.map((r, i) => (i === index ? nextRow : r)));
               const applyBillingMode = (mode: ExpenseBillingMode) => {
                 let next = applyExpenseBillingMode(row, mode);
                 if (mode === 'customer_only') {
@@ -1235,16 +1237,24 @@ function DailyLogFields({
                               extraBillingAllowed={row.extra_billing_allowed}
                               disabled={autoTripKm}
                               onExtraBillableChange={(checked) =>
-                                updateExpenseRow(
-                                  patchExpenseDraft(row, {
-                                    extra_billable: checked,
-                                    extra_billing_allowed: checked ? row.extra_billing_allowed : false,
-                                  }),
+                                setExpenseDrafts((current) =>
+                                  current.map((r, i) =>
+                                    i === index
+                                      ? patchExpenseDraft(r, {
+                                          extra_billable: checked,
+                                          extra_billing_allowed: checked ? r.extra_billing_allowed : false,
+                                        })
+                                      : r,
+                                  ),
                                 )
                               }
                               onExtraBillingAllowedChange={(checked) =>
-                                updateExpenseRow(
-                                  patchExpenseDraft(row, { extra_billing_allowed: checked }),
+                                setExpenseDrafts((current) =>
+                                  current.map((r, i) =>
+                                    i === index
+                                      ? patchExpenseDraft(r, { extra_billing_allowed: checked })
+                                      : r,
+                                  ),
                                 )
                               }
                             />
