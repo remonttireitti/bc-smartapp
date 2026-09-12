@@ -27,6 +27,7 @@ import {
   collectExtraBillingMarginImpactLines,
   extraBillingMarginImpactStatusLabel,
   computeProjectedNetMarginIfLineApproved,
+  extraBillingMarginApprovalDelta,
   formatExtraBillingMarginImpactCell,
   formatExtraBillingMarginImpactNote,
 } from '../src/lib/dailyLogCustomerExtraBilling.ts';
@@ -186,15 +187,24 @@ assert.equal(approvedLine?.marginIfApprovedNet, 274.1);
 assert.equal(pendingLine?.currentMarginImpactNet, -50);
 assert.equal(pendingLine?.marginIfApprovedNet, 40);
 assert.equal(extraBillingMarginImpactStatusLabel(pendingLine), 'Lisälaskutettavissa · ei lupaa');
+assert.equal(extraBillingMarginApprovalDelta(pendingLine), 90);
 const pendingMarginCell = formatExtraBillingMarginImpactCell(pendingLine, (v) => `${v}€`);
 assert.equal(pendingMarginCell.withoutPermission, null);
-assert.equal(pendingMarginCell.withPermission, '40€');
+assert.equal(pendingMarginCell.withPermission, '90€');
 const pendingMarginCellTotal = formatExtraBillingMarginImpactCell(pendingLine, (v) => `${v}€`, 1000);
-assert.equal(pendingMarginCellTotal.withPermission, '1040€');
-assert.equal(computeProjectedNetMarginIfLineApproved(1000, pendingLine), 1040);
+assert.equal(pendingMarginCellTotal.withPermission, '1090€');
+assert.equal(computeProjectedNetMarginIfLineApproved(1000, pendingLine), 1090);
+assert.equal(computeProjectedNetMarginIfLineApproved(14456.52, {
+  ...pendingLine,
+  kind: 'extra_work',
+  currentMarginImpactNet: 0,
+  marginIfApprovedNet: 546.52,
+}), 15003.04);
+const approvedMarginCell = formatExtraBillingMarginImpactCell(approvedLine, (v) => `${v}€`);
+assert.equal(approvedMarginCell.approved, '274.1€');
 assert.match(
   formatExtraBillingMarginImpactNote(pendingLine, (v) => `${v}€`),
-  /puhdas kate luvan kanssa 40€/,
+  /puhdas kate luvan kanssa 90€/,
 );
 assert.equal(expenseExtraBillingAllowed(logs[0].expense_lines[0]), true);
 assert.equal(expenseExtraBillingAllowed(logs[0].expense_lines[1]), false);

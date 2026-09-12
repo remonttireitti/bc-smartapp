@@ -974,9 +974,7 @@ export default function WorkReportBillingQuotePanel({
                             if (marginCell.approved) {
                               return <strong>{marginCell.approved}</strong>;
                             }
-                            return (
-                              <strong>luvan kanssa: {marginCell.withPermission}</strong>
-                            );
+                            return <strong>{marginCell.withPermission}</strong>;
                           })()}
                         </td>
                       </tr>

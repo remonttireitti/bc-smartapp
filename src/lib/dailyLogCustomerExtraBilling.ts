@@ -823,12 +823,17 @@ export type ExtraBillingMarginImpactCell = {
   approved: string | null;
 };
 
+/** Katemuutos kun rivi hyväksytään: poistuu nykyinen vaikutus, tulee luvan kanssa -kate. */
+export function extraBillingMarginApprovalDelta(line: ExtraBillingMarginImpactLine): number {
+  return roundMoney(line.marginIfApprovedNet - line.currentMarginImpactNet);
+}
+
 export function computeProjectedNetMarginIfLineApproved(
   currentNetMarginNet: number,
   line: ExtraBillingMarginImpactLine,
 ): number {
   if (line.status === 'approved') return roundMoney(currentNetMarginNet);
-  return roundMoney(currentNetMarginNet + line.marginIfApprovedNet);
+  return roundMoney(currentNetMarginNet + extraBillingMarginApprovalDelta(line));
 }
 
 export function formatExtraBillingMarginImpactCell(
@@ -840,13 +845,13 @@ export function formatExtraBillingMarginImpactCell(
     return {
       withoutPermission: null,
       withPermission: null,
-      approved: formatExtraBillingMarginImpactAmount(line.currentMarginImpactNet, formatMoney),
+      approved: formatMoney(line.marginIfApprovedNet),
     };
   }
   const projectedNetMargin =
     currentNetMarginNet != null
       ? computeProjectedNetMarginIfLineApproved(currentNetMarginNet, line)
-      : line.marginIfApprovedNet;
+      : extraBillingMarginApprovalDelta(line);
   return {
     withoutPermission: null,
     withPermission: formatMoney(projectedNetMargin),

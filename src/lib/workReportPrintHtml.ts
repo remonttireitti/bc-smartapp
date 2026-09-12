@@ -532,7 +532,7 @@ function quoteMarginPrintSection(
             );
             const marginCell = marginCellParts.approved
               ? `<strong>${marginCellParts.approved}</strong>`
-              : `<strong>luvan kanssa: ${marginCellParts.withPermission}</strong>`;
+              : `<strong>${marginCellParts.withPermission}</strong>`;
             const statusLabel = extraBillingMarginImpactStatusLabel(line);
             return `<tr class="${line.status === 'pending' ? 'billing-margin-pending' : ''}">
             <td>${esc(formatDate(line.logDate))}</td>
