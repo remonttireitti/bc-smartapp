@@ -1,5 +1,6 @@
 import type { WorkReportDailyLog } from '../types';
 import {
+  expensePurchaseLineTotal,
   expensePurchasePriceMissing,
   resolveExpenseBillingMode,
   resolveExpensePurchaseUnitPrice,
@@ -53,6 +54,33 @@ function resolveExpenseLinePurchase(
   }
 
   return { unit: null, missing: mode === 'customer_only' };
+}
+
+/** Kulurivi, joka on jo mukana päiväkirjan hankintasummassa — ei toisteta katetta syövissä kuluissa. */
+export function expenseCountsAsWorkReportPurchase(
+  expense: NonNullable<WorkReportDailyLog['expense_lines']>[number],
+): boolean {
+  if (
+    expense.expense_type === 'km'
+    && /^Ajomatkat\s*\(/i.test(String(expense.description ?? '').trim())
+  ) {
+    return false;
+  }
+
+  const qty = Number(expense.qty) || 0;
+  if (!(qty > 0)) return false;
+
+  const mode = resolveExpenseBillingMode(expense);
+  if (mode === 'partner_and_customer') return false;
+
+  if (mode === 'customer_only') {
+    if (expensePurchasePriceMissing(expense)) return false;
+    return expensePurchaseLineTotal(expense) > 0.005;
+  }
+
+  const purchaseUnit = resolveExpensePurchaseUnitPrice(expense);
+  const unit = purchaseUnit ?? (Number(expense.unit_price) || 0);
+  return unit > 0;
 }
 
 /** Työraportin päiväkirjasta kirjatut hankintakulut (tarvikkeet + piikki). */

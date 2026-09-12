@@ -3,6 +3,7 @@ import {
   dailyLogCustomerExtraBillingHasData,
   parseDailyLogCustomerExtraBilling,
 } from './dailyLogCustomerExtraBilling';
+import { expenseCountsAsWorkReportPurchase } from './workReportActualPurchase';
 import {
   expenseExtraBillingAllowed,
   expensePurchaseLineTotal,
@@ -56,6 +57,7 @@ export function analyzeMarginEatingExpenses(
       } else if (mode === 'customer_only') {
         if (expenseExtraBillingAllowed(expense)) continue;
         if (hasApprovedExtraExpense) continue;
+        if (expenseCountsAsWorkReportPurchase(expense)) continue;
         cost = expensePurchaseLineTotal(expense);
         reason = 'customer_only_unapproved';
       }

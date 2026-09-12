@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
 import { analyzeWorkReportPurchaseCosts } from '../src/lib/workReportActualPurchase.ts';
+import { computePartnerNetMargin } from '../src/lib/workReportBillingQuote.ts';
+import { analyzeMarginEatingExpenses } from '../src/lib/workReportQuoteMargin.ts';
 import {
   mergeActualPurchaseFromWorkReportLogs,
   patchQuoteRequestDataFromWorkReportActuals,
@@ -43,9 +45,6 @@ const logs = [
 const analysis = analyzeWorkReportPurchaseCosts(logs);
 assert.equal(analysis.suppliesNet, 190);
 assert.equal(analysis.lines.length, 2);
-assert.equal(analysis.lines[0].description, 'Kierreletku');
-assert.equal(analysis.lines[0].total, 90);
-assert.equal(analysis.lines[1].source, 'partner_purchase');
 
 const settings = {
   quote_sale_net: 34590,
@@ -57,14 +56,51 @@ const settings = {
       label: 'Tarvikkeet',
       source: 'group',
       quote_purchase_net: 22950,
-      actual_purchase_net: 22950,
+      actual_purchase_net: 1412.36,
     },
   ],
 };
 
 const merged = mergeActualPurchaseFromWorkReportLogs(settings, logs);
-assert.equal(merged.actual_purchase_net, 190);
-assert.equal(merged.purchase_lines[0].actual_purchase_net, 190);
+assert.equal(merged.purchase_lines.length, 2);
+assert.equal(merged.purchase_lines[0].source, 'device');
+assert.equal(merged.purchase_lines[0].actual_purchase_net, 22950);
+assert.equal(merged.purchase_lines[1].actual_purchase_net, 190);
+assert.equal(merged.actual_purchase_net, 23140);
+
+const wartilaLogs = [
+  {
+    id: 'log-w',
+    log_date: '2026-09-12',
+    expense_lines: [
+      {
+        description: 'Onninen kuparit',
+        qty: 1,
+        unit_price: 342.62,
+        bill_to_partner: false,
+        bill_to_customer: true,
+      },
+      {
+        description: 'Dahl nielusaha',
+        qty: 1,
+        unit_price: 22.37,
+        bill_to_partner: false,
+        bill_to_customer: true,
+      },
+    ],
+  },
+];
+
+const wartilaMerged = mergeActualPurchaseFromWorkReportLogs(settings, wartilaLogs);
+assert.equal(wartilaMerged.actual_purchase_net, 23314.99);
+assert.equal(analyzeMarginEatingExpenses(wartilaLogs).total, 0);
+
+const wartilaMargin = computePartnerNetMargin(wartilaMerged, 3131.5, {
+  logs: wartilaLogs,
+  partnerRates: { hourly_regular: 50 },
+});
+assert.equal(wartilaMargin.netMarginNet, 8143.51);
+assert.equal(wartilaMargin.marginEatingExpenseNet, 0);
 
 const withDevice = {
   ...settings,
@@ -77,7 +113,10 @@ const withDevice = {
       actual_purchase_net: 21500,
     },
     {
-      ...settings.purchase_lines[0],
+      id: 'group:diary-supplies',
+      label: 'Tarvikkeet (päiväkirja)',
+      source: 'group',
+      quote_purchase_net: 0,
       actual_purchase_net: 190,
     },
   ],

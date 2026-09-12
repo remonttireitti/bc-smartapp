@@ -195,7 +195,31 @@ const marginEating = analyzeMarginEatingExpenses([
     ],
   },
 ]);
-assert.equal(marginEating.total, 200);
+assert.equal(marginEating.total, 100);
+
+const marginEatingWithPurchase = analyzeMarginEatingExpenses([
+  {
+    id: 'l1',
+    log_date: '2024-01-01',
+    expense_lines: [
+      {
+        description: 'Piilotettu kulu',
+        qty: 2,
+        unit_price: 50,
+        bill_to_partner: false,
+        bill_to_customer: false,
+      },
+      {
+        description: 'Piikkiostos',
+        qty: 1,
+        unit_price: 100,
+        bill_to_partner: false,
+        bill_to_customer: true,
+      },
+    ],
+  },
+]);
+assert.equal(marginEatingWithPurchase.total, 100);
 
 assert.equal(effectiveQuoteMaterialCostNet(22850, 481.8), 23331.8);
 assert.equal(effectiveQuoteMaterialCostNet(22850, 23000), 23000);

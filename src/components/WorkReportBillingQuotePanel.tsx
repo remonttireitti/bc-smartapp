@@ -9,6 +9,7 @@ import {
   normalizeBillingQuoteSettings,
   parseBillingQuoteSettings,
   quoteHasVat,
+  reconcileBillingQuotePurchaseLines,
   resolveActualPurchaseTotal,
   resolveQuotePurchaseTotal,
   saveBillingQuoteSettings,
@@ -55,6 +56,10 @@ function parseMoneyInput(value: string): number | null {
 function moneyInputValue(value: number | null | undefined): string {
   if (value == null || !Number.isFinite(value)) return '';
   return String(value);
+}
+
+function roundMoney(value: number): number {
+  return Math.round(value * 100) / 100;
 }
 
 export default function WorkReportBillingQuotePanel({
@@ -134,10 +139,12 @@ export default function WorkReportBillingQuotePanel({
     };
   }, [settings.quote_request_id, settings.purchase_lines?.length, readOnly]);
 
-  const effectiveSettings = useMemo(
-    () => mergeActualPurchaseFromWorkReportLogs(settings, dailyLogs),
-    [settings, dailyLogs],
-  );
+  const effectiveSettings = useMemo(() => {
+    const base = quoteData
+      ? reconcileBillingQuotePurchaseLines(settings, quoteData)
+      : settings;
+    return mergeActualPurchaseFromWorkReportLogs(base, dailyLogs);
+  }, [settings, quoteData, dailyLogs]);
   const purchaseCostAnalysis = useMemo(
     () => analyzeWorkReportPurchaseCosts(dailyLogs),
     [dailyLogs],
@@ -228,8 +235,11 @@ export default function WorkReportBillingQuotePanel({
     setBusy(true);
     setError(null);
     try {
+      const base = quoteData
+        ? reconcileBillingQuotePurchaseLines(parseBillingQuoteSettings(settings), quoteData)
+        : parseBillingQuoteSettings(settings);
       const payload = normalizeBillingQuoteSettings(
-        mergeActualPurchaseFromWorkReportLogs(parseBillingQuoteSettings(settings), dailyLogs),
+        mergeActualPurchaseFromWorkReportLogs(base, dailyLogs),
       );
       await saveBillingQuoteSettings(supabase, workReportId, payload, {
         logs: dailyLogs,
@@ -253,6 +263,16 @@ export default function WorkReportBillingQuotePanel({
   const purchaseLines = effectiveSettings.purchase_lines ?? [];
   const quotePurchaseTotal = resolveQuotePurchaseTotal(effectiveSettings);
   const actualPurchaseTotal = resolveActualPurchaseTotal(effectiveSettings);
+  const devicePurchaseLines = purchaseLines.filter((line) => line.source === 'device');
+  const suppliesPurchaseLines = purchaseLines.filter((line) => line.source !== 'device');
+  const deviceActualTotal = devicePurchaseLines.reduce(
+    (sum, line) => sum + line.actual_purchase_net,
+    0,
+  );
+  const suppliesActualTotal = suppliesPurchaseLines.reduce(
+    (sum, line) => sum + line.actual_purchase_net,
+    0,
+  );
   const showSeparateCustomerTotal =
     quoteHasVat(effectiveSettings.quote_vat_rate)
     || effectiveSettings.customer_mode === 'quote_plus_extras'
@@ -343,12 +363,14 @@ export default function WorkReportBillingQuotePanel({
             <tr>
               <th>Rivi</th>
               <th className="num">Tarjous hankinta</th>
-              <th className="num">Todellinen hankinta</th>
+              <th className="num">Toteutunut hankinta</th>
+              <th className="num">Ero</th>
             </tr>
           </thead>
           <tbody>
             {lines.map((line) => {
-              const changed = line.actual_purchase_net !== line.quote_purchase_net;
+              const variance = roundMoney(line.actual_purchase_net - line.quote_purchase_net);
+              const changed = Math.abs(variance) > 0.005;
               const deviceEditable = editable && line.source === 'device';
               const fromDailyLog = line.source !== 'device';
               return (
@@ -360,6 +382,9 @@ export default function WorkReportBillingQuotePanel({
                         {' '}
                         · {line.quantity} {line.unit}
                       </span>
+                    ) : null}
+                    {line.source === 'device' ? (
+                      <span className="muted"> · laite, korjaa laskun mukaan</span>
                     ) : null}
                     {fromDailyLog ? (
                       <span className="muted"> · päiväkirjasta</span>
@@ -380,6 +405,9 @@ export default function WorkReportBillingQuotePanel({
                       formatEuro(line.actual_purchase_net)
                     )}
                   </td>
+                  <td className="num">
+                    {changed ? formatEuro(variance) : '—'}
+                  </td>
                 </tr>
               );
             })}
@@ -394,6 +422,13 @@ export default function WorkReportBillingQuotePanel({
               </td>
               <td className="num">
                 <strong>{formatEuro(actualPurchaseTotal)}</strong>
+              </td>
+              <td className="num">
+                <strong>
+                  {Math.abs(actualPurchaseTotal - quotePurchaseTotal) > 0.005
+                    ? formatEuro(roundMoney(actualPurchaseTotal - quotePurchaseTotal))
+                    : '—'}
+                </strong>
               </td>
             </tr>
           </tfoot>
@@ -724,13 +759,38 @@ export default function WorkReportBillingQuotePanel({
                     <td>Työ ja ajot (kumppani)</td>
                     <td className="num">− {formatEuro(partnerMargin.installationLaborTravelNet)}</td>
                   </tr>
-                  <tr>
-                    <td>Hankinta (tarjous / tarvikkeet)</td>
-                    <td className="num">− {formatEuro(partnerMargin.effectiveMaterialCostNet)}</td>
-                  </tr>
+                  {deviceActualTotal > 0.005 ? (
+                    <tr>
+                      <td>Laitteiden hankinta (toteutunut)</td>
+                      <td className="num">− {formatEuro(deviceActualTotal)}</td>
+                    </tr>
+                  ) : null}
+                  {suppliesActualTotal > 0.005 ? (
+                    <tr>
+                      <td>Tarvikkeet ja kulut (päiväkirja)</td>
+                      <td className="num">− {formatEuro(suppliesActualTotal)}</td>
+                    </tr>
+                  ) : null}
+                  {roundMoney(
+                    partnerMargin.effectiveMaterialCostNet - deviceActualTotal - suppliesActualTotal,
+                  ) > 0.005 ? (
+                    <tr>
+                      <td>Kumppanille laskutetut tarvikkeet</td>
+                      <td className="num">
+                        −{' '}
+                        {formatEuro(
+                          roundMoney(
+                            partnerMargin.effectiveMaterialCostNet
+                              - deviceActualTotal
+                              - suppliesActualTotal,
+                          ),
+                        )}
+                      </td>
+                    </tr>
+                  ) : null}
                   {partnerMargin.marginEatingExpenseNet > 0.005 ? (
                     <tr>
-                      <td>Katetta syövät kulut (ei lisälaskutusta)</td>
+                      <td>Muut katetta syövät kulut</td>
                       <td className="num">− {formatEuro(partnerMargin.marginEatingExpenseNet)}</td>
                     </tr>
                   ) : null}
@@ -746,10 +806,6 @@ export default function WorkReportBillingQuotePanel({
                       <td className="num">− {formatEuro(partnerMargin.piikkiMaterialCostNet)}</td>
                     </tr>
                   ) : null}
-                  <tr className="muted">
-                    <td>Todellinen hankinta (tarjousrivit)</td>
-                    <td className="num">{formatEuro(partnerMargin.actualPurchaseNet)}</td>
-                  </tr>
                   <tr className="billing-margin-total">
                     <td>
                       <strong>Puhdas kate</strong>

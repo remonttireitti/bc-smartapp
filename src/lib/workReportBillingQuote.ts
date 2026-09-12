@@ -35,6 +35,7 @@ import {
   extractQuotePurchaseLines,
   mergeQuotePurchaseLines,
   parseBillingQuotePurchaseLines,
+  reconcileQuotePurchaseLines,
   sumQuotePurchaseLines,
   type BillingQuotePurchaseLine,
 } from './quotePurchaseLines';
@@ -376,6 +377,18 @@ export function computePartnerNetMargin(
     extrasMarginNet,
     netMarginNet,
   };
+}
+
+export function reconcileBillingQuotePurchaseLines(
+  settings: BillingQuoteSettings,
+  quoteData: unknown,
+): BillingQuoteSettings {
+  const purchaseLines = reconcileQuotePurchaseLines(quoteData, settings.purchase_lines);
+  if (purchaseLines.length === 0) return settings;
+  return normalizeBillingQuoteSettings({
+    ...settings,
+    purchase_lines: purchaseLines,
+  });
 }
 
 export function billingQuoteFromQuoteRow(

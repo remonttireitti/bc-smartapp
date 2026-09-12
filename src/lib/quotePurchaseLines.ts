@@ -178,6 +178,17 @@ export function extractQuotePurchaseLines(
   return lines.sort((a, b) => a.label.localeCompare(b.label, 'fi'));
 }
 
+/** Päivitä hankintarivit tarjouspyynnön rakenteella, säilytä toteutuneet korjaukset. */
+export function reconcileQuotePurchaseLines(
+  quoteData: unknown,
+  saved: BillingQuotePurchaseLine[] | undefined,
+  feeMap?: BrandDeliveryFeeByCategoryMap | null,
+): BillingQuotePurchaseLine[] {
+  const fromQuote = extractQuotePurchaseLines(quoteData, feeMap);
+  if (fromQuote.length === 0) return saved ?? [];
+  return mergeQuotePurchaseLines(fromQuote, saved);
+}
+
 export function mergeQuotePurchaseLines(
   fromQuote: BillingQuotePurchaseLine[],
   saved: BillingQuotePurchaseLine[] | undefined,

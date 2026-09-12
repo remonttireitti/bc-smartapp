@@ -12,12 +12,68 @@ function roundMoney(value: number): number {
   return Math.round(value * 100) / 100;
 }
 
+function diarySuppliesPurchaseLine(
+  suppliesActualNet: number,
+  quoteSuppliesNet = 0,
+): BillingQuotePurchaseLine {
+  return {
+    id: 'group:diary-supplies',
+    label: 'Tarvikkeet (päiväkirja)',
+    source: 'group',
+    quantity: null,
+    unit: null,
+    quote_purchase_net: roundMoney(quoteSuppliesNet),
+    actual_purchase_net: roundMoney(suppliesActualNet),
+  };
+}
+
+/** Vanha yksirivinen rakenne: koneet + tarvikkeet samalla rivillä → erottele laite ja päiväkirja. */
+function splitBundledPurchaseLineIfNeeded(
+  lines: BillingQuotePurchaseLine[],
+  suppliesActualNet: number,
+): BillingQuotePurchaseLine[] {
+  const deviceLines = lines.filter((line) => line.source === 'device');
+  const supplyLines = lines.filter((line) => line.source !== 'device');
+
+  if (deviceLines.length > 0 || suppliesActualNet <= 0.005 || supplyLines.length !== 1) {
+    return lines;
+  }
+
+  const bundled = supplyLines[0];
+  if (bundled.quote_purchase_net <= suppliesActualNet * 1.5) {
+    return lines;
+  }
+
+  const deviceActual =
+    bundled.actual_purchase_net > bundled.quote_purchase_net * 0.9
+    && Math.abs(bundled.actual_purchase_net - bundled.quote_purchase_net) < 0.01
+      ? bundled.actual_purchase_net
+      : bundled.quote_purchase_net;
+
+  return [
+    {
+      ...bundled,
+      id: bundled.id.startsWith('device:') ? bundled.id : `device:${bundled.id}`,
+      source: 'device',
+      label: bundled.label.toLocaleLowerCase('fi').includes('laite')
+        ? bundled.label
+        : `Laitteet · ${bundled.label}`,
+      actual_purchase_net: roundMoney(deviceActual),
+    },
+    diarySuppliesPurchaseLine(suppliesActualNet),
+  ];
+}
+
 function assignSuppliesActualToPurchaseLines(
   lines: BillingQuotePurchaseLine[],
   suppliesActualNet: number,
 ): BillingQuotePurchaseLine[] {
   const supplyLines = lines.filter((line) => line.source !== 'device');
-  if (supplyLines.length === 0 || suppliesActualNet <= 0.005) return lines;
+  if (supplyLines.length === 0) {
+    if (suppliesActualNet <= 0.005) return lines;
+    return [...lines, diarySuppliesPurchaseLine(suppliesActualNet)];
+  }
+  if (suppliesActualNet <= 0.005) return lines;
 
   if (supplyLines.length === 1) {
     return lines.map((line) =>
@@ -73,7 +129,8 @@ export function mergeActualPurchaseFromWorkReportLogs(
     });
   }
 
-  let nextLines = assignSuppliesActualToPurchaseLines(lines, analysis.suppliesNet);
+  const splitLines = splitBundledPurchaseLineIfNeeded(lines, analysis.suppliesNet);
+  const nextLines = assignSuppliesActualToPurchaseLines(splitLines, analysis.suppliesNet);
   return normalizeBillingQuoteSettings({
     ...settings,
     purchase_lines: nextLines,
