@@ -30,7 +30,10 @@ import {
   quoteCategoryLabel,
 } from '../lib/workReportEntryCategories';
 import { formatEuro, type BillableCalculation } from '../lib/workReportBilling';
-import { computeQuoteExtrasMarginFromLogs } from '../lib/dailyLogCustomerExtraBilling';
+import {
+  collectExtraBillingMarginImpactLines,
+  formatExtraBillingMarginImpactNote,
+} from '../lib/dailyLogCustomerExtraBilling';
 import type { WorkReportDailyLog } from '../types';
 import { supabase } from '../lib/supabase';
 
@@ -193,11 +196,11 @@ export default function WorkReportBillingQuotePanel({
   const extrasMarginLines = useMemo(
     () =>
       dailyLogs.length && partnerCalculation
-        ? computeQuoteExtrasMarginFromLogs(
+        ? collectExtraBillingMarginImpactLines(
             dailyLogs,
             partnerCalculation.ratesUsed,
             customerCalculation?.ratesUsed,
-          ).lines
+          )
         : [],
     [dailyLogs, partnerCalculation, customerCalculation?.ratesUsed],
   );
@@ -900,19 +903,53 @@ export default function WorkReportBillingQuotePanel({
                   </thead>
                   <tbody>
                     {extrasMarginLines.map((line) => (
-                      <tr key={`${line.logId}:${line.kind}:${line.description}`}>
+                      <tr
+                        key={`${line.logId}:${line.kind}:${line.description}:${line.status}`}
+                        className={line.status === 'pending' ? 'billing-margin-pending' : undefined}
+                      >
                         <td>
-                          {line.kind === 'extra_work' ? `Lisätyö: ${line.description}` : line.description}
-                        </td>
-                        <td className="num">{formatEuro(line.customerNet)}</td>
-                        <td className="num">
-                          {line.partnerNet > 0 ? `− ${formatEuro(line.partnerNet)}` : '—'}
-                        </td>
-                        <td className="num">
-                          {line.piikkiCostNet > 0 ? `− ${formatEuro(line.piikkiCostNet)}` : '—'}
+                          <div>
+                            {line.kind === 'extra_work' ? `Lisätyö: ${line.description}` : line.description}
+                          </div>
+                          <div className="muted billing-margin-impact-note">
+                            {formatExtraBillingMarginImpactNote(line, formatEuro)}
+                          </div>
                         </td>
                         <td className="num">
-                          <strong>+ {formatEuro(line.marginNet)}</strong>
+                          {line.status === 'approved' ? formatEuro(line.customerNet) : '—'}
+                        </td>
+                        <td className="num">
+                          {line.status === 'approved' && line.partnerNet > 0
+                            ? `− ${formatEuro(line.partnerNet)}`
+                            : '—'}
+                        </td>
+                        <td className="num">
+                          {line.status === 'approved' && line.piikkiCostNet > 0
+                            ? `− ${formatEuro(line.piikkiCostNet)}`
+                            : line.status === 'pending' && line.piikkiCostNet > 0
+                              ? `− ${formatEuro(line.piikkiCostNet)}`
+                              : '—'}
+                        </td>
+                        <td className="num">
+                          {line.status === 'approved' ? (
+                            <strong>
+                              {line.currentMarginImpactNet >= 0 ? '+' : '−'}{' '}
+                              {formatEuro(Math.abs(line.currentMarginImpactNet))}
+                            </strong>
+                          ) : (
+                            <>
+                              {line.currentMarginImpactNet < -0.005 ? (
+                                <span className="muted">
+                                  nyt − {formatEuro(Math.abs(line.currentMarginImpactNet))}
+                                </span>
+                              ) : null}
+                              {line.currentMarginImpactNet < -0.005 ? <br /> : null}
+                              <strong>
+                                jos lupa: {line.marginIfApprovedNet >= 0 ? '+' : '−'}{' '}
+                                {formatEuro(Math.abs(line.marginIfApprovedNet))}
+                              </strong>
+                            </>
+                          )}
                         </td>
                       </tr>
                     ))}

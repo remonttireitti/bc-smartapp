@@ -3,6 +3,7 @@ import type { BillingQuoteExtraCustomerWork, BillingQuoteExtraExpenseLine } from
 import {
   buildSupplyLineFlagsFromExpenseDrafts,
   computeSupplyCustomerUnitPrice,
+  expenseExtraBillable,
   expenseExtraBillingAllowed,
   resolveExpenseBillingMode,
   resolveExpensePurchaseUnitPrice,
@@ -30,6 +31,10 @@ export type DailyLogCustomerExtraBilling = {
 
 function roundMoney(value: number): number {
   return Math.round(value * 100) / 100;
+}
+
+function lineTotal(qty: number, unitPrice: number): number {
+  return roundMoney(qty * unitPrice);
 }
 
 export function parseDailyLogCustomerExtraBilling(raw: unknown): DailyLogCustomerExtraBilling {
@@ -261,7 +266,49 @@ export function hoursExtraBillingLabel(
   const extraHours = resolveExtraBillableHours(billing);
   const hoursPart = extraHours > 0 ? `${extraHours} h · ` : '';
   if (!hoursExtraBillingApproved(billing)) return `${hoursPart}lisälaskutettavissa · ei lupaa`;
-  return `${hoursPart}lisälaskutus luvalla`;
+  return `${hoursPart}Lisälaskutettava`;
+}
+
+export type HoursExtraBillingMarginImpact = {
+  currentMarginImpactNet: number;
+  marginIfApprovedNet: number;
+};
+
+export function hoursExtraBillingMarginImpact(
+  billing: DailyLogCustomerExtraBilling | null | undefined,
+  partnerHourly: number,
+  customerHourly: number,
+): HoursExtraBillingMarginImpact | null {
+  if (!hoursExtraBillable(billing)) return null;
+  const hours = resolveExtraBillableHours(billing);
+  if (!(hours > 0)) return null;
+  const parsed = parseDailyLogCustomerExtraBilling(billing ?? {});
+  const customerRate =
+    parsed.hourly_rate != null && parsed.hourly_rate > 0 ? parsed.hourly_rate : customerHourly;
+  const customerNet = lineTotal(hours, customerRate);
+  const partnerNet = lineTotal(hours, partnerHourly);
+  const marginIfApprovedNet = roundMoney(customerNet - partnerNet);
+  if (hoursExtraBillingApproved(billing)) {
+    return { currentMarginImpactNet: marginIfApprovedNet, marginIfApprovedNet };
+  }
+  return { currentMarginImpactNet: 0, marginIfApprovedNet };
+}
+
+export function formatHoursExtraBillingMarginNote(
+  billing: DailyLogCustomerExtraBilling | null | undefined,
+  partnerHourly: number,
+  customerHourly: number,
+  formatMoney: (value: number) => string,
+): string | null {
+  const label = hoursExtraBillingLabel(billing);
+  const impact = hoursExtraBillingMarginImpact(billing, partnerHourly, customerHourly);
+  if (!label || !impact) return label;
+  if (hoursExtraBillingApproved(billing)) {
+    const sign = impact.currentMarginImpactNet >= 0 ? '+' : '−';
+    return `${label} · kate ${sign} ${formatMoney(Math.abs(impact.currentMarginImpactNet))}`;
+  }
+  const approvedSign = impact.marginIfApprovedNet >= 0 ? '+' : '−';
+  return `${label} · jos lupa: ${approvedSign} ${formatMoney(Math.abs(impact.marginIfApprovedNet))} kate`;
 }
 
 export function dailyLogExtraBillingToForm(
@@ -489,10 +536,6 @@ export type QuoteExtrasMarginLine = {
   marginNet: number;
 };
 
-function lineTotal(qty: number, unitPrice: number): number {
-  return Math.round(qty * unitPrice * 100) / 100;
-}
-
 /** Lisälaskutuksen vaikutus katteeseen (asiakas − kumppanilasku − piikki-hankinta). */
 export function computeQuoteExtrasMarginFromLogs(
   logs: WorkReportDailyLog[],
@@ -605,4 +648,167 @@ export function computeQuoteExtrasMarginFromLogs(
     extrasMarginNet: roundMoney(customerExtrasNet - partnerBilledExtrasNet - piikkiMaterialCostNet),
     lines,
   };
+}
+
+export type ExtraBillingMarginImpactStatus = 'pending' | 'approved';
+
+export type ExtraBillingMarginImpactLine = {
+  logId: string;
+  logDate: string;
+  kind: 'extra_work' | 'extra_supply';
+  description: string;
+  status: ExtraBillingMarginImpactStatus;
+  customerNet: number;
+  partnerNet: number;
+  piikkiCostNet: number;
+  currentMarginImpactNet: number;
+  marginIfApprovedNet: number;
+};
+
+/** Kaikki lisälaskutusrivit katevaikutuksineen — sekä odottavat että hyväksytyt. */
+export function collectExtraBillingMarginImpactLines(
+  logs: WorkReportDailyLog[],
+  partnerRates: { hourly_regular?: number | null },
+  customerRates?: { hourly_regular?: number | null },
+): ExtraBillingMarginImpactLine[] {
+  const partnerHourly = Number(partnerRates.hourly_regular) || 0;
+  const customerHourlyDefault = Number(customerRates?.hourly_regular) || 0;
+  const lines: ExtraBillingMarginImpactLine[] = [];
+
+  for (const log of logs) {
+    const logDate = log.log_date.slice(0, 10);
+
+    for (const expense of log.expense_lines ?? []) {
+      if (resolveExpenseBillingMode(expense) !== 'customer_only') continue;
+      const qty = Number(expense.qty) || 0;
+      const purchase = resolveExpensePurchaseUnitPrice(expense);
+      if (!(qty > 0) || purchase == null || !(purchase > 0)) continue;
+
+      const customerRaw =
+        expense.customer_unit_price != null ? Number(expense.customer_unit_price) : null;
+      const customerRate =
+        customerRaw != null && customerRaw > 0
+          ? customerRaw
+          : computeSupplyCustomerUnitPrice(purchase, resolveSupplyMarginPercent(expense));
+      const customerNet = lineTotal(qty, customerRate);
+      const piikkiCostNet = lineTotal(qty, purchase);
+      const marginIfApprovedNet = roundMoney(customerNet - piikkiCostNet);
+
+      if (expenseExtraBillingAllowed(expense)) {
+        lines.push({
+          logId: log.id,
+          logDate,
+          kind: 'extra_supply',
+          description: String(expense.description ?? '').trim() || 'Tarvike',
+          status: 'approved',
+          customerNet,
+          partnerNet: 0,
+          piikkiCostNet,
+          currentMarginImpactNet: marginIfApprovedNet,
+          marginIfApprovedNet,
+        });
+        continue;
+      }
+
+      if (!expenseExtraBillable(expense)) continue;
+
+      lines.push({
+        logId: log.id,
+        logDate,
+        kind: 'extra_supply',
+        description: String(expense.description ?? '').trim() || 'Tarvike',
+        status: 'pending',
+        customerNet,
+        partnerNet: 0,
+        piikkiCostNet,
+        currentMarginImpactNet: -piikkiCostNet,
+        marginIfApprovedNet,
+      });
+    }
+
+    const extra = parseDailyLogCustomerExtraBilling(log.customer_extra_billing);
+    if (!dailyLogCustomerExtraBillingHasData(extra)) continue;
+
+    const hours = resolveExtraBillableHours(extra);
+    if (hours > 0 && hoursExtraBillable(extra)) {
+      const customerRate =
+        extra.hourly_rate != null && extra.hourly_rate > 0 ? extra.hourly_rate : customerHourlyDefault;
+      const customerNet = lineTotal(hours, customerRate);
+      const partnerNet = lineTotal(hours, partnerHourly);
+      const marginIfApprovedNet = roundMoney(customerNet - partnerNet);
+
+      if (hoursExtraBillingApproved(extra)) {
+        lines.push({
+          logId: log.id,
+          logDate,
+          kind: 'extra_work',
+          description: extra.description?.trim() || 'Lisätyö',
+          status: 'approved',
+          customerNet,
+          partnerNet,
+          piikkiCostNet: 0,
+          currentMarginImpactNet: marginIfApprovedNet,
+          marginIfApprovedNet,
+        });
+      } else {
+        lines.push({
+          logId: log.id,
+          logDate,
+          kind: 'extra_work',
+          description: extra.description?.trim() || 'Lisätyö',
+          status: 'pending',
+          customerNet,
+          partnerNet,
+          piikkiCostNet: 0,
+          currentMarginImpactNet: 0,
+          marginIfApprovedNet,
+        });
+      }
+    }
+
+    if (
+      extra.expense_description
+      && Number(extra.expense_qty) > 0
+      && Number(extra.expense_customer_unit_price) > 0
+    ) {
+      const qty = Number(extra.expense_qty);
+      const customerNet = lineTotal(qty, Number(extra.expense_customer_unit_price));
+      const purchase = Number(extra.expense_purchase_unit_price) || 0;
+      const billToPartner = extra.expense_bill_to_partner !== false && purchase > 0;
+      const partnerNet = billToPartner ? lineTotal(qty, purchase) : 0;
+      const piikkiCostNet = !billToPartner && purchase > 0 ? lineTotal(qty, purchase) : 0;
+      const marginIfApprovedNet = roundMoney(customerNet - partnerNet - piikkiCostNet);
+      lines.push({
+        logId: log.id,
+        logDate,
+        kind: 'extra_supply',
+        description: extra.expense_description,
+        status: 'approved',
+        customerNet,
+        partnerNet,
+        piikkiCostNet,
+        currentMarginImpactNet: marginIfApprovedNet,
+        marginIfApprovedNet,
+      });
+    }
+  }
+
+  return lines;
+}
+
+export function formatExtraBillingMarginImpactNote(
+  line: ExtraBillingMarginImpactLine,
+  formatMoney: (value: number) => string,
+): string {
+  if (line.status === 'approved') {
+    const sign = line.currentMarginImpactNet >= 0 ? '+' : '−';
+    return `Lisälaskutettava · kate ${sign} ${formatMoney(Math.abs(line.currentMarginImpactNet))}`;
+  }
+  const parts = ['Lisälaskutettavissa · ei lupaa'];
+  if (line.currentMarginImpactNet < -0.005) {
+    parts.push(`nyt − ${formatMoney(Math.abs(line.currentMarginImpactNet))} kate`);
+  }
+  const approvedSign = line.marginIfApprovedNet >= 0 ? '+' : '−';
+  parts.push(`jos lupa: ${approvedSign} ${formatMoney(Math.abs(line.marginIfApprovedNet))} kate`);
+  return parts.join(' · ');
 }

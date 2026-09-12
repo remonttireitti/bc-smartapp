@@ -6,6 +6,8 @@ import {
   expenseExtraBillable,
   expenseExtraBillingAllowed,
   expenseSupplyExtraBillingLabel,
+  expenseSupplyExtraBillingMarginImpact,
+  formatExpenseSupplyExtraBillingMarginNote,
   resolveExpenseBillingMode,
   resolveExpenseExtraBillableFromSources,
   resolveExpenseExtraBillingAllowedFromSources,
@@ -19,6 +21,8 @@ import {
 import {
   extraCustomerWorkFromDailyLogs,
   computeQuoteExtrasMarginFromLogs,
+  collectExtraBillingMarginImpactLines,
+  formatExtraBillingMarginImpactNote,
 } from '../src/lib/dailyLogCustomerExtraBilling.ts';
 import { analyzeMarginEatingExpenses } from '../src/lib/workReportQuoteMargin.ts';
 
@@ -50,7 +54,38 @@ assert.equal(
     extra_billable: true,
     extra_billing_allowed: true,
   }),
-  'lisälaskutus luvalla',
+  'Lisälaskutettava',
+);
+
+const pendingSupply = {
+  bill_to_partner: false,
+  bill_to_customer: true,
+  qty: 1,
+  unit_price: 50,
+  extra_billable: true,
+  extra_billing_allowed: false,
+  customer_margin_percent: 80,
+};
+const pendingImpact = expenseSupplyExtraBillingMarginImpact(pendingSupply);
+assert.equal(pendingImpact?.currentMarginImpactNet, -50);
+assert.equal(pendingImpact?.marginIfApprovedNet, 40);
+
+const approvedSupply = {
+  ...pendingSupply,
+  extra_billing_allowed: true,
+  customer_unit_price: 90,
+};
+const approvedImpact = expenseSupplyExtraBillingMarginImpact(approvedSupply);
+assert.equal(approvedImpact?.currentMarginImpactNet, 40);
+assert.equal(approvedImpact?.marginIfApprovedNet, 40);
+
+assert.match(
+  formatExpenseSupplyExtraBillingMarginNote(pendingSupply, (v) => `${v}€`),
+  /jos lupa: \+ 40€ kate/,
+);
+assert.match(
+  formatExpenseSupplyExtraBillingMarginNote(approvedSupply, (v) => `${v}€`),
+  /Lisälaskutettava · kate \+ 40€/,
 );
 assert.equal(expenseExtraBillable({ extra_billable: true, extra_billing_allowed: false }), true);
 assert.equal(expenseExtraBillingAllowed({ extra_billable: true, extra_billing_allowed: false }), false);
@@ -92,9 +127,10 @@ const logs = [
         qty: 1,
         unit_price: 50,
         bill_to_partner: false,
-        bill_to_customer: false,
+        bill_to_customer: true,
         extra_billable: true,
         extra_billing_allowed: false,
+        customer_margin_percent: 80,
       },
       {
         id: 'exp-3',
@@ -120,7 +156,19 @@ assert.equal(margin.customerExtrasNet, 616.72);
 assert.equal(margin.piikkiMaterialCostNet, 342.62);
 
 const eating = analyzeMarginEatingExpenses(logs);
-assert.equal(eating.total, 75);
+assert.equal(eating.total, 25);
+
+const impactLines = collectExtraBillingMarginImpactLines(logs, { hourly_regular: 50 });
+assert.equal(impactLines.length, 2);
+const approvedLine = impactLines.find((line) => line.status === 'approved');
+const pendingLine = impactLines.find((line) => line.status === 'pending');
+assert.equal(approvedLine?.marginIfApprovedNet, 274.1);
+assert.equal(pendingLine?.currentMarginImpactNet, -50);
+assert.equal(pendingLine?.marginIfApprovedNet, 40);
+assert.match(
+  formatExtraBillingMarginImpactNote(pendingLine, (v) => `${v}€`),
+  /jos lupa: \+ 40€ kate/,
+);
 assert.equal(expenseExtraBillingAllowed(logs[0].expense_lines[0]), true);
 assert.equal(expenseExtraBillingAllowed(logs[0].expense_lines[1]), false);
 

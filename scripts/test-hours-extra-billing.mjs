@@ -50,7 +50,7 @@ const approved = buildCustomerExtraBillingFromLogForm({
   hours_extra_billing_allowed: true,
   hours_extra_hours: '5',
 });
-assert.equal(hoursExtraBillingLabel(approved), '5 h · lisälaskutus luvalla');
+assert.equal(hoursExtraBillingLabel(approved), '5 h · Lisälaskutettava');
 assert.equal(approved.hours, 5);
 assert.equal(approved.hourly_rate, 85);
 

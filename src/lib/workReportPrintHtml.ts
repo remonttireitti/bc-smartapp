@@ -3,7 +3,7 @@ import {
   expenseCustomerPriceMissing,
   expenseExtraBillingAllowed,
   expensePrintBillingNote,
-  expenseSupplyExtraBillingLabel,
+  formatExpenseSupplyExtraBillingMarginNote,
   expensePurchaseLineTotal,
   expensePurchasePriceMissing,
   resolveExpensePurchaseUnitPrice,
@@ -20,7 +20,8 @@ export type WorkReportPrintMode = 'customer' | 'internal';
 import { formatEuro } from './workReportBilling';
 import { BILLABLE_RATES_SOURCE_LABELS } from './management';
 import {
-  computeQuoteExtrasMarginFromLogs,
+  collectExtraBillingMarginImpactLines,
+  formatExtraBillingMarginImpactNote,
   hoursExtraBillingLabel,
 } from './dailyLogCustomerExtraBilling';
 import {
@@ -387,11 +388,11 @@ function quoteMarginPrintSection(
 
   const extrasDetail =
     logs.length && partnerCalculation
-      ? computeQuoteExtrasMarginFromLogs(
+      ? collectExtraBillingMarginImpactLines(
           logs,
           partnerCalculation.ratesUsed,
           customerCalculation?.ratesUsed,
-        ).lines
+        )
       : [];
 
   const purchaseLines = billingQuote.purchase_lines ?? [];
@@ -506,16 +507,21 @@ function quoteMarginPrintSection(
           <tr><th>Päivä</th><th>Rivi</th><th class="num">Asiakas</th><th class="num">Kumppani</th><th class="num">Piikki-hankinta</th><th class="num">Kate</th></tr>
         </thead>
         <tbody>${extrasDetail
-          .map(
-            (line) => `<tr>
+          .map((line) => {
+            const marginCell =
+              line.status === 'approved'
+                ? `<strong>${line.currentMarginImpactNet >= 0 ? '+' : '−'} ${formatEuro(Math.abs(line.currentMarginImpactNet))}</strong>`
+                : `${line.currentMarginImpactNet < -0.005 ? `<span class="muted">nyt − ${formatEuro(Math.abs(line.currentMarginImpactNet))}</span><br>` : ''}<strong>jos lupa: ${line.marginIfApprovedNet >= 0 ? '+' : '−'} ${formatEuro(Math.abs(line.marginIfApprovedNet))}</strong>`;
+            const impactNote = formatExtraBillingMarginImpactNote(line, formatEuro);
+            return `<tr class="${line.status === 'pending' ? 'billing-margin-pending' : ''}">
             <td>${esc(formatDate(line.logDate))}</td>
-            <td>${esc(line.kind === 'extra_work' ? `Lisätyö: ${line.description}` : line.description)}</td>
-            <td class="num">${formatEuro(line.customerNet)}</td>
-            <td class="num">${line.partnerNet > 0 ? `− ${formatEuro(line.partnerNet)}` : '—'}</td>
+            <td>${esc(line.kind === 'extra_work' ? `Lisätyö: ${line.description}` : line.description)}<div class="muted">${esc(impactNote)}</div></td>
+            <td class="num">${line.status === 'approved' ? formatEuro(line.customerNet) : '—'}</td>
+            <td class="num">${line.status === 'approved' && line.partnerNet > 0 ? `− ${formatEuro(line.partnerNet)}` : '—'}</td>
             <td class="num">${line.piikkiCostNet > 0 ? `− ${formatEuro(line.piikkiCostNet)}` : '—'}</td>
-            <td class="num"><strong>+ ${formatEuro(line.marginNet)}</strong></td>
-          </tr>`,
-          )
+            <td class="num">${marginCell}</td>
+          </tr>`;
+          })
           .join('')}</tbody>
       </table>`
       : '';
@@ -626,12 +632,16 @@ export function generateWorkReportPrintHtml(input: {
               const purchaseCell = purchaseMissing
                 ? `hankinta <span class="billing-price-missing">?</span>`
                 : `hankinta ${qty} × ${formatEuro(purchaseUnit)} = ${formatEuro(purchaseTotal)}`;
-              const supplyExtraLabel = expenseSupplyExtraBillingLabel(line);
+              const supplyExtraLabel = formatExpenseSupplyExtraBillingMarginNote(line, formatEuro);
               const customerCell =
                 customerQuoteBased && !expenseExtraBillingAllowed(line)
                   ? supplyExtraLabel
-                    ? ` · <span class="muted">${supplyExtraLabel}</span>`
+                    ? ` · <span class="muted">${esc(supplyExtraLabel)}</span>`
                     : ' · <span class="muted">kuuluu tarjoukseen</span>'
+                  : customerQuoteBased && expenseExtraBillingAllowed(line)
+                    ? customerMissing
+                      ? ` · asiakas <span class="billing-price-missing">?</span>`
+                      : ` · asiakas ${qty} × ${formatEuro(customerUnit)} = ${formatEuro(customerTotal)}${supplyExtraLabel ? ` · <span class="muted">${esc(supplyExtraLabel)}</span>` : ''}`
                   : customerMissing
                     ? ` · asiakas <span class="billing-price-missing">?</span>`
                     : ` · asiakas ${qty} × ${formatEuro(customerUnit)} = ${formatEuro(customerTotal)}`;

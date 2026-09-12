@@ -271,7 +271,58 @@ export function expenseSupplyExtraBillingLabel(row: ExpenseBillingFlags): string
   if (resolveExpenseBillingMode(row) !== 'customer_only') return null;
   if (!expenseExtraBillable(row)) return 'kuuluu tarjoukseen · syö katetta';
   if (!row.extra_billing_allowed) return 'lisälaskutettavissa · ei lupaa';
-  return 'lisälaskutus luvalla';
+  return 'Lisälaskutettava';
+}
+
+export type ExpenseSupplyExtraBillingMarginImpact = {
+  currentMarginImpactNet: number;
+  marginIfApprovedNet: number;
+};
+
+/** Piikkitarvikkeen nykyinen ja hyväksytyn lisälaskutuksen katevaikutus. */
+export function expenseSupplyExtraBillingMarginImpact(
+  row: ExpensePurchaseFields & ExpenseBillingFlags,
+): ExpenseSupplyExtraBillingMarginImpact | null {
+  if (resolveExpenseBillingMode(row) !== 'customer_only') return null;
+  if (!expenseExtraBillable(row)) return null;
+  const qty = Number(row.qty) || 0;
+  const purchase = resolveExpensePurchaseUnitPrice(row);
+  if (!(qty > 0) || purchase == null || !(purchase > 0)) return null;
+  const customerRaw =
+    row.customer_unit_price != null && String(row.customer_unit_price).trim() !== ''
+      ? Number(row.customer_unit_price)
+      : null;
+  const customerRate =
+    customerRaw != null && customerRaw > 0
+      ? customerRaw
+      : computeSupplyCustomerUnitPrice(purchase, resolveSupplyMarginPercent(row));
+  const customerNet = Math.round(qty * customerRate * 100) / 100;
+  const piikkiCostNet = Math.round(qty * purchase * 100) / 100;
+  const marginIfApprovedNet = Math.round((customerNet - piikkiCostNet) * 100) / 100;
+  if (expenseExtraBillingAllowed(row)) {
+    return { currentMarginImpactNet: marginIfApprovedNet, marginIfApprovedNet };
+  }
+  return { currentMarginImpactNet: -piikkiCostNet, marginIfApprovedNet };
+}
+
+export function formatExpenseSupplyExtraBillingMarginNote(
+  row: ExpensePurchaseFields & ExpenseBillingFlags,
+  formatMoney: (value: number) => string,
+): string | null {
+  const label = expenseSupplyExtraBillingLabel(row);
+  const impact = expenseSupplyExtraBillingMarginImpact(row);
+  if (!label || !impact) return label;
+  if (expenseExtraBillingAllowed(row)) {
+    const sign = impact.currentMarginImpactNet >= 0 ? '+' : '−';
+    return `${label} · kate ${sign} ${formatMoney(Math.abs(impact.currentMarginImpactNet))}`;
+  }
+  const parts = [label];
+  if (impact.currentMarginImpactNet < -0.005) {
+    parts.push(`nyt − ${formatMoney(Math.abs(impact.currentMarginImpactNet))} kate`);
+  }
+  const approvedSign = impact.marginIfApprovedNet >= 0 ? '+' : '−';
+  parts.push(`jos lupa: ${approvedSign} ${formatMoney(Math.abs(impact.marginIfApprovedNet))} kate`);
+  return parts.join(' · ');
 }
 
 /** Päivittää piikkiostorivin asiakashinnan — ei muuta laskutustilaa (bill_to_*). */

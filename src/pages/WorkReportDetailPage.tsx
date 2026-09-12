@@ -199,7 +199,7 @@ import {
   expenseBillingSummaryLabel,
   syncSupplyExpenseCustomerPrice,
   expensePurchaseLineTotal,
-  expenseSupplyExtraBillingLabel,
+  formatExpenseSupplyExtraBillingMarginNote,
   inferPartnerExpenseMarginPercent,
   inferSupplyMarginPercent,
   resolveExpenseBillingMode,
@@ -552,7 +552,9 @@ function expenseRowSectionTitle(
   ) {
     parts.push(`hankinta ${expensePurchaseLineTotal(row).toFixed(2)} €`);
   }
-  const supplyLabel = expenseSupplyExtraBillingLabel(row);
+  const supplyLabel = formatExpenseSupplyExtraBillingMarginNote(row, (value) =>
+    `${value.toFixed(2)} €`,
+  );
   if (supplyLabel) parts.push(supplyLabel);
   const billingLabel = expenseBillingSummaryLabel(row, {
     showPartner,
@@ -1264,12 +1266,14 @@ function DailyLogFields({
                                 </label>
                               </div>
                             ) : null}
-                            {row.extra_billable && row.extra_billing_allowed && Number(row.customer_unit_price) > 0 ? (
+                            {row.extra_billable && Number(row.unit_price) > 0 ? (
                               <p className="muted expense-billing-preview">
-                                Asiakkaalle laskutettava:{' '}
-                                <strong>{formatEuro(Number(row.customer_unit_price))}</strong>
-                                {Number(row.unit_price) > 0 ? (
+                                {formatExpenseSupplyExtraBillingMarginNote(row, formatEuro)}
+                                {row.extra_billing_allowed && Number(row.customer_unit_price) > 0 ? (
                                   <>
+                                    {' '}
+                                    · Asiakkaalle laskutettava:{' '}
+                                    <strong>{formatEuro(Number(row.customer_unit_price))}</strong>
                                     {' '}
                                     (hankinta {formatEuro(Number(row.unit_price))} + kate{' '}
                                     {row.customer_margin_percent || DEFAULT_SUPPLY_MARGIN_PERCENT} %)

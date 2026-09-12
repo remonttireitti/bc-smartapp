@@ -82,7 +82,7 @@ export function dailyLogHoursSubtitle(
   if (form.hours_extra_billable) {
     const extraHours = Number(form.hours_extra_hours) || 0;
     const status = form.hours_extra_billing_allowed
-      ? 'lisälaskutus luvalla'
+      ? 'Lisälaskutettava'
       : 'lisälaskutettavissa · ei lupaa';
     parts.push(extraHours > 0 ? `${extraHours} h lisälask. · ${status}` : status);
   }
