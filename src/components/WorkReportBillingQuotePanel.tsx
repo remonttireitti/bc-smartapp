@@ -4,6 +4,7 @@ import {
   billingQuoteFromQuoteRow,
   billingQuoteHasData,
   computePartnerNetMargin,
+  computeQuotePurchaseMarginAdjustment,
   loadBillingQuoteOptions,
   normalizeBillingQuoteSettings,
   parseBillingQuoteSettings,
@@ -237,6 +238,7 @@ export default function WorkReportBillingQuotePanel({
   const purchaseLines = settings.purchase_lines ?? [];
   const quotePurchaseTotal = resolveQuotePurchaseTotal(settings);
   const actualPurchaseTotal = resolveActualPurchaseTotal(settings);
+  const purchaseMarginAdjustment = computeQuotePurchaseMarginAdjustment(settings);
 
   function formatComparisonQty(
     row: InstallationComparison['rows'][number],
@@ -308,7 +310,8 @@ export default function WorkReportBillingQuotePanel({
       <div className="table-wrap billing-purchase-lines-wrap">
         <h4 className="billing-breakdown-heading">Hankintakorjaukset</h4>
         <p className="muted billing-purchase-lines-hint">
-          Tarjouksen hankintahinnat ovat vain luku -tilassa. Korjaa todelliset hankintakulut raportilla.
+          Tarjouksen hankintahinnat ovat vain luku -tilassa. Korjaa todelliset hankintakulut raportilla —
+          asiakashinta pysyy kiinteenä, jolloin kate-% päivittyy automaattisesti.
         </p>
         <table className="billing-table billing-purchase-lines-table">
           <thead>
@@ -365,6 +368,23 @@ export default function WorkReportBillingQuotePanel({
             </tr>
           </tfoot>
         </table>
+        {purchaseMarginAdjustment
+        && Math.abs(purchaseMarginAdjustment.purchaseDeltaNet) > 0.005 ? (
+          <p className="muted billing-purchase-lines-hint">
+            Hankinta {purchaseMarginAdjustment.purchaseDeltaNet > 0 ? 'nousi' : 'laski'}{' '}
+            {formatEuro(Math.abs(purchaseMarginAdjustment.purchaseDeltaNet))} → kate tarjoushinnasta{' '}
+            {purchaseMarginAdjustment.marginPercentAtQuote.toLocaleString('fi-FI', {
+              maximumFractionDigits: 1,
+            })}{' '}
+            % →{' '}
+            <strong>
+              {purchaseMarginAdjustment.marginPercentAfterActual.toLocaleString('fi-FI', {
+                maximumFractionDigits: 1,
+              })}{' '}
+              %
+            </strong>
+          </p>
+        ) : null}
       </div>
     );
   }

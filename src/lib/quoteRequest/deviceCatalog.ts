@@ -13,6 +13,7 @@ import {
   vesiIlmaLampopumput,
 } from '../../data/pumpDeviceCatalog';
 import type { QuoteRequestData, QuoteType } from './types';
+import { computeInstallationSupplyMarginPercent } from './installationSupplies';
 import { isPumpQuoteType } from './constants';
 import { filterCompatibleDevicesForQuote } from './vilpCompatibility';
 import { listCustomRegistryDevices, resolveRegistryDevice } from './deviceRegistryState';
@@ -404,4 +405,21 @@ export function suggestBestIilpDeviceId(
   if (adequate.length > 0) return adequate[0].id;
 
   return [...devices].sort((a, b) => powerOf(b) - powerOf(a))[0]?.id ?? null;
+}
+
+/** Kun päälaitteen myyntihinta on lukittu, hankinnan muutos päivittää kate-%:n. */
+export function syncPumpMainDeviceSaleOverrideMargin(
+  data: QuoteRequestData,
+  device: HeatPumpDevice | null,
+  feeMap?: BrandDeliveryFeeByCategoryMap | null,
+): Partial<QuoteRequestData> {
+  if (data.deviceSaleOverrideNet == null || !(Number(data.deviceSaleOverrideNet) > 0) || !device) {
+    return {};
+  }
+  const purchase = calculateDevicePurchaseNet(data, device, feeMap);
+  const sell = Number(data.deviceSaleOverrideNet);
+  if (!(purchase > 0) || !(sell > 0)) return {};
+  return {
+    deviceMarginPercent: computeInstallationSupplyMarginPercent(purchase, sell),
+  };
 }

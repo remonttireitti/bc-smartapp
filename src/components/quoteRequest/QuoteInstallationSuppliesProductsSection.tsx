@@ -6,6 +6,7 @@ import {
   installationSuppliesSellNet,
   migrateLegacyMaterialsToInstallationSupplies,
   patchInstallationSupplies,
+  resolveInstallationSupplyMarginPercent,
   syncInstallationSupplyRow,
 } from '../../lib/quoteRequest/installationSupplies';
 import type { QuoteMaterial, QuoteRequestData } from '../../lib/quoteRequest/types';
@@ -65,7 +66,8 @@ export default function QuoteInstallationSuppliesProductsSection({
     <div className="quote-installation-supplies">
       <p className="muted">
         Sisäisessä tulosteessa jokainen tarvike omalla rivillään. Asiakkaan tarjouksessa kaikki
-        yhdistyvät riviksi <strong>Asennus tarvikkeet</strong>.
+        yhdistyvät riviksi <strong>Asennus tarvikkeet</strong>. Kun myyntihinta on sovittu, hankinnan
+        muutos päivittää kate-%:n — asiakashinta pysyy ennallaan.
       </p>
 
       <div className="section-header-row">
@@ -88,6 +90,7 @@ export default function QuoteInstallationSuppliesProductsSection({
           {items.map((item, index) => {
             const qty = Number(item.quantity) || 0;
             const sell = qty * (Number(item.sellPrice) || 0);
+            const displayMarginPercent = resolveInstallationSupplyMarginPercent(item);
             return (
               <div key={item.id} className="quote-material-row panel-inset">
                 <div className="quote-line-head">
@@ -140,7 +143,7 @@ export default function QuoteInstallationSuppliesProductsSection({
                       type="number"
                       min="0"
                       step="0.1"
-                      value={item.marginPercent}
+                      value={displayMarginPercent}
                       onChange={(e) => updateRow(item.id, { marginPercent: Number(e.target.value) })}
                       disabled={!canEdit}
                     />

@@ -196,6 +196,46 @@ export function resolveQuotePurchaseTotal(settings: BillingQuoteSettings): numbe
   return roundMoney(normalized.quote_purchase_net ?? 0);
 }
 
+export type QuotePurchaseMarginAdjustment = {
+  quoteSaleNet: number;
+  quotePurchaseNet: number;
+  actualPurchaseNet: number;
+  purchaseDeltaNet: number;
+  marginNetAtQuote: number;
+  marginNetAfterActual: number;
+  marginPercentAtQuote: number;
+  marginPercentAfterActual: number;
+};
+
+/** Kate-% muutos kun hankinta korjataan mutta tarjoushinta pysyy kiinteenä. */
+export function computeQuotePurchaseMarginAdjustment(
+  settings: BillingQuoteSettings,
+): QuotePurchaseMarginAdjustment | null {
+  const quoteSaleNet = settings.quote_sale_net;
+  if (quoteSaleNet == null || quoteSaleNet <= 0) return null;
+
+  const quotePurchaseNet = resolveQuotePurchaseTotal(settings);
+  const actualPurchaseNet = resolveActualPurchaseTotal(settings);
+  const purchaseDeltaNet = roundMoney(actualPurchaseNet - quotePurchaseNet);
+  const marginNetAtQuote = roundMoney(quoteSaleNet - quotePurchaseNet);
+  const marginNetAfterActual = roundMoney(quoteSaleNet - actualPurchaseNet);
+  const marginPercentAtQuote =
+    quoteSaleNet > 0 ? roundMoney((marginNetAtQuote / quoteSaleNet) * 100) : 0;
+  const marginPercentAfterActual =
+    quoteSaleNet > 0 ? roundMoney((marginNetAfterActual / quoteSaleNet) * 100) : 0;
+
+  return {
+    quoteSaleNet: roundMoney(quoteSaleNet),
+    quotePurchaseNet: roundMoney(quotePurchaseNet),
+    actualPurchaseNet: roundMoney(actualPurchaseNet),
+    purchaseDeltaNet,
+    marginNetAtQuote,
+    marginNetAfterActual,
+    marginPercentAtQuote,
+    marginPercentAfterActual,
+  };
+}
+
 export function resolveActualPurchaseTotal(settings: BillingQuoteSettings): number {
   const normalized = normalizeBillingQuoteSettings(parseBillingQuoteSettings(settings));
   if (normalized.purchase_lines?.length) {

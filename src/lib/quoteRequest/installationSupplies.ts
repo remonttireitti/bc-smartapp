@@ -153,6 +153,16 @@ export function installationSuppliesNetMarginNet(
   );
 }
 
+/** Näytettävä kate-% — aina johdettu nykyisestä hankinnasta ja myynnistä. */
+export function resolveInstallationSupplyMarginPercent(row: QuoteMaterial): number {
+  const purchase = Number(row.purchasePrice) || 0;
+  const sell = Number(row.sellPrice) || 0;
+  if (purchase > 0 && sell > 0) {
+    return computeInstallationSupplyMarginPercent(purchase, sell);
+  }
+  return Number(row.marginPercent) || 0;
+}
+
 export function syncInstallationSupplyRow(
   row: QuoteMaterial,
   patch: Partial<QuoteMaterial>,
@@ -169,7 +179,27 @@ export function syncInstallationSupplyRow(
     };
   }
 
-  if ('purchasePrice' in patch || 'marginPercent' in patch) {
+  if ('marginPercent' in patch && !('purchasePrice' in patch) && !('sellPrice' in patch)) {
+    return {
+      ...next,
+      sellPrice: computeInstallationSupplySellPrice(
+        next.purchasePrice,
+        next.marginPercent,
+      ),
+    };
+  }
+
+  if ('purchasePrice' in patch) {
+    const fixedSell = Number(next.sellPrice) > 0;
+    if (fixedSell) {
+      return {
+        ...next,
+        marginPercent: computeInstallationSupplyMarginPercent(
+          next.purchasePrice,
+          next.sellPrice,
+        ),
+      };
+    }
     return {
       ...next,
       sellPrice: computeInstallationSupplySellPrice(
@@ -277,7 +307,7 @@ export function generateInstallationSuppliesPrintHtml(
         <td>${esc(row.name)}</td>
         <td class="num">${qty}</td>
         <td class="num">${formatEuro(Number(row.purchasePrice) || 0)}</td>
-        <td class="num">${Number(row.marginPercent) || 0} %</td>
+        <td class="num">${resolveInstallationSupplyMarginPercent(row)} %</td>
         <td class="num">${formatEuro(Number(row.sellPrice) || 0)}</td>
         <td class="num">${formatEuro(sell)}</td>
         <td class="num">${formatEuro(margin)}</td>

@@ -19,14 +19,15 @@ export function QuoteManualDevicePricingSection({ form, canEdit, onChange, hideH
         <>
           <h3>Laite / urakka</h3>
           <p className="muted">
-            Syötä laitteen hankintahinta ja kate — myyntihinta lasketaan kuten tarvikkeilla. Laitteen nimi
-            tulostuu Kohde-välilehden merkki/malli -kentistä.
+            Syötä laitteen hankintahinta ja kate — myyntihinta lasketaan kuten tarvikkeilla. Kun myyntihinta on
+            sovittu, hankinnan muutos päivittää kate-%:n. Laitteen nimi tulostuu Kohde-välilehden merkki/malli
+            -kentistä.
           </p>
         </>
       ) : (
         <p className="muted">
-          Syötä laitteen hankintahinta ja kate — myyntihinta lasketaan kuten tarvikkeilla. Laitteen nimi
-          tulostuu Kohde-välilehden merkki/malli -kentistä.
+          Syötä laitteen hankintahinta ja kate — myyntihinta lasketaan kuten tarvikkeilla. Kun myyntihinta on
+          sovittu, hankinnan muutos päivittää kate-%:n.
         </p>
       )}
       <div className="quote-line-row panel-inset">
@@ -69,7 +70,7 @@ export function QuoteManualDevicePricingSection({ form, canEdit, onChange, hideH
               step="0.01"
               value={form.deviceSaleOverrideNet ?? ''}
               onChange={(e) =>
-                onChange({
+                patchDevice({
                   deviceSaleOverrideNet: e.target.value === '' ? null : Number(e.target.value),
                 })
               }

@@ -7,6 +7,7 @@ import {
   findDeviceById,
   formatDeviceLabel,
   powerFitLabel,
+  syncPumpMainDeviceSaleOverrideMargin,
   type DeviceOptionKey,
 } from '../../lib/quoteRequest/deviceCatalog';
 import { computeAllOptionTotals } from '../../lib/quoteRequest/calculations';
@@ -93,6 +94,15 @@ function DeviceOptionCard({
     selectedId &&
     suggestedDeviceId &&
     selectedId !== suggestedDeviceId;
+
+  function patchPricing(patch: Partial<QuoteRequestData>) {
+    const merged = { ...form, ...patch };
+    const marginPatch =
+      optionKey === 'A'
+        ? syncPumpMainDeviceSaleOverrideMargin(merged, device, feeMap)
+        : {};
+    onChange({ ...patch, ...marginPatch });
+  }
 
   const showSelection = variant === 'full' || variant === 'selection';
   const showPricing = variant === 'full' || variant === 'pricing';
@@ -183,7 +193,7 @@ function DeviceOptionCard({
               step="0.1"
               value={form[discountField]}
               disabled={!canEdit}
-              onChange={(e) => onChange({ [discountField]: Number(e.target.value) })}
+              onChange={(e) => patchPricing({ [discountField]: Number(e.target.value) })}
             />
           </label>
           <label>
@@ -208,7 +218,7 @@ function DeviceOptionCard({
               disabled={!canEdit}
               onChange={(e) => {
                 const raw = e.target.value.trim();
-                onChange({
+                patchPricing({
                   [deliveryField]: raw === '' ? null : Number(raw),
                 });
               }}

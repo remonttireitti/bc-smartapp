@@ -45,4 +45,19 @@ assert.equal(fromQty.quantity * fromQty.sellPrice, 1650);
 assert.equal(computeInstallationSupplyMarginPercent(30, 33), 10);
 assert.equal(computeInstallationSupplyMarginPercent(0, 50), 0);
 
+// Hankinta muuttuu, myynti lukittu → kate-% päivittyy
+const purchaseUp = syncInstallationSupplyRow(
+  { ...fromMargin, purchasePrice: 30, sellPrice: 33, marginPercent: 10 },
+  { purchasePrice: 40 },
+);
+assert.equal(purchaseUp.sellPrice, 33);
+assert.equal(purchaseUp.marginPercent, -17.5);
+
+const purchaseUpMore = syncInstallationSupplyRow(
+  { ...fromMargin, purchasePrice: 30, sellPrice: 33, marginPercent: 10 },
+  { purchasePrice: 36 },
+);
+assert.equal(purchaseUpMore.sellPrice, 33);
+assert.equal(purchaseUpMore.marginPercent, -8.33);
+
 console.log('installation-supplies-calc: ok');
