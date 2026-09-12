@@ -4,6 +4,12 @@ type Props = {
   extraBillable: boolean;
   extraBillingAllowed: boolean;
   disabled?: boolean;
+  billableLabel?: string;
+  permissionLabel?: string;
+  billableHint?: string;
+  permissionHintApproved?: string;
+  permissionHintPending?: string;
+  permissionHintDisabled?: string;
   onExtraBillableChange: (value: boolean) => void;
   onExtraBillingAllowedChange: (value: boolean) => void;
 };
@@ -12,6 +18,12 @@ export default function ExpenseExtraBillingToggles({
   extraBillable,
   extraBillingAllowed,
   disabled = false,
+  billableLabel = 'Lisälaskutettavissa',
+  permissionLabel = 'Lupa lisälaskutukseen',
+  billableHint = 'Tarvike voi olla lisälaskutettavissa tarjouksen päälle.',
+  permissionHintApproved = 'Laskutetaan asiakkaalta hankinta + kate.',
+  permissionHintPending = 'Ilman lupaa hankinta vähennetään katteesta.',
+  permissionHintDisabled = 'Ota ensin käyttöön lisälaskutettavissa.',
   onExtraBillableChange,
   onExtraBillingAllowedChange,
 }: Props) {
@@ -21,29 +33,27 @@ export default function ExpenseExtraBillingToggles({
         <ToggleSwitch
           checked={extraBillable}
           disabled={disabled}
-          label="Lisälaskutettavissa"
+          label={billableLabel}
           onChange={(checked) => {
             onExtraBillableChange(checked);
             if (!checked) onExtraBillingAllowedChange(false);
           }}
         />
-        <p className="muted expense-extra-billing-toggle-hint">
-          Tarvike voi olla lisälaskutettavissa tarjouksen päälle.
-        </p>
+        <p className="muted expense-extra-billing-toggle-hint">{billableHint}</p>
       </div>
       <div className="expense-extra-billing-toggle-row">
         <ToggleSwitch
           checked={extraBillingAllowed}
           disabled={disabled || !extraBillable}
-          label="Lupa lisälaskutukseen"
+          label={permissionLabel}
           onChange={onExtraBillingAllowedChange}
         />
         <p className="muted expense-extra-billing-toggle-hint">
           {extraBillable
             ? extraBillingAllowed
-              ? 'Laskutetaan asiakkaalta hankinta + kate.'
-              : 'Ilman lupaa hankinta vähennetään katteesta.'
-            : 'Ota ensin käyttöön lisälaskutettavissa.'}
+              ? permissionHintApproved
+              : permissionHintPending
+            : permissionHintDisabled}
         </p>
       </div>
     </div>

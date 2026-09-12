@@ -157,7 +157,7 @@ import {
   type BillingQuoteSettings,
 } from '../lib/workReportBillingQuote';
 import {
-  dailyLogExtraBillingFromForm,
+  buildCustomerExtraBillingFromLogForm,
   dailyLogExtraBillingToForm,
   emptyDailyLogExtraBillingForm,
   serializeDailyLogCustomerExtraBilling,
@@ -556,7 +556,7 @@ function buildLogPayload(form: DailyLogFormState, options?: { includeAgreedRegul
     ...(options?.includeAgreedRegular
       ? { hours_agreed_regular: Number(form.hours_agreed_regular || 0) }
       : {}),
-    customer_extra_billing: serializeDailyLogCustomerExtraBilling(dailyLogExtraBillingFromForm(form)),
+    customer_extra_billing: serializeDailyLogCustomerExtraBilling(buildCustomerExtraBillingFromLogForm(form)),
   };
 }
 
@@ -610,6 +610,7 @@ function DailyLogFields({
   defaultHourlyRate,
   defaultCustomerHourlyRate,
   showAgreedRegularHours,
+  showQuoteLinkedExtraBilling,
 }: {
   form: DailyLogFormState;
   setForm: (next: DailyLogFormState) => void;
@@ -622,6 +623,7 @@ function DailyLogFields({
   defaultHourlyRate?: number | null;
   defaultCustomerHourlyRate?: number | null;
   showAgreedRegularHours?: boolean;
+  showQuoteLinkedExtraBilling?: boolean;
 }) {
   const { showRegular, showOvertime, showOnCall, showFixed, calendarOnlyHours } =
     hourFieldsForEntryType(form.entry_type);
@@ -897,6 +899,28 @@ function DailyLogFields({
           veloiteta tunneista.
         </p>
       )}
+      {showQuoteLinkedExtraBilling && !showFixed && !calendarOnlyHours ? (
+        <ExpenseExtraBillingToggles
+          extraBillable={form.hours_extra_billable}
+          extraBillingAllowed={form.hours_extra_billing_allowed}
+          billableLabel="Lisätyö laskutettavissa"
+          permissionLabel="Lupa lisälaskutukseen"
+          billableHint="Työ voi olla lisälaskutettavissa kiinteän tarjouksen päälle."
+          permissionHintApproved="Laskutetaan asiakkaalta yllä olevilla tunneilla ja asiakashinnalla."
+          permissionHintPending="Ilman lupaa työ kuuluu tarjoukseen eikä lisälaskuteta."
+          permissionHintDisabled="Ota ensin käyttöön lisätyö laskutettavissa."
+          onExtraBillableChange={(checked) =>
+            setForm({
+              ...form,
+              hours_extra_billable: checked,
+              hours_extra_billing_allowed: checked ? form.hours_extra_billing_allowed : false,
+            })
+          }
+          onExtraBillingAllowedChange={(checked) =>
+            setForm({ ...form, hours_extra_billing_allowed: checked })
+          }
+        />
+      ) : null}
       {showFixed && (
         <div className="urakka-billing-split">
           <label className="compact-option">
@@ -4044,6 +4068,7 @@ export default function WorkReportDetailPage({ session }: Props) {
             && (hourBillingSettings.partner_mode === 'daily_overtime'
               || hourBillingSettings.customer_mode === 'daily_overtime')
           }
+          showQuoteLinkedExtraBilling={customerUsesQuoteBasedBilling(billingQuoteSettings)}
         />
         <DailyLogRefrigerantFields
           drafts={refrigerantDrafts}

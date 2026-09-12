@@ -21,6 +21,7 @@ import { formatEuro } from './workReportBilling';
 import { BILLABLE_RATES_SOURCE_LABELS } from './management';
 import {
   computeQuoteExtrasMarginFromLogs,
+  hoursExtraBillingLabel,
 } from './dailyLogCustomerExtraBilling';
 import {
   billingQuoteHasData,
@@ -1289,7 +1290,10 @@ function formatHourEntryForPrint(
   showPrices: boolean,
   showCustomerMoney = showPrices,
 ) {
-  return formatHourEntry(log, { showMoney: showPrices, showCustomerMoney });
+  const summary = formatHourEntry(log, { showMoney: showPrices, showCustomerMoney });
+  const hourExtraLabel = hoursExtraBillingLabel(log.customer_extra_billing);
+  if (!hourExtraLabel) return summary;
+  return `${summary} · ${hourExtraLabel}`;
 }
 
 function summarizeLogs(logs: WorkReportDailyLog[], showPrices: boolean) {

@@ -14,7 +14,7 @@ import {
   shouldCalculateCustomerQuoteExtrasFromLogs,
   computeQuoteExtrasMarginFromLogs,
   serializeDailyLogCustomerExtraBilling,
-  dailyLogExtraBillingFromForm,
+  buildCustomerExtraBillingFromLogForm,
   emptyDailyLogExtraBillingForm,
 } from '../src/lib/dailyLogCustomerExtraBilling.ts';
 
@@ -46,6 +46,8 @@ const logs = [
       hours: 2,
       hourly_rate: 80,
       description: 'Väliaikainen syöttö',
+      hours_extra_billable: true,
+      hours_extra_billing_allowed: true,
       expense_description: 'Onninen-lasku',
       expense_qty: 1,
       expense_customer_unit_price: 250,
@@ -120,6 +122,8 @@ const marginOnlyWork = computeQuoteExtrasMarginFromLogs(
         hours: 1,
         hourly_rate: 65,
         description: 'Testi',
+        hours_extra_billable: true,
+        hours_extra_billing_allowed: true,
       },
     },
   ],
@@ -129,7 +133,17 @@ assert.equal(marginOnlyWork.extrasMarginNet, 15);
 
 // Tyhjä lisälaskutus tallennetaan {} eikä null (NOT NULL -sarake).
 assert.deepEqual(
-  serializeDailyLogCustomerExtraBilling(dailyLogExtraBillingFromForm(emptyDailyLogExtraBillingForm())),
+  serializeDailyLogCustomerExtraBilling(
+    buildCustomerExtraBillingFromLogForm({
+      ...emptyDailyLogExtraBillingForm(),
+      entry_type: 'regular',
+      hours_regular: '0',
+      hours_overtime: '0',
+      hours_on_call: '0',
+      work_done: '',
+      customer_hourly_rate_override: '',
+    }),
+  ),
   {},
 );
 

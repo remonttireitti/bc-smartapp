@@ -60,7 +60,12 @@ export function dailyLogWorkSubtitle(workDone: string): string {
   return summary || 'Kuvaile päivän työt';
 }
 
-export function dailyLogHoursSubtitle(form: DailyLogHoursForm): string {
+export function dailyLogHoursSubtitle(
+  form: DailyLogHoursForm & {
+    hours_extra_billable?: boolean;
+    hours_extra_billing_allowed?: boolean;
+  },
+): string {
   if (form.entry_type === 'fixed_price') {
     const customer = Number(form.customer_fixed_price_amount);
     if (customer > 0) return `Urakka ${customer.toFixed(2)} €`;
@@ -73,6 +78,11 @@ export function dailyLogHoursSubtitle(form: DailyLogHoursForm): string {
   if (Number(form.hours_regular) > 0) parts.push(`${form.hours_regular} h`);
   if (Number(form.hours_overtime) > 0) parts.push(`ylityö ${form.hours_overtime} h`);
   if (Number(form.hours_on_call) > 0) parts.push(`päivystys ${form.hours_on_call} h`);
+  if (form.hours_extra_billable) {
+    parts.push(
+      form.hours_extra_billing_allowed ? 'lisälaskutus luvalla' : 'lisälaskutettavissa · ei lupaa',
+    );
+  }
   return parts.length > 0 ? parts.join(' · ') : 'Ei tunteja';
 }
 
