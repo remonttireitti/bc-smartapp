@@ -163,6 +163,10 @@ import {
   serializeDailyLogCustomerExtraBilling,
 } from '../lib/dailyLogCustomerExtraBilling';
 import {
+  classifyExpenseDraftCategory,
+  quoteCategoryLabel,
+} from '../lib/workReportEntryCategories';
+import {
   computePartnerUrakkaFromCustomer,
   DEFAULT_PARTNER_URAKKA_MARGIN_PERCENT,
 } from '../lib/workReportUrakkaBilling';
@@ -610,6 +614,7 @@ function DailyLogFields({
   defaultHourlyRate,
   defaultCustomerHourlyRate,
   showAgreedRegularHours,
+  showQuoteLinkedCategories,
 }: {
   form: DailyLogFormState;
   setForm: (next: DailyLogFormState) => void;
@@ -622,6 +627,7 @@ function DailyLogFields({
   defaultHourlyRate?: number | null;
   defaultCustomerHourlyRate?: number | null;
   showAgreedRegularHours?: boolean;
+  showQuoteLinkedCategories?: boolean;
 }) {
   const { showRegular, showOvertime, showOnCall, showFixed, calendarOnlyHours } =
     hourFieldsForEntryType(form.entry_type);
@@ -712,6 +718,12 @@ function DailyLogFields({
         }
         wide
       >
+        {showQuoteLinkedCategories && !calendarOnlyHours ? (
+          <p className="quote-category-row-hint">
+            <span className="quote-category-badge quote-category-badge-labor">Työt</span>
+            <span className="muted">Päivän tuntikirjaukset kuuluvat työkategoriaan.</span>
+          </p>
+        ) : null}
         <div className="line-form-grid">
         {showRegular && (
           <label>
@@ -1029,6 +1041,20 @@ function DailyLogFields({
                   defaultOpen={isNewExpenseRow(row)}
                 >
                   <div className={`expense-row-fields${autoTripKm ? ' expense-row-auto' : ''}`}>
+                    {showQuoteLinkedCategories ? (
+                      <p className="quote-category-row-hint">
+                        <span
+                          className={`quote-category-badge quote-category-badge-${classifyExpenseDraftCategory(row)}`}
+                        >
+                          {quoteCategoryLabel(classifyExpenseDraftCategory(row))}
+                        </span>
+                        <span className="muted">
+                          {classifyExpenseDraftCategory(row) === 'supplies'
+                            ? 'Hankintahinta vähennetään katteesta tai laskutetaan lisänä.'
+                            : 'Kulu laskutetaan kumppanilaskutuksessa (esim. ajo, pysäköinti).'}
+                        </span>
+                      </p>
+                    ) : null}
                     <label>
                       Tyyppi
                       <select
@@ -4044,6 +4070,7 @@ export default function WorkReportDetailPage({ session }: Props) {
             && (hourBillingSettings.partner_mode === 'daily_overtime'
               || hourBillingSettings.customer_mode === 'daily_overtime')
           }
+          showQuoteLinkedCategories={customerUsesQuoteBasedBilling(billingQuoteSettings)}
         />
         <DailyLogRefrigerantFields
           drafts={refrigerantDrafts}

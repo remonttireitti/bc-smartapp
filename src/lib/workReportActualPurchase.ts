@@ -101,6 +101,8 @@ export function analyzeWorkReportPurchaseCosts(
         continue;
       }
 
+      if (!expenseCountsAsWorkReportPurchase(expense)) continue;
+
       const qty = Number(expense.qty) || 0;
       if (!(qty > 0)) continue;
 
