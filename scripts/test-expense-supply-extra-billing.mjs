@@ -12,7 +12,8 @@ import {
 import { analyzeMarginEatingExpenses } from '../src/lib/workReportQuoteMargin.ts';
 
 assert.equal(DEFAULT_SUPPLY_MARGIN_PERCENT, 80);
-assert.equal(computeSupplyCustomerUnitPrice(100, 80), 500);
+assert.equal(computeSupplyCustomerUnitPrice(100, 80), 180);
+assert.equal(computeSupplyCustomerUnitPrice(342.62, 80), 616.72);
 assert.equal(
   expenseSupplyExtraBillingLabel({ bill_to_partner: false, bill_to_customer: true, extra_billing_allowed: false }),
   'ei lisälaskutusta · syö katetta',
@@ -34,7 +35,7 @@ const logs = [
         unit_price: 342.62,
         bill_to_partner: false,
         bill_to_customer: true,
-        customer_unit_price: 1713.1,
+        customer_unit_price: 616.72,
         extra_billing_allowed: true,
         customer_margin_percent: 80,
       },
@@ -54,10 +55,10 @@ const logs = [
 const works = extraCustomerWorkFromDailyLogs(logs);
 assert.equal(works.length, 1);
 assert.equal(works[0].expense_lines?.length, 1);
-assert.equal(works[0].expense_lines?.[0].customer_unit_price, 1713.1);
+assert.equal(works[0].expense_lines?.[0].customer_unit_price, 616.72);
 
 const margin = computeQuoteExtrasMarginFromLogs(logs, { hourly_regular: 50 });
-assert.equal(margin.customerExtrasNet, 1713.1);
+assert.equal(margin.customerExtrasNet, 616.72);
 assert.equal(margin.piikkiMaterialCostNet, 342.62);
 
 const eating = analyzeMarginEatingExpenses(logs);

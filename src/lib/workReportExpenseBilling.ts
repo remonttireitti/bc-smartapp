@@ -1,5 +1,9 @@
 import { isLikelyAutoTripKmExpense } from './tripKmExpense';
 import {
+  computeInstallationSupplyMarginPercent,
+  computeInstallationSupplySellPrice,
+} from './quoteRequest/installationSupplies';
+import {
   DEFAULT_PARTNER_URAKKA_MARGIN_PERCENT,
   roundUrakkaMoney,
 } from './workReportUrakkaBilling';
@@ -164,12 +168,15 @@ export function resolveSupplyMarginPercent(
   return fallback;
 }
 
+/** Asiakashinta = hankinta + kate-% hankinnasta (markup, sama kuin tarjouksen tarvikkeet). */
 export function computeSupplyCustomerUnitPrice(
   purchaseUnit: number,
   marginPercent?: number,
 ): number {
-  const margin = marginPercent ?? DEFAULT_SUPPLY_MARGIN_PERCENT;
-  return computeCustomerPriceFromPartnerCost(purchaseUnit, margin);
+  return computeInstallationSupplySellPrice(
+    purchaseUnit,
+    marginPercent ?? DEFAULT_SUPPLY_MARGIN_PERCENT,
+  );
 }
 
 export function inferSupplyMarginPercent(
@@ -177,7 +184,11 @@ export function inferSupplyMarginPercent(
   customerUnit: number,
   fallback: number = DEFAULT_SUPPLY_MARGIN_PERCENT,
 ): number {
-  return inferPartnerExpenseMarginPercent(purchaseUnit, customerUnit, fallback);
+  const purchase = Number(purchaseUnit) || 0;
+  const customer = Number(customerUnit) || 0;
+  if (!(purchase > 0) || !(customer > 0)) return fallback;
+  const inferred = computeInstallationSupplyMarginPercent(purchase, customer);
+  return inferred > 0 ? inferred : fallback;
 }
 
 export function expenseSupplyExtraBillingLabel(row: ExpenseBillingFlags): string | null {
