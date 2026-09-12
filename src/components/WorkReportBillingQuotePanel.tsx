@@ -927,9 +927,7 @@ export default function WorkReportBillingQuotePanel({
                         <td className="num">
                           {line.status === 'approved' && line.piikkiCostNet > 0
                             ? `− ${formatEuro(line.piikkiCostNet)}`
-                            : line.status === 'pending' && line.piikkiCostNet > 0
-                              ? `− ${formatEuro(line.piikkiCostNet)}`
-                              : '—'}
+                            : '—'}
                         </td>
                         <td className="num">
                           {(() => {
@@ -938,11 +936,7 @@ export default function WorkReportBillingQuotePanel({
                               return <strong>{marginCell.approved}</strong>;
                             }
                             return (
-                              <>
-                                <span className="muted">ilman lupaa: {marginCell.withoutPermission}</span>
-                                <br />
-                                <strong>luvan kanssa: {marginCell.withPermission}</strong>
-                              </>
+                              <strong>luvan kanssa: {marginCell.withPermission}</strong>
                             );
                           })()}
                         </td>

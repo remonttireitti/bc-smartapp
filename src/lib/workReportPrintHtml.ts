@@ -512,14 +512,14 @@ function quoteMarginPrintSection(
             const marginCellParts = formatExtraBillingMarginImpactCell(line, formatEuro);
             const marginCell = marginCellParts.approved
               ? `<strong>${marginCellParts.approved}</strong>`
-              : `<span class="muted">ilman lupaa: ${marginCellParts.withoutPermission}</span><br><strong>luvan kanssa: ${marginCellParts.withPermission}</strong>`;
+              : `<strong>luvan kanssa: ${marginCellParts.withPermission}</strong>`;
             const statusLabel = extraBillingMarginImpactStatusLabel(line);
             return `<tr class="${line.status === 'pending' ? 'billing-margin-pending' : ''}">
             <td>${esc(formatDate(line.logDate))}</td>
             <td>${esc(line.kind === 'extra_work' ? `Lisätyö: ${line.description}` : line.description)}<div class="muted">${esc(statusLabel)}</div></td>
             <td class="num">${line.status === 'approved' ? formatEuro(line.customerNet) : '—'}</td>
             <td class="num">${line.status === 'approved' && line.partnerNet > 0 ? `− ${formatEuro(line.partnerNet)}` : '—'}</td>
-            <td class="num">${line.piikkiCostNet > 0 ? `− ${formatEuro(line.piikkiCostNet)}` : '—'}</td>
+            <td class="num">${line.status === 'approved' && line.piikkiCostNet > 0 ? `− ${formatEuro(line.piikkiCostNet)}` : '—'}</td>
             <td class="num">${marginCell}</td>
           </tr>`;
           })

@@ -826,7 +826,7 @@ export function formatExtraBillingMarginImpactCell(
     };
   }
   return {
-    withoutPermission: formatExtraBillingMarginImpactAmount(line.currentMarginImpactNet, formatMoney),
+    withoutPermission: null,
     withPermission: formatExtraBillingMarginImpactAmount(line.marginIfApprovedNet, formatMoney),
     approved: null,
   };
@@ -840,14 +840,8 @@ export function formatExtraBillingMarginImpactNote(
   const status = extraBillingMarginImpactStatusLabel(line);
   const cell = formatExtraBillingMarginImpactCell(line, formatMoney);
   if (cell.approved) return `${status} · kate ${cell.approved}`;
-  const parts = [status];
-  if (line.currentMarginImpactNet < -0.005) {
-    parts.push(`ilman lupaa ${cell.withoutPermission} kate`);
-  } else if (cell.withoutPermission) {
-    parts.push(`ilman lupaa ${cell.withoutPermission} kate`);
-  }
   if (cell.withPermission) {
-    parts.push(`luvan kanssa ${cell.withPermission} kate`);
+    return `${status} · luvan kanssa ${cell.withPermission} kate`;
   }
-  return parts.join(' · ');
+  return status;
 }

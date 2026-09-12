@@ -140,4 +140,39 @@ assert.ok(wartilaMargin.netMarginNet < 10000);
 assert.ok(wartilaMargin.netMarginNet > 6000);
 assert.equal(wartilaMargin.marginEatingExpenseNet, 0);
 
+const approvedExtraLogs = [
+  {
+    id: 'log-approved',
+    log_date: '2026-09-12',
+    expense_lines: [
+      {
+        id: 'exp-approved',
+        description: 'Onninen kuparit',
+        qty: 1,
+        unit_price: 342.62,
+        bill_to_partner: false,
+        bill_to_customer: true,
+        customer_unit_price: 616.72,
+        extra_billable: true,
+        extra_billing_allowed: true,
+      },
+      {
+        id: 'exp-pending',
+        description: 'Odottaa lupaa',
+        qty: 1,
+        unit_price: 50,
+        bill_to_partner: false,
+        bill_to_customer: true,
+        extra_billable: true,
+        extra_billing_allowed: false,
+      },
+    ],
+  },
+];
+
+const approvedExtraAnalysis = analyzeWorkReportPurchaseCosts(approvedExtraLogs);
+assert.equal(approvedExtraAnalysis.suppliesNet, 50);
+assert.equal(approvedExtraAnalysis.lines.length, 1);
+assert.equal(approvedExtraAnalysis.lines[0].description, 'Odottaa lupaa');
+
 console.log('test-work-report-actual-purchase: ok');

@@ -1,5 +1,6 @@
 import type { WorkReportDailyLog } from '../types';
 import {
+  expenseExtraBillingAllowed,
   expensePurchaseLineTotal,
   expensePurchasePriceMissing,
   resolveExpenseBillingMode,
@@ -74,6 +75,7 @@ export function expenseCountsAsWorkReportPurchase(
   if (mode === 'partner_and_customer') return false;
 
   if (mode === 'customer_only') {
+    if (expenseExtraBillingAllowed(expense)) return false;
     if (expensePurchasePriceMissing(expense)) return false;
     return expensePurchaseLineTotal(expense) > 0.005;
   }

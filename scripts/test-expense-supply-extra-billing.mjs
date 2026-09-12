@@ -171,7 +171,7 @@ assert.equal(pendingLine?.currentMarginImpactNet, -50);
 assert.equal(pendingLine?.marginIfApprovedNet, 40);
 assert.equal(extraBillingMarginImpactStatusLabel(pendingLine), 'Lisälaskutettavissa · ei lupaa');
 const pendingMarginCell = formatExtraBillingMarginImpactCell(pendingLine, (v) => `${v}€`);
-assert.equal(pendingMarginCell.withoutPermission, '− 50€');
+assert.equal(pendingMarginCell.withoutPermission, null);
 assert.equal(pendingMarginCell.withPermission, '+ 40€');
 assert.match(
   formatExtraBillingMarginImpactNote(pendingLine, (v) => `${v}€`),
