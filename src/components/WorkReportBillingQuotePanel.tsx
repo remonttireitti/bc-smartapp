@@ -25,6 +25,10 @@ import {
   type QuoteCategoryComparison,
   type QuoteCategoryRow,
 } from '../lib/quoteCategoryComparison';
+import {
+  collectWorkReportCategoryEntries,
+  quoteCategoryLabel,
+} from '../lib/workReportEntryCategories';
 import { formatEuro, type BillableCalculation } from '../lib/workReportBilling';
 import { computeQuoteExtrasMarginFromLogs } from '../lib/dailyLogCustomerExtraBilling';
 import type { WorkReportDailyLog } from '../types';
@@ -182,6 +186,10 @@ export default function WorkReportBillingQuotePanel({
         : null,
     [quoteData, partnerCalculation, dailyLogs, tripKmRate, effectiveSettings],
   );
+  const categoryEntries = useMemo(
+    () => collectWorkReportCategoryEntries(dailyLogs, partnerCalculation),
+    [dailyLogs, partnerCalculation],
+  );
   const extrasMarginLines = useMemo(
     () =>
       dailyLogs.length && partnerCalculation
@@ -319,11 +327,11 @@ export default function WorkReportBillingQuotePanel({
           <thead>
             <tr>
               <th>Kategoria</th>
-              <th className="num">Tarjous (arvio)</th>
-              <th className="num">Toteutunut</th>
+              <th className="num">Tarjous määrä</th>
+              <th className="num">Toteutunut määrä</th>
               <th className="num">Tarjous €</th>
               <th className="num">Toteutunut €</th>
-              <th className="num">Ero</th>
+              <th className="num">Ero €</th>
             </tr>
           </thead>
           <tbody>
@@ -342,6 +350,43 @@ export default function WorkReportBillingQuotePanel({
             </tr>
           </tfoot>
         </table>
+        {categoryEntries.length > 0 ? (
+          <details className="billing-purchase-lines-details">
+            <summary>Työraportin merkinnät kategorioittain ({categoryEntries.length})</summary>
+            <table className="billing-table billing-purchase-lines-table">
+              <thead>
+                <tr>
+                  <th>Päivä</th>
+                  <th>Kategoria</th>
+                  <th>Kuvaus</th>
+                  <th className="num">Määrä</th>
+                  <th className="num">Toteutunut €</th>
+                </tr>
+              </thead>
+              <tbody>
+                {categoryEntries.map((entry) => (
+                  <tr key={entry.id}>
+                    <td>{entry.logDate}</td>
+                    <td>
+                      <span className={`quote-category-badge quote-category-badge-${entry.category}`}>
+                        {quoteCategoryLabel(entry.category)}
+                      </span>
+                    </td>
+                    <td>{entry.description}</td>
+                    <td className="num">
+                      {entry.qty != null && entry.qty > 0
+                        ? `${entry.qty.toLocaleString('fi-FI', { maximumFractionDigits: 2 })}${entry.qtyLabel ? ` ${entry.qtyLabel}` : ''}`
+                        : '—'}
+                    </td>
+                    <td className="num">
+                      {entry.actualNet > 0.005 ? formatEuro(entry.actualNet) : '—'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </details>
+        ) : null}
       </div>
     );
   }

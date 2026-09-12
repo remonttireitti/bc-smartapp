@@ -48,6 +48,7 @@
     "test:daily-overtime-billing": "npx tsx scripts/test-daily-overtime-billing.mjs",
     "test:quote-installation-comparison": "npx tsx scripts/test-quote-installation-comparison.mjs",
     "test:quote-category-comparison": "npx tsx scripts/test-quote-category-comparison.mjs",
+    "test:work-report-entry-categories": "npx tsx scripts/test-work-report-entry-categories.mjs",
     "test:work-report-print-quote-merge": "npx tsx scripts/test-work-report-print-quote-merge.mjs",
     "test:quote-margin-calculation": "npx tsx scripts/test-quote-margin-calculation.mjs",
     "test:expense-supply-extra-billing": "npx tsx scripts/test-expense-supply-extra-billing.mjs",

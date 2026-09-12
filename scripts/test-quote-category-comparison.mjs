@@ -142,7 +142,11 @@ assert.equal(expenses.actualNet, 345);
 const supplies = comparison.rows.find((row) => row.key === 'supplies');
 assert.ok(supplies);
 assert.equal(supplies.quoteNet, 100);
-assert.equal(supplies.actualNet, 85);
+assert.equal(
+  supplies.actualNet,
+  0,
+  'partner_and_customer -kulurivit eivät kuulu tarvikkeisiin',
+);
 
 const device = comparison.rows.find((row) => row.key === 'device');
 assert.ok(device);
