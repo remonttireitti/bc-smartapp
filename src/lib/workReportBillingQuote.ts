@@ -11,7 +11,6 @@ import {
   effectiveQuoteMaterialCostNet,
   sumPartnerPurchaseCostNet,
 } from './workReportQuoteMargin';
-import { patchQuoteRequestDataFromWorkReportActuals } from './quoteRequestActualPurchaseSync';
 import { formatEuro } from './workReportBilling';
 import {
   calculateWorkReportCustomerQuoteExtras,
@@ -481,10 +480,6 @@ export async function saveBillingQuoteSettings(
   supabase: SupabaseClient,
   workReportId: string,
   settings: BillingQuoteSettings,
-  options?: {
-    logs?: WorkReportDailyLog[];
-    syncQuoteRequest?: boolean;
-  },
 ): Promise<void> {
   const payload = normalizeBillingQuoteSettings(parseBillingQuoteSettings(settings));
   const { error } = await supabase
@@ -502,22 +497,6 @@ export async function saveBillingQuoteSettings(
     if (upsertError) throw new Error(upsertError.message);
   }
 
-  if (options?.syncQuoteRequest && payload.quote_request_id && options.logs?.length) {
-    const { data, error: quoteError } = await supabase
-      .from('quote_requests')
-      .select('data')
-      .eq('id', payload.quote_request_id)
-      .single();
-    if (quoteError) throw new Error(quoteError.message);
-    if (data) {
-      const patched = patchQuoteRequestDataFromWorkReportActuals(data.data, payload, options.logs);
-      const { error: updateError } = await supabase
-        .from('quote_requests')
-        .update({ data: patched })
-        .eq('id', payload.quote_request_id);
-      if (updateError) throw new Error(updateError.message);
-    }
-  }
 }
 
 export function calculateWorkReportCustomerBillableFromQuote(input: {

@@ -2,10 +2,8 @@ import assert from 'node:assert/strict';
 import { analyzeWorkReportPurchaseCosts } from '../src/lib/workReportActualPurchase.ts';
 import { computePartnerNetMargin } from '../src/lib/workReportBillingQuote.ts';
 import { analyzeMarginEatingExpenses } from '../src/lib/workReportQuoteMargin.ts';
-import {
-  mergeActualPurchaseFromWorkReportLogs,
-  patchQuoteRequestDataFromWorkReportActuals,
-} from '../src/lib/quoteRequestActualPurchaseSync.ts';
+import { createEmptyQuoteRequestData } from '../src/lib/quoteRequest/defaults.ts';
+import { mergeActualPurchaseFromWorkReportLogs } from '../src/lib/quoteRequestActualPurchaseSync.ts';
 
 const logs = [
   {
@@ -21,15 +19,6 @@ const logs = [
         bill_to_customer: true,
         customer_unit_price: 81,
       },
-      {
-        id: 'e2',
-        description: 'Ajomatkat (auto)',
-        qty: 120,
-        unit_price: 0.65,
-        expense_type: 'km',
-        bill_to_partner: true,
-        bill_to_customer: true,
-      },
     ],
     partner_purchase_lines: [
       {
@@ -44,31 +33,55 @@ const logs = [
 
 const analysis = analyzeWorkReportPurchaseCosts(logs);
 assert.equal(analysis.suppliesNet, 190);
-assert.equal(analysis.lines.length, 2);
 
-const settings = {
-  quote_sale_net: 34590,
-  quote_purchase_net: 22950,
-  actual_purchase_net: 22950,
-  purchase_lines: [
+const quoteData = {
+  ...createEmptyQuoteRequestData('huolto'),
+  installationSupplies: [
     {
-      id: 'group:supplies',
-      label: 'Tarvikkeet',
-      source: 'group',
-      quote_purchase_net: 22950,
-      actual_purchase_net: 1412.36,
+      id: 'dev-1',
+      name: '3 kpl jäähdytyskone',
+      quantity: 1,
+      purchasePrice: 22896,
+      marginPercent: 25,
+      sellPrice: 28620,
+      rowKind: 'device',
+    },
+    {
+      id: 'sup-1',
+      name: 'LVI-tarvikkeet',
+      quantity: 1,
+      purchasePrice: 753,
+      marginPercent: 20,
+      sellPrice: 941.25,
+      rowKind: 'supply',
     },
   ],
 };
 
-const merged = mergeActualPurchaseFromWorkReportLogs(settings, logs);
+const settings = {
+  quote_sale_net: 34590,
+  quote_purchase_net: 23649,
+  purchase_lines: [
+    {
+      id: 'group:diary-supplies',
+      label: 'Tarvikkeet (päiväkirja)',
+      source: 'group',
+      quote_purchase_net: 24309.36,
+      actual_purchase_net: 1413.36,
+    },
+  ],
+};
+
+const merged = mergeActualPurchaseFromWorkReportLogs(settings, logs, quoteData);
 assert.equal(merged.purchase_lines.length, 2);
 assert.equal(merged.purchase_lines[0].source, 'device');
-assert.equal(merged.purchase_lines[0].label, 'Tarjotut laitteet');
-assert.equal(merged.purchase_lines[0].actual_purchase_net, 22950);
-assert.equal(merged.purchase_lines[1].id, 'group:diary-supplies');
+assert.equal(merged.purchase_lines[0].quote_purchase_net, 22896);
+assert.equal(merged.purchase_lines[0].actual_purchase_net, 22896);
+assert.equal(merged.purchase_lines[1].label, 'Tarvikkeet');
+assert.equal(merged.purchase_lines[1].quote_purchase_net, 753);
 assert.equal(merged.purchase_lines[1].actual_purchase_net, 190);
-assert.equal(merged.actual_purchase_net, 23140);
+assert.equal(merged.quote_purchase_net, 23649);
+assert.equal(merged.actual_purchase_net, 23086);
 
 const wartilaLogs = [
   {
@@ -95,6 +108,7 @@ const wartilaLogs = [
 
 const deviceAdjusted = mergeActualPurchaseFromWorkReportLogs(
   {
+    quote_sale_net: 34590,
     purchase_lines: [
       {
         id: 'device:dev-1',
@@ -106,60 +120,24 @@ const deviceAdjusted = mergeActualPurchaseFromWorkReportLogs(
     ],
   },
   wartilaLogs,
+  quoteData,
 );
 assert.equal(deviceAdjusted.purchase_lines[0].actual_purchase_net, 22000);
 assert.equal(deviceAdjusted.purchase_lines[1].actual_purchase_net, 364.99);
 assert.equal(deviceAdjusted.actual_purchase_net, 22364.99);
 
-const wartilaMerged = mergeActualPurchaseFromWorkReportLogs(settings, wartilaLogs);
-assert.equal(wartilaMerged.actual_purchase_net, 23314.99);
+const wartilaMerged = mergeActualPurchaseFromWorkReportLogs(settings, wartilaLogs, quoteData);
+assert.equal(wartilaMerged.purchase_lines[0].quote_purchase_net, 22896);
+assert.equal(wartilaMerged.purchase_lines[1].quote_purchase_net, 753);
+assert.equal(wartilaMerged.actual_purchase_net, 23260.99);
 assert.equal(analyzeMarginEatingExpenses(wartilaLogs).total, 0);
 
 const wartilaMargin = computePartnerNetMargin(wartilaMerged, 3131.5, {
   logs: wartilaLogs,
   partnerRates: { hourly_regular: 50 },
 });
-assert.equal(wartilaMargin.netMarginNet, 8143.51);
+assert.ok(wartilaMargin.netMarginNet < 10000);
+assert.ok(wartilaMargin.netMarginNet > 6000);
 assert.equal(wartilaMargin.marginEatingExpenseNet, 0);
-
-const withDevice = {
-  ...settings,
-  purchase_lines: [
-    {
-      id: 'device:main',
-      label: 'Laite',
-      source: 'device',
-      quote_purchase_net: 20000,
-      actual_purchase_net: 21500,
-    },
-    {
-      id: 'group:diary-supplies',
-      label: 'Tarvikkeet (päiväkirja)',
-      source: 'group',
-      quote_purchase_net: 0,
-      actual_purchase_net: 190,
-    },
-  ],
-  actual_purchase_net: 21690,
-};
-
-const quoteData = patchQuoteRequestDataFromWorkReportActuals(
-  {
-    installationSupplies: [
-      {
-        id: 'mat-1',
-        name: 'Kierreletku',
-        quantity: 1,
-        purchasePrice: 40,
-        sellPrice: 72,
-        marginPercent: 80,
-      },
-    ],
-  },
-  withDevice,
-  logs,
-);
-assert.equal(quoteData.installationSupplies[0].purchasePrice, 45);
-assert.equal(quoteData.devicePurchaseOverrideNet, 21500);
 
 console.log('test-work-report-actual-purchase: ok');

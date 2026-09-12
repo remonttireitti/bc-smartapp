@@ -9,7 +9,6 @@ import {
   normalizeBillingQuoteSettings,
   parseBillingQuoteSettings,
   quoteHasVat,
-  reconcileBillingQuotePurchaseLines,
   resolveActualPurchaseTotal,
   resolveQuotePurchaseTotal,
   saveBillingQuoteSettings,
@@ -139,12 +138,10 @@ export default function WorkReportBillingQuotePanel({
     };
   }, [settings.quote_request_id, settings.purchase_lines?.length, readOnly]);
 
-  const effectiveSettings = useMemo(() => {
-    const base = quoteData
-      ? reconcileBillingQuotePurchaseLines(settings, quoteData)
-      : settings;
-    return mergeActualPurchaseFromWorkReportLogs(base, dailyLogs);
-  }, [settings, quoteData, dailyLogs]);
+  const effectiveSettings = useMemo(
+    () => mergeActualPurchaseFromWorkReportLogs(settings, dailyLogs, quoteData),
+    [settings, quoteData, dailyLogs],
+  );
   const purchaseCostAnalysis = useMemo(
     () => analyzeWorkReportPurchaseCosts(dailyLogs),
     [dailyLogs],
@@ -216,35 +213,35 @@ export default function WorkReportBillingQuotePanel({
   }
 
   function updatePurchaseLine(id: string, actualPurchaseNet: number | null) {
-    setSettings((prev) =>
-      normalizeBillingQuoteSettings({
-        ...prev,
-        purchase_lines: (prev.purchase_lines ?? []).map((line) =>
-          line.id === id
-            ? {
-                ...line,
-                actual_purchase_net: actualPurchaseNet ?? line.quote_purchase_net,
-              }
-            : line,
-        ),
-      }),
-    );
+    const currentLines = effectiveSettings.purchase_lines ?? [];
+    const target = currentLines.find((line) => line.id === id);
+    if (!target) return;
+
+    setSettings((prev) => {
+      const saved = [...(prev.purchase_lines ?? [])];
+      const index = saved.findIndex((line) => line.id === id);
+      const nextLine = {
+        ...target,
+        actual_purchase_net: actualPurchaseNet ?? target.quote_purchase_net,
+      };
+      if (index >= 0) saved[index] = nextLine;
+      else saved.push(nextLine);
+      return normalizeBillingQuoteSettings({ ...prev, purchase_lines: saved });
+    });
   }
 
   async function saveSettings() {
     setBusy(true);
     setError(null);
     try {
-      const base = quoteData
-        ? reconcileBillingQuotePurchaseLines(parseBillingQuoteSettings(settings), quoteData)
-        : parseBillingQuoteSettings(settings);
       const payload = normalizeBillingQuoteSettings(
-        mergeActualPurchaseFromWorkReportLogs(base, dailyLogs),
+        mergeActualPurchaseFromWorkReportLogs(
+          parseBillingQuoteSettings(settings),
+          dailyLogs,
+          quoteData,
+        ),
       );
-      await saveBillingQuoteSettings(supabase, workReportId, payload, {
-        logs: dailyLogs,
-        syncQuoteRequest: Boolean(payload.quote_request_id),
-      });
+      await saveBillingQuoteSettings(supabase, workReportId, payload);
       setSettings(payload);
       onSaved?.(payload);
     } catch (err) {
@@ -353,9 +350,9 @@ export default function WorkReportBillingQuotePanel({
       <div className="table-wrap billing-purchase-lines-wrap">
         <h4 className="billing-breakdown-heading">Hankinta: tarjous vs toteutunut</h4>
         <p className="muted billing-purchase-lines-hint">
-          <strong>Laitteet:</strong> tarjouksen arvio vs toteutunut — syötä oikea hankintahinta laskun mukaan
-          oikaisukenttään. <strong>Tarvikkeet:</strong> toteutunut summa lasketaan automaattisesti päiväkirjan
-          riveistä (ei ajokorvauksia). Tallennus päivittää tarjouspyynnön hankintahinnat.
+          <strong>Tarjous hankinta</strong> = tarjouspyynnön arvio (ei muutu). <strong>Toteutunut</strong> =
+          mitä työ maksoi. Laitteen oikaisu syötetään käsin; tarvikkeet lasketaan päiväkirjasta. Korkeampi
+          toteutunut kuin arvio syö katetta, matalampi nostaa.
         </p>
         <table className="billing-table billing-purchase-lines-table">
           <thead>
@@ -638,18 +635,20 @@ export default function WorkReportBillingQuotePanel({
               <label className="form-field">
                 <span>Tarjouksen hankinta yhteensä (alv 0 %)</span>
                 <input type="text" value={formatEuro(quotePurchaseTotal)} disabled readOnly />
-                <span className="muted field-hint">Tarjouspyynnön arvio — ei muutu raportilla.</span>
+                <span className="muted field-hint">
+                  Tarjouspyynnön arvio (laite + tarvikkeet) — työraportti ei muuta tätä.
+                </span>
               </label>
 
               <label className="form-field">
-                <span>Todellinen hankinta yhteensä (alv 0 %)</span>
+                <span>Toteutunut hankinta yhteensä (alv 0 %)</span>
                 <input type="text" value={formatEuro(actualPurchaseTotal)} disabled readOnly />
                 <span className="muted field-hint">
-                  Lasketaan päiväkirjan tarvikkeista
+                  Laite (oikaisu) + tarvikkeet päiväkirjasta
                   {purchaseCostAnalysis.lines.length > 0
-                    ? ` (${purchaseCostAnalysis.lines.length} riviä)`
+                    ? ` · ${purchaseCostAnalysis.lines.length} pv riviä`
                     : ''}
-                  {purchaseLines.some((line) => line.source === 'device') ? ' + laite' : ''}.
+                  .
                 </span>
               </label>
 
