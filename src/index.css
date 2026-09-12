@@ -651,7 +651,7 @@ button[type='submit']:disabled { opacity: .6; cursor: wait; }
   color: var(--text-muted);
 }
 
-.topbar-gba:has(.toggle-switch-input:checked) .topbar-gba-icon {
+.topbar-gba:has(.toggle-switch[aria-checked="true"]) .topbar-gba-icon {
   color: var(--primary);
 }
 
@@ -674,7 +674,7 @@ button[type='submit']:disabled { opacity: .6; cursor: wait; }
   left: 1px;
 }
 
-.topbar-gba .toggle-switch-input:checked + .toggle-switch-track .toggle-switch-thumb {
+.topbar-gba .toggle-switch[aria-checked="true"] .toggle-switch-track .toggle-switch-thumb {
   transform: translateX(.85rem);
 }
 .link-btn {
@@ -1744,25 +1744,20 @@ a.quote-request-list-link {
   flex-direction: row;
   align-items: flex-start;
   gap: .65rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  color: inherit;
   cursor: pointer;
   user-select: none;
+  text-align: left;
 }
 
 .toggle-switch-disabled {
   opacity: .55;
   cursor: not-allowed;
-}
-
-.toggle-switch-input {
-  position: absolute;
-  top: 0;
-  left: 0;
-  opacity: 0;
-  width: 2.75rem;
-  height: 1.5rem;
-  margin: 0;
-  cursor: pointer;
-  z-index: 1;
 }
 
 .toggle-switch-track {
@@ -1790,16 +1785,16 @@ a.quote-request-list-link {
   transition: transform .2s;
 }
 
-.toggle-switch-input:checked + .toggle-switch-track {
+.toggle-switch[aria-checked="true"] .toggle-switch-track {
   background: var(--primary);
   border-color: var(--primary-hover);
 }
 
-.toggle-switch-input:checked + .toggle-switch-track .toggle-switch-thumb {
+.toggle-switch[aria-checked="true"] .toggle-switch-track .toggle-switch-thumb {
   transform: translateX(1.2rem);
 }
 
-.toggle-switch-input:focus-visible + .toggle-switch-track {
+.toggle-switch:focus-visible .toggle-switch-track {
   outline: 2px solid rgba(37, 99, 235, 0.35);
   outline-offset: 2px;
 }
@@ -1865,7 +1860,7 @@ a.quote-request-list-link {
   color: #854d0e;
 }
 
-.management-gba-toggle:has(.toggle-switch-input:checked) .management-gba-icon {
+.management-gba-toggle:has(.toggle-switch[aria-checked="true"]) .management-gba-icon {
   color: #a16207;
 }
 
@@ -8107,7 +8102,7 @@ button.tile.maintenance-report-document-tile {
   height: .8rem;
 }
 
-.toggle-switch-inline .toggle-switch-input:checked + .toggle-switch-track .toggle-switch-thumb {
+.toggle-switch-inline .toggle-switch[aria-checked="true"] .toggle-switch-track .toggle-switch-thumb {
   transform: translateX(.85rem);
 }
 
@@ -11427,6 +11422,19 @@ a.tile.customer-document-tile:hover {
   gap: 0.2rem;
   min-width: 0;
   flex: 1;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.expense-extra-billing-toggle-copy:disabled,
+.expense-extra-billing-toggle-row-disabled .expense-extra-billing-toggle-copy {
+  cursor: not-allowed;
 }
 
 .expense-extra-billing-toggle-title {
@@ -12910,7 +12918,7 @@ button.vrf-toggle:not(:disabled) {
   line-height: 1.25;
 }
 
-.vrf-report-series-toggle:not(:has(.toggle-switch-input:checked)) .toggle-switch-label {
+.vrf-report-series-toggle:not(:has(.toggle-switch[aria-checked="true"])) .toggle-switch-label {
   color: var(--text-muted);
 }
 

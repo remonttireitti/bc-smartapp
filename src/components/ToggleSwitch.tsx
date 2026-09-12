@@ -24,23 +24,21 @@ export default function ToggleSwitch({
   const ariaLabel = label ?? (icon ? 'Kytkin' : undefined);
 
   return (
-    <label
+    <button
+      type="button"
+      role="switch"
+      id={switchId}
+      aria-checked={checked}
+      aria-label={ariaLabel}
+      disabled={disabled}
       className={`toggle-switch ${disabled ? 'toggle-switch-disabled' : ''} ${className}`.trim()}
+      onClick={() => onChange(!checked)}
     >
       {icon ? <span className="toggle-switch-icon">{icon}</span> : null}
-      <input
-        id={switchId}
-        type="checkbox"
-        className="toggle-switch-input"
-        checked={checked}
-        disabled={disabled}
-        aria-label={ariaLabel}
-        onChange={(e) => onChange(e.target.checked)}
-      />
       <span className="toggle-switch-track" aria-hidden="true">
         <span className="toggle-switch-thumb" />
       </span>
       {label ? <span className="toggle-switch-label">{label}</span> : null}
-    </label>
+    </button>
   );
 }

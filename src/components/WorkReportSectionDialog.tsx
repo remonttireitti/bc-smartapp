@@ -1,4 +1,5 @@
 import { useEffect, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 
 interface Props {
   open: boolean;
@@ -31,7 +32,7 @@ export default function WorkReportSectionDialog({
 
   if (!open) return null;
 
-  return (
+  return createPortal(
     <div
       className={`leave-draft-overlay${nested ? ' leave-draft-overlay--nested' : ''}`}
       role="presentation"
@@ -52,6 +53,7 @@ export default function WorkReportSectionDialog({
         </div>
         <div className="work-report-section-dialog-body">{children}</div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
