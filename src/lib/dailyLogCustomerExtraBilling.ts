@@ -300,7 +300,7 @@ export function hoursExtraBillingMarginImpact(
   if (hoursExtraBillingApproved(billing)) {
     return { currentMarginImpactNet: marginIfApprovedNet, marginIfApprovedNet };
   }
-  return { currentMarginImpactNet: 0, marginIfApprovedNet };
+  return { currentMarginImpactNet: roundMoney(-partnerNet), marginIfApprovedNet };
 }
 
 export function formatHoursExtraBillingMarginNote(
@@ -769,7 +769,8 @@ export function collectExtraBillingMarginImpactLines(
           customerNet,
           partnerNet,
           piikkiCostNet: 0,
-          currentMarginImpactNet: 0,
+          // Kumppanin työkustannus on jo mukana puhtaassa katteessa — luvan kanssa lisätään asiakastulo.
+          currentMarginImpactNet: roundMoney(-partnerNet),
           marginIfApprovedNet,
         });
       }
