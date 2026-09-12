@@ -1,5 +1,12 @@
 import type { BillableCalculation } from './workReportBilling';
-import { expenseCustomerPriceMissing, expensePrintBillingNote, expensePurchaseLineTotal, expensePurchasePriceMissing, resolveExpensePurchaseUnitPrice } from './workReportExpenseBilling';
+import {
+  expenseCustomerPriceMissing,
+  expenseExtraBillingAllowed,
+  expensePrintBillingNote,
+  expensePurchaseLineTotal,
+  expensePurchasePriceMissing,
+  resolveExpensePurchaseUnitPrice,
+} from './workReportExpenseBilling';
 import { computeBasicWorkReportNetMargin } from './workReportBasicNetMargin';
 import {
   billableUsers,
@@ -340,6 +347,10 @@ function basicNetMarginPrintSection(
   );
 }
 
+function roundMoney(value: number): number {
+  return Math.round(value * 100) / 100;
+}
+
 function quoteMarginPrintSection(
   billingQuote: BillingQuoteSettings,
   partnerCalculation: BillableCalculation | null,
@@ -349,6 +360,18 @@ function quoteMarginPrintSection(
   tripKmRate?: number | null,
 ): string {
   if (!billingQuoteHasData(billingQuote)) return '';
+
+  const categoryComparison =
+    quoteData && partnerCalculation
+      ? compareQuoteCategories({
+          quoteData,
+          partnerCalculation,
+          logs,
+          partnerRates: partnerCalculation.ratesUsed,
+          tripKmRate,
+          billingSettings: billingQuote,
+        })
+      : null;
 
   const partnerMargin = partnerCalculation
     ? computePartnerNetMargin(billingQuote, partnerCalculation.grandTotal, {
@@ -369,6 +392,18 @@ function quoteMarginPrintSection(
         ).lines
       : [];
 
+  const purchaseLines = billingQuote.purchase_lines ?? [];
+  const deviceActualTotal = roundMoney(
+    purchaseLines
+      .filter((line) => line.source === 'device')
+      .reduce((sum, line) => sum + line.actual_purchase_net, 0),
+  );
+  const suppliesActualTotal = roundMoney(
+    purchaseLines
+      .filter((line) => line.source !== 'device')
+      .reduce((sum, line) => sum + line.actual_purchase_net, 0),
+  );
+
   const rows: string[] = [];
   if (billingQuote.quote_title?.trim()) {
     rows.push(`<tr><td>Tarjous</td><td>${esc(billingQuote.quote_title.trim())}</td></tr>`);
@@ -384,10 +419,51 @@ function quoteMarginPrintSection(
         `<tr><td>Lisälaskutus asiakkaalta</td><td class="num">+ ${formatEuro(partnerMargin.customerExtrasNet)}</td></tr>`,
       );
     }
-    rows.push(
-      `<tr><td>Työ ja ajot (kumppani)</td><td class="num">− ${formatEuro(partnerMargin.installationLaborTravelNet)}</td></tr>`,
-      `<tr><td>Hankinta (tarjous / tarvikkeet)</td><td class="num">− ${formatEuro(partnerMargin.effectiveMaterialCostNet)}</td></tr>`,
+
+    for (const row of categoryComparison?.rows ?? []) {
+      rows.push(
+        `<tr class="muted"><td>${esc(row.label)} (vertailu arvio → toteutunut)</td><td class="num">${formatEuro(row.quoteNet)} → ${formatEuro(row.actualNet)}</td></tr>`,
+      );
+    }
+
+    const laborRow = categoryComparison?.rows.find((row) => row.key === 'labor');
+    const expensesRow = categoryComparison?.rows.find((row) => row.key === 'expenses');
+    const laborActual = laborRow?.actualNet ?? 0;
+    const expensesActual = expensesRow?.actualNet ?? 0;
+
+    if (laborActual > 0.005) {
+      rows.push(
+        `<tr><td>Työt (vähennetään katteesta)</td><td class="num">− ${formatEuro(laborActual)}</td></tr>`,
+      );
+    }
+    if (expensesActual > 0.005) {
+      rows.push(
+        `<tr><td>Kulut (vähennetään katteesta)</td><td class="num">− ${formatEuro(expensesActual)}</td></tr>`,
+      );
+    }
+    if (laborActual <= 0.005 && expensesActual <= 0.005 && partnerMargin.installationLaborTravelNet > 0.005) {
+      rows.push(
+        `<tr><td>Työ ja kulut (vähennetään katteesta)</td><td class="num">− ${formatEuro(partnerMargin.installationLaborTravelNet)}</td></tr>`,
+      );
+    }
+    if (deviceActualTotal > 0.005) {
+      rows.push(
+        `<tr><td>Laite (toteutunut hankinta)</td><td class="num">− ${formatEuro(deviceActualTotal)}</td></tr>`,
+      );
+    }
+    if (suppliesActualTotal > 0.005) {
+      rows.push(
+        `<tr><td>Tarvikkeet (toteutunut, päiväkirja)</td><td class="num">− ${formatEuro(suppliesActualTotal)}</td></tr>`,
+      );
+    }
+    const partnerBilledMaterials = roundMoney(
+      partnerMargin.effectiveMaterialCostNet - deviceActualTotal - suppliesActualTotal,
     );
+    if (partnerBilledMaterials > 0.005) {
+      rows.push(
+        `<tr><td>Kumppanille laskutetut tarvikkeet</td><td class="num">− ${formatEuro(partnerBilledMaterials)}</td></tr>`,
+      );
+    }
     if (partnerMargin.marginEatingExpenseNet > 0.005) {
       rows.push(
         `<tr><td>Katetta syövät kulut (ei lisälaskutusta)</td><td class="num">− ${formatEuro(partnerMargin.marginEatingExpenseNet)}</td></tr>`,
@@ -404,36 +480,14 @@ function quoteMarginPrintSection(
       );
     }
     rows.push(
-      `<tr><td>Tarjouksen hankinta (alv 0 %)</td><td class="num">${formatEuro(partnerMargin.quotePurchaseNet)}</td></tr>`,
-      `<tr><td>Todellinen hankinta (alv 0 %)</td><td class="num">${formatEuro(partnerMargin.actualPurchaseNet)}</td></tr>`,
       `<tr class="profit-row"><td><strong>Puhdas kate</strong></td><td class="num"><strong>${formatEuro(partnerMargin.netMarginNet)}</strong></td></tr>`,
     );
-  } else if (billingQuote.quote_purchase_net != null) {
-    rows.push(
-      `<tr><td>Tarjouksen hankinta (alv 0 %)</td><td class="num">${formatEuro(billingQuote.quote_purchase_net)}</td></tr>`,
-    );
-    if (billingQuote.actual_purchase_net != null) {
-      rows.push(
-        `<tr><td>Todellinen hankinta (alv 0 %)</td><td class="num">${formatEuro(billingQuote.actual_purchase_net)}</td></tr>`,
-      );
-    }
   }
 
-  const purchaseLinesHtml = renderBillingQuotePurchaseLinesHtml(billingQuote.purchase_lines ?? [], {
+  const purchaseLinesHtml = renderBillingQuotePurchaseLinesHtml(purchaseLines, {
     escapeHtml: esc,
   });
 
-  const categoryComparison =
-    quoteData && partnerCalculation
-      ? compareQuoteCategories({
-          quoteData,
-          partnerCalculation,
-          logs,
-          partnerRates: partnerCalculation.ratesUsed,
-          tripKmRate,
-          billingSettings: billingQuote,
-        })
-      : null;
   const categoryComparisonHtml =
     categoryComparison
       ? renderQuoteCategoryComparisonHtml(categoryComparison, {
@@ -478,7 +532,7 @@ function quoteMarginPrintSection(
     ${extrasDetailHtml}
     ${
       partnerMargin
-        ? '<p class="meta-line">Kate = tarjoushinta + lisälaskutus − työ ja ajot − hankinta (tarjous/tarvikkeet) − katetta syövät kulut − piikkiostot.</p>'
+        ? '<p class="meta-line">Kate = tarjoushinta + lisälaskutus − työt − kulut − tarvikkeet − laite − katetta syövät kulut − piikkiostot. Vertailurivit ovat informatiivisia — katteeseen vähennetään vain toteutuneet summat.</p>'
         : ''
     }
     ${billingQuote.notes?.trim() ? `<p class="meta-line">Huom: ${esc(billingQuote.notes.trim())}</p>` : ''}`,
@@ -570,9 +624,12 @@ export function generateWorkReportPrintHtml(input: {
               const purchaseCell = purchaseMissing
                 ? `hankinta <span class="billing-price-missing">?</span>`
                 : `hankinta ${qty} × ${formatEuro(purchaseUnit)} = ${formatEuro(purchaseTotal)}`;
-              const customerCell = customerMissing
-                ? ` · asiakas <span class="billing-price-missing">?</span>`
-                : ` · asiakas ${qty} × ${formatEuro(customerUnit)} = ${formatEuro(customerTotal)}`;
+              const customerCell =
+                customerQuoteBased && !expenseExtraBillingAllowed(line)
+                  ? ' · <span class="muted">kuuluu tarjoukseen</span>'
+                  : customerMissing
+                    ? ` · asiakas <span class="billing-price-missing">?</span>`
+                    : ` · asiakas ${qty} × ${formatEuro(customerUnit)} = ${formatEuro(customerTotal)}`;
               return `<tr><td>${esc(label)}</td><td>${esc(descriptionForPrint)}</td><td class="num">${purchaseCell}${customerCell}${esc(partnerNote)}</td></tr>`;
             }
             const customerNote =

@@ -12,12 +12,14 @@ import {
   type BillableRatesSource,
   type PartnerBillingRates,
 } from './management';
+import { mergeActualPurchaseFromWorkReportLogs } from './quoteRequestActualPurchaseSync';
 import {
   calculateWorkReportCustomerBillableFromQuote,
   calculateWorkReportCustomerBillableQuotePlusExtras,
   billingQuoteHasData,
   customerUsesFixedQuote,
   customerUsesQuoteBasedBilling,
+  normalizeBillingQuoteSettings,
   parseBillingQuoteSettings,
   type BillingQuoteSettings,
 } from './workReportBillingQuote';
@@ -171,7 +173,7 @@ export async function buildWorkReportPrintHtmlDocument(input: {
   const showInternalPrices = printMode === 'internal';
   const partnerCalculation =
     showInternalPrices && isPartnerReport ? (input.calculation ?? null) : null;
-  const billingQuote = parseBillingQuoteSettings(input.billingQuote ?? {});
+  let billingQuote = parseBillingQuoteSettings(input.billingQuote ?? {});
   const needsCustomerPrintRates =
     showInternalPrices
     && (customerUsesQuoteBasedBilling(billingQuote) || !!input.customerCalculation);
@@ -205,6 +207,11 @@ export async function buildWorkReportPrintHtmlDocument(input: {
   const tripKmRate = parseTripKmRate(
     parseCompanySettings((ownerCompanyRow as { settings: unknown } | null)?.settings),
   );
+  if (billingQuoteHasData(billingQuote)) {
+    billingQuote = normalizeBillingQuoteSettings(
+      mergeActualPurchaseFromWorkReportLogs(billingQuote, logs, quoteData),
+    );
+  }
 
   return generateWorkReportPrintHtml({
     report: input.report,
