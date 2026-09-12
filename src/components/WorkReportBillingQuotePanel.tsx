@@ -17,6 +17,8 @@ import {
   type BillingQuoteSettings,
 } from '../lib/workReportBillingQuote';
 import { extractQuotePurchaseLines } from '../lib/quotePurchaseLines';
+import { analyzeWorkReportPurchaseCosts } from '../lib/workReportActualPurchase';
+import { mergeActualPurchaseFromWorkReportLogs } from '../lib/quoteRequestActualPurchaseSync';
 import {
   compareQuoteInstallationToWorkReport,
   type InstallationComparison,
@@ -132,10 +134,18 @@ export default function WorkReportBillingQuotePanel({
     };
   }, [settings.quote_request_id, settings.purchase_lines?.length, readOnly]);
 
+  const effectiveSettings = useMemo(
+    () => mergeActualPurchaseFromWorkReportLogs(settings, dailyLogs),
+    [settings, dailyLogs],
+  );
+  const purchaseCostAnalysis = useMemo(
+    () => analyzeWorkReportPurchaseCosts(dailyLogs),
+    [dailyLogs],
+  );
   const partnerMargin = useMemo(
     () =>
       installationCostNet != null
-        ? computePartnerNetMargin(settings, installationCostNet, {
+        ? computePartnerNetMargin(effectiveSettings, installationCostNet, {
             logs: dailyLogs,
             partnerRates: partnerCalculation?.ratesUsed,
             customerRates: customerCalculation?.ratesUsed,
@@ -144,7 +154,7 @@ export default function WorkReportBillingQuotePanel({
           })
         : null,
     [
-      settings,
+      effectiveSettings,
       installationCostNet,
       dailyLogs,
       partnerCalculation?.ratesUsed,
@@ -218,8 +228,13 @@ export default function WorkReportBillingQuotePanel({
     setBusy(true);
     setError(null);
     try {
-      const payload = normalizeBillingQuoteSettings(parseBillingQuoteSettings(settings));
-      await saveBillingQuoteSettings(supabase, workReportId, payload);
+      const payload = normalizeBillingQuoteSettings(
+        mergeActualPurchaseFromWorkReportLogs(parseBillingQuoteSettings(settings), dailyLogs),
+      );
+      await saveBillingQuoteSettings(supabase, workReportId, payload, {
+        logs: dailyLogs,
+        syncQuoteRequest: Boolean(payload.quote_request_id),
+      });
       setSettings(payload);
       onSaved?.(payload);
     } catch (err) {
@@ -235,10 +250,18 @@ export default function WorkReportBillingQuotePanel({
     ? 'Asiakkaalta laskutettava (sis. alv)'
     : 'Asiakkaalta laskutettava (alv 0 %)';
 
-  const purchaseLines = settings.purchase_lines ?? [];
-  const quotePurchaseTotal = resolveQuotePurchaseTotal(settings);
-  const actualPurchaseTotal = resolveActualPurchaseTotal(settings);
-  const purchaseMarginAdjustment = computeQuotePurchaseMarginAdjustment(settings);
+  const purchaseLines = effectiveSettings.purchase_lines ?? [];
+  const quotePurchaseTotal = resolveQuotePurchaseTotal(effectiveSettings);
+  const actualPurchaseTotal = resolveActualPurchaseTotal(effectiveSettings);
+  const showSeparateCustomerTotal =
+    quoteHasVat(effectiveSettings.quote_vat_rate)
+    || effectiveSettings.customer_mode === 'quote_plus_extras'
+    || (
+      effectiveSettings.customer_invoice_total != null
+      && effectiveSettings.quote_sale_net != null
+      && Math.abs(effectiveSettings.customer_invoice_total - effectiveSettings.quote_sale_net) > 0.01
+    );
+  const purchaseMarginAdjustment = computeQuotePurchaseMarginAdjustment(effectiveSettings);
 
   function formatComparisonQty(
     row: InstallationComparison['rows'][number],
@@ -308,10 +331,12 @@ export default function WorkReportBillingQuotePanel({
     if (lines.length === 0) return null;
     return (
       <div className="table-wrap billing-purchase-lines-wrap">
-        <h4 className="billing-breakdown-heading">Hankintakorjaukset</h4>
+        <h4 className="billing-breakdown-heading">Hankinta: tarjous vs toteutunut</h4>
         <p className="muted billing-purchase-lines-hint">
-          Tarjouksen hankintahinnat ovat vain luku -tilassa. Korjaa todelliset hankintakulut raportilla —
-          asiakashinta pysyy kiinteenä, jolloin kate-% päivittyy automaattisesti.
+          <strong>Tarjouksen hankinta</strong> on tarjouspyynnön arvio.{' '}
+          <strong>Todellinen hankinta</strong> lasketaan päiväkirjan tarvikkeista ja kuluista (lukuun ottamatta
+          ajokorvauksia). Laitteen hankinta voidaan korjata käsin laskun mukaan. Tallennus päivittää myös
+          tarjouspyynnön hankintahinnat.
         </p>
         <table className="billing-table billing-purchase-lines-table">
           <thead>
@@ -324,6 +349,8 @@ export default function WorkReportBillingQuotePanel({
           <tbody>
             {lines.map((line) => {
               const changed = line.actual_purchase_net !== line.quote_purchase_net;
+              const deviceEditable = editable && line.source === 'device';
+              const fromDailyLog = line.source !== 'device';
               return (
                 <tr key={line.id} className={changed ? 'billing-purchase-line-changed' : undefined}>
                   <td>
@@ -334,10 +361,13 @@ export default function WorkReportBillingQuotePanel({
                         · {line.quantity} {line.unit}
                       </span>
                     ) : null}
+                    {fromDailyLog ? (
+                      <span className="muted"> · päiväkirjasta</span>
+                    ) : null}
                   </td>
                   <td className="num">{formatEuro(line.quote_purchase_net)}</td>
                   <td className="num">
-                    {editable ? (
+                    {deviceEditable ? (
                       <input
                         type="text"
                         inputMode="decimal"
@@ -384,6 +414,44 @@ export default function WorkReportBillingQuotePanel({
               %
             </strong>
           </p>
+        ) : null}
+        {purchaseCostAnalysis.lines.length > 0 ? (
+          <details className="billing-purchase-lines-details">
+            <summary>Päiväkirjan hankintarivit ({purchaseCostAnalysis.lines.length})</summary>
+            <table className="billing-table billing-purchase-lines-table">
+              <thead>
+                <tr>
+                  <th>Päivä</th>
+                  <th>Kuvaus</th>
+                  <th className="num">Hankinta</th>
+                </tr>
+              </thead>
+              <tbody>
+                {purchaseCostAnalysis.lines.map((line) => (
+                  <tr key={line.key}>
+                    <td>{line.logDate}</td>
+                    <td>{line.description}</td>
+                    <td className="num">{formatEuro(line.total)}</td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr>
+                  <td colSpan={2}>
+                    <strong>Yhteensä päiväkirjasta</strong>
+                  </td>
+                  <td className="num">
+                    <strong>{formatEuro(purchaseCostAnalysis.suppliesNet)}</strong>
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
+            {purchaseCostAnalysis.purchasePricesMissing ? (
+              <p className="muted billing-purchase-lines-hint">
+                Joistakin riveistä puuttuu hankintahinta — ne eivät ole mukana summassa.
+              </p>
+            ) : null}
+          </details>
         ) : null}
       </div>
     );
@@ -486,45 +554,69 @@ export default function WorkReportBillingQuotePanel({
               ) : null}
 
               <label className="form-field">
-                <span>Tarjoushinta (alv 0 %)</span>
+                <span>
+                  {showSeparateCustomerTotal
+                    ? 'Tarjoushinta (alv 0 %)'
+                    : 'Kiinteä tarjoushinta asiakkaalle (alv 0 %)'}
+                </span>
                 <input
                   type="text"
                   inputMode="decimal"
                   value={moneyInputValue(settings.quote_sale_net)}
                   disabled={busy}
-                  onChange={(e) =>
+                  onChange={(e) => {
+                    const parsed = parseMoneyInput(e.target.value);
                     setSettings((prev) => ({
                       ...prev,
-                      quote_sale_net: parseMoneyInput(e.target.value),
-                    }))
-                  }
+                      quote_sale_net: parsed,
+                      customer_invoice_total:
+                        showSeparateCustomerTotal ? prev.customer_invoice_total : parsed,
+                    }));
+                  }}
                 />
               </label>
 
-              <label className="form-field">
-                <span>{customerTotalLabel}</span>
-                <input
-                  type="text"
-                  inputMode="decimal"
-                  value={moneyInputValue(settings.customer_invoice_total)}
-                  disabled={busy}
-                  onChange={(e) =>
-                    setSettings((prev) => ({
-                      ...prev,
-                      customer_invoice_total: parseMoneyInput(e.target.value),
-                    }))
-                  }
-                />
-              </label>
+              {showSeparateCustomerTotal ? (
+                <label className="form-field">
+                  <span>{customerTotalLabel}</span>
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={moneyInputValue(settings.customer_invoice_total)}
+                    disabled={busy}
+                    onChange={(e) =>
+                      setSettings((prev) => ({
+                        ...prev,
+                        customer_invoice_total: parseMoneyInput(e.target.value),
+                      }))
+                    }
+                  />
+                  <span className="muted field-hint">
+                    Sisältää ALV:n tai lisälaskutuksen, jos eri kuin tarjoushinta.
+                  </span>
+                </label>
+              ) : (
+                <p className="muted span-2" style={{ margin: 0 }}>
+                  Asiakkaalta laskutetaan sama kiinteä summa kuin tarjoushinta (alv 0 %).
+                </p>
+              )}
 
               <label className="form-field">
                 <span>Tarjouksen hankinta yhteensä (alv 0 %)</span>
                 <input type="text" value={formatEuro(quotePurchaseTotal)} disabled readOnly />
+                <span className="muted field-hint">Tarjouspyynnön arvio — ei muutu raportilla.</span>
               </label>
 
               <label className="form-field">
                 <span>Todellinen hankinta yhteensä (alv 0 %)</span>
                 <input type="text" value={formatEuro(actualPurchaseTotal)} disabled readOnly />
+                <span className="muted field-hint">
+                  Lasketaan päiväkirjan tarvikkeista
+                  {purchaseCostAnalysis.lines.length > 0
+                    ? ` (${purchaseCostAnalysis.lines.length} riviä)`
+                    : ''}
+                  {purchaseLines.some((line) => line.source === 'device') ? ' + laite' : ''}.
+                </span>
               </label>
 
               <div className="span-2">{renderPurchaseLinesTable(purchaseLines, true)}</div>
@@ -609,7 +701,7 @@ export default function WorkReportBillingQuotePanel({
             </p>
           ) : null}
 
-          {renderPurchaseLinesTable(purchaseLines, false)}
+          {readOnly ? renderPurchaseLinesTable(purchaseLines, false) : null}
 
           {installationComparison ? renderInstallationComparisonTable(installationComparison) : null}
 
