@@ -43,10 +43,7 @@ export default function ExpenseExtraBillingToggles({
           disabled={disabled}
           label={billableLabel}
           className="expense-extra-billing-toggle-switch"
-          onChange={(checked) => {
-            onExtraBillableChange(checked);
-            if (!checked) onExtraBillingAllowedChange(false);
-          }}
+          onChange={onExtraBillableChange}
         />
         <div className="expense-extra-billing-toggle-copy">
           <span className="expense-extra-billing-toggle-title">{billableLabel}</span>

@@ -672,9 +672,9 @@ function DailyLogFields({
   showQuoteLinkedCategories,
 }: {
   form: DailyLogFormState;
-  setForm: (next: DailyLogFormState) => void;
+  setForm: React.Dispatch<React.SetStateAction<DailyLogFormState>>;
   expenseDrafts: ExpenseDraft[];
-  setExpenseDrafts: (next: ExpenseDraft[]) => void;
+  setExpenseDrafts: React.Dispatch<React.SetStateAction<ExpenseDraft[]>>;
   showHourlyRate?: boolean;
   showCustomerHourlyRate?: boolean;
   showPartnerExpenseFields?: boolean;
@@ -4102,7 +4102,7 @@ export default function WorkReportDetailPage({ session }: Props) {
         />
         <DailyLogFields
           form={logForm}
-          setForm={(next) => setLogForm(next)}
+          setForm={setLogForm}
           expenseDrafts={expenseDrafts}
           setExpenseDrafts={setExpenseDrafts}
           showHourlyRate={showPartnerDailyLogHourlyRate}
