@@ -11238,8 +11238,13 @@ a.tile.customer-document-tile:hover {
   color: var(--text-primary);
 }
 
+.expense-billing-mode-toggles {
+  display: grid;
+  gap: 0.75rem;
+}
+
 .expense-billing-fields {
-  margin: 0 0 0.15rem 1.85rem;
+  margin: 0.35rem 0 0.15rem;
   display: flex;
   flex-direction: column;
   gap: 0.55rem;
