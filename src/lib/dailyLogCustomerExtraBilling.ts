@@ -823,9 +823,18 @@ export type ExtraBillingMarginImpactCell = {
   approved: string | null;
 };
 
+export function computeProjectedNetMarginIfLineApproved(
+  currentNetMarginNet: number,
+  line: ExtraBillingMarginImpactLine,
+): number {
+  if (line.status === 'approved') return roundMoney(currentNetMarginNet);
+  return roundMoney(currentNetMarginNet + line.marginIfApprovedNet);
+}
+
 export function formatExtraBillingMarginImpactCell(
   line: ExtraBillingMarginImpactLine,
   formatMoney: (value: number) => string,
+  currentNetMarginNet?: number | null,
 ): ExtraBillingMarginImpactCell {
   if (line.status === 'approved') {
     return {
@@ -834,9 +843,13 @@ export function formatExtraBillingMarginImpactCell(
       approved: formatExtraBillingMarginImpactAmount(line.currentMarginImpactNet, formatMoney),
     };
   }
+  const projectedNetMargin =
+    currentNetMarginNet != null
+      ? computeProjectedNetMarginIfLineApproved(currentNetMarginNet, line)
+      : line.marginIfApprovedNet;
   return {
     withoutPermission: null,
-    withPermission: formatExtraBillingMarginImpactAmount(line.marginIfApprovedNet, formatMoney),
+    withPermission: formatMoney(projectedNetMargin),
     approved: null,
   };
 }
@@ -850,7 +863,7 @@ export function formatExtraBillingMarginImpactNote(
   const cell = formatExtraBillingMarginImpactCell(line, formatMoney);
   if (cell.approved) return `${status} · kate ${cell.approved}`;
   if (cell.withPermission) {
-    return `${status} · luvan kanssa ${cell.withPermission} kate`;
+    return `${status} · puhdas kate luvan kanssa ${cell.withPermission}`;
   }
   return status;
 }

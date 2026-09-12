@@ -931,7 +931,11 @@ export default function WorkReportBillingQuotePanel({
                         </td>
                         <td className="num">
                           {(() => {
-                            const marginCell = formatExtraBillingMarginImpactCell(line, formatEuro);
+                            const marginCell = formatExtraBillingMarginImpactCell(
+                              line,
+                              formatEuro,
+                              partnerMargin?.netMarginNet,
+                            );
                             if (marginCell.approved) {
                               return <strong>{marginCell.approved}</strong>;
                             }

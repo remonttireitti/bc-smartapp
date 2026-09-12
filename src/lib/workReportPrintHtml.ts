@@ -512,7 +512,11 @@ function quoteMarginPrintSection(
         </thead>
         <tbody>${extrasDetail
           .map((line) => {
-            const marginCellParts = formatExtraBillingMarginImpactCell(line, formatEuro);
+            const marginCellParts = formatExtraBillingMarginImpactCell(
+              line,
+              formatEuro,
+              partnerMargin?.netMarginNet,
+            );
             const marginCell = marginCellParts.approved
               ? `<strong>${marginCellParts.approved}</strong>`
               : `<strong>luvan kanssa: ${marginCellParts.withPermission}</strong>`;
