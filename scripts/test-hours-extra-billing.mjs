@@ -5,6 +5,7 @@ import {
   emptyDailyLogExtraBillingForm,
   extraCustomerWorkFromDailyLogs,
   hoursExtraBillingApproved,
+  hoursApprovedExtraBillingCustomerPrintLabel,
   hoursExtraBillingLabel,
   serializeDailyLogCustomerExtraBilling,
 } from '../src/lib/dailyLogCustomerExtraBilling.ts';
@@ -51,6 +52,11 @@ const approved = buildCustomerExtraBillingFromLogForm({
   hours_extra_hours: '5',
 });
 assert.equal(hoursExtraBillingLabel(approved), '5 h · Lisälaskutettava');
+assert.equal(
+  hoursApprovedExtraBillingCustomerPrintLabel(approved),
+  'Sovitusti laskutettu lisänä',
+);
+assert.equal(hoursApprovedExtraBillingCustomerPrintLabel(pending), null);
 assert.equal(approved.hours, 5);
 assert.equal(approved.hourly_rate, 85);
 

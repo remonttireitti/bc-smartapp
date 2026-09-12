@@ -4,6 +4,7 @@ import {
   computeSupplyCustomerUnitPrice,
   DEFAULT_SUPPLY_MARGIN_PERCENT,
   expenseExtraBillable,
+  expenseApprovedExtraBillingCustomerPrintLabel,
   expenseExtraBillingAllowed,
   expenseSupplyExtraBillingLabel,
   expenseSupplyExtraBillingMarginImpact,
@@ -94,6 +95,20 @@ assert.match(
 assert.equal(expenseExtraBillable({ extra_billable: true, extra_billing_allowed: false }), true);
 assert.equal(expenseExtraBillingAllowed({ extra_billable: true, extra_billing_allowed: false }), false);
 assert.equal(expenseExtraBillingAllowed({ extra_billable: true, extra_billing_allowed: true }), true);
+assert.equal(
+  expenseApprovedExtraBillingCustomerPrintLabel({
+    extra_billable: true,
+    extra_billing_allowed: true,
+  }),
+  'Sovitusti laskutettu lisänä',
+);
+assert.equal(
+  expenseApprovedExtraBillingCustomerPrintLabel({
+    extra_billable: true,
+    extra_billing_allowed: false,
+  }),
+  null,
+);
 
 const pendingPiikki = syncSupplyExpenseCustomerPrice({
   bill_to_partner: false,

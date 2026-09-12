@@ -270,6 +270,14 @@ export function expenseExtraBillingAllowed(row: ExpenseBillingFlags): boolean {
   return expenseExtraBillable(row) && row.extra_billing_allowed === true;
 }
 
+export const APPROVED_EXTRA_BILLING_CUSTOMER_PRINT_LABEL = 'Sovitusti laskutettu lisänä';
+
+export function expenseApprovedExtraBillingCustomerPrintLabel(
+  row: ExpenseBillingFlags,
+): string | null {
+  return expenseExtraBillingAllowed(row) ? APPROVED_EXTRA_BILLING_CUSTOMER_PRINT_LABEL : null;
+}
+
 export function resolveSupplyMarginPercent(
   row: Pick<ExpenseBillingFlags, 'customer_margin_percent'>,
   fallback: number = DEFAULT_SUPPLY_MARGIN_PERCENT,

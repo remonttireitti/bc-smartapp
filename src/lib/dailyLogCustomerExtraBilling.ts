@@ -3,6 +3,7 @@ import type { BillingQuoteExtraCustomerWork, BillingQuoteExtraExpenseLine } from
 import {
   buildSupplyLineFlagsFromExpenseDrafts,
   computeSupplyCustomerUnitPrice,
+  APPROVED_EXTRA_BILLING_CUSTOMER_PRINT_LABEL,
   expenseExtraBillable,
   expenseExtraBillingAllowed,
   resolveExpenseBillingMode,
@@ -257,6 +258,14 @@ export function resolveExtraBillableHours(
   const parsed = parseDailyLogCustomerExtraBilling(billing ?? {});
   if (!hoursExtraBillable(parsed)) return 0;
   return Math.max(0, Number(parsed.hours) || 0);
+}
+
+export function hoursApprovedExtraBillingCustomerPrintLabel(
+  billing: DailyLogCustomerExtraBilling | null | undefined,
+): string | null {
+  return hoursExtraBillingApproved(billing)
+    ? APPROVED_EXTRA_BILLING_CUSTOMER_PRINT_LABEL
+    : null;
 }
 
 export function hoursExtraBillingLabel(

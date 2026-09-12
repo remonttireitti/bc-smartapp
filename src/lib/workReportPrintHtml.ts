@@ -1,5 +1,7 @@
 import type { BillableCalculation } from './workReportBilling';
 import {
+  APPROVED_EXTRA_BILLING_CUSTOMER_PRINT_LABEL,
+  expenseApprovedExtraBillingCustomerPrintLabel,
   expenseCustomerPriceMissing,
   expenseExtraBillingAllowed,
   expensePrintBillingNote,
@@ -23,6 +25,7 @@ import {
   collectExtraBillingMarginImpactLines,
   extraBillingMarginImpactStatusLabel,
   formatExtraBillingMarginImpactCell,
+  hoursApprovedExtraBillingCustomerPrintLabel,
   hoursExtraBillingLabel,
 } from './dailyLogCustomerExtraBilling';
 import {
@@ -218,7 +221,7 @@ function customerBillingPrintSection(
             <td>${esc(formatDate(line.logDate))}</td>
             <td>${esc(user.userName)}</td>
             <td>${esc(LINE_KIND_LABELS[line.kind] ?? line.kind)}</td>
-            <td>${esc(line.description)}</td>
+            <td>${esc(line.description)} <span class="muted">· ${esc(APPROVED_EXTRA_BILLING_CUSTOMER_PRINT_LABEL)}</span></td>
             <td class="num">${formatBillableLineQty(line.kind, line.qty)}</td>
             <td class="num">${formatBillablePriceCell(line.unitPrice, line.priceMissing)}</td>
             <td class="num"><strong>${line.priceMissing ? '<span class="billing-price-missing">?</span>' : formatEuro(line.total)}</strong></td>
@@ -661,7 +664,11 @@ export function generateWorkReportPrintHtml(input: {
             const priceCell = priceMissing
               ? `${qty} · <span class="billing-price-missing">?</span>`
               : `${qty} × ${formatEuro(customerUnit)} = ${formatEuro(customerTotal)}`;
-            return `<tr><td>${esc(label)}</td><td>${esc(descriptionForPrint)}</td><td class="num">${priceCell}</td></tr>`;
+            const extraBillingCustomerNote = expenseApprovedExtraBillingCustomerPrintLabel(line);
+            const descriptionCell = extraBillingCustomerNote
+              ? `${esc(descriptionForPrint)} <span class="muted">· ${esc(extraBillingCustomerNote)}</span>`
+              : esc(descriptionForPrint);
+            return `<tr><td>${esc(label)}</td><td>${descriptionCell}</td><td class="num">${priceCell}</td></tr>`;
           }
           return `<tr><td>${esc(label)}</td><td>${esc(descriptionForPrint)}</td><td class="num">${qty}</td></tr>`;
         })
@@ -700,6 +707,7 @@ export function generateWorkReportPrintHtml(input: {
         log,
         showInternalPrices && (showPartnerPrices || showCustomerPricesInPrint),
         showCustomerPricesInPrint,
+        printMode === 'customer',
       );
       const quoteHourNote =
         customerQuoteBased && showInternalPrices
@@ -1300,8 +1308,14 @@ function formatHourEntryForPrint(
   log: WorkReportDailyLog,
   showPrices: boolean,
   showCustomerMoney = showPrices,
+  customerPrint = false,
 ) {
   const summary = formatHourEntry(log, { showMoney: showPrices, showCustomerMoney });
+  if (customerPrint) {
+    const customerExtraLabel = hoursApprovedExtraBillingCustomerPrintLabel(log.customer_extra_billing);
+    if (!customerExtraLabel) return summary;
+    return `${summary} · ${customerExtraLabel}`;
+  }
   const hourExtraLabel = hoursExtraBillingLabel(log.customer_extra_billing);
   if (!hourExtraLabel) return summary;
   return `${summary} · ${hourExtraLabel}`;
