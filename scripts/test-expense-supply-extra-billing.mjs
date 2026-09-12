@@ -24,6 +24,8 @@ import {
   extraCustomerWorkFromDailyLogs,
   computeQuoteExtrasMarginFromLogs,
   collectExtraBillingMarginImpactLines,
+  extraBillingMarginImpactStatusLabel,
+  formatExtraBillingMarginImpactCell,
   formatExtraBillingMarginImpactNote,
 } from '../src/lib/dailyLogCustomerExtraBilling.ts';
 import { analyzeMarginEatingExpenses } from '../src/lib/workReportQuoteMargin.ts';
@@ -167,9 +169,13 @@ const pendingLine = impactLines.find((line) => line.status === 'pending');
 assert.equal(approvedLine?.marginIfApprovedNet, 274.1);
 assert.equal(pendingLine?.currentMarginImpactNet, -50);
 assert.equal(pendingLine?.marginIfApprovedNet, 40);
+assert.equal(extraBillingMarginImpactStatusLabel(pendingLine), 'Lisälaskutettavissa · ei lupaa');
+const pendingMarginCell = formatExtraBillingMarginImpactCell(pendingLine, (v) => `${v}€`);
+assert.equal(pendingMarginCell.withoutPermission, '− 50€');
+assert.equal(pendingMarginCell.withPermission, '+ 40€');
 assert.match(
   formatExtraBillingMarginImpactNote(pendingLine, (v) => `${v}€`),
-  /jos lupa: \+ 40€ kate/,
+  /luvan kanssa \+ 40€ kate/,
 );
 assert.equal(expenseExtraBillingAllowed(logs[0].expense_lines[0]), true);
 assert.equal(expenseExtraBillingAllowed(logs[0].expense_lines[1]), false);

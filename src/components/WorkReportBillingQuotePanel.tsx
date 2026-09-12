@@ -32,7 +32,8 @@ import {
 import { formatEuro, type BillableCalculation } from '../lib/workReportBilling';
 import {
   collectExtraBillingMarginImpactLines,
-  formatExtraBillingMarginImpactNote,
+  extraBillingMarginImpactStatusLabel,
+  formatExtraBillingMarginImpactCell,
 } from '../lib/dailyLogCustomerExtraBilling';
 import type { WorkReportDailyLog } from '../types';
 import { supabase } from '../lib/supabase';
@@ -912,7 +913,7 @@ export default function WorkReportBillingQuotePanel({
                             {line.kind === 'extra_work' ? `Lisätyö: ${line.description}` : line.description}
                           </div>
                           <div className="muted billing-margin-impact-note">
-                            {formatExtraBillingMarginImpactNote(line, formatEuro)}
+                            {extraBillingMarginImpactStatusLabel(line)}
                           </div>
                         </td>
                         <td className="num">
@@ -931,25 +932,19 @@ export default function WorkReportBillingQuotePanel({
                               : '—'}
                         </td>
                         <td className="num">
-                          {line.status === 'approved' ? (
-                            <strong>
-                              {line.currentMarginImpactNet >= 0 ? '+' : '−'}{' '}
-                              {formatEuro(Math.abs(line.currentMarginImpactNet))}
-                            </strong>
-                          ) : (
-                            <>
-                              {line.currentMarginImpactNet < -0.005 ? (
-                                <span className="muted">
-                                  nyt − {formatEuro(Math.abs(line.currentMarginImpactNet))}
-                                </span>
-                              ) : null}
-                              {line.currentMarginImpactNet < -0.005 ? <br /> : null}
-                              <strong>
-                                jos lupa: {line.marginIfApprovedNet >= 0 ? '+' : '−'}{' '}
-                                {formatEuro(Math.abs(line.marginIfApprovedNet))}
-                              </strong>
-                            </>
-                          )}
+                          {(() => {
+                            const marginCell = formatExtraBillingMarginImpactCell(line, formatEuro);
+                            if (marginCell.approved) {
+                              return <strong>{marginCell.approved}</strong>;
+                            }
+                            return (
+                              <>
+                                <span className="muted">ilman lupaa: {marginCell.withoutPermission}</span>
+                                <br />
+                                <strong>luvan kanssa: {marginCell.withPermission}</strong>
+                              </>
+                            );
+                          })()}
                         </td>
                       </tr>
                     ))}

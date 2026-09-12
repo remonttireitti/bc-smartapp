@@ -21,7 +21,8 @@ import { formatEuro } from './workReportBilling';
 import { BILLABLE_RATES_SOURCE_LABELS } from './management';
 import {
   collectExtraBillingMarginImpactLines,
-  formatExtraBillingMarginImpactNote,
+  extraBillingMarginImpactStatusLabel,
+  formatExtraBillingMarginImpactCell,
   hoursExtraBillingLabel,
 } from './dailyLogCustomerExtraBilling';
 import {
@@ -508,14 +509,14 @@ function quoteMarginPrintSection(
         </thead>
         <tbody>${extrasDetail
           .map((line) => {
-            const marginCell =
-              line.status === 'approved'
-                ? `<strong>${line.currentMarginImpactNet >= 0 ? '+' : '−'} ${formatEuro(Math.abs(line.currentMarginImpactNet))}</strong>`
-                : `${line.currentMarginImpactNet < -0.005 ? `<span class="muted">nyt − ${formatEuro(Math.abs(line.currentMarginImpactNet))}</span><br>` : ''}<strong>jos lupa: ${line.marginIfApprovedNet >= 0 ? '+' : '−'} ${formatEuro(Math.abs(line.marginIfApprovedNet))}</strong>`;
-            const impactNote = formatExtraBillingMarginImpactNote(line, formatEuro);
+            const marginCellParts = formatExtraBillingMarginImpactCell(line, formatEuro);
+            const marginCell = marginCellParts.approved
+              ? `<strong>${marginCellParts.approved}</strong>`
+              : `<span class="muted">ilman lupaa: ${marginCellParts.withoutPermission}</span><br><strong>luvan kanssa: ${marginCellParts.withPermission}</strong>`;
+            const statusLabel = extraBillingMarginImpactStatusLabel(line);
             return `<tr class="${line.status === 'pending' ? 'billing-margin-pending' : ''}">
             <td>${esc(formatDate(line.logDate))}</td>
-            <td>${esc(line.kind === 'extra_work' ? `Lisätyö: ${line.description}` : line.description)}<div class="muted">${esc(impactNote)}</div></td>
+            <td>${esc(line.kind === 'extra_work' ? `Lisätyö: ${line.description}` : line.description)}<div class="muted">${esc(statusLabel)}</div></td>
             <td class="num">${line.status === 'approved' ? formatEuro(line.customerNet) : '—'}</td>
             <td class="num">${line.status === 'approved' && line.partnerNet > 0 ? `− ${formatEuro(line.partnerNet)}` : '—'}</td>
             <td class="num">${line.piikkiCostNet > 0 ? `− ${formatEuro(line.piikkiCostNet)}` : '—'}</td>

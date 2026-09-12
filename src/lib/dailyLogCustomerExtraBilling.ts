@@ -796,19 +796,58 @@ export function collectExtraBillingMarginImpactLines(
   return lines;
 }
 
+export function extraBillingMarginImpactStatusLabel(line: ExtraBillingMarginImpactLine): string {
+  return line.status === 'approved' ? 'Lisälaskutettava' : 'Lisälaskutettavissa · ei lupaa';
+}
+
+export function formatExtraBillingMarginImpactAmount(
+  value: number,
+  formatMoney: (value: number) => string,
+): string {
+  const sign = value >= 0 ? '+' : '−';
+  return `${sign} ${formatMoney(Math.abs(value))}`;
+}
+
+export type ExtraBillingMarginImpactCell = {
+  withoutPermission: string | null;
+  withPermission: string | null;
+  approved: string | null;
+};
+
+export function formatExtraBillingMarginImpactCell(
+  line: ExtraBillingMarginImpactLine,
+  formatMoney: (value: number) => string,
+): ExtraBillingMarginImpactCell {
+  if (line.status === 'approved') {
+    return {
+      withoutPermission: null,
+      withPermission: null,
+      approved: formatExtraBillingMarginImpactAmount(line.currentMarginImpactNet, formatMoney),
+    };
+  }
+  return {
+    withoutPermission: formatExtraBillingMarginImpactAmount(line.currentMarginImpactNet, formatMoney),
+    withPermission: formatExtraBillingMarginImpactAmount(line.marginIfApprovedNet, formatMoney),
+    approved: null,
+  };
+}
+
+/** @deprecated Käytä extraBillingMarginImpactStatusLabel + formatExtraBillingMarginImpactCell */
 export function formatExtraBillingMarginImpactNote(
   line: ExtraBillingMarginImpactLine,
   formatMoney: (value: number) => string,
 ): string {
-  if (line.status === 'approved') {
-    const sign = line.currentMarginImpactNet >= 0 ? '+' : '−';
-    return `Lisälaskutettava · kate ${sign} ${formatMoney(Math.abs(line.currentMarginImpactNet))}`;
-  }
-  const parts = ['Lisälaskutettavissa · ei lupaa'];
+  const status = extraBillingMarginImpactStatusLabel(line);
+  const cell = formatExtraBillingMarginImpactCell(line, formatMoney);
+  if (cell.approved) return `${status} · kate ${cell.approved}`;
+  const parts = [status];
   if (line.currentMarginImpactNet < -0.005) {
-    parts.push(`nyt − ${formatMoney(Math.abs(line.currentMarginImpactNet))} kate`);
+    parts.push(`ilman lupaa ${cell.withoutPermission} kate`);
+  } else if (cell.withoutPermission) {
+    parts.push(`ilman lupaa ${cell.withoutPermission} kate`);
   }
-  const approvedSign = line.marginIfApprovedNet >= 0 ? '+' : '−';
-  parts.push(`jos lupa: ${approvedSign} ${formatMoney(Math.abs(line.marginIfApprovedNet))} kate`);
+  if (cell.withPermission) {
+    parts.push(`luvan kanssa ${cell.withPermission} kate`);
+  }
   return parts.join(' · ');
 }
