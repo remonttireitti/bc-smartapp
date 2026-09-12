@@ -180,7 +180,14 @@ function expenseDraftCountsForSave(row: ExpenseDraftLike): boolean {
 }
 
 function expenseLineCountsForSupplyFlags(row: ExpenseDraftLike): boolean {
-  return expenseDraftCountsForSave(row) && !isLikelyAutoTripKmExpense(row);
+  return (
+    expenseDraftCountsForSave(row)
+    && !isLikelyAutoTripKmExpense({
+      key: row.key ?? '',
+      expense_type: row.expense_type ?? '',
+      description: row.description ?? '',
+    })
+  );
 }
 
 export function buildSupplyLineFlagsFromExpenseDrafts(
@@ -215,7 +222,7 @@ export function resolveExpenseExtraBillableFromSources(
 }
 
 export function resolveSupplyLineFlagForExpenseLine(
-  line: { expense_type?: string; description?: string | null },
+  _line: { expense_type?: string; description?: string | null },
   lineIndex: number,
   allLines: Array<{ expense_type?: string; description?: string | null }> | null | undefined,
   supplyLineFlags?: SupplyLineExtraBillingFlag[] | null,
