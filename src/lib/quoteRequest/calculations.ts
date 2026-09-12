@@ -2,7 +2,9 @@ import type { BrandDeliveryFeeByCategoryMap } from '../../data/devicePricingShar
 import type { QuoteMaterial, QuoteRegion, QuoteRequestData, QuoteWorkItem } from './types';
 import {
   installationSuppliesDevicePurchaseNet,
+  installationSuppliesExpenseSellNet,
   installationSuppliesInternalCostsNet,
+  installationSuppliesLaborSellNet,
   installationSuppliesSupplyPurchaseNet,
   installationSuppliesSupplySellNet,
 } from './installationSupplies';
@@ -246,11 +248,12 @@ export function computeIilpCoolingEnergyEstimate(
 }
 
 export function computeTravelNet(data: QuoteRequestData): number {
-  if (!quoteUsesTravelCost(data.type)) return 0;
-  if (!data.travelKmEnabled) return 0;
+  const fromRows = installationSuppliesExpenseSellNet(data.installationSupplies);
+  if (!quoteUsesTravelCost(data.type)) return fromRows;
+  if (!data.travelKmEnabled) return fromRows;
   const km = Math.max(0, Number(data.travelKmDistance) || 0);
   const rate = Math.max(0, Number(data.travelKmRate) || 0);
-  return Math.round(km * rate * 100) / 100;
+  return Math.round(km * rate * 100) / 100 + fromRows;
 }
 
 export function travelCostLabel(data: QuoteRequestData): string {
@@ -279,10 +282,11 @@ export function quoteWorkNetFromItems(data: QuoteRequestData): number {
 
 /** Työn osuus (alv 0) ilman matkakuluja. IILP-urakassa vain urakkahinta, ei työrivejä. */
 export function quoteWorkNet(data: QuoteRequestData): number {
+  const fromRows = installationSuppliesLaborSellNet(data.installationSupplies);
   if (data.type === 'ilma-ilma' && resolveIilpLaborPricingMode(data) === 'urakka') {
-    return getIilpBaseInstallParts(data).laborNet;
+    return getIilpBaseInstallParts(data).laborNet + fromRows;
   }
-  return quoteWorkNetFromItems(data);
+  return quoteWorkNetFromItems(data) + fromRows;
 }
 
 export function quoteMaterialsNetForTotals(data: QuoteRequestData): number {

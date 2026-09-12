@@ -11,7 +11,7 @@ import {
 import { isPumpQuoteType } from './quoteRequest/constants';
 import {
   installationSuppliesInternalCostsNet,
-  isOfferedDeviceRow,
+  resolveQuoteMaterialRowKind,
 } from './quoteRequest/installationSupplies';
 import { resolveNonPumpDeviceSellNet } from './quoteRequest/manualDevicePricing';
 import { normalizeQuoteRequestData } from './quoteRequest/defaults';
@@ -89,15 +89,16 @@ function collectInstallationSupplyLines(data: QuoteRequestData): BillingQuotePur
     const qty = Number(mat.quantity) || 0;
     const purchase = roundMoney(qty * (Number(mat.purchasePrice) || 0));
     if (purchase <= 0.005) continue;
-    const isDevice = isOfferedDeviceRow(mat);
+    const kind = resolveQuoteMaterialRowKind(mat);
+    if (kind === 'labor' || kind === 'expense') continue;
     lines.push({
-      id: isDevice ? `device:${mat.id}` : `material:${mat.id}`,
+      id: kind === 'device' ? `device:${mat.id}` : `material:${mat.id}`,
       label: name,
       quantity: qty,
       unit: 'kpl',
       quote_purchase_net: purchase,
       actual_purchase_net: purchase,
-      source: isDevice ? 'device' : 'material',
+      source: kind === 'device' ? 'device' : 'material',
     });
   }
 

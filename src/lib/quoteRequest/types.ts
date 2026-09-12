@@ -27,8 +27,8 @@ export type QuoteWorkItem = {
   materials: QuoteMaterial[];
 };
 
-/** Tarvike vai tarjouksessa erikseen näkyvä laite (ei sekä että). */
-export type QuoteMaterialRowKind = 'supply' | 'device';
+/** Työraportin kategoriat: työ, tarvike, kulu, laite (sama kuin QuoteCategoryKey). */
+export type QuoteMaterialRowKind = 'labor' | 'supply' | 'expense' | 'device';
 
 export type QuoteMaterial = {
   id: string;
@@ -37,7 +37,7 @@ export type QuoteMaterial = {
   purchasePrice: number;
   marginPercent: number;
   sellPrice: number;
-  /** Oletus supply. device = tarjottu laite (esim. koneet tarvikeriveillä). */
+  /** Oletus supply. labor/expense/device = vastaavat työraportin tyypit. */
   rowKind?: QuoteMaterialRowKind;
 };
 

@@ -83,7 +83,13 @@ function normalizeMaterialList(raw: unknown): QuoteMaterial[] {
       purchasePrice: Number(row.purchasePrice) || 0,
       marginPercent: Number(row.marginPercent) || 0,
       sellPrice: Number(row.sellPrice) || 0,
-      rowKind: row.rowKind === 'device' ? 'device' : 'supply',
+      rowKind:
+        row.rowKind === 'labor'
+        || row.rowKind === 'supply'
+        || row.rowKind === 'expense'
+        || row.rowKind === 'device'
+          ? row.rowKind
+          : 'supply',
     });
   });
 }
@@ -101,7 +107,13 @@ export function createEmptyMaterial(partial?: Partial<QuoteMaterial>): QuoteMate
     marginPercent: 25,
     sellPrice: 0,
     ...partial,
-    rowKind: partial?.rowKind === 'device' ? 'device' : 'supply',
+    rowKind:
+      partial?.rowKind === 'labor'
+      || partial?.rowKind === 'supply'
+      || partial?.rowKind === 'expense'
+      || partial?.rowKind === 'device'
+        ? partial.rowKind
+        : 'supply',
   };
 }
 

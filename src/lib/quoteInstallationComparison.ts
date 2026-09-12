@@ -1,6 +1,12 @@
 import type { PartnerBillingRates } from './management';
 import { quoteUsesTravelCost } from './quoteRequest/constants';
 import { normalizeQuoteRequestData } from './quoteRequest/defaults';
+import {
+  installationSuppliesExpensePurchaseNet,
+  installationSuppliesLaborHours,
+  installationSuppliesLaborPurchaseNet,
+  resolveQuoteMaterialRowKind,
+} from './quoteRequest/installationSupplies';
 import type { QuoteMaterial, QuoteRequestData } from './quoteRequest/types';
 import type { BillableCalculation } from './workReportBilling';
 import { billableLineDisplayTotal } from './workReportBilling';
@@ -46,9 +52,11 @@ function quoteKmFromMaterials(materials: QuoteMaterial[]): number {
 }
 
 export function quoteLaborHours(data: QuoteRequestData): number {
+  const fromRows = installationSuppliesLaborHours(data.installationSupplies);
   const fromItems = data.workItems.reduce((sum, item) => sum + (Number(item.hours) || 0), 0);
-  if (fromItems > 0) return roundQty(fromItems);
-  return roundQty(Number(data.laborHours) || 0);
+  if (fromItems > 0) return roundQty(fromItems + fromRows);
+  const fromField = roundQty(Number(data.laborHours) || 0);
+  return roundQty(fromField + fromRows);
 }
 
 export function quoteTravelKm(data: QuoteRequestData): number {
@@ -62,8 +70,15 @@ export function quoteTravelKm(data: QuoteRequestData): number {
     0,
   );
   const fromTopLevel = quoteKmFromMaterials(data.materials ?? []);
-  const fromInstallation = quoteKmFromMaterials(data.installationSupplies ?? []);
-  return roundQty(fromWorkItems + fromTopLevel + fromInstallation);
+  const fromInstallation = quoteKmFromMaterials(
+    (data.installationSupplies ?? []).filter(
+      (row) => resolveQuoteMaterialRowKind(row) !== 'labor',
+    ),
+  );
+  const fromExpenseRows = (data.installationSupplies ?? [])
+    .filter((row) => resolveQuoteMaterialRowKind(row) === 'expense' && isKmCompensationMaterial(row.name))
+    .reduce((sum, row) => sum + (Number(row.quantity) || 0), 0);
+  return roundQty(fromWorkItems + fromTopLevel + fromInstallation + fromExpenseRows);
 }
 
 /** Tarjouksen työ- ja ajobudjetti kumppanihinnoilla (vertailukelpoinen työraportin laskentaan). */
@@ -85,9 +100,11 @@ export function computeQuoteInstallationBudget(
       : Number(quote.travelKmRate) || 0;
 
   const hours = quoteLaborHours(quote);
-  const laborCost = roundMoney(hours * laborRate);
+  const laborRowCost = installationSuppliesLaborPurchaseNet(quote.installationSupplies);
+  const laborCost = roundMoney(hours * laborRate + laborRowCost);
   const travelKm = quoteTravelKm(quote);
-  const travelCost = roundMoney(travelKm * tripKmRate);
+  const expenseRowCost = installationSuppliesExpensePurchaseNet(quote.installationSupplies);
+  const travelCost = roundMoney(travelKm * tripKmRate + expenseRowCost);
 
   const rows: InstallationComparisonRow[] = [
     {
