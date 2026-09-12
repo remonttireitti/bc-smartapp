@@ -20,9 +20,11 @@ import { extractQuotePurchaseLines } from '../lib/quotePurchaseLines';
 import { analyzeWorkReportPurchaseCosts } from '../lib/workReportActualPurchase';
 import { mergeActualPurchaseFromWorkReportLogs } from '../lib/quoteRequestActualPurchaseSync';
 import {
-  compareQuoteInstallationToWorkReport,
-  type InstallationComparison,
-} from '../lib/quoteInstallationComparison';
+  compareQuoteCategories,
+  formatCategoryQty,
+  type QuoteCategoryComparison,
+  type QuoteCategoryRow,
+} from '../lib/quoteCategoryComparison';
 import { formatEuro, type BillableCalculation } from '../lib/workReportBilling';
 import { computeQuoteExtrasMarginFromLogs } from '../lib/dailyLogCustomerExtraBilling';
 import type { WorkReportDailyLog } from '../types';
@@ -166,18 +168,19 @@ export default function WorkReportBillingQuotePanel({
       customerCalculation?.quoteExtrasTotal,
     ],
   );
-  const installationComparison = useMemo(
+  const categoryComparison = useMemo(
     () =>
       quoteData && partnerCalculation
-        ? compareQuoteInstallationToWorkReport({
+        ? compareQuoteCategories({
             quoteData,
             partnerCalculation,
             logs: dailyLogs,
             partnerRates: partnerCalculation.ratesUsed,
             tripKmRate,
+            billingSettings: effectiveSettings,
           })
         : null,
-    [quoteData, partnerCalculation, dailyLogs, tripKmRate],
+    [quoteData, partnerCalculation, dailyLogs, tripKmRate, effectiveSettings],
   );
   const extrasMarginLines = useMemo(
     () =>
@@ -279,71 +282,43 @@ export default function WorkReportBillingQuotePanel({
       && Math.abs(effectiveSettings.customer_invoice_total - effectiveSettings.quote_sale_net) > 0.01
     );
   const purchaseMarginAdjustment = computeQuotePurchaseMarginAdjustment(effectiveSettings);
-  const purchaseVarianceNet = roundMoney(actualPurchaseTotal - quotePurchaseTotal);
 
   function renderQuoteVsActualIntro() {
     return (
       <p className="muted span-2" style={{ margin: 0 }}>
-        Tarjouspyynnön <strong>työt</strong>, <strong>tarvikkeet</strong> ja <strong>laitteet</strong>{' '}
-        vastaavat työraportin merkintöjä. Arviota ja toteutunutta <strong>verrataan</strong> — niitä ei
-        lasketa yhteen. Kateen laskennassa käytetään vain toteutuneita kustannuksia.
+        Tarjouspyynnön <strong>työt</strong>, <strong>tarvikkeet</strong>, <strong>kulut</strong> ja{' '}
+        <strong>laite</strong> vastaavat työraportin merkintöjä. Arviota ja toteutunutta{' '}
+        <strong>verrataan</strong> — niitä ei lasketa yhteen. Kateen laskennassa käytetään vain
+        toteutuneita kustannuksia.
       </p>
     );
   }
 
-  function renderQuoteVsActualSummary() {
+  function renderCategoryComparisonRow(row: QuoteCategoryRow) {
+    const changed = Math.abs(row.varianceNet) > 0.005;
+    const showQty = row.key === 'labor' || row.key === 'expenses';
+    const showMoney = row.quoteNet > 0.005 || row.actualNet > 0.005;
     return (
-      <div className="billing-quote-vs-actual-summary span-2">
-        {renderQuoteVsActualIntro()}
-        <dl className="billing-quote-vs-actual-dl">
-          {installationComparison ? (
-            <>
-              <dt>Työ ja ajot</dt>
-              <dd>
-                arvio {formatEuro(installationComparison.quoteTotalNet)} → toteutunut{' '}
-                {formatEuro(installationComparison.actualTotalNet)}
-                <span className="billing-variance">
-                  {' '}
-                  (ero {formatEuro(installationComparison.varianceNet)})
-                </span>
-              </dd>
-            </>
-          ) : null}
-          <dt>Laite ja tarvikkeet</dt>
-          <dd>
-            arvio {formatEuro(quotePurchaseTotal)} → toteutunut {formatEuro(actualPurchaseTotal)}
-            <span className="billing-variance">
-              {' '}
-              (ero {formatEuro(purchaseVarianceNet)})
-            </span>
-          </dd>
-        </dl>
-      </div>
+      <tr key={row.key} className={changed ? 'billing-purchase-line-changed' : undefined}>
+        <td>{row.label}</td>
+        <td className="num">{showQty ? formatCategoryQty(row, row.quoteQty) : '—'}</td>
+        <td className="num">{showQty ? formatCategoryQty(row, row.actualQty) : '—'}</td>
+        <td className="num">{showMoney ? formatEuro(row.quoteNet) : '—'}</td>
+        <td className="num">{showMoney ? formatEuro(row.actualNet) : '—'}</td>
+        <td className="num">{showMoney ? formatEuro(row.varianceNet) : '—'}</td>
+      </tr>
     );
   }
 
-  function formatComparisonQty(
-    row: InstallationComparison['rows'][number],
-    value: number | null,
-  ): string {
-    if (value == null) return '—';
-    const suffix =
-      row.key === 'hours' ? ' h' : row.key === 'travel_km' ? ' km' : '';
-    return `${value.toLocaleString('fi-FI', { maximumFractionDigits: 2 })}${suffix}`;
-  }
-
-  function renderInstallationComparisonTable(comparison: InstallationComparison) {
+  function renderCategoryComparisonTable(comparison: QuoteCategoryComparison) {
     return (
-      <div className="table-wrap billing-purchase-lines-wrap">
-        <h4 className="billing-breakdown-heading">Työ ja ajot: tarjous vs toteutunut</h4>
-        <p className="muted billing-purchase-lines-hint">
-          Sama kategoria kuin tarjouspyynnön työt ja ajot — vertaillaan arviota ja päiväkirjan toteumaa.
-          Ero vaikuttaa katteeseen (ylitys syö, alitus nostaa).
-        </p>
+      <div className="table-wrap billing-purchase-lines-wrap span-2">
+        <h4 className="billing-breakdown-heading">Tarjous vs toteutunut</h4>
+        {renderQuoteVsActualIntro()}
         <table className="billing-table billing-purchase-lines-table">
           <thead>
             <tr>
-              <th>Rivi</th>
+              <th>Kategoria</th>
               <th className="num">Tarjous (arvio)</th>
               <th className="num">Toteutunut</th>
               <th className="num">Tarjous €</th>
@@ -352,35 +327,20 @@ export default function WorkReportBillingQuotePanel({
             </tr>
           </thead>
           <tbody>
-            {comparison.rows.map((row) => {
-              const changed = Math.abs(row.varianceNet) > 0.005;
-              const showMoney =
-                row.quoteCostNet > 0 || row.actualCostNet > 0 || row.key === 'total';
-              return (
-                <tr
-                  key={row.key}
-                  className={changed ? 'billing-purchase-line-changed' : undefined}
-                >
-                  <td>{row.label}</td>
-                  <td className="num">{formatComparisonQty(row, row.quoteQty)}</td>
-                  <td className="num">{formatComparisonQty(row, row.actualQty)}</td>
-                  <td className="num">
-                    {showMoney && (row.quoteCostNet > 0 || row.key === 'total')
-                      ? formatEuro(row.quoteCostNet)
-                      : '—'}
-                  </td>
-                  <td className="num">
-                    {showMoney && (row.actualCostNet > 0 || row.key === 'total')
-                      ? formatEuro(row.actualCostNet)
-                      : '—'}
-                  </td>
-                  <td className="num">
-                    {showMoney ? formatEuro(row.varianceNet) : '—'}
-                  </td>
-                </tr>
-              );
-            })}
+            {comparison.rows.map((row) => renderCategoryComparisonRow(row))}
           </tbody>
+          <tfoot>
+            <tr>
+              <td><strong>Yhteensä</strong></td>
+              <td className="num">—</td>
+              <td className="num">—</td>
+              <td className="num"><strong>{formatEuro(comparison.quoteTotalNet)}</strong></td>
+              <td className="num"><strong>{formatEuro(comparison.actualTotalNet)}</strong></td>
+              <td className="num">
+                <strong>{formatEuro(comparison.varianceNet)}</strong>
+              </td>
+            </tr>
+          </tfoot>
         </table>
       </div>
     );
@@ -390,10 +350,10 @@ export default function WorkReportBillingQuotePanel({
     if (lines.length === 0) return null;
     return (
       <div className="table-wrap billing-purchase-lines-wrap">
-        <h4 className="billing-breakdown-heading">Laite ja tarvikkeet: tarjous vs toteutunut</h4>
+        <h4 className="billing-breakdown-heading">Tarvikkeet ja laite: rivierittely</h4>
         <p className="muted billing-purchase-lines-hint">
-          Sama kategoria kuin tarjouspyynnön tarvikkeet ja tarjottu laite. Arvio ja toteutunut ovat rinnakkain —
-          niitä ei summata. Laitteen toteutunut syötetään oikaisukenttään; tarvikkeet tulevat päiväkirjasta.
+          Tarvikkeet (päiväkirjan tarvikerivit) ja laite (oikaisukenttä) eriteltynä. Yhteenveto yllä olevassa
+          vertailutaulukossa.
         </p>
         <table className="billing-table billing-purchase-lines-table">
           <thead>
@@ -673,11 +633,7 @@ export default function WorkReportBillingQuotePanel({
                 </p>
               )}
 
-              {renderQuoteVsActualSummary()}
-
-              {installationComparison ? (
-                <div className="span-2">{renderInstallationComparisonTable(installationComparison)}</div>
-              ) : null}
+              {categoryComparison ? renderCategoryComparisonTable(categoryComparison) : renderQuoteVsActualIntro()}
 
               <div className="span-2">{renderPurchaseLinesTable(purchaseLines, true)}</div>
 
@@ -763,8 +719,7 @@ export default function WorkReportBillingQuotePanel({
 
           {readOnly ? (
             <>
-              {renderQuoteVsActualSummary()}
-              {installationComparison ? renderInstallationComparisonTable(installationComparison) : null}
+              {categoryComparison ? renderCategoryComparisonTable(categoryComparison) : null}
               {renderPurchaseLinesTable(purchaseLines, false)}
             </>
           ) : null}
@@ -773,7 +728,7 @@ export default function WorkReportBillingQuotePanel({
             <div className="table-wrap">
               <h4 className="billing-breakdown-heading">Puhdas kate (toteutuneista kustannuksista)</h4>
               <p className="muted billing-purchase-lines-hint">
-                Vähennetään vain toteutunut työ, ajot, laite ja tarvikkeet. Tarjousarviot ovat vertailua —
+                Vähennetään vain toteutunut työ, kulut, tarvikkeet ja laite. Tarjousarviot ovat vertailua —
                 eivät lisäkulua.
               </p>
               <table className="billing-table billing-margin-table">
@@ -788,19 +743,47 @@ export default function WorkReportBillingQuotePanel({
                       <td className="num">+ {formatEuro(partnerMargin.customerExtrasNet)}</td>
                     </tr>
                   ) : null}
-                  {installationComparison ? (
-                    <tr className="muted">
-                      <td>Työ ja ajot (vertailu arvio → toteutunut)</td>
+                  {categoryComparison?.rows.map((row) => (
+                    <tr key={`compare-${row.key}`} className="muted">
+                      <td>{row.label} (vertailu arvio → toteutunut)</td>
                       <td className="num">
-                        {formatEuro(installationComparison.quoteTotalNet)} →{' '}
-                        {formatEuro(installationComparison.actualTotalNet)}
+                        {formatEuro(row.quoteNet)} → {formatEuro(row.actualNet)}
                       </td>
                     </tr>
-                  ) : null}
-                  <tr>
-                    <td>Työ ja ajot (vähennetään katteesta)</td>
-                    <td className="num">− {formatEuro(partnerMargin.installationLaborTravelNet)}</td>
-                  </tr>
+                  ))}
+                  {(() => {
+                    const laborRow = categoryComparison?.rows.find((row) => row.key === 'labor');
+                    const expensesRow = categoryComparison?.rows.find((row) => row.key === 'expenses');
+                    const laborActual = laborRow?.actualNet ?? 0;
+                    const expensesActual = expensesRow?.actualNet ?? 0;
+                    const laborTravelTotal = roundMoney(
+                      laborActual > 0.005 || expensesActual > 0.005
+                        ? laborActual + expensesActual
+                        : partnerMargin.installationLaborTravelNet,
+                    );
+                    return (
+                      <>
+                        {laborActual > 0.005 ? (
+                          <tr>
+                            <td>Työt (vähennetään katteesta)</td>
+                            <td className="num">− {formatEuro(laborActual)}</td>
+                          </tr>
+                        ) : null}
+                        {expensesActual > 0.005 ? (
+                          <tr>
+                            <td>Kulut (vähennetään katteesta)</td>
+                            <td className="num">− {formatEuro(expensesActual)}</td>
+                          </tr>
+                        ) : null}
+                        {laborActual <= 0.005 && expensesActual <= 0.005 && laborTravelTotal > 0.005 ? (
+                          <tr>
+                            <td>Työ ja kulut (vähennetään katteesta)</td>
+                            <td className="num">− {formatEuro(laborTravelTotal)}</td>
+                          </tr>
+                        ) : null}
+                      </>
+                    );
+                  })()}
                   {deviceActualTotal > 0.005 ? (
                     <tr>
                       <td>Laite (toteutunut hankinta)</td>
@@ -891,8 +874,8 @@ export default function WorkReportBillingQuotePanel({
                 </table>
               ) : null}
               <p className="muted billing-margin-formula">
-                Kate = tarjoushinta + lisälaskutus − työ ja ajot − hankinta (tarjous + tarvikkeet) −
-                katetta syövät kulut − piikkiostot.
+                Kate = tarjoushinta + lisälaskutus − työt − kulut − tarvikkeet − laite − katetta syövät
+                kulut − piikkiostot.
                 {partnerMargin.quotePurchaseNet !== partnerMargin.actualPurchaseNet ? (
                   <>
                     {' '}

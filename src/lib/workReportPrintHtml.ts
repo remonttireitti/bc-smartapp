@@ -24,9 +24,9 @@ import {
   type BillingQuoteSettings,
 } from './workReportBillingQuote';
 import {
-  compareQuoteInstallationToWorkReport,
-  renderInstallationComparisonHtml,
-} from './quoteInstallationComparison';
+  compareQuoteCategories,
+  renderQuoteCategoryComparisonHtml,
+} from './quoteCategoryComparison';
 import {
   formatRefrigerantLineLabelForReport,
   refrigerantBillingReminder,
@@ -423,19 +423,20 @@ function quoteMarginPrintSection(
     escapeHtml: esc,
   });
 
-  const installationComparison =
+  const categoryComparison =
     quoteData && partnerCalculation
-      ? compareQuoteInstallationToWorkReport({
+      ? compareQuoteCategories({
           quoteData,
           partnerCalculation,
           logs,
           partnerRates: partnerCalculation.ratesUsed,
           tripKmRate,
+          billingSettings: billingQuote,
         })
       : null;
-  const installationComparisonHtml =
-    installationComparison
-      ? renderInstallationComparisonHtml(installationComparison, {
+  const categoryComparisonHtml =
+    categoryComparison
+      ? renderQuoteCategoryComparisonHtml(categoryComparison, {
           escapeHtml: esc,
           formatEuro,
         })
@@ -463,14 +464,14 @@ function quoteMarginPrintSection(
       </table>`
       : '';
 
-  if (rows.length === 0 && !purchaseLinesHtml && !installationComparisonHtml && !extrasDetailHtml) {
+  if (rows.length === 0 && !purchaseLinesHtml && !categoryComparisonHtml && !extrasDetailHtml) {
     return '';
   }
 
   return printBox(
     'Tarjous ja kate',
-    `${purchaseLinesHtml}
-    ${installationComparisonHtml}
+    `${categoryComparisonHtml}
+    ${purchaseLinesHtml}
     <table>
       <tbody>${rows.join('')}</tbody>
     </table>
