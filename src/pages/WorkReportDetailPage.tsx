@@ -205,6 +205,7 @@ import {
   resolveExpenseBillingMode,
   resolveExpenseExtraBillableFromSources,
   resolveExpenseExtraBillingAllowedFromSources,
+  resolveSupplyLineFlagForExpenseLine,
   resolveTripBillingFromExpenses,
   type SupplyLineExtraBillingFlag,
   tripLegsBillToCustomer,
@@ -474,7 +475,7 @@ function expensesToDrafts(
   supplyLineFlags?: SupplyLineExtraBillingFlag[],
 ): ExpenseDraft[] {
   return (lines ?? []).map((line, index) => {
-    const fallback = supplyLineFlags?.[index] ?? null;
+    const fallback = resolveSupplyLineFlagForExpenseLine(line, index, lines, supplyLineFlags);
     const unitPrice = Number(line.unit_price);
     const customerPrice =
       line.customer_unit_price != null && Number(line.customer_unit_price) > 0

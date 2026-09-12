@@ -179,11 +179,15 @@ function expenseDraftCountsForSave(row: ExpenseDraftLike): boolean {
   return row.expense_type === 'km' && /^Ajomatkat\s*\(/i.test(description);
 }
 
+function expenseLineCountsForSupplyFlags(row: ExpenseDraftLike): boolean {
+  return expenseDraftCountsForSave(row) && !isLikelyAutoTripKmExpense(row);
+}
+
 export function buildSupplyLineFlagsFromExpenseDrafts(
   drafts: ExpenseDraftLike[],
 ): SupplyLineExtraBillingFlag[] {
   return drafts
-    .filter(expenseDraftCountsForSave)
+    .filter(expenseLineCountsForSupplyFlags)
     .map((row) => {
       const marginRaw = row.customer_margin_percent;
       const margin =
@@ -206,18 +210,43 @@ export function resolveExpenseExtraBillableFromSources(
 ): boolean {
   if (line.extra_billable === true) return true;
   if (line.extra_billable === false) return false;
-  if (fallback?.extra_billable === true) return true;
-  if (fallback?.extra_billable === false) return false;
+  if (fallback != null) return fallback.extra_billable === true;
   return line.extra_billing_allowed === true;
+}
+
+export function resolveSupplyLineFlagForExpenseLine(
+  line: { expense_type?: string; description?: string | null },
+  lineIndex: number,
+  allLines: Array<{ expense_type?: string; description?: string | null }> | null | undefined,
+  supplyLineFlags?: SupplyLineExtraBillingFlag[] | null,
+): SupplyLineExtraBillingFlag | null {
+  if (!supplyLineFlags?.length || !allLines?.length) return null;
+  let flagIndex = -1;
+  for (let i = 0; i <= lineIndex; i++) {
+    const row = allLines[i];
+    if (!row) continue;
+    if (isLikelyAutoTripKmExpense({
+      key: '',
+      expense_type: row.expense_type ?? '',
+      description: String(row.description ?? ''),
+    })) {
+      continue;
+    }
+    flagIndex += 1;
+  }
+  if (flagIndex < 0) return null;
+  return supplyLineFlags[flagIndex] ?? null;
 }
 
 export function resolveExpenseExtraBillingAllowedFromSources(
   line: ExpenseBillingFlags,
   fallback?: SupplyLineExtraBillingFlag | null,
 ): boolean {
+  if (!resolveExpenseExtraBillableFromSources(line, fallback)) return false;
   if (line.extra_billing_allowed === true) return true;
   if (line.extra_billing_allowed === false) return false;
-  return fallback?.extra_billing_allowed === true;
+  if (fallback != null) return fallback.extra_billing_allowed === true;
+  return false;
 }
 
 /** Tarvike voi olla lisälaskutettavissa (ei sama kuin lupa). */

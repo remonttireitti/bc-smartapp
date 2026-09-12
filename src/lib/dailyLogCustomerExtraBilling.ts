@@ -123,7 +123,7 @@ export function dailyLogCustomerExtraBillingHasData(
   return (
     hoursExtraBillable(parsed)
     || dailyLogCustomerExtraBillingHasExpenseData(parsed)
-    || (parsed.supply_line_flags?.some((row) => row.extra_billable || row.extra_billing_allowed) ?? false)
+    || (parsed.supply_line_flags?.length ?? 0) > 0
   );
 }
 

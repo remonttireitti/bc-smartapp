@@ -11108,6 +11108,15 @@ a.tile.customer-document-tile:hover {
   font-size: 0.88rem;
 }
 
+.billing-margin-impact-note {
+  margin-top: 0.2rem;
+  font-size: 0.85rem;
+}
+
+.billing-margin-table tr.billing-margin-pending td {
+  background: #fffbeb;
+}
+
 .billing-purchase-lines-wrap {
   margin-top: 0.35rem;
 }

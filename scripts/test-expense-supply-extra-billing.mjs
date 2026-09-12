@@ -11,10 +11,12 @@ import {
   resolveExpenseBillingMode,
   resolveExpenseExtraBillableFromSources,
   resolveExpenseExtraBillingAllowedFromSources,
+  resolveSupplyLineFlagForExpenseLine,
   syncSupplyExpenseCustomerPrice,
 } from '../src/lib/workReportExpenseBilling.ts';
 import {
   buildCustomerExtraBillingFromLogForm,
+  dailyLogCustomerExtraBillingHasData,
   parseDailyLogCustomerExtraBilling,
   serializeDailyLogCustomerExtraBilling,
 } from '../src/lib/dailyLogCustomerExtraBilling.ts';
@@ -193,6 +195,79 @@ assert.equal(
   ),
   true,
 );
+assert.equal(
+  resolveExpenseExtraBillableFromSources(
+    { extra_billable: undefined, extra_billing_allowed: true },
+    { extra_billable: false, extra_billing_allowed: true },
+  ),
+  false,
+);
+assert.equal(
+  resolveExpenseExtraBillingAllowedFromSources(
+    { extra_billable: false, extra_billing_allowed: true },
+    { extra_billable: false, extra_billing_allowed: true },
+  ),
+  false,
+);
+
+const tripAndSupplyLines = [
+  {
+    expense_type: 'km',
+    description: 'Ajomatkat (35 km)',
+    qty: 35,
+    unit_price: 0.5,
+  },
+  {
+    expense_type: 'supply',
+    description: 'Tarvike',
+    qty: 1,
+    unit_price: 50,
+    extra_billable: false,
+    extra_billing_allowed: true,
+  },
+];
+const tripAndSupplyFlags = [{ extra_billable: false, extra_billing_allowed: false }];
+assert.deepEqual(
+  resolveSupplyLineFlagForExpenseLine(tripAndSupplyLines[1], 1, tripAndSupplyLines, tripAndSupplyFlags),
+  tripAndSupplyFlags[0],
+);
+
+const turnedOffDrafts = [
+  {
+    expense_type: 'supply',
+    description: 'Tarvike',
+    qty: '1',
+    unit_price: '50',
+    bill_to_partner: false,
+    bill_to_customer: true,
+    extra_billable: false,
+    extra_billing_allowed: false,
+    customer_margin_percent: '80',
+  },
+];
+const turnedOffBilling = buildCustomerExtraBillingFromLogForm(
+  {
+    hours_extra_billable: false,
+    hours_extra_billing_allowed: false,
+    hours_extra_hours: '',
+    extra_expense_description: '',
+    extra_expense_qty: '1',
+    extra_expense_customer_price: '',
+    extra_expense_purchase_price: '',
+    extra_expense_partner_billing: 'charge',
+    entry_type: 'regular',
+    hours_regular: '8',
+    hours_overtime: '',
+    hours_on_call: '',
+    work_done: 'Työ',
+    customer_hourly_rate_override: '',
+  },
+  turnedOffDrafts,
+);
+assert.equal(dailyLogCustomerExtraBillingHasData(turnedOffBilling), true);
+assert.equal(turnedOffBilling.supply_line_flags?.[0]?.extra_billable, false);
+const turnedOffSerialized = serializeDailyLogCustomerExtraBilling(turnedOffBilling);
+assert.equal(turnedOffSerialized.supply_line_flags?.[0]?.extra_billable, false);
 
 const expenseDrafts = [
   {
