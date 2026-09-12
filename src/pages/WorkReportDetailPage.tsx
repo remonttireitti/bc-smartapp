@@ -13,7 +13,6 @@ import { WorkReportSectionTile, WorkReportSectionTileGrid } from '../components/
 import WorkReportSectionDialog from '../components/WorkReportSectionDialog';
 import ActionStatusDialog from '../components/ActionStatusDialog';
 import DailyLogDialog from '../components/DailyLogDialog';
-import DailyLogCustomerExtraBillingFields from '../components/DailyLogCustomerExtraBillingFields';
 import DailyLogFormSection from '../components/DailyLogFormSection';
 import DailyLogTileSection from '../components/DailyLogTileSection';
 import {
@@ -3013,14 +3012,6 @@ export default function WorkReportDetailPage({ session }: Props) {
     && (isOwnerCompany || (isPartnerReport && canSeeCreatorBilling));
   const canManageQuoteCustomerMode =
     canManageCustomerBillingRates || (isPartnerReport && canSeeCreatorBilling);
-  const showDailyLogQuoteExtras =
-    customerUsesQuoteBasedBilling(billingQuoteSettings)
-    && (
-      showOutgoingPartnerBilling
-      || showCustomerMoneyBilling
-      || showCustomerBillingFeatures
-      || (isPartnerReport && canSeeCreatorBilling)
-    );
   const dailyLogEntryTiles = dailyLogs.flatMap((log) =>
     buildDailyLogEntryTiles(log, {
       formatDate,
@@ -4068,19 +4059,6 @@ export default function WorkReportDetailPage({ session }: Props) {
               || hourBillingSettings.customer_mode === 'daily_overtime')
           }
         />
-        {showDailyLogQuoteExtras ? (
-          <DailyLogCustomerExtraBillingFields
-            form={logForm}
-            setForm={(next) => setLogForm({ ...logForm, ...next })}
-            showPartnerExpenseOptions={isPartnerReport}
-            defaultHourlyRate={
-              customerBillableCalculation?.ratesUsed.hourly_regular
-              ?? companyCustomerRatesPreview.hourly_regular
-              ?? customerReportRatesDraft.hourly_regular
-              ?? null
-            }
-          />
-        ) : null}
         <DailyLogRefrigerantFields
           drafts={refrigerantDrafts}
           setDrafts={setRefrigerantDrafts}

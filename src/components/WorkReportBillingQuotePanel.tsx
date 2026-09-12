@@ -577,9 +577,9 @@ export default function WorkReportBillingQuotePanel({
                   </label>
                   {quoteBillingEnabled ? (
                     <p className="muted span-2" style={{ margin: 0 }}>
-                      Lisätyöt ja -kulut kirjataan päiväkirjan ruudusta{' '}
-                      <strong>Lisä työt ja kulut</strong>. Täytetyt kentät laskutetaan automaattisesti
-                      tarjouksen päälle.
+                      Lisälaskutettavat tarvikkeet merkitään päiväkirjassa ruudussa{' '}
+                      <strong>Kulut ja tarvikkeet</strong> valinnalla &quot;Lisälaskutus tarjouksen
+                      päälle&quot;.
                     </p>
                   ) : null}
                 </>
@@ -713,7 +713,8 @@ export default function WorkReportBillingQuotePanel({
 
           {quoteBillingEnabled && !readOnly ? (
             <p className="muted">
-              Lisätyöt ja -kulut: avaa päiväkirjamerkintä → ruutu <strong>Lisä työt ja kulut</strong>.
+              Lisälaskutus: päiväkirjamerkintä → <strong>Kulut ja tarvikkeet</strong> → valitse
+              lisälaskutus tarjouksen päälle.
             </p>
           ) : null}
 

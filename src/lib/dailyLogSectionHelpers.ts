@@ -35,7 +35,6 @@ export const DAILY_LOG_SECTION_COLORS = {
   refrigerant: '#0891B2',
   partnerPurchase: '#B45309',
   images: '#6366F1',
-  quoteExtras: '#DC2626',
 } as const;
 
 export function dailyLogTripsSubtitle(tripDrafts: TripLegDraft[]): string {
