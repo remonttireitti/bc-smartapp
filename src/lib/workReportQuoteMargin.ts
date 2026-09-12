@@ -4,6 +4,7 @@ import {
   parseDailyLogCustomerExtraBilling,
 } from './dailyLogCustomerExtraBilling';
 import {
+  expenseExtraBillingAllowed,
   expensePurchaseLineTotal,
   resolveExpenseBillingMode,
   resolveExpensePurchaseUnitPrice,
@@ -53,6 +54,7 @@ export function analyzeMarginEatingExpenses(
         cost = unit > 0 && qty > 0 ? lineTotal(qty, unit) : expensePurchaseLineTotal(expense);
         reason = 'included_in_contract';
       } else if (mode === 'customer_only') {
+        if (expenseExtraBillingAllowed(expense)) continue;
         if (hasApprovedExtraExpense) continue;
         cost = expensePurchaseLineTotal(expense);
         reason = 'customer_only_unapproved';

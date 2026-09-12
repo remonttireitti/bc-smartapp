@@ -1,5 +1,12 @@
 import type { WorkReportDailyLog } from '../types';
-import type { BillingQuoteExtraCustomerWork } from './billingQuoteExtraWork';
+import type { BillingQuoteExtraCustomerWork, BillingQuoteExtraExpenseLine } from './billingQuoteExtraWork';
+import {
+  computeSupplyCustomerUnitPrice,
+  expenseExtraBillingAllowed,
+  resolveExpenseBillingMode,
+  resolveExpensePurchaseUnitPrice,
+  resolveSupplyMarginPercent,
+} from './workReportExpenseBilling';
 
 export type DailyLogCustomerExtraBilling = {
   hours?: number;
@@ -174,6 +181,32 @@ export function dailyLogQuoteExtrasSubtitle(form: DailyLogExtraBillingFormFields
   return parts.join(' · ') || 'Täytetty';
 }
 
+function extraExpenseLinesFromLogExpenseRows(log: WorkReportDailyLog): BillingQuoteExtraExpenseLine[] {
+  const lines: BillingQuoteExtraExpenseLine[] = [];
+  for (const expense of log.expense_lines ?? []) {
+    if (resolveExpenseBillingMode(expense) !== 'customer_only') continue;
+    if (!expenseExtraBillingAllowed(expense)) continue;
+    const qty = Number(expense.qty) || 0;
+    const purchase = resolveExpensePurchaseUnitPrice(expense);
+    if (!(qty > 0) || purchase == null || !(purchase > 0)) continue;
+    const customerRaw = expense.customer_unit_price != null ? Number(expense.customer_unit_price) : null;
+    const customerUnit =
+      customerRaw != null && customerRaw > 0
+        ? customerRaw
+        : computeSupplyCustomerUnitPrice(purchase, resolveSupplyMarginPercent(expense));
+    if (!(customerUnit > 0)) continue;
+    lines.push({
+      id: `${log.id}:expense:${expense.id}`,
+      description: String(expense.description ?? '').trim() || 'Tarvike',
+      qty,
+      customer_unit_price: customerUnit,
+      purchase_unit_price: purchase,
+      bill_to_partner: false,
+    });
+  }
+  return lines;
+}
+
 export function extraCustomerWorkFromDailyLogs(
   logs: WorkReportDailyLog[],
 ): BillingQuoteExtraCustomerWork[] {
@@ -198,15 +231,36 @@ export function extraCustomerWorkFromDailyLogs(
             },
           ]
         : undefined;
+    const expenseLineExtras = extraExpenseLinesFromLogExpenseRows(log);
     works.push({
       id: log.id,
       work_date: log.log_date.slice(0, 10),
       description: extra.description ?? '',
       hours: extra.hours ?? 0,
       hourly_rate: extra.hourly_rate ?? null,
-      expense_lines: expenseLines,
+      expense_lines: expenseLines
+        ? [...expenseLines, ...expenseLineExtras]
+        : expenseLineExtras.length > 0
+          ? expenseLineExtras
+          : undefined,
     });
   }
+
+  for (const log of logs) {
+    const extra = parseDailyLogCustomerExtraBilling(log.customer_extra_billing);
+    if (dailyLogCustomerExtraBillingHasData(extra)) continue;
+    const expenseLineExtras = extraExpenseLinesFromLogExpenseRows(log);
+    if (expenseLineExtras.length === 0) continue;
+    works.push({
+      id: `${log.id}:supply-extras`,
+      work_date: log.log_date.slice(0, 10),
+      description: 'Lisätarvikkeet',
+      hours: 0,
+      hourly_rate: null,
+      expense_lines: expenseLineExtras,
+    });
+  }
+
   return works;
 }
 
@@ -249,9 +303,39 @@ export function computeQuoteExtrasMarginFromLogs(
   let piikkiMaterialCostNet = 0;
 
   for (const log of logs) {
+    const logDate = log.log_date.slice(0, 10);
+
+    for (const expense of log.expense_lines ?? []) {
+      if (resolveExpenseBillingMode(expense) !== 'customer_only') continue;
+      if (!expenseExtraBillingAllowed(expense)) continue;
+      const qty = Number(expense.qty) || 0;
+      const purchase = resolveExpensePurchaseUnitPrice(expense);
+      if (!(qty > 0) || purchase == null || !(purchase > 0)) continue;
+      const customerRaw = expense.customer_unit_price != null ? Number(expense.customer_unit_price) : null;
+      const customerRate =
+        customerRaw != null && customerRaw > 0
+          ? customerRaw
+          : computeSupplyCustomerUnitPrice(purchase, resolveSupplyMarginPercent(expense));
+      const customerNet = lineTotal(qty, customerRate);
+      const partnerNet = 0;
+      const piikkiCostNet = lineTotal(qty, purchase);
+      const marginNet = roundMoney(customerNet - piikkiCostNet);
+      customerExtrasNet += customerNet;
+      piikkiMaterialCostNet += piikkiCostNet;
+      lines.push({
+        logId: log.id,
+        logDate,
+        kind: 'extra_supply',
+        description: String(expense.description ?? '').trim() || 'Tarvike',
+        customerNet,
+        partnerNet,
+        piikkiCostNet,
+        marginNet,
+      });
+    }
+
     const extra = parseDailyLogCustomerExtraBilling(log.customer_extra_billing);
     if (!dailyLogCustomerExtraBillingHasData(extra)) continue;
-    const logDate = log.log_date.slice(0, 10);
 
     const hours = Number(extra.hours) || 0;
     if (hours > 0) {

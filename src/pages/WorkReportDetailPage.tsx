@@ -181,15 +181,20 @@ import { loadTripDestinationOptions, type TripDestinationOption } from '../lib/t
 import {
   fetchWorkReportDetailLogs,
   isMissingBillToPartnerColumn,
+  isMissingExpenseExtraBillingColumn,
 } from '../lib/workReportDailyLogSelect';
 import {
   applyExpenseBillingMode,
   applyTripBillingToExpenses,
   computeCustomerPriceFromPartnerCost,
+  computeSupplyCustomerUnitPrice,
   DEFAULT_PARTNER_EXPENSE_MARGIN_PERCENT,
+  DEFAULT_SUPPLY_MARGIN_PERCENT,
   expenseBillingSummaryLabel,
   expensePurchaseLineTotal,
+  expenseSupplyExtraBillingLabel,
   inferPartnerExpenseMarginPercent,
+  inferSupplyMarginPercent,
   resolveExpenseBillingMode,
   resolveTripBillingFromExpenses,
   tripLegsBillToCustomer,
@@ -261,6 +266,8 @@ type ExpenseDraft = {
   bill_to_customer: boolean;
   customer_unit_price: string;
   partner_expense_margin_percent: string;
+  customer_margin_percent: string;
+  extra_billing_allowed: boolean;
 };
 
 const REPORT_SELECT = `
@@ -288,10 +295,12 @@ function emptyExpense(): ExpenseDraft {
     description: '',
     qty: '1',
     unit_price: '',
-    bill_to_partner: true,
-    bill_to_customer: true,
+    bill_to_partner: false,
+    bill_to_customer: false,
     customer_unit_price: '',
     partner_expense_margin_percent: String(DEFAULT_PARTNER_EXPENSE_MARGIN_PERCENT),
+    customer_margin_percent: String(DEFAULT_SUPPLY_MARGIN_PERCENT),
+    extra_billing_allowed: false,
   };
 }
 
@@ -306,10 +315,30 @@ function syncExpenseCustomerPriceFromPartner(row: ExpenseDraft): ExpenseDraft {
   };
 }
 
+function syncExpenseCustomerPriceFromPurchase(row: ExpenseDraft): ExpenseDraft {
+  if (resolveExpenseBillingMode(row) !== 'customer_only') return row;
+  if (!row.extra_billing_allowed) {
+    return { ...row, bill_to_customer: false, customer_unit_price: '' };
+  }
+  const purchase = Number(row.unit_price);
+  if (!(purchase > 0)) {
+    return { ...row, bill_to_customer: true, customer_unit_price: '' };
+  }
+  const margin = Number(row.customer_margin_percent) || DEFAULT_SUPPLY_MARGIN_PERCENT;
+  return {
+    ...row,
+    bill_to_customer: true,
+    customer_unit_price: String(computeSupplyCustomerUnitPrice(purchase, margin)),
+  };
+}
+
 function patchExpenseDraft(row: ExpenseDraft, patch: Partial<ExpenseDraft>): ExpenseDraft {
   const next = { ...row, ...patch };
   if (resolveExpenseBillingMode(next) === 'partner_and_customer') {
     return syncExpenseCustomerPriceFromPartner(next);
+  }
+  if (resolveExpenseBillingMode(next) === 'customer_only') {
+    return syncExpenseCustomerPriceFromPurchase(next);
   }
   return next;
 }
@@ -402,10 +431,21 @@ function expensesToDrafts(lines: WorkReportDailyLog['expense_lines']): ExpenseDr
       line.customer_unit_price != null && Number(line.customer_unit_price) > 0
         ? Number(line.customer_unit_price)
         : null;
+    const isCustomerOnly = line.bill_to_partner === false && line.bill_to_customer !== false;
+    const purchaseUnit = isCustomerOnly ? unitPrice : unitPrice;
     const margin =
-      unitPrice > 0 && customerPrice != null && customerPrice > 0
-        ? inferPartnerExpenseMarginPercent(unitPrice, customerPrice)
-        : DEFAULT_PARTNER_EXPENSE_MARGIN_PERCENT;
+      line.customer_margin_percent != null && Number.isFinite(Number(line.customer_margin_percent))
+        ? Number(line.customer_margin_percent)
+        : isCustomerOnly && customerPrice != null && customerPrice > 0 && purchaseUnit > 0
+          ? inferSupplyMarginPercent(purchaseUnit, customerPrice)
+          : isCustomerOnly
+            ? DEFAULT_SUPPLY_MARGIN_PERCENT
+            : unitPrice > 0 && customerPrice != null && customerPrice > 0
+              ? inferPartnerExpenseMarginPercent(unitPrice, customerPrice)
+              : DEFAULT_PARTNER_EXPENSE_MARGIN_PERCENT;
+    const extraBillingAllowed =
+      line.extra_billing_allowed === true
+      || (isCustomerOnly && customerPrice != null && customerPrice > 0 && line.bill_to_customer !== false);
     return {
       key: line.id,
       expense_type: line.expense_type,
@@ -416,7 +456,11 @@ function expensesToDrafts(lines: WorkReportDailyLog['expense_lines']): ExpenseDr
       bill_to_customer: line.bill_to_customer !== false,
       customer_unit_price:
         customerPrice != null && customerPrice > 0 ? String(customerPrice) : '',
-      partner_expense_margin_percent: String(margin),
+      partner_expense_margin_percent: String(
+        isCustomerOnly ? DEFAULT_PARTNER_EXPENSE_MARGIN_PERCENT : margin,
+      ),
+      customer_margin_percent: String(isCustomerOnly ? margin : DEFAULT_SUPPLY_MARGIN_PERCENT),
+      extra_billing_allowed: extraBillingAllowed,
     };
   });
 }
@@ -452,6 +496,8 @@ function expenseRowSectionTitle(
   ) {
     parts.push(`hankinta ${expensePurchaseLineTotal(row).toFixed(2)} €`);
   }
+  const supplyLabel = expenseSupplyExtraBillingLabel(row);
+  if (supplyLabel) parts.push(supplyLabel);
   const billingLabel = expenseBillingSummaryLabel(row, {
     showPartner,
     showCustomer,
@@ -948,8 +994,20 @@ function DailyLogFields({
               const updateExpenseRow = (nextRow: ExpenseDraft) =>
                 setExpenseDrafts(expenseDrafts.map((r, i) => (i === index ? nextRow : r)));
               const applyBillingMode = (mode: ExpenseBillingMode) => {
-                const next = applyExpenseBillingMode(row, mode);
-                updateExpenseRow(mode === 'partner_and_customer' ? syncExpenseCustomerPriceFromPartner(next) : next);
+                let next = applyExpenseBillingMode(row, mode);
+                if (mode === 'customer_only') {
+                  next = {
+                    ...next,
+                    bill_to_partner: false,
+                    extra_billing_allowed: next.extra_billing_allowed ?? false,
+                    customer_margin_percent:
+                      next.customer_margin_percent || String(DEFAULT_SUPPLY_MARGIN_PERCENT),
+                  };
+                  next = syncExpenseCustomerPriceFromPurchase(next);
+                } else if (mode === 'partner_and_customer') {
+                  next = syncExpenseCustomerPriceFromPartner(next);
+                }
+                updateExpenseRow(next);
               };
               const partnerCustomerPreview =
                 billingMode === 'partner_and_customer' && Number(row.customer_unit_price) > 0
@@ -1022,6 +1080,134 @@ function DailyLogFields({
                         <p className="expense-billing-panel-title">Laskutus</p>
                         <div className="expense-billing-choices">
                           <label
+                            className={`expense-billing-choice${billingMode === 'customer_only' ? ' is-selected' : ''}`}
+                          >
+                            <input
+                              type="radio"
+                              name={`expense_billing_${row.key}`}
+                              checked={billingMode === 'customer_only'}
+                              disabled={autoTripKm}
+                              onChange={() => applyBillingMode('customer_only')}
+                            />
+                            <span className="expense-billing-choice-text">
+                              <strong>Osto kumppanin piikillä</strong>
+                              <span className="muted">
+                                Hankintahinta on se mitä on — asiakashinta lasketaan hankinnasta + kate.
+                              </span>
+                            </span>
+                          </label>
+                          {billingMode === 'customer_only' && (
+                            <div className="expense-billing-fields">
+                              <div className="expense-price-pair">
+                                <label>
+                                  Hankintahinta (€)
+                                  <input
+                                    type="number"
+                                    step="0.01"
+                                    min="0"
+                                    value={row.unit_price}
+                                    readOnly={autoTripKm}
+                                    disabled={autoTripKm}
+                                    onChange={(e) =>
+                                      updateExpenseRow(patchExpenseDraft(row, { unit_price: e.target.value }))
+                                    }
+                                    placeholder="Esim. toimittajan lasku"
+                                  />
+                                </label>
+                                <label>
+                                  Kate (%)
+                                  <input
+                                    type="number"
+                                    step="0.1"
+                                    min="0"
+                                    max="99.9"
+                                    value={row.customer_margin_percent}
+                                    readOnly={autoTripKm}
+                                    disabled={autoTripKm || !row.extra_billing_allowed}
+                                    onChange={(e) =>
+                                      updateExpenseRow(
+                                        patchExpenseDraft(row, { customer_margin_percent: e.target.value }),
+                                      )
+                                    }
+                                  />
+                                </label>
+                              </div>
+                              <fieldset className="expense-billing-mode-fieldset">
+                                <legend>Lisälaskutus</legend>
+                                <label className="expense-billing-choice">
+                                  <input
+                                    type="radio"
+                                    name={`expense_extra_billing_${row.key}`}
+                                    checked={!row.extra_billing_allowed}
+                                    disabled={autoTripKm}
+                                    onChange={() =>
+                                      updateExpenseRow(
+                                        patchExpenseDraft(row, { extra_billing_allowed: false }),
+                                      )
+                                    }
+                                  />
+                                  <span className="expense-billing-choice-text">
+                                    <strong>Ei lisälaskutusta</strong>
+                                    <span className="muted">Kuuluu tarjoukseen / syö katetta.</span>
+                                  </span>
+                                </label>
+                                <label className="expense-billing-choice">
+                                  <input
+                                    type="radio"
+                                    name={`expense_extra_billing_${row.key}`}
+                                    checked={row.extra_billing_allowed}
+                                    disabled={autoTripKm}
+                                    onChange={() =>
+                                      updateExpenseRow(
+                                        patchExpenseDraft(row, { extra_billing_allowed: true }),
+                                      )
+                                    }
+                                  />
+                                  <span className="expense-billing-choice-text">
+                                    <strong>Lisälaskutus mahdollinen</strong>
+                                    <span className="muted">Laskutetaan asiakkaalta hankinta + kate.</span>
+                                  </span>
+                                </label>
+                              </fieldset>
+                              {row.extra_billing_allowed ? (
+                                <div className="expense-price-pair">
+                                  <label>
+                                    Asiakashinta (€)
+                                    <input
+                                      type="number"
+                                      step="0.01"
+                                      min="0"
+                                      value={row.customer_unit_price}
+                                      readOnly={autoTripKm}
+                                      disabled={autoTripKm}
+                                      onChange={(e) =>
+                                        updateExpenseRow({ ...row, customer_unit_price: e.target.value })
+                                      }
+                                      placeholder="Lasketaan automaattisesti"
+                                    />
+                                  </label>
+                                </div>
+                              ) : null}
+                              {row.extra_billing_allowed && Number(row.customer_unit_price) > 0 ? (
+                                <p className="muted expense-billing-preview">
+                                  Asiakkaalle laskutettava:{' '}
+                                  <strong>{formatEuro(Number(row.customer_unit_price))}</strong>
+                                  {Number(row.unit_price) > 0 ? (
+                                    <>
+                                      {' '}
+                                      (hankinta {formatEuro(Number(row.unit_price))} + kate{' '}
+                                      {row.customer_margin_percent || DEFAULT_SUPPLY_MARGIN_PERCENT} %)
+                                    </>
+                                  ) : null}
+                                </p>
+                              ) : (
+                                <p className="muted expense-billing-preview">
+                                  Ilman lisälaskutuslupaa hankinta vähennetään katteesta.
+                                </p>
+                              )}
+                            </div>
+                          )}
+                          <label
                             className={`expense-billing-choice${billingMode === 'partner_and_customer' ? ' is-selected' : ''}`}
                           >
                             <input
@@ -1034,7 +1220,7 @@ function DailyLogFields({
                             <span className="expense-billing-choice-text">
                               <strong>Laskutetaan kumppanilta</strong>
                               <span className="muted">
-                                Syötä kumppanille laskutettava hinta — asiakashinta lasketaan katteella.
+                                Harvoin käytössä — kumppanihinta + kate → asiakashinta.
                               </span>
                             </span>
                           </label>
@@ -1092,63 +1278,6 @@ function DailyLogFields({
                                   Täytä kumppanihinta — asiakashinta lasketaan automaattisesti.
                                 </p>
                               )}
-                            </div>
-                          )}
-                          <label
-                            className={`expense-billing-choice${billingMode === 'customer_only' ? ' is-selected' : ''}`}
-                          >
-                            <input
-                              type="radio"
-                              name={`expense_billing_${row.key}`}
-                              checked={billingMode === 'customer_only'}
-                              disabled={autoTripKm}
-                              onChange={() => applyBillingMode('customer_only')}
-                            />
-                            <span className="expense-billing-choice-text">
-                              <strong>Ei laskuteta kumppanilta</strong>
-                              <span className="muted">
-                                Kumppani määrittää asiakkaalle laskutettavan hinnan.
-                              </span>
-                            </span>
-                          </label>
-                          {billingMode === 'customer_only' && (
-                            <div className="expense-billing-fields">
-                              <div className="expense-price-pair">
-                                <label>
-                                  Hankintahinta (€)
-                                  <input
-                                    type="number"
-                                    step="0.01"
-                                    min="0"
-                                    value={row.unit_price}
-                                    readOnly={autoTripKm}
-                                    disabled={autoTripKm}
-                                    onChange={(e) =>
-                                      updateExpenseRow({ ...row, unit_price: e.target.value })
-                                    }
-                                    placeholder="Esim. toimittajan lasku"
-                                  />
-                                </label>
-                                <label>
-                                  Asiakashinta (€)
-                                  <input
-                                    type="number"
-                                    step="0.01"
-                                    min="0"
-                                    value={row.customer_unit_price}
-                                    readOnly={autoTripKm}
-                                    disabled={autoTripKm}
-                                    onChange={(e) =>
-                                      updateExpenseRow({ ...row, customer_unit_price: e.target.value })
-                                    }
-                                    placeholder="Esim. laskutushinta asiakkaalle"
-                                  />
-                                </label>
-                              </div>
-                              <p className="muted expense-billing-preview">
-                                Tulostukseen tulee punainen <span className="billing-price-missing">?</span>, jos
-                                hankinta- tai asiakashinta puuttuu.
-                              </p>
                             </div>
                           )}
                           {showCustomerPrices && (
@@ -1276,10 +1405,13 @@ async function saveExpenseLines(
     (row) => row.description.trim() && (row.expense_type || isAutoTripKmExpense(row)),
   );
   if (validExpenses.length === 0) return null;
-  const buildRows = (includeBillToPartner: boolean) =>
+  const buildRows = (includeBillToPartner: boolean, includeExtraBilling: boolean) =>
     validExpenses.map((row, index) => {
       const customerPriceRaw = String(row.customer_unit_price ?? '').trim();
       const customerUnitPrice = customerPriceRaw ? Number(customerPriceRaw) : null;
+      const marginRaw = String(row.customer_margin_percent ?? '').trim();
+      const customerMargin =
+        marginRaw && Number.isFinite(Number(marginRaw)) ? Number(marginRaw) : null;
       return {
         daily_log_id: dailyLogId,
         expense_type: row.expense_type || 'other',
@@ -1288,6 +1420,15 @@ async function saveExpenseLines(
         unit_price: Number(row.unit_price || 0),
         ...(includeBillToPartner ? { bill_to_partner: row.bill_to_partner } : {}),
         bill_to_customer: row.bill_to_customer,
+        ...(includeExtraBilling
+          ? {
+              extra_billing_allowed: row.extra_billing_allowed === true,
+              customer_margin_percent:
+                customerMargin != null && customerMargin >= 0 && customerMargin < 100
+                  ? customerMargin
+                  : null,
+            }
+          : {}),
         ...(options.includeCustomerFields
           ? {
               customer_unit_price:
@@ -1300,9 +1441,25 @@ async function saveExpenseLines(
       };
     });
 
-  let { error } = await supabase.from('work_report_daily_expense_lines').insert(buildRows(true));
-  if (error && isMissingBillToPartnerColumn(error)) {
-    ({ error } = await supabase.from('work_report_daily_expense_lines').insert(buildRows(false)));
+  const insertAttempts: Array<[boolean, boolean]> = [
+    [true, true],
+    [true, false],
+    [false, true],
+    [false, false],
+  ];
+  let error: import('@supabase/supabase-js').PostgrestError | null = null;
+  for (const [includeBillToPartner, includeExtraBilling] of insertAttempts) {
+    const result = await supabase
+      .from('work_report_daily_expense_lines')
+      .insert(buildRows(includeBillToPartner, includeExtraBilling));
+    error = result.error;
+    if (!error) return null;
+    if (
+      !isMissingExpenseExtraBillingColumn(error)
+      && !isMissingBillToPartnerColumn(error)
+    ) {
+      break;
+    }
   }
   return error;
 }

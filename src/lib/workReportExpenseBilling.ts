@@ -7,6 +7,8 @@ import {
 export type ExpenseBillingMode = 'partner_and_customer' | 'customer_only' | 'included_in_contract';
 
 export const DEFAULT_PARTNER_EXPENSE_MARGIN_PERCENT = DEFAULT_PARTNER_URAKKA_MARGIN_PERCENT;
+/** Tarvikkeiden oletuskate asiakashinnassa (hankinta + kate). */
+export const DEFAULT_SUPPLY_MARGIN_PERCENT = 80;
 
 export function computeCustomerPriceFromPartnerCost(
   partnerCost: number,
@@ -144,7 +146,46 @@ export function sumDailyLogExpensePurchaseNet(
 export type ExpenseBillingFlags = {
   bill_to_partner?: boolean;
   bill_to_customer?: boolean;
+  extra_billing_allowed?: boolean;
+  customer_margin_percent?: number | string | null;
 };
+
+export function expenseExtraBillingAllowed(row: ExpenseBillingFlags): boolean {
+  return row.extra_billing_allowed === true;
+}
+
+export function resolveSupplyMarginPercent(
+  row: Pick<ExpenseBillingFlags, 'customer_margin_percent'>,
+  fallback: number = DEFAULT_SUPPLY_MARGIN_PERCENT,
+): number {
+  const raw = row.customer_margin_percent;
+  const parsed = raw != null && String(raw).trim() !== '' ? Number(raw) : NaN;
+  if (Number.isFinite(parsed) && parsed >= 0 && parsed < 100) return parsed;
+  return fallback;
+}
+
+export function computeSupplyCustomerUnitPrice(
+  purchaseUnit: number,
+  marginPercent?: number,
+): number {
+  const margin = marginPercent ?? DEFAULT_SUPPLY_MARGIN_PERCENT;
+  return computeCustomerPriceFromPartnerCost(purchaseUnit, margin);
+}
+
+export function inferSupplyMarginPercent(
+  purchaseUnit: number,
+  customerUnit: number,
+  fallback: number = DEFAULT_SUPPLY_MARGIN_PERCENT,
+): number {
+  return inferPartnerExpenseMarginPercent(purchaseUnit, customerUnit, fallback);
+}
+
+export function expenseSupplyExtraBillingLabel(row: ExpenseBillingFlags): string | null {
+  if (resolveExpenseBillingMode(row) !== 'customer_only') return null;
+  return expenseExtraBillingAllowed(row)
+    ? 'lisälaskutus mahdollinen'
+    : 'ei lisälaskutusta · syö katetta';
+}
 
 export function resolveExpenseBillingMode(row: ExpenseBillingFlags): ExpenseBillingMode {
   const billToPartner = row.bill_to_partner !== false;
