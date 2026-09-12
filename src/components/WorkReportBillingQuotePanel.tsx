@@ -578,8 +578,8 @@ export default function WorkReportBillingQuotePanel({
                   {quoteBillingEnabled ? (
                     <p className="muted span-2" style={{ margin: 0 }}>
                       Lisälaskutettavat tarvikkeet merkitään päiväkirjassa ruudussa{' '}
-                      <strong>Kulut ja tarvikkeet</strong> valinnalla &quot;Lisälaskutus tarjouksen
-                      päälle&quot;.
+                      <strong>Kulut ja tarvikkeet</strong>: kytkin &quot;Lisälaskutettavissa&quot; ja
+                      erikseen &quot;Lupa lisälaskutukseen&quot;.
                     </p>
                   ) : null}
                 </>
@@ -713,8 +713,8 @@ export default function WorkReportBillingQuotePanel({
 
           {quoteBillingEnabled && !readOnly ? (
             <p className="muted">
-              Lisälaskutus: päiväkirjamerkintä → <strong>Kulut ja tarvikkeet</strong> → valitse
-              lisälaskutus tarjouksen päälle.
+              Lisälaskutus: päiväkirjamerkintä → <strong>Kulut ja tarvikkeet</strong> →
+              lisälaskutettavissa + lupa lisälaskutukseen.
             </p>
           ) : null}
 
