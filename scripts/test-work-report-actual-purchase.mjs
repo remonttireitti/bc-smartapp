@@ -64,7 +64,9 @@ const settings = {
 const merged = mergeActualPurchaseFromWorkReportLogs(settings, logs);
 assert.equal(merged.purchase_lines.length, 2);
 assert.equal(merged.purchase_lines[0].source, 'device');
+assert.equal(merged.purchase_lines[0].label, 'Tarjotut laitteet');
 assert.equal(merged.purchase_lines[0].actual_purchase_net, 22950);
+assert.equal(merged.purchase_lines[1].id, 'group:diary-supplies');
 assert.equal(merged.purchase_lines[1].actual_purchase_net, 190);
 assert.equal(merged.actual_purchase_net, 23140);
 
@@ -90,6 +92,24 @@ const wartilaLogs = [
     ],
   },
 ];
+
+const deviceAdjusted = mergeActualPurchaseFromWorkReportLogs(
+  {
+    purchase_lines: [
+      {
+        id: 'device:dev-1',
+        label: '3 kpl jäähdytyskone',
+        source: 'device',
+        quote_purchase_net: 22896,
+        actual_purchase_net: 22000,
+      },
+    ],
+  },
+  wartilaLogs,
+);
+assert.equal(deviceAdjusted.purchase_lines[0].actual_purchase_net, 22000);
+assert.equal(deviceAdjusted.purchase_lines[1].actual_purchase_net, 364.99);
+assert.equal(deviceAdjusted.actual_purchase_net, 22364.99);
 
 const wartilaMerged = mergeActualPurchaseFromWorkReportLogs(settings, wartilaLogs);
 assert.equal(wartilaMerged.actual_purchase_net, 23314.99);

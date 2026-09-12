@@ -1,6 +1,9 @@
 import type { WorkReportDailyLog } from '../types';
 import { createEmptyMaterial, normalizeQuoteRequestData } from './quoteRequest/defaults';
-import { syncInstallationSupplyRow } from './quoteRequest/installationSupplies';
+import {
+  isOfferedDeviceRow,
+  syncInstallationSupplyRow,
+} from './quoteRequest/installationSupplies';
 import { syncManualDeviceSalePatch } from './quoteRequest/manualDevicePricing';
 import type { QuoteRequestData } from './quoteRequest/types';
 import { sumQuotePurchaseLines, type BillingQuotePurchaseLine } from './quotePurchaseLines';
@@ -27,91 +30,111 @@ function diarySuppliesPurchaseLine(
   };
 }
 
-/** Vanha yksirivinen rakenne: koneet + tarvikkeet samalla rivillä → erottele laite ja päiväkirja. */
+function resolveDeviceActual(line: BillingQuotePurchaseLine): number {
+  const quote = line.quote_purchase_net;
+  const actual = line.actual_purchase_net;
+  if (!(quote > 0.005)) return roundMoney(actual);
+  // Vanha bugi: koko rivi korvautui päiväkirjan summalla.
+  if (actual < quote * 0.5) return roundMoney(quote);
+  return roundMoney(actual);
+}
+
+function deviceLabelFromBundled(label: string): string {
+  const trimmed = label.trim();
+  if (!trimmed || trimmed === 'Tarvikkeet' || trimmed === 'Asennustarvikkeet') {
+    return 'Tarjotut laitteet';
+  }
+  if (/^laitteet\s*·/i.test(trimmed)) return trimmed.replace(/^laitteet\s*·\s*/i, '').trim() || 'Tarjotut laitteet';
+  return trimmed;
+}
+
+/** Vanha yksirivinen rakenne: erottele laite (oikaisettava) ja päiväkirjan tarvikkeet. */
 function splitBundledPurchaseLineIfNeeded(
   lines: BillingQuotePurchaseLine[],
   suppliesActualNet: number,
 ): BillingQuotePurchaseLine[] {
   const deviceLines = lines.filter((line) => line.source === 'device');
-  const supplyLines = lines.filter((line) => line.source !== 'device');
+  const supplyLines = lines.filter(
+    (line) => line.source !== 'device' && line.id !== 'group:diary-supplies',
+  );
 
-  if (deviceLines.length > 0 || suppliesActualNet <= 0.005 || supplyLines.length !== 1) {
+  if (deviceLines.length > 0 || supplyLines.length !== 1) {
     return lines;
   }
 
   const bundled = supplyLines[0];
-  if (bundled.quote_purchase_net <= suppliesActualNet * 1.5) {
+  if (bundled.quote_purchase_net <= suppliesActualNet * 1.5 && suppliesActualNet > 0.005) {
     return lines;
   }
-
-  const deviceActual =
-    bundled.actual_purchase_net > bundled.quote_purchase_net * 0.9
-    && Math.abs(bundled.actual_purchase_net - bundled.quote_purchase_net) < 0.01
-      ? bundled.actual_purchase_net
-      : bundled.quote_purchase_net;
 
   return [
     {
       ...bundled,
       id: bundled.id.startsWith('device:') ? bundled.id : `device:${bundled.id}`,
       source: 'device',
-      label: bundled.label.toLocaleLowerCase('fi').includes('laite')
-        ? bundled.label
-        : `Laitteet · ${bundled.label}`,
-      actual_purchase_net: roundMoney(deviceActual),
+      label: deviceLabelFromBundled(bundled.label),
+      actual_purchase_net: resolveDeviceActual({
+        ...bundled,
+        quote_purchase_net: bundled.quote_purchase_net,
+        actual_purchase_net: bundled.quote_purchase_net,
+      }),
     },
-    diarySuppliesPurchaseLine(suppliesActualNet),
   ];
 }
 
+function quoteSuppliesNetFromLines(lines: BillingQuotePurchaseLine[]): number {
+  return roundMoney(
+    lines
+      .filter((line) => line.source !== 'device' && line.id !== 'group:diary-supplies')
+      .reduce((sum, line) => sum + line.quote_purchase_net, 0),
+  );
+}
+
+/**
+ * Työraportin hankintarivit: laitteet (käsin oikaistava) + tarvikkeet (päiväkirjasta).
+ * Tarjouksen tarvikerivejä ei toisteta toteutuneena — vain päiväkirjarivi.
+ */
 function assignSuppliesActualToPurchaseLines(
   lines: BillingQuotePurchaseLine[],
   suppliesActualNet: number,
 ): BillingQuotePurchaseLine[] {
-  const supplyLines = lines.filter((line) => line.source !== 'device');
-  if (supplyLines.length === 0) {
-    if (suppliesActualNet <= 0.005) return lines;
-    return [...lines, diarySuppliesPurchaseLine(suppliesActualNet)];
-  }
-  if (suppliesActualNet <= 0.005) return lines;
-
-  if (supplyLines.length === 1) {
-    return lines.map((line) =>
-      line.id === supplyLines[0].id
-        ? { ...line, actual_purchase_net: roundMoney(suppliesActualNet) }
-        : line,
-    );
-  }
-
-  const groupLine =
-    supplyLines.find((line) => line.source === 'group')
-    ?? supplyLines.find((line) => line.id.startsWith('group:'));
-  if (groupLine) {
-    return lines.map((line) =>
-      line.id === groupLine.id
-        ? { ...line, actual_purchase_net: roundMoney(suppliesActualNet) }
-        : line,
-    );
-  }
-
-  const quoteSupplyTotal = roundMoney(
-    supplyLines.reduce((sum, line) => sum + line.quote_purchase_net, 0),
-  );
-  if (quoteSupplyTotal <= 0.005) {
-    return lines.map((line, index) =>
-      line.source !== 'device' && index === lines.findIndex((row) => row.source !== 'device')
-        ? { ...line, actual_purchase_net: roundMoney(suppliesActualNet) }
-        : line,
-    );
-  }
-
-  return lines.map((line) => {
-    if (line.source === 'device') return line;
-    const share = line.quote_purchase_net / quoteSupplyTotal;
-    return {
+  const deviceLines = lines
+    .filter((line) => line.source === 'device')
+    .map((line) => ({
       ...line,
-      actual_purchase_net: roundMoney(suppliesActualNet * share),
-    };
+      actual_purchase_net: resolveDeviceActual(line),
+    }));
+
+  const quoteSuppliesNet = quoteSuppliesNetFromLines(lines);
+  const result: BillingQuotePurchaseLine[] = [...deviceLines];
+
+  if (suppliesActualNet > 0.005 || quoteSuppliesNet > 0.005) {
+    result.push(diarySuppliesPurchaseLine(suppliesActualNet, quoteSuppliesNet));
+  }
+
+  return result;
+}
+
+function preserveDeviceActuals(
+  nextLines: BillingQuotePurchaseLine[],
+  savedLines: BillingQuotePurchaseLine[],
+): BillingQuotePurchaseLine[] {
+  const savedDevices = savedLines.filter((line) => line.source === 'device');
+  const savedById = new Map(savedLines.map((line) => [line.id, line]));
+
+  return nextLines.map((line) => {
+    if (line.source !== 'device') return line;
+    const saved =
+      savedById.get(line.id)
+      ?? savedDevices.find(
+        (row) => Math.abs(row.quote_purchase_net - line.quote_purchase_net) < 0.01,
+      );
+    if (!saved) return line;
+    const actual = saved.actual_purchase_net;
+    if (Math.abs(actual - line.quote_purchase_net) > 0.005) {
+      return { ...line, actual_purchase_net: roundMoney(actual) };
+    }
+    return line;
   });
 }
 
@@ -130,7 +153,10 @@ export function mergeActualPurchaseFromWorkReportLogs(
   }
 
   const splitLines = splitBundledPurchaseLineIfNeeded(lines, analysis.suppliesNet);
-  const nextLines = assignSuppliesActualToPurchaseLines(splitLines, analysis.suppliesNet);
+  const nextLines = preserveDeviceActuals(
+    assignSuppliesActualToPurchaseLines(splitLines, analysis.suppliesNet),
+    lines,
+  );
   return normalizeBillingQuoteSettings({
     ...settings,
     purchase_lines: nextLines,
@@ -148,27 +174,41 @@ export function patchQuoteRequestDataFromWorkReportActuals(
   const purchaseLines = settings.purchase_lines ?? [];
   const analysis = analyzeWorkReportPurchaseCosts(logs);
   let next: QuoteRequestData = { ...normalized };
+  const existing = [...(next.installationSupplies ?? [])];
 
-  const deviceLine = purchaseLines.find((line) => line.source === 'device');
-  if (
-    deviceLine
-    && Math.abs(deviceLine.actual_purchase_net - deviceLine.quote_purchase_net) > 0.005
-  ) {
-    const patch = syncManualDeviceSalePatch(next, {
-      devicePurchaseOverrideNet: deviceLine.actual_purchase_net,
-    });
-    next = { ...next, ...patch };
+  for (const line of purchaseLines.filter((row) => row.source === 'device')) {
+    const materialId = line.id.startsWith('device:') ? line.id.slice('device:'.length) : null;
+    const materialIndex =
+      materialId != null ? existing.findIndex((row) => row.id === materialId) : -1;
+    if (
+      materialIndex >= 0
+      && Math.abs(line.actual_purchase_net - line.quote_purchase_net) > 0.005
+    ) {
+      const row = existing[materialIndex];
+      const qty = Number(row.quantity) || 1;
+      existing[materialIndex] = syncInstallationSupplyRow(row, {
+        purchasePrice: roundMoney(line.actual_purchase_net / qty),
+      });
+      continue;
+    }
+
+    if (Math.abs(line.actual_purchase_net - line.quote_purchase_net) > 0.005) {
+      const patch = syncManualDeviceSalePatch(next, {
+        devicePurchaseOverrideNet: line.actual_purchase_net,
+      });
+      next = { ...next, ...patch };
+    }
   }
 
   const expenseLines = analysis.lines.filter((line) => line.source === 'expense');
   if (expenseLines.length > 0) {
-    const existing = [...(next.installationSupplies ?? [])];
     const usedIds = new Set<string>();
 
     for (const expense of expenseLines) {
       const match = existing.find(
         (row) =>
           !usedIds.has(row.id)
+          && !isOfferedDeviceRow(row)
           && row.name.trim().toLocaleLowerCase('fi') === expense.description.toLocaleLowerCase('fi'),
       );
       if (match) {
@@ -188,15 +228,16 @@ export function patchQuoteRequestDataFromWorkReportActuals(
             purchasePrice: expense.purchaseUnit,
             sellPrice: 0,
             marginPercent: 25,
+            rowKind: 'supply',
           }),
           { purchasePrice: expense.purchaseUnit },
         ),
       );
     }
+  }
 
-    if (existing.some((row) => row.name.trim())) {
-      next = { ...next, installationSupplies: existing };
-    }
+  if (existing.some((row) => row.name.trim())) {
+    next = { ...next, installationSupplies: existing };
   }
 
   return next;

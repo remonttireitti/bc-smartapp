@@ -353,10 +353,9 @@ export default function WorkReportBillingQuotePanel({
       <div className="table-wrap billing-purchase-lines-wrap">
         <h4 className="billing-breakdown-heading">Hankinta: tarjous vs toteutunut</h4>
         <p className="muted billing-purchase-lines-hint">
-          <strong>Tarjouksen hankinta</strong> on tarjouspyynnön arvio.{' '}
-          <strong>Todellinen hankinta</strong> lasketaan päiväkirjan tarvikkeista ja kuluista (lukuun ottamatta
-          ajokorvauksia). Laitteen hankinta voidaan korjata käsin laskun mukaan. Tallennus päivittää myös
-          tarjouspyynnön hankintahinnat.
+          <strong>Laitteet:</strong> tarjouksen arvio vs toteutunut — syötä oikea hankintahinta laskun mukaan
+          oikaisukenttään. <strong>Tarvikkeet:</strong> toteutunut summa lasketaan automaattisesti päiväkirjan
+          riveistä (ei ajokorvauksia). Tallennus päivittää tarjouspyynnön hankintahinnat.
         </p>
         <table className="billing-table billing-purchase-lines-table">
           <thead>
@@ -384,10 +383,10 @@ export default function WorkReportBillingQuotePanel({
                       </span>
                     ) : null}
                     {line.source === 'device' ? (
-                      <span className="muted"> · laite, korjaa laskun mukaan</span>
+                      <span className="muted"> · oikaisu: toteutunut hankinta</span>
                     ) : null}
                     {fromDailyLog ? (
-                      <span className="muted"> · päiväkirjasta</span>
+                      <span className="muted"> · laskettu päiväkirjasta</span>
                     ) : null}
                   </td>
                   <td className="num">{formatEuro(line.quote_purchase_net)}</td>
