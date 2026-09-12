@@ -256,33 +256,40 @@ export async function fetchWorkReportDetailLogs(
   }
   if (isMissingHoursAgreedRegularColumn(result.error)) {
     includeAgreedRegular = false;
-    result = await run(true, true, true, true, includeAgreedRegular);
+    result = await run(true, true, true, true, includeAgreedRegular, includeExtraBilling);
   }
   if (isMissingPartnerPurchaseInventoryColumn(result.error)) {
-    result = await run(true, true, true, false, includeAgreedRegular);
+    result = await run(true, true, true, false, includeAgreedRegular, includeExtraBilling);
   }
   if (isMissingPartnerPurchaseTable(result.error)) {
-    result = await run(true, true, false, false, includeAgreedRegular);
+    result = await run(true, true, false, false, includeAgreedRegular, includeExtraBilling);
   }
   if (isMissingWarehouseExpenseColumn(result.error)) {
-    result = await run(true, false, !isMissingPartnerPurchaseTable(result.error), false, includeAgreedRegular);
+    result = await run(
+      true,
+      false,
+      !isMissingPartnerPurchaseTable(result.error),
+      false,
+      includeAgreedRegular,
+      includeExtraBilling,
+    );
   }
   if (isMissingPartnerPurchaseTable(result.error)) {
-    result = await run(true, false, false, false, includeAgreedRegular);
+    result = await run(true, false, false, false, includeAgreedRegular, includeExtraBilling);
   }
   if (isMissingBillToPartnerColumn(result.error)) {
-    result = await run(false, true, true, true, includeAgreedRegular);
+    result = await run(false, true, true, true, includeAgreedRegular, includeExtraBilling);
     if (isMissingPartnerPurchaseInventoryColumn(result.error)) {
-      result = await run(false, true, true, false, includeAgreedRegular);
+      result = await run(false, true, true, false, includeAgreedRegular, includeExtraBilling);
     }
     if (isMissingPartnerPurchaseTable(result.error)) {
-      result = await run(false, true, false, false, includeAgreedRegular);
+      result = await run(false, true, false, false, includeAgreedRegular, includeExtraBilling);
     }
     if (isMissingWarehouseExpenseColumn(result.error)) {
-      result = await run(false, false, true, false, includeAgreedRegular);
+      result = await run(false, false, true, false, includeAgreedRegular, includeExtraBilling);
     }
     if (isMissingPartnerPurchaseTable(result.error)) {
-      result = await run(false, false, false, false, includeAgreedRegular);
+      result = await run(false, false, false, false, includeAgreedRegular, includeExtraBilling);
     }
     return {
       logs: (result.data as unknown as WorkReportDailyLog[]) ?? [],
@@ -303,25 +310,49 @@ export async function fetchWorkReportPrintLogs(
   supabase: SupabaseClient,
   workReportId: string,
 ): Promise<{ logs: WorkReportDailyLog[]; error: PostgrestError | null }> {
-  const run = (includeBillToPartner: boolean, includeWarehouse: boolean, includeAgreedRegular = true) =>
+  const run = (
+    includeBillToPartner: boolean,
+    includeWarehouse: boolean,
+    includeAgreedRegular = true,
+    includeExtraBilling = true,
+  ) =>
     supabase
       .from('work_report_daily_logs')
-      .select(buildWorkReportPrintLogSelect(includeBillToPartner, includeWarehouse, includeAgreedRegular))
+      .select(
+        buildWorkReportPrintLogSelect(
+          includeBillToPartner,
+          includeWarehouse,
+          includeAgreedRegular,
+          includeExtraBilling,
+        ),
+      )
       .eq('work_report_id', workReportId)
       .order('log_date', { ascending: true })
       .order('created_at', { ascending: true });
 
-  let result = await run(true, true, true);
+  let includeAgreedRegular = true;
+  let includeExtraBilling = true;
+  let result = await run(true, true, includeAgreedRegular, includeExtraBilling);
+  if (isMissingExpenseExtraBillingColumn(result.error)) {
+    includeExtraBilling = false;
+    result = await run(true, true, includeAgreedRegular, includeExtraBilling);
+  }
   if (isMissingHoursAgreedRegularColumn(result.error)) {
-    result = await run(true, true, false);
+    includeAgreedRegular = false;
+    result = await run(true, true, includeAgreedRegular, includeExtraBilling);
   }
   if (isMissingWarehouseExpenseColumn(result.error)) {
-    result = await run(true, false);
+    result = await run(true, false, includeAgreedRegular, includeExtraBilling);
   }
   if (isMissingBillToPartnerColumn(result.error)) {
-    result = await run(false, isMissingWarehouseExpenseColumn(result.error) ? false : true);
+    result = await run(
+      false,
+      isMissingWarehouseExpenseColumn(result.error) ? false : true,
+      includeAgreedRegular,
+      includeExtraBilling,
+    );
     if (isMissingWarehouseExpenseColumn(result.error)) {
-      result = await run(false, false);
+      result = await run(false, false, includeAgreedRegular, includeExtraBilling);
     }
   }
   return {
@@ -334,24 +365,48 @@ export async function fetchCustomerBillingLogs(
   supabase: SupabaseClient,
   workReportId: string,
 ): Promise<{ logs: WorkReportDailyLog[]; error: PostgrestError | null }> {
-  const run = (includeBillToPartner: boolean, includeWarehouse: boolean, includeAgreedRegular = true) =>
+  const run = (
+    includeBillToPartner: boolean,
+    includeWarehouse: boolean,
+    includeAgreedRegular = true,
+    includeExtraBilling = true,
+  ) =>
     supabase
       .from('work_report_daily_logs')
-      .select(buildCustomerBillingLogSelect(includeBillToPartner, includeWarehouse, includeAgreedRegular))
+      .select(
+        buildCustomerBillingLogSelect(
+          includeBillToPartner,
+          includeWarehouse,
+          includeAgreedRegular,
+          includeExtraBilling,
+        ),
+      )
       .eq('work_report_id', workReportId)
       .order('log_date', { ascending: false });
 
-  let result = await run(true, true, true);
+  let includeAgreedRegular = true;
+  let includeExtraBilling = true;
+  let result = await run(true, true, includeAgreedRegular, includeExtraBilling);
+  if (isMissingExpenseExtraBillingColumn(result.error)) {
+    includeExtraBilling = false;
+    result = await run(true, true, includeAgreedRegular, includeExtraBilling);
+  }
   if (isMissingHoursAgreedRegularColumn(result.error)) {
-    result = await run(true, true, false);
+    includeAgreedRegular = false;
+    result = await run(true, true, includeAgreedRegular, includeExtraBilling);
   }
   if (isMissingWarehouseExpenseColumn(result.error)) {
-    result = await run(true, false);
+    result = await run(true, false, includeAgreedRegular, includeExtraBilling);
   }
   if (isMissingBillToPartnerColumn(result.error)) {
-    result = await run(false, isMissingWarehouseExpenseColumn(result.error) ? false : true);
+    result = await run(
+      false,
+      isMissingWarehouseExpenseColumn(result.error) ? false : true,
+      includeAgreedRegular,
+      includeExtraBilling,
+    );
     if (isMissingWarehouseExpenseColumn(result.error)) {
-      result = await run(false, false);
+      result = await run(false, false, includeAgreedRegular, includeExtraBilling);
     }
   }
   return {
