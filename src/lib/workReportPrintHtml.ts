@@ -3,6 +3,7 @@ import {
   expenseCustomerPriceMissing,
   expenseExtraBillingAllowed,
   expensePrintBillingNote,
+  expenseSupplyExtraBillingLabel,
   expensePurchaseLineTotal,
   expensePurchasePriceMissing,
   resolveExpensePurchaseUnitPrice,
@@ -624,9 +625,12 @@ export function generateWorkReportPrintHtml(input: {
               const purchaseCell = purchaseMissing
                 ? `hankinta <span class="billing-price-missing">?</span>`
                 : `hankinta ${qty} × ${formatEuro(purchaseUnit)} = ${formatEuro(purchaseTotal)}`;
+              const supplyExtraLabel = expenseSupplyExtraBillingLabel(line);
               const customerCell =
                 customerQuoteBased && !expenseExtraBillingAllowed(line)
-                  ? ' · <span class="muted">kuuluu tarjoukseen</span>'
+                  ? supplyExtraLabel
+                    ? ` · <span class="muted">${supplyExtraLabel}</span>`
+                    : ' · <span class="muted">kuuluu tarjoukseen</span>'
                   : customerMissing
                     ? ` · asiakas <span class="billing-price-missing">?</span>`
                     : ` · asiakas ${qty} × ${formatEuro(customerUnit)} = ${formatEuro(customerTotal)}`;

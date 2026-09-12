@@ -11257,6 +11257,32 @@ a.tile.customer-document-tile:hover {
   color: var(--text-muted);
 }
 
+.expense-extra-billing-toggles {
+  display: grid;
+  gap: 0.75rem;
+  padding: 0.75rem 0 0.25rem;
+  border-top: 1px solid var(--border);
+}
+
+.expense-extra-billing-toggle-row {
+  display: grid;
+  grid-template-columns: minmax(12rem, auto) 1fr;
+  gap: 0.5rem 1rem;
+  align-items: start;
+}
+
+.expense-extra-billing-toggle-hint {
+  margin: 0.15rem 0 0;
+  font-size: 0.85rem;
+  line-height: 1.4;
+}
+
+@media (max-width: 640px) {
+  .expense-extra-billing-toggle-row {
+    grid-template-columns: 1fr;
+  }
+}
+
 .expense-row-auto {
   background: var(--bg-muted);
   border-radius: 8px;

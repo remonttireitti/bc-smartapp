@@ -121,7 +121,9 @@ export type DailyExpenseLine = {
   bill_to_partner?: boolean;
   bill_to_customer?: boolean;
   customer_unit_price?: number | null;
-  /** Kun true, tarvike laskutetaan asiakkaalta tarjouksen päälle (hankinta + kate). */
+  /** Kun true, tarvike voi olla lisälaskutettavissa tarjouksen päälle. */
+  extra_billable?: boolean;
+  /** Kun true (ja extra_billable), lupa lisälaskutukseen on saatu — laskutetaan asiakkaalta. */
   extra_billing_allowed?: boolean;
   customer_margin_percent?: number | null;
   warehouse_company_id?: string | null;

@@ -150,12 +150,23 @@ export function sumDailyLogExpensePurchaseNet(
 export type ExpenseBillingFlags = {
   bill_to_partner?: boolean;
   bill_to_customer?: boolean;
+  extra_billable?: boolean;
   extra_billing_allowed?: boolean;
   customer_margin_percent?: number | string | null;
 };
 
-export function expenseExtraBillingAllowed(row: ExpenseBillingFlags): boolean {
+/** Tarvike voi olla lisälaskutettavissa (ei sama kuin lupa). */
+export function expenseExtraBillable(
+  row: ExpenseBillingFlags,
+): boolean {
+  if (row.extra_billable === true) return true;
+  if (row.extra_billable === false) return false;
   return row.extra_billing_allowed === true;
+}
+
+/** Lupa lisälaskutukseen on saatu ja rivi laskutetaan asiakkaalta. */
+export function expenseExtraBillingAllowed(row: ExpenseBillingFlags): boolean {
+  return expenseExtraBillable(row) && row.extra_billing_allowed === true;
 }
 
 export function resolveSupplyMarginPercent(
@@ -193,9 +204,9 @@ export function inferSupplyMarginPercent(
 
 export function expenseSupplyExtraBillingLabel(row: ExpenseBillingFlags): string | null {
   if (resolveExpenseBillingMode(row) !== 'customer_only') return null;
-  return expenseExtraBillingAllowed(row)
-    ? 'lisälaskutus mahdollinen'
-    : 'ei lisälaskutusta · syö katetta';
+  if (!expenseExtraBillable(row)) return 'kuuluu tarjoukseen · syö katetta';
+  if (!row.extra_billing_allowed) return 'lisälaskutettavissa · ei lupaa';
+  return 'lisälaskutus luvalla';
 }
 
 export function resolveExpenseBillingMode(row: ExpenseBillingFlags): ExpenseBillingMode {
@@ -250,12 +261,13 @@ export function expensePrintBillingNote(
   options: { showPartner: boolean; showCustomer: boolean },
 ): string {
   if (expenseIncludedInContract(row)) return ' · kuulu urakkaan · ei veloiteta';
+  const supplyExtraLabel = expenseSupplyExtraBillingLabel(row);
   if (options.showPartner && row.bill_to_partner === false && row.bill_to_customer !== false) {
-    return ' · ei laskuteta kumppanilta';
+    return supplyExtraLabel ? ` · ${supplyExtraLabel}` : ' · ei laskuteta kumppanilta';
   }
   if (options.showPartner && row.bill_to_partner === false) return ' · ei veloiteta';
   if (options.showCustomer && row.bill_to_customer === false) return ' · ei laskuteta asiakkaalta';
-  return '';
+  return supplyExtraLabel ? ` · ${supplyExtraLabel}` : '';
 }
 
 export function findAutoTripKmExpense<T extends ExpenseBillingFlags & { key?: string; expense_type?: string; description?: string }>(

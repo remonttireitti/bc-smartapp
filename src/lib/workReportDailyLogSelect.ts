@@ -12,7 +12,7 @@ export const EXPENSE_LINE_FIELDS_WITH_WAREHOUSE =
   'id, daily_log_id, expense_type, description, qty, unit_price, bill_to_partner, bill_to_customer, customer_unit_price, warehouse_company_id, warehouse_cost_deducted, sort_order';
 
 export const EXPENSE_LINE_FIELDS_WITH_EXTRA_BILLING =
-  'id, daily_log_id, expense_type, description, qty, unit_price, bill_to_partner, bill_to_customer, customer_unit_price, extra_billing_allowed, customer_margin_percent, warehouse_company_id, warehouse_cost_deducted, sort_order';
+  'id, daily_log_id, expense_type, description, qty, unit_price, bill_to_partner, bill_to_customer, customer_unit_price, extra_billable, extra_billing_allowed, customer_margin_percent, warehouse_company_id, warehouse_cost_deducted, sort_order';
 
 export function isMissingHoursAgreedRegularColumn(error: PostgrestError | null | undefined): boolean {
   if (!error?.message) return false;
@@ -40,7 +40,9 @@ export function isMissingExpenseExtraBillingColumn(error: PostgrestError | null 
   if (!error?.message) return false;
   const msg = error.message.toLowerCase();
   return (
-    (msg.includes('extra_billing_allowed') || msg.includes('customer_margin_percent')) &&
+    (msg.includes('extra_billable')
+      || msg.includes('extra_billing_allowed')
+      || msg.includes('customer_margin_percent')) &&
     (msg.includes('does not exist') ||
       msg.includes('could not find') ||
       msg.includes('schema cache'))
