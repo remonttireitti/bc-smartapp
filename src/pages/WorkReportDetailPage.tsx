@@ -193,11 +193,10 @@ import {
   applyExpenseBillingMode,
   applyTripBillingToExpenses,
   computeCustomerPriceFromPartnerCost,
-  computeSupplyCustomerUnitPrice,
   DEFAULT_PARTNER_EXPENSE_MARGIN_PERCENT,
   DEFAULT_SUPPLY_MARGIN_PERCENT,
   expenseBillingSummaryLabel,
-  expenseExtraBillingAllowed,
+  syncSupplyExpenseCustomerPrice,
   expensePurchaseLineTotal,
   expenseSupplyExtraBillingLabel,
   inferPartnerExpenseMarginPercent,
@@ -324,30 +323,13 @@ function syncExpenseCustomerPriceFromPartner(row: ExpenseDraft): ExpenseDraft {
   };
 }
 
-function syncExpenseCustomerPriceFromPurchase(row: ExpenseDraft): ExpenseDraft {
-  if (resolveExpenseBillingMode(row) !== 'customer_only') return row;
-  if (!expenseExtraBillingAllowed(row)) {
-    return { ...row, bill_to_customer: false, customer_unit_price: '' };
-  }
-  const purchase = Number(row.unit_price);
-  if (!(purchase > 0)) {
-    return { ...row, bill_to_customer: true, customer_unit_price: '' };
-  }
-  const margin = Number(row.customer_margin_percent) || DEFAULT_SUPPLY_MARGIN_PERCENT;
-  return {
-    ...row,
-    bill_to_customer: true,
-    customer_unit_price: String(computeSupplyCustomerUnitPrice(purchase, margin)),
-  };
-}
-
 function patchExpenseDraft(row: ExpenseDraft, patch: Partial<ExpenseDraft>): ExpenseDraft {
   const next = { ...row, ...patch };
   if (resolveExpenseBillingMode(next) === 'partner_and_customer') {
     return syncExpenseCustomerPriceFromPartner(next);
   }
   if (resolveExpenseBillingMode(next) === 'customer_only') {
-    return syncExpenseCustomerPriceFromPurchase(next);
+    return syncSupplyExpenseCustomerPrice(next);
   }
   return next;
 }
@@ -1096,7 +1078,7 @@ function DailyLogFields({
                     customer_margin_percent:
                       next.customer_margin_percent || String(DEFAULT_SUPPLY_MARGIN_PERCENT),
                   };
-                  next = syncExpenseCustomerPriceFromPurchase(next);
+                  next = syncSupplyExpenseCustomerPrice(next);
                 } else if (mode === 'partner_and_customer') {
                   next = syncExpenseCustomerPriceFromPartner(next);
                 }

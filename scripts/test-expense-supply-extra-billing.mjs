@@ -5,6 +5,8 @@ import {
   expenseExtraBillable,
   expenseExtraBillingAllowed,
   expenseSupplyExtraBillingLabel,
+  resolveExpenseBillingMode,
+  syncSupplyExpenseCustomerPrice,
 } from '../src/lib/workReportExpenseBilling.ts';
 import {
   extraCustomerWorkFromDailyLogs,
@@ -45,6 +47,19 @@ assert.equal(
 assert.equal(expenseExtraBillable({ extra_billable: true, extra_billing_allowed: false }), true);
 assert.equal(expenseExtraBillingAllowed({ extra_billable: true, extra_billing_allowed: false }), false);
 assert.equal(expenseExtraBillingAllowed({ extra_billable: true, extra_billing_allowed: true }), true);
+
+const pendingPiikki = syncSupplyExpenseCustomerPrice({
+  bill_to_partner: false,
+  bill_to_customer: true,
+  unit_price: '50',
+  customer_unit_price: '90',
+  extra_billable: true,
+  extra_billing_allowed: false,
+  customer_margin_percent: '80',
+});
+assert.equal(resolveExpenseBillingMode(pendingPiikki), 'customer_only');
+assert.equal(pendingPiikki.bill_to_customer, true);
+assert.equal(pendingPiikki.customer_unit_price, '');
 
 const logs = [
   {

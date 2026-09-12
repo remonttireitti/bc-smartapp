@@ -209,6 +209,29 @@ export function expenseSupplyExtraBillingLabel(row: ExpenseBillingFlags): string
   return 'lisälaskutus luvalla';
 }
 
+/** Päivittää piikkiostorivin asiakashinnan — ei muuta laskutustilaa (bill_to_*). */
+export function syncSupplyExpenseCustomerPrice<
+  T extends ExpenseBillingFlags & {
+    unit_price?: number | string | null;
+    customer_unit_price?: number | string | null;
+    customer_margin_percent?: number | string | null;
+  },
+>(row: T): T {
+  if (resolveExpenseBillingMode(row) !== 'customer_only') return row;
+  if (!expenseExtraBillingAllowed(row)) {
+    return { ...row, customer_unit_price: '' };
+  }
+  const purchase = Number(row.unit_price);
+  if (!(purchase > 0)) {
+    return { ...row, customer_unit_price: '' };
+  }
+  const margin = resolveSupplyMarginPercent(row);
+  return {
+    ...row,
+    customer_unit_price: String(computeSupplyCustomerUnitPrice(purchase, margin)),
+  };
+}
+
 export function resolveExpenseBillingMode(row: ExpenseBillingFlags): ExpenseBillingMode {
   const billToPartner = row.bill_to_partner !== false;
   const billToCustomer = row.bill_to_customer !== false;
