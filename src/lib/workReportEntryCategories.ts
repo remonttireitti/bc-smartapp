@@ -1,7 +1,9 @@
 import type { QuoteCategoryKey } from './quoteCategoryComparison';
 import type { BillableCalculation, BillableLine } from './workReportBilling';
 import { billableLineDisplayTotal } from './workReportBilling';
+import { parseDailyLogCustomerExtraBilling } from './dailyLogCustomerExtraBilling';
 import { expenseCountsAsWorkReportPurchase } from './workReportActualPurchase';
+import { resolveLogExpenseExtraBillingFlags } from './workReportExpenseBilling';
 import {
   expensePurchaseLineTotal,
   resolveExpenseBillingMode,
@@ -151,8 +153,13 @@ export function collectWorkReportCategoryEntries(
       });
     }
 
-    for (const expense of log.expense_lines ?? []) {
-      if (!expenseCountsAsWorkReportPurchase(expense)) continue;
+    const supplyLineFlags = parseDailyLogCustomerExtraBilling(log.customer_extra_billing).supply_line_flags;
+    const expenseLines = log.expense_lines ?? [];
+
+    for (let index = 0; index < expenseLines.length; index++) {
+      const expense = expenseLines[index];
+      const extraBilling = resolveLogExpenseExtraBillingFlags(expense, index, expenseLines, supplyLineFlags);
+      if (!expenseCountsAsWorkReportPurchase(expense, extraBilling)) continue;
       const total = expensePurchaseLineTotal(expense);
       if (total <= 0.005) continue;
       entries.push({

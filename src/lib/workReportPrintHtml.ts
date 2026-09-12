@@ -3,12 +3,12 @@ import {
   APPROVED_EXTRA_BILLING_CUSTOMER_PRINT_LABEL,
   expenseApprovedExtraBillingCustomerPrintLabel,
   expenseCustomerPriceMissing,
-  expenseExtraBillingAllowed,
   expensePrintBillingNote,
   formatExpenseSupplyExtraBillingMarginNote,
   expensePurchaseLineTotal,
   expensePurchasePriceMissing,
   resolveExpensePurchaseUnitPrice,
+  resolveLogExpenseExtraBillingFlags,
 } from './workReportExpenseBilling';
 import { computeBasicWorkReportNetMargin } from './workReportBasicNetMargin';
 import {
@@ -27,6 +27,7 @@ import {
   formatExtraBillingMarginImpactCell,
   hoursApprovedExtraBillingCustomerPrintLabel,
   hoursExtraBillingLabel,
+  parseDailyLogCustomerExtraBilling,
 } from './dailyLogCustomerExtraBilling';
 import {
   billingQuoteHasData,
@@ -627,10 +628,12 @@ export function generateWorkReportPrintHtml(input: {
   const logSections = logs
     .map((log) => {
       const expenses = log.expense_lines ?? [];
+      const supplyLineFlags = parseDailyLogCustomerExtraBilling(log.customer_extra_billing).supply_line_flags;
       const refrigerantLines = log.refrigerant_lines ?? [];
       const showCustomerExpensePrices = showCustomerPricesInPrint;
       const expenseRows = expenses
-        .map((line) => {
+        .map((line, index) => {
+          const extraBilling = resolveLogExpenseExtraBillingFlags(line, index, expenses, supplyLineFlags);
           const label = EXPENSE_TYPE_LABELS[line.expense_type] ?? line.expense_type;
           const descriptionForPrint =
             printMode === 'customer'
@@ -660,11 +663,11 @@ export function generateWorkReportPrintHtml(input: {
                 : `hankinta ${qty} × ${formatEuro(purchaseUnit)} = ${formatEuro(purchaseTotal)}`;
               const supplyExtraLabel = formatExpenseSupplyExtraBillingMarginNote(line, formatEuro);
               const customerCell =
-                customerQuoteBased && !expenseExtraBillingAllowed(line)
+                customerQuoteBased && !extraBilling.extra_billing_allowed
                   ? supplyExtraLabel
                     ? ` · <span class="muted">${esc(supplyExtraLabel)}</span>`
                     : ' · <span class="muted">kuuluu tarjoukseen</span>'
-                  : customerQuoteBased && expenseExtraBillingAllowed(line)
+                  : customerQuoteBased && extraBilling.extra_billing_allowed
                     ? customerMissing
                       ? ` · asiakas <span class="billing-price-missing">?</span>`
                       : ` · asiakas ${qty} × ${formatEuro(customerUnit)} = ${formatEuro(customerTotal)}${supplyExtraLabel ? ` · <span class="muted">${esc(supplyExtraLabel)}</span>` : ''}`

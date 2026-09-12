@@ -218,7 +218,21 @@ export function resolveExpenseExtraBillableFromSources(
   if (line.extra_billable === true) return true;
   if (line.extra_billable === false) return false;
   if (fallback != null) return fallback.extra_billable === true;
-  return line.extra_billing_allowed === true;
+  return false;
+}
+
+export function resolveLogExpenseExtraBillingFlags(
+  line: ExpenseBillingFlags & { expense_type?: string; description?: string | null },
+  lineIndex: number,
+  allLines: Array<{ expense_type?: string; description?: string | null }> | null | undefined,
+  supplyLineFlags?: SupplyLineExtraBillingFlag[] | null,
+): SupplyLineExtraBillingFlag {
+  const fallback = resolveSupplyLineFlagForExpenseLine(line, lineIndex, allLines, supplyLineFlags);
+  return {
+    extra_billable: resolveExpenseExtraBillableFromSources(line, fallback),
+    extra_billing_allowed: resolveExpenseExtraBillingAllowedFromSources(line, fallback),
+    customer_margin_percent: fallback?.customer_margin_percent ?? null,
+  };
 }
 
 export function resolveSupplyLineFlagForExpenseLine(
@@ -259,15 +273,17 @@ export function resolveExpenseExtraBillingAllowedFromSources(
 /** Tarvike voi olla lisälaskutettavissa (ei sama kuin lupa). */
 export function expenseExtraBillable(
   row: ExpenseBillingFlags,
+  fallback?: SupplyLineExtraBillingFlag | null,
 ): boolean {
-  if (row.extra_billable === true) return true;
-  if (row.extra_billable === false) return false;
-  return row.extra_billing_allowed === true;
+  return resolveExpenseExtraBillableFromSources(row, fallback);
 }
 
 /** Lupa lisälaskutukseen on saatu ja rivi laskutetaan asiakkaalta. */
-export function expenseExtraBillingAllowed(row: ExpenseBillingFlags): boolean {
-  return expenseExtraBillable(row) && row.extra_billing_allowed === true;
+export function expenseExtraBillingAllowed(
+  row: ExpenseBillingFlags,
+  fallback?: SupplyLineExtraBillingFlag | null,
+): boolean {
+  return resolveExpenseExtraBillingAllowedFromSources(row, fallback);
 }
 
 export const APPROVED_EXTRA_BILLING_CUSTOMER_PRINT_LABEL = 'Sovitusti laskutettu lisänä';

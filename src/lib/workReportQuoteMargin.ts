@@ -5,10 +5,10 @@ import {
 } from './dailyLogCustomerExtraBilling';
 import { expenseCountsAsWorkReportPurchase } from './workReportActualPurchase';
 import {
-  expenseExtraBillingAllowed,
   expensePurchaseLineTotal,
   resolveExpenseBillingMode,
   resolveExpensePurchaseUnitPrice,
+  resolveLogExpenseExtraBillingFlags,
 } from './workReportExpenseBilling';
 
 function roundMoney(value: number): number {
@@ -41,9 +41,14 @@ export function analyzeMarginEatingExpenses(
       && Number(extra.expense_qty) > 0
       && Number(extra.expense_customer_unit_price) > 0;
 
-    for (const expense of log.expense_lines ?? []) {
+    const supplyLineFlags = parseDailyLogCustomerExtraBilling(log.customer_extra_billing).supply_line_flags;
+    const expenseLines = log.expense_lines ?? [];
+
+    for (let index = 0; index < expenseLines.length; index++) {
+      const expense = expenseLines[index];
       const mode = resolveExpenseBillingMode(expense);
       if (mode === 'partner_and_customer') continue;
+      const extraBilling = resolveLogExpenseExtraBillingFlags(expense, index, expenseLines, supplyLineFlags);
 
       let cost = 0;
       let reason: MarginEatingExpenseLine['reason'] | null = null;
@@ -55,9 +60,9 @@ export function analyzeMarginEatingExpenses(
         cost = unit > 0 && qty > 0 ? lineTotal(qty, unit) : expensePurchaseLineTotal(expense);
         reason = 'included_in_contract';
       } else if (mode === 'customer_only') {
-        if (expenseExtraBillingAllowed(expense)) continue;
+        if (extraBilling.extra_billing_allowed) continue;
         if (hasApprovedExtraExpense) continue;
-        if (expenseCountsAsWorkReportPurchase(expense)) continue;
+        if (expenseCountsAsWorkReportPurchase(expense, extraBilling)) continue;
         cost = expensePurchaseLineTotal(expense);
         reason = 'customer_only_unapproved';
       }

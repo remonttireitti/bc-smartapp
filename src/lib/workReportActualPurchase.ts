@@ -1,10 +1,11 @@
 import type { WorkReportDailyLog } from '../types';
+import { parseDailyLogCustomerExtraBilling } from './dailyLogCustomerExtraBilling';
 import {
-  expenseExtraBillingAllowed,
   expensePurchaseLineTotal,
   expensePurchasePriceMissing,
   resolveExpenseBillingMode,
   resolveExpensePurchaseUnitPrice,
+  resolveLogExpenseExtraBillingFlags,
 } from './workReportExpenseBilling';
 
 function roundMoney(value: number): number {
@@ -60,6 +61,7 @@ function resolveExpenseLinePurchase(
 /** Kulurivi, joka on jo mukana päiväkirjan hankintasummassa — ei toisteta katetta syövissä kuluissa. */
 export function expenseCountsAsWorkReportPurchase(
   expense: NonNullable<WorkReportDailyLog['expense_lines']>[number],
+  extraBilling?: { extra_billable: boolean; extra_billing_allowed: boolean },
 ): boolean {
   if (
     expense.expense_type === 'km'
@@ -75,7 +77,7 @@ export function expenseCountsAsWorkReportPurchase(
   if (mode === 'partner_and_customer') return false;
 
   if (mode === 'customer_only') {
-    if (expenseExtraBillingAllowed(expense)) return false;
+    if (extraBilling?.extra_billing_allowed) return false;
     if (expensePurchasePriceMissing(expense)) return false;
     return expensePurchaseLineTotal(expense) > 0.005;
   }
@@ -94,8 +96,11 @@ export function analyzeWorkReportPurchaseCosts(
 
   for (const log of logs) {
     const logDate = log.log_date.slice(0, 10);
+    const supplyLineFlags = parseDailyLogCustomerExtraBilling(log.customer_extra_billing).supply_line_flags;
+    const expenseLines = log.expense_lines ?? [];
 
-    for (const expense of log.expense_lines ?? []) {
+    for (let index = 0; index < expenseLines.length; index++) {
+      const expense = expenseLines[index];
       if (
         expense.expense_type === 'km'
         && /^Ajomatkat\s*\(/i.test(String(expense.description ?? '').trim())
@@ -103,7 +108,8 @@ export function analyzeWorkReportPurchaseCosts(
         continue;
       }
 
-      if (!expenseCountsAsWorkReportPurchase(expense)) continue;
+      const extraBilling = resolveLogExpenseExtraBillingFlags(expense, index, expenseLines, supplyLineFlags);
+      if (!expenseCountsAsWorkReportPurchase(expense, extraBilling)) continue;
 
       const qty = Number(expense.qty) || 0;
       if (!(qty > 0)) continue;

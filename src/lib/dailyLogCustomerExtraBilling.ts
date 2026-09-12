@@ -4,10 +4,9 @@ import {
   buildSupplyLineFlagsFromExpenseDrafts,
   computeSupplyCustomerUnitPrice,
   APPROVED_EXTRA_BILLING_CUSTOMER_PRINT_LABEL,
-  expenseExtraBillable,
-  expenseExtraBillingAllowed,
   resolveExpenseBillingMode,
   resolveExpensePurchaseUnitPrice,
+  resolveLogExpenseExtraBillingFlags,
   resolveSupplyMarginPercent,
   type SupplyLineExtraBillingFlag,
 } from './workReportExpenseBilling';
@@ -122,7 +121,8 @@ export function dailyLogCustomerExtraBillingHasData(
 ): boolean {
   const parsed = parseDailyLogCustomerExtraBilling(billing ?? {});
   return (
-    hoursExtraBillable(parsed)
+    parsed.hours_extra_billable === false
+    || hoursExtraBillable(parsed)
     || dailyLogCustomerExtraBillingHasExpenseData(parsed)
     || (parsed.supply_line_flags?.length ?? 0) > 0
   );
@@ -135,7 +135,11 @@ export function serializeDailyLogCustomerExtraBilling(
 
   const out: Record<string, unknown> = {};
 
-  if (hoursExtraBillable(billing)) {
+  const parsedHours = parseDailyLogCustomerExtraBilling(billing);
+  if (parsedHours.hours_extra_billable === false) {
+    out.hours_extra_billable = false;
+    out.hours_extra_billing_allowed = false;
+  } else if (hoursExtraBillable(billing)) {
     out.hours_extra_billable = true;
     out.hours_extra_billing_allowed = hoursExtraBillingApproved(billing);
     const hours = resolveExtraBillableHours(billing);
@@ -381,6 +385,9 @@ export function buildCustomerExtraBillingFromLogForm(
         payload.description = form.work_done.trim() || 'Lisätyö';
       }
     }
+  } else {
+    payload.hours_extra_billable = false;
+    payload.hours_extra_billing_allowed = false;
   }
 
   const expenseDescription = form.extra_expense_description.trim();
@@ -445,9 +452,13 @@ export function dailyLogQuoteExtrasSubtitle(form: DailyLogExtraBillingLogForm): 
 
 function extraExpenseLinesFromLogExpenseRows(log: WorkReportDailyLog): BillingQuoteExtraExpenseLine[] {
   const lines: BillingQuoteExtraExpenseLine[] = [];
-  for (const expense of log.expense_lines ?? []) {
+  const supplyLineFlags = parseDailyLogCustomerExtraBilling(log.customer_extra_billing).supply_line_flags;
+  const expenseLines = log.expense_lines ?? [];
+  for (let index = 0; index < expenseLines.length; index++) {
+    const expense = expenseLines[index];
     if (resolveExpenseBillingMode(expense) !== 'customer_only') continue;
-    if (!expenseExtraBillingAllowed(expense)) continue;
+    const extraBilling = resolveLogExpenseExtraBillingFlags(expense, index, expenseLines, supplyLineFlags);
+    if (!extraBilling.extra_billing_allowed) continue;
     const qty = Number(expense.qty) || 0;
     const purchase = resolveExpensePurchaseUnitPrice(expense);
     if (!(qty > 0) || purchase == null || !(purchase > 0)) continue;
@@ -455,7 +466,14 @@ function extraExpenseLinesFromLogExpenseRows(log: WorkReportDailyLog): BillingQu
     const customerUnit =
       customerRaw != null && customerRaw > 0
         ? customerRaw
-        : computeSupplyCustomerUnitPrice(purchase, resolveSupplyMarginPercent(expense));
+        : computeSupplyCustomerUnitPrice(
+            purchase,
+            resolveSupplyMarginPercent({
+              ...expense,
+              customer_margin_percent:
+                extraBilling.customer_margin_percent ?? expense.customer_margin_percent,
+            }),
+          );
     if (!(customerUnit > 0)) continue;
     lines.push({
       id: `${log.id}:expense:${expense.id}`,
@@ -566,10 +584,14 @@ export function computeQuoteExtrasMarginFromLogs(
 
   for (const log of logs) {
     const logDate = log.log_date.slice(0, 10);
+    const supplyLineFlags = parseDailyLogCustomerExtraBilling(log.customer_extra_billing).supply_line_flags;
+    const expenseLines = log.expense_lines ?? [];
 
-    for (const expense of log.expense_lines ?? []) {
+    for (let index = 0; index < expenseLines.length; index++) {
+      const expense = expenseLines[index];
       if (resolveExpenseBillingMode(expense) !== 'customer_only') continue;
-      if (!expenseExtraBillingAllowed(expense)) continue;
+      const extraBilling = resolveLogExpenseExtraBillingFlags(expense, index, expenseLines, supplyLineFlags);
+      if (!extraBilling.extra_billing_allowed) continue;
       const qty = Number(expense.qty) || 0;
       const purchase = resolveExpensePurchaseUnitPrice(expense);
       if (!(qty > 0) || purchase == null || !(purchase > 0)) continue;
@@ -686,9 +708,13 @@ export function collectExtraBillingMarginImpactLines(
 
   for (const log of logs) {
     const logDate = log.log_date.slice(0, 10);
+    const supplyLineFlags = parseDailyLogCustomerExtraBilling(log.customer_extra_billing).supply_line_flags;
+    const expenseLines = log.expense_lines ?? [];
 
-    for (const expense of log.expense_lines ?? []) {
+    for (let index = 0; index < expenseLines.length; index++) {
+      const expense = expenseLines[index];
       if (resolveExpenseBillingMode(expense) !== 'customer_only') continue;
+      const extraBilling = resolveLogExpenseExtraBillingFlags(expense, index, expenseLines, supplyLineFlags);
       const qty = Number(expense.qty) || 0;
       const purchase = resolveExpensePurchaseUnitPrice(expense);
       if (!(qty > 0) || purchase == null || !(purchase > 0)) continue;
@@ -698,12 +724,18 @@ export function collectExtraBillingMarginImpactLines(
       const customerRate =
         customerRaw != null && customerRaw > 0
           ? customerRaw
-          : computeSupplyCustomerUnitPrice(purchase, resolveSupplyMarginPercent(expense));
+          : computeSupplyCustomerUnitPrice(
+              purchase,
+              resolveSupplyMarginPercent({
+                ...expense,
+                customer_margin_percent: extraBilling.customer_margin_percent ?? expense.customer_margin_percent,
+              }),
+            );
       const customerNet = lineTotal(qty, customerRate);
       const piikkiCostNet = lineTotal(qty, purchase);
       const marginIfApprovedNet = roundMoney(customerNet - piikkiCostNet);
 
-      if (expenseExtraBillingAllowed(expense)) {
+      if (extraBilling.extra_billing_allowed) {
         lines.push({
           logId: log.id,
           logDate,
@@ -719,7 +751,7 @@ export function collectExtraBillingMarginImpactLines(
         continue;
       }
 
-      if (!expenseExtraBillable(expense)) continue;
+      if (!extraBilling.extra_billable) continue;
 
       lines.push({
         logId: log.id,

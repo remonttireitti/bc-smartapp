@@ -18,6 +18,7 @@ import {
 import {
   buildCustomerExtraBillingFromLogForm,
   dailyLogCustomerExtraBillingHasData,
+  dailyLogExtraBillingToForm,
   parseDailyLogCustomerExtraBilling,
   serializeDailyLogCustomerExtraBilling,
 } from '../src/lib/dailyLogCustomerExtraBilling.ts';
@@ -98,8 +99,16 @@ assert.match(
   /Lisälaskutettava · kate \+ 40€/,
 );
 assert.equal(expenseExtraBillable({ extra_billable: true, extra_billing_allowed: false }), true);
+assert.equal(expenseExtraBillable({ extra_billable: undefined, extra_billing_allowed: true }), false);
 assert.equal(expenseExtraBillingAllowed({ extra_billable: true, extra_billing_allowed: false }), false);
 assert.equal(expenseExtraBillingAllowed({ extra_billable: true, extra_billing_allowed: true }), true);
+assert.equal(
+  resolveExpenseExtraBillableFromSources(
+    { extra_billable: undefined, extra_billing_allowed: true },
+    null,
+  ),
+  false,
+);
 assert.equal(
   expenseApprovedExtraBillingCustomerPrintLabel({
     extra_billable: true,
@@ -315,6 +324,55 @@ assert.equal(dailyLogCustomerExtraBillingHasData(turnedOffBilling), true);
 assert.equal(turnedOffBilling.supply_line_flags?.[0]?.extra_billable, false);
 const turnedOffSerialized = serializeDailyLogCustomerExtraBilling(turnedOffBilling);
 assert.equal(turnedOffSerialized.supply_line_flags?.[0]?.extra_billable, false);
+
+const turnedOffHours = buildCustomerExtraBillingFromLogForm(
+  {
+    hours_extra_billable: false,
+    hours_extra_billing_allowed: false,
+    hours_extra_hours: '',
+    extra_expense_description: '',
+    extra_expense_qty: '1',
+    extra_expense_customer_price: '',
+    extra_expense_purchase_price: '',
+    extra_expense_partner_billing: 'charge',
+    entry_type: 'regular',
+    hours_regular: '8',
+    hours_overtime: '',
+    hours_on_call: '',
+    work_done: 'Työ',
+    customer_hourly_rate_override: '',
+  },
+  [],
+);
+assert.equal(turnedOffHours.hours_extra_billable, false);
+assert.equal(serializeDailyLogCustomerExtraBilling(turnedOffHours).hours_extra_billable, false);
+assert.equal(
+  dailyLogExtraBillingToForm({
+    hours_extra_billable: false,
+    hours_extra_billing_allowed: false,
+    hours: 5,
+  }).hours_extra_billable,
+  false,
+);
+
+const stalePermissionLine = {
+  expense_type: 'supply',
+  description: 'Tarvike',
+  qty: 1,
+  unit_price: 50,
+  bill_to_partner: false,
+  bill_to_customer: true,
+  extra_billing_allowed: true,
+};
+const stalePermissionFlags = [{ extra_billable: false, extra_billing_allowed: false }];
+assert.equal(
+  resolveExpenseExtraBillableFromSources(stalePermissionLine, stalePermissionFlags[0]),
+  false,
+);
+assert.equal(
+  resolveExpenseExtraBillingAllowedFromSources(stalePermissionLine, stalePermissionFlags[0]),
+  false,
+);
 
 const expenseDrafts = [
   {
