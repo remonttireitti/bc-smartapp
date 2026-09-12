@@ -54,4 +54,34 @@ assert.equal(
   0,
 );
 
+const laborQuote = {
+  ...base,
+  workItems: [],
+  laborHours: 0,
+  installationSupplies: [
+    {
+      id: 'lab-1',
+      name: 'Asennustyö',
+      quantity: 8,
+      purchasePrice: 50,
+      marginPercent: 30,
+      sellPrice: 65,
+      rowKind: 'labor',
+    },
+    {
+      id: 'exp-1',
+      name: 'Km korvaus',
+      quantity: 100,
+      purchasePrice: 0.5,
+      marginPercent: 20,
+      sellPrice: 0.6,
+      rowKind: 'expense',
+    },
+  ],
+};
+
+const laborTotals = computeQuoteInternalTotals(laborQuote, null);
+assert.equal(laborTotals.workSellNet, 520);
+assert.ok(laborTotals.travelSellNet >= 60);
+
 console.log('test-quote-material-row-kind: ok');

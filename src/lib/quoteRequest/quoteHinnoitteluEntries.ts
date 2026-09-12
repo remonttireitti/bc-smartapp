@@ -4,8 +4,6 @@ import {
   quoteUsesTravelCost,
   QUOTE_VAT_PROFILE_LABELS,
 } from './constants';
-import { hasOfferedDeviceRows } from './installationSupplies';
-import { manualDevicePrintLabel, resolveNonPumpDeviceSellNet } from './manualDevicePricing';
 import type { QuoteRequestData } from './types';
 
 import type { QuoteDocumentTileEntry } from './quoteDocumentThemes';
@@ -16,7 +14,6 @@ export type QuoteHinnoitteluTileId =
   | 'iilp-options'
   | 'pump-pricing'
   | 'optional-items'
-  | 'device-pricing'
   | 'validity'
   | 'vat-discount'
   | 'terms'
@@ -40,14 +37,6 @@ function validitySubtitle(form: QuoteRequestData): string {
     return `Km ${form.travelKmDistance} · ${formatEuro(computeTravelNet(form))}`;
   }
   return 'Avaa asetukset';
-}
-
-function devicePricingSubtitle(form: QuoteRequestData): string {
-  const label = manualDevicePrintLabel(form);
-  const sellNet = resolveNonPumpDeviceSellNet(form);
-  if (sellNet > 0) return `${label} · ${formatEuro(sellNet)}`;
-  if (form.deviceBrand?.trim() || form.deviceModel?.trim()) return label;
-  return 'Syötä hankintahinta ja kate';
 }
 
 function vatDiscountSubtitle(form: QuoteRequestData): string {
@@ -101,15 +90,6 @@ export function buildQuoteHinnoitteluTiles(form: QuoteRequestData): QuoteHinnoit
       title: 'Valinnaiset lisät',
       subtitle: `${(form.optionalItems ?? []).filter((item) => item.enabled).length} valittu`,
       themeKey: 'pricing',
-    });
-  }
-
-  if (!isPumpQuoteType(form.type) && !hasOfferedDeviceRows(form.installationSupplies)) {
-    entries.push({
-      id: 'device-pricing',
-      title: 'Laite / urakka',
-      subtitle: devicePricingSubtitle(form),
-      themeKey: 'device',
     });
   }
 

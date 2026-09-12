@@ -6,7 +6,6 @@ import QuoteOptionalItemsSection from './QuoteOptionalItemsSection';
 import QuotePumpDevicesSection from './QuotePumpDevicesSection';
 import QuoteTermsPrintSection from './QuoteTermsPrintSection';
 import QuoteVilpConfigSection from './QuoteVilpConfigSection';
-import { QuoteManualDevicePricingSection } from './QuoteManualDevicePricingSection';
 import { computeTravelNet, resolveIilpLaborPricingMode, travelCostLabel } from '../../lib/quoteRequest/calculations';
 import type { BrandDeliveryFeeByCategoryMap } from '../../data/devicePricingShared';
 import {
@@ -76,10 +75,6 @@ export default function QuoteHinnoitteluDocumentView({
         );
       case 'optional-items':
         return <QuoteOptionalItemsSection form={form} canEdit={canEdit} onChange={onChange} />;
-      case 'device-pricing':
-        return (
-          <QuoteManualDevicePricingSection form={form} canEdit={canEdit} onChange={onChange} hideHeader />
-        );
       case 'validity':
         return (
           <div className="quote-field-grid">

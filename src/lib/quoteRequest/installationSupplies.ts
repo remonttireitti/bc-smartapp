@@ -4,6 +4,23 @@ import type { CompanySettings } from '../management';
 
 export const INSTALLATION_SUPPLIES_PRINT_LABEL = 'Asennus tarvikkeet';
 
+/** Rivityypit — samat kuin työraportin kategoriat (yksikkömuoto). */
+export const QUOTE_MATERIAL_ROW_KINDS: QuoteMaterialRowKind[] = [
+  'labor',
+  'supply',
+  'expense',
+  'device',
+];
+
+export const QUOTE_MATERIAL_ROW_KIND_LABELS: Record<QuoteMaterialRowKind, string> = {
+  labor: 'Työ',
+  supply: 'Tarvike',
+  expense: 'Kulu',
+  device: 'Laite',
+};
+
+const VALID_ROW_KINDS = new Set<QuoteMaterialRowKind>(QUOTE_MATERIAL_ROW_KINDS);
+
 export const DEFAULT_INSTALLATION_LABOR_PURCHASE_RATE = 50;
 export const DEFAULT_INSTALLATION_VEHICLE_ALLOWANCE = 50;
 export const DEFAULT_INSTALLATION_VEHICLE_HOURS_PER_BLOCK = 8;
@@ -54,7 +71,12 @@ export function computeInstallationSupplyMarginPercent(
 }
 
 export function resolveQuoteMaterialRowKind(row: QuoteMaterial): QuoteMaterialRowKind {
-  return row.rowKind === 'device' ? 'device' : 'supply';
+  if (row.rowKind && VALID_ROW_KINDS.has(row.rowKind)) return row.rowKind;
+  return 'supply';
+}
+
+export function quoteMaterialRowKindLabel(kind: QuoteMaterialRowKind): string {
+  return QUOTE_MATERIAL_ROW_KIND_LABELS[kind];
 }
 
 export function isOfferedDeviceRow(row: QuoteMaterial): boolean {
@@ -82,9 +104,20 @@ export function installationSuppliesDeviceSellNet(items: QuoteMaterial[] | undef
   return materialSellTotal(filterInstallationSupplyRows(items, 'device'));
 }
 
-/** Tuotteiden hankinta (ei sisällä työtä tai huoltoautoa). */
+export function installationSuppliesLaborSellNet(items: QuoteMaterial[] | undefined): number {
+  return materialSellTotal(filterInstallationSupplyRows(items, 'labor'));
+}
+
+export function installationSuppliesExpenseSellNet(items: QuoteMaterial[] | undefined): number {
+  return materialSellTotal(filterInstallationSupplyRows(items, 'expense'));
+}
+
+/** Tuotteiden hankinta (tarvike + laite, ei työ/kulu). */
 export function installationSuppliesPurchaseNet(items: QuoteMaterial[] | undefined): number {
-  return materialPurchaseTotal(items ?? []);
+  return roundMoney(
+    installationSuppliesSupplyPurchaseNet(items)
+      + installationSuppliesDevicePurchaseNet(items),
+  );
 }
 
 export function installationSuppliesSupplyPurchaseNet(items: QuoteMaterial[] | undefined): number {
@@ -93,6 +126,23 @@ export function installationSuppliesSupplyPurchaseNet(items: QuoteMaterial[] | u
 
 export function installationSuppliesDevicePurchaseNet(items: QuoteMaterial[] | undefined): number {
   return materialPurchaseTotal(filterInstallationSupplyRows(items, 'device'));
+}
+
+export function installationSuppliesLaborPurchaseNet(items: QuoteMaterial[] | undefined): number {
+  return materialPurchaseTotal(filterInstallationSupplyRows(items, 'labor'));
+}
+
+export function installationSuppliesExpensePurchaseNet(items: QuoteMaterial[] | undefined): number {
+  return materialPurchaseTotal(filterInstallationSupplyRows(items, 'expense'));
+}
+
+export function installationSuppliesLaborHours(items: QuoteMaterial[] | undefined): number {
+  return roundMoney(
+    filterInstallationSupplyRows(items, 'labor').reduce(
+      (sum, row) => sum + (Number(row.quantity) || 0),
+      0,
+    ),
+  );
 }
 
 export function hasOfferedDeviceRows(items: QuoteMaterial[] | undefined): boolean {
