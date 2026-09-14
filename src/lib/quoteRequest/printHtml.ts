@@ -22,14 +22,13 @@ import {
   computeKotitalousDeduction,
   computeQuoteInternalTotals,
   computeQuoteTotals,
-  materialSellTotal,
   resolveIilpLaborPricingMode,
 } from './calculations';
 import {
   filterInstallationSupplyRows,
-  INSTALLATION_SUPPLIES_PRINT_LABEL,
   isOfferedDeviceRow,
   migrateLegacyMaterialsToInstallationSupplies,
+  resolveQuoteMaterialRowKind,
 } from './installationSupplies';
 import {
   manualDevicePrintLabel,
@@ -326,20 +325,22 @@ function quotePrintTableHead(mode: QuotePrintMode): string {
 function printSummedMaterialsRow(
   materials: QuoteMaterial[],
   mode: QuotePrintMode,
-  label = INSTALLATION_SUPPLIES_PRINT_LABEL,
 ): string {
   const rows = materials.filter((row) => row.name.trim());
   if (rows.length === 0) return '';
-  if (mode === 'creator') {
-    return rows.map((row) => printMaterialRow(row, mode)).join('');
-  }
-  const totalSell = materialSellTotal(rows);
-  if (totalSell <= 0.005) return '';
-  return printWorkRow(label, '1 kpl', totalSell, totalSell, mode);
+  return rows.map((row) => printMaterialRow(row, mode)).join('');
+}
+
+function materialRowQtyLabel(mat: QuoteMaterial): string {
+  const qty = Number(mat.quantity) || 0;
+  const kind = resolveQuoteMaterialRowKind(mat);
+  if (kind === 'labor') return `${qty} h`;
+  return `${qty} kpl`;
 }
 
 function printMaterialRow(mat: QuoteMaterial, mode: QuotePrintMode): string {
   const qty = Number(mat.quantity) || 0;
+  const qtyLabel = materialRowQtyLabel(mat);
   const purchase = qty * (Number(mat.purchasePrice) || 0);
   const sell = qty * (Number(mat.sellPrice) || 0);
   const unitSell = Number(mat.sellPrice) || 0;
@@ -348,7 +349,7 @@ function printMaterialRow(mat: QuoteMaterial, mode: QuotePrintMode): string {
   if (mode === 'enduser') {
     return `<tr>
       <td>${esc(mat.name)}</td>
-      <td class="num">${esc(qty)} kpl</td>
+      <td class="num">${esc(qtyLabel)}</td>
       <td class="num col-internal"></td>
       <td class="num">${formatEuro(unitSell)}</td>
       <td class="num">${formatEuro(sell)}</td>
@@ -356,7 +357,7 @@ function printMaterialRow(mat: QuoteMaterial, mode: QuotePrintMode): string {
   }
   return `<tr>
     <td>${esc(mat.name)}</td>
-    <td class="num">${esc(qty)} kpl</td>
+    <td class="num">${esc(qtyLabel)}</td>
     <td class="num col-internal">${formatEuro(purchase)}</td>
     <td class="num">${formatEuro(sell)}</td>
     <td class="num col-internal">${formatEuro(margin)}<div class="line-sub">${marginPct}%</div></td>
@@ -582,14 +583,7 @@ function printInstallationSuppliesRows(data: QuoteRequestData, mode: QuotePrintM
   const parts: string[] = [];
 
   if (supplyRows.length > 0) {
-    if (mode === 'creator') {
-      parts.push(...supplyRows.map((row) => printMaterialRow(row, mode)));
-    } else {
-      const totalSell = materialSellTotal(supplyRows);
-      if (totalSell > 0.005) {
-        parts.push(printWorkRow(INSTALLATION_SUPPLIES_PRINT_LABEL, '1 kpl', totalSell, totalSell, mode));
-      }
-    }
+    parts.push(...supplyRows.map((row) => printMaterialRow(row, mode)));
   }
 
   if (deviceRows.length > 0) {

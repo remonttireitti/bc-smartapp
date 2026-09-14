@@ -1,10 +1,9 @@
 import type { BrandDeliveryFeeByCategoryMap } from '../../data/devicePricingShared';
 import { computeQuoteTotals, computeTravelNet, travelCostLabel } from './calculations';
-import { materialSellTotal } from './calculations';
 import {
   filterInstallationSupplyRows,
-  INSTALLATION_SUPPLIES_PRINT_LABEL,
   isOfferedDeviceRow,
+  resolveQuoteMaterialRowKind,
 } from './installationSupplies';
 import {
   manualDevicePrintLabel,
@@ -198,13 +197,17 @@ function buildQuoteRows(data: QuoteRequestData, _feeMap?: BrandDeliveryFeeByCate
   const installationItems = (data.installationSupplies ?? []).filter((row) => row.name.trim());
   const supplyRows = installationItems.filter((row) => !isOfferedDeviceRow(row));
   const deviceRows = filterInstallationSupplyRows(installationItems, 'device');
-  const supplyTotal = materialSellTotal(supplyRows);
-  if (supplyTotal > 0.005) {
+  for (const row of supplyRows) {
+    const qty = Number(row.quantity) || 0;
+    const unit = Number(row.sellPrice) || 0;
+    const rowNet = qty * unit;
+    if (rowNet <= 0.005 && !row.name.trim()) continue;
+    const kind = resolveQuoteMaterialRowKind(row);
     rows.push({
-      desc: INSTALLATION_SUPPLIES_PRINT_LABEL,
-      qtyLabel: '1 kpl',
-      unitNet: supplyTotal,
-      rowNet: supplyTotal,
+      desc: row.name.trim() || (kind === 'labor' ? 'Työ' : 'Tarvike'),
+      qtyLabel: kind === 'labor' ? `${formatQty(qty)} h` : `${formatQty(qty)} kpl`,
+      unitNet: unit,
+      rowNet,
     });
   }
   for (const row of deviceRows) {

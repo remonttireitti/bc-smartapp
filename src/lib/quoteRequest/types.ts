@@ -96,7 +96,7 @@ export type QuoteRequestData = {
   situationReportText: string;
   workItems: QuoteWorkItem[];
   materials: QuoteMaterial[];
-  /** Sisäinen asennustarvikke-laskuri; tulostuu asiakkaalle yhtenä rivinä. */
+  /** Sisäinen asennustarvikke-laskuri; tulostuu asiakkaalle riveittäin tuotekentän tekstillä. */
   installationSupplies: QuoteMaterial[];
   /** Asennustarvikke-laskurin työtunnit (sisäinen hankintalaskenta). */
   installationLaborHours: number;
