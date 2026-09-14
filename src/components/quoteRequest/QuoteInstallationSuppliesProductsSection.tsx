@@ -165,8 +165,8 @@ export default function QuoteInstallationSuppliesProductsSection({
       <p className="muted">
         Lisää rivit yhdellä painikkeella ja valitse rivityyppi: <strong>Työ</strong>,{' '}
         <strong>Tarvike</strong>, <strong>Kulu</strong> tai <strong>Laite</strong> — samat tyypit
-        kuin työraportissa. Asiakkaan tarjouksessa tarvikkeet yhdistyvät riviksi{' '}
-        <strong>Asennus tarvikkeet</strong>; laitteet näkyvät erikseen. Kun myyntihinta on sovittu,
+        kuin työraportissa. Asiakkaan tarjouksessa jokainen rivi näkyy tuotekentän tekstillä. Kun
+        myyntihinta on sovittu,
         hankinnan muutos päivittää kate-%:n.
       </p>
 

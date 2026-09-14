@@ -506,7 +506,7 @@ export function generateInstallationSuppliesPrintHtml(
     ${internalCosts > 0 ? `<div>Sisäiset kustannukset: <strong>${formatEuro(internalCosts)}</strong></div>` : ''}
     <div>Kokonaiskate (myynti − kaikki hankinta): <strong>${formatEuro(netMargin)} (${netMarginPct} %)</strong></div>
   </div>
-  <p class="meta">Sisäinen erittely — asiakkaan tarjouksessa näkyy yhtenä rivinä "${esc(INSTALLATION_SUPPLIES_PRINT_LABEL)}".</p>
+  <p class="meta">Sisäinen erittely — asiakkaan tarjouksessa näkyy jokainen rivi tuotekentän tekstillä.</p>
   <script>window.onload = () => window.print();</script>
 </body>
 </html>`;

@@ -79,6 +79,8 @@ const servicePrint = generateQuoteServicePrintHtml({
 assert.match(servicePrint, /Tarjous huollosta tai korjauksesta/);
 assert.match(servicePrint, /Huollettava laite/);
 assert.match(servicePrint, /3 kpl jäähdytyskone/);
+assert.match(servicePrint, /Kuparit/);
+assert.doesNotMatch(servicePrint, /Asennus tarvikkeet/);
 assert.doesNotMatch(servicePrint, /406 tarkkaamo 406 tarkkaamo KAC 73<\/td>/);
 
 const lines = extractQuotePurchaseLines(quote);
