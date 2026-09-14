@@ -1,6 +1,16 @@
 import type { BrandDeliveryFeeByCategoryMap } from '../../data/devicePricingShared';
 import { computeQuoteTotals, computeTravelNet, travelCostLabel } from './calculations';
-import { manualDevicePrintLabel, resolveNonPumpDeviceSellNet } from './manualDevicePricing';
+import { materialSellTotal } from './calculations';
+import {
+  filterInstallationSupplyRows,
+  INSTALLATION_SUPPLIES_PRINT_LABEL,
+  isOfferedDeviceRow,
+} from './installationSupplies';
+import {
+  manualDevicePrintLabel,
+  quoteUsesOfferedDeviceRows,
+  resolveNonPumpDeviceSellNet,
+} from './manualDevicePricing';
 import { embedUrlAsDataUrl } from './termatekAssets';
 import type { QuotePrintCustomer, QuotePrintMeta } from './printHtml';
 import type { QuoteRequestData } from './types';
@@ -185,14 +195,41 @@ function buildQuoteRows(data: QuoteRequestData, _feeMap?: BrandDeliveryFeeByCate
     });
   }
 
-  const deviceNet = resolveNonPumpDeviceSellNet(data);
-  if (deviceNet > 0.005) {
+  const installationItems = (data.installationSupplies ?? []).filter((row) => row.name.trim());
+  const supplyRows = installationItems.filter((row) => !isOfferedDeviceRow(row));
+  const deviceRows = filterInstallationSupplyRows(installationItems, 'device');
+  const supplyTotal = materialSellTotal(supplyRows);
+  if (supplyTotal > 0.005) {
     rows.push({
-      desc: manualDevicePrintLabel(data),
+      desc: INSTALLATION_SUPPLIES_PRINT_LABEL,
       qtyLabel: '1 kpl',
-      unitNet: deviceNet,
-      rowNet: deviceNet,
+      unitNet: supplyTotal,
+      rowNet: supplyTotal,
     });
+  }
+  for (const row of deviceRows) {
+    const qty = Number(row.quantity) || 0;
+    const unit = Number(row.sellPrice) || 0;
+    const rowNet = qty * unit;
+    if (rowNet <= 0.005) continue;
+    rows.push({
+      desc: row.name.trim() || 'Laite',
+      qtyLabel: `${formatQty(qty)} kpl`,
+      unitNet: unit,
+      rowNet,
+    });
+  }
+
+  if (!quoteUsesOfferedDeviceRows(data)) {
+    const deviceNet = resolveNonPumpDeviceSellNet(data);
+    if (deviceNet > 0.005) {
+      rows.push({
+        desc: manualDevicePrintLabel(data),
+        qtyLabel: '1 kpl',
+        unitNet: deviceNet,
+        rowNet: deviceNet,
+      });
+    }
   }
 
   return rows;

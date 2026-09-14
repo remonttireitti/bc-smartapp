@@ -26,11 +26,16 @@ import {
   resolveIilpLaborPricingMode,
 } from './calculations';
 import {
+  filterInstallationSupplyRows,
   INSTALLATION_SUPPLIES_PRINT_LABEL,
-  installationSuppliesSellNet,
+  isOfferedDeviceRow,
   migrateLegacyMaterialsToInstallationSupplies,
 } from './installationSupplies';
-import { manualDevicePrintLabel, resolveNonPumpDeviceSellNet } from './manualDevicePricing';
+import {
+  manualDevicePrintLabel,
+  quoteUsesOfferedDeviceRows,
+  resolveNonPumpDeviceSellNet,
+} from './manualDevicePricing';
 import type { QuoteLine, QuoteMaterial } from './types';
 import { quoteLineTotal } from './defaults';
 import { optionalItemsPrintHtml } from './optionalItemsPrint';
@@ -572,13 +577,38 @@ function buildSituationReportHtml(data: QuoteRequestData): string {
 
 function printInstallationSuppliesRows(data: QuoteRequestData, mode: QuotePrintMode): string {
   const items = (data.installationSupplies ?? []).filter((row) => row.name.trim());
-  const totalSell = installationSuppliesSellNet(items);
-  if (totalSell <= 0.005) return '';
+  const supplyRows = items.filter((row) => !isOfferedDeviceRow(row));
+  const deviceRows = filterInstallationSupplyRows(items, 'device');
+  const parts: string[] = [];
 
-  if (mode === 'creator') {
-    return items.map((row) => printMaterialRow(row, mode)).join('');
+  if (supplyRows.length > 0) {
+    if (mode === 'creator') {
+      parts.push(...supplyRows.map((row) => printMaterialRow(row, mode)));
+    } else {
+      const totalSell = materialSellTotal(supplyRows);
+      if (totalSell > 0.005) {
+        parts.push(printWorkRow(INSTALLATION_SUPPLIES_PRINT_LABEL, '1 kpl', totalSell, totalSell, mode));
+      }
+    }
   }
-  return printWorkRow(INSTALLATION_SUPPLIES_PRINT_LABEL, '1 kpl', totalSell, totalSell, mode);
+
+  if (deviceRows.length > 0) {
+    if (mode === 'creator') {
+      parts.push(...deviceRows.map((row) => printMaterialRow(row, mode)));
+    } else {
+      for (const row of deviceRows) {
+        const qty = Number(row.quantity) || 0;
+        const unitSell = Number(row.sellPrice) || 0;
+        const sell = qty * unitSell;
+        if (sell <= 0.005) continue;
+        parts.push(
+          printWorkRow(row.name.trim() || 'Laite', `${qty} kpl`, unitSell, sell, mode),
+        );
+      }
+    }
+  }
+
+  return parts.join('');
 }
 
 function iilpBaseInstallRows(data: QuoteRequestData, mode: QuotePrintMode = 'enduser'): string {
@@ -677,7 +707,7 @@ export function generateQuoteOfferPrintHtml(input: {
         const label = esc(formatDeviceLabel(mainDevice));
         return printDeviceRow(label, mode, { purchase, sell, marginPct });
       })()
-    : resolveNonPumpDeviceSellNet(data) > 0.005
+    : resolveNonPumpDeviceSellNet(data) > 0.005 && !quoteUsesOfferedDeviceRows(data)
       ? printDeviceRow(esc(manualDevicePrintLabel(data)), mode, {
           purchase: Number(data.devicePurchaseOverrideNet ?? 0),
           sell: resolveNonPumpDeviceSellNet(data),
@@ -919,20 +949,22 @@ function buildServiceTaskPrintRows(data: QuoteRequestData, mode: QuotePrintMode)
 
   sections.push(printInstallationSuppliesRows(data, mode));
 
-  const deviceSell = resolveNonPumpDeviceSellNet(data);
-  if (deviceSell > 0.005) {
-    const purchase = Number(data.devicePurchaseOverrideNet) || 0;
-    const label = esc(manualDevicePrintLabel(data));
-    if (mode === 'creator' && purchase > 0.005) {
-      sections.push(
-        printDeviceRow(label, mode, {
-          purchase,
-          sell: deviceSell,
-          marginPct: Number(data.deviceMarginPercent) || undefined,
-        }),
-      );
-    } else {
-      sections.push(printWorkRow(manualDevicePrintLabel(data), '1 kpl', deviceSell, deviceSell, mode));
+  if (!quoteUsesOfferedDeviceRows(data)) {
+    const deviceSell = resolveNonPumpDeviceSellNet(data);
+    if (deviceSell > 0.005) {
+      const purchase = Number(data.devicePurchaseOverrideNet) || 0;
+      const label = esc(manualDevicePrintLabel(data));
+      if (mode === 'creator' && purchase > 0.005) {
+        sections.push(
+          printDeviceRow(label, mode, {
+            purchase,
+            sell: deviceSell,
+            marginPct: Number(data.deviceMarginPercent) || undefined,
+          }),
+        );
+      } else {
+        sections.push(printWorkRow(manualDevicePrintLabel(data), '1 kpl', deviceSell, deviceSell, mode));
+      }
     }
   }
 
@@ -961,7 +993,7 @@ export function generateQuoteServicePrintHtml(input: {
   const deviceLabel = [data.deviceBrand, data.deviceModel].filter(Boolean).join(' ').trim();
   const deviceBox = deviceLabel
     ? `<section class="device-box">
-        <strong>Laite</strong>
+        <strong>Huollettava laite</strong>
         <div>${esc(deviceLabel)}</div>
         ${data.faultDescription.trim() ? `<div class="line-sub">${esc(data.faultDescription).replace(/\n/g, '<br />')}</div>` : ''}
       </section>`

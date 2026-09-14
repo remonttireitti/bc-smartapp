@@ -51,7 +51,7 @@ export function buildQuoteKohdeTiles(form: QuoteRequestData): QuoteKohdeTileEntr
       || 'Merkki ja malli';
     entries.push({
       id: 'huolto-laite',
-      title: 'Kohde ja laite',
+      title: 'Huollettava laite',
       subtitle: deviceLabel,
       themeKey: 'device',
     });
