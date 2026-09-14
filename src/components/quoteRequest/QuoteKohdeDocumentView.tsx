@@ -34,19 +34,21 @@ export default function QuoteKohdeDocumentView({ form, canEdit, onChange }: Prop
         return (
           <div className="line-form-grid">
             <label>
-              Laitteen merkki
+              Huollettavan laitteen merkki
               <input
                 value={form.deviceBrand}
                 onChange={(e) => onChange({ deviceBrand: e.target.value })}
                 disabled={!canEdit}
+                placeholder="Esim. vanhan yksikön merkki"
               />
             </label>
             <label>
-              Laitteen malli
+              Huollettavan laitteen malli
               <input
                 value={form.deviceModel}
                 onChange={(e) => onChange({ deviceModel: e.target.value })}
                 disabled={!canEdit}
+                placeholder="Esim. vanhan yksikön malli / tunniste"
               />
             </label>
           </div>

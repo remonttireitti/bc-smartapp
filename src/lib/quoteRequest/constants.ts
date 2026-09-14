@@ -5,7 +5,7 @@ export const QUOTE_TYPE_ORDER: QuoteType[] = ['vesi-ilma', 'ilma-ilma', 'huolto'
 export const QUOTE_TYPE_LABELS: Record<QuoteType, string> = {
   'vesi-ilma': 'Vesi-ilmalämpöpumppu',
   'ilma-ilma': 'Ilmalämpöpumppu',
-  huolto: 'Kylmälaitehuolto',
+  huolto: 'Tarjous huollosta tai korjauksesta',
 };
 
 export const QUOTE_VAT_PROFILE_LABELS: Record<QuoteVatProfile, string> = {
@@ -135,7 +135,7 @@ export function isPumpQuoteType(type: QuoteType): boolean {
   return type === 'vesi-ilma' || type === 'ilma-ilma';
 }
 
-/** Kylmälaitehuoltotarjous (työrivit + tarvikkeet). */
+/** Huolto- tai korjaustarjous (työrivit + tarvikkeet). */
 export function isRepairQuoteType(type: QuoteType): boolean {
   return type === 'huolto';
 }

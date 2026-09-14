@@ -149,6 +149,14 @@ export function hasOfferedDeviceRows(items: QuoteMaterial[] | undefined): boolea
   return filterInstallationSupplyRows(items, 'device').length > 0;
 }
 
+/** Myytävän laitteen nimi(t) tarjousriviltä (ei huollettavaa vanhaa laitetta). */
+export function installationSuppliesOfferedDeviceLabel(items: QuoteMaterial[] | undefined): string {
+  return filterInstallationSupplyRows(items, 'device')
+    .map((row) => row.name.trim())
+    .filter(Boolean)
+    .join(', ');
+}
+
 export function installationVehicleBlocks(
   hours: number,
   hoursPerBlock = 8,

@@ -1,8 +1,10 @@
 import type { QuoteRequestData } from './types';
 import {
   computeInstallationSupplyMarginPercent,
+  hasOfferedDeviceRows,
   installationSuppliesDevicePurchaseNet,
   installationSuppliesDeviceSellNet,
+  installationSuppliesOfferedDeviceLabel,
 } from './installationSupplies';
 
 function roundMoney(value: number): number {
@@ -38,8 +40,14 @@ export function resolveNonPumpDevicePurchaseNet(data: QuoteRequestData): number 
 }
 
 export function manualDevicePrintLabel(data: QuoteRequestData): string {
+  const fromOfferedRows = installationSuppliesOfferedDeviceLabel(data.installationSupplies);
+  if (fromOfferedRows) return fromOfferedRows;
   return [data.deviceBrand, data.deviceModel].map((v) => String(v ?? '').trim()).filter(Boolean).join(' ').trim()
     || 'Laite / urakka';
+}
+
+export function quoteUsesOfferedDeviceRows(data: QuoteRequestData): boolean {
+  return hasOfferedDeviceRows(data.installationSupplies);
 }
 
 export function computeManualDeviceMarginPercent(
