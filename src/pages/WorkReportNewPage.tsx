@@ -115,7 +115,7 @@ export default function WorkReportNewPage({ session }: Props) {
   const { profile, loading: profileLoading } = useProfile(session);
 
   const [reportId, setReportId] = useState<string | null>(editId ?? null);
-  const reportLoadedRef = useRef<string | null>(editId ?? null);
+  const reportLoadedRef = useRef<string | null>(null);
 
   const [status, setStatus] = useState<'draft' | 'scheduled'>('draft');
 
@@ -438,11 +438,9 @@ export default function WorkReportNewPage({ session }: Props) {
 
 
     if (data.status !== 'draft') {
-
+      setLoadingReport(false);
       navigate(`/tyoraportit/${id}`, { replace: true });
-
       return;
-
     }
 
     if (
@@ -456,6 +454,7 @@ export default function WorkReportNewPage({ session }: Props) {
         delegate_company_id: null,
       })
     ) {
+      setLoadingReport(false);
       navigate(`/tyoraportit/toimeksianto/${id}/muokkaa`, { replace: true });
       return;
     }
