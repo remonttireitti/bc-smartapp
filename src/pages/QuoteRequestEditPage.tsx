@@ -27,6 +27,7 @@ import {
   loadAccessibleSubscribers,
   resolveSubscriberIdForReport,
 } from '../lib/subscribers';
+import { canDeleteQuoteRequest } from '../lib/deletePermissions';
 import { partnershipModuleAccess, partnershipPermsActingOnOwner, parseCompanySettings } from '../lib/management';
 import { computeKotitalousDeduction, computePumpSizingNeedKw, computeQuoteTotals, resolveIilpLaborPricingMode } from '../lib/quoteRequest/calculations';
 import { quoteInstallationDefaultsFromCompanySettings } from '../lib/quoteRequest/installationSupplies';
@@ -130,6 +131,7 @@ export default function QuoteRequestEditPage({ session }: Props) {
     useState<SubscriberPortalVisibility>(SUBSCRIBER_PORTAL_VISIBILITY_DEFAULT);
   const [subscribers, setSubscribers] = useState<Subscriber[]>([]);
   const [reportOwnerCompanyId, setReportOwnerCompanyId] = useState('');
+  const [createdByCompanyId, setCreatedByCompanyId] = useState('');
   const [equipmentId, setEquipmentId] = useState('');
   const [loadingQuote, setLoadingQuote] = useState(!isNew);
   const [formReady, setFormReady] = useState(isNew);
@@ -200,6 +202,20 @@ export default function QuoteRequestEditPage({ session }: Props) {
 
   const canEdit = isNew || status === 'draft' || status === 'sent';
   const isOrdered = status === 'ordered';
+  const canDeleteDraft =
+    !isNew
+    && status === 'draft'
+    && !!quoteId
+    && canDeleteQuoteRequest(
+      {
+        status,
+        owner_company_id: reportOwnerCompanyId || ownerCompanyId || profile?.company_id || '',
+        created_by_company_id: createdByCompanyId || profile?.company_id,
+      },
+      profile?.company_id,
+      profile?.role,
+      profile?.is_global_admin,
+    );
   const autoCreateWorkReportOnOrder = shouldAutoCreateWorkReportOnOrder(quoteCreatedAt);
   const pumpSizingNeedKw = useMemo(
     () => (isPumpQuoteType(form.type) ? computePumpSizingNeedKw(form) : null),
@@ -533,6 +549,7 @@ export default function QuoteRequestEditPage({ session }: Props) {
       updated_at: string;
       created_at: string;
       owner_company_id: string;
+      created_by_company_id: string;
       customer_id: string | null;
       equipment_id: string | null;
       subscriber_id: string | null;
@@ -593,6 +610,7 @@ export default function QuoteRequestEditPage({ session }: Props) {
     );
     setEquipmentId(usedDraft && draft?.payload.equipmentId ? draft.payload.equipmentId : (row.equipment_id ?? ''));
     setReportOwnerCompanyId(row.owner_company_id);
+    setCreatedByCompanyId(row.created_by_company_id);
 
     await loadOwnerCompany(row.owner_company_id);
     if (resolvedCustomerId) await loadEquipment(resolvedCustomerId);
@@ -839,6 +857,23 @@ export default function QuoteRequestEditPage({ session }: Props) {
     } finally {
       setBusy(false);
     }
+  }
+
+  async function deleteDraftQuote() {
+    if (!quoteId || !canDeleteDraft) return;
+    if (!window.confirm('Poistetaanko tarjouspyynnön luonnos pysyvästi? Tätä toimintoa ei voi perua.')) {
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    const { error: deleteError } = await supabase.from('quote_requests').delete().eq('id', quoteId);
+    setBusy(false);
+    if (deleteError) {
+      setError(deleteError.message);
+      return;
+    }
+    clearLocalQuoteDraft(quoteDraftStorageKey);
+    navigate(quoteListTrail().backTo);
   }
 
   useEffect(() => {
@@ -1218,6 +1253,16 @@ export default function QuoteRequestEditPage({ session }: Props) {
               {busy ? 'Tallennetaan…' : 'Seuraava →'}
             </button>
           )}
+          {canDeleteDraft ? (
+            <button
+              type="button"
+              className="btn btn-secondary"
+              disabled={busy}
+              onClick={() => void deleteDraftQuote()}
+            >
+              {busy ? 'Poistetaan…' : 'Poista luonnos'}
+            </button>
+          ) : null}
           {canEdit && status === 'draft' && isLastSection && (
             <>
               <button type="submit" className="btn btn-secondary" disabled={busy}>

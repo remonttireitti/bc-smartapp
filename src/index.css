@@ -5774,7 +5774,8 @@ a.tile.maintenance-report-list-tile:hover {
 }
 
 .work-report-list-tile-delete,
-.maintenance-report-list-tile-delete {
+.maintenance-report-list-tile-delete,
+.quote-request-tile-delete {
   align-self: flex-start;
 }
 
