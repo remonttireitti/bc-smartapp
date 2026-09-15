@@ -103,11 +103,13 @@ export default function WorkReportOrderPage({ session }: Props) {
     }
 
     if (data.status !== 'draft') {
+      setLoadingReport(false);
       navigate(`/tyoraportit/${id}`, { replace: true });
       return;
     }
 
     if (data.assigned_user_id) {
+      setLoadingReport(false);
       navigate(`/tyoraportit/${id}/muokkaa`, { replace: true });
       return;
     }

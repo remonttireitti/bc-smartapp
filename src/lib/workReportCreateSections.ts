@@ -21,6 +21,18 @@ export function isTaskComplete(description: string) {
   return !!description.trim();
 }
 
+/** Luonnos voidaan avata suoraan työraporttisivulle (esim. tarjouksesta luotu). */
+export function workReportDraftCanOpenOnDetail(report: {
+  customer_id?: string | null;
+  owner_company_id?: string | null;
+  title?: string | null;
+  heading?: string | null;
+  description?: string | null;
+}) {
+  const taskText = report.description?.trim() || report.heading?.trim() || report.title?.trim();
+  return !!report.customer_id && !!report.owner_company_id && !!taskText;
+}
+
 export function isReadyForScheduled(
   visited: WorkReportCreateVisited,
   data: {

@@ -48,6 +48,8 @@ assert.equal(payload.location_text, null);
 assert.equal(payload.equipment_id, null);
 assert.equal(payload.status, 'draft');
 assert.equal(payload.customer_id, 'cust-1');
+assert.equal(payload.created_by_user_id, 'user-1');
+assert.equal(payload.assigned_user_id, null);
 assert.equal(buildWorkReportTitleFromQuote(data, 'Messukeskus'), 'Huolto ja pienkorjaukset Messukeskukselle');
 assert.equal(buildWorkReportDescriptionFromQuote(data), 'Kompressori rikki, vaihto ja käynnistystarkastus.');
 const emptyIntro = createEmptyQuoteRequestData('huolto');
