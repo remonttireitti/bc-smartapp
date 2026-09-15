@@ -48,6 +48,11 @@ assert.equal(
   'Tarjotaan teille seuraavasti: Uuden ilmalämpöpumpun asennus vanhan laitteen tilalle.',
 );
 assert.equal(payload.title, 'Messukeskus – Vanha jäähdytysyksikköön kompressori rikki');
+assert.equal(payload.orderer_name, null);
+assert.equal(payload.location_text, null);
+assert.equal(payload.equipment_id, null);
+assert.equal(payload.status, 'draft');
+assert.equal(payload.customer_id, 'cust-1');
 assert.equal(payload.created_by_user_id, 'user-1');
 assert.equal(payload.assigned_user_id, null);
 assert.equal(buildWorkReportHeadingFromQuote(data), 'Vanha jäähdytysyksikköön kompressori rikki');
@@ -55,5 +60,11 @@ assert.equal(
   buildWorkReportDescriptionFromQuote(data),
   'Tarjotaan teille seuraavasti: Uuden ilmalämpöpumpun asennus vanhan laitteen tilalle.',
 );
+
+const emptyIntro = createEmptyQuoteRequestData('huolto');
+emptyIntro.introText = '';
+emptyIntro.faultDescription = 'Vuoto kylmäaineesta';
+assert.equal(buildWorkReportHeadingFromQuote(emptyIntro), null);
+assert.equal(buildWorkReportDescriptionFromQuote(emptyIntro), 'Vuoto kylmäaineesta');
 
 console.log('test-quote-ordered-status: ok');
