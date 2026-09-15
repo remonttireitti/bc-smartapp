@@ -66,6 +66,7 @@ import {
   subscriberPortalVisibilityLabel,
   type SubscriberPortalVisibility,
 } from '../lib/subscriberPortalVisibility';
+import { workReportDraftCanOpenOnDetail } from '../lib/workReportCreateSections';
 import { buildWorkReportStatusPatch } from '../lib/workReportStatusUpdate';
 import { canEditWorkReportDescription, canManageWorkReportDailyLogs, buildWorkReportPatchAfterDailyLogAdded } from '../lib/workReportDailyLogs';
 import {
@@ -1650,80 +1651,84 @@ export default function WorkReportDetailPage({ session }: Props) {
     setCustomerBillableCalculation(null);
     setBillableUsers([]);
 
-    const [{ data: reportData, error: reportError }, { data: billingData }, logsResult, billableFetch] =
-      await Promise.all([
-        supabase.from('work_reports').select(REPORT_SELECT).eq('id', reportId).single(),
-        supabase.from('work_report_billing').select('*').eq('work_report_id', reportId).maybeSingle(),
-        fetchWorkReportDetailLogs(supabase, reportId),
-        fetchBillableRowWithHourBillingFallback(supabase, reportId, 'billing_quote'),
-      ]);
-
-    if (reportError || !reportData) {
-      setError(reportError?.message ?? 'Työraporttia ei löytynyt.');
-      setLoading(false);
-      return;
-    }
-
-    if (logsResult.error) {
-      setError(`Päiväkirjausten lataus epäonnistui: ${logsResult.error.message}`);
-      setLoading(false);
-      return;
-    }
-
-    const reportRow = reportData as unknown as WorkReport;
-    const logs = logsResult.logs;
-
-    setReport(reportRow);
-    setBilling((billingData as WorkReportBilling | null) ?? null);
-    setBillingQuoteSettings(parseBillingQuoteSettings(billableFetch.data?.billing_quote ?? {}));
-    setHourBillingSupported(billableFetch.hourBillingSupported);
-    setHourBillingSettings(
-      billableFetch.hourBillingSupported
-        ? parseHourBillingSettings(billableFetch.data?.hour_billing ?? {})
-        : parseHourBillingSettings({}),
-    );
-    setAgreedRegularSupported(logsResult.agreedRegularSupported);
-    setDailyLogs(logs);
-    setDescriptionDraft(resolveWorkReportDescription(reportRow));
-    setHeadingDraft(reportRow.heading?.trim() ?? '');
-    setOrdererDraft(reportRow.orderer_name?.trim() ?? '');
-    setOwnerCompanyDraft(reportRow.owner_company_id ?? '');
-    setCustomerIdDraft(reportRow.customer_id ?? '');
-    setLoading(false);
-
-    void loadTripKmRatesForReport(reportRow).then((rates) => {
-      setReportTripKmRate(rates.kmRate);
-    });
-
     try {
-      setReportAttachments(await loadWorkReportAttachments(reportId));
-    } catch {
-      setReportAttachments([]);
-    }
+      const [{ data: reportData, error: reportError }, { data: billingData }, logsResult, billableFetch] =
+        await Promise.all([
+          supabase.from('work_reports').select(REPORT_SELECT).eq('id', reportId).single(),
+          supabase.from('work_report_billing').select('*').eq('work_report_id', reportId).maybeSingle(),
+          fetchWorkReportDetailLogs(supabase, reportId),
+          fetchBillableRowWithHourBillingFallback(supabase, reportId, 'billing_quote'),
+        ]);
 
-    const isDelegatedOrder =
-      !!reportRow.delegate_company_id && reportRow.created_by_company_id === reportRow.owner_company_id;
-    const isPartnerReport =
-      reportRow.created_by_company_id !== reportRow.owner_company_id || isDelegatedOrder;
+      if (reportError || !reportData) {
+        setError(reportError?.message ?? 'Työraporttia ei löytynyt.');
+        return;
+      }
 
-    if (isPartnerReport && canPersistPartnerBillable(reportRow, profile?.company_id)) {
-      await refreshBillable(reportRow, logs, { viewerCompanyId: profile?.company_id });
-    } else {
-      setBillableCalculation(null);
-      setBillableUsers([]);
-    }
+      if (logsResult.error) {
+        setError(`Päiväkirjausten lataus epäonnistui: ${logsResult.error.message}`);
+        return;
+      }
 
-    const tracksCustomer = await loadCompanyTracksCustomerInvoicing(supabase, reportRow.owner_company_id);
-    const viewerBillingModule = profile?.company_id
-      ? await loadCompanyBillingModuleEnabled(supabase, profile.company_id)
-      : false;
-    const loadCustomerBillable =
-      tracksCustomer
-      || (profile?.company_id === reportRow.owner_company_id && viewerBillingModule !== false);
-    if (loadCustomerBillable) {
-      await refreshCustomerBillable(reportRow, logs);
-    } else {
-      setCustomerBillableCalculation(null);
+      const reportRow = reportData as unknown as WorkReport;
+      const logs = logsResult.logs;
+
+      setReport(reportRow);
+      setBilling((billingData as WorkReportBilling | null) ?? null);
+      setBillingQuoteSettings(parseBillingQuoteSettings(billableFetch.data?.billing_quote ?? {}));
+      setHourBillingSupported(billableFetch.hourBillingSupported);
+      setHourBillingSettings(
+        billableFetch.hourBillingSupported
+          ? parseHourBillingSettings(billableFetch.data?.hour_billing ?? {})
+          : parseHourBillingSettings({}),
+      );
+      setAgreedRegularSupported(logsResult.agreedRegularSupported);
+      setDailyLogs(logs);
+      setDescriptionDraft(resolveWorkReportDescription(reportRow));
+      setHeadingDraft(reportRow.heading?.trim() ?? '');
+      setOrdererDraft(reportRow.orderer_name?.trim() ?? '');
+      setOwnerCompanyDraft(reportRow.owner_company_id ?? '');
+      setCustomerIdDraft(reportRow.customer_id ?? '');
+
+      void loadTripKmRatesForReport(reportRow).then((rates) => {
+        setReportTripKmRate(rates.kmRate);
+      });
+
+      try {
+        setReportAttachments(await loadWorkReportAttachments(reportId));
+      } catch {
+        setReportAttachments([]);
+      }
+
+      const isDelegatedOrder =
+        !!reportRow.delegate_company_id && reportRow.created_by_company_id === reportRow.owner_company_id;
+      const isPartnerReport =
+        reportRow.created_by_company_id !== reportRow.owner_company_id || isDelegatedOrder;
+
+      if (isPartnerReport && canPersistPartnerBillable(reportRow, profile?.company_id)) {
+        await refreshBillable(reportRow, logs, { viewerCompanyId: profile?.company_id });
+      } else {
+        setBillableCalculation(null);
+        setBillableUsers([]);
+      }
+
+      const tracksCustomer = await loadCompanyTracksCustomerInvoicing(supabase, reportRow.owner_company_id);
+      const viewerBillingModule = profile?.company_id
+        ? await loadCompanyBillingModuleEnabled(supabase, profile.company_id)
+        : false;
+      const loadCustomerBillable =
+        tracksCustomer
+        || (profile?.company_id === reportRow.owner_company_id && viewerBillingModule !== false);
+      if (loadCustomerBillable) {
+        await refreshCustomerBillable(reportRow, logs);
+      } else {
+        setCustomerBillableCalculation(null);
+      }
+    } catch (loadError) {
+      console.error('Työraportin lataus epäonnistui:', loadError);
+      setError(loadError instanceof Error ? loadError.message : 'Työraportin lataus epäonnistui.');
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -2041,6 +2046,7 @@ export default function WorkReportDetailPage({ session }: Props) {
 
   useEffect(() => {
     if (report?.status === 'draft' && id) {
+      if (workReportDraftCanOpenOnDetail(report)) return;
       if (isSubscriberPortalWorkOrder(report, session.user.id)) {
         navigate(companySubscriberOrderEditPath(id), { replace: true });
         return;
