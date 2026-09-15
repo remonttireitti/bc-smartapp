@@ -1,6 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { SubscriberPortalVisibility } from '../subscriberPortalVisibility';
-import { billingQuoteFromQuoteRow, saveBillingQuoteSettings } from '../workReportBillingQuote';
 import { normalizeQuoteRequestData } from './defaults';
 import type { QuoteRequestData } from './types';
 
@@ -9,7 +8,6 @@ export type QuoteForWorkReportCreation = {
   title: string;
   data: QuoteRequestData;
   customer_id: string | null;
-  equipment_id: string | null;
   owner_company_id: string;
   created_by_company_id: string;
   branding_company_id: string;
@@ -21,18 +19,11 @@ export type QuoteForWorkReportCreation = {
 
 export type QuoteCustomerForWorkReport = {
   name?: string | null;
-  address?: string | null;
-  city?: string | null;
 };
 
 export function buildWorkReportDescriptionFromQuote(data: QuoteRequestData): string | null {
-  const normalized = normalizeQuoteRequestData(data);
-  const fault = normalized.faultDescription.trim();
-  if (fault) return fault;
-  const intro = normalized.introText.trim();
-  if (intro) return intro;
-  const notes = normalized.notes.trim();
-  return notes || null;
+  const intro = normalizeQuoteRequestData(data).introText.trim();
+  return intro || null;
 }
 
 export function buildWorkReportPayloadFromQuote(input: {
@@ -40,23 +31,23 @@ export function buildWorkReportPayloadFromQuote(input: {
   customer: QuoteCustomerForWorkReport | null;
   sessionUserId: string;
 }) {
-  const data = normalizeQuoteRequestData(input.quote.data);
-  const locationText =
-    [input.customer?.address, input.customer?.city].filter(Boolean).join(', ') || null;
+  const description = buildWorkReportDescriptionFromQuote(input.quote.data);
+  const customerName = input.customer?.name?.trim() ?? '';
+  const title = customerName || input.quote.title.trim() || 'Työraportti';
 
   return {
-    title: input.quote.title.trim() || 'Työraportti',
+    title,
     heading: null,
-    description: buildWorkReportDescriptionFromQuote(data),
-    orderer_name: data.customerContactPerson.trim() || null,
+    description,
+    orderer_name: null,
     subscriber_id: input.quote.subscriber_id,
-    location_text: locationText,
+    location_text: null,
     owner_company_id: input.quote.owner_company_id,
     created_by_company_id: input.quote.created_by_company_id,
     branding_company_id: input.quote.branding_company_id,
     partnership_id: input.quote.partnership_id,
     customer_id: input.quote.customer_id,
-    equipment_id: input.quote.equipment_id,
+    equipment_id: null,
     assigned_user_id: input.sessionUserId,
     scheduled_start: null,
     scheduled_end: null,
@@ -72,6 +63,18 @@ export async function markQuoteAsOrderedOnly(
   const { error } = await supabase
     .from('quote_requests')
     .update({ status: 'ordered' })
+    .eq('id', quoteId);
+  if (error) throw new Error(error.message);
+}
+
+/** Palauttaa tilauksen merkinnän lähetetyksi. Työraporttilinkki säilyy. */
+export async function markQuoteAsNotOrdered(
+  supabase: SupabaseClient,
+  quoteId: string,
+): Promise<void> {
+  const { error } = await supabase
+    .from('quote_requests')
+    .update({ status: 'sent' })
     .eq('id', quoteId);
   if (error) throw new Error(error.message);
 }
@@ -111,14 +114,6 @@ export async function createWorkReportFromQuote(
   if (billingInsertError) {
     throw new Error(billingInsertError.message);
   }
-
-  const billingQuote = billingQuoteFromQuoteRow(
-    input.quote.id,
-    input.quote.title,
-    input.quote.data,
-    { fixedCustomerBilling: true },
-  );
-  await saveBillingQuoteSettings(supabase, reportId, billingQuote);
 
   const { error: linkError } = await supabase
     .from('quote_requests')

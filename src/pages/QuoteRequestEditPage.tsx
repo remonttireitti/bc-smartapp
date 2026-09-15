@@ -67,8 +67,10 @@ import {
 } from '../lib/quoteRequest/defaults';
 import {
   createWorkReportFromQuote,
+  markQuoteAsNotOrdered,
   markQuoteAsOrderedOnly,
 } from '../lib/quoteRequest/createWorkReportFromQuote';
+import { shouldAutoCreateWorkReportOnOrder } from '../lib/quoteRequest/orderedWorkReport';
 import type {
   QuoteEditSection,
   QuoteRequestData,
@@ -113,6 +115,7 @@ export default function QuoteRequestEditPage({ session }: Props) {
   const { profile, loading: profileLoading } = useProfile(session);
 
   const [quoteId, setQuoteId] = useState<string | null>(id ?? null);
+  const [quoteCreatedAt, setQuoteCreatedAt] = useState<string | null>(null);
   const [status, setStatus] = useState<QuoteRequestStatus>('draft');
   const [workReportId, setWorkReportId] = useState<string | null>(null);
   const [form, setForm] = useState<QuoteRequestData>(() => createEmptyQuoteRequestData());
@@ -197,6 +200,7 @@ export default function QuoteRequestEditPage({ session }: Props) {
 
   const canEdit = isNew || status === 'draft' || status === 'sent';
   const isOrdered = status === 'ordered';
+  const autoCreateWorkReportOnOrder = shouldAutoCreateWorkReportOnOrder(quoteCreatedAt);
   const pumpSizingNeedKw = useMemo(
     () => (isPumpQuoteType(form.type) ? computePumpSizingNeedKw(form) : null),
     [form],
@@ -553,6 +557,7 @@ export default function QuoteRequestEditPage({ session }: Props) {
     const normalized = normalizeQuoteRequestData(row.data);
 
     setQuoteId(row.id);
+    setQuoteCreatedAt(row.created_at);
     setStoredDbTitle(row.title);
     titleMigratedRef.current = false;
     setStatus(row.status);
@@ -761,17 +766,17 @@ export default function QuoteRequestEditPage({ session }: Props) {
     }
   }
 
-  async function markQuoteOrdered(options: { createWorkReport: boolean }) {
+  async function markQuoteOrdered() {
     if (!quoteId || !profile?.company_id) {
       setError('Tallenna tarjous ensin.');
       return;
     }
-    if (status !== 'sent' && status !== 'ordered') {
+    if (status !== 'sent') {
       setError('Vain lähetetty tarjous voidaan merkitä tilatuksi.');
       return;
     }
 
-    const saved = await saveQuote(status === 'ordered' ? 'ordered' : 'sent', { skipSiteDefaultsCheck: true });
+    const saved = await saveQuote('sent', { skipSiteDefaultsCheck: true });
     if (!saved) return;
 
     setBusy(true);
@@ -783,7 +788,6 @@ export default function QuoteRequestEditPage({ session }: Props) {
         title: storedTitle,
         data: prepareQuoteRequestDataForSave(form),
         customer_id: customerId,
-        equipment_id: equipmentId || null,
         owner_company_id: ownerCompanyId,
         created_by_company_id: profile.company_id,
         branding_company_id: resolveQuoteBrandingCompanyId({
@@ -798,7 +802,7 @@ export default function QuoteRequestEditPage({ session }: Props) {
         work_report_id: workReportId,
       };
 
-      if (options.createWorkReport) {
+      if (autoCreateWorkReportOnOrder) {
         const reportId = await createWorkReportFromQuote(supabase, {
           quote: quoteRow,
           customer: selectedCustomer ?? null,
@@ -816,6 +820,22 @@ export default function QuoteRequestEditPage({ session }: Props) {
     } catch (markError) {
       console.error('Tarjouksen tilauksen merkintä epäonnistui:', markError);
       setError(markError instanceof Error ? markError.message : 'Tilauksen merkintä epäonnistui.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function unmarkQuoteOrdered() {
+    if (!quoteId) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await markQuoteAsNotOrdered(supabase, quoteId);
+      setStatus('sent');
+      setSavedAt(new Date().toLocaleTimeString('fi-FI', { hour: '2-digit', minute: '2-digit' }));
+    } catch (unmarkError) {
+      console.error('Tilauksen merkinnän poisto epäonnistui:', unmarkError);
+      setError(unmarkError instanceof Error ? unmarkError.message : 'Tilauksen merkinnän poisto epäonnistui.');
     } finally {
       setBusy(false);
     }
@@ -1038,8 +1058,16 @@ export default function QuoteRequestEditPage({ session }: Props) {
                 <Link to={`/tyoraportit/${workReportId}`}>Avaa työraportti</Link>
               </>
             ) : (
-              ' Työraporttia ei ole linkitetty — voit luoda sen myöhemmin työraportit-näkymästä.'
+              ' Vanha tarjous — työraporttia ei luotu automaattisesti.'
             )}
+          </p>
+        </section>
+      )}
+      {canEdit && status === 'sent' && autoCreateWorkReportOnOrder && (
+        <section className="panel quote-ordered-notice">
+          <p className="muted">
+            Tämä tarjouspyyntö on luotu 14.9.2026 tai sen jälkeen. Tilauksen merkintä luo työraportin
+            automaattisesti (asiakas, yritys ja tehtävä esittelytekstistä).
           </p>
         </section>
       )}
@@ -1214,17 +1242,13 @@ export default function QuoteRequestEditPage({ session }: Props) {
                 type="button"
                 className="btn btn-primary"
                 disabled={busy}
-                onClick={() => void markQuoteOrdered({ createWorkReport: true })}
+                onClick={() => void markQuoteOrdered()}
               >
-                {busy ? 'Käsitellään…' : 'Merkitse tilatuksi ja luo työraportti'}
-              </button>
-              <button
-                type="button"
-                className="btn btn-secondary"
-                disabled={busy}
-                onClick={() => void markQuoteOrdered({ createWorkReport: false })}
-              >
-                Merkitse tilatuksi (ei työraporttia)
+                {busy
+                  ? 'Käsitellään…'
+                  : autoCreateWorkReportOnOrder
+                    ? 'Merkitse tilatuksi ja luo työraportti'
+                    : 'Merkitse tilatuksi'}
               </button>
               <button
                 type="button"
@@ -1236,10 +1260,22 @@ export default function QuoteRequestEditPage({ session }: Props) {
               </button>
             </>
           )}
-          {isOrdered && workReportId && (
-            <Link to={`/tyoraportit/${workReportId}`} className="btn btn-primary">
-              Avaa työraportti
-            </Link>
+          {isOrdered && (
+            <>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                disabled={busy}
+                onClick={() => void unmarkQuoteOrdered()}
+              >
+                Merkitse ei-tilatuksi
+              </button>
+              {workReportId ? (
+                <Link to={`/tyoraportit/${workReportId}`} className="btn btn-primary">
+                  Avaa työraportti
+                </Link>
+              ) : null}
+            </>
           )}
         </div>
       </form>
