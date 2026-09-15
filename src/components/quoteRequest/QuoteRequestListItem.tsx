@@ -31,25 +31,37 @@ export function QuoteRequestListItem({ row }: Props) {
   ].filter(Boolean);
 
   return (
-    <li>
-      <Link
-        to={`/tarjouspyynnot/${row.id}`}
-        className="quote-request-list-link"
-        {...withNavTrail(quoteListTrail())}
-      >
-        <div className="quote-request-list-head">
-          <strong>{displayTitle}</strong>
-          <span className="muted">{subtitleParts.join(' • ')}</span>
-        </div>
-        <div className="quote-request-list-meta">
-          <span className="badge">{QUOTE_STATUS_LABELS[row.status] ?? row.status}</span>
-          <span className="quote-request-list-price">
-            {total.toLocaleString('fi-FI', { style: 'currency', currency: 'EUR' })}
-          </span>
-          <span className="muted">{row.branding_company?.name ?? '—'}</span>
-          <span className="muted">{updated}</span>
-        </div>
-      </Link>
+    <li className="quote-request-list-item">
+      <div className="quote-request-list-row">
+        <Link
+          to={`/tarjouspyynnot/${row.id}`}
+          className="quote-request-list-link"
+          {...withNavTrail(quoteListTrail())}
+        >
+          <div className="quote-request-list-head">
+            <strong>{displayTitle}</strong>
+            <span className="muted">{subtitleParts.join(' • ')}</span>
+          </div>
+          <div className="quote-request-list-meta">
+            <span className={`badge${row.status === 'ordered' ? ' badge-success' : ''}`}>
+              {QUOTE_STATUS_LABELS[row.status] ?? row.status}
+            </span>
+            <span className="quote-request-list-price">
+              {total.toLocaleString('fi-FI', { style: 'currency', currency: 'EUR' })}
+            </span>
+            <span className="muted">{row.branding_company?.name ?? '—'}</span>
+            <span className="muted">{updated}</span>
+          </div>
+        </Link>
+        {row.status === 'ordered' && row.work_report_id ? (
+          <Link
+            to={`/tyoraportit/${row.work_report_id}`}
+            className="btn btn-secondary btn-sm quote-request-work-report-link"
+          >
+            Työraportti
+          </Link>
+        ) : null}
+      </div>
     </li>
   );
 }

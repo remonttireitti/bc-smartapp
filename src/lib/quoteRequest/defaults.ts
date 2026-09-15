@@ -31,7 +31,12 @@ import type {
 export const QUOTE_STATUS_LABELS: Record<string, string> = {
   draft: 'Luonnos',
   sent: 'Lähetetty',
+  ordered: 'Tilattu',
 };
+
+export function isQuoteOrderedStatus(status: string | null | undefined): boolean {
+  return status === 'ordered';
+}
 
 function newId() {
   return crypto.randomUUID();

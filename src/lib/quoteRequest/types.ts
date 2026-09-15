@@ -1,4 +1,4 @@
-export type QuoteRequestStatus = 'draft' | 'sent';
+export type QuoteRequestStatus = 'draft' | 'sent' | 'ordered';
 
 export type QuoteType = 'vesi-ilma' | 'ilma-ilma' | 'huolto';
 
@@ -197,6 +197,7 @@ export type QuoteRequestRow = {
   partnership_id: string | null;
   customer_id: string | null;
   equipment_id: string | null;
+  work_report_id?: string | null;
   created_at: string;
   updated_at: string;
   customers: { name: string; address: string | null; city: string | null; phone?: string | null; email?: string | null } | null;

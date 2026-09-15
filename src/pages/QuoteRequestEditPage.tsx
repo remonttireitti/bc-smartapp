@@ -59,12 +59,23 @@ import {
   createEmptyQuoteRequestData,
   normalizeQuoteRequestData,
   prepareQuoteRequestDataForSave,
+  QUOTE_STATUS_LABELS,
   quoteRequestStoredTitle,
   resolveQuoteDisplayTitle,
   resolveQuoteBrandingCompanyId,
   syncCustomerFieldsToForm,
 } from '../lib/quoteRequest/defaults';
-import type { QuoteEditSection, QuoteRequestData, QuoteType, QuoteVatProfile } from '../lib/quoteRequest/types';
+import {
+  createWorkReportFromQuote,
+  markQuoteAsOrderedOnly,
+} from '../lib/quoteRequest/createWorkReportFromQuote';
+import type {
+  QuoteEditSection,
+  QuoteRequestData,
+  QuoteRequestStatus,
+  QuoteType,
+  QuoteVatProfile,
+} from '../lib/quoteRequest/types';
 import { quoteListTrail } from '../lib/navigationTrail';
 import { useProfile } from '../hooks/useProfile';
 import { useRegisterDraftSaver } from '../hooks/useRegisterDraftSaver';
@@ -102,7 +113,8 @@ export default function QuoteRequestEditPage({ session }: Props) {
   const { profile, loading: profileLoading } = useProfile(session);
 
   const [quoteId, setQuoteId] = useState<string | null>(id ?? null);
-  const [status, setStatus] = useState<'draft' | 'sent'>('draft');
+  const [status, setStatus] = useState<QuoteRequestStatus>('draft');
+  const [workReportId, setWorkReportId] = useState<string | null>(null);
   const [form, setForm] = useState<QuoteRequestData>(() => createEmptyQuoteRequestData());
   const [activeSection, setActiveSection] = useState<QuoteEditSection>('asiakas');
   const [partnerships, setPartnerships] = useState<Partnership[]>([]);
@@ -184,6 +196,7 @@ export default function QuoteRequestEditPage({ session }: Props) {
   }, [customers, ownerCompanyId, reportOwnerCompanyId, profile?.company_id]);
 
   const canEdit = isNew || status === 'draft' || status === 'sent';
+  const isOrdered = status === 'ordered';
   const pumpSizingNeedKw = useMemo(
     () => (isPumpQuoteType(form.type) ? computePumpSizingNeedKw(form) : null),
     [form],
@@ -495,7 +508,8 @@ export default function QuoteRequestEditPage({ session }: Props) {
       .from('quote_requests')
       .select(`
         id, title, status, data, updated_at, created_at, owner_company_id, created_by_company_id,
-        branding_company_id, partnership_id, customer_id, equipment_id, subscriber_id, subscriber_portal_visibility
+        branding_company_id, partnership_id, customer_id, equipment_id, subscriber_id, subscriber_portal_visibility,
+        work_report_id
       `)
       .eq('id', quoteIdToLoad)
       .single();
@@ -510,7 +524,7 @@ export default function QuoteRequestEditPage({ session }: Props) {
     const row = data as {
       id: string;
       title: string | null;
-      status: 'draft' | 'sent';
+      status: QuoteRequestStatus;
       data: QuoteRequestData;
       updated_at: string;
       created_at: string;
@@ -519,6 +533,7 @@ export default function QuoteRequestEditPage({ session }: Props) {
       equipment_id: string | null;
       subscriber_id: string | null;
       subscriber_portal_visibility: SubscriberPortalVisibility | null;
+      work_report_id: string | null;
     };
 
     const draftKey = localQuoteDraftKey(row.id, session.user.id);
@@ -541,6 +556,7 @@ export default function QuoteRequestEditPage({ session }: Props) {
     setStoredDbTitle(row.title);
     titleMigratedRef.current = false;
     setStatus(row.status);
+    setWorkReportId(row.work_report_id ?? null);
     setForm(formToUse);
 
     let resolvedCustomerId = row.customer_id ?? '';
@@ -591,9 +607,13 @@ export default function QuoteRequestEditPage({ session }: Props) {
   }, [quoteId, storedDbTitle, storedTitle]);
 
   async function saveQuote(
-    nextStatus?: 'draft' | 'sent',
+    nextStatus?: QuoteRequestStatus,
     options?: { skipSiteDefaultsCheck?: boolean; skipWorkValidation?: boolean },
   ) {
+    if (isOrdered && nextStatus !== 'ordered') {
+      setError('Tilattua tarjousta ei voi muuttaa takaisin luonnokseksi tai lähetetyksi.');
+      return false;
+    }
     if (!profile?.company_id || !ownerCompanyId) {
       setError('Profiilista puuttuu yritys.');
       return false;
@@ -736,6 +756,66 @@ export default function QuoteRequestEditPage({ session }: Props) {
       console.error('Tarjouksen tallennus epäonnistui:', saveError);
       setError(saveError instanceof Error ? saveError.message : 'Tallennus epäonnistui.');
       return false;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function markQuoteOrdered(options: { createWorkReport: boolean }) {
+    if (!quoteId || !profile?.company_id) {
+      setError('Tallenna tarjous ensin.');
+      return;
+    }
+    if (status !== 'sent' && status !== 'ordered') {
+      setError('Vain lähetetty tarjous voidaan merkitä tilatuksi.');
+      return;
+    }
+
+    const saved = await saveQuote(status === 'ordered' ? 'ordered' : 'sent', { skipSiteDefaultsCheck: true });
+    if (!saved) return;
+
+    setBusy(true);
+    setError(null);
+    try {
+      const partnership = contextMode === 'partner' ? partnerships.find((p) => p.id === partnerId) : null;
+      const quoteRow = {
+        id: quoteId,
+        title: storedTitle,
+        data: prepareQuoteRequestDataForSave(form),
+        customer_id: customerId,
+        equipment_id: equipmentId || null,
+        owner_company_id: ownerCompanyId,
+        created_by_company_id: profile.company_id,
+        branding_company_id: resolveQuoteBrandingCompanyId({
+          brandMode: form.brandMode,
+          myCompanyId: profile.company_id,
+          ownerCompanyId,
+          partnership: partnership ?? null,
+        }),
+        partnership_id: partnership?.id ?? null,
+        subscriber_id: resolveSubscriberIdForReport(customerId, subscriberId, customers),
+        subscriber_portal_visibility: subscriberPortalVisibility,
+        work_report_id: workReportId,
+      };
+
+      if (options.createWorkReport) {
+        const reportId = await createWorkReportFromQuote(supabase, {
+          quote: quoteRow,
+          customer: selectedCustomer ?? null,
+          sessionUserId: session.user.id,
+        });
+        setWorkReportId(reportId);
+        setStatus('ordered');
+        navigate(`/tyoraportit/${reportId}`);
+        return;
+      }
+
+      await markQuoteAsOrderedOnly(supabase, quoteId);
+      setStatus('ordered');
+      setSavedAt(new Date().toLocaleTimeString('fi-FI', { hour: '2-digit', minute: '2-digit' }));
+    } catch (markError) {
+      console.error('Tarjouksen tilauksen merkintä epäonnistui:', markError);
+      setError(markError instanceof Error ? markError.message : 'Tilauksen merkintä epäonnistui.');
     } finally {
       setBusy(false);
     }
@@ -929,7 +1009,7 @@ export default function QuoteRequestEditPage({ session }: Props) {
             {ownerCompany?.name ?? reportOwnerName ?? profile?.companies?.name ?? '—'}
             {' • '}
             {QUOTE_TYPE_LABELS[form.type]}
-            {status ? ` • ${status === 'draft' ? 'Luonnos' : 'Lähetetty'}` : ''}
+            {status ? ` • ${QUOTE_STATUS_LABELS[status] ?? status}` : ''}
             {savedAt ? ` • Tallennettu ${savedAt}` : ''}
             {pumpSizingNeedKw != null
               ? form.type === 'ilma-ilma'
@@ -948,6 +1028,21 @@ export default function QuoteRequestEditPage({ session }: Props) {
       </div>
 
       {error && <p className="error">{error}</p>}
+      {isOrdered && (
+        <section className="panel quote-ordered-notice">
+          <p>
+            <strong>Tarjous on merkitty tilatuksi.</strong>
+            {workReportId ? (
+              <>
+                {' '}
+                <Link to={`/tyoraportit/${workReportId}`}>Avaa työraportti</Link>
+              </>
+            ) : (
+              ' Työraporttia ei ole linkitetty — voit luoda sen myöhemmin työraportit-näkymästä.'
+            )}
+          </p>
+        </section>
+      )}
       {isPumpQuoteType(form.type) && (
         <QuoteSiteDefaultsReviewPanel
           pending={pendingSiteDefaults}
@@ -1117,6 +1212,22 @@ export default function QuoteRequestEditPage({ session }: Props) {
               </button>
               <button
                 type="button"
+                className="btn btn-primary"
+                disabled={busy}
+                onClick={() => void markQuoteOrdered({ createWorkReport: true })}
+              >
+                {busy ? 'Käsitellään…' : 'Merkitse tilatuksi ja luo työraportti'}
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                disabled={busy}
+                onClick={() => void markQuoteOrdered({ createWorkReport: false })}
+              >
+                Merkitse tilatuksi (ei työraporttia)
+              </button>
+              <button
+                type="button"
                 className="btn btn-secondary"
                 disabled={busy}
                 onClick={() => void saveQuote('draft')}
@@ -1124,6 +1235,11 @@ export default function QuoteRequestEditPage({ session }: Props) {
                 Palauta luonnokseksi
               </button>
             </>
+          )}
+          {isOrdered && workReportId && (
+            <Link to={`/tyoraportit/${workReportId}`} className="btn btn-primary">
+              Avaa työraportti
+            </Link>
           )}
         </div>
       </form>

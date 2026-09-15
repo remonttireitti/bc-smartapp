@@ -15,7 +15,7 @@ function isCorruptedQuoteDraftShell(draft: QuoteRequestData, db: QuoteRequestDat
 }
 
 export function pickQuoteFormSource(input: {
-  status: 'draft' | 'sent';
+  status: 'draft' | 'sent' | 'ordered';
   dbData: unknown;
   dbUpdatedAt: string;
   dbCreatedAt: string;
