@@ -23,13 +23,13 @@ export type QuoteCustomerForWorkReport = {
   name?: string | null;
 };
 
-/** Työraportin otsikko (heading) = tarjouksen esittelyteksti (introText). */
+/** Työraportin heading (Otsikko) = tarjouksen introText. */
 export function buildWorkReportHeadingFromQuote(data: QuoteRequestData): string | null {
   const intro = normalizeQuoteRequestData(data).introText.trim();
   return intro || null;
 }
 
-/** Työraportin tehtävän kuvaus = tarjouksen työnkuvaus (faultDescription). */
+/** Työraportin description (Tehtävän kuvaus) = tarjouksen faultDescription. */
 export function buildWorkReportDescriptionFromQuote(data: QuoteRequestData): string | null {
   const workDescription = normalizeQuoteRequestData(data).faultDescription.trim();
   return workDescription || null;
