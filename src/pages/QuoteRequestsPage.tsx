@@ -13,6 +13,14 @@ interface Props {
   session: Session;
 }
 
+type QuoteStatusFilter = 'draft' | 'sent' | 'ordered';
+
+const STATUS_FILTER_OPTIONS: Array<{ id: QuoteStatusFilter; label: string }> = [
+  { id: 'draft', label: 'Luonnokset' },
+  { id: 'sent', label: 'Lähetetyt' },
+  { id: 'ordered', label: 'Tilatut' },
+];
+
 function quoteSearchText(row: QuoteRequestRow): string {
   const data = normalizeQuoteRequestData(row.data);
   return [
@@ -35,11 +43,24 @@ function quoteSearchText(row: QuoteRequestRow): string {
     .toLowerCase();
 }
 
+function QuoteRequestGrid({ rows }: { rows: QuoteRequestRow[] }) {
+  return (
+    <div className="grid quote-request-grid">
+      {rows.map((row) => (
+        <QuoteRequestListItem key={row.id} row={row} />
+      ))}
+    </div>
+  );
+}
+
 export default function QuoteRequestsPage({ session }: Props) {
   const { profile } = useProfile(session);
   const [rows, setRows] = useState<QuoteRequestRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [visibleStatuses, setVisibleStatuses] = useState<Set<QuoteStatusFilter>>(
+    () => new Set(['draft', 'sent', 'ordered']),
+  );
 
   useEffect(() => {
     void loadRows();
@@ -69,6 +90,15 @@ export default function QuoteRequestsPage({ session }: Props) {
     setLoading(false);
   }
 
+  function toggleStatus(status: QuoteStatusFilter) {
+    setVisibleStatuses((current) => {
+      const next = new Set(current);
+      if (next.has(status)) next.delete(status);
+      else next.add(status);
+      return next;
+    });
+  }
+
   const filtered = useMemo(() => {
     const query = search.trim().toLowerCase();
     if (!query) return rows;
@@ -81,6 +111,37 @@ export default function QuoteRequestsPage({ session }: Props) {
     const sent = filtered.filter((row) => row.status === 'sent');
     return { drafts, sent, ordered };
   }, [filtered]);
+
+  const statusCounts = useMemo(
+    () => ({
+      draft: grouped.drafts.length,
+      sent: grouped.sent.length,
+      ordered: grouped.ordered.length,
+    }),
+    [grouped],
+  );
+
+  const visibleRows = useMemo(() => {
+    return filtered.filter((row) => visibleStatuses.has(row.status as QuoteStatusFilter));
+  }, [filtered, visibleStatuses]);
+
+  const sections = useMemo(() => {
+    const items: Array<{ key: QuoteStatusFilter; title: string; rows: QuoteRequestRow[] }> = [];
+    if (visibleStatuses.has('draft') && grouped.drafts.length > 0) {
+      items.push({ key: 'draft', title: `Luonnokset (${grouped.drafts.length})`, rows: grouped.drafts });
+    }
+    if (visibleStatuses.has('sent') && grouped.sent.length > 0) {
+      items.push({
+        key: 'sent',
+        title: `Lähetetyt — ei vielä tilattu (${grouped.sent.length})`,
+        rows: grouped.sent,
+      });
+    }
+    if (visibleStatuses.has('ordered') && grouped.ordered.length > 0) {
+      items.push({ key: 'ordered', title: `Tilatut (${grouped.ordered.length})`, rows: grouped.ordered });
+    }
+    return items;
+  }, [grouped, visibleStatuses]);
 
   return (
     <AppLayout session={session}>
@@ -113,6 +174,26 @@ export default function QuoteRequestsPage({ session }: Props) {
         </label>
       </div>
 
+      {!loading && rows.length > 0 && (
+        <div className="quote-request-status-filters" role="group" aria-label="Näytettävät tilat">
+          {STATUS_FILTER_OPTIONS.map((option) => {
+            const active = visibleStatuses.has(option.id);
+            const count = statusCounts[option.id];
+            return (
+              <button
+                key={option.id}
+                type="button"
+                className={`btn btn-sm ${active ? 'btn-primary' : 'btn-secondary'}`}
+                aria-pressed={active}
+                onClick={() => toggleStatus(option.id)}
+              >
+                {option.label} ({count})
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       {loading ? (
         <p className="muted">Ladataan…</p>
       ) : rows.length === 0 ? (
@@ -123,41 +204,17 @@ export default function QuoteRequestsPage({ session }: Props) {
         <section className="panel">
           <p>Ei tuloksia haulle “{search.trim()}”.</p>
         </section>
+      ) : visibleRows.length === 0 ? (
+        <section className="panel">
+          <p>Valitse vähintään yksi tila suodattimesta.</p>
+        </section>
       ) : (
-        <>
-          {grouped.drafts.length > 0 && (
-            <section className="panel">
-              <h2>Luonnokset ({grouped.drafts.length})</h2>
-              <ul className="report-list report-list-modern quote-request-list">
-                {grouped.drafts.map((row) => (
-                  <QuoteRequestListItem key={row.id} row={row} />
-                ))}
-              </ul>
-            </section>
-          )}
-
-          {grouped.sent.length > 0 && (
-            <section className="panel">
-              <h2>Lähetetyt — ei vielä tilattu ({grouped.sent.length})</h2>
-              <ul className="report-list report-list-modern quote-request-list">
-                {grouped.sent.map((row) => (
-                  <QuoteRequestListItem key={row.id} row={row} />
-                ))}
-              </ul>
-            </section>
-          )}
-
-          {grouped.ordered.length > 0 && (
-            <section className="panel">
-              <h2>Tilatut ({grouped.ordered.length})</h2>
-              <ul className="report-list report-list-modern quote-request-list">
-                {grouped.ordered.map((row) => (
-                  <QuoteRequestListItem key={row.id} row={row} />
-                ))}
-              </ul>
-            </section>
-          )}
-        </>
+        sections.map((section) => (
+          <section key={section.key} className="panel">
+            <h2>{section.title}</h2>
+            <QuoteRequestGrid rows={section.rows} />
+          </section>
+        ))
       )}
     </AppLayout>
   );

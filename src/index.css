@@ -912,6 +912,91 @@ a.quote-request-list-link {
   flex-shrink: 0;
 }
 
+.quote-request-status-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .5rem;
+  margin: 0 0 1rem;
+}
+
+.quote-request-grid {
+  grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
+  gap: .75rem;
+  margin-top: .75rem;
+}
+
+.quote-request-tile-wrap {
+  position: relative;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: .4rem;
+}
+
+a.tile.quote-request-tile {
+  aspect-ratio: auto;
+  min-height: 9.5rem;
+  padding: .75rem;
+  text-decoration: none;
+  color: white;
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.12);
+}
+
+a.tile.quote-request-tile:hover {
+  color: white;
+  transform: translateY(-1px);
+}
+
+.quote-request-tile-body {
+  display: flex;
+  flex-direction: column;
+  gap: .3rem;
+  min-height: 0;
+  flex: 1;
+}
+
+.quote-request-tile-badge {
+  align-self: flex-start;
+  font-size: .72rem;
+  font-weight: 600;
+  line-height: 1.2;
+  padding: .15rem .45rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+}
+
+.quote-request-tile-title {
+  font-size: .92rem;
+  line-height: 1.3;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.quote-request-tile-line,
+.quote-request-tile-meta {
+  font-size: .78rem;
+  line-height: 1.3;
+  opacity: .92;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.quote-request-tile-price {
+  font-size: .95rem;
+  font-weight: 700;
+  line-height: 1.2;
+  margin-top: .15rem;
+}
+
+.quote-request-tile-action {
+  align-self: flex-start;
+}
+
 .report-list-row-pro {
   display: flex;
   align-items: center;
@@ -5145,11 +5230,13 @@ textarea {
     gap: .5rem;
   }
 
-  .customer-document-filters {
+  .customer-document-filters,
+  .quote-request-status-filters {
     flex-direction: column;
   }
 
-  .customer-document-filters .btn {
+  .customer-document-filters .btn,
+  .quote-request-status-filters .btn {
     width: 100%;
     min-height: 2.75rem;
   }
