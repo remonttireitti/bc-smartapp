@@ -47,7 +47,7 @@ function vatDiscountSubtitle(form: QuoteRequestData): string {
 
 function termsSubtitle(form: QuoteRequestData): string {
   const parts: string[] = [];
-  if (form.introText?.trim()) parts.push('Esittely');
+  if (form.introText?.trim()) parts.push('Otsikko');
   if (form.paymentTermsText?.trim()) parts.push('Maksuehdot');
   if (form.deliveryTermsText?.trim()) parts.push('Toimitus');
   if (isPumpQuoteType(form.type) && form.quoteTermsText?.trim()) parts.push('Tarjousehdot');

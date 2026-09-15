@@ -56,7 +56,7 @@ export default function QuoteKohdeDocumentView({ form, canEdit, onChange }: Prop
       case 'huolto-kuvaus':
         return (
           <label>
-            Vikakuvaus / työnkuvaus
+            Tehtävän kuvaus
             <textarea
               rows={6}
               value={form.faultDescription}

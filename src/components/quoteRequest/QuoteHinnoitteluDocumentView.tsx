@@ -199,7 +199,7 @@ export default function QuoteHinnoitteluDocumentView({
         return (
           <div className="quote-field-grid">
             <label>
-              Esittelyteksti
+              Otsikko
               <textarea
                 rows={2}
                 value={form.introText}

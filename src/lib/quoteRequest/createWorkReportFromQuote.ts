@@ -23,63 +23,16 @@ export type QuoteCustomerForWorkReport = {
   name?: string | null;
 };
 
-const DEFAULT_QUOTE_INTRO_TEXT = 'Tarjoamme seuraavat työt ja tuotteet:';
-
-function quoteIntroText(data: QuoteRequestData): string {
-  return normalizeQuoteRequestData(data).introText.trim();
-}
-
-function quoteFaultText(data: QuoteRequestData): string {
-  return normalizeQuoteRequestData(data).faultDescription.trim();
-}
-
-function isDefaultQuoteIntroText(intro: string): boolean {
-  return !intro || intro === DEFAULT_QUOTE_INTRO_TEXT;
-}
-
-/** Vikakuvauksen lyhyt otsikkorivi (esim. ennen ", tarjotaan teille"). */
-export function extractFaultHeadingFromQuote(fault: string): string | null {
-  const trimmed = fault.trim();
-  if (!trimmed) return null;
-  const firstLine = trimmed.split(/\r?\n/, 1)[0]?.trim() ?? '';
-  const tarjotaanMatch = firstLine.match(/^(.+?),\s*tarjotaan\b/i);
-  if (tarjotaanMatch?.[1]?.trim()) return tarjotaanMatch[1].trim();
-  return firstLine || null;
-}
-
-/** Työraportin Otsikko-kenttä (tuloste / tiedostonimi). */
+/** Työraportin otsikko (heading) = tarjouksen esittelyteksti (introText). */
 export function buildWorkReportHeadingFromQuote(data: QuoteRequestData): string | null {
-  const intro = quoteIntroText(data);
-  const fault = quoteFaultText(data);
-  if (!isDefaultQuoteIntroText(intro)) return intro;
-  return extractFaultHeadingFromQuote(fault);
+  const intro = normalizeQuoteRequestData(data).introText.trim();
+  return intro || null;
 }
 
-/** Työraportin tehtävän kuvaus. */
+/** Työraportin tehtävän kuvaus = tarjouksen työnkuvaus (faultDescription). */
 export function buildWorkReportDescriptionFromQuote(data: QuoteRequestData): string | null {
-  const intro = quoteIntroText(data);
-  const fault = quoteFaultText(data);
-  if (fault) {
-    const tarjotaanIdx = fault.search(/,\s*tarjotaan\b/i);
-    if (tarjotaanIdx >= 0) {
-      const body = fault.slice(tarjotaanIdx + 1).replace(/^,\s*/, '').trim();
-      if (body) return body;
-    }
-    return fault;
-  }
-  if (!isDefaultQuoteIntroText(intro)) return intro;
-  return null;
-}
-
-/** @deprecated Käytä buildWorkReportHeadingFromQuote */
-export function buildWorkReportTitleFromQuote(
-  data: QuoteRequestData,
-  fallbackTitle?: string | null,
-): string {
-  const heading = buildWorkReportHeadingFromQuote(data);
-  if (heading) return heading;
-  const fallback = fallbackTitle?.trim();
-  return fallback || 'Työraportti';
+  const workDescription = normalizeQuoteRequestData(data).faultDescription.trim();
+  return workDescription || null;
 }
 
 export function buildWorkReportPayloadFromQuote(input: {

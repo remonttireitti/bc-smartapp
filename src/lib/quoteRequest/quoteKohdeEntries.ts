@@ -57,8 +57,8 @@ export function buildQuoteKohdeTiles(form: QuoteRequestData): QuoteKohdeTileEntr
     });
     entries.push({
       id: 'huolto-kuvaus',
-      title: 'Työnkuvaus',
-      subtitle: form.faultDescription?.trim() ? 'Kuvaus täytetty' : 'Vikakuvaus / työnkuvaus',
+      title: 'Tehtävän kuvaus',
+      subtitle: form.faultDescription?.trim() ? 'Kuvaus täytetty' : 'Kuvaile työ',
       themeKey: 'work',
     });
     entries.push({
