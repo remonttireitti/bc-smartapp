@@ -60,7 +60,7 @@ export default function QuoteRepairWorkItemsSection({
         )}
       </div>
 
-      <p className="muted">Tarvikkeet lisätään Tarvikkeet-ruudusta.</p>
+      <p className="muted">Tarvikkeet, kulut ja laitteet lisätään omista ruuduista.</p>
 
       {form.workItems.map((item, index) => (
         <div key={item.id} className="quote-line-row panel-inset">

@@ -4,7 +4,7 @@ import QuoteDocumentSectionView from './QuoteDocumentSectionView';
 import QuoteIilpSiteSection from './QuoteIilpSiteSection';
 import QuoteTermsPrintSection from './QuoteTermsPrintSection';
 import QuoteVilpSiteSection from './QuoteVilpSiteSection';
-import { isPumpQuoteType, isRepairQuoteType } from '../../lib/quoteRequest/constants';
+import { isRepairQuoteType } from '../../lib/quoteRequest/constants';
 import {
   buildQuoteKohdeTiles,
   type QuoteKohdeTileId,

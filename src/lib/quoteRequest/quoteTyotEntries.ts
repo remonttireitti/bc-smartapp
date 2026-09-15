@@ -1,15 +1,18 @@
 import { resolveIilpLaborPricingMode } from './calculations';
-import { installationSuppliesSubtitle } from './installationSupplies';
-import { isRepairQuoteType } from './constants';
+import {
+  installationSuppliesKindSubtitle,
+  installationSuppliesLaborHours,
+  filterInstallationSupplyRows,
+} from './installationSupplies';
 import type { QuoteDocumentTileEntry } from './quoteDocumentThemes';
 import type { QuoteRequestData } from './types';
 
 export type QuoteTyotTileId =
-  | 'huolto-tyot'
-  | 'huolto-tarvikkeet'
-  | 'iilp-laitteet'
-  | 'tyorivit'
-  | 'tarvikkeet';
+  | 'tyot'
+  | 'tarvikkeet'
+  | 'kulut'
+  | 'laite'
+  | 'iilp-laitteet';
 
 export type QuoteTyotTileEntry = QuoteDocumentTileEntry<QuoteTyotTileId>;
 
@@ -31,24 +34,58 @@ function workItemsSubtitle(form: QuoteRequestData): string {
   return parts.length > 0 ? parts.join(' · ') : 'Ei työrivejä';
 }
 
+function tyotTileSubtitle(form: QuoteRequestData): string {
+  const workItemsText = workItemsSubtitle(form);
+  const laborRows = filterInstallationSupplyRows(form.installationSupplies, 'labor');
+  const laborHours = installationSuppliesLaborHours(form.installationSupplies);
+
+  if (workItemsText !== 'Ei työrivejä') {
+    if (laborRows.length > 0) {
+      return `${workItemsText} · +${laborRows.length} riviä`;
+    }
+    return workItemsText;
+  }
+
+  if (laborRows.length > 0) {
+    const parts = [`${laborRows.length} rivi${laborRows.length > 1 ? 'ä' : ''}`];
+    if (laborHours > 0) parts.push(`${laborHours} h`);
+    return parts.join(' · ');
+  }
+
+  return 'Ei työrivejä';
+}
+
+function buildWorkMaterialTiles(form: QuoteRequestData): QuoteTyotTileEntry[] {
+  return [
+    {
+      id: 'tyot',
+      title: 'Työt',
+      subtitle: tyotTileSubtitle(form),
+      themeKey: 'work',
+    },
+    {
+      id: 'tarvikkeet',
+      title: 'Tarvikkeet',
+      subtitle: installationSuppliesKindSubtitle(form, 'supply'),
+      themeKey: 'work',
+    },
+    {
+      id: 'kulut',
+      title: 'Kulut',
+      subtitle: installationSuppliesKindSubtitle(form, 'expense'),
+      themeKey: 'pricing',
+    },
+    {
+      id: 'laite',
+      title: 'Laite',
+      subtitle: installationSuppliesKindSubtitle(form, 'device'),
+      themeKey: 'device',
+    },
+  ];
+}
+
 export function buildQuoteTyotTiles(form: QuoteRequestData): QuoteTyotTileEntry[] {
   const entries: QuoteTyotTileEntry[] = [];
-
-  if (isRepairQuoteType(form.type)) {
-    entries.push({
-      id: 'huolto-tyot',
-      title: 'Työt',
-      subtitle: workItemsSubtitle(form),
-      themeKey: 'work',
-    });
-    entries.push({
-      id: 'huolto-tarvikkeet',
-      title: 'Tarvikkeet',
-      subtitle: installationSuppliesSubtitle(form),
-      themeKey: 'work',
-    });
-    return entries;
-  }
 
   if (form.type === 'ilma-ilma') {
     entries.push({
@@ -63,18 +100,7 @@ export function buildQuoteTyotTiles(form: QuoteRequestData): QuoteTyotTileEntry[
     form.type === 'ilma-ilma' && resolveIilpLaborPricingMode(form) === 'urakka';
 
   if (!hideWorkMaterials) {
-    entries.push({
-      id: 'tyorivit',
-      title: 'Työrivit',
-      subtitle: workItemsSubtitle(form),
-      themeKey: 'work',
-    });
-    entries.push({
-      id: 'tarvikkeet',
-      title: 'Tarvikkeet',
-      subtitle: installationSuppliesSubtitle(form),
-      themeKey: 'work',
-    });
+    entries.push(...buildWorkMaterialTiles(form));
   }
 
   return entries;

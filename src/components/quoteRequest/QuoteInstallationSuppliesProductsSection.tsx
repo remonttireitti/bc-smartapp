@@ -28,6 +28,7 @@ type Props = {
   form: QuoteRequestData;
   canEdit: boolean;
   onChange: (patch: Partial<QuoteRequestData>) => void;
+  rowKindFilter?: QuoteMaterialRowKind;
 };
 
 function formatEuro(value: number): string {
@@ -52,12 +53,37 @@ function productLabel(kind: QuoteMaterialRowKind): string {
   return 'Tuote';
 }
 
+const KIND_SECTION_INTRO: Record<QuoteMaterialRowKind, string> = {
+  labor: 'Lisää työrivejä tunteineen ja hinnoineen.',
+  supply: 'Lisää tarvikkeet ja materiaalit.',
+  expense: 'Lisää kulut, kuten matkakulut tai alihankinta.',
+  device: 'Lisää myytävät laitteet ja tuotteet.',
+};
+
+const KIND_SECTION_TITLE: Record<QuoteMaterialRowKind, string> = {
+  labor: 'Työrivit',
+  supply: 'Tarvikkeet',
+  expense: 'Kulut',
+  device: 'Laitteet',
+};
+
+const KIND_ADD_LABEL: Record<QuoteMaterialRowKind, string> = {
+  labor: '+ Lisää työ',
+  supply: '+ Lisää tarvike',
+  expense: '+ Lisää kulu',
+  device: '+ Lisää laite',
+};
+
 export default function QuoteInstallationSuppliesProductsSection({
   form,
   canEdit,
   onChange,
+  rowKindFilter,
 }: Props) {
   const items = form.installationSupplies ?? [];
+  const visibleItems = rowKindFilter
+    ? items.filter((row) => resolveQuoteMaterialRowKind(row) === rowKindFilter)
+    : items;
   const legacyMaterialCount = useMemo(
     () =>
       form.workItems.flatMap((item) => item.materials ?? []).filter((row) => row.name.trim()).length
@@ -160,36 +186,53 @@ export default function QuoteInstallationSuppliesProductsSection({
     );
   }
 
+  const defaultRowKind = rowKindFilter ?? 'supply';
+  const sectionTitle = rowKindFilter ? KIND_SECTION_TITLE[rowKindFilter] : 'Rivit';
+  const addLabel = rowKindFilter ? KIND_ADD_LABEL[rowKindFilter] : '+ Lisää rivi';
+
   return (
     <div className="quote-installation-supplies">
       <p className="muted">
-        Lisää rivit yhdellä painikkeella ja valitse rivityyppi: <strong>Työ</strong>,{' '}
-        <strong>Tarvike</strong>, <strong>Kulu</strong> tai <strong>Laite</strong> — samat tyypit
-        kuin työraportissa. Asiakkaan tarjouksessa jokainen rivi näkyy tuotekentän tekstillä. Kun
-        myyntihinta on sovittu,
-        hankinnan muutos päivittää kate-%:n.
+        {rowKindFilter
+          ? KIND_SECTION_INTRO[rowKindFilter]
+          : (
+            <>
+              Lisää rivit yhdellä painikkeella ja valitse rivityyppi: <strong>Työ</strong>,{' '}
+              <strong>Tarvike</strong>, <strong>Kulu</strong> tai <strong>Laite</strong> — samat tyypit
+              kuin työraportissa. Asiakkaan tarjouksessa jokainen rivi näkyy tuotekentän tekstillä. Kun
+              myyntihinta on sovittu, hankinnan muutos päivittää kate-%:n.
+            </>
+          )}
       </p>
 
       <div className="section-header-row">
-        <h3>Rivit</h3>
+        <h3>{sectionTitle}</h3>
         {canEdit ? (
           <div className="form-actions" style={{ margin: 0 }}>
             <button
               type="button"
               className="btn btn-secondary btn-sm"
-              onClick={() => updateItems([...items, createEmptyMaterial({ quantity: 1, rowKind: 'supply' })])}
+              onClick={() =>
+                updateItems([
+                  ...items,
+                  createEmptyMaterial({
+                    quantity: 1,
+                    rowKind: defaultRowKind,
+                  }),
+                ])
+              }
             >
-              + Lisää rivi
+              {addLabel}
             </button>
           </div>
         ) : null}
       </div>
 
-      {items.length === 0 ? (
+      {visibleItems.length === 0 ? (
         <p className="muted">Ei rivejä vielä.</p>
       ) : (
         <div className="quote-material-rows">
-          {items.map((item, index) => {
+          {visibleItems.map((item, index) => {
             const qty = Number(item.quantity) || 0;
             const sell = qty * (Number(item.sellPrice) || 0);
             const displayMarginPercent = resolveInstallationSupplyMarginPercent(item);
@@ -222,24 +265,26 @@ export default function QuoteInstallationSuppliesProductsSection({
                   ) : null}
                 </div>
                 <div className="quote-material-row-grid">
-                  <label>
-                    Rivin tyyppi
-                    <select
-                      value={rowKind}
-                      onChange={(e) =>
-                        updateRow(item.id, {
-                          rowKind: e.target.value as QuoteMaterialRowKind,
-                        })
-                      }
-                      disabled={!canEdit}
-                    >
-                      {QUOTE_MATERIAL_ROW_KINDS.map((kind) => (
-                        <option key={kind} value={kind}>
-                          {quoteMaterialRowKindLabel(kind)}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
+                  {!rowKindFilter ? (
+                    <label>
+                      Rivin tyyppi
+                      <select
+                        value={rowKind}
+                        onChange={(e) =>
+                          updateRow(item.id, {
+                            rowKind: e.target.value as QuoteMaterialRowKind,
+                          })
+                        }
+                        disabled={!canEdit}
+                      >
+                        {QUOTE_MATERIAL_ROW_KINDS.map((kind) => (
+                          <option key={kind} value={kind}>
+                            {quoteMaterialRowKindLabel(kind)}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  ) : null}
                   <label className="quote-material-row-span-all">
                     {productLabel(rowKind)}
                     <input
@@ -303,27 +348,54 @@ export default function QuoteInstallationSuppliesProductsSection({
         </div>
       )}
 
-      {items.length > 0 ? (
+      {visibleItems.length > 0 ? (
         <div className="quote-summary-box">
-          {hasLaborRows ? (
+          {rowKindFilter === 'labor' || (!rowKindFilter && hasLaborRows) ? (
             <div>Työt: hankinta {formatEuro(laborPurchase)} · myynti {formatEuro(laborSell)}</div>
           ) : null}
-          {hasExpenseRows ? (
+          {rowKindFilter === 'expense' || (!rowKindFilter && hasExpenseRows) ? (
             <div>Kulut: hankinta {formatEuro(expensePurchase)} · myynti {formatEuro(expenseSell)}</div>
           ) : null}
-          {hasDeviceRows ? (
+          {rowKindFilter === 'device' || (!rowKindFilter && hasDeviceRows) ? (
             <div>
               Laitteet: hankinta {formatEuro(devicePurchase)} · myynti {formatEuro(deviceSell)}
             </div>
           ) : null}
-          {supplyPurchase > 0.005 || supplySell > 0.005 ? (
+          {rowKindFilter === 'supply' || (!rowKindFilter && (supplyPurchase > 0.005 || supplySell > 0.005)) ? (
             <div>
               Tarvikkeet: hankinta {formatEuro(supplyPurchase)} · myynti {formatEuro(supplySell)}
             </div>
           ) : null}
-          <div>Hankinta yhteensä: {formatEuro(productPurchase)}</div>
-          <div>Myynti yhteensä: {formatEuro(sellTotal)}</div>
-          <strong>Kate: {formatEuro(productMargin)}</strong>
+          {rowKindFilter ? (
+            <strong>
+              Yhteensä: hankinta{' '}
+              {formatEuro(
+                rowKindFilter === 'labor'
+                  ? laborPurchase
+                  : rowKindFilter === 'expense'
+                    ? expensePurchase
+                    : rowKindFilter === 'device'
+                      ? devicePurchase
+                      : supplyPurchase,
+              )}{' '}
+              · myynti{' '}
+              {formatEuro(
+                rowKindFilter === 'labor'
+                  ? laborSell
+                  : rowKindFilter === 'expense'
+                    ? expenseSell
+                    : rowKindFilter === 'device'
+                      ? deviceSell
+                      : supplySell,
+              )}
+            </strong>
+          ) : (
+            <>
+              <div>Hankinta yhteensä: {formatEuro(productPurchase)}</div>
+              <div>Myynti yhteensä: {formatEuro(sellTotal)}</div>
+              <strong>Kate: {formatEuro(productMargin)}</strong>
+            </>
+          )}
         </div>
       ) : null}
     </div>
