@@ -59,12 +59,25 @@ import {
   createEmptyQuoteRequestData,
   normalizeQuoteRequestData,
   prepareQuoteRequestDataForSave,
+  QUOTE_STATUS_LABELS,
   quoteRequestStoredTitle,
   resolveQuoteDisplayTitle,
   resolveQuoteBrandingCompanyId,
   syncCustomerFieldsToForm,
 } from '../lib/quoteRequest/defaults';
-import type { QuoteEditSection, QuoteRequestData, QuoteType, QuoteVatProfile } from '../lib/quoteRequest/types';
+import {
+  createWorkReportFromQuote,
+  markQuoteAsNotOrdered,
+  markQuoteAsOrderedOnly,
+} from '../lib/quoteRequest/createWorkReportFromQuote';
+import { shouldAutoCreateWorkReportOnOrder } from '../lib/quoteRequest/orderedWorkReport';
+import type {
+  QuoteEditSection,
+  QuoteRequestData,
+  QuoteRequestStatus,
+  QuoteType,
+  QuoteVatProfile,
+} from '../lib/quoteRequest/types';
 import { quoteListTrail } from '../lib/navigationTrail';
 import { useProfile } from '../hooks/useProfile';
 import { useRegisterDraftSaver } from '../hooks/useRegisterDraftSaver';
@@ -102,7 +115,9 @@ export default function QuoteRequestEditPage({ session }: Props) {
   const { profile, loading: profileLoading } = useProfile(session);
 
   const [quoteId, setQuoteId] = useState<string | null>(id ?? null);
-  const [status, setStatus] = useState<'draft' | 'sent'>('draft');
+  const [quoteCreatedAt, setQuoteCreatedAt] = useState<string | null>(null);
+  const [status, setStatus] = useState<QuoteRequestStatus>('draft');
+  const [workReportId, setWorkReportId] = useState<string | null>(null);
   const [form, setForm] = useState<QuoteRequestData>(() => createEmptyQuoteRequestData());
   const [activeSection, setActiveSection] = useState<QuoteEditSection>('asiakas');
   const [partnerships, setPartnerships] = useState<Partnership[]>([]);
@@ -184,6 +199,8 @@ export default function QuoteRequestEditPage({ session }: Props) {
   }, [customers, ownerCompanyId, reportOwnerCompanyId, profile?.company_id]);
 
   const canEdit = isNew || status === 'draft' || status === 'sent';
+  const isOrdered = status === 'ordered';
+  const autoCreateWorkReportOnOrder = shouldAutoCreateWorkReportOnOrder(quoteCreatedAt);
   const pumpSizingNeedKw = useMemo(
     () => (isPumpQuoteType(form.type) ? computePumpSizingNeedKw(form) : null),
     [form],
@@ -495,7 +512,8 @@ export default function QuoteRequestEditPage({ session }: Props) {
       .from('quote_requests')
       .select(`
         id, title, status, data, updated_at, created_at, owner_company_id, created_by_company_id,
-        branding_company_id, partnership_id, customer_id, equipment_id, subscriber_id, subscriber_portal_visibility
+        branding_company_id, partnership_id, customer_id, equipment_id, subscriber_id, subscriber_portal_visibility,
+        work_report_id
       `)
       .eq('id', quoteIdToLoad)
       .single();
@@ -510,7 +528,7 @@ export default function QuoteRequestEditPage({ session }: Props) {
     const row = data as {
       id: string;
       title: string | null;
-      status: 'draft' | 'sent';
+      status: QuoteRequestStatus;
       data: QuoteRequestData;
       updated_at: string;
       created_at: string;
@@ -519,6 +537,7 @@ export default function QuoteRequestEditPage({ session }: Props) {
       equipment_id: string | null;
       subscriber_id: string | null;
       subscriber_portal_visibility: SubscriberPortalVisibility | null;
+      work_report_id: string | null;
     };
 
     const draftKey = localQuoteDraftKey(row.id, session.user.id);
@@ -538,9 +557,11 @@ export default function QuoteRequestEditPage({ session }: Props) {
     const normalized = normalizeQuoteRequestData(row.data);
 
     setQuoteId(row.id);
+    setQuoteCreatedAt(row.created_at);
     setStoredDbTitle(row.title);
     titleMigratedRef.current = false;
     setStatus(row.status);
+    setWorkReportId(row.work_report_id ?? null);
     setForm(formToUse);
 
     let resolvedCustomerId = row.customer_id ?? '';
@@ -591,9 +612,13 @@ export default function QuoteRequestEditPage({ session }: Props) {
   }, [quoteId, storedDbTitle, storedTitle]);
 
   async function saveQuote(
-    nextStatus?: 'draft' | 'sent',
+    nextStatus?: QuoteRequestStatus,
     options?: { skipSiteDefaultsCheck?: boolean; skipWorkValidation?: boolean },
   ) {
+    if (isOrdered && nextStatus !== 'ordered') {
+      setError('Tilattua tarjousta ei voi muuttaa takaisin luonnokseksi tai lähetetyksi.');
+      return false;
+    }
     if (!profile?.company_id || !ownerCompanyId) {
       setError('Profiilista puuttuu yritys.');
       return false;
@@ -736,6 +761,81 @@ export default function QuoteRequestEditPage({ session }: Props) {
       console.error('Tarjouksen tallennus epäonnistui:', saveError);
       setError(saveError instanceof Error ? saveError.message : 'Tallennus epäonnistui.');
       return false;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function markQuoteOrdered() {
+    if (!quoteId || !profile?.company_id) {
+      setError('Tallenna tarjous ensin.');
+      return;
+    }
+    if (status !== 'sent') {
+      setError('Vain lähetetty tarjous voidaan merkitä tilatuksi.');
+      return;
+    }
+
+    const saved = await saveQuote('sent', { skipSiteDefaultsCheck: true });
+    if (!saved) return;
+
+    setBusy(true);
+    setError(null);
+    try {
+      const partnership = contextMode === 'partner' ? partnerships.find((p) => p.id === partnerId) : null;
+      const quoteRow = {
+        id: quoteId,
+        title: storedTitle,
+        data: prepareQuoteRequestDataForSave(form),
+        customer_id: customerId,
+        owner_company_id: ownerCompanyId,
+        created_by_company_id: profile.company_id,
+        branding_company_id: resolveQuoteBrandingCompanyId({
+          brandMode: form.brandMode,
+          myCompanyId: profile.company_id,
+          ownerCompanyId,
+          partnership: partnership ?? null,
+        }),
+        partnership_id: partnership?.id ?? null,
+        subscriber_id: resolveSubscriberIdForReport(customerId, subscriberId, customers),
+        subscriber_portal_visibility: subscriberPortalVisibility,
+        work_report_id: workReportId,
+      };
+
+      if (autoCreateWorkReportOnOrder) {
+        const reportId = await createWorkReportFromQuote(supabase, {
+          quote: quoteRow,
+          customer: selectedCustomer ?? null,
+          sessionUserId: session.user.id,
+        });
+        setWorkReportId(reportId);
+        setStatus('ordered');
+        navigate(`/tyoraportit/${reportId}`);
+        return;
+      }
+
+      await markQuoteAsOrderedOnly(supabase, quoteId);
+      setStatus('ordered');
+      setSavedAt(new Date().toLocaleTimeString('fi-FI', { hour: '2-digit', minute: '2-digit' }));
+    } catch (markError) {
+      console.error('Tarjouksen tilauksen merkintä epäonnistui:', markError);
+      setError(markError instanceof Error ? markError.message : 'Tilauksen merkintä epäonnistui.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function unmarkQuoteOrdered() {
+    if (!quoteId) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await markQuoteAsNotOrdered(supabase, quoteId);
+      setStatus('sent');
+      setSavedAt(new Date().toLocaleTimeString('fi-FI', { hour: '2-digit', minute: '2-digit' }));
+    } catch (unmarkError) {
+      console.error('Tilauksen merkinnän poisto epäonnistui:', unmarkError);
+      setError(unmarkError instanceof Error ? unmarkError.message : 'Tilauksen merkinnän poisto epäonnistui.');
     } finally {
       setBusy(false);
     }
@@ -929,7 +1029,7 @@ export default function QuoteRequestEditPage({ session }: Props) {
             {ownerCompany?.name ?? reportOwnerName ?? profile?.companies?.name ?? '—'}
             {' • '}
             {QUOTE_TYPE_LABELS[form.type]}
-            {status ? ` • ${status === 'draft' ? 'Luonnos' : 'Lähetetty'}` : ''}
+            {status ? ` • ${QUOTE_STATUS_LABELS[status] ?? status}` : ''}
             {savedAt ? ` • Tallennettu ${savedAt}` : ''}
             {pumpSizingNeedKw != null
               ? form.type === 'ilma-ilma'
@@ -948,6 +1048,29 @@ export default function QuoteRequestEditPage({ session }: Props) {
       </div>
 
       {error && <p className="error">{error}</p>}
+      {isOrdered && (
+        <section className="panel quote-ordered-notice">
+          <p>
+            <strong>Tarjous on merkitty tilatuksi.</strong>
+            {workReportId ? (
+              <>
+                {' '}
+                <Link to={`/tyoraportit/${workReportId}`}>Avaa työraportti</Link>
+              </>
+            ) : (
+              ' Vanha tarjous — työraporttia ei luotu automaattisesti.'
+            )}
+          </p>
+        </section>
+      )}
+      {canEdit && status === 'sent' && autoCreateWorkReportOnOrder && (
+        <section className="panel quote-ordered-notice">
+          <p className="muted">
+            Tämä tarjouspyyntö on luotu 14.9.2026 tai sen jälkeen. Tilauksen merkintä luo työraportin
+            automaattisesti (asiakas, yritys, otsikko esittelytekstistä ja tehtävän kuvaus työnkuvauksesta).
+          </p>
+        </section>
+      )}
       {isPumpQuoteType(form.type) && (
         <QuoteSiteDefaultsReviewPanel
           pending={pendingSiteDefaults}
@@ -1117,12 +1240,41 @@ export default function QuoteRequestEditPage({ session }: Props) {
               </button>
               <button
                 type="button"
+                className="btn btn-primary"
+                disabled={busy}
+                onClick={() => void markQuoteOrdered()}
+              >
+                {busy
+                  ? 'Käsitellään…'
+                  : autoCreateWorkReportOnOrder
+                    ? 'Merkitse tilatuksi ja luo työraportti'
+                    : 'Merkitse tilatuksi'}
+              </button>
+              <button
+                type="button"
                 className="btn btn-secondary"
                 disabled={busy}
                 onClick={() => void saveQuote('draft')}
               >
                 Palauta luonnokseksi
               </button>
+            </>
+          )}
+          {isOrdered && (
+            <>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                disabled={busy}
+                onClick={() => void unmarkQuoteOrdered()}
+              >
+                Merkitse ei-tilatuksi
+              </button>
+              {workReportId ? (
+                <Link to={`/tyoraportit/${workReportId}`} className="btn btn-primary">
+                  Avaa työraportti
+                </Link>
+              ) : null}
             </>
           )}
         </div>

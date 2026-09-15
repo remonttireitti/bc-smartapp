@@ -50,7 +50,7 @@ export default function QuoteRequestsPage({ session }: Props) {
     const { data, error } = await supabase
       .from('quote_requests')
       .select(`
-        id, title, status, data, updated_at, created_at,
+        id, title, status, data, updated_at, created_at, work_report_id,
         customer_id, equipment_id, owner_company_id, branding_company_id, created_by_company_id,
         customers(name, address, city),
         equipment(name, tag),
@@ -77,8 +77,9 @@ export default function QuoteRequestsPage({ session }: Props) {
 
   const grouped = useMemo(() => {
     const drafts = filtered.filter((row) => row.status === 'draft');
-    const sent = filtered.filter((row) => row.status !== 'draft');
-    return { drafts, sent };
+    const ordered = filtered.filter((row) => row.status === 'ordered');
+    const sent = filtered.filter((row) => row.status === 'sent');
+    return { drafts, sent, ordered };
   }, [filtered]);
 
   return (
@@ -137,9 +138,20 @@ export default function QuoteRequestsPage({ session }: Props) {
 
           {grouped.sent.length > 0 && (
             <section className="panel">
-              <h2>Lähetetyt ({grouped.sent.length})</h2>
+              <h2>Lähetetyt — ei vielä tilattu ({grouped.sent.length})</h2>
               <ul className="report-list report-list-modern quote-request-list">
                 {grouped.sent.map((row) => (
+                  <QuoteRequestListItem key={row.id} row={row} />
+                ))}
+              </ul>
+            </section>
+          )}
+
+          {grouped.ordered.length > 0 && (
+            <section className="panel">
+              <h2>Tilatut ({grouped.ordered.length})</h2>
+              <ul className="report-list report-list-modern quote-request-list">
+                {grouped.ordered.map((row) => (
                   <QuoteRequestListItem key={row.id} row={row} />
                 ))}
               </ul>
