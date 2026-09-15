@@ -4,17 +4,54 @@ import type { QuoteDocumentTileEntry } from './quoteDocumentThemes';
 import type { QuoteRequestData } from './types';
 
 export type QuoteKohdeTileId =
+  | 'tyoraportti-otsikko'
+  | 'tyoraportti-kuvaus'
   | 'iilp-mitoitus'
   | 'iilp-asennus'
   | 'vilp-kohde'
   | 'huolto-laite'
-  | 'huolto-kuvaus'
-  | 'huolto-tilanne';
+  | 'huolto-tilanne'
+  | 'terms';
 
 export type QuoteKohdeTileEntry = QuoteDocumentTileEntry<QuoteKohdeTileId>;
 
+function otsikkoSubtitle(form: QuoteRequestData): string {
+  const text = form.introText?.trim() ?? '';
+  if (!text) return 'Esim. ILK 22A korjaukset';
+  if (text.length <= 48) return text;
+  return `${text.slice(0, 47).trimEnd()}…`;
+}
+
+function tehtavaSubtitle(form: QuoteRequestData): string {
+  const text = form.faultDescription?.trim() ?? '';
+  if (!text) return 'Mitä työ sisältää?';
+  if (text.length <= 48) return text;
+  return `${text.slice(0, 47).trimEnd()}…`;
+}
+
+function termsSubtitle(form: QuoteRequestData): string {
+  const parts: string[] = [];
+  if (form.paymentTermsText?.trim()) parts.push('Maksuehdot');
+  if (form.deliveryTermsText?.trim()) parts.push('Toimitus');
+  if (isPumpQuoteType(form.type) && form.quoteTermsText?.trim()) parts.push('Tarjousehdot');
+  return parts.length > 0 ? parts.join(' · ') : 'Maksu-, toimitus- ja tarjousehdot';
+}
+
 export function buildQuoteKohdeTiles(form: QuoteRequestData): QuoteKohdeTileEntry[] {
   const entries: QuoteKohdeTileEntry[] = [];
+
+  entries.push({
+    id: 'tyoraportti-otsikko',
+    title: 'Otsikko',
+    subtitle: otsikkoSubtitle(form),
+    themeKey: 'work',
+  });
+  entries.push({
+    id: 'tyoraportti-kuvaus',
+    title: 'Tehtävän kuvaus',
+    subtitle: tehtavaSubtitle(form),
+    themeKey: 'work',
+  });
 
   if (form.type === 'ilma-ilma') {
     const needKw = computeIilpNeedKw(form);
@@ -56,12 +93,6 @@ export function buildQuoteKohdeTiles(form: QuoteRequestData): QuoteKohdeTileEntr
       themeKey: 'device',
     });
     entries.push({
-      id: 'huolto-kuvaus',
-      title: 'Työnkuvaus',
-      subtitle: form.faultDescription?.trim() ? 'Kuvaus täytetty' : 'Vikakuvaus / työnkuvaus',
-      themeKey: 'work',
-    });
-    entries.push({
       id: 'huolto-tilanne',
       title: 'Tilanneraportti',
       subtitle: form.situationReportEnabled ? 'Mukana tulosteessa' : 'Ei käytössä',
@@ -77,6 +108,13 @@ export function buildQuoteKohdeTiles(form: QuoteRequestData): QuoteKohdeTileEntr
       themeKey: 'site',
     });
   }
+
+  entries.push({
+    id: 'terms',
+    title: 'Tekstit ja ehdot',
+    subtitle: termsSubtitle(form),
+    themeKey: 'terms',
+  });
 
   return entries;
 }

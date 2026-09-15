@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { buildWorkReportTitle } from '../../types';
 import type { SubscriberPortalVisibility } from '../subscriberPortalVisibility';
 import { billingQuoteFromQuoteRow, saveBillingQuoteSettings } from '../workReportBillingQuote';
 import { normalizeQuoteRequestData } from './defaults';
@@ -22,16 +23,13 @@ export type QuoteCustomerForWorkReport = {
   name?: string | null;
 };
 
-export function buildWorkReportTitleFromQuote(
-  data: QuoteRequestData,
-  fallbackTitle?: string | null,
-): string {
+/** Työraportin heading (Otsikko) = tarjouksen introText. */
+export function buildWorkReportHeadingFromQuote(data: QuoteRequestData): string | null {
   const intro = normalizeQuoteRequestData(data).introText.trim();
-  if (intro) return intro;
-  const fallback = fallbackTitle?.trim();
-  return fallback || 'Työraportti';
+  return intro || null;
 }
 
+/** Työraportin description (Tehtävän kuvaus) = tarjouksen faultDescription. */
 export function buildWorkReportDescriptionFromQuote(data: QuoteRequestData): string | null {
   const workDescription = normalizeQuoteRequestData(data).faultDescription.trim();
   return workDescription || null;
@@ -43,15 +41,13 @@ export function buildWorkReportPayloadFromQuote(input: {
   sessionUserId: string;
 }) {
   const customerName = input.customer?.name?.trim() ?? '';
-  const title = buildWorkReportTitleFromQuote(
-    input.quote.data,
-    customerName || input.quote.title,
-  );
+  const heading = buildWorkReportHeadingFromQuote(input.quote.data);
   const description = buildWorkReportDescriptionFromQuote(input.quote.data);
+  const title = buildWorkReportTitle(customerName, heading || description || input.quote.title);
 
   return {
     title,
-    heading: null,
+    heading,
     description,
     orderer_name: null,
     subscriber_id: input.quote.subscriber_id,

@@ -1,9 +1,5 @@
 import { computeTravelNet, resolveIilpLaborPricingMode } from './calculations';
-import {
-  isPumpQuoteType,
-  quoteUsesTravelCost,
-  QUOTE_VAT_PROFILE_LABELS,
-} from './constants';
+import { quoteUsesTravelCost, QUOTE_VAT_PROFILE_LABELS } from './constants';
 import type { QuoteRequestData } from './types';
 
 import type { QuoteDocumentTileEntry } from './quoteDocumentThemes';
@@ -16,7 +12,6 @@ export type QuoteHinnoitteluTileId =
   | 'optional-items'
   | 'validity'
   | 'vat-discount'
-  | 'terms'
   | 'notes';
 
 export type QuoteHinnoitteluTileEntry = QuoteDocumentTileEntry<QuoteHinnoitteluTileId>;
@@ -43,15 +38,6 @@ function vatDiscountSubtitle(form: QuoteRequestData): string {
   const profile = QUOTE_VAT_PROFILE_LABELS[form.quoteVatProfile ?? 'business'];
   const discount = Number(form.overallDiscountPercent) || 0;
   return discount > 0 ? `${profile} · alennus ${discount} %` : profile;
-}
-
-function termsSubtitle(form: QuoteRequestData): string {
-  const parts: string[] = [];
-  if (form.introText?.trim()) parts.push('Esittely');
-  if (form.paymentTermsText?.trim()) parts.push('Maksuehdot');
-  if (form.deliveryTermsText?.trim()) parts.push('Toimitus');
-  if (isPumpQuoteType(form.type) && form.quoteTermsText?.trim()) parts.push('Tarjousehdot');
-  return parts.length > 0 ? parts.join(' · ') : 'Avaa tekstit ja ehdot';
 }
 
 export function buildQuoteHinnoitteluTiles(form: QuoteRequestData): QuoteHinnoitteluTileEntry[] {
@@ -105,13 +91,6 @@ export function buildQuoteHinnoitteluTiles(form: QuoteRequestData): QuoteHinnoit
     title: 'ALV ja alennus',
     subtitle: vatDiscountSubtitle(form),
     themeKey: 'pricing',
-  });
-
-  entries.push({
-    id: 'terms',
-    title: 'Tekstit ja ehdot',
-    subtitle: termsSubtitle(form),
-    themeKey: 'terms',
   });
 
   entries.push({

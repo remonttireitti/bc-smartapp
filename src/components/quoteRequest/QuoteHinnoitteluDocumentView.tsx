@@ -4,7 +4,6 @@ import QuoteDocumentSectionView from './QuoteDocumentSectionView';
 import QuoteIilpOptionsSection from './QuoteIilpOptionsSection';
 import QuoteOptionalItemsSection from './QuoteOptionalItemsSection';
 import QuotePumpDevicesSection from './QuotePumpDevicesSection';
-import QuoteTermsPrintSection from './QuoteTermsPrintSection';
 import QuoteVilpConfigSection from './QuoteVilpConfigSection';
 import { computeTravelNet, resolveIilpLaborPricingMode, travelCostLabel } from '../../lib/quoteRequest/calculations';
 import type { BrandDeliveryFeeByCategoryMap } from '../../data/devicePricingShared';
@@ -193,82 +192,6 @@ export default function QuoteHinnoitteluDocumentView({
                 disabled={!canEdit}
               />
             </label>
-          </div>
-        );
-      case 'terms':
-        return (
-          <div className="quote-field-grid">
-            <label>
-              Esittelyteksti
-              <textarea
-                rows={2}
-                value={form.introText}
-                onChange={(e) => onChange({ introText: e.target.value })}
-                disabled={!canEdit}
-              />
-            </label>
-            <label>
-              Maksuehdot
-              <input
-                value={form.paymentTermsText}
-                onChange={(e) => onChange({ paymentTermsText: e.target.value })}
-                disabled={!canEdit}
-                placeholder={
-                  form.type === 'ilma-ilma'
-                    ? 'Esim. 30 % ennakkomaksu tilauksesta, loppu käyttöönoton jälkeen'
-                    : undefined
-                }
-              />
-            </label>
-            {form.type === 'ilma-ilma' && (
-              <>
-                <label>
-                  Lisätyöt (€/h, alv 0)
-                  <input
-                    type="number"
-                    min="0"
-                    step="1"
-                    value={form.laborRate}
-                    onChange={(e) => onChange({ laborRate: Number(e.target.value) || 0 })}
-                    disabled={!canEdit}
-                  />
-                </label>
-                <label>
-                  {form.iilpPurpose === 'cooling' || form.buildingType === 'kerrostalo'
-                    ? 'Jäähdytyskulutus (tuloste)'
-                    : 'Säästölaskelma (tuloste)'}
-                  <textarea
-                    rows={2}
-                    value={form.iilpEnergySavingsText}
-                    onChange={(e) => onChange({ iilpEnergySavingsText: e.target.value })}
-                    disabled={!canEdit}
-                  />
-                </label>
-              </>
-            )}
-            <label>
-              Toimitusehdot
-              <textarea
-                rows={2}
-                value={form.deliveryTermsText}
-                onChange={(e) => onChange({ deliveryTermsText: e.target.value })}
-                disabled={!canEdit}
-              />
-            </label>
-            {isPumpQuoteType(form.type) && (
-              <QuoteTermsPrintSection form={form} canEdit={canEdit} onChange={onChange} />
-            )}
-            {isPumpQuoteType(form.type) && (
-              <label>
-                Tarjousehdot (teksti)
-                <textarea
-                  rows={14}
-                  value={form.quoteTermsText}
-                  onChange={(e) => onChange({ quoteTermsText: e.target.value })}
-                  disabled={!canEdit}
-                />
-              </label>
-            )}
           </div>
         );
       case 'notes':
