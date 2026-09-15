@@ -18,9 +18,11 @@ const QUOTE_STATUS_TILE_COLORS: Record<string, string> = {
 
 type Props = {
   row: QuoteRequestRow;
+  onDelete?: () => void;
+  deleteBusy?: boolean;
 };
 
-export function QuoteRequestListItem({ row }: Props) {
+export function QuoteRequestListItem({ row, onDelete, deleteBusy = false }: Props) {
   const data = normalizeQuoteRequestData(row.data);
   const total = computeQuoteTotals(data).grossTotal;
   const updated = new Date(row.updated_at).toLocaleString('fi-FI');
@@ -66,6 +68,16 @@ export function QuoteRequestListItem({ row }: Props) {
         >
           Työraportti
         </Link>
+      ) : null}
+      {onDelete ? (
+        <button
+          type="button"
+          className="btn btn-secondary btn-sm quote-request-tile-delete"
+          disabled={deleteBusy}
+          onClick={onDelete}
+        >
+          {deleteBusy ? 'Poistetaan…' : 'Poista luonnos'}
+        </button>
       ) : null}
     </div>
   );

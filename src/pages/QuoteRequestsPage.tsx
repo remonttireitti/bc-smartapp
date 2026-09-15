@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
 import AppLayout from '../components/AppLayout';
 import { QuoteRequestListItem } from '../components/quoteRequest/QuoteRequestListItem';
+import { canDeleteQuoteRequest } from '../lib/deletePermissions';
 import { supabase } from '../lib/supabase';
 import { quoteListTrail, withNavTrail } from '../lib/navigationTrail';
 import { normalizeQuoteRequestData } from '../lib/quoteRequest/defaults';
@@ -43,11 +44,26 @@ function quoteSearchText(row: QuoteRequestRow): string {
     .toLowerCase();
 }
 
-function QuoteRequestGrid({ rows }: { rows: QuoteRequestRow[] }) {
+function QuoteRequestGrid({
+  rows,
+  canDelete,
+  deletingDraftId,
+  onDelete,
+}: {
+  rows: QuoteRequestRow[];
+  canDelete: (row: QuoteRequestRow) => boolean;
+  deletingDraftId: string | null;
+  onDelete: (row: QuoteRequestRow) => void;
+}) {
   return (
     <div className="grid quote-request-grid">
       {rows.map((row) => (
-        <QuoteRequestListItem key={row.id} row={row} />
+        <QuoteRequestListItem
+          key={row.id}
+          row={row}
+          onDelete={canDelete(row) ? () => onDelete(row) : undefined}
+          deleteBusy={deletingDraftId === row.id}
+        />
       ))}
     </div>
   );
@@ -61,6 +77,7 @@ export default function QuoteRequestsPage({ session }: Props) {
   const [visibleStatuses, setVisibleStatuses] = useState<Set<QuoteStatusFilter>>(
     () => new Set(['draft', 'sent', 'ordered']),
   );
+  const [deletingDraftId, setDeletingDraftId] = useState<string | null>(null);
 
   useEffect(() => {
     void loadRows();
@@ -88,6 +105,31 @@ export default function QuoteRequestsPage({ session }: Props) {
       setRows((data as unknown as QuoteRequestRow[]) ?? []);
     }
     setLoading(false);
+  }
+
+  function canDeleteDraft(row: QuoteRequestRow): boolean {
+    return canDeleteQuoteRequest(
+      row,
+      profile?.company_id,
+      profile?.role,
+      profile?.is_global_admin,
+    );
+  }
+
+  async function deleteDraftQuote(row: QuoteRequestRow) {
+    if (!canDeleteDraft(row)) return;
+    if (!window.confirm('Poistetaanko tarjouspyynnön luonnos pysyvästi? Tätä toimintoa ei voi perua.')) {
+      return;
+    }
+    setDeletingDraftId(row.id);
+    const { error } = await supabase.from('quote_requests').delete().eq('id', row.id);
+    setDeletingDraftId(null);
+    if (error) {
+      console.error(error);
+      window.alert(error.message);
+      return;
+    }
+    setRows((prev) => prev.filter((entry) => entry.id !== row.id));
   }
 
   function toggleStatus(status: QuoteStatusFilter) {
@@ -212,7 +254,12 @@ export default function QuoteRequestsPage({ session }: Props) {
         sections.map((section) => (
           <section key={section.key} className="panel">
             <h2>{section.title}</h2>
-            <QuoteRequestGrid rows={section.rows} />
+            <QuoteRequestGrid
+              rows={section.rows}
+              canDelete={canDeleteDraft}
+              deletingDraftId={deletingDraftId}
+              onDelete={(row) => void deleteDraftQuote(row)}
+            />
           </section>
         ))
       )}

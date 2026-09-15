@@ -24,6 +24,32 @@ export function canDeleteWorkReport(
   return report.created_by_user_id === userId;
 }
 
+export function canDeleteQuoteRequest(
+  quote: {
+    status: string;
+    owner_company_id: string;
+    created_by_company_id?: string | null;
+  },
+  myCompanyId: string | null | undefined,
+  role: string | null | undefined,
+  isGlobalAdmin?: boolean,
+) {
+  if (role === 'subscriber' || role === 'customer') return false;
+  if (quote.status !== 'draft') return false;
+  if (isGlobalAdmin) return true;
+  if (canDeleteCompanyOwnedEntity(quote.owner_company_id, myCompanyId, role, isGlobalAdmin)) {
+    return true;
+  }
+  if (
+    quote.created_by_company_id
+    && myCompanyId
+    && quote.created_by_company_id === myCompanyId
+  ) {
+    return true;
+  }
+  return false;
+}
+
 export function canDeleteMaintenanceReport(
   report: {
     status: string;
