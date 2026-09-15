@@ -1,11 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  billingQuoteFromQuoteRow,
   billingQuoteHasData,
   computePartnerNetMargin,
   computeQuotePurchaseMarginAdjustment,
-  loadBillingQuoteOptions,
   normalizeBillingQuoteSettings,
   parseBillingQuoteSettings,
   quoteHasVat,
@@ -13,7 +11,6 @@ import {
   resolveCustomerBillableGrandTotal,
   resolveQuotePurchaseTotal,
   saveBillingQuoteSettings,
-  type BillingQuoteOption,
   type BillingQuotePurchaseLine,
   type BillingQuoteSettings,
 } from '../lib/workReportBillingQuote';
@@ -74,8 +71,8 @@ function roundMoney(value: number): number {
 
 export default function WorkReportBillingQuotePanel({
   workReportId,
-  customerId,
-  ownerCompanyId,
+  customerId: _customerId,
+  ownerCompanyId: _ownerCompanyId,
   installationCostNet,
   initialSettings,
   dailyLogs = [],
@@ -91,8 +88,6 @@ export default function WorkReportBillingQuotePanel({
   const [settings, setSettings] = useState<BillingQuoteSettings>(() =>
     parseBillingQuoteSettings(initialSettings),
   );
-  const [quoteOptions, setQuoteOptions] = useState<BillingQuoteOption[]>([]);
-  const [quotesLoading, setQuotesLoading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(() => billingQuoteHasData(initialSettings));
@@ -102,25 +97,6 @@ export default function WorkReportBillingQuotePanel({
     setSettings(parseBillingQuoteSettings(initialSettings));
     if (billingQuoteHasData(initialSettings)) setExpanded(true);
   }, [initialSettings]);
-
-  useEffect(() => {
-    if (!customerId || readOnly) return;
-    let cancelled = false;
-    setQuotesLoading(true);
-    void loadBillingQuoteOptions(supabase, customerId, ownerCompanyId)
-      .then((rows) => {
-        if (!cancelled) setQuoteOptions(rows);
-      })
-      .catch((err) => {
-        if (!cancelled) console.error(err);
-      })
-      .finally(() => {
-        if (!cancelled) setQuotesLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [customerId, ownerCompanyId, readOnly]);
 
   useEffect(() => {
     if (!settings.quote_request_id) {
@@ -222,25 +198,6 @@ export default function WorkReportBillingQuotePanel({
     [effectiveSettings, dailyLogs, customerCalculation, quoteBillingEnabled],
   );
 
-  function applyQuote(option: BillingQuoteOption) {
-    void supabase
-      .from('quote_requests')
-      .select('data')
-      .eq('id', option.id)
-      .single()
-      .then(({ data }) => {
-        if (!data) return;
-        setQuoteData(data.data);
-        setSettings((prev) =>
-          billingQuoteFromQuoteRow(option.id, option.title, data.data, {
-            fixedCustomerBilling: prev.customer_mode !== 'daily_log',
-            previous: prev,
-          }),
-        );
-      });
-    setExpanded(true);
-  }
-
   function updatePurchaseLine(id: string, actualPurchaseNet: number | null) {
     const currentLines = effectiveSettings.purchase_lines ?? [];
     const target = currentLines.find((line) => line.id === id);
@@ -280,7 +237,9 @@ export default function WorkReportBillingQuotePanel({
     }
   }
 
-  if (readOnly && !billingQuoteHasData(settings)) return null;
+  if (!billingQuoteHasData(settings)) return null;
+
+  const quoteIsLinked = !!settings.quote_request_id;
 
   const customerTotalLabel = quoteHasVat(settings.quote_vat_rate)
     ? 'Asiakkaalta laskutettava (sis. alv)'
@@ -583,9 +542,7 @@ export default function WorkReportBillingQuotePanel({
               {' '}
               · kiinteä asiakashinta {formatEuro(settings.customer_invoice_total)}
             </span>
-          ) : (
-            <span className="muted"> · linkitä tarjous</span>
-          )}
+          ) : null}
         </button>
         {printHref && billingQuoteHasData(settings) ? (
           <Link to={printHref} className="btn btn-secondary btn-sm">
@@ -598,42 +555,22 @@ export default function WorkReportBillingQuotePanel({
         <div className="billing-margin-body">
           {!readOnly ? (
             <div className="form-grid billing-margin-form">
-              <label className="form-field span-2">
-                <span>Tarjous</span>
-                <select
-                  value={settings.quote_request_id ?? ''}
-                  disabled={busy || quotesLoading || !customerId}
-                  onChange={(e) => {
-                    const id = e.target.value;
-                    if (!id) {
-                      setSettings((prev) => ({
-                        ...prev,
-                        quote_request_id: null,
-                        quote_title: null,
-                        customer_mode: 'daily_log',
-                      }));
-                      return;
-                    }
-                    const option = quoteOptions.find((row) => row.id === id);
-                    if (option) applyQuote(option);
-                  }}
-                >
-                  <option value="">
-                    {quotesLoading
-                      ? 'Ladataan tarjouksia…'
-                      : customerId
-                        ? 'Valitse tarjous'
-                        : 'Ei asiakasta — syötä hinnat käsin'}
-                  </option>
-                  {quoteOptions.map((option) => (
-                    <option key={option.id} value={option.id}>
-                      {option.title} · {formatEuro(option.customer_invoice_total)}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              {quoteIsLinked ? (
+                <div className="form-field span-2 billing-quote-linked-summary">
+                  <span>Tarjous</span>
+                  <div className="billing-quote-linked-row">
+                    <strong>{settings.quote_title ?? 'Linkitetty tarjous'}</strong>
+                    <Link
+                      to={`/tarjouspyynnot/${settings.quote_request_id}`}
+                      className="btn btn-secondary btn-sm"
+                    >
+                      Avaa tarjous
+                    </Link>
+                  </div>
+                </div>
+              ) : null}
 
-              {showCustomerQuoteMode ? (
+              {showCustomerQuoteMode && quoteIsLinked ? (
                 <>
                   <label className="form-field span-2 compact-option">
                     <input
@@ -731,14 +668,6 @@ export default function WorkReportBillingQuotePanel({
                 >
                   {busy ? 'Tallennetaan…' : 'Tallenna tarjous'}
                 </button>
-                {settings.quote_request_id ? (
-                  <Link
-                    to={`/tarjouspyynnot/${settings.quote_request_id}`}
-                    className="btn btn-secondary btn-sm"
-                  >
-                    Avaa tarjous
-                  </Link>
-                ) : null}
               </div>
             </div>
           ) : (

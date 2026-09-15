@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { SubscriberPortalVisibility } from '../subscriberPortalVisibility';
+import { billingQuoteFromQuoteRow, saveBillingQuoteSettings } from '../workReportBillingQuote';
 import { normalizeQuoteRequestData } from './defaults';
 import type { QuoteRequestData } from './types';
 
@@ -127,6 +128,14 @@ export async function createWorkReportFromQuote(
   if (billingInsertError) {
     throw new Error(billingInsertError.message);
   }
+
+  const billingQuote = billingQuoteFromQuoteRow(
+    input.quote.id,
+    input.quote.title,
+    input.quote.data,
+    { fixedCustomerBilling: true },
+  );
+  await saveBillingQuoteSettings(supabase, reportId, billingQuote);
 
   const { error: linkError } = await supabase
     .from('quote_requests')
