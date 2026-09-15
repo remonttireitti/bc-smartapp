@@ -10,6 +10,12 @@ import { quoteCustomerDisplayName, quoteDeviceDisplayLabel } from '../../lib/quo
 import type { QuoteRequestRow } from '../../lib/quoteRequest/types';
 import { quoteListTrail, withNavTrail } from '../../lib/navigationTrail';
 
+const QUOTE_STATUS_TILE_COLORS: Record<string, string> = {
+  draft: 'linear-gradient(135deg, #475569 0%, #64748b 100%)',
+  sent: 'linear-gradient(135deg, #2563eb 0%, #3b82f6 100%)',
+  ordered: 'linear-gradient(135deg, #059669 0%, #10b981 100%)',
+};
+
 type Props = {
   row: QuoteRequestRow;
 };
@@ -29,39 +35,38 @@ export function QuoteRequestListItem({ row }: Props) {
     quoteCustomerDisplayName(row),
     deviceLabel,
   ].filter(Boolean);
+  const tileColor = QUOTE_STATUS_TILE_COLORS[row.status] ?? QUOTE_STATUS_TILE_COLORS.draft;
 
   return (
-    <li className="quote-request-list-item">
-      <div className="quote-request-list-row">
+    <div className="quote-request-tile-wrap">
+      <Link
+        to={`/tarjouspyynnot/${row.id}`}
+        className="tile quote-request-tile"
+        style={{ background: tileColor }}
+        {...withNavTrail(quoteListTrail())}
+      >
+        <div className="quote-request-tile-body">
+          <span className="quote-request-tile-badge">
+            {QUOTE_STATUS_LABELS[row.status] ?? row.status}
+          </span>
+          <strong className="quote-request-tile-title">{displayTitle}</strong>
+          <span className="quote-request-tile-line">{subtitleParts.join(' • ')}</span>
+          <span className="quote-request-tile-price">
+            {total.toLocaleString('fi-FI', { style: 'currency', currency: 'EUR' })}
+          </span>
+          <span className="quote-request-tile-meta">
+            {row.branding_company?.name ?? '—'} · {updated}
+          </span>
+        </div>
+      </Link>
+      {row.status === 'ordered' && row.work_report_id ? (
         <Link
-          to={`/tarjouspyynnot/${row.id}`}
-          className="quote-request-list-link"
-          {...withNavTrail(quoteListTrail())}
+          to={`/tyoraportit/${row.work_report_id}`}
+          className="btn btn-secondary btn-sm quote-request-tile-action"
         >
-          <div className="quote-request-list-head">
-            <strong>{displayTitle}</strong>
-            <span className="muted">{subtitleParts.join(' • ')}</span>
-          </div>
-          <div className="quote-request-list-meta">
-            <span className={`badge${row.status === 'ordered' ? ' badge-success' : ''}`}>
-              {QUOTE_STATUS_LABELS[row.status] ?? row.status}
-            </span>
-            <span className="quote-request-list-price">
-              {total.toLocaleString('fi-FI', { style: 'currency', currency: 'EUR' })}
-            </span>
-            <span className="muted">{row.branding_company?.name ?? '—'}</span>
-            <span className="muted">{updated}</span>
-          </div>
+          Työraportti
         </Link>
-        {row.status === 'ordered' && row.work_report_id ? (
-          <Link
-            to={`/tyoraportit/${row.work_report_id}`}
-            className="btn btn-secondary btn-sm quote-request-work-report-link"
-          >
-            Työraportti
-          </Link>
-        ) : null}
-      </div>
-    </li>
+      ) : null}
+    </div>
   );
 }
