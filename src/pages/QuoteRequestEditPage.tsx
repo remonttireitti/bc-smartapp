@@ -1067,7 +1067,7 @@ export default function QuoteRequestEditPage({ session }: Props) {
         <section className="panel quote-ordered-notice">
           <p className="muted">
             Tämä tarjouspyyntö on luotu 14.9.2026 tai sen jälkeen. Tilauksen merkintä luo työraportin
-            automaattisesti (asiakas, yritys, otsikko esittelytekstistä ja tehtävän kuvaus työnkuvauksesta).
+            automaattisesti (asiakas, yritys, otsikko esittelytekstistä tai vikakuvauksesta ja tehtävä työnkuvauksesta).
           </p>
         </section>
       )}

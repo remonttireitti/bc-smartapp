@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { buildWorkReportTitle } from '../../types';
 import type { SubscriberPortalVisibility } from '../subscriberPortalVisibility';
 import { billingQuoteFromQuoteRow, saveBillingQuoteSettings } from '../workReportBillingQuote';
 import { normalizeQuoteRequestData } from './defaults';
@@ -22,19 +23,63 @@ export type QuoteCustomerForWorkReport = {
   name?: string | null;
 };
 
+const DEFAULT_QUOTE_INTRO_TEXT = 'Tarjoamme seuraavat työt ja tuotteet:';
+
+function quoteIntroText(data: QuoteRequestData): string {
+  return normalizeQuoteRequestData(data).introText.trim();
+}
+
+function quoteFaultText(data: QuoteRequestData): string {
+  return normalizeQuoteRequestData(data).faultDescription.trim();
+}
+
+function isDefaultQuoteIntroText(intro: string): boolean {
+  return !intro || intro === DEFAULT_QUOTE_INTRO_TEXT;
+}
+
+/** Vikakuvauksen lyhyt otsikkorivi (esim. ennen ", tarjotaan teille"). */
+export function extractFaultHeadingFromQuote(fault: string): string | null {
+  const trimmed = fault.trim();
+  if (!trimmed) return null;
+  const firstLine = trimmed.split(/\r?\n/, 1)[0]?.trim() ?? '';
+  const tarjotaanMatch = firstLine.match(/^(.+?),\s*tarjotaan\b/i);
+  if (tarjotaanMatch?.[1]?.trim()) return tarjotaanMatch[1].trim();
+  return firstLine || null;
+}
+
+/** Työraportin Otsikko-kenttä (tuloste / tiedostonimi). */
+export function buildWorkReportHeadingFromQuote(data: QuoteRequestData): string | null {
+  const intro = quoteIntroText(data);
+  const fault = quoteFaultText(data);
+  if (!isDefaultQuoteIntroText(intro)) return intro;
+  return extractFaultHeadingFromQuote(fault);
+}
+
+/** Työraportin tehtävän kuvaus. */
+export function buildWorkReportDescriptionFromQuote(data: QuoteRequestData): string | null {
+  const intro = quoteIntroText(data);
+  const fault = quoteFaultText(data);
+  if (fault) {
+    const tarjotaanIdx = fault.search(/,\s*tarjotaan\b/i);
+    if (tarjotaanIdx >= 0) {
+      const body = fault.slice(tarjotaanIdx + 1).replace(/^,\s*/, '').trim();
+      if (body) return body;
+    }
+    return fault;
+  }
+  if (!isDefaultQuoteIntroText(intro)) return intro;
+  return null;
+}
+
+/** @deprecated Käytä buildWorkReportHeadingFromQuote */
 export function buildWorkReportTitleFromQuote(
   data: QuoteRequestData,
   fallbackTitle?: string | null,
 ): string {
-  const intro = normalizeQuoteRequestData(data).introText.trim();
-  if (intro) return intro;
+  const heading = buildWorkReportHeadingFromQuote(data);
+  if (heading) return heading;
   const fallback = fallbackTitle?.trim();
   return fallback || 'Työraportti';
-}
-
-export function buildWorkReportDescriptionFromQuote(data: QuoteRequestData): string | null {
-  const workDescription = normalizeQuoteRequestData(data).faultDescription.trim();
-  return workDescription || null;
 }
 
 export function buildWorkReportPayloadFromQuote(input: {
@@ -43,15 +88,13 @@ export function buildWorkReportPayloadFromQuote(input: {
   sessionUserId: string;
 }) {
   const customerName = input.customer?.name?.trim() ?? '';
-  const title = buildWorkReportTitleFromQuote(
-    input.quote.data,
-    customerName || input.quote.title,
-  );
+  const heading = buildWorkReportHeadingFromQuote(input.quote.data);
   const description = buildWorkReportDescriptionFromQuote(input.quote.data);
+  const title = buildWorkReportTitle(customerName, heading || description || input.quote.title);
 
   return {
     title,
-    heading: null,
+    heading,
     description,
     orderer_name: null,
     subscriber_id: input.quote.subscriber_id,
