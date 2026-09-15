@@ -11,7 +11,10 @@ export type QuoteKohdeTileId =
   | 'vilp-kohde'
   | 'huolto-laite'
   | 'huolto-tilanne'
-  | 'terms';
+  | 'maksuehdot'
+  | 'toimitusehdot'
+  | 'iilp-tuloste'
+  | 'tarjousehdot';
 
 export type QuoteKohdeTileEntry = QuoteDocumentTileEntry<QuoteKohdeTileId>;
 
@@ -29,12 +32,38 @@ function tehtavaSubtitle(form: QuoteRequestData): string {
   return `${text.slice(0, 47).trimEnd()}…`;
 }
 
-function termsSubtitle(form: QuoteRequestData): string {
-  const parts: string[] = [];
-  if (form.paymentTermsText?.trim()) parts.push('Maksuehdot');
-  if (form.deliveryTermsText?.trim()) parts.push('Toimitus');
-  if (isPumpQuoteType(form.type) && form.quoteTermsText?.trim()) parts.push('Tarjousehdot');
-  return parts.length > 0 ? parts.join(' · ') : 'Maksu-, toimitus- ja tarjousehdot';
+function truncateSubtitle(text: string, fallback: string): string {
+  const trimmed = text.trim();
+  if (!trimmed) return fallback;
+  if (trimmed.length <= 48) return trimmed;
+  return `${trimmed.slice(0, 47).trimEnd()}…`;
+}
+
+function maksuehdotSubtitle(form: QuoteRequestData): string {
+  const text = form.paymentTermsText?.trim() ?? '';
+  if (text) return truncateSubtitle(text, '14 pv netto');
+  if (form.type === 'ilma-ilma' && form.laborRate > 0) {
+    return `Lisätyöt ${form.laborRate} €/h`;
+  }
+  return '14 pv netto';
+}
+
+function toimitusehdotSubtitle(form: QuoteRequestData): string {
+  return truncateSubtitle(form.deliveryTermsText ?? '', 'Työt sovitaan erikseen');
+}
+
+function iilpTulosteSubtitle(form: QuoteRequestData): string {
+  const text = form.iilpEnergySavingsText?.trim() ?? '';
+  if (text) return truncateSubtitle(text, 'Säästölaskelma tulosteessa');
+  if (form.iilpPurpose === 'cooling' || form.buildingType === 'kerrostalo') {
+    return 'Jäähdytyskulutus tulosteessa';
+  }
+  return 'Säästölaskelma tulosteessa';
+}
+
+function tarjousehdotSubtitle(form: QuoteRequestData): string {
+  const text = form.quoteTermsText?.trim() ?? '';
+  return truncateSubtitle(text, 'Takuut, huolto ja asennusehdot');
 }
 
 export function buildQuoteKohdeTiles(form: QuoteRequestData): QuoteKohdeTileEntry[] {
@@ -110,11 +139,35 @@ export function buildQuoteKohdeTiles(form: QuoteRequestData): QuoteKohdeTileEntr
   }
 
   entries.push({
-    id: 'terms',
-    title: 'Tekstit ja ehdot',
-    subtitle: termsSubtitle(form),
+    id: 'maksuehdot',
+    title: 'Maksuehdot',
+    subtitle: maksuehdotSubtitle(form),
     themeKey: 'terms',
   });
+  entries.push({
+    id: 'toimitusehdot',
+    title: 'Toimitusehdot',
+    subtitle: toimitusehdotSubtitle(form),
+    themeKey: 'terms',
+  });
+
+  if (form.type === 'ilma-ilma') {
+    entries.push({
+      id: 'iilp-tuloste',
+      title: 'Tulostetekstit',
+      subtitle: iilpTulosteSubtitle(form),
+      themeKey: 'notes',
+    });
+  }
+
+  if (isPumpQuoteType(form.type)) {
+    entries.push({
+      id: 'tarjousehdot',
+      title: 'Tarjousehdot',
+      subtitle: tarjousehdotSubtitle(form),
+      themeKey: 'terms',
+    });
+  }
 
   return entries;
 }

@@ -365,6 +365,52 @@ export function installationSuppliesSubtitle(form: QuoteRequestData): string {
   return parts.join(' · ');
 }
 
+const KIND_SUBTITLE_EMPTY: Record<QuoteMaterialRowKind, string> = {
+  labor: 'Ei työrivejä',
+  supply: 'Ei tarvikkeita',
+  expense: 'Ei kuluja',
+  device: 'Ei laitteita',
+};
+
+function kindSellNet(items: QuoteMaterial[] | undefined, kind: QuoteMaterialRowKind): number {
+  if (kind === 'labor') return installationSuppliesLaborSellNet(items);
+  if (kind === 'supply') return installationSuppliesSupplySellNet(items);
+  if (kind === 'expense') return installationSuppliesExpenseSellNet(items);
+  return installationSuppliesDeviceSellNet(items);
+}
+
+export function installationSuppliesKindSubtitle(
+  form: QuoteRequestData,
+  kind: QuoteMaterialRowKind,
+): string {
+  const items = filterInstallationSupplyRows(form.installationSupplies, kind);
+  const sellNet = kindSellNet(form.installationSupplies, kind);
+  const parts: string[] = [];
+
+  if (kind === 'labor') {
+    const hours = installationSuppliesLaborHours(form.installationSupplies);
+    if (items.length > 0) {
+      parts.push(`${items.length} rivi${items.length > 1 ? 'ä' : ''}`);
+      if (hours > 0) parts.push(`${hours} h`);
+    }
+  } else if (kind === 'device') {
+    const label = installationSuppliesOfferedDeviceLabel(form.installationSupplies);
+    if (label) return label.length <= 48 ? label : `${label.slice(0, 47).trimEnd()}…`;
+    if (items.length > 0) parts.push(`${items.length} laite${items.length > 1 ? 'tta' : ''}`);
+  } else if (items.length > 0) {
+    const noun = kind === 'expense' ? 'kulu' : 'tarvike';
+    parts.push(`${items.length} ${noun}${items.length > 1 ? 'a' : ''}`);
+  }
+
+  if (sellNet > 0) {
+    parts.push(formatEuro(sellNet));
+  }
+
+  if (parts.length === 0) return KIND_SUBTITLE_EMPTY[kind];
+  if (sellNet <= 0 && items.length > 0) parts.push('täytä hinnat');
+  return parts.join(' · ');
+}
+
 export function generateInstallationSuppliesPrintHtml(
   form: QuoteRequestData,
   options?: { title?: string; companyName?: string },

@@ -1,6 +1,7 @@
-import { computeTravelNet, resolveIilpLaborPricingMode } from './calculations';
+import { computeQuoteTotals, computeTravelNet, resolveIilpLaborPricingMode } from './calculations';
 import { quoteUsesTravelCost, QUOTE_VAT_PROFILE_LABELS } from './constants';
 import type { QuoteRequestData } from './types';
+import type { BrandDeliveryFeeByCategoryMap } from '../../data/devicePricingShared';
 
 import type { QuoteDocumentTileEntry } from './quoteDocumentThemes';
 
@@ -11,7 +12,8 @@ export type QuoteHinnoitteluTileId =
   | 'pump-pricing'
   | 'optional-items'
   | 'validity'
-  | 'vat-discount'
+  | 'vat-profile'
+  | 'discount'
   | 'notes';
 
 export type QuoteHinnoitteluTileEntry = QuoteDocumentTileEntry<QuoteHinnoitteluTileId>;
@@ -34,13 +36,27 @@ function validitySubtitle(form: QuoteRequestData): string {
   return 'Avaa asetukset';
 }
 
-function vatDiscountSubtitle(form: QuoteRequestData): string {
-  const profile = QUOTE_VAT_PROFILE_LABELS[form.quoteVatProfile ?? 'business'];
-  const discount = Number(form.overallDiscountPercent) || 0;
-  return discount > 0 ? `${profile} · alennus ${discount} %` : profile;
+function vatProfileSubtitle(form: QuoteRequestData): string {
+  return QUOTE_VAT_PROFILE_LABELS[form.quoteVatProfile ?? 'business'];
 }
 
-export function buildQuoteHinnoitteluTiles(form: QuoteRequestData): QuoteHinnoitteluTileEntry[] {
+function discountSubtitle(
+  form: QuoteRequestData,
+  totals: ReturnType<typeof computeQuoteTotals>,
+): string {
+  const discount = Math.max(0, Math.min(100, Number(form.overallDiscountPercent) || 0));
+  if (discount <= 0) return 'Ei alennusta';
+  const pct = discount.toLocaleString('fi-FI', { maximumFractionDigits: 1 });
+  if (totals.subtotalNet <= 0) return `${pct} %`;
+  const amount = totals.subtotalNet - totals.discountedNet;
+  return `${pct} % · −${formatEuro(amount)}`;
+}
+
+export function buildQuoteHinnoitteluTiles(
+  form: QuoteRequestData,
+  feeMap?: BrandDeliveryFeeByCategoryMap | null,
+): QuoteHinnoitteluTileEntry[] {
+  const totals = computeQuoteTotals(form, feeMap);
   const entries: QuoteHinnoitteluTileEntry[] = [];
 
   if (form.type === 'vesi-ilma') {
@@ -87,10 +103,17 @@ export function buildQuoteHinnoitteluTiles(form: QuoteRequestData): QuoteHinnoit
   });
 
   entries.push({
-    id: 'vat-discount',
-    title: 'ALV ja alennus',
-    subtitle: vatDiscountSubtitle(form),
+    id: 'vat-profile',
+    title: 'ALV / asiakastyyppi',
+    subtitle: vatProfileSubtitle(form),
     themeKey: 'pricing',
+  });
+
+  entries.push({
+    id: 'discount',
+    title: 'Alennus',
+    subtitle: discountSubtitle(form, totals),
+    themeKey: 'terms',
   });
 
   entries.push({

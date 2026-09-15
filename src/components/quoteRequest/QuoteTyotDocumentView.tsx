@@ -5,6 +5,7 @@ import QuoteIilpDevicesSection from './QuoteIilpDevicesSection';
 import QuoteRepairWorkItemsSection from './QuoteRepairWorkItemsSection';
 import QuoteWorkMaterialsSection from './QuoteWorkMaterialsSection';
 import type { BrandDeliveryFeeByCategoryMap } from '../../data/devicePricingShared';
+import { isRepairQuoteType } from '../../lib/quoteRequest/constants';
 import { buildQuoteTyotTiles, type QuoteTyotTileId } from '../../lib/quoteRequest/quoteTyotEntries';
 import type { QuoteRequestData } from '../../lib/quoteRequest/types';
 import type { Equipment } from '../../types';
@@ -31,24 +32,54 @@ export default function QuoteTyotDocumentView({
 
   function renderTileContent(tileId: QuoteTyotTileId): ReactNode {
     switch (tileId) {
-      case 'huolto-tyot':
+      case 'tyot':
         return (
-          <QuoteRepairWorkItemsSection
-            form={form}
-            canEdit={canEdit}
-            equipment={equipment}
-            customerSelected={customerSelected}
-            onChange={onChange}
-            hideHeader
-          />
+          <>
+            {isRepairQuoteType(form.type) ? (
+              <QuoteRepairWorkItemsSection
+                form={form}
+                canEdit={canEdit}
+                equipment={equipment}
+                customerSelected={customerSelected}
+                onChange={onChange}
+                hideHeader
+              />
+            ) : (
+              <QuoteWorkMaterialsSection form={form} canEdit={canEdit} onChange={onChange} variant="work" />
+            )}
+            <QuoteInstallationSuppliesProductsSection
+              form={form}
+              canEdit={canEdit}
+              onChange={onChange}
+              rowKindFilter="labor"
+            />
+          </>
         );
-      case 'huolto-tarvikkeet':
       case 'tarvikkeet':
         return (
           <QuoteInstallationSuppliesProductsSection
             form={form}
             canEdit={canEdit}
             onChange={onChange}
+            rowKindFilter="supply"
+          />
+        );
+      case 'kulut':
+        return (
+          <QuoteInstallationSuppliesProductsSection
+            form={form}
+            canEdit={canEdit}
+            onChange={onChange}
+            rowKindFilter="expense"
+          />
+        );
+      case 'laite':
+        return (
+          <QuoteInstallationSuppliesProductsSection
+            form={form}
+            canEdit={canEdit}
+            onChange={onChange}
+            rowKindFilter="device"
           />
         );
       case 'iilp-laitteet':
@@ -60,8 +91,6 @@ export default function QuoteTyotDocumentView({
             onChange={onChange}
           />
         );
-      case 'tyorivit':
-        return <QuoteWorkMaterialsSection form={form} canEdit={canEdit} onChange={onChange} variant="work" />;
       default:
         return null;
     }
@@ -74,7 +103,7 @@ export default function QuoteTyotDocumentView({
   return (
     <QuoteDocumentSectionView
       sectionTitle="Työt & tarvikkeet"
-      hint="Työrivit, tarvikkeet ja laitevalinta — avaa ruudusta."
+      hint="Työt, tarvikkeet, kulut ja laitteet — avaa ruudusta."
       tiles={tiles}
       renderTileContent={renderTileContent}
     />

@@ -4,7 +4,7 @@ import QuoteDocumentSectionView from './QuoteDocumentSectionView';
 import QuoteIilpSiteSection from './QuoteIilpSiteSection';
 import QuoteTermsPrintSection from './QuoteTermsPrintSection';
 import QuoteVilpSiteSection from './QuoteVilpSiteSection';
-import { isPumpQuoteType, isRepairQuoteType } from '../../lib/quoteRequest/constants';
+import { isRepairQuoteType } from '../../lib/quoteRequest/constants';
 import {
   buildQuoteKohdeTiles,
   type QuoteKohdeTileId,
@@ -112,9 +112,9 @@ export default function QuoteKohdeDocumentView({ form, canEdit, onChange }: Prop
             )}
           </>
         );
-      case 'terms':
+      case 'maksuehdot':
         return (
-          <div className="quote-field-grid">
+          <>
             <label>
               Maksuehdot
               <input
@@ -129,55 +129,60 @@ export default function QuoteKohdeDocumentView({ form, canEdit, onChange }: Prop
               />
             </label>
             {form.type === 'ilma-ilma' && (
-              <>
-                <label>
-                  Lisätyöt (€/h, alv 0)
-                  <input
-                    type="number"
-                    min="0"
-                    step="1"
-                    value={form.laborRate}
-                    onChange={(e) => onChange({ laborRate: Number(e.target.value) || 0 })}
-                    disabled={!canEdit}
-                  />
-                </label>
-                <label>
-                  {form.iilpPurpose === 'cooling' || form.buildingType === 'kerrostalo'
-                    ? 'Jäähdytyskulutus (tuloste)'
-                    : 'Säästölaskelma (tuloste)'}
-                  <textarea
-                    rows={2}
-                    value={form.iilpEnergySavingsText}
-                    onChange={(e) => onChange({ iilpEnergySavingsText: e.target.value })}
-                    disabled={!canEdit}
-                  />
-                </label>
-              </>
-            )}
-            <label>
-              Toimitusehdot
-              <textarea
-                rows={2}
-                value={form.deliveryTermsText}
-                onChange={(e) => onChange({ deliveryTermsText: e.target.value })}
-                disabled={!canEdit}
-              />
-            </label>
-            {isPumpQuoteType(form.type) && (
-              <QuoteTermsPrintSection form={form} canEdit={canEdit} onChange={onChange} />
-            )}
-            {isPumpQuoteType(form.type) && (
               <label>
-                Tarjousehdot (teksti)
-                <textarea
-                  rows={14}
-                  value={form.quoteTermsText}
-                  onChange={(e) => onChange({ quoteTermsText: e.target.value })}
+                Lisätyöt (€/h, alv 0)
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={form.laborRate}
+                  onChange={(e) => onChange({ laborRate: Number(e.target.value) || 0 })}
                   disabled={!canEdit}
                 />
               </label>
             )}
-          </div>
+          </>
+        );
+      case 'toimitusehdot':
+        return (
+          <label>
+            Toimitusehdot
+            <textarea
+              rows={4}
+              value={form.deliveryTermsText}
+              onChange={(e) => onChange({ deliveryTermsText: e.target.value })}
+              disabled={!canEdit}
+            />
+          </label>
+        );
+      case 'iilp-tuloste':
+        return (
+          <label>
+            {form.iilpPurpose === 'cooling' || form.buildingType === 'kerrostalo'
+              ? 'Jäähdytyskulutus (tuloste)'
+              : 'Säästölaskelma (tuloste)'}
+            <textarea
+              rows={4}
+              value={form.iilpEnergySavingsText}
+              onChange={(e) => onChange({ iilpEnergySavingsText: e.target.value })}
+              disabled={!canEdit}
+            />
+          </label>
+        );
+      case 'tarjousehdot':
+        return (
+          <>
+            <QuoteTermsPrintSection form={form} canEdit={canEdit} onChange={onChange} />
+            <label>
+              Tarjousehdot (teksti)
+              <textarea
+                rows={14}
+                value={form.quoteTermsText}
+                onChange={(e) => onChange({ quoteTermsText: e.target.value })}
+                disabled={!canEdit}
+              />
+            </label>
+          </>
         );
       default:
         return null;

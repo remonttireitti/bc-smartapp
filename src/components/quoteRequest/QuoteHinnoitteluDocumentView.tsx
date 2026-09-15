@@ -1,11 +1,16 @@
-import { type ReactNode } from 'react';
+import { useMemo, type ReactNode } from 'react';
 import ToggleSwitch from '../ToggleSwitch';
 import QuoteDocumentSectionView from './QuoteDocumentSectionView';
 import QuoteIilpOptionsSection from './QuoteIilpOptionsSection';
 import QuoteOptionalItemsSection from './QuoteOptionalItemsSection';
 import QuotePumpDevicesSection from './QuotePumpDevicesSection';
 import QuoteVilpConfigSection from './QuoteVilpConfigSection';
-import { computeTravelNet, resolveIilpLaborPricingMode, travelCostLabel } from '../../lib/quoteRequest/calculations';
+import {
+  computeQuoteTotals,
+  computeTravelNet,
+  resolveIilpLaborPricingMode,
+  travelCostLabel,
+} from '../../lib/quoteRequest/calculations';
 import type { BrandDeliveryFeeByCategoryMap } from '../../data/devicePricingShared';
 import {
   DEFAULT_TRAVEL_KM_RATE,
@@ -43,7 +48,11 @@ export default function QuoteHinnoitteluDocumentView({
   onVatProfileChange,
   summary,
 }: Props) {
-  const tiles = buildQuoteHinnoitteluTiles(form);
+  const totals = useMemo(() => computeQuoteTotals(form, deliveryFeeMap), [form, deliveryFeeMap]);
+  const tiles = useMemo(
+    () => buildQuoteHinnoitteluTiles(form, deliveryFeeMap),
+    [form, deliveryFeeMap],
+  );
 
   function renderTileContent(tileId: QuoteHinnoitteluTileId): ReactNode {
     switch (tileId) {
@@ -144,42 +153,50 @@ export default function QuoteHinnoitteluDocumentView({
             ) : null}
           </div>
         );
-      case 'vat-discount':
+      case 'vat-profile':
         return (
-          <div className="quote-field-grid">
-            <div className="quote-vat-profile-field">
-              <span className="field-label">ALV / asiakastyyppi</span>
-              <div className="quote-labor-mode-grid">
-                <button
-                  type="button"
-                  className={
-                    (form.quoteVatProfile ?? 'business') === 'business'
-                      ? 'quote-labor-mode-btn active'
-                      : 'quote-labor-mode-btn'
-                  }
-                  disabled={!canEdit}
-                  onClick={() => onVatProfileChange('business')}
-                >
-                  <span className="quote-labor-mode-title">Yritysasiakas</span>
-                  <span className="quote-labor-mode-desc">ALV 0 % — hinnat ilman arvonlisäveroa</span>
-                </button>
-                <button
-                  type="button"
-                  className={
-                    (form.quoteVatProfile ?? 'business') === 'consumer'
-                      ? 'quote-labor-mode-btn active'
-                      : 'quote-labor-mode-btn'
-                  }
-                  disabled={!canEdit}
-                  onClick={() => onVatProfileChange('consumer')}
-                >
-                  <span className="quote-labor-mode-title">Yksityishenkilö</span>
-                  <span className="quote-labor-mode-desc">
-                    ALV {form.vatRate} % — hinnat sisältävät arvonlisäveron
-                  </span>
-                </button>
-              </div>
+          <div className="quote-vat-profile-field">
+            <span className="field-label">ALV / asiakastyyppi</span>
+            <div className="quote-labor-mode-grid">
+              <button
+                type="button"
+                className={
+                  (form.quoteVatProfile ?? 'business') === 'business'
+                    ? 'quote-labor-mode-btn active'
+                    : 'quote-labor-mode-btn'
+                }
+                disabled={!canEdit}
+                onClick={() => onVatProfileChange('business')}
+              >
+                <span className="quote-labor-mode-title">Yritysasiakas</span>
+                <span className="quote-labor-mode-desc">ALV 0 % — hinnat ilman arvonlisäveroa</span>
+              </button>
+              <button
+                type="button"
+                className={
+                  (form.quoteVatProfile ?? 'business') === 'consumer'
+                    ? 'quote-labor-mode-btn active'
+                    : 'quote-labor-mode-btn'
+                }
+                disabled={!canEdit}
+                onClick={() => onVatProfileChange('consumer')}
+              >
+                <span className="quote-labor-mode-title">Yksityishenkilö</span>
+                <span className="quote-labor-mode-desc">
+                  ALV {form.vatRate} % — hinnat sisältävät arvonlisäveron
+                </span>
+              </button>
             </div>
+          </div>
+        );
+      case 'discount': {
+        const discountPct = Math.max(0, Math.min(100, Number(form.overallDiscountPercent) || 0));
+        const discountAmount = totals.subtotalNet - totals.discountedNet;
+        const formatEuro = (value: number) =>
+          value.toLocaleString('fi-FI', { style: 'currency', currency: 'EUR' });
+
+        return (
+          <>
             <label>
               Alennus (%)
               <input
@@ -192,8 +209,30 @@ export default function QuoteHinnoitteluDocumentView({
                 disabled={!canEdit}
               />
             </label>
-          </div>
+            {totals.subtotalNet > 0 ? (
+              <div className="quote-summary-box">
+                <div>Yhteensä ennen alennusta: {formatEuro(totals.subtotalNet)}</div>
+                {discountPct > 0 ? (
+                  <div>
+                    Alennus {discountPct.toLocaleString('fi-FI', { maximumFractionDigits: 1 })} %:{' '}
+                    −{formatEuro(discountAmount)}
+                  </div>
+                ) : (
+                  <div className="muted">Ei alennusta — summa pysyy ennallaan.</div>
+                )}
+                <strong>Yhteensä alennuksen jälkeen: {formatEuro(totals.discountedNet)}</strong>
+                {form.vatRate > 0 ? (
+                  <div>
+                    Sis. ALV {form.vatRate} %: {formatEuro(totals.grossTotal)}
+                  </div>
+                ) : null}
+              </div>
+            ) : (
+              <p className="muted">Täytä hinnoittelu ensin — alennuksen vaikutus näkyy tässä.</p>
+            )}
+          </>
         );
+      }
       case 'notes':
         return (
           <label>
