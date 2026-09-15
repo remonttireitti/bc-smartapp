@@ -3,6 +3,7 @@ import { QUOTE_STATUS_LABELS, isQuoteOrderedStatus } from '../src/lib/quoteReque
 import {
   buildWorkReportDescriptionFromQuote,
   buildWorkReportPayloadFromQuote,
+  buildWorkReportTitleFromQuote,
 } from '../src/lib/quoteRequest/createWorkReportFromQuote.ts';
 import { createEmptyQuoteRequestData } from '../src/lib/quoteRequest/defaults.ts';
 import {
@@ -21,8 +22,8 @@ assert.equal(shouldAutoCreateWorkReportOnOrder(null), false);
 assert.ok(QUOTE_AUTO_WORK_REPORT_FROM_MS > 0);
 
 const data = createEmptyQuoteRequestData('huolto');
-data.introText = 'Tarjoamme huollon ja pienkorjaukset.';
-data.faultDescription = 'Kompressori rikki';
+data.introText = 'Huolto ja pienkorjaukset Messukeskukselle';
+data.faultDescription = 'Kompressori rikki, vaihto ja käynnistystarkastus.';
 
 const payload = buildWorkReportPayloadFromQuote({
   quote: {
@@ -40,13 +41,17 @@ const payload = buildWorkReportPayloadFromQuote({
   sessionUserId: 'user-1',
 });
 
-assert.equal(payload.description, 'Tarjoamme huollon ja pienkorjaukset.');
-assert.equal(payload.title, 'Messukeskus');
+assert.equal(payload.title, 'Huolto ja pienkorjaukset Messukeskukselle');
+assert.equal(payload.description, 'Kompressori rikki, vaihto ja käynnistystarkastus.');
 assert.equal(payload.orderer_name, null);
 assert.equal(payload.location_text, null);
 assert.equal(payload.equipment_id, null);
 assert.equal(payload.status, 'draft');
 assert.equal(payload.customer_id, 'cust-1');
-assert.equal(buildWorkReportDescriptionFromQuote(data), 'Tarjoamme huollon ja pienkorjaukset.');
+assert.equal(buildWorkReportTitleFromQuote(data, 'Messukeskus'), 'Huolto ja pienkorjaukset Messukeskukselle');
+assert.equal(buildWorkReportDescriptionFromQuote(data), 'Kompressori rikki, vaihto ja käynnistystarkastus.');
+const emptyIntro = createEmptyQuoteRequestData('huolto');
+emptyIntro.introText = '';
+assert.equal(buildWorkReportTitleFromQuote(emptyIntro, 'Messukeskus'), 'Messukeskus');
 
 console.log('test-quote-ordered-status: ok');

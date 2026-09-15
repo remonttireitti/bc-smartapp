@@ -21,9 +21,19 @@ export type QuoteCustomerForWorkReport = {
   name?: string | null;
 };
 
-export function buildWorkReportDescriptionFromQuote(data: QuoteRequestData): string | null {
+export function buildWorkReportTitleFromQuote(
+  data: QuoteRequestData,
+  fallbackTitle?: string | null,
+): string {
   const intro = normalizeQuoteRequestData(data).introText.trim();
-  return intro || null;
+  if (intro) return intro;
+  const fallback = fallbackTitle?.trim();
+  return fallback || 'Työraportti';
+}
+
+export function buildWorkReportDescriptionFromQuote(data: QuoteRequestData): string | null {
+  const workDescription = normalizeQuoteRequestData(data).faultDescription.trim();
+  return workDescription || null;
 }
 
 export function buildWorkReportPayloadFromQuote(input: {
@@ -31,9 +41,12 @@ export function buildWorkReportPayloadFromQuote(input: {
   customer: QuoteCustomerForWorkReport | null;
   sessionUserId: string;
 }) {
-  const description = buildWorkReportDescriptionFromQuote(input.quote.data);
   const customerName = input.customer?.name?.trim() ?? '';
-  const title = customerName || input.quote.title.trim() || 'Työraportti';
+  const title = buildWorkReportTitleFromQuote(
+    input.quote.data,
+    customerName || input.quote.title,
+  );
+  const description = buildWorkReportDescriptionFromQuote(input.quote.data);
 
   return {
     title,
