@@ -154,6 +154,7 @@ import {
 import { refreshAndPersistCustomerBillable } from '../lib/workReportCustomerBillingPersist';
 import {
   customerUsesQuoteBasedBilling,
+  hydrateBillingQuoteFromLinkedQuoteRequest,
   parseBillingQuoteSettings,
   workReportHasLinkedQuoteRequest,
   workReportSupportsQuoteLinkedExtraBilling,
@@ -1678,10 +1679,15 @@ export default function WorkReportDetailPage({ session }: Props) {
 
       const reportRow = reportData as unknown as WorkReport;
       const logs = logsResult.logs;
+      const billingQuoteSettings = await hydrateBillingQuoteFromLinkedQuoteRequest(
+        supabase,
+        reportId,
+        parseBillingQuoteSettings(billableFetch.data?.billing_quote ?? {}),
+      );
 
       setReport(reportRow);
       setBilling((billingData as WorkReportBilling | null) ?? null);
-      setBillingQuoteSettings(parseBillingQuoteSettings(billableFetch.data?.billing_quote ?? {}));
+      setBillingQuoteSettings(billingQuoteSettings);
       setHourBillingSupported(billableFetch.hourBillingSupported);
       setHourBillingSettings(
         billableFetch.hourBillingSupported
