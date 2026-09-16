@@ -268,7 +268,8 @@ export function shouldUseQuoteExtrasBilling(
 ): boolean {
   const parsed = parseBillingQuoteSettings(settings ?? {});
   if (resolveCustomerInvoiceTotal(parsed) == null) return false;
-  if (!customerUsesQuoteBasedBilling(parsed) && !parsed.quote_request_id) return false;
+  if (!workReportHasLinkedQuoteRequest(parsed)) return false;
+  if (!customerUsesQuoteBasedBilling(parsed)) return false;
   return (
     shouldCalculateCustomerQuoteExtrasFromLogs(logs)
     || getBillingQuoteExtraCustomerWork(parsed).length > 0
@@ -277,6 +278,21 @@ export function shouldUseQuoteExtrasBilling(
 
 export function customerUsesQuoteBasedBilling(settings: BillingQuoteSettings | null | undefined): boolean {
   return customerUsesFixedQuote(settings) || customerUsesQuotePlusExtras(settings);
+}
+
+/** Työraporttiin on linkitetty tarjouspyyntö (esim. tilauksesta luotu työraportti). */
+export function workReportHasLinkedQuoteRequest(
+  settings: BillingQuoteSettings | null | undefined,
+): boolean {
+  const parsed = parseBillingQuoteSettings(settings ?? {});
+  return !!parsed.quote_request_id?.trim();
+}
+
+/** Lisälaskutus ja tarjouskategoriat vain linkitetylle tarjouspyynnölle. */
+export function workReportSupportsQuoteLinkedExtraBilling(
+  settings: BillingQuoteSettings | null | undefined,
+): boolean {
+  return workReportHasLinkedQuoteRequest(settings) && customerUsesQuoteBasedBilling(settings);
 }
 
 export function customerUsesFixedQuote(settings: BillingQuoteSettings | null | undefined): boolean {

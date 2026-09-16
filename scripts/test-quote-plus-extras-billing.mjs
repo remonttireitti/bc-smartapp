@@ -9,6 +9,8 @@ import {
   resolveCustomerBillableGrandTotal,
   shouldUseQuoteExtrasBilling,
   customerUsesQuoteBasedBilling,
+  workReportHasLinkedQuoteRequest,
+  workReportSupportsQuoteLinkedExtraBilling,
 } from '../src/lib/workReportBillingQuote.ts';
 import {
   extraCustomerWorkFromDailyLogs,
@@ -178,5 +180,16 @@ assert.equal(
   ),
   true,
 );
+
+assert.equal(workReportHasLinkedQuoteRequest(quoteSettings), true);
+assert.equal(workReportSupportsQuoteLinkedExtraBilling(quoteSettings), true);
+const manualQuoteWithoutLink = parseBillingQuoteSettings({
+  customer_mode: 'quote_fixed',
+  customer_invoice_total: 5000,
+  quote_sale_net: 4000,
+});
+assert.equal(workReportHasLinkedQuoteRequest(manualQuoteWithoutLink), false);
+assert.equal(workReportSupportsQuoteLinkedExtraBilling(manualQuoteWithoutLink), false);
+assert.equal(shouldUseQuoteExtrasBilling(manualQuoteWithoutLink, logs), false);
 
 console.log('test-quote-plus-extras-billing: ok');
