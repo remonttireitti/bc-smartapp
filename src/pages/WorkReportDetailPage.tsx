@@ -154,8 +154,9 @@ import {
 import { refreshAndPersistCustomerBillable } from '../lib/workReportCustomerBillingPersist';
 import {
   customerUsesQuoteBasedBilling,
-  workReportSupportsQuoteLinkedExtraBilling,
   parseBillingQuoteSettings,
+  workReportHasLinkedQuoteRequest,
+  workReportSupportsQuoteLinkedExtraBilling,
   type BillingQuoteSettings,
 } from '../lib/workReportBillingQuote';
 import {
@@ -3101,6 +3102,13 @@ export default function WorkReportDetailPage({ session }: Props) {
     && (isOwnerCompany || (isPartnerReport && canSeeCreatorBilling));
   const canManageQuoteCustomerMode =
     canManageCustomerBillingRates || (isPartnerReport && canSeeCreatorBilling);
+  const portalReadOnly = isPortalReadOnly(profile);
+  const hasLinkedQuote = workReportHasLinkedQuoteRequest(billingQuoteSettings);
+  const showQuoteBillingSection = hasLinkedQuote && !portalReadOnly;
+  const linkedQuoteTileSubtitle = billingQuoteSettings.quote_title?.trim()
+    || (billingQuoteSettings.customer_invoice_total != null
+      ? formatEuro(billingQuoteSettings.customer_invoice_total)
+      : 'Linkitetty tarjouspyyntö');
   const dailyLogEntryTiles = dailyLogs.flatMap((log) =>
     buildDailyLogEntryTiles(log, {
       formatDate,
@@ -3108,7 +3116,6 @@ export default function WorkReportDetailPage({ session }: Props) {
       showMoney: showPartnerBillableSection || showCustomerMoney,
     }),
   );
-  const portalReadOnly = isPortalReadOnly(profile);
   const canDeleteReport =
     !portalReadOnly && canDeleteWorkReport(report, session.user.id, profile?.is_global_admin, profile?.role);
   const displayPeople = resolveWorkReportDisplayPeople(report, { hideAssignee: hideAssigneeFromViewer });
@@ -3287,6 +3294,19 @@ export default function WorkReportDetailPage({ session }: Props) {
           color="#1976D2"
           onClick={() => setSectionDialog('basics')}
         />
+        {showQuoteBillingSection ? (
+          <WorkReportSectionTile
+            title="Tarjous"
+            subtitle={linkedQuoteTileSubtitle}
+            color="#7c3aed"
+            onClick={() => {
+              document.getElementById('work-report-quote-billing')?.scrollIntoView({
+                behavior: 'smooth',
+                block: 'start',
+              });
+            }}
+          />
+        ) : null}
         {showPartnerBillableSection && billableCalculation ? (
           <WorkReportSectionTile
             title={showOutgoingPartnerBilling ? 'Kumppanille laskutettava' : 'Kumppanilta laskutettava'}
@@ -3365,7 +3385,7 @@ export default function WorkReportDetailPage({ session }: Props) {
       )}
       </div>
 
-      {(showOutgoingPartnerBilling || showCustomerMoneyBilling) && report && (
+      {(showOutgoingPartnerBilling || showCustomerMoneyBilling) && report ? (
         <div className="panel work-report-section">
           <h2>Tuntien laskutustapa</h2>
           <p className="muted">
@@ -3387,9 +3407,10 @@ export default function WorkReportDetailPage({ session }: Props) {
             onChange={(next) => void saveHourBillingSettings(next)}
           />
         </div>
-      )}
+      ) : null}
 
-      {(showOutgoingPartnerBilling || showCustomerMoneyBilling) && report && (
+      {(showOutgoingPartnerBilling || showCustomerMoneyBilling || showQuoteBillingSection) && report ? (
+        <div id="work-report-quote-billing" className="work-report-quote-billing-anchor">
         <WorkReportBillingQuotePanel
           workReportId={report.id}
           customerId={report.customer_id}
@@ -3408,7 +3429,8 @@ export default function WorkReportDetailPage({ session }: Props) {
           }
           onSaved={(settings) => void handleBillingQuoteSaved(settings)}
         />
-      )}
+        </div>
+      ) : null}
 
 
       <WorkReportSectionDialog

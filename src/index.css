@@ -5813,6 +5813,10 @@ a.tile.maintenance-report-list-tile:hover {
   scroll-margin-top: 5rem;
 }
 
+.work-report-quote-billing-anchor {
+  scroll-margin-top: 5rem;
+}
+
 .work-report-entries-heading {
   display: flex;
   flex-wrap: wrap;
