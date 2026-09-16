@@ -14,7 +14,7 @@ import {
   type BillingQuotePurchaseLine,
   type BillingQuoteSettings,
 } from '../lib/workReportBillingQuote';
-import { extractQuotePurchaseLines } from '../lib/quotePurchaseLines';
+import { extractQuotePurchaseLines, sumQuotePurchaseLines } from '../lib/quotePurchaseLines';
 import { analyzeWorkReportPurchaseCosts } from '../lib/workReportActualPurchase';
 import { mergeActualPurchaseFromWorkReportLogs } from '../lib/quoteRequestActualPurchaseSync';
 import {
@@ -128,6 +128,10 @@ export default function WorkReportBillingQuotePanel({
   const effectiveSettings = useMemo(
     () => mergeActualPurchaseFromWorkReportLogs(settings, dailyLogs, quoteData),
     [settings, quoteData, dailyLogs],
+  );
+  const quoteOnlyPurchaseLines = useMemo(
+    () => (quoteData ? extractQuotePurchaseLines(quoteData) : []),
+    [quoteData],
   );
   const purchaseCostAnalysis = useMemo(
     () => analyzeWorkReportPurchaseCosts(dailyLogs),
@@ -248,6 +252,19 @@ export default function WorkReportBillingQuotePanel({
   const purchaseLines = effectiveSettings.purchase_lines ?? [];
   const quotePurchaseTotal = resolveQuotePurchaseTotal(effectiveSettings);
   const actualPurchaseTotal = resolveActualPurchaseTotal(effectiveSettings);
+  const linkedQuotePurchaseTotal =
+    quoteOnlyPurchaseLines.length > 0
+      ? sumQuotePurchaseLines(quoteOnlyPurchaseLines, 'quote_purchase_net')
+      : quotePurchaseTotal;
+  const displayPurchaseTotal = quoteIsLinked ? linkedQuotePurchaseTotal : quotePurchaseTotal;
+  const displayCustomerPrice =
+    effectiveSettings.customer_invoice_total ?? effectiveSettings.quote_sale_net ?? null;
+  const linkedQuoteMarginEstimate =
+    quoteIsLinked
+    && displayCustomerPrice != null
+    && displayPurchaseTotal > 0
+      ? roundMoney(displayCustomerPrice - displayPurchaseTotal)
+      : null;
   const devicePurchaseLines = purchaseLines.filter((line) => line.source === 'device');
   const suppliesPurchaseLines = purchaseLines.filter((line) => line.source !== 'device');
   const deviceActualTotal = devicePurchaseLines.reduce(
@@ -364,6 +381,50 @@ export default function WorkReportBillingQuotePanel({
             </table>
           </details>
         ) : null}
+      </div>
+    );
+  }
+
+  function renderQuotePurchaseBreakdownTable(lines: BillingQuotePurchaseLine[]) {
+    if (lines.length === 0) return null;
+    const total = sumQuotePurchaseLines(lines, 'quote_purchase_net');
+    return (
+      <div className="table-wrap billing-purchase-lines-wrap">
+        <h4 className="billing-breakdown-heading">Hankinnan erittely</h4>
+        <p className="muted billing-purchase-lines-hint">
+          Summat tulevat tarjouspyynnön <strong>Työt &amp; tarvikkeet</strong> -osiosta (hankintahinnat,
+          alv 0 %).
+        </p>
+        <table className="billing-table billing-purchase-lines-table">
+          <thead>
+            <tr>
+              <th>Rivi</th>
+              <th className="num">Hankinta (alv 0 %)</th>
+            </tr>
+          </thead>
+          <tbody>
+            {lines.map((line) => (
+              <tr key={line.id}>
+                <td>
+                  {line.label}
+                  {line.quantity != null && line.unit ? (
+                    <span className="muted">
+                      {' '}
+                      · {line.quantity} {line.unit}
+                    </span>
+                  ) : null}
+                </td>
+                <td className="num">{formatEuro(line.quote_purchase_net)}</td>
+              </tr>
+            ))}
+          </tbody>
+          <tfoot>
+            <tr>
+              <td><strong>Yhteensä</strong></td>
+              <td className="num"><strong>{formatEuro(total)}</strong></td>
+            </tr>
+          </tfoot>
+        </table>
       </div>
     );
   }
@@ -596,57 +657,87 @@ export default function WorkReportBillingQuotePanel({
                 </>
               ) : null}
 
-              <label className="form-field">
-                <span>
-                  {showSeparateCustomerTotal
-                    ? 'Tarjoushinta (alv 0 %)'
-                    : 'Kiinteä tarjoushinta asiakkaalle (alv 0 %)'}
-                </span>
-                <input
-                  type="text"
-                  inputMode="decimal"
-                  value={moneyInputValue(settings.quote_sale_net)}
-                  disabled={busy}
-                  onChange={(e) => {
-                    const parsed = parseMoneyInput(e.target.value);
-                    setSettings((prev) => ({
-                      ...prev,
-                      quote_sale_net: parsed,
-                      customer_invoice_total:
-                        showSeparateCustomerTotal ? prev.customer_invoice_total : parsed,
-                    }));
-                  }}
-                />
-              </label>
-
-              {showSeparateCustomerTotal ? (
-                <label className="form-field">
-                  <span>{customerTotalLabel}</span>
-                  <input
-                    type="text"
-                    inputMode="decimal"
-                    value={moneyInputValue(settings.customer_invoice_total)}
-                    disabled={busy}
-                    onChange={(e) =>
-                      setSettings((prev) => ({
-                        ...prev,
-                        customer_invoice_total: parseMoneyInput(e.target.value),
-                      }))
-                    }
-                  />
-                  <span className="muted field-hint">
-                    Sisältää ALV:n tai lisälaskutuksen, jos eri kuin tarjoushinta.
-                  </span>
-                </label>
+              {quoteIsLinked ? (
+                <div className="span-2 billing-quote-linked-prices">
+                  {displayCustomerPrice != null ? (
+                    <p style={{ margin: '0 0 .35rem' }}>
+                      <strong>Kiinteä tarjoushinta:</strong> {formatEuro(displayCustomerPrice)}
+                    </p>
+                  ) : null}
+                  {displayPurchaseTotal > 0 ? (
+                    <p style={{ margin: '0 0 .35rem' }}>
+                      <strong>Hankinta yhteensä (alv 0 %):</strong> {formatEuro(displayPurchaseTotal)}
+                    </p>
+                  ) : null}
+                  {linkedQuoteMarginEstimate != null ? (
+                    <p style={{ margin: '0 0 .35rem' }}>
+                      <strong>Kate (arvio):</strong> {formatEuro(linkedQuoteMarginEstimate)}
+                    </p>
+                  ) : null}
+                  <p className="muted" style={{ margin: 0 }}>
+                    Hinnat ja hankinta tulevat tarjouspyynnöstä. Muokkaa tarjouspyynnössä.
+                  </p>
+                </div>
               ) : (
-                <p className="muted span-2" style={{ margin: 0 }}>
-                  Asiakkaalta laskutetaan sama kiinteä summa kuin tarjoushinta (alv 0 %).
-                </p>
+                <>
+                  <label className="form-field">
+                    <span>
+                      {showSeparateCustomerTotal
+                        ? 'Tarjoushinta (alv 0 %)'
+                        : 'Kiinteä tarjoushinta asiakkaalle (alv 0 %)'}
+                    </span>
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      value={moneyInputValue(settings.quote_sale_net)}
+                      disabled={busy}
+                      onChange={(e) => {
+                        const parsed = parseMoneyInput(e.target.value);
+                        setSettings((prev) => ({
+                          ...prev,
+                          quote_sale_net: parsed,
+                          customer_invoice_total:
+                            showSeparateCustomerTotal ? prev.customer_invoice_total : parsed,
+                        }));
+                      }}
+                    />
+                  </label>
+
+                  {showSeparateCustomerTotal ? (
+                    <label className="form-field">
+                      <span>{customerTotalLabel}</span>
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        value={moneyInputValue(settings.customer_invoice_total)}
+                        disabled={busy}
+                        onChange={(e) =>
+                          setSettings((prev) => ({
+                            ...prev,
+                            customer_invoice_total: parseMoneyInput(e.target.value),
+                          }))
+                        }
+                      />
+                      <span className="muted field-hint">
+                        Sisältää ALV:n tai lisälaskutuksen, jos eri kuin tarjoushinta.
+                      </span>
+                    </label>
+                  ) : (
+                    <p className="muted span-2" style={{ margin: 0 }}>
+                      Asiakkaalta laskutetaan sama kiinteä summa kuin tarjoushinta (alv 0 %).
+                    </p>
+                  )}
+                </>
               )}
 
-              {categoryComparison ? renderCategoryComparisonTable(categoryComparison) : renderQuoteVsActualIntro()}
-
-              <div className="span-2">{renderPurchaseLinesTable(purchaseLines, true)}</div>
+              {quoteIsLinked ? (
+                <div className="span-2">{renderQuotePurchaseBreakdownTable(quoteOnlyPurchaseLines)}</div>
+              ) : (
+                <>
+                  {categoryComparison ? renderCategoryComparisonTable(categoryComparison) : renderQuoteVsActualIntro()}
+                  <div className="span-2">{renderPurchaseLinesTable(purchaseLines, true)}</div>
+                </>
+              )}
 
               <label className="form-field span-2">
                 <span>Huomio kumppanille</span>
@@ -678,33 +769,64 @@ export default function WorkReportBillingQuotePanel({
                   <dd>{settings.quote_title}</dd>
                 </>
               ) : null}
-              {settings.customer_mode === 'quote_fixed' && settings.customer_invoice_total != null ? (
+              {quoteIsLinked ? (
                 <>
-                  <dt>Asiakashinta</dt>
-                  <dd>
-                    {formatEuro(settings.customer_invoice_total)} (kiinteä tarjous + mahdolliset lisät
-                    päiväkirjasta)
-                  </dd>
+                  {displayCustomerPrice != null ? (
+                    <>
+                      <dt>Kiinteä tarjoushinta</dt>
+                      <dd>
+                        {formatEuro(displayCustomerPrice)}
+                        {effectiveSettings.customer_mode === 'quote_fixed'
+                          ? ' (+ mahdolliset lisät päiväkirjasta)'
+                          : ''}
+                      </dd>
+                    </>
+                  ) : null}
+                  {displayPurchaseTotal > 0 ? (
+                    <>
+                      <dt>Hankinta yhteensä (alv 0 %)</dt>
+                      <dd>{formatEuro(displayPurchaseTotal)}</dd>
+                    </>
+                  ) : null}
+                  {linkedQuoteMarginEstimate != null ? (
+                    <>
+                      <dt>Kate (arvio)</dt>
+                      <dd>{formatEuro(linkedQuoteMarginEstimate)}</dd>
+                    </>
+                  ) : null}
                 </>
-              ) : null}
-              {settings.quote_sale_net != null ? (
+              ) : (
                 <>
-                  <dt>Tarjoushinta (alv 0 %)</dt>
-                  <dd>{formatEuro(settings.quote_sale_net)}</dd>
+                  {settings.customer_mode === 'quote_fixed' && settings.customer_invoice_total != null ? (
+                    <>
+                      <dt>Asiakashinta</dt>
+                      <dd>
+                        {formatEuro(settings.customer_invoice_total)} (kiinteä tarjous + mahdolliset lisät
+                        päiväkirjasta)
+                      </dd>
+                    </>
+                  ) : null}
+                  {settings.quote_sale_net != null ? (
+                    <>
+                      <dt>Tarjoushinta (alv 0 %)</dt>
+                      <dd>{formatEuro(settings.quote_sale_net)}</dd>
+                    </>
+                  ) : null}
+                  {settings.quote_purchase_net != null ? (
+                    <>
+                      <dt>Tarjouksen hankinta yhteensä (alv 0 %)</dt>
+                      <dd>{formatEuro(quotePurchaseTotal)}</dd>
+                    </>
+                  ) : null}
+                  {settings.actual_purchase_net != null
+                  && Math.abs(actualPurchaseTotal - quotePurchaseTotal) > 0.005 ? (
+                    <>
+                      <dt>Todellinen hankinta yhteensä (alv 0 %)</dt>
+                      <dd>{formatEuro(actualPurchaseTotal)}</dd>
+                    </>
+                  ) : null}
                 </>
-              ) : null}
-              {settings.quote_purchase_net != null ? (
-                <>
-                  <dt>Tarjouksen hankinta yhteensä (alv 0 %)</dt>
-                  <dd>{formatEuro(quotePurchaseTotal)}</dd>
-                </>
-              ) : null}
-              {settings.actual_purchase_net != null ? (
-                <>
-                  <dt>Todellinen hankinta yhteensä (alv 0 %)</dt>
-                  <dd>{formatEuro(actualPurchaseTotal)}</dd>
-                </>
-              ) : null}
+              )}
               {settings.notes?.trim() ? (
                 <>
                   <dt>Huomio</dt>
@@ -723,8 +845,14 @@ export default function WorkReportBillingQuotePanel({
 
           {readOnly ? (
             <>
-              {categoryComparison ? renderCategoryComparisonTable(categoryComparison) : null}
-              {renderPurchaseLinesTable(purchaseLines, false)}
+              {quoteIsLinked ? (
+                renderQuotePurchaseBreakdownTable(quoteOnlyPurchaseLines)
+              ) : (
+                <>
+                  {categoryComparison ? renderCategoryComparisonTable(categoryComparison) : null}
+                  {renderPurchaseLinesTable(purchaseLines, false)}
+                </>
+              )}
             </>
           ) : null}
 
