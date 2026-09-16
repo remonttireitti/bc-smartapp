@@ -547,21 +547,49 @@ export async function saveBillingQuoteSettings(
   settings: BillingQuoteSettings,
 ): Promise<void> {
   const payload = normalizeBillingQuoteSettings(parseBillingQuoteSettings(settings));
-  const { error } = await supabase
+  const { data: updatedRows, error } = await supabase
     .from('work_report_billable')
     .update({ billing_quote: payload })
-    .eq('work_report_id', workReportId);
+    .eq('work_report_id', workReportId)
+    .select('work_report_id');
 
-  if (error) {
-    const { error: upsertError } = await supabase.from('work_report_billable').upsert({
-      work_report_id: workReportId,
-      billing_quote: payload,
-      partner_total: 0,
-      calculation: {},
-    });
-    if (upsertError) throw new Error(upsertError.message);
-  }
+  if (error) throw new Error(error.message);
+  if ((updatedRows?.length ?? 0) > 0) return;
 
+  const { error: upsertError } = await supabase.from('work_report_billable').upsert({
+    work_report_id: workReportId,
+    billing_quote: payload,
+    partner_total: 0,
+    calculation: {},
+  });
+  if (upsertError) throw new Error(upsertError.message);
+}
+
+/** Täydentää billing_quote quote_requests.work_report_id -linkistä, jos rivi puuttuu. */
+export async function hydrateBillingQuoteFromLinkedQuoteRequest(
+  supabase: SupabaseClient,
+  workReportId: string,
+  current: BillingQuoteSettings | null | undefined,
+): Promise<BillingQuoteSettings> {
+  const parsed = parseBillingQuoteSettings(current ?? {});
+  if (workReportHasLinkedQuoteRequest(parsed)) return parsed;
+
+  const { data, error } = await supabase
+    .from('quote_requests')
+    .select('id, title, data')
+    .eq('work_report_id', workReportId)
+    .maybeSingle();
+
+  if (error || !data) return parsed;
+
+  const hydrated = billingQuoteFromQuoteRow(
+    data.id,
+    data.title,
+    data.data,
+    { fixedCustomerBilling: true, previous: parsed },
+  );
+  await saveBillingQuoteSettings(supabase, workReportId, hydrated);
+  return hydrated;
 }
 
 export function calculateWorkReportCustomerBillableFromQuote(input: {

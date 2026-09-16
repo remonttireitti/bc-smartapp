@@ -5,6 +5,10 @@ import {
   buildWorkReportHeadingFromQuote,
   buildWorkReportPayloadFromQuote,
 } from '../src/lib/quoteRequest/createWorkReportFromQuote.ts';
+import {
+  billingQuoteFromQuoteRow,
+  workReportHasLinkedQuoteRequest,
+} from '../src/lib/workReportBillingQuote.ts';
 import { createEmptyQuoteRequestData } from '../src/lib/quoteRequest/defaults.ts';
 import {
   QUOTE_AUTO_WORK_REPORT_FROM_MS,
@@ -66,5 +70,12 @@ emptyIntro.introText = '';
 emptyIntro.faultDescription = 'Vuoto kylmäaineesta';
 assert.equal(buildWorkReportHeadingFromQuote(emptyIntro), null);
 assert.equal(buildWorkReportDescriptionFromQuote(emptyIntro), 'Vuoto kylmäaineesta');
+
+const billingQuote = billingQuoteFromQuoteRow('quote-1', 'Messukeskus – Tarjous', data, {
+  fixedCustomerBilling: true,
+});
+assert.equal(billingQuote.quote_request_id, 'quote-1');
+assert.equal(billingQuote.quote_title, 'Messukeskus – Tarjous');
+assert.equal(workReportHasLinkedQuoteRequest(billingQuote), true);
 
 console.log('test-quote-ordered-status: ok');
