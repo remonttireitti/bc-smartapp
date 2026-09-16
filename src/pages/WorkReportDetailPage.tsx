@@ -155,6 +155,8 @@ import { refreshAndPersistCustomerBillable } from '../lib/workReportCustomerBill
 import {
   customerUsesQuoteBasedBilling,
   parseBillingQuoteSettings,
+  workReportHasLinkedQuoteRequest,
+  workReportSupportsQuoteLinkedExtraBilling,
   type BillingQuoteSettings,
 } from '../lib/workReportBillingQuote';
 import {
@@ -1233,65 +1235,69 @@ function DailyLogFields({
                                 />
                               </label>
                             </div>
-                            <ExpenseExtraBillingToggles
-                              extraBillable={row.extra_billable}
-                              extraBillingAllowed={row.extra_billing_allowed}
-                              disabled={autoTripKm}
-                              onExtraBillableChange={(checked) =>
-                                setExpenseDrafts((current) =>
-                                  current.map((r, i) =>
-                                    i === index
-                                      ? patchExpenseDraft(r, {
-                                          extra_billable: checked,
-                                          extra_billing_allowed: checked ? r.extra_billing_allowed : false,
-                                        })
-                                      : r,
-                                  ),
-                                )
-                              }
-                              onExtraBillingAllowedChange={(checked) =>
-                                setExpenseDrafts((current) =>
-                                  current.map((r, i) =>
-                                    i === index
-                                      ? patchExpenseDraft(r, { extra_billing_allowed: checked })
-                                      : r,
-                                  ),
-                                )
-                              }
-                            />
-                            {row.extra_billable && row.extra_billing_allowed ? (
-                              <div className="expense-price-pair">
-                                <label>
-                                  Asiakashinta (€)
-                                  <input
-                                    type="number"
-                                    step="0.01"
-                                    min="0"
-                                    value={row.customer_unit_price}
-                                    readOnly={autoTripKm}
-                                    disabled={autoTripKm}
-                                    onChange={(e) =>
-                                      updateExpenseRow({ ...row, customer_unit_price: e.target.value })
-                                    }
-                                    placeholder="Lasketaan automaattisesti"
-                                  />
-                                </label>
-                              </div>
-                            ) : null}
-                            {row.extra_billable && Number(row.unit_price) > 0 ? (
-                              <p className="muted expense-billing-preview">
-                                {formatExpenseSupplyExtraBillingMarginNote(row, formatEuro)}
-                                {row.extra_billing_allowed && Number(row.customer_unit_price) > 0 ? (
-                                  <>
-                                    {' '}
-                                    · Asiakkaalle laskutettava:{' '}
-                                    <strong>{formatEuro(Number(row.customer_unit_price))}</strong>
-                                    {' '}
-                                    (hankinta {formatEuro(Number(row.unit_price))} + kate{' '}
-                                    {row.customer_margin_percent || DEFAULT_SUPPLY_MARGIN_PERCENT} %)
-                                  </>
+                            {showQuoteLinkedExtraBilling ? (
+                              <>
+                                <ExpenseExtraBillingToggles
+                                  extraBillable={row.extra_billable}
+                                  extraBillingAllowed={row.extra_billing_allowed}
+                                  disabled={autoTripKm}
+                                  onExtraBillableChange={(checked) =>
+                                    setExpenseDrafts((current) =>
+                                      current.map((r, i) =>
+                                        i === index
+                                          ? patchExpenseDraft(r, {
+                                              extra_billable: checked,
+                                              extra_billing_allowed: checked ? r.extra_billing_allowed : false,
+                                            })
+                                          : r,
+                                      ),
+                                    )
+                                  }
+                                  onExtraBillingAllowedChange={(checked) =>
+                                    setExpenseDrafts((current) =>
+                                      current.map((r, i) =>
+                                        i === index
+                                          ? patchExpenseDraft(r, { extra_billing_allowed: checked })
+                                          : r,
+                                      ),
+                                    )
+                                  }
+                                />
+                                {row.extra_billable && row.extra_billing_allowed ? (
+                                  <div className="expense-price-pair">
+                                    <label>
+                                      Asiakashinta (€)
+                                      <input
+                                        type="number"
+                                        step="0.01"
+                                        min="0"
+                                        value={row.customer_unit_price}
+                                        readOnly={autoTripKm}
+                                        disabled={autoTripKm}
+                                        onChange={(e) =>
+                                          updateExpenseRow({ ...row, customer_unit_price: e.target.value })
+                                        }
+                                        placeholder="Lasketaan automaattisesti"
+                                      />
+                                    </label>
+                                  </div>
                                 ) : null}
-                              </p>
+                                {row.extra_billable && Number(row.unit_price) > 0 ? (
+                                  <p className="muted expense-billing-preview">
+                                    {formatExpenseSupplyExtraBillingMarginNote(row, formatEuro)}
+                                    {row.extra_billing_allowed && Number(row.customer_unit_price) > 0 ? (
+                                      <>
+                                        {' '}
+                                        · Asiakkaalle laskutettava:{' '}
+                                        <strong>{formatEuro(Number(row.customer_unit_price))}</strong>
+                                        {' '}
+                                        (hankinta {formatEuro(Number(row.unit_price))} + kate{' '}
+                                        {row.customer_margin_percent || DEFAULT_SUPPLY_MARGIN_PERCENT} %)
+                                      </>
+                                    ) : null}
+                                  </p>
+                                ) : null}
+                              </>
                             ) : null}
                           </div>
                         )}
@@ -3096,6 +3102,13 @@ export default function WorkReportDetailPage({ session }: Props) {
     && (isOwnerCompany || (isPartnerReport && canSeeCreatorBilling));
   const canManageQuoteCustomerMode =
     canManageCustomerBillingRates || (isPartnerReport && canSeeCreatorBilling);
+  const portalReadOnly = isPortalReadOnly(profile);
+  const hasLinkedQuote = workReportHasLinkedQuoteRequest(billingQuoteSettings);
+  const showQuoteBillingSection = hasLinkedQuote && !portalReadOnly;
+  const linkedQuoteTileSubtitle = billingQuoteSettings.quote_title?.trim()
+    || (billingQuoteSettings.customer_invoice_total != null
+      ? formatEuro(billingQuoteSettings.customer_invoice_total)
+      : 'Linkitetty tarjouspyyntö');
   const dailyLogEntryTiles = dailyLogs.flatMap((log) =>
     buildDailyLogEntryTiles(log, {
       formatDate,
@@ -3103,7 +3116,6 @@ export default function WorkReportDetailPage({ session }: Props) {
       showMoney: showPartnerBillableSection || showCustomerMoney,
     }),
   );
-  const portalReadOnly = isPortalReadOnly(profile);
   const canDeleteReport =
     !portalReadOnly && canDeleteWorkReport(report, session.user.id, profile?.is_global_admin, profile?.role);
   const displayPeople = resolveWorkReportDisplayPeople(report, { hideAssignee: hideAssigneeFromViewer });
@@ -3282,6 +3294,19 @@ export default function WorkReportDetailPage({ session }: Props) {
           color="#1976D2"
           onClick={() => setSectionDialog('basics')}
         />
+        {showQuoteBillingSection ? (
+          <WorkReportSectionTile
+            title="Tarjous"
+            subtitle={linkedQuoteTileSubtitle}
+            color="#7c3aed"
+            onClick={() => {
+              document.getElementById('work-report-quote-billing')?.scrollIntoView({
+                behavior: 'smooth',
+                block: 'start',
+              });
+            }}
+          />
+        ) : null}
         {showPartnerBillableSection && billableCalculation ? (
           <WorkReportSectionTile
             title={showOutgoingPartnerBilling ? 'Kumppanille laskutettava' : 'Kumppanilta laskutettava'}
@@ -3360,7 +3385,7 @@ export default function WorkReportDetailPage({ session }: Props) {
       )}
       </div>
 
-      {(showOutgoingPartnerBilling || showCustomerMoneyBilling) && report && (
+      {(showOutgoingPartnerBilling || showCustomerMoneyBilling) && report ? (
         <div className="panel work-report-section">
           <h2>Tuntien laskutustapa</h2>
           <p className="muted">
@@ -3382,9 +3407,10 @@ export default function WorkReportDetailPage({ session }: Props) {
             onChange={(next) => void saveHourBillingSettings(next)}
           />
         </div>
-      )}
+      ) : null}
 
-      {(showOutgoingPartnerBilling || showCustomerMoneyBilling) && report && (
+      {(showOutgoingPartnerBilling || showCustomerMoneyBilling || showQuoteBillingSection) && report ? (
+        <div id="work-report-quote-billing" className="work-report-quote-billing-anchor">
         <WorkReportBillingQuotePanel
           workReportId={report.id}
           customerId={report.customer_id}
@@ -3403,7 +3429,8 @@ export default function WorkReportDetailPage({ session }: Props) {
           }
           onSaved={(settings) => void handleBillingQuoteSaved(settings)}
         />
-      )}
+        </div>
+      ) : null}
 
 
       <WorkReportSectionDialog
@@ -4142,8 +4169,8 @@ export default function WorkReportDetailPage({ session }: Props) {
             && (hourBillingSettings.partner_mode === 'daily_overtime'
               || hourBillingSettings.customer_mode === 'daily_overtime')
           }
-          showQuoteLinkedExtraBilling={customerUsesQuoteBasedBilling(billingQuoteSettings)}
-          showQuoteLinkedCategories={customerUsesQuoteBasedBilling(billingQuoteSettings)}
+          showQuoteLinkedExtraBilling={workReportSupportsQuoteLinkedExtraBilling(billingQuoteSettings)}
+          showQuoteLinkedCategories={workReportSupportsQuoteLinkedExtraBilling(billingQuoteSettings)}
         />
         <DailyLogRefrigerantFields
           drafts={refrigerantDrafts}
