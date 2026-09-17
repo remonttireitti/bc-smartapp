@@ -12,6 +12,10 @@ import {
 } from './manualDevicePricing';
 import { embedUrlAsDataUrl } from './termatekAssets';
 import type { QuotePrintCustomer, QuotePrintMeta } from './printHtml';
+import {
+  QUOTE_CLOSING_SIGNATURE_LABEL,
+  QUOTE_CLOSING_THANK_YOU_TEXT,
+} from './quoteClosingPrint';
 import type { QuoteRequestData } from './types';
 
 function esc(v: unknown): string {
@@ -94,7 +98,8 @@ function lampokatsastusStyles(): string {
     .signature-page .doc-title { margin-bottom: 12mm; }
     .signature-block { margin-top: 4mm; font-size: 11pt; line-height: 1.5; }
     .signature-block .label { font-weight: 700; }
-    .closing { margin-top: 14mm; font-size: 11pt; }
+    .closing { margin-top: 14mm; font-size: 11pt; line-height: 1.55; }
+    .closing-thanks { margin-bottom: 10mm; }
     .closing .company { font-weight: 700; margin-top: 8mm; }
     .closing .name { margin-top: 2mm; }
   `;
@@ -373,7 +378,8 @@ export function generateLampokatsastusServicePrintHtml(input: {
       <div style="margin-top:8mm;">Tarjous on voimassa ${validUntil} saakka</div>
     </div>
     <div class="closing">
-      <div>Ystävällisin terveisin</div>
+      <div class="closing-thanks">${esc(QUOTE_CLOSING_THANK_YOU_TEXT)}</div>
+      <div>${esc(QUOTE_CLOSING_SIGNATURE_LABEL)}</div>
       <div class="company">${esc(meta.companyName)}</div>
       ${signatory ? `<div class="name">${esc(signatory)}</div>` : ''}
     </div>
