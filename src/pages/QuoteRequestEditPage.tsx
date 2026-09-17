@@ -29,6 +29,7 @@ import {
 } from '../lib/subscribers';
 import { canDeleteQuoteRequest } from '../lib/deletePermissions';
 import { deleteQuoteRequestById } from '../lib/deleteQuoteRequest';
+import { revertQuoteRequestToDraft } from '../lib/revertQuoteRequestToDraft';
 import { partnershipModuleAccess, partnershipPermsActingOnOwner, parseCompanySettings } from '../lib/management';
 import { computeKotitalousDeduction, computePumpSizingNeedKw, computeQuoteTotals, resolveIilpLaborPricingMode } from '../lib/quoteRequest/calculations';
 import { quoteInstallationDefaultsFromCompanySettings } from '../lib/quoteRequest/installationSupplies';
@@ -203,9 +204,8 @@ export default function QuoteRequestEditPage({ session }: Props) {
 
   const canEdit = isNew || status === 'draft' || status === 'sent';
   const isOrdered = status === 'ordered';
-  const canDeleteDraft =
+  const canDeleteQuote =
     !isNew
-    && status === 'draft'
     && !!quoteId
     && canDeleteQuoteRequest(
       {
@@ -732,9 +732,11 @@ export default function QuoteRequestEditPage({ session }: Props) {
           setError(updateError.message);
           return false;
         }
-        const savedData = updatedRow
-          ? normalizeQuoteRequestData((updatedRow as { data: QuoteRequestData }).data)
-          : dataToSave;
+        if (!updatedRow) {
+          setError('Tallennus epäonnistui — tarkista oikeudet.');
+          return false;
+        }
+        const savedData = normalizeQuoteRequestData((updatedRow as { data: QuoteRequestData }).data);
         setForm({
           ...savedData,
           acceptedSiteDefaults:
@@ -860,9 +862,13 @@ export default function QuoteRequestEditPage({ session }: Props) {
     }
   }
 
-  async function deleteDraftQuote() {
-    if (!quoteId || !canDeleteDraft) return;
-    if (!window.confirm('Poistetaanko tarjouspyynnön luonnos pysyvästi? Tätä toimintoa ei voi perua.')) {
+  async function deleteQuote() {
+    if (!quoteId || !canDeleteQuote) return;
+    const confirmMessage =
+      status === 'sent'
+        ? 'Poistetaanko lähetetty tarjouspyyntö pysyvästi? Tätä toimintoa ei voi perua.'
+        : 'Poistetaanko tarjouspyynnön luonnos pysyvästi? Tätä toimintoa ei voi perua.';
+    if (!window.confirm(confirmMessage)) {
       return;
     }
     setBusy(true);
@@ -875,6 +881,20 @@ export default function QuoteRequestEditPage({ session }: Props) {
     }
     clearLocalQuoteDraft(quoteDraftStorageKey);
     navigate(quoteListTrail().backTo);
+  }
+
+  async function revertToDraft() {
+    if (!quoteId || status !== 'sent') return;
+    setBusy(true);
+    setError(null);
+    const { error: revertError } = await revertQuoteRequestToDraft(supabase, quoteId);
+    setBusy(false);
+    if (revertError) {
+      setError(revertError.message);
+      return;
+    }
+    setStatus('draft');
+    setSavedAt(new Date().toLocaleTimeString('fi-FI', { hour: '2-digit', minute: '2-digit' }));
   }
 
   useEffect(() => {
@@ -1254,14 +1274,14 @@ export default function QuoteRequestEditPage({ session }: Props) {
               {busy ? 'Tallennetaan…' : 'Seuraava →'}
             </button>
           )}
-          {canDeleteDraft ? (
+          {canDeleteQuote ? (
             <button
               type="button"
               className="btn btn-secondary"
               disabled={busy}
-              onClick={() => void deleteDraftQuote()}
+              onClick={() => void deleteQuote()}
             >
-              {busy ? 'Poistetaan…' : 'Poista luonnos'}
+              {busy ? 'Poistetaan…' : status === 'sent' ? 'Poista tarjous' : 'Poista luonnos'}
             </button>
           ) : null}
           {canEdit && status === 'draft' && isLastSection && (
@@ -1300,7 +1320,7 @@ export default function QuoteRequestEditPage({ session }: Props) {
                 type="button"
                 className="btn btn-secondary"
                 disabled={busy}
-                onClick={() => void saveQuote('draft')}
+                onClick={() => void revertToDraft()}
               >
                 Palauta luonnokseksi
               </button>

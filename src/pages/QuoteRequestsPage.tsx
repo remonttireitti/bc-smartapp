@@ -109,7 +109,7 @@ export default function QuoteRequestsPage({ session }: Props) {
     setLoading(false);
   }
 
-  function canDeleteDraft(row: QuoteRequestRow): boolean {
+  function canDeleteQuote(row: QuoteRequestRow): boolean {
     return canDeleteQuoteRequest(
       row,
       profile?.company_id,
@@ -118,9 +118,13 @@ export default function QuoteRequestsPage({ session }: Props) {
     );
   }
 
-  async function deleteDraftQuote(row: QuoteRequestRow) {
-    if (!canDeleteDraft(row)) return;
-    if (!window.confirm('Poistetaanko tarjouspyynnön luonnos pysyvästi? Tätä toimintoa ei voi perua.')) {
+  async function deleteQuote(row: QuoteRequestRow) {
+    if (!canDeleteQuote(row)) return;
+    const confirmMessage =
+      row.status === 'sent'
+        ? 'Poistetaanko lähetetty tarjouspyyntö pysyvästi? Tätä toimintoa ei voi perua.'
+        : 'Poistetaanko tarjouspyynnön luonnos pysyvästi? Tätä toimintoa ei voi perua.';
+    if (!window.confirm(confirmMessage)) {
       return;
     }
     setDeletingDraftId(row.id);
@@ -262,9 +266,9 @@ export default function QuoteRequestsPage({ session }: Props) {
             <h2>{section.title}</h2>
             <QuoteRequestGrid
               rows={section.rows}
-              canDelete={canDeleteDraft}
+              canDelete={canDeleteQuote}
               deletingDraftId={deletingDraftId}
-              onDelete={(row) => void deleteDraftQuote(row)}
+              onDelete={(row) => void deleteQuote(row)}
             />
           </section>
         ))

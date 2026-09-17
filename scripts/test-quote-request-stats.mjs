@@ -4,8 +4,10 @@ import {
   filterQuoteRowsForStats,
   isQuoteStatsPeriod,
   quoteRowGrossTotal,
-  quoteRowPartnerCompanyId,
 } from '../src/lib/quoteRequest/quoteRequestStats.ts';
+import { canDeleteQuoteRequest } from '../src/lib/deletePermissions.ts';
+import { QUOTE_DELETE_DENIED_MESSAGE } from '../src/lib/deleteQuoteRequest.ts';
+import { QUOTE_REVERT_TO_DRAFT_DENIED_MESSAGE } from '../src/lib/revertQuoteRequestToDraft.ts';
 
 const anchor = new Date('2026-06-15T12:00:00');
 
@@ -92,30 +94,41 @@ assert.equal(summary.orderedCount, 1);
 assert.equal(summary.sentTotal, 0);
 assert.equal(summary.orderedTotal, 100);
 assert.equal(summary.totalCount, 2);
-assert.equal(summary.byOwner.length, 2);
-assert.equal(summary.byBranding.length, 1);
+assert.equal(summary.byCompany.length, 2);
 assert.equal(summary.conversionRate, 50);
-
-assert.equal(quoteRowPartnerCompanyId(baseRow), 'creator-1');
-assert.equal(quoteRowPartnerCompanyId(orderedRow), 'creator-1');
 
 const filtered = filterQuoteRowsForStats([baseRow, orderedRow], {
   disabledOwnerCompanyIds: new Set(['owner-1']),
-  disabledPartnerCompanyIds: new Set(),
 });
 assert.equal(filtered.length, 1);
 assert.equal(filtered[0].id, '2');
 
-const partnerFiltered = aggregateQuoteRequestStats(
-  [baseRow, orderedRow],
-  'this_month',
-  anchor,
-  {
-    disabledOwnerCompanyIds: new Set(),
-    disabledPartnerCompanyIds: new Set(['creator-1']),
-  },
+assert.equal(
+  canDeleteQuoteRequest(
+    { status: 'draft', owner_company_id: 'c1', created_by_company_id: 'c1' },
+    'c1',
+    'admin',
+  ),
+  true,
 );
-assert.equal(partnerFiltered.sentCount, 0);
-assert.equal(partnerFiltered.orderedCount, 0);
+assert.equal(
+  canDeleteQuoteRequest(
+    { status: 'sent', owner_company_id: 'c1', created_by_company_id: 'c1' },
+    'c1',
+    'admin',
+  ),
+  true,
+);
+assert.equal(
+  canDeleteQuoteRequest(
+    { status: 'ordered', owner_company_id: 'c1', created_by_company_id: 'c1' },
+    'c1',
+    'admin',
+  ),
+  false,
+);
+
+assert.equal(QUOTE_DELETE_DENIED_MESSAGE.includes('poisto'), true);
+assert.equal(QUOTE_REVERT_TO_DRAFT_DENIED_MESSAGE.includes('luonnokseksi'), true);
 
 console.log('test-quote-request-stats: ok');

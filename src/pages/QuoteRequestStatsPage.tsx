@@ -7,7 +7,6 @@ import { quoteListTrail } from '../lib/navigationTrail';
 import {
   aggregateQuoteRequestStats,
   collectQuoteStatsOwnerCompanies,
-  collectQuoteStatsPartnerCompanies,
   quoteStatsPeriodLabel,
   type QuoteStatsCompanyOption,
   type QuoteStatsCompanyRow,
@@ -78,9 +77,6 @@ export default function QuoteRequestStatsPage({ session }: Props) {
   const [disabledOwnerCompanyIds, setDisabledOwnerCompanyIds] = useState<Set<string>>(
     () => new Set(),
   );
-  const [disabledPartnerCompanyIds, setDisabledPartnerCompanyIds] = useState<Set<string>>(
-    () => new Set(),
-  );
 
   useEffect(() => {
     void loadRows();
@@ -110,13 +106,9 @@ export default function QuoteRequestStatsPage({ session }: Props) {
   }
 
   const ownerCompanies = useMemo(() => collectQuoteStatsOwnerCompanies(rows), [rows]);
-  const partnerCompanies = useMemo(() => collectQuoteStatsPartnerCompanies(rows), [rows]);
   const filters = useMemo(
-    () => ({
-      disabledOwnerCompanyIds,
-      disabledPartnerCompanyIds,
-    }),
-    [disabledOwnerCompanyIds, disabledPartnerCompanyIds],
+    () => ({ disabledOwnerCompanyIds }),
+    [disabledOwnerCompanyIds],
   );
   const summary = useMemo(
     () => aggregateQuoteRequestStats(rows, period, undefined, filters),
@@ -126,15 +118,6 @@ export default function QuoteRequestStatsPage({ session }: Props) {
 
   function toggleOwnerCompany(companyId: string) {
     setDisabledOwnerCompanyIds((current) => {
-      const next = new Set(current);
-      if (next.has(companyId)) next.delete(companyId);
-      else next.add(companyId);
-      return next;
-    });
-  }
-
-  function togglePartnerCompany(companyId: string) {
-    setDisabledPartnerCompanyIds((current) => {
       const next = new Set(current);
       if (next.has(companyId)) next.delete(companyId);
       else next.add(companyId);
@@ -209,22 +192,14 @@ export default function QuoteRequestStatsPage({ session }: Props) {
               </button>
             ))}
           </div>
-          {!loading ? (
-            <>
-              {renderCompanyFilterPills(
+          {!loading
+            ? renderCompanyFilterPills(
                 'Yritykset',
                 ownerCompanies,
                 disabledOwnerCompanyIds,
                 toggleOwnerCompany,
-              )}
-              {renderCompanyFilterPills(
-                'Kumppanit',
-                partnerCompanies,
-                disabledPartnerCompanyIds,
-                togglePartnerCompany,
-              )}
-            </>
-          ) : null}
+              )
+            : null}
         </div>
       </div>
 
@@ -260,13 +235,7 @@ export default function QuoteRequestStatsPage({ session }: Props) {
           <CompanyStatsTable
             title="Kenen piikkiin tarjottu"
             hint="Rekisterin omistaja — kenen asiakasrekisterissä tarjous on tehty."
-            rows={summary.byOwner}
-          />
-
-          <CompanyStatsTable
-            title="Kene nimissä tarjottu"
-            hint="Brändi tulosteella — kenen nimissä tarjous on asiakkaalle esitetty."
-            rows={summary.byBranding}
+            rows={summary.byCompany}
           />
         </>
       )}

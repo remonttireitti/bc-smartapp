@@ -22,12 +22,10 @@ export type QuoteStatsCompanyOption = {
 
 export type QuoteStatsFilters = {
   disabledOwnerCompanyIds: Set<string>;
-  disabledPartnerCompanyIds: Set<string>;
 };
 
 export const EMPTY_QUOTE_STATS_FILTERS: QuoteStatsFilters = {
   disabledOwnerCompanyIds: new Set(),
-  disabledPartnerCompanyIds: new Set(),
 };
 
 export type QuoteRequestStatsSummary = {
@@ -38,8 +36,7 @@ export type QuoteRequestStatsSummary = {
   totalCount: number;
   totalAmount: number;
   conversionRate: number | null;
-  byOwner: QuoteStatsCompanyRow[];
-  byBranding: QuoteStatsCompanyRow[];
+  byCompany: QuoteStatsCompanyRow[];
 };
 
 const STATS_STATUSES: QuoteRequestStatus[] = ['sent', 'ordered'];
@@ -100,22 +97,8 @@ function bumpCompanyRow(
   map.set(key, existing);
 }
 
-export function quoteRowPartnerCompanyId(row: QuoteRequestRow): string | null {
-  if (
-    row.created_by_company_id
-    && row.owner_company_id
-    && row.created_by_company_id !== row.owner_company_id
-  ) {
-    return row.created_by_company_id;
-  }
-  return null;
-}
-
 export function matchesQuoteStatsFilters(row: QuoteRequestRow, filters: QuoteStatsFilters): boolean {
-  if (filters.disabledOwnerCompanyIds.has(row.owner_company_id)) return false;
-  const partnerId = quoteRowPartnerCompanyId(row);
-  if (partnerId && filters.disabledPartnerCompanyIds.has(partnerId)) return false;
-  return true;
+  return !filters.disabledOwnerCompanyIds.has(row.owner_company_id);
 }
 
 export function filterQuoteRowsForStats(
@@ -148,17 +131,6 @@ export function collectQuoteStatsOwnerCompanies(rows: QuoteRequestRow[]): QuoteS
   return [...map.values()].sort((a, b) => a.name.localeCompare(b.name, 'fi'));
 }
 
-export function collectQuoteStatsPartnerCompanies(rows: QuoteRequestRow[]): QuoteStatsCompanyOption[] {
-  const map = new Map<string, QuoteStatsCompanyOption>();
-  for (const row of rows) {
-    if (!STATS_STATUSES.includes(row.status)) continue;
-    const partnerId = quoteRowPartnerCompanyId(row);
-    if (!partnerId) continue;
-    bumpCompanyOption(map, partnerId, row.created_by_company?.name ?? '—');
-  }
-  return [...map.values()].sort((a, b) => a.name.localeCompare(b.name, 'fi'));
-}
-
 function sortCompanyRows(rows: QuoteStatsCompanyRow[]): QuoteStatsCompanyRow[] {
   return [...rows].sort((a, b) => {
     const totalA = a.sentTotal + a.orderedTotal;
@@ -179,8 +151,7 @@ export function aggregateQuoteRequestStats(
   let sentTotal = 0;
   let orderedCount = 0;
   let orderedTotal = 0;
-  const byOwner = new Map<string, QuoteStatsCompanyRow>();
-  const byBranding = new Map<string, QuoteStatsCompanyRow>();
+  const byCompany = new Map<string, QuoteStatsCompanyRow>();
 
   for (const row of scopedRows) {
     if (!STATS_STATUSES.includes(row.status)) continue;
@@ -196,16 +167,9 @@ export function aggregateQuoteRequestStats(
     }
 
     bumpCompanyRow(
-      byOwner,
+      byCompany,
       row.owner_company_id,
       row.owner_company?.name ?? '—',
-      row.status,
-      amount,
-    );
-    bumpCompanyRow(
-      byBranding,
-      row.branding_company_id,
-      row.branding_company?.name ?? '—',
       row.status,
       amount,
     );
@@ -224,7 +188,6 @@ export function aggregateQuoteRequestStats(
     totalCount,
     totalAmount,
     conversionRate,
-    byOwner: sortCompanyRows([...byOwner.values()]),
-    byBranding: sortCompanyRows([...byBranding.values()]),
+    byCompany: sortCompanyRows([...byCompany.values()]),
   };
 }

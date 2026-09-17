@@ -35,7 +35,7 @@ export function canDeleteQuoteRequest(
   isGlobalAdmin?: boolean,
 ) {
   if (role === 'subscriber' || role === 'customer') return false;
-  if (quote.status !== 'draft') return false;
+  if (quote.status !== 'draft' && quote.status !== 'sent') return false;
   if (isGlobalAdmin) return true;
   if (canDeleteCompanyOwnedEntity(quote.owner_company_id, myCompanyId, role, isGlobalAdmin)) {
     return true;
