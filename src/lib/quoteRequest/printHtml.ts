@@ -58,9 +58,14 @@ import {
   formatQuoteWorkHoursQtyLabel,
 } from '../quoteCustomerPrintQuantity';
 import {
+  buildLampokatsastusQuoteFooterHtml,
   buildLampokatsastusQuoteHeaderHtml,
   isLampokatsastusCompanyName,
   lampokatsastusBrandingStyles,
+  LAMPOKATSASTUS_OFFER_TERMS_BODY,
+  LAMPOKATSASTUS_OFFER_TERMS_TITLE_SUFFIX,
+  LAMPOKATSASTUS_SERVICE_TERMS_BODY,
+  LAMPOKATSASTUS_SERVICE_TERMS_TITLE_SUFFIX,
 } from '../lampokatsastusBranding';
 import { quoteClosingPrintHtml, quoteClosingPrintStyles } from './quoteClosingPrint';
 
@@ -707,6 +712,36 @@ function iilpBaseInstallRows(
   return rows.join('');
 }
 
+function renderQuotePrintTermsFooter(meta: QuotePrintMeta, kind: 'service' | 'offer'): string {
+  if (isLampokatsastusCompanyName(meta.companyName)) {
+    return buildLampokatsastusQuoteFooterHtml(
+      { companyName: meta.companyName, settings: meta.settings },
+      {
+        esc,
+        termsTitleSuffix:
+          kind === 'service'
+            ? LAMPOKATSASTUS_SERVICE_TERMS_TITLE_SUFFIX
+            : LAMPOKATSASTUS_OFFER_TERMS_TITLE_SUFFIX,
+        termsBody:
+          kind === 'service' ? LAMPOKATSASTUS_SERVICE_TERMS_BODY : LAMPOKATSASTUS_OFFER_TERMS_BODY,
+      },
+    );
+  }
+  if (kind === 'service') {
+    return `<section class="terms">
+      <div class="terms-title">${esc(meta.companyName)} – Huoltoehdot</div>
+      <div>Työ suoritetaan alan hyvän työtavan mukaisesti. Hinnat sisältävät tarjouksessa eritellyt työt ja materiaalit.
+      Lisätyöt ja odottamattomat vauriot sovitaan erikseen ennen jatkotoimenpiteitä.</div>
+    </section>`;
+  }
+  return `<section class="terms">
+      <div class="terms-title">${esc(meta.companyName)} – Takuut, huolto ja asennusehdot</div>
+      <div>Tämä tarjous on suuntaa-antava. Hinnat ovat voimassa tarjouksen voimassaoloaikana ellei toisin mainita.
+      Työhön sisältyvät materiaalit ja tuntityöt kuten eritelty. Asennus- ja huoltotyöt suoritetaan alan hyvän
+      työtavan mukaisesti. Takuuehdot ja mahdolliset lisätyöt sovitaan erikseen ennen tilausta.</div>
+    </section>`;
+}
+
 function renderQuotePrintHeader(meta: QuotePrintMeta, logo: string): string {
   if (isLampokatsastusCompanyName(meta.companyName)) {
     return buildLampokatsastusQuoteHeaderHtml(
@@ -932,12 +967,7 @@ export function generateQuoteOfferPrintHtml(input: {
 
     ${mode === 'enduser' ? quoteClosingPrintHtml(meta) : ''}
 
-    <section class="terms">
-      <div class="terms-title">${esc(meta.companyName)} – Takuut, huolto ja asennusehdot</div>
-      <div>Tämä tarjous on suuntaa-antava. Hinnat ovat voimassa tarjouksen voimassaoloaikana ellei toisin mainita.
-      Työhön sisältyvät materiaalit ja tuntityöt kuten eritelty. Asennus- ja huoltotyöt suoritetaan alan hyvän
-      työtavan mukaisesti. Takuuehdot ja mahdolliset lisätyöt sovitaan erikseen ennen tilausta.</div>
-    </section>
+    ${renderQuotePrintTermsFooter(meta, 'offer')}
   </div>
 </body>
 </html>`;
@@ -1200,11 +1230,7 @@ export function generateQuoteServicePrintHtml(input: {
 
     ${mode === 'enduser' ? quoteClosingPrintHtml(meta) : ''}
 
-    <section class="terms">
-      <div class="terms-title">${esc(meta.companyName)} – Huoltoehdot</div>
-      <div>Työ suoritetaan alan hyvän työtavan mukaisesti. Hinnat sisältävät tarjouksessa eritellyt työt ja materiaalit.
-      Lisätyöt ja odottamattomat vauriot sovitaan erikseen ennen jatkotoimenpiteitä.</div>
-    </section>
+    ${renderQuotePrintTermsFooter(meta, 'service')}
   </div>
 </body>
 </html>`;

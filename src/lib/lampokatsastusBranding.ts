@@ -39,6 +39,9 @@ export function lampokatsastusBrandingStyles(): string {
       gap: 16px;
       align-items: start;
     }
+    .lk-header--quote .lk-header-top {
+      grid-template-columns: 1fr;
+    }
     .lk-logo img {
       max-height: 68px;
       max-width: 240px;
@@ -67,6 +70,30 @@ export function lampokatsastusBrandingStyles(): string {
       color: #334155;
       font-size: 10px;
       line-height: 1.55;
+    }
+    .lk-footer {
+      margin-top: 16px;
+      padding-top: 12px;
+      border-top: 1px solid #cbd5e1;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 16px;
+      align-items: start;
+      font-size: 9px;
+      color: #475569;
+      line-height: 1.45;
+    }
+    .lk-footer-terms-title {
+      font-weight: 700;
+      color: #0f172a;
+      margin-bottom: 4px;
+    }
+    .lk-footer-contact {
+      text-align: right;
+    }
+    .lk-footer-contact .lk-company-name {
+      font-size: 11px;
+      margin-bottom: 2px;
     }
     .lk-header-work-report .lk-work-title-row {
       display: grid;
@@ -104,6 +131,14 @@ export function lampokatsastusBrandingStyles(): string {
   `;
 }
 
+export const LAMPOKATSASTUS_SERVICE_TERMS_TITLE_SUFFIX = 'Huoltoehdot';
+export const LAMPOKATSASTUS_SERVICE_TERMS_BODY =
+  'Työ suoritetaan alan hyvän työtavan mukaisesti. Hinnat sisältävät tarjouksessa eritellyt työt ja materiaalit. Lisätyöt ja odottamattomat vauriot sovitaan erikseen ennen jatkotoimenpiteitä.';
+
+export const LAMPOKATSASTUS_OFFER_TERMS_TITLE_SUFFIX = 'Takuut, huolto ja asennusehdot';
+export const LAMPOKATSASTUS_OFFER_TERMS_BODY =
+  'Tämä tarjous on suuntaa-antava. Hinnat ovat voimassa tarjouksen voimassaoloaikana ellei toisin mainita. Työhön sisältyvät materiaalit ja tuntityöt kuten eritelty. Asennus- ja huoltotyöt suoritetaan alan hyvän työtavan mukaisesti. Takuuehdot ja mahdolliset lisätyöt sovitaan erikseen ennen tilausta.';
+
 export function buildLampokatsastusQuoteHeaderHtml(
   meta: LampokatsastusContactMeta,
   helpers: {
@@ -112,17 +147,33 @@ export function buildLampokatsastusQuoteHeaderHtml(
     logoSrc: string;
   },
 ): string {
-  const lines = lampokatsastusContactLines(meta.settings);
-  return `<header class="lk-header">
+  return `<header class="lk-header lk-header--quote">
     <div class="lk-header-top">
       <div class="lk-logo"><img src="${helpers.attrUrl(helpers.logoSrc)}" alt="${helpers.esc(meta.companyName)}" /></div>
-      <div class="lk-contact">
-        <strong class="lk-company-name">${helpers.esc(meta.companyName)}</strong>
-        ${lines.map((line) => `<div>${helpers.esc(line)}</div>`).join('')}
-      </div>
     </div>
     <p class="lk-tagline">${helpers.esc(LAMPOKATSASTUS_MARKETING_TAGLINE)}</p>
   </header>`;
+}
+
+export function buildLampokatsastusQuoteFooterHtml(
+  meta: LampokatsastusContactMeta,
+  helpers: {
+    esc: (value: unknown) => string;
+    termsTitleSuffix: string;
+    termsBody: string;
+  },
+): string {
+  const lines = lampokatsastusContactLines(meta.settings);
+  return `<footer class="lk-footer">
+    <div class="lk-footer-terms">
+      <div class="lk-footer-terms-title">${helpers.esc(meta.companyName)} – ${helpers.esc(helpers.termsTitleSuffix)}</div>
+      <div>${helpers.esc(helpers.termsBody)}</div>
+    </div>
+    <div class="lk-footer-contact">
+      <strong class="lk-company-name">${helpers.esc(meta.companyName)}</strong>
+      ${lines.map((line) => `<div>${helpers.esc(line)}</div>`).join('')}
+    </div>
+  </footer>`;
 }
 
 export function buildLampokatsastusWorkReportHeaderHtml(
