@@ -8,6 +8,7 @@ import {
 type Props = {
   settings: CustomerPrintQuantitySettings;
   onChange: (settings: CustomerPrintQuantitySettings) => void;
+  inDialog?: boolean;
 };
 
 const EXPENSE_UNIT_TYPES = [
@@ -18,7 +19,7 @@ const EXPENSE_UNIT_TYPES = [
   { key: 'other', label: 'Muu kulu' },
 ] as const;
 
-export default function WorkReportCustomerPrintSettingsPanel({ settings, onChange }: Props) {
+export default function WorkReportCustomerPrintSettingsPanel({ settings, onChange, inDialog = false }: Props) {
   function patch(patch: Partial<CustomerPrintQuantitySettings>) {
     onChange({ ...settings, ...patch });
   }
@@ -42,11 +43,20 @@ export default function WorkReportCustomerPrintSettingsPanel({ settings, onChang
   }
 
   return (
-    <div className="work-report-customer-print-settings panel-inset">
-      <h3 className="work-report-customer-print-settings-title">Asiakastulosteen määrät</h3>
-      <p className="muted work-report-customer-print-settings-hint">
-        Valitse näytetäänkö määrät ja millä yksiköillä (h, kpl, kg, km, urakka…).
-      </p>
+    <div className={`work-report-customer-print-settings${inDialog ? '' : ' panel-inset'}`}>
+      {inDialog ? null : (
+        <>
+          <h3 className="work-report-customer-print-settings-title">Asiakastulosteen määrät</h3>
+          <p className="muted work-report-customer-print-settings-hint">
+            Valitse näytetäänkö määrät ja millä yksiköillä (h, kpl, kg, km, urakka…).
+          </p>
+        </>
+      )}
+      {inDialog ? (
+        <p className="muted work-report-customer-print-settings-hint">
+          Valitse näytetäänkö määrät ja millä yksiköillä (h, kpl, kg, km, urakka…).
+        </p>
+      ) : null}
       <div className="toggle-grid">
         <ToggleSwitch
           label="Näytä määrät tulosteessa"

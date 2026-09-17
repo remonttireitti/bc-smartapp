@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import type { Session } from '@supabase/supabase-js';
 import AppLayout from '../components/AppLayout';
 import { MaintenanceReportImageLightbox } from '../components/huoltoRaportti/MaintenanceReportImageLightbox';
+import CustomerPrintQuantitySettingsPopup from '../components/CustomerPrintQuantitySettingsPopup';
 import WorkReportCustomerPrintSettingsPanel from '../components/WorkReportCustomerPrintSettingsPanel';
 import IconButton from '../components/IconButton';
 import { IconBack, IconPrint } from '../components/icons';
@@ -177,6 +178,15 @@ export default function WorkReportPrintPage({ session }: Props) {
             >
               <IconBack />
             </IconButton>
+            {printMode === 'customer' ? (
+              <CustomerPrintQuantitySettingsPopup quantitiesEnabled={customerPrintQuantitySettings.showQuantities}>
+                <WorkReportCustomerPrintSettingsPanel
+                  inDialog
+                  settings={customerPrintQuantitySettings}
+                  onChange={updateCustomerPrintSettings}
+                />
+              </CustomerPrintQuantitySettingsPopup>
+            ) : null}
             <IconButton
               label="Tulosta tai tallenna PDF"
               variant="primary"
@@ -187,15 +197,6 @@ export default function WorkReportPrintPage({ session }: Props) {
             </IconButton>
           </div>
         </div>
-
-        {printMode === 'customer' ? (
-          <div className="no-print work-report-customer-print-settings-wrap">
-            <WorkReportCustomerPrintSettingsPanel
-              settings={customerPrintQuantitySettings}
-              onChange={updateCustomerPrintSettings}
-            />
-          </div>
-        ) : null}
 
         <div className="work-report-print-host" dangerouslySetInnerHTML={{ __html: html }} />
         {lightboxUrl ? (
