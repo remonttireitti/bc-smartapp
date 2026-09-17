@@ -62,6 +62,7 @@ import {
   isLampokatsastusCompanyName,
   lampokatsastusBrandingStyles,
 } from '../lampokatsastusBranding';
+import { quoteClosingPrintHtml, quoteClosingPrintStyles } from './quoteClosingPrint';
 
 export type QuotePrintMode = 'enduser' | 'creator';
 
@@ -118,6 +119,7 @@ function smartappFallbackLogoSvg(companyName: string): string {
 function quotePrintStyles(): string {
   return `
     ${lampokatsastusBrandingStyles()}
+    ${quoteClosingPrintStyles()}
     @page { size: A4; margin: 14mm; }
     * { box-sizing: border-box; }
     body {
@@ -928,6 +930,8 @@ export function generateQuoteOfferPrintHtml(input: {
 
     ${kotitalousHtml}
 
+    ${mode === 'enduser' ? quoteClosingPrintHtml(meta) : ''}
+
     <section class="terms">
       <div class="terms-title">${esc(meta.companyName)} – Takuut, huolto ja asennusehdot</div>
       <div>Tämä tarjous on suuntaa-antava. Hinnat ovat voimassa tarjouksen voimassaoloaikana ellei toisin mainita.
@@ -1193,6 +1197,8 @@ export function generateQuoteServicePrintHtml(input: {
     ${mode === 'enduser' ? serviceOptionalItemsPrintHtml(data) : ''}
 
     ${data.notes.trim() ? `<div class="notes"><strong>Huomautukset</strong><div>${esc(data.notes).replace(/\n/g, '<br />')}</div></div>` : ''}
+
+    ${mode === 'enduser' ? quoteClosingPrintHtml(meta) : ''}
 
     <section class="terms">
       <div class="terms-title">${esc(meta.companyName)} – Huoltoehdot</div>
