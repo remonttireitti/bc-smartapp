@@ -28,6 +28,7 @@ import {
   resolveSubscriberIdForReport,
 } from '../lib/subscribers';
 import { canDeleteQuoteRequest } from '../lib/deletePermissions';
+import { deleteQuoteRequestById } from '../lib/deleteQuoteRequest';
 import { partnershipModuleAccess, partnershipPermsActingOnOwner, parseCompanySettings } from '../lib/management';
 import { computeKotitalousDeduction, computePumpSizingNeedKw, computeQuoteTotals, resolveIilpLaborPricingMode } from '../lib/quoteRequest/calculations';
 import { quoteInstallationDefaultsFromCompanySettings } from '../lib/quoteRequest/installationSupplies';
@@ -866,7 +867,7 @@ export default function QuoteRequestEditPage({ session }: Props) {
     }
     setBusy(true);
     setError(null);
-    const { error: deleteError } = await supabase.from('quote_requests').delete().eq('id', quoteId);
+    const { error: deleteError } = await deleteQuoteRequestById(supabase, quoteId);
     setBusy(false);
     if (deleteError) {
       setError(deleteError.message);

@@ -4,7 +4,9 @@ import type { Session } from '@supabase/supabase-js';
 import AppLayout from '../components/AppLayout';
 import { QuoteRequestListItem } from '../components/quoteRequest/QuoteRequestListItem';
 import { canDeleteQuoteRequest } from '../lib/deletePermissions';
+import { deleteQuoteRequestById } from '../lib/deleteQuoteRequest';
 import { supabase } from '../lib/supabase';
+import { clearLocalQuoteDraft, localQuoteDraftKey } from '../lib/quoteRequestDraftStorage';
 import { quoteListTrail, withNavTrail } from '../lib/navigationTrail';
 import { normalizeQuoteRequestData } from '../lib/quoteRequest/defaults';
 import type { QuoteRequestRow } from '../lib/quoteRequest/types';
@@ -122,13 +124,14 @@ export default function QuoteRequestsPage({ session }: Props) {
       return;
     }
     setDeletingDraftId(row.id);
-    const { error } = await supabase.from('quote_requests').delete().eq('id', row.id);
+    const { error } = await deleteQuoteRequestById(supabase, row.id);
     setDeletingDraftId(null);
     if (error) {
       console.error(error);
       window.alert(error.message);
       return;
     }
+    clearLocalQuoteDraft(localQuoteDraftKey(row.id, session.user.id));
     setRows((prev) => prev.filter((entry) => entry.id !== row.id));
   }
 
