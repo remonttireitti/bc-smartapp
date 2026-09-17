@@ -6,7 +6,10 @@ import { useProfile } from '../hooks/useProfile';
 import { quoteListTrail } from '../lib/navigationTrail';
 import {
   aggregateQuoteRequestStats,
+  collectQuoteStatsOwnerCompanies,
+  collectQuoteStatsPartnerCompanies,
   quoteStatsPeriodLabel,
+  type QuoteStatsCompanyOption,
   type QuoteStatsCompanyRow,
   type QuoteStatsPeriod,
 } from '../lib/quoteRequest/quoteRequestStats';
@@ -72,6 +75,12 @@ export default function QuoteRequestStatsPage({ session }: Props) {
   const [rows, setRows] = useState<QuoteRequestRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState<QuoteStatsPeriod>('this_month');
+  const [disabledOwnerCompanyIds, setDisabledOwnerCompanyIds] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const [disabledPartnerCompanyIds, setDisabledPartnerCompanyIds] = useState<Set<string>>(
+    () => new Set(),
+  );
 
   useEffect(() => {
     void loadRows();
@@ -100,8 +109,69 @@ export default function QuoteRequestStatsPage({ session }: Props) {
     setLoading(false);
   }
 
-  const summary = useMemo(() => aggregateQuoteRequestStats(rows, period), [rows, period]);
+  const ownerCompanies = useMemo(() => collectQuoteStatsOwnerCompanies(rows), [rows]);
+  const partnerCompanies = useMemo(() => collectQuoteStatsPartnerCompanies(rows), [rows]);
+  const filters = useMemo(
+    () => ({
+      disabledOwnerCompanyIds,
+      disabledPartnerCompanyIds,
+    }),
+    [disabledOwnerCompanyIds, disabledPartnerCompanyIds],
+  );
+  const summary = useMemo(
+    () => aggregateQuoteRequestStats(rows, period, undefined, filters),
+    [rows, period, filters],
+  );
   const listTrail = quoteListTrail();
+
+  function toggleOwnerCompany(companyId: string) {
+    setDisabledOwnerCompanyIds((current) => {
+      const next = new Set(current);
+      if (next.has(companyId)) next.delete(companyId);
+      else next.add(companyId);
+      return next;
+    });
+  }
+
+  function togglePartnerCompany(companyId: string) {
+    setDisabledPartnerCompanyIds((current) => {
+      const next = new Set(current);
+      if (next.has(companyId)) next.delete(companyId);
+      else next.add(companyId);
+      return next;
+    });
+  }
+
+  function renderCompanyFilterPills(
+    label: string,
+    companies: QuoteStatsCompanyOption[],
+    disabledIds: Set<string>,
+    onToggle: (companyId: string) => void,
+  ) {
+    if (companies.length === 0) return null;
+    return (
+      <div className="quote-stats-filter-group">
+        <span className="quote-stats-filter-label muted">{label}</span>
+        <div className="billing-filter-pills">
+          {companies.map((company) => {
+            const enabled = !disabledIds.has(company.id);
+            return (
+              <button
+                key={company.id}
+                type="button"
+                className={enabled ? 'billing-pill active' : 'billing-pill'}
+                aria-pressed={enabled}
+                title={enabled ? 'Mukana yhteenvedossa' : 'Ei mukana yhteenvedossa'}
+                onClick={() => onToggle(company.id)}
+              >
+                {company.name} ({company.count})
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <AppLayout session={session}>
@@ -122,21 +192,39 @@ export default function QuoteRequestStatsPage({ session }: Props) {
         </div>
       </div>
 
-      <div className="billing-summary-header">
+      <div className="billing-summary-header quote-stats-summary-header">
         <p className="billing-summary-period-label muted">
           Yhteenveto · {quoteStatsPeriodLabel(period).toLowerCase()}
         </p>
-        <div className="billing-summary-period-pills">
-          {(['this_week', 'this_month', 'this_year'] as const).map((value) => (
-            <button
-              key={value}
-              type="button"
-              className={period === value ? 'billing-pill active' : 'billing-pill'}
-              onClick={() => setPeriod(value)}
-            >
-              {quoteStatsPeriodLabel(value)}
-            </button>
-          ))}
+        <div className="quote-stats-toolbar">
+          <div className="billing-summary-period-pills">
+            {(['this_week', 'this_month', 'this_year'] as const).map((value) => (
+              <button
+                key={value}
+                type="button"
+                className={period === value ? 'billing-pill active' : 'billing-pill'}
+                onClick={() => setPeriod(value)}
+              >
+                {quoteStatsPeriodLabel(value)}
+              </button>
+            ))}
+          </div>
+          {!loading ? (
+            <>
+              {renderCompanyFilterPills(
+                'Yritykset',
+                ownerCompanies,
+                disabledOwnerCompanyIds,
+                toggleOwnerCompany,
+              )}
+              {renderCompanyFilterPills(
+                'Kumppanit',
+                partnerCompanies,
+                disabledPartnerCompanyIds,
+                togglePartnerCompany,
+              )}
+            </>
+          ) : null}
         </div>
       </div>
 

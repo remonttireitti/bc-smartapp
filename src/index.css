@@ -9210,6 +9210,31 @@ button.tile.quote-document-tile span {
   gap: .45rem;
 }
 
+.quote-stats-summary-header {
+  align-items: flex-start;
+}
+
+.quote-stats-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: flex-end;
+  gap: .75rem 1rem;
+  max-width: 100%;
+}
+
+.quote-stats-filter-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .45rem .6rem;
+}
+
+.quote-stats-filter-label {
+  font-size: .8rem;
+  white-space: nowrap;
+}
+
 .billing-summary-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
