@@ -85,7 +85,6 @@ export function shouldCalculateCustomerBilling(logs: WorkReportDailyLog[]): bool
       Number(log.hours_on_call) > 0 ||
       Number(log.fixed_price_amount) > 0 ||
       Number(log.customer_fixed_price_amount) > 0 ||
-      Number(log.commission_amount) > 0 ||
       (log.expense_lines ?? []).some((line) => line.bill_to_customer !== false) ||
       (log.refrigerant_lines ?? []).some((line) => refrigerantIncludedInCustomerBilling(line)),
   );
@@ -241,20 +240,6 @@ export function calculateWorkReportCustomerBillable(input: {
       summary.expensesTotal += total;
     }
 
-    if (Number(log.commission_amount) > 0) {
-      const total = Number(log.commission_amount);
-      summary.lines.push({
-        logId: log.id,
-        logDate: log.log_date,
-        kind: 'commission',
-        description: log.commission_note?.trim() || 'Myyntiprovisio',
-        qty: 1,
-        unitPrice: total,
-        total,
-        included: true,
-      });
-      summary.commissionTotal += total;
-    }
   }
 
   const byUser = Array.from(byUserId.values())
