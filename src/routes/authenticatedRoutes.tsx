@@ -33,6 +33,7 @@ import QuoteRequestsPage from '../pages/QuoteRequestsPage';
 import QuoteRequestHubPage from '../pages/QuoteRequestHubPage';
 import QuoteRequestEditPage from '../pages/QuoteRequestEditPage';
 import QuoteRequestPrintPage from '../pages/QuoteRequestPrintPage';
+import QuoteRequestStatsPage from '../pages/QuoteRequestStatsPage';
 import InstallationPlanHubPage from '../pages/InstallationPlanHubPage';
 import InstallationPlansPage from '../pages/InstallationPlansPage';
 import InstallationPlanEditPage from '../pages/InstallationPlanEditPage';
@@ -109,6 +110,7 @@ const LicensedQuoteRequestsPage = withLicenseModule('quotes', QuoteRequestsPage)
 const LicensedPumpDeviceRegistryPage = withLicenseModule('quotes', PumpDeviceRegistryPage);
 const LicensedQuoteRequestEditPage = withLicenseModule('quotes', QuoteRequestEditPage);
 const LicensedQuoteRequestPrintPage = withLicenseModule('quotes', QuoteRequestPrintPage);
+const LicensedQuoteRequestStatsPage = withLicenseModule('quotes', QuoteRequestStatsPage);
 const LicensedInstallationPlanHubPage = withLicenseModule('quotes', InstallationPlanHubPage);
 const LicensedInstallationPlansPage = withLicenseModule('quotes', InstallationPlansPage);
 const LicensedInstallationPlanEditPage = withLicenseModule('quotes', InstallationPlanEditPage);
@@ -214,6 +216,7 @@ export function buildAuthenticatedRoutes(session: Session): RouteObject[] {
     { path: '/huoltoraportit/:id', element: <LicensedMaintenanceReportEditPage session={session} /> },
     { path: '/tarjouspyynnot', element: <LicensedQuoteRequestHubPage session={session} /> },
     { path: '/tarjouspyynnot/lista', element: <LicensedQuoteRequestsPage session={session} /> },
+    { path: '/tarjouspyynnot/yhteenveto', element: <LicensedQuoteRequestStatsPage session={session} /> },
     { path: '/tarjouspyynnot/laiterekisteri', element: <LicensedPumpDeviceRegistryPage session={session} /> },
     { path: '/tarjouspyynnot/uusi', element: <LicensedQuoteRequestEditPage session={session} /> },
     { path: '/tarjouspyynnot/:id/tuloste', element: <LicensedQuoteRequestPrintPage session={session} /> },

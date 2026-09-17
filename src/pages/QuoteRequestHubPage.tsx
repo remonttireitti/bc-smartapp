@@ -15,6 +15,12 @@ const TILES = [
     color: '#f97316',
   },
   {
+    title: 'Yhteenveto',
+    desc: 'Tarjottu ja tilattu — viikko, kuukausi, vuosi',
+    href: '/tarjouspyynnot/yhteenveto',
+    color: '#ea580c',
+  },
+  {
     title: 'Uusi tarjouspyyntö',
     desc: 'Laske ja laadi tarjous',
     href: '/tarjouspyynnot/uusi',

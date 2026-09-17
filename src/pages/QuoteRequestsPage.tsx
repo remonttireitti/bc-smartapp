@@ -201,6 +201,9 @@ export default function QuoteRequestsPage({ session }: Props) {
           </p>
         </div>
         <div className="page-header-actions">
+          <Link to="/tarjouspyynnot/yhteenveto" className="btn btn-secondary">
+            Yhteenveto
+          </Link>
           <Link to="/tarjouspyynnot/uusi" className="btn btn-primary" {...withNavTrail(quoteListTrail())}>
             + Uusi tarjouspyyntö
           </Link>
