@@ -62,6 +62,7 @@
     "test:quote-material-row-kind": "npx tsx scripts/test-quote-material-row-kind.mjs",
     "test:quote-customer-print-quantities": "npx tsx scripts/test-quote-customer-print-quantities.mjs",
     "test:quote-request-stats": "npx tsx scripts/test-quote-request-stats.mjs",
+    "test:service-quote-print": "npx tsx scripts/test-service-quote-print.mjs",
     "test:delete-quote-request": "npx tsx scripts/test-delete-quote-request.mjs",
     "test:quote-unified-row-types": "npx tsx scripts/test-quote-unified-row-types.mjs",
     "test:quote-ordered-status": "npx tsx scripts/test-quote-ordered-status.mjs",

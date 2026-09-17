@@ -21,6 +21,7 @@ import type {
   QuoteBrandMode,
   QuoteLine,
   QuoteMaterial,
+  QuoteBulletItem,
   QuoteOptionalItem,
   QuoteRequestData,
   QuoteTermsPrintFlags,
@@ -144,6 +145,14 @@ export function createEmptyOptionalItem(partial?: Partial<QuoteOptionalItem>): Q
   };
 }
 
+export function createEmptyBulletItem(partial?: Partial<QuoteBulletItem>): QuoteBulletItem {
+  return {
+    id: newId(),
+    text: '',
+    ...partial,
+  };
+}
+
 export function defaultIilpOptionalItems(): QuoteOptionalItem[] {
   return DEFAULT_IILP_OPTIONAL_ITEMS.map((item) => createEmptyOptionalItem(item));
 }
@@ -240,6 +249,7 @@ export function createEmptyQuoteRequestData(type: QuoteType = 'vesi-ilma'): Quot
     iilpBaseInstallMaterialsGross: template.iilpBaseInstallMaterialsGross ?? 500,
     iilpDeviceSelectionNote: '',
     optionalItems: type === 'ilma-ilma' ? defaultIilpOptionalItems() : [],
+    excludedFromQuoteItems: [],
     iilpIndoorPlacement: '',
     iilpOutdoorPlacement: '',
     iilpPipeLengthM: 0,
@@ -539,6 +549,7 @@ export function normalizeQuoteRequestData(raw: unknown): QuoteRequestData {
     iilpDeviceSelectionNote:
       typeof record.iilpDeviceSelectionNote === 'string' ? record.iilpDeviceSelectionNote : '',
     optionalItems: normalizeOptionalItems(record.optionalItems, type),
+    excludedFromQuoteItems: normalizeBulletItems(record.excludedFromQuoteItems),
     iilpIndoorPlacement:
       typeof record.iilpIndoorPlacement === 'string' ? record.iilpIndoorPlacement : '',
     iilpOutdoorPlacement:
@@ -701,6 +712,17 @@ function normalizeQuoteTermsText(record: Record<string, unknown>, type: QuoteTyp
     return record.quoteTermsText;
   }
   return type === 'ilma-ilma' ? DEFAULT_TERMATEK_IILP_QUOTE_TERMS : '';
+}
+
+function normalizeBulletItems(raw: unknown): QuoteBulletItem[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.map((entry, index) => {
+    const row = entry as Record<string, unknown>;
+    return createEmptyBulletItem({
+      id: typeof row.id === 'string' ? row.id : `bullet-${index}`,
+      text: typeof row.text === 'string' ? row.text : '',
+    });
+  });
 }
 
 function normalizeOptionalItems(raw: unknown, type: QuoteType): QuoteOptionalItem[] {
