@@ -23,12 +23,12 @@ export default function ExpenseBillingModeToggles({
   includedInContractOn = false,
   showIncludedInContract = false,
   disabled = false,
-  partnerPurchaseLabel = 'Osto kumppanin piikillä',
+  partnerPurchaseLabel = 'Kumppanin tilillä hankittu',
   billFromPartnerLabel = 'Laskutetaan kumppanilta',
-  includedInContractLabel = 'Kuulu urakkaan',
-  partnerPurchaseHint = 'Hankintahinta on se mitä on — asiakashinta lasketaan hankinnasta + kate.',
-  billFromPartnerHint = 'Harvoin käytössä — kumppanihinta + kate → asiakashinta.',
-  includedInContractHint = 'Ei veloiteta kumppanilta eikä asiakkaalta.',
+  includedInContractLabel = 'Kuuluu urakkaan',
+  partnerPurchaseHint = 'Ei kumppanien välistä laskutusta. Asiakkaalta laskutetaan hankinta + kate.',
+  billFromPartnerHint = 'Kumppanihinta ja kate → asiakashinta. Tavallisin tapa tarvikkeille.',
+  includedInContractHint = 'Suora kulu kiinteään tarjoukseen. Ei kate laskentaa.',
   onPartnerPurchaseChange,
   onBillFromPartnerChange,
   onIncludedInContractChange,
@@ -37,21 +37,21 @@ export default function ExpenseBillingModeToggles({
     <div className="expense-billing-mode-toggles">
       <div className="expense-extra-billing-toggle-row">
         <ToggleSwitch
-          checked={partnerPurchaseOn}
-          disabled={disabled}
-          label={partnerPurchaseLabel}
-          onChange={onPartnerPurchaseChange}
-        />
-        <p className="muted expense-extra-billing-toggle-hint">{partnerPurchaseHint}</p>
-      </div>
-      <div className="expense-extra-billing-toggle-row">
-        <ToggleSwitch
           checked={billFromPartnerOn}
           disabled={disabled}
           label={billFromPartnerLabel}
           onChange={onBillFromPartnerChange}
         />
         <p className="muted expense-extra-billing-toggle-hint">{billFromPartnerHint}</p>
+      </div>
+      <div className="expense-extra-billing-toggle-row">
+        <ToggleSwitch
+          checked={partnerPurchaseOn}
+          disabled={disabled}
+          label={partnerPurchaseLabel}
+          onChange={onPartnerPurchaseChange}
+        />
+        <p className="muted expense-extra-billing-toggle-hint">{partnerPurchaseHint}</p>
       </div>
       {showIncludedInContract && onIncludedInContractChange ? (
         <div className="expense-extra-billing-toggle-row">

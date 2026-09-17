@@ -145,7 +145,7 @@ export function analyzeWorkReportPurchaseCosts(
         key: `partner:${log.id}:${purchase.id}`,
         logId: log.id,
         logDate,
-        description: String(purchase.description ?? '').trim() || 'Piikkiosto',
+        description: String(purchase.description ?? '').trim() || 'Hankinta',
         qty,
         purchaseUnit: unit,
         total,

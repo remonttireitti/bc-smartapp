@@ -183,7 +183,7 @@ export function collectWorkReportCategoryEntries(
         logId: log.id,
         logDate,
         category: 'supplies',
-        description: String(purchase.description ?? '').trim() || 'Piikkiosto',
+        description: String(purchase.description ?? '').trim() || 'Hankinta',
         qty,
         qtyLabel: 'kpl',
         actualNet: roundMoney(qty * unit),

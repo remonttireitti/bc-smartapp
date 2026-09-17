@@ -34,16 +34,47 @@ export function inferPartnerExpenseMarginPercent(
   return roundUrakkaMoney((1 - partnerCost / customerPrice) * 100);
 }
 
-export function expenseCustomerPriceMissing(
-  row: ExpenseBillingFlags & { unit_price?: number | string | null; customer_unit_price?: number | string | null },
+/** Näytetäänkö rivi asiakkaan erillisillä laskuriveillä (ei kiinteän tarjouksen piikkiostot). */
+export function expenseIncludedInCustomerInvoice(
+  row: ExpenseBillingFlags & { bill_to_customer?: boolean },
 ): boolean {
+  if (row.bill_to_customer === false) return false;
   const mode = resolveExpenseBillingMode(row);
+  if (mode === 'included_in_contract') return false;
+  if (mode === 'customer_only') {
+    return expenseExtraBillable(row) && expenseExtraBillingAllowed(row);
+  }
+  return true;
+}
+
+export function resolveExpenseCustomerUnitPrice(
+  row: ExpenseBillingFlags & {
+    unit_price?: number | string | null;
+    customer_unit_price?: number | string | null;
+    qty?: number | string | null;
+  },
+): number {
   const customerRaw = row.customer_unit_price;
   const customerPrice =
     customerRaw != null && String(customerRaw).trim() !== '' ? Number(customerRaw) : null;
-  if (customerPrice != null && customerPrice > 0) return false;
-  if (mode === 'customer_only') return true;
-  if (mode === 'included_in_contract') return false;
+  if (customerPrice != null && customerPrice > 0) return customerPrice;
+  if (resolveExpenseBillingMode(row) === 'customer_only' && expenseExtraBillingAllowed(row)) {
+    const purchase = resolveExpensePurchaseUnitPrice(row);
+    if (purchase != null && purchase > 0) {
+      return computeSupplyCustomerUnitPrice(purchase, resolveSupplyMarginPercent(row));
+    }
+  }
+  if (row.bill_to_partner === false) return 0;
+  return Number(row.unit_price || 0);
+}
+
+export function expenseCustomerPriceMissing(
+  row: ExpenseBillingFlags & { unit_price?: number | string | null; customer_unit_price?: number | string | null },
+): boolean {
+  if (!expenseIncludedInCustomerInvoice(row)) return false;
+  const customerPrice = resolveExpenseCustomerUnitPrice(row);
+  if (customerPrice > 0) return false;
+  if (resolveExpenseBillingMode(row) === 'included_in_contract') return false;
   const partnerPrice = Number(row.unit_price || 0);
   return !(partnerPrice > 0);
 }
@@ -328,8 +359,10 @@ export function inferSupplyMarginPercent(
 }
 
 export function expenseSupplyExtraBillingLabel(row: ExpenseBillingFlags): string | null {
-  if (resolveExpenseBillingMode(row) !== 'customer_only') return null;
-  if (!expenseExtraBillable(row)) return 'kuuluu tarjoukseen · syö katetta';
+  const mode = resolveExpenseBillingMode(row);
+  if (mode === 'included_in_contract') return 'kuuluu urakkaan · suora kulu';
+  if (mode !== 'customer_only') return null;
+  if (!expenseExtraBillable(row)) return 'kuuluu tarjoukseen · suora kulu';
   if (!row.extra_billing_allowed) return 'lisälaskutettavissa · ei lupaa';
   return 'Lisälaskutettava';
 }
@@ -434,8 +467,8 @@ export function expenseIncludedInContract(row: ExpenseBillingFlags): boolean {
 }
 
 export function expenseBillingModeShortLabel(mode: ExpenseBillingMode): string {
-  if (mode === 'included_in_contract') return 'kuulu urakkaan · ei veloiteta';
-  if (mode === 'customer_only') return 'ei laskuteta kumppanilta';
+  if (mode === 'included_in_contract') return 'kuuluu urakkaan · suora kulu';
+  if (mode === 'customer_only') return 'kumppanin tilillä hankittu';
   return 'laskutetaan kumppanilta';
 }
 

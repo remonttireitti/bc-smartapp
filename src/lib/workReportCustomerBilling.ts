@@ -13,6 +13,8 @@ import {
 } from './workReportUrakkaBilling';
 import {
   expenseCustomerPriceMissing,
+  expenseIncludedInCustomerInvoice,
+  resolveExpenseCustomerUnitPrice,
 } from './workReportExpenseBilling';
 import { tripKmExpenseBillingLine } from './tripKmExpense';
 import type { BillingQuoteExtraCustomerWork } from './billingQuoteExtraWork';
@@ -53,10 +55,7 @@ function resolveCustomerHourUnitPrice(
 }
 
 function customerExpenseUnitPrice(line: NonNullable<WorkReportDailyLog['expense_lines']>[number]): number {
-  const customerPrice = line.customer_unit_price != null ? Number(line.customer_unit_price) : null;
-  if (customerPrice != null && customerPrice > 0) return customerPrice;
-  if (line.bill_to_partner === false) return 0;
-  return Number(line.unit_price || 0);
+  return resolveExpenseCustomerUnitPrice(line);
 }
 
 function customerExpensePriceMissing(line: NonNullable<WorkReportDailyLog['expense_lines']>[number]): boolean {
@@ -186,7 +185,7 @@ export function calculateWorkReportCustomerBillable(input: {
     }
 
     for (const expense of log.expense_lines ?? []) {
-      if (expense.bill_to_customer === false) continue;
+      if (!expenseIncludedInCustomerInvoice(expense)) continue;
       const unitPrice = customerExpenseUnitPrice(expense);
       const priceMissing = customerExpensePriceMissing(expense);
       const billed =

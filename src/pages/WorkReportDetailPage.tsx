@@ -13,7 +13,8 @@ import { WorkReportSectionTile, WorkReportSectionTileGrid } from '../components/
 import WorkReportSectionDialog from '../components/WorkReportSectionDialog';
 import ActionStatusDialog from '../components/ActionStatusDialog';
 import DailyLogDialog from '../components/DailyLogDialog';
-import DailyLogFormSection from '../components/DailyLogFormSection';
+import DailyLogExpenseLinesSection from '../components/DailyLogExpenseLinesSection';
+import ExpenseExtraBillingToggles from '../components/ExpenseExtraBillingToggles';
 import DailyLogTileSection from '../components/DailyLogTileSection';
 import {
   DAILY_LOG_SECTION_COLORS,
@@ -169,9 +170,10 @@ import {
   serializeDailyLogCustomerExtraBilling,
 } from '../lib/dailyLogCustomerExtraBilling';
 import {
-  classifyExpenseDraftCategory,
-  quoteCategoryLabel,
-} from '../lib/workReportEntryCategories';
+  expensesToDrafts,
+  normalizeExpenseDraftsForSave,
+  type ExpenseDraft,
+} from '../lib/dailyLogExpenseDraft';
 import {
   computePartnerUrakkaFromCustomer,
   DEFAULT_PARTNER_URAKKA_MARGIN_PERCENT,
@@ -192,26 +194,9 @@ import {
   isMissingBillToPartnerColumn,
   isMissingExpenseExtraBillingColumn,
 } from '../lib/workReportDailyLogSelect';
-import ExpenseBillingModeToggles from '../components/ExpenseBillingModeToggles';
-import ExpenseExtraBillingToggles from '../components/ExpenseExtraBillingToggles';
 import {
-  applyExpenseBillingMode,
   applyTripBillingToExpenses,
-  computeCustomerPriceFromPartnerCost,
-  DEFAULT_PARTNER_EXPENSE_MARGIN_PERCENT,
-  DEFAULT_SUPPLY_MARGIN_PERCENT,
-  expenseBillingSummaryLabel,
-  syncSupplyExpenseCustomerPrice,
-  expensePurchaseLineTotal,
-  formatExpenseSupplyExtraBillingMarginNote,
-  inferPartnerExpenseMarginPercent,
-  inferSupplyMarginPercent,
-  resolveExpenseBillingMode,
-  resolveExpenseExtraBillableFromSources,
-  resolveExpenseExtraBillingAllowedFromSources,
-  resolveSupplyLineFlagForExpenseLine,
   resolveTripBillingFromExpenses,
-  type SupplyLineExtraBillingFlag,
   tripLegsBillToCustomer,
   type ExpenseBillingMode,
 } from '../lib/workReportExpenseBilling';
@@ -238,8 +223,6 @@ import {
   resolveWorkReportStatusDisplay,
 } from '../lib/workReportViewerStatus';
 import {
-  EXPENSE_TYPE_LABELS,
-  EXPENSE_TYPE_OPTIONS,
   HOUR_ENTRY_LABELS,
   INVOICE_STATUS_LABELS,
   WORKFLOW_STATUS_ORDER,
@@ -271,21 +254,6 @@ interface Props {
   session: Session;
 }
 
-type ExpenseDraft = {
-  key: string;
-  expense_type: string;
-  description: string;
-  qty: string;
-  unit_price: string;
-  bill_to_partner: boolean;
-  bill_to_customer: boolean;
-  customer_unit_price: string;
-  partner_expense_margin_percent: string;
-  customer_margin_percent: string;
-  extra_billable: boolean;
-  extra_billing_allowed: boolean;
-};
-
 const REPORT_SELECT = `
   id, title, heading, description, orderer_name, location_text, status,
   scheduled_start, scheduled_end, completed_at,
@@ -303,49 +271,6 @@ const REPORT_SELECT = `
   assigned_user:profiles!work_reports_assigned_user_id_fkey(display_name),
   created_by_user:profiles!work_reports_created_by_user_id_fkey(display_name, email)
 `;
-
-function emptyExpense(): ExpenseDraft {
-  return {
-    key: crypto.randomUUID(),
-    expense_type: '',
-    description: '',
-    qty: '1',
-    unit_price: '',
-    bill_to_partner: false,
-    bill_to_customer: false,
-    customer_unit_price: '',
-    partner_expense_margin_percent: String(DEFAULT_PARTNER_EXPENSE_MARGIN_PERCENT),
-    customer_margin_percent: String(DEFAULT_SUPPLY_MARGIN_PERCENT),
-    extra_billable: false,
-    extra_billing_allowed: false,
-  };
-}
-
-function syncExpenseCustomerPriceFromPartner(row: ExpenseDraft): ExpenseDraft {
-  if (resolveExpenseBillingMode(row) !== 'partner_and_customer') return row;
-  const partner = Number(row.unit_price);
-  if (!(partner > 0)) return row;
-  const margin = Number(row.partner_expense_margin_percent) || DEFAULT_PARTNER_EXPENSE_MARGIN_PERCENT;
-  return {
-    ...row,
-    customer_unit_price: String(computeCustomerPriceFromPartnerCost(partner, margin)),
-  };
-}
-
-function patchExpenseDraft(row: ExpenseDraft, patch: Partial<ExpenseDraft>): ExpenseDraft {
-  const next = { ...row, ...patch };
-  if (resolveExpenseBillingMode(next) === 'partner_and_customer') {
-    return syncExpenseCustomerPriceFromPartner(next);
-  }
-  if (resolveExpenseBillingMode(next) === 'customer_only') {
-    return syncSupplyExpenseCustomerPrice(next);
-  }
-  return next;
-}
-
-function isNewExpenseRow(row: ExpenseDraft): boolean {
-  return !row.description.trim() && !row.expense_type;
-}
 
 function initialLogForm() {
   return {
@@ -474,58 +399,6 @@ function logToForm(log: WorkReportDailyLog): DailyLogFormState {
   };
 }
 
-function expensesToDrafts(
-  lines: WorkReportDailyLog['expense_lines'],
-  supplyLineFlags?: SupplyLineExtraBillingFlag[],
-): ExpenseDraft[] {
-  return (lines ?? []).map((line, index) => {
-    const fallback = resolveSupplyLineFlagForExpenseLine(line, index, lines, supplyLineFlags);
-    const unitPrice = Number(line.unit_price);
-    const customerPrice =
-      line.customer_unit_price != null && Number(line.customer_unit_price) > 0
-        ? Number(line.customer_unit_price)
-        : null;
-    const isCustomerOnly = line.bill_to_partner === false && line.bill_to_customer !== false;
-    const purchaseUnit = isCustomerOnly ? unitPrice : unitPrice;
-    const margin =
-      line.customer_margin_percent != null && Number.isFinite(Number(line.customer_margin_percent))
-        ? Number(line.customer_margin_percent)
-        : isCustomerOnly && customerPrice != null && customerPrice > 0 && purchaseUnit > 0
-          ? inferSupplyMarginPercent(purchaseUnit, customerPrice)
-          : isCustomerOnly
-            ? DEFAULT_SUPPLY_MARGIN_PERCENT
-            : unitPrice > 0 && customerPrice != null && customerPrice > 0
-              ? inferPartnerExpenseMarginPercent(unitPrice, customerPrice)
-              : DEFAULT_PARTNER_EXPENSE_MARGIN_PERCENT;
-    const extraBillable = resolveExpenseExtraBillableFromSources(line, fallback);
-    const extraBillingAllowed = resolveExpenseExtraBillingAllowedFromSources(line, fallback);
-    const fallbackMargin = fallback?.customer_margin_percent;
-    return {
-      key: line.id,
-      expense_type: line.expense_type,
-      description: line.description,
-      qty: String(line.qty),
-      unit_price: String(line.unit_price),
-      bill_to_partner: line.bill_to_partner !== false,
-      bill_to_customer: line.bill_to_customer !== false,
-      customer_unit_price:
-        customerPrice != null && customerPrice > 0 ? String(customerPrice) : '',
-      partner_expense_margin_percent: String(
-        isCustomerOnly ? DEFAULT_PARTNER_EXPENSE_MARGIN_PERCENT : margin,
-      ),
-      customer_margin_percent: String(
-        isCustomerOnly
-          ? fallbackMargin != null
-            ? fallbackMargin
-            : margin
-          : DEFAULT_SUPPLY_MARGIN_PERCENT,
-      ),
-      extra_billable: extraBillable,
-      extra_billing_allowed: extraBillingAllowed,
-    };
-  });
-}
-
 function expenseSaveOptionsForReport(
   report: Pick<WorkReport, 'owner_company_id' | 'created_by_company_id' | 'delegate_company_id'>,
   customerInvoicingEnabled: boolean,
@@ -538,35 +411,6 @@ function expenseSaveOptionsForReport(
     includePartnerFields: isPartnerReport,
     includeCustomerFields: customerInvoicingEnabled || isPartnerReport,
   };
-}
-
-function expenseRowSectionTitle(
-  row: ExpenseDraft,
-  showPartner: boolean,
-  showCustomer: boolean,
-): string {
-  const type = row.expense_type
-    ? (EXPENSE_TYPE_LABELS[row.expense_type] ?? row.expense_type)
-    : 'Uusi kulu';
-  const desc = row.description.trim() || 'Täytä tiedot';
-  const parts = [type, desc];
-  if (row.qty.trim()) parts.push(`${row.qty} kpl`);
-  if (
-    resolveExpenseBillingMode(row) === 'customer_only'
-    && expensePurchaseLineTotal(row) > 0
-  ) {
-    parts.push(`hankinta ${expensePurchaseLineTotal(row).toFixed(2)} €`);
-  }
-  const supplyLabel = formatExpenseSupplyExtraBillingMarginNote(row, (value) =>
-    `${value.toFixed(2)} €`,
-  );
-  if (supplyLabel) parts.push(supplyLabel);
-  const billingLabel = expenseBillingSummaryLabel(row, {
-    showPartner,
-    showCustomer,
-  });
-  if (billingLabel) parts.push(billingLabel);
-  return parts.join(' · ');
 }
 
 function buildLogPayload(
@@ -1054,403 +898,14 @@ function DailyLogFields({
         color={DAILY_LOG_SECTION_COLORS.expenses}
         wide
       >
-        <div className="expense-section expense-section-in-dialog">
-          <p className="muted expense-section-hint">
-            Lisää pysäköinti, varaosat ja muut kulut. Ajomatkan km-korvaus ja laskutus valitaan yllä olevassa
-            ajomatka-osiossa.
-          </p>
-          <button
-            type="button"
-            className="btn btn-secondary"
-            onClick={() => setExpenseDrafts([...expenseDrafts, emptyExpense()])}
-          >
-            + Lisää kulu tai tarvike
-          </button>
-          {manualExpenseDrafts.length === 0 ? (
-            <p className="muted">
-              Esim. pysäköinti, varaosat, tarvikkeet…
-            </p>
-          ) : (
-            expenseDrafts.map((row, index) => {
-              if (isLikelyAutoTripKmExpense(row)) return null;
-              const autoTripKm = isAutoTripKmExpense(row);
-              const billingMode = resolveExpenseBillingMode(row);
-              const updateExpenseRow = (nextRow: ExpenseDraft) =>
-                setExpenseDrafts((current) => current.map((r, i) => (i === index ? nextRow : r)));
-              const applyBillingMode = (mode: ExpenseBillingMode) => {
-                let next = applyExpenseBillingMode(row, mode);
-                if (mode === 'customer_only') {
-                  next = {
-                    ...next,
-                    bill_to_partner: false,
-                    extra_billable: next.extra_billable ?? false,
-                    extra_billing_allowed: next.extra_billing_allowed ?? false,
-                    customer_margin_percent:
-                      next.customer_margin_percent || String(DEFAULT_SUPPLY_MARGIN_PERCENT),
-                  };
-                  next = syncSupplyExpenseCustomerPrice(next);
-                } else if (mode === 'partner_and_customer') {
-                  next = syncExpenseCustomerPriceFromPartner(next);
-                }
-                updateExpenseRow(next);
-              };
-              const partnerCustomerPreview =
-                billingMode === 'partner_and_customer' && Number(row.customer_unit_price) > 0
-                  ? Number(row.customer_unit_price)
-                  : null;
-              return (
-                <DailyLogFormSection
-                  key={row.key}
-                  title={expenseRowSectionTitle(row, showPartnerPrices, showCustomerPrices)}
-                  collapseKey={`daily-log:expense:${row.key}`}
-                  className="expense-line-section"
-                  defaultOpen={isNewExpenseRow(row)}
-                >
-                  <div className={`expense-row-fields${autoTripKm ? ' expense-row-auto' : ''}`}>
-                    {showQuoteLinkedCategories ? (
-                      <p className="quote-category-row-hint">
-                        <span
-                          className={`quote-category-badge quote-category-badge-${classifyExpenseDraftCategory(row)}`}
-                        >
-                          {quoteCategoryLabel(classifyExpenseDraftCategory(row))}
-                        </span>
-                        <span className="muted">
-                          {classifyExpenseDraftCategory(row) === 'supplies'
-                            ? 'Hankintahinta vähennetään katteesta tai laskutetaan lisänä.'
-                            : 'Kulu laskutetaan kumppanilaskutuksessa (esim. ajo, pysäköinti).'}
-                        </span>
-                      </p>
-                    ) : null}
-                    <label>
-                      Tyyppi
-                      <select
-                        value={row.expense_type}
-                        disabled={autoTripKm}
-                        onChange={(e) =>
-                          setExpenseDrafts(
-                            expenseDrafts.map((r, i) =>
-                              i === index ? { ...r, expense_type: e.target.value } : r,
-                            ),
-                          )
-                        }
-                      >
-                        <option value="">Valitse tyyppi…</option>
-                        {EXPENSE_TYPE_OPTIONS.map((opt) => (
-                          <option key={opt.value} value={opt.value}>
-                            {opt.label}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <label>
-                      Kuvaus
-                      <input
-                        value={row.description}
-                        readOnly={autoTripKm}
-                        disabled={autoTripKm}
-                        onChange={(e) =>
-                          setExpenseDrafts(
-                            expenseDrafts.map((r, i) =>
-                              i === index ? { ...r, description: e.target.value } : r,
-                            ),
-                          )
-                        }
-                        placeholder="Esim. Varaosa X"
-                      />
-                    </label>
-                    <label>
-                      Määrä
-                      <input
-                        type="number"
-                        step="0.001"
-                        min="0"
-                        value={row.qty}
-                        readOnly={autoTripKm}
-                        disabled={autoTripKm}
-                        onChange={(e) =>
-                          setExpenseDrafts(
-                            expenseDrafts.map((r, i) => (i === index ? { ...r, qty: e.target.value } : r)),
-                          )
-                        }
-                      />
-                    </label>
-                    {showPartnerPrices ? (
-                      <div className="expense-billing-panel">
-                        <p className="expense-billing-panel-title">Laskutus</p>
-                        <ExpenseBillingModeToggles
-                          partnerPurchaseOn={billingMode === 'customer_only'}
-                          billFromPartnerOn={billingMode === 'partner_and_customer'}
-                          includedInContractOn={billingMode === 'included_in_contract'}
-                          showIncludedInContract={showCustomerPrices}
-                          disabled={autoTripKm}
-                          onPartnerPurchaseChange={(checked) => {
-                            if (checked) applyBillingMode('customer_only');
-                            else if (billingMode === 'customer_only') applyBillingMode('partner_and_customer');
-                          }}
-                          onBillFromPartnerChange={(checked) => {
-                            if (checked) applyBillingMode('partner_and_customer');
-                            else if (billingMode === 'partner_and_customer') {
-                              applyBillingMode('included_in_contract');
-                            }
-                          }}
-                          onIncludedInContractChange={(checked) => {
-                            if (checked) applyBillingMode('included_in_contract');
-                            else if (billingMode === 'included_in_contract') {
-                              applyBillingMode('partner_and_customer');
-                            }
-                          }}
-                        />
-                        {billingMode === 'customer_only' && (
-                          <div className="expense-billing-fields">
-                            <div className="expense-price-pair">
-                              <label>
-                                Hankintahinta (€)
-                                <input
-                                  type="number"
-                                  step="0.01"
-                                  min="0"
-                                  value={row.unit_price}
-                                  readOnly={autoTripKm}
-                                  disabled={autoTripKm}
-                                  onChange={(e) =>
-                                    updateExpenseRow(patchExpenseDraft(row, { unit_price: e.target.value }))
-                                  }
-                                  placeholder="Esim. toimittajan lasku"
-                                />
-                              </label>
-                              <label>
-                                Kate (%)
-                                <input
-                                  type="number"
-                                  step="0.1"
-                                  min="0"
-                                  max="99.9"
-                                  value={row.customer_margin_percent}
-                                  readOnly={autoTripKm}
-                                  disabled={autoTripKm || !row.extra_billable}
-                                  onChange={(e) =>
-                                    updateExpenseRow(
-                                      patchExpenseDraft(row, { customer_margin_percent: e.target.value }),
-                                    )
-                                  }
-                                />
-                              </label>
-                            </div>
-                            {showQuoteLinkedExtraBilling ? (
-                              <>
-                                <ExpenseExtraBillingToggles
-                                  extraBillable={row.extra_billable}
-                                  extraBillingAllowed={row.extra_billing_allowed}
-                                  disabled={autoTripKm}
-                                  onExtraBillableChange={(checked) =>
-                                    setExpenseDrafts((current) =>
-                                      current.map((r, i) =>
-                                        i === index
-                                          ? patchExpenseDraft(r, {
-                                              extra_billable: checked,
-                                              extra_billing_allowed: checked ? r.extra_billing_allowed : false,
-                                            })
-                                          : r,
-                                      ),
-                                    )
-                                  }
-                                  onExtraBillingAllowedChange={(checked) =>
-                                    setExpenseDrafts((current) =>
-                                      current.map((r, i) =>
-                                        i === index
-                                          ? patchExpenseDraft(r, { extra_billing_allowed: checked })
-                                          : r,
-                                      ),
-                                    )
-                                  }
-                                />
-                                {row.extra_billable && row.extra_billing_allowed ? (
-                                  <div className="expense-price-pair">
-                                    <label>
-                                      Asiakashinta (€)
-                                      <input
-                                        type="number"
-                                        step="0.01"
-                                        min="0"
-                                        value={row.customer_unit_price}
-                                        readOnly={autoTripKm}
-                                        disabled={autoTripKm}
-                                        onChange={(e) =>
-                                          updateExpenseRow({ ...row, customer_unit_price: e.target.value })
-                                        }
-                                        placeholder="Lasketaan automaattisesti"
-                                      />
-                                    </label>
-                                  </div>
-                                ) : null}
-                                {row.extra_billable && Number(row.unit_price) > 0 ? (
-                                  <p className="muted expense-billing-preview">
-                                    {formatExpenseSupplyExtraBillingMarginNote(row, formatEuro)}
-                                    {row.extra_billing_allowed && Number(row.customer_unit_price) > 0 ? (
-                                      <>
-                                        {' '}
-                                        · Asiakkaalle laskutettava:{' '}
-                                        <strong>{formatEuro(Number(row.customer_unit_price))}</strong>
-                                        {' '}
-                                        (hankinta {formatEuro(Number(row.unit_price))} + kate{' '}
-                                        {row.customer_margin_percent || DEFAULT_SUPPLY_MARGIN_PERCENT} %)
-                                      </>
-                                    ) : null}
-                                  </p>
-                                ) : null}
-                              </>
-                            ) : null}
-                          </div>
-                        )}
-                        {billingMode === 'partner_and_customer' && (
-                          <div className="expense-billing-fields">
-                            <div className="expense-price-pair">
-                              <label>
-                                Kumppanihinta (€)
-                                <input
-                                  type="number"
-                                  step="0.01"
-                                  min="0"
-                                  value={row.unit_price}
-                                  readOnly={autoTripKm}
-                                  disabled={autoTripKm}
-                                  onChange={(e) =>
-                                    updateExpenseRow(patchExpenseDraft(row, { unit_price: e.target.value }))
-                                  }
-                                  placeholder="0 = ei kumppanilaskutusta"
-                                />
-                              </label>
-                              <label>
-                                Kumppanin kate (%)
-                                <input
-                                  type="number"
-                                  step="0.1"
-                                  min="0"
-                                  max="99.9"
-                                  value={row.partner_expense_margin_percent}
-                                  readOnly={autoTripKm}
-                                  disabled={autoTripKm}
-                                  onChange={(e) =>
-                                    updateExpenseRow(
-                                      patchExpenseDraft(row, { partner_expense_margin_percent: e.target.value }),
-                                    )
-                                  }
-                                />
-                              </label>
-                            </div>
-                            {partnerCustomerPreview != null ? (
-                              <p className="muted expense-billing-preview">
-                                Asiakkaalle laskutettava:{' '}
-                                <strong>{formatEuro(partnerCustomerPreview)}</strong>
-                                {Number(row.unit_price) > 0 ? (
-                                  <>
-                                    {' '}
-                                    (kumppani {formatEuro(Number(row.unit_price))} + kate{' '}
-                                    {row.partner_expense_margin_percent || DEFAULT_PARTNER_EXPENSE_MARGIN_PERCENT}{' '}
-                                    %)
-                                  </>
-                                ) : null}
-                              </p>
-                            ) : (
-                              <p className="muted expense-billing-preview">
-                                Täytä kumppanihinta — asiakashinta lasketaan automaattisesti.
-                              </p>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    ) : showCustomerPrices ? (
-                      <>
-                        <div className="expense-price-pair">
-                          <label>
-                            Ostohinta (€)
-                            <input
-                              type="number"
-                              step="0.01"
-                              min="0"
-                              value={row.unit_price}
-                              readOnly={autoTripKm}
-                              disabled={autoTripKm}
-                              onChange={(e) =>
-                                updateExpenseRow({ ...row, unit_price: e.target.value })
-                              }
-                            />
-                          </label>
-                          <label>
-                            Asiakashinta (€)
-                            <input
-                              type="number"
-                              step="0.01"
-                              min="0"
-                              value={row.customer_unit_price}
-                              readOnly={autoTripKm}
-                              disabled={autoTripKm}
-                              onChange={(e) =>
-                                updateExpenseRow({ ...row, customer_unit_price: e.target.value })
-                              }
-                              placeholder={row.unit_price.trim() || 'Esim. laskutushinta'}
-                            />
-                          </label>
-                        </div>
-                        <div className="expense-billing-panel">
-                          <p className="expense-billing-panel-title">Laskutus</p>
-                          <ExpenseBillingModeToggles
-                            partnerPurchaseLabel="Laskutetaan asiakkaalta"
-                            partnerPurchaseHint="Veloitus näkyy asiakkaan laskulla."
-                            billFromPartnerLabel="Kuulu urakkaan — ei veloiteta"
-                            billFromPartnerHint="Ei veloiteta asiakkaalta."
-                            partnerPurchaseOn={billingMode === 'partner_and_customer'}
-                            billFromPartnerOn={billingMode === 'included_in_contract'}
-                            disabled={autoTripKm}
-                            onPartnerPurchaseChange={(checked) => {
-                              if (checked) applyBillingMode('partner_and_customer');
-                              else if (billingMode === 'partner_and_customer') {
-                                applyBillingMode('included_in_contract');
-                              }
-                            }}
-                            onBillFromPartnerChange={(checked) => {
-                              if (checked) applyBillingMode('included_in_contract');
-                              else if (billingMode === 'included_in_contract') {
-                                applyBillingMode('partner_and_customer');
-                              }
-                            }}
-                          />
-                        </div>
-                      </>
-                    ) : (
-                      <label>
-                        á hinta (€)
-                        <input
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          value={row.unit_price}
-                          readOnly={autoTripKm}
-                          disabled={autoTripKm}
-                          onChange={(e) =>
-                            updateExpenseRow({ ...row, unit_price: e.target.value })
-                          }
-                        />
-                      </label>
-                    )}
-                    {autoTripKm && (
-                      <p className="muted expense-auto-note">Päivittyy automaattisesti ajomatkoista</p>
-                    )}
-                    {!autoTripKm && (
-                      <button
-                        type="button"
-                        className="btn btn-secondary btn-sm"
-                        onClick={() => setExpenseDrafts(expenseDrafts.filter((_, i) => i !== index))}
-                      >
-                        Poista rivi
-                      </button>
-                    )}
-                  </div>
-                </DailyLogFormSection>
-              );
-            })
-          )}
-        </div>
+        <DailyLogExpenseLinesSection
+          expenseDrafts={expenseDrafts}
+          setExpenseDrafts={setExpenseDrafts}
+          showPartnerPrices={showPartnerPrices}
+          showCustomerPrices={showCustomerPrices}
+          showQuoteLinkedExtraBilling={showQuoteLinkedExtraBilling}
+          showQuoteLinkedCategories={showQuoteLinkedCategories}
+        />
       </DailyLogTileSection>
     </>
   );
@@ -1462,8 +917,10 @@ async function saveExpenseLines(
   options: { includeCustomerFields: boolean; includePartnerFields: boolean },
 ) {
   await supabase.from('work_report_daily_expense_lines').delete().eq('daily_log_id', dailyLogId);
-  const validExpenses = expenseDrafts.filter(
-    (row) => row.description.trim() && (row.expense_type || isAutoTripKmExpense(row)),
+  const validExpenses = normalizeExpenseDraftsForSave(
+    expenseDrafts.filter(
+      (row) => row.description.trim() && (row.expense_type || isAutoTripKmExpense(row)),
+    ),
   );
   if (validExpenses.length === 0) return null;
   const buildRows = (includeBillToPartner: boolean, includeExtraBilling: boolean) =>
@@ -1473,6 +930,8 @@ async function saveExpenseLines(
       const marginRaw = String(row.customer_margin_percent ?? '').trim();
       const customerMargin =
         marginRaw && Number.isFinite(Number(marginRaw)) ? Number(marginRaw) : null;
+      const saveMargin =
+        customerMargin != null && customerMargin >= 0 && customerMargin < 100 ? customerMargin : null;
       return {
         daily_log_id: dailyLogId,
         expense_type: row.expense_type || 'other',
@@ -1485,12 +944,11 @@ async function saveExpenseLines(
           ? {
               extra_billable: row.extra_billable === true,
               extra_billing_allowed: row.extra_billing_allowed === true,
-              customer_margin_percent:
-                customerMargin != null && customerMargin >= 0 && customerMargin < 100
-                  ? customerMargin
-                  : null,
+              customer_margin_percent: saveMargin,
             }
-          : {}),
+          : saveMargin != null
+            ? { customer_margin_percent: saveMargin }
+            : {}),
         ...(options.includeCustomerFields
           ? {
               customer_unit_price:

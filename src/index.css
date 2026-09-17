@@ -11067,6 +11067,75 @@ a.tile.customer-document-tile:hover {
   gap: 0.65rem;
 }
 
+.expense-line-list {
+  list-style: none;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.expense-line-list-item {
+  width: 100%;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  text-align: left;
+  padding: 0.7rem 0.85rem;
+  border: 1px solid var(--border-color, #d1d5db);
+  border-radius: 0.55rem;
+  background: var(--surface-muted, #f9fafb);
+  cursor: pointer;
+}
+
+.expense-line-list-item:hover {
+  border-color: #93c5fd;
+  background: #eff6ff;
+}
+
+.expense-line-list-item-title {
+  flex: 1;
+  min-width: 0;
+  line-height: 1.35;
+}
+
+.expense-line-list-item-action {
+  flex-shrink: 0;
+  color: #2563eb;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.expense-line-dialog {
+  width: min(32rem, calc(100vw - 1.5rem));
+  max-height: calc(100vh - 2rem);
+  overflow: auto;
+}
+
+.expense-line-dialog h3 {
+  margin: 0 0 0.75rem;
+}
+
+.expense-line-dialog-fields {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.expense-line-dialog-fields .expense-billing-fields {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.expense-line-dialog-actions {
+  margin-top: 1rem;
+  justify-content: space-between;
+}
+
+.expense-line-dialog-delete {
+  margin-right: auto;
+}
+
 .trip-leg-dialog-section .trip-leg-section {
   border: 0;
   padding: 0;

@@ -3,7 +3,9 @@ import {
   APPROVED_EXTRA_BILLING_CUSTOMER_PRINT_LABEL,
   expenseApprovedExtraBillingCustomerPrintLabel,
   expenseCustomerPriceMissing,
+  expenseIncludedInCustomerInvoice,
   expensePrintBillingNote,
+  resolveExpenseCustomerUnitPrice,
   formatExpenseSupplyExtraBillingMarginNote,
   expensePurchaseLineTotal,
   expensePurchasePriceMissing,
@@ -492,12 +494,12 @@ function quoteMarginPrintSection(
     }
     if (partnerMargin.partnerPiikkiPurchaseNet > 0.005) {
       rows.push(
-        `<tr><td>Kumppanin piikkiostot</td><td class="num">− ${formatEuro(partnerMargin.partnerPiikkiPurchaseNet)}</td></tr>`,
+        `<tr><td>Kumppanin tililtä hankitut</td><td class="num">− ${formatEuro(partnerMargin.partnerPiikkiPurchaseNet)}</td></tr>`,
       );
     }
     if (partnerMargin.piikkiMaterialCostNet > 0.005) {
       rows.push(
-        `<tr><td>Lisätilauksen piikki-hankinta</td><td class="num">− ${formatEuro(partnerMargin.piikkiMaterialCostNet)}</td></tr>`,
+        `<tr><td>Lisätilauksen hankintakulut</td><td class="num">− ${formatEuro(partnerMargin.piikkiMaterialCostNet)}</td></tr>`,
       );
     }
     rows.push(
@@ -522,7 +524,7 @@ function quoteMarginPrintSection(
       ? `<h3 class="billing-subheading">Lisälaskutuksen kate-erittely</h3>
       <table>
         <thead>
-          <tr><th>Päivä</th><th>Rivi</th><th class="num">Asiakas</th><th class="num">Kumppani</th><th class="num">Piikki-hankinta</th><th class="num">Kate</th></tr>
+          <tr><th>Päivä</th><th>Rivi</th><th class="num">Asiakas</th><th class="num">Kumppani</th><th class="num">Hankinta</th><th class="num">Kate</th></tr>
         </thead>
         <tbody>${extrasDetail
           .map((line) => {
@@ -567,7 +569,7 @@ function quoteMarginPrintSection(
     ${extrasDetailHtml}
     ${
       partnerMargin
-        ? '<p class="meta-line">Kate = tarjoushinta + lisälaskutus − työt − kulut − tarvikkeet − laite − katetta syövät kulut − piikkiostot. Vertailurivit ovat informatiivisia — katteeseen vähennetään vain toteutuneet summat.</p>'
+        ? '<p class="meta-line">Kate = tarjoushinta + lisälaskutus − työt − kulut − tarvikkeet − laite − katetta syövät kulut − suorat hankintakulut. Vertailurivit ovat informatiivisia — katteeseen vähennetään vain toteutuneet summat.</p>'
         : ''
     }
     ${billingQuote.notes?.trim() ? `<p class="meta-line">Huom: ${esc(billingQuote.notes.trim())}</p>` : ''}`,
@@ -684,11 +686,13 @@ export function generateWorkReportPrintHtml(input: {
                   : '';
             return `<tr><td>${esc(label)}</td><td>${esc(descriptionForPrint)}</td><td class="num">${qty} × ${formatEuro(unit)} = ${formatEuro(total)}${esc(partnerNote)}${esc(customerNote)}</td></tr>`;
           }
-          if (showCustomerExpensePrices && line.bill_to_customer !== false) {
+          if (showCustomerExpensePrices && expenseIncludedInCustomerInvoice(line)) {
+            const billedUnit = resolveExpenseCustomerUnitPrice(line);
+            const billedTotal = expenseLineTotal({ ...line, unit_price: billedUnit });
             const priceMissing = expenseCustomerPriceMissing(line);
             const priceCell = priceMissing
               ? `${qty} · <span class="billing-price-missing">?</span>`
-              : `${qty} × ${formatEuro(customerUnit)} = ${formatEuro(customerTotal)}`;
+              : `${qty} × ${formatEuro(billedUnit)} = ${formatEuro(billedTotal)}`;
             const extraBillingCustomerNote = expenseApprovedExtraBillingCustomerPrintLabel(line);
             const descriptionCell = extraBillingCustomerNote
               ? `${esc(descriptionForPrint)} <span class="muted">· ${esc(extraBillingCustomerNote)}</span>`

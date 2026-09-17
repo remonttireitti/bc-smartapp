@@ -3,8 +3,10 @@ import {
   applyExpenseBillingMode,
   computeCustomerPriceFromPartnerCost,
   expenseCustomerPriceMissing,
+  expenseIncludedInCustomerInvoice,
   inferPartnerExpenseMarginPercent,
   resolveExpenseBillingMode,
+  resolveExpenseCustomerUnitPrice,
 } from '../src/lib/workReportExpenseBilling.ts';
 
 assert.equal(computeCustomerPriceFromPartnerCost(90, 10), 100);
@@ -23,11 +25,31 @@ const customerOnlyRow = applyExpenseBillingMode(
 assert.equal(resolveExpenseBillingMode(customerOnlyRow), 'customer_only');
 assert.equal(
   expenseCustomerPriceMissing({ ...customerOnlyRow, customer_unit_price: '', unit_price: '50' }),
-  true,
+  false,
 );
 assert.equal(
   expenseCustomerPriceMissing({ ...customerOnlyRow, customer_unit_price: '80', unit_price: '50' }),
   false,
 );
+
+const quoteIncludedSupply = {
+  ...customerOnlyRow,
+  unit_price: '400.5',
+  customer_unit_price: '',
+  customer_margin_percent: 80,
+  extra_billable: false,
+  extra_billing_allowed: false,
+};
+assert.equal(expenseIncludedInCustomerInvoice(quoteIncludedSupply), false);
+assert.equal(expenseCustomerPriceMissing(quoteIncludedSupply), false);
+
+const extraBillableSupply = {
+  ...quoteIncludedSupply,
+  extra_billable: true,
+  extra_billing_allowed: true,
+};
+assert.equal(expenseIncludedInCustomerInvoice(extraBillableSupply), true);
+assert.equal(expenseCustomerPriceMissing(extraBillableSupply), false);
+assert.equal(resolveExpenseCustomerUnitPrice(extraBillableSupply), 720.9);
 
 console.log('test-expense-billing: ok');
