@@ -161,7 +161,7 @@ export async function buildWorkReportPrintHtmlDocument(input: {
   const brandingCompanyId = input.report.branding_company_id ?? input.report.owner_company_id;
   const { data: companyRow } = await db
     .from('companies')
-    .select('name, logo_url')
+    .select('name, logo_url, settings')
     .eq('id', brandingCompanyId)
     .single();
 
@@ -220,7 +220,11 @@ export async function buildWorkReportPrintHtmlDocument(input: {
     );
   }
 
-  const meta = { companyName, logoUrl };
+  const meta = {
+    companyName,
+    logoUrl,
+    settings: parseCompanySettings((companyRow as { settings: unknown } | null)?.settings),
+  };
   const html = generateWorkReportPrintHtml({
     report: input.report,
     logs,

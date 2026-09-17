@@ -57,6 +57,11 @@ import {
   formatQuoteMaterialQtyLabel,
   formatQuoteWorkHoursQtyLabel,
 } from '../quoteCustomerPrintQuantity';
+import {
+  buildLampokatsastusQuoteHeaderHtml,
+  isLampokatsastusCompanyName,
+  lampokatsastusBrandingStyles,
+} from '../lampokatsastusBranding';
 
 export type QuotePrintMode = 'enduser' | 'creator';
 
@@ -112,6 +117,7 @@ function smartappFallbackLogoSvg(companyName: string): string {
 
 function quotePrintStyles(): string {
   return `
+    ${lampokatsastusBrandingStyles()}
     @page { size: A4; margin: 14mm; }
     * { box-sizing: border-box; }
     body {
@@ -699,6 +705,22 @@ function iilpBaseInstallRows(
   return rows.join('');
 }
 
+function renderQuotePrintHeader(meta: QuotePrintMeta, logo: string): string {
+  if (isLampokatsastusCompanyName(meta.companyName)) {
+    return buildLampokatsastusQuoteHeaderHtml(
+      { companyName: meta.companyName, logoUrl: logo, settings: meta.settings },
+      { esc, attrUrl, logoSrc: logo },
+    );
+  }
+  return `<header class="header">
+      <div class="logo"><img src="${attrUrl(logo)}" alt="${esc(meta.companyName)}" /></div>
+      <div class="company-meta">
+        <strong>${esc(meta.companyName)}</strong>
+        ${companyContactBlock(meta)}
+      </div>
+    </header>`;
+}
+
 function companyContactBlock(meta: QuotePrintMeta): string {
   const settings = meta.settings ?? {};
   const billing = settings.billing ?? {};
@@ -859,13 +881,7 @@ export function generateQuoteOfferPrintHtml(input: {
 </head>
 <body class="print-${mode}">
   <div class="page">
-    <header class="header">
-      <div class="logo"><img src="${attrUrl(logo)}" alt="${esc(meta.companyName)}" /></div>
-      <div class="company-meta">
-        <strong>${esc(meta.companyName)}</strong>
-        ${companyContactBlock(meta)}
-      </div>
-    </header>
+    ${renderQuotePrintHeader(meta, logo)}
 
     <div class="title-row">
       <h1>Tarjous${mode === 'creator' ? ' — sisäinen laskenta' : ''}</h1>
@@ -1134,13 +1150,7 @@ export function generateQuoteServicePrintHtml(input: {
 </head>
 <body class="print-${mode}">
   <div class="page">
-    <header class="header">
-      <div class="logo"><img src="${attrUrl(logo)}" alt="${esc(meta.companyName)}" /></div>
-      <div class="company-meta">
-        <strong>${esc(meta.companyName)}</strong>
-        ${companyContactBlock(meta)}
-      </div>
-    </header>
+    ${renderQuotePrintHeader(meta, logo)}
 
     <div class="title-row">
       <h1>${esc(docTitle)}${mode === 'creator' ? ' — sisäinen laskenta' : ''}</h1>
