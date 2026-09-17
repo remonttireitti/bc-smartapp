@@ -26,6 +26,7 @@
     "test:work-report-create-sections": "npx tsx scripts/test-work-report-create-sections.mjs",
     "test:expense-billing": "npx tsx scripts/test-expense-billing.mjs",
     "test:commission-customer-billing": "npx tsx scripts/test-commission-customer-billing.mjs",
+    "test:work-report-customer-print-quantities": "npx tsx scripts/test-work-report-customer-print-quantities.mjs",
     "test:work-report-trip-legs": "npx tsx scripts/test-work-report-trip-legs.mjs",
     "test:refrigerant-purchase-sale-list": "npx tsx scripts/test-refrigerant-purchase-sale-list.mjs",
     "test:refrigerant-inventory-history": "npx tsx scripts/test-refrigerant-inventory-history.mjs",

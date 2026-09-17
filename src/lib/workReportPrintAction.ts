@@ -24,7 +24,13 @@ import {
   type BillingQuoteSettings,
 } from './workReportBillingQuote';
 import { parseTripKmRate } from './tripKmExpense';
-import { generateWorkReportPrintHtml, type WorkReportPrintMode } from './workReportPrintHtml';
+import {
+  generateWorkReportPrintHtml,
+  type WorkReportPrintLogImage,
+  type WorkReportPrintMeta,
+  type WorkReportPrintMode,
+} from './workReportPrintHtml';
+import type { CustomerPrintQuantitySettings } from './workReportCustomerPrintSettings';
 import type { WorkReport, WorkReportDailyLog } from '../types';
 
 export type { WorkReportPrintMode } from './workReportPrintHtml';
@@ -145,6 +151,7 @@ export async function buildWorkReportPrintHtmlDocument(input: {
   showPartnerPrices?: boolean;
   viewerCompanyId?: string | null;
   client?: SupabaseClient;
+  customerPrintQuantitySettings?: CustomerPrintQuantitySettings;
 }) {
   const db = input.client ?? supabase;
   const { isPartnerReport, hideAssignee } = resolvePrintContext(input.report, input.viewerCompanyId);
@@ -213,7 +220,8 @@ export async function buildWorkReportPrintHtmlDocument(input: {
     );
   }
 
-  return generateWorkReportPrintHtml({
+  const meta = { companyName, logoUrl };
+  const html = generateWorkReportPrintHtml({
     report: input.report,
     logs,
     logImages,
@@ -224,9 +232,45 @@ export async function buildWorkReportPrintHtmlDocument(input: {
     billingQuote,
     quoteData,
     tripKmRate,
-    meta: { companyName, logoUrl },
+    meta,
     hideAssignee,
     viewerCompanyId: input.viewerCompanyId,
+    customerPrintQuantitySettings: input.customerPrintQuantitySettings,
+  });
+
+  return { html, logs, logImages, meta, hideAssignee };
+}
+
+export type WorkReportPrintBundle = {
+  report: WorkReport;
+  html: string;
+  calculation: BillableCalculation | null;
+  customerCalculation: BillableCalculation | null;
+  logs: WorkReportDailyLog[];
+  logImages: Record<string, WorkReportPrintLogImage[]>;
+  meta: WorkReportPrintMeta;
+  hideAssignee: boolean;
+};
+
+export function buildCustomerPrintHtmlFromBundle(
+  bundle: Pick<
+    WorkReportPrintBundle,
+    'report' | 'logs' | 'logImages' | 'meta' | 'hideAssignee'
+  >,
+  settings?: CustomerPrintQuantitySettings,
+  viewerCompanyId?: string | null,
+): string {
+  return generateWorkReportPrintHtml({
+    report: bundle.report,
+    logs: bundle.logs,
+    logImages: bundle.logImages,
+    printMode: 'customer',
+    showPartnerPrices: false,
+    calculation: null,
+    meta: bundle.meta,
+    hideAssignee: bundle.hideAssignee,
+    viewerCompanyId,
+    customerPrintQuantitySettings: settings,
   });
 }
 
@@ -237,6 +281,7 @@ export async function loadWorkReportPrintBundle(
     showPartnerPrices?: boolean;
     viewerCompanyId?: string | null;
     client?: SupabaseClient;
+    customerPrintQuantitySettings?: CustomerPrintQuantitySettings;
   },
 ) {
   const db = options?.client ?? supabase;
@@ -277,7 +322,7 @@ export async function loadWorkReportPrintBundle(
     customerRates.ratesSource,
   );
 
-  const html = await buildWorkReportPrintHtmlDocument({
+  const printDocument = await buildWorkReportPrintHtmlDocument({
     report,
     logs,
     calculation: isPartnerReport ? calculation : null,
@@ -287,13 +332,18 @@ export async function loadWorkReportPrintBundle(
     showPartnerPrices: options?.showPartnerPrices,
     viewerCompanyId: options?.viewerCompanyId,
     client: db,
+    customerPrintQuantitySettings: options?.customerPrintQuantitySettings,
   });
 
   return {
     report,
-    html,
+    html: printDocument.html,
     calculation: isPartnerReport ? calculation : null,
     customerCalculation,
+    logs: printDocument.logs,
+    logImages: printDocument.logImages,
+    meta: printDocument.meta,
+    hideAssignee: printDocument.hideAssignee,
   };
 }
 
@@ -303,6 +353,7 @@ export async function openWorkReportPrint(input: {
   showPartnerPrices?: boolean;
   viewerCompanyId?: string | null;
   client?: SupabaseClient;
+  customerPrintQuantitySettings?: CustomerPrintQuantitySettings;
 }) {
   const { html } = await loadWorkReportPrintBundle(input.reportId, input);
   openPrintHtml(html);
@@ -317,7 +368,8 @@ export async function openWorkReportPrintFromLoaded(input: {
   showPartnerPrices?: boolean;
   viewerCompanyId?: string | null;
   client?: SupabaseClient;
+  customerPrintQuantitySettings?: CustomerPrintQuantitySettings;
 }) {
-  const html = await buildWorkReportPrintHtmlDocument(input);
+  const { html } = await buildWorkReportPrintHtmlDocument(input);
   openPrintHtml(html);
 }

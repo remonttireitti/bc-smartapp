@@ -55,6 +55,15 @@ import {
 } from './refrigerantInventory';
 import { resolveTripKmCustomerPrintDescription } from './tripKmExpense';
 import {
+  DEFAULT_CUSTOMER_PRINT_QUANTITY_SETTINGS,
+  type CustomerPrintQuantitySettings,
+} from './workReportCustomerPrintSettings';
+import {
+  formatCustomerPrintExpenseQuantity,
+  formatCustomerPrintHourSummary,
+  formatCustomerPrintRefrigerantQuantity,
+} from './workReportCustomerPrintQuantity';
+import {
   EXPENSE_TYPE_LABELS,
   HOUR_ENTRY_LABELS,
   WORK_STATUS_LABELS,
@@ -591,6 +600,7 @@ export function generateWorkReportPrintHtml(input: {
   meta: WorkReportPrintMeta;
   hideAssignee?: boolean;
   viewerCompanyId?: string | null;
+  customerPrintQuantitySettings?: CustomerPrintQuantitySettings;
 }) {
   const {
     report,
@@ -606,7 +616,12 @@ export function generateWorkReportPrintHtml(input: {
     meta,
     hideAssignee,
     viewerCompanyId,
+    customerPrintQuantitySettings: inputCustomerPrintQuantitySettings,
   } = input;
+  const customerPrintQuantitySettings =
+    printMode === 'customer'
+      ? (inputCustomerPrintQuantitySettings ?? DEFAULT_CUSTOMER_PRINT_QUANTITY_SETTINGS)
+      : DEFAULT_CUSTOMER_PRINT_QUANTITY_SETTINGS;
   const billingQuote = parseBillingQuoteSettings(inputBillingQuote ?? {});
   const customerQuoteBased = customerUsesQuoteBasedBilling(billingQuote);
   const linkedQuoteRequest = workReportHasLinkedQuoteRequest(billingQuote);
@@ -704,11 +719,26 @@ export function generateWorkReportPrintHtml(input: {
               : esc(descriptionForPrint);
             return `<tr><td>${esc(label)}</td><td>${descriptionCell}</td><td class="num">${priceCell}</td></tr>`;
           }
-          return `<tr><td>${esc(label)}</td><td>${esc(descriptionForPrint)}</td><td class="num">${qty}</td></tr>`;
+          const customerQtyCell =
+            printMode === 'customer'
+              && customerPrintQuantitySettings.showQuantities
+              && customerPrintQuantitySettings.showExpenseQuantities
+              ? formatCustomerPrintExpenseQuantity(line.expense_type, qty, customerPrintQuantitySettings)
+              : '';
+          const qtyCell = customerQtyCell
+            ? `<td class="num">${esc(customerQtyCell)}</td>`
+            : printMode === 'customer' && !customerPrintQuantitySettings.showExpenseQuantities
+              ? ''
+              : `<td class="num">${qty}</td>`;
+          return `<tr><td>${esc(label)}</td><td>${esc(descriptionForPrint)}</td>${qtyCell}</tr>`;
         })
         .join('');
 
       const showCustomerRefrigerantPrices = showCustomerPricesInPrint;
+      const showCustomerRefrigerantQuantities =
+        printMode !== 'customer'
+        || (customerPrintQuantitySettings.showQuantities
+          && customerPrintQuantitySettings.showRefrigerantQuantities);
       const refrigerantRows = refrigerantLines
         .map((line) => {
           const reminder = refrigerantBillingReminder(line, report);
@@ -732,17 +762,30 @@ export function generateWorkReportPrintHtml(input: {
           }
           const qtyCell = showCustomerRefrigerantPrices && includedInCustomerBilling
             ? `${Number(line.qty_kg).toFixed(3)} kg${priceMissing ? ' · ?' : ` · ${formatEuro(customerTotal)}`}`
-            : `${Number(line.qty_kg).toFixed(3)} kg`;
-          return `<tr><td>${esc(formatRefrigerantLineLabelForReport(line, report, viewerCompanyId, sellerLabel, { customerPrint: printMode === 'customer' }))}${esc(billingNote)}</td><td class="num">${qtyCell}</td></tr>`;
+            : printMode === 'customer' && showCustomerRefrigerantQuantities
+              ? formatCustomerPrintRefrigerantQuantity(Number(line.qty_kg))
+              : `${Number(line.qty_kg).toFixed(3)} kg`;
+          const refrigerantQtyColumn = showCustomerRefrigerantQuantities || showInternalPrices
+            ? `<td class="num">${qtyCell}</td>`
+            : '';
+          return `<tr><td>${esc(formatRefrigerantLineLabelForReport(line, report, viewerCompanyId, sellerLabel, { customerPrint: printMode === 'customer' }))}${esc(billingNote)}</td>${refrigerantQtyColumn}</tr>`;
         })
         .join('');
 
-      const hourSummary = formatHourEntryForPrint(
-        log,
-        showInternalPrices && (showPartnerPrices || showCustomerPricesInPrint),
-        showCustomerPricesInPrint,
-        printMode === 'customer',
-      );
+      const hourSummary =
+        printMode === 'customer'
+          ? (() => {
+              const qtySummary = formatCustomerPrintHourSummary(log, customerPrintQuantitySettings);
+              const extraLabel = hoursApprovedExtraBillingCustomerPrintLabel(log.customer_extra_billing);
+              if (qtySummary && extraLabel) return `${qtySummary} · ${extraLabel}`;
+              return qtySummary ?? extraLabel ?? '';
+            })()
+          : formatHourEntryForPrint(
+              log,
+              showInternalPrices && (showPartnerPrices || showCustomerPricesInPrint),
+              showCustomerPricesInPrint,
+              false,
+            );
       const quoteHourNote =
         customerQuoteBased && showInternalPrices
           ? ' · <span class="muted">kuuluu tarjoukseen (kalenteri)</span>'
@@ -758,6 +801,11 @@ export function generateWorkReportPrintHtml(input: {
             : `<p class="sub"><strong>Provisio</strong>${log.commission_note ? `: ${esc(log.commission_note)}` : Number(log.commission_amount) > 0 ? ' kirjattu' : ''}</p>`
           : '';
       const showExpenseMoneyColumn = showPartnerPrices || showCustomerExpensePrices;
+      const showExpenseQuantityColumn =
+        showExpenseMoneyColumn
+        || (printMode === 'customer'
+          && customerPrintQuantitySettings.showQuantities
+          && customerPrintQuantitySettings.showExpenseQuantities);
 
       const images = logImages[log.id] ?? [];
       const imageSection =
@@ -790,7 +838,9 @@ export function generateWorkReportPrintHtml(input: {
                   <thead><tr>${
                     showExpenseMoneyColumn
                       ? '<th>Kulu</th><th>Kuvaus</th><th class="num">Summa</th>'
-                      : '<th>Kulu</th><th>Kuvaus</th><th class="num">Määrä</th>'
+                      : showExpenseQuantityColumn
+                        ? '<th>Kulu</th><th>Kuvaus</th><th class="num">Määrä</th>'
+                        : '<th>Kulu</th><th>Kuvaus</th>'
                   }</tr></thead>
                   <tbody>${expenseRows}</tbody>
                 </table>`
@@ -799,7 +849,11 @@ export function generateWorkReportPrintHtml(input: {
           ${
             refrigerantLines.length > 0
               ? `<table class="mini-table">
-                  <thead><tr><th>Kylmäaine</th><th class="num">Määrä</th></tr></thead>
+                  <thead><tr><th>Kylmäaine</th>${
+                    showCustomerRefrigerantQuantities || showInternalPrices
+                      ? '<th class="num">Määrä</th>'
+                      : ''
+                  }</tr></thead>
                   <tbody>${refrigerantRows}</tbody>
                 </table>`
               : ''
@@ -809,6 +863,10 @@ export function generateWorkReportPrintHtml(input: {
     .join('');
 
   const totals = summarizeLogs(logs, showInternalPrices);
+  const showCustomerSummaryQuantities =
+    printMode === 'customer'
+    && customerPrintQuantitySettings.showQuantities
+    && customerPrintQuantitySettings.showSummaryQuantities;
   const printDate = new Date().toLocaleDateString('fi-FI');
   const { brandingName, reportDateLabel, customerLabel, descriptionText } = getWorkReportPrintSummary(
     report,
@@ -883,30 +941,34 @@ export function generateWorkReportPrintHtml(input: {
   const logsBox = printBox(
     'Päiväkirjaus',
     `<div class="summary-row">
-      <span class="chip"><strong>Tunnit yhteensä:</strong> ${totals.hours.toFixed(2)} h</span>
+      ${
+        showInternalPrices || showCustomerSummaryQuantities
+          ? `<span class="chip"><strong>Tunnit yhteensä:</strong> ${totals.hours.toFixed(2)} h</span>`
+          : ''
+      }
       ${
         showInternalPrices && totals.fixed > 0
           ? `<span class="chip"><strong>Urakat:</strong> ${formatEuro(totals.fixed)}</span>`
-          : totals.fixedEntries > 0
+          : (showInternalPrices || showCustomerSummaryQuantities) && totals.fixedEntries > 0
             ? `<span class="chip"><strong>Urakkamerkintöjä:</strong> ${totals.fixedEntries}</span>`
             : ''
       }
       ${
         showInternalPrices && totals.expenses > 0
           ? `<span class="chip"><strong>Kulut:</strong> ${formatEuro(totals.expenses)}</span>`
-          : totals.expenseLines > 0
+          : (showInternalPrices || showCustomerSummaryQuantities) && totals.expenseLines > 0
             ? `<span class="chip"><strong>Kulurivejä:</strong> ${totals.expenseLines}</span>`
             : ''
       }
       ${
         showInternalPrices && totals.commission > 0
           ? `<span class="chip"><strong>Provisio:</strong> ${formatEuro(totals.commission)}</span>`
-          : totals.commissionNotes > 0
+          : showInternalPrices && totals.commissionNotes > 0
             ? `<span class="chip"><strong>Provisio:</strong> ${totals.commissionNotes} merkintää</span>`
             : ''
       }
       ${
-        totals.refrigerantKg > 0
+        (showInternalPrices || showCustomerSummaryQuantities) && totals.refrigerantKg > 0
           ? `<span class="chip"><strong>Kylmäaine:</strong> ${totals.refrigerantKg.toFixed(3)} kg</span>`
           : ''
       }
