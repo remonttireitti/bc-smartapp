@@ -19,6 +19,7 @@ import {
   quoteUsesTravelCost,
   quoteVatPrintNotice,
 } from '../../lib/quoteRequest/constants';
+import { formatOptionalItemPrintPrice } from '../../lib/quoteRequest/optionalItemsPrint';
 import {
   buildQuoteHinnoitteluTiles,
   type QuoteHinnoitteluTileId,
@@ -334,8 +335,8 @@ export function QuotePricingSummaryBox({
             .filter((item) => item.enabled && item.description.trim())
             .map((item) => (
               <div key={item.id}>
-                {item.description.trim()} — hinta +{' '}
-                {item.priceGross.toLocaleString('fi-FI', { style: 'currency', currency: 'EUR' })}
+                {item.description.trim()} — {formatOptionalItemPrintPrice(item.priceGross, form.vatRate)}
+                {form.vatRate > 0 ? ` (sis. ALV ${form.vatRate} %)` : ''}
               </div>
             ))}
         </div>

@@ -1,5 +1,5 @@
 import type { QuoteBulletItem, QuoteRequestData } from './types';
-import { enabledOptionalItems } from './optionalItemsPrint';
+import { enabledOptionalItems, formatOptionalItemPrintPrice } from './optionalItemsPrint';
 
 function escapeHtml(v: string): string {
   return v
@@ -28,10 +28,11 @@ export function serviceOptionalItemsPrintHtml(data: QuoteRequestData): string {
   const items = enabledOptionalItems(data);
   if (!items.length) return '';
 
+  const vatRate = Number(data.vatRate) || 0;
   const lines = items
     .map(
       (item) =>
-        `<li>${escapeHtml(item.description.trim())} — ${item.priceGross.toLocaleString('fi-FI', { style: 'currency', currency: 'EUR' })}</li>`,
+        `<li>${escapeHtml(item.description.trim())} — ${formatOptionalItemPrintPrice(item.priceGross, vatRate)}</li>`,
     )
     .join('');
 
