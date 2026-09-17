@@ -8173,6 +8173,36 @@ button.tile.maintenance-report-document-tile {
   border: 1px solid var(--border);
 }
 
+.work-report-customer-print-settings-wrap {
+  margin-bottom: 1rem;
+}
+
+.work-report-customer-print-settings {
+  padding: 1rem;
+}
+
+.work-report-customer-print-settings-title {
+  margin: 0 0 0.35rem;
+  font-size: 1rem;
+}
+
+.work-report-customer-print-settings-hint {
+  margin: 0 0 0.75rem;
+}
+
+.work-report-customer-print-unit-grid {
+  margin-top: 0.75rem;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.work-report-customer-print-unit-row {
+  display: grid;
+  grid-template-columns: minmax(8rem, 1fr) minmax(8rem, 12rem);
+  gap: 0.75rem;
+  align-items: center;
+}
+
 .print-toolbar-control {
   display: inline-flex;
   align-items: center;

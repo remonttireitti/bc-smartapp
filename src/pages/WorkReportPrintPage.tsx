@@ -1,16 +1,24 @@
-import { useEffect, useState } from 'react';
-import { Link, useParams, useSearchParams } from 'react-router-dom';
+import { useEffect, useMemo, useState } from 'react';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
 import AppLayout from '../components/AppLayout';
 import { MaintenanceReportImageLightbox } from '../components/huoltoRaportti/MaintenanceReportImageLightbox';
+import WorkReportCustomerPrintSettingsPanel from '../components/WorkReportCustomerPrintSettingsPanel';
 import IconButton from '../components/IconButton';
 import { IconBack, IconPrint } from '../components/icons';
 import { useProfile } from '../hooks/useProfile';
 import {
+  buildCustomerPrintHtmlFromBundle,
   loadWorkReportPrintBundle,
   workReportPrintPath,
+  type WorkReportPrintBundle,
   type WorkReportPrintMode,
 } from '../lib/workReportPrintAction';
+import {
+  customerPrintQuantitySettingsPath,
+  parseCustomerPrintQuantitySettings,
+  type CustomerPrintQuantitySettings,
+} from '../lib/workReportCustomerPrintSettings';
 import { buildWorkReportPrintTitle } from '../lib/workReportPrintHtml';
 import { buildWorkReportPrintHeadline } from '../types';
 import type { BillableCalculation } from '../lib/workReportBilling';
@@ -27,9 +35,15 @@ function resolvePrintMode(searchParams: URLSearchParams): WorkReportPrintMode {
 export default function WorkReportPrintPage({ session }: Props) {
   const { id } = useParams();
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const { profile } = useProfile(session);
   const printMode = resolvePrintMode(searchParams);
+  const customerPrintQuantitySettings = useMemo(
+    () => parseCustomerPrintQuantitySettings(searchParams),
+    [searchParams],
+  );
   const [report, setReport] = useState<WorkReport | null>(null);
+  const [printBundle, setPrintBundle] = useState<WorkReportPrintBundle | null>(null);
   const [html, setHtml] = useState('');
   const [calculation, setCalculation] = useState<BillableCalculation | null>(null);
   const [customerCalculation, setCustomerCalculation] = useState<BillableCalculation | null>(null);
@@ -51,11 +65,14 @@ export default function WorkReportPrintPage({ session }: Props) {
     setError(null);
 
     try {
+      const settings = parseCustomerPrintQuantitySettings(searchParams);
       const bundle = await loadWorkReportPrintBundle(reportId, {
         printMode,
         viewerCompanyId: profile?.company_id,
+        customerPrintQuantitySettings: printMode === 'customer' ? settings : undefined,
       });
       setReport(bundle.report);
+      setPrintBundle(bundle);
       setHtml(bundle.html);
       setCalculation(bundle.calculation);
       setCustomerCalculation(bundle.customerCalculation);
@@ -63,6 +80,16 @@ export default function WorkReportPrintPage({ session }: Props) {
       setError(err instanceof Error ? err.message : 'Tulosteen lataus epäonnistui.');
     } finally {
       setLoading(false);
+    }
+  }
+
+  function updateCustomerPrintSettings(next: CustomerPrintQuantitySettings) {
+    if (!report || printMode !== 'customer') return;
+    navigate(customerPrintQuantitySettingsPath(report.id, next), { replace: true });
+    if (printBundle) {
+      setHtml(
+        buildCustomerPrintHtmlFromBundle(printBundle, next, profile?.company_id ?? null),
+      );
     }
   }
 
@@ -129,7 +156,7 @@ export default function WorkReportPrintPage({ session }: Props) {
           <div className="page-header-actions action-toolbar">
             <div className="btn-group print-mode-switch">
               <Link
-                to={workReportPrintPath(report.id, 'customer')}
+                to={customerPrintQuantitySettingsPath(report.id, customerPrintQuantitySettings)}
                 className={`btn btn-sm ${printMode === 'customer' ? 'btn-primary' : 'btn-secondary'}`}
               >
                 Asiakkaalle
@@ -160,6 +187,15 @@ export default function WorkReportPrintPage({ session }: Props) {
             </IconButton>
           </div>
         </div>
+
+        {printMode === 'customer' ? (
+          <div className="no-print work-report-customer-print-settings-wrap">
+            <WorkReportCustomerPrintSettingsPanel
+              settings={customerPrintQuantitySettings}
+              onChange={updateCustomerPrintSettings}
+            />
+          </div>
+        ) : null}
 
         <div className="work-report-print-host" dangerouslySetInnerHTML={{ __html: html }} />
         {lightboxUrl ? (
