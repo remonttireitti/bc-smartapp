@@ -63,6 +63,12 @@ import {
   formatCustomerPrintHourSummary,
   formatCustomerPrintRefrigerantQuantity,
 } from './workReportCustomerPrintQuantity';
+import type { CompanySettings } from './management';
+import {
+  buildLampokatsastusWorkReportHeaderHtml,
+  isLampokatsastusCompanyName,
+  lampokatsastusBrandingStyles,
+} from './lampokatsastusBranding';
 import {
   EXPENSE_TYPE_LABELS,
   HOUR_ENTRY_LABELS,
@@ -97,6 +103,7 @@ const LINE_KIND_LABELS: Record<string, string> = {
 export type WorkReportPrintMeta = {
   companyName: string;
   logoUrl?: string;
+  settings?: CompanySettings | null;
 };
 
 export type WorkReportPrintSummary = {
@@ -876,10 +883,22 @@ export function generateWorkReportPrintHtml(input: {
   const printHeadline = buildWorkReportPrintHeadline(report);
   const displayPeople = resolveWorkReportDisplayPeople(report, { hideAssignee: hideAssignee });
 
-  const summaryBox = printBox(
-    null,
-    `
-    <div class="summary-head">
+  const summaryHeadHtml = isLampokatsastusCompanyName(meta.companyName)
+    ? buildLampokatsastusWorkReportHeaderHtml(
+        {
+          companyName: meta.companyName,
+          logoUrl: meta.logoUrl,
+          settings: meta.settings,
+        },
+        {
+          esc,
+          attrUrl: (url: string) => String(url).replace(/"/g, '&quot;'),
+          logoSrc: meta.logoUrl ?? '',
+          printHeadline,
+          printDate,
+        },
+      )
+    : `<div class="summary-head">
       <div class="summary-brand">
         ${meta.logoUrl ? `<img class="logo" src="${esc(meta.logoUrl)}" alt="" />` : `<div class="logo-fallback">${esc(meta.companyName)}</div>`}
       </div>
@@ -891,7 +910,12 @@ export function generateWorkReportPrintHtml(input: {
         <span class="field-label">Tulostettu</span>
         <strong>${esc(printDate)}</strong>
       </div>
-    </div>
+    </div>`;
+
+  const summaryBox = printBox(
+    null,
+    `
+    ${summaryHeadHtml}
     <div class="summary-grid">
       <div class="summary-field">
         <span class="field-label">Yritys</span>
@@ -1111,6 +1135,7 @@ export function generateWorkReportPrintHtml(input: {
 }
 
 const PRINT_CSS = `
+  ${lampokatsastusBrandingStyles()}
   :root {
     --text: #111827;
     --muted: #64748b;
@@ -1456,8 +1481,8 @@ function summarizeLogs(logs: WorkReportDailyLog[], showPrices: boolean) {
   return { hours, expenses, expenseLines, commission, commissionNotes, fixed, fixedEntries, refrigerantKg };
 }
 
-function esc(value: string) {
-  return value
+function esc(value: unknown) {
+  return String(value ?? '')
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
