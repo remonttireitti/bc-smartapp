@@ -494,12 +494,12 @@ function quoteMarginPrintSection(
     }
     if (partnerMargin.partnerPiikkiPurchaseNet > 0.005) {
       rows.push(
-        `<tr><td>Kumppanin piikkiostot</td><td class="num">− ${formatEuro(partnerMargin.partnerPiikkiPurchaseNet)}</td></tr>`,
+        `<tr><td>Kumppanin tililtä hankitut</td><td class="num">− ${formatEuro(partnerMargin.partnerPiikkiPurchaseNet)}</td></tr>`,
       );
     }
     if (partnerMargin.piikkiMaterialCostNet > 0.005) {
       rows.push(
-        `<tr><td>Lisätilauksen piikki-hankinta</td><td class="num">− ${formatEuro(partnerMargin.piikkiMaterialCostNet)}</td></tr>`,
+        `<tr><td>Lisätilauksen hankintakulut</td><td class="num">− ${formatEuro(partnerMargin.piikkiMaterialCostNet)}</td></tr>`,
       );
     }
     rows.push(
@@ -524,7 +524,7 @@ function quoteMarginPrintSection(
       ? `<h3 class="billing-subheading">Lisälaskutuksen kate-erittely</h3>
       <table>
         <thead>
-          <tr><th>Päivä</th><th>Rivi</th><th class="num">Asiakas</th><th class="num">Kumppani</th><th class="num">Piikki-hankinta</th><th class="num">Kate</th></tr>
+          <tr><th>Päivä</th><th>Rivi</th><th class="num">Asiakas</th><th class="num">Kumppani</th><th class="num">Hankinta</th><th class="num">Kate</th></tr>
         </thead>
         <tbody>${extrasDetail
           .map((line) => {
@@ -569,7 +569,7 @@ function quoteMarginPrintSection(
     ${extrasDetailHtml}
     ${
       partnerMargin
-        ? '<p class="meta-line">Kate = tarjoushinta + lisälaskutus − työt − kulut − tarvikkeet − laite − katetta syövät kulut − piikkiostot. Vertailurivit ovat informatiivisia — katteeseen vähennetään vain toteutuneet summat.</p>'
+        ? '<p class="meta-line">Kate = tarjoushinta + lisälaskutus − työt − kulut − tarvikkeet − laite − katetta syövät kulut − suorat hankintakulut. Vertailurivit ovat informatiivisia — katteeseen vähennetään vain toteutuneet summat.</p>'
         : ''
     }
     ${billingQuote.notes?.trim() ? `<p class="meta-line">Huom: ${esc(billingQuote.notes.trim())}</p>` : ''}`,

@@ -359,8 +359,10 @@ export function inferSupplyMarginPercent(
 }
 
 export function expenseSupplyExtraBillingLabel(row: ExpenseBillingFlags): string | null {
-  if (resolveExpenseBillingMode(row) !== 'customer_only') return null;
-  if (!expenseExtraBillable(row)) return 'kuuluu tarjoukseen · syö katetta';
+  const mode = resolveExpenseBillingMode(row);
+  if (mode === 'included_in_contract') return 'kuuluu urakkaan · suora kulu';
+  if (mode !== 'customer_only') return null;
+  if (!expenseExtraBillable(row)) return 'kuuluu tarjoukseen · suora kulu';
   if (!row.extra_billing_allowed) return 'lisälaskutettavissa · ei lupaa';
   return 'Lisälaskutettava';
 }
@@ -465,8 +467,8 @@ export function expenseIncludedInContract(row: ExpenseBillingFlags): boolean {
 }
 
 export function expenseBillingModeShortLabel(mode: ExpenseBillingMode): string {
-  if (mode === 'included_in_contract') return 'kuulu urakkaan · ei veloiteta';
-  if (mode === 'customer_only') return 'ei laskuteta kumppanilta';
+  if (mode === 'included_in_contract') return 'kuuluu urakkaan · suora kulu';
+  if (mode === 'customer_only') return 'kumppanin tilillä hankittu';
   return 'laskutetaan kumppanilta';
 }
 

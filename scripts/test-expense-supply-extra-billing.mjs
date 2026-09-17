@@ -47,7 +47,7 @@ assert.equal(
     extra_billable: false,
     extra_billing_allowed: false,
   }),
-  'kuuluu tarjoukseen · syö katetta',
+  'kuuluu tarjoukseen · suora kulu',
 );
 assert.equal(
   expenseSupplyExtraBillingLabel({

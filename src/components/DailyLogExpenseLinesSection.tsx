@@ -249,17 +249,15 @@ function ExpenseLineEditor({
             partnerPurchaseOn={billingMode === 'customer_only'}
             billFromPartnerOn={billingMode === 'partner_and_customer'}
             includedInContractOn={billingMode === 'included_in_contract'}
-            showIncludedInContract={showCustomerPrices}
+            showIncludedInContract={showQuoteLinkedExtraBilling}
             disabled={autoTripKm}
+            onBillFromPartnerChange={(checked) => {
+              if (checked) applyBillingMode('partner_and_customer');
+              else if (billingMode === 'partner_and_customer') applyBillingMode('customer_only');
+            }}
             onPartnerPurchaseChange={(checked) => {
               if (checked) applyBillingMode('customer_only');
               else if (billingMode === 'customer_only') applyBillingMode('partner_and_customer');
-            }}
-            onBillFromPartnerChange={(checked) => {
-              if (checked) applyBillingMode('partner_and_customer');
-              else if (billingMode === 'partner_and_customer') {
-                applyBillingMode('included_in_contract');
-              }
             }}
             onIncludedInContractChange={(checked) => {
               if (checked) applyBillingMode('included_in_contract');
@@ -268,6 +266,27 @@ function ExpenseLineEditor({
               }
             }}
           />
+          {billingMode === 'included_in_contract' && (
+            <div className="expense-billing-fields">
+              <label>
+                Hankintahinta (€)
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={row.unit_price}
+                  readOnly={autoTripKm}
+                  disabled={autoTripKm}
+                  onChange={(e) => updateExpenseRow({ ...row, unit_price: e.target.value })}
+                  placeholder="Suora kulu urakkaan"
+                />
+              </label>
+              <p className="muted expense-billing-preview">
+                Kuuluu kiinteään tarjoukseen — suora kulu, ei kate laskentaa eikä erillistä
+                asiakaslaskutusta.
+              </p>
+            </div>
+          )}
           {billingMode === 'customer_only' && (
             <div className="expense-billing-fields">
               <label>

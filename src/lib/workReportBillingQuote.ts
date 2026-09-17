@@ -711,10 +711,10 @@ export function formatPartnerMarginLines(
     lines.push(`Katetta syövät kulut (ei lisälaskutusta): ${formatEuro(computed.marginEatingExpenseNet)}`);
   }
   if (computed.partnerPiikkiPurchaseNet > 0.005) {
-    lines.push(`Kumppanin piikkiostot: ${formatEuro(computed.partnerPiikkiPurchaseNet)}`);
+    lines.push(`Kumppanin tililtä hankitut: ${formatEuro(computed.partnerPiikkiPurchaseNet)}`);
   }
   if (computed.piikkiMaterialCostNet > 0.005) {
-    lines.push(`Lisätilauksen piikki-hankinta: ${formatEuro(computed.piikkiMaterialCostNet)}`);
+    lines.push(`Lisätilauksen hankintakulut: ${formatEuro(computed.piikkiMaterialCostNet)}`);
   }
   lines.push(
     `Tarjouksen hankinta (alv 0 %): ${formatEuro(computed.quotePurchaseNet)}`,

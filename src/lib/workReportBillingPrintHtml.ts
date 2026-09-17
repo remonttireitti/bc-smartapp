@@ -138,8 +138,8 @@ export function generatePartnerBillingHtml(input: {
       <tr><td>Työ ja ajot (kumppani)</td><td class="num">− ${formatEuro(partnerMargin.installationLaborTravelNet)}</td></tr>
       <tr><td>Hankinta (tarjous / tarvikkeet)</td><td class="num">− ${formatEuro(partnerMargin.effectiveMaterialCostNet)}</td></tr>
       ${partnerMargin.marginEatingExpenseNet > 0.005 ? `<tr><td>Katetta syövät kulut</td><td class="num">− ${formatEuro(partnerMargin.marginEatingExpenseNet)}</td></tr>` : ''}
-      ${partnerMargin.partnerPiikkiPurchaseNet > 0.005 ? `<tr><td>Kumppanin piikkiostot</td><td class="num">− ${formatEuro(partnerMargin.partnerPiikkiPurchaseNet)}</td></tr>` : ''}
-      ${partnerMargin.piikkiMaterialCostNet > 0.005 ? `<tr><td>Lisätilauksen piikki-hankinta</td><td class="num">− ${formatEuro(partnerMargin.piikkiMaterialCostNet)}</td></tr>` : ''}
+      ${partnerMargin.partnerPiikkiPurchaseNet > 0.005 ? `<tr><td>Kumppanin tililtä hankitut</td><td class="num">− ${formatEuro(partnerMargin.partnerPiikkiPurchaseNet)}</td></tr>` : ''}
+      ${partnerMargin.piikkiMaterialCostNet > 0.005 ? `<tr><td>Lisätilauksen hankintakulut</td><td class="num">− ${formatEuro(partnerMargin.piikkiMaterialCostNet)}</td></tr>` : ''}
       <tr><td><strong>Puhdas kate</strong></td><td class="num"><strong>${formatEuro(partnerMargin.netMarginNet)}</strong></td></tr>
     </tbody>
   </table>
