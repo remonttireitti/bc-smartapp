@@ -1,8 +1,10 @@
 import assert from 'node:assert/strict';
 import {
   aggregateQuoteRequestStats,
+  filterQuoteRowsForStats,
   isQuoteStatsPeriod,
   quoteRowGrossTotal,
+  quoteRowPartnerCompanyId,
 } from '../src/lib/quoteRequest/quoteRequestStats.ts';
 
 const anchor = new Date('2026-06-15T12:00:00');
@@ -93,5 +95,27 @@ assert.equal(summary.totalCount, 2);
 assert.equal(summary.byOwner.length, 2);
 assert.equal(summary.byBranding.length, 1);
 assert.equal(summary.conversionRate, 50);
+
+assert.equal(quoteRowPartnerCompanyId(baseRow), 'creator-1');
+assert.equal(quoteRowPartnerCompanyId(orderedRow), 'creator-1');
+
+const filtered = filterQuoteRowsForStats([baseRow, orderedRow], {
+  disabledOwnerCompanyIds: new Set(['owner-1']),
+  disabledPartnerCompanyIds: new Set(),
+});
+assert.equal(filtered.length, 1);
+assert.equal(filtered[0].id, '2');
+
+const partnerFiltered = aggregateQuoteRequestStats(
+  [baseRow, orderedRow],
+  'this_month',
+  anchor,
+  {
+    disabledOwnerCompanyIds: new Set(),
+    disabledPartnerCompanyIds: new Set(['creator-1']),
+  },
+);
+assert.equal(partnerFiltered.sentCount, 0);
+assert.equal(partnerFiltered.orderedCount, 0);
 
 console.log('test-quote-request-stats: ok');

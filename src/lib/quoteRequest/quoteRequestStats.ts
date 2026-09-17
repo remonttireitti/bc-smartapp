@@ -14,6 +14,22 @@ export type QuoteStatsCompanyRow = {
   orderedTotal: number;
 };
 
+export type QuoteStatsCompanyOption = {
+  id: string;
+  name: string;
+  count: number;
+};
+
+export type QuoteStatsFilters = {
+  disabledOwnerCompanyIds: Set<string>;
+  disabledPartnerCompanyIds: Set<string>;
+};
+
+export const EMPTY_QUOTE_STATS_FILTERS: QuoteStatsFilters = {
+  disabledOwnerCompanyIds: new Set(),
+  disabledPartnerCompanyIds: new Set(),
+};
+
 export type QuoteRequestStatsSummary = {
   sentCount: number;
   sentTotal: number;
@@ -84,6 +100,65 @@ function bumpCompanyRow(
   map.set(key, existing);
 }
 
+export function quoteRowPartnerCompanyId(row: QuoteRequestRow): string | null {
+  if (
+    row.created_by_company_id
+    && row.owner_company_id
+    && row.created_by_company_id !== row.owner_company_id
+  ) {
+    return row.created_by_company_id;
+  }
+  return null;
+}
+
+export function matchesQuoteStatsFilters(row: QuoteRequestRow, filters: QuoteStatsFilters): boolean {
+  if (filters.disabledOwnerCompanyIds.has(row.owner_company_id)) return false;
+  const partnerId = quoteRowPartnerCompanyId(row);
+  if (partnerId && filters.disabledPartnerCompanyIds.has(partnerId)) return false;
+  return true;
+}
+
+export function filterQuoteRowsForStats(
+  rows: QuoteRequestRow[],
+  filters: QuoteStatsFilters,
+): QuoteRequestRow[] {
+  return rows.filter((row) => matchesQuoteStatsFilters(row, filters));
+}
+
+function bumpCompanyOption(
+  map: Map<string, QuoteStatsCompanyOption>,
+  companyId: string,
+  companyName: string,
+) {
+  const key = companyId || 'unknown';
+  const existing = map.get(key);
+  if (existing) {
+    existing.count += 1;
+    return;
+  }
+  map.set(key, { id: key, name: companyName || '—', count: 1 });
+}
+
+export function collectQuoteStatsOwnerCompanies(rows: QuoteRequestRow[]): QuoteStatsCompanyOption[] {
+  const map = new Map<string, QuoteStatsCompanyOption>();
+  for (const row of rows) {
+    if (!STATS_STATUSES.includes(row.status)) continue;
+    bumpCompanyOption(map, row.owner_company_id, row.owner_company?.name ?? '—');
+  }
+  return [...map.values()].sort((a, b) => a.name.localeCompare(b.name, 'fi'));
+}
+
+export function collectQuoteStatsPartnerCompanies(rows: QuoteRequestRow[]): QuoteStatsCompanyOption[] {
+  const map = new Map<string, QuoteStatsCompanyOption>();
+  for (const row of rows) {
+    if (!STATS_STATUSES.includes(row.status)) continue;
+    const partnerId = quoteRowPartnerCompanyId(row);
+    if (!partnerId) continue;
+    bumpCompanyOption(map, partnerId, row.created_by_company?.name ?? '—');
+  }
+  return [...map.values()].sort((a, b) => a.name.localeCompare(b.name, 'fi'));
+}
+
 function sortCompanyRows(rows: QuoteStatsCompanyRow[]): QuoteStatsCompanyRow[] {
   return [...rows].sort((a, b) => {
     const totalA = a.sentTotal + a.orderedTotal;
@@ -97,7 +172,9 @@ export function aggregateQuoteRequestStats(
   rows: QuoteRequestRow[],
   period: QuoteStatsPeriod,
   anchor = new Date(),
+  filters: QuoteStatsFilters = EMPTY_QUOTE_STATS_FILTERS,
 ): QuoteRequestStatsSummary {
+  const scopedRows = filterQuoteRowsForStats(rows, filters);
   let sentCount = 0;
   let sentTotal = 0;
   let orderedCount = 0;
@@ -105,7 +182,7 @@ export function aggregateQuoteRequestStats(
   const byOwner = new Map<string, QuoteStatsCompanyRow>();
   const byBranding = new Map<string, QuoteStatsCompanyRow>();
 
-  for (const row of rows) {
+  for (const row of scopedRows) {
     if (!STATS_STATUSES.includes(row.status)) continue;
     if (!isQuoteStatsPeriod(quoteRowStatsDate(row), period, anchor)) continue;
 
