@@ -40,6 +40,15 @@ import { quoteLineTotal } from './defaults';
 import { optionalItemsPrintHtml } from './optionalItemsPrint';
 import type { QuoteRequestData } from './types';
 import type { BrandDeliveryFeeByCategoryMap } from '../../data/devicePricingShared';
+import {
+  DEFAULT_QUOTE_CUSTOMER_PRINT_QUANTITY_SETTINGS,
+  type QuoteCustomerPrintQuantitySettings,
+} from '../quoteCustomerPrintSettings';
+import {
+  formatQuoteDeviceQtyLabel,
+  formatQuoteMaterialQtyLabel,
+  formatQuoteWorkHoursQtyLabel,
+} from '../quoteCustomerPrintQuantity';
 
 export type QuotePrintMode = 'enduser' | 'creator';
 
@@ -322,25 +331,46 @@ function quotePrintTableHead(mode: QuotePrintMode): string {
   </thead>`;
 }
 
+function resolveQuotePrintQuantitySettings(
+  mode: QuotePrintMode,
+  settings?: QuoteCustomerPrintQuantitySettings,
+): QuoteCustomerPrintQuantitySettings | null {
+  if (mode === 'creator') return null;
+  return settings ?? DEFAULT_QUOTE_CUSTOMER_PRINT_QUANTITY_SETTINGS;
+}
+
 function printSummedMaterialsRow(
   materials: QuoteMaterial[],
   mode: QuotePrintMode,
+  quantitySettings?: QuoteCustomerPrintQuantitySettings,
 ): string {
   const rows = materials.filter((row) => row.name.trim());
   if (rows.length === 0) return '';
-  return rows.map((row) => printMaterialRow(row, mode)).join('');
+  return rows.map((row) => printMaterialRow(row, mode, quantitySettings)).join('');
 }
 
-function materialRowQtyLabel(mat: QuoteMaterial): string {
+function materialRowQtyLabel(
+  mat: QuoteMaterial,
+  mode: QuotePrintMode,
+  quantitySettings?: QuoteCustomerPrintQuantitySettings,
+): string {
+  const settings = resolveQuotePrintQuantitySettings(mode, quantitySettings);
+  if (settings) {
+    return formatQuoteMaterialQtyLabel(mat, settings) ?? '';
+  }
   const qty = Number(mat.quantity) || 0;
   const kind = resolveQuoteMaterialRowKind(mat);
   if (kind === 'labor') return `${qty} h`;
   return `${qty} kpl`;
 }
 
-function printMaterialRow(mat: QuoteMaterial, mode: QuotePrintMode): string {
+function printMaterialRow(
+  mat: QuoteMaterial,
+  mode: QuotePrintMode,
+  quantitySettings?: QuoteCustomerPrintQuantitySettings,
+): string {
   const qty = Number(mat.quantity) || 0;
-  const qtyLabel = materialRowQtyLabel(mat);
+  const qtyLabel = materialRowQtyLabel(mat, mode, quantitySettings);
   const purchase = qty * (Number(mat.purchasePrice) || 0);
   const sell = qty * (Number(mat.sellPrice) || 0);
   const unitSell = Number(mat.sellPrice) || 0;
@@ -398,13 +428,18 @@ function printWorkRow(
 function printDeviceRow(
   labelHtml: string,
   mode: QuotePrintMode,
-  input: { purchase: number; sell: number; marginPct?: number },
+  input: { purchase: number; sell: number; marginPct?: number; qtyLabel?: string },
+  quantitySettings?: QuoteCustomerPrintQuantitySettings,
 ): string {
   const margin = input.sell - input.purchase;
+  const qtyLabel =
+    input.qtyLabel
+    ?? formatQuoteDeviceQtyLabel(1, undefined, quantitySettings ?? DEFAULT_QUOTE_CUSTOMER_PRINT_QUANTITY_SETTINGS)
+    ?? (mode === 'creator' ? '1 kpl' : '');
   if (mode === 'enduser') {
     return `<tr>
       <td>${labelHtml}</td>
-      <td class="num">1 kpl</td>
+      <td class="num">${esc(qtyLabel)}</td>
       <td class="num col-internal"></td>
       <td class="num">${formatEuro(input.sell)}</td>
       <td class="num">${formatEuro(input.sell)}</td>
@@ -414,20 +449,28 @@ function printDeviceRow(
     input.marginPct != null ? `<div class="line-sub">${input.marginPct}%</div>` : '';
   return `<tr>
     <td>${labelHtml}</td>
-    <td class="num">1 kpl</td>
+    <td class="num">${esc(qtyLabel || '1 kpl')}</td>
     <td class="num col-internal">${formatEuro(input.purchase)}</td>
     <td class="num">${formatEuro(input.sell)}</td>
     <td class="num col-internal">${formatEuro(margin)}${pctNote}</td>
   </tr>`;
 }
 
-function printLegacyLineRow(line: QuoteLine, mode: QuotePrintMode): string {
+function printLegacyLineRow(
+  line: QuoteLine,
+  mode: QuotePrintMode,
+  quantitySettings?: QuoteCustomerPrintQuantitySettings,
+): string {
   const equipment = line.equipmentName ? `<div class="line-sub">${esc(line.equipmentName)}</div>` : '';
   const total = quoteLineTotal(line);
+  const settings = resolveQuotePrintQuantitySettings(mode, quantitySettings);
+  const qtyLabel = settings
+    ? (settings.showQuantities ? `${line.qty} ${line.unit}`.trim() : '')
+    : `${line.qty} ${line.unit}`;
   if (mode === 'enduser') {
     return `<tr>
       <td>${esc(line.description)}${equipment}</td>
-      <td class="num">${esc(line.qty)} ${esc(line.unit)}</td>
+      <td class="num">${esc(qtyLabel)}</td>
       <td class="num col-internal"></td>
       <td class="num">${formatEuro(line.unitPrice)}</td>
       <td class="num">${formatEuro(total)}</td>
@@ -576,27 +619,34 @@ function buildSituationReportHtml(data: QuoteRequestData): string {
   </div>`;
 }
 
-function printInstallationSuppliesRows(data: QuoteRequestData, mode: QuotePrintMode): string {
+function printInstallationSuppliesRows(
+  data: QuoteRequestData,
+  mode: QuotePrintMode,
+  quantitySettings?: QuoteCustomerPrintQuantitySettings,
+): string {
   const items = (data.installationSupplies ?? []).filter((row) => row.name.trim());
   const supplyRows = items.filter((row) => !isOfferedDeviceRow(row));
   const deviceRows = filterInstallationSupplyRows(items, 'device');
   const parts: string[] = [];
 
   if (supplyRows.length > 0) {
-    parts.push(...supplyRows.map((row) => printMaterialRow(row, mode)));
+    parts.push(...supplyRows.map((row) => printMaterialRow(row, mode, quantitySettings)));
   }
 
   if (deviceRows.length > 0) {
     if (mode === 'creator') {
-      parts.push(...deviceRows.map((row) => printMaterialRow(row, mode)));
+      parts.push(...deviceRows.map((row) => printMaterialRow(row, mode, quantitySettings)));
     } else {
       for (const row of deviceRows) {
         const qty = Number(row.quantity) || 0;
         const unitSell = Number(row.sellPrice) || 0;
         const sell = qty * unitSell;
         if (sell <= 0.005) continue;
+        const qtyLabel =
+          formatQuoteMaterialQtyLabel(row, quantitySettings ?? DEFAULT_QUOTE_CUSTOMER_PRINT_QUANTITY_SETTINGS)
+          ?? '';
         parts.push(
-          printWorkRow(row.name.trim() || 'Laite', `${qty} kpl`, unitSell, sell, mode),
+          printWorkRow(row.name.trim() || 'Laite', qtyLabel, unitSell, sell, mode),
         );
       }
     }
@@ -605,18 +655,28 @@ function printInstallationSuppliesRows(data: QuoteRequestData, mode: QuotePrintM
   return parts.join('');
 }
 
-function iilpBaseInstallRows(data: QuoteRequestData, mode: QuotePrintMode = 'enduser'): string {
+function iilpBaseInstallRows(
+  data: QuoteRequestData,
+  mode: QuotePrintMode = 'enduser',
+  quantitySettings?: QuoteCustomerPrintQuantitySettings,
+): string {
   const base = computeQuoteTotals(data).iilpBaseInstall;
   if (!base.enabled) return '';
   const rows: string[] = [];
+  const laborQty =
+    formatQuoteDeviceQtyLabel(1, 'urakka', quantitySettings ?? DEFAULT_QUOTE_CUSTOMER_PRINT_QUANTITY_SETTINGS)
+    ?? (mode === 'creator' ? '1 kpl' : '');
+  const materialsQty =
+    formatQuoteDeviceQtyLabel(1, 'kpl', quantitySettings ?? DEFAULT_QUOTE_CUSTOMER_PRINT_QUANTITY_SETTINGS)
+    ?? (mode === 'creator' ? '1 kpl' : '');
   if (base.laborNet > 0.01) {
     rows.push(
-      printWorkRow('Ilmalämpöpumpun perusasennus – työn osuus', '1 kpl', base.laborNet, base.laborNet, mode),
+      printWorkRow('Ilmalämpöpumpun perusasennus – työn osuus', laborQty, base.laborNet, base.laborNet, mode),
     );
   }
   if (base.materialsNet > 0.01) {
     rows.push(
-      printWorkRow('Ilmalämpöpumpun perusasennus – tarvikkeet', '1 kpl', base.materialsNet, base.materialsNet, mode),
+      printWorkRow('Ilmalämpöpumpun perusasennus – tarvikkeet', materialsQty, base.materialsNet, base.materialsNet, mode),
     );
   }
   return rows.join('');
@@ -643,8 +703,9 @@ export function generateQuoteOfferPrintHtml(input: {
   meta: QuotePrintMeta;
   mode?: QuotePrintMode;
   feeMap?: BrandDeliveryFeeByCategoryMap | null;
+  quantitySettings?: QuoteCustomerPrintQuantitySettings;
 }) {
-  const { data: rawData, customer, meta, mode = 'enduser', feeMap = null } = input;
+  const { data: rawData, customer, meta, mode = 'enduser', feeMap = null, quantitySettings } = input;
   const data = migrateLegacyMaterialsToInstallationSupplies(rawData);
   const totals = computeQuoteTotals(data, feeMap);
   const internal = mode === 'creator' ? computeQuoteInternalTotals(data, feeMap) : null;
@@ -663,7 +724,10 @@ export function generateQuoteOfferPrintHtml(input: {
         .map((item) => {
           const sell = item.hours * item.pricePerHour;
           const purchase = (Number(item.hours) || 0) * laborPurchaseRate;
-          return printWorkRow(item.description, `${item.hours} h`, item.pricePerHour, sell, mode, {
+          const qtyLabel =
+            formatQuoteWorkHoursQtyLabel(Number(item.hours) || 0, quantitySettings ?? DEFAULT_QUOTE_CUSTOMER_PRINT_QUANTITY_SETTINGS)
+            ?? (mode === 'creator' ? `${item.hours} h` : '');
+          return printWorkRow(item.description, qtyLabel, item.pricePerHour, sell, mode, {
             purchase,
           });
         })
@@ -671,12 +735,12 @@ export function generateQuoteOfferPrintHtml(input: {
 
   const materialRows = data.materials
     .filter((item) => item.name.trim())
-    .map((item) => printMaterialRow(item, mode))
+    .map((item) => printMaterialRow(item, mode, quantitySettings))
     .join('');
 
   const legacyLineRows = (data.lines ?? [])
     .filter((line) => line.description.trim() || line.qty || line.unitPrice)
-    .map((line) => printLegacyLineRow(line, mode))
+    .map((line) => printLegacyLineRow(line, mode, quantitySettings))
     .join('');
 
   const heatingNeedKw = isPumpQuoteType(data.type) ? computeHeatingNeedKw(data) : null;
@@ -689,7 +753,7 @@ export function generateQuoteOfferPrintHtml(input: {
             const purchase = calculateDevicePurchaseNet(data, device, feeMap);
             const { marginPct } = getDevicePricingParams(data, device);
             const label = `<strong>Vaihtoehto ${key}</strong><br />${esc(formatDeviceLabel(device))}`;
-            return printDeviceRow(label, mode, { purchase, sell, marginPct });
+            return printDeviceRow(label, mode, { purchase, sell, marginPct }, quantitySettings);
           })
           .join('');
         if (rows) return rows;
@@ -699,18 +763,18 @@ export function generateQuoteOfferPrintHtml(input: {
         const purchase = calculateDevicePurchaseNet(data, mainDevice, feeMap);
         const { marginPct } = getDevicePricingParams(data, mainDevice);
         const label = esc(formatDeviceLabel(mainDevice));
-        return printDeviceRow(label, mode, { purchase, sell, marginPct });
+        return printDeviceRow(label, mode, { purchase, sell, marginPct }, quantitySettings);
       })()
     : resolveNonPumpDeviceSellNet(data) > 0.005 && !quoteUsesOfferedDeviceRows(data)
       ? printDeviceRow(esc(manualDevicePrintLabel(data)), mode, {
           purchase: Number(data.devicePurchaseOverrideNet ?? 0),
           sell: resolveNonPumpDeviceSellNet(data),
           marginPct: Number(data.deviceMarginPercent) || undefined,
-        })
+        }, quantitySettings)
       : '';
 
-  const lineRows = `${workRows}${materialRows}${legacyLineRows}${printInstallationSuppliesRows(data, mode)}`;
-  const tableBody = `${lineRows}${iilpBaseInstallRows(data, mode)}${deviceRows}`;
+  const lineRows = `${workRows}${materialRows}${legacyLineRows}${printInstallationSuppliesRows(data, mode, quantitySettings)}`;
+  const tableBody = `${lineRows}${iilpBaseInstallRows(data, mode, quantitySettings)}${deviceRows}`;
 
   const kotitalous =
     mode === 'enduser' && quoteShowsKotitalousDeduction(data.type)
@@ -889,7 +953,11 @@ export function generateQuoteHeatCalcPrintHtml(input: {
 </html>`;
 }
 
-function buildServiceTaskPrintRows(data: QuoteRequestData, mode: QuotePrintMode): string {
+function buildServiceTaskPrintRows(
+  data: QuoteRequestData,
+  mode: QuotePrintMode,
+  quantitySettings?: QuoteCustomerPrintQuantitySettings,
+): string {
   const sections: string[] = [];
   let hasTaskContent = false;
   const laborPurchaseRate = Number(data.installationLaborPurchaseRate) || 0;
@@ -916,12 +984,15 @@ function buildServiceTaskPrintRows(data: QuoteRequestData, mode: QuotePrintMode)
     if (hours > 0 || (desc && rate > 0)) {
       const sell = hours * rate;
       const purchase = hours * laborPurchaseRate;
+      const qtyLabel =
+        formatQuoteWorkHoursQtyLabel(hours, quantitySettings ?? DEFAULT_QUOTE_CUSTOMER_PRINT_QUANTITY_SETTINGS)
+        ?? (mode === 'creator' ? `${hours} h` : '');
       sections.push(
-        printWorkRow(`${desc || 'Työ'} — työ`, `${hours} h`, rate, sell, mode, { purchase }),
+        printWorkRow(`${desc || 'Työ'} — työ`, qtyLabel, rate, sell, mode, { purchase }),
       );
     }
 
-    sections.push(printSummedMaterialsRow(materials, mode));
+    sections.push(printSummedMaterialsRow(materials, mode, quantitySettings));
   }
 
   if (!hasTaskContent && Number(data.laborHours) > 0) {
@@ -929,7 +1000,10 @@ function buildServiceTaskPrintRows(data: QuoteRequestData, mode: QuotePrintMode)
     const rate = Number(data.laborRate) || 0;
     const sell = hours * rate;
     const purchase = hours * laborPurchaseRate;
-    sections.push(printWorkRow('Työ', `${hours} h`, rate, sell, mode, { purchase }));
+    const qtyLabel =
+      formatQuoteWorkHoursQtyLabel(hours, quantitySettings ?? DEFAULT_QUOTE_CUSTOMER_PRINT_QUANTITY_SETTINGS)
+      ?? (mode === 'creator' ? `${hours} h` : '');
+    sections.push(printWorkRow('Työ', qtyLabel, rate, sell, mode, { purchase }));
     hasTaskContent = true;
   }
 
@@ -938,10 +1012,10 @@ function buildServiceTaskPrintRows(data: QuoteRequestData, mode: QuotePrintMode)
     0,
   );
   if (nestedMaterialCount === 0) {
-    sections.push(printSummedMaterialsRow(data.materials, mode));
+    sections.push(printSummedMaterialsRow(data.materials, mode, quantitySettings));
   }
 
-  sections.push(printInstallationSuppliesRows(data, mode));
+  sections.push(printInstallationSuppliesRows(data, mode, quantitySettings));
 
   if (!quoteUsesOfferedDeviceRows(data)) {
     const deviceSell = resolveNonPumpDeviceSellNet(data);
@@ -954,10 +1028,13 @@ function buildServiceTaskPrintRows(data: QuoteRequestData, mode: QuotePrintMode)
             purchase,
             sell: deviceSell,
             marginPct: Number(data.deviceMarginPercent) || undefined,
-          }),
+          }, quantitySettings),
         );
       } else {
-        sections.push(printWorkRow(manualDevicePrintLabel(data), '1 kpl', deviceSell, deviceSell, mode));
+        const qtyLabel =
+          formatQuoteDeviceQtyLabel(1, undefined, quantitySettings ?? DEFAULT_QUOTE_CUSTOMER_PRINT_QUANTITY_SETTINGS)
+          ?? (mode === 'creator' ? '1 kpl' : '');
+        sections.push(printWorkRow(manualDevicePrintLabel(data), qtyLabel, deviceSell, deviceSell, mode));
       }
     }
   }
@@ -971,8 +1048,9 @@ export function generateQuoteServicePrintHtml(input: {
   meta: QuotePrintMeta;
   mode?: QuotePrintMode;
   feeMap?: BrandDeliveryFeeByCategoryMap | null;
+  quantitySettings?: QuoteCustomerPrintQuantitySettings;
 }) {
-  const { data: rawData, customer, meta, mode = 'enduser' } = input;
+  const { data: rawData, customer, meta, mode = 'enduser', quantitySettings } = input;
   const data = migrateLegacyMaterialsToInstallationSupplies(rawData);
   const totals = computeQuoteTotals(data, input.feeMap ?? null);
   const internal = mode === 'creator' ? computeQuoteInternalTotals(data, input.feeMap ?? null) : null;
@@ -982,7 +1060,7 @@ export function generateQuoteServicePrintHtml(input: {
   const vatRate = Number(data.vatRate) || 0;
   const totalRowLabel = quoteTotalRowLabel(vatRate);
 
-  const workRows = buildServiceTaskPrintRows(data, mode);
+  const workRows = buildServiceTaskPrintRows(data, mode, quantitySettings);
 
   const deviceLabel = [data.deviceBrand, data.deviceModel].filter(Boolean).join(' ').trim();
   const deviceBox = deviceLabel
