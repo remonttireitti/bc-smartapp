@@ -60,6 +60,7 @@
     "test:quote-purchase-margin-adjustment": "npx tsx scripts/test-quote-purchase-margin-adjustment.mjs",
     "test:work-report-actual-purchase": "npx tsx scripts/test-work-report-actual-purchase.mjs",
     "test:quote-material-row-kind": "npx tsx scripts/test-quote-material-row-kind.mjs",
+    "test:quote-customer-print-quantities": "npx tsx scripts/test-quote-customer-print-quantities.mjs",
     "test:quote-unified-row-types": "npx tsx scripts/test-quote-unified-row-types.mjs",
     "test:quote-ordered-status": "npx tsx scripts/test-quote-ordered-status.mjs",
     "test:konvektori-example-print": "npx tsx scripts/test-konvektori-example-print.mjs",

@@ -22,6 +22,7 @@ import {
   syncInstallationSupplyRow,
 } from '../../lib/quoteRequest/installationSupplies';
 import { computeManualDeviceSellNet } from '../../lib/quoteRequest/manualDevicePricing';
+import { CUSTOMER_PRINT_QUANTITY_UNIT_OPTIONS } from '../../lib/workReportCustomerPrintSettings';
 import type { QuoteMaterial, QuoteMaterialRowKind, QuoteRequestData } from '../../lib/quoteRequest/types';
 
 type Props = {
@@ -37,6 +38,10 @@ function formatEuro(value: number): string {
 
 function quantityLabel(kind: QuoteMaterialRowKind): string {
   return kind === 'labor' ? 'Tunnit' : 'Määrä';
+}
+
+function defaultUnitForKind(kind: QuoteMaterialRowKind): string {
+  return kind === 'labor' ? 'h' : 'kpl';
 }
 
 function unitPriceLabel(kind: QuoteMaterialRowKind, side: 'purchase' | 'sell'): string {
@@ -304,6 +309,20 @@ export default function QuoteInstallationSuppliesProductsSection({
                       onChange={(e) => updateRow(item.id, { quantity: Number(e.target.value) })}
                       disabled={!canEdit}
                     />
+                  </label>
+                  <label>
+                    Yksikkö
+                    <select
+                      value={item.unit ?? defaultUnitForKind(rowKind)}
+                      onChange={(e) => updateRow(item.id, { unit: e.target.value })}
+                      disabled={!canEdit}
+                    >
+                      {CUSTOMER_PRINT_QUANTITY_UNIT_OPTIONS.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
                   </label>
                   <label>
                     {unitPriceLabel(rowKind, 'purchase')}

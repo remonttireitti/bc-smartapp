@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 
 import type { Session } from '@supabase/supabase-js';
 
 import AppLayout from '../components/AppLayout';
+import QuoteCustomerPrintSettingsPanel from '../components/QuoteCustomerPrintSettingsPanel';
 import IconButton from '../components/IconButton';
 import { IconBack } from '../components/icons';
 import NavigationBreadcrumb from '../components/NavigationBreadcrumb';
@@ -43,6 +44,12 @@ import {
 
 import type { QuoteRequestData } from '../lib/quoteRequest/types';
 
+import {
+  parseQuoteCustomerPrintQuantitySettings,
+  quoteCustomerPrintQuantitySettingsPath,
+  type QuoteCustomerPrintQuantitySettings,
+} from '../lib/quoteCustomerPrintSettings';
+
 import { localQuoteDraftKey, readLocalQuoteDraft, pickQuoteFormSource } from '../lib/quoteRequestDraftStorage';
 
 import { supabase } from '../lib/supabase';
@@ -64,6 +71,12 @@ type PrintDocument = 'offer' | 'heatcalc';
 export default function QuoteRequestPrintPage({ session }: Props) {
 
   const { id } = useParams();
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const quantitySettings = useMemo(
+    () => parseQuoteCustomerPrintQuantitySettings(searchParams),
+    [searchParams],
+  );
 
   const [quoteData, setQuoteData] = useState<QuoteRequestData | null>(null);
 
@@ -226,6 +239,7 @@ export default function QuoteRequestPrintPage({ session }: Props) {
         meta,
         mode: printMode,
         feeMap,
+        quantitySettings: printMode === 'enduser' ? quantitySettings : undefined,
       });
     }
 
@@ -239,6 +253,7 @@ export default function QuoteRequestPrintPage({ session }: Props) {
       meta,
       mode: printMode,
       feeMap,
+      quantitySettings: printMode === 'enduser' ? quantitySettings : undefined,
     });
   }, [
     quoteData,
@@ -248,11 +263,17 @@ export default function QuoteRequestPrintPage({ session }: Props) {
     printMode,
     printDocument,
     feeMap,
+    quantitySettings,
     useTermatekTemplate,
     termatekHtml,
     useLampokatsastusTemplate,
     lampokatsastusHtml,
   ]);
+
+  function updateQuantitySettings(next: QuoteCustomerPrintQuantitySettings) {
+    if (!id || printMode !== 'enduser') return;
+    navigate(quoteCustomerPrintQuantitySettingsPath(id, next), { replace: true });
+  }
 
 
 
@@ -637,7 +658,14 @@ export default function QuoteRequestPrintPage({ session }: Props) {
 
       </section>
 
-
+      {printDocument === 'offer' && printMode === 'enduser' ? (
+        <div className="no-print work-report-customer-print-settings-wrap">
+          <QuoteCustomerPrintSettingsPanel
+            settings={quantitySettings}
+            onChange={updateQuantitySettings}
+          />
+        </div>
+      ) : null}
 
       <section className="panel print-preview-shell">
         {(termatekHtmlLoading && useTermatekTemplate) || (lampokatsastusHtmlLoading && useLampokatsastusTemplate) ? (
