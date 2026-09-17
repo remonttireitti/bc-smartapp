@@ -10,6 +10,29 @@ import {
 
 export type ExpenseBillingMode = 'partner_and_customer' | 'customer_only' | 'included_in_contract';
 
+/** Tarjouspyynnön linkitys vaikuttaa piikki-/urakkalogiikkaan. */
+export type ExpenseBillingQuoteContext = {
+  linkedQuoteRequest?: boolean;
+};
+
+export function expenseQuoteLinkedExtraBillingApplies(
+  context?: ExpenseBillingQuoteContext | null,
+): boolean {
+  return context?.linkedQuoteRequest === true;
+}
+
+/** Ilman linkitettyä tarjouspyyntöä urakkaan-kuuluva rivi käsitellään asiakkaalle laskutettavana. */
+export function resolveEffectiveExpenseBillingMode(
+  row: ExpenseBillingFlags,
+  context?: ExpenseBillingQuoteContext | null,
+): ExpenseBillingMode {
+  const mode = resolveExpenseBillingMode(row);
+  if (!expenseQuoteLinkedExtraBillingApplies(context) && mode === 'included_in_contract') {
+    return 'customer_only';
+  }
+  return mode;
+}
+
 export const DEFAULT_PARTNER_EXPENSE_MARGIN_PERCENT = DEFAULT_PARTNER_URAKKA_MARGIN_PERCENT;
 /** Tarvikkeiden oletuskate asiakashinnassa (hankinta + kate). */
 export const DEFAULT_SUPPLY_MARGIN_PERCENT = 80;
@@ -37,11 +60,13 @@ export function inferPartnerExpenseMarginPercent(
 /** Näytetäänkö rivi asiakkaan erillisillä laskuriveillä (ei kiinteän tarjouksen piikkiostot). */
 export function expenseIncludedInCustomerInvoice(
   row: ExpenseBillingFlags & { bill_to_customer?: boolean },
+  context?: ExpenseBillingQuoteContext | null,
 ): boolean {
   if (row.bill_to_customer === false) return false;
-  const mode = resolveExpenseBillingMode(row);
+  const mode = resolveEffectiveExpenseBillingMode(row, context);
   if (mode === 'included_in_contract') return false;
   if (mode === 'customer_only') {
+    if (!expenseQuoteLinkedExtraBillingApplies(context)) return true;
     return expenseExtraBillable(row) && expenseExtraBillingAllowed(row);
   }
   return true;
@@ -53,15 +78,20 @@ export function resolveExpenseCustomerUnitPrice(
     customer_unit_price?: number | string | null;
     qty?: number | string | null;
   },
+  context?: ExpenseBillingQuoteContext | null,
 ): number {
   const customerRaw = row.customer_unit_price;
   const customerPrice =
     customerRaw != null && String(customerRaw).trim() !== '' ? Number(customerRaw) : null;
   if (customerPrice != null && customerPrice > 0) return customerPrice;
-  if (resolveExpenseBillingMode(row) === 'customer_only' && expenseExtraBillingAllowed(row)) {
-    const purchase = resolveExpensePurchaseUnitPrice(row);
-    if (purchase != null && purchase > 0) {
-      return computeSupplyCustomerUnitPrice(purchase, resolveSupplyMarginPercent(row));
+  const mode = resolveEffectiveExpenseBillingMode(row, context);
+  if (mode === 'customer_only') {
+    const quoteLinked = expenseQuoteLinkedExtraBillingApplies(context);
+    if (!quoteLinked || expenseExtraBillingAllowed(row)) {
+      const purchase = resolveExpensePurchaseUnitPrice(row);
+      if (purchase != null && purchase > 0) {
+        return computeSupplyCustomerUnitPrice(purchase, resolveSupplyMarginPercent(row));
+      }
     }
   }
   if (row.bill_to_partner === false) return 0;
@@ -70,11 +100,12 @@ export function resolveExpenseCustomerUnitPrice(
 
 export function expenseCustomerPriceMissing(
   row: ExpenseBillingFlags & { unit_price?: number | string | null; customer_unit_price?: number | string | null },
+  context?: ExpenseBillingQuoteContext | null,
 ): boolean {
-  if (!expenseIncludedInCustomerInvoice(row)) return false;
-  const customerPrice = resolveExpenseCustomerUnitPrice(row);
+  if (!expenseIncludedInCustomerInvoice(row, context)) return false;
+  const customerPrice = resolveExpenseCustomerUnitPrice(row, context);
   if (customerPrice > 0) return false;
-  if (resolveExpenseBillingMode(row) === 'included_in_contract') return false;
+  if (resolveEffectiveExpenseBillingMode(row, context) === 'included_in_contract') return false;
   const partnerPrice = Number(row.unit_price || 0);
   return !(partnerPrice > 0);
 }
@@ -321,7 +352,9 @@ export const APPROVED_EXTRA_BILLING_CUSTOMER_PRINT_LABEL = 'Sovitusti laskutettu
 
 export function expenseApprovedExtraBillingCustomerPrintLabel(
   row: ExpenseBillingFlags,
+  context?: ExpenseBillingQuoteContext | null,
 ): string | null {
+  if (!expenseQuoteLinkedExtraBillingApplies(context)) return null;
   return expenseExtraBillingAllowed(row) ? APPROVED_EXTRA_BILLING_CUSTOMER_PRINT_LABEL : null;
 }
 
@@ -358,7 +391,11 @@ export function inferSupplyMarginPercent(
   return inferred > 0 ? inferred : fallback;
 }
 
-export function expenseSupplyExtraBillingLabel(row: ExpenseBillingFlags): string | null {
+export function expenseSupplyExtraBillingLabel(
+  row: ExpenseBillingFlags,
+  context?: ExpenseBillingQuoteContext | null,
+): string | null {
+  if (!expenseQuoteLinkedExtraBillingApplies(context)) return null;
   const mode = resolveExpenseBillingMode(row);
   if (mode === 'included_in_contract') return 'kuuluu urakkaan · suora kulu';
   if (mode !== 'customer_only') return null;
@@ -375,7 +412,9 @@ export type ExpenseSupplyExtraBillingMarginImpact = {
 /** Piikkitarvikkeen nykyinen ja hyväksytyn lisälaskutuksen katevaikutus. */
 export function expenseSupplyExtraBillingMarginImpact(
   row: ExpensePurchaseFields & ExpenseBillingFlags,
+  context?: ExpenseBillingQuoteContext | null,
 ): ExpenseSupplyExtraBillingMarginImpact | null {
+  if (!expenseQuoteLinkedExtraBillingApplies(context)) return null;
   if (resolveExpenseBillingMode(row) !== 'customer_only') return null;
   if (!expenseExtraBillable(row)) return null;
   const qty = Number(row.qty) || 0;
@@ -401,9 +440,10 @@ export function expenseSupplyExtraBillingMarginImpact(
 export function formatExpenseSupplyExtraBillingMarginNote(
   row: ExpensePurchaseFields & ExpenseBillingFlags,
   formatMoney: (value: number) => string,
+  context?: ExpenseBillingQuoteContext | null,
 ): string | null {
-  const label = expenseSupplyExtraBillingLabel(row);
-  const impact = expenseSupplyExtraBillingMarginImpact(row);
+  const label = expenseSupplyExtraBillingLabel(row, context);
+  const impact = expenseSupplyExtraBillingMarginImpact(row, context);
   if (!label || !impact) return label;
   if (expenseExtraBillingAllowed(row)) {
     const sign = impact.currentMarginImpactNet >= 0 ? '+' : '−';
@@ -425,9 +465,12 @@ export function syncSupplyExpenseCustomerPrice<
     customer_unit_price?: number | string | null;
     customer_margin_percent?: number | string | null;
   },
->(row: T): T {
-  if (resolveExpenseBillingMode(row) !== 'customer_only') return row;
-  if (!expenseExtraBillingAllowed(row)) {
+>(row: T, context?: ExpenseBillingQuoteContext | null): T {
+  if (resolveEffectiveExpenseBillingMode(row, context) !== 'customer_only') return row;
+  if (
+    expenseQuoteLinkedExtraBillingApplies(context)
+    && !expenseExtraBillingAllowed(row)
+  ) {
     return { ...row, customer_unit_price: '' };
   }
   const purchase = Number(row.unit_price);
@@ -491,9 +534,15 @@ export function expenseBillingSummaryLabel(
 export function expensePrintBillingNote(
   row: ExpenseBillingFlags,
   options: { showPartner: boolean; showCustomer: boolean },
+  context?: ExpenseBillingQuoteContext | null,
 ): string {
-  if (expenseIncludedInContract(row)) return ' · kuulu urakkaan · ei veloiteta';
-  const supplyExtraLabel = expenseSupplyExtraBillingLabel(row);
+  if (
+    expenseQuoteLinkedExtraBillingApplies(context)
+    && expenseIncludedInContract(row)
+  ) {
+    return ' · kuulu urakkaan · ei veloiteta';
+  }
+  const supplyExtraLabel = expenseSupplyExtraBillingLabel(row, context);
   if (options.showPartner && row.bill_to_partner === false && row.bill_to_customer !== false) {
     return supplyExtraLabel ? ` · ${supplyExtraLabel}` : ' · ei laskuteta kumppanilta';
   }

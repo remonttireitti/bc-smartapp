@@ -22,6 +22,7 @@ import {
   resolveExpenseBillingMode,
   syncSupplyExpenseCustomerPrice,
   type ExpenseBillingMode,
+  type ExpenseBillingQuoteContext,
 } from '../lib/workReportExpenseBilling';
 import { isAutoTripKmExpense, isLikelyAutoTripKmExpense } from '../lib/tripKmExpense';
 import { EXPENSE_TYPE_OPTIONS } from '../types';
@@ -33,6 +34,7 @@ type Props = {
   showCustomerPrices: boolean;
   showQuoteLinkedExtraBilling?: boolean;
   showQuoteLinkedCategories?: boolean;
+  linkedQuoteRequest?: boolean;
 };
 
 export default function DailyLogExpenseLinesSection({
@@ -42,7 +44,9 @@ export default function DailyLogExpenseLinesSection({
   showCustomerPrices,
   showQuoteLinkedExtraBilling = false,
   showQuoteLinkedCategories = false,
+  linkedQuoteRequest = false,
 }: Props) {
+  const expenseQuoteContext: ExpenseBillingQuoteContext = { linkedQuoteRequest };
   const [editingExpenseKey, setEditingExpenseKey] = useState<string | null>(null);
   const manualExpenseDrafts = expenseDrafts.filter((row) => !isLikelyAutoTripKmExpense(row));
   const editingIndex = editingExpenseKey
@@ -90,7 +94,7 @@ export default function DailyLogExpenseLinesSection({
                 onClick={() => setEditingExpenseKey(row.key)}
               >
                 <span className="expense-line-list-item-title">
-                  {expenseRowSectionTitle(row, showPartnerPrices, showCustomerPrices)}
+                  {expenseRowSectionTitle(row, showPartnerPrices, showCustomerPrices, expenseQuoteContext)}
                 </span>
                 <span className="expense-line-list-item-action">Muokkaa</span>
               </button>
@@ -123,6 +127,7 @@ export default function DailyLogExpenseLinesSection({
               showCustomerPrices={showCustomerPrices}
               showQuoteLinkedExtraBilling={showQuoteLinkedExtraBilling}
               showQuoteLinkedCategories={showQuoteLinkedCategories}
+              expenseQuoteContext={expenseQuoteContext}
             />
             <div className="leave-draft-actions expense-line-dialog-actions">
               {!isAutoTripKmExpense(editingRow) ? (
@@ -153,6 +158,7 @@ function ExpenseLineEditor({
   showCustomerPrices,
   showQuoteLinkedExtraBilling,
   showQuoteLinkedCategories,
+  expenseQuoteContext,
 }: {
   row: ExpenseDraft;
   index: number;
@@ -161,6 +167,7 @@ function ExpenseLineEditor({
   showCustomerPrices: boolean;
   showQuoteLinkedExtraBilling: boolean;
   showQuoteLinkedCategories: boolean;
+  expenseQuoteContext: ExpenseBillingQuoteContext;
 }) {
   const autoTripKm = isAutoTripKmExpense(row);
   const billingMode = resolveExpenseBillingMode(row);
@@ -177,9 +184,9 @@ function ExpenseLineEditor({
         customer_margin_percent:
           next.customer_margin_percent || String(DEFAULT_SUPPLY_MARGIN_PERCENT),
       };
-      next = syncSupplyExpenseCustomerPrice(next);
+      next = syncSupplyExpenseCustomerPrice(next, expenseQuoteContext);
     } else if (mode === 'partner_and_customer') {
-      next = patchExpenseDraft(next, {});
+      next = patchExpenseDraft(next, {}, expenseQuoteContext);
     }
     updateExpenseRow(next);
   };
@@ -299,7 +306,9 @@ function ExpenseLineEditor({
                   readOnly={autoTripKm}
                   disabled={autoTripKm}
                   onChange={(e) =>
-                    updateExpenseRow(patchExpenseDraft(row, { unit_price: e.target.value }))
+                    updateExpenseRow(
+                      patchExpenseDraft(row, { unit_price: e.target.value }, expenseQuoteContext),
+                    )
                   }
                   placeholder="Esim. toimittajan lasku"
                 />
@@ -316,7 +325,11 @@ function ExpenseLineEditor({
                   disabled={autoTripKm}
                   onChange={(e) =>
                     updateExpenseRow(
-                      patchExpenseDraft(row, { customer_margin_percent: e.target.value }),
+                      patchExpenseDraft(
+                        row,
+                        { customer_margin_percent: e.target.value },
+                        expenseQuoteContext,
+                      ),
                     )
                   }
                 />
@@ -331,10 +344,14 @@ function ExpenseLineEditor({
                       setExpenseDrafts((current) =>
                         current.map((r, i) =>
                           i === index
-                            ? patchExpenseDraft(r, {
-                                extra_billable: checked,
-                                extra_billing_allowed: checked ? r.extra_billing_allowed : false,
-                              })
+                            ? patchExpenseDraft(
+                                r,
+                                {
+                                  extra_billable: checked,
+                                  extra_billing_allowed: checked ? r.extra_billing_allowed : false,
+                                },
+                                expenseQuoteContext,
+                              )
                             : r,
                         ),
                       )
@@ -342,7 +359,9 @@ function ExpenseLineEditor({
                     onExtraBillingAllowedChange={(checked) =>
                       setExpenseDrafts((current) =>
                         current.map((r, i) =>
-                          i === index ? patchExpenseDraft(r, { extra_billing_allowed: checked }) : r,
+                          i === index
+                            ? patchExpenseDraft(r, { extra_billing_allowed: checked }, expenseQuoteContext)
+                            : r,
                         ),
                       )
                     }
@@ -368,8 +387,9 @@ function ExpenseLineEditor({
               ) : null}
               {Number(row.unit_price) > 0 ? (
                 <p className="muted expense-billing-preview">
-                  {formatExpenseSupplyExtraBillingMarginNote(row, formatEuro)}
-                  {row.extra_billable && row.extra_billing_allowed && Number(row.customer_unit_price) > 0 ? (
+                  {formatExpenseSupplyExtraBillingMarginNote(row, formatEuro, expenseQuoteContext)}
+                  {(!showQuoteLinkedExtraBilling || (row.extra_billable && row.extra_billing_allowed))
+                    && Number(row.customer_unit_price) > 0 ? (
                     <>
                       {' '}
                       · Asiakkaalle laskutettava:{' '}

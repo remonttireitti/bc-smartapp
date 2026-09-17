@@ -402,6 +402,7 @@ function logToForm(log: WorkReportDailyLog): DailyLogFormState {
 function expenseSaveOptionsForReport(
   report: Pick<WorkReport, 'owner_company_id' | 'created_by_company_id' | 'delegate_company_id'>,
   customerInvoicingEnabled: boolean,
+  linkedQuoteRequest = false,
 ) {
   const isDelegatedOrder =
     !!report.delegate_company_id && report.created_by_company_id === report.owner_company_id;
@@ -410,6 +411,7 @@ function expenseSaveOptionsForReport(
   return {
     includePartnerFields: isPartnerReport,
     includeCustomerFields: customerInvoicingEnabled || isPartnerReport,
+    linkedQuoteRequest,
   };
 }
 
@@ -518,6 +520,7 @@ function DailyLogFields({
   showAgreedRegularHours,
   showQuoteLinkedExtraBilling,
   showQuoteLinkedCategories,
+  linkedQuoteRequest,
 }: {
   form: DailyLogFormState;
   setForm: React.Dispatch<React.SetStateAction<DailyLogFormState>>;
@@ -532,6 +535,7 @@ function DailyLogFields({
   showAgreedRegularHours?: boolean;
   showQuoteLinkedExtraBilling?: boolean;
   showQuoteLinkedCategories?: boolean;
+  linkedQuoteRequest?: boolean;
 }) {
   const { showRegular, showOvertime, showOnCall, showFixed, calendarOnlyHours } =
     hourFieldsForEntryType(form.entry_type);
@@ -905,6 +909,7 @@ function DailyLogFields({
           showCustomerPrices={showCustomerPrices}
           showQuoteLinkedExtraBilling={showQuoteLinkedExtraBilling}
           showQuoteLinkedCategories={showQuoteLinkedCategories}
+          linkedQuoteRequest={linkedQuoteRequest}
         />
       </DailyLogTileSection>
     </>
@@ -914,13 +919,19 @@ function DailyLogFields({
 async function saveExpenseLines(
   dailyLogId: string,
   expenseDrafts: ExpenseDraft[],
-  options: { includeCustomerFields: boolean; includePartnerFields: boolean },
+  options: {
+    includeCustomerFields: boolean;
+    includePartnerFields: boolean;
+    linkedQuoteRequest?: boolean;
+  },
 ) {
   await supabase.from('work_report_daily_expense_lines').delete().eq('daily_log_id', dailyLogId);
+  const expenseQuoteContext = { linkedQuoteRequest: options.linkedQuoteRequest === true };
   const validExpenses = normalizeExpenseDraftsForSave(
     expenseDrafts.filter(
       (row) => row.description.trim() && (row.expense_type || isAutoTripKmExpense(row)),
     ),
+    expenseQuoteContext,
   );
   if (validExpenses.length === 0) return null;
   const buildRows = (includeBillToPartner: boolean, includeExtraBilling: boolean) =>
@@ -2083,7 +2094,11 @@ export default function WorkReportDetailPage({ session }: Props) {
     const expenseError = await saveExpenseLines(
       logRow.id,
       expensesToSave,
-      expenseSaveOptionsForReport(report, customerBillingFieldsActive(report)),
+      expenseSaveOptionsForReport(
+        report,
+        customerBillingFieldsActive(report),
+        workReportHasLinkedQuoteRequest(billingQuoteSettings),
+      ),
     );
     if (expenseError) {
       setLogDialogBusy(false);
@@ -2379,7 +2394,11 @@ export default function WorkReportDetailPage({ session }: Props) {
     const expenseError = await saveExpenseLines(
       editingLogId,
       expensesToSave,
-      expenseSaveOptionsForReport(report, customerBillingFieldsActive(report)),
+      expenseSaveOptionsForReport(
+        report,
+        customerBillingFieldsActive(report),
+        workReportHasLinkedQuoteRequest(billingQuoteSettings),
+      ),
     );
     if (expenseError) {
       setLogDialogBusy(false);
@@ -3635,6 +3654,7 @@ export default function WorkReportDetailPage({ session }: Props) {
           }
           showQuoteLinkedExtraBilling={workReportSupportsQuoteLinkedExtraBilling(billingQuoteSettings)}
           showQuoteLinkedCategories={workReportSupportsQuoteLinkedExtraBilling(billingQuoteSettings)}
+          linkedQuoteRequest={hasLinkedQuote}
         />
         <DailyLogRefrigerantFields
           drafts={refrigerantDrafts}
