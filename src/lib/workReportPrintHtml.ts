@@ -3,7 +3,9 @@ import {
   APPROVED_EXTRA_BILLING_CUSTOMER_PRINT_LABEL,
   expenseApprovedExtraBillingCustomerPrintLabel,
   expenseCustomerPriceMissing,
+  expenseIncludedInCustomerInvoice,
   expensePrintBillingNote,
+  resolveExpenseCustomerUnitPrice,
   formatExpenseSupplyExtraBillingMarginNote,
   expensePurchaseLineTotal,
   expensePurchasePriceMissing,
@@ -684,11 +686,13 @@ export function generateWorkReportPrintHtml(input: {
                   : '';
             return `<tr><td>${esc(label)}</td><td>${esc(descriptionForPrint)}</td><td class="num">${qty} × ${formatEuro(unit)} = ${formatEuro(total)}${esc(partnerNote)}${esc(customerNote)}</td></tr>`;
           }
-          if (showCustomerExpensePrices && line.bill_to_customer !== false) {
+          if (showCustomerExpensePrices && expenseIncludedInCustomerInvoice(line)) {
+            const billedUnit = resolveExpenseCustomerUnitPrice(line);
+            const billedTotal = expenseLineTotal({ ...line, unit_price: billedUnit });
             const priceMissing = expenseCustomerPriceMissing(line);
             const priceCell = priceMissing
               ? `${qty} · <span class="billing-price-missing">?</span>`
-              : `${qty} × ${formatEuro(customerUnit)} = ${formatEuro(customerTotal)}`;
+              : `${qty} × ${formatEuro(billedUnit)} = ${formatEuro(billedTotal)}`;
             const extraBillingCustomerNote = expenseApprovedExtraBillingCustomerPrintLabel(line);
             const descriptionCell = extraBillingCustomerNote
               ? `${esc(descriptionForPrint)} <span class="muted">· ${esc(extraBillingCustomerNote)}</span>`
