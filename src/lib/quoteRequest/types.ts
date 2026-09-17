@@ -39,6 +39,8 @@ export type QuoteMaterial = {
   sellPrice: number;
   /** Oletus supply. labor/expense/device = vastaavat työraportin tyypit. */
   rowKind?: QuoteMaterialRowKind;
+  /** Tulosteen määräyksikkö (h, kpl, kg, erä, urakka…). */
+  unit?: string;
 };
 
 /** Legacy simple line kept for older saved quotes. */

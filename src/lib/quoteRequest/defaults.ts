@@ -95,6 +95,7 @@ function normalizeMaterialList(raw: unknown): QuoteMaterial[] {
         || row.rowKind === 'device'
           ? row.rowKind
           : 'supply',
+      unit: typeof row.unit === 'string' && row.unit.trim() ? row.unit.trim() : undefined,
     });
   });
 }
