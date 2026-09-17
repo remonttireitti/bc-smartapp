@@ -10,6 +10,8 @@ export type QuoteKohdeTileId =
   | 'iilp-asennus'
   | 'vilp-kohde'
   | 'huolto-laite'
+  | 'huolto-ei-kuulu'
+  | 'huolto-lisavalinnat'
   | 'huolto-tilanne'
   | 'maksuehdot'
   | 'toimitusehdot'
@@ -71,7 +73,7 @@ export function buildQuoteKohdeTiles(form: QuoteRequestData): QuoteKohdeTileEntr
 
   entries.push({
     id: 'tyoraportti-otsikko',
-    title: 'Otsikko',
+    title: isRepairQuoteType(form.type) ? 'Tarjouksen otsikko' : 'Otsikko',
     subtitle: otsikkoSubtitle(form),
     themeKey: 'work',
   });
@@ -117,9 +119,24 @@ export function buildQuoteKohdeTiles(form: QuoteRequestData): QuoteKohdeTileEntr
       || 'Merkki ja malli';
     entries.push({
       id: 'huolto-laite',
-      title: 'Huollettava laite',
+      title: 'Laite (laitteet)',
       subtitle: deviceLabel,
       themeKey: 'device',
+    });
+    entries.push({
+      id: 'huolto-ei-kuulu',
+      title: 'Ei kuulu tarjoukseen',
+      subtitle:
+        (form.excludedFromQuoteItems ?? []).filter((item) => item.text.trim()).length > 0
+          ? `${(form.excludedFromQuoteItems ?? []).filter((item) => item.text.trim()).length} kohtaa`
+          : 'Pisteluettelo tulosteessa',
+      themeKey: 'notes',
+    });
+    entries.push({
+      id: 'huolto-lisavalinnat',
+      title: 'Tilattavissa lisänä',
+      subtitle: `${(form.optionalItems ?? []).filter((item) => item.enabled && item.description.trim()).length} valittu`,
+      themeKey: 'pricing',
     });
     entries.push({
       id: 'huolto-tilanne',
