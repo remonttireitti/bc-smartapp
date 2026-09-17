@@ -1,5 +1,6 @@
 import ToggleSwitch from '../ToggleSwitch';
 import { createEmptyOptionalItem } from '../../lib/quoteRequest/defaults';
+import { formatOptionalItemPrintPrice } from '../../lib/quoteRequest/optionalItemsPrint';
 import type { QuoteOptionalItem, QuoteRequestData } from '../../lib/quoteRequest/types';
 
 type Props = {
@@ -72,7 +73,7 @@ export default function QuoteOptionalItemsSection({
               />
             </label>
             <label>
-              Hinta (€, sis. ALV)
+              Hinta (€, alv 0 %)
               <input
                 type="number"
                 min="0"
@@ -89,8 +90,9 @@ export default function QuoteOptionalItemsSection({
           </div>
           {item.enabled && item.description.trim() && (
             <p className="muted">
-              Tulosteessa: {item.description.trim()} — hinta +{' '}
-              {item.priceGross.toLocaleString('fi-FI', { style: 'currency', currency: 'EUR' })}
+              Tulosteessa: {item.description.trim()} —{' '}
+              {formatOptionalItemPrintPrice(item.priceGross, form.vatRate)}
+              {form.vatRate > 0 ? ` (sis. ALV ${form.vatRate} %)` : ''}
             </p>
           )}
         </div>

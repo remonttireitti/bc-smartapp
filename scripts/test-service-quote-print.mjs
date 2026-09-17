@@ -68,6 +68,10 @@ assert.match(excludedFromQuotePrintHtml(baseData), /Ei kuulu tarjoukseen/);
 assert.match(excludedFromQuotePrintHtml(baseData), /Öljyn hävitys/);
 assert.match(serviceOptionalItemsPrintHtml(baseData), /Tilattavissa lisänä/);
 assert.match(serviceOptionalItemsPrintHtml(baseData), /Desinfiointi/);
+assert.match(serviceOptionalItemsPrintHtml(baseData), /\+[\s\u00a0]?80,00/);
+
+const withVat = { ...baseData, vatRate: 25.5 };
+assert.match(serviceOptionalItemsPrintHtml(withVat), /\+[\s\u00a0]?100,40/);
 
 const payload = buildWorkReportPayloadFromQuote({
   quote: {
