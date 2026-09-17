@@ -40,8 +40,15 @@ const quoteIncludedSupply = {
   extra_billable: false,
   extra_billing_allowed: false,
 };
-assert.equal(expenseIncludedInCustomerInvoice(quoteIncludedSupply), false);
+// Ilman linkitettyä tarjouspyyntöä varaosa laskutetaan aina asiakkaalta.
+assert.equal(expenseIncludedInCustomerInvoice(quoteIncludedSupply), true);
 assert.equal(expenseCustomerPriceMissing(quoteIncludedSupply), false);
+assert.equal(resolveExpenseCustomerUnitPrice(quoteIncludedSupply), 720.9);
+// Linkitetyllä tarjouspyynnöllä urakkaan kuuluva rivi jää pois asiakaslaskulta.
+assert.equal(
+  expenseIncludedInCustomerInvoice(quoteIncludedSupply, { linkedQuoteRequest: true }),
+  false,
+);
 
 const extraBillableSupply = {
   ...quoteIncludedSupply,

@@ -15,6 +15,7 @@ import {
   customerUsesQuoteBasedBilling,
   parseBillingQuoteSettings,
   shouldUseQuoteExtrasBilling,
+  workReportHasLinkedQuoteRequest,
   type BillingQuoteSettings,
 } from './workReportBillingQuote';
 import { fetchCustomerBillingLogs } from './workReportDailyLogSelect';
@@ -119,6 +120,7 @@ export async function refreshAndPersistCustomerBillable(
       hourBillingMode,
       overtimePolicy,
       dailyOvertimeBilling,
+      linkedQuoteRequest: workReportHasLinkedQuoteRequest(billingQuote),
     });
 
   await Promise.all([

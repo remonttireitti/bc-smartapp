@@ -12,6 +12,7 @@ import {
   resolveExpenseExtraBillingAllowedFromSources,
   resolveSupplyLineFlagForExpenseLine,
   syncSupplyExpenseCustomerPrice,
+  type ExpenseBillingQuoteContext,
   type SupplyLineExtraBillingFlag,
 } from './workReportExpenseBilling';
 import { isAutoTripKmExpense } from './tripKmExpense';
@@ -60,13 +61,17 @@ export function syncExpenseCustomerPriceFromPartner(row: ExpenseDraft): ExpenseD
   };
 }
 
-export function patchExpenseDraft(row: ExpenseDraft, patch: Partial<ExpenseDraft>): ExpenseDraft {
+export function patchExpenseDraft(
+  row: ExpenseDraft,
+  patch: Partial<ExpenseDraft>,
+  context?: ExpenseBillingQuoteContext | null,
+): ExpenseDraft {
   const next = { ...row, ...patch };
   if (resolveExpenseBillingMode(next) === 'partner_and_customer') {
     return syncExpenseCustomerPriceFromPartner(next);
   }
   if (resolveExpenseBillingMode(next) === 'customer_only') {
-    return syncSupplyExpenseCustomerPrice(next);
+    return syncSupplyExpenseCustomerPrice(next, context);
   }
   return next;
 }
@@ -131,6 +136,7 @@ export function expenseRowSectionTitle(
   row: ExpenseDraft,
   showPartner: boolean,
   showCustomer: boolean,
+  context?: ExpenseBillingQuoteContext | null,
 ): string {
   const type = row.expense_type
     ? (EXPENSE_TYPE_LABELS[row.expense_type] ?? row.expense_type)
@@ -141,8 +147,10 @@ export function expenseRowSectionTitle(
   if (resolveExpenseBillingMode(row) === 'customer_only' && expensePurchaseLineTotal(row) > 0) {
     parts.push(`hankinta ${expensePurchaseLineTotal(row).toFixed(2)} €`);
   }
-  const supplyLabel = formatExpenseSupplyExtraBillingMarginNote(row, (value) =>
-    `${value.toFixed(2)} €`,
+  const supplyLabel = formatExpenseSupplyExtraBillingMarginNote(
+    row,
+    (value) => `${value.toFixed(2)} €`,
+    context,
   );
   if (supplyLabel) parts.push(supplyLabel);
   const billingLabel = expenseBillingSummaryLabel(row, {
@@ -153,7 +161,10 @@ export function expenseRowSectionTitle(
   return parts.join(' · ');
 }
 
-export function normalizeExpenseDraftsForSave(drafts: ExpenseDraft[]): ExpenseDraft[] {
+export function normalizeExpenseDraftsForSave(
+  drafts: ExpenseDraft[],
+  context?: ExpenseBillingQuoteContext | null,
+): ExpenseDraft[] {
   return drafts.map((row) => {
     if (
       isAutoTripKmExpense({
@@ -165,7 +176,7 @@ export function normalizeExpenseDraftsForSave(drafts: ExpenseDraft[]): ExpenseDr
       return row;
     }
     const mode = resolveExpenseBillingMode(row);
-    if (mode === 'customer_only') return syncSupplyExpenseCustomerPrice(row);
+    if (mode === 'customer_only') return syncSupplyExpenseCustomerPrice(row, context);
     if (mode === 'partner_and_customer') return syncExpenseCustomerPriceFromPartner(row);
     return row;
   });

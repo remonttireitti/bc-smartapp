@@ -39,6 +39,7 @@ import {
   quoteHasVat,
   resolveCustomerBillableGrandTotal,
   renderBillingQuotePurchaseLinesHtml,
+  workReportHasLinkedQuoteRequest,
   type BillingQuoteSettings,
 } from './workReportBillingQuote';
 import {
@@ -608,6 +609,8 @@ export function generateWorkReportPrintHtml(input: {
   } = input;
   const billingQuote = parseBillingQuoteSettings(inputBillingQuote ?? {});
   const customerQuoteBased = customerUsesQuoteBasedBilling(billingQuote);
+  const linkedQuoteRequest = workReportHasLinkedQuoteRequest(billingQuote);
+  const expenseQuoteContext = { linkedQuoteRequest };
   const showInternalPrices = printMode === 'internal';
   const showCustomerPricesInPrint =
     showInternalPrices && !!customerCalculation && !customerQuoteBased;
@@ -653,29 +656,31 @@ export function generateWorkReportPrintHtml(input: {
             const partnerNote = expensePrintBillingNote(line, {
               showPartner: true,
               showCustomer: showCustomerExpensePrices,
-            });
+            }, expenseQuoteContext);
             const customerOnly = line.bill_to_partner === false && line.bill_to_customer !== false;
             if (customerOnly) {
               const purchaseUnit = resolveExpensePurchaseUnitPrice(line) ?? 0;
               const purchaseTotal = expensePurchaseLineTotal(line);
               const purchaseMissing = expensePurchasePriceMissing(line);
-              const customerMissing = expenseCustomerPriceMissing(line);
+              const customerMissing = expenseCustomerPriceMissing(line, expenseQuoteContext);
+              const resolvedCustomerUnit = resolveExpenseCustomerUnitPrice(line, expenseQuoteContext);
+              const resolvedCustomerTotal = expenseLineTotal({ ...line, unit_price: resolvedCustomerUnit });
               const purchaseCell = purchaseMissing
                 ? `hankinta <span class="billing-price-missing">?</span>`
                 : `hankinta ${qty} × ${formatEuro(purchaseUnit)} = ${formatEuro(purchaseTotal)}`;
-              const supplyExtraLabel = formatExpenseSupplyExtraBillingMarginNote(line, formatEuro);
+              const supplyExtraLabel = formatExpenseSupplyExtraBillingMarginNote(line, formatEuro, expenseQuoteContext);
               const customerCell =
-                customerQuoteBased && !extraBilling.extra_billing_allowed
+                linkedQuoteRequest && customerQuoteBased && !extraBilling.extra_billing_allowed
                   ? supplyExtraLabel
                     ? ` · <span class="muted">${esc(supplyExtraLabel)}</span>`
                     : ' · <span class="muted">kuuluu tarjoukseen</span>'
-                  : customerQuoteBased && extraBilling.extra_billing_allowed
+                  : linkedQuoteRequest && customerQuoteBased && extraBilling.extra_billing_allowed
                     ? customerMissing
                       ? ` · asiakas <span class="billing-price-missing">?</span>`
-                      : ` · asiakas ${qty} × ${formatEuro(customerUnit)} = ${formatEuro(customerTotal)}${supplyExtraLabel ? ` · <span class="muted">${esc(supplyExtraLabel)}</span>` : ''}`
+                      : ` · asiakas ${qty} × ${formatEuro(resolvedCustomerUnit)} = ${formatEuro(resolvedCustomerTotal)}${supplyExtraLabel ? ` · <span class="muted">${esc(supplyExtraLabel)}</span>` : ''}`
                   : customerMissing
                     ? ` · asiakas <span class="billing-price-missing">?</span>`
-                    : ` · asiakas ${qty} × ${formatEuro(customerUnit)} = ${formatEuro(customerTotal)}`;
+                    : ` · asiakas ${qty} × ${formatEuro(resolvedCustomerUnit)} = ${formatEuro(resolvedCustomerTotal)}`;
               return `<tr><td>${esc(label)}</td><td>${esc(descriptionForPrint)}</td><td class="num">${purchaseCell}${customerCell}${esc(partnerNote)}</td></tr>`;
             }
             const customerNote =
@@ -686,14 +691,14 @@ export function generateWorkReportPrintHtml(input: {
                   : '';
             return `<tr><td>${esc(label)}</td><td>${esc(descriptionForPrint)}</td><td class="num">${qty} × ${formatEuro(unit)} = ${formatEuro(total)}${esc(partnerNote)}${esc(customerNote)}</td></tr>`;
           }
-          if (showCustomerExpensePrices && expenseIncludedInCustomerInvoice(line)) {
-            const billedUnit = resolveExpenseCustomerUnitPrice(line);
+          if (showCustomerExpensePrices && expenseIncludedInCustomerInvoice(line, expenseQuoteContext)) {
+            const billedUnit = resolveExpenseCustomerUnitPrice(line, expenseQuoteContext);
             const billedTotal = expenseLineTotal({ ...line, unit_price: billedUnit });
-            const priceMissing = expenseCustomerPriceMissing(line);
+            const priceMissing = expenseCustomerPriceMissing(line, expenseQuoteContext);
             const priceCell = priceMissing
               ? `${qty} · <span class="billing-price-missing">?</span>`
               : `${qty} × ${formatEuro(billedUnit)} = ${formatEuro(billedTotal)}`;
-            const extraBillingCustomerNote = expenseApprovedExtraBillingCustomerPrintLabel(line);
+            const extraBillingCustomerNote = expenseApprovedExtraBillingCustomerPrintLabel(line, expenseQuoteContext);
             const descriptionCell = extraBillingCustomerNote
               ? `${esc(descriptionForPrint)} <span class="muted">· ${esc(extraBillingCustomerNote)}</span>`
               : esc(descriptionForPrint);

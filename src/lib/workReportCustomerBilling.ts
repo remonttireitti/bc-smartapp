@@ -54,12 +54,18 @@ function resolveCustomerHourUnitPrice(
   return 0;
 }
 
-function customerExpenseUnitPrice(line: NonNullable<WorkReportDailyLog['expense_lines']>[number]): number {
-  return resolveExpenseCustomerUnitPrice(line);
+function customerExpenseUnitPrice(
+  line: NonNullable<WorkReportDailyLog['expense_lines']>[number],
+  context?: { linkedQuoteRequest?: boolean },
+): number {
+  return resolveExpenseCustomerUnitPrice(line, context);
 }
 
-function customerExpensePriceMissing(line: NonNullable<WorkReportDailyLog['expense_lines']>[number]): boolean {
-  return expenseCustomerPriceMissing(line);
+function customerExpensePriceMissing(
+  line: NonNullable<WorkReportDailyLog['expense_lines']>[number],
+  context?: { linkedQuoteRequest?: boolean },
+): boolean {
+  return expenseCustomerPriceMissing(line, context);
 }
 
 function refrigerantCustomerPriceMissing(
@@ -105,8 +111,10 @@ export function calculateWorkReportCustomerBillable(input: {
   hourBillingMode?: HourBillingMode;
   overtimePolicy?: DailyOvertimePolicy;
   dailyOvertimeBilling?: Map<string, DailyOvertimeAllocation>;
+  linkedQuoteRequest?: boolean;
 }): BillableCalculation {
   const rates = { ...DEFAULT_RATES, ...input.rates };
+  const expenseQuoteContext = { linkedQuoteRequest: input.linkedQuoteRequest === true };
   const hourBillingMode = input.hourBillingMode ?? 'manual';
   const overtimePolicy = input.overtimePolicy ?? DEFAULT_DAILY_OVERTIME_POLICY;
   const dailyOvertimeBilling = input.dailyOvertimeBilling ?? new Map();
@@ -185,9 +193,9 @@ export function calculateWorkReportCustomerBillable(input: {
     }
 
     for (const expense of log.expense_lines ?? []) {
-      if (!expenseIncludedInCustomerInvoice(expense)) continue;
-      const unitPrice = customerExpenseUnitPrice(expense);
-      const priceMissing = customerExpensePriceMissing(expense);
+      if (!expenseIncludedInCustomerInvoice(expense, expenseQuoteContext)) continue;
+      const unitPrice = customerExpenseUnitPrice(expense, expenseQuoteContext);
+      const priceMissing = customerExpensePriceMissing(expense, expenseQuoteContext);
       const billed =
         expense.expense_type === 'km'
           ? tripKmExpenseBillingLine({

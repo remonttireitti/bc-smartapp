@@ -40,6 +40,7 @@ import { calculateWorkReportBillable, mergePartnerExtraBillingFromDailyLogs } fr
 assert.equal(DEFAULT_SUPPLY_MARGIN_PERCENT, 80);
 assert.equal(computeSupplyCustomerUnitPrice(100, 80), 180);
 assert.equal(computeSupplyCustomerUnitPrice(342.62, 80), 616.72);
+const quoteLinkedContext = { linkedQuoteRequest: true };
 assert.equal(
   expenseSupplyExtraBillingLabel({
     bill_to_partner: false,
@@ -47,24 +48,42 @@ assert.equal(
     extra_billable: false,
     extra_billing_allowed: false,
   }),
+  null,
+);
+assert.equal(
+  expenseSupplyExtraBillingLabel(
+    {
+      bill_to_partner: false,
+      bill_to_customer: true,
+      extra_billable: false,
+      extra_billing_allowed: false,
+    },
+    quoteLinkedContext,
+  ),
   'kuuluu tarjoukseen · suora kulu',
 );
 assert.equal(
-  expenseSupplyExtraBillingLabel({
-    bill_to_partner: false,
-    bill_to_customer: true,
-    extra_billable: true,
-    extra_billing_allowed: false,
-  }),
+  expenseSupplyExtraBillingLabel(
+    {
+      bill_to_partner: false,
+      bill_to_customer: true,
+      extra_billable: true,
+      extra_billing_allowed: false,
+    },
+    quoteLinkedContext,
+  ),
   'lisälaskutettavissa · ei lupaa',
 );
 assert.equal(
-  expenseSupplyExtraBillingLabel({
-    bill_to_partner: false,
-    bill_to_customer: true,
-    extra_billable: true,
-    extra_billing_allowed: true,
-  }),
+  expenseSupplyExtraBillingLabel(
+    {
+      bill_to_partner: false,
+      bill_to_customer: true,
+      extra_billable: true,
+      extra_billing_allowed: true,
+    },
+    quoteLinkedContext,
+  ),
   'Lisälaskutettava',
 );
 
@@ -77,7 +96,7 @@ const pendingSupply = {
   extra_billing_allowed: false,
   customer_margin_percent: 80,
 };
-const pendingImpact = expenseSupplyExtraBillingMarginImpact(pendingSupply);
+const pendingImpact = expenseSupplyExtraBillingMarginImpact(pendingSupply, quoteLinkedContext);
 assert.equal(pendingImpact?.currentMarginImpactNet, -50);
 assert.equal(pendingImpact?.marginIfApprovedNet, 40);
 
@@ -86,16 +105,16 @@ const approvedSupply = {
   extra_billing_allowed: true,
   customer_unit_price: 90,
 };
-const approvedImpact = expenseSupplyExtraBillingMarginImpact(approvedSupply);
+const approvedImpact = expenseSupplyExtraBillingMarginImpact(approvedSupply, quoteLinkedContext);
 assert.equal(approvedImpact?.currentMarginImpactNet, 40);
 assert.equal(approvedImpact?.marginIfApprovedNet, 40);
 
 assert.match(
-  formatExpenseSupplyExtraBillingMarginNote(pendingSupply, (v) => `${v}€`),
+  formatExpenseSupplyExtraBillingMarginNote(pendingSupply, (v) => `${v}€`, quoteLinkedContext),
   /jos lupa: \+ 40€ kate/,
 );
 assert.match(
-  formatExpenseSupplyExtraBillingMarginNote(approvedSupply, (v) => `${v}€`),
+  formatExpenseSupplyExtraBillingMarginNote(approvedSupply, (v) => `${v}€`, quoteLinkedContext),
   /Lisälaskutettava · kate \+ 40€/,
 );
 assert.equal(expenseExtraBillable({ extra_billable: true, extra_billing_allowed: false }), true);
@@ -110,10 +129,13 @@ assert.equal(
   false,
 );
 assert.equal(
-  expenseApprovedExtraBillingCustomerPrintLabel({
-    extra_billable: true,
-    extra_billing_allowed: true,
-  }),
+  expenseApprovedExtraBillingCustomerPrintLabel(
+    {
+      extra_billable: true,
+      extra_billing_allowed: true,
+    },
+    quoteLinkedContext,
+  ),
   'Sovitusti laskutettu lisänä',
 );
 assert.equal(
@@ -124,7 +146,23 @@ assert.equal(
   null,
 );
 
-const pendingPiikki = syncSupplyExpenseCustomerPrice({
+const pendingPiikkiLinked = syncSupplyExpenseCustomerPrice(
+  {
+    bill_to_partner: false,
+    bill_to_customer: true,
+    unit_price: '50',
+    customer_unit_price: '90',
+    extra_billable: true,
+    extra_billing_allowed: false,
+    customer_margin_percent: '80',
+  },
+  quoteLinkedContext,
+);
+assert.equal(resolveExpenseBillingMode(pendingPiikkiLinked), 'customer_only');
+assert.equal(pendingPiikkiLinked.bill_to_customer, true);
+assert.equal(pendingPiikkiLinked.customer_unit_price, '');
+
+const pendingPiikkiUnlinked = syncSupplyExpenseCustomerPrice({
   bill_to_partner: false,
   bill_to_customer: true,
   unit_price: '50',
@@ -133,9 +171,7 @@ const pendingPiikki = syncSupplyExpenseCustomerPrice({
   extra_billing_allowed: false,
   customer_margin_percent: '80',
 });
-assert.equal(resolveExpenseBillingMode(pendingPiikki), 'customer_only');
-assert.equal(pendingPiikki.bill_to_customer, true);
-assert.equal(pendingPiikki.customer_unit_price, '');
+assert.equal(pendingPiikkiUnlinked.customer_unit_price, '90');
 
 const logs = [
   {
