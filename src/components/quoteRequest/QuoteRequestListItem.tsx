@@ -76,7 +76,7 @@ export function QuoteRequestListItem({ row, onDelete, deleteBusy = false }: Prop
           disabled={deleteBusy}
           onClick={onDelete}
         >
-          {deleteBusy ? 'Poistetaan…' : 'Poista luonnos'}
+          {deleteBusy ? 'Poistetaan…' : row.status === 'sent' ? 'Poista tarjous' : 'Poista luonnos'}
         </button>
       ) : null}
     </div>
