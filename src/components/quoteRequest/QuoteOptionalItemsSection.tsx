@@ -6,6 +6,9 @@ type Props = {
   form: QuoteRequestData;
   canEdit: boolean;
   onChange: (patch: Partial<QuoteRequestData>) => void;
+  title?: string;
+  hint?: string;
+  hideHeader?: boolean;
 };
 
 function patchItem(
@@ -16,16 +19,20 @@ function patchItem(
   return items.map((item) => (item.id === id ? { ...item, ...patch } : item));
 }
 
-export default function QuoteOptionalItemsSection({ form, canEdit, onChange }: Props) {
+export default function QuoteOptionalItemsSection({
+  form,
+  canEdit,
+  onChange,
+  title = 'Valinnaiset lisät',
+  hint = 'Optionaaliset lisätyöt ja -tarvikkeet. Näitä ei sisällytetä tarjouksen kokonaishintaan — ne esitetään erikseen tarpeen mukaan.',
+  hideHeader = false,
+}: Props) {
   const items = form.optionalItems ?? [];
 
   return (
-    <section className="form-section">
-      <h2>Valinnaiset lisät</h2>
-      <p className="muted">
-        Optionaaliset lisätyöt ja -tarvikkeet. Näitä <strong>ei</strong> sisällytetä tarjouksen
-        kokonaishintaan — ne esitetään erikseen tarpeen mukaan.
-      </p>
+    <section className={hideHeader ? 'quote-optional-items-section' : 'form-section'}>
+      {!hideHeader ? <h2>{title}</h2> : null}
+      <p className="muted">{hint}</p>
       {items.map((item, index) => (
         <div key={item.id} className="quote-line-row panel-inset">
           <div className="quote-line-head">

@@ -38,6 +38,14 @@ import {
 import type { QuoteLine, QuoteMaterial } from './types';
 import { quoteLineTotal } from './defaults';
 import { optionalItemsPrintHtml } from './optionalItemsPrint';
+import {
+  excludedFromQuotePrintHtml,
+  serviceOptionalItemsPrintHtml,
+} from './serviceQuotePrintExtras';
+import {
+  buildAggregatedServiceCategoryRows,
+  buildServiceWorkItemRows,
+} from './servicePrintRows';
 import type { QuoteRequestData } from './types';
 import type { BrandDeliveryFeeByCategoryMap } from '../../data/devicePricingShared';
 import {
@@ -184,11 +192,20 @@ function quotePrintStyles(): string {
     .task-section-header:first-child td {
       border-top: 1px solid #cbd5e1;
     }
-    .notes, .sitrep-wrap {
+    .notes, .sitrep-wrap, .quote-excluded-items-print, .quote-optional-items-print {
       margin-top: 12px;
       padding: 10px 12px;
       border-left: 3px solid #f97316;
       background: #f8fafc;
+    }
+    .quote-excluded-items-print ul,
+    .quote-optional-items-print ul {
+      margin: 6px 0 0;
+      padding-left: 1.2rem;
+    }
+    .quote-excluded-items-print li,
+    .quote-optional-items-print li {
+      margin: 2px 0;
     }
     .sitrep-title { font-weight: 700; margin-bottom: 6px; }
     .sitrep-meta { color: #64748b; font-size: 10px; margin-bottom: 8px; }
@@ -958,6 +975,36 @@ function buildServiceTaskPrintRows(
   mode: QuotePrintMode,
   quantitySettings?: QuoteCustomerPrintQuantitySettings,
 ): string {
+  if (mode === 'enduser') {
+    const workRows = buildServiceWorkItemRows(
+      data,
+      mode,
+      printWorkRow,
+      quantitySettings,
+      QUOTE_TABLE_COLSPAN,
+    );
+    const aggregatedRows = buildAggregatedServiceCategoryRows(
+      data,
+      mode,
+      printWorkRow,
+      printMaterialRow,
+      quantitySettings,
+    );
+
+    let manualDeviceRow = '';
+    if (!quoteUsesOfferedDeviceRows(data)) {
+      const deviceSell = resolveNonPumpDeviceSellNet(data);
+      if (deviceSell > 0.005) {
+        const qtyLabel =
+          formatQuoteDeviceQtyLabel(1, undefined, quantitySettings ?? DEFAULT_QUOTE_CUSTOMER_PRINT_QUANTITY_SETTINGS)
+          ?? '';
+        manualDeviceRow = printWorkRow(manualDevicePrintLabel(data), qtyLabel, deviceSell, deviceSell, mode);
+      }
+    }
+
+    return `${workRows}${aggregatedRows}${manualDeviceRow}`;
+  }
+
   const sections: string[] = [];
   let hasTaskContent = false;
   const laborPurchaseRate = Number(data.installationLaborPurchaseRate) || 0;
@@ -1056,7 +1103,8 @@ export function generateQuoteServicePrintHtml(input: {
   const internal = mode === 'creator' ? computeQuoteInternalTotals(data, input.feeMap ?? null) : null;
   const logo = meta.logoUrl || smartappFallbackLogoSvg(meta.companyName);
   const customerAddress = [customer.address, customer.city].filter(Boolean).join(', ');
-  const docTitle = QUOTE_TYPE_LABELS[data.type] || 'Tarjous';
+  const typeLabel = QUOTE_TYPE_LABELS[data.type] || 'Tarjous';
+  const docTitle = data.introText.trim() || typeLabel;
   const vatRate = Number(data.vatRate) || 0;
   const totalRowLabel = quoteTotalRowLabel(vatRate);
 
@@ -1065,16 +1113,16 @@ export function generateQuoteServicePrintHtml(input: {
   const deviceLabel = [data.deviceBrand, data.deviceModel].filter(Boolean).join(' ').trim();
   const deviceBox = deviceLabel
     ? `<section class="device-box">
-        <strong>Huollettava laite</strong>
+        <strong>Laite (laitteet)</strong>
         <div>${esc(deviceLabel)}</div>
-        ${data.faultDescription.trim() ? `<div class="line-sub">${esc(data.faultDescription).replace(/\n/g, '<br />')}</div>` : ''}
       </section>`
-    : data.faultDescription.trim()
-      ? `<section class="device-box">
-          <strong>Työnkuvaus</strong>
-          <div>${esc(data.faultDescription).replace(/\n/g, '<br />')}</div>
-        </section>`
-      : '';
+    : '';
+  const taskDescriptionBox = data.faultDescription.trim()
+    ? `<section class="device-box">
+        <strong>Työnkuvaus</strong>
+        <div>${esc(data.faultDescription).replace(/\n/g, '<br />')}</div>
+      </section>`
+    : '';
 
   const tableBody = workRows || '';
   return `<!DOCTYPE html>
@@ -1113,7 +1161,7 @@ export function generateQuoteServicePrintHtml(input: {
 
     ${deviceBox}
 
-    ${data.introText.trim() ? `<p class="intro">${esc(data.introText).replace(/\n/g, '<br />')}</p>` : ''}
+    ${taskDescriptionBox}
 
     ${buildSituationReportHtml(data)}
 
@@ -1130,6 +1178,9 @@ export function generateQuoteServicePrintHtml(input: {
     </table>
 
     ${mode === 'creator' && internal ? quoteCreatorMutualBillingBox(internal, totalRowLabel) : ''}
+
+    ${mode === 'enduser' ? excludedFromQuotePrintHtml(data) : ''}
+    ${mode === 'enduser' ? serviceOptionalItemsPrintHtml(data) : ''}
 
     ${data.notes.trim() ? `<div class="notes"><strong>Huomautukset</strong><div>${esc(data.notes).replace(/\n/g, '<br />')}</div></div>` : ''}
 

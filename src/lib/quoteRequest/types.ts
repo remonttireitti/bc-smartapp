@@ -62,6 +62,12 @@ export type QuoteOptionalItem = {
   enabled: boolean;
 };
 
+/** Tulosteen pisteluettelo (ei kuulu tarjoukseen jne.). */
+export type QuoteBulletItem = {
+  id: string;
+  text: string;
+};
+
 export type QuoteRequestData = {
   type: QuoteType;
   /** Yritys (alv 0) tai yksityishenkilö (alv 25,5). */
@@ -166,6 +172,8 @@ export type QuoteRequestData = {
   iilpDeviceSelectionNote: string;
   /** Valinnaiset lisät (eivät kokonaishinnassa). */
   optionalItems: QuoteOptionalItem[];
+  /** Kohdat jotka eivät kuulu tarjoukseen (tulosteen pisteluettelo). */
+  excludedFromQuoteItems: QuoteBulletItem[];
   /** IILP: sisäyksikön sijainti (tuloste). */
   iilpIndoorPlacement: string;
   /** IILP: ulkoyksikön sijainti (tuloste). */

@@ -2,6 +2,8 @@ import type { ReactNode } from 'react';
 import ToggleSwitch from '../ToggleSwitch';
 import QuoteDocumentSectionView from './QuoteDocumentSectionView';
 import QuoteIilpSiteSection from './QuoteIilpSiteSection';
+import QuoteBulletListSection from './QuoteBulletListSection';
+import QuoteOptionalItemsSection from './QuoteOptionalItemsSection';
 import QuoteTermsPrintSection from './QuoteTermsPrintSection';
 import QuoteVilpSiteSection from './QuoteVilpSiteSection';
 import { isRepairQuoteType } from '../../lib/quoteRequest/constants';
@@ -25,13 +27,19 @@ export default function QuoteKohdeDocumentView({ form, canEdit, onChange }: Prop
       case 'tyoraportti-otsikko':
         return (
           <label>
-            Otsikko (tuloste / tiedostonimi)
+            {isRepairQuoteType(form.type)
+              ? 'Tarjouksen otsikko (tuloste ja työraportti)'
+              : 'Otsikko (tuloste / tiedostonimi)'}
             <input
               type="text"
               value={form.introText}
               onChange={(e) => onChange({ introText: e.target.value })}
               disabled={!canEdit}
-              placeholder="Esim. ILK 22A korjaukset"
+              placeholder={
+                isRepairQuoteType(form.type)
+                  ? 'Esim. Ilmalämpöpumpun huolto'
+                  : 'Esim. ILK 22A korjaukset'
+              }
             />
           </label>
         );
@@ -61,24 +69,48 @@ export default function QuoteKohdeDocumentView({ form, canEdit, onChange }: Prop
         return (
           <div className="line-form-grid">
             <label>
-              Huollettavan laitteen merkki
+              Laitteen merkki
               <input
                 value={form.deviceBrand}
                 onChange={(e) => onChange({ deviceBrand: e.target.value })}
                 disabled={!canEdit}
-                placeholder="Esim. vanhan yksikön merkki"
+                placeholder="Esim. Inventor"
               />
             </label>
             <label>
-              Huollettavan laitteen malli
+              Laitteen malli
               <input
                 value={form.deviceModel}
                 onChange={(e) => onChange({ deviceModel: e.target.value })}
                 disabled={!canEdit}
-                placeholder="Esim. vanhan yksikön malli / tunniste"
+                placeholder="Esim. LHUVI-12WFI"
               />
             </label>
           </div>
+        );
+      case 'huolto-ei-kuulu':
+        return (
+          <QuoteBulletListSection
+            title="Ei kuulu tarjoukseen"
+            hint="Kirjaa kohdat jotka eivät sisälly tarjouksen hintaan. Näkyvät asiakastulosteessa pisteluettelona hintatietojen jälkeen."
+            items={form.excludedFromQuoteItems ?? []}
+            canEdit={canEdit}
+            addLabel="+ Lisää kohta"
+            placeholder="Esim. Öljyn poisto ja hävitys"
+            hideHeader
+            onChange={(items) => onChange({ excludedFromQuoteItems: items })}
+          />
+        );
+      case 'huolto-lisavalinnat':
+        return (
+          <QuoteOptionalItemsSection
+            form={form}
+            canEdit={canEdit}
+            onChange={onChange}
+            hideHeader
+            title="Tilattavissa lisänä"
+            hint="Lisätyöt tai -tarvikkeet joita asiakas voi tilata tarjouksen päälle. Hinnat näkyvät tulosteessa erillisenä pisteluettelona."
+          />
         );
       case 'huolto-tilanne':
         return (

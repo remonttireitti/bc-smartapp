@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { buildWorkReportTitle } from '../../types';
 import type { SubscriberPortalVisibility } from '../subscriberPortalVisibility';
 import { billingQuoteFromQuoteRow, saveBillingQuoteSettings } from '../workReportBillingQuote';
+import { isRepairQuoteType } from './constants';
 import { normalizeQuoteRequestData } from './defaults';
 import type { QuoteRequestData } from './types';
 
@@ -41,9 +42,13 @@ export function buildWorkReportPayloadFromQuote(input: {
   sessionUserId: string;
 }) {
   const customerName = input.customer?.name?.trim() ?? '';
+  const normalized = normalizeQuoteRequestData(input.quote.data);
   const heading = buildWorkReportHeadingFromQuote(input.quote.data);
   const description = buildWorkReportDescriptionFromQuote(input.quote.data);
-  const title = buildWorkReportTitle(customerName, heading || description || input.quote.title);
+  const title =
+    isRepairQuoteType(normalized.type) && heading
+      ? heading
+      : buildWorkReportTitle(customerName, heading || description || input.quote.title);
 
   return {
     title,
