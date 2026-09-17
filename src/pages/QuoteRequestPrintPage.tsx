@@ -5,6 +5,7 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import type { Session } from '@supabase/supabase-js';
 
 import AppLayout from '../components/AppLayout';
+import CustomerPrintQuantitySettingsPopup from '../components/CustomerPrintQuantitySettingsPopup';
 import QuoteCustomerPrintSettingsPanel from '../components/QuoteCustomerPrintSettingsPanel';
 import IconButton from '../components/IconButton';
 import { IconBack } from '../components/icons';
@@ -656,16 +657,17 @@ export default function QuoteRequestPrintPage({ session }: Props) {
 
         )}
 
-      </section>
+        {printDocument === 'offer' && printMode === 'enduser' ? (
+          <CustomerPrintQuantitySettingsPopup quantitiesEnabled={quantitySettings.showQuantities}>
+            <QuoteCustomerPrintSettingsPanel
+              inDialog
+              settings={quantitySettings}
+              onChange={updateQuantitySettings}
+            />
+          </CustomerPrintQuantitySettingsPopup>
+        ) : null}
 
-      {printDocument === 'offer' && printMode === 'enduser' ? (
-        <div className="no-print work-report-customer-print-settings-wrap">
-          <QuoteCustomerPrintSettingsPanel
-            settings={quantitySettings}
-            onChange={updateQuantitySettings}
-          />
-        </div>
-      ) : null}
+      </section>
 
       <section className="panel print-preview-shell">
         {(termatekHtmlLoading && useTermatekTemplate) || (lampokatsastusHtmlLoading && useLampokatsastusTemplate) ? (

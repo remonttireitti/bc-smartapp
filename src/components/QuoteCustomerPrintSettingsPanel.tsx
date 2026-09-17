@@ -9,6 +9,7 @@ import type { CustomerPrintQuantityUnit } from '../lib/workReportCustomerPrintSe
 type Props = {
   settings: QuoteCustomerPrintQuantitySettings;
   onChange: (settings: QuoteCustomerPrintQuantitySettings) => void;
+  inDialog?: boolean;
 };
 
 const KIND_ROWS: Array<{ kind: QuoteMaterialRowKind; label: string }> = [
@@ -18,7 +19,7 @@ const KIND_ROWS: Array<{ kind: QuoteMaterialRowKind; label: string }> = [
   { kind: 'device', label: 'Laitteet' },
 ];
 
-export default function QuoteCustomerPrintSettingsPanel({ settings, onChange }: Props) {
+export default function QuoteCustomerPrintSettingsPanel({ settings, onChange, inDialog = false }: Props) {
   function patch(patch: Partial<QuoteCustomerPrintQuantitySettings>) {
     onChange({ ...settings, ...patch });
   }
@@ -43,12 +44,22 @@ export default function QuoteCustomerPrintSettingsPanel({ settings, onChange }: 
   }
 
   return (
-    <div className="work-report-customer-print-settings panel-inset">
-      <h3 className="work-report-customer-print-settings-title">Asiakastulosteen määrät</h3>
-      <p className="muted work-report-customer-print-settings-hint">
-        Valitse näytetäänkö määrät ja millä yksiköillä (h, kpl, kg, erä, urakka…). Rivikohtainen yksikkö
-        määritellään tarjouksen riveillä.
-      </p>
+    <div className={`work-report-customer-print-settings${inDialog ? '' : ' panel-inset'}`}>
+      {inDialog ? null : (
+        <>
+          <h3 className="work-report-customer-print-settings-title">Asiakastulosteen määrät</h3>
+          <p className="muted work-report-customer-print-settings-hint">
+            Valitse näytetäänkö määrät ja millä yksiköillä (h, kpl, kg, erä, urakka…). Rivikohtainen yksikkö
+            määritellään tarjouksen riveillä.
+          </p>
+        </>
+      )}
+      {inDialog ? (
+        <p className="muted work-report-customer-print-settings-hint">
+          Valitse näytetäänkö määrät ja millä yksiköillä (h, kpl, kg, erä, urakka…). Rivikohtainen yksikkö
+          määritellään tarjouksen riveillä.
+        </p>
+      ) : null}
       <div className="toggle-grid">
         <ToggleSwitch
           label="Näytä määrät tulosteessa"

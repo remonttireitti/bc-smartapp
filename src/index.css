@@ -8177,6 +8177,29 @@ button.tile.maintenance-report-document-tile {
   margin-bottom: 1rem;
 }
 
+.customer-print-qty-popup-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.customer-print-qty-popup-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  background: #dcfce7;
+  color: #166534;
+  font-size: 0.72rem;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.customer-print-qty-popup-badge--off {
+  background: #f1f5f9;
+  color: #64748b;
+}
+
 .work-report-customer-print-settings {
   padding: 1rem;
 }
