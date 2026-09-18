@@ -60,7 +60,6 @@ import {
 import {
   buildLampokatsastusQuoteFooterHtml,
   buildLampokatsastusQuoteHeaderHtml,
-  buildLampokatsastusQuoteTaglineHtml,
   isLampokatsastusCompanyName,
   lampokatsastusBrandingStyles,
   LAMPOKATSASTUS_OFFER_TERMS_BODY,
@@ -228,11 +227,13 @@ function quotePrintStyles(): string {
       break-inside: avoid;
       page-break-inside: avoid;
     }
+    .notes ul,
     .quote-excluded-items-print ul,
     .quote-optional-items-print ul {
       margin: 6px 0 0;
       padding-left: 1.2rem;
     }
+    .notes li,
     .quote-excluded-items-print li,
     .quote-optional-items-print li {
       margin: 2px 0;
@@ -778,12 +779,36 @@ function renderQuotePrintEndBlock(
   if (mode !== 'enduser') {
     return renderQuotePrintTermsFooter(meta, kind);
   }
-  const tagline = isLampokatsastusCompanyName(meta.companyName)
-    ? buildLampokatsastusQuoteTaglineHtml({ esc })
-    : '';
+  // Lämpökatsastus: footer belongs on page 2 (rendered separately).
+  if (isLampokatsastusCompanyName(meta.companyName)) {
+    return quoteClosingPrintHtml(meta);
+  }
   return `<div class="quote-print-end-block">
     ${quoteClosingPrintHtml(meta)}
-    ${tagline}
+    ${renderQuotePrintTermsFooter(meta, kind)}
+  </div>`;
+}
+
+function quoteNotesPrintHtml(notes: string): string {
+  const lines = notes
+    .split(/\n+/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  if (!lines.length) return '';
+  return `<div class="notes"><strong>Huomautukset</strong><ul>${lines
+    .map((line) => `<li>${esc(line)}</li>`)
+    .join('')}</ul></div>`;
+}
+
+function renderLampokatsastusCustomerPage2(
+  meta: QuotePrintMeta,
+  kind: 'service' | 'offer',
+  extrasHtml: string,
+): string {
+  return `<div class="quote-print-page-2">
+    <div class="quote-print-page-2-body">
+      ${extrasHtml}
+    </div>
     ${renderQuotePrintTermsFooter(meta, kind)}
   </div>`;
 }
@@ -1005,13 +1030,25 @@ export function generateQuoteOfferPrintHtml(input: {
 
     ${optionCards ? `<section>${optionCards}</section>` : ''}
 
-    ${optionalItemsPrintHtml(data)}
-
-    ${data.notes.trim() ? `<div class="notes"><strong>Huomautukset</strong><div>${esc(data.notes).replace(/\n/g, '<br />')}</div></div>` : ''}
+    ${
+      mode === 'enduser' && isLampokatsastusCompanyName(meta.companyName)
+        ? ''
+        : `${optionalItemsPrintHtml(data)}${quoteNotesPrintHtml(data.notes)}`
+    }
 
     ${kotitalousHtml}
 
     ${renderQuotePrintEndBlock(meta, 'offer', mode)}
+
+    ${
+      mode === 'enduser' && isLampokatsastusCompanyName(meta.companyName)
+        ? renderLampokatsastusCustomerPage2(
+            meta,
+            'offer',
+            [optionalItemsPrintHtml(data), quoteNotesPrintHtml(data.notes)].join(''),
+          )
+        : ''
+    }
   </div>
 </body>
 </html>`;
@@ -1267,12 +1304,29 @@ export function generateQuoteServicePrintHtml(input: {
 
     ${mode === 'creator' && internal ? quoteCreatorMutualBillingBox(internal, totalRowLabel) : ''}
 
-    ${mode === 'enduser' ? excludedFromQuotePrintHtml(data) : ''}
+    ${
+      mode === 'enduser' && isLampokatsastusCompanyName(meta.companyName)
+        ? ''
+        : `${mode === 'enduser' ? excludedFromQuotePrintHtml(data) : ''}
     ${mode === 'enduser' ? serviceOptionalItemsPrintHtml(data) : ''}
-
-    ${data.notes.trim() ? `<div class="notes"><strong>Huomautukset</strong><div>${esc(data.notes).replace(/\n/g, '<br />')}</div></div>` : ''}
+    ${quoteNotesPrintHtml(data.notes)}`
+    }
 
     ${renderQuotePrintEndBlock(meta, 'service', mode)}
+
+    ${
+      mode === 'enduser' && isLampokatsastusCompanyName(meta.companyName)
+        ? renderLampokatsastusCustomerPage2(
+            meta,
+            'service',
+            [
+              excludedFromQuotePrintHtml(data),
+              serviceOptionalItemsPrintHtml(data),
+              quoteNotesPrintHtml(data.notes),
+            ].join(''),
+          )
+        : ''
+    }
   </div>
 </body>
 </html>`;

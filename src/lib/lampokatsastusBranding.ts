@@ -43,6 +43,10 @@ export function lampokatsastusBrandingStyles(): string {
     }
     .lk-header--quote .lk-header-top {
       grid-template-columns: 1fr;
+      justify-items: center;
+    }
+    .lk-header--quote .lk-logo img {
+      margin: 0 auto;
     }
     .lk-logo img {
       max-height: 56px;
@@ -64,19 +68,25 @@ export function lampokatsastusBrandingStyles(): string {
       margin-bottom: 4px;
     }
     .lk-tagline {
-      margin: 0 0 12px;
-      padding: 8px 10px;
+      margin: 10px 0 0;
+      padding: 10px 14px;
       background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
       border-left: 4px solid #2f6aa8;
       border-radius: 0 8px 8px 0;
       color: #334155;
-      font-size: 9.5px;
-      line-height: 1.45;
+      font-size: 11.5px;
+      line-height: 1.5;
+      text-align: center;
       break-inside: avoid;
       page-break-inside: avoid;
     }
+    .lk-header--quote .lk-tagline {
+      border-left: none;
+      border-radius: 8px;
+      border-top: 3px solid #2f6aa8;
+    }
     .lk-footer {
-      margin-top: 12px;
+      margin-top: auto;
       padding-top: 10px;
       border-top: 1px solid #cbd5e1;
       display: grid;
@@ -101,9 +111,24 @@ export function lampokatsastusBrandingStyles(): string {
       font-size: 11px;
       margin-bottom: 2px;
     }
+    .quote-print-page-2 {
+      page-break-before: always;
+      break-before: page;
+      min-height: calc(297mm - 24mm);
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .quote-print-page-2-body {
+      flex: 1 1 auto;
+    }
     .lk-header-work-report .lk-tagline {
       margin-top: 12px;
-      margin-bottom: 0;
+      text-align: left;
+      border-left: 4px solid #2f6aa8;
+      border-top: none;
+      border-radius: 0 8px 8px 0;
+      font-size: 9.5px;
     }
     .lk-header-work-report .lk-work-title-row {
       display: grid;
@@ -161,6 +186,7 @@ export function buildLampokatsastusQuoteHeaderHtml(
     <div class="lk-header-top">
       <div class="lk-logo"><img src="${helpers.attrUrl(helpers.logoSrc)}" alt="${helpers.esc(meta.companyName)}" /></div>
     </div>
+    <p class="lk-tagline">${helpers.esc(LAMPOKATSASTUS_MARKETING_TAGLINE)}</p>
   </header>`;
 }
 
