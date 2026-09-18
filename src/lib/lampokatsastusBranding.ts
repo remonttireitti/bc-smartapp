@@ -86,7 +86,7 @@ export function lampokatsastusBrandingStyles(): string {
       border-top: 3px solid #2f6aa8;
     }
     .lk-footer {
-      margin-top: auto;
+      margin-top: 14px;
       padding-top: 10px;
       border-top: 1px solid #cbd5e1;
       display: grid;
@@ -98,12 +98,37 @@ export function lampokatsastusBrandingStyles(): string {
       line-height: 1.45;
       break-inside: avoid;
       page-break-inside: avoid;
+      width: 100%;
     }
     .lk-footer--contact-only {
       grid-template-columns: 1fr;
+      margin-top: 16px;
+      padding: 12px 8px 0;
+      border-top: 2px solid #c62828;
+      gap: 0;
     }
     .lk-footer--contact-only .lk-footer-contact {
       text-align: center;
+      font-size: 10px;
+      line-height: 1.55;
+      color: #334155;
+    }
+    .lk-footer--contact-only .lk-footer-contact .lk-company-name {
+      display: block;
+      font-size: 12px;
+      color: #1e3a5f;
+      margin-bottom: 4px;
+    }
+    .lk-footer--contact-only .lk-footer-lines {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 2px 10px;
+    }
+    .lk-footer--contact-only .lk-footer-lines > span:not(:last-child)::after {
+      content: "·";
+      margin-left: 10px;
+      color: #94a3b8;
     }
     .lk-footer-terms-title {
       font-weight: 700;
@@ -127,6 +152,10 @@ export function lampokatsastusBrandingStyles(): string {
     }
     .quote-print-page-2-body {
       flex: 1 1 auto;
+    }
+    /* Tarjouksen sivu 2: ehdot+yhteystiedot sivun alareunaan. Työraportissa EI autoa. */
+    .quote-print-page-2 > .lk-footer {
+      margin-top: auto;
     }
     .lk-work-title-row {
       display: grid;
@@ -232,16 +261,20 @@ export const LAMPOKATSASTUS_WORK_REPORT_TERMS_TITLE_SUFFIX = 'Huolto- ja työehd
 export const LAMPOKATSASTUS_WORK_REPORT_TERMS_BODY =
   'Työ suoritetaan alan hyvän työtavan mukaisesti. Raportti kuvaa suoritetut työt ja käytetyt materiaalit. Lisätyöt ja odottamattomat vauriot sovitaan erikseen ennen jatkotoimenpiteitä.';
 
-/** Yritystiedot footerissa — sama rakenne kuin tarjoustulosteessa. */
+/** Yritystiedot keskitettynä footerissa — ei erillistä ehtolaatikkoa (ei orpoa sivua). */
 export function buildLampokatsastusWorkReportFooterHtml(
   meta: LampokatsastusContactMeta,
   helpers: {
     esc: (value: unknown) => string;
   },
 ): string {
-  return buildLampokatsastusQuoteFooterHtml(meta, {
-    esc: helpers.esc,
-    termsTitleSuffix: LAMPOKATSASTUS_WORK_REPORT_TERMS_TITLE_SUFFIX,
-    termsBody: LAMPOKATSASTUS_WORK_REPORT_TERMS_BODY,
-  });
+  const lines = lampokatsastusContactLines(meta.settings);
+  return `<footer class="lk-footer lk-footer--contact-only">
+    <div class="lk-footer-contact">
+      <strong class="lk-company-name">${helpers.esc(meta.companyName)}</strong>
+      <div class="lk-footer-lines">
+        ${lines.map((line) => `<span>${helpers.esc(line)}</span>`).join('')}
+      </div>
+    </div>
+  </footer>`;
 }

@@ -129,10 +129,12 @@ const workFooter = buildLampokatsastusWorkReportFooterHtml(
   { companyName: 'Lämpökatsastus Oy', settings },
   { esc },
 );
-assert.match(workFooter, /lk-footer/);
+assert.match(workFooter, /lk-footer--contact-only/);
 assert.match(workFooter, /Kuismatie 120/);
 assert.match(workFooter, /01390 Vantaa/);
 assert.match(workFooter, /info@lampokatsastus\.fi/);
+assert.doesNotMatch(workFooter, /Huolto- ja työehdot/);
+assert.doesNotMatch(workFooter, /lk-footer-terms/);
 
 const workHtml = generateWorkReportPrintHtml({
   report: {
@@ -160,11 +162,15 @@ const workHtml = generateWorkReportPrintHtml({
 assert.match(workHtml, /lk-header--quote/);
 assert.match(workHtml, /lk-tagline/);
 assert.ok(workHtml.includes(LAMPOKATSASTUS_MARKETING_TAGLINE));
-assert.match(workHtml, /lk-footer/);
+assert.match(workHtml, /lk-footer--contact-only/);
 assert.match(workHtml, /Kuismatie 120/);
 assert.match(workHtml, /text-align:\s*center/);
 assert.doesNotMatch(workHtml, /class="footer"/);
 assert.doesNotMatch(workHtml, /class="lk-contact"/);
+assert.doesNotMatch(workHtml, /Huolto- ja työehdot/);
+assert.match(workHtml, /\.work-report-print\s*>\s*\.lk-footer[\s\S]*?page-break-before:\s*avoid/);
+assert.doesNotMatch(workHtml, /\.work-report-print\s*\{[^}]*min-height/);
+assert.doesNotMatch(workHtml, /\.work-report-print\s*>\s*\.lk-footer\s*\{[^}]*margin-top:\s*auto/);
 
 // Brand header must come before summary print-box (not trapped inside it).
 const brandHeaderIdx = workHtml.indexOf('lk-header--quote');

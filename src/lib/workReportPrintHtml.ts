@@ -1180,13 +1180,11 @@ const PRINT_CSS = `
   }
   .work-report-print {
     padding: 0;
-    min-height: calc(297mm - 20mm);
-    display: flex;
-    flex-direction: column;
-    gap: 0;
   }
   .work-report-print > .lk-footer {
-    margin-top: auto;
+    /* Keep footer with preceding content; do not force a lone page-2 orphan. */
+    break-before: avoid-page;
+    page-break-before: avoid;
   }
   .print-box {
     border: 1px solid var(--border-strong);
