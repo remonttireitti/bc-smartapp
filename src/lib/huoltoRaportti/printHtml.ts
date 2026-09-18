@@ -620,12 +620,16 @@ function renderLampopumppuSections(data: HuoltoReportData): string {
         const inner = [
           row('Imupaine jäähdytys (bar)', m.imupaineJaahdytys, '#00838F'),
           row('Korkeapaine jäähdytys (bar)', m.korkeapaineJaahdytys, '#00838F'),
+          row('Sisälämpötila jäähdytys (°C)', m.sisalampotilaJaahdytys ?? m.sisalampotila, '#00838F'),
+          row('Paluu jäähdytys (°C)', m.paluuLampotilaJaahdytys ?? m.paluuLampotila, '#00838F'),
+          row('Puhallus jäähdytys (°C)', m.puhallusLampotilaJaahdytys ?? m.puhallusLampotila, '#00838F'),
+          row('Ilmanmäärä jäähdytys (m³/h)', m.ilmanmaaraM3hJaahdytys ?? m.ilmanmaaraM3h, '#00838F'),
           row('Imupaine lämmitys (bar)', m.imupaineLammitys, '#00838F'),
           row('Korkeapaine lämmitys (bar)', m.korkeapaineLammitys, '#00838F'),
-          row('Sisälämpötila (°C)', m.sisalampotila, '#00838F'),
-          row('Paluu (°C)', m.paluuLampotila, '#00838F'),
-          row('Puhallus (°C)', m.puhallusLampotila, '#00838F'),
-          row('Ilmanmäärä (m³/h)', m.ilmanmaaraM3h, '#00838F'),
+          row('Sisälämpötila lämmitys (°C)', m.sisalampotilaLammitys ?? m.sisalampotila, '#00838F'),
+          row('Paluu lämmitys (°C)', m.paluuLampotilaLammitys ?? m.paluuLampotila, '#00838F'),
+          row('Puhallus lämmitys (°C)', m.puhallusLampotilaLammitys ?? m.puhallusLampotila, '#00838F'),
+          row('Ilmanmäärä lämmitys (m³/h)', m.ilmanmaaraM3hLammitys ?? m.ilmanmaaraM3h, '#00838F'),
         ]
           .filter(Boolean)
           .join('');

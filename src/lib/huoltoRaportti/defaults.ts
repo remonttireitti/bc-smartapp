@@ -109,6 +109,14 @@ export function createEmptyMittausSisayksikkoData(): MittausSisayksikkoData {
     paluuLampotila: '',
     puhallusLampotila: '',
     ilmanmaaraM3h: '',
+    sisalampotilaJaahdytys: '',
+    paluuLampotilaJaahdytys: '',
+    puhallusLampotilaJaahdytys: '',
+    ilmanmaaraM3hJaahdytys: '',
+    sisalampotilaLammitys: '',
+    paluuLampotilaLammitys: '',
+    puhallusLampotilaLammitys: '',
+    ilmanmaaraM3hLammitys: '',
   };
 }
 
@@ -297,7 +305,27 @@ export function ensureMittausSisayksikkoData(
 ): MittausSisayksikkoData {
   const base = createEmptyMittausSisayksikkoData();
   if (!data) return base;
-  return { ...base, ...data };
+  const legacySisa = String(data.sisalampotila ?? '').trim();
+  const legacyPaluu = String(data.paluuLampotila ?? '').trim();
+  const legacyPuhallus = String(data.puhallusLampotila ?? '').trim();
+  const legacyIlma = String(data.ilmanmaaraM3h ?? '').trim();
+  return {
+    ...base,
+    ...data,
+    // Migrate shared legacy temps into lämmitys when mode-specific values are empty.
+    sisalampotilaJaahdytys: String(data.sisalampotilaJaahdytys ?? '').trim(),
+    paluuLampotilaJaahdytys: String(data.paluuLampotilaJaahdytys ?? '').trim(),
+    puhallusLampotilaJaahdytys: String(data.puhallusLampotilaJaahdytys ?? '').trim(),
+    ilmanmaaraM3hJaahdytys: String(data.ilmanmaaraM3hJaahdytys ?? '').trim(),
+    sisalampotilaLammitys: String(data.sisalampotilaLammitys ?? '').trim() || legacySisa,
+    paluuLampotilaLammitys: String(data.paluuLampotilaLammitys ?? '').trim() || legacyPaluu,
+    puhallusLampotilaLammitys: String(data.puhallusLampotilaLammitys ?? '').trim() || legacyPuhallus,
+    ilmanmaaraM3hLammitys: String(data.ilmanmaaraM3hLammitys ?? '').trim() || legacyIlma,
+    sisalampotila: legacySisa,
+    paluuLampotila: legacyPaluu,
+    puhallusLampotila: legacyPuhallus,
+    ilmanmaaraM3h: legacyIlma,
+  };
 }
 
 export function ensureNestelauhdutinUnit(data: Partial<NestelauhdutinUnitData> | undefined): NestelauhdutinUnitData {

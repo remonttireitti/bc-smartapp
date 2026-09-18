@@ -98,11 +98,34 @@ export type SisayksikkoTempOverlay = {
 
 export function sisayksikkoTempOverlay(
   unit: Pick<SisayksikkoData, 'huoneLampotila'>,
-  mittaus?: { sisalampotila?: string; puhallusLampotila?: string; paluuLampotila?: string },
+  mittaus?: {
+    sisalampotila?: string;
+    puhallusLampotila?: string;
+    paluuLampotila?: string;
+    sisalampotilaJaahdytys?: string;
+    paluuLampotilaJaahdytys?: string;
+    puhallusLampotilaJaahdytys?: string;
+    sisalampotilaLammitys?: string;
+    paluuLampotilaLammitys?: string;
+    puhallusLampotilaLammitys?: string;
+  },
 ): SisayksikkoTempOverlay {
-  const huone = formatKonvektoriLampotila(mittaus?.sisalampotila || unit.huoneLampotila);
-  const puhallus = formatKonvektoriLampotila(mittaus?.puhallusLampotila);
-  const paluu = formatKonvektoriLampotila(mittaus?.paluuLampotila);
+  const huone = formatKonvektoriLampotila(
+    mittaus?.sisalampotilaLammitys
+    || mittaus?.sisalampotilaJaahdytys
+    || mittaus?.sisalampotila
+    || unit.huoneLampotila,
+  );
+  const puhallus = formatKonvektoriLampotila(
+    mittaus?.puhallusLampotilaLammitys
+    || mittaus?.puhallusLampotilaJaahdytys
+    || mittaus?.puhallusLampotila,
+  );
+  const paluu = formatKonvektoriLampotila(
+    mittaus?.paluuLampotilaLammitys
+    || mittaus?.paluuLampotilaJaahdytys
+    || mittaus?.paluuLampotila,
+  );
   return {
     ...(huone ? { huone } : {}),
     ...(puhallus ? { puhallus } : {}),
