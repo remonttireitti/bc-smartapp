@@ -1,6 +1,7 @@
 import type { Equipment } from '../types';
 import { formatEquipmentOptionLabel } from '../lib/workReportEquipment';
 import EquipmentRegistryPicker, { type NewEquipmentDraft } from './EquipmentRegistryPicker';
+import ToggleSwitch from './ToggleSwitch';
 
 type Props = {
   label?: string;
@@ -22,7 +23,8 @@ export default function WorkReportEquipmentAssign({
   onCreate,
 }: Props) {
   const selectedSet = new Set(selectedIds);
-  const selectedEquipment = equipment.filter((entry) => selectedSet.has(entry.id));
+  const selectedCount = selectedIds.length;
+  const interactionLocked = Boolean(disabled || busy);
 
   function toggle(id: string, checked: boolean) {
     if (checked) {
@@ -46,19 +48,28 @@ export default function WorkReportEquipmentAssign({
       </p>
 
       {equipment.length > 0 ? (
-        <div className="work-report-equipment-assign-list">
+        <div className="work-report-equipment-assign-toggles" role="group" aria-label={label}>
           {equipment.map((entry) => {
             const checked = selectedSet.has(entry.id);
+            const optionLabel = formatEquipmentOptionLabel(entry);
+            const switchId = `work-report-equipment-${entry.id}`;
             return (
-              <label key={entry.id} className="work-report-equipment-assign-row">
-                <input
-                  type="checkbox"
+              <div
+                key={entry.id}
+                className={`work-report-equipment-assign-row${checked ? ' is-selected' : ''}`}
+              >
+                <label className="work-report-equipment-assign-name" htmlFor={switchId}>
+                  {optionLabel}
+                </label>
+                <ToggleSwitch
+                  id={switchId}
+                  label={optionLabel}
                   checked={checked}
-                  disabled={disabled || busy}
-                  onChange={(event) => toggle(entry.id, event.target.checked)}
+                  disabled={interactionLocked}
+                  onChange={(next) => toggle(entry.id, next)}
+                  className="work-report-equipment-assign-switch"
                 />
-                <span>{formatEquipmentOptionLabel(entry)}</span>
-              </label>
+              </div>
             );
           })}
         </div>
@@ -66,24 +77,13 @@ export default function WorkReportEquipmentAssign({
         <p className="muted">Asiakkaalla ei ole vielä laitteita rekisterissä.</p>
       )}
 
-      {selectedEquipment.length > 0 ? (
-        <div className="work-report-equipment-assign-chips">
-          {selectedEquipment.map((entry) => (
-            <button
-              key={entry.id}
-              type="button"
-              className="work-report-equipment-assign-chip"
-              disabled={disabled || busy}
-              onClick={() => toggle(entry.id, false)}
-              title="Poista kohdistus"
-            >
-              {formatEquipmentOptionLabel(entry)} ×
-            </button>
-          ))}
-        </div>
-      ) : (
-        <p className="muted">Ei kohdistettu mihinkään laitteeseen.</p>
-      )}
+      {equipment.length > 0 ? (
+        <p className="muted work-report-equipment-assign-summary">
+          {selectedCount > 0
+            ? `${selectedCount} ${selectedCount === 1 ? 'laite' : 'laitetta'} kohdistettu.`
+            : 'Ei kohdistettu mihinkään laitteeseen.'}
+        </p>
+      ) : null}
 
       {onCreate ? (
         <EquipmentRegistryPicker
