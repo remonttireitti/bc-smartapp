@@ -161,6 +161,7 @@ export function guardPrintTitle(title: string, printWindow?: Window | null): () 
 const PRINT_DOC_RESET_STYLE = `<style data-print-doc-reset>
 @media print {
   html, body { margin: 0 !important; padding: 0 !important; background: #fff !important; }
+  .no-print { display: none !important; }
 }
 </style>`;
 
