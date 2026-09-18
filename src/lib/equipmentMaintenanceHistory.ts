@@ -10,7 +10,44 @@ import {
   escapeHtmlPrint,
   type PrintBranding,
 } from './printDocumentShell';
+import { formatHuomioForPrint, looksLikeRichCommentHtml } from './richCommentHtml';
 import { isWorkReportEquipmentTableMissing } from './workReportEquipment';
+
+/** Strip rich-comment / HTML notes to plain text for compact history rows. */
+export function plainTextFromHuomioNotes(value: unknown): string {
+  const raw = String(value ?? '').trim();
+  if (!raw) return '';
+  if (!looksLikeRichCommentHtml(raw) && !/&lt;\/?[a-z]/i.test(raw)) {
+    return raw;
+  }
+  return raw
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/(?:p|div|li|tr|h[1-6])>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+function formatHistoryHuomiotHtml(notes: string): string {
+  const cleaned = plainTextFromHuomioNotes(notes);
+  if (!cleaned) return '';
+  // Prefer rich print when notes still contain safe markup and DOM is available.
+  if (typeof DOMParser !== 'undefined' && looksLikeRichCommentHtml(notes)) {
+    try {
+      return formatHuomioForPrint(notes, escapeHtmlPrint);
+    } catch {
+      // fall through to escaped plain text
+    }
+  }
+  return escapeHtmlPrint(cleaned).replace(/\n/g, '<br>');
+}
 
 export type MaintenanceHistoryEntry = {
   kind: 'työraportti' | 'huoltoraportti';
@@ -83,12 +120,14 @@ function equipmentLabel(eq: Equipment): string {
 
 function huoltoSummary(data: HuoltoReportData): { summary: string; huomiotHighlight?: string; huomiotComment?: string } {
   const summary = maintenanceReportListTitle(data);
-  const notes = String(data.huomiot || '').trim();
+  const rawNotes = String(data.huomiot || '').trim();
+  const notes = plainTextFromHuomioNotes(rawNotes) || rawNotes;
   const isFault = data.huomiotLuonne === 'vika';
   return {
     summary,
-    huomiotHighlight: isFault && notes ? notes : undefined,
-    huomiotComment: !isFault && notes ? notes : undefined,
+    // Keep original markup for print formatting; plainText is used as fallback.
+    huomiotHighlight: isFault && notes ? rawNotes : undefined,
+    huomiotComment: !isFault && notes ? rawNotes : undefined,
   };
 }
 
@@ -149,8 +188,15 @@ export async function loadCustomerMaintenanceContext(
       }
       for (const row of workRows) {
         const linked = byReport.get(row.id) ?? [];
-        if (row.equipment_id && !linked.includes(row.equipment_id)) linked.unshift(row.equipment_id);
-        row.equipment_ids = linked;
+        // Prefer junction rows when present; do not re-add a stale legacy FK
+        // that was intentionally removed from the multi-device link list.
+        if (linked.length > 0) {
+          row.equipment_ids = linked;
+        } else if (row.equipment_id) {
+          row.equipment_ids = [row.equipment_id];
+        } else {
+          row.equipment_ids = [];
+        }
       }
     }
   }
@@ -256,10 +302,10 @@ export function buildMaintenanceHistoryPrintHtml(input: {
           : sec.entries
               .map((entry) => {
                 const huomVika = entry.huomiotHighlight
-                  ? `<div style="margin-top:4px;color:#b91c1c;font-weight:700">Vika / huomio: ${escapeHtmlPrint(entry.huomiotHighlight)}</div>`
+                  ? `<div style="margin-top:4px;color:#b91c1c;font-weight:700">Vika / huomio: ${formatHistoryHuomiotHtml(entry.huomiotHighlight)}</div>`
                   : '';
                 const huomKom = entry.huomiotComment
-                  ? `<div style="margin-top:4px;color:#b91c1c;font-weight:700;font-size:12px">Huomautukset: ${escapeHtmlPrint(entry.huomiotComment)}</div>`
+                  ? `<div style="margin-top:4px;color:#b91c1c;font-weight:700;font-size:12px">Huomautukset: ${formatHistoryHuomiotHtml(entry.huomiotComment)}</div>`
                   : '';
                 return `<tr><td>${escapeHtmlPrint(entry.dateLabel)}</td><td>${escapeHtmlPrint(
                   entry.kind === 'työraportti' ? 'Työraportti' : 'Huoltopöytäkirja',

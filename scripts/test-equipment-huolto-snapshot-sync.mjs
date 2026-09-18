@@ -34,6 +34,15 @@ const reportData = {
 
 assert.equal(huoltoReportMatchesEquipment(reportData, equipment), true);
 
+assert.equal(
+  huoltoReportMatchesEquipment(
+    { ...reportData, laiteTunnus: 'muu', laiteSarjanumero: 'ei tiedossa' },
+    { ...equipment, serial_number: 'ei tiedossa' },
+  ),
+  false,
+  'placeholder serial "ei tiedossa" must not match across devices',
+);
+
 const patch = buildEquipmentUpdateFromHuoltoReport(reportData, equipment);
 assert.equal(patch.model, 'ABC');
 assert.equal(patch.location, 'Keittiö');
