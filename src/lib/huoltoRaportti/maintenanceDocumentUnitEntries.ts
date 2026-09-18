@@ -35,6 +35,7 @@ import {
   type LampopumppuDocumentUnitId,
 } from './lampopumppuDocumentHelpers';
 import { sisayksikkoTarkastusSummary } from './sisayksikkoTarkastus';
+import { resolveModuleTilePresentation } from './maintenanceModuleVisit';
 
 export type MaintenanceDocumentEntryKind =
   | 'tab'
@@ -265,6 +266,34 @@ export function documentEntryCompletion(
     return tabCompletion?.tyhjiointi ?? tyhjiointiTabCompletion(form.tyhjiointiData);
   }
   return tabCompletion?.[entry.tabId];
+}
+
+export type IncompleteMaintenanceModule = {
+  key: string;
+  title: string;
+  statusLabel: string;
+  tabId: string;
+};
+
+/** Puuttuvat / keskeneräiset dokumenttiruudut (sama lista kuin ruuduilla). */
+export function listIncompleteMaintenanceModules(
+  tabs: MaintenanceReportTabItem[],
+  form: HuoltoReportData,
+  tabCompletion?: Partial<Record<string, MaintenanceTabCompletionState>>,
+): IncompleteMaintenanceModule[] {
+  const incomplete: IncompleteMaintenanceModule[] = [];
+  for (const entry of buildMaintenanceDocumentEntries(tabs, form)) {
+    const completion = documentEntryCompletion(entry, form, tabCompletion);
+    if (completion === 'ok' || completion === 'attention') continue;
+    const presentation = resolveModuleTilePresentation(entry.tabId, form, completion);
+    incomplete.push({
+      key: entry.key,
+      title: entry.title,
+      statusLabel: presentation.subtitle,
+      tabId: entry.tabId,
+    });
+  }
+  return incomplete;
 }
 
 export function documentNavTargetTabId(tabId: string, form: HuoltoReportData): string {
