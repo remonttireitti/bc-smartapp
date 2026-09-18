@@ -16,16 +16,54 @@ export type MaintenanceReportForEquipmentSync = {
 
 const trim = (value: unknown) => String(value ?? '').trim();
 
+/** Placeholder / unknown values must not match across devices (e.g. "ei tiedossa"). */
+export function isUsableEquipmentIdentity(value: unknown): boolean {
+  const v = trim(value).toLowerCase();
+  if (!v) return false;
+  if (
+    v === 'ei tiedossa' ||
+    v === 'unknown' ||
+    v === 'n/a' ||
+    v === 'na' ||
+    v === '-' ||
+    v === '—' ||
+    v === '–'
+  ) {
+    return false;
+  }
+  return true;
+}
+
 export function huoltoReportMatchesEquipment(data: HuoltoReportData, eq: Equipment): boolean {
   const deviceTag = trim(eq.tag || eq.name);
   const deviceSerial = trim(eq.serial_number);
   const reportTag = trim(data.laiteTunnus);
   const reportSerial = trim(data.laiteSarjanumero);
 
-  if (deviceTag && reportTag && deviceTag === reportTag) return true;
-  if (deviceSerial && reportSerial && deviceSerial === reportSerial) return true;
-  if (deviceSerial && reportTag && deviceSerial === reportTag) return true;
-  if (deviceTag && reportSerial && deviceTag === reportSerial) return true;
+  if (isUsableEquipmentIdentity(deviceTag) && isUsableEquipmentIdentity(reportTag) && deviceTag === reportTag) {
+    return true;
+  }
+  if (
+    isUsableEquipmentIdentity(deviceSerial) &&
+    isUsableEquipmentIdentity(reportSerial) &&
+    deviceSerial === reportSerial
+  ) {
+    return true;
+  }
+  if (
+    isUsableEquipmentIdentity(deviceSerial) &&
+    isUsableEquipmentIdentity(reportTag) &&
+    deviceSerial === reportTag
+  ) {
+    return true;
+  }
+  if (
+    isUsableEquipmentIdentity(deviceTag) &&
+    isUsableEquipmentIdentity(reportSerial) &&
+    deviceTag === reportSerial
+  ) {
+    return true;
+  }
   return false;
 }
 

@@ -44,6 +44,7 @@
     "test:partner-billing-deductions-source": "npx tsx scripts/test-partner-billing-deductions-source.mjs",
     "test:partner-purchase-inventory": "npx tsx scripts/test-partner-purchase-inventory.mjs",
     "test:equipment-list-print": "npx tsx scripts/test-equipment-list-print.mjs",
+    "test:equipment-maintenance-history": "npx tsx scripts/test-equipment-maintenance-history.mjs",
     "test:work-report-equipment-links": "npx tsx scripts/test-work-report-equipment-links.mjs",
     "test:equipment-huolto-snapshot-sync": "npx tsx scripts/test-equipment-huolto-snapshot-sync.mjs",
     "test:maintenance-report-delete-permissions": "npx tsx scripts/test-maintenance-report-delete-permissions.mjs",
