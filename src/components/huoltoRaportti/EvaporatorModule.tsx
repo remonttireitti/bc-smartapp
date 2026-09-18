@@ -131,7 +131,7 @@ export function EvaporatorModule({
               />
             )}
             <label className={chillerHx ? 'huolto-span-all' : undefined}>
-              {chillerHx ? 'LÃ¤mmÃ¶nvaihtimen tyyppi' : 'HÃ¶yrystimen tyyppi'}
+              {chillerHx ? 'Lämmönvaihtimen tyyppi' : 'Höyrystimen tyyppi'}
               <select
                 value={selectVal}
                 disabled={disabled}
@@ -143,15 +143,15 @@ export function EvaporatorModule({
               >
                 {chillerHx ? (
                   <>
-                    <option value="" disabled>Valitseâ€¦</option>
-                    <option value="levy">Levy lÃ¤mmÃ¶nvaihdin</option>
-                    <option value="putki">PutkilÃ¤mmÃ¶nvaihdin</option>
-                    {isVak ? <option value="suorahoyrystin">SuorahÃ¶yrystin</option> : null}
+                    <option value="" disabled>Valitse…</option>
+                    <option value="levy">Levy lämmönvaihdin</option>
+                    <option value="putki">Putkilämmönvaihdin</option>
+                    {isVak ? <option value="suorahoyrystin">Suorahöyrystin</option> : null}
                   </>
                 ) : (
                   <>
-                    <option value="staatinen">Staattinen hÃ¶yrystin</option>
-                    <option value="puhallin">PuhallinhÃ¶yrystin</option>
+                    <option value="staatinen">Staattinen höyrystin</option>
+                    <option value="puhallin">Puhallinhöyrystin</option>
                   </>
                 )}
               </select>
@@ -169,7 +169,7 @@ export function EvaporatorModule({
                   onChange={(e) => setSource((prev) => ({ ...prev, sulatus: e.target.value as SulatusType }))}
                 >
                   <option value="ilma">Ilmasulatus</option>
-                  <option value="sahko">SÃ¤hkÃ¶sulatus</option>
+                  <option value="sahko">Sähkösulatus</option>
                   <option value="kuumakaasu">Kuumakaasu sulatus</option>
                 </select>
               </label>
@@ -178,7 +178,7 @@ export function EvaporatorModule({
             {fansDefrost && source.sulatus === 'sahko' && (
               <>
                 <label>
-                  JÃ¤nnite
+                  Jännite
                   <select
                     value={source.sahkoJannite || '230'}
                     disabled={disabled}
@@ -205,7 +205,7 @@ export function EvaporatorModule({
                       setSource((prev) => ({ ...prev, sulatusOhjaus: e.target.value as SulatusOhjausType }))
                     }
                   >
-                    <option value="">Valitseâ€¦</option>
+                    <option value="">Valitse…</option>
                     <option value="huonesäädin">Huonesäädin ohjaa</option>
                     <option value="kello">Sulatuskello ohjaa</option>
                     <option value="muu">Joku muu</option>
@@ -260,7 +260,7 @@ export function EvaporatorModule({
 
             {fansDefrost && source.sulatus === 'sahko' && source.sahkoVirtaMitattu && (
               <div className="huolto-submodule huolto-span-all">
-                <h4>SÃ¤hkÃ¶sulatuksen virrat</h4>
+                <h4>Sähkösulatuksen virrat</h4>
                 <div className="line-form-grid huolto-phase-grid">
                   <FormInput
                     label={source.sahkoJannite === '400' ? 'L1 (A)' : 'Virta (A)'}
@@ -293,7 +293,7 @@ export function EvaporatorModule({
 
         {sourceStatus === 'faulty' ? (
           <label className="konvektori-huomio-field">
-            <span className="konvektori-tarkastus-label">MikÃ¤ on vikana?</span>
+            <span className="konvektori-tarkastus-label">Mikä on vikana?</span>
             <textarea
               rows={3}
               value={source.tarkastusHuomio ?? ''}
@@ -310,7 +310,7 @@ export function EvaporatorModule({
     <>
       {showSameAsFirst && onSameAsFirstChange ? (
         <FormCheckbox
-          label={`Piiri ${index + 1}: sama hÃ¶yrystin kuin piirissÃ¤ 1 (ei mittauskenttiÃ¤)`}
+          label={`Piiri ${index + 1}: sama höyrystin kuin piirissä 1 (ei mittauskenttiä)`}
           checked={!!sameAsFirst}
           onChange={onSameAsFirstChange}
         />
