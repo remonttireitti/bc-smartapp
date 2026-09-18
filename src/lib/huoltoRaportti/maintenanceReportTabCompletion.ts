@@ -209,7 +209,7 @@ function completionForTab(
     }
 
     case 'huomiot':
-      if (!form.huomiot.trim()) return 'incomplete';
+      // Huomiot ovat vapaaehtoisia — tyhjä ei estä valmiiksi merkintää.
       return 'ok';
 
     case 'huoltotiedot': {
@@ -253,13 +253,24 @@ export function buildMaintenanceReportTabCompletion(
   return completion;
 }
 
-/** Kaikki näkyvät moduulit vihreällä (Valmis) — raportti voidaan merkitä valmiiksi. */
+/** Kaikki näkyvät moduulit valmiita (ok tai attention) — raportti voidaan merkitä valmiiksi. */
 export function isMaintenanceReportModulesComplete(
   completion: MaintenanceTabCompletionMap,
 ): boolean {
   const states = Object.values(completion);
   if (states.length === 0) return false;
-  return states.every((state) => state === 'ok');
+  // "attention" = tarkastettu, huomioita — huolto on silti tehty loppuun.
+  return states.every((state) => state === 'ok' || state === 'attention');
+}
+
+/** Listaa kesken olevat välilehdet (käyttöliittymän ohjeeseen). */
+export function listIncompleteMaintenanceTabs(
+  completion: MaintenanceTabCompletionMap,
+  tabLabels: Partial<Record<MaintenanceReportTabId, string>>,
+): string[] {
+  return (Object.entries(completion) as Array<[MaintenanceReportTabId, MaintenanceTabCompletionState]>)
+    .filter(([, state]) => state === 'incomplete')
+    .map(([id]) => tabLabels[id] ?? id);
 }
 
 export function maintenanceTabCompletionLabel(state: MaintenanceTabCompletionState | undefined): string {

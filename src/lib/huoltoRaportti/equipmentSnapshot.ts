@@ -15,6 +15,7 @@ import {
   getMlpPumpSyottoValinta,
 } from './sahkoVaiheUtils';
 import { ensureKonvektoriRow, konvektoriRowsHaveMaintenanceData } from './defaults';
+import { assertUniqueCustomerEquipmentTunnus } from './equipmentTunnusUniqueness';
 import type {
   CompressorData,
   CondenserData,
@@ -629,19 +630,30 @@ export async function saveEquipmentFromReport(
   ownerCompanyId: string,
   equipmentId: string | null,
   supabase: SupabaseClient,
+  options?: { skipUniquenessCheck?: boolean },
 ): Promise<string> {
   const snapshot = buildHuoltoEquipmentTechnicalSnapshot(form);
+  const tunnus = trim(form.laiteTunnus);
   const payload = {
     owner_company_id: ownerCompanyId,
     customer_id: customerId,
     name: equipmentNameFromForm(form),
-    tag: trim(form.laiteTunnus) || null,
+    tag: tunnus || null,
     model: trim(form.laiteMalli) || null,
     serial_number: trim(form.laiteSarjanumero) || null,
     location: trim(form.laiteSijainti) || null,
     device_type: trim(form.laiteTyyppi) || null,
     huolto_technical_snapshot: snapshot,
   };
+
+  if (!options?.skipUniquenessCheck && (tunnus || payload.name)) {
+    await assertUniqueCustomerEquipmentTunnus(
+      supabase,
+      customerId,
+      tunnus || payload.name,
+      equipmentId,
+    );
+  }
 
   if (equipmentId) {
     const { error } = await supabase.from('equipment').update(payload).eq('id', equipmentId);

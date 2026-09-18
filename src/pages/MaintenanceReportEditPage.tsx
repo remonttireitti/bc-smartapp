@@ -126,6 +126,7 @@ import {
   markMaintenanceModuleVisited,
 } from '../lib/huoltoRaportti/maintenanceModuleVisit';
 import { cloneHuoltoReportForSiblingEquipment } from '../lib/huoltoRaportti/cloneReportForSiblingEquipment';
+import { assertUniqueCustomerEquipmentTunnus } from '../lib/huoltoRaportti/equipmentTunnusUniqueness';
 import {
   createSiblingMaintenanceReport,
   type SiblingEquipmentCopyInput,
@@ -202,6 +203,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
     sourceLabel?: string;
   }>({});
   const moreActionsRef = useRef<HTMLDetailsElement>(null);
+  const siblingCopyInFlightRef = useRef(false);
   const [copySiblingMode, setCopySiblingMode] = useState(false);
   const [siblingCopyDialogOpen, setSiblingCopyDialogOpen] = useState(false);
   const [siblingCopyBusy, setSiblingCopyBusy] = useState(false);
@@ -1096,6 +1098,17 @@ export default function MaintenanceReportEditPage({ session }: Props) {
     }
     setBusy(true);
     setError(null);
+    try {
+      await assertUniqueCustomerEquipmentTunnus(
+        supabase,
+        customerId,
+        draft.tag.trim() || name,
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Laitteen luonti epäonnistui.');
+      setBusy(false);
+      return;
+    }
     const { data, error: insertError } = await supabase
       .from('equipment')
       .insert({
@@ -1243,6 +1256,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
   }
 
   async function confirmSiblingEquipmentCopy(input: SiblingEquipmentCopyInput) {
+    if (siblingCopyInFlightRef.current || siblingCopyBusy) return;
     if (!ownerCompanyId || !customerId) {
       setError('Valitse asiakas ennen uuden laitteen luontia.');
       return;
@@ -1252,6 +1266,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
       return;
     }
 
+    siblingCopyInFlightRef.current = true;
     setSiblingCopyBusy(true);
     setError(null);
     setRegistryMessage(null);
@@ -1266,7 +1281,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
 
       const partnership = contextMode === 'partner' ? partnerships.find((p) => p.id === partnerId) : null;
       const sourceForm = formStateRef.current.form;
-      const { reportId: newReportId, equipmentId: newEquipmentId } = await createSiblingMaintenanceReport({
+      const { reportId: newReportId } = await createSiblingMaintenanceReport({
         sourceForm,
         input,
         customerId,
@@ -1287,15 +1302,14 @@ export default function MaintenanceReportEditPage({ session }: Props) {
       setCopySiblingMode(false);
       setCopySourceEquipmentId(null);
       siblingCopyDefaultsRef.current = {};
-      setEquipmentId(newEquipmentId);
-      await loadEquipment(customerId);
+      // Älä päivitä lähdesivun equipmentId:tä — se voisi autosavettaa lähteen uudelle laitteelle.
       clearLocalMaintenanceDraft(draftStorageKey);
-      navigate(`/huoltoraportit/${newReportId}`, { replace: true, state: location.state });
-      setRegistryMessage(`Laite "${input.tunnus}" ja uusi huoltopöytäkirja luotu.`);
       setHasUnsavedChanges(false);
+      navigate(`/huoltoraportit/${newReportId}`, { replace: true, state: location.state });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Uuden laitteen ja pöytäkirjan luonti epäonnistui.');
     } finally {
+      siblingCopyInFlightRef.current = false;
       setSiblingCopyBusy(false);
     }
   }
@@ -1387,6 +1401,9 @@ export default function MaintenanceReportEditPage({ session }: Props) {
       if (!options?.auto) setError('Tallennus on jo käynnissä — odota hetki.');
       return false;
     }
+    if (options?.auto && (siblingCopyDialogOpen || copySiblingMode || siblingCopyBusy || searchParams.get('copyFrom'))) {
+      return false;
+    }
     if (!profile?.company_id || !ownerCompanyId) {
       if (!options?.auto) setError('Profiilista puuttuu yritys.');
       return false;
@@ -1417,6 +1434,17 @@ export default function MaintenanceReportEditPage({ session }: Props) {
     if (Object.keys(devicePatch).length > 0) {
       currentForm = mergeHuoltoReportData(currentForm, devicePatch);
       patchForm(devicePatch);
+    }
+
+    if (isSubmitting) {
+      const today = new Date().toISOString().slice(0, 10);
+      const huoltoPatch: Partial<HuoltoReportData> = {};
+      if (!currentForm.huoltoSuoritettu) huoltoPatch.huoltoSuoritettu = true;
+      if (!String(currentForm.huoltoPaivamaara ?? '').trim()) huoltoPatch.huoltoPaivamaara = today;
+      if (Object.keys(huoltoPatch).length > 0) {
+        currentForm = mergeHuoltoReportData(currentForm, huoltoPatch);
+        patchForm(huoltoPatch);
+      }
     }
 
     const customerBasics = validateMaintenanceCustomerBasics({
@@ -1648,6 +1676,8 @@ export default function MaintenanceReportEditPage({ session }: Props) {
 
   useEffect(() => {
     if (skipAutoSaveRef.current || busy) return;
+    if (siblingCopyDialogOpen || copySiblingMode || siblingCopyBusy) return;
+    if (searchParams.get('copyFrom')) return;
     if (status !== 'draft' && !canEditPublishedReport) return;
     if (!form.laiteTyyppi) return;
     if (!customerId && !form.asiakas.trim()) return;
@@ -1665,7 +1695,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
     }, 2500);
 
     return () => window.clearTimeout(timer);
-  }, [form, customerId, equipmentId, contextMode, partnerId, ownerCompanyId, status, isOnline, busy, canEditPublishedReport, modulesComplete]);
+  }, [form, customerId, equipmentId, contextMode, partnerId, ownerCompanyId, status, isOnline, busy, canEditPublishedReport, modulesComplete, siblingCopyDialogOpen, copySiblingMode, siblingCopyBusy, searchParams]);
 
   useEffect(() => {
     if (profileLoading || loadingReport || skipAutoSaveRef.current) return;
@@ -2246,8 +2276,13 @@ export default function MaintenanceReportEditPage({ session }: Props) {
                 <button
                   type="button"
                   className="btn btn-primary maintenance-actions-submit"
-                  disabled={busy || !modulesComplete}
+                  disabled={busy || !canSaveDraft}
                   onClick={() => void saveReport('submitted')}
+                  title={
+                    modulesComplete
+                      ? undefined
+                      : 'Merkitsee raportin valmiiksi. Kesken olevat moduulit voi täyttää myöhemmin.'
+                  }
                 >
                   Merkitse valmiiksi
                 </button>
@@ -2257,7 +2292,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
               <button
                 type="button"
                 className="btn btn-primary maintenance-actions-save"
-                disabled={busy || !modulesComplete}
+                disabled={busy || !canSaveDraft}
                 onClick={() => void saveReport()}
               >
                 {busy ? 'Tallennetaan…' : 'Tallenna muutokset'}
