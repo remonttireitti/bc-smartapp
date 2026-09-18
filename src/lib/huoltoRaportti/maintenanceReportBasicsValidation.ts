@@ -131,9 +131,9 @@ export function isRaportointiBasicsComplete(
   customerInput: CustomerBasicsInput,
   deviceInput: DeviceBasicsInput,
 ): boolean {
+  // Osoite ei ole pakollinen: se voi tulla asiakasrekisteristä eikä saa estää valmiiksi-merkintää.
   return validateMaintenanceCustomerBasics(customerInput).ok
-    && validateMaintenanceDeviceBasics(deviceInput).ok
-    && Boolean(customerInput.osoite.trim());
+    && validateMaintenanceDeviceBasics(deviceInput).ok;
 }
 
 export function isMaintenanceBasicsComplete(

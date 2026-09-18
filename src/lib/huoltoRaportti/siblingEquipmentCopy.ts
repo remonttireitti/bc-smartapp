@@ -7,6 +7,7 @@ import {
   buildHuoltoEquipmentTechnicalSnapshot,
   saveEquipmentFromReport,
 } from './equipmentSnapshot';
+import { fillMissingDeviceBasics } from './maintenanceReportBasicsValidation';
 import { assertUniqueCustomerEquipmentTunnus } from './equipmentTunnusUniqueness';
 import { huoltoPerformerFields } from './performerFromProfile';
 import type { HuoltoReportData } from './types';
@@ -31,7 +32,8 @@ export function applySiblingEquipmentCopyFields(
     cloned.laiteMalli = input.malli?.trim() ?? '';
     cloned.laiteValmistaja = input.valmistaja?.trim() ?? '';
   }
-  return cloned;
+  const filled = fillMissingDeviceBasics(cloned);
+  return { ...cloned, ...filled };
 }
 
 export type CreateSiblingMaintenanceReportParams = {

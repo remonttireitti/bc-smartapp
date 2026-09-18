@@ -1436,6 +1436,17 @@ export default function MaintenanceReportEditPage({ session }: Props) {
       patchForm(devicePatch);
     }
 
+    if (isSubmitting) {
+      const today = new Date().toISOString().slice(0, 10);
+      const huoltoPatch: Partial<HuoltoReportData> = {};
+      if (!currentForm.huoltoSuoritettu) huoltoPatch.huoltoSuoritettu = true;
+      if (!String(currentForm.huoltoPaivamaara ?? '').trim()) huoltoPatch.huoltoPaivamaara = today;
+      if (Object.keys(huoltoPatch).length > 0) {
+        currentForm = mergeHuoltoReportData(currentForm, huoltoPatch);
+        patchForm(huoltoPatch);
+      }
+    }
+
     const customerBasics = validateMaintenanceCustomerBasics({
       profileCompanyId: profile?.company_id,
       reportOwnerCompanyId,
@@ -2265,8 +2276,13 @@ export default function MaintenanceReportEditPage({ session }: Props) {
                 <button
                   type="button"
                   className="btn btn-primary maintenance-actions-submit"
-                  disabled={busy || !modulesComplete}
+                  disabled={busy || !canSaveDraft}
                   onClick={() => void saveReport('submitted')}
+                  title={
+                    modulesComplete
+                      ? undefined
+                      : 'Merkitsee raportin valmiiksi. Kesken olevat moduulit voi täyttää myöhemmin.'
+                  }
                 >
                   Merkitse valmiiksi
                 </button>
@@ -2276,7 +2292,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
               <button
                 type="button"
                 className="btn btn-primary maintenance-actions-save"
-                disabled={busy || !modulesComplete}
+                disabled={busy || !canSaveDraft}
                 onClick={() => void saveReport()}
               >
                 {busy ? 'Tallennetaan…' : 'Tallenna muutokset'}

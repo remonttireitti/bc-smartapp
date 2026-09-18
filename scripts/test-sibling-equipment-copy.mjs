@@ -40,7 +40,7 @@ const cloned = applySiblingEquipmentCopyFields(source, {
 assert.equal(cloned.laiteTunnus, 'ILP 3');
 assert.equal(cloned.laiteSarjanumero, 'XYZ');
 assert.equal(cloned.laiteMalli, 'Polar');
-assert.equal(cloned.laiteSijainti, '');
+assert.ok(cloned.laiteSijainti.trim(), 'missing sijainti is filled for copy');
 assert.deepEqual(cloned.visitedModuleIds, []);
 
 console.log('test-sibling-equipment-copy: ok');
