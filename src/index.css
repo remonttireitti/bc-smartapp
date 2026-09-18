@@ -3354,6 +3354,58 @@ a.tile.quote-request-tile:hover {
   gap: .65rem;
 }
 
+.work-report-equipment-assign {
+  display: grid;
+  gap: .55rem;
+}
+
+.work-report-equipment-assign-label {
+  font-weight: 600;
+}
+
+.work-report-equipment-assign-hint {
+  margin: 0;
+  font-size: .9rem;
+}
+
+.work-report-equipment-assign-list {
+  display: grid;
+  gap: .35rem;
+  max-height: 14rem;
+  overflow: auto;
+  padding: .5rem .65rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+}
+
+.work-report-equipment-assign-row {
+  display: flex;
+  align-items: flex-start;
+  gap: .5rem;
+  font-size: .92rem;
+}
+
+.work-report-equipment-assign-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .4rem;
+}
+
+.work-report-equipment-assign-chip {
+  border: 1px solid var(--border);
+  background: #f8fafc;
+  border-radius: 999px;
+  padding: .2rem .65rem;
+  font-size: .85rem;
+  cursor: pointer;
+}
+
+.work-report-equipment-assign-chip:disabled {
+  opacity: .6;
+  cursor: default;
+}
+
 .detail-description-edit textarea {
   width: 100%;
   min-height: 5.5rem;

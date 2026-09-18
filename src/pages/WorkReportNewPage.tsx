@@ -25,9 +25,12 @@ import {
 
 import CustomerRegistryPicker, { type NewCustomerDraft } from '../components/CustomerRegistryPicker';
 
-import EquipmentRegistryPicker, { type NewEquipmentDraft } from '../components/EquipmentRegistryPicker';
+import WorkReportEquipmentAssign from '../components/WorkReportEquipmentAssign';
+import type { NewEquipmentDraft } from '../components/EquipmentRegistryPicker';
 
 import SubscriberPicker from '../components/SubscriberPicker';
+
+import { loadWorkReportEquipmentLinks, saveWorkReportEquipmentLinks } from '../lib/workReportEquipment';
 
 import { supabase } from '../lib/supabase';
 
@@ -129,7 +132,7 @@ export default function WorkReportNewPage({ session }: Props) {
 
   const [customerId, setCustomerId] = useState('');
 
-  const [equipmentId, setEquipmentId] = useState('');
+  const [equipmentIds, setEquipmentIds] = useState<string[]>([]);
 
   const [description, setDescription] = useState('');
   const [heading, setHeading] = useState('');
@@ -262,7 +265,7 @@ export default function WorkReportNewPage({ session }: Props) {
   function onReportOwnerChange(companyId: string) {
     setReportOwnerCompanyId(companyId);
     setCustomerId('');
-    setEquipmentId('');
+    setEquipmentIds([]);
   }
 
   const canAutoSave = Boolean(description.trim() || customerId);
@@ -389,7 +392,7 @@ export default function WorkReportNewPage({ session }: Props) {
 
         setEquipment([]);
 
-        setEquipmentId('');
+        setEquipmentIds([]);
 
       }
 
@@ -485,7 +488,13 @@ export default function WorkReportNewPage({ session }: Props) {
 
     setCustomerId(data.customer_id ?? '');
 
-    setEquipmentId(data.equipment_id ?? '');
+    setEquipmentIds(data.equipment_id ? [data.equipment_id] : []);
+    try {
+      const links = await loadWorkReportEquipmentLinks(supabase, id, data.equipment_id);
+      if (links.length > 0) setEquipmentIds(links.map((link) => link.id));
+    } catch {
+      /* keep legacy single id */
+    }
 
 
 
@@ -772,7 +781,7 @@ export default function WorkReportNewPage({ session }: Props) {
 
     setEquipment((prev) => [...prev, created].sort((a, b) => a.name.localeCompare(b.name, 'fi')));
 
-    setEquipmentId(created.id);
+    setEquipmentIds((prev) => (prev.includes(created.id) ? prev : [...prev, created.id]));
 
     setBusy(false);
 
@@ -980,7 +989,7 @@ export default function WorkReportNewPage({ session }: Props) {
 
       customer_id: customerId || null,
 
-      equipment_id: equipmentId || null,
+      equipment_id: equipmentIds[0] || null,
 
       assigned_user_id: session.user.id,
 
@@ -1002,6 +1011,20 @@ export default function WorkReportNewPage({ session }: Props) {
         if (isAuto) setAutoSaveState('offline');
         else setBusy(false);
         return false;
+      }
+
+      {
+        const { error: linkError } = await saveWorkReportEquipmentLinks(
+          supabase,
+          reportId,
+          equipmentIds,
+        );
+        if (linkError) {
+          if (!isAuto) setError(linkError);
+          if (isAuto) setAutoSaveState('offline');
+          else setBusy(false);
+          return false;
+        }
       }
 
       if (pendingAttachments.length > 0) {
@@ -1041,6 +1064,19 @@ export default function WorkReportNewPage({ session }: Props) {
       const newId = data.id;
       setReportId(newId);
       await supabase.from('work_report_billing').insert({ work_report_id: newId });
+      {
+        const { error: linkError } = await saveWorkReportEquipmentLinks(
+          supabase,
+          newId,
+          equipmentIds,
+        );
+        if (linkError) {
+          if (!isAuto) setError(linkError);
+          if (isAuto) setAutoSaveState('offline');
+          else setBusy(false);
+          return false;
+        }
+      }
       clearLocalWorkDraft(localWorkDraftKey(null, session.user.id));
 
       if (pendingAttachments.length > 0) {
@@ -1103,7 +1139,7 @@ export default function WorkReportNewPage({ session }: Props) {
 
       customerId,
 
-      equipmentId,
+      equipmentId: equipmentIds[0] || '',
 
       contextMode,
 
@@ -1122,7 +1158,7 @@ export default function WorkReportNewPage({ session }: Props) {
 
     customerId,
 
-    equipmentId,
+    equipmentIds,
 
     contextMode,
 
@@ -1175,7 +1211,7 @@ export default function WorkReportNewPage({ session }: Props) {
 
     customerId,
 
-    equipmentId,
+    equipmentIds,
 
     contextMode,
 
@@ -1217,7 +1253,7 @@ export default function WorkReportNewPage({ session }: Props) {
       heading,
       description,
       customerId,
-      equipmentId,
+      equipmentId: equipmentIds[0] || '',
       contextMode,
       partnerId,
       scheduledDate,
@@ -1562,7 +1598,7 @@ export default function WorkReportNewPage({ session }: Props) {
             busy={busy}
             onSelect={(id) => {
               setCustomerId(id);
-              setEquipmentId('');
+              setEquipmentIds([]);
               const customer = customers.find((entry) => entry.id === id);
               if (customer) {
                 setReportOwnerCompanyId(customer.owner_company_id);
@@ -1571,7 +1607,7 @@ export default function WorkReportNewPage({ session }: Props) {
             }}
             onClear={() => {
               setCustomerId('');
-              setEquipmentId('');
+              setEquipmentIds([]);
               if (profile?.company_id) {
                 setReportOwnerCompanyId(profile.company_id);
               }
@@ -1579,12 +1615,11 @@ export default function WorkReportNewPage({ session }: Props) {
             onCreate={createCustomerAndSelect}
           />
           {customerId ? (
-            <EquipmentRegistryPicker
+            <WorkReportEquipmentAssign
               equipment={equipment}
-              equipmentId={equipmentId}
+              selectedIds={equipmentIds}
               busy={busy}
-              onSelect={setEquipmentId}
-              onClear={() => setEquipmentId('')}
+              onChange={setEquipmentIds}
               onCreate={createEquipmentAndSelect}
             />
           ) : null}
