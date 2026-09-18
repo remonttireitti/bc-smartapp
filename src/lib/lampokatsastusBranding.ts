@@ -29,9 +29,11 @@ export function lampokatsastusContactLines(settings?: CompanySettings | null): s
 export function lampokatsastusBrandingStyles(): string {
   return `
     .lk-header {
-      margin-bottom: 16px;
-      padding-bottom: 12px;
+      margin-bottom: 12px;
+      padding-bottom: 10px;
       border-bottom: 3px solid #c62828;
+      break-inside: avoid;
+      page-break-inside: avoid;
     }
     .lk-header-top {
       display: grid;
@@ -43,8 +45,8 @@ export function lampokatsastusBrandingStyles(): string {
       grid-template-columns: 1fr;
     }
     .lk-logo img {
-      max-height: 68px;
-      max-width: 240px;
+      max-height: 56px;
+      max-width: 220px;
       width: auto;
       object-fit: contain;
       display: block;
@@ -62,18 +64,20 @@ export function lampokatsastusBrandingStyles(): string {
       margin-bottom: 4px;
     }
     .lk-tagline {
-      margin: 12px 0 0;
-      padding: 10px 12px;
+      margin: 0 0 12px;
+      padding: 8px 10px;
       background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
       border-left: 4px solid #2f6aa8;
       border-radius: 0 8px 8px 0;
       color: #334155;
-      font-size: 10px;
-      line-height: 1.55;
+      font-size: 9.5px;
+      line-height: 1.45;
+      break-inside: avoid;
+      page-break-inside: avoid;
     }
     .lk-footer {
-      margin-top: 16px;
-      padding-top: 12px;
+      margin-top: 12px;
+      padding-top: 10px;
       border-top: 1px solid #cbd5e1;
       display: grid;
       grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
@@ -82,6 +86,8 @@ export function lampokatsastusBrandingStyles(): string {
       font-size: 9px;
       color: #475569;
       line-height: 1.45;
+      break-inside: avoid;
+      page-break-inside: avoid;
     }
     .lk-footer-terms-title {
       font-weight: 700;
@@ -94,6 +100,10 @@ export function lampokatsastusBrandingStyles(): string {
     .lk-footer-contact .lk-company-name {
       font-size: 11px;
       margin-bottom: 2px;
+    }
+    .lk-header-work-report .lk-tagline {
+      margin-top: 12px;
+      margin-bottom: 0;
     }
     .lk-header-work-report .lk-work-title-row {
       display: grid;
@@ -151,8 +161,13 @@ export function buildLampokatsastusQuoteHeaderHtml(
     <div class="lk-header-top">
       <div class="lk-logo"><img src="${helpers.attrUrl(helpers.logoSrc)}" alt="${helpers.esc(meta.companyName)}" /></div>
     </div>
-    <p class="lk-tagline">${helpers.esc(LAMPOKATSASTUS_MARKETING_TAGLINE)}</p>
   </header>`;
+}
+
+export function buildLampokatsastusQuoteTaglineHtml(helpers: {
+  esc: (value: unknown) => string;
+}): string {
+  return `<p class="lk-tagline">${helpers.esc(LAMPOKATSASTUS_MARKETING_TAGLINE)}</p>`;
 }
 
 export function buildLampokatsastusQuoteFooterHtml(

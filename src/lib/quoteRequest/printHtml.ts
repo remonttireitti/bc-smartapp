@@ -60,6 +60,7 @@ import {
 import {
   buildLampokatsastusQuoteFooterHtml,
   buildLampokatsastusQuoteHeaderHtml,
+  buildLampokatsastusQuoteTaglineHtml,
   isLampokatsastusCompanyName,
   lampokatsastusBrandingStyles,
   LAMPOKATSASTUS_OFFER_TERMS_BODY,
@@ -125,14 +126,16 @@ function quotePrintStyles(): string {
   return `
     ${lampokatsastusBrandingStyles()}
     ${quoteClosingPrintStyles()}
-    @page { size: A4; margin: 14mm; }
+    @page { size: A4; margin: 12mm; }
     * { box-sizing: border-box; }
     body {
       margin: 0;
       font-family: "Segoe UI", Arial, sans-serif;
       color: #0f172a;
       font-size: 11px;
-      line-height: 1.45;
+      line-height: 1.4;
+      orphans: 3;
+      widows: 3;
     }
     .page { max-width: 180mm; margin: 0 auto; }
     .header {
@@ -140,9 +143,11 @@ function quotePrintStyles(): string {
       grid-template-columns: 1fr 1fr;
       gap: 16px;
       align-items: start;
-      margin-bottom: 18px;
-      padding-bottom: 12px;
+      margin-bottom: 14px;
+      padding-bottom: 10px;
       border-bottom: 2px solid #f97316;
+      break-inside: avoid;
+      page-break-inside: avoid;
     }
     .logo img { max-height: 56px; max-width: 220px; object-fit: contain; }
     .company-meta { text-align: right; color: #475569; font-size: 10px; }
@@ -150,37 +155,47 @@ function quotePrintStyles(): string {
       display: flex;
       justify-content: space-between;
       gap: 12px;
-      margin-bottom: 14px;
+      margin-bottom: 12px;
+      break-inside: avoid;
+      page-break-inside: avoid;
     }
     .title-row h1 {
       margin: 0;
-      font-size: 22px;
+      font-size: 20px;
       color: #0f172a;
     }
     .meta-box {
       border: 1px solid #cbd5e1;
       border-radius: 8px;
-      padding: 10px 12px;
-      min-width: 170px;
+      padding: 8px 10px;
+      min-width: 160px;
       background: #f8fafc;
     }
     .meta-box div { margin-bottom: 4px; }
     .customer-box, .device-box {
-      margin-bottom: 14px;
-      padding: 10px 12px;
+      margin-bottom: 10px;
+      padding: 8px 10px;
       background: #fff7ed;
       border: 1px solid #fdba74;
       border-radius: 8px;
+      break-inside: avoid;
+      page-break-inside: avoid;
     }
-    .intro { margin: 0 0 12px; }
+    .intro { margin: 0 0 10px; }
     table {
       width: 100%;
       border-collapse: collapse;
       margin-bottom: 10px;
     }
+    thead { display: table-header-group; }
+    tfoot { display: table-footer-group; }
+    tr {
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
     th, td {
       border: 1px solid #cbd5e1;
-      padding: 7px 8px;
+      padding: 6px 7px;
       vertical-align: top;
     }
     th {
@@ -206,10 +221,12 @@ function quotePrintStyles(): string {
       border-top: 1px solid #cbd5e1;
     }
     .notes, .sitrep-wrap, .quote-excluded-items-print, .quote-optional-items-print {
-      margin-top: 12px;
-      padding: 10px 12px;
+      margin-top: 10px;
+      padding: 8px 10px;
       border-left: 3px solid #f97316;
       background: #f8fafc;
+      break-inside: avoid;
+      page-break-inside: avoid;
     }
     .quote-excluded-items-print ul,
     .quote-optional-items-print ul {
@@ -219,16 +236,20 @@ function quotePrintStyles(): string {
     .quote-excluded-items-print li,
     .quote-optional-items-print li {
       margin: 2px 0;
+      break-inside: avoid;
+      page-break-inside: avoid;
     }
     .sitrep-title { font-weight: 700; margin-bottom: 6px; }
     .sitrep-meta { color: #64748b; font-size: 10px; margin-bottom: 8px; }
     .sitrep-body { min-height: 48px; white-space: pre-wrap; }
     .terms {
-      margin-top: 16px;
+      margin-top: 12px;
       padding-top: 10px;
       border-top: 1px solid #cbd5e1;
       font-size: 9px;
       color: #475569;
+      break-inside: avoid;
+      page-break-inside: avoid;
     }
     .terms-title { font-weight: 700; color: #0f172a; margin-bottom: 4px; }
     .option-card {
@@ -237,9 +258,15 @@ function quotePrintStyles(): string {
       padding: 10px 12px;
       margin-bottom: 8px;
       background: #f8fafc;
+      break-inside: avoid;
+      page-break-inside: avoid;
     }
     .option-sub { color: #64748b; font-size: 10px; margin: 4px 0; }
-    .option-compare { margin: 14px 0; }
+    .option-compare {
+      margin: 12px 0;
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
     .option-compare h2 { margin: 0 0 8px; font-size: 14px; }
     .option-compare-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; }
     .option-compare-card {
@@ -742,6 +769,25 @@ function renderQuotePrintTermsFooter(meta: QuotePrintMeta, kind: 'service' | 'of
     </section>`;
 }
 
+/** Closing + marketing + terms stay together so page breaks never cut mid-text. */
+function renderQuotePrintEndBlock(
+  meta: QuotePrintMeta,
+  kind: 'service' | 'offer',
+  mode: QuotePrintMode,
+): string {
+  if (mode !== 'enduser') {
+    return renderQuotePrintTermsFooter(meta, kind);
+  }
+  const tagline = isLampokatsastusCompanyName(meta.companyName)
+    ? buildLampokatsastusQuoteTaglineHtml({ esc })
+    : '';
+  return `<div class="quote-print-end-block">
+    ${quoteClosingPrintHtml(meta)}
+    ${tagline}
+    ${renderQuotePrintTermsFooter(meta, kind)}
+  </div>`;
+}
+
 function renderQuotePrintHeader(meta: QuotePrintMeta, logo: string): string {
   if (isLampokatsastusCompanyName(meta.companyName)) {
     return buildLampokatsastusQuoteHeaderHtml(
@@ -965,9 +1011,7 @@ export function generateQuoteOfferPrintHtml(input: {
 
     ${kotitalousHtml}
 
-    ${mode === 'enduser' ? quoteClosingPrintHtml(meta) : ''}
-
-    ${renderQuotePrintTermsFooter(meta, 'offer')}
+    ${renderQuotePrintEndBlock(meta, 'offer', mode)}
   </div>
 </body>
 </html>`;
@@ -1228,9 +1272,7 @@ export function generateQuoteServicePrintHtml(input: {
 
     ${data.notes.trim() ? `<div class="notes"><strong>Huomautukset</strong><div>${esc(data.notes).replace(/\n/g, '<br />')}</div></div>` : ''}
 
-    ${mode === 'enduser' ? quoteClosingPrintHtml(meta) : ''}
-
-    ${renderQuotePrintTermsFooter(meta, 'service')}
+    ${renderQuotePrintEndBlock(meta, 'service', mode)}
   </div>
 </body>
 </html>`;

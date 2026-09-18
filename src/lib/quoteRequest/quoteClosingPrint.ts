@@ -15,13 +15,22 @@ function escapeHtml(v: string): string {
 
 export function quoteClosingPrintStyles(): string {
   return `
+    .quote-print-end-block {
+      margin-top: 14px;
+      break-inside: avoid;
+      page-break-inside: avoid;
+      break-before: auto;
+      page-break-before: auto;
+    }
     .quote-closing {
-      margin-top: 16px;
+      margin-top: 0;
       padding-top: 12px;
       border-top: 1px solid #cbd5e1;
       color: #334155;
       font-size: 11px;
       line-height: 1.55;
+      break-inside: avoid;
+      page-break-inside: avoid;
     }
     .quote-closing-thanks { margin: 0 0 10px; }
     .quote-closing-signature { margin: 0; font-weight: 600; color: #0f172a; }
