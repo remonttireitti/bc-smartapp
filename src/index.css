@@ -7242,21 +7242,18 @@ button.tile.maintenance-report-document-tile {
 
 .sibling-equipment-copy-dialog .konvektori-mittaus-field {
   display: block;
-  margin-bottom: .75rem;
+  margin-bottom: .65rem;
 }
 
 .sibling-equipment-copy-same-model {
-  margin: .25rem 0 .85rem;
-  align-items: flex-start;
+  display: flex;
+  align-items: center;
+  margin: .15rem 0 .65rem;
+  width: 100%;
 }
 
-.sibling-equipment-copy-same-model input[type='checkbox'] {
-  margin-top: .2rem;
-}
-
-.sibling-equipment-copy-source-model {
-  display: block;
-  font-size: .875rem;
+.sibling-equipment-copy-same-model .toggle-switch-label {
+  line-height: 1.3;
 }
 
 .sibling-equipment-copy-model-fields {

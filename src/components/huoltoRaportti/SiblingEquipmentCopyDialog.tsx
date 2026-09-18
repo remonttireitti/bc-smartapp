@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useState } from 'react';
 import type { SiblingEquipmentCopyInput } from '../../lib/huoltoRaportti/siblingEquipmentCopy';
+import ToggleSwitch from '../ToggleSwitch';
 
 export type SiblingEquipmentCopyDialogDefaults = {
   malli?: string;
@@ -24,7 +25,6 @@ export function SiblingEquipmentCopyDialog({
   onCancel,
 }: Props) {
   const [tunnus, setTunnus] = useState('');
-  const [sarjanumero, setSarjanumero] = useState('');
   const [sameModel, setSameModel] = useState(true);
   const [malli, setMalli] = useState('');
   const [valmistaja, setValmistaja] = useState('');
@@ -32,7 +32,6 @@ export function SiblingEquipmentCopyDialog({
   useEffect(() => {
     if (!open) return;
     setTunnus('');
-    setSarjanumero('');
     setSameModel(true);
     setMalli(defaults?.malli ?? '');
     setValmistaja(defaults?.valmistaja ?? '');
@@ -54,12 +53,14 @@ export function SiblingEquipmentCopyDialog({
     if (!tunnus.trim()) return;
     onConfirm({
       tunnus: tunnus.trim(),
-      sarjanumero: sarjanumero.trim(),
+      sarjanumero: '',
       sameModel,
       malli: sameModel ? undefined : malli.trim(),
       valmistaja: sameModel ? undefined : valmistaja.trim(),
     });
   }
+
+  const sourceModelLabel = [defaults?.valmistaja, defaults?.malli].filter(Boolean).join(' ');
 
   return (
     <div className="leave-draft-overlay konvektori-dialog-overlay" role="presentation" onClick={busy ? undefined : onCancel}>
@@ -90,33 +91,17 @@ export function SiblingEquipmentCopyDialog({
           />
         </label>
 
-        <label className="konvektori-mittaus-field">
-          Sarjanumero
-          <input
-            value={sarjanumero}
-            onChange={(e) => setSarjanumero(e.target.value)}
-            placeholder="Uuden laitteen sarjanumero"
-            disabled={busy}
-          />
-        </label>
-
-        <label className="konvektori-tarkastus-item sibling-equipment-copy-same-model">
-          <input
-            type="checkbox"
-            checked={sameModel}
-            onChange={(e) => setSameModel(e.target.checked)}
-            disabled={busy}
-          />
-          <span className="konvektori-tarkastus-label">
-            Sama malli ja valmistaja
-            {defaults?.malli || defaults?.valmistaja ? (
-              <span className="muted sibling-equipment-copy-source-model">
-                {' '}
-                ({[defaults?.valmistaja, defaults?.malli].filter(Boolean).join(' ') || '—'})
-              </span>
-            ) : null}
-          </span>
-        </label>
+        <ToggleSwitch
+          className="sibling-equipment-copy-same-model"
+          label={
+            sourceModelLabel
+              ? `Sama malli ja valmistaja (${sourceModelLabel})`
+              : 'Sama malli ja valmistaja'
+          }
+          checked={sameModel}
+          onChange={setSameModel}
+          disabled={busy}
+        />
 
         {!sameModel ? (
           <div className="line-form-grid sibling-equipment-copy-model-fields">
