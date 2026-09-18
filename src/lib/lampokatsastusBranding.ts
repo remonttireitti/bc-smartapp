@@ -99,6 +99,12 @@ export function lampokatsastusBrandingStyles(): string {
       break-inside: avoid;
       page-break-inside: avoid;
     }
+    .lk-footer--contact-only {
+      grid-template-columns: 1fr;
+    }
+    .lk-footer--contact-only .lk-footer-contact {
+      text-align: center;
+    }
     .lk-footer-terms-title {
       font-weight: 700;
       color: #0f172a;
@@ -122,43 +128,35 @@ export function lampokatsastusBrandingStyles(): string {
     .quote-print-page-2-body {
       flex: 1 1 auto;
     }
-    .lk-header-work-report .lk-tagline {
-      margin-top: 12px;
-      text-align: left;
-      border-left: 4px solid #2f6aa8;
-      border-top: none;
-      border-radius: 0 8px 8px 0;
-      font-size: 9.5px;
-    }
-    .lk-header-work-report .lk-work-title-row {
+    .lk-work-title-row {
       display: grid;
       grid-template-columns: minmax(0, 1fr) auto;
       gap: 12px;
       align-items: end;
-      margin-top: 12px;
-      padding-top: 10px;
-      border-top: 1px solid #dbe3ee;
+      margin: 0 0 12px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid #dbe3ee;
     }
-    .lk-header-work-report .lk-work-title-main h1 {
+    .lk-work-title-main h1 {
       margin: 4px 0 0;
       font-size: 16px;
       line-height: 1.25;
       color: #0f172a;
     }
-    .lk-header-work-report .doc-label {
+    .lk-work-title-row .doc-label {
       font-size: 8.5pt;
       font-weight: 700;
       letter-spacing: .08em;
       text-transform: uppercase;
       color: #64748b;
     }
-    .lk-header-work-report .lk-print-date {
+    .lk-work-title-row .lk-print-date {
       text-align: right;
       font-size: 10px;
       color: #475569;
       white-space: nowrap;
     }
-    .lk-header-work-report .lk-print-date strong {
+    .lk-work-title-row .lk-print-date strong {
       display: block;
       color: #0f172a;
       font-size: 11px;
@@ -223,33 +221,27 @@ export function buildLampokatsastusWorkReportHeaderHtml(
     esc: (value: unknown) => string;
     attrUrl: (url: string) => string;
     logoSrc: string;
-    printHeadline: string;
-    printDate: string;
   },
 ): string {
-  const lines = lampokatsastusContactLines(meta.settings);
-  const logoHtml = helpers.logoSrc
-    ? `<img src="${helpers.attrUrl(helpers.logoSrc)}" alt="${helpers.esc(meta.companyName)}" />`
-    : `<strong>${helpers.esc(meta.companyName)}</strong>`;
+  // Identical structure to tarjousasiakastuloste: logo top-center + centered tagline.
+  // Document title and company contact live outside this header (title below, contact in footer).
+  return buildLampokatsastusQuoteHeaderHtml(meta, helpers);
+}
 
-  return `<header class="lk-header lk-header-work-report">
-    <div class="lk-header-top">
-      <div class="lk-logo">${logoHtml}</div>
-      <div class="lk-contact">
-        <strong class="lk-company-name">${helpers.esc(meta.companyName)}</strong>
-        ${lines.map((line) => `<div>${helpers.esc(line)}</div>`).join('')}
-      </div>
-    </div>
-    <div class="lk-work-title-row">
-      <div class="lk-work-title-main">
-        <div class="doc-label">Työraportti</div>
-        <h1>${helpers.esc(helpers.printHeadline)}</h1>
-      </div>
-      <div class="lk-print-date">
-        <span class="doc-label">Tulostettu</span>
-        <strong>${helpers.esc(helpers.printDate)}</strong>
-      </div>
-    </div>
-    <p class="lk-tagline">${helpers.esc(LAMPOKATSASTUS_MARKETING_TAGLINE)}</p>
-  </header>`;
+export const LAMPOKATSASTUS_WORK_REPORT_TERMS_TITLE_SUFFIX = 'Huolto- ja työehdot';
+export const LAMPOKATSASTUS_WORK_REPORT_TERMS_BODY =
+  'Työ suoritetaan alan hyvän työtavan mukaisesti. Raportti kuvaa suoritetut työt ja käytetyt materiaalit. Lisätyöt ja odottamattomat vauriot sovitaan erikseen ennen jatkotoimenpiteitä.';
+
+/** Yritystiedot footerissa — sama rakenne kuin tarjoustulosteessa. */
+export function buildLampokatsastusWorkReportFooterHtml(
+  meta: LampokatsastusContactMeta,
+  helpers: {
+    esc: (value: unknown) => string;
+  },
+): string {
+  return buildLampokatsastusQuoteFooterHtml(meta, {
+    esc: helpers.esc,
+    termsTitleSuffix: LAMPOKATSASTUS_WORK_REPORT_TERMS_TITLE_SUFFIX,
+    termsBody: LAMPOKATSASTUS_WORK_REPORT_TERMS_BODY,
+  });
 }

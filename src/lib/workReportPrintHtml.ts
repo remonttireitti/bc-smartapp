@@ -65,6 +65,7 @@ import {
 } from './workReportCustomerPrintQuantity';
 import type { CompanySettings } from './management';
 import {
+  buildLampokatsastusWorkReportFooterHtml,
   buildLampokatsastusWorkReportHeaderHtml,
   isLampokatsastusCompanyName,
   lampokatsastusBrandingStyles,
@@ -883,7 +884,8 @@ export function generateWorkReportPrintHtml(input: {
   const printHeadline = buildWorkReportPrintHeadline(report);
   const displayPeople = resolveWorkReportDisplayPeople(report, { hideAssignee: hideAssignee });
 
-  const summaryHeadHtml = isLampokatsastusCompanyName(meta.companyName)
+  const isLampokatsastusPrint = isLampokatsastusCompanyName(meta.companyName);
+  const lampokatsastusBrandHeaderHtml = isLampokatsastusPrint
     ? buildLampokatsastusWorkReportHeaderHtml(
         {
           companyName: meta.companyName,
@@ -894,10 +896,21 @@ export function generateWorkReportPrintHtml(input: {
           esc,
           attrUrl: (url: string) => String(url).replace(/"/g, '&quot;'),
           logoSrc: meta.logoUrl ?? '',
-          printHeadline,
-          printDate,
         },
       )
+    : '';
+
+  const summaryHeadHtml = isLampokatsastusPrint
+    ? `<div class="lk-work-title-row">
+      <div class="lk-work-title-main">
+        <div class="doc-label">Työraportti</div>
+        <h1>${esc(printHeadline)}</h1>
+      </div>
+      <div class="lk-print-date">
+        <span class="doc-label">Tulostettu</span>
+        <strong>${esc(printDate)}</strong>
+      </div>
+    </div>`
     : `<div class="summary-head">
       <div class="summary-brand">
         ${meta.logoUrl ? `<img class="logo" src="${esc(meta.logoUrl)}" alt="" />` : `<div class="logo-fallback">${esc(meta.companyName)}</div>`}
@@ -1108,6 +1121,20 @@ export function generateWorkReportPrintHtml(input: {
         )
       : '';
 
+  const footerHtml = isLampokatsastusPrint
+    ? buildLampokatsastusWorkReportFooterHtml(
+        {
+          companyName: meta.companyName,
+          settings: meta.settings,
+        },
+        { esc },
+      )
+    : `<div class="footer">
+      ${esc(meta.companyName)} • Tulostettu ${new Date().toLocaleString('fi-FI')}${
+        showInternalPrices ? ' • Sisäinen tuloste (hinnat mukana)' : ''
+      }
+    </div>`;
+
   return `<!doctype html>
 <html lang="fi">
 <head>
@@ -1117,6 +1144,7 @@ export function generateWorkReportPrintHtml(input: {
 </head>
 <body>
   <div class="work-report-print">
+    ${lampokatsastusBrandHeaderHtml}
     ${summaryBox}
     ${detailsBox}
     ${logsBox}
@@ -1124,11 +1152,7 @@ export function generateWorkReportPrintHtml(input: {
     ${quoteMarginSection}
     ${customerBillingSection}
     ${basicNetMarginSection}
-    <div class="footer">
-      ${esc(meta.companyName)} • Tulostettu ${new Date().toLocaleString('fi-FI')}${
-        showInternalPrices ? ' • Sisäinen tuloste (hinnat mukana)' : ''
-      }
-    </div>
+    ${footerHtml}
   </div>
 </body>
 </html>`;
@@ -1154,7 +1178,16 @@ const PRINT_CSS = `
     margin: 0;
     background: #fff;
   }
-  .work-report-print { padding: 0; }
+  .work-report-print {
+    padding: 0;
+    min-height: calc(297mm - 20mm);
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+  .work-report-print > .lk-footer {
+    margin-top: auto;
+  }
   .print-box {
     border: 1px solid var(--border-strong);
     border-radius: 8px;

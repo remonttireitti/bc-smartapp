@@ -51,6 +51,7 @@
     "test:hourly-rate-zero-override": "npx tsx scripts/test-hourly-rate-zero-override.mjs",
     "test:konvektori-document-patch": "npx tsx scripts/test-konvektori-document-patch.mjs",
     "test:work-report-customer-print": "npx tsx scripts/test-work-report-customer-print.mjs",
+    "test:lampokatsastus-branding": "npx tsx scripts/test-lampokatsastus-branding.mjs",
     "test:customer-billing-copy": "npx tsx scripts/test-customer-billing-copy.mjs",
     "test:quote-plus-extras-billing": "npx tsx scripts/test-quote-plus-extras-billing.mjs",
     "test:installation-supplies-calc": "npx tsx scripts/test-installation-supplies-calc.mjs",
