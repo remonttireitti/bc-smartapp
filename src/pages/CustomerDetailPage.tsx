@@ -101,6 +101,7 @@ export default function CustomerDetailPage({ session }: Props) {
   const [form, setForm] = useState({
     name: '',
     address: '',
+    postal_code: '',
     city: '',
     phone: '',
     email: '',
@@ -186,6 +187,7 @@ export default function CustomerDetailPage({ session }: Props) {
     setForm({
       name: c.name,
       address: c.address ?? '',
+      postal_code: c.postal_code ?? '',
       city: c.city ?? '',
       phone: c.phone ?? '',
       email: c.email ?? '',
@@ -306,6 +308,7 @@ export default function CustomerDetailPage({ session }: Props) {
       customerId: customer.id,
       name: form.name,
       address: form.address.trim() || null,
+      postal_code: form.postal_code.trim() || null,
       city: form.city.trim() || null,
       phone: form.phone.trim() || null,
       email: form.email.trim() || null,
@@ -723,8 +726,15 @@ export default function CustomerDetailPage({ session }: Props) {
                 />
               </label>
               <label>
-                Osoite
+                Postiosoite
                 <input value={form.address} onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))} />
+              </label>
+              <label>
+                Postinumero
+                <input
+                  value={form.postal_code}
+                  onChange={(e) => setForm((f) => ({ ...f, postal_code: e.target.value }))}
+                />
               </label>
               <label>
                 Kaupunki

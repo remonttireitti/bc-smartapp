@@ -38,9 +38,12 @@ import {
 } from '../lib/huoltoRaportti/maintenanceDeviceDraft';
 import { supabase } from '../lib/supabase';
 import { createRegistryCustomer } from '../lib/createRegistryCustomer';
-import { syncCustomerFromMaintenanceReport } from '../lib/updateRegistryCustomer';
+import { EQUIPMENT_SELECT, formatCustomerAddressParts } from '../lib/customers';
+import {
+  buildHuoltoCustomerFieldsFromRegistry,
+  syncCustomerFromMaintenanceReport,
+} from '../lib/updateRegistryCustomer';
 import { partnershipModuleAccess, partnershipPermsActingOnOwner } from '../lib/management';
-import { EQUIPMENT_SELECT } from '../lib/customers';
 import {
   defaultReportContext,
   loadAccessibleReportCustomers,
@@ -823,17 +826,17 @@ export default function MaintenanceReportEditPage({ session }: Props) {
     }
     const c = customers.find((x) => x.id === customerId);
     if (!c) return;
-    const registryAddress = [c.address, c.city].filter(Boolean).join(', ');
     const current = formStateRef.current.form;
+    const patch = buildHuoltoCustomerFieldsFromRegistry(c, current);
+    const keys = Object.keys(patch).filter((key) => key !== 'customerId');
     const shouldHydrateNew = isNew && hydratedNewReportCustomerIdRef.current !== customerId;
-    const shouldHydrateExisting = !isNew && !current.osoite.trim() && Boolean(registryAddress);
-    if (!shouldHydrateNew && !shouldHydrateExisting) return;
-    if (isNew) hydratedNewReportCustomerIdRef.current = customerId;
-    patchForm({
-      customerId,
-      asiakas: current.asiakas.trim() || c.name,
-      osoite: current.osoite.trim() || registryAddress,
+    const shouldFillEmpty = keys.some((key) => {
+      const value = patch[key as keyof typeof patch];
+      return typeof value === 'string' ? value.trim().length > 0 : Boolean(value);
     });
+    if (!shouldHydrateNew && !shouldFillEmpty) return;
+    if (isNew) hydratedNewReportCustomerIdRef.current = customerId;
+    patchForm(patch);
   }, [customerId, customers, isNew]);
 
   useEffect(() => {
@@ -973,19 +976,19 @@ export default function MaintenanceReportEditPage({ session }: Props) {
     setEquipmentId(nextEquipmentId);
 
     const customerRows = await loadAccessibleCustomers();
-    if (nextCustomerId && !formToUse.osoite.trim()) {
+    if (nextCustomerId) {
       const linkedCustomer = customerRows.find((entry) => entry.id === nextCustomerId);
-      const registryAddress = [linkedCustomer?.address, linkedCustomer?.city]
-        .filter(Boolean)
-        .join(', ');
-      if (registryAddress) {
-        formToUse = mergeHuoltoReportData(formToUse, { osoite: registryAddress });
-        formStateRef.current = {
-          form: formToUse,
-          customerId: nextCustomerId,
-          equipmentId: nextEquipmentId,
-        };
-        setForm(formToUse);
+      if (linkedCustomer) {
+        const customerPatch = buildHuoltoCustomerFieldsFromRegistry(linkedCustomer, formToUse);
+        if (Object.keys(customerPatch).some((key) => key !== 'customerId')) {
+          formToUse = mergeHuoltoReportData(formToUse, customerPatch);
+          formStateRef.current = {
+            form: formToUse,
+            customerId: nextCustomerId,
+            equipmentId: nextEquipmentId,
+          };
+          setForm(formToUse);
+        }
       }
     }
     await loadOwnerCompany(row.owner_company_id);
@@ -1180,12 +1183,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
     if (customer) {
       void loadOwnerCompany(customer.owner_company_id);
       if (customer.subscriber_id) setSubscriberId(customer.subscriber_id);
-      const registryAddress = [customer.address, customer.city].filter(Boolean).join(', ');
-      patchForm({
-        customerId: id,
-        asiakas: formStateRef.current.form.asiakas.trim() || customer.name,
-        osoite: formStateRef.current.form.osoite.trim() || registryAddress,
-      });
+      patchForm(buildHuoltoCustomerFieldsFromRegistry(customer, formStateRef.current.form));
     }
   }
 
@@ -1201,6 +1199,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
       ownerCompanyId: targetCompanyId,
       name: draft.name,
       address: draft.address,
+      postal_code: draft.postal_code,
       city: draft.city,
       phone: draft.phone,
       subscriberId: subscriberId || null,
@@ -1218,7 +1217,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
     patchForm({
       customerId: created.id,
       asiakas: created.name,
-      osoite: [created.address, created.city].filter(Boolean).join(', '),
+      osoite: formatCustomerAddressParts(created),
     });
     setBusy(false);
   }
@@ -1452,12 +1451,16 @@ export default function MaintenanceReportEditPage({ session }: Props) {
       if (!options?.auto) setError('Valitse asiakas tai täytä asiakastiedot.');
       return false;
     }
-    const registryAddress = [selectedCustomer?.address, selectedCustomer?.city]
-      .filter(Boolean)
-      .join(', ');
-    if (!currentForm.osoite.trim() && registryAddress) {
-      patchForm({ osoite: registryAddress });
-      currentForm = { ...currentForm, osoite: registryAddress };
+    if (selectedCustomer) {
+      const customerPatch = buildHuoltoCustomerFieldsFromRegistry(selectedCustomer, currentForm);
+      if (customerPatch.osoite && !currentForm.osoite.trim()) {
+        patchForm({ osoite: customerPatch.osoite });
+        currentForm = { ...currentForm, osoite: customerPatch.osoite };
+      }
+      if (customerPatch.asiakas && !currentForm.asiakas.trim()) {
+        patchForm({ asiakas: customerPatch.asiakas });
+        currentForm = { ...currentForm, asiakas: customerPatch.asiakas };
+      }
     }
 
     const isSubmitting = nextStatus === 'submitted';
@@ -1785,9 +1788,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
 
   function buildReportDataPayload(): HuoltoReportData {
     const currentForm = formStateRef.current.form;
-    const registryAddress = [selectedCustomer?.address, selectedCustomer?.city]
-      .filter(Boolean)
-      .join(', ');
+    const registryAddress = selectedCustomer ? formatCustomerAddressParts(selectedCustomer) : '';
     return normalizeHuoltoReportData({
       ...currentForm,
       ...huoltoPerformerFields(profile, session),

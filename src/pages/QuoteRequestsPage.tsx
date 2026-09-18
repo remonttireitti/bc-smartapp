@@ -92,7 +92,7 @@ export default function QuoteRequestsPage({ session }: Props) {
       .select(`
         id, title, status, data, updated_at, created_at, work_report_id,
         customer_id, equipment_id, owner_company_id, branding_company_id, created_by_company_id,
-        customers(name, address, city),
+        customers(name, address, postal_code, city),
         equipment(name, tag),
         owner_company:companies!quote_requests_owner_company_id_fkey(name),
         branding_company:companies!quote_requests_branding_company_id_fkey(name),

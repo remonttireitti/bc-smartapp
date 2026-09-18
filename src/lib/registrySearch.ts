@@ -1,4 +1,5 @@
 import type { Customer, Equipment } from '../types';
+import { formatCustomerAddressParts } from './customers';
 
 export type RegistryComboboxOption = {
   id: string;
@@ -13,6 +14,7 @@ export function filterCustomers(customers: Customer[], query: string): Customer[
     (c) =>
       c.name.toLowerCase().includes(q) ||
       (c.address ?? '').toLowerCase().includes(q) ||
+      (c.postal_code ?? '').toLowerCase().includes(q) ||
       (c.city ?? '').toLowerCase().includes(q) ||
       (c.phone ?? '').toLowerCase().includes(q),
   );
@@ -22,7 +24,7 @@ export function customerToOption(
   customer: Customer & { owner_company?: { name: string } | null },
   myCompanyId?: string,
 ): RegistryComboboxOption {
-  const addressHint = [customer.address, customer.city].filter(Boolean).join(', ');
+  const addressHint = formatCustomerAddressParts(customer);
   const registryLabel =
     myCompanyId && customer.owner_company_id !== myCompanyId
       ? customer.owner_company?.name ?? 'Kumppanin rekisteri'

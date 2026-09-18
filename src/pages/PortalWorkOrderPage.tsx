@@ -5,6 +5,7 @@ import AppLayout from '../components/AppLayout';
 import CustomerRegistryPicker, { type NewCustomerDraft } from '../components/CustomerRegistryPicker';
 import { useProfile } from '../hooks/useProfile';
 import { createRegistryCustomer } from '../lib/createRegistryCustomer';
+import { formatCustomerAddressParts } from '../lib/customers';
 import {
   companySubscriberOrderEditPath,
   isPortalUser,
@@ -107,6 +108,7 @@ export default function PortalWorkOrderPage({ session }: Props) {
       ownerCompanyId: ownerId,
       name: draft.name,
       address: draft.address,
+      postal_code: draft.postal_code,
       city: draft.city,
       phone: draft.phone,
       subscriberId: isSubscriber ? profile?.subscriber_id ?? null : null,
@@ -228,7 +230,9 @@ export default function PortalWorkOrderPage({ session }: Props) {
     setError(null);
     setMessage(null);
 
-    const locationText = [selectedCustomer?.address, selectedCustomer?.city].filter(Boolean).join(', ') || null;
+    const locationText = selectedCustomer
+      ? formatCustomerAddressParts(selectedCustomer) || null
+      : null;
     const payload = {
       title: buildWorkReportTitle(selectedCustomer?.name, heading.trim() || description),
       heading: heading.trim() || null,
@@ -395,7 +399,7 @@ export default function PortalWorkOrderPage({ session }: Props) {
               <span className="info-label">Kohde</span>
               <strong>{selectedCustomer?.name ?? '—'}</strong>
               <span className="muted">
-                {[selectedCustomer?.address, selectedCustomer?.city].filter(Boolean).join(', ') || '—'}
+                {selectedCustomer ? formatCustomerAddressParts(selectedCustomer) || '—' : '—'}
               </span>
             </div>
           )}

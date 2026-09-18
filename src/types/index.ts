@@ -56,6 +56,7 @@ export type Customer = {
   id: string;
   name: string;
   address: string | null;
+  postal_code?: string | null;
   city: string | null;
   phone: string | null;
   email: string | null;
@@ -249,7 +250,13 @@ export type WorkReport = {
   delegated_at: string | null;
   is_onboarding_demo?: boolean;
   created_at: string;
-  customers: { name: string; address?: string | null; city?: string | null; subscriber_id?: string | null } | null;
+  customers: {
+    name: string;
+    address?: string | null;
+    postal_code?: string | null;
+    city?: string | null;
+    subscriber_id?: string | null;
+  } | null;
   equipment: { name: string; tag: string | null } | null;
   owner_company: { name: string } | null;
   branding_company: { name: string } | null;

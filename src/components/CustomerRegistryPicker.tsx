@@ -6,6 +6,7 @@ import RegistryCombobox from './RegistryCombobox';
 export type NewCustomerDraft = {
   name: string;
   address: string;
+  postal_code: string;
   city: string;
   phone: string;
 };
@@ -13,6 +14,7 @@ export type NewCustomerDraft = {
 const emptyDraft = (): NewCustomerDraft => ({
   name: '',
   address: '',
+  postal_code: '',
   city: '',
   phone: '',
 });
@@ -91,10 +93,17 @@ export default function CustomerRegistryPicker({
               />
             </label>
             <label>
-              Osoite
+              Postiosoite
               <input
                 value={draft.address}
                 onChange={(event) => setDraft((prev) => ({ ...prev, address: event.target.value }))}
+              />
+            </label>
+            <label>
+              Postinumero
+              <input
+                value={draft.postal_code}
+                onChange={(event) => setDraft((prev) => ({ ...prev, postal_code: event.target.value }))}
               />
             </label>
             <label>

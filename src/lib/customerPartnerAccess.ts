@@ -13,7 +13,7 @@ export async function loadOwnCustomers(
 ): Promise<Customer[]> {
   const { data, error } = await supabase
     .from('customers')
-    .select('id, name, address, city, owner_company_id')
+    .select('id, name, address, postal_code, city, owner_company_id')
     .eq('owner_company_id', ownerCompanyId)
     .order('name');
 

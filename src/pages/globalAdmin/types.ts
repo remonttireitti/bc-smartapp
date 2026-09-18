@@ -56,6 +56,7 @@ export type DuplicateCustomerRow = {
   id: string;
   name: string;
   address: string | null;
+  postal_code?: string | null;
   city: string | null;
   created_at: string;
   equipmentCount: number;

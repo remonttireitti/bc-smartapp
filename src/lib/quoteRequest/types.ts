@@ -210,7 +210,7 @@ export type QuoteRequestRow = {
   work_report_id?: string | null;
   created_at: string;
   updated_at: string;
-  customers: { name: string; address: string | null; city: string | null; phone?: string | null; email?: string | null } | null;
+  customers: { name: string; address: string | null; postal_code?: string | null; city: string | null; phone?: string | null; email?: string | null } | null;
   equipment: { name: string; tag: string | null; model?: string | null } | null;
   owner_company: { name: string } | null;
   branding_company: { name: string } | null;

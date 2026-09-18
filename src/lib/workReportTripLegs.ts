@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 import type { CompanySettings } from './management';
+import { formatCustomerAddressParts } from './customers';
 import { expenseLineTotal, type DailyTripLeg, type WorkReport, type WorkReportDailyLog } from '../types';
 import { resolveTripKmBillingLine, tripKmLineTotal } from './tripKmExpense';
 
@@ -69,8 +70,8 @@ export function resolveWorkReportSiteLabel(
 
   const customer = report.customers;
   if (customer) {
-    const parts = [customer.address, customer.city].filter(Boolean);
-    if (parts.length) return parts.join(', ');
+    const address = formatCustomerAddressParts(customer);
+    if (address) return address;
     if (customer.name?.trim()) return customer.name.trim();
   }
 
