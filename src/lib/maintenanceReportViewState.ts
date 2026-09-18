@@ -117,3 +117,15 @@ export function syncMaintenanceReportEditorAfterSave(
     editor,
   });
 }
+
+/** Poista editor-snapshot (esim. kun lähdetään vanhasta raportista sibling-kopion jälkeen). */
+export function clearMaintenanceReportEditorSnapshot(key: string) {
+  const prev = readMaintenanceReportViewState(key);
+  if (!prev?.editor) return;
+  writeMaintenanceReportViewState(key, {
+    scrollY: prev.scrollY,
+    savedAt: prev.savedAt,
+    dbSyncedAt: prev.dbSyncedAt,
+    openKeys: prev?.openKeys,
+  });
+}
