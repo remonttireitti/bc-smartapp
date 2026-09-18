@@ -25,6 +25,7 @@
     "test:huomiot-optional-complete": "npx tsx scripts/test-huomiot-optional-complete.mjs",
     "test:ilp-lampopumppu-tiles": "npx tsx scripts/test-ilp-lampopumppu-tiles.mjs",
     "test:ilp-mittaus-mode-fields": "npx tsx scripts/test-ilp-mittaus-mode-fields.mjs",
+    "test:sibling-equipment-copy-source-intact": "npx tsx scripts/test-sibling-equipment-copy-source-intact.mjs",
     "test:portal-work-order-draft": "npx tsx scripts/test-portal-work-order-draft.mjs",
     "test:work-report-create-sections": "npx tsx scripts/test-work-report-create-sections.mjs",
     "test:expense-billing": "npx tsx scripts/test-expense-billing.mjs",

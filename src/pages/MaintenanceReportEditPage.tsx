@@ -131,6 +131,7 @@ import {
   type SiblingEquipmentCopyInput,
 } from '../lib/huoltoRaportti/siblingEquipmentCopy';
 import {
+  clearMaintenanceReportEditorSnapshot,
   maintenanceReportViewKey,
   maintenanceReportEditorAheadOfDb,
   persistMaintenanceReportEditorSnapshot,
@@ -707,6 +708,18 @@ export default function MaintenanceReportEditPage({ session }: Props) {
   }, [form.laiteTyyppi, copySiblingMode]);
 
   useEffect(() => {
+    const state = location.state as { siblingCopyFlash?: string } | null;
+    const flash = state?.siblingCopyFlash?.trim();
+    if (!flash) return;
+    setRegistryMessage(flash);
+    const { siblingCopyFlash: _drop, ...rest } = state ?? {};
+    navigate(location.pathname + location.search, {
+      replace: true,
+      state: Object.keys(rest).length > 0 ? rest : null,
+    });
+  }, [location.state, location.pathname, location.search, navigate]);
+
+  useEffect(() => {
     if (!isNew || !ownerCompanyId) return;
     if (searchParams.get('copyFrom')) return;
     const cid = searchParams.get('customerId');
@@ -1266,7 +1279,12 @@ export default function MaintenanceReportEditPage({ session }: Props) {
 
       const partnership = contextMode === 'partner' ? partnerships.find((p) => p.id === partnerId) : null;
       const sourceForm = formStateRef.current.form;
-      const { reportId: newReportId, equipmentId: newEquipmentId } = await createSiblingMaintenanceReport({
+      const sourceReportId = reportId;
+      const sourceDraftKey = draftStorageKey;
+      const sourceViewKey = reportViewKey;
+      const sourceTunnus = String(sourceForm.laiteTunnus ?? '').trim();
+
+      const { reportId: newReportId } = await createSiblingMaintenanceReport({
         sourceForm,
         input,
         customerId,
@@ -1283,16 +1301,29 @@ export default function MaintenanceReportEditPage({ session }: Props) {
         supabase,
       });
 
+      // Estä hydrate/autosave kirjoittamasta uutta tunnusta vanhaan raporttiin / session-cacheen.
+      skipAutoSaveRef.current = true;
+      equipmentHydrateGenRef.current += 1;
       setSiblingCopyDialogOpen(false);
       setCopySiblingMode(false);
       setCopySourceEquipmentId(null);
       siblingCopyDefaultsRef.current = {};
-      setEquipmentId(newEquipmentId);
-      await loadEquipment(customerId);
-      clearLocalMaintenanceDraft(draftStorageKey);
-      navigate(`/huoltoraportit/${newReportId}`, { replace: true, state: location.state });
-      setRegistryMessage(`Laite "${input.tunnus}" ja uusi huoltopöytäkirja luotu.`);
       setHasUnsavedChanges(false);
+      clearLocalMaintenanceDraft(sourceDraftKey);
+      if (sourceReportId) {
+        clearMaintenanceReportEditorSnapshot(sourceViewKey);
+      }
+
+      // Älä setEquipmentId/setForm tällä sivulla — hydrate peittäisi vanhan raportin tunnuksen.
+      navigate(`/huoltoraportit/${newReportId}`, {
+        replace: true,
+        state: {
+          ...(typeof location.state === 'object' && location.state ? location.state : {}),
+          siblingCopyFlash: `Laite "${input.tunnus}" ja uusi huoltopöytäkirja luotu.${
+            sourceTunnus ? ` Lähdelaite säilyi tunnuksella "${sourceTunnus}".` : ''
+          }`,
+        },
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Uuden laitteen ja pöytäkirjan luonti epäonnistui.');
     } finally {
@@ -1979,8 +2010,11 @@ export default function MaintenanceReportEditPage({ session }: Props) {
               : 'Tallenna laite rekisteriin'}
         </button>
         {equipmentId && selectedCustomer ? (
-          <Link to={`/asiakkaat/${selectedCustomer.id}`} className="btn btn-secondary">
-            Avaa laiterekisteri
+          <Link
+            to={`/asiakkaat/${selectedCustomer.id}/laitteet/${equipmentId}`}
+            className="btn btn-secondary"
+          >
+            Avaa laitekortti
           </Link>
         ) : null}
       </div>
