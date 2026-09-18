@@ -6,12 +6,8 @@ import {
 import {
   SISAYKSIKKO_TARKASTUS_ITEMS,
   sisayksikkoTarkastusSummary,
-  type SisayksikkoTarkastusField,
 } from '../../lib/huoltoRaportti/sisayksikkoTarkastus';
-import {
-  normalizeLegacyInspectionStatus,
-  type HuoltoInspectionStatus,
-} from '../../lib/huoltoRaportti/huoltoInspectionStatus';
+import { normalizeLegacyInspectionStatus } from '../../lib/huoltoRaportti/huoltoInspectionStatus';
 import { FormCheckbox } from './FormCheckbox';
 import { FormInput } from './FormInput';
 import {
@@ -170,7 +166,8 @@ export function LampopumppuSection({
         lampopumppuSisayksikkoTitle(form.laiteTyyppi),
         <>
           <p className="muted huolto-help">
-            Valitse tyyppi ja täytä tunnistetiedot. Lämpötilat, paineet ja tarkastuskohdat täytetään Mittaukset-osiossa.
+            Valitse tyyppi ja täytä tunnistetiedot. Merkitse tarkastuskohdat ja huomiot alla.
+            Lämpötilat ja paineet täytetään Mittaukset-osiossa.
           </p>
           <div className="btn-group">
             {[1, 2, 3, 4, 5].map((num) => (
@@ -188,6 +185,12 @@ export function LampopumppuSection({
           {sisayksikkoData.slice(0, sisayksikkoMaara).map((yksikko, index) => {
             const mittaus = mittausSisayksikot[index] ?? createEmptySisayksikkoMittausData();
             const status = sisayksikkoStatusLabel(yksikko);
+            const disabled = !!sisaSama[index];
+            const patchUnit = (patch: Partial<SisayksikkoData>) => {
+              const next = [...sisayksikkoData];
+              next[index] = { ...next[index], ...patch };
+              onChange({ sisayksikkoData: next });
+            };
             return (
             <div key={index} className="huolto-submodule">
               <div className="sisayksikko-submodule-head">
@@ -215,12 +218,8 @@ export function LampopumppuSection({
                   Sisäyksikön tyyppi
                   <select
                     value={yksikko.tyyppi}
-                    disabled={!!sisaSama[index]}
-                    onChange={(e) => {
-                      const next = [...sisayksikkoData];
-                      next[index] = { ...next[index], tyyppi: e.target.value };
-                      onChange({ sisayksikkoData: next });
-                    }}
+                    disabled={disabled}
+                    onChange={(e) => patchUnit({ tyyppi: e.target.value })}
                   >
                     <option value="">Valitse…</option>
                     <option value="seina">Seinä-asenteinen</option>
@@ -233,36 +232,25 @@ export function LampopumppuSection({
                 <FormInput
                   label="Tarkka malli"
                   value={yksikko.malli}
-                  onChange={(v) => {
-                    const next = [...sisayksikkoData];
-                    next[index] = { ...next[index], malli: v };
-                    onChange({ sisayksikkoData: next });
-                  }}
-                  disabled={!!sisaSama[index]}
+                  onChange={(v) => patchUnit({ malli: v })}
+                  disabled={disabled}
                 />
                 <FormInput
                   label="Sarjanumero"
                   value={yksikko.sarjanumero}
-                  onChange={(v) => {
-                    const next = [...sisayksikkoData];
-                    next[index] = { ...next[index], sarjanumero: v };
-                    onChange({ sisayksikkoData: next });
-                  }}
-                  disabled={!!sisaSama[index]}
+                  onChange={(v) => patchUnit({ sarjanumero: v })}
+                  disabled={disabled}
                 />
                 <label>
                   Kondenssiveden poisto
                   <select
                     value={yksikko.kondenssivesi}
-                    disabled={!!sisaSama[index]}
+                    disabled={disabled}
                     onChange={(e) => {
-                      const next = [...sisayksikkoData];
-                      next[index] = {
-                        ...next[index],
+                      patchUnit({
                         kondenssivesi: e.target.value,
-                        pumppuMalli: e.target.value === 'pumpulla' ? next[index].pumppuMalli : '',
-                      };
-                      onChange({ sisayksikkoData: next });
+                        pumppuMalli: e.target.value === 'pumpulla' ? yksikko.pumppuMalli : '',
+                      });
                     }}
                   >
                     <option value="">Valitse…</option>
@@ -274,16 +262,64 @@ export function LampopumppuSection({
                   <FormInput
                     label="Pumpun malli"
                     value={yksikko.pumppuMalli}
-                    onChange={(v) => {
-                      const next = [...sisayksikkoData];
-                      next[index] = { ...next[index], pumppuMalli: v };
-                      onChange({ sisayksikkoData: next });
-                    }}
-                    disabled={!!sisaSama[index]}
+                    onChange={(v) => patchUnit({ pumppuMalli: v })}
+                    disabled={disabled}
                   />
                 )}
               </div>
               <SisayksikkoSchematicPreview unit={yksikko} mittaus={mittaus} />
+
+              <p className="muted">Tarkastuskohdat</p>
+              <div className="konvektori-tarkastus-list">
+                {SISAYKSIKKO_TARKASTUS_ITEMS.map((item) => (
+                  <div key={item.field} className="konvektori-tarkastus-item">
+                    <span className="konvektori-tarkastus-label">{item.label}</span>
+                    <TriStateInspectionToggle
+                      name={`sisayksikko-${index}-${item.field}`}
+                      value={normalizeLegacyInspectionStatus(yksikko[item.field])}
+                      onChange={(value) => patchUnit({ [item.field]: value })}
+                      disabled={disabled}
+                    />
+                  </div>
+                ))}
+              </div>
+
+              <div className="konvektori-huomio-type">
+                <span className="konvektori-tarkastus-label">Huomion tyyppi</span>
+                <div className="konvektori-huomio-type-toggle" role="group" aria-label="Huomion tyyppi">
+                  <button
+                    type="button"
+                    className={`konvektori-huomio-type-btn${yksikko.huomioTyyppi !== 'vika' ? ' konvektori-huomio-type-btn--active' : ''}`}
+                    aria-pressed={yksikko.huomioTyyppi !== 'vika'}
+                    disabled={disabled}
+                    onClick={() => patchUnit({ huomioTyyppi: 'kommentti' satisfies HuomioLuonne })}
+                  >
+                    Kommentti
+                  </button>
+                  <button
+                    type="button"
+                    className={`konvektori-huomio-type-btn konvektori-huomio-type-btn--vika${yksikko.huomioTyyppi === 'vika' ? ' konvektori-huomio-type-btn--active' : ''}`}
+                    aria-pressed={yksikko.huomioTyyppi === 'vika'}
+                    disabled={disabled}
+                    onClick={() => patchUnit({ huomioTyyppi: 'vika' satisfies HuomioLuonne })}
+                  >
+                    Vika (punainen)
+                  </button>
+                </div>
+              </div>
+
+              <label className="konvektori-huomio-field">
+                Kommentti / huomio
+                <RichCommentEditor
+                  rows={3}
+                  value={yksikko.huomio ?? ''}
+                  onChange={(huomio) => {
+                    if (disabled) return;
+                    patchUnit({ huomio });
+                  }}
+                  placeholder="Kirjoita huomio tähän…"
+                />
+              </label>
             </div>
             );
           })}
@@ -324,13 +360,12 @@ export function LampopumppuSection({
           {!form.mittausJaahdytysTestattu && !form.mittausLammitysTestattu ? (
             <p className="muted huolto-help">
               Merkitse jäähdytys ja/tai lämmitys testatuksi, jotta paine- ja lämpötilakentät tulevat näkyviin.
-              Tarkastuskohdat ja huomiot täytetään alla jokaiselle sisäyksikölle.
             </p>
           ) : null}
 
-          {Array.from({ length: sisayksikkoMaara }, (_, index) => {
+          {(form.mittausJaahdytysTestattu || form.mittausLammitysTestattu)
+            && Array.from({ length: sisayksikkoMaara }, (_, index) => {
             const mittaus = mittausSisayksikot[index] ?? createEmptySisayksikkoMittausData();
-            const yksikko = sisayksikkoData[index] ?? createEmptySisayksikkoData();
             const patchMittaus = (patch: Partial<typeof mittaus>) => {
               const next = [...mittausSisayksikot];
               while (next.length <= index) next.push(createEmptySisayksikkoMittausData());
@@ -342,12 +377,6 @@ export function LampopumppuSection({
               while (next.length <= index) next.push(createEmptySisayksikkoData());
               next[index] = { ...next[index], ...patch };
               onChange({ sisayksikkoData: next });
-            };
-            const patchCheck = (
-              field: SisayksikkoTarkastusField,
-              value: Exclude<HuoltoInspectionStatus, null>,
-            ) => {
-              patchUnit({ [field]: value });
             };
             const disabled = !!mittausSama[index];
             return (
@@ -365,22 +394,9 @@ export function LampopumppuSection({
                       if (v && nextMittaus[0] && nextMittaus[index]) {
                         nextMittaus[index] = { ...nextMittaus[index], ...nextMittaus[0] };
                       }
-                      const nextUnits = [...sisayksikkoData];
-                      if (v && nextUnits[0] && nextUnits[index]) {
-                        nextUnits[index] = {
-                          ...nextUnits[index],
-                          asennettu: nextUnits[0].asennettu,
-                          kennoPuhdas: nextUnits[0].kennoPuhdas,
-                          eiAania: nextUnits[0].eiAania,
-                          kondenssiTestattu: nextUnits[0].kondenssiTestattu,
-                          huomio: nextUnits[0].huomio,
-                          huomioTyyppi: nextUnits[0].huomioTyyppi,
-                        };
-                      }
                       onChange({
                         mittausSamaKuinEnsimmainen: nextSama,
                         mittausSisayksikot: nextMittaus,
-                        sisayksikkoData: nextUnits,
                       });
                     }}
                   />
@@ -515,58 +531,6 @@ export function LampopumppuSection({
                     </div>
                   </>
                 ) : null}
-
-                <p className="muted">Tarkastuskohdat</p>
-                <div className="konvektori-tarkastus-list">
-                  {SISAYKSIKKO_TARKASTUS_ITEMS.map((item) => (
-                    <div key={item.field} className="konvektori-tarkastus-item">
-                      <span className="konvektori-tarkastus-label">{item.label}</span>
-                      <TriStateInspectionToggle
-                        name={`sisayksikko-${index}-${item.field}`}
-                        value={normalizeLegacyInspectionStatus(yksikko[item.field])}
-                        onChange={(value) => patchCheck(item.field, value)}
-                        disabled={disabled}
-                      />
-                    </div>
-                  ))}
-                </div>
-
-                <div className="konvektori-huomio-type">
-                  <span className="konvektori-tarkastus-label">Huomion tyyppi</span>
-                  <div className="konvektori-huomio-type-toggle" role="group" aria-label="Huomion tyyppi">
-                    <button
-                      type="button"
-                      className={`konvektori-huomio-type-btn${yksikko.huomioTyyppi !== 'vika' ? ' konvektori-huomio-type-btn--active' : ''}`}
-                      aria-pressed={yksikko.huomioTyyppi !== 'vika'}
-                      disabled={disabled}
-                      onClick={() => patchUnit({ huomioTyyppi: 'kommentti' satisfies HuomioLuonne })}
-                    >
-                      Kommentti
-                    </button>
-                    <button
-                      type="button"
-                      className={`konvektori-huomio-type-btn konvektori-huomio-type-btn--vika${yksikko.huomioTyyppi === 'vika' ? ' konvektori-huomio-type-btn--active' : ''}`}
-                      aria-pressed={yksikko.huomioTyyppi === 'vika'}
-                      disabled={disabled}
-                      onClick={() => patchUnit({ huomioTyyppi: 'vika' satisfies HuomioLuonne })}
-                    >
-                      Vika (punainen)
-                    </button>
-                  </div>
-                </div>
-
-                <label className="konvektori-huomio-field">
-                  Kommentti / huomio
-                  <RichCommentEditor
-                    rows={3}
-                    value={yksikko.huomio ?? ''}
-                    onChange={(huomio) => {
-                      if (disabled) return;
-                      patchUnit({ huomio });
-                    }}
-                    placeholder="Kirjoita huomio tähän…"
-                  />
-                </label>
               </div>
             );
           })}
