@@ -48,6 +48,7 @@ export type MaintenanceReportTabContentProps = {
   basicsFieldErrors: Record<string, string>;
   deviceFieldErrors: Record<string, string>;
   basicsComplete: boolean;
+  basicsMissingItems?: string[];
   showKylmaaineCharge: boolean;
   showEvaporatorSection: boolean;
   showCondenserSection: boolean;
@@ -115,6 +116,7 @@ export function MaintenanceReportTabContent({
   basicsFieldErrors,
   deviceFieldErrors,
   basicsComplete,
+  basicsMissingItems = [],
   showKylmaaineCharge,
   showEvaporatorSection,
   showCondenserSection,
@@ -187,6 +189,7 @@ export function MaintenanceReportTabContent({
           basicsFieldErrors={basicsFieldErrors}
           deviceFieldErrors={deviceFieldErrors}
           basicsComplete={basicsComplete}
+          basicsMissingItems={basicsMissingItems}
           profileCompanyId={profile?.company_id}
           reportOwnerCompanyId={reportOwnerCompanyId}
           reportOwnerTargets={reportOwnerTargets}

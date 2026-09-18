@@ -111,6 +111,7 @@ import {
 } from '../lib/huoltoRaportti/maintenanceReportTabs';
 import {
   isMaintenanceBasicsComplete,
+  describeMaintenanceBasicsMissingItems,
   fillMissingDeviceBasics,
   showRefrigerantBasics,
   validateMaintenanceCustomerBasics,
@@ -375,6 +376,11 @@ export default function MaintenanceReportEditPage({ session }: Props) {
     [customerBasicsInput, deviceBasicsInput],
   );
 
+  const basicsMissingItems = useMemo(
+    () => describeMaintenanceBasicsMissingItems(customerBasicsInput, deviceBasicsInput),
+    [customerBasicsInput, deviceBasicsInput],
+  );
+
   const canSaveDraft = useMemo(
     () =>
       Boolean(form.laiteTyyppi.trim())
@@ -455,8 +461,12 @@ export default function MaintenanceReportEditPage({ session }: Props) {
   );
 
   const incompleteModules = useMemo(
-    () => listIncompleteMaintenanceModules(maintenanceTabs, form, tabCompletion),
-    [maintenanceTabs, form, tabCompletion],
+    () =>
+      listIncompleteMaintenanceModules(maintenanceTabs, form, tabCompletion, {
+        customerBasics: customerBasicsInput,
+        deviceBasics: deviceBasicsInput,
+      }),
+    [maintenanceTabs, form, tabCompletion, customerBasicsInput, deviceBasicsInput],
   );
 
   const modulesComplete = useMemo(
@@ -1941,6 +1951,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
     basicsFieldErrors,
     deviceFieldErrors,
     basicsComplete,
+    basicsMissingItems,
     showKylmaaineCharge,
     showEvaporatorSection,
     showCondenserSection,
@@ -2220,6 +2231,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
                 form={form}
                 deviceFieldErrors={deviceFieldErrors}
                 complete={basicsComplete}
+                missingItems={basicsMissingItems}
                 onEdit={openDeviceDialog}
                 editButtonLabel={deviceButtonLabel}
               />

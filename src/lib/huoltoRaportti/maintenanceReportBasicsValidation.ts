@@ -131,17 +131,41 @@ export function isRaportointiBasicsComplete(
   customerInput: CustomerBasicsInput,
   deviceInput: DeviceBasicsInput,
 ): boolean {
-  return validateMaintenanceCustomerBasics(customerInput).ok
-    && validateMaintenanceDeviceBasics(deviceInput).ok
-    && Boolean(customerInput.osoite.trim());
+  return describeRaportointiMissingItems(customerInput, deviceInput).length === 0;
+}
+
+/** Ihmislukuiset syyt miksi raportointi/asiakas/laitetiedot on kesken. */
+export function describeRaportointiMissingItems(
+  customerInput: CustomerBasicsInput,
+  deviceInput: DeviceBasicsInput,
+): string[] {
+  const items: string[] = [];
+  const customer = validateMaintenanceCustomerBasics(customerInput);
+  const device = validateMaintenanceDeviceBasics(deviceInput);
+
+  items.push(...customer.errors);
+  if (!customerInput.osoite.trim()) {
+    items.push('Asiakkaan osoite puuttuu.');
+  }
+  items.push(...device.errors);
+  return items;
+}
+
+/** Laitetiedot-yhteenvedon "Puuttuu"-badge: laite + kylmäaine (jos vaaditaan). */
+export function describeMaintenanceBasicsMissingItems(
+  customerInput: CustomerBasicsInput,
+  deviceInput: DeviceBasicsInput,
+): string[] {
+  const items = describeRaportointiMissingItems(customerInput, deviceInput);
+  items.push(...validateMaintenanceRefrigerantBasics(deviceInput).errors);
+  return items;
 }
 
 export function isMaintenanceBasicsComplete(
   customerInput: CustomerBasicsInput,
   deviceInput: DeviceBasicsInput,
 ): boolean {
-  if (!isRaportointiBasicsComplete(customerInput, deviceInput)) return false;
-  return validateMaintenanceRefrigerantBasics(deviceInput).ok;
+  return describeMaintenanceBasicsMissingItems(customerInput, deviceInput).length === 0;
 }
 
 /** Täytä rekisterilaitteen puuttuvat pakolliset kentät, jotta raportin moduulit aukeavat. */

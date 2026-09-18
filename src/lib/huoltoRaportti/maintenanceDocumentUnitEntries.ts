@@ -1,6 +1,11 @@
 import { isChillerLikeDevice, usesRefrigerantServiceExtras } from './deviceModuleLogic';
 import { tiiveyskoeTabCompletion, tyhjiointiTabCompletion } from './maintenanceReportTabCompletion';
 import {
+  describeRaportointiMissingItems,
+  type CustomerBasicsInput,
+  type DeviceBasicsInput,
+} from './maintenanceReportBasicsValidation';
+import {
   condenserInspectionStatus,
   compressorInspectionStatus,
   entityInspectionStatus,
@@ -273,6 +278,7 @@ export type IncompleteMaintenanceModule = {
   title: string;
   statusLabel: string;
   tabId: string;
+  details?: string[];
 };
 
 /** Puuttuvat / keskeneräiset dokumenttiruudut (sama lista kuin ruuduilla). */
@@ -280,17 +286,28 @@ export function listIncompleteMaintenanceModules(
   tabs: MaintenanceReportTabItem[],
   form: HuoltoReportData,
   tabCompletion?: Partial<Record<string, MaintenanceTabCompletionState>>,
+  options?: {
+    customerBasics?: CustomerBasicsInput;
+    deviceBasics?: DeviceBasicsInput;
+  },
 ): IncompleteMaintenanceModule[] {
   const incomplete: IncompleteMaintenanceModule[] = [];
   for (const entry of buildMaintenanceDocumentEntries(tabs, form)) {
     const completion = documentEntryCompletion(entry, form, tabCompletion);
     if (completion === 'ok' || completion === 'attention') continue;
     const presentation = resolveModuleTilePresentation(entry.tabId, form, completion);
+    const details =
+      entry.tabId === 'raportointi'
+      && options?.customerBasics
+      && options?.deviceBasics
+        ? describeRaportointiMissingItems(options.customerBasics, options.deviceBasics)
+        : undefined;
     incomplete.push({
       key: entry.key,
       title: entry.title,
       statusLabel: presentation.subtitle,
       tabId: entry.tabId,
+      ...(details && details.length > 0 ? { details } : {}),
     });
   }
   return incomplete;

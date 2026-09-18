@@ -4,6 +4,7 @@ export type IncompleteModuleRow = {
   key: string;
   title: string;
   statusLabel: string;
+  details?: string[];
 };
 
 type Props = {
@@ -39,9 +40,9 @@ export default function MaintenanceIncompleteModulesDialog({
         aria-labelledby="maintenance-incomplete-title"
         onClick={(event) => event.stopPropagation()}
       >
-        <h2 id="maintenance-incomplete-title">Pakollisia osioita puuttuu</h2>
+        <h2 id="maintenance-incomplete-title">Pakollisia tietoja puuttuu</h2>
         <p className="muted">
-          Raporttia ei voi merkitä valmiiksi ennen kuin nämä osiot on täytetty:
+          Raporttia ei voi merkitä valmiiksi ennen kuin nämä on korjattu:
         </p>
         <ul className="maintenance-incomplete-module-list">
           {modules.map((module) => (
@@ -52,14 +53,30 @@ export default function MaintenanceIncompleteModulesDialog({
                   className="maintenance-incomplete-module-link"
                   onClick={() => onOpenModule(module.key)}
                 >
-                  <strong>{module.title}</strong>
-                  <span className="muted">{module.statusLabel}</span>
+                  <span className="maintenance-incomplete-module-main">
+                    <strong>{module.title}</strong>
+                    <span className="muted">{module.statusLabel}</span>
+                  </span>
+                  {module.details && module.details.length > 0 ? (
+                    <ul className="maintenance-incomplete-module-details">
+                      {module.details.map((detail) => (
+                        <li key={detail}>{detail}</li>
+                      ))}
+                    </ul>
+                  ) : null}
                 </button>
               ) : (
-                <>
+                <div className="maintenance-incomplete-module-static">
                   <strong>{module.title}</strong>
                   <span className="muted"> — {module.statusLabel}</span>
-                </>
+                  {module.details && module.details.length > 0 ? (
+                    <ul className="maintenance-incomplete-module-details">
+                      {module.details.map((detail) => (
+                        <li key={detail}>{detail}</li>
+                      ))}
+                    </ul>
+                  ) : null}
+                </div>
               )}
             </li>
           ))}

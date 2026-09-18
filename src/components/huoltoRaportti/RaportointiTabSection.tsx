@@ -16,6 +16,7 @@ type Props = {
   basicsFieldErrors: Record<string, string>;
   deviceFieldErrors: Record<string, string>;
   basicsComplete: boolean;
+  basicsMissingItems?: string[];
   profileCompanyId: string | null | undefined;
   reportOwnerCompanyId: string | null;
   reportOwnerTargets: ReportOwnerTarget[];
@@ -57,6 +58,7 @@ export function RaportointiTabSection({
   basicsFieldErrors,
   deviceFieldErrors,
   basicsComplete,
+  basicsMissingItems = [],
   profileCompanyId,
   reportOwnerCompanyId,
   reportOwnerTargets,
@@ -138,6 +140,7 @@ export function RaportointiTabSection({
         form={form}
         deviceFieldErrors={deviceFieldErrors}
         complete={basicsComplete}
+        missingItems={basicsMissingItems}
         onEdit={onOpenDeviceDialog}
         editButtonLabel={deviceButtonLabel}
       />
