@@ -7,6 +7,7 @@ import {
   buildHuoltoEquipmentTechnicalSnapshot,
   saveEquipmentFromReport,
 } from './equipmentSnapshot';
+import { assertUniqueCustomerEquipmentTunnus } from './equipmentTunnusUniqueness';
 import { huoltoPerformerFields } from './performerFromProfile';
 import type { HuoltoReportData } from './types';
 import type { SubscriberPortalVisibility } from '../subscriberPortalVisibility';
@@ -61,12 +62,19 @@ export async function createSiblingMaintenanceReport(
     throw new Error('Laitetyyppi puuttuu.');
   }
 
+  await assertUniqueCustomerEquipmentTunnus(
+    params.supabase,
+    params.customerId,
+    form.laiteTunnus,
+  );
+
   const equipmentId = await saveEquipmentFromReport(
     form,
     params.customerId,
     params.ownerCompanyId,
     null,
     params.supabase,
+    { skipUniquenessCheck: true },
   );
 
   const dataPayload = normalizeHuoltoReportData({

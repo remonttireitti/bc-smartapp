@@ -74,8 +74,8 @@ export function SiblingEquipmentCopyDialog({
         <h2 id="sibling-equipment-copy-title">Uusi laite ja huoltopöytäkirja</h2>
         <p className="muted konvektori-dialog-help">
           {sourceLabel
-            ? `Luodaan kopio laitteesta ${sourceLabel}. Täytä uuden laitteen tunnistetiedot — laite tallennetaan rekisteriin ja uusi luonnospöytäkirja avataan automaattisesti.`
-            : 'Luodaan uusi laite rekisteriin ja huoltopöytäkirja kopiona. Täytä uuden laitteen tunnistetiedot.'}
+            ? `Luodaan kopio laitteesta ${sourceLabel}. Anna uudelle laitteelle uniikki tunnus — laite tallennetaan rekisteriin ja yksi uusi luonnospöytäkirja linkitetään siihen.`
+            : 'Luodaan uusi laite rekisteriin ja yksi huoltopöytäkirja kopiona. Laitetunnuksen on oltava uniikki tällä asiakkaalla.'}
         </p>
 
         <label className="konvektori-mittaus-field">

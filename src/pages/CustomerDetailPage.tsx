@@ -45,6 +45,7 @@ import {
 } from '../lib/equipmentMaintenanceHistory';
 import { buildEquipmentListPrintHtml } from '../lib/equipmentListPrintHtml';
 import { openPrintHtml } from '../lib/openPrintWindow';
+import { assertUniqueCustomerEquipmentTunnus } from '../lib/huoltoRaportti/equipmentTunnusUniqueness';
 import { isPortalUser } from '../lib/portalWorkOrder';
 import { supabase } from '../lib/supabase';
 import { customerDetailTrail, withNavTrail } from '../lib/navigationTrail';
@@ -342,6 +343,17 @@ export default function CustomerDetailPage({ session }: Props) {
 
     setBusy(true);
     setError(null);
+    try {
+      await assertUniqueCustomerEquipmentTunnus(
+        supabase,
+        customer.id,
+        newEquipment.tag.trim() || newEquipment.name.trim(),
+      );
+    } catch (err) {
+      setBusy(false);
+      setError(err instanceof Error ? err.message : 'Laitteen lisäys epäonnistui.');
+      return;
+    }
     const { error: insertError } = await supabase.from('equipment').insert({
       owner_company_id: customer.owner_company_id,
       customer_id: customer.id,

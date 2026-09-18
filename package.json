@@ -40,6 +40,7 @@
     "test:partner-purchase-inventory": "npx tsx scripts/test-partner-purchase-inventory.mjs",
     "test:equipment-list-print": "npx tsx scripts/test-equipment-list-print.mjs",
     "test:equipment-huolto-snapshot-sync": "npx tsx scripts/test-equipment-huolto-snapshot-sync.mjs",
+    "test:sibling-equipment-copy": "npx tsx scripts/test-sibling-equipment-copy.mjs",
     "test:maintenance-report-delete-permissions": "npx tsx scripts/test-maintenance-report-delete-permissions.mjs",
     "test:expense-purchase-price": "npx tsx scripts/test-expense-purchase-price.mjs",
     "test:hourly-rate-zero-override": "npx tsx scripts/test-hourly-rate-zero-override.mjs",
