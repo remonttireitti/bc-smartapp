@@ -885,7 +885,7 @@ export function generateWorkReportPrintHtml(input: {
   const displayPeople = resolveWorkReportDisplayPeople(report, { hideAssignee: hideAssignee });
 
   const isLampokatsastusPrint = isLampokatsastusCompanyName(meta.companyName);
-  const summaryHeadHtml = isLampokatsastusPrint
+  const lampokatsastusBrandHeaderHtml = isLampokatsastusPrint
     ? buildLampokatsastusWorkReportHeaderHtml(
         {
           companyName: meta.companyName,
@@ -896,10 +896,21 @@ export function generateWorkReportPrintHtml(input: {
           esc,
           attrUrl: (url: string) => String(url).replace(/"/g, '&quot;'),
           logoSrc: meta.logoUrl ?? '',
-          printHeadline,
-          printDate,
         },
       )
+    : '';
+
+  const summaryHeadHtml = isLampokatsastusPrint
+    ? `<div class="lk-work-title-row">
+      <div class="lk-work-title-main">
+        <div class="doc-label">Työraportti</div>
+        <h1>${esc(printHeadline)}</h1>
+      </div>
+      <div class="lk-print-date">
+        <span class="doc-label">Tulostettu</span>
+        <strong>${esc(printDate)}</strong>
+      </div>
+    </div>`
     : `<div class="summary-head">
       <div class="summary-brand">
         ${meta.logoUrl ? `<img class="logo" src="${esc(meta.logoUrl)}" alt="" />` : `<div class="logo-fallback">${esc(meta.companyName)}</div>`}
@@ -1133,6 +1144,7 @@ export function generateWorkReportPrintHtml(input: {
 </head>
 <body>
   <div class="work-report-print">
+    ${lampokatsastusBrandHeaderHtml}
     ${summaryBox}
     ${detailsBox}
     ${logsBox}

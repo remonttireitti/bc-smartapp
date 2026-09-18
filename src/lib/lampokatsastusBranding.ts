@@ -128,35 +128,35 @@ export function lampokatsastusBrandingStyles(): string {
     .quote-print-page-2-body {
       flex: 1 1 auto;
     }
-    .lk-header-work-report .lk-work-title-row {
+    .lk-work-title-row {
       display: grid;
       grid-template-columns: minmax(0, 1fr) auto;
       gap: 12px;
       align-items: end;
-      margin-top: 12px;
-      padding-top: 10px;
-      border-top: 1px solid #dbe3ee;
+      margin: 0 0 12px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid #dbe3ee;
     }
-    .lk-header-work-report .lk-work-title-main h1 {
+    .lk-work-title-main h1 {
       margin: 4px 0 0;
       font-size: 16px;
       line-height: 1.25;
       color: #0f172a;
     }
-    .lk-header-work-report .doc-label {
+    .lk-work-title-row .doc-label {
       font-size: 8.5pt;
       font-weight: 700;
       letter-spacing: .08em;
       text-transform: uppercase;
       color: #64748b;
     }
-    .lk-header-work-report .lk-print-date {
+    .lk-work-title-row .lk-print-date {
       text-align: right;
       font-size: 10px;
       color: #475569;
       white-space: nowrap;
     }
-    .lk-header-work-report .lk-print-date strong {
+    .lk-work-title-row .lk-print-date strong {
       display: block;
       color: #0f172a;
       font-size: 11px;
@@ -221,32 +221,11 @@ export function buildLampokatsastusWorkReportHeaderHtml(
     esc: (value: unknown) => string;
     attrUrl: (url: string) => string;
     logoSrc: string;
-    printHeadline: string;
-    printDate: string;
   },
 ): string {
-  const logoHtml = helpers.logoSrc
-    ? `<img src="${helpers.attrUrl(helpers.logoSrc)}" alt="${helpers.esc(meta.companyName)}" />`
-    : `<strong class="lk-company-name">${helpers.esc(meta.companyName)}</strong>`;
-
-  // Same layout as tarjousasiakastuloste: logo top-center, tagline centered in header.
-  // Yritystiedot are rendered in the footer instead of the header.
-  return `<header class="lk-header lk-header--quote lk-header-work-report">
-    <div class="lk-header-top">
-      <div class="lk-logo">${logoHtml}</div>
-    </div>
-    <p class="lk-tagline">${helpers.esc(LAMPOKATSASTUS_MARKETING_TAGLINE)}</p>
-    <div class="lk-work-title-row">
-      <div class="lk-work-title-main">
-        <div class="doc-label">Työraportti</div>
-        <h1>${helpers.esc(helpers.printHeadline)}</h1>
-      </div>
-      <div class="lk-print-date">
-        <span class="doc-label">Tulostettu</span>
-        <strong>${helpers.esc(helpers.printDate)}</strong>
-      </div>
-    </div>
-  </header>`;
+  // Identical structure to tarjousasiakastuloste: logo top-center + centered tagline.
+  // Document title and company contact live outside this header (title below, contact in footer).
+  return buildLampokatsastusQuoteHeaderHtml(meta, helpers);
 }
 
 export const LAMPOKATSASTUS_WORK_REPORT_TERMS_TITLE_SUFFIX = 'Huolto- ja työehdot';

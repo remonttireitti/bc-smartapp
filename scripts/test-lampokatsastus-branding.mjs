@@ -114,20 +114,16 @@ const workHeader = buildLampokatsastusWorkReportHeaderHtml(
     esc,
     attrUrl,
     logoSrc: 'https://example.com/logo.png',
-    printHeadline: 'Huolto asiakkaalle',
-    printDate: '17.9.2026',
   },
 );
+// Work report brand header must be identical to quote brand header.
+assert.equal(workHeader, quoteHeader);
 assert.match(workHeader, /lk-header--quote/);
-assert.match(workHeader, /lk-work-title-row/);
 assert.match(workHeader, /lk-tagline/);
 assert.match(workHeader, /Valitse Lämpökatsastus Oy/);
-assert.match(workHeader, /logo\.png/);
 assert.doesNotMatch(workHeader, /lk-contact/);
 assert.doesNotMatch(workHeader, /Kuismatie 120/);
-const taglineIdx = workHeader.indexOf('lk-tagline');
-const titleIdx = workHeader.indexOf('lk-work-title-row');
-assert.ok(taglineIdx >= 0 && titleIdx > taglineIdx, 'tagline should sit above the work title row');
+assert.doesNotMatch(workHeader, /lk-work-title-row/);
 
 const workFooter = buildLampokatsastusWorkReportFooterHtml(
   { companyName: 'Lämpökatsastus Oy', settings },
@@ -163,11 +159,27 @@ const workHtml = generateWorkReportPrintHtml({
 
 assert.match(workHtml, /lk-header--quote/);
 assert.match(workHtml, /lk-tagline/);
-assert.match(workHtml, /Valitse Lämpökatsastus Oy, kun tarvitset luotettavaa/);
 assert.ok(workHtml.includes(LAMPOKATSASTUS_MARKETING_TAGLINE));
 assert.match(workHtml, /lk-footer/);
 assert.match(workHtml, /Kuismatie 120/);
 assert.match(workHtml, /text-align:\s*center/);
 assert.doesNotMatch(workHtml, /class="footer"/);
+assert.doesNotMatch(workHtml, /class="lk-contact"/);
+
+// Brand header must come before summary print-box (not trapped inside it).
+const brandHeaderIdx = workHtml.indexOf('lk-header--quote');
+const firstPrintBoxIdx = workHtml.indexOf('print-box');
+assert.ok(brandHeaderIdx >= 0 && firstPrintBoxIdx > brandHeaderIdx, 'brand header must sit above print boxes');
+
+// Company contact must not appear in the first print-box body.
+const firstBox = workHtml.slice(firstPrintBoxIdx, workHtml.indexOf('print-box', firstPrintBoxIdx + 1));
+assert.doesNotMatch(firstBox, /Kuismatie 120/);
+assert.doesNotMatch(firstBox, /2908079-6/);
+
+// Header block itself has no company address (footer does).
+const workHeaderInHtml = workHtml.match(/<header class="lk-header lk-header--quote">[\s\S]*?<\/header>/)?.[0] ?? '';
+assert.match(workHeaderInHtml, /lk-tagline/);
+assert.doesNotMatch(workHeaderInHtml, /Kuismatie 120/);
+assert.doesNotMatch(workHeaderInHtml, /class="lk-contact"/);
 
 console.log('test-lampokatsastus-branding.mjs: OK');
