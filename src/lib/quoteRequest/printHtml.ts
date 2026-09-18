@@ -219,13 +219,16 @@ function quotePrintStyles(): string {
     .task-section-header:first-child td {
       border-top: 1px solid #cbd5e1;
     }
-    .notes, .sitrep-wrap, .quote-excluded-items-print, .quote-optional-items-print {
+    .notes, .sitrep-wrap, .quote-excluded-items-print, .quote-optional-items-print, .quote-commercial-terms-print {
       margin-top: 10px;
       padding: 8px 10px;
       border-left: 3px solid #f97316;
       background: #f8fafc;
       break-inside: avoid;
       page-break-inside: avoid;
+    }
+    .quote-commercial-terms-print + .quote-commercial-terms-print {
+      margin-top: 8px;
     }
     .notes ul,
     .quote-excluded-items-print ul,
@@ -800,6 +803,31 @@ function quoteNotesPrintHtml(notes: string): string {
     .join('')}</ul></div>`;
 }
 
+function quoteCommercialTermsPrintHtml(
+  data: QuoteRequestData,
+  meta: QuotePrintMeta,
+): string {
+  const delivery = data.deliveryTermsText.trim();
+  const payment =
+    data.paymentTermsText.trim()
+    || meta.settings?.billing?.payment_terms?.trim()
+    || '';
+  if (!delivery && !payment) return '';
+
+  const blocks: string[] = [];
+  if (delivery) {
+    blocks.push(
+      `<div class="quote-commercial-terms-print"><strong>Toimitusehdot</strong><div>${esc(delivery).replace(/\n/g, '<br />')}</div></div>`,
+    );
+  }
+  if (payment) {
+    blocks.push(
+      `<div class="quote-commercial-terms-print"><strong>Maksuehdot</strong><div>${esc(payment).replace(/\n/g, '<br />')}</div></div>`,
+    );
+  }
+  return blocks.join('');
+}
+
 function renderLampokatsastusCustomerPage2(
   meta: QuotePrintMeta,
   kind: 'service' | 'offer',
@@ -1033,7 +1061,7 @@ export function generateQuoteOfferPrintHtml(input: {
     ${
       mode === 'enduser' && isLampokatsastusCompanyName(meta.companyName)
         ? ''
-        : `${optionalItemsPrintHtml(data)}${quoteNotesPrintHtml(data.notes)}`
+        : `${optionalItemsPrintHtml(data)}${quoteCommercialTermsPrintHtml(data, meta)}${quoteNotesPrintHtml(data.notes)}`
     }
 
     ${kotitalousHtml}
@@ -1045,7 +1073,11 @@ export function generateQuoteOfferPrintHtml(input: {
         ? renderLampokatsastusCustomerPage2(
             meta,
             'offer',
-            [optionalItemsPrintHtml(data), quoteNotesPrintHtml(data.notes)].join(''),
+            [
+              optionalItemsPrintHtml(data),
+              quoteCommercialTermsPrintHtml(data, meta),
+              quoteNotesPrintHtml(data.notes),
+            ].join(''),
           )
         : ''
     }
@@ -1309,6 +1341,7 @@ export function generateQuoteServicePrintHtml(input: {
         ? ''
         : `${mode === 'enduser' ? excludedFromQuotePrintHtml(data) : ''}
     ${mode === 'enduser' ? serviceOptionalItemsPrintHtml(data) : ''}
+    ${mode === 'enduser' ? quoteCommercialTermsPrintHtml(data, meta) : ''}
     ${quoteNotesPrintHtml(data.notes)}`
     }
 
@@ -1322,6 +1355,7 @@ export function generateQuoteServicePrintHtml(input: {
             [
               excludedFromQuotePrintHtml(data),
               serviceOptionalItemsPrintHtml(data),
+              quoteCommercialTermsPrintHtml(data, meta),
               quoteNotesPrintHtml(data.notes),
             ].join(''),
           )
