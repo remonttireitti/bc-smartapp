@@ -8,6 +8,7 @@ import { isMaintenanceReportPublished } from './maintenanceReportStatus';
 import { isWorkReportVisibleToPortal } from './portalWorkOrder';
 import { getMaintenanceReportStatusLabel, getWorkStatusLabel, type WorkStatus } from '../types';
 import { tempMonitoringReportPrintPath } from './remoteMonitoringRoutes';
+import { isWorkReportEquipmentTableMissing } from './workReportEquipment';
 
 export type CustomerLinkedDocumentKind =
   | 'work_report'
@@ -114,7 +115,7 @@ export async function loadCustomerLinkedDocuments(
       .in('work_report_id', workReportIds)
       .order('sort_order', { ascending: true });
     if (linkError) {
-      console.error(linkError);
+      if (!isWorkReportEquipmentTableMissing(linkError)) console.error(linkError);
     } else {
       for (const row of linkRows ?? []) {
         const reportId = row.work_report_id as string;

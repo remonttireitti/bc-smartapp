@@ -10,6 +10,7 @@ import {
   escapeHtmlPrint,
   type PrintBranding,
 } from './printDocumentShell';
+import { isWorkReportEquipmentTableMissing } from './workReportEquipment';
 
 export type MaintenanceHistoryEntry = {
   kind: 'työraportti' | 'huoltoraportti';
@@ -135,7 +136,7 @@ export async function loadCustomerMaintenanceContext(
       .select('work_report_id, equipment_id')
       .in('work_report_id', workIds);
     if (linkError) {
-      console.error(linkError);
+      if (!isWorkReportEquipmentTableMissing(linkError)) console.error(linkError);
     } else {
       const byReport = new Map<string, string[]>();
       for (const row of linkRows ?? []) {
