@@ -12,7 +12,8 @@ import { IconBack } from '../components/icons';
 import NavigationBreadcrumb from '../components/NavigationBreadcrumb';
 
 import { resolveCompanyLogoUrl } from '../lib/companyLogo';
-import { openPrintWindow } from '../lib/quoteRequest/printWindowUtils';
+import { openPrintHtml } from '../lib/openPrintWindow';
+import { formatPrintSaveFileName } from '../lib/printDocumentShell';
 import { embedUrlAsDataUrl } from '../lib/quoteRequest/termatekAssets';
 
 import { quoteListTrail, withNavTrail } from '../lib/navigationTrail';
@@ -455,10 +456,10 @@ export default function QuoteRequestPrintPage({ session }: Props) {
       setError('Tuloste ei ole vielä valmis. Odota hetki ja yritä uudelleen.');
       return;
     }
-    const opened = await openPrintWindow(printHtml);
-    if (!opened) {
-      setError('Tulostusikkunan avaus estettiin. Salli ponnahdusikkunat tai käytä selaimen tulostusta.');
-    }
+    const documentTitle = formatPrintSaveFileName(
+      `Tarjous – ${customer?.name ?? title}`.trim() || 'Tarjous',
+    );
+    openPrintHtml(printHtml, { documentTitle });
   }
 
 
@@ -554,6 +555,11 @@ export default function QuoteRequestPrintPage({ session }: Props) {
           <h1>Tuloste: {title}</h1>
 
           <p className="muted">Valitse tulosteen tyyppi ja näkymä (kuten vanhassa sovelluksessa)</p>
+          <p className="muted quote-print-headers-help">
+            Valitse tulostimena <strong>Tallenna PDF-muodossa</strong>. Poista valinnasta{' '}
+            <strong>Ylätunnisteet ja alatunnisteet</strong>, jotta selaimen about:blank, päivämäärä ja
+            otsikko eivät tule paperille.
+          </p>
 
         </div>
 
@@ -658,7 +664,11 @@ export default function QuoteRequestPrintPage({ session }: Props) {
         )}
 
         {printDocument === 'offer' && printMode === 'enduser' ? (
-          <CustomerPrintQuantitySettingsPopup quantitiesEnabled={quantitySettings.showQuantities}>
+          <CustomerPrintQuantitySettingsPopup
+            quantitiesEnabled={quantitySettings.showQuantities}
+            triggerLabel="Asiakastulosteen asetukset"
+            dialogTitle="Asiakastulosteen asetukset"
+          >
             <QuoteCustomerPrintSettingsPanel
               inDialog
               settings={quantitySettings}
