@@ -277,6 +277,32 @@ export function resolvePartnerBillingAmounts(
   return { total, billed, open, state };
 }
 
+/** Customer billing is binary (paid / not) — map to the same billed/open shape. */
+export function resolveCustomerBillingAmounts(
+  total: number,
+  customerInvoicePaid: boolean,
+): {
+  total: number;
+  billed: number;
+  open: number;
+  state: BillingPartnerState;
+} {
+  const rounded = Math.round(Number(total ?? 0) * 100) / 100;
+  if (customerInvoicePaid) {
+    return { total: rounded, billed: rounded, open: 0, state: 'billed' };
+  }
+  return { total: rounded, billed: 0, open: rounded, state: 'open' };
+}
+
+/** Compact “Laskutettu X · Laskuttamatta Y” line for tiles and dialogs. */
+export function formatBillingAmountSplitLabel(
+  billed: number,
+  open: number,
+  formatEuro: (amount: number) => string,
+): string {
+  return `Laskutettu ${formatEuro(billed)} · Laskuttamatta ${formatEuro(open)}`;
+}
+
 export function billingRowBilledAmount(row: BillingListRow, mode: BillingModuleMode = 'partner'): number {
   if (mode === 'customer') {
     return billingCustomerState(row) === 'billed' ? billingRowAmount(row, mode) : 0;

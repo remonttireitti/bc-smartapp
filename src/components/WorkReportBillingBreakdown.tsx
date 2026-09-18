@@ -54,6 +54,9 @@ function collectDetailRows(calculation: BillableCalculation, includedOnly: boole
 type Props = {
   calculation: BillableCalculation;
   billingSide?: 'partner' | 'customer';
+  /** When set, show laskutettu / laskuttamatta under the grand total. */
+  billedAmount?: number | null;
+  openAmount?: number | null;
 };
 
 const BILLING_SIDE_INTRO: Record<'partner' | 'customer', string> = {
@@ -61,11 +64,21 @@ const BILLING_SIDE_INTRO: Record<'partner' | 'customer', string> = {
   customer: 'Nämä rivit muodostavat loppuasiakkaalta laskutettavan summan.',
 };
 
-export default function WorkReportBillingBreakdown({ calculation, billingSide }: Props) {
+export default function WorkReportBillingBreakdown({
+  calculation,
+  billingSide,
+  billedAmount,
+  openAmount,
+}: Props) {
   const billedLines = collectDetailRows(calculation, true);
   const excludedLines = collectDetailRows(calculation, false);
   const isQuoteFixed = calculation.billingMode === 'quote_fixed';
   const isQuotePlusExtras = calculation.billingMode === 'quote_plus_extras';
+  const showAmountSplit =
+    billedAmount != null
+    && openAmount != null
+    && Number.isFinite(billedAmount)
+    && Number.isFinite(openAmount);
 
   return (
     <div className="billing-breakdown">
@@ -180,6 +193,24 @@ export default function WorkReportBillingBreakdown({ calculation, billingSide }:
                   <strong>{formatEuro(calculation.grandTotal)}</strong>
                 </td>
               </tr>
+              {showAmountSplit ? (
+                <>
+                  <tr>
+                    <td colSpan={6} className="num">
+                      Laskutettu
+                    </td>
+                    <td className="num">{formatEuro(billedAmount)}</td>
+                  </tr>
+                  <tr>
+                    <td colSpan={6} className="num">
+                      Laskuttamatta
+                    </td>
+                    <td className="num">
+                      <strong>{formatEuro(openAmount)}</strong>
+                    </td>
+                  </tr>
+                </>
+              ) : null}
             </tfoot>
           )}
         </table>
