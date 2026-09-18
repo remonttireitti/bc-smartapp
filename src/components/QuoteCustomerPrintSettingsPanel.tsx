@@ -1,6 +1,7 @@
 import ToggleSwitch from './ToggleSwitch';
 import {
   CUSTOMER_PRINT_QUANTITY_UNIT_OPTIONS,
+  QUOTE_PRINT_FONT_SIZE_OPTIONS,
   type QuoteCustomerPrintQuantitySettings,
 } from '../lib/quoteCustomerPrintSettings';
 import type { QuoteMaterialRowKind } from '../lib/quoteRequest/types';
@@ -18,6 +19,10 @@ const KIND_ROWS: Array<{ kind: QuoteMaterialRowKind; label: string }> = [
   { kind: 'expense', label: 'Kulut' },
   { kind: 'device', label: 'Laitteet' },
 ];
+
+function formatFontSizeLabel(px: number): string {
+  return `${px} px`;
+}
 
 export default function QuoteCustomerPrintSettingsPanel({ settings, onChange, inDialog = false }: Props) {
   function patch(patch: Partial<QuoteCustomerPrintQuantitySettings>) {
@@ -57,7 +62,7 @@ export default function QuoteCustomerPrintSettingsPanel({ settings, onChange, in
       {inDialog ? (
         <p className="muted work-report-customer-print-settings-hint">
           Valitse näytetäänkö määrät ja millä yksiköillä (h, kpl, kg, erä, urakka…). Rivikohtainen yksikkö
-          määritellään tarjouksen riveillä.
+          määritellään tarjouksen riveillä. Fonttikoot koskevat esittelytekstiä ja kiitosviestiä.
         </p>
       ) : null}
       <div className="toggle-grid">
@@ -116,6 +121,35 @@ export default function QuoteCustomerPrintSettingsPanel({ settings, onChange, in
           ))}
         </div>
       ) : null}
+      <div className="work-report-customer-print-unit-grid">
+        <p className="muted">Tulosteen fonttikoot:</p>
+        <label className="work-report-customer-print-unit-row">
+          <span>Esittelyteksti (yläotsikko)</span>
+          <select
+            value={settings.taglineFontSizePx}
+            onChange={(e) => patch({ taglineFontSizePx: Number(e.target.value) })}
+          >
+            {QUOTE_PRINT_FONT_SIZE_OPTIONS.map((px) => (
+              <option key={px} value={px}>
+                {formatFontSizeLabel(px)}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="work-report-customer-print-unit-row">
+          <span>Kiitos-viesti</span>
+          <select
+            value={settings.closingFontSizePx}
+            onChange={(e) => patch({ closingFontSizePx: Number(e.target.value) })}
+          >
+            {QUOTE_PRINT_FONT_SIZE_OPTIONS.map((px) => (
+              <option key={px} value={px}>
+                {formatFontSizeLabel(px)}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
     </div>
   );
 }

@@ -84,4 +84,25 @@ assert.equal(
   'erä',
 );
 
+const fontParams = serializeQuoteCustomerPrintQuantitySettings({
+  ...DEFAULT_QUOTE_CUSTOMER_PRINT_QUANTITY_SETTINGS,
+  taglineFontSizePx: 13,
+  closingFontSizePx: 12,
+});
+assert.equal(fontParams.get('fontti_esittely'), '13');
+assert.equal(fontParams.get('fontti_kiitos'), '12');
+const parsedFonts = parseQuoteCustomerPrintQuantitySettings(fontParams);
+assert.equal(parsedFonts.taglineFontSizePx, 13);
+assert.equal(parsedFonts.closingFontSizePx, 12);
+
+const { quotePrintTypographyStyleAttr } = await import('../src/lib/quoteCustomerPrintSettings.ts');
+assert.match(
+  quotePrintTypographyStyleAttr({ taglineFontSizePx: 13, closingFontSizePx: 12 }),
+  /--quote-tagline-font-size:13px/,
+);
+assert.match(
+  quotePrintTypographyStyleAttr({ taglineFontSizePx: 13, closingFontSizePx: 12 }),
+  /--quote-closing-font-size:12px/,
+);
+
 console.log('test-quote-customer-print-quantities: ok');

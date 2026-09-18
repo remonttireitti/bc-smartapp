@@ -19,6 +19,10 @@ assert.match(closing, /Ystävällisin terveisin/);
 assert.match(closing, /Lämpökatsastus Oy/);
 assert.match(closing, /Matti Meikäläinen/);
 
+const styles = (await import('../src/lib/quoteRequest/quoteClosingPrint.ts')).quoteClosingPrintStyles();
+assert.match(styles, /text-align:\s*center/);
+assert.match(styles, /--quote-closing-font-size/);
+
 const html = generateQuoteServicePrintHtml({
   data: {
     type: 'huolto',

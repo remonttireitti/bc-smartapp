@@ -12,7 +12,13 @@ export type QuoteCustomerPrintQuantitySettings = {
   showDeviceQuantities: boolean;
   showWorkItemQuantities: boolean;
   defaultUnits: Partial<Record<QuoteMaterialRowKind, CustomerPrintQuantityUnit>>;
+  /** Esittelyteksti (yläotsikon tagline) tulosteen fonttikoko px. */
+  taglineFontSizePx: number;
+  /** Kiitos-viestin / lopputekstin fonttikoko px. */
+  closingFontSizePx: number;
 };
+
+export const QUOTE_PRINT_FONT_SIZE_OPTIONS = [9, 10, 11, 11.5, 12, 13, 14] as const;
 
 export const DEFAULT_QUOTE_CUSTOMER_PRINT_QUANTITY_SETTINGS: QuoteCustomerPrintQuantitySettings = {
   showQuantities: true,
@@ -27,9 +33,24 @@ export const DEFAULT_QUOTE_CUSTOMER_PRINT_QUANTITY_SETTINGS: QuoteCustomerPrintQ
     expense: 'kpl',
     device: 'kpl',
   },
+  taglineFontSizePx: 11.5,
+  closingFontSizePx: 11,
 };
 
 export { CUSTOMER_PRINT_QUANTITY_UNIT_OPTIONS };
+
+export function quotePrintTypographyStyleAttr(
+  settings?: Pick<QuoteCustomerPrintQuantitySettings, 'taglineFontSizePx' | 'closingFontSizePx'> | null,
+): string {
+  if (!settings) return '';
+  const tagline = Number(settings.taglineFontSizePx);
+  const closing = Number(settings.closingFontSizePx);
+  if (!Number.isFinite(tagline) && !Number.isFinite(closing)) return '';
+  const parts: string[] = [];
+  if (Number.isFinite(tagline)) parts.push(`--quote-tagline-font-size:${tagline}px`);
+  if (Number.isFinite(closing)) parts.push(`--quote-closing-font-size:${closing}px`);
+  return parts.length ? ` style="${parts.join(';')}"` : '';
+}
 
 function parseBoolParam(value: string | null, fallback: boolean): boolean {
   if (value === '1' || value === 'true') return true;
@@ -39,6 +60,15 @@ function parseBoolParam(value: string | null, fallback: boolean): boolean {
 
 function isUnit(value: string): value is CustomerPrintQuantityUnit {
   return CUSTOMER_PRINT_QUANTITY_UNIT_OPTIONS.some((option) => option.value === value);
+}
+
+function parseFontSizeParam(value: string | null, fallback: number): number {
+  if (!value) return fallback;
+  const parsed = Number(String(value).replace(',', '.'));
+  if (!Number.isFinite(parsed)) return fallback;
+  if ((QUOTE_PRINT_FONT_SIZE_OPTIONS as readonly number[]).includes(parsed)) return parsed;
+  if (parsed >= 8 && parsed <= 18) return parsed;
+  return fallback;
 }
 
 export function parseQuoteCustomerPrintQuantitySettings(
@@ -67,6 +97,8 @@ export function parseQuoteCustomerPrintQuantitySettings(
     showDeviceQuantities,
     showWorkItemQuantities,
     defaultUnits,
+    taglineFontSizePx: parseFontSizeParam(searchParams.get('fontti_esittely'), defaults.taglineFontSizePx),
+    closingFontSizePx: parseFontSizeParam(searchParams.get('fontti_kiitos'), defaults.closingFontSizePx),
   };
 }
 
@@ -83,6 +115,12 @@ export function serializeQuoteCustomerPrintQuantitySettings(
   for (const [kind, unit] of Object.entries(settings.defaultUnits)) {
     const defaultUnit = DEFAULT_QUOTE_CUSTOMER_PRINT_QUANTITY_SETTINGS.defaultUnits[kind as QuoteMaterialRowKind];
     if (unit && unit !== defaultUnit) params.set(`yksikko_${kind}`, unit);
+  }
+  if (settings.taglineFontSizePx !== DEFAULT_QUOTE_CUSTOMER_PRINT_QUANTITY_SETTINGS.taglineFontSizePx) {
+    params.set('fontti_esittely', String(settings.taglineFontSizePx));
+  }
+  if (settings.closingFontSizePx !== DEFAULT_QUOTE_CUSTOMER_PRINT_QUANTITY_SETTINGS.closingFontSizePx) {
+    params.set('fontti_kiitos', String(settings.closingFontSizePx));
   }
   return params;
 }

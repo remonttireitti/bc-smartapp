@@ -98,7 +98,7 @@ function lampokatsastusStyles(): string {
     .signature-page .doc-title { margin-bottom: 12mm; }
     .signature-block { margin-top: 4mm; font-size: 11pt; line-height: 1.5; }
     .signature-block .label { font-weight: 700; }
-    .closing { margin-top: 14mm; font-size: 11pt; line-height: 1.55; }
+    .closing { margin-top: 14mm; font-size: 11pt; line-height: 1.55; text-align: center; }
     .closing-thanks { margin-bottom: 10mm; }
     .closing .company { font-weight: 700; margin-top: 8mm; }
     .closing .name { margin-top: 2mm; }

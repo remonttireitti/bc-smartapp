@@ -74,7 +74,7 @@ export function lampokatsastusBrandingStyles(): string {
       border-left: 4px solid #2f6aa8;
       border-radius: 0 8px 8px 0;
       color: #334155;
-      font-size: 11.5px;
+      font-size: var(--quote-tagline-font-size, 11.5px);
       line-height: 1.5;
       text-align: center;
       break-inside: avoid;

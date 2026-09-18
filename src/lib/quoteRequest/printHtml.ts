@@ -50,6 +50,7 @@ import type { QuoteRequestData } from './types';
 import type { BrandDeliveryFeeByCategoryMap } from '../../data/devicePricingShared';
 import {
   DEFAULT_QUOTE_CUSTOMER_PRINT_QUANTITY_SETTINGS,
+  quotePrintTypographyStyleAttr,
   type QuoteCustomerPrintQuantitySettings,
 } from '../quoteCustomerPrintSettings';
 import {
@@ -807,9 +808,9 @@ function quoteCommercialTermsPrintHtml(
   data: QuoteRequestData,
   meta: QuotePrintMeta,
 ): string {
-  const delivery = data.deliveryTermsText.trim();
+  const delivery = data.deliveryTermsText?.trim() ?? '';
   const payment =
-    data.paymentTermsText.trim()
+    data.paymentTermsText?.trim()
     || meta.settings?.billing?.payment_terms?.trim()
     || '';
   if (!delivery && !payment) return '';
@@ -1008,6 +1009,9 @@ export function generateQuoteOfferPrintHtml(input: {
         </div>`
       : '';
 
+  const typographyAttr =
+    mode === 'enduser' ? quotePrintTypographyStyleAttr(quantitySettings ?? DEFAULT_QUOTE_CUSTOMER_PRINT_QUANTITY_SETTINGS) : '';
+
   return `<!DOCTYPE html>
 <html lang="fi">
 <head>
@@ -1015,7 +1019,7 @@ export function generateQuoteOfferPrintHtml(input: {
   <title>Tarjous – ${esc(customer.name)}</title>
   <style>${quotePrintStyles()}</style>
 </head>
-<body class="print-${mode}">
+<body class="print-${mode}"${typographyAttr}>
   <div class="page">
     ${renderQuotePrintHeader(meta, logo)}
 
@@ -1288,14 +1292,16 @@ export function generateQuoteServicePrintHtml(input: {
     : '';
 
   const tableBody = workRows || '';
+  const typographyAttr =
+    mode === 'enduser' ? quotePrintTypographyStyleAttr(quantitySettings ?? DEFAULT_QUOTE_CUSTOMER_PRINT_QUANTITY_SETTINGS) : '';
   return `<!DOCTYPE html>
 <html lang="fi">
 <head>
   <meta charset="utf-8" />
-  <title>${esc(docTitle)} – ${esc(customer.name)}</title>
+  <title>Tarjous – ${esc(customer.name)}</title>
   <style>${quotePrintStyles()}</style>
 </head>
-<body class="print-${mode}">
+<body class="print-${mode}"${typographyAttr}>
   <div class="page">
     ${renderQuotePrintHeader(meta, logo)}
 

@@ -5,9 +5,16 @@ import { IconGear } from './icons';
 type Props = {
   children: ReactNode;
   quantitiesEnabled: boolean;
+  triggerLabel?: string;
+  dialogTitle?: string;
 };
 
-export default function CustomerPrintQuantitySettingsPopup({ children, quantitiesEnabled }: Props) {
+export default function CustomerPrintQuantitySettingsPopup({
+  children,
+  quantitiesEnabled,
+  triggerLabel = 'Asiakastulosteen määrät',
+  dialogTitle = 'Asiakastulosteen määrät',
+}: Props) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -18,14 +25,14 @@ export default function CustomerPrintQuantitySettingsPopup({ children, quantitie
         onClick={() => setOpen(true)}
       >
         <IconGear className="ui-icon" />
-        <span>Asiakastulosteen määrät</span>
+        <span>{triggerLabel}</span>
         <span className={`customer-print-qty-popup-badge${quantitiesEnabled ? '' : ' customer-print-qty-popup-badge--off'}`}>
           {quantitiesEnabled ? 'Päällä' : 'Pois'}
         </span>
       </button>
       <WorkReportSectionDialog
         open={open}
-        title="Asiakastulosteen määrät"
+        title={dialogTitle}
         onClose={() => setOpen(false)}
         wide
       >

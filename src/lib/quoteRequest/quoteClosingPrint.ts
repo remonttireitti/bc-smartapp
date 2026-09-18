@@ -27,8 +27,9 @@ export function quoteClosingPrintStyles(): string {
       padding-top: 12px;
       border-top: 1px solid #cbd5e1;
       color: #334155;
-      font-size: 11px;
+      font-size: var(--quote-closing-font-size, 11px);
       line-height: 1.55;
+      text-align: center;
       break-inside: avoid;
       page-break-inside: avoid;
     }

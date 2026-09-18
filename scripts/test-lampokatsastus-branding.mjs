@@ -83,6 +83,9 @@ assert.match(html, /Toimitusehdot/);
 assert.match(html, /Salainen toimitusehto/);
 assert.match(html, /Maksuehdot/);
 assert.match(html, /Salainen maksuehto/);
+assert.match(html, /--quote-tagline-font-size/);
+assert.match(html, /--quote-closing-font-size/);
+assert.match(html, /text-align:\s*center/);
 
 const headerMatch = html.match(/<header class="lk-header lk-header--quote">[\s\S]*?<\/header>/);
 assert.ok(headerMatch);
