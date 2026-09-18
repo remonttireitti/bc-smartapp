@@ -79,8 +79,10 @@ assert.match(html, /Ei kuulu tarjoukseen/);
 assert.match(html, /Tilattavissa lisänä/);
 assert.match(html, /<li>Ensimmäinen huomio<\/li>/);
 assert.match(html, /<li>Toinen huomio<\/li>/);
-assert.doesNotMatch(html, /Salainen toimitusehto/);
-assert.doesNotMatch(html, /Salainen maksuehto/);
+assert.match(html, /Toimitusehdot/);
+assert.match(html, /Salainen toimitusehto/);
+assert.match(html, /Maksuehdot/);
+assert.match(html, /Salainen maksuehto/);
 
 const headerMatch = html.match(/<header class="lk-header lk-header--quote">[\s\S]*?<\/header>/);
 assert.ok(headerMatch);
@@ -90,6 +92,8 @@ const page2Match = html.match(/quote-print-page-2[\s\S]*lk-footer/);
 assert.ok(page2Match);
 assert.match(page2Match[0], /Ei kuulu tarjoukseen/);
 assert.match(page2Match[0], /Huomautukset/);
+assert.match(page2Match[0], /Toimitusehdot/);
+assert.match(page2Match[0], /Maksuehdot/);
 
 const workHeader = buildLampokatsastusWorkReportHeaderHtml(
   { companyName: 'Lämpökatsastus Oy', logoUrl: 'https://example.com/logo.png', settings },
