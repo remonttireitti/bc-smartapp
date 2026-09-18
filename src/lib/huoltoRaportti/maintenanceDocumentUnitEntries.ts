@@ -7,6 +7,7 @@ import {
   mlpKeruupiiriInspectionStatus,
   mlpLampoInspectionStatus,
   mlpLatauspiiriInspectionStatus,
+  ulkoyksikkoInspectionStatus,
   type HuoltoInspectionStatus,
 } from './huoltoInspectionStatus';
 import type { MaintenanceTabCompletionState } from './maintenanceReportTabCompletion';
@@ -28,6 +29,12 @@ import {
   mlpDocumentUnitIdFromTabId,
   type MlpDocumentUnitId,
 } from './mlpDocumentHelpers';
+import {
+  buildLampopumppuDocumentUnits,
+  lampopumppuDocumentUnitIdFromTabId,
+  type LampopumppuDocumentUnitId,
+} from './lampopumppuDocumentHelpers';
+import { sisayksikkoTarkastusSummary } from './sisayksikkoTarkastus';
 
 export type MaintenanceDocumentEntryKind =
   | 'tab'
@@ -36,7 +43,8 @@ export type MaintenanceDocumentEntryKind =
   | 'circuitMeasurementsUnit'
   | 'circuitCompressorUnit'
   | 'circuitComponentsUnit'
-  | 'mlpUnit';
+  | 'mlpUnit'
+  | 'lampopumppuUnit';
 
 export type MaintenanceDocumentEntry = {
   key: string;
@@ -46,6 +54,7 @@ export type MaintenanceDocumentEntry = {
   unitIndex?: number;
   subIndex?: number;
   mlpUnitId?: MlpDocumentUnitId;
+  lampopumppuUnitId?: LampopumppuDocumentUnitId;
   themeKey?: string;
 };
 
@@ -110,6 +119,21 @@ export function buildMaintenanceDocumentEntries(
           tabId: unit.tabId,
           title: unit.title,
           mlpUnitId: unit.id,
+          themeKey: unit.themeKey,
+        });
+      }
+      continue;
+    }
+
+    if (tab.id === 'lampopumppu') {
+      const units = buildLampopumppuDocumentUnits(form);
+      for (const unit of units) {
+        entries.push({
+          key: unit.tabId,
+          kind: 'lampopumppuUnit',
+          tabId: unit.tabId,
+          title: unit.title,
+          lampopumppuUnitId: unit.id,
           themeKey: unit.themeKey,
         });
       }
@@ -231,6 +255,9 @@ export function documentEntryCompletion(
   if (entry.kind === 'mlpUnit' && entry.mlpUnitId) {
     return mlpDocumentUnitCompletion(form, entry.mlpUnitId);
   }
+  if (entry.kind === 'lampopumppuUnit' && entry.lampopumppuUnitId) {
+    return lampopumppuDocumentUnitCompletion(form, entry.lampopumppuUnitId);
+  }
   if (entry.tabId === 'tiiveyskoe') {
     return tabCompletion?.tiiveyskoe ?? tiiveyskoeTabCompletion(form.tiiveyskoeData);
   }
@@ -243,6 +270,7 @@ export function documentEntryCompletion(
 export function documentNavTargetTabId(tabId: string, form: HuoltoReportData): string {
   if (tabId.startsWith('kylmaainePiiri:')) return tabId;
   if (tabId.startsWith('mlp:')) return tabId;
+  if (tabId.startsWith('lampopumppu:')) return tabId;
   if (tabId === 'kylmaainePiiri' && form.selectedModules.kylmaainePiiri) {
     const count = getRefrigerantCircuitCount(form);
     return count > 0 ? 'kylmaainePiiri:0:measurements' : tabId;
@@ -257,6 +285,10 @@ export function documentNavTargetTabId(tabId: string, form: HuoltoReportData): s
   }
   if (tabId === 'energia') {
     const units = buildMlpDocumentUnits(form, 'energia');
+    return units[0]?.tabId ?? tabId;
+  }
+  if (tabId === 'lampopumppu') {
+    const units = buildLampopumppuDocumentUnits(form);
     return units[0]?.tabId ?? tabId;
   }
   if (tabId !== 'hoyrystin' && tabId !== 'lauhdutin') return tabId;
@@ -279,6 +311,7 @@ export function documentEntryUsesDialogLauncher(entry: MaintenanceDocumentEntry)
     || entry.kind === 'circuitCompressorUnit'
     || entry.kind === 'circuitComponentsUnit'
     || entry.kind === 'mlpUnit'
+    || entry.kind === 'lampopumppuUnit'
   );
 }
 
@@ -312,4 +345,50 @@ function mlpDocumentUnitCompletion(
   return 'incomplete';
 }
 
-export { mlpDocumentUnitIdFromTabId };
+function lampopumppuDocumentUnitCompletion(
+  form: HuoltoReportData,
+  unitId: LampopumppuDocumentUnitId,
+): MaintenanceTabCompletionState {
+  if (unitId === 'ulkoyksikko') {
+    if (!form.ulkoyksikkoMalli?.trim() && !form.ulkoyksikkoSarjanumero?.trim()) {
+      return 'incomplete';
+    }
+    return inspectionStatusToDocumentCompletion(ulkoyksikkoInspectionStatus(form));
+  }
+
+  if (unitId === 'sisayksikko') {
+    const count = form.sisayksikkoMaara ?? form.sisayksikkoData?.length ?? 0;
+    const rows = (form.sisayksikkoData ?? []).slice(0, Math.max(1, count));
+    if (rows.length === 0) return 'incomplete';
+    const anyIdentity = rows.some((row) => row.tyyppi?.trim() || row.malli?.trim() || row.sarjanumero?.trim());
+    if (!anyIdentity) return 'incomplete';
+    if (rows.some((row) => {
+      const summary = sisayksikkoTarkastusSummary(row);
+      return summary.answered > 0 && !summary.complete;
+    })) {
+      return 'incomplete';
+    }
+    if (rows.some((row) => row.huomioTyyppi === 'vika' || sisayksikkoTarkastusSummary(row).anyFaulty)) {
+      return 'attention';
+    }
+    return 'ok';
+  }
+
+  // mittaukset
+  const hasFlags = Boolean(form.mittausJaahdytysTestattu || form.mittausLammitysTestattu);
+  const hasTemps = Boolean(form.mittausTestausLampotila?.trim() || form.mittausUlkoLampotila?.trim());
+  const hasCurrent = Boolean(form.mittausAmpeeriL1?.trim());
+  const hasUnitMittaus = (form.mittausSisayksikot ?? []).some((row) =>
+    Boolean(
+      row.imupaineJaahdytys?.trim()
+      || row.korkeapaineJaahdytys?.trim()
+      || row.imupaineLammitys?.trim()
+      || row.korkeapaineLammitys?.trim()
+      || row.sisalampotila?.trim()
+      || row.puhallusLampotila?.trim(),
+    ),
+  );
+  return hasFlags || hasTemps || hasCurrent || hasUnitMittaus ? 'ok' : 'incomplete';
+}
+
+export { mlpDocumentUnitIdFromTabId, lampopumppuDocumentUnitIdFromTabId };
