@@ -52,16 +52,22 @@ export default function WorkReportEquipmentAssign({
           {equipment.map((entry) => {
             const checked = selectedSet.has(entry.id);
             const optionLabel = formatEquipmentOptionLabel(entry);
+            const switchId = `work-report-equipment-${entry.id}`;
             return (
               <div
                 key={entry.id}
-                className={`work-report-equipment-assign-toggle${checked ? ' is-selected' : ''}`}
+                className={`work-report-equipment-assign-row${checked ? ' is-selected' : ''}`}
               >
+                <label className="work-report-equipment-assign-name" htmlFor={switchId}>
+                  {optionLabel}
+                </label>
                 <ToggleSwitch
+                  id={switchId}
                   label={optionLabel}
                   checked={checked}
                   disabled={interactionLocked}
                   onChange={(next) => toggle(entry.id, next)}
+                  className="work-report-equipment-assign-switch"
                 />
               </div>
             );
