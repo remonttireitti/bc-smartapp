@@ -870,7 +870,7 @@ export default function WorkReportsPage({ session }: Props) {
 
         <section className="panel">
 
-          {!loading && isCompanyListEmpty && (
+          {!loading && isCompanyListEmpty && historyReports.length === 0 && (
             <EmptyStateCallout
               title="Ei työraportteja vielä"
               description="Aloita luonnoksella — asiakas syntyy samalla. Ajoitus kalenteriin on valinnainen."
@@ -879,6 +879,15 @@ export default function WorkReportsPage({ session }: Props) {
               secondaryLabel="Etusivu"
               secondaryTo="/"
             />
+          )}
+          {!loading && isCompanyListEmpty && historyReports.length > 0 && (
+            <p className="muted" style={{ marginBottom: '1rem' }}>
+              Ei käynnissä olevia tai luonnoksia. Valmiit raportit ovat Historia-välilehdellä.
+              {' '}
+              <button type="button" className="button-secondary" onClick={() => setTab('history')}>
+                Avaa Historia
+              </button>
+            </p>
           )}
 
           {partnershipsEnabled !== false && incomingDelegated.length > 0 && (

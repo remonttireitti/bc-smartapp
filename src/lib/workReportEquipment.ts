@@ -25,6 +25,19 @@ export function formatEquipmentOptionLabel(equipment: Pick<Equipment, 'name' | '
   });
 }
 
+/** PostgREST / schema-cache error when junction table is not migrated yet. */
+export function isWorkReportEquipmentTableMissing(error: {
+  message?: string;
+  code?: string;
+  details?: string;
+  hint?: string;
+} | null | undefined): boolean {
+  if (!error) return false;
+  if (error.code === 'PGRST205' || error.code === '42P01') return true;
+  const blob = `${error.message ?? ''} ${error.details ?? ''} ${error.hint ?? ''}`;
+  return /work_report_equipment/i.test(blob) && /schema cache|does not exist|could not find/i.test(blob);
+}
+
 /** Load linked equipment for a work report (junction + legacy FK fallback). */
 export async function loadWorkReportEquipmentLinks(
   supabase: SupabaseClient,
@@ -38,7 +51,7 @@ export async function loadWorkReportEquipmentLinks(
     .order('sort_order', { ascending: true });
 
   if (error) {
-    // Table may not exist yet in older envs — fall back to legacy FK only.
+    // Table may not exist yet in production — fall back to legacy FK only.
     if (legacyEquipmentId) {
       const { data: eq } = await supabase
         .from('equipment')
@@ -99,11 +112,14 @@ export async function saveWorkReportEquipmentLinks(
     .eq('work_report_id', reportId);
 
   if (deleteError) {
-    // If junction table missing, still update legacy FK.
+    // Junction missing: keep single-device assignment on legacy FK so saves still work.
     const { error: legacyError } = await supabase
       .from('work_reports')
       .update({ equipment_id: primaryEquipmentId })
       .eq('id', reportId);
+    if (isWorkReportEquipmentTableMissing(deleteError) && !legacyError) {
+      return { primaryEquipmentId, error: null };
+    }
     return { primaryEquipmentId, error: legacyError?.message ?? deleteError.message };
   }
 
@@ -116,6 +132,14 @@ export async function saveWorkReportEquipmentLinks(
       })),
     );
     if (insertError) {
+      if (isWorkReportEquipmentTableMissing(insertError)) {
+        const { error: legacyError } = await supabase
+          .from('work_reports')
+          .update({ equipment_id: primaryEquipmentId })
+          .eq('id', reportId);
+        if (!legacyError) return { primaryEquipmentId, error: null };
+        return { primaryEquipmentId, error: legacyError.message };
+      }
       return { primaryEquipmentId, error: insertError.message };
     }
   }
