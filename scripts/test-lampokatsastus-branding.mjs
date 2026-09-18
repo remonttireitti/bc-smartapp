@@ -2,12 +2,15 @@ import assert from 'node:assert/strict';
 import {
   buildLampokatsastusQuoteFooterHtml,
   buildLampokatsastusQuoteHeaderHtml,
+  buildLampokatsastusWorkReportFooterHtml,
   buildLampokatsastusWorkReportHeaderHtml,
   isLampokatsastusCompanyName,
+  LAMPOKATSASTUS_MARKETING_TAGLINE,
   LAMPOKATSASTUS_SERVICE_TERMS_BODY,
   LAMPOKATSASTUS_SERVICE_TERMS_TITLE_SUFFIX,
 } from '../src/lib/lampokatsastusBranding.ts';
 import { generateQuoteServicePrintHtml } from '../src/lib/quoteRequest/printHtml.ts';
+import { generateWorkReportPrintHtml } from '../src/lib/workReportPrintHtml.ts';
 
 const esc = (value) => String(value ?? '');
 const attrUrl = (url) => String(url).replace(/"/g, '&quot;');
@@ -115,6 +118,56 @@ const workHeader = buildLampokatsastusWorkReportHeaderHtml(
     printDate: '17.9.2026',
   },
 );
+assert.match(workHeader, /lk-header--quote/);
 assert.match(workHeader, /lk-work-title-row/);
+assert.match(workHeader, /lk-tagline/);
+assert.match(workHeader, /Valitse Lämpökatsastus Oy/);
+assert.match(workHeader, /logo\.png/);
+assert.doesNotMatch(workHeader, /lk-contact/);
+assert.doesNotMatch(workHeader, /Kuismatie 120/);
+const taglineIdx = workHeader.indexOf('lk-tagline');
+const titleIdx = workHeader.indexOf('lk-work-title-row');
+assert.ok(taglineIdx >= 0 && titleIdx > taglineIdx, 'tagline should sit above the work title row');
+
+const workFooter = buildLampokatsastusWorkReportFooterHtml(
+  { companyName: 'Lämpökatsastus Oy', settings },
+  { esc },
+);
+assert.match(workFooter, /lk-footer/);
+assert.match(workFooter, /Kuismatie 120/);
+assert.match(workFooter, /01390 Vantaa/);
+assert.match(workFooter, /info@lampokatsastus\.fi/);
+
+const workHtml = generateWorkReportPrintHtml({
+  report: {
+    id: 'wr-1',
+    title: 'ILP huolto',
+    description: 'Vuosihuolto',
+    location_text: null,
+    status: 'completed',
+    scheduled_start: '2026-09-17T08:00:00Z',
+    customers: { name: 'Villa Tammikko' },
+    owner_company_id: 'co-1',
+    created_by_company_id: 'co-1',
+  },
+  logs: [],
+  printMode: 'customer',
+  showPartnerPrices: false,
+  calculation: null,
+  meta: {
+    companyName: 'Lämpökatsastus Oy',
+    logoUrl: 'https://example.com/logo.png',
+    settings,
+  },
+});
+
+assert.match(workHtml, /lk-header--quote/);
+assert.match(workHtml, /lk-tagline/);
+assert.match(workHtml, /Valitse Lämpökatsastus Oy, kun tarvitset luotettavaa/);
+assert.ok(workHtml.includes(LAMPOKATSASTUS_MARKETING_TAGLINE));
+assert.match(workHtml, /lk-footer/);
+assert.match(workHtml, /Kuismatie 120/);
+assert.match(workHtml, /text-align:\s*center/);
+assert.doesNotMatch(workHtml, /class="footer"/);
 
 console.log('test-lampokatsastus-branding.mjs: OK');

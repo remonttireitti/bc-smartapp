@@ -99,6 +99,12 @@ export function lampokatsastusBrandingStyles(): string {
       break-inside: avoid;
       page-break-inside: avoid;
     }
+    .lk-footer--contact-only {
+      grid-template-columns: 1fr;
+    }
+    .lk-footer--contact-only .lk-footer-contact {
+      text-align: center;
+    }
     .lk-footer-terms-title {
       font-weight: 700;
       color: #0f172a;
@@ -121,14 +127,6 @@ export function lampokatsastusBrandingStyles(): string {
     }
     .quote-print-page-2-body {
       flex: 1 1 auto;
-    }
-    .lk-header-work-report .lk-tagline {
-      margin-top: 12px;
-      text-align: left;
-      border-left: 4px solid #2f6aa8;
-      border-top: none;
-      border-radius: 0 8px 8px 0;
-      font-size: 9.5px;
     }
     .lk-header-work-report .lk-work-title-row {
       display: grid;
@@ -227,19 +225,17 @@ export function buildLampokatsastusWorkReportHeaderHtml(
     printDate: string;
   },
 ): string {
-  const lines = lampokatsastusContactLines(meta.settings);
   const logoHtml = helpers.logoSrc
     ? `<img src="${helpers.attrUrl(helpers.logoSrc)}" alt="${helpers.esc(meta.companyName)}" />`
-    : `<strong>${helpers.esc(meta.companyName)}</strong>`;
+    : `<strong class="lk-company-name">${helpers.esc(meta.companyName)}</strong>`;
 
-  return `<header class="lk-header lk-header-work-report">
+  // Same layout as tarjousasiakastuloste: logo top-center, tagline centered in header.
+  // Yritystiedot are rendered in the footer instead of the header.
+  return `<header class="lk-header lk-header--quote lk-header-work-report">
     <div class="lk-header-top">
       <div class="lk-logo">${logoHtml}</div>
-      <div class="lk-contact">
-        <strong class="lk-company-name">${helpers.esc(meta.companyName)}</strong>
-        ${lines.map((line) => `<div>${helpers.esc(line)}</div>`).join('')}
-      </div>
     </div>
+    <p class="lk-tagline">${helpers.esc(LAMPOKATSASTUS_MARKETING_TAGLINE)}</p>
     <div class="lk-work-title-row">
       <div class="lk-work-title-main">
         <div class="doc-label">Työraportti</div>
@@ -250,6 +246,23 @@ export function buildLampokatsastusWorkReportHeaderHtml(
         <strong>${helpers.esc(helpers.printDate)}</strong>
       </div>
     </div>
-    <p class="lk-tagline">${helpers.esc(LAMPOKATSASTUS_MARKETING_TAGLINE)}</p>
   </header>`;
+}
+
+export const LAMPOKATSASTUS_WORK_REPORT_TERMS_TITLE_SUFFIX = 'Huolto- ja työehdot';
+export const LAMPOKATSASTUS_WORK_REPORT_TERMS_BODY =
+  'Työ suoritetaan alan hyvän työtavan mukaisesti. Raportti kuvaa suoritetut työt ja käytetyt materiaalit. Lisätyöt ja odottamattomat vauriot sovitaan erikseen ennen jatkotoimenpiteitä.';
+
+/** Yritystiedot footerissa — sama rakenne kuin tarjoustulosteessa. */
+export function buildLampokatsastusWorkReportFooterHtml(
+  meta: LampokatsastusContactMeta,
+  helpers: {
+    esc: (value: unknown) => string;
+  },
+): string {
+  return buildLampokatsastusQuoteFooterHtml(meta, {
+    esc: helpers.esc,
+    termsTitleSuffix: LAMPOKATSASTUS_WORK_REPORT_TERMS_TITLE_SUFFIX,
+    termsBody: LAMPOKATSASTUS_WORK_REPORT_TERMS_BODY,
+  });
 }
