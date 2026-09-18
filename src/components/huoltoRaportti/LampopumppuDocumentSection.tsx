@@ -1,8 +1,6 @@
 import type { HuoltoReportData } from '../../lib/huoltoRaportti/types';
-import { lampopumppuSummaryRows } from '../../lib/huoltoRaportti/moduleSummaryRows';
-import { useMaintenanceDocumentLayout } from '../../hooks/useMaintenanceDocumentLayout';
-import { DocumentModuleInspection } from './DocumentModuleInspection';
-import { LampopumppuSection } from './LampopumppuSection';
+import { buildLampopumppuDocumentUnits } from '../../lib/huoltoRaportti/lampopumppuDocumentHelpers';
+import { LampopumppuDocumentUnit } from './LampopumppuDocumentUnit';
 
 type Props = {
   form: HuoltoReportData;
@@ -12,35 +10,31 @@ type Props = {
   showMittaukset?: boolean;
 };
 
+/** Fallback when lampopumppu is rendered as a single tab (document view prefers three unit tiles). */
 export function LampopumppuDocumentSection({
   form,
   onChange,
-  showUlkoyksikko,
-  showSisayksikko,
-  showMittaukset,
+  showUlkoyksikko = true,
+  showSisayksikko = true,
+  showMittaukset = true,
 }: Props) {
-  const documentLayout = useMaintenanceDocumentLayout();
+  const units = buildLampopumppuDocumentUnits(form).filter((unit) => {
+    if (unit.id === 'ulkoyksikko') return showUlkoyksikko;
+    if (unit.id === 'sisayksikko') return showSisayksikko;
+    return showMittaukset;
+  });
 
   return (
-    <DocumentModuleInspection
-      data={form}
-      onChange={(next) => onChange(next)}
-      documentModuleKey={documentLayout ? 'lampopumppu' : undefined}
-      title="Lämpöpumppu"
-      titleId="lampopumppu-dialog-title"
-      summaryRows={lampopumppuSummaryRows(form)}
-      editLabel="Muokkaa lämpöpumppua"
-      emptyHint="Täytä lämpöpumpun tiedot painamalla Muokkaa."
-    >
-      {(draft, patchDraft) => (
-        <LampopumppuSection
-          form={draft}
-          onChange={patchDraft}
-          showUlkoyksikko={showUlkoyksikko}
-          showSisayksikko={showSisayksikko}
-          showMittaukset={showMittaukset}
+    <>
+      {units.map((unit) => (
+        <LampopumppuDocumentUnit
+          key={unit.tabId}
+          form={form}
+          unitId={unit.id}
+          onChange={onChange}
+          documentUnitKey={unit.tabId}
         />
-      )}
-    </DocumentModuleInspection>
+      ))}
+    </>
   );
 }

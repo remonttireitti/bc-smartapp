@@ -35,6 +35,7 @@ import { RefrigerantCircuitMeasurementsUnit } from './RefrigerantCircuitMeasurem
 import { CompressorModule } from './CompressorModule';
 import { RefrigerantCircuitComponentsModule } from './RefrigerantCircuitComponentsModule';
 import { MlpDocumentUnit } from './MlpDocumentUnit';
+import { LampopumppuDocumentUnit } from './LampopumppuDocumentUnit';
 import { createEvaporatorActions, evaporatorTitleForIndex } from './useEvaporatorCircuits';
 import { lauhdutinUnitTitle } from '../../lib/huoltoRaportti/sectionTitles';
 import {
@@ -145,7 +146,7 @@ function MaintenanceReportDocumentViewInner({
             const dialogLauncher =
               documentEntryUsesDialogLauncher(entry) || maintenanceTabUsesDialogLauncher(entry.tabId);
             const defaultOpen = dialogLauncher ? false : completion !== 'ok';
-            const theme = entry.kind === 'mlpUnit' && entry.themeKey
+            const theme = (entry.kind === 'mlpUnit' || entry.kind === 'lampopumppuUnit') && entry.themeKey
               ? getModuleTheme(entry.themeKey as ModuleThemeKey)
               : maintenanceDocumentTheme(
                 entry.kind === 'evaporatorUnit'
@@ -273,6 +274,13 @@ function MaintenanceReportDocumentViewInner({
                   onChange={onPatchForm}
                   documentUnitKey={entry.tabId}
                   hidePartRow
+                />
+              ) : entry.kind === 'lampopumppuUnit' && entry.lampopumppuUnitId ? (
+                <LampopumppuDocumentUnit
+                  form={form}
+                  unitId={entry.lampopumppuUnitId}
+                  onChange={onPatchForm}
+                  documentUnitKey={entry.tabId}
                 />
               ) : (
                 <MaintenanceReportTabContent

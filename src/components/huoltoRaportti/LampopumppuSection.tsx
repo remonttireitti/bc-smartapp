@@ -15,7 +15,7 @@ import { HuoltoModuleSection } from './HuoltoModuleSection';
 import { SisayksikkoSchematicPreview } from './SisayksikkoSchematicPreview';
 import { SisayksikkoTarkastusDialog } from './SisayksikkoTarkastusDialog';
 import { UlkoyksikkoInspection } from './UlkoyksikkoInspection';
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 
 interface Props {
   form: HuoltoReportData;
@@ -23,6 +23,8 @@ interface Props {
   showUlkoyksikko?: boolean;
   showSisayksikko?: boolean;
   showMittaukset?: boolean;
+  /** When set, render only one subsection (document popup tiles). */
+  part?: 'ulkoyksikko' | 'sisayksikko' | 'mittaukset';
 }
 
 function sisayksikkoStatusLabel(unit: SisayksikkoData): { text: string; className: string } {
@@ -51,7 +53,11 @@ export function LampopumppuSection({
   showUlkoyksikko = false,
   showSisayksikko = false,
   showMittaukset = false,
+  part,
 }: Props) {
+  const renderUlkoyksikko = part ? part === 'ulkoyksikko' : showUlkoyksikko;
+  const renderSisayksikko = part ? part === 'sisayksikko' : showSisayksikko;
+  const renderMittaukset = part ? part === 'mittaukset' : showMittaukset;
   const sisayksikkoMaara = form.sisayksikkoMaara ?? 1;
   const sisayksikkoData = form.sisayksikkoData ?? [createEmptySisayksikkoData()];
   const sisaSama = form.sisaSamaKuinEnsimmainen ?? [];
@@ -77,10 +83,28 @@ export function LampopumppuSection({
     });
   }
 
+  function wrapSection(
+    moduleKey: 'ulkoyksikko' | 'sisayksikko' | 'mittaukset',
+    title: string,
+    children: ReactNode,
+  ) {
+    // Document popup already has a title — avoid a nested collapsed accordion.
+    if (part) {
+      return <div className="huolto-module-body">{children}</div>;
+    }
+    return (
+      <HuoltoModuleSection moduleKey={moduleKey} title={title}>
+        {children}
+      </HuoltoModuleSection>
+    );
+  }
+
   return (
     <>
-      {showUlkoyksikko && (
-        <HuoltoModuleSection moduleKey="ulkoyksikko" title={lampopumppuUlkoyksikkoTitle(form.laiteTyyppi)}>
+      {renderUlkoyksikko && wrapSection(
+        'ulkoyksikko',
+        lampopumppuUlkoyksikkoTitle(form.laiteTyyppi),
+        <>
           <div className="line-form-grid">
             <FormInput
               label="Ulkoyksikkö malli"
@@ -130,11 +154,13 @@ export function LampopumppuSection({
           <div className="huolto-part-inspection-list">
             <UlkoyksikkoInspection form={form} onChange={onChange} />
           </div>
-        </HuoltoModuleSection>
+        </>,
       )}
 
-      {showSisayksikko && (
-        <HuoltoModuleSection moduleKey="sisayksikko" title={lampopumppuSisayksikkoTitle(form.laiteTyyppi)}>
+      {renderSisayksikko && wrapSection(
+        'sisayksikko',
+        lampopumppuSisayksikkoTitle(form.laiteTyyppi),
+        <>
           <p className="muted huolto-help">
             Valitse tyyppi ja täytä tunnistetiedot. Merkitse tarkastuskohdat kytkimillä tai avaa Tarkastus-popup lämpötiloille ja huomioille.
           </p>
@@ -280,11 +306,13 @@ export function LampopumppuSection({
               }}
             />
           )}
-        </HuoltoModuleSection>
+        </>,
       )}
 
-      {showMittaukset && (
-        <HuoltoModuleSection moduleKey="mittaukset" title={lampopumppuMittauksetTitle(form.laiteTyyppi)}>
+      {renderMittaukset && wrapSection(
+        'mittaukset',
+        lampopumppuMittauksetTitle(form.laiteTyyppi),
+        <>
           <div className="line-form-grid">
             <FormCheckbox
               id="mittaus-jaahdytys-testattu"
@@ -452,7 +480,7 @@ export function LampopumppuSection({
               )}
             </div>
           </div>
-        </HuoltoModuleSection>
+        </>,
       )}
     </>
   );
