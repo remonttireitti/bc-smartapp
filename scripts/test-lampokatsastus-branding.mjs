@@ -91,12 +91,19 @@ const headerMatch = html.match(/<header class="lk-header lk-header--quote">[\s\S
 assert.ok(headerMatch);
 assert.match(headerMatch[0], /class="lk-tagline"/);
 
+const page1BeforeBreak = html.split(/quote-print-page-2/)[0] ?? '';
+assert.doesNotMatch(page1BeforeBreak, /Kiitos tarjouspyynnöstänne/);
+
 const page2Match = html.match(/quote-print-page-2[\s\S]*lk-footer/);
 assert.ok(page2Match);
 assert.match(page2Match[0], /Ei kuulu tarjoukseen/);
 assert.match(page2Match[0], /Huomautukset/);
 assert.match(page2Match[0], /Toimitusehdot/);
 assert.match(page2Match[0], /Maksuehdot/);
+assert.match(page2Match[0], /Kiitos tarjouspyynnöstänne/);
+const notesIdx = page2Match[0].indexOf('Huomautukset');
+const thanksIdx = page2Match[0].indexOf('Kiitos tarjouspyynnöstänne');
+assert.ok(notesIdx >= 0 && thanksIdx > notesIdx, 'closing should follow notes on page 2');
 
 const workHeader = buildLampokatsastusWorkReportHeaderHtml(
   { companyName: 'Lämpökatsastus Oy', logoUrl: 'https://example.com/logo.png', settings },
