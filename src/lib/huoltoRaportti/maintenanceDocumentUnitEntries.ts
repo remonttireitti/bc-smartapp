@@ -385,7 +385,11 @@ function lampopumppuDocumentUnitCompletion(
       || row.imupaineLammitys?.trim()
       || row.korkeapaineLammitys?.trim()
       || row.sisalampotila?.trim()
-      || row.puhallusLampotila?.trim(),
+      || row.puhallusLampotila?.trim()
+      || row.sisalampotilaJaahdytys?.trim()
+      || row.puhallusLampotilaJaahdytys?.trim()
+      || row.sisalampotilaLammitys?.trim()
+      || row.puhallusLampotilaLammitys?.trim(),
     ),
   );
   return hasFlags || hasTemps || hasCurrent || hasUnitMittaus ? 'ok' : 'incomplete';

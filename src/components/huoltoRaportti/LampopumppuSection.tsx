@@ -340,121 +340,148 @@ export function LampopumppuSection({
             />
           </div>
 
-          {mittausSisayksikot.slice(0, sisayksikkoMaara).map((mittaus, index) => (
-            <div key={index} className="huolto-submodule">
-              <h3>Sisäyksikkö {index + 1} mittaukset</h3>
-              {index > 0 && (
-                <FormCheckbox
-                  id={`mittaus-${index}-sama-kuin-1`}
-                  label={`Sisäyksikkö ${index + 1} mittaukset: sama kuin sisäyksikkö 1`}
-                  checked={!!mittausSama[index]}
-                  onChange={(v) => {
-                    const nextSama = [...mittausSama];
-                    nextSama[index] = v;
-                    const nextMittaus = [...mittausSisayksikot];
-                    if (v && nextMittaus[0] && nextMittaus[index]) {
-                      nextMittaus[index] = { ...nextMittaus[index], ...nextMittaus[0] };
-                    }
-                    onChange({ mittausSamaKuinEnsimmainen: nextSama, mittausSisayksikot: nextMittaus });
-                  }}
-                />
-              )}
-              <p className="muted">Paineet (bar)</p>
-              <div className="line-form-grid">
-                <FormInput
-                  label="Imupaine jäähdytys"
-                  value={mittaus.imupaineJaahdytys}
-                  onChange={(v) => {
-                    const next = [...mittausSisayksikot];
-                    next[index] = { ...next[index], imupaineJaahdytys: v };
-                    onChange({ mittausSisayksikot: next });
-                  }}
-                  type="number"
-                  disabled={!!mittausSama[index]}
-                />
-                <FormInput
-                  label="Korkeapaine jäähdytys"
-                  value={mittaus.korkeapaineJaahdytys}
-                  onChange={(v) => {
-                    const next = [...mittausSisayksikot];
-                    next[index] = { ...next[index], korkeapaineJaahdytys: v };
-                    onChange({ mittausSisayksikot: next });
-                  }}
-                  type="number"
-                  disabled={!!mittausSama[index]}
-                />
-                <FormInput
-                  label="Imupaine lämmitys"
-                  value={mittaus.imupaineLammitys}
-                  onChange={(v) => {
-                    const next = [...mittausSisayksikot];
-                    next[index] = { ...next[index], imupaineLammitys: v };
-                    onChange({ mittausSisayksikot: next });
-                  }}
-                  type="number"
-                  disabled={!!mittausSama[index]}
-                />
-                <FormInput
-                  label="Korkeapaine lämmitys"
-                  value={mittaus.korkeapaineLammitys}
-                  onChange={(v) => {
-                    const next = [...mittausSisayksikot];
-                    next[index] = { ...next[index], korkeapaineLammitys: v };
-                    onChange({ mittausSisayksikot: next });
-                  }}
-                  type="number"
-                  disabled={!!mittausSama[index]}
-                />
-              </div>
-              <p className="muted">Lämpötilat (°C)</p>
-              <div className="line-form-grid">
-                <FormInput
-                  label="Sisälämpötila"
-                  value={mittaus.sisalampotila}
-                  onChange={(v) => {
-                    const next = [...mittausSisayksikot];
-                    next[index] = { ...next[index], sisalampotila: v };
-                    onChange({ mittausSisayksikot: next });
-                  }}
-                  type="number"
-                  disabled={!!mittausSama[index]}
-                />
-                <FormInput
-                  label="Paluu ilman lämpötila"
-                  value={mittaus.paluuLampotila}
-                  onChange={(v) => {
-                    const next = [...mittausSisayksikot];
-                    next[index] = { ...next[index], paluuLampotila: v };
-                    onChange({ mittausSisayksikot: next });
-                  }}
-                  type="number"
-                  disabled={!!mittausSama[index]}
-                />
-                <FormInput
-                  label="Puhallus lämpötila"
-                  value={mittaus.puhallusLampotila}
-                  onChange={(v) => {
-                    const next = [...mittausSisayksikot];
-                    next[index] = { ...next[index], puhallusLampotila: v };
-                    onChange({ mittausSisayksikot: next });
-                  }}
-                  type="number"
-                  disabled={!!mittausSama[index]}
-                />
-                <FormInput
-                  label="Ilmanmäärä (m³/h)"
-                  value={mittaus.ilmanmaaraM3h}
-                  onChange={(v) => {
-                    const next = [...mittausSisayksikot];
-                    next[index] = { ...next[index], ilmanmaaraM3h: v };
-                    onChange({ mittausSisayksikot: next });
-                  }}
-                  type="number"
-                  disabled={!!mittausSama[index]}
-                />
-              </div>
-            </div>
-          ))}
+          {!form.mittausJaahdytysTestattu && !form.mittausLammitysTestattu ? (
+            <p className="muted huolto-help">
+              Merkitse jäähdytys ja/tai lämmitys testatuksi, jotta paine- ja lämpötilakentät tulevat näkyviin.
+            </p>
+          ) : null}
+
+          {(form.mittausJaahdytysTestattu || form.mittausLammitysTestattu)
+            && mittausSisayksikot.slice(0, sisayksikkoMaara).map((mittaus, index) => {
+              const patchMittaus = (patch: Partial<typeof mittaus>) => {
+                const next = [...mittausSisayksikot];
+                next[index] = { ...next[index], ...patch };
+                onChange({ mittausSisayksikot: next });
+              };
+              const disabled = !!mittausSama[index];
+              return (
+                <div key={index} className="huolto-submodule">
+                  <h3>Sisäyksikkö {index + 1} mittaukset</h3>
+                  {index > 0 && (
+                    <FormCheckbox
+                      id={`mittaus-${index}-sama-kuin-1`}
+                      label={`Sisäyksikkö ${index + 1} mittaukset: sama kuin sisäyksikkö 1`}
+                      checked={!!mittausSama[index]}
+                      onChange={(v) => {
+                        const nextSama = [...mittausSama];
+                        nextSama[index] = v;
+                        const nextMittaus = [...mittausSisayksikot];
+                        if (v && nextMittaus[0] && nextMittaus[index]) {
+                          nextMittaus[index] = { ...nextMittaus[index], ...nextMittaus[0] };
+                        }
+                        onChange({ mittausSamaKuinEnsimmainen: nextSama, mittausSisayksikot: nextMittaus });
+                      }}
+                    />
+                  )}
+
+                  {form.mittausJaahdytysTestattu ? (
+                    <>
+                      <p className="muted">Jäähdytys — paineet (bar)</p>
+                      <div className="line-form-grid">
+                        <FormInput
+                          label="Imupaine jäähdytys"
+                          value={mittaus.imupaineJaahdytys}
+                          onChange={(v) => patchMittaus({ imupaineJaahdytys: v })}
+                          type="number"
+                          disabled={disabled}
+                        />
+                        <FormInput
+                          label="Korkeapaine jäähdytys"
+                          value={mittaus.korkeapaineJaahdytys}
+                          onChange={(v) => patchMittaus({ korkeapaineJaahdytys: v })}
+                          type="number"
+                          disabled={disabled}
+                        />
+                      </div>
+                      <p className="muted">Jäähdytys — lämpötilat (°C)</p>
+                      <div className="line-form-grid">
+                        <FormInput
+                          label="Sisälämpötila jäähdytys"
+                          value={mittaus.sisalampotilaJaahdytys}
+                          onChange={(v) => patchMittaus({ sisalampotilaJaahdytys: v, sisalampotila: v })}
+                          type="number"
+                          disabled={disabled}
+                        />
+                        <FormInput
+                          label="Paluu ilman lämpötila jäähdytys"
+                          value={mittaus.paluuLampotilaJaahdytys}
+                          onChange={(v) => patchMittaus({ paluuLampotilaJaahdytys: v, paluuLampotila: v })}
+                          type="number"
+                          disabled={disabled}
+                        />
+                        <FormInput
+                          label="Puhallus lämpötila jäähdytys"
+                          value={mittaus.puhallusLampotilaJaahdytys}
+                          onChange={(v) => patchMittaus({ puhallusLampotilaJaahdytys: v, puhallusLampotila: v })}
+                          type="number"
+                          disabled={disabled}
+                        />
+                        <FormInput
+                          label="Ilmanmäärä jäähdytys (m³/h)"
+                          value={mittaus.ilmanmaaraM3hJaahdytys}
+                          onChange={(v) => patchMittaus({ ilmanmaaraM3hJaahdytys: v, ilmanmaaraM3h: v })}
+                          type="number"
+                          disabled={disabled}
+                        />
+                      </div>
+                    </>
+                  ) : null}
+
+                  {form.mittausLammitysTestattu ? (
+                    <>
+                      <p className="muted">Lämmitys — paineet (bar)</p>
+                      <div className="line-form-grid">
+                        <FormInput
+                          label="Imupaine lämmitys"
+                          value={mittaus.imupaineLammitys}
+                          onChange={(v) => patchMittaus({ imupaineLammitys: v })}
+                          type="number"
+                          disabled={disabled}
+                        />
+                        <FormInput
+                          label="Korkeapaine lämmitys"
+                          value={mittaus.korkeapaineLammitys}
+                          onChange={(v) => patchMittaus({ korkeapaineLammitys: v })}
+                          type="number"
+                          disabled={disabled}
+                        />
+                      </div>
+                      <p className="muted">Lämmitys — lämpötilat (°C)</p>
+                      <div className="line-form-grid">
+                        <FormInput
+                          label="Sisälämpötila lämmitys"
+                          value={mittaus.sisalampotilaLammitys}
+                          onChange={(v) => patchMittaus({ sisalampotilaLammitys: v, sisalampotila: v })}
+                          type="number"
+                          disabled={disabled}
+                        />
+                        <FormInput
+                          label="Paluu ilman lämpötila lämmitys"
+                          value={mittaus.paluuLampotilaLammitys}
+                          onChange={(v) => patchMittaus({ paluuLampotilaLammitys: v, paluuLampotila: v })}
+                          type="number"
+                          disabled={disabled}
+                        />
+                        <FormInput
+                          label="Puhallus lämpötila lämmitys"
+                          value={mittaus.puhallusLampotilaLammitys}
+                          onChange={(v) => patchMittaus({ puhallusLampotilaLammitys: v, puhallusLampotila: v })}
+                          type="number"
+                          disabled={disabled}
+                        />
+                        <FormInput
+                          label="Ilmanmäärä lämmitys (m³/h)"
+                          value={mittaus.ilmanmaaraM3hLammitys}
+                          onChange={(v) => patchMittaus({ ilmanmaaraM3hLammitys: v, ilmanmaaraM3h: v })}
+                          type="number"
+                          disabled={disabled}
+                        />
+                      </div>
+                    </>
+                  ) : null}
+                </div>
+              );
+            })}
 
           <div className="huolto-submodule">
             <h3>Ulkoyksikkö mittaukset</h3>

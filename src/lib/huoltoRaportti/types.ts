@@ -329,10 +329,22 @@ export interface MittausSisayksikkoData {
   korkeapaineJaahdytys: string;
   imupaineLammitys: string;
   korkeapaineLammitys: string;
+  /** @deprecated Prefer mode-specific fields; kept for legacy import/print. */
   sisalampotila: string;
+  /** @deprecated Prefer mode-specific fields. */
   paluuLampotila: string;
+  /** @deprecated Prefer mode-specific fields. */
   puhallusLampotila: string;
+  /** @deprecated Prefer mode-specific fields. */
   ilmanmaaraM3h: string;
+  sisalampotilaJaahdytys: string;
+  paluuLampotilaJaahdytys: string;
+  puhallusLampotilaJaahdytys: string;
+  ilmanmaaraM3hJaahdytys: string;
+  sisalampotilaLammitys: string;
+  paluuLampotilaLammitys: string;
+  puhallusLampotilaLammitys: string;
+  ilmanmaaraM3hLammitys: string;
 }
 
 /** Equipment registry technical snapshot (stored on equipment.huolto_technical_snapshot) */
