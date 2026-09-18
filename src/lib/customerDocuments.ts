@@ -75,7 +75,7 @@ export async function loadCustomerLinkedDocuments(
   const [workResult, maintenanceResult, quoteResult, tempReportResult, fileResult] = await Promise.all([
     supabase
       .from('work_reports')
-      .select('id, title, status, created_at, updated_at, equipment_id, equipment(name, tag)')
+      .select('id, title, status, created_at, updated_at, equipment_id, equipment:equipment_id(name, tag)')
       .eq('customer_id', customerId)
       .order('updated_at', { ascending: false }),
     supabase

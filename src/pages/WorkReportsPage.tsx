@@ -158,7 +158,7 @@ const DELEGATION_SELECT = `
 
   customers(name, subscriber_id),
 
-  equipment(name, tag),
+  equipment:equipment_id(name, tag),
 
   owner_company:companies!work_reports_owner_company_id_fkey(name),
 
@@ -186,7 +186,7 @@ const REPORT_LIST_FALLBACK_SELECT = `
   partnership_id, customer_id, equipment_id, assigned_user_id,
   delegate_company_id, delegated_at, created_at, subscriber_id, subscriber_portal_visibility, is_onboarding_demo,
   customers(name, subscriber_id),
-  equipment(name, tag)
+  equipment:equipment_id(name, tag)
 `;
 
 

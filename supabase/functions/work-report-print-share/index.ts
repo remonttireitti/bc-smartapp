@@ -14,7 +14,7 @@ const REPORT_SELECT = `
   created_by_user_name_snapshot, created_by_user_deleted,
   assigned_user_name_snapshot, assigned_user_deleted,
   customers(name),
-  equipment(name, tag),
+  equipment:equipment_id(name, tag),
   owner_company:companies!work_reports_owner_company_id_fkey(name),
   branding_company:companies!work_reports_branding_company_id_fkey(name),
   created_by_company:companies!work_reports_created_by_company_id_fkey(name),
