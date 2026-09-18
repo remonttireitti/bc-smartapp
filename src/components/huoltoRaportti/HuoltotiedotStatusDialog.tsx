@@ -2,9 +2,10 @@ import { Link } from 'react-router-dom';
 import type { HuoltoReportData } from '../../lib/huoltoRaportti/types';
 import { usesRefrigerantServiceExtras } from '../../lib/huoltoRaportti/deviceModuleLogic';
 import { useMaintenanceDocumentLayout } from '../../hooks/useMaintenanceDocumentLayout';
+import ToggleSwitch from '../ToggleSwitch';
 import { HuoltoInspectionDialogShell, useHuoltoInspectionDialog } from './HuoltoInspectionDialogShell';
 import { useRegisterHuoltoModuleDialog } from './HuoltoModuleDialogContext';
-import { PrintCheckField, PrintFieldRow, PrintInnerBox, PrintStatusBanner, PrintTextInput } from './print/MaintenancePrintLayout';
+import { PrintFieldRow, PrintInnerBox, PrintStatusBanner, PrintTextInput } from './print/MaintenancePrintLayout';
 
 type DraftData = Pick<
   HuoltoReportData,
@@ -64,23 +65,25 @@ export function HuoltotiedotStatusDialog({
       onClose={closeDialog}
     >
       <PrintStatusBanner>
-        <PrintCheckField
-          label="Huolto suoritettu"
-          checked={!!draft.huoltoSuoritettu}
-          onChange={(checked) => patchDraft({ huoltoSuoritettu: checked })}
-        />
-        {showRefrigerantExtras ? (
-          <PrintCheckField
-            label="Kylmäaine / vuototarkastus"
-            checked={!!draft.huoltoKylmaaineVuotoTarkastus}
-            onChange={(checked) => patchDraft({ huoltoKylmaaineVuotoTarkastus: checked })}
+        <div className="toggle-grid huoltotiedot-status-toggles">
+          <ToggleSwitch
+            label="Huolto suoritettu"
+            checked={!!draft.huoltoSuoritettu}
+            onChange={(checked) => patchDraft({ huoltoSuoritettu: checked })}
           />
-        ) : null}
-        <PrintCheckField
-          label="Laitteessa vika / puutteita"
-          checked={!!draft.huoltoLaiteessaVika}
-          onChange={(checked) => patchDraft({ huoltoLaiteessaVika: checked })}
-        />
+          {showRefrigerantExtras ? (
+            <ToggleSwitch
+              label="Kylmäaine / vuototarkastus"
+              checked={!!draft.huoltoKylmaaineVuotoTarkastus}
+              onChange={(checked) => patchDraft({ huoltoKylmaaineVuotoTarkastus: checked })}
+            />
+          ) : null}
+          <ToggleSwitch
+            label="Laitteessa vika / puutteita"
+            checked={!!draft.huoltoLaiteessaVika}
+            onChange={(checked) => patchDraft({ huoltoLaiteessaVika: checked })}
+          />
+        </div>
       </PrintStatusBanner>
 
       <PrintInnerBox title="ALATUNNISTE" accent="#64748b">
