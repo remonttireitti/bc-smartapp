@@ -1507,24 +1507,6 @@ export default function WorkReportDetailPage({ session }: Props) {
     setRatesBusy(false);
   }
 
-  async function sharePartnerSummary(shared: boolean) {
-    if (!report) return;
-    const isDelegatedOrder =
-      !!report.delegate_company_id && report.created_by_company_id === report.owner_company_id;
-    const billedCompanyId = isDelegatedOrder ? report.delegate_company_id! : report.owner_company_id;
-    const { error: upsertError } = await supabase.from('work_report_billing').upsert({
-      work_report_id: report.id,
-      partner_summary_shared: shared,
-      partner_invoice_amount: billableCalculation?.grandTotal ?? billing?.partner_invoice_amount ?? null,
-      billed_to_company_id: billedCompanyId,
-    });
-    if (upsertError) {
-      setError(upsertError.message);
-      return;
-    }
-    await load(report.id);
-  }
-
   useEffect(() => {
     if (report?.status === 'draft' && id) {
       if (workReportDraftCanOpenOnDetail(report)) return;
@@ -2559,9 +2541,8 @@ export default function WorkReportDetailPage({ session }: Props) {
   const basicsDirty = headingDirty || descriptionDirty || ordererDirty || ownerDirty || customerDirty;
   const canSeeCreatorBilling = isCreatorCompany && viewerBillingAllowed;
   const canSeePartnerSummary =
-    !!billing?.partner_summary_shared &&
-    ((isOwnerCompany && report.created_by_company_id !== report.owner_company_id) ||
-      (isDelegateCompany && isDelegatedOrder));
+    (isOwnerCompany && report.created_by_company_id !== report.owner_company_id)
+    || (isDelegateCompany && isDelegatedOrder);
   const billedPartnerName = isDelegatedOrder
     ? (report.delegate_company?.name ?? '—')
     : (report.owner_company?.name ?? '—');
@@ -3428,23 +3409,6 @@ export default function WorkReportDetailPage({ session }: Props) {
                 >
                   Tulosta sisäinen (hinnat)
                 </Link>
-              </Tooltip>
-              <Tooltip
-                label={
-                  billing?.partner_summary_shared
-                    ? 'Piilota laskutettava summa kumppaniyritykseltä.'
-                    : 'Näytä kumppanille laskutettava summa raportin yhteenvedossa.'
-                }
-              >
-                <button
-                  type="button"
-                  className="btn btn-secondary"
-                  onClick={() => void sharePartnerSummary(!(billing?.partner_summary_shared ?? false))}
-                >
-                  {billing?.partner_summary_shared
-                    ? 'Piilota yhteenveto kumppanilta'
-                    : 'Näytä yhteenveto kumppanille'}
-                </button>
               </Tooltip>
             </div>
             ) : (
