@@ -3222,9 +3222,9 @@ a.tile.quote-request-tile:hover {
 
 .maintenance-incomplete-module-link {
   display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: .75rem;
+  flex-direction: column;
+  align-items: stretch;
+  gap: .45rem;
   width: 100%;
   margin: 0;
   padding: .65rem .8rem;
@@ -3235,6 +3235,31 @@ a.tile.quote-request-tile:hover {
   color: inherit;
   text-align: left;
   cursor: pointer;
+}
+
+.maintenance-incomplete-module-main {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: .75rem;
+}
+
+.maintenance-incomplete-module-static {
+  display: grid;
+  gap: .35rem;
+  padding: .65rem .8rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-surface);
+}
+
+.maintenance-incomplete-module-details {
+  margin: 0;
+  padding-left: 1.1rem;
+  display: grid;
+  gap: .2rem;
+  color: var(--danger);
+  font-size: .9rem;
 }
 
 .maintenance-incomplete-module-link:hover {

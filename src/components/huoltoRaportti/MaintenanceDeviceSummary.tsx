@@ -8,6 +8,7 @@ type Props = {
   form: HuoltoReportData;
   deviceFieldErrors: Record<string, string>;
   complete: boolean;
+  missingItems?: string[];
   onEdit?: () => void;
   editButtonLabel?: string;
   emptyHint?: string;
@@ -26,6 +27,7 @@ export function MaintenanceDeviceSummary({
   form,
   deviceFieldErrors,
   complete,
+  missingItems = [],
   onEdit,
   editButtonLabel = 'Laitetiedot',
   emptyHint = 'Täytä laitteen perustiedot painamalla Laitetiedot.',
@@ -83,6 +85,15 @@ export function MaintenanceDeviceSummary({
         {Object.keys(deviceFieldErrors).length > 0 ? (
           <div className="maintenance-device-summary-errors">
             {Object.values(deviceFieldErrors).map((message) => (
+              <p key={message} className="error">
+                {message}
+              </p>
+            ))}
+          </div>
+        ) : null}
+        {!complete && missingItems.length > 0 ? (
+          <div className="maintenance-device-summary-errors">
+            {missingItems.map((message) => (
               <p key={message} className="error">
                 {message}
               </p>
@@ -160,6 +171,15 @@ export function MaintenanceDeviceSummary({
       {Object.keys(deviceFieldErrors).length > 0 ? (
         <div className="maintenance-device-summary-errors">
           {Object.values(deviceFieldErrors).map((message) => (
+            <p key={message} className="error">
+              {message}
+            </p>
+          ))}
+        </div>
+      ) : null}
+      {!complete && missingItems.length > 0 ? (
+        <div className="maintenance-device-summary-errors">
+          {missingItems.map((message) => (
             <p key={message} className="error">
               {message}
             </p>

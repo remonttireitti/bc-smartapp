@@ -131,4 +131,34 @@ test('returns empty list when every document tile is ok or attention', () => {
   assert.deepEqual(incomplete, []);
 });
 
+test('describeRaportointiMissingItems names empty address', async () => {
+  const { describeRaportointiMissingItems } = await import(
+    '../src/lib/huoltoRaportti/maintenanceReportBasicsValidation.ts'
+  );
+  const items = describeRaportointiMissingItems(
+    {
+      profileCompanyId: 'co-1',
+      reportOwnerCompanyId: 'co-1',
+      reportOwnerTargets: [{ companyId: 'co-1', label: 'Test' }],
+      customerId: 'cu-1',
+      asiakas: 'Asiakas Oy',
+      osoite: '',
+      canEditCustomerEquipment: true,
+    },
+    {
+      laiteTyyppi: 'lämpöpumppu',
+      laiteValmistaja: 'Mitsubishi Electric',
+      laiteMalli: 'Mitsubishi Electric',
+      laiteTunnus: 'B2 ILP',
+      laiteSarjanumero: 'ei tiedossa',
+      laiteSijainti: 'B2 ovi',
+      laiteKayttotarkoitus: 'Jäähdytys',
+      kylmaaineTyyppi: 'R-32',
+      kylmaainePiireja: '1',
+      selectedModules: {},
+    },
+  );
+  assert.deepEqual(items, ['Asiakkaan osoite puuttuu.']);
+});
+
 console.log('test-maintenance-incomplete-modules: ok');
