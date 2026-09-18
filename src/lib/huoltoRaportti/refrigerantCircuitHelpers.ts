@@ -3,8 +3,8 @@ import type { HuoltoReportData, RefrigerantCircuitData } from './types';
 
 export function circuitMeasurementsStatus(data: RefrigerantCircuitData): HuoltoInspectionStatus {
   if (!data.onKaytossa) return 'na';
-  const hasPressure = Boolean(data.imupaine?.trim() || data.korkeapaine?.trim());
-  return hasPressure ? 'ok' : null;
+  // Mittaukset ovat vapaaehtoisia: kaikkia koneita ei voi tai ei kannata mitata.
+  return 'ok';
 }
 
 export function circuitMeasurementsSubtitle(data: RefrigerantCircuitData): string {
