@@ -3208,6 +3208,40 @@ a.tile.quote-request-tile:hover {
   margin-top: 1rem;
 }
 
+.maintenance-incomplete-module-list {
+  margin: .75rem 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: .45rem;
+}
+
+.maintenance-incomplete-module-list li {
+  margin: 0;
+}
+
+.maintenance-incomplete-module-link {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: .75rem;
+  width: 100%;
+  margin: 0;
+  padding: .65rem .8rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-surface);
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.maintenance-incomplete-module-link:hover {
+  border-color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 6%, transparent);
+}
+
 .quote-site-defaults-dialog {
   width: min(100%, 36rem);
 }

@@ -117,8 +117,10 @@ import {
   validateMaintenanceDeviceBasics,
   validateMaintenanceRefrigerantBasics,
 } from '../lib/huoltoRaportti/maintenanceReportBasicsValidation';
-import { buildMaintenanceReportTabCompletion, isMaintenanceReportModulesComplete } from '../lib/huoltoRaportti/maintenanceReportTabCompletion';
+import { buildMaintenanceReportTabCompletion } from '../lib/huoltoRaportti/maintenanceReportTabCompletion';
+import { listIncompleteMaintenanceModules } from '../lib/huoltoRaportti/maintenanceDocumentUnitEntries';
 import { MaintenanceModuleStructureDialog } from '../components/huoltoRaportti/MaintenanceModuleStructureDialog';
+import MaintenanceIncompleteModulesDialog from '../components/huoltoRaportti/MaintenanceIncompleteModulesDialog';
 import { getHiddenMaintenanceTabs } from '../lib/huoltoRaportti/maintenanceReportTabCustomization';
 import { HuoltoEditUiProvider } from '../components/huoltoRaportti/HuoltoEditUiContext';
 import { MaintenanceReportSectionSettingsProvider } from '../components/huoltoRaportti/MaintenanceReportSectionSettingsProvider';
@@ -452,9 +454,14 @@ export default function MaintenanceReportEditPage({ session }: Props) {
     [form, customerBasicsInput, deviceBasicsInput, maintenanceTabBuildInput],
   );
 
+  const incompleteModules = useMemo(
+    () => listIncompleteMaintenanceModules(maintenanceTabs, form, tabCompletion),
+    [maintenanceTabs, form, tabCompletion],
+  );
+
   const modulesComplete = useMemo(
-    () => isMaintenanceReportModulesComplete(tabCompletion),
-    [tabCompletion],
+    () => maintenanceTabs.length > 0 && incompleteModules.length === 0,
+    [maintenanceTabs.length, incompleteModules],
   );
 
   const displayStatus = modulesComplete && status === 'draft' ? 'submitted' : status;
@@ -468,6 +475,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
   const [basicsFieldErrors, setBasicsFieldErrors] = useState<Record<string, string>>({});
   const [deviceFieldErrors, setDeviceFieldErrors] = useState<Record<string, string>>({});
   const [moduleStructureDialogOpen, setModuleStructureDialogOpen] = useState(false);
+  const [incompleteModulesDialogOpen, setIncompleteModulesDialogOpen] = useState(false);
 
   useEffect(() => {
     if (!isNew || profileLoading || basicsComplete || newReportRaportointiOpenedRef.current) return;
@@ -1742,6 +1750,29 @@ export default function MaintenanceReportEditPage({ session }: Props) {
     }
   }
 
+  function requestMarkComplete() {
+    if (busy) return;
+    if (incompleteModules.length > 0) {
+      setIncompleteModulesDialogOpen(true);
+      return;
+    }
+    void saveReport('submitted');
+  }
+
+  function openIncompleteModule(moduleKey: string) {
+    const module = incompleteModules.find((entry) => entry.key === moduleKey);
+    setIncompleteModulesDialogOpen(false);
+    if (!module) return;
+    if (documentLayout) {
+      setDocumentNavTarget(module.tabId);
+      return;
+    }
+    const parentTabId = module.tabId.includes(':')
+      ? module.tabId.slice(0, module.tabId.indexOf(':'))
+      : module.tabId;
+    setOpenTabId(parentTabId);
+  }
+
   function buildReportDataPayload(): HuoltoReportData {
     const currentForm = formStateRef.current.form;
     const registryAddress = [selectedCustomer?.address, selectedCustomer?.city]
@@ -2056,6 +2087,12 @@ export default function MaintenanceReportEditPage({ session }: Props) {
         onLeaveWithoutSaving={leaveGuard.confirmLeaveWithoutSaving}
         onCancel={leaveGuard.cancelLeave}
       />
+      <MaintenanceIncompleteModulesDialog
+        open={incompleteModulesDialogOpen}
+        modules={incompleteModules}
+        onClose={() => setIncompleteModulesDialogOpen(false)}
+        onOpenModule={openIncompleteModule}
+      />
       <SiblingEquipmentCopyDialog
         open={siblingCopyDialogOpen}
         busy={siblingCopyBusy}
@@ -2280,8 +2317,8 @@ export default function MaintenanceReportEditPage({ session }: Props) {
                 <button
                   type="button"
                   className="btn btn-primary maintenance-actions-submit"
-                  disabled={busy || !modulesComplete}
-                  onClick={() => void saveReport('submitted')}
+                  disabled={busy}
+                  onClick={() => requestMarkComplete()}
                 >
                   Merkitse valmiiksi
                 </button>
