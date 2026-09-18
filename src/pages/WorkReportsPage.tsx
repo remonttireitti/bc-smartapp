@@ -178,6 +178,17 @@ const DELEGATION_SELECT = `
 
 `;
 
+/** Fallback if nested embeds fail (schema cache / relation issues) — still shows the list. */
+const REPORT_LIST_FALLBACK_SELECT = `
+  id, title, description, location_text, status,
+  scheduled_start, scheduled_end, completed_at,
+  owner_company_id, created_by_company_id, created_by_user_id, branding_company_id,
+  partnership_id, customer_id, equipment_id, assigned_user_id,
+  delegate_company_id, delegated_at, created_at, subscriber_id, subscriber_portal_visibility, is_onboarding_demo,
+  customers(name, subscriber_id),
+  equipment(name, tag)
+`;
+
 
 
 export default function WorkReportsPage({ session }: Props) {
@@ -208,6 +219,7 @@ export default function WorkReportsPage({ session }: Props) {
   const [sentDelegated, setSentDelegated] = useState<WorkReport[]>([]);
 
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [deletingDraftId, setDeletingDraftId] = useState<string | null>(null);
 
   const companyId = profile?.company_id ?? '';
@@ -250,66 +262,56 @@ export default function WorkReportsPage({ session }: Props) {
   }, [portalSubscriberId, profile, portalPreview]);
 
   async function loadReports() {
-
     setLoading(true);
+    setLoadError(null);
 
+    async function fetchReportList(select: string) {
+      return supabase
+        .from('work_reports')
+        .select(select)
+        .order('scheduled_start', { ascending: true, nullsFirst: false });
+    }
 
+    let mainResult = await fetchReportList(DELEGATION_SELECT);
+    if (mainResult.error) {
+      console.error('work_reports list (full select) failed:', mainResult.error);
+      const fallback = await fetchReportList(REPORT_LIST_FALLBACK_SELECT);
+      if (!fallback.error) {
+        mainResult = fallback;
+      }
+    }
 
-    let query = supabase
-
-      .from('work_reports')
-
-      .select(DELEGATION_SELECT)
-
-      .order('scheduled_start', { ascending: true, nullsFirst: false });
-
-    const [mainResult, incomingResult, sentResult] = await Promise.all([
-      query,
+    const [incomingResult, sentResult] = await Promise.all([
+      partnershipsEnabled === false
+        ? Promise.resolve({ data: [], error: null })
+        : supabase
+            .from('work_reports')
+            .select(DELEGATION_SELECT)
+            .eq('delegate_company_id', companyId)
+            .eq('status', 'delegated')
+            .order('delegated_at', { ascending: false }),
 
       partnershipsEnabled === false
         ? Promise.resolve({ data: [], error: null })
         : supabase
-
-        .from('work_reports')
-
-        .select(DELEGATION_SELECT)
-
-        .eq('delegate_company_id', companyId)
-
-        .eq('status', 'delegated')
-
-        .order('delegated_at', { ascending: false }),
-
-      partnershipsEnabled === false
-        ? Promise.resolve({ data: [], error: null })
-        : supabase
-
-        .from('work_reports')
-
-        .select(DELEGATION_SELECT)
-
-        .eq('created_by_company_id', companyId)
-
-        .not('delegate_company_id', 'is', null)
-
-        .eq('status', 'delegated')
-
-        .order('delegated_at', { ascending: false }),
-
+            .from('work_reports')
+            .select(DELEGATION_SELECT)
+            .eq('created_by_company_id', companyId)
+            .not('delegate_company_id', 'is', null)
+            .eq('status', 'delegated')
+            .order('delegated_at', { ascending: false }),
     ]);
 
-
-
     if (mainResult.error) {
-
       console.error(mainResult.error);
-
       setReports([]);
-
+      setLogsByReportId(new Map());
+      setLoadError(
+        mainResult.error.message
+          || 'Työraporttien lataus epäonnistui. Kokeile päivittää sivu.',
+      );
     } else {
-
       const loaded = (mainResult.data as unknown as WorkReport[]) ?? [];
-
       setReports(loaded);
 
       const logReportIds = loaded
@@ -320,45 +322,26 @@ export default function WorkReportsPage({ session }: Props) {
         .map((r) => r.id);
 
       if (logReportIds.length === 0) {
-
         setLogsByReportId(new Map());
-
       } else {
-
         const { data: logRows } = await supabase
-
           .from('work_report_daily_logs')
-
           .select(CALENDAR_LOG_SELECT)
-
           .in('work_report_id', logReportIds);
 
         const map = new Map<string, WorkReportDailyLog[]>();
-
         for (const log of (logRows ?? []) as WorkReportDailyLog[]) {
-
           const list = map.get(log.work_report_id) ?? [];
-
           list.push(log);
-
           map.set(log.work_report_id, list);
-
         }
-
         setLogsByReportId(map);
-
       }
-
     }
 
-
-
     setIncomingDelegated((incomingResult.data as unknown as WorkReport[]) ?? []);
-
     setSentDelegated((sentResult.data as unknown as WorkReport[]) ?? []);
-
     setLoading(false);
-
   }
 
 
@@ -741,6 +724,17 @@ export default function WorkReportsPage({ session }: Props) {
       </div>
 
 
+
+      {loadError ? (
+        <div className="huolto-alert huolto-alert-danger" role="alert" style={{ marginBottom: '1rem' }}>
+          <p className="error" style={{ margin: 0 }}>
+            Työraporttien lataus epäonnistui: {loadError}
+          </p>
+          <button type="button" className="btn btn-secondary" style={{ marginTop: '0.75rem' }} onClick={() => void loadReports()}>
+            Yritä uudelleen
+          </button>
+        </div>
+      ) : null}
 
       {loading ? (
 
