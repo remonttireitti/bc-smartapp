@@ -39,5 +39,6 @@ const html = generateQuoteServicePrintHtml({
 });
 assert.match(html, /Kiitos tarjouspyynnöstänne/);
 assert.match(html, /Ystävällisin terveisin/);
+assert.match(html, /quote-print-end-block/);
 
 console.log('test-quote-closing-print: ok');
