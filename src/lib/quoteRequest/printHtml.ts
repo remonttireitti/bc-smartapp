@@ -128,6 +128,9 @@ function quotePrintStyles(): string {
     ${quoteClosingPrintStyles()}
     @page { size: A4; margin: 12mm; }
     * { box-sizing: border-box; }
+    @media print {
+      .no-print { display: none !important; }
+    }
     body {
       margin: 0;
       font-family: "Segoe UI", Arial, sans-serif;
@@ -783,9 +786,9 @@ function renderQuotePrintEndBlock(
   if (mode !== 'enduser') {
     return renderQuotePrintTermsFooter(meta, kind);
   }
-  // Lämpökatsastus: footer belongs on page 2 (rendered separately).
+  // Lämpökatsastus: closing belongs on page 2 after notes (rendered separately).
   if (isLampokatsastusCompanyName(meta.companyName)) {
-    return quoteClosingPrintHtml(meta);
+    return '';
   }
   return `<div class="quote-print-end-block">
     ${quoteClosingPrintHtml(meta)}
@@ -1081,6 +1084,7 @@ export function generateQuoteOfferPrintHtml(input: {
               optionalItemsPrintHtml(data),
               quoteCommercialTermsPrintHtml(data, meta),
               quoteNotesPrintHtml(data.notes),
+              quoteClosingPrintHtml(meta),
             ].join(''),
           )
         : ''
@@ -1363,6 +1367,7 @@ export function generateQuoteServicePrintHtml(input: {
               serviceOptionalItemsPrintHtml(data),
               quoteCommercialTermsPrintHtml(data, meta),
               quoteNotesPrintHtml(data.notes),
+              quoteClosingPrintHtml(meta),
             ].join(''),
           )
         : ''
