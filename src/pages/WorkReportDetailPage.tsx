@@ -132,12 +132,13 @@ import {
   resolveReportContextFromOwner,
 } from '../lib/reportCustomerRegistry';
 import {
-  billingPartnerState,
   canManageIncomingPartnerBilling,
+  formatBillingAmountSplitLabel,
   hasPartnerBillingActivity,
   isCustomerInvoicePaid,
   canPersistPartnerBillable,
   markCustomerReportBilled,
+  resolveCustomerBillingAmounts,
   resolvePartnerBillingAmounts,
   resolvePartnerBilledCompanyId,
   unmarkCustomerReportBilled,
@@ -2632,8 +2633,12 @@ export default function WorkReportDetailPage({ session }: Props) {
           : null,
       }
     : null;
-  const partnerBillingState = partnerBillingListRow
-    ? billingPartnerState(partnerBillingListRow, dailyLogs)
+  const partnerBillableAmounts = billableCalculation
+    ? resolvePartnerBillingAmounts(
+        billableCalculation.grandTotal,
+        billing?.partner_billed_amount,
+        billing?.partner_invoice_status,
+      )
     : null;
   const canManageIncomingPartnerBillingStatus =
     !portalReadOnly
@@ -2647,6 +2652,9 @@ export default function WorkReportDetailPage({ session }: Props) {
     && report.status !== 'draft'
     && report.status !== 'delegated';
   const customerBilled = isCustomerInvoicePaid(billing);
+  const customerBillableAmounts = customerBillableCalculation
+    ? resolveCustomerBillingAmounts(customerBillableCalculation.grandTotal, customerBilled)
+    : null;
   const workReportStatusDisplay = resolveWorkReportStatusDisplay({
     context: {
       status: report.status,
@@ -2790,18 +2798,44 @@ export default function WorkReportDetailPage({ session }: Props) {
             }}
           />
         ) : null}
-        {showPartnerBillableSection && billableCalculation ? (
+        {showPartnerBillableSection && billableCalculation && partnerBillableAmounts ? (
           <WorkReportSectionTile
             title={showOutgoingPartnerBilling ? 'Kumppanille laskutettava' : 'Kumppanilta laskutettava'}
-            subtitle={formatEuro(billableCalculation.grandTotal)}
+            subtitle={
+              <>
+                <span className="work-report-section-tile-total">
+                  {formatEuro(partnerBillableAmounts.total)}
+                </span>
+                <span className="work-report-section-tile-split">
+                  {formatBillingAmountSplitLabel(
+                    partnerBillableAmounts.billed,
+                    partnerBillableAmounts.open,
+                    formatEuro,
+                  )}
+                </span>
+              </>
+            }
             color="#6366f1"
             onClick={() => setSectionDialog('partner-billing')}
           />
         ) : null}
-        {showCustomerMoneyBilling && customerBillableCalculation ? (
+        {showCustomerMoneyBilling && customerBillableCalculation && customerBillableAmounts ? (
           <WorkReportSectionTile
             title="Asiakkaalta laskutettava"
-            subtitle={formatEuro(customerBillableCalculation.grandTotal)}
+            subtitle={
+              <>
+                <span className="work-report-section-tile-total">
+                  {formatEuro(customerBillableAmounts.total)}
+                </span>
+                <span className="work-report-section-tile-split">
+                  {formatBillingAmountSplitLabel(
+                    customerBillableAmounts.billed,
+                    customerBillableAmounts.open,
+                    formatEuro,
+                  )}
+                </span>
+              </>
+            }
             color="#f59e0b"
             onClick={() => setSectionDialog('customer-billing')}
           />
@@ -3137,19 +3171,16 @@ export default function WorkReportDetailPage({ session }: Props) {
                     <strong>{workReportStatusDisplay.secondaryLabel}</strong>
                   </>
                 )}
-                {partnerBillingState === 'partial' && billableCalculation && billing && (() => {
-                  const amounts = resolvePartnerBillingAmounts(
-                    billableCalculation.grandTotal,
-                    billing.partner_billed_amount,
-                    billing.partner_invoice_status,
-                  );
-                  return amounts.total > 0.005 ? (
-                    <>
-                      {' · '}
-                      Laskutettu {formatEuro(amounts.billed)} · Avoin {formatEuro(amounts.open)}
-                    </>
-                  ) : null;
-                })()}
+                {partnerBillableAmounts && partnerBillableAmounts.total > 0.005 ? (
+                  <>
+                    {' · '}
+                    {formatBillingAmountSplitLabel(
+                      partnerBillableAmounts.billed,
+                      partnerBillableAmounts.open,
+                      formatEuro,
+                    )}
+                  </>
+                ) : null}
                 {workReportStatusDisplay.unbilledLogDates.length > 0 && (
                   <>
                     {' · '}
@@ -3170,10 +3201,14 @@ export default function WorkReportDetailPage({ session }: Props) {
               <dt>Asiakaslaskutus</dt>
               <dd>
                 <strong>{customerBilled ? INVOICE_STATUS_LABELS.paid : INVOICE_STATUS_LABELS.none}</strong>
-                {customerBillableCalculation && (
+                {customerBillableAmounts && (
                   <>
                     {' · '}
-                    Laskutettava {formatEuro(customerBillableCalculation.grandTotal)}
+                    {formatBillingAmountSplitLabel(
+                      customerBillableAmounts.billed,
+                      customerBillableAmounts.open,
+                      formatEuro,
+                    )}
                   </>
                 )}
                 {' · '}
@@ -3337,34 +3372,28 @@ export default function WorkReportDetailPage({ session }: Props) {
                   : ' Tarkista kumppanuushinnat, yrityksen oletushinnat tai ota Raporttihinnat käyttöön.'}
               </p>
             )}
-            {billableCalculation && billing && (() => {
-              const amounts = resolvePartnerBillingAmounts(
-                billableCalculation.grandTotal,
-                billing.partner_billed_amount,
-                billing.partner_invoice_status,
-              );
-              if (amounts.state === 'open' && billing.partner_invoice_status === 'none') return null;
-              return (
-                <p className="muted">
-                  Kumppanilaskutus:{' '}
-                  <strong>
-                    {amounts.state === 'partial'
-                      ? INVOICE_STATUS_LABELS.partial
-                      : amounts.state === 'billed'
-                        ? INVOICE_STATUS_LABELS.paid
-                        : INVOICE_STATUS_LABELS[billing.partner_invoice_status]}
-                  </strong>
-                  {amounts.state === 'partial' && (
-                    <>
-                      {' · '}
-                      Laskutettu {formatEuro(amounts.billed)} · Avoin {formatEuro(amounts.open)}
-                    </>
-                  )}
-                  {' · '}
-                  <Link to="/laskutus?mode=partner">Laskutus-moduuli</Link>
-                </p>
-              );
-            })()}
+            {partnerBillableAmounts ? (
+              <p className="muted">
+                Kumppanilaskutus:{' '}
+                <strong>
+                  {partnerBillableAmounts.state === 'partial'
+                    ? INVOICE_STATUS_LABELS.partial
+                    : partnerBillableAmounts.state === 'billed'
+                      ? INVOICE_STATUS_LABELS.paid
+                      : billing?.partner_invoice_status
+                        ? INVOICE_STATUS_LABELS[billing.partner_invoice_status]
+                        : INVOICE_STATUS_LABELS.none}
+                </strong>
+                {' · '}
+                {formatBillingAmountSplitLabel(
+                  partnerBillableAmounts.billed,
+                  partnerBillableAmounts.open,
+                  formatEuro,
+                )}
+                {' · '}
+                <Link to="/laskutus?mode=partner">Laskutus-moduuli</Link>
+              </p>
+            ) : null}
             {showOutgoingPartnerBilling && canSeeCreatorBilling
               && billing?.partner_invoice_status
               && billing.partner_invoice_status !== 'paid'
@@ -3386,7 +3415,12 @@ export default function WorkReportDetailPage({ session }: Props) {
                 Käyttäjien laskutusasetukset olivat pois — lasketaan silti päiväkirjauksista (oletus päällä).
               </p>
             )}
-            <WorkReportBillingBreakdown calculation={billableCalculation} billingSide="partner" />
+            <WorkReportBillingBreakdown
+              calculation={billableCalculation}
+              billingSide="partner"
+              billedAmount={partnerBillableAmounts?.billed}
+              openAmount={partnerBillableAmounts?.open}
+            />
             {showWarehouseRefrigerantDeductions && profile?.company_id ? (
               <RefrigerantWarehouseDeductionPanel
                 logs={dailyLogs}
@@ -3558,7 +3592,27 @@ export default function WorkReportDetailPage({ session }: Props) {
             </div>
           )}
 
-          <WorkReportBillingBreakdown calculation={customerBillableCalculation} billingSide="customer" />
+          {customerBillableAmounts ? (
+            <p className="muted">
+              Asiakaslaskutus:{' '}
+              <strong>{customerBilled ? INVOICE_STATUS_LABELS.paid : INVOICE_STATUS_LABELS.none}</strong>
+              {' · '}
+              {formatBillingAmountSplitLabel(
+                customerBillableAmounts.billed,
+                customerBillableAmounts.open,
+                formatEuro,
+              )}
+              {' · '}
+              <Link to="/laskutus?mode=customer">Laskutus-moduuli</Link>
+            </p>
+          ) : null}
+
+          <WorkReportBillingBreakdown
+            calculation={customerBillableCalculation}
+            billingSide="customer"
+            billedAmount={customerBillableAmounts?.billed}
+            openAmount={customerBillableAmounts?.open}
+          />
           <div className="form-actions" style={{ justifyContent: 'flex-start' }}>
             <Tooltip label="Työraportti asiakkaalle ilman yhtään hintaa.">
               <Link to={`/tyoraportit/${report.id}/tuloste`} className="btn btn-secondary">

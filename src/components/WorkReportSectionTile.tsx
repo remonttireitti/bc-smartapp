@@ -1,6 +1,8 @@
+import type { ReactNode } from 'react';
+
 type Props = {
   title: string;
-  subtitle: string;
+  subtitle: ReactNode;
   color: string;
   active?: boolean;
   incomplete?: boolean;
@@ -23,7 +25,7 @@ export function WorkReportSectionTile({
       onClick={onClick}
     >
       <strong>{title}</strong>
-      <span>{subtitle}</span>
+      <span className="work-report-section-tile-subtitle">{subtitle}</span>
     </button>
   );
 }
