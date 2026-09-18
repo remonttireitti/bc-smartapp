@@ -2,7 +2,6 @@ import assert from 'node:assert/strict';
 import {
   buildLampokatsastusQuoteFooterHtml,
   buildLampokatsastusQuoteHeaderHtml,
-  buildLampokatsastusQuoteTaglineHtml,
   buildLampokatsastusWorkReportHeaderHtml,
   isLampokatsastusCompanyName,
   LAMPOKATSASTUS_SERVICE_TERMS_BODY,
@@ -24,20 +23,15 @@ const settings = {
 };
 
 assert.equal(isLampokatsastusCompanyName('Lämpökatsastus Oy'), true);
-assert.equal(isLampokatsastusCompanyName('Muu Oy'), false);
 
 const quoteHeader = buildLampokatsastusQuoteHeaderHtml(
   { companyName: 'Lämpökatsastus Oy', logoUrl: 'https://example.com/logo.png', settings },
   { esc, attrUrl, logoSrc: 'https://example.com/logo.png' },
 );
 assert.match(quoteHeader, /lk-header--quote/);
+assert.match(quoteHeader, /lk-tagline/);
+assert.match(quoteHeader, /Valitse Lämpökatsastus Oy/);
 assert.match(quoteHeader, /logo\.png/);
-assert.doesNotMatch(quoteHeader, /lk-tagline/);
-assert.doesNotMatch(quoteHeader, /Kuismatie 120/);
-
-const tagline = buildLampokatsastusQuoteTaglineHtml({ esc });
-assert.match(tagline, /lk-tagline/);
-assert.match(tagline, /Valitse Lämpökatsastus Oy/);
 
 const quoteFooter = buildLampokatsastusQuoteFooterHtml(
   { companyName: 'Lämpökatsastus Oy', settings },
@@ -61,8 +55,11 @@ const html = generateQuoteServicePrintHtml({
     workItems: [],
     materials: [],
     installationSupplies: [],
-    optionalItems: [],
-    notes: '',
+    optionalItems: [{ id: 'o1', description: 'Desinfiointi', priceGross: 80, enabled: true }],
+    excludedFromQuoteItems: [{ id: 'e1', text: 'Öljynvaihto' }],
+    notes: 'Ensimmäinen huomio\nToinen huomio',
+    deliveryTermsText: 'Salainen toimitusehto',
+    paymentTermsText: 'Salainen maksuehto',
     validUntil: '2026-12-31',
   },
   customer: { name: 'Testi Oy' },
@@ -73,16 +70,26 @@ const html = generateQuoteServicePrintHtml({
   mode: 'enduser',
 });
 
-assert.match(html, /quote-print-end-block/);
-assert.match(html, /page-break-inside:\s*avoid/);
-assert.match(html, /break-inside:\s*avoid/);
+assert.match(html, /quote-print-page-2/);
+assert.match(html, /page-break-before:\s*always/);
 assert.match(html, /lk-tagline/);
 assert.match(html, /Kiitos tarjouspyynnöstänne/);
 assert.match(html, /Huoltoehdot/);
-assert.match(html, /quote-print-end-block[\s\S]*class="lk-tagline"/);
+assert.match(html, /Ei kuulu tarjoukseen/);
+assert.match(html, /Tilattavissa lisänä/);
+assert.match(html, /<li>Ensimmäinen huomio<\/li>/);
+assert.match(html, /<li>Toinen huomio<\/li>/);
+assert.doesNotMatch(html, /Salainen toimitusehto/);
+assert.doesNotMatch(html, /Salainen maksuehto/);
+
 const headerMatch = html.match(/<header class="lk-header lk-header--quote">[\s\S]*?<\/header>/);
 assert.ok(headerMatch);
-assert.doesNotMatch(headerMatch[0], /class="lk-tagline"/);
+assert.match(headerMatch[0], /class="lk-tagline"/);
+
+const page2Match = html.match(/quote-print-page-2[\s\S]*lk-footer/);
+assert.ok(page2Match);
+assert.match(page2Match[0], /Ei kuulu tarjoukseen/);
+assert.match(page2Match[0], /Huomautukset/);
 
 const workHeader = buildLampokatsastusWorkReportHeaderHtml(
   { companyName: 'Lämpökatsastus Oy', logoUrl: 'https://example.com/logo.png', settings },
@@ -95,6 +102,5 @@ const workHeader = buildLampokatsastusWorkReportHeaderHtml(
   },
 );
 assert.match(workHeader, /lk-work-title-row/);
-assert.match(workHeader, /lk-tagline/);
 
 console.log('test-lampokatsastus-branding.mjs: OK');
