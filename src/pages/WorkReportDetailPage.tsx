@@ -3,6 +3,8 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
 import AppLayout from '../components/AppLayout';
 import CustomerRegistryPicker, { type NewCustomerDraft } from '../components/CustomerRegistryPicker';
+import WorkReportEquipmentAssign from '../components/WorkReportEquipmentAssign';
+import type { NewEquipmentDraft } from '../components/EquipmentRegistryPicker';
 import DeletedUserLabel from '../components/DeletedUserLabel';
 import {
   buildDailyLogEntryTiles,
@@ -230,7 +232,6 @@ import {
   normalizeWorkflowStatus,
   formatDate,
   formatDateTime,
-  formatWorkReportEquipment,
   buildWorkReportTitle,
   resolveWorkReportDescription,
   defaultOfficeHour,
@@ -247,8 +248,13 @@ import {
   type PendingDailyLogImage,
   type WorkStatus,
 } from '../types';
-import type { Customer, Partnership } from '../types';
+import type { Customer, Equipment, Partnership } from '../types';
 import type { RefrigerantCylinder } from '../types/inventory';
+import {
+  loadWorkReportEquipmentLinks,
+  saveWorkReportEquipmentLinks,
+  formatWorkReportEquipmentList,
+} from '../lib/workReportEquipment';
 
 interface Props {
   session: Session;
@@ -1072,6 +1078,9 @@ export default function WorkReportDetailPage({ session }: Props) {
   const [ownerCompanyDraft, setOwnerCompanyDraft] = useState('');
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [customerIdDraft, setCustomerIdDraft] = useState('');
+  const [customerEquipment, setCustomerEquipment] = useState<Equipment[]>([]);
+  const [equipmentIdsDraft, setEquipmentIdsDraft] = useState<string[]>([]);
+  const [savedEquipmentIds, setSavedEquipmentIds] = useState<string[]>([]);
 
   const billingModuleEnabled = useCompanyBillingModuleEnabled(profile?.company_id, session);
   const ownerCustomerInvoicing = useCompanyCustomerBillingEnabled(report?.owner_company_id, session);
@@ -1170,6 +1179,42 @@ export default function WorkReportDetailPage({ session }: Props) {
       setOrdererDraft(reportRow.orderer_name?.trim() ?? '');
       setOwnerCompanyDraft(reportRow.owner_company_id ?? '');
       setCustomerIdDraft(reportRow.customer_id ?? '');
+
+      const linkedEquipment = await loadWorkReportEquipmentLinks(
+        supabase,
+        reportId,
+        reportRow.equipment_id,
+      );
+      const linkedIds = linkedEquipment.map((entry) => entry.id);
+      setEquipmentIdsDraft(linkedIds);
+      setSavedEquipmentIds(linkedIds);
+      if (reportRow.customer_id) {
+        const { data: eqData } = await supabase
+          .from('equipment')
+          .select('id, name, tag, model, serial_number, location, customer_id, device_type')
+          .eq('customer_id', reportRow.customer_id)
+          .order('name');
+        const rows = (eqData as Equipment[]) ?? [];
+        // Ensure linked devices appear even if filtered oddly.
+        const byId = new Map(rows.map((row) => [row.id, row]));
+        for (const link of linkedEquipment) {
+          if (!byId.has(link.id)) {
+            byId.set(link.id, {
+              id: link.id,
+              name: link.name,
+              tag: link.tag,
+              model: null,
+              serial_number: null,
+              location: null,
+              customer_id: reportRow.customer_id,
+              device_type: null,
+            } as Equipment);
+          }
+        }
+        setCustomerEquipment([...byId.values()].sort((a, b) => a.name.localeCompare(b.name, 'fi')));
+      } else {
+        setCustomerEquipment([]);
+      }
 
       void loadTripKmRatesForReport(reportRow).then((rates) => {
         setReportTripKmRate(rates.kmRate);
@@ -1738,7 +1783,7 @@ export default function WorkReportDetailPage({ session }: Props) {
     let finalOwnerId = ownerCompanyDraft || report.owner_company_id;
     let finalPartnershipId: string | null = report.partnership_id ?? null;
     let finalCustomerId: string | null = customerIdDraft || null;
-    let finalEquipmentId: string | null = report.equipment_id ?? null;
+    let finalEquipmentIds = [...equipmentIdsDraft];
 
     if (selectedCustomer) {
       const customerContext = resolveReportContextFromCustomer(
@@ -1749,7 +1794,7 @@ export default function WorkReportDetailPage({ session }: Props) {
       finalOwnerId = customerContext.ownerCompanyId;
       finalPartnershipId = customerContext.partnerId || null;
       if (customerChanged) {
-        finalEquipmentId = null;
+        finalEquipmentIds = [];
       }
     } else if (ownerChanged) {
       const ownerContext = resolveReportContextFromOwner(
@@ -1761,11 +1806,11 @@ export default function WorkReportDetailPage({ session }: Props) {
       finalPartnershipId = ownerContext.partnerId || null;
       if (report.customer_id) {
         finalCustomerId = null;
-        finalEquipmentId = null;
+        finalEquipmentIds = [];
       }
     } else if (customerChanged) {
       finalCustomerId = null;
-      finalEquipmentId = null;
+      finalEquipmentIds = [];
     }
 
     const titleCustomerName = selectedCustomer?.name ?? (customerChanged ? null : report.customers?.name ?? null);
@@ -1774,6 +1819,10 @@ export default function WorkReportDetailPage({ session }: Props) {
       || customerChanged
       || finalOwnerId !== report.owner_company_id
       || finalCustomerId !== (report.customer_id ?? null);
+
+    const equipmentDirty =
+      finalEquipmentIds.length !== savedEquipmentIds.length
+      || finalEquipmentIds.some((id, index) => id !== savedEquipmentIds[index]);
 
     const { error: updateError } = await supabase
       .from('work_reports')
@@ -1788,8 +1837,10 @@ export default function WorkReportDetailPage({ session }: Props) {
               branding_company_id: finalOwnerId,
               partnership_id: finalPartnershipId,
               customer_id: finalCustomerId,
-              equipment_id: finalEquipmentId,
             }
+          : {}),
+        ...(equipmentDirty || needsRegistryPatch
+          ? { equipment_id: finalEquipmentIds[0] ?? null }
           : {}),
       })
       .eq('id', report.id);
@@ -1799,6 +1850,18 @@ export default function WorkReportDetailPage({ session }: Props) {
     if (updateError) {
       setError(updateError.message);
       return;
+    }
+
+    if (equipmentDirty || needsRegistryPatch) {
+      const { error: linkError } = await saveWorkReportEquipmentLinks(
+        supabase,
+        report.id,
+        finalEquipmentIds,
+      );
+      if (linkError) {
+        setError(linkError);
+        return;
+      }
     }
 
     await load(report.id);
@@ -1838,6 +1901,41 @@ export default function WorkReportDetailPage({ session }: Props) {
     setCustomers((prev) => [...prev, created].sort((a, b) => a.name.localeCompare(b.name, 'fi')));
     setCustomerIdDraft(created.id);
     setOwnerCompanyDraft(created.owner_company_id);
+    setEquipmentIdsDraft([]);
+    setCustomerEquipment([]);
+  }
+
+  async function createEquipmentForReport(draft: NewEquipmentDraft) {
+    if (!report || !customerIdDraft || !draft.name.trim()) {
+      setError('Laitteen nimi on pakollinen.');
+      return;
+    }
+    const ownerId = ownerCompanyDraft || report.owner_company_id;
+    setDescriptionBusy(true);
+    setError(null);
+    const { data, error: insertError } = await supabase
+      .from('equipment')
+      .insert({
+        owner_company_id: ownerId,
+        customer_id: customerIdDraft,
+        name: draft.name.trim(),
+        tag: draft.tag.trim() || null,
+        model: draft.model.trim() || null,
+        serial_number: draft.serial_number.trim() || null,
+        location: draft.location.trim() || null,
+      })
+      .select('id, name, tag, model, serial_number, location, customer_id, device_type')
+      .single();
+    setDescriptionBusy(false);
+    if (insertError || !data) {
+      setError(insertError?.message ?? 'Laitteen luonti epäonnistui.');
+      return;
+    }
+    const created = data as Equipment;
+    setCustomerEquipment((prev) =>
+      [...prev, created].sort((a, b) => a.name.localeCompare(b.name, 'fi')),
+    );
+    setEquipmentIdsDraft((prev) => (prev.includes(created.id) ? prev : [...prev, created.id]));
   }
 
   async function assignDelegatedWork(userId: string) {
@@ -2556,7 +2654,11 @@ export default function WorkReportDetailPage({ session }: Props) {
   const ordererDirty = ordererDraft.trim() !== savedOrderer;
   const ownerDirty = ownerCompanyDraft !== savedOwnerCompanyId;
   const customerDirty = customerIdDraft !== savedCustomerId;
-  const basicsDirty = headingDirty || descriptionDirty || ordererDirty || ownerDirty || customerDirty;
+  const equipmentDirty =
+    equipmentIdsDraft.length !== savedEquipmentIds.length
+    || equipmentIdsDraft.some((id, index) => id !== savedEquipmentIds[index]);
+  const basicsDirty =
+    headingDirty || descriptionDirty || ordererDirty || ownerDirty || customerDirty || equipmentDirty;
   const canSeeCreatorBilling = isCreatorCompany && viewerBillingAllowed;
   const canSeePartnerSummary =
     !!billing?.partner_summary_shared &&
@@ -2975,10 +3077,23 @@ export default function WorkReportDetailPage({ session }: Props) {
                   busy={descriptionBusy}
                   onSelect={(id) => {
                     setCustomerIdDraft(id);
+                    setEquipmentIdsDraft([]);
                     const customer = customers.find((entry) => entry.id === id);
                     if (customer) setOwnerCompanyDraft(customer.owner_company_id);
+                    void (async () => {
+                      const { data: eqData } = await supabase
+                        .from('equipment')
+                        .select('id, name, tag, model, serial_number, location, customer_id, device_type')
+                        .eq('customer_id', id)
+                        .order('name');
+                      setCustomerEquipment((eqData as Equipment[]) ?? []);
+                    })();
                   }}
-                  onClear={() => setCustomerIdDraft('')}
+                  onClear={() => {
+                    setCustomerIdDraft('');
+                    setEquipmentIdsDraft([]);
+                    setCustomerEquipment([]);
+                  }}
                   onCreate={createCustomerAndSelect}
                 />
                 {!customerIdDraft && ownerCompanyDraft && (
@@ -3027,7 +3142,35 @@ export default function WorkReportDetailPage({ session }: Props) {
             </>
           )}
           <dt>Laite</dt>
-          <dd className={report.equipment ? undefined : 'muted'}>{formatWorkReportEquipment(report.equipment)}</dd>
+          <dd>
+            {canEditCustomer && customerIdDraft ? (
+              <div className="detail-description-edit">
+                <WorkReportEquipmentAssign
+                  equipment={customerEquipment}
+                  selectedIds={equipmentIdsDraft}
+                  disabled={descriptionBusy}
+                  busy={descriptionBusy}
+                  onChange={setEquipmentIdsDraft}
+                  onCreate={async (draft) => {
+                    await createEquipmentForReport(draft);
+                  }}
+                />
+                {equipmentDirty ? (
+                  <p className="muted" style={{ margin: 0 }}>
+                    Laitekohdistus muuttunut — tallenna perustiedot alla.
+                  </p>
+                ) : null}
+              </div>
+            ) : canEditCustomer && !customerIdDraft ? (
+              <span className="muted">Valitse ensin asiakas, jotta voit kohdistaa laitteen.</span>
+            ) : (
+              <span className={savedEquipmentIds.length ? undefined : 'muted'}>
+                {formatWorkReportEquipmentList(
+                  customerEquipment.filter((entry) => savedEquipmentIds.includes(entry.id)),
+                )}
+              </span>
+            )}
+          </dd>
           <dt>Otsikko</dt>
           <dd>
             {canEditDescription ? (
@@ -3076,6 +3219,7 @@ export default function WorkReportDetailPage({ session }: Props) {
                         setOrdererDraft(savedOrderer);
                         setOwnerCompanyDraft(savedOwnerCompanyId);
                         setCustomerIdDraft(savedCustomerId);
+                        setEquipmentIdsDraft(savedEquipmentIds);
                       }}
                     >
                       Peruuta

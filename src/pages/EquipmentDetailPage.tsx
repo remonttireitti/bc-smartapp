@@ -98,7 +98,13 @@ export default function EquipmentDetailPage({ session }: Props) {
 
     setCustomer(customerRow);
     setEquipment(equipmentRow);
-    setDocuments(linkedDocuments.filter((doc) => doc.equipmentId === equipmentId));
+    setDocuments(
+      linkedDocuments.filter(
+        (doc) =>
+          doc.equipmentId === equipmentId
+          || (doc.equipmentIds?.includes(equipmentId) ?? false),
+      ),
+    );
     setMaintenanceRows(maintenanceContext.maintenanceRows);
     setWorkRows(maintenanceContext.workRows);
     setLoading(false);

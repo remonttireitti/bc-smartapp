@@ -25,6 +25,8 @@ export type CustomerLinkedDocument = {
   status?: string;
   statusLabel?: string;
   equipmentId?: string | null;
+  /** All linked equipment ids (work reports may have many). */
+  equipmentIds?: string[];
   equipmentLabel?: string | null;
   href: string;
   printHref?: string;
@@ -103,6 +105,31 @@ export async function loadCustomerLinkedDocuments(
   if (tempReportResult.error) console.error(tempReportResult.error);
   if (fileResult.error) console.error(fileResult.error);
 
+  const workReportIds = (workResult.data ?? []).map((row) => (row as { id: string }).id);
+  const equipmentLinksByReport = new Map<string, Array<{ id: string; name: string; tag: string | null }>>();
+  if (workReportIds.length > 0) {
+    const { data: linkRows, error: linkError } = await supabase
+      .from('work_report_equipment')
+      .select('work_report_id, sort_order, equipment:equipment_id(id, name, tag)')
+      .in('work_report_id', workReportIds)
+      .order('sort_order', { ascending: true });
+    if (linkError) {
+      console.error(linkError);
+    } else {
+      for (const row of linkRows ?? []) {
+        const reportId = row.work_report_id as string;
+        const rawEq = row.equipment as unknown;
+        const eq = Array.isArray(rawEq)
+          ? (rawEq[0] as { id: string; name: string; tag: string | null } | undefined)
+          : (rawEq as { id: string; name: string; tag: string | null } | null);
+        if (!reportId || !eq?.id) continue;
+        const list = equipmentLinksByReport.get(reportId) ?? [];
+        list.push({ id: eq.id, name: eq.name, tag: eq.tag ?? null });
+        equipmentLinksByReport.set(reportId, list);
+      }
+    }
+  }
+
   const linked: CustomerLinkedDocument[] = [];
 
   for (const row of workResult.data ?? []) {
@@ -122,6 +149,18 @@ export async function loadCustomerLinkedDocuments(
     ) {
       continue;
     }
+    const linkedEquipment = equipmentLinksByReport.get(report.id) ?? [];
+    const legacy = relationEquipment(report.equipment);
+    const equipmentIds =
+      linkedEquipment.length > 0
+        ? linkedEquipment.map((entry) => entry.id)
+        : report.equipment_id
+          ? [report.equipment_id]
+          : [];
+    const equipmentLabel =
+      linkedEquipment.length > 0
+        ? linkedEquipment.map((entry) => formatEquipmentLabel(entry)).filter(Boolean).join(', ')
+        : formatEquipmentLabel(legacy);
     linked.push({
       id: report.id,
       kind: 'work_report',
@@ -129,8 +168,9 @@ export async function loadCustomerLinkedDocuments(
       date: report.updated_at || report.created_at,
       status: report.status,
       statusLabel: getWorkStatusLabel(report.status),
-      equipmentId: report.equipment_id,
-      equipmentLabel: formatEquipmentLabel(relationEquipment(report.equipment)),
+      equipmentId: equipmentIds[0] ?? report.equipment_id,
+      equipmentIds,
+      equipmentLabel,
       href: `/tyoraportit/${report.id}`,
       printHref: `/tyoraportit/${report.id}/tuloste`,
     });

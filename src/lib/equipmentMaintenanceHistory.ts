@@ -32,6 +32,7 @@ type MaintenanceReportRow = {
 type WorkReportRow = {
   id: string;
   equipment_id: string | null;
+  equipment_ids?: string[];
   title: string;
   description: string | null;
   scheduled_start: string | null;
@@ -126,9 +127,36 @@ export async function loadCustomerMaintenanceContext(
   if (maintenanceResult.error) console.error(maintenanceResult.error);
   if (workResult.error) console.error(workResult.error);
 
+  const workRows = ((workResult.data as WorkReportRow[]) ?? []).map((row) => ({ ...row }));
+  const workIds = workRows.map((row) => row.id);
+  if (workIds.length > 0) {
+    const { data: linkRows, error: linkError } = await supabase
+      .from('work_report_equipment')
+      .select('work_report_id, equipment_id')
+      .in('work_report_id', workIds);
+    if (linkError) {
+      console.error(linkError);
+    } else {
+      const byReport = new Map<string, string[]>();
+      for (const row of linkRows ?? []) {
+        const reportId = row.work_report_id as string;
+        const equipmentId = row.equipment_id as string;
+        if (!reportId || !equipmentId) continue;
+        const list = byReport.get(reportId) ?? [];
+        list.push(equipmentId);
+        byReport.set(reportId, list);
+      }
+      for (const row of workRows) {
+        const linked = byReport.get(row.id) ?? [];
+        if (row.equipment_id && !linked.includes(row.equipment_id)) linked.unshift(row.equipment_id);
+        row.equipment_ids = linked;
+      }
+    }
+  }
+
   return {
     maintenanceRows: (maintenanceResult.data as MaintenanceReportRow[]) ?? [],
-    workRows: (workResult.data as WorkReportRow[]) ?? [],
+    workRows,
   };
 }
 
@@ -167,8 +195,12 @@ export function buildMaintenanceHistoryForEquipment(
   const entries: MaintenanceHistoryEntry[] = [];
 
   for (const row of workRows) {
-    if (row.equipment_id && row.equipment_id !== equipment.id) continue;
-    if (!row.equipment_id) continue;
+    const linkedIds = row.equipment_ids?.length
+      ? row.equipment_ids
+      : row.equipment_id
+        ? [row.equipment_id]
+        : [];
+    if (!linkedIds.includes(equipment.id)) continue;
     entries.push({
       kind: 'työraportti',
       sortMs: workSortMs(row),
