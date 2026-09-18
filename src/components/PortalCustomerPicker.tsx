@@ -1,9 +1,10 @@
 import { useMemo, type ReactNode } from 'react';
+import { formatCustomerAddressParts } from '../lib/customers';
 import type { Customer } from '../types';
 
 type Props = {
   label?: string;
-  customers: Pick<Customer, 'id' | 'name' | 'address' | 'city'>[];
+  customers: Pick<Customer, 'id' | 'name' | 'address' | 'postal_code' | 'city'>[];
   customerId: string;
   disabled?: boolean;
   hint?: ReactNode;
@@ -33,14 +34,15 @@ export default function PortalCustomerPicker({
         onChange={(e) => onChange(e.target.value)}
       >
         <option value="">— Valitse kohde —</option>
-        {options.map((c) => (
-          <option key={c.id} value={c.id}>
-            {c.name}
-            {[c.address, c.city].filter(Boolean).length
-              ? ` (${[c.address, c.city].filter(Boolean).join(', ')})`
-              : ''}
-          </option>
-        ))}
+        {options.map((c) => {
+          const address = formatCustomerAddressParts(c);
+          return (
+            <option key={c.id} value={c.id}>
+              {c.name}
+              {address ? ` (${address})` : ''}
+            </option>
+          );
+        })}
       </select>
       {hint ? <span className="muted field-hint">{hint}</span> : null}
     </label>

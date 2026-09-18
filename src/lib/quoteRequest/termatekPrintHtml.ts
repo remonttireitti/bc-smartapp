@@ -1,5 +1,6 @@
 import type { BrandDeliveryFeeByCategoryMap } from '../../data/devicePricingShared';
 import type { HeatPumpDevice } from '../../data/pumpDeviceCatalog';
+import { formatCustomerAddressParts } from '../customers';
 import { computeKotitalousDeduction, computeIilpCoolingEnergyEstimate, computeQuoteInternalTotals, computeQuoteTotals, computePumpSizingNeedKw, computeTravelNet, effectiveIilpPurpose, resolveIilpLaborPricingMode, travelCostLabel } from './calculations';
 import { DEFAULT_IILP_ENERGY_SAVINGS_TEXT, DEFAULT_IILP_PAYMENT_TERMS } from './constants';
 import {
@@ -881,7 +882,7 @@ export function generateTermatekVilpPrintHtml(input: {
     data.paymentTermsText.trim()
     || billing.payment_terms
     || (iilp ? DEFAULT_IILP_PAYMENT_TERMS : '14 pv netto');
-  const customerAddress = [customer.address, customer.city].filter(Boolean).join(', ');
+  const customerAddress = formatCustomerAddressParts(customer);
   const companyAddress = [settings.address, [settings.postal_code, settings.city].filter(Boolean).join(' ')]
     .filter(Boolean)
     .join(', ');
@@ -1229,7 +1230,7 @@ export function generateTermatekInternalPrintHtml(input: {
   const offerNo = formatOfferNumber(meta);
   const productTitle = defaultProductTitle(data, device);
   const iilp = isIilpQuote(data);
-  const customerAddress = [customer.address, customer.city].filter(Boolean).join(', ');
+  const customerAddress = formatCustomerAddressParts(customer);
   const companyAddress = [settings.address, [settings.postal_code, settings.city].filter(Boolean).join(' ')]
     .filter(Boolean)
     .join(', ');

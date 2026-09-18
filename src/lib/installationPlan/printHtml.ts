@@ -1,4 +1,5 @@
 import type { CompanySettings } from '../management';
+import { formatCustomerAddressParts } from '../customers';
 import { isInstallationPlanImageMime, type InstallationPlanPrintAttachment } from '../installationPlanAttachments';
 import { INSTALLATION_PLAN_DOCUMENT_TITLE } from './defaultTemplate';
 import type { InstallationPlanData } from './types';
@@ -6,6 +7,7 @@ import type { InstallationPlanData } from './types';
 export type InstallationPlanPrintCustomer = {
   name: string;
   address?: string | null;
+  postal_code?: string | null;
   city?: string | null;
 };
 
@@ -296,7 +298,7 @@ export function generateInstallationPlanPrintHtml(input: {
 }): string {
   const { data, customer, meta, attachments = [] } = input;
   const logo = meta.logoUrl || smartappFallbackLogoSvg(meta.companyName);
-  const customerAddress = [customer.address, customer.city].filter(Boolean).join(', ');
+  const customerAddress = formatCustomerAddressParts(customer);
   const recipientName = data.propertyName.trim() || customer.name;
   const recipientLines = [
     recipientName !== customer.name ? customer.name : null,

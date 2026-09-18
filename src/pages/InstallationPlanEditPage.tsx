@@ -141,7 +141,7 @@ export default function InstallationPlanEditPage({ session }: Props) {
       .select(`
         id, title, status, data, updated_at, customer_id, owner_company_id, created_by_company_id,
         branding_company_id, partnership_id,
-        customers(name, address, city),
+        customers(name, address, postal_code, city),
         branding_company:companies!installation_plans_branding_company_id_fkey(name, settings, logo_url)
       `)
       .eq('id', planIdToLoad)

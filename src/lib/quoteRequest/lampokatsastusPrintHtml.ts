@@ -1,4 +1,5 @@
 import type { BrandDeliveryFeeByCategoryMap } from '../../data/devicePricingShared';
+import { formatCustomerAddressParts } from '../customers';
 import { computeQuoteTotals, computeTravelNet, travelCostLabel } from './calculations';
 import {
   filterInstallationSupplyRows,
@@ -257,7 +258,7 @@ function noticeBullets(data: QuoteRequestData): string[] {
 }
 
 function kohdeLine(_data: QuoteRequestData, customer: QuotePrintCustomer): string {
-  const address = [customer.address, customer.city].filter(Boolean).join(' ');
+  const address = formatCustomerAddressParts(customer);
   if (address) return address;
   return customer.name?.trim() || '—';
 }

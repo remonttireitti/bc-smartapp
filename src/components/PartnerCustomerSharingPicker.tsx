@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import Tooltip from './Tooltip';
 import ToggleSwitch from './ToggleSwitch';
+import { formatCustomerAddressParts } from '../lib/customers';
 import type { Customer } from '../types';
 
 type Props = {
@@ -12,7 +13,10 @@ type Props = {
 };
 
 function customerSearchText(customer: Customer): string {
-  return [customer.name, customer.city, customer.address].filter(Boolean).join(' ').toLowerCase();
+  return [customer.name, customer.address, customer.postal_code, customer.city]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
 }
 
 export default function PartnerCustomerSharingPicker({
@@ -128,7 +132,7 @@ export default function PartnerCustomerSharingPicker({
             const reportLinked = reportLinkedSet.has(customer.id);
             const manuallyShared = selectedSet.has(customer.id);
             const checked = reportLinked || manuallyShared;
-            const subtitle = [customer.city, customer.address].filter(Boolean).join(' • ');
+            const subtitle = formatCustomerAddressParts(customer);
             return (
               <div
                 key={customer.id}
