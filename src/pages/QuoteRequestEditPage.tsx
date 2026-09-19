@@ -706,9 +706,10 @@ export default function QuoteRequestEditPage({ session }: Props) {
         acceptedSiteDefaults,
       });
 
+      // Älä ylikirjoita created_by_company_id päivityksessä — muuten kumppanin
+      // laatima tarjous voi menettää UPDATE-oikeuden RLS:ssä.
       const rowPayload = {
         owner_company_id: ownerCompanyId,
-        created_by_company_id: profile.company_id,
         branding_company_id: brandingCompanyId,
         partnership_id: partnership?.id ?? null,
         customer_id: customerId,
@@ -733,7 +734,16 @@ export default function QuoteRequestEditPage({ session }: Props) {
           return false;
         }
         if (!updatedRow) {
-          setError('Tallennus epäonnistui — tarkista oikeudet.');
+          const { data: stillReadable } = await supabase
+            .from('quote_requests')
+            .select('id')
+            .eq('id', quoteId)
+            .maybeSingle();
+          setError(
+            stillReadable
+              ? 'Tallennus epäonnistui — ei kirjoitusoikeutta tähän tarjoukseen (tarvitaan quotes-write rekisterin omistajalle).'
+              : 'Tallennus epäonnistui — tarjousta ei löytynyt tai sitä ei voi enää muokata.',
+          );
           return false;
         }
         const savedData = normalizeQuoteRequestData((updatedRow as { data: QuoteRequestData }).data);
@@ -748,7 +758,10 @@ export default function QuoteRequestEditPage({ session }: Props) {
       } else {
         const { data, error: insertError } = await supabase
           .from('quote_requests')
-          .insert(rowPayload)
+          .insert({
+            ...rowPayload,
+            created_by_company_id: profile.company_id,
+          })
           .select('id, data')
           .maybeSingle();
 
@@ -757,7 +770,9 @@ export default function QuoteRequestEditPage({ session }: Props) {
           return false;
         }
         if (!data) {
-          setError('Tallennus epäonnistui — tarkista oikeudet.');
+          setError(
+            'Tallennus epäonnistui — ei kirjoitusoikeutta valittuun asiakasrekisteriin (tarvitaan quotes-write).',
+          );
           return false;
         }
 
@@ -810,7 +825,7 @@ export default function QuoteRequestEditPage({ session }: Props) {
         data: prepareQuoteRequestDataForSave(form),
         customer_id: customerId,
         owner_company_id: ownerCompanyId,
-        created_by_company_id: profile.company_id,
+        created_by_company_id: createdByCompanyId || profile.company_id,
         branding_company_id: resolveQuoteBrandingCompanyId({
           brandMode: form.brandMode,
           myCompanyId: profile.company_id,
