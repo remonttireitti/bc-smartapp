@@ -73,6 +73,7 @@ import {
   markQuoteAsNotOrdered,
   markQuoteAsOrderedOnly,
 } from '../lib/quoteRequest/createWorkReportFromQuote';
+import { updateQuoteRequestViaRpc } from '../lib/quoteRequest/updateQuoteRequest';
 import { shouldAutoCreateWorkReportOnOrder } from '../lib/quoteRequest/orderedWorkReport';
 import type {
   QuoteEditSection,
@@ -722,31 +723,29 @@ export default function QuoteRequestEditPage({ session }: Props) {
       };
 
       if (quoteId) {
-        const { data: updatedRow, error: updateError } = await supabase
-          .from('quote_requests')
-          .update(rowPayload)
-          .eq('id', quoteId)
-          .select('data')
-          .maybeSingle();
+        const { data: updatedRow, error: updateError } = await updateQuoteRequestViaRpc(supabase, {
+          quoteId,
+          ownerCompanyId,
+          brandingCompanyId,
+          partnershipId: partnership?.id ?? null,
+          customerId,
+          subscriberId: resolveSubscriberIdForReport(customerId, subscriberId, customers),
+          subscriberPortalVisibility,
+          equipmentId: equipmentId || null,
+          title: storedTitle,
+          status: (nextStatus ?? status) as QuoteRequestStatus,
+          data: dataToSave,
+        });
 
         if (updateError) {
           setError(updateError.message);
           return false;
         }
         if (!updatedRow) {
-          const { data: stillReadable } = await supabase
-            .from('quote_requests')
-            .select('id')
-            .eq('id', quoteId)
-            .maybeSingle();
-          setError(
-            stillReadable
-              ? 'Tallennus epäonnistui — ei kirjoitusoikeutta tähän tarjoukseen (tarvitaan quotes-write rekisterin omistajalle).'
-              : 'Tallennus epäonnistui — tarjousta ei löytynyt tai sitä ei voi enää muokata.',
-          );
+          setError('Tallennus epäonnistui — tarjousta ei päivitetty.');
           return false;
         }
-        const savedData = normalizeQuoteRequestData((updatedRow as { data: QuoteRequestData }).data);
+        const savedData = normalizeQuoteRequestData(updatedRow.data);
         setForm({
           ...savedData,
           acceptedSiteDefaults:

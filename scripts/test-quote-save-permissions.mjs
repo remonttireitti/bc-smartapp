@@ -18,13 +18,19 @@ assert.doesNotMatch(
 
 const editPage = readFileSync(join(process.cwd(), 'src/pages/QuoteRequestEditPage.tsx'), 'utf8');
 assert.match(editPage, /Älä ylikirjoita created_by_company_id/);
+assert.match(editPage, /updateQuoteRequestViaRpc/);
 assert.match(editPage, /created_by_company_id: profile\.company_id/);
-assert.match(editPage, /ei kirjoitusoikeutta tähän tarjoukseen/);
 // Update path must not set created_by_company_id inside the shared rowPayload.
 const updateBlock = editPage.slice(
   editPage.indexOf('const rowPayload = {'),
   editPage.indexOf('if (quoteId)'),
 );
 assert.doesNotMatch(updateBlock, /created_by_company_id:/);
+
+const helper = readFileSync(
+  join(process.cwd(), 'src/lib/quoteRequest/updateQuoteRequest.ts'),
+  'utf8',
+);
+assert.match(helper, /ei kirjoitusoikeutta tähän tarjoukseen/);
 
 console.log('test-quote-save-permissions: ok');
