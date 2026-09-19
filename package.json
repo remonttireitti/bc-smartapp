@@ -70,6 +70,7 @@
     "test:quote-customer-print-quantities": "npx tsx scripts/test-quote-customer-print-quantities.mjs",
     "test:quote-request-stats": "npx tsx scripts/test-quote-request-stats.mjs",
     "test:quote-save-permissions": "npx tsx scripts/test-quote-save-permissions.mjs",
+    "test:quote-update-rpc": "npx tsx scripts/test-quote-update-rpc.mjs",
     "test:service-quote-print": "npx tsx scripts/test-service-quote-print.mjs",
     "test:optional-item-print-price": "npx tsx scripts/test-optional-item-print-price.mjs",
     "test:quote-closing-print": "npx tsx scripts/test-quote-closing-print.mjs",
