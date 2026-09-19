@@ -89,13 +89,29 @@ const orderedRow = {
 assert.equal(quoteRowGrossTotal(orderedRow), 100);
 
 const summary = aggregateQuoteRequestStats([baseRow, orderedRow], 'this_month', anchor);
-assert.equal(summary.sentCount, 1);
+assert.equal(summary.sentCount, 1); // avoinna (lähetetty)
 assert.equal(summary.orderedCount, 1);
 assert.equal(summary.sentTotal, 0);
 assert.equal(summary.orderedTotal, 100);
-assert.equal(summary.totalCount, 2);
+assert.equal(summary.totalCount, 2); // tarjottu = avoinna + tilattu
+assert.equal(summary.totalAmount, 100);
 assert.equal(summary.byCompany.length, 2);
+// Tilausaste = tilattu / tarjottu (1/2), ei tilattu / vain avoimet
 assert.equal(summary.conversionRate, 50);
+
+// Pelkät tilatut → tilausaste 100 %
+const onlyOrdered = aggregateQuoteRequestStats([orderedRow], 'this_month', anchor);
+assert.equal(onlyOrdered.sentCount, 0);
+assert.equal(onlyOrdered.orderedCount, 1);
+assert.equal(onlyOrdered.totalCount, 1);
+assert.equal(onlyOrdered.conversionRate, 100);
+
+// Pelkät avoimet → tilausaste 0 %
+const onlySent = aggregateQuoteRequestStats([baseRow], 'this_month', anchor);
+assert.equal(onlySent.sentCount, 1);
+assert.equal(onlySent.orderedCount, 0);
+assert.equal(onlySent.totalCount, 1);
+assert.equal(onlySent.conversionRate, 0);
 
 const filtered = filterQuoteRowsForStats([baseRow, orderedRow], {
   disabledOwnerCompanyIds: new Set(['owner-1']),

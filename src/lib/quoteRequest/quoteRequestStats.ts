@@ -175,6 +175,8 @@ export function aggregateQuoteRequestStats(
     );
   }
 
+  // Tarjottu = kaikki tarjoukset (lähetetty + tilattu). Tilattu on osajoukko.
+  // Tilausaste = tilattu / tarjottu — ei tilattu / (vain avoimet).
   const totalCount = sentCount + orderedCount;
   const totalAmount = sentTotal + orderedTotal;
   const conversionRate =
