@@ -41,11 +41,11 @@ function CompanyStatsTable({
             <thead>
               <tr>
                 <th>Yritys</th>
-                <th className="num">Tarjottu</th>
-                <th className="num">Tarjottu €</th>
+                <th className="num">Avoinna</th>
+                <th className="num">Avoinna €</th>
                 <th className="num">Tilattu</th>
                 <th className="num">Tilattu €</th>
-                <th className="num">Yhteensä €</th>
+                <th className="num">Tarjottu €</th>
               </tr>
             </thead>
             <tbody>
@@ -208,33 +208,37 @@ export default function QuoteRequestStatsPage({ session }: Props) {
       ) : (
         <>
           <div className="billing-summary-grid">
-            <article className="billing-stat-card billing-stat-open">
-              <span className="billing-stat-label">Tarjottu (lähetetty)</span>
-              <strong className="billing-stat-value">{formatEuro(summary.sentTotal)}</strong>
-              <span className="billing-stat-count">{summary.sentCount} kpl</span>
+            <article className="billing-stat-card billing-stat-total">
+              <span className="billing-stat-label">Tarjottu</span>
+              <strong className="billing-stat-value">{formatEuro(summary.totalAmount)}</strong>
+              <span className="billing-stat-count">{summary.totalCount} kpl</span>
             </article>
             <article className="billing-stat-card billing-stat-billed">
               <span className="billing-stat-label">Tilattu</span>
               <strong className="billing-stat-value">{formatEuro(summary.orderedTotal)}</strong>
               <span className="billing-stat-count">{summary.orderedCount} kpl</span>
             </article>
-            <article className="billing-stat-card billing-stat-total">
-              <span className="billing-stat-label">Yhteensä</span>
-              <strong className="billing-stat-value">{formatEuro(summary.totalAmount)}</strong>
-              <span className="billing-stat-count">{summary.totalCount} kpl</span>
+            <article className="billing-stat-card billing-stat-open">
+              <span className="billing-stat-label">Avoinna (lähetetty)</span>
+              <strong className="billing-stat-value">{formatEuro(summary.sentTotal)}</strong>
+              <span className="billing-stat-count">{summary.sentCount} kpl</span>
             </article>
             <article className="billing-stat-card">
               <span className="billing-stat-label">Tilausaste</span>
               <strong className="billing-stat-value">
                 {summary.conversionRate != null ? `${summary.conversionRate} %` : '—'}
               </strong>
-              <span className="billing-stat-count">tilattu / kaikki tarjoukset</span>
+              <span className="billing-stat-count">
+                {summary.totalCount > 0
+                  ? `${summary.orderedCount} / ${summary.totalCount} tarjouksesta`
+                  : 'tilattu / tarjottu'}
+              </span>
             </article>
           </div>
 
           <CompanyStatsTable
             title="Kenen piikkiin tarjottu"
-            hint="Rekisterin omistaja — kenen asiakasrekisterissä tarjous on tehty."
+            hint="Rekisterin omistaja — kenen asiakasrekisterissä tarjous on tehty. Tarjottu € = avoinna + tilattu."
             rows={summary.byCompany}
           />
         </>
