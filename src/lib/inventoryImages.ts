@@ -20,6 +20,11 @@ export function inventoryImageObjectPath(
   return `${companyId}/${kind}/${entityId}.jpg`;
 }
 
+/** Company-scoped tool photo path (supports multiple images per tool). */
+export function toolImageObjectPath(companyId: string, toolId: string, imageId: string): string {
+  return `${companyId}/tools/${toolId}/${imageId}.jpg`;
+}
+
 export async function resizeImageFile(file: File, maxEdge = MAX_EDGE, quality = JPEG_QUALITY): Promise<Blob> {
   const bitmap = await createImageBitmap(file);
   const scale = Math.min(1, maxEdge / Math.max(bitmap.width, bitmap.height));
@@ -51,6 +56,24 @@ export async function uploadInventoryImage(
   file: File,
 ): Promise<string> {
   const path = inventoryImageObjectPath(companyId, kind, entityId);
+  const blob = await resizeImageFile(file);
+  const { error } = await client.storage.from(INVENTORY_IMAGE_BUCKET).upload(path, blob, {
+    upsert: true,
+    contentType: 'image/jpeg',
+    cacheControl: '3600',
+  });
+  if (error) throw error;
+  return path;
+}
+
+export async function uploadToolImage(
+  client: SupabaseClient,
+  companyId: string,
+  toolId: string,
+  imageId: string,
+  file: File,
+): Promise<string> {
+  const path = toolImageObjectPath(companyId, toolId, imageId);
   const blob = await resizeImageFile(file);
   const { error } = await client.storage.from(INVENTORY_IMAGE_BUCKET).upload(path, blob, {
     upsert: true,
