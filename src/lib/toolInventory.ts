@@ -199,14 +199,27 @@ export type BusyRange = {
   status?: string;
 };
 
-/** Onko päivä (YYYY-MM-DD, paikallinen) varattu jollekin busy-jaksolle. */
+/** ISO → YYYY-MM-DD in UTC (stable across host timezones). */
+function isoToYmdUtc(iso: string): string | null {
+  const d = new Date(iso);
+  if (!Number.isFinite(d.getTime())) return null;
+  const y = d.getUTCFullYear();
+  const m = String(d.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(d.getUTCDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+/** Onko kalenteripäivä (YYYY-MM-DD) varattu busy-jaksolle (UTC-päivärajoilla). */
 export function dateYmdOverlapsBusy(ymd: string, ranges: BusyRange[], toolId?: string): boolean {
-  const dayStart = new Date(`${ymd}T00:00:00`);
-  const dayEnd = new Date(`${ymd}T23:59:59.999`);
-  if (!Number.isFinite(dayStart.getTime())) return false;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(ymd)) return false;
   for (const range of ranges) {
     if (toolId && range.tool_id !== toolId) continue;
-    if (loanRangesOverlap(range.starts_at, range.ends_at ?? null, dayStart, dayEnd)) return true;
+    const startYmd = isoToYmdUtc(range.starts_at);
+    if (!startYmd) continue;
+    const endYmd = range.ends_at ? isoToYmdUtc(range.ends_at) : null;
+    if (ymd < startYmd) continue;
+    if (endYmd != null && ymd > endYmd) continue;
+    return true;
   }
   return false;
 }
