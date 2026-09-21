@@ -285,6 +285,8 @@ export type WorkReportBilling = {
   customer_invoice_status: InvoiceStatus;
   customer_invoice_amount: number | null;
   customer_billed_at: string | null;
+  billing_text_copied_at?: string | null;
+  print_link_copied_at?: string | null;
   use_custom_customer_rates?: boolean;
   customer_rates_override?: {
     hourly_regular?: number;

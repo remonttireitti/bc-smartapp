@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import {
   EXPENSE_TYPE_LABELS,
   formatDate,
+  formatDateTime,
   formatHourEntry,
   normalizeWorkflowStatus,
   sumDailyHours,
@@ -52,6 +53,8 @@ export type BillingListRow = {
     customer_invoice_status: InvoiceStatus;
     customer_invoice_amount: number | null;
     customer_billed_at: string | null;
+    billing_text_copied_at?: string | null;
+    print_link_copied_at?: string | null;
   } | null;
   billable: {
     partner_total: number;
@@ -1046,6 +1049,94 @@ export async function applyPartnerBillWorkflowChoice(
     .update({ status: 'completed', completed_at: new Date().toISOString() })
     .eq('id', workReportId);
   if (error) throw error;
+}
+
+export type BillingCopyTimestampKind = 'billing_text' | 'print_link';
+
+/** Finnish label near "Laskettu …" — only when timestamp is set. */
+export function formatBillingTextCopiedLabel(copiedAt: string | null | undefined): string | null {
+  if (!copiedAt) return null;
+  return `Laskutusteksti kopioitu - ${formatDateTime(copiedAt)}`;
+}
+
+/** Finnish label near "Laskettu …" — only when timestamp is set. */
+export function formatPrintLinkCopiedLabel(copiedAt: string | null | undefined): string | null {
+  if (!copiedAt) return null;
+  return `Tulostelinkki kopioitu - ${formatDateTime(copiedAt)}`;
+}
+
+/** Patch local list row after a successful copy (does not change invoice status). */
+export function withBillingCopyTimestamp(
+  row: BillingListRow,
+  kind: BillingCopyTimestampKind,
+  at: string,
+): BillingListRow {
+  const billing = row.billing ?? {
+    partner_invoice_status: 'none' as InvoiceStatus,
+    partner_invoice_amount: null,
+    partner_billed_amount: null,
+    partner_billed_at: null,
+    customer_invoice_status: 'none' as InvoiceStatus,
+    customer_invoice_amount: null,
+    customer_billed_at: null,
+  };
+  return {
+    ...row,
+    billing: {
+      ...billing,
+      ...(kind === 'billing_text'
+        ? { billing_text_copied_at: at }
+        : { print_link_copied_at: at }),
+    },
+  };
+}
+
+async function persistBillingCopyTimestamp(
+  supabase: SupabaseClient,
+  workReportId: string,
+  kind: BillingCopyTimestampKind,
+  at: string,
+): Promise<string> {
+  const column = kind === 'billing_text' ? 'billing_text_copied_at' : 'print_link_copied_at';
+  const { data: existing, error: loadError } = await supabase
+    .from('work_report_billing')
+    .select('work_report_id')
+    .eq('work_report_id', workReportId)
+    .maybeSingle();
+  if (loadError) throw loadError;
+
+  if (existing) {
+    const { error } = await supabase
+      .from('work_report_billing')
+      .update({ [column]: at })
+      .eq('work_report_id', workReportId);
+    if (error) throw error;
+  } else {
+    const { error } = await supabase.from('work_report_billing').insert({
+      work_report_id: workReportId,
+      [column]: at,
+    });
+    if (error) throw error;
+  }
+  return at;
+}
+
+/** Persist last successful "Kopioi laskutusteksti" — does NOT mark as laskutettu. */
+export async function recordBillingTextCopied(
+  supabase: SupabaseClient,
+  workReportId: string,
+  at: string = new Date().toISOString(),
+): Promise<string> {
+  return persistBillingCopyTimestamp(supabase, workReportId, 'billing_text', at);
+}
+
+/** Persist last successful "Kopioi tulostelinkki" — does NOT mark as laskutettu. */
+export async function recordPrintLinkCopied(
+  supabase: SupabaseClient,
+  workReportId: string,
+  at: string = new Date().toISOString(),
+): Promise<string> {
+  return persistBillingCopyTimestamp(supabase, workReportId, 'print_link', at);
 }
 
 export async function markPartnerReportBilled(
