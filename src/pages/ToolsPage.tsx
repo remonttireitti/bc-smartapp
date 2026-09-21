@@ -794,29 +794,60 @@ export default function ToolsPage({ session }: Props) {
                             />
                           )}
                           <div className="tool-card-body">
-                            <div className="tool-card-title-row">
-                              <strong className="tool-card-name">{tool.name}</strong>
-                              <span
-                                className={`badge ${
-                                  isLoaned || hasOpenBlockout ? 'badge-scheduled' : 'badge-success'
-                                }`}
-                              >
-                                {statusLabel}
-                              </span>
-                              <span
-                                className={`badge ${tool.is_loanable !== false ? 'badge-success' : 'badge-draft'}`}
-                              >
-                                {tool.is_loanable !== false ? 'Lainattavissa' : 'Ei lainattavissa'}
-                              </span>
-                              {!isExpanded && dayBadge && (
-                                <span className="badge badge-scheduled">{dayBadge}</span>
-                              )}
-                              {!isExpanded && tool.purchase_price_eur != null && (
-                                <span className="badge">Hankinta {formatToolEuro(tool.purchase_price_eur)}</span>
-                              )}
-                            </div>
-                            {metaBits.length > 0 && (
-                              <p className="muted tool-card-meta">{metaBits.join(' · ')}</p>
+                            {!isExpanded ? (
+                              <>
+                                <strong className="tool-card-name">{tool.name}</strong>
+                                <div className="tool-card-badges">
+                                  <span
+                                    className={`badge ${
+                                      isLoaned || hasOpenBlockout ? 'badge-scheduled' : 'badge-success'
+                                    }`}
+                                  >
+                                    {statusLabel}
+                                  </span>
+                                  <span
+                                    className={`badge ${
+                                      tool.is_loanable !== false ? 'badge-success' : 'badge-draft'
+                                    }`}
+                                  >
+                                    {tool.is_loanable !== false ? 'Lainattavissa' : 'Ei lainattavissa'}
+                                  </span>
+                                  {dayBadge ? (
+                                    <span className="badge badge-scheduled">{dayBadge}</span>
+                                  ) : null}
+                                  {tool.purchase_price_eur != null ? (
+                                    <span className="badge">
+                                      Hankinta {formatToolEuro(tool.purchase_price_eur)}
+                                    </span>
+                                  ) : null}
+                                </div>
+                                <p className="muted tool-card-meta">
+                                  {metaBits.length > 0 ? metaBits.join(' · ') : '\u00a0'}
+                                </p>
+                              </>
+                            ) : (
+                              <>
+                                <div className="tool-card-title-row">
+                                  <strong className="tool-card-name">{tool.name}</strong>
+                                  <span
+                                    className={`badge ${
+                                      isLoaned || hasOpenBlockout ? 'badge-scheduled' : 'badge-success'
+                                    }`}
+                                  >
+                                    {statusLabel}
+                                  </span>
+                                  <span
+                                    className={`badge ${
+                                      tool.is_loanable !== false ? 'badge-success' : 'badge-draft'
+                                    }`}
+                                  >
+                                    {tool.is_loanable !== false ? 'Lainattavissa' : 'Ei lainattavissa'}
+                                  </span>
+                                </div>
+                                {metaBits.length > 0 && (
+                                  <p className="muted tool-card-meta">{metaBits.join(' · ')}</p>
+                                )}
+                              </>
                             )}
                           </div>
                         </div>
