@@ -41,7 +41,7 @@ const TOOL_SELECT = `
 `;
 
 const LOAN_SELECT = `
-  id, tool_id, user_id, work_report_id, loaned_at, returned_at, expected_return_at, notes,
+  id, tool_id, user_id, work_report_id, loaned_at, returned_at, expected_return_at, notes, is_blockout,
   user:profiles!tool_loans_user_id_fkey(display_name, email),
   tool:tools!tool_loans_tool_id_fkey(name, tag_id, serial_number)
 `;
@@ -106,7 +106,7 @@ export default function ToolBookingCalendarPage({ session }: Props) {
       tool_id: l.tool_id,
       starts_at: l.loaned_at,
       ends_at: loanEffectiveEnd(l),
-      source: 'loan',
+      source: l.is_blockout ? 'blockout' : 'loan',
       status: 'active',
     }));
     const fromBookings = bookings

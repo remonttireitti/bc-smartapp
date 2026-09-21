@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import {
   buildMonthGrid,
+  canStartToolBlockout,
   canStartToolLoan,
   computeDeliveryFee,
   dateYmdOverlapsBusy,
@@ -8,13 +9,18 @@ import {
   formatToolEuro,
   groupLoansByMonth,
   hasOverlappingToolLoan,
+  isRealOpenLoan,
+  isToolBlockout,
   loanRangesOverlap,
   parseOptionalEuro,
   shiftMonth,
+  shouldTreatAsOwnerBlockout,
   hasToolPurchaseInfo,
   toolDayRateBadge,
   toolFilledRateRows,
   toolRateLabelRows,
+  toolShowsAsLoaned,
+  toolStatusBadgeLabel,
 } from '../src/lib/toolInventory.ts';
 
 function test(name, fn) {
@@ -149,6 +155,110 @@ test('dateYmdOverlapsBusy and month grid', () => {
   const next = shiftMonth(2026, 8, 1);
   assert.equal(next.year, 2026);
   assert.equal(next.monthIndex0, 9);
+});
+
+
+test('blockout vs loan helpers and badges', () => {
+  assert.equal(isToolBlockout({ is_blockout: true }), true);
+  assert.equal(isToolBlockout({ is_blockout: false }), false);
+  assert.equal(isRealOpenLoan({ returned_at: null, is_blockout: false }), true);
+  assert.equal(isRealOpenLoan({ returned_at: null, is_blockout: true }), false);
+  assert.equal(isRealOpenLoan({ returned_at: '2026-09-01T00:00:00Z', is_blockout: false }), false);
+
+  // Never Lainassa when not loanable — even if status/open loan look loaned
+  assert.equal(
+    toolShowsAsLoaned({ is_loanable: false, status: 'loaned', hasOpenRealLoan: true }),
+    false,
+  );
+  assert.equal(
+    toolShowsAsLoaned({ is_loanable: true, status: 'available', hasOpenRealLoan: true }),
+    true,
+  );
+  assert.equal(
+    toolStatusBadgeLabel({
+      is_loanable: false,
+      status: 'loaned',
+      hasOpenRealLoan: false,
+      hasOpenBlockout: true,
+    }),
+    'Suljettu',
+  );
+  assert.equal(
+    toolStatusBadgeLabel({
+      is_loanable: false,
+      status: 'loaned',
+      hasOpenRealLoan: true,
+      hasOpenBlockout: false,
+    }),
+    'Vapaa',
+  );
+  assert.equal(
+    toolStatusBadgeLabel({
+      is_loanable: true,
+      status: 'loaned',
+      hasOpenRealLoan: true,
+      hasOpenBlockout: false,
+    }),
+    'Lainassa',
+  );
+});
+
+test('owner self-assignment is blockout; blockout gate vs loan gate', () => {
+  assert.equal(
+    shouldTreatAsOwnerBlockout({ borrowerUserId: 'u1', sessionUserId: 'u1' }),
+    true,
+  );
+  assert.equal(
+    shouldTreatAsOwnerBlockout({ borrowerUserId: 'u2', sessionUserId: 'u1' }),
+    false,
+  );
+  assert.equal(
+    shouldTreatAsOwnerBlockout({
+      borrowerUserId: 'u2',
+      sessionUserId: 'u1',
+      explicitBlockout: true,
+    }),
+    true,
+  );
+
+  // Blockout allowed when not loanable
+  assert.equal(
+    canStartToolBlockout({ status: 'available', hasOpenBlockingPeriod: false }).ok,
+    true,
+  );
+  assert.equal(
+    canStartToolLoan({ is_loanable: false, status: 'available', hasOpenLoan: false }).ok,
+    false,
+  );
+  assert.equal(
+    canStartToolBlockout({ status: 'available', hasOpenBlockingPeriod: true }).ok,
+    false,
+  );
+  assert.equal(
+    canStartToolBlockout({ status: 'retired', hasOpenBlockingPeriod: false }).ok,
+    false,
+  );
+});
+
+test('groupLoansByMonth carries is_blockout', () => {
+  const groups = groupLoansByMonth([
+    {
+      loaned_at: '2026-09-15T12:00:00.000Z',
+      returned_at: null,
+      expected_return_at: null,
+      is_blockout: true,
+    },
+    {
+      loaned_at: '2026-09-03T12:00:00.000Z',
+      returned_at: '2026-09-03T18:00:00.000Z',
+      expected_return_at: '2026-09-03T18:00:00.000Z',
+      is_blockout: false,
+    },
+  ]);
+  const sept = groups.find((g) => g.monthKey === '2026-09');
+  assert.ok(sept);
+  assert.equal(sept.ranges.some((r) => r.is_blockout), true);
+  assert.equal(sept.ranges.some((r) => !r.is_blockout), true);
 });
 
 console.log('All tool inventory + delivery fee tests passed.');

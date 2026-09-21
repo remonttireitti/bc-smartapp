@@ -11,6 +11,7 @@ export type ToolLoanRange = {
   loaned_at: string;
   /** Planned or actual end; null/undefined = open-ended */
   ends_at?: string | null;
+  is_blockout?: boolean;
 };
 
 export function formatToolEuro(value: number | null | undefined): string {
@@ -53,9 +54,50 @@ export function hasToolPurchaseInfo(tool: {
   );
 }
 
+export function isToolBlockout(loan: { is_blockout?: boolean | null }): boolean {
+  return loan.is_blockout === true;
+}
+
+/** Aito avoin lainaus (ei sulku). */
+export function isRealOpenLoan(loan: {
+  returned_at?: string | null;
+  is_blockout?: boolean | null;
+}): boolean {
+  return !loan.returned_at && !isToolBlockout(loan);
+}
+
+/**
+ * Näytetäänkö "Lainassa". Ei koskaan kun !is_loanable (Ei lainattavissa).
+ * Sulut eivät ole lainoja.
+ */
+export function toolShowsAsLoaned(opts: {
+  is_loanable: boolean;
+  status?: string | null;
+  hasOpenRealLoan: boolean;
+}): boolean {
+  if (!opts.is_loanable) return false;
+  return opts.hasOpenRealLoan || opts.status === 'loaned';
+}
+
+/** Tilamerkki: Lainassa / Suljettu / Vapaa / … — ei Lainassa + Ei lainattavissa yhtä aikaa. */
+export function toolStatusBadgeLabel(opts: {
+  is_loanable: boolean;
+  status?: string | null;
+  hasOpenRealLoan: boolean;
+  hasOpenBlockout?: boolean;
+}): string {
+  if (toolShowsAsLoaned(opts)) return 'Lainassa';
+  if (opts.hasOpenBlockout) return 'Suljettu';
+  if (opts.status === 'loaned') return 'Vapaa';
+  if (opts.status === 'service') return 'Huollossa';
+  if (opts.status === 'retired') return 'Poistettu';
+  return 'Vapaa';
+}
+
 export function canStartToolLoan(opts: {
   is_loanable: boolean;
   status?: string | null;
+  /** Aito avoin laina TAI sulku — molemmat estävät uuden lainan. */
   hasOpenLoan: boolean;
 }): { ok: boolean; reason: string | null } {
   if (!opts.is_loanable) {
@@ -65,9 +107,33 @@ export function canStartToolLoan(opts: {
     return { ok: false, reason: 'Työkalu ei ole lainattavissa tässä tilassa.' };
   }
   if (opts.hasOpenLoan || opts.status === 'loaned') {
-    return { ok: false, reason: 'Työkalu on jo lainassa.' };
+    return { ok: false, reason: 'Työkalu on jo lainassa tai suljettu.' };
   }
   return { ok: true, reason: null };
+}
+
+/** Omistaja voi sulkea lainausaikoja myös kun työkalu ei ole lainattavissa. */
+export function canStartToolBlockout(opts: {
+  status?: string | null;
+  hasOpenBlockingPeriod: boolean;
+}): { ok: boolean; reason: string | null } {
+  if (opts.status === 'retired') {
+    return { ok: false, reason: 'Poistetulle työkalulle ei voi asettaa sulkua.' };
+  }
+  if (opts.hasOpenBlockingPeriod) {
+    return { ok: false, reason: 'Työkalulla on jo avoin laina tai sulku.' };
+  }
+  return { ok: true, reason: null };
+}
+
+/** Itselle merkitty jakso = sulku, ei laina (omistaja ei lainaa itselleen). */
+export function shouldTreatAsOwnerBlockout(opts: {
+  borrowerUserId: string;
+  sessionUserId: string;
+  explicitBlockout?: boolean;
+}): boolean {
+  if (opts.explicitBlockout) return true;
+  return opts.borrowerUserId === opts.sessionUserId;
 }
 
 function toMs(value: string | Date): number {
@@ -128,7 +194,12 @@ export function formatLoanRangeFi(startIso: string, endIso: string | null | unde
 
 /** Group loan ranges for a simple month calendar / list (YYYY-MM keys). */
 export function groupLoansByMonth(
-  loans: Array<{ loaned_at: string; returned_at?: string | null; expected_return_at?: string | null }>,
+  loans: Array<{
+    loaned_at: string;
+    returned_at?: string | null;
+    expected_return_at?: string | null;
+    is_blockout?: boolean | null;
+  }>,
 ): { monthKey: string; label: string; ranges: ToolLoanRange[] }[] {
   const buckets = new Map<string, ToolLoanRange[]>();
   for (const loan of loans) {
@@ -136,7 +207,11 @@ export function groupLoansByMonth(
     if (!Number.isFinite(d.getTime())) continue;
     const monthKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
     const list = buckets.get(monthKey) ?? [];
-    list.push({ loaned_at: loan.loaned_at, ends_at: loanEffectiveEnd(loan) });
+    list.push({
+      loaned_at: loan.loaned_at,
+      ends_at: loanEffectiveEnd(loan),
+      is_blockout: isToolBlockout(loan),
+    });
     buckets.set(monthKey, list);
   }
   return [...buckets.entries()]
