@@ -35,6 +35,24 @@ export function toolDayRateBadge(rates: ToolLoanRates): string | null {
   return `${formatToolEuro(rates.rate_day_eur)}/pv`;
 }
 
+/** Rate rows with a real price (hides empty "—" rows for compact UI). */
+export function toolFilledRateRows(rates: ToolLoanRates): { key: string; label: string; value: string }[] {
+  return toolRateLabelRows(rates).filter((row) => row.value !== '—');
+}
+
+export function hasToolPurchaseInfo(tool: {
+  purchased_at?: string | null;
+  purchased_from?: string | null;
+  purchase_price_eur?: number | null;
+}): boolean {
+  const from = tool.purchased_from?.trim();
+  return Boolean(
+    tool.purchased_at ||
+      from ||
+      (tool.purchase_price_eur != null && !Number.isNaN(Number(tool.purchase_price_eur))),
+  );
+}
+
 export function canStartToolLoan(opts: {
   is_loanable: boolean;
   status?: string | null;
