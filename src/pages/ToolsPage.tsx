@@ -168,6 +168,7 @@ export default function ToolsPage({ session }: Props) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<ToolFormState>(EMPTY_FORM);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [showAddTool, setShowAddTool] = useState(false);
   const [loanDraft, setLoanDraft] = useState<
     Record<string, { userId: string; start: string; end: string; notes: string }>
   >({});
@@ -297,6 +298,7 @@ export default function ToolsPage({ session }: Props) {
       return;
     }
     setToolForm(EMPTY_FORM);
+    setShowAddTool(false);
     setMessage('Työkalu lisätty.');
     await load();
   }
@@ -314,6 +316,23 @@ export default function ToolsPage({ session }: Props) {
     setEditingId(null);
     setMessage('Työkalu tallennettu.');
     await load();
+  }
+
+
+  async function setToolLoanable(toolId: string, isLoanable: boolean) {
+    setBusy(true);
+    setError(null);
+    const { error: updateError } = await supabase
+      .from('tools')
+      .update({ is_loanable: isLoanable })
+      .eq('id', toolId);
+    setBusy(false);
+    if (updateError) {
+      setError(updateError.message);
+      return;
+    }
+    setTools((prev) => prev.map((t) => (t.id === toolId ? { ...t, is_loanable: isLoanable } : t)));
+    setMessage(isLoanable ? 'Merkitty lainattavaksi.' : 'Lainattavuus poistettu.');
   }
 
   async function loanTool(tool: Tool) {
@@ -680,110 +699,20 @@ export default function ToolsPage({ session }: Props) {
             </form>
           </CollapsibleSection>
 
-          <section className="panel form-section">
-            <h2>Lisää työkalu</h2>
-            <form onSubmit={(e) => void addTool(e)} className="line-form-grid">
-              <label>
-                Nimi *
-                <input
-                  value={toolForm.name}
-                  onChange={(e) => setToolForm({ ...toolForm, name: e.target.value })}
-                  required
-                />
-              </label>
-              <label>
-                Sarjanumero
-                <input
-                  value={toolForm.serial_number}
-                  onChange={(e) => setToolForm({ ...toolForm, serial_number: e.target.value })}
-                />
-              </label>
-              <label>
-                Tunniste / RFID
-                <input
-                  value={toolForm.tag_id}
-                  onChange={(e) => setToolForm({ ...toolForm, tag_id: e.target.value })}
-                />
-              </label>
-              <label>
-                Kategoria
-                <input
-                  value={toolForm.category}
-                  onChange={(e) => setToolForm({ ...toolForm, category: e.target.value })}
-                />
-              </label>
-              <label>
-                Hankittu milloin
-                <input
-                  type="date"
-                  value={toolForm.purchased_at}
-                  onChange={(e) => setToolForm({ ...toolForm, purchased_at: e.target.value })}
-                />
-              </label>
-              <label>
-                Mistä hankittu
-                <input
-                  value={toolForm.purchased_from}
-                  onChange={(e) => setToolForm({ ...toolForm, purchased_from: e.target.value })}
-                />
-              </label>
-              <label>
-                Hankintahinta (€)
-                <input
-                  inputMode="decimal"
-                  value={toolForm.purchase_price_eur}
-                  onChange={(e) => setToolForm({ ...toolForm, purchase_price_eur: e.target.value })}
-                />
-              </label>
-              <div style={{ alignSelf: 'end' }}>
-                <ToggleSwitch
-                  checked={toolForm.is_loanable}
-                  onChange={(checked) => setToolForm({ ...toolForm, is_loanable: checked })}
-                  label="Lainattavissa"
-                />
-              </div>
-              <label>
-                €/päivä
-                <input
-                  inputMode="decimal"
-                  value={toolForm.rate_day_eur}
-                  onChange={(e) => setToolForm({ ...toolForm, rate_day_eur: e.target.value })}
-                />
-              </label>
-              <label>
-                €/viikonloppu
-                <input
-                  inputMode="decimal"
-                  value={toolForm.rate_weekend_eur}
-                  onChange={(e) => setToolForm({ ...toolForm, rate_weekend_eur: e.target.value })}
-                />
-              </label>
-              <label>
-                €/viikko
-                <input
-                  inputMode="decimal"
-                  value={toolForm.rate_week_eur}
-                  onChange={(e) => setToolForm({ ...toolForm, rate_week_eur: e.target.value })}
-                />
-              </label>
-              <label>
-                €/kk
-                <input
-                  inputMode="decimal"
-                  value={toolForm.rate_month_eur}
-                  onChange={(e) => setToolForm({ ...toolForm, rate_month_eur: e.target.value })}
-                />
-              </label>
-              <div className="form-actions">
-                <button type="submit" className="btn btn-primary" disabled={busy}>
-                  {busy ? 'Tallennetaan…' : 'Lisää työkalu'}
-                </button>
-              </div>
-            </form>
-          </section>
 
           <section className="panel">
-            <h2>Työkalut ({tools.length})</h2>
+            <div className="tool-list-header">
+              <h2 style={{ margin: 0 }}>Työkalut ({tools.length})</h2>
+              <button
+                type="button"
+                className="btn btn-primary btn-sm tool-list-add-btn"
+                aria-label="Lisää työkalu"
+                title="Lisää työkalu"
+                onClick={() => setShowAddTool(true)}
+              >
+                +
+              </button>
+            </div>
             {tools.length === 0 ? (
               <p className="muted">Ei työkaluja vielä.</p>
             ) : (
@@ -837,16 +766,25 @@ export default function ToolsPage({ session }: Props) {
                   return (
                     <li key={tool.id} className={`tool-card ${isExpanded ? 'is-expanded' : ''}`}>
                       <div className="tool-card-header">
-                        <div className="tool-card-header-main">
+                        <div
+                          className="tool-card-header-main tool-card-open"
+                          role={!isExpanded ? 'button' : undefined}
+                          tabIndex={!isExpanded ? 0 : undefined}
+                          onClick={() => {
+                            if (!isExpanded) setExpandedId(tool.id);
+                          }}
+                          onKeyDown={(e) => {
+                            if (!isExpanded && (e.key === 'Enter' || e.key === ' ')) {
+                              e.preventDefault();
+                              setExpandedId(tool.id);
+                            }
+                          }}
+                        >
                           {!isExpanded && (
                             <InventoryPhotoThumb
                               imagePath={primaryImage?.image_path}
                               label={tool.name}
-                              canEdit
-                              busy={busy}
                               size="sm"
-                              onPick={(file) => uploadPhoto(tool, file)}
-                              onRemove={primaryImage ? () => removePhoto(primaryImage) : undefined}
                             />
                           )}
                           <div className="tool-card-body">
@@ -876,14 +814,18 @@ export default function ToolsPage({ session }: Props) {
                             )}
                           </div>
                         </div>
-                        <div className="tool-card-toolbar">
-                          <button
-                            type="button"
-                            className="btn btn-secondary btn-sm"
-                            onClick={() => setExpandedId(isExpanded ? null : tool.id)}
-                          >
-                            {isExpanded ? 'Sulje' : 'Tiedot'}
-                          </button>
+                        <div
+                          className="tool-card-toolbar"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          {!isExpanded && (
+                            <ToggleSwitch
+                              checked={tool.is_loanable !== false}
+                              onChange={(checked) => void setToolLoanable(tool.id, checked)}
+                              label="Lainattavissa"
+                              disabled={busy}
+                            />
+                          )}
                           {hasOpenRealLoan ? (
                             <button
                               type="button"
@@ -920,6 +862,18 @@ export default function ToolsPage({ session }: Props) {
                                 Varauskalenteri
                               </Link>
                             </>
+                          ) : null}
+                          {isExpanded ? (
+                            <button
+                              type="button"
+                              className="btn btn-secondary btn-sm"
+                              onClick={() => {
+                                setExpandedId(null);
+                                setEditingId(null);
+                              }}
+                            >
+                              Sulje
+                            </button>
                           ) : null}
                         </div>
                       </div>
@@ -1251,6 +1205,132 @@ export default function ToolsPage({ session }: Props) {
 
             )}
           </section>
+
+          {showAddTool && (
+            <div
+              className="leave-draft-overlay"
+              role="presentation"
+              onClick={() => !busy && setShowAddTool(false)}
+            >
+              <div
+                className="leave-draft-dialog panel tool-add-dialog"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="tool-add-title"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <h2 id="tool-add-title">Lisää työkalu</h2>
+<form onSubmit={(e) => void addTool(e)} className="line-form-grid">
+              <label>
+                Nimi *
+                <input
+                  value={toolForm.name}
+                  onChange={(e) => setToolForm({ ...toolForm, name: e.target.value })}
+                  required
+                />
+              </label>
+              <label>
+                Sarjanumero
+                <input
+                  value={toolForm.serial_number}
+                  onChange={(e) => setToolForm({ ...toolForm, serial_number: e.target.value })}
+                />
+              </label>
+              <label>
+                Tunniste / RFID
+                <input
+                  value={toolForm.tag_id}
+                  onChange={(e) => setToolForm({ ...toolForm, tag_id: e.target.value })}
+                />
+              </label>
+              <label>
+                Kategoria
+                <input
+                  value={toolForm.category}
+                  onChange={(e) => setToolForm({ ...toolForm, category: e.target.value })}
+                />
+              </label>
+              <label>
+                Hankittu milloin
+                <input
+                  type="date"
+                  value={toolForm.purchased_at}
+                  onChange={(e) => setToolForm({ ...toolForm, purchased_at: e.target.value })}
+                />
+              </label>
+              <label>
+                Mistä hankittu
+                <input
+                  value={toolForm.purchased_from}
+                  onChange={(e) => setToolForm({ ...toolForm, purchased_from: e.target.value })}
+                />
+              </label>
+              <label>
+                Hankintahinta (€)
+                <input
+                  inputMode="decimal"
+                  value={toolForm.purchase_price_eur}
+                  onChange={(e) => setToolForm({ ...toolForm, purchase_price_eur: e.target.value })}
+                />
+              </label>
+              <div style={{ alignSelf: 'end' }}>
+                <ToggleSwitch
+                  checked={toolForm.is_loanable}
+                  onChange={(checked) => setToolForm({ ...toolForm, is_loanable: checked })}
+                  label="Lainattavissa"
+                />
+              </div>
+              <label>
+                €/päivä
+                <input
+                  inputMode="decimal"
+                  value={toolForm.rate_day_eur}
+                  onChange={(e) => setToolForm({ ...toolForm, rate_day_eur: e.target.value })}
+                />
+              </label>
+              <label>
+                €/viikonloppu
+                <input
+                  inputMode="decimal"
+                  value={toolForm.rate_weekend_eur}
+                  onChange={(e) => setToolForm({ ...toolForm, rate_weekend_eur: e.target.value })}
+                />
+              </label>
+              <label>
+                €/viikko
+                <input
+                  inputMode="decimal"
+                  value={toolForm.rate_week_eur}
+                  onChange={(e) => setToolForm({ ...toolForm, rate_week_eur: e.target.value })}
+                />
+              </label>
+              <label>
+                €/kk
+                <input
+                  inputMode="decimal"
+                  value={toolForm.rate_month_eur}
+                  onChange={(e) => setToolForm({ ...toolForm, rate_month_eur: e.target.value })}
+                />
+              </label>
+              <div className="form-actions">
+                <button type="submit" className="btn btn-primary" disabled={busy}>
+                  {busy ? 'Tallennetaan…' : 'Lisää työkalu'}
+                </button>
+              </div>
+            </form>
+                <div className="leave-draft-actions" style={{ marginTop: '.75rem' }}>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    disabled={busy}
+                    onClick={() => setShowAddTool(false)}
+                  >
+                    Peruuta
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </>
       )}
     </AppLayout>

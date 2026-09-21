@@ -4,15 +4,22 @@ import {
   canStartToolBlockout,
   canStartToolLoan,
   computeDeliveryFee,
+  dateYmdAllSelectedFree,
+  dateYmdBookingDayStatus,
   dateYmdOverlapsBusy,
+  isHardBusyRange,
+  isQueuedBusyRange,
+  evaluateMultiToolAvailability,
   formatLoanRangeFi,
   formatToolEuro,
+  formatYmdRangeFi,
   groupLoansByMonth,
   hasOverlappingToolLoan,
   isRealOpenLoan,
   isToolBlockout,
   loanRangesOverlap,
   parseOptionalEuro,
+  rangeOverlapsBusyForTool,
   shiftMonth,
   shouldTreatAsOwnerBlockout,
   hasToolPurchaseInfo,
@@ -21,6 +28,8 @@ import {
   toolRateLabelRows,
   toolShowsAsLoaned,
   toolStatusBadgeLabel,
+  ymdAddDays,
+  ymdInclusiveLengthDays,
 } from '../src/lib/toolInventory.ts';
 
 function test(name, fn) {
@@ -259,6 +268,84 @@ test('groupLoansByMonth carries is_blockout', () => {
   assert.ok(sept);
   assert.equal(sept.ranges.some((r) => r.is_blockout), true);
   assert.equal(sept.ranges.some((r) => !r.is_blockout), true);
+});
+
+test('ymd helpers and range overlap for tool', () => {
+  assert.equal(ymdAddDays('2026-09-21', 3), '2026-09-24');
+  assert.equal(ymdAddDays('2026-09-30', 1), '2026-10-01');
+  assert.equal(ymdInclusiveLengthDays('2026-09-21', '2026-09-23'), 3);
+  assert.equal(ymdInclusiveLengthDays('2026-09-21', '2026-09-21'), 1);
+  assert.match(formatYmdRangeFi('2026-09-21', '2026-09-23'), /21/);
+
+  const ranges = [
+    { tool_id: 'a', starts_at: '2026-09-10T00:00:00.000Z', ends_at: '2026-09-12T23:59:59.000Z', source: 'loan' },
+    { tool_id: 'b', starts_at: '2026-09-15T00:00:00.000Z', ends_at: '2026-09-16T23:59:59.000Z', source: 'blockout' },
+    { tool_id: 'c', starts_at: '2026-09-20T00:00:00.000Z', ends_at: null, source: 'booking' },
+  ];
+  assert.equal(rangeOverlapsBusyForTool('2026-09-11', '2026-09-11', ranges, 'a'), true);
+  assert.equal(rangeOverlapsBusyForTool('2026-09-13', '2026-09-14', ranges, 'a'), false);
+  assert.equal(rangeOverlapsBusyForTool('2026-09-15', '2026-09-15', ranges, 'b'), true);
+  assert.equal(rangeOverlapsBusyForTool('2026-09-25', '2026-09-26', ranges, 'c'), true);
+  assert.equal(dateYmdAllSelectedFree('2026-09-11', ranges, ['a', 'b']), false);
+  assert.equal(dateYmdAllSelectedFree('2026-09-14', ranges, ['a', 'b']), true);
+});
+
+test('multi-tool availability suggestions (skip busy + next window)', () => {
+  const tools = [
+    { id: 'drill', name: 'Porakone' },
+    { id: 'saw', name: 'Saha' },
+    { id: 'laser', name: 'Laser' },
+  ];
+  const busy = [
+    { tool_id: 'saw', starts_at: '2026-09-22T00:00:00.000Z', ends_at: '2026-09-24T23:59:59.000Z', source: 'booking' },
+    { tool_id: 'laser', starts_at: '2026-09-28T00:00:00.000Z', ends_at: '2026-09-30T23:59:59.000Z', source: 'loan' },
+  ];
+
+  const partial = evaluateMultiToolAvailability({
+    tools,
+    selectedIds: ['drill', 'saw', 'laser'],
+    startYmd: '2026-09-22',
+    endYmd: '2026-09-24',
+    busy,
+  });
+  assert.deepEqual(partial.freeTools.map((t) => t.id).sort(), ['drill', 'laser']);
+  assert.deepEqual(partial.busyTools.map((t) => t.id), ['saw']);
+  assert.match(partial.messagesFi.skipBusy, /Saha/);
+  assert.match(partial.messagesFi.skipBusy, /vuokraa muut valitut ilman sitä/);
+  assert.ok(partial.nextAllFreeWindow);
+  assert.equal(partial.nextAllFreeWindow.startYmd, '2026-09-25');
+  assert.equal(partial.nextAllFreeWindow.endYmd, '2026-09-27');
+  assert.match(partial.messagesFi.nextWindow, /kaikki valitut ovat vapaita/);
+
+  const allFree = evaluateMultiToolAvailability({
+    tools,
+    selectedIds: ['drill', 'saw'],
+    startYmd: '2026-09-25',
+    endYmd: '2026-09-26',
+    busy,
+  });
+  assert.equal(allFree.busyTools.length, 0);
+  assert.equal(allFree.nextAllFreeWindow, null);
+  assert.equal(allFree.messagesFi.skipBusy, null);
+});
+
+
+test('booking day status: free / queued / busy and selection filter', () => {
+  const ranges = [
+    { tool_id: 'a', starts_at: '2026-09-10T00:00:00.000Z', ends_at: '2026-09-12T23:59:59.000Z', source: 'booking', status: 'pending' },
+    { tool_id: 'b', starts_at: '2026-09-10T00:00:00.000Z', ends_at: '2026-09-12T23:59:59.000Z', source: 'booking', status: 'confirmed' },
+    { tool_id: 'c', starts_at: '2026-09-20T00:00:00.000Z', ends_at: '2026-09-21T23:59:59.000Z', source: 'loan', status: 'active' },
+  ];
+  assert.equal(isQueuedBusyRange(ranges[0]), true);
+  assert.equal(isHardBusyRange(ranges[0]), false);
+  assert.equal(isHardBusyRange(ranges[1]), true);
+  assert.equal(dateYmdBookingDayStatus('2026-09-11', ranges, ['a']), 'queued');
+  assert.equal(dateYmdBookingDayStatus('2026-09-11', ranges, ['b']), 'busy');
+  assert.equal(dateYmdBookingDayStatus('2026-09-11', ranges, ['a', 'b']), 'busy');
+  assert.equal(dateYmdBookingDayStatus('2026-09-15', ranges, ['a']), 'free');
+  assert.equal(dateYmdBookingDayStatus('2026-09-20', ranges, ['c']), 'busy');
+  // empty selection = all tools (union)
+  assert.equal(dateYmdBookingDayStatus('2026-09-11', ranges, []), 'busy');
 });
 
 console.log('All tool inventory + delivery fee tests passed.');

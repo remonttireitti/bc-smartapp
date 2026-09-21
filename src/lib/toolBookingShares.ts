@@ -112,3 +112,39 @@ export async function updateToolBookingStatus(
   const { error } = await supabase.from('tool_bookings').update({ status }).eq('id', bookingId);
   if (error) throw new Error(error.message);
 }
+
+export type CreatePublicToolBookingsResult = {
+  ids: string[];
+  createdToolIds: string[];
+  failures: { toolId: string; error: string }[];
+};
+
+/** One tool_bookings row per free tool (existing RPC); continues on per-tool conflicts. */
+export async function createPublicToolBookings(
+  input: Omit<CreatePublicToolBookingInput, 'toolId'> & { toolIds: string[] },
+): Promise<CreatePublicToolBookingsResult> {
+  const ids: string[] = [];
+  const createdToolIds: string[] = [];
+  const failures: { toolId: string; error: string }[] = [];
+  const uniqueIds = [...new Set(input.toolIds.filter(Boolean))];
+  if (uniqueIds.length === 0) {
+    throw new Error('Valitse vähintään yksi työkalu.');
+  }
+  for (const toolId of uniqueIds) {
+    try {
+      const id = await createPublicToolBooking({ ...input, toolId });
+      ids.push(id);
+      createdToolIds.push(toolId);
+    } catch (err) {
+      failures.push({
+        toolId,
+        error: err instanceof Error ? err.message : 'Varaus epäonnistui.',
+      });
+    }
+  }
+  if (ids.length === 0) {
+    const first = failures[0]?.error;
+    throw new Error(first || 'Varauksen tallennus epäonnistui.');
+  }
+  return { ids, createdToolIds, failures };
+}
