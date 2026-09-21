@@ -42,6 +42,8 @@ import GlobalAdminPage from '../pages/GlobalAdminPage';
 import PumpDeviceRegistryPage from '../pages/PumpDeviceRegistryPage';
 import InventoryPage from '../pages/InventoryPage';
 import ToolsPage from '../pages/ToolsPage';
+import ToolBookingCalendarPage from '../pages/ToolBookingCalendarPage';
+import ToolBookingPublicPage from '../pages/ToolBookingPublicPage';
 import TempMonitoringPage from '../pages/TempMonitoringPage';
 import TempMonitorDetailPage from '../pages/TempMonitorDetailPage';
 import TempMonitorReportPrintPage from '../pages/TempMonitorReportPrintPage';
@@ -122,6 +124,7 @@ const LicensedTempMonitorReportPrintPage = withLicenseModule('remote_monitoring'
 const LicensedVrfMonitoringPage = withLicenseModule('remote_monitoring', VrfMonitoringPage);
 const LicensedVrfMonitorDetailPage = withLicenseModule('remote_monitoring', VrfMonitorDetailPage);
 const LicensedToolsPage = withLicenseModule('tools', ToolsPage);
+const LicensedToolBookingCalendarPage = withLicenseModule('tools', ToolBookingCalendarPage);
 
 function LicensedWorkReportBillingSummaryRoute({ session }: { session: Session }) {
   return (
@@ -168,6 +171,8 @@ export function buildAuthenticatedRoutes(session: Session): RouteObject[] {
     { path: '/lampotila/raportit/:reportId/tuloste', element: <LegacyTempReportRedirect /> },
     { path: '/lampotila/:deviceId', element: <LegacyTempDeviceRedirect /> },
     { path: '/tyokalut', element: <LicensedToolsPage session={session} /> },
+    { path: '/tyokalut/varaus', element: <LicensedToolBookingCalendarPage session={session} /> },
+    { path: '/tyokalut/varaus/:token', element: <ToolBookingPublicPage /> },
     { path: '/asiakkaat', element: <LicensedCustomersPage session={session} /> },
     {
       path: '/asiakkaat/:customerId/laitteet/:equipmentId',

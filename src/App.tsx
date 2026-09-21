@@ -9,6 +9,7 @@ import Login from './pages/Login';
 import PublicLandingPage from './pages/PublicLandingPage';
 import MonitorReaderTokenPage from './pages/MonitorReaderTokenPage';
 import WorkReportPublicPrintPage from './pages/WorkReportPublicPrintPage';
+import ToolBookingPublicPage from './pages/ToolBookingPublicPage';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import ResetPasswordPage from './pages/ResetPasswordPage';
 import OfflineBanner from './components/OfflineBanner';
@@ -38,6 +39,7 @@ function AppRoutes() {
         <Route path="/seuranta/luku/:token" element={<MonitorReaderTokenPage />} />
         <Route path="/j/:token" element={<WorkReportPublicPrintPage />} />
         <Route path="/tyoraportti/jako/:token" element={<WorkReportPublicPrintPage />} />
+        <Route path="/tyokalut/varaus/:token" element={<ToolBookingPublicPage />} />
         <Route path="*" element={<RequireLoginRedirect />} />
       </Routes>
     );

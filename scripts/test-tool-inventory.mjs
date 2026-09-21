@@ -1,12 +1,16 @@
 import assert from 'node:assert/strict';
 import {
+  buildMonthGrid,
   canStartToolLoan,
+  computeDeliveryFee,
+  dateYmdOverlapsBusy,
   formatLoanRangeFi,
   formatToolEuro,
   groupLoansByMonth,
   hasOverlappingToolLoan,
   loanRangesOverlap,
   parseOptionalEuro,
+  shiftMonth,
   toolDayRateBadge,
   toolRateLabelRows,
 } from '../src/lib/toolInventory.ts';
@@ -89,4 +93,43 @@ test('groupLoansByMonth and formatLoanRangeFi', () => {
   assert.equal(parseOptionalEuro(''), null);
 });
 
-console.log('All tool inventory helper tests passed.');
+test('computeDeliveryFee short vs over limit', () => {
+  assert.equal(
+    computeDeliveryFee({ distanceKm: 5, minFeeEur: 25, limitKm: 10, perKmEur: 2 }),
+    25,
+  );
+  assert.equal(
+    computeDeliveryFee({ distanceKm: 10, minFeeEur: 25, limitKm: 10, perKmEur: 2 }),
+    25,
+  );
+  assert.equal(
+    computeDeliveryFee({ distanceKm: 15, minFeeEur: 25, limitKm: 10, perKmEur: 2 }),
+    35,
+  );
+  assert.equal(
+    computeDeliveryFee({ distanceKm: 0, minFeeEur: 20, limitKm: 0, perKmEur: 3 }),
+    20,
+  );
+  assert.equal(
+    computeDeliveryFee({ distanceKm: 4, minFeeEur: 20, limitKm: 0, perKmEur: 3 }),
+    32,
+  );
+  assert.ok(Number.isNaN(computeDeliveryFee({ distanceKm: NaN, minFeeEur: 1, limitKm: 1, perKmEur: 1 })));
+});
+
+test('dateYmdOverlapsBusy and month grid', () => {
+  const ranges = [
+    { tool_id: 'a', starts_at: '2026-09-10T00:00:00.000Z', ends_at: '2026-09-12T23:59:59.000Z' },
+  ];
+  assert.equal(dateYmdOverlapsBusy('2026-09-11', ranges, 'a'), true);
+  assert.equal(dateYmdOverlapsBusy('2026-09-13', ranges, 'a'), false);
+  assert.equal(dateYmdOverlapsBusy('2026-09-11', ranges, 'b'), false);
+  const grid = buildMonthGrid(2026, 8);
+  assert.equal(grid.length, 42);
+  assert.ok(grid.some((c) => c.ymd === '2026-09-01' && c.inMonth));
+  const next = shiftMonth(2026, 8, 1);
+  assert.equal(next.year, 2026);
+  assert.equal(next.monthIndex0, 9);
+});
+
+console.log('All tool inventory + delivery fee tests passed.');
