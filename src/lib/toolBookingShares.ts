@@ -40,8 +40,8 @@ export type CreatePublicToolBookingInput = {
   startsAt: string;
   endsAt: string;
   guestName: string;
-  guestPhone?: string;
-  guestEmail?: string;
+  guestPhone: string;
+  guestEmail: string;
   deliveryMode?: ToolBookingDeliveryMode;
   deliveryDistanceKm?: number | null;
   deliveryAddress?: string;

@@ -5,12 +5,14 @@ import {
   createPublicToolBookings,
   loadToolsBookingPublic,
 } from '../lib/toolBookingShares';
+import ToggleSwitch from '../components/ToggleSwitch';
 import {
   buildMonthGrid,
   computeBookingDeliveryFee,
   dateInputToIsoEnd,
   dateInputToIsoStart,
   dateYmdBookingDayStatus,
+  deliveryModeFromToggles,
   deliveryModeNeedsAddress,
   evaluateMultiToolAvailability,
   formatToolEuro,
@@ -18,8 +20,7 @@ import {
   shiftMonth,
 } from '../lib/toolInventory';
 import {
-  TOOL_BOOKING_DELIVERY_LABELS,
-  type ToolBookingDeliveryMode,
+  TOOL_BOOKING_TRANSPORT_TOGGLE_LABELS,
   type ToolBookingPublicBundle,
 } from '../types/inventory';
 
@@ -42,7 +43,8 @@ export default function ToolBookingPublicPage() {
   const [guestName, setGuestName] = useState('');
   const [guestPhone, setGuestPhone] = useState('');
   const [guestEmail, setGuestEmail] = useState('');
-  const [deliveryMode, setDeliveryMode] = useState<ToolBookingDeliveryMode>('none');
+  const [transportOutbound, setTransportOutbound] = useState(false);
+  const [transportReturn, setTransportReturn] = useState(false);
   const [distanceKm, setDistanceKm] = useState('');
   const [deliveryAddress, setDeliveryAddress] = useState('');
   const [notes, setNotes] = useState('');
@@ -83,6 +85,12 @@ export default function ToolBookingPublicPage() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!bundle) return;
+    if (!bundle.company.delivery_enabled) setTransportOutbound(false);
+    if (!bundle.company.pickup_enabled) setTransportReturn(false);
+  }, [bundle]);
+
   const grid = useMemo(
     () => buildMonthGrid(cursor.year, cursor.monthIndex0),
     [cursor.year, cursor.monthIndex0],
@@ -113,6 +121,7 @@ export default function ToolBookingPublicPage() {
     });
   }, [bundle, selectedToolIds, start, end]);
 
+  const deliveryMode = deliveryModeFromToggles(transportOutbound, transportReturn);
   const needsAddress = deliveryModeNeedsAddress(deliveryMode);
 
   const deliveryFee = useMemo(() => {
@@ -168,6 +177,14 @@ export default function ToolBookingPublicPage() {
       setError('Nimi on pakollinen.');
       return;
     }
+    if (!guestPhone.trim()) {
+      setError('Puhelinnumero on pakollinen.');
+      return;
+    }
+    if (!guestEmail.trim()) {
+      setError('Sähköposti on pakollinen.');
+      return;
+    }
 
     const evalNow = bundle
       ? evaluateMultiToolAvailability({
@@ -197,8 +214,8 @@ export default function ToolBookingPublicPage() {
         startsAt,
         endsAt,
         guestName: guestName.trim(),
-        guestPhone: guestPhone.trim() || undefined,
-        guestEmail: guestEmail.trim() || undefined,
+        guestPhone: guestPhone.trim(),
+        guestEmail: guestEmail.trim(),
         deliveryMode,
         deliveryDistanceKm: needsAddress
           ? Number(String(distanceKm).replace(',', '.')) || 0
@@ -224,6 +241,8 @@ export default function ToolBookingPublicPage() {
       setNotes('');
       setDistanceKm('');
       setDeliveryAddress('');
+      setTransportOutbound(false);
+      setTransportReturn(false);
       setSelectedToolIds([]);
       setStart('');
       setEnd('');
@@ -422,7 +441,8 @@ export default function ToolBookingPublicPage() {
         <h2>Lähetä varaus</h2>
         <p className="muted" style={{ marginTop: 0 }}>
           Luodaan vahvistamaton varaus jonoon (keltainen). Yritys vahvistaa — vapautuessa ensimmäinen
-          jonossa saa vuoron (FIFO).
+          jonossa saa vuoron (FIFO). Vahvistuksen jälkeen varaus on sitova ja laskutettava, vaikka
+          työkaluja ei olisi vielä noudettu omistajalta tai kuljetusta tehty.
         </p>
         <form onSubmit={(e) => void onSubmit(e)} className="line-form-grid">
           <div style={{ gridColumn: '1 / -1' }}>
@@ -456,59 +476,45 @@ export default function ToolBookingPublicPage() {
             <input value={guestName} onChange={(e) => setGuestName(e.target.value)} required />
           </label>
           <label>
-            Puhelin
-            <input value={guestPhone} onChange={(e) => setGuestPhone(e.target.value)} />
+            Puhelin *
+            <input
+              value={guestPhone}
+              onChange={(e) => setGuestPhone(e.target.value)}
+              required
+              autoComplete="tel"
+            />
           </label>
           <label>
-            Sähköposti
-            <input type="email" value={guestEmail} onChange={(e) => setGuestEmail(e.target.value)} />
+            Sähköposti *
+            <input
+              type="email"
+              value={guestEmail}
+              onChange={(e) => setGuestEmail(e.target.value)}
+              required
+              autoComplete="email"
+            />
           </label>
 
           {(bundle.company.delivery_enabled || bundle.company.pickup_enabled) && (
             <fieldset className="tool-delivery-fieldset" style={{ gridColumn: '1 / -1' }}>
               <legend>Kuljetus / nouto</legend>
+              <p className="muted" style={{ margin: '0 0 .5rem' }}>
+                Oletuksena haet ja palautat itse. Kytke päälle tarvitsemasi kuljetusosuudet.
+              </p>
               <div className="tool-delivery-options">
-                <label className="checkbox-label">
-                  <input
-                    type="radio"
-                    name="delivery_mode"
-                    checked={deliveryMode === 'none'}
-                    onChange={() => setDeliveryMode('none')}
-                  />{' '}
-                  {TOOL_BOOKING_DELIVERY_LABELS.none}
-                </label>
-                {bundle.company.pickup_enabled && (
-                  <label className="checkbox-label">
-                    <input
-                      type="radio"
-                      name="delivery_mode"
-                      checked={deliveryMode === 'pickup'}
-                      onChange={() => setDeliveryMode('pickup')}
-                    />{' '}
-                    {TOOL_BOOKING_DELIVERY_LABELS.pickup}
-                  </label>
-                )}
                 {bundle.company.delivery_enabled && (
-                  <label className="checkbox-label">
-                    <input
-                      type="radio"
-                      name="delivery_mode"
-                      checked={deliveryMode === 'delivery'}
-                      onChange={() => setDeliveryMode('delivery')}
-                    />{' '}
-                    {TOOL_BOOKING_DELIVERY_LABELS.delivery}
-                  </label>
+                  <ToggleSwitch
+                    checked={transportOutbound}
+                    onChange={setTransportOutbound}
+                    label={TOOL_BOOKING_TRANSPORT_TOGGLE_LABELS.outbound}
+                  />
                 )}
-                {bundle.company.delivery_enabled && bundle.company.pickup_enabled && (
-                  <label className="checkbox-label">
-                    <input
-                      type="radio"
-                      name="delivery_mode"
-                      checked={deliveryMode === 'both'}
-                      onChange={() => setDeliveryMode('both')}
-                    />{' '}
-                    {TOOL_BOOKING_DELIVERY_LABELS.both}
-                  </label>
+                {bundle.company.pickup_enabled && (
+                  <ToggleSwitch
+                    checked={transportReturn}
+                    onChange={setTransportReturn}
+                    label={TOOL_BOOKING_TRANSPORT_TOGGLE_LABELS.returnPickup}
+                  />
                 )}
               </div>
               {needsAddress && (

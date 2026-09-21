@@ -8,6 +8,7 @@ import {
   deliveryModeCompanyLegCount,
   deliveryModeHasOutbound,
   deliveryModeHasReturn,
+  deliveryModeFromToggles,
   deliveryModeNeedsAddress,
   dateYmdAllSelectedFree,
   dateYmdBookingDayStatus,
@@ -181,6 +182,11 @@ test('deliveryMode legs and booking fee (self / one / both)', () => {
     50,
   );
   assert.ok(Number.isNaN(computeBookingDeliveryFee('delivery', { distanceKm: NaN, minFeeEur: 1, limitKm: 1, perKmEur: 1 })));
+
+  assert.equal(deliveryModeFromToggles(false, false), 'none');
+  assert.equal(deliveryModeFromToggles(true, false), 'delivery');
+  assert.equal(deliveryModeFromToggles(false, true), 'pickup');
+  assert.equal(deliveryModeFromToggles(true, true), 'both');
 });
 
 test('dateYmdOverlapsBusy and month grid', () => {

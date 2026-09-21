@@ -312,10 +312,16 @@ export const TOOL_BOOKING_STATUS_LABELS: Record<ToolBookingStatus, string> = {
   cancelled: 'Peruttu',
 };
 
-/** FI labels for delivery_mode (locked): none / pickup / delivery / both. */
+/** FI labels for delivery_mode badges (derived from two transport toggles). */
 export const TOOL_BOOKING_DELIVERY_LABELS: Record<ToolBookingDeliveryMode, string> = {
-  none: 'Haen ja palautan itse',
-  pickup: 'Haen työkalu(t) itse, tilaan palautuksen',
-  delivery: 'Työkalujen haku tilataan, palautan itse',
-  both: 'Tilaan kuljetuksen molempiin suuntiin',
+  none: 'Ei kuljetusta (hae ja palauta itse)',
+  pickup: 'Tilaan kuljetuksen palautukseen',
+  delivery: 'Tilaan kuljetuksen vuokraajalta',
+  both: 'Kuljetus vuokraajalta + palautukseen',
 };
+
+/** Locked FI labels for the two public booking transport toggles. */
+export const TOOL_BOOKING_TRANSPORT_TOGGLE_LABELS = {
+  outbound: 'Tilaan kuljetuksen vuokraajalta',
+  returnPickup: 'Tilaan kuljetuksen palautukseen',
+} as const;
