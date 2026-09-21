@@ -234,3 +234,84 @@ export const TOOL_STATUS_LABELS: Record<string, string> = {
   service: 'Huollossa',
   retired: 'Poistettu',
 };
+
+export type ToolBookingStatus = 'pending' | 'confirmed' | 'cancelled';
+
+export type ToolBookingDeliveryMode = 'none' | 'delivery' | 'pickup';
+
+export type ToolBooking = {
+  id: string;
+  company_id: string;
+  tool_id: string;
+  status: ToolBookingStatus;
+  starts_at: string;
+  ends_at: string;
+  guest_name: string;
+  guest_phone: string | null;
+  guest_email: string | null;
+  delivery_mode: ToolBookingDeliveryMode;
+  delivery_distance_km: number | null;
+  delivery_fee_eur: number | null;
+  delivery_address: string | null;
+  notes: string | null;
+  confirmed_loan_id: string | null;
+  created_at: string;
+  updated_at: string;
+  tool?: Pick<Tool, 'name' | 'tag_id' | 'serial_number'> | null;
+};
+
+export type CompanyToolsDeliverySettings = {
+  tools_booking_token: string | null;
+  tools_booking_enabled: boolean;
+  delivery_enabled: boolean;
+  pickup_enabled: boolean;
+  delivery_min_fee_eur: number | null;
+  delivery_distance_limit_km: number | null;
+  delivery_per_km_eur: number | null;
+};
+
+export type ToolBookingPublicTool = {
+  id: string;
+  name: string;
+  category: string | null;
+  status: string;
+  rate_day_eur: number | null;
+  rate_weekend_eur: number | null;
+  rate_week_eur: number | null;
+  rate_month_eur: number | null;
+  image_path: string | null;
+};
+
+export type ToolBookingBusyRange = {
+  tool_id: string;
+  starts_at: string;
+  ends_at: string | null;
+  source: 'loan' | 'booking' | string;
+  status: string;
+};
+
+export type ToolBookingPublicBundle = {
+  company: {
+    id: string;
+    name: string;
+    delivery_enabled: boolean;
+    pickup_enabled: boolean;
+    delivery_min_fee_eur: number | null;
+    delivery_distance_limit_km: number | null;
+    delivery_per_km_eur: number | null;
+  };
+  tools: ToolBookingPublicTool[];
+  busy: ToolBookingBusyRange[];
+};
+
+export const TOOL_BOOKING_STATUS_LABELS: Record<ToolBookingStatus, string> = {
+  pending: 'Odottaa',
+  confirmed: 'Vahvistettu',
+  cancelled: 'Peruttu',
+};
+
+export const TOOL_BOOKING_DELIVERY_LABELS: Record<ToolBookingDeliveryMode, string> = {
+  none: 'Ei kuljetusta',
+  delivery: 'Kuljetus',
+  pickup: 'Nouto',
+};

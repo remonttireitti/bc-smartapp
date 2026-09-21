@@ -2,10 +2,19 @@ import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
 import AppLayout from '../components/AppLayout';
+import CollapsibleSection from '../components/CollapsibleSection';
 import InventoryPhotoThumb from '../components/inventory/InventoryPhotoThumb';
+import ToggleSwitch from '../components/ToggleSwitch';
 import { useProfile } from '../hooks/useProfile';
 import { removeInventoryImage, uploadToolImage } from '../lib/inventoryImages';
 import { supabase } from '../lib/supabase';
+import {
+  ensureCompanyToolsBookingToken,
+  fetchCompanyDeliverySettings,
+  saveCompanyDeliverySettings,
+  toolsBookingStaffPath,
+  toolsBookingUrl,
+} from '../lib/toolBookingShares';
 import {
   canStartToolLoan,
   dateInputToIsoEnd,
@@ -19,6 +28,7 @@ import {
   toolDayRateBadge,
   toolRateLabelRows,
 } from '../lib/toolInventory';
+import type { CompanyToolsDeliverySettings } from '../types/inventory';
 import { TOOL_STATUS_LABELS, type Tool, type ToolImage, type ToolLoan } from '../types/inventory';
 
 interface Props {
@@ -106,6 +116,37 @@ const LOAN_SELECT = `
   tool:tools!tool_loans_tool_id_fkey(name, tag_id, serial_number)
 `;
 
+type DeliveryForm = {
+  tools_booking_enabled: boolean;
+  delivery_enabled: boolean;
+  pickup_enabled: boolean;
+  delivery_min_fee_eur: string;
+  delivery_distance_limit_km: string;
+  delivery_per_km_eur: string;
+};
+
+const EMPTY_DELIVERY: DeliveryForm = {
+  tools_booking_enabled: true,
+  delivery_enabled: false,
+  pickup_enabled: true,
+  delivery_min_fee_eur: '',
+  delivery_distance_limit_km: '',
+  delivery_per_km_eur: '',
+};
+
+function settingsToDeliveryForm(s: CompanyToolsDeliverySettings | null): DeliveryForm {
+  if (!s) return EMPTY_DELIVERY;
+  return {
+    tools_booking_enabled: s.tools_booking_enabled !== false,
+    delivery_enabled: !!s.delivery_enabled,
+    pickup_enabled: s.pickup_enabled !== false,
+    delivery_min_fee_eur: s.delivery_min_fee_eur != null ? String(s.delivery_min_fee_eur) : '',
+    delivery_distance_limit_km:
+      s.delivery_distance_limit_km != null ? String(s.delivery_distance_limit_km) : '',
+    delivery_per_km_eur: s.delivery_per_km_eur != null ? String(s.delivery_per_km_eur) : '',
+  };
+}
+
 export default function ToolsPage({ session }: Props) {
   const { profile } = useProfile(session);
   const [tools, setTools] = useState<Tool[]>([]);
@@ -123,6 +164,9 @@ export default function ToolsPage({ session }: Props) {
   const [loanDraft, setLoanDraft] = useState<
     Record<string, { userId: string; start: string; end: string; notes: string }>
   >({});
+  const [deliveryForm, setDeliveryForm] = useState<DeliveryForm>(EMPTY_DELIVERY);
+  const [bookingToken, setBookingToken] = useState<string | null>(null);
+  const [publicLink, setPublicLink] = useState<string | null>(null);
 
   useEffect(() => {
     if (profile?.company_id) void load();
@@ -133,30 +177,36 @@ export default function ToolsPage({ session }: Props) {
     setLoading(true);
     setError(null);
 
-    const [{ data: toolRows, error: toolError }, { data: openLoanRows }, { data: historyLoanRows }, { data: userRows }] =
-      await Promise.all([
-        supabase
-          .from('tools')
-          .select(TOOL_SELECT)
-          .eq('company_id', profile.company_id)
-          .order('name'),
-        supabase
-          .from('tool_loans')
-          .select(LOAN_SELECT)
-          .is('returned_at', null)
-          .order('loaned_at', { ascending: false }),
-        supabase
-          .from('tool_loans')
-          .select(LOAN_SELECT)
-          .order('loaned_at', { ascending: false })
-          .limit(500),
-        supabase
-          .from('profiles')
-          .select('id, display_name, email')
-          .eq('company_id', profile.company_id)
-          .neq('role', 'customer')
-          .order('display_name'),
-      ]);
+    const [
+      { data: toolRows, error: toolError },
+      { data: openLoanRows },
+      { data: historyLoanRows },
+      { data: userRows },
+      deliverySettings,
+    ] = await Promise.all([
+      supabase
+        .from('tools')
+        .select(TOOL_SELECT)
+        .eq('company_id', profile.company_id)
+        .order('name'),
+      supabase
+        .from('tool_loans')
+        .select(LOAN_SELECT)
+        .is('returned_at', null)
+        .order('loaned_at', { ascending: false }),
+      supabase
+        .from('tool_loans')
+        .select(LOAN_SELECT)
+        .order('loaned_at', { ascending: false })
+        .limit(500),
+      supabase
+        .from('profiles')
+        .select('id, display_name, email')
+        .eq('company_id', profile.company_id)
+        .neq('role', 'customer')
+        .order('display_name'),
+      fetchCompanyDeliverySettings(profile.company_id).catch(() => null),
+    ]);
 
     if (toolError) {
       setError(toolError.message);
@@ -167,7 +217,9 @@ export default function ToolsPage({ session }: Props) {
     const normalizedTools = ((toolRows as unknown as Tool[]) ?? []).map((row) => ({
       ...row,
       is_loanable: row.is_loanable !== false,
-      images: [...(row.images ?? [])].sort((a, b) => a.sort_order - b.sort_order || a.created_at.localeCompare(b.created_at)),
+      images: [...(row.images ?? [])].sort(
+        (a, b) => a.sort_order - b.sort_order || a.created_at.localeCompare(b.created_at),
+      ),
     }));
 
     setTools(normalizedTools);
@@ -175,6 +227,11 @@ export default function ToolsPage({ session }: Props) {
     setAllLoans((historyLoanRows as unknown as ToolLoan[]) ?? []);
     const userList = (userRows as CompanyUser[]) ?? [];
     setUsers(userList);
+    setDeliveryForm(settingsToDeliveryForm(deliverySettings));
+    if (deliverySettings?.tools_booking_token) {
+      setBookingToken(deliverySettings.tools_booking_token);
+      setPublicLink(toolsBookingUrl(deliverySettings.tools_booking_token));
+    }
 
     const today = isoToDateInput(new Date().toISOString());
     setLoanDraft((prev) => {
@@ -309,7 +366,7 @@ export default function ToolsPage({ session }: Props) {
     const imageId = crypto.randomUUID();
     try {
       const path = await uploadToolImage(supabase, profile.company_id, tool.id, imageId, file);
-      const sortOrder = (tool.images?.length ?? 0);
+      const sortOrder = tool.images?.length ?? 0;
       const { error: insertError } = await supabase.from('tool_images').insert({
         id: imageId,
         company_id: profile.company_id,
@@ -339,13 +396,75 @@ export default function ToolsPage({ session }: Props) {
 
   function borrowerLabel(tool: Tool): string | null {
     const loan = activeLoanByTool.get(tool.id);
-    const name =
+    return (
       loan?.user?.display_name ??
       loan?.user?.email ??
       tool.assigned_user?.display_name ??
       tool.assigned_user?.email ??
-      null;
-    return name;
+      null
+    );
+  }
+
+  async function ensureLink() {
+    setBusy(true);
+    setError(null);
+    try {
+      const token = await ensureCompanyToolsBookingToken();
+      setBookingToken(token);
+      setPublicLink(toolsBookingUrl(token));
+      setMessage('Ulkoinen varauslinkki valmis.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Linkin luonti epäonnistui');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function copyPublicLink() {
+    setBusy(true);
+    setError(null);
+    try {
+      let url = publicLink;
+      if (!url) {
+        const token = await ensureCompanyToolsBookingToken();
+        setBookingToken(token);
+        url = toolsBookingUrl(token);
+        setPublicLink(url);
+      }
+      await navigator.clipboard.writeText(url);
+      setMessage('Ulkoinen varauslinkki kopioitu.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Kopiointi epäonnistui.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function saveDelivery(e: FormEvent) {
+    e.preventDefault();
+    if (!profile?.company_id) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await saveCompanyDeliverySettings(profile.company_id, {
+        tools_booking_enabled: deliveryForm.tools_booking_enabled,
+        delivery_enabled: deliveryForm.delivery_enabled,
+        pickup_enabled: deliveryForm.pickup_enabled,
+        delivery_min_fee_eur: parseOptionalEuro(deliveryForm.delivery_min_fee_eur),
+        delivery_distance_limit_km: parseOptionalEuro(deliveryForm.delivery_distance_limit_km),
+        delivery_per_km_eur: parseOptionalEuro(deliveryForm.delivery_per_km_eur),
+      });
+      if (!bookingToken && deliveryForm.tools_booking_enabled) {
+        const token = await ensureCompanyToolsBookingToken();
+        setBookingToken(token);
+        setPublicLink(toolsBookingUrl(token));
+      }
+      setMessage('Kuljetusasetukset tallennettu.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Tallennus epäonnistui');
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
@@ -356,7 +475,15 @@ export default function ToolsPage({ session }: Props) {
             <Link to="/">Etusivu</Link> / Työkalut
           </p>
           <h1>Työkaluhallinta</h1>
-          <p className="muted">Työkaluinventaario: tiedot, kuvat, hinnasto ja lainauskalenteri.</p>
+          <p className="muted">Inventaario, hinnasto, lainaus ja julkinen varauskalenteri.</p>
+        </div>
+        <div className="page-header-actions" style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap' }}>
+          <Link to={toolsBookingStaffPath()} className="btn btn-primary">
+            Varauskalenteri
+          </Link>
+          <button type="button" className="btn btn-secondary" disabled={busy} onClick={() => void copyPublicLink()}>
+            Kopioi ulkoinen linkki
+          </button>
         </div>
       </div>
 
@@ -367,6 +494,94 @@ export default function ToolsPage({ session }: Props) {
         <section className="panel">Ladataan…</section>
       ) : (
         <>
+          <section className="panel tool-booking-link-panel">
+            <div className="tool-booking-promo">
+              <div>
+                <h2 style={{ margin: '0 0 .35rem' }}>Varauskalenteri</h2>
+                <p className="muted" style={{ margin: 0 }}>
+                  Sisäinen kalenteri näyttää lainat ja ulkoiset varaukset. Ulkoinen linkki sopii asiakkaille.
+                </p>
+                {publicLink && (
+                  <div className="tool-booking-link-row" style={{ marginTop: '.65rem' }}>
+                    <input
+                      readOnly
+                      value={publicLink}
+                      className="tool-booking-link-input"
+                      onFocus={(e) => e.target.select()}
+                    />
+                  </div>
+                )}
+              </div>
+              <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap' }}>
+                <Link to={toolsBookingStaffPath()} className="btn btn-primary btn-sm">
+                  Avaa varauskalenteri
+                </Link>
+                <button type="button" className="btn btn-secondary btn-sm" disabled={busy} onClick={() => void ensureLink()}>
+                  {publicLink ? 'Varmista linkki' : 'Luo ulkoinen linkki'}
+                </button>
+              </div>
+            </div>
+          </section>
+
+          <CollapsibleSection title="Kuljetus ja nouto (yritys)" defaultOpen={false} variant="plain" className="panel">
+            <form onSubmit={(e) => void saveDelivery(e)} className="line-form-grid">
+              <div style={{ gridColumn: '1 / -1', display: 'flex', flexWrap: 'wrap', gap: '1rem' }}>
+                <ToggleSwitch
+                  checked={deliveryForm.tools_booking_enabled}
+                  onChange={(checked) => setDeliveryForm({ ...deliveryForm, tools_booking_enabled: checked })}
+                  label="Julkinen varaus käytössä"
+                />
+                <ToggleSwitch
+                  checked={deliveryForm.delivery_enabled}
+                  onChange={(checked) => setDeliveryForm({ ...deliveryForm, delivery_enabled: checked })}
+                  label="Kuljetus mahdollinen"
+                />
+                <ToggleSwitch
+                  checked={deliveryForm.pickup_enabled}
+                  onChange={(checked) => setDeliveryForm({ ...deliveryForm, pickup_enabled: checked })}
+                  label="Nouto mahdollinen"
+                />
+              </div>
+              <label>
+                Minimihinta (€) — lyhyt matka
+                <input
+                  inputMode="decimal"
+                  value={deliveryForm.delivery_min_fee_eur}
+                  onChange={(e) => setDeliveryForm({ ...deliveryForm, delivery_min_fee_eur: e.target.value })}
+                  disabled={!deliveryForm.delivery_enabled}
+                />
+              </label>
+              <label>
+                Raja (km)
+                <input
+                  inputMode="decimal"
+                  value={deliveryForm.delivery_distance_limit_km}
+                  onChange={(e) =>
+                    setDeliveryForm({ ...deliveryForm, delivery_distance_limit_km: e.target.value })
+                  }
+                  disabled={!deliveryForm.delivery_enabled}
+                />
+              </label>
+              <label>
+                Yli rajan (€/km)
+                <input
+                  inputMode="decimal"
+                  value={deliveryForm.delivery_per_km_eur}
+                  onChange={(e) => setDeliveryForm({ ...deliveryForm, delivery_per_km_eur: e.target.value })}
+                  disabled={!deliveryForm.delivery_enabled}
+                />
+              </label>
+              <p className="muted" style={{ gridColumn: '1 / -1', margin: 0 }}>
+                Lyhyt matka (≤ raja): veloitetaan minimihinta. Yli rajan: minimihinta + ylimääräiset km × €/km.
+              </p>
+              <div className="form-actions">
+                <button type="submit" className="btn btn-primary btn-sm" disabled={busy}>
+                  Tallenna kuljetusasetukset
+                </button>
+              </div>
+            </form>
+          </CollapsibleSection>
+
           <section className="panel form-section">
             <h2>Lisää työkalu</h2>
             <form onSubmit={(e) => void addTool(e)} className="line-form-grid">
@@ -422,14 +637,13 @@ export default function ToolsPage({ session }: Props) {
                   onChange={(e) => setToolForm({ ...toolForm, purchase_price_eur: e.target.value })}
                 />
               </label>
-              <label className="checkbox-label" style={{ alignSelf: 'end' }}>
-                <input
-                  type="checkbox"
+              <div style={{ alignSelf: 'end' }}>
+                <ToggleSwitch
                   checked={toolForm.is_loanable}
-                  onChange={(e) => setToolForm({ ...toolForm, is_loanable: e.target.checked })}
-                />{' '}
-                Lainattavissa
-              </label>
+                  onChange={(checked) => setToolForm({ ...toolForm, is_loanable: checked })}
+                  label="Lainattavissa"
+                />
+              </div>
               <label>
                 €/päivä
                 <input
@@ -475,7 +689,7 @@ export default function ToolsPage({ session }: Props) {
             {tools.length === 0 ? (
               <p className="muted">Ei työkaluja vielä.</p>
             ) : (
-              <ul className="daily-log-list">
+              <ul className="tool-card-grid">
                 {tools.map((tool) => {
                   const isLoaned = tool.status === 'loaned' || activeLoanByTool.has(tool.id);
                   const borrower = borrowerLabel(tool);
@@ -487,45 +701,48 @@ export default function ToolsPage({ session }: Props) {
                     status: tool.status,
                     hasOpenLoan: activeLoanByTool.has(tool.id),
                   });
-                  const draft = loanDraft[tool.id] ?? { userId: users[0]?.id ?? '', start: '', end: '', notes: '' };
+                  const draft =
+                    loanDraft[tool.id] ?? { userId: users[0]?.id ?? '', start: '', end: '', notes: '' };
                   const history = allLoans.filter((l) => l.tool_id === tool.id);
                   const months = groupLoansByMonth(history);
                   const rateRows = toolRateLabelRows(tool);
                   const primaryImage = tool.images?.[0] ?? null;
 
                   return (
-                    <li key={tool.id} className="panel" style={{ marginBottom: '.75rem', padding: '.85rem' }}>
-                      <div className="daily-log-head" style={{ gap: '0.75rem', alignItems: 'flex-start' }}>
-                        <div style={{ display: 'flex', gap: '0.75rem', flex: 1, minWidth: 0 }}>
-                          <InventoryPhotoThumb
-                            imagePath={primaryImage?.image_path}
-                            label={tool.name}
-                            canEdit
-                            busy={busy}
-                            size="md"
-                            onPick={(file) => uploadPhoto(tool, file)}
-                            onRemove={primaryImage ? () => removePhoto(primaryImage) : undefined}
-                          />
-                          <div style={{ minWidth: 0 }}>
+                    <li key={tool.id} className={`tool-card ${isExpanded ? 'is-expanded' : ''}`}>
+                      <div className="tool-card-main">
+                        <InventoryPhotoThumb
+                          imagePath={primaryImage?.image_path}
+                          label={tool.name}
+                          canEdit
+                          busy={busy}
+                          size="md"
+                          onPick={(file) => uploadPhoto(tool, file)}
+                          onRemove={primaryImage ? () => removePhoto(primaryImage) : undefined}
+                        />
+                        <div className="tool-card-body">
+                          <div className="tool-card-title-row">
                             <strong>{tool.name}</strong>
-                            <p className="muted" style={{ margin: '.25rem 0 0' }}>
+                            <span className={`badge ${isLoaned ? 'badge-scheduled' : 'badge-success'}`}>
                               {TOOL_STATUS_LABELS[tool.status] ?? tool.status}
-                              {borrower ? ` · Lainaaja: ${borrower}` : ''}
-                              {tool.serial_number ? ` · SN ${tool.serial_number}` : ''}
-                              {tool.tag_id ? ` · RFID ${tool.tag_id}` : ''}
-                            </p>
-                            <p style={{ margin: '.35rem 0 0', display: 'flex', flexWrap: 'wrap', gap: '.35rem' }}>
-                              <span className={`badge ${tool.is_loanable !== false ? 'badge-success' : 'badge-draft'}`}>
-                                {tool.is_loanable !== false ? 'Lainattavissa' : 'Ei lainattavissa'}
-                              </span>
-                              {dayBadge && <span className="badge badge-scheduled">{dayBadge}</span>}
-                              {tool.purchase_price_eur != null && (
-                                <span className="badge">Hankinta {formatToolEuro(tool.purchase_price_eur)}</span>
-                              )}
-                            </p>
+                            </span>
+                          </div>
+                          <p className="muted tool-card-meta">
+                            {borrower ? `Lainaaja: ${borrower}` : 'Ei lainaajaa'}
+                            {tool.serial_number ? ` · SN ${tool.serial_number}` : ''}
+                            {tool.tag_id ? ` · RFID ${tool.tag_id}` : ''}
+                          </p>
+                          <div className="tool-card-badges">
+                            <span className={`badge ${tool.is_loanable !== false ? 'badge-success' : 'badge-draft'}`}>
+                              {tool.is_loanable !== false ? 'Lainattavissa' : 'Ei lainattavissa'}
+                            </span>
+                            {dayBadge && <span className="badge badge-scheduled">{dayBadge}</span>}
+                            {tool.purchase_price_eur != null && (
+                              <span className="badge">Hankinta {formatToolEuro(tool.purchase_price_eur)}</span>
+                            )}
                           </div>
                         </div>
-                        <div className="daily-log-actions" style={{ flexWrap: 'wrap' }}>
+                        <div className="tool-card-actions">
                           <button
                             type="button"
                             className="btn btn-secondary btn-sm"
@@ -547,8 +764,8 @@ export default function ToolsPage({ session }: Props) {
                       </div>
 
                       {isExpanded && (
-                        <div style={{ marginTop: '0.85rem' }}>
-                          <div className="inventory-details-grid" style={{ marginBottom: '0.75rem' }}>
+                        <div className="tool-card-details">
+                          <div className="inventory-details-grid">
                             {isEditing ? (
                               <>
                                 {(
@@ -587,14 +804,13 @@ export default function ToolsPage({ session }: Props) {
                                     onChange={(e) => setEditForm({ ...editForm, purchased_at: e.target.value })}
                                   />
                                 </label>
-                                <label className="checkbox-label" style={{ alignSelf: 'end' }}>
-                                  <input
-                                    type="checkbox"
+                                <div style={{ alignSelf: 'end' }}>
+                                  <ToggleSwitch
                                     checked={editForm.is_loanable}
-                                    onChange={(e) => setEditForm({ ...editForm, is_loanable: e.target.checked })}
-                                  />{' '}
-                                  Lainattavissa
-                                </label>
+                                    onChange={(checked) => setEditForm({ ...editForm, is_loanable: checked })}
+                                    label="Lainattavissa"
+                                  />
+                                </div>
                                 <div className="form-actions" style={{ gridColumn: '1 / -1' }}>
                                   <button
                                     type="button"
@@ -648,6 +864,9 @@ export default function ToolsPage({ session }: Props) {
                                   >
                                     Muokkaa
                                   </button>
+                                  <Link to={toolsBookingStaffPath()} className="btn btn-secondary btn-sm">
+                                    Varauskalenteri
+                                  </Link>
                                 </div>
                               </>
                             )}
@@ -680,7 +899,7 @@ export default function ToolsPage({ session }: Props) {
                           </div>
 
                           <div style={{ marginBottom: '0.75rem' }}>
-                            <h3 style={{ margin: '0 0 .4rem', fontSize: '1rem' }}>Lainauskalenteri</h3>
+                            <h3 style={{ margin: '0 0 .4rem', fontSize: '1rem' }}>Lainaushistoria</h3>
                             {months.length === 0 ? (
                               <p className="muted" style={{ margin: 0 }}>
                                 Ei lainauksia vielä.

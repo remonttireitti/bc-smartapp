@@ -162,3 +162,89 @@ export function isoToDateInput(iso: string | null | undefined): string {
   const day = String(d.getDate()).padStart(2, '0');
   return `${y}-${m}-${day}`;
 }
+
+/** Yrityksen kuljetushinnoittelu: lyhyt matka = minFee (rajaan asti), yli rajan = minFee + excess * perKm. */
+export type DeliveryFeeInput = {
+  distanceKm: number;
+  minFeeEur: number;
+  limitKm: number;
+  perKmEur: number;
+};
+
+/**
+ * Laskee kuljetusmaksun.
+ * - distanceKm <= limitKm → minFeeEur
+ * - distanceKm > limitKm → minFeeEur + (distanceKm - limitKm) * perKmEur
+ * Negatiiviset etäisyydet käsitellään nollana. Ei-numeroiset arvot → NaN.
+ */
+export function computeDeliveryFee(input: DeliveryFeeInput): number {
+  const distanceKm = Number(input.distanceKm);
+  const minFeeEur = Number(input.minFeeEur);
+  const limitKm = Number(input.limitKm);
+  const perKmEur = Number(input.perKmEur);
+  if (![distanceKm, minFeeEur, limitKm, perKmEur].every((n) => Number.isFinite(n))) {
+    return Number.NaN;
+  }
+  const dist = Math.max(0, distanceKm);
+  const limit = Math.max(0, limitKm);
+  if (dist <= limit) return minFeeEur;
+  return minFeeEur + (dist - limit) * perKmEur;
+}
+
+export type BusyRange = {
+  tool_id: string;
+  starts_at: string;
+  ends_at?: string | null;
+  source?: string;
+  status?: string;
+};
+
+/** ISO → YYYY-MM-DD in UTC (stable across host timezones). */
+function isoToYmdUtc(iso: string): string | null {
+  const d = new Date(iso);
+  if (!Number.isFinite(d.getTime())) return null;
+  const y = d.getUTCFullYear();
+  const m = String(d.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(d.getUTCDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+/** Onko kalenteripäivä (YYYY-MM-DD) varattu busy-jaksolle (UTC-päivärajoilla). */
+export function dateYmdOverlapsBusy(ymd: string, ranges: BusyRange[], toolId?: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(ymd)) return false;
+  for (const range of ranges) {
+    if (toolId && range.tool_id !== toolId) continue;
+    const startYmd = isoToYmdUtc(range.starts_at);
+    if (!startYmd) continue;
+    const endYmd = range.ends_at ? isoToYmdUtc(range.ends_at) : null;
+    if (ymd < startYmd) continue;
+    if (endYmd != null && ymd > endYmd) continue;
+    return true;
+  }
+  return false;
+}
+
+/** Kuukauden päivät (ma–su rivit) paikallisessa kalenterissa. */
+export function buildMonthGrid(year: number, monthIndex0: number): { ymd: string; inMonth: boolean; date: Date }[] {
+  const first = new Date(year, monthIndex0, 1);
+  const startDow = (first.getDay() + 6) % 7; // ma=0
+  const gridStart = new Date(year, monthIndex0, 1 - startDow);
+  const cells: { ymd: string; inMonth: boolean; date: Date }[] = [];
+  for (let i = 0; i < 42; i++) {
+    const d = new Date(gridStart.getFullYear(), gridStart.getMonth(), gridStart.getDate() + i);
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    cells.push({
+      ymd: `${y}-${m}-${day}`,
+      inMonth: d.getMonth() === monthIndex0,
+      date: d,
+    });
+  }
+  return cells;
+}
+
+export function shiftMonth(year: number, monthIndex0: number, delta: number): { year: number; monthIndex0: number } {
+  const d = new Date(year, monthIndex0 + delta, 1);
+  return { year: d.getFullYear(), monthIndex0: d.getMonth() };
+}
