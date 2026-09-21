@@ -30,6 +30,7 @@ import {
   type WorkReportPrintMeta,
   type WorkReportPrintMode,
 } from './workReportPrintHtml';
+import { loadWorkReportEquipmentLinks } from './workReportEquipment';
 import type { CustomerPrintQuantitySettings } from './workReportCustomerPrintSettings';
 import type { WorkReport, WorkReportDailyLog } from '../types';
 
@@ -225,6 +226,12 @@ export async function buildWorkReportPrintHtmlDocument(input: {
     logoUrl,
     settings: parseCompanySettings((companyRow as { settings: unknown } | null)?.settings),
   };
+  const equipmentLinks = await loadWorkReportEquipmentLinks(
+    db,
+    input.report.id,
+    input.report.equipment_id,
+  );
+
   const html = generateWorkReportPrintHtml({
     report: input.report,
     logs,
@@ -240,9 +247,10 @@ export async function buildWorkReportPrintHtmlDocument(input: {
     hideAssignee,
     viewerCompanyId: input.viewerCompanyId,
     customerPrintQuantitySettings: input.customerPrintQuantitySettings,
+    equipmentLinks,
   });
 
-  return { html, logs, logImages, meta, hideAssignee };
+  return { html, logs, logImages, meta, hideAssignee, equipmentLinks };
 }
 
 export type WorkReportPrintBundle = {
@@ -254,12 +262,13 @@ export type WorkReportPrintBundle = {
   logImages: Record<string, WorkReportPrintLogImage[]>;
   meta: WorkReportPrintMeta;
   hideAssignee: boolean;
+  equipmentLinks: WorkReportEquipmentLink[];
 };
 
 export function buildCustomerPrintHtmlFromBundle(
   bundle: Pick<
     WorkReportPrintBundle,
-    'report' | 'logs' | 'logImages' | 'meta' | 'hideAssignee'
+    'report' | 'logs' | 'logImages' | 'meta' | 'hideAssignee' | 'equipmentLinks'
   >,
   settings?: CustomerPrintQuantitySettings,
   viewerCompanyId?: string | null,
@@ -275,6 +284,7 @@ export function buildCustomerPrintHtmlFromBundle(
     hideAssignee: bundle.hideAssignee,
     viewerCompanyId,
     customerPrintQuantitySettings: settings,
+    equipmentLinks: bundle.equipmentLinks,
   });
 }
 
@@ -348,6 +358,7 @@ export async function loadWorkReportPrintBundle(
     logImages: printDocument.logImages,
     meta: printDocument.meta,
     hideAssignee: printDocument.hideAssignee,
+    equipmentLinks: printDocument.equipmentLinks,
   };
 }
 
