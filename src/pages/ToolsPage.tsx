@@ -788,8 +788,8 @@ export default function ToolsPage({ session }: Props) {
                             />
                           )}
                           <div className="tool-card-body">
-                            <div className="tool-card-title-row">
-                              <strong className="tool-card-name">{tool.name}</strong>
+                            <strong className="tool-card-name">{tool.name}</strong>
+                            <div className="tool-card-badges">
                               <span
                                 className={`badge ${
                                   isLoaned || hasOpenBlockout ? 'badge-scheduled' : 'badge-success'

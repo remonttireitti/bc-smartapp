@@ -15960,6 +15960,12 @@ button.vrf-toggle:not(:disabled) {
   min-width: 0;
 }
 
+.tool-card:not(.is-expanded) {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
 .tool-card.is-expanded {
   grid-column: 1 / -1;
 }
@@ -15990,12 +15996,45 @@ button.vrf-toggle:not(:disabled) {
   justify-content: space-between;
 }
 
+.tool-card:not(.is-expanded) .tool-card-header {
+  flex: 1 1 auto;
+  flex-direction: column;
+  flex-wrap: nowrap;
+  align-items: stretch;
+  justify-content: flex-start;
+  min-height: 0;
+}
+
 .tool-card-header-main {
   display: flex;
   gap: 0.75rem;
   align-items: flex-start;
   flex: 1 1 14rem;
   min-width: 0;
+}
+
+.tool-card:not(.is-expanded) .tool-card-header-main {
+  flex: 1 1 auto;
+  width: 100%;
+}
+
+/* Fixed square thumbs in list cards — same box, cover crop */
+.tool-card:not(.is-expanded) .tool-card-header-main > .inventory-photo-thumb {
+  width: 3.25rem;
+  height: 3.25rem;
+  flex-shrink: 0;
+}
+
+.tool-card:not(.is-expanded) .tool-card-header-main .inventory-photo-btn {
+  width: 3.25rem;
+  height: 3.25rem;
+}
+
+.tool-card:not(.is-expanded) .tool-card-header-main .inventory-photo-btn img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
 }
 
 .tool-card-main {
@@ -16007,9 +16046,12 @@ button.vrf-toggle:not(:disabled) {
 .tool-card-body {
   flex: 1;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .tool-card-name {
+  display: block;
   font-size: 1.02rem;
   line-height: 1.25;
 }
@@ -16031,6 +16073,7 @@ button.vrf-toggle:not(:disabled) {
   display: flex;
   flex-wrap: wrap;
   gap: 0.35rem;
+  align-items: center;
 }
 
 .tool-card-toolbar,
@@ -16041,6 +16084,12 @@ button.vrf-toggle:not(:disabled) {
   flex-shrink: 0;
   align-items: center;
   max-width: 100%;
+}
+
+.tool-card:not(.is-expanded) .tool-card-toolbar {
+  margin-top: auto;
+  width: 100%;
+  padding-top: 0.5rem;
 }
 
 .tool-card-details {
