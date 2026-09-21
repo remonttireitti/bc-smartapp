@@ -78,7 +78,6 @@ import {
   formatDate,
   formatDateTime,
   formatHourEntry,
-  formatWorkReportEquipment,
   resolveWorkReportDisplayPeople,
   resolveWorkReportDescription,
   resolveWorkReportHeading,
@@ -88,6 +87,10 @@ import {
   type WorkReport,
   type WorkReportDailyLog,
 } from '../types';
+import {
+  formatWorkReportEquipmentList,
+  type WorkReportEquipmentLink,
+} from './workReportEquipment';
 
 const LINE_KIND_LABELS: Record<string, string> = {
   hours_regular: 'Tunnit',
@@ -609,6 +612,8 @@ export function generateWorkReportPrintHtml(input: {
   hideAssignee?: boolean;
   viewerCompanyId?: string | null;
   customerPrintQuantitySettings?: CustomerPrintQuantitySettings;
+  /** Junction-linked devices; when set, print lists all (not only legacy equipment_id). */
+  equipmentLinks?: WorkReportEquipmentLink[] | null;
 }) {
   const {
     report,
@@ -625,11 +630,20 @@ export function generateWorkReportPrintHtml(input: {
     hideAssignee,
     viewerCompanyId,
     customerPrintQuantitySettings: inputCustomerPrintQuantitySettings,
+    equipmentLinks = null,
   } = input;
   const customerPrintQuantitySettings =
     printMode === 'customer'
       ? (inputCustomerPrintQuantitySettings ?? DEFAULT_CUSTOMER_PRINT_QUANTITY_SETTINGS)
       : DEFAULT_CUSTOMER_PRINT_QUANTITY_SETTINGS;
+  const linkedEquipment =
+    equipmentLinks && equipmentLinks.length > 0
+      ? equipmentLinks
+      : report.equipment
+        ? [{ id: report.equipment_id ?? 'legacy', name: report.equipment.name, tag: report.equipment.tag }]
+        : [];
+  const equipmentPrintLabel = linkedEquipment.length > 1 ? 'Laitteet' : 'Laite';
+  const equipmentPrintValue = formatWorkReportEquipmentList(linkedEquipment);
   const billingQuote = parseBillingQuoteSettings(inputBillingQuote ?? {});
   const customerQuoteBased = customerUsesQuoteBasedBilling(billingQuote);
   const linkedQuoteRequest = workReportHasLinkedQuoteRequest(billingQuote);
@@ -964,7 +978,7 @@ export function generateWorkReportPrintHtml(input: {
           ? `<dt>Tilaaja</dt><dd>${esc(report.orderer_name.trim())}</dd>`
           : ''
       }
-      <dt>Laite</dt><dd>${esc(formatWorkReportEquipment(report.equipment))}</dd>
+      <dt>${equipmentPrintLabel}</dt><dd>${esc(equipmentPrintValue)}</dd>
       <dt>Aloitus</dt><dd>${esc(workStartLabel)}</dd>
       <dt>Valmistuminen</dt><dd>${esc(workEndLabel)}</dd>
       ${
