@@ -170,18 +170,37 @@ export type InventoryItem = {
   updated_at: string;
 };
 
+export type ToolImage = {
+  id: string;
+  company_id: string;
+  tool_id: string;
+  image_path: string;
+  sort_order: number;
+  created_at: string;
+};
+
 export type Tool = {
   id: string;
   company_id: string;
   tag_id: string | null;
+  serial_number: string | null;
   name: string;
   category: string | null;
   status: string;
   assigned_user_id: string | null;
   last_service_at: string | null;
+  purchased_at: string | null;
+  purchased_from: string | null;
+  purchase_price_eur: number | null;
+  is_loanable: boolean;
+  rate_day_eur: number | null;
+  rate_weekend_eur: number | null;
+  rate_week_eur: number | null;
+  rate_month_eur: number | null;
   created_at: string;
   updated_at: string;
   assigned_user?: { display_name: string | null; email: string | null } | null;
+  images?: ToolImage[];
 };
 
 export type ToolLoan = {
@@ -191,8 +210,10 @@ export type ToolLoan = {
   work_report_id: string | null;
   loaned_at: string;
   returned_at: string | null;
+  expected_return_at: string | null;
+  notes: string | null;
   user?: { display_name: string | null; email: string | null } | null;
-  tool?: Pick<Tool, 'name' | 'tag_id'> | null;
+  tool?: Pick<Tool, 'name' | 'tag_id' | 'serial_number'> | null;
 };
 
 export const REFRIGERANT_PARTNER_BILLING_REMINDER =
