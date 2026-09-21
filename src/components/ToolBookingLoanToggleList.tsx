@@ -79,7 +79,7 @@ export default function ToolBookingLoanToggleList({
                   {conflict
                     ? ' · varattu jaksolla'
                     : queued
-                      ? ' · jonossa (voit silti lähettää pyynnön)'
+                      ? ' · jonossa (voit silti lähettää vahvistamattoman varauksen)'
                       : on
                         ? ' · vapaa'
                         : ''}

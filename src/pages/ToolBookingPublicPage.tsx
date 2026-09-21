@@ -215,8 +215,8 @@ export default function ToolBookingPublicPage() {
           : '';
       setMessage(
         bookedNames.length === 1
-          ? `Varauspyyntö jonossa: ${bookedNames[0]}.${failNote} Saat vahvistuksen yritykseltä.`
-          : `Varauspyynnöt jonossa (${bookedNames.length}): ${bookedNames.join(', ')}.${failNote} Saat vahvistuksen yritykseltä.`,
+          ? `Vahvistamaton varaus jonossa: ${bookedNames[0]}.${failNote} Saat vahvistuksen yritykseltä.`
+          : `Vahvistamattomat varaukset jonossa (${bookedNames.length}): ${bookedNames.join(', ')}.${failNote} Saat vahvistuksen yritykseltä.`,
       );
       setGuestName('');
       setGuestPhone('');
@@ -261,8 +261,8 @@ export default function ToolBookingPublicPage() {
       <header className="public-booking-header">
         <h1 style={{ margin: 0 }}>Työkalu varauskalenteri</h1>
         <p className="muted" style={{ margin: '.35rem 0 0' }}>
-          Vapaa = vihreä, jonossa = keltainen, varattu = punainen. Kalenteri päivittyy valittujen
-          työkalujen mukaan.
+          Jonossa = vahvistamaton varaus (keltainen). Vapaa = vihreä, varattu = punainen. Kalenteri
+          päivittyy valittujen työkalujen mukaan.
         </p>
         <ul className="tool-booking-legend" aria-label="Värien selite">
           <li>
@@ -419,10 +419,10 @@ export default function ToolBookingPublicPage() {
       </div>
 
       <section className="panel form-section">
-        <h2>Lähetä varauspyyntö</h2>
+        <h2>Lähetä varaus</h2>
         <p className="muted" style={{ marginTop: 0 }}>
-          Pyyntö menee jonoon (keltainen). Yritys vahvistaa — vapautuessa ensimmäinen jonossa saa
-          vuoron.
+          Luodaan vahvistamaton varaus jonoon (keltainen). Yritys vahvistaa — vapautuessa ensimmäinen
+          jonossa saa vuoron (FIFO).
         </p>
         <form onSubmit={(e) => void onSubmit(e)} className="line-form-grid">
           <div style={{ gridColumn: '1 / -1' }}>
@@ -570,8 +570,8 @@ export default function ToolBookingPublicPage() {
               {submitting
                 ? 'Lähetetään…'
                 : selectedToolIds.length > 1
-                  ? `Lähetä jonoon (${selectedToolIds.length})`
-                  : 'Lähetä jonoon'}
+                  ? `Lähetä varaus jonoon (${selectedToolIds.length})`
+                  : 'Lähetä varaus jonoon'}
             </button>
           </div>
         </form>
