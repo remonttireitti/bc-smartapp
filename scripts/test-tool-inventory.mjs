@@ -36,6 +36,10 @@ import {
   toolStatusBadgeLabel,
   ymdAddDays,
   ymdInclusiveLengthDays,
+  estimateToolRentalEur,
+  estimateBookingCost,
+  isWeekendRatePackage,
+  selectionOverlapsPending,
 } from '../src/lib/toolInventory.ts';
 
 function test(name, fn) {
@@ -387,3 +391,78 @@ test('booking day status: free / queued / busy and selection filter', () => {
 });
 
 console.log('All tool inventory + delivery fee tests passed.');
+
+test('weekend package and rental estimate', () => {
+  assert.equal(isWeekendRatePackage('2026-09-25', '2026-09-27'), true); // Fri–Sun
+  assert.equal(isWeekendRatePackage('2026-09-26', '2026-09-27'), true); // Sat–Sun
+  assert.equal(isWeekendRatePackage('2026-09-21', '2026-09-23'), false); // Mon–Wed
+  assert.equal(
+    estimateToolRentalEur({ rate_day_eur: 10, rate_weekend_eur: 25 }, '2026-09-25', '2026-09-27'),
+    25,
+  );
+  assert.equal(estimateToolRentalEur({ rate_day_eur: 10 }, '2026-09-21', '2026-09-23'), 30);
+  assert.equal(
+    estimateToolRentalEur({ rate_day_eur: 10, rate_week_eur: 50 }, '2026-09-01', '2026-09-10'),
+    80,
+  ); // 7+3 → 50+30
+  assert.equal(
+    estimateToolRentalEur({ rate_month_eur: 200, rate_day_eur: 10 }, '2026-09-01', '2026-09-30'),
+    220,
+  ); // 28+2
+  assert.equal(estimateToolRentalEur({}, '2026-09-01', '2026-09-03'), null);
+});
+
+test('estimateBookingCost sums rental and delivery', () => {
+  const tools = [
+    { id: 'a', rate_day_eur: 10 },
+    { id: 'b', rate_day_eur: 20 },
+  ];
+  const est = estimateBookingCost({
+    tools,
+    selectedIds: ['a', 'b'],
+    startYmd: '2026-09-21',
+    endYmd: '2026-09-22',
+    deliveryFeeEur: 35,
+  });
+  assert.equal(est.dayCount, 2);
+  assert.equal(est.toolCount, 2);
+  assert.equal(est.rentalEur, 60);
+  assert.equal(est.deliveryEur, 35);
+  assert.equal(est.totalEur, 95);
+  const noDel = estimateBookingCost({
+    tools,
+    selectedIds: ['a'],
+    startYmd: '2026-09-21',
+    endYmd: '2026-09-21',
+    deliveryFeeEur: null,
+  });
+  assert.equal(noDel.rentalEur, 10);
+  assert.equal(noDel.deliveryEur, null);
+  assert.equal(noDel.totalEur, 10);
+});
+
+test('selectionOverlapsPending detects soft queue overlap', () => {
+  const busy = [
+    {
+      tool_id: 't1',
+      starts_at: '2026-09-21T00:00:00.000Z',
+      ends_at: '2026-09-23T23:59:59.000Z',
+      source: 'booking',
+      status: 'pending',
+    },
+  ];
+  assert.equal(selectionOverlapsPending('2026-09-21', '2026-09-22', busy, ['t1']), true);
+  assert.equal(selectionOverlapsPending('2026-09-24', '2026-09-25', busy, ['t1']), false);
+  assert.equal(selectionOverlapsPending('2026-09-21', '2026-09-22', busy, ['other']), false);
+  const hard = [
+    {
+      tool_id: 't1',
+      starts_at: '2026-09-21T00:00:00.000Z',
+      ends_at: '2026-09-23T23:59:59.000Z',
+      source: 'loan',
+      status: 'active',
+    },
+  ];
+  // hard busy: helper skips (availability already blocks); no pending → false
+  assert.equal(selectionOverlapsPending('2026-09-21', '2026-09-22', hard, ['t1']), false);
+});

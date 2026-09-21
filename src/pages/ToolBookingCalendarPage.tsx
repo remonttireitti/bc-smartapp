@@ -182,7 +182,7 @@ export default function ToolBookingCalendarPage({ session }: Props) {
             <Link to="/">Etusivu</Link> / <Link to="/tyokalut">Työkalut</Link> / Varauskalenteri
           </p>
           <h1>Varauskalenteri</h1>
-          <p className="muted">Lainattavat työkalut, lainat ja ulkoiset varaukset. Suodata kytkimillä — kalenteri värittyy valinnan mukaan (vapaa / jonossa = vahvistamaton varaus / varattu).</p>
+          <p className="muted">Lainattavat työkalut, lainat ja ulkoiset varaukset. Suodata kytkimillä — kalenteri värittyy valinnan mukaan (Vapaa / Vahvistamaton varaus / Varattu).</p>
         </div>
         <div className="page-header-actions" style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap' }}>
           <Link to="/tyokalut" className="btn btn-secondary btn-sm">

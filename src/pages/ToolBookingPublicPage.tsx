@@ -14,9 +14,11 @@ import {
   dateYmdBookingDayStatus,
   deliveryModeFromToggles,
   deliveryModeNeedsAddress,
+  estimateBookingCost,
   evaluateMultiToolAvailability,
   formatToolEuro,
   formatYmdRangeFi,
+  selectionOverlapsPending,
   shiftMonth,
 } from '../lib/toolInventory';
 import {
@@ -135,6 +137,22 @@ export default function ToolBookingPublicPage() {
       perKmEur: Number(bundle.company.delivery_per_km_eur ?? 0),
     });
   }, [bundle, deliveryMode, distanceKm, needsAddress]);
+
+  const costEstimate = useMemo(() => {
+    if (!bundle || !start || !end || selectedToolIds.length === 0) return null;
+    return estimateBookingCost({
+      tools: bundle.tools,
+      selectedIds: selectedToolIds,
+      startYmd: start,
+      endYmd: end,
+      deliveryFeeEur: deliveryFee,
+    });
+  }, [bundle, selectedToolIds, start, end, deliveryFee]);
+
+  const overlapsPending = useMemo(() => {
+    if (!bundle || !start || !end || selectedToolIds.length === 0) return false;
+    return selectionOverlapsPending(start, end, bundle.busy, selectedToolIds);
+  }, [bundle, start, end, selectedToolIds]);
 
   function onPickDay(ymd: string) {
     if (!start || (start && end)) {
@@ -280,20 +298,26 @@ export default function ToolBookingPublicPage() {
       <header className="public-booking-header">
         <h1 style={{ margin: 0 }}>Työkalu varauskalenteri</h1>
         <p className="muted" style={{ margin: '.35rem 0 0' }}>
-          Jonossa = vahvistamaton varaus (keltainen). Vapaa = vihreä, varattu = punainen. Kalenteri
-          päivittyy valittujen työkalujen mukaan.
+          Vapaa = vihreä, vahvistamaton varaus = keltainen, varattu = punainen. Kalenteri päivittyy
+          valittujen työkalujen mukaan.
         </p>
         <ul className="tool-booking-legend" aria-label="Värien selite">
           <li>
             <span className="tool-booking-legend-swatch is-free" aria-hidden="true" /> Vapaa
           </li>
           <li>
-            <span className="tool-booking-legend-swatch is-queued" aria-hidden="true" /> Jonossa
+            <span className="tool-booking-legend-swatch is-queued" aria-hidden="true" />{' '}
+            Vahvistamaton varaus
           </li>
           <li>
             <span className="tool-booking-legend-swatch is-busy" aria-hidden="true" /> Varattu
           </li>
         </ul>
+        <p className="muted tool-booking-legend-hint" style={{ margin: '.5rem 0 0', fontSize: '.88rem' }}>
+          Jos valitsemasi jakso osuu jo <strong>vahvistamattomaan varaukseen</strong> (keltainen),
+          uusi varauksesi <strong>todennäköisesti ei onnistu</strong> — ensimmäinen jonossa
+          vahvistetaan (FIFO). Voit silti lähettää varauksen.
+        </p>
       </header>
 
       {error && <p className="error">{error}</p>}
@@ -337,7 +361,7 @@ export default function ToolBookingPublicPage() {
 
           {!hasSelection && (
             <p className="muted tool-booking-select-hint" role="status">
-              Valitse vähintään yksi työkalu nähdäksesi vapaat / jonossa / varatut päivät.
+              Valitse vähintään yksi työkalu nähdäksesi vapaat / vahvistamattomat / varatut päivät.
             </p>
           )}
 
@@ -428,10 +452,20 @@ export default function ToolBookingPublicPage() {
               )}
               {!availability.messagesFi.skipBusy && selectedToolIds.length > 1 && (
                 <p className="muted" style={{ margin: 0 }}>
-                  Kaikki valitut työkalut ovat vapaita (tai vain jonossa) jaksolla{' '}
+                  Kaikki valitut työkalut ovat vapaita (tai vain vahvistamaton varaus) jaksolla{' '}
                   {formatYmdRangeFi(start, end)}.
                 </p>
               )}
+            </div>
+          )}
+
+          {overlapsPending && start && end && (
+            <div className="tool-booking-suggest tool-booking-pending-warn" role="alert">
+              <p style={{ margin: 0 }}>
+                Valittu jakso osuu <strong>vahvistamattomaan varaukseen</strong>. Uusi varauksesi
+                todennäköisesti ei onnistu — ensimmäinen jonossa vahvistetaan (FIFO). Voit silti
+                lähettää varauksen.
+              </p>
             </div>
           )}
         </section>
@@ -567,6 +601,53 @@ export default function ToolBookingPublicPage() {
             Huomio
             <input value={notes} onChange={(e) => setNotes(e.target.value)} />
           </label>
+
+          {costEstimate && costEstimate.totalEur != null && (
+            <div
+              className="tool-booking-cost-estimate"
+              style={{ gridColumn: '1 / -1' }}
+              aria-live="polite"
+            >
+              <h3 style={{ margin: '0 0 .35rem', fontSize: '1rem' }}>Yhteensä (arvio)</h3>
+              <dl className="tool-booking-cost-rows">
+                <div>
+                  <dt>Vuokra</dt>
+                  <dd>
+                    {costEstimate.rentalEur != null
+                      ? formatToolEuro(costEstimate.rentalEur)
+                      : '—'}
+                    {costEstimate.dayCount > 0 && costEstimate.toolCount > 0 ? (
+                      <span className="muted">
+                        {' '}
+                        ({costEstimate.toolCount} työkalua · {costEstimate.dayCount} pv)
+                      </span>
+                    ) : null}
+                  </dd>
+                </div>
+                <div>
+                  <dt>Kuljetus</dt>
+                  <dd>
+                    {costEstimate.deliveryEur != null
+                      ? formatToolEuro(costEstimate.deliveryEur)
+                      : needsAddress
+                        ? 'syötä km-arvio'
+                        : '0 € (hae itse)'}
+                  </dd>
+                </div>
+                <div className="tool-booking-cost-total">
+                  <dt>Yhteensä</dt>
+                  <dd>
+                    <strong>{formatToolEuro(costEstimate.totalEur)}</strong>
+                  </dd>
+                </div>
+              </dl>
+              <p className="muted" style={{ margin: '.35rem 0 0', fontSize: '.85rem' }}>
+                Arvio valituista hinnoista ja kuljetusosuuksista. Lopullinen summa vahvistetaan
+                yrityksen toimesta.
+              </p>
+            </div>
+          )}
+
           <div className="form-actions">
             <button
               type="submit"
