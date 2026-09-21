@@ -15948,6 +15948,7 @@ button.vrf-toggle:not(:disabled) {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: 0.75rem;
+  align-items: stretch;
 }
 
 .tool-card {
@@ -15958,6 +15959,13 @@ button.vrf-toggle:not(:disabled) {
   margin: 0;
   overflow: hidden;
   min-width: 0;
+}
+
+/* Collapsed list cards: equal height + fixed vertical slots */
+.tool-card:not(.is-expanded) {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
 }
 
 .tool-card.is-expanded {
@@ -15990,12 +15998,47 @@ button.vrf-toggle:not(:disabled) {
   justify-content: space-between;
 }
 
+.tool-card:not(.is-expanded) .tool-card-header {
+  flex: 1 1 auto;
+  flex-direction: column;
+  flex-wrap: nowrap;
+  align-items: stretch;
+  justify-content: flex-start;
+  min-height: 0;
+  gap: 0;
+}
+
 .tool-card-header-main {
   display: flex;
   gap: 0.75rem;
   align-items: flex-start;
   flex: 1 1 14rem;
   min-width: 0;
+}
+
+.tool-card:not(.is-expanded) .tool-card-header-main {
+  flex: 1 1 auto;
+  width: 100%;
+  min-height: 0;
+}
+
+/* Fixed square thumbs in list cards — same box, cover crop */
+.tool-card:not(.is-expanded) .tool-card-header-main > .inventory-photo-thumb {
+  width: 3.25rem;
+  height: 3.25rem;
+  flex-shrink: 0;
+}
+
+.tool-card:not(.is-expanded) .tool-card-header-main .inventory-photo-btn {
+  width: 3.25rem;
+  height: 3.25rem;
+}
+
+.tool-card:not(.is-expanded) .tool-card-header-main .inventory-photo-btn img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
 }
 
 .tool-card-main {
@@ -16009,9 +16052,27 @@ button.vrf-toggle:not(:disabled) {
   min-width: 0;
 }
 
+.tool-card:not(.is-expanded) .tool-card-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
 .tool-card-name {
   font-size: 1.02rem;
   line-height: 1.25;
+}
+
+/* Slot 2: title — always 1–2 lines, reserved height so badges start even */
+.tool-card:not(.is-expanded) .tool-card-name {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  min-height: calc(1.25em * 2);
+  word-break: break-word;
 }
 
 .tool-card-title-row {
@@ -16026,11 +16087,29 @@ button.vrf-toggle:not(:disabled) {
   font-size: 0.88rem;
 }
 
+/* Slot 4: gray meta — fixed one-line slot after badges */
+.tool-card:not(.is-expanded) .tool-card-meta {
+  margin: 0;
+  min-height: 1.35em;
+  line-height: 1.35;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .tool-card-badges {
   margin-top: 0.35rem;
   display: flex;
   flex-wrap: wrap;
   gap: 0.35rem;
+}
+
+/* Slot 3: badges — fixed order in markup; reserve ~2 rows so meta lines up */
+.tool-card:not(.is-expanded) .tool-card-badges {
+  margin-top: 0;
+  align-items: center;
+  align-content: flex-start;
+  min-height: calc((0.75rem * 1.25 + 0.4rem) * 2 + 0.35rem);
 }
 
 .tool-card-toolbar,
@@ -16041,6 +16120,13 @@ button.vrf-toggle:not(:disabled) {
   flex-shrink: 0;
   align-items: center;
   max-width: 100%;
+}
+
+/* Slot 5: footer toggle — always bottom-aligned across the row */
+.tool-card:not(.is-expanded) .tool-card-toolbar {
+  margin-top: auto;
+  width: 100%;
+  padding-top: 0.5rem;
 }
 
 .tool-card-details {
