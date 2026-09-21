@@ -514,7 +514,7 @@ export default function ToolBookingPublicPage() {
               {needsAddress && (
                 <div className="line-form-grid" style={{ marginTop: '.65rem' }}>
                   <label>
-                    Etäisyys (km)
+                    Arvioitu etäisyys (km) — lopullinen matka kuljettajan navigaattorin mukaan
                     <input
                       inputMode="decimal"
                       value={distanceKm}
@@ -530,7 +530,12 @@ export default function ToolBookingPublicPage() {
                     />
                   </label>
                   <p className="muted" style={{ gridColumn: '1 / -1', margin: 0 }}>
-                    Hinta per kuljetusosuus: minimihinta{' '}
+                    Km-kenttä on vain arvio hinnoittelua varten — lopullinen matka tulee
+                    kuljettajan navigaattorista. Ajoja pyritään yhdistämään kustannusten
+                    pienentämiseksi.
+                  </p>
+                  <p className="muted" style={{ gridColumn: '1 / -1', margin: 0 }}>
+                    Arvioitu maksu. Hinta per kuljetusosuus: minimihinta{' '}
                     {formatToolEuro(bundle.company.delivery_min_fee_eur)} (
                     {bundle.company.delivery_distance_limit_km ?? 0} km asti)
                     {bundle.company.delivery_per_km_eur != null

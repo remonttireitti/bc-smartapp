@@ -312,7 +312,7 @@ export const TOOL_BOOKING_STATUS_LABELS: Record<ToolBookingStatus, string> = {
   cancelled: 'Peruttu',
 };
 
-/** FI labels for delivery_mode: none=self both; pickup=self out + company return; delivery=company out + self return; both=company both. */
+/** FI labels for delivery_mode (locked): none / pickup / delivery / both. */
 export const TOOL_BOOKING_DELIVERY_LABELS: Record<ToolBookingDeliveryMode, string> = {
   none: 'Haen ja palautan itse',
   pickup: 'Haen työkalu(t) itse, tilaan palautuksen',

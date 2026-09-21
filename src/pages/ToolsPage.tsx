@@ -691,7 +691,9 @@ export default function ToolsPage({ session }: Props) {
               <p className="muted" style={{ gridColumn: '1 / -1', margin: 0 }}>
                 Hinta per kuljetusosuus (vienti tai palautusnouto). Lyhyt matka (≤ raja): minimihinta.
                 Yli rajan: minimihinta + ylimääräiset km × €/km. Molemmat osuudet = 2 × osuuden hinta.
-                «Haen ja palautan itse» = ei kuljetusmaksua.
+                «Haen ja palautan itse» = ei kuljetusmaksua. Asiakkaan km on arvio; lopullinen matka
+                määräytyy kuljettajan navigaattorin mukaan. Ajoja pyritään yhdistämään kustannusten
+                pienentämiseksi.
               </p>
               <div className="form-actions">
                 <button type="submit" className="btn btn-primary btn-sm" disabled={busy}>
