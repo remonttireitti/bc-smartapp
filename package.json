@@ -53,6 +53,7 @@
     "test:work-report-customer-print": "npx tsx scripts/test-work-report-customer-print.mjs",
     "test:lampokatsastus-branding": "npx tsx scripts/test-lampokatsastus-branding.mjs",
     "test:customer-billing-copy": "npx tsx scripts/test-customer-billing-copy.mjs",
+    "test:work-report-list-summary": "npx tsx scripts/test-work-report-list-summary.mjs",
     "test:quote-plus-extras-billing": "npx tsx scripts/test-quote-plus-extras-billing.mjs",
     "test:installation-supplies-calc": "npx tsx scripts/test-installation-supplies-calc.mjs",
     "test:daily-overtime-billing": "npx tsx scripts/test-daily-overtime-billing.mjs",

@@ -5796,6 +5796,55 @@ textarea {
   min-width: 0;
 }
 
+
+.work-report-list-summary-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: .55rem;
+  margin: 0 0 .85rem;
+}
+
+.work-report-list-summary-wrap .work-report-list-sort {
+  align-self: flex-start;
+}
+
+.work-report-list-summary {
+  display: flex;
+  flex-direction: column;
+  gap: .45rem;
+  line-height: 1.35;
+}
+
+.work-report-list-summary-group {
+  display: flex;
+  flex-direction: column;
+  gap: .15rem;
+}
+
+.work-report-list-summary-status {
+  font-weight: 600;
+  color: var(--text-secondary);
+  font-size: .9rem;
+}
+
+.work-report-list-summary-partners {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: .1rem;
+}
+
+.work-report-list-summary-partners li {
+  padding-left: .1rem;
+}
+
+.work-report-list-summary-partners li::before {
+  content: '· ';
+  color: var(--text-muted);
+}
+
 .work-report-list-grid,
 .maintenance-report-list-grid,
 .work-report-section-grid {
