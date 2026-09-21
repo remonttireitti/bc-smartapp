@@ -47,6 +47,11 @@ import {
   type PartnerBillWorkflowChoice,
   unmarkPartnerReportBilled,
   unmarkCustomerReportBilled,
+  recordBillingTextCopied,
+  recordPrintLinkCopied,
+  withBillingCopyTimestamp,
+  formatBillingTextCopiedLabel,
+  formatPrintLinkCopiedLabel,
   type BillingListRow,
   type BillingModuleMode,
 } from '../lib/workReportBillingCopy';
@@ -122,7 +127,8 @@ const REPORT_SELECT = `
   delegate_company:companies!work_reports_delegate_company_id_fkey(name),
   billing:work_report_billing(
     partner_invoice_status, partner_invoice_amount, partner_billed_amount, partner_billed_at,
-    customer_invoice_status, customer_invoice_amount, customer_billed_at
+    customer_invoice_status, customer_invoice_amount, customer_billed_at,
+    billing_text_copied_at, print_link_copied_at
   ),
   billable:work_report_billable(partner_total, calculation, customer_total, customer_calculation, calculated_at, partner_recalc_needed)
 `;
@@ -827,6 +833,10 @@ export default function BillingPage({ session }: Props) {
     try {
       const { text, partialUnbilledOnly } = await loadBillingCopyText(supabase, row, rowBillingMode(row));
       await navigator.clipboard.writeText(text);
+      const copiedAt = await recordBillingTextCopied(supabase, row.id);
+      setRows((prev) =>
+        prev.map((item) => (item.id === row.id ? withBillingCopyTimestamp(item, 'billing_text', copiedAt) : item)),
+      );
       setMessage(
         partialUnbilledOnly
           ? 'Laskuttamatta oleva teksti kopioitu leikepöydälle.'
@@ -847,6 +857,10 @@ export default function BillingPage({ session }: Props) {
     try {
       const url = await loadBillingPrintShareLink(row, profile.company_id);
       await navigator.clipboard.writeText(url);
+      const copiedAt = await recordPrintLinkCopied(supabase, row.id);
+      setRows((prev) =>
+        prev.map((item) => (item.id === row.id ? withBillingCopyTimestamp(item, 'print_link', copiedAt) : item)),
+      );
       setMessage('Tulostelinkki kopioitu leikepöydälle.');
     } catch (copyError) {
       setError(copyError instanceof Error ? copyError.message : 'Kopiointi epäonnistui.');
@@ -1522,6 +1536,8 @@ function BillingReportCard({
   const calculatedAtLabel = row.billable?.calculated_at
     ? formatDateTime(row.billable.calculated_at)
     : null;
+  const billingTextCopiedLabel = formatBillingTextCopiedLabel(row.billing?.billing_text_copied_at);
+  const printLinkCopiedLabel = formatPrintLinkCopiedLabel(row.billing?.print_link_copied_at);
 
   return (
     <article className={`billing-report-card panel${isRecalculating ? ' billing-report-card-recalculating' : ''}`}>
@@ -1543,6 +1559,16 @@ function BillingReportCard({
               <span className="billing-calc-badge billing-calc-badge-none">Päivitettävä</span>
             ) : billingEnabled ? (
               <span className="billing-calc-badge billing-calc-badge-none">Ei laskettu</span>
+            ) : null}
+            {billingTextCopiedLabel ? (
+              <span className="billing-calc-badge billing-calc-badge-ready" title={billingTextCopiedLabel}>
+                {billingTextCopiedLabel}
+              </span>
+            ) : null}
+            {printLinkCopiedLabel ? (
+              <span className="billing-calc-badge billing-calc-badge-ready" title={printLinkCopiedLabel}>
+                {printLinkCopiedLabel}
+              </span>
             ) : null}
           </div>
           <p className="billing-report-meta">

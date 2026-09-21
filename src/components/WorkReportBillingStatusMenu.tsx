@@ -14,6 +14,8 @@ import {
   shouldPromptPartnerBillWorkflow,
   unmarkCustomerReportBilled,
   unmarkPartnerReportBilled,
+  recordBillingTextCopied,
+  recordPrintLinkCopied,
   type BillingListRow,
   type PartnerBillWorkflowChoice,
 } from '../lib/workReportBillingCopy';
@@ -121,7 +123,9 @@ export default function WorkReportBillingStatusMenu({
     try {
       const { text, partialUnbilledOnly } = await loadBillingCopyText(supabase, billingRow, mode);
       await navigator.clipboard.writeText(text);
+      await recordBillingTextCopied(supabase, report.id);
       setOpen(false);
+      onChanged?.();
       onNotice?.(
         partialUnbilledOnly
           ? 'Laskuttamatta oleva teksti kopioitu leikepöydälle.'
@@ -139,7 +143,9 @@ export default function WorkReportBillingStatusMenu({
     try {
       const url = await loadBillingPrintShareLink(billingRow, viewerCompanyId);
       await navigator.clipboard.writeText(url);
+      await recordPrintLinkCopied(supabase, report.id);
       setOpen(false);
+      onChanged?.();
       onNotice?.('Tulostelinkki kopioitu leikepöydälle.');
     } catch (error) {
       onError?.(error instanceof Error ? error.message : 'Kopiointi epäonnistui.');

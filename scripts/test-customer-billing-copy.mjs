@@ -4,6 +4,9 @@ import {
   filterPartnerBillingCopyLogs,
   formatWorkReportBillingCopy,
   formatWorkReportCustomerBillingCopy,
+  formatBillingTextCopiedLabel,
+  formatPrintLinkCopiedLabel,
+  withBillingCopyTimestamp,
 } from '../src/lib/workReportBillingCopy.ts';
 
 function test(name, fn) {
@@ -191,6 +194,63 @@ test('partner billing copy keeps all logs when partial only from recalculated op
   assert.equal(partialUnbilledOnly, false);
   assert.equal(filtered.length, 1);
   assert.equal(filtered[0].id, 'only');
+});
+
+
+test('billing text copied label uses Finnish format and returns null when unset', () => {
+  assert.equal(formatBillingTextCopiedLabel(null), null);
+  assert.equal(formatBillingTextCopiedLabel(undefined), null);
+  const label = formatBillingTextCopiedLabel('2026-09-21T13:00:00.000Z');
+  assert.match(label, /^Laskutusteksti kopioitu - /);
+  assert.match(label, /21\.9\.2026/);
+  assert.match(label, /klo/);
+});
+
+test('print link copied label uses Finnish format and returns null when unset', () => {
+  assert.equal(formatPrintLinkCopiedLabel(null), null);
+  const label = formatPrintLinkCopiedLabel('2026-09-21T13:00:00.000Z');
+  assert.match(label, /^Tulostelinkki kopioitu - /);
+  assert.match(label, /21\.9\.2026/);
+});
+
+test('withBillingCopyTimestamp updates only the matching field and not invoice status', () => {
+  const row = {
+    id: 'wr-1',
+    title: 'Test',
+    status: 'completed',
+    completed_at: null,
+    scheduled_start: null,
+    created_at: '2026-09-01T00:00:00.000Z',
+    owner_company_id: 'o',
+    created_by_company_id: 'o',
+    delegate_company_id: null,
+    customers: null,
+    owner_company: null,
+    delegate_company: null,
+    billing: {
+      partner_invoice_status: 'none',
+      partner_invoice_amount: 100,
+      partner_billed_amount: null,
+      partner_billed_at: null,
+      customer_invoice_status: 'none',
+      customer_invoice_amount: null,
+      customer_billed_at: null,
+    },
+    billable: null,
+  };
+  const afterText = withBillingCopyTimestamp(row, 'billing_text', '2026-09-21T13:00:00.000Z');
+  assert.equal(afterText.billing.billing_text_copied_at, '2026-09-21T13:00:00.000Z');
+  assert.equal(afterText.billing.print_link_copied_at, undefined);
+  assert.equal(afterText.billing.partner_invoice_status, 'none');
+  assert.equal(afterText.billing.customer_invoice_status, 'none');
+
+  const afterLink = withBillingCopyTimestamp(afterText, 'print_link', '2026-09-21T14:00:00.000Z');
+  assert.equal(afterLink.billing.billing_text_copied_at, '2026-09-21T13:00:00.000Z');
+  assert.equal(afterLink.billing.print_link_copied_at, '2026-09-21T14:00:00.000Z');
+  assert.equal(afterLink.billing.partner_invoice_status, 'none');
+
+  const reCopy = withBillingCopyTimestamp(afterLink, 'billing_text', '2026-09-21T15:00:00.000Z');
+  assert.equal(reCopy.billing.billing_text_copied_at, '2026-09-21T15:00:00.000Z');
 });
 
 console.log('All customer billing copy tests passed.');
