@@ -1,23 +1,20 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import ToolBookingMultiSelectDialog from '../components/ToolBookingMultiSelectDialog';
+import ToolBookingLoanToggleList from '../components/ToolBookingLoanToggleList';
 import {
   createPublicToolBookings,
   loadToolsBookingPublic,
 } from '../lib/toolBookingShares';
-import { inventoryImagePublicUrl } from '../lib/inventoryImages';
 import {
   buildMonthGrid,
   computeDeliveryFee,
   dateInputToIsoEnd,
   dateInputToIsoStart,
-  dateYmdAllSelectedFree,
+  dateYmdBookingDayStatus,
   evaluateMultiToolAvailability,
   formatToolEuro,
   formatYmdRangeFi,
   shiftMonth,
-  toolDayRateBadge,
-  toolRateLabelRows,
 } from '../lib/toolInventory';
 import type { ToolBookingPublicBundle } from '../types/inventory';
 
@@ -29,13 +26,12 @@ export default function ToolBookingPublicPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [cursor, setCursor] = useState(() => {
     const now = new Date();
     return { year: now.getFullYear(), monthIndex0: now.getMonth() };
   });
   const [selectedToolIds, setSelectedToolIds] = useState<string[]>([]);
-  const [pickerOpen, setPickerOpen] = useState(false);
   const [start, setStart] = useState('');
   const [end, setEnd] = useState('');
   const [guestName, setGuestName] = useState('');
@@ -75,13 +71,12 @@ export default function ToolBookingPublicPage() {
   }, [token]);
 
   useEffect(() => {
-    if (!bundle?.company.name) return;
     const prev = document.title;
-    document.title = `Varauskalenteri — ${bundle.company.name}`;
+    document.title = 'Työkalu varauskalenteri';
     return () => {
       document.title = prev;
     };
-  }, [bundle?.company.name]);
+  }, []);
 
   const grid = useMemo(
     () => buildMonthGrid(cursor.year, cursor.monthIndex0),
@@ -103,7 +98,7 @@ export default function ToolBookingPublicPage() {
   );
 
   const availability = useMemo(() => {
-    if (!bundle || !start || !end) return null;
+    if (!bundle || !start || !end || selectedToolIds.length === 0) return null;
     return evaluateMultiToolAvailability({
       tools: bundle.tools.map((t) => ({ id: t.id, name: t.name })),
       selectedIds: selectedToolIds,
@@ -137,7 +132,6 @@ export default function ToolBookingPublicPage() {
       return;
     }
     setEnd(ymd);
-    setPickerOpen(true);
   }
 
   function proceedWithoutBusy() {
@@ -160,8 +154,7 @@ export default function ToolBookingPublicPage() {
       return;
     }
     if (selectedToolIds.length === 0) {
-      setError('Valitse vähintään yksi työkalu.');
-      setPickerOpen(true);
+      setError('Valitse vähintään yksi työkalu (Lainaa tämä).');
       return;
     }
     if (!guestName.trim()) {
@@ -184,11 +177,10 @@ export default function ToolBookingPublicPage() {
         evalNow?.messagesFi.skipBusy ||
           'Mikään valituista työkaluista ei ole vapaa valitulla jaksolla.',
       );
-      setPickerOpen(true);
       return;
     }
 
-    setBusy(true);
+    setSubmitting(true);
     setError(null);
     setMessage(null);
     try {
@@ -211,12 +203,12 @@ export default function ToolBookingPublicPage() {
         .map((t) => t.name);
       const failNote =
         result.failures.length > 0
-          ? ` (${result.failures.length} työkalua ei voitu varata limittäisyyden vuoksi)`
+          ? ` (${result.failures.length} työkalua ei voitu varata)`
           : '';
       setMessage(
         bookedNames.length === 1
-          ? `Varauspyyntö lähetetty: ${bookedNames[0]}.${failNote} Saat vahvistuksen yritykseltä.`
-          : `Varauspyynnöt lähetetty (${bookedNames.length} työkalua): ${bookedNames.join(', ')}.${failNote} Saat vahvistuksen yritykseltä.`,
+          ? `Varauspyyntö jonossa: ${bookedNames[0]}.${failNote} Saat vahvistuksen yritykseltä.`
+          : `Varauspyynnöt jonossa (${bookedNames.length}): ${bookedNames.join(', ')}.${failNote} Saat vahvistuksen yritykseltä.`,
       );
       setGuestName('');
       setGuestPhone('');
@@ -231,7 +223,7 @@ export default function ToolBookingPublicPage() {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Varaus epäonnistui.');
     } finally {
-      setBusy(false);
+      setSubmitting(false);
     }
   }
 
@@ -246,7 +238,7 @@ export default function ToolBookingPublicPage() {
   if (error && !bundle) {
     return (
       <div className="public-booking-page">
-        <h1>Varauskalenteri</h1>
+        <h1>Työkalu varauskalenteri</h1>
         <p className="error">{error}</p>
       </div>
     );
@@ -254,199 +246,186 @@ export default function ToolBookingPublicPage() {
 
   if (!bundle) return null;
 
+  const hasSelection = selectedToolIds.length > 0;
+
   return (
     <div className="public-booking-page">
       <header className="public-booking-header">
-        <p className="muted" style={{ margin: 0 }}>
-          Julkinen varaus
+        <h1 style={{ margin: 0 }}>Työkalu varauskalenteri</h1>
+        <p className="muted" style={{ margin: '.35rem 0 0' }}>
+          Vapaa = vihreä, jonossa = keltainen, varattu = punainen. Kalenteri päivittyy valittujen
+          työkalujen mukaan.
         </p>
-        <h1 style={{ margin: '.2rem 0 0' }}>{bundle.company.name}</h1>
-        <p className="muted">
-          Valitse jakso kalenterista, sitten työkalut. Vapaa = vihreä, varattu = punainen
-          {selectedToolIds.length > 1 ? ' (valituille työkaluille yhteinen vapaus)' : ''}.
-        </p>
+        <ul className="tool-booking-legend" aria-label="Värien selite">
+          <li>
+            <span className="tool-booking-legend-swatch is-free" aria-hidden="true" /> Vapaa
+          </li>
+          <li>
+            <span className="tool-booking-legend-swatch is-queued" aria-hidden="true" /> Jonossa
+          </li>
+          <li>
+            <span className="tool-booking-legend-swatch is-busy" aria-hidden="true" /> Varattu
+          </li>
+        </ul>
       </header>
 
       {error && <p className="error">{error}</p>}
       {message && <p className="muted">{message}</p>}
 
-      <section className="panel">
-        <div className="tool-booking-cal-nav">
-          <button
-            type="button"
-            className="btn btn-secondary btn-sm"
-            onClick={() => setCursor((c) => shiftMonth(c.year, c.monthIndex0, -1))}
-          >
-            ←
-          </button>
-          <h2 style={{ margin: 0, textTransform: 'capitalize', fontSize: '1.1rem' }}>{monthLabel}</h2>
-          <button
-            type="button"
-            className="btn btn-secondary btn-sm"
-            onClick={() => setCursor((c) => shiftMonth(c.year, c.monthIndex0, 1))}
-          >
-            →
-          </button>
-        </div>
-        <div className="tool-booking-cal-weekdays">
-          {WEEKDAYS.map((d) => (
-            <span key={d}>{d}</span>
-          ))}
-        </div>
-        <div className="tool-booking-cal-grid" role="grid" aria-label="Varauskalenteri">
-          {grid.map((cell) => {
-            const allFree = dateYmdAllSelectedFree(cell.ymd, bundle.busy, selectedToolIds);
-            const inRange =
-              Boolean(start) &&
-              cell.ymd >= start &&
-              Boolean(end ? cell.ymd <= end : cell.ymd === start);
-            return (
-              <button
-                key={cell.ymd}
-                type="button"
-                className={`tool-booking-cal-day ${cell.inMonth ? '' : 'is-outside'} ${
-                  allFree ? 'is-free' : 'is-busy'
-                } ${inRange ? 'is-selected' : ''}`}
-                disabled={!cell.inMonth}
-                onClick={() => onPickDay(cell.ymd)}
-              >
-                <span className="tool-booking-cal-day-num">{cell.date.getDate()}</span>
-              </button>
-            );
-          })}
-        </div>
-        <div className="tool-booking-range-bar">
-          <p className="muted" style={{ margin: 0, fontSize: '.9rem' }}>
-            Valittu jakso:{' '}
-            {start ? (end ? formatYmdRangeFi(start, end) : start) : '—'}
-            {selectedTools.length > 0 ? ` · ${selectedTools.map((t) => t.name).join(', ')}` : ''}
+      <div className="tool-booking-public-layout">
+        <section className="panel tool-booking-tools-panel">
+          <h2 style={{ marginTop: 0 }}>Lainattavat työkalut</h2>
+          <p className="muted" style={{ marginTop: 0 }}>
+            Kytke päälle &quot;Lainaa tämä&quot; — kalenteri näyttää heti yhteisen vapauden.
           </p>
-          <button
-            type="button"
-            className="btn btn-primary btn-sm"
-            disabled={!start || !end}
-            onClick={() => setPickerOpen(true)}
-          >
-            Valitse työkalut…
-          </button>
-        </div>
-      </section>
-
-      <section className="panel">
-        <h2>Lainattavat työkalut</h2>
-        {bundle.tools.length === 0 ? (
-          <p className="muted">Ei lainattavia työkaluja juuri nyt.</p>
-        ) : (
-          <ul className="tool-card-grid">
-            {bundle.tools.map((tool) => {
-              const selected = selectedToolIds.includes(tool.id);
-              const thumb = tool.image_path ? inventoryImagePublicUrl(tool.image_path) : null;
-              const dayBadge = toolDayRateBadge(tool);
-              const conflict =
-                selected &&
-                start &&
-                end &&
-                availability?.busyTools.some((b) => b.id === tool.id);
-              return (
-                <li key={tool.id}>
-                  <button
-                    type="button"
-                    className={`tool-card tool-card-select ${selected ? 'is-selected' : ''} ${
-                      conflict ? 'is-conflict' : ''
-                    }`}
-                    onClick={() => {
-                      setSelectedToolIds((prev) =>
-                        prev.includes(tool.id)
-                          ? prev.filter((id) => id !== tool.id)
-                          : [...prev, tool.id],
-                      );
-                      if (start && end) setPickerOpen(true);
-                    }}
-                  >
-                    <div className="tool-card-thumb" aria-hidden="true">
-                      {thumb ? <img src={thumb} alt="" /> : <span className="muted">—</span>}
-                    </div>
-                    <div className="tool-card-body">
-                      <strong>{tool.name}</strong>
-                      <p className="muted" style={{ margin: '.2rem 0 0' }}>
-                        {tool.category ?? 'Työkalu'}
-                        {dayBadge ? ` · ${dayBadge}` : ''}
-                        {selected ? (conflict ? ' · varattu jaksolla' : ' · valittu') : ''}
-                      </p>
-                      <p style={{ margin: '.35rem 0 0', fontSize: '.85rem' }}>
-                        {toolRateLabelRows(tool)
-                          .filter((r) => r.value !== '—')
-                          .map((r) => `${r.label} ${r.value}`)
-                          .join(' · ') || 'Hinnasto sovitaan'}
-                      </p>
-                    </div>
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </section>
-
-      {availability && selectedToolIds.length > 0 && start && end && (
-        <section className="panel tool-booking-suggest-panel">
-          {availability.messagesFi.skipBusy && (
-            <div className="tool-booking-suggest" role="status">
-              <p style={{ margin: 0 }}>{availability.messagesFi.skipBusy}</p>
-              {availability.freeTools.length > 0 && (
-                <button type="button" className="btn btn-secondary btn-sm" onClick={proceedWithoutBusy}>
-                  Vuokraa ilman varattuja
-                </button>
-              )}
-            </div>
-          )}
-          {availability.messagesFi.nextWindow && (
-            <div className="tool-booking-suggest" role="status">
-              <p style={{ margin: 0 }}>{availability.messagesFi.nextWindow}</p>
-              {availability.nextAllFreeWindow && (
-                <button
-                  type="button"
-                  className="btn btn-secondary btn-sm"
-                  onClick={() =>
-                    applyNextWindow(
-                      availability.nextAllFreeWindow!.startYmd,
-                      availability.nextAllFreeWindow!.endYmd,
-                    )
-                  }
-                >
-                  Käytä ehdotettua jaksoa
-                </button>
-              )}
-            </div>
-          )}
-          {!availability.messagesFi.skipBusy && selectedToolIds.length > 1 && (
-            <p className="muted" style={{ margin: 0 }}>
-              Kaikki valitut työkalut ovat vapaita jaksolla {formatYmdRangeFi(start, end)}.
-            </p>
-          )}
+          <ToolBookingLoanToggleList
+            tools={bundle.tools}
+            busy={bundle.busy}
+            selectedIds={selectedToolIds}
+            onChangeSelectedIds={setSelectedToolIds}
+            startYmd={start}
+            endYmd={end}
+            conflictIds={availability?.busyTools.map((t) => t.id) ?? []}
+          />
         </section>
-      )}
 
-      <section className="panel form-section">
-        <h2>Tee varaus</h2>
-        <form onSubmit={(e) => void onSubmit(e)} className="line-form-grid">
-          <div style={{ gridColumn: '1 / -1' }}>
-            <p style={{ margin: '0 0 .35rem' }}>
-              <strong>Työkalut *</strong>{' '}
-              <span className="muted">
-                {selectedTools.length === 0
-                  ? 'ei valittu'
-                  : selectedTools.map((t) => t.name).join(', ')}
-              </span>
-            </p>
+        <section className="panel tool-booking-cal-panel">
+          <div className="tool-booking-cal-nav">
             <button
               type="button"
               className="btn btn-secondary btn-sm"
-              disabled={!start || !end}
-              onClick={() => setPickerOpen(true)}
+              onClick={() => setCursor((c) => shiftMonth(c.year, c.monthIndex0, -1))}
             >
-              Muokkaa työkaluvalintaa…
+              ←
             </button>
+            <h2 style={{ margin: 0, textTransform: 'capitalize', fontSize: '1.05rem' }}>{monthLabel}</h2>
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              onClick={() => setCursor((c) => shiftMonth(c.year, c.monthIndex0, 1))}
+            >
+              →
+            </button>
+          </div>
+
+          {!hasSelection && (
+            <p className="muted tool-booking-select-hint" role="status">
+              Valitse vähintään yksi työkalu nähdäksesi vapaat / jonossa / varatut päivät.
+            </p>
+          )}
+
+          <div className="tool-booking-cal-weekdays">
+            {WEEKDAYS.map((d) => (
+              <span key={d}>{d}</span>
+            ))}
+          </div>
+          <div
+            className="tool-booking-cal-grid tool-booking-cal-grid--compact"
+            role="grid"
+            aria-label="Varauskalenteri"
+          >
+            {grid.map((cell) => {
+              const status = hasSelection
+                ? dateYmdBookingDayStatus(cell.ymd, bundle.busy, selectedToolIds)
+                : 'neutral';
+              const inRange =
+                Boolean(start) &&
+                cell.ymd >= start &&
+                Boolean(end ? cell.ymd <= end : cell.ymd === start);
+              const statusClass =
+                status === 'free'
+                  ? 'is-free'
+                  : status === 'queued'
+                    ? 'is-queued'
+                    : status === 'busy'
+                      ? 'is-busy'
+                      : 'is-neutral';
+              return (
+                <button
+                  key={cell.ymd}
+                  type="button"
+                  className={`tool-booking-cal-day tool-booking-cal-day--sm ${
+                    cell.inMonth ? '' : 'is-outside'
+                  } ${statusClass} ${inRange ? 'is-selected' : ''}`}
+                  disabled={!cell.inMonth}
+                  onClick={() => onPickDay(cell.ymd)}
+                >
+                  <span className="tool-booking-cal-day-num">{cell.date.getDate()}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="tool-booking-range-bar">
+            <p className="muted" style={{ margin: 0, fontSize: '.9rem' }}>
+              Valittu jakso:{' '}
+              {start ? (end ? formatYmdRangeFi(start, end) : `${start} …`) : '—'}
+              {selectedTools.length > 0 ? ` · ${selectedTools.map((t) => t.name).join(', ')}` : ''}
+            </p>
+          </div>
+
+          {availability && start && end && (
+            <div className="tool-booking-suggest-panel">
+              {availability.messagesFi.skipBusy && (
+                <div className="tool-booking-suggest" role="status">
+                  <p style={{ margin: 0 }}>{availability.messagesFi.skipBusy}</p>
+                  {availability.freeTools.length > 0 && (
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      onClick={proceedWithoutBusy}
+                    >
+                      Vuokraa ilman varattuja
+                    </button>
+                  )}
+                </div>
+              )}
+              {availability.messagesFi.nextWindow && (
+                <div className="tool-booking-suggest" role="status">
+                  <p style={{ margin: 0 }}>{availability.messagesFi.nextWindow}</p>
+                  {availability.nextAllFreeWindow && (
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      onClick={() =>
+                        applyNextWindow(
+                          availability.nextAllFreeWindow!.startYmd,
+                          availability.nextAllFreeWindow!.endYmd,
+                        )
+                      }
+                    >
+                      Käytä ehdotettua jaksoa
+                    </button>
+                  )}
+                </div>
+              )}
+              {!availability.messagesFi.skipBusy && selectedToolIds.length > 1 && (
+                <p className="muted" style={{ margin: 0 }}>
+                  Kaikki valitut työkalut ovat vapaita (tai vain jonossa) jaksolla{' '}
+                  {formatYmdRangeFi(start, end)}.
+                </p>
+              )}
+            </div>
+          )}
+        </section>
+      </div>
+
+      <section className="panel form-section">
+        <h2>Lähetä varauspyyntö</h2>
+        <p className="muted" style={{ marginTop: 0 }}>
+          Pyyntö menee jonoon (keltainen). Yritys vahvistaa — vapautuessa ensimmäinen jonossa saa
+          vuoron.
+        </p>
+        <form onSubmit={(e) => void onSubmit(e)} className="line-form-grid">
+          <div style={{ gridColumn: '1 / -1' }}>
+            <p style={{ margin: 0 }}>
+              <strong>Työkalut *</strong>{' '}
+              <span className="muted">
+                {selectedTools.length === 0
+                  ? 'ei valittu — käytä kytkimiä yllä'
+                  : selectedTools.map((t) => t.name).join(', ')}
+              </span>
+            </p>
           </div>
           <label>
             Alkaa *
@@ -526,7 +505,10 @@ export default function ToolBookingPublicPage() {
                   </label>
                   <label>
                     Toimitusosoite
-                    <input value={deliveryAddress} onChange={(e) => setDeliveryAddress(e.target.value)} />
+                    <input
+                      value={deliveryAddress}
+                      onChange={(e) => setDeliveryAddress(e.target.value)}
+                    />
                   </label>
                   <p className="muted" style={{ gridColumn: '1 / -1', margin: 0 }}>
                     Minimihinta {formatToolEuro(bundle.company.delivery_min_fee_eur)} (
@@ -551,31 +533,17 @@ export default function ToolBookingPublicPage() {
             <button
               type="submit"
               className="btn btn-primary"
-              disabled={busy || selectedToolIds.length === 0 || !start || !end}
+              disabled={submitting || selectedToolIds.length === 0 || !start || !end}
             >
-              {busy
+              {submitting
                 ? 'Lähetetään…'
                 : selectedToolIds.length > 1
-                  ? `Lähetä varauspyynnöt (${selectedToolIds.length})`
-                  : 'Lähetä varauspyyntö'}
+                  ? `Lähetä jonoon (${selectedToolIds.length})`
+                  : 'Lähetä jonoon'}
             </button>
           </div>
         </form>
       </section>
-
-      <ToolBookingMultiSelectDialog
-        open={pickerOpen}
-        tools={bundle.tools}
-        busy={bundle.busy}
-        startYmd={start || end}
-        endYmd={end || start}
-        selectedIds={selectedToolIds}
-        onChangeSelectedIds={setSelectedToolIds}
-        onClose={() => setPickerOpen(false)}
-        onConfirm={() => setPickerOpen(false)}
-        onApplyNextWindow={(s, eYmd) => applyNextWindow(s, eYmd)}
-        onProceedWithoutBusy={proceedWithoutBusy}
-      />
     </div>
   );
 }

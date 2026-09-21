@@ -5,7 +5,10 @@ import {
   canStartToolLoan,
   computeDeliveryFee,
   dateYmdAllSelectedFree,
+  dateYmdBookingDayStatus,
   dateYmdOverlapsBusy,
+  isHardBusyRange,
+  isQueuedBusyRange,
   evaluateMultiToolAvailability,
   formatLoanRangeFi,
   formatToolEuro,
@@ -324,6 +327,25 @@ test('multi-tool availability suggestions (skip busy + next window)', () => {
   assert.equal(allFree.busyTools.length, 0);
   assert.equal(allFree.nextAllFreeWindow, null);
   assert.equal(allFree.messagesFi.skipBusy, null);
+});
+
+
+test('booking day status: free / queued / busy and selection filter', () => {
+  const ranges = [
+    { tool_id: 'a', starts_at: '2026-09-10T00:00:00.000Z', ends_at: '2026-09-12T23:59:59.000Z', source: 'booking', status: 'pending' },
+    { tool_id: 'b', starts_at: '2026-09-10T00:00:00.000Z', ends_at: '2026-09-12T23:59:59.000Z', source: 'booking', status: 'confirmed' },
+    { tool_id: 'c', starts_at: '2026-09-20T00:00:00.000Z', ends_at: '2026-09-21T23:59:59.000Z', source: 'loan', status: 'active' },
+  ];
+  assert.equal(isQueuedBusyRange(ranges[0]), true);
+  assert.equal(isHardBusyRange(ranges[0]), false);
+  assert.equal(isHardBusyRange(ranges[1]), true);
+  assert.equal(dateYmdBookingDayStatus('2026-09-11', ranges, ['a']), 'queued');
+  assert.equal(dateYmdBookingDayStatus('2026-09-11', ranges, ['b']), 'busy');
+  assert.equal(dateYmdBookingDayStatus('2026-09-11', ranges, ['a', 'b']), 'busy');
+  assert.equal(dateYmdBookingDayStatus('2026-09-15', ranges, ['a']), 'free');
+  assert.equal(dateYmdBookingDayStatus('2026-09-20', ranges, ['c']), 'busy');
+  // empty selection = all tools (union)
+  assert.equal(dateYmdBookingDayStatus('2026-09-11', ranges, []), 'busy');
 });
 
 console.log('All tool inventory + delivery fee tests passed.');

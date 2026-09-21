@@ -302,6 +302,46 @@ function isoToYmdUtc(iso: string): string | null {
   return `${y}-${m}-${day}`;
 }
 
+
+/** Pending booking = queue (Jonossa), not a hard hold. Loans / blockouts / confirmed = hard busy. */
+export function isHardBusyRange(range: BusyRange): boolean {
+  if (range.source === 'booking' && range.status === 'pending') return false;
+  // booking confirmed, loan, blockout, or unknown status on non-pending booking
+  return true;
+}
+
+export function isQueuedBusyRange(range: BusyRange): boolean {
+  return range.source === 'booking' && range.status === 'pending';
+}
+
+export type BookingDayStatus = 'free' | 'queued' | 'busy';
+
+/**
+ * Calendar day status for selected tools (or all tools when selection empty):
+ * - busy: any hard hold (loan / blockout / confirmed)
+ * - queued: only pending request(s) in queue
+ * - free: nothing overlapping
+ */
+export function dateYmdBookingDayStatus(
+  ymd: string,
+  ranges: BusyRange[],
+  selectedToolIds: string[] = [],
+): BookingDayStatus {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(ymd)) return 'free';
+  const relevant = ranges.filter((r) => {
+    if (selectedToolIds.length > 0 && !selectedToolIds.includes(r.tool_id)) return false;
+    const startYmd = isoToYmdUtc(r.starts_at);
+    if (!startYmd) return false;
+    const endYmd = r.ends_at ? isoToYmdUtc(r.ends_at) : null;
+    if (ymd < startYmd) return false;
+    if (endYmd != null && ymd > endYmd) return false;
+    return true;
+  });
+  if (relevant.some(isHardBusyRange)) return 'busy';
+  if (relevant.some(isQueuedBusyRange)) return 'queued';
+  return 'free';
+}
+
 /** Onko kalenteripäivä (YYYY-MM-DD) varattu busy-jaksolle (UTC-päivärajoilla). */
 export function dateYmdOverlapsBusy(ymd: string, ranges: BusyRange[], toolId?: string): boolean {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(ymd)) return false;
@@ -382,11 +422,14 @@ export function rangeOverlapsBusyForTool(
   endYmd: string,
   ranges: BusyRange[],
   toolId: string,
+  opts?: { hardOnly?: boolean },
 ): boolean {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(startYmd) || !/^\d{4}-\d{2}-\d{2}$/.test(endYmd)) return false;
   if (endYmd < startYmd) return false;
+  const hardOnly = opts?.hardOnly !== false; // default: pending queue does not hard-block
   for (const range of ranges) {
     if (range.tool_id !== toolId) continue;
+    if (hardOnly && !isHardBusyRange(range)) continue;
     const busyStart = isoToYmdUtc(range.starts_at);
     if (!busyStart) continue;
     const busyEnd = range.ends_at ? isoToYmdUtc(range.ends_at) : null;
@@ -416,7 +459,7 @@ export type MultiToolAvailability = {
 /**
  * Partition selected tools into free/busy for [startYmd, endYmd] and suggest
  * the next contiguous window of the same inclusive length where all are free.
- * Busy sources (loan / blockout / booking) are treated equally.
+ * Hard busy (loan / blockout / confirmed) blocks; pending = queue (still bookable).
  */
 export function evaluateMultiToolAvailability(opts: {
   tools: NamedToolRef[];
@@ -500,8 +543,5 @@ export function dateYmdAllSelectedFree(
   ranges: BusyRange[],
   selectedToolIds: string[],
 ): boolean {
-  if (selectedToolIds.length === 0) {
-    return !dateYmdOverlapsBusy(ymd, ranges);
-  }
-  return selectedToolIds.every((id) => !dateYmdOverlapsBusy(ymd, ranges, id));
+  return dateYmdBookingDayStatus(ymd, ranges, selectedToolIds) !== 'busy';
 }

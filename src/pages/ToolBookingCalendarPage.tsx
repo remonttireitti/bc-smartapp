@@ -11,10 +11,10 @@ import {
   toolsBookingUrl,
   updateToolBookingStatus,
 } from '../lib/toolBookingShares';
-import ToolBookingMultiSelectDialog from '../components/ToolBookingMultiSelectDialog';
+import ToolBookingLoanToggleList from '../components/ToolBookingLoanToggleList';
 import {
   buildMonthGrid,
-  dateYmdAllSelectedFree,
+  dateYmdBookingDayStatus,
   formatLoanRangeFi,
   formatToolEuro,
   loanEffectiveEnd,
@@ -57,7 +57,6 @@ export default function ToolBookingCalendarPage({ session }: Props) {
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [selectedToolIds, setSelectedToolIds] = useState<string[]>([]);
-  const [pickerOpen, setPickerOpen] = useState(false);
   const [publicUrl, setPublicUrl] = useState<string | null>(null);
   const [cursor, setCursor] = useState(() => {
     const now = new Date();
@@ -179,7 +178,7 @@ export default function ToolBookingCalendarPage({ session }: Props) {
             <Link to="/">Etusivu</Link> / <Link to="/tyokalut">Työkalut</Link> / Varauskalenteri
           </p>
           <h1>Varauskalenteri</h1>
-          <p className="muted">Lainattavat työkalut, lainat ja ulkoiset varaukset samassa näkymässä. Suodata usealla työkalulla — kalenteri näyttää yhteisen vapauden.</p>
+          <p className="muted">Lainattavat työkalut, lainat ja ulkoiset varaukset. Suodata kytkimillä — kalenteri värittyy valinnan mukaan (vapaa / jonossa / varattu).</p>
         </div>
         <div className="page-header-actions" style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap' }}>
           <Link to="/tyokalut" className="btn btn-secondary btn-sm">
@@ -231,39 +230,50 @@ export default function ToolBookingCalendarPage({ session }: Props) {
                 →
               </button>
             </div>
-            <div className="tool-booking-range-bar" style={{ margin: '0.65rem 0' }}>
-              <p className="muted" style={{ margin: 0, fontSize: '.9rem' }}>
-                Suodatin:{' '}
-                {selectedToolIds.length === 0
-                  ? 'kaikki lainattavat'
-                  : tools
-                      .filter((t) => selectedToolIds.includes(t.id))
-                      .map((t) => t.name)
-                      .join(', ')}
+            <div style={{ margin: '0.65rem 0' }}>
+              <p className="muted" style={{ margin: '0 0 .45rem', fontSize: '.9rem' }}>
+                Suodata työkaluilla (kalenteri = yhteinen vapaus). Tyhjä = neutraali näkymä.
               </p>
-              <button
-                type="button"
-                className="btn btn-secondary btn-sm"
-                onClick={() => setPickerOpen(true)}
-                disabled={tools.length === 0}
-              >
-                Valitse työkalut…
-              </button>
+              <ToolBookingLoanToggleList
+                tools={tools.map((t) => ({
+                  id: t.id,
+                  name: t.name,
+                  category: t.category,
+                  status: t.status,
+                  rate_day_eur: t.rate_day_eur,
+                  rate_weekend_eur: t.rate_weekend_eur,
+                  rate_week_eur: t.rate_week_eur,
+                  rate_month_eur: t.rate_month_eur,
+                  image_path: null,
+                }))}
+                busy={busyRanges}
+                selectedIds={selectedToolIds}
+                onChangeSelectedIds={setSelectedToolIds}
+              />
             </div>
             <div className="tool-booking-cal-weekdays">
               {WEEKDAYS.map((d) => (
                 <span key={d}>{d}</span>
               ))}
             </div>
-            <div className="tool-booking-cal-grid">
+            <div className="tool-booking-cal-grid tool-booking-cal-grid--compact">
               {grid.map((cell) => {
-                const busyDay = !dateYmdAllSelectedFree(cell.ymd, filteredBusy, selectedToolIds);
+                const dayStatus =
+                  selectedToolIds.length === 0
+                    ? 'neutral'
+                    : dateYmdBookingDayStatus(cell.ymd, filteredBusy, selectedToolIds);
+                const statusClass =
+                  dayStatus === 'free'
+                    ? 'is-free'
+                    : dayStatus === 'queued'
+                      ? 'is-queued'
+                      : dayStatus === 'busy'
+                        ? 'is-busy'
+                        : 'is-neutral';
                 return (
                   <div
                     key={cell.ymd}
-                    className={`tool-booking-cal-day ${cell.inMonth ? '' : 'is-outside'} ${
-                      busyDay ? 'is-busy' : 'is-free'
-                    }`}
+                    className={`tool-booking-cal-day tool-booking-cal-day--sm ${cell.inMonth ? '' : 'is-outside'} ${statusClass}`}
                   >
                     <span className="tool-booking-cal-day-num">{cell.date.getDate()}</span>
                   </div>
@@ -297,9 +307,9 @@ export default function ToolBookingCalendarPage({ session }: Props) {
           </section>
 
           <section className="panel">
-            <h2>Odottavat varaukset ({pending.length})</h2>
+            <h2>Jonossa olevat varaukset ({pending.length})</h2>
             {pending.length === 0 ? (
-              <p className="muted">Ei odottavia varauksia.</p>
+              <p className="muted">Ei jonossa olevia varauksia.</p>
             ) : (
               <ul className="daily-log-list">
                 {pending.map((b) => (
@@ -359,28 +369,6 @@ export default function ToolBookingCalendarPage({ session }: Props) {
         </>
       )}
 
-      <ToolBookingMultiSelectDialog
-        open={pickerOpen}
-        mode="filter"
-        tools={tools.map((t) => ({
-          id: t.id,
-          name: t.name,
-          category: t.category,
-          status: t.status,
-          rate_day_eur: t.rate_day_eur,
-          rate_weekend_eur: t.rate_weekend_eur,
-          rate_week_eur: t.rate_week_eur,
-          rate_month_eur: t.rate_month_eur,
-          image_path: null,
-        }))}
-        busy={busyRanges}
-        startYmd={new Date().toISOString().slice(0, 10)}
-        endYmd={new Date().toISOString().slice(0, 10)}
-        selectedIds={selectedToolIds}
-        onChangeSelectedIds={setSelectedToolIds}
-        onClose={() => setPickerOpen(false)}
-        onConfirm={() => setPickerOpen(false)}
-      />
-    </AppLayout>
+          </AppLayout>
   );
 }
