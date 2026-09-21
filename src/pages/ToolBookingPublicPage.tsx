@@ -1,7 +1,8 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
+import ToolBookingMultiSelectDialog from '../components/ToolBookingMultiSelectDialog';
 import {
-  createPublicToolBooking,
+  createPublicToolBookings,
   loadToolsBookingPublic,
 } from '../lib/toolBookingShares';
 import { inventoryImagePublicUrl } from '../lib/inventoryImages';
@@ -10,8 +11,10 @@ import {
   computeDeliveryFee,
   dateInputToIsoEnd,
   dateInputToIsoStart,
-  dateYmdOverlapsBusy,
+  dateYmdAllSelectedFree,
+  evaluateMultiToolAvailability,
   formatToolEuro,
+  formatYmdRangeFi,
   shiftMonth,
   toolDayRateBadge,
   toolRateLabelRows,
@@ -31,7 +34,8 @@ export default function ToolBookingPublicPage() {
     const now = new Date();
     return { year: now.getFullYear(), monthIndex0: now.getMonth() };
   });
-  const [selectedToolId, setSelectedToolId] = useState('');
+  const [selectedToolIds, setSelectedToolIds] = useState<string[]>([]);
+  const [pickerOpen, setPickerOpen] = useState(false);
   const [start, setStart] = useState('');
   const [end, setEnd] = useState('');
   const [guestName, setGuestName] = useState('');
@@ -49,7 +53,10 @@ export default function ToolBookingPublicPage() {
     try {
       const data = await loadToolsBookingPublic(token);
       setBundle(data);
-      setSelectedToolId((prev) => prev || data.tools[0]?.id || '');
+      setSelectedToolIds((prev) => {
+        const allowed = new Set(data.tools.map((t) => t.id));
+        return prev.filter((id) => allowed.has(id));
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Lataus epäonnistui.');
       setBundle(null);
@@ -90,11 +97,21 @@ export default function ToolBookingPublicPage() {
     [cursor.year, cursor.monthIndex0],
   );
 
-  const selectedTool = bundle?.tools.find((t) => t.id === selectedToolId) ?? null;
-  const toolBusy = useMemo(
-    () => (bundle?.busy ?? []).filter((b) => !selectedToolId || b.tool_id === selectedToolId),
-    [bundle?.busy, selectedToolId],
+  const selectedTools = useMemo(
+    () => (bundle?.tools ?? []).filter((t) => selectedToolIds.includes(t.id)),
+    [bundle?.tools, selectedToolIds],
   );
+
+  const availability = useMemo(() => {
+    if (!bundle || !start || !end) return null;
+    return evaluateMultiToolAvailability({
+      tools: bundle.tools.map((t) => ({ id: t.id, name: t.name })),
+      selectedIds: selectedToolIds,
+      startYmd: start,
+      endYmd: end,
+      busy: bundle.busy,
+    });
+  }, [bundle, selectedToolIds, start, end]);
 
   const deliveryFee = useMemo(() => {
     if (deliveryMode !== 'delivery' || !bundle) return null;
@@ -108,26 +125,76 @@ export default function ToolBookingPublicPage() {
     });
   }, [bundle, deliveryMode, distanceKm]);
 
+  function onPickDay(ymd: string) {
+    if (!start || (start && end)) {
+      setStart(ymd);
+      setEnd('');
+      return;
+    }
+    if (ymd < start) {
+      setStart(ymd);
+      setEnd('');
+      return;
+    }
+    setEnd(ymd);
+    setPickerOpen(true);
+  }
+
+  function proceedWithoutBusy() {
+    if (!availability) return;
+    setSelectedToolIds(availability.freeTools.map((t) => t.id));
+  }
+
+  function applyNextWindow(nextStart: string, nextEnd: string) {
+    setStart(nextStart);
+    setEnd(nextEnd);
+  }
+
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
-    if (!token || !selectedToolId) return;
+    if (!token) return;
     const startsAt = dateInputToIsoStart(start);
     const endsAt = dateInputToIsoEnd(end);
     if (!startsAt || !endsAt) {
       setError('Valitse alku- ja loppupäivä.');
       return;
     }
+    if (selectedToolIds.length === 0) {
+      setError('Valitse vähintään yksi työkalu.');
+      setPickerOpen(true);
+      return;
+    }
     if (!guestName.trim()) {
       setError('Nimi on pakollinen.');
       return;
     }
+
+    const evalNow = bundle
+      ? evaluateMultiToolAvailability({
+          tools: bundle.tools.map((t) => ({ id: t.id, name: t.name })),
+          selectedIds: selectedToolIds,
+          startYmd: start,
+          endYmd: end,
+          busy: bundle.busy,
+        })
+      : null;
+    const freeIds = evalNow?.freeTools.map((t) => t.id) ?? selectedToolIds;
+    if (freeIds.length === 0) {
+      setError(
+        evalNow?.messagesFi.skipBusy ||
+          'Mikään valituista työkaluista ei ole vapaa valitulla jaksolla.',
+      );
+      setPickerOpen(true);
+      return;
+    }
+
     setBusy(true);
     setError(null);
     setMessage(null);
     try {
-      await createPublicToolBooking({
+      const result = await createPublicToolBookings({
         token,
-        toolId: selectedToolId,
+        toolIds: freeIds,
         startsAt,
         endsAt,
         guestName: guestName.trim(),
@@ -139,13 +206,27 @@ export default function ToolBookingPublicPage() {
         deliveryAddress: deliveryMode === 'delivery' ? deliveryAddress.trim() : undefined,
         notes: notes.trim() || undefined,
       });
-      setMessage('Varauspyyntö lähetetty. Saat vahvistuksen yritykseltä.');
+      const bookedNames = (bundle?.tools ?? [])
+        .filter((t) => result.createdToolIds.includes(t.id))
+        .map((t) => t.name);
+      const failNote =
+        result.failures.length > 0
+          ? ` (${result.failures.length} työkalua ei voitu varata limittäisyyden vuoksi)`
+          : '';
+      setMessage(
+        bookedNames.length === 1
+          ? `Varauspyyntö lähetetty: ${bookedNames[0]}.${failNote} Saat vahvistuksen yritykseltä.`
+          : `Varauspyynnöt lähetetty (${bookedNames.length} työkalua): ${bookedNames.join(', ')}.${failNote} Saat vahvistuksen yritykseltä.`,
+      );
       setGuestName('');
       setGuestPhone('');
       setGuestEmail('');
       setNotes('');
       setDistanceKm('');
       setDeliveryAddress('');
+      setSelectedToolIds([]);
+      setStart('');
+      setEnd('');
       await reload();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Varaus epäonnistui.');
@@ -180,7 +261,10 @@ export default function ToolBookingPublicPage() {
           Julkinen varaus
         </p>
         <h1 style={{ margin: '.2rem 0 0' }}>{bundle.company.name}</h1>
-        <p className="muted">Varaa lainattava työkalu. Vapaa = vihreä, varattu = punainen.</p>
+        <p className="muted">
+          Valitse jakso kalenterista, sitten työkalut. Vapaa = vihreä, varattu = punainen
+          {selectedToolIds.length > 1 ? ' (valituille työkaluille yhteinen vapaus)' : ''}.
+        </p>
       </header>
 
       {error && <p className="error">{error}</p>}
@@ -211,36 +295,41 @@ export default function ToolBookingPublicPage() {
         </div>
         <div className="tool-booking-cal-grid" role="grid" aria-label="Varauskalenteri">
           {grid.map((cell) => {
-            const busyDay = dateYmdOverlapsBusy(cell.ymd, toolBusy, selectedToolId || undefined);
+            const allFree = dateYmdAllSelectedFree(cell.ymd, bundle.busy, selectedToolIds);
+            const inRange =
+              Boolean(start) &&
+              cell.ymd >= start &&
+              Boolean(end ? cell.ymd <= end : cell.ymd === start);
             return (
               <button
                 key={cell.ymd}
                 type="button"
                 className={`tool-booking-cal-day ${cell.inMonth ? '' : 'is-outside'} ${
-                  busyDay ? 'is-busy' : 'is-free'
-                } ${start === cell.ymd || end === cell.ymd ? 'is-selected' : ''}`}
+                  allFree ? 'is-free' : 'is-busy'
+                } ${inRange ? 'is-selected' : ''}`}
                 disabled={!cell.inMonth}
-                onClick={() => {
-                  if (!start || (start && end)) {
-                    setStart(cell.ymd);
-                    setEnd('');
-                  } else if (cell.ymd < start) {
-                    setStart(cell.ymd);
-                    setEnd('');
-                  } else {
-                    setEnd(cell.ymd);
-                  }
-                }}
+                onClick={() => onPickDay(cell.ymd)}
               >
                 <span className="tool-booking-cal-day-num">{cell.date.getDate()}</span>
               </button>
             );
           })}
         </div>
-        <p className="muted" style={{ margin: '.65rem 0 0', fontSize: '.9rem' }}>
-          Valittu: {start || '—'} {end ? `– ${end}` : ''}
-          {selectedTool ? ` · ${selectedTool.name}` : ''}
-        </p>
+        <div className="tool-booking-range-bar">
+          <p className="muted" style={{ margin: 0, fontSize: '.9rem' }}>
+            Valittu jakso:{' '}
+            {start ? (end ? formatYmdRangeFi(start, end) : start) : '—'}
+            {selectedTools.length > 0 ? ` · ${selectedTools.map((t) => t.name).join(', ')}` : ''}
+          </p>
+          <button
+            type="button"
+            className="btn btn-primary btn-sm"
+            disabled={!start || !end}
+            onClick={() => setPickerOpen(true)}
+          >
+            Valitse työkalut…
+          </button>
+        </div>
       </section>
 
       <section className="panel">
@@ -250,15 +339,29 @@ export default function ToolBookingPublicPage() {
         ) : (
           <ul className="tool-card-grid">
             {bundle.tools.map((tool) => {
-              const selected = tool.id === selectedToolId;
+              const selected = selectedToolIds.includes(tool.id);
               const thumb = tool.image_path ? inventoryImagePublicUrl(tool.image_path) : null;
               const dayBadge = toolDayRateBadge(tool);
+              const conflict =
+                selected &&
+                start &&
+                end &&
+                availability?.busyTools.some((b) => b.id === tool.id);
               return (
                 <li key={tool.id}>
                   <button
                     type="button"
-                    className={`tool-card tool-card-select ${selected ? 'is-selected' : ''}`}
-                    onClick={() => setSelectedToolId(tool.id)}
+                    className={`tool-card tool-card-select ${selected ? 'is-selected' : ''} ${
+                      conflict ? 'is-conflict' : ''
+                    }`}
+                    onClick={() => {
+                      setSelectedToolIds((prev) =>
+                        prev.includes(tool.id)
+                          ? prev.filter((id) => id !== tool.id)
+                          : [...prev, tool.id],
+                      );
+                      if (start && end) setPickerOpen(true);
+                    }}
                   >
                     <div className="tool-card-thumb" aria-hidden="true">
                       {thumb ? <img src={thumb} alt="" /> : <span className="muted">—</span>}
@@ -268,6 +371,7 @@ export default function ToolBookingPublicPage() {
                       <p className="muted" style={{ margin: '.2rem 0 0' }}>
                         {tool.category ?? 'Työkalu'}
                         {dayBadge ? ` · ${dayBadge}` : ''}
+                        {selected ? (conflict ? ' · varattu jaksolla' : ' · valittu') : ''}
                       </p>
                       <p style={{ margin: '.35rem 0 0', fontSize: '.85rem' }}>
                         {toolRateLabelRows(tool)
@@ -284,22 +388,77 @@ export default function ToolBookingPublicPage() {
         )}
       </section>
 
+      {availability && selectedToolIds.length > 0 && start && end && (
+        <section className="panel tool-booking-suggest-panel">
+          {availability.messagesFi.skipBusy && (
+            <div className="tool-booking-suggest" role="status">
+              <p style={{ margin: 0 }}>{availability.messagesFi.skipBusy}</p>
+              {availability.freeTools.length > 0 && (
+                <button type="button" className="btn btn-secondary btn-sm" onClick={proceedWithoutBusy}>
+                  Vuokraa ilman varattuja
+                </button>
+              )}
+            </div>
+          )}
+          {availability.messagesFi.nextWindow && (
+            <div className="tool-booking-suggest" role="status">
+              <p style={{ margin: 0 }}>{availability.messagesFi.nextWindow}</p>
+              {availability.nextAllFreeWindow && (
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={() =>
+                    applyNextWindow(
+                      availability.nextAllFreeWindow!.startYmd,
+                      availability.nextAllFreeWindow!.endYmd,
+                    )
+                  }
+                >
+                  Käytä ehdotettua jaksoa
+                </button>
+              )}
+            </div>
+          )}
+          {!availability.messagesFi.skipBusy && selectedToolIds.length > 1 && (
+            <p className="muted" style={{ margin: 0 }}>
+              Kaikki valitut työkalut ovat vapaita jaksolla {formatYmdRangeFi(start, end)}.
+            </p>
+          )}
+        </section>
+      )}
+
       <section className="panel form-section">
         <h2>Tee varaus</h2>
         <form onSubmit={(e) => void onSubmit(e)} className="line-form-grid">
-          <label>
-            Työkalu *
-            <select value={selectedToolId} onChange={(e) => setSelectedToolId(e.target.value)} required>
-              {bundle.tools.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.name}
-                </option>
-              ))}
-            </select>
-          </label>
+          <div style={{ gridColumn: '1 / -1' }}>
+            <p style={{ margin: '0 0 .35rem' }}>
+              <strong>Työkalut *</strong>{' '}
+              <span className="muted">
+                {selectedTools.length === 0
+                  ? 'ei valittu'
+                  : selectedTools.map((t) => t.name).join(', ')}
+              </span>
+            </p>
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              disabled={!start || !end}
+              onClick={() => setPickerOpen(true)}
+            >
+              Muokkaa työkaluvalintaa…
+            </button>
+          </div>
           <label>
             Alkaa *
-            <input type="date" value={start} onChange={(e) => setStart(e.target.value)} required />
+            <input
+              type="date"
+              value={start}
+              onChange={(e) => {
+                setStart(e.target.value);
+                if (e.target.value && end && e.target.value > end) setEnd('');
+              }}
+              required
+            />
           </label>
           <label>
             Päättyy *
@@ -389,12 +548,34 @@ export default function ToolBookingPublicPage() {
             <input value={notes} onChange={(e) => setNotes(e.target.value)} />
           </label>
           <div className="form-actions">
-            <button type="submit" className="btn btn-primary" disabled={busy || !selectedToolId}>
-              {busy ? 'Lähetetään…' : 'Lähetä varauspyyntö'}
+            <button
+              type="submit"
+              className="btn btn-primary"
+              disabled={busy || selectedToolIds.length === 0 || !start || !end}
+            >
+              {busy
+                ? 'Lähetetään…'
+                : selectedToolIds.length > 1
+                  ? `Lähetä varauspyynnöt (${selectedToolIds.length})`
+                  : 'Lähetä varauspyyntö'}
             </button>
           </div>
         </form>
       </section>
+
+      <ToolBookingMultiSelectDialog
+        open={pickerOpen}
+        tools={bundle.tools}
+        busy={bundle.busy}
+        startYmd={start || end}
+        endYmd={end || start}
+        selectedIds={selectedToolIds}
+        onChangeSelectedIds={setSelectedToolIds}
+        onClose={() => setPickerOpen(false)}
+        onConfirm={() => setPickerOpen(false)}
+        onApplyNextWindow={(s, eYmd) => applyNextWindow(s, eYmd)}
+        onProceedWithoutBusy={proceedWithoutBusy}
+      />
     </div>
   );
 }

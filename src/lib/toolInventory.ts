@@ -341,3 +341,167 @@ export function shiftMonth(year: number, monthIndex0: number, delta: number): { 
   const d = new Date(year, monthIndex0 + delta, 1);
   return { year: d.getFullYear(), monthIndex0: d.getMonth() };
 }
+
+/** YYYY-MM-DD + days (UTC calendar arithmetic). */
+export function ymdAddDays(ymd: string, days: number): string {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(ymd)) return ymd;
+  const [y, m, d] = ymd.split('-').map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  dt.setUTCDate(dt.getUTCDate() + days);
+  const yy = dt.getUTCFullYear();
+  const mm = String(dt.getUTCMonth() + 1).padStart(2, '0');
+  const dd = String(dt.getUTCDate()).padStart(2, '0');
+  return `${yy}-${mm}-${dd}`;
+}
+
+/** Inclusive day count for [startYmd, endYmd]; invalid → 0. */
+export function ymdInclusiveLengthDays(startYmd: string, endYmd: string): number {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(startYmd) || !/^\d{4}-\d{2}-\d{2}$/.test(endYmd)) return 0;
+  if (endYmd < startYmd) return 0;
+  const [ys, ms, ds] = startYmd.split('-').map(Number);
+  const [ye, me, de] = endYmd.split('-').map(Number);
+  const a = Date.UTC(ys, ms - 1, ds);
+  const b = Date.UTC(ye, me - 1, de);
+  return Math.floor((b - a) / 86_400_000) + 1;
+}
+
+export function formatYmdRangeFi(startYmd: string, endYmd: string): string {
+  const start = new Date(`${startYmd}T12:00:00`);
+  const end = new Date(`${endYmd}T12:00:00`);
+  if (!Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime())) {
+    return `${startYmd} – ${endYmd}`;
+  }
+  const opts: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'numeric', year: 'numeric' };
+  if (startYmd === endYmd) return start.toLocaleDateString('fi-FI', opts);
+  return `${start.toLocaleDateString('fi-FI', opts)} – ${end.toLocaleDateString('fi-FI', opts)}`;
+}
+
+/** Inclusive YMD window vs busy ranges for one tool (loans, blockouts, bookings). */
+export function rangeOverlapsBusyForTool(
+  startYmd: string,
+  endYmd: string,
+  ranges: BusyRange[],
+  toolId: string,
+): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(startYmd) || !/^\d{4}-\d{2}-\d{2}$/.test(endYmd)) return false;
+  if (endYmd < startYmd) return false;
+  for (const range of ranges) {
+    if (range.tool_id !== toolId) continue;
+    const busyStart = isoToYmdUtc(range.starts_at);
+    if (!busyStart) continue;
+    const busyEnd = range.ends_at ? isoToYmdUtc(range.ends_at) : null;
+    if (busyEnd == null) {
+      if (endYmd >= busyStart) return true;
+      continue;
+    }
+    if (startYmd <= busyEnd && busyStart <= endYmd) return true;
+  }
+  return false;
+}
+
+export type NamedToolRef = { id: string; name: string };
+
+export type MultiToolAvailability = {
+  freeTools: NamedToolRef[];
+  busyTools: NamedToolRef[];
+  nextAllFreeWindow: { startYmd: string; endYmd: string } | null;
+  messagesFi: {
+    /** e.g. "Tällä jaksolla X ei ole vuokrattavissa — vuokraa muut valitut ilman sitä" */
+    skipBusy: string | null;
+    /** e.g. "Seuraava jakso jossa kaikki valitut ovat vapaita: …" */
+    nextWindow: string | null;
+  };
+};
+
+/**
+ * Partition selected tools into free/busy for [startYmd, endYmd] and suggest
+ * the next contiguous window of the same inclusive length where all are free.
+ * Busy sources (loan / blockout / booking) are treated equally.
+ */
+export function evaluateMultiToolAvailability(opts: {
+  tools: NamedToolRef[];
+  selectedIds: string[];
+  startYmd: string;
+  endYmd: string;
+  busy: BusyRange[];
+  searchHorizonDays?: number;
+}): MultiToolAvailability {
+  const byId = new Map(opts.tools.map((t) => [t.id, t]));
+  const selected = opts.selectedIds
+    .map((id) => byId.get(id))
+    .filter((t): t is NamedToolRef => Boolean(t));
+
+  const freeTools: NamedToolRef[] = [];
+  const busyTools: NamedToolRef[] = [];
+  for (const tool of selected) {
+    if (rangeOverlapsBusyForTool(opts.startYmd, opts.endYmd, opts.busy, tool.id)) {
+      busyTools.push(tool);
+    } else {
+      freeTools.push(tool);
+    }
+  }
+
+  const length = ymdInclusiveLengthDays(opts.startYmd, opts.endYmd);
+  const horizon = opts.searchHorizonDays ?? 120;
+  let nextAllFreeWindow: { startYmd: string; endYmd: string } | null = null;
+
+  if (selected.length > 0 && length > 0 && busyTools.length > 0) {
+    for (let offset = 1; offset <= horizon; offset++) {
+      const start = ymdAddDays(opts.startYmd, offset);
+      const end = ymdAddDays(start, length - 1);
+      const allFree = selected.every(
+        (t) => !rangeOverlapsBusyForTool(start, end, opts.busy, t.id),
+      );
+      if (allFree) {
+        nextAllFreeWindow = { startYmd: start, endYmd: end };
+        break;
+      }
+    }
+  }
+
+  const busyNames = busyTools.map((t) => t.name);
+  let skipBusy: string | null = null;
+  if (busyTools.length > 0) {
+    const names =
+      busyNames.length === 1
+        ? busyNames[0]
+        : busyNames.length === 2
+          ? `${busyNames[0]} ja ${busyNames[1]}`
+          : `${busyNames.slice(0, -1).join(', ')} ja ${busyNames[busyNames.length - 1]}`;
+    const pronoun = busyTools.length === 1 ? 'sitä' : 'niitä';
+    if (freeTools.length > 0) {
+      skipBusy = `Tällä jaksolla ${names} ei ole vuokrattavissa — vuokraa muut valitut ilman ${pronoun}.`;
+    } else {
+      skipBusy = `Tällä jaksolla ${names} ei ole vuokrattavissa.`;
+    }
+  }
+
+  const nextWindow =
+    nextAllFreeWindow != null
+      ? `Seuraava jakso jossa kaikki valitut ovat vapaita: ${formatYmdRangeFi(
+          nextAllFreeWindow.startYmd,
+          nextAllFreeWindow.endYmd,
+        )}`
+      : busyTools.length > 0 && selected.length > 0
+        ? 'Seuraavaa yhteistä vapaata jaksoa ei löytynyt lähikuukausina.'
+        : null;
+
+  return {
+    freeTools,
+    busyTools,
+    nextAllFreeWindow,
+    messagesFi: { skipBusy, nextWindow },
+  };
+}
+
+/** Day is free for selected tools only if every selected tool is free that day. */
+export function dateYmdAllSelectedFree(
+  ymd: string,
+  ranges: BusyRange[],
+  selectedToolIds: string[],
+): boolean {
+  if (selectedToolIds.length === 0) {
+    return !dateYmdOverlapsBusy(ymd, ranges);
+  }
+  return selectedToolIds.every((id) => !dateYmdOverlapsBusy(ymd, ranges, id));
+}

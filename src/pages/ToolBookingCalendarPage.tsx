@@ -11,9 +11,10 @@ import {
   toolsBookingUrl,
   updateToolBookingStatus,
 } from '../lib/toolBookingShares';
+import ToolBookingMultiSelectDialog from '../components/ToolBookingMultiSelectDialog';
 import {
   buildMonthGrid,
-  dateYmdOverlapsBusy,
+  dateYmdAllSelectedFree,
   formatLoanRangeFi,
   formatToolEuro,
   loanEffectiveEnd,
@@ -55,7 +56,8 @@ export default function ToolBookingCalendarPage({ session }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [filterToolId, setFilterToolId] = useState('');
+  const [selectedToolIds, setSelectedToolIds] = useState<string[]>([]);
+  const [pickerOpen, setPickerOpen] = useState(false);
   const [publicUrl, setPublicUrl] = useState<string | null>(null);
   const [cursor, setCursor] = useState(() => {
     const now = new Date();
@@ -122,8 +124,11 @@ export default function ToolBookingCalendarPage({ session }: Props) {
   }, [loans, bookings]);
 
   const filteredBusy = useMemo(
-    () => (filterToolId ? busyRanges.filter((b) => b.tool_id === filterToolId) : busyRanges),
-    [busyRanges, filterToolId],
+    () =>
+      selectedToolIds.length > 0
+        ? busyRanges.filter((b) => selectedToolIds.includes(b.tool_id))
+        : busyRanges,
+    [busyRanges, selectedToolIds],
   );
 
   const grid = useMemo(
@@ -174,7 +179,7 @@ export default function ToolBookingCalendarPage({ session }: Props) {
             <Link to="/">Etusivu</Link> / <Link to="/tyokalut">Työkalut</Link> / Varauskalenteri
           </p>
           <h1>Varauskalenteri</h1>
-          <p className="muted">Lainattavat työkalut, lainat ja ulkoiset varaukset samassa näkymässä.</p>
+          <p className="muted">Lainattavat työkalut, lainat ja ulkoiset varaukset samassa näkymässä. Suodata usealla työkalulla — kalenteri näyttää yhteisen vapauden.</p>
         </div>
         <div className="page-header-actions" style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap' }}>
           <Link to="/tyokalut" className="btn btn-secondary btn-sm">
@@ -226,17 +231,25 @@ export default function ToolBookingCalendarPage({ session }: Props) {
                 →
               </button>
             </div>
-            <label style={{ display: 'block', margin: '0.65rem 0' }}>
-              Suodata työkalu
-              <select value={filterToolId} onChange={(e) => setFilterToolId(e.target.value)}>
-                <option value="">Kaikki lainattavat</option>
-                {tools.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.name}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <div className="tool-booking-range-bar" style={{ margin: '0.65rem 0' }}>
+              <p className="muted" style={{ margin: 0, fontSize: '.9rem' }}>
+                Suodatin:{' '}
+                {selectedToolIds.length === 0
+                  ? 'kaikki lainattavat'
+                  : tools
+                      .filter((t) => selectedToolIds.includes(t.id))
+                      .map((t) => t.name)
+                      .join(', ')}
+              </p>
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                onClick={() => setPickerOpen(true)}
+                disabled={tools.length === 0}
+              >
+                Valitse työkalut…
+              </button>
+            </div>
             <div className="tool-booking-cal-weekdays">
               {WEEKDAYS.map((d) => (
                 <span key={d}>{d}</span>
@@ -244,7 +257,7 @@ export default function ToolBookingCalendarPage({ session }: Props) {
             </div>
             <div className="tool-booking-cal-grid">
               {grid.map((cell) => {
-                const busyDay = dateYmdOverlapsBusy(cell.ymd, filteredBusy);
+                const busyDay = !dateYmdAllSelectedFree(cell.ymd, filteredBusy, selectedToolIds);
                 return (
                   <div
                     key={cell.ymd}
@@ -345,6 +358,29 @@ export default function ToolBookingCalendarPage({ session }: Props) {
           </section>
         </>
       )}
+
+      <ToolBookingMultiSelectDialog
+        open={pickerOpen}
+        mode="filter"
+        tools={tools.map((t) => ({
+          id: t.id,
+          name: t.name,
+          category: t.category,
+          status: t.status,
+          rate_day_eur: t.rate_day_eur,
+          rate_weekend_eur: t.rate_weekend_eur,
+          rate_week_eur: t.rate_week_eur,
+          rate_month_eur: t.rate_month_eur,
+          image_path: null,
+        }))}
+        busy={busyRanges}
+        startYmd={new Date().toISOString().slice(0, 10)}
+        endYmd={new Date().toISOString().slice(0, 10)}
+        selectedIds={selectedToolIds}
+        onChangeSelectedIds={setSelectedToolIds}
+        onClose={() => setPickerOpen(false)}
+        onConfirm={() => setPickerOpen(false)}
+      />
     </AppLayout>
   );
 }
