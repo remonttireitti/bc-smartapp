@@ -7,16 +7,21 @@ import {
 } from '../lib/toolBookingShares';
 import {
   buildMonthGrid,
-  computeDeliveryFee,
+  computeBookingDeliveryFee,
   dateInputToIsoEnd,
   dateInputToIsoStart,
   dateYmdBookingDayStatus,
+  deliveryModeNeedsAddress,
   evaluateMultiToolAvailability,
   formatToolEuro,
   formatYmdRangeFi,
   shiftMonth,
 } from '../lib/toolInventory';
-import type { ToolBookingPublicBundle } from '../types/inventory';
+import {
+  TOOL_BOOKING_DELIVERY_LABELS,
+  type ToolBookingDeliveryMode,
+  type ToolBookingPublicBundle,
+} from '../types/inventory';
 
 const WEEKDAYS = ['Ma', 'Ti', 'Ke', 'To', 'Pe', 'La', 'Su'];
 
@@ -37,7 +42,7 @@ export default function ToolBookingPublicPage() {
   const [guestName, setGuestName] = useState('');
   const [guestPhone, setGuestPhone] = useState('');
   const [guestEmail, setGuestEmail] = useState('');
-  const [deliveryMode, setDeliveryMode] = useState<'none' | 'delivery' | 'pickup'>('none');
+  const [deliveryMode, setDeliveryMode] = useState<ToolBookingDeliveryMode>('none');
   const [distanceKm, setDistanceKm] = useState('');
   const [deliveryAddress, setDeliveryAddress] = useState('');
   const [notes, setNotes] = useState('');
@@ -108,17 +113,19 @@ export default function ToolBookingPublicPage() {
     });
   }, [bundle, selectedToolIds, start, end]);
 
+  const needsAddress = deliveryModeNeedsAddress(deliveryMode);
+
   const deliveryFee = useMemo(() => {
-    if (deliveryMode !== 'delivery' || !bundle) return null;
+    if (!needsAddress || !bundle) return null;
     const dist = Number(String(distanceKm).replace(',', '.'));
     if (!Number.isFinite(dist)) return null;
-    return computeDeliveryFee({
+    return computeBookingDeliveryFee(deliveryMode, {
       distanceKm: dist,
       minFeeEur: Number(bundle.company.delivery_min_fee_eur ?? 0),
       limitKm: Number(bundle.company.delivery_distance_limit_km ?? 0),
       perKmEur: Number(bundle.company.delivery_per_km_eur ?? 0),
     });
-  }, [bundle, deliveryMode, distanceKm]);
+  }, [bundle, deliveryMode, distanceKm, needsAddress]);
 
   function onPickDay(ymd: string) {
     if (!start || (start && end)) {
@@ -193,9 +200,10 @@ export default function ToolBookingPublicPage() {
         guestPhone: guestPhone.trim() || undefined,
         guestEmail: guestEmail.trim() || undefined,
         deliveryMode,
-        deliveryDistanceKm:
-          deliveryMode === 'delivery' ? Number(String(distanceKm).replace(',', '.')) || 0 : null,
-        deliveryAddress: deliveryMode === 'delivery' ? deliveryAddress.trim() : undefined,
+        deliveryDistanceKm: needsAddress
+          ? Number(String(distanceKm).replace(',', '.')) || 0
+          : null,
+        deliveryAddress: needsAddress ? deliveryAddress.trim() : undefined,
         notes: notes.trim() || undefined,
       });
       const bookedNames = (bundle?.tools ?? [])
@@ -467,19 +475,8 @@ export default function ToolBookingPublicPage() {
                     checked={deliveryMode === 'none'}
                     onChange={() => setDeliveryMode('none')}
                   />{' '}
-                  Ei kuljetusta
+                  {TOOL_BOOKING_DELIVERY_LABELS.none}
                 </label>
-                {bundle.company.delivery_enabled && (
-                  <label className="checkbox-label">
-                    <input
-                      type="radio"
-                      name="delivery_mode"
-                      checked={deliveryMode === 'delivery'}
-                      onChange={() => setDeliveryMode('delivery')}
-                    />{' '}
-                    Kuljetus
-                  </label>
-                )}
                 {bundle.company.pickup_enabled && (
                   <label className="checkbox-label">
                     <input
@@ -488,11 +485,33 @@ export default function ToolBookingPublicPage() {
                       checked={deliveryMode === 'pickup'}
                       onChange={() => setDeliveryMode('pickup')}
                     />{' '}
-                    Nouto
+                    {TOOL_BOOKING_DELIVERY_LABELS.pickup}
+                  </label>
+                )}
+                {bundle.company.delivery_enabled && (
+                  <label className="checkbox-label">
+                    <input
+                      type="radio"
+                      name="delivery_mode"
+                      checked={deliveryMode === 'delivery'}
+                      onChange={() => setDeliveryMode('delivery')}
+                    />{' '}
+                    {TOOL_BOOKING_DELIVERY_LABELS.delivery}
+                  </label>
+                )}
+                {bundle.company.delivery_enabled && bundle.company.pickup_enabled && (
+                  <label className="checkbox-label">
+                    <input
+                      type="radio"
+                      name="delivery_mode"
+                      checked={deliveryMode === 'both'}
+                      onChange={() => setDeliveryMode('both')}
+                    />{' '}
+                    {TOOL_BOOKING_DELIVERY_LABELS.both}
                   </label>
                 )}
               </div>
-              {deliveryMode === 'delivery' && (
+              {needsAddress && (
                 <div className="line-form-grid" style={{ marginTop: '.65rem' }}>
                   <label>
                     Etäisyys (km)
@@ -504,18 +523,26 @@ export default function ToolBookingPublicPage() {
                     />
                   </label>
                   <label>
-                    Toimitusosoite
+                    Osoite
                     <input
                       value={deliveryAddress}
                       onChange={(e) => setDeliveryAddress(e.target.value)}
                     />
                   </label>
                   <p className="muted" style={{ gridColumn: '1 / -1', margin: 0 }}>
-                    Minimihinta {formatToolEuro(bundle.company.delivery_min_fee_eur)} (
+                    Hinta per kuljetusosuus: minimihinta{' '}
+                    {formatToolEuro(bundle.company.delivery_min_fee_eur)} (
                     {bundle.company.delivery_distance_limit_km ?? 0} km asti)
                     {bundle.company.delivery_per_km_eur != null
                       ? ` · yli rajan ${formatToolEuro(bundle.company.delivery_per_km_eur)}/km`
                       : ''}
+                    {deliveryMode === 'both'
+                      ? ' · kaksi osuutta (vienti + palautusnouto)'
+                      : deliveryMode === 'pickup'
+                        ? ' · yksi osuus (palautusnouto)'
+                        : deliveryMode === 'delivery'
+                          ? ' · yksi osuus (vienti)'
+                          : ''}
                     {deliveryFee != null && Number.isFinite(deliveryFee)
                       ? ` · arvioitu maksu ${formatToolEuro(deliveryFee)}`
                       : ''}

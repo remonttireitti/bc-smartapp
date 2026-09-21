@@ -1,5 +1,10 @@
 import { supabase } from './supabase';
-import type { ToolBooking, ToolBookingPublicBundle, CompanyToolsDeliverySettings } from '../types/inventory';
+import type {
+  ToolBooking,
+  ToolBookingPublicBundle,
+  CompanyToolsDeliverySettings,
+  ToolBookingDeliveryMode,
+} from '../types/inventory';
 
 export function toolsBookingPath(token: string): string {
   return `/tyokalut/varaus/${token}`;
@@ -37,7 +42,7 @@ export type CreatePublicToolBookingInput = {
   guestName: string;
   guestPhone?: string;
   guestEmail?: string;
-  deliveryMode?: 'none' | 'delivery' | 'pickup';
+  deliveryMode?: ToolBookingDeliveryMode;
   deliveryDistanceKm?: number | null;
   deliveryAddress?: string;
   notes?: string;

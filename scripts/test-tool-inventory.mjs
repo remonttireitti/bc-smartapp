@@ -4,6 +4,11 @@ import {
   canStartToolBlockout,
   canStartToolLoan,
   computeDeliveryFee,
+  computeBookingDeliveryFee,
+  deliveryModeCompanyLegCount,
+  deliveryModeHasOutbound,
+  deliveryModeHasReturn,
+  deliveryModeNeedsAddress,
   dateYmdAllSelectedFree,
   dateYmdBookingDayStatus,
   dateYmdOverlapsBusy,
@@ -149,6 +154,33 @@ test('computeDeliveryFee short vs over limit', () => {
     32,
   );
   assert.ok(Number.isNaN(computeDeliveryFee({ distanceKm: NaN, minFeeEur: 1, limitKm: 1, perKmEur: 1 })));
+});
+
+test('deliveryMode legs and booking fee (self / one / both)', () => {
+  assert.equal(deliveryModeCompanyLegCount('none'), 0);
+  assert.equal(deliveryModeCompanyLegCount('delivery'), 1);
+  assert.equal(deliveryModeCompanyLegCount('pickup'), 1);
+  assert.equal(deliveryModeCompanyLegCount('both'), 2);
+  assert.equal(deliveryModeHasOutbound('delivery'), true);
+  assert.equal(deliveryModeHasOutbound('pickup'), false);
+  assert.equal(deliveryModeHasReturn('pickup'), true);
+  assert.equal(deliveryModeHasReturn('delivery'), false);
+  assert.equal(deliveryModeHasOutbound('both'), true);
+  assert.equal(deliveryModeHasReturn('both'), true);
+  assert.equal(deliveryModeNeedsAddress('none'), false);
+  assert.equal(deliveryModeNeedsAddress('pickup'), true);
+  assert.equal(deliveryModeNeedsAddress('both'), true);
+
+  const feeInput = { distanceKm: 15, minFeeEur: 25, limitKm: 10, perKmEur: 2 }; // per leg = 35
+  assert.equal(computeBookingDeliveryFee('none', feeInput), null);
+  assert.equal(computeBookingDeliveryFee('delivery', feeInput), 35);
+  assert.equal(computeBookingDeliveryFee('pickup', feeInput), 35);
+  assert.equal(computeBookingDeliveryFee('both', feeInput), 70);
+  assert.equal(
+    computeBookingDeliveryFee('both', { distanceKm: 5, minFeeEur: 25, limitKm: 10, perKmEur: 2 }),
+    50,
+  );
+  assert.ok(Number.isNaN(computeBookingDeliveryFee('delivery', { distanceKm: NaN, minFeeEur: 1, limitKm: 1, perKmEur: 1 })));
 });
 
 test('dateYmdOverlapsBusy and month grid', () => {
