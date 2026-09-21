@@ -5797,15 +5797,30 @@ textarea {
 }
 
 
-.work-report-list-summary-wrap {
+.work-report-list-section-header {
   display: flex;
-  flex-direction: column;
-  gap: .55rem;
-  margin: 0 0 .85rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: .65rem;
+  margin: 0 0 .65rem;
 }
 
-.work-report-list-summary-wrap .work-report-list-sort {
-  align-self: flex-start;
+.work-report-list-section-header h2 {
+  margin: 0;
+  min-width: 0;
+}
+
+.work-report-list-summary-anchor {
+  flex-shrink: 0;
+}
+
+.work-report-list-summary-popover {
+  right: 0;
+  left: auto;
+  min-width: min(18rem, calc(100vw - 2.5rem));
+  max-width: min(22rem, calc(100vw - 2rem));
+  max-height: min(70vh, 28rem);
+  overflow: auto;
 }
 
 .work-report-list-summary {
@@ -5813,6 +5828,12 @@ textarea {
   flex-direction: column;
   gap: .45rem;
   line-height: 1.35;
+  margin-top: .15rem;
+}
+
+.work-report-list-summary-empty {
+  margin: .15rem 0 0;
+  font-size: .85rem;
 }
 
 .work-report-list-summary-group {
@@ -5838,6 +5859,8 @@ textarea {
 
 .work-report-list-summary-partners li {
   padding-left: .1rem;
+  font-size: .85rem;
+  overflow-wrap: anywhere;
 }
 
 .work-report-list-summary-partners li::before {

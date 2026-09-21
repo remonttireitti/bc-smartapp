@@ -952,7 +952,14 @@ export default function WorkReportsPage({ session }: Props) {
 
 
 
-          <h2>Tulevat ja käynnissä olevat työt</h2>
+          <div className="work-report-list-section-header">
+            <h2>Tulevat ja käynnissä olevat työt</h2>
+            <WorkReportListSummary
+              reports={activeReports}
+              sortMode={listSortMode}
+              onSortModeChange={handleListSortModeChange}
+            />
+          </div>
 
           {activeReports.length === 0 ? (
 
@@ -962,21 +969,14 @@ export default function WorkReportsPage({ session }: Props) {
 
           ) : (
 
-            <>
-              <WorkReportListSummary
-                reports={activeReports}
-                sortMode={listSortMode}
-                onSortModeChange={handleListSortModeChange}
-              />
-              <WorkReportListGrid>
-                {sortedActiveReports.map((r) => (
-                  <WorkReportListTile
-                    key={r.id}
-                    {...reportListItemProps(r, logsByReportId, companyId, billingModuleEnabled, customerBillingEnabled, loadReports, { showStatusMenu: true })}
-                  />
-                ))}
-              </WorkReportListGrid>
-            </>
+            <WorkReportListGrid>
+              {sortedActiveReports.map((r) => (
+                <WorkReportListTile
+                  key={r.id}
+                  {...reportListItemProps(r, logsByReportId, companyId, billingModuleEnabled, customerBillingEnabled, loadReports, { showStatusMenu: true })}
+                />
+              ))}
+            </WorkReportListGrid>
 
           )}
 
