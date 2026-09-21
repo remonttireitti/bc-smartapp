@@ -330,6 +330,142 @@ export function computeBookingDeliveryFee(
   return perLeg * legs;
 }
 
+function finiteRate(value: number | null | undefined): number | null {
+  if (value == null) return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
+function roundEuro2(value: number): number {
+  return Math.round(value * 100) / 100;
+}
+
+/** UTC weekday 0=Sun … 6=Sat for YYYY-MM-DD. */
+function ymdUtcWeekday(ymd: string): number {
+  const [y, m, d] = ymd.split('-').map(Number);
+  return new Date(Date.UTC(y, m - 1, d)).getUTCDay();
+}
+
+/**
+ * Fri–Sun (3 pv) or Sat–Sun (2 pv) package window when weekend rate applies.
+ */
+export function isWeekendRatePackage(startYmd: string, endYmd: string): boolean {
+  const days = ymdInclusiveLengthDays(startYmd, endYmd);
+  if (days !== 2 && days !== 3) return false;
+  const startDow = ymdUtcWeekday(startYmd);
+  const endDow = ymdUtcWeekday(endYmd);
+  if (days === 2) return startDow === 6 && endDow === 0; // Sat–Sun
+  return startDow === 5 && endDow === 0; // Fri–Sun
+}
+
+/**
+ * Estimate rental for one tool over an inclusive YMD range.
+ * Prefers weekend package when it matches; else greedy month (28) / week (7) / day.
+ * Falls back to pro-rata week/month when day rate is missing.
+ */
+export function estimateToolRentalEur(
+  rates: ToolLoanRates,
+  startYmd: string,
+  endYmd: string,
+): number | null {
+  const days = ymdInclusiveLengthDays(startYmd, endYmd);
+  if (days <= 0) return null;
+
+  const day = finiteRate(rates.rate_day_eur);
+  const weekend = finiteRate(rates.rate_weekend_eur);
+  const week = finiteRate(rates.rate_week_eur);
+  const month = finiteRate(rates.rate_month_eur);
+
+  if (weekend != null && isWeekendRatePackage(startYmd, endYmd)) {
+    return roundEuro2(weekend);
+  }
+
+  let remaining = days;
+  let total = 0;
+  let priced = false;
+
+  if (month != null && remaining >= 28) {
+    const n = Math.floor(remaining / 28);
+    total += n * month;
+    remaining -= n * 28;
+    priced = true;
+  }
+  if (week != null && remaining >= 7) {
+    const n = Math.floor(remaining / 7);
+    total += n * week;
+    remaining -= n * 7;
+    priced = true;
+  }
+  if (remaining > 0) {
+    if (day != null) {
+      total += remaining * day;
+      priced = true;
+    } else if (week != null) {
+      total += (remaining / 7) * week;
+      priced = true;
+    } else if (month != null) {
+      total += (remaining / 28) * month;
+      priced = true;
+    } else if (weekend != null && remaining <= 3) {
+      total += weekend;
+      priced = true;
+    } else if (!priced) {
+      return null;
+    }
+  }
+
+  return priced ? roundEuro2(total) : null;
+}
+
+export type BookingCostEstimate = {
+  rentalEur: number | null;
+  deliveryEur: number | null;
+  /** Sum when at least one component is known; null if both unknown. */
+  totalEur: number | null;
+  dayCount: number;
+  toolCount: number;
+};
+
+/** Sum rental for selected tools + optional delivery fee estimate. */
+export function estimateBookingCost(opts: {
+  tools: Array<ToolLoanRates & { id: string }>;
+  selectedIds: string[];
+  startYmd: string;
+  endYmd: string;
+  deliveryFeeEur?: number | null;
+}): BookingCostEstimate {
+  const dayCount = ymdInclusiveLengthDays(opts.startYmd, opts.endYmd);
+  const selected = opts.tools.filter((t) => opts.selectedIds.includes(t.id));
+  let rentalSum = 0;
+  let rentalKnown = false;
+  for (const tool of selected) {
+    const part = estimateToolRentalEur(tool, opts.startYmd, opts.endYmd);
+    if (part != null) {
+      rentalSum += part;
+      rentalKnown = true;
+    }
+  }
+  const rentalEur = rentalKnown ? roundEuro2(rentalSum) : null;
+  const deliveryRaw = opts.deliveryFeeEur;
+  const deliveryEur =
+    deliveryRaw != null && Number.isFinite(Number(deliveryRaw))
+      ? roundEuro2(Number(deliveryRaw))
+      : null;
+
+  let totalEur: number | null = null;
+  if (rentalEur != null || deliveryEur != null) {
+    totalEur = roundEuro2((rentalEur ?? 0) + (deliveryEur ?? 0));
+  }
+
+  return {
+    rentalEur,
+    deliveryEur,
+    totalEur,
+    dayCount,
+    toolCount: selected.length,
+  };
+}
+
 export type BusyRange = {
   tool_id: string;
   starts_at: string;
@@ -350,7 +486,7 @@ function isoToYmdUtc(iso: string): string | null {
 
 
 /**
- * Pending booking is a real unconfirmed reservation in the queue (Jonossa / status=pending).
+ * Pending booking is a real unconfirmed reservation (Vahvistamaton varaus / status=pending).
  * It does not calendar-block as hard busy (yellow vs red); loans / blockouts / confirmed do.
  */
 export function isHardBusyRange(range: BusyRange): boolean {
@@ -487,6 +623,29 @@ export function rangeOverlapsBusyForTool(
       continue;
     }
     if (startYmd <= busyEnd && busyStart <= endYmd) return true;
+  }
+  return false;
+}
+
+/** True when selected range overlaps a pending (unconfirmed) booking for any selected tool. */
+export function selectionOverlapsPending(
+  startYmd: string,
+  endYmd: string,
+  busy: BusyRange[],
+  selectedToolIds: string[],
+): boolean {
+  if (!startYmd || !endYmd || selectedToolIds.length === 0) return false;
+  for (const toolId of selectedToolIds) {
+    if (rangeOverlapsBusyForTool(startYmd, endYmd, busy, toolId, { hardOnly: true })) {
+      continue;
+    }
+    const hasPending = busy.some(
+      (r) =>
+        r.tool_id === toolId &&
+        isQueuedBusyRange(r) &&
+        rangeOverlapsBusyForTool(startYmd, endYmd, [r], toolId, { hardOnly: false }),
+    );
+    if (hasPending) return true;
   }
   return false;
 }

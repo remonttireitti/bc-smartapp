@@ -307,7 +307,7 @@ export type ToolBookingPublicBundle = {
 };
 
 export const TOOL_BOOKING_STATUS_LABELS: Record<ToolBookingStatus, string> = {
-  pending: 'Jonossa',
+  pending: 'Vahvistamaton varaus',
   confirmed: 'Vahvistettu',
   cancelled: 'Peruttu',
 };

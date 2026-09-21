@@ -16616,6 +16616,57 @@ button.tool-booking-cal-day {
   border-color: color-mix(in srgb, #dc2626 50%, #e2e8f0);
 }
 
+.tool-booking-legend-hint {
+  max-width: 42rem;
+  line-height: 1.35;
+}
+
+.tool-booking-pending-warn {
+  margin-top: 0.65rem;
+  border-color: color-mix(in srgb, #ca8a04 55%, #e2e8f0);
+  background: color-mix(in srgb, #eab308 14%, white);
+}
+
+.tool-booking-cost-estimate {
+  margin-top: 0.25rem;
+  padding: 0.75rem 0.85rem;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  background: color-mix(in srgb, #0f172a 3%, white);
+}
+
+.tool-booking-cost-rows {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.tool-booking-cost-rows > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: baseline;
+}
+
+.tool-booking-cost-rows dt {
+  margin: 0;
+  font-weight: 500;
+  color: #475569;
+}
+
+.tool-booking-cost-rows dd {
+  margin: 0;
+  text-align: right;
+}
+
+.tool-booking-cost-total {
+  margin-top: 0.15rem;
+  padding-top: 0.4rem;
+  border-top: 1px solid #e2e8f0;
+  font-size: 1.02rem;
+}
+
 .tool-booking-public-layout {
   display: grid;
   grid-template-columns: minmax(16rem, 20rem) 1fr;
