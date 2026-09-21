@@ -338,7 +338,10 @@ function isoToYmdUtc(iso: string): string | null {
 }
 
 
-/** Pending booking = queue (Jonossa), not a hard hold. Loans / blockouts / confirmed = hard busy. */
+/**
+ * Pending booking is a real unconfirmed reservation in the queue (Jonossa / status=pending).
+ * It does not calendar-block as hard busy (yellow vs red); loans / blockouts / confirmed do.
+ */
 export function isHardBusyRange(range: BusyRange): boolean {
   if (range.source === 'booking' && range.status === 'pending') return false;
   // booking confirmed, loan, blockout, or unknown status on non-pending booking
@@ -353,8 +356,8 @@ export type BookingDayStatus = 'free' | 'queued' | 'busy';
 
 /**
  * Calendar day status for selected tools (or all tools when selection empty):
- * - busy: any hard hold (loan / blockout / confirmed)
- * - queued: only pending request(s) in queue
+ * - busy: any hard calendar block (loan / blockout / confirmed)
+ * - queued: only pending (unconfirmed) booking(s) in queue — real DB rows, yellow
  * - free: nothing overlapping
  */
 export function dateYmdBookingDayStatus(

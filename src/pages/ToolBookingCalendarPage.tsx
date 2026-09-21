@@ -178,7 +178,7 @@ export default function ToolBookingCalendarPage({ session }: Props) {
             <Link to="/">Etusivu</Link> / <Link to="/tyokalut">Työkalut</Link> / Varauskalenteri
           </p>
           <h1>Varauskalenteri</h1>
-          <p className="muted">Lainattavat työkalut, lainat ja ulkoiset varaukset. Suodata kytkimillä — kalenteri värittyy valinnan mukaan (vapaa / jonossa / varattu).</p>
+          <p className="muted">Lainattavat työkalut, lainat ja ulkoiset varaukset. Suodata kytkimillä — kalenteri värittyy valinnan mukaan (vapaa / jonossa = vahvistamaton varaus / varattu).</p>
         </div>
         <div className="page-header-actions" style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap' }}>
           <Link to="/tyokalut" className="btn btn-secondary btn-sm">
@@ -307,9 +307,9 @@ export default function ToolBookingCalendarPage({ session }: Props) {
           </section>
 
           <section className="panel">
-            <h2>Jonossa olevat varaukset ({pending.length})</h2>
+            <h2>Vahvistamattomat varaukset jonossa ({pending.length})</h2>
             {pending.length === 0 ? (
-              <p className="muted">Ei jonossa olevia varauksia.</p>
+              <p className="muted">Ei vahvistamattomia varauksia jonossa.</p>
             ) : (
               <ul className="daily-log-list">
                 {pending.map((b) => (
