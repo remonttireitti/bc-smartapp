@@ -304,6 +304,17 @@ export function deliveryModeNeedsAddress(mode: DeliveryTransportMode): boolean {
   return deliveryModeCompanyLegCount(mode) > 0;
 }
 
+/** Derive delivery_mode enum from two independent on/off toggles (outbound + return). */
+export function deliveryModeFromToggles(
+  outbound: boolean,
+  returnPickup: boolean,
+): DeliveryTransportMode {
+  if (outbound && returnPickup) return 'both';
+  if (outbound) return 'delivery';
+  if (returnPickup) return 'pickup';
+  return 'none';
+}
+
 /**
  * Total delivery fee for a booking: per-leg fee × company legs.
  * `none` → null (no fee). Invalid numbers → NaN.

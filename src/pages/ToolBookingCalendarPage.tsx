@@ -161,7 +161,11 @@ export default function ToolBookingCalendarPage({ session }: Props) {
     setError(null);
     try {
       await updateToolBookingStatus(id, status);
-      setMessage(status === 'confirmed' ? 'Varaus vahvistettu.' : 'Varaus peruttu.');
+      setMessage(
+        status === 'confirmed'
+          ? 'Varaus vahvistettu — sitova ja laskutettava (myös ennen noutoa / kuljetusta).'
+          : 'Varaus peruttu.',
+      );
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Päivitys epäonnistui');
@@ -308,6 +312,10 @@ export default function ToolBookingCalendarPage({ session }: Props) {
 
           <section className="panel">
             <h2>Vahvistamattomat varaukset jonossa ({pending.length})</h2>
+            <p className="muted" style={{ marginTop: 0 }}>
+              Vahvistettu varaus on sitova ja laskutettava heti vahvistuksesta — myös jos työkaluja
+              ei ole vielä kerätty omistajalta tai kuljetusta tehty.
+            </p>
             {pending.length === 0 ? (
               <p className="muted">Ei vahvistamattomia varauksia jonossa.</p>
             ) : (
