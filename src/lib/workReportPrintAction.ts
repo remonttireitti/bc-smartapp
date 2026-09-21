@@ -30,7 +30,10 @@ import {
   type WorkReportPrintMeta,
   type WorkReportPrintMode,
 } from './workReportPrintHtml';
-import { loadWorkReportEquipmentLinks } from './workReportEquipment';
+import {
+  loadWorkReportEquipmentLinks,
+  type WorkReportEquipmentLink,
+} from './workReportEquipment';
 import type { CustomerPrintQuantitySettings } from './workReportCustomerPrintSettings';
 import type { WorkReport, WorkReportDailyLog } from '../types';
 
