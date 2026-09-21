@@ -11,7 +11,9 @@ import {
   loanRangesOverlap,
   parseOptionalEuro,
   shiftMonth,
+  hasToolPurchaseInfo,
   toolDayRateBadge,
+  toolFilledRateRows,
   toolRateLabelRows,
 } from '../src/lib/toolInventory.ts';
 
@@ -41,6 +43,23 @@ test('formatToolEuro and rate labels', () => {
   assert.equal(toolDayRateBadge({ rate_day_eur: null }), null);
 });
 
+
+test('filled rates and purchase info hide empty dashes', () => {
+  const filled = toolFilledRateRows({
+    rate_day_eur: 10,
+    rate_weekend_eur: null,
+    rate_week_eur: null,
+    rate_month_eur: 120,
+  });
+  assert.equal(filled.length, 2);
+  assert.equal(filled[0].key, 'day');
+  assert.equal(filled[1].key, 'month');
+  assert.equal(toolFilledRateRows({}).length, 0);
+  assert.equal(hasToolPurchaseInfo({}), false);
+  assert.equal(hasToolPurchaseInfo({ purchased_from: '  ' }), false);
+  assert.equal(hasToolPurchaseInfo({ purchased_at: '2026-01-01' }), true);
+  assert.equal(hasToolPurchaseInfo({ purchase_price_eur: 12 }), true);
+});
 test('loanable gate', () => {
   assert.equal(canStartToolLoan({ is_loanable: false, hasOpenLoan: false }).ok, false);
   assert.equal(canStartToolLoan({ is_loanable: true, status: 'loaned', hasOpenLoan: false }).ok, false);

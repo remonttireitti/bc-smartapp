@@ -25,8 +25,9 @@ import {
   hasOverlappingToolLoan,
   isoToDateInput,
   parseOptionalEuro,
+  hasToolPurchaseInfo,
   toolDayRateBadge,
-  toolRateLabelRows,
+  toolFilledRateRows,
 } from '../lib/toolInventory';
 import type { CompanyToolsDeliverySettings } from '../types/inventory';
 import { TOOL_STATUS_LABELS, type Tool, type ToolImage, type ToolLoan } from '../types/inventory';
@@ -705,44 +706,58 @@ export default function ToolsPage({ session }: Props) {
                     loanDraft[tool.id] ?? { userId: users[0]?.id ?? '', start: '', end: '', notes: '' };
                   const history = allLoans.filter((l) => l.tool_id === tool.id);
                   const months = groupLoansByMonth(history);
-                  const rateRows = toolRateLabelRows(tool);
-                  const primaryImage = tool.images?.[0] ?? null;
+                  const filledRates = toolFilledRateRows(tool);
+                  const hasPurchase = hasToolPurchaseInfo(tool);
+                  const images = tool.images ?? [];
+                  const primaryImage = images[0] ?? null;
+                  const activeLoan = activeLoanByTool.get(tool.id);
+                  const metaBits = [
+                    !isExpanded && borrower ? `Lainaaja: ${borrower}` : null,
+                    !isExpanded && !borrower ? 'Ei lainaajaa' : null,
+                    tool.serial_number ? `SN ${tool.serial_number}` : null,
+                    tool.tag_id ? `RFID ${tool.tag_id}` : null,
+                    tool.category ? tool.category : null,
+                  ].filter(Boolean);
 
                   return (
                     <li key={tool.id} className={`tool-card ${isExpanded ? 'is-expanded' : ''}`}>
-                      <div className="tool-card-main">
-                        <InventoryPhotoThumb
-                          imagePath={primaryImage?.image_path}
-                          label={tool.name}
-                          canEdit
-                          busy={busy}
-                          size="md"
-                          onPick={(file) => uploadPhoto(tool, file)}
-                          onRemove={primaryImage ? () => removePhoto(primaryImage) : undefined}
-                        />
-                        <div className="tool-card-body">
-                          <div className="tool-card-title-row">
-                            <strong>{tool.name}</strong>
-                            <span className={`badge ${isLoaned ? 'badge-scheduled' : 'badge-success'}`}>
-                              {TOOL_STATUS_LABELS[tool.status] ?? tool.status}
-                            </span>
-                          </div>
-                          <p className="muted tool-card-meta">
-                            {borrower ? `Lainaaja: ${borrower}` : 'Ei lainaajaa'}
-                            {tool.serial_number ? ` · SN ${tool.serial_number}` : ''}
-                            {tool.tag_id ? ` · RFID ${tool.tag_id}` : ''}
-                          </p>
-                          <div className="tool-card-badges">
-                            <span className={`badge ${tool.is_loanable !== false ? 'badge-success' : 'badge-draft'}`}>
-                              {tool.is_loanable !== false ? 'Lainattavissa' : 'Ei lainattavissa'}
-                            </span>
-                            {dayBadge && <span className="badge badge-scheduled">{dayBadge}</span>}
-                            {tool.purchase_price_eur != null && (
-                              <span className="badge">Hankinta {formatToolEuro(tool.purchase_price_eur)}</span>
+                      <div className="tool-card-header">
+                        <div className="tool-card-header-main">
+                          {!isExpanded && (
+                            <InventoryPhotoThumb
+                              imagePath={primaryImage?.image_path}
+                              label={tool.name}
+                              canEdit
+                              busy={busy}
+                              size="sm"
+                              onPick={(file) => uploadPhoto(tool, file)}
+                              onRemove={primaryImage ? () => removePhoto(primaryImage) : undefined}
+                            />
+                          )}
+                          <div className="tool-card-body">
+                            <div className="tool-card-title-row">
+                              <strong className="tool-card-name">{tool.name}</strong>
+                              <span className={`badge ${isLoaned ? 'badge-scheduled' : 'badge-success'}`}>
+                                {TOOL_STATUS_LABELS[tool.status] ?? tool.status}
+                              </span>
+                              <span
+                                className={`badge ${tool.is_loanable !== false ? 'badge-success' : 'badge-draft'}`}
+                              >
+                                {tool.is_loanable !== false ? 'Lainattavissa' : 'Ei lainattavissa'}
+                              </span>
+                              {!isExpanded && dayBadge && (
+                                <span className="badge badge-scheduled">{dayBadge}</span>
+                              )}
+                              {!isExpanded && tool.purchase_price_eur != null && (
+                                <span className="badge">Hankinta {formatToolEuro(tool.purchase_price_eur)}</span>
+                              )}
+                            </div>
+                            {metaBits.length > 0 && (
+                              <p className="muted tool-card-meta">{metaBits.join(' · ')}</p>
                             )}
                           </div>
                         </div>
-                        <div className="tool-card-actions">
+                        <div className="tool-card-toolbar">
                           <button
                             type="button"
                             className="btn btn-secondary btn-sm"
@@ -760,181 +775,230 @@ export default function ToolsPage({ session }: Props) {
                               Palauta
                             </button>
                           ) : null}
+                          {isExpanded && !isEditing ? (
+                            <>
+                              <button
+                                type="button"
+                                className="btn btn-secondary btn-sm"
+                                onClick={() => {
+                                  setEditingId(tool.id);
+                                  setEditForm(toolToForm(tool));
+                                }}
+                              >
+                                Muokkaa
+                              </button>
+                              <Link to={toolsBookingStaffPath()} className="btn btn-secondary btn-sm">
+                                Varauskalenteri
+                              </Link>
+                            </>
+                          ) : null}
                         </div>
                       </div>
 
                       {isExpanded && (
                         <div className="tool-card-details">
-                          <div className="inventory-details-grid">
-                            {isEditing ? (
-                              <>
-                                {(
-                                  [
-                                    ['name', 'Nimi *'],
-                                    ['serial_number', 'Sarjanumero'],
-                                    ['tag_id', 'Tunniste / RFID'],
-                                    ['category', 'Kategoria'],
-                                    ['purchased_from', 'Mistä hankittu'],
-                                    ['purchase_price_eur', 'Hankintahinta (€)'],
-                                    ['rate_day_eur', '€/päivä'],
-                                    ['rate_weekend_eur', '€/viikonloppu'],
-                                    ['rate_week_eur', '€/viikko'],
-                                    ['rate_month_eur', '€/kk'],
-                                  ] as const
-                                ).map(([key, label]) => (
-                                  <label key={key}>
-                                    {label}
-                                    <input
-                                      type="text"
-                                      inputMode={
-                                        key === 'purchase_price_eur' || key.startsWith('rate_')
-                                          ? 'decimal'
-                                          : undefined
-                                      }
-                                      value={editForm[key]}
-                                      onChange={(e) => setEditForm({ ...editForm, [key]: e.target.value })}
-                                    />
-                                  </label>
-                                ))}
-                                <label>
-                                  Hankittu milloin
+                          {isEditing ? (
+                            <div className="inventory-details-grid tool-detail-edit-grid">
+                              {(
+                                [
+                                  ['name', 'Nimi *'],
+                                  ['serial_number', 'Sarjanumero'],
+                                  ['tag_id', 'Tunniste / RFID'],
+                                  ['category', 'Kategoria'],
+                                  ['purchased_from', 'Mistä hankittu'],
+                                  ['purchase_price_eur', 'Hankintahinta (€)'],
+                                  ['rate_day_eur', '€/päivä'],
+                                  ['rate_weekend_eur', '€/viikonloppu'],
+                                  ['rate_week_eur', '€/viikko'],
+                                  ['rate_month_eur', '€/kk'],
+                                ] as const
+                              ).map(([key, label]) => (
+                                <label key={key}>
+                                  {label}
                                   <input
-                                    type="date"
-                                    value={editForm.purchased_at}
-                                    onChange={(e) => setEditForm({ ...editForm, purchased_at: e.target.value })}
+                                    type="text"
+                                    inputMode={
+                                      key === 'purchase_price_eur' || key.startsWith('rate_')
+                                        ? 'decimal'
+                                        : undefined
+                                    }
+                                    value={editForm[key]}
+                                    onChange={(e) => setEditForm({ ...editForm, [key]: e.target.value })}
                                   />
                                 </label>
-                                <div style={{ alignSelf: 'end' }}>
-                                  <ToggleSwitch
-                                    checked={editForm.is_loanable}
-                                    onChange={(checked) => setEditForm({ ...editForm, is_loanable: checked })}
-                                    label="Lainattavissa"
-                                  />
-                                </div>
-                                <div className="form-actions" style={{ gridColumn: '1 / -1' }}>
-                                  <button
-                                    type="button"
-                                    className="btn btn-primary btn-sm"
-                                    disabled={busy}
-                                    onClick={() => void saveEdit(tool.id)}
-                                  >
-                                    Tallenna
-                                  </button>
-                                  <button
-                                    type="button"
-                                    className="btn btn-secondary btn-sm"
-                                    onClick={() => setEditingId(null)}
-                                  >
-                                    Peruuta
-                                  </button>
-                                </div>
-                              </>
-                            ) : (
-                              <>
-                                <div>
-                                  <p className="muted" style={{ margin: 0 }}>
-                                    Hankinta
-                                  </p>
-                                  <p style={{ margin: '.2rem 0 0' }}>
-                                    {tool.purchased_at
-                                      ? new Date(tool.purchased_at).toLocaleDateString('fi-FI')
-                                      : '—'}
-                                    {tool.purchased_from ? ` · ${tool.purchased_from}` : ''}
-                                    {tool.purchase_price_eur != null
-                                      ? ` · ${formatToolEuro(tool.purchase_price_eur)}`
+                              ))}
+                              <label>
+                                Hankittu milloin
+                                <input
+                                  type="date"
+                                  value={editForm.purchased_at}
+                                  onChange={(e) => setEditForm({ ...editForm, purchased_at: e.target.value })}
+                                />
+                              </label>
+                              <div style={{ alignSelf: 'end' }}>
+                                <ToggleSwitch
+                                  checked={editForm.is_loanable}
+                                  onChange={(checked) => setEditForm({ ...editForm, is_loanable: checked })}
+                                  label="Lainattavissa"
+                                />
+                              </div>
+                              <div className="form-actions" style={{ gridColumn: '1 / -1' }}>
+                                <button
+                                  type="button"
+                                  className="btn btn-primary btn-sm"
+                                  disabled={busy}
+                                  onClick={() => void saveEdit(tool.id)}
+                                >
+                                  Tallenna
+                                </button>
+                                <button
+                                  type="button"
+                                  className="btn btn-secondary btn-sm"
+                                  onClick={() => setEditingId(null)}
+                                >
+                                  Peruuta
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <>
+                              <div className="tool-detail-media">
+                                {images.length === 0 ? (
+                                  <div className="tool-detail-media-empty">
+                                    <InventoryPhotoThumb
+                                      imagePath={null}
+                                      label={`${tool.name}, lisää kuva`}
+                                      canEdit
+                                      busy={busy}
+                                      size="sm"
+                                      onPick={(file) => uploadPhoto(tool, file)}
+                                    />
+                                    <p className="muted tool-detail-media-hint">Ei kuvaa — lisää kuva</p>
+                                  </div>
+                                ) : (
+                                  <div className="tool-detail-media-filled">
+                                    <div className="tool-detail-primary">
+                                      <InventoryPhotoThumb
+                                        imagePath={primaryImage?.image_path}
+                                        label={tool.name}
+                                        canEdit
+                                        busy={busy}
+                                        size="md"
+                                        onPick={(file) => uploadPhoto(tool, file)}
+                                        onRemove={
+                                          primaryImage ? () => removePhoto(primaryImage) : undefined
+                                        }
+                                      />
+                                    </div>
+                                    <div className="tool-detail-thumbs">
+                                      {images.map((img) => (
+                                        <InventoryPhotoThumb
+                                          key={img.id}
+                                          imagePath={img.image_path}
+                                          label={`${tool.name} kuva`}
+                                          canEdit
+                                          busy={busy}
+                                          size="sm"
+                                          onPick={(file) => uploadPhoto(tool, file)}
+                                          onRemove={() => removePhoto(img)}
+                                        />
+                                      ))}
+                                      <InventoryPhotoThumb
+                                        imagePath={null}
+                                        label={`${tool.name}, lisää kuva`}
+                                        canEdit
+                                        busy={busy}
+                                        size="sm"
+                                        onPick={(file) => uploadPhoto(tool, file)}
+                                      />
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+
+                              <div className="tool-detail-sections">
+                                <section className="tool-detail-section">
+                                  <h3 className="tool-detail-section-title">Hankinta</h3>
+                                  {hasPurchase ? (
+                                    <dl className="detail-list tool-detail-kv">
+                                      {tool.purchased_at ? (
+                                        <>
+                                          <dt>Milloin</dt>
+                                          <dd>{new Date(tool.purchased_at).toLocaleDateString('fi-FI')}</dd>
+                                        </>
+                                      ) : null}
+                                      {tool.purchased_from?.trim() ? (
+                                        <>
+                                          <dt>Mistä</dt>
+                                          <dd>{tool.purchased_from.trim()}</dd>
+                                        </>
+                                      ) : null}
+                                      {tool.purchase_price_eur != null ? (
+                                        <>
+                                          <dt>Hinta</dt>
+                                          <dd>{formatToolEuro(tool.purchase_price_eur)}</dd>
+                                        </>
+                                      ) : null}
+                                    </dl>
+                                  ) : (
+                                    <p className="muted tool-detail-empty">Ei hankintatietoja</p>
+                                  )}
+                                </section>
+
+                                <section className="tool-detail-section">
+                                  <h3 className="tool-detail-section-title">Hinnasto</h3>
+                                  {filledRates.length > 0 ? (
+                                    <div className="tool-rate-chips">
+                                      {filledRates.map((row) => (
+                                        <span key={row.key} className="tool-rate-chip">
+                                          <span className="tool-rate-chip-label">{row.label}</span>
+                                          <strong>{row.value}</strong>
+                                        </span>
+                                      ))}
+                                    </div>
+                                  ) : (
+                                    <p className="muted tool-detail-empty">Ei hinnastoa</p>
+                                  )}
+                                </section>
+                              </div>
+
+                              <section className="tool-detail-section tool-detail-history">
+                                <h3 className="tool-detail-section-title">Lainaushistoria</h3>
+                                {isLoaned && borrower ? (
+                                  <p className="tool-detail-borrower">
+                                    <strong>Nykyinen lainaaja:</strong> {borrower}
+                                    {activeLoan?.expected_return_at
+                                      ? ` · odotettu paluu ${new Date(
+                                          activeLoan.expected_return_at,
+                                        ).toLocaleDateString('fi-FI')}`
                                       : ''}
                                   </p>
-                                </div>
-                                <div>
-                                  <p className="muted" style={{ margin: 0 }}>
-                                    Lainaushinnasto
-                                  </p>
-                                  <p style={{ margin: '.2rem 0 0' }}>
-                                    {rateRows.map((r) => `${r.label} ${r.value}`).join(' · ')}
-                                  </p>
-                                </div>
-                                <div className="form-actions" style={{ gridColumn: '1 / -1' }}>
-                                  <button
-                                    type="button"
-                                    className="btn btn-secondary btn-sm"
-                                    onClick={() => {
-                                      setEditingId(tool.id);
-                                      setEditForm(toolToForm(tool));
-                                    }}
-                                  >
-                                    Muokkaa
-                                  </button>
-                                  <Link to={toolsBookingStaffPath()} className="btn btn-secondary btn-sm">
-                                    Varauskalenteri
-                                  </Link>
-                                </div>
-                              </>
-                            )}
-                          </div>
+                                ) : null}
+                                {months.length === 0 ? (
+                                  <p className="muted tool-detail-empty">Ei lainauksia vielä.</p>
+                                ) : (
+                                  <ul className="tool-loan-month-list">
+                                    {months.map((month) => (
+                                      <li key={month.monthKey}>
+                                        <strong className="tool-loan-month-label">{month.label}</strong>
+                                        <ul className="tool-loan-range-list">
+                                          {month.ranges.map((range, idx) => (
+                                            <li key={`${month.monthKey}-${idx}`}>
+                                              {formatLoanRangeFi(range.loaned_at, range.ends_at)}
+                                            </li>
+                                          ))}
+                                        </ul>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                )}
+                              </section>
+                            </>
+                          )}
 
-                          <div style={{ marginBottom: '0.75rem' }}>
-                            <h3 style={{ margin: '0 0 .4rem', fontSize: '1rem' }}>Kuvat</h3>
-                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.5rem', alignItems: 'center' }}>
-                              {(tool.images ?? []).map((img) => (
-                                <InventoryPhotoThumb
-                                  key={img.id}
-                                  imagePath={img.image_path}
-                                  label={`${tool.name} kuva`}
-                                  canEdit
-                                  busy={busy}
-                                  size="sm"
-                                  onPick={(file) => uploadPhoto(tool, file)}
-                                  onRemove={() => removePhoto(img)}
-                                />
-                              ))}
-                              <InventoryPhotoThumb
-                                imagePath={null}
-                                label={`${tool.name}, lisää kuva`}
-                                canEdit
-                                busy={busy}
-                                size="sm"
-                                onPick={(file) => uploadPhoto(tool, file)}
-                              />
-                            </div>
-                          </div>
-
-                          <div style={{ marginBottom: '0.75rem' }}>
-                            <h3 style={{ margin: '0 0 .4rem', fontSize: '1rem' }}>Lainaushistoria</h3>
-                            {months.length === 0 ? (
-                              <p className="muted" style={{ margin: 0 }}>
-                                Ei lainauksia vielä.
-                              </p>
-                            ) : (
-                              <ul style={{ margin: 0, paddingLeft: '1.1rem' }}>
-                                {months.map((month) => (
-                                  <li key={month.monthKey} style={{ marginBottom: '.35rem' }}>
-                                    <strong style={{ textTransform: 'capitalize' }}>{month.label}</strong>
-                                    <ul style={{ margin: '.15rem 0 0', paddingLeft: '1rem' }}>
-                                      {month.ranges.map((range, idx) => (
-                                        <li key={`${month.monthKey}-${idx}`} className="muted">
-                                          {formatLoanRangeFi(range.loaned_at, range.ends_at)}
-                                        </li>
-                                      ))}
-                                    </ul>
-                                  </li>
-                                ))}
-                              </ul>
-                            )}
-                            {isLoaned && borrower && (
-                              <p style={{ margin: '.5rem 0 0' }}>
-                                <strong>Nykyinen lainaaja:</strong> {borrower}
-                                {activeLoanByTool.get(tool.id)?.expected_return_at
-                                  ? ` · odotettu paluu ${new Date(
-                                      activeLoanByTool.get(tool.id)!.expected_return_at!,
-                                    ).toLocaleDateString('fi-FI')}`
-                                  : ''}
-                              </p>
-                            )}
-                          </div>
-
-                          {!isLoaned && (
-                            <div className="panel" style={{ padding: '.75rem', margin: 0 }}>
-                              <h3 style={{ margin: '0 0 .5rem', fontSize: '1rem' }}>Uusi lainaus</h3>
+                          {!isLoaned && !isEditing && (
+                            <div className="panel tool-loan-form-panel">
+                              <h3 className="tool-detail-section-title">Uusi lainaus</h3>
                               {!gate.ok ? (
                                 <p className="muted" style={{ margin: 0 }}>
                                   {gate.reason}
@@ -1017,6 +1081,7 @@ export default function ToolsPage({ session }: Props) {
                   );
                 })}
               </ul>
+
             )}
           </section>
         </>
