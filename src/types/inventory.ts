@@ -212,6 +212,8 @@ export type ToolLoan = {
   returned_at: string | null;
   expected_return_at: string | null;
   notes: string | null;
+  /** Omistajan sulku — ei aito lainaus. */
+  is_blockout?: boolean;
   user?: { display_name: string | null; email: string | null } | null;
   tool?: Pick<Tool, 'name' | 'tag_id' | 'serial_number'> | null;
 };
@@ -286,7 +288,7 @@ export type ToolBookingBusyRange = {
   tool_id: string;
   starts_at: string;
   ends_at: string | null;
-  source: 'loan' | 'booking' | string;
+  source: 'loan' | 'blockout' | 'booking' | string;
   status: string;
 };
 

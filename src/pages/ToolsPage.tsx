@@ -16,6 +16,7 @@ import {
   toolsBookingUrl,
 } from '../lib/toolBookingShares';
 import {
+  canStartToolBlockout,
   canStartToolLoan,
   dateInputToIsoEnd,
   dateInputToIsoStart,
@@ -23,14 +24,19 @@ import {
   formatToolEuro,
   groupLoansByMonth,
   hasOverlappingToolLoan,
+  isRealOpenLoan,
+  isToolBlockout,
   isoToDateInput,
   parseOptionalEuro,
   hasToolPurchaseInfo,
+  shouldTreatAsOwnerBlockout,
   toolDayRateBadge,
   toolFilledRateRows,
+  toolStatusBadgeLabel,
+  toolShowsAsLoaned,
 } from '../lib/toolInventory';
 import type { CompanyToolsDeliverySettings } from '../types/inventory';
-import { TOOL_STATUS_LABELS, type Tool, type ToolImage, type ToolLoan } from '../types/inventory';
+import { type Tool, type ToolImage, type ToolLoan } from '../types/inventory';
 
 interface Props {
   session: Session;
@@ -112,7 +118,7 @@ const TOOL_SELECT = `
 `;
 
 const LOAN_SELECT = `
-  id, tool_id, user_id, work_report_id, loaned_at, returned_at, expected_return_at, notes,
+  id, tool_id, user_id, work_report_id, loaned_at, returned_at, expected_return_at, notes, is_blockout,
   user:profiles!tool_loans_user_id_fkey(display_name, email),
   tool:tools!tool_loans_tool_id_fkey(name, tag_id, serial_number)
 `;
@@ -258,6 +264,22 @@ export default function ToolsPage({ session }: Props) {
     return map;
   }, [activeLoans]);
 
+  const activeRealLoanByTool = useMemo(() => {
+    const map = new Map<string, ToolLoan>();
+    for (const loan of activeLoans) {
+      if (isRealOpenLoan(loan)) map.set(loan.tool_id, loan);
+    }
+    return map;
+  }, [activeLoans]);
+
+  const activeBlockoutByTool = useMemo(() => {
+    const map = new Map<string, ToolLoan>();
+    for (const loan of activeLoans) {
+      if (isToolBlockout(loan)) map.set(loan.tool_id, loan);
+    }
+    return map;
+  }, [activeLoans]);
+
   async function addTool(e: FormEvent) {
     e.preventDefault();
     if (!profile?.company_id || !toolForm.name.trim()) return;
@@ -301,6 +323,17 @@ export default function ToolsPage({ session }: Props) {
       setError('Valitse lainaaja.');
       return;
     }
+
+    const asBlockout = shouldTreatAsOwnerBlockout({
+      borrowerUserId: userId,
+      sessionUserId: session.user.id,
+    });
+
+    if (asBlockout) {
+      await createBlockout(tool, { start: draft.start, end: draft.end, notes: draft.notes });
+      return;
+    }
+
     const gate = canStartToolLoan({
       is_loanable: tool.is_loanable !== false,
       status: tool.status,
@@ -320,7 +353,7 @@ export default function ToolsPage({ session }: Props) {
 
     const toolHistory = allLoans.filter((l) => l.tool_id === tool.id);
     if (hasOverlappingToolLoan(toolHistory, startIso, endIso)) {
-      setError('Lainaus limittäin olemassa olevan lainan / varauksen kanssa.');
+      setError('Lainaus limittäin olemassa olevan lainan / sulun kanssa.');
       return;
     }
 
@@ -332,6 +365,7 @@ export default function ToolsPage({ session }: Props) {
       loaned_at: startIso,
       expected_return_at: endIso,
       notes: draft.notes.trim() || null,
+      is_blockout: false,
     });
     if (loanError) {
       setBusy(false);
@@ -344,10 +378,60 @@ export default function ToolsPage({ session }: Props) {
     await load();
   }
 
+  async function createBlockout(
+    tool: Tool,
+    draft: { start: string; end: string; notes: string },
+  ) {
+    const gate = canStartToolBlockout({
+      status: tool.status,
+      hasOpenBlockingPeriod: activeLoanByTool.has(tool.id),
+    });
+    if (!gate.ok) {
+      setError(gate.reason);
+      return;
+    }
+
+    const startIso = dateInputToIsoStart(draft.start) ?? new Date().toISOString();
+    const endIso = draft.end ? dateInputToIsoEnd(draft.end) : null;
+    if (endIso && new Date(endIso).getTime() < new Date(startIso).getTime()) {
+      setError('Sulun loppu ei voi olla ennen alkua.');
+      return;
+    }
+
+    const toolHistory = allLoans.filter((l) => l.tool_id === tool.id);
+    if (hasOverlappingToolLoan(toolHistory, startIso, endIso)) {
+      setError('Sulku limittäin olemassa olevan lainan / sulun kanssa.');
+      return;
+    }
+
+    setBusy(true);
+    setError(null);
+    const { error: loanError } = await supabase.from('tool_loans').insert({
+      tool_id: tool.id,
+      user_id: session.user.id,
+      loaned_at: startIso,
+      expected_return_at: endIso,
+      notes: draft.notes.trim() || null,
+      is_blockout: true,
+    });
+    if (loanError) {
+      setBusy(false);
+      setError(loanError.message);
+      return;
+    }
+    // Sulku ei merkitse työkalua lainatuksi.
+    if (tool.status === 'loaned' && !activeRealLoanByTool.has(tool.id)) {
+      await supabase.from('tools').update({ status: 'available', assigned_user_id: null }).eq('id', tool.id);
+    }
+    setBusy(false);
+    setMessage('Lainausaika suljettu.');
+    await load();
+  }
+
   async function returnTool(toolId: string) {
     setBusy(true);
     setError(null);
-    const activeLoan = activeLoanByTool.get(toolId);
+    const activeLoan = activeRealLoanByTool.get(toolId);
     if (activeLoan) {
       await supabase
         .from('tool_loans')
@@ -357,6 +441,24 @@ export default function ToolsPage({ session }: Props) {
     await supabase.from('tools').update({ status: 'available', assigned_user_id: null }).eq('id', toolId);
     setBusy(false);
     setMessage('Työkalu palautettu.');
+    await load();
+  }
+
+  async function endBlockout(toolId: string) {
+    setBusy(true);
+    setError(null);
+    const blockout = activeBlockoutByTool.get(toolId);
+    if (blockout) {
+      await supabase
+        .from('tool_loans')
+        .update({ returned_at: new Date().toISOString() })
+        .eq('id', blockout.id);
+    }
+    if (!activeRealLoanByTool.has(toolId)) {
+      await supabase.from('tools').update({ status: 'available', assigned_user_id: null }).eq('id', toolId);
+    }
+    setBusy(false);
+    setMessage('Sulku poistettu.');
     await load();
   }
 
@@ -396,14 +498,9 @@ export default function ToolsPage({ session }: Props) {
   }
 
   function borrowerLabel(tool: Tool): string | null {
-    const loan = activeLoanByTool.get(tool.id);
-    return (
-      loan?.user?.display_name ??
-      loan?.user?.email ??
-      tool.assigned_user?.display_name ??
-      tool.assigned_user?.email ??
-      null
-    );
+    const loan = activeRealLoanByTool.get(tool.id);
+    if (!loan) return null;
+    return loan.user?.display_name ?? loan.user?.email ?? null;
   }
 
   async function ensureLink() {
@@ -692,7 +789,19 @@ export default function ToolsPage({ session }: Props) {
             ) : (
               <ul className="tool-card-grid">
                 {tools.map((tool) => {
-                  const isLoaned = tool.status === 'loaned' || activeLoanByTool.has(tool.id);
+                  const hasOpenRealLoan = activeRealLoanByTool.has(tool.id);
+                  const hasOpenBlockout = activeBlockoutByTool.has(tool.id);
+                  const isLoaned = toolShowsAsLoaned({
+                    is_loanable: tool.is_loanable !== false,
+                    status: tool.status,
+                    hasOpenRealLoan,
+                  });
+                  const statusLabel = toolStatusBadgeLabel({
+                    is_loanable: tool.is_loanable !== false,
+                    status: tool.status,
+                    hasOpenRealLoan,
+                    hasOpenBlockout,
+                  });
                   const borrower = borrowerLabel(tool);
                   const dayBadge = toolDayRateBadge(tool);
                   const isExpanded = expandedId === tool.id;
@@ -702,6 +811,10 @@ export default function ToolsPage({ session }: Props) {
                     status: tool.status,
                     hasOpenLoan: activeLoanByTool.has(tool.id),
                   });
+                  const blockoutGate = canStartToolBlockout({
+                    status: tool.status,
+                    hasOpenBlockingPeriod: activeLoanByTool.has(tool.id),
+                  });
                   const draft =
                     loanDraft[tool.id] ?? { userId: users[0]?.id ?? '', start: '', end: '', notes: '' };
                   const history = allLoans.filter((l) => l.tool_id === tool.id);
@@ -710,10 +823,12 @@ export default function ToolsPage({ session }: Props) {
                   const hasPurchase = hasToolPurchaseInfo(tool);
                   const images = tool.images ?? [];
                   const primaryImage = images[0] ?? null;
-                  const activeLoan = activeLoanByTool.get(tool.id);
+                  const activeLoan = activeRealLoanByTool.get(tool.id);
+                  const activeBlockout = activeBlockoutByTool.get(tool.id);
                   const metaBits = [
                     !isExpanded && borrower ? `Lainaaja: ${borrower}` : null,
-                    !isExpanded && !borrower ? 'Ei lainaajaa' : null,
+                    !isExpanded && hasOpenBlockout ? 'Suljettu pois lainauksesta' : null,
+                    !isExpanded && !borrower && !hasOpenBlockout ? 'Ei lainaajaa' : null,
                     tool.serial_number ? `SN ${tool.serial_number}` : null,
                     tool.tag_id ? `RFID ${tool.tag_id}` : null,
                     tool.category ? tool.category : null,
@@ -737,8 +852,12 @@ export default function ToolsPage({ session }: Props) {
                           <div className="tool-card-body">
                             <div className="tool-card-title-row">
                               <strong className="tool-card-name">{tool.name}</strong>
-                              <span className={`badge ${isLoaned ? 'badge-scheduled' : 'badge-success'}`}>
-                                {TOOL_STATUS_LABELS[tool.status] ?? tool.status}
+                              <span
+                                className={`badge ${
+                                  isLoaned || hasOpenBlockout ? 'badge-scheduled' : 'badge-success'
+                                }`}
+                              >
+                                {statusLabel}
                               </span>
                               <span
                                 className={`badge ${tool.is_loanable !== false ? 'badge-success' : 'badge-draft'}`}
@@ -765,7 +884,7 @@ export default function ToolsPage({ session }: Props) {
                           >
                             {isExpanded ? 'Sulje' : 'Tiedot'}
                           </button>
-                          {isLoaned ? (
+                          {hasOpenRealLoan ? (
                             <button
                               type="button"
                               className="btn btn-secondary btn-sm"
@@ -773,6 +892,16 @@ export default function ToolsPage({ session }: Props) {
                               onClick={() => void returnTool(tool.id)}
                             >
                               Palauta
+                            </button>
+                          ) : null}
+                          {!hasOpenRealLoan && hasOpenBlockout ? (
+                            <button
+                              type="button"
+                              className="btn btn-secondary btn-sm"
+                              disabled={busy}
+                              onClick={() => void endBlockout(tool.id)}
+                            >
+                              Poista sulku
                             </button>
                           ) : null}
                           {isExpanded && !isEditing ? (
@@ -964,7 +1093,7 @@ export default function ToolsPage({ session }: Props) {
 
                               <section className="tool-detail-section tool-detail-history">
                                 <h3 className="tool-detail-section-title">Lainaushistoria</h3>
-                                {isLoaned && borrower ? (
+                                {hasOpenRealLoan && borrower ? (
                                   <p className="tool-detail-borrower">
                                     <strong>Nykyinen lainaaja:</strong> {borrower}
                                     {activeLoan?.expected_return_at
@@ -972,6 +1101,15 @@ export default function ToolsPage({ session }: Props) {
                                           activeLoan.expected_return_at,
                                         ).toLocaleDateString('fi-FI')}`
                                       : ''}
+                                  </p>
+                                ) : null}
+                                {hasOpenBlockout && activeBlockout ? (
+                                  <p className="tool-detail-borrower">
+                                    <strong>Nykyinen sulku:</strong>{' '}
+                                    {formatLoanRangeFi(
+                                      activeBlockout.loaned_at,
+                                      activeBlockout.expected_return_at ?? activeBlockout.returned_at,
+                                    )}
                                   </p>
                                 ) : null}
                                 {months.length === 0 ? (
@@ -984,6 +1122,7 @@ export default function ToolsPage({ session }: Props) {
                                         <ul className="tool-loan-range-list">
                                           {month.ranges.map((range, idx) => (
                                             <li key={`${month.monthKey}-${idx}`}>
+                                              {range.is_blockout ? 'Sulku: ' : ''}
                                               {formatLoanRangeFi(range.loaned_at, range.ends_at)}
                                             </li>
                                           ))}
@@ -996,15 +1135,15 @@ export default function ToolsPage({ session }: Props) {
                             </>
                           )}
 
-                          {!isLoaned && !isEditing && (
+                          {!hasOpenRealLoan && !hasOpenBlockout && !isEditing && (
                             <div className="panel tool-loan-form-panel">
-                              <h3 className="tool-detail-section-title">Uusi lainaus</h3>
-                              {!gate.ok ? (
-                                <p className="muted" style={{ margin: 0 }}>
-                                  {gate.reason}
-                                </p>
-                              ) : (
-                                <div className="line-form-grid">
+                              <h3 className="tool-detail-section-title">Uusi lainaus / sulku</h3>
+                              <p className="muted" style={{ margin: '0 0 .65rem' }}>
+                                Itselle merkitty jakso tallennetaan <strong>sulkuna</strong> (ei lainana).
+                                Aito laina: valitse toinen henkilö.
+                              </p>
+                              <div className="line-form-grid">
+                                {gate.ok ? (
                                   <label>
                                     Lainaaja
                                     <select
@@ -1019,60 +1158,88 @@ export default function ToolsPage({ session }: Props) {
                                       {users.map((u) => (
                                         <option key={u.id} value={u.id}>
                                           {u.display_name ?? u.email ?? u.id}
+                                          {u.id === session.user.id ? ' (sulku itselle)' : ''}
                                         </option>
                                       ))}
                                     </select>
                                   </label>
-                                  <label>
-                                    Alkaa
-                                    <input
-                                      type="date"
-                                      value={draft.start}
-                                      onChange={(e) =>
-                                        setLoanDraft({
-                                          ...loanDraft,
-                                          [tool.id]: { ...draft, start: e.target.value },
-                                        })
-                                      }
-                                    />
-                                  </label>
-                                  <label>
-                                    Odotettu paluu (valinnainen)
-                                    <input
-                                      type="date"
-                                      value={draft.end}
-                                      onChange={(e) =>
-                                        setLoanDraft({
-                                          ...loanDraft,
-                                          [tool.id]: { ...draft, end: e.target.value },
-                                        })
-                                      }
-                                    />
-                                  </label>
-                                  <label>
-                                    Huomio
-                                    <input
-                                      value={draft.notes}
-                                      onChange={(e) =>
-                                        setLoanDraft({
-                                          ...loanDraft,
-                                          [tool.id]: { ...draft, notes: e.target.value },
-                                        })
-                                      }
-                                    />
-                                  </label>
-                                  <div className="form-actions">
+                                ) : (
+                                  <p className="muted" style={{ margin: 0, gridColumn: '1 / -1' }}>
+                                    {gate.reason} Voit silti sulkea lainausaikoja alla.
+                                  </p>
+                                )}
+                                <label>
+                                  Alkaa
+                                  <input
+                                    type="date"
+                                    value={draft.start}
+                                    onChange={(e) =>
+                                      setLoanDraft({
+                                        ...loanDraft,
+                                        [tool.id]: { ...draft, start: e.target.value },
+                                      })
+                                    }
+                                  />
+                                </label>
+                                <label>
+                                  Loppuu (valinnainen)
+                                  <input
+                                    type="date"
+                                    value={draft.end}
+                                    onChange={(e) =>
+                                      setLoanDraft({
+                                        ...loanDraft,
+                                        [tool.id]: { ...draft, end: e.target.value },
+                                      })
+                                    }
+                                  />
+                                </label>
+                                <label>
+                                  Huomio
+                                  <input
+                                    value={draft.notes}
+                                    onChange={(e) =>
+                                      setLoanDraft({
+                                        ...loanDraft,
+                                        [tool.id]: { ...draft, notes: e.target.value },
+                                      })
+                                    }
+                                  />
+                                </label>
+                                <div className="form-actions" style={{ gridColumn: '1 / -1' }}>
+                                  {gate.ok ? (
                                     <button
                                       type="button"
                                       className="btn btn-primary btn-sm"
                                       disabled={busy || !draft.userId}
                                       onClick={() => void loanTool(tool)}
                                     >
-                                      Lainaa
+                                      {draft.userId === session.user.id ? 'Sulje ajat' : 'Lainaa'}
                                     </button>
-                                  </div>
+                                  ) : null}
+                                  {!gate.ok && blockoutGate.ok ? (
+                                    <button
+                                      type="button"
+                                      className="btn btn-primary btn-sm"
+                                      disabled={busy}
+                                      onClick={() =>
+                                        void createBlockout(tool, {
+                                          start: draft.start,
+                                          end: draft.end,
+                                          notes: draft.notes,
+                                        })
+                                      }
+                                    >
+                                      Sulje lainausaika
+                                    </button>
+                                  ) : null}
+                                  {!gate.ok && !blockoutGate.ok ? (
+                                    <p className="muted" style={{ margin: 0 }}>
+                                      {blockoutGate.reason}
+                                    </p>
+                                  ) : null}
                                 </div>
-                              )}
+                              </div>
                             </div>
                           )}
                         </div>
