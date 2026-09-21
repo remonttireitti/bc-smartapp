@@ -14,6 +14,7 @@ import WorkReportFilters, {
 
 import { ReportListItem } from '../components/ReportListItem';
 import { WorkReportListGrid, WorkReportListTile } from '../components/WorkReportListTile';
+import WorkReportListSummary from '../components/WorkReportListSummary';
 
 import WorkReportCalendarTimeline, {
   calendarDayHoursLabel,
@@ -22,11 +23,16 @@ import WorkReportCalendarTimeline, {
 import {
   buildCalendarEvents,
   CALENDAR_LOG_SELECT,
-  compareActiveReportsForList,
   CALENDAR_DISPLAY_STATUSES,
   formatAllowedOverlapLabel,
   formatTimeRange,
 } from '../lib/workReportCalendar';
+import {
+  readWorkReportListSortMode,
+  sortWorkReportsForList,
+  writeWorkReportListSortMode,
+  type WorkReportListSortMode,
+} from '../lib/workReportListSummary';
 
 import { supabase } from '../lib/supabase';
 
@@ -207,6 +213,8 @@ export default function WorkReportsPage({ session }: Props) {
   const [brandingFilter, setBrandingFilter] = useState('');
   const [personFilter, setPersonFilter] = useState('');
   const [customerFilter, setCustomerFilter] = useState('');
+  const [listSortMode, setListSortMode] = useState<WorkReportListSortMode>(() => readWorkReportListSortMode());
+
 
   const [monthAnchor, setMonthAnchor] = useState(() => startOfMonth(new Date()));
 
@@ -367,15 +375,19 @@ export default function WorkReportsPage({ session }: Props) {
   const hasActiveFilters = Boolean(brandingFilter || personFilter || customerFilter);
 
   const activeReports = useMemo(
-
-    () =>
-      filteredReports
-        .filter((r) => ACTIVE_STATUSES.includes(r.status))
-        .sort(compareActiveReportsForList),
-
+    () => filteredReports.filter((r) => ACTIVE_STATUSES.includes(r.status)),
     [filteredReports],
-
   );
+
+  const sortedActiveReports = useMemo(
+    () => sortWorkReportsForList(activeReports, listSortMode),
+    [activeReports, listSortMode],
+  );
+
+  function handleListSortModeChange(mode: WorkReportListSortMode) {
+    setListSortMode(mode);
+    writeWorkReportListSortMode(mode);
+  }
 
 
 
@@ -950,14 +962,21 @@ export default function WorkReportsPage({ session }: Props) {
 
           ) : (
 
-            <WorkReportListGrid>
-              {activeReports.map((r) => (
-                <WorkReportListTile
-                  key={r.id}
-                  {...reportListItemProps(r, logsByReportId, companyId, billingModuleEnabled, customerBillingEnabled, loadReports, { showStatusMenu: true })}
-                />
-              ))}
-            </WorkReportListGrid>
+            <>
+              <WorkReportListSummary
+                reports={activeReports}
+                sortMode={listSortMode}
+                onSortModeChange={handleListSortModeChange}
+              />
+              <WorkReportListGrid>
+                {sortedActiveReports.map((r) => (
+                  <WorkReportListTile
+                    key={r.id}
+                    {...reportListItemProps(r, logsByReportId, companyId, billingModuleEnabled, customerBillingEnabled, loadReports, { showStatusMenu: true })}
+                  />
+                ))}
+              </WorkReportListGrid>
+            </>
 
           )}
 
