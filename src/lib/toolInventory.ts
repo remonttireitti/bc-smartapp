@@ -284,6 +284,41 @@ export function computeDeliveryFee(input: DeliveryFeeInput): number {
   return minFeeEur + (dist - limit) * perKmEur;
 }
 
+/** Booking transport: self both ways, outbound only, return only, or company both legs. */
+export type DeliveryTransportMode = 'none' | 'delivery' | 'pickup' | 'both';
+
+export function deliveryModeHasOutbound(mode: DeliveryTransportMode): boolean {
+  return mode === 'delivery' || mode === 'both';
+}
+
+export function deliveryModeHasReturn(mode: DeliveryTransportMode): boolean {
+  return mode === 'pickup' || mode === 'both';
+}
+
+/** Number of company-operated transport legs (0–2). */
+export function deliveryModeCompanyLegCount(mode: DeliveryTransportMode): number {
+  return (deliveryModeHasOutbound(mode) ? 1 : 0) + (deliveryModeHasReturn(mode) ? 1 : 0);
+}
+
+export function deliveryModeNeedsAddress(mode: DeliveryTransportMode): boolean {
+  return deliveryModeCompanyLegCount(mode) > 0;
+}
+
+/**
+ * Total delivery fee for a booking: per-leg fee × company legs.
+ * `none` → null (no fee). Invalid numbers → NaN.
+ */
+export function computeBookingDeliveryFee(
+  mode: DeliveryTransportMode,
+  input: DeliveryFeeInput,
+): number | null {
+  const legs = deliveryModeCompanyLegCount(mode);
+  if (legs === 0) return null;
+  const perLeg = computeDeliveryFee(input);
+  if (!Number.isFinite(perLeg)) return Number.NaN;
+  return perLeg * legs;
+}
+
 export type BusyRange = {
   tool_id: string;
   starts_at: string;

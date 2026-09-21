@@ -239,7 +239,7 @@ export const TOOL_STATUS_LABELS: Record<string, string> = {
 
 export type ToolBookingStatus = 'pending' | 'confirmed' | 'cancelled';
 
-export type ToolBookingDeliveryMode = 'none' | 'delivery' | 'pickup';
+export type ToolBookingDeliveryMode = 'none' | 'delivery' | 'pickup' | 'both';
 
 export type ToolBooking = {
   id: string;
@@ -312,8 +312,10 @@ export const TOOL_BOOKING_STATUS_LABELS: Record<ToolBookingStatus, string> = {
   cancelled: 'Peruttu',
 };
 
+/** FI labels for delivery_mode (locked): none / pickup / delivery / both. */
 export const TOOL_BOOKING_DELIVERY_LABELS: Record<ToolBookingDeliveryMode, string> = {
-  none: 'Ei kuljetusta',
-  delivery: 'Kuljetus',
-  pickup: 'Nouto',
+  none: 'Haen ja palautan itse',
+  pickup: 'Haen työkalu(t) itse, tilaan palautuksen',
+  delivery: 'Työkalujen haku tilataan, palautan itse',
+  both: 'Tilaan kuljetuksen molempiin suuntiin',
 };

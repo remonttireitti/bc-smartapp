@@ -640,7 +640,7 @@ export default function ToolsPage({ session }: Props) {
             </div>
           </section>
 
-          <CollapsibleSection title="Kuljetus ja nouto (yritys)" defaultOpen={false} variant="plain" className="panel">
+          <CollapsibleSection title="Kuljetusosuudet: vienti / palautusnouto" defaultOpen={false} variant="plain" className="panel">
             <form onSubmit={(e) => void saveDelivery(e)} className="line-form-grid">
               <div style={{ gridColumn: '1 / -1', display: 'flex', flexWrap: 'wrap', gap: '1rem' }}>
                 <ToggleSwitch
@@ -651,21 +651,21 @@ export default function ToolsPage({ session }: Props) {
                 <ToggleSwitch
                   checked={deliveryForm.delivery_enabled}
                   onChange={(checked) => setDeliveryForm({ ...deliveryForm, delivery_enabled: checked })}
-                  label="Kuljetus mahdollinen"
+                  label="Vienti mahdollinen"
                 />
                 <ToggleSwitch
                   checked={deliveryForm.pickup_enabled}
                   onChange={(checked) => setDeliveryForm({ ...deliveryForm, pickup_enabled: checked })}
-                  label="Nouto mahdollinen"
+                  label="Palautusnouto mahdollinen"
                 />
               </div>
               <label>
-                Minimihinta (€) — lyhyt matka
+                Minimihinta per osuus (€) — lyhyt matka
                 <input
                   inputMode="decimal"
                   value={deliveryForm.delivery_min_fee_eur}
                   onChange={(e) => setDeliveryForm({ ...deliveryForm, delivery_min_fee_eur: e.target.value })}
-                  disabled={!deliveryForm.delivery_enabled}
+                  disabled={!deliveryForm.delivery_enabled && !deliveryForm.pickup_enabled}
                 />
               </label>
               <label>
@@ -676,7 +676,7 @@ export default function ToolsPage({ session }: Props) {
                   onChange={(e) =>
                     setDeliveryForm({ ...deliveryForm, delivery_distance_limit_km: e.target.value })
                   }
-                  disabled={!deliveryForm.delivery_enabled}
+                  disabled={!deliveryForm.delivery_enabled && !deliveryForm.pickup_enabled}
                 />
               </label>
               <label>
@@ -685,11 +685,15 @@ export default function ToolsPage({ session }: Props) {
                   inputMode="decimal"
                   value={deliveryForm.delivery_per_km_eur}
                   onChange={(e) => setDeliveryForm({ ...deliveryForm, delivery_per_km_eur: e.target.value })}
-                  disabled={!deliveryForm.delivery_enabled}
+                  disabled={!deliveryForm.delivery_enabled && !deliveryForm.pickup_enabled}
                 />
               </label>
               <p className="muted" style={{ gridColumn: '1 / -1', margin: 0 }}>
-                Lyhyt matka (≤ raja): veloitetaan minimihinta. Yli rajan: minimihinta + ylimääräiset km × €/km.
+                Hinta per kuljetusosuus (vienti tai palautusnouto). Lyhyt matka (≤ raja): minimihinta.
+                Yli rajan: minimihinta + ylimääräiset km × €/km. Molemmat osuudet = 2 × osuuden hinta.
+                «Haen ja palautan itse» = ei kuljetusmaksua. Asiakkaan km on arvio; lopullinen matka
+                määräytyy kuljettajan navigaattorin mukaan. Ajoja pyritään yhdistämään kustannusten
+                pienentämiseksi.
               </p>
               <div className="form-actions">
                 <button type="submit" className="btn btn-primary btn-sm" disabled={busy}>
