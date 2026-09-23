@@ -317,6 +317,9 @@ export function computeQuoteInternalTotals(
       materialsPurchaseNet += materialPurchaseTotal(item.materials ?? []);
       materialsSellNet += materialSellTotal(item.materials ?? []);
     }
+    // Sisällytä myös top-level-materiaalit (näkyvät taulukossa materialRows:ssa)
+    materialsPurchaseNet += materialPurchaseTotal(data.materials.filter((m) => m.name.trim()));
+    materialsSellNet += materialSellTotal(data.materials.filter((m) => m.name.trim()));
   } else {
     materialsPurchaseNet = materialPurchaseTotal(data.materials);
     materialsSellNet = materialSellTotal(data.materials);
