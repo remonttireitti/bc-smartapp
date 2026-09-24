@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom';
 import {
   billingQuoteHasData,
   computePartnerNetMargin,
-  computeQuotePurchaseMarginAdjustment,
   DEFAULT_PARTNER_COMMISSION_PERCENT,
   formatUrakkaOutcomeSummary,
   normalizeBillingQuoteSettings,
@@ -14,11 +13,9 @@ import {
   resolvePartnerCommissionPercent,
   resolveQuotePurchaseTotal,
   saveBillingQuoteSettings,
-  type BillingQuotePurchaseLine,
   type BillingQuoteSettings,
 } from '../lib/workReportBillingQuote';
 import { extractQuotePurchaseLines, sumQuotePurchaseLines } from '../lib/quotePurchaseLines';
-import { analyzeWorkReportPurchaseCosts } from '../lib/workReportActualPurchase';
 import { mergeActualPurchaseFromWorkReportLogs } from '../lib/quoteRequestActualPurchaseSync';
 import {
   compareQuoteCategories,
@@ -136,10 +133,6 @@ export default function WorkReportBillingQuotePanel({
     () => (quoteData ? extractQuotePurchaseLines(quoteData) : []),
     [quoteData],
   );
-  const purchaseCostAnalysis = useMemo(
-    () => analyzeWorkReportPurchaseCosts(dailyLogs),
-    [dailyLogs],
-  );
   const partnerMargin = useMemo(
     () =>
       installationCostNet != null
@@ -205,24 +198,6 @@ export default function WorkReportBillingQuotePanel({
     [effectiveSettings, dailyLogs, customerCalculation, quoteBillingEnabled],
   );
 
-  function updatePurchaseLine(id: string, actualPurchaseNet: number | null) {
-    const currentLines = effectiveSettings.purchase_lines ?? [];
-    const target = currentLines.find((line) => line.id === id);
-    if (!target) return;
-
-    setSettings((prev) => {
-      const saved = [...(prev.purchase_lines ?? [])];
-      const index = saved.findIndex((line) => line.id === id);
-      const nextLine = {
-        ...target,
-        actual_purchase_net: actualPurchaseNet ?? target.quote_purchase_net,
-      };
-      if (index >= 0) saved[index] = nextLine;
-      else saved.push(nextLine);
-      return normalizeBillingQuoteSettings({ ...prev, purchase_lines: saved });
-    });
-  }
-
   async function saveSettings() {
     setBusy(true);
     setError(null);
@@ -286,15 +261,10 @@ export default function WorkReportBillingQuotePanel({
       && effectiveSettings.quote_sale_net != null
       && Math.abs(effectiveSettings.customer_invoice_total - effectiveSettings.quote_sale_net) > 0.01
     );
-  const purchaseMarginAdjustment = computeQuotePurchaseMarginAdjustment(effectiveSettings);
-
   function renderQuoteVsActualIntro() {
     return (
       <p className="muted span-2" style={{ margin: 0 }}>
-        Tarjouspyynnön <strong>työt</strong>, <strong>tarvikkeet</strong>, <strong>kulut</strong> ja{' '}
-        <strong>laite</strong> vastaavat työraportin merkintöjä. Arviota ja toteutunutta{' '}
-        <strong>verrataan</strong> — niitä ei lasketa yhteen. Kateen laskennassa käytetään vain
-        toteutuneita kustannuksia.
+        Verrataan tarjouksen arviota toteutuneisiin kustannuksiin — niitä ei lasketa yhteen.
       </p>
     );
   }
@@ -311,6 +281,11 @@ export default function WorkReportBillingQuotePanel({
         <td className="num">{showMoney ? formatEuro(row.quoteNet) : '—'}</td>
         <td className="num">{showMoney ? formatEuro(row.actualNet) : '—'}</td>
         <td className="num">{showMoney ? formatEuro(row.varianceNet) : '—'}</td>
+        <td className="num">
+          {showMoney
+            ? formatEuro(row.quoteNet - row.actualNet)
+            : '—'}
+        </td>
       </tr>
     );
   }
@@ -329,6 +304,7 @@ export default function WorkReportBillingQuotePanel({
               <th className="num">Tarjous €</th>
               <th className="num">Toteutunut €</th>
               <th className="num">Ero €</th>
+              <th className="num">Budjetti jäljellä</th>
             </tr>
           </thead>
           <tbody>
@@ -343,6 +319,9 @@ export default function WorkReportBillingQuotePanel({
               <td className="num"><strong>{formatEuro(comparison.actualTotalNet)}</strong></td>
               <td className="num">
                 <strong>{formatEuro(comparison.varianceNet)}</strong>
+              </td>
+              <td className="num">
+                <strong>{formatEuro(comparison.quoteTotalNet - comparison.actualTotalNet)}</strong>
               </td>
             </tr>
           </tfoot>
@@ -388,192 +367,7 @@ export default function WorkReportBillingQuotePanel({
     );
   }
 
-  function renderQuotePurchaseBreakdownTable(lines: BillingQuotePurchaseLine[]) {
-    if (lines.length === 0) return null;
-    const total = sumQuotePurchaseLines(lines, 'quote_purchase_net');
-    return (
-      <div className="table-wrap billing-purchase-lines-wrap">
-        <h4 className="billing-breakdown-heading">Hankinnan erittely</h4>
-        <p className="muted billing-purchase-lines-hint">
-          Summat tulevat tarjouspyynnön <strong>Työt &amp; tarvikkeet</strong> -osiosta (hankintahinnat,
-          alv 0 %).
-        </p>
-        <table className="billing-table billing-purchase-lines-table">
-          <thead>
-            <tr>
-              <th>Rivi</th>
-              <th className="num">Hankinta (alv 0 %)</th>
-            </tr>
-          </thead>
-          <tbody>
-            {lines.map((line) => (
-              <tr key={line.id}>
-                <td>
-                  {line.label}
-                  {line.quantity != null && line.unit ? (
-                    <span className="muted">
-                      {' '}
-                      · {line.quantity} {line.unit}
-                    </span>
-                  ) : null}
-                </td>
-                <td className="num">{formatEuro(line.quote_purchase_net)}</td>
-              </tr>
-            ))}
-          </tbody>
-          <tfoot>
-            <tr>
-              <td><strong>Yhteensä</strong></td>
-              <td className="num"><strong>{formatEuro(total)}</strong></td>
-            </tr>
-          </tfoot>
-        </table>
-      </div>
-    );
-  }
 
-  function renderPurchaseLinesTable(lines: BillingQuotePurchaseLine[], editable: boolean) {
-    if (lines.length === 0) return null;
-    return (
-      <div className="table-wrap billing-purchase-lines-wrap">
-        <h4 className="billing-breakdown-heading">Tarvikkeet ja laite: rivierittely</h4>
-        <p className="muted billing-purchase-lines-hint">
-          Tarvikkeet (päiväkirjan tarvikerivit) ja laite (oikaisukenttä) eriteltynä. Yhteenveto yllä olevassa
-          vertailutaulukossa.
-        </p>
-        <table className="billing-table billing-purchase-lines-table">
-          <thead>
-            <tr>
-              <th>Rivi</th>
-              <th className="num">Tarjous (arvio)</th>
-              <th className="num">Toteutunut</th>
-              <th className="num">Ero</th>
-            </tr>
-          </thead>
-          <tbody>
-            {lines.map((line) => {
-              const variance = roundMoney(line.actual_purchase_net - line.quote_purchase_net);
-              const changed = Math.abs(variance) > 0.005;
-              const deviceEditable = editable && line.source === 'device';
-              const fromDailyLog = line.source !== 'device';
-              return (
-                <tr key={line.id} className={changed ? 'billing-purchase-line-changed' : undefined}>
-                  <td>
-                    {line.label}
-                    {line.quantity != null && line.unit ? (
-                      <span className="muted">
-                        {' '}
-                        · {line.quantity} {line.unit}
-                      </span>
-                    ) : null}
-                    {line.source === 'device' ? (
-                      <span className="muted"> · oikaisu: toteutunut hankinta</span>
-                    ) : null}
-                    {fromDailyLog ? (
-                      <span className="muted"> · laskettu päiväkirjasta</span>
-                    ) : null}
-                  </td>
-                  <td className="num">{formatEuro(line.quote_purchase_net)}</td>
-                  <td className="num">
-                    {deviceEditable ? (
-                      <input
-                        type="text"
-                        inputMode="decimal"
-                        className="billing-purchase-line-input"
-                        value={moneyInputValue(line.actual_purchase_net)}
-                        disabled={busy}
-                        onChange={(e) => updatePurchaseLine(line.id, parseMoneyInput(e.target.value))}
-                      />
-                    ) : (
-                      formatEuro(line.actual_purchase_net)
-                    )}
-                  </td>
-                  <td className="num">
-                    {changed ? formatEuro(variance) : '—'}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-          <tfoot>
-            <tr>
-              <td>
-                <strong>Yhteensä</strong>
-              </td>
-              <td className="num">
-                <strong>{formatEuro(quotePurchaseTotal)}</strong>
-              </td>
-              <td className="num">
-                <strong>{formatEuro(actualPurchaseTotal)}</strong>
-              </td>
-              <td className="num">
-                <strong>
-                  {Math.abs(actualPurchaseTotal - quotePurchaseTotal) > 0.005
-                    ? formatEuro(roundMoney(actualPurchaseTotal - quotePurchaseTotal))
-                    : '—'}
-                </strong>
-              </td>
-            </tr>
-          </tfoot>
-        </table>
-        {purchaseMarginAdjustment
-        && Math.abs(purchaseMarginAdjustment.purchaseDeltaNet) > 0.005 ? (
-          <p className="muted billing-purchase-lines-hint">
-            Hankinta {purchaseMarginAdjustment.purchaseDeltaNet > 0 ? 'nousi' : 'laski'}{' '}
-            {formatEuro(Math.abs(purchaseMarginAdjustment.purchaseDeltaNet))} → kate tarjoushinnasta{' '}
-            {purchaseMarginAdjustment.marginPercentAtQuote.toLocaleString('fi-FI', {
-              maximumFractionDigits: 1,
-            })}{' '}
-            % →{' '}
-            <strong>
-              {purchaseMarginAdjustment.marginPercentAfterActual.toLocaleString('fi-FI', {
-                maximumFractionDigits: 1,
-              })}{' '}
-              %
-            </strong>
-          </p>
-        ) : null}
-        {purchaseCostAnalysis.lines.length > 0 ? (
-          <details className="billing-purchase-lines-details">
-            <summary>Päiväkirjan hankintarivit ({purchaseCostAnalysis.lines.length})</summary>
-            <table className="billing-table billing-purchase-lines-table">
-              <thead>
-                <tr>
-                  <th>Päivä</th>
-                  <th>Kuvaus</th>
-                  <th className="num">Hankinta</th>
-                </tr>
-              </thead>
-              <tbody>
-                {purchaseCostAnalysis.lines.map((line) => (
-                  <tr key={line.key}>
-                    <td>{line.logDate}</td>
-                    <td>{line.description}</td>
-                    <td className="num">{formatEuro(line.total)}</td>
-                  </tr>
-                ))}
-              </tbody>
-              <tfoot>
-                <tr>
-                  <td colSpan={2}>
-                    <strong>Yhteensä päiväkirjasta</strong>
-                  </td>
-                  <td className="num">
-                    <strong>{formatEuro(purchaseCostAnalysis.suppliesNet)}</strong>
-                  </td>
-                </tr>
-              </tfoot>
-            </table>
-            {purchaseCostAnalysis.purchasePricesMissing ? (
-              <p className="muted billing-purchase-lines-hint">
-                Joistakin riveistä puuttuu hankintahinta — ne eivät ole mukana summassa.
-              </p>
-            ) : null}
-          </details>
-        ) : null}
-      </div>
-    );
-  }
 
   return (
     <div className="billing-margin-panel">
@@ -621,16 +415,8 @@ export default function WorkReportBillingQuotePanel({
             <div className="form-grid billing-margin-form">
               {quoteIsLinked ? (
                 <div className="form-field span-2 billing-quote-linked-summary">
-                  <span>Tarjous</span>
-                  <div className="billing-quote-linked-row">
-                    <strong>{settings.quote_title ?? 'Linkitetty tarjous'}</strong>
-                    <Link
-                      to={`/tarjouspyynnot/${settings.quote_request_id}`}
-                      className="btn btn-secondary btn-sm"
-                    >
-                      Avaa tarjous
-                    </Link>
-                  </div>
+                  <span>Tarjous:</span>
+                  <strong>{settings.quote_title ?? 'Linkitetty tarjous'}</strong>
                 </div>
               ) : null}
 
@@ -652,9 +438,7 @@ export default function WorkReportBillingQuotePanel({
                   </label>
                   {quoteBillingEnabled ? (
                     <p className="muted span-2" style={{ margin: 0 }}>
-                      Lisälaskutettavat tarvikkeet merkitään päiväkirjassa ruudussa{' '}
-                      <strong>Kulut ja tarvikkeet</strong>: kytkin &quot;Lisälaskutettavissa&quot; ja
-                      erikseen &quot;Lupa lisälaskutukseen&quot;.
+                      Lisälaskutus: päiväkirja → <strong>Kulut ja tarvikkeet</strong> → lisälaskutettavissa + lupa.
                     </p>
                   ) : null}
                 </>
@@ -669,7 +453,7 @@ export default function WorkReportBillingQuotePanel({
                   ) : null}
                   {displayPurchaseTotal > 0 ? (
                     <p style={{ margin: '0 0 .35rem' }}>
-                      <strong>Hankinta yhteensä (alv 0 %):</strong> {formatEuro(displayPurchaseTotal)}
+                      <strong>Hankinta:</strong> {formatEuro(displayPurchaseTotal)}
                     </p>
                   ) : null}
                   {linkedQuoteMarginEstimate != null ? (
@@ -678,7 +462,7 @@ export default function WorkReportBillingQuotePanel({
                     </p>
                   ) : null}
                   <p className="muted" style={{ margin: 0 }}>
-                    Hinnat ja hankinta tulevat tarjouspyynnöstä. Muokkaa tarjouspyynnössä.
+                    Hinnat tulevat tarjouspyynnöstä — muokkaa siellä.
                   </p>
                 </div>
               ) : (
@@ -733,14 +517,9 @@ export default function WorkReportBillingQuotePanel({
                 </>
               )}
 
-              {quoteIsLinked ? (
-                <div className="span-2">{renderQuotePurchaseBreakdownTable(quoteOnlyPurchaseLines)}</div>
-              ) : (
-                <>
-                  {categoryComparison ? renderCategoryComparisonTable(categoryComparison) : renderQuoteVsActualIntro()}
-                  <div className="span-2">{renderPurchaseLinesTable(purchaseLines, true)}</div>
-                </>
-              )}
+              <div className="span-2">
+                {categoryComparison ? renderCategoryComparisonTable(categoryComparison) : null}
+              </div>
 
               {showPartnerMargin ? (
                 <label className="form-field">
@@ -876,16 +655,9 @@ export default function WorkReportBillingQuotePanel({
           ) : null}
 
           {readOnly ? (
-            <>
-              {quoteIsLinked ? (
-                renderQuotePurchaseBreakdownTable(quoteOnlyPurchaseLines)
-              ) : (
-                <>
-                  {categoryComparison ? renderCategoryComparisonTable(categoryComparison) : null}
-                  {renderPurchaseLinesTable(purchaseLines, false)}
-                </>
-              )}
-            </>
+            <div className="span-2">
+              {categoryComparison ? renderCategoryComparisonTable(categoryComparison) : null}
+            </div>
           ) : null}
 
           {showPartnerMargin && partnerMargin ? (
