@@ -2663,8 +2663,6 @@ export default function WorkReportDetailPage({ session }: Props) {
     showCustomerBillingFeatures
     && !!customerBillableCalculation
     && (isOwnerCompany || (isPartnerReport && canSeeCreatorBilling));
-  const canManageQuoteCustomerMode =
-    canManageCustomerBillingRates || (isPartnerReport && canSeeCreatorBilling);
   const portalReadOnly = isPortalReadOnly(profile);
   const hasLinkedQuote = workReportHasLinkedQuoteRequest(billingQuoteSettings);
   const showQuoteBillingSection = hasLinkedQuote && !portalReadOnly;
@@ -3018,7 +3016,6 @@ export default function WorkReportDetailPage({ session }: Props) {
           customerCalculation={customerBillableCalculation}
           tripKmRate={tripKmRate}
           showPartnerMargin={!!showOutgoingPartnerBilling}
-          showCustomerQuoteMode={!!canManageQuoteCustomerMode}
           readOnly={!showOutgoingPartnerBilling && !canManageCustomerBillingRates}
         />
         </div>

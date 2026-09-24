@@ -45,7 +45,6 @@ type Props = {
   customerCalculation?: BillableCalculation | null;
   tripKmRate?: number | null;
   showPartnerMargin?: boolean;
-  showCustomerQuoteMode?: boolean;
   readOnly?: boolean;
   onSaved?: (settings: BillingQuoteSettings) => void;
 };
@@ -76,7 +75,6 @@ export default function WorkReportBillingQuotePanel({
   customerCalculation = null,
   tripKmRate = null,
   showPartnerMargin = false,
-  showCustomerQuoteMode = false,
   readOnly = false,
 }: Props) {
   const [settings, setSettings] = useState<BillingQuoteSettings>(() =>
