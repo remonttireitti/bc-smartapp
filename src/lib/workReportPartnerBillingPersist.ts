@@ -22,6 +22,13 @@ import { parseTripKmRate } from './tripKmExpense';
 import { parseDailyOvertimePolicy } from './workReportDailyOvertime';
 import { buildDailyOvertimeBillingMap, hourBillingModeFromSettings } from './workReportCrossReportHours';
 import { fetchBillableRowWithHourBillingFallback } from './workReportHourBilling';
+import {
+  computePartnerNetMargin,
+  normalizeBillingQuoteSettings,
+  parseBillingQuoteSettings,
+  billingQuoteHasData,
+} from './workReportBillingQuote';
+import { mergeActualPurchaseFromWorkReportLogs } from './quoteRequestActualPurchaseSync';
 
 type PartnerBillableReport = Pick<
   WorkReport,
@@ -155,7 +162,7 @@ export async function refreshAndPersistPartnerBillable(
     fetchBillableRowWithHourBillingFallback(
       supabase,
       reportRow.id,
-      'billing_rates_override, use_custom_rates',
+      'billing_rates_override, use_custom_rates, billing_quote',
     ),
   ]);
   const billableRow = billableFetch.data;
@@ -272,9 +279,30 @@ export async function refreshAndPersistPartnerBillable(
     { logs, rates, users },
   );
 
+  // When a billing quote is attached, the partner total must include the 50% commission
+  // that the owner charges on top of labor+materials. The commission is what the owner
+  // receives for managing the deal — it belongs in the amount the partner is billed.
+  const rawBillingQuote = (billableRow as Record<string, unknown> | null)?.billing_quote;
+  const parsedBillingQuote = normalizeBillingQuoteSettings(
+    parseBillingQuoteSettings(rawBillingQuote),
+  );
+  let partnerTotal = calculation.grandTotal;
+  if (billingQuoteHasData(parsedBillingQuote)) {
+    const effectiveSettings = mergeActualPurchaseFromWorkReportLogs(parsedBillingQuote, logs, null);
+    const partnerMargin = computePartnerNetMargin(effectiveSettings, calculation.grandTotal, {
+      logs,
+      partnerRates: calculation.ratesUsed,
+      customerRates: undefined,
+      partnerCalculation: calculation,
+    });
+    if (partnerMargin) {
+      partnerTotal = Math.round((calculation.grandTotal + partnerMargin.commissionNet) * 100) / 100;
+    }
+  }
+
   const { error: billableError } = await supabase.from('work_report_billable').upsert({
     work_report_id: reportRow.id,
-    partner_total: calculation.grandTotal,
+    partner_total: partnerTotal,
     calculation,
     calculated_at: new Date().toISOString(),
     partner_recalc_needed: false,
