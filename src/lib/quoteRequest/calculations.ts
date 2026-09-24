@@ -2,6 +2,7 @@ import type { BrandDeliveryFeeByCategoryMap } from '../../data/devicePricingShar
 import type { QuoteMaterial, QuoteRegion, QuoteRequestData, QuoteWorkItem } from './types';
 import {
   installationSuppliesDevicePurchaseNet,
+  installationSuppliesExpensePurchaseNet,
   installationSuppliesExpenseSellNet,
   installationSuppliesInternalCostsNet,
   installationSuppliesLaborSellNet,
@@ -311,7 +312,10 @@ export function materialPurchaseTotal(materials: QuoteMaterial[]): number {
   );
 }
 
-/** Sisäinen laskenta: hankinta, myynti ja kate (työ/matka = koko rivi kateena). */
+/** Sisäinen laskenta: hankinta, myynti ja kate.
+ * Työn myynti ilman erillistä hankintaa riviltä lasketaan kateeksi;
+ * asennustyön sisäinen hankinta (tunnit × hinta) ja kulu-rivien hankinta sisältyvät purchaseNetiin.
+ */
 export function computeQuoteInternalTotals(
   data: QuoteRequestData,
   feeMap?: BrandDeliveryFeeByCategoryMap | null,
@@ -343,6 +347,8 @@ export function computeQuoteInternalTotals(
     + installationSuppliesInternalCostsNet(data);
   materialsSellNet += installationSuppliesSupplySellNet(data.installationSupplies);
 
+  const expensePurchaseNet = installationSuppliesExpensePurchaseNet(data.installationSupplies);
+
   const deviceRowsPurchaseNet = installationSuppliesDevicePurchaseNet(data.installationSupplies);
   let devicePurchaseNet = 0;
   let deviceSellNet = quoteTotals.deviceNet;
@@ -357,7 +363,7 @@ export function computeQuoteInternalTotals(
     devicePurchaseNet = Number(data.devicePurchaseOverrideNet) || 0;
   }
 
-  const purchaseNet = materialsPurchaseNet + devicePurchaseNet;
+  const purchaseNet = materialsPurchaseNet + devicePurchaseNet + expensePurchaseNet;
   const sellNet = quoteTotals.subtotalNet;
   const discountedSellNet = quoteTotals.discountedNet;
   const marginNet = discountedSellNet - purchaseNet;
@@ -371,6 +377,7 @@ export function computeQuoteInternalTotals(
     materialsPurchaseNet,
     materialsSellNet,
     materialsMarginNet,
+    expensePurchaseNet,
     devicePurchaseNet,
     deviceSellNet,
     deviceMarginNet,
