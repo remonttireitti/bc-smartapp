@@ -1,8 +1,8 @@
 {
   "image_info": [
     {
-      "url": "https://matrix-internal.oss-us-east-1.aliyuncs.com/user_file_upload_tmp%2F2026-09-24%2Feff95a07-a505-4b34-8ce3-8608c76535f5.png?x-oss-credential=LTAI5t9dXq2sLrMZ8f1XfiFZ%2F20260924%2Fus-east-1%2Foss%2Faliyun_v4_request&x-oss-date=20260924T121932Z&x-oss-expires=3600&x-oss-signature=dd7d4bd15c7807f7356613b23ff3a7b323747a3784d512e3a8ae515bb8aad9b2&x-oss-signature-version=OSS4-HMAC-SHA256",
-      "prompt": "Describe all text in this image, especially any expense line descriptions in a daily log or work report. What does each line item say? Is there a line with 'provisio' or similar commission description?"
+      "url": "https://matrix-internal.oss-us-east-1.aliyuncs.com/user_file_upload_tmp%2F2026-09-24%2Fb98eeedf-d08b-40b9-96ef-029a6f423621.png?x-oss-credential=LTAI5t9dXq2sLrMZ8f1XfiFZ%2F20260924%2Fus-east-1%2Foss%2Faliyun_v4_request&x-oss-date=20260924T153517Z&x-oss-expires=3600&x-oss-signature=07a0da23748fbb026b7380aa953c6988fcf16a95856219cba1e2de3934a34f2d&x-oss-signature-version=OSS4-HMAC-SHA256"
     }
-  ]
+  ],
+  "prompt": "Describe this work report billing screen in detail. What numbers and sections are shown? What is the layout? Focus on the billing/margin summary section at the end."
 }

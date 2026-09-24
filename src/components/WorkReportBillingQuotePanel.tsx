@@ -689,14 +689,7 @@ export default function WorkReportBillingQuotePanel({
                       </td>
                     </tr>
                   ) : null}
-                  {categoryComparison?.rows.map((row) => (
-                    <tr key={`compare-${row.key}`} className="muted">
-                      <td>{row.label} (vertailu arvio → toteutunut)</td>
-                      <td className="num">
-                        {formatEuro(row.quoteNet)} → {formatEuro(row.actualNet)}
-                      </td>
-                    </tr>
-                  ))}
+
                   {(() => {
                     const laborRow = categoryComparison?.rows.find((row) => row.key === 'labor');
                     const expensesRow = categoryComparison?.rows.find((row) => row.key === 'expenses');
@@ -857,14 +850,6 @@ export default function WorkReportBillingQuotePanel({
                   </tbody>
                 </table>
               ) : null}
-              {customerBillableGrandTotal && customerBillableGrandTotal.extrasTotal > 0.005 ? (
-                <p className="muted billing-margin-formula">
-                  Asiakkaalta laskutettava yhteensä: tarjous{' '}
-                  {formatEuro(customerBillableGrandTotal.quoteTotal)} + lisät{' '}
-                  {formatEuro(customerBillableGrandTotal.extrasTotal)} ={' '}
-                  <strong>{formatEuro(customerBillableGrandTotal.grandTotal)}</strong>
-                </p>
-              ) : null}
               {categoryComparison ? (
                 <p className="billing-urakka-outcome">
                   <strong>Urakka meni näin:</strong>{' '}
@@ -875,17 +860,7 @@ export default function WorkReportBillingQuotePanel({
                   })}
                 </p>
               ) : null}
-              <p className="muted billing-margin-formula">
-                Kate ennen provisiota = tarjoushinta + lisälaskutus − työt − kulut − tarvikkeet − laite −
-                katetta syövät kulut − suorat hankintakulut. Puhdas kate = kate − provisio (
-                {String(partnerMargin.commissionPercent).replace('.', ',')} %).
-                {partnerMargin.quotePurchaseNet !== partnerMargin.actualPurchaseNet ? (
-                  <>
-                    {' '}
-                    Tarjouksen hankinta oli {formatEuro(partnerMargin.quotePurchaseNet)}.
-                  </>
-                ) : null}
-              </p>
+
             </div>
           ) : null}
 
