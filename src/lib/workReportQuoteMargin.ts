@@ -26,15 +26,12 @@ export type MarginEatingExpenseLine = {
   reason: 'included_in_contract' | 'customer_only_unapproved';
 };
 
-const COMMISSION_KEYWORDS = ['provisio', 'myyntiprovisio', 'kumppaniprovisio', 'palkkio', 'myyntikomissio'];
-
-function isCommissionLine(description: string): boolean {
-  const d = description.trim().toLowerCase();
-  return COMMISSION_KEYWORDS.some((kw) => d.includes(kw));
-}
-
-/** Kulut jotka syövät katetta kun tarjous on kiinteä — ei lisälaskutuslupaa.
- * Kun provisio-% on käytössä, ohitetaan manuaaliset provisio-rivit (ettei tuplavähenny).
+/**
+ * Kulut jotka syövät katetta kun tarjous on kiinteä — ei lisälaskutuslupaa.
+ *
+ * Ohitetaan koko log:n expense_lines kun log.commission_amount > 0,
+ * koska provisio käsitellään jo erikseen commissionNet:nä.
+ * Näin vältytään tuplavähennykseltä.
  */
 export function analyzeMarginEatingExpenses(
   logs: WorkReportDailyLog[],
@@ -43,6 +40,12 @@ export function analyzeMarginEatingExpenses(
   let total = 0;
 
   for (const log of logs) {
+    // Jos manuaalinen provisio on syötetty, ohitetaan kaikki expense_lines
+    // tästä log:ista — provisio vähennetään jo commissionNet:nä.
+    if (Number(log.commission_amount || 0) > 0.005) {
+      continue;
+    }
+
     const extra = parseDailyLogCustomerExtraBilling(log.customer_extra_billing);
     const hasApprovedExtraExpense =
       dailyLogCustomerExtraBillingHasData(extra)
@@ -77,11 +80,6 @@ export function analyzeMarginEatingExpenses(
       }
 
       if (cost > 0.005 && reason) {
-        // Ohitetaan aina provisio-rivit — provisio käsitellään erikseen
-        // joko manuaalisena tai %-laskettuna, jottei tuplavähennystä.
-        if (isCommissionLine(expense.description ?? '')) {
-          continue;
-        }
         total += cost;
         lines.push({
           logId: log.id,
