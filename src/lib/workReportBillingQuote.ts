@@ -21,7 +21,7 @@ import {
   shouldCalculateCustomerQuoteExtrasFromLogs,
 } from './dailyLogCustomerExtraBilling';
 import type { PartnerBillingRates } from './management';
-import type { WorkReportDailyLog } from '../types';
+import { sumDailyCommission, type WorkReportDailyLog } from '../types';
 import {
   extraCustomerWorkHasBillableData,
   normalizeExtraCustomerWork,
@@ -496,13 +496,19 @@ export function computePartnerNetMargin(
     - piikkiMaterialCostNet,
   );
 
-  const hasManualCommission = options?.logs?.some(
-    (log) => Number(log.commission_amount) > 0,
-  ) ?? false;
+  const manualCommissionTotal = options?.logs?.length
+    ? sumDailyCommission(options.logs)
+    : 0;
+  const hasManualCommission = manualCommissionTotal > 0.005;
   const commissionNet = hasManualCommission
-    ? 0
+    ? roundMoney(manualCommissionTotal)
     : roundMoney(Math.max(0, grossMarginNet) * (commissionPercent / 100));
   const netMarginNet = roundMoney(grossMarginNet - commissionNet);
+
+  // When commission is manual, show effective % instead of the configured %
+  const displayCommissionPercent = hasManualCommission && grossMarginNet > 0.005
+    ? roundMoney((commissionNet / grossMarginNet) * 100)
+    : commissionPercent;
 
   return {
     quoteSaleNet: roundMoney(quoteSaleNet),
@@ -518,7 +524,7 @@ export function computePartnerNetMargin(
     piikkiMaterialCostNet,
     extrasMarginNet,
     grossMarginNet,
-    commissionPercent,
+    commissionPercent: displayCommissionPercent,
     commissionNet,
     netMarginNet,
   };
