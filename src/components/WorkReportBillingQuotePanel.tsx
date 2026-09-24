@@ -389,12 +389,6 @@ export default function WorkReportBillingQuotePanel({
                 </div>
               ) : null}
 
-              {showCustomerQuoteMode && quoteIsLinked ? (
-                <p className="span-2 muted" style={{ margin: '0 0 .5rem', fontSize: '.85rem' }}>
-                  Laskutetaan kiinteä tarjoushinta — tunti- ja ajolaskenta erikseen lisälaskutuksena
-                </p>
-              ) : null}
-
               {quoteIsLinked ? (
                 <div className="span-2 billing-quote-linked-prices">
                   {displayCustomerPrice != null ? (
