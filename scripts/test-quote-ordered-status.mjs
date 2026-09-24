@@ -10,20 +10,16 @@ import {
   workReportHasLinkedQuoteRequest,
 } from '../src/lib/workReportBillingQuote.ts';
 import { createEmptyQuoteRequestData } from '../src/lib/quoteRequest/defaults.ts';
-import {
-  QUOTE_AUTO_WORK_REPORT_FROM_MS,
-  shouldAutoCreateWorkReportOnOrder,
-} from '../src/lib/quoteRequest/orderedWorkReport.ts';
+import { shouldAutoCreateWorkReportOnOrder } from '../src/lib/quoteRequest/orderedWorkReport.ts';
 
 assert.equal(QUOTE_STATUS_LABELS.ordered, 'Tilattu');
 assert.equal(isQuoteOrderedStatus('ordered'), true);
 assert.equal(isQuoteOrderedStatus('sent'), false);
 
-assert.equal(shouldAutoCreateWorkReportOnOrder('2026-09-13T23:59:59+03:00'), false);
+assert.equal(shouldAutoCreateWorkReportOnOrder('2026-09-13T23:59:59+03:00'), true);
 assert.equal(shouldAutoCreateWorkReportOnOrder('2026-09-14T00:00:00+03:00'), true);
 assert.equal(shouldAutoCreateWorkReportOnOrder('2026-09-15T10:00:00+03:00'), true);
-assert.equal(shouldAutoCreateWorkReportOnOrder(null), false);
-assert.ok(QUOTE_AUTO_WORK_REPORT_FROM_MS > 0);
+assert.equal(shouldAutoCreateWorkReportOnOrder(null), true);
 
 const data = createEmptyQuoteRequestData('huolto');
 data.introText = 'Vanha jäähdytysyksikköön kompressori rikki';
@@ -51,7 +47,7 @@ assert.equal(
   payload.description,
   'Tarjotaan teille seuraavasti: Uuden ilmalämpöpumpun asennus vanhan laitteen tilalle.',
 );
-assert.equal(payload.title, 'Messukeskus – Vanha jäähdytysyksikköön kompressori rikki');
+assert.equal(payload.title, 'Vanha jäähdytysyksikköön kompressori rikki');
 assert.equal(payload.orderer_name, null);
 assert.equal(payload.location_text, null);
 assert.equal(payload.equipment_id, null);

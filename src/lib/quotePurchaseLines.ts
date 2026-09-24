@@ -90,7 +90,8 @@ function collectInstallationSupplyLines(data: QuoteRequestData): BillingQuotePur
     const purchase = roundMoney(qty * (Number(mat.purchasePrice) || 0));
     if (purchase <= 0.005) continue;
     const kind = resolveQuoteMaterialRowKind(mat);
-    if (kind === 'labor' || kind === 'expense') continue;
+    // Työ lasketaan installation-internal -ryhmärivillä (tunnit × sisäinen hinta).
+    if (kind === 'labor') continue;
     lines.push({
       id: kind === 'device' ? `device:${mat.id}` : `material:${mat.id}`,
       label: name,

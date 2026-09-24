@@ -207,7 +207,7 @@ export function installationSuppliesInternalCostsNet(
   );
 }
 
-/** Kaikki asennustarvikke-laskurin hankintakustannukset (tuotteet + työ + huoltoauto). */
+/** Kaikki asennustarvikke-laskurin hankintakustannukset (tuotteet + kulu + työ + huoltoauto). */
 export function installationSuppliesTotalPurchaseNet(
   data: Pick<
     QuoteRequestData,
@@ -221,6 +221,7 @@ export function installationSuppliesTotalPurchaseNet(
   return roundMoney(
     installationSuppliesSupplyPurchaseNet(data.installationSupplies)
       + installationSuppliesDevicePurchaseNet(data.installationSupplies)
+      + installationSuppliesExpensePurchaseNet(data.installationSupplies)
       + installationSuppliesInternalCostsNet(data),
   );
 }

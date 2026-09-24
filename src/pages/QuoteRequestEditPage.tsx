@@ -71,10 +71,8 @@ import {
 import {
   createWorkReportFromQuote,
   markQuoteAsNotOrdered,
-  markQuoteAsOrderedOnly,
 } from '../lib/quoteRequest/createWorkReportFromQuote';
 import { updateQuoteRequestViaRpc } from '../lib/quoteRequest/updateQuoteRequest';
-import { shouldAutoCreateWorkReportOnOrder } from '../lib/quoteRequest/orderedWorkReport';
 import type {
   QuoteEditSection,
   QuoteRequestData,
@@ -119,7 +117,6 @@ export default function QuoteRequestEditPage({ session }: Props) {
   const { profile, loading: profileLoading } = useProfile(session);
 
   const [quoteId, setQuoteId] = useState<string | null>(id ?? null);
-  const [quoteCreatedAt, setQuoteCreatedAt] = useState<string | null>(null);
   const [status, setStatus] = useState<QuoteRequestStatus>('draft');
   const [workReportId, setWorkReportId] = useState<string | null>(null);
   const [form, setForm] = useState<QuoteRequestData>(() => createEmptyQuoteRequestData());
@@ -218,7 +215,6 @@ export default function QuoteRequestEditPage({ session }: Props) {
       profile?.role,
       profile?.is_global_admin,
     );
-  const autoCreateWorkReportOnOrder = shouldAutoCreateWorkReportOnOrder(quoteCreatedAt);
   const pumpSizingNeedKw = useMemo(
     () => (isPumpQuoteType(form.type) ? computePumpSizingNeedKw(form) : null),
     [form],
@@ -576,7 +572,6 @@ export default function QuoteRequestEditPage({ session }: Props) {
     const normalized = normalizeQuoteRequestData(row.data);
 
     setQuoteId(row.id);
-    setQuoteCreatedAt(row.created_at);
     setStoredDbTitle(row.title);
     titleMigratedRef.current = false;
     setStatus(row.status);
@@ -837,21 +832,14 @@ export default function QuoteRequestEditPage({ session }: Props) {
         work_report_id: workReportId,
       };
 
-      if (autoCreateWorkReportOnOrder) {
-        const reportId = await createWorkReportFromQuote(supabase, {
-          quote: quoteRow,
-          customer: selectedCustomer ?? null,
-          sessionUserId: session.user.id,
-        });
-        setWorkReportId(reportId);
-        setStatus('ordered');
-        navigate(`/tyoraportit/${reportId}`);
-        return;
-      }
-
-      await markQuoteAsOrderedOnly(supabase, quoteId);
+      const reportId = await createWorkReportFromQuote(supabase, {
+        quote: quoteRow,
+        customer: selectedCustomer ?? null,
+        sessionUserId: session.user.id,
+      });
+      setWorkReportId(reportId);
       setStatus('ordered');
-      setSavedAt(new Date().toLocaleTimeString('fi-FI', { hour: '2-digit', minute: '2-digit' }));
+      navigate(`/tyoraportit/${reportId}`);
     } catch (markError) {
       console.error('Tarjouksen tilauksen merkintä epäonnistui:', markError);
       setError(markError instanceof Error ? markError.message : 'Tilauksen merkintä epäonnistui.');
@@ -1128,16 +1116,16 @@ export default function QuoteRequestEditPage({ session }: Props) {
                 <Link to={`/tyoraportit/${workReportId}`}>Avaa työraportti</Link>
               </>
             ) : (
-              ' Vanha tarjous — työraporttia ei luotu automaattisesti.'
+              ' Työraporttia ei ole vielä linkitetty.'
             )}
           </p>
         </section>
       )}
-      {canEdit && status === 'sent' && autoCreateWorkReportOnOrder && (
+      {canEdit && status === 'sent' && (
         <section className="panel quote-ordered-notice">
           <p className="muted">
-            Tämä tarjouspyyntö on luotu 14.9.2026 tai sen jälkeen. Tilauksen merkintä luo työraportin
-            automaattisesti (asiakas, yritys, sekä Kohde & laskenta -osion otsikko ja tehtävän kuvaus).
+            Tilauksen merkintä luo työraportin automaattisesti ja liittää tämän tarjouspyynnön siihen
+            (asiakas, yritys, sekä Kohde &amp; laskenta -osion otsikko ja tehtävän kuvaus).
           </p>
         </section>
       )}
@@ -1324,11 +1312,7 @@ export default function QuoteRequestEditPage({ session }: Props) {
                 disabled={busy}
                 onClick={() => void markQuoteOrdered()}
               >
-                {busy
-                  ? 'Käsitellään…'
-                  : autoCreateWorkReportOnOrder
-                    ? 'Merkitse tilatuksi ja luo työraportti'
-                    : 'Merkitse tilatuksi'}
+                {busy ? 'Käsitellään…' : 'Merkitse tilatuksi ja luo työraportti'}
               </button>
               <button
                 type="button"
