@@ -11,7 +11,6 @@ import {
   resolveCustomerBillableGrandTotal,
   resolvePartnerCommissionPercent,
   resolveQuotePurchaseTotal,
-  saveBillingQuoteSettings,
   type BillingQuoteSettings,
 } from '../lib/workReportBillingQuote';
 import { extractQuotePurchaseLines, sumQuotePurchaseLines } from '../lib/quotePurchaseLines';
@@ -68,7 +67,6 @@ function roundMoney(value: number): number {
 }
 
 export default function WorkReportBillingQuotePanel({
-  workReportId,
   customerId: _customerId,
   ownerCompanyId: _ownerCompanyId,
   installationCostNet,
@@ -80,7 +78,6 @@ export default function WorkReportBillingQuotePanel({
   showPartnerMargin = false,
   showCustomerQuoteMode = false,
   readOnly = false,
-  onSaved,
 }: Props) {
   const [settings, setSettings] = useState<BillingQuoteSettings>(() =>
     parseBillingQuoteSettings(initialSettings),

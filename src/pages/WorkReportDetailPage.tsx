@@ -1438,12 +1438,6 @@ export default function WorkReportDetailPage({ session }: Props) {
     }
   }
 
-  async function handleBillingQuoteSaved(settings: BillingQuoteSettings) {
-    setBillingQuoteSettings(settings);
-    if (!report) return;
-    await refreshCustomerBillable(report, dailyLogs, { billingQuote: settings });
-  }
-
   async function saveHourBillingSettings(next: HourBillingSettings) {
     if (!report) return;
     if (!hourBillingSupported) {
@@ -3026,10 +3020,6 @@ export default function WorkReportDetailPage({ session }: Props) {
           showPartnerMargin={!!showOutgoingPartnerBilling}
           showCustomerQuoteMode={!!canManageQuoteCustomerMode}
           readOnly={!showOutgoingPartnerBilling && !canManageCustomerBillingRates}
-          printHref={
-            showOutgoingPartnerBilling ? `/tyoraportit/${report.id}/laskutus/tuloste` : undefined
-          }
-          onSaved={(settings) => void handleBillingQuoteSaved(settings)}
         />
         </div>
       ) : null}

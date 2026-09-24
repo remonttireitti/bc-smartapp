@@ -463,7 +463,7 @@ export function computePartnerNetMargin(
   const commissionPercent = resolvePartnerCommissionPercent(settings);
 
   const marginEating = options?.logs?.length
-    ? analyzeMarginEatingExpenses(options.logs, { commissionPercent })
+    ? analyzeMarginEatingExpenses(options.logs)
     : { total: 0, lines: [] };
   const partnerPiikkiPurchaseNet = options?.logs?.length
     ? sumPartnerPurchaseCostNet(options.logs)
