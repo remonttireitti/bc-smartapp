@@ -1,4 +1,5 @@
 import { parseCompanySettings, type CompanySettings } from '../management';
+import { formatCustomerAddressParts } from '../customers';
 import {
   QUOTE_PROJECT_TYPE_LABELS,
   QUOTE_REGION_LABELS,
@@ -83,6 +84,7 @@ export type QuotePrintMeta = {
 export type QuotePrintCustomer = {
   name: string;
   address?: string | null;
+  postal_code?: string | null;
   city?: string | null;
 };
 
@@ -889,7 +891,7 @@ export function generateQuoteOfferPrintHtml(input: {
   const totals = computeQuoteTotals(data, feeMap);
   const internal = mode === 'creator' ? computeQuoteInternalTotals(data, feeMap) : null;
   const logo = meta.logoUrl || smartappFallbackLogoSvg(meta.companyName);
-  const customerAddress = [customer.address, customer.city].filter(Boolean).join(', ');
+  const customerAddress = formatCustomerAddressParts(customer);
   const vatRate = Number(data.vatRate) || 0;
   const totalRowLabel = quoteTotalRowLabel(vatRate);
 
@@ -1273,7 +1275,7 @@ export function generateQuoteServicePrintHtml(input: {
   const totals = computeQuoteTotals(data, input.feeMap ?? null);
   const internal = mode === 'creator' ? computeQuoteInternalTotals(data, input.feeMap ?? null) : null;
   const logo = meta.logoUrl || smartappFallbackLogoSvg(meta.companyName);
-  const customerAddress = [customer.address, customer.city].filter(Boolean).join(', ');
+  const customerAddress = formatCustomerAddressParts(customer);
   const typeLabel = QUOTE_TYPE_LABELS[data.type] || 'Tarjous';
   const docTitle = data.introText.trim() || typeLabel;
   const vatRate = Number(data.vatRate) || 0;

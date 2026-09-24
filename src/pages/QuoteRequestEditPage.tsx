@@ -1018,6 +1018,7 @@ export default function QuoteRequestEditPage({ session }: Props) {
       ownerCompanyId: targetCompanyId,
       name: draft.name,
       address: draft.address,
+      postal_code: draft.postal_code,
       city: draft.city,
       phone: draft.phone,
       subscriberId: subscriberId || null,

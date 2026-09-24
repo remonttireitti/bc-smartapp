@@ -2,6 +2,7 @@ import CustomerRegistryPicker, { type NewCustomerDraft } from '../CustomerRegist
 import EquipmentRegistryPicker, { type NewEquipmentDraft } from '../EquipmentRegistryPicker';
 import SubscriberPicker from '../SubscriberPicker';
 import SubscriberPortalVisibilityField from '../SubscriberPortalVisibilityField';
+import { formatCustomerAddressParts } from '../../lib/customers';
 import type { ReportOwnerTarget } from '../../lib/huoltoRaportti/maintenanceReportBasicsValidation';
 import type { HuoltoReportData } from '../../lib/huoltoRaportti/types';
 import { reportHasSubscriberLink } from '../../lib/subscriberPortalVisibility';
@@ -245,7 +246,11 @@ export function MaintenanceReportBasicsPanel({
               <div className="info-box">
                 <span className="info-label">Asiakas</span>
                 <strong>{form.asiakas || selectedCustomer?.name || '—'}</strong>
-                <span className="muted">{form.osoite}</span>
+                <span className="muted">
+                  {form.osoite.trim()
+                    || (selectedCustomer ? formatCustomerAddressParts(selectedCustomer) : '')
+                    || '—'}
+                </span>
               </div>
             </div>
           )}
@@ -287,7 +292,11 @@ export function MaintenanceReportBasicsPanel({
                     <strong>{form.asiakas || selectedCustomer?.name || '—'}</strong>
                   </PrintFieldRow>
                   <PrintFieldRow label="Osoite" error={fieldErrors.osoite}>
-                    <span>{form.osoite || '—'}</span>
+                    <span>
+                      {form.osoite.trim()
+                        || (selectedCustomer ? formatCustomerAddressParts(selectedCustomer) : '')
+                        || '—'}
+                    </span>
                   </PrintFieldRow>
                   {form.asiakasYtunnus?.trim() ? (
                     <PrintFieldRow label="Y-tunnus">

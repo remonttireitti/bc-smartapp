@@ -35,6 +35,7 @@ import { loadWorkReportEquipmentLinks, saveWorkReportEquipmentLinks } from '../l
 import { supabase } from '../lib/supabase';
 
 import { createRegistryCustomer } from '../lib/createRegistryCustomer';
+import { formatCustomerAddressParts } from '../lib/customers';
 
 import {
   customerCreateTargets,
@@ -686,6 +687,7 @@ export default function WorkReportNewPage({ session }: Props) {
       ownerCompanyId: targetCompanyId,
       name: draft.name,
       address: draft.address,
+      postal_code: draft.postal_code,
       city: draft.city,
       phone: draft.phone,
       subscriberId: subscriberId || null,
@@ -913,7 +915,9 @@ export default function WorkReportNewPage({ session }: Props) {
 
 
 
-    const locationText = [selectedCustomer?.address, selectedCustomer?.city].filter(Boolean).join(', ') || null;
+    const locationText = selectedCustomer
+      ? formatCustomerAddressParts(selectedCustomer) || null
+      : null;
 
     const targetStatus =
       isAuto

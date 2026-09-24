@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useRef, useState } from 'react';
+import { formatCustomerAddressParts } from '../../lib/customers';
 import { supabase } from '../../lib/supabase';
 import type { Company, Profile } from '../../types';
 import {
@@ -173,7 +174,7 @@ export default function GlobalAdminRegistrySection({ companies, users, onRefresh
 
     const { data: customerRows, error: customerError } = await supabase
       .from('customers')
-      .select('id, name, address, city, owner_company_id, created_at')
+      .select('id, name, address, postal_code, city, owner_company_id, created_at')
       .eq('owner_company_id', duplicateOwnerId)
       .order('name');
 
@@ -188,6 +189,7 @@ export default function GlobalAdminRegistrySection({ companies, users, onRefresh
       id: string;
       name: string;
       address: string | null;
+      postal_code: string | null;
       city: string | null;
       owner_company_id: string;
       created_at: string;
@@ -236,6 +238,7 @@ export default function GlobalAdminRegistrySection({ companies, users, onRefresh
         id: row.id,
         name: row.name,
         address: row.address,
+        postal_code: row.postal_code,
         city: row.city,
         created_at: row.created_at,
         equipmentCount: countsForCustomer.equipment,
@@ -614,7 +617,7 @@ export default function GlobalAdminRegistrySection({ companies, users, onRefresh
                             />
                           </td>
                           <td>{customer.name}</td>
-                          <td>{[customer.address, customer.city].filter(Boolean).join(', ') || '—'}</td>
+                          <td>{formatCustomerAddressParts(customer) || '—'}</td>
                           <td>{customer.equipmentCount}</td>
                           <td>{customer.workReportCount + customer.maintenanceReportCount}</td>
                           <td className="uuid-cell">{customer.id}</td>

@@ -48,7 +48,7 @@ export default function InstallationPlansPage({ session }: Props) {
       .select(`
         id, title, status, data, updated_at, created_at,
         customer_id, equipment_id, owner_company_id, branding_company_id, created_by_company_id,
-        customers(name, address, city),
+        customers(name, address, postal_code, city),
         equipment(name, tag),
         owner_company:companies!installation_plans_owner_company_id_fkey(name),
         branding_company:companies!installation_plans_branding_company_id_fkey(name),

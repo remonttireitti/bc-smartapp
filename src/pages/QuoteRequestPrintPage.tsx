@@ -82,11 +82,12 @@ export default function QuoteRequestPrintPage({ session }: Props) {
 
   const [quoteData, setQuoteData] = useState<QuoteRequestData | null>(null);
 
-  const [customer, setCustomer] = useState<{ name: string; address?: string | null; city?: string | null } | null>(
-
-    null,
-
-  );
+  const [customer, setCustomer] = useState<{
+    name: string;
+    address?: string | null;
+    postal_code?: string | null;
+    city?: string | null;
+  } | null>(null);
 
   const [meta, setMeta] = useState<{
 
@@ -295,7 +296,7 @@ export default function QuoteRequestPrintPage({ session }: Props) {
 
         id, title, status, data, created_at, updated_at, branding_company_id, owner_company_id, customer_id,
 
-        customers(name, address, city)
+        customers(name, address, postal_code, city)
 
       `)
 
@@ -335,7 +336,12 @@ export default function QuoteRequestPrintPage({ session }: Props) {
 
       owner_company_id: string;
 
-      customers: { name: string; address: string | null; city: string | null } | null;
+      customers: {
+        name: string;
+        address: string | null;
+        postal_code?: string | null;
+        city: string | null;
+      } | null;
 
     };
 
@@ -408,13 +414,10 @@ export default function QuoteRequestPrintPage({ session }: Props) {
     setQuoteData(formToUse);
 
     setCustomer({
-
       name: row.customers?.name ?? '—',
-
       address: row.customers?.address,
-
+      postal_code: row.customers?.postal_code,
       city: row.customers?.city,
-
     });
 
     setMeta({

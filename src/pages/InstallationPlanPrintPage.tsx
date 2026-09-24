@@ -23,9 +23,12 @@ export default function InstallationPlanPrintPage({ session }: Props) {
   const { id } = useParams();
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [form, setForm] = useState<InstallationPlanData | null>(null);
-  const [customer, setCustomer] = useState<{ name: string; address?: string | null; city?: string | null } | null>(
-    null,
-  );
+  const [customer, setCustomer] = useState<{
+    name: string;
+    address?: string | null;
+    postal_code?: string | null;
+    city?: string | null;
+  } | null>(null);
   const [companyName, setCompanyName] = useState('—');
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [companySettings, setCompanySettings] = useState<ReturnType<typeof parseCompanySettings> | null>(null);
@@ -47,7 +50,7 @@ export default function InstallationPlanPrintPage({ session }: Props) {
       .from('installation_plans')
       .select(`
         data, updated_at,
-        customers(name, address, city),
+        customers(name, address, postal_code, city),
         branding_company:companies!installation_plans_branding_company_id_fkey(name, logo_url, settings)
       `)
       .eq('id', planId)
@@ -62,7 +65,12 @@ export default function InstallationPlanPrintPage({ session }: Props) {
     const row = data as {
       data: InstallationPlanData;
       updated_at: string;
-      customers?: { name?: string | null; address?: string | null; city?: string | null } | null;
+      customers?: {
+        name?: string | null;
+        address?: string | null;
+        postal_code?: string | null;
+        city?: string | null;
+      } | null;
       branding_company?: { name?: string | null; logo_url?: string | null; settings?: unknown } | null;
     };
 
@@ -73,6 +81,7 @@ export default function InstallationPlanPrintPage({ session }: Props) {
         ? {
             name: row.customers.name,
             address: row.customers.address,
+            postal_code: row.customers.postal_code,
             city: row.customers.city,
           }
         : null,

@@ -5,6 +5,7 @@ export type CreateRegistryCustomerInput = {
   ownerCompanyId: string;
   name: string;
   address?: string;
+  postal_code?: string;
   city?: string;
   phone?: string;
   subscriberId?: string | null;
@@ -18,6 +19,7 @@ export async function createRegistryCustomer(
     p_owner_company_id: input.ownerCompanyId,
     p_name: input.name.trim(),
     p_address: input.address?.trim() || null,
+    p_postal_code: input.postal_code?.trim() || null,
     p_city: input.city?.trim() || null,
     p_phone: input.phone?.trim() || null,
     p_subscriber_id: input.subscriberId || null,

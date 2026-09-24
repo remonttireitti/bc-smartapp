@@ -98,14 +98,20 @@ export function prependProfileTripLocationOptions(
 export async function loadTripDestinationOptions(
   supabase: SupabaseClient,
   companyId: string,
-  reportCustomer?: { id: string; name: string; address?: string | null; city?: string | null } | null,
+  reportCustomer?: {
+    id: string;
+    name: string;
+    address?: string | null;
+    postal_code?: string | null;
+    city?: string | null;
+  } | null,
   profile?: TripLocationProfileOptions,
 ): Promise<TripDestinationOption[]> {
   const [destinations, customersResult] = await Promise.all([
     loadTripDestinations(supabase, companyId),
     supabase
       .from('customers')
-      .select('id, name, address, city')
+      .select('id, name, address, postal_code, city')
       .eq('owner_company_id', companyId)
       .order('name'),
   ]);
@@ -172,6 +178,7 @@ export function tripDestinationGroupLabel(group: TripDestinationOption['group'])
 export function formatCustomerDestination(customer: {
   name?: string | null;
   address?: string | null;
+  postal_code?: string | null;
   city?: string | null;
 }): string | null {
   const line = customerAddressLine(customer);

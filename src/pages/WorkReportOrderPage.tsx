@@ -6,6 +6,7 @@ import CustomerRegistryPicker, { type NewCustomerDraft } from '../components/Cus
 import EquipmentRegistryPicker, { type NewEquipmentDraft } from '../components/EquipmentRegistryPicker';
 import { loadAccessibleReportCustomers, loadReportPartnerships } from '../lib/reportCustomerRegistry';
 import { createRegistryCustomer } from '../lib/createRegistryCustomer';
+import { formatCustomerAddressParts } from '../lib/customers';
 import { useProfile } from '../hooks/useProfile';
 import { useCompanyPartnershipsEnabled } from '../hooks/useCompanyPartnershipsEnabled';
 import {
@@ -201,6 +202,7 @@ export default function WorkReportOrderPage({ session }: Props) {
       ownerCompanyId: companyId,
       name: draft.name,
       address: draft.address,
+      postal_code: draft.postal_code,
       city: draft.city,
       phone: draft.phone,
     });
@@ -281,7 +283,9 @@ export default function WorkReportOrderPage({ session }: Props) {
         : partnership.company_a_id
       : null;
 
-    const locationText = [selectedCustomer?.address, selectedCustomer?.city].filter(Boolean).join(', ') || null;
+    const locationText = selectedCustomer
+      ? formatCustomerAddressParts(selectedCustomer) || null
+      : null;
 
     const payload = {
       title: buildTitle(selectedCustomer?.name, heading.trim() || description),
