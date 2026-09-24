@@ -496,7 +496,12 @@ export function computePartnerNetMargin(
     - piikkiMaterialCostNet,
   );
 
-  const commissionNet = roundMoney(Math.max(0, grossMarginNet) * (commissionPercent / 100));
+  const hasManualCommission = options?.logs?.some(
+    (log) => Number(log.commission_amount) > 0,
+  ) ?? false;
+  const commissionNet = hasManualCommission
+    ? 0
+    : roundMoney(Math.max(0, grossMarginNet) * (commissionPercent / 100));
   const netMarginNet = roundMoney(grossMarginNet - commissionNet);
 
   return {
