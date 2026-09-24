@@ -460,8 +460,10 @@ export function computePartnerNetMargin(
     partnerBilledMaterialsNet,
   );
 
+  const commissionPercent = resolvePartnerCommissionPercent(settings);
+
   const marginEating = options?.logs?.length
-    ? analyzeMarginEatingExpenses(options.logs)
+    ? analyzeMarginEatingExpenses(options.logs, { commissionPercent })
     : { total: 0, lines: [] };
   const partnerPiikkiPurchaseNet = options?.logs?.length
     ? sumPartnerPurchaseCostNet(options.logs)
@@ -494,7 +496,6 @@ export function computePartnerNetMargin(
     - piikkiMaterialCostNet,
   );
 
-  const commissionPercent = resolvePartnerCommissionPercent(settings);
   const commissionNet = roundMoney(Math.max(0, grossMarginNet) * (commissionPercent / 100));
   const netMarginNet = roundMoney(grossMarginNet - commissionNet);
 

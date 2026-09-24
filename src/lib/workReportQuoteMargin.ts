@@ -26,9 +26,19 @@ export type MarginEatingExpenseLine = {
   reason: 'included_in_contract' | 'customer_only_unapproved';
 };
 
-/** Kulut jotka syövät katetta kun tarjous on kiinteä — ei lisälaskutuslupaa. */
+const COMMISSION_KEYWORDS = ['provisio', 'myyntiprovisio', 'kumppaniprovisio', 'palkkio', 'myyntikomissio'];
+
+function isCommissionLine(description: string): boolean {
+  const d = description.trim().toLowerCase();
+  return COMMISSION_KEYWORDS.some((kw) => d.includes(kw));
+}
+
+/** Kulut jotka syövät katetta kun tarjous on kiinteä — ei lisälaskutuslupaa.
+ * Kun provisio-% on käytössä, ohitetaan manuaaliset provisio-rivit (ettei tuplavähenny).
+ */
 export function analyzeMarginEatingExpenses(
   logs: WorkReportDailyLog[],
+  opts?: { readonly commissionPercent?: number },
 ): { total: number; lines: MarginEatingExpenseLine[] } {
   const lines: MarginEatingExpenseLine[] = [];
   let total = 0;
@@ -68,6 +78,11 @@ export function analyzeMarginEatingExpenses(
       }
 
       if (cost > 0.005 && reason) {
+        // Kun provisio-% on käytössä, automaattinen provisio käsitellään erikseen.
+        // Ohitetaan manuaaliset provisio-rivit, jotta ei tuplavähennystä.
+        if ((opts?.commissionPercent ?? 0) > 0 && isCommissionLine(expense.description ?? '')) {
+          continue;
+        }
         total += cost;
         lines.push({
           logId: log.id,
