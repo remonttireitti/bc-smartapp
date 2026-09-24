@@ -45,6 +45,9 @@ export type { BillingQuoteExtraCustomerLine, BillingQuoteExtraCustomerWork, Bill
 
 export type CustomerBillingMode = 'daily_log' | 'quote_fixed' | 'quote_plus_extras';
 
+/** Oletusprovisio % puhtaasta katteesta (ennen provisiota). */
+export const DEFAULT_PARTNER_COMMISSION_PERCENT = 50;
+
 export type BillingQuoteSettings = {
   quote_request_id?: string | null;
   quote_title?: string | null;
@@ -65,6 +68,12 @@ export type BillingQuoteSettings = {
   notes?: string | null;
   /** Tarjouksen hankintarivit — korjattavissa vain työraportilla. */
   purchase_lines?: BillingQuotePurchaseLine[];
+  /**
+   * Kumppanin provisio % puhtaasta katteesta (ennen provisiota).
+   * null/undefined → DEFAULT_PARTNER_COMMISSION_PERCENT (50). Explicit 0 sallittu.
+   * Ei vaikuta asiakaslaskutukseen.
+   */
+  partner_commission_percent?: number | null;
 };
 
 export type BillingQuoteOption = {
@@ -97,11 +106,64 @@ export type PartnerMarginComputed = {
   customerExtrasNet: number;
   piikkiMaterialCostNet: number;
   extrasMarginNet: number;
+  /** Kate ennen kumppaniprovisiota. */
+  grossMarginNet: number;
+  /** Käytetty provisio-% (0–100). */
+  commissionPercent: number;
+  /** Provisio € alv 0 % (max(0, gross) * %). */
+  commissionNet: number;
+  /** Puhdas kate provision jälkeen (= gross − commission). */
   netMarginNet: number;
 };
 
 function roundMoney(value: number): number {
   return Math.round(value * 100) / 100;
+}
+
+/** Provisio-%: finite 0–100 → arvo; muuten DEFAULT 50. Explicit 0 säilyy. */
+export function resolvePartnerCommissionPercent(
+  settings: BillingQuoteSettings | null | undefined,
+): number {
+  const raw = settings?.partner_commission_percent;
+  if (raw == null) return DEFAULT_PARTNER_COMMISSION_PERCENT;
+  const n = Number(raw);
+  if (!Number.isFinite(n)) return DEFAULT_PARTNER_COMMISSION_PERCENT;
+  if (n < 0) return 0;
+  if (n > 100) return 100;
+  return n;
+}
+
+function normalizePartnerCommissionPercent(
+  value: number | null | undefined,
+): number | null {
+  if (value == null) return null;
+  const n = Number(value);
+  if (!Number.isFinite(n)) return null;
+  if (n < 0) return 0;
+  if (n > 100) return 100;
+  return roundMoney(n);
+}
+
+/** Lyhyt suomenkielinen yhteenveto: tarjous vs toteutuneet kulut. */
+export function formatUrakkaOutcomeSummary(input: {
+  varianceNet: number;
+  quoteTotalNet: number;
+  actualTotalNet: number;
+  formatMoney?: (value: number) => string;
+}): string {
+  const format = input.formatMoney ?? formatEuro;
+  const absVar = Math.abs(input.varianceNet);
+  let outcome: string;
+  if (absVar < 0.005) {
+    outcome = 'Toteutuneet kulut pysyivät tarjouksen budjetissa.';
+  } else if (input.varianceNet < 0) {
+    outcome = `Toteutuneet kulut alittivat tarjouksen budjetin ${format(absVar)}.`;
+  } else {
+    outcome = `Toteutuneet kulut ylittivät tarjouksen budjetin ${format(absVar)}.`;
+  }
+  return (
+    `${outcome} Tarjous ${format(input.quoteTotalNet)} → toteutunut ${format(input.actualTotalNet)}.`
+  );
 }
 
 export function quoteHasVat(vatRate: number | null | undefined): boolean {
@@ -154,6 +216,9 @@ export function parseBillingQuoteSettings(raw: unknown): BillingQuoteSettings {
     quote_vat_rate: num('quote_vat_rate'),
     notes: typeof record.notes === 'string' ? record.notes : null,
     purchase_lines: purchaseLines.length > 0 ? purchaseLines : undefined,
+    partner_commission_percent: normalizePartnerCommissionPercent(
+      record.partner_commission_percent as number | null | undefined,
+    ),
   };
   return normalizeBillingQuoteSettings(settings);
 }
@@ -171,6 +236,9 @@ export function normalizeBillingQuoteSettings(settings: BillingQuoteSettings): B
     ...settings,
     extra_customer_work: extraCustomerWork.length > 0 ? extraCustomerWork : undefined,
     extra_customer_lines: undefined,
+    partner_commission_percent: normalizePartnerCommissionPercent(
+      settings.partner_commission_percent,
+    ),
   };
 
   if (lines.length > 0) {
@@ -416,7 +484,7 @@ export function computePartnerNetMargin(
     customerExtrasNet = roundMoney(options.customerExtrasNet);
   }
 
-  const netMarginNet = roundMoney(
+  const grossMarginNet = roundMoney(
     quoteSaleNet
     + customerExtrasNet
     - installationLaborTravelNet
@@ -425,6 +493,10 @@ export function computePartnerNetMargin(
     - partnerPiikkiPurchaseNet
     - piikkiMaterialCostNet,
   );
+
+  const commissionPercent = resolvePartnerCommissionPercent(settings);
+  const commissionNet = roundMoney(Math.max(0, grossMarginNet) * (commissionPercent / 100));
+  const netMarginNet = roundMoney(grossMarginNet - commissionNet);
 
   return {
     quoteSaleNet: roundMoney(quoteSaleNet),
@@ -439,6 +511,9 @@ export function computePartnerNetMargin(
     customerExtrasNet,
     piikkiMaterialCostNet,
     extrasMarginNet,
+    grossMarginNet,
+    commissionPercent,
+    commissionNet,
     netMarginNet,
   };
 }
@@ -472,6 +547,7 @@ export function billingQuoteFromQuoteRow(
     options?.previous?.purchase_lines,
   );
 
+  const previousCommission = options?.previous?.partner_commission_percent;
   const base: BillingQuoteSettings = {
     quote_request_id: quoteId,
     quote_title: quoteTitle,
@@ -490,6 +566,10 @@ export function billingQuoteFromQuoteRow(
     quote_vat_rate: roundMoney(internal.vatRate),
     purchase_lines: purchaseLines.length > 0 ? purchaseLines : undefined,
     notes: options?.previous?.notes ?? null,
+    partner_commission_percent:
+      previousCommission != null && Number.isFinite(Number(previousCommission))
+        ? normalizePartnerCommissionPercent(previousCommission)
+        : DEFAULT_PARTNER_COMMISSION_PERCENT,
   };
   return normalizeBillingQuoteSettings(base);
 }
@@ -719,8 +799,14 @@ export function formatPartnerMarginLines(
   lines.push(
     `Tarjouksen hankinta (alv 0 %): ${formatEuro(computed.quotePurchaseNet)}`,
     `Todellinen hankinta (alv 0 %): ${formatEuro(computed.actualPurchaseNet)}`,
-    `Puhdas kate: ${formatEuro(computed.netMarginNet)}`,
+    `Kate ennen provisiota: ${formatEuro(computed.grossMarginNet)}`,
   );
+  if (computed.commissionNet > 0.005 || computed.commissionPercent > 0) {
+    lines.push(
+      `Provisio (${computed.commissionPercent} %): − ${formatEuro(computed.commissionNet)}`,
+    );
+  }
+  lines.push(`Puhdas kate (provision jälkeen): ${formatEuro(computed.netMarginNet)}`);
   for (const line of settings.purchase_lines ?? []) {
     if (line.actual_purchase_net !== line.quote_purchase_net) {
       lines.push(

@@ -94,6 +94,10 @@ const wartilaMargin = computePartnerNetMargin(
 assert.equal(wartilaMargin.effectiveMaterialCostNet, 23331.8);
 assert.equal(wartilaMargin.installationLaborTravelNet, 2650);
 assert.equal(wartilaMargin.partnerBilledMaterialsNet, 481.8);
+assert.equal(wartilaMargin.grossMarginNet, -1431.8);
+// Negatiivinen kate → provisio 0, net = gross
+assert.equal(wartilaMargin.commissionPercent, 50);
+assert.equal(wartilaMargin.commissionNet, 0);
 assert.equal(wartilaMargin.netMarginNet, -1431.8);
 
 // Ei kaksinkertaista vähennystä (vanha bugi antoi ~-24281)
@@ -169,7 +173,11 @@ const withExtras = computePartnerNetMargin(
   },
 );
 assert.equal(withExtras.customerExtrasNet, 800);
-assert.equal(withExtras.netMarginNet, 4800);
+assert.equal(withExtras.grossMarginNet, 4800);
+// Oletus 50 % provisio positiivisesta katteesta
+assert.equal(withExtras.commissionPercent, 50);
+assert.equal(withExtras.commissionNet, 2400);
+assert.equal(withExtras.netMarginNet, 2400);
 
 // Katetta syövä kulu ilman lisälaskutuslupaa
 const marginEating = analyzeMarginEatingExpenses([
