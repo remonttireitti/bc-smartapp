@@ -38,7 +38,6 @@ function isCommissionLine(description: string): boolean {
  */
 export function analyzeMarginEatingExpenses(
   logs: WorkReportDailyLog[],
-  opts?: { readonly commissionPercent?: number },
 ): { total: number; lines: MarginEatingExpenseLine[] } {
   const lines: MarginEatingExpenseLine[] = [];
   let total = 0;

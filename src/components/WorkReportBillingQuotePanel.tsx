@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
 import {
   billingQuoteHasData,
   computePartnerNetMargin,
@@ -49,7 +48,6 @@ type Props = {
   showPartnerMargin?: boolean;
   showCustomerQuoteMode?: boolean;
   readOnly?: boolean;
-  printHref?: string;
   onSaved?: (settings: BillingQuoteSettings) => void;
 };
 
@@ -82,14 +80,13 @@ export default function WorkReportBillingQuotePanel({
   showPartnerMargin = false,
   showCustomerQuoteMode = false,
   readOnly = false,
-  printHref,
   onSaved,
 }: Props) {
   const [settings, setSettings] = useState<BillingQuoteSettings>(() =>
     parseBillingQuoteSettings(initialSettings),
   );
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [busy] = useState(false);
+  const [error] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(() => billingQuoteHasData(initialSettings));
   const [quoteData, setQuoteData] = useState<unknown>(null);
 
@@ -197,27 +194,6 @@ export default function WorkReportBillingQuotePanel({
         : null,
     [effectiveSettings, dailyLogs, customerCalculation, quoteBillingEnabled],
   );
-
-  async function saveSettings() {
-    setBusy(true);
-    setError(null);
-    try {
-      const payload = normalizeBillingQuoteSettings(
-        mergeActualPurchaseFromWorkReportLogs(
-          parseBillingQuoteSettings(settings),
-          dailyLogs,
-          quoteData,
-        ),
-      );
-      await saveBillingQuoteSettings(supabase, workReportId, payload);
-      setSettings(payload);
-      onSaved?.(payload);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Tallennus epäonnistui');
-    } finally {
-      setBusy(false);
-    }
-  }
 
   if (!billingQuoteHasData(settings)) return null;
 
