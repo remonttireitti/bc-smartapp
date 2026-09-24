@@ -402,11 +402,7 @@ export default function WorkReportBillingQuotePanel({
             </span>
           ) : null}
         </button>
-        {printHref && billingQuoteHasData(settings) ? (
-          <Link to={printHref} className="btn btn-secondary btn-sm">
-            Tulosta kumppanilasku
-          </Link>
-        ) : null}
+
       </div>
 
       {expanded ? (
@@ -436,11 +432,7 @@ export default function WorkReportBillingQuotePanel({
                     />
                     Asiakkaalta laskutetaan kiinteä tarjoushinta (ei tunti- ja ajolaskentaa)
                   </label>
-                  {quoteBillingEnabled ? (
-                    <p className="muted span-2" style={{ margin: 0 }}>
-                      Lisälaskutus: päiväkirja → <strong>Kulut ja tarvikkeet</strong> → lisälaskutettavissa + lupa.
-                    </p>
-                  ) : null}
+
                 </>
               ) : null}
 
@@ -461,9 +453,7 @@ export default function WorkReportBillingQuotePanel({
                       <strong>Kate (arvio):</strong> {formatEuro(linkedQuoteMarginEstimate)}
                     </p>
                   ) : null}
-                  <p className="muted" style={{ margin: 0 }}>
-                    Hinnat tulevat tarjouspyynnöstä — muokkaa siellä.
-                  </p>
+
                 </div>
               ) : (
                 <>
@@ -555,16 +545,7 @@ export default function WorkReportBillingQuotePanel({
                 />
               </label>
 
-              <div className="form-actions span-2">
-                <button
-                  type="button"
-                  className="btn btn-primary btn-sm"
-                  disabled={busy}
-                  onClick={() => void saveSettings()}
-                >
-                  {busy ? 'Tallennetaan…' : 'Tallenna tarjous'}
-                </button>
-              </div>
+
             </div>
           ) : (
             <dl className="billing-margin-readonly">
@@ -647,12 +628,7 @@ export default function WorkReportBillingQuotePanel({
             </dl>
           )}
 
-          {quoteBillingEnabled && !readOnly ? (
-            <p className="muted">
-              Lisälaskutus: päiväkirjamerkintä → <strong>Kulut ja tarvikkeet</strong> →
-              lisälaskutettavissa + lupa lisälaskutukseen.
-            </p>
-          ) : null}
+
 
           {readOnly ? (
             <div className="span-2">
@@ -662,11 +638,7 @@ export default function WorkReportBillingQuotePanel({
 
           {showPartnerMargin && partnerMargin ? (
             <div className="table-wrap">
-              <h4 className="billing-breakdown-heading">Puhdas kate (toteutuneista kustannuksista)</h4>
-              <p className="muted billing-purchase-lines-hint">
-                Vähennetään vain toteutunut työ, kulut, tarvikkeet ja laite. Tarjousarviot ovat vertailua —
-                eivät lisäkulua.
-              </p>
+              <h4 className="billing-breakdown-heading">Puhdas kate</h4>
               <table className="billing-table billing-margin-table">
                 <tbody>
                   <tr>
@@ -695,61 +667,28 @@ export default function WorkReportBillingQuotePanel({
                     const expensesRow = categoryComparison?.rows.find((row) => row.key === 'expenses');
                     const laborActual = laborRow?.actualNet ?? 0;
                     const expensesActual = expensesRow?.actualNet ?? 0;
-                    const laborTravelTotal = roundMoney(
-                      laborActual > 0.005 || expensesActual > 0.005
-                        ? laborActual + expensesActual
-                        : partnerMargin.installationLaborTravelNet,
-                    );
+                    const hasActualLaborOrExpenses = laborActual > 0.005 || expensesActual > 0.005;
+                    const laborTravelTotal = hasActualLaborOrExpenses
+                      ? roundMoney(laborActual + expensesActual)
+                      : partnerMargin.installationLaborTravelNet;
+                    if (laborTravelTotal <= 0.005) return null;
                     return (
-                      <>
-                        {laborActual > 0.005 ? (
-                          <tr>
-                            <td>Työt (vähennetään katteesta)</td>
-                            <td className="num">− {formatEuro(laborActual)}</td>
-                          </tr>
-                        ) : null}
-                        {expensesActual > 0.005 ? (
-                          <tr>
-                            <td>Kulut (vähennetään katteesta)</td>
-                            <td className="num">− {formatEuro(expensesActual)}</td>
-                          </tr>
-                        ) : null}
-                        {laborActual <= 0.005 && expensesActual <= 0.005 && laborTravelTotal > 0.005 ? (
-                          <tr>
-                            <td>Työ ja kulut (vähennetään katteesta)</td>
-                            <td className="num">− {formatEuro(laborTravelTotal)}</td>
-                          </tr>
-                        ) : null}
-                      </>
+                      <tr>
+                        <td>Työ ja kulut</td>
+                        <td className="num">− {formatEuro(laborTravelTotal)}</td>
+                      </tr>
                     );
                   })()}
                   {deviceActualTotal > 0.005 ? (
                     <tr>
-                      <td>Laite (toteutunut hankinta)</td>
+                      <td>Laite</td>
                       <td className="num">− {formatEuro(deviceActualTotal)}</td>
                     </tr>
                   ) : null}
                   {suppliesActualTotal > 0.005 ? (
                     <tr>
-                      <td>Tarvikkeet (toteutunut, päiväkirja)</td>
+                      <td>Tarvikkeet</td>
                       <td className="num">− {formatEuro(suppliesActualTotal)}</td>
-                    </tr>
-                  ) : null}
-                  {roundMoney(
-                    partnerMargin.effectiveMaterialCostNet - deviceActualTotal - suppliesActualTotal,
-                  ) > 0.005 ? (
-                    <tr>
-                      <td>Kumppanille laskutetut tarvikkeet</td>
-                      <td className="num">
-                        −{' '}
-                        {formatEuro(
-                          roundMoney(
-                            partnerMargin.effectiveMaterialCostNet
-                              - deviceActualTotal
-                              - suppliesActualTotal,
-                          ),
-                        )}
-                      </td>
                     </tr>
                   ) : null}
                   {partnerMargin.marginEatingExpenseNet > 0.005 ? (

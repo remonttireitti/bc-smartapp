@@ -78,9 +78,9 @@ export function analyzeMarginEatingExpenses(
       }
 
       if (cost > 0.005 && reason) {
-        // Kun provisio-% on käytössä, automaattinen provisio käsitellään erikseen.
-        // Ohitetaan manuaaliset provisio-rivit, jotta ei tuplavähennystä.
-        if ((opts?.commissionPercent ?? 0) > 0 && isCommissionLine(expense.description ?? '')) {
+        // Ohitetaan aina provisio-rivit — provisio käsitellään erikseen
+        // joko manuaalisena tai %-laskettuna, jottei tuplavähennystä.
+        if (isCommissionLine(expense.description ?? '')) {
           continue;
         }
         total += cost;
