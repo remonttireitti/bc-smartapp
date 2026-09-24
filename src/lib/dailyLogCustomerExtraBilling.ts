@@ -121,8 +121,7 @@ export function dailyLogCustomerExtraBillingHasData(
 ): boolean {
   const parsed = parseDailyLogCustomerExtraBilling(billing ?? {});
   return (
-    parsed.hours_extra_billable === false
-    || hoursExtraBillable(parsed)
+    hoursExtraBillable(parsed)
     || dailyLogCustomerExtraBillingHasExpenseData(parsed)
     || (parsed.supply_line_flags?.length ?? 0) > 0
   );
@@ -135,11 +134,7 @@ export function serializeDailyLogCustomerExtraBilling(
 
   const out: Record<string, unknown> = {};
 
-  const parsedHours = parseDailyLogCustomerExtraBilling(billing);
-  if (parsedHours.hours_extra_billable === false) {
-    out.hours_extra_billable = false;
-    out.hours_extra_billing_allowed = false;
-  } else if (hoursExtraBillable(billing)) {
+  if (hoursExtraBillable(billing)) {
     out.hours_extra_billable = true;
     out.hours_extra_billing_allowed = hoursExtraBillingApproved(billing);
     const hours = resolveExtraBillableHours(billing);
@@ -385,9 +380,6 @@ export function buildCustomerExtraBillingFromLogForm(
         payload.description = form.work_done.trim() || 'Lisätyö';
       }
     }
-  } else {
-    payload.hours_extra_billable = false;
-    payload.hours_extra_billing_allowed = false;
   }
 
   const expenseDescription = form.extra_expense_description.trim();
@@ -621,10 +613,8 @@ export function computeQuoteExtrasMarginFromLogs(
     const extra = parseDailyLogCustomerExtraBilling(log.customer_extra_billing);
     if (!dailyLogCustomerExtraBillingHasData(extra)) continue;
 
-    if (!hoursExtraBillingApproved(extra)) continue;
-
     const hours = Number(extra.hours) || 0;
-    if (hours > 0) {
+    if (hours > 0 && hoursExtraBillingApproved(extra)) {
       const customerRate =
         extra.hourly_rate != null && extra.hourly_rate > 0 ? extra.hourly_rate : customerHourlyDefault;
       const customerNet = lineTotal(hours, customerRate);

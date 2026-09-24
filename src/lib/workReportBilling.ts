@@ -1,5 +1,5 @@
 import type { WorkReportDailyLog } from '../types';
-import { resolveDailyLogAuthorLabel } from '../types';
+import { resolveDailyLogAuthorLabel, sumDailyCommission } from '../types';
 import type { BillableRatesSource, PartnerBillingRates } from './management';
 import { formatRefrigerantLineLabelForReport } from './refrigerantInventory';
 import {
@@ -778,6 +778,126 @@ export function aggregateBillableByUser(
     .sort((a, b) => a.userName.localeCompare(b.userName, 'fi'));
   const grandTotal = users.reduce((sum, u) => sum + u.total, 0);
   return { users, grandTotal: Math.round(grandTotal * 100) / 100, reportCount: rows.length };
+}
+
+
+const AUTO_PARTNER_COMMISSION_LOG_ID = 'auto-partner-commission';
+
+/**
+ * Lisää / korvaa synteettisen provisiorivin kumppanilaskuun.
+ * Ei koske asiakaslaskutusta. Jos päiväkirjassa on jo commission_amount > 0, ei tuplata.
+ */
+export function mergeAutoPartnerCommission(
+  calculation: BillableCalculation,
+  options: {
+    amount: number;
+    note?: string | null;
+    percent?: number | null;
+    logs?: WorkReportDailyLog[];
+    logDate?: string;
+  },
+): BillableCalculation {
+  const amount = Math.round(Math.max(0, Number(options.amount) || 0) * 100) / 100;
+  const existingDaily = options.logs ? sumDailyCommission(options.logs) : 0;
+  if (existingDaily > 0.005) {
+    return stripAutoPartnerCommission(calculation);
+  }
+  if (!(amount > 0.005)) {
+    return stripAutoPartnerCommission(calculation);
+  }
+
+  const without = stripAutoPartnerCommission(calculation);
+  const percent =
+    options.percent != null && Number.isFinite(Number(options.percent))
+      ? Number(options.percent)
+      : null;
+  const description =
+    options.note?.trim()
+    || (percent != null
+      ? `Provisio ${String(percent).replace('.', ',')} % puhtaasta katteesta`
+      : 'Provisio puhtaasta katteesta');
+  const logDate = options.logDate ?? new Date().toISOString().slice(0, 10);
+
+  let byUser = without.byUser.map((user, index) => {
+    if (index !== 0) return user;
+    const lines = [
+      ...user.lines,
+      {
+        logId: AUTO_PARTNER_COMMISSION_LOG_ID,
+        logDate,
+        kind: 'commission' as const,
+        description,
+        qty: 1,
+        unitPrice: amount,
+        total: amount,
+        included: true,
+      },
+    ];
+    const commissionTotal = Math.round((user.commissionTotal + amount) * 100) / 100;
+    const subtotal = Math.round(
+      (user.hoursTotal + user.expensesTotal + user.fixedTotal + commissionTotal) * 100,
+    ) / 100;
+    return { ...user, lines, commissionTotal, subtotal };
+  });
+
+  if (byUser.length === 0) {
+    byUser = [{
+      userId: 'auto-commission',
+      userName: 'Provisio',
+      billHoursEnabled: true,
+      billExpensesEnabled: true,
+      effectiveBillHoursEnabled: true,
+      effectiveBillExpensesEnabled: true,
+      hoursQty: 0,
+      hoursTotal: 0,
+      expensesTotal: 0,
+      fixedTotal: 0,
+      commissionTotal: amount,
+      subtotal: amount,
+      excludedSubtotal: 0,
+      lines: [
+        {
+          logId: AUTO_PARTNER_COMMISSION_LOG_ID,
+          logDate,
+          kind: 'commission',
+          description,
+          qty: 1,
+          unitPrice: amount,
+          total: amount,
+          included: true,
+        },
+      ],
+    }];
+  }
+
+  const grandTotal = Math.round(byUser.reduce((sum, u) => sum + u.subtotal, 0) * 100) / 100;
+  const excludedTotal = Math.round(byUser.reduce((sum, u) => sum + u.excludedSubtotal, 0) * 100) / 100;
+  return {
+    ...without,
+    byUser,
+    grandTotal,
+    excludedTotal,
+  };
+}
+
+export function stripAutoPartnerCommission(calculation: BillableCalculation): BillableCalculation {
+  const byUser = calculation.byUser.map((user) => {
+    const removed = user.lines.filter((line) => line.logId === AUTO_PARTNER_COMMISSION_LOG_ID);
+    if (removed.length === 0) return user;
+    const removedTotal = removed.reduce(
+      (sum, line) => sum + (line.included ? billableLineDisplayTotal(line) : 0),
+      0,
+    );
+    const lines = user.lines.filter((line) => line.logId !== AUTO_PARTNER_COMMISSION_LOG_ID);
+    const commissionTotal = Math.round(Math.max(0, user.commissionTotal - removedTotal) * 100) / 100;
+    const subtotal = Math.round(
+      (user.hoursTotal + user.expensesTotal + user.fixedTotal + commissionTotal) * 100,
+    ) / 100;
+    return { ...user, lines, commissionTotal, subtotal };
+  });
+  const grandTotal = Math.round(byUser.reduce((sum, u) => sum + u.subtotal, 0) * 100) / 100;
+  const excludedTotal = Math.round(byUser.reduce((sum, u) => sum + u.excludedSubtotal, 0) * 100) / 100;
+  return { ...calculation, byUser, grandTotal, excludedTotal };
 }
 
 export function formatEuro(amount: number) {

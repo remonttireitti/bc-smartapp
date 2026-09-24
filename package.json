@@ -63,6 +63,7 @@
     "test:work-report-entry-categories": "npx tsx scripts/test-work-report-entry-categories.mjs",
     "test:work-report-print-quote-merge": "npx tsx scripts/test-work-report-print-quote-merge.mjs",
     "test:quote-margin-calculation": "npx tsx scripts/test-quote-margin-calculation.mjs",
+    "test:partner-commission-percent": "npx tsx scripts/test-partner-commission-percent.mjs",
     "test:expense-supply-extra-billing": "npx tsx scripts/test-expense-supply-extra-billing.mjs",
     "test:hours-extra-billing": "npx tsx scripts/test-hours-extra-billing.mjs",
     "test:manual-device-margin-sync": "npx tsx scripts/test-manual-device-margin-sync.mjs",

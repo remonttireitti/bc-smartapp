@@ -4,11 +4,14 @@ import {
   billingQuoteHasData,
   computePartnerNetMargin,
   computeQuotePurchaseMarginAdjustment,
+  DEFAULT_PARTNER_COMMISSION_PERCENT,
+  formatUrakkaOutcomeSummary,
   normalizeBillingQuoteSettings,
   parseBillingQuoteSettings,
   quoteHasVat,
   resolveActualPurchaseTotal,
   resolveCustomerBillableGrandTotal,
+  resolvePartnerCommissionPercent,
   resolveQuotePurchaseTotal,
   saveBillingQuoteSettings,
   type BillingQuotePurchaseLine,
@@ -739,6 +742,29 @@ export default function WorkReportBillingQuotePanel({
                 </>
               )}
 
+              {showPartnerMargin ? (
+                <label className="form-field">
+                  <span>Provisio %</span>
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={String(resolvePartnerCommissionPercent(settings))}
+                    disabled={busy}
+                    onChange={(e) => {
+                      const parsed = parseMoneyInput(e.target.value);
+                      setSettings((prev) => ({
+                        ...prev,
+                        partner_commission_percent: parsed,
+                      }));
+                    }}
+                  />
+                  <span className="muted field-hint">
+                    Osuus puhtaasta katteesta ennen provisiota (oletus{' '}
+                    {DEFAULT_PARTNER_COMMISSION_PERCENT} %). Explicit 0 sallittu.
+                  </span>
+                </label>
+              ) : null}
+
               <label className="form-field span-2">
                 <span>Huomio kumppanille</span>
                 <input
@@ -827,6 +853,12 @@ export default function WorkReportBillingQuotePanel({
                   ) : null}
                 </>
               )}
+              {showPartnerMargin ? (
+                <>
+                  <dt>Provisio %</dt>
+                  <dd>{resolvePartnerCommissionPercent(settings)} %</dd>
+                </>
+              ) : null}
               {settings.notes?.trim() ? (
                 <>
                   <dt>Huomio</dt>
@@ -973,6 +1005,20 @@ export default function WorkReportBillingQuotePanel({
                       <td className="num">− {formatEuro(partnerMargin.piikkiMaterialCostNet)}</td>
                     </tr>
                   ) : null}
+                  <tr className="billing-margin-subtotal">
+                    <td>
+                      <strong>Kate ennen provisiota</strong>
+                    </td>
+                    <td className="num">
+                      <strong>{formatEuro(partnerMargin.grossMarginNet)}</strong>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>
+                      Provisio ({String(partnerMargin.commissionPercent).replace('.', ',')} %)
+                    </td>
+                    <td className="num">− {formatEuro(partnerMargin.commissionNet)}</td>
+                  </tr>
                   <tr className="billing-margin-total">
                     <td>
                       <strong>Puhdas kate</strong>
@@ -1047,9 +1093,20 @@ export default function WorkReportBillingQuotePanel({
                   <strong>{formatEuro(customerBillableGrandTotal.grandTotal)}</strong>
                 </p>
               ) : null}
+              {categoryComparison ? (
+                <p className="billing-urakka-outcome">
+                  <strong>Urakka meni näin:</strong>{' '}
+                  {formatUrakkaOutcomeSummary({
+                    varianceNet: categoryComparison.varianceNet,
+                    quoteTotalNet: categoryComparison.quoteTotalNet,
+                    actualTotalNet: categoryComparison.actualTotalNet,
+                  })}
+                </p>
+              ) : null}
               <p className="muted billing-margin-formula">
-                Kate = tarjoushinta + lisälaskutus − työt − kulut − tarvikkeet − laite − katetta syövät
-                kulut − suorat hankintakulut.
+                Kate ennen provisiota = tarjoushinta + lisälaskutus − työt − kulut − tarvikkeet − laite −
+                katetta syövät kulut − suorat hankintakulut. Puhdas kate = kate − provisio (
+                {String(partnerMargin.commissionPercent).replace('.', ',')} %).
                 {partnerMargin.quotePurchaseNet !== partnerMargin.actualPurchaseNet ? (
                   <>
                     {' '}
