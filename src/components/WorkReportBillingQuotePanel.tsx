@@ -390,23 +390,9 @@ export default function WorkReportBillingQuotePanel({
               ) : null}
 
               {showCustomerQuoteMode && quoteIsLinked ? (
-                <>
-                  <label className="form-field span-2 compact-option">
-                    <input
-                      type="checkbox"
-                      checked={quoteBillingEnabled}
-                      disabled={busy || !settings.quote_request_id}
-                      onChange={(e) =>
-                        setSettings((prev) => ({
-                          ...prev,
-                          customer_mode: e.target.checked ? 'quote_fixed' : 'daily_log',
-                        }))
-                      }
-                    />
-                    Asiakkaalta laskutetaan kiinteä tarjoushinta (ei tunti- ja ajolaskentaa)
-                  </label>
-
-                </>
+                <p className="span-2 muted" style={{ margin: '0 0 .5rem', fontSize: '.85rem' }}>
+                  Laskutetaan kiinteä tarjoushinta — tunti- ja ajolaskenta erikseen lisälaskutuksena
+                </p>
               ) : null}
 
               {quoteIsLinked ? (
@@ -664,24 +650,7 @@ export default function WorkReportBillingQuotePanel({
                       <td className="num">− {formatEuro(suppliesActualTotal)}</td>
                     </tr>
                   ) : null}
-                  {partnerMargin.marginEatingExpenseNet > 0.005 ? (
-                    <tr>
-                      <td>Muut katetta syövät kulut</td>
-                      <td className="num">− {formatEuro(partnerMargin.marginEatingExpenseNet)}</td>
-                    </tr>
-                  ) : null}
-                  {partnerMargin.partnerPiikkiPurchaseNet > 0.005 ? (
-                    <tr>
-                      <td>Kumppanin tililtä hankitut</td>
-                      <td className="num">− {formatEuro(partnerMargin.partnerPiikkiPurchaseNet)}</td>
-                    </tr>
-                  ) : null}
-                  {partnerMargin.piikkiMaterialCostNet > 0.005 ? (
-                    <tr>
-                      <td>Lisätilauksen hankintakulut</td>
-                      <td className="num">− {formatEuro(partnerMargin.piikkiMaterialCostNet)}</td>
-                    </tr>
-                  ) : null}
+
                   <tr className="billing-margin-subtotal">
                     <td>
                       <strong>Kate ennen provisiota</strong>
