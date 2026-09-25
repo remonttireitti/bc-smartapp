@@ -40,7 +40,9 @@ import PartnerBillingRatesFields from '../components/PartnerBillingRatesFields';
 import Tooltip from '../components/Tooltip';
 import WorkReportBillingBreakdown from '../components/WorkReportBillingBreakdown';
 import WorkReportBillingQuotePanel from '../components/WorkReportBillingQuotePanel';
+import WorkReportDeviceSection, { type DeviceEntryPrefill } from '../components/WorkReportDeviceSection';
 import type { QuoteLineEntry } from '../lib/quoteLineEntries';
+import { isDeviceExpense, DEVICE_EXPENSE_TYPE } from '../lib/workReportDeviceEntries';
 import { WorkReportHourBillingModePanel } from '../components/WorkReportHourBillingModeFields';
 import {
   hourBillingModeSummary,
@@ -180,6 +182,7 @@ import {
 } from '../lib/dailyLogCustomerExtraBilling';
 import {
   emptyExpense,
+  syncExpenseCustomerPriceFromPartner,
   expensesToDrafts,
   normalizeExpenseDraftsForSave,
   type ExpenseDraft,
@@ -206,6 +209,7 @@ import {
   isMissingExpenseExtraBillingColumn,
 } from '../lib/workReportDailyLogSelect';
 import {
+  applyExpenseBillingMode,
   applyTripBillingToExpenses,
   resolveTripBillingFromExpenses,
   tripLegsBillToCustomer,
@@ -560,7 +564,16 @@ function DailyLogFields({
     hourFieldsForEntryType(form.entry_type);
   const showPartnerPrices = !!showPartnerExpenseFields;
   const showCustomerPrices = !!showCustomerExpenseFields;
-  const manualExpenseDrafts = expenseDrafts.filter((row) => !isLikelyAutoTripKmExpense(row));
+  const manualExpenseDrafts = expenseDrafts.filter(
+    (row) => !isLikelyAutoTripKmExpense(row) && !isDeviceExpense(row),
+  );
+  const deviceDrafts = expenseDrafts.filter((row) => isDeviceExpense(row));
+  const deviceSubtitle =
+    deviceDrafts.length === 0
+      ? 'Ei laitetta'
+      : deviceDrafts.length === 1
+        ? deviceDrafts[0].description.trim() || '1 laite'
+        : `${deviceDrafts.length} laitetta`;
   const hasAutoTripKm = expenseDrafts.some(isLikelyAutoTripKmExpense);
   const expenseSectionTitle = 'Kulut ja tarvikkeet';
   const partnerUrakkaPreview = previewPartnerUrakkaAmount(form);
@@ -922,6 +935,27 @@ function DailyLogFields({
         wide
       >
         <DailyLogExpenseLinesSection
+          expenseDrafts={expenseDrafts}
+          setExpenseDrafts={setExpenseDrafts}
+          showPartnerPrices={showPartnerPrices}
+          showCustomerPrices={showCustomerPrices}
+          showQuoteLinkedExtraBilling={showQuoteLinkedExtraBilling}
+          showQuoteLinkedCategories={showQuoteLinkedCategories}
+          linkedQuoteRequest={linkedQuoteRequest}
+          initialEditingKey={autoOpenExpenseKey}
+          onInitialEditingHandled={onAutoOpenExpenseHandled}
+        />
+      </DailyLogTileSection>
+
+      <DailyLogTileSection
+        sectionKey="device"
+        title="Laite"
+        subtitle={deviceSubtitle}
+        color={DAILY_LOG_SECTION_COLORS.device}
+        wide
+      >
+        <DailyLogExpenseLinesSection
+          variant="device"
           expenseDrafts={expenseDrafts}
           setExpenseDrafts={setExpenseDrafts}
           showPartnerPrices={showPartnerPrices}
@@ -2396,6 +2430,42 @@ export default function WorkReportDetailPage({ session }: Props) {
     }
   }
 
+  /** Laite-osion "Lisää laite": uusi työkirjaus, Laite-ruutu auki ja laiterivi esitäytettynä. */
+  function recordDevice(prefill: DeviceEntryPrefill | null) {
+    openAddLogDialog();
+    const quoteIncluded =
+      workReportHasLinkedQuoteRequest(billingQuoteSettings)
+      && workReportSupportsQuoteLinkedExtraBilling(billingQuoteSettings);
+    const base: ExpenseDraft = {
+      ...emptyExpense(),
+      expense_type: DEVICE_EXPENSE_TYPE,
+      description: prefill?.description ?? '',
+      qty: '1',
+      unit_price: prefill?.unitPrice != null && prefill.unitPrice > 0 ? String(prefill.unitPrice) : '',
+    };
+    // Tarjoukseen kuuluva laite: oma hankinta, ei erillistä asiakaslaskutusta (vaihdettavissa lomakkeella).
+    const row = quoteIncluded
+      ? applyExpenseBillingMode(base, 'included_in_contract')
+      : syncExpenseCustomerPriceFromPartner(base);
+    setExpenseDrafts((current) => [...current, row]);
+    setLogForm((current) => ({
+      ...current,
+      work_done: current.work_done.trim()
+        ? current.work_done
+        : prefill?.description
+          ? `Laite: ${prefill.description}`
+          : 'Laitteen hankinta',
+    }));
+    setLogDialogPreset({ sectionKey: 'device', expenseKey: row.key });
+  }
+
+  function editDeviceLog(logId: string) {
+    const log = dailyLogs.find((entry) => entry.id === logId);
+    if (!log) return;
+    openEditLogDialog(log);
+    setLogDialogPreset({ sectionKey: 'device', expenseKey: null });
+  }
+
   function openAddLogDialog() {
     setLogDialogPreset(null);
     setEditingLogId(null);
@@ -3124,6 +3194,28 @@ export default function WorkReportDetailPage({ session }: Props) {
         </DailyLogEntryTileGrid>
       )}
       </div>
+
+      {report ? (
+        <WorkReportDeviceSection
+          workReportId={report.id}
+          billingQuoteSettings={billingQuoteSettings}
+          dailyLogs={dailyLogs}
+          showQuoteDevice={
+            hasLinkedQuote
+            && (!!showOutgoingPartnerBilling || !!showCustomerMoneyBilling || showQuoteBillingSection)
+          }
+          canCorrect={!!showOutgoingPartnerBilling || !!canManageCustomerBillingRates}
+          showPrices={!!(showPartnerBillableSection || showCustomerMoney)}
+          canAddEntries={canAddDailyLogs}
+          onAddDevice={recordDevice}
+          onEditLog={editDeviceLog}
+          onSaved={(next) => {
+            setBillingQuoteSettings(next);
+            // Laitteen hinta muuttui → kate ja provisio (partner_total) lasketaan uudelleen.
+            void refreshBillable(report, dailyLogs, { viewerCompanyId: profile?.company_id });
+          }}
+        />
+      ) : null}
 
       {(showOutgoingPartnerBilling || showCustomerMoneyBilling || showQuoteBillingSection) && report ? (
         <div id="work-report-quote-billing" className="work-report-quote-billing-anchor">

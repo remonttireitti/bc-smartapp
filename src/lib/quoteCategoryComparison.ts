@@ -1,3 +1,4 @@
+import { deviceEntryCostSplit, effectiveQuoteDeviceActualNet } from './workReportDeviceEntries';
 import type { PartnerBillingRates } from './management';
 import type { BillingQuotePurchaseLine } from './quotePurchaseLines';
 import {
@@ -134,10 +135,25 @@ export function compareQuoteCategories(input: {
   const shift = categoryReclassification(input.logs, input.partnerCalculation);
   const suppliesToExpenses = roundMoney(Math.min(shift.suppliesToExpenses, Math.max(0, diaryGroupActual)));
   const expensesToSupplies = roundMoney(Math.min(shift.expensesToSupplies, Math.max(0, expenses.actualNet)));
-  const suppliesActual = roundMoney(suppliesActualFromLines - suppliesToExpenses + expensesToSupplies);
-  const expensesActual = roundMoney(expenses.actualNet + suppliesToExpenses - expensesToSupplies);
+  // Laitekirjaukset (tyyppi Laite): päiväkirjan hankinnat ja kumppanin laskuttamat laiterivit
+  // siirretään Laite-riville; ne korvaavat tarjouspyynnön laitehinnan (laite vain kerran).
+  const deviceSplit = deviceEntryCostSplit(input.logs, input.partnerCalculation);
+  const diaryDevice = roundMoney(
+    Math.min(deviceSplit.diaryNet, Math.max(0, diaryGroupActual - suppliesToExpenses)),
+  );
+  const partnerDevice = roundMoney(
+    Math.min(deviceSplit.partnerNet, Math.max(0, expenses.actualNet - expensesToSupplies)),
+  );
+  const suppliesActual = roundMoney(
+    suppliesActualFromLines - suppliesToExpenses + expensesToSupplies - diaryDevice,
+  );
+  const expensesActual = roundMoney(
+    expenses.actualNet + suppliesToExpenses - expensesToSupplies - partnerDevice,
+  );
   const deviceQuote = sumPurchaseLines(purchaseLines, 'quote_purchase_net', true);
-  const deviceActual = sumPurchaseLines(purchaseLines, 'actual_purchase_net', true);
+  const deviceActual = roundMoney(
+    effectiveQuoteDeviceActualNet(purchaseLines, input.logs) + diaryDevice + partnerDevice,
+  );
   // Huoltoautokorvaus on tarjouksen sisäinen kulu (sama kuin tarjouksen "Hankinta"):
   // vertaillaan Kulut-kategoriassa toteutuneisiin ajoihin.
   const vehicleQuote = roundMoney(installationVehiclePurchaseNet(normalizeQuoteRequestData(input.quoteData)));

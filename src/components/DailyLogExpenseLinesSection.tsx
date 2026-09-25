@@ -10,9 +10,10 @@ import {
   type ExpenseDraft,
 } from '../lib/dailyLogExpenseDraft';
 import {
-  classifyExpenseDraftCategory,
+  expenseDraftCategoryOrNull,
   quoteCategoryLabel,
 } from '../lib/workReportEntryCategories';
+import { DEVICE_EXPENSE_TYPE, isDeviceExpense } from '../lib/workReportDeviceEntries';
 import { formatEuro } from '../lib/workReportBilling';
 import {
   applyExpenseBillingMode,
@@ -26,13 +27,25 @@ import {
 } from '../lib/workReportExpenseBilling';
 import { isAutoTripKmExpense, isLikelyAutoTripKmExpense } from '../lib/tripKmExpense';
 import { EXPENSE_TYPE_LABELS } from '../types';
-import { COST_EXPENSE_TYPES, SUPPLY_EXPENSE_TYPES } from '../lib/workReportEntryCategories';
+import {
+  COST_EXPENSE_TYPES,
+  DEVICE_EXPENSE_TYPES,
+  SUPPLY_EXPENSE_TYPES,
+} from '../lib/workReportEntryCategories';
 
-/** Samat ryhmät kuin tarjouspyynnössä: Tarvikkeet ja Kulut (Laite oikaistaan Tarjous ja kate -osiossa). */
+/** Samat ryhmät kuin tarjouspyynnössä ja Tarjous ja kate -vertailussa: Tarvikkeet, Kulut, Laite. */
 const EXPENSE_TYPE_GROUPS = [
   { label: 'Tarvikkeet', options: SUPPLY_EXPENSE_TYPES.map((value) => ({ value, label: EXPENSE_TYPE_LABELS[value] ?? value })) },
   { label: 'Kulut', options: COST_EXPENSE_TYPES.map((value) => ({ value, label: EXPENSE_TYPE_LABELS[value] ?? value })) },
+  { label: 'Laitteet', options: DEVICE_EXPENSE_TYPES.map((value) => ({ value, label: EXPENSE_TYPE_LABELS[value] ?? value })) },
 ];
+
+const CATEGORY_HINTS: Record<string, string> = {
+  supplies: 'Näkyy Tarjous ja kate -vertailussa rivillä Tarvikkeet.',
+  expenses: 'Näkyy Tarjous ja kate -vertailussa rivillä Kulut.',
+  device:
+    'Näkyy Tarjous ja kate -vertailussa rivillä Laite. Kirjattu laite korvaa tarjouspyynnön laitehinnan — kirjaa silloin kaikki laitteet.',
+};
 
 type Props = {
   expenseDrafts: ExpenseDraft[];
@@ -42,6 +55,8 @@ type Props = {
   showQuoteLinkedExtraBilling?: boolean;
   showQuoteLinkedCategories?: boolean;
   linkedQuoteRequest?: boolean;
+  /** 'device' = Laite-osio (vain laiterivit), 'expenses' = kulut ja tarvikkeet (ei laiterivejä). */
+  variant?: 'expenses' | 'device';
   /** Rivi, jonka muokkaus avataan heti (esitäytetty tarjouspyynnön riviltä). */
   initialEditingKey?: string | null;
   onInitialEditingHandled?: () => void;
@@ -57,7 +72,9 @@ export default function DailyLogExpenseLinesSection({
   linkedQuoteRequest = false,
   initialEditingKey = null,
   onInitialEditingHandled,
+  variant = 'expenses',
 }: Props) {
+  const deviceVariant = variant === 'device';
   const expenseQuoteContext: ExpenseBillingQuoteContext = { linkedQuoteRequest };
   const [editingExpenseKey, setEditingExpenseKey] = useState<string | null>(initialEditingKey);
 
@@ -66,7 +83,9 @@ export default function DailyLogExpenseLinesSection({
     // Vain avautuessa: esitäytetty rivi avataan kerran.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  const manualExpenseDrafts = expenseDrafts.filter((row) => !isLikelyAutoTripKmExpense(row));
+  const manualExpenseDrafts = expenseDrafts.filter(
+    (row) => !isLikelyAutoTripKmExpense(row) && isDeviceExpense(row) === deviceVariant,
+  );
   const editingIndex = editingExpenseKey
     ? expenseDrafts.findIndex((row) => row.key === editingExpenseKey)
     : -1;
@@ -77,7 +96,9 @@ export default function DailyLogExpenseLinesSection({
   }, [editingExpenseKey, editingIndex]);
 
   function openNewExpense() {
-    const newRow = emptyExpense();
+    const newRow = deviceVariant
+      ? { ...emptyExpense(), expense_type: DEVICE_EXPENSE_TYPE }
+      : emptyExpense();
     setExpenseDrafts((current) => [...current, newRow]);
     setEditingExpenseKey(newRow.key);
   }
@@ -94,14 +115,16 @@ export default function DailyLogExpenseLinesSection({
   return (
     <div className="expense-section expense-section-in-dialog">
       <p className="muted expense-section-hint">
-        Lisää pysäköinti, varaosat ja muut kulut. Avaa rivi muokataksesi hintoja ja laskutusta.
+        {deviceVariant
+          ? 'Kirjaa hankittu tai asiakkaalle myyty laite: nimi / malli, hankintahinta, asiakashinta ja kuka laitteen osti.'
+          : 'Lisää pysäköinti, varaosat ja muut kulut. Avaa rivi muokataksesi hintoja ja laskutusta.'}
       </p>
       <button type="button" className="btn btn-secondary" onClick={openNewExpense}>
-        + Lisää kulu tai tarvike
+        {deviceVariant ? '+ Lisää laite' : '+ Lisää kulu tai tarvike'}
       </button>
 
       {manualExpenseDrafts.length === 0 ? (
-        <p className="muted">Esim. pysäköinti, varaosat, tarvikkeet…</p>
+        <p className="muted">{deviceVariant ? 'Ei laitetta tässä kirjauksessa.' : 'Esim. pysäköinti, varaosat, tarvikkeet…'}</p>
       ) : (
         <ul className="expense-line-list">
           {manualExpenseDrafts.map((row) => (
@@ -135,7 +158,9 @@ export default function DailyLogExpenseLinesSection({
             onClick={(event) => event.stopPropagation()}
           >
             <h3 id="expense-line-dialog-title">
-              {isNewExpenseRow(editingRow) ? 'Uusi kulu tai tarvike' : 'Muokkaa riviä'}
+              {isDeviceExpense(editingRow)
+                ? isNewExpenseRow(editingRow) ? 'Uusi laite' : 'Muokkaa laitetta'
+                : isNewExpenseRow(editingRow) ? 'Uusi kulu tai tarvike' : 'Muokkaa riviä'}
             </h3>
             <ExpenseLineEditor
               row={editingRow}
@@ -188,6 +213,7 @@ function ExpenseLineEditor({
   expenseQuoteContext: ExpenseBillingQuoteContext;
 }) {
   const autoTripKm = isAutoTripKmExpense(row);
+  const category = expenseDraftCategoryOrNull(row);
   const billingMode = resolveExpenseBillingMode(row);
   const updateExpenseRow = (nextRow: ExpenseDraft) =>
     setExpenseDrafts((current) => current.map((r, i) => (i === index ? nextRow : r)));
@@ -216,19 +242,22 @@ function ExpenseLineEditor({
   return (
     <div className={`expense-row-fields expense-line-dialog-fields${autoTripKm ? ' expense-row-auto' : ''}`}>
       {showQuoteLinkedCategories ? (
-        <p className="quote-category-row-hint">
-          <span
-            className={`quote-category-badge quote-category-badge-${classifyExpenseDraftCategory(row)}`}
-          >
-            {quoteCategoryLabel(classifyExpenseDraftCategory(row))}
-          </span>
-          <span className="muted">
-            {classifyExpenseDraftCategory(row) === 'supplies'
-              ? 'Näkyy Tarjous ja kate -vertailussa rivillä Tarvikkeet (vaihda tyyppiä, jos rivi on kulu).'
-              : 'Näkyy Tarjous ja kate -vertailussa rivillä Kulut (vaihda tyypiksi Tarvike, jos rivi on tarvike).'}
-            {row.expense_type ? null : ' Valitse tyyppi, niin rivi osuu oikeaan kategoriaan.'}
-          </span>
-        </p>
+        category ? (
+          <p className="quote-category-row-hint">
+            <span className={`quote-category-badge quote-category-badge-${category}`}>
+              {quoteCategoryLabel(category)}
+            </span>
+            <span className="muted">{CATEGORY_HINTS[category] ?? ''}</span>
+          </p>
+        ) : (
+          <p className="quote-category-row-hint">
+            <span className="quote-category-badge quote-category-badge-none">Valitse tyyppi</span>
+            <span className="muted">
+              Valitse tyyppi, niin rivi osuu oikeaan Tarjous ja kate -riviin: Tarvike / Varaosa →
+              Tarvikkeet, Pysäköinti / KM-korvaus / Muu kulu → Kulut, Laite → Laite.
+            </span>
+          </p>
+        )
       ) : null}
       <label>
         Tyyppi
@@ -256,7 +285,7 @@ function ExpenseLineEditor({
           readOnly={autoTripKm}
           disabled={autoTripKm}
           onChange={(e) => updateExpenseRow({ ...row, description: e.target.value })}
-          placeholder="Esim. Varaosa X"
+          placeholder={isDeviceExpense(row) ? 'Laitteen nimi / malli' : 'Esim. Varaosa X'}
         />
       </label>
       <label>

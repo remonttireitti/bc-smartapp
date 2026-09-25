@@ -26,6 +26,14 @@ import {
   showQuoteLineAmounts,
 } from '../src/lib/quoteLineEntries.ts';
 import { billingQuoteForLinkedQuote } from '../src/lib/quoteWorkReportLinkLogic.ts';
+import { buildQuoteOutcomeSummary } from '../src/lib/quoteOutcomeSummary.ts';
+import { formatEuro } from '../src/lib/workReportBilling.ts';
+import { expenseDraftCategoryOrNull } from '../src/lib/workReportEntryCategories.ts';
+import {
+  collectDeviceEntries,
+  deviceEntriesReplaceQuoteDevice,
+  deviceEntryCostSplit,
+} from '../src/lib/workReportDeviceEntries.ts';
 
 const round = (v) => Math.round(v * 100) / 100;
 
@@ -221,5 +229,180 @@ assert.equal(resetLine.actual_corrected, undefined);
 const supplyLine = refreshed.purchase_lines.find((l) => l.source !== 'device');
 const ignored = applyDeviceActualCorrections(refreshed, [{ line: supplyLine, actualNet: 1 }]);
 assert.deepEqual(ignored.purchase_lines, refreshed.purchase_lines);
+
+
+// =====================================================================
+// Laite: vähennetään katteesta täsmälleen kerran kaikissa poluissa
+// =====================================================================
+assert.equal(expenseTypeCategory('device'), 'device');
+assert.equal(classifyExpenseLineCategory({ expense_type: 'device', qty: 1, unit_price: 10, bill_to_partner: false, bill_to_customer: false }), 'device');
+// Lomake: ei tyyppiä → ei arvata (neutraali "Valitse tyyppi"), vaikka laskutustapa olisi kumppanilta
+assert.equal(expenseDraftCategoryOrNull({ expense_type: '', bill_to_partner: true, bill_to_customer: true }), null);
+assert.equal(expenseDraftCategoryOrNull({ expense_type: '', bill_to_partner: false, bill_to_customer: false }), null);
+assert.equal(expenseDraftCategoryOrNull({ expense_type: 'device' }), 'device');
+assert.equal(expenseDraftCategoryOrNull({ expense_type: 'other' }), 'expenses');
+assert.equal(expenseDraftCategoryOrNull({ expense_type: 'material' }), 'supplies');
+assert.equal(expenseDraftCategoryOrNull({ expense_type: 'km', description: 'Ajomatkat (10 km)' }), 'expenses');
+
+const SALE = 3982.4;
+const baseLog = {
+  id: 'log-d',
+  log_date: '2026-09-21',
+  entry_type: 'regular',
+  hours_regular: 8,
+  created_by: 'u1',
+  trip_legs: [{ distance_km: 68.3 }],
+};
+const diarySupply = { id: 's1', expense_type: 'material', description: 'Asennustarvikkeet', qty: 1, unit_price: 245, bill_to_partner: false, bill_to_customer: false };
+const NON_DEVICE_COSTS = round(400 + 40.3 + 245); // työ + ajot (68,3 km × 0,59) + tarvike
+
+function scenario(name, { expenseLines, settingsOverride = null, extrasApproved = false }) {
+  const scenarioLogs = [{ ...baseLog, expense_lines: expenseLines }];
+  const calc = calculateWorkReportBillable({
+    logs: scenarioLogs,
+    users,
+    rates,
+    ratesSource: 'partnership',
+    tripKmRate: 0.59,
+    billToCompanyId: 'owner',
+    billToCompanyName: 'Owner Oy',
+  });
+  const merged = mergeActualPurchaseFromWorkReportLogs(settingsOverride ?? baseSettings, scenarioLogs, quoteData);
+  const margin = computePartnerNetMargin(merged, calc.grandTotal, {
+    logs: scenarioLogs,
+    partnerRates: rates,
+    partnerCalculation: calc,
+  });
+  const cmp = compareQuoteCategories({
+    quoteData,
+    partnerCalculation: calc,
+    logs: scenarioLogs,
+    partnerRates: rates,
+    tripKmRate: 0.59,
+    billingSettings: merged,
+  });
+  const deductions = round(margin.deductionRows.reduce((sum, row) => sum + row.amount, 0));
+  const deviceDeduction = margin.deductionRows.find((row) => row.key === 'device')?.amount ?? 0;
+  const deviceCmp = cmp.rows.find((row) => row.key === 'device')?.actualNet ?? 0;
+  // Laite näkyy samana katteessa ja vertailussa
+  assert.equal(deviceDeduction, deviceCmp, `${name}: laite kate = vertailu`);
+  // Vertailun toteutunut = katteen vähennykset (ei "Muut kate-erät" -riviä)
+  // (Hyväksytyn lisätilauksen hankinta näkyy kuten ennenkin "Muut kate-erät" -rivillä.)
+  const extrasCost = margin.deductionRows.find((row) => row.key === 'piikki_material')?.amount ?? 0;
+  assert.equal(round(cmp.actualTotalNet + extrasCost), deductions, `${name}: vertailu summautuu katteeseen`);
+  const summary = buildQuoteOutcomeSummary({ partnerMargin: margin, comparison: cmp, formatEuro });
+  assert.equal(summary.rows.some((row) => row.key === 'other'), extrasApproved, `${name}: Muut kate-erät`);
+  // Kate ennen provisiota = tarjoushinta (+ hyväksytyt lisät) − kaikki kulut kerran
+  assert.equal(margin.grossMarginNet, round(SALE + margin.customerExtrasNet - deductions), `${name}: kate`);
+  return { calc, merged, margin, cmp, deviceDeduction, logs: scenarioLogs };
+}
+
+// A) Tarjouspyynnöstä esitäytetty laite (1260)
+const A = scenario('A esitäytetty', { expenseLines: [diarySupply] });
+assert.equal(A.deviceDeduction, 1260);
+assert.equal(A.margin.grossMarginNet, round(SALE - NON_DEVICE_COSTS - 1260)); // 2037,10
+assert.equal(A.margin.grossMarginNet, 2037.1);
+
+// B) Oikaistu laite (1100)
+const deviceA = A.merged.purchase_lines.find((l) => l.source === 'device');
+const correctedSettings = applyDeviceActualCorrections(A.merged, [{ line: deviceA, actualNet: 1100 }]);
+const B = scenario('B oikaistu', { expenseLines: [diarySupply], settingsOverride: correctedSettings });
+assert.equal(B.deviceDeduction, 1100);
+assert.equal(B.margin.grossMarginNet, round(SALE - NON_DEVICE_COSTS - 1100)); // 2197,10
+
+// C) Laite kirjattu työkirjaukseen (tyyppi Laite, oma hankinta 1180) → korvaa tarjouspyynnön hinnan
+const ownDevice = { id: 'd1', expense_type: 'device', description: 'Mitsubishi MSZ-LN35', qty: 1, unit_price: 1180, bill_to_partner: false, bill_to_customer: false };
+assert.equal(deviceEntriesReplaceQuoteDevice([{ ...baseLog, expense_lines: [ownDevice] }]), true);
+const C = scenario('C kirjattu laite', { expenseLines: [diarySupply, ownDevice] });
+assert.equal(C.deviceDeduction, 1180, 'vain kirjattu laite, ei tarjouspyynnön 1260');
+assert.equal(C.margin.grossMarginNet, round(SALE - NON_DEVICE_COSTS - 1180)); // 2117,10
+assert.equal(C.cmp.rows.find((r) => r.key === 'supplies').actualNet, 245, 'laite ei tarvikkeissa');
+assert.equal(C.cmp.rows.find((r) => r.key === 'device').quoteNet, 1260, 'tarjouspyynnön arvio säilyy');
+const cDeviceLine = C.merged.purchase_lines.find((l) => l.source === 'device');
+assert.equal(cDeviceLine.actual_purchase_net, 0);
+assert.equal(cDeviceLine.actual_from_entries, true);
+
+// C2) Kirjattu laite + aiempi oikaisu → kirjaus voittaa, oikaisua ei lasketa lisäksi
+const C2 = scenario('C2 kirjaus + oikaisu', { expenseLines: [diarySupply, ownDevice], settingsOverride: correctedSettings });
+assert.equal(C2.deviceDeduction, 1180);
+assert.equal(C2.margin.grossMarginNet, round(SALE - NON_DEVICE_COSTS - 1180));
+// Oikaisu säilyy talteen: kun kirjaus poistetaan, oikaistu 1100 palaa (ei 0, ei 1260)
+const c2Line = C2.merged.purchase_lines.find((l) => l.source === 'device');
+assert.equal(c2Line.actual_corrected, true);
+assert.equal(c2Line.corrected_actual_net, 1100);
+const C2back = scenario('C2 kirjaus poistettu', { expenseLines: [diarySupply], settingsOverride: C2.merged });
+assert.equal(C2back.deviceDeduction, 1100);
+// Ilman oikaisua kirjauksen poisto palauttaa tarjouspyynnön hinnan
+const Cback = scenario('C kirjaus poistettu', { expenseLines: [diarySupply], settingsOverride: C.merged });
+assert.equal(Cback.deviceDeduction, 1260);
+assert.equal(Cback.margin.grossMarginNet, 2037.1);
+
+// D) Kumppanin laskuttama laite (tyyppi Laite, laskutetaan kumppanilta)
+const partnerDevice = { id: 'd2', expense_type: 'device', description: 'Laite kumppanilta', qty: 1, unit_price: 1000, bill_to_partner: true, bill_to_customer: true, partner_expense_margin_percent: 0 };
+const D = scenario('D kumppanin laite', { expenseLines: [diarySupply, partnerDevice] });
+const split = deviceEntryCostSplit(D.logs, D.calc);
+assert.ok(split.partnerNet > 0);
+assert.equal(split.diaryNet, 0);
+assert.equal(D.deviceDeduction, split.partnerNet, 'vain kumppanin lasku, ei tarjouspyynnön 1260');
+assert.equal(D.margin.grossMarginNet, round(SALE - NON_DEVICE_COSTS - split.partnerNet));
+assert.equal(D.margin.deductionRows.find((r) => r.key === 'labor_expenses').amount, 440.3, 'laite ei töissä ja kuluissa');
+assert.equal(D.cmp.rows.find((r) => r.key === 'expenses').actualNet, 40.3, 'laite ei Kulut-rivillä');
+// Kumppanin laskelma (kumppanille maksettava) sisältää laitteen kerran
+const Dplain = calculateWorkReportBillable({
+  logs: [{ ...baseLog, expense_lines: [diarySupply] }], users, rates, ratesSource: 'partnership', tripKmRate: 0.59, billToCompanyId: 'owner', billToCompanyName: 'Owner Oy',
+});
+assert.equal(round(D.calc.grandTotal - Dplain.grandTotal), split.partnerNet);
+
+// E) Hyväksytty lisälaskutus (lisälaite) ei korvaa tarjouspyynnön laitetta
+const extraDevice = { id: 'd3', expense_type: 'device', description: 'Lisälaite', qty: 1, unit_price: 300, customer_unit_price: 450, bill_to_partner: false, bill_to_customer: true, extra_billable: true, extra_billing_allowed: true };
+assert.equal(deviceEntriesReplaceQuoteDevice([{ ...baseLog, expense_lines: [extraDevice] }]), false);
+const E = scenario('E lisälaite', { expenseLines: [diarySupply, extraDevice], extrasApproved: true });
+assert.equal(E.deviceDeduction, 1260, 'tarjouspyynnön laite säilyy; lisälaite lisälaskutuksena');
+assert.equal(E.margin.deductionRows.find((r) => r.key === 'piikki_material').amount, 300, 'lisälaitteen hankinta kerran');
+assert.ok(E.margin.customerExtrasNet > 0, 'lisälaite laskutetaan asiakkaalta');
+assert.equal(
+  E.margin.grossMarginNet,
+  round(SALE + E.margin.customerExtrasNet - NON_DEVICE_COSTS - 1260 - 300),
+  'kate = tarjous + lisät − kulut − laite − lisälaitteen hankinta',
+);
+
+// F) Ei tarjousta: myyty laite (oma hankinta, laskutetaan asiakkaalta) kirjautuu kerran
+const soldDevice = { id: 'd4', expense_type: 'device', description: 'Ilmalämpöpumppu', qty: 1, unit_price: 800, customer_unit_price: 1200, bill_to_partner: false, bill_to_customer: true };
+const noQuoteLogs = [{ ...baseLog, expense_lines: [soldDevice] }];
+const noQuote = mergeActualPurchaseFromWorkReportLogs({}, noQuoteLogs, null);
+assert.equal(noQuote.purchase_lines.filter((l) => l.source === 'device').length, 0);
+assert.equal(noQuote.actual_purchase_net, 800, 'hankinta kerran');
+assert.equal(computePartnerNetMargin(noQuote, 0, { logs: noQuoteLogs }), null, 'ilman tarjousta ei katevertailua');
+const entriesF = collectDeviceEntries(noQuoteLogs);
+assert.equal(entriesF.length, 1);
+assert.equal(entriesF[0].purchaseNet, 800);
+assert.equal(entriesF[0].customerNet, 1200);
+// Kumppanin laskelmaan ei tule (ei laskuteta kumppanilta)
+const noQuoteCalc = calculateWorkReportBillable({
+  logs: noQuoteLogs, users, rates, ratesSource: 'partnership', tripKmRate: 0.59, billToCompanyId: 'owner', billToCompanyName: 'Owner Oy',
+});
+assert.equal(deviceEntryCostSplit(noQuoteLogs, noQuoteCalc).partnerNet, 0);
+
+// G) Tallennetut (yhdistämättömät) asetukset, esim. kumppanilaskun tuloste: laite silti kerran
+for (const [label, line] of [
+  ['oma hankinta, kuuluu urakkaan', ownDevice],
+  ['oma hankinta, laskutetaan asiakkaalta', { ...ownDevice, id: 'd5', bill_to_customer: true, customer_unit_price: 1500 }],
+]) {
+  const gLogs = [{ ...baseLog, expense_lines: [ { ...line } ] }];
+  const gCalc = calculateWorkReportBillable({
+    logs: gLogs, users, rates, ratesSource: 'partnership', tripKmRate: 0.59, billToCompanyId: 'owner', billToCompanyName: 'Owner Oy',
+  });
+  const raw = { ...baseSettings }; // purchase_lines: tarjouksen rivit, laite 1260, ei päiväkirjariviä
+  const gMargin = computePartnerNetMargin(raw, gCalc.grandTotal, { logs: gLogs, partnerRates: rates, partnerCalculation: gCalc });
+  const dev = gMargin.deductionRows.find((r) => r.key === 'device').amount;
+  assert.equal(dev, 1180, `G ${label}: kirjattu laite kerran, ei tarjouspyynnön 1260`);
+  const eating = gMargin.deductionRows.find((r) => r.key === 'margin_eating')?.amount ?? 0;
+  assert.equal(eating, 0, `G ${label}: laite ei katetta syövissä`);
+  const deductions = round(gMargin.deductionRows.reduce((sum, r) => sum + r.amount, 0));
+  assert.equal(gMargin.grossMarginNet, round(SALE + gMargin.customerExtrasNet - deductions));
+}
+
+// Tarjouspyynnön rivit: laiterivin ohje viittaa Laite-osioon
+assert.match(g.device.lines[0].hint, /Laite-osiossa/);
 
 console.log('quote-aligned entries OK');

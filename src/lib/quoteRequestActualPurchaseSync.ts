@@ -3,6 +3,7 @@ import { reconcileQuotePurchaseLines, sumQuotePurchaseLines, type BillingQuotePu
 import type { BillingQuoteSettings } from './workReportBillingQuote';
 import { normalizeBillingQuoteSettings } from './workReportBillingQuote';
 import { analyzeWorkReportPurchaseCosts } from './workReportActualPurchase';
+import { deviceEntriesReplaceQuoteDevice } from './workReportDeviceEntries';
 
 function roundMoney(value: number): number {
   return Math.round(value * 100) / 100;
@@ -44,7 +45,12 @@ function resolveDeviceActual(
   const saved = savedDeviceLine(line, savedLines);
   const quote = line.quote_purchase_net;
   // Käyttäjän oikaisu (Oikaise) pysyy sellaisenaan — myös selvästi tarjousta pienempi hinta.
-  if (saved?.actual_corrected) return roundMoney(Number(saved.actual_purchase_net) || 0);
+  if (saved?.actual_corrected) {
+    if (saved.corrected_actual_net != null) return roundMoney(Number(saved.corrected_actual_net) || 0);
+    if (!saved.actual_from_entries) return roundMoney(Number(saved.actual_purchase_net) || 0);
+  }
+  // Laitekirjaus korvasi hinnan (tallennettu 0) → kirjauksen poistuttua takaisin tarjouspyynnön hintaan.
+  if (saved?.actual_from_entries) return roundMoney(quote);
   const actual = saved?.actual_purchase_net ?? line.actual_purchase_net ?? quote;
   // Vanha virhe: laitteen toteutunut tallentui liian pieneksi → oletus = tarjouksen hinta.
   if (quote > 0.005 && actual < quote * 0.5) return roundMoney(quote);
@@ -119,6 +125,7 @@ export function buildWorkReportPurchaseLines(
 ): BillingQuotePurchaseLine[] {
   const analysis = analyzeWorkReportPurchaseCosts(logs);
   const saved = settings.purchase_lines ?? [];
+  const replacedByEntries = deviceEntriesReplaceQuoteDevice(logs);
 
   let quoteLines: BillingQuotePurchaseLine[] = [];
   if (quoteData) {
@@ -130,11 +137,16 @@ export function buildWorkReportPurchaseLines(
   const deviceLines = quoteLines
     .filter((line) => line.source === 'device')
     .map((line) => {
-      const corrected = savedDeviceLine(line, saved)?.actual_corrected === true;
+      const savedLine = savedDeviceLine(line, saved);
+      const corrected = savedLine?.actual_corrected === true;
+      const resolved = resolveDeviceActual(line, saved);
+      const { actual_corrected: _c, corrected_actual_net: _n, actual_from_entries: _e, ...base } = line;
       return {
-        ...line,
-        actual_purchase_net: resolveDeviceActual(line, saved),
-        ...(corrected ? { actual_corrected: true } : {}),
+        ...base,
+        // Työraportin laitekirjaus korvaa tarjouspyynnön hinnan ja oikaisun (laite kerran katteessa).
+        actual_purchase_net: replacedByEntries ? 0 : resolved,
+        ...(corrected ? { actual_corrected: true, corrected_actual_net: resolved } : {}),
+        ...(replacedByEntries ? { actual_from_entries: true } : {}),
       };
     });
 

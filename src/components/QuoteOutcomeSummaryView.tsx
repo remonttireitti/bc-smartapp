@@ -18,8 +18,8 @@ type Props = {
   commissionExceedsGross?: boolean;
   /** Laite-rivin alle (esim. "Oikaise laitteen hankinta"). */
   deviceEditor?: ReactNode;
-  /** Laitteen toteutunut on oikaistu käsin (näytetään Laite-rivillä). */
-  deviceCorrected?: boolean;
+  /** Laite-rivin lisätieto (esim. "toteutunut oikaistu"). */
+  deviceNote?: string | null;
 };
 
 function toneClass(tone: OutcomeTone): string {
@@ -44,7 +44,7 @@ export default function QuoteOutcomeSummaryView({
   commissionEditor,
   commissionExceedsGross = false,
   deviceEditor,
-  deviceCorrected = false,
+  deviceNote = null,
 }: Props) {
   const hasExtras = summary.customerExtrasNet > 0.005;
   const gross = summary.grossMargin;
@@ -100,8 +100,8 @@ export default function QuoteOutcomeSummaryView({
                     <span className="quote-outcome-row-label">{row.label}</span>
                     {row.qtyLabel ? <span className="quote-outcome-row-sub">{row.qtyLabel}</span> : null}
                     {row.note ? <span className="quote-outcome-row-sub">{row.note}</span> : null}
-                    {row.key === 'device' && deviceCorrected ? (
-                      <span className="quote-outcome-row-sub">toteutunut oikaistu</span>
+                    {row.key === 'device' && deviceNote ? (
+                      <span className="quote-outcome-row-sub">{deviceNote}</span>
                     ) : null}
                   </td>
                   <td className="num">{money(row.estimateNet)}</td>

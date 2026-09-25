@@ -37,6 +37,13 @@ export type BillingQuotePurchaseLine = {
    * Oikaisua ei korvata tarjouksen hinnalla päivityksessä eikä uudelleenkohdistuksessa.
    */
   actual_corrected?: boolean;
+  /** Oikaistu arvo talteen (säilyy, vaikka työraportin laitekirjaus korvaisi sen väliaikaisesti). */
+  corrected_actual_net?: number;
+  /**
+   * Työraportin laitekirjaus (kulurivin tyyppi Laite) korvaa tarjouspyynnön laitehinnan:
+   * actual_purchase_net = 0, laite vähennetään katteesta kirjauksen kautta (vain kerran).
+   */
+  actual_from_entries?: boolean;
 };
 
 function roundMoney(value: number): number {
@@ -65,6 +72,11 @@ function parsePurchaseLine(raw: unknown): BillingQuotePurchaseLine | null {
         : undefined,
     ...(record.row_kind === 'expense' ? { row_kind: 'expense' as const } : {}),
     ...(record.actual_corrected === true ? { actual_corrected: true } : {}),
+    ...(record.actual_corrected === true && Number.isFinite(Number(record.corrected_actual_net))
+      && record.corrected_actual_net != null
+      ? { corrected_actual_net: roundMoney(Number(record.corrected_actual_net)) }
+      : {}),
+    ...(record.actual_from_entries === true ? { actual_from_entries: true } : {}),
   };
 }
 
@@ -266,6 +278,10 @@ export function mergeQuotePurchaseLines(
       ...line,
       actual_purchase_net: prev.actual_purchase_net,
       ...(prev.actual_corrected ? { actual_corrected: true } : {}),
+      ...(prev.actual_corrected && prev.corrected_actual_net != null
+        ? { corrected_actual_net: prev.corrected_actual_net }
+        : {}),
+      ...(prev.actual_from_entries ? { actual_from_entries: true } : {}),
     };
   });
   for (const line of saved) {
