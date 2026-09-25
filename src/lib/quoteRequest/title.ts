@@ -1,11 +1,43 @@
+import { DEFAULT_QUOTE_INTRO_TEXT, QUOTE_TYPE_LABELS, isRepairQuoteType } from './constants';
+import type { QuoteType } from './types';
+
+/** Alkaako teksti asiakasnimellä (jolloin nimeä ei toisteta otsikossa). */
+function startsWithName(text: string, name: string): boolean {
+  const t = text.trim().toLocaleLowerCase('fi-FI');
+  const n = name.trim().toLocaleLowerCase('fi-FI');
+  if (!n || !t.startsWith(n)) return false;
+  const rest = t.slice(n.length);
+  return rest === '' || /^[\s–—\-:,.]/.test(rest);
+}
+
+/**
+ * Käyttäjän kirjoittama "Tarjouksen otsikko" (huolto/korjaus: introText), tai '' jos
+ * kenttä on tyhjä tai siinä on vain oletusteksti.
+ */
+export function quoteCustomTitleText(data: { type: QuoteType; introText?: string | null }): string {
+  if (!isRepairQuoteType(data.type)) return '';
+  const text = String(data.introText ?? '').replace(/\s+/g, ' ').trim();
+  if (!text || text === DEFAULT_QUOTE_INTRO_TEXT) return '';
+  return text;
+}
+
+/** Otsikon osa asiakasnimen jälkeen: oma "Tarjouksen otsikko" tai tarjoustyypin oletus. */
+export function quoteTitleSubject(data: { type: QuoteType; introText?: string | null }): string {
+  return quoteCustomTitleText(data) || QUOTE_TYPE_LABELS[data.type] || 'Tarjous';
+}
+
 export function quoteRequestTitle(
   customerName: string | undefined,
   quoteTypeLabel?: string,
   extra?: string,
 ): string {
   const base = customerName?.trim() || 'Tarjouspyyntö';
-  const parts = [quoteTypeLabel, extra?.trim()].filter(Boolean);
-  return parts.length > 0 ? `${base} – ${parts.join(' • ')}` : base;
+  const parts = [quoteTypeLabel?.trim(), extra?.trim()].filter(Boolean) as string[];
+  if (parts.length === 0) return base;
+  const joined = parts.join(' • ');
+  // Oma otsikko voi jo alkaa asiakasnimellä → ei "Messukeskus – Messukeskus …".
+  if (customerName?.trim() && startsWithName(joined, customerName)) return joined;
+  return `${base} – ${joined}`;
 }
 
 /** Poistaa vanhan vikakuvauksen, joka liitettiin otsikkoon " • "-erottimella. */
@@ -58,9 +90,9 @@ export function resolveQuoteDisplayTitle(input: {
   }
   const stripped = stripLegacyQuoteTitleSuffix(input.storedTitle ?? '');
   if (!stripped) return quoteRequestPageTitle(undefined, input.quoteTypeLabel);
-  const shortName =
-    quoteCustomerNameForTitle(stripped, input.quoteTypeLabel) ||
-    stripped.split(' – ')[0]?.trim() ||
-    stripped;
+  let shortName = quoteCustomerNameForTitle(stripped, input.quoteTypeLabel) || stripped;
+  // Tallennettu otsikko "Asiakas – vanha osa" (esim. oletustyyppi ennen omaa otsikkoa)
+  // → käytä vain asiakasosaa, ettei otsikko ketjuunnu.
+  if (shortName.includes(' – ')) shortName = shortName.split(' – ')[0]?.trim() || shortName;
   return quoteRequestPageTitle(shortName, input.quoteTypeLabel);
 }

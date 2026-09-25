@@ -8,6 +8,9 @@ export const QUOTE_TYPE_LABELS: Record<QuoteType, string> = {
   huolto: 'Tarjous huollosta tai korjauksesta',
 };
 
+/** Uuden tarjouspyynnön oletus-introText (ei käyttäjän kirjoittama otsikko). */
+export const DEFAULT_QUOTE_INTRO_TEXT = 'Tarjoamme seuraavat työt ja tuotteet:';
+
 export const QUOTE_VAT_PROFILE_LABELS: Record<QuoteVatProfile, string> = {
   business: 'Yritysasiakas (ALV 0 %)',
   consumer: 'Yksityishenkilö (ALV 25,5 %)',

@@ -8,6 +8,7 @@ import { DEFAULT_TERMATEK_IILP_QUOTE_TERMS, DEFAULT_QUOTE_TERMS_PRINT } from './
 import {
   DEFAULT_IILP_OPTIONAL_ITEMS,
   DEFAULT_IILP_PAYMENT_TERMS,
+  DEFAULT_QUOTE_INTRO_TEXT,
   DEFAULT_TRAVEL_KM_RATE,
   inferQuoteVatProfile,
   isPumpQuoteType,
@@ -166,7 +167,7 @@ export function createEmptyQuoteRequestData(type: QuoteType = 'vesi-ilma'): Quot
   return {
     type,
     quoteVatProfile,
-    introText: 'Tarjoamme seuraavat työt ja tuotteet:',
+    introText: DEFAULT_QUOTE_INTRO_TEXT,
     notes: '',
     validUntil: validUntil.toISOString().slice(0, 10),
     brandMode: 'auto',
@@ -792,6 +793,8 @@ export {
   resolveQuoteDisplayTitle,
   stripLegacyQuoteTitleSuffix,
   quoteCustomerNameForTitle,
+  quoteCustomTitleText,
+  quoteTitleSubject,
 } from './title';
 
 export function partnerCompanyIdFromPartnership(

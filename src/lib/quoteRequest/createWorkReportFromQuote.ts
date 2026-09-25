@@ -4,6 +4,7 @@ import type { SubscriberPortalVisibility } from '../subscriberPortalVisibility';
 import { billingQuoteFromQuoteRow, saveBillingQuoteSettings } from '../workReportBillingQuote';
 import { isRepairQuoteType } from './constants';
 import { normalizeQuoteRequestData } from './defaults';
+import { quoteCustomTitleText, quoteRequestTitle } from './title';
 import type { QuoteRequestData } from './types';
 
 export type QuoteForWorkReportCreation = {
@@ -36,6 +37,30 @@ export function buildWorkReportDescriptionFromQuote(data: QuoteRequestData): str
   return workDescription || null;
 }
 
+/**
+ * Työraportin otsikko tarjouksesta. Huolto/korjaus, jolla on oma "Tarjouksen otsikko":
+ * sama kuin tarjouspyynnön otsikko = asiakas + " – " + oma otsikko (ei toistoa, jos otsikko
+ * alkaa jo asiakasnimellä). Muuten ennallaan (asiakas – kuvaus / tarjouksen otsikko).
+ */
+export function buildWorkReportTitleFromQuote(input: {
+  customerName: string;
+  data: QuoteRequestData;
+  heading: string | null;
+  description: string | null;
+  quoteTitle: string;
+}): string {
+  const repair = isRepairQuoteType(input.data.type);
+  const custom = quoteCustomTitleText(input.data);
+  if (repair && custom) {
+    return input.customerName ? quoteRequestTitle(input.customerName, custom) : custom;
+  }
+  const snippetSource = repair ? custom : input.heading;
+  return buildWorkReportTitle(
+    input.customerName,
+    snippetSource || input.description || input.quoteTitle,
+  );
+}
+
 export function buildWorkReportPayloadFromQuote(input: {
   quote: QuoteForWorkReportCreation;
   customer: QuoteCustomerForWorkReport | null;
@@ -45,10 +70,13 @@ export function buildWorkReportPayloadFromQuote(input: {
   const normalized = normalizeQuoteRequestData(input.quote.data);
   const heading = buildWorkReportHeadingFromQuote(input.quote.data);
   const description = buildWorkReportDescriptionFromQuote(input.quote.data);
-  const title =
-    isRepairQuoteType(normalized.type) && heading
-      ? heading
-      : buildWorkReportTitle(customerName, heading || description || input.quote.title);
+  const title = buildWorkReportTitleFromQuote({
+    customerName,
+    data: normalized,
+    heading,
+    description,
+    quoteTitle: input.quote.title,
+  });
 
   return {
     title,

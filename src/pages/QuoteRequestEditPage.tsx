@@ -64,6 +64,7 @@ import {
   prepareQuoteRequestDataForSave,
   QUOTE_STATUS_LABELS,
   quoteRequestStoredTitle,
+  quoteTitleSubject,
   resolveQuoteDisplayTitle,
   resolveQuoteBrandingCompanyId,
   syncCustomerFieldsToForm,
@@ -239,7 +240,8 @@ export default function QuoteRequestEditPage({ session }: Props) {
     () => (isPumpQuoteType(form.type) ? listPendingSiteDefaults(form) : []),
     [form],
   );
-  const quoteTypeLabel = QUOTE_TYPE_LABELS[form.type];
+  // Otsikko = asiakas + " – " + oma "Tarjouksen otsikko" (tai tarjoustyypin oletus).
+  const quoteTypeLabel = quoteTitleSubject(form);
   const pageTitle = useMemo(
     () =>
       resolveQuoteDisplayTitle({

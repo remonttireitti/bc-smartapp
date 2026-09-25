@@ -88,7 +88,7 @@ const payload = buildWorkReportPayloadFromQuote({
   customer: { name: 'Testi Oy' },
   sessionUserId: 'u1',
 });
-assert.equal(payload.title, 'Ilmalämpöpumpun huolto');
+assert.equal(payload.title, 'Testi Oy – Ilmalämpöpumpun huolto');
 assert.equal(payload.heading, 'Ilmalämpöpumpun huolto');
 
 console.log('test-service-quote-print: ok');

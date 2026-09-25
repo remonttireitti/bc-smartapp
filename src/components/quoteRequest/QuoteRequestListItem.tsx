@@ -4,6 +4,7 @@ import { QUOTE_TYPE_LABELS } from '../../lib/quoteRequest/constants';
 import {
   QUOTE_STATUS_LABELS,
   normalizeQuoteRequestData,
+  quoteTitleSubject,
   resolveQuoteDisplayTitle,
 } from '../../lib/quoteRequest/defaults';
 import { quoteCustomerDisplayName, quoteDeviceDisplayLabel } from '../../lib/quoteRequest/legacyImport';
@@ -28,7 +29,7 @@ export function QuoteRequestListItem({ row, onDelete, deleteBusy = false }: Prop
   const updated = new Date(row.updated_at).toLocaleString('fi-FI');
   const displayTitle = resolveQuoteDisplayTitle({
     customerName: row.customers?.name,
-    quoteTypeLabel: QUOTE_TYPE_LABELS[data.type],
+    quoteTypeLabel: quoteTitleSubject(data),
     storedTitle: row.title,
   });
   const deviceLabel = quoteDeviceDisplayLabel(data, row.equipment?.name ?? row.equipment?.tag);
