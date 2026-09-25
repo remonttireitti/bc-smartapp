@@ -42,6 +42,7 @@ import WorkReportBillingBreakdown from '../components/WorkReportBillingBreakdown
 import WorkReportBillingQuotePanel from '../components/WorkReportBillingQuotePanel';
 import { WorkReportHourBillingModePanel } from '../components/WorkReportHourBillingModeFields';
 import {
+  hourBillingModeSummary,
   fetchBillableRowWithHourBillingFallback,
   isMissingHourBillingColumn,
   parseHourBillingSettings,
@@ -3052,30 +3053,6 @@ export default function WorkReportDetailPage({ session }: Props) {
       )}
       </div>
 
-      {(showOutgoingPartnerBilling || showCustomerMoneyBilling) && report ? (
-        <div className="panel work-report-section">
-          <h2>Tuntien laskutustapa</h2>
-          <p className="muted">
-            Päivittäinen ylityölaskenta: yli 8 h päivässä ensimmäiset 2 ylityötuntia +50 % ja
-            seuraavat +100 % normaalituntihinnasta. Huomioi saman tekijän tunnit muista
-            työraporteista samana päivänä.
-          </p>
-          {!hourBillingSupported ? (
-            <p className="error">
-              Päivittäinen ylityölaskenta ei ole vielä käytössä tuotannossa — tietokantamigraatio
-              20260911000109 pitää ajaa (npm run db:push).
-            </p>
-          ) : null}
-          <WorkReportHourBillingModePanel
-            settings={hourBillingSettings}
-            showPartner={!!showOutgoingPartnerBilling}
-            showCustomer={!!showCustomerMoneyBilling && canManageCustomerBillingRates}
-            disabled={hourBillingBusy || !hourBillingSupported}
-            onChange={(next) => void saveHourBillingSettings(next)}
-          />
-        </div>
-      ) : null}
-
       {(showOutgoingPartnerBilling || showCustomerMoneyBilling || showQuoteBillingSection) && report ? (
         <div id="work-report-quote-billing" className="work-report-quote-billing-anchor">
         <WorkReportBillingQuotePanel
@@ -3099,6 +3076,42 @@ export default function WorkReportDetailPage({ session }: Props) {
         </div>
       ) : null}
 
+
+      {(showOutgoingPartnerBilling || showCustomerMoneyBilling) && report ? (
+        <details className="panel work-report-section work-report-hour-billing-collapsible">
+          <summary className="work-report-hour-billing-summary">
+            <span className="work-report-hour-billing-summary-label">Tuntien laskutustapa:</span>{' '}
+            <span className="work-report-hour-billing-summary-value">
+              {hourBillingModeSummary(hourBillingSettings, {
+                showPartner: !!showOutgoingPartnerBilling,
+                showCustomer: !!showCustomerMoneyBilling && canManageCustomerBillingRates,
+              })}
+            </span>
+            {hourBillingBusy ? <span className="muted"> · Tallennetaan…</span> : null}
+            <span className="work-report-hour-billing-caret" aria-hidden="true">▸</span>
+          </summary>
+          <div className="work-report-hour-billing-body">
+            <p className="muted">
+              Päivittäinen ylityölaskenta: yli 8 h päivässä ensimmäiset 2 ylityötuntia +50 % ja
+              seuraavat +100 % normaalituntihinnasta. Huomioi saman tekijän tunnit muista
+              työraporteista samana päivänä.
+            </p>
+            {!hourBillingSupported ? (
+              <p className="error">
+                Päivittäinen ylityölaskenta ei ole vielä käytössä tuotannossa — tietokantamigraatio
+                20260911000109 pitää ajaa (npm run db:push).
+              </p>
+            ) : null}
+            <WorkReportHourBillingModePanel
+              settings={hourBillingSettings}
+              showPartner={!!showOutgoingPartnerBilling}
+              showCustomer={!!showCustomerMoneyBilling && canManageCustomerBillingRates}
+              disabled={hourBillingBusy || !hourBillingSupported}
+              onChange={(next) => void saveHourBillingSettings(next)}
+            />
+          </div>
+        </details>
+      ) : null}
 
       <WorkReportSectionDialog
         open={sectionDialog === 'basics'}
