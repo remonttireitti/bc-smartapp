@@ -16,7 +16,6 @@ import {
   type BillingQuotePurchaseLine,
   type BillingQuoteSettings,
 } from '../lib/workReportBillingQuote';
-import { WORK_REPORT_DEVICE_SECTION_ID } from './WorkReportDeviceSection';
 import {
   quoteLinesByCategory,
   showQuoteLineAmounts,
@@ -59,6 +58,8 @@ type Props = {
   quoteLinkActions?: ReactNode;
   /** "Kirjaa toteutunut" tarjouspyynnön riviltä → avaa esitäytetyn työkirjauksen. */
   onRecordQuoteLine?: (line: QuoteLineEntry) => void;
+  /** Avaa LAITE-lomakkeen (esitäytetty tarjouspyynnöstä tai kirjattu laite). */
+  onOpenDevice?: () => void;
 };
 
 function formatQty(value: number | null, unit: string | null): string {
@@ -100,6 +101,7 @@ export default function WorkReportBillingQuotePanel({
   onSaved,
   quoteLinkActions = null,
   onRecordQuoteLine,
+  onOpenDevice,
 }: Props) {
   const [settings, setSettings] = useState<BillingQuoteSettings>(() =>
     parseBillingQuoteSettings(initialSettings),
@@ -427,19 +429,13 @@ export default function WorkReportBillingQuotePanel({
     : deviceLines.some((line) => line.actual_corrected)
       ? 'toteutunut oikaistu'
       : null;
-  const canCorrectDevice = quoteIsLinked && !readOnly && deviceLines.length > 0;
-
-  function scrollToDeviceSection() {
-    document
-      .getElementById(WORK_REPORT_DEVICE_SECTION_ID)
-      ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }
+  const canCorrectDevice = quoteIsLinked && !readOnly && deviceLines.length > 0 && !!onOpenDevice;
 
   function renderDeviceLink() {
     if (!canCorrectDevice) return null;
     return (
-      <button type="button" className="btn-link quote-outcome-device-link" onClick={scrollToDeviceSection}>
-        {deviceFromEntries ? 'Laitteet Laite-osiossa' : 'Oikaise tai kirjaa laite Laite-osiossa'}
+      <button type="button" className="btn-link quote-outcome-device-link" onClick={onOpenDevice}>
+        {deviceFromEntries ? 'Muokkaa laitetta' : 'Kirjaa / oikaise laite'}
       </button>
     );
   }
@@ -475,8 +471,8 @@ export default function WorkReportBillingQuotePanel({
                       </div>
                       {line.action === 'device' ? (
                         canCorrectDevice ? (
-                          <button type="button" className="btn-link" onClick={scrollToDeviceSection}>
-                            Oikaise / kirjaa
+                          <button type="button" className="btn-link" onClick={onOpenDevice}>
+                            Kirjaa / oikaise
                           </button>
                         ) : null
                       ) : onRecordQuoteLine ? (

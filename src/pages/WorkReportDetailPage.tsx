@@ -9,6 +9,7 @@ import DeletedUserLabel from '../components/DeletedUserLabel';
 import {
   buildDailyLogEntryTiles,
   DailyLogEntryTile,
+  type DailyLogEntryTileDescriptor,
   DailyLogEntryTileGrid,
 } from '../components/DailyLogEntryTile';
 import { WorkReportSectionTile, WorkReportSectionTileGrid } from '../components/WorkReportSectionTile';
@@ -40,9 +41,17 @@ import PartnerBillingRatesFields from '../components/PartnerBillingRatesFields';
 import Tooltip from '../components/Tooltip';
 import WorkReportBillingBreakdown from '../components/WorkReportBillingBreakdown';
 import WorkReportBillingQuotePanel from '../components/WorkReportBillingQuotePanel';
-import WorkReportDeviceSection, { type DeviceEntryPrefill } from '../components/WorkReportDeviceSection';
+import { useQuoteDeviceLines } from '../hooks/useQuoteDeviceLines';
 import type { QuoteLineEntry } from '../lib/quoteLineEntries';
-import { isDeviceExpense, DEVICE_EXPENSE_TYPE } from '../lib/workReportDeviceEntries';
+import {
+  collectDeviceEntries,
+  DEVICE_EXPENSE_TYPE,
+  isDeviceExpense,
+  latestDailyLog,
+  quoteDeviceSuggestions,
+} from '../lib/workReportDeviceEntries';
+
+type DeviceEntryPrefill = { description: string; unitPrice: number | null };
 import { WorkReportHourBillingModePanel } from '../components/WorkReportHourBillingModeFields';
 import {
   hourBillingModeSummary,
@@ -1160,6 +1169,12 @@ export default function WorkReportDetailPage({ session }: Props) {
   useEffect(() => {
     if (id && profile?.company_id) void load(id);
   }, [id, profile?.company_id]);
+
+  /** Tarjouspyynnön laite (esitäytetty / oikaistu hinta) LAITE-ruudun esitäyttöön. */
+  const quoteDeviceLines = useQuoteDeviceLines(
+    billingQuoteSettings,
+    workReportHasLinkedQuoteRequest(billingQuoteSettings),
+  );
 
   useEffect(() => {
     if (!profile?.company_id) return;
@@ -2430,33 +2445,42 @@ export default function WorkReportDetailPage({ session }: Props) {
     }
   }
 
-  /** Laite-osion "Lisää laite": uusi työkirjaus, Laite-ruutu auki ja laiterivi esitäytettynä. */
-  function recordDevice(prefill: DeviceEntryPrefill | null) {
-    openAddLogDialog();
+  /**
+   * LAITE-ruutu: laite lisätään viimeisimpään työkirjaukseen (ei uutta kirjausta); jos kirjauksia ei ole,
+   * avataan uusi kirjaus. Laite-ruutu ja rivin lomake aukeavat suoraan, esitäytettynä tarjouspyynnöstä.
+   */
+  function recordDevice(prefills: DeviceEntryPrefill[]) {
+    const latest = latestDailyLog(dailyLogs);
+    if (latest) openEditLogDialog(latest);
+    else openAddLogDialog();
     const quoteIncluded =
       workReportHasLinkedQuoteRequest(billingQuoteSettings)
       && workReportSupportsQuoteLinkedExtraBilling(billingQuoteSettings);
-    const base: ExpenseDraft = {
-      ...emptyExpense(),
-      expense_type: DEVICE_EXPENSE_TYPE,
-      description: prefill?.description ?? '',
-      qty: '1',
-      unit_price: prefill?.unitPrice != null && prefill.unitPrice > 0 ? String(prefill.unitPrice) : '',
-    };
-    // Tarjoukseen kuuluva laite: oma hankinta, ei erillistä asiakaslaskutusta (vaihdettavissa lomakkeella).
-    const row = quoteIncluded
-      ? applyExpenseBillingMode(base, 'included_in_contract')
-      : syncExpenseCustomerPriceFromPartner(base);
-    setExpenseDrafts((current) => [...current, row]);
-    setLogForm((current) => ({
-      ...current,
-      work_done: current.work_done.trim()
-        ? current.work_done
-        : prefill?.description
-          ? `Laite: ${prefill.description}`
-          : 'Laitteen hankinta',
-    }));
-    setLogDialogPreset({ sectionKey: 'device', expenseKey: row.key });
+    const rows = (prefills.length > 0 ? prefills : [null]).map((prefill) => {
+      const base: ExpenseDraft = {
+        ...emptyExpense(),
+        expense_type: DEVICE_EXPENSE_TYPE,
+        description: prefill?.description ?? '',
+        qty: '1',
+        unit_price: prefill?.unitPrice != null && prefill.unitPrice > 0 ? String(prefill.unitPrice) : '',
+      };
+      // Tarjoukseen kuuluva laite: kuuluu urakkaan (vaihdettavissa lomakkeella).
+      return quoteIncluded
+        ? applyExpenseBillingMode(base, 'included_in_contract')
+        : syncExpenseCustomerPriceFromPartner(base);
+    });
+    setExpenseDrafts((current) => [...current, ...rows]);
+    if (!latest) {
+      setLogForm((current) => ({
+        ...current,
+        work_done: current.work_done.trim()
+          ? current.work_done
+          : prefills[0]?.description
+            ? `Laite: ${prefills[0].description}`
+            : 'Laitteen hankinta',
+      }));
+    }
+    setLogDialogPreset({ sectionKey: 'device', expenseKey: rows[0].key });
   }
 
   function editDeviceLog(logId: string) {
@@ -2464,6 +2488,21 @@ export default function WorkReportDetailPage({ session }: Props) {
     if (!log) return;
     openEditLogDialog(log);
     setLogDialogPreset({ sectionKey: 'device', expenseKey: null });
+  }
+
+  /** Tarjous ja kate -osion Laite-linkki: kirjattu laite muokattavaksi, muuten esitäytetty LAITE. */
+  function openDeviceForm() {
+    const logged = collectDeviceEntries(dailyLogs)[0];
+    if (logged) {
+      editDeviceLog(logged.logId);
+      return;
+    }
+    recordDevice(
+      quoteDeviceSuggestions(quoteDeviceLines, dailyLogs).map((row) => ({
+        description: row.description,
+        unitPrice: row.unitPrice,
+      })),
+    );
   }
 
   function openAddLogDialog() {
@@ -2832,8 +2871,39 @@ export default function WorkReportDetailPage({ session }: Props) {
       formatDate,
       logExpensesTotal: (entry) => dailyLogExpensesTotal(entry, reportTripKmRate),
       showMoney: showPartnerBillableSection || showCustomerMoney,
+      formatEuro,
     }),
   );
+  // LAITE: esitäytetty tarjouspyynnön laitteesta, kunnes laite kirjataan; muuten kevyt "+ Laite".
+  const showQuoteDeviceTile =
+    hasLinkedQuote && (!!showOutgoingPartnerBilling || !!showCustomerMoneyBilling || showQuoteBillingSection);
+  const quoteDeviceTileRows = showQuoteDeviceTile ? quoteDeviceSuggestions(quoteDeviceLines, dailyLogs) : [];
+  const hasLoggedDevice = dailyLogEntryTiles.some((tile) => tile.kind === 'device');
+  const quoteDeviceTile: DailyLogEntryTileDescriptor | null =
+    quoteDeviceTileRows.length > 0 && !hasLoggedDevice
+      ? {
+          key: 'quote-device',
+          kind: 'device',
+          logId: '',
+          variant: 'suggested',
+          marker: 'tarjouspyynnöstä',
+          title:
+            quoteDeviceTileRows.length === 1
+              ? quoteDeviceTileRows[0].description
+              : `${quoteDeviceTileRows.length} laitetta`,
+          subtitle:
+            showPartnerBillableSection || showCustomerMoney
+              ? [
+                  formatEuro(quoteDeviceTileRows.reduce((sum, row) => sum + row.unitPrice, 0)),
+                  quoteDeviceTileRows.some((row) => row.corrected) ? 'oikaistu' : '',
+                ].filter(Boolean).join(' · ')
+              : '',
+        }
+      : null;
+  const addDeviceTile: DailyLogEntryTileDescriptor | null =
+    canAddDailyLogs && dailyLogs.length > 0 && !hasLoggedDevice && !quoteDeviceTile
+      ? { key: 'add-device', kind: 'device', logId: '', variant: 'add', title: '+ Laite', subtitle: '' }
+      : null;
   const canDeleteReport =
     !portalReadOnly && canDeleteWorkReport(report, session.user.id, profile?.is_global_admin, profile?.role);
   const displayPeople = resolveWorkReportDisplayPeople(report, { hideAssignee: hideAssigneeFromViewer });
@@ -3178,7 +3248,8 @@ export default function WorkReportDetailPage({ session }: Props) {
 
       {dailyLogs.length === 0 ? (
         <p className="muted work-report-entries-empty">Ei työkirjauksia vielä.</p>
-      ) : (
+      ) : null}
+      {dailyLogs.length > 0 || quoteDeviceTile ? (
         <DailyLogEntryTileGrid>
           {dailyLogEntryTiles.map((descriptor) => {
             const log = dailyLogs.find((entry) => entry.id === descriptor.logId);
@@ -3187,35 +3258,29 @@ export default function WorkReportDetailPage({ session }: Props) {
               <DailyLogEntryTile
                 key={descriptor.key}
                 descriptor={descriptor}
-                onClick={() => openEditLogDialog(log)}
+                onClick={() =>
+                  descriptor.kind === 'device' ? editDeviceLog(log.id) : openEditLogDialog(log)
+                }
               />
             );
           })}
+          {quoteDeviceTile ? (
+            <DailyLogEntryTile
+              descriptor={quoteDeviceTile}
+              disabled={!canAddDailyLogs}
+              onClick={() =>
+                recordDevice(
+                  quoteDeviceTileRows.map((row) => ({ description: row.description, unitPrice: row.unitPrice })),
+                )
+              }
+            />
+          ) : null}
+          {addDeviceTile ? (
+            <DailyLogEntryTile descriptor={addDeviceTile} onClick={() => recordDevice([])} />
+          ) : null}
         </DailyLogEntryTileGrid>
-      )}
-      </div>
-
-      {report ? (
-        <WorkReportDeviceSection
-          workReportId={report.id}
-          billingQuoteSettings={billingQuoteSettings}
-          dailyLogs={dailyLogs}
-          showQuoteDevice={
-            hasLinkedQuote
-            && (!!showOutgoingPartnerBilling || !!showCustomerMoneyBilling || showQuoteBillingSection)
-          }
-          canCorrect={!!showOutgoingPartnerBilling || !!canManageCustomerBillingRates}
-          showPrices={!!(showPartnerBillableSection || showCustomerMoney)}
-          canAddEntries={canAddDailyLogs}
-          onAddDevice={recordDevice}
-          onEditLog={editDeviceLog}
-          onSaved={(next) => {
-            setBillingQuoteSettings(next);
-            // Laitteen hinta muuttui → kate ja provisio (partner_total) lasketaan uudelleen.
-            void refreshBillable(report, dailyLogs, { viewerCompanyId: profile?.company_id });
-          }}
-        />
       ) : null}
+      </div>
 
       {(showOutgoingPartnerBilling || showCustomerMoneyBilling || showQuoteBillingSection) && report ? (
         <div id="work-report-quote-billing" className="work-report-quote-billing-anchor">
@@ -3258,6 +3323,7 @@ export default function WorkReportDetailPage({ session }: Props) {
           showPartnerMargin={!!showOutgoingPartnerBilling}
           readOnly={!showOutgoingPartnerBilling && !canManageCustomerBillingRates}
           onRecordQuoteLine={canAddDailyLogs ? recordQuoteLine : undefined}
+          onOpenDevice={canAddDailyLogs ? openDeviceForm : undefined}
           onSaved={(next) => {
             setBillingQuoteSettings(next);
             // Provisio muuttui → päivitä kumppanilaskelma (automaattinen provisiorivi + partner_total).

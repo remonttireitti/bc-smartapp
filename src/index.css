@@ -6164,6 +6164,40 @@ button.tile.work-report-entry-tile strong {
   line-height: 1.2;
 }
 
+.work-report-entry-tile-marker {
+  margin-left: .35rem;
+  padding: 0 .3rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .22);
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+/* Esitäytetty tarjouspyynnöstä (ei vielä kirjattu): katkoviivareunus */
+button.tile.work-report-entry-tile--suggested {
+  opacity: .9;
+  outline: 2px dashed rgba(255, 255, 255, .75);
+  outline-offset: -5px;
+}
+
+/* Kevyt "+ Laite" */
+button.tile.work-report-entry-tile--add {
+  background: transparent;
+  border: 1.5px dashed;
+  box-shadow: none;
+  justify-content: center;
+  align-items: flex-start;
+}
+
+button.tile.work-report-entry-tile--add .work-report-entry-tile-kind {
+  opacity: 1;
+}
+
+button.tile.work-report-entry-tile:disabled {
+  cursor: default;
+}
+
 .work-report-entry-tile-meta {
   font-size: .72rem;
   opacity: .9;
@@ -17159,69 +17193,3 @@ button.tool-booking-cal-day {
   cursor: pointer;
 }
 .quote-link-actions .btn-link:disabled { opacity: 0.5; cursor: default; }
-
-/* Työraportin Laite-osio */
-.work-report-device-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  flex-wrap: wrap;
-}
-
-.work-report-device-head h2 {
-  margin: 0;
-}
-
-.work-report-device-intro {
-  margin: 0.35rem 0 0.5rem;
-  font-size: 0.85rem;
-}
-
-.work-report-device-block {
-  margin-top: 0.6rem;
-}
-
-.work-report-device-block h3 {
-  margin: 0 0 0.25rem;
-  font-size: 0.95rem;
-}
-
-.work-report-device-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
-.work-report-device-list li {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 0.75rem;
-  padding: 0.4rem 0;
-  border-bottom: 1px solid var(--border, #e5e7eb);
-  font-size: 0.9rem;
-}
-
-.work-report-device-list li:last-child {
-  border-bottom: 0;
-}
-
-.work-report-device-text {
-  min-width: 0;
-}
-
-.work-report-device-sub {
-  display: block;
-  font-size: 0.82rem;
-}
-
-.work-report-device-list .btn-link {
-  flex-shrink: 0;
-  white-space: nowrap;
-}
-
-.work-report-device-note {
-  margin: 0.4rem 0 0;
-  font-size: 0.8rem;
-}
