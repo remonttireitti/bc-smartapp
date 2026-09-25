@@ -11616,6 +11616,10 @@ a.tile.customer-document-tile:hover {
   gap: 0.85rem;
 }
 
+.billing-margin-body:first-child {
+  margin-top: 0;
+}
+
 .billing-extra-work-card {
   border: 1px solid var(--border-color, #d1d5db);
   border-radius: 0.55rem;

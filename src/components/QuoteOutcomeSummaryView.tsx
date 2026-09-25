@@ -1,7 +1,6 @@
 import type { ReactNode } from 'react';
 import {
   formatSignedEuro,
-  outcomeVarianceExplanation,
   type OutcomeTone,
   type QuoteOutcomeComparison,
   type QuoteOutcomeSummary,
@@ -74,7 +73,6 @@ export default function QuoteOutcomeSummaryView({
   commissionExceedsGross = false,
 }: Props) {
   const hasExtras = summary.customerExtrasNet > 0.005;
-  const explanation = outcomeVarianceExplanation(summary, formatEuro);
   const gross = summary.grossMargin;
   const saleEstimate = summary.costs.estimateNet == null ? null : summary.quoteSaleNet;
 
@@ -116,7 +114,6 @@ export default function QuoteOutcomeSummaryView({
               {VERDICT_ICON[summary.verdict.tone]}
             </span>
             <strong>{summary.verdict.label}</strong>
-            {explanation ? <span className="quote-outcome-verdict-sub">{explanation}</span> : null}
           </div>
         ) : null}
       </div>

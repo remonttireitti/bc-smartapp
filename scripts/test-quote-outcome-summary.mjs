@@ -162,6 +162,8 @@ assert.match(html, /Puhdas kate/);
 assert.match(html, /<th class="num">Tarjouspyyntö<\/th>/);
 assert.match(html, /Tarjouspyyntö 2\s?210,00/);
 assert.doesNotMatch(html, /Arvio|arvio/);
+// Ei toistoa: kulujen ero näkyy jo Kulut-ruudussa → tuomion perään ei selitettä
+assert.doesNotMatch(html, /pienemmät|suuremmat/);
 assert.match(html, /#15803d/);
 
 // --- Toteutuneet rivit summautuvat aina katteeseen ("Muut kate-erät")
