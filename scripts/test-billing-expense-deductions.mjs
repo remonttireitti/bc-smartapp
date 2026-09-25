@@ -71,7 +71,7 @@ const calc = calculateWorkReportBillable({
   viewerCompanyId: 'creator',
 });
 
-assert.equal(calc.version, 5);
+assert.equal(calc.version, 6);
 assert.equal(calc.grandTotal, 100);
 assert.equal(calc.warehouseDeductionsPending, 0);
 

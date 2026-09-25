@@ -88,7 +88,7 @@ export type BillableUserSummary = {
 };
 
 export type BillableCalculation = {
-  version: 3 | 4 | 5;
+  version: 3 | 4 | 5 | 6;
   billToCompanyId: string | null;
   billToCompanyName: string | null;
   ratesUsed: Required<PartnerBillingRates>;
@@ -445,7 +445,7 @@ export function calculateWorkReportBillable(input: {
   const deductionTotals = warehouseDeductionTotalsFromUsers(byUser);
 
   return {
-    version: 5,
+    version: BILLABLE_CALCULATION_VERSION,
     billToCompanyId: input.billToCompanyId,
     billToCompanyName: input.billToCompanyName,
     ratesUsed: rates,
@@ -578,7 +578,11 @@ export function mergePartnerExtraBillingFromDailyLogs(
   };
 }
 
-export const BILLABLE_CALCULATION_VERSION = 5;
+/**
+ * 6: kumppanilaskelman provisio lasketaan linkitetyn tarjouspyynnön hankintariveistä
+ * (laite mukana) ja partner_total = grandTotal — vanhat laskelmat lasketaan uudelleen.
+ */
+export const BILLABLE_CALCULATION_VERSION = 6 as const;
 
 const BILLABLE_HOUR_KINDS = new Set<BillableLineKind>([
   'hours_regular',
@@ -664,24 +668,30 @@ export function billingPartnerNetTotal(
 export function breakdownFromBillableCalculation(calc: BillableCalculation): {
   work: number;
   materials: number;
+  /** Provisiorivit (automaattinen "Provisio X %" tai päiväkirjan Myyntiprovisio €). */
+  commission: number;
   total: number;
 } {
   let work = 0;
   let materials = 0;
+  let commission = 0;
   for (const user of calc.byUser) {
     for (const line of user.lines) {
       if (!line.included) continue;
       const amount = billableLineDisplayTotal(line);
       if (BILLABLE_HOUR_KINDS.has(line.kind)) work += amount;
+      else if (line.kind === 'commission') commission += amount;
       else if (BILLABLE_MATERIAL_KINDS.has(line.kind)) materials += amount;
     }
   }
   work = Math.round(work * 100) / 100;
   materials = Math.round(materials * 100) / 100;
+  commission = Math.round(commission * 100) / 100;
   return {
     work,
     materials,
-    total: Math.round((work + materials) * 100) / 100,
+    commission,
+    total: Math.round((work + materials + commission) * 100) / 100,
   };
 }
 

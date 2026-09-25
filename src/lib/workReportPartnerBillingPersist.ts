@@ -22,7 +22,11 @@ import { parseTripKmRate } from './tripKmExpense';
 import { parseDailyOvertimePolicy } from './workReportDailyOvertime';
 import { buildDailyOvertimeBillingMap, hourBillingModeFromSettings } from './workReportCrossReportHours';
 import { fetchBillableRowWithHourBillingFallback } from './workReportHourBilling';
-import { applyQuoteCommissionToPartnerCalculation } from './workReportPartnerTotal';
+import {
+  applyQuoteCommissionToPartnerCalculation,
+  loadLinkedQuoteDataForBillingQuote,
+  shouldSkipPaidPartnerRecalc,
+} from './workReportPartnerTotal';
 
 type PartnerBillableReport = Pick<
   WorkReport,
@@ -275,11 +279,15 @@ export async function refreshAndPersistPartnerBillable(
 
   // Laskutustarjouksen kanssa kumppanilaskuun lisätään automaattinen provisiorivi
   // (kate ennen provisiota × % tai sovittu summa). partner_total = calculation.grandTotal.
+  // Hankintarivit (laite + tarvikkeet) linkitetystä tarjouspyynnöstä, kuten paneelissa —
+  // muuten vanha tallennettu rakenne pudottaa laitteen katteesta ja provisio paisuu.
   const rawBillingQuote = (billableRow as Record<string, unknown> | null)?.billing_quote;
+  const quoteData = await loadLinkedQuoteDataForBillingQuote(supabase, rawBillingQuote);
   const { calculation } = applyQuoteCommissionToPartnerCalculation({
     billingQuote: rawBillingQuote,
     logs,
     calculation: baseCalculation,
+    quoteData,
   });
   const partnerTotal = calculation.grandTotal;
 
@@ -358,6 +366,10 @@ export async function ensurePartnerBillableCalculated(
   supabase: SupabaseClient,
   reportId: string,
   viewerCompanyId?: string | null,
+  options?: {
+    /** "Päivitä laskelma" -painike: laske aina uudelleen (laskutettu summa säilyy). */
+    force?: boolean;
+  },
 ): Promise<void> {
   const { data: reportData } = await supabase
     .from('work_reports')
@@ -379,16 +391,22 @@ export async function ensurePartnerBillableCalculated(
 
   const { data: billableFlags } = await supabase
     .from('work_report_billable')
-    .select('partner_recalc_needed')
+    .select('partner_recalc_needed, partner_total, calculation')
     .eq('work_report_id', reportId)
     .maybeSingle();
 
-  const isFullyPaid =
-    existingBilling?.partner_invoice_status === 'paid'
-    && Number(existingBilling.partner_billed_amount ?? 0) > 0.005
-    && billableFlags?.partner_recalc_needed !== true;
-
-  if (isFullyPaid) return;
+  if (
+    shouldSkipPaidPartnerRecalc({
+      partnerInvoiceStatus: existingBilling?.partner_invoice_status,
+      partnerBilledAmount: existingBilling?.partner_billed_amount,
+      partnerRecalcNeeded: billableFlags?.partner_recalc_needed,
+      partnerTotal: billableFlags?.partner_total,
+      calculation: billableFlags?.calculation,
+      force: options?.force,
+    })
+  ) {
+    return;
+  }
 
   const { logs, error } = await fetchWorkReportDetailLogs(supabase, reportId);
   if (error) {
@@ -428,6 +446,7 @@ export async function ensurePartnerBillableCalculatedWhenNeeded(
         calculatedAt: billableRow.calculated_at,
         hasCalculation: true,
         calculation: billableRow.calculation,
+        partnerTotal: billableRow.partner_total,
       },
     ]);
     if (!staleIds.includes(reportId)) return;

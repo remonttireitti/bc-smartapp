@@ -367,6 +367,7 @@ export function billingRowBreakdown(
 ): {
   work: number;
   materials: number;
+  commission: number;
   total: number;
   deductionsPending: number;
   deductionsDeducted: number;
@@ -394,6 +395,7 @@ export function billingRowBreakdown(
     return {
       work: grossTotal,
       materials: 0,
+      commission: 0,
       total: grossTotal,
       deductionsPending: 0,
       deductionsDeducted: 0,
@@ -403,6 +405,7 @@ export function billingRowBreakdown(
   return {
     work: 0,
     materials: 0,
+    commission: 0,
     total: 0,
     deductionsPending: deductions.pending,
     deductionsDeducted: deductions.deducted,

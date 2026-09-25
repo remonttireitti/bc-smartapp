@@ -10,7 +10,19 @@ export type BillableSnapshot = {
   /** Onko tallennettu laskelmarakenne (ei pelkkä summa). */
   hasCalculation: boolean;
   calculation?: unknown;
+  /** Tallennettu partner_total — jos se ei vastaa laskelman grandTotalia, laskelma on vanhentunut. */
+  partnerTotal?: unknown;
 };
+
+function storedPartnerTotalMismatch(snapshot: BillableSnapshot): boolean {
+  if (snapshot.partnerTotal === undefined) return false;
+  const calc = snapshot.calculation as { grandTotal?: unknown; byUser?: unknown[] } | null | undefined;
+  if (!calc?.byUser?.length) return false;
+  const total = Number(snapshot.partnerTotal);
+  const grand = Number(calc.grandTotal);
+  if (!Number.isFinite(total) || !Number.isFinite(grand)) return false;
+  return Math.abs(total - grand) > 0.005;
+}
 
 /** Onko tallennettu laskelma vanhempi kuin viimeisin päiväkirjaus tai sen kulurivit. */
 export async function workReportBillableNeedsRecalculation(
@@ -121,7 +133,7 @@ export async function findStaleBillableReportIds(
       continue;
     }
 
-    if (billableCalculationNeedsRefresh(snapshot.calculation)) {
+    if (billableCalculationNeedsRefresh(snapshot.calculation) || storedPartnerTotalMismatch(snapshot)) {
       staleIds.push(snapshot.workReportId);
       continue;
     }

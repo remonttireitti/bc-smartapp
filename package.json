@@ -67,6 +67,7 @@
     "test:partner-commission-percent": "npx tsx scripts/test-partner-commission-percent.mjs",
     "test:margin-supplies-double-count": "npx tsx scripts/test-margin-supplies-double-count.mjs",
     "test:partner-commission-row-and-amount": "npx tsx scripts/test-partner-commission-row-and-amount.mjs",
+    "test:partner-total-quote-device-wartsila": "npx tsx scripts/test-partner-total-quote-device-wartsila.mjs",
     "test:expense-supply-extra-billing": "npx tsx scripts/test-expense-supply-extra-billing.mjs",
     "test:hours-extra-billing": "npx tsx scripts/test-hours-extra-billing.mjs",
     "test:manual-device-margin-sync": "npx tsx scripts/test-manual-device-margin-sync.mjs",
