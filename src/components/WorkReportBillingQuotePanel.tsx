@@ -13,8 +13,16 @@ import {
   resolvePartnerCommissionPercent,
   resolveQuotePurchaseTotal,
   saveBillingQuoteCommission,
+  saveBillingQuoteDeviceActuals,
+  type BillingQuotePurchaseLine,
   type BillingQuoteSettings,
+  type DeviceActualCorrection,
 } from '../lib/workReportBillingQuote';
+import {
+  quoteLinesByCategory,
+  showQuoteLineAmounts,
+  type QuoteLineEntry,
+} from '../lib/quoteLineEntries';
 import { extractQuotePurchaseLines } from '../lib/quotePurchaseLines';
 import { mergeActualPurchaseFromWorkReportLogs } from '../lib/quoteRequestActualPurchaseSync';
 import { compareQuoteCategories } from '../lib/quoteCategoryComparison';
@@ -50,6 +58,20 @@ type Props = {
   onSaved?: (settings: BillingQuoteSettings) => void;
   /** "Avaa tarjous · Vaihda tarjous · Poista kohdistus" tarjouksen nimen perään. */
   quoteLinkActions?: ReactNode;
+  /** "Kirjaa toteutunut" tarjouspyynnön riviltä → avaa esitäytetyn työkirjauksen. */
+  onRecordQuoteLine?: (line: QuoteLineEntry) => void;
+};
+
+function formatQty(value: number | null, unit: string | null): string {
+  if (value == null || !(value > 0)) return '';
+  const qty = value.toLocaleString('fi-FI', { maximumFractionDigits: 2 });
+  return unit ? `${qty} ${unit}` : qty;
+}
+
+const RECORD_LABELS: Record<Exclude<QuoteLineEntry['action'], 'device'>, string> = {
+  labor: 'Kirjaa tunnit',
+  expense: 'Kirjaa toteutunut',
+  trip: 'Kirjaa ajo',
 };
 
 function parseMoneyInput(value: string): number | null {
@@ -78,6 +100,7 @@ export default function WorkReportBillingQuotePanel({
   readOnly = false,
   onSaved,
   quoteLinkActions = null,
+  onRecordQuoteLine,
 }: Props) {
   const [settings, setSettings] = useState<BillingQuoteSettings>(() =>
     parseBillingQuoteSettings(initialSettings),
@@ -89,6 +112,9 @@ export default function WorkReportBillingQuotePanel({
   const [commissionAmountDraft, setCommissionAmountDraft] = useState<string | null>(null);
   const [commissionEditOpen, setCommissionEditOpen] = useState(false);
   const [quoteData, setQuoteData] = useState<unknown>(null);
+  /** Laitteen oikaisun luonnokset rivin id:n mukaan. */
+  const [deviceDrafts, setDeviceDrafts] = useState<Record<string, string>>({});
+  const [deviceEditOpen, setDeviceEditOpen] = useState(false);
 
   useEffect(() => {
     setSettings(parseBillingQuoteSettings(initialSettings));
@@ -162,6 +188,7 @@ export default function WorkReportBillingQuotePanel({
         : null,
     [quoteData, partnerCalculation, dailyLogs, tripKmRate, effectiveSettings],
   );
+  const quoteLineGroups = useMemo(() => quoteLinesByCategory(quoteData), [quoteData]);
   const categoryEntries = useMemo(
     () => collectWorkReportCategoryEntries(dailyLogs, partnerCalculation),
     [dailyLogs, partnerCalculation],
@@ -208,6 +235,7 @@ export default function WorkReportBillingQuotePanel({
   if (!billingQuoteHasData(settings)) return null;
 
   const quoteIsLinked = !!settings.quote_request_id;
+  const outcomeHasDeviceRow = !!outcomeSummary?.rows.some((row) => row.key === 'device');
 
   const customerTotalLabel = quoteHasVat(settings.quote_vat_rate)
     ? 'Asiakkaalta laskutettava (sis. alv)'
@@ -393,6 +421,183 @@ export default function WorkReportBillingQuotePanel({
     );
   }
 
+  const deviceLines: BillingQuotePurchaseLine[] = (effectiveSettings.purchase_lines ?? []).filter(
+    (line) => line.source === 'device',
+  );
+  const deviceCorrected = deviceLines.some((line) => line.actual_corrected);
+  const canCorrectDevice = quoteIsLinked && !readOnly && deviceLines.length > 0;
+
+  function deviceDraftValue(line: BillingQuotePurchaseLine): string {
+    return deviceDrafts[line.id] ?? moneyInputValue(line.actual_purchase_net).replace('.', ',');
+  }
+
+  function dirtyDeviceCorrections(): DeviceActualCorrection[] | null {
+    const corrections: DeviceActualCorrection[] = [];
+    for (const line of deviceLines) {
+      const raw = deviceDrafts[line.id];
+      if (raw == null) continue;
+      const parsed = parseMoneyInput(raw);
+      if (parsed == null || parsed < 0) return null;
+      if (Math.abs(parsed - line.actual_purchase_net) < 0.005) continue;
+      corrections.push({ line, actualNet: parsed });
+    }
+    return corrections;
+  }
+
+  async function saveDeviceActuals(corrections: DeviceActualCorrection[]) {
+    if (corrections.length === 0) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const next = await saveBillingQuoteDeviceActuals(
+        supabase,
+        workReportId,
+        corrections,
+        effectiveSettings.purchase_lines,
+      );
+      setDeviceDrafts({});
+      setSettings(next);
+      onSaved?.(next);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Laitteen hinnan tallennus epäonnistui');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function openDeviceEditor() {
+    setDeviceEditOpen(true);
+    window.requestAnimationFrame(() => {
+      document
+        .getElementById(`device-correction-${workReportId}`)
+        ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+  }
+
+  function renderDeviceEditor() {
+    if (!canCorrectDevice) return null;
+    const hasDrafts = Object.keys(deviceDrafts).length > 0;
+    const corrections = dirtyDeviceCorrections();
+    const invalid = corrections == null;
+    return (
+      <details
+        id={`device-correction-${workReportId}`}
+        className="quote-outcome-commission-edit quote-outcome-device-edit"
+        open={deviceEditOpen || hasDrafts}
+        onToggle={(e) => setDeviceEditOpen((e.currentTarget as HTMLDetailsElement).open)}
+      >
+        <summary>{deviceCorrected ? 'Laitteen hankinta oikaistu · muokkaa' : 'Oikaise laitteen hankinta'}</summary>
+        <p className="muted quote-outcome-commission-note">
+          Toteutunut on esitäytetty tarjouspyynnön hinnalla. Jos laite maksoi eri summan, kirjaa tähän
+          todellinen hankintahinta (alv 0 %). Oikaisu säilyy, vaikka tarjous päivittyy tai kohdistetaan
+          uudelleen.
+        </p>
+        {deviceLines.map((line) => (
+          <div className="quote-outcome-commission-fields" key={line.id}>
+            <label className="form-field quote-outcome-device-field">
+              <span>
+                {line.label} · tarjouspyyntö {formatEuro(line.quote_purchase_net)}
+              </span>
+              <input
+                type="text"
+                inputMode="decimal"
+                aria-label={`${line.label}: toteutunut hankinta (alv 0 %)`}
+                value={deviceDraftValue(line)}
+                disabled={busy}
+                onChange={(e) => {
+                  const raw = e.target.value;
+                  setDeviceDrafts((prev) => ({ ...prev, [line.id]: raw }));
+                }}
+              />
+            </label>
+            {line.actual_corrected ? (
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                disabled={busy}
+                onClick={() => void saveDeviceActuals([{ line, actualNet: null }])}
+              >
+                Palauta tarjouspyynnön hinta
+              </button>
+            ) : null}
+          </div>
+        ))}
+        {invalid ? <p className="error quote-outcome-commission-note">Anna hinta numerona (esim. 1180,50).</p> : null}
+        {hasDrafts ? (
+          <div className="quote-outcome-commission-fields">
+            <button
+              type="button"
+              className="btn btn-primary btn-sm"
+              disabled={busy || invalid || corrections.length === 0}
+              onClick={() => corrections && void saveDeviceActuals(corrections)}
+            >
+              {busy ? 'Tallennetaan…' : 'Tallenna laitteen hinta'}
+            </button>
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              disabled={busy}
+              onClick={() => setDeviceDrafts({})}
+            >
+              Peruuta
+            </button>
+          </div>
+        ) : null}
+      </details>
+    );
+  }
+
+  function renderQuoteLines() {
+    if (!quoteIsLinked || quoteLineGroups.length === 0) return null;
+    return (
+      <details className="billing-purchase-lines-details quote-line-entries">
+        <summary>Tarjouspyynnön rivit – mihin toteutunut kirjataan</summary>
+        <p className="muted quote-line-entries-intro">
+          Samat ryhmät kuin yllä olevassa vertailussa.
+          {onRecordQuoteLine ? ' Kirjaa-painike avaa uuden työkirjauksen valmiiksi oikeaan kohtaan.' : ''}
+        </p>
+        {quoteLineGroups.map((group) => {
+          const showAmounts = showQuoteLineAmounts(group);
+          return (
+            <div className="quote-line-entries-group" key={group.category}>
+              <span className={`quote-category-badge quote-category-badge-${group.category}`}>
+                {group.label}
+              </span>
+              <ul className="quote-line-entries-list">
+                {group.lines.map((line) => {
+                  const meta = [
+                    formatQty(line.qty, line.unit),
+                    showAmounts && line.quoteNet != null ? formatEuro(line.quoteNet) : '',
+                  ].filter(Boolean).join(' · ');
+                  return (
+                    <li key={line.id}>
+                      <div className="quote-line-entries-text">
+                        <span className="quote-line-entries-label">{line.label}</span>
+                        {meta ? <span className="muted"> · {meta}</span> : null}
+                        {line.hint ? <span className="muted quote-line-entries-hint">{line.hint}</span> : null}
+                      </div>
+                      {line.action === 'device' ? (
+                        canCorrectDevice ? (
+                          <button type="button" className="btn-link" onClick={openDeviceEditor}>
+                            Oikaise
+                          </button>
+                        ) : null
+                      ) : onRecordQuoteLine ? (
+                        <button type="button" className="btn-link" onClick={() => onRecordQuoteLine(line)}>
+                          {RECORD_LABELS[line.action]}
+                        </button>
+                      ) : null}
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          );
+        })}
+      </details>
+    );
+  }
+
   function renderExtrasMarginLines() {
     if (!showPartnerMargin || !partnerMargin || extrasMarginLines.length === 0) return null;
     return (
@@ -562,6 +767,8 @@ export default function WorkReportBillingQuotePanel({
               quoteTitleActions={quoteIsLinked ? quoteLinkActions : null}
               commissionEditor={renderCommissionEditor()}
               commissionExceedsGross={!!partnerMargin?.commissionExceedsGross}
+              deviceEditor={outcomeHasDeviceRow ? renderDeviceEditor() : null}
+              deviceCorrected={deviceCorrected}
             />
           ) : quoteIsLinked ? (
             <p className="billing-quote-linked-summary">
@@ -570,6 +777,10 @@ export default function WorkReportBillingQuotePanel({
               {quoteLinkActions}
             </p>
           ) : null}
+
+          {!outcomeHasDeviceRow ? renderDeviceEditor() : null}
+
+          {renderQuoteLines()}
 
           {customerBillableGrandTotal
           && customerBillableGrandTotal.extrasTotal > 0.005

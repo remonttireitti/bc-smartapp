@@ -16989,6 +16989,57 @@ button.tool-booking-cal-day {
   font-size: 0.8rem;
 }
 
+.quote-outcome-commission-fields .form-field.quote-outcome-device-field {
+  width: min(100%, 18rem);
+}
+
+.quote-line-entries-intro {
+  margin: 0.4rem 0 0.5rem;
+  font-size: 0.82rem;
+}
+
+.quote-line-entries-group {
+  margin: 0.6rem 0 0;
+}
+
+.quote-line-entries-list {
+  list-style: none;
+  margin: 0.3rem 0 0;
+  padding: 0;
+}
+
+.quote-line-entries-list li {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.35rem 0;
+  border-bottom: 1px solid var(--border, #e5e7eb);
+  font-size: 0.88rem;
+}
+
+.quote-line-entries-list li:last-child {
+  border-bottom: 0;
+}
+
+.quote-line-entries-text {
+  min-width: 0;
+}
+
+.quote-line-entries-label {
+  font-weight: 600;
+}
+
+.quote-line-entries-hint {
+  display: block;
+  font-size: 0.78rem;
+}
+
+.quote-line-entries-list .btn-link {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
 @media (max-width: 560px) {
   .billing-margin-panel { padding: 0.7rem 0.6rem; }
   .quote-outcome-card { padding: 0.75rem 0.7rem; }

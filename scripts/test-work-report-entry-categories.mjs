@@ -35,8 +35,16 @@ const logs = [
   },
 ];
 
-assert.equal(classifyExpenseLineCategory(logs[0].expense_lines[0]), 'expenses');
+// Tyyppi Tarvike → Tarvikkeet (tarjouspyynnön termit), laskutustavasta riippumatta
+assert.equal(classifyExpenseLineCategory(logs[0].expense_lines[0]), 'supplies');
+// Ei tyyppiä (vanha rivi): hankinta → Tarvikkeet
 assert.equal(classifyExpenseLineCategory(logs[0].expense_lines[1]), 'supplies');
+// Kulutyypit → Kulut, myös kun kulu on oma hankinta
+assert.equal(classifyExpenseLineCategory({ expense_type: 'parking', description: 'P', qty: 1, unit_price: 5, bill_to_partner: false, bill_to_customer: false }), 'expenses');
+assert.equal(classifyExpenseLineCategory({ expense_type: 'other', description: 'Rahti', qty: 1, unit_price: 5, bill_to_partner: false, bill_to_customer: true }), 'expenses');
+assert.equal(classifyExpenseLineCategory({ expense_type: 'part', description: 'Kompressori', qty: 1, unit_price: 5, bill_to_partner: true }), 'supplies');
+// Vanha rivi ilman tyyppiä, kumppanilta laskutettava → Kulut
+assert.equal(classifyExpenseLineCategory({ description: 'X', qty: 1, unit_price: 5, bill_to_partner: true, bill_to_customer: true }), 'expenses');
 
 const partnerCalculation = calculateWorkReportBillable({
   logs,
@@ -48,7 +56,7 @@ const partnerCalculation = calculateWorkReportBillable({
 
 const entries = collectWorkReportCategoryEntries(logs, partnerCalculation);
 assert.ok(entries.some((entry) => entry.category === 'labor' && entry.qty === 8));
-assert.ok(entries.some((entry) => entry.category === 'expenses' && entry.description === 'Liitin'));
+assert.ok(entries.some((entry) => entry.category === 'supplies' && entry.description === 'Liitin'));
 assert.ok(entries.some((entry) => entry.category === 'supplies' && entry.description === 'Kierreletku'));
 
 console.log('test-work-report-entry-categories: ok');

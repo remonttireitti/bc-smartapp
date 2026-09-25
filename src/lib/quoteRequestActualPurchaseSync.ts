@@ -23,19 +23,30 @@ function suppliesPurchaseLine(
   };
 }
 
-function resolveDeviceActual(
+function savedDeviceLine(
   line: BillingQuotePurchaseLine,
   savedLines: BillingQuotePurchaseLine[],
-): number {
-  const saved =
+): BillingQuotePurchaseLine | undefined {
+  return (
     savedLines.find((row) => row.id === line.id)
     ?? savedLines.find(
       (row) =>
         row.source === 'device'
         && Math.abs(row.quote_purchase_net - line.quote_purchase_net) < 0.01,
-    );
+    )
+  );
+}
+
+function resolveDeviceActual(
+  line: BillingQuotePurchaseLine,
+  savedLines: BillingQuotePurchaseLine[],
+): number {
+  const saved = savedDeviceLine(line, savedLines);
   const quote = line.quote_purchase_net;
+  // Käyttäjän oikaisu (Oikaise) pysyy sellaisenaan — myös selvästi tarjousta pienempi hinta.
+  if (saved?.actual_corrected) return roundMoney(Number(saved.actual_purchase_net) || 0);
   const actual = saved?.actual_purchase_net ?? line.actual_purchase_net ?? quote;
+  // Vanha virhe: laitteen toteutunut tallentui liian pieneksi → oletus = tarjouksen hinta.
   if (quote > 0.005 && actual < quote * 0.5) return roundMoney(quote);
   return roundMoney(actual);
 }
@@ -118,10 +129,14 @@ export function buildWorkReportPurchaseLines(
 
   const deviceLines = quoteLines
     .filter((line) => line.source === 'device')
-    .map((line) => ({
-      ...line,
-      actual_purchase_net: resolveDeviceActual(line, saved),
-    }));
+    .map((line) => {
+      const corrected = savedDeviceLine(line, saved)?.actual_corrected === true;
+      return {
+        ...line,
+        actual_purchase_net: resolveDeviceActual(line, saved),
+        ...(corrected ? { actual_corrected: true } : {}),
+      };
+    });
 
   const quoteSuppliesNet = quoteSuppliesNetFromLines(quoteLines);
   const result: BillingQuotePurchaseLine[] = [...deviceLines];

@@ -9,6 +9,7 @@ import { installationVehiclePurchaseNet } from './quoteRequest/installationSuppl
 import type { BillableCalculation } from './workReportBilling';
 import type { BillingQuoteSettings } from './workReportBillingQuote';
 import type { WorkReportDailyLog } from '../types';
+import { categoryReclassification } from './workReportEntryCategories';
 
 export type QuoteCategoryKey = 'labor' | 'supplies' | 'expenses' | 'device';
 
@@ -124,7 +125,17 @@ export function compareQuoteCategories(input: {
   const labor = rowFromInstallation(installation, 'labor');
   const expenses = rowFromInstallation(installation, 'expenses');
   const suppliesQuote = sumPurchaseLines(purchaseLines, 'quote_purchase_net', false);
-  const suppliesActual = sumPurchaseLines(purchaseLines, 'actual_purchase_net', false);
+  const suppliesActualFromLines = sumPurchaseLines(purchaseLines, 'actual_purchase_net', false);
+  // Kulurivin tyyppi ratkaisee kategorian (tarjouspyynnön termein), ei laskutustapa:
+  // siirretään toteutunut Tarvikkeiden ja Kulujen välillä — yhteissumma ei muutu.
+  const diaryGroupActual = Number(
+    purchaseLines.find((line) => line.id === 'group:diary-supplies')?.actual_purchase_net ?? 0,
+  );
+  const shift = categoryReclassification(input.logs, input.partnerCalculation);
+  const suppliesToExpenses = roundMoney(Math.min(shift.suppliesToExpenses, Math.max(0, diaryGroupActual)));
+  const expensesToSupplies = roundMoney(Math.min(shift.expensesToSupplies, Math.max(0, expenses.actualNet)));
+  const suppliesActual = roundMoney(suppliesActualFromLines - suppliesToExpenses + expensesToSupplies);
+  const expensesActual = roundMoney(expenses.actualNet + suppliesToExpenses - expensesToSupplies);
   const deviceQuote = sumPurchaseLines(purchaseLines, 'quote_purchase_net', true);
   const deviceActual = sumPurchaseLines(purchaseLines, 'actual_purchase_net', true);
   // Huoltoautokorvaus on tarjouksen sisäinen kulu (sama kuin tarjouksen "Hankinta"):
@@ -148,7 +159,7 @@ export function compareQuoteCategories(input: {
         expenses.quoteQty,
         expenses.actualQty,
         expenses.quoteNet + vehicleQuote,
-        expenses.actualNet,
+        expensesActual,
       ),
       quoteNote:
         vehicleQuote > 0.005

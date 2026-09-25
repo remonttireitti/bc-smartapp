@@ -2,7 +2,7 @@ import type { QuoteCategoryKey } from './quoteCategoryComparison';
 import type { BillableCalculation, BillableLine } from './workReportBilling';
 import { billableLineDisplayTotal } from './workReportBilling';
 import { parseDailyLogCustomerExtraBilling } from './dailyLogCustomerExtraBilling';
-import { expenseCountsAsWorkReportPurchase } from './workReportActualPurchase';
+import { expenseCountsAsWorkReportPurchase, expenseDiarySuppliesTotal } from './workReportActualPurchase';
 import { resolveLogExpenseExtraBillingFlags } from './workReportExpenseBilling';
 import {
   expensePurchaseLineTotal,
@@ -54,13 +54,67 @@ function isTripExpense(expense: ExpenseLike): boolean {
   return expense.expense_type === 'km' || /^Ajomatkat\s*\(/i.test(description);
 }
 
-/** Luokittelee päiväkirjan kulurivin yhteen neljästä tarjouskategoriasta. */
+/** Kulurivin tyypit tarjouspyynnön termein: Tarvike/Varaosa = Tarvikkeet, muut = Kulut. */
+export const SUPPLY_EXPENSE_TYPES: readonly string[] = ['material', 'part'];
+export const COST_EXPENSE_TYPES: readonly string[] = ['parking', 'km', 'other'];
+
+/** Tyypin mukainen kategoria; null = tyyppiä ei valittu (vanha rivi). */
+export function expenseTypeCategory(type: string | null | undefined): 'supplies' | 'expenses' | null {
+  const key = String(type ?? '').trim();
+  if (SUPPLY_EXPENSE_TYPES.includes(key)) return 'supplies';
+  if (COST_EXPENSE_TYPES.includes(key)) return 'expenses';
+  return null;
+}
+
+/**
+ * Luokittelee päiväkirjan kulurivin tarjouskategoriaan samoin termein kuin tarjouspyyntö:
+ * tyyppi Tarvike/Varaosa → Tarvikkeet, Pysäköinti/KM-korvaus/Muu kulu → Kulut.
+ * Vanhat rivit ilman tyyppiä: hankinta → Tarvikkeet, kumppanilta laskutettava → Kulut.
+ * Kategoria vaikuttaa vain vertailun riviin — kate vähentää jokaisen kulun kerran.
+ */
 export function classifyExpenseLineCategory(expense: ExpenseLike): QuoteCategoryKey {
   if (isTripExpense(expense)) return 'expenses';
+  const byType = expenseTypeCategory(expense.expense_type);
+  if (byType) return byType;
   if (expenseCountsAsWorkReportPurchase(expense as NonNullable<WorkReportDailyLog['expense_lines']>[number])) {
     return 'supplies';
   }
   return 'expenses';
+}
+
+/**
+ * Siirrot vertailun Tarvikkeet- ja Kulut-rivien välillä tyypin mukaan (summa ei muutu):
+ * - suppliesToExpenses: päiväkirjan hankinnat (tarvikehankinnassa), joiden tyyppi on kulu
+ * - expensesToSupplies: kumppanilta laskutettavat rivit, joiden tyyppi on tarvike/varaosa
+ */
+export function categoryReclassification(
+  logs: WorkReportDailyLog[],
+  partnerCalculation?: BillableCalculation | null,
+): { suppliesToExpenses: number; expensesToSupplies: number } {
+  let expensesToSupplies = 0;
+  for (const user of partnerCalculation?.byUser ?? []) {
+    for (const line of user.lines) {
+      if (!line.included || line.kind !== 'expense') continue;
+      if (/^Ajomatkat\s*\(/i.test(String(line.description ?? '').trim())) continue;
+      if (expenseTypeCategory(line.expenseType) !== 'supplies') continue;
+      expensesToSupplies += billableLineDisplayTotal(line);
+    }
+  }
+  let suppliesToExpenses = 0;
+  for (const log of logs) {
+    const supplyLineFlags = parseDailyLogCustomerExtraBilling(log.customer_extra_billing).supply_line_flags;
+    const expenseLines = log.expense_lines ?? [];
+    for (let index = 0; index < expenseLines.length; index++) {
+      const expense = expenseLines[index];
+      if (classifyExpenseLineCategory(expense) !== 'expenses') continue;
+      const extraBilling = resolveLogExpenseExtraBillingFlags(expense, index, expenseLines, supplyLineFlags);
+      suppliesToExpenses += expenseDiarySuppliesTotal(expense, extraBilling).total;
+    }
+  }
+  return {
+    suppliesToExpenses: roundMoney(suppliesToExpenses),
+    expensesToSupplies: roundMoney(expensesToSupplies),
+  };
 }
 
 export function quoteCategoryLabel(category: QuoteCategoryKey): string {
@@ -77,7 +131,10 @@ function billableLineCategory(line: BillableLine): QuoteCategoryKey | null {
   ) {
     return 'labor';
   }
-  if (line.kind === 'expense') return 'expenses';
+  if (line.kind === 'expense') {
+    if (/^Ajomatkat\s*\(/i.test(String(line.description ?? '').trim())) return 'expenses';
+    return expenseTypeCategory(line.expenseType) ?? 'expenses';
+  }
   return null;
 }
 
@@ -166,7 +223,7 @@ export function collectWorkReportCategoryEntries(
         id: `expense:${log.id}:${expense.id ?? expense.description}`,
         logId: log.id,
         logDate,
-        category: 'supplies',
+        category: classifyExpenseLineCategory(expense),
         description: String(expense.description ?? '').trim() || 'Tarvike',
         qty: Number(expense.qty) || null,
         qtyLabel: 'kpl',

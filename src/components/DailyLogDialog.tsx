@@ -10,6 +10,8 @@ interface Props {
   onClose: () => void;
   onSubmit: (event: FormEvent) => void;
   onDelete?: () => void;
+  /** Osio, joka avataan heti dialogin avautuessa. */
+  initialSectionKey?: string | null;
   children: ReactNode;
 }
 
@@ -21,7 +23,7 @@ function DailyLogDialogFrame({
   onSubmit,
   onDelete,
   children,
-}: Omit<Props, 'open'>) {
+}: Omit<Props, 'open' | 'initialSectionKey'>) {
   const nestedSectionOpen = useDailyLogSectionOpen();
 
   useEffect(() => {
@@ -79,11 +81,11 @@ function DailyLogDialogFrame({
   );
 }
 
-export default function DailyLogDialog({ open, ...props }: Props) {
+export default function DailyLogDialog({ open, initialSectionKey = null, ...props }: Props) {
   if (!open) return null;
 
   return (
-    <DailyLogSectionProvider dialogOpen={open}>
+    <DailyLogSectionProvider dialogOpen={open} initialOpenKey={initialSectionKey}>
       <DailyLogDialogFrame {...props} />
     </DailyLogSectionProvider>
   );

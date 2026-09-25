@@ -824,6 +824,66 @@ export async function saveBillingQuoteCommission(
   return next;
 }
 
+export type DeviceActualCorrection = {
+  /** Laiterivi (source 'device') sellaisena kuin paneeli sen näyttää. */
+  line: BillingQuotePurchaseLine;
+  /** Oikaistu toteutunut hankinta alv 0 %; null = palauta tarjouspyynnön hinta. */
+  actualNet: number | null;
+};
+
+/**
+ * Laitteen toteutuneen hankinnan oikaisu billing_quote.purchase_lines-riveille.
+ * Oikaistu rivi merkitään actual_corrected, jotta päivitys/uudelleenkohdistus ei korvaa sitä.
+ * Tarjouspyynnön arvio (quote_purchase_net) ei muutu.
+ */
+export function applyDeviceActualCorrections(
+  settings: BillingQuoteSettings,
+  corrections: DeviceActualCorrection[],
+): BillingQuoteSettings {
+  const lines = [...(settings.purchase_lines ?? [])];
+  for (const { line, actualNet } of corrections) {
+    if (line.source !== 'device') continue;
+    const index = lines.findIndex((row) => row.id === line.id);
+    const base = index >= 0 ? lines[index] : { ...line };
+    const next: BillingQuotePurchaseLine =
+      actualNet == null || !Number.isFinite(actualNet) || actualNet < 0
+        ? (() => {
+            const { actual_corrected: _drop, ...rest } = base;
+            return { ...rest, actual_purchase_net: roundMoney(base.quote_purchase_net) };
+          })()
+        : { ...base, actual_purchase_net: roundMoney(actualNet), actual_corrected: true };
+    if (index >= 0) lines[index] = next;
+    else lines.push(next);
+  }
+  return normalizeBillingQuoteSettings({ ...settings, purchase_lines: lines });
+}
+
+/** Tallentaa laitteen oikaisut; muut tarjousasetukset luetaan kannasta (ei ylikirjoiteta). */
+export async function saveBillingQuoteDeviceActuals(
+  supabase: SupabaseClient,
+  workReportId: string,
+  corrections: DeviceActualCorrection[],
+  /** Paneelin näyttämät hankintarivit, jos kannassa ei vielä ole rivejä (ettei tarvikearvio katoa). */
+  fallbackLines?: BillingQuotePurchaseLine[],
+): Promise<BillingQuoteSettings> {
+  const { data, error } = await supabase
+    .from('work_report_billable')
+    .select('billing_quote')
+    .eq('work_report_id', workReportId)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  const current = parseBillingQuoteSettings(
+    (data as { billing_quote?: unknown } | null)?.billing_quote ?? {},
+  );
+  const base =
+    (current.purchase_lines?.length ?? 0) === 0 && fallbackLines?.length
+      ? normalizeBillingQuoteSettings({ ...current, purchase_lines: fallbackLines })
+      : current;
+  const next = applyDeviceActualCorrections(base, corrections);
+  await saveBillingQuoteSettings(supabase, workReportId, next);
+  return next;
+}
+
 /** Täydentää billing_quote quote_requests.work_report_id -linkistä, jos rivi puuttuu. */
 export async function hydrateBillingQuoteFromLinkedQuoteRequest(
   supabase: SupabaseClient,

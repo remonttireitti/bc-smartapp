@@ -40,6 +40,7 @@ import PartnerBillingRatesFields from '../components/PartnerBillingRatesFields';
 import Tooltip from '../components/Tooltip';
 import WorkReportBillingBreakdown from '../components/WorkReportBillingBreakdown';
 import WorkReportBillingQuotePanel from '../components/WorkReportBillingQuotePanel';
+import type { QuoteLineEntry } from '../lib/quoteLineEntries';
 import { WorkReportHourBillingModePanel } from '../components/WorkReportHourBillingModeFields';
 import {
   hourBillingModeSummary,
@@ -178,6 +179,7 @@ import {
   serializeDailyLogCustomerExtraBilling,
 } from '../lib/dailyLogCustomerExtraBilling';
 import {
+  emptyExpense,
   expensesToDrafts,
   normalizeExpenseDraftsForSave,
   type ExpenseDraft,
@@ -534,6 +536,8 @@ function DailyLogFields({
   showQuoteLinkedExtraBilling,
   showQuoteLinkedCategories,
   linkedQuoteRequest,
+  autoOpenExpenseKey,
+  onAutoOpenExpenseHandled,
 }: {
   form: DailyLogFormState;
   setForm: React.Dispatch<React.SetStateAction<DailyLogFormState>>;
@@ -549,6 +553,8 @@ function DailyLogFields({
   showQuoteLinkedExtraBilling?: boolean;
   showQuoteLinkedCategories?: boolean;
   linkedQuoteRequest?: boolean;
+  autoOpenExpenseKey?: string | null;
+  onAutoOpenExpenseHandled?: () => void;
 }) {
   const { showRegular, showOvertime, showOnCall, showFixed, calendarOnlyHours } =
     hourFieldsForEntryType(form.entry_type);
@@ -923,6 +929,8 @@ function DailyLogFields({
           showQuoteLinkedExtraBilling={showQuoteLinkedExtraBilling}
           showQuoteLinkedCategories={showQuoteLinkedCategories}
           linkedQuoteRequest={linkedQuoteRequest}
+          initialEditingKey={autoOpenExpenseKey}
+          onInitialEditingHandled={onAutoOpenExpenseHandled}
         />
       </DailyLogTileSection>
     </>
@@ -1047,6 +1055,11 @@ export default function WorkReportDetailPage({ session }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [billingNotice, setBillingNotice] = useState<string | null>(null);
   const [logDialogOpen, setLogDialogOpen] = useState(false);
+  /** "Kirjaa toteutunut" tarjouspyynnön riviltä: avattava osio ja esitäytetty kulurivi. */
+  const [logDialogPreset, setLogDialogPreset] = useState<{
+    sectionKey: string | null;
+    expenseKey: string | null;
+  } | null>(null);
   const [sectionDialog, setSectionDialog] = useState<
     null | 'basics' | 'partner-billing' | 'customer-billing' | 'partner-summary'
   >(null);
@@ -2356,7 +2369,35 @@ export default function WorkReportDetailPage({ session }: Props) {
     }
   }
 
+  /** Tarjouspyynnön rivi → uusi työkirjaus esitäytettynä samaan kategoriaan. */
+  function recordQuoteLine(line: QuoteLineEntry) {
+    openAddLogDialog();
+    if (line.action === 'labor') {
+      setLogForm((current) => ({
+        ...current,
+        work_done: current.work_done.trim() ? current.work_done : line.label,
+      }));
+      setLogDialogPreset({ sectionKey: 'hours', expenseKey: null });
+      return;
+    }
+    if (line.action === 'expense') {
+      const row = {
+        ...emptyExpense(),
+        expense_type: line.expenseType ?? 'material',
+        description: line.label,
+        qty: line.qty != null && line.qty > 0 ? String(line.qty) : '1',
+      };
+      setExpenseDrafts((current) => [...current, row]);
+      setLogDialogPreset({ sectionKey: 'expenses', expenseKey: row.key });
+      return;
+    }
+    if (line.action === 'trip') {
+      setLogDialogPreset({ sectionKey: 'trips', expenseKey: null });
+    }
+  }
+
   function openAddLogDialog() {
+    setLogDialogPreset(null);
     setEditingLogId(null);
     setEditingLog(null);
     setLogForm(initialLogForm());
@@ -2380,6 +2421,7 @@ export default function WorkReportDetailPage({ session }: Props) {
   }
 
   function openEditLogDialog(log: WorkReportDailyLog) {
+    setLogDialogPreset(null);
     const drafts = refrigerantLinesToDrafts(log.refrigerant_lines ?? []);
     setEditingLogId(log.id);
     setEditingLog(log);
@@ -3123,6 +3165,7 @@ export default function WorkReportDetailPage({ session }: Props) {
           tripKmRate={tripKmRate}
           showPartnerMargin={!!showOutgoingPartnerBilling}
           readOnly={!showOutgoingPartnerBilling && !canManageCustomerBillingRates}
+          onRecordQuoteLine={canAddDailyLogs ? recordQuoteLine : undefined}
           onSaved={(next) => {
             setBillingQuoteSettings(next);
             // Provisio muuttui → päivitä kumppanilaskelma (automaattinen provisiorivi + partner_total).
@@ -3898,6 +3941,7 @@ export default function WorkReportDetailPage({ session }: Props) {
         submitLabel={editingLogId ? 'Tallenna muutokset' : 'Lisää työkirjaus'}
         busy={logDialogBusy}
         onClose={closeLogDialog}
+        initialSectionKey={logDialogPreset?.sectionKey ?? null}
         onSubmit={(event) => void (editingLogId ? saveDailyLogEdit(event) : addDailyLog(event))}
         onDelete={
           editingLogId && canEditDailyLogs
@@ -3953,6 +3997,10 @@ export default function WorkReportDetailPage({ session }: Props) {
           showQuoteLinkedExtraBilling={workReportSupportsQuoteLinkedExtraBilling(billingQuoteSettings)}
           showQuoteLinkedCategories={workReportSupportsQuoteLinkedExtraBilling(billingQuoteSettings)}
           linkedQuoteRequest={hasLinkedQuote}
+          autoOpenExpenseKey={logDialogPreset?.expenseKey ?? null}
+          onAutoOpenExpenseHandled={() =>
+            setLogDialogPreset((current) => (current ? { ...current, expenseKey: null } : current))
+          }
         />
         <DailyLogRefrigerantFields
           drafts={refrigerantDrafts}
