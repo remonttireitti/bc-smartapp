@@ -1,3 +1,4 @@
+import { applyBillingQuotePrices, type BillingQuotePrices } from './billingQuotePriceDraft';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { computeQuoteInternalTotals, computeQuoteTotals } from './quoteRequest/calculations';
 import { normalizeQuoteRequestData } from './quoteRequest/defaults';
@@ -844,6 +845,29 @@ export async function saveBillingQuoteCommission(
     partner_commission_percent: commission.percent,
     partner_commission_amount: commission.amount,
   });
+  await saveBillingQuoteSettings(supabase, workReportId, next);
+  return next;
+}
+
+/**
+ * Tallentaa vain tarjoushinnan ja asiakashinnan (tarjousta ei kohdistettu) billing_quote-JSONiin.
+ * Muut asetukset luetaan kannasta, jotta niitä ei ylikirjoiteta.
+ */
+export async function saveBillingQuotePrices(
+  supabase: SupabaseClient,
+  workReportId: string,
+  prices: BillingQuotePrices,
+): Promise<BillingQuoteSettings> {
+  const { data, error } = await supabase
+    .from('work_report_billable')
+    .select('billing_quote')
+    .eq('work_report_id', workReportId)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  const current = parseBillingQuoteSettings(
+    (data as { billing_quote?: unknown } | null)?.billing_quote ?? {},
+  );
+  const next = normalizeBillingQuoteSettings(applyBillingQuotePrices(current, prices));
   await saveBillingQuoteSettings(supabase, workReportId, next);
   return next;
 }

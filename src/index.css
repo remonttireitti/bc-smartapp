@@ -11727,11 +11727,6 @@ a.tile.customer-document-tile:hover {
   border-top-width: 2px;
 }
 
-.billing-margin-formula {
-  margin: 0.35rem 0 0;
-  font-size: 0.88rem;
-}
-
 .billing-margin-impact-note {
   margin-top: 0.2rem;
   font-size: 0.85rem;
@@ -17168,4 +17163,17 @@ button.tool-booking-cal-day {
 .daily-log-quote-commission .field-hint {
   margin: 0.35rem 0 0;
   font-size: 0.8rem;
+}
+
+/* Tarjous ja kate: hintakenttien tallennus (tarjousta ei kohdistettu) */
+.billing-margin-save-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+}
+
+.billing-margin-saved {
+  font-size: 0.85rem;
+  color: #15803d;
 }
