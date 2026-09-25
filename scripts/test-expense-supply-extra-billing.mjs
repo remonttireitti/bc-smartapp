@@ -19,6 +19,8 @@ import {
   buildCustomerExtraBillingFromLogForm,
   dailyLogCustomerExtraBillingHasData,
   dailyLogExtraBillingToForm,
+  hoursExtraBillable,
+  hoursExtraBillingApproved,
   parseDailyLogCustomerExtraBilling,
   serializeDailyLogCustomerExtraBilling,
 } from '../src/lib/dailyLogCustomerExtraBilling.ts';
@@ -28,6 +30,7 @@ import {
   collectExtraBillingMarginImpactLines,
   extraBillingMarginImpactStatusLabel,
   computeProjectedNetMarginIfLineApproved,
+  extraBillingCommissionContextFromMargin,
   extraBillingMarginApprovalDelta,
   formatExtraBillingMarginImpactCell,
   formatExtraBillingMarginImpactNote,
@@ -380,8 +383,15 @@ const turnedOffHours = buildCustomerExtraBillingFromLogForm(
   },
   [],
 );
-assert.equal(turnedOffHours.hours_extra_billable, false);
-assert.equal(serializeDailyLogCustomerExtraBilling(turnedOffHours).hours_extra_billable, false);
+// #81 jälkeen pois kytketty lisälaskutus = lippu puuttuu (ei tallenneta explicit false).
+// Puuttuva lippu tulkitaan ei-lisälaskutettavaksi, joten laskutus pysyy oikein.
+assert.notEqual(turnedOffHours.hours_extra_billable, true);
+assert.equal(hoursExtraBillable(turnedOffHours), false);
+const turnedOffHoursSerialized = serializeDailyLogCustomerExtraBilling(turnedOffHours);
+assert.notEqual(turnedOffHoursSerialized.hours_extra_billable, true);
+assert.equal(hoursExtraBillable(turnedOffHoursSerialized), false);
+assert.equal(hoursExtraBillingApproved(turnedOffHoursSerialized), false);
+assert.equal(dailyLogExtraBillingToForm(turnedOffHoursSerialized).hours_extra_billable, false);
 assert.equal(
   dailyLogExtraBillingToForm({
     hours_extra_billable: false,
@@ -518,10 +528,12 @@ const pendingSupplyImpact = collectExtraBillingMarginImpactLines(pendingSupplyLo
 assert.equal(pendingSupplyImpact.currentMarginImpactNet, -683.15);
 assert.equal(pendingSupplyImpact.marginIfApprovedNet, 546.52);
 assert.equal(extraBillingMarginApprovalDelta(pendingSupplyImpact), 1229.67);
+// Provisio (oletus 50 %) huomioidaan arviossa → vastaa hyväksytyn rivin puhdasta katetta.
 assert.equal(
   computeProjectedNetMarginIfLineApproved(
     pendingSupplyMargin?.netMarginNet ?? 0,
     pendingSupplyImpact,
+    extraBillingCommissionContextFromMargin(pendingSupplyMargin),
   ),
   approvedSupplyMargin?.netMarginNet,
 );
@@ -600,6 +612,7 @@ assert.equal(
   computeProjectedNetMarginIfLineApproved(
     pendingHoursMargin?.netMarginNet ?? 0,
     pendingHoursImpact,
+    extraBillingCommissionContextFromMargin(pendingHoursMargin),
   ),
   approvedHoursMargin?.netMarginNet,
 );

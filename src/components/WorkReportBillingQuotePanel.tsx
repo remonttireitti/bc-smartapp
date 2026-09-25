@@ -3,6 +3,7 @@ import {
   billingQuoteHasData,
   computePartnerNetMargin,
   DEFAULT_PARTNER_COMMISSION_PERCENT,
+  formatCommissionPercent,
   formatPartnerMarginDeductionAmount,
   formatUrakkaOutcomeSummary,
   normalizeBillingQuoteSettings,
@@ -10,8 +11,10 @@ import {
   quoteHasVat,
   resolveActualPurchaseTotal,
   resolveCustomerBillableGrandTotal,
+  resolvePartnerCommissionAmount,
   resolvePartnerCommissionPercent,
   resolveQuotePurchaseTotal,
+  saveBillingQuoteCommission,
   type BillingQuoteSettings,
 } from '../lib/workReportBillingQuote';
 import { extractQuotePurchaseLines, sumQuotePurchaseLines } from '../lib/quotePurchaseLines';
@@ -29,6 +32,8 @@ import {
 import { formatEuro, type BillableCalculation } from '../lib/workReportBilling';
 import {
   collectExtraBillingMarginImpactLines,
+  extraBillingCommissionContextFromMargin,
+  extraBillingCommissionNote,
   extraBillingMarginImpactStatusLabel,
   formatExtraBillingMarginImpactCell,
 } from '../lib/dailyLogCustomerExtraBilling';
@@ -67,6 +72,7 @@ function roundMoney(value: number): number {
 }
 
 export default function WorkReportBillingQuotePanel({
+  workReportId,
   customerId: _customerId,
   ownerCompanyId: _ownerCompanyId,
   installationCostNet,
@@ -77,17 +83,23 @@ export default function WorkReportBillingQuotePanel({
   tripKmRate = null,
   showPartnerMargin = false,
   readOnly = false,
+  onSaved,
 }: Props) {
   const [settings, setSettings] = useState<BillingQuoteSettings>(() =>
     parseBillingQuoteSettings(initialSettings),
   );
-  const [busy] = useState(false);
-  const [error] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  /** Syöttökenttien luonnokset; null = näytä laskettu arvo. */
+  const [commissionPercentDraft, setCommissionPercentDraft] = useState<string | null>(null);
+  const [commissionAmountDraft, setCommissionAmountDraft] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(() => billingQuoteHasData(initialSettings));
   const [quoteData, setQuoteData] = useState<unknown>(null);
 
   useEffect(() => {
     setSettings(parseBillingQuoteSettings(initialSettings));
+    setCommissionPercentDraft(null);
+    setCommissionAmountDraft(null);
     if (billingQuoteHasData(initialSettings)) setExpanded(true);
   }, [initialSettings]);
 
@@ -331,6 +343,119 @@ export default function WorkReportBillingQuotePanel({
 
 
 
+  const extrasCommissionContext = extraBillingCommissionContextFromMargin(partnerMargin);
+  const initialParsed = parseBillingQuoteSettings(initialSettings);
+  const commissionMode: 'amount' | 'percent' =
+    resolvePartnerCommissionAmount(settings) != null ? 'amount' : 'percent';
+  const commissionDirty =
+    resolvePartnerCommissionAmount(settings) !== resolvePartnerCommissionAmount(initialParsed)
+    || (commissionMode === 'percent'
+      && resolvePartnerCommissionPercent(settings) !== resolvePartnerCommissionPercent(initialParsed));
+
+  async function saveCommission() {
+    setBusy(true);
+    setError(null);
+    try {
+      const amount = resolvePartnerCommissionAmount(settings);
+      const next = await saveBillingQuoteCommission(supabase, workReportId, {
+        percent: resolvePartnerCommissionPercent(settings),
+        amount,
+      });
+      setCommissionPercentDraft(null);
+      setCommissionAmountDraft(null);
+      onSaved?.(next);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Provision tallennus epäonnistui');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function renderCommissionInputsRow() {
+    if (!partnerMargin) return null;
+    const percentValue =
+      commissionPercentDraft
+      ?? formatCommissionPercent(
+        commissionMode === 'amount'
+          ? partnerMargin.commissionPercent
+          : resolvePartnerCommissionPercent(settings),
+      );
+    const amountValue =
+      commissionAmountDraft
+      ?? (commissionMode === 'amount'
+        ? moneyInputValue(resolvePartnerCommissionAmount(settings)).replace('.', ',')
+        : partnerMargin.commissionSource === 'percent'
+          ? moneyInputValue(partnerMargin.commissionNet).replace('.', ',')
+          : '');
+    return (
+      <tr className="billing-margin-commission-inputs">
+        <td colSpan={2}>
+          <div className="form-grid billing-margin-form">
+            <label className="form-field">
+              <span>Provisio %</span>
+              <input
+                type="text"
+                inputMode="decimal"
+                value={percentValue}
+                disabled={busy}
+                onChange={(e) => {
+                  const raw = e.target.value;
+                  setCommissionPercentDraft(raw);
+                  setCommissionAmountDraft(null);
+                  const parsed = parseMoneyInput(raw);
+                  setSettings((prev) => ({
+                    ...prev,
+                    partner_commission_percent: parsed,
+                    partner_commission_amount: null,
+                  }));
+                }}
+              />
+              <span className="muted field-hint">
+                {commissionMode === 'percent'
+                  ? `Käytössä · lasketaan prosentista (oletus ${DEFAULT_PARTNER_COMMISSION_PERCENT} %)`
+                  : 'Laskettu summasta'}
+              </span>
+            </label>
+            <label className="form-field">
+              <span>Provisio € (alv 0 %)</span>
+              <input
+                type="text"
+                inputMode="decimal"
+                value={amountValue}
+                disabled={busy}
+                onChange={(e) => {
+                  const raw = e.target.value;
+                  setCommissionAmountDraft(raw);
+                  setCommissionPercentDraft(null);
+                  const parsed = parseMoneyInput(raw);
+                  setSettings((prev) => ({
+                    ...prev,
+                    partner_commission_amount: parsed,
+                  }));
+                }}
+              />
+              <span className="muted field-hint">
+                {commissionMode === 'amount'
+                  ? 'Käytössä · lasketaan summasta (% johdetaan katteesta)'
+                  : 'Syötä summa, jos provisio on sovittu euroina'}
+              </span>
+            </label>
+          </div>
+          {commissionDirty ? (
+            <button
+              type="button"
+              className="btn btn-primary btn-sm"
+              disabled={busy}
+              onClick={() => void saveCommission()}
+            >
+              {busy ? 'Tallennetaan…' : 'Tallenna provisio'}
+            </button>
+          ) : null}
+        </td>
+      </tr>
+    );
+  }
+
   return (
     <div className="billing-margin-panel">
       <div className="billing-margin-header">
@@ -453,29 +578,6 @@ export default function WorkReportBillingQuotePanel({
                 {categoryComparison ? renderCategoryComparisonTable(categoryComparison) : null}
               </div>
 
-              {showPartnerMargin ? (
-                <label className="form-field">
-                  <span>Provisio %</span>
-                  <input
-                    type="text"
-                    inputMode="decimal"
-                    value={String(resolvePartnerCommissionPercent(settings))}
-                    disabled={busy}
-                    onChange={(e) => {
-                      const parsed = parseMoneyInput(e.target.value);
-                      setSettings((prev) => ({
-                        ...prev,
-                        partner_commission_percent: parsed,
-                      }));
-                    }}
-                  />
-                  <span className="muted field-hint">
-                    Osuus puhtaasta katteesta ennen provisiota (oletus{' '}
-                    {DEFAULT_PARTNER_COMMISSION_PERCENT} %). Explicit 0 sallittu.
-                  </span>
-                </label>
-              ) : null}
-
               <label className="form-field span-2">
                 <span>Huomio kumppanille</span>
                 <input
@@ -557,8 +659,12 @@ export default function WorkReportBillingQuotePanel({
               )}
               {showPartnerMargin ? (
                 <>
-                  <dt>Provisio %</dt>
-                  <dd>{resolvePartnerCommissionPercent(settings)} %</dd>
+                  <dt>Provisio</dt>
+                  <dd>
+                    {resolvePartnerCommissionAmount(settings) != null
+                      ? `${formatEuro(resolvePartnerCommissionAmount(settings) ?? 0)} (sovittu summa)`
+                      : `${formatCommissionPercent(resolvePartnerCommissionPercent(settings))} %`}
+                  </dd>
                 </>
               ) : null}
               {settings.notes?.trim() ? (
@@ -630,10 +736,24 @@ export default function WorkReportBillingQuotePanel({
                   </tr>
                   <tr>
                     <td>
-                      Provisio ({String(partnerMargin.commissionPercent).replace('.', ',')} %)
+                      Provisio ({formatCommissionPercent(partnerMargin.commissionPercent)} %)
+                      {partnerMargin.commissionSource === 'daily_log' ? (
+                        <div className="muted billing-margin-impact-note">
+                          Provisio tulee päiväkirjan Myyntiprovisio-merkinnöistä — tarjouksen
+                          provisio-% / € ei ole käytössä.
+                        </div>
+                      ) : partnerMargin.commissionSource === 'amount' ? (
+                        <div className="muted billing-margin-impact-note">Sovittu summa</div>
+                      ) : null}
+                      {partnerMargin.commissionExceedsGross ? (
+                        <div className="error billing-margin-impact-note">
+                          Provisio on suurempi kuin kate ennen provisiota.
+                        </div>
+                      ) : null}
                     </td>
                     <td className="num">− {formatEuro(partnerMargin.commissionNet)}</td>
                   </tr>
+                  {!readOnly ? renderCommissionInputsRow() : null}
                   <tr className="billing-margin-total">
                     <td>
                       <strong>Puhdas kate</strong>
@@ -654,6 +774,14 @@ export default function WorkReportBillingQuotePanel({
                       <th className="num">Hankinta</th>
                       <th className="num">Kate</th>
                     </tr>
+                    {extraBillingCommissionNote(extrasCommissionContext) ? (
+                      <tr>
+                        <th colSpan={5} className="muted billing-margin-impact-note">
+                          Odottavan rivin kate = puhdas kate, jos lisälaskutuslupa saadaan.{' '}
+                          {extraBillingCommissionNote(extrasCommissionContext)}
+                        </th>
+                      </tr>
+                    ) : null}
                   </thead>
                   <tbody>
                     {extrasMarginLines.map((line) => (
@@ -688,6 +816,7 @@ export default function WorkReportBillingQuotePanel({
                               line,
                               formatEuro,
                               partnerMargin?.netMarginNet,
+                              extrasCommissionContext,
                             );
                             if (marginCell.approved) {
                               return <strong>{marginCell.approved}</strong>;

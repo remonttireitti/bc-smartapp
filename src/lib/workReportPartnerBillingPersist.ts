@@ -22,7 +22,7 @@ import { parseTripKmRate } from './tripKmExpense';
 import { parseDailyOvertimePolicy } from './workReportDailyOvertime';
 import { buildDailyOvertimeBillingMap, hourBillingModeFromSettings } from './workReportCrossReportHours';
 import { fetchBillableRowWithHourBillingFallback } from './workReportHourBilling';
-import { computePartnerTotalWithQuoteCommission } from './workReportPartnerTotal';
+import { applyQuoteCommissionToPartnerCalculation } from './workReportPartnerTotal';
 
 type PartnerBillableReport = Pick<
   WorkReport,
@@ -253,7 +253,7 @@ export async function refreshAndPersistPartnerBillable(
     policy: overtimePolicy,
   });
 
-  const calculation = mergePartnerExtraBillingFromDailyLogs(
+  const baseCalculation = mergePartnerExtraBillingFromDailyLogs(
     calculateWorkReportBillable({
       logs,
       users,
@@ -273,15 +273,15 @@ export async function refreshAndPersistPartnerBillable(
     { logs, rates, users },
   );
 
-  // When a billing quote is attached, the partner total must include the 50% commission
-  // that the owner charges on top of labor+materials. The commission is what the owner
-  // receives for managing the deal — it belongs in the amount the partner is billed.
+  // Laskutustarjouksen kanssa kumppanilaskuun lisätään automaattinen provisiorivi
+  // (kate ennen provisiota × % tai sovittu summa). partner_total = calculation.grandTotal.
   const rawBillingQuote = (billableRow as Record<string, unknown> | null)?.billing_quote;
-  const { partnerTotal } = computePartnerTotalWithQuoteCommission({
+  const { calculation } = applyQuoteCommissionToPartnerCalculation({
     billingQuote: rawBillingQuote,
     logs,
-    calculation,
+    calculation: baseCalculation,
   });
+  const partnerTotal = calculation.grandTotal;
 
   const { error: billableError } = await supabase.from('work_report_billable').upsert({
     work_report_id: reportRow.id,

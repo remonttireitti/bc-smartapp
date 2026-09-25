@@ -26,6 +26,7 @@ import { BILLABLE_RATES_SOURCE_LABELS } from './management';
 import {
   collectExtraBillingMarginImpactLines,
   extraBillingMarginImpactStatusLabel,
+  extraBillingCommissionContextFromMargin,
   formatExtraBillingMarginImpactCell,
   hoursApprovedExtraBillingCustomerPrintLabel,
   hoursExtraBillingLabel,
@@ -501,6 +502,7 @@ function quoteMarginPrintSection(
               line,
               formatEuro,
               partnerMargin?.netMarginNet,
+              extraBillingCommissionContextFromMargin(partnerMargin),
             );
             const marginCell = marginCellParts.approved
               ? `<strong>${marginCellParts.approved}</strong>`
