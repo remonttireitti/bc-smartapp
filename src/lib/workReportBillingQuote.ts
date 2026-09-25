@@ -87,6 +87,25 @@ export type BillingQuoteOption = {
   quote_vat_rate: number;
 };
 
+/** Kate-taulukon vähennysrivi. amount > 0 vähennetään, < 0 lisätään (korjaus). */
+export type PartnerMarginDeductionRow = {
+  key:
+    | 'labor_expenses'
+    | 'device'
+    | 'supplies'
+    | 'material_overlap'
+    | 'margin_eating'
+    | 'partner_piikki'
+    | 'piikki_material';
+  label: string;
+  amount: number;
+  /** Erittely (esim. katetta syövät kulut kuvauksineen). */
+  details?: Array<{ description: string; total: number }>;
+};
+
+/** Päiväkirjan tarvikkeiden hankintarivin id (quoteRequestActualPurchaseSync). */
+export const DIARY_SUPPLIES_PURCHASE_LINE_ID = 'group:diary-supplies';
+
 export type PartnerMarginComputed = {
   quoteSaleNet: number;
   quotePurchaseNet: number;
@@ -106,6 +125,17 @@ export type PartnerMarginComputed = {
   customerExtrasNet: number;
   piikkiMaterialCostNet: number;
   extrasMarginNet: number;
+  /** Laitteiden toteutunut hankinta (purchase_lines source=device). */
+  deviceActualNet: number;
+  /** Muu toteutunut hankinta (tarvikkeet; päiväkirja tai tarjousarvio). */
+  suppliesActualNet: number;
+  /**
+   * Näkyvät vähennysrivit. Invariantti:
+   * quoteSaleNet + customerExtrasNet − Σ amount === grossMarginNet.
+   */
+  deductionRows: PartnerMarginDeductionRow[];
+  /** Kumppanin laskemat kustannukset ilman provisiota (työ + kulut + tarvikkeet). */
+  partnerCostsNet: number;
   /** Kate ennen kumppaniprovisiota. */
   grossMarginNet: number;
   /** Käytetty provisio-% (0–100). */
@@ -447,6 +477,20 @@ export function computePartnerNetMargin(
 
   const actualPurchaseNet = resolveActualPurchaseTotal(settings);
   const quotePurchaseNet = resolveQuotePurchaseTotal(settings);
+  const purchaseLines =
+    normalizeBillingQuoteSettings(parseBillingQuoteSettings(settings)).purchase_lines ?? [];
+  const deviceActualNet = roundMoney(
+    purchaseLines
+      .filter((line) => line.source === 'device')
+      .reduce((sum, line) => sum + (Number(line.actual_purchase_net) || 0), 0),
+  );
+  const suppliesActualNet = roundMoney(actualPurchaseNet - deviceActualNet);
+  // Kun päiväkirjan tarvikkeet on jo yhdistetty hankintariveihin
+  // (mergeActualPurchaseFromWorkReportLogs), niitä ei saa vähentää uudelleen
+  // katetta syövinä kuluina tai kumppanin piikkiostoina.
+  const diarySuppliesInPurchase = purchaseLines.some(
+    (line) => line.id === DIARY_SUPPLIES_PURCHASE_LINE_ID,
+  );
 
   const partnerBreakdown = options?.partnerCalculation
     ? breakdownPartnerBillingForQuoteMargin(options.partnerCalculation)
@@ -463,9 +507,9 @@ export function computePartnerNetMargin(
   const commissionPercent = resolvePartnerCommissionPercent(settings);
 
   const marginEating = options?.logs?.length
-    ? analyzeMarginEatingExpenses(options.logs)
+    ? analyzeMarginEatingExpenses(options.logs, { excludeDiarySupplies: diarySuppliesInPurchase })
     : { total: 0, lines: [] };
-  const partnerPiikkiPurchaseNet = options?.logs?.length
+  const partnerPiikkiPurchaseNet = options?.logs?.length && !diarySuppliesInPurchase
     ? sumPartnerPurchaseCostNet(options.logs)
     : 0;
 
@@ -486,14 +530,47 @@ export function computePartnerNetMargin(
     customerExtrasNet = roundMoney(options.customerExtrasNet);
   }
 
+  const partnerCostsNet = roundMoney(installationLaborTravelNet + partnerBilledMaterialsNet);
+  // effectiveQuoteMaterialCostNet voi jättää kumppanin laskuttamat tarvikkeet pois,
+  // jos ne ovat selvästi sama iso hankinta kuin tarjousrivit → näytä korjausrivinä.
+  const materialOverlapNet = roundMoney(
+    effectiveMaterialCostNet - actualPurchaseNet - partnerBilledMaterialsNet,
+  );
+
+  const rows: PartnerMarginDeductionRow[] = [
+    { key: 'labor_expenses', label: 'Työ ja kulut', amount: partnerCostsNet },
+    { key: 'device', label: 'Laite', amount: deviceActualNet },
+    {
+      key: 'supplies',
+      label: purchaseLines.length > 0 ? 'Tarvikkeet' : 'Hankinta',
+      amount: suppliesActualNet,
+    },
+    {
+      key: 'material_overlap',
+      label: 'Kumppanin laskuttamat tarvikkeet sisältyvät hankintaan',
+      amount: materialOverlapNet,
+    },
+    {
+      key: 'margin_eating',
+      label: 'Katetta syövät kulut (ei lisälaskutuslupaa)',
+      amount: marginEating.total,
+      details: marginEating.lines.map((line) => ({
+        description: line.description,
+        total: line.total,
+      })),
+    },
+    { key: 'partner_piikki', label: 'Kumppanin tililtä hankitut', amount: partnerPiikkiPurchaseNet },
+    { key: 'piikki_material', label: 'Lisätilauksen hankintakulut', amount: piikkiMaterialCostNet },
+  ];
+  const deductionRows = rows
+    .map((row) => ({ ...row, amount: roundMoney(row.amount) }))
+    .filter((row) => Math.abs(row.amount) > 0.005);
+
+  // Kate lasketaan suoraan näkyvistä riveistä → taulukko summautuu aina.
   const grossMarginNet = roundMoney(
     quoteSaleNet
     + customerExtrasNet
-    - installationLaborTravelNet
-    - effectiveMaterialCostNet
-    - marginEating.total
-    - partnerPiikkiPurchaseNet
-    - piikkiMaterialCostNet,
+    - deductionRows.reduce((sum, row) => sum + row.amount, 0),
   );
 
   const manualCommissionTotal = options?.logs?.length
@@ -523,6 +600,10 @@ export function computePartnerNetMargin(
     customerExtrasNet,
     piikkiMaterialCostNet,
     extrasMarginNet,
+    deviceActualNet,
+    suppliesActualNet,
+    deductionRows,
+    partnerCostsNet,
     grossMarginNet,
     commissionPercent: displayCommissionPercent,
     commissionNet,
@@ -776,6 +857,21 @@ export function calculateWorkReportCustomerBillableQuotePlusExtras(input: {
   };
 }
 
+/** Vähennysrivin summa merkkeineen: "− 245,00 €" tai korjausrivinä "+ 10,00 €". */
+export function formatPartnerMarginDeductionAmount(
+  amount: number,
+  formatMoney: (value: number) => string = formatEuro,
+): string {
+  return amount < 0 ? `+ ${formatMoney(-amount)}` : `− ${formatMoney(amount)}`;
+}
+
+function formatPartnerMarginDeductionRowText(row: PartnerMarginDeductionRow): string {
+  const detail = row.details?.length
+    ? ` (${row.details.map((d) => `${d.description} ${formatEuro(d.total)}`).join(', ')})`
+    : '';
+  return `${row.label}${detail}: ${formatPartnerMarginDeductionAmount(row.amount)}`;
+}
+
 export function formatPartnerMarginLines(
   settings: BillingQuoteSettings,
   installationCostNet: number,
@@ -794,23 +890,10 @@ export function formatPartnerMarginLines(
       lines.push(`Lisien kate: + ${formatEuro(computed.extrasMarginNet)}`);
     }
   }
-  lines.push(`Työ ja ajot (kumppani): ${formatEuro(computed.installationLaborTravelNet)}`);
-  if (computed.partnerBilledMaterialsNet > 0.005) {
-    lines.push(`Kumppanille laskutetut tarvikkeet: ${formatEuro(computed.partnerBilledMaterialsNet)}`);
-  }
-  lines.push(`Hankinta (tarjous / tarvikkeet): ${formatEuro(computed.effectiveMaterialCostNet)}`);
-  if (computed.marginEatingExpenseNet > 0.005) {
-    lines.push(`Katetta syövät kulut (ei lisälaskutusta): ${formatEuro(computed.marginEatingExpenseNet)}`);
-  }
-  if (computed.partnerPiikkiPurchaseNet > 0.005) {
-    lines.push(`Kumppanin tililtä hankitut: ${formatEuro(computed.partnerPiikkiPurchaseNet)}`);
-  }
-  if (computed.piikkiMaterialCostNet > 0.005) {
-    lines.push(`Lisätilauksen hankintakulut: ${formatEuro(computed.piikkiMaterialCostNet)}`);
+  for (const row of computed.deductionRows) {
+    lines.push(formatPartnerMarginDeductionRowText(row));
   }
   lines.push(
-    `Tarjouksen hankinta (alv 0 %): ${formatEuro(computed.quotePurchaseNet)}`,
-    `Todellinen hankinta (alv 0 %): ${formatEuro(computed.actualPurchaseNet)}`,
     `Kate ennen provisiota: ${formatEuro(computed.grossMarginNet)}`,
   );
   if (computed.commissionNet > 0.005 || computed.commissionPercent > 0) {

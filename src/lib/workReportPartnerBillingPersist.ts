@@ -22,13 +22,7 @@ import { parseTripKmRate } from './tripKmExpense';
 import { parseDailyOvertimePolicy } from './workReportDailyOvertime';
 import { buildDailyOvertimeBillingMap, hourBillingModeFromSettings } from './workReportCrossReportHours';
 import { fetchBillableRowWithHourBillingFallback } from './workReportHourBilling';
-import {
-  computePartnerNetMargin,
-  normalizeBillingQuoteSettings,
-  parseBillingQuoteSettings,
-  billingQuoteHasData,
-} from './workReportBillingQuote';
-import { mergeActualPurchaseFromWorkReportLogs } from './quoteRequestActualPurchaseSync';
+import { computePartnerTotalWithQuoteCommission } from './workReportPartnerTotal';
 
 type PartnerBillableReport = Pick<
   WorkReport,
@@ -283,22 +277,11 @@ export async function refreshAndPersistPartnerBillable(
   // that the owner charges on top of labor+materials. The commission is what the owner
   // receives for managing the deal — it belongs in the amount the partner is billed.
   const rawBillingQuote = (billableRow as Record<string, unknown> | null)?.billing_quote;
-  const parsedBillingQuote = normalizeBillingQuoteSettings(
-    parseBillingQuoteSettings(rawBillingQuote),
-  );
-  let partnerTotal = calculation.grandTotal;
-  if (billingQuoteHasData(parsedBillingQuote)) {
-    const effectiveSettings = mergeActualPurchaseFromWorkReportLogs(parsedBillingQuote, logs, null);
-    const partnerMargin = computePartnerNetMargin(effectiveSettings, calculation.grandTotal, {
-      logs,
-      partnerRates: calculation.ratesUsed,
-      customerRates: undefined,
-      partnerCalculation: calculation,
-    });
-    if (partnerMargin) {
-      partnerTotal = Math.round((calculation.grandTotal + partnerMargin.commissionNet) * 100) / 100;
-    }
-  }
+  const { partnerTotal } = computePartnerTotalWithQuoteCommission({
+    billingQuote: rawBillingQuote,
+    logs,
+    calculation,
+  });
 
   const { error: billableError } = await supabase.from('work_report_billable').upsert({
     work_report_id: reportRow.id,

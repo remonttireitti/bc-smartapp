@@ -3,7 +3,10 @@ import {
   dailyLogCustomerExtraBillingHasData,
   parseDailyLogCustomerExtraBilling,
 } from './dailyLogCustomerExtraBilling';
-import { expenseCountsAsWorkReportPurchase } from './workReportActualPurchase';
+import {
+  expenseCountsAsWorkReportPurchase,
+  expenseDiarySuppliesTotal,
+} from './workReportActualPurchase';
 import {
   expensePurchaseLineTotal,
   resolveExpenseBillingMode,
@@ -32,9 +35,15 @@ export type MarginEatingExpenseLine = {
  * Ohitetaan koko log:n expense_lines kun log.commission_amount > 0,
  * koska provisio käsitellään jo erikseen commissionNet:nä.
  * Näin vältytään tuplavähennykseltä.
+ *
+ * `excludeDiarySupplies`: kun työraportin hankintariveillä on jo päiväkirjan
+ * "Tarvikkeet"-rivi (group:diary-supplies), ohitetaan kulurivit jotka sisältyvät
+ * siihen (esim. "kuuluu urakkaan" -tarvikkeet). Muuten sama tarvike vähenisi
+ * katteesta kahdesti: tarvikkeina JA katetta syövinä kuluina.
  */
 export function analyzeMarginEatingExpenses(
   logs: WorkReportDailyLog[],
+  options?: { excludeDiarySupplies?: boolean },
 ): { total: number; lines: MarginEatingExpenseLine[] } {
   const lines: MarginEatingExpenseLine[] = [];
   let total = 0;
@@ -61,6 +70,13 @@ export function analyzeMarginEatingExpenses(
       const mode = resolveExpenseBillingMode(expense);
       if (mode === 'partner_and_customer') continue;
       const extraBilling = resolveLogExpenseExtraBillingFlags(expense, index, expenseLines, supplyLineFlags);
+
+      if (
+        options?.excludeDiarySupplies
+        && expenseDiarySuppliesTotal(expense, extraBilling).total > 0.005
+      ) {
+        continue;
+      }
 
       let cost = 0;
       let reason: MarginEatingExpenseLine['reason'] | null = null;
