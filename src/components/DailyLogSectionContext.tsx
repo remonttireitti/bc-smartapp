@@ -9,12 +9,15 @@ const DailyLogSectionContext = createContext<DailyLogSectionContextValue | null>
 
 export function DailyLogSectionProvider({
   dialogOpen,
+  initialOpenKey = null,
   children,
 }: {
   dialogOpen: boolean;
+  /** Avaa tämä osio heti (esim. "Kirjaa toteutunut" tarjouspyynnön riviltä). */
+  initialOpenKey?: string | null;
   children: ReactNode;
 }) {
-  const [openKey, setOpenKey] = useState<string | null>(null);
+  const [openKey, setOpenKey] = useState<string | null>(initialOpenKey);
 
   useEffect(() => {
     if (!dialogOpen) setOpenKey(null);

@@ -40,7 +40,7 @@ function roundQty(value: number): number {
 
 const KM_COMPENSATION_PATTERN = /km[-\s]?korvaus/i;
 
-function isKmCompensationMaterial(name: string): boolean {
+export function isKmCompensationMaterial(name: string): boolean {
   return KM_COMPENSATION_PATTERN.test(name.trim());
 }
 

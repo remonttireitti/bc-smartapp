@@ -25,7 +25,14 @@ import {
   type ExpenseBillingQuoteContext,
 } from '../lib/workReportExpenseBilling';
 import { isAutoTripKmExpense, isLikelyAutoTripKmExpense } from '../lib/tripKmExpense';
-import { EXPENSE_TYPE_OPTIONS } from '../types';
+import { EXPENSE_TYPE_LABELS } from '../types';
+import { COST_EXPENSE_TYPES, SUPPLY_EXPENSE_TYPES } from '../lib/workReportEntryCategories';
+
+/** Samat ryhmät kuin tarjouspyynnössä: Tarvikkeet ja Kulut (Laite oikaistaan Tarjous ja kate -osiossa). */
+const EXPENSE_TYPE_GROUPS = [
+  { label: 'Tarvikkeet', options: SUPPLY_EXPENSE_TYPES.map((value) => ({ value, label: EXPENSE_TYPE_LABELS[value] ?? value })) },
+  { label: 'Kulut', options: COST_EXPENSE_TYPES.map((value) => ({ value, label: EXPENSE_TYPE_LABELS[value] ?? value })) },
+];
 
 type Props = {
   expenseDrafts: ExpenseDraft[];
@@ -35,6 +42,9 @@ type Props = {
   showQuoteLinkedExtraBilling?: boolean;
   showQuoteLinkedCategories?: boolean;
   linkedQuoteRequest?: boolean;
+  /** Rivi, jonka muokkaus avataan heti (esitäytetty tarjouspyynnön riviltä). */
+  initialEditingKey?: string | null;
+  onInitialEditingHandled?: () => void;
 };
 
 export default function DailyLogExpenseLinesSection({
@@ -45,9 +55,17 @@ export default function DailyLogExpenseLinesSection({
   showQuoteLinkedExtraBilling = false,
   showQuoteLinkedCategories = false,
   linkedQuoteRequest = false,
+  initialEditingKey = null,
+  onInitialEditingHandled,
 }: Props) {
   const expenseQuoteContext: ExpenseBillingQuoteContext = { linkedQuoteRequest };
-  const [editingExpenseKey, setEditingExpenseKey] = useState<string | null>(null);
+  const [editingExpenseKey, setEditingExpenseKey] = useState<string | null>(initialEditingKey);
+
+  useEffect(() => {
+    if (initialEditingKey) onInitialEditingHandled?.();
+    // Vain avautuessa: esitäytetty rivi avataan kerran.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const manualExpenseDrafts = expenseDrafts.filter((row) => !isLikelyAutoTripKmExpense(row));
   const editingIndex = editingExpenseKey
     ? expenseDrafts.findIndex((row) => row.key === editingExpenseKey)
@@ -206,8 +224,9 @@ function ExpenseLineEditor({
           </span>
           <span className="muted">
             {classifyExpenseDraftCategory(row) === 'supplies'
-              ? 'Hankintahinta vähennetään katteesta tai laskutetaan lisänä.'
-              : 'Kulu laskutetaan kumppanilaskutuksessa (esim. ajo, pysäköinti).'}
+              ? 'Näkyy Tarjous ja kate -vertailussa rivillä Tarvikkeet (vaihda tyyppiä, jos rivi on kulu).'
+              : 'Näkyy Tarjous ja kate -vertailussa rivillä Kulut (vaihda tyypiksi Tarvike, jos rivi on tarvike).'}
+            {row.expense_type ? null : ' Valitse tyyppi, niin rivi osuu oikeaan kategoriaan.'}
           </span>
         </p>
       ) : null}
@@ -219,10 +238,14 @@ function ExpenseLineEditor({
           onChange={(e) => updateExpenseRow({ ...row, expense_type: e.target.value })}
         >
           <option value="">Valitse tyyppi…</option>
-          {EXPENSE_TYPE_OPTIONS.map((opt) => (
-            <option key={opt.value} value={opt.value}>
-              {opt.label}
-            </option>
+          {EXPENSE_TYPE_GROUPS.map((group) => (
+            <optgroup key={group.label} label={group.label}>
+              {group.options.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </optgroup>
           ))}
         </select>
       </label>

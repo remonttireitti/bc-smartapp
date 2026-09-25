@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { Fragment, type ReactNode } from 'react';
 import {
   formatSignedEuro,
   type OutcomeTone,
@@ -16,6 +16,10 @@ type Props = {
   /** Provisiorivin alle (esim. "Muokkaa provisiota"). */
   commissionEditor?: ReactNode;
   commissionExceedsGross?: boolean;
+  /** Laite-rivin alle (esim. "Oikaise laitteen hankinta"). */
+  deviceEditor?: ReactNode;
+  /** Laitteen toteutunut on oikaistu käsin (näytetään Laite-rivillä). */
+  deviceCorrected?: boolean;
 };
 
 function toneClass(tone: OutcomeTone): string {
@@ -39,6 +43,8 @@ export default function QuoteOutcomeSummaryView({
   quoteTitleActions,
   commissionEditor,
   commissionExceedsGross = false,
+  deviceEditor,
+  deviceCorrected = false,
 }: Props) {
   const hasExtras = summary.customerExtrasNet > 0.005;
   const gross = summary.grossMargin;
@@ -88,16 +94,26 @@ export default function QuoteOutcomeSummaryView({
           </thead>
           <tbody>
             {summary.rows.map((row) => (
-              <tr key={row.key}>
-                <td>
-                  <span className="quote-outcome-row-label">{row.label}</span>
-                  {row.qtyLabel ? <span className="quote-outcome-row-sub">{row.qtyLabel}</span> : null}
-                  {row.note ? <span className="quote-outcome-row-sub">{row.note}</span> : null}
-                </td>
-                <td className="num">{money(row.estimateNet)}</td>
-                <td className="num">{money(row.actualNet)}</td>
-                <VarianceCell value={row.varianceNet} tone={row.tone} />
-              </tr>
+              <Fragment key={row.key}>
+                <tr>
+                  <td>
+                    <span className="quote-outcome-row-label">{row.label}</span>
+                    {row.qtyLabel ? <span className="quote-outcome-row-sub">{row.qtyLabel}</span> : null}
+                    {row.note ? <span className="quote-outcome-row-sub">{row.note}</span> : null}
+                    {row.key === 'device' && deviceCorrected ? (
+                      <span className="quote-outcome-row-sub">toteutunut oikaistu</span>
+                    ) : null}
+                  </td>
+                  <td className="num">{money(row.estimateNet)}</td>
+                  <td className="num">{money(row.actualNet)}</td>
+                  <VarianceCell value={row.varianceNet} tone={row.tone} />
+                </tr>
+                {row.key === 'device' && deviceEditor ? (
+                  <tr className="quote-outcome-commission-edit-row">
+                    <td colSpan={4}>{deviceEditor}</td>
+                  </tr>
+                ) : null}
+              </Fragment>
             ))}
             <tr className="quote-outcome-subtotal">
               <td>Kulut yhteensä</td>

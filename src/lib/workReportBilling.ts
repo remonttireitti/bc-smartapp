@@ -68,6 +68,8 @@ export type BillableLine = {
   deductionPartnerCompanyId?: string;
   deductionPartnerName?: string;
   warehouseDeduction?: 'pending' | 'deducted';
+  /** Päiväkirjan kulurivin tyyppi (material, part, parking, km, other) — tarjouskategoria. */
+  expenseType?: string;
 };
 
 export type BillableUserSummary = {
@@ -321,6 +323,7 @@ export function calculateWorkReportBillable(input: {
         unitPrice: billed.unitPrice,
         total: billed.total,
         included,
+        ...(expense.expense_type ? { expenseType: expense.expense_type } : {}),
       });
       if (included) summary.expensesTotal += billed.total;
       else summary.excludedSubtotal += billed.total;

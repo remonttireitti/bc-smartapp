@@ -140,16 +140,19 @@ assert.equal(expenses.quoteQty, 750);
 // (sama sisäinen kulu kuin tarjouksen "Hankinta"-summassa).
 assert.equal(expenses.quoteNet, 787.5);
 assert.match(expenses.quoteNote ?? '', /huoltoautokorvaus 300,00/);
-assert.equal(expenses.actualNet, 345);
+// Tyyppi ratkaisee kategorian: Liitin (Tarvike, kumppanilta 60 €) → Tarvikkeet,
+// Pysäköinti (Muu kulu 25 €) + ajot 260 € → Kulut. Yhteissumma ennallaan (345 €).
+assert.equal(expenses.actualNet, 285);
 
 const supplies = comparison.rows.find((row) => row.key === 'supplies');
 assert.ok(supplies);
 assert.equal(supplies.quoteNet, 100);
 assert.equal(
   supplies.actualNet,
-  0,
-  'partner_and_customer -kulurivit eivät kuulu tarvikkeisiin',
+  60,
+  'tyyppi Tarvike → Tarvikkeet, vaikka kumppani laskuttaa',
 );
+assert.equal(Math.round((supplies.actualNet + expenses.actualNet) * 100) / 100, 345, 'ei tuplalaskentaa');
 
 const device = comparison.rows.find((row) => row.key === 'device');
 assert.ok(device);

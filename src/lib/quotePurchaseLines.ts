@@ -32,6 +32,11 @@ export type BillingQuotePurchaseLine = {
    * Kulut vertaillaan "Kulut (ajot ja muut)" -kategoriassa, ei tarvikkeissa.
    */
   row_kind?: 'expense';
+  /**
+   * Käyttäjä on oikaissut toteutuneen hankinnan (esim. laitteen todellinen hinta).
+   * Oikaisua ei korvata tarjouksen hinnalla päivityksessä eikä uudelleenkohdistuksessa.
+   */
+  actual_corrected?: boolean;
 };
 
 function roundMoney(value: number): number {
@@ -59,6 +64,7 @@ function parsePurchaseLine(raw: unknown): BillingQuotePurchaseLine | null {
         ? record.source
         : undefined,
     ...(record.row_kind === 'expense' ? { row_kind: 'expense' as const } : {}),
+    ...(record.actual_corrected === true ? { actual_corrected: true } : {}),
   };
 }
 
@@ -259,6 +265,7 @@ export function mergeQuotePurchaseLines(
     return {
       ...line,
       actual_purchase_net: prev.actual_purchase_net,
+      ...(prev.actual_corrected ? { actual_corrected: true } : {}),
     };
   });
   for (const line of saved) {
