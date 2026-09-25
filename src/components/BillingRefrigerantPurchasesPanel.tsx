@@ -1,4 +1,11 @@
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import {
+  billingDeductionExpandFilter,
+  billingDeductionPanelMode,
+  billingDeductionShortcutSummary,
+  canCollapseBillingDeductionPanel,
+} from '../lib/billingDeductionPanelView';
 import {
   partnerBillingDeductionTotals,
   type PartnerBillingDeductionRow,
@@ -35,18 +42,41 @@ export default function BillingRefrigerantPurchasesPanel({
   onToggle,
 }: Props) {
   const totals = partnerBillingDeductionTotals(rows);
+  const [expanded, setExpanded] = useState(false);
+
+  // Kun avoimia vähennettäviä on, osio pysyy auki myös viimeisen merkinnän jälkeen,
+  // ettei taulukko katoa kesken työn. Käyttäjä voi piilottaa sen itse.
+  useEffect(() => {
+    if (totals.pendingCount > 0) setExpanded(true);
+  }, [totals.pendingCount]);
+
+  const mode = billingDeductionPanelMode(totals, expanded);
   const filtered = rows.filter((row) => {
     if (filter === 'open') return !row.charged;
     if (filter === 'charged') return row.charged;
     return true;
   });
 
-  if (rows.length === 0) {
+  if (mode === 'hidden') return null;
+
+  if (mode === 'collapsed') {
     return (
-      <section className="panel billing-refrigerant-purchases-panel">
-        <h2>Vähennykset (varasto ja piikki)</h2>
-        <p className="muted">Ei vähennettäviä ostoja kumppanilaskutuksessa.</p>
-      </section>
+      <div className="billing-refrigerant-purchases-shortcut">
+        <span>
+          <strong>Vähennykset:</strong> <span className="muted">{billingDeductionShortcutSummary(totals)}</span>
+        </span>
+        <button
+          type="button"
+          className="link-btn"
+          aria-expanded={false}
+          onClick={() => {
+            onFilterChange(billingDeductionExpandFilter(totals));
+            setExpanded(true);
+          }}
+        >
+          Näytä
+        </button>
+      </div>
     );
   }
 
@@ -61,6 +91,19 @@ export default function BillingRefrigerantPurchasesPanel({
           </p>
         </div>
         <div className="billing-refrigerant-purchases-summary">
+          {canCollapseBillingDeductionPanel(totals) ? (
+            <button
+              type="button"
+              className="link-btn billing-refrigerant-purchases-collapse"
+              aria-expanded
+              onClick={() => {
+                setExpanded(false);
+                onFilterChange('open');
+              }}
+            >
+              Piilota
+            </button>
+          ) : null}
           <div>
             <span className="billing-refrigerant-purchases-stat-label">Vähennettävänä</span>
             <strong>{formatEuro(totals.pending)}</strong>
