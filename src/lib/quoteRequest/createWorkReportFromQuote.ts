@@ -1,3 +1,4 @@
+import { syncQuoteRowsToWorkReport } from '../quoteSeededRows';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { buildWorkReportTitle } from '../../types';
 import type { SubscriberPortalVisibility } from '../subscriberPortalVisibility';
@@ -137,6 +138,13 @@ export async function createWorkReportFromQuote(
 ): Promise<string> {
   if (input.quote.work_report_id) {
     await markQuoteAsOrderedOnly(supabase, input.quote.id);
+    // Tarjouksen tarvike-/kulurivit valmiiksi raporttiin (idempotentti; uusi raportti saa ne
+    // ensimmäiseen työkirjaukseen).
+    try {
+      await syncQuoteRowsToWorkReport(supabase, input.quote.work_report_id);
+    } catch (error) {
+      console.error('Tarjouksen rivien luonti työraporttiin epäonnistui:', error);
+    }
     return input.quote.work_report_id;
   }
 

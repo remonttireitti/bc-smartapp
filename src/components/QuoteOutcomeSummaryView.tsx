@@ -6,6 +6,7 @@ import {
 } from '../lib/quoteOutcomeSummary';
 import { formatCommissionPercent } from '../lib/workReportBillingQuote';
 import { formatEuro } from '../lib/workReportBilling';
+import { unpricedRowsLabel } from '../lib/quoteSeededRows';
 
 type Props = {
   summary: QuoteOutcomeSummary;
@@ -14,6 +15,8 @@ type Props = {
   /** Tarjouksen nimen perään (esim. Vaihda tarjous / Poista kohdistus). */
   quoteTitleActions?: ReactNode;
   commissionExceedsGross?: boolean;
+  /** Kulurivit ilman hintaa (esim. tarjouksesta luodut 0 €-rivit): tulos on alustava. */
+  unpricedRowCount?: number;
 };
 
 function toneClass(tone: OutcomeTone): string {
@@ -36,6 +39,7 @@ export default function QuoteOutcomeSummaryView({
   quoteTitle,
   quoteTitleActions,
   commissionExceedsGross = false,
+  unpricedRowCount = 0,
 }: Props) {
   const hasExtras = summary.customerExtrasNet > 0.005;
   const gross = summary.grossMargin;
@@ -69,7 +73,14 @@ export default function QuoteOutcomeSummaryView({
               {VERDICT_ICON[summary.verdict.tone]}
             </span>
             <strong>{summary.verdict.label}</strong>
+            {unpricedRowCount > 0 ? (
+              <span className="quote-outcome-verdict-sub quote-outcome-unpriced">
+                · {unpricedRowsLabel(unpricedRowCount)} — alustava
+              </span>
+            ) : null}
           </div>
+        ) : unpricedRowCount > 0 ? (
+          <p className="quote-outcome-unpriced">{unpricedRowsLabel(unpricedRowCount)}</p>
         ) : null}
       </div>
 

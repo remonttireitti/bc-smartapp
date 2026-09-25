@@ -285,6 +285,7 @@ export function billingQuoteForLinkedQuote(input: {
         partner_commission_percent: previous.partner_commission_percent,
         partner_commission_amount: previous.partner_commission_amount,
         notes: previous.notes ?? null,
+        ...(previous.quote_seeded_rows ? { quote_seeded_rows: previous.quote_seeded_rows } : {}),
       };
   const next = billingQuoteFromQuoteRow(input.quote.id, input.quote.title ?? 'Tarjous', input.quote.data, {
     fixedCustomerBilling: !input.customerAlreadyBilled,
@@ -303,7 +304,8 @@ export function billingQuoteAfterUnlink(
 ): BillingQuoteSettings | null {
   const parsed = parseBillingQuoteSettings(current ?? {});
   if (parsed.quote_request_id?.trim() !== quoteId) return null;
-  return {};
+  // Luotujen rivien kirjanpito säilyy, jotta myöhempi kohdistus voi siivota koskemattomat 0 €-rivit.
+  return parsed.quote_seeded_rows ? { quote_seeded_rows: parsed.quote_seeded_rows } : {};
 }
 
 export function workReportCandidateMeta(candidate: WorkReportCandidate, formatDate: (iso: string) => string): string {
