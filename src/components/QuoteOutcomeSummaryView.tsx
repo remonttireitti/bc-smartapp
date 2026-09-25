@@ -13,13 +13,7 @@ type Props = {
   quoteTitle?: string | null;
   /** Tarjouksen nimen perään (esim. Vaihda tarjous / Poista kohdistus). */
   quoteTitleActions?: ReactNode;
-  /** Provisiorivin alle (esim. "Muokkaa provisiota"). */
-  commissionEditor?: ReactNode;
   commissionExceedsGross?: boolean;
-  /** Laite-rivin alle (esim. "Oikaise laitteen hankinta"). */
-  deviceEditor?: ReactNode;
-  /** Laite-rivin lisätieto (esim. "toteutunut oikaistu"). */
-  deviceNote?: string | null;
 };
 
 function toneClass(tone: OutcomeTone): string {
@@ -41,10 +35,7 @@ export default function QuoteOutcomeSummaryView({
   summary,
   quoteTitle,
   quoteTitleActions,
-  commissionEditor,
   commissionExceedsGross = false,
-  deviceEditor,
-  deviceNote = null,
 }: Props) {
   const hasExtras = summary.customerExtrasNet > 0.005;
   const gross = summary.grossMargin;
@@ -100,19 +91,11 @@ export default function QuoteOutcomeSummaryView({
                     <span className="quote-outcome-row-label">{row.label}</span>
                     {row.qtyLabel ? <span className="quote-outcome-row-sub">{row.qtyLabel}</span> : null}
                     {row.note ? <span className="quote-outcome-row-sub">{row.note}</span> : null}
-                    {row.key === 'device' && deviceNote ? (
-                      <span className="quote-outcome-row-sub">{deviceNote}</span>
-                    ) : null}
                   </td>
                   <td className="num">{money(row.estimateNet)}</td>
                   <td className="num">{money(row.actualNet)}</td>
                   <VarianceCell value={row.varianceNet} tone={row.tone} />
                 </tr>
-                {row.key === 'device' && deviceEditor ? (
-                  <tr className="quote-outcome-commission-edit-row">
-                    <td colSpan={4}>{deviceEditor}</td>
-                  </tr>
-                ) : null}
               </Fragment>
             ))}
             <tr className="quote-outcome-subtotal">
@@ -175,11 +158,6 @@ export default function QuoteOutcomeSummaryView({
                   <td className="num">− {formatEuro(summary.commissionNet)}</td>
                   <td className="num muted">—</td>
                 </tr>
-                {commissionEditor ? (
-                  <tr className="quote-outcome-commission-edit-row">
-                    <td colSpan={4}>{commissionEditor}</td>
-                  </tr>
-                ) : null}
                 <tr className="quote-outcome-net-row">
                   <td colSpan={2}>Puhdas kate</td>
                   <td className="num">{formatEuro(summary.netMarginNet)}</td>

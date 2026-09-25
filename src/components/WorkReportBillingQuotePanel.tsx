@@ -2,17 +2,12 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
   billingQuoteHasData,
   computePartnerNetMargin,
-  DEFAULT_PARTNER_COMMISSION_PERCENT,
-  formatCommissionPercent,
   normalizeBillingQuoteSettings,
   parseBillingQuoteSettings,
   quoteHasVat,
   resolveActualPurchaseTotal,
   resolveCustomerBillableGrandTotal,
-  resolvePartnerCommissionAmount,
-  resolvePartnerCommissionPercent,
   resolveQuotePurchaseTotal,
-  saveBillingQuoteCommission,
   type BillingQuotePurchaseLine,
   type BillingQuoteSettings,
 } from '../lib/workReportBillingQuote';
@@ -42,7 +37,6 @@ import type { WorkReportDailyLog } from '../types';
 import { supabase } from '../lib/supabase';
 
 type Props = {
-  workReportId: string;
   customerId: string | null | undefined;
   ownerCompanyId: string | null | undefined;
   installationCostNet: number | null;
@@ -53,7 +47,6 @@ type Props = {
   tripKmRate?: number | null;
   showPartnerMargin?: boolean;
   readOnly?: boolean;
-  onSaved?: (settings: BillingQuoteSettings) => void;
   /** "Avaa tarjous · Vaihda tarjous · Poista kohdistus" tarjouksen nimen perään. */
   quoteLinkActions?: ReactNode;
   /** "Kirjaa toteutunut" tarjouspyynnön riviltä → avaa esitäytetyn työkirjauksen. */
@@ -87,7 +80,6 @@ function moneyInputValue(value: number | null | undefined): string {
 }
 
 export default function WorkReportBillingQuotePanel({
-  workReportId,
   customerId: _customerId,
   ownerCompanyId: _ownerCompanyId,
   installationCostNet,
@@ -98,7 +90,6 @@ export default function WorkReportBillingQuotePanel({
   tripKmRate = null,
   showPartnerMargin = false,
   readOnly = false,
-  onSaved,
   quoteLinkActions = null,
   onRecordQuoteLine,
   onOpenDevice,
@@ -106,19 +97,10 @@ export default function WorkReportBillingQuotePanel({
   const [settings, setSettings] = useState<BillingQuoteSettings>(() =>
     parseBillingQuoteSettings(initialSettings),
   );
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  /** Syöttökenttien luonnokset; null = näytä laskettu arvo. */
-  const [commissionPercentDraft, setCommissionPercentDraft] = useState<string | null>(null);
-  const [commissionAmountDraft, setCommissionAmountDraft] = useState<string | null>(null);
-  const [commissionEditOpen, setCommissionEditOpen] = useState(false);
   const [quoteData, setQuoteData] = useState<unknown>(null);
-  /** Laitteen oikaisun luonnokset rivin id:n mukaan. */
 
   useEffect(() => {
     setSettings(parseBillingQuoteSettings(initialSettings));
-    setCommissionPercentDraft(null);
-    setCommissionAmountDraft(null);
   }, [initialSettings]);
 
   useEffect(() => {
@@ -234,7 +216,6 @@ export default function WorkReportBillingQuotePanel({
   if (!billingQuoteHasData(settings)) return null;
 
   const quoteIsLinked = !!settings.quote_request_id;
-  const outcomeHasDeviceRow = !!outcomeSummary?.rows.some((row) => row.key === 'device');
 
   const customerTotalLabel = quoteHasVat(settings.quote_vat_rate)
     ? 'Asiakkaalta laskutettava (sis. alv)'
@@ -297,148 +278,11 @@ export default function WorkReportBillingQuotePanel({
   }
 
   const extrasCommissionContext = extraBillingCommissionContextFromMargin(partnerMargin);
-  const initialParsed = parseBillingQuoteSettings(initialSettings);
-  const commissionMode: 'amount' | 'percent' =
-    resolvePartnerCommissionAmount(settings) != null ? 'amount' : 'percent';
-  const commissionDirty =
-    resolvePartnerCommissionAmount(settings) !== resolvePartnerCommissionAmount(initialParsed)
-    || (commissionMode === 'percent'
-      && resolvePartnerCommissionPercent(settings) !== resolvePartnerCommissionPercent(initialParsed));
-
-  async function saveCommission() {
-    setBusy(true);
-    setError(null);
-    try {
-      const amount = resolvePartnerCommissionAmount(settings);
-      const next = await saveBillingQuoteCommission(supabase, workReportId, {
-        percent: resolvePartnerCommissionPercent(settings),
-        amount,
-      });
-      setCommissionPercentDraft(null);
-      setCommissionAmountDraft(null);
-      onSaved?.(next);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Provision tallennus epäonnistui');
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  function renderCommissionEditor() {
-    if (!partnerMargin || readOnly) return null;
-    const dailyLogCommission = partnerMargin.commissionSource === 'daily_log';
-    const percentValue =
-      commissionPercentDraft
-      ?? formatCommissionPercent(
-        commissionMode === 'amount'
-          ? partnerMargin.commissionPercent
-          : resolvePartnerCommissionPercent(settings),
-      );
-    const amountValue =
-      commissionAmountDraft
-      ?? (commissionMode === 'amount'
-        ? moneyInputValue(resolvePartnerCommissionAmount(settings)).replace('.', ',')
-        : partnerMargin.commissionSource === 'percent'
-          ? moneyInputValue(partnerMargin.commissionNet).replace('.', ',')
-          : '');
-    const summaryText = dailyLogCommission
-      ? `Tarjouksen provisio ${formatCommissionPercent(resolvePartnerCommissionPercent(settings))} % ei käytössä`
-      : 'Muokkaa provisiota';
-    return (
-      <details
-        className={`quote-outcome-commission-edit${dailyLogCommission ? ' is-inactive' : ''}`}
-        open={commissionEditOpen || commissionDirty}
-        onToggle={(e) => setCommissionEditOpen((e.currentTarget as HTMLDetailsElement).open)}
-      >
-        <summary>{summaryText}</summary>
-        {dailyLogCommission ? (
-          <p className="muted quote-outcome-commission-note">
-            Provisio tulee päiväkirjan Myyntiprovisio-merkinnöistä — alla olevat % / € eivät vaikuta,
-            ennen kuin merkinnät poistetaan.
-          </p>
-        ) : null}
-        <div className="quote-outcome-commission-fields">
-          <label className="form-field">
-            <span>Provisio %</span>
-            <input
-              type="text"
-              inputMode="decimal"
-              value={percentValue}
-              disabled={busy || dailyLogCommission}
-              onChange={(e) => {
-                const raw = e.target.value;
-                setCommissionPercentDraft(raw);
-                setCommissionAmountDraft(null);
-                const parsed = parseMoneyInput(raw);
-                setSettings((prev) => ({
-                  ...prev,
-                  partner_commission_percent: parsed,
-                  partner_commission_amount: null,
-                }));
-              }}
-            />
-          </label>
-          <label className="form-field">
-            <span>tai Provisio € (alv 0 %)</span>
-            <input
-              type="text"
-              inputMode="decimal"
-              value={amountValue}
-              disabled={busy || dailyLogCommission}
-              placeholder="sovittu summa"
-              onChange={(e) => {
-                const raw = e.target.value;
-                setCommissionAmountDraft(raw);
-                setCommissionPercentDraft(null);
-                const parsed = parseMoneyInput(raw);
-                setSettings((prev) => ({
-                  ...prev,
-                  partner_commission_amount: parsed,
-                }));
-              }}
-            />
-          </label>
-          {commissionDirty ? (
-            <button
-              type="button"
-              className="btn btn-primary btn-sm"
-              disabled={busy}
-              onClick={() => void saveCommission()}
-            >
-              {busy ? 'Tallennetaan…' : 'Tallenna provisio'}
-            </button>
-          ) : null}
-        </div>
-        {!dailyLogCommission ? (
-          <p className="muted quote-outcome-commission-note">
-            {commissionMode === 'percent'
-              ? `Käytössä: prosentti katteesta (oletus ${DEFAULT_PARTNER_COMMISSION_PERCENT} %).`
-              : 'Käytössä: sovittu summa (% johdetaan katteesta).'}
-          </p>
-        ) : null}
-      </details>
-    );
-  }
-
   const deviceLines: BillingQuotePurchaseLine[] = (effectiveSettings.purchase_lines ?? []).filter(
     (line) => line.source === 'device',
   );
-  const deviceFromEntries = deviceLines.some((line) => line.actual_from_entries);
-  const deviceNote = deviceFromEntries
-    ? 'toteutunut työkirjausten laitteista'
-    : deviceLines.some((line) => line.actual_corrected)
-      ? 'toteutunut oikaistu'
-      : null;
+  // Rivilistan "Kirjaa / oikaise" avaa LAITE-lomakkeen (vertailutaulukossa ei omaa linkkiä).
   const canCorrectDevice = quoteIsLinked && !readOnly && deviceLines.length > 0 && !!onOpenDevice;
-
-  function renderDeviceLink() {
-    if (!canCorrectDevice) return null;
-    return (
-      <button type="button" className="btn-link quote-outcome-device-link" onClick={onOpenDevice}>
-        {deviceFromEntries ? 'Muokkaa laitetta' : 'Kirjaa / oikaise laite'}
-      </button>
-    );
-  }
 
   function renderQuoteLines() {
     if (!quoteIsLinked || quoteLineGroups.length === 0) return null;
@@ -574,7 +418,6 @@ export default function WorkReportBillingQuotePanel({
                   type="text"
                   inputMode="decimal"
                   value={moneyInputValue(settings.quote_sale_net)}
-                  disabled={busy}
                   onChange={(e) => {
                     const parsed = parseMoneyInput(e.target.value);
                     setSettings((prev) => ({
@@ -594,7 +437,6 @@ export default function WorkReportBillingQuotePanel({
                     type="text"
                     inputMode="decimal"
                     value={moneyInputValue(settings.customer_invoice_total)}
-                    disabled={busy}
                     onChange={(e) =>
                       setSettings((prev) => ({
                         ...prev,
@@ -658,10 +500,7 @@ export default function WorkReportBillingQuotePanel({
               summary={outcomeSummary}
               quoteTitle={quoteIsLinked ? settings.quote_title ?? 'Linkitetty tarjous' : null}
               quoteTitleActions={quoteIsLinked ? quoteLinkActions : null}
-              commissionEditor={renderCommissionEditor()}
               commissionExceedsGross={!!partnerMargin?.commissionExceedsGross}
-              deviceEditor={outcomeHasDeviceRow ? renderDeviceLink() : null}
-              deviceNote={deviceNote}
             />
           ) : quoteIsLinked ? (
             <p className="billing-quote-linked-summary">
@@ -692,7 +531,6 @@ export default function WorkReportBillingQuotePanel({
               <input
                 type="text"
                 value={settings.notes ?? ''}
-                disabled={busy}
                 onChange={(e) => setSettings((prev) => ({ ...prev, notes: e.target.value }))}
                 placeholder="Esim. hankintakorjaus"
               />
@@ -703,7 +541,6 @@ export default function WorkReportBillingQuotePanel({
             </p>
           ) : null}
 
-          {error ? <p className="error">{error}</p> : null}
       </div>
     </div>
   );

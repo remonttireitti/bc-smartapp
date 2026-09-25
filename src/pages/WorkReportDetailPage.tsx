@@ -179,8 +179,18 @@ import {
   parseBillingQuoteSettings,
   workReportHasLinkedQuoteRequest,
   workReportSupportsQuoteLinkedExtraBilling,
+  DEFAULT_PARTNER_COMMISSION_PERCENT,
+  formatCommissionPercent,
+  saveBillingQuoteCommission,
   type BillingQuoteSettings,
 } from '../lib/workReportBillingQuote';
+import {
+  quoteCommissionChanged,
+  quoteCommissionDraftFromSettings,
+  quoteCommissionFromDraft,
+  quoteCommissionSubtitle,
+  type QuoteCommissionDraft,
+} from '../lib/quoteCommissionDraft';
 import {
   billableHoursFromLogEntry,
   buildCustomerExtraBillingFromLogForm,
@@ -551,6 +561,7 @@ function DailyLogFields({
   linkedQuoteRequest,
   autoOpenExpenseKey,
   onAutoOpenExpenseHandled,
+  quoteCommission,
 }: {
   form: DailyLogFormState;
   setForm: React.Dispatch<React.SetStateAction<DailyLogFormState>>;
@@ -568,6 +579,13 @@ function DailyLogFields({
   linkedQuoteRequest?: boolean;
   autoOpenExpenseKey?: string | null;
   onAutoOpenExpenseHandled?: () => void;
+  /** Tarjouksen provisio (koko työraportti) — muokataan vain Provisio-osiossa. */
+  quoteCommission?: {
+    draft: QuoteCommissionDraft;
+    onChange: (draft: QuoteCommissionDraft) => void;
+    /** Jokin muu työkirjaus sisältää Myyntiprovision. */
+    otherLogsHaveCommission: boolean;
+  } | null;
 }) {
   const { showRegular, showOvertime, showOnCall, showFixed, calendarOnlyHours } =
     hourFieldsForEntryType(form.entry_type);
@@ -910,7 +928,11 @@ function DailyLogFields({
       <DailyLogTileSection
         sectionKey="commission"
         title="Provisio"
-        subtitle={dailyLogCommissionSubtitle(form.commission_amount, form.commission_note)}
+        subtitle={
+          quoteCommission && !(Number(form.commission_amount) > 0) && !form.commission_note.trim()
+            ? quoteCommissionSubtitle(quoteCommission.draft)
+            : dailyLogCommissionSubtitle(form.commission_amount, form.commission_note)
+        }
         color={DAILY_LOG_SECTION_COLORS.commission}
       >
         <div className="line-form-grid">
@@ -934,6 +956,42 @@ function DailyLogFields({
             />
           </label>
         </div>
+        {quoteCommission ? (
+          <div className="daily-log-quote-commission">
+            <p className="daily-log-quote-commission-title">Tarjouksen provisio (koko työraportti)</p>
+            <div className="line-form-grid">
+              <label>
+                Provisio % katteesta
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={quoteCommission.draft.percent}
+                  onChange={(e) =>
+                    quoteCommission.onChange({ ...quoteCommission.draft, percent: e.target.value })
+                  }
+                  placeholder={formatCommissionPercent(DEFAULT_PARTNER_COMMISSION_PERCENT)}
+                />
+              </label>
+              <label>
+                tai sovittu provisio € (alv 0 %)
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={quoteCommission.draft.amount}
+                  onChange={(e) =>
+                    quoteCommission.onChange({ ...quoteCommission.draft, amount: e.target.value })
+                  }
+                  placeholder="tyhjä = %"
+                />
+              </label>
+            </div>
+            <p className="muted field-hint">
+              {Number(form.commission_amount) > 0 || quoteCommission.otherLogsHaveCommission
+                ? 'Myyntiprovisio (€) -merkinnät ovat käytössä ja korvaavat tarjouksen % / €.'
+                : `Sovittu € korvaa %:n. Oletus ${formatCommissionPercent(DEFAULT_PARTNER_COMMISSION_PERCENT)} % katteesta.`}
+            </p>
+          </div>
+        ) : null}
       </DailyLogTileSection>
 
       <DailyLogTileSection
@@ -1074,6 +1132,10 @@ export default function WorkReportDetailPage({ session }: Props) {
   const [billing, setBilling] = useState<WorkReportBilling | null>(null);
   const [billableCalculation, setBillableCalculation] = useState<BillableCalculation | null>(null);
   const [customerBillableCalculation, setCustomerBillableCalculation] = useState<BillableCalculation | null>(null);
+  /** Provisio-osion "Tarjouksen provisio" -luonnos (alustetaan dialogin avauksessa). */
+  const [quoteCommissionDraft, setQuoteCommissionDraft] = useState<QuoteCommissionDraft>(() =>
+    quoteCommissionDraftFromSettings(null),
+  );
   const [billingQuoteSettings, setBillingQuoteSettings] = useState<BillingQuoteSettings>(() =>
     parseBillingQuoteSettings({}),
   );
@@ -2121,6 +2183,48 @@ export default function WorkReportDetailPage({ session }: Props) {
     }
   }
 
+  /** Provisio-osion "Tarjouksen provisio" näkyy vain kun tarjouksen kate lasketaan kumppanille. */
+  function quoteCommissionEditable(): boolean {
+    return !!quoteCommissionSectionVisible;
+  }
+
+  /**
+   * Tarkistaa Provisio-osion % / € -luonnoksen ennen tallennusta.
+   * false = virhe näytetty; null = ei muokattavissa / ei muutosta; muuten tallennettava arvo.
+   */
+  function validateQuoteCommissionDraft(): { percent: number; amount: number | null } | null | false {
+    if (!quoteCommissionEditable()) return null;
+    const parsed = quoteCommissionFromDraft(quoteCommissionDraft, billingQuoteSettings);
+    if ('error' in parsed) {
+      setDailyLogNotice(dailyLogNoticeFromWarning(parsed.error, 'Tarkista provisio'));
+      setLogDialogPreset({ sectionKey: 'commission', expenseKey: null });
+      return false;
+    }
+    return quoteCommissionChanged(parsed.value, billingQuoteSettings) ? parsed.value : null;
+  }
+
+  /** Tallentaa tarjouksen provision billing_quoteen ennen kumppanilaskelman päivitystä. */
+  async function saveQuoteCommissionIfChanged(
+    value: { percent: number; amount: number | null } | null,
+  ): Promise<string | null> {
+    if (!value || !report) return null;
+    try {
+      const next = await saveBillingQuoteCommission(supabase, report.id, value);
+      setBillingQuoteSettings(next);
+      return null;
+    } catch (err) {
+      return err instanceof Error ? err.message : 'tuntematon virhe';
+    }
+  }
+
+  function quoteCommissionFailedNotice(message: string) {
+    return {
+      variant: 'warning' as const,
+      title: 'Osittain tallennettu',
+      message: `Työkirjaus tallennettiin, mutta tarjouksen provisio jäi tallentamatta: ${message} Avaa kirjaus ja tallenna provisio uudelleen.`,
+    };
+  }
+
   async function persistBillingAfterLogChange(reportRow: WorkReport) {
     const isDelegatedOrder =
       !!reportRow.delegate_company_id && reportRow.created_by_company_id === reportRow.owner_company_id;
@@ -2181,6 +2285,8 @@ export default function WorkReportDetailPage({ session }: Props) {
       setDailyLogNotice(dailyLogNoticeFromWarning('Kirjaa mitä teit.', 'Puuttuu tieto'));
       return;
     }
+    const quoteCommissionCheck = validateQuoteCommissionDraft();
+    if (quoteCommissionCheck === false) return;
 
     setDailyLogNotice(dailyLogSavingNotice(false));
     setLogDialogBusy(true);
@@ -2314,9 +2420,15 @@ export default function WorkReportDetailPage({ session }: Props) {
       await supabase.from('work_reports').update(statusPatch).eq('id', report.id);
     }
 
+    const quoteCommissionError = await saveQuoteCommissionIfChanged(quoteCommissionCheck);
+
     closeLogDialog();
     setLogDialogBusy(false);
-    setDailyLogNotice(dailyLogSavedNotice(false));
+    setDailyLogNotice(
+      quoteCommissionError
+        ? quoteCommissionFailedNotice(quoteCommissionError)
+        : dailyLogSavedNotice(false),
+    );
     await persistBillingAfterLogChange(report);
     await load(report.id);
   }
@@ -2507,6 +2619,7 @@ export default function WorkReportDetailPage({ session }: Props) {
 
   function openAddLogDialog() {
     setLogDialogPreset(null);
+    setQuoteCommissionDraft(quoteCommissionDraftFromSettings(billingQuoteSettings));
     setEditingLogId(null);
     setEditingLog(null);
     setLogForm(initialLogForm());
@@ -2531,6 +2644,7 @@ export default function WorkReportDetailPage({ session }: Props) {
 
   function openEditLogDialog(log: WorkReportDailyLog) {
     setLogDialogPreset(null);
+    setQuoteCommissionDraft(quoteCommissionDraftFromSettings(billingQuoteSettings));
     const drafts = refrigerantLinesToDrafts(log.refrigerant_lines ?? []);
     setEditingLogId(log.id);
     setEditingLog(log);
@@ -2582,6 +2696,8 @@ export default function WorkReportDetailPage({ session }: Props) {
       setDailyLogNotice(dailyLogNoticeFromWarning('Kirjaa mitä teit.', 'Puuttuu tieto'));
       return;
     }
+    const quoteCommissionCheck = validateQuoteCommissionDraft();
+    if (quoteCommissionCheck === false) return;
 
     setDailyLogNotice(dailyLogSavingNotice(true));
     setLogDialogBusy(true);
@@ -2700,9 +2816,15 @@ export default function WorkReportDetailPage({ session }: Props) {
       }
     }
 
+    const quoteCommissionError = await saveQuoteCommissionIfChanged(quoteCommissionCheck);
+
     closeLogDialog();
     setLogDialogBusy(false);
-    setDailyLogNotice(dailyLogSavedNotice(true));
+    setDailyLogNotice(
+      quoteCommissionError
+        ? quoteCommissionFailedNotice(quoteCommissionError)
+        : dailyLogSavedNotice(true),
+    );
     await persistBillingAfterLogChange(report);
     await load(report.id);
   }
@@ -2858,6 +2980,9 @@ export default function WorkReportDetailPage({ session }: Props) {
     && (isOwnerCompany || (isPartnerReport && canSeeCreatorBilling));
   const portalReadOnly = isPortalReadOnly(profile);
   const hasLinkedQuote = workReportHasLinkedQuoteRequest(billingQuoteSettings);
+  /** Sama ehto kuin aiemmalla taulukon provisioeditorilla (kumppanin kate lasketaan tarjoushinnasta). */
+  const quoteCommissionSectionVisible =
+    !!showOutgoingPartnerBilling && Number(billingQuoteSettings.quote_sale_net ?? 0) > 0;
   const showQuoteBillingSection = hasLinkedQuote && !portalReadOnly;
   /** Tarjouksen liittäminen / vaihto / irrotus (vanhat tilatut tarjoukset oikeisiin raportteihin). */
   const canLinkQuote = !portalReadOnly && (isOwnerCompany || isCreatorCompany);
@@ -3311,7 +3436,6 @@ export default function WorkReportDetailPage({ session }: Props) {
               </span>
             ) : null
           }
-          workReportId={report.id}
           customerId={report.customer_id}
           ownerCompanyId={report.owner_company_id}
           installationCostNet={billableCalculation?.grandTotal ?? null}
@@ -3324,11 +3448,6 @@ export default function WorkReportDetailPage({ session }: Props) {
           readOnly={!showOutgoingPartnerBilling && !canManageCustomerBillingRates}
           onRecordQuoteLine={canAddDailyLogs ? recordQuoteLine : undefined}
           onOpenDevice={canAddDailyLogs ? openDeviceForm : undefined}
-          onSaved={(next) => {
-            setBillingQuoteSettings(next);
-            // Provisio muuttui → päivitä kumppanilaskelma (automaattinen provisiorivi + partner_total).
-            void refreshBillable(report, dailyLogs, { viewerCompanyId: profile?.company_id });
-          }}
         />
         </div>
       ) : null}
@@ -4158,6 +4277,17 @@ export default function WorkReportDetailPage({ session }: Props) {
           autoOpenExpenseKey={logDialogPreset?.expenseKey ?? null}
           onAutoOpenExpenseHandled={() =>
             setLogDialogPreset((current) => (current ? { ...current, expenseKey: null } : current))
+          }
+          quoteCommission={
+            quoteCommissionSectionVisible
+              ? {
+                  draft: quoteCommissionDraft,
+                  onChange: setQuoteCommissionDraft,
+                  otherLogsHaveCommission: dailyLogs.some(
+                    (log) => log.id !== editingLogId && Number(log.commission_amount) > 0,
+                  ),
+                }
+              : null
           }
         />
         <DailyLogRefrigerantFields
