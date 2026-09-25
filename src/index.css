@@ -16984,53 +16984,11 @@ button.tool-booking-cal-day {
   font-weight: 700;
 }
 
-.quote-outcome-commission-edit-row td {
-  padding-top: 0.25rem;
-  background: var(--bg-muted);
-}
-
 .quote-outcome-net-row td {
   border-top-width: 2px;
   font-size: 1.2rem;
   font-weight: 800;
   background: #f0fdf4;
-}
-
-.quote-outcome-commission-edit summary {
-  cursor: pointer;
-  color: var(--link);
-  font-size: 0.88rem;
-}
-
-.quote-outcome-commission-edit.is-inactive summary {
-  color: var(--text-subtle);
-}
-
-.quote-outcome-commission-fields {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  gap: 0.5rem 0.75rem;
-  margin-top: 0.5rem;
-}
-
-.quote-outcome-commission-fields .form-field {
-  margin: 0;
-  width: 9.5rem;
-}
-
-.quote-outcome-commission-fields input:disabled {
-  background: var(--bg-inset);
-  color: var(--text-subtle);
-}
-
-.quote-outcome-commission-note {
-  margin: 0.4rem 0 0;
-  font-size: 0.8rem;
-}
-
-.quote-outcome-commission-fields .form-field.quote-outcome-device-field {
-  width: min(100%, 18rem);
 }
 
 .quote-line-entries-intro {
@@ -17193,3 +17151,21 @@ button.tool-booking-cal-day {
   cursor: pointer;
 }
 .quote-link-actions .btn-link:disabled { opacity: 0.5; cursor: default; }
+
+/* Provisio-osio: tarjouksen provisio (koko työraportti) */
+.daily-log-quote-commission {
+  margin-top: 0.75rem;
+  padding-top: 0.65rem;
+  border-top: 1px dashed var(--border, #e2e8f0);
+}
+
+.daily-log-quote-commission-title {
+  margin: 0 0 0.4rem;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.daily-log-quote-commission .field-hint {
+  margin: 0.35rem 0 0;
+  font-size: 0.8rem;
+}
