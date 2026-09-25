@@ -73,6 +73,7 @@ import {
   createWorkReportFromQuote,
   markQuoteAsNotOrdered,
 } from '../lib/quoteRequest/createWorkReportFromQuote';
+import { useQuoteToReportLinker } from '../components/QuoteWorkReportLinker';
 import { updateQuoteRequestViaRpc } from '../lib/quoteRequest/updateQuoteRequest';
 import type {
   QuoteEditSection,
@@ -120,6 +121,8 @@ export default function QuoteRequestEditPage({ session }: Props) {
   const [quoteId, setQuoteId] = useState<string | null>(id ?? null);
   const [status, setStatus] = useState<QuoteRequestStatus>('draft');
   const [workReportId, setWorkReportId] = useState<string | null>(null);
+  /** Vanha raportin puolen linkki (billing_quote), kun quote_requests.work_report_id puuttuu. */
+  const [billingLinkedReportId, setBillingLinkedReportId] = useState<string | null>(null);
   const [form, setForm] = useState<QuoteRequestData>(() => createEmptyQuoteRequestData());
   const [activeSection, setActiveSection] = useState<QuoteEditSection>('asiakas');
   const [partnerships, setPartnerships] = useState<Partnership[]>([]);
@@ -203,6 +206,26 @@ export default function QuoteRequestEditPage({ session }: Props) {
 
   const canEdit = isNew || status === 'draft' || status === 'sent';
   const isOrdered = status === 'ordered';
+  const linkedReportId = workReportId ?? billingLinkedReportId;
+  const quoteLinker = useQuoteToReportLinker({
+    quote: quoteId
+      ? {
+          id: quoteId,
+          title: storedDbTitle,
+          status,
+          customer_id: customerId || null,
+          owner_company_id: reportOwnerCompanyId || ownerCompanyId || null,
+          work_report_id: workReportId,
+        }
+      : null,
+    linkedReportId,
+    viewerCompanyId: profile?.company_id,
+    onChanged: (reportId) => {
+      setWorkReportId(reportId);
+      setBillingLinkedReportId(null);
+      if (reportId) setStatus('ordered');
+    },
+  });
   const canDeleteQuote =
     !isNew
     && !!quoteId
@@ -578,6 +601,18 @@ export default function QuoteRequestEditPage({ session }: Props) {
     titleMigratedRef.current = false;
     setStatus(row.status);
     setWorkReportId(row.work_report_id ?? null);
+    setBillingLinkedReportId(null);
+    if (!row.work_report_id && row.status === 'ordered') {
+      void supabase
+        .from('work_report_billable')
+        .select('work_report_id')
+        .eq('billing_quote->>quote_request_id', row.id)
+        .limit(1)
+        .then(({ data: linkRows }) => {
+          const linked = (linkRows as Array<{ work_report_id: string }> | null)?.[0]?.work_report_id ?? null;
+          setBillingLinkedReportId(linked);
+        });
+    }
     setForm(formToUse);
 
     let resolvedCustomerId = row.customer_id ?? '';
@@ -1113,15 +1148,45 @@ export default function QuoteRequestEditPage({ session }: Props) {
         <section className="panel quote-ordered-notice">
           <p>
             <strong>Tarjous on merkitty tilatuksi.</strong>
-            {workReportId ? (
+            {linkedReportId ? (
               <>
                 {' '}
-                <Link to={`/tyoraportit/${workReportId}`}>Avaa työraportti</Link>
+                <Link to={`/tyoraportit/${linkedReportId}`}>Avaa työraportti</Link>
+                <span className="quote-link-actions">
+                  <button
+                    type="button"
+                    className="btn-link"
+                    disabled={quoteLinker.busy}
+                    onClick={() => void quoteLinker.openPicker()}
+                  >
+                    Vaihda työraportti
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-link"
+                    disabled={quoteLinker.busy}
+                    onClick={() => void quoteLinker.unlink()}
+                  >
+                    Poista kohdistus
+                  </button>
+                </span>
               </>
             ) : (
-              ' Työraporttia ei ole vielä linkitetty.'
+              <>
+                {' Työraporttia ei ole vielä linkitetty. '}
+                <button
+                  type="button"
+                  className="btn btn-primary btn-sm"
+                  disabled={quoteLinker.busy}
+                  onClick={() => void quoteLinker.openPicker()}
+                >
+                  Kohdista työraporttiin
+                </button>
+              </>
             )}
           </p>
+          {quoteLinker.error ? <p className="error">{quoteLinker.error}</p> : null}
+          {quoteLinker.dialog}
         </section>
       )}
       {canEdit && status === 'sent' && (
@@ -1337,8 +1402,8 @@ export default function QuoteRequestEditPage({ session }: Props) {
               >
                 Merkitse ei-tilatuksi
               </button>
-              {workReportId ? (
-                <Link to={`/tyoraportit/${workReportId}`} className="btn btn-primary">
+              {linkedReportId ? (
+                <Link to={`/tyoraportit/${linkedReportId}`} className="btn btn-primary">
                   Avaa työraportti
                 </Link>
               ) : null}

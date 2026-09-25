@@ -17043,3 +17043,62 @@ button.tool-booking-cal-day {
 .work-report-hour-billing-body {
   margin-top: 0.65rem;
 }
+
+/* Tarjouksen ↔ työraportin kohdistus */
+.quote-link-picker {
+  width: min(100%, 40rem);
+  max-height: calc(100vh - 2rem);
+  display: flex;
+  flex-direction: column;
+}
+.quote-link-picker-intro { margin: 0 0 0.6rem; font-size: 0.9rem; }
+.quote-link-picker-search { width: 100%; margin-bottom: 0.6rem; }
+.quote-link-picker-list {
+  display: grid;
+  gap: 0.4rem;
+  overflow-y: auto;
+  min-height: 6rem;
+  max-height: 60vh;
+  padding-right: 0.15rem;
+}
+.quote-link-picker-item {
+  display: grid;
+  gap: 0.15rem;
+  width: 100%;
+  text-align: left;
+  padding: 0.55rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 0.55rem;
+  background: var(--bg-surface, #fff);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.quote-link-picker-item:hover:not(:disabled),
+.quote-link-picker-item:focus-visible { border-color: var(--primary, #2563eb); background: var(--bg-muted); }
+.quote-link-picker-item-title { font-weight: 600; }
+.quote-link-picker-item-meta { font-size: 0.82rem; color: var(--text-muted); }
+.quote-link-picker-badges { display: flex; flex-wrap: wrap; gap: 0.3rem; margin-top: 0.15rem; }
+.quote-link-picker-badge {
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  background: var(--bg-subtle);
+  color: var(--text-secondary);
+}
+.quote-link-picker-badge.is-good { background: #dcfce7; color: #14532d; }
+.quote-link-picker-badge.is-warn { background: #fef3c7; color: #78350f; }
+.quote-link-picker-badge.is-info { background: #e0e7ff; color: #312e81; }
+.quote-link-actions { display: inline-flex; flex-wrap: wrap; gap: 0.25rem 0.6rem; margin-left: 0.5rem; }
+.quote-link-actions .btn-link {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  font-size: 0.82rem;
+  color: var(--primary, #2563eb);
+  text-decoration: underline;
+  cursor: pointer;
+}
+.quote-link-actions .btn-link:disabled { opacity: 0.5; cursor: default; }
