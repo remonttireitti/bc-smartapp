@@ -268,7 +268,6 @@ export function renderQuoteOutcomeSummaryHtml(
       : `<td class="num" style="color:${PRINT_TONE_COLOR[tone]};font-weight:600">${esc(formatSignedEuro(value, euro))}</td>`;
   const hasExtras = summary.customerExtrasNet > EPS;
   const gross = summary.grossMargin;
-  const explanation = outcomeVarianceExplanation(summary, euro);
 
   const tile = (title: string, c: QuoteOutcomeComparison) => `
     <td style="border-left:4px solid ${PRINT_TONE_COLOR[c.tone]};padding:6px 10px;vertical-align:top">
@@ -295,7 +294,7 @@ export function renderQuoteOutcomeSummaryHtml(
     <p style="margin:0 0 4px"><span style="font-size:11px;text-transform:uppercase;color:#475569;font-weight:700">${hasExtras ? 'Kiinteä tarjoushinta + hyväksytyt lisät' : 'Kiinteä tarjoushinta'} (alv 0 %)</span><br/><strong style="font-size:20px">${esc(euro(summary.saleTotalNet))}</strong>${hasExtras ? ` <span class="muted">(tarjous ${esc(euro(summary.quoteSaleNet))} + lisät ${esc(euro(summary.customerExtrasNet))})</span>` : ''}</p>
     ${options.quoteTitle ? `<p class="meta-line">Tarjous: ${esc(options.quoteTitle)}</p>` : ''}
     <table style="margin:6px 0"><tbody><tr>${tile('Kulut', summary.costs)}${gross ? tile('Kate ennen provisiota', gross) : ''}</tr></tbody></table>
-    ${summary.verdict ? `<p style="margin:4px 0 8px;font-size:14px;color:${PRINT_TONE_COLOR[summary.verdict.tone]}"><strong>${esc(summary.verdict.label)}</strong>${explanation ? ` <span class="muted">· ${esc(explanation)}</span>` : ''}</p>` : ''}
+    ${summary.verdict ? `<p style="margin:4px 0 8px;font-size:14px;color:${PRINT_TONE_COLOR[summary.verdict.tone]}"><strong>${esc(summary.verdict.label)}</strong></p>` : ''}
     <table>
       <thead><tr><th>Kulut</th><th class="num">Tarjouspyyntö</th><th class="num">Toteutunut</th><th class="num">Ero</th></tr></thead>
       <tbody>

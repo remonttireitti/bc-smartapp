@@ -84,7 +84,6 @@ export default function WorkReportBillingQuotePanel({
   /** Syöttökenttien luonnokset; null = näytä laskettu arvo. */
   const [commissionPercentDraft, setCommissionPercentDraft] = useState<string | null>(null);
   const [commissionAmountDraft, setCommissionAmountDraft] = useState<string | null>(null);
-  const [expanded, setExpanded] = useState(() => billingQuoteHasData(initialSettings));
   const [commissionEditOpen, setCommissionEditOpen] = useState(false);
   const [quoteData, setQuoteData] = useState<unknown>(null);
 
@@ -92,7 +91,6 @@ export default function WorkReportBillingQuotePanel({
     setSettings(parseBillingQuoteSettings(initialSettings));
     setCommissionPercentDraft(null);
     setCommissionAmountDraft(null);
-    if (billingQuoteHasData(initialSettings)) setExpanded(true);
   }, [initialSettings]);
 
   useEffect(() => {
@@ -462,41 +460,7 @@ export default function WorkReportBillingQuotePanel({
 
   return (
     <div className="billing-margin-panel">
-      <div className="billing-margin-header">
-        <button
-          type="button"
-          className="billing-margin-toggle"
-          onClick={() => setExpanded((open) => !open)}
-          aria-expanded={expanded}
-        >
-          <strong>Tarjous ja kate</strong>
-          {partnerMargin ? (
-            <span className="billing-margin-headline">
-              {' '}
-              · puhdas kate {formatEuro(partnerMargin.netMarginNet)}
-              {customerBillableGrandTotal && customerBillableGrandTotal.extrasTotal > 0.005 ? (
-                <>
-                  {' '}
-                  · asiakkaalta {formatEuro(customerBillableGrandTotal.grandTotal)}
-                </>
-              ) : null}
-            </span>
-          ) : customerBillableGrandTotal ? (
-            <span className="billing-margin-headline">
-              {' '}
-              · asiakkaalta {formatEuro(customerBillableGrandTotal.grandTotal)}
-            </span>
-          ) : settings.customer_mode === 'quote_fixed' && settings.customer_invoice_total ? (
-            <span className="billing-margin-headline">
-              {' '}
-              · kiinteä asiakashinta {formatEuro(settings.customer_invoice_total)}
-            </span>
-          ) : null}
-        </button>
-      </div>
-
-      {expanded ? (
-        <div className="billing-margin-body">
+      <div className="billing-margin-body">
           {!quoteIsLinked && !readOnly ? (
             <div className="form-grid billing-margin-form">
               <label className="form-field">
@@ -602,6 +566,15 @@ export default function WorkReportBillingQuotePanel({
             </p>
           ) : null}
 
+          {customerBillableGrandTotal
+          && customerBillableGrandTotal.extrasTotal > 0.005
+          && !outcomeSummary?.hasMargin ? (
+            <p className="billing-quote-linked-summary">
+              Asiakkaalta laskutettava yhteensä{' '}
+              <strong>{formatEuro(customerBillableGrandTotal.grandTotal)}</strong>
+            </p>
+          ) : null}
+
           {renderExtrasMarginLines()}
 
           {renderCategoryEntries()}
@@ -624,8 +597,7 @@ export default function WorkReportBillingQuotePanel({
           ) : null}
 
           {error ? <p className="error">{error}</p> : null}
-        </div>
-      ) : null}
+      </div>
     </div>
   );
 }
