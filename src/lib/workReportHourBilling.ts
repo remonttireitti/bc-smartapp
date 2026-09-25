@@ -24,6 +24,25 @@ export const HOUR_BILLING_MODE_LABELS: Record<HourBillingMode, string> = {
   all_regular: 'Kaikki normaalihintaisina',
 };
 
+/**
+ * Tiivis yhteenveto tuntien laskutustavasta (suljettu rivi raportilla), esim.
+ * "Manuaalinen (syötetyt tuntityypit)" tai "Kumppani: … · Asiakas: …", jos tavat eroavat.
+ */
+export function hourBillingModeSummary(
+  settings: HourBillingSettings,
+  options: { showPartner: boolean; showCustomer: boolean },
+): string {
+  const partner = HOUR_BILLING_MODE_LABELS[settings.partner_mode] ?? HOUR_BILLING_MODE_LABELS.manual;
+  const customer = HOUR_BILLING_MODE_LABELS[settings.customer_mode] ?? HOUR_BILLING_MODE_LABELS.manual;
+  if (options.showPartner && options.showCustomer) {
+    return settings.partner_mode === settings.customer_mode
+      ? partner
+      : `Kumppani: ${partner} · Asiakas: ${customer}`;
+  }
+  if (options.showCustomer) return customer;
+  return partner;
+}
+
 const DEFAULT_SETTINGS: HourBillingSettings = {
   partner_mode: 'manual',
   customer_mode: 'manual',

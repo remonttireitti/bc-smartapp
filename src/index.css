@@ -17064,3 +17064,43 @@ button.tool-booking-cal-day {
   .quote-outcome-verdict { display: block; border-radius: 0.65rem; }
   .quote-outcome-verdict-sub { display: block; margin-top: 0.15rem; }
 }
+
+/* ---- Tuntien laskutustapa: tiivis, oletuksena suljettu rivi ---- */
+.work-report-hour-billing-collapsible {
+  padding-top: 0.6rem;
+  padding-bottom: 0.6rem;
+}
+
+.work-report-hour-billing-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem;
+  cursor: pointer;
+  list-style: none;
+  font-size: 0.92rem;
+  color: var(--text-muted);
+}
+
+.work-report-hour-billing-summary::-webkit-details-marker {
+  display: none;
+}
+
+.work-report-hour-billing-summary-label {
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.work-report-hour-billing-caret {
+  margin-left: 0.35rem;
+  color: var(--link);
+  transition: transform 0.15s ease;
+}
+
+.work-report-hour-billing-collapsible[open] .work-report-hour-billing-caret {
+  transform: rotate(90deg);
+}
+
+.work-report-hour-billing-body {
+  margin-top: 0.65rem;
+}
