@@ -35,9 +35,9 @@ assert.equal(formatSignedEuro(264.7, formatEuro).replace(/\s/g, ' '), '+264,70 �
 assert.equal(formatSignedEuro(-264.7, formatEuro).replace(/\s/g, ' '), '−264,70 €');
 assert.equal(formatSignedEuro(0.001, formatEuro).replace(/\s/g, ' '), '0,00 €');
 assert.equal(verdictFor(264.7, formatEuro).tone, 'better');
-assert.match(verdictFor(264.7, formatEuro).label, /^Meni arviota paremmin \+264,70/);
-assert.match(verdictFor(-12, formatEuro).label, /^Meni arviota huonommin −12,00/);
-assert.equal(verdictFor(0, formatEuro).label, 'Meni arvion mukaan');
+assert.match(verdictFor(264.7, formatEuro).label, /^Meni tarjouspyyntöä paremmin \+264,70/);
+assert.match(verdictFor(-12, formatEuro).label, /^Meni tarjouspyyntöä huonommin −12,00/);
+assert.equal(verdictFor(0, formatEuro).label, 'Meni tarjouspyynnön mukaan');
 assert.equal(verdictFor(null, formatEuro), null);
 
 // --- Messukeskus-fixture
@@ -151,14 +151,17 @@ assert.equal(summary.rows.find((r) => r.key === 'expenses').tone, 'better');
 assert.equal(summary.netMarginNet, 1140.7);
 assert.equal(summary.verdict.tone, 'better');
 assert.match(summary.verdict.label, /paremmin \+264,70/);
-assert.match(outcomeVarianceExplanation(summary, formatEuro), /^Kulut 264,70\s€ arviota pienemmät$/);
+assert.match(outcomeVarianceExplanation(summary, formatEuro), /^Kulut 264,70\s€ tarjouspyyntöä pienemmät$/);
 
 // --- Sisäinen tuloste: sama yhteenveto
 const html = renderQuoteOutcomeSummaryHtml(summary, { escapeHtml: (v) => v, formatEuro, quoteTitle: 'Messukeskus' });
 assert.match(html, /Kiinteä tarjoushinta/);
-assert.match(html, /Meni arviota paremmin \+264,70/);
+assert.match(html, /Meni tarjouspyyntöä paremmin \+264,70/);
 assert.match(html, /2\s?210,00/);
 assert.match(html, /Puhdas kate/);
+assert.match(html, /<th class="num">Tarjouspyyntö<\/th>/);
+assert.match(html, /Tarjouspyyntö 2\s?210,00/);
+assert.doesNotMatch(html, /Arvio|arvio/);
 assert.match(html, /#15803d/);
 
 // --- Toteutuneet rivit summautuvat aina katteeseen ("Muut kate-erät")

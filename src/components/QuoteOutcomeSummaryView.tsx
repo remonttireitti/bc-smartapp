@@ -45,7 +45,7 @@ function ComparisonTile({
       <div className="quote-outcome-tile-title">{title}</div>
       <div className="quote-outcome-tile-values">
         <div>
-          <span className="quote-outcome-tile-label">Arvio</span>
+          <span className="quote-outcome-tile-label">Tarjouspyyntö</span>
           <span className="quote-outcome-tile-value">{money(comparison.estimateNet)}</span>
         </div>
         <div>
@@ -59,7 +59,7 @@ function ComparisonTile({
           <span className="quote-outcome-tile-hint"> · {hint}</span>
         </div>
       ) : (
-        <div className="quote-outcome-tile-diff muted">Ei tarjousarviota vertailuun</div>
+        <div className="quote-outcome-tile-diff muted">Ei tarjouspyyntöä vertailuun</div>
       )}
     </div>
   );
@@ -99,13 +99,13 @@ export default function QuoteOutcomeSummaryView({
           <ComparisonTile
             title="Kulut"
             comparison={summary.costs}
-            hint={summary.costs.tone === 'worse' ? 'yli arvion' : summary.costs.tone === 'better' ? 'alle arvion' : 'arvion mukaan'}
+            hint={summary.costs.tone === 'worse' ? 'yli tarjouspyynnön' : summary.costs.tone === 'better' ? 'alle tarjouspyynnön' : 'tarjouspyynnön mukaan'}
           />
           {gross ? (
             <ComparisonTile
               title="Kate ennen provisiota"
               comparison={gross}
-              hint={gross.tone === 'worse' ? 'alle arvion' : gross.tone === 'better' ? 'yli arvion' : 'arvion mukaan'}
+              hint={gross.tone === 'worse' ? 'alle tarjouspyynnön' : gross.tone === 'better' ? 'yli tarjouspyynnön' : 'tarjouspyynnön mukaan'}
             />
           ) : null}
         </div>
@@ -126,7 +126,7 @@ export default function QuoteOutcomeSummaryView({
           <thead>
             <tr>
               <th>Kulut</th>
-              <th className="num">Arvio</th>
+              <th className="num">{'Tarjous\u00ADpyyntö'}</th>
               <th className="num">Toteutunut</th>
               <th className="num">Ero</th>
             </tr>
