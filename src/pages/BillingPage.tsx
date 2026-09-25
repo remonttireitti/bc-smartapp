@@ -313,6 +313,7 @@ export default function BillingPage({ session }: Props) {
           Number(row.billable?.partner_total ?? 0) > 0.005
           && ((row.billable?.calculation as { byUser?: unknown[] } | null | undefined)?.byUser?.length ?? 0) > 0,
         calculation: row.billable?.calculation,
+        partnerTotal: row.billable?.partner_total,
       })),
     );
 
@@ -422,7 +423,9 @@ export default function BillingPage({ session }: Props) {
   async function recalcPartnerRow(reportId: string) {
     setRecalculatingIds((prev) => new Set(prev).add(reportId));
     try {
-      await ensurePartnerBillableCalculated(supabase, reportId, profile?.company_id);
+      // Käyttäjän painallus: laske aina uudelleen, myös jos raportti on merkitty
+      // laskutetuksi vanhalla summalla (laskutettu summa säilyy).
+      await ensurePartnerBillableCalculated(supabase, reportId, profile?.company_id, { force: true });
       await refreshBillingRow(reportId);
     } catch (recalcError) {
       console.error('Kumppanilaskelman päivitys epäonnistui:', reportId, recalcError);
@@ -554,6 +557,7 @@ export default function BillingPage({ session }: Props) {
     let billedTotal = 0;
     let openWork = 0;
     let openMaterials = 0;
+    let openCommission = 0;
     let openCount = 0;
     let billedCount = 0;
     const periodAnchor = new Date();
@@ -578,9 +582,11 @@ export default function BillingPage({ session }: Props) {
           const ratio = openAmount / breakdown.total;
           openWork += breakdown.work * ratio;
           openMaterials += breakdown.materials * ratio;
+          openCommission += breakdown.commission * ratio;
         } else {
           openWork += breakdown.work;
           openMaterials += breakdown.materials;
+          openCommission += breakdown.commission;
         }
         openCount += 1;
       }
@@ -609,6 +615,7 @@ export default function BillingPage({ session }: Props) {
       billedTotal,
       openWork,
       openMaterials,
+      openCommission,
       openDeductions,
       openCount,
       billedCount,
@@ -1074,6 +1081,9 @@ export default function BillingPage({ session }: Props) {
               {moduleEnabled && (
                 <p className="billing-stat-meta">
                   Työ {formatEuro(summary.openWork)} • Kulut / urakat {formatEuro(summary.openMaterials)}
+                  {summary.openCommission > 0.005
+                    ? ` • Provisio ${formatEuro(summary.openCommission)}`
+                    : ''}
                   {summary.openDeductions > 0.005
                     ? ` • Vähennykset −${formatEuro(summary.openDeductions)}`
                     : ''}
@@ -1606,6 +1616,12 @@ function BillingReportCard({
                 <dt>Kulut / urakat</dt>
                 <dd>{formatEuro(breakdown.materials)}</dd>
               </div>
+              {breakdown.commission > 0.005 && (
+                <div>
+                  <dt>Provisio</dt>
+                  <dd>{formatEuro(breakdown.commission)}</dd>
+                </div>
+              )}
               <div className="billing-report-total">
                 <dt>{amounts.state === 'partial' ? 'Avoinna' : 'Yhteensä'}</dt>
                 <dd>
