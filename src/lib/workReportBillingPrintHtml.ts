@@ -3,6 +3,7 @@ import { formatEuro } from './workReportBilling';
 import { BILLABLE_RATES_SOURCE_LABELS } from './management';
 import {
   computePartnerNetMargin,
+  formatPartnerMarginDeductionAmount,
   parseBillingQuoteSettings,
   renderBillingQuotePurchaseLinesHtml,
   type BillingQuoteSettings,
@@ -135,11 +136,20 @@ export function generatePartnerBillingHtml(input: {
     <tbody>
       <tr><td>Tarjoushinta (alv 0 %)</td><td class="num">${formatEuro(partnerMargin.quoteSaleNet)}</td></tr>
       ${partnerMargin.customerExtrasNet > 0.005 ? `<tr><td>Lisälaskutus asiakkaalta</td><td class="num">+ ${formatEuro(partnerMargin.customerExtrasNet)}</td></tr>` : ''}
-      <tr><td>Työ ja ajot (kumppani)</td><td class="num">− ${formatEuro(partnerMargin.installationLaborTravelNet)}</td></tr>
-      <tr><td>Hankinta (tarjous / tarvikkeet)</td><td class="num">− ${formatEuro(partnerMargin.effectiveMaterialCostNet)}</td></tr>
-      ${partnerMargin.marginEatingExpenseNet > 0.005 ? `<tr><td>Katetta syövät kulut</td><td class="num">− ${formatEuro(partnerMargin.marginEatingExpenseNet)}</td></tr>` : ''}
-      ${partnerMargin.partnerPiikkiPurchaseNet > 0.005 ? `<tr><td>Kumppanin tililtä hankitut</td><td class="num">− ${formatEuro(partnerMargin.partnerPiikkiPurchaseNet)}</td></tr>` : ''}
-      ${partnerMargin.piikkiMaterialCostNet > 0.005 ? `<tr><td>Lisätilauksen hankintakulut</td><td class="num">− ${formatEuro(partnerMargin.piikkiMaterialCostNet)}</td></tr>` : ''}
+      ${partnerMargin.deductionRows
+        .map(
+          (row) =>
+            `<tr><td>${escapeHtml(row.label)}${
+              row.details?.length
+                ? `<div class="meta">${row.details
+                    .map((d) => `${escapeHtml(d.description)} ${formatEuro(d.total)}`)
+                    .join(' · ')}</div>`
+                : ''
+            }</td><td class="num">${formatPartnerMarginDeductionAmount(row.amount)}</td></tr>`,
+        )
+        .join('')}
+      <tr><td><strong>Kate ennen provisiota</strong></td><td class="num"><strong>${formatEuro(partnerMargin.grossMarginNet)}</strong></td></tr>
+      <tr><td>Provisio (${String(partnerMargin.commissionPercent).replace('.', ',')} %)</td><td class="num">− ${formatEuro(partnerMargin.commissionNet)}</td></tr>
       <tr><td><strong>Puhdas kate</strong></td><td class="num"><strong>${formatEuro(partnerMargin.netMarginNet)}</strong></td></tr>
     </tbody>
   </table>

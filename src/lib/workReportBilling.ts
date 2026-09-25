@@ -686,18 +686,28 @@ export function breakdownFromBillableCalculation(calc: BillableCalculation): {
 }
 
 /** Tarjouslinkitetyn katelaskennan jako: työ+ajot vs. kumppanille laskutetut tarvikkeet. */
+/**
+ * Kumppanilaskutuksen jako kate-laskentaa varten.
+ * Provisiorivit (kind 'commission', esim. päiväkirjan Myyntiprovisio €) EIVÄT ole
+ * kustannus: ne palautetaan erikseen `commission`-kenttään, jotta provisio ei
+ * vähene katteesta kahdesti (kuluna + provisiona).
+ */
 export function breakdownPartnerBillingForQuoteMargin(calc: BillableCalculation): {
   laborTravel: number;
   billedMaterials: number;
+  commission: number;
 } {
   let laborTravel = 0;
   let billedMaterials = 0;
+  let commission = 0;
   for (const user of calc.byUser) {
     for (const line of user.lines) {
       if (!line.included) continue;
       const amount = billableLineDisplayTotal(line);
       if (BILLABLE_HOUR_KINDS.has(line.kind) || isTripKmBillableLine(line)) {
         laborTravel += amount;
+      } else if (line.kind === 'commission') {
+        commission += amount;
       } else if (BILLABLE_MATERIAL_KINDS.has(line.kind)) {
         billedMaterials += amount;
       }
@@ -706,6 +716,7 @@ export function breakdownPartnerBillingForQuoteMargin(calc: BillableCalculation)
   return {
     laborTravel: Math.round(laborTravel * 100) / 100,
     billedMaterials: Math.round(billedMaterials * 100) / 100,
+    commission: Math.round(commission * 100) / 100,
   };
 }
 

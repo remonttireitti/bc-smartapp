@@ -87,6 +87,36 @@ export function expenseCountsAsWorkReportPurchase(
   return unit > 0;
 }
 
+function isTripKmExpense(expense: NonNullable<WorkReportDailyLog['expense_lines']>[number]): boolean {
+  return (
+    expense.expense_type === 'km'
+    && /^Ajomatkat\s*\(/i.test(String(expense.description ?? '').trim())
+  );
+}
+
+/**
+ * Summa, jolla kulurivi on mukana päiväkirjan tarvikehankinnassa
+ * (analyzeWorkReportPurchaseCosts → työraportin "Tarvikkeet"-hankintarivi).
+ * 0 = riviä ei lasketa tarvikkeisiin. Samaa sääntöä käytetään kate-laskennassa,
+ * ettei sama tarvike vähenny kahdesti (tarvikkeet + katetta syövät kulut).
+ */
+export function expenseDiarySuppliesTotal(
+  expense: NonNullable<WorkReportDailyLog['expense_lines']>[number],
+  extraBilling?: { extra_billable: boolean; extra_billing_allowed: boolean },
+): { total: number; qty: number; unit: number; missing: boolean } {
+  const none = { total: 0, qty: 0, unit: 0, missing: false };
+  if (isTripKmExpense(expense)) return none;
+  if (!expenseCountsAsWorkReportPurchase(expense, extraBilling)) return none;
+  const qty = Number(expense.qty) || 0;
+  if (!(qty > 0)) return none;
+  const { unit, missing } = resolveExpenseLinePurchase(expense);
+  if (missing) return { ...none, missing: true };
+  if (unit == null || !(unit > 0)) return none;
+  const total = lineTotal(qty, unit);
+  if (total <= 0.005) return none;
+  return { total, qty, unit, missing: false };
+}
+
 /** Työraportin päiväkirjasta kirjatut hankintakulut (tarvikkeet + piikki). */
 export function analyzeWorkReportPurchaseCosts(
   logs: WorkReportDailyLog[],
@@ -101,37 +131,22 @@ export function analyzeWorkReportPurchaseCosts(
 
     for (let index = 0; index < expenseLines.length; index++) {
       const expense = expenseLines[index];
-      if (
-        expense.expense_type === 'km'
-        && /^Ajomatkat\s*\(/i.test(String(expense.description ?? '').trim())
-      ) {
-        continue;
-      }
-
       const extraBilling = resolveLogExpenseExtraBillingFlags(expense, index, expenseLines, supplyLineFlags);
-      if (!expenseCountsAsWorkReportPurchase(expense, extraBilling)) continue;
-
-      const qty = Number(expense.qty) || 0;
-      if (!(qty > 0)) continue;
-
-      const { unit, missing } = resolveExpenseLinePurchase(expense);
-      if (missing) {
+      const supply = expenseDiarySuppliesTotal(expense, extraBilling);
+      if (supply.missing) {
         purchasePricesMissing = true;
         continue;
       }
-      if (unit == null || !(unit > 0)) continue;
-
-      const total = lineTotal(qty, unit);
-      if (total <= 0.005) continue;
+      if (supply.total <= 0.005) continue;
 
       lines.push({
         key: `expense:${log.id}:${expense.id ?? expense.description}`,
         logId: log.id,
         logDate,
         description: String(expense.description ?? '').trim() || 'Tarvike',
-        qty,
-        purchaseUnit: unit,
-        total,
+        qty: supply.qty,
+        purchaseUnit: supply.unit,
+        total: supply.total,
         source: 'expense',
       });
     }

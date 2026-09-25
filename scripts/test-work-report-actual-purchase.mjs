@@ -136,8 +136,13 @@ const wartilaMargin = computePartnerNetMargin(wartilaMerged, 3131.5, {
   logs: wartilaLogs,
   partnerRates: { hourly_regular: 50 },
 });
-assert.ok(wartilaMargin.netMarginNet < 10000);
-assert.ok(wartilaMargin.netMarginNet > 6000);
+// Kate ennen provisiota (provisio 50 % lisättiin #81:ssä → puhdas kate = puolet).
+assert.ok(wartilaMargin.grossMarginNet < 10000);
+assert.ok(wartilaMargin.grossMarginNet > 6000);
+assert.equal(
+  wartilaMargin.netMarginNet,
+  Math.round((wartilaMargin.grossMarginNet - wartilaMargin.commissionNet) * 100) / 100,
+);
 assert.equal(wartilaMargin.marginEatingExpenseNet, 0);
 
 const approvedExtraLogs = [

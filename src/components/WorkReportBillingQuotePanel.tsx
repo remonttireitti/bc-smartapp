@@ -3,6 +3,7 @@ import {
   billingQuoteHasData,
   computePartnerNetMargin,
   DEFAULT_PARTNER_COMMISSION_PERCENT,
+  formatPartnerMarginDeductionAmount,
   formatUrakkaOutcomeSummary,
   normalizeBillingQuoteSettings,
   parseBillingQuoteSettings,
@@ -143,6 +144,7 @@ export default function WorkReportBillingQuotePanel({
       partnerCalculation?.ratesUsed,
       customerCalculation?.ratesUsed,
       customerCalculation?.quoteExtrasTotal,
+      partnerCalculation,
     ],
   );
   const categoryComparison = useMemo(
@@ -198,7 +200,6 @@ export default function WorkReportBillingQuotePanel({
     ? 'Asiakkaalta laskutettava (sis. alv)'
     : 'Asiakkaalta laskutettava (alv 0 %)';
 
-  const purchaseLines = effectiveSettings.purchase_lines ?? [];
   const quotePurchaseTotal = resolveQuotePurchaseTotal(effectiveSettings);
   const actualPurchaseTotal = resolveActualPurchaseTotal(effectiveSettings);
   const linkedQuotePurchaseTotal =
@@ -214,16 +215,6 @@ export default function WorkReportBillingQuotePanel({
     && displayPurchaseTotal > 0
       ? roundMoney(displayCustomerPrice - displayPurchaseTotal)
       : null;
-  const devicePurchaseLines = purchaseLines.filter((line) => line.source === 'device');
-  const suppliesPurchaseLines = purchaseLines.filter((line) => line.source !== 'device');
-  const deviceActualTotal = devicePurchaseLines.reduce(
-    (sum, line) => sum + line.actual_purchase_net,
-    0,
-  );
-  const suppliesActualTotal = suppliesPurchaseLines.reduce(
-    (sum, line) => sum + line.actual_purchase_net,
-    0,
-  );
   const showSeparateCustomerTotal =
     quoteHasVat(effectiveSettings.quote_vat_rate)
     || effectiveSettings.customer_mode === 'quote_plus_extras'
@@ -613,35 +604,21 @@ export default function WorkReportBillingQuotePanel({
                     </tr>
                   ) : null}
 
-                  {(() => {
-                    const laborRow = categoryComparison?.rows.find((row) => row.key === 'labor');
-                    const expensesRow = categoryComparison?.rows.find((row) => row.key === 'expenses');
-                    const laborActual = laborRow?.actualNet ?? 0;
-                    const expensesActual = expensesRow?.actualNet ?? 0;
-                    const hasActualLaborOrExpenses = laborActual > 0.005 || expensesActual > 0.005;
-                    const laborTravelTotal = hasActualLaborOrExpenses
-                      ? roundMoney(laborActual + expensesActual)
-                      : partnerMargin.installationLaborTravelNet;
-                    if (laborTravelTotal <= 0.005) return null;
-                    return (
-                      <tr>
-                        <td>Työ ja kulut</td>
-                        <td className="num">− {formatEuro(laborTravelTotal)}</td>
-                      </tr>
-                    );
-                  })()}
-                  {deviceActualTotal > 0.005 ? (
-                    <tr>
-                      <td>Laite</td>
-                      <td className="num">− {formatEuro(deviceActualTotal)}</td>
+                  {partnerMargin.deductionRows.map((row) => (
+                    <tr key={row.key}>
+                      <td>
+                        {row.label}
+                        {row.details && row.details.length > 0 ? (
+                          <div className="muted billing-margin-impact-note">
+                            {row.details
+                              .map((detail) => `${detail.description} ${formatEuro(detail.total)}`)
+                              .join(' · ')}
+                          </div>
+                        ) : null}
+                      </td>
+                      <td className="num">{formatPartnerMarginDeductionAmount(row.amount)}</td>
                     </tr>
-                  ) : null}
-                  {suppliesActualTotal > 0.005 ? (
-                    <tr>
-                      <td>Tarvikkeet</td>
-                      <td className="num">− {formatEuro(suppliesActualTotal)}</td>
-                    </tr>
-                  ) : null}
+                  ))}
 
                   <tr className="billing-margin-subtotal">
                     <td>

@@ -34,6 +34,7 @@ import {
 import {
   billingQuoteHasData,
   computePartnerNetMargin,
+  formatPartnerMarginDeductionAmount,
   customerUsesQuoteBasedBilling,
   parseBillingQuoteSettings,
   quoteHasVat,
@@ -379,10 +380,6 @@ function basicNetMarginPrintSection(
   );
 }
 
-function roundMoney(value: number): number {
-  return Math.round(value * 100) / 100;
-}
-
 function quoteMarginPrintSection(
   billingQuote: BillingQuoteSettings,
   partnerCalculation: BillableCalculation | null,
@@ -432,16 +429,6 @@ function quoteMarginPrintSection(
   });
 
   const purchaseLines = billingQuote.purchase_lines ?? [];
-  const deviceActualTotal = roundMoney(
-    purchaseLines
-      .filter((line) => line.source === 'device')
-      .reduce((sum, line) => sum + line.actual_purchase_net, 0),
-  );
-  const suppliesActualTotal = roundMoney(
-    purchaseLines
-      .filter((line) => line.source !== 'device')
-      .reduce((sum, line) => sum + line.actual_purchase_net, 0),
-  );
 
   const rows: string[] = [];
   if (billingQuote.quote_title?.trim()) {
@@ -470,59 +457,20 @@ function quoteMarginPrintSection(
       );
     }
 
-    const laborRow = categoryComparison?.rows.find((row) => row.key === 'labor');
-    const expensesRow = categoryComparison?.rows.find((row) => row.key === 'expenses');
-    const laborActual = laborRow?.actualNet ?? 0;
-    const expensesActual = expensesRow?.actualNet ?? 0;
-
-    if (laborActual > 0.005) {
+    for (const row of partnerMargin.deductionRows) {
+      const detail = row.details?.length
+        ? `<div class="muted">${row.details
+            .map((d) => `${esc(d.description)} ${formatEuro(d.total)}`)
+            .join(' · ')}</div>`
+        : '';
       rows.push(
-        `<tr><td>Työt (vähennetään katteesta)</td><td class="num">− ${formatEuro(laborActual)}</td></tr>`,
+        `<tr><td>${esc(row.label)}${detail}</td><td class="num">${formatPartnerMarginDeductionAmount(row.amount)}</td></tr>`,
       );
     }
-    if (expensesActual > 0.005) {
-      rows.push(
-        `<tr><td>Kulut (vähennetään katteesta)</td><td class="num">− ${formatEuro(expensesActual)}</td></tr>`,
-      );
-    }
-    if (laborActual <= 0.005 && expensesActual <= 0.005 && partnerMargin.installationLaborTravelNet > 0.005) {
-      rows.push(
-        `<tr><td>Työ ja kulut (vähennetään katteesta)</td><td class="num">− ${formatEuro(partnerMargin.installationLaborTravelNet)}</td></tr>`,
-      );
-    }
-    if (deviceActualTotal > 0.005) {
-      rows.push(
-        `<tr><td>Laite (toteutunut hankinta)</td><td class="num">− ${formatEuro(deviceActualTotal)}</td></tr>`,
-      );
-    }
-    if (suppliesActualTotal > 0.005) {
-      rows.push(
-        `<tr><td>Tarvikkeet (toteutunut, päiväkirja)</td><td class="num">− ${formatEuro(suppliesActualTotal)}</td></tr>`,
-      );
-    }
-    const partnerBilledMaterials = roundMoney(
-      partnerMargin.effectiveMaterialCostNet - deviceActualTotal - suppliesActualTotal,
+    rows.push(
+      `<tr><td><strong>Kate ennen provisiota</strong></td><td class="num"><strong>${formatEuro(partnerMargin.grossMarginNet)}</strong></td></tr>`,
+      `<tr><td>Provisio (${String(partnerMargin.commissionPercent).replace('.', ',')} %)</td><td class="num">− ${formatEuro(partnerMargin.commissionNet)}</td></tr>`,
     );
-    if (partnerBilledMaterials > 0.005) {
-      rows.push(
-        `<tr><td>Kumppanille laskutetut tarvikkeet</td><td class="num">− ${formatEuro(partnerBilledMaterials)}</td></tr>`,
-      );
-    }
-    if (partnerMargin.marginEatingExpenseNet > 0.005) {
-      rows.push(
-        `<tr><td>Katetta syövät kulut (ei lisälaskutusta)</td><td class="num">− ${formatEuro(partnerMargin.marginEatingExpenseNet)}</td></tr>`,
-      );
-    }
-    if (partnerMargin.partnerPiikkiPurchaseNet > 0.005) {
-      rows.push(
-        `<tr><td>Kumppanin tililtä hankitut</td><td class="num">− ${formatEuro(partnerMargin.partnerPiikkiPurchaseNet)}</td></tr>`,
-      );
-    }
-    if (partnerMargin.piikkiMaterialCostNet > 0.005) {
-      rows.push(
-        `<tr><td>Lisätilauksen hankintakulut</td><td class="num">− ${formatEuro(partnerMargin.piikkiMaterialCostNet)}</td></tr>`,
-      );
-    }
     rows.push(
       `<tr class="profit-row"><td><strong>Puhdas kate</strong></td><td class="num"><strong>${formatEuro(partnerMargin.netMarginNet)}</strong></td></tr>`,
     );
