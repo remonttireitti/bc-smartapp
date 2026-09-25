@@ -2225,6 +2225,26 @@ export default function WorkReportDetailPage({ session }: Props) {
     };
   }
 
+  /**
+   * Tarjous ja kate -paneelin hinnat tallennettu (tarjousta ei kohdistettu): päivitä kate/provisio,
+   * kumppanilaskelma (partner_total) ja asiakaslaskelma kuten muissa billing_quote-muutoksissa.
+   * Laskutetut summat (partner_billed_amount ym.) säilyvät persist-logiikassa ennallaan.
+   */
+  async function handleBillingQuotePricesSaved(next: BillingQuoteSettings) {
+    if (!report) return;
+    setBillingQuoteSettings(next);
+    const isDelegatedOrder =
+      !!report.delegate_company_id && report.created_by_company_id === report.owner_company_id;
+    const partnerReport =
+      report.created_by_company_id !== report.owner_company_id || isDelegatedOrder;
+    if (partnerReport && canPersistPartnerBillable(report, profile?.company_id)) {
+      await refreshBillable(report, dailyLogs, { viewerCompanyId: profile?.company_id });
+    }
+    if (customerBillableCalculation || report.owner_company_id === profile?.company_id) {
+      await refreshCustomerBillable(report, dailyLogs, { billingQuote: next });
+    }
+  }
+
   async function persistBillingAfterLogChange(reportRow: WorkReport) {
     const isDelegatedOrder =
       !!reportRow.delegate_company_id && reportRow.created_by_company_id === reportRow.owner_company_id;
@@ -3436,6 +3456,7 @@ export default function WorkReportDetailPage({ session }: Props) {
               </span>
             ) : null
           }
+          workReportId={report.id}
           customerId={report.customer_id}
           ownerCompanyId={report.owner_company_id}
           installationCostNet={billableCalculation?.grandTotal ?? null}
@@ -3448,6 +3469,7 @@ export default function WorkReportDetailPage({ session }: Props) {
           readOnly={!showOutgoingPartnerBilling && !canManageCustomerBillingRates}
           onRecordQuoteLine={canAddDailyLogs ? recordQuoteLine : undefined}
           onOpenDevice={canAddDailyLogs ? openDeviceForm : undefined}
+          onSaved={handleBillingQuotePricesSaved}
         />
         </div>
       ) : null}

@@ -4,6 +4,7 @@ import {
   computePartnerNetMargin,
   normalizeBillingQuoteSettings,
   parseBillingQuoteSettings,
+  saveBillingQuotePrices,
   quoteHasVat,
   resolveActualPurchaseTotal,
   resolveCustomerBillableGrandTotal,
@@ -17,6 +18,12 @@ import {
   type QuoteLineEntry,
 } from '../lib/quoteLineEntries';
 import { extractQuotePurchaseLines } from '../lib/quotePurchaseLines';
+import {
+  billingQuotePriceDraftFromSettings,
+  billingQuotePricesChanged,
+  billingQuotePricesFromDraft,
+  type BillingQuotePriceDraft,
+} from '../lib/billingQuotePriceDraft';
 import { mergeActualPurchaseFromWorkReportLogs } from '../lib/quoteRequestActualPurchaseSync';
 import { compareQuoteCategories } from '../lib/quoteCategoryComparison';
 import { buildQuoteOutcomeSummary } from '../lib/quoteOutcomeSummary';
@@ -37,6 +44,8 @@ import type { WorkReportDailyLog } from '../types';
 import { supabase } from '../lib/supabase';
 
 type Props = {
+  /** Hintakenttien tallennus (tarjousta ei kohdistettu). */
+  workReportId: string;
   customerId: string | null | undefined;
   ownerCompanyId: string | null | undefined;
   installationCostNet: number | null;
@@ -47,6 +56,8 @@ type Props = {
   tripKmRate?: number | null;
   showPartnerMargin?: boolean;
   readOnly?: boolean;
+  /** Hinnat tallennettu → sivu päivittää billing_quoten ja laskelmat (kate, provisio, partner_total). */
+  onSaved?: (settings: BillingQuoteSettings) => void | Promise<void>;
   /** "Avaa tarjous · Vaihda tarjous · Poista kohdistus" tarjouksen nimen perään. */
   quoteLinkActions?: ReactNode;
   /** "Kirjaa toteutunut" tarjouspyynnön riviltä → avaa esitäytetyn työkirjauksen. */
@@ -67,19 +78,8 @@ const RECORD_LABELS: Record<Exclude<QuoteLineEntry['action'], 'device'>, string>
   trip: 'Kirjaa ajo',
 };
 
-function parseMoneyInput(value: string): number | null {
-  const normalized = value.trim().replace(/\s/g, '').replace(',', '.');
-  if (!normalized) return null;
-  const parsed = Number(normalized);
-  return Number.isFinite(parsed) ? parsed : null;
-}
-
-function moneyInputValue(value: number | null | undefined): string {
-  if (value == null || !Number.isFinite(value)) return '';
-  return String(value);
-}
-
 export default function WorkReportBillingQuotePanel({
+  workReportId,
   customerId: _customerId,
   ownerCompanyId: _ownerCompanyId,
   installationCostNet,
@@ -90,6 +90,7 @@ export default function WorkReportBillingQuotePanel({
   tripKmRate = null,
   showPartnerMargin = false,
   readOnly = false,
+  onSaved,
   quoteLinkActions = null,
   onRecordQuoteLine,
   onOpenDevice,
@@ -98,9 +99,19 @@ export default function WorkReportBillingQuotePanel({
     parseBillingQuoteSettings(initialSettings),
   );
   const [quoteData, setQuoteData] = useState<unknown>(null);
+  /** Tarjoushinta / asiakashinta -luonnos; laskelma päivittyy vasta tallennuksen jälkeen. */
+  const [priceDraft, setPriceDraft] = useState<BillingQuotePriceDraft>(() =>
+    billingQuotePriceDraftFromSettings(parseBillingQuoteSettings(initialSettings)),
+  );
+  const [priceBusy, setPriceBusy] = useState(false);
+  const [priceStatus, setPriceStatus] = useState<{ kind: 'saved' | 'error'; message: string } | null>(
+    null,
+  );
 
   useEffect(() => {
-    setSettings(parseBillingQuoteSettings(initialSettings));
+    const parsed = parseBillingQuoteSettings(initialSettings);
+    setSettings(parsed);
+    setPriceDraft(billingQuotePriceDraftFromSettings(parsed));
   }, [initialSettings]);
 
   useEffect(() => {
@@ -233,6 +244,45 @@ export default function WorkReportBillingQuotePanel({
       && effectiveSettings.quote_sale_net != null
       && Math.abs(effectiveSettings.customer_invoice_total - effectiveSettings.quote_sale_net) > 0.01
     );
+
+  const priceParse = billingQuotePricesFromDraft(priceDraft, {
+    separateCustomerTotal: showSeparateCustomerTotal,
+  });
+  const savedPriceDraft = billingQuotePriceDraftFromSettings(settings);
+  const priceDirty =
+    priceDraft.saleNet.trim() !== savedPriceDraft.saleNet
+    || (showSeparateCustomerTotal && priceDraft.customerTotal.trim() !== savedPriceDraft.customerTotal);
+
+  async function savePrices() {
+    if (priceBusy) return;
+    if ('error' in priceParse) {
+      setPriceStatus({ kind: 'error', message: priceParse.error });
+      return;
+    }
+    if (!billingQuotePricesChanged(priceParse.value, settings)) {
+      setPriceDraft(savedPriceDraft);
+      return;
+    }
+    setPriceBusy(true);
+    setPriceStatus(null);
+    try {
+      const next = await saveBillingQuotePrices(supabase, workReportId, priceParse.value);
+      await onSaved?.(next);
+      setPriceStatus({ kind: 'saved', message: 'Tallennettu' });
+    } catch (err) {
+      setPriceStatus({
+        kind: 'error',
+        message: err instanceof Error ? err.message : 'Tallennus epäonnistui',
+      });
+    } finally {
+      setPriceBusy(false);
+    }
+  }
+
+  function updatePriceDraft(patch: Partial<BillingQuotePriceDraft>) {
+    setPriceDraft((prev) => ({ ...prev, ...patch }));
+    setPriceStatus(null);
+  }
 
   function renderCategoryEntries() {
     if (categoryEntries.length === 0) return null;
@@ -407,7 +457,15 @@ export default function WorkReportBillingQuotePanel({
     <div className="billing-margin-panel">
       <div className="billing-margin-body">
           {!quoteIsLinked && !readOnly ? (
-            <div className="form-grid billing-margin-form">
+            <div
+              className="form-grid billing-margin-form"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && (e.target as HTMLElement).tagName === 'INPUT') {
+                  e.preventDefault();
+                  void savePrices();
+                }
+              }}
+            >
               <label className="form-field">
                 <span>
                   {showSeparateCustomerTotal
@@ -417,16 +475,9 @@ export default function WorkReportBillingQuotePanel({
                 <input
                   type="text"
                   inputMode="decimal"
-                  value={moneyInputValue(settings.quote_sale_net)}
-                  onChange={(e) => {
-                    const parsed = parseMoneyInput(e.target.value);
-                    setSettings((prev) => ({
-                      ...prev,
-                      quote_sale_net: parsed,
-                      customer_invoice_total:
-                        showSeparateCustomerTotal ? prev.customer_invoice_total : parsed,
-                    }));
-                  }}
+                  value={priceDraft.saleNet}
+                  disabled={priceBusy}
+                  onChange={(e) => updatePriceDraft({ saleNet: e.target.value })}
                 />
               </label>
 
@@ -436,13 +487,9 @@ export default function WorkReportBillingQuotePanel({
                   <input
                     type="text"
                     inputMode="decimal"
-                    value={moneyInputValue(settings.customer_invoice_total)}
-                    onChange={(e) =>
-                      setSettings((prev) => ({
-                        ...prev,
-                        customer_invoice_total: parseMoneyInput(e.target.value),
-                      }))
-                    }
+                    value={priceDraft.customerTotal}
+                    disabled={priceBusy}
+                    onChange={(e) => updatePriceDraft({ customerTotal: e.target.value })}
                   />
                   <span className="muted field-hint">
                     Sisältää ALV:n tai lisälaskutuksen, jos eri kuin tarjoushinta.
@@ -453,6 +500,43 @@ export default function WorkReportBillingQuotePanel({
                   Asiakkaalta laskutetaan sama kiinteä summa kuin tarjoushinta (alv 0 %).
                 </p>
               )}
+
+              {priceDirty || priceBusy || priceStatus ? (
+                <div className="span-2 billing-margin-save-row">
+                  {priceDirty || priceBusy ? (
+                    <>
+                      <button
+                        type="button"
+                        className="btn btn-primary btn-sm"
+                        disabled={priceBusy}
+                        onClick={() => void savePrices()}
+                      >
+                        {priceBusy ? 'Tallennetaan…' : 'Tallenna'}
+                      </button>
+                      {!priceBusy ? (
+                        <button
+                          type="button"
+                          className="btn-link"
+                          onClick={() => {
+                            setPriceDraft(savedPriceDraft);
+                            setPriceStatus(null);
+                          }}
+                        >
+                          Peru
+                        </button>
+                      ) : null}
+                    </>
+                  ) : null}
+                  {priceStatus ? (
+                    <span
+                      className={priceStatus.kind === 'error' ? 'error' : 'muted billing-margin-saved'}
+                      role={priceStatus.kind === 'error' ? 'alert' : 'status'}
+                    >
+                      {priceStatus.kind === 'saved' ? `✓ ${priceStatus.message}` : priceStatus.message}
+                    </span>
+                  ) : null}
+                </div>
+              ) : null}
             </div>
           ) : null}
 
@@ -524,23 +608,6 @@ export default function WorkReportBillingQuotePanel({
           {renderExtrasMarginLines()}
 
           {renderCategoryEntries()}
-
-          {!readOnly ? (
-            <label className="form-field">
-              <span>Huomio kumppanille</span>
-              <input
-                type="text"
-                value={settings.notes ?? ''}
-                onChange={(e) => setSettings((prev) => ({ ...prev, notes: e.target.value }))}
-                placeholder="Esim. hankintakorjaus"
-              />
-            </label>
-          ) : settings.notes?.trim() ? (
-            <p className="billing-margin-formula">
-              <strong>Huomio:</strong> {settings.notes.trim()}
-            </p>
-          ) : null}
-
       </div>
     </div>
   );
