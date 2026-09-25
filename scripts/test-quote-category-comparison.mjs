@@ -136,7 +136,10 @@ assert.equal(labor.actualNet, 2000);
 const expenses = comparison.rows.find((row) => row.key === 'expenses');
 assert.ok(expenses);
 assert.equal(expenses.quoteQty, 750);
-assert.equal(expenses.quoteNet, 487.5);
+// 750 km × 0,65 = 487,50 + huoltoautokorvaus (48 h → 6 jaksoa × 50 €) = 300 → 787,50
+// (sama sisäinen kulu kuin tarjouksen "Hankinta"-summassa).
+assert.equal(expenses.quoteNet, 787.5);
+assert.match(expenses.quoteNote ?? '', /huoltoautokorvaus 300,00/);
 assert.equal(expenses.actualNet, 345);
 
 const supplies = comparison.rows.find((row) => row.key === 'supplies');

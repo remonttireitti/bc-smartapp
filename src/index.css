@@ -16828,3 +16828,238 @@ button.tool-booking-cal-day {
 .public-booking-page {
   max-width: 1100px;
 }
+
+/* ---- Tarjous ja kate: yhteenveto (arvio vs toteutunut) ---- */
+.quote-outcome {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.quote-outcome-card {
+  display: grid;
+  gap: 0.75rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 0.65rem;
+  background: var(--bg-surface, #fff);
+}
+
+.quote-outcome-price {
+  display: grid;
+  gap: 0.1rem;
+}
+
+.quote-outcome-price-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.quote-outcome-price-label .muted {
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 400;
+}
+
+.quote-outcome-price-value {
+  font-size: 1.9rem;
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+}
+
+.quote-outcome-price-sub {
+  font-size: 0.85rem;
+}
+
+.quote-outcome-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: 0.65rem;
+}
+
+.quote-outcome-tile {
+  display: grid;
+  gap: 0.45rem;
+  padding: 0.7rem 0.85rem;
+  border: 1px solid var(--border);
+  border-left-width: 4px;
+  border-radius: 0.55rem;
+  background: var(--bg-muted);
+}
+
+.quote-outcome-tile.quote-outcome-tone-better { border-left-color: var(--success); }
+.quote-outcome-tile.quote-outcome-tone-worse { border-left-color: var(--danger); }
+.quote-outcome-tile.quote-outcome-tone-neutral { border-left-color: var(--border-strong); }
+
+.quote-outcome-tile-title {
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.quote-outcome-tile-values {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+}
+
+.quote-outcome-tile-values > div {
+  display: grid;
+  gap: 0.05rem;
+}
+
+.quote-outcome-tile-label {
+  font-size: 0.78rem;
+  color: var(--text-subtle);
+}
+
+.quote-outcome-tile-value {
+  font-size: 1.25rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.quote-outcome-tile-diff {
+  font-size: 0.95rem;
+}
+
+.quote-outcome-tile-diff strong {
+  font-size: 1.15rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.quote-outcome-tile-hint {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.quote-outcome-tone-better.quote-outcome-tile-diff strong,
+.quote-outcome-variance.quote-outcome-tone-better { color: var(--success); }
+.quote-outcome-tone-worse.quote-outcome-tile-diff strong,
+.quote-outcome-variance.quote-outcome-tone-worse { color: var(--danger); }
+
+.quote-outcome-verdict {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.35rem 0.6rem;
+  padding: 0.55rem 0.85rem;
+  border-radius: 999px;
+  font-size: 1.05rem;
+  justify-self: start;
+}
+
+.quote-outcome-verdict.quote-outcome-tone-better { background: #dcfce7; color: #14532d; }
+.quote-outcome-verdict.quote-outcome-tone-worse { background: #fee2e2; color: #7f1d1d; }
+.quote-outcome-verdict.quote-outcome-tone-neutral { background: var(--bg-subtle); color: var(--text-secondary); }
+
+.quote-outcome-verdict-icon {
+  font-size: 0.85rem;
+  margin-right: 0.3rem;
+}
+
+.quote-outcome-verdict-sub {
+  font-size: 0.88rem;
+  opacity: 0.85;
+}
+
+.quote-outcome-table {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.quote-outcome-table td {
+  vertical-align: top;
+}
+
+.quote-outcome-row-label {
+  display: block;
+}
+
+.quote-outcome-row-sub {
+  display: block;
+  margin-top: 0.1rem;
+  font-size: 0.8rem;
+  color: var(--text-subtle);
+}
+
+.quote-outcome-variance {
+  font-weight: 600;
+}
+
+.quote-outcome-subtotal td {
+  font-weight: 700;
+  background: var(--bg-muted);
+}
+
+.quote-outcome-margin-row td {
+  border-top-width: 2px;
+  font-size: 1rem;
+}
+
+.quote-outcome-margin-row .quote-outcome-row-label {
+  font-weight: 700;
+}
+
+.quote-outcome-commission-edit-row td {
+  padding-top: 0.25rem;
+  background: var(--bg-muted);
+}
+
+.quote-outcome-net-row td {
+  border-top-width: 2px;
+  font-size: 1.2rem;
+  font-weight: 800;
+  background: #f0fdf4;
+}
+
+.quote-outcome-commission-edit summary {
+  cursor: pointer;
+  color: var(--link);
+  font-size: 0.88rem;
+}
+
+.quote-outcome-commission-edit.is-inactive summary {
+  color: var(--text-subtle);
+}
+
+.quote-outcome-commission-fields {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.5rem 0.75rem;
+  margin-top: 0.5rem;
+}
+
+.quote-outcome-commission-fields .form-field {
+  margin: 0;
+  width: 9.5rem;
+}
+
+.quote-outcome-commission-fields input:disabled {
+  background: var(--bg-inset);
+  color: var(--text-subtle);
+}
+
+.quote-outcome-commission-note {
+  margin: 0.4rem 0 0;
+  font-size: 0.8rem;
+}
+
+@media (max-width: 560px) {
+  .billing-margin-panel { padding: 0.7rem 0.6rem; }
+  .quote-outcome-card { padding: 0.75rem 0.7rem; }
+  .quote-outcome-price-value { font-size: 1.6rem; }
+  .quote-outcome-table { font-size: 0.76rem; }
+  .quote-outcome-table th,
+  .quote-outcome-table td { padding: 0.35rem 0.3rem; }
+  .quote-outcome-table .quote-outcome-row-sub { font-size: 0.7rem; }
+  .quote-outcome-margin-row td { font-size: 0.82rem; }
+  .quote-outcome-net-row td { font-size: 0.95rem; }
+  .quote-outcome-verdict { display: block; border-radius: 0.65rem; }
+  .quote-outcome-verdict-sub { display: block; margin-top: 0.15rem; }
+}

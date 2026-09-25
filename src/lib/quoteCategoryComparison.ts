@@ -4,6 +4,8 @@ import {
   compareQuoteInstallationToWorkReport,
   type InstallationComparison,
 } from './quoteInstallationComparison';
+import { normalizeQuoteRequestData } from './quoteRequest/defaults';
+import { installationVehiclePurchaseNet } from './quoteRequest/installationSupplies';
 import type { BillableCalculation } from './workReportBilling';
 import type { BillingQuoteSettings } from './workReportBillingQuote';
 import type { WorkReportDailyLog } from '../types';
@@ -18,6 +20,8 @@ export type QuoteCategoryRow = {
   quoteNet: number;
   actualNet: number;
   varianceNet: number;
+  /** Lyhyt selite tarjousarviolle (esim. "sis. huoltoautokorvaus 50 €"). */
+  quoteNote?: string | null;
 };
 
 export type QuoteCategoryComparison = {
@@ -123,6 +127,9 @@ export function compareQuoteCategories(input: {
   const suppliesActual = sumPurchaseLines(purchaseLines, 'actual_purchase_net', false);
   const deviceQuote = sumPurchaseLines(purchaseLines, 'quote_purchase_net', true);
   const deviceActual = sumPurchaseLines(purchaseLines, 'actual_purchase_net', true);
+  // Huoltoautokorvaus on tarjouksen sisäinen kulu (sama kuin tarjouksen "Hankinta"):
+  // vertaillaan Kulut-kategoriassa toteutuneisiin ajoihin.
+  const vehicleQuote = roundMoney(installationVehiclePurchaseNet(normalizeQuoteRequestData(input.quoteData)));
 
   const rows: QuoteCategoryRow[] = [
     buildCategoryRow('labor', 'Työt', labor.quoteQty, labor.actualQty, labor.quoteNet, labor.actualNet),
@@ -134,14 +141,20 @@ export function compareQuoteCategories(input: {
       suppliesQuote,
       suppliesActual,
     ),
-    buildCategoryRow(
-      'expenses',
-      'Kulut (ajot ja muut)',
-      expenses.quoteQty,
-      expenses.actualQty,
-      expenses.quoteNet,
-      expenses.actualNet,
-    ),
+    {
+      ...buildCategoryRow(
+        'expenses',
+        'Kulut (ajot ja muut)',
+        expenses.quoteQty,
+        expenses.actualQty,
+        expenses.quoteNet + vehicleQuote,
+        expenses.actualNet,
+      ),
+      quoteNote:
+        vehicleQuote > 0.005
+          ? `sis. huoltoautokorvaus ${vehicleQuote.toFixed(2).replace('.', ',')} €`
+          : null,
+    },
     buildCategoryRow('device', 'Laite', null, null, deviceQuote, deviceActual),
   ].filter(
     (row) =>
