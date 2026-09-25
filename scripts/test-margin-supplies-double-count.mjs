@@ -13,10 +13,13 @@ import { calculateWorkReportBillable } from '../src/lib/workReportBilling.ts';
 import { computePartnerNetMargin } from '../src/lib/workReportBillingQuote.ts';
 import { mergeActualPurchaseFromWorkReportLogs } from '../src/lib/quoteRequestActualPurchaseSync.ts';
 import { createEmptyQuoteRequestData } from '../src/lib/quoteRequest/defaults.ts';
-import {
-  computePartnerTotalWithQuoteCommission,
-  resolvePartnerTotalWithCommission,
-} from '../src/lib/workReportPartnerTotal.ts';
+import { applyQuoteCommissionToPartnerCalculation } from '../src/lib/workReportPartnerTotal.ts';
+
+/** refreshAndPersistPartnerBillable-polku: partner_total = calculation.grandTotal. */
+function computePartnerTotalWithQuoteCommission({ billingQuote, logs, calculation }) {
+  const applied = applyQuoteCommissionToPartnerCalculation({ billingQuote, logs, calculation });
+  return { partnerTotal: applied.calculation.grandTotal, partnerMargin: applied.partnerMargin };
+}
 
 const quoteData = {
   ...createEmptyQuoteRequestData('huolto'),
@@ -256,7 +259,6 @@ for (const [shape, extra] of Object.entries(supplyShapes)) {
   assert.equal(margin.commissionNet, 500);
   assert.equal(margin.netMarginNet, 1537.1);
   assertRowsSumToGross(margin, 'manual-commission');
-  assert.equal(resolvePartnerTotalWithCommission(partnerCalculation, margin.commissionNet), 940.3);
   const persisted = computePartnerTotalWithQuoteCommission({
     billingQuote: savedBillingQuote,
     logs,

@@ -74,6 +74,11 @@ export type BillingQuoteSettings = {
    * Ei vaikuta asiakaslaskutukseen.
    */
   partner_commission_percent?: number | null;
+  /**
+   * Kumppanin provisio summana € alv 0 %. Kun asetettu (ei null), provisio = tämä summa
+   * ja % lasketaan siitä (summa / kate ennen provisiota). null → prosenttitila.
+   */
+  partner_commission_amount?: number | null;
 };
 
 export type BillingQuoteOption = {
@@ -138,8 +143,17 @@ export type PartnerMarginComputed = {
   partnerCostsNet: number;
   /** Kate ennen kumppaniprovisiota. */
   grossMarginNet: number;
-  /** Käytetty provisio-% (0–100). */
+  /** Käytetty (efektiivinen) provisio-% — summatilassa laskettu summasta. */
   commissionPercent: number;
+  /** Asetuksissa oleva provisio-% (oletus 50). */
+  configuredCommissionPercent: number;
+  /**
+   * Mistä provisio tulee: päiväkirjan Myyntiprovisio € (voittaa), sovittu summa
+   * (partner_commission_amount) tai prosentti.
+   */
+  commissionSource: 'daily_log' | 'amount' | 'percent';
+  /** Provisio on suurempi kuin (positiivinen) kate ennen provisiota. */
+  commissionExceedsGross: boolean;
   /** Provisio € alv 0 % (max(0, gross) * %). */
   commissionNet: number;
   /** Puhdas kate provision jälkeen (= gross − commission). */
@@ -161,6 +175,26 @@ export function resolvePartnerCommissionPercent(
   if (n < 0) return 0;
   if (n > 100) return 100;
   return n;
+}
+
+/** Provisio €: finite → max(0, arvo) pyöristettynä; muuten null (prosenttitila). */
+function normalizePartnerCommissionAmount(value: unknown): number | null {
+  if (value == null || value === '') return null;
+  const n = Number(value);
+  if (!Number.isFinite(n)) return null;
+  return roundMoney(Math.max(0, n));
+}
+
+/** Sovittu provisiosumma € tai null (prosenttitila). */
+export function resolvePartnerCommissionAmount(
+  settings: BillingQuoteSettings | null | undefined,
+): number | null {
+  return normalizePartnerCommissionAmount(settings?.partner_commission_amount);
+}
+
+/** Provisio-% suomalaisittain: 49.09 → "49,09". */
+export function formatCommissionPercent(value: number): string {
+  return String(roundMoney(value)).replace('.', ',');
 }
 
 function normalizePartnerCommissionPercent(
@@ -249,6 +283,7 @@ export function parseBillingQuoteSettings(raw: unknown): BillingQuoteSettings {
     partner_commission_percent: normalizePartnerCommissionPercent(
       record.partner_commission_percent as number | null | undefined,
     ),
+    partner_commission_amount: normalizePartnerCommissionAmount(record.partner_commission_amount),
   };
   return normalizeBillingQuoteSettings(settings);
 }
@@ -269,6 +304,7 @@ export function normalizeBillingQuoteSettings(settings: BillingQuoteSettings): B
     partner_commission_percent: normalizePartnerCommissionPercent(
       settings.partner_commission_percent,
     ),
+    partner_commission_amount: normalizePartnerCommissionAmount(settings.partner_commission_amount),
   };
 
   if (lines.length > 0) {
@@ -577,15 +613,30 @@ export function computePartnerNetMargin(
     ? sumDailyCommission(options.logs)
     : 0;
   const hasManualCommission = manualCommissionTotal > 0.005;
-  const commissionNet = hasManualCommission
-    ? roundMoney(manualCommissionTotal)
-    : roundMoney(Math.max(0, grossMarginNet) * (commissionPercent / 100));
+  const configuredAmount = resolvePartnerCommissionAmount(settings);
+  const commissionSource: PartnerMarginComputed['commissionSource'] = hasManualCommission
+    ? 'daily_log'
+    : configuredAmount != null
+      ? 'amount'
+      : 'percent';
+  const commissionNet =
+    commissionSource === 'daily_log'
+      ? roundMoney(manualCommissionTotal)
+      : commissionSource === 'amount'
+        ? roundMoney(configuredAmount ?? 0)
+        : roundMoney(Math.max(0, grossMarginNet) * (commissionPercent / 100));
   const netMarginNet = roundMoney(grossMarginNet - commissionNet);
 
-  // When commission is manual, show effective % instead of the configured %
-  const displayCommissionPercent = hasManualCommission && grossMarginNet > 0.005
-    ? roundMoney((commissionNet / grossMarginNet) * 100)
-    : commissionPercent;
+  // Päiväkirja- ja summatilassa näytetään efektiivinen % (provisio / kate ennen provisiota).
+  const displayCommissionPercent =
+    commissionSource === 'percent'
+      ? commissionPercent
+      : grossMarginNet > 0.005
+        ? roundMoney((commissionNet / grossMarginNet) * 100)
+        : commissionSource === 'daily_log'
+          ? commissionPercent
+          : 0;
+  const commissionExceedsGross = commissionNet > Math.max(0, grossMarginNet) + 0.005;
 
   return {
     quoteSaleNet: roundMoney(quoteSaleNet),
@@ -606,6 +657,9 @@ export function computePartnerNetMargin(
     partnerCostsNet,
     grossMarginNet,
     commissionPercent: displayCommissionPercent,
+    configuredCommissionPercent: commissionPercent,
+    commissionSource,
+    commissionExceedsGross,
     commissionNet,
     netMarginNet,
   };
@@ -641,6 +695,9 @@ export function billingQuoteFromQuoteRow(
   );
 
   const previousCommission = options?.previous?.partner_commission_percent;
+  const previousCommissionAmount = normalizePartnerCommissionAmount(
+    options?.previous?.partner_commission_amount,
+  );
   const base: BillingQuoteSettings = {
     quote_request_id: quoteId,
     quote_title: quoteTitle,
@@ -663,6 +720,7 @@ export function billingQuoteFromQuoteRow(
       previousCommission != null && Number.isFinite(Number(previousCommission))
         ? normalizePartnerCommissionPercent(previousCommission)
         : DEFAULT_PARTNER_COMMISSION_PERCENT,
+    partner_commission_amount: previousCommissionAmount,
   };
   return normalizeBillingQuoteSettings(base);
 }
@@ -736,6 +794,34 @@ export async function saveBillingQuoteSettings(
     calculation: {},
   });
   if (upsertError) throw new Error(upsertError.message);
+}
+
+/**
+ * Tallentaa vain provisioasetukset (% tai €) työraportin billing_quote-JSONiin.
+ * Muut tarjousasetukset luetaan kannasta, jotta niitä ei ylikirjoiteta.
+ * amount != null → summatila; amount == null → prosenttitila.
+ */
+export async function saveBillingQuoteCommission(
+  supabase: SupabaseClient,
+  workReportId: string,
+  commission: { percent: number | null; amount: number | null },
+): Promise<BillingQuoteSettings> {
+  const { data, error } = await supabase
+    .from('work_report_billable')
+    .select('billing_quote')
+    .eq('work_report_id', workReportId)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  const current = parseBillingQuoteSettings(
+    (data as { billing_quote?: unknown } | null)?.billing_quote ?? {},
+  );
+  const next = normalizeBillingQuoteSettings({
+    ...current,
+    partner_commission_percent: commission.percent,
+    partner_commission_amount: commission.amount,
+  });
+  await saveBillingQuoteSettings(supabase, workReportId, next);
+  return next;
 }
 
 /** Täydentää billing_quote quote_requests.work_report_id -linkistä, jos rivi puuttuu. */
@@ -898,7 +984,7 @@ export function formatPartnerMarginLines(
   );
   if (computed.commissionNet > 0.005 || computed.commissionPercent > 0) {
     lines.push(
-      `Provisio (${computed.commissionPercent} %): − ${formatEuro(computed.commissionNet)}`,
+      `Provisio (${formatCommissionPercent(computed.commissionPercent)} %): − ${formatEuro(computed.commissionNet)}`,
     );
   }
   lines.push(`Puhdas kate (provision jälkeen): ${formatEuro(computed.netMarginNet)}`);

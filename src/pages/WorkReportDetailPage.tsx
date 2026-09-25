@@ -3017,6 +3017,11 @@ export default function WorkReportDetailPage({ session }: Props) {
           tripKmRate={tripKmRate}
           showPartnerMargin={!!showOutgoingPartnerBilling}
           readOnly={!showOutgoingPartnerBilling && !canManageCustomerBillingRates}
+          onSaved={(next) => {
+            setBillingQuoteSettings(next);
+            // Provisio muuttui → päivitä kumppanilaskelma (automaattinen provisiorivi + partner_total).
+            void refreshBillable(report, dailyLogs, { viewerCompanyId: profile?.company_id });
+          }}
         />
         </div>
       ) : null}

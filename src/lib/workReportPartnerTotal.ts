@@ -1,57 +1,71 @@
 import type { WorkReportDailyLog } from '../types';
-import { breakdownPartnerBillingForQuoteMargin, type BillableCalculation } from './workReportBilling';
+import {
+  mergeAutoPartnerCommission,
+  stripAutoPartnerCommission,
+  type BillableCalculation,
+} from './workReportBilling';
 import {
   billingQuoteHasData,
   computePartnerNetMargin,
+  formatCommissionPercent,
   normalizeBillingQuoteSettings,
   parseBillingQuoteSettings,
   type PartnerMarginComputed,
 } from './workReportBillingQuote';
 import { mergeActualPurchaseFromWorkReportLogs } from './quoteRequestActualPurchaseSync';
 
-function roundMoney(value: number): number {
-  return Math.round(value * 100) / 100;
+/** Automaattisen provisiorivin teksti kumppanilaskulla. */
+export function autoPartnerCommissionDescription(margin: PartnerMarginComputed): string {
+  const pct = formatCommissionPercent(margin.commissionPercent);
+  if (margin.commissionSource === 'amount') {
+    return `Provisio (sovittu summa, ${pct} % puhtaasta katteesta)`;
+  }
+  return `Provisio ${pct} % puhtaasta katteesta`;
+}
+
+function latestLogDate(logs: WorkReportDailyLog[]): string | undefined {
+  const dates = logs
+    .map((log) => String(log.log_date ?? '').slice(0, 10))
+    .filter(Boolean)
+    .sort();
+  return dates[dates.length - 1];
 }
 
 /**
- * Kumppanille laskutettava = kumppanin kustannukset (työ + kulut, ilman provisiorivejä)
- * + provisio. Jos laskelmassa on jo päiväkirjan provisiorivi (Myyntiprovisio €),
- * se korvataan commissionNet:llä eikä lisätä toiseen kertaan.
- * Ei vaikuta asiakaslaskutukseen.
+ * Lisää kumppanilaskelmaan automaattisen provisiorivin (kind 'commission'), kun
+ * työraporttiin on liitetty laskutustarjous. partner_total = calculation.grandTotal
+ * (kustannukset + provisio) — yksi mekanismi, ei erillistä summakorjausta.
+ *
+ * - Päiväkirjan Myyntiprovisio € (commission_amount > 0) on provisio: automaattista
+ *   riviä ei lisätä (mergeAutoPartnerCommission poistaa sen).
+ * - Ei vaikuta asiakaslaskutukseen.
  */
-export function resolvePartnerTotalWithCommission(
-  calculation: BillableCalculation,
-  commissionNet: number,
-): number {
-  const commissionInCalculation = breakdownPartnerBillingForQuoteMargin(calculation).commission;
-  return roundMoney(calculation.grandTotal - commissionInCalculation + commissionNet);
-}
-
-/**
- * partner_total työraportille: ilman laskutustarjousta = calculation.grandTotal,
- * tarjouksen kanssa = kustannukset + provisio (computePartnerNetMargin).
- */
-export function computePartnerTotalWithQuoteCommission(input: {
+export function applyQuoteCommissionToPartnerCalculation(input: {
   billingQuote: unknown;
   logs: WorkReportDailyLog[];
   calculation: BillableCalculation;
-}): { partnerTotal: number; partnerMargin: PartnerMarginComputed | null } {
+}): { calculation: BillableCalculation; partnerMargin: PartnerMarginComputed | null } {
+  const base = stripAutoPartnerCommission(input.calculation);
   const parsed = normalizeBillingQuoteSettings(parseBillingQuoteSettings(input.billingQuote));
   if (!billingQuoteHasData(parsed)) {
-    return { partnerTotal: input.calculation.grandTotal, partnerMargin: null };
+    return { calculation: base, partnerMargin: null };
   }
   const effectiveSettings = mergeActualPurchaseFromWorkReportLogs(parsed, input.logs, null);
-  const partnerMargin = computePartnerNetMargin(effectiveSettings, input.calculation.grandTotal, {
+  const partnerMargin = computePartnerNetMargin(effectiveSettings, base.grandTotal, {
     logs: input.logs,
-    partnerRates: input.calculation.ratesUsed,
+    partnerRates: base.ratesUsed,
     customerRates: undefined,
-    partnerCalculation: input.calculation,
+    partnerCalculation: base,
   });
   if (!partnerMargin) {
-    return { partnerTotal: input.calculation.grandTotal, partnerMargin: null };
+    return { calculation: base, partnerMargin: null };
   }
-  return {
-    partnerTotal: resolvePartnerTotalWithCommission(input.calculation, partnerMargin.commissionNet),
-    partnerMargin,
-  };
+  const calculation = mergeAutoPartnerCommission(base, {
+    amount: partnerMargin.commissionNet,
+    percent: partnerMargin.commissionPercent,
+    note: autoPartnerCommissionDescription(partnerMargin),
+    logs: input.logs,
+    logDate: latestLogDate(input.logs),
+  });
+  return { calculation, partnerMargin };
 }

@@ -851,18 +851,83 @@ export function extraBillingMarginApprovalDelta(line: ExtraBillingMarginImpactLi
   return roundMoney(line.marginIfApprovedNet - line.currentMarginImpactNet);
 }
 
+/**
+ * Provision vaikutus "kate jos hyväksytään" -arvioon.
+ * - percent: provisio = max(0, kate ennen provisiota) × % → lisäkatteesta jää puhtaaseen
+ *   katteeseen (1 − %/100).
+ * - fixed: provisio on kiinteä summa (sovittu € tai päiväkirjan Myyntiprovisio) →
+ *   koko lisäkate menee puhtaaseen katteeseen.
+ */
+export type ExtraBillingCommissionContext = {
+  grossMarginNet: number;
+  mode: 'percent' | 'fixed';
+  /** percent-tilassa käytetty %. */
+  percent: number;
+  /** fixed-tilassa provisio €. */
+  fixedCommissionNet?: number | null;
+};
+
+/** Rakentaa provisiokontekstin computePartnerNetMargin-tuloksesta. */
+export function extraBillingCommissionContextFromMargin(
+  margin: {
+    grossMarginNet: number;
+    commissionNet: number;
+    commissionPercent: number;
+    commissionSource?: 'daily_log' | 'amount' | 'percent';
+  } | null | undefined,
+): ExtraBillingCommissionContext | null {
+  if (!margin) return null;
+  if (margin.commissionSource === 'amount' || margin.commissionSource === 'daily_log') {
+    return {
+      grossMarginNet: margin.grossMarginNet,
+      mode: 'fixed',
+      percent: margin.commissionPercent,
+      fixedCommissionNet: margin.commissionNet,
+    };
+  }
+  return {
+    grossMarginNet: margin.grossMarginNet,
+    mode: 'percent',
+    percent: margin.commissionPercent,
+  };
+}
+
+function netMarginAfterCommission(grossMarginNet: number, ctx: ExtraBillingCommissionContext): number {
+  if (ctx.mode === 'fixed') {
+    return roundMoney(grossMarginNet - (Number(ctx.fixedCommissionNet) || 0));
+  }
+  const pct = Math.min(100, Math.max(0, Number(ctx.percent) || 0));
+  return roundMoney(grossMarginNet - roundMoney(Math.max(0, grossMarginNet) * (pct / 100)));
+}
+
 export function computeProjectedNetMarginIfLineApproved(
   currentNetMarginNet: number,
   line: ExtraBillingMarginImpactLine,
+  commission?: ExtraBillingCommissionContext | null,
 ): number {
   if (line.status === 'approved') return roundMoney(currentNetMarginNet);
-  return roundMoney(currentNetMarginNet + extraBillingMarginApprovalDelta(line));
+  const delta = extraBillingMarginApprovalDelta(line);
+  if (!commission) return roundMoney(currentNetMarginNet + delta);
+  return netMarginAfterCommission(roundMoney(commission.grossMarginNet + delta), commission);
+}
+
+/** Selite "kate jos hyväksytään" -sarakkeelle provisiotilan mukaan. */
+export function extraBillingCommissionNote(
+  commission: ExtraBillingCommissionContext | null | undefined,
+): string | null {
+  if (!commission) return null;
+  if (commission.mode === 'fixed') {
+    return 'Provisio on kiinteä summa — koko lisäkate siirtyy puhtaaseen katteeseen.';
+  }
+  const pct = String(roundMoney(commission.percent)).replace('.', ',');
+  return `Puhdas kate luvan kanssa provision (${pct} %) jälkeen.`;
 }
 
 export function formatExtraBillingMarginImpactCell(
   line: ExtraBillingMarginImpactLine,
   formatMoney: (value: number) => string,
   currentNetMarginNet?: number | null,
+  commission?: ExtraBillingCommissionContext | null,
 ): ExtraBillingMarginImpactCell {
   if (line.status === 'approved') {
     return {
@@ -871,10 +936,16 @@ export function formatExtraBillingMarginImpactCell(
       approved: formatMoney(line.marginIfApprovedNet),
     };
   }
-  const projectedNetMargin =
-    currentNetMarginNet != null
-      ? computeProjectedNetMarginIfLineApproved(currentNetMarginNet, line)
-      : extraBillingMarginApprovalDelta(line);
+  let projectedNetMargin: number;
+  if (currentNetMarginNet != null) {
+    projectedNetMargin = computeProjectedNetMarginIfLineApproved(currentNetMarginNet, line, commission);
+  } else {
+    const delta = extraBillingMarginApprovalDelta(line);
+    projectedNetMargin =
+      commission?.mode === 'percent'
+        ? roundMoney(delta * (1 - Math.min(100, Math.max(0, commission.percent)) / 100))
+        : delta;
+  }
   return {
     withoutPermission: null,
     withPermission: formatMoney(projectedNetMargin),
