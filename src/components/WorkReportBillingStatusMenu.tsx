@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
 
 import PartnerBillWorkflowDialog from './PartnerBillWorkflowDialog';
+import { IconBilled, IconInvoiceOpen } from './icons';
 import {
   applyPartnerBillWorkflowChoice,
   billingCustomerState,
   billingPartnerState,
   billingPartnerStatusLabel,
-  canManageIncomingPartnerBilling,
+  canManageCustomerBillingStatus,
+  canManagePartnerBillingStatus,
   loadBillingCopyText,
   loadBillingPrintShareLink,
   markCustomerReportBilled,
@@ -20,7 +22,7 @@ import {
   type PartnerBillWorkflowChoice,
 } from '../lib/workReportBillingCopy';
 import { supabase } from '../lib/supabase';
-import { type WorkReport, type WorkReportDailyLog } from '../types';
+import { normalizeWorkflowStatus, type WorkReport, type WorkReportDailyLog } from '../types';
 
 type Props = {
   report: WorkReport;
@@ -31,6 +33,8 @@ type Props = {
   onChanged?: () => void;
   onError?: (message: string) => void;
   onNotice?: (message: string) => void;
+  /** 'pill' = raporttinäkymän otsikon tilapilleri (värillinen tilan mukaan). */
+  variant?: 'pill' | 'compact';
 };
 
 function toBillingRow(report: WorkReport): BillingListRow {
@@ -84,18 +88,19 @@ export default function WorkReportBillingStatusMenu({
   onChanged,
   onError,
   onNotice,
+  variant = 'compact',
 }: Props) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [workflowOpen, setWorkflowOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const billingRow = toBillingRow(report);
-  const canManagePartner = canManageIncomingPartnerBilling(billingRow, viewerCompanyId, hasDailyLogs);
-  const canManageCustomer =
-    customerBillingEnabled
-    && viewerCompanyId === report.owner_company_id
-    && report.status !== 'draft'
-    && report.status !== 'delegated';
+  const canManagePartner = canManagePartnerBillingStatus(billingRow, viewerCompanyId, hasDailyLogs);
+  const canManageCustomer = canManageCustomerBillingStatus(
+    billingRow,
+    viewerCompanyId,
+    customerBillingEnabled,
+  );
   const partnerState = canManagePartner ? billingPartnerState(billingRow, dailyLogs) : null;
   const customerState = canManageCustomer ? billingCustomerState(billingRow) : null;
 
@@ -110,6 +115,11 @@ export default function WorkReportBillingStatusMenu({
   }, []);
 
   if (!canManagePartner && !canManageCustomer) return null;
+
+  const customerMarkAllowed = normalizeWorkflowStatus(report.status) === 'completed';
+  const primaryState = canManagePartner ? partnerState : customerState;
+  const pillStateClass =
+    primaryState === 'billed' ? 'billed_partner' : primaryState === 'partial' ? 'in_progress' : 'scheduled';
 
   const triggerLabel =
     canManagePartner && canManageCustomer
@@ -162,6 +172,11 @@ export default function WorkReportBillingStatusMenu({
       setWorkflowOpen(false);
       setOpen(false);
       onChanged?.();
+      onNotice?.(
+        partnerState === 'partial'
+          ? 'Avoin summa merkitty laskutetuksi (kumppani).'
+          : 'Merkitty laskutetuksi (kumppani).',
+      );
     } catch (error) {
       onError?.(error instanceof Error ? error.message : 'Kumppanilaskutuksen merkintä epäonnistui.');
     } finally {
@@ -193,6 +208,7 @@ export default function WorkReportBillingStatusMenu({
       await unmarkPartnerReportBilled(supabase, report.id);
       setOpen(false);
       onChanged?.();
+      onNotice?.('Kumppanilaskutuksen merkintä peruttu — laskutus on taas avoin.');
     } catch (error) {
       onError?.(error instanceof Error ? error.message : 'Kumppanilaskutuksen peruminen epäonnistui.');
     } finally {
@@ -206,6 +222,7 @@ export default function WorkReportBillingStatusMenu({
       await markCustomerReportBilled(supabase, report.id);
       setOpen(false);
       onChanged?.();
+      onNotice?.('Merkitty laskutetuksi asiakkaalta.');
     } catch (error) {
       onError?.(error instanceof Error ? error.message : 'Asiakaslaskutuksen merkintä epäonnistui.');
     } finally {
@@ -220,6 +237,7 @@ export default function WorkReportBillingStatusMenu({
       await unmarkCustomerReportBilled(supabase, report.id);
       setOpen(false);
       onChanged?.();
+      onNotice?.('Asiakaslaskutuksen merkintä peruttu.');
     } catch (error) {
       onError?.(error instanceof Error ? error.message : 'Asiakaslaskutuksen peruminen epäonnistui.');
     } finally {
@@ -232,7 +250,12 @@ export default function WorkReportBillingStatusMenu({
       <div className="toolbar-popover-anchor report-status-menu" ref={rootRef}>
         <button
           type="button"
-          className="btn btn-secondary btn-sm report-status-menu-trigger"
+          className={
+            variant === 'pill'
+              ? `status-badge status-badge-${pillStateClass} report-status-pill-trigger`
+              : 'btn btn-secondary btn-sm report-status-menu-trigger'
+          }
+          title="Laskutuksen tila — merkitse laskutetuksi tai peru merkintä"
           aria-haspopup="menu"
           aria-expanded={open}
           disabled={busy}
@@ -242,8 +265,15 @@ export default function WorkReportBillingStatusMenu({
             setOpen((value) => !value);
           }}
         >
-          {triggerLabel}
-          <span aria-hidden="true"> ▾</span>
+          {variant === 'pill' ? (
+            pillStateClass === 'billed_partner' ? (
+              <IconBilled className="ui-icon status-badge-icon" />
+            ) : (
+              <IconInvoiceOpen className="ui-icon status-badge-icon" />
+            )
+          ) : null}
+          {busy ? 'Tallennetaan…' : triggerLabel}
+          <span aria-hidden="true" className="report-status-caret">▾</span>
         </button>
         {open && (
           <div className="toolbar-popover-panel report-status-menu-panel" role="menu">
@@ -329,14 +359,17 @@ export default function WorkReportBillingStatusMenu({
                     type="button"
                     role="menuitem"
                     className="report-status-menu-item"
-                    disabled={busy}
+                    disabled={busy || !customerMarkAllowed}
+                    title={customerMarkAllowed ? undefined : 'Asiakaslaskutus voidaan merkitä, kun työn tila on Valmis.'}
                     onClick={(event) => {
                       event.preventDefault();
                       event.stopPropagation();
                       void markCustomerBilled();
                     }}
                   >
-                    Merkitse laskutetuksi asiakkaalta
+                    {customerMarkAllowed
+                      ? 'Merkitse laskutetuksi asiakkaalta'
+                      : 'Merkitse laskutetuksi asiakkaalta (kun työ on Valmis)'}
                   </button>
                 )}
                 {customerState === 'billed' && (

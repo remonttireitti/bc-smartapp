@@ -1053,6 +1053,52 @@ a.tile.quote-request-tile:hover {
   background: var(--bg-inset);
 }
 
+.report-status-menu-item:disabled {
+  opacity: .55;
+  cursor: not-allowed;
+}
+
+.report-status-menu-check {
+  display: inline-block;
+  width: 1.1rem;
+  font-weight: 700;
+}
+
+/* Raporttinäkymän otsikon tilapilleri, joka avaa valikon */
+.report-status-pill-trigger {
+  cursor: pointer;
+  font: inherit;
+  font-size: .78rem;
+  font-weight: 600;
+  transition: filter .12s ease, box-shadow .12s ease;
+}
+
+.report-status-pill-trigger:hover:not(:disabled),
+.report-status-pill-trigger[aria-expanded='true'] {
+  filter: brightness(.96);
+  box-shadow: 0 0 0 2px rgba(15, 23, 42, .12);
+}
+
+.report-status-pill-trigger:focus-visible {
+  outline: 2px solid var(--primary, #2563eb);
+  outline-offset: 2px;
+}
+
+.report-status-pill-trigger:disabled {
+  cursor: progress;
+  opacity: .75;
+}
+
+.report-status-caret {
+  margin-left: .15rem;
+  font-size: .7rem;
+  opacity: .8;
+}
+
+.work-report-list-tile-status {
+  align-self: flex-start;
+}
+
 .subscriber-portal-visibility-field label {
   display: flex;
   flex-direction: column;

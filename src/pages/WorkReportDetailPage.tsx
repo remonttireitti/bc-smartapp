@@ -49,6 +49,7 @@ import {
 } from '../lib/workReportHourBilling';
 import WorkReportBillingStatusMenu from '../components/WorkReportBillingStatusMenu';
 import WorkReportStatusBadges from '../components/WorkReportStatusBadges';
+import WorkReportStatusMenu from '../components/WorkReportStatusMenu';
 import { useCompanyCustomerBillingEnabled } from '../hooks/useCompanyCustomerBillingEnabled';
 import { useCompanyBillingModuleEnabled } from '../hooks/useCompanyBillingModuleEnabled';
 import { useCompanyLicense } from '../hooks/useCompanyLicense';
@@ -70,7 +71,8 @@ import {
   type SubscriberPortalVisibility,
 } from '../lib/subscriberPortalVisibility';
 import { workReportDraftCanOpenOnDetail } from '../lib/workReportCreateSections';
-import { buildWorkReportStatusPatch } from '../lib/workReportStatusUpdate';
+import { buildWorkReportStatusPatch, canChangeWorkflowStatus } from '../lib/workReportStatusUpdate';
+import { resolveWorkReportViewerRole } from '../lib/workReportViewerStatus';
 import { canEditWorkReportDescription, canManageWorkReportDailyLogs, buildWorkReportPatchAfterDailyLogAdded } from '../lib/workReportDailyLogs';
 import {
   canAcceptDelegatedWorkOrder,
@@ -134,7 +136,9 @@ import {
   resolveReportContextFromOwner,
 } from '../lib/reportCustomerRegistry';
 import {
+  canManageCustomerBillingStatus,
   canManageIncomingPartnerBilling,
+  canManagePartnerBillingStatus,
   formatBillingAmountSplitLabel,
   hasPartnerBillingActivity,
   isCustomerInvoicePaid,
@@ -1681,6 +1685,26 @@ export default function WorkReportDetailPage({ session }: Props) {
     await load(report.id);
   }
 
+  /** Kevyt päivitys tilavalikon jälkeen: ei koko sivun uudelleenlatausta. */
+  async function refreshStatusAndBilling(reportId: string) {
+    const [{ data: statusRow }, { data: billingRow }] = await Promise.all([
+      supabase.from('work_reports').select('status, completed_at').eq('id', reportId).maybeSingle(),
+      supabase.from('work_report_billing').select('*').eq('work_report_id', reportId).maybeSingle(),
+    ]);
+    if (statusRow) {
+      setReport((current) =>
+        current && current.id === reportId
+          ? {
+              ...current,
+              status: (statusRow as { status: WorkStatus }).status,
+              completed_at: (statusRow as { completed_at: string | null }).completed_at,
+            }
+          : current,
+      );
+    }
+    setBilling((billingRow as WorkReportBilling | null) ?? null);
+  }
+
   async function saveSubscriberPortalVisibility(nextVisibility: SubscriberPortalVisibility) {
     if (!report) return;
     setError(null);
@@ -2717,11 +2741,35 @@ export default function WorkReportDetailPage({ session }: Props) {
         billing?.partner_invoice_status,
       )
     : null;
-  const canManageIncomingPartnerBillingStatus =
+  // Otsikon tilavalikot: työn tila (Tulossa / Työn alla / Valmis) ja laskutuksen tila.
+  const headerViewerRole = resolveWorkReportViewerRole(report, profile?.company_id);
+  const canEditWorkflowStatusInHeader =
+    !portalReadOnly
+    && !!profile?.company_id
+    && headerViewerRole !== 'incoming_partner'
+    && canChangeWorkflowStatus(report.status);
+  const headerBillingReport: WorkReport = {
+    ...report,
+    billing: billing
+      ? {
+          partner_invoice_status: billing.partner_invoice_status,
+          partner_billed_amount: billing.partner_billed_amount,
+          partner_billed_at: billing.partner_billed_at,
+          customer_invoice_status: billing.customer_invoice_status,
+        }
+      : null,
+    billable: {
+      partner_total: billableCalculation?.grandTotal ?? Number(billing?.partner_invoice_amount ?? 0),
+      customer_total:
+        customerBillableCalculation?.grandTotal ?? Number(billing?.customer_invoice_amount ?? 0),
+    },
+  };
+  const canManageHeaderBilling =
     !portalReadOnly
     && !!partnerBillingListRow
     && !!profile?.company_id
-    && canManageIncomingPartnerBilling(partnerBillingListRow, profile.company_id, dailyLogs.length > 0);
+    && (canManagePartnerBillingStatus(partnerBillingListRow, profile.company_id, dailyLogs.length > 0)
+      || canManageCustomerBillingStatus(report, profile.company_id, customerInvoicingEnabled));
   const showCustomerBillingStatus = showCustomerBillingFeatures;
   const canManageCustomerBilling =
     !portalReadOnly
@@ -2836,16 +2884,41 @@ export default function WorkReportDetailPage({ session }: Props) {
             dailyLogs={dailyLogs}
             customerBillingEnabled={customerInvoicingEnabled}
             portalView={portalReadOnly}
+            hideWorkflowBadge={canEditWorkflowStatusInHeader}
+            hideBillingChips={canManageHeaderBilling && headerViewerRole !== 'incoming_partner'}
           />
-          {canManageIncomingPartnerBillingStatus && profile?.company_id && (
+          {canEditWorkflowStatusInHeader && (
+            <WorkReportStatusMenu
+              reportId={report.id}
+              status={report.status}
+              variant="pill"
+              onChanged={() => {
+                setError(null);
+                void refreshStatusAndBilling(report.id);
+              }}
+              onError={(message) => {
+                setBillingNotice(null);
+                setError(message);
+              }}
+              onNotice={setBillingNotice}
+            />
+          )}
+          {canManageHeaderBilling && profile?.company_id && (
             <WorkReportBillingStatusMenu
-              report={report}
+              report={headerBillingReport}
               viewerCompanyId={profile.company_id}
               customerBillingEnabled={customerInvoicingEnabled}
               hasDailyLogs={dailyLogs.length > 0}
               dailyLogs={dailyLogs}
-              onChanged={() => void load(report.id)}
-              onError={setError}
+              variant={headerViewerRole === 'incoming_partner' ? 'compact' : 'pill'}
+              onChanged={() => {
+                setError(null);
+                void refreshStatusAndBilling(report.id);
+              }}
+              onError={(message) => {
+                setBillingNotice(null);
+                setError(message);
+              }}
               onNotice={setBillingNotice}
             />
           )}
