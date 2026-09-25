@@ -17057,6 +17057,7 @@ button.tool-booking-cal-day {
   .quote-outcome-table { font-size: 0.76rem; }
   .quote-outcome-table th,
   .quote-outcome-table td { padding: 0.35rem 0.3rem; }
+  .quote-outcome-table th.num { white-space: normal; hyphens: manual; }
   .quote-outcome-table .quote-outcome-row-sub { font-size: 0.7rem; }
   .quote-outcome-margin-row td { font-size: 0.82rem; }
   .quote-outcome-net-row td { font-size: 0.95rem; }

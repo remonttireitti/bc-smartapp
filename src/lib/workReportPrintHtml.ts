@@ -524,7 +524,7 @@ function quoteMarginPrintSection(
     ${extrasDetailHtml}
     ${
       partnerMargin
-        ? '<p class="meta-line">Kate = tarjoushinta + lisälaskutus − toteutuneet kulut (työt, kulut, tarvikkeet, laite ja muut kate-erät). Arvio = tarjoushinta − tarjouksen arvioidut kulut samalla jaolla.</p>'
+        ? '<p class="meta-line">Kate = tarjoushinta + lisälaskutus − toteutuneet kulut (työt, kulut, tarvikkeet, laite ja muut kate-erät). Tarjouspyyntö-sarake = tarjoushinta − tarjouspyynnön kulut samalla jaolla.</p>'
         : ''
     }
     ${billingQuote.notes?.trim() ? `<p class="meta-line">Huom: ${esc(billingQuote.notes.trim())}</p>` : ''}`,

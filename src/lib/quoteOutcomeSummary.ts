@@ -119,12 +119,12 @@ export function verdictFor(
   if (marginVarianceNet == null) return null;
   const amountNet = roundMoney(marginVarianceNet);
   if (amountNet > EPS) {
-    return { tone: 'better', amountNet, label: `Meni arviota paremmin ${formatSignedEuro(amountNet, formatEuro)}` };
+    return { tone: 'better', amountNet, label: `Meni tarjouspyyntöä paremmin ${formatSignedEuro(amountNet, formatEuro)}` };
   }
   if (amountNet < -EPS) {
-    return { tone: 'worse', amountNet, label: `Meni arviota huonommin ${formatSignedEuro(amountNet, formatEuro)}` };
+    return { tone: 'worse', amountNet, label: `Meni tarjouspyyntöä huonommin ${formatSignedEuro(amountNet, formatEuro)}` };
   }
-  return { tone: 'neutral', amountNet: 0, label: 'Meni arvion mukaan' };
+  return { tone: 'neutral', amountNet: 0, label: 'Meni tarjouspyynnön mukaan' };
 }
 
 /**
@@ -234,10 +234,10 @@ export function outcomeVarianceExplanation(
   if (summary.costs.varianceNet == null) return null;
   const costPart =
     Math.abs(summary.costs.varianceNet) < EPS
-      ? 'kulut arvion mukaan'
+      ? 'kulut tarjouspyynnön mukaan'
       : summary.costs.varianceNet < 0
-        ? `kulut ${formatEuro(Math.abs(summary.costs.varianceNet))} arviota pienemmät`
-        : `kulut ${formatEuro(summary.costs.varianceNet)} arviota suuremmat`;
+        ? `kulut ${formatEuro(Math.abs(summary.costs.varianceNet))} tarjouspyyntöä pienemmät`
+        : `kulut ${formatEuro(summary.costs.varianceNet)} tarjouspyyntöä suuremmat`;
   if (summary.customerExtrasNet > EPS) {
     return `${costPart} · lisälaskutus +${formatEuro(summary.customerExtrasNet)}`;
   }
@@ -273,7 +273,7 @@ export function renderQuoteOutcomeSummaryHtml(
   const tile = (title: string, c: QuoteOutcomeComparison) => `
     <td style="border-left:4px solid ${PRINT_TONE_COLOR[c.tone]};padding:6px 10px;vertical-align:top">
       <div style="font-size:11px;text-transform:uppercase;color:#475569;font-weight:700">${esc(title)}</div>
-      <div>Arvio ${esc(money(c.estimateNet))} · Toteutunut <strong>${esc(money(c.actualNet))}</strong></div>
+      <div>Tarjouspyyntö ${esc(money(c.estimateNet))} · Toteutunut <strong>${esc(money(c.actualNet))}</strong></div>
       ${c.varianceNet == null ? '' : `<div>Ero <strong style="color:${PRINT_TONE_COLOR[c.tone]};font-size:15px">${esc(formatSignedEuro(c.varianceNet, euro))}</strong></div>`}
     </td>`;
 
@@ -297,7 +297,7 @@ export function renderQuoteOutcomeSummaryHtml(
     <table style="margin:6px 0"><tbody><tr>${tile('Kulut', summary.costs)}${gross ? tile('Kate ennen provisiota', gross) : ''}</tr></tbody></table>
     ${summary.verdict ? `<p style="margin:4px 0 8px;font-size:14px;color:${PRINT_TONE_COLOR[summary.verdict.tone]}"><strong>${esc(summary.verdict.label)}</strong>${explanation ? ` <span class="muted">· ${esc(explanation)}</span>` : ''}</p>` : ''}
     <table>
-      <thead><tr><th>Kulut</th><th class="num">Arvio</th><th class="num">Toteutunut</th><th class="num">Ero</th></tr></thead>
+      <thead><tr><th>Kulut</th><th class="num">Tarjouspyyntö</th><th class="num">Toteutunut</th><th class="num">Ero</th></tr></thead>
       <tbody>
         ${rowsHtml}
         <tr><td><strong>Kulut yhteensä</strong></td><td class="num"><strong>${esc(money(summary.costs.estimateNet))}</strong></td><td class="num"><strong>${esc(money(summary.costs.actualNet))}</strong></td>${variance(summary.costs.varianceNet, summary.costs.tone)}</tr>
