@@ -27,6 +27,11 @@ export type BillingQuotePurchaseLine = {
   /** Todellinen hankinta (alv 0 %) — korjattavissa raportilla. */
   actual_purchase_net: number;
   source?: 'material' | 'device' | 'group';
+  /**
+   * Tarjouspyynnön rivityyppi, kun rivi on "Kulu" (esim. pysäköinti, rahti).
+   * Kulut vertaillaan "Kulut (ajot ja muut)" -kategoriassa, ei tarvikkeissa.
+   */
+  row_kind?: 'expense';
 };
 
 function roundMoney(value: number): number {
@@ -53,6 +58,7 @@ function parsePurchaseLine(raw: unknown): BillingQuotePurchaseLine | null {
       record.source === 'material' || record.source === 'device' || record.source === 'group'
         ? record.source
         : undefined,
+    ...(record.row_kind === 'expense' ? { row_kind: 'expense' as const } : {}),
   };
 }
 
@@ -100,6 +106,7 @@ function collectInstallationSupplyLines(data: QuoteRequestData): BillingQuotePur
       quote_purchase_net: purchase,
       actual_purchase_net: purchase,
       source: kind === 'device' ? 'device' : 'material',
+      ...(kind === 'expense' ? { row_kind: 'expense' as const } : {}),
     });
   }
 

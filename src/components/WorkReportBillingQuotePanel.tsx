@@ -4,8 +4,6 @@ import {
   computePartnerNetMargin,
   DEFAULT_PARTNER_COMMISSION_PERCENT,
   formatCommissionPercent,
-  formatPartnerMarginDeductionAmount,
-  formatUrakkaOutcomeSummary,
   normalizeBillingQuoteSettings,
   parseBillingQuoteSettings,
   quoteHasVat,
@@ -17,14 +15,11 @@ import {
   saveBillingQuoteCommission,
   type BillingQuoteSettings,
 } from '../lib/workReportBillingQuote';
-import { extractQuotePurchaseLines, sumQuotePurchaseLines } from '../lib/quotePurchaseLines';
+import { extractQuotePurchaseLines } from '../lib/quotePurchaseLines';
 import { mergeActualPurchaseFromWorkReportLogs } from '../lib/quoteRequestActualPurchaseSync';
-import {
-  compareQuoteCategories,
-  formatCategoryQty,
-  type QuoteCategoryComparison,
-  type QuoteCategoryRow,
-} from '../lib/quoteCategoryComparison';
+import { compareQuoteCategories } from '../lib/quoteCategoryComparison';
+import { buildQuoteOutcomeSummary } from '../lib/quoteOutcomeSummary';
+import QuoteOutcomeSummaryView from './QuoteOutcomeSummaryView';
 import {
   collectWorkReportCategoryEntries,
   quoteCategoryLabel,
@@ -67,10 +62,6 @@ function moneyInputValue(value: number | null | undefined): string {
   return String(value);
 }
 
-function roundMoney(value: number): number {
-  return Math.round(value * 100) / 100;
-}
-
 export default function WorkReportBillingQuotePanel({
   workReportId,
   customerId: _customerId,
@@ -94,6 +85,7 @@ export default function WorkReportBillingQuotePanel({
   const [commissionPercentDraft, setCommissionPercentDraft] = useState<string | null>(null);
   const [commissionAmountDraft, setCommissionAmountDraft] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(() => billingQuoteHasData(initialSettings));
+  const [commissionEditOpen, setCommissionEditOpen] = useState(false);
   const [quoteData, setQuoteData] = useState<unknown>(null);
 
   useEffect(() => {
@@ -133,10 +125,6 @@ export default function WorkReportBillingQuotePanel({
   const effectiveSettings = useMemo(
     () => mergeActualPurchaseFromWorkReportLogs(settings, dailyLogs, quoteData),
     [settings, quoteData, dailyLogs],
-  );
-  const quoteOnlyPurchaseLines = useMemo(
-    () => (quoteData ? extractQuotePurchaseLines(quoteData) : []),
-    [quoteData],
   );
   const partnerMargin = useMemo(
     () =>
@@ -204,6 +192,18 @@ export default function WorkReportBillingQuotePanel({
     [effectiveSettings, dailyLogs, customerCalculation, quoteBillingEnabled],
   );
 
+
+  const outcomeSummary = useMemo(
+    () =>
+      buildQuoteOutcomeSummary({
+        partnerMargin: showPartnerMargin ? partnerMargin : null,
+        comparison: categoryComparison,
+        quoteSaleNet: effectiveSettings.quote_sale_net,
+        formatEuro,
+      }),
+    [showPartnerMargin, partnerMargin, categoryComparison, effectiveSettings.quote_sale_net],
+  );
+
   if (!billingQuoteHasData(settings)) return null;
 
   const quoteIsLinked = !!settings.quote_request_id;
@@ -214,19 +214,8 @@ export default function WorkReportBillingQuotePanel({
 
   const quotePurchaseTotal = resolveQuotePurchaseTotal(effectiveSettings);
   const actualPurchaseTotal = resolveActualPurchaseTotal(effectiveSettings);
-  const linkedQuotePurchaseTotal =
-    quoteOnlyPurchaseLines.length > 0
-      ? sumQuotePurchaseLines(quoteOnlyPurchaseLines, 'quote_purchase_net')
-      : quotePurchaseTotal;
-  const displayPurchaseTotal = quoteIsLinked ? linkedQuotePurchaseTotal : quotePurchaseTotal;
   const displayCustomerPrice =
     effectiveSettings.customer_invoice_total ?? effectiveSettings.quote_sale_net ?? null;
-  const linkedQuoteMarginEstimate =
-    quoteIsLinked
-    && displayCustomerPrice != null
-    && displayPurchaseTotal > 0
-      ? roundMoney(displayCustomerPrice - displayPurchaseTotal)
-      : null;
   const showSeparateCustomerTotal =
     quoteHasVat(effectiveSettings.quote_vat_rate)
     || effectiveSettings.customer_mode === 'quote_plus_extras'
@@ -235,113 +224,49 @@ export default function WorkReportBillingQuotePanel({
       && effectiveSettings.quote_sale_net != null
       && Math.abs(effectiveSettings.customer_invoice_total - effectiveSettings.quote_sale_net) > 0.01
     );
-  function renderQuoteVsActualIntro() {
-    return (
-      <p className="muted span-2" style={{ margin: 0 }}>
-        Verrataan tarjouksen arviota toteutuneisiin kustannuksiin — niitä ei lasketa yhteen.
-      </p>
-    );
-  }
 
-  function renderCategoryComparisonRow(row: QuoteCategoryRow) {
-    const changed = Math.abs(row.varianceNet) > 0.005;
-    const showQty = row.key === 'labor' || row.key === 'expenses';
-    const showMoney = row.quoteNet > 0.005 || row.actualNet > 0.005;
+  function renderCategoryEntries() {
+    if (categoryEntries.length === 0) return null;
     return (
-      <tr key={row.key} className={changed ? 'billing-purchase-line-changed' : undefined}>
-        <td>{row.label}</td>
-        <td className="num">{showQty ? formatCategoryQty(row, row.quoteQty) : '—'}</td>
-        <td className="num">{showQty ? formatCategoryQty(row, row.actualQty) : '—'}</td>
-        <td className="num">{showMoney ? formatEuro(row.quoteNet) : '—'}</td>
-        <td className="num">{showMoney ? formatEuro(row.actualNet) : '—'}</td>
-        <td className="num">{showMoney ? formatEuro(row.varianceNet) : '—'}</td>
-        <td className="num">
-          {showMoney
-            ? formatEuro(row.quoteNet - row.actualNet)
-            : '—'}
-        </td>
-      </tr>
-    );
-  }
-
-  function renderCategoryComparisonTable(comparison: QuoteCategoryComparison) {
-    return (
-      <div className="table-wrap billing-purchase-lines-wrap span-2">
-        <h4 className="billing-breakdown-heading">Tarjous vs toteutunut</h4>
-        {renderQuoteVsActualIntro()}
-        <table className="billing-table billing-purchase-lines-table">
-          <thead>
-            <tr>
-              <th>Kategoria</th>
-              <th className="num">Tarjous määrä</th>
-              <th className="num">Toteutunut määrä</th>
-              <th className="num">Tarjous €</th>
-              <th className="num">Toteutunut €</th>
-              <th className="num">Ero €</th>
-              <th className="num">Budjetti jäljellä</th>
-            </tr>
-          </thead>
-          <tbody>
-            {comparison.rows.map((row) => renderCategoryComparisonRow(row))}
-          </tbody>
-          <tfoot>
-            <tr>
-              <td><strong>Yhteensä</strong></td>
-              <td className="num">—</td>
-              <td className="num">—</td>
-              <td className="num"><strong>{formatEuro(comparison.quoteTotalNet)}</strong></td>
-              <td className="num"><strong>{formatEuro(comparison.actualTotalNet)}</strong></td>
-              <td className="num">
-                <strong>{formatEuro(comparison.varianceNet)}</strong>
-              </td>
-              <td className="num">
-                <strong>{formatEuro(comparison.quoteTotalNet - comparison.actualTotalNet)}</strong>
-              </td>
-            </tr>
-          </tfoot>
-        </table>
-        {categoryEntries.length > 0 ? (
-          <details className="billing-purchase-lines-details">
-            <summary>Työraportin merkinnät kategorioittain ({categoryEntries.length})</summary>
-            <table className="billing-table billing-purchase-lines-table">
-              <thead>
-                <tr>
-                  <th>Päivä</th>
-                  <th>Kategoria</th>
-                  <th>Kuvaus</th>
-                  <th className="num">Määrä</th>
-                  <th className="num">Toteutunut €</th>
+      <details className="billing-purchase-lines-details">
+        <summary>Työraportin merkinnät kategorioittain ({categoryEntries.length})</summary>
+        <div className="table-wrap">
+          <table className="billing-table billing-purchase-lines-table">
+            <thead>
+              <tr>
+                <th>Päivä</th>
+                <th>Kategoria</th>
+                <th>Kuvaus</th>
+                <th className="num">Määrä</th>
+                <th className="num">Toteutunut €</th>
+              </tr>
+            </thead>
+            <tbody>
+              {categoryEntries.map((entry) => (
+                <tr key={entry.id}>
+                  <td>{entry.logDate}</td>
+                  <td>
+                    <span className={`quote-category-badge quote-category-badge-${entry.category}`}>
+                      {quoteCategoryLabel(entry.category)}
+                    </span>
+                  </td>
+                  <td>{entry.description}</td>
+                  <td className="num">
+                    {entry.qty != null && entry.qty > 0
+                      ? `${entry.qty.toLocaleString('fi-FI', { maximumFractionDigits: 2 })}${entry.qtyLabel ? ` ${entry.qtyLabel}` : ''}`
+                      : '—'}
+                  </td>
+                  <td className="num">
+                    {entry.actualNet > 0.005 ? formatEuro(entry.actualNet) : '—'}
+                  </td>
                 </tr>
-              </thead>
-              <tbody>
-                {categoryEntries.map((entry) => (
-                  <tr key={entry.id}>
-                    <td>{entry.logDate}</td>
-                    <td>
-                      <span className={`quote-category-badge quote-category-badge-${entry.category}`}>
-                        {quoteCategoryLabel(entry.category)}
-                      </span>
-                    </td>
-                    <td>{entry.description}</td>
-                    <td className="num">
-                      {entry.qty != null && entry.qty > 0
-                        ? `${entry.qty.toLocaleString('fi-FI', { maximumFractionDigits: 2 })}${entry.qtyLabel ? ` ${entry.qtyLabel}` : ''}`
-                        : '—'}
-                    </td>
-                    <td className="num">
-                      {entry.actualNet > 0.005 ? formatEuro(entry.actualNet) : '—'}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </details>
-        ) : null}
-      </div>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </details>
     );
   }
-
-
 
   const extrasCommissionContext = extraBillingCommissionContextFromMargin(partnerMargin);
   const initialParsed = parseBillingQuoteSettings(initialSettings);
@@ -371,8 +296,9 @@ export default function WorkReportBillingQuotePanel({
     }
   }
 
-  function renderCommissionInputsRow() {
-    if (!partnerMargin) return null;
+  function renderCommissionEditor() {
+    if (!partnerMargin || readOnly) return null;
+    const dailyLogCommission = partnerMargin.commissionSource === 'daily_log';
     const percentValue =
       commissionPercentDraft
       ?? formatCommissionPercent(
@@ -387,60 +313,63 @@ export default function WorkReportBillingQuotePanel({
         : partnerMargin.commissionSource === 'percent'
           ? moneyInputValue(partnerMargin.commissionNet).replace('.', ',')
           : '');
+    const summaryText = dailyLogCommission
+      ? `Tarjouksen provisio ${formatCommissionPercent(resolvePartnerCommissionPercent(settings))} % ei käytössä`
+      : 'Muokkaa provisiota';
     return (
-      <tr className="billing-margin-commission-inputs">
-        <td colSpan={2}>
-          <div className="form-grid billing-margin-form">
-            <label className="form-field">
-              <span>Provisio %</span>
-              <input
-                type="text"
-                inputMode="decimal"
-                value={percentValue}
-                disabled={busy}
-                onChange={(e) => {
-                  const raw = e.target.value;
-                  setCommissionPercentDraft(raw);
-                  setCommissionAmountDraft(null);
-                  const parsed = parseMoneyInput(raw);
-                  setSettings((prev) => ({
-                    ...prev,
-                    partner_commission_percent: parsed,
-                    partner_commission_amount: null,
-                  }));
-                }}
-              />
-              <span className="muted field-hint">
-                {commissionMode === 'percent'
-                  ? `Käytössä · lasketaan prosentista (oletus ${DEFAULT_PARTNER_COMMISSION_PERCENT} %)`
-                  : 'Laskettu summasta'}
-              </span>
-            </label>
-            <label className="form-field">
-              <span>Provisio € (alv 0 %)</span>
-              <input
-                type="text"
-                inputMode="decimal"
-                value={amountValue}
-                disabled={busy}
-                onChange={(e) => {
-                  const raw = e.target.value;
-                  setCommissionAmountDraft(raw);
-                  setCommissionPercentDraft(null);
-                  const parsed = parseMoneyInput(raw);
-                  setSettings((prev) => ({
-                    ...prev,
-                    partner_commission_amount: parsed,
-                  }));
-                }}
-              />
-              <span className="muted field-hint">
-                {commissionMode === 'amount'
-                  ? 'Käytössä · lasketaan summasta (% johdetaan katteesta)'
-                  : 'Syötä summa, jos provisio on sovittu euroina'}
-              </span>
-            </label>
-          </div>
+      <details
+        className={`quote-outcome-commission-edit${dailyLogCommission ? ' is-inactive' : ''}`}
+        open={commissionEditOpen || commissionDirty}
+        onToggle={(e) => setCommissionEditOpen((e.currentTarget as HTMLDetailsElement).open)}
+      >
+        <summary>{summaryText}</summary>
+        {dailyLogCommission ? (
+          <p className="muted quote-outcome-commission-note">
+            Provisio tulee päiväkirjan Myyntiprovisio-merkinnöistä — alla olevat % / € eivät vaikuta,
+            ennen kuin merkinnät poistetaan.
+          </p>
+        ) : null}
+        <div className="quote-outcome-commission-fields">
+          <label className="form-field">
+            <span>Provisio %</span>
+            <input
+              type="text"
+              inputMode="decimal"
+              value={percentValue}
+              disabled={busy || dailyLogCommission}
+              onChange={(e) => {
+                const raw = e.target.value;
+                setCommissionPercentDraft(raw);
+                setCommissionAmountDraft(null);
+                const parsed = parseMoneyInput(raw);
+                setSettings((prev) => ({
+                  ...prev,
+                  partner_commission_percent: parsed,
+                  partner_commission_amount: null,
+                }));
+              }}
+            />
+          </label>
+          <label className="form-field">
+            <span>tai Provisio € (alv 0 %)</span>
+            <input
+              type="text"
+              inputMode="decimal"
+              value={amountValue}
+              disabled={busy || dailyLogCommission}
+              placeholder="sovittu summa"
+              onChange={(e) => {
+                const raw = e.target.value;
+                setCommissionAmountDraft(raw);
+                setCommissionPercentDraft(null);
+                const parsed = parseMoneyInput(raw);
+                setSettings((prev) => ({
+                  ...prev,
+                  partner_commission_amount: parsed,
+                }));
+              }}
+            />
+          </label>
           {commissionDirty ? (
             <button
               type="button"
@@ -451,8 +380,83 @@ export default function WorkReportBillingQuotePanel({
               {busy ? 'Tallennetaan…' : 'Tallenna provisio'}
             </button>
           ) : null}
-        </td>
-      </tr>
+        </div>
+        {!dailyLogCommission ? (
+          <p className="muted quote-outcome-commission-note">
+            {commissionMode === 'percent'
+              ? `Käytössä: prosentti katteesta (oletus ${DEFAULT_PARTNER_COMMISSION_PERCENT} %).`
+              : 'Käytössä: sovittu summa (% johdetaan katteesta).'}
+          </p>
+        ) : null}
+      </details>
+    );
+  }
+
+  function renderExtrasMarginLines() {
+    if (!showPartnerMargin || !partnerMargin || extrasMarginLines.length === 0) return null;
+    return (
+      <div className="table-wrap">
+        <table className="billing-table billing-margin-table">
+          <thead>
+            <tr>
+              <th>Lisälaskutus</th>
+              <th className="num">Asiakas</th>
+              <th className="num">Kumppani</th>
+              <th className="num">Hankinta</th>
+              <th className="num">Kate</th>
+            </tr>
+            {extraBillingCommissionNote(extrasCommissionContext) ? (
+              <tr>
+                <th colSpan={5} className="muted billing-margin-impact-note">
+                  Odottavan rivin kate = puhdas kate, jos lisälaskutuslupa saadaan.{' '}
+                  {extraBillingCommissionNote(extrasCommissionContext)}
+                </th>
+              </tr>
+            ) : null}
+          </thead>
+          <tbody>
+            {extrasMarginLines.map((line) => (
+              <tr
+                key={`${line.logId}:${line.kind}:${line.description}:${line.status}`}
+                className={line.status === 'pending' ? 'billing-margin-pending' : undefined}
+              >
+                <td>
+                  <div>
+                    {line.kind === 'extra_work' ? `Lisätyö: ${line.description}` : line.description}
+                  </div>
+                  <div className="muted billing-margin-impact-note">
+                    {extraBillingMarginImpactStatusLabel(line)}
+                  </div>
+                </td>
+                <td className="num">
+                  {line.status === 'approved' ? formatEuro(line.customerNet) : '—'}
+                </td>
+                <td className="num">
+                  {line.status === 'approved' && line.partnerNet > 0
+                    ? `− ${formatEuro(line.partnerNet)}`
+                    : '—'}
+                </td>
+                <td className="num">
+                  {line.status === 'approved' && line.piikkiCostNet > 0
+                    ? `− ${formatEuro(line.piikkiCostNet)}`
+                    : '—'}
+                </td>
+                <td className="num">
+                  {(() => {
+                    const marginCell = formatExtraBillingMarginImpactCell(
+                      line,
+                      formatEuro,
+                      partnerMargin?.netMarginNet,
+                      extrasCommissionContext,
+                    );
+                    return <strong>{marginCell.approved || marginCell.withPermission}</strong>;
+                  })()}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     );
   }
 
@@ -489,109 +493,63 @@ export default function WorkReportBillingQuotePanel({
             </span>
           ) : null}
         </button>
-
       </div>
 
       {expanded ? (
         <div className="billing-margin-body">
-          {!readOnly ? (
+          {!quoteIsLinked && !readOnly ? (
             <div className="form-grid billing-margin-form">
-              {quoteIsLinked ? (
-                <div className="form-field span-2 billing-quote-linked-summary">
-                  <span>Tarjous:</span>
-                  <strong>{settings.quote_title ?? 'Linkitetty tarjous'}</strong>
-                </div>
-              ) : null}
-
-              {quoteIsLinked ? (
-                <div className="span-2 billing-quote-linked-prices">
-                  {displayCustomerPrice != null ? (
-                    <p style={{ margin: '0 0 .35rem' }}>
-                      <strong>Kiinteä tarjoushinta:</strong> {formatEuro(displayCustomerPrice)}
-                    </p>
-                  ) : null}
-                  {displayPurchaseTotal > 0 ? (
-                    <p style={{ margin: '0 0 .35rem' }}>
-                      <strong>Hankinta:</strong> {formatEuro(displayPurchaseTotal)}
-                    </p>
-                  ) : null}
-                  {linkedQuoteMarginEstimate != null ? (
-                    <p style={{ margin: '0 0 .35rem' }}>
-                      <strong>Kate (arvio):</strong> {formatEuro(linkedQuoteMarginEstimate)}
-                    </p>
-                  ) : null}
-
-                </div>
-              ) : (
-                <>
-                  <label className="form-field">
-                    <span>
-                      {showSeparateCustomerTotal
-                        ? 'Tarjoushinta (alv 0 %)'
-                        : 'Kiinteä tarjoushinta asiakkaalle (alv 0 %)'}
-                    </span>
-                    <input
-                      type="text"
-                      inputMode="decimal"
-                      value={moneyInputValue(settings.quote_sale_net)}
-                      disabled={busy}
-                      onChange={(e) => {
-                        const parsed = parseMoneyInput(e.target.value);
-                        setSettings((prev) => ({
-                          ...prev,
-                          quote_sale_net: parsed,
-                          customer_invoice_total:
-                            showSeparateCustomerTotal ? prev.customer_invoice_total : parsed,
-                        }));
-                      }}
-                    />
-                  </label>
-
-                  {showSeparateCustomerTotal ? (
-                    <label className="form-field">
-                      <span>{customerTotalLabel}</span>
-                      <input
-                        type="text"
-                        inputMode="decimal"
-                        value={moneyInputValue(settings.customer_invoice_total)}
-                        disabled={busy}
-                        onChange={(e) =>
-                          setSettings((prev) => ({
-                            ...prev,
-                            customer_invoice_total: parseMoneyInput(e.target.value),
-                          }))
-                        }
-                      />
-                      <span className="muted field-hint">
-                        Sisältää ALV:n tai lisälaskutuksen, jos eri kuin tarjoushinta.
-                      </span>
-                    </label>
-                  ) : (
-                    <p className="muted span-2" style={{ margin: 0 }}>
-                      Asiakkaalta laskutetaan sama kiinteä summa kuin tarjoushinta (alv 0 %).
-                    </p>
-                  )}
-                </>
-              )}
-
-              <div className="span-2">
-                {categoryComparison ? renderCategoryComparisonTable(categoryComparison) : null}
-              </div>
-
-              <label className="form-field span-2">
-                <span>Huomio kumppanille</span>
+              <label className="form-field">
+                <span>
+                  {showSeparateCustomerTotal
+                    ? 'Tarjoushinta (alv 0 %)'
+                    : 'Kiinteä tarjoushinta asiakkaalle (alv 0 %)'}
+                </span>
                 <input
                   type="text"
-                  value={settings.notes ?? ''}
+                  inputMode="decimal"
+                  value={moneyInputValue(settings.quote_sale_net)}
                   disabled={busy}
-                  onChange={(e) => setSettings((prev) => ({ ...prev, notes: e.target.value }))}
-                  placeholder="Esim. hankintakorjaus"
+                  onChange={(e) => {
+                    const parsed = parseMoneyInput(e.target.value);
+                    setSettings((prev) => ({
+                      ...prev,
+                      quote_sale_net: parsed,
+                      customer_invoice_total:
+                        showSeparateCustomerTotal ? prev.customer_invoice_total : parsed,
+                    }));
+                  }}
                 />
               </label>
 
-
+              {showSeparateCustomerTotal ? (
+                <label className="form-field">
+                  <span>{customerTotalLabel}</span>
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={moneyInputValue(settings.customer_invoice_total)}
+                    disabled={busy}
+                    onChange={(e) =>
+                      setSettings((prev) => ({
+                        ...prev,
+                        customer_invoice_total: parseMoneyInput(e.target.value),
+                      }))
+                    }
+                  />
+                  <span className="muted field-hint">
+                    Sisältää ALV:n tai lisälaskutuksen, jos eri kuin tarjoushinta.
+                  </span>
+                </label>
+              ) : (
+                <p className="muted span-2" style={{ margin: 0 }}>
+                  Asiakkaalta laskutetaan sama kiinteä summa kuin tarjoushinta (alv 0 %).
+                </p>
+              )}
             </div>
-          ) : (
+          ) : null}
+
+          {!quoteIsLinked && readOnly ? (
             <dl className="billing-margin-readonly">
               {settings.quote_title ? (
                 <>
@@ -599,248 +557,70 @@ export default function WorkReportBillingQuotePanel({
                   <dd>{settings.quote_title}</dd>
                 </>
               ) : null}
-              {quoteIsLinked ? (
+              {settings.customer_mode === 'quote_fixed' && settings.customer_invoice_total != null ? (
                 <>
-                  {displayCustomerPrice != null ? (
-                    <>
-                      <dt>Kiinteä tarjoushinta</dt>
-                      <dd>
-                        {formatEuro(displayCustomerPrice)}
-                        {effectiveSettings.customer_mode === 'quote_fixed'
-                          ? ' (+ mahdolliset lisät päiväkirjasta)'
-                          : ''}
-                      </dd>
-                    </>
-                  ) : null}
-                  {displayPurchaseTotal > 0 ? (
-                    <>
-                      <dt>Hankinta yhteensä (alv 0 %)</dt>
-                      <dd>{formatEuro(displayPurchaseTotal)}</dd>
-                    </>
-                  ) : null}
-                  {linkedQuoteMarginEstimate != null ? (
-                    <>
-                      <dt>Kate (arvio)</dt>
-                      <dd>{formatEuro(linkedQuoteMarginEstimate)}</dd>
-                    </>
-                  ) : null}
-                </>
-              ) : (
-                <>
-                  {settings.customer_mode === 'quote_fixed' && settings.customer_invoice_total != null ? (
-                    <>
-                      <dt>Asiakashinta</dt>
-                      <dd>
-                        {formatEuro(settings.customer_invoice_total)} (kiinteä tarjous + mahdolliset lisät
-                        päiväkirjasta)
-                      </dd>
-                    </>
-                  ) : null}
-                  {settings.quote_sale_net != null ? (
-                    <>
-                      <dt>Tarjoushinta (alv 0 %)</dt>
-                      <dd>{formatEuro(settings.quote_sale_net)}</dd>
-                    </>
-                  ) : null}
-                  {settings.quote_purchase_net != null ? (
-                    <>
-                      <dt>Tarjouksen hankinta yhteensä (alv 0 %)</dt>
-                      <dd>{formatEuro(quotePurchaseTotal)}</dd>
-                    </>
-                  ) : null}
-                  {settings.actual_purchase_net != null
-                  && Math.abs(actualPurchaseTotal - quotePurchaseTotal) > 0.005 ? (
-                    <>
-                      <dt>Todellinen hankinta yhteensä (alv 0 %)</dt>
-                      <dd>{formatEuro(actualPurchaseTotal)}</dd>
-                    </>
-                  ) : null}
-                </>
-              )}
-              {showPartnerMargin ? (
-                <>
-                  <dt>Provisio</dt>
+                  <dt>Asiakashinta</dt>
                   <dd>
-                    {resolvePartnerCommissionAmount(settings) != null
-                      ? `${formatEuro(resolvePartnerCommissionAmount(settings) ?? 0)} (sovittu summa)`
-                      : `${formatCommissionPercent(resolvePartnerCommissionPercent(settings))} %`}
+                    {formatEuro(settings.customer_invoice_total)} (kiinteä tarjous + mahdolliset lisät
+                    päiväkirjasta)
                   </dd>
                 </>
               ) : null}
-              {settings.notes?.trim() ? (
+              {settings.quote_sale_net != null ? (
                 <>
-                  <dt>Huomio</dt>
-                  <dd>{settings.notes.trim()}</dd>
+                  <dt>Tarjoushinta (alv 0 %)</dt>
+                  <dd>{formatEuro(settings.quote_sale_net)}</dd>
+                </>
+              ) : null}
+              {settings.quote_purchase_net != null ? (
+                <>
+                  <dt>Tarjouksen hankinta yhteensä (alv 0 %)</dt>
+                  <dd>{formatEuro(quotePurchaseTotal)}</dd>
+                </>
+              ) : null}
+              {settings.actual_purchase_net != null
+              && Math.abs(actualPurchaseTotal - quotePurchaseTotal) > 0.005 ? (
+                <>
+                  <dt>Todellinen hankinta yhteensä (alv 0 %)</dt>
+                  <dd>{formatEuro(actualPurchaseTotal)}</dd>
                 </>
               ) : null}
             </dl>
-          )}
-
-
-
-          {readOnly ? (
-            <div className="span-2">
-              {categoryComparison ? renderCategoryComparisonTable(categoryComparison) : null}
-            </div>
           ) : null}
 
-          {showPartnerMargin && partnerMargin ? (
-            <div className="table-wrap">
-              <h4 className="billing-breakdown-heading">Puhdas kate</h4>
-              <table className="billing-table billing-margin-table">
-                <tbody>
-                  <tr>
-                    <td>Tarjoushinta (alv 0 %)</td>
-                    <td className="num">{formatEuro(partnerMargin.quoteSaleNet)}</td>
-                  </tr>
-                  {partnerMargin.customerExtrasNet > 0.005 ? (
-                    <tr>
-                      <td>Lisälaskutus asiakkaalta</td>
-                      <td className="num">+ {formatEuro(partnerMargin.customerExtrasNet)}</td>
-                    </tr>
-                  ) : null}
-                  {customerBillableGrandTotal && customerBillableGrandTotal.extrasTotal > 0.005 ? (
-                    <tr className="billing-margin-customer-total">
-                      <td>
-                        <strong>Asiakkaalta laskutettava yhteensä</strong>
-                      </td>
-                      <td className="num">
-                        <strong>{formatEuro(customerBillableGrandTotal.grandTotal)}</strong>
-                      </td>
-                    </tr>
-                  ) : null}
+          {outcomeSummary ? (
+            <QuoteOutcomeSummaryView
+              summary={outcomeSummary}
+              quoteTitle={quoteIsLinked ? settings.quote_title ?? 'Linkitetty tarjous' : null}
+              commissionEditor={renderCommissionEditor()}
+              commissionExceedsGross={!!partnerMargin?.commissionExceedsGross}
+            />
+          ) : quoteIsLinked ? (
+            <p className="billing-quote-linked-summary">
+              Tarjous: <strong>{settings.quote_title ?? 'Linkitetty tarjous'}</strong>
+              {displayCustomerPrice != null ? <> · kiinteä tarjoushinta {formatEuro(displayCustomerPrice)}</> : null}
+            </p>
+          ) : null}
 
-                  {partnerMargin.deductionRows.map((row) => (
-                    <tr key={row.key}>
-                      <td>
-                        {row.label}
-                        {row.details && row.details.length > 0 ? (
-                          <div className="muted billing-margin-impact-note">
-                            {row.details
-                              .map((detail) => `${detail.description} ${formatEuro(detail.total)}`)
-                              .join(' · ')}
-                          </div>
-                        ) : null}
-                      </td>
-                      <td className="num">{formatPartnerMarginDeductionAmount(row.amount)}</td>
-                    </tr>
-                  ))}
+          {renderExtrasMarginLines()}
 
-                  <tr className="billing-margin-subtotal">
-                    <td>
-                      <strong>Kate ennen provisiota</strong>
-                    </td>
-                    <td className="num">
-                      <strong>{formatEuro(partnerMargin.grossMarginNet)}</strong>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td>
-                      Provisio ({formatCommissionPercent(partnerMargin.commissionPercent)} %)
-                      {partnerMargin.commissionSource === 'daily_log' ? (
-                        <div className="muted billing-margin-impact-note">
-                          Provisio tulee päiväkirjan Myyntiprovisio-merkinnöistä — tarjouksen
-                          provisio-% / € ei ole käytössä.
-                        </div>
-                      ) : partnerMargin.commissionSource === 'amount' ? (
-                        <div className="muted billing-margin-impact-note">Sovittu summa</div>
-                      ) : null}
-                      {partnerMargin.commissionExceedsGross ? (
-                        <div className="error billing-margin-impact-note">
-                          Provisio on suurempi kuin kate ennen provisiota.
-                        </div>
-                      ) : null}
-                    </td>
-                    <td className="num">− {formatEuro(partnerMargin.commissionNet)}</td>
-                  </tr>
-                  {!readOnly ? renderCommissionInputsRow() : null}
-                  <tr className="billing-margin-total">
-                    <td>
-                      <strong>Puhdas kate</strong>
-                    </td>
-                    <td className="num">
-                      <strong>{formatEuro(partnerMargin.netMarginNet)}</strong>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-              {extrasMarginLines.length > 0 ? (
-                <table className="billing-table billing-margin-table">
-                  <thead>
-                    <tr>
-                      <th>Lisälaskutus</th>
-                      <th className="num">Asiakas</th>
-                      <th className="num">Kumppani</th>
-                      <th className="num">Hankinta</th>
-                      <th className="num">Kate</th>
-                    </tr>
-                    {extraBillingCommissionNote(extrasCommissionContext) ? (
-                      <tr>
-                        <th colSpan={5} className="muted billing-margin-impact-note">
-                          Odottavan rivin kate = puhdas kate, jos lisälaskutuslupa saadaan.{' '}
-                          {extraBillingCommissionNote(extrasCommissionContext)}
-                        </th>
-                      </tr>
-                    ) : null}
-                  </thead>
-                  <tbody>
-                    {extrasMarginLines.map((line) => (
-                      <tr
-                        key={`${line.logId}:${line.kind}:${line.description}:${line.status}`}
-                        className={line.status === 'pending' ? 'billing-margin-pending' : undefined}
-                      >
-                        <td>
-                          <div>
-                            {line.kind === 'extra_work' ? `Lisätyö: ${line.description}` : line.description}
-                          </div>
-                          <div className="muted billing-margin-impact-note">
-                            {extraBillingMarginImpactStatusLabel(line)}
-                          </div>
-                        </td>
-                        <td className="num">
-                          {line.status === 'approved' ? formatEuro(line.customerNet) : '—'}
-                        </td>
-                        <td className="num">
-                          {line.status === 'approved' && line.partnerNet > 0
-                            ? `− ${formatEuro(line.partnerNet)}`
-                            : '—'}
-                        </td>
-                        <td className="num">
-                          {line.status === 'approved' && line.piikkiCostNet > 0
-                            ? `− ${formatEuro(line.piikkiCostNet)}`
-                            : '—'}
-                        </td>
-                        <td className="num">
-                          {(() => {
-                            const marginCell = formatExtraBillingMarginImpactCell(
-                              line,
-                              formatEuro,
-                              partnerMargin?.netMarginNet,
-                              extrasCommissionContext,
-                            );
-                            if (marginCell.approved) {
-                              return <strong>{marginCell.approved}</strong>;
-                            }
-                            return <strong>{marginCell.withPermission}</strong>;
-                          })()}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              ) : null}
-              {categoryComparison ? (
-                <p className="billing-urakka-outcome">
-                  <strong>Urakka meni näin:</strong>{' '}
-                  {formatUrakkaOutcomeSummary({
-                    varianceNet: categoryComparison.varianceNet,
-                    quoteTotalNet: categoryComparison.quoteTotalNet,
-                    actualTotalNet: categoryComparison.actualTotalNet,
-                  })}
-                </p>
-              ) : null}
+          {renderCategoryEntries()}
 
-            </div>
+          {!readOnly ? (
+            <label className="form-field">
+              <span>Huomio kumppanille</span>
+              <input
+                type="text"
+                value={settings.notes ?? ''}
+                disabled={busy}
+                onChange={(e) => setSettings((prev) => ({ ...prev, notes: e.target.value }))}
+                placeholder="Esim. hankintakorjaus"
+              />
+            </label>
+          ) : settings.notes?.trim() ? (
+            <p className="billing-margin-formula">
+              <strong>Huomio:</strong> {settings.notes.trim()}
+            </p>
           ) : null}
 
           {error ? <p className="error">{error}</p> : null}

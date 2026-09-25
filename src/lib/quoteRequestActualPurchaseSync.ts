@@ -86,7 +86,10 @@ function quoteSuppliesNetFromLines(lines: BillingQuotePurchaseLine[]): number {
         (line) =>
           line.source !== 'device'
           && line.id !== 'group:diary-supplies'
-          && line.id !== 'group:installation-internal',
+          && line.id !== 'group:installation-internal'
+          // Tarjouksen kulurivit (rivityyppi Kulu) kuuluvat Kulut-kategoriaan
+          // (quoteInstallationComparison: expenseRowCost) — ei tarvikkeisiin.
+          && line.row_kind !== 'expense',
       )
       .reduce((sum, line) => sum + line.quote_purchase_net, 0),
   );

@@ -35,7 +35,6 @@ import {
 import {
   billingQuoteHasData,
   computePartnerNetMargin,
-  formatPartnerMarginDeductionAmount,
   customerUsesQuoteBasedBilling,
   parseBillingQuoteSettings,
   quoteHasVat,
@@ -48,6 +47,7 @@ import {
   compareQuoteCategories,
   renderQuoteCategoryComparisonHtml,
 } from './quoteCategoryComparison';
+import { buildQuoteOutcomeSummary, renderQuoteOutcomeSummaryHtml } from './quoteOutcomeSummary';
 import {
   formatRefrigerantLineLabelForReport,
   refrigerantBillingReminder,
@@ -431,49 +431,28 @@ function quoteMarginPrintSection(
 
   const purchaseLines = billingQuote.purchase_lines ?? [];
 
+  // Sama yhteenveto kuin raportin "Tarjous ja kate" -paneelissa (arvio vs toteutunut).
+  const outcomeSummary = buildQuoteOutcomeSummary({
+    partnerMargin,
+    comparison: categoryComparison,
+    quoteSaleNet: billingQuote.quote_sale_net,
+    formatEuro,
+  });
+
   const rows: string[] = [];
-  if (billingQuote.quote_title?.trim()) {
-    rows.push(`<tr><td>Tarjous</td><td>${esc(billingQuote.quote_title.trim())}</td></tr>`);
+  if (!outcomeSummary) {
+    if (billingQuote.quote_title?.trim()) {
+      rows.push(`<tr><td>Tarjous</td><td>${esc(billingQuote.quote_title.trim())}</td></tr>`);
+    }
+    if (billingQuote.quote_sale_net != null) {
+      rows.push(
+        `<tr><td>Tarjoushinta (alv 0 %)</td><td class="num">${formatEuro(billingQuote.quote_sale_net)}</td></tr>`,
+      );
+    }
   }
-  if (billingQuote.quote_sale_net != null) {
+  if (outcomeSummary && customerBillableGrandTotal && customerBillableGrandTotal.extrasTotal > 0.005) {
     rows.push(
-      `<tr><td>Tarjoushinta (alv 0 %)</td><td class="num">${formatEuro(billingQuote.quote_sale_net)}</td></tr>`,
-    );
-  }
-  if (partnerMargin) {
-    if (partnerMargin.customerExtrasNet > 0.005) {
-      rows.push(
-        `<tr><td>Lisälaskutus asiakkaalta</td><td class="num">+ ${formatEuro(partnerMargin.customerExtrasNet)}</td></tr>`,
-      );
-    }
-    if (customerBillableGrandTotal && customerBillableGrandTotal.extrasTotal > 0.005) {
-      rows.push(
-        `<tr class="profit-row"><td><strong>Asiakkaalta laskutettava yhteensä</strong></td><td class="num"><strong>${formatEuro(customerBillableGrandTotal.grandTotal)}</strong></td></tr>`,
-      );
-    }
-
-    for (const row of categoryComparison?.rows ?? []) {
-      rows.push(
-        `<tr class="muted"><td>${esc(row.label)} (vertailu arvio → toteutunut)</td><td class="num">${formatEuro(row.quoteNet)} → ${formatEuro(row.actualNet)}</td></tr>`,
-      );
-    }
-
-    for (const row of partnerMargin.deductionRows) {
-      const detail = row.details?.length
-        ? `<div class="muted">${row.details
-            .map((d) => `${esc(d.description)} ${formatEuro(d.total)}`)
-            .join(' · ')}</div>`
-        : '';
-      rows.push(
-        `<tr><td>${esc(row.label)}${detail}</td><td class="num">${formatPartnerMarginDeductionAmount(row.amount)}</td></tr>`,
-      );
-    }
-    rows.push(
-      `<tr><td><strong>Kate ennen provisiota</strong></td><td class="num"><strong>${formatEuro(partnerMargin.grossMarginNet)}</strong></td></tr>`,
-      `<tr><td>Provisio (${String(partnerMargin.commissionPercent).replace('.', ',')} %)</td><td class="num">− ${formatEuro(partnerMargin.commissionNet)}</td></tr>`,
-    );
-    rows.push(
-      `<tr class="profit-row"><td><strong>Puhdas kate</strong></td><td class="num"><strong>${formatEuro(partnerMargin.netMarginNet)}</strong></td></tr>`,
+      `<tr class="profit-row"><td><strong>Asiakkaalta laskutettava yhteensä</strong></td><td class="num"><strong>${formatEuro(customerBillableGrandTotal.grandTotal)}</strong></td></tr>`,
     );
   }
 
@@ -481,8 +460,13 @@ function quoteMarginPrintSection(
     escapeHtml: esc,
   });
 
-  const categoryComparisonHtml =
-    categoryComparison
+  const categoryComparisonHtml = outcomeSummary
+    ? renderQuoteOutcomeSummaryHtml(outcomeSummary, {
+        escapeHtml: esc,
+        formatEuro,
+        quoteTitle: billingQuote.quote_title?.trim() || null,
+      })
+    : categoryComparison
       ? renderQuoteCategoryComparisonHtml(categoryComparison, {
           escapeHtml: esc,
           formatEuro,
@@ -534,13 +518,13 @@ function quoteMarginPrintSection(
     'Tarjous ja kate',
     `${categoryComparisonHtml}
     ${purchaseLinesHtml}
-    <table>
+    ${rows.length > 0 ? `<table>
       <tbody>${rows.join('')}</tbody>
-    </table>
+    </table>` : ''}
     ${extrasDetailHtml}
     ${
       partnerMargin
-        ? '<p class="meta-line">Kate = tarjoushinta + lisälaskutus − työt − kulut − tarvikkeet − laite − katetta syövät kulut − suorat hankintakulut. Vertailurivit ovat informatiivisia — katteeseen vähennetään vain toteutuneet summat.</p>'
+        ? '<p class="meta-line">Kate = tarjoushinta + lisälaskutus − toteutuneet kulut (työt, kulut, tarvikkeet, laite ja muut kate-erät). Arvio = tarjoushinta − tarjouksen arvioidut kulut samalla jaolla.</p>'
         : ''
     }
     ${billingQuote.notes?.trim() ? `<p class="meta-line">Huom: ${esc(billingQuote.notes.trim())}</p>` : ''}`,
