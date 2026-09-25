@@ -11995,6 +11995,12 @@ a.tile.customer-document-tile:hover {
   color: #15803d;
 }
 
+.quote-category-badge-none {
+  background: var(--bg-muted, #f1f5f9);
+  color: var(--text-subtle, #475569);
+  border: 1px dashed var(--border, #b8c5d6);
+}
+
 .expense-extra-billing-toggles {
   display: grid;
   gap: 0.75rem;
@@ -17153,3 +17159,69 @@ button.tool-booking-cal-day {
   cursor: pointer;
 }
 .quote-link-actions .btn-link:disabled { opacity: 0.5; cursor: default; }
+
+/* Työraportin Laite-osio */
+.work-report-device-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.work-report-device-head h2 {
+  margin: 0;
+}
+
+.work-report-device-intro {
+  margin: 0.35rem 0 0.5rem;
+  font-size: 0.85rem;
+}
+
+.work-report-device-block {
+  margin-top: 0.6rem;
+}
+
+.work-report-device-block h3 {
+  margin: 0 0 0.25rem;
+  font-size: 0.95rem;
+}
+
+.work-report-device-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.work-report-device-list li {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.4rem 0;
+  border-bottom: 1px solid var(--border, #e5e7eb);
+  font-size: 0.9rem;
+}
+
+.work-report-device-list li:last-child {
+  border-bottom: 0;
+}
+
+.work-report-device-text {
+  min-width: 0;
+}
+
+.work-report-device-sub {
+  display: block;
+  font-size: 0.82rem;
+}
+
+.work-report-device-list .btn-link {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.work-report-device-note {
+  margin: 0.4rem 0 0;
+  font-size: 0.8rem;
+}

@@ -12,6 +12,7 @@ import {
   sumPartnerPurchaseCostNet,
 } from './workReportQuoteMargin';
 import { formatEuro } from './workReportBilling';
+import { deviceEntryCostSplit, effectiveQuoteDeviceActualNet } from './workReportDeviceEntries';
 import {
   calculateWorkReportCustomerQuoteExtras,
 } from './workReportCustomerBilling';
@@ -511,16 +512,19 @@ export function computePartnerNetMargin(
   const quoteSaleNet = settings.quote_sale_net;
   if (quoteSaleNet == null || quoteSaleNet <= 0) return null;
 
-  const actualPurchaseNet = resolveActualPurchaseTotal(settings);
   const quotePurchaseNet = resolveQuotePurchaseTotal(settings);
   const purchaseLines =
     normalizeBillingQuoteSettings(parseBillingQuoteSettings(settings)).purchase_lines ?? [];
-  const deviceActualNet = roundMoney(
+  const storedDeviceActualNet = roundMoney(
     purchaseLines
       .filter((line) => line.source === 'device')
       .reduce((sum, line) => sum + (Number(line.actual_purchase_net) || 0), 0),
   );
-  const suppliesActualNet = roundMoney(actualPurchaseNet - deviceActualNet);
+  // Työraportin laitekirjaus (tyyppi Laite) korvaa tarjouspyynnön laitehinnan / oikaisun.
+  const quoteDeviceActualNet = effectiveQuoteDeviceActualNet(purchaseLines, options?.logs);
+  const actualPurchaseNet = roundMoney(
+    resolveActualPurchaseTotal(settings) - (storedDeviceActualNet - quoteDeviceActualNet),
+  );
   // Kun päiväkirjan tarvikkeet on jo yhdistetty hankintariveihin
   // (mergeActualPurchaseFromWorkReportLogs), niitä ei saa vähentää uudelleen
   // katetta syövinä kuluina tai kumppanin piikkiostoina.
@@ -534,7 +538,24 @@ export function computePartnerNetMargin(
   const installationLaborTravelNet = partnerBreakdown
     ? partnerBreakdown.laborTravel
     : roundMoney(Math.max(0, installationCostNet));
-  const partnerBilledMaterialsNet = partnerBreakdown?.billedMaterials ?? 0;
+  // Laitekirjaukset ovat jo katteen vähennyksissä (päiväkirjan hankinta tai kumppanin lasku):
+  // näytetään ne Laite-rivillä, ei tarvikkeissa / töissä ja kuluissa. Summa ei muutu.
+  const deviceSplit = deviceEntryCostSplit(options?.logs, options?.partnerCalculation);
+  const partnerDeviceNet = partnerBreakdown
+    ? roundMoney(Math.min(deviceSplit.partnerNet, Math.max(0, partnerBreakdown.billedMaterials)))
+    : 0;
+  const diaryGroupActualNet = Number(
+    purchaseLines.find((line) => line.id === DIARY_SUPPLIES_PURCHASE_LINE_ID)?.actual_purchase_net ?? 0,
+  );
+  // Päiväkirjan laitehankinta: hankintariveillä (group:diary-supplies) → siirretään tarvikkeista;
+  // muuten (hankintarivejä ei yhdistetty) lisätään Laite-riville — katetta syövistä se on jätetty pois.
+  const diaryDeviceInPurchaseNet = diarySuppliesInPurchase
+    ? roundMoney(Math.min(deviceSplit.diaryNet, Math.max(0, diaryGroupActualNet)))
+    : 0;
+  const diaryDeviceNet = diarySuppliesInPurchase ? diaryDeviceInPurchaseNet : deviceSplit.diaryNet;
+  const deviceActualNet = roundMoney(quoteDeviceActualNet + diaryDeviceNet + partnerDeviceNet);
+  const suppliesActualNet = roundMoney(actualPurchaseNet - quoteDeviceActualNet - diaryDeviceInPurchaseNet);
+  const partnerBilledMaterialsNet = roundMoney((partnerBreakdown?.billedMaterials ?? 0) - partnerDeviceNet);
   const effectiveMaterialCostNet = effectiveQuoteMaterialCostNet(
     actualPurchaseNet,
     partnerBilledMaterialsNet,
@@ -543,7 +564,10 @@ export function computePartnerNetMargin(
   const commissionPercent = resolvePartnerCommissionPercent(settings);
 
   const marginEating = options?.logs?.length
-    ? analyzeMarginEatingExpenses(options.logs, { excludeDiarySupplies: diarySuppliesInPurchase })
+    ? analyzeMarginEatingExpenses(options.logs, {
+        excludeDiarySupplies: diarySuppliesInPurchase,
+        excludeDeviceDiaryPurchases: true,
+      })
     : { total: 0, lines: [] };
   const partnerPiikkiPurchaseNet = options?.logs?.length && !diarySuppliesInPurchase
     ? sumPartnerPurchaseCostNet(options.logs)
@@ -848,10 +872,15 @@ export function applyDeviceActualCorrections(
     const next: BillingQuotePurchaseLine =
       actualNet == null || !Number.isFinite(actualNet) || actualNet < 0
         ? (() => {
-            const { actual_corrected: _drop, ...rest } = base;
+            const { actual_corrected: _drop, corrected_actual_net: _dropNet, ...rest } = base;
             return { ...rest, actual_purchase_net: roundMoney(base.quote_purchase_net) };
           })()
-        : { ...base, actual_purchase_net: roundMoney(actualNet), actual_corrected: true };
+        : {
+            ...base,
+            actual_purchase_net: roundMoney(actualNet),
+            actual_corrected: true,
+            corrected_actual_net: roundMoney(actualNet),
+          };
     if (index >= 0) lines[index] = next;
     else lines.push(next);
   }

@@ -1,18 +1,20 @@
 import type { WorkReportDailyLog } from '../types';
 import { EXPENSE_TYPE_LABELS, HOUR_ENTRY_LABELS } from '../types';
 
-export type DailyLogEntryTileKind = 'work' | 'expenses' | 'materials';
+export type DailyLogEntryTileKind = 'work' | 'expenses' | 'materials' | 'device';
 
 const KIND_LABELS: Record<DailyLogEntryTileKind, string> = {
   work: 'Työ',
   expenses: 'Kulut',
   materials: 'Tarvikkeet',
+  device: 'Laite',
 };
 
 export const DAILY_LOG_ENTRY_TILE_COLORS: Record<DailyLogEntryTileKind, string> = {
   work: '#388E3C',
   expenses: '#D97706',
   materials: '#7C3AED',
+  device: '#15803D',
 };
 
 export type DailyLogEntryTileDescriptor = {
@@ -24,6 +26,7 @@ export type DailyLogEntryTileDescriptor = {
 };
 
 const MATERIAL_EXPENSE_TYPES = new Set(['material', 'part']);
+const DEVICE_EXPENSE_TYPES = new Set(['device']);
 
 function truncate(text: string, max = 72): string {
   const trimmed = text.trim();
@@ -67,11 +70,15 @@ export function buildDailyLogEntryTiles(
   const tripLegs = log.trip_legs ?? [];
   const tripKm = tripLegs.reduce((sum, leg) => sum + Number(leg.distance_km || 0), 0);
   const expenseLines = log.expense_lines ?? [];
-  const expenseKulut = expenseLines.filter((line) => !MATERIAL_EXPENSE_TYPES.has(line.expense_type));
+  const expenseKulut = expenseLines.filter(
+    (line) => !MATERIAL_EXPENSE_TYPES.has(line.expense_type) && !DEVICE_EXPENSE_TYPES.has(line.expense_type),
+  );
   const expenseTotal = logExpensesTotal(log);
   const kulutCount = expenseKulut.length + tripLegs.length;
 
-  if (kulutCount > 0 || expenseTotal > 0.005 || tripKm > 0) {
+  const onlyDeviceLines =
+    expenseLines.length > 0 && expenseLines.every((line) => DEVICE_EXPENSE_TYPES.has(line.expense_type));
+  if (kulutCount > 0 || (expenseTotal > 0.005 && !onlyDeviceLines) || tripKm > 0) {
     const subtitleParts: string[] = [];
     if (expenseTotal > 0.005 && showMoney) {
       subtitleParts.push(`${expenseTotal.toFixed(2)} €`);
@@ -109,6 +116,21 @@ export function buildDailyLogEntryTiles(
       logId: log.id,
       title: dateLabel,
       subtitle: truncate(subtitleParts.join(' · '), 72),
+    });
+  }
+
+  const deviceLines = expenseLines.filter((line) => DEVICE_EXPENSE_TYPES.has(line.expense_type));
+  if (deviceLines.length > 0) {
+    const first = String(deviceLines[0].description ?? '').trim() || 'Laite';
+    tiles.push({
+      key: `${log.id}:device`,
+      kind: 'device',
+      logId: log.id,
+      title: dateLabel,
+      subtitle: truncate(
+        deviceLines.length === 1 ? first : `${deviceLines.length} laitetta · ${first}`,
+        72,
+      ),
     });
   }
 

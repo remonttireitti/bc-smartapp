@@ -123,7 +123,7 @@ export function quoteLinesByCategory(quoteData: unknown): QuoteLineGroup[] {
         quoteNet: line.quote_purchase_net,
         action: 'device',
         purchaseLineId: line.id,
-        hint: 'Toteutunut = tarjouspyynnön hinta, ellei oikaista.',
+        hint: 'Toteutunut = tarjouspyynnön hinta, ellei oikaista tai kirjata Laite-osiossa.',
       });
       continue;
     }

@@ -214,6 +214,7 @@ export const EXPENSE_TYPE_LABELS: Record<string, string> = {
   part: 'Varaosa',
   material: 'Tarvike',
   other: 'Muu kulu',
+  device: 'Laite',
 };
 
 export const EXPENSE_TYPE_OPTIONS = Object.entries(EXPENSE_TYPE_LABELS).map(([value, label]) => ({

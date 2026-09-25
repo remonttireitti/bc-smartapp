@@ -10,6 +10,7 @@ import {
   type ExpensePurchaseFields,
 } from './workReportExpenseBilling';
 import type { WorkReportDailyLog } from '../types';
+import { DEVICE_EXPENSE_TYPE } from './workReportDeviceEntries';
 
 export const QUOTE_CATEGORY_LABELS: Record<QuoteCategoryKey, string> = {
   labor: 'Työt',
@@ -54,15 +55,19 @@ function isTripExpense(expense: ExpenseLike): boolean {
   return expense.expense_type === 'km' || /^Ajomatkat\s*\(/i.test(description);
 }
 
-/** Kulurivin tyypit tarjouspyynnön termein: Tarvike/Varaosa = Tarvikkeet, muut = Kulut. */
+/** Kulurivin tyypit tarjouspyynnön termein: Tarvike/Varaosa = Tarvikkeet, Laite = Laite, muut = Kulut. */
 export const SUPPLY_EXPENSE_TYPES: readonly string[] = ['material', 'part'];
 export const COST_EXPENSE_TYPES: readonly string[] = ['parking', 'km', 'other'];
+export const DEVICE_EXPENSE_TYPES: readonly string[] = [DEVICE_EXPENSE_TYPE];
 
 /** Tyypin mukainen kategoria; null = tyyppiä ei valittu (vanha rivi). */
-export function expenseTypeCategory(type: string | null | undefined): 'supplies' | 'expenses' | null {
+export function expenseTypeCategory(
+  type: string | null | undefined,
+): 'supplies' | 'expenses' | 'device' | null {
   const key = String(type ?? '').trim();
   if (SUPPLY_EXPENSE_TYPES.includes(key)) return 'supplies';
   if (COST_EXPENSE_TYPES.includes(key)) return 'expenses';
+  if (DEVICE_EXPENSE_TYPES.includes(key)) return 'device';
   return null;
 }
 
@@ -258,6 +263,15 @@ export function collectWorkReportCategoryEntries(
 
 export function classifyExpenseDraftCategory(row: ExpenseLike): QuoteCategoryKey {
   return classifyExpenseLineCategory(row);
+}
+
+/**
+ * Lomakkeen kategoria: null, kun tyyppiä ei ole vielä valittu (ei arvata laskutustavasta —
+ * käyttäjää pyydetään valitsemaan tyyppi). Ajomatkat ovat aina Kuluja.
+ */
+export function expenseDraftCategoryOrNull(row: ExpenseLike): QuoteCategoryKey | null {
+  if (isTripExpense(row)) return 'expenses';
+  return expenseTypeCategory(row.expense_type);
 }
 
 export function expenseBillingModeCategoryHint(mode: ReturnType<typeof resolveExpenseBillingMode>): string {

@@ -43,7 +43,11 @@ export type MarginEatingExpenseLine = {
  */
 export function analyzeMarginEatingExpenses(
   logs: WorkReportDailyLog[],
-  options?: { excludeDiarySupplies?: boolean },
+  options?: {
+    excludeDiarySupplies?: boolean;
+    /** Laiterivit (tyyppi Laite), jotka lasketaan katteen Laite-rivillä päiväkirjan hankintana. */
+    excludeDeviceDiaryPurchases?: boolean;
+  },
 ): { total: number; lines: MarginEatingExpenseLine[] } {
   const lines: MarginEatingExpenseLine[] = [];
   let total = 0;
@@ -72,7 +76,8 @@ export function analyzeMarginEatingExpenses(
       const extraBilling = resolveLogExpenseExtraBillingFlags(expense, index, expenseLines, supplyLineFlags);
 
       if (
-        options?.excludeDiarySupplies
+        (options?.excludeDiarySupplies
+          || (options?.excludeDeviceDiaryPurchases && String(expense.expense_type ?? '').trim() === 'device'))
         && expenseDiarySuppliesTotal(expense, extraBilling).total > 0.005
       ) {
         continue;
