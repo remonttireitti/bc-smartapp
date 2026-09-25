@@ -87,7 +87,22 @@ export type QuoteOutcomeSummary = {
   hasMargin: boolean;
   /** null, jos tarjousarviota (vertailua) ei ole. */
   verdict: QuoteOutcomeVerdict | null;
+  /**
+   * Näytetäänkö kate ennen provisiota -rivin Ero-solu. Ilman hyväksyttyjä lisiä kate-ero on
+   * täsmälleen −(Kulut yhteensä -ero) eli toistoa → solu jätetään tyhjäksi ("—").
+   */
+  showMarginVariance: boolean;
 };
+
+/** Kate-ero poikkeaa kulujen eron vastaluvusta (esim. hyväksytyt lisät) → näytä se taulukossa. */
+export function marginVarianceDiffersFromCosts(
+  costs: QuoteOutcomeComparison,
+  grossMargin: QuoteOutcomeComparison | null,
+): boolean {
+  if (!grossMargin || grossMargin.varianceNet == null) return false;
+  if (costs.varianceNet == null) return true;
+  return Math.abs(roundMoney(grossMargin.varianceNet + costs.varianceNet)) > EPS;
+}
 
 const CATEGORY_DEDUCTION_KEYS = new Set(['labor_expenses', 'device', 'supplies']);
 
@@ -223,25 +238,8 @@ export function buildQuoteOutcomeSummary(input: {
     netMarginNet: roundMoney(partnerMargin?.netMarginNet ?? 0),
     hasMargin: partnerMargin != null,
     verdict: verdictFor(verdictAmount, formatEuro),
+    showMarginVariance: marginVarianceDiffersFromCosts(costs, grossMargin),
   };
-}
-
-/** Selite kate-erolle, kun lisälaskutus vaikuttaa (muuten kate-ero = −kulujen ero). */
-export function outcomeVarianceExplanation(
-  summary: QuoteOutcomeSummary,
-  formatEuro: (value: number) => string,
-): string | null {
-  if (summary.costs.varianceNet == null) return null;
-  const costPart =
-    Math.abs(summary.costs.varianceNet) < EPS
-      ? 'kulut tarjouspyynnön mukaan'
-      : summary.costs.varianceNet < 0
-        ? `kulut ${formatEuro(Math.abs(summary.costs.varianceNet))} tarjouspyyntöä pienemmät`
-        : `kulut ${formatEuro(summary.costs.varianceNet)} tarjouspyyntöä suuremmat`;
-  if (summary.customerExtrasNet > EPS) {
-    return `${costPart} · lisälaskutus +${formatEuro(summary.customerExtrasNet)}`;
-  }
-  return costPart.charAt(0).toUpperCase() + costPart.slice(1);
 }
 
 const PRINT_TONE_COLOR: Record<OutcomeTone, string> = {
@@ -269,12 +267,6 @@ export function renderQuoteOutcomeSummaryHtml(
   const hasExtras = summary.customerExtrasNet > EPS;
   const gross = summary.grossMargin;
 
-  const tile = (title: string, c: QuoteOutcomeComparison) => `
-    <td style="border-left:4px solid ${PRINT_TONE_COLOR[c.tone]};padding:6px 10px;vertical-align:top">
-      <div style="font-size:11px;text-transform:uppercase;color:#475569;font-weight:700">${esc(title)}</div>
-      <div>Tarjouspyyntö ${esc(money(c.estimateNet))} · Toteutunut <strong>${esc(money(c.actualNet))}</strong></div>
-      ${c.varianceNet == null ? '' : `<div>Ero <strong style="color:${PRINT_TONE_COLOR[c.tone]};font-size:15px">${esc(formatSignedEuro(c.varianceNet, euro))}</strong></div>`}
-    </td>`;
 
   const rowsHtml = summary.rows
     .map((row) => {
@@ -285,16 +277,19 @@ export function renderQuoteOutcomeSummaryHtml(
 
   const marginRows = gross
     ? `${hasExtras ? `<tr><td>Myynti (tarjous + hyväksytyt lisät)</td><td class="num">${esc(money(summary.costs.estimateNet == null ? null : summary.quoteSaleNet))}</td><td class="num">${esc(euro(summary.saleTotalNet))}</td>${variance(summary.costs.estimateNet == null ? null : summary.customerExtrasNet, 'better')}</tr>` : ''}
-      <tr><td><strong>Kate ennen provisiota</strong></td><td class="num">${esc(money(gross.estimateNet))}</td><td class="num"><strong>${esc(euro(gross.actualNet))}</strong></td>${variance(gross.varianceNet, gross.tone)}</tr>
+      <tr><td><strong>Kate ennen provisiota</strong></td><td class="num">${esc(money(gross.estimateNet))}</td><td class="num"><strong>${esc(euro(gross.actualNet))}</strong></td>${summary.showMarginVariance ? variance(gross.varianceNet, gross.tone) : '<td class="num">—</td>'}</tr>
       <tr><td>Provisio (${esc(String(Math.round(summary.commissionPercent * 100) / 100).replace('.', ','))} %)${summary.commissionSource === 'daily_log' ? '<div class="muted" style="font-size:11px">Päiväkirjan Myyntiprovisio-merkinnöistä</div>' : summary.commissionSource === 'amount' ? '<div class="muted" style="font-size:11px">Sovittu summa</div>' : ''}</td><td class="num">—</td><td class="num">− ${esc(euro(summary.commissionNet))}</td><td class="num">—</td></tr>
       <tr class="profit-row"><td><strong>Puhdas kate</strong></td><td class="num">—</td><td class="num"><strong style="font-size:15px">${esc(euro(summary.netMarginNet))}</strong></td><td class="num">—</td></tr>`
+    : '';
+
+  const verdictHtml = summary.verdict
+    ? `<p style="margin:6px 0 10px;padding:6px 10px;border-left:5px solid ${PRINT_TONE_COLOR[summary.verdict.tone]};font-size:17px;color:${PRINT_TONE_COLOR[summary.verdict.tone]}"><strong>${esc(summary.verdict.label)}</strong></p>`
     : '';
 
   return `<div class="quote-outcome-print">
     <p style="margin:0 0 4px"><span style="font-size:11px;text-transform:uppercase;color:#475569;font-weight:700">${hasExtras ? 'Kiinteä tarjoushinta + hyväksytyt lisät' : 'Kiinteä tarjoushinta'} (alv 0 %)</span><br/><strong style="font-size:20px">${esc(euro(summary.saleTotalNet))}</strong>${hasExtras ? ` <span class="muted">(tarjous ${esc(euro(summary.quoteSaleNet))} + lisät ${esc(euro(summary.customerExtrasNet))})</span>` : ''}</p>
     ${options.quoteTitle ? `<p class="meta-line">Tarjous: ${esc(options.quoteTitle)}</p>` : ''}
-    <table style="margin:6px 0"><tbody><tr>${tile('Kulut', summary.costs)}${gross ? tile('Kate ennen provisiota', gross) : ''}</tr></tbody></table>
-    ${summary.verdict ? `<p style="margin:4px 0 8px;font-size:14px;color:${PRINT_TONE_COLOR[summary.verdict.tone]}"><strong>${esc(summary.verdict.label)}</strong></p>` : ''}
+    ${verdictHtml}
     <table>
       <thead><tr><th>Kulut</th><th class="num">Tarjouspyyntö</th><th class="num">Toteutunut</th><th class="num">Ero</th></tr></thead>
       <tbody>

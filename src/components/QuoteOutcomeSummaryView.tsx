@@ -2,7 +2,6 @@ import type { ReactNode } from 'react';
 import {
   formatSignedEuro,
   type OutcomeTone,
-  type QuoteOutcomeComparison,
   type QuoteOutcomeSummary,
 } from '../lib/quoteOutcomeSummary';
 import { formatCommissionPercent } from '../lib/workReportBillingQuote';
@@ -28,40 +27,6 @@ function money(value: number | null): string {
 function VarianceCell({ value, tone }: { value: number | null; tone: OutcomeTone }) {
   if (value == null) return <td className="num muted">—</td>;
   return <td className={`num quote-outcome-variance ${toneClass(tone)}`}>{formatSignedEuro(value, formatEuro)}</td>;
-}
-
-function ComparisonTile({
-  title,
-  comparison,
-  hint,
-}: {
-  title: string;
-  comparison: QuoteOutcomeComparison;
-  hint: string;
-}) {
-  return (
-    <div className={`quote-outcome-tile ${toneClass(comparison.tone)}`}>
-      <div className="quote-outcome-tile-title">{title}</div>
-      <div className="quote-outcome-tile-values">
-        <div>
-          <span className="quote-outcome-tile-label">Tarjouspyyntö</span>
-          <span className="quote-outcome-tile-value">{money(comparison.estimateNet)}</span>
-        </div>
-        <div>
-          <span className="quote-outcome-tile-label">Toteutunut</span>
-          <strong className="quote-outcome-tile-value">{money(comparison.actualNet)}</strong>
-        </div>
-      </div>
-      {comparison.varianceNet != null ? (
-        <div className={`quote-outcome-tile-diff ${toneClass(comparison.tone)}`}>
-          Ero <strong>{formatSignedEuro(comparison.varianceNet, formatEuro)}</strong>
-          <span className="quote-outcome-tile-hint"> · {hint}</span>
-        </div>
-      ) : (
-        <div className="quote-outcome-tile-diff muted">Ei tarjouspyyntöä vertailuun</div>
-      )}
-    </div>
-  );
 }
 
 const VERDICT_ICON: Record<OutcomeTone, string> = { better: '▲', worse: '▼', neutral: '●' };
@@ -91,21 +56,6 @@ export default function QuoteOutcomeSummaryView({
             </span>
           ) : null}
           {quoteTitle ? <span className="muted quote-outcome-price-sub">Tarjous: {quoteTitle}</span> : null}
-        </div>
-
-        <div className="quote-outcome-tiles">
-          <ComparisonTile
-            title="Kulut"
-            comparison={summary.costs}
-            hint={summary.costs.tone === 'worse' ? 'yli tarjouspyynnön' : summary.costs.tone === 'better' ? 'alle tarjouspyynnön' : 'tarjouspyynnön mukaan'}
-          />
-          {gross ? (
-            <ComparisonTile
-              title="Kate ennen provisiota"
-              comparison={gross}
-              hint={gross.tone === 'worse' ? 'alle tarjouspyynnön' : gross.tone === 'better' ? 'yli tarjouspyynnön' : 'tarjouspyynnön mukaan'}
-            />
-          ) : null}
         </div>
 
         {summary.verdict ? (
@@ -174,7 +124,11 @@ export default function QuoteOutcomeSummaryView({
                   <td className="num">
                     <strong>{formatEuro(gross.actualNet)}</strong>
                   </td>
-                  <VarianceCell value={gross.varianceNet} tone={gross.tone} />
+                  {summary.showMarginVariance ? (
+                    <VarianceCell value={gross.varianceNet} tone={gross.tone} />
+                  ) : (
+                    <td className="num muted">—</td>
+                  )}
                 </tr>
                 <tr className="quote-outcome-commission-row">
                   <td colSpan={2}>

@@ -16877,93 +16877,28 @@ button.tool-booking-cal-day {
   font-size: 0.85rem;
 }
 
-.quote-outcome-tiles {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
-  gap: 0.65rem;
-}
-
-.quote-outcome-tile {
-  display: grid;
-  gap: 0.45rem;
-  padding: 0.7rem 0.85rem;
-  border: 1px solid var(--border);
-  border-left-width: 4px;
-  border-radius: 0.55rem;
-  background: var(--bg-muted);
-}
-
-.quote-outcome-tile.quote-outcome-tone-better { border-left-color: var(--success); }
-.quote-outcome-tile.quote-outcome-tone-worse { border-left-color: var(--danger); }
-.quote-outcome-tile.quote-outcome-tone-neutral { border-left-color: var(--border-strong); }
-
-.quote-outcome-tile-title {
-  font-size: 0.8rem;
-  font-weight: 700;
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
-  color: var(--text-muted);
-}
-
-.quote-outcome-tile-values {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.5rem;
-}
-
-.quote-outcome-tile-values > div {
-  display: grid;
-  gap: 0.05rem;
-}
-
-.quote-outcome-tile-label {
-  font-size: 0.78rem;
-  color: var(--text-subtle);
-}
-
-.quote-outcome-tile-value {
-  font-size: 1.25rem;
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-
-.quote-outcome-tile-diff {
-  font-size: 0.95rem;
-}
-
-.quote-outcome-tile-diff strong {
-  font-size: 1.15rem;
-  font-variant-numeric: tabular-nums;
-}
-
-.quote-outcome-tile-hint {
-  color: var(--text-muted);
-  font-size: 0.85rem;
-}
-
-.quote-outcome-tone-better.quote-outcome-tile-diff strong,
 .quote-outcome-variance.quote-outcome-tone-better { color: var(--success); }
-.quote-outcome-tone-worse.quote-outcome-tile-diff strong,
 .quote-outcome-variance.quote-outcome-tone-worse { color: var(--danger); }
 
+/* Yksi tuomiorivi hinnan alla (korvaa Kulut/Kate-ruudut – luvut ovat taulukossa). */
 .quote-outcome-verdict {
   display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 0.35rem 0.6rem;
-  padding: 0.55rem 0.85rem;
-  border-radius: 999px;
-  font-size: 1.05rem;
-  justify-self: start;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.65rem 0.9rem;
+  border-left: 5px solid var(--border-strong);
+  border-radius: 0.55rem;
+  font-size: 1.4rem;
+  line-height: 1.25;
+  font-variant-numeric: tabular-nums;
 }
 
-.quote-outcome-verdict.quote-outcome-tone-better { background: #dcfce7; color: #14532d; }
-.quote-outcome-verdict.quote-outcome-tone-worse { background: #fee2e2; color: #7f1d1d; }
+.quote-outcome-verdict.quote-outcome-tone-better { background: #dcfce7; color: #14532d; border-left-color: var(--success); }
+.quote-outcome-verdict.quote-outcome-tone-worse { background: #fee2e2; color: #7f1d1d; border-left-color: var(--danger); }
 .quote-outcome-verdict.quote-outcome-tone-neutral { background: var(--bg-subtle); color: var(--text-secondary); }
 
 .quote-outcome-verdict-icon {
-  font-size: 0.85rem;
-  margin-right: 0.3rem;
+  font-size: 1rem;
 }
 
 .quote-outcome-verdict-sub {
@@ -17065,7 +17000,7 @@ button.tool-booking-cal-day {
   .quote-outcome-table .quote-outcome-row-sub { font-size: 0.7rem; }
   .quote-outcome-margin-row td { font-size: 0.82rem; }
   .quote-outcome-net-row td { font-size: 0.95rem; }
-  .quote-outcome-verdict { display: block; border-radius: 0.65rem; }
+  .quote-outcome-verdict { font-size: 1.15rem; padding: 0.55rem 0.7rem; }
   .quote-outcome-verdict-sub { display: block; margin-top: 0.15rem; }
 }
 
