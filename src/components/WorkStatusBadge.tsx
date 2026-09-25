@@ -19,7 +19,7 @@ const WORK_STATUS_HINTS: Record<WorkStatus, string> = {
   billed_customer: 'Asiakaslaskutus tehty.',
 };
 
-function StatusIcon({ status }: { status: WorkStatus }) {
+export function StatusIcon({ status }: { status: WorkStatus }) {
   switch (status) {
     case 'draft':
       return <IconDraft className="ui-icon status-badge-icon" />;

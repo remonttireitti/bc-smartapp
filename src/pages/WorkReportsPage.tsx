@@ -1052,7 +1052,7 @@ export default function WorkReportsPage({ session }: Props) {
               {historyReports.map((r) => (
                 <WorkReportListTile
                   key={r.id}
-                  {...reportListItemProps(r, logsByReportId, companyId, billingModuleEnabled, customerBillingEnabled, loadReports)}
+                  {...reportListItemProps(r, logsByReportId, companyId, billingModuleEnabled, customerBillingEnabled, loadReports, { showStatusMenu: true })}
                 />
               ))}
             </WorkReportListGrid>

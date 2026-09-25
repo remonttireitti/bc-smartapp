@@ -1,6 +1,9 @@
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import WorkReportStatusBadges from './WorkReportStatusBadges';
+import WorkReportStatusMenu from './WorkReportStatusMenu';
+import { canChangeWorkflowStatus } from '../lib/workReportStatusUpdate';
+import { resolveWorkReportViewerRole } from '../lib/workReportViewerStatus';
 import { subscriberPortalVisibilityLabel } from '../lib/subscriberPortalVisibility';
 import {
   reportPartyLabels,
@@ -42,6 +45,9 @@ type Props = {
   linkTo?: string;
   onDelete?: () => void;
   deleteBusy?: boolean;
+  /** Näytä työn tilan pikavaihto kortin alla (aktiiviset työt). */
+  showStatusMenu?: boolean;
+  onStatusChanged?: () => void;
 };
 
 export function WorkReportListTile({
@@ -55,6 +61,8 @@ export function WorkReportListTile({
   linkTo,
   onDelete,
   deleteBusy = false,
+  showStatusMenu = false,
+  onStatusChanged,
 }: Props) {
   const href = linkTo ?? `/tyoraportit/${report.id}`;
   const scheduleLabel = report.scheduled_start
@@ -66,6 +74,13 @@ export function WorkReportListTile({
       })
     : 'Ei ajastettu';
   const showStatusBadges = !portalView && !!viewerCompanyId;
+  const showWorkflowMenu =
+    showStatusMenu
+    && variant === 'default'
+    && !portalView
+    && !!viewerCompanyId
+    && resolveWorkReportViewerRole(report, viewerCompanyId) !== 'incoming_partner'
+    && canChangeWorkflowStatus(report.status);
 
   return (
     <div className="work-report-list-tile-wrap">
@@ -102,10 +117,20 @@ export function WorkReportListTile({
               dailyLogs={dailyLogs}
               customerBillingEnabled={customerBillingEnabled}
               compact
+              hideWorkflowBadge={showWorkflowMenu}
             />
           </div>
         ) : null}
       </Link>
+      {showWorkflowMenu ? (
+        <div className="work-report-list-tile-status">
+          <WorkReportStatusMenu
+            reportId={report.id}
+            status={report.status}
+            onChanged={() => onStatusChanged?.()}
+          />
+        </div>
+      ) : null}
       {onDelete ? (
         <button
           type="button"

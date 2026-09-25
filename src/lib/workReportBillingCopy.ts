@@ -1247,3 +1247,37 @@ export async function unmarkCustomerReportBilled(
 
   if (error) throw error;
 }
+
+/**
+ * Voiko katsoja merkitä kumppanilaskun laskutetuksi / perua merkinnän
+ * (sama joukko kuin laskutusmoduulin kortin "Merkitse laskutetuksi" / "Peru laskutettu"):
+ * raportin tekijä (lähtevä lasku), omistaja (saapuva lasku) tai toimeksisaaja.
+ */
+export function canManagePartnerBillingStatus(
+  row: BillingListRow,
+  viewerCompanyId: string | null | undefined,
+  hasDailyLogs = false,
+): boolean {
+  if (!viewerCompanyId || !isBillablePartnerReport(row)) return false;
+  if (!hasPartnerBillingActivity(row, hasDailyLogs)) return false;
+  return (
+    isIncomingPartnerBill(row, viewerCompanyId)
+    || isOutgoingPartnerBill(row, viewerCompanyId)
+    || isDelegatedPartnerBill(row, viewerCompanyId)
+  );
+}
+
+/** Asiakaslaskutuksen merkintä: vain omistajayritys, ei luonnoksille / vastaanottamattomille. */
+export function canManageCustomerBillingStatus(
+  row: Pick<BillingListRow, 'owner_company_id' | 'status'>,
+  viewerCompanyId: string | null | undefined,
+  customerBillingEnabled: boolean,
+): boolean {
+  return (
+    customerBillingEnabled
+    && !!viewerCompanyId
+    && viewerCompanyId === row.owner_company_id
+    && row.status !== 'draft'
+    && row.status !== 'delegated'
+  );
+}

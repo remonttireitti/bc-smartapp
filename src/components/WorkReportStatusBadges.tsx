@@ -35,6 +35,10 @@ type Props = {
   portalView?: boolean;
 
   compact?: boolean;
+  /** Työn tila näytetään erillisenä muokattavana valikkona (raporttinäkymä). */
+  hideWorkflowBadge?: boolean;
+  /** Laskutuksen tila näytetään erillisenä muokattavana valikkona (raporttinäkymä). */
+  hideBillingChips?: boolean;
 
 };
 
@@ -207,6 +211,8 @@ export default function WorkReportStatusBadges({
   portalView = false,
 
   compact = false,
+  hideWorkflowBadge = false,
+  hideBillingChips = false,
 
 }: Props) {
 
@@ -254,13 +260,13 @@ export default function WorkReportStatusBadges({
 
     <span className={wrapperClass}>
 
-      {display.showWorkflowBadge && compact && (
+      {display.showWorkflowBadge && compact && !hideWorkflowBadge && (
 
         <span className={`badge badge-${display.primaryBadgeClass}`}>{display.primaryLabel}</span>
 
       )}
 
-      {display.showWorkflowBadge && !compact && <WorkStatusBadge status={normalizedStatus} />}
+      {display.showWorkflowBadge && !compact && !hideWorkflowBadge && <WorkStatusBadge status={normalizedStatus} />}
 
       {!display.showWorkflowBadge && display.viewerRole === 'incoming_partner' && (
 
@@ -268,7 +274,8 @@ export default function WorkReportStatusBadges({
 
       )}
 
-      {display.viewerRole === 'creator'
+      {!hideBillingChips
+        && display.viewerRole === 'creator'
         && display.partnerBillingState
         && display.secondaryLabel && (
           <BillingChip
@@ -285,7 +292,7 @@ export default function WorkReportStatusBadges({
           />
         )}
 
-      {display.showCustomerBilling && display.secondaryLabel && display.showWorkflowBadge && (
+      {!hideBillingChips && display.showCustomerBilling && display.secondaryLabel && display.showWorkflowBadge && (
 
         <BillingChip
 
