@@ -2,6 +2,7 @@
  * Tarjouspyynnön kohdistus olemassa olevaan työraporttiin (ja irrotus). Käyttää olemassa olevia
  * sarakkeita: quote_requests.work_report_id + work_report_billable.billing_quote. Ei migraatiota.
  */
+import { syncQuoteRowsToWorkReport } from './quoteSeededRows';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import {
   billingQuoteAfterUnlink,
@@ -180,6 +181,14 @@ export async function linkQuoteToWorkReport(
     .update({ status: 'ordered', work_report_id: reportId })
     .eq('id', quote.id);
   if (linkError) throw new Error(linkError.message);
+
+  // 4b) Tarjouksen tarvike-/kulurivit valmiiksi raporttiin (0 €, kuuluu urakkaan; idempotentti).
+  //     Toisesta tarjouksesta jääneet koskemattomat 0 €-rivit poistetaan, hinnoiteltuja ei.
+  try {
+    await syncQuoteRowsToWorkReport(supabase, reportId);
+  } catch (error) {
+    console.error('Tarjouksen rivien luonti työraporttiin epäonnistui:', error);
+  }
 
   // 5) Kumppanilaskelma uudelleen (provisio + partner_total).
   await recalcPartner(supabase, [reportId, ...plan.detachQuoteFromReportIds], input.viewerCompanyId);

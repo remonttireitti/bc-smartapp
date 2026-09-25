@@ -23,7 +23,6 @@ import {
 import {
   expenseTypeForQuoteExpense,
   quoteLinesByCategory,
-  showQuoteLineAmounts,
 } from '../src/lib/quoteLineEntries.ts';
 import { billingQuoteForLinkedQuote } from '../src/lib/quoteWorkReportLinkLogic.ts';
 import { buildQuoteOutcomeSummary } from '../src/lib/quoteOutcomeSummary.ts';
@@ -79,10 +78,6 @@ assert.deepEqual(g.expenses.lines.map((l) => [l.label, l.quoteNet, l.action]), [
 assert.equal(g.expenses.lines[0].expenseType, 'other');
 assert.deepEqual(g.device.lines.map((l) => [l.label, l.quoteNet, l.action, l.purchaseLineId]), [['Laite', 1260, 'device', 'device:dev-1']]);
 assert.ok(!groups.some((group) => group.lines.some((l) => l.id === 'group:installation-internal')), 'sisäinen työ ei ole tarvike');
-// Summa riveittäin vain kun kategoriassa on useampi summallinen rivi (muuten luku on jo taulukossa)
-assert.equal(showQuoteLineAmounts(g.supplies), false);
-assert.equal(showQuoteLineAmounts(g.expenses), true);
-assert.equal(showQuoteLineAmounts(g.device), false);
 assert.equal(expenseTypeForQuoteExpense('Pysäköinti'), 'parking');
 assert.equal(expenseTypeForQuoteExpense('Nosturi'), 'other');
 assert.deepEqual(quoteLinesByCategory(null), []);
@@ -455,8 +450,5 @@ assert.equal(
   'Ilmalämpöpumppu',
 );
 assert.equal(deviceTileSubtitle({ ...baseLog, expense_lines: [diarySupply] }, { showMoney: true, formatEuro: fmt }), null);
-
-// Tarjouspyynnön rivit: laiterivin ohje viittaa Laite-osioon
-assert.match(g.device.lines[0].hint, /kunnes LAITE kirjataan/);
 
 console.log('quote-aligned entries OK');

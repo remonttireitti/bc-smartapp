@@ -1,4 +1,4 @@
-import { FormEvent, type ReactNode, useEffect, useMemo, useState } from 'react';
+import { FormEvent, type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
 import AppLayout from '../components/AppLayout';
@@ -42,9 +42,7 @@ import Tooltip from '../components/Tooltip';
 import WorkReportBillingBreakdown from '../components/WorkReportBillingBreakdown';
 import WorkReportBillingQuotePanel from '../components/WorkReportBillingQuotePanel';
 import { useQuoteDeviceLines } from '../hooks/useQuoteDeviceLines';
-import type { QuoteLineEntry } from '../lib/quoteLineEntries';
 import {
-  collectDeviceEntries,
   DEVICE_EXPENSE_TYPE,
   isDeviceExpense,
   latestDailyLog,
@@ -184,6 +182,12 @@ import {
   saveBillingQuoteCommission,
   type BillingQuoteSettings,
 } from '../lib/workReportBillingQuote';
+import { expenseTypeCategory } from '../lib/workReportEntryCategories';
+import {
+  markQuoteRowsSeeded,
+  syncQuoteRowsToWorkReport,
+} from '../lib/quoteSeededRows';
+import type { QuoteSeededRow } from '../lib/workReportBillingQuote';
 import {
   quoteCommissionChanged,
   quoteCommissionDraftFromSettings,
@@ -1160,7 +1164,13 @@ export default function WorkReportDetailPage({ session }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [billingNotice, setBillingNotice] = useState<string | null>(null);
   const [logDialogOpen, setLogDialogOpen] = useState(false);
-  /** "Kirjaa toteutunut" tarjouspyynnön riviltä: avattava osio ja esitäytetty kulurivi. */
+  /** Tarjouksen tarvike-/kulurivit, jotka odottavat ensimmäistä työkirjausta (raportilla ei kirjauksia). */
+  const [pendingQuoteRows, setPendingQuoteRows] = useState<QuoteSeededRow[]>([]);
+  /** Avoimeen uuteen kirjaukseen esitäytetyt tarjouksen rivit (merkitään luoduiksi tallennuksessa). */
+  const [offeredQuoteRows, setOfferedQuoteRows] = useState<QuoteSeededRow[]>([]);
+  /** Tarjouksen rivien synkronointi kerran per raportti + tarjous (idempotentti joka tapauksessa). */
+  const quoteRowSyncKeyRef = useRef<string | null>(null);
+  /** Esitäytetty työkirjaus (esim. LAITE-ruutu): avattava osio ja esitäytetty kulurivi. */
   const [logDialogPreset, setLogDialogPreset] = useState<{
     sectionKey: string | null;
     expenseKey: string | null;
@@ -1231,6 +1241,37 @@ export default function WorkReportDetailPage({ session }: Props) {
   useEffect(() => {
     if (id && profile?.company_id) void load(id);
   }, [id, profile?.company_id]);
+
+  // Tarjouksen tarvike-/kulurivit valmiiksi raporttiin (myös vanhat kohdistetut raportit avattaessa).
+  const linkedQuoteIdForRows = billingQuoteSettings.quote_request_id?.trim() || null;
+  useEffect(() => {
+    if (loading || !report || !linkedQuoteIdForRows) {
+      if (!linkedQuoteIdForRows) setPendingQuoteRows([]);
+      return;
+    }
+    if (isPortalReadOnly(profile)) return;
+    const allowed = canManageWorkReportDailyLogs({
+      report,
+      userId: session.user.id,
+      companyId: profile?.company_id,
+      role: profile?.role,
+    });
+    if (!allowed) return;
+    const key = `${report.id}:${linkedQuoteIdForRows}`;
+    if (quoteRowSyncKeyRef.current === key) return;
+    quoteRowSyncKeyRef.current = key;
+    // Ei keskeytystä: avain sisältää raportin, joten toinen raportti ajaa oman synkronointinsa.
+    const reportId = report.id;
+    void syncQuoteRowsToWorkReport(supabase, reportId)
+      .then(async (result) => {
+        if (quoteRowSyncKeyRef.current !== key) return;
+        setPendingQuoteRows(result.pendingRows);
+        if (result.changed) await load(reportId);
+      })
+      .catch((syncError) => {
+        console.error('Tarjouksen rivien luonti työraporttiin epäonnistui:', syncError);
+      });
+  }, [loading, report?.id, linkedQuoteIdForRows, profile?.company_id]);
 
   /** Tarjouspyynnön laite (esitäytetty / oikaistu hinta) LAITE-ruudun esitäyttöön. */
   const quoteDeviceLines = useQuoteDeviceLines(
@@ -2441,6 +2482,16 @@ export default function WorkReportDetailPage({ session }: Props) {
     }
 
     const quoteCommissionError = await saveQuoteCommissionIfChanged(quoteCommissionCheck);
+    const offeredQuoteId = billingQuoteSettings.quote_request_id?.trim();
+    if (offeredQuoteRows.length > 0 && offeredQuoteId) {
+      // Tarjouksen rivit tarjottiin tähän kirjaukseen: poistetut eivät palaa myöhemmin.
+      try {
+        await markQuoteRowsSeeded(supabase, report.id, offeredQuoteId, offeredQuoteRows);
+        setPendingQuoteRows([]);
+      } catch (seedError) {
+        console.error('Tarjouksen rivien merkintä epäonnistui:', seedError);
+      }
+    }
 
     closeLogDialog();
     setLogDialogBusy(false);
@@ -2550,31 +2601,28 @@ export default function WorkReportDetailPage({ session }: Props) {
     }
   }
 
-  /** Tarjouspyynnön rivi → uusi työkirjaus esitäytettynä samaan kategoriaan. */
-  function recordQuoteLine(line: QuoteLineEntry) {
-    openAddLogDialog();
-    if (line.action === 'labor') {
-      setLogForm((current) => ({
-        ...current,
-        work_done: current.work_done.trim() ? current.work_done : line.label,
-      }));
-      setLogDialogPreset({ sectionKey: 'hours', expenseKey: null });
-      return;
-    }
-    if (line.action === 'expense') {
-      const row = {
+  /** Tarjouksen tarvike-/kulurivi työkirjauksen kuluriviksi: 0 €, kuuluu urakkaan. */
+  function quoteRowDraft(row: QuoteSeededRow): ExpenseDraft {
+    return applyExpenseBillingMode(
+      {
         ...emptyExpense(),
-        expense_type: line.expenseType ?? 'material',
-        description: line.label,
-        qty: line.qty != null && line.qty > 0 ? String(line.qty) : '1',
-      };
-      setExpenseDrafts((current) => [...current, row]);
-      setLogDialogPreset({ sectionKey: 'expenses', expenseKey: row.key });
-      return;
-    }
-    if (line.action === 'trip') {
-      setLogDialogPreset({ sectionKey: 'trips', expenseKey: null });
-    }
+        expense_type: row.expense_type,
+        description: row.description,
+        qty: String(row.qty),
+        unit_price: '0',
+      },
+      'included_in_contract',
+    );
+  }
+
+  /** Raportilla ei vielä kirjauksia: tarjouksen rivit ensimmäiseen kirjaukseen (TARVIKKEET/KULUT). */
+  function recordQuoteRows() {
+    openAddLogDialog();
+    setLogForm((current) => ({
+      ...current,
+      work_done: current.work_done.trim() ? current.work_done : 'Tarjouksen tarvikkeet ja kulut',
+    }));
+    setLogDialogPreset({ sectionKey: 'expenses', expenseKey: null });
   }
 
   /**
@@ -2622,28 +2670,16 @@ export default function WorkReportDetailPage({ session }: Props) {
     setLogDialogPreset({ sectionKey: 'device', expenseKey: null });
   }
 
-  /** Tarjous ja kate -osion Laite-linkki: kirjattu laite muokattavaksi, muuten esitäytetty LAITE. */
-  function openDeviceForm() {
-    const logged = collectDeviceEntries(dailyLogs)[0];
-    if (logged) {
-      editDeviceLog(logged.logId);
-      return;
-    }
-    recordDevice(
-      quoteDeviceSuggestions(quoteDeviceLines, dailyLogs).map((row) => ({
-        description: row.description,
-        unitPrice: row.unitPrice,
-      })),
-    );
-  }
-
   function openAddLogDialog() {
     setLogDialogPreset(null);
     setQuoteCommissionDraft(quoteCommissionDraftFromSettings(billingQuoteSettings));
     setEditingLogId(null);
     setEditingLog(null);
     setLogForm(initialLogForm());
-    setExpenseDrafts([]);
+    // Ensimmäinen kirjaus: tarjouksen tarvike-/kulurivit valmiiksi (0 €, kuuluu urakkaan).
+    const offered = dailyLogs.length === 0 ? pendingQuoteRows : [];
+    setOfferedQuoteRows(offered);
+    setExpenseDrafts(offered.map(quoteRowDraft));
     setRefrigerantDrafts([]);
     setPartnerPurchaseDrafts([]);
     setPendingImages([]);
@@ -2693,6 +2729,7 @@ export default function WorkReportDetailPage({ session }: Props) {
 
   function closeLogDialog() {
     setLogDialogOpen(false);
+    setOfferedQuoteRows([]);
     setLogDialogBusy(false);
     setEditingLogId(null);
     setEditingLog(null);
@@ -3045,6 +3082,26 @@ export default function WorkReportDetailPage({ session }: Props) {
               : '',
         }
       : null;
+  // Tarjouksen tarvike-/kulurivit odottavat ensimmäistä työkirjausta: ehdotusruudut TARVIKKEET / KULUT.
+  const pendingQuoteRowTiles: DailyLogEntryTileDescriptor[] =
+    dailyLogs.length === 0 && canAddDailyLogs
+      ? (
+          [
+            ['materials', pendingQuoteRows.filter((row) => expenseTypeCategory(row.expense_type) === 'supplies')],
+            ['expenses', pendingQuoteRows.filter((row) => expenseTypeCategory(row.expense_type) === 'expenses')],
+          ] as const
+        )
+          .filter(([, rows]) => rows.length > 0)
+          .map(([kind, rows]) => ({
+            key: `quote-rows-${kind}`,
+            kind,
+            logId: '',
+            variant: 'suggested' as const,
+            marker: 'tarjouksesta',
+            title: rows.length === 1 ? rows[0].description : `${rows.length} riviä`,
+            subtitle: 'hinta puuttuu',
+          }))
+      : [];
   const addDeviceTile: DailyLogEntryTileDescriptor | null =
     canAddDailyLogs && dailyLogs.length > 0 && !hasLoggedDevice && !quoteDeviceTile
       ? { key: 'add-device', kind: 'device', logId: '', variant: 'add', title: '+ Laite', subtitle: '' }
@@ -3394,7 +3451,7 @@ export default function WorkReportDetailPage({ session }: Props) {
       {dailyLogs.length === 0 ? (
         <p className="muted work-report-entries-empty">Ei työkirjauksia vielä.</p>
       ) : null}
-      {dailyLogs.length > 0 || quoteDeviceTile ? (
+      {dailyLogs.length > 0 || quoteDeviceTile || pendingQuoteRowTiles.length > 0 ? (
         <DailyLogEntryTileGrid>
           {dailyLogEntryTiles.map((descriptor) => {
             const log = dailyLogs.find((entry) => entry.id === descriptor.logId);
@@ -3409,6 +3466,9 @@ export default function WorkReportDetailPage({ session }: Props) {
               />
             );
           })}
+          {pendingQuoteRowTiles.map((descriptor) => (
+            <DailyLogEntryTile key={descriptor.key} descriptor={descriptor} onClick={recordQuoteRows} />
+          ))}
           {quoteDeviceTile ? (
             <DailyLogEntryTile
               descriptor={quoteDeviceTile}
@@ -3467,8 +3527,6 @@ export default function WorkReportDetailPage({ session }: Props) {
           tripKmRate={tripKmRate}
           showPartnerMargin={!!showOutgoingPartnerBilling}
           readOnly={!showOutgoingPartnerBilling && !canManageCustomerBillingRates}
-          onRecordQuoteLine={canAddDailyLogs ? recordQuoteLine : undefined}
-          onOpenDevice={canAddDailyLogs ? openDeviceForm : undefined}
           onSaved={handleBillingQuotePricesSaved}
         />
         </div>

@@ -1,3 +1,4 @@
+import { expenseLinePriceMissing } from './expensePriceMissing';
 import type { BillableCalculation } from './workReportBilling';
 import {
   APPROVED_EXTRA_BILLING_CUSTOMER_PRINT_LABEL,
@@ -607,8 +608,13 @@ export function generateWorkReportPrintHtml(input: {
       const supplyLineFlags = parseDailyLogCustomerExtraBilling(log.customer_extra_billing).supply_line_flags;
       const refrigerantLines = log.refrigerant_lines ?? [];
       const showCustomerExpensePrices = showCustomerPricesInPrint;
+      // Asiakkaan tulosteessa ei näytetä rivejä ilman hintaa (esim. tarjouksesta luodut 0 €-rivit).
+      const hideUnpricedExpense = (line: (typeof expenses)[number]) =>
+        printMode === 'customer' && linkedQuoteRequest && expenseLinePriceMissing(line);
+      const visibleExpenseCount = expenses.filter((line) => !hideUnpricedExpense(line)).length;
       const expenseRows = expenses
         .map((line, index) => {
+          if (hideUnpricedExpense(line)) return '';
           const extraBilling = resolveLogExpenseExtraBillingFlags(line, index, expenses, supplyLineFlags);
           const label = EXPENSE_TYPE_LABELS[line.expense_type] ?? line.expense_type;
           const descriptionForPrint =
@@ -789,7 +795,7 @@ export function generateWorkReportPrintHtml(input: {
           ${commission}
           ${imageSection}
           ${
-            expenses.length > 0
+            visibleExpenseCount > 0
               ? `<table class="mini-table">
                   <thead><tr>${
                     showExpenseMoneyColumn
@@ -818,7 +824,9 @@ export function generateWorkReportPrintHtml(input: {
     })
     .join('');
 
-  const totals = summarizeLogs(logs, showInternalPrices);
+  const totals = summarizeLogs(logs, showInternalPrices, {
+    hideUnpricedExpenses: printMode === 'customer' && linkedQuoteRequest,
+  });
   const showCustomerSummaryQuantities =
     printMode === 'customer'
     && customerPrintQuantitySettings.showQuantities
@@ -1421,7 +1429,11 @@ function formatHourEntryForPrint(
   return `${summary} · ${hourExtraLabel}`;
 }
 
-function summarizeLogs(logs: WorkReportDailyLog[], showPrices: boolean) {
+function summarizeLogs(
+  logs: WorkReportDailyLog[],
+  showPrices: boolean,
+  options?: { hideUnpricedExpenses?: boolean },
+) {
   let hours = 0;
   let expenses = 0;
   let expenseLines = 0;
@@ -1449,6 +1461,7 @@ function summarizeLogs(logs: WorkReportDailyLog[], showPrices: boolean) {
       commissionNotes += 1;
     }
     for (const line of log.expense_lines ?? []) {
+      if (options?.hideUnpricedExpenses && expenseLinePriceMissing(line)) continue;
       expenseLines += 1;
       if (showPrices) expenses += expenseLineTotal(line);
     }

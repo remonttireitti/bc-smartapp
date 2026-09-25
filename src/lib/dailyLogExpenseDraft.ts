@@ -1,3 +1,4 @@
+import { expenseLinePriceMissing } from './expensePriceMissing';
 import {
   computeCustomerPriceFromPartnerCost,
   DEFAULT_PARTNER_EXPENSE_MARGIN_PERCENT,
@@ -158,6 +159,18 @@ export function expenseRowSectionTitle(
     showCustomer,
   });
   if (billingLabel) parts.push(billingLabel);
+  if (
+    (showPartner || showCustomer)
+    && row.expense_type
+    && expenseLinePriceMissing({
+      expense_type: row.expense_type,
+      description: row.description,
+      unit_price: row.unit_price,
+      customer_unit_price: row.customer_unit_price,
+    })
+  ) {
+    parts.push('hinta puuttuu');
+  }
   return parts.join(' · ');
 }
 

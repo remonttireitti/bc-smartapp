@@ -8,11 +8,11 @@ import {
 } from './quoteRequest/installationSupplies';
 
 /**
- * Mitä "Kirjaa toteutunut" tekee tarjouspyynnön rivillä:
- * - labor: avaa työkirjauksen (Työt ja tunnit)
- * - expense: avaa työkirjauksen ja lisää valmiin kulu-/tarvikerivin
- * - trip: avaa työkirjauksen (ajot kirjataan matkoina)
- * - device: laitteen toteutunut oikaistaan Tarjous ja kate -osiossa
+ * Tarjouspyynnön rivin kirjaustapa työraportilla:
+ * - labor: työtunnit kirjataan päivittäin
+ * - expense: Tarvike/Kulu → valmis kulurivi työraporttiin (quoteSeededRows, 0 €, kuuluu urakkaan)
+ * - trip: ajot / huoltoauto kirjataan matkoina
+ * - device: LAITE-ruutu (esitäytetty tarjouspyynnöstä)
  */
 export type QuoteLineAction = 'labor' | 'expense' | 'trip' | 'device';
 
@@ -29,7 +29,6 @@ export type QuoteLineEntry = {
   expenseType?: 'material' | 'parking' | 'other';
   /** Laiterivin tunniste billing_quote.purchase_lines -listassa (action = device). */
   purchaseLineId?: string;
-  hint?: string;
 };
 
 export type QuoteLineGroup = {
@@ -123,7 +122,6 @@ export function quoteLinesByCategory(quoteData: unknown): QuoteLineGroup[] {
         quoteNet: line.quote_purchase_net,
         action: 'device',
         purchaseLineId: line.id,
-        hint: 'Toteutunut = tarjouspyynnön hinta, kunnes LAITE kirjataan.',
       });
       continue;
     }
@@ -138,7 +136,7 @@ export function quoteLinesByCategory(quoteData: unknown): QuoteLineGroup[] {
         unit: km ? 'km' : line.unit ?? null,
         quoteNet: line.quote_purchase_net,
         action: km ? 'trip' : 'expense',
-        ...(km ? { hint: 'Kirjaa ajot matkoina.' } : { expenseType: expenseTypeForQuoteExpense(line.label) }),
+        ...(km ? {} : { expenseType: expenseTypeForQuoteExpense(line.label) }),
       });
       continue;
     }
@@ -165,7 +163,6 @@ export function quoteLinesByCategory(quoteData: unknown): QuoteLineGroup[] {
       unit: 'km',
       quoteNet: null,
       action: 'trip',
-      hint: 'Kirjaa ajot matkoina.',
     });
   }
   const vehicleNet = roundMoney(installationVehiclePurchaseNet(quote));
@@ -178,7 +175,6 @@ export function quoteLinesByCategory(quoteData: unknown): QuoteLineGroup[] {
       unit: null,
       quoteNet: vehicleNet,
       action: 'trip',
-      hint: 'Verrataan toteutuneisiin ajoihin.',
     });
   }
 
@@ -187,12 +183,4 @@ export function quoteLinesByCategory(quoteData: unknown): QuoteLineGroup[] {
     label: GROUP_LABELS[category],
     lines: lines.filter((line) => line.category === category),
   })).filter((group) => group.lines.length > 0);
-}
-
-/**
- * Rivikohtainen summa näytetään vain, kun kategoriassa on useampi summallinen rivi —
- * yksittäisen rivin summa on jo vertailutaulukossa.
- */
-export function showQuoteLineAmounts(group: QuoteLineGroup): boolean {
-  return group.lines.filter((line) => line.quoteNet != null && line.quoteNet > 0.005).length > 1;
 }

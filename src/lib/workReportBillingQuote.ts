@@ -81,7 +81,48 @@ export type BillingQuoteSettings = {
    * ja % lasketaan siitä (summa / kate ennen provisiota). null → prosenttitila.
    */
   partner_commission_amount?: number | null;
+  /**
+   * Tarjouksen tarvike-/kulurivit, jotka on jo luotu työraporttiin valmiiksi (0 €, kuuluu urakkaan).
+   * Pitää luonnin idempotenttina: käyttäjän poistamia rivejä ei luoda uudelleen, ja
+   * uudelleenkohdistuksessa vanhan tarjouksen koskemattomat 0 €-rivit tunnistetaan.
+   */
+  quote_seeded_rows?: QuoteSeededRows | null;
 };
+
+export type QuoteSeededRow = {
+  /** Tarjouspyynnön rivin tunniste (quoteLinesByCategory id). */
+  id: string;
+  description: string;
+  expense_type: string;
+  qty: number;
+};
+
+export type QuoteSeededRows = {
+  quote_request_id: string;
+  lines: QuoteSeededRow[];
+};
+
+export function parseQuoteSeededRows(raw: unknown): QuoteSeededRows | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const record = raw as Record<string, unknown>;
+  const quoteId = typeof record.quote_request_id === 'string' ? record.quote_request_id.trim() : '';
+  if (!quoteId) return null;
+  const lines: QuoteSeededRow[] = [];
+  for (const entry of Array.isArray(record.lines) ? record.lines : []) {
+    if (!entry || typeof entry !== 'object') continue;
+    const row = entry as Record<string, unknown>;
+    const id = typeof row.id === 'string' ? row.id : '';
+    if (!id) continue;
+    const qty = Number(row.qty);
+    lines.push({
+      id,
+      description: typeof row.description === 'string' ? row.description : '',
+      expense_type: typeof row.expense_type === 'string' ? row.expense_type : 'other',
+      qty: Number.isFinite(qty) ? qty : 1,
+    });
+  }
+  return { quote_request_id: quoteId, lines };
+}
 
 export type BillingQuoteOption = {
   id: string;
@@ -287,6 +328,8 @@ export function parseBillingQuoteSettings(raw: unknown): BillingQuoteSettings {
     ),
     partner_commission_amount: normalizePartnerCommissionAmount(record.partner_commission_amount),
   };
+  const seededRows = parseQuoteSeededRows(record.quote_seeded_rows);
+  if (seededRows) settings.quote_seeded_rows = seededRows;
   return normalizeBillingQuoteSettings(settings);
 }
 
@@ -747,6 +790,9 @@ export function billingQuoteFromQuoteRow(
         : DEFAULT_PARTNER_COMMISSION_PERCENT,
     partner_commission_amount: previousCommissionAmount,
   };
+  // Luotujen rivien kirjanpito kulkee mukana (uudelleenkohdistus siivoaa vanhan tarjouksen rivit).
+  const previousSeeded = parseQuoteSeededRows(options?.previous?.quote_seeded_rows);
+  if (previousSeeded) base.quote_seeded_rows = previousSeeded;
   return normalizeBillingQuoteSettings(base);
 }
 

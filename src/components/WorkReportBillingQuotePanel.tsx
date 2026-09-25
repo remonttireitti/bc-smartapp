@@ -9,14 +9,9 @@ import {
   resolveActualPurchaseTotal,
   resolveCustomerBillableGrandTotal,
   resolveQuotePurchaseTotal,
-  type BillingQuotePurchaseLine,
   type BillingQuoteSettings,
 } from '../lib/workReportBillingQuote';
-import {
-  quoteLinesByCategory,
-  showQuoteLineAmounts,
-  type QuoteLineEntry,
-} from '../lib/quoteLineEntries';
+import { countUnpricedExpenseLines } from '../lib/quoteSeededRows';
 import { extractQuotePurchaseLines } from '../lib/quotePurchaseLines';
 import {
   billingQuotePriceDraftFromSettings,
@@ -60,22 +55,6 @@ type Props = {
   onSaved?: (settings: BillingQuoteSettings) => void | Promise<void>;
   /** "Avaa tarjous · Vaihda tarjous · Poista kohdistus" tarjouksen nimen perään. */
   quoteLinkActions?: ReactNode;
-  /** "Kirjaa toteutunut" tarjouspyynnön riviltä → avaa esitäytetyn työkirjauksen. */
-  onRecordQuoteLine?: (line: QuoteLineEntry) => void;
-  /** Avaa LAITE-lomakkeen (esitäytetty tarjouspyynnöstä tai kirjattu laite). */
-  onOpenDevice?: () => void;
-};
-
-function formatQty(value: number | null, unit: string | null): string {
-  if (value == null || !(value > 0)) return '';
-  const qty = value.toLocaleString('fi-FI', { maximumFractionDigits: 2 });
-  return unit ? `${qty} ${unit}` : qty;
-}
-
-const RECORD_LABELS: Record<Exclude<QuoteLineEntry['action'], 'device'>, string> = {
-  labor: 'Kirjaa tunnit',
-  expense: 'Kirjaa toteutunut',
-  trip: 'Kirjaa ajo',
 };
 
 export default function WorkReportBillingQuotePanel({
@@ -92,8 +71,6 @@ export default function WorkReportBillingQuotePanel({
   readOnly = false,
   onSaved,
   quoteLinkActions = null,
-  onRecordQuoteLine,
-  onOpenDevice,
 }: Props) {
   const [settings, setSettings] = useState<BillingQuoteSettings>(() =>
     parseBillingQuoteSettings(initialSettings),
@@ -180,7 +157,8 @@ export default function WorkReportBillingQuotePanel({
         : null,
     [quoteData, partnerCalculation, dailyLogs, tripKmRate, effectiveSettings],
   );
-  const quoteLineGroups = useMemo(() => quoteLinesByCategory(quoteData), [quoteData]);
+  /** Kulurivit ilman hintaa (esim. tarjouksesta luodut 0 €-rivit) — tuomio ei ole vielä luotettava. */
+  const unpricedRowCount = useMemo(() => countUnpricedExpenseLines(dailyLogs), [dailyLogs]);
   const categoryEntries = useMemo(
     () => collectWorkReportCategoryEntries(dailyLogs, partnerCalculation),
     [dailyLogs, partnerCalculation],
@@ -328,63 +306,6 @@ export default function WorkReportBillingQuotePanel({
   }
 
   const extrasCommissionContext = extraBillingCommissionContextFromMargin(partnerMargin);
-  const deviceLines: BillingQuotePurchaseLine[] = (effectiveSettings.purchase_lines ?? []).filter(
-    (line) => line.source === 'device',
-  );
-  // Rivilistan "Kirjaa / oikaise" avaa LAITE-lomakkeen (vertailutaulukossa ei omaa linkkiä).
-  const canCorrectDevice = quoteIsLinked && !readOnly && deviceLines.length > 0 && !!onOpenDevice;
-
-  function renderQuoteLines() {
-    if (!quoteIsLinked || quoteLineGroups.length === 0) return null;
-    return (
-      <details className="billing-purchase-lines-details quote-line-entries">
-        <summary>Tarjouspyynnön rivit – mihin toteutunut kirjataan</summary>
-        <p className="muted quote-line-entries-intro">
-          Samat ryhmät kuin yllä olevassa vertailussa.
-          {onRecordQuoteLine ? ' Kirjaa-painike avaa uuden työkirjauksen valmiiksi oikeaan kohtaan.' : ''}
-        </p>
-        {quoteLineGroups.map((group) => {
-          const showAmounts = showQuoteLineAmounts(group);
-          return (
-            <div className="quote-line-entries-group" key={group.category}>
-              <span className={`quote-category-badge quote-category-badge-${group.category}`}>
-                {group.label}
-              </span>
-              <ul className="quote-line-entries-list">
-                {group.lines.map((line) => {
-                  const meta = [
-                    formatQty(line.qty, line.unit),
-                    showAmounts && line.quoteNet != null ? formatEuro(line.quoteNet) : '',
-                  ].filter(Boolean).join(' · ');
-                  return (
-                    <li key={line.id}>
-                      <div className="quote-line-entries-text">
-                        <span className="quote-line-entries-label">{line.label}</span>
-                        {meta ? <span className="muted"> · {meta}</span> : null}
-                        {line.hint ? <span className="muted quote-line-entries-hint">{line.hint}</span> : null}
-                      </div>
-                      {line.action === 'device' ? (
-                        canCorrectDevice ? (
-                          <button type="button" className="btn-link" onClick={onOpenDevice}>
-                            Kirjaa / oikaise
-                          </button>
-                        ) : null
-                      ) : onRecordQuoteLine ? (
-                        <button type="button" className="btn-link" onClick={() => onRecordQuoteLine(line)}>
-                          {RECORD_LABELS[line.action]}
-                        </button>
-                      ) : null}
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
-          );
-        })}
-      </details>
-    );
-  }
-
   function renderExtrasMarginLines() {
     if (!showPartnerMargin || !partnerMargin || extrasMarginLines.length === 0) return null;
     return (
@@ -585,6 +506,7 @@ export default function WorkReportBillingQuotePanel({
               quoteTitle={quoteIsLinked ? settings.quote_title ?? 'Linkitetty tarjous' : null}
               quoteTitleActions={quoteIsLinked ? quoteLinkActions : null}
               commissionExceedsGross={!!partnerMargin?.commissionExceedsGross}
+              unpricedRowCount={quoteIsLinked ? unpricedRowCount : 0}
             />
           ) : quoteIsLinked ? (
             <p className="billing-quote-linked-summary">
@@ -594,7 +516,6 @@ export default function WorkReportBillingQuotePanel({
             </p>
           ) : null}
 
-          {renderQuoteLines()}
 
           {customerBillableGrandTotal
           && customerBillableGrandTotal.extrasTotal > 0.005

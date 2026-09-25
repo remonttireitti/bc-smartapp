@@ -1,4 +1,5 @@
 import type { WorkReportDailyLog } from '../types';
+import { expenseLinePriceMissing } from '../lib/expensePriceMissing';
 import { EXPENSE_TYPE_LABELS, HOUR_ENTRY_LABELS } from '../types';
 import { deviceTileSubtitle } from '../lib/workReportDeviceEntries';
 
@@ -93,12 +94,14 @@ export function buildDailyLogEntryTiles(
       subtitleParts.push(`${tripKm.toFixed(1)} km`);
     }
     subtitleParts.push(`${kulutCount} riviä`);
+    const kulutUnpriced = expenseKulut.filter(expenseLinePriceMissing).length;
     tiles.push({
       key: `${log.id}:expenses`,
       kind: 'expenses',
       logId: log.id,
       title: dateLabel,
       subtitle: subtitleParts.join(' · '),
+      ...(kulutUnpriced > 0 && showMoney ? { marker: 'hinta puuttuu' } : {}),
     });
   }
 
@@ -116,12 +119,14 @@ export function buildDailyLogEntryTiles(
     } else if (refrigerantLines[0]) {
       subtitleParts.push(refrigerantLines[0].refrigerant_type ?? 'Kylmäaine');
     }
+    const materialsUnpriced = materialLines.filter(expenseLinePriceMissing).length;
     tiles.push({
       key: `${log.id}:materials`,
       kind: 'materials',
       logId: log.id,
       title: dateLabel,
       subtitle: truncate(subtitleParts.join(' · '), 72),
+      ...(materialsUnpriced > 0 && showMoney ? { marker: 'hinta puuttuu' } : {}),
     });
   }
 
