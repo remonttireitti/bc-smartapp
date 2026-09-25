@@ -47,7 +47,8 @@ assert.equal(
   payload.description,
   'Tarjotaan teille seuraavasti: Uuden ilmalämpöpumpun asennus vanhan laitteen tilalle.',
 );
-assert.equal(payload.title, 'Vanha jäähdytysyksikköön kompressori rikki');
+// Otsikko = asiakas + " – " + Tarjouksen otsikko (sama kuin tarjouspyynnön otsikko).
+assert.equal(payload.title, 'Messukeskus – Vanha jäähdytysyksikköön kompressori rikki');
 assert.equal(payload.orderer_name, null);
 assert.equal(payload.location_text, null);
 assert.equal(payload.equipment_id, null);

@@ -2,7 +2,12 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { resolveMaintenanceReportTitle } from './huoltoRaportti/defaults';
 import type { HuoltoReportData } from './huoltoRaportti/types';
 import { QUOTE_TYPE_LABELS } from './quoteRequest/constants';
-import { QUOTE_STATUS_LABELS, normalizeQuoteRequestData } from './quoteRequest/defaults';
+import {
+  QUOTE_STATUS_LABELS,
+  normalizeQuoteRequestData,
+  quoteTitleSubject,
+  resolveQuoteDisplayTitle,
+} from './quoteRequest/defaults';
 import type { QuoteRequestData } from './quoteRequest/types';
 import { isMaintenanceReportPublished } from './maintenanceReportStatus';
 import { isWorkReportVisibleToPortal } from './portalWorkOrder';
@@ -226,7 +231,9 @@ export async function loadCustomerLinkedDocuments(
     linked.push({
       id: quote.id,
       kind: 'quote_request',
-      title: quote.title?.trim() || typeLabel,
+      title: quote.title?.trim()
+        ? resolveQuoteDisplayTitle({ storedTitle: quote.title, quoteTypeLabel: quoteTitleSubject(data) })
+        : quoteTitleSubject(data),
       subtitle: typeLabel,
       date: quote.updated_at || quote.created_at,
       status: quote.status,

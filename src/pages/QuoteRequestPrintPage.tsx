@@ -18,12 +18,16 @@ import { embedUrlAsDataUrl } from '../lib/quoteRequest/termatekAssets';
 
 import { quoteListTrail, withNavTrail } from '../lib/navigationTrail';
 
-import { isPumpQuoteType, isRepairQuoteType, QUOTE_TYPE_LABELS } from '../lib/quoteRequest/constants';
+import { isPumpQuoteType, isRepairQuoteType } from '../lib/quoteRequest/constants';
 
 import { deliveryFeesFromCompanySettings, syncMainDeviceBrandPricing } from '../lib/quoteRequest/deviceCatalog';
 import { setActiveDeviceRegistry, snapshotFromCompanySettings } from '../lib/quoteRequest/deviceRegistryState';
 
-import { normalizePumpDeviceSelection, resolveQuoteDisplayTitle } from '../lib/quoteRequest/defaults';
+import {
+  normalizePumpDeviceSelection,
+  quoteTitleSubject,
+  resolveQuoteDisplayTitle,
+} from '../lib/quoteRequest/defaults';
 
 import {
   generateQuoteHeatCalcPrintHtml,
@@ -406,7 +410,7 @@ export default function QuoteRequestPrintPage({ session }: Props) {
     setTitle(
       resolveQuoteDisplayTitle({
         customerName: row.customers?.name,
-        quoteTypeLabel: QUOTE_TYPE_LABELS[formToUse.type],
+        quoteTypeLabel: quoteTitleSubject(formToUse),
         storedTitle: row.title,
       }) || 'Tarjous',
     );
