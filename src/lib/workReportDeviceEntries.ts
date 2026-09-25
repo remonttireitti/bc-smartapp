@@ -141,3 +141,79 @@ export function effectiveQuoteDeviceActualNet(
   if (deviceEntriesReplaceQuoteDevice(logs)) return 0;
   return roundMoney(deviceLines.reduce((sum, line) => sum + (Number(line.actual_purchase_net) || 0), 0));
 }
+
+export type QuoteDeviceSuggestion = {
+  id: string;
+  /** Laitteen nimi ilman "Laite:"-etuliitettä. */
+  description: string;
+  /** Esitäytettävä hankintahinta: oikaistu arvo tai tarjouspyynnön hinta (alv 0 %). */
+  unitPrice: number;
+  quoteNet: number;
+  corrected: boolean;
+};
+
+/**
+ * Esitäytetty LAITE-ruutu tarjouspyynnön laitteista, kun laitetta ei ole vielä kirjattu.
+ * Oikaistu hinta (vanha "Oikaise laitteen hankinta") näkyy esitäytettynä.
+ */
+export function quoteDeviceSuggestions(
+  quoteDeviceLines: BillingQuotePurchaseLine[] | null | undefined,
+  logs: WorkReportDailyLog[] | null | undefined,
+): QuoteDeviceSuggestion[] {
+  if (deviceEntriesReplaceQuoteDevice(logs)) return [];
+  return (quoteDeviceLines ?? [])
+    .filter((line) => line.source === 'device')
+    .map((line) => {
+      const corrected = line.actual_corrected === true;
+      const unitPrice = roundMoney(
+        corrected && line.corrected_actual_net != null
+          ? Number(line.corrected_actual_net)
+          : Number(line.actual_purchase_net ?? line.quote_purchase_net) || 0,
+      );
+      return {
+        id: line.id,
+        description: line.label.replace(/^Laite:\s*/i, '').trim() || 'Laite',
+        unitPrice,
+        quoteNet: roundMoney(line.quote_purchase_net),
+        corrected,
+      };
+    })
+    .filter((row) => row.unitPrice > 0.005 || row.quoteNet > 0.005);
+}
+
+/** Viimeisin työkirjaus (päivä, sitten luontiaika) — laite lisätään siihen ilman uutta kirjausta. */
+export function latestDailyLog<T extends Pick<WorkReportDailyLog, 'id' | 'log_date'> & { created_at?: string | null }>(
+  logs: T[] | null | undefined,
+): T | null {
+  let latest: T | null = null;
+  for (const log of logs ?? []) {
+    if (!latest) {
+      latest = log;
+      continue;
+    }
+    const cmp = String(log.log_date ?? '').localeCompare(String(latest.log_date ?? ''));
+    if (cmp > 0 || (cmp === 0 && String(log.created_at ?? '') > String(latest.created_at ?? ''))) {
+      latest = log;
+    }
+  }
+  return latest;
+}
+
+/** LAITE-ruudun teksti kirjatuista laitteista: nimi · hankinta · asiakashinta. */
+export function deviceTileSubtitle(
+  log: WorkReportDailyLog,
+  options: { showMoney: boolean; formatEuro: (value: number) => string },
+): string | null {
+  const entries = collectDeviceEntries([log]);
+  if (entries.length === 0) return null;
+  const parts: string[] = [
+    entries.length === 1 ? entries[0].description : `${entries.length} laitetta · ${entries[0].description}`,
+  ];
+  if (options.showMoney) {
+    const purchase = entries.reduce((sum, entry) => sum + (entry.purchaseNet ?? 0), 0);
+    const customer = entries.reduce((sum, entry) => sum + (entry.customerNet ?? 0), 0);
+    if (purchase > 0.005) parts.push(`hankinta ${options.formatEuro(roundMoney(purchase))}`);
+    if (customer > 0.005) parts.push(`asiakas ${options.formatEuro(roundMoney(customer))}`);
+  }
+  return parts.join(' · ');
+}

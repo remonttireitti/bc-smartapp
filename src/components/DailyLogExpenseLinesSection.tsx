@@ -43,8 +43,7 @@ const EXPENSE_TYPE_GROUPS = [
 const CATEGORY_HINTS: Record<string, string> = {
   supplies: 'Näkyy Tarjous ja kate -vertailussa rivillä Tarvikkeet.',
   expenses: 'Näkyy Tarjous ja kate -vertailussa rivillä Kulut.',
-  device:
-    'Näkyy Tarjous ja kate -vertailussa rivillä Laite. Kirjattu laite korvaa tarjouspyynnön laitehinnan — kirjaa silloin kaikki laitteet.',
+  device: 'Korvaa tarjouspyynnön laitehinnan — kirjaa kaikki laitteet.',
 };
 
 type Props = {
@@ -55,7 +54,7 @@ type Props = {
   showQuoteLinkedExtraBilling?: boolean;
   showQuoteLinkedCategories?: boolean;
   linkedQuoteRequest?: boolean;
-  /** 'device' = Laite-osio (vain laiterivit), 'expenses' = kulut ja tarvikkeet (ei laiterivejä). */
+  /** 'device' = työkirjauksen Laite-ruutu (vain laiterivit), 'expenses' = kulut ja tarvikkeet (ei laiterivejä). */
   variant?: 'expenses' | 'device';
   /** Rivi, jonka muokkaus avataan heti (esitäytetty tarjouspyynnön riviltä). */
   initialEditingKey?: string | null;
@@ -114,11 +113,11 @@ export default function DailyLogExpenseLinesSection({
 
   return (
     <div className="expense-section expense-section-in-dialog">
-      <p className="muted expense-section-hint">
-        {deviceVariant
-          ? 'Kirjaa hankittu tai asiakkaalle myyty laite: nimi / malli, hankintahinta, asiakashinta ja kuka laitteen osti.'
-          : 'Lisää pysäköinti, varaosat ja muut kulut. Avaa rivi muokataksesi hintoja ja laskutusta.'}
-      </p>
+      {deviceVariant ? null : (
+        <p className="muted expense-section-hint">
+          Lisää pysäköinti, varaosat ja muut kulut. Avaa rivi muokataksesi hintoja ja laskutusta.
+        </p>
+      )}
       <button type="button" className="btn btn-secondary" onClick={openNewExpense}>
         {deviceVariant ? '+ Lisää laite' : '+ Lisää kulu tai tarvike'}
       </button>

@@ -32,7 +32,7 @@ export const DAILY_LOG_SECTION_COLORS = {
   hours: '#7C3AED',
   commission: '#64748B',
   expenses: '#D97706',
-  device: '#15803D',
+  device: '#BE185D',
   refrigerant: '#0891B2',
   partnerPurchase: '#B45309',
   images: '#6366F1',

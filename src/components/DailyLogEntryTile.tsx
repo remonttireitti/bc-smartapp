@@ -1,5 +1,6 @@
 import type { WorkReportDailyLog } from '../types';
 import { EXPENSE_TYPE_LABELS, HOUR_ENTRY_LABELS } from '../types';
+import { deviceTileSubtitle } from '../lib/workReportDeviceEntries';
 
 export type DailyLogEntryTileKind = 'work' | 'expenses' | 'materials' | 'device';
 
@@ -14,7 +15,7 @@ export const DAILY_LOG_ENTRY_TILE_COLORS: Record<DailyLogEntryTileKind, string> 
   work: '#388E3C',
   expenses: '#D97706',
   materials: '#7C3AED',
-  device: '#15803D',
+  device: '#BE185D',
 };
 
 export type DailyLogEntryTileDescriptor = {
@@ -23,6 +24,10 @@ export type DailyLogEntryTileDescriptor = {
   logId: string;
   title: string;
   subtitle: string;
+  /** suggested = esitäytetty tarjouspyynnöstä (ei vielä kirjattu), add = kevyt "+ Laite". */
+  variant?: 'suggested' | 'add';
+  /** Pieni merkintä, esim. "tarjouspyynnöstä". */
+  marker?: string;
 };
 
 const MATERIAL_EXPENSE_TYPES = new Set(['material', 'part']);
@@ -44,6 +49,7 @@ type BuildTilesOptions = {
   formatDate: (value: string) => string;
   logExpensesTotal: (log: WorkReportDailyLog) => number;
   showMoney: boolean;
+  formatEuro?: (value: number) => string;
 };
 
 export function buildDailyLogEntryTiles(
@@ -119,18 +125,17 @@ export function buildDailyLogEntryTiles(
     });
   }
 
-  const deviceLines = expenseLines.filter((line) => DEVICE_EXPENSE_TYPES.has(line.expense_type));
-  if (deviceLines.length > 0) {
-    const first = String(deviceLines[0].description ?? '').trim() || 'Laite';
+  const deviceSubtitle = deviceTileSubtitle(log, {
+    showMoney: !!options.showMoney,
+    formatEuro: options.formatEuro ?? ((value) => `${value.toFixed(2)} €`),
+  });
+  if (deviceSubtitle) {
     tiles.push({
       key: `${log.id}:device`,
       kind: 'device',
       logId: log.id,
       title: dateLabel,
-      subtitle: truncate(
-        deviceLines.length === 1 ? first : `${deviceLines.length} laitetta · ${first}`,
-        72,
-      ),
+      subtitle: truncate(deviceSubtitle, 72),
     });
   }
 
@@ -140,19 +145,32 @@ export function buildDailyLogEntryTiles(
 type TileProps = {
   descriptor: DailyLogEntryTileDescriptor;
   onClick: () => void;
+  disabled?: boolean;
 };
 
-export function DailyLogEntryTile({ descriptor, onClick }: TileProps) {
+export function DailyLogEntryTile({ descriptor, onClick, disabled = false }: TileProps) {
+  const variantClass = descriptor.variant ? ` work-report-entry-tile--${descriptor.variant}` : '';
+  const color = DAILY_LOG_ENTRY_TILE_COLORS[descriptor.kind];
   return (
     <button
       type="button"
-      className={`tile work-report-entry-tile work-report-entry-tile--${descriptor.kind}`}
-      style={{ background: DAILY_LOG_ENTRY_TILE_COLORS[descriptor.kind] }}
+      className={`tile work-report-entry-tile work-report-entry-tile--${descriptor.kind}${variantClass}`}
+      style={
+        descriptor.variant === 'add'
+          ? { borderColor: color, color }
+          : descriptor.variant === 'suggested'
+            ? { background: color }
+            : { background: color }
+      }
       onClick={onClick}
+      disabled={disabled}
     >
-      <span className="work-report-entry-tile-kind">{KIND_LABELS[descriptor.kind]}</span>
+      <span className="work-report-entry-tile-kind">
+        {KIND_LABELS[descriptor.kind]}
+        {descriptor.marker ? <span className="work-report-entry-tile-marker">{descriptor.marker}</span> : null}
+      </span>
       <strong>{descriptor.title}</strong>
-      <span className="work-report-entry-tile-meta">{descriptor.subtitle}</span>
+      {descriptor.subtitle ? <span className="work-report-entry-tile-meta">{descriptor.subtitle}</span> : null}
     </button>
   );
 }

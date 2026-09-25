@@ -33,6 +33,9 @@ import {
   collectDeviceEntries,
   deviceEntriesReplaceQuoteDevice,
   deviceEntryCostSplit,
+  deviceTileSubtitle,
+  latestDailyLog,
+  quoteDeviceSuggestions,
 } from '../src/lib/workReportDeviceEntries.ts';
 
 const round = (v) => Math.round(v * 100) / 100;
@@ -402,7 +405,58 @@ for (const [label, line] of [
   assert.equal(gMargin.grossMarginNet, round(SALE + gMargin.customerExtrasNet - deductions));
 }
 
+// H) LAITE-ruutu: esitäyttö tarjouspyynnöstä (tallennettu oikaisu näkyy), katoaa kun laite kirjataan
+const quoteDeviceOnly = (settings) =>
+  mergeActualPurchaseFromWorkReportLogs(settings, [], quoteData).purchase_lines.filter((l) => l.source === 'device');
+const sugA = quoteDeviceSuggestions(quoteDeviceOnly(baseSettings), [{ ...baseLog, expense_lines: [diarySupply] }]);
+assert.deepEqual(sugA.map((r) => [r.description, r.unitPrice, r.quoteNet, r.corrected]), [['Laite', 1260, 1260, false]]);
+const sugB = quoteDeviceSuggestions(quoteDeviceOnly(correctedSettings), []);
+assert.deepEqual(sugB.map((r) => [r.unitPrice, r.quoteNet, r.corrected]), [[1100, 1260, true]], 'oikaistu hinta esitäytetään');
+// Oikaisu säilyy myös, kun tallennettu asetus on kulkenut laitekirjauksen kautta (C2)
+assert.equal(quoteDeviceSuggestions(quoteDeviceOnly(C2.merged), [])[0].unitPrice, 1100);
+assert.deepEqual(quoteDeviceSuggestions(quoteDeviceOnly(baseSettings), C.logs), [], 'kirjattu laite → ei esitäyttöä');
+// Lisälaite (hyväksytty lisälaskutus) ei poista esitäyttöä
+assert.equal(quoteDeviceSuggestions(quoteDeviceOnly(baseSettings), E.logs).length, 1);
+// "Laite:"-etuliite pois nimestä
+assert.equal(
+  quoteDeviceSuggestions([{ id: 'device:main', label: 'Laite: Mitsubishi Heavy 7 kW', source: 'device', quote_purchase_net: 1260, actual_purchase_net: 1260 }], [])[0].description,
+  'Mitsubishi Heavy 7 kW',
+);
+// Esitäytön tallennus kirjauksena (oma hankinta, kuuluu urakkaan, 1260) = sama kate kuin esitäytetty
+const confirmed = { id: 'd6', expense_type: 'device', description: 'Laite', qty: 1, unit_price: 1260, bill_to_partner: false, bill_to_customer: false };
+const H = scenario('H vahvistettu esitäyttö', { expenseLines: [diarySupply, confirmed] });
+assert.equal(H.deviceDeduction, 1260);
+assert.equal(H.margin.grossMarginNet, A.margin.grossMarginNet, 'vahvistus ei muuta katetta');
+
+// Viimeisin työkirjaus (laite lisätään siihen)
+assert.equal(latestDailyLog([]), null);
+assert.equal(
+  latestDailyLog([
+    { id: 'a', log_date: '2026-09-22', created_at: '2026-09-22T08:00:00Z' },
+    { id: 'b', log_date: '2026-09-23', created_at: '2026-09-23T07:00:00Z' },
+    { id: 'c', log_date: '2026-09-23', created_at: '2026-09-23T09:00:00Z' },
+    { id: 'd', log_date: '2026-09-21', created_at: '2026-09-25T09:00:00Z' },
+  ]).id,
+  'c',
+);
+
+// LAITE-ruudun teksti
+const fmt = (v) => `${v.toFixed(2).replace('.', ',')} €`;
+assert.equal(
+  deviceTileSubtitle({ ...baseLog, expense_lines: [ownDevice] }, { showMoney: true, formatEuro: fmt }),
+  'Mitsubishi MSZ-LN35 · hankinta 1180,00 €',
+);
+assert.equal(
+  deviceTileSubtitle({ ...baseLog, expense_lines: [soldDevice] }, { showMoney: true, formatEuro: fmt }),
+  'Ilmalämpöpumppu · hankinta 800,00 € · asiakas 1200,00 €',
+);
+assert.equal(
+  deviceTileSubtitle({ ...baseLog, expense_lines: [soldDevice] }, { showMoney: false, formatEuro: fmt }),
+  'Ilmalämpöpumppu',
+);
+assert.equal(deviceTileSubtitle({ ...baseLog, expense_lines: [diarySupply] }, { showMoney: true, formatEuro: fmt }), null);
+
 // Tarjouspyynnön rivit: laiterivin ohje viittaa Laite-osioon
-assert.match(g.device.lines[0].hint, /Laite-osiossa/);
+assert.match(g.device.lines[0].hint, /kunnes LAITE kirjataan/);
 
 console.log('quote-aligned entries OK');
