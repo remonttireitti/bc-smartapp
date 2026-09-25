@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
   billingQuoteHasData,
   computePartnerNetMargin,
@@ -48,6 +48,8 @@ type Props = {
   showPartnerMargin?: boolean;
   readOnly?: boolean;
   onSaved?: (settings: BillingQuoteSettings) => void;
+  /** "Avaa tarjous · Vaihda tarjous · Poista kohdistus" tarjouksen nimen perään. */
+  quoteLinkActions?: ReactNode;
 };
 
 function parseMoneyInput(value: string): number | null {
@@ -75,6 +77,7 @@ export default function WorkReportBillingQuotePanel({
   showPartnerMargin = false,
   readOnly = false,
   onSaved,
+  quoteLinkActions = null,
 }: Props) {
   const [settings, setSettings] = useState<BillingQuoteSettings>(() =>
     parseBillingQuoteSettings(initialSettings),
@@ -556,6 +559,7 @@ export default function WorkReportBillingQuotePanel({
             <QuoteOutcomeSummaryView
               summary={outcomeSummary}
               quoteTitle={quoteIsLinked ? settings.quote_title ?? 'Linkitetty tarjous' : null}
+              quoteTitleActions={quoteIsLinked ? quoteLinkActions : null}
               commissionEditor={renderCommissionEditor()}
               commissionExceedsGross={!!partnerMargin?.commissionExceedsGross}
             />
@@ -563,6 +567,7 @@ export default function WorkReportBillingQuotePanel({
             <p className="billing-quote-linked-summary">
               Tarjous: <strong>{settings.quote_title ?? 'Linkitetty tarjous'}</strong>
               {displayCustomerPrice != null ? <> · kiinteä tarjoushinta {formatEuro(displayCustomerPrice)}</> : null}
+              {quoteLinkActions}
             </p>
           ) : null}
 

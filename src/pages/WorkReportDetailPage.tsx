@@ -187,6 +187,7 @@ import {
   DEFAULT_PARTNER_URAKKA_MARGIN_PERCENT,
 } from '../lib/workReportUrakkaBilling';
 import { refreshAndPersistPartnerBillable, markPartnerBillableRecalcNeeded } from '../lib/workReportPartnerBillingPersist';
+import { useReportQuoteLinker } from '../components/QuoteWorkReportLinker';
 import {
   formatEuro,
   hasBillableUserFlags,
@@ -2586,6 +2587,22 @@ export default function WorkReportDetailPage({ session }: Props) {
     await load(report.id);
   }
 
+  const reportQuoteLinker = useReportQuoteLinker({
+    report: report
+      ? {
+          id: report.id,
+          title: report.title,
+          customer_id: report.customer_id,
+          owner_company_id: report.owner_company_id,
+        }
+      : null,
+    linkedQuoteId: billingQuoteSettings.quote_request_id?.trim() || null,
+    viewerCompanyId: profile?.company_id,
+    onChanged: () => {
+      if (report) void load(report.id);
+    },
+  });
+
   if (loading) {
     return (
       <AppLayout session={session}>
@@ -2691,6 +2708,9 @@ export default function WorkReportDetailPage({ session }: Props) {
   const portalReadOnly = isPortalReadOnly(profile);
   const hasLinkedQuote = workReportHasLinkedQuoteRequest(billingQuoteSettings);
   const showQuoteBillingSection = hasLinkedQuote && !portalReadOnly;
+  /** Tarjouksen liittäminen / vaihto / irrotus (vanhat tilatut tarjoukset oikeisiin raportteihin). */
+  const canLinkQuote = !portalReadOnly && (isOwnerCompany || isCreatorCompany);
+  const linkedQuoteId = billingQuoteSettings.quote_request_id?.trim() || null;
   const linkedQuoteTileSubtitle = billingQuoteSettings.quote_title?.trim()
     || (billingQuoteSettings.customer_invoice_total != null
       ? formatEuro(billingQuoteSettings.customer_invoice_total)
@@ -2948,6 +2968,14 @@ export default function WorkReportDetailPage({ session }: Props) {
               });
             }}
           />
+        ) : canLinkQuote ? (
+          <WorkReportSectionTile
+            title="Tarjous"
+            subtitle="Ei tarjousta · Liitä tarjous"
+            color="#7c3aed"
+            incomplete
+            onClick={() => void reportQuoteLinker.openPicker()}
+          />
         ) : null}
         {showPartnerBillableSection && billableCalculation && partnerBillableAmounts ? (
           <WorkReportSectionTile
@@ -3000,6 +3028,8 @@ export default function WorkReportDetailPage({ session }: Props) {
           />
         ) : null}
       </WorkReportSectionTileGrid>
+      {reportQuoteLinker.error ? <p className="error">{reportQuoteLinker.error}</p> : null}
+      {reportQuoteLinker.dialog}
 
       <div className="work-report-entries-section" id="work-report-entries">
         <div className="work-report-entries-heading">
@@ -3056,6 +3086,32 @@ export default function WorkReportDetailPage({ session }: Props) {
       {(showOutgoingPartnerBilling || showCustomerMoneyBilling || showQuoteBillingSection) && report ? (
         <div id="work-report-quote-billing" className="work-report-quote-billing-anchor">
         <WorkReportBillingQuotePanel
+          key={linkedQuoteId ?? 'no-quote'}
+          quoteLinkActions={
+            canLinkQuote && linkedQuoteId ? (
+              <span className="quote-link-actions">
+                <Link to={`/tarjouspyynnot/${linkedQuoteId}`} className="btn-link">
+                  Avaa tarjous
+                </Link>
+                <button
+                  type="button"
+                  className="btn-link"
+                  disabled={reportQuoteLinker.busy}
+                  onClick={() => void reportQuoteLinker.openPicker()}
+                >
+                  Vaihda tarjous
+                </button>
+                <button
+                  type="button"
+                  className="btn-link"
+                  disabled={reportQuoteLinker.busy}
+                  onClick={() => void reportQuoteLinker.unlink()}
+                >
+                  Poista kohdistus
+                </button>
+              </span>
+            ) : null
+          }
           workReportId={report.id}
           customerId={report.customer_id}
           ownerCompanyId={report.owner_company_id}

@@ -11,6 +11,8 @@ type Props = {
   summary: QuoteOutcomeSummary;
   /** Esim. "Tarjous: Messukeskus – …". */
   quoteTitle?: string | null;
+  /** Tarjouksen nimen perään (esim. Vaihda tarjous / Poista kohdistus). */
+  quoteTitleActions?: ReactNode;
   /** Provisiorivin alle (esim. "Muokkaa provisiota"). */
   commissionEditor?: ReactNode;
   commissionExceedsGross?: boolean;
@@ -34,6 +36,7 @@ const VERDICT_ICON: Record<OutcomeTone, string> = { better: '▲', worse: '▼',
 export default function QuoteOutcomeSummaryView({
   summary,
   quoteTitle,
+  quoteTitleActions,
   commissionEditor,
   commissionExceedsGross = false,
 }: Props) {
@@ -55,7 +58,12 @@ export default function QuoteOutcomeSummaryView({
               tarjous {formatEuro(summary.quoteSaleNet)} + lisät {formatEuro(summary.customerExtrasNet)}
             </span>
           ) : null}
-          {quoteTitle ? <span className="muted quote-outcome-price-sub">Tarjous: {quoteTitle}</span> : null}
+          {quoteTitle ? (
+            <span className="muted quote-outcome-price-sub">
+              Tarjous: {quoteTitle}
+              {quoteTitleActions}
+            </span>
+          ) : null}
         </div>
 
         {summary.verdict ? (

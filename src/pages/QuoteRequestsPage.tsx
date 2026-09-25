@@ -11,6 +11,12 @@ import { quoteListTrail, withNavTrail } from '../lib/navigationTrail';
 import { normalizeQuoteRequestData } from '../lib/quoteRequest/defaults';
 import type { QuoteRequestRow } from '../lib/quoteRequest/types';
 import { useProfile } from '../hooks/useProfile';
+import { loadBillingQuoteLinks } from '../lib/quoteWorkReportLink';
+import {
+  buildQuoteReportLinkIndex,
+  isOrderedQuoteWithoutReport,
+  type QuoteReportLinkIndex,
+} from '../lib/quoteWorkReportLinkLogic';
 
 interface Props {
   session: Session;
@@ -51,11 +57,13 @@ function QuoteRequestGrid({
   canDelete,
   deletingDraftId,
   onDelete,
+  linkIndex,
 }: {
   rows: QuoteRequestRow[];
   canDelete: (row: QuoteRequestRow) => boolean;
   deletingDraftId: string | null;
   onDelete: (row: QuoteRequestRow) => void;
+  linkIndex: QuoteReportLinkIndex | null;
 }) {
   return (
     <div className="grid quote-request-grid">
@@ -63,6 +71,8 @@ function QuoteRequestGrid({
         <QuoteRequestListItem
           key={row.id}
           row={row}
+          linkedReportId={row.work_report_id ?? linkIndex?.quoteToReport.get(row.id) ?? null}
+          missingReport={!!linkIndex && isOrderedQuoteWithoutReport(row, linkIndex)}
           onDelete={canDelete(row) ? () => onDelete(row) : undefined}
           deleteBusy={deletingDraftId === row.id}
         />
@@ -76,6 +86,8 @@ export default function QuoteRequestsPage({ session }: Props) {
   const [rows, setRows] = useState<QuoteRequestRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [linkIndex, setLinkIndex] = useState<QuoteReportLinkIndex | null>(null);
+  const [onlyMissingReport, setOnlyMissingReport] = useState(false);
   const [visibleStatuses, setVisibleStatuses] = useState<Set<QuoteStatusFilter>>(
     () => new Set(['draft', 'sent', 'ordered']),
   );
@@ -104,7 +116,11 @@ export default function QuoteRequestsPage({ session }: Props) {
       console.error(error);
       setRows([]);
     } else {
-      setRows((data as unknown as QuoteRequestRow[]) ?? []);
+      const loaded = (data as unknown as QuoteRequestRow[]) ?? [];
+      setRows(loaded);
+      void loadBillingQuoteLinks(supabase).then((billingLinks) => {
+        setLinkIndex(buildQuoteReportLinkIndex({ quotes: loaded, billingLinks }));
+      });
     }
     setLoading(false);
   }
@@ -148,11 +164,18 @@ export default function QuoteRequestsPage({ session }: Props) {
     });
   }
 
+  const missingReportCount = useMemo(
+    () => (linkIndex ? rows.filter((row) => isOrderedQuoteWithoutReport(row, linkIndex)).length : 0),
+    [rows, linkIndex],
+  );
+
   const filtered = useMemo(() => {
     const query = search.trim().toLowerCase();
-    if (!query) return rows;
-    return rows.filter((row) => quoteSearchText(row).includes(query));
-  }, [rows, search]);
+    const base =
+      onlyMissingReport && linkIndex ? rows.filter((row) => isOrderedQuoteWithoutReport(row, linkIndex)) : rows;
+    if (!query) return base;
+    return base.filter((row) => quoteSearchText(row).includes(query));
+  }, [rows, search, onlyMissingReport, linkIndex]);
 
   const grouped = useMemo(() => {
     const drafts = filtered.filter((row) => row.status === 'draft');
@@ -243,6 +266,17 @@ export default function QuoteRequestsPage({ session }: Props) {
               </button>
             );
           })}
+          {missingReportCount > 0 || onlyMissingReport ? (
+            <button
+              type="button"
+              className={`btn btn-sm ${onlyMissingReport ? 'btn-primary' : 'btn-secondary'}`}
+              aria-pressed={onlyMissingReport}
+              title="Tilatut tarjoukset, joita ei ole kohdistettu työraporttiin"
+              onClick={() => setOnlyMissingReport((prev) => !prev)}
+            >
+              Tilattu, ei työraporttia ({missingReportCount})
+            </button>
+          ) : null}
         </div>
       )}
 
@@ -269,6 +303,7 @@ export default function QuoteRequestsPage({ session }: Props) {
               canDelete={canDeleteQuote}
               deletingDraftId={deletingDraftId}
               onDelete={(row) => void deleteQuote(row)}
+              linkIndex={linkIndex}
             />
           </section>
         ))

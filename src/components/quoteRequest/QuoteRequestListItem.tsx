@@ -19,11 +19,15 @@ const QUOTE_STATUS_TILE_COLORS: Record<string, string> = {
 
 type Props = {
   row: QuoteRequestRow;
+  /** quote_requests.work_report_id tai vanha raportin puolen linkki. */
+  linkedReportId?: string | null;
+  /** Tilattu, mutta ei kohdistettu työraporttiin. */
+  missingReport?: boolean;
   onDelete?: () => void;
   deleteBusy?: boolean;
 };
 
-export function QuoteRequestListItem({ row, onDelete, deleteBusy = false }: Props) {
+export function QuoteRequestListItem({ row, linkedReportId, missingReport = false, onDelete, deleteBusy = false }: Props) {
   const data = normalizeQuoteRequestData(row.data);
   const total = computeQuoteTotals(data).grossTotal;
   const updated = new Date(row.updated_at).toLocaleString('fi-FI');
@@ -51,6 +55,7 @@ export function QuoteRequestListItem({ row, onDelete, deleteBusy = false }: Prop
         <div className="quote-request-tile-body">
           <span className="quote-request-tile-badge">
             {QUOTE_STATUS_LABELS[row.status] ?? row.status}
+            {missingReport ? ' · ei työraporttia' : null}
           </span>
           <strong className="quote-request-tile-title">{displayTitle}</strong>
           <span className="quote-request-tile-line">{subtitleParts.join(' • ')}</span>
@@ -62,12 +67,20 @@ export function QuoteRequestListItem({ row, onDelete, deleteBusy = false }: Prop
           </span>
         </div>
       </Link>
-      {row.status === 'ordered' && row.work_report_id ? (
+      {row.status === 'ordered' && (linkedReportId ?? row.work_report_id) ? (
         <Link
-          to={`/tyoraportit/${row.work_report_id}`}
+          to={`/tyoraportit/${linkedReportId ?? row.work_report_id}`}
           className="btn btn-secondary btn-sm quote-request-tile-action"
         >
           Työraportti
+        </Link>
+      ) : missingReport ? (
+        <Link
+          to={`/tarjouspyynnot/${row.id}`}
+          className="btn btn-secondary btn-sm quote-request-tile-action"
+          {...withNavTrail(quoteListTrail())}
+        >
+          Kohdista työraporttiin
         </Link>
       ) : null}
       {onDelete ? (
