@@ -22,11 +22,14 @@ import {
 } from '../../lib/vrfTrendAxis';
 import {
   isVrfTrendAbort,
+  loadVrfStateCounters,
   loadVrfTrendData,
   refreshVrfTrendTail,
   type VrfTrendDataSource,
 } from '../../lib/vrfTrendReadings';
+import { computeVrfStateCounters, type VrfStateCounters } from '../../lib/vrfStateCounters';
 
+import VrfTrendCounters, { type VrfTrendCountersView } from './VrfTrendCounters';
 import VrfTrendLineChart, { type VrfTrendAxisLimits } from './VrfTrendLineChart';
 import VrfTrendStateChart from './VrfTrendStateChart';
 import type { VrfTrendViewport } from './useVrfTrendPointer';
@@ -141,6 +144,13 @@ export default function VrfTrendDialog({ open, deviceId, onClose, focusHotspot, 
   dataRef.current = data;
   const abortRef = useRef<AbortController | null>(null);
   const forceRef = useRef(false);
+  const countersForceRef = useRef(false);
+  const [serverCounters, setServerCounters] = useState<{
+    key: string;
+    value: VrfStateCounters | null;
+    error?: string;
+  } | null>(null);
+  const lastCountersRef = useRef<VrfStateCounters | null>(null);
 
   const source = useMemo<VrfTrendDataSource | null>(() => {
     if (shareToken) return { kind: 'share', token: shareToken };
@@ -178,6 +188,8 @@ export default function VrfTrendDialog({ open, deviceId, onClose, focusHotspot, 
   useEffect(() => {
     dataRef.current = null;
     setData(null);
+    lastCountersRef.current = null;
+    setServerCounters(null);
   }, [source]);
 
   // Lataus näkymän mukaan (vain kun nykyinen data ei kata näkymää tarkasti).
@@ -224,6 +236,56 @@ export default function VrfTrendDialog({ open, deviceId, onClose, focusHotspot, 
         }
       });
   }, [open, ready, source, viewport.startMs, viewport.endMs, reloadToken]);
+
+  // Tilalaskurit: ≤ 36 h lasketaan ladatuista raakapisteistä; pidemmät välit palvelimella
+  // (vrf_state_counters) tai — ilman migraatiota — samasta selaimen raakadatavirrasta.
+  const countersBucketMs = chooseVrfTrendBucketMs(viewport.endMs - viewport.startMs);
+  const countersKey = `${viewport.startMs}|${viewport.endMs}`;
+  const streamCounters =
+    data?.counters && data.counters.startMs === viewport.startMs && data.counters.endMs === viewport.endMs ? data.counters : null;
+  const localCounters = useMemo(() => {
+    if (!data || data.bucketMs !== 0 || countersBucketMs !== 0) return null;
+    if (data.startMs > viewport.startMs || data.endMs < viewport.endMs) return null;
+    return computeVrfStateCounters(data.points, viewport.startMs, viewport.endMs);
+  }, [data, viewport.startMs, viewport.endMs, countersBucketMs]);
+  const needServerCounters = open && ready && source != null && countersBucketMs > 0 && !streamCounters;
+
+  useEffect(() => {
+    if (!needServerCounters || !source) return;
+    const force = countersForceRef.current;
+    countersForceRef.current = false;
+    let cancelled = false;
+    const key = countersKey;
+    loadVrfStateCounters({ source, startMs: viewport.startMs, endMs: viewport.endMs, force })
+      .then((value) => {
+        if (!cancelled) setServerCounters({ key, value });
+      })
+      .catch((err) => {
+        if (!cancelled) setServerCounters({ key, value: null, error: err instanceof Error ? err.message : 'Laskurien haku epäonnistui' });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [needServerCounters, source, countersKey, viewport.startMs, viewport.endMs, reloadToken]);
+
+  const countersView = useMemo<VrfTrendCountersView>(() => {
+    const ok = localCounters ?? streamCounters ?? (serverCounters?.key === countersKey ? serverCounters.value : null);
+    if (ok) return { status: 'ok', counters: ok };
+    if (countersBucketMs > 0 && serverCounters?.key === countersKey) {
+      if (serverCounters.error) return { status: 'error', message: serverCounters.error };
+      if (!loading) {
+        return {
+          status: 'unavailable',
+          message:
+            source?.kind === 'share'
+              ? 'zoomatulle yli 36 h välille ei laskureita jakolinkissä — valitse valmis aikaväli'
+              : 'yli 36 h välin zoomaus / live vaatii tietokantafunktion vrf_state_counters (migraatio)',
+        };
+      }
+    }
+    return { status: 'loading', previous: lastCountersRef.current };
+  }, [localCounters, streamCounters, serverCounters, countersKey, countersBucketMs, loading, source]);
+  if (countersView.status === 'ok') lastCountersRef.current = countersView.counters;
 
   // Sulkiessa: peru haku, tyhjennä kohdistin.
   useEffect(() => {
@@ -364,6 +426,7 @@ export default function VrfTrendDialog({ open, deviceId, onClose, focusHotspot, 
   const refresh = useCallback(() => {
     if (range.kind === 'preset' && zoom == null) setBaseViewport(presetViewport(range.hours));
     forceRef.current = true;
+    countersForceRef.current = true;
     setReloadToken((n) => n + 1);
   }, [range, zoom]);
 
@@ -667,7 +730,9 @@ export default function VrfTrendDialog({ open, deviceId, onClose, focusHotspot, 
                 onResetZoom={resetZoom}
                 padLeft={padLeft}
                 padRight={padRight}
+                showShares={countersView.status === 'unavailable' || countersView.status === 'error'}
               />
+              <VrfTrendCounters view={countersView} lanes={laneKeys} spanMs={span} onRetry={refresh} />
             </section>
             <p className="vrf-tv-hint muted">
               Vedä kaaviossa sivusuunnassa rajataksesi tarkemman välin · tuplaklikkaus palauttaa.

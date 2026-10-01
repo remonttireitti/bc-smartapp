@@ -13,6 +13,7 @@ import {
   type VrfReading,
   type VrfTrendSeriesKey,
 } from './vrfMonitoring';
+import type { VrfStateCounters } from './vrfStateCounters';
 
 export type VrfTrendSignalKey = VrfTrendSeriesKey | 'refrigerant_delta_k';
 
@@ -72,6 +73,11 @@ export type VrfTrendData = {
   /** Mittausten määrä yhteensä (aikaikkunoissa summa). */
   sampleCount: number;
   source: VrfTrendSource;
+  /**
+   * Tilalaskurit täsmälleen väliltä startMs–endMs, kun ne saatiin samasta raakadatavirrasta
+   * (selaimessa koottu pitkä väli ilman vrf_state_counters-funktiota).
+   */
+  counters?: VrfStateCounters | null;
 };
 
 const MINUTE = 60_000;
@@ -513,8 +519,11 @@ export function mergeVrfTrendTail(
   mergeFromMs: number,
   startMs: number,
   endMs: number,
+  /** Raakapisteillä säilytettävä konteksti ennen välin alkua (tilalaskurit). */
+  contextMs = 0,
 ): VrfTrendData {
-  const kept = data.points.filter((p) => p.t < mergeFromMs && p.tEnd >= startMs - (data.bucketMs || 0));
+  const keepFrom = startMs - Math.max(data.bucketMs || 0, contextMs);
+  const kept = data.points.filter((p) => p.t < mergeFromMs && p.tEnd >= keepFrom);
   const fresh = tail.filter((p) => p.t >= mergeFromMs && p.t <= endMs);
   const points = [...kept, ...fresh];
   return {
@@ -522,7 +531,8 @@ export function mergeVrfTrendTail(
     startMs,
     endMs,
     points,
-    sampleCount: points.reduce((sum, p) => sum + p.samples, 0),
+    sampleCount: points.reduce((sum, p) => (p.t >= startMs && p.t <= endMs ? sum + p.samples : sum), 0),
+    counters: null,
   };
 }
 

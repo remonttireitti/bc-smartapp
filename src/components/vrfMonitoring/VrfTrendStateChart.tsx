@@ -24,6 +24,8 @@ type Props = {
   onResetZoom?: () => void;
   padLeft: number;
   padRight: number;
+  /** Osuus % viivojen vasemmalla — pois kun Laskurit-taulukko näyttää sen. */
+  showShares?: boolean;
 };
 
 const ROW_H = 30;
@@ -48,6 +50,7 @@ export default function VrfTrendStateChart({
   onResetZoom,
   padLeft,
   padRight,
+  showShares = true,
 }: Props) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const width = Math.max(280, useElementWidth(wrapRef));
@@ -163,7 +166,7 @@ export default function VrfTrendStateChart({
           })}
           {[{ key: 'activity', label: 'Tilatieto', color: 'var(--text)' }, ...laneDefs].map((row, i) => {
             const y = rowY(i);
-            const share = row.key === 'activity' ? null : chart.shares[row.key];
+            const share = row.key === 'activity' || !showShares ? null : chart.shares[row.key];
             return (
               <g key={row.key}>
                 <text x={padLeft + 2} y={y + 10} className="vrf-tc-lane-label" fill={row.key === 'activity' ? undefined : row.color}>
@@ -233,7 +236,9 @@ export default function VrfTrendStateChart({
               {VRF_ACTIVITY_TREND_META[state].label}
             </span>
           ))}
-          <span className="vrf-tc-state-legend-item muted">Vasemmalla: osuus ajasta valitulla välillä</span>
+          {showShares && laneDefs.length > 0 && (
+            <span className="vrf-tc-state-legend-item muted">Vasemmalla: osuus ajasta valitulla välillä</span>
+          )}
         </div>
       )}
     </div>
