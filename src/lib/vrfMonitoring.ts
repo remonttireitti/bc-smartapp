@@ -1305,18 +1305,149 @@ export function inferDefrostLikely(readings: VrfReading[], index: number): boole
   return dCoil >= VRF_DEFROST_COIL_RISE_C && dSupply <= -VRF_DEFROST_SUPPLY_FALL_C;
 }
 
+/** Yhden mittauksen tulkitut signaalit (telemetria jäsennetään vain kerran). */
+export type VrfReadingSignals = {
+  timeMs: number;
+  telemetry: VrfTelemetry | null;
+  permit: boolean;
+  compressor: boolean;
+  /** DI3 (ulkoinen hälytys). */
+  externalAlarm: boolean;
+  /** DI3 tai mikä tahansa muu aktiivinen hälytys. */
+  anyAlarm: boolean;
+  unitReady: boolean;
+  firmwareDefrost: boolean;
+  alarmShutdown: boolean;
+};
+
+export function vrfReadingSignals(reading: VrfReading): VrfReadingSignals {
+  const telemetry = readingTelemetry(reading);
+  const permit =
+    telemetry?.control.enabled != null ? telemetry.control.enabled === true : reading.heat_enabled === true;
+  const externalAlarm = vrfExternalAlarmActive(telemetry);
+  const alarms = telemetry?.alarms ?? {};
+  const anyAlarm =
+    externalAlarm ||
+    Object.keys(VRF_ALARM_LABELS).some((key) => key !== 'any_alarm' && alarms[key] === true);
+  return {
+    timeMs: new Date(reading.recorded_at).getTime(),
+    telemetry,
+    permit,
+    compressor: telemetry ? vrfCompressorRunning(telemetry, telemetry.settings) : false,
+    externalAlarm,
+    anyAlarm,
+    unitReady: vrfMeasuredUnitReady(telemetry),
+    firmwareDefrost: readBoolean(telemetry?.defrost?.active) === true,
+    alarmShutdown: vrfAlarmShutdownBlocksControl(telemetry),
+  };
+}
+
+/** Sama tilajärjestys kuin resolveReadingActivityTrendState — valmiiksi lasketuista signaaleista. */
+export function vrfActivityStateFromSignals(
+  signals: Pick<VrfReadingSignals, 'alarmShutdown' | 'anyAlarm' | 'permit' | 'compressor'>,
+  defrost: boolean,
+): VrfActivityTrendState {
+  if (signals.alarmShutdown) return 'shutdown_wait';
+  if (signals.anyAlarm) return 'alarm';
+  if (defrost) return 'defrost';
+  if (!signals.permit) return 'off';
+  if (signals.compressor) return 'heating';
+  return 'standby';
+}
+
+type VrfDefrostSample = { coil: number | null; supply: number | null; outdoor: number | null };
+
+/**
+ * Sulatusarvio virtana (O(n)) — sama sääntö kuin inferDefrostLikely, mutta ilman
+ * jokaisella pisteellä tehtävää taaksepäin-skannausta (vanha toteutus oli O(n²)).
+ */
+export class VrfDefrostTracker {
+  private index = 0;
+  private prevPermit = false;
+  private permitRunStartMs: number | null = null;
+  private history: VrfDefrostSample[] = [];
+
+  reset() {
+    this.index = 0;
+    this.prevPermit = false;
+    this.permitRunStartMs = null;
+    this.history = [];
+  }
+
+  push(input: {
+    timeMs: number;
+    permit: boolean;
+    compressor: boolean;
+    firmwareDefrost: boolean;
+    coil: number | null;
+    supply: number | null;
+    outdoor: number | null;
+  }): boolean {
+    const idx = this.index;
+    this.index += 1;
+    if (input.permit) {
+      if (idx === 0 || !this.prevPermit) this.permitRunStartMs = input.timeMs;
+    } else {
+      this.permitRunStartMs = null;
+    }
+    this.prevPermit = input.permit;
+
+    const start = this.history.length >= VRF_DEFROST_WINDOW_SAMPLES - 1 ? this.history[0] : null;
+    let result = false;
+    if (input.firmwareDefrost) {
+      result = true;
+    } else if (idx >= VRF_DEFROST_WINDOW_SAMPLES - 1 && start && input.permit && input.compressor) {
+      const sincePermitOn = this.permitRunStartMs != null ? input.timeMs - this.permitRunStartMs : null;
+      const suppressed = sincePermitOn != null && sincePermitOn < VRF_DEFROST_SUPPRESS_AFTER_PERMIT_ON_MS;
+      if (
+        !suppressed &&
+        start.coil != null &&
+        input.coil != null &&
+        start.supply != null &&
+        input.supply != null &&
+        !(start.outdoor != null && start.coil > start.outdoor - VRF_DEFROST_COIL_COLDER_THAN_OUTDOOR_C)
+      ) {
+        const dCoil = input.coil - start.coil;
+        const dSupply = input.supply - start.supply;
+        result = dCoil >= VRF_DEFROST_COIL_RISE_C && dSupply <= -VRF_DEFROST_SUPPLY_FALL_C;
+      }
+    }
+
+    this.history.push({ coil: input.coil, supply: input.supply, outdoor: input.outdoor });
+    if (this.history.length > VRF_DEFROST_WINDOW_SAMPLES - 1) this.history.shift();
+    return result;
+  }
+}
+
+/** inferDefrostLikely koko taulukolle kerralla, O(n). */
+export function inferDefrostFlags(readings: VrfReading[]): boolean[] {
+  const tracker = new VrfDefrostTracker();
+  return readings.map((reading) => {
+    const signals = vrfReadingSignals(reading);
+    const temps = signals.telemetry?.temperatures ?? {};
+    return tracker.push({
+      timeMs: signals.timeMs,
+      permit: signals.permit,
+      compressor: signals.compressor,
+      firmwareDefrost: signals.firmwareDefrost,
+      coil: temps.outdoor_coil_c ?? null,
+      supply: temps.refrigerant_supply_c ?? null,
+      outdoor: temps.outdoor_c ?? null,
+    });
+  });
+}
+
 export function buildBinaryLaneFlags(
   readings: VrfReading[],
   key: VrfBinaryLaneKey,
 ): boolean[] {
-  return readings.map((reading, index) => {
+  if (key === 'defrost') return inferDefrostFlags(readings);
+  return readings.map((reading) => {
     switch (key) {
       case 'control':
         return readingHeatPermit(reading);
       case 'compressor':
         return readingCompressorOn(reading);
-      case 'defrost':
-        return inferDefrostLikely(readings, index);
       case 'alarm':
         return readingAlarmActive(reading);
       case 'unit_ready':
@@ -1544,8 +1675,10 @@ export function buildActivityTimelineSegments(
   if (readings.length === 0 || span <= 0) return [];
 
   const segments: ActivityTimelineSegment[] = [];
+  const defrostFlags = inferDefrostFlags(readings);
+  const stateAt = (i: number) => vrfActivityStateFromSignals(vrfReadingSignals(readings[i]), defrostFlags[i]);
   let runStartIdx = 0;
-  let runState = resolveReadingActivityTrendState(readings, 0);
+  let runState = stateAt(0);
 
   const pushRun = (startIdx: number, endIdx: number, state: VrfActivityTrendState) => {
     segments.push({
@@ -1555,7 +1688,7 @@ export function buildActivityTimelineSegments(
   };
 
   for (let i = 1; i < readings.length; i += 1) {
-    const state = resolveReadingActivityTrendState(readings, i);
+    const state = stateAt(i);
     if (state !== runState) {
       pushRun(runStartIdx, i - 1, runState);
       runStartIdx = i;
