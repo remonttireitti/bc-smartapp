@@ -21,6 +21,14 @@ import {
   type VrfTrendData,
   type VrfTrendPoint,
 } from './vrfTrendData';
+import {
+  VRF_COUNTER_LOOKAHEAD_MS,
+  VRF_COUNTER_LOOKBACK_MS,
+  VrfStateCounterAccumulator,
+  mapVrfStateCounterRows,
+  type VrfStateCounterRow,
+  type VrfStateCounters,
+} from './vrfStateCounters';
 
 /** PostgREST / Supabase oletus — yksi sivu kerrallaan. */
 export const VRF_TREND_READ_PAGE_SIZE = 1000;
@@ -221,7 +229,12 @@ async function shareReadings(token: string, startMs: number, endMs: number): Pro
   return sortReadingsByTime((bundle.readings as VrfReading[]) ?? []);
 }
 
-/** Raakarivit → pisteet (+ aikaikkunat) virtana. */
+/**
+ * Raakarivit → pisteet (+ aikaikkunat) virtana.
+ * withContext: haetaan myös 30 min ennen ja 15 min jälkeen välin, jotta tilalaskurit ovat tarkkoja
+ * välin reunoilla (jo käynnissä oleva kompressori ei ole käynnistys). Raakapisteissä konteksti
+ * jätetään mukaan (zoomaus ladatun datan sisällä laskee laskurit niistä), aikaikkunoihin vain väli.
+ */
 async function buildPointsFromRows(
   source: VrfTrendDataSource,
   startMs: number,
@@ -229,38 +242,50 @@ async function buildPointsFromRows(
   bucketMs: number,
   signal?: AbortSignal,
   onProgress?: (fraction: number) => void,
-): Promise<{ points: VrfTrendPoint[]; sampleCount: number }> {
+  withContext = false,
+): Promise<{ points: VrfTrendPoint[]; sampleCount: number; counters: VrfStateCounters | null }> {
   const builder = new VrfTrendPointBuilder();
   const acc = bucketMs > 0 ? new VrfTrendBucketAccumulator(bucketMs) : null;
+  const counter = withContext ? new VrfStateCounterAccumulator(startMs, endMs, bucketMs > 0 ? 'client' : 'local') : null;
+  const fetchStart = withContext ? startMs - VRF_COUNTER_LOOKBACK_MS : startMs;
+  const fetchEnd = withContext ? endMs + VRF_COUNTER_LOOKAHEAD_MS : endMs;
   const raw: VrfTrendPoint[] = [];
+  let rawInRange = 0;
   const consume = (rows: VrfReading[]) => {
     for (const row of rows) {
       const point = builder.push(row);
       if (!point) continue;
-      if (acc) acc.push(point);
-      else raw.push(point);
+      counter?.push(point);
+      const inRange = point.t >= startMs && point.t <= endMs;
+      if (acc) {
+        if (inRange) acc.push(point);
+      } else {
+        raw.push(point);
+        if (inRange) rawInRange += 1;
+      }
     }
   };
 
   if (source.kind === 'share') {
-    consume(await shareReadings(source.token, startMs, endMs));
+    consume(await shareReadings(source.token, fetchStart, fetchEnd));
     throwIfAborted(signal);
   } else {
     await streamVrfReadingsRange({
       deviceId: source.deviceId,
-      startMs,
-      endMs,
+      startMs: fetchStart,
+      endMs: fetchEnd,
       signal,
       onChunk: consume,
       onProgress: (done, total) => onProgress?.(done / total),
     });
   }
 
+  const counters = counter ? counter.finish() : null;
   if (acc) {
     const points = acc.finish();
-    return { points, sampleCount: acc.sampleCount };
+    return { points, sampleCount: acc.sampleCount, counters };
   }
-  return { points: raw, sampleCount: raw.length };
+  return { points: raw, sampleCount: rawInRange, counters };
 }
 
 type CacheEntry = { data: VrfTrendData; at: number };
@@ -329,7 +354,7 @@ export async function loadVrfTrendData(opts: {
     }
   }
   if (!data) {
-    const built = await buildPointsFromRows(source, startMs, endMs, bucketMs, signal, opts.onProgress);
+    const built = await buildPointsFromRows(source, startMs, endMs, bucketMs, signal, opts.onProgress, true);
     data = {
       startMs,
       endMs,
@@ -337,6 +362,8 @@ export async function loadVrfTrendData(opts: {
       points: built.points,
       sampleCount: built.sampleCount,
       source: bucketMs > 0 ? 'client' : 'raw',
+      // raakapisteistä laskurit lasketaan näkymän mukaan; aikaikkunoista ei voi → talteen nyt
+      counters: bucketMs > 0 ? built.counters : null,
     };
   }
   cacheSet(key, data);
@@ -376,10 +403,62 @@ export async function refreshVrfTrendTail(opts: {
     next = mergeVrfTrendTail(data, tail, mergeFrom, startMs, endMs);
   } else {
     const built = await buildPointsFromRows(source, last.t - VRF_TREND_TAIL_CONTEXT_MS, endMs, 0, signal);
-    next = mergeVrfTrendTail(data, built.points, last.t + 1, startMs, endMs);
+    next = mergeVrfTrendTail(data, built.points, last.t + 1, startMs, endMs, VRF_COUNTER_LOOKBACK_MS);
   }
 
   const bucketForSpan = chooseVrfTrendBucketMs(endMs - startMs);
   cacheSet(`${sourceKey(source)}|${startMs}|${endMs}|${bucketForSpan}`, next);
   return next;
+}
+
+/** null = ei vielä tiedossa, false = vrf_state_counters puuttuu (migraatio ajamatta). */
+let countersRpcAvailable: boolean | null = null;
+
+type CounterCacheEntry = { promise: Promise<VrfStateCounters | null>; at: number; endMs: number };
+const counterCache = new Map<string, CounterCacheEntry>();
+
+/**
+ * Tilalaskurit palvelimelta (vrf_state_counters) — tarkat raakamittauksista koko välille.
+ * null = funktiota ei ole (tai jakolinkki) → kutsuja käyttää selaimen laskentaa jos mahdollista.
+ * Sama väli jaetaan käynnissä olevan pyynnön kanssa (ei päällekkäisiä hakuja).
+ */
+export function loadVrfStateCounters(opts: {
+  source: VrfTrendDataSource;
+  startMs: number;
+  endMs: number;
+  force?: boolean;
+}): Promise<VrfStateCounters | null> {
+  const { source, startMs, endMs } = opts;
+  if (source.kind !== 'db' || countersRpcAvailable === false) return Promise.resolve(null);
+  const key = `${source.deviceId}|${startMs}|${endMs}`;
+  const hit = opts.force ? undefined : counterCache.get(key);
+  if (hit) {
+    const live = Date.now() - hit.endMs < 3 * 60_000;
+    if (Date.now() - hit.at < (live ? 60_000 : 10 * 60_000)) return hit.promise;
+    counterCache.delete(key);
+  }
+  const promise = (async () => {
+    const { data, error } = await supabase.rpc('vrf_state_counters', {
+      p_device_id: source.deviceId,
+      p_start: new Date(startMs).toISOString(),
+      p_end: new Date(endMs).toISOString(),
+    });
+    if (error) {
+      if (isMissingRpcError(error)) {
+        countersRpcAvailable = false;
+        return null;
+      }
+      throw new Error(error.message);
+    }
+    countersRpcAvailable = true;
+    return mapVrfStateCounterRows((data as VrfStateCounterRow[] | null) ?? [], startMs, endMs);
+  })();
+  counterCache.set(key, { promise, at: Date.now(), endMs });
+  promise.catch(() => counterCache.delete(key));
+  while (counterCache.size > 24) {
+    const oldest = counterCache.keys().next().value;
+    if (oldest == null) break;
+    counterCache.delete(oldest);
+  }
+  return promise;
 }

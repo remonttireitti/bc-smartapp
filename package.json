@@ -100,7 +100,8 @@
     "test:quote-outcome-summary": "npx tsx scripts/test-quote-outcome-summary.mjs",
     "test:hour-billing-mode-summary": "npx tsx scripts/test-hour-billing-mode-summary.mjs",
     "test:quote-title-custom": "npx tsx scripts/test-quote-title-custom.mjs",
-    "test:vrf-trend-data": "TZ=Europe/Helsinki npx tsx scripts/test-vrf-trend-data.mjs"
+    "test:vrf-trend-data": "TZ=Europe/Helsinki npx tsx scripts/test-vrf-trend-data.mjs",
+    "test:vrf-state-counters": "TZ=Europe/Helsinki npx tsx scripts/test-vrf-state-counters.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.1",

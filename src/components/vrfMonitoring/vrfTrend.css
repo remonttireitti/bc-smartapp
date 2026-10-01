@@ -500,3 +500,98 @@
     right: auto;
   }
 }
+
+/* Tilalaskurit */
+.vrf-tv-counters {
+  display: grid;
+  gap: 0.25rem;
+  font-size: 0.8rem;
+  transition: opacity 0.15s;
+}
+
+.vrf-tv-counters.is-loading {
+  opacity: 0.6;
+}
+
+.vrf-tv-counters-head {
+  font-size: 0.82rem;
+}
+
+.vrf-tv-counters-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.vrf-tv-counters-table {
+  width: auto;
+  min-width: min(100%, 34rem);
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+
+.vrf-tv-counters-table th,
+.vrf-tv-counters-table td {
+  padding: 0.2rem 0.45rem;
+  border-bottom: 1px solid var(--border);
+  text-align: right;
+  white-space: nowrap;
+}
+
+.vrf-tv-counters-table thead th {
+  font-weight: 600;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+}
+
+.vrf-tv-counters-table thead th[title] {
+  cursor: help;
+}
+
+.vrf-tv-counters-table tbody th {
+  text-align: left;
+  font-weight: 500;
+}
+
+.vrf-tv-counters-table tbody th .vrf-trend-legend-dot {
+  display: inline-block;
+  margin-right: 0.35rem;
+  vertical-align: middle;
+}
+
+.vrf-tv-counters-table .vrf-tv-counters-n {
+  font-weight: 700;
+}
+
+.vrf-tv-counters-group th {
+  padding-top: 0.4rem;
+  text-align: left;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.vrf-tv-counters-note {
+  margin: 0;
+  font-size: 0.74rem;
+}
+
+@media (max-width: 640px) {
+  .vrf-tv-counters-table {
+    min-width: 0;
+    font-size: 0.76rem;
+  }
+
+  .vrf-tv-counters-table th,
+  .vrf-tv-counters-table td {
+    padding: 0.2rem 0.25rem;
+  }
+
+  .vrf-tv-counters-table thead th,
+  .vrf-tv-counters-table tbody th {
+    white-space: normal;
+  }
+
+  .vrf-tv-counters-table tbody th {
+    min-width: 6rem;
+  }
+}
