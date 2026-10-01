@@ -1,0 +1,502 @@
+/* VRF-trendi (Trendi-ikkuna): työkalurivi, viivakaavio ja tilakaavio. */
+
+.vrf-trend-dialog--v2 {
+  width: min(1180px, calc(100vw - 1.5rem));
+  max-height: calc(100vh - 1.5rem);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding-top: 0.85rem;
+}
+
+.vrf-tv-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.vrf-tv-head h2 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.vrf-tv-close {
+  border: none;
+  background: none;
+  font-size: 1.6rem;
+  line-height: 1;
+  padding: 0 0.35rem;
+  cursor: pointer;
+  color: var(--text-muted);
+}
+
+.vrf-tv-close:hover {
+  color: var(--text);
+}
+
+.vrf-tv-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 0.75rem;
+}
+
+.vrf-tv-toolbar .vrf-trend-range-btn {
+  padding: 0.32rem 0.65rem;
+}
+
+.vrf-tv-nav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.vrf-tv-icon-btn,
+.vrf-tv-text-btn {
+  border: 1px solid var(--border-strong);
+  background: var(--bg-surface);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 0.3rem 0.6rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  line-height: 1.2;
+}
+
+.vrf-tv-icon-btn {
+  min-width: 2rem;
+}
+
+.vrf-tv-icon-btn:disabled,
+.vrf-tv-text-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.vrf-tv-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  padding: 0.25rem 0.55rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  cursor: pointer;
+  user-select: none;
+}
+
+.vrf-tv-live input {
+  margin: 0;
+}
+
+.vrf-tv-live.on {
+  border-color: #16a34a;
+  color: #15803d;
+  background: color-mix(in srgb, #16a34a 10%, var(--bg-surface));
+}
+
+.vrf-tv-live:has(input:disabled) {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.vrf-tv-custom {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.5rem 0.75rem;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-muted);
+}
+
+.vrf-tv-custom label {
+  display: grid;
+  gap: 0.2rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.vrf-tv-custom .form-error {
+  margin: 0;
+  flex-basis: 100%;
+}
+
+.vrf-tv-meta {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.vrf-tv-meta strong {
+  color: var(--text);
+}
+
+.vrf-tv-loading {
+  color: var(--primary);
+  font-weight: 600;
+}
+
+.vrf-tv-progress {
+  height: 3px;
+  border-radius: 2px;
+  overflow: hidden;
+  background: transparent;
+  margin-top: -0.25rem;
+}
+
+.vrf-tv-progress.on {
+  background: color-mix(in srgb, var(--primary) 15%, transparent);
+}
+
+.vrf-tv-progress span {
+  display: block;
+  height: 100%;
+  width: 0;
+  background: var(--primary);
+  transition: width 0.2s ease;
+}
+
+.vrf-tv-progress.on span:not([style*='width']) {
+  width: 30%;
+  animation: vrf-tv-indeterminate 1.1s ease-in-out infinite;
+}
+
+@keyframes vrf-tv-indeterminate {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(340%);
+  }
+}
+
+.vrf-tv-error {
+  margin: 0;
+}
+
+.vrf-tv-skeleton {
+  height: 380px;
+  border-radius: 10px;
+  background: linear-gradient(90deg, var(--bg-muted) 0%, var(--bg-subtle) 50%, var(--bg-muted) 100%);
+  background-size: 200% 100%;
+  animation: vrf-tv-shimmer 1.4s linear infinite;
+}
+
+@keyframes vrf-tv-shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+.vrf-tv-empty {
+  margin: 1.5rem 0;
+  text-align: center;
+}
+
+.vrf-tv-body {
+  display: grid;
+  gap: 0.6rem;
+  overflow: auto;
+  min-height: 0;
+  transition: opacity 0.15s ease;
+}
+
+.vrf-tv-body.is-loading {
+  opacity: 0.6;
+}
+
+.vrf-tv-section {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.vrf-tv-section-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.35rem 0.75rem;
+}
+
+.vrf-tv-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+.vrf-tv-chips .vrf-trend-legend-dot {
+  border: 2px solid transparent;
+  box-sizing: border-box;
+}
+
+.vrf-tv-chip-unit {
+  color: var(--text-muted);
+}
+
+.vrf-tv-axis {
+  font-size: 0.82rem;
+  position: relative;
+}
+
+.vrf-tv-axis > summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--text-muted);
+  list-style: none;
+  padding: 0.25rem 0.55rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+}
+
+.vrf-tv-axis > summary::-webkit-details-marker {
+  display: none;
+}
+
+.vrf-tv-axis[open] > summary {
+  color: var(--text);
+  border-color: var(--border-strong);
+}
+
+.vrf-tv-axis-body {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 4px);
+  z-index: 6;
+  display: grid;
+  gap: 0.45rem;
+  padding: 0.6rem 0.7rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  background: var(--bg-surface);
+  box-shadow: var(--shadow-md);
+  min-width: 15rem;
+}
+
+.vrf-tv-axis-row {
+  display: grid;
+  grid-template-columns: 2rem 1fr 1fr;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.vrf-tv-axis-row label {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.vrf-tv-axis-row input {
+  width: 4.5rem;
+  padding: 0.2rem 0.35rem;
+  font-size: 0.82rem;
+}
+
+.vrf-tv-axis-unit {
+  font-weight: 700;
+}
+
+.vrf-tv-hint {
+  margin: 0;
+  font-size: 0.78rem;
+}
+
+/* Kaaviot */
+.vrf-tc-wrap {
+  width: 100%;
+  min-width: 0;
+}
+
+.vrf-tc-plot {
+  position: relative;
+  width: 100%;
+  cursor: crosshair;
+  touch-action: pan-y;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.vrf-tc-plot svg {
+  display: block;
+  overflow: visible;
+}
+
+.vrf-tc-grid {
+  stroke: color-mix(in srgb, var(--border) 70%, transparent);
+  stroke-width: 1;
+  shape-rendering: crispEdges;
+}
+
+.vrf-tc-grid--v {
+  stroke-dasharray: 2 3;
+}
+
+.vrf-tc-frame {
+  fill: none;
+  stroke: var(--border);
+  stroke-width: 1;
+  shape-rendering: crispEdges;
+}
+
+.vrf-tc-axis {
+  font-size: 11px;
+  fill: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.vrf-tc-axis--date {
+  font-weight: 600;
+  fill: var(--text-secondary, var(--text));
+}
+
+.vrf-tc-unit {
+  font-size: 11px;
+  font-weight: 700;
+  fill: var(--text-secondary, var(--text));
+}
+
+.vrf-tc-line {
+  stroke-width: 1.8;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.vrf-tc-band {
+  fill-opacity: 0.14;
+  stroke: none;
+}
+
+.vrf-tc-nodata {
+  fill: color-mix(in srgb, var(--text-muted) 9%, transparent);
+}
+
+.vrf-tc-nodata--states {
+  fill: color-mix(in srgb, var(--text-muted) 14%, transparent);
+}
+
+.vrf-tc-brush {
+  fill: color-mix(in srgb, var(--primary) 16%, transparent);
+  stroke: var(--primary);
+  stroke-width: 1;
+}
+
+.vrf-tc-empty {
+  position: absolute;
+  inset: 40% 0 auto;
+  margin: 0;
+  text-align: center;
+  font-size: 0.85rem;
+  pointer-events: none;
+}
+
+.vrf-tc-rail {
+  fill: color-mix(in srgb, var(--border) 35%, transparent);
+}
+
+.vrf-tc-lane-label {
+  font-size: 11px;
+  font-weight: 600;
+  fill: var(--text);
+}
+
+.vrf-tc-state-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.8rem;
+  margin-top: 0.3rem;
+  font-size: 0.78rem;
+}
+
+.vrf-tc-state-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.vrf-trend-hover-tip-detail {
+  font-weight: 400;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+}
+
+.vrf-trend-hover-tip-footer {
+  margin: 0.35rem 0 0;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+
+.vrf-trend-dialog--v2 .vrf-trend-hover-tip {
+  max-width: 17rem;
+}
+
+@media (max-width: 640px) {
+  .vrf-trend-dialog--v2 {
+    width: calc(100vw - 0.75rem);
+    max-height: calc(100vh - 0.75rem);
+    padding-left: 0.6rem;
+    padding-right: 0.6rem;
+  }
+
+  .vrf-tv-toolbar {
+    justify-content: flex-start;
+  }
+}
+
+/* Yleisten label/input-tyylien ohitus työkalurivillä */
+.vrf-trend-dialog--v2 .vrf-tv-live {
+  flex-direction: row;
+  color: var(--text);
+}
+
+.vrf-trend-dialog--v2 .vrf-tv-live.on {
+  color: #15803d;
+}
+
+.vrf-trend-dialog--v2 .vrf-tv-live input[type='checkbox'] {
+  width: auto;
+  min-width: 0;
+  margin: 0;
+}
+
+.vrf-trend-dialog--v2 .vrf-tv-axis-row label {
+  flex-direction: row;
+  font-size: 0.8rem;
+}
+
+.vrf-trend-dialog--v2 .vrf-tv-axis-row input {
+  width: 4.5rem;
+}
+
+.vrf-trend-dialog--v2 .vrf-tv-custom input {
+  width: auto;
+}
+
+@media (max-width: 640px) {
+  .vrf-trend-dialog--v2 .vrf-trend-range {
+    width: 100%;
+    gap: 0.25rem;
+  }
+
+  .vrf-trend-dialog--v2 .vrf-trend-range-btn {
+    flex: 1 1 auto;
+    min-width: 0;
+    white-space: nowrap;
+    padding: 0.3rem 0.45rem;
+    font-size: 0.8rem;
+  }
+
+  .vrf-tv-axis-body {
+    left: 0;
+    right: auto;
+  }
+}

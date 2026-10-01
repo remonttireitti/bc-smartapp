@@ -84,7 +84,7 @@ import {
 } from '../lib/vrfMonitoring';
 
 import { supabase } from '../lib/supabase';
-import { fetchVrfTrendReadings } from '../lib/vrfTrendReadings';
+import { fetchVrfRecentReadings } from '../lib/vrfTrendReadings';
 
 
 
@@ -100,7 +100,8 @@ type TabId = 'seuranta' | 'sulatus' | 'asetukset';
 
 
 
-const HISTORY_HOURS = 24;
+/** Sulatusarvioon riittää lyhyt historia (3 mittausta + käyntiluvan 5 min viive). */
+const DEFROST_CONTEXT_MINUTES = 20;
 
 
 
@@ -234,18 +235,16 @@ export default function VrfMonitorDetailPage({ session }: Props) {
 
     setError(null);
 
-    const since = new Date(Date.now() - HISTORY_HOURS * 3600_000).toISOString();
-
     const [deviceRes, readingsRows] = await Promise.all([
       supabase.from('vrf_devices').select(VRF_DEVICE_SELECT).eq('id', deviceId).maybeSingle(),
-      fetchVrfTrendReadings({ deviceId, sinceIso: since, hours: HISTORY_HOURS }),
+      fetchVrfRecentReadings(deviceId, DEFROST_CONTEXT_MINUTES).catch(() => null),
     ]);
 
     const nextDevice = (deviceRes.data as VrfDevice | null) ?? null;
 
     setDevice(nextDevice);
 
-    setReadings(readingsRows);
+    if (readingsRows) setReadings(readingsRows);
 
     if (nextDevice && !settingsDirtyRef.current) {
       setSettingsForm(parseVrfSettings(nextDevice.settings));
@@ -279,7 +278,9 @@ export default function VrfMonitorDetailPage({ session }: Props) {
 
     if (!deviceId) return;
 
-    const timer = window.setInterval(() => void load(), 10_000);
+    const timer = window.setInterval(() => {
+      if (!document.hidden) void load();
+    }, 10_000);
 
     return () => window.clearInterval(timer);
 
