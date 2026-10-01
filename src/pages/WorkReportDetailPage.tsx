@@ -207,6 +207,7 @@ import {
   emptyExpense,
   syncExpenseCustomerPriceFromPartner,
   expensesToDrafts,
+  expenseMarginPercentForSave,
   normalizeExpenseDraftsForSave,
   type ExpenseDraft,
 } from '../lib/dailyLogExpenseDraft';
@@ -1064,11 +1065,8 @@ async function saveExpenseLines(
     validExpenses.map((row, index) => {
       const customerPriceRaw = String(row.customer_unit_price ?? '').trim();
       const customerUnitPrice = customerPriceRaw ? Number(customerPriceRaw) : null;
-      const marginRaw = String(row.customer_margin_percent ?? '').trim();
-      const customerMargin =
-        marginRaw && Number.isFinite(Number(marginRaw)) ? Number(marginRaw) : null;
-      const saveMargin =
-        customerMargin != null && customerMargin >= 0 && customerMargin < 100 ? customerMargin : null;
+      // Laskutetaan kumppanilta → kumppanin kate-%; muut → tarvikkeen kate-%.
+      const saveMargin = expenseMarginPercentForSave(row);
       return {
         daily_log_id: dailyLogId,
         expense_type: row.expense_type || 'other',

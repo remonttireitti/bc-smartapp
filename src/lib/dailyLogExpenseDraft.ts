@@ -51,11 +51,72 @@ export function emptyExpense(): ExpenseDraft {
   };
 }
 
+function parseMarginPercent(value: unknown): number | null {
+  if (value == null) return null;
+  const raw = String(value).trim().replace(',', '.');
+  if (!raw) return null;
+  const n = Number(raw);
+  return Number.isFinite(n) && n >= 0 && n < 100 ? n : null;
+}
+
+/**
+ * Kumppanin kate-% (Laskutetaan kumppanilta): käyttäjän arvo sellaisenaan, myös 0 %.
+ * Tyhjä / virheellinen → oletus (10 %).
+ */
+export function resolvePartnerExpenseMarginPercent(
+  row: Pick<ExpenseDraft, 'partner_expense_margin_percent'>,
+): number {
+  return parseMarginPercent(row.partner_expense_margin_percent) ?? DEFAULT_PARTNER_EXPENSE_MARGIN_PERCENT;
+}
+
+/**
+ * DB-sarake customer_margin_percent on rivin asiakashinnan kate-%:
+ * - Laskutetaan kumppanilta → kumppanin kate-% (ennen: tarvikkeiden oletus 80 % → lataus pomppasi 80 %:iin)
+ * - muut tavat → tarvikkeen kate-% (hankinta + kate).
+ */
+export function expenseMarginPercentForSave(
+  row: Pick<
+    ExpenseDraft,
+    'bill_to_partner' | 'bill_to_customer' | 'partner_expense_margin_percent' | 'customer_margin_percent'
+  >,
+): number | null {
+  if (resolveExpenseBillingMode(row) === 'partner_and_customer') {
+    return resolvePartnerExpenseMarginPercent(row);
+  }
+  return parseMarginPercent(row.customer_margin_percent);
+}
+
+/**
+ * Tallennetun rivin kumppanin kate-%. Tallennettu arvo voittaa, jos se täsmää hintoihin;
+ * muuten kate päätellään kumppani- ja asiakashinnasta. Vanhoille riveille tallentui
+ * tarvikkeiden oletus 80 % — ilman hintoja se tulkitaan oletukseksi (10 %), ei 80 %:ksi.
+ */
+export function partnerExpenseMarginFromLine(line: {
+  unit_price?: number | string | null;
+  customer_unit_price?: number | string | null;
+  customer_margin_percent?: number | string | null;
+}): number {
+  const stored = parseMarginPercent(line.customer_margin_percent);
+  const unitPrice = Number(line.unit_price);
+  const customerPrice = Number(line.customer_unit_price);
+  if (unitPrice > 0 && customerPrice > 0) {
+    if (
+      stored != null
+      && Math.abs(computeCustomerPriceFromPartnerCost(unitPrice, stored) - customerPrice) <= 0.011
+    ) {
+      return stored;
+    }
+    return inferPartnerExpenseMarginPercent(unitPrice, customerPrice);
+  }
+  if (stored != null && stored !== DEFAULT_SUPPLY_MARGIN_PERCENT) return stored;
+  return DEFAULT_PARTNER_EXPENSE_MARGIN_PERCENT;
+}
+
 export function syncExpenseCustomerPriceFromPartner(row: ExpenseDraft): ExpenseDraft {
   if (resolveExpenseBillingMode(row) !== 'partner_and_customer') return row;
   const partner = Number(row.unit_price);
   if (!(partner > 0)) return row;
-  const margin = Number(row.partner_expense_margin_percent) || DEFAULT_PARTNER_EXPENSE_MARGIN_PERCENT;
+  const margin = resolvePartnerExpenseMarginPercent(row);
   return {
     ...row,
     customer_unit_price: String(computeCustomerPriceFromPartnerCost(partner, margin)),
@@ -92,18 +153,21 @@ export function expensesToDrafts(
       line.customer_unit_price != null && Number(line.customer_unit_price) > 0
         ? Number(line.customer_unit_price)
         : null;
-    const isCustomerOnly = line.bill_to_partner === false && line.bill_to_customer !== false;
-    const purchaseUnit = isCustomerOnly ? unitPrice : unitPrice;
-    const margin =
-      line.customer_margin_percent != null && Number.isFinite(Number(line.customer_margin_percent))
-        ? Number(line.customer_margin_percent)
-        : isCustomerOnly && customerPrice != null && customerPrice > 0 && purchaseUnit > 0
-          ? inferSupplyMarginPercent(purchaseUnit, customerPrice)
-          : isCustomerOnly
-            ? DEFAULT_SUPPLY_MARGIN_PERCENT
-            : unitPrice > 0 && customerPrice != null && customerPrice > 0
-              ? inferPartnerExpenseMarginPercent(unitPrice, customerPrice)
-              : DEFAULT_PARTNER_EXPENSE_MARGIN_PERCENT;
+    const mode = resolveExpenseBillingMode(line);
+    const isCustomerOnly = mode === 'customer_only';
+    const storedMargin = parseMarginPercent(line.customer_margin_percent);
+    // Tarvikkeen kate-% (Kumppanin tilillä hankittu / kuuluu urakkaan).
+    const supplyMargin =
+      storedMargin != null
+        ? storedMargin
+        : isCustomerOnly && customerPrice != null && customerPrice > 0 && unitPrice > 0
+          ? inferSupplyMarginPercent(unitPrice, customerPrice)
+          : DEFAULT_SUPPLY_MARGIN_PERCENT;
+    // Kumppanin kate-% (Laskutetaan kumppanilta).
+    const partnerMargin =
+      mode === 'partner_and_customer'
+        ? partnerExpenseMarginFromLine(line)
+        : DEFAULT_PARTNER_EXPENSE_MARGIN_PERCENT;
     const extraBillable = resolveExpenseExtraBillableFromSources(line, fallback);
     const extraBillingAllowed = resolveExpenseExtraBillingAllowedFromSources(line, fallback);
     const fallbackMargin = fallback?.customer_margin_percent;
@@ -117,15 +181,15 @@ export function expensesToDrafts(
       bill_to_customer: line.bill_to_customer !== false,
       customer_unit_price:
         customerPrice != null && customerPrice > 0 ? String(customerPrice) : '',
-      partner_expense_margin_percent: String(
-        isCustomerOnly ? DEFAULT_PARTNER_EXPENSE_MARGIN_PERCENT : margin,
-      ),
+      partner_expense_margin_percent: String(partnerMargin),
       customer_margin_percent: String(
         isCustomerOnly
           ? fallbackMargin != null
             ? fallbackMargin
-            : margin
-          : DEFAULT_SUPPLY_MARGIN_PERCENT,
+            : supplyMargin
+          : mode === 'included_in_contract'
+            ? supplyMargin
+            : DEFAULT_SUPPLY_MARGIN_PERCENT,
       ),
       extra_billable: extraBillable,
       extra_billing_allowed: extraBillingAllowed,

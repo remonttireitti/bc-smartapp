@@ -7,6 +7,7 @@ import {
   expenseRowSectionTitle,
   isNewExpenseRow,
   patchExpenseDraft,
+  resolvePartnerExpenseMarginPercent,
   type ExpenseDraft,
 } from '../lib/dailyLogExpenseDraft';
 import {
@@ -17,10 +18,10 @@ import { DEVICE_EXPENSE_TYPE, isDeviceExpense } from '../lib/workReportDeviceEnt
 import { formatEuro } from '../lib/workReportBilling';
 import {
   applyExpenseBillingMode,
-  DEFAULT_PARTNER_EXPENSE_MARGIN_PERCENT,
   DEFAULT_SUPPLY_MARGIN_PERCENT,
   formatExpenseSupplyExtraBillingMarginNote,
   resolveExpenseBillingMode,
+  resolveSupplyMarginPercent,
   syncSupplyExpenseCustomerPrice,
   type ExpenseBillingMode,
   type ExpenseBillingQuoteContext,
@@ -447,7 +448,7 @@ function ExpenseLineEditor({
                       <strong>{formatEuro(Number(row.customer_unit_price))}</strong>
                       {' '}
                       (hankinta {formatEuro(Number(row.unit_price))} + kate{' '}
-                      {row.customer_margin_percent || DEFAULT_SUPPLY_MARGIN_PERCENT} %)
+                      {resolveSupplyMarginPercent(row)} %)
                     </>
                   ) : null}
                 </p>
@@ -495,7 +496,7 @@ function ExpenseLineEditor({
                     <>
                       {' '}
                       (kumppani {formatEuro(Number(row.unit_price))} + kate{' '}
-                      {row.partner_expense_margin_percent || DEFAULT_PARTNER_EXPENSE_MARGIN_PERCENT}{' '}
+                      {resolvePartnerExpenseMarginPercent(row)}{' '}
                       %)
                     </>
                   ) : null}
