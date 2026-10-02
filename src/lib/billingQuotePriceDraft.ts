@@ -16,14 +16,14 @@ function roundMoney(n: number): number {
   return Math.round(n * 100) / 100;
 }
 
-function parseMoney(raw: string): number | null {
+export function parseMoney(raw: string): number | null {
   const cleaned = raw.trim().replace(/\s/g, '').replace(/€/g, '').replace(',', '.');
   if (!cleaned) return null;
   const n = Number(cleaned);
   return Number.isFinite(n) ? n : null;
 }
 
-function formatMoneyInput(value: number | null | undefined): string {
+export function formatMoneyInput(value: number | null | undefined): string {
   if (value == null || !Number.isFinite(Number(value))) return '';
   return String(roundMoney(Number(value))).replace('.', ',');
 }

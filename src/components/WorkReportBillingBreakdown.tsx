@@ -22,6 +22,11 @@ const LINE_KIND_LABELS: Record<BillableLineKind, string> = {
 
 type DetailRow = BillableLine & { userName: string };
 
+function lineKindLabel(line: BillableLine): string {
+  if (line.kind === 'commission' && /^Urakkaosuus\b/.test(line.description)) return 'Urakkaosuus';
+  return LINE_KIND_LABELS[line.kind];
+}
+
 function formatBillableLineQty(kind: BillableLineKind, qty: number): string {
   if (kind === 'refrigerant' || kind === 'refrigerant_purchase_deduction') return `${qty.toFixed(3)} kg`;
   if (kind === 'partner_purchase_deduction') return Number.isInteger(qty) ? `${qty} kpl` : `${qty} kpl`;
@@ -156,7 +161,7 @@ export default function WorkReportBillingBreakdown({
                 <tr key={`${line.logId}-${line.kind}-${index}`}>
                   <td>{formatDate(line.logDate)}</td>
                   <td>{line.userName}</td>
-                  <td>{LINE_KIND_LABELS[line.kind]}</td>
+                  <td>{lineKindLabel(line)}</td>
                   <td>{line.description}</td>
                   <td className="num">{formatBillableLineQty(line.kind, line.qty)}</td>
                   <td className="num">
@@ -237,7 +242,7 @@ export default function WorkReportBillingBreakdown({
                   <tr key={`ex-${line.logId}-${line.kind}-${line.description}`}>
                     <td>{formatDate(line.logDate)}</td>
                     <td>{line.userName}</td>
-                    <td>{LINE_KIND_LABELS[line.kind]}</td>
+                    <td>{lineKindLabel(line)}</td>
                     <td>{line.description}</td>
                     <td className="num">{formatBillableLineQty(line.kind, line.qty)}</td>
                     <td className="num">{formatEuro(line.unitPrice)}</td>

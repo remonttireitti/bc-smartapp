@@ -17,7 +17,7 @@ import WorkReportSectionDialog from '../components/WorkReportSectionDialog';
 import ActionStatusDialog from '../components/ActionStatusDialog';
 import DailyLogDialog from '../components/DailyLogDialog';
 import DailyLogExpenseLinesSection from '../components/DailyLogExpenseLinesSection';
-import ExpenseExtraBillingToggles from '../components/ExpenseExtraBillingToggles';
+import ExpenseExtraBillingToggles, { ExpenseExtraBillingToggleRow } from '../components/ExpenseExtraBillingToggles';
 import DailyLogTileSection from '../components/DailyLogTileSection';
 import {
   DAILY_LOG_SECTION_COLORS,
@@ -870,6 +870,22 @@ function DailyLogFields({
               setForm((current) => ({ ...current, hours_extra_billing_allowed: checked }))
             }
           />
+          {form.hours_extra_billable && showHourlyRate ? (
+            <div className="expense-extra-billing-toggles">
+              <ExpenseExtraBillingToggleRow
+                checked={form.hours_extra_partner_billed !== false}
+                label="Kumppani laskuttaa lisätunnit"
+                hint={
+                  form.hours_extra_partner_billed !== false
+                    ? 'Lisätunnit kumppanin laskulle.'
+                    : 'Ei kumppanin laskulle — lisätyö jää tilaajalle.'
+                }
+                onChange={(checked) =>
+                  setForm((current) => ({ ...current, hours_extra_partner_billed: checked }))
+                }
+              />
+            </div>
+          ) : null}
           {form.hours_extra_billable ? (
             <DailyLogHourBlock
               label="Lisälaskutettavia tunteja"
@@ -3517,6 +3533,9 @@ export default function WorkReportDetailPage({ session }: Props) {
           workReportId={report.id}
           customerId={report.customer_id}
           ownerCompanyId={report.owner_company_id}
+          ownerCompanyName={report.owner_company?.name ?? null}
+          createdByCompanyId={report.created_by_company_id}
+          createdByCompanyName={report.created_by_company?.name ?? null}
           installationCostNet={billableCalculation?.grandTotal ?? null}
           initialSettings={billingQuoteSettings}
           dailyLogs={dailyLogs}

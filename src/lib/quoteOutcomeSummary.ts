@@ -12,6 +12,11 @@
 import type { QuoteCategoryComparison, QuoteCategoryKey } from './quoteCategoryComparison';
 import { formatCategoryQty } from './quoteCategoryComparison';
 import { EXTRAS_DEDUCTION_KEYS, type PartnerMarginComputed } from './workReportBillingQuote';
+import {
+  computeDeviceSellerChain,
+  deviceSellerLabels,
+  type DeviceSellerChain,
+} from './workReportDeviceSeller';
 
 export type OutcomeTone = 'better' | 'worse' | 'neutral';
 
@@ -62,6 +67,12 @@ export type QuoteOutcomeRow = {
   note: string | null;
 } & QuoteOutcomeComparison;
 
+/** Laitemyyjä-ketjun laskutuslaskelman rivi (osapuolittain). */
+export type QuoteOutcomePartyRow = {
+  key: keyof DeviceSellerChain;
+  label: string;
+} & QuoteOutcomeComparison;
+
 export type QuoteOutcomeVerdict = {
   tone: OutcomeTone;
   /** Kate-ero (toteutunut − arvio). */
@@ -96,6 +107,11 @@ export type QuoteOutcomeSummary = {
    * täsmälleen −(Kulut yhteensä -ero) eli toistoa → solu jätetään tyhjäksi ("—").
    */
   showMarginVariance: boolean;
+  /**
+   * Laitemyyjä-ketju (laitteen myyntihinta asetettu): laskutuslaskelma osapuolittain. Korvaa
+   * myynti-, kate- ja provisiorivit; puhdas kate = urakoitsijalle jäävä osuus.
+   */
+  parties: QuoteOutcomePartyRow[] | null;
 };
 
 /** Kate-ero poikkeaa kulujen eron vastaluvusta (esim. hyväksytyt lisät) → näytä se taulukossa. */
@@ -159,6 +175,13 @@ export function buildQuoteOutcomeSummary(input: {
   /** Tarjoushinta, kun partnerMargin puuttuu. */
   quoteSaleNet?: number | null;
   formatEuro: (value: number) => string;
+  /** Laitemyyjä-ketju: laitteen myyntihinta + osapuolten nimet. */
+  deviceSeller?: {
+    deviceSaleNet: number;
+    ownerName: string;
+    contractorName?: string | null;
+    installerName: string;
+  } | null;
 }): QuoteOutcomeSummary | null {
   const { partnerMargin, comparison, formatEuro } = input;
   if (!partnerMargin && !comparison) return null;
@@ -230,8 +253,57 @@ export function buildQuoteOutcomeSummary(input: {
     ? comparisonOf(estimateGrossNet, partnerMargin.grossMarginNet, marginVarianceTone)
     : null;
 
+  let parties: QuoteOutcomePartyRow[] | null = null;
+  let chain: DeviceSellerChain | null = null;
+  if (input.deviceSeller && partnerMargin) {
+    const category = (key: QuoteOutcomeRow['key']) => {
+      const matching = rows.filter((row) => row.key === key);
+      const estimates = matching.map((row) => row.estimateNet);
+      return {
+        estimate: !comparison
+          ? null
+          : estimates.some((value) => value == null)
+            ? null
+            : roundMoney(estimates.reduce<number>((sum, value) => sum + (value ?? 0), 0)),
+        actual: roundMoney(matching.reduce((sum, row) => sum + row.actualNet, 0)),
+      };
+    };
+    chain = computeDeviceSellerChain({
+      margin: partnerMargin,
+      deviceSaleNet: input.deviceSeller.deviceSaleNet,
+      costs: {
+        labor: category('labor'),
+        expenses: category('expenses'),
+        supplies: category('supplies'),
+        device: category('device'),
+        other: category('other'),
+      },
+    });
+    const labels = deviceSellerLabels(input.deviceSeller);
+    const order: Array<keyof DeviceSellerChain> = [
+      'customer',
+      'ownerKeeps',
+      'contractorInvoice',
+      'installerInvoice',
+      'contractorKeeps',
+    ];
+    parties = order.map((key) => ({
+      key,
+      label: labels[key],
+      ...comparisonOf(
+        chain![key].estimate,
+        chain![key].actual,
+        key === 'installerInvoice' ? costVarianceTone : marginVarianceTone,
+      ),
+    }));
+  }
+
   // Tuomio vertaa vain kiinteää tarjousta tarjouspyyntöön (ei lisälaskutusta).
-  const verdictAmount = grossMargin
+  // Laitemyyjä-ketjussa tuomio on urakoitsijalle jäävän osuuden ero.
+  const contractorKeepsRow = parties?.find((row) => row.key === 'contractorKeeps') ?? null;
+  const verdictAmount = contractorKeepsRow
+    ? contractorKeepsRow.varianceNet
+    : grossMargin
     ? grossMargin.varianceNet == null
       ? null
       : roundMoney(grossMargin.varianceNet - extrasMarginNet)
@@ -248,13 +320,14 @@ export function buildQuoteOutcomeSummary(input: {
     costs,
     grossMargin,
     rows,
-    commissionNet: roundMoney(partnerMargin?.commissionNet ?? 0),
+    commissionNet: chain ? 0 : roundMoney(partnerMargin?.commissionNet ?? 0),
     commissionPercent: partnerMargin?.commissionPercent ?? 0,
     commissionSource: partnerMargin?.commissionSource ?? 'percent',
-    netMarginNet: roundMoney(partnerMargin?.netMarginNet ?? 0),
+    netMarginNet: chain ? chain.contractorKeeps.actual : roundMoney(partnerMargin?.netMarginNet ?? 0),
     hasMargin: partnerMargin != null,
     verdict: verdictFor(verdictAmount, formatEuro),
     showMarginVariance: marginVarianceDiffersFromCosts(costs, grossMargin),
+    parties,
   };
 }
 
@@ -291,7 +364,19 @@ export function renderQuoteOutcomeSummaryHtml(
     })
     .join('');
 
-  const marginRows = gross
+  const partyRows = summary.parties
+    ? summary.parties
+        .map((row, index, all) => {
+          const last = index === all.length - 1;
+          const label = last ? `<strong>${esc(row.label)}</strong>` : esc(row.label);
+          const actual = last ? `<strong style="font-size:15px">${esc(euro(row.actualNet))}</strong>` : esc(euro(row.actualNet));
+          return `<tr${last ? ' class="profit-row"' : ''}><td>${label}</td><td class="num">${esc(money(row.estimateNet))}</td><td class="num">${actual}</td>${variance(row.varianceNet, row.tone)}</tr>`;
+        })
+        .join('')
+    : '';
+  const marginRows = summary.parties
+    ? `<tr><td colspan="4" style="padding-top:8px;font-size:11px;text-transform:uppercase;color:#475569;font-weight:700">Laskutuslaskelma (alv 0 %)</td></tr>${partyRows}`
+    : gross
     ? `${hasExtras ? `<tr><td>Myynti (tarjous + hyväksytyt lisät)</td><td class="num">${esc(money(summary.costs.estimateNet == null ? null : summary.quoteSaleNet))}</td><td class="num">${esc(euro(summary.marginSaleNet))}</td>${variance(summary.costs.estimateNet == null ? null : summary.extrasMarginNet, marginVarianceTone(0, summary.extrasMarginNet))}</tr>` : ''}
       <tr><td><strong>Kate ennen provisiota</strong></td><td class="num">${esc(money(gross.estimateNet))}</td><td class="num"><strong>${esc(euro(gross.actualNet))}</strong></td>${summary.showMarginVariance ? variance(gross.varianceNet, gross.tone) : '<td class="num">—</td>'}</tr>
       <tr><td>Provisio (${esc(String(Math.round(summary.commissionPercent * 100) / 100).replace('.', ','))} %)${summary.commissionSource === 'daily_log' ? '<div class="muted" style="font-size:11px">Päiväkirjan Myyntiprovisio-merkinnöistä</div>' : summary.commissionSource === 'amount' ? '<div class="muted" style="font-size:11px">Sovittu summa</div>' : ''}</td><td class="num">—</td><td class="num">− ${esc(euro(summary.commissionNet))}</td><td class="num">—</td></tr>
@@ -303,7 +388,7 @@ export function renderQuoteOutcomeSummaryHtml(
     : '';
 
   return `<div class="quote-outcome-print">
-    <p style="margin:0 0 4px"><span style="font-size:11px;text-transform:uppercase;color:#475569;font-weight:700">${hasExtras ? 'Kiinteä tarjoushinta + hyväksytyt lisät' : 'Kiinteä tarjoushinta'} (alv 0 %)</span><br/><strong style="font-size:20px">${esc(euro(summary.saleTotalNet))}</strong>${hasExtras ? ` <span class="muted">(tarjous ${esc(euro(summary.quoteSaleNet))} + lisät ${esc(euro(summary.customerExtrasNet))})</span>` : ''}</p>
+    ${summary.parties ? '' : `<p style="margin:0 0 4px"><span style="font-size:11px;text-transform:uppercase;color:#475569;font-weight:700">${hasExtras ? 'Kiinteä tarjoushinta + hyväksytyt lisät' : 'Kiinteä tarjoushinta'} (alv 0 %)</span><br/><strong style="font-size:20px">${esc(euro(summary.saleTotalNet))}</strong>${hasExtras ? ` <span class="muted">(tarjous ${esc(euro(summary.quoteSaleNet))} + lisät ${esc(euro(summary.customerExtrasNet))})</span>` : ''}</p>`}
     ${options.quoteTitle ? `<p class="meta-line">Tarjous: ${esc(options.quoteTitle)}</p>` : ''}
     ${verdictHtml}
     <table>

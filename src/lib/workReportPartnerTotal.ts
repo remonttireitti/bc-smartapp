@@ -14,6 +14,13 @@ import {
   type PartnerMarginComputed,
 } from './workReportBillingQuote';
 import { mergeActualPurchaseFromWorkReportLogs } from './quoteRequestActualPurchaseSync';
+import {
+  deviceSellerContractorInvoiceNet,
+  resolveDeviceSellerSaleNet,
+} from './workReportDeviceSeller';
+
+/** Laitemyyjä-ketjun tasausrivin teksti kumppanilaskulla. */
+export const DEVICE_SELLER_BALANCE_DESCRIPTION = 'Urakkaosuus (tarjous − laite − kulut)';
 
 /** Automaattisen provisiorivin teksti kumppanilaskulla. */
 export function autoPartnerCommissionDescription(margin: PartnerMarginComputed): string {
@@ -73,6 +80,20 @@ export function applyQuoteCommissionToPartnerCalculation(input: {
   });
   if (!partnerMargin) {
     return { calculation: base, partnerMargin: null };
+  }
+  // Laitemyyjä-ketju: kumppanilasku tilaajalle = tarjoushinta − laitteen myyntihinta
+  // (+ kumppanin lisäkulut). Tasausrivi = lasku − kirjatut kulut; ei provisiota.
+  const deviceSaleNet = resolveDeviceSellerSaleNet(effectiveSettings);
+  if (deviceSaleNet != null) {
+    const invoiceNet = deviceSellerContractorInvoiceNet(partnerMargin, deviceSaleNet);
+    const calculation = mergeAutoPartnerCommission(base, {
+      amount: Math.round((invoiceNet - base.grandTotal) * 100) / 100,
+      note: DEVICE_SELLER_BALANCE_DESCRIPTION,
+      logs: input.logs,
+      logDate: latestLogDate(input.logs),
+      balancing: true,
+    });
+    return { calculation, partnerMargin };
   }
   const calculation = mergeAutoPartnerCommission(base, {
     amount: partnerMargin.commissionNet,

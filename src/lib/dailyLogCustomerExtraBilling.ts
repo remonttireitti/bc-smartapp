@@ -19,6 +19,8 @@ export type DailyLogCustomerExtraBilling = {
   hours_extra_billable?: boolean;
   /** Lupa lisälaskutukseen on saatu — tunnit laskutetaan asiakkaalta. */
   hours_extra_billing_allowed?: boolean;
+  /** false = kumppani ei laskuta lisätunteja (lisätyön tulo jää tilaajalle). */
+  hours_partner_billed?: boolean;
   expense_description?: string;
   expense_qty?: number;
   expense_customer_unit_price?: number;
@@ -58,6 +60,7 @@ export function parseDailyLogCustomerExtraBilling(raw: unknown): DailyLogCustome
   const billToPartner = record.expense_bill_to_partner;
   const hoursExtraBillable = record.hours_extra_billable === true;
   const hoursExtraBillingAllowed = record.hours_extra_billing_allowed === true;
+  const hoursPartnerBilled = record.hours_partner_billed === false ? false : undefined;
   const supplyLineFlags = parseSupplyLineFlags(record.supply_line_flags);
   return {
     hours: hours > 0 ? hours : 0,
@@ -65,6 +68,7 @@ export function parseDailyLogCustomerExtraBilling(raw: unknown): DailyLogCustome
     description,
     hours_extra_billable: hoursExtraBillable,
     hours_extra_billing_allowed: hoursExtraBillingAllowed,
+    ...(hoursPartnerBilled === false ? { hours_partner_billed: false } : {}),
     expense_description: expenseDescription,
     expense_qty: expenseQty > 0 ? expenseQty : 0,
     expense_customer_unit_price:
@@ -137,6 +141,7 @@ export function serializeDailyLogCustomerExtraBilling(
   if (hoursExtraBillable(billing)) {
     out.hours_extra_billable = true;
     out.hours_extra_billing_allowed = hoursExtraBillingApproved(billing);
+    if (billing.hours_partner_billed === false) out.hours_partner_billed = false;
     const hours = resolveExtraBillableHours(billing);
     if (hours > 0) {
       out.hours = hours;
@@ -183,6 +188,8 @@ export type DailyLogExtraBillingFormFields = {
   hours_extra_billing_allowed: boolean;
   /** Montako tuntia voi olla lisälaskutettavissa (≤ päivän tuntimäärä). */
   hours_extra_hours: string;
+  /** Kumppani laskuttaa lisätunnit (oletus). false = lisätyön tulo jää tilaajalle. */
+  hours_extra_partner_billed: boolean;
   extra_expense_description: string;
   extra_expense_qty: string;
   extra_expense_customer_price: string;
@@ -204,6 +211,7 @@ export function emptyDailyLogExtraBillingForm(): DailyLogExtraBillingFormFields 
     hours_extra_billable: false,
     hours_extra_billing_allowed: false,
     hours_extra_hours: '',
+    hours_extra_partner_billed: true,
     extra_expense_description: '',
     extra_expense_qty: '1',
     extra_expense_customer_price: '',
@@ -249,6 +257,13 @@ export function hoursExtraBillingApproved(
   }
   if (parsed.hours_extra_billable === false) return false;
   return Number(parsed.hours) > 0;
+}
+
+/** Laskuttaako kumppani lisälaskutettavat tunnit (oletus kyllä). */
+export function extraHoursPartnerBilled(
+  billing: DailyLogCustomerExtraBilling | null | undefined,
+): boolean {
+  return parseDailyLogCustomerExtraBilling(billing ?? {}).hours_partner_billed !== false;
 }
 
 export function resolveExtraBillableHours(
@@ -329,6 +344,7 @@ export function dailyLogExtraBillingToForm(
     hours_extra_billing_allowed: parsed.hours_extra_billing_allowed === true || (parsed.hours_extra_billable !== false && legacyHours),
     hours_extra_hours:
       parsed.hours != null && parsed.hours > 0 ? String(parsed.hours) : '',
+    hours_extra_partner_billed: parsed.hours_partner_billed !== false,
     extra_expense_description: parsed.expense_description ?? '',
     extra_expense_qty:
       parsed.expense_qty != null && parsed.expense_qty > 0 ? String(parsed.expense_qty) : '1',
@@ -373,6 +389,7 @@ export function buildCustomerExtraBillingFromLogForm(
   if (form.hours_extra_billable) {
     payload.hours_extra_billable = true;
     payload.hours_extra_billing_allowed = form.hours_extra_billing_allowed;
+    if (form.hours_extra_partner_billed === false) payload.hours_partner_billed = false;
     if (extraHours > 0) {
       payload.hours = extraHours;
       if (form.hours_extra_billing_allowed) {
@@ -646,7 +663,7 @@ export function computeQuoteExtrasMarginFromLogs(
       const customerRate =
         extra.hourly_rate != null && extra.hourly_rate > 0 ? extra.hourly_rate : customerHourlyDefault;
       const customerNet = lineTotal(hours, customerRate);
-      const partnerNet = lineTotal(hours, partnerHourly);
+      const partnerNet = extraHoursPartnerBilled(extra) ? lineTotal(hours, partnerHourly) : 0;
       const marginNet = roundMoney(customerNet - partnerNet);
       customerExtrasNet += customerNet;
       partnerBilledExtrasNet += partnerNet;
@@ -793,7 +810,7 @@ export function collectExtraBillingMarginImpactLines(
       const customerRate =
         extra.hourly_rate != null && extra.hourly_rate > 0 ? extra.hourly_rate : customerHourlyDefault;
       const customerNet = lineTotal(hours, customerRate);
-      const partnerNet = lineTotal(hours, partnerHourly);
+      const partnerNet = extraHoursPartnerBilled(extra) ? lineTotal(hours, partnerHourly) : 0;
       const marginIfApprovedNet = roundMoney(customerNet - partnerNet);
 
       if (hoursExtraBillingApproved(extra)) {

@@ -48,6 +48,7 @@ import {
   renderQuoteCategoryComparisonHtml,
 } from './quoteCategoryComparison';
 import { buildQuoteOutcomeSummary, renderQuoteOutcomeSummaryHtml } from './quoteOutcomeSummary';
+import { resolveDeviceSellerSaleNet } from './workReportDeviceSeller';
 import {
   formatRefrigerantLineLabelForReport,
   refrigerantBillingReminder,
@@ -105,6 +106,13 @@ const LINE_KIND_LABELS: Record<string, string> = {
   expense: 'Kulu',
   refrigerant: 'Kylmäaine',
 };
+
+function printLineKindLabel(line: { kind: string; description?: string | null }): string {
+  if (line.kind === 'commission' && /^Urakkaosuus\b/.test(String(line.description ?? ''))) {
+    return 'Urakkaosuus';
+  }
+  return LINE_KIND_LABELS[line.kind] ?? line.kind;
+}
 
 export type WorkReportPrintMeta = {
   companyName: string;
@@ -247,7 +255,7 @@ function customerBillingPrintSection(
             (line) => `<tr>
             <td>${esc(formatDate(line.logDate))}</td>
             <td>${esc(user.userName)}</td>
-            <td>${esc(LINE_KIND_LABELS[line.kind] ?? line.kind)}</td>
+            <td>${esc(printLineKindLabel(line))}</td>
             <td>${esc(line.description)} <span class="muted">· ${esc(APPROVED_EXTRA_BILLING_CUSTOMER_PRINT_LABEL)}</span></td>
             <td class="num">${formatBillableLineQty(line.kind, line.qty)}</td>
             <td class="num">${formatBillablePriceCell(line.unitPrice, line.priceMissing)}</td>
@@ -292,7 +300,7 @@ function customerBillingPrintSection(
           (line) => `<tr>
             <td>${esc(formatDate(line.logDate))}</td>
             <td>${esc(user.userName)}</td>
-            <td>${esc(LINE_KIND_LABELS[line.kind] ?? line.kind)}</td>
+            <td>${esc(printLineKindLabel(line))}</td>
             <td>${esc(line.description)}</td>
             <td class="num">${formatBillableLineQty(line.kind, line.qty)}</td>
             <td class="num">${formatBillablePriceCell(line.unitPrice, line.priceMissing)}</td>
@@ -388,8 +396,10 @@ function quoteMarginPrintSection(
   customerCalculation?: BillableCalculation | null,
   quoteData?: unknown,
   tripKmRate?: number | null,
+  parties?: { ownerName: string | null; installerName: string | null },
 ): string {
   if (!billingQuoteHasData(billingQuote)) return '';
+  const deviceSellerSaleNet = resolveDeviceSellerSaleNet(billingQuote);
 
   const categoryComparison =
     quoteData && partnerCalculation
@@ -438,6 +448,15 @@ function quoteMarginPrintSection(
     comparison: categoryComparison,
     quoteSaleNet: billingQuote.quote_sale_net,
     formatEuro,
+    deviceSeller:
+      deviceSellerSaleNet != null
+        ? {
+            deviceSaleNet: deviceSellerSaleNet,
+            ownerName: parties?.ownerName ?? '',
+            contractorName: billingQuote.contractor_company_name ?? null,
+            installerName: parties?.installerName ?? '',
+          }
+        : undefined,
   });
 
   const rows: string[] = [];
@@ -451,7 +470,12 @@ function quoteMarginPrintSection(
       );
     }
   }
-  if (outcomeSummary && customerBillableGrandTotal && customerBillableGrandTotal.extrasTotal > 0.005) {
+  if (
+    outcomeSummary
+    && !outcomeSummary.parties
+    && customerBillableGrandTotal
+    && customerBillableGrandTotal.extrasTotal > 0.005
+  ) {
     rows.push(
       `<tr class="profit-row"><td><strong>Asiakkaalta laskutettava yhteensä</strong></td><td class="num"><strong>${formatEuro(customerBillableGrandTotal.grandTotal)}</strong></td></tr>`,
     );
@@ -497,7 +521,7 @@ function quoteMarginPrintSection(
           .join('')}</tbody>
       </table>
       ${
-        customerBillableGrandTotal && customerBillableGrandTotal.extrasTotal > 0.005
+        !outcomeSummary?.parties && customerBillableGrandTotal && customerBillableGrandTotal.extrasTotal > 0.005
           ? `<p class="meta-line">Asiakkaalta laskutettava yhteensä: tarjous ${formatEuro(customerBillableGrandTotal.quoteTotal)} + lisät ${formatEuro(customerBillableGrandTotal.extrasTotal)} = <strong>${formatEuro(customerBillableGrandTotal.grandTotal)}</strong></p>`
           : ''
       }`
@@ -1011,7 +1035,7 @@ export function generateWorkReportPrintHtml(input: {
                       (l) => `<tr>
                           <td>${esc(u.userName)}</td>
                           <td>${esc(l.logDate)}</td>
-                          <td>${esc(LINE_KIND_LABELS[l.kind] ?? l.kind)}</td>
+                          <td>${esc(printLineKindLabel(l))}</td>
                           <td>${esc(l.description)}</td>
                           <td class="num">${formatBillableLineQty(l.kind, l.qty)}</td>
                           ${
@@ -1054,6 +1078,10 @@ export function generateWorkReportPrintHtml(input: {
           customerCalculation ?? null,
           quoteData,
           tripKmRate,
+          {
+            ownerName: report.owner_company?.name ?? null,
+            installerName: report.created_by_company?.name ?? null,
+          },
         )
       : '';
 
