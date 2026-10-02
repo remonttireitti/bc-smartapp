@@ -1,24 +1,13 @@
 import { supabase } from './supabase';
-import type { WorkReport, WorkReportDailyLog } from '../types';
-
-export type WorkReportPrintShareBundle = {
-  report: WorkReport;
-  logs: WorkReportDailyLog[];
-  logImages: Record<string, Array<{ fileName: string; url: string; caption: string }>>;
-  meta: {
-    companyName: string;
-    logoUrl: string | null;
-  };
-};
-
-export function workReportPrintSharePath(token: string): string {
-  return `/j/${token}`;
-}
-
-export function workReportPrintShareUrl(token: string): string {
-  if (typeof window === 'undefined') return workReportPrintSharePath(token);
-  return `${window.location.origin}${workReportPrintSharePath(token)}`;
-}
+export {
+  PUBLIC_APP_ORIGIN,
+  parseWorkReportPrintShareResponse,
+  resolvePublicShareOrigin,
+  workReportPrintSharePath,
+  workReportPrintShareUrl,
+  type WorkReportPrintShareBundle,
+} from './workReportPrintShareLink';
+import { parseWorkReportPrintShareResponse, type WorkReportPrintShareBundle } from './workReportPrintShareLink';
 
 export function workReportPrintShareFunctionUrl(): string {
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
@@ -58,10 +47,5 @@ export async function loadWorkReportPrintSharePublic(token: string): Promise<Wor
     body: JSON.stringify({ token }),
   });
 
-  const data = (await response.json()) as WorkReportPrintShareBundle & { error?: string };
-  if (!response.ok) {
-    throw new Error(data.error ?? 'Jaetun tulosteen lataus epäonnistui');
-  }
-
-  return data;
+  return parseWorkReportPrintShareResponse(response.status, await response.text());
 }

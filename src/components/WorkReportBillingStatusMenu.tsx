@@ -11,6 +11,8 @@ import {
   canManagePartnerBillingStatus,
   loadBillingCopyText,
   loadBillingPrintShareLink,
+  verifyBillingPrintShareLink,
+  billingPrintLinkProblemMessage,
   markCustomerReportBilled,
   markPartnerReportBilled,
   shouldPromptPartnerBillWorkflow,
@@ -156,7 +158,12 @@ export default function WorkReportBillingStatusMenu({
       await recordPrintLinkCopied(supabase, report.id);
       setOpen(false);
       onChanged?.();
-      onNotice?.('Tulostelinkki kopioitu leikepöydälle.');
+      const problem = await verifyBillingPrintShareLink(url);
+      if (problem) {
+        onError?.(billingPrintLinkProblemMessage(problem));
+      } else {
+        onNotice?.('Tulostelinkki kopioitu leikepöydälle.');
+      }
     } catch (error) {
       onError?.(error instanceof Error ? error.message : 'Kopiointi epäonnistui.');
     } finally {
