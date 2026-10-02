@@ -69,3 +69,16 @@ verify_jwt = false
 
 [functions.monitor-share-view]
 verify_jwt = false
+
+# Kirjautuneen käyttäjän funktiot (JWT vaaditaan) — samat asetukset kuin tuotannossa 2.10.2026.
+[functions.create-monitor-share]
+verify_jwt = true
+
+[functions.delete-company-user]
+verify_jwt = true
+
+[functions.invite-company-user]
+verify_jwt = true
+
+[functions.update-portal-user]
+verify_jwt = true
