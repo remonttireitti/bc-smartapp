@@ -16979,6 +16979,16 @@ button.tool-booking-cal-day {
   font-weight: 700;
 }
 
+.quote-outcome-section-row td {
+  border-top-width: 2px;
+  padding-top: 0.6rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-subtle);
+}
+
 .quote-outcome-net-row td {
   border-top-width: 2px;
   font-size: 1.2rem;
@@ -17149,4 +17159,19 @@ button.tool-booking-cal-day {
 p.quote-outcome-unpriced {
   margin: 0.4rem 0 0;
   font-size: 0.9rem;
+}
+
+.billing-device-seller {
+  margin: 0.5rem 0;
+}
+
+.billing-device-seller > summary {
+  cursor: pointer;
+  font-size: 0.85rem;
+  color: var(--text-subtle);
+}
+
+.billing-device-seller-toggle {
+  margin: 0.5rem 0;
+  font-size: 0.85rem;
 }

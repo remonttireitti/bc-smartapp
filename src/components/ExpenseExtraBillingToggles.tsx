@@ -23,7 +23,7 @@ type ToggleRowProps = {
   onChange: (value: boolean) => void;
 };
 
-function ExpenseExtraBillingToggleRow({
+export function ExpenseExtraBillingToggleRow({
   checked,
   disabled = false,
   label,

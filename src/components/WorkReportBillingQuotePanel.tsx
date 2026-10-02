@@ -4,6 +4,7 @@ import {
   computePartnerNetMargin,
   normalizeBillingQuoteSettings,
   parseBillingQuoteSettings,
+  saveBillingQuoteDeviceSeller,
   saveBillingQuotePrices,
   quoteHasVat,
   resolveActualPurchaseTotal,
@@ -17,6 +18,8 @@ import {
   billingQuotePriceDraftFromSettings,
   billingQuotePricesChanged,
   billingQuotePricesFromDraft,
+  formatMoneyInput,
+  parseMoney,
   type BillingQuotePriceDraft,
 } from '../lib/billingQuotePriceDraft';
 import { mergeActualPurchaseFromWorkReportLogs } from '../lib/quoteRequestActualPurchaseSync';
@@ -33,6 +36,7 @@ import {
   extraBillingMarginImpactStatusLabel,
   resolveExtraWorkCustomerRates,
 } from '../lib/dailyLogCustomerExtraBilling';
+import { quoteDeviceSaleNet, resolveDeviceSellerSaleNet } from '../lib/workReportDeviceSeller';
 import type { WorkReportDailyLog } from '../types';
 import { supabase } from '../lib/supabase';
 
@@ -53,7 +57,13 @@ type Props = {
   onSaved?: (settings: BillingQuoteSettings) => void | Promise<void>;
   /** "Avaa tarjous · Vaihda tarjous · Poista kohdistus" tarjouksen nimen perään. */
   quoteLinkActions?: ReactNode;
+  /** Laitemyyjä-ketjun osapuolet: tilaaja (omistaja) ja raportin laatija (asentaja). */
+  ownerCompanyName?: string | null;
+  createdByCompanyId?: string | null;
+  createdByCompanyName?: string | null;
 };
+
+type ContractorOption = { id: string; name: string };
 
 export default function WorkReportBillingQuotePanel({
   workReportId,
@@ -69,6 +79,9 @@ export default function WorkReportBillingQuotePanel({
   readOnly = false,
   onSaved,
   quoteLinkActions = null,
+  ownerCompanyName = null,
+  createdByCompanyId = null,
+  createdByCompanyName = null,
 }: Props) {
   const [settings, setSettings] = useState<BillingQuoteSettings>(() =>
     parseBillingQuoteSettings(initialSettings),
@@ -115,6 +128,49 @@ export default function WorkReportBillingQuotePanel({
       cancelled = true;
     };
   }, [settings.quote_request_id, settings.purchase_lines?.length, readOnly]);
+
+  const deviceSellerEditable =
+    showPartnerMargin
+    && !readOnly
+    && (settings.customer_mode === 'quote_fixed' || settings.customer_mode === 'quote_plus_extras');
+  const quoteDeviceSale = useMemo(() => quoteDeviceSaleNet(quoteData), [quoteData]);
+  const [deviceDraft, setDeviceDraft] = useState<{ sale: string; contractorId: string } | null>(null);
+  const [deviceBusy, setDeviceBusy] = useState(false);
+  const [deviceError, setDeviceError] = useState<string | null>(null);
+  const [contractorOptions, setContractorOptions] = useState<ContractorOption[]>([]);
+
+  useEffect(() => {
+    if (!deviceSellerEditable || !createdByCompanyId) return;
+    let cancelled = false;
+    void (async () => {
+      const { data } = await supabase
+        .from('company_partnerships')
+        .select('company_a_id, company_b_id')
+        .eq('status', 'active')
+        .or(`company_a_id.eq.${createdByCompanyId},company_b_id.eq.${createdByCompanyId}`);
+      const ids = Array.from(
+        new Set(
+          ((data ?? []) as Array<{ company_a_id: string; company_b_id: string }>)
+            .map((row) => (row.company_a_id === createdByCompanyId ? row.company_b_id : row.company_a_id))
+            .filter((id) => id && id !== _ownerCompanyId && id !== createdByCompanyId),
+        ),
+      );
+      if (ids.length === 0) {
+        if (!cancelled) setContractorOptions([]);
+        return;
+      }
+      const { data: companies } = await supabase.from('companies').select('id, name').in('id', ids);
+      if (cancelled) return;
+      setContractorOptions(
+        ((companies ?? []) as ContractorOption[])
+          .filter((row) => row.name)
+          .sort((a, b) => a.name.localeCompare(b.name, 'fi')),
+      );
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [deviceSellerEditable, createdByCompanyId, _ownerCompanyId]);
 
   const effectiveSettings = useMemo(
     () => mergeActualPurchaseFromWorkReportLogs(settings, dailyLogs, quoteData),
@@ -191,6 +247,7 @@ export default function WorkReportBillingQuotePanel({
   );
 
 
+  const deviceSellerSaleNet = resolveDeviceSellerSaleNet(effectiveSettings);
   const outcomeSummary = useMemo(
     () =>
       buildQuoteOutcomeSummary({
@@ -198,8 +255,26 @@ export default function WorkReportBillingQuotePanel({
         comparison: categoryComparison,
         quoteSaleNet: effectiveSettings.quote_sale_net,
         formatEuro,
+        deviceSeller:
+          deviceSellerSaleNet != null
+            ? {
+                deviceSaleNet: deviceSellerSaleNet,
+                ownerName: ownerCompanyName ?? '',
+                contractorName: effectiveSettings.contractor_company_name ?? null,
+                installerName: createdByCompanyName ?? '',
+              }
+            : undefined,
       }),
-    [showPartnerMargin, partnerMargin, categoryComparison, effectiveSettings.quote_sale_net],
+    [
+      showPartnerMargin,
+      partnerMargin,
+      categoryComparison,
+      effectiveSettings.quote_sale_net,
+      effectiveSettings.contractor_company_name,
+      deviceSellerSaleNet,
+      ownerCompanyName,
+      createdByCompanyName,
+    ],
   );
 
   if (!billingQuoteHasData(settings)) return null;
@@ -260,6 +335,134 @@ export default function WorkReportBillingQuotePanel({
   function updatePriceDraft(patch: Partial<BillingQuotePriceDraft>) {
     setPriceDraft((prev) => ({ ...prev, ...patch }));
     setPriceStatus(null);
+  }
+
+  const savedDeviceDraft = {
+    sale: settings.device_sale_net != null
+      ? formatMoneyInput(settings.device_sale_net)
+      : formatMoneyInput(quoteDeviceSale),
+    contractorId: settings.contractor_company_id ?? '',
+  };
+  const activeDeviceDraft = deviceDraft ?? savedDeviceDraft;
+  const deviceDirty =
+    settings.device_sale_net == null
+      ? deviceDraft != null || false
+      : activeDeviceDraft.sale.trim() !== savedDeviceDraft.sale
+        || activeDeviceDraft.contractorId !== savedDeviceDraft.contractorId;
+
+  async function saveDeviceSeller(clear = false) {
+    if (deviceBusy) return;
+    const sale = clear ? null : parseMoney(activeDeviceDraft.sale);
+    if (!clear && activeDeviceDraft.sale.trim() && (sale == null || sale < 0)) {
+      setDeviceError('Tarkista laitteen myyntihinta.');
+      return;
+    }
+    const contractorId = clear ? '' : activeDeviceDraft.contractorId;
+    const contractorName =
+      contractorOptions.find((row) => row.id === contractorId)?.name
+      ?? (contractorId && contractorId === settings.contractor_company_id
+        ? settings.contractor_company_name
+        : null);
+    setDeviceBusy(true);
+    setDeviceError(null);
+    try {
+      const next = await saveBillingQuoteDeviceSeller(supabase, workReportId, {
+        deviceSaleNet: sale,
+        contractorCompanyId: contractorId || null,
+        contractorCompanyName: contractorId ? contractorName ?? null : null,
+      });
+      setDeviceDraft(null);
+      await onSaved?.(next);
+    } catch (err) {
+      setDeviceError(err instanceof Error ? err.message : 'Tallennus epäonnistui');
+    } finally {
+      setDeviceBusy(false);
+    }
+  }
+
+  function renderDeviceSellerEditor() {
+    if (!deviceSellerEditable || !(Number(settings.quote_sale_net) > 0)) return null;
+    if (settings.device_sale_net == null && quoteDeviceSale == null && deviceDraft == null) {
+      return (
+        <p className="muted billing-device-seller-toggle">
+          <button type="button" className="btn-link" onClick={() => setDeviceDraft({ sale: '', contractorId: '' })}>
+            Tilaaja myy laitteen…
+          </button>
+        </p>
+      );
+    }
+    const contractorChoices = [...contractorOptions];
+    if (
+      settings.contractor_company_id
+      && settings.contractor_company_name
+      && !contractorChoices.some((row) => row.id === settings.contractor_company_id)
+    ) {
+      contractorChoices.push({ id: settings.contractor_company_id, name: settings.contractor_company_name });
+    }
+    return (
+      <details className="billing-device-seller" open={deviceDraft != null || undefined}>
+        <summary>
+          Tilaaja myy laitteen
+          {settings.device_sale_net != null ? `: ${formatEuro(settings.device_sale_net)}` : ''}
+          {settings.device_sale_net != null && settings.contractor_company_name
+            ? ` · urakoitsija ${settings.contractor_company_name}`
+            : ''}
+        </summary>
+        <div className="form-grid billing-margin-form">
+          <label className="form-field">
+            <span>Laitteen myyntihinta (alv 0 %)</span>
+            <input
+              type="text"
+              inputMode="decimal"
+              value={activeDeviceDraft.sale}
+              placeholder={quoteDeviceSale != null ? formatMoneyInput(quoteDeviceSale) : undefined}
+              disabled={deviceBusy}
+              onChange={(e) => {
+                setDeviceDraft({ ...activeDeviceDraft, sale: e.target.value });
+                setDeviceError(null);
+              }}
+            />
+          </label>
+          <label className="form-field">
+            <span>Urakoitsija</span>
+            <select
+              value={activeDeviceDraft.contractorId}
+              disabled={deviceBusy}
+              onChange={(e) => setDeviceDraft({ ...activeDeviceDraft, contractorId: e.target.value })}
+            >
+              <option value="">— ei erillistä —</option>
+              {contractorChoices.map((row) => (
+                <option key={row.id} value={row.id}>
+                  {row.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <div className="span-2 billing-margin-save-row">
+            {settings.device_sale_net == null || deviceDirty ? (
+              <button
+                type="button"
+                className="btn btn-primary btn-sm"
+                disabled={deviceBusy}
+                onClick={() => void saveDeviceSeller()}
+              >
+                {deviceBusy ? 'Tallennetaan…' : 'Tallenna'}
+              </button>
+            ) : null}
+            {settings.device_sale_net != null && !deviceBusy ? (
+              <button type="button" className="btn-link" onClick={() => void saveDeviceSeller(true)}>
+                Poista
+              </button>
+            ) : null}
+            {deviceError ? (
+              <span className="error" role="alert">
+                {deviceError}
+              </span>
+            ) : null}
+          </div>
+        </div>
+      </details>
+    );
   }
 
   function renderCategoryEntries() {
@@ -502,6 +705,8 @@ export default function WorkReportBillingQuotePanel({
               <strong>{formatEuro(customerBillableGrandTotal.grandTotal)}</strong>
             </p>
           ) : null}
+
+          {renderDeviceSellerEditor()}
 
           {renderExtrasMarginLines()}
 

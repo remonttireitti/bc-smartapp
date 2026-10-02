@@ -50,12 +50,16 @@ export default function QuoteOutcomeSummaryView({
     <div className="quote-outcome">
       <div className="quote-outcome-card">
         <div className="quote-outcome-price">
-          <span className="quote-outcome-price-label">
-            {hasExtras ? 'Kiinteä tarjoushinta + hyväksytyt lisät' : 'Kiinteä tarjoushinta'}
-            <span className="muted"> (alv 0 %)</span>
-          </span>
-          <strong className="quote-outcome-price-value">{formatEuro(summary.saleTotalNet)}</strong>
-          {hasExtras ? (
+          {summary.parties ? null : (
+            <>
+              <span className="quote-outcome-price-label">
+                {hasExtras ? 'Kiinteä tarjoushinta + hyväksytyt lisät' : 'Kiinteä tarjoushinta'}
+                <span className="muted"> (alv 0 %)</span>
+              </span>
+              <strong className="quote-outcome-price-value">{formatEuro(summary.saleTotalNet)}</strong>
+            </>
+          )}
+          {hasExtras && !summary.parties ? (
             <span className="muted quote-outcome-price-sub">
               tarjous {formatEuro(summary.quoteSaleNet)} + lisät {formatEuro(summary.customerExtrasNet)}
             </span>
@@ -116,7 +120,32 @@ export default function QuoteOutcomeSummaryView({
               <td className="num">{money(summary.costs.actualNet)}</td>
               <VarianceCell value={summary.costs.varianceNet} tone={summary.costs.tone} />
             </tr>
-            {gross ? (
+            {summary.parties ? (
+              <tr className="quote-outcome-section-row">
+                <td colSpan={4}>Laskutuslaskelma (alv 0 %)</td>
+              </tr>
+            ) : null}
+            {summary.parties
+              ? summary.parties.map((row, index, all) => {
+                  const last = index === all.length - 1;
+                  return (
+                    <tr
+                      key={row.key}
+                      className={last ? 'quote-outcome-net-row' : 'quote-outcome-party-row'}
+                    >
+                      <td>
+                        <span className="quote-outcome-row-label">{row.label}</span>
+                      </td>
+                      <td className="num">{money(row.estimateNet)}</td>
+                      <td className="num">
+                        {last ? <strong>{formatEuro(row.actualNet)}</strong> : formatEuro(row.actualNet)}
+                      </td>
+                      <VarianceCell value={row.varianceNet} tone={row.tone} />
+                    </tr>
+                  );
+                })
+              : null}
+            {gross && !summary.parties ? (
               <>
                 {hasExtras ? (
                   <tr>

@@ -89,6 +89,14 @@ export type BillingQuoteSettings = {
    * uudelleenkohdistuksessa vanhan tarjouksen koskemattomat 0 €-rivit tunnistetaan.
    */
   quote_seeded_rows?: QuoteSeededRows | null;
+  /**
+   * Laitteen myyntihinta tarjouksessa (alv 0 %). Asetettuna tilaaja myy vain laitteen:
+   * kumppani laskuttaa tilaajalta tarjoushinta − laite, tilaajalle jää laitekate + lisätyöt.
+   */
+  device_sale_net?: number | null;
+  /** Urakoitsija tilaajan ja asentajan välissä (laskuttaa tilaajalta, asentaja laskuttaa sitä). */
+  contractor_company_id?: string | null;
+  contractor_company_name?: string | null;
 };
 
 export type QuoteSeededRow = {
@@ -338,6 +346,15 @@ export function parseBillingQuoteSettings(raw: unknown): BillingQuoteSettings {
   };
   const seededRows = parseQuoteSeededRows(record.quote_seeded_rows);
   if (seededRows) settings.quote_seeded_rows = seededRows;
+  const deviceSaleNet = num('device_sale_net');
+  if (deviceSaleNet != null && deviceSaleNet > 0) settings.device_sale_net = deviceSaleNet;
+  if (typeof record.contractor_company_id === 'string' && record.contractor_company_id.trim()) {
+    settings.contractor_company_id = record.contractor_company_id.trim();
+    settings.contractor_company_name =
+      typeof record.contractor_company_name === 'string' && record.contractor_company_name.trim()
+        ? record.contractor_company_name.trim()
+        : null;
+  }
   return normalizeBillingQuoteSettings(settings);
 }
 
@@ -823,6 +840,12 @@ export function billingQuoteFromQuoteRow(
   // Luotujen rivien kirjanpito kulkee mukana (uudelleenkohdistus siivoaa vanhan tarjouksen rivit).
   const previousSeeded = parseQuoteSeededRows(options?.previous?.quote_seeded_rows);
   if (previousSeeded) base.quote_seeded_rows = previousSeeded;
+  // Laitemyyjä-ketju säilyy saman tarjouksen päivityksessä.
+  if (options?.previous?.quote_request_id === quoteId && options.previous.device_sale_net) {
+    base.device_sale_net = options.previous.device_sale_net;
+    base.contractor_company_id = options.previous.contractor_company_id ?? null;
+    base.contractor_company_name = options.previous.contractor_company_name ?? null;
+  }
   return normalizeBillingQuoteSettings(base);
 }
 
@@ -920,6 +943,40 @@ export async function saveBillingQuoteCommission(
     ...current,
     partner_commission_percent: commission.percent,
     partner_commission_amount: commission.amount,
+  });
+  await saveBillingQuoteSettings(supabase, workReportId, next);
+  return next;
+}
+
+/**
+ * Tallentaa laitteen myyntihinnan ja urakoitsijan (laitemyyjä-laskutusketju) billing_quote-JSONiin.
+ * deviceSaleNet null → ketju pois. Muut asetukset luetaan kannasta.
+ */
+export async function saveBillingQuoteDeviceSeller(
+  supabase: SupabaseClient,
+  workReportId: string,
+  input: {
+    deviceSaleNet: number | null;
+    contractorCompanyId: string | null;
+    contractorCompanyName: string | null;
+  },
+): Promise<BillingQuoteSettings> {
+  const { data, error } = await supabase
+    .from('work_report_billable')
+    .select('billing_quote')
+    .eq('work_report_id', workReportId)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  const current = parseBillingQuoteSettings(
+    (data as { billing_quote?: unknown } | null)?.billing_quote ?? {},
+  );
+  const deviceSaleNet =
+    input.deviceSaleNet != null && input.deviceSaleNet > 0 ? roundMoney(input.deviceSaleNet) : null;
+  const next = normalizeBillingQuoteSettings({
+    ...current,
+    device_sale_net: deviceSaleNet,
+    contractor_company_id: deviceSaleNet != null ? input.contractorCompanyId : null,
+    contractor_company_name: deviceSaleNet != null ? input.contractorCompanyName : null,
   });
   await saveBillingQuoteSettings(supabase, workReportId, next);
   return next;

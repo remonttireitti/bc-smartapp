@@ -15,6 +15,7 @@ import {
 import {
   billableHoursFromLogEntry,
   dailyLogCustomerExtraBillingHasData,
+  extraHoursPartnerBilled,
   parseDailyLogCustomerExtraBilling,
   resolveExtraBillableHours,
 } from './dailyLogCustomerExtraBilling';
@@ -516,10 +517,20 @@ export function mergePartnerExtraBillingFromDailyLogs(
     // Lisälaskutettavat tunnit ovat osa päivän omia tunteja (enintään päivän tuntimäärä), ja ne
     // ovat jo kumppanilaskelmassa päivän tuntiriveillä. Erillinen rivi vain päivän tunnit
     // ylittävälle osalle (vanhat kirjaukset), muuten tunnit laskettaisiin kahdesti.
-    const hours = Math.max(
-      0,
-      roundQtyValue(resolveExtraBillableHours(extra) - billableHoursFromLogEntry(log)),
-    );
+    if (!extraHoursPartnerBilled(extra)) {
+      // Kumppani ei laskuta lisätunteja → poistetaan ne päivän tuntiriveiltä.
+      const reduced = reduceLogHourLines(summary.lines, log.id, resolveExtraBillableHours(extra));
+      summary.lines = reduced.lines;
+      summary.hoursQty = roundQtyValue(summary.hoursQty - reduced.includedQty);
+      summary.hoursTotal = roundMoneyValue(summary.hoursTotal - reduced.includedTotal);
+      summary.excludedSubtotal = roundMoneyValue(summary.excludedSubtotal - reduced.excludedTotal);
+    }
+    const hours = extraHoursPartnerBilled(extra)
+      ? Math.max(
+          0,
+          roundQtyValue(resolveExtraBillableHours(extra) - billableHoursFromLogEntry(log)),
+        )
+      : 0;
     if (hours > 0) {
       const unitPrice = rates.hourly_regular;
       const total = lineTotal(hours, unitPrice);
@@ -731,44 +742,27 @@ export function quoteScopePartnerCalculation(
 ): BillableCalculation {
   const extraHoursByLog = new Map<string, number>();
   for (const log of logs ?? []) {
-    const hours = resolveExtraBillableHours(parseDailyLogCustomerExtraBilling(log.customer_extra_billing));
+    const extra = parseDailyLogCustomerExtraBilling(log.customer_extra_billing);
+    // Kumppanin laskuttamattomat lisätunnit on jo poistettu laskelmasta (merge).
+    if (!extraHoursPartnerBilled(extra)) continue;
+    const hours = resolveExtraBillableHours(extra);
     if (hours > 0) extraHoursByLog.set(log.id, hours);
   }
 
   const byUser = calculation.byUser.map((user) => {
-    const lines: BillableLine[] = [];
-    for (const line of user.lines) {
-      if (EXTRA_BILLING_LINE_SUFFIXES.some((suffix) => line.logId.endsWith(suffix))) continue;
-      lines.push({ ...line });
-    }
-    // Vähennetään ensin normaalitunneista, sitten muista tuntiriveistä.
-    const order = (line: BillableLine) => (line.kind === 'hours_regular' ? 0 : 1);
-    const hourLines = lines
-      .filter((line) => line.included && BILLABLE_HOUR_KINDS.has(line.kind) && extraHoursByLog.has(line.logId))
-      .sort((a, b) => order(a) - order(b));
-    for (const line of hourLines) {
-      const remaining = extraHoursByLog.get(line.logId) ?? 0;
-      const qty = Number(line.qty) || 0;
-      if (!(remaining > 0) || !(qty > 0)) continue;
-      const take = Math.min(remaining, qty);
-      extraHoursByLog.set(line.logId, roundQtyValue(remaining - take));
-      const nextQty = roundQtyValue(qty - take);
-      line.total = Math.round((line.total * nextQty) / qty * 100) / 100;
-      line.qty = nextQty;
-    }
-    const kept = lines.filter(
-      (line) => !(BILLABLE_HOUR_KINDS.has(line.kind) && extraHoursByLog.has(line.logId) && !(Number(line.qty) > 0)),
+    let lines = user.lines.filter(
+      (line) => !EXTRA_BILLING_LINE_SUFFIXES.some((suffix) => line.logId.endsWith(suffix)),
     );
-    const hoursQty = kept
-      .filter((line) => line.included && BILLABLE_HOUR_KINDS.has(line.kind))
-      .reduce((sum, line) => sum + (Number(line.qty) || 0), 0);
-    const hoursTotal = kept
-      .filter((line) => line.included && BILLABLE_HOUR_KINDS.has(line.kind))
-      .reduce((sum, line) => sum + line.total, 0);
+    for (const [logId, hours] of extraHoursByLog) {
+      lines = reduceLogHourLines(lines, logId, hours, { includedOnly: true }).lines;
+    }
+    const hourLines = lines.filter((line) => line.included && BILLABLE_HOUR_KINDS.has(line.kind));
+    const hoursQty = hourLines.reduce((sum, line) => sum + (Number(line.qty) || 0), 0);
+    const hoursTotal = hourLines.reduce((sum, line) => sum + line.total, 0);
     const delta = roundMoneyValue(hoursTotal - user.hoursTotal);
     return {
       ...user,
-      lines: kept,
+      lines,
       hoursQty: roundQtyValue(hoursQty),
       hoursTotal: roundMoneyValue(hoursTotal),
       subtotal: roundMoneyValue(user.subtotal + delta - extraLinesTotal(user.lines, ':extra-expense')),
@@ -779,6 +773,57 @@ export function quoteScopePartnerCalculation(
     ...calculation,
     byUser,
     grandTotal: roundMoneyValue(byUser.reduce((sum, user) => sum + user.subtotal, 0)),
+  };
+}
+
+/**
+ * Vähentää päivän tuntiriveiltä annetun tuntimäärän (ensin normaalitunnit). Palauttaa uudet
+ * rivit (syötettä ei muuteta) ja vähennetyt määrät. Tyhjiksi jääneet tuntirivit poistetaan.
+ */
+function reduceLogHourLines(
+  lines: BillableLine[],
+  logId: string,
+  hours: number,
+  options?: { includedOnly?: boolean },
+): { lines: BillableLine[]; includedQty: number; includedTotal: number; excludedTotal: number } {
+  let remaining = hours;
+  let includedQty = 0;
+  let includedTotal = 0;
+  let excludedTotal = 0;
+  const order = (line: BillableLine) => (line.kind === 'hours_regular' ? 0 : 1);
+  const candidates = lines
+    .map((line, index) => ({ line, index }))
+    .filter(
+      ({ line }) =>
+        line.logId === logId
+        && BILLABLE_HOUR_KINDS.has(line.kind)
+        && (!options?.includedOnly || line.included),
+    )
+    .sort((a, b) => order(a.line) - order(b.line));
+  const next = [...lines];
+  const drop = new Set<number>();
+  for (const { line, index } of candidates) {
+    const qty = Number(line.qty) || 0;
+    if (!(remaining > 0) || !(qty > 0)) continue;
+    const take = Math.min(remaining, qty);
+    remaining = roundQtyValue(remaining - take);
+    const nextQty = roundQtyValue(qty - take);
+    const nextTotal = roundMoneyValue((line.total * nextQty) / qty);
+    const removedTotal = roundMoneyValue(line.total - nextTotal);
+    if (line.included) {
+      includedQty += take;
+      includedTotal += removedTotal;
+    } else {
+      excludedTotal += removedTotal;
+    }
+    if (nextQty > 0) next[index] = { ...line, qty: nextQty, total: nextTotal };
+    else drop.add(index);
+  }
+  return {
+    lines: next.filter((_, index) => !drop.has(index)),
+    includedQty: roundQtyValue(includedQty),
+    includedTotal: roundMoneyValue(includedTotal),
+    excludedTotal: roundMoneyValue(excludedTotal),
   };
 }
 
@@ -906,14 +951,20 @@ export function mergeAutoPartnerCommission(
     percent?: number | null;
     logs?: WorkReportDailyLog[];
     logDate?: string;
+    /**
+     * Laitemyyjä-ketju: rivi tasaa kumppanilaskun urakkaosuuteen (voi olla negatiivinen),
+     * päiväkirjan provisiomerkinnöistä riippumatta.
+     */
+    balancing?: boolean;
   },
 ): BillableCalculation {
-  const amount = Math.round(Math.max(0, Number(options.amount) || 0) * 100) / 100;
-  const existingDaily = options.logs ? sumDailyCommission(options.logs) : 0;
+  const raw = Number(options.amount) || 0;
+  const amount = Math.round((options.balancing ? raw : Math.max(0, raw)) * 100) / 100 || 0;
+  const existingDaily = options.logs && !options.balancing ? sumDailyCommission(options.logs) : 0;
   if (existingDaily > 0.005) {
     return stripAutoPartnerCommission(calculation);
   }
-  if (!(amount > 0.005)) {
+  if (!(Math.abs(amount) > 0.005) || (!options.balancing && !(amount > 0.005))) {
     return stripAutoPartnerCommission(calculation);
   }
 
@@ -1000,7 +1051,7 @@ export function stripAutoPartnerCommission(calculation: BillableCalculation): Bi
       0,
     );
     const lines = user.lines.filter((line) => line.logId !== AUTO_PARTNER_COMMISSION_LOG_ID);
-    const commissionTotal = Math.round(Math.max(0, user.commissionTotal - removedTotal) * 100) / 100;
+    const commissionTotal = Math.round((user.commissionTotal - removedTotal) * 100) / 100 || 0;
     const subtotal = Math.round(
       (user.hoursTotal + user.expensesTotal + user.fixedTotal + commissionTotal) * 100,
     ) / 100;
