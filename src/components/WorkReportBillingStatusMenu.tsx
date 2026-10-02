@@ -37,6 +37,11 @@ type Props = {
   onNotice?: (message: string) => void;
   /** 'pill' = raporttinäkymän otsikon tilapilleri (värillinen tilan mukaan). */
   variant?: 'pill' | 'compact';
+  /**
+   * Laitemyyjä-ketju, tilaajan näkymä: kumppanilaskutuksen merkintä koskee urakoitsijan laskua
+   * (billing_quote.contractor_invoice), ei asentajan laskua. Kopiointitoiminnot piilotetaan.
+   */
+  contractorInvoiceActions?: { mark: () => Promise<void>; unmark: () => Promise<void> };
 };
 
 function toBillingRow(report: WorkReport): BillingListRow {
@@ -91,6 +96,7 @@ export default function WorkReportBillingStatusMenu({
   onError,
   onNotice,
   variant = 'compact',
+  contractorInvoiceActions,
 }: Props) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -103,7 +109,9 @@ export default function WorkReportBillingStatusMenu({
     viewerCompanyId,
     customerBillingEnabled,
   );
-  const partnerState = canManagePartner ? billingPartnerState(billingRow, dailyLogs) : null;
+  const partnerState = canManagePartner
+    ? billingPartnerState(billingRow, contractorInvoiceActions ? [] : dailyLogs)
+    : null;
   const customerState = canManageCustomer ? billingCustomerState(billingRow) : null;
 
   useEffect(() => {
@@ -174,8 +182,12 @@ export default function WorkReportBillingStatusMenu({
   async function finishPartnerBill(workflow: PartnerBillWorkflowChoice) {
     setBusy(true);
     try {
-      await markPartnerReportBilled(supabase, report.id);
-      await applyPartnerBillWorkflowChoice(supabase, report.id, workflow);
+      if (contractorInvoiceActions) {
+        await contractorInvoiceActions.mark();
+      } else {
+        await markPartnerReportBilled(supabase, report.id);
+        await applyPartnerBillWorkflowChoice(supabase, report.id, workflow);
+      }
       setWorkflowOpen(false);
       setOpen(false);
       onChanged?.();
@@ -192,7 +204,7 @@ export default function WorkReportBillingStatusMenu({
   }
 
   async function markPartnerBilled() {
-    if (shouldPromptPartnerBillWorkflow(report.status)) {
+    if (!contractorInvoiceActions && shouldPromptPartnerBillWorkflow(report.status)) {
       setWorkflowOpen(true);
       setOpen(false);
       return;
@@ -212,7 +224,11 @@ export default function WorkReportBillingStatusMenu({
     }
     setBusy(true);
     try {
-      await unmarkPartnerReportBilled(supabase, report.id);
+      if (contractorInvoiceActions) {
+        await contractorInvoiceActions.unmark();
+      } else {
+        await unmarkPartnerReportBilled(supabase, report.id);
+      }
       setOpen(false);
       onChanged?.();
       onNotice?.('Kumppanilaskutuksen merkintä peruttu — laskutus on taas avoin.');
@@ -287,32 +303,36 @@ export default function WorkReportBillingStatusMenu({
             {canManagePartner && (
               <>
                 <p className="report-status-menu-title">Kumppanilaskutus</p>
-                <button
-                  type="button"
-                  role="menuitem"
-                  className="report-status-menu-item"
-                  disabled={busy}
-                  onClick={(event) => {
-                    event.preventDefault();
-                    event.stopPropagation();
-                    void copyBillingText('partner');
-                  }}
-                >
-                  Kopioi laskutusteksti
-                </button>
-                <button
-                  type="button"
-                  role="menuitem"
-                  className="report-status-menu-item"
-                  disabled={busy}
-                  onClick={(event) => {
-                    event.preventDefault();
-                    event.stopPropagation();
-                    void copyPartnerPrintLink();
-                  }}
-                >
-                  Kopioi tulostelinkki
-                </button>
+                {!contractorInvoiceActions && (
+                  <>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="report-status-menu-item"
+                      disabled={busy}
+                      onClick={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        void copyBillingText('partner');
+                      }}
+                    >
+                      Kopioi laskutusteksti
+                    </button>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="report-status-menu-item"
+                      disabled={busy}
+                      onClick={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        void copyPartnerPrintLink();
+                      }}
+                    >
+                      Kopioi tulostelinkki
+                    </button>
+                  </>
+                )}
                 {(partnerState === 'open' || partnerState === 'partial') && (
                   <button
                     type="button"

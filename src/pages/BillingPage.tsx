@@ -57,9 +57,15 @@ import {
   type BillingListRow,
   type BillingModuleMode,
   applyContractorChainToBillingRow,
+  isContractorChainLegRow,
 } from '../lib/workReportBillingCopy';
 import { saveContractorInvoiceStatus } from '../lib/workReportBillingQuote';
 import { ensurePartnerBillableCalculated } from '../lib/workReportPartnerBillingPersist';
+import {
+  loadContractorChainInvoiceRows,
+  mergeContractorChainInvoiceRows,
+  setContractorChainInvoiceBilled,
+} from '../lib/contractorChainInvoices';
 import {
   collectPartnerBillingDeductions,
   filterPartnerDeductionsExcludingPartners,
@@ -256,7 +262,7 @@ export default function BillingPage({ session }: Props) {
     try {
       const deductions = await loadPartnerBillingDeductionsFromSource(
         supabase,
-        reportRows,
+        reportRows.filter((row) => !row.contractorOutgoingLeg),
         profile.company_id,
       );
       setSourcePartnerDeductions(deductions);
@@ -295,6 +301,7 @@ export default function BillingPage({ session }: Props) {
   }
 
   async function refreshBillingRow(reportId: string) {
+    if (rows.some((row) => row.id === reportId && row.contractorOutgoingLeg)) return;
     const { data } = await supabase.from('work_reports').select(REPORT_SELECT).eq('id', reportId).maybeSingle();
     if (!data) return;
     const updated = applyContractorChainToBillingRow(data as unknown as BillingListRow, profile?.company_id);
@@ -396,6 +403,14 @@ export default function BillingPage({ session }: Props) {
       loadError = error;
       all = ((data as unknown as BillingListRow[]) ?? []).map((row) =>
         applyContractorChainToBillingRow(row, profile.company_id),
+      );
+    }
+
+    if (!loadError && (mode === 'partner' || mode === 'total')) {
+      // Laitemyyjä-ketju: urakoitsijan oma lasku tilaajalle (RPC; tyhjä, jos funktiota ei ole).
+      all = mergeContractorChainInvoiceRows(
+        all,
+        await loadContractorChainInvoiceRows(supabase, profile.company_id),
       );
     }
 
@@ -931,13 +946,17 @@ export default function BillingPage({ session }: Props) {
       return;
     }
 
-    if (row.contractorInvoiceLeg) {
+    if (row.contractorInvoiceLeg || row.contractorOutgoingLeg) {
       // Urakoitsijan lasku tilaajalle (laitemyyjä-ketju): oma tila, asentajan laskuun ei kosketa.
       setError(null);
       setMessage(null);
       setBusyId(row.id);
       try {
-        await saveContractorInvoiceStatus(supabase, row.id, Number(row.billable?.partner_total ?? 0));
+        if (row.contractorOutgoingLeg) {
+          await setContractorChainInvoiceBilled(supabase, row.id, true);
+        } else {
+          await saveContractorInvoiceStatus(supabase, row.id, Number(row.billable?.partner_total ?? 0));
+        }
         setMessage(`Merkitty laskutetuksi: ${row.title}`);
         await load(billingMode);
       } catch (markError) {
@@ -980,6 +999,9 @@ export default function BillingPage({ session }: Props) {
       if (mode === 'customer') {
         await unmarkCustomerReportBilled(supabase, row.id);
         setMessage(`Asiakaslaskutus peruttu: ${row.title}`);
+      } else if (row.contractorOutgoingLeg) {
+        await setContractorChainInvoiceBilled(supabase, row.id, false);
+        setMessage(`Laskutettu-merkintä peruttu: ${row.title}`);
       } else if (row.contractorInvoiceLeg) {
         await saveContractorInvoiceStatus(supabase, row.id, null);
         setMessage(`Laskutettu-merkintä peruttu: ${row.title}`);
@@ -1492,8 +1514,8 @@ export default function BillingPage({ session }: Props) {
                   busy={busyId === row.id}
                   isRecalculating={recalculatingIds.has(row.id)}
                   viewerCompanyId={profile?.company_id}
-                  onCopy={() => void copyBillingText(row)}
-                  onCopyLink={() => void copyBillingPrintLink(row)}
+                  onCopy={isContractorChainLegRow(row) ? undefined : () => void copyBillingText(row)}
+                  onCopyLink={isContractorChainLegRow(row) ? undefined : () => void copyBillingPrintLink(row)}
                   onMarkBilled={() => void markBilled(row)}
                   onUnmarkBilled={() => void unmarkBilled(row)}
                   onRecalcPartner={
@@ -1547,8 +1569,8 @@ function BillingReportCard({
   billingEnabled: boolean;
   busy: boolean;
   isRecalculating: boolean;
-  onCopy: () => void;
-  onCopyLink: () => void;
+  onCopy?: () => void;
+  onCopyLink?: () => void;
   onMarkBilled: () => void;
   onUnmarkBilled: () => void;
   onRecalcPartner?: () => void;
@@ -1587,9 +1609,13 @@ function BillingReportCard({
       <div className="billing-report-main">
         <div className="billing-report-copy">
           <div className="billing-report-title-row">
-            <Link to={`/tyoraportit/${row.id}`} className="billing-report-title">
-              {row.title}
-            </Link>
+            {row.contractorOutgoingLeg ? (
+              <span className="billing-report-title">{row.title}</span>
+            ) : (
+              <Link to={`/tyoraportit/${row.id}`} className="billing-report-title">
+                {row.title}
+              </Link>
+            )}
             <span className={`badge badge-${badgeClass}`}>{statusLabel}</span>
             <span className="badge badge-draft">{reportStatus}</span>
             {billingEnabled && isRecalculating ? (
@@ -1690,12 +1716,16 @@ function BillingReportCard({
             {isRecalculating ? 'Lasketaan…' : 'Päivitä laskelma'}
           </button>
         )}
-        <button type="button" className="btn btn-secondary btn-sm" disabled={busy} onClick={onCopy}>
-          Kopioi laskutusteksti
-        </button>
-        <button type="button" className="btn btn-secondary btn-sm" disabled={busy} onClick={onCopyLink}>
-          Kopioi tulostelinkki
-        </button>
+        {onCopy && (
+          <button type="button" className="btn btn-secondary btn-sm" disabled={busy} onClick={onCopy}>
+            Kopioi laskutusteksti
+          </button>
+        )}
+        {onCopyLink && (
+          <button type="button" className="btn btn-secondary btn-sm" disabled={busy} onClick={onCopyLink}>
+            Kopioi tulostelinkki
+          </button>
+        )}
         {(mode === 'customer' ? amounts.state !== 'billed' : amounts.open > 0.005) && (
           <button type="button" className="btn btn-primary btn-sm" disabled={busy} onClick={onMarkBilled}>
             {amounts.state === 'partial' ? 'Merkitse avoin laskutetuksi' : 'Merkitse laskutetuksi'}
@@ -1706,9 +1736,11 @@ function BillingReportCard({
             Peru laskutettu
           </button>
         )}
-        <Link to={`/tyoraportit/${row.id}`} className="btn btn-secondary btn-sm">
-          Avaa raportti
-        </Link>
+        {!row.contractorOutgoingLeg && (
+          <Link to={`/tyoraportit/${row.id}`} className="btn btn-secondary btn-sm">
+            Avaa raportti
+          </Link>
+        )}
       </div>
     </article>
   );

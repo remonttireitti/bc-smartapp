@@ -154,6 +154,7 @@ import {
   hasPartnerBillingActivity,
   isCustomerInvoicePaid,
   canPersistPartnerBillable,
+  contractorInvoiceCalculation,
   markCustomerReportBilled,
   resolveCustomerBillingAmounts,
   resolvePartnerBillingAmounts,
@@ -180,6 +181,7 @@ import {
   DEFAULT_PARTNER_COMMISSION_PERCENT,
   formatCommissionPercent,
   saveBillingQuoteCommission,
+  saveContractorInvoiceStatus,
   type BillingQuoteSettings,
 } from '../lib/workReportBillingQuote';
 import { expenseTypeCategory } from '../lib/workReportEntryCategories';
@@ -285,7 +287,7 @@ import {
   type PendingDailyLogImage,
   type WorkStatus,
 } from '../types';
-import type { Customer, Equipment, Partnership } from '../types';
+import type { Customer, Equipment, InvoiceStatus, Partnership } from '../types';
 import type { RefrigerantCylinder } from '../types/inventory';
 import {
   loadWorkReportEquipmentLinks,
@@ -1866,6 +1868,13 @@ export default function WorkReportDetailPage({ session }: Props) {
     await load(report.id);
   }
 
+  /** Laitemyyjä-ketju: tilaaja merkitsee urakoitsijan laskun (ei asentajan laskua). */
+  async function setOwnerChainInvoiceBilled(amount: number | null) {
+    if (!report) return;
+    const next = await saveContractorInvoiceStatus(supabase, report.id, amount);
+    setBillingQuoteSettings(next);
+  }
+
   /** Kevyt päivitys tilavalikon jälkeen: ei koko sivun uudelleenlatausta. */
   async function refreshStatusAndBilling(reportId: string) {
     const [{ data: statusRow }, { data: billingRow }] = await Promise.all([
@@ -3045,6 +3054,34 @@ export default function WorkReportDetailPage({ session }: Props) {
     && viewerBillingAllowed
     && !!billableCalculation;
   const showPartnerBillableSection = showOutgoingPartnerBilling || showIncomingPartnerBilling;
+  // Laitemyyjä-ketju, tilaajan (omistaja) näkymä: saapuva lasku on urakoitsijan lasku
+  // (tarjous − laite), ei asentajan rivit urakoitsijalle. Tila billing_quote.contractor_invoice.
+  const ownerChainInvoice =
+    showIncomingPartnerBilling && billableCalculation?.contractorInvoice
+      ? billableCalculation.contractorInvoice
+      : null;
+  const ownerChainInvoicePaid = ownerChainInvoice
+    ? billingQuoteSettings.contractor_invoice?.status === 'paid'
+    : false;
+  const ownerChainBilling = ownerChainInvoice
+    ? {
+        partner_invoice_status: (ownerChainInvoicePaid ? 'paid' : 'none') as InvoiceStatus,
+        partner_invoice_amount: ownerChainInvoice.amount,
+        partner_billed_amount: ownerChainInvoicePaid
+          ? Number(billingQuoteSettings.contractor_invoice?.billed_amount ?? ownerChainInvoice.amount)
+          : null,
+        partner_billed_at: ownerChainInvoicePaid
+          ? (billingQuoteSettings.contractor_invoice?.billed_at ?? null)
+          : null,
+      }
+    : null;
+  const partnerSectionCalculation =
+    ownerChainInvoice && billableCalculation
+      ? contractorInvoiceCalculation(billableCalculation, ownerChainInvoice)
+      : billableCalculation;
+  const partnerSectionBillerName = ownerChainInvoice
+    ? (ownerChainInvoice.fromCompanyName ?? billingQuoteSettings.contractor_company_name ?? '—')
+    : billedPartnerName;
   const showPartnerDailyLogHourlyRate = !!showOutgoingPartnerBilling;
   const showCustomerMoney = showCustomerBillingFeatures;
   const canManageCustomerBillingRates = isOwnerCompany && showCustomerBillingFeatures;
@@ -3146,23 +3183,30 @@ export default function WorkReportDetailPage({ session }: Props) {
               partner_invoice_amount: billing.partner_invoice_amount,
               partner_billed_amount: billing.partner_billed_amount,
               partner_billed_at: billing.partner_billed_at,
+              ...(ownerChainBilling ?? {}),
               customer_invoice_status: billing.customer_invoice_status,
               customer_invoice_amount: billing.customer_invoice_amount,
               customer_billed_at: billing.customer_billed_at,
             }
           : null,
-        billable: billableCalculation
-          ? { partner_total: billableCalculation.grandTotal, calculation: billableCalculation }
+        billable: partnerSectionCalculation
+          ? { partner_total: partnerSectionCalculation.grandTotal, calculation: partnerSectionCalculation }
           : null,
       }
     : null;
-  const partnerBillableAmounts = billableCalculation
+  const partnerBillableAmounts = ownerChainBilling && partnerSectionCalculation
     ? resolvePartnerBillingAmounts(
-        billableCalculation.grandTotal,
-        billing?.partner_billed_amount,
-        billing?.partner_invoice_status,
+        partnerSectionCalculation.grandTotal,
+        ownerChainBilling.partner_billed_amount,
+        ownerChainBilling.partner_invoice_status,
       )
-    : null;
+    : billableCalculation
+      ? resolvePartnerBillingAmounts(
+          billableCalculation.grandTotal,
+          billing?.partner_billed_amount,
+          billing?.partner_invoice_status,
+        )
+      : null;
   // Otsikon tilavalikot: työn tila (Tulossa / Työn alla / Valmis) ja laskutuksen tila.
   const headerViewerRole = resolveWorkReportViewerRole(report, profile?.company_id);
   const canEditWorkflowStatusInHeader =
@@ -3174,14 +3218,17 @@ export default function WorkReportDetailPage({ session }: Props) {
     ...report,
     billing: billing
       ? {
-          partner_invoice_status: billing.partner_invoice_status,
-          partner_billed_amount: billing.partner_billed_amount,
-          partner_billed_at: billing.partner_billed_at,
+          partner_invoice_status: ownerChainBilling?.partner_invoice_status ?? billing.partner_invoice_status,
+          partner_billed_amount: ownerChainBilling
+            ? ownerChainBilling.partner_billed_amount
+            : billing.partner_billed_amount,
+          partner_billed_at: ownerChainBilling ? ownerChainBilling.partner_billed_at : billing.partner_billed_at,
           customer_invoice_status: billing.customer_invoice_status,
         }
       : null,
     billable: {
-      partner_total: billableCalculation?.grandTotal ?? Number(billing?.partner_invoice_amount ?? 0),
+      partner_total:
+        partnerSectionCalculation?.grandTotal ?? Number(billing?.partner_invoice_amount ?? 0),
       customer_total:
         customerBillableCalculation?.grandTotal ?? Number(billing?.customer_invoice_amount ?? 0),
     },
@@ -3210,12 +3257,14 @@ export default function WorkReportDetailPage({ session }: Props) {
       delegate_company_id: report.delegate_company_id,
       billing: billing
         ? {
-            partner_invoice_status: billing.partner_invoice_status,
-            partner_billed_amount: billing.partner_billed_amount,
-            partner_billed_at: billing.partner_billed_at,
+            partner_invoice_status: ownerChainBilling?.partner_invoice_status ?? billing.partner_invoice_status,
+            partner_billed_amount: ownerChainBilling
+              ? ownerChainBilling.partner_billed_amount
+              : billing.partner_billed_amount,
+            partner_billed_at: ownerChainBilling ? ownerChainBilling.partner_billed_at : billing.partner_billed_at,
           }
         : null,
-      billable: billableCalculation ? { partner_total: billableCalculation.grandTotal } : null,
+      billable: partnerSectionCalculation ? { partner_total: partnerSectionCalculation.grandTotal } : null,
     },
     viewerCompanyId: profile?.company_id,
     hasDailyLogs: dailyLogs.length > 0,
@@ -3333,6 +3382,14 @@ export default function WorkReportDetailPage({ session }: Props) {
               hasDailyLogs={dailyLogs.length > 0}
               dailyLogs={dailyLogs}
               variant={headerViewerRole === 'incoming_partner' ? 'compact' : 'pill'}
+              contractorInvoiceActions={
+                ownerChainInvoice
+                  ? {
+                      mark: () => setOwnerChainInvoiceBilled(ownerChainInvoice.amount),
+                      unmark: () => setOwnerChainInvoiceBilled(null),
+                    }
+                  : undefined
+              }
               onChanged={() => {
                 setError(null);
                 void refreshStatusAndBilling(report.id);
@@ -3995,15 +4052,19 @@ export default function WorkReportDetailPage({ session }: Props) {
         >
             <div className="billing-rates-bar">
               <p className="muted" style={{ margin: 0 }}>
-                {showOutgoingPartnerBilling ? 'Laskutettava' : 'Kumppanin lasku'}:{' '}
-                <strong>{billedPartnerName}</strong>
-                {' · '}
-                <Tooltip label="Hinta haetaan automaattisesti kumppanuudesta tai yrityksen oletuksista, ellei raporttikohtaisia hintoja ole päällä.">
-                  <span>
-                    {BILLABLE_RATES_SOURCE_LABELS[billableCalculation.ratesSource]} · tunti{' '}
-                    {formatEuro(billableCalculation.ratesUsed.hourly_regular)}
-                  </span>
-                </Tooltip>
+                {showOutgoingPartnerBilling ? 'Laskutettava' : ownerChainInvoice ? 'Laskuttaja' : 'Kumppanin lasku'}:{' '}
+                <strong>{partnerSectionBillerName}</strong>
+                {ownerChainInvoice ? null : (
+                  <>
+                    {' · '}
+                    <Tooltip label="Hinta haetaan automaattisesti kumppanuudesta tai yrityksen oletuksista, ellei raporttikohtaisia hintoja ole päällä.">
+                      <span>
+                        {BILLABLE_RATES_SOURCE_LABELS[billableCalculation.ratesSource]} · tunti{' '}
+                        {formatEuro(billableCalculation.ratesUsed.hourly_regular)}
+                      </span>
+                    </Tooltip>
+                  </>
+                )}
               </p>
               {showOutgoingPartnerBilling ? (
               <Tooltip label="Poikkea vain tämän raportin hinnasta (esim. suullinen sopimus työmaalla). Oletuksena kumppanuushinnat.">
@@ -4062,7 +4123,7 @@ export default function WorkReportDetailPage({ session }: Props) {
                     ? INVOICE_STATUS_LABELS.partial
                     : partnerBillableAmounts.state === 'billed'
                       ? INVOICE_STATUS_LABELS.paid
-                      : billing?.partner_invoice_status
+                      : !ownerChainInvoice && billing?.partner_invoice_status
                         ? INVOICE_STATUS_LABELS[billing.partner_invoice_status]
                         : INVOICE_STATUS_LABELS.none}
                 </strong>
@@ -4087,18 +4148,18 @@ export default function WorkReportDetailPage({ session }: Props) {
                   <Link to="/laskutus?mode=partner">Laskutus-moduuli</Link>
                 </p>
               )}
-            {billableCalculation.excludedTotal > 0 && (
+            {!ownerChainInvoice && billableCalculation.excludedTotal > 0 && (
               <p className="muted">
                 Ei laskutukseen (käyttäjän asetus pois): {formatEuro(billableCalculation.excludedTotal)}
               </p>
             )}
-            {!hasBillableUserFlags(billableUsers) && (
+            {!ownerChainInvoice && !hasBillableUserFlags(billableUsers) && (
               <p className="muted">
                 Käyttäjien laskutusasetukset olivat pois — lasketaan silti päiväkirjauksista (oletus päällä).
               </p>
             )}
             <WorkReportBillingBreakdown
-              calculation={billableCalculation}
+              calculation={partnerSectionCalculation ?? billableCalculation}
               billingSide="partner"
               billedAmount={partnerBillableAmounts?.billed}
               openAmount={partnerBillableAmounts?.open}
