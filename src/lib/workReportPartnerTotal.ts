@@ -69,6 +69,7 @@ export function applyQuoteCommissionToPartnerCalculation(input: {
     partnerRates: base.ratesUsed,
     customerRates: undefined,
     partnerCalculation: base,
+    quoteData: input.quoteData ?? null,
   });
   if (!partnerMargin) {
     return { calculation: base, partnerMargin: null };

@@ -544,6 +544,34 @@ export function shouldCalculateCustomerQuoteExtrasFromLogs(logs: WorkReportDaily
   return extraCustomerWorkFromDailyLogs(logs).length > 0;
 }
 
+/** Tarjouspyynnön lisätyön tuntihinta asiakkaalle (alv 0 %): laborRate tai ensimmäinen työrivi. */
+export function quoteExtraWorkHourlyRate(quoteData: unknown): number | null {
+  if (!quoteData || typeof quoteData !== 'object') return null;
+  const record = quoteData as { laborRate?: unknown; workItems?: unknown };
+  const laborRate = Number(record.laborRate);
+  if (Number.isFinite(laborRate) && laborRate > 0) return laborRate;
+  if (Array.isArray(record.workItems)) {
+    for (const item of record.workItems) {
+      const rate = Number((item as { pricePerHour?: unknown } | null)?.pricePerHour);
+      if (Number.isFinite(rate) && rate > 0) return rate;
+    }
+  }
+  return null;
+}
+
+/**
+ * Lisätyön asiakashinta: asiakashinnat (laskelma / yritys), muuten linkitetyn tarjouksen
+ * tuntihinta. Rivikohtainen hourly_rate ohittaa nämä laskennassa.
+ */
+export function resolveExtraWorkCustomerRates(
+  customerRates: { hourly_regular?: number | null } | null | undefined,
+  quoteData?: unknown,
+): { hourly_regular: number } {
+  const customer = Number(customerRates?.hourly_regular) || 0;
+  if (customer > 0) return { hourly_regular: customer };
+  return { hourly_regular: quoteExtraWorkHourlyRate(quoteData) ?? 0 };
+}
+
 export type QuoteExtrasMarginLine = {
   logId: string;
   logDate: string;
@@ -613,7 +641,7 @@ export function computeQuoteExtrasMarginFromLogs(
     const extra = parseDailyLogCustomerExtraBilling(log.customer_extra_billing);
     if (!dailyLogCustomerExtraBillingHasData(extra)) continue;
 
-    const hours = Number(extra.hours) || 0;
+    const hours = resolveExtraBillableHours(extra);
     if (hours > 0 && hoursExtraBillingApproved(extra)) {
       const customerRate =
         extra.hourly_rate != null && extra.hourly_rate > 0 ? extra.hourly_rate : customerHourlyDefault;
@@ -791,8 +819,8 @@ export function collectExtraBillingMarginImpactLines(
           customerNet,
           partnerNet,
           piikkiCostNet: 0,
-          // Kumppanin työkustannus on jo mukana puhtaassa katteessa — luvan kanssa lisätään asiakastulo.
-          currentMarginImpactNet: roundMoney(-partnerNet),
+          // Lisälaskutettavat tunnit eivät kuulu kiinteän tarjouksen katteeseen ennen lupaa.
+          currentMarginImpactNet: 0,
           marginIfApprovedNet,
         });
       }

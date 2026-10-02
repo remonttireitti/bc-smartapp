@@ -12,6 +12,10 @@ import type { BillableCalculation } from './workReportBilling';
 import { billableLineDisplayTotal } from './workReportBilling';
 import type { WorkReportDailyLog } from '../types';
 import { sumDailyHours } from '../types';
+import {
+  parseDailyLogCustomerExtraBilling,
+  resolveExtraBillableHours,
+} from './dailyLogCustomerExtraBilling';
 
 export type InstallationComparisonRow = {
   key: 'hours' | 'labor' | 'travel_km' | 'travel' | 'other_expenses' | 'total';
@@ -198,7 +202,13 @@ export function computeWorkReportInstallationActual(
   }
 
   if (laborHours <= 0) {
-    laborHours = sumDailyHours(logs);
+    // Lisälaskutettavat tunnit eivät kuulu tarjouksen työtunteihin.
+    const extraHours = logs.reduce(
+      (sum, log) =>
+        sum + resolveExtraBillableHours(parseDailyLogCustomerExtraBilling(log.customer_extra_billing)),
+      0,
+    );
+    laborHours = Math.max(0, sumDailyHours(logs) - extraHours);
   }
   if (travelKm <= 0) {
     travelKm = logs.reduce(

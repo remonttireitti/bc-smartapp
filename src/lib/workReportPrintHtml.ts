@@ -27,11 +27,10 @@ import { BILLABLE_RATES_SOURCE_LABELS } from './management';
 import {
   collectExtraBillingMarginImpactLines,
   extraBillingMarginImpactStatusLabel,
-  extraBillingCommissionContextFromMargin,
-  formatExtraBillingMarginImpactCell,
   hoursApprovedExtraBillingCustomerPrintLabel,
   hoursExtraBillingLabel,
   parseDailyLogCustomerExtraBilling,
+  resolveExtraWorkCustomerRates,
 } from './dailyLogCustomerExtraBilling';
 import {
   billingQuoteHasData,
@@ -411,6 +410,7 @@ function quoteMarginPrintSection(
         customerRates: customerCalculation?.ratesUsed,
         customerExtrasNet: customerCalculation?.quoteExtrasTotal,
         partnerCalculation,
+        quoteData,
       })
     : null;
 
@@ -419,7 +419,7 @@ function quoteMarginPrintSection(
       ? collectExtraBillingMarginImpactLines(
           logs,
           partnerCalculation.ratesUsed,
-          customerCalculation?.ratesUsed,
+          resolveExtraWorkCustomerRates(customerCalculation?.ratesUsed, quoteData),
         )
       : [];
   const customerBillableGrandTotal = resolveCustomerBillableGrandTotal({
@@ -483,22 +483,14 @@ function quoteMarginPrintSection(
         </thead>
         <tbody>${extrasDetail
           .map((line) => {
-            const marginCellParts = formatExtraBillingMarginImpactCell(
-              line,
-              formatEuro,
-              partnerMargin?.netMarginNet,
-              extraBillingCommissionContextFromMargin(partnerMargin),
-            );
-            const marginCell = marginCellParts.approved
-              ? `<strong>${marginCellParts.approved}</strong>`
-              : `<strong>${marginCellParts.withPermission}</strong>`;
+            const marginCell = `<strong>${formatEuro(line.marginIfApprovedNet)}</strong>`;
             const statusLabel = extraBillingMarginImpactStatusLabel(line);
             return `<tr class="${line.status === 'pending' ? 'billing-margin-pending' : ''}">
             <td>${esc(formatDate(line.logDate))}</td>
             <td>${esc(line.kind === 'extra_work' ? `Lisätyö: ${line.description}` : line.description)}<div class="muted">${esc(statusLabel)}</div></td>
-            <td class="num">${line.status === 'approved' ? formatEuro(line.customerNet) : '—'}</td>
-            <td class="num">${line.status === 'approved' && line.partnerNet > 0 ? `− ${formatEuro(line.partnerNet)}` : '—'}</td>
-            <td class="num">${line.status === 'approved' && line.piikkiCostNet > 0 ? `− ${formatEuro(line.piikkiCostNet)}` : '—'}</td>
+            <td class="num">${formatEuro(line.customerNet)}</td>
+            <td class="num">${line.partnerNet > 0 ? `− ${formatEuro(line.partnerNet)}` : '—'}</td>
+            <td class="num">${line.piikkiCostNet > 0 ? `− ${formatEuro(line.piikkiCostNet)}` : '—'}</td>
             <td class="num">${marginCell}</td>
           </tr>`;
           })

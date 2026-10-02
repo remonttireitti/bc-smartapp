@@ -1,6 +1,7 @@
 import { Fragment, type ReactNode } from 'react';
 import {
   formatSignedEuro,
+  marginVarianceTone,
   type OutcomeTone,
   type QuoteOutcomeSummary,
 } from '../lib/quoteOutcomeSummary';
@@ -124,10 +125,10 @@ export default function QuoteOutcomeSummaryView({
                       <span className="quote-outcome-row-sub">tarjous + hyväksytyt lisät</span>
                     </td>
                     <td className="num">{money(saleEstimate)}</td>
-                    <td className="num">{formatEuro(summary.saleTotalNet)}</td>
+                    <td className="num">{formatEuro(summary.marginSaleNet)}</td>
                     <VarianceCell
-                      value={saleEstimate == null ? null : summary.customerExtrasNet}
-                      tone={saleEstimate == null ? 'neutral' : 'better'}
+                      value={saleEstimate == null ? null : summary.extrasMarginNet}
+                      tone={saleEstimate == null ? 'neutral' : marginVarianceTone(0, summary.extrasMarginNet)}
                     />
                   </tr>
                 ) : null}

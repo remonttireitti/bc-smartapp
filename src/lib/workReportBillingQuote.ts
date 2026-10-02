@@ -5,6 +5,7 @@ import { normalizeQuoteRequestData } from './quoteRequest/defaults';
 import type { BillableRatesSource } from './management';
 import {
   breakdownPartnerBillingForQuoteMargin,
+  quoteScopePartnerCalculation,
   type BillableCalculation,
 } from './workReportBilling';
 import {
@@ -20,6 +21,7 @@ import {
 import {
   computeQuoteExtrasMarginFromLogs,
   extraCustomerWorkFromDailyLogs,
+  resolveExtraWorkCustomerRates,
   shouldCalculateCustomerQuoteExtrasFromLogs,
 } from './dailyLogCustomerExtraBilling';
 import type { PartnerBillingRates } from './management';
@@ -144,7 +146,8 @@ export type PartnerMarginDeductionRow = {
     | 'material_overlap'
     | 'margin_eating'
     | 'partner_piikki'
-    | 'piikki_material';
+    | 'piikki_material'
+    | 'extras_partner';
   label: string;
   amount: number;
   /** Erittely (esim. katetta syövät kulut kuvauksineen). */
@@ -172,7 +175,12 @@ export type PartnerMarginComputed = {
   installationCostNet: number;
   customerExtrasNet: number;
   piikkiMaterialCostNet: number;
+  /** Hyväksytyn lisälaskutuksen kumppanikulut (lisätyötunnit, kumppanin laskuttamat lisätarvikkeet). */
+  partnerBilledExtrasNet: number;
+  /** Hyväksytyn lisälaskutuksen kate: asiakas − kumppani − hankinta. */
   extrasMarginNet: number;
+  /** Kiinteän tarjouksen kate ilman lisälaskutusta (tarjoushinta − tarjouksen kulut). */
+  quoteGrossMarginNet: number;
   /** Laitteiden toteutunut hankinta (purchase_lines source=device). */
   deviceActualNet: number;
   /** Muu toteutunut hankinta (tarvikkeet; päiväkirja tai tarjousarvio). */
@@ -542,6 +550,12 @@ export function resolveCustomerBillableGrandTotal(input: {
   };
 }
 
+/** Lisälaskutuksen vähennysrivit (eivät kuulu kiinteän tarjouksen kuluihin). */
+export const EXTRAS_DEDUCTION_KEYS = new Set<PartnerMarginDeductionRow['key']>([
+  'piikki_material',
+  'extras_partner',
+]);
+
 export function computePartnerNetMargin(
   settings: BillingQuoteSettings,
   installationCostNet: number,
@@ -551,6 +565,8 @@ export function computePartnerNetMargin(
     customerRates?: PartnerBillingRates;
     customerExtrasNet?: number | null;
     partnerCalculation?: BillableCalculation | null;
+    /** Linkitetyn tarjouspyynnön data: lisätyön tuntihinta, kun asiakashintaa ei ole. */
+    quoteData?: unknown;
   },
 ): PartnerMarginComputed | null {
   const quoteSaleNet = settings.quote_sale_net;
@@ -576,15 +592,19 @@ export function computePartnerNetMargin(
     (line) => line.id === DIARY_SUPPLIES_PURCHASE_LINE_ID,
   );
 
-  const partnerBreakdown = options?.partnerCalculation
-    ? breakdownPartnerBillingForQuoteMargin(options.partnerCalculation)
+  // Lisälaskutettavat tunnit ja lisälaskutusrivit eivät kuulu kiinteän tarjouksen vertailuun.
+  const quoteScopeCalculation = options?.partnerCalculation
+    ? quoteScopePartnerCalculation(options.partnerCalculation, options.logs)
+    : null;
+  const partnerBreakdown = quoteScopeCalculation
+    ? breakdownPartnerBillingForQuoteMargin(quoteScopeCalculation)
     : null;
   const installationLaborTravelNet = partnerBreakdown
     ? partnerBreakdown.laborTravel
     : roundMoney(Math.max(0, installationCostNet));
   // Laitekirjaukset ovat jo katteen vähennyksissä (päiväkirjan hankinta tai kumppanin lasku):
   // näytetään ne Laite-rivillä, ei tarvikkeissa / töissä ja kuluissa. Summa ei muutu.
-  const deviceSplit = deviceEntryCostSplit(options?.logs, options?.partnerCalculation);
+  const deviceSplit = deviceEntryCostSplit(options?.logs, quoteScopeCalculation);
   const partnerDeviceNet = partnerBreakdown
     ? roundMoney(Math.min(deviceSplit.partnerNet, Math.max(0, partnerBreakdown.billedMaterials)))
     : 0;
@@ -619,17 +639,17 @@ export function computePartnerNetMargin(
 
   let customerExtrasNet = 0;
   let piikkiMaterialCostNet = 0;
-  let extrasMarginNet = 0;
+  let partnerBilledExtrasNet = 0;
 
   if (options?.logs?.length && options.partnerRates) {
     const extras = computeQuoteExtrasMarginFromLogs(
       options.logs,
       options.partnerRates,
-      options.customerRates,
+      resolveExtraWorkCustomerRates(options.customerRates, options.quoteData),
     );
     customerExtrasNet = extras.customerExtrasNet;
     piikkiMaterialCostNet = extras.piikkiMaterialCostNet;
-    extrasMarginNet = extras.extrasMarginNet;
+    partnerBilledExtrasNet = extras.partnerBilledExtrasNet;
   } else if (options?.customerExtrasNet != null && options.customerExtrasNet > 0) {
     customerExtrasNet = roundMoney(options.customerExtrasNet);
   }
@@ -665,6 +685,7 @@ export function computePartnerNetMargin(
     },
     { key: 'partner_piikki', label: 'Kumppanin tililtä hankitut', amount: partnerPiikkiPurchaseNet },
     { key: 'piikki_material', label: 'Lisätilauksen hankintakulut', amount: piikkiMaterialCostNet },
+    { key: 'extras_partner', label: 'Lisälaskutuksen kumppanikulut', amount: partnerBilledExtrasNet },
   ];
   const deductionRows = rows
     .map((row) => ({ ...row, amount: roundMoney(row.amount) }))
@@ -676,6 +697,13 @@ export function computePartnerNetMargin(
     + customerExtrasNet
     - deductionRows.reduce((sum, row) => sum + row.amount, 0),
   );
+  const extrasCostNet = roundMoney(
+    deductionRows
+      .filter((row) => EXTRAS_DEDUCTION_KEYS.has(row.key))
+      .reduce((sum, row) => sum + row.amount, 0),
+  );
+  const extrasMarginNet = roundMoney(customerExtrasNet - extrasCostNet);
+  const quoteGrossMarginNet = roundMoney(grossMarginNet - extrasMarginNet);
 
   const manualCommissionTotal = options?.logs?.length
     ? sumDailyCommission(options.logs)
@@ -718,7 +746,9 @@ export function computePartnerNetMargin(
     installationCostNet: installationLaborTravelNet,
     customerExtrasNet,
     piikkiMaterialCostNet,
+    partnerBilledExtrasNet,
     extrasMarginNet,
+    quoteGrossMarginNet,
     deviceActualNet,
     suppliesActualNet,
     deductionRows,

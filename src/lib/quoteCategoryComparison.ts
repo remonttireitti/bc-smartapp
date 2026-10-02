@@ -7,7 +7,7 @@ import {
 } from './quoteInstallationComparison';
 import { normalizeQuoteRequestData } from './quoteRequest/defaults';
 import { installationVehiclePurchaseNet } from './quoteRequest/installationSupplies';
-import type { BillableCalculation } from './workReportBilling';
+import { quoteScopePartnerCalculation, type BillableCalculation } from './workReportBilling';
 import type { BillingQuoteSettings } from './workReportBillingQuote';
 import type { WorkReportDailyLog } from '../types';
 import { categoryReclassification } from './workReportEntryCategories';
@@ -114,9 +114,13 @@ export function compareQuoteCategories(input: {
   tripKmRate?: number | null;
   billingSettings: BillingQuoteSettings;
 }): QuoteCategoryComparison | null {
+  // Lisälaskutettavat tunnit ja lisälaskutusrivit eivät kuulu kiinteän tarjouksen vertailuun.
+  const partnerCalculation = input.partnerCalculation
+    ? quoteScopePartnerCalculation(input.partnerCalculation, input.logs)
+    : input.partnerCalculation;
   const installation = compareQuoteInstallationToWorkReport({
     quoteData: input.quoteData,
-    partnerCalculation: input.partnerCalculation,
+    partnerCalculation,
     logs: input.logs,
     partnerRates: input.partnerRates,
     tripKmRate: input.tripKmRate,
@@ -132,12 +136,12 @@ export function compareQuoteCategories(input: {
   const diaryGroupActual = Number(
     purchaseLines.find((line) => line.id === 'group:diary-supplies')?.actual_purchase_net ?? 0,
   );
-  const shift = categoryReclassification(input.logs, input.partnerCalculation);
+  const shift = categoryReclassification(input.logs, partnerCalculation);
   const suppliesToExpenses = roundMoney(Math.min(shift.suppliesToExpenses, Math.max(0, diaryGroupActual)));
   const expensesToSupplies = roundMoney(Math.min(shift.expensesToSupplies, Math.max(0, expenses.actualNet)));
   // Laitekirjaukset (tyyppi Laite): päiväkirjan hankinnat ja kumppanin laskuttamat laiterivit
   // siirretään Laite-riville; ne korvaavat tarjouspyynnön laitehinnan (laite vain kerran).
-  const deviceSplit = deviceEntryCostSplit(input.logs, input.partnerCalculation);
+  const deviceSplit = deviceEntryCostSplit(input.logs, partnerCalculation);
   const diaryDevice = roundMoney(
     Math.min(deviceSplit.diaryNet, Math.max(0, diaryGroupActual - suppliesToExpenses)),
   );

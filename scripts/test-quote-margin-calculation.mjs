@@ -141,7 +141,7 @@ const withExtras = computePartnerNetMargin(
               included: true,
             },
             {
-              logId: 'l1',
+              logId: 'l1:extra-expense',
               logDate: '2024-01-01',
               kind: 'expense',
               description: 'Lisätarvike: Ruuvit',

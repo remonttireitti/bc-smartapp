@@ -30,10 +30,8 @@ import {
 import { formatEuro, type BillableCalculation } from '../lib/workReportBilling';
 import {
   collectExtraBillingMarginImpactLines,
-  extraBillingCommissionContextFromMargin,
-  extraBillingCommissionNote,
   extraBillingMarginImpactStatusLabel,
-  formatExtraBillingMarginImpactCell,
+  resolveExtraWorkCustomerRates,
 } from '../lib/dailyLogCustomerExtraBilling';
 import type { WorkReportDailyLog } from '../types';
 import { supabase } from '../lib/supabase';
@@ -131,6 +129,7 @@ export default function WorkReportBillingQuotePanel({
             customerRates: customerCalculation?.ratesUsed,
             customerExtrasNet: customerCalculation?.quoteExtrasTotal,
             partnerCalculation,
+            quoteData,
           })
         : null,
     [
@@ -141,6 +140,7 @@ export default function WorkReportBillingQuotePanel({
       customerCalculation?.ratesUsed,
       customerCalculation?.quoteExtrasTotal,
       partnerCalculation,
+      quoteData,
     ],
   );
   const categoryComparison = useMemo(
@@ -169,10 +169,10 @@ export default function WorkReportBillingQuotePanel({
         ? collectExtraBillingMarginImpactLines(
             dailyLogs,
             partnerCalculation.ratesUsed,
-            customerCalculation?.ratesUsed,
+            resolveExtraWorkCustomerRates(customerCalculation?.ratesUsed, quoteData),
           )
         : [],
-    [dailyLogs, partnerCalculation, customerCalculation?.ratesUsed],
+    [dailyLogs, partnerCalculation, customerCalculation?.ratesUsed, quoteData],
   );
   const quoteBillingEnabled =
     settings.customer_mode === 'quote_fixed' || settings.customer_mode === 'quote_plus_extras';
@@ -305,7 +305,6 @@ export default function WorkReportBillingQuotePanel({
     );
   }
 
-  const extrasCommissionContext = extraBillingCommissionContextFromMargin(partnerMargin);
   function renderExtrasMarginLines() {
     if (!showPartnerMargin || !partnerMargin || extrasMarginLines.length === 0) return null;
     return (
@@ -319,14 +318,6 @@ export default function WorkReportBillingQuotePanel({
               <th className="num">Hankinta</th>
               <th className="num">Kate</th>
             </tr>
-            {extraBillingCommissionNote(extrasCommissionContext) ? (
-              <tr>
-                <th colSpan={5} className="muted billing-margin-impact-note">
-                  Odottavan rivin kate = puhdas kate, jos lisälaskutuslupa saadaan.{' '}
-                  {extraBillingCommissionNote(extrasCommissionContext)}
-                </th>
-              </tr>
-            ) : null}
           </thead>
           <tbody>
             {extrasMarginLines.map((line) => (
@@ -342,29 +333,15 @@ export default function WorkReportBillingQuotePanel({
                     {extraBillingMarginImpactStatusLabel(line)}
                   </div>
                 </td>
+                <td className="num">{formatEuro(line.customerNet)}</td>
                 <td className="num">
-                  {line.status === 'approved' ? formatEuro(line.customerNet) : '—'}
+                  {line.partnerNet > 0 ? `− ${formatEuro(line.partnerNet)}` : '—'}
                 </td>
                 <td className="num">
-                  {line.status === 'approved' && line.partnerNet > 0
-                    ? `− ${formatEuro(line.partnerNet)}`
-                    : '—'}
+                  {line.piikkiCostNet > 0 ? `− ${formatEuro(line.piikkiCostNet)}` : '—'}
                 </td>
                 <td className="num">
-                  {line.status === 'approved' && line.piikkiCostNet > 0
-                    ? `− ${formatEuro(line.piikkiCostNet)}`
-                    : '—'}
-                </td>
-                <td className="num">
-                  {(() => {
-                    const marginCell = formatExtraBillingMarginImpactCell(
-                      line,
-                      formatEuro,
-                      partnerMargin?.netMarginNet,
-                      extrasCommissionContext,
-                    );
-                    return <strong>{marginCell.approved || marginCell.withPermission}</strong>;
-                  })()}
+                  <strong>{formatEuro(line.marginIfApprovedNet)}</strong>
                 </td>
               </tr>
             ))}
