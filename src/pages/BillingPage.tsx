@@ -40,6 +40,8 @@ import {
   billingRowVisibleInList,
   loadBillingCopyText,
   loadBillingPrintShareLink,
+  verifyBillingPrintShareLink,
+  billingPrintLinkProblemMessage,
   markPartnerReportBilled,
   markCustomerReportBilled,
   applyPartnerBillWorkflowChoice,
@@ -868,7 +870,12 @@ export default function BillingPage({ session }: Props) {
       setRows((prev) =>
         prev.map((item) => (item.id === row.id ? withBillingCopyTimestamp(item, 'print_link', copiedAt) : item)),
       );
-      setMessage('Tulostelinkki kopioitu leikepöydälle.');
+      const problem = await verifyBillingPrintShareLink(url);
+      if (problem) {
+        setError(billingPrintLinkProblemMessage(problem));
+      } else {
+        setMessage('Tulostelinkki kopioitu leikepöydälle.');
+      }
     } catch (copyError) {
       setError(copyError instanceof Error ? copyError.message : 'Kopiointi epäonnistui.');
     } finally {

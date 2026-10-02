@@ -42,6 +42,7 @@ export default function WorkReportPublicPrintPage() {
               logoUrl: loaded.meta.logoUrl ?? undefined,
             },
             hideAssignee: false,
+            equipmentLinks: loaded.equipmentLinks ?? null,
           }),
         );
       })

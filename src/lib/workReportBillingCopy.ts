@@ -1034,6 +1034,26 @@ export async function loadBillingPrintShareLink(
   return workReportPrintShareUrl(token);
 }
 
+/**
+ * Avaa kopioitu tulostelinkki samalla tavalla kuin asiakas (julkinen edge-funktio, ei kirjautumista).
+ * Palauttaa virheviestin, jos linkki ei aukea — null kun kunnossa.
+ */
+export async function verifyBillingPrintShareLink(url: string): Promise<string | null> {
+  const { loadWorkReportPrintSharePublic } = await import('./workReportPrintShares');
+  const token = decodeURIComponent(url.split('/').pop() ?? '').trim();
+  if (!token) return 'Linkistä puuttuu jakotunnus.';
+  try {
+    await loadWorkReportPrintSharePublic(token);
+    return null;
+  } catch (error) {
+    return error instanceof Error ? error.message : 'Tulosteen avaus epäonnistui.';
+  }
+}
+
+export function billingPrintLinkProblemMessage(problem: string): string {
+  return `Tulostelinkki kopioitu, mutta se ei vielä aukea asiakkaalle: ${problem}`;
+}
+
 export type PartnerBillWorkflowChoice = 'mark_completed' | 'keep_in_progress';
 
 export function shouldPromptPartnerBillWorkflow(status: WorkStatus | string): boolean {

@@ -756,8 +756,9 @@ export function generateWorkReportPrintHtml(input: {
       const logAuthorLabel = logAuthor.deleted
         ? `${logAuthor.name}*`
         : logAuthor.name;
+      // Asiakastulosteessa ei provisiota (sisäinen kumppanien välinen erä).
       const commission =
-        Number(log.commission_amount) > 0 || log.commission_note
+        printMode !== 'customer' && (Number(log.commission_amount) > 0 || log.commission_note)
           ? showInternalPrices && Number(log.commission_amount) > 0
             ? `<p class="sub"><strong>Provisio:</strong> ${formatEuro(Number(log.commission_amount))}${log.commission_note ? ` — ${esc(log.commission_note)}` : ''}</p>`
             : `<p class="sub"><strong>Provisio</strong>${log.commission_note ? `: ${esc(log.commission_note)}` : Number(log.commission_amount) > 0 ? ' kirjattu' : ''}</p>`
