@@ -56,7 +56,9 @@ import {
   formatPrintLinkCopiedLabel,
   type BillingListRow,
   type BillingModuleMode,
+  applyContractorChainToBillingRow,
 } from '../lib/workReportBillingCopy';
+import { saveContractorInvoiceStatus } from '../lib/workReportBillingQuote';
 import { ensurePartnerBillableCalculated } from '../lib/workReportPartnerBillingPersist';
 import {
   collectPartnerBillingDeductions,
@@ -132,7 +134,7 @@ const REPORT_SELECT = `
     customer_invoice_status, customer_invoice_amount, customer_billed_at,
     billing_text_copied_at, print_link_copied_at
   ),
-  billable:work_report_billable(partner_total, calculation, customer_total, customer_calculation, calculated_at, partner_recalc_needed)
+  billable:work_report_billable(partner_total, calculation, customer_total, customer_calculation, calculated_at, partner_recalc_needed, billing_quote)
 `;
 
 export default function BillingPage({ session }: Props) {
@@ -295,7 +297,7 @@ export default function BillingPage({ session }: Props) {
   async function refreshBillingRow(reportId: string) {
     const { data } = await supabase.from('work_reports').select(REPORT_SELECT).eq('id', reportId).maybeSingle();
     if (!data) return;
-    const updated = data as unknown as BillingListRow;
+    const updated = applyContractorChainToBillingRow(data as unknown as BillingListRow, profile?.company_id);
     setRows((prev) => prev.map((row) => (row.id === reportId ? updated : row)));
   }
 
@@ -383,14 +385,18 @@ export default function BillingPage({ session }: Props) {
     if (mode === 'total') {
       const { data, error } = await query.or(companyScope);
       loadError = error;
-      all = (data as unknown as BillingListRow[]) ?? [];
+      all = ((data as unknown as BillingListRow[]) ?? []).map((row) =>
+        applyContractorChainToBillingRow(row, profile.company_id),
+      );
     } else {
       const { data, error } =
         mode === 'customer'
           ? await query.eq('owner_company_id', profile.company_id)
           : await query.or(companyScope);
       loadError = error;
-      all = (data as unknown as BillingListRow[]) ?? [];
+      all = ((data as unknown as BillingListRow[]) ?? []).map((row) =>
+        applyContractorChainToBillingRow(row, profile.company_id),
+      );
     }
 
     if (loadError) {
@@ -925,6 +931,23 @@ export default function BillingPage({ session }: Props) {
       return;
     }
 
+    if (row.contractorInvoiceLeg) {
+      // Urakoitsijan lasku tilaajalle (laitemyyjä-ketju): oma tila, asentajan laskuun ei kosketa.
+      setError(null);
+      setMessage(null);
+      setBusyId(row.id);
+      try {
+        await saveContractorInvoiceStatus(supabase, row.id, Number(row.billable?.partner_total ?? 0));
+        setMessage(`Merkitty laskutetuksi: ${row.title}`);
+        await load(billingMode);
+      } catch (markError) {
+        setError(markError instanceof Error ? markError.message : 'Merkitseminen epäonnistui.');
+      } finally {
+        setBusyId(null);
+      }
+      return;
+    }
+
     if (shouldPromptPartnerBillWorkflow(row.status)) {
       setPartnerBillPromptRow(row);
       return;
@@ -957,6 +980,9 @@ export default function BillingPage({ session }: Props) {
       if (mode === 'customer') {
         await unmarkCustomerReportBilled(supabase, row.id);
         setMessage(`Asiakaslaskutus peruttu: ${row.title}`);
+      } else if (row.contractorInvoiceLeg) {
+        await saveContractorInvoiceStatus(supabase, row.id, null);
+        setMessage(`Laskutettu-merkintä peruttu: ${row.title}`);
       } else {
         await unmarkPartnerReportBilled(supabase, row.id);
         setMessage(`Laskutettu-merkintä peruttu: ${row.title}`);

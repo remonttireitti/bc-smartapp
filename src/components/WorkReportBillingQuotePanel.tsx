@@ -5,6 +5,7 @@ import {
   normalizeBillingQuoteSettings,
   parseBillingQuoteSettings,
   saveBillingQuoteDeviceSeller,
+  saveContractorInvoiceStatus,
   saveBillingQuotePrices,
   quoteHasVat,
   resolveActualPurchaseTotal,
@@ -30,7 +31,11 @@ import {
   collectWorkReportCategoryEntries,
   quoteCategoryLabel,
 } from '../lib/workReportEntryCategories';
-import { formatEuro, type BillableCalculation } from '../lib/workReportBilling';
+import {
+  formatEuro,
+  restoreContractorCostLines,
+  type BillableCalculation,
+} from '../lib/workReportBilling';
 import {
   collectExtraBillingMarginImpactLines,
   extraBillingMarginImpactStatusLabel,
@@ -61,9 +66,26 @@ type Props = {
   ownerCompanyName?: string | null;
   createdByCompanyId?: string | null;
   createdByCompanyName?: string | null;
+  /** Raportin kumppanilaskun tila (asentajan lasku). */
+  partnerInvoiceState?: { state: 'open' | 'partial' | 'billed'; billed: number; open: number } | null;
 };
 
 type ContractorOption = { id: string; name: string };
+
+function extrasLineCoveredByParties(line: {
+  status: string;
+  partnerNet: number;
+  piikkiCostNet: number;
+}): boolean {
+  return line.status !== 'pending' && !(line.partnerNet > 0.005) && !(line.piikkiCostNet > 0.005);
+}
+
+function quoteBillingEnabledForPreview(settings: BillingQuoteSettings): boolean {
+  return (
+    (settings.customer_mode === 'quote_fixed' || settings.customer_mode === 'quote_plus_extras')
+    && Number(settings.quote_sale_net) > 0
+  );
+}
 
 export default function WorkReportBillingQuotePanel({
   workReportId,
@@ -82,6 +104,7 @@ export default function WorkReportBillingQuotePanel({
   ownerCompanyName = null,
   createdByCompanyId = null,
   createdByCompanyName = null,
+  partnerInvoiceState = null,
 }: Props) {
   const [settings, setSettings] = useState<BillingQuoteSettings>(() =>
     parseBillingQuoteSettings(initialSettings),
@@ -134,10 +157,16 @@ export default function WorkReportBillingQuotePanel({
     && !readOnly
     && (settings.customer_mode === 'quote_fixed' || settings.customer_mode === 'quote_plus_extras');
   const quoteDeviceSale = useMemo(() => quoteDeviceSaleNet(quoteData), [quoteData]);
-  const [deviceDraft, setDeviceDraft] = useState<{ sale: string; contractorId: string } | null>(null);
+  const [deviceDraft, setDeviceDraft] = useState<{
+    sale: string;
+    contractorId: string;
+    installerBillsSupplies: boolean;
+  } | null>(null);
   const [deviceBusy, setDeviceBusy] = useState(false);
   const [deviceError, setDeviceError] = useState<string | null>(null);
   const [contractorOptions, setContractorOptions] = useState<ContractorOption[]>([]);
+  const [deviceSettingsOpen, setDeviceSettingsOpen] = useState(false);
+  const [contractorInvoiceBusy, setContractorInvoiceBusy] = useState(false);
 
   useEffect(() => {
     if (!deviceSellerEditable || !createdByCompanyId) return;
@@ -216,7 +245,11 @@ export default function WorkReportBillingQuotePanel({
   /** Kulurivit ilman hintaa (esim. tarjouksesta luodut 0 €-rivit) — tuomio ei ole vielä luotettava. */
   const unpricedRowCount = useMemo(() => countUnpricedExpenseLines(dailyLogs), [dailyLogs]);
   const categoryEntries = useMemo(
-    () => collectWorkReportCategoryEntries(dailyLogs, partnerCalculation),
+    () =>
+      collectWorkReportCategoryEntries(
+        dailyLogs,
+        partnerCalculation ? restoreContractorCostLines(partnerCalculation) : partnerCalculation,
+      ),
     [dailyLogs, partnerCalculation],
   );
   const extrasMarginLines = useMemo(
@@ -247,7 +280,22 @@ export default function WorkReportBillingQuotePanel({
   );
 
 
-  const deviceSellerSaleNet = resolveDeviceSellerSaleNet(effectiveSettings);
+  const savedDeviceSellerSaleNet = resolveDeviceSellerSaleNet(effectiveSettings);
+  // Esikatselu oletuksena: tarjouspyynnössä laite myyntihinnalla ja kumppaniketju (kumppanikate
+  // näkyvissä), provisiota ei käytetä. Laskutukseen vasta tallennettuna.
+  const commissionInUse =
+    (Number(effectiveSettings.partner_commission_percent) || 0) > 0
+    || effectiveSettings.partner_commission_amount != null
+    || (partnerMargin?.commissionNet ?? 0) > 0.005;
+  const previewDeviceSaleNet =
+    savedDeviceSellerSaleNet == null
+    && showPartnerMargin
+    && !commissionInUse
+    && quoteBillingEnabledForPreview(effectiveSettings)
+    && quoteDeviceSale != null
+      ? quoteDeviceSale
+      : null;
+  const deviceSellerSaleNet = savedDeviceSellerSaleNet ?? previewDeviceSaleNet;
   const outcomeSummary = useMemo(
     () =>
       buildQuoteOutcomeSummary({
@@ -260,8 +308,11 @@ export default function WorkReportBillingQuotePanel({
             ? {
                 deviceSaleNet: deviceSellerSaleNet,
                 ownerName: ownerCompanyName ?? '',
-                contractorName: effectiveSettings.contractor_company_name ?? null,
+                contractorName:
+                  savedDeviceSellerSaleNet != null ? effectiveSettings.contractor_company_name ?? null : null,
                 installerName: createdByCompanyName ?? '',
+                installerBillsSupplies: effectiveSettings.installer_bills_supplies === true,
+                preview: savedDeviceSellerSaleNet == null,
               }
             : undefined,
       }),
@@ -271,7 +322,9 @@ export default function WorkReportBillingQuotePanel({
       categoryComparison,
       effectiveSettings.quote_sale_net,
       effectiveSettings.contractor_company_name,
+      effectiveSettings.installer_bills_supplies,
       deviceSellerSaleNet,
+      savedDeviceSellerSaleNet,
       ownerCompanyName,
       createdByCompanyName,
     ],
@@ -342,13 +395,14 @@ export default function WorkReportBillingQuotePanel({
       ? formatMoneyInput(settings.device_sale_net)
       : formatMoneyInput(quoteDeviceSale),
     contractorId: settings.contractor_company_id ?? '',
+    installerBillsSupplies: settings.installer_bills_supplies === true,
   };
   const activeDeviceDraft = deviceDraft ?? savedDeviceDraft;
   const deviceDirty =
     settings.device_sale_net == null
-      ? deviceDraft != null || false
-      : activeDeviceDraft.sale.trim() !== savedDeviceDraft.sale
-        || activeDeviceDraft.contractorId !== savedDeviceDraft.contractorId;
+    || activeDeviceDraft.sale.trim() !== savedDeviceDraft.sale
+    || activeDeviceDraft.contractorId !== savedDeviceDraft.contractorId
+    || activeDeviceDraft.installerBillsSupplies !== savedDeviceDraft.installerBillsSupplies;
 
   async function saveDeviceSeller(clear = false) {
     if (deviceBusy) return;
@@ -370,8 +424,10 @@ export default function WorkReportBillingQuotePanel({
         deviceSaleNet: sale,
         contractorCompanyId: contractorId || null,
         contractorCompanyName: contractorId ? contractorName ?? null : null,
+        installerBillsSupplies: !clear && activeDeviceDraft.installerBillsSupplies,
       });
       setDeviceDraft(null);
+      setDeviceSettingsOpen(false);
       await onSaved?.(next);
     } catch (err) {
       setDeviceError(err instanceof Error ? err.message : 'Tallennus epäonnistui');
@@ -380,12 +436,71 @@ export default function WorkReportBillingQuotePanel({
     }
   }
 
+  async function setContractorInvoiceBilled(amount: number | null) {
+    if (contractorInvoiceBusy) return;
+    setContractorInvoiceBusy(true);
+    setDeviceError(null);
+    try {
+      const next = await saveContractorInvoiceStatus(supabase, workReportId, amount);
+      await onSaved?.(next);
+    } catch (err) {
+      setDeviceError(err instanceof Error ? err.message : 'Tallennus epäonnistui');
+    } finally {
+      setContractorInvoiceBusy(false);
+    }
+  }
+
+  function invoiceStateLabel(state: 'open' | 'partial' | 'billed', billed: number): string {
+    if (state === 'billed') return `Laskutettu ${formatEuro(billed)}`;
+    if (state === 'partial') return `Osittain laskutettu ${formatEuro(billed)}`;
+    return 'Laskuluonnos · laskuttamatta';
+  }
+
+  /** Laskun tila laskutuslaskelman riveillä (vain tallennettu ketju). */
+  function partyStatusNodes(): Partial<Record<string, ReactNode>> | undefined {
+    if (!outcomeSummary?.parties || outcomeSummary.partiesPreview) return undefined;
+    const nodes: Partial<Record<string, ReactNode>> = {};
+    const partnerLabel = partnerInvoiceState
+      ? invoiceStateLabel(partnerInvoiceState.state, partnerInvoiceState.billed)
+      : null;
+    const contractorInvoice = partnerCalculation?.contractorInvoice ?? null;
+    if (contractorInvoice) {
+      // Urakoitsija välissä: asentajan lasku = raportin kumppanilasku, urakoitsijan lasku erillinen.
+      if (partnerLabel) nodes.installerInvoice = partnerLabel;
+      const paid = settings.contractor_invoice?.status === 'paid';
+      const billedAmount = settings.contractor_invoice?.billed_amount ?? contractorInvoice.amount;
+      nodes.contractorInvoice = (
+        <>
+          {paid ? `Laskutettu ${formatEuro(billedAmount)}` : 'Laskuluonnos · laskuttamatta'}
+          {!readOnly ? (
+            <button
+              type="button"
+              className="btn-link"
+              disabled={contractorInvoiceBusy}
+              onClick={() => void setContractorInvoiceBilled(paid ? null : contractorInvoice.amount)}
+            >
+              {paid ? 'Peru' : 'Merkitse laskutetuksi'}
+            </button>
+          ) : null}
+        </>
+      );
+    } else if (partnerLabel) {
+      nodes.contractorInvoice = partnerLabel;
+    }
+    return nodes;
+  }
+
   function renderDeviceSellerEditor() {
     if (!deviceSellerEditable || !(Number(settings.quote_sale_net) > 0)) return null;
-    if (settings.device_sale_net == null && quoteDeviceSale == null && deviceDraft == null) {
+    if (
+      settings.device_sale_net == null
+      && quoteDeviceSale == null
+      && deviceDraft == null
+      && !deviceSettingsOpen
+    ) {
       return (
         <p className="muted billing-device-seller-toggle">
-          <button type="button" className="btn-link" onClick={() => setDeviceDraft({ sale: '', contractorId: '' })}>
+          <button type="button" className="btn-link" onClick={() => setDeviceSettingsOpen(true)}>
             Tilaaja myy laitteen…
           </button>
         </p>
@@ -400,10 +515,14 @@ export default function WorkReportBillingQuotePanel({
       contractorChoices.push({ id: settings.contractor_company_id, name: settings.contractor_company_name });
     }
     return (
-      <details className="billing-device-seller" open={deviceDraft != null || undefined}>
+      <details
+        className="billing-device-seller"
+        open={deviceSettingsOpen}
+        onToggle={(e) => setDeviceSettingsOpen((e.currentTarget as HTMLDetailsElement).open)}
+      >
         <summary>
-          Tilaaja myy laitteen
-          {settings.device_sale_net != null ? `: ${formatEuro(settings.device_sale_net)}` : ''}
+          Laskutusketjun asetukset
+          {settings.device_sale_net != null ? ` · laite ${formatEuro(settings.device_sale_net)}` : ''}
           {settings.device_sale_net != null && settings.contractor_company_name
             ? ` · urakoitsija ${settings.contractor_company_name}`
             : ''}
@@ -438,15 +557,28 @@ export default function WorkReportBillingQuotePanel({
               ))}
             </select>
           </label>
+          {activeDeviceDraft.contractorId ? (
+            <label className="compact-option span-2">
+              <input
+                type="checkbox"
+                checked={activeDeviceDraft.installerBillsSupplies}
+                disabled={deviceBusy}
+                onChange={(e) =>
+                  setDeviceDraft({ ...activeDeviceDraft, installerBillsSupplies: e.target.checked })
+                }
+              />
+              Asentaja laskuttaa tarvikkeet
+            </label>
+          ) : null}
           <div className="span-2 billing-margin-save-row">
-            {settings.device_sale_net == null || deviceDirty ? (
+            {deviceDirty ? (
               <button
                 type="button"
                 className="btn btn-primary btn-sm"
                 disabled={deviceBusy}
                 onClick={() => void saveDeviceSeller()}
               >
-                {deviceBusy ? 'Tallennetaan…' : 'Tallenna'}
+                {deviceBusy ? 'Tallennetaan…' : 'Tallenna laskutukseen'}
               </button>
             ) : null}
             {settings.device_sale_net != null && !deviceBusy ? (
@@ -510,6 +642,8 @@ export default function WorkReportBillingQuotePanel({
 
   function renderExtrasMarginLines() {
     if (!showPartnerMargin || !partnerMargin || extrasMarginLines.length === 0) return null;
+    // Laskutuslaskelmassa hyväksytty, tilaajalle jäävä lisätyö näkyy jo tilaajan rivillä.
+    if (outcomeSummary?.parties && extrasMarginLines.every(extrasLineCoveredByParties)) return null;
     return (
       <div className="table-wrap">
         <table className="billing-table billing-margin-table">
@@ -687,6 +821,14 @@ export default function WorkReportBillingQuotePanel({
               quoteTitleActions={quoteIsLinked ? quoteLinkActions : null}
               commissionExceedsGross={!!partnerMargin?.commissionExceedsGross}
               unpricedRowCount={quoteIsLinked ? unpricedRowCount : 0}
+              partyStatus={partyStatusNodes()}
+              partiesAction={
+                outcomeSummary.partiesPreview && deviceSellerEditable ? (
+                  <button type="button" className="btn-link" onClick={() => setDeviceSettingsOpen(true)}>
+                    Käytä laskutuksessa…
+                  </button>
+                ) : null
+              }
             />
           ) : quoteIsLinked ? (
             <p className="billing-quote-linked-summary">

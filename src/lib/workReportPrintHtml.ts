@@ -455,6 +455,7 @@ function quoteMarginPrintSection(
             ownerName: parties?.ownerName ?? '',
             contractorName: billingQuote.contractor_company_name ?? null,
             installerName: parties?.installerName ?? '',
+            installerBillsSupplies: billingQuote.installer_bills_supplies === true,
           }
         : undefined,
   });
@@ -498,8 +499,13 @@ function quoteMarginPrintSection(
         })
       : '';
 
+  const extrasCoveredByParties =
+    !!outcomeSummary?.parties
+    && extrasDetail.every(
+      (line) => line.status !== 'pending' && !(line.partnerNet > 0.005) && !(line.piikkiCostNet > 0.005),
+    );
   const extrasDetailHtml =
-    extrasDetail.length > 0
+    extrasDetail.length > 0 && !extrasCoveredByParties
       ? `<h3 class="billing-subheading">Lisälaskutuksen kate-erittely</h3>
       <table>
         <thead>
@@ -604,9 +610,11 @@ export function generateWorkReportPrintHtml(input: {
     showInternalPrices && !!customerCalculation && !customerQuoteBased;
   const isDelegatedOrder =
     !!report.delegate_company_id && report.created_by_company_id === report.owner_company_id;
-  const billedPartnerName = isDelegatedOrder
-    ? (report.delegate_company?.name ?? '—')
-    : (report.owner_company?.name ?? '—');
+  const billedPartnerName = calculation?.contractorInvoice && calculation.billToCompanyName
+    ? calculation.billToCompanyName
+    : isDelegatedOrder
+      ? (report.delegate_company?.name ?? '—')
+      : (report.owner_company?.name ?? '—');
   const isPartnerReport =
     report.created_by_company_id !== report.owner_company_id || isDelegatedOrder;
 

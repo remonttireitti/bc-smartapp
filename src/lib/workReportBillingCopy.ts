@@ -63,9 +63,85 @@ export type BillingListRow = {
     customer_calculation?: import('./workReportBilling').BillableCalculation;
     calculated_at?: string | null;
     partner_recalc_needed?: boolean;
+    billing_quote?: unknown;
   } | null;
   customer_id?: string | null;
+  /**
+   * Laitemyyjä-ketju, tilaajan näkymä: rivi on urakoitsijan lasku tilaajalle
+   * (summa ja tila billing_quote.contractor_invoice -kentästä), ei asentajan lasku.
+   */
+  contractorInvoiceLeg?: boolean;
 };
+
+/**
+ * Laitemyyjä-ketju (urakoitsija välissä): tilaajalle (omistaja) saapuva lasku on urakoitsijan
+ * lasku (tarjous − laite), ei asentajan lasku urakoitsijalle. Muille katsojille rivi ennallaan.
+ */
+export function applyContractorChainToBillingRow(
+  row: BillingListRow,
+  viewerCompanyId: string | null | undefined,
+): BillingListRow {
+  const invoice = row.billable?.calculation?.contractorInvoice;
+  if (!invoice || !viewerCompanyId || viewerCompanyId !== row.owner_company_id) return row;
+  if (row.created_by_company_id === viewerCompanyId) return row;
+  const status = (row.billable?.billing_quote as { contractor_invoice?: { status?: string; billed_amount?: unknown; billed_at?: unknown } } | null | undefined)
+    ?.contractor_invoice;
+  const paid = status?.status === 'paid';
+  const billedAmount = paid ? Number(status?.billed_amount ?? invoice.amount) : null;
+  const base = row.billable!.calculation!;
+  const calculation: BillableCalculation = {
+    ...base,
+    billToCompanyId: invoice.toCompanyId,
+    billToCompanyName: invoice.toCompanyName,
+    byUser: [
+      {
+        userId: 'contractor-invoice',
+        userName: invoice.fromCompanyName ?? 'Urakoitsija',
+        billHoursEnabled: true,
+        billExpensesEnabled: true,
+        effectiveBillHoursEnabled: true,
+        effectiveBillExpensesEnabled: true,
+        hoursQty: 0,
+        hoursTotal: 0,
+        expensesTotal: 0,
+        fixedTotal: invoice.amount,
+        commissionTotal: 0,
+        subtotal: invoice.amount,
+        excludedSubtotal: 0,
+        lines: [
+          {
+            logId: 'contractor-invoice',
+            logDate: base.byUser[0]?.lines[0]?.logDate ?? '',
+            kind: 'fixed_price',
+            description: invoice.description,
+            qty: 1,
+            unitPrice: invoice.amount,
+            total: invoice.amount,
+            included: true,
+          },
+        ],
+      },
+    ],
+    grandTotal: invoice.amount,
+    excludedTotal: 0,
+    contractorCostLines: undefined,
+  };
+  return {
+    ...row,
+    contractorInvoiceLeg: true,
+    creator_company: { name: invoice.fromCompanyName ?? row.creator_company?.name ?? '—' },
+    billable: { ...row.billable!, partner_total: invoice.amount, calculation },
+    billing: row.billing
+      ? {
+          ...row.billing,
+          partner_invoice_amount: invoice.amount,
+          partner_invoice_status: paid ? 'paid' : 'none',
+          partner_billed_amount: billedAmount,
+          partner_billed_at: paid && typeof status?.billed_at === 'string' ? status.billed_at : null,
+        }
+      : row.billing,
+  };
+}
 
 export type BillingModuleMode = 'partner' | 'customer' | 'total';
 
@@ -489,6 +565,15 @@ export const BILLING_LIST_STATUSES = [
 ] as const;
 
 export function billToPartnerId(row: BillingListRow, viewerCompanyId?: string | null): string {
+  const chainInvoice = row.billable?.calculation?.contractorInvoice;
+  if (chainInvoice && viewerCompanyId) {
+    if (viewerCompanyId === row.created_by_company_id && row.billable?.calculation?.billToCompanyId) {
+      return row.billable.calculation.billToCompanyId;
+    }
+    if (viewerCompanyId === row.owner_company_id && chainInvoice.fromCompanyId) {
+      return chainInvoice.fromCompanyId;
+    }
+  }
   if (viewerCompanyId && isDelegatedPartnerOrder(row)) {
     return viewerCompanyId === row.delegate_company_id
       ? row.owner_company_id
@@ -507,6 +592,15 @@ export function billToPartnerId(row: BillingListRow, viewerCompanyId?: string | 
 }
 
 export function billToPartnerName(row: BillingListRow, viewerCompanyId?: string | null): string {
+  const chainInvoice = row.billable?.calculation?.contractorInvoice;
+  if (chainInvoice && viewerCompanyId) {
+    if (viewerCompanyId === row.created_by_company_id && row.billable?.calculation?.billToCompanyName) {
+      return row.billable.calculation.billToCompanyName;
+    }
+    if (viewerCompanyId === row.owner_company_id && chainInvoice.fromCompanyName) {
+      return chainInvoice.fromCompanyName;
+    }
+  }
   if (viewerCompanyId && isDelegatedPartnerOrder(row)) {
     return viewerCompanyId === row.delegate_company_id
       ? (row.owner_company?.name ?? '—')
@@ -1170,7 +1264,7 @@ export async function markPartnerReportBilled(
     .from('work_reports')
     .select(`
       owner_company_id, created_by_company_id, delegate_company_id,
-      billable:work_report_billable(partner_total),
+      billable:work_report_billable(partner_total, calculation),
       billing:work_report_billing(partner_invoice_amount)
     `)
     .eq('id', workReportId)
@@ -1182,12 +1276,19 @@ export async function markPartnerReportBilled(
     owner_company_id: string;
     created_by_company_id: string;
     delegate_company_id: string | null;
-    billable: { partner_total: number } | null;
+    billable: {
+      partner_total: number;
+      calculation?: { billToCompanyId?: string | null; contractorInvoice?: unknown } | null;
+    } | null;
     billing: { partner_invoice_amount: number | null } | null;
   };
 
   const total = Number(row.billable?.partner_total ?? row.billing?.partner_invoice_amount ?? 0);
-  const billedToCompanyId = resolvePartnerBilledCompanyId(row);
+  const storedCalc = row.billable?.calculation;
+  const billedToCompanyId =
+    storedCalc?.contractorInvoice && storedCalc.billToCompanyId
+      ? storedCalc.billToCompanyId
+      : resolvePartnerBilledCompanyId(row);
 
   const { error } = await supabase.from('work_report_billing').upsert({
     work_report_id: workReportId,

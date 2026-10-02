@@ -6,6 +6,7 @@
  * - Urakoitsija laskuttaa tilaajalta 1434 − 700 = 734.
  * - Kevytyrittäjä laskuttaa urakoitsijalta 200 + 35,01 = 235,01.
  * - Urakoitsijalle jää 734 − 235,01 − tarvikkeet 150 = 348,99.
+ * Laskuluonnokset: raportin kumppanilasku 235,01 (→ urakoitsija) + urakoitsijan lasku 734 (→ tilaaja).
  */
 import assert from "node:assert/strict";
 import {
@@ -25,6 +26,14 @@ import {
   resolveExtraWorkCustomerRates,
 } from "../src/lib/dailyLogCustomerExtraBilling.ts";
 import { applyQuoteCommissionToPartnerCalculation } from "../src/lib/workReportPartnerTotal.ts";
+import { generateWorkReportPrintHtml } from "../src/lib/workReportPrintHtml.ts";
+import {
+  applyContractorChainToBillingRow,
+  billingPartnerState,
+  billingRowAmount,
+  billToPartnerId,
+  billToPartnerName,
+} from "../src/lib/workReportBillingCopy.ts";
 import {
   deviceSellerLabels,
   quoteDeviceSaleNet,
@@ -230,8 +239,8 @@ const names = {
   installerName: "Kevytyrittäjä Enn Kotselainen",
 };
 
-function build(currentLogs, quote, deviceSeller) {
-  const partner = mergePartnerExtraBillingFromDailyLogs(
+function build(currentLogs, quote, deviceSeller, storedCalculation) {
+  const partner = storedCalculation ?? mergePartnerExtraBillingFromDailyLogs(
     calculateWorkReportBillable({
       logs: currentLogs,
       users,
@@ -264,7 +273,12 @@ function build(currentLogs, quote, deviceSeller) {
     comparison,
     formatEuro,
     deviceSeller: deviceSeller && deviceSaleNet != null
-      ? { deviceSaleNet, ...names, contractorName: settings.contractor_company_name }
+      ? {
+          deviceSaleNet,
+          ...names,
+          contractorName: settings.contractor_company_name,
+          installerBillsSupplies: settings.installer_bills_supplies === true,
+        }
       : undefined,
   });
   return { partner, settings, margin, summary };
@@ -352,15 +366,150 @@ assert.doesNotMatch(html, /Provisio/);
 assert.doesNotMatch(html, /Puhdas kate/);
 assert.equal((html.match(/1564,00 €/g) ?? []).length, 1);
 
-// Kumppanilaskun luonnos (Lämpökatsastus → Termatek) = 734.
+// Kaksi laskuluonnosta:
+// 1) raportin kumppanilasku = kevytyrittäjä → Lämpökatsastus 235,01 (työt 200 + kulut 35,01;
+//    tarvikkeet 150 ovat urakoitsijan omia, eivät asentajan laskulla),
+// 2) urakoitsijan lasku Lämpökatsastus → Termatek 734 (tarjous − laite).
 const invoice = applyQuoteCommissionToPartnerCalculation({ billingQuote, logs, calculation: partner, quoteData });
-assert.equal(invoice.calculation.grandTotal, 734);
-const balance = invoice.calculation.byUser.flatMap((user) => user.lines).find((line) => line.logId === "auto-partner-commission");
+assert.equal(invoice.calculation.grandTotal, 235.01, "asentajan lasku urakoitsijalle");
+assert.equal(invoice.calculation.billToCompanyId, "contractor-1");
+assert.equal(invoice.calculation.billToCompanyName, "Lämpökatsastus Oy");
+const invoiceLines = invoice.calculation.byUser.flatMap((user) => user.lines).filter((line) => line.included);
+assert.deepEqual(
+  invoiceLines.map((line) => [line.description.slice(0, 8), line.total]),
+  [["Tunnit", 200], ["Ajomatka", 35.01]],
+);
+assert.equal(invoiceLines.some((line) => line.kind === "commission"), false, "ei provisio-/tasausriviä");
+assert.deepEqual(invoice.calculation.contractorCostLines.map((line) => [line.description, line.total]), [["Asennus tarvikkeet", 150]]);
+assert.deepEqual(invoice.calculation.contractorInvoice, {
+  fromCompanyId: "contractor-1",
+  fromCompanyName: "Lämpökatsastus Oy",
+  toCompanyId: "owner",
+  toCompanyName: "Termatek Oy",
+  amount: 734,
+  description: "Asennusurakka (tarjous − laite)",
+});
+// Tallennetusta (asentajan) laskelmasta laskettuna kate ja laskelma eivät muutu.
+const stored = build(logs, billingQuote, true, invoice.calculation);
+assert.equal(stored.summary.costs.actualNet, 735.01);
+assert.deepEqual(stored.summary.parties.map((row) => row.actualNet), [1564, 480, 734, 235.01, 348.99]);
+assert.equal(stored.summary.rows.find((row) => row.key === "supplies").actualNet, 150);
+// Uudelleenlaskenta tallennetusta laskelmasta: sama tulos (idempotentti).
+const again = applyQuoteCommissionToPartnerCalculation({ billingQuote, logs, calculation: invoice.calculation, quoteData });
+assert.equal(again.calculation.grandTotal, 235.01);
+assert.equal(again.calculation.contractorInvoice.amount, 734);
+assert.equal(again.calculation.contractorInvoice.toCompanyName, "Termatek Oy");
+assert.equal(again.calculation.contractorCostLines.length, 1);
+
+// Laskutus-lista: kevytyrittäjä näkee lähtevän laskun Lämpökatsastukselle 235,01;
+// Termatek näkee saapuvan laskun Lämpökatsastukselta 734 (oma tila).
+const listRow = {
+  id: "wr-1",
+  title: "Testi",
+  status: "in_progress",
+  owner_company_id: "owner",
+  created_by_company_id: "installer",
+  delegate_company_id: null,
+  owner_company: { name: "Termatek Oy" },
+  creator_company: { name: "Kevytyrittäjä Enn Kotselainen" },
+  delegate_company: null,
+  customers: null,
+  billing: { partner_invoice_status: "none", partner_invoice_amount: 235.01, partner_billed_amount: null, partner_billed_at: null, customer_invoice_status: "none", customer_invoice_amount: null, customer_billed_at: null },
+  billable: { partner_total: 235.01, calculation: invoice.calculation, billing_quote: billingQuote },
+};
+assert.equal(applyContractorChainToBillingRow(listRow, "installer"), listRow);
+assert.equal(billToPartnerName(listRow, "installer"), "Lämpökatsastus Oy");
+assert.equal(billToPartnerId(listRow, "installer"), "contractor-1");
+assert.equal(billingRowAmount(listRow, "partner"), 235.01);
+const ownerRow = applyContractorChainToBillingRow(listRow, "owner");
+assert.equal(ownerRow.contractorInvoiceLeg, true);
+assert.equal(billingRowAmount(ownerRow, "partner"), 734);
+assert.equal(billToPartnerName(ownerRow, "owner"), "Lämpökatsastus Oy");
+assert.equal(billToPartnerId(ownerRow, "owner"), "contractor-1");
+assert.equal(billingPartnerState(ownerRow), "open");
+const ownerPaid = applyContractorChainToBillingRow(
+  { ...listRow, billable: { ...listRow.billable, billing_quote: { ...billingQuote, contractor_invoice: { status: "paid", billed_amount: 734, billed_at: "2026-10-02T18:00:00Z" } } } },
+  "owner",
+);
+assert.equal(billingPartnerState(ownerPaid), "billed");
+assert.equal(billingPartnerState(listRow), "open", "asentajan lasku pysyy avoimena");
+// Asiakaslaskutus ei muutu.
+assert.equal(ownerRow.billing.customer_invoice_status, "none");
+assert.equal(parseBillingQuoteSettings({ ...billingQuote, contractor_invoice: { status: "paid", billed_amount: 734 } }).contractor_invoice.billed_amount, 734);
+
+// Asentaja laskuttaa tarvikkeet (asetus): tarvikkeet asentajan laskulla, urakoitsijalle jää sama.
+const suppliesQuote = { ...billingQuote, installer_bills_supplies: true };
+const suppliesChain = build(logs, suppliesQuote, true);
+const suppliesParty = Object.fromEntries(suppliesChain.summary.parties.map((row) => [row.key, row.actualNet]));
+assert.equal(suppliesParty.installerInvoice, 385.01);
+assert.equal(suppliesParty.contractorKeeps, 348.99);
+assert.equal(applyQuoteCommissionToPartnerCalculation({ billingQuote: suppliesQuote, logs, calculation: partner, quoteData }).calculation.grandTotal, 385.01);
+
+// Ilman urakoitsijaa (raportin laatija on urakoitsija): kumppanilasku tasataan 734:ään.
+const noContractorQuote = { ...billingQuote, contractor_company_id: null, contractor_company_name: null };
+const own = applyQuoteCommissionToPartnerCalculation({ billingQuote: noContractorQuote, logs, calculation: partner, quoteData });
+assert.equal(own.calculation.grandTotal, 734);
+assert.equal(own.calculation.contractorInvoice ?? null, null);
+const balance = own.calculation.byUser.flatMap((user) => user.lines).find((line) => line.logId === "auto-partner-commission");
 assert.equal(balance.total, 348.99);
 assert.match(balance.description, /^Urakkaosuus/);
-// Uudelleenlaskenta tallennetusta laskelmasta ei kasvata summaa.
-const again = applyQuoteCommissionToPartnerCalculation({ billingQuote, logs, calculation: invoice.calculation, quoteData });
-assert.equal(again.calculation.grandTotal, 734);
+
+// Esikatselu (laitehinta tarjouspyynnöstä, ei tallennettu) merkitään esikatseluksi.
+const previewSummary = buildQuoteOutcomeSummary({
+  partnerMargin: margin,
+  comparison: null,
+  formatEuro,
+  deviceSeller: { deviceSaleNet: 700, ...names, contractorName: null, preview: true },
+});
+assert.equal(previewSummary.partiesPreview, true);
+assert.equal(summary.partiesPreview, false);
+assert.equal(party.ownerKeeps.note, "laitekate 350,00 € + lisätyö 130,00 €");
+
+// Tulosteet: sisäinen näyttää laskutuslaskelman ja asentajan laskun urakoitsijalle;
+// asiakastuloste ei näytä ketjua, kumppanisummia eikä provisiota.
+const printReport = {
+  id: "wr-1",
+  status: "in_progress",
+  title: "Testi",
+  description: null,
+  heading: null,
+  location_text: null,
+  orderer_name: null,
+  completed_at: null,
+  scheduled_start: null,
+  owner_company_id: "owner",
+  created_by_company_id: "installer",
+  delegate_company_id: null,
+  owner_company: { name: "Termatek Oy" },
+  created_by_company: { name: "Kevytyrittäjä Enn Kotselainen" },
+  branding_company: null,
+  delegate_company: null,
+  customers: { name: "Asiakas" },
+  assignee: null,
+  created_by_profile: null,
+  equipment: null,
+};
+const printInput = {
+  report: printReport,
+  logs,
+  calculation: invoice.calculation,
+  // Sama pohja kuin workReportPrintAction (hankinnat päiväkirjasta).
+  billingQuote: mergeActualPurchaseFromWorkReportLogs(parseBillingQuoteSettings(billingQuote), logs, quoteData),
+  quoteData,
+  tripKmRate: 0.59,
+  meta: { companyName: "Kevytyrittäjä Enn Kotselainen" },
+};
+const internalHtml = generateWorkReportPrintHtml({ ...printInput, showPartnerPrices: true, printMode: "internal" });
+assert.match(internalHtml, /Laskutuslaskelma/);
+assert.match(internalHtml, /Laskutettava: <strong>Lämpökatsastus Oy/);
+assert.match(internalHtml, /Lämpökatsastus Oy:lle jää/);
+assert.match(internalHtml, /348,99 €/);
+assert.match(internalHtml, /laitekate 350,00 € \+ lisätyö 130,00 €/);
+assert.doesNotMatch(internalHtml, /Lisälaskutuksen kate-erittely/, "lisätyö näkyy jo tilaajan rivillä");
+const customerHtml = generateWorkReportPrintHtml({ ...printInput, showPartnerPrices: false, printMode: "customer" });
+for (const hidden of [/Laskutuslaskelma/, /Lämpökatsastus/, /Provisio/, /734,00/, /235,01/, /348,99/, /Urakkaosuus/]) {
+  assert.doesNotMatch(customerHtml, hidden);
+}
 
 // Ilman laitteen myyntihintaa näkymä ja lasku ennallaan (ei osapuolirivejä, provisio 0 % → kulut).
 const plainQuote = { ...billingQuote, device_sale_net: null, contractor_company_id: null, contractor_company_name: null };
@@ -384,8 +533,12 @@ assert.equal(billedParty.contractorInvoice, 834);
 assert.equal(billedParty.installerInvoice, 335.01);
 assert.equal(billedParty.contractorKeeps, 348.99);
 assert.equal(
-  applyQuoteCommissionToPartnerCalculation({ billingQuote, logs: billedLogs, calculation: billed.partner, quoteData }).calculation.grandTotal,
+  applyQuoteCommissionToPartnerCalculation({ billingQuote, logs: billedLogs, calculation: billed.partner, quoteData }).calculation.contractorInvoice.amount,
   834,
+);
+assert.equal(
+  applyQuoteCommissionToPartnerCalculation({ billingQuote, logs: billedLogs, calculation: billed.partner, quoteData }).calculation.grandTotal,
+  335.01,
 );
 
 // Ilman urakoitsijaa raportin laatija on urakoitsija (ei asentajan laskuriviä).

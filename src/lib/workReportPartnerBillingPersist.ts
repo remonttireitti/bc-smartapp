@@ -290,6 +290,10 @@ export async function refreshAndPersistPartnerBillable(
     quoteData,
   });
   const partnerTotal = calculation.grandTotal;
+  // Urakoitsijaketju: asentajan lasku kohdistuu urakoitsijalle.
+  const invoiceBilledCompanyId = calculation.contractorInvoice
+    ? calculation.billToCompanyId ?? billedCompanyId
+    : billedCompanyId;
 
   const { error: billableError } = await supabase.from('work_report_billable').upsert({
     work_report_id: reportRow.id,
@@ -332,7 +336,7 @@ export async function refreshAndPersistPartnerBillable(
   const upsertBilling: Record<string, unknown> = {
     work_report_id: reportRow.id,
     partner_invoice_amount: grandTotal,
-    billed_to_company_id: billedCompanyId,
+    billed_to_company_id: invoiceBilledCompanyId,
     partner_invoice_status: invoiceStatus,
   };
 

@@ -97,6 +97,19 @@ export type BillingQuoteSettings = {
   /** Urakoitsija tilaajan ja asentajan välissä (laskuttaa tilaajalta, asentaja laskuttaa sitä). */
   contractor_company_id?: string | null;
   contractor_company_name?: string | null;
+  /**
+   * Urakoitsijaketju: asentaja laskuttaa myös tarvikkeet (asentaja hankki ne). Oletus false:
+   * tarvikkeet ovat urakoitsijan omia kuluja, asentaja laskuttaa työt ja kulut.
+   */
+  installer_bills_supplies?: boolean | null;
+  /** Urakoitsijan lasku tilaajalle: laskutustila (summa lasketaan laskelmasta). */
+  contractor_invoice?: ContractorInvoiceStatus | null;
+};
+
+export type ContractorInvoiceStatus = {
+  status: 'none' | 'paid';
+  billed_amount: number | null;
+  billed_at: string | null;
 };
 
 export type QuoteSeededRow = {
@@ -354,6 +367,16 @@ export function parseBillingQuoteSettings(raw: unknown): BillingQuoteSettings {
       typeof record.contractor_company_name === 'string' && record.contractor_company_name.trim()
         ? record.contractor_company_name.trim()
         : null;
+  }
+  if (record.installer_bills_supplies === true) settings.installer_bills_supplies = true;
+  const contractorInvoice = record.contractor_invoice as Record<string, unknown> | null | undefined;
+  if (contractorInvoice && typeof contractorInvoice === 'object' && contractorInvoice.status === 'paid') {
+    const billed = Number(contractorInvoice.billed_amount);
+    settings.contractor_invoice = {
+      status: 'paid',
+      billed_amount: Number.isFinite(billed) ? roundMoney(billed) : null,
+      billed_at: typeof contractorInvoice.billed_at === 'string' ? contractorInvoice.billed_at : null,
+    };
   }
   return normalizeBillingQuoteSettings(settings);
 }
@@ -845,6 +868,8 @@ export function billingQuoteFromQuoteRow(
     base.device_sale_net = options.previous.device_sale_net;
     base.contractor_company_id = options.previous.contractor_company_id ?? null;
     base.contractor_company_name = options.previous.contractor_company_name ?? null;
+    if (options.previous.installer_bills_supplies) base.installer_bills_supplies = true;
+    if (options.previous.contractor_invoice) base.contractor_invoice = options.previous.contractor_invoice;
   }
   return normalizeBillingQuoteSettings(base);
 }
@@ -959,6 +984,7 @@ export async function saveBillingQuoteDeviceSeller(
     deviceSaleNet: number | null;
     contractorCompanyId: string | null;
     contractorCompanyName: string | null;
+    installerBillsSupplies?: boolean;
   },
 ): Promise<BillingQuoteSettings> {
   const { data, error } = await supabase
@@ -977,6 +1003,37 @@ export async function saveBillingQuoteDeviceSeller(
     device_sale_net: deviceSaleNet,
     contractor_company_id: deviceSaleNet != null ? input.contractorCompanyId : null,
     contractor_company_name: deviceSaleNet != null ? input.contractorCompanyName : null,
+    installer_bills_supplies:
+      deviceSaleNet != null && input.contractorCompanyId && input.installerBillsSupplies ? true : null,
+  });
+  await saveBillingQuoteSettings(supabase, workReportId, next);
+  return next;
+}
+
+/**
+ * Urakoitsijan lasku tilaajalle (laitemyyjä-ketju): merkitse laskutetuksi summalla / peru.
+ * Laskutettu summa jäädytetään; uudelleenlaskenta ei muuta sitä.
+ */
+export async function saveContractorInvoiceStatus(
+  supabase: SupabaseClient,
+  workReportId: string,
+  billedAmount: number | null,
+): Promise<BillingQuoteSettings> {
+  const { data, error } = await supabase
+    .from('work_report_billable')
+    .select('billing_quote')
+    .eq('work_report_id', workReportId)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  const current = parseBillingQuoteSettings(
+    (data as { billing_quote?: unknown } | null)?.billing_quote ?? {},
+  );
+  const next = normalizeBillingQuoteSettings({
+    ...current,
+    contractor_invoice:
+      billedAmount != null
+        ? { status: 'paid', billed_amount: roundMoney(billedAmount), billed_at: new Date().toISOString() }
+        : null,
   });
   await saveBillingQuoteSettings(supabase, workReportId, next);
   return next;

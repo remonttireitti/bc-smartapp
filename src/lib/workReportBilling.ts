@@ -111,7 +111,92 @@ export type BillableCalculation = {
   quoteExtrasTotal?: number;
   quoteRequestId?: string | null;
   quoteTitle?: string | null;
+  /**
+   * Laitemyyjä-ketju urakoitsijan kanssa: urakoitsijan omat kulut (esim. tarvikkeet), jotka
+   * eivät ole asentajan laskulla. Eivät sisälly byUser/grandTotal-summiin; kate- ja
+   * tarjousvertailu palauttaa ne kustannuspohjaan (quoteScopePartnerCalculation).
+   */
+  contractorCostLines?: BillableLine[];
+  /** Laitemyyjä-ketju urakoitsijan kanssa: urakoitsijan lasku tilaajalle (toinen laskuluonnos). */
+  contractorInvoice?: ContractorInvoiceDraft | null;
 };
+
+export type ContractorInvoiceDraft = {
+  fromCompanyId: string | null;
+  fromCompanyName: string | null;
+  toCompanyId: string | null;
+  toCompanyName: string | null;
+  amount: number;
+  description: string;
+};
+
+/**
+ * Palauttaa urakoitsijan omat kulurivit (contractorCostLines) laskelmaan ensimmäiselle
+ * käyttäjälle → sama kustannuspohja kuin ilman ketjua. Syötettä ei muuteta.
+ */
+export function restoreContractorCostLines(calculation: BillableCalculation): BillableCalculation {
+  const extra = calculation.contractorCostLines ?? [];
+  if (extra.length === 0 || calculation.byUser.length === 0) {
+    if (!calculation.contractorCostLines) return calculation;
+    const { contractorCostLines: _drop, ...rest } = calculation;
+    return rest;
+  }
+  const add = Math.round(extra.reduce((sum, line) => sum + (line.included ? line.total : 0), 0) * 100) / 100;
+  const byUser = calculation.byUser.map((user, index) =>
+    index === 0
+      ? {
+          ...user,
+          lines: [...user.lines, ...extra],
+          expensesTotal: Math.round((user.expensesTotal + add) * 100) / 100,
+          subtotal: Math.round((user.subtotal + add) * 100) / 100,
+        }
+      : user,
+  );
+  const { contractorCostLines: _drop, ...rest } = calculation;
+  return {
+    ...rest,
+    byUser,
+    grandTotal: Math.round(byUser.reduce((sum, user) => sum + user.subtotal, 0) * 100) / 100,
+  };
+}
+
+/**
+ * Siirtää urakoitsijan omat kulurivit (predikaatti) pois asentajan laskulta
+ * contractorCostLines-kenttään. Syötettä ei muuteta.
+ */
+export function moveContractorCostLines(
+  calculation: BillableCalculation,
+  isContractorCost: (line: BillableLine) => boolean,
+): BillableCalculation {
+  const base = restoreContractorCostLines(calculation);
+  const moved: BillableLine[] = [];
+  const byUser = base.byUser.map((user) => {
+    const keep: BillableLine[] = [];
+    let removed = 0;
+    for (const line of user.lines) {
+      if (line.included && line.kind === 'expense' && isContractorCost(line)) {
+        moved.push(line);
+        removed += line.total;
+      } else {
+        keep.push(line);
+      }
+    }
+    if (removed === 0) return user;
+    return {
+      ...user,
+      lines: keep,
+      expensesTotal: Math.round((user.expensesTotal - removed) * 100) / 100,
+      subtotal: Math.round((user.subtotal - removed) * 100) / 100,
+    };
+  });
+  if (moved.length === 0) return base;
+  return {
+    ...base,
+    byUser,
+    grandTotal: Math.round(byUser.reduce((sum, user) => sum + user.subtotal, 0) * 100) / 100,
+    contractorCostLines: moved,
+  };
+}
 
 export type WorkReportBillableRow = {
   work_report_id: string;
@@ -737,9 +822,10 @@ const EXTRA_BILLING_LINE_SUFFIXES = [':extra-hours', ':extra-expense'];
  * Kumppanin laskelmaa / laskua ei muuteta — tämä on vain vertailun pohja.
  */
 export function quoteScopePartnerCalculation(
-  calculation: BillableCalculation,
+  inputCalculation: BillableCalculation,
   logs: WorkReportDailyLog[] | null | undefined,
 ): BillableCalculation {
+  const calculation = restoreContractorCostLines(inputCalculation);
   const extraHoursByLog = new Map<string, number>();
   for (const log of logs ?? []) {
     const extra = parseDailyLogCustomerExtraBilling(log.customer_extra_billing);
