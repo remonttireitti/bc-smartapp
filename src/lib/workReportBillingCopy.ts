@@ -28,6 +28,7 @@ import {
   breakdownFromBillableCalculation,
   billingPartnerNetTotal,
   type BillableCalculation,
+  type ContractorInvoiceDraft,
   warehouseDeductionTotalsFromCalculation,
 } from './workReportBilling';
 
@@ -71,26 +72,23 @@ export type BillingListRow = {
    * (summa ja tila billing_quote.contractor_invoice -kentästä), ei asentajan lasku.
    */
   contractorInvoiceLeg?: boolean;
+  /**
+   * Laitemyyjä-ketju, urakoitsijan näkymä: urakoitsijan oma lähtevä lasku tilaajalle
+   * (RPC contractor_chain_invoice_reports). Urakoitsija ei näe raporttia eikä asentajan kuluja.
+   */
+  contractorOutgoingLeg?: boolean;
 };
 
-/**
- * Laitemyyjä-ketju (urakoitsija välissä): tilaajalle (omistaja) saapuva lasku on urakoitsijan
- * lasku (tarjous − laite), ei asentajan lasku urakoitsijalle. Muille katsojille rivi ennallaan.
- */
-export function applyContractorChainToBillingRow(
-  row: BillingListRow,
-  viewerCompanyId: string | null | undefined,
-): BillingListRow {
-  const invoice = row.billable?.calculation?.contractorInvoice;
-  if (!invoice || !viewerCompanyId || viewerCompanyId !== row.owner_company_id) return row;
-  if (row.created_by_company_id === viewerCompanyId) return row;
-  const status = (row.billable?.billing_quote as { contractor_invoice?: { status?: string; billed_amount?: unknown; billed_at?: unknown } } | null | undefined)
-    ?.contractor_invoice;
-  const paid = status?.status === 'paid';
-  const billedAmount = paid ? Number(status?.billed_amount ?? invoice.amount) : null;
-  const base = row.billable!.calculation!;
-  const calculation: BillableCalculation = {
-    ...base,
+/** Urakoitsijan lasku tilaajalle yhden rivin laskelmana (näkymiin; ei asentajan kuluja). */
+export function contractorInvoiceCalculation(
+  base: Pick<BillableCalculation, 'version' | 'ratesUsed' | 'ratesSource'> & Partial<BillableCalculation>,
+  invoice: ContractorInvoiceDraft,
+  logDate?: string,
+): BillableCalculation {
+  return {
+    version: base.version,
+    ratesUsed: base.ratesUsed,
+    ratesSource: base.ratesSource,
     billToCompanyId: invoice.toCompanyId,
     billToCompanyName: invoice.toCompanyName,
     byUser: [
@@ -111,7 +109,7 @@ export function applyContractorChainToBillingRow(
         lines: [
           {
             logId: 'contractor-invoice',
-            logDate: base.byUser[0]?.lines[0]?.logDate ?? '',
+            logDate: logDate ?? base.byUser?.[0]?.lines[0]?.logDate ?? '',
             kind: 'fixed_price',
             description: invoice.description,
             qty: 1,
@@ -124,6 +122,28 @@ export function applyContractorChainToBillingRow(
     ],
     grandTotal: invoice.amount,
     excludedTotal: 0,
+  };
+}
+
+/**
+ * Laitemyyjä-ketju (urakoitsija välissä): tilaajalle (omistaja) saapuva lasku on urakoitsijan
+ * lasku (tarjous − laite), ei asentajan lasku urakoitsijalle. Muille katsojille rivi ennallaan.
+ */
+export function applyContractorChainToBillingRow(
+  row: BillingListRow,
+  viewerCompanyId: string | null | undefined,
+): BillingListRow {
+  const invoice = row.billable?.calculation?.contractorInvoice;
+  if (!invoice || !viewerCompanyId || viewerCompanyId !== row.owner_company_id) return row;
+  if (row.created_by_company_id === viewerCompanyId) return row;
+  const status = (row.billable?.billing_quote as { contractor_invoice?: { status?: string; billed_amount?: unknown; billed_at?: unknown } } | null | undefined)
+    ?.contractor_invoice;
+  const paid = status?.status === 'paid';
+  const billedAmount = paid ? Number(status?.billed_amount ?? invoice.amount) : null;
+  const base = row.billable!.calculation!;
+  const calculation: BillableCalculation = {
+    ...base,
+    ...contractorInvoiceCalculation(base, invoice),
     contractorCostLines: undefined,
   };
   return {
@@ -141,6 +161,14 @@ export function applyContractorChainToBillingRow(
         }
       : row.billing,
   };
+}
+
+/**
+ * Laitemyyjä-ketjun urakoitsijan lasku (tilaajan saapuva tai urakoitsijan lähtevä): laskutusteksti
+ * ja tulostelinkki koskisivat asentajan laskua, joten niitä ei tarjota näille riveille.
+ */
+export function isContractorChainLegRow(row: Pick<BillingListRow, 'contractorInvoiceLeg' | 'contractorOutgoingLeg'>): boolean {
+  return !!row.contractorInvoiceLeg || !!row.contractorOutgoingLeg;
 }
 
 export type BillingModuleMode = 'partner' | 'customer' | 'total';
@@ -274,6 +302,8 @@ export function canViewerRecalcPartnerBill(
   viewerCompanyId: string | null | undefined,
 ): boolean {
   if (!viewerCompanyId || !isBillablePartnerReport(row)) return false;
+  // Urakoitsijan ketjulasku (RPC): ei raporttia eikä laskelmaa urakoitsijalle.
+  if (row.contractorOutgoingLeg) return false;
   if (isOutgoingPartnerBill(row, viewerCompanyId)) return true;
   if (isIncomingPartnerBill(row, viewerCompanyId)) return true;
   if (isDelegatedPartnerBill(row, viewerCompanyId)) return true;
