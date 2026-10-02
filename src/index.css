@@ -17175,3 +17175,15 @@ p.quote-outcome-unpriced {
   margin: 0.5rem 0;
   font-size: 0.85rem;
 }
+
+.quote-outcome-section-action {
+  margin-left: 0.6rem;
+  text-transform: none;
+  letter-spacing: normal;
+  font-weight: 600;
+}
+
+.quote-outcome-party-status .btn-link {
+  margin-left: 0.4rem;
+  font-size: inherit;
+}

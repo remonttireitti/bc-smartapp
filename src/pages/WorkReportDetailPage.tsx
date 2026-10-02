@@ -3028,9 +3028,12 @@ export default function WorkReportDetailPage({ session }: Props) {
   const canSeePartnerSummary =
     (isOwnerCompany && report.created_by_company_id !== report.owner_company_id)
     || (isDelegateCompany && isDelegatedOrder);
-  const billedPartnerName = isDelegatedOrder
-    ? (report.delegate_company?.name ?? '—')
-    : (report.owner_company?.name ?? '—');
+  // Laitemyyjä-ketju: asentajan lasku kohdistuu urakoitsijalle.
+  const billedPartnerName = billableCalculation?.contractorInvoice && billableCalculation.billToCompanyName
+    ? billableCalculation.billToCompanyName
+    : isDelegatedOrder
+      ? (report.delegate_company?.name ?? '—')
+      : (report.owner_company?.name ?? '—');
   const showCustomerBillingFeatures =
     isOwnerCompany && (customerInvoicingEnabled || viewerBillingAllowed);
   const showOutgoingPartnerBilling =
@@ -3536,6 +3539,7 @@ export default function WorkReportDetailPage({ session }: Props) {
           ownerCompanyName={report.owner_company?.name ?? null}
           createdByCompanyId={report.created_by_company_id}
           createdByCompanyName={report.created_by_company?.name ?? null}
+          partnerInvoiceState={partnerBillableAmounts}
           installationCostNet={billableCalculation?.grandTotal ?? null}
           initialSettings={billingQuoteSettings}
           dailyLogs={dailyLogs}

@@ -86,8 +86,11 @@ export function computeDeviceSellerChain(input: {
   margin: PartnerMarginComputed;
   deviceSaleNet: number;
   costs: DeviceSellerCosts;
+  /** Urakoitsijaketju: asentaja laskuttaa myös tarvikkeet (muuten urakoitsijan omia). */
+  installerBillsSupplies?: boolean;
 }): DeviceSellerChain {
   const { margin, deviceSaleNet, costs } = input;
+  const supplyOnInstaller = !!input.installerBillsSupplies;
   const quoteSale = margin.quoteSaleNet;
   const extrasCost = deviceSellerExtrasCostNet(margin);
   const extrasPartner = deductionAmount(margin, 'extras_partner');
@@ -98,7 +101,12 @@ export function computeDeviceSellerChain(input: {
   const e = (row: { estimate: number | null }) => row.estimate ?? 0;
 
   const contractorInvoiceActual = roundMoney(quoteSale - deviceSaleNet + extrasCost);
-  const installerActual = roundMoney(costs.labor.actual + costs.expenses.actual + extrasPartner);
+  const installerActual = roundMoney(
+    costs.labor.actual
+    + costs.expenses.actual
+    + (supplyOnInstaller ? costs.supplies.actual : 0)
+    + extrasPartner,
+  );
   return {
     customer: {
       estimate: est(() => quoteSale),
@@ -113,7 +121,7 @@ export function computeDeviceSellerChain(input: {
       actual: contractorInvoiceActual,
     },
     installerInvoice: {
-      estimate: est(() => e(costs.labor) + e(costs.expenses)),
+      estimate: est(() => e(costs.labor) + e(costs.expenses) + (supplyOnInstaller ? e(costs.supplies) : 0)),
       actual: installerActual,
     },
     contractorKeeps: {
@@ -123,7 +131,7 @@ export function computeDeviceSellerChain(input: {
       actual: roundMoney(
         contractorInvoiceActual
         - installerActual
-        - costs.supplies.actual
+        - (supplyOnInstaller ? 0 : costs.supplies.actual)
         - costs.other.actual
         - (extrasCost - extrasPartner),
       ),
@@ -178,3 +186,20 @@ export function deviceSellerLabels(names: {
     contractorKeeps: keeps(contractor),
   };
 }
+
+/** Urakoitsijaketju käytössä (laitteen myyntihinta + urakoitsija asetettu). */
+export function resolveContractorChain(
+  settings: BillingQuoteSettings | null | undefined,
+): { deviceSaleNet: number; contractorCompanyId: string; contractorCompanyName: string | null } | null {
+  const deviceSaleNet = resolveDeviceSellerSaleNet(settings);
+  const contractorCompanyId = settings?.contractor_company_id?.trim();
+  if (deviceSaleNet == null || !contractorCompanyId) return null;
+  return {
+    deviceSaleNet,
+    contractorCompanyId,
+    contractorCompanyName: settings?.contractor_company_name ?? null,
+  };
+}
+
+/** Urakoitsijan laskun rivin teksti (urakoitsija → tilaaja). */
+export const CONTRACTOR_INVOICE_DESCRIPTION = 'Asennusurakka (tarjous − laite)';

@@ -18,6 +18,10 @@ type Props = {
   commissionExceedsGross?: boolean;
   /** Kulurivit ilman hintaa (esim. tarjouksesta luodut 0 €-rivit): tulos on alustava. */
   unpricedRowCount?: number;
+  /** Laskutuslaskelman riveille laskun tila / toiminto (avain = osapuolirivi). */
+  partyStatus?: Partial<Record<string, ReactNode>>;
+  /** Laskutuslaskelman otsikkorivin perään (esim. esikatselu → Käytä laskutuksessa). */
+  partiesAction?: ReactNode;
 };
 
 function toneClass(tone: OutcomeTone): string {
@@ -41,6 +45,8 @@ export default function QuoteOutcomeSummaryView({
   quoteTitleActions,
   commissionExceedsGross = false,
   unpricedRowCount = 0,
+  partyStatus,
+  partiesAction = null,
 }: Props) {
   const hasExtras = summary.customerExtrasNet > 0.005;
   const gross = summary.grossMargin;
@@ -122,7 +128,10 @@ export default function QuoteOutcomeSummaryView({
             </tr>
             {summary.parties ? (
               <tr className="quote-outcome-section-row">
-                <td colSpan={4}>Laskutuslaskelma (alv 0 %)</td>
+                <td colSpan={4}>
+                  Laskutuslaskelma (alv 0 %){summary.partiesPreview ? ' · esikatselu' : ''}
+                  {partiesAction ? <span className="quote-outcome-section-action">{partiesAction}</span> : null}
+                </td>
               </tr>
             ) : null}
             {summary.parties
@@ -135,6 +144,12 @@ export default function QuoteOutcomeSummaryView({
                     >
                       <td>
                         <span className="quote-outcome-row-label">{row.label}</span>
+                        {row.note ? <span className="quote-outcome-row-sub">{row.note}</span> : null}
+                        {partyStatus?.[row.key] ? (
+                          <span className="quote-outcome-row-sub quote-outcome-party-status">
+                            {partyStatus[row.key]}
+                          </span>
+                        ) : null}
                       </td>
                       <td className="num">{money(row.estimateNet)}</td>
                       <td className="num">

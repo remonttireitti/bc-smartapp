@@ -71,6 +71,8 @@ export type QuoteOutcomeRow = {
 export type QuoteOutcomePartyRow = {
   key: keyof DeviceSellerChain;
   label: string;
+  /** Lyhyt erittely (esim. "laitekate 350,00 € + lisätyö 130,00 €"). */
+  note?: string | null;
 } & QuoteOutcomeComparison;
 
 export type QuoteOutcomeVerdict = {
@@ -112,6 +114,8 @@ export type QuoteOutcomeSummary = {
    * myynti-, kate- ja provisiorivit; puhdas kate = urakoitsijalle jäävä osuus.
    */
   parties: QuoteOutcomePartyRow[] | null;
+  /** Laskutuslaskelma on esikatselu (laitteen myyntihinta tarjouspyynnöstä, ei tallennettu). */
+  partiesPreview: boolean;
 };
 
 /** Kate-ero poikkeaa kulujen eron vastaluvusta (esim. hyväksytyt lisät) → näytä se taulukossa. */
@@ -181,6 +185,9 @@ export function buildQuoteOutcomeSummary(input: {
     ownerName: string;
     contractorName?: string | null;
     installerName: string;
+    installerBillsSupplies?: boolean;
+    /** Esikatselu tarjouspyynnön laitehinnalla (ei vielä laskutuksessa). */
+    preview?: boolean;
   } | null;
 }): QuoteOutcomeSummary | null {
   const { partnerMargin, comparison, formatEuro } = input;
@@ -271,6 +278,7 @@ export function buildQuoteOutcomeSummary(input: {
     chain = computeDeviceSellerChain({
       margin: partnerMargin,
       deviceSaleNet: input.deviceSeller.deviceSaleNet,
+      installerBillsSupplies: !!input.deviceSeller.contractorName && !!input.deviceSeller.installerBillsSupplies,
       costs: {
         labor: category('labor'),
         expenses: category('expenses'),
@@ -287,9 +295,16 @@ export function buildQuoteOutcomeSummary(input: {
       'installerInvoice',
       'contractorKeeps',
     ];
+    const deviceMarginNet = roundMoney(input.deviceSeller.deviceSaleNet - category('device').actual);
+    const ownerExtrasNet = roundMoney(chain.ownerKeeps.actual - deviceMarginNet);
+    const ownerNote =
+      Math.abs(ownerExtrasNet) > EPS
+        ? `laitekate ${formatEuro(deviceMarginNet)} ${ownerExtrasNet >= 0 ? '+' : '−'} lisätyö ${formatEuro(Math.abs(ownerExtrasNet))}`
+        : null;
     parties = order.map((key) => ({
       key,
       label: labels[key],
+      note: key === 'ownerKeeps' ? ownerNote : null,
       ...comparisonOf(
         chain![key].estimate,
         chain![key].actual,
@@ -328,6 +343,7 @@ export function buildQuoteOutcomeSummary(input: {
     verdict: verdictFor(verdictAmount, formatEuro),
     showMarginVariance: marginVarianceDiffersFromCosts(costs, grossMargin),
     parties,
+    partiesPreview: !!parties && !!input.deviceSeller?.preview,
   };
 }
 
@@ -368,7 +384,8 @@ export function renderQuoteOutcomeSummaryHtml(
     ? summary.parties
         .map((row, index, all) => {
           const last = index === all.length - 1;
-          const label = last ? `<strong>${esc(row.label)}</strong>` : esc(row.label);
+          const noteHtml = row.note ? `<div class="muted" style="font-size:11px">${esc(row.note)}</div>` : '';
+          const label = `${last ? `<strong>${esc(row.label)}</strong>` : esc(row.label)}${noteHtml}`;
           const actual = last ? `<strong style="font-size:15px">${esc(euro(row.actualNet))}</strong>` : esc(euro(row.actualNet));
           return `<tr${last ? ' class="profit-row"' : ''}><td>${label}</td><td class="num">${esc(money(row.estimateNet))}</td><td class="num">${actual}</td>${variance(row.varianceNet, row.tone)}</tr>`;
         })

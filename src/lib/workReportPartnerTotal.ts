@@ -2,9 +2,12 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { WorkReportDailyLog } from '../types';
 import {
   mergeAutoPartnerCommission,
+  moveContractorCostLines,
+  restoreContractorCostLines,
   stripAutoPartnerCommission,
   type BillableCalculation,
 } from './workReportBilling';
+import { expenseTypeCategory } from './workReportEntryCategories';
 import {
   billingQuoteHasData,
   computePartnerNetMargin,
@@ -15,7 +18,9 @@ import {
 } from './workReportBillingQuote';
 import { mergeActualPurchaseFromWorkReportLogs } from './quoteRequestActualPurchaseSync';
 import {
+  CONTRACTOR_INVOICE_DESCRIPTION,
   deviceSellerContractorInvoiceNet,
+  resolveContractorChain,
   resolveDeviceSellerSaleNet,
 } from './workReportDeviceSeller';
 
@@ -61,7 +66,19 @@ export function applyQuoteCommissionToPartnerCalculation(input: {
    */
   quoteData?: unknown | null;
 }): { calculation: BillableCalculation; partnerMargin: PartnerMarginComputed | null } {
-  const base = stripAutoPartnerCommission(input.calculation);
+  // Aiempi urakoitsijaketju palautetaan ensin: kulupohja täydeksi ja laskun saaja tilaajaksi.
+  const previousContractorInvoice = input.calculation.contractorInvoice ?? null;
+  const restored = restoreContractorCostLines(stripAutoPartnerCommission(input.calculation));
+  const base: BillableCalculation = previousContractorInvoice
+    ? {
+        ...restored,
+        billToCompanyId: previousContractorInvoice.toCompanyId,
+        billToCompanyName: previousContractorInvoice.toCompanyName,
+        contractorInvoice: null,
+      }
+    : restored.contractorInvoice !== undefined
+      ? { ...restored, contractorInvoice: null }
+      : restored;
   const parsed = normalizeBillingQuoteSettings(parseBillingQuoteSettings(input.billingQuote));
   if (!billingQuoteHasData(parsed)) {
     return { calculation: base, partnerMargin: null };
@@ -83,6 +100,30 @@ export function applyQuoteCommissionToPartnerCalculation(input: {
   }
   // Laitemyyjä-ketju: kumppanilasku tilaajalle = tarjoushinta − laitteen myyntihinta
   // (+ kumppanin lisäkulut). Tasausrivi = lasku − kirjatut kulut; ei provisiota.
+  // Urakoitsijaketju: asentajan lasku urakoitsijalle = työt + kulut (tarvikkeet ovat
+  // urakoitsijan omia, ellei asentaja laskuta niitä); urakoitsijan lasku tilaajalle
+  // = tarjous − laite (+ kumppanin lisäkulut) tallennetaan toisena laskuluonnoksena.
+  const chain = resolveContractorChain(effectiveSettings);
+  if (chain) {
+    const installerBillsSupplies = effectiveSettings.installer_bills_supplies === true;
+    const installer = installerBillsSupplies
+      ? base
+      : moveContractorCostLines(base, (line) => expenseTypeCategory(line.expenseType) === 'supplies');
+    const calculation: BillableCalculation = {
+      ...installer,
+      billToCompanyId: chain.contractorCompanyId,
+      billToCompanyName: chain.contractorCompanyName,
+      contractorInvoice: {
+        fromCompanyId: chain.contractorCompanyId,
+        fromCompanyName: chain.contractorCompanyName,
+        toCompanyId: base.billToCompanyId,
+        toCompanyName: base.billToCompanyName,
+        amount: deviceSellerContractorInvoiceNet(partnerMargin, chain.deviceSaleNet),
+        description: CONTRACTOR_INVOICE_DESCRIPTION,
+      },
+    };
+    return { calculation, partnerMargin };
+  }
   const deviceSaleNet = resolveDeviceSellerSaleNet(effectiveSettings);
   if (deviceSaleNet != null) {
     const invoiceNet = deviceSellerContractorInvoiceNet(partnerMargin, deviceSaleNet);
