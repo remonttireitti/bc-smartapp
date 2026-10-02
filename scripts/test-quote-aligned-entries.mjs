@@ -285,11 +285,16 @@ function scenario(name, { expenseLines, settingsOverride = null, extrasApproved 
   // Laite näkyy samana katteessa ja vertailussa
   assert.equal(deviceDeduction, deviceCmp, `${name}: laite kate = vertailu`);
   // Vertailun toteutunut = katteen vähennykset (ei "Muut kate-erät" -riviä)
-  // (Hyväksytyn lisätilauksen hankinta näkyy kuten ennenkin "Muut kate-erät" -rivillä.)
+  // (Hyväksytyn lisätilauksen hankinta on lisälaskutuksen vähennys, ei vertailussa.)
   const extrasCost = margin.deductionRows.find((row) => row.key === 'piikki_material')?.amount ?? 0;
   assert.equal(round(cmp.actualTotalNet + extrasCost), deductions, `${name}: vertailu summautuu katteeseen`);
   const summary = buildQuoteOutcomeSummary({ partnerMargin: margin, comparison: cmp, formatEuro });
-  assert.equal(summary.rows.some((row) => row.key === 'other'), extrasApproved, `${name}: Muut kate-erät`);
+  // Hyväksytty lisälaskutus ei kuulu kiinteän tarjouksen kuluihin (ei "Muut kate-erät" -riviä):
+  // sen kate (asiakas − hankinta) näkyy myyntirivillä ja lisälaskutustaulukossa.
+  assert.equal(summary.rows.some((row) => row.key === 'other'), false, `${name}: ei Muut kate-erät`);
+  assert.equal(summary.costs.actualNet, cmp.actualTotalNet, `${name}: kulut = vertailu`);
+  assert.equal(summary.extrasMarginNet, round(margin.customerExtrasNet - extrasCost), `${name}: lisien kate`);
+  assert.equal(summary.grossMargin.actualNet, round(summary.marginSaleNet - summary.costs.actualNet), `${name}: myynti − kulut`);
   // Kate ennen provisiota = tarjoushinta (+ hyväksytyt lisät) − kaikki kulut kerran
   assert.equal(margin.grossMarginNet, round(SALE + margin.customerExtrasNet - deductions), `${name}: kate`);
   return { calc, merged, margin, cmp, deviceDeduction, logs: scenarioLogs };

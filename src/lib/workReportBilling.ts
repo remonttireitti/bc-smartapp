@@ -13,8 +13,10 @@ import {
   tripKmLineTotal,
 } from './tripKmExpense';
 import {
+  billableHoursFromLogEntry,
   dailyLogCustomerExtraBillingHasData,
   parseDailyLogCustomerExtraBilling,
+  resolveExtraBillableHours,
 } from './dailyLogCustomerExtraBilling';
 import {
   resolveUrakkaPartnerAmount,
@@ -511,7 +513,13 @@ export function mergePartnerExtraBillingFromDailyLogs(
     const logDate = log.log_date;
     const title = extra.description?.trim() || 'Lisätyö';
 
-    const hours = Number(extra.hours) || 0;
+    // Lisälaskutettavat tunnit ovat osa päivän omia tunteja (enintään päivän tuntimäärä), ja ne
+    // ovat jo kumppanilaskelmassa päivän tuntiriveillä. Erillinen rivi vain päivän tunnit
+    // ylittävälle osalle (vanhat kirjaukset), muuten tunnit laskettaisiin kahdesti.
+    const hours = Math.max(
+      0,
+      roundQtyValue(resolveExtraBillableHours(extra) - billableHoursFromLogEntry(log)),
+    );
     if (hours > 0) {
       const unitPrice = rates.hourly_regular;
       const total = lineTotal(hours, unitPrice);
@@ -705,6 +713,85 @@ export function breakdownFromBillableCalculation(calc: BillableCalculation): {
  * kustannus: ne palautetaan erikseen `commission`-kenttään, jotta provisio ei
  * vähene katteesta kahdesti (kuluna + provisiona).
  */
+function roundQtyValue(value: number): number {
+  return Math.round(value * 100) / 100;
+}
+
+const EXTRA_BILLING_LINE_SUFFIXES = [':extra-hours', ':extra-expense'];
+
+/**
+ * Kiinteän tarjouksen vertailuun (tarjous vs toteutunut, kate ennen provisiota) kuuluva osa
+ * kumppanilaskelmasta: lisälaskutettavaksi merkityt tunnit (odottavat ja hyväksytyt) sekä
+ * lisälaskutuksen erilliset rivit poistetaan. Ne käsitellään vain lisälaskutuksena.
+ * Kumppanin laskelmaa / laskua ei muuteta — tämä on vain vertailun pohja.
+ */
+export function quoteScopePartnerCalculation(
+  calculation: BillableCalculation,
+  logs: WorkReportDailyLog[] | null | undefined,
+): BillableCalculation {
+  const extraHoursByLog = new Map<string, number>();
+  for (const log of logs ?? []) {
+    const hours = resolveExtraBillableHours(parseDailyLogCustomerExtraBilling(log.customer_extra_billing));
+    if (hours > 0) extraHoursByLog.set(log.id, hours);
+  }
+
+  const byUser = calculation.byUser.map((user) => {
+    const lines: BillableLine[] = [];
+    for (const line of user.lines) {
+      if (EXTRA_BILLING_LINE_SUFFIXES.some((suffix) => line.logId.endsWith(suffix))) continue;
+      lines.push({ ...line });
+    }
+    // Vähennetään ensin normaalitunneista, sitten muista tuntiriveistä.
+    const order = (line: BillableLine) => (line.kind === 'hours_regular' ? 0 : 1);
+    const hourLines = lines
+      .filter((line) => line.included && BILLABLE_HOUR_KINDS.has(line.kind) && extraHoursByLog.has(line.logId))
+      .sort((a, b) => order(a) - order(b));
+    for (const line of hourLines) {
+      const remaining = extraHoursByLog.get(line.logId) ?? 0;
+      const qty = Number(line.qty) || 0;
+      if (!(remaining > 0) || !(qty > 0)) continue;
+      const take = Math.min(remaining, qty);
+      extraHoursByLog.set(line.logId, roundQtyValue(remaining - take));
+      const nextQty = roundQtyValue(qty - take);
+      line.total = Math.round((line.total * nextQty) / qty * 100) / 100;
+      line.qty = nextQty;
+    }
+    const kept = lines.filter(
+      (line) => !(BILLABLE_HOUR_KINDS.has(line.kind) && extraHoursByLog.has(line.logId) && !(Number(line.qty) > 0)),
+    );
+    const hoursQty = kept
+      .filter((line) => line.included && BILLABLE_HOUR_KINDS.has(line.kind))
+      .reduce((sum, line) => sum + (Number(line.qty) || 0), 0);
+    const hoursTotal = kept
+      .filter((line) => line.included && BILLABLE_HOUR_KINDS.has(line.kind))
+      .reduce((sum, line) => sum + line.total, 0);
+    const delta = roundMoneyValue(hoursTotal - user.hoursTotal);
+    return {
+      ...user,
+      lines: kept,
+      hoursQty: roundQtyValue(hoursQty),
+      hoursTotal: roundMoneyValue(hoursTotal),
+      subtotal: roundMoneyValue(user.subtotal + delta - extraLinesTotal(user.lines, ':extra-expense')),
+    };
+  });
+
+  return {
+    ...calculation,
+    byUser,
+    grandTotal: roundMoneyValue(byUser.reduce((sum, user) => sum + user.subtotal, 0)),
+  };
+}
+
+function roundMoneyValue(value: number): number {
+  return Math.round(value * 100) / 100;
+}
+
+function extraLinesTotal(lines: BillableLine[], suffix: string): number {
+  return lines
+    .filter((line) => line.included && line.logId.endsWith(suffix))
+    .reduce((sum, line) => sum + line.total, 0);
+}
+
 export function breakdownPartnerBillingForQuoteMargin(calc: BillableCalculation): {
   laborTravel: number;
   billedMaterials: number;

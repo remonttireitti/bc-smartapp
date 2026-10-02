@@ -190,7 +190,7 @@ assert.equal(
 assert.equal(s2.grossMargin.varianceNet, -s2.costs.varianceNet);
 assert.equal(s2.showMarginVariance, false, 'Muut kate-erät kuuluvat kuluihin → ei toistoa');
 
-// --- Lisälaskutus: kate-ero = −kulujen ero + lisät
+// --- Lisälaskutus: ei tarjouksen kuluissa; kate-ero = −kulujen ero + lisien kate (asiakas − hankinta)
 const withExtras = {
   ...partnerMargin,
   customerExtrasNet: 500,
@@ -199,12 +199,17 @@ const withExtras = {
 };
 const s3 = buildQuoteOutcomeSummary({ partnerMargin: withExtras, comparison, formatEuro });
 assert.equal(s3.saleTotalNet, 4482.4);
-assert.equal(s3.costs.varianceNet, -64.7);
+assert.equal(s3.costs.varianceNet, -264.7, 'lisätilauksen hankinta ei tarjouksen kuluissa');
+assert.equal(s3.rows.some((r) => r.key === 'other'), false);
+assert.equal(s3.extrasMarginNet, 300);
+assert.equal(s3.marginSaleNet, Math.round((s3.quoteSaleNet + 300) * 100) / 100);
 assert.equal(s3.grossMargin.varianceNet, 564.7);
-assert.equal(Math.round((-s3.costs.varianceNet + s3.customerExtrasNet) * 100) / 100, s3.grossMargin.varianceNet);
+assert.equal(Math.round((-s3.costs.varianceNet + s3.extrasMarginNet) * 100) / 100, s3.grossMargin.varianceNet);
+assert.equal(s3.grossMargin.actualNet, Math.round((s3.marginSaleNet - s3.costs.actualNet) * 100) / 100);
 // Hyväksytyt lisät → kate-ero poikkeaa kulujen erosta → näytetään taulukossa
 assert.equal(s3.showMarginVariance, true);
-assert.equal(s3.verdict.label.includes('+564,70'), true);
+// Tuomio vertaa vain kiinteää tarjousta tarjouspyyntöön
+assert.equal(s3.verdict.label.includes('+264,70'), true);
 const html3 = renderQuoteOutcomeSummaryHtml(s3, { escapeHtml: (v) => v, formatEuro });
 assert.match(html3, /Myynti \(tarjous \+ hyväksytyt lisät\)/);
 assert.match(html3, /<strong>Kate ennen provisiota<\/strong>.*?<td class="num" style="color:#15803d;font-weight:600">\+564,70/s);

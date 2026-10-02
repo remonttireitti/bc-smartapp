@@ -606,7 +606,11 @@ const approvedHoursMargin = computePartnerNetMargin(
   },
 );
 const pendingHoursImpact = collectExtraBillingMarginImpactLines(pendingHoursLogs, partnerRates)[0];
-assert.equal(pendingHoursImpact.currentMarginImpactNet, -250);
+// Lisälaskutettavat tunnit eivät kuulu kiinteän tarjouksen katteeseen → odottava rivi ei vähennä katetta.
+assert.equal(pendingHoursImpact.currentMarginImpactNet, 0);
+assert.equal(pendingHoursMargin?.grossMarginNet, approvedHoursMargin?.quoteGrossMarginNet);
+// Kumppanin laskelmassa tunnit kerran (10 h), ei erillistä 5 h lisätyöriviä.
+assert.equal(approvedHoursPartner.byUser.reduce((sum, user) => sum + user.hoursQty, 0), 10);
 assert.equal(pendingHoursImpact.marginIfApprovedNet, 546.5);
 assert.equal(
   computeProjectedNetMarginIfLineApproved(

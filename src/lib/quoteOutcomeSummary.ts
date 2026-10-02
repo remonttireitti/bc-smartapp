@@ -11,14 +11,14 @@
  */
 import type { QuoteCategoryComparison, QuoteCategoryKey } from './quoteCategoryComparison';
 import { formatCategoryQty } from './quoteCategoryComparison';
-import type { PartnerMarginComputed } from './workReportBillingQuote';
+import { EXTRAS_DEDUCTION_KEYS, type PartnerMarginComputed } from './workReportBillingQuote';
 
 export type OutcomeTone = 'better' | 'worse' | 'neutral';
 
 const EPS = 0.005;
 
 function roundMoney(value: number): number {
-  return Math.round(value * 100) / 100;
+  return Math.round(value * 100) / 100 || 0;
 }
 
 /** Kulut: toteutunut alle arvion = parempi (vihreä), yli = huonompi (punainen). */
@@ -75,6 +75,10 @@ export type QuoteOutcomeSummary = {
   customerExtrasNet: number;
   /** Tarjoushinta + hyväksytyt lisät. */
   saleTotalNet: number;
+  /** Hyväksytyn lisälaskutuksen kate (asiakas − kumppani − hankinta). */
+  extrasMarginNet: number;
+  /** Kate-taulukon myynti: tarjoushinta + hyväksyttyjen lisien kate. */
+  marginSaleNet: number;
   costs: QuoteOutcomeComparison;
   /** null, kun katetta ei näytetä (vain kulut). */
   grossMargin: QuoteOutcomeComparison | null;
@@ -161,9 +165,16 @@ export function buildQuoteOutcomeSummary(input: {
   const quoteSaleNet = roundMoney(partnerMargin?.quoteSaleNet ?? input.quoteSaleNet ?? 0);
   const customerExtrasNet = roundMoney(partnerMargin?.customerExtrasNet ?? 0);
   const saleTotalNet = roundMoney(quoteSaleNet + customerExtrasNet);
+  // Lisälaskutus (kumppanikulut, hankinta) ei kuulu kiinteän tarjouksen kuluihin.
+  const quoteDeductionRows = (partnerMargin?.deductionRows ?? []).filter(
+    (row) => !EXTRAS_DEDUCTION_KEYS.has(row.key),
+  );
   const actualCostsNet = partnerMargin
-    ? roundMoney(partnerMargin.deductionRows.reduce((sum, row) => sum + row.amount, 0))
+    ? roundMoney(quoteDeductionRows.reduce((sum, row) => sum + row.amount, 0))
     : roundMoney(comparison?.actualTotalNet ?? 0);
+  const extrasMarginNet = partnerMargin
+    ? roundMoney(partnerMargin.grossMarginNet - (quoteSaleNet - actualCostsNet))
+    : 0;
 
   const rows: QuoteOutcomeRow[] = [];
   if (comparison) {
@@ -178,7 +189,7 @@ export function buildQuoteOutcomeSummary(input: {
     }
     const otherNet = roundMoney(actualCostsNet - comparison.actualTotalNet);
     if (Math.abs(otherNet) > EPS) {
-      const labels = (partnerMargin?.deductionRows ?? [])
+      const labels = quoteDeductionRows
         .filter((row) => !CATEGORY_DEDUCTION_KEYS.has(row.key))
         .map((row) => row.label);
       rows.push({
@@ -190,7 +201,7 @@ export function buildQuoteOutcomeSummary(input: {
       });
     }
   } else if (partnerMargin) {
-    for (const row of partnerMargin.deductionRows) {
+    for (const row of quoteDeductionRows) {
       rows.push({
         key:
           row.key === 'device'
@@ -219,8 +230,11 @@ export function buildQuoteOutcomeSummary(input: {
     ? comparisonOf(estimateGrossNet, partnerMargin.grossMarginNet, marginVarianceTone)
     : null;
 
+  // Tuomio vertaa vain kiinteää tarjousta tarjouspyyntöön (ei lisälaskutusta).
   const verdictAmount = grossMargin
-    ? grossMargin.varianceNet
+    ? grossMargin.varianceNet == null
+      ? null
+      : roundMoney(grossMargin.varianceNet - extrasMarginNet)
     : costs.varianceNet == null
       ? null
       : -costs.varianceNet;
@@ -229,6 +243,8 @@ export function buildQuoteOutcomeSummary(input: {
     quoteSaleNet,
     customerExtrasNet,
     saleTotalNet,
+    extrasMarginNet,
+    marginSaleNet: roundMoney(quoteSaleNet + extrasMarginNet),
     costs,
     grossMargin,
     rows,
@@ -276,7 +292,7 @@ export function renderQuoteOutcomeSummaryHtml(
     .join('');
 
   const marginRows = gross
-    ? `${hasExtras ? `<tr><td>Myynti (tarjous + hyväksytyt lisät)</td><td class="num">${esc(money(summary.costs.estimateNet == null ? null : summary.quoteSaleNet))}</td><td class="num">${esc(euro(summary.saleTotalNet))}</td>${variance(summary.costs.estimateNet == null ? null : summary.customerExtrasNet, 'better')}</tr>` : ''}
+    ? `${hasExtras ? `<tr><td>Myynti (tarjous + hyväksytyt lisät)</td><td class="num">${esc(money(summary.costs.estimateNet == null ? null : summary.quoteSaleNet))}</td><td class="num">${esc(euro(summary.marginSaleNet))}</td>${variance(summary.costs.estimateNet == null ? null : summary.extrasMarginNet, marginVarianceTone(0, summary.extrasMarginNet))}</tr>` : ''}
       <tr><td><strong>Kate ennen provisiota</strong></td><td class="num">${esc(money(gross.estimateNet))}</td><td class="num"><strong>${esc(euro(gross.actualNet))}</strong></td>${summary.showMarginVariance ? variance(gross.varianceNet, gross.tone) : '<td class="num">—</td>'}</tr>
       <tr><td>Provisio (${esc(String(Math.round(summary.commissionPercent * 100) / 100).replace('.', ','))} %)${summary.commissionSource === 'daily_log' ? '<div class="muted" style="font-size:11px">Päiväkirjan Myyntiprovisio-merkinnöistä</div>' : summary.commissionSource === 'amount' ? '<div class="muted" style="font-size:11px">Sovittu summa</div>' : ''}</td><td class="num">—</td><td class="num">− ${esc(euro(summary.commissionNet))}</td><td class="num">—</td></tr>
       <tr class="profit-row"><td><strong>Puhdas kate</strong></td><td class="num">—</td><td class="num"><strong style="font-size:15px">${esc(euro(summary.netMarginNet))}</strong></td><td class="num">—</td></tr>`

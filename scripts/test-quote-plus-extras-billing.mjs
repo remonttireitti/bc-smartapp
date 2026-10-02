@@ -122,11 +122,34 @@ const partnerMerged = mergePartnerExtraBillingFromDailyLogs(basePartner, {
   users,
 });
 
+// Lisälaskutettavat 2 h ovat osa päivän 8 tuntia → ei erillistä (tuplattua) tuntiriviä.
 const extraHoursLine = partnerMerged.byUser
   .flatMap((user) => user.lines)
   .find((line) => line.logId === 'log-1:extra-hours');
-assert.ok(extraHoursLine);
-assert.equal(extraHoursLine.total, 110); // 2 h × 55 €
+assert.equal(extraHoursLine, undefined);
+assert.equal(
+  partnerMerged.byUser.reduce((sum, user) => sum + user.hoursQty, 0),
+  8,
+  'kumppanin tunnit kerran',
+);
+// Vanha kirjaus, jossa lisätunteja on enemmän kuin päivän tunteja: vain ylittävä osa lisätään.
+const legacyLogs = [{ ...logs[0], hours_regular: 1 }];
+const legacyMerged = mergePartnerExtraBillingFromDailyLogs(
+  calculateWorkReportBillable({
+    logs: legacyLogs,
+    users,
+    rates: partnerRates,
+    ratesSource: 'partnership',
+    billToCompanyId: 'owner-1',
+    billToCompanyName: 'Omistaja Oy',
+  }),
+  { logs: legacyLogs, rates: partnerRates, users },
+);
+const legacyExtra = legacyMerged.byUser
+  .flatMap((user) => user.lines)
+  .find((line) => line.logId === 'log-1:extra-hours');
+assert.equal(legacyExtra?.qty, 1);
+assert.equal(legacyExtra?.total, 55);
 
 const extraExpenseLine = partnerMerged.byUser
   .flatMap((user) => user.lines)
