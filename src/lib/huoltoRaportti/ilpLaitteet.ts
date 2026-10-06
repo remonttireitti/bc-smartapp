@@ -4,6 +4,8 @@
  * Laite 1 = raportin omat (litteät) kentät, joten vanhat raportit ovat sellaisenaan yhden laitteen
  * pöytäkirjoja ja muu logiikka (raportointi, kylmäaine, laitekortti) toimii laitteelle 1.
  * Laitteet 2…N tallennetaan data.ilpLisaLaitteet-listaan (vain laitekohtaiset kentät).
+ * Tiiveyskoe ja tyhjiöinti ovat laitekohtaisia: laite 1 = selectedModules + tiiveyskoeData/tyhjiointiData,
+ * laitteet 2…N = oma tiiveyskoeData/tyhjiointiData + ilpLaiteTiiveyskoeKaytossa/ilpLaiteTyhjiointiKaytossa.
  */
 import {
   createEmptyHuoltoReportData,
@@ -12,12 +14,13 @@ import {
   ensureMittausSisayksikkoData,
   ensureSisayksikkoData,
 } from './defaults';
+import { usesRefrigerantServiceExtras } from './deviceModuleLogic';
 import {
   normalizeHuoltoInspectionStatus,
   type HuoltoInspectionStatus,
 } from './huoltoInspectionStatus';
 import { sisayksikkoTarkastusSummary } from './sisayksikkoTarkastus';
-import type { HuomioLuonne, HuoltoReportData, TiiveyskoeData, TyhjiointiData } from './types';
+import type { HuomioLuonne, HuoltoReportData } from './types';
 
 export const ILP_LISALAITTEET_KEY = 'ilpLisaLaitteet';
 
@@ -27,6 +30,15 @@ export type IlpLaiteData = Partial<HuoltoReportData> & {
   /** Laitekohtainen huomio (yhdistetty käynti: vanhan raportin huomiot). */
   ilpLaiteHuomiot?: string;
   ilpLaiteHuomiotLuonne?: HuomioLuonne;
+  ilpLaiteTiiveyskoeKaytossa?: boolean;
+  ilpLaiteTyhjiointiKaytossa?: boolean;
+};
+
+export type IlpDeviceTestKey = 'tiiveyskoe' | 'tyhjiointi';
+
+const TEST_FLAG_KEYS: Record<IlpDeviceTestKey, 'ilpLaiteTiiveyskoeKaytossa' | 'ilpLaiteTyhjiointiKaytossa'> = {
+  tiiveyskoe: 'ilpLaiteTiiveyskoeKaytossa',
+  tyhjiointi: 'ilpLaiteTyhjiointiKaytossa',
 };
 
 const DEVICE_IDENTITY_KEYS = new Set([
@@ -35,12 +47,19 @@ const DEVICE_IDENTITY_KEYS = new Set([
   'laiteValmistaja',
   'laiteMalli',
   'laiteSarjanumero',
+  'tiiveyskoeData',
+  'tyhjiointiData',
 ]);
 
 const DEVICE_KEY_PREFIXES = ['ulkoyksikko', 'sisayksikko', 'sisaSama', 'mittaus', 'ilpLaite'];
 
 export function isIlpMultiDeviceType(laiteTyyppi: string | null | undefined): boolean {
   return laiteTyyppi === 'lämpöpumppu';
+}
+
+/** Yhteinen tiiveyskoe/tyhjiöinti-osio (ei ILP:llä: kokeet ovat laitekohtaisia). */
+export function usesSharedServiceTests(laiteTyyppi: string | null | undefined): boolean {
+  return usesRefrigerantServiceExtras(laiteTyyppi ?? '') && !isIlpMultiDeviceType(laiteTyyppi);
 }
 
 /** Kuuluuko kenttä yksittäiselle ilmalämpöpumpulle (eikä koko pöytäkirjalle). */
@@ -118,7 +137,36 @@ export function ilpDeviceView(form: HuoltoReportData, index: number): HuoltoRepo
   const extra = ilpLisaLaitteet(form)[index - 1];
   if (!extra) return form;
   const { id: _id, ...fields } = extra;
-  return padDeviceArrays({ ...omitIlpDeviceFields(form), ...emptyIlpDeviceFields(), ...pickIlpDeviceFields(fields) });
+  const empty = emptyIlpDeviceFields();
+  const own = pickIlpDeviceFields(fields);
+  return padDeviceArrays({
+    ...omitIlpDeviceFields(form),
+    ...empty,
+    ...own,
+    tiiveyskoeData: { ...empty.tiiveyskoeData!, ...(own.tiiveyskoeData ?? {}) },
+    tyhjiointiData: { ...empty.tyhjiointiData!, ...(own.tyhjiointiData ?? {}) },
+    selectedModules: {
+      ...form.selectedModules,
+      tiiveyskoe: extra.ilpLaiteTiiveyskoeKaytossa === true,
+      tyhjiointi: extra.ilpLaiteTyhjiointiKaytossa === true,
+    },
+  });
+}
+
+/** Onko laitteella tiiveyskoe / tyhjiöinti (näkymästä: laite 1 = selectedModules). */
+export function ilpDeviceTestEnabled(view: HuoltoReportData, key: IlpDeviceTestKey): boolean {
+  return view.selectedModules?.[key] === true;
+}
+
+/** Laitteen tiiveyskokeen / tyhjiöinnin päälle/pois. */
+export function setIlpDeviceTestEnabled(
+  form: HuoltoReportData,
+  index: number,
+  key: IlpDeviceTestKey,
+  enabled: boolean,
+): Partial<HuoltoReportData> {
+  if (index <= 0) return { selectedModules: { ...form.selectedModules, [key]: enabled } };
+  return patchIlpDevice(form, index, { [TEST_FLAG_KEYS[key]]: enabled });
 }
 
 export function ilpDeviceViews(form: HuoltoReportData): HuoltoReportData[] {
@@ -136,6 +184,19 @@ export function patchIlpDevice(
   const shared: Partial<HuoltoReportData> = {};
   const device: Partial<HuoltoReportData> = {};
   for (const [key, value] of Object.entries(patch)) {
+    if (key === 'selectedModules' && value && typeof value === 'object') {
+      // Laitteen näkymän selectedModules sisältää laitteen omat koeliput.
+      const modules = value as HuoltoReportData['selectedModules'];
+      for (const testKey of ['tiiveyskoe', 'tyhjiointi'] as const) {
+        if (testKey in modules) device[TEST_FLAG_KEYS[testKey]] = modules[testKey] === true;
+      }
+      shared.selectedModules = {
+        ...modules,
+        tiiveyskoe: form.selectedModules.tiiveyskoe,
+        tyhjiointi: form.selectedModules.tyhjiointi,
+      };
+      continue;
+    }
     (isIlpDeviceKey(key) ? device : shared)[key] = value;
   }
   if (Object.keys(device).length === 0) return shared;
@@ -186,6 +247,13 @@ export function removeIlpDevice(form: HuoltoReportData, index: number): Partial<
       ...cleared,
       ...emptyIlpDeviceFields(),
       ...pickIlpDeviceFields(next),
+      ilpLaiteTiiveyskoeKaytossa: undefined,
+      ilpLaiteTyhjiointiKaytossa: undefined,
+      selectedModules: {
+        ...form.selectedModules,
+        tiiveyskoe: next.ilpLaiteTiiveyskoeKaytossa === true,
+        tyhjiointi: next.ilpLaiteTyhjiointiKaytossa === true,
+      },
       [ILP_LISALAITTEET_KEY]: extras.slice(1),
     };
   }
@@ -225,14 +293,22 @@ export function ilpDeviceState(view: HuoltoReportData): IlpDeviceState {
   const count = view.sisayksikkoMaara > 0 ? view.sisayksikkoMaara : 1;
   const units = (view.sisayksikkoData ?? []).slice(0, count);
   const unitSummaries = units.map((unit) => sisayksikkoTarkastusSummary(unit));
+  const tests = ilpDeviceTestStatuses(view);
   const faulty =
     ulko === 'faulty'
     || units.some((unit) => unit.huomioTyyppi === 'vika')
     || unitSummaries.some((s) => s.anyFaulty)
-    || view.ilpLaiteHuomiotLuonne === 'vika';
+    || view.ilpLaiteHuomiotLuonne === 'vika'
+    || tests.some((t) => t === 'faulty');
   if (faulty) return 'faulty';
   const identity = hasText(view.ulkoyksikkoMalli) || hasText(view.ulkoyksikkoSarjanumero) || hasText(view.laiteTunnus);
-  if (!identity || ulko === null || unitSummaries.length === 0 || unitSummaries.some((s) => !s.complete)) {
+  if (
+    !identity
+    || ulko === null
+    || unitSummaries.length === 0
+    || unitSummaries.some((s) => !s.complete)
+    || tests.some((t) => t === null)
+  ) {
     return 'incomplete';
   }
   return 'ok';
@@ -253,15 +329,26 @@ export function ilpDevicesCompletion(form: HuoltoReportData): 'ok' | 'attention'
 }
 
 
-/** Laitekohtainen tiiveyskoe/tyhjiöinti (vain yhdistetty käyntituloste). */
-export function ilpDeviceTests(view: HuoltoReportData): { tiiveyskoe?: TiiveyskoeData; tyhjiointi?: TyhjiointiData } {
-  const record = view as Record<string, unknown>;
-  const tk = record.ilpLaiteTiiveyskoe;
-  const ty = record.ilpLaiteTyhjiointi;
-  return {
-    tiiveyskoe: tk && typeof tk === 'object' ? (tk as TiiveyskoeData) : undefined,
-    tyhjiointi: ty && typeof ty === 'object' ? (ty as TyhjiointiData) : undefined,
-  };
+/** Käytössä olevien kokeiden tila: ok / faulty (hylätty) / null (kesken). */
+export function ilpDeviceTestStatuses(view: HuoltoReportData): HuoltoInspectionStatus[] {
+  const out: HuoltoInspectionStatus[] = [];
+  if (ilpDeviceTestEnabled(view, 'tiiveyskoe')) {
+    const tk = view.tiiveyskoeData;
+    out.push(tk?.tulos ? (tk.tulos === 'hyvaksytty' ? 'ok' : 'faulty') : hasText(tk?.testipaineBar) ? 'ok' : null);
+  }
+  if (ilpDeviceTestEnabled(view, 'tyhjiointi')) {
+    const ty = view.tyhjiointiData;
+    out.push(ty?.tulos ? (ty.tulos === 'hyvaksytty' ? 'ok' : 'faulty') : hasText(ty?.loppupaineArvo) ? 'ok' : null);
+  }
+  return out;
+}
+
+/** Valokuvan tunniste lisälaitteelle (tallennuspolun tiedostonimen etuliite). */
+export function ilpDevicePhotoTag(form: HuoltoReportData, index: number): string | undefined {
+  if (index <= 0) return undefined;
+  const id = ilpLisaLaitteet(form)[index - 1]?.id;
+  const safe = String(id ?? '').replace(/[^A-Za-z0-9-]/g, '');
+  return safe ? `ilp-${safe}` : undefined;
 }
 
 function compareDeviceLabels(a: string, b: string): number {
@@ -271,7 +358,7 @@ function compareDeviceLabels(a: string, b: string): number {
 /**
  * Vanhat raportit (yksi laite / raportti): saman käynnin raportit yhdeksi pöytäkirjaksi.
  * Laitteet tunnuksen mukaan järjestyksessä; kunkin raportin huomiot, tiiveyskoe ja tyhjiöinti
- * siirtyvät laitteelle, liitteet yhteiseen listaan. Ylätunniste/asiakas/suorittaja = avattu raportti.
+ * kuuluvat sen laitteelle, liitteet yhteiseen listaan. Ylätunniste/asiakas/suorittaja = avattu raportti.
  */
 export function mergeIlpVisitReports(base: HuoltoReportData, others: HuoltoReportData[]): HuoltoReportData {
   const sources = [base, ...others].filter((d) => isIlpMultiDeviceType(d.laiteTyyppi));
@@ -286,13 +373,9 @@ export function mergeIlpVisitReports(base: HuoltoReportData, others: HuoltoRepor
             device.ilpLaiteHuomiot = huom;
             device.ilpLaiteHuomiotLuonne = source.huomiotLuonne;
           }
-          if (source.selectedModules?.tiiveyskoe && source.tiiveyskoeData) {
-            (device as Record<string, unknown>).ilpLaiteTiiveyskoe = source.tiiveyskoeData;
-          }
-          if (source.selectedModules?.tyhjiointi && source.tyhjiointiData) {
-            (device as Record<string, unknown>).ilpLaiteTyhjiointi = source.tyhjiointiData;
-          }
         }
+        device.ilpLaiteTiiveyskoeKaytossa = ilpDeviceTestEnabled(view, 'tiiveyskoe');
+        device.ilpLaiteTyhjiointiKaytossa = ilpDeviceTestEnabled(view, 'tyhjiointi');
         return { device, label: ilpDeviceLabel(view, index) };
       }),
     )
@@ -304,8 +387,14 @@ export function mergeIlpVisitReports(base: HuoltoReportData, others: HuoltoRepor
     ...omitIlpDeviceFields(base),
     ...emptyIlpDeviceFields(),
     ...first,
+    ilpLaiteTiiveyskoeKaytossa: undefined,
+    ilpLaiteTyhjiointiKaytossa: undefined,
     [ILP_LISALAITTEET_KEY]: rest.map((device) => ({ ...device, id: newIlpLaiteId() })),
-    selectedModules: { ...base.selectedModules, tiiveyskoe: false, tyhjiointi: false },
+    selectedModules: {
+      ...base.selectedModules,
+      tiiveyskoe: first.ilpLaiteTiiveyskoeKaytossa === true,
+      tyhjiointi: first.ilpLaiteTyhjiointiKaytossa === true,
+    },
     huomiot: '',
     huomiotLuonne: 'kommentti',
     huomiotLiitteet: sources.flatMap((s) => s.huomiotLiitteet ?? []),

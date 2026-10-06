@@ -15,6 +15,8 @@ const ilp = await import('../src/lib/huoltoRaportti/ilpLaitteet.ts');
 const { generateMaintenanceReportHtml } = await import('../src/lib/huoltoRaportti/printHtml.ts');
 const { collectMaintenancePrintImagePaths } = await import('../src/lib/maintenanceReportPrintImages.ts');
 const { buildMaintenanceReportTabCompletion } = await import('../src/lib/huoltoRaportti/maintenanceReportTabCompletion.ts');
+const { buildMaintenanceDocumentEntries } = await import('../src/lib/huoltoRaportti/maintenanceDocumentUnitEntries.ts');
+const { ilpPhotoTagOwner, partitionPhotoRowsByDevice } = await import('../src/lib/maintenanceReportPhotoSync.ts');
 
 function test(name, fn) {
   try {
@@ -163,6 +165,10 @@ test('tab completion and summary cover all devices', () => {
   assert.equal(buildMaintenanceReportTabCompletion(form, customer, device, tabBuild).lampopumppu, 'incomplete');
   const first = ilpReport();
   assert.equal(buildMaintenanceReportTabCompletion(first, customer, device, tabBuild).lampopumppu, 'ok');
+  const withTest = ilpReport({ selectedModules: { ...first.selectedModules, tiiveyskoe: true } });
+  const completion = buildMaintenanceReportTabCompletion(withTest, customer, device, { ...tabBuild, selectedModules: withTest.selectedModules });
+  assert.equal(completion.tiiveyskoe, undefined, 'no shared tiiveyskoe tab for ILP');
+  assert.equal(completion.lampopumppu, 'incomplete', 'unfinished device-1 test keeps the device incomplete');
 });
 
 test('legacy visit: several one-device reports merge into one protocol', () => {
@@ -184,16 +190,119 @@ test('legacy visit: several one-device reports merge into one protocol', () => {
   assert.equal(merged.huoltoLaiteessaVika, true);
   assert.equal(merged.huoltoSuoritettu, false);
   assert.equal(merged.huomiotLiitteet.length, 1);
-  assert.equal(merged.selectedModules.tiiveyskoe, false, 'tests move to the device');
-  assert.ok(ilp.ilpDeviceTests(merged).tiiveyskoe, 'ILP 1 keeps its tiiveyskoe');
+  assert.equal(merged.selectedModules.tiiveyskoe, true, 'ILP 1 (device 1) keeps its tiiveyskoe');
+  assert.equal(merged.tiiveyskoeData.testipaineBar, '25');
+  assert.equal(ilp.ilpDeviceTestEnabled(ilp.ilpDeviceView(merged, 1), 'tiiveyskoe'), false);
   assert.ok(collectMaintenancePrintImagePaths(merged).includes('maintenance-photos/tk.jpg'));
 
   const html = generateMaintenanceReportHtml(merged, { companyName: 'Firma' });
   assert.equal((html.match(/ilp-device-card/g) ?? []).length, 3);
-  assert.ok(html.includes('TIIVEYSKOE — 1. ILP 1'));
+  assert.ok(!html.includes('TIIVEYSKOE'), 'no shared tiiveyskoe box');
+  assert.equal((html.match(/25 bar/g) ?? []).length, 1, 'test printed once, in the card');
   assert.ok(html.includes('Kolmosen huomio'));
   assert.ok(html.includes('3 ilmalämpöpumppua'));
   assert.equal(ilp.mergeIlpVisitReports(r1, []), r1);
+});
+
+test('legacy visit: tests of a later report stay with that device', () => {
+  const empty = createEmptyHuoltoReportData();
+  const r1 = ilpReport({ laiteTunnus: 'ILP 1' });
+  const r2 = ilpReport({
+    laiteTunnus: 'ILP 2',
+    selectedModules: { ...empty.selectedModules, tyhjiointi: true },
+    tyhjiointiData: { ...empty.tyhjiointiData, loppupaineArvo: '300', tulos: 'hyvaksytty' },
+  });
+  const merged = ilp.mergeIlpVisitReports(r1, [r2]);
+  assert.equal(merged.selectedModules.tyhjiointi, false);
+  const second = ilp.ilpDeviceView(merged, 1);
+  assert.equal(ilp.ilpDeviceTestEnabled(second, 'tyhjiointi'), true);
+  assert.equal(second.tyhjiointiData.loppupaineArvo, '300');
+});
+
+test('per-device tiiveyskoe / tyhjiöinti', () => {
+  let form = ilpReport();
+  form = { ...form, ...ilp.addIlpDevice(form) };
+  form = { ...form, ...ilp.patchIlpDevice(form, 1, { laiteTunnus: 'ILP 2', ulkoyksikkoTarkastusTila: 'ok', sisayksikkoData: form.sisayksikkoData, mittausLammitysTestattu: true, mittausSisayksikot: form.mittausSisayksikot }) };
+  assert.equal(ilp.ilpDeviceState(ilp.ilpDeviceView(form, 1)), 'ok');
+
+  // device 2 test does not touch device 1 / shared modules
+  const enable = ilp.setIlpDeviceTestEnabled(form, 1, 'tiiveyskoe', true);
+  assert.equal(enable.selectedModules, undefined);
+  form = { ...form, ...enable };
+  assert.equal(form.selectedModules.tiiveyskoe, false);
+  assert.equal(form.ilpLisaLaitteet[0].ilpLaiteTiiveyskoeKaytossa, true);
+  let second = ilp.ilpDeviceView(form, 1);
+  assert.equal(ilp.ilpDeviceTestEnabled(second, 'tiiveyskoe'), true);
+  assert.equal(ilp.ilpDeviceTestEnabled(ilp.ilpDeviceView(form, 0), 'tiiveyskoe'), false);
+  assert.equal(ilp.ilpDeviceState(second), 'incomplete', 'unfinished test');
+
+  form = { ...form, ...ilp.patchIlpDevice(form, 1, { tiiveyskoeData: { ...second.tiiveyskoeData, testipaineBar: '42', tulos: 'hylatty' } }) };
+  assert.equal(form.tiiveyskoeData.testipaineBar, '', 'device 1 data untouched');
+  second = ilp.ilpDeviceView(form, 1);
+  assert.equal(second.tiiveyskoeData.testipaineBar, '42');
+  assert.equal(ilp.ilpDeviceState(second), 'faulty', 'failed test = fault');
+
+  // device 1 uses the flat report fields
+  assert.deepEqual(ilp.setIlpDeviceTestEnabled(form, 0, 'tyhjiointi', true).selectedModules.tyhjiointi, true);
+  form = { ...form, ...ilp.setIlpDeviceTestEnabled(form, 0, 'tyhjiointi', true) };
+  form = { ...form, ...ilp.patchIlpDevice(form, 0, { tyhjiointiData: { ...form.tyhjiointiData, loppupaineArvo: '250', tulos: 'hyvaksytty' } }) };
+  assert.equal(form.tyhjiointiData.loppupaineArvo, '250');
+  assert.equal(ilp.ilpDeviceTestEnabled(ilp.ilpDeviceView(form, 1), 'tyhjiointi'), false);
+
+  // photo tags
+  assert.equal(ilp.ilpDevicePhotoTag(form, 0), undefined);
+  const tag = ilp.ilpDevicePhotoTag(form, 1);
+  assert.equal(tag, `ilp-${form.ilpLisaLaitteet[0].id.replace(/[^A-Za-z0-9-]/g, '')}`);
+  form = { ...form, ...ilp.patchIlpDevice(form, 1, { tiiveyskoeData: { ...second.tiiveyskoeData, todisteKuvat: [{ storagePath: `r/tiiveyskoe/${tag}--u-a.jpg`, comment: '' }] } }) };
+  assert.ok(collectMaintenancePrintImagePaths(form).includes(`r/tiiveyskoe/${tag}--u-a.jpg`));
+
+  // print: tests inside the cards, no shared boxes
+  const html = generateMaintenanceReportHtml(form, { companyName: 'Firma' });
+  assert.ok(!html.includes('TIIVEYSKOE') && !html.includes('TYHJIÖINTI'));
+  const cards = html.split('ilp-device-card').slice(1);
+  assert.equal(cards.length, 2);
+  assert.ok(cards[0].includes('Tyhjiöinti') && !cards[0].includes('Tiiveyskoe'));
+  assert.ok(cards[1].includes('Tiiveyskoe') && cards[1].includes('42 bar') && !cards[1].includes('Tyhjiöinti'));
+
+  // removing device 1 promotes device 2 incl. its tests
+  const promoted = { ...form, ...ilp.removeIlpDevice(form, 0) };
+  assert.equal(ilp.ilpDeviceCount(promoted), 1);
+  assert.equal(promoted.selectedModules.tiiveyskoe, true);
+  assert.equal(promoted.selectedModules.tyhjiointi, false);
+  assert.equal(promoted.tiiveyskoeData.testipaineBar, '42');
+  assert.equal(promoted.ilpLaiteTiiveyskoeKaytossa, undefined);
+});
+
+test('ILP has no shared test entries / completion; other types keep them', () => {
+  const tabs = [{ id: 'lampopumppu', label: 'Lämpöpumppu' }, { id: 'huomiot', label: 'Huomiot' }];
+  const form = ilpReport({ selectedModules: { ...createEmptyHuoltoReportData().selectedModules, tiiveyskoe: true, tyhjiointi: true } });
+  const entries = buildMaintenanceDocumentEntries(tabs, form).map((e) => e.tabId);
+  assert.ok(!entries.includes('tiiveyskoe') && !entries.includes('tyhjiointi'));
+  assert.equal(ilp.usesSharedServiceTests('lämpöpumppu'), false);
+  assert.equal(ilp.usesSharedServiceTests('vesi-ilmalämpöpumppu'), true);
+  assert.equal(ilp.usesSharedServiceTests('konvektorit'), false);
+  const other = { ...form, laiteTyyppi: 'vesi-ilmalämpöpumppu' };
+  const otherEntries = buildMaintenanceDocumentEntries(tabs, other).map((e) => e.tabId);
+  assert.ok(otherEntries.includes('tiiveyskoe') && otherEntries.includes('tyhjiointi'));
+  const html = generateMaintenanceReportHtml({ ...other, tiiveyskoeData: { ...other.tiiveyskoeData, testipaineBar: '30' } }, { companyName: 'Firma' });
+  assert.ok(html.includes('TIIVEYSKOE'), 'non-ILP keeps the shared box');
+});
+
+test('photo rows are split per device', () => {
+  assert.equal(ilpPhotoTagOwner('r/tiiveyskoe/ilp-abc-1--u1-a--b.jpg'), 'abc-1');
+  assert.equal(ilpPhotoTagOwner('r/tiiveyskoe/u1-a.jpg'), null);
+  const rows = [
+    { storage_path: 'r/tiiveyskoe/u1-a.jpg' },
+    { storage_path: 'r/tiiveyskoe/ilp-dev2--u2-b.jpg' },
+    { storage_path: 'r/tiiveyskoe/ilp-gone--u3-c.jpg' },
+    { storage_path: 'r/tiiveyskoe/u4-d.jpg' },
+  ];
+  const [d1, d2] = partitionPhotoRowsByDevice(rows, [
+    { id: null, json: [] },
+    { id: 'dev2', json: [{ storagePath: 'r/tiiveyskoe/u4-d.jpg', comment: '' }] },
+  ]);
+  assert.deepEqual(d1.map((r) => r.storage_path), ['r/tiiveyskoe/u1-a.jpg']);
+  assert.deepEqual(d2.map((r) => r.storage_path), ['r/tiiveyskoe/ilp-dev2--u2-b.jpg', 'r/tiiveyskoe/u4-d.jpg']);
 });
 
 test('legacy presence checkboxes are not a fault', () => {

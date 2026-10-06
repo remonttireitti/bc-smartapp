@@ -96,6 +96,7 @@ import {
 } from '../lib/maintenanceReportDraftStorage';
 import { filterFaultyKonvektoriRows } from '../lib/huoltoRaportti/konvektoriTarkastus';
 import { syncMaintenanceReportPhotosFromDb } from '../lib/maintenanceReportPhotoSync';
+import { usesSharedServiceTests } from '../lib/huoltoRaportti/ilpLaitteet';
 import { isPortalUser } from '../lib/portalWorkOrder';
 import { useProfile } from '../hooks/useProfile';
 import { useMaintenanceReportScrollRestore } from '../hooks/useMaintenanceReportScrollRestore';
@@ -2197,7 +2198,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
                 Moduulirakenne
                 {hiddenMaintenanceTabCount > 0 ? ` (+${hiddenMaintenanceTabCount} piilotettu)` : ''}
               </button>
-              {documentLayout && usesRefrigerantServiceExtras(form.laiteTyyppi) ? (
+              {documentLayout && usesSharedServiceTests(form.laiteTyyppi) ? (
                 <>
                   {!form.selectedModules.tiiveyskoe ? (
                     <button

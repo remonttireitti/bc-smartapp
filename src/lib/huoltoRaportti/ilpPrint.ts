@@ -2,11 +2,21 @@
 import { sisayksikkoTyyppiOptions, ulkoyksikkoAsennustapaOptions } from './constants';
 import { formatHuomioPrintHtml } from './formatHuomioPrintHtml';
 import { normalizeLegacyInspectionStatus } from './huoltoInspectionStatus';
-import { ilpDeviceLabel, ilpDeviceState, ilpUlkoyksikkoStatus } from './ilpLaitteet';
+import { ilpDeviceLabel, ilpDeviceState, ilpDeviceTestEnabled, ilpUlkoyksikkoStatus } from './ilpLaitteet';
+import { formatTyhjiointiLoppupaine, laskeKokeLoppuaikaFi, resolveKoePaivamaaraJaKello } from './kokeAikaUtils';
 import { inspectionStatusMark } from './inspectionPrint';
 import { SISAYKSIKKO_TARKASTUS_ITEMS } from './sisayksikkoTarkastus';
 import { calculateCO2Ekv, getRefrigerantGWP, resolveKylmaaineTyyppi } from './utils';
+import type { MaintenanceReportPhotoItem } from '../maintenanceReportPhotoUtils';
 import type { HuoltoReportData, MittausSisayksikkoData, SisayksikkoData } from './types';
+
+export type IlpPrintOptions = {
+  /** Laitteiden yhteinen käyttötarkoitus (yhteenvetorivi). */
+  kohde?: string;
+  /** Kuvatodisteen img-src (tulosteen signed URL -kartasta). */
+  resolvePhotoHref?: (item: MaintenanceReportPhotoItem) => string;
+  escAttr?: (v: unknown) => string;
+};
 
 type Esc = (v: unknown) => string;
 
@@ -212,7 +222,73 @@ function renderMittaukset(view: HuoltoReportData, esc: Esc): string {
   return `<div>${heading('Mittaukset', esc)}<div style="display:flex;flex-wrap:wrap;gap:0 10px;">${summary.join('')}</div>${tables}</div>`;
 }
 
-function renderIlpDeviceCard(view: HuoltoReportData, index: number, esc: Esc): string {
+function koeAika(pvm: string, klo: string, kestoMin: string, huoltoPvm: string): string {
+  const res = resolveKoePaivamaaraJaKello(pvm, klo, huoltoPvm);
+  if (!res.pvmIso || !res.klo) return text(kestoMin) ? `${text(kestoMin)} min` : '';
+  const loppu = laskeKokeLoppuaikaFi(res.pvmIso, res.klo, kestoMin);
+  const loppuKlo = loppu.split(' ').pop() ?? '';
+  return `${res.pvmIso} ${res.klo}${loppuKlo ? `–${loppuKlo}` : ''}${text(kestoMin) ? ` (${text(kestoMin)} min)` : ''}`;
+}
+
+function tulosHtml(tulos: string): string {
+  if (tulos === 'hyvaksytty') return '<span style="color:#16a34a;font-weight:700;">Hyväksytty</span>';
+  if (tulos === 'hylatty') return '<span style="color:#b91c1c;font-weight:700;">Hylätty</span>';
+  return '';
+}
+
+function renderTestPhotos(items: MaintenanceReportPhotoItem[] | undefined, esc: Esc, options: IlpPrintOptions): string {
+  const escAttr = options.escAttr ?? esc;
+  const photos = (items ?? [])
+    .map((item) => {
+      const href = options.resolvePhotoHref?.(item) ?? '';
+      const comment = text(item.comment);
+      if (!href) return comment ? `<div style="color:#475569;">${esc(comment)}</div>` : '';
+      return `<figure style="margin:0;width:31%;">
+        <img src="${escAttr(href)}" alt="" style="width:100%;max-height:120px;object-fit:contain;border:1px solid #cbd5e1;border-radius:3px;display:block;" />
+        ${comment ? `<figcaption style="color:#475569;font-size:9px;">${esc(comment)}</figcaption>` : ''}
+      </figure>`;
+    })
+    .filter(Boolean)
+    .join('');
+  return photos ? `<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:2px;">${photos}</div>` : '';
+}
+
+/** Laitekohtainen tiiveyskoe ja tyhjiöinti kortin sisään. */
+function renderDeviceTests(view: HuoltoReportData, esc: Esc, options: IlpPrintOptions): string {
+  const huoltoPvm = text(view.huoltoPaivamaara);
+  const parts: string[] = [];
+  if (ilpDeviceTestEnabled(view, 'tiiveyskoe')) {
+    const tk = view.tiiveyskoeData;
+    const line = [
+      text(tk.testipaineBar) && `${text(tk.testipaineBar)} bar`,
+      koeAika(tk.koeAlkaaPvm, tk.koeAlkaaKlo, tk.kestoMin, huoltoPvm),
+      text(tk.testauslampotila) && `${text(tk.testauslampotila)} °C`,
+      text(tk.menetelma),
+    ].filter(Boolean).map((v) => esc(v));
+    const tulos = tulosHtml(tk.tulos);
+    if (tulos) line.push(tulos);
+    parts.push(`<div>${heading('Tiiveyskoe', esc)}<div>${line.join(' · ') || '—'}</div>
+      ${text(tk.huom) ? `<div style="color:#334155;">${formatHuomioPrintHtml(text(tk.huom), esc)}</div>` : ''}
+      ${renderTestPhotos(tk.todisteKuvat, esc, options)}</div>`);
+  }
+  if (ilpDeviceTestEnabled(view, 'tyhjiointi')) {
+    const ty = view.tyhjiointiData;
+    const line = [
+      formatTyhjiointiLoppupaine(ty.loppupaineArvo, ty.loppupaineYksikko),
+      koeAika(ty.koeAlkaaPvm, ty.koeAlkaaKlo, ty.kestoMin, huoltoPvm),
+      text(ty.kaytettyPainemittari),
+    ].filter(Boolean).map((v) => esc(v));
+    const tulos = tulosHtml(ty.tulos);
+    if (tulos) line.push(tulos);
+    parts.push(`<div>${heading('Tyhjiöinti', esc)}<div>${line.join(' · ') || '—'}</div>
+      ${text(ty.huom) ? `<div style="color:#334155;">${formatHuomioPrintHtml(text(ty.huom), esc)}</div>` : ''}
+      ${renderTestPhotos(ty.todisteKuvat, esc, options)}</div>`);
+  }
+  if (parts.length === 0) return '';
+  return `<div style="display:grid;grid-template-columns:repeat(${parts.length},minmax(0,1fr));gap:8px;margin-top:4px;">${parts.join('')}</div>`;
+}
+
+function renderIlpDeviceCard(view: HuoltoReportData, index: number, esc: Esc, options: IlpPrintOptions): string {
   const state = ilpDeviceState(view);
   const border = state === 'faulty' ? '#dc2626' : state === 'ok' ? '#16a34a' : '#cbd5e1';
   const bg = state === 'faulty' ? '#fef2f2' : '#fff';
@@ -250,12 +326,14 @@ function renderIlpDeviceCard(view: HuoltoReportData, index: number, esc: Esc): s
       ${sisa || '<div></div>'}
     </div>
     ${mittaus ? `<div style="margin-top:4px;">${mittaus}</div>` : ''}
+    ${renderDeviceTests(view, esc, options)}
     ${huomHtml}
   </div>`;
 }
 
 /** Laitekortit (yksi tai useampi ilmalämpöpumppu) yhteen laatikkoon. */
-export function generateIlpLaitteetPrintHtml(devices: HuoltoReportData[], esc: Esc, kohde = ''): string {
+export function generateIlpLaitteetPrintHtml(devices: HuoltoReportData[], esc: Esc, options: IlpPrintOptions = {}): string {
+  const kohde = text(options.kohde);
   if (devices.length === 0) return '';
   const sisaCount = devices.reduce((sum, d) => sum + (d.sisayksikkoMaara > 0 ? d.sisayksikkoMaara : 1), 0);
   const faults = devices.filter((d) => ilpDeviceState(d) === 'faulty').length;
@@ -268,7 +346,7 @@ export function generateIlpLaitteetPrintHtml(devices: HuoltoReportData[], esc: E
       </div>`
     : '';
   const legend = `<div style="color:#64748b;font-size:9px;margin-top:3px;">${SISAYKSIKKO_TARKASTUS_ITEMS.map((item) => `${CHECK_SHORT[item.field]} = ${esc(item.label)}`).join(' · ')}</div>`;
-  const cards = devices.map((view, index) => renderIlpDeviceCard(view, index, esc)).join('');
+  const cards = devices.map((view, index) => renderIlpDeviceCard(view, index, esc, options)).join('');
   return `
   <div class="box-content" style="border-color:${ACCENT};margin-top:8px;">
     <div style="border-bottom:2px solid ${ACCENT};padding-bottom:2px;margin-bottom:4px;">
