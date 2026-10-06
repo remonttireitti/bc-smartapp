@@ -20,6 +20,11 @@ export function sisayksikkoTarkastusValue(row: SisayksikkoData, field: Sisayksik
   return normalizeLegacyInspectionStatus(row[field]);
 }
 
+/** Tuotu raportti, kondenssikohta ilman rastia: ei tarkastettu (lasketaan vastatuksi, ei vika). */
+export function sisayksikkoKohtaEiTarkastettu(row: SisayksikkoData, field: SisayksikkoTarkastusField): boolean {
+  return field === 'kondenssiTestattu' && row.kondenssiEiTarkastettu === true && sisayksikkoTarkastusValue(row, field) === null;
+}
+
 export function sisayksikkoTarkastusSummary(row: SisayksikkoData): {
   answered: number;
   total: number;
@@ -28,8 +33,9 @@ export function sisayksikkoTarkastusSummary(row: SisayksikkoData): {
   complete: boolean;
 } {
   const values = SISAYKSIKKO_TARKASTUS_ITEMS.map((item) => sisayksikkoTarkastusValue(row, item.field));
-  const answered = values.filter((v) => v !== null).length;
-  const relevant = values.filter((v) => v !== 'na');
+  const neutral = SISAYKSIKKO_TARKASTUS_ITEMS.map((item) => sisayksikkoKohtaEiTarkastettu(row, item.field));
+  const answered = values.filter((v, i) => v !== null || neutral[i]).length;
+  const relevant = values.filter((v, i) => v !== 'na' && !neutral[i]);
   const allOk = relevant.length > 0 && relevant.every((v) => v === 'ok');
   const anyFaulty = values.some((v) => v === 'faulty');
   return {

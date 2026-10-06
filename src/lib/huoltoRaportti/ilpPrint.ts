@@ -5,7 +5,7 @@ import { normalizeLegacyInspectionStatus } from './huoltoInspectionStatus';
 import { ilpDeviceLabel, ilpDeviceState, ilpDeviceTestEnabled, ilpUlkoyksikkoStatus } from './ilpLaitteet';
 import { formatTyhjiointiLoppupaine, laskeKokeLoppuaikaFi, resolveKoePaivamaaraJaKello } from './kokeAikaUtils';
 import { inspectionStatusMark } from './inspectionPrint';
-import { SISAYKSIKKO_TARKASTUS_ITEMS } from './sisayksikkoTarkastus';
+import { SISAYKSIKKO_TARKASTUS_ITEMS, sisayksikkoKohtaEiTarkastettu, type SisayksikkoTarkastusField } from './sisayksikkoTarkastus';
 import { calculateCO2Ekv, getRefrigerantGWP, resolveKylmaaineTyyppi } from './utils';
 import type { MaintenanceReportPhotoItem } from '../maintenanceReportPhotoUtils';
 import type { HuoltoReportData, MittausSisayksikkoData, SisayksikkoData } from './types';
@@ -110,7 +110,10 @@ function renderUlkoyksikko(view: HuoltoReportData, esc: Esc): string {
   return `<div>${heading('Ulkoyksikkö', esc)}${rows.join('')}</div>`;
 }
 
-function unitCheckCell(unit: SisayksikkoData, field: keyof SisayksikkoData): string {
+function unitCheckCell(unit: SisayksikkoData, field: SisayksikkoTarkastusField): string {
+  if (sisayksikkoKohtaEiTarkastettu(unit, field)) {
+    return '<td style="text-align:center;color:#64748b;font-size:9px;">ei tarkastettu</td>';
+  }
   const status = normalizeLegacyInspectionStatus(unit[field]);
   const m = inspectionStatusMark(status);
   return `<td style="text-align:center;color:${m.color};font-weight:700;">${m.mark}</td>`;

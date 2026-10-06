@@ -318,6 +318,8 @@ export interface SisayksikkoData {
   kennoPuhdas: HuoltoInspectionStatus;
   eiAania: HuoltoInspectionStatus;
   kondenssiTestattu: HuoltoInspectionStatus;
+  /** Tuotu ILP-raportti: rastiton kondenssikohta = ei tarkastettu (neutraali, ei vika). */
+  kondenssiEiTarkastettu?: boolean;
   /** Huoneen lämpötila tarkastuksessa (°C) — näytetään kuvan päällä. */
   huoneLampotila?: string;
   huomio?: string;
