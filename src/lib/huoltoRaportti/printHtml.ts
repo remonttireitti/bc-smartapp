@@ -49,6 +49,8 @@ import {
   konvektoriVerkostoKoideFromReport,
 } from './konvektoriPrint';
 import { formatHuomioPrintHtml } from './formatHuomioPrintHtml';
+import { ilpDeviceCount, ilpDeviceLabel, ilpDeviceTests, ilpDeviceViews, isIlpMultiDeviceType } from './ilpLaitteet';
+import { generateIlpLaitteetPrintHtml } from './ilpPrint';
 import { generateMlpFullPrintHtml } from './printMlpFull';
 import { renderCompressorCurrentHtml, renderFanPhaseCardHtml } from './printPhaseHelpers';
 import {
@@ -65,7 +67,6 @@ import {
   entityInspectionStatus,
   lauhdutuspiiriInspectionStatus,
   nestepiiriInspectionStatus,
-  ulkoyksikkoInspectionStatus,
   vapaajahdytysInspectionStatus,
 } from './huoltoInspectionStatus';
 import { hasPrintableValue, normalizePrintText } from './printFieldVisibility';
@@ -563,85 +564,24 @@ function konvektoriPrintSubtitle(data: HuoltoReportData): string {
   return koide.kuvaus || koide.alue || koide.tunnus || '';
 }
 
-function renderLampopumppuSections(data: HuoltoReportData): string {
-  if (data.laiteTyyppi !== 'lämpöpumppu') return '';
+function renderIlpLaitteet(data: HuoltoReportData): string {
+  if (!isIlpMultiDeviceType(data.laiteTyyppi)) return '';
+  return generateIlpLaitteetPrintHtml(ilpDeviceViews(data), esc, String(data.laiteKayttotarkoitus ?? '').trim());
+}
 
-  const ulko = [
-    renderInspectionStatusRow(data.ulkoyksikkoTarkastusTila ?? ulkoyksikkoInspectionStatus(data), 'Tarkastus', esc),
-    renderInspectionHuomioRow(data.ulkoyksikkoTarkastusHuomio, esc),
-    row('Malli', strField(data, 'ulkoyksikkoMalli'), '#E64A19'),
-    row('Sarjanumero', strField(data, 'ulkoyksikkoSarjanumero'), '#E64A19'),
-    row('Jäähdytysteho (kW)', strField(data, 'ulkoyksikkoJaahdytysTeho'), '#E64A19'),
-    row('Lämmitysteho (kW)', strField(data, 'ulkoyksikkoLammitysTeho'), '#E64A19'),
-    checkRow(field(data, 'ulkoyksikkoKennosPuhdas') as boolean | undefined, 'Kenno puhdistettu'),
-    checkRow(field(data, 'ulkoyksikkoTurvakytkin') as boolean | undefined, 'Turvakytkin'),
-    checkRow(field(data, 'ulkoyksikkoSuojakotelo') as boolean | undefined, 'Suojakotelo'),
-  ]
-    .filter(Boolean)
-    .join('');
-
-  const sisayksikot = field(data, 'sisayksikkoData');
-  let sisaHtml = '';
-  if (Array.isArray(sisayksikot) && sisayksikot.length > 0) {
-    sisaHtml = sisayksikot
-      .map((u: Record<string, unknown>, i: number) => {
-        const inner = [
-          row('Tyyppi', u.tyyppi, '#00838F'),
-          row('Malli', u.malli, '#00838F'),
-          row('Sarjanumero', u.sarjanumero, '#00838F'),
-          row('Kondenssivesi', u.kondenssivesi, '#00838F'),
-          checkRow(u.kennoPuhdas as boolean | undefined, 'Kenno puhdas'),
-          checkRow(u.kondenssiTestattu as boolean | undefined, 'Kondenssi testattu'),
-        ]
-          .filter(Boolean)
-          .join('');
-        return `<div style="margin-top:6px;padding:6px;background:#e0f7fa;border-radius:4px;"><strong>Sisäyksikkö ${i + 1}</strong>${inner}</div>`;
-      })
-      .join('');
-  }
-
-  const mittaus = [
-    checkRow(field(data, 'mittausJaahdytysTestattu') as boolean | undefined, 'Jäähdytys testattu'),
-    checkRow(field(data, 'mittausLammitysTestattu') as boolean | undefined, 'Lämmitys testattu'),
-    row('Testauslämpötila (°C)', strField(data, 'mittausTestausLampotila'), '#00838F'),
-    row('Ulkolämpötila (°C)', strField(data, 'mittausUlkoLampotila'), '#00838F'),
-    row('Ulkoyksikkö L1 (A)', strField(data, 'mittausAmpeeriL1'), '#00838F'),
-    row('Ulkoyksikkö L2 (A)', strField(data, 'mittausAmpeeriL2'), '#00838F'),
-    row('Ulkoyksikkö L3 (A)', strField(data, 'mittausAmpeeriL3'), '#00838F'),
-  ]
-    .filter(Boolean)
-    .join('');
-
-  const mittausYksikot = field(data, 'mittausSisayksikot');
-  let mittausYksHtml = '';
-  if (Array.isArray(mittausYksikot) && mittausYksikot.length > 0) {
-    mittausYksHtml = mittausYksikot
-      .map((m: Record<string, unknown>, i: number) => {
-        const inner = [
-          row('Imupaine jäähdytys (bar)', m.imupaineJaahdytys, '#00838F'),
-          row('Korkeapaine jäähdytys (bar)', m.korkeapaineJaahdytys, '#00838F'),
-          row('Sisälämpötila jäähdytys (°C)', m.sisalampotilaJaahdytys ?? m.sisalampotila, '#00838F'),
-          row('Paluu jäähdytys (°C)', m.paluuLampotilaJaahdytys ?? m.paluuLampotila, '#00838F'),
-          row('Puhallus jäähdytys (°C)', m.puhallusLampotilaJaahdytys ?? m.puhallusLampotila, '#00838F'),
-          row('Ilmanmäärä jäähdytys (m³/h)', m.ilmanmaaraM3hJaahdytys ?? m.ilmanmaaraM3h, '#00838F'),
-          row('Imupaine lämmitys (bar)', m.imupaineLammitys, '#00838F'),
-          row('Korkeapaine lämmitys (bar)', m.korkeapaineLammitys, '#00838F'),
-          row('Sisälämpötila lämmitys (°C)', m.sisalampotilaLammitys ?? m.sisalampotila, '#00838F'),
-          row('Paluu lämmitys (°C)', m.paluuLampotilaLammitys ?? m.paluuLampotila, '#00838F'),
-          row('Puhallus lämmitys (°C)', m.puhallusLampotilaLammitys ?? m.puhallusLampotila, '#00838F'),
-          row('Ilmanmäärä lämmitys (m³/h)', m.ilmanmaaraM3hLammitys ?? m.ilmanmaaraM3h, '#00838F'),
-        ]
-          .filter(Boolean)
-          .join('');
-        if (!inner) return '';
-        return `<div style="margin-top:6px;padding:6px;background:#e0f7fa;border-radius:4px;"><strong>Mittaus ${i + 1}</strong>${inner}</div>`;
-      })
-      .filter(Boolean)
-      .join('');
-  }
-
-  return [box('ULKOYKSIKKÖ', '#E64A19', ulko), box('SISÄYKSIKÖT', '#00838F', sisaHtml), box('MITTAUKSET', '#00838F', `${mittaus}${mittausYksHtml}`)]
-    .filter(Boolean)
+/** Yhdistetty käyntituloste: vanhojen raporttien tiiveyskoe/tyhjiöinti laitekohtaisesti. */
+function renderIlpDeviceTests(data: HuoltoReportData, imageUrls?: Record<string, string>): string {
+  if (!isIlpMultiDeviceType(data.laiteTyyppi)) return '';
+  return ilpDeviceViews(data)
+    .map((view, index) => {
+      const tests = ilpDeviceTests(view);
+      const suffix = ` — ${index + 1}. ${ilpDeviceLabel(view, index)}`;
+      const modules = { ...data.selectedModules, tiiveyskoe: true, tyhjiointi: true };
+      return [
+        tests.tiiveyskoe ? renderTiiveyskoe({ ...data, selectedModules: modules, tiiveyskoeData: tests.tiiveyskoe }, imageUrls, suffix) : '',
+        tests.tyhjiointi ? renderTyhjiointi({ ...data, selectedModules: modules, tyhjiointiData: tests.tyhjiointi }, imageUrls, suffix) : '',
+      ].join('');
+    })
     .join('');
 }
 
@@ -684,7 +624,7 @@ function renderRefrigerantCharge(data: HuoltoReportData): string {
   return box('KYLMÄAINE', '#FF6D00', rows.join(''));
 }
 
-function renderTiiveyskoe(data: HuoltoReportData, imageUrls?: Record<string, string>): string {
+function renderTiiveyskoe(data: HuoltoReportData, imageUrls?: Record<string, string>, titleSuffix = ''): string {
   if (!data.selectedModules.tiiveyskoe) return '';
   const tv = data.tiiveyskoeData;
   const huoltoPvm = String(data.huoltoPaivamaara || '').trim();
@@ -708,10 +648,10 @@ function renderTiiveyskoe(data: HuoltoReportData, imageUrls?: Record<string, str
     .filter(Boolean)
     .join('');
 
-  return inner ? box('TIIVEYSKOE', '#00695C', inner) : '';
+  return inner ? box(`TIIVEYSKOE${titleSuffix}`, '#00695C', inner) : '';
 }
 
-function renderTyhjiointi(data: HuoltoReportData, imageUrls?: Record<string, string>): string {
+function renderTyhjiointi(data: HuoltoReportData, imageUrls?: Record<string, string>, titleSuffix = ''): string {
   if (!data.selectedModules.tyhjiointi) return '';
   const ty = data.tyhjiointiData;
   const huoltoPvm = String(data.huoltoPaivamaara || '').trim();
@@ -735,7 +675,7 @@ function renderTyhjiointi(data: HuoltoReportData, imageUrls?: Record<string, str
     .filter(Boolean)
     .join('');
 
-  return inner ? box('TYHJIÖINTI', '#0277BD', inner) : '';
+  return inner ? box(`TYHJIÖINTI${titleSuffix}`, '#0277BD', inner) : '';
 }
 
 function resolvePhotoHref(
@@ -867,9 +807,13 @@ export function generateMaintenanceReportHtml(
   const docKind = data.huoltoReportDocumentKind === 'kayttoonotto' ? 'kayttoonotto' : 'huolto';
   const docTitle = docKind === 'kayttoonotto' ? 'Käyttöönottopöytäkirja' : 'Huoltopöytäkirja';
   const printDate = data.huoltoPaivamaara || new Date().toLocaleDateString('fi-FI');
+  const isIlp = isIlpMultiDeviceType(data.laiteTyyppi);
+  const ilpCount = isIlp ? ilpDeviceCount(data) : 0;
   const kohteenTunniste = isKonvektoritDevice(data.laiteTyyppi)
     ? konvektoriPrintSubtitle(data)
-    : data.laiteTunnus;
+    : ilpCount > 1
+      ? `${ilpCount} ilmalämpöpumppua`
+      : data.laiteTunnus;
   const subtitle = [meta.companyName, data.asiakas, kohteenTunniste].filter(Boolean).join(' – ');
 
   const logoHtml = meta.logoUrl
@@ -893,7 +837,7 @@ export function generateMaintenanceReportHtml(
       .join(''),
   );
 
-  const deviceBox = isKonvektoritDevice(data.laiteTyyppi)
+  const deviceBox = isKonvektoritDevice(data.laiteTyyppi) || isIlp
     ? ''
     : box(
       'LAITETIEDOT',
@@ -912,7 +856,7 @@ export function generateMaintenanceReportHtml(
     );
 
   const refrigerantBox =
-    !isKonvektoritDevice(data.laiteTyyppi) &&
+    !isKonvektoritDevice(data.laiteTyyppi) && !isIlp &&
     (data.selectedModules.kylmaainePiiri || data.kylmaaineTyyppi)
       ? renderRefrigerantCharge(data)
       : '';
@@ -949,7 +893,7 @@ export function generateMaintenanceReportHtml(
   ${refrigerantBox ? `<div class="content-row"><div class="column-box">${refrigerantBox}</div></div>` : ''}
 
   ${statusHtml}
-  ${renderLampopumppuSections(data)}
+  ${renderIlpLaitteet(data)}
   ${circuitsHtml}
   ${renderCircuitWarningsBanner(data)}
   ${renderEvaporators(data)}
@@ -963,6 +907,7 @@ export function generateMaintenanceReportHtml(
   ${renderKonvektoritTable(data)}
   ${usesRefrigerantServiceExtras(data.laiteTyyppi) ? renderTiiveyskoe(data, imageUrls) : ''}
   ${usesRefrigerantServiceExtras(data.laiteTyyppi) ? renderTyhjiointi(data, imageUrls) : ''}
+  ${renderIlpDeviceTests(data, imageUrls)}
   ${renderCustomModulesPrintHtml(data.customModules)}
   ${renderHuomiot(data, imageUrls)}
 

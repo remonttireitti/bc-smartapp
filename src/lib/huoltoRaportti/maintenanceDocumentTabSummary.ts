@@ -1,4 +1,5 @@
 import { konvektoriTarkastusSummary, konvektoriRowIsFaulty } from './konvektoriTarkastus';
+import { ilpDeviceCount, isIlpMultiDeviceType } from './ilpLaitteet';
 import { hideMaintenancePrintWarnings } from './defaults';
 import { isKonvektoritDevice, usesRefrigerantServiceExtras } from './deviceModuleLogic';
 import type { MaintenanceReportTabId } from './maintenanceReportTabs';
@@ -148,6 +149,9 @@ export function buildMaintenanceDocumentTabSummary(
       return konvektoritSummary(form);
 
     case 'lampopumppu':
+      if (isIlpMultiDeviceType(form.laiteTyyppi) && ilpDeviceCount(form) > 1) {
+        return `${ilpDeviceCount(form)} laitetta`;
+      }
       return joinParts([
         deviceLabel(form) || trim(form.ulkoyksikkoMalli),
         trim(form.ulkoyksikkoJaahdytysTeho) ? `${trim(form.ulkoyksikkoJaahdytysTeho)} kW` : '',

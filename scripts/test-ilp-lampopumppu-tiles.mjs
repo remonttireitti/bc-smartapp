@@ -4,7 +4,9 @@ import { buildLampopumppuDocumentUnits } from '../src/lib/huoltoRaportti/lampopu
 import {
   buildMaintenanceDocumentEntries,
   documentEntryUsesDialogLauncher,
+  documentNavTargetTabId,
 } from '../src/lib/huoltoRaportti/maintenanceDocumentUnitEntries.ts';
+import { maintenanceTabUsesDialogLauncher } from '../src/lib/huoltoRaportti/maintenanceDocumentDialogTabs.ts';
 import { buildMaintenanceReportTabs } from '../src/lib/huoltoRaportti/maintenanceReportTabs.ts';
 
 function test(name, fn) {
@@ -17,7 +19,7 @@ function test(name, fn) {
   }
 }
 
-test('ILP lampopumppu expands to three popup tiles', () => {
+test('ILP lampopumppu is one device-list tile (konvektori pattern)', () => {
   const form = {
     ...createEmptyHuoltoReportData(),
     laiteTyyppi: 'lämpöpumppu',
@@ -53,10 +55,42 @@ test('ILP lampopumppu expands to three popup tiles', () => {
   });
 
   const entries = buildMaintenanceDocumentEntries(tabs, form);
-  const lampoEntries = entries.filter((entry) => entry.kind === 'lampopumppuUnit');
-  assert.equal(lampoEntries.length, 3);
-  assert.ok(lampoEntries.every((entry) => documentEntryUsesDialogLauncher(entry)));
+  assert.equal(entries.filter((entry) => entry.kind === 'lampopumppuUnit').length, 0);
+  const ilpEntry = entries.find((entry) => entry.tabId === 'lampopumppu');
+  assert.equal(ilpEntry?.kind, 'tab');
+  assert.ok(!documentEntryUsesDialogLauncher(ilpEntry));
+  assert.ok(maintenanceTabUsesDialogLauncher('lampopumppu'));
+  assert.equal(documentNavTargetTabId('lampopumppu', form), 'lampopumppu');
+  assert.equal(documentNavTargetTabId('lampopumppu:sisayksikko', form), 'lampopumppu');
+});
+
+test('vesi-ilmalämpöpumppu keeps the unit tiles', () => {
+  const base = createEmptyHuoltoReportData();
+  const form = {
+    ...base,
+    laiteTyyppi: 'vesiilmalampopumppu',
+    selectedModules: { ...base.selectedModules, ulkoyksikko: true },
+  };
+  const tabs = buildMaintenanceReportTabs({
+    laiteTyyppi: form.laiteTyyppi,
+    selectedModules: form.selectedModules,
+    customModules: [],
+    showEvaporatorSection: false,
+    showCondenserSection: false,
+    showLauhdutuspiiriSection: false,
+    showNestelauhduttimetSection: false,
+    showJaahdytysvesiSection: false,
+    showVapaajahdytysSection: false,
+    showKonvektoritSection: false,
+    showLampopumppuSection: true,
+    showMlpSection: false,
+    showChillerKiinteistoSection: false,
+    showChillerEnergySection: false,
+  });
+  const entries = buildMaintenanceDocumentEntries(tabs, form);
+  assert.ok(entries.some((entry) => entry.kind === 'lampopumppuUnit'));
   assert.ok(!entries.some((entry) => entry.tabId === 'lampopumppu' && entry.kind === 'tab'));
+  assert.ok(documentNavTargetTabId('lampopumppu', form).startsWith('lampopumppu:'));
 });
 
 console.log('test-ilp-lampopumppu-tiles: ok');
