@@ -28,6 +28,7 @@ import {
 import type { MaintenanceReportTabId } from './maintenanceReportTabs';
 import { buildMaintenanceReportTabs, type MaintenanceReportTabBuildInput } from './maintenanceReportTabs';
 import { usesRefrigerantServiceExtras } from './deviceModuleLogic';
+import { ilpDevicesCompletion, isIlpMultiDeviceType } from './ilpLaitteet';
 import type { CompressorData, HuoltoReportData, RefrigerantCircuitData, TiiveyskoeData, TyhjiointiData } from './types';
 import { getEvaporatorCircuitCount } from './evaporatorHelpers';
 
@@ -196,6 +197,7 @@ function completionForTab(
     }
 
     case 'lampopumppu':
+      if (isIlpMultiDeviceType(form.laiteTyyppi)) return ilpDevicesCompletion(form);
       return aggregateInspectionStatuses([ulkoyksikkoInspectionStatus(form)]);
 
     case 'mlp': {

@@ -19,6 +19,8 @@ import { RaportointiTabSection } from './RaportointiTabSection';
 import { NestelauhduttimetSection } from './NestelauhduttimetSection';
 import { RefrigerantCircuitsSection } from './RefrigerantCircuitsSection';
 import { RefrigerantChargeSection } from './RefrigerantChargeSection';
+import { IlpLaitteetTabSection } from './IlpLaitteetSection';
+import { isIlpMultiDeviceType } from '../../lib/huoltoRaportti/ilpLaitteet';
 import { TiiveyskoeSection } from './TiiveyskoeSection';
 import { TyhjiointiSection } from './TyhjiointiSection';
 import { VapaajahdytysSection } from './VapaajahdytysSection';
@@ -330,6 +332,14 @@ export function MaintenanceReportTabContent({
           onPrintKonvektoriFaults={onPrintKonvektoriFaults}
           printBusy={printBusy}
         />
+      </section>
+    );
+  }
+
+  if (tabId === 'lampopumppu' && showLampopumppuSection && isIlpMultiDeviceType(form.laiteTyyppi)) {
+    return (
+      <section className="maintenance-report-tab-section huolto-modules-stack">
+        <IlpLaitteetTabSection form={form} onPatchForm={onPatchForm} parts={lampopumppuParts} />
       </section>
     );
   }

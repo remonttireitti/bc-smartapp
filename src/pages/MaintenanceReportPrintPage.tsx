@@ -4,7 +4,7 @@ import type { Session } from '@supabase/supabase-js';
 import NavigationBreadcrumb from '../components/NavigationBreadcrumb';
 import { useMaintenancePrintNavigation } from '../hooks/useMaintenancePrintNavigation';
 import { useProfile } from '../hooks/useProfile';
-import { loadMaintenanceReportPrintBundle } from '../lib/maintenanceReportPrintAction';
+import { loadMaintenanceReportPrintBundle, type IlpVisitPrintInfo } from '../lib/maintenanceReportPrintAction';
 import {
   applyPrintDocumentTitle,
   extractPrintableHtmlFragment,
@@ -21,9 +21,11 @@ interface Props {
 
 export default function MaintenanceReportPrintPage({ session }: Props) {
   const { id } = useParams();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const autoPrint = searchParams.get('print') === '1';
   const faultyKonvektoritOnly = searchParams.get('vialliset') === '1';
+  const combineIlpVisit = searchParams.get('kaynti') !== '0';
+  const [ilpVisit, setIlpVisit] = useState<IlpVisitPrintInfo>({ siblingCount: 0, combined: false });
   const { profile } = useProfile(session);
   const [html, setHtml] = useState('');
   const [printTitle, setPrintTitle] = useState('');
@@ -42,7 +44,7 @@ export default function MaintenanceReportPrintPage({ session }: Props) {
       return;
     }
     void loadReport(id);
-  }, [id, faultyKonvektoritOnly]);
+  }, [id, faultyKonvektoritOnly, combineIlpVisit]);
 
   useEffect(() => {
     if (!printTitle) return undefined;
@@ -79,8 +81,9 @@ export default function MaintenanceReportPrintPage({ session }: Props) {
     autoPrintTriggeredRef.current = false;
 
     try {
-      const bundle = await loadMaintenanceReportPrintBundle(reportId, { faultyKonvektoritOnly });
+      const bundle = await loadMaintenanceReportPrintBundle(reportId, { faultyKonvektoritOnly, combineIlpVisit });
       setReportData(bundle.data);
+      setIlpVisit(bundle.ilpVisit);
       setHtml(extractPrintableHtmlFragment(bundle.html));
       setPrintTitle(formatPrintSaveFileName(bundle.documentTitle));
     } catch (err) {
@@ -88,6 +91,14 @@ export default function MaintenanceReportPrintPage({ session }: Props) {
     } finally {
       setLoading(false);
     }
+  }
+
+  function toggleIlpVisit() {
+    const next = new URLSearchParams(searchParams);
+    next.delete('print');
+    if (ilpVisit.combined) next.set('kaynti', '0');
+    else next.delete('kaynti');
+    setSearchParams(next, { replace: true });
   }
 
   function triggerPrint() {
@@ -138,6 +149,11 @@ export default function MaintenanceReportPrintPage({ session }: Props) {
           <button type="button" className="btn btn-primary" onClick={triggerPrint}>
             Tulosta / PDF
           </button>
+          {ilpVisit.siblingCount > 0 ? (
+            <button type="button" className="btn btn-secondary" onClick={toggleIlpVisit}>
+              {ilpVisit.combined ? 'Vain tämä laite' : `Koko käynti (${ilpVisit.siblingCount + 1} laitetta)`}
+            </button>
+          ) : null}
           {navigation.linkToEdit && !portalReadOnly && (
             <Link {...navigation.linkToEdit} className="btn btn-secondary">
               Muokkaa raporttia

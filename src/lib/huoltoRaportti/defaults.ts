@@ -1233,7 +1233,12 @@ export function buildMaintenanceReportPrintTitle(
   const kohde = data.osoite?.trim() ?? '';
   const customerSite = kohde ? (asiakas ? `${asiakas} / ${kohde}` : kohde) : asiakas || '—';
 
-  const laite = isKonvektoritDevice(data.laiteTyyppi)
+  const ilpExtraCount = data.laiteTyyppi === 'lämpöpumppu' && Array.isArray(data.ilpLisaLaitteet)
+    ? data.ilpLisaLaitteet.length
+    : 0;
+  const laite = ilpExtraCount > 0
+    ? `${ilpExtraCount + 1} laitetta`
+    : isKonvektoritDevice(data.laiteTyyppi)
     ? (
         data.laiteKayttotarkoitus?.trim()
         || data.laiteTunnus?.trim()

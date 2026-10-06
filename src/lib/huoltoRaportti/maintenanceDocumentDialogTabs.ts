@@ -9,6 +9,7 @@ export const MAINTENANCE_DIALOG_LAUNCHER_TABS = new Set<MaintenanceReportTabId>(
   'jaahdytysvesi',
   'vapaajahdytys',
   'konvektorit',
+  'lampopumppu',
   'huomiot',
   'huoltotiedot',
   'tiiveyskoe',

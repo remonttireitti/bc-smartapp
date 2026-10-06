@@ -1,0 +1,216 @@
+import assert from 'node:assert/strict';
+import { register } from 'node:module';
+
+// printHtml → maintenanceReportImages → supabase (import.meta.env): korvataan tyhjällä clientilla.
+register('data:text/javascript,' + encodeURIComponent(`
+export async function resolve(spec, ctx, next) {
+  if (spec.startsWith('.') && /(^|\\/)supabase(\\.ts)?$/.test(spec) && ctx.parentURL && ctx.parentURL.includes('/src/')) {
+    return { url: 'data:text/javascript,export const supabase = {};', shortCircuit: true };
+  }
+  return next(spec, ctx);
+}`));
+
+const { createEmptyHuoltoReportData, normalizeHuoltoReportData, buildMaintenanceReportPrintTitle } = await import('../src/lib/huoltoRaportti/defaults.ts');
+const ilp = await import('../src/lib/huoltoRaportti/ilpLaitteet.ts');
+const { generateMaintenanceReportHtml } = await import('../src/lib/huoltoRaportti/printHtml.ts');
+const { collectMaintenancePrintImagePaths } = await import('../src/lib/maintenanceReportPrintImages.ts');
+const { buildMaintenanceReportTabCompletion } = await import('../src/lib/huoltoRaportti/maintenanceReportTabCompletion.ts');
+
+function test(name, fn) {
+  try {
+    fn();
+    console.log(`OK ${name}`);
+  } catch (error) {
+    console.error(`FAIL ${name}`);
+    throw error;
+  }
+}
+
+function ilpReport(overrides = {}) {
+  return normalizeHuoltoReportData({
+    ...createEmptyHuoltoReportData(),
+    laiteTyyppi: 'lämpöpumppu',
+    asiakas: 'Asiakas Oy',
+    osoite: 'Testikatu 1',
+    huoltoPaivamaara: '2026-09-18',
+    huoltoSuorittajaNimi: 'Asentaja',
+    huoltoSuoritettu: true,
+    laiteTunnus: 'ILP 1',
+    laiteSijainti: 'Olohuone',
+    laiteValmistaja: 'Daikin',
+    ulkoyksikkoMalli: 'RXTP35',
+    ulkoyksikkoSarjanumero: 'OU-1',
+    ulkoyksikkoTarkastusTila: 'ok',
+    kylmaaineTyyppi: 'R-32',
+    kylmaaineValmistajaMaara: '1.1',
+    sisayksikkoMaara: 1,
+    sisayksikkoData: [{ tyyppi: 'seina', malli: 'FTXTP35', sarjanumero: 'IU-1', kondenssivesi: '', pumppuMalli: '', asennettu: 'ok', kennoPuhdas: 'ok', eiAania: 'ok', kondenssiTestattu: 'ok' }],
+    mittausLammitysTestattu: true,
+    mittausSisayksikot: [{ sisalampotilaLammitys: '21', puhallusLampotilaLammitys: '47.3' }],
+    ...overrides,
+  });
+}
+
+test('old single-device report = one-device protocol', () => {
+  const form = ilpReport();
+  assert.equal(ilp.ilpDeviceCount(form), 1);
+  assert.equal(ilp.ilpDeviceViews(form)[0], form);
+  assert.equal(ilp.ilpDeviceState(form), 'ok');
+  const html = generateMaintenanceReportHtml(form, { companyName: 'Firma' });
+  assert.equal((html.match(/ilp-device-card/g) ?? []).length, 1);
+  assert.ok(html.includes('ILMALÄMPÖPUMPUT'));
+  assert.ok(!html.includes('LAITETIEDOT'), 'device data lives in the card');
+  assert.ok(!html.includes('>KYLMÄAINE<'), 'refrigerant lives in the card');
+  assert.ok(html.includes('RXTP35') && html.includes('S/N OU-1') && html.includes('R-32 1.1 kg'));
+  assert.ok(html.includes('Firma – Asiakas Oy – ILP 1'));
+});
+
+test('add / patch / copy / remove devices', () => {
+  let form = ilpReport();
+  form = { ...form, ...ilp.addIlpDevice(form) };
+  assert.equal(ilp.ilpDeviceCount(form), 2);
+  const second = ilp.ilpDeviceView(form, 1);
+  assert.equal(second.laiteTunnus, '');
+  assert.equal(second.asiakas, 'Asiakas Oy', 'shared fields visible in device view');
+  assert.equal(second.sisayksikkoData.length, 1);
+
+  const patch = ilp.patchIlpDevice(form, 1, { laiteTunnus: 'ILP 2', ulkoyksikkoMalli: 'RAS-25', huomiot: 'yhteinen' });
+  assert.equal(patch.huomiot, 'yhteinen', 'shared key stays on report');
+  assert.equal(patch.laiteTunnus, undefined, 'device key does not touch device 1');
+  form = { ...form, ...patch };
+  assert.equal(form.laiteTunnus, 'ILP 1');
+  assert.equal(ilp.ilpDeviceView(form, 1).laiteTunnus, 'ILP 2');
+  assert.deepEqual(ilp.patchIlpDevice(form, 0, { laiteTunnus: 'X' }), { laiteTunnus: 'X' });
+
+  form = { ...form, ...ilp.addIlpDevice(form, 0) };
+  const copy = ilp.ilpDeviceView(form, 2);
+  assert.equal(copy.ulkoyksikkoMalli, 'RXTP35');
+  assert.equal(copy.kylmaaineTyyppi, 'R-32');
+  assert.equal(copy.ulkoyksikkoSarjanumero, '', 'serial not copied');
+  assert.equal(copy.sisayksikkoData[0].malli, 'FTXTP35');
+  assert.equal(copy.sisayksikkoData[0].sarjanumero, '');
+  assert.equal(copy.sisayksikkoData[0].asennettu, null, 'inspection not copied');
+
+  const removedFirst = { ...form, ...ilp.removeIlpDevice(form, 0) };
+  assert.equal(ilp.ilpDeviceCount(removedFirst), 2);
+  assert.equal(removedFirst.laiteTunnus, 'ILP 2');
+  assert.equal(removedFirst.ulkoyksikkoMalli, 'RAS-25');
+  const removedMiddle = { ...form, ...ilp.removeIlpDevice(form, 1) };
+  assert.equal(ilp.ilpDeviceCount(removedMiddle), 2);
+  assert.equal(ilp.ilpDeviceView(removedMiddle, 1).ulkoyksikkoMalli, 'RXTP35');
+});
+
+test('multi-device print = one protocol, card per device, shared header/notes/footer', () => {
+  let form = ilpReport({ huomiot: 'Yhteinen huomio' });
+  form = { ...form, ...ilp.addIlpDevice(form) };
+  form = { ...form, ...ilp.patchIlpDevice(form, 1, { laiteTunnus: 'ILP 2', ulkoyksikkoMalli: 'RAS-25', ulkoyksikkoTarkastusTila: 'faulty', ulkoyksikkoTarkastusHuomio: 'Piirikortti rikki' }) };
+  const html = generateMaintenanceReportHtml(form, { companyName: 'Firma' });
+  assert.equal((html.match(/ilp-device-card/g) ?? []).length, 2);
+  assert.equal((html.match(/Huoltopöytäkirja/g) ?? []).length, 1);
+  assert.equal((html.match(/HUOMIOT JA LISÄTIEDOT/g) ?? []).length, 1);
+  assert.equal((html.match(/class="footer"/g) ?? []).length, 1);
+  assert.ok(html.includes('2 ilmalämpöpumppua'));
+  assert.ok(html.includes('Laitteita <strong>2</strong>'));
+  assert.ok(html.includes('Vika: Piirikortti rikki'));
+  assert.ok(html.indexOf('1. ILP 1') < html.indexOf('2. ILP 2'));
+  assert.equal(ilp.ilpDeviceState(ilp.ilpDeviceView(form, 1)), 'faulty');
+  assert.ok(buildMaintenanceReportPrintTitle(form).includes('2 laitetta'));
+});
+
+test('tab completion and summary cover all devices', () => {
+  let form = ilpReport();
+  assert.equal(ilp.ilpDevicesCompletion(form), 'ok');
+  form = { ...form, ...ilp.addIlpDevice(form) };
+  assert.equal(ilp.ilpDevicesCompletion(form), 'incomplete');
+  assert.deepEqual(ilp.ilpLaitteetSummaryRows(form).map((r) => r.label), ['Laitteita', 'Kesken']);
+  const customer = {
+    profileCompanyId: 'co-1',
+    reportOwnerCompanyId: 'co-1',
+    reportOwnerTargets: [{ id: 'co-1', name: 'Test' }],
+    customerId: 'cu-1',
+    asiakas: 'Asiakas Oy',
+    osoite: 'Testikatu 1',
+    canEditCustomerEquipment: true,
+  };
+  const device = {
+    laiteTyyppi: form.laiteTyyppi,
+    laiteValmistaja: 'Daikin',
+    laiteMalli: 'X',
+    laiteTunnus: 'ILP 1',
+    laiteSarjanumero: '',
+    laiteSijainti: 'Olohuone',
+    laiteKayttotarkoitus: '',
+    kylmaaineTyyppi: 'R-32',
+    kylmaainePiireja: '1',
+    selectedModules: form.selectedModules,
+  };
+  const tabBuild = {
+    laiteTyyppi: form.laiteTyyppi,
+    selectedModules: form.selectedModules,
+    customModules: [],
+    showEvaporatorSection: false,
+    showCondenserSection: false,
+    showLauhdutuspiiriSection: false,
+    showNestelauhduttimetSection: false,
+    showJaahdytysvesiSection: false,
+    showVapaajahdytysSection: false,
+    showKonvektoritSection: false,
+    showLampopumppuSection: true,
+    showMlpSection: false,
+    showChillerKiinteistoSection: false,
+    showChillerEnergySection: false,
+  };
+  assert.equal(buildMaintenanceReportTabCompletion(form, customer, device, tabBuild).lampopumppu, 'incomplete');
+  const first = ilpReport();
+  assert.equal(buildMaintenanceReportTabCompletion(first, customer, device, tabBuild).lampopumppu, 'ok');
+});
+
+test('legacy visit: several one-device reports merge into one protocol', () => {
+  const r3 = ilpReport({ laiteTunnus: 'ILP 3', ulkoyksikkoMalli: 'MUZ', huomiot: 'Kolmosen huomio', huoltoSuorittajaNimi: 'Asentaja' });
+  const r1 = ilpReport({
+    laiteTunnus: 'ILP 1',
+    huomiotLiitteet: [{ id: 'maintenance-photos/a.jpg', storagePath: 'maintenance-photos/a.jpg', name: 'a.jpg' }],
+    selectedModules: { ...createEmptyHuoltoReportData().selectedModules, tiiveyskoe: true },
+    tiiveyskoeData: { ...createEmptyHuoltoReportData().tiiveyskoeData, testipaineBar: '25', todisteKuvat: [{ storagePath: 'maintenance-photos/tk.jpg', comment: '' }] },
+  });
+  const r2 = ilpReport({ laiteTunnus: 'ILP 2', huoltoLaiteessaVika: true, huoltoSuoritettu: false });
+  const merged = ilp.mergeIlpVisitReports(r3, [r1, r2]);
+  assert.equal(ilp.ilpDeviceCount(merged), 3);
+  const labels = ilp.ilpDeviceViews(merged).map((v, i) => ilp.ilpDeviceLabel(v, i));
+  assert.deepEqual(labels, ['ILP 1', 'ILP 2', 'ILP 3'], 'sorted by tunnus');
+  assert.equal(ilp.ilpDeviceView(merged, 2).ilpLaiteHuomiot, 'Kolmosen huomio');
+  assert.equal(ilp.ilpDeviceView(merged, 1).ilpLaiteHuomiot, undefined, 'no note leak from device 1');
+  assert.equal(merged.huomiot, '');
+  assert.equal(merged.huoltoLaiteessaVika, true);
+  assert.equal(merged.huoltoSuoritettu, false);
+  assert.equal(merged.huomiotLiitteet.length, 1);
+  assert.equal(merged.selectedModules.tiiveyskoe, false, 'tests move to the device');
+  assert.ok(ilp.ilpDeviceTests(merged).tiiveyskoe, 'ILP 1 keeps its tiiveyskoe');
+  assert.ok(collectMaintenancePrintImagePaths(merged).includes('maintenance-photos/tk.jpg'));
+
+  const html = generateMaintenanceReportHtml(merged, { companyName: 'Firma' });
+  assert.equal((html.match(/ilp-device-card/g) ?? []).length, 3);
+  assert.ok(html.includes('TIIVEYSKOE — 1. ILP 1'));
+  assert.ok(html.includes('Kolmosen huomio'));
+  assert.ok(html.includes('3 ilmalämpöpumppua'));
+  assert.equal(ilp.mergeIlpVisitReports(r1, []), r1);
+});
+
+test('legacy presence checkboxes are not a fault', () => {
+  const legacy = ilpReport({ ulkoyksikkoTarkastusTila: undefined, ulkoyksikkoKennosPuhdas: true, ulkoyksikkoTurvakytkin: true, ulkoyksikkoSuojakotelo: false });
+  assert.equal(ilp.ilpUlkoyksikkoStatus(legacy), 'ok');
+  const empty = ilpReport({ ulkoyksikkoTarkastusTila: undefined, ulkoyksikkoKennosPuhdas: false, ulkoyksikkoTurvakytkin: false, ulkoyksikkoSuojakotelo: false });
+  assert.equal(ilp.ilpUlkoyksikkoStatus(empty), null);
+  assert.equal(ilp.ilpDeviceState(empty), 'incomplete');
+});
+
+test('other device types are untouched', () => {
+  const form = { ...createEmptyHuoltoReportData(), laiteTyyppi: 'konvektorit', ilpLisaLaitteet: [{ id: 'x' }] };
+  assert.equal(ilp.ilpDeviceCount(form), 1);
+  assert.equal(ilp.isIlpDeviceKey('laiteTyyppi'), false);
+  assert.equal(ilp.isIlpDeviceKey('kylmaainePiiri1'), false);
+  assert.equal(ilp.isIlpDeviceKey('kylmaaineTyyppi'), true);
+  assert.equal(ilp.isIlpDeviceKey('huomiot'), false);
+});
+
+console.log('test-ilp-multi-device-protocol: ok');

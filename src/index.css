@@ -17187,3 +17187,15 @@ p.quote-outcome-unpriced {
   margin-left: 0.4rem;
   font-size: inherit;
 }
+
+/* ILP-laitelista (yksi pöytäkirja, useita ilmalämpöpumppuja). */
+.ilp-laite-fields > section + section {
+  margin-top: 0.85rem;
+  padding-top: 0.6rem;
+  border-top: 1px solid var(--border);
+}
+
+.ilp-laite-heading {
+  margin: 0 0 0.4rem;
+  font-size: 0.95rem;
+}
