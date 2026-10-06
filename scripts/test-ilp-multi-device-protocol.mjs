@@ -124,7 +124,7 @@ test('tab completion and summary cover all devices', () => {
   assert.equal(ilp.ilpDevicesCompletion(form), 'ok');
   form = { ...form, ...ilp.addIlpDevice(form) };
   assert.equal(ilp.ilpDevicesCompletion(form), 'incomplete');
-  assert.deepEqual(ilp.ilpLaitteetSummaryRows(form).map((r) => r.label), ['Laitteita', 'Kesken']);
+  assert.deepEqual(ilp.ilpLaitteetSummaryRows(form), [{ label: 'Laitteita', value: '2 kpl' }, { label: 'Tulos', value: 'Kesken (Laite 2)' }]);
   const customer = {
     profileCompanyId: 'co-1',
     reportOwnerCompanyId: 'co-1',
@@ -168,6 +168,9 @@ test('tab completion and summary cover all devices', () => {
   const withTest = ilpReport({ selectedModules: { ...first.selectedModules, tiiveyskoe: true } });
   const completion = buildMaintenanceReportTabCompletion(withTest, customer, device, { ...tabBuild, selectedModules: withTest.selectedModules });
   assert.equal(completion.tiiveyskoe, undefined, 'no shared tiiveyskoe tab for ILP');
+  assert.equal(buildMaintenanceReportTabCompletion(first, customer, device, tabBuild).huoltotiedot, 'ok');
+  const faultyFirst = ilpReport({ ulkoyksikkoTarkastusTila: 'faulty', huoltoLaiteessaVika: false });
+  assert.equal(buildMaintenanceReportTabCompletion(faultyFirst, customer, device, tabBuild).huoltotiedot, 'attention');
   assert.equal(completion.lampopumppu, 'incomplete', 'unfinished device-1 test keeps the device incomplete');
 });
 
@@ -303,6 +306,60 @@ test('photo rows are split per device', () => {
   ]);
   assert.deepEqual(d1.map((r) => r.storage_path), ['r/tiiveyskoe/u1-a.jpg']);
   assert.deepEqual(d2.map((r) => r.storage_path), ['r/tiiveyskoe/ilp-dev2--u2-b.jpg', 'r/tiiveyskoe/u4-d.jpg']);
+});
+
+test('overall verdict is derived from the devices', () => {
+  const okForm = ilpReport();
+  assert.equal(ilp.ilpOverallVerdict(okForm).state, 'ok');
+  let html = generateMaintenanceReportHtml(okForm, { companyName: 'Firma' });
+  assert.ok(html.includes('Ei vikaa havaittu'));
+
+  // incomplete device → incomplete verdict
+  let form = { ...okForm, ...ilp.addIlpDevice(okForm) };
+  form = { ...form, ...ilp.patchIlpDevice(form, 1, { laiteTunnus: 'ILP 2' }) };
+  assert.deepEqual(ilp.ilpOverallVerdict(form), { state: 'incomplete', faulty: [], incomplete: ['ILP 2'] });
+  html = generateMaintenanceReportHtml(form, { companyName: 'Firma' });
+  assert.ok(html.includes('Kesken (ILP 2)') && !html.includes('Ei vikaa havaittu'));
+
+  // faulty device wins; manual "no fault" cannot hide it
+  form = { ...form, ...ilp.patchIlpDevice(form, 1, { ulkoyksikkoTarkastusTila: 'faulty' }), huoltoLaiteessaVika: false };
+  form = { ...form, ...ilp.addIlpDevice(form) };
+  const v = ilp.ilpOverallVerdict(form);
+  assert.equal(v.state, 'faulty');
+  assert.deepEqual(v.faulty, ['ILP 2']);
+  html = generateMaintenanceReportHtml(form, { companyName: 'Firma' });
+  assert.ok(html.includes('Vika havaittu (ILP 2)') && !html.includes('Ei vikaa havaittu'));
+  assert.deepEqual(ilp.ilpLaitteetSummaryRows(form).map((r) => r.label), ['Laitteita', 'Tulos', 'Kesken']);
+
+  // failed device test (device 2) = fault
+  let t = { ...okForm, ...ilp.addIlpDevice(okForm, 0) };
+  t = { ...t, ...ilp.patchIlpDevice(t, 1, { laiteTunnus: 'ILP 2', ulkoyksikkoTarkastusTila: 'ok', sisayksikkoData: okForm.sisayksikkoData.map((u) => ({ ...u, sarjanumero: 'IU-2' })) }) };
+  assert.equal(ilp.ilpOverallVerdict(t).state, 'ok');
+  t = { ...t, ...ilp.setIlpDeviceTestEnabled(t, 1, 'tyhjiointi', true) };
+  t = { ...t, ...ilp.patchIlpDevice(t, 1, { tyhjiointiData: { ...ilp.ilpDeviceView(t, 1).tyhjiointiData, loppupaineArvo: '900', tulos: 'hylatty' } }) };
+  assert.deepEqual(ilp.ilpOverallVerdict(t).faulty, ['ILP 2']);
+
+  // manual flag only adds a fault
+  const manual = { ...okForm, huoltoLaiteessaVika: true };
+  assert.equal(ilp.ilpOverallVerdict(manual).state, 'faulty');
+  html = generateMaintenanceReportHtml(manual, { companyName: 'Firma' });
+  assert.ok(html.includes('Vika havaittu') && !html.includes('Ei vikaa havaittu'));
+
+  // other device types keep the manual line
+  const other = { ...createEmptyHuoltoReportData(), laiteTyyppi: 'vesi-ilmalämpöpumppu', huoltoLaiteessaVika: false };
+  html = generateMaintenanceReportHtml(other, { companyName: 'Firma' });
+  assert.ok(html.includes('Ei vikaa havaittu'));
+  html = generateMaintenanceReportHtml({ ...other, huoltoLaiteessaVika: true }, { companyName: 'Firma' });
+  assert.ok(html.includes('Laiteessa vika havaittu'));
+});
+
+test('legacy merged visit: verdict follows the device cards', () => {
+  const r1 = ilpReport({ laiteTunnus: 'ILP 1' });
+  const r2 = ilpReport({ laiteTunnus: 'ILP 2', ulkoyksikkoTarkastusTila: 'faulty', huoltoLaiteessaVika: false });
+  const merged = ilp.mergeIlpVisitReports(r1, [r2]);
+  assert.equal(merged.huoltoLaiteessaVika, false);
+  const html = generateMaintenanceReportHtml(merged, { companyName: 'Firma' });
+  assert.ok(html.includes('Vika havaittu (ILP 2)') && !html.includes('Ei vikaa havaittu'));
 });
 
 test('legacy presence checkboxes are not a fault', () => {

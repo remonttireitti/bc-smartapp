@@ -27,7 +27,7 @@ import {
 } from './maintenanceReportBasicsValidation';
 import type { MaintenanceReportTabId } from './maintenanceReportTabs';
 import { buildMaintenanceReportTabs, type MaintenanceReportTabBuildInput } from './maintenanceReportTabs';
-import { ilpDevicesCompletion, isIlpMultiDeviceType, usesSharedServiceTests } from './ilpLaitteet';
+import { ilpDevicesCompletion, ilpOverallVerdict, isIlpMultiDeviceType, usesSharedServiceTests } from './ilpLaitteet';
 import type { CompressorData, HuoltoReportData, RefrigerantCircuitData, TiiveyskoeData, TyhjiointiData } from './types';
 import { getEvaporatorCircuitCount } from './evaporatorHelpers';
 
@@ -217,7 +217,10 @@ function completionForTab(
       const dateOk = String(form.huoltoPaivamaara ?? '').trim() !== '';
       const doneOk = form.huoltoSuoritettu === true;
       if (!dateOk || !doneOk) return 'incomplete';
-      if (form.huoltoLaiteessaVika) return 'attention';
+      const fault = isIlpMultiDeviceType(form.laiteTyyppi)
+        ? ilpOverallVerdict(form).state === 'faulty'
+        : form.huoltoLaiteessaVika;
+      if (fault) return 'attention';
       return 'ok';
     }
 
