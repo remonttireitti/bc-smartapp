@@ -49,7 +49,7 @@ import {
   konvektoriVerkostoKoideFromReport,
 } from './konvektoriPrint';
 import { formatHuomioPrintHtml } from './formatHuomioPrintHtml';
-import { ilpDeviceCount, ilpDeviceViews, isIlpMultiDeviceType } from './ilpLaitteet';
+import { ilpDeviceCount, ilpDeviceViews, ilpOverallVerdict, ilpVerdictText, isIlpMultiDeviceType } from './ilpLaitteet';
 import { generateIlpLaitteetPrintHtml } from './ilpPrint';
 import { generateMlpFullPrintHtml } from './printMlpFull';
 import { renderCompressorCurrentHtml, renderFanPhaseCardHtml } from './printPhaseHelpers';
@@ -787,6 +787,14 @@ const PRINT_CSS = `
 `;
 
 /** Generate printable HTML fragment for a maintenance report. */
+/** ILP: kokonaistulos johdetaan laitteista, jotta se ei voi olla ristiriidassa laitekorttien kanssa. */
+function renderIlpVerdict(data: HuoltoReportData): string {
+  const verdict = ilpOverallVerdict(data);
+  if (verdict.state === 'ok') return checkRow(true, 'Ei vikaa havaittu');
+  const color = verdict.state === 'faulty' ? '#b91c1c' : '#b45309';
+  return `<span style="color:${color};font-weight:700;">${esc(ilpVerdictText(verdict))}</span>`;
+}
+
 export function generateMaintenanceReportHtml(
   data: HuoltoReportData,
   meta: MaintenancePrintMeta,
@@ -857,7 +865,7 @@ export function generateMaintenanceReportHtml(
   const statusHtml = `<div class="huolto-status">
     ${checkRow(data.huoltoSuoritettu, 'Huolto suoritettu')}
     ${vuotoStatus ? `<div style="padding:2px 0;">${vuotoStatus}</div>` : ''}
-    ${data.huoltoLaiteessaVika ? '<span style="color:#b91c1c;font-weight:700;">Laiteessa vika havaittu</span>' : checkRow(data.huoltoLaiteessaVika === false, 'Ei vikaa havaittu')}
+    ${isIlp ? renderIlpVerdict(data) : data.huoltoLaiteessaVika ? '<span style="color:#b91c1c;font-weight:700;">Laiteessa vika havaittu</span>' : checkRow(data.huoltoLaiteessaVika === false, 'Ei vikaa havaittu')}
   </div>`;
 
   return `<style>${PRINT_CSS}</style>

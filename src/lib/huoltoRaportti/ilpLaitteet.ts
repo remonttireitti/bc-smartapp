@@ -404,12 +404,51 @@ export function mergeIlpVisitReports(base: HuoltoReportData, others: HuoltoRepor
   };
 }
 
+export type IlpVerdict = {
+  state: IlpDeviceState;
+  /** Viallisten laitteiden nimet. */
+  faulty: string[];
+  /** Keskeneräisten laitteiden nimet. */
+  incomplete: string[];
+};
+
+/**
+ * Pöytäkirjan kokonaistulos laitteista: vika > kesken > ei vikaa.
+ * Käsin merkitty `huoltoLaiteessaVika` voi vain lisätä vian, ei kumota sitä.
+ */
+export function ilpOverallVerdict(form: HuoltoReportData): IlpVerdict {
+  const faulty: string[] = [];
+  const incomplete: string[] = [];
+  ilpDeviceViews(form).forEach((view, index) => {
+    const state = ilpDeviceState(view);
+    if (state === 'faulty') faulty.push(ilpDeviceLabel(view, index));
+    else if (state === 'incomplete') incomplete.push(ilpDeviceLabel(view, index));
+  });
+  const state: IlpDeviceState =
+    faulty.length > 0 || form.huoltoLaiteessaVika === true ? 'faulty' : incomplete.length > 0 ? 'incomplete' : 'ok';
+  return { state, faulty, incomplete };
+}
+
+function deviceList(names: string[]): string {
+  return names.length > 3 ? `${names.length} laitetta` : names.join(', ');
+}
+
+export function ilpVerdictText(verdict: IlpVerdict): string {
+  if (verdict.state === 'faulty') {
+    return verdict.faulty.length > 0 ? `Vika havaittu (${deviceList(verdict.faulty)})` : 'Vika havaittu';
+  }
+  if (verdict.state === 'incomplete') return `Kesken (${deviceList(verdict.incomplete)})`;
+  return 'Ei vikaa havaittu';
+}
+
 export function ilpLaitteetSummaryRows(form: HuoltoReportData): { label: string; value: string }[] {
-  const states = ilpDeviceViews(form).map(ilpDeviceState);
-  const rows = [{ label: 'Laitteita', value: `${states.length} kpl` }];
-  const faulty = states.filter((s) => s === 'faulty').length;
-  const incomplete = states.filter((s) => s === 'incomplete').length;
-  if (faulty > 0) rows.push({ label: 'Viallisia', value: `${faulty} kpl` });
-  if (incomplete > 0) rows.push({ label: 'Kesken', value: `${incomplete} kpl` });
+  const verdict = ilpOverallVerdict(form);
+  const rows = [
+    { label: 'Laitteita', value: `${ilpDeviceCount(form)} kpl` },
+    { label: 'Tulos', value: ilpVerdictText(verdict) },
+  ];
+  if (verdict.state === 'faulty' && verdict.incomplete.length > 0) {
+    rows.push({ label: 'Kesken', value: deviceList(verdict.incomplete) });
+  }
   return rows;
 }
