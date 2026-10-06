@@ -43,6 +43,8 @@ export async function uploadMaintenanceReportImages(
   files: File[],
   userId: string,
   existingCount = 0,
+  /** Tiedostonimen etuliite (ILP-lisälaitteen kuvat: ilp-<id>). */
+  pathTag?: string,
 ): Promise<string[]> {
   const uploaded: string[] = [];
   const remaining = MAX_IMAGES - existingCount;
@@ -51,7 +53,8 @@ export async function uploadMaintenanceReportImages(
   for (const file of batch) {
     const prepared = await prepareImageFileForUpload(file, MAX_IMAGE_BYTES);
     const safeName = prepared.name.replace(/[^a-zA-Z0-9._-]/g, '_');
-    const storagePath = `${reportId}/${section}/${crypto.randomUUID()}-${safeName}`;
+    const tag = String(pathTag ?? '').replace(/[^A-Za-z0-9-]/g, '');
+    const storagePath = `${reportId}/${section}/${tag ? `${tag}--` : ''}${crypto.randomUUID()}-${safeName}`;
 
     const { error: uploadError } = await supabase.storage
       .from(BUCKET)
@@ -291,6 +294,7 @@ interface AddImagesProps {
   userId: string;
   items: MaintenanceReportPhotoItem[];
   onChange: (items: MaintenanceReportPhotoItem[]) => void;
+  pathTag?: string;
 }
 
 export function AddMaintenanceReportImages({
@@ -299,6 +303,7 @@ export function AddMaintenanceReportImages({
   userId,
   items,
   onChange,
+  pathTag,
 }: AddImagesProps) {
   const [busy, setBusy] = useState(false);
 
@@ -316,6 +321,7 @@ export function AddMaintenanceReportImages({
         Array.from(files),
         userId,
         items.length,
+        pathTag,
       );
       onChange([
         ...items,

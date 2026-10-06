@@ -49,7 +49,7 @@ import {
   konvektoriVerkostoKoideFromReport,
 } from './konvektoriPrint';
 import { formatHuomioPrintHtml } from './formatHuomioPrintHtml';
-import { ilpDeviceCount, ilpDeviceLabel, ilpDeviceTests, ilpDeviceViews, isIlpMultiDeviceType } from './ilpLaitteet';
+import { ilpDeviceCount, ilpDeviceViews, isIlpMultiDeviceType } from './ilpLaitteet';
 import { generateIlpLaitteetPrintHtml } from './ilpPrint';
 import { generateMlpFullPrintHtml } from './printMlpFull';
 import { renderCompressorCurrentHtml, renderFanPhaseCardHtml } from './printPhaseHelpers';
@@ -564,25 +564,13 @@ function konvektoriPrintSubtitle(data: HuoltoReportData): string {
   return koide.kuvaus || koide.alue || koide.tunnus || '';
 }
 
-function renderIlpLaitteet(data: HuoltoReportData): string {
+function renderIlpLaitteet(data: HuoltoReportData, imageUrls?: Record<string, string>): string {
   if (!isIlpMultiDeviceType(data.laiteTyyppi)) return '';
-  return generateIlpLaitteetPrintHtml(ilpDeviceViews(data), esc, String(data.laiteKayttotarkoitus ?? '').trim());
-}
-
-/** Yhdistetty käyntituloste: vanhojen raporttien tiiveyskoe/tyhjiöinti laitekohtaisesti. */
-function renderIlpDeviceTests(data: HuoltoReportData, imageUrls?: Record<string, string>): string {
-  if (!isIlpMultiDeviceType(data.laiteTyyppi)) return '';
-  return ilpDeviceViews(data)
-    .map((view, index) => {
-      const tests = ilpDeviceTests(view);
-      const suffix = ` — ${index + 1}. ${ilpDeviceLabel(view, index)}`;
-      const modules = { ...data.selectedModules, tiiveyskoe: true, tyhjiointi: true };
-      return [
-        tests.tiiveyskoe ? renderTiiveyskoe({ ...data, selectedModules: modules, tiiveyskoeData: tests.tiiveyskoe }, imageUrls, suffix) : '',
-        tests.tyhjiointi ? renderTyhjiointi({ ...data, selectedModules: modules, tyhjiointiData: tests.tyhjiointi }, imageUrls, suffix) : '',
-      ].join('');
-    })
-    .join('');
+  return generateIlpLaitteetPrintHtml(ilpDeviceViews(data), esc, {
+    kohde: String(data.laiteKayttotarkoitus ?? '').trim(),
+    resolvePhotoHref: (item) => resolveMaintenancePrintPhotoHref(item, imageUrls),
+    escAttr,
+  });
 }
 
 function renderRefrigerantCharge(data: HuoltoReportData): string {
@@ -624,7 +612,7 @@ function renderRefrigerantCharge(data: HuoltoReportData): string {
   return box('KYLMÄAINE', '#FF6D00', rows.join(''));
 }
 
-function renderTiiveyskoe(data: HuoltoReportData, imageUrls?: Record<string, string>, titleSuffix = ''): string {
+function renderTiiveyskoe(data: HuoltoReportData, imageUrls?: Record<string, string>): string {
   if (!data.selectedModules.tiiveyskoe) return '';
   const tv = data.tiiveyskoeData;
   const huoltoPvm = String(data.huoltoPaivamaara || '').trim();
@@ -648,10 +636,10 @@ function renderTiiveyskoe(data: HuoltoReportData, imageUrls?: Record<string, str
     .filter(Boolean)
     .join('');
 
-  return inner ? box(`TIIVEYSKOE${titleSuffix}`, '#00695C', inner) : '';
+  return inner ? box('TIIVEYSKOE', '#00695C', inner) : '';
 }
 
-function renderTyhjiointi(data: HuoltoReportData, imageUrls?: Record<string, string>, titleSuffix = ''): string {
+function renderTyhjiointi(data: HuoltoReportData, imageUrls?: Record<string, string>): string {
   if (!data.selectedModules.tyhjiointi) return '';
   const ty = data.tyhjiointiData;
   const huoltoPvm = String(data.huoltoPaivamaara || '').trim();
@@ -675,7 +663,7 @@ function renderTyhjiointi(data: HuoltoReportData, imageUrls?: Record<string, str
     .filter(Boolean)
     .join('');
 
-  return inner ? box(`TYHJIÖINTI${titleSuffix}`, '#0277BD', inner) : '';
+  return inner ? box('TYHJIÖINTI', '#0277BD', inner) : '';
 }
 
 function resolvePhotoHref(
@@ -893,7 +881,7 @@ export function generateMaintenanceReportHtml(
   ${refrigerantBox ? `<div class="content-row"><div class="column-box">${refrigerantBox}</div></div>` : ''}
 
   ${statusHtml}
-  ${renderIlpLaitteet(data)}
+  ${renderIlpLaitteet(data, imageUrls)}
   ${circuitsHtml}
   ${renderCircuitWarningsBanner(data)}
   ${renderEvaporators(data)}
@@ -905,9 +893,8 @@ export function generateMaintenanceReportHtml(
   ${renderChillerEnergy(data)}
   ${generateMlpFullPrintHtml(data)}
   ${renderKonvektoritTable(data)}
-  ${usesRefrigerantServiceExtras(data.laiteTyyppi) ? renderTiiveyskoe(data, imageUrls) : ''}
-  ${usesRefrigerantServiceExtras(data.laiteTyyppi) ? renderTyhjiointi(data, imageUrls) : ''}
-  ${renderIlpDeviceTests(data, imageUrls)}
+  ${usesRefrigerantServiceExtras(data.laiteTyyppi) && !isIlp ? renderTiiveyskoe(data, imageUrls) : ''}
+  ${usesRefrigerantServiceExtras(data.laiteTyyppi) && !isIlp ? renderTyhjiointi(data, imageUrls) : ''}
   ${renderCustomModulesPrintHtml(data.customModules)}
   ${renderHuomiot(data, imageUrls)}
 

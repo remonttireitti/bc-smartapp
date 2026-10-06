@@ -88,6 +88,59 @@ function inlinePhotoItems(jsonItems: MaintenanceReportPhotoItem[]): MaintenanceR
   return jsonItems.filter((item) => isInlineImageUrl(pathKey(item.storagePath)));
 }
 
+const ILP_PHOTO_TAG_RE = /^ilp-([A-Za-z0-9-]+?)--/;
+
+/** ILP-lisälaitteen kuva: tallennuspolun tiedostonimi alkaa `ilp-<laitteen id>--`. */
+export function ilpPhotoTagOwner(storagePath: string | null | undefined): string | null {
+  const file = pathKey(storagePath).split('/').pop() ?? '';
+  return ILP_PHOTO_TAG_RE.exec(file)?.[1] ?? null;
+}
+
+/**
+ * Jakaa osion DB-kuvat laitteille: JSON-viittaus ratkaisee; muuten etuliitteetön → laite 1,
+ * etuliite → sen lisälaite; poistetun laitteen kuvat jätetään pois.
+ */
+export function partitionPhotoRowsByDevice<T extends { storage_path: string }>(
+  rows: T[],
+  slots: Array<{ id: string | null; json: MaintenanceReportPhotoItem[] }>,
+): T[][] {
+  const out: T[][] = slots.map(() => []);
+  const refs = new Map<string, number>();
+  slots.forEach((slot, index) => {
+    for (const item of slot.json) {
+      const key = pathKey(item.storagePath);
+      if (key && !refs.has(key)) refs.set(key, index);
+    }
+  });
+  for (const row of rows) {
+    const key = pathKey(row.storage_path);
+    const referenced = refs.get(key);
+    if (referenced != null) {
+      out[referenced].push(row);
+      continue;
+    }
+    const tag = ilpPhotoTagOwner(key);
+    const index = tag ? slots.findIndex((slot, i) => i > 0 && slot.id === tag) : 0;
+    if (index >= 0) out[index].push(row);
+  }
+  return out;
+}
+
+function syncPhotoList(
+  dbRows: MaintenanceReportImageRow[],
+  json: MaintenanceReportPhotoItem[],
+): { items: MaintenanceReportPhotoItem[]; changed: boolean } {
+  if (dbRows.length === 0) return { items: json, changed: false };
+  const merged = [...mergePhotoComments(dbRows, json), ...inlinePhotoItems(json)];
+  const storageJsonPaths = json
+    .filter((item) => !isInlineImageUrl(pathKey(item.storagePath)))
+    .map((item) => pathKey(item.storagePath));
+  if (jsonPathsNeedSync(storageJsonPaths) || !pathsMatchDb(storageJsonPaths, dbRows)) {
+    return { items: merged, changed: true };
+  }
+  return { items: json, changed: false };
+}
+
 export async function loadMaintenanceReportImagesBySection(reportId: string) {
   const { data, error } = await supabase
     .from('maintenance_report_images')
@@ -135,45 +188,36 @@ export async function syncMaintenanceReportPhotosFromDb(
     }
   }
 
-  const tiiveysJson = normalizeMaintenanceReportPhotos(data.tiiveyskoeData?.todisteKuvat);
-  const tiiveysDb = bySection.get('tiiveyskoe') ?? [];
-  const inlineTiiveys = inlinePhotoItems(tiiveysJson);
-  if (tiiveysDb.length > 0) {
-    const merged = [...mergePhotoComments(tiiveysDb, tiiveysJson), ...inlineTiiveys];
-    const storageJsonPaths = tiiveysJson
-      .filter((item) => !isInlineImageUrl(pathKey(item.storagePath)))
-      .map((item) => pathKey(item.storagePath));
-    if (
-      jsonPathsNeedSync(storageJsonPaths)
-      || !pathsMatchDb(storageJsonPaths, tiiveysDb)
-    ) {
-      next.tiiveyskoeData = {
-        ...(data.tiiveyskoeData ?? {}),
-        todisteKuvat: merged,
-      };
+  // Tiiveyskoe/tyhjiöinti: ILP-lisälaitteiden kuvat tunnistetaan tiedostonimen etuliitteestä (ilp-<id>--).
+  const extras = next.laiteTyyppi === 'lämpöpumppu' && Array.isArray(next.ilpLisaLaitteet)
+    ? (next.ilpLisaLaitteet as Array<Record<string, unknown> & { id?: string }>)
+    : [];
+  let nextExtras = extras;
+  for (const [section, dataKey] of [['tiiveyskoe', 'tiiveyskoeData'], ['tyhjiointi', 'tyhjiointiData']] as const) {
+    const slots = [
+      { id: null as string | null, json: normalizeMaintenanceReportPhotos(next[dataKey]?.todisteKuvat) },
+      ...nextExtras.map((extra) => ({
+        id: String(extra.id ?? '').replace(/[^A-Za-z0-9-]/g, '') || null,
+        json: normalizeMaintenanceReportPhotos((extra[dataKey] as { todisteKuvat?: MaintenanceReportPhotoItem[] } | undefined)?.todisteKuvat),
+      })),
+    ];
+    const rowsBySlot = partitionPhotoRowsByDevice(bySection.get(section) ?? [], slots);
+    slots.forEach((slot, index) => {
+      const result = syncPhotoList(rowsBySlot[index], slot.json);
+      if (!result.changed) return;
       changed = true;
-    }
+      if (index === 0) {
+        (next as Record<string, unknown>)[dataKey] = { ...(next[dataKey] ?? {}), todisteKuvat: result.items };
+        return;
+      }
+      nextExtras = nextExtras.map((extra, extraIndex) =>
+        extraIndex === index - 1
+          ? { ...extra, [dataKey]: { ...((extra[dataKey] as object | undefined) ?? {}), todisteKuvat: result.items } }
+          : extra,
+      );
+    });
   }
-
-  const tyhjJson = normalizeMaintenanceReportPhotos(data.tyhjiointiData?.todisteKuvat);
-  const tyhjDb = bySection.get('tyhjiointi') ?? [];
-  const inlineTyhj = inlinePhotoItems(tyhjJson);
-  if (tyhjDb.length > 0) {
-    const merged = [...mergePhotoComments(tyhjDb, tyhjJson), ...inlineTyhj];
-    const storageJsonPaths = tyhjJson
-      .filter((item) => !isInlineImageUrl(pathKey(item.storagePath)))
-      .map((item) => pathKey(item.storagePath));
-    if (
-      jsonPathsNeedSync(storageJsonPaths)
-      || !pathsMatchDb(storageJsonPaths, tyhjDb)
-    ) {
-      next.tyhjiointiData = {
-        ...(data.tyhjiointiData ?? {}),
-        todisteKuvat: merged,
-      };
-      changed = true;
-    }
-  }
+  if (nextExtras !== extras) next.ilpLisaLaitteet = nextExtras;
 
   return { data: next, changed };
 }

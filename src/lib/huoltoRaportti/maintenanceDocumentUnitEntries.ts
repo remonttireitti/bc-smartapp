@@ -1,4 +1,4 @@
-import { isChillerLikeDevice, usesRefrigerantServiceExtras } from './deviceModuleLogic';
+import { isChillerLikeDevice } from './deviceModuleLogic';
 import { tiiveyskoeTabCompletion, tyhjiointiTabCompletion } from './maintenanceReportTabCompletion';
 import {
   describeRaportointiMissingItems,
@@ -40,7 +40,7 @@ import {
   type LampopumppuDocumentUnitId,
 } from './lampopumppuDocumentHelpers';
 import { sisayksikkoTarkastusSummary } from './sisayksikkoTarkastus';
-import { isIlpMultiDeviceType } from './ilpLaitteet';
+import { isIlpMultiDeviceType, usesSharedServiceTests } from './ilpLaitteet';
 import { resolveModuleTilePresentation } from './maintenanceModuleVisit';
 
 export type MaintenanceDocumentEntryKind =
@@ -196,7 +196,7 @@ function appendRefrigerantCircuitUnitEntries(entries: MaintenanceDocumentEntry[]
 }
 
 function appendOptionalServiceMeasurementEntries(entries: MaintenanceDocumentEntry[], form: HuoltoReportData) {
-  if (!usesRefrigerantServiceExtras(form.laiteTyyppi)) return;
+  if (!usesSharedServiceTests(form.laiteTyyppi)) return;
   if (form.selectedModules.tiiveyskoe) {
     entries.push({
       key: 'tiiveyskoe',

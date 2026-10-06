@@ -34,18 +34,20 @@ function tiiveyskoeSubtitle(data: TiiveyskoeData): string {
   return parts.join(' · ');
 }
 
-function TiiveyskoeFields({
+export function TiiveyskoeFields({
   data,
   huoltoPaivamaara,
   onPatch,
   reportId,
   userId,
+  photoTag,
 }: {
   data: TiiveyskoeData;
   huoltoPaivamaara: string;
   onPatch: (patch: Partial<TiiveyskoeData>) => void;
   reportId?: string | null;
   userId?: string;
+  photoTag?: string;
 }) {
   const resolved = resolveKoePaivamaaraJaKello(data.koeAlkaaPvm, data.koeAlkaaKlo, huoltoPaivamaara);
   const loppuaika = laskeKokeLoppuaikaFi(resolved.pvmIso, resolved.klo, data.kestoMin);
@@ -117,6 +119,7 @@ function TiiveyskoeFields({
         <EvidencePhotoUpload
           reportId={reportId}
           section="tiiveyskoe"
+          pathTag={photoTag}
           items={data.todisteKuvat ?? []}
           userId={userId}
           onChange={(todisteKuvat) => onPatch({ todisteKuvat })}

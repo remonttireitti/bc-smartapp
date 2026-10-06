@@ -41,18 +41,20 @@ function tyhjiointiSubtitle(data: TyhjiointiData): string {
   return parts.join(' · ');
 }
 
-function TyhjiointiFields({
+export function TyhjiointiFields({
   data,
   huoltoPaivamaara,
   onPatch,
   reportId,
   userId,
+  photoTag,
 }: {
   data: TyhjiointiData;
   huoltoPaivamaara: string;
   onPatch: (patch: Partial<TyhjiointiData>) => void;
   reportId?: string | null;
   userId?: string;
+  photoTag?: string;
 }) {
   const resolved = resolveKoePaivamaaraJaKello(data.koeAlkaaPvm, data.koeAlkaaKlo, huoltoPaivamaara);
   const loppuaika = laskeKokeLoppuaikaFi(resolved.pvmIso, resolved.klo, data.kestoMin);
@@ -133,6 +135,7 @@ function TyhjiointiFields({
         <EvidencePhotoUpload
           reportId={reportId}
           section="tyhjiointi"
+          pathTag={photoTag}
           items={data.todisteKuvat ?? []}
           userId={userId}
           onChange={(todisteKuvat) => onPatch({ todisteKuvat })}

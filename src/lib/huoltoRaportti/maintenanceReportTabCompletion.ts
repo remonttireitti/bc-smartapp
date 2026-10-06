@@ -27,8 +27,7 @@ import {
 } from './maintenanceReportBasicsValidation';
 import type { MaintenanceReportTabId } from './maintenanceReportTabs';
 import { buildMaintenanceReportTabs, type MaintenanceReportTabBuildInput } from './maintenanceReportTabs';
-import { usesRefrigerantServiceExtras } from './deviceModuleLogic';
-import { ilpDevicesCompletion, isIlpMultiDeviceType } from './ilpLaitteet';
+import { ilpDevicesCompletion, isIlpMultiDeviceType, usesSharedServiceTests } from './ilpLaitteet';
 import type { CompressorData, HuoltoReportData, RefrigerantCircuitData, TiiveyskoeData, TyhjiointiData } from './types';
 import { getEvaporatorCircuitCount } from './evaporatorHelpers';
 
@@ -245,10 +244,10 @@ export function buildMaintenanceReportTabCompletion(
     completion[tab.id] = completionForTab(tab.id, form, customerInput, deviceInput);
   }
 
-  if (usesRefrigerantServiceExtras(form.laiteTyyppi) && form.selectedModules.tiiveyskoe) {
+  if (usesSharedServiceTests(form.laiteTyyppi) && form.selectedModules.tiiveyskoe) {
     completion.tiiveyskoe = tiiveyskoeTabCompletion(form.tiiveyskoeData);
   }
-  if (usesRefrigerantServiceExtras(form.laiteTyyppi) && form.selectedModules.tyhjiointi) {
+  if (usesSharedServiceTests(form.laiteTyyppi) && form.selectedModules.tyhjiointi) {
     completion.tyhjiointi = tyhjiointiTabCompletion(form.tyhjiointiData);
   }
 

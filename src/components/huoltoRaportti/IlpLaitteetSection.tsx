@@ -2,24 +2,34 @@ import { useRef, useState } from 'react';
 import {
   addIlpDevice,
   ilpDeviceLabel,
+  ilpDevicePhotoTag,
   ilpDeviceStateLabel,
+  ilpDeviceTestEnabled,
+  ilpDeviceView,
   ilpDeviceViews,
   ilpDevicesCompletion,
   ilpLaitteetSummaryRows,
   ilpLisaLaitteet,
   patchIlpDevice,
   removeIlpDevice,
+  setIlpDeviceTestEnabled,
+  type IlpDeviceTestKey,
 } from '../../lib/huoltoRaportti/ilpLaitteet';
 import type { HuoltoReportData } from '../../lib/huoltoRaportti/types';
 import { useMaintenanceDocumentLayout } from '../../hooks/useMaintenanceDocumentLayout';
 import { DocumentModuleInspection } from './DocumentModuleInspection';
 import { HuoltoInspectionDialogShell } from './HuoltoInspectionDialogShell';
 import { LampopumppuSection } from './LampopumppuSection';
+import { FormCheckbox } from './FormCheckbox';
 import { RefrigerantChargeDialogFields } from './RefrigerantChargeDialog';
+import { TiiveyskoeFields } from './TiiveyskoeInspection';
+import { TyhjiointiFields } from './TyhjiointiInspection';
 
 type Parts = { ulkoyksikko: boolean; sisayksikko: boolean; mittaukset: boolean };
 
-type ListProps = {
+type PhotoProps = { reportId?: string | null; userId?: string };
+
+type ListProps = PhotoProps & {
   form: HuoltoReportData;
   onChange: (patch: Partial<HuoltoReportData>) => void;
   parts: Parts;
@@ -34,7 +44,7 @@ const IDENTITY_FIELDS = [
 ] as const;
 
 /** Ilmalämpöpumppujen laitelista (kuten konvektorilista): yksi rivi per laite + Tarkastus-popup. */
-export function IlpLaitteetSection({ form, onChange, parts }: ListProps) {
+export function IlpLaitteetSection({ form, onChange, parts, reportId, userId }: ListProps) {
   const latestRef = useRef(form);
   latestRef.current = form;
   const [dialogIndex, setDialogIndex] = useState<number | null>(null);
@@ -119,6 +129,20 @@ export function IlpLaitteetSection({ form, onChange, parts }: ListProps) {
             parts={parts}
             onChange={(patch) => patchDevice(dialogIndex, patch)}
           />
+          <IlpLaiteTests
+            view={dialogView}
+            photoTag={ilpDevicePhotoTag(form, dialogIndex)}
+            reportId={reportId}
+            userId={userId}
+            onToggle={(key, enabled) => commit(setIlpDeviceTestEnabled(latestRef.current, dialogIndex, key, enabled))}
+            onPatch={(patch) => {
+              const current = ilpDeviceView(latestRef.current, dialogIndex);
+              patchDevice(dialogIndex, {
+                ...(patch.tiiveyskoeData ? { tiiveyskoeData: { ...current.tiiveyskoeData, ...patch.tiiveyskoeData } } : {}),
+                ...(patch.tyhjiointiData ? { tyhjiointiData: { ...current.tyhjiointiData, ...patch.tyhjiointiData } } : {}),
+              });
+            }}
+          />
         </HuoltoInspectionDialogShell>
       ) : null}
     </div>
@@ -162,14 +186,71 @@ function IlpLaiteFields({
   );
 }
 
-type TabProps = {
+/** Laitekohtainen tiiveyskoe ja tyhjiöinti. */
+function IlpLaiteTests({
+  view,
+  photoTag,
+  reportId,
+  userId,
+  onToggle,
+  onPatch,
+}: PhotoProps & {
+  view: HuoltoReportData;
+  photoTag?: string;
+  onToggle: (key: IlpDeviceTestKey, enabled: boolean) => void;
+  onPatch: (patch: {
+    tiiveyskoeData?: Partial<HuoltoReportData['tiiveyskoeData']>;
+    tyhjiointiData?: Partial<HuoltoReportData['tyhjiointiData']>;
+  }) => void;
+}) {
+  const tiiveyskoe = ilpDeviceTestEnabled(view, 'tiiveyskoe');
+  const tyhjiointi = ilpDeviceTestEnabled(view, 'tyhjiointi');
+  return (
+    <div className="ilp-laite-fields ilp-laite-tests">
+      <section>
+        <div className="checkbox-grid huolto-toggle-grid">
+          <FormCheckbox label="Tiiveyskoe" checked={tiiveyskoe} onChange={(v) => onToggle('tiiveyskoe', v)} />
+          <FormCheckbox label="Tyhjiöinti" checked={tyhjiointi} onChange={(v) => onToggle('tyhjiointi', v)} />
+        </div>
+      </section>
+      {tiiveyskoe ? (
+        <section>
+          <h3 className="ilp-laite-heading">Tiiveyskoe</h3>
+          <TiiveyskoeFields
+            data={view.tiiveyskoeData}
+            huoltoPaivamaara={view.huoltoPaivamaara}
+            onPatch={(patch) => onPatch({ tiiveyskoeData: patch })}
+            reportId={reportId}
+            userId={userId}
+            photoTag={photoTag}
+          />
+        </section>
+      ) : null}
+      {tyhjiointi ? (
+        <section>
+          <h3 className="ilp-laite-heading">Tyhjiöinti</h3>
+          <TyhjiointiFields
+            data={view.tyhjiointiData}
+            huoltoPaivamaara={view.huoltoPaivamaara}
+            onPatch={(patch) => onPatch({ tyhjiointiData: patch })}
+            reportId={reportId}
+            userId={userId}
+            photoTag={photoTag}
+          />
+        </section>
+      ) : null}
+    </div>
+  );
+}
+
+type TabProps = PhotoProps & {
   form: HuoltoReportData;
   onPatchForm: (patch: Partial<HuoltoReportData>) => void;
   parts: Parts;
 };
 
 /** ILP-välilehti / dokumenttinäkymän laatta: yksi pöytäkirja, useita laitteita. */
-export function IlpLaitteetTabSection({ form, onPatchForm, parts }: TabProps) {
+export function IlpLaitteetTabSection({ form, onPatchForm, parts, reportId, userId }: TabProps) {
   const documentLayout = useMaintenanceDocumentLayout();
   return (
     <DocumentModuleInspection
@@ -184,7 +265,9 @@ export function IlpLaitteetTabSection({ form, onPatchForm, parts }: TabProps) {
       editLabel="Muokkaa laitteita"
       emptyHint="Lisää laitteet painamalla Muokkaa."
     >
-      {(draft, patchDraft) => <IlpLaitteetSection form={draft} onChange={patchDraft} parts={parts} />}
+      {(draft, patchDraft) => (
+        <IlpLaitteetSection form={draft} onChange={patchDraft} parts={parts} reportId={reportId} userId={userId} />
+      )}
     </DocumentModuleInspection>
   );
 }
