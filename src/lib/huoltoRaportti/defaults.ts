@@ -861,8 +861,29 @@ export function ensureRefrigerantCircuitData(
   });
 }
 
+/**
+ * Tuotu ILP-raportti: vanhan sovelluksen rastiton "Kondenssiveden poisto testattu" (boolean false)
+ * tarkoittaa "ei tarkastettu", ei vikaa. Uusi sovellus tallentaa tilat merkkijonoina, joten vain
+ * koskematon tuontidata osuu tähän.
+ */
+function markImportedIlpKondenssiUnchecked(data: Partial<HuoltoReportData>): Partial<HuoltoReportData> {
+  const imported = Boolean(data.legacyCompanyInfo && typeof data.legacyCompanyInfo === 'object');
+  if (!imported || data.laiteTyyppi !== 'lämpöpumppu' || !Array.isArray(data.sisayksikkoData)) return data;
+  if (!data.sisayksikkoData.some((unit) => (unit?.kondenssiTestattu as unknown) === false)) return data;
+  return {
+    ...data,
+    sisayksikkoData: data.sisayksikkoData.map((unit) =>
+      (unit?.kondenssiTestattu as unknown) === false
+        ? { ...unit, kondenssiTestattu: null, kondenssiEiTarkastettu: true }
+        : unit,
+    ),
+  };
+}
+
 export function normalizeHuoltoReportData(data: Partial<HuoltoReportData>): HuoltoReportData {
-  const legacy = applyLegacyHuoltoFields(data as Partial<HuoltoReportData> & Record<string, unknown>);
+  const legacy = applyLegacyHuoltoFields(
+    markImportedIlpKondenssiUnchecked(data) as Partial<HuoltoReportData> & Record<string, unknown>,
+  );
   const base = createEmptyHuoltoReportData();
   const merged = { ...base, ...legacy };
   const sisMaara = merged.sisayksikkoMaara ?? 1;

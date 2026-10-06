@@ -5,6 +5,7 @@ import {
 } from '../../lib/huoltoRaportti/defaults';
 import {
   SISAYKSIKKO_TARKASTUS_ITEMS,
+  sisayksikkoKohtaEiTarkastettu,
   sisayksikkoTarkastusSummary,
 } from '../../lib/huoltoRaportti/sisayksikkoTarkastus';
 import { normalizeLegacyInspectionStatus } from '../../lib/huoltoRaportti/huoltoInspectionStatus';
@@ -280,11 +281,20 @@ export function LampopumppuSection({
               <div className="konvektori-tarkastus-list">
                 {SISAYKSIKKO_TARKASTUS_ITEMS.map((item) => (
                   <div key={item.field} className="konvektori-tarkastus-item">
-                    <span className="konvektori-tarkastus-label">{item.label}</span>
+                    <span className="konvektori-tarkastus-label">
+                      {item.label}
+                      {sisayksikkoKohtaEiTarkastettu(yksikko, item.field) ? <span className="muted"> · ei tarkastettu</span> : null}
+                    </span>
                     <TriStateInspectionToggle
                       name={`sisayksikko-${index}-${item.field}`}
                       value={normalizeLegacyInspectionStatus(yksikko[item.field])}
-                      onChange={(value) => patchUnit({ [item.field]: value })}
+                      onChange={(value) =>
+                        patchUnit(
+                          item.field === 'kondenssiTestattu'
+                            ? { kondenssiTestattu: value, kondenssiEiTarkastettu: false }
+                            : { [item.field]: value },
+                        )
+                      }
                       disabled={disabled}
                     />
                   </div>

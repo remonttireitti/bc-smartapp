@@ -362,6 +362,42 @@ test('legacy merged visit: verdict follows the device cards', () => {
   assert.ok(html.includes('Vika havaittu (ILP 2)') && !html.includes('Ei vikaa havaittu'));
 });
 
+test('imported ILP: unticked condensate check = not checked, not a fault', () => {
+  const unit = { tyyppi: 'seina', malli: 'MSZ', sarjanumero: '', kondenssivesi: '', pumppuMalli: '', asennettu: true, kennoPuhdas: true, eiAania: true, kondenssiTestattu: false };
+  const raw = { ...createEmptyHuoltoReportData(), laiteTyyppi: 'lämpöpumppu', huoltoPaivamaara: '2026-04-28', laiteTunnus: 'JK02', ulkoyksikkoMalli: 'MUZ', ulkoyksikkoTarkastusTila: 'ok', huoltoLaiteessaVika: false, sisayksikkoMaara: 1 };
+  const imported = normalizeHuoltoReportData({ ...raw, legacyCompanyInfo: { name: 'Vanha' }, sisayksikkoData: [unit] });
+  assert.equal(imported.sisayksikkoData[0].kondenssiTestattu, null);
+  assert.equal(imported.sisayksikkoData[0].kondenssiEiTarkastettu, true);
+  assert.equal(ilp.ilpDeviceState(imported), 'ok');
+  assert.equal(ilp.ilpOverallVerdict(imported).state, 'ok');
+  assert.equal(normalizeHuoltoReportData(imported).sisayksikkoData[0].kondenssiEiTarkastettu, true, 'stable on re-normalize');
+  let html = generateMaintenanceReportHtml(imported, { companyName: 'Firma' });
+  assert.ok(html.includes('ei tarkastettu') && html.includes('Ei vikaa havaittu') && !html.includes('Vika havaittu'));
+
+  // explicit choice in the new app wins
+  const edited = { ...imported, sisayksikkoData: [{ ...imported.sisayksikkoData[0], kondenssiTestattu: 'faulty', kondenssiEiTarkastettu: false }] };
+  assert.equal(ilp.ilpOverallVerdict(normalizeHuoltoReportData(edited)).state, 'faulty');
+
+  // other unticked imported checks are still faults
+  const otherFalse = normalizeHuoltoReportData({ ...raw, legacyCompanyInfo: { name: 'Vanha' }, sisayksikkoData: [{ ...unit, kennoPuhdas: false }] });
+  assert.equal(ilp.ilpDeviceState(otherFalse), 'faulty');
+
+  // non-imported reports unchanged
+  const native = normalizeHuoltoReportData({ ...raw, sisayksikkoData: [unit] });
+  assert.equal(native.sisayksikkoData[0].kondenssiTestattu, 'faulty');
+  assert.equal(native.sisayksikkoData[0].kondenssiEiTarkastettu, undefined);
+  assert.equal(ilp.ilpOverallVerdict(native).state, 'faulty');
+  // other device types unchanged
+  const vilp = normalizeHuoltoReportData({ ...raw, laiteTyyppi: 'vesiilmalampopumppu', legacyCompanyInfo: { name: 'Vanha' }, sisayksikkoData: [unit] });
+  assert.notEqual(vilp.sisayksikkoData?.[0]?.kondenssiEiTarkastettu, true);
+
+  // merged legacy visit keeps the marker per device
+  const merged = ilp.mergeIlpVisitReports(imported, [normalizeHuoltoReportData({ ...raw, laiteTunnus: 'JK03', legacyCompanyInfo: { name: 'Vanha' }, sisayksikkoData: [unit] })]);
+  assert.equal(ilp.ilpOverallVerdict(merged).state, 'ok');
+  html = generateMaintenanceReportHtml(merged, { companyName: 'Firma' });
+  assert.equal((html.match(/ei tarkastettu/g) ?? []).length, 2);
+});
+
 test('legacy presence checkboxes are not a fault', () => {
   const legacy = ilpReport({ ulkoyksikkoTarkastusTila: undefined, ulkoyksikkoKennosPuhdas: true, ulkoyksikkoTurvakytkin: true, ulkoyksikkoSuojakotelo: false });
   assert.equal(ilp.ilpUlkoyksikkoStatus(legacy), 'ok');
