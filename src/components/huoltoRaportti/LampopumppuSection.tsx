@@ -9,6 +9,7 @@ import {
   sisayksikkoTarkastusSummary,
 } from '../../lib/huoltoRaportti/sisayksikkoTarkastus';
 import { normalizeLegacyInspectionStatus } from '../../lib/huoltoRaportti/huoltoInspectionStatus';
+import { ilpDeviceModel, ilpDeviceSerial, isIlpDevice } from '../../lib/huoltoRaportti/ilpIdentity';
 import { FormCheckbox } from './FormCheckbox';
 import { FormInput } from './FormInput';
 import {
@@ -19,7 +20,7 @@ import {
 import { HuoltoModuleSection } from './HuoltoModuleSection';
 import { RichCommentEditor } from './RichCommentEditor';
 import { SisayksikkoSchematicPreview } from './SisayksikkoSchematicPreview';
-import { TriStateInspectionToggle } from './TriStateInspectionToggle';
+import { InspectionChoiceToggle } from './InspectionChoiceToggle';
 import { UlkoyksikkoInspection } from './UlkoyksikkoInspection';
 import { type ReactNode } from 'react';
 
@@ -41,16 +42,13 @@ function sisayksikkoStatusLabel(unit: SisayksikkoData): { text: string; classNam
       className: unit.huomioTyyppi === 'vika' ? 'konvektori-status konvektori-status--vika' : 'konvektori-status konvektori-status--note',
     };
   }
-  if (!summary.complete) {
-    return { text: `Tarkastus ${summary.answered}/${summary.total}`, className: 'konvektori-status konvektori-status--pending' };
-  }
   if (summary.anyFaulty) {
     return { text: 'Vika', className: 'konvektori-status konvektori-status--vika' };
   }
   if (summary.allOk) {
     return { text: 'OK', className: 'konvektori-status konvektori-status--ok' };
   }
-  return { text: 'Huomioita', className: 'konvektori-status konvektori-status--warn' };
+  return { text: 'Ei valintoja', className: 'konvektori-status konvektori-status--note' };
 }
 
 export function LampopumppuSection({
@@ -110,17 +108,26 @@ export function LampopumppuSection({
         'ulkoyksikko',
         lampopumppuUlkoyksikkoTitle(form.laiteTyyppi),
         <>
+          {isIlpDevice(form.laiteTyyppi) ? (
+            <p className="muted huolto-ilp-identity">
+              {[ilpDeviceModel(form) || 'Malli —', `S/N ${ilpDeviceSerial(form) || '—'}`].join(' · ')}
+            </p>
+          ) : null}
           <div className="line-form-grid">
-            <FormInput
-              label="Ulkoyksikkö malli"
-              value={form.ulkoyksikkoMalli || ''}
-              onChange={(v) => onChange({ ulkoyksikkoMalli: v })}
-            />
-            <FormInput
-              label="Sarjanumero"
-              value={form.ulkoyksikkoSarjanumero || ''}
-              onChange={(v) => onChange({ ulkoyksikkoSarjanumero: v })}
-            />
+            {isIlpDevice(form.laiteTyyppi) ? null : (
+              <>
+                <FormInput
+                  label="Ulkoyksikkö malli"
+                  value={form.ulkoyksikkoMalli || ''}
+                  onChange={(v) => onChange({ ulkoyksikkoMalli: v })}
+                />
+                <FormInput
+                  label="Sarjanumero"
+                  value={form.ulkoyksikkoSarjanumero || ''}
+                  onChange={(v) => onChange({ ulkoyksikkoSarjanumero: v })}
+                />
+              </>
+            )}
             <FormInput
               label="Nimellis jäähdytys teho (kW)"
               value={form.ulkoyksikkoJaahdytysTeho || ''}
@@ -156,9 +163,7 @@ export function LampopumppuSection({
               />
             )}
           </div>
-          <div className="huolto-part-inspection-list">
-            <UlkoyksikkoInspection form={form} onChange={onChange} />
-          </div>
+          <UlkoyksikkoInspection form={form} onChange={onChange} />
         </>,
       )}
 
@@ -166,10 +171,6 @@ export function LampopumppuSection({
         'sisayksikko',
         lampopumppuSisayksikkoTitle(form.laiteTyyppi),
         <>
-          <p className="muted huolto-help">
-            Valitse tyyppi ja täytä tunnistetiedot. Merkitse tarkastuskohdat ja huomiot alla.
-            Lämpötilat ja paineet täytetään Mittaukset-osiossa.
-          </p>
           <div className="btn-group">
             {[1, 2, 3, 4, 5].map((num) => (
               <button
@@ -278,9 +279,12 @@ export function LampopumppuSection({
                       {item.label}
                       {sisayksikkoKohtaEiTarkastettu(yksikko, item.field) ? <span className="muted"> · ei tarkastettu</span> : null}
                     </span>
-                    <TriStateInspectionToggle
+                    <InspectionChoiceToggle
                       name={`sisayksikko-${index}-${item.field}`}
-                      value={normalizeLegacyInspectionStatus(yksikko[item.field])}
+                      value={(() => {
+                        const v = normalizeLegacyInspectionStatus(yksikko[item.field]);
+                        return v === 'na' ? null : v;
+                      })()}
                       onChange={(value) =>
                         patchUnit(
                           item.field === 'kondenssiTestattu'

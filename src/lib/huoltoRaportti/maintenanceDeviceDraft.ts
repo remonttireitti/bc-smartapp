@@ -1,6 +1,7 @@
 import { applyDeviceTypeDefaults, mergeHuoltoReportData } from './defaults';
 import { validateMaintenanceDeviceBasics } from './maintenanceReportBasicsValidation';
 import type { HuoltoReportData } from './types';
+import { isIlpDevice, syncIlpOutdoorIdentity } from './ilpIdentity';
 
 export type DeviceDialogApplyResult =
   | { ok: true; next: HuoltoReportData }
@@ -8,8 +9,10 @@ export type DeviceDialogApplyResult =
 
 export function buildDeviceDialogApplyResult(
   base: HuoltoReportData,
-  deviceDraft: HuoltoReportData,
+  rawDeviceDraft: HuoltoReportData,
 ): DeviceDialogApplyResult {
+  // ILP: laitteen malli/sarjanumero = ulkoyksikön malli/sarjanumero.
+  const deviceDraft: HuoltoReportData = { ...rawDeviceDraft, ...syncIlpOutdoorIdentity(rawDeviceDraft) };
   const validation = validateMaintenanceDeviceBasics({
     laiteTyyppi: deviceDraft.laiteTyyppi,
     laiteValmistaja: deviceDraft.laiteValmistaja,
@@ -46,6 +49,9 @@ export function buildDeviceDialogApplyResult(
       laiteSijainti: deviceDraft.laiteSijainti,
       laiteKayttotarkoitus: deviceDraft.laiteKayttotarkoitus,
       vjOhjausData: deviceDraft.vjOhjausData,
+      ...(isIlpDevice(deviceDraft.laiteTyyppi)
+        ? { ulkoyksikkoMalli: deviceDraft.ulkoyksikkoMalli, ulkoyksikkoSarjanumero: deviceDraft.ulkoyksikkoSarjanumero }
+        : {}),
     }),
   };
 }

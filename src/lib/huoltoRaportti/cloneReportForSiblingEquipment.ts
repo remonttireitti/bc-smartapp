@@ -50,7 +50,29 @@ export function cloneHuoltoReportForSiblingEquipment(
     }));
   }
 
+  if (next.laiteTyyppi === 'lämpöpumppu') resetIlpInspectionResults(next);
+
   next.visitedModuleIds = [];
 
   return next;
+}
+
+/** ILP-kopio toiselle laitteelle: tarkastustulokset eivät kopioidu (ei oletusvalintaa). */
+function resetIlpInspectionResults(next: HuoltoReportData): void {
+  next.ulkoyksikkoTarkastusTila = null;
+  next.ulkoyksikkoTarkastusHuomio = '';
+  next.ulkoyksikkoKennosPuhdas = false;
+  next.ulkoyksikkoKennoPuhdistustapa = '';
+  next.ulkoyksikkoSulatausVedenTarkistettu = false;
+  next.sisaSamaKuinEnsimmainen = (next.sisaSamaKuinEnsimmainen ?? []).map(() => false);
+  next.sisayksikkoData = (next.sisayksikkoData ?? []).map((unit) => ({
+    ...unit,
+    asennettu: null,
+    kennoPuhdas: null,
+    eiAania: null,
+    kondenssiTestattu: null,
+    kondenssiEiTarkastettu: false,
+    huomio: '',
+    huomioTyyppi: 'kommentti',
+  }));
 }

@@ -29,7 +29,10 @@ function ilp(over = {}) {
 
 test('suojakotelo missing is not an outdoor-unit fault', () => {
   assert.equal(ulkoyksikkoInspectionStatus({ ulkoyksikkoKennosPuhdas: true, ulkoyksikkoTurvakytkin: true, ulkoyksikkoSuojakotelo: false }), 'ok');
-  assert.equal(ulkoyksikkoInspectionStatus({ ulkoyksikkoKennosPuhdas: false, ulkoyksikkoTurvakytkin: true }), 'faulty');
+  // Tuotu vanha raportti: rastiton kohta säilyttää merkityksensä (vika).
+  assert.equal(ulkoyksikkoInspectionStatus({ ulkoyksikkoKennosPuhdas: false, ulkoyksikkoTurvakytkin: true, legacyCompanyInfo: { name: 'x' } }), 'faulty');
+  // Sovelluksen raportti: rastiton = ei kuulu, ei vika eikä OK ilman valintaa.
+  assert.equal(ulkoyksikkoInspectionStatus({ ulkoyksikkoKennosPuhdas: false, ulkoyksikkoTurvakytkin: false }), null);
 });
 
 test('imported unticked condensate = ei tarkastettu, not a fault', () => {

@@ -272,9 +272,16 @@ export function ulkoyksikkoInspectionStatus(data: {
   ulkoyksikkoSulatausVedenTarkistettu?: boolean;
   ulkoyksikkoTurvakytkin?: boolean;
   ulkoyksikkoSuojakotelo?: boolean;
+  legacyCompanyInfo?: unknown;
 }): HuoltoInspectionStatus {
   const explicit = normalizeHuoltoInspectionStatus(data.ulkoyksikkoTarkastusTila);
   if (explicit !== null) return explicit;
+  const imported = Boolean(data.legacyCompanyInfo && typeof data.legacyCompanyInfo === 'object');
+  if (!imported) {
+    // Sovelluksen raportti: rastiton kohta = ei kuulu, ei vika. Tulos valitaan Kunnossa/Vika-napeista.
+    const ticked = [data.ulkoyksikkoKennosPuhdas, data.ulkoyksikkoTurvakytkin, data.ulkoyksikkoSulatausVedenTarkistettu];
+    return ticked.some((v) => v === true) ? 'ok' : null;
+  }
   // Suojakotelo on varuste (on / ei ole), ei tarkastuskohta: puuttuminen ei ole vika.
   const checks: Array<boolean | undefined> = [
     data.ulkoyksikkoKennosPuhdas,

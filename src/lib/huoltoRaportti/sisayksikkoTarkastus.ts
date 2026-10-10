@@ -34,8 +34,9 @@ export function sisayksikkoTarkastusSummary(row: SisayksikkoData): {
 } {
   const values = SISAYKSIKKO_TARKASTUS_ITEMS.map((item) => sisayksikkoTarkastusValue(row, item.field));
   const neutral = SISAYKSIKKO_TARKASTUS_ITEMS.map((item) => sisayksikkoKohtaEiTarkastettu(row, item.field));
-  const answered = values.filter((v, i) => v !== null || neutral[i]).length;
-  const relevant = values.filter((v, i) => v !== 'na' && !neutral[i]);
+  // Valitsematon kohta = ei kuulu tarkastukseen. `answered` = Kunnossa/Vika-valinnat.
+  const answered = values.filter((v, i) => (v === 'ok' || v === 'faulty') && !neutral[i]).length;
+  const relevant = values.filter((v, i) => (v === 'ok' || v === 'faulty') && !neutral[i]);
   const allOk = relevant.length > 0 && relevant.every((v) => v === 'ok');
   const anyFaulty = values.some((v) => v === 'faulty');
   return {
@@ -43,7 +44,7 @@ export function sisayksikkoTarkastusSummary(row: SisayksikkoData): {
     total: values.length,
     allOk,
     anyFaulty,
-    complete: answered === values.length,
+    complete: true,
   };
 }
 

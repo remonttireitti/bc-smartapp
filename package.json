@@ -20,6 +20,7 @@
     "setup:dev": "node scripts/setup-dev-users.mjs",
     "invite:user": "node scripts/invite-user.mjs",
     "docs:pdf": "node scripts/generate-user-guide-pdf.mjs",
+    "test:ilp-creation-flow": "npx tsx scripts/test-ilp-creation-flow.mjs",
     "test:device-draft": "npx tsx scripts/test-device-draft.mjs",
     "test:module-visit": "npx tsx scripts/test-module-visit.mjs",
     "test:huomiot-optional-complete": "npx tsx scripts/test-huomiot-optional-complete.mjs",

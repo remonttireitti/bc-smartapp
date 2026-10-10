@@ -1,3 +1,4 @@
+import { ilpDeviceModel, ilpDeviceSerial, isIlpDevice } from './ilpIdentity';
 import { isChillerLikeDevice, usesRefrigerantServiceExtras } from './deviceModuleLogic';
 import { tiiveyskoeTabCompletion, tyhjiointiTabCompletion } from './maintenanceReportTabCompletion';
 import {
@@ -396,10 +397,14 @@ function lampopumppuDocumentUnitCompletion(
   unitId: LampopumppuDocumentUnitId,
 ): MaintenanceTabCompletionState {
   if (unitId === 'ulkoyksikko') {
-    if (!form.ulkoyksikkoMalli?.trim() && !form.ulkoyksikkoSarjanumero?.trim()) {
+    const hasIdentity = isIlpDevice(form.laiteTyyppi)
+      ? Boolean(ilpDeviceModel(form) || ilpDeviceSerial(form))
+      : Boolean(form.ulkoyksikkoMalli?.trim() || form.ulkoyksikkoSarjanumero?.trim());
+    if (!hasIdentity) {
       return 'incomplete';
     }
-    return inspectionStatusToDocumentCompletion(ulkoyksikkoInspectionStatus(form));
+    // Valitsematon tarkastus = ei kuulu.
+    return inspectionStatusToDocumentCompletion(ulkoyksikkoInspectionStatus(form) ?? 'na');
   }
 
   if (unitId === 'sisayksikko') {
