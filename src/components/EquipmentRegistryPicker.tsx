@@ -31,6 +31,8 @@ type Props = {
   onSelect: (equipmentId: string) => void;
   onClear: () => void;
   onCreate: (draft: NewEquipmentDraft) => Promise<void>;
+  /** Kun annettu, "uusi laite" ei avaa omaa lomaketta vaan tämän (tiedot syötetään kerran muualla). */
+  onCreateRequest?: (query: string) => void;
 };
 
 export default function EquipmentRegistryPicker({
@@ -45,6 +47,7 @@ export default function EquipmentRegistryPicker({
   onSelect,
   onClear,
   onCreate,
+  onCreateRequest,
 }: Props) {
   const [showCreateForm, setShowCreateForm] = useState(autoOpenCreate);
   const [draft, setDraft] = useState<NewEquipmentDraft>(emptyDraft);
@@ -61,6 +64,10 @@ export default function EquipmentRegistryPicker({
   }, [autoOpenCreate]);
 
   function openCreateForm(name: string) {
+    if (onCreateRequest) {
+      onCreateRequest(name);
+      return;
+    }
     setDraft({
       name: name || placeholders?.name || '',
       tag: placeholders?.tag || '',
@@ -92,7 +99,13 @@ export default function EquipmentRegistryPicker({
         onCreateClick={openCreateForm}
       />
 
-      {visibleEquipment.length === 0 && !showCreateForm && (
+      {onCreateRequest && !equipmentId ? (
+        <button type="button" className="btn btn-secondary btn-sm" disabled={disabled || busy} onClick={() => onCreateRequest('')}>
+          + Uusi laite
+        </button>
+      ) : null}
+
+      {visibleEquipment.length === 0 && !showCreateForm && !onCreateRequest && (
         <p className="muted">Asiakkaalla ei vielä laitteita rekisterissä. Kirjoita hakeaksesi tai luo uusi.</p>
       )}
 
@@ -100,7 +113,7 @@ export default function EquipmentRegistryPicker({
         <p className="muted">Lähde laite on piilotettu valinnasta — valitse toinen laite tai luo uusi tunnus.</p>
       )}
 
-      {showCreateForm && (
+      {showCreateForm && !onCreateRequest && (
         <div className="expense-section registry-create-form">
           <h3>Uusi laite</h3>
           <p className="muted">Anna uuden koneen tunnus (tagi) ja muut tiedot — ne tallentuvat laiterekisteriin.</p>

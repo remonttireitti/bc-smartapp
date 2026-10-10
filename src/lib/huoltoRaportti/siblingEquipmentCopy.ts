@@ -1,3 +1,4 @@
+import { realIdentityValue } from './ilpIdentity';
 import type { Session } from '@supabase/supabase-js';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Profile } from '../../types';
@@ -26,9 +27,12 @@ export function applySiblingEquipmentCopyFields(
   const cloned = cloneHuoltoReportForSiblingEquipment(source, { keepModel: input.sameModel });
   cloned.laiteTunnus = input.tunnus.trim();
   cloned.laiteSarjanumero = input.sarjanumero.trim();
+  // ILP: laitteen sarjanumero = ulkoyksikön sarjanumero.
+  if (cloned.laiteTyyppi === 'lämpöpumppu') cloned.ulkoyksikkoSarjanumero = realIdentityValue(input.sarjanumero);
   if (!input.sameModel) {
     cloned.laiteMalli = input.malli?.trim() ?? '';
     cloned.laiteValmistaja = input.valmistaja?.trim() ?? '';
+    if (cloned.laiteTyyppi === 'lämpöpumppu') cloned.ulkoyksikkoMalli = realIdentityValue(input.malli);
   }
   return cloned;
 }

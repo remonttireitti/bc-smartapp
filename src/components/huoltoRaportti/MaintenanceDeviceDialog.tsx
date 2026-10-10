@@ -7,6 +7,7 @@ import {
 import { createEmptyVjOhjausData } from '../../lib/huoltoRaportti/defaults';
 import type { HuoltoReportData } from '../../lib/huoltoRaportti/types';
 import { HuoltoInspectionDialogShell } from './HuoltoInspectionDialogShell';
+import { ilpDeviceModel, ilpDeviceSerial, isIlpDevice } from '../../lib/huoltoRaportti/ilpIdentity';
 
 type Props = {
   open: boolean;
@@ -36,6 +37,10 @@ export function MaintenanceDeviceDialog({
   }, [open]);
 
   const patchDraft = (patch: Partial<HuoltoReportData>) => setDraft((prev) => ({ ...prev, ...patch }));
+  // ILP: malli ja sarjanumero ovat ulkoyksikön tiedot — yksi kenttä, synkronoidaan molempiin.
+  const ilp = isIlpDevice(draft.laiteTyyppi);
+  const malliValue = ilp ? ilpDeviceModel(draft) || draft.laiteMalli : draft.laiteMalli;
+  const serialValue = ilp ? ilpDeviceSerial(draft) || draft.laiteSarjanumero : draft.laiteSarjanumero;
 
   const handleClose = () => {
     if (!onApply(draft)) return;
@@ -138,11 +143,13 @@ export function MaintenanceDeviceDialog({
                 ) : null}
               </label>
               <label>
-                Malli *
+                {ilp ? 'Malli (ulkoyksikkö) *' : 'Malli *'}
                 <input
                   className={fieldErrors.laiteMalli ? 'field-error-input' : undefined}
-                  value={draft.laiteMalli}
-                  onChange={(e) => patchDraft({ laiteMalli: e.target.value })}
+                  value={malliValue}
+                  onChange={(e) =>
+                    patchDraft(ilp ? { laiteMalli: e.target.value, ulkoyksikkoMalli: e.target.value } : { laiteMalli: e.target.value })
+                  }
                 />
                 {fieldErrors.laiteMalli ? (
                   <span className="field-error-text">{fieldErrors.laiteMalli}</span>
@@ -160,11 +167,17 @@ export function MaintenanceDeviceDialog({
                 ) : null}
               </label>
               <label>
-                Sarjanumero *
+                {ilp ? 'Sarjanumero (ulkoyksikkö) *' : 'Sarjanumero *'}
                 <input
                   className={fieldErrors.laiteSarjanumero ? 'field-error-input' : undefined}
-                  value={draft.laiteSarjanumero}
-                  onChange={(e) => patchDraft({ laiteSarjanumero: e.target.value })}
+                  value={serialValue}
+                  onChange={(e) =>
+                    patchDraft(
+                      ilp
+                        ? { laiteSarjanumero: e.target.value, ulkoyksikkoSarjanumero: e.target.value }
+                        : { laiteSarjanumero: e.target.value },
+                    )
+                  }
                   placeholder="esim. ei luettavissa / tiedossa"
                 />
                 {fieldErrors.laiteSarjanumero ? (

@@ -14,7 +14,15 @@ import { MaintenanceReportTabDialog } from '../components/huoltoRaportti/Mainten
 import { MaintenanceReportDocumentView } from '../components/huoltoRaportti/MaintenanceReportDocumentView';
 import { MaintenanceReportTabContent } from '../components/huoltoRaportti/MaintenanceReportTabContent';
 import { useMaintenanceDocumentLayout } from '../hooks/useMaintenanceDocumentLayout';
+import { MaintenanceFlowStatus } from '../components/huoltoRaportti/MaintenanceFlowStatus';
 import { MaintenanceDeviceDialog } from '../components/huoltoRaportti/MaintenanceDeviceDialog';
+import {
+  ilpDeviceModel,
+  ilpDeviceSerial,
+  isIlpDevice,
+  realIdentityValue,
+  syncIlpOutdoorIdentity,
+} from '../lib/huoltoRaportti/ilpIdentity';
 import { MaintenanceDeviceSummary } from '../components/huoltoRaportti/MaintenanceDeviceSummary';
 import { HuoltoModulePresentationProvider } from '../components/huoltoRaportti/HuoltoModulePresentationContext';
 import { SiblingEquipmentCopyDialog } from '../components/huoltoRaportti/SiblingEquipmentCopyDialog';
@@ -160,7 +168,14 @@ export default function MaintenanceReportEditPage({ session }: Props) {
   const isNew = !id;
   const { profile, loading: profileLoading } = useProfile(session);
 
-  const [reportId, setReportId] = useState<string | null>(id ?? null);
+  const [reportId, setReportIdState] = useState<string | null>(id ?? null);
+  // Ref päivittyy heti insertin jälkeen: vanhentunut automaattitallennuksen ajastin ei saa luoda toista riviä.
+  const reportIdRef = useRef<string | null>(id ?? null);
+  const setReportId = (next: string | null) => {
+    reportIdRef.current = next;
+    setReportIdState(next);
+  };
+  const [equipmentLinkState, setEquipmentLinkState] = useState<'created' | 'linked' | null>(null);
   const [savedReportTitle, setSavedReportTitle] = useState<string | null>(null);
   const [reportOwnerCompanyId, setReportOwnerCompanyId] = useState<string | null>(null);
   const [createdByCompanyId, setCreatedByCompanyId] = useState<string | null>(null);
@@ -1092,8 +1107,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
           laiteTunnus: String(eq.tag || eq.name || '').trim(),
           laiteMalli: String(eq.model || eq.name || '').trim(),
           laiteValmistaja: String(currentForm.laiteValmistaja || '').trim(),
-          laiteSarjanumero:
-            deviceType === 'lämpöpumppu' ? '' : String(eq.serial_number || '').trim(),
+          laiteSarjanumero: String(eq.serial_number || '').trim(),
           laiteSijainti: String(eq.location || '').trim(),
         };
     if (eq.device_type) basePatch.laiteTyyppi = eq.device_type;
@@ -1104,8 +1118,10 @@ export default function MaintenanceReportEditPage({ session }: Props) {
     }
     const merged = mergeHuoltoReportData(currentForm, { ...basePatch, ...snapshotPatch });
     const withDefaults = eq.device_type ? applyDeviceTypeDefaults(merged, eq.device_type) : merged;
-    const finalForm = mergeHuoltoReportData(withDefaults, fillMissingDeviceBasics(withDefaults));
+    const synced = mergeHuoltoReportData(withDefaults, syncIlpOutdoorIdentity(withDefaults));
+    const finalForm = mergeHuoltoReportData(synced, fillMissingDeviceBasics(synced));
     formStateRef.current = { ...formStateRef.current, form: finalForm };
+    setEquipmentLinkState((prev) => prev ?? 'linked');
     setHasUnsavedChanges(true);
     setForm(finalForm);
   }
@@ -1137,8 +1153,13 @@ export default function MaintenanceReportEditPage({ session }: Props) {
         customer_id: customerId,
         name,
         tag: draft.tag.trim() || form.laiteTunnus.trim() || null,
-        model: draft.model.trim() || form.laiteMalli.trim() || null,
-        serial_number: draft.serial_number.trim() || form.laiteSarjanumero.trim() || null,
+        model: (isIlpDevice(form.laiteTyyppi) ? ilpDeviceModel(form) : '') || draft.model.trim() || form.laiteMalli.trim() || null,
+        // ILP: laitteen sarjanumero = ulkoyksikön sarjanumero.
+        serial_number:
+          (isIlpDevice(form.laiteTyyppi) ? ilpDeviceSerial(form) : '')
+          || draft.serial_number.trim()
+          || realIdentityValue(form.laiteSarjanumero)
+          || null,
         location: draft.location.trim() || form.laiteSijainti.trim() || null,
         device_type: form.laiteTyyppi || null,
       })
@@ -1172,8 +1193,30 @@ export default function MaintenanceReportEditPage({ session }: Props) {
       setCopySiblingMode(false);
       setCopySourceEquipmentId(null);
     }
-    setRegistryMessage('Laite luotu rekisteriin ja valittu raportille.');
+    setRegistryMessage(null);
+    setEquipmentLinkState('created');
     setBusy(false);
+  }
+
+  /** ILP: laite luodaan / päivitetään suoraan laitetiedoista — ei erillistä "Uusi laite" -lomaketta. */
+  async function upsertEquipmentFromDeviceData(nextForm: HuoltoReportData) {
+    const { customerId: cid, equipmentId: eid } = formStateRef.current;
+    if (!ownerCompanyId || !cid || copySiblingMode) return;
+    try {
+      const savedId = await saveEquipmentFromReport(nextForm, cid, ownerCompanyId, eid || null, supabase);
+      if (!eid) {
+        formStateRef.current = { ...formStateRef.current, equipmentId: savedId };
+        setEquipmentId(savedId);
+        setEquipmentLinkState('created');
+        const rid = reportIdRef.current;
+        if (rid) {
+          await supabase.from('maintenance_reports').update({ equipment_id: savedId, customer_id: cid }).eq('id', rid);
+        }
+      }
+      await loadEquipment(cid);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Laitteen tallennus epäonnistui.');
+    }
   }
 
   function selectCustomerFromRegistry(id: string) {
@@ -1250,6 +1293,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
         supabase,
       );
       setEquipmentId(savedEquipmentId);
+      if (!targetEquipmentId) setEquipmentLinkState('created');
       setCopySiblingMode(false);
       setCopySourceEquipmentId(null);
       if (reportId) {
@@ -1465,6 +1509,21 @@ export default function MaintenanceReportEditPage({ session }: Props) {
 
     const isSubmitting = nextStatus === 'submitted';
 
+    // Ensimmäinen automaattitallennus vasta kun laitetiedot on annettu — ei tyhjää "— —" -luonnosta.
+    if (options?.auto && !reportIdRef.current) {
+      const rawDevice = validateMaintenanceDeviceBasics({
+        ...currentForm,
+        ...syncIlpOutdoorIdentity(currentForm),
+      });
+      if (!rawDevice.ok) return false;
+    }
+
+    const ilpPatch = syncIlpOutdoorIdentity(currentForm);
+    if (Object.keys(ilpPatch).length > 0) {
+      currentForm = mergeHuoltoReportData(currentForm, ilpPatch);
+      patchForm(ilpPatch);
+    }
+
     const devicePatch = fillMissingDeviceBasics(currentForm);
     if (Object.keys(devicePatch).length > 0) {
       currentForm = mergeHuoltoReportData(currentForm, devicePatch);
@@ -1585,7 +1644,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
         customer_id: customerId || null,
         subscriber_id: resolveSubscriberIdForReport(customerId, subscriberId, customers),
         subscriber_portal_visibility: subscriberPortalVisibility,
-        equipment_id: equipmentId || null,
+        equipment_id: formStateRef.current.equipmentId || equipmentId || null,
         assigned_user_id: session.user.id,
         title,
         data: dataPayload,
@@ -1599,12 +1658,12 @@ export default function MaintenanceReportEditPage({ session }: Props) {
         rowPayload.status = 'draft';
       }
 
-      let savedReportId = reportId;
-      if (reportId) {
+      let savedReportId = reportIdRef.current;
+      if (savedReportId) {
         const { error: updateError } = await supabase
           .from('maintenance_reports')
           .update(rowPayload)
-          .eq('id', reportId);
+          .eq('id', savedReportId);
 
         if (updateError) {
           if (!options?.auto) setError(updateError.message);
@@ -1651,10 +1710,15 @@ export default function MaintenanceReportEditPage({ session }: Props) {
       }
       lastSavedKonvektoriScoreRef.current = konvektoriRowsMaintenanceScore(dataPayload.konvektoriRows);
 
-      if (equipmentId) {
+      const linkedEquipmentId = formStateRef.current.equipmentId || equipmentId;
+      if (linkedEquipmentId) {
         try {
           const snapshot = buildHuoltoEquipmentTechnicalSnapshot(dataPayload);
-          await syncEquipmentFromReport(equipmentId, snapshot, supabase);
+          await syncEquipmentFromReport(linkedEquipmentId, snapshot, supabase, {
+            ...(isIlpDevice(dataPayload.laiteTyyppi)
+              ? { serial_number: ilpDeviceSerial(dataPayload), model: ilpDeviceModel(dataPayload) }
+              : {}),
+          });
         } catch (syncErr) {
           console.error(syncErr);
         }
@@ -1791,6 +1855,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
     const registryAddress = selectedCustomer ? formatCustomerAddressParts(selectedCustomer) : '';
     return normalizeHuoltoReportData({
       ...currentForm,
+      ...syncIlpOutdoorIdentity(currentForm),
       ...huoltoPerformerFields(profile, session),
       customerId: customerId || currentForm.customerId,
       asiakas: currentForm.asiakas.trim() || selectedCustomer?.name || '',
@@ -1910,6 +1975,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
     formStateRef.current = { ...formStateRef.current, form: result.next };
     persistDraftLocally(result.next);
     setForm(result.next);
+    if (isIlpDevice(result.next.laiteTyyppi)) void upsertEquipmentFromDeviceData(result.next);
     return true;
   }
 
@@ -2002,8 +2068,21 @@ export default function MaintenanceReportEditPage({ session }: Props) {
       if (profile?.company_id) void loadOwnerCompany(profile.company_id);
     },
     onCreateCustomer: createCustomerAndSelect,
-    onSelectEquipment: setEquipmentId,
-    onClearEquipment: () => setEquipmentId(''),
+    onSelectEquipment: (nextId: string) => {
+      setEquipmentLinkState('linked');
+      setEquipmentId(nextId);
+    },
+    onClearEquipment: () => {
+      setEquipmentLinkState(null);
+      setEquipmentId('');
+    },
+    onRequestNewEquipment: isIlpDevice(form.laiteTyyppi)
+      ? (query: string) => {
+          if (query.trim() && !form.laiteTunnus.trim()) patchForm({ laiteTunnus: query.trim() });
+          markModuleVisited('raportointi');
+          openDeviceDialog();
+        }
+      : undefined,
     onCreateEquipment: createEquipmentAndSelect,
     onSubscriberChange: setSubscriberId,
     onSubscriberPortalVisibilityChange: setSubscriberPortalVisibility,
@@ -2018,6 +2097,26 @@ export default function MaintenanceReportEditPage({ session }: Props) {
     patchCustomModuleValues,
     toggleModule,
   };
+
+  const linkedEquipment = equipmentId ? equipment.find((entry) => entry.id === equipmentId) : undefined;
+  const linkedEquipmentName =
+    linkedEquipment?.tag?.trim() || linkedEquipment?.name?.trim() || form.laiteTunnus.trim() || '';
+  const equipmentStatusText = !form.laiteTyyppi || isKonvektoritDevice(form.laiteTyyppi) && !equipmentId
+    ? null
+    : equipmentId
+      ? `${equipmentLinkState === 'created' ? 'Laite luotu' : 'Laite linkitetty'}${linkedEquipmentName ? `: ${linkedEquipmentName}` : ''}`
+      : 'Laitetta ei rekisterissä';
+  const saveStatusOk = autoSaveState !== 'saving' && autoSaveState !== 'offline' && !hasUnsavedChanges && Boolean(reportId);
+  const saveStatusText =
+    autoSaveState === 'saving' || busy
+      ? 'Tallennetaan…'
+      : autoSaveState === 'offline'
+        ? 'Offline – tallennettu selaimeen'
+        : hasUnsavedChanges || !reportId
+          ? 'Tallentamatta'
+          : savedAt
+            ? `Tallennettu klo ${savedAt}`
+            : 'Tallennettu';
 
   const hasSecondaryMaintenanceActions =
     (canDeleteMaintenance && status !== 'draft')
@@ -2140,21 +2239,18 @@ export default function MaintenanceReportEditPage({ session }: Props) {
             onNavigate={leaveGuard.requestLeave}
           />
           <h1>{isNew ? 'Uusi huoltoraportti' : 'Huoltoraportti'}</h1>
-          <p className="muted autosave-status">
-            {autoSaveState === 'saving' && 'Tallennetaan automaattisesti…'}
-            {autoSaveState === 'saved' && savedAt && `Tallennettu automaattisesti klo ${savedAt}`}
-            {autoSaveState === 'offline' &&
-              'Offline — muutokset tallennettu selaimeen. Synkronoidaan kun yhteys palaa.'}
-            {autoSaveState === 'idle' && savedAt && `Viimeksi tallennettu klo ${savedAt}`}
-            {status === 'draft' && autoSaveState === 'idle' && !savedAt && isOnline &&
-              'Automaattinen tallennus käynnistyy kun laitetyyppi ja asiakas on valittu.'}
-            {hasUnsavedChanges && (status === 'draft' || canEditPublishedReport) &&
-              ' · Tallentamattomia muutoksia'}
-            {canEditPublishedReport &&
-              autoSaveState === 'idle' &&
-              !hasUnsavedChanges &&
-              ' · Valmis raportti — muutokset tallennetaan manuaalisesti.'}
-          </p>
+          <MaintenanceFlowStatus
+            steps={[
+              { label: 'Asiakas', done: Boolean(customerId || form.asiakas.trim()) },
+              { label: 'Laite', done: basicsComplete && (!isIlpDevice(form.laiteTyyppi) || Boolean(equipmentId)) },
+              { label: 'Tarkastus', done: modulesComplete },
+              { label: 'Valmis', done: status === 'submitted' },
+            ]}
+            equipmentText={equipmentStatusText}
+            equipmentOk={Boolean(equipmentId)}
+            saveText={saveStatusText}
+            saveOk={saveStatusOk}
+          />
         </div>
       </div>
 

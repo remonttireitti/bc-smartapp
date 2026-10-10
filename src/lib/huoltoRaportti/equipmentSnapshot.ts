@@ -1,3 +1,4 @@
+import { ilpDeviceModel, ilpDeviceSerial, isIlpDevice, realIdentityValue } from './ilpIdentity';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import {
   createEmptySisayksikkoData,
@@ -394,7 +395,6 @@ export function buildHuoltoEquipmentTechnicalSnapshot(data: HuoltoReportData): R
             sarjanumero: u.sarjanumero,
             kondenssivesi: u.kondenssivesi,
             pumppuMalli: u.pumppuMalli,
-            asennettu: u.asennettu,
           }))
         : [],
     },
@@ -540,7 +540,7 @@ export function applyEquipmentSnapshotToForm(
       patch.sisayksikkoData = snap.sisayksikko.data.map((snapUnit, index) =>
         ensureSisayksikkoData({
           ...(form.sisayksikkoData[index] ?? createEmptySisayksikkoData()),
-          ...(snapUnit as Partial<SisayksikkoData>),
+          ...stripSisayksikkoInspection(snapUnit as Partial<SisayksikkoData>),
         }),
       );
     }
@@ -597,18 +597,30 @@ export function applyEquipmentSnapshotToForm(
   return patch;
 }
 
+/** Rekisterin tunnistetiedot eivät tuo edellisen käynnin tarkastustuloksia (ei oletusvalintaa). */
+function stripSisayksikkoInspection(unit: Partial<SisayksikkoData>): Partial<SisayksikkoData> {
+  const { asennettu: _a, kennoPuhdas: _k, eiAania: _e, kondenssiTestattu: _t, ...rest } = unit;
+  return rest;
+}
+
 /** Persist latest technical snapshot and device type on linked equipment after submit. */
 export async function syncEquipmentFromReport(
   equipmentId: string,
   snapshot: Record<string, unknown>,
   supabase: SupabaseClient,
+  identity?: { serial_number?: string; model?: string },
 ): Promise<void> {
   const deviceType = trim(snapshot.laiteTyyppi) || null;
+  // ILP: laitteen sarjanumero/malli pidetään samana kuin ulkoyksikön (vain oikeat arvot).
+  const identityPatch: Record<string, string> = {};
+  if (identity?.serial_number?.trim()) identityPatch.serial_number = identity.serial_number.trim();
+  if (identity?.model?.trim()) identityPatch.model = identity.model.trim();
   const { error } = await supabase
     .from('equipment')
     .update({
       huolto_technical_snapshot: snapshot,
       device_type: deviceType,
+      ...identityPatch,
     })
     .eq('id', equipmentId);
 
@@ -636,8 +648,9 @@ export async function saveEquipmentFromReport(
     customer_id: customerId,
     name: equipmentNameFromForm(form),
     tag: trim(form.laiteTunnus) || null,
-    model: trim(form.laiteMalli) || null,
-    serial_number: trim(form.laiteSarjanumero) || null,
+    model: (isIlpDevice(form.laiteTyyppi) ? ilpDeviceModel(form) : '') || realIdentityValue(form.laiteMalli) || null,
+    // ILP: laitteen sarjanumero = ulkoyksikön sarjanumero.
+    serial_number: (isIlpDevice(form.laiteTyyppi) ? ilpDeviceSerial(form) : '') || realIdentityValue(form.laiteSarjanumero) || null,
     location: trim(form.laiteSijainti) || null,
     device_type: trim(form.laiteTyyppi) || null,
     huolto_technical_snapshot: snapshot,

@@ -17187,3 +17187,17 @@ p.quote-outcome-unpriced {
   margin-left: 0.4rem;
   font-size: inherit;
 }
+
+/* Huoltoraportin tiivis tila: vaiheet + laite + tallennus */
+.maintenance-flow-status { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; margin-top: 4px; font-size: 0.85rem; }
+.maintenance-flow-steps { display: flex; flex-wrap: wrap; gap: 4px; list-style: none; margin: 0; padding: 0; }
+.maintenance-flow-step { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 999px; background: #f1f5f9; color: #64748b; }
+.maintenance-flow-step--done { background: #e8f5e9; color: #2e7d32; }
+.maintenance-flow-step--current { background: #e3f2fd; color: #1565c0; font-weight: 600; }
+.maintenance-flow-step-num { display: inline-flex; justify-content: center; min-width: 1em; font-weight: 600; }
+.maintenance-flow-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.maintenance-flow-chip { padding: 2px 8px; border-radius: 4px; border: 1px solid #cbd5e1; color: #475569; }
+.maintenance-flow-chip--ok { border-color: #a5d6a7; color: #2e7d32; background: #f1f8f1; }
+.maintenance-flow-chip--pending { border-color: #ffcc80; color: #b26a00; background: #fff8ec; }
+.huolto-ulkoyksikko-checks { display: grid; gap: 8px; margin-top: 8px; }
+.huolto-ilp-identity { margin: 0 0 6px; }

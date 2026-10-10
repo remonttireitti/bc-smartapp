@@ -1,3 +1,4 @@
+import { ilpDeviceModel, ilpDeviceSerial } from './ilpIdentity';
 import { parseCustomModuleTabId, type CustomReportModule } from './customModuleTypes';
 import {
   circuitComponentsInspectionStatuses,
@@ -196,7 +197,8 @@ function completionForTab(
     }
 
     case 'lampopumppu':
-      return aggregateInspectionStatuses([ulkoyksikkoInspectionStatus(form)]);
+      if (form.laiteTyyppi === 'lämpöpumppu' && !ilpDeviceModel(form) && !ilpDeviceSerial(form)) return 'incomplete';
+      return aggregateInspectionStatuses([ulkoyksikkoInspectionStatus(form) ?? 'na']);
 
     case 'mlp': {
       const mlp = form.mlpData;

@@ -50,6 +50,8 @@ type Props = {
   onSelectEquipment: (id: string) => void;
   onClearEquipment: () => void;
   onCreateEquipment: (draft: NewEquipmentDraft) => Promise<void>;
+  /** ILP: uusi laite luodaan Laitetiedot-ikkunan tiedoista (ei toista lomaketta). */
+  onRequestNewEquipment?: (query: string) => void;
   onSubscriberChange: (id: string) => void;
   onSubscriberPortalVisibilityChange: (value: SubscriberPortalVisibility) => void;
   embeddedInParentDialog?: boolean;
@@ -88,6 +90,7 @@ export function MaintenanceReportBasicsPanel({
   onSelectEquipment,
   onClearEquipment,
   onCreateEquipment,
+  onRequestNewEquipment,
   onSubscriberChange,
   onSubscriberPortalVisibilityChange,
   embeddedInParentDialog = false,
@@ -238,6 +241,7 @@ export function MaintenanceReportBasicsPanel({
                   onSelect={onSelectEquipment}
                   onClear={onClearEquipment}
                   onCreate={onCreateEquipment}
+                  onCreateRequest={onRequestNewEquipment}
                 />
               ) : null}
             </>

@@ -49,6 +49,8 @@ type Props = {
   onSelectEquipment: (id: string) => void;
   onClearEquipment: () => void;
   onCreateEquipment: (draft: NewEquipmentDraft) => Promise<void>;
+  /** ILP: uusi laite luodaan Laitetiedot-ikkunan tiedoista (ei toista lomaketta). */
+  onRequestNewEquipment?: (query: string) => void;
   onSubscriberChange: (id: string) => void;
   onSubscriberPortalVisibilityChange: (value: SubscriberPortalVisibility) => void;
 };
@@ -91,6 +93,7 @@ export function RaportointiTabSection({
   onSelectEquipment,
   onClearEquipment,
   onCreateEquipment,
+  onRequestNewEquipment,
   onSubscriberChange,
   onSubscriberPortalVisibilityChange,
 }: Props) {
@@ -133,6 +136,7 @@ export function RaportointiTabSection({
         onSelectEquipment={onSelectEquipment}
         onClearEquipment={onClearEquipment}
         onCreateEquipment={onCreateEquipment}
+          onRequestNewEquipment={onRequestNewEquipment}
         onSubscriberChange={onSubscriberChange}
         onSubscriberPortalVisibilityChange={onSubscriberPortalVisibilityChange}
       />
