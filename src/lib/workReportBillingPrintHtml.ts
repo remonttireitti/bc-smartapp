@@ -1,4 +1,5 @@
 import type { BillableCalculation } from './workReportBilling';
+import { restrainPrintHtml } from './huoltoRaportti/printShell';
 import { formatEuro } from './workReportBilling';
 import { BILLABLE_RATES_SOURCE_LABELS } from './management';
 import {
@@ -21,7 +22,7 @@ const LINE_KIND_LABELS: Record<string, string> = {
   expense: 'Kulu',
 };
 
-export function generatePartnerBillingHtml(input: {
+function generatePartnerBillingHtmlRaw(input: {
   reportTitle: string;
   creatorCompanyName: string;
   ownerCompanyName: string;
@@ -172,4 +173,8 @@ function escapeHtml(value: string) {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
+}
+
+export function generatePartnerBillingHtml(input: Parameters<typeof generatePartnerBillingHtmlRaw>[0]): string {
+  return restrainPrintHtml(generatePartnerBillingHtmlRaw(input), { plainHeadings: true });
 }
