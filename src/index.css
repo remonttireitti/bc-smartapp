@@ -17218,3 +17218,4 @@ p.quote-outcome-unpriced {
 .daily-log-focus-body { display: flex; flex-direction: column; gap: 16px; }
 .daily-log-focus-section-title { margin: 0 0 8px; font-size: 15px; }
 .expense-price-confirmed { display: flex; gap: 6px; align-items: center; margin-top: 6px; font-size: 13px; }
+.work-report-add-log-buttons { display: flex; flex-wrap: wrap; gap: 8px; }
