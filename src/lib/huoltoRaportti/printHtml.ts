@@ -51,6 +51,19 @@ import {
 } from './konvektoriPrint';
 import { formatHuomioPrintHtml } from './formatHuomioPrintHtml';
 import { generateIlpPrintHtml } from './ilpPrint';
+import { deviceTypes } from './constants';
+import {
+  PRINT_SHELL_CSS,
+  renderInfoColumns,
+  renderPrintHeader,
+  renderSignatureRow,
+  renderVerdictBand,
+  verdictHtml,
+} from './printShell';
+
+function deviceTypeLabel(t: string): string {
+  return (deviceTypes as ReadonlyArray<{ value: string; label: string }>).find((d) => d.value === t)?.label ?? t;
+}
 import { generateMlpFullPrintHtml } from './printMlpFull';
 import { renderCompressorCurrentHtml, renderFanPhaseCardHtml } from './printPhaseHelpers';
 import {
@@ -108,20 +121,15 @@ function strField(data: HuoltoReportData, key: string): string {
   return normalizePrintText(field(data, key));
 }
 
-function box(title: string, color: string, inner: string): string {
+function box(title: string, _color: string, inner: string): string {
   if (!inner.trim()) return '';
-  return `
-  <div class="box-content" style="border-color:${color};page-break-inside:avoid;margin-top:8px;">
-    <div style="border-bottom:2px solid ${color};padding-bottom:2px;margin-bottom:4px;">
-      <strong style="font-size:14px;color:${color};">${esc(title)}</strong>
-    </div>
-    <div style="font-size:11px;line-height:1.45;">${inner}</div>
-  </div>`;
+  return `<section class="sec"><h2>${esc(title)}</h2><div class="sec-body">${inner}</div></section>`;
 }
 
-function row(label: string, val: unknown, borderColor = '#ccc'): string {
+function row(label: string, val: unknown, _borderColor = '#ccc'): string {
   if (!hasPrintableValue(val)) return '';
-  return `<div style="border-bottom:1px solid ${borderColor};padding:2px 0;">${esc(label)}: ${esc(val)}</div>`;
+  if (!label) return `<div class="kvr full">${esc(val)}</div>`;
+  return `<div class="kvr"><span>${esc(label)}</span><span>${esc(val)}</span></div>`;
 }
 
 function gridField(label: string, val: unknown): string {
@@ -780,7 +788,7 @@ function renderEvidencePhotos(
   imageUrls?: Record<string, string>,
 ): string {
   if (!Array.isArray(items) || items.length === 0) return '';
-  return items
+  const figs = items
     .map((item, i) => {
       const href = resolvePhotoHref(item as MaintenanceReportPhotoItem, imageUrls);
       if (!href) return '';
@@ -788,12 +796,11 @@ function renderEvidencePhotos(
         item && typeof item === 'object'
           ? String((item as { comment?: string }).comment ?? '').trim()
           : '';
-      return `<div style="margin-top:10px;page-break-inside:avoid;">
-        <div style="font-size:10px;color:#555;margin-bottom:4px;">${esc(title)} ${i + 1}${comment ? ` — ${esc(comment)}` : ''}</div>
-        <img src="${escAttr(href)}" alt="" style="max-width:100%;max-height:380px;border:1px solid ${borderColor};border-radius:4px;display:block;" />
-      </div>`;
+      return `<figure><img src="${escAttr(href)}" alt="" style="border:.5px solid ${borderColor};" /><figcaption>${esc(title)} ${i + 1}${comment ? ` — ${esc(comment)}` : ''}</figcaption></figure>`;
     })
+    .filter(Boolean)
     .join('');
+  return figs ? `<div class="photos">${figs}</div>` : '';
 }
 
 function renderPhotoCommentList(
@@ -836,21 +843,6 @@ function renderHuomiot(data: HuoltoReportData, imageUrls?: Record<string, string
   return box('HUOMIOT JA LISÄTIEDOT', '#7B1FA2', body);
 }
 
-function renderLegacyCompanyBox(data: HuoltoReportData, meta: MaintenancePrintMeta): string {
-  const c = data.legacyCompanyInfo as Record<string, unknown> | undefined;
-  const name = String(c?.name ?? meta.companyName ?? '').trim();
-  if (!name) return '';
-  const inner = [
-    row('', name, '#616161'),
-    row('Y-tunnus', c?.businessId, '#616161'),
-    row('', c?.address, '#616161'),
-    row('Puh', c?.phone, '#616161'),
-    row('', c?.email, '#616161'),
-  ]
-    .filter(Boolean)
-    .join('');
-  return box('YRITYSTIEDOT', '#9E9E9E', inner);
-}
 
 function renderCircuitWarningsBanner(data: HuoltoReportData): string {
   if (isKonvektoritDevice(data.laiteTyyppi) || hideMaintenancePrintWarnings(data)) return '';
@@ -865,26 +857,6 @@ function renderCircuitWarningsBanner(data: HuoltoReportData): string {
   </div>`;
 }
 
-const PRINT_CSS = `
-:root { --text:#111827; --muted:#6b7280; --accent:#F0810F; --accent-strong:#D97706; }
-.huolto-print { font-family: Arial, sans-serif; font-size: 10pt; line-height: 1.35; color: var(--text); background: #fff; }
-.huolto-print .header-row { display: grid; grid-template-columns: 55mm 1fr 55mm; align-items: start; border-bottom: 4px dashed var(--accent-strong); padding-bottom: 4mm; margin-bottom: 8px; }
-.huolto-print .h-left { display: flex; align-items: center; min-height: 18mm; }
-.huolto-print .h-center { text-align: center; }
-.huolto-print .h-right { text-align: right; color: var(--muted); font-size: 10pt; }
-.huolto-print h1 { margin: 0; font-size: 18pt; }
-.huolto-print .subtitle { margin-top: 1mm; color: var(--muted); font-size: 10.5pt; }
-.huolto-print .content-row { display: flex; gap: 10px; margin-bottom: 10px; align-items: stretch; }
-.huolto-print .column-box { width: calc(50% - 5px); }
-.huolto-print .box-content { border: 1px solid #ccc; padding: 8px; border-radius: 4px; }
-.huolto-print .footer { border-top: 1px solid #ccc; padding-top: 8px; margin-top: 15px; font-size: 9pt; color: #666; }
-.huolto-print .huolto-status { margin: 8px 0; padding: 8px; background: #f9fafb; border-radius: 4px; font-size: 11px; }
-@media print {
-  .no-print { display: none !important; }
-  .huolto-print { padding: 0; }
-  @page { margin: 14mm; size: A4 portrait; }
-}
-`;
 
 /** Generate printable HTML fragment for a maintenance report. */
 export function generateMaintenanceReportHtml(
@@ -898,11 +870,7 @@ export function generateMaintenanceReportHtml(
   const kohteenTunniste = isKonvektoritDevice(data.laiteTyyppi)
     ? konvektoriPrintSubtitle(data)
     : data.laiteTunnus;
-  const subtitle = [meta.companyName, data.asiakas, kohteenTunniste].filter(Boolean).join(' – ');
 
-  const logoHtml = meta.logoUrl
-    ? `<img src="${escAttr(meta.logoUrl)}" alt="Logo" style="max-height:52px;max-width:170px;" />`
-    : '';
 
   if (data.laiteTyyppi === 'lämpöpumppu') {
     const c = data.legacyCompanyInfo as Record<string, unknown> | undefined;
@@ -918,7 +886,13 @@ export function generateMaintenanceReportHtml(
     });
   }
 
-  const companyBox = renderLegacyCompanyBox(data, meta);
+  const legacyCompany = data.legacyCompanyInfo as Record<string, unknown> | undefined;
+  const companyLine = [
+    String(legacyCompany?.name ?? meta.companyName ?? '').trim(),
+    legacyCompany?.businessId ? `Y-tunnus ${String(legacyCompany.businessId)}` : '',
+    String(legacyCompany?.phone ?? '').trim(),
+    String(legacyCompany?.email ?? '').trim(),
+  ].filter(Boolean).join(' · ');
 
   const customerBox = box(
     'ASIAKASTIEDOT',
@@ -964,33 +938,30 @@ export function generateMaintenanceReportHtml(
   const vuotoStatus = usesRefrigerantServiceExtras(data.laiteTyyppi)
     ? renderVuototarkastusStatus(data.huoltoKylmaaineVuotoTarkastus)
     : '';
-  const statusHtml = `<div class="huolto-status">
-    ${checkRow(data.huoltoSuoritettu, 'Huolto suoritettu')}
-    ${vuotoStatus ? `<div style="padding:2px 0;">${vuotoStatus}</div>` : ''}
-    ${data.huoltoLaiteessaVika || lampopumppuHasDeviceFault(data) ? '<span style="color:#b91c1c;font-weight:700;">Laiteessa vika havaittu</span>' : checkRow(data.huoltoLaiteessaVika === false, 'Ei vikaa havaittu')}
-  </div>`;
 
-  return `<style>${PRINT_CSS}</style>
-<div class="huolto-print">
-  <div class="header-row">
-    <div class="h-left">${logoHtml}</div>
-    <div class="h-center">
-      <h1>${esc(docTitle)}</h1>
-      <div class="subtitle">${esc(subtitle)}</div>
-    </div>
-    <div class="h-right">${esc(printDate)}</div>
-  </div>
+  const fault = Boolean(data.huoltoLaiteessaVika) || lampopumppuHasDeviceFault(data);
+  const band = renderVerdictBand([
+    verdictHtml(fault, data.huoltoLaiteessaVika === false || Boolean(data.huoltoSuoritettu)),
+    data.huoltoSuoritettu ? '<span>Huolto suoritettu</span>' : '',
+    vuotoStatus ? '<span class="st st-ok">✓ Vuototarkastus, ei vuotoja</span>' : '',
+    `<span class="muted">${esc(printDate)}</span>`,
+    hasPrintableValue(data.huoltoSuorittajaNimi) ? `<span class="muted">${esc(data.huoltoSuorittajaNimi)}</span>` : '',
+  ]);
+  const unwrap = (html: string) => html.replace(/^\s*<section class="sec"><h2>[^<]*<\/h2><div class="sec-body">/, '').replace(/<\/div><\/section>\s*$/, '');
+  const info = renderInfoColumns([
+    { title: 'Asiakas', html: unwrap(customerBox) },
+    { title: isKonvektoritDevice(data.laiteTyyppi) ? 'Kohde' : 'Laite', html: isKonvektoritDevice(data.laiteTyyppi)
+      ? [row('Verkosto', data.laiteKayttotarkoitus), row('Alue', data.laiteSijainti), row('Tunnus', data.laiteTunnus)].join('')
+      : unwrap(deviceBox) },
+    { title: 'Kylmäaine', html: refrigerantBox ? unwrap(refrigerantBox) : '' },
+  ]);
 
-  <div class="content-row">
-    ${companyBox ? `<div class="column-box">${companyBox}</div>` : ''}
-    <div class="column-box">${customerBox}</div>
-    ${companyBox || !deviceBox ? '' : `<div class="column-box">${deviceBox}</div>`}
-  </div>
-  ${companyBox && deviceBox ? `<div class="content-row"><div class="column-box">${deviceBox}</div></div>` : ''}
-
-  ${refrigerantBox ? `<div class="content-row"><div class="column-box">${refrigerantBox}</div></div>` : ''}
-
-  ${statusHtml}
+  return `<style>${PRINT_SHELL_CSS}</style>
+<div class="rp">
+  ${renderPrintHeader({ logoUrl: meta.logoUrl, companyLine, title: docTitle, subtitle: [deviceTypeLabel(data.laiteTyyppi), kohteenTunniste].filter(Boolean).join(' · ') })}
+  ${band}
+  ${info}
+  <div class="legacy">
   ${renderLampopumppuSections(data)}
   ${circuitsHtml}
   ${renderCircuitWarningsBanner(data)}
@@ -1007,13 +978,7 @@ export function generateMaintenanceReportHtml(
   ${usesRefrigerantServiceExtras(data.laiteTyyppi) ? renderTyhjiointi(data, imageUrls) : ''}
   ${renderCustomModulesPrintHtml(data.customModules)}
   ${renderHuomiot(data, imageUrls)}
-
-  <div class="footer">
-    <div style="display:flex;justify-content:space-between;align-items:center;">
-      <p style="margin:0;"><strong>Suorittaja:</strong> ${esc(data.huoltoSuorittajaNimi || '—')}
-        ${data.huoltoSuorittajaTUKES ? `| TUKES: ${esc(data.huoltoSuorittajaTUKES)}` : ''}</p>
-      <p style="margin:0;"><strong>Päivämäärä:</strong> ${esc(data.huoltoPaivamaara || '—')}</p>
-    </div>
   </div>
+  ${renderSignatureRow({ name: String(data.huoltoSuorittajaNimi || ''), tukes: String(data.huoltoSuorittajaTUKES || ''), date: printDate })}
 </div>`;
 }
