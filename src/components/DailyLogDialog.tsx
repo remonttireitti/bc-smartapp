@@ -12,6 +12,10 @@ interface Props {
   onDelete?: () => void;
   /** Osio, joka avataan heti dialogin avautuessa. */
   initialSectionKey?: string | null;
+  /** Kohdistettu muokkaus: vain nämä osiot (esim. ['expenses']) suoraan auki. */
+  focusSectionKeys?: string[] | null;
+  /** "Avaa koko kirjaus" kohdistetusta muokkauksesta. */
+  onOpenFull?: () => void;
   children: ReactNode;
 }
 
@@ -22,8 +26,10 @@ function DailyLogDialogFrame({
   onClose,
   onSubmit,
   onDelete,
+  onOpenFull,
+  focused = false,
   children,
-}: Omit<Props, 'open' | 'initialSectionKey'>) {
+}: Omit<Props, 'open' | 'initialSectionKey' | 'focusSectionKeys'> & { focused?: boolean }) {
   const nestedSectionOpen = useDailyLogSectionOpen();
 
   useEffect(() => {
@@ -49,14 +55,26 @@ function DailyLogDialogFrame({
         onClick={(event) => event.stopPropagation()}
       >
         <h2 id="daily-log-dialog-title">{title}</h2>
-        <p className="muted daily-log-dialog-hint">
-          Kirjaa päivän työt, tunnit ja tarvikkeet. Avaa ruudut täyttääksesi tiedot. Voit lisätä kuvia ennen
-          tallennusta.
-        </p>
+        {focused ? (
+          onOpenFull ? (
+            <p className="daily-log-dialog-hint">
+              <button type="button" className="btn-link" onClick={onOpenFull} disabled={busy}>
+                Avaa koko kirjaus
+              </button>
+            </p>
+          ) : null
+        ) : (
+          <p className="muted daily-log-dialog-hint">
+            Kirjaa päivän työt, tunnit ja tarvikkeet. Avaa ruudut täyttääksesi tiedot. Voit lisätä kuvia ennen
+            tallennusta.
+          </p>
+        )}
         <form className="daily-log-form" onSubmit={onSubmit}>
-          <div className="grid work-report-section-grid daily-log-section-grid">{children}</div>
+          <div className={focused ? 'daily-log-focus-body' : 'grid work-report-section-grid daily-log-section-grid'}>
+            {children}
+          </div>
           <div className="leave-draft-actions daily-log-dialog-actions">
-            {onDelete ? (
+            {onDelete && !focused ? (
               <button
                 type="button"
                 className="btn btn-secondary daily-log-dialog-delete"
@@ -81,12 +99,23 @@ function DailyLogDialogFrame({
   );
 }
 
-export default function DailyLogDialog({ open, initialSectionKey = null, ...props }: Props) {
+export default function DailyLogDialog({
+  open,
+  initialSectionKey = null,
+  focusSectionKeys = null,
+  ...props
+}: Props) {
   if (!open) return null;
+  const focused = !!focusSectionKeys?.length;
 
   return (
-    <DailyLogSectionProvider dialogOpen={open} initialOpenKey={initialSectionKey}>
-      <DailyLogDialogFrame {...props} />
+    <DailyLogSectionProvider
+      key={focused ? focusSectionKeys!.join(',') : 'full'}
+      dialogOpen={open}
+      initialOpenKey={focused ? null : initialSectionKey}
+      focusKeys={focused ? focusSectionKeys : null}
+    >
+      <DailyLogDialogFrame {...props} focused={focused} />
     </DailyLogSectionProvider>
   );
 }

@@ -1,4 +1,4 @@
-import { expenseLinePriceMissing } from './expensePriceMissing';
+import { expenseLineHasNoPrice } from './expensePriceMissing';
 import { restrainPrintHtml } from './huoltoRaportti/printShell';
 import type { BillableCalculation } from './workReportBilling';
 import {
@@ -639,7 +639,7 @@ function generateWorkReportPrintHtmlRaw(input: {
       const showCustomerExpensePrices = showCustomerPricesInPrint;
       // Asiakkaan tulosteessa ei näytetä rivejä ilman hintaa (esim. tarjouksesta luodut 0 €-rivit).
       const hideUnpricedExpense = (line: (typeof expenses)[number]) =>
-        printMode === 'customer' && linkedQuoteRequest && expenseLinePriceMissing(line);
+        printMode === 'customer' && linkedQuoteRequest && expenseLineHasNoPrice(line);
       const visibleExpenseCount = expenses.filter((line) => !hideUnpricedExpense(line)).length;
       const expenseRows = expenses
         .map((line, index) => {
@@ -1495,7 +1495,7 @@ function summarizeLogs(
       commissionNotes += 1;
     }
     for (const line of log.expense_lines ?? []) {
-      if (options?.hideUnpricedExpenses && expenseLinePriceMissing(line)) continue;
+      if (options?.hideUnpricedExpenses && expenseLineHasNoPrice(line)) continue;
       expenseLines += 1;
       if (showPrices) expenses += expenseLineTotal(line);
     }

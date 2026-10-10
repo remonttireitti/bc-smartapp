@@ -1,4 +1,5 @@
 import type { WorkReportDailyLog } from '../types';
+import { isLikelyAutoTripKmExpense } from './tripKmExpense';
 import type { BillingQuoteExtraCustomerWork, BillingQuoteExtraExpenseLine } from './billingQuoteExtraWork';
 import {
   buildSupplyLineFlagsFromExpenseDrafts,
@@ -8,6 +9,7 @@ import {
   resolveExpensePurchaseUnitPrice,
   resolveLogExpenseExtraBillingFlags,
   resolveSupplyMarginPercent,
+  resolveSupplyLineFlagForExpenseLine,
   type SupplyLineExtraBillingFlag,
 } from './workReportExpenseBilling';
 
@@ -97,6 +99,7 @@ function parseSupplyLineFlags(raw: unknown): SupplyLineExtraBillingFlag[] {
       ...(margin != null && margin >= 0 && margin < 100
         ? { customer_margin_percent: margin }
         : {}),
+      ...(row.price_confirmed === true ? { price_confirmed: true } : {}),
     });
   }
   return parsed;
@@ -177,6 +180,7 @@ export function serializeDailyLogCustomerExtraBilling(
       ...(row.customer_margin_percent != null
         ? { customer_margin_percent: row.customer_margin_percent }
         : {}),
+      ...(row.price_confirmed === true ? { price_confirmed: true } : {}),
     }));
   }
 
@@ -1010,4 +1014,60 @@ export function formatExtraBillingMarginImpactNote(
     return `${status} · puhdas kate luvan kanssa ${cell.withPermission}`;
   }
   return status;
+}
+
+/**
+ * Kulurivit sort_order-järjestykseen ja 0 €:n vahvistus (supply_line_flags[i].price_confirmed)
+ * riville `price_confirmed`, jotta "hinta puuttuu" -tarkistus näkee sen kaikkialla.
+ */
+export function annotateExpensePriceConfirmed<T extends WorkReportDailyLog>(logs: T[]): T[] {
+  return logs.map((log) => {
+    const lines = log.expense_lines;
+    if (!lines?.length) return log;
+    const sorted = [...lines].sort((a, b) => (Number(a.sort_order) || 0) - (Number(b.sort_order) || 0));
+    const flags = parseDailyLogCustomerExtraBilling(log.customer_extra_billing).supply_line_flags;
+    const annotated = sorted.map((line, index) => {
+      const flag = flags?.length ? resolveSupplyLineFlagForExpenseLine(line, index, sorted, flags) : null;
+      return flag?.price_confirmed === true && !(Number(line.unit_price) > 0)
+        ? { ...line, price_confirmed: true }
+        : line;
+    });
+    return { ...log, expense_lines: annotated };
+  });
+}
+
+/**
+ * Päivittää customer_extra_billing-JSONin supply_line_flags-rivin `price_confirmed`
+ * (sama indeksointi kuin tallennus: sort_order, ajokilometririvit ohitetaan). Puuttuvat
+ * liput täydennetään rivien omista lisälaskutustiedoista. Palauttaa uuden JSONin tai null.
+ */
+export function withSupplyLinePriceConfirmed(
+  log: Pick<WorkReportDailyLog, 'expense_lines' | 'customer_extra_billing'>,
+  lineId: string,
+  confirmed: boolean,
+): Record<string, unknown> | null {
+  const sorted = [...(log.expense_lines ?? [])].sort(
+    (a, b) => (Number(a.sort_order) || 0) - (Number(b.sort_order) || 0),
+  );
+  const flagLines = sorted.filter(
+    (line) =>
+      !isLikelyAutoTripKmExpense({ key: '', expense_type: line.expense_type ?? '', description: String(line.description ?? '') }),
+  );
+  const target = flagLines.findIndex((line) => line.id === lineId);
+  if (target < 0) return null;
+  const raw =
+    log.customer_extra_billing && typeof log.customer_extra_billing === 'object'
+      ? { ...(log.customer_extra_billing as Record<string, unknown>) }
+      : {};
+  const flags: Array<Record<string, unknown>> = Array.isArray(raw.supply_line_flags)
+    ? (raw.supply_line_flags as Array<Record<string, unknown>>).map((row) => ({ ...(row ?? {}) }))
+    : [];
+  for (let i = flags.length; i <= target; i++) {
+    const line = flagLines[i];
+    flags.push({ extra_billable: line?.extra_billable === true, extra_billing_allowed: line?.extra_billing_allowed === true });
+  }
+  if (confirmed) flags[target].price_confirmed = true;
+  else delete flags[target].price_confirmed;
+  raw.supply_line_flags = flags;
+  return raw;
 }

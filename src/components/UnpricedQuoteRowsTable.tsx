@@ -5,16 +5,16 @@ import { unpricedRowsLabel, type UnpricedQuoteRow } from '../lib/quoteSeededRows
 type Props = {
   rows: UnpricedQuoteRow[];
   readOnly?: boolean;
-  /** Tallentaa rivin toteutuneen hinnan (yhteensä, alv 0 %) päiväkirjan kuluriville. Palauttaa virheen tai null. */
+  /** Tallentaa rivin toteutuneen hinnan (yhteensä, alv 0 %; 0 = kulua ei syntynyt). Palauttaa virheen tai null. */
   onPrice?: (row: UnpricedQuoteRow, totalNet: number) => Promise<string | null>;
 };
 
-/** "12,50" / "12.5" / "1 200" → 12.5; tyhjä tai virheellinen → null. */
+/** "12,50" / "12.5" / "1 200" → 12.5; "0" → 0 (kulua ei syntynyt); tyhjä tai virheellinen → null. */
 export function parsePriceInput(value: string): number | null {
   const cleaned = value.replace(/\s|€/g, '').replace(',', '.');
   if (!cleaned) return null;
   const n = Number(cleaned);
-  return Number.isFinite(n) && n > 0 ? Math.round(n * 100) / 100 : null;
+  return Number.isFinite(n) && n >= 0 ? Math.round(n * 100) / 100 : null;
 }
 
 export default function UnpricedQuoteRowsTable({ rows, readOnly = false, onPrice }: Props) {
@@ -46,7 +46,7 @@ export default function UnpricedQuoteRowsTable({ rows, readOnly = false, onPrice
       delete next[row.key];
       return next;
     });
-    setSaved(`${row.description} ${formatEuro(total)}`);
+    setSaved(total === 0 ? `${row.description} 0 € (kulua ei syntynyt)` : `${row.description} ${formatEuro(total)}`);
   }
 
   const tick = saved ? <span className="billing-unpriced-saved">✓ tallennettu: {saved}</span> : null;

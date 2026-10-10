@@ -20,7 +20,7 @@ import {
 import { expenseTypeCategory } from './workReportEntryCategories';
 import { latestDailyLog } from './workReportDeviceEntries';
 import { fetchWorkReportDetailLogs } from './workReportDailyLogSelect';
-import { expenseLinePriceMissing } from './expensePriceMissing';
+import { expenseLineHasNoPrice, expenseLinePriceMissing } from './expensePriceMissing';
 
 type ExpenseLineLike = {
   id?: string;
@@ -31,6 +31,7 @@ type ExpenseLineLike = {
   customer_unit_price?: number | string | null;
   bill_to_partner?: boolean | null;
   bill_to_customer?: boolean | null;
+  price_confirmed?: boolean | null;
 };
 
 type LogLike = {
@@ -55,7 +56,8 @@ export function countUnpricedExpenseLines(logs: Array<Pick<LogLike, 'expense_lin
 
 /** Ilman hintaa olevat rivit eivät kuulu asiakkaan tulosteisiin / laskulle. */
 export function expenseLinesForCustomerPrint<T extends ExpenseLineLike>(lines: T[] | null | undefined): T[] {
-  return (lines ?? []).filter((line) => !expenseLinePriceMissing(line));
+  // Myös vahvistetut 0 €-rivit (kulua ei syntynyt) jäävät pois asiakkaan tulosteesta.
+  return (lines ?? []).filter((line) => !expenseLineHasNoPrice(line));
 }
 
 export function unpricedRowsLabel(count: number): string {
