@@ -54,6 +54,7 @@ import { generateIlpPrintHtml } from './ilpPrint';
 import { deviceTypes } from './constants';
 import {
   PRINT_SHELL_CSS,
+  keepHeadingWithFirst,
   renderInfoColumns,
   renderPrintHeader,
   renderSignatureRow,
@@ -123,7 +124,7 @@ function strField(data: HuoltoReportData, key: string): string {
 
 function box(title: string, _color: string, inner: string): string {
   if (!inner.trim()) return '';
-  return `<section class="sec"><h2>${esc(title)}</h2><div class="sec-body">${inner}</div></section>`;
+  return `<section class="sec"><div class="sec-body">${keepHeadingWithFirst(`<h2>${esc(title)}</h2>`, inner)}</div></section>`;
 }
 
 function row(label: string, val: unknown, _borderColor = '#ccc'): string {
@@ -134,7 +135,7 @@ function row(label: string, val: unknown, _borderColor = '#ccc'): string {
 
 function gridField(label: string, val: unknown): string {
   if (!hasPrintableValue(val)) return '';
-  return `<div><div style="color:#666;margin-bottom:2px;">${esc(label)}</div>
+  return `<div style="break-inside:avoid;page-break-inside:avoid;"><div style="color:#666;margin-bottom:2px;">${esc(label)}</div>
     <div style="padding:6px;background:#f5f5f5;border:1px solid #ddd;border-radius:4px;">${esc(val)}</div></div>`;
 }
 
@@ -947,7 +948,7 @@ export function generateMaintenanceReportHtml(
     `<span class="muted">${esc(printDate)}</span>`,
     hasPrintableValue(data.huoltoSuorittajaNimi) ? `<span class="muted">${esc(data.huoltoSuorittajaNimi)}</span>` : '',
   ]);
-  const unwrap = (html: string) => html.replace(/^\s*<section class="sec"><h2>[^<]*<\/h2><div class="sec-body">/, '').replace(/<\/div><\/section>\s*$/, '');
+  const unwrap = (html: string) => html.replace(/^\s*<section class="sec"><div class="sec-body"><div class="keep"><h2>[^<]*<\/h2>/, '<div>').replace(/<\/div><\/section>\s*$/, '');
   const info = renderInfoColumns([
     { title: 'Asiakas', html: unwrap(customerBox) },
     { title: isKonvektoritDevice(data.laiteTyyppi) ? 'Kohde' : 'Laite', html: isKonvektoritDevice(data.laiteTyyppi)

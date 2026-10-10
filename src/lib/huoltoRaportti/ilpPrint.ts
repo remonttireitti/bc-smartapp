@@ -24,7 +24,7 @@ import {
 } from './sisayksikkoTypes';
 import { getRefrigerantGWP } from './utils';
 import { ilpDeviceModel, ilpDeviceSerial } from './ilpIdentity';
-import { PRINT_SHELL_CSS } from './printShell';
+import { PRINT_SHELL_CSS, keepHeadingWithFirst } from './printShell';
 
 export interface IlpPrintMeta {
   companyName: string;
@@ -56,7 +56,7 @@ function kvTable(rows: string[]): string {
 }
 function section(title: string, inner: string, extraClass = ''): string {
   if (!inner.trim()) return '';
-  return `<section class="sec ${extraClass}"><h2>${esc(title)}</h2>${inner}</section>`;
+  return `<section class="sec ${extraClass}">${keepHeadingWithFirst(`<h2>${esc(title)}</h2>`, inner)}</section>`;
 }
 
 function statusCell(status: HuoltoInspectionStatus): string {

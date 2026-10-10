@@ -108,3 +108,57 @@ export function renderSignatureRow(opts: { name: string; tukes?: string; date: s
     <div><strong></strong>Allekirjoitus</div>
   </div>`;
 }
+
+const VOID_TAGS = new Set(['img', 'br', 'hr', 'input', 'meta', 'link', 'col', 'source', 'wbr']);
+
+/** Jakaa HTML:n ensimmäiseen ylätason elementtiin ja loppuun (kevyt tagilaskenta). */
+export function splitFirstBlock(html: string): [string, string] {
+  const s = html.replace(/^\s+/, '');
+  if (!s.startsWith('<')) return ['', html];
+  const re = /<(\/?)([a-zA-Z][a-zA-Z0-9-]*)[^>]*?(\/?)>/g;
+  let depth = 0;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(s))) {
+    const tag = m[2].toLowerCase();
+    if (VOID_TAGS.has(tag) || m[3] === '/') {
+      if (depth === 0) return [s.slice(0, re.lastIndex), s.slice(re.lastIndex)];
+      continue;
+    }
+    depth += m[1] ? -1 : 1;
+    if (depth === 0) return [s.slice(0, re.lastIndex), s.slice(re.lastIndex)];
+  }
+  return ['', html];
+}
+
+/** Tyhjiä (sisällöttömiä) alkulohkoja ei lasketa ensimmäiseksi sisällöksi. */
+function isEmptyBlock(block: string): boolean {
+  return !/<img\b/i.test(block) && !block.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, '').trim();
+}
+
+/**
+ * Otsikko pysyy ensimmäisen sisältölohkon (tai ensimmäisen kuvarivin) kanssa samalla sivulla.
+ * Kuvaruudukosta irrotetaan kaksi ensimmäistä kuvaa otsikon kanssa.
+ */
+export function keepHeadingWithFirst(headingHtml: string, inner: string): string {
+  let lead = '';
+  let rest = inner;
+  for (let i = 0; i < 4; i++) {
+    const [first, after] = splitFirstBlock(rest);
+    if (!first) break;
+    if (isEmptyBlock(first)) {
+      lead += first;
+      rest = after;
+      continue;
+    }
+    if (/^<div class="photos">/.test(first)) {
+      const body = first.slice('<div class="photos">'.length, -'</div>'.length);
+      const [f1, r1] = splitFirstBlock(body);
+      const [f2, r2] = splitFirstBlock(r1);
+      const row = `<div class="photos">${f1}${f2}</div>`;
+      const remaining = r2.trim() ? `<div class="photos">${r2}</div>` : '';
+      return `<div class="keep">${headingHtml}${lead}${row}</div>${remaining}${after}`;
+    }
+    return `<div class="keep">${headingHtml}${lead}${first}</div>${after}`;
+  }
+  return `<div class="keep">${headingHtml}</div>${inner}`;
+}
