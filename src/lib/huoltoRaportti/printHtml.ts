@@ -50,6 +50,7 @@ import {
   konvektoriVerkostoKoideFromReport,
 } from './konvektoriPrint';
 import { formatHuomioPrintHtml } from './formatHuomioPrintHtml';
+import { generateIlpPrintHtml } from './ilpPrint';
 import { generateMlpFullPrintHtml } from './printMlpFull';
 import { renderCompressorCurrentHtml, renderFanPhaseCardHtml } from './printPhaseHelpers';
 import {
@@ -902,6 +903,20 @@ export function generateMaintenanceReportHtml(
   const logoHtml = meta.logoUrl
     ? `<img src="${escAttr(meta.logoUrl)}" alt="Logo" style="max-height:52px;max-width:170px;" />`
     : '';
+
+  if (data.laiteTyyppi === 'lämpöpumppu') {
+    const c = data.legacyCompanyInfo as Record<string, unknown> | undefined;
+    return generateIlpPrintHtml(data, {
+      companyName: String(c?.name ?? meta.companyName ?? '').trim(),
+      companyLines: [c?.businessId ? `Y-tunnus ${String(c.businessId)}` : '', String(c?.phone ?? ''), String(c?.email ?? '')]
+        .map((v) => v.trim())
+        .filter(Boolean),
+      logoUrl: meta.logoUrl,
+      imageUrls,
+      docTitle,
+      fault: Boolean(data.huoltoLaiteessaVika) || lampopumppuHasDeviceFault(data),
+    });
+  }
 
   const companyBox = renderLegacyCompanyBox(data, meta);
 

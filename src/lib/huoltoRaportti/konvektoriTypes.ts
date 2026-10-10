@@ -51,7 +51,7 @@ export function konvektoriImageFile(tyyppi: unknown): string {
 
 export function konvektoriImageUrl(tyyppi: unknown, origin = ''): string {
   const file = konvektoriImageFile(tyyppi);
-  const base = (import.meta.env.BASE_URL || '/').replace(/\/?$/, '/');
+  const base = (import.meta.env?.BASE_URL || '/').replace(/\/?$/, '/');
   const path = `${base}assets/konvektorit/${file}`;
   if (origin) return `${origin.replace(/\/$/, '')}${path.startsWith('/') ? path : `/${path}`}`;
   return path;
