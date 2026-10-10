@@ -1,4 +1,5 @@
 import { FormEvent, type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
+import { focusedAddTargetLog, mergeFocusedAddRows, mergeFocusedAddWorkDone } from '../lib/dailyLogFocusedAdd';
 import type { UnpricedQuoteRow } from '../lib/quoteSeededRows';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
@@ -554,7 +555,7 @@ function applyUrakkaMargin(form: DailyLogFormState, marginValue: string): DailyL
   return next;
 }
 
-function DailyLogFields({
+export function DailyLogFields({
   form,
   setForm,
   expenseDrafts,
@@ -571,6 +572,8 @@ function DailyLogFields({
   linkedQuoteRequest,
   autoOpenExpenseKey,
   expenseCategoryFilter = null,
+  dayDateOnly = false,
+  dayHideStartTime = false,
   onAutoOpenExpenseHandled,
   quoteCommission,
 }: {
@@ -591,6 +594,10 @@ function DailyLogFields({
   autoOpenExpenseKey?: string | null;
   /** Kohdistettu TARVIKKEET / KULUT -muokkaus: vain kategorian rivit. */
   expenseCategoryFilter?: 'supplies' | 'expenses' | null;
+  /** Lisää kulu / tarvike: Päivä-osiossa vain päivämäärä. */
+  dayDateOnly?: boolean;
+  /** Lisää työ: päivä + tuntien tyyppi (ei aloitusaikaa). */
+  dayHideStartTime?: boolean;
   onAutoOpenExpenseHandled?: () => void;
   /** Tarjouksen provisio (koko työraportti) — muokataan vain Provisio-osiossa. */
   quoteCommission?: {
@@ -615,7 +622,12 @@ function DailyLogFields({
         ? deviceDrafts[0].description.trim() || '1 laite'
         : `${deviceDrafts.length} laitetta`;
   const hasAutoTripKm = expenseDrafts.some(isLikelyAutoTripKmExpense);
-  const expenseSectionTitle = 'Kulut ja tarvikkeet';
+  const expenseSectionTitle =
+    expenseCategoryFilter === 'supplies'
+      ? 'Tarvikkeet ja varaosat'
+      : expenseCategoryFilter === 'expenses'
+        ? 'Kulut'
+        : 'Kulut ja tarvikkeet';
   const partnerUrakkaPreview = previewPartnerUrakkaAmount(form);
 
   return (
@@ -637,6 +649,9 @@ function DailyLogFields({
               required
             />
           </label>
+          {dayDateOnly ? null : (
+          <>
+          {dayHideStartTime ? null : (
           <label>
             Aloitusaika
             <select
@@ -650,6 +665,7 @@ function DailyLogFields({
               ))}
             </select>
           </label>
+          )}
           <label>
             Tuntien tyyppi
             <select
@@ -663,6 +679,8 @@ function DailyLogFields({
               ))}
             </select>
           </label>
+          </>
+          )}
         </div>
       </DailyLogTileSection>
 
@@ -1076,6 +1094,26 @@ const DAILY_LOG_FOCUS_SECTIONS: Record<DailyLogEntryTileKind, string[]> = {
   device: ['device'],
 };
 
+/** "+ Lisää …" -napit: päivä + kategorian kentät (uusi kirjaus tarvitsee päivän). */
+const DAILY_LOG_ADD_SECTIONS: Record<'work' | 'expenses' | 'materials', string[]> & Record<string, string[]> = {
+  work: ['day', 'work', 'hours'],
+  expenses: ['day', 'expenses', 'trips'],
+  materials: ['day', 'expenses'],
+  device: ['day', 'device'],
+};
+
+/** Uuden kulu-/tarvikekirjauksen "Mitä tein" (pakollinen kenttä), kun kirjaus syntyy lisäysnapista. */
+const DAILY_LOG_ADD_DEFAULT_WORK: Record<string, string> = {
+  expenses: 'Kulut',
+  materials: 'Tarvikkeet ja varaosat',
+};
+
+const DAILY_LOG_ADD_TITLES: Record<string, string> = {
+  work: 'Lisää työ',
+  expenses: 'Lisää kulu',
+  materials: 'Lisää tarvike tai varaosa',
+};
+
 const DAILY_LOG_FOCUS_TITLES: Record<DailyLogEntryTileKind, string> = {
   work: 'Työ',
   materials: 'Tarvikkeet',
@@ -1213,7 +1251,14 @@ export default function WorkReportDetailPage({ session }: Props) {
   const [logDialogFocus, setLogDialogFocus] = useState<{
     kind: DailyLogEntryTileKind;
     title: string;
+    /** "+ Lisää työ / kulu / tarvike": uusi kirjaus valitulle päivälle (tai sen päivän olemassa olevaan). */
+    adding?: boolean;
   } | null>(null);
+  /** Lisäysdialogi: olemassa oleva saman päivän kirjaus, johon lisätään (null = uusi kirjaus). */
+  const [focusAddTargetLogId, setFocusAddTargetLogId] = useState<string | null>(null);
+  /** Kohdekirjauksen omat rivit (avaimet), jotta uudet rivit voidaan erottaa päivää vaihdettaessa. */
+  const focusAddBaseKeysRef = useRef<Set<string>>(new Set());
+  const tripSetupTokenRef = useRef(0);
   const [logDialogPreset, setLogDialogPreset] = useState<{
     sectionKey: string | null;
     expenseKey: string | null;
@@ -1224,6 +1269,12 @@ export default function WorkReportDetailPage({ session }: Props) {
   const [logDialogBusy, setLogDialogBusy] = useState(false);
   const [dailyLogNotice, setDailyLogNotice] = useState<DailyLogActionNotice | null>(null);
   const [logForm, setLogForm] = useState(initialLogForm);
+  const focusAddDate = logDialogOpen && logDialogFocus?.adding ? logForm.log_date : null;
+  useEffect(() => {
+    if (focusAddDate) retargetFocusedAdd(focusAddDate);
+    // Vain päivän vaihtuessa (tai dialogin avautuessa) lisäysdialogissa.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusAddDate, logDialogFocus?.adding]);
   const [expenseDrafts, setExpenseDrafts] = useState<ExpenseDraft[]>([]);
   const [tripDrafts, setTripDrafts] = useState<TripLegDraft[]>([]);
   const [tripDestinationOptions, setTripDestinationOptions] = useState<TripDestinationOption[]>([]);
@@ -2619,6 +2670,8 @@ export default function WorkReportDetailPage({ session }: Props) {
 
   async function setupTripLegsForDialog(existingLegs?: TripLegDraft[]) {
     if (!report) return;
+    // Vain viimeisin kutsu asettaa ajot (lisäysdialogin kohdekirjaus voi vaihtua kesken latauksen).
+    const token = ++tripSetupTokenRef.current;
 
     const [departureLabel, kmRates] = await Promise.all([
       resolveTripDepartureLabel(report.owner_company_id),
@@ -2630,6 +2683,7 @@ export default function WorkReportDetailPage({ session }: Props) {
     setTripKmCustomerRate(kmRates.customerKmRate);
     await loadTripDestinationOptionsForDialog(report);
 
+    if (token !== tripSetupTokenRef.current) return;
     const departure = tripLegDeparture(departureLabel, departureLabel);
     const legs = existingLegs ?? [];
     const drafts =
@@ -2760,6 +2814,67 @@ export default function WorkReportDetailPage({ session }: Props) {
     setLogDialogPreset({ sectionKey: 'device', expenseKey: rows[0].key });
   }
 
+  /** "+ Lisää työ / kulu / tarvike": kohdistettu lisäys, päivä oletuksena tänään. */
+  function openFocusedAdd(kind: 'work' | 'expenses' | 'materials') {
+    openAddLogDialog();
+    // Lisäysnapista ei esitäytetä tarjouksen rivejä (ne luodaan erikseen tarjouksen kohdistuksessa).
+    setOfferedQuoteRows([]);
+    setExpenseDrafts([]);
+    setFocusAddTargetLogId(null);
+    focusAddBaseKeysRef.current = new Set();
+    setLogForm((current) => ({ ...current, work_done: DAILY_LOG_ADD_DEFAULT_WORK[kind] ?? '' }));
+    setLogDialogFocus({ kind, title: DAILY_LOG_ADD_TITLES[kind], adding: true });
+  }
+
+  /**
+   * Lisäysdialogi: jos valitulle päivälle on jo kirjaus, lisätään siihen (ei kaksoiskirjausta).
+   * Kohdekirjauksen rivit + dialogissa lisätyt uudet rivit; päivän vaihto takaisin → uusi kirjaus.
+   */
+  function retargetFocusedAdd(date: string) {
+    if (!logDialogFocus?.adding) return;
+    const target = focusedAddTargetLog(dailyLogs, date);
+    if ((target?.id ?? null) === focusAddTargetLogId) return;
+    const baseKeys = focusAddBaseKeysRef.current;
+    const isNew = (key: string) => !baseKeys.has(key);
+    const kind = logDialogFocus.kind;
+    if (target) {
+      const targetExpenses = expensesToDrafts(
+        target.expense_lines,
+        parseDailyLogCustomerExtraBilling(target.customer_extra_billing).supply_line_flags,
+      );
+      const targetTrips = tripLegsToDrafts(target.trip_legs);
+      focusAddBaseKeysRef.current = new Set([
+        ...targetExpenses.map((row) => row.key),
+        ...targetTrips.map((row) => row.key),
+      ]);
+      setEditingLogId(target.id);
+      setEditingLog(target);
+      setLogForm((current) => {
+        const base = logToForm(target);
+        // TYÖ: muokataan päivän kirjausta (tunnit/kuvaus); jos käyttäjä kirjoitti uuden kuvauksen, lisätään se.
+        const typed =
+          kind === 'work' && current.work_done.trim() !== (DAILY_LOG_ADD_DEFAULT_WORK[kind] ?? '') ? current.work_done : '';
+        return { ...base, work_done: mergeFocusedAddWorkDone(base.work_done, typed) };
+      });
+      setExpenseDrafts((current) =>
+        mergeFocusedAddRows(targetExpenses, current.filter((row) => !isLikelyAutoTripKmExpense(row)), baseKeys),
+      );
+      void setupTripLegsForDialog(mergeFocusedAddRows(targetTrips, tripDrafts, baseKeys));
+      setRefrigerantDrafts(refrigerantLinesToDrafts(target.refrigerant_lines ?? []));
+      setPartnerPurchaseDrafts(partnerPurchasesToDrafts(target.partner_purchase_lines));
+    } else {
+      focusAddBaseKeysRef.current = new Set();
+      setEditingLogId(null);
+      setEditingLog(null);
+      setLogForm({ ...initialLogForm(), log_date: date, work_done: DAILY_LOG_ADD_DEFAULT_WORK[kind] ?? '' });
+      setExpenseDrafts((current) => current.filter((row) => isNew(row.key) && !isLikelyAutoTripKmExpense(row)));
+      void setupTripLegsForDialog(tripDrafts.filter((row) => isNew(row.key)));
+      setRefrigerantDrafts([]);
+      setPartnerPurchaseDrafts([]);
+    }
+    setFocusAddTargetLogId(target?.id ?? null);
+  }
+
   function openAddLogDialog() {
     setLogDialogPreset(null);
     setQuoteCommissionDraft(quoteCommissionDraftFromSettings(billingQuoteSettings));
@@ -2819,6 +2934,8 @@ export default function WorkReportDetailPage({ session }: Props) {
 
   function closeLogDialog() {
     setLogDialogFocus(null);
+    setFocusAddTargetLogId(null);
+    focusAddBaseKeysRef.current = new Set();
     setLogDialogOpen(false);
     setOfferedQuoteRows([]);
     setLogDialogBusy(false);
@@ -3573,13 +3690,17 @@ export default function WorkReportDetailPage({ session }: Props) {
         </div>
       <div className="work-report-add-log-bar">
         {canAddDailyLogs && (
-          <button
-            type="button"
-            className="btn btn-primary work-report-add-log-btn"
-            onClick={openAddLogDialog}
-          >
-            + Lisää työkirjaus
-          </button>
+          <div className="work-report-add-log-buttons">
+            <button type="button" className="btn btn-primary work-report-add-log-btn" onClick={() => openFocusedAdd('work')}>
+              + Lisää työ
+            </button>
+            <button type="button" className="btn btn-secondary work-report-add-log-btn" onClick={() => openFocusedAdd('expenses')}>
+              + Lisää kulu
+            </button>
+            <button type="button" className="btn btn-secondary work-report-add-log-btn" onClick={() => openFocusedAdd('materials')}>
+              + Lisää tarvike tai varaosa
+            </button>
+          </div>
         )}
         {report.status === 'delegated' && !canAddDailyLogs && (
           <p className="muted">
@@ -4449,10 +4570,22 @@ export default function WorkReportDetailPage({ session }: Props) {
 
       <DailyLogDialog
         open={logDialogOpen}
-        title={logDialogFocus?.title ?? (editingLogId ? 'Muokkaa työkirjausta' : 'Lisää työkirjaus')}
-        focusSectionKeys={logDialogFocus ? DAILY_LOG_FOCUS_SECTIONS[logDialogFocus.kind] : null}
+        title={
+          logDialogFocus
+            ? logDialogFocus.adding && focusAddTargetLogId
+              ? `${logDialogFocus.title} · lisätään ${formatDate(logForm.log_date)} kirjaukseen`
+              : logDialogFocus.title
+            : editingLogId ? 'Muokkaa työkirjausta' : 'Lisää työkirjaus'
+        }
+        focusSectionKeys={
+          logDialogFocus
+            ? logDialogFocus.adding
+              ? DAILY_LOG_ADD_SECTIONS[logDialogFocus.kind]
+              : DAILY_LOG_FOCUS_SECTIONS[logDialogFocus.kind]
+            : null
+        }
         onOpenFull={() => setLogDialogFocus(null)}
-        submitLabel={editingLogId ? 'Tallenna muutokset' : 'Lisää työkirjaus'}
+        submitLabel={logDialogFocus?.adding ? 'Tallenna' : editingLogId ? 'Tallenna muutokset' : 'Lisää työkirjaus'}
         busy={logDialogBusy}
         onClose={closeLogDialog}
         initialSectionKey={logDialogPreset?.sectionKey ?? null}
@@ -4512,6 +4645,8 @@ export default function WorkReportDetailPage({ session }: Props) {
           showQuoteLinkedCategories={workReportSupportsQuoteLinkedExtraBilling(billingQuoteSettings)}
           linkedQuoteRequest={hasLinkedQuote}
           autoOpenExpenseKey={logDialogPreset?.expenseKey ?? null}
+          dayDateOnly={!!logDialogFocus?.adding && logDialogFocus.kind !== 'work'}
+          dayHideStartTime={!!logDialogFocus?.adding}
           expenseCategoryFilter={
             logDialogFocus?.kind === 'materials'
               ? 'supplies'
