@@ -129,7 +129,7 @@ export default function QuoteOutcomeSummaryView({
             {summary.parties ? (
               <tr className="quote-outcome-section-row">
                 <td colSpan={4}>
-                  Laskutuslaskelma (alv 0 %){summary.partiesPreview ? ' · esikatselu' : ''}
+                  Laskutuslaskelma (alv 0 %)
                   {partiesAction ? <span className="quote-outcome-section-action">{partiesAction}</span> : null}
                 </td>
               </tr>

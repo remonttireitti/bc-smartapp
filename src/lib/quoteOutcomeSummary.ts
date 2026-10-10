@@ -114,8 +114,6 @@ export type QuoteOutcomeSummary = {
    * myynti-, kate- ja provisiorivit; puhdas kate = urakoitsijalle jäävä osuus.
    */
   parties: QuoteOutcomePartyRow[] | null;
-  /** Laskutuslaskelma on esikatselu (laitteen myyntihinta tarjouspyynnöstä, ei tallennettu). */
-  partiesPreview: boolean;
 };
 
 /** Kate-ero poikkeaa kulujen eron vastaluvusta (esim. hyväksytyt lisät) → näytä se taulukossa. */
@@ -186,9 +184,12 @@ export function buildQuoteOutcomeSummary(input: {
     contractorName?: string | null;
     installerName: string;
     installerBillsSupplies?: boolean;
-    /** Esikatselu tarjouspyynnön laitehinnalla (ei vielä laskutuksessa). */
-    preview?: boolean;
   } | null;
+  /**
+   * Hinnattomat kulurivit (tarjouksesta luodut 0 €-rivit): tarjouspyynnön hinta lasketaan
+   * alustavaksi toteutuneeksi kuluksi, jottei tulos näytä liian hyvältä ennen hintojen syöttöä.
+   */
+  provisionalCosts?: { supplies: number; expenses: number } | null;
 }): QuoteOutcomeSummary | null {
   const { partnerMargin, comparison, formatEuro } = input;
   if (!partnerMargin && !comparison) return null;
@@ -252,12 +253,40 @@ export function buildQuoteOutcomeSummary(input: {
   }
 
   const estimateCostsNet = comparison ? roundMoney(comparison.quoteTotalNet) : null;
-  const costs = comparisonOf(estimateCostsNet, actualCostsNet, costVarianceTone);
+  const provisionalTotal = roundMoney(
+    (input.provisionalCosts?.supplies ?? 0) + (input.provisionalCosts?.expenses ?? 0),
+  );
+  if (provisionalTotal > EPS) {
+    for (const key of ['supplies', 'expenses'] as const) {
+      const amount = roundMoney(input.provisionalCosts?.[key] ?? 0);
+      if (!(amount > EPS)) continue;
+      const note = `sis. hinnattomat rivit tarjouspyynnön hinnalla ${formatEuro(amount)} (alustava)`;
+      const index = rows.findIndex((row) => row.key === key);
+      if (index >= 0) {
+        const row = rows[index];
+        rows[index] = {
+          ...row,
+          note: row.note ? `${row.note} · ${note}` : note,
+          ...comparisonOf(row.estimateNet, row.actualNet + amount, costVarianceTone),
+        };
+      } else {
+        rows.push({
+          key,
+          label: key === 'supplies' ? 'Tarvikkeet' : 'Kulut (ajot ja muut)',
+          qtyLabel: null,
+          note,
+          ...comparisonOf(comparison ? 0 : null, amount, costVarianceTone),
+        });
+      }
+    }
+  }
+  const actualCostsWithProvisional = roundMoney(actualCostsNet + provisionalTotal);
+  const costs = comparisonOf(estimateCostsNet, actualCostsWithProvisional, costVarianceTone);
   // Arvioitu kate = tarjoushinta − arvioidut kulut (sama pohja kuin toteutunut kate).
   const estimateGrossNet =
     estimateCostsNet == null ? null : roundMoney(quoteSaleNet - estimateCostsNet);
   const grossMargin = partnerMargin
-    ? comparisonOf(estimateGrossNet, partnerMargin.grossMarginNet, marginVarianceTone)
+    ? comparisonOf(estimateGrossNet, partnerMargin.grossMarginNet - provisionalTotal, marginVarianceTone)
     : null;
 
   let parties: QuoteOutcomePartyRow[] | null = null;
@@ -338,12 +367,13 @@ export function buildQuoteOutcomeSummary(input: {
     commissionNet: chain ? 0 : roundMoney(partnerMargin?.commissionNet ?? 0),
     commissionPercent: partnerMargin?.commissionPercent ?? 0,
     commissionSource: partnerMargin?.commissionSource ?? 'percent',
-    netMarginNet: chain ? chain.contractorKeeps.actual : roundMoney(partnerMargin?.netMarginNet ?? 0),
+    netMarginNet: chain
+      ? chain.contractorKeeps.actual
+      : roundMoney((partnerMargin?.netMarginNet ?? 0) - provisionalTotal),
     hasMargin: partnerMargin != null,
     verdict: verdictFor(verdictAmount, formatEuro),
     showMarginVariance: marginVarianceDiffersFromCosts(costs, grossMargin),
     parties,
-    partiesPreview: !!parties && !!input.deviceSeller?.preview,
   };
 }
 
