@@ -162,3 +162,84 @@ export function keepHeadingWithFirst(headingHtml: string, inner: string): string
   }
   return `<div class="keep">${headingHtml}</div>${inner}`;
 }
+
+/* ---------- Työraportit ja tarjoukset: sama hillitty tyyli olemassa oleviin HTML-pohjiin ---------- */
+
+/** Brändi-/korostusvärit → musta/harmaa. Vihreä ja punainen tilaväri säilyvät. */
+const COLOR_MAP: Record<string, string> = {
+  // korostus- ja otsikkovärit
+  '#1d4ed8': '#111', '#1e3a8a': '#111', '#2f6aa8': '#333', '#1e3a5f': '#111', '#072855': '#111',
+  '#1f4e79': '#111', '#f97316': '#333', '#c2410c': '#333', '#9a3412': '#333', '#b45309': '#333',
+  '#92400e': '#333', '#d4a574': '#999', '#c62828': '#111', '#f0810f': '#111', '#d97706': '#111',
+  // sävytetyt taustat → valkoinen
+  '#fffbeb': '#fff', '#fee2e2': '#fff', '#f0fdf4': '#fff', '#ecfdf5': '#fff', '#eef2ff': '#fff',
+  '#fff7ed': '#fff', '#fffbf5': '#fff', '#dbeafe': '#f3f3f3', '#eff6ff': '#f3f3f3',
+  // neutraalit vaaleat taustat → vaalea harmaa
+  '#f8fafc': '#f3f3f3', '#f1f5f9': '#f3f3f3', '#f3f4f6': '#f3f3f3', '#f9fafb': '#f3f3f3', '#f7f7f7': '#f3f3f3',
+  // reunat
+  '#cbd5e1': '#d4d4d4', '#94a3b8': '#999', '#fdba74': '#d4d4d4', '#c7d2fe': '#d4d4d4', '#86efac': '#d4d4d4',
+  '#34d399': '#d4d4d4', '#dbe3ee': '#d4d4d4', '#e2e8f0': '#d4d4d4', '#e5e7eb': '#d4d4d4', '#d0d7de': '#d4d4d4',
+  // tekstin harmaat
+  '#64748b': '#555', '#475569': '#444', '#334155': '#333', '#0f172a': '#111', '#111827': '#111',
+  '#1f2937': '#111', '#374151': '#333', '#6b7280': '#555',
+};
+
+function restrainCssText(css: string): string {
+  return css
+    .replace(/#[0-9a-fA-F]{6}\b|#[0-9a-fA-F]{3}\b/g, (hex) => COLOR_MAP[hex.toLowerCase()] ?? hex)
+    .replace(/border-radius\s*:\s*[^;"}]+/gi, 'border-radius:0')
+    .replace(/box-shadow\s*:\s*[^;"}]+/gi, 'box-shadow:none')
+    .replace(/\b([2-9](?:\.\d+)?)px\s+(solid|dashed|dotted)/gi, '1px solid')
+    .replace(/\b(dashed|dotted)\b/gi, 'solid');
+}
+
+const RESTRAINED_DOC_CSS = `
+  @page { size: A4 portrait; margin: 12mm 13mm; }
+  body.rp-doc { font-family: Arial, Helvetica, sans-serif !important; color: #111; }
+  body.rp-doc h1, body.rp-doc h2, body.rp-doc h3, body.rp-doc h4,
+  body.rp-doc .print-box-title, body.rp-doc .sec-h2, body.rp-doc .doc-label, body.rp-doc thead {
+    break-after: avoid; page-break-after: avoid;
+  }
+  body.rp-doc tr, body.rp-doc figure { break-inside: avoid; page-break-inside: avoid; }
+  body.rp-doc .print-box-title, body.rp-doc .sec-h2 {
+    font-size: 8pt !important; text-transform: uppercase; letter-spacing: .6px; color: #333 !important;
+    background: #efefef !important; border: 0 !important; padding: 1mm 2mm !important; text-align: left !important; margin: 0 0 1.5mm !important;
+  }
+  body.rp-doc .print-box { border: 0 !important; border-radius: 0 !important; margin-bottom: 4mm !important; overflow: visible !important; }
+  body.rp-doc .print-box-body { padding: 0 1mm !important; }
+  body.rp-doc table th, body.rp-doc table td { border-color: #d4d4d4 !important; }
+  body.rp-doc img { box-shadow: none !important; }
+  body.rp-doc .summary-head, body.rp-doc .lk-header-top { border-bottom: 1.5px solid #111 !important; }
+  body.rp-doc .summary-title-block { text-align: right !important; }
+  body.rp-doc .lk-tagline { font-size: 8pt !important; color: #555 !important; background: none !important; border: 0 !important; padding: 1mm 0 !important; margin: 0 !important; text-align: left !important; }
+  body.rp-doc .rp-hide { display: none !important; }
+  body.rp-doc .print-box { break-inside: auto !important; page-break-inside: auto !important; }
+  body.rp-doc .lk-header-top, body.rp-doc .lk-logo { justify-content: flex-start !important; justify-items: start !important; text-align: left !important; margin-left: 0 !important; }
+  body.rp-doc .lk-logo img { margin: 0 !important; }
+  body.rp-doc .header.header--termatek { background: #fff !important; height: auto !important; padding: 0 0 2mm !important; justify-content: flex-start !important; border-bottom: 1.5px solid #111 !important; }
+  body.rp-doc .header.header--termatek .brand-banner { height: 12mm !important; width: auto !important; }
+  body.rp-doc .footer.footer--bar { display: none !important; }
+`;
+
+/** Yksinkertaiset h1/h2-pohjat (esim. kumppanin laskutusyhteenveto) samaan otsikkotyyliin. */
+const PLAIN_HEADINGS_CSS = `
+  body.rp-doc h1 { font-size: 15pt; margin: 2mm 0 1mm; padding-bottom: 2mm; border-bottom: 1.5px solid #111; }
+  body.rp-doc h2 { font-size: 8pt; text-transform: uppercase; letter-spacing: .6px; color: #333; background: #efefef; padding: 1mm 2mm; margin: 5mm 0 1.5mm; }
+  body.rp-doc table { font-size: 8.5pt; }
+`;
+
+/**
+ * Hillitty tyyli olemassa olevaan tulostedokumenttiin: värit ja pyöristykset tyylimäärittelyistä,
+ * yhteinen lisätyylitiedosto ja otsikot sisältönsä kanssa. Ei muuta tekstiä eikä summia.
+ */
+export function restrainPrintHtml(html: string, opts: { hideTagline?: boolean; plainHeadings?: boolean } = {}): string {
+  let out = html
+    .replace(/<style>([\s\S]*?)<\/style>/g, (_m, css: string) => `<style>${restrainCssText(css)}</style>`)
+    .replace(/style="([^"]*)"/g, (_m, css: string) => `style="${restrainCssText(css)}"`);
+  const extra = `<style>${RESTRAINED_DOC_CSS}${opts.hideTagline ? 'body.rp-doc .lk-tagline{display:none !important;}' : ''}${opts.plainHeadings ? PLAIN_HEADINGS_CSS : ''}</style>`;
+  out = out.includes('</head>') ? out.replace('</head>', `${extra}</head>`) : `${extra}${out}`;
+  out = /<body([^>]*)class="/.test(out)
+    ? out.replace(/<body([^>]*)class="/, '<body$1class="rp-doc ')
+    : out.replace(/<body(\s|>)/, '<body class="rp-doc"$1');
+  return out;
+}

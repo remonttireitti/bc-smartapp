@@ -1,4 +1,5 @@
 import type { BrandDeliveryFeeByCategoryMap } from '../../data/devicePricingShared';
+import { restrainPrintHtml } from '../huoltoRaportti/printShell';
 import type { HeatPumpDevice } from '../../data/pumpDeviceCatalog';
 import { formatCustomerAddressParts } from '../customers';
 import { computeKotitalousDeduction, computeIilpCoolingEnergyEstimate, computeQuoteInternalTotals, computeQuoteTotals, computePumpSizingNeedKw, computeTravelNet, effectiveIilpPurpose, resolveIilpLaborPricingMode, travelCostLabel } from './calculations';
@@ -1211,7 +1212,7 @@ function buildTermatekInternalPricingSectionHtml(input: {
     </div>`;
 }
 
-export function generateTermatekInternalPrintHtml(input: {
+function generateTermatekInternalPrintHtmlRaw(input: {
   data: QuoteRequestData;
   customer: QuotePrintCustomer;
   meta: QuotePrintMeta;
@@ -1319,4 +1320,8 @@ export async function prepareTermatekInternalPrintHtml(input: {
   const assetBase = getTermatekAssetBase();
   const assets = await embedTermatekAssets(buildTermatekAssetMap(assetBase));
   return generateTermatekInternalPrintHtml({ ...input, data, assets });
+}
+
+export function generateTermatekInternalPrintHtml(input: Parameters<typeof generateTermatekInternalPrintHtmlRaw>[0]): string {
+  return restrainPrintHtml(generateTermatekInternalPrintHtmlRaw(input));
 }

@@ -1,4 +1,5 @@
 import { expenseLinePriceMissing } from './expensePriceMissing';
+import { restrainPrintHtml } from './huoltoRaportti/printShell';
 import type { BillableCalculation } from './workReportBilling';
 import {
   APPROVED_EXTRA_BILLING_CUSTOMER_PRINT_LABEL,
@@ -554,7 +555,7 @@ function quoteMarginPrintSection(
   );
 }
 
-export function generateWorkReportPrintHtml(input: {
+function generateWorkReportPrintHtmlRaw(input: {
   report: WorkReport;
   logs: WorkReportDailyLog[];
   logImages?: Record<string, WorkReportPrintLogImage[]>;
@@ -1508,4 +1509,8 @@ function esc(value: unknown) {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
+}
+
+export function generateWorkReportPrintHtml(input: Parameters<typeof generateWorkReportPrintHtmlRaw>[0]): string {
+  return restrainPrintHtml(generateWorkReportPrintHtmlRaw(input), { hideTagline: true });
 }

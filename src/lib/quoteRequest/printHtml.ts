@@ -1,4 +1,5 @@
 import { parseCompanySettings, type CompanySettings } from '../management';
+import { restrainPrintHtml } from '../huoltoRaportti/printShell';
 import { formatCustomerAddressParts } from '../customers';
 import {
   QUOTE_PROJECT_TYPE_LABELS,
@@ -878,7 +879,7 @@ function companyContactBlock(meta: QuotePrintMeta): string {
   return lines.map((line) => `<div>${esc(line)}</div>`).join('');
 }
 
-export function generateQuoteOfferPrintHtml(input: {
+function generateQuoteOfferPrintHtmlRaw(input: {
   data: QuoteRequestData;
   customer: QuotePrintCustomer;
   meta: QuotePrintMeta;
@@ -1096,7 +1097,7 @@ export function generateQuoteOfferPrintHtml(input: {
 </html>`;
 }
 
-export function generateQuoteHeatCalcPrintHtml(input: {
+function generateQuoteHeatCalcPrintHtmlRaw(input: {
   data: QuoteRequestData;
   customer: QuotePrintCustomer;
   meta: QuotePrintMeta;
@@ -1262,7 +1263,7 @@ function buildServiceTaskPrintRows(
   return sections.join('');
 }
 
-export function generateQuoteServicePrintHtml(input: {
+function generateQuoteServicePrintHtmlRaw(input: {
   data: QuoteRequestData;
   customer: QuotePrintCustomer;
   meta: QuotePrintMeta;
@@ -1381,4 +1382,16 @@ export function generateQuoteServicePrintHtml(input: {
 
 export function parseCompanySettingsFromRow(settings: unknown): CompanySettings {
   return parseCompanySettings(settings);
+}
+
+export function generateQuoteOfferPrintHtml(input: Parameters<typeof generateQuoteOfferPrintHtmlRaw>[0]): string {
+  return restrainPrintHtml(generateQuoteOfferPrintHtmlRaw(input));
+}
+
+export function generateQuoteHeatCalcPrintHtml(input: Parameters<typeof generateQuoteHeatCalcPrintHtmlRaw>[0]): string {
+  return restrainPrintHtml(generateQuoteHeatCalcPrintHtmlRaw(input));
+}
+
+export function generateQuoteServicePrintHtml(input: Parameters<typeof generateQuoteServicePrintHtmlRaw>[0]): string {
+  return restrainPrintHtml(generateQuoteServicePrintHtmlRaw(input));
 }

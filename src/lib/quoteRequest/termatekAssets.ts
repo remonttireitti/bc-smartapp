@@ -56,7 +56,7 @@ export type TermatekAssetMap = Record<TermatekAssetKey, string>;
 export type TermatekProductImage = { label: string; src: string; alt: string };
 
 export function getTermatekAssetBase(origin = typeof window !== 'undefined' ? window.location.origin : ''): string {
-  const viteBaseUrl = import.meta.env.BASE_URL ?? '/';
+  const viteBaseUrl = import.meta.env?.BASE_URL ?? '/';
   const basePrefix = viteBaseUrl && viteBaseUrl !== '/' ? String(viteBaseUrl).replace(/\/$/, '') : '';
   return `${origin}${basePrefix}`;
 }
