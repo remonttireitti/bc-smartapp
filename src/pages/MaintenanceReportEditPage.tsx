@@ -1556,7 +1556,9 @@ export default function MaintenanceReportEditPage({ session }: Props) {
       if (!options?.auto) {
         setBasicsFieldErrors(customerBasics.fieldErrors);
         setDeviceFieldErrors(deviceBasics.fieldErrors);
-        setDocumentNavTarget('raportointi');
+        setDocumentNavTarget(
+          customerBasics.ok && isIlpDevice(currentForm.laiteTyyppi) ? 'lampopumppu:ulkoyksikko' : 'raportointi',
+        );
         setError([...customerBasics.errors, ...deviceBasics.errors][0] ?? 'Täytä raportoinnin pakolliset tiedot.');
       }
       return false;
@@ -1711,6 +1713,9 @@ export default function MaintenanceReportEditPage({ session }: Props) {
       lastSavedKonvektoriScoreRef.current = konvektoriRowsMaintenanceScore(dataPayload.konvektoriRows);
 
       const linkedEquipmentId = formStateRef.current.equipmentId || equipmentId;
+      if (!linkedEquipmentId && isIlpDevice(dataPayload.laiteTyyppi) && customerId && !copySiblingMode) {
+        await upsertEquipmentFromDeviceData(dataPayload);
+      }
       if (linkedEquipmentId) {
         try {
           const snapshot = buildHuoltoEquipmentTechnicalSnapshot(dataPayload);
@@ -2082,14 +2087,15 @@ export default function MaintenanceReportEditPage({ session }: Props) {
     },
     onRequestNewEquipment: isIlpDevice(form.laiteTyyppi)
       ? (query: string) => {
-          if (query.trim() && !form.laiteTunnus.trim()) patchForm({ laiteTunnus: query.trim() });
-          markModuleVisited('raportointi');
-          openDeviceDialog();
+          // Uusi laite: tiedot syötetään Ulkoyksikkö-moduulissa, laite luodaan tallennuksessa.
+          if (query.trim()) patchForm({ laiteTunnus: query.trim() });
+          setDocumentNavTarget('lampopumppu:ulkoyksikko');
         }
       : undefined,
     onCreateEquipment: createEquipmentAndSelect,
     onSubscriberChange: setSubscriberId,
     onSubscriberPortalVisibilityChange: setSubscriberPortalVisibility,
+    onDeviceTypeSelect: applyDeviceTypeFromDialog,
     onOpenDeviceDialog: () => {
       markModuleVisited('raportointi');
       openDeviceDialog();
@@ -2339,7 +2345,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
                 title={maintenanceTabs.find((tab) => tab.id === openTabId)?.label ?? ''}
                 onClose={() => setOpenTabId(null)}
                 footer={
-                  openTabId === 'raportointi' ? (
+                  openTabId === 'raportointi' && !isIlpDevice(form.laiteTyyppi) ? (
                     <button type="button" className="btn btn-secondary" onClick={openDeviceDialog}>
                       {deviceButtonLabel}
                     </button>

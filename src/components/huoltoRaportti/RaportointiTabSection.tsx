@@ -8,6 +8,8 @@ import type { Customer, Equipment } from '../../types';
 import type { SubscriberPortalVisibility } from '../../lib/subscriberPortalVisibility';
 import { useMaintenanceDocumentLayout } from '../../hooks/useMaintenanceDocumentLayout';
 import { DocumentModuleInspection } from './DocumentModuleInspection';
+import { deviceTypes } from '../../lib/huoltoRaportti/constants';
+import { isIlpDevice } from '../../lib/huoltoRaportti/ilpIdentity';
 import { MaintenanceDeviceSummary } from './MaintenanceDeviceSummary';
 import { MaintenanceReportBasicsPanel } from './MaintenanceReportBasicsPanel';
 
@@ -42,6 +44,7 @@ type Props = {
   deviceButtonLabel: string;
   onPatchForm: (patch: Partial<HuoltoReportData>) => void;
   onOpenDeviceDialog: () => void;
+  onDeviceTypeSelect?: (deviceType: string) => void;
   onReportOwnerChange: (companyId: string) => void;
   onSelectCustomer: (id: string) => void;
   onClearCustomer: () => void;
@@ -86,6 +89,7 @@ export function RaportointiTabSection({
   deviceButtonLabel,
   onPatchForm,
   onOpenDeviceDialog,
+  onDeviceTypeSelect,
   onReportOwnerChange,
   onSelectCustomer,
   onClearCustomer,
@@ -140,6 +144,25 @@ export function RaportointiTabSection({
         onSubscriberChange={onSubscriberChange}
         onSubscriberPortalVisibilityChange={onSubscriberPortalVisibilityChange}
       />
+      {/* Raportoinnissa valitaan vain laitetyyppi; laitteen tiedot muokataan laitekohtaisissa moduuleissa. */}
+      <label className="maintenance-device-type-select">
+        Laitetyyppi *
+        <select
+          className={deviceFieldErrors.laiteTyyppi ? 'field-error-input' : undefined}
+          value={form.laiteTyyppi}
+          onChange={(e) => {
+            if (e.target.value) onDeviceTypeSelect?.(e.target.value);
+          }}
+        >
+          <option value="">— Valitse laitetyyppi —</option>
+          {deviceTypes.map((dt) => (
+            <option key={dt.value} value={dt.value}>
+              {dt.label}
+            </option>
+          ))}
+        </select>
+      </label>
+      {form.laiteTyyppi && !isIlpDevice(form.laiteTyyppi) ? (
       <MaintenanceDeviceSummary
         form={form}
         deviceFieldErrors={deviceFieldErrors}
@@ -148,6 +171,7 @@ export function RaportointiTabSection({
         onEdit={onOpenDeviceDialog}
         editButtonLabel={deviceButtonLabel}
       />
+      ) : null}
     </>
   );
 

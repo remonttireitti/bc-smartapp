@@ -102,6 +102,7 @@ export type MaintenanceReportTabContentProps = {
   onSubscriberChange: (id: string) => void;
   onSubscriberPortalVisibilityChange: (value: SubscriberPortalVisibility) => void;
   onOpenDeviceDialog: () => void;
+  onDeviceTypeSelect?: (deviceType: string) => void;
   onCondenserTypeChange: (condenserType: HuoltoReportData['lauhdutinTyyppiLaite']) => void;
   onFreeCoolingChange: (enabled: boolean) => void;
   onPrintKonvektoriFaults?: () => void;
@@ -170,6 +171,7 @@ export function MaintenanceReportTabContent({
   onSubscriberChange,
   onSubscriberPortalVisibilityChange,
   onOpenDeviceDialog,
+  onDeviceTypeSelect,
   onCondenserTypeChange,
   onFreeCoolingChange,
   onPrintKonvektoriFaults,
@@ -218,6 +220,7 @@ export function MaintenanceReportTabContent({
           deviceButtonLabel={deviceButtonLabel}
           onPatchForm={onPatchForm}
           onOpenDeviceDialog={onOpenDeviceDialog}
+          onDeviceTypeSelect={onDeviceTypeSelect}
           onReportOwnerChange={onReportOwnerChange}
           onSelectCustomer={onSelectCustomer}
           onClearCustomer={onClearCustomer}
