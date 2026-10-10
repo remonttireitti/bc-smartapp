@@ -1,4 +1,5 @@
 import { FormEvent, type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
+import type { UnpricedQuoteRow } from '../lib/quoteSeededRows';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
 import AppLayout from '../components/AppLayout';
@@ -2309,6 +2310,32 @@ export default function WorkReportDetailPage({ session }: Props) {
     }
   }
 
+  /** Tarjous ja kate: hinnattoman rivin toteutunut hinta suoraan päiväkirjan kuluriville. */
+  async function handleUnpricedExpenseLinePrice(row: UnpricedQuoteRow, totalNet: number): Promise<string | null> {
+    if (!report || !row.lineId) return 'Riviä ei löydy.';
+    const qty = row.qty > 0 ? row.qty : 1;
+    const unitPrice = Math.round((totalNet / qty) * 100) / 100;
+    const { error: updateError } = await supabase
+      .from('work_report_daily_expense_lines')
+      .update({ unit_price: unitPrice })
+      .eq('id', row.lineId);
+    if (updateError) return updateError.message;
+    setDailyLogs((current) =>
+      current.map((log) =>
+        log.id !== row.logId
+          ? log
+          : {
+              ...log,
+              expense_lines: (log.expense_lines ?? []).map((line) =>
+                line.id === row.lineId ? { ...line, unit_price: unitPrice } : line,
+              ),
+            },
+      ),
+    );
+    void persistBillingAfterLogChange(report);
+    return null;
+  }
+
   async function persistBillingAfterLogChange(reportRow: WorkReport) {
     const isDelegatedOrder =
       !!reportRow.delegate_company_id && reportRow.created_by_company_id === reportRow.owner_company_id;
@@ -3606,6 +3633,7 @@ export default function WorkReportDetailPage({ session }: Props) {
           showPartnerMargin={!!showOutgoingPartnerBilling}
           readOnly={!showOutgoingPartnerBilling && !canManageCustomerBillingRates}
           onSaved={handleBillingQuotePricesSaved}
+          onExpenseLinePrice={handleUnpricedExpenseLinePrice}
         />
         </div>
       ) : null}

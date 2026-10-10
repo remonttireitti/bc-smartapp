@@ -17210,3 +17210,6 @@ p.quote-outcome-unpriced {
 .billing-unpriced-rows { margin: 12px 0; }
 .billing-unpriced-rows-title { margin: 0 0 4px; font-size: 14px; }
 .billing-unpriced-rows-help { margin: 0 0 8px; font-size: 12px; }
+.billing-unpriced-input { width: 7.5em; text-align: right; }
+.billing-unpriced-input::placeholder { color: #b45309; font-style: italic; }
+.billing-unpriced-saved { margin-left: 8px; font-size: 12px; font-weight: 500; color: #15803d; }
