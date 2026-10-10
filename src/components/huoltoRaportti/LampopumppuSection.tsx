@@ -109,9 +109,22 @@ export function LampopumppuSection({
         lampopumppuUlkoyksikkoTitle(form.laiteTyyppi),
         <>
           {isIlpDevice(form.laiteTyyppi) ? (
-            <p className="muted huolto-ilp-identity">
-              {[ilpDeviceModel(form) || 'Malli —', `S/N ${ilpDeviceSerial(form) || '—'}`].join(' · ')}
-            </p>
+            // ILP: laitteen tiedot syötetään täällä kerran (laite = ulkoyksikkö); rekisteri synkronoituu tallennuksessa.
+            <div className="line-form-grid">
+              <FormInput label="Laitetunnus" value={form.laiteTunnus || ''} onChange={(v) => onChange({ laiteTunnus: v })} />
+              <FormInput label="Sijainti" value={form.laiteSijainti || ''} onChange={(v) => onChange({ laiteSijainti: v })} />
+              <FormInput label="Valmistaja" value={form.laiteValmistaja || ''} onChange={(v) => onChange({ laiteValmistaja: v })} />
+              <FormInput
+                label="Malli"
+                value={ilpDeviceModel(form) || ''}
+                onChange={(v) => onChange({ ulkoyksikkoMalli: v, laiteMalli: v })}
+              />
+              <FormInput
+                label="Sarjanumero"
+                value={ilpDeviceSerial(form) || ''}
+                onChange={(v) => onChange({ ulkoyksikkoSarjanumero: v, laiteSarjanumero: v })}
+              />
+            </div>
           ) : null}
           <div className="line-form-grid">
             {isIlpDevice(form.laiteTyyppi) ? null : (

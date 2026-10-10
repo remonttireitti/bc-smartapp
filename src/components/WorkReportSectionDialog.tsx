@@ -1,4 +1,5 @@
-import { useEffect, type ReactNode } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
+import { useLocation } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 
 interface Props {
@@ -18,6 +19,26 @@ export default function WorkReportSectionDialog({
   wide = false,
   nested = false,
 }: Props) {
+  // Sulje dialogi reitin vaihtuessa (esim. laitekortti tai pöytäkirja avattu listasta),
+  // jotta avattu sivu näkyy heti eikä jää modaalin taakse.
+  const location = useLocation();
+  const routeKey = `${location.pathname}${location.search}`;
+  const openedAtRef = useRef<string | null>(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+  useEffect(() => {
+    if (!open) {
+      openedAtRef.current = null;
+      return;
+    }
+    if (openedAtRef.current === null) {
+      openedAtRef.current = routeKey;
+    } else if (openedAtRef.current !== routeKey) {
+      openedAtRef.current = null;
+      onCloseRef.current();
+    }
+  }, [open, routeKey]);
+
   useEffect(() => {
     if (!open) return;
     function onKeyDown(event: KeyboardEvent) {
