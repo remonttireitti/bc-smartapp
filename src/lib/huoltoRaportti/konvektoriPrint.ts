@@ -206,7 +206,7 @@ function renderKonvektoriCard(
   const cardColors = konvektoriCardColors(row);
 
   return `
-    <div style="border:1px solid ${cardColors.border};border-radius:4px;padding:4px;background:${cardColors.background};page-break-inside:avoid;display:flex;flex-direction:column;min-height:0;">
+    <div style="border:1px solid ${cardColors.border};border-radius:4px;padding:4px;background:${cardColors.background};page-break-inside:avoid;break-inside:avoid;display:flex;flex-direction:column;min-height:0;box-sizing:border-box;width:calc((100% - (var(--kc, 4) - 1) * 6px) / var(--kc, 4));">
       <div style="font-size:7px;font-weight:700;color:#00838F;line-height:1.2;margin-bottom:2px;">${index + 1}. ${esc(typeLabel)}</div>
       <div style="font-size:6px;color:#334155;line-height:1.25;margin-bottom:3px;word-wrap:break-word;">${metaParts.length ? esc(metaParts.join(' · ')) : '—'}</div>
       ${nesteVirtausHtml}
@@ -240,16 +240,13 @@ export function generateKonvektoritGridPrintHtml(
   const cards = list.map((row, idx) => renderKonvektoriCard(row, idx, esc, escAttr, origin)).join('');
 
   return `
-  <div class="box-content" style="border-color:#00838F;page-break-inside:avoid;margin-top:6px;">
+  <div class="box-content" style="border-color:#00838F;margin-top:6px;">
     <div style="border-bottom:2px solid #00838F;padding-bottom:2px;margin-bottom:4px;">
       <strong style="font-size:12px;color:#00838F;">KONVEKTORIT</strong>
     </div>
     ${verkostoSummary}
-    <p style="font-size:8px;color:#444;margin:0 0 4px 0;line-height:1.25;">
-      Yksittäisten konvektorien tiedot alla. Lyhenteet viittaavat tarkastuskohteisiin.
-    </p>
     ${renderKonvektoriCheckLegend(esc)}
-    <div style="display:grid;grid-template-columns:repeat(${columns},minmax(0,1fr));gap:6px;align-items:stretch;">
+    <div style="--kc:${columns};display:flex;flex-wrap:wrap;gap:6px;align-items:stretch;">
       ${cards}
     </div>
   </div>`;

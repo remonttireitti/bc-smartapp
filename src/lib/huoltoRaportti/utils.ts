@@ -76,7 +76,7 @@ export function getSpecificHeatCapacity(fluidName: string): number {
 /** true = Kyllä ✓, false/undefined = ei tulosteta */
 export function renderCheckbox(val: boolean | undefined, label: string = ''): string {
   if (val === true) {
-    return '<span style="color: #16a34a; font-weight: bold;">Kyllä ✓' + (label ? ' ' + label : '') + '</span>';
+    return '<span style="color: #16a34a; font-weight: bold;">✓</span>' + (label ? ' ' + label : '');
   }
   return '';
 }

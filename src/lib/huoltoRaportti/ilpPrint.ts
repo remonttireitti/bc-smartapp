@@ -24,6 +24,7 @@ import {
 } from './sisayksikkoTypes';
 import { getRefrigerantGWP } from './utils';
 import { ilpDeviceModel, ilpDeviceSerial } from './ilpIdentity';
+import { PRINT_SHELL_CSS } from './printShell';
 
 export interface IlpPrintMeta {
   companyName: string;
@@ -298,52 +299,7 @@ function renderTests(data: HuoltoReportData, imageUrls?: Record<string, string>)
   return section('Painekoe ja tyhjiöinti', `<div class="cols-2 keep">${parts.join('')}</div>${grid}`);
 }
 
-const ILP_PRINT_CSS = `
-.ilp-print { font-family: Arial, Helvetica, sans-serif; font-size: 9pt; line-height: 1.35; color: #111; background: #fff; }
-.ilp-print * { box-sizing: border-box; }
-.ilp-print .hdr { display: grid; grid-template-columns: 1fr auto; align-items: end; gap: 8mm; padding-bottom: 3mm; border-bottom: 1.5px solid #111; }
-.ilp-print .hdr img { max-height: 14mm; max-width: 55mm; display: block; }
-.ilp-print .hdr .co { font-size: 8pt; color: #555; margin-top: 1mm; }
-.ilp-print .hdr .ttl { text-align: right; }
-.ilp-print h1 { font-size: 15pt; margin: 0; font-weight: 700; letter-spacing: .2px; }
-.ilp-print .hdr .sub { font-size: 9pt; color: #444; margin-top: .5mm; }
-.ilp-print .band { display: flex; flex-wrap: wrap; gap: 2mm 6mm; align-items: center; margin: 3mm 0; padding: 2mm 3mm; border: 1px solid #bbb; border-left: 3px solid #111; }
-.ilp-print .band .verdict { font-size: 10.5pt; font-weight: 700; }
-.ilp-print .band .muted { color: #555; }
-.ilp-print .info { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0 5mm; }
-.ilp-print .info h2, .ilp-print .sec h2 { font-size: 8pt; text-transform: uppercase; letter-spacing: .6px; color: #333; background: #efefef; margin: 0 0 1.5mm; padding: 1mm 2mm; font-weight: 700; break-after: avoid; page-break-after: avoid; }
-.ilp-print .sec { margin-top: 4mm; break-inside: auto; }
-.ilp-print .keep { break-inside: avoid; page-break-inside: avoid; }
-.ilp-print h3 { font-size: 9pt; margin: 0 0 1mm; font-weight: 700; break-after: avoid; }
-.ilp-print table.kv { width: 100%; border-collapse: collapse; }
-.ilp-print table.kv th, .ilp-print table.kv td { text-align: left; vertical-align: top; padding: .9mm 1mm; border-bottom: .5px solid #d4d4d4; font-size: 8.5pt; }
-.ilp-print table.kv th { font-weight: 400; color: #555; width: 42%; }
-.ilp-print table.kv td.st-col { white-space: nowrap; }
-.ilp-print .lines div { padding: .6mm 1mm; font-size: 8.5pt; }
-.ilp-print .cols-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 5mm; }
-.ilp-print .units { display: grid; gap: 4mm 5mm; }
-.ilp-print .units-2 { grid-template-columns: 1fr 1fr; }
-.ilp-print .unit { break-inside: avoid; page-break-inside: avoid; }
-.ilp-print .unit-fig { position: relative; height: 34mm; border: .5px solid #d4d4d4; margin-bottom: 1.5mm; background: #fff; }
-.ilp-print .unit-fig img { width: 100%; height: 100%; object-fit: contain; display: block; filter: grayscale(1); opacity: .85; }
-.ilp-print .chip { display: inline-block; background: #fff; border: .5px solid #888; padding: .3mm 1.2mm; font-size: 7pt; font-weight: 700; white-space: nowrap; line-height: 1.3; }
-.ilp-print .chip span { font-weight: 400; color: #555; }
-.ilp-print .chip-col { display: flex; flex-direction: column; gap: .6mm; align-items: flex-start; }
-.ilp-print .st { font-size: 8pt; font-weight: 700; }
-.ilp-print .st-ok { color: #1b7f3b; }
-.ilp-print .st-bad { color: #b42318; }
-.ilp-print .st-na { color: #666; font-weight: 400; }
-.ilp-print .fault-text { color: #b42318; }
-.ilp-print .note { font-size: 8.5pt; padding: 1mm; border-bottom: .5px solid #d4d4d4; white-space: pre-wrap; }
-.ilp-print .photos { display: grid; grid-template-columns: 1fr 1fr; gap: 3mm 5mm; margin-top: 2mm; }
-.ilp-print figure { margin: 0; break-inside: avoid; page-break-inside: avoid; }
-.ilp-print figure img { width: 100%; max-height: 70mm; object-fit: contain; border: .5px solid #d4d4d4; display: block; }
-.ilp-print figcaption { font-size: 7.5pt; color: #555; margin-top: .8mm; }
-.ilp-print .sign { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6mm; margin-top: 8mm; break-inside: avoid; page-break-inside: avoid; }
-.ilp-print .sign div { border-top: .5px solid #111; padding-top: 1mm; font-size: 8pt; color: #555; }
-.ilp-print .sign strong { display: block; color: #111; font-size: 9pt; font-weight: 400; min-height: 4mm; }
-@media print { @page { size: A4 portrait; margin: 12mm 13mm; } .no-print { display: none !important; } }
-`;
+
 
 export function generateIlpPrintHtml(data: HuoltoReportData, meta: IlpPrintMeta): string {
   const origin = typeof window !== 'undefined' ? window.location.origin : '';
@@ -389,8 +345,8 @@ export function generateIlpPrintHtml(data: HuoltoReportData, meta: IlpPrintMeta)
     photoGrid(data.huomiotLiitteet, 'Liite', meta.imageUrls),
   ].join('');
 
-  return `<style>${ILP_PRINT_CSS}</style>
-<div class="ilp-print">
+  return `<style>${PRINT_SHELL_CSS}</style>
+<div class="rp ilp-print">
   <header class="hdr">
     <div>${logo}${companyLine ? `<div class="co">${esc(companyLine)}</div>` : ''}</div>
     <div class="ttl"><h1>${esc(meta.docTitle)}</h1><div class="sub">Ilmalämpöpumppu${hasPrintableValue(data.laiteTunnus) ? ` · ${esc(txt(data.laiteTunnus))}` : ''}</div></div>
