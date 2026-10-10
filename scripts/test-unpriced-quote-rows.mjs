@@ -80,3 +80,16 @@ assert.equal(after.netMarginNet, 6918.6);
 assert.equal(after.rows.find((r) => r.key === 'supplies').actualNet, 2160);
 assert.equal(after.parties, null);
 console.log('test-unpriced-quote-rows: OK');
+
+// Hinnan syöttö taulukosta: suomalainen desimaali, tyhjä ei tallennu; hinnoiteltu rivi poistuu listalta.
+const { parsePriceInput } = await import('../src/components/UnpricedQuoteRowsTable.tsx');
+assert.equal(parsePriceInput('12,5'), 12.5);
+assert.equal(parsePriceInput('1 200 €'), 1200);
+assert.equal(parsePriceInput(''), null);
+assert.equal(parsePriceInput('abc'), null);
+assert.equal(rows[0].lineId, 'e1');
+const priced = logs.map((l) => ({ ...l, expense_lines: l.expense_lines.map((x) => (x.id === 'e1' ? { ...x, unit_price: 250 } : x)) }));
+const left = collectUnpricedQuoteRows(priced, settings);
+assert.equal(left.length, 3);
+assert.deepEqual(unpricedQuoteRowTotals(left), { supplies: 450, expenses: 0 });
+console.log('test-unpriced-quote-rows (input): OK');

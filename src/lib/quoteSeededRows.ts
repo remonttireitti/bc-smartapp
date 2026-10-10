@@ -318,6 +318,8 @@ export async function markQuoteRowsSeeded(
 /** Työraportin hinnaton kulurivi + tarjouspyynnön hinta tiedoksi (ei muokattava). */
 export type UnpricedQuoteRow = {
   key: string;
+  /** Päiväkirjan kulurivin id (tallennus), null jos rivi ei ole vielä tallennettu. */
+  lineId: string | null;
   logId: string | null;
   logDate: string | null;
   description: string;
@@ -365,6 +367,7 @@ export function collectUnpricedQuoteRows(
       const quoteNet = purchaseLine?.quote_purchase_net;
       out.push({
         key: line.id ?? `${log.id}:${index}`,
+        lineId: line.id ?? null,
         logId: log.id ?? null,
         logDate: log.log_date ?? null,
         description: line.description,

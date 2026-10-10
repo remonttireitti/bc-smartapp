@@ -17,7 +17,7 @@ import {
   collectUnpricedQuoteRows,
   countUnpricedExpenseLines,
   unpricedQuoteRowTotals,
-  unpricedRowsLabel,
+  type UnpricedQuoteRow,
 } from '../lib/quoteSeededRows';
 import { extractQuotePurchaseLines } from '../lib/quotePurchaseLines';
 import {
@@ -32,6 +32,7 @@ import { mergeActualPurchaseFromWorkReportLogs } from '../lib/quoteRequestActual
 import { compareQuoteCategories } from '../lib/quoteCategoryComparison';
 import { buildQuoteOutcomeSummary } from '../lib/quoteOutcomeSummary';
 import QuoteOutcomeSummaryView from './QuoteOutcomeSummaryView';
+import UnpricedQuoteRowsTable from './UnpricedQuoteRowsTable';
 import {
   collectWorkReportCategoryEntries,
   quoteCategoryLabel,
@@ -65,6 +66,8 @@ type Props = {
   readOnly?: boolean;
   /** Hinnat tallennettu → sivu päivittää billing_quoten ja laskelmat (kate, provisio, partner_total). */
   onSaved?: (settings: BillingQuoteSettings) => void | Promise<void>;
+  /** Hinnattoman tarjousrivin toteutunut hinta (yhteensä) → päiväkirjan kulurivi. Palauttaa virheen tai null. */
+  onExpenseLinePrice?: (row: UnpricedQuoteRow, totalNet: number) => Promise<string | null>;
   /** "Avaa tarjous · Vaihda tarjous · Poista kohdistus" tarjouksen nimen perään. */
   quoteLinkActions?: ReactNode;
   /** Laitemyyjä-ketjun osapuolet: tilaaja (omistaja) ja raportin laatija (asentaja). */
@@ -98,6 +101,7 @@ export default function WorkReportBillingQuotePanel({
   showPartnerMargin = false,
   readOnly = false,
   onSaved,
+  onExpenseLinePrice,
   quoteLinkActions = null,
   ownerCompanyName = null,
   createdByCompanyId = null,
@@ -586,50 +590,12 @@ export default function WorkReportBillingQuotePanel({
   }
 
   function renderUnpricedQuoteRows() {
-    if (unpricedQuoteRows.length === 0) return null;
-    const quoteTotal = unpricedQuoteRows.reduce((sum, row) => sum + (row.quoteNet ?? 0), 0);
     return (
-      <div className="billing-unpriced-rows">
-        <h4 className="billing-unpriced-rows-title">
-          {unpricedRowsLabel(unpricedQuoteRows.length)} — tarjouspyynnöstä
-        </h4>
-        <p className="muted billing-unpriced-rows-help">
-          Rivit luotiin tarjouspyynnöstä 0 €:n hinnalla (kuuluu urakkaan). Tarjouspyynnön hinta näkyy
-          tiedoksi, ja sitä käytetään alustavana kuluna, kunnes syötät toteutuneen hinnan päiväkirjan
-          merkintään. Rivit eivät näy asiakkaan tulosteessa.
-        </p>
-        <div className="table-wrap">
-          <table className="billing-table billing-unpriced-rows-table">
-            <thead>
-              <tr>
-                <th>Päivä</th>
-                <th>Kuvaus</th>
-                <th className="num">Määrä</th>
-                <th className="num">Tarjouspyyntö €</th>
-                <th className="num">Toteutunut €</th>
-              </tr>
-            </thead>
-            <tbody>
-              {unpricedQuoteRows.map((row) => (
-                <tr key={row.key}>
-                  <td>{row.logDate ?? '—'}</td>
-                  <td>{row.description}</td>
-                  <td className="num">{row.qty.toLocaleString('fi-FI', { maximumFractionDigits: 2 })}</td>
-                  <td className="num muted" title="Tarjouspyynnön hinta tiedoksi (ei muokattava)">
-                    {row.quoteNet != null ? formatEuro(row.quoteNet) : '—'}
-                  </td>
-                  <td className="num quote-outcome-unpriced">hinta puuttuu</td>
-                </tr>
-              ))}
-              <tr className="quote-outcome-subtotal">
-                <td colSpan={3}>Yhteensä</td>
-                <td className="num">{formatEuro(quoteTotal)}</td>
-                <td className="num">—</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
+      <UnpricedQuoteRowsTable
+        rows={unpricedQuoteRows}
+        readOnly={readOnly}
+        onPrice={onExpenseLinePrice ? (row, total) => onExpenseLinePrice(row, total) : undefined}
+      />
     );
   }
 
