@@ -9,21 +9,21 @@ import {
 
 export function huomiotSectionTitle(deviceType: string): string {
   if (!usesLegacySectionNumbers(deviceType)) return 'Huomiot';
-  if (deviceType === 'konvektorit') return '3. Huomiot';
-  if (isGroundSourceHeatPump(deviceType)) return '6. Huomiot';
-  return '6. Huomiot';
+  if (deviceType === 'konvektorit') return 'Huomiot';
+  if (isGroundSourceHeatPump(deviceType)) return 'Huomiot';
+  return 'Huomiot';
 }
 
 export function huoltoTiedotSectionTitle(deviceType: string): string {
   if (!usesLegacySectionNumbers(deviceType)) return 'Huoltotiedot';
-  if (deviceType === 'konvektorit') return '4. Huolto tiedot';
-  if (isGroundSourceHeatPump(deviceType)) return '7. Huolto tiedot';
-  return '7. Huolto tiedot';
+  if (deviceType === 'konvektorit') return 'Huoltotiedot';
+  if (isGroundSourceHeatPump(deviceType)) return 'Huoltotiedot';
+  return 'Huoltotiedot';
 }
 
 export function kylmaaineChargeTitle(deviceType: string): string {
   if (!usesLegacySectionNumbers(deviceType)) return 'Kylmäaine';
-  return '3. Kylmäaine';
+  return 'Kylmäaine';
 }
 
 export function kylmaainePiiriSectionTitle(deviceType: string): string {
@@ -106,18 +106,18 @@ export function nestelauhduttimetSectionTitle(deviceType: string): string {
 }
 
 export function lampopumppuUlkoyksikkoTitle(deviceType: string): string {
-  if (isAirSourceHeatPump(deviceType)) return '4. Ulkoyksikkö';
+  if (isAirSourceHeatPump(deviceType)) return 'Ulkoyksikkö';
   if (isWaterAirHeatPump(deviceType)) return `4.1 ${keruupiiriSectionTitle(deviceType)}`;
   return 'Ulkoyksikkö';
 }
 
 export function lampopumppuSisayksikkoTitle(deviceType: string): string {
-  if (isAirSourceHeatPump(deviceType)) return '5. Sisäyksiköt';
+  if (isAirSourceHeatPump(deviceType)) return 'Sisäyksiköt';
   return 'Sisäyksiköt';
 }
 
 export function lampopumppuMittauksetTitle(deviceType: string): string {
-  if (isAirSourceHeatPump(deviceType)) return '6. Mittaukset';
+  if (isAirSourceHeatPump(deviceType)) return 'Mittaukset';
   return 'Mittaukset';
 }
 
@@ -135,7 +135,7 @@ export function energiatehokkuusSectionTitle(deviceType: string): string {
 }
 
 export function konvektoritSectionTitle(deviceType: string): string {
-  if (deviceType === 'konvektorit') return '2. Konvektorit';
+  if (deviceType === 'konvektorit') return 'Konvektorit';
   return 'Konvektorit';
 }
 
@@ -152,7 +152,7 @@ export function raportointiLaitetiedotTabTitle(deviceType: string, showKylmaaine
     ? 'Raportointi ja asiakas'
     : `Raportointi, asiakas ja ${devicePart}`;
   if (usesLegacySectionNumbers(deviceType) && deviceType !== 'konvektorit') {
-    return `1. ${base}`;
+    return base;
   }
   return base;
 }

@@ -17201,3 +17201,7 @@ p.quote-outcome-unpriced {
 .maintenance-flow-chip--pending { border-color: #ffcc80; color: #b26a00; background: #fff8ec; }
 .huolto-ulkoyksikko-checks { display: grid; gap: 8px; margin-top: 8px; }
 .huolto-ilp-identity { margin: 0 0 6px; }
+
+/* Yksi tiivis toimintorivi: laite- ja tulostustoiminnot */
+.maintenance-page-actions { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.maintenance-page-actions .maintenance-page-actions-group { display: contents; }
