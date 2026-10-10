@@ -17205,3 +17205,8 @@ p.quote-outcome-unpriced {
 /* Yksi tiivis toimintorivi: laite- ja tulostustoiminnot */
 .maintenance-page-actions { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .maintenance-page-actions .maintenance-page-actions-group { display: contents; }
+
+/* Tarjous ja kate: hinnattomat tarjousrivit (tarjouspyynnön hinta tiedoksi) */
+.billing-unpriced-rows { margin: 12px 0; }
+.billing-unpriced-rows-title { margin: 0 0 4px; font-size: 14px; }
+.billing-unpriced-rows-help { margin: 0 0 8px; font-size: 12px; }

@@ -13,7 +13,12 @@ import {
   resolveQuotePurchaseTotal,
   type BillingQuoteSettings,
 } from '../lib/workReportBillingQuote';
-import { countUnpricedExpenseLines } from '../lib/quoteSeededRows';
+import {
+  collectUnpricedQuoteRows,
+  countUnpricedExpenseLines,
+  unpricedQuoteRowTotals,
+  unpricedRowsLabel,
+} from '../lib/quoteSeededRows';
 import { extractQuotePurchaseLines } from '../lib/quotePurchaseLines';
 import {
   billingQuotePriceDraftFromSettings,
@@ -78,13 +83,6 @@ function extrasLineCoveredByParties(line: {
   piikkiCostNet: number;
 }): boolean {
   return line.status !== 'pending' && !(line.partnerNet > 0.005) && !(line.piikkiCostNet > 0.005);
-}
-
-function quoteBillingEnabledForPreview(settings: BillingQuoteSettings): boolean {
-  return (
-    (settings.customer_mode === 'quote_fixed' || settings.customer_mode === 'quote_plus_extras')
-    && Number(settings.quote_sale_net) > 0
-  );
 }
 
 export default function WorkReportBillingQuotePanel({
@@ -280,22 +278,13 @@ export default function WorkReportBillingQuotePanel({
   );
 
 
-  const savedDeviceSellerSaleNet = resolveDeviceSellerSaleNet(effectiveSettings);
-  // Esikatselu oletuksena: tarjouspyynnössä laite myyntihinnalla ja kumppaniketju (kumppanikate
-  // näkyvissä), provisiota ei käytetä. Laskutukseen vasta tallennettuna.
-  const commissionInUse =
-    (Number(effectiveSettings.partner_commission_percent) || 0) > 0
-    || effectiveSettings.partner_commission_amount != null
-    || (partnerMargin?.commissionNet ?? 0) > 0.005;
-  const previewDeviceSaleNet =
-    savedDeviceSellerSaleNet == null
-    && showPartnerMargin
-    && !commissionInUse
-    && quoteBillingEnabledForPreview(effectiveSettings)
-    && quoteDeviceSale != null
-      ? quoteDeviceSale
-      : null;
-  const deviceSellerSaleNet = savedDeviceSellerSaleNet ?? previewDeviceSaleNet;
+  // Laskutuslaskelma vain, kun ketju on tallennettu (Laskutusketjun asetukset): ei automaattista esikatselua.
+  const deviceSellerSaleNet = resolveDeviceSellerSaleNet(effectiveSettings);
+  const unpricedQuoteRows = useMemo(
+    () => (settings.quote_request_id ? collectUnpricedQuoteRows(dailyLogs, settings) : []),
+    [dailyLogs, settings],
+  );
+  const provisionalCosts = useMemo(() => unpricedQuoteRowTotals(unpricedQuoteRows), [unpricedQuoteRows]);
   const outcomeSummary = useMemo(
     () =>
       buildQuoteOutcomeSummary({
@@ -308,13 +297,12 @@ export default function WorkReportBillingQuotePanel({
             ? {
                 deviceSaleNet: deviceSellerSaleNet,
                 ownerName: ownerCompanyName ?? '',
-                contractorName:
-                  savedDeviceSellerSaleNet != null ? effectiveSettings.contractor_company_name ?? null : null,
+                contractorName: effectiveSettings.contractor_company_name ?? null,
                 installerName: createdByCompanyName ?? '',
                 installerBillsSupplies: effectiveSettings.installer_bills_supplies === true,
-                preview: savedDeviceSellerSaleNet == null,
               }
             : undefined,
+        provisionalCosts,
       }),
     [
       showPartnerMargin,
@@ -324,7 +312,7 @@ export default function WorkReportBillingQuotePanel({
       effectiveSettings.contractor_company_name,
       effectiveSettings.installer_bills_supplies,
       deviceSellerSaleNet,
-      savedDeviceSellerSaleNet,
+      provisionalCosts,
       ownerCompanyName,
       createdByCompanyName,
     ],
@@ -458,7 +446,7 @@ export default function WorkReportBillingQuotePanel({
 
   /** Laskun tila laskutuslaskelman riveillä (vain tallennettu ketju). */
   function partyStatusNodes(): Partial<Record<string, ReactNode>> | undefined {
-    if (!outcomeSummary?.parties || outcomeSummary.partiesPreview) return undefined;
+    if (!outcomeSummary?.parties) return undefined;
     const nodes: Partial<Record<string, ReactNode>> = {};
     const partnerLabel = partnerInvoiceState
       ? invoiceStateLabel(partnerInvoiceState.state, partnerInvoiceState.billed)
@@ -594,6 +582,54 @@ export default function WorkReportBillingQuotePanel({
           </div>
         </div>
       </details>
+    );
+  }
+
+  function renderUnpricedQuoteRows() {
+    if (unpricedQuoteRows.length === 0) return null;
+    const quoteTotal = unpricedQuoteRows.reduce((sum, row) => sum + (row.quoteNet ?? 0), 0);
+    return (
+      <div className="billing-unpriced-rows">
+        <h4 className="billing-unpriced-rows-title">
+          {unpricedRowsLabel(unpricedQuoteRows.length)} — tarjouspyynnöstä
+        </h4>
+        <p className="muted billing-unpriced-rows-help">
+          Rivit luotiin tarjouspyynnöstä 0 €:n hinnalla (kuuluu urakkaan). Tarjouspyynnön hinta näkyy
+          tiedoksi, ja sitä käytetään alustavana kuluna, kunnes syötät toteutuneen hinnan päiväkirjan
+          merkintään. Rivit eivät näy asiakkaan tulosteessa.
+        </p>
+        <div className="table-wrap">
+          <table className="billing-table billing-unpriced-rows-table">
+            <thead>
+              <tr>
+                <th>Päivä</th>
+                <th>Kuvaus</th>
+                <th className="num">Määrä</th>
+                <th className="num">Tarjouspyyntö €</th>
+                <th className="num">Toteutunut €</th>
+              </tr>
+            </thead>
+            <tbody>
+              {unpricedQuoteRows.map((row) => (
+                <tr key={row.key}>
+                  <td>{row.logDate ?? '—'}</td>
+                  <td>{row.description}</td>
+                  <td className="num">{row.qty.toLocaleString('fi-FI', { maximumFractionDigits: 2 })}</td>
+                  <td className="num muted" title="Tarjouspyynnön hinta tiedoksi (ei muokattava)">
+                    {row.quoteNet != null ? formatEuro(row.quoteNet) : '—'}
+                  </td>
+                  <td className="num quote-outcome-unpriced">hinta puuttuu</td>
+                </tr>
+              ))}
+              <tr className="quote-outcome-subtotal">
+                <td colSpan={3}>Yhteensä</td>
+                <td className="num">{formatEuro(quoteTotal)}</td>
+                <td className="num">—</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
     );
   }
 
@@ -822,13 +858,6 @@ export default function WorkReportBillingQuotePanel({
               commissionExceedsGross={!!partnerMargin?.commissionExceedsGross}
               unpricedRowCount={quoteIsLinked ? unpricedRowCount : 0}
               partyStatus={partyStatusNodes()}
-              partiesAction={
-                outcomeSummary.partiesPreview && deviceSellerEditable ? (
-                  <button type="button" className="btn-link" onClick={() => setDeviceSettingsOpen(true)}>
-                    Käytä laskutuksessa…
-                  </button>
-                ) : null
-              }
             />
           ) : quoteIsLinked ? (
             <p className="billing-quote-linked-summary">
@@ -851,6 +880,8 @@ export default function WorkReportBillingQuotePanel({
           {renderDeviceSellerEditor()}
 
           {renderExtrasMarginLines()}
+
+          {renderUnpricedQuoteRows()}
 
           {renderCategoryEntries()}
       </div>

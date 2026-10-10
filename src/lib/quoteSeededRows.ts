@@ -314,3 +314,73 @@ export async function markQuoteRowsSeeded(
   if (settings.quote_request_id?.trim() !== quoteId) return;
   await saveBillingQuoteSettings(supabase, reportId, mergeSeededRows(settings, quoteId, rows));
 }
+
+/** Työraportin hinnaton kulurivi + tarjouspyynnön hinta tiedoksi (ei muokattava). */
+export type UnpricedQuoteRow = {
+  key: string;
+  logId: string | null;
+  logDate: string | null;
+  description: string;
+  qty: number;
+  expenseType: string;
+  category: 'supplies' | 'expenses';
+  /** Tarjouspyynnön rivin hankinta yhteensä (alv 0 %), null jos riviä ei löydy tarjouksesta. */
+  quoteNet: number | null;
+};
+
+type PurchaseLineLike = { id: string; label: string; quote_purchase_net?: number | null };
+
+/**
+ * Hinnattomat kulurivit (esim. tarjouksesta luodut 0 €-rivit) ja niiden tarjouspyyntöhinta.
+ * Tarjouksen rivi haetaan ensin luontikirjanpidosta (quote_seeded_rows → purchase_lines.id),
+ * sitten nimellä. Kukin tarjouksen rivi käytetään enintään kerran.
+ */
+export function collectUnpricedQuoteRows(
+  logs: Array<Pick<LogLike, 'id' | 'log_date' | 'expense_lines'>> | null | undefined,
+  settings: Pick<BillingQuoteSettings, 'purchase_lines' | 'quote_seeded_rows' | 'quote_request_id'> | null | undefined,
+): UnpricedQuoteRow[] {
+  const purchase = (settings?.purchase_lines ?? []) as PurchaseLineLike[];
+  const seeded =
+    settings?.quote_seeded_rows && settings.quote_seeded_rows.quote_request_id === settings.quote_request_id
+      ? settings.quote_seeded_rows.lines
+      : [];
+  const used = new Set<string>();
+  const out: UnpricedQuoteRow[] = [];
+  const sortedLogs = [...(logs ?? [])].sort((a, b) => String(a.log_date).localeCompare(String(b.log_date)));
+  for (const log of sortedLogs) {
+    (log.expense_lines ?? []).forEach((line, index) => {
+      if (!expenseLinePriceMissing(line)) return;
+      let purchaseLine: PurchaseLineLike | undefined;
+      const seededRow = seeded.find((row) => !used.has(row.id) && quoteRowMatchesLine(row, line));
+      if (seededRow) purchaseLine = purchase.find((p) => p.id === seededRow.id);
+      if (!purchaseLine) {
+        const name = normalizeRowName(line.description);
+        purchaseLine = purchase.find(
+          (p) => !used.has(p.id) && !p.id.startsWith('group:') && !p.id.startsWith('device:') && normalizeRowName(p.label) === name,
+        );
+      }
+      if (purchaseLine) used.add(purchaseLine.id);
+      if (seededRow) used.add(seededRow.id);
+      const category = expenseTypeCategory(line.expense_type) === 'expenses' ? 'expenses' : 'supplies';
+      const quoteNet = purchaseLine?.quote_purchase_net;
+      out.push({
+        key: line.id ?? `${log.id}:${index}`,
+        logId: log.id ?? null,
+        logDate: log.log_date ?? null,
+        description: line.description,
+        qty: Number(line.qty) || 0,
+        expenseType: String(line.expense_type),
+        category,
+        quoteNet: quoteNet != null && Number.isFinite(Number(quoteNet)) ? Math.round(Number(quoteNet) * 100) / 100 : null,
+      });
+    });
+  }
+  return out;
+}
+
+/** Hinnattomien rivien tarjouspyyntöhinnat kategorioittain (alustava toteutunut kulu). */
+export function unpricedQuoteRowTotals(rows: UnpricedQuoteRow[]): { supplies: number; expenses: number } {
+  const totals = { supplies: 0, expenses: 0 };
+  for (const row of rows) totals[row.category] += row.quoteNet ?? 0;
+  return { supplies: Math.round(totals.supplies * 100) / 100, expenses: Math.round(totals.expenses * 100) / 100 };
+}

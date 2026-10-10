@@ -50,6 +50,7 @@ import {
 } from './quoteCategoryComparison';
 import { buildQuoteOutcomeSummary, renderQuoteOutcomeSummaryHtml } from './quoteOutcomeSummary';
 import { resolveDeviceSellerSaleNet } from './workReportDeviceSeller';
+import { collectUnpricedQuoteRows, unpricedQuoteRowTotals } from './quoteSeededRows';
 import {
   formatRefrigerantLineLabelForReport,
   refrigerantBillingReminder,
@@ -459,6 +460,9 @@ function quoteMarginPrintSection(
             installerBillsSupplies: billingQuote.installer_bills_supplies === true,
           }
         : undefined,
+    provisionalCosts: billingQuote.quote_request_id
+      ? unpricedQuoteRowTotals(collectUnpricedQuoteRows(logs, billingQuote))
+      : null,
   });
 
   const rows: string[] = [];

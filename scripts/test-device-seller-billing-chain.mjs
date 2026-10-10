@@ -454,15 +454,8 @@ const balance = own.calculation.byUser.flatMap((user) => user.lines).find((line)
 assert.equal(balance.total, 348.99);
 assert.match(balance.description, /^Urakkaosuus/);
 
-// Esikatselu (laitehinta tarjouspyynnöstä, ei tallennettu) merkitään esikatseluksi.
-const previewSummary = buildQuoteOutcomeSummary({
-  partnerMargin: margin,
-  comparison: null,
-  formatEuro,
-  deviceSeller: { deviceSaleNet: 700, ...names, contractorName: null, preview: true },
-});
-assert.equal(previewSummary.partiesPreview, true);
-assert.equal(summary.partiesPreview, false);
+// Ei automaattista esikatselua: laskutuslaskelma vain tallennetulla ketjulla.
+assert.equal('partiesPreview' in summary, false);
 assert.equal(party.ownerKeeps.note, "laitekate 350,00 € + lisätyö 130,00 €");
 
 // Tulosteet: sisäinen näyttää laskutuslaskelman ja asentajan laskun urakoitsijalle;
