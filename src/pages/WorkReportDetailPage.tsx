@@ -11,6 +11,7 @@ import {
   buildDailyLogEntryTiles,
   DailyLogEntryTile,
   type DailyLogEntryTileDescriptor,
+  type DailyLogEntryTileKind,
   DailyLogEntryTileGrid,
 } from '../components/DailyLogEntryTile';
 import { WorkReportSectionTile, WorkReportSectionTileGrid } from '../components/WorkReportSectionTile';
@@ -199,6 +200,7 @@ import {
   type QuoteCommissionDraft,
 } from '../lib/quoteCommissionDraft';
 import {
+  withSupplyLinePriceConfirmed,
   billableHoursFromLogEntry,
   buildCustomerExtraBillingFromLogForm,
   dailyLogExtraBillingToForm,
@@ -568,6 +570,7 @@ function DailyLogFields({
   showQuoteLinkedCategories,
   linkedQuoteRequest,
   autoOpenExpenseKey,
+  expenseCategoryFilter = null,
   onAutoOpenExpenseHandled,
   quoteCommission,
 }: {
@@ -586,6 +589,8 @@ function DailyLogFields({
   showQuoteLinkedCategories?: boolean;
   linkedQuoteRequest?: boolean;
   autoOpenExpenseKey?: string | null;
+  /** Kohdistettu TARVIKKEET / KULUT -muokkaus: vain kategorian rivit. */
+  expenseCategoryFilter?: 'supplies' | 'expenses' | null;
   onAutoOpenExpenseHandled?: () => void;
   /** Tarjouksen provisio (koko työraportti) — muokataan vain Provisio-osiossa. */
   quoteCommission?: {
@@ -1035,6 +1040,7 @@ function DailyLogFields({
           linkedQuoteRequest={linkedQuoteRequest}
           initialEditingKey={autoOpenExpenseKey}
           onInitialEditingHandled={onAutoOpenExpenseHandled}
+          categoryFilter={expenseCategoryFilter}
         />
       </DailyLogTileSection>
 
@@ -1061,6 +1067,21 @@ function DailyLogFields({
     </>
   );
 }
+
+/** Työraportin ruutu → kohdistetun muokkauksen osiot (koko kirjaus: "Avaa koko kirjaus"). */
+const DAILY_LOG_FOCUS_SECTIONS: Record<DailyLogEntryTileKind, string[]> = {
+  work: ['work', 'hours'],
+  materials: ['expenses', 'refrigerant'],
+  expenses: ['expenses', 'trips'],
+  device: ['device'],
+};
+
+const DAILY_LOG_FOCUS_TITLES: Record<DailyLogEntryTileKind, string> = {
+  work: 'Työ',
+  materials: 'Tarvikkeet',
+  expenses: 'Kulut',
+  device: 'Laite',
+};
 
 async function saveExpenseLines(
   dailyLogId: string,
@@ -1188,6 +1209,11 @@ export default function WorkReportDetailPage({ session }: Props) {
   /** Tarjouksen rivien synkronointi kerran per raportti + tarjous (idempotentti joka tapauksessa). */
   const quoteRowSyncKeyRef = useRef<string | null>(null);
   /** Esitäytetty työkirjaus (esim. LAITE-ruutu): avattava osio ja esitäytetty kulurivi. */
+  /** Työraportin ruudusta avattu kohdistettu muokkaus (vain kategorian osiot). */
+  const [logDialogFocus, setLogDialogFocus] = useState<{
+    kind: DailyLogEntryTileKind;
+    title: string;
+  } | null>(null);
   const [logDialogPreset, setLogDialogPreset] = useState<{
     sectionKey: string | null;
     expenseKey: string | null;
@@ -2315,19 +2341,40 @@ export default function WorkReportDetailPage({ session }: Props) {
     if (!report || !row.lineId) return 'Riviä ei löydy.';
     const qty = row.qty > 0 ? row.qty : 1;
     const unitPrice = Math.round((totalNet / qty) * 100) / 100;
-    const { error: updateError } = await supabase
-      .from('work_report_daily_expense_lines')
-      .update({ unit_price: unitPrice })
-      .eq('id', row.lineId);
-    if (updateError) return updateError.message;
+    const confirmedZero = totalNet === 0;
+    const log = dailyLogs.find((entry) => entry.id === row.logId);
+    if (!log) return 'Työkirjausta ei löydy.';
+    const line = (log.expense_lines ?? []).find((entry) => entry.id === row.lineId);
+    // 0 € = kulua ei syntynyt: vahvistus supply_line_flags-JSONiin (sama data kuin tiilen valinta).
+    const nextBilling =
+      confirmedZero || line?.price_confirmed
+        ? withSupplyLinePriceConfirmed(log, row.lineId, confirmedZero)
+        : null;
+    if (!confirmedZero) {
+      const { error: updateError } = await supabase
+        .from('work_report_daily_expense_lines')
+        .update({ unit_price: unitPrice })
+        .eq('id', row.lineId);
+      if (updateError) return updateError.message;
+    }
+    if (nextBilling) {
+      const { error: billingError } = await supabase
+        .from('work_report_daily_logs')
+        .update({ customer_extra_billing: nextBilling })
+        .eq('id', log.id);
+      if (billingError) return billingError.message;
+    }
     setDailyLogs((current) =>
-      current.map((log) =>
-        log.id !== row.logId
-          ? log
+      current.map((entry) =>
+        entry.id !== row.logId
+          ? entry
           : {
-              ...log,
-              expense_lines: (log.expense_lines ?? []).map((line) =>
-                line.id === row.lineId ? { ...line, unit_price: unitPrice } : line,
+              ...entry,
+              ...(nextBilling ? { customer_extra_billing: nextBilling } : {}),
+              expense_lines: (entry.expense_lines ?? []).map((expense) =>
+                expense.id === row.lineId
+                  ? { ...expense, unit_price: confirmedZero ? 0 : unitPrice, price_confirmed: confirmedZero }
+                  : expense,
               ),
             },
       ),
@@ -2713,13 +2760,6 @@ export default function WorkReportDetailPage({ session }: Props) {
     setLogDialogPreset({ sectionKey: 'device', expenseKey: rows[0].key });
   }
 
-  function editDeviceLog(logId: string) {
-    const log = dailyLogs.find((entry) => entry.id === logId);
-    if (!log) return;
-    openEditLogDialog(log);
-    setLogDialogPreset({ sectionKey: 'device', expenseKey: null });
-  }
-
   function openAddLogDialog() {
     setLogDialogPreset(null);
     setQuoteCommissionDraft(quoteCommissionDraftFromSettings(billingQuoteSettings));
@@ -2778,6 +2818,7 @@ export default function WorkReportDetailPage({ session }: Props) {
   }
 
   function closeLogDialog() {
+    setLogDialogFocus(null);
     setLogDialogOpen(false);
     setOfferedQuoteRows([]);
     setLogDialogBusy(false);
@@ -3561,9 +3602,13 @@ export default function WorkReportDetailPage({ session }: Props) {
               <DailyLogEntryTile
                 key={descriptor.key}
                 descriptor={descriptor}
-                onClick={() =>
-                  descriptor.kind === 'device' ? editDeviceLog(log.id) : openEditLogDialog(log)
-                }
+                onClick={() => {
+                  openEditLogDialog(log);
+                  setLogDialogFocus({
+                    kind: descriptor.kind,
+                    title: `${DAILY_LOG_FOCUS_TITLES[descriptor.kind]} · ${descriptor.title}`,
+                  });
+                }}
               />
             );
           })}
@@ -4404,7 +4449,9 @@ export default function WorkReportDetailPage({ session }: Props) {
 
       <DailyLogDialog
         open={logDialogOpen}
-        title={editingLogId ? 'Muokkaa työkirjausta' : 'Lisää työkirjaus'}
+        title={logDialogFocus?.title ?? (editingLogId ? 'Muokkaa työkirjausta' : 'Lisää työkirjaus')}
+        focusSectionKeys={logDialogFocus ? DAILY_LOG_FOCUS_SECTIONS[logDialogFocus.kind] : null}
+        onOpenFull={() => setLogDialogFocus(null)}
         submitLabel={editingLogId ? 'Tallenna muutokset' : 'Lisää työkirjaus'}
         busy={logDialogBusy}
         onClose={closeLogDialog}
@@ -4465,6 +4512,13 @@ export default function WorkReportDetailPage({ session }: Props) {
           showQuoteLinkedCategories={workReportSupportsQuoteLinkedExtraBilling(billingQuoteSettings)}
           linkedQuoteRequest={hasLinkedQuote}
           autoOpenExpenseKey={logDialogPreset?.expenseKey ?? null}
+          expenseCategoryFilter={
+            logDialogFocus?.kind === 'materials'
+              ? 'supplies'
+              : logDialogFocus?.kind === 'expenses'
+                ? 'expenses'
+                : null
+          }
           onAutoOpenExpenseHandled={() =>
             setLogDialogPreset((current) => (current ? { ...current, expenseKey: null } : current))
           }

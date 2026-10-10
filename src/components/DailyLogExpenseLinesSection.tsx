@@ -12,6 +12,7 @@ import {
 } from '../lib/dailyLogExpenseDraft';
 import {
   expenseDraftCategoryOrNull,
+  expenseTypeCategory,
   quoteCategoryLabel,
 } from '../lib/workReportEntryCategories';
 import { DEVICE_EXPENSE_TYPE, isDeviceExpense } from '../lib/workReportDeviceEntries';
@@ -57,6 +58,8 @@ type Props = {
   linkedQuoteRequest?: boolean;
   /** 'device' = työkirjauksen Laite-ruutu (vain laiterivit), 'expenses' = kulut ja tarvikkeet (ei laiterivejä). */
   variant?: 'expenses' | 'device';
+  /** Vain tämän kategorian rivit (työraportin TARVIKKEET / KULUT -ruudusta). Tyypittömät näytetään aina. */
+  categoryFilter?: 'supplies' | 'expenses' | null;
   /** Rivi, jonka muokkaus avataan heti (esitäytetty tarjouspyynnön riviltä). */
   initialEditingKey?: string | null;
   onInitialEditingHandled?: () => void;
@@ -73,6 +76,7 @@ export default function DailyLogExpenseLinesSection({
   initialEditingKey = null,
   onInitialEditingHandled,
   variant = 'expenses',
+  categoryFilter = null,
 }: Props) {
   const deviceVariant = variant === 'device';
   const expenseQuoteContext: ExpenseBillingQuoteContext = { linkedQuoteRequest };
@@ -84,7 +88,10 @@ export default function DailyLogExpenseLinesSection({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const manualExpenseDrafts = expenseDrafts.filter(
-    (row) => !isLikelyAutoTripKmExpense(row) && isDeviceExpense(row) === deviceVariant,
+    (row) =>
+      !isLikelyAutoTripKmExpense(row)
+      && isDeviceExpense(row) === deviceVariant
+      && (!categoryFilter || !row.expense_type || expenseTypeCategory(row.expense_type) === categoryFilter),
   );
   const editingIndex = editingExpenseKey
     ? expenseDrafts.findIndex((row) => row.key === editingExpenseKey)
@@ -98,7 +105,11 @@ export default function DailyLogExpenseLinesSection({
   function openNewExpense() {
     const newRow = deviceVariant
       ? { ...emptyExpense(), expense_type: DEVICE_EXPENSE_TYPE }
-      : emptyExpense();
+      : categoryFilter === 'supplies'
+        ? { ...emptyExpense(), expense_type: SUPPLY_EXPENSE_TYPES[0] }
+        : categoryFilter === 'expenses'
+          ? { ...emptyExpense(), expense_type: 'other' }
+          : emptyExpense();
     setExpenseDrafts((current) => [...current, newRow]);
     setEditingExpenseKey(newRow.key);
   }
@@ -120,7 +131,13 @@ export default function DailyLogExpenseLinesSection({
         </p>
       )}
       <button type="button" className="btn btn-secondary" onClick={openNewExpense}>
-        {deviceVariant ? '+ Lisää laite' : '+ Lisää kulu tai tarvike'}
+        {deviceVariant
+          ? '+ Lisää laite'
+          : categoryFilter === 'supplies'
+            ? '+ Lisää tarvike'
+            : categoryFilter === 'expenses'
+              ? '+ Lisää kulu'
+              : '+ Lisää kulu tai tarvike'}
       </button>
 
       {manualExpenseDrafts.length === 0 ? (
@@ -340,6 +357,16 @@ function ExpenseLineEditor({
                   placeholder="Suora kulu urakkaan"
                 />
               </label>
+              {expenseQuoteContext.linkedQuoteRequest && !autoTripKm && !(Number(row.unit_price) > 0) ? (
+                <label className="checkbox-label expense-price-confirmed">
+                  <input
+                    type="checkbox"
+                    checked={row.price_confirmed === true}
+                    onChange={(e) => updateExpenseRow({ ...row, price_confirmed: e.target.checked })}
+                  />
+                  Hinta 0 € — kulua ei syntynyt
+                </label>
+              ) : null}
               <p className="muted expense-billing-preview">
                 Kuuluu kiinteään tarjoukseen — suora kulu, ei kate laskentaa eikä erillistä
                 asiakaslaskutusta.

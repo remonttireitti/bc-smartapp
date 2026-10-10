@@ -1,4 +1,5 @@
 import type { PostgrestError, SupabaseClient } from '@supabase/supabase-js';
+import { annotateExpensePriceConfirmed } from './dailyLogCustomerExtraBilling';
 import type { WorkReportDailyLog } from '../types';
 
 /** Expense line columns safe before migration 20260603000081. */
@@ -292,14 +293,14 @@ export async function fetchWorkReportDetailLogs(
       result = await run(false, false, false, false, includeAgreedRegular, includeExtraBilling);
     }
     return {
-      logs: (result.data as unknown as WorkReportDailyLog[]) ?? [],
+      logs: annotateExpensePriceConfirmed((result.data as unknown as WorkReportDailyLog[]) ?? []),
       error: result.error,
       billToPartnerSupported: false,
       agreedRegularSupported: includeAgreedRegular,
     };
   }
   return {
-    logs: (result.data as unknown as WorkReportDailyLog[]) ?? [],
+    logs: annotateExpensePriceConfirmed((result.data as unknown as WorkReportDailyLog[]) ?? []),
     error: result.error,
     billToPartnerSupported: true,
     agreedRegularSupported: includeAgreedRegular,
@@ -356,7 +357,7 @@ export async function fetchWorkReportPrintLogs(
     }
   }
   return {
-    logs: (result.data as unknown as WorkReportDailyLog[]) ?? [],
+    logs: annotateExpensePriceConfirmed((result.data as unknown as WorkReportDailyLog[]) ?? []),
     error: result.error,
   };
 }
@@ -410,7 +411,7 @@ export async function fetchCustomerBillingLogs(
     }
   }
   return {
-    logs: (result.data as unknown as WorkReportDailyLog[]) ?? [],
+    logs: annotateExpensePriceConfirmed((result.data as unknown as WorkReportDailyLog[]) ?? []),
     error: result.error,
   };
 }

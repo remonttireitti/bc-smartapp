@@ -3,6 +3,8 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from '
 type DailyLogSectionContextValue = {
   openKey: string | null;
   setOpenKey: (key: string | null) => void;
+  /** Kohdistettu muokkaus: vain nämä osiot näytetään suoraan auki (ei ruutuja). */
+  focusKeys: string[] | null;
 };
 
 const DailyLogSectionContext = createContext<DailyLogSectionContextValue | null>(null);
@@ -10,8 +12,10 @@ const DailyLogSectionContext = createContext<DailyLogSectionContextValue | null>
 export function DailyLogSectionProvider({
   dialogOpen,
   initialOpenKey = null,
+  focusKeys = null,
   children,
 }: {
+  focusKeys?: string[] | null;
   dialogOpen: boolean;
   /** Avaa tämä osio heti (esim. "Kirjaa toteutunut" tarjouspyynnön riviltä). */
   initialOpenKey?: string | null;
@@ -24,7 +28,7 @@ export function DailyLogSectionProvider({
   }, [dialogOpen]);
 
   return (
-    <DailyLogSectionContext.Provider value={{ openKey, setOpenKey }}>
+    <DailyLogSectionContext.Provider value={{ openKey, setOpenKey, focusKeys }}>
       {children}
     </DailyLogSectionContext.Provider>
   );

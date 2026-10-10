@@ -130,6 +130,8 @@ export type DailyExpenseLine = {
   warehouse_company_id?: string | null;
   warehouse_cost_deducted?: boolean;
   sort_order: number;
+  /** Johdettu supply_line_flags-JSONista: hinta 0 € vahvistettu (kulua ei syntynyt). */
+  price_confirmed?: boolean;
 };
 
 export type DailyTripLeg = {

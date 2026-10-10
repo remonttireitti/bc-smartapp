@@ -103,7 +103,8 @@
     "test:quote-title-custom": "npx tsx scripts/test-quote-title-custom.mjs",
     "test:vrf-trend-data": "TZ=Europe/Helsinki npx tsx scripts/test-vrf-trend-data.mjs",
     "test:vrf-state-counters": "TZ=Europe/Helsinki npx tsx scripts/test-vrf-state-counters.mjs",
-    "test:unpriced-quote-rows": "npx tsx scripts/test-unpriced-quote-rows.mjs"
+    "test:unpriced-quote-rows": "npx tsx scripts/test-unpriced-quote-rows.mjs",
+    "test:expense-price-confirmed": "npx tsx scripts/test-expense-price-confirmed.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.1",

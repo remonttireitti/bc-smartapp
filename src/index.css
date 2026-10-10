@@ -17213,3 +17213,8 @@ p.quote-outcome-unpriced {
 .billing-unpriced-input { width: 7.5em; text-align: right; }
 .billing-unpriced-input::placeholder { color: #b45309; font-style: italic; }
 .billing-unpriced-saved { margin-left: 8px; font-size: 12px; font-weight: 500; color: #15803d; }
+
+/* Työraportin ruudusta avattu kohdistettu muokkaus: osio suoraan auki */
+.daily-log-focus-body { display: flex; flex-direction: column; gap: 16px; }
+.daily-log-focus-section-title { margin: 0 0 8px; font-size: 15px; }
+.expense-price-confirmed { display: flex; gap: 6px; align-items: center; margin-top: 6px; font-size: 13px; }

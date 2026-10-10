@@ -273,7 +273,7 @@ assert.equal(priced.margin.grossMarginNet, round(SALE - deductions));
 
 // --- 7) Asiakastuloste ei näytä rivejä ilman hintaa; tarjouksen lista poistettu
 const printSrc = readFileSync(new URL('../src/lib/workReportPrintHtml.ts', import.meta.url), 'utf8');
-assert.match(printSrc, /printMode === 'customer' && linkedQuoteRequest && expenseLinePriceMissing\(line\)/);
+assert.match(printSrc, /printMode === 'customer' && linkedQuoteRequest && expenseLineHasNoPrice\(line\)/);
 const panel = readFileSync(new URL('../src/components/WorkReportBillingQuotePanel.tsx', import.meta.url), 'utf8');
 assert.ok(!panel.includes('Tarjouspyynnön rivit'));
 assert.ok(!panel.includes('onRecordQuoteLine'));

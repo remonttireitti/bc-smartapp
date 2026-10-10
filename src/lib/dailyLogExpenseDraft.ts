@@ -32,6 +32,8 @@ export type ExpenseDraft = {
   customer_margin_percent: string;
   extra_billable: boolean;
   extra_billing_allowed: boolean;
+  /** Hinta 0 € vahvistettu (kulua ei syntynyt). */
+  price_confirmed?: boolean;
 };
 
 export function emptyExpense(): ExpenseDraft {
@@ -193,6 +195,7 @@ export function expensesToDrafts(
       ),
       extra_billable: extraBillable,
       extra_billing_allowed: extraBillingAllowed,
+      ...(fallback?.price_confirmed === true && !(unitPrice > 0) ? { price_confirmed: true } : {}),
     };
   });
 }
@@ -231,6 +234,7 @@ export function expenseRowSectionTitle(
       description: row.description,
       unit_price: row.unit_price,
       customer_unit_price: row.customer_unit_price,
+      price_confirmed: row.price_confirmed === true,
     })
   ) {
     parts.push('hinta puuttuu');
