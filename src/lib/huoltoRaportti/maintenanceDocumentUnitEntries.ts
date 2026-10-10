@@ -1,4 +1,4 @@
-import { isChillerLikeDevice } from './deviceModuleLogic';
+import { isChillerLikeDevice, usesRefrigerantServiceExtras } from './deviceModuleLogic';
 import { tiiveyskoeTabCompletion, tyhjiointiTabCompletion } from './maintenanceReportTabCompletion';
 import {
   describeRaportointiMissingItems,
@@ -40,7 +40,6 @@ import {
   type LampopumppuDocumentUnitId,
 } from './lampopumppuDocumentHelpers';
 import { sisayksikkoTarkastusSummary } from './sisayksikkoTarkastus';
-import { isIlpMultiDeviceType, usesSharedServiceTests } from './ilpLaitteet';
 import { resolveModuleTilePresentation } from './maintenanceModuleVisit';
 
 export type MaintenanceDocumentEntryKind =
@@ -132,7 +131,7 @@ export function buildMaintenanceDocumentEntries(
       continue;
     }
 
-    if (tab.id === 'lampopumppu' && !isIlpMultiDeviceType(form.laiteTyyppi)) {
+    if (tab.id === 'lampopumppu') {
       const units = buildLampopumppuDocumentUnits(form);
       for (const unit of units) {
         entries.push({
@@ -196,7 +195,7 @@ function appendRefrigerantCircuitUnitEntries(entries: MaintenanceDocumentEntry[]
 }
 
 function appendOptionalServiceMeasurementEntries(entries: MaintenanceDocumentEntry[], form: HuoltoReportData) {
-  if (!usesSharedServiceTests(form.laiteTyyppi)) return;
+  if (!usesRefrigerantServiceExtras(form.laiteTyyppi)) return;
   if (form.selectedModules.tiiveyskoe) {
     entries.push({
       key: 'tiiveyskoe',
@@ -317,9 +316,7 @@ export function listIncompleteMaintenanceModules(
 export function documentNavTargetTabId(tabId: string, form: HuoltoReportData): string {
   if (tabId.startsWith('kylmaainePiiri:')) return tabId;
   if (tabId.startsWith('mlp:')) return tabId;
-  if (tabId.startsWith('lampopumppu:')) {
-    return isIlpMultiDeviceType(form.laiteTyyppi) ? 'lampopumppu' : tabId;
-  }
+  if (tabId.startsWith('lampopumppu:')) return tabId;
   if (tabId === 'kylmaainePiiri' && form.selectedModules.kylmaainePiiri) {
     const count = getRefrigerantCircuitCount(form);
     return count > 0 ? 'kylmaainePiiri:0:measurements' : tabId;
@@ -336,7 +333,7 @@ export function documentNavTargetTabId(tabId: string, form: HuoltoReportData): s
     const units = buildMlpDocumentUnits(form, 'energia');
     return units[0]?.tabId ?? tabId;
   }
-  if (tabId === 'lampopumppu' && !isIlpMultiDeviceType(form.laiteTyyppi)) {
+  if (tabId === 'lampopumppu') {
     const units = buildLampopumppuDocumentUnits(form);
     return units[0]?.tabId ?? tabId;
   }

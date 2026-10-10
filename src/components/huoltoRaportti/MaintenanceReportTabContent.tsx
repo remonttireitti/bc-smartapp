@@ -19,8 +19,6 @@ import { RaportointiTabSection } from './RaportointiTabSection';
 import { NestelauhduttimetSection } from './NestelauhduttimetSection';
 import { RefrigerantCircuitsSection } from './RefrigerantCircuitsSection';
 import { RefrigerantChargeSection } from './RefrigerantChargeSection';
-import { IlpLaitteetTabSection } from './IlpLaitteetSection';
-import { isIlpMultiDeviceType, usesSharedServiceTests } from '../../lib/huoltoRaportti/ilpLaitteet';
 import { TiiveyskoeSection } from './TiiveyskoeSection';
 import { TyhjiointiSection } from './TyhjiointiSection';
 import { VapaajahdytysSection } from './VapaajahdytysSection';
@@ -29,7 +27,7 @@ import type { NewCustomerDraft } from '../CustomerRegistryPicker';
 import type { NewEquipmentDraft } from '../EquipmentRegistryPicker';
 import type { ReportOwnerTarget } from '../../lib/huoltoRaportti/maintenanceReportBasicsValidation';
 import type { ModuleKey } from '../../lib/huoltoRaportti/constants';
-import { isChillerLikeDevice } from '../../lib/huoltoRaportti/deviceModuleLogic';
+import { isChillerLikeDevice, usesRefrigerantServiceExtras } from '../../lib/huoltoRaportti/deviceModuleLogic';
 import type { MaintenanceReportTabId } from '../../lib/huoltoRaportti/maintenanceReportTabs';
 import { isCustomModuleTabId, parseCustomModuleTabId } from '../../lib/huoltoRaportti/customModuleTypes';
 import type { HuoltoReportData } from '../../lib/huoltoRaportti/types';
@@ -336,20 +334,6 @@ export function MaintenanceReportTabContent({
     );
   }
 
-  if (tabId === 'lampopumppu' && showLampopumppuSection && isIlpMultiDeviceType(form.laiteTyyppi)) {
-    return (
-      <section className="maintenance-report-tab-section huolto-modules-stack">
-        <IlpLaitteetTabSection
-          form={form}
-          onPatchForm={onPatchForm}
-          parts={lampopumppuParts}
-          reportId={reportId}
-          userId={session.user.id}
-        />
-      </section>
-    );
-  }
-
   if (tabId === 'lampopumppu' && showLampopumppuSection) {
     return (
       <section className="maintenance-report-tab-section huolto-modules-stack">
@@ -399,7 +383,7 @@ export function MaintenanceReportTabContent({
     );
   }
 
-  if (tabId === 'tiiveyskoe' && usesSharedServiceTests(form.laiteTyyppi) && form.selectedModules.tiiveyskoe) {
+  if (tabId === 'tiiveyskoe' && usesRefrigerantServiceExtras(form.laiteTyyppi) && form.selectedModules.tiiveyskoe) {
     return (
       <section className="maintenance-report-tab-section huolto-modules-stack">
         <TiiveyskoeSection
@@ -412,7 +396,7 @@ export function MaintenanceReportTabContent({
     );
   }
 
-  if (tabId === 'tyhjiointi' && usesSharedServiceTests(form.laiteTyyppi) && form.selectedModules.tyhjiointi) {
+  if (tabId === 'tyhjiointi' && usesRefrigerantServiceExtras(form.laiteTyyppi) && form.selectedModules.tyhjiointi) {
     return (
       <section className="maintenance-report-tab-section huolto-modules-stack">
         <TyhjiointiSection
@@ -523,7 +507,7 @@ export function MaintenanceReportTabContent({
           </>
         )}
 
-        {optionalMaintenanceModules.length > 0 && usesSharedServiceTests(form.laiteTyyppi) ? (
+        {optionalMaintenanceModules.length > 0 ? (
           <div className="maintenance-optional-modules">
             <p className="muted">
               Valinnaiset mittaukset — moduulit valitaan laitetyypin mukaan automaattisesti.
@@ -542,7 +526,7 @@ export function MaintenanceReportTabContent({
           </div>
         ) : null}
 
-        {usesSharedServiceTests(form.laiteTyyppi) && form.selectedModules.tiiveyskoe && !documentLayout ? (
+        {usesRefrigerantServiceExtras(form.laiteTyyppi) && form.selectedModules.tiiveyskoe && !documentLayout ? (
           <div className="huolto-modules-stack maintenance-embedded-module">
             <TiiveyskoeSection
               form={form}
@@ -553,7 +537,7 @@ export function MaintenanceReportTabContent({
           </div>
         ) : null}
 
-        {usesSharedServiceTests(form.laiteTyyppi) && form.selectedModules.tyhjiointi && !documentLayout ? (
+        {usesRefrigerantServiceExtras(form.laiteTyyppi) && form.selectedModules.tyhjiointi && !documentLayout ? (
           <div className="huolto-modules-stack maintenance-embedded-module">
             <TyhjiointiSection
               form={form}

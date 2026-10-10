@@ -72,17 +72,6 @@ export function collectMaintenancePrintImagePaths(data: HuoltoReportData): strin
     const path = toSupabaseStoragePath(item.storagePath);
     if (path) paths.add(path);
   }
-  // ILP-lisälaitteiden (2…N) omat tiiveyskoe/tyhjiöinti-kuvat.
-  const ilpDevices = (Array.isArray(data.ilpLisaLaitteet) ? data.ilpLisaLaitteet : []) as Record<string, unknown>[];
-  for (const device of ilpDevices) {
-    for (const key of ['tiiveyskoeData', 'tyhjiointiData']) {
-      const test = device?.[key] as { todisteKuvat?: MaintenanceReportPhotoItem[] } | undefined;
-      for (const item of normalizeMaintenanceReportPhotos(test?.todisteKuvat)) {
-        const path = toSupabaseStoragePath(item.storagePath);
-        if (path) paths.add(path);
-      }
-    }
-  }
   for (const item of normalizeMaintenanceReportPhotos(data.tyhjiointiData?.todisteKuvat)) {
     const path = toSupabaseStoragePath(item.storagePath);
     if (path) paths.add(path);

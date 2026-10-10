@@ -13,10 +13,9 @@ interface Props {
   items: MaintenanceReportPhotoItem[];
   onChange: (items: MaintenanceReportPhotoItem[]) => void;
   userId: string;
-  pathTag?: string;
 }
 
-export function EvidencePhotoUpload({ reportId, section, items, onChange, userId, pathTag }: Props) {
+export function EvidencePhotoUpload({ reportId, section, items, onChange, userId }: Props) {
   async function removeItem(storagePath: string) {
     try {
       await deleteMaintenanceReportImage(storagePath);
@@ -43,7 +42,6 @@ export function EvidencePhotoUpload({ reportId, section, items, onChange, userId
           userId={userId}
           items={items}
           onChange={onChange}
-          pathTag={pathTag}
         />
       </div>
       {items.length > 0 && (

@@ -1,6 +1,5 @@
 import { buildMaintenanceReportPrintTitle, normalizeHuoltoReportData } from './huoltoRaportti/defaults';
 import { filterFaultyKonvektoriRows } from './huoltoRaportti/konvektoriTarkastus';
-import { ilpLisaLaitteet, isIlpMultiDeviceType, mergeIlpVisitReports } from './huoltoRaportti/ilpLaitteet';
 import { generateMaintenanceReportPrintDocument } from './huoltoRaportti/maintenanceReportPrintHtml';
 import type { HuoltoReportData } from './huoltoRaportti/types';
 import { resolveMaintenanceReportImageUrls } from './maintenanceReportImageUrl';
@@ -17,10 +16,6 @@ export function buildMaintenanceReportPrintDocument(fragment: string, documentTi
 }
 
 type MaintenancePrintContext = {
-  reportId: string;
-  ownerCompanyId: string;
-  customerId: string | null;
-  status: string | null;
   reportData: HuoltoReportData;
   companyName: string;
   logoUrl?: string;
@@ -44,7 +39,7 @@ async function loadMaintenancePrintContext(
 ): Promise<MaintenancePrintContext> {
   const { data, error: loadError } = await supabase
     .from('maintenance_reports')
-    .select('id, data, branding_company_id, owner_company_id, customer_id, status')
+    .select('id, data, branding_company_id, owner_company_id, customer_id')
     .eq('id', reportId)
     .single();
 
@@ -57,7 +52,6 @@ async function loadMaintenancePrintContext(
     branding_company_id: string | null;
     owner_company_id: string;
     customer_id: string | null;
-    status: string | null;
   };
 
   const companyId = row.branding_company_id ?? row.owner_company_id;
@@ -105,23 +99,13 @@ async function loadMaintenancePrintContext(
   const rawImageUrls = await resolveMaintenancePrintImageUrls(reportData);
   const imageUrls = await shrinkUrlMapForPrint(rawImageUrls);
 
-  return {
-    reportId,
-    ownerCompanyId: row.owner_company_id,
-    customerId: row.customer_id,
-    status: row.status,
-    reportData,
-    companyName,
-    logoUrl,
-    imageUrls,
-  };
+  return { reportData, companyName, logoUrl, imageUrls };
 }
 
 function buildMaintenancePrintBundle(
   ctx: MaintenancePrintContext,
   reportData: HuoltoReportData,
   documentTitle?: string,
-  ilpVisit?: IlpVisitPrintInfo,
 ) {
   const title = documentTitle ?? buildMaintenanceReportPrintTitle(reportData);
   const html = ensurePrintHtmlDocumentTitle(
@@ -138,72 +122,15 @@ function buildMaintenancePrintBundle(
     fragment: html,
     documentTitle: title,
     html,
-    ilpVisit: ilpVisit ?? { siblingCount: 0, combined: false },
   };
-}
-
-export type IlpVisitPrintInfo = { siblingCount: number; combined: boolean };
-
-/**
- * Vanhat ILP-raportit (yksi laite / raportti): saman käynnin muut raportit —
- * sama omistaja, asiakas, huoltopäivä, tila ja asiakirjatyyppi.
- */
-async function loadIlpVisitSiblings(ctx: MaintenancePrintContext): Promise<HuoltoReportData[]> {
-  const base = ctx.reportData;
-  const date = String(base.huoltoPaivamaara ?? '').trim();
-  if (!isIlpMultiDeviceType(base.laiteTyyppi) || ilpLisaLaitteet(base).length > 0) return [];
-  if (!ctx.customerId || !date) return [];
-  let query = supabase
-    .from('maintenance_reports')
-    .select('id, data, customer_id')
-    .eq('owner_company_id', ctx.ownerCompanyId)
-    .eq('customer_id', ctx.customerId)
-    .eq('data->>laiteTyyppi', 'lämpöpumppu')
-    .eq('data->>huoltoPaivamaara', date)
-    .neq('id', ctx.reportId)
-    .order('created_at', { ascending: true })
-    .limit(40);
-  if (ctx.status) query = query.eq('status', ctx.status);
-  const { data: rows, error } = await query;
-  if (error || !rows) return [];
-  const kind = (d: HuoltoReportData) => (d.huoltoReportDocumentKind === 'kayttoonotto' ? 'kayttoonotto' : 'huolto');
-  const siblings: HuoltoReportData[] = [];
-  for (const raw of rows as { id: string; data: HuoltoReportData; customer_id: string | null }[]) {
-    const normalized = normalizeHuoltoReportData({
-      ...raw.data,
-      customerId: raw.data?.customerId ?? raw.customer_id ?? undefined,
-    });
-    if (kind(normalized) !== kind(base) || ilpLisaLaitteet(normalized).length > 0) continue;
-    try {
-      siblings.push((await syncMaintenanceReportPhotosFromDb(raw.id, normalized)).data);
-    } catch {
-      siblings.push(normalized);
-    }
-  }
-  return siblings;
 }
 
 export async function loadMaintenanceReportPrintBundle(
   reportId: string,
-  options?: {
-    dataOverride?: HuoltoReportData;
-    faultyKonvektoritOnly?: boolean;
-    /** ILP: yhdistä saman käynnin vanhat laiteraportit yhdeksi pöytäkirjaksi (oletus true). */
-    combineIlpVisit?: boolean;
-  },
+  options?: { dataOverride?: HuoltoReportData; faultyKonvektoritOnly?: boolean },
 ) {
   const ctx = await loadMaintenancePrintContext(reportId, options?.dataOverride);
   let reportData = ctx.reportData;
-  if (isIlpMultiDeviceType(reportData.laiteTyyppi) && !options?.faultyKonvektoritOnly) {
-    const siblings = await loadIlpVisitSiblings(ctx);
-    const combined = siblings.length > 0 && options?.combineIlpVisit !== false;
-    if (combined) {
-      reportData = mergeIlpVisitReports(reportData, siblings);
-      const rawImageUrls = await resolveMaintenancePrintImageUrls(reportData);
-      ctx.imageUrls = await shrinkUrlMapForPrint(rawImageUrls);
-    }
-    return buildMaintenancePrintBundle(ctx, reportData, undefined, { siblingCount: siblings.length, combined });
-  }
   if (options?.faultyKonvektoritOnly) {
     const faultyRows = filterFaultyKonvektoriRows(reportData.konvektoriRows);
     if (faultyRows.length === 0) {

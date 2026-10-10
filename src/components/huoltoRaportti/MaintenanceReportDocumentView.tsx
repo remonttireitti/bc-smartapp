@@ -45,7 +45,7 @@ import {
 } from '../../lib/huoltoRaportti/refrigerantCircuitHelpers';
 import { getModuleTheme, type ModuleThemeKey } from '../../lib/huoltoRaportti/moduleThemes';
 import type { ModuleKey } from '../../lib/huoltoRaportti/constants';
-import { usesSharedServiceTests } from '../../lib/huoltoRaportti/ilpLaitteet';
+import { usesRefrigerantServiceExtras } from '../../lib/huoltoRaportti/deviceModuleLogic';
 import type { MaintenanceTabCompletionState } from '../../lib/huoltoRaportti/maintenanceReportTabCompletion';
 
 type Props = Omit<MaintenanceReportTabContentProps, 'tabId'> & {
@@ -81,7 +81,7 @@ function MaintenanceReportDocumentViewInner({
 
   const entries = useMemo(() => buildMaintenanceDocumentEntries(tabs, form), [tabs, form]);
   const showOptionalMeasurementActions =
-    usesSharedServiceTests(form.laiteTyyppi) && Boolean(onEnableOptionalModule);
+    usesRefrigerantServiceExtras(form.laiteTyyppi) && Boolean(onEnableOptionalModule);
   const hasEvaporatorUnits = entries.some((entry) => entry.kind === 'evaporatorUnit');
   const hasCondenserUnits = entries.some((entry) => entry.kind === 'condenserUnit');
   const hasRefrigerantCircuitUnits = entries.some((entry) =>
