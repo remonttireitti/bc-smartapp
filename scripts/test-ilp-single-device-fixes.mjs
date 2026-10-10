@@ -44,7 +44,7 @@ test('imported unticked condensate = ei tarkastettu, not a fault', () => {
   assert.equal(s.anyFaulty, false);
   assert.equal(lampopumppuHasDeviceFault(f), false);
   const html = generateMaintenanceReportHtml(f, { companyName: 'Firma' });
-  assert.ok(html.includes('ei tarkastettu') && html.includes('Ei vikaa havaittu'));
+  assert.ok(/ei tarkastettu/i.test(html) && html.includes('Ei vikaa havaittu'));
   const native = ilp({ sisayksikkoData: [raw] });
   assert.equal(native.sisayksikkoData[0].kondenssiTestattu, 'faulty');
 });
@@ -60,7 +60,7 @@ test('single-device verdict never contradicts the device checks', () => {
     const f = ilp(over);
     assert.equal(lampopumppuHasDeviceFault(f), true);
     html = generateMaintenanceReportHtml(f, { companyName: 'Firma' });
-    assert.ok(html.includes('vika havaittu') && !html.includes('Ei vikaa havaittu'));
+    assert.ok(/vika havaittu/i.test(html) && !html.includes('Ei vikaa havaittu'));
   }
   // other device types: manual flag only
   const other = normalizeHuoltoReportData({ ...createEmptyHuoltoReportData(), laiteTyyppi: 'vesiilmalampopumppu', huoltoLaiteessaVika: false });
