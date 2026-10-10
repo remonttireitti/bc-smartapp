@@ -657,7 +657,15 @@ export async function saveEquipmentFromReport(
   };
 
   if (equipmentId) {
-    const { error } = await supabase.from('equipment').update(payload).eq('id', equipmentId);
+    // Päivityksessä tyhjät / täyttöarvot ("—", "ei tiedossa") eivät pyyhi rekisterin tietoja.
+    const updatePayload: Record<string, unknown> = { ...payload };
+    for (const key of ['tag', 'model', 'serial_number', 'location', 'device_type'] as const) {
+      if (!realIdentityValue(updatePayload[key])) delete updatePayload[key];
+    }
+    if (!realIdentityValue(form.laiteTunnus) && !realIdentityValue(form.laiteMalli)) delete updatePayload.name;
+    delete updatePayload.owner_company_id;
+    delete updatePayload.customer_id;
+    const { error } = await supabase.from('equipment').update(updatePayload).eq('id', equipmentId);
     if (error) throw new Error(error.message);
     return equipmentId;
   }

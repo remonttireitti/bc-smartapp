@@ -1714,6 +1714,10 @@ export default function MaintenanceReportEditPage({ session }: Props) {
       if (linkedEquipmentId) {
         try {
           const snapshot = buildHuoltoEquipmentTechnicalSnapshot(dataPayload);
+          if (customerId && ownerCompanyId && !copySiblingMode) {
+            // Linkitetty laite päivittyy tallennuksessa — erillistä "Päivitä laite rekisteriin" ei tarvita.
+            await saveEquipmentFromReport(dataPayload, customerId, ownerCompanyId, linkedEquipmentId, supabase);
+          }
           await syncEquipmentFromReport(linkedEquipmentId, snapshot, supabase, {
             ...(isIlpDevice(dataPayload.laiteTyyppi)
               ? { serial_number: ilpDeviceSerial(dataPayload), model: ilpDeviceModel(dataPayload) }
@@ -2118,8 +2122,11 @@ export default function MaintenanceReportEditPage({ session }: Props) {
             ? `Tallennettu klo ${savedAt}`
             : 'Tallennettu';
 
+  const canConfigureModuleStructure =
+    profile?.role === 'admin' || !!profile?.is_global_admin || hiddenMaintenanceTabCount > 0;
   const hasSecondaryMaintenanceActions =
-    (canDeleteMaintenance && status !== 'draft')
+    canConfigureModuleStructure
+    || (canDeleteMaintenance && status !== 'draft')
     || !!reportId
     || canEditPublishedReport;
 
@@ -2139,18 +2146,16 @@ export default function MaintenanceReportEditPage({ session }: Props) {
             Tallenna kopio uudelle laitteelle
           </button>
         ) : null}
-        <button
-          type="button"
-          className="btn btn-secondary"
-          disabled={busy || siblingCopyBusy}
-          onClick={() => (copySiblingMode ? setSiblingCopyDialogOpen(true) : void saveEquipmentToRegistry())}
-        >
-          {copySiblingMode && !isKonvektoritDevice(form.laiteTyyppi)
-            ? 'Luo laite ja pöytäkirja'
-            : equipmentId
-              ? 'Päivitä laite rekisteriin'
-              : 'Tallenna laite rekisteriin'}
-        </button>
+        {copySiblingMode || !equipmentId ? (
+          <button
+            type="button"
+            className="btn btn-secondary"
+            disabled={busy || siblingCopyBusy}
+            onClick={() => (copySiblingMode ? setSiblingCopyDialogOpen(true) : void saveEquipmentToRegistry())}
+          >
+            {copySiblingMode && !isKonvektoritDevice(form.laiteTyyppi) ? 'Luo laite ja pöytäkirja' : 'Tallenna laite rekisteriin'}
+          </button>
+        ) : null}
         {equipmentId && selectedCustomer ? (
           <Link
             to={`/asiakkaat/${selectedCustomer.id}/laitteet/${equipmentId}`}
@@ -2285,42 +2290,6 @@ export default function MaintenanceReportEditPage({ session }: Props) {
                   variant="modal"
                 />
               ) : null}
-              <button
-                type="button"
-                className="btn btn-secondary maintenance-module-structure-btn"
-                onClick={() => setModuleStructureDialogOpen(true)}
-              >
-                Moduulirakenne
-                {hiddenMaintenanceTabCount > 0 ? ` (+${hiddenMaintenanceTabCount} piilotettu)` : ''}
-              </button>
-              {documentLayout && usesRefrigerantServiceExtras(form.laiteTyyppi) ? (
-                <>
-                  {!form.selectedModules.tiiveyskoe ? (
-                    <button
-                      type="button"
-                      className="btn btn-secondary btn-sm"
-                      onClick={() => {
-                        toggleModule('tiiveyskoe', true);
-                        setDocumentNavTarget('tiiveyskoe');
-                      }}
-                    >
-                      + Tiiveyskoe
-                    </button>
-                  ) : null}
-                  {!form.selectedModules.tyhjiointi ? (
-                    <button
-                      type="button"
-                      className="btn btn-secondary btn-sm"
-                      onClick={() => {
-                        toggleModule('tyhjiointi', true);
-                        setDocumentNavTarget('tyhjiointi');
-                      }}
-                    >
-                      + Tyhjiöinti
-                    </button>
-                  ) : null}
-                </>
-              ) : null}
             </div>
 
             {!documentLayout ? (
@@ -2334,9 +2303,12 @@ export default function MaintenanceReportEditPage({ session }: Props) {
               />
             ) : null}
 
-            {renderEquipmentRegistryActions('maintenance-equipment-registry-actions--prominent')}
-
-            {renderPrintActions('maintenance-equipment-registry-actions--prominent')}
+            {showEquipmentRegistryActions || reportId ? (
+              <div className="maintenance-equipment-registry-actions maintenance-equipment-registry-actions--prominent maintenance-page-actions">
+                {renderEquipmentRegistryActions('maintenance-page-actions-group')}
+                {renderPrintActions('maintenance-page-actions-group')}
+              </div>
+            ) : null}
 
             <MaintenanceModuleStructureDialog
               open={moduleStructureDialogOpen}
@@ -2449,6 +2421,11 @@ export default function MaintenanceReportEditPage({ session }: Props) {
             <details ref={moreActionsRef} className="maintenance-actions-more">
               <summary className="maintenance-actions-more-toggle">Muut toiminnot</summary>
               <div className="maintenance-actions-more-panel">
+                {canConfigureModuleStructure ? (
+                  <button type="button" className="btn btn-secondary" onClick={() => setModuleStructureDialogOpen(true)}>
+                    Moduulirakenne{hiddenMaintenanceTabCount > 0 ? ` (+${hiddenMaintenanceTabCount} piilotettu)` : ''}
+                  </button>
+                ) : null}
                 {canDeleteMaintenance && (
                   <button
                     type="button"
