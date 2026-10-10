@@ -1,5 +1,4 @@
 import { konvektoriTarkastusSummary, konvektoriRowIsFaulty } from './konvektoriTarkastus';
-import { ilpDeviceCount, ilpOverallVerdict, isIlpMultiDeviceType } from './ilpLaitteet';
 import { hideMaintenancePrintWarnings } from './defaults';
 import { isKonvektoritDevice, usesRefrigerantServiceExtras } from './deviceModuleLogic';
 import type { MaintenanceReportTabId } from './maintenanceReportTabs';
@@ -76,10 +75,7 @@ function huoltotiedotSummary(form: HuoltoReportData): string {
     parts.push(new Date(form.huoltoPaivamaara).toLocaleDateString('fi-FI'));
   }
   if (form.huoltoSuoritettu) parts.push('Huolto suoritettu');
-  if (isIlpMultiDeviceType(form.laiteTyyppi)) {
-    const verdict = ilpOverallVerdict(form);
-    if (verdict.state !== 'ok') parts.push(verdict.state === 'faulty' ? 'Vika havaittu' : 'Kesken');
-  } else if (form.huoltoLaiteessaVika) parts.push('Huomioita');
+  if (form.huoltoLaiteessaVika) parts.push('Huomioita');
   if (hideMaintenancePrintWarnings(form)) parts.push('Varoitukset piilotettu');
   return parts.join(' · ') || 'Päivämäärä ja suorittaja';
 }
@@ -152,9 +148,6 @@ export function buildMaintenanceDocumentTabSummary(
       return konvektoritSummary(form);
 
     case 'lampopumppu':
-      if (isIlpMultiDeviceType(form.laiteTyyppi) && ilpDeviceCount(form) > 1) {
-        return `${ilpDeviceCount(form)} laitetta`;
-      }
       return joinParts([
         deviceLabel(form) || trim(form.ulkoyksikkoMalli),
         trim(form.ulkoyksikkoJaahdytysTeho) ? `${trim(form.ulkoyksikkoJaahdytysTeho)} kW` : '',

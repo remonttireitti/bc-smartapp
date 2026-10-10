@@ -27,7 +27,7 @@ import {
 } from './maintenanceReportBasicsValidation';
 import type { MaintenanceReportTabId } from './maintenanceReportTabs';
 import { buildMaintenanceReportTabs, type MaintenanceReportTabBuildInput } from './maintenanceReportTabs';
-import { ilpDevicesCompletion, ilpOverallVerdict, isIlpMultiDeviceType, usesSharedServiceTests } from './ilpLaitteet';
+import { usesRefrigerantServiceExtras } from './deviceModuleLogic';
 import type { CompressorData, HuoltoReportData, RefrigerantCircuitData, TiiveyskoeData, TyhjiointiData } from './types';
 import { getEvaporatorCircuitCount } from './evaporatorHelpers';
 
@@ -196,7 +196,6 @@ function completionForTab(
     }
 
     case 'lampopumppu':
-      if (isIlpMultiDeviceType(form.laiteTyyppi)) return ilpDevicesCompletion(form);
       return aggregateInspectionStatuses([ulkoyksikkoInspectionStatus(form)]);
 
     case 'mlp': {
@@ -217,10 +216,7 @@ function completionForTab(
       const dateOk = String(form.huoltoPaivamaara ?? '').trim() !== '';
       const doneOk = form.huoltoSuoritettu === true;
       if (!dateOk || !doneOk) return 'incomplete';
-      const fault = isIlpMultiDeviceType(form.laiteTyyppi)
-        ? ilpOverallVerdict(form).state === 'faulty'
-        : form.huoltoLaiteessaVika;
-      if (fault) return 'attention';
+      if (form.huoltoLaiteessaVika) return 'attention';
       return 'ok';
     }
 
@@ -247,10 +243,10 @@ export function buildMaintenanceReportTabCompletion(
     completion[tab.id] = completionForTab(tab.id, form, customerInput, deviceInput);
   }
 
-  if (usesSharedServiceTests(form.laiteTyyppi) && form.selectedModules.tiiveyskoe) {
+  if (usesRefrigerantServiceExtras(form.laiteTyyppi) && form.selectedModules.tiiveyskoe) {
     completion.tiiveyskoe = tiiveyskoeTabCompletion(form.tiiveyskoeData);
   }
-  if (usesSharedServiceTests(form.laiteTyyppi) && form.selectedModules.tyhjiointi) {
+  if (usesRefrigerantServiceExtras(form.laiteTyyppi) && form.selectedModules.tyhjiointi) {
     completion.tyhjiointi = tyhjiointiTabCompletion(form.tyhjiointiData);
   }
 

@@ -1,4 +1,3 @@
-import { isIlpMultiDeviceType } from '../../lib/huoltoRaportti/ilpLaitteet';
 import ToggleSwitch from '../ToggleSwitch';
 import { showHuoltoVsKayttoonottoSelector } from '../../lib/huoltoRaportti/constants';
 import { usesRefrigerantServiceExtras } from '../../lib/huoltoRaportti/deviceModuleLogic';
@@ -55,7 +54,7 @@ export function HuoltotiedotPrintSettingsPanel({ form, onChange, onPersist }: Pr
           </>
         ) : null}
         <ToggleSwitch
-          label={isIlpMultiDeviceType(form.laiteTyyppi) ? 'Muu vika / puutteita' : 'Laitteessa vika / puutteita'}
+          label="Laitteessa vika / puutteita"
           checked={form.huoltoLaiteessaVika}
           onChange={(checked) => onChange({ huoltoLaiteessaVika: checked })}
         />

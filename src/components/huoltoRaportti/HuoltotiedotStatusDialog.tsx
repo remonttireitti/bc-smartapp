@@ -1,4 +1,3 @@
-import { isIlpMultiDeviceType } from '../../lib/huoltoRaportti/ilpLaitteet';
 import { Link } from 'react-router-dom';
 import type { HuoltoReportData } from '../../lib/huoltoRaportti/types';
 import { usesRefrigerantServiceExtras } from '../../lib/huoltoRaportti/deviceModuleLogic';
@@ -80,7 +79,7 @@ export function HuoltotiedotStatusDialog({
             />
           ) : null}
           <ToggleSwitch
-            label={isIlpMultiDeviceType(laiteTyyppi) ? 'Muu vika / puutteita' : 'Laitteessa vika / puutteita'}
+            label="Laitteessa vika / puutteita"
             checked={!!draft.huoltoLaiteessaVika}
             onChange={(checked) => patchDraft({ huoltoLaiteessaVika: checked })}
           />

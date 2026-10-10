@@ -275,10 +275,10 @@ export function ulkoyksikkoInspectionStatus(data: {
 }): HuoltoInspectionStatus {
   const explicit = normalizeHuoltoInspectionStatus(data.ulkoyksikkoTarkastusTila);
   if (explicit !== null) return explicit;
+  // Suojakotelo on varuste (on / ei ole), ei tarkastuskohta: puuttuminen ei ole vika.
   const checks: Array<boolean | undefined> = [
     data.ulkoyksikkoKennosPuhdas,
     data.ulkoyksikkoTurvakytkin,
-    data.ulkoyksikkoSuojakotelo,
   ];
   if (data.ulkoyksikkoSulatausVedenKeraily) {
     checks.push(data.ulkoyksikkoSulatausVedenTarkistettu);

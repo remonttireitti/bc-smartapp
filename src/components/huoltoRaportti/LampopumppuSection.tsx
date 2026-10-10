@@ -31,8 +31,6 @@ interface Props {
   showMittaukset?: boolean;
   /** When set, render only one subsection (document popup tiles). */
   part?: 'ulkoyksikko' | 'sisayksikko' | 'mittaukset';
-  /** Ulkoyksikön malli/sarjanumero muokataan laitelistassa (ILP-laitelista). */
-  omitUlkoyksikkoIdentity?: boolean;
 }
 
 function sisayksikkoStatusLabel(unit: SisayksikkoData): { text: string; className: string } {
@@ -62,7 +60,6 @@ export function LampopumppuSection({
   showSisayksikko = false,
   showMittaukset = false,
   part,
-  omitUlkoyksikkoIdentity = false,
 }: Props) {
   const renderUlkoyksikko = part ? part === 'ulkoyksikko' : showUlkoyksikko;
   const renderSisayksikko = part ? part === 'sisayksikko' : showSisayksikko;
@@ -114,20 +111,16 @@ export function LampopumppuSection({
         lampopumppuUlkoyksikkoTitle(form.laiteTyyppi),
         <>
           <div className="line-form-grid">
-            {omitUlkoyksikkoIdentity ? null : (
-              <>
-                <FormInput
-                  label="Ulkoyksikkö malli"
-                  value={form.ulkoyksikkoMalli || ''}
-                  onChange={(v) => onChange({ ulkoyksikkoMalli: v })}
-                />
-                <FormInput
-                  label="Sarjanumero"
-                  value={form.ulkoyksikkoSarjanumero || ''}
-                  onChange={(v) => onChange({ ulkoyksikkoSarjanumero: v })}
-                />
-              </>
-            )}
+            <FormInput
+              label="Ulkoyksikkö malli"
+              value={form.ulkoyksikkoMalli || ''}
+              onChange={(v) => onChange({ ulkoyksikkoMalli: v })}
+            />
+            <FormInput
+              label="Sarjanumero"
+              value={form.ulkoyksikkoSarjanumero || ''}
+              onChange={(v) => onChange({ ulkoyksikkoSarjanumero: v })}
+            />
             <FormInput
               label="Nimellis jäähdytys teho (kW)"
               value={form.ulkoyksikkoJaahdytysTeho || ''}
