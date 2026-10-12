@@ -137,6 +137,31 @@ export type WorkReportPrintLogImage = {
   caption?: string;
 };
 
+/** "Ei laskuteta kumppanilta: laite 5106,71 € · tarvikkeet 836,14 €" (urakkaan kuuluvat hankinnat). */
+function excludedPartnerSummary(calculation: BillableCalculation): string {
+  const parts = new Map<string, number>();
+  for (const user of calculation.byUser) {
+    for (const line of user.lines) {
+      if (line.included) continue;
+      const key =
+        line.kind !== 'expense'
+          ? 'tunnit'
+          : line.expenseType === 'device'
+            ? 'laite'
+            : line.expenseType === 'km' || line.expenseType === 'trip'
+              ? 'ajot'
+              : 'tarvikkeet';
+      parts.set(key, (parts.get(key) ?? 0) + (Number(line.total) || 0));
+    }
+  }
+  const listed = [...parts.entries()].filter(([, v]) => v > 0.005);
+  const sum = listed.reduce((a, [, v]) => a + v, 0);
+  if (listed.length === 0 || Math.abs(sum - calculation.excludedTotal) > 0.01) {
+    return `Ei laskuteta kumppanilta: ${formatEuro(calculation.excludedTotal)}`;
+  }
+  return `Ei laskuteta kumppanilta (kuuluu urakkaan): ${listed.map(([k, v]) => `${k} ${formatEuro(v)}`).join(' · ')}`;
+}
+
 export function getWorkReportPrintSummary(
   report: WorkReport,
   meta?: Pick<WorkReportPrintMeta, 'companyName'>,
@@ -961,7 +986,7 @@ function generateWorkReportPrintHtmlRaw(input: {
   );
 
   const logsBox = printBox(
-    'Päiväkirjaus',
+    showInternalPrices ? 'Liite: Päiväkirjaus' : 'Päiväkirjaus',
     `<div class="summary-row">
       ${
         showInternalPrices || showCustomerSummaryQuantities
@@ -1067,7 +1092,7 @@ function generateWorkReportPrintHtmlRaw(input: {
               ? `<p class="grand-total"><strong>Laskutettava yhteensä: ${formatEuro(calculation.grandTotal)}</strong></p>
                 ${
                   calculation.excludedTotal > 0
-                    ? `<p class="meta-line">Ei laskutukseen: ${formatEuro(calculation.excludedTotal)}</p>`
+                    ? `<p class="meta-line">${esc(excludedPartnerSummary(calculation))}</p>`
                     : ''
                 }`
               : ''
@@ -1136,11 +1161,12 @@ function generateWorkReportPrintHtmlRaw(input: {
     ${lampokatsastusBrandHeaderHtml}
     ${summaryBox}
     ${detailsBox}
-    ${logsBox}
-    ${billingSection}
-    ${quoteMarginSection}
-    ${customerBillingSection}
-    ${basicNetMarginSection}
+    ${
+      showInternalPrices
+        ? // Sisäinen: laskelma ensin, päiväkirjaus liitteenä.
+          `${quoteMarginSection}${billingSection}${customerBillingSection}${basicNetMarginSection}${logsBox}`
+        : `${logsBox}${billingSection}${quoteMarginSection}${customerBillingSection}${basicNetMarginSection}`
+    }
     ${footerHtml}
   </div>
 </body>

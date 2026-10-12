@@ -399,19 +399,22 @@ export function renderQuoteOutcomeSummaryHtml(
     value == null
       ? '<td class="num">—</td>'
       : `<td class="num" style="color:${PRINT_TONE_COLOR[tone]};font-weight:600">${esc(formatSignedEuro(value, euro))}</td>`;
-  const hasExtras = summary.customerExtrasNet > EPS;
-  const gross = summary.grossMargin;
-
-
-  const rowsHtml = summary.rows
-    .map((row) => {
-      const sub = [row.qtyLabel, row.note].filter(Boolean).map((t) => `<div class="muted" style="font-size:11px">${esc(String(t))}</div>`).join('');
-      return `<tr><td>${esc(row.label)}${sub}</td><td class="num">${esc(money(row.estimateNet))}</td><td class="num">${esc(money(row.actualNet))}</td>${variance(row.varianceNet, row.tone)}</tr>`;
-    })
-    .join('');
-
+  const statement = buildAccountingStatement(summary);
+  const lineHtml = (line: AccountingLine) => {
+    const strong = line.kind !== 'line';
+    const sub = line.sub ? `<div class="muted" style="font-size:11px">${esc(line.sub)}</div>` : '';
+    const label = strong ? `<strong>${esc(line.label)}</strong>` : esc(line.label);
+    const cell = (value: string) => (strong ? `<strong>${value}</strong>` : value);
+    const actual = line.key === 'commission' ? esc(`− ${euro(Math.abs(line.actualNet))}`) : line.key === 'net' ? `<strong style="font-size:15px">${esc(euro(line.actualNet))}</strong>` : cell(esc(euro(line.actualNet)));
+    const style = line.kind === 'total' ? ' style="border-top:1px solid #94a3b8"' : '';
+    return `<tr${line.kind === 'result' ? ' class="profit-row"' : ''}${style}><td>${label}${sub}</td><td class="num">${cell(esc(money(line.estimateNet)))}</td><td class="num">${actual}</td>${variance(line.varianceNet, line.tone)}</tr>`;
+  };
+  const section = (title: string) =>
+    `<tr><td colspan="4" style="padding-top:8px;font-size:11px;text-transform:uppercase;color:#475569;font-weight:700">${title}</td></tr>`;
+  // Asiakas maksaa = Tulot yhteensä → ei toisteta laskutuslaskelmassa.
   const partyRows = summary.parties
     ? summary.parties
+        .filter((row) => row.key !== 'customer')
         .map((row, index, all) => {
           const last = index === all.length - 1;
           const noteHtml = row.note ? `<div class="muted" style="font-size:11px">${esc(row.note)}</div>` : '';
@@ -421,30 +424,109 @@ export function renderQuoteOutcomeSummaryHtml(
         })
         .join('')
     : '';
-  const marginRows = summary.parties
-    ? `<tr><td colspan="4" style="padding-top:8px;font-size:11px;text-transform:uppercase;color:#475569;font-weight:700">Laskutuslaskelma (alv 0 %)</td></tr>${partyRows}`
-    : gross
-    ? `${hasExtras ? `<tr><td>Myynti (tarjous + hyväksytyt lisät)</td><td class="num">${esc(money(summary.costs.estimateNet == null ? null : summary.quoteSaleNet))}</td><td class="num">${esc(euro(summary.marginSaleNet))}</td>${variance(summary.costs.estimateNet == null ? null : summary.extrasMarginNet, marginVarianceTone(0, summary.extrasMarginNet))}</tr>` : ''}
-      <tr><td><strong>Kate ennen provisiota</strong></td><td class="num">${esc(money(gross.estimateNet))}</td><td class="num"><strong>${esc(euro(gross.actualNet))}</strong></td>${summary.showMarginVariance ? variance(gross.varianceNet, gross.tone) : '<td class="num">—</td>'}</tr>
-      <tr><td>Provisio (${esc(String(Math.round(summary.commissionPercent * 100) / 100).replace('.', ','))} %)${summary.commissionSource === 'daily_log' ? '<div class="muted" style="font-size:11px">Päiväkirjan Myyntiprovisio-merkinnöistä</div>' : summary.commissionSource === 'amount' ? '<div class="muted" style="font-size:11px">Sovittu summa</div>' : ''}</td><td class="num">—</td><td class="num">− ${esc(euro(summary.commissionNet))}</td><td class="num">—</td></tr>
-      <tr class="profit-row"><td><strong>Puhdas kate</strong></td><td class="num">—</td><td class="num"><strong style="font-size:15px">${esc(euro(summary.netMarginNet))}</strong></td><td class="num">—</td></tr>`
-    : '';
 
   const verdictHtml = summary.verdict
     ? `<p style="margin:6px 0 10px;padding:6px 10px;border-left:5px solid ${PRINT_TONE_COLOR[summary.verdict.tone]};font-size:17px;color:${PRINT_TONE_COLOR[summary.verdict.tone]}"><strong>${esc(summary.verdict.label)}</strong></p>`
     : '';
 
   return `<div class="quote-outcome-print">
-    ${summary.parties ? '' : `<p style="margin:0 0 4px"><span style="font-size:11px;text-transform:uppercase;color:#475569;font-weight:700">${hasExtras ? 'Kiinteä tarjoushinta + hyväksytyt lisät' : 'Kiinteä tarjoushinta'} (alv 0 %)</span><br/><strong style="font-size:20px">${esc(euro(summary.saleTotalNet))}</strong>${hasExtras ? ` <span class="muted">(tarjous ${esc(euro(summary.quoteSaleNet))} + lisät ${esc(euro(summary.customerExtrasNet))})</span>` : ''}</p>`}
-    ${options.quoteTitle ? `<p class="meta-line">Tarjous: ${esc(options.quoteTitle)}</p>` : ''}
+    ${options.quoteTitle ? `<p class="meta-line">Tarjous: ${esc(options.quoteTitle)} · alv 0 %</p>` : ''}
     ${verdictHtml}
     <table>
-      <thead><tr><th>Kulut</th><th class="num">Tarjouspyyntö</th><th class="num">Toteutunut</th><th class="num">Ero</th></tr></thead>
+      <thead><tr><th></th><th class="num">Tarjouspyyntö</th><th class="num">Toteutunut</th><th class="num">Ero</th></tr></thead>
       <tbody>
-        ${rowsHtml}
-        <tr><td><strong>Kulut yhteensä</strong></td><td class="num"><strong>${esc(money(summary.costs.estimateNet))}</strong></td><td class="num"><strong>${esc(money(summary.costs.actualNet))}</strong></td>${variance(summary.costs.varianceNet, summary.costs.tone)}</tr>
-        ${marginRows}
+        ${statement.income ? `${section('Tulot')}${statement.income.map(lineHtml).join('')}` : ''}
+        ${section('Kulut')}${statement.costs.map(lineHtml).join('')}
+        ${statement.result ? `${section('Kate')}${statement.result.map(lineHtml).join('')}` : ''}
+        ${summary.parties ? `${section('Laskutuslaskelma')}${partyRows}` : ''}
       </tbody>
     </table>
   </div>`;
+}
+
+/** Tuloslaskelman rivi (TULOT / KULUT / KATE). */
+export type AccountingLine = {
+  key: string;
+  label: string;
+  sub: string | null;
+  /** total = yhteensä-rivi, result = kate / puhdas kate. */
+  kind: 'line' | 'total' | 'result';
+} & QuoteOutcomeComparison;
+
+export type AccountingStatement = {
+  income: AccountingLine[] | null;
+  costs: AccountingLine[];
+  /** Kate, provisio, puhdas kate (null: ei katetta tai laskutuslaskelma). */
+  result: AccountingLine[] | null;
+};
+
+/**
+ * Yksinkertainen tuloslaskelma yhteenvedosta: TULOT − KULUT = KATE − provisio = puhdas kate.
+ * Luvut ovat täsmälleen samat kuin yhteenvedossa; hyväksyttyjen lisien kulut (kumppani,
+ * hankinta) näkyvät omana kulurivinään, jotta tulot − kulut = kate.
+ */
+export function buildAccountingStatement(summary: QuoteOutcomeSummary): AccountingStatement {
+  const hasEstimate = summary.costs.estimateNet != null;
+  const line = (
+    key: string,
+    label: string,
+    estimate: number | null,
+    actual: number,
+    tone: (e: number | null, a: number) => OutcomeTone,
+    kind: AccountingLine['kind'] = 'line',
+    sub: string | null = null,
+  ): AccountingLine => ({ key, label, sub, kind, ...comparisonOf(hasEstimate ? estimate : null, actual, tone) });
+
+  const extrasCostNet = roundMoney(summary.customerExtrasNet - summary.extrasMarginNet);
+  const costs: AccountingLine[] = summary.rows.map((row) => ({
+    key: row.key,
+    label: row.label,
+    sub: [row.qtyLabel, row.note].filter(Boolean).join(' · ') || null,
+    kind: 'line' as const,
+    estimateNet: row.estimateNet,
+    actualNet: row.actualNet,
+    varianceNet: row.varianceNet,
+    tone: row.tone,
+  }));
+  if (summary.hasMargin && Math.abs(extrasCostNet) > EPS) {
+    costs.push(line('extras_costs', 'Lisätöiden kulut', 0, extrasCostNet, costVarianceTone));
+  }
+  const costsTotal = summary.hasMargin
+    ? roundMoney(summary.costs.actualNet + extrasCostNet)
+    : summary.costs.actualNet;
+  costs.push(line('costs_total', 'Kulut yhteensä', summary.costs.estimateNet, costsTotal, costVarianceTone, 'total'));
+
+  if (!summary.hasMargin || !summary.grossMargin) return { income: null, costs, result: null };
+
+  const income: AccountingLine[] = [
+    // Tarjoushinta on sama molemmissa sarakkeissa → ei Ero-lukua.
+    { ...line('quote', 'Tarjoushinta', summary.quoteSaleNet, summary.quoteSaleNet, marginVarianceTone), varianceNet: null },
+  ];
+  if (summary.customerExtrasNet > EPS) {
+    income.push(line('extras', 'Lisälaskutus', 0, summary.customerExtrasNet, marginVarianceTone, 'line', 'hyväksytyt lisätyöt ja -kulut'));
+  }
+  const incomeTotal = line('income_total', 'Tulot yhteensä', summary.quoteSaleNet, summary.saleTotalNet, marginVarianceTone, 'total');
+  income.push(summary.customerExtrasNet > EPS ? incomeTotal : { ...incomeTotal, varianceNet: null });
+
+  const gross = summary.grossMargin;
+  const kate: AccountingLine = {
+    key: 'gross',
+    label: 'Kate',
+    sub: summary.parties ? 'tulot − kulut, kaikki osapuolet yhteensä' : 'tulot − kulut',
+    kind: 'result',
+    ...gross,
+    // Ilman lisiä kate-ero = tuomio → ei toisteta.
+    ...(summary.showMarginVariance ? {} : { varianceNet: null }),
+  };
+  if (summary.parties) return { income, costs, result: [kate] };
+  return {
+    income,
+    costs,
+    result: [
+      kate,
+      line('commission', `Provisio (${String(Math.round(summary.commissionPercent * 100) / 100).replace('.', ',')} %)`, null, -summary.commissionNet, marginVarianceTone, 'line',
+        summary.commissionSource === 'daily_log' ? 'päiväkirjan provisiomerkinnöistä' : summary.commissionSource === 'amount' ? 'sovittu summa' : null),
+      line('net', 'Puhdas kate', null, summary.netMarginNet, marginVarianceTone, 'result'),
+    ],
+  };
 }

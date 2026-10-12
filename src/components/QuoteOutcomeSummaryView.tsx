@@ -1,11 +1,11 @@
-import { Fragment, type ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import {
+  buildAccountingStatement,
   formatSignedEuro,
-  marginVarianceTone,
+  type AccountingLine,
   type OutcomeTone,
   type QuoteOutcomeSummary,
 } from '../lib/quoteOutcomeSummary';
-import { formatCommissionPercent } from '../lib/workReportBillingQuote';
 import { formatEuro } from '../lib/workReportBilling';
 import { unpricedRowsLabel } from '../lib/quoteSeededRows';
 
@@ -48,35 +48,52 @@ export default function QuoteOutcomeSummaryView({
   partyStatus,
   partiesAction = null,
 }: Props) {
-  const hasExtras = summary.customerExtrasNet > 0.005;
-  const gross = summary.grossMargin;
-  const saleEstimate = summary.costs.estimateNet == null ? null : summary.quoteSaleNet;
+  const statement = buildAccountingStatement(summary);
+
+  const lineRow = (line: AccountingLine) => {
+    const cls =
+      line.key === 'net'
+        ? 'quote-outcome-net-row'
+        : line.kind === 'result'
+          ? 'quote-outcome-margin-row'
+          : line.kind === 'total'
+            ? 'quote-outcome-subtotal'
+            : undefined;
+    return (
+      <tr key={line.key} className={cls}>
+        <td>
+          <span className="quote-outcome-row-label">{line.label}</span>
+          {line.sub ? <span className="quote-outcome-row-sub">{line.sub}</span> : null}
+          {line.key === 'commission' && commissionExceedsGross ? (
+            <span className="quote-outcome-row-sub error">Provisio on suurempi kuin kate.</span>
+          ) : null}
+        </td>
+        <td className="num">{money(line.estimateNet)}</td>
+        <td className="num">{line.key === 'commission' ? `− ${formatEuro(Math.abs(line.actualNet))}` : line.kind === 'result' ? <strong>{formatEuro(line.actualNet)}</strong> : formatEuro(line.actualNet)}</td>
+        <VarianceCell value={line.varianceNet} tone={line.tone} />
+      </tr>
+    );
+  };
+  const section = (title: string, action: ReactNode = null) => (
+    <tr className="quote-outcome-section-row">
+      <td colSpan={4}>
+        {title}
+        {action ? <span className="quote-outcome-section-action">{action}</span> : null}
+      </td>
+    </tr>
+  );
 
   return (
     <div className="quote-outcome">
       <div className="quote-outcome-card">
-        <div className="quote-outcome-price">
-          {summary.parties ? null : (
-            <>
-              <span className="quote-outcome-price-label">
-                {hasExtras ? 'Kiinteä tarjoushinta + hyväksytyt lisät' : 'Kiinteä tarjoushinta'}
-                <span className="muted"> (alv 0 %)</span>
-              </span>
-              <strong className="quote-outcome-price-value">{formatEuro(summary.saleTotalNet)}</strong>
-            </>
-          )}
-          {hasExtras && !summary.parties ? (
+        {quoteTitle ? (
+          <div className="quote-outcome-price">
             <span className="muted quote-outcome-price-sub">
-              tarjous {formatEuro(summary.quoteSaleNet)} + lisät {formatEuro(summary.customerExtrasNet)}
-            </span>
-          ) : null}
-          {quoteTitle ? (
-            <span className="muted quote-outcome-price-sub">
-              Tarjous: {quoteTitle}
+              Tarjous: {quoteTitle} · alv 0 %
               {quoteTitleActions}
             </span>
-          ) : null}
-        </div>
+          </div>
+        ) : null}
 
         {summary.verdict ? (
           <div className={`quote-outcome-verdict ${toneClass(summary.verdict.tone)}`} role="status">
@@ -99,128 +116,47 @@ export default function QuoteOutcomeSummaryView({
         <table className="billing-table quote-outcome-table">
           <thead>
             <tr>
-              <th>Kulut</th>
+              <th></th>
               <th className="num">{'Tarjous\u00ADpyyntö'}</th>
               <th className="num">Toteutunut</th>
               <th className="num">Ero</th>
             </tr>
           </thead>
           <tbody>
-            {summary.rows.map((row) => (
-              <Fragment key={row.key}>
-                <tr>
-                  <td>
-                    <span className="quote-outcome-row-label">{row.label}</span>
-                    {row.qtyLabel ? <span className="quote-outcome-row-sub">{row.qtyLabel}</span> : null}
-                    {row.note ? <span className="quote-outcome-row-sub">{row.note}</span> : null}
-                  </td>
-                  <td className="num">{money(row.estimateNet)}</td>
-                  <td className="num">{money(row.actualNet)}</td>
-                  <VarianceCell value={row.varianceNet} tone={row.tone} />
-                </tr>
-              </Fragment>
-            ))}
-            <tr className="quote-outcome-subtotal">
-              <td>Kulut yhteensä</td>
-              <td className="num">{money(summary.costs.estimateNet)}</td>
-              <td className="num">{money(summary.costs.actualNet)}</td>
-              <VarianceCell value={summary.costs.varianceNet} tone={summary.costs.tone} />
-            </tr>
-            {summary.parties ? (
-              <tr className="quote-outcome-section-row">
-                <td colSpan={4}>
-                  Laskutuslaskelma (alv 0 %)
-                  {partiesAction ? <span className="quote-outcome-section-action">{partiesAction}</span> : null}
-                </td>
-              </tr>
+            {statement.income ? (
+              <>
+                {section('Tulot')}
+                {statement.income.map(lineRow)}
+              </>
             ) : null}
+            {section('Kulut')}
+            {statement.costs.map(lineRow)}
+            {statement.result ? (
+              <>
+                {section('Kate')}
+                {statement.result.map(lineRow)}
+              </>
+            ) : null}
+            {summary.parties ? section('Laskutuslaskelma', partiesAction) : null}
             {summary.parties
-              ? summary.parties.map((row, index, all) => {
+              ? summary.parties.filter((row) => row.key !== 'customer').map((row, index, all) => {
                   const last = index === all.length - 1;
                   return (
-                    <tr
-                      key={row.key}
-                      className={last ? 'quote-outcome-net-row' : 'quote-outcome-party-row'}
-                    >
+                    <tr key={row.key} className={last ? 'quote-outcome-net-row' : 'quote-outcome-party-row'}>
                       <td>
                         <span className="quote-outcome-row-label">{row.label}</span>
                         {row.note ? <span className="quote-outcome-row-sub">{row.note}</span> : null}
                         {partyStatus?.[row.key] ? (
-                          <span className="quote-outcome-row-sub quote-outcome-party-status">
-                            {partyStatus[row.key]}
-                          </span>
+                          <span className="quote-outcome-row-sub quote-outcome-party-status">{partyStatus[row.key]}</span>
                         ) : null}
                       </td>
                       <td className="num">{money(row.estimateNet)}</td>
-                      <td className="num">
-                        {last ? <strong>{formatEuro(row.actualNet)}</strong> : formatEuro(row.actualNet)}
-                      </td>
+                      <td className="num">{last ? <strong>{formatEuro(row.actualNet)}</strong> : formatEuro(row.actualNet)}</td>
                       <VarianceCell value={row.varianceNet} tone={row.tone} />
                     </tr>
                   );
                 })
               : null}
-            {gross && !summary.parties ? (
-              <>
-                {hasExtras ? (
-                  <tr>
-                    <td>
-                      <span className="quote-outcome-row-label">Myynti</span>
-                      <span className="quote-outcome-row-sub">tarjous + hyväksytyt lisät</span>
-                    </td>
-                    <td className="num">{money(saleEstimate)}</td>
-                    <td className="num">{formatEuro(summary.marginSaleNet)}</td>
-                    <VarianceCell
-                      value={saleEstimate == null ? null : summary.extrasMarginNet}
-                      tone={saleEstimate == null ? 'neutral' : marginVarianceTone(0, summary.extrasMarginNet)}
-                    />
-                  </tr>
-                ) : null}
-                <tr className="quote-outcome-margin-row">
-                  <td>
-                    <span className="quote-outcome-row-label">Kate ennen provisiota</span>
-                    <span className="quote-outcome-row-sub">
-                      {hasExtras ? 'myynti − kulut' : 'tarjoushinta − kulut'}
-                    </span>
-                  </td>
-                  <td className="num">{money(gross.estimateNet)}</td>
-                  <td className="num">
-                    <strong>{formatEuro(gross.actualNet)}</strong>
-                  </td>
-                  {summary.showMarginVariance ? (
-                    <VarianceCell value={gross.varianceNet} tone={gross.tone} />
-                  ) : (
-                    <td className="num muted">—</td>
-                  )}
-                </tr>
-                <tr className="quote-outcome-commission-row">
-                  <td colSpan={2}>
-                    <span className="quote-outcome-row-label">
-                      Provisio ({formatCommissionPercent(summary.commissionPercent)} %)
-                    </span>
-                    <span className="quote-outcome-row-sub">
-                      {summary.commissionSource === 'daily_log'
-                        ? 'Päiväkirjan Myyntiprovisio-merkinnöistä'
-                        : summary.commissionSource === 'amount'
-                          ? 'Sovittu summa'
-                          : 'Prosentti katteesta'}
-                    </span>
-                    {commissionExceedsGross ? (
-                      <span className="quote-outcome-row-sub error">
-                        Provisio on suurempi kuin kate ennen provisiota.
-                      </span>
-                    ) : null}
-                  </td>
-                  <td className="num">− {formatEuro(summary.commissionNet)}</td>
-                  <td className="num muted">—</td>
-                </tr>
-                <tr className="quote-outcome-net-row">
-                  <td colSpan={2}>Puhdas kate</td>
-                  <td className="num">{formatEuro(summary.netMarginNet)}</td>
-                  <td className="num muted">—</td>
-                </tr>
-              </>
-            ) : null}
           </tbody>
         </table>
       </div>
