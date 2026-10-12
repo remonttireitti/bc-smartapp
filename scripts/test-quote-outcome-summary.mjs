@@ -14,6 +14,7 @@ import { extractQuotePurchaseLines, sumQuotePurchaseLines } from '../src/lib/quo
 import { compareQuoteCategories } from '../src/lib/quoteCategoryComparison.ts';
 import { createEmptyQuoteRequestData } from '../src/lib/quoteRequest/defaults.ts';
 import {
+  buildAccountingStatement,
   buildQuoteOutcomeSummary,
   costVarianceTone,
   formatSignedEuro,
@@ -155,7 +156,8 @@ assert.equal(summary.showMarginVariance, false);
 
 // --- Sisäinen tuloste: sama yhteenveto
 const html = renderQuoteOutcomeSummaryHtml(summary, { escapeHtml: (v) => v, formatEuro, quoteTitle: 'Messukeskus' });
-assert.match(html, /Kiinteä tarjoushinta/);
+assert.match(html, /Tulot yhteensä/);
+assert.match(html, />Kulut</);
 assert.match(html, /Meni tarjouspyyntöä paremmin \+264,70/);
 assert.match(html, /2\s?210,00/);
 assert.match(html, /Puhdas kate/);
@@ -164,7 +166,8 @@ assert.match(html, /<th class="num">Tarjouspyyntö<\/th>/);
 assert.doesNotMatch(html, /Tarjouspyyntö 2\s?210,00|Toteutunut <strong>/);
 assert.equal(html.match(/\+264,70/g).length, 1, 'kate-ero vain kerran (tuomio)');
 assert.equal(html.match(/−264,70/g).length, 1, 'kulujen ero vain kerran (Kulut yhteensä)');
-assert.match(html, /<strong>Kate ennen provisiota<\/strong><\/td><td class="num">1\s?772,40[^<]*<\/td><td class="num"><strong>2\s?037,10[^<]*<\/strong><\/td><td class="num">—<\/td>/);
+assert.match(html, /<strong>Kate<\/strong>.*?1\s?772,40.*?2\s?037,10/s);
+assert.match(html, /− 896,40/);
 // Tuomio heti hinnan/tarjouksen nimen jälkeen, ennen taulukkoa
 assert.ok(html.indexOf('Meni tarjouspyyntöä paremmin') < html.indexOf('<table'));
 assert.ok(html.indexOf('Tarjous: Messukeskus') < html.indexOf('Meni tarjouspyyntöä paremmin'));
@@ -211,8 +214,8 @@ assert.equal(s3.showMarginVariance, true);
 // Tuomio vertaa vain kiinteää tarjousta tarjouspyyntöön
 assert.equal(s3.verdict.label.includes('+264,70'), true);
 const html3 = renderQuoteOutcomeSummaryHtml(s3, { escapeHtml: (v) => v, formatEuro });
-assert.match(html3, /Myynti \(tarjous \+ hyväksytyt lisät\)/);
-assert.match(html3, /<strong>Kate ennen provisiota<\/strong>.*?<td class="num" style="color:#15803d;font-weight:600">\+564,70/s);
+assert.match(html3, />Lisälaskutus</);
+assert.match(html3, /<strong>Kate<\/strong>.*?<td class="num" style="color:#15803d;font-weight:600">\+564,70/s);
 
 // --- Ei tarjousvertailua: ei arviota eikä tuomiota
 const s4 = buildQuoteOutcomeSummary({ partnerMargin, comparison: null, formatEuro });
@@ -230,3 +233,16 @@ assert.equal(s5.verdict.tone, 'better');
 assert.equal(buildQuoteOutcomeSummary({ partnerMargin: null, comparison: null, formatEuro }), null);
 
 console.log('test-quote-outcome-summary: OK');
+
+// Tuloslaskelma: tulot − kulut = kate (myös hyväksytyillä lisillä), luvut samat kuin yhteenvedossa.
+for (const s of [summary, s3]) {
+  const st = buildAccountingStatement(s);
+  const tulot = st.income.at(-1).actualNet;
+  const kulut = st.costs.at(-1).actualNet;
+  const kate = st.result[0].actualNet;
+  assert.equal(Math.round((tulot - kulut) * 100) / 100, kate);
+  assert.equal(kate, s.grossMargin.actualNet);
+  assert.equal(tulot, s.saleTotalNet);
+  assert.equal(st.result.at(-1).actualNet, s.netMarginNet);
+}
+console.log('test-quote-outcome-summary (tuloslaskelma): OK');
