@@ -217,3 +217,26 @@ export function deviceTileSubtitle(
   }
   return parts.join(' · ');
 }
+
+/**
+ * Hankintarivit näytettäväksi: laitekirjausten hankinta siirretään Tarvikkeet-riviltä
+ * tarjouspyynnön laiteriville (tallennettu rakenne pitää ne tarvikkeissa, laite 0 €).
+ * Kokonaissumma ei muutu; laite näkyy kerran: tarjouspyyntö vs toteutunut.
+ */
+export function purchaseLinesForDisplay(
+  lines: BillingQuotePurchaseLine[] | null | undefined,
+  logs: WorkReportDailyLog[] | null | undefined,
+): BillingQuotePurchaseLine[] {
+  const list = lines ?? [];
+  if (!deviceEntriesReplaceQuoteDevice(logs)) return list;
+  const { diaryNet } = deviceEntryCostSplit(logs);
+  const firstDevice = list.findIndex((line) => line.source === 'device');
+  if (firstDevice < 0 || !(diaryNet > 0.005)) return list;
+  return list.map((line, index) => {
+    if (index === firstDevice) return { ...line, actual_purchase_net: roundMoney(line.actual_purchase_net + diaryNet) };
+    if (line.id === 'group:diary-supplies') {
+      return { ...line, actual_purchase_net: roundMoney(Math.max(0, line.actual_purchase_net - diaryNet)) };
+    }
+    return line;
+  });
+}

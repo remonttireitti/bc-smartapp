@@ -50,6 +50,7 @@ import {
 } from './quoteCategoryComparison';
 import { buildQuoteOutcomeSummary, renderQuoteOutcomeSummaryHtml } from './quoteOutcomeSummary';
 import { resolveDeviceSellerSaleNet } from './workReportDeviceSeller';
+import { purchaseLinesForDisplay } from './workReportDeviceEntries';
 import { collectUnpricedQuoteRows, unpricedQuoteRowTotals } from './quoteSeededRows';
 import {
   formatRefrigerantLineLabelForReport,
@@ -289,7 +290,7 @@ function customerBillingPrintSection(
         <tbody>${extraRows}</tbody>
       </table>` : ''}
       <p class="grand-total"><strong>Asiakkaalta laskutettava yhteensä: ${formatEuro(customerCalculation.grandTotal)}</strong></p>
-      <p class="meta-line billing-price-missing-note">Punainen <span class="billing-price-missing">?</span> = hinta puuttuu, määritä asiakkaalle laskutettava hinta.</p>`,
+      ${customerCalculation.byUser.some((user) => billableUserLines(user).some((line) => line.included && line.priceMissing)) ? '<p class="meta-line billing-price-missing-note">Punainen <span class="billing-price-missing">?</span> = hinta puuttuu, määritä asiakkaalle laskutettava hinta.</p>' : ''}`,
     );
   }
 
@@ -340,7 +341,7 @@ function customerBillingPrintSection(
       <tbody>${detailRows || '<tr><td colspan="7">Ei laskutettavia rivejä.</td></tr>'}</tbody>
     </table>
     <p class="grand-total"><strong>Asiakkaalta laskutettava yhteensä: ${formatEuro(customerCalculation.grandTotal)}</strong></p>
-    <p class="meta-line billing-price-missing-note">Punainen <span class="billing-price-missing">?</span> = hinta puuttuu, määritä asiakkaalle laskutettava hinta.</p>`,
+    ${customerCalculation.byUser.some((user) => billableUserLines(user).some((line) => line.included && line.priceMissing)) ? '<p class="meta-line billing-price-missing-note">Punainen <span class="billing-price-missing">?</span> = hinta puuttuu, määritä asiakkaalle laskutettava hinta.</p>' : ''}`,
   );
 }
 
@@ -487,9 +488,12 @@ function quoteMarginPrintSection(
     );
   }
 
-  const purchaseLinesHtml = renderBillingQuotePurchaseLinesHtml(purchaseLines, {
-    escapeHtml: esc,
-  });
+  // Tarjous vs toteutunut -taulukko näyttää jo laitteen ja tarvikkeet → ei toistoa.
+  const purchaseLinesHtml = outcomeSummary
+    ? ''
+    : renderBillingQuotePurchaseLinesHtml(purchaseLinesForDisplay(purchaseLines, logs), {
+        escapeHtml: esc,
+      });
 
   const categoryComparisonHtml = outcomeSummary
     ? renderQuoteOutcomeSummaryHtml(outcomeSummary, {
@@ -550,11 +554,6 @@ function quoteMarginPrintSection(
       <tbody>${rows.join('')}</tbody>
     </table>` : ''}
     ${extrasDetailHtml}
-    ${
-      partnerMargin
-        ? '<p class="meta-line">Kate = tarjoushinta + lisälaskutus − toteutuneet kulut (työt, kulut, tarvikkeet, laite ja muut kate-erät). Tarjouspyyntö-sarake = tarjoushinta − tarjouspyynnön kulut samalla jaolla.</p>'
-        : ''
-    }
     ${billingQuote.notes?.trim() ? `<p class="meta-line">Huom: ${esc(billingQuote.notes.trim())}</p>` : ''}`,
   );
 }
@@ -778,8 +777,8 @@ function generateWorkReportPrintHtmlRaw(input: {
               false,
             );
       const quoteHourNote =
-        customerQuoteBased && showInternalPrices
-          ? ' · <span class="muted">kuuluu tarjoukseen (kalenteri)</span>'
+        customerQuoteBased && showInternalPrices && !/kuuluu tarjoukseen/i.test(hourSummary)
+          ? ' · <span class="muted">kuuluu tarjoukseen</span>'
           : '';
       const logAuthor = resolveDailyLogAuthorLabel(log);
       const logAuthorLabel = logAuthor.deleted
@@ -950,7 +949,7 @@ function generateWorkReportPrintHtmlRaw(input: {
           ? `<dt>Tilaaja</dt><dd>${esc(report.orderer_name.trim())}</dd>`
           : ''
       }
-      <dt>${equipmentPrintLabel}</dt><dd>${esc(equipmentPrintValue)}</dd>
+      ${linkedEquipment.length > 0 ? `<dt>${equipmentPrintLabel}</dt><dd>${esc(equipmentPrintValue)}</dd>` : ''}
       <dt>Aloitus</dt><dd>${esc(workStartLabel)}</dd>
       <dt>Valmistuminen</dt><dd>${esc(workEndLabel)}</dd>
       ${

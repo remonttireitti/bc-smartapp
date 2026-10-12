@@ -568,7 +568,7 @@ function ExpenseLineEditor({
             <ExpenseBillingModeToggles
               partnerPurchaseLabel="Laskutetaan asiakkaalta"
               partnerPurchaseHint="Veloitus näkyy asiakkaan laskulla."
-              billFromPartnerLabel="Kuulu urakkaan — ei veloiteta"
+              billFromPartnerLabel="Kuuluu urakkaan — ei veloiteta"
               billFromPartnerHint="Ei veloiteta asiakkaalta."
               partnerPurchaseOn={billingMode === 'partner_and_customer'}
               billFromPartnerOn={billingMode === 'included_in_contract'}
