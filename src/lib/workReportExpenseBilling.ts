@@ -545,7 +545,7 @@ export function expensePrintBillingNote(
     expenseQuoteLinkedExtraBillingApplies(context)
     && expenseIncludedInContract(row)
   ) {
-    return ' · kuulu urakkaan · ei veloiteta';
+    return ' · kuuluu urakkaan';
   }
   const supplyExtraLabel = expenseSupplyExtraBillingLabel(row, context);
   if (options.showPartner && row.bill_to_partner === false && row.bill_to_customer !== false) {
