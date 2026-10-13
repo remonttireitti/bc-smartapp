@@ -41,7 +41,6 @@ const MODULES: ModuleTile[] = [
   {
     title: 'Etäohjaus ja seuranta',
     desc: 'Lämpötilaseuranta ja VRF-laitteet',
-    menuPath: 'Etusivu → Etäohjaus ja seuranta',
     color: '#14b8a6',
     href: '/etaseuranta',
     licenseModule: 'remote_monitoring',
@@ -81,10 +80,11 @@ export default function Dashboard({ session }: Props) {
     if (portalView) return PORTAL_MODULES;
     return MODULES.filter((m) => {
       if (!m.licenseModule) return true;
+      // Laskutus-moduulin kytkin (yrityksen asetus) piilottaa ruudun myös lisenssin kanssa.
+      if (m.licenseModule === 'billing' && billingModuleEnabled !== true) return false;
       if (license && license.enrollment !== 'legacy') {
         return isLicenseModuleAccessible(license, m.licenseModule);
       }
-      if (m.licenseModule === 'billing' && billingModuleEnabled === false) return false;
       return true;
     }).map((module) => {
       if (module.title === 'Laskutus' && partnershipsEnabled === false) {
