@@ -1271,6 +1271,10 @@ export default function VrfMonitorDetailPage({ session }: Props) {
 
         deviceId={device.id}
 
+        device={device}
+
+        companyName={profile?.companies?.name ?? undefined}
+
         focusHotspot={trendFocusHotspot}
 
         focusBinary={trendFocusBinary}
