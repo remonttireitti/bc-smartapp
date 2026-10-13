@@ -115,7 +115,7 @@ export default function ManagementLayout({ session }: Props) {
 
   const adminTabs = ADMIN_TABS.filter((tab) => {
     if (partnershipsEnabled === false && tab.href === '/hallinta/kumppanuudet') return false;
-    if (billingModuleEnabled === false && tab.href === '/hallinta/kumppanilaskutus') return false;
+    if (billingModuleEnabled !== true && tab.href === '/hallinta/kumppanilaskutus') return false;
     return true;
   });
 

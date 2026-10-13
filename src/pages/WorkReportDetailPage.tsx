@@ -1314,6 +1314,8 @@ export default function WorkReportDetailPage({ session }: Props) {
   const billingModuleEnabled = useCompanyBillingModuleEnabled(profile?.company_id, session);
   const ownerCustomerInvoicing = useCompanyCustomerBillingEnabled(report?.owner_company_id, session);
   const viewerBillingAllowed = billingModuleEnabled !== false;
+  /** Linkit /laskutus-sivulle vain kun moduuli on varmasti käytössä. */
+  const billingLinksVisible = billingModuleEnabled === true;
   const customerInvoicingEnabled = ownerCustomerInvoicing === true;
   const customerBillingFieldsActive = (reportRow: WorkReport | null) =>
     customerInvoicingEnabled
@@ -4122,8 +4124,12 @@ export default function WorkReportDetailPage({ session }: Props) {
                 )}
                 {viewerBillingAllowed && (
                   <>
-                    {' · '}
-                    <Link to="/laskutus?mode=partner">Laskutus-moduuli</Link>
+                    {billingLinksVisible && (
+                      <>
+                        {' · '}
+                        <Link to="/laskutus?mode=partner">Laskutus-moduuli</Link>
+                      </>
+                    )}
                   </>
                 )}
               </dd>
@@ -4144,8 +4150,12 @@ export default function WorkReportDetailPage({ session }: Props) {
                     )}
                   </>
                 )}
-                {' · '}
-                <Link to="/laskutus?mode=customer">Laskutus-moduuli</Link>
+                {billingLinksVisible && (
+                  <>
+                    {' · '}
+                    <Link to="/laskutus?mode=customer">Laskutus-moduuli</Link>
+                  </>
+                )}
               </dd>
             </>
           )}
@@ -4327,8 +4337,12 @@ export default function WorkReportDetailPage({ session }: Props) {
                   partnerBillableAmounts.open,
                   formatEuro,
                 )}
-                {' · '}
-                <Link to="/laskutus?mode=partner">Laskutus-moduuli</Link>
+                {billingLinksVisible && (
+                  <>
+                    {' · '}
+                    <Link to="/laskutus?mode=partner">Laskutus-moduuli</Link>
+                  </>
+                )}
               </p>
             ) : null}
             {showOutgoingPartnerBilling && canSeeCreatorBilling
@@ -4338,8 +4352,12 @@ export default function WorkReportDetailPage({ session }: Props) {
               && billing.partner_invoice_status !== 'none' && (
                 <p className="muted">
                   Kumppanilaskutuksen tila: {INVOICE_STATUS_LABELS[billing.partner_invoice_status]}
-                  {' · '}
-                  <Link to="/laskutus?mode=partner">Laskutus-moduuli</Link>
+                  {billingLinksVisible && (
+                    <>
+                      {' · '}
+                      <Link to="/laskutus?mode=partner">Laskutus-moduuli</Link>
+                    </>
+                  )}
                 </p>
               )}
             {!ownerChainInvoice && billableCalculation.excludedTotal > 0 && (
@@ -4522,8 +4540,12 @@ export default function WorkReportDetailPage({ session }: Props) {
                 customerBillableAmounts.open,
                 formatEuro,
               )}
-              {' · '}
-              <Link to="/laskutus?mode=customer">Laskutus-moduuli</Link>
+              {billingLinksVisible && (
+                <>
+                  {' · '}
+                  <Link to="/laskutus?mode=customer">Laskutus-moduuli</Link>
+                </>
+              )}
             </p>
           ) : null}
 
@@ -4544,7 +4566,7 @@ export default function WorkReportDetailPage({ session }: Props) {
                 Tulosta sisäinen (hinnat)
               </Link>
             </Tooltip>
-            {canManageCustomerBillingRates && (
+            {canManageCustomerBillingRates && billingLinksVisible && (
               <Link to="/laskutus?mode=customer" className="btn btn-secondary">
                 Laskutus-moduuli
               </Link>
