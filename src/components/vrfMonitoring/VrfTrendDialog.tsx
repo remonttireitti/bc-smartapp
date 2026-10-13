@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
+import { printVrfTrendReport } from '../../lib/vrfTrendPrintAction';
 import {
   VRF_BINARY_LANES,
+  type VrfDevice,
   type VrfBinaryLaneKey,
   type VrfSchematicClickKey,
 } from '../../lib/vrfMonitoring';
@@ -42,6 +44,9 @@ type Props = {
   focusHotspot?: VrfSchematicClickKey | null;
   focusBinary?: VrfBinaryLaneKey | null;
   shareToken?: string;
+  /** Tulosteen otsikkotiedot (Tulosta / PDF). */
+  device?: VrfDevice | null;
+  companyName?: string;
 };
 
 const MINUTE = 60_000;
@@ -119,7 +124,7 @@ function dataCovers(data: VrfTrendData | null, vp: VrfTrendViewport): boolean {
   return data.startMs <= vp.startMs && data.endMs >= vp.endMs && data.bucketMs <= needed;
 }
 
-export default function VrfTrendDialog({ open, deviceId, onClose, focusHotspot, focusBinary, shareToken }: Props) {
+export default function VrfTrendDialog({ open, deviceId, onClose, focusHotspot, focusBinary, shareToken, device, companyName }: Props) {
   const [range, setRange] = useState<RangeSel>({ kind: 'preset', hours: 24 });
   const [baseViewport, setBaseViewport] = useState<VrfTrendViewport>(() => presetViewport(24));
   const [zoom, setZoom] = useState<VrfTrendViewport | null>(null);
@@ -491,6 +496,8 @@ export default function VrfTrendDialog({ open, deviceId, onClose, focusHotspot, 
     });
   }, []);
 
+  const [printing, setPrinting] = useState(false);
+
   const resetAxis = useCallback(() => {
     setAxisInputs({});
     writePrefs({ axis: {} });
@@ -507,6 +514,32 @@ export default function VrfTrendDialog({ open, deviceId, onClose, focusHotspot, 
   const shownBucket = data && dataCovers(data, viewport) ? data.bucketMs : chooseVrfTrendBucketMs(span);
   const noData = data != null && !loading && visibleSamples === 0;
   const atNow = viewport.endMs >= Date.now() - MINUTE;
+  const canPrint = !!data && !loading && !noData && dataCovers(data, viewport);
+
+  // Tulostaa täsmälleen näkyvän välin (myös zoomauksen), valitut viivat, Y-akselin rajat ja laskurit.
+  const printReport = async () => {
+    if (!data || !canPrint) return;
+    setPrinting(true);
+    try {
+      await printVrfTrendReport({
+        device: device ?? null,
+        deviceId,
+        companyName: companyName ?? '',
+        shared: source?.kind === 'share',
+        startMs: viewport.startMs,
+        endMs: viewport.endMs,
+        data,
+        signals: visibleSignals.map((s) => s.key),
+        lanes: laneKeys,
+        axisLimits,
+        counters: countersView.status === 'ok' ? countersView.counters : null,
+        countersNote:
+          countersView.status === 'unavailable' || countersView.status === 'error' ? countersView.message : null,
+      });
+    } finally {
+      setPrinting(false);
+    }
+  };
 
   return (
     <div className="leave-draft-overlay" role="presentation" onClick={onClose}>
@@ -563,6 +596,15 @@ export default function VrfTrendDialog({ open, deviceId, onClose, focusHotspot, 
             )}
             <button type="button" className="vrf-tv-text-btn" onClick={refresh} disabled={loading}>
               Päivitä
+            </button>
+            <button
+              type="button"
+              className="vrf-tv-text-btn"
+              onClick={() => void printReport()}
+              disabled={!canPrint || printing}
+              title={canPrint ? 'Tulostaa näkyvän aikavälin, valitut viivat ja laskurit' : 'Odota, että trendi on ladattu'}
+            >
+              {printing ? 'Tulostetaan…' : 'Tulosta / PDF'}
             </button>
             <label
               className={`vrf-tv-live ${live && liveAllowed ? 'on' : ''}`}

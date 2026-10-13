@@ -230,6 +230,7 @@ export default function VrfMonitorReaderView({
           <VrfTrendDialog
             open={trendOpen}
             deviceId={device.id}
+            device={device}
             shareToken={effectiveShareToken}
             focusHotspot={trendFocusHotspot}
             focusBinary={trendFocusBinary}
