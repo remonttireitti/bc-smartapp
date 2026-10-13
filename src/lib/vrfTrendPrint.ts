@@ -187,7 +187,7 @@ export function renderVrfTrendLinesSvg(
         d += `${move ? 'M' : 'L'}${sx(t).toFixed(1)} ${sy(signal.unit, v).toFixed(1)}`;
         prevT = t;
       }
-      const st = LINE_STYLES[signal.key] ?? { stroke: '#111', width: 1.2, dash: null };
+      const st = { ...(LINE_STYLES[signal.key] ?? { stroke: '#111', width: 1.2, dash: null }), stroke: signal.color, width: Math.max(1.6, LINE_STYLES[signal.key]?.width ?? 1.6) };
       return d
         ? `<path d="${d}" fill="none" stroke="${st.stroke}" stroke-width="${st.width}" stroke-linejoin="round" stroke-linecap="round"${st.dash ? ` stroke-dasharray="${st.dash}"` : ''}/>`
         : '';
@@ -210,7 +210,8 @@ export function renderVrfTrendLinesSvg(
 }
 
 function lineSampleSvg(key: string): string {
-  const st = LINE_STYLES[key] ?? { stroke: '#111', width: 1.2, dash: null };
+  const color = VRF_TREND_SIGNALS.find((s) => s.key === key)?.color ?? '#111';
+  const st = { ...(LINE_STYLES[key] ?? { stroke: '#111', width: 1.2, dash: null }), stroke: color, width: Math.max(2, LINE_STYLES[key]?.width ?? 2) };
   return `<svg width="30" height="8" viewBox="0 0 30 8"><line x1="1" y1="4" x2="29" y2="4" stroke="${st.stroke}" stroke-width="${st.width}" stroke-linecap="round"${st.dash ? ` stroke-dasharray="${st.dash}"` : ''}/></svg>`;
 }
 
@@ -256,7 +257,7 @@ export function renderVrfTrendStatesSvg(data: VrfTrendData, startMs: number, end
     if (!r) return;
     const x = sx(r.a);
     const w = sx(r.b) - x;
-    if (w > 0.2) rects.push(`<rect x="${x.toFixed(1)}" y="${rowY(i)}" width="${Math.max(w, 0.8).toFixed(1)}" height="${BAR_H}" fill="${r.fill}"${r.opacity < 1 ? ` fill-opacity="${r.opacity}"` : ''}${r.fill === '#f1f1f1' ? ' stroke="#ccc" stroke-width="0.4"' : ''}/>`);
+    if (w > 0.2) rects.push(`<rect x="${x.toFixed(1)}" y="${rowY(i)}" width="${Math.max(w, 0.8).toFixed(1)}" height="${BAR_H}" fill="${r.fill}"${r.opacity < 1 ? ` fill-opacity="${r.opacity}"` : ''}/>`);
     runs[i] = null;
   };
   const extend = (i: number, a: number, b: number, fill: string, opacity: number) => {
@@ -273,12 +274,12 @@ export function renderVrfTrendStatesSvg(data: VrfTrendData, startMs: number, end
     const b = vrfTrendPointCoverEnd(data.points, p, gapThreshold, typicalStep);
     if (b < startMs || a > endMs) continue;
     present.add(pt.state);
-    extend(0, a, b, STATE_FILL[pt.state], 1);
+    extend(0, a, b, VRF_ACTIVITY_TREND_META[pt.state].color, 1);
     laneDefs.forEach((lane, li) => {
       const frac = pt.lanes[lane.key];
       const level = frac <= 0 ? 0 : data.bucketMs > 0 ? Math.ceil(frac * 4) / 4 : 1;
       if (level <= 0) flush(li + 1);
-      else extend(li + 1, a, b, lane.key === 'alarm' ? '#b42318' : '#333', data.bucketMs > 0 ? 0.25 + 0.75 * level : 1);
+      else extend(li + 1, a, b, lane.color, data.bucketMs > 0 ? 0.25 + 0.75 * level : 1);
     });
   }
   rows.forEach((_, i) => flush(i));
@@ -301,7 +302,7 @@ export function renderVrfTrendStatesSvg(data: VrfTrendData, startMs: number, end
 function stateLegendHtml(states: VrfActivityTrendState[], hasBuckets: boolean): string {
   const items = states.map(
     (s) =>
-      `<span class="lg"><i style="background:${STATE_FILL[s]}${s === 'off' ? ';border:.5px solid #bbb' : ''}"></i>${esc(VRF_ACTIVITY_TREND_META[s].label)}</span>`,
+      `<span class="lg"><i style="background:${VRF_ACTIVITY_TREND_META[s].color}"></i>${esc(VRF_ACTIVITY_TREND_META[s].label)}</span>`,
   );
   items.push('<span class="lg"><i class="nd"></i>ei mittausdataa</span>');
   if (hasBuckets) items.push('<span class="lg muted">tilaviivoissa tummuus = osuus aikaikkunasta</span>');
@@ -340,6 +341,7 @@ export function renderVrfCountersTableHtml(counters: VrfStateCounters, lanes: Vr
 }
 
 const EXTRA_CSS = `
+.rp, .rp * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 .rp .sec svg { display: block; }
 .rp .legend { display: flex; flex-wrap: wrap; gap: 1mm 5mm; margin: 1mm 0 0 ${((PAD_L / W) * 100).toFixed(1)}%; font-size: 8pt; color: #333; }
 .rp .lg { display: inline-flex; align-items: center; gap: 1.5mm; }
