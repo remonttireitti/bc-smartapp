@@ -468,6 +468,8 @@ export function mergeRefrigerantInventoryHistoryRows(
   );
 }
 
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
 export async function loadRefrigerantInventoryHistory(
   supabase: SupabaseClient,
   companyId: string,
@@ -476,6 +478,9 @@ export async function loadRefrigerantInventoryHistory(
   viewerCompanyId: string = companyId,
   cylinderId?: string,
 ): Promise<RefrigerantInventoryHistoryRow[]> {
+  if (!ISO_DATE.test(fromDate) || !ISO_DATE.test(toDate)) {
+    throw new Error('Valitse historian aikaväli (alku- ja loppupäivä).');
+  }
   const fromIso = `${fromDate}T00:00:00.000Z`;
   const toIso = `${toDate}T23:59:59.999Z`;
 

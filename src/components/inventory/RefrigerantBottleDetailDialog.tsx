@@ -1,3 +1,4 @@
+import { errorMessage } from '../../lib/errorMessage';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 
@@ -45,6 +46,10 @@ type Props = {
   onError?: (message: string) => void;
 };
 
+function isIsoDate(value: string): boolean {
+  return /^\d{4}-\d{2}-\d{2}$/.test(value);
+}
+
 function defaultHistoryFrom(cylinder: RefrigerantCylinder): string {
   const from = cylinder.purchase_date ?? cylinder.created_at?.slice(0, 10);
   if (from) return from;
@@ -79,7 +84,8 @@ export default function RefrigerantBottleDetailDialog({
   }, [open, cylinder?.id]);
 
   const loadHistory = useCallback(async () => {
-    if (!cylinder || !warehouseCompanyId) return;
+    // Alkupäivä asetetaan pullon tiedoista vasta efektissä: ei hakua tyhjällä päivällä (400-virhe).
+    if (!cylinder || !warehouseCompanyId || !isIsoDate(historyFrom) || !isIsoDate(historyTo)) return;
     setHistoryLoading(true);
     try {
       const rows = await loadRefrigerantInventoryHistory(
@@ -92,7 +98,7 @@ export default function RefrigerantBottleDetailDialog({
       );
       setHistoryRows(rows);
     } catch (err) {
-      onError?.(err instanceof Error ? err.message : 'Historian lataus epäonnistui');
+      onError?.(errorMessage(err, 'Historian lataus epäonnistui'));
     } finally {
       setHistoryLoading(false);
     }

@@ -1,3 +1,4 @@
+import { errorMessage } from '../../lib/errorMessage';
 import { FormEvent, Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 
@@ -279,7 +280,7 @@ export default function RefrigerantInventorySection({
       );
       setHistoryRows(rows);
     } catch (err) {
-      onError(err instanceof Error ? err.message : 'Historian lataus epäonnistui');
+      onError(errorMessage(err, 'Historian lataus epäonnistui'));
     } finally {
       setHistoryLoading(false);
     }
@@ -301,7 +302,7 @@ export default function RefrigerantInventorySection({
       await loadStock();
       if (view === 'history') await loadHistory();
     } catch (err) {
-      onError(err instanceof Error ? err.message : 'Lataus epäonnistui');
+      onError(errorMessage(err, 'Lataus epäonnistui'));
     } finally {
       setLoading(false);
     }
