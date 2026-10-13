@@ -40,7 +40,8 @@ assert.match(html, /VRF-trendiraportti/);
 assert.match(html, /Hyrylä &lt;VRF&gt;/);
 assert.doesNotMatch(html, /Asiakas/); // tyhjä rivi pois
 assert.match(html, /<path d="M/); // viivat piirretty
-assert.match(html, /stroke="#777" stroke-width="2"/); // mustavalkoinen erottelu (harmaa paksu)
+assert.match(html, /stroke="#0ea5e9"/); // värit kuten näytöllä
+assert.match(html, /print-color-adjust: exact/);
 assert.match(html, /Laskurit · valitulla välillä/);
 assert.match(html, />6<\/td>/); // kompressorin käynnistykset
 assert.match(html, /50 %/); // osuus
