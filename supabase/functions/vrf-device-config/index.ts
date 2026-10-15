@@ -16,6 +16,10 @@ const defaultSettings = {
   di3_trigger_raw_level: 0,
   di4_trigger_raw_level: 1,
   di3_alarm_shutdown_enabled: true,
+  // Hälytyslähtö (firmware 1.1.17+): NO = vetää hälytyksessä (sama kuin 1.1.16), CH8.
+  alarm_output_enabled: true,
+  alarm_output_mode: 'NO',
+  alarm_output_channel: 8,
   alarm_limits: {
     hot_gas_high_c: 110,
     refrigerant_return_low_c: -20,
@@ -75,6 +79,11 @@ Deno.serve(async (req) => {
       ? { ...defaultSettings, ...rawSettings }
       : { ...defaultSettings };
 
+    // Laite ei tarvitse sähköpostiasetuksia / hälytysposti-tilaa; pois vastauksesta, jotta vastaus
+    // muuttuu vain oikeista asetusmuutoksista (1.1.17 hakee silloin tiheämmin).
+    for (const key of Object.keys(settings)) {
+      if (key.startsWith('notify_')) delete (settings as Record<string, unknown>)[key];
+    }
     if (rawSettings?.ota_request && typeof rawSettings.ota_request === 'object') {
       settings.ota_request = rawSettings.ota_request;
     }
