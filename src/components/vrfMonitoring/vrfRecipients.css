@@ -1,0 +1,42 @@
+.vrf-recipient-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.25rem;
+}
+
+.vrf-recipient-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.2rem 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.vrf-settings-fieldset .vrf-recipient-toggle {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.45rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.vrf-settings-fieldset .vrf-recipient-toggle input {
+  width: auto;
+  margin: 0;
+}
+
+.vrf-recipient-add {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.5rem;
+}
+
+.vrf-recipient-add input {
+  flex: 1 1 14rem;
+  min-width: 0;
+}

@@ -865,7 +865,15 @@ export function buildVrfSettingsForSave(
   form: VrfDeviceSettings,
   previous?: VrfDeviceSettings | Record<string, unknown> | null,
 ): Record<string, unknown> {
-  const payload: Record<string, unknown> = { ...form };
+  const prevRaw =
+    previous && typeof previous === 'object' && !Array.isArray(previous) ? (previous as Record<string, unknown>) : {};
+  // Säilytetään pilven omat avaimet (notify_state, ota_request…) — muuten tallennus nollasi hälytysposti-tilan.
+  const payload: Record<string, unknown> = { ...prevRaw, ...form };
+  // Vastaanottajat tallennetaan omalla painikkeellaan (Hälytyssähköpostit) — lomake ei ylikirjoita niitä.
+  for (const key of ['notify_mail_subscribers', 'notify_recipients_managed', 'notify_email', 'notify_extra_emails', 'notify_state']) {
+    if (key in prevRaw) payload[key] = prevRaw[key];
+    else if (key !== 'notify_mail_subscribers') delete payload[key];
+  }
   const wasEnabled =
     previous && typeof previous === 'object' && !Array.isArray(previous)
       ? parseVrfSettings(previous).di3_alarm_shutdown_enabled !== false
@@ -1766,4 +1774,15 @@ export function trendHoverLeftPct(clientX: number, rect: DOMRect): number {
 
 export function trendHoverTimeMs(leftPct: number, period: VrfTrendPeriod): number {
   return period.startMs + (leftPct / 100) * period.span;
+}
+
+/** Hälytysrele (DI3:n rinnakkaislähtö), firmware 1.1.15+: diagnostics.alarm_relay_*. null = ei raportoida. */
+export function vrfAlarmRelayStatus(
+  telemetry: VrfTelemetry | null | undefined,
+): { on: boolean; channel: number | null; writeOk: boolean | null } | null {
+  const diag = telemetry?.diagnostics;
+  const on = readBoolean(diag?.alarm_relay_energized);
+  if (on == null) return null;
+  const ch = readNumber(diag?.alarm_relay_channel);
+  return { on, channel: ch != null && ch > 0 ? Math.round(ch) : null, writeOk: readBoolean(diag?.relay_write_ok) ?? null };
 }

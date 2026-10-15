@@ -85,6 +85,10 @@ import {
 
 import { supabase } from '../lib/supabase';
 import { fetchVrfRecentReadings } from '../lib/vrfTrendReadings';
+import VrfAlarmRecipientsCard from '../components/vrfMonitoring/VrfAlarmRecipientsCard';
+
+/** Laitesivun päivitysväli (laite lähettää harvemmin; piilossa olevalla välilehdellä ei haeta). */
+const VRF_DETAIL_POLL_MS = 20_000;
 
 
 
@@ -229,16 +233,22 @@ export default function VrfMonitorDetailPage({ session }: Props) {
     [],
   );
 
+  const lastReadingsAtRef = useRef<string | null | undefined>(undefined);
+
   const load = useCallback(async () => {
 
     if (!deviceId) return;
 
     setError(null);
 
-    const [deviceRes, readingsRows] = await Promise.all([
-      supabase.from('vrf_devices').select(VRF_DEVICE_SELECT).eq('id', deviceId).maybeSingle(),
-      fetchVrfRecentReadings(deviceId, DEFROST_CONTEXT_MINUTES).catch(() => null),
-    ]);
+    const deviceRes = await supabase.from('vrf_devices').select(VRF_DEVICE_SELECT).eq('id', deviceId).maybeSingle();
+    const recordedAt = (deviceRes.data as VrfDevice | null)?.last_recorded_at ?? null;
+    // Mittaushistoria haetaan vain, kun laite on lähettänyt uuden mittauksen (ei joka kierroksella).
+    const readingsRows =
+      recordedAt !== lastReadingsAtRef.current
+        ? await fetchVrfRecentReadings(deviceId, DEFROST_CONTEXT_MINUTES).catch(() => null)
+        : null;
+    if (readingsRows) lastReadingsAtRef.current = recordedAt;
 
     const nextDevice = (deviceRes.data as VrfDevice | null) ?? null;
 
@@ -269,6 +279,7 @@ export default function VrfMonitorDetailPage({ session }: Props) {
   useEffect(() => {
     settingsDirtyRef.current = false;
     setSettingsDirty(false);
+    lastReadingsAtRef.current = undefined;
     if (deviceId) void load();
   }, [deviceId, load]);
 
@@ -280,9 +291,16 @@ export default function VrfMonitorDetailPage({ session }: Props) {
 
     const timer = window.setInterval(() => {
       if (!document.hidden) void load();
-    }, 10_000);
+    }, VRF_DETAIL_POLL_MS);
+    const onVisible = () => {
+      if (!document.hidden) void load();
+    };
+    document.addEventListener('visibilitychange', onVisible);
 
-    return () => window.clearInterval(timer);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
 
   }, [deviceId, load]);
 
@@ -1177,41 +1195,13 @@ export default function VrfMonitorDetailPage({ session }: Props) {
 
               )}
 
-              <fieldset className="vrf-settings-fieldset">
-                <legend>Hälytyssähköpostit</legend>
-                <p className="muted vrf-settings-fieldset-lead">
-                  Lähetetään Supabasesta (Resend), kun DI3-hälytys on vähintään{' '}
-                  {settingsForm.notify_on_delay_s ?? 60} s päällä. Poistumisviesti{' '}
-                  {settingsForm.notify_off_delay_s ?? 180} s hälytyksen loputtua.
-                </p>
-                <ul className="vrf-status-list">
-                  {(settingsForm.notify_mail_subscribers ?? []).length === 0 ? (
-                    <li>
-                      <span>Vastaanottajat</span>
-                      <strong className="muted">Ei määritelty (oletus: huolto@tuusulankylmahuolto.fi)</strong>
-                    </li>
-                  ) : (
-                    (settingsForm.notify_mail_subscribers ?? []).map((sub) => (
-                      <li key={sub.email}>
-                        <span>{sub.email}</span>
-                        <strong>
-                          {[
-                            sub.deviation && 'hälytys',
-                            sub.defrost_start && 'sulatus',
-                            sub.outdoor_lock_on && 'ulkolukko',
-                            sub.connectivity && 'yhteys',
-                          ]
-                            .filter(Boolean)
-                            .join(', ') || '—'}
-                        </strong>
-                      </li>
-                    ))
-                  )}
-                </ul>
-                <p className="muted">
-                  Vastaanottajalistaa voi muokata toistaiseksi Firebase-asetuksista tai pyydä päivitys bc-smartappiin.
-                </p>
-              </fieldset>
+              <VrfAlarmRecipientsCard
+                deviceId={device.id}
+                settings={device.settings}
+                onDelayS={settingsForm.notify_on_delay_s ?? 60}
+                offDelayS={settingsForm.notify_off_delay_s ?? 180}
+                onSaved={load}
+              />
 
               <fieldset className="vrf-settings-fieldset">
                 <legend>Firmware OTA</legend>
