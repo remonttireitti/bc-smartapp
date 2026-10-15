@@ -64,7 +64,9 @@ export default function VrfMonitoringPage({ session }: Props) {
 
   useEffect(() => {
     if (!companyId) return;
-    const timer = window.setInterval(() => void load(), 30_000);
+    const timer = window.setInterval(() => {
+      if (!document.hidden) void load();
+    }, 30_000);
     return () => window.clearInterval(timer);
   }, [companyId]);
 

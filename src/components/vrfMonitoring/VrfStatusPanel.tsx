@@ -15,6 +15,7 @@ import {
   vrfResolvePermitStatus,
   type VrfDeviceSettings,
   type VrfTelemetry,
+  vrfAlarmRelayStatus,
 } from '../../lib/vrfMonitoring';
 
 type Props = {
@@ -91,6 +92,7 @@ export default function VrfStatusPanel({
 
   const alarmDelayReset = vrfAlarmDelayResetState(telemetry, externalAlarm);
   const alarmShutdownDisabled = telemetry?.settings?.di3_alarm_shutdown_enabled === false;
+  const alarmRelay = vrfAlarmRelayStatus(telemetry);
   const showAlarmDelayReset =
     !readOnly &&
     onResetAlarmDelay &&
@@ -198,6 +200,12 @@ export default function VrfStatusPanel({
           <span className="vrf-status-card-label">Tilatieto</span>
           <h2 className="vrf-status-headline">{activity.headline}</h2>
           {activity.detail && <p className="vrf-status-detail">{activity.detail}</p>}
+          {alarmRelay && (
+            <p className={`vrf-status-detail ${alarmRelay.on ? '' : 'muted'}`}>
+              Hälytysrele{alarmRelay.channel != null ? ` CH${alarmRelay.channel}` : ''}: {alarmRelay.on ? 'vetänyt (hälytys)' : 'levossa'}
+              {alarmRelay.writeOk === false && ' · releohjaus epäonnistui'}
+            </p>
+          )}
           {alarmShutdownDisabled && (
             <p className="vrf-status-detail muted">DI3-hälytyksen esto pois — vain seuranta, ei vaikutusta RO1:een</p>
           )}

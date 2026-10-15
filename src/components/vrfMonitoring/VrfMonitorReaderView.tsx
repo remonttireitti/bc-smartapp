@@ -104,7 +104,9 @@ export default function VrfMonitorReaderView({
   }, [load]);
 
   useEffect(() => {
-    const timer = window.setInterval(() => void load(), 15_000);
+    const timer = window.setInterval(() => {
+      if (!document.hidden) void load();
+    }, 30_000);
     return () => window.clearInterval(timer);
   }, [load]);
 

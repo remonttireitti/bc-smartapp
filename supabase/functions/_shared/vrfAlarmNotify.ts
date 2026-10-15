@@ -75,6 +75,8 @@ export function parseNotifyState(settings: JsonRecord | null): VrfNotifyState {
   return row ? (row as VrfNotifyState) : {};
 }
 
+export const VRF_ALARM_ADMIN_EMAIL = ADMIN_EMAIL;
+
 export function parseMailSubscribers(settings: JsonRecord | null): VrfMailSubscriber[] {
   const byEmail = new Map<string, VrfMailSubscriber>();
 
@@ -105,6 +107,18 @@ export function parseMailSubscribers(settings: JsonRecord | null): VrfMailSubscr
         connectivity: row.connectivity === true,
       });
     }
+  }
+
+  // Sovelluksessa muokattu lista (Hälytyssähköpostit-kortti) on ainoa lähde: vanhat kentät ja
+  // oletusosoite eivät tule enää automaattisesti mukaan. Jos listalla ei ole yhtään hälytyksen
+  // vastaanottajaa, käytetään oletusosoitetta, jotta hälytys ei jää kokonaan lähtemättä.
+  if (settings?.notify_recipients_managed === true) {
+    const list = [...byEmail.values()];
+    if (!list.some((s) => s.deviation === true)) {
+      add(ADMIN_EMAIL, { deviation: true, defrost_start: true, outdoor_lock_on: true, connectivity: true });
+      return [...byEmail.values()];
+    }
+    return list;
   }
 
   const legacyEmail = readString(settings?.notify_email);
