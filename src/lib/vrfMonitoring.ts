@@ -34,6 +34,11 @@ export type VrfReading = {
   any_alarm: boolean;
 };
 
+export type VrfAlarmOutputMode = 'NO' | 'NC';
+
+export const VRF_ALARM_OUTPUT_CHANNELS = [2, 3, 4, 5, 6, 7, 8] as const;
+export const VRF_ALARM_OUTPUT_FIRMWARE_MIN = '1.1.17';
+
 export type VrfDeviceSettings = {
   auto_stop_enabled: boolean;
   auto_stop_below_outdoor_c: number;
@@ -48,6 +53,12 @@ export type VrfDeviceSettings = {
   di4_trigger_raw_level?: number;
   /** DI3-reuna estää RO1:n ja aloittaa hälytysviiveen. Pois = vain seuranta, ei ohjausvaikutusta. */
   di3_alarm_shutdown_enabled?: boolean;
+  /** Hälytyslähtö (rele) seuraa DI3:a — firmware 1.1.17+. */
+  alarm_output_enabled?: boolean;
+  /** NO = vetää hälytyksessä; NC = vetää normaalisti, päästää hälytyksessä. */
+  alarm_output_mode?: VrfAlarmOutputMode;
+  /** Relekanava 2…8 (1 = käyntilupa RO1). */
+  alarm_output_channel?: number;
   notify_on_delay_s?: number;
   notify_off_delay_s?: number;
   notify_min_interval_s?: number;
@@ -84,7 +95,13 @@ export type VrfDigitalInputs = {
 
 export type VrfTelemetry = {
   temperatures: Record<string, number | null>;
-  control: { enabled: boolean | null; permit_requested_enabled?: boolean | null };
+  control: {
+    enabled: boolean | null;
+    permit_requested_enabled?: boolean | null;
+    /** Firmware 1.1.17+. */
+    alarm_output?: Record<string, unknown> | null;
+    alarm_relay_channel?: number | null;
+  };
   status: {
     operating_state: string | null;
     operating_text: string | null;
@@ -111,8 +128,13 @@ export const VRF_DEVICE_SELECT =
 export const VRF_READING_SELECT =
   'id, device_id, recorded_at, payload, outdoor_c, heat_enabled, operating_state, any_alarm';
 
-export const VRF_ONLINE_THRESHOLD_MS = 3 * 60 * 1000;
-export const VRF_STALE_THRESHOLD_MS = 90 * 1000;
+/**
+ * Firmware 1.1.17 lähettää muutoksista + sydänlyönnin 60 s välein (1.1.16: joka ~2 s).
+ * Rajat ≥ 2,5 × sydänlyönti, jottei laite näytä offline-tilaiselta normaalisti.
+ */
+export const VRF_TELEMETRY_HEARTBEAT_MS = 60 * 1000;
+export const VRF_ONLINE_THRESHOLD_MS = 5 * 60 * 1000;
+export const VRF_STALE_THRESHOLD_MS = 150 * 1000;
 export const VRF_DEVICE_KEY_DIGITS = 12;
 
 export const VRF_SENSOR_KEYS = [
@@ -345,6 +367,9 @@ export function defaultVrfSettings(): VrfDeviceSettings {
     di3_trigger_raw_level: 0,
     di4_trigger_raw_level: 1,
     di3_alarm_shutdown_enabled: true,
+    alarm_output_enabled: true,
+    alarm_output_mode: 'NO',
+    alarm_output_channel: 8,
     notify_on_delay_s: 60,
     notify_off_delay_s: 180,
     notify_min_interval_s: 300,
@@ -403,6 +428,9 @@ export function parseVrfSettings(raw: unknown): VrfDeviceSettings {
     di4_trigger_raw_level: readNumber(row.di4_trigger_raw_level) ?? base.di4_trigger_raw_level,
     di3_alarm_shutdown_enabled:
       readBoolean(row.di3_alarm_shutdown_enabled) ?? base.di3_alarm_shutdown_enabled,
+    alarm_output_enabled: readBoolean(row.alarm_output_enabled) ?? base.alarm_output_enabled,
+    alarm_output_mode: parseVrfAlarmOutputMode(row.alarm_output_mode) ?? base.alarm_output_mode,
+    alarm_output_channel: parseVrfAlarmOutputChannel(row.alarm_output_channel) ?? base.alarm_output_channel,
     notify_on_delay_s: readNumber(row.notify_on_delay_s) ?? base.notify_on_delay_s,
     notify_off_delay_s: readNumber(row.notify_off_delay_s) ?? base.notify_off_delay_s,
     notify_min_interval_s: readNumber(row.notify_min_interval_s) ?? base.notify_min_interval_s,
@@ -507,6 +535,8 @@ export function parseVrfTelemetry(payload: Record<string, unknown> | null | unde
     control: {
       enabled: readBoolean(controlRaw?.enabled),
       permit_requested_enabled: readBoolean(controlRaw?.permit_requested_enabled),
+      alarm_output: asRecord(controlRaw?.alarm_output),
+      alarm_relay_channel: readNumber(controlRaw?.alarm_relay_channel),
     },
     status: {
       operating_state: typeof statusRaw?.operating_state === 'string' ? statusRaw.operating_state : null,
@@ -1776,13 +1806,64 @@ export function trendHoverTimeMs(leftPct: number, period: VrfTrendPeriod): numbe
   return period.startMs + (leftPct / 100) * period.span;
 }
 
-/** Hälytysrele (DI3:n rinnakkaislähtö), firmware 1.1.15+: diagnostics.alarm_relay_*. null = ei raportoida. */
-export function vrfAlarmRelayStatus(
-  telemetry: VrfTelemetry | null | undefined,
-): { on: boolean; channel: number | null; writeOk: boolean | null } | null {
+export function parseVrfAlarmOutputMode(value: unknown): VrfAlarmOutputMode | null {
+  if (typeof value !== 'string') return null;
+  const v = value.trim().toUpperCase();
+  return v === 'NO' || v === 'NC' ? v : null;
+}
+
+export function parseVrfAlarmOutputChannel(value: unknown): number | null {
+  const n = readNumber(value);
+  if (n == null || !Number.isInteger(n)) return null;
+  return (VRF_ALARM_OUTPUT_CHANNELS as readonly number[]).includes(n) ? n : null;
+}
+
+/** Versio a ≥ b (x.y.z). */
+export function vrfFirmwareAtLeast(version: string | null | undefined, min: string): boolean {
+  if (!version) return false;
+  const pa = version.split(/[^0-9]+/).filter(Boolean).map(Number);
+  const pb = min.split('.').map(Number);
+  for (let i = 0; i < pb.length; i += 1) {
+    const a = pa[i] ?? 0;
+    if (a !== pb[i]) return a > pb[i];
+  }
+  return true;
+}
+
+export type VrfAlarmRelayStatus = {
+  /** Rele vetää (kela jännitteinen). */
+  on: boolean;
+  channel: number | null;
+  writeOk: boolean | null;
+  /** 1.1.17+: laitteen raportoima asetus; null = vanha firmware (aina NO, CH8). */
+  enabled: boolean | null;
+  mode: VrfAlarmOutputMode | null;
+  alarmActive: boolean | null;
+};
+
+/** Hälytysrele (DI3:n rinnakkaislähtö): 1.1.17 control.alarm_output, 1.1.15+ diagnostics.alarm_relay_*. */
+export function vrfAlarmRelayStatus(telemetry: VrfTelemetry | null | undefined): VrfAlarmRelayStatus | null {
+  const ao = telemetry?.control?.alarm_output ?? null;
   const diag = telemetry?.diagnostics;
-  const on = readBoolean(diag?.alarm_relay_energized);
+  const on = readBoolean(ao?.energized) ?? readBoolean(diag?.alarm_relay_energized);
   if (on == null) return null;
-  const ch = readNumber(diag?.alarm_relay_channel);
-  return { on, channel: ch != null && ch > 0 ? Math.round(ch) : null, writeOk: readBoolean(diag?.relay_write_ok) ?? null };
+  const ch =
+    readNumber(ao?.channel) ?? telemetry?.control?.alarm_relay_channel ?? readNumber(diag?.alarm_relay_channel);
+  return {
+    on,
+    channel: ch != null && ch > 0 ? Math.round(ch) : null,
+    writeOk: readBoolean(ao?.write_ok) ?? readBoolean(diag?.relay_write_ok) ?? null,
+    enabled: ao ? readBoolean(ao.enabled) : null,
+    mode: ao ? parseVrfAlarmOutputMode(ao.mode) : null,
+    alarmActive: ao ? readBoolean(ao.alarm_active) : null,
+  };
+}
+
+/** Tilarivin teksti: "Hälytyslähtö CH8 (NC): vetää — normaali". */
+export function formatVrfAlarmRelayStatus(status: VrfAlarmRelayStatus): string {
+  const ch = status.channel != null ? ` CH${status.channel}` : '';
+  if (status.enabled === false) return `Hälytyslähtö${ch}: pois käytöstä`;
+  const mode = status.mode ?? 'NO';
+  const alarm = status.alarmActive ?? (mode === 'NO' ? status.on : !status.on);
+  return `Hälytyslähtö${ch} (${mode}): ${status.on ? 'vetää' : 'lepo'} — ${alarm ? 'hälytys' : 'normaali'}`;
 }

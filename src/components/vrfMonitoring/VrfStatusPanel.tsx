@@ -16,6 +16,7 @@ import {
   type VrfDeviceSettings,
   type VrfTelemetry,
   vrfAlarmRelayStatus,
+  formatVrfAlarmRelayStatus,
 } from '../../lib/vrfMonitoring';
 
 type Props = {
@@ -202,7 +203,7 @@ export default function VrfStatusPanel({
           {activity.detail && <p className="vrf-status-detail">{activity.detail}</p>}
           {alarmRelay && (
             <p className={`vrf-status-detail ${alarmRelay.on ? '' : 'muted'}`}>
-              Hälytysrele{alarmRelay.channel != null ? ` CH${alarmRelay.channel}` : ''}: {alarmRelay.on ? 'vetänyt (hälytys)' : 'levossa'}
+              {formatVrfAlarmRelayStatus(alarmRelay)}
               {alarmRelay.writeOk === false && ' · releohjaus epäonnistui'}
             </p>
           )}

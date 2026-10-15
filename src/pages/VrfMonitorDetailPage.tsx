@@ -81,6 +81,9 @@ import {
 
   type VrfSchematicClickKey,
 
+  VRF_ALARM_OUTPUT_CHANNELS,
+  VRF_ALARM_OUTPUT_FIRMWARE_MIN,
+  vrfFirmwareAtLeast,
 } from '../lib/vrfMonitoring';
 
 import { supabase } from '../lib/supabase';
@@ -976,6 +979,61 @@ export default function VrfMonitorDetailPage({ session }: Props) {
                   }
                 />
               </div>
+
+              <fieldset className="vrf-settings-fieldset">
+                <legend>Hälytyslähtö (rele)</legend>
+                <p className="muted vrf-settings-fieldset-lead">
+                  Rele seuraa DI3-hälytystä. NO: vetää hälytyksessä. NC: vetää normaalitilassa ja päästää
+                  hälytyksessä tai laitteen vikaantuessa (virtakatko). Vaatii firmware {VRF_ALARM_OUTPUT_FIRMWARE_MIN}+
+                  {device?.firmware_version && !vrfFirmwareAtLeast(device.firmware_version, VRF_ALARM_OUTPUT_FIRMWARE_MIN)
+                    ? ` — laitteessa ${device.firmware_version}, asetus tulee voimaan OTA-päivityksen jälkeen (siihen asti NO, CH8).`
+                    : '.'}
+                </p>
+                <div className="vrf-settings-toggle-row">
+                  <div>
+                    <strong>Hälytyslähtö käytössä</strong>
+                  </div>
+                  <VrfToggleSwitch
+                    checked={settingsForm.alarm_output_enabled !== false}
+                    labelOn="ON"
+                    labelOff="OFF"
+                    ariaLabel="Hälytyslähtö käytössä"
+                    onChange={(next) => patchSettingsForm((s) => ({ ...s, alarm_output_enabled: next }))}
+                  />
+                </div>
+                <label>
+                  Toimintatapa
+                  <select
+                    value={settingsForm.alarm_output_mode ?? 'NO'}
+                    disabled={settingsForm.alarm_output_enabled === false}
+                    onChange={(e) =>
+                      patchSettingsForm((s) => ({
+                        ...s,
+                        alarm_output_mode: e.target.value === 'NC' ? 'NC' : 'NO',
+                      }))
+                    }
+                  >
+                    <option value="NO">NO — vetää hälytyksessä</option>
+                    <option value="NC">NC — vetää normaalisti, päästää hälytyksessä / viassa</option>
+                  </select>
+                </label>
+                <label>
+                  Relekanava
+                  <select
+                    value={settingsForm.alarm_output_channel ?? 8}
+                    disabled={settingsForm.alarm_output_enabled === false}
+                    onChange={(e) =>
+                      patchSettingsForm((s) => ({ ...s, alarm_output_channel: Number(e.target.value) }))
+                    }
+                  >
+                    {VRF_ALARM_OUTPUT_CHANNELS.map((ch) => (
+                      <option key={ch} value={ch}>
+                        CH{ch}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </fieldset>
 
               <fieldset className="vrf-settings-fieldset">
                 <legend>Digitaalitulot (DI)</legend>

@@ -280,9 +280,21 @@ Deno.serve(async (req) => {
       );
     }
 
-    if (notifySettingsPatch) {
-      devicePatch.settings = notifySettingsPatch;
-      devicePatch.settings_updated_at = nowIso;
+    // Kirjoitetaan vain hälytysposti-tila (notify_state) ja vain kun se muuttui. Muut asetukset
+    // luetaan juuri ennen kirjoitusta, jotta sovelluksessa tallennettu asetus ei jää alle.
+    // settings_updated_at ei muutu (sisäinen tila, ei laitteelle uutta asetusta).
+    const nextNotifyState = notifySettingsPatch?.notify_state ?? null;
+    if (
+      nextNotifyState &&
+      JSON.stringify(nextNotifyState) !== JSON.stringify(deviceSettings?.notify_state ?? null)
+    ) {
+      const { data: fresh } = await admin
+        .from('vrf_devices')
+        .select('settings')
+        .eq('id', device.id)
+        .maybeSingle();
+      const freshSettings = asRecord(fresh?.settings) ?? deviceSettings ?? {};
+      devicePatch.settings = { ...freshSettings, notify_state: nextNotifyState };
     }
 
     await admin.from('vrf_devices').update(devicePatch).eq('id', device.id);

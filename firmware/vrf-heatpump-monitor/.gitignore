@@ -1,0 +1,4 @@
+.pio/
+.vscode/
+tools/mqtt-bridge/node_modules/
+src/secrets.h
