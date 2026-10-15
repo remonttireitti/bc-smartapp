@@ -86,12 +86,16 @@ assert.equal(toggled.byUser[0].lines.find((l) => l.description === 'Pysäköinti
 const urakka = calc([log({ expense_lines: [{ ...log({}).expense_lines[0], bill_to_partner: false }] })]);
 assert.equal(urakka.byUser[0].lines.find((l) => l.kind === 'expense').notBilledReason, undefined);
 
-// Customer billing follows the toggles.
+// Customer billing is NOT affected by commission mode or partner toggles.
 const cust = (logs) =>
   calculateWorkReportCustomerBillable({ logs, rates: { hourly_regular: 60, hourly_overtime: 0, hourly_on_call: 0 }, ratesSource: 'company_default', customerName: 'C' });
 assert.equal(cust([log({})]).grandTotal, 410);
-assert.equal(cust([log({ partner_billing: { commission_mode: 'commission_only' } })]).grandTotal, 0);
-assert.equal(cust([log({ partner_billing: { hours_billed: false } })]).grandTotal, 50);
+assert.equal(cust([log({ partner_billing: { commission_mode: 'commission_only' } })]).grandTotal, 410);
+assert.equal(cust([log({ partner_billing: { hours_billed: false } })]).grandTotal, 410);
+assert.equal(
+  cust([log({ partner_billing: { hours_billed: false, trips_billed: false }, expense_lines: log({}).expense_lines.map((e) => ({ ...e, partner_billed: false })) })]).grandTotal,
+  410,
+);
 
 // Serialization keeps DB null for defaults.
 assert.equal(serializeDailyLogPartnerBilling({ commission_mode: 'commission_plus', hours_billed: true, trips_billed: true }), null);

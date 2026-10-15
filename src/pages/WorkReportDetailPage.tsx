@@ -765,8 +765,8 @@ export function DailyLogFields({
               checked={form.hours_billed}
               onChange={(e) => setForm({ ...form, hours_billed: e.target.checked })}
             />{' '}
-            Laskutetaan {showFixed ? 'urakka' : 'tunnit'}
-            {!form.hours_billed ? <span className="muted"> — ei laskuteta</span> : null}
+            Laskutetaan kumppanilta ({showFixed ? 'urakka' : 'tunnit'})
+            {!form.hours_billed ? <span className="muted"> — ei kumppanilaskutukseen</span> : null}
           </label>
         ) : null}
         <div
@@ -1053,7 +1053,7 @@ export function DailyLogFields({
         </div>
         {Number(form.commission_amount) > 0 && isPartnerBillingColumnSupported() ? (
           <fieldset className="daily-log-commission-mode">
-            <legend>Mitä laskutetaan</legend>
+            <legend>Kumppanilaskutus</legend>
             <label>
               <input
                 type="radio"
@@ -1062,7 +1062,7 @@ export function DailyLogFields({
                 onChange={() => setForm({ ...form, commission_mode: 'commission_only' })}
               />{' '}
               Laskutetaan vain provisio
-              <small className="muted"> — omia tunteja ja kuluja tästä raportista ei laskuteta</small>
+              <small className="muted"> — omia tunteja ja kuluja ei laskuteta kumppanilta (asiakaslaskutus ennallaan)</small>
             </label>
             <label>
               <input
@@ -1072,7 +1072,7 @@ export function DailyLogFields({
                 onChange={() => setForm({ ...form, commission_mode: 'commission_plus' })}
               />{' '}
               Provisio + tunnit ja kulut
-              <small className="muted"> — rivikohtainen "laskutetaan"-valinta päiväkirjan riveillä</small>
+              <small className="muted"> — rivikohtainen "Laskutetaan kumppanilta"-valinta riveillä</small>
             </label>
           </fieldset>
         ) : null}
@@ -1149,7 +1149,7 @@ export function DailyLogFields({
                 setForm({ ...form, trips_billed: checked });
               }}
             />{' '}
-            Laskutetaan ajokilometrit
+            Laskutetaan kumppanilta (ajokilometrit)
           </label>
         ) : null}
       </DailyLogTileSection>

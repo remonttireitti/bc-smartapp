@@ -168,7 +168,7 @@ export default function DailyLogExpenseLinesSection({
                       );
                     }}
                   />{' '}
-                  Laskutetaan
+                  Kumppanilta
                 </label>
               ) : null}
               <button

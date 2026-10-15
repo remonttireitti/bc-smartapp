@@ -61,7 +61,7 @@ type BuildTilesOptions = {
 
 function notBilledSuffix(total: number, notBilled: number): string | null {
   if (notBilled <= 0) return null;
-  return notBilled >= total ? 'ei laskuteta' : `${notBilled} ei laskuteta`;
+  return notBilled >= total ? 'ei kumppanilaskutukseen' : `${notBilled} ei kumppanilaskutukseen`;
 }
 
 export function buildDailyLogEntryTiles(
@@ -84,9 +84,9 @@ export function buildDailyLogEntryTiles(
     title: dateLabel,
     subtitle: workSubtitleParts.join(' · '),
     ...(options.partnerBilling?.commissionOnly
-      ? { marker: 'vain provisio laskutetaan' }
+      ? { marker: 'kumppanilta vain provisio' }
       : options.partnerBilling && !options.partnerBilling.hoursBilled
-        ? { marker: 'ei laskuteta' }
+        ? { marker: 'ei kumppanilaskutukseen' }
         : {}),
   });
 

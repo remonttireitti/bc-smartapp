@@ -242,8 +242,8 @@ function partnerBillingLinesForPrint(
 }
 
 function notBilledLabel(line: { notBilledReason?: 'commission_only' | 'toggle' }): string {
-  if (line.notBilledReason === 'commission_only') return 'ei laskuteta (vain provisio)';
-  if (line.notBilledReason === 'toggle') return 'ei laskuteta';
+  if (line.notBilledReason === 'commission_only') return 'ei kumppanilaskutukseen (vain provisio)';
+  if (line.notBilledReason === 'toggle') return 'ei kumppanilaskutukseen';
   return '';
 }
 
@@ -676,18 +676,19 @@ function generateWorkReportPrintHtmlRaw(input: {
   const logSections = logs
     .map((log) => {
       const commissionOnlyLog = printPartnerCtx.commissionOnly.has(log.created_by ?? '');
-      const hoursNotBilled = isPartnerReport && !logHoursPartnerBilled(printPartnerCtx, log);
+      const hoursNotBilled =
+        printMode !== 'customer' && isPartnerReport && !logHoursPartnerBilled(printPartnerCtx, log);
       // Provisiotila: rivi pois laskutuksesta (ei koske kuuluu urakkaan -rivejä, joilla bill_to_partner=false).
       const expenseNotBilled = (line: { partner_billed?: boolean | null; expense_type?: string }) =>
         isPartnerReport
         && (commissionOnlyLog
           || line.partner_billed === false);
       const allExpenses = log.expense_lines ?? [];
-      const expenses =
-        printMode === 'customer' ? allExpenses.filter((line) => !expenseNotBilled(line)) : allExpenses;
+      // Provisiotila koskee vain kumppanilaskutusta: asiakastuloste näyttää rivit kuten ennen.
+      const expenses = allExpenses;
       const notBilledNote = (line: { partner_billed?: boolean | null }) =>
         printMode !== 'customer' && expenseNotBilled(line)
-          ? ` <span class="muted">· ${commissionOnlyLog ? 'ei laskuteta (vain provisio)' : 'ei laskuteta'}</span>`
+          ? ` <span class="muted">· ${commissionOnlyLog ? 'kumppanilaskutus: vain provisio' : 'ei kumppanilaskutukseen'}</span>`
           : '';
       const supplyLineFlags = parseDailyLogCustomerExtraBilling(log.customer_extra_billing).supply_line_flags;
       const refrigerantLines = log.refrigerant_lines ?? [];
@@ -875,14 +876,11 @@ function generateWorkReportPrintHtmlRaw(input: {
             <span>${esc(logAuthorLabel)}</span>
             <span>${esc(HOUR_ENTRY_LABELS[log.entry_type])}</span>
             ${
-              hoursNotBilled && printMode === 'customer'
-                ? ''
-                : `<span>${esc(hourSummary)}${quoteHourNote}${
+              `<span>${esc(hourSummary)}${quoteHourNote}${
                     hoursNotBilled
-                      ? ` <span class="muted">· ${commissionOnlyLog ? 'ei laskuteta (vain provisio)' : 'ei laskuteta'}</span>`
+                      ? ` <span class="muted">· ${commissionOnlyLog ? 'kumppanilaskutus: vain provisio' : 'ei kumppanilaskutukseen'}</span>`
                       : ''
-                  }</span>`
-            }
+                  }</span>`}
           </div>
           <div class="log-body">${esc(log.work_done).replace(/\n/g, '<br />')}</div>
           ${commission}
