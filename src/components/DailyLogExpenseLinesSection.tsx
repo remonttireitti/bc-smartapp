@@ -63,6 +63,8 @@ type Props = {
   /** Rivi, jonka muokkaus avataan heti (esitäytetty tarjouspyynnön riviltä). */
   initialEditingKey?: string | null;
   onInitialEditingHandled?: () => void;
+  /** Provisio + tunnit ja kulut: rivikohtainen "Laskutetaan"-valinta suoraan rivillä. */
+  partnerBilledToggle?: boolean;
 };
 
 export default function DailyLogExpenseLinesSection({
@@ -77,6 +79,7 @@ export default function DailyLogExpenseLinesSection({
   onInitialEditingHandled,
   variant = 'expenses',
   categoryFilter = null,
+  partnerBilledToggle = false,
 }: Props) {
   const deviceVariant = variant === 'device';
   const expenseQuoteContext: ExpenseBillingQuoteContext = { linkedQuoteRequest };
@@ -145,7 +148,29 @@ export default function DailyLogExpenseLinesSection({
       ) : (
         <ul className="expense-line-list">
           {manualExpenseDrafts.map((row) => (
-            <li key={row.key}>
+            <li
+              key={row.key}
+              className={
+                partnerBilledToggle && row.partner_billed === false ? 'expense-line-not-billed' : undefined
+              }
+            >
+              {partnerBilledToggle ? (
+                <label className="expense-line-billed-toggle" title="Laskutetaan kumppanilta">
+                  <input
+                    type="checkbox"
+                    checked={row.partner_billed !== false}
+                    onChange={(event) => {
+                      const checked = event.target.checked;
+                      setExpenseDrafts((current) =>
+                        current.map((entry) =>
+                          entry.key === row.key ? { ...entry, partner_billed: checked } : entry,
+                        ),
+                      );
+                    }}
+                  />{' '}
+                  Kumppanilta
+                </label>
+              ) : null}
               <button
                 type="button"
                 className="expense-line-list-item"

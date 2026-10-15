@@ -1,3 +1,13 @@
+import {
+  DEFAULT_COMMISSION_BILLING_MODE,
+  logCommissionMode,
+  logHoursPartnerBilled,
+  partnerBillingContext,
+  parseDailyLogPartnerBilling,
+  serializeDailyLogPartnerBilling,
+  type CommissionBillingMode,
+} from '../lib/commissionBillingMode';
+import { isPartnerBillingColumnSupported } from '../lib/workReportDailyLogSelect';
 import { FormEvent, type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import { focusedAddTargetLog, mergeFocusedAddRows, mergeFocusedAddWorkDone } from '../lib/dailyLogFocusedAdd';
 import type { UnpricedQuoteRow } from '../lib/quoteSeededRows';
@@ -337,6 +347,9 @@ function initialLogForm() {
     customer_hourly_rate_override: '',
     commission_amount: '',
     commission_note: '',
+    commission_mode: DEFAULT_COMMISSION_BILLING_MODE as CommissionBillingMode,
+    hours_billed: true,
+    trips_billed: true,
     work_done: '',
     hours_agreed_regular: '',
     ...emptyDailyLogExtraBillingForm(),
@@ -441,6 +454,10 @@ function logToForm(log: WorkReportDailyLog): DailyLogFormState {
     customer_hourly_rate_override: formatHourlyRateOverrideForForm(log.customer_hourly_rate_override),
     commission_amount: Number(log.commission_amount) > 0 ? String(log.commission_amount) : '',
     commission_note: log.commission_note ?? '',
+    commission_mode: parseDailyLogPartnerBilling(log.partner_billing).commission_mode
+      ?? DEFAULT_COMMISSION_BILLING_MODE,
+    hours_billed: parseDailyLogPartnerBilling(log.partner_billing).hours_billed !== false,
+    trips_billed: parseDailyLogPartnerBilling(log.partner_billing).trips_billed !== false,
     work_done: log.work_done,
     hours_agreed_regular:
       Number(log.hours_agreed_regular) > 0 ? String(log.hours_agreed_regular) : '',
@@ -507,6 +524,16 @@ function buildLogPayload(
       !showFixed && customerHourlyOverride != null ? customerHourlyOverride : null,
     commission_amount: Number(form.commission_amount || 0),
     commission_note: form.commission_note.trim() || null,
+    ...(isPartnerBillingColumnSupported()
+      ? {
+          partner_billing: serializeDailyLogPartnerBilling({
+            commission_mode:
+              Number(form.commission_amount || 0) > 0 ? form.commission_mode : undefined,
+            hours_billed: form.hours_billed,
+            trips_billed: form.trips_billed,
+          }),
+        }
+      : {}),
     work_done: form.work_done.trim(),
     ...(options?.includeAgreedRegular
       ? { hours_agreed_regular: Number(form.hours_agreed_regular || 0) }
@@ -576,6 +603,7 @@ export function DailyLogFields({
   dayHideStartTime = false,
   onAutoOpenExpenseHandled,
   quoteCommission,
+  authorCommissionPlusElsewhere = false,
 }: {
   form: DailyLogFormState;
   setForm: React.Dispatch<React.SetStateAction<DailyLogFormState>>;
@@ -606,7 +634,16 @@ export function DailyLogFields({
     /** Jokin muu työkirjaus sisältää Myyntiprovision. */
     otherLogsHaveCommission: boolean;
   } | null;
+  /** Saman tekijän toisessa kirjauksessa on provisio tilassa "Provisio + tunnit ja kulut". */
+  authorCommissionPlusElsewhere?: boolean;
 }) {
+  const partnerRowToggles =
+    isPartnerBillingColumnSupported()
+    && (authorCommissionPlusElsewhere
+      || (Number(form.commission_amount) > 0 && form.commission_mode !== 'commission_only')
+      || form.hours_billed === false
+      || form.trips_billed === false
+      || expenseDrafts.some((row) => row.partner_billed === false));
   const { showRegular, showOvertime, showOnCall, showFixed, calendarOnlyHours } =
     hourFieldsForEntryType(form.entry_type);
   const showPartnerPrices = !!showPartnerExpenseFields;
@@ -720,6 +757,17 @@ export function DailyLogFields({
             <span className="quote-category-badge quote-category-badge-labor">Työt</span>
             <span className="muted">Päivän tuntikirjaukset kuuluvat työkategoriaan.</span>
           </p>
+        ) : null}
+        {partnerRowToggles && !calendarOnlyHours ? (
+          <label className="daily-log-billed-toggle">
+            <input
+              type="checkbox"
+              checked={form.hours_billed}
+              onChange={(e) => setForm({ ...form, hours_billed: e.target.checked })}
+            />{' '}
+            Laskutetaan kumppanilta ({showFixed ? 'urakka' : 'tunnit'})
+            {!form.hours_billed ? <span className="muted"> — ei kumppanilaskutukseen</span> : null}
+          </label>
         ) : null}
         <div
           className={`daily-log-hours-primary${
@@ -1003,6 +1051,31 @@ export function DailyLogFields({
             />
           </label>
         </div>
+        {Number(form.commission_amount) > 0 && isPartnerBillingColumnSupported() ? (
+          <fieldset className="daily-log-commission-mode">
+            <legend>Kumppanilaskutus</legend>
+            <label>
+              <input
+                type="radio"
+                name="commission_mode"
+                checked={form.commission_mode === 'commission_only'}
+                onChange={() => setForm({ ...form, commission_mode: 'commission_only' })}
+              />{' '}
+              Laskutetaan vain provisio
+              <small className="muted"> — omia tunteja ja kuluja ei laskuteta kumppanilta (asiakaslaskutus ennallaan)</small>
+            </label>
+            <label>
+              <input
+                type="radio"
+                name="commission_mode"
+                checked={form.commission_mode !== 'commission_only'}
+                onChange={() => setForm({ ...form, commission_mode: 'commission_plus' })}
+              />{' '}
+              Provisio + tunnit ja kulut
+              <small className="muted"> — rivikohtainen "Laskutetaan kumppanilta"-valinta riveillä</small>
+            </label>
+          </fieldset>
+        ) : null}
         {quoteCommission ? (
           <div className="daily-log-quote-commission">
             <p className="daily-log-quote-commission-title">Tarjouksen provisio (koko työraportti)</p>
@@ -1059,7 +1132,26 @@ export function DailyLogFields({
           initialEditingKey={autoOpenExpenseKey}
           onInitialEditingHandled={onAutoOpenExpenseHandled}
           categoryFilter={expenseCategoryFilter}
+          partnerBilledToggle={partnerRowToggles}
         />
+        {partnerRowToggles && hasAutoTripKm ? (
+          <label className="daily-log-billed-toggle">
+            <input
+              type="checkbox"
+              checked={expenseDrafts.find(isLikelyAutoTripKmExpense)?.partner_billed !== false}
+              onChange={(e) => {
+                const checked = e.target.checked;
+                setExpenseDrafts((current) =>
+                  current.map((row) =>
+                    isLikelyAutoTripKmExpense(row) ? { ...row, partner_billed: checked } : row,
+                  ),
+                );
+                setForm({ ...form, trips_billed: checked });
+              }}
+            />{' '}
+            Laskutetaan kumppanilta (ajokilometrit)
+          </label>
+        ) : null}
       </DailyLogTileSection>
 
       <DailyLogTileSection
@@ -1169,6 +1261,9 @@ async function saveExpenseLines(
                   ? customerUnitPrice
                   : null,
             }
+          : {}),
+        ...(isPartnerBillingColumnSupported() && row.partner_billed === false
+          ? { partner_billed: false }
           : {}),
         sort_order: index,
       };
@@ -3289,12 +3384,22 @@ export default function WorkReportDetailPage({ session }: Props) {
     || (billingQuoteSettings.customer_invoice_total != null
       ? formatEuro(billingQuoteSettings.customer_invoice_total)
       : 'Linkitetty tarjouspyyntö');
+  const partnerTileBillingCtx = partnerBillingContext(dailyLogs);
   const dailyLogEntryTiles = dailyLogs.flatMap((log) =>
     buildDailyLogEntryTiles(log, {
       formatDate,
       logExpensesTotal: (entry) => dailyLogExpensesTotal(entry, reportTripKmRate),
       showMoney: showPartnerBillableSection || showCustomerMoney,
       formatEuro,
+      ...(showOutgoingPartnerBilling || showPartnerBillableSection
+        ? {
+            partnerBilling: {
+              commissionOnly: partnerTileBillingCtx.commissionOnly.has(log.created_by ?? ''),
+              hoursBilled: logHoursPartnerBilled(partnerTileBillingCtx, log),
+              isExpenseBilled: (line) => line.partner_billed !== false,
+            },
+          }
+        : {}),
     }),
   );
   // LAITE: esitäytetty tarjouspyynnön laitteesta, kunnes laite kirjataan; muuten kevyt "+ Laite".
@@ -4679,6 +4784,17 @@ export default function WorkReportDetailPage({ session }: Props) {
           onAutoOpenExpenseHandled={() =>
             setLogDialogPreset((current) => (current ? { ...current, expenseKey: null } : current))
           }
+          authorCommissionPlusElsewhere={(() => {
+            const author =
+              dailyLogs.find((log) => log.id === editingLogId)?.created_by ?? session.user.id;
+            return dailyLogs.some(
+              (log) =>
+                log.id !== editingLogId
+                && log.created_by === author
+                && Number(log.commission_amount) > 0
+                && logCommissionMode(log) === 'commission_plus',
+            );
+          })()}
           quoteCommission={
             quoteCommissionSectionVisible
               ? {

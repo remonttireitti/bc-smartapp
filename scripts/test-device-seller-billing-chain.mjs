@@ -540,3 +540,16 @@ assert.equal(noContractor.installerInvoice, "Työt ja kulut");
 assert.equal(noContractor.contractorInvoice, "Kevytyrittäjä Enn Kotselainen laskuttaa Termatek Oy:ltä");
 
 console.log("test-device-seller-billing-chain: ok");
+
+// Provisiotila / laskutetaan-valinnat koskevat vain kumppanilaskutusta: asiakastuloste ennallaan.
+{
+  const toggledLogs = printInput.logs.map((log) => ({
+    ...log,
+    partner_billing: { commission_mode: 'commission_only', hours_billed: false, trips_billed: false },
+    commission_amount: Number(log.commission_amount) > 0 ? log.commission_amount : 100,
+    expense_lines: (log.expense_lines ?? []).map((e) => ({ ...e, partner_billed: false })),
+  }));
+  const before = generateWorkReportPrintHtml({ ...printInput, showPartnerPrices: false, printMode: "customer" });
+  const after = generateWorkReportPrintHtml({ ...printInput, logs: toggledLogs, showPartnerPrices: false, printMode: "customer" });
+  assert.equal(after, before, "asiakastuloste ei muutu provisiotilasta");
+}

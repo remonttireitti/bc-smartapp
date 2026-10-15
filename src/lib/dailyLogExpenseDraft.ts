@@ -26,6 +26,8 @@ export type ExpenseDraft = {
   qty: string;
   unit_price: string;
   bill_to_partner: boolean;
+  /** Provisiotila B: laskutetaanko rivi kumppanilta (oletus true). */
+  partner_billed?: boolean;
   bill_to_customer: boolean;
   customer_unit_price: string;
   partner_expense_margin_percent: string;
@@ -180,6 +182,7 @@ export function expensesToDrafts(
       qty: String(line.qty),
       unit_price: String(line.unit_price),
       bill_to_partner: line.bill_to_partner !== false,
+      partner_billed: line.partner_billed !== false,
       bill_to_customer: line.bill_to_customer !== false,
       customer_unit_price:
         customerPrice != null && customerPrice > 0 ? String(customerPrice) : '',

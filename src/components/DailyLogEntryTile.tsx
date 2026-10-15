@@ -51,7 +51,18 @@ type BuildTilesOptions = {
   logExpensesTotal: (log: WorkReportDailyLog) => number;
   showMoney: boolean;
   formatEuro?: (value: number) => string;
+  /** Kumppanilaskutus: ei laskutettavat rivit merkitään tiileen (provisiotilat). */
+  partnerBilling?: {
+    commissionOnly: boolean;
+    hoursBilled: boolean;
+    isExpenseBilled: (line: NonNullable<WorkReportDailyLog['expense_lines']>[number]) => boolean;
+  };
 };
+
+function notBilledSuffix(total: number, notBilled: number): string | null {
+  if (notBilled <= 0) return null;
+  return notBilled >= total ? 'ei kumppanilaskutukseen' : `${notBilled} ei kumppanilaskutukseen`;
+}
 
 export function buildDailyLogEntryTiles(
   log: WorkReportDailyLog,
@@ -72,6 +83,11 @@ export function buildDailyLogEntryTiles(
     logId: log.id,
     title: dateLabel,
     subtitle: workSubtitleParts.join(' · '),
+    ...(options.partnerBilling?.commissionOnly
+      ? { marker: 'kumppanilta vain provisio' }
+      : options.partnerBilling && !options.partnerBilling.hoursBilled
+        ? { marker: 'ei kumppanilaskutukseen' }
+        : {}),
   });
 
   const tripLegs = log.trip_legs ?? [];
@@ -95,13 +111,25 @@ export function buildDailyLogEntryTiles(
     }
     subtitleParts.push(`${kulutCount} riviä`);
     const kulutUnpriced = expenseKulut.filter(expenseLinePriceMissing).length;
+    const kulutNotBilled = options.partnerBilling
+      ? notBilledSuffix(
+          Math.max(expenseKulut.length, 1),
+          options.partnerBilling.commissionOnly
+            ? Math.max(expenseKulut.length, 1)
+            : expenseKulut.filter((line) => !options.partnerBilling!.isExpenseBilled(line)).length,
+        )
+      : null;
     tiles.push({
       key: `${log.id}:expenses`,
       kind: 'expenses',
       logId: log.id,
       title: dateLabel,
       subtitle: subtitleParts.join(' · '),
-      ...(kulutUnpriced > 0 && showMoney ? { marker: 'hinta puuttuu' } : {}),
+      ...(kulutUnpriced > 0 && showMoney
+        ? { marker: 'hinta puuttuu' }
+        : kulutNotBilled
+          ? { marker: kulutNotBilled }
+          : {}),
     });
   }
 

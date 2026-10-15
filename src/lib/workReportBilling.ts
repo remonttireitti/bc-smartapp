@@ -1,3 +1,9 @@
+import {
+  expensePartnerBilled,
+  logHoursPartnerBilled,
+  logTripsPartnerBilled,
+  partnerBillingContext,
+} from './commissionBillingMode';
 import type { WorkReportDailyLog } from '../types';
 import { resolveDailyLogAuthorLabel, sumDailyCommission } from '../types';
 import type { BillableRatesSource, PartnerBillingRates } from './management';
@@ -61,6 +67,8 @@ export type BillableLine = {
   unitPrice: number;
   total: number;
   included: boolean;
+  /** Rivi jätetty laskuttamatta provisiotilan vuoksi: vain provisio / rivin laskutetaan-valinta pois. */
+  notBilledReason?: 'commission_only' | 'toggle';
   /** Asiakashinta puuttuu — kumppanin täydennettävä. */
   priceMissing?: boolean;
   /** Kylmäaineen varasto-osto — vähennys kumppanilaskutuksesta. */
@@ -337,6 +345,8 @@ export function calculateWorkReportBillable(input: {
     return byUserId.get(user.id)!;
   }
 
+  const partnerCtx = partnerBillingContext(input.logs);
+
   for (const log of input.logs) {
     const authorLabel = resolveDailyLogAuthorLabel(log);
     const user = resolveUser(
@@ -346,6 +356,15 @@ export function calculateWorkReportBillable(input: {
     );
     const summary = ensureUser(user);
     const { hoursEnabled, expensesEnabled } = resolveBillingFlags(user);
+    const hoursRowBilled = logHoursPartnerBilled(partnerCtx, log);
+    const tripsRowBilled = logTripsPartnerBilled(partnerCtx, log);
+    const commissionOnlyAuthor = partnerCtx.commissionOnly.has(log.created_by ?? '');
+    const reasonFor = (rowBilled: boolean) =>
+      commissionOnlyAuthor
+        ? ({ notBilledReason: 'commission_only' } as const)
+        : rowBilled
+          ? {}
+          : ({ notBilledReason: 'toggle' } as const);
 
     const hourLines = buildDailyOvertimeHourLines({
       log,
@@ -358,7 +377,7 @@ export function calculateWorkReportBillable(input: {
     if (log.entry_type === 'fixed_price') {
       const total = resolveUrakkaPartnerAmount(log);
       if (total == null || total <= 0) continue;
-      const included = hoursEnabled;
+      const included = hoursEnabled && hoursRowBilled;
       summary.lines.push({
         logId: log.id,
         logDate: log.log_date,
@@ -368,6 +387,7 @@ export function calculateWorkReportBillable(input: {
         unitPrice: total,
         total,
         included,
+        ...reasonFor(hoursRowBilled),
       });
       if (included) summary.fixedTotal += total;
       else summary.excludedSubtotal += total;
@@ -375,7 +395,7 @@ export function calculateWorkReportBillable(input: {
 
     for (const hl of hourLines) {
       const total = lineTotal(hl.qty, hl.unitPrice);
-      const included = hoursEnabled;
+      const included = hoursEnabled && hoursRowBilled;
       summary.lines.push({
         logId: log.id,
         logDate: log.log_date,
@@ -385,6 +405,7 @@ export function calculateWorkReportBillable(input: {
         unitPrice: hl.unitPrice,
         total,
         included,
+        ...reasonFor(hoursRowBilled),
       });
       if (included) summary.hoursTotal += total;
       else summary.excludedSubtotal += total;
@@ -392,8 +413,11 @@ export function calculateWorkReportBillable(input: {
     }
 
     for (const expense of log.expense_lines ?? []) {
-      const billToPartner = expense.bill_to_partner !== false;
-      const included = expensesEnabled && billToPartner;
+      const expenseRowBilled = expensePartnerBilled(partnerCtx, log, expense);
+      const included = expensesEnabled && expenseRowBilled;
+      // bill_to_partner=false (kuuluu urakkaan / vain asiakkaalle) ei ole provisiotilan valinta.
+      const expenseReason =
+        expense.bill_to_partner === false && !commissionOnlyAuthor ? {} : reasonFor(expenseRowBilled);
       const billed =
         expense.expense_type === 'km'
           ? tripKmExpenseBillingLine(expense)
@@ -411,6 +435,7 @@ export function calculateWorkReportBillable(input: {
         unitPrice: billed.unitPrice,
         total: billed.total,
         included,
+        ...expenseReason,
         ...(expense.expense_type ? { expenseType: expense.expense_type } : {}),
       });
       if (included) summary.expensesTotal += billed.total;
@@ -429,7 +454,7 @@ export function calculateWorkReportBillable(input: {
     if (tripKm > 0 && kmRate && !hasKmExpenseLine) {
       const billing = resolveTripKmBillingLine(tripKm, kmRate);
       const total = tripKmLineTotal(billing.qty, billing.unitPrice, billing.usesMinimum);
-      const included = expensesEnabled;
+      const included = expensesEnabled && tripsRowBilled;
       summary.lines.push({
         logId: log.id,
         logDate: log.log_date,
@@ -439,6 +464,7 @@ export function calculateWorkReportBillable(input: {
         unitPrice: billing.unitPrice,
         total,
         included,
+        ...reasonFor(tripsRowBilled),
       });
       if (included) summary.expensesTotal += total;
       else summary.excludedSubtotal += total;
