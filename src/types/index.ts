@@ -120,6 +120,8 @@ export type DailyExpenseLine = {
   qty: number;
   unit_price: number;
   bill_to_partner?: boolean;
+  /** Provisio + tunnit ja kulut: rivikohtainen laskutetaan-valinta (oletus true). */
+  partner_billed?: boolean | null;
   bill_to_customer?: boolean;
   customer_unit_price?: number | null;
   /** Kun true, tarvike voi olla lisälaskutettavissa tarjouksen päälle. */
@@ -185,6 +187,8 @@ export type WorkReportDailyLog = {
   customer_hourly_rate_override?: number | null;
   commission_amount: number;
   commission_note: string | null;
+  /** JSON: { commission_mode?: "commission_only" | "commission_plus", hours_billed?: boolean, trips_billed?: boolean }. Null = all billed (legacy). */
+  partner_billing?: unknown;
   /** Lisätyö tarjouksen päälle (asiakaslaskutus quote_plus_extras). */
   customer_extra_beyond_quote?: boolean;
   /** Erillinen lisälaskutus: tunnit, selitys, kulu (ei kalenteritunnit). */

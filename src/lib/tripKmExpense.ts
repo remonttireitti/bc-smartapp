@@ -12,6 +12,7 @@ export type TripKmExpenseDraft = {
   bill_to_partner: boolean;
   bill_to_customer: boolean;
   customer_unit_price: string;
+  partner_billed?: boolean;
 };
 
 export type TripKmBillingLine = {
@@ -179,6 +180,7 @@ export function syncTripKmExpenseDrafts<T extends TripKmExpenseDraft>(
     bill_to_partner: billToPartner,
     bill_to_customer: billToCustomer,
     customer_unit_price: String(customerLine.unitPrice),
+    ...(billingSource?.partner_billed === false ? { partner_billed: false } : {}),
   } as T;
 
   return [...withoutAuto, autoDraft];

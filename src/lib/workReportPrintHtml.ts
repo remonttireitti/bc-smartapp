@@ -1,3 +1,4 @@
+import { logHoursPartnerBilled, partnerBillingContext } from './commissionBillingMode';
 import { expenseLineHasNoPrice } from './expensePriceMissing';
 import { restrainPrintHtml } from './huoltoRaportti/printShell';
 import type { BillableCalculation } from './workReportBilling';
@@ -143,8 +144,11 @@ function excludedPartnerSummary(calculation: BillableCalculation): string {
   for (const user of calculation.byUser) {
     for (const line of user.lines) {
       if (line.included) continue;
-      const key =
-        line.kind !== 'expense'
+      const key = line.notBilledReason
+        ? line.notBilledReason === 'commission_only'
+          ? '§vain provisio laskutetaan'
+          : '§rivit valittu pois laskutuksesta'
+        : line.kind !== 'expense'
           ? 'tunnit'
           : line.expenseType === 'device'
             ? 'laite'
@@ -158,6 +162,11 @@ function excludedPartnerSummary(calculation: BillableCalculation): string {
   const sum = listed.reduce((a, [, v]) => a + v, 0);
   if (listed.length === 0 || Math.abs(sum - calculation.excludedTotal) > 0.01) {
     return `Ei laskuteta kumppanilta: ${formatEuro(calculation.excludedTotal)}`;
+  }
+  if (listed.some(([k]) => k.startsWith('§'))) {
+    return `Ei laskuteta kumppanilta: ${listed
+      .map(([k, v]) => `${k.startsWith('§') ? k.slice(1) : `${k} (kuuluu urakkaan)`} ${formatEuro(v)}`)
+      .join(' · ')}`;
   }
   return `Ei laskuteta kumppanilta (kuuluu urakkaan): ${listed.map(([k, v]) => `${k} ${formatEuro(v)}`).join(' · ')}`;
 }
@@ -227,7 +236,15 @@ function partnerBillingLinesForPrint(
 ) {
   const safeLines = lines ?? [];
   if (!showPartnerPrices) return safeLines;
-  return safeLines.filter((line) => line.included || line.kind === 'refrigerant');
+  return safeLines.filter(
+    (line) => line.included || line.kind === 'refrigerant' || !!line.notBilledReason,
+  );
+}
+
+function notBilledLabel(line: { notBilledReason?: 'commission_only' | 'toggle' }): string {
+  if (line.notBilledReason === 'commission_only') return 'ei laskuteta (vain provisio)';
+  if (line.notBilledReason === 'toggle') return 'ei laskuteta';
+  return '';
 }
 
 function formatBillablePriceCell(unitPrice: number, priceMissing?: boolean): string {
@@ -655,9 +672,23 @@ function generateWorkReportPrintHtmlRaw(input: {
     ? formatDate(logPeriod.endDate)
     : formatDateTime(report.completed_at);
 
+  const printPartnerCtx = partnerBillingContext(logs);
   const logSections = logs
     .map((log) => {
-      const expenses = log.expense_lines ?? [];
+      const commissionOnlyLog = printPartnerCtx.commissionOnly.has(log.created_by ?? '');
+      const hoursNotBilled = isPartnerReport && !logHoursPartnerBilled(printPartnerCtx, log);
+      // Provisiotila: rivi pois laskutuksesta (ei koske kuuluu urakkaan -rivejä, joilla bill_to_partner=false).
+      const expenseNotBilled = (line: { partner_billed?: boolean | null; expense_type?: string }) =>
+        isPartnerReport
+        && (commissionOnlyLog
+          || line.partner_billed === false);
+      const allExpenses = log.expense_lines ?? [];
+      const expenses =
+        printMode === 'customer' ? allExpenses.filter((line) => !expenseNotBilled(line)) : allExpenses;
+      const notBilledNote = (line: { partner_billed?: boolean | null }) =>
+        printMode !== 'customer' && expenseNotBilled(line)
+          ? ` <span class="muted">· ${commissionOnlyLog ? 'ei laskuteta (vain provisio)' : 'ei laskuteta'}</span>`
+          : '';
       const supplyLineFlags = parseDailyLogCustomerExtraBilling(log.customer_extra_billing).supply_line_flags;
       const refrigerantLines = log.refrigerant_lines ?? [];
       const showCustomerExpensePrices = showCustomerPricesInPrint;
@@ -666,9 +697,9 @@ function generateWorkReportPrintHtmlRaw(input: {
         printMode === 'customer' && linkedQuoteRequest && expenseLineHasNoPrice(line);
       const visibleExpenseCount = expenses.filter((line) => !hideUnpricedExpense(line)).length;
       const expenseRows = expenses
-        .map((line, index) => {
+        .map((line) => {
           if (hideUnpricedExpense(line)) return '';
-          const extraBilling = resolveLogExpenseExtraBillingFlags(line, index, expenses, supplyLineFlags);
+          const extraBilling = resolveLogExpenseExtraBillingFlags(line, allExpenses.indexOf(line), allExpenses, supplyLineFlags);
           const label = EXPENSE_TYPE_LABELS[line.expense_type] ?? line.expense_type;
           const descriptionForPrint =
             printMode === 'customer'
@@ -711,7 +742,7 @@ function generateWorkReportPrintHtmlRaw(input: {
                   : customerMissing
                     ? ` · asiakas <span class="billing-price-missing">?</span>`
                     : ` · asiakas ${qty} × ${formatEuro(resolvedCustomerUnit)} = ${formatEuro(resolvedCustomerTotal)}`;
-              return `<tr><td>${esc(label)}</td><td>${esc(descriptionForPrint)}</td><td class="num">${purchaseCell}${customerCell}${esc(partnerNote)}</td></tr>`;
+              return `<tr><td>${esc(label)}</td><td>${esc(descriptionForPrint)}${notBilledNote(line)}</td><td class="num">${purchaseCell}${customerCell}${esc(partnerNote)}</td></tr>`;
             }
             const customerNote =
               showCustomerExpensePrices && line.bill_to_customer !== false && customerUnit !== unit
@@ -719,7 +750,7 @@ function generateWorkReportPrintHtmlRaw(input: {
                 : showCustomerExpensePrices && line.bill_to_customer !== false
                   ? ` · asiakas ${formatEuro(customerTotal)}`
                   : '';
-            return `<tr><td>${esc(label)}</td><td>${esc(descriptionForPrint)}</td><td class="num">${qty} × ${formatEuro(unit)} = ${formatEuro(total)}${esc(partnerNote)}${esc(customerNote)}</td></tr>`;
+            return `<tr><td>${esc(label)}</td><td>${esc(descriptionForPrint)}${notBilledNote(line)}</td><td class="num">${qty} × ${formatEuro(unit)} = ${formatEuro(total)}${esc(partnerNote)}${esc(customerNote)}</td></tr>`;
           }
           if (showCustomerExpensePrices && expenseIncludedInCustomerInvoice(line, expenseQuoteContext)) {
             const billedUnit = resolveExpenseCustomerUnitPrice(line, expenseQuoteContext);
@@ -745,7 +776,7 @@ function generateWorkReportPrintHtmlRaw(input: {
             : printMode === 'customer' && !customerPrintQuantitySettings.showExpenseQuantities
               ? ''
               : `<td class="num">${qty}</td>`;
-          return `<tr><td>${esc(label)}</td><td>${esc(descriptionForPrint)}</td>${qtyCell}</tr>`;
+          return `<tr><td>${esc(label)}</td><td>${esc(descriptionForPrint)}${notBilledNote(line)}</td>${qtyCell}</tr>`;
         })
         .join('');
 
@@ -843,7 +874,15 @@ function generateWorkReportPrintHtmlRaw(input: {
             <strong>${formatDate(log.log_date)}</strong>
             <span>${esc(logAuthorLabel)}</span>
             <span>${esc(HOUR_ENTRY_LABELS[log.entry_type])}</span>
-            <span>${esc(hourSummary)}${quoteHourNote}</span>
+            ${
+              hoursNotBilled && printMode === 'customer'
+                ? ''
+                : `<span>${esc(hourSummary)}${quoteHourNote}${
+                    hoursNotBilled
+                      ? ` <span class="muted">· ${commissionOnlyLog ? 'ei laskuteta (vain provisio)' : 'ei laskuteta'}</span>`
+                      : ''
+                  }</span>`
+            }
           </div>
           <div class="log-body">${esc(log.work_done).replace(/\n/g, '<br />')}</div>
           ${commission}
@@ -1073,11 +1112,15 @@ function generateWorkReportPrintHtmlRaw(input: {
                           <td>${esc(u.userName)}</td>
                           <td>${esc(l.logDate)}</td>
                           <td>${esc(printLineKindLabel(l))}</td>
-                          <td>${esc(l.description)}</td>
+                          <td>${esc(l.description)}${
+                            l.notBilledReason ? ` <span class="muted">· ${esc(notBilledLabel(l))}</span>` : ''
+                          }</td>
                           <td class="num">${formatBillableLineQty(l.kind, l.qty)}</td>
                           ${
                             showPartnerPrices
-                              ? `<td class="num">${formatEuro(l.unitPrice)}</td><td class="num">${formatEuro(l.total)}</td>`
+                              ? l.notBilledReason && !l.included
+                                ? `<td class="num muted">${formatEuro(l.unitPrice)}</td><td class="num muted"><s>${formatEuro(l.total)}</s></td>`
+                                : `<td class="num">${formatEuro(l.unitPrice)}</td><td class="num">${formatEuro(l.total)}</td>`
                               : ''
                           }
                         </tr>`,

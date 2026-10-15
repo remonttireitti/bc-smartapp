@@ -15,6 +15,31 @@ export const EXPENSE_LINE_FIELDS_WITH_WAREHOUSE =
 export const EXPENSE_LINE_FIELDS_WITH_EXTRA_BILLING =
   'id, daily_log_id, expense_type, description, qty, unit_price, bill_to_partner, bill_to_customer, customer_unit_price, extra_billable, extra_billing_allowed, customer_margin_percent, warehouse_company_id, warehouse_cost_deducted, sort_order';
 
+/**
+ * work_report_daily_logs.partner_billing (provisiotila + rivikohtaiset laskutetaan-valinnat).
+ * Ennen migraatiota sarake puuttuu: haetaan ilman sitä ja kaikki rivit laskutetaan (vanha käytös).
+ */
+let partnerBillingColumnSupported = true;
+
+export function isPartnerBillingColumnSupported(): boolean {
+  return partnerBillingColumnSupported;
+}
+
+export function setPartnerBillingColumnSupported(value: boolean) {
+  partnerBillingColumnSupported = value;
+}
+
+export function isMissingPartnerBillingColumn(error: PostgrestError | null | undefined): boolean {
+  if (!error?.message) return false;
+  const msg = error.message.toLowerCase();
+  return (
+    (/partner_billing\b/.test(msg) || msg.includes('partner_billed')) &&
+    (msg.includes('does not exist') ||
+      msg.includes('could not find') ||
+      msg.includes('schema cache'))
+  );
+}
+
 export function isMissingHoursAgreedRegularColumn(error: PostgrestError | null | undefined): boolean {
   if (!error?.message) return false;
   const msg = error.message.toLowerCase();
@@ -74,7 +99,8 @@ export function expenseLinesSelectFragment(
         : includeBillToPartner
           ? EXPENSE_LINE_FIELDS_WITH_PARTNER
           : EXPENSE_LINE_FIELDS_BASE;
-  return `expense_lines:work_report_daily_expense_lines(${fields})`;
+  const partnerBilled = partnerBillingColumnSupported ? ', partner_billed' : '';
+  return `expense_lines:work_report_daily_expense_lines(${fields}${partnerBilled})`;
 }
 
 export const PARTNER_PURCHASE_LINE_FIELDS =
@@ -114,9 +140,21 @@ export function partnerPurchaseLinesSelectFragment(
   return `partner_purchase_lines:work_report_partner_purchase_lines(${fields}, partner_company:companies!work_report_partner_purchase_lines_partner_company_id_fkey(name))`;
 }
 
+async function withPartnerBillingFallback<T extends { error: PostgrestError | null }>(
+  query: () => PromiseLike<T>,
+): Promise<T> {
+  const result = await query();
+  if (partnerBillingColumnSupported && isMissingPartnerBillingColumn(result.error)) {
+    partnerBillingColumnSupported = false;
+    return await query();
+  }
+  return result;
+}
+
 function dailyLogHourFields(includeAgreedRegular: boolean): string {
   const agreed = includeAgreedRegular ? ', hours_agreed_regular' : '';
-  return `hours_regular, hours_overtime, hours_on_call${agreed}`;
+  const partnerBilling = partnerBillingColumnSupported ? ', partner_billing' : '';
+  return `hours_regular, hours_overtime, hours_on_call${agreed}${partnerBilling}`;
 }
 
 export function buildWorkReportDetailLogSelect(
@@ -227,7 +265,7 @@ export async function fetchWorkReportDetailLogs(
   billToPartnerSupported: boolean;
   agreedRegularSupported: boolean;
 }> {
-  const run = (
+  const runRaw = (
     includeBillToPartner: boolean,
     includeWarehouse: boolean,
     includePartnerPurchases: boolean,
@@ -248,6 +286,8 @@ export async function fetchWorkReportDetailLogs(
       ),
     );
 
+  const run = (...args: Parameters<typeof runRaw>) =>
+    withPartnerBillingFallback(() => runRaw(...args));
   let includeAgreedRegular = true;
   let includeExtraBilling = true;
   let result = await run(true, true, true, true, includeAgreedRegular, includeExtraBilling);
@@ -311,7 +351,7 @@ export async function fetchWorkReportPrintLogs(
   supabase: SupabaseClient,
   workReportId: string,
 ): Promise<{ logs: WorkReportDailyLog[]; error: PostgrestError | null }> {
-  const run = (
+  const runRaw = (
     includeBillToPartner: boolean,
     includeWarehouse: boolean,
     includeAgreedRegular = true,
@@ -331,6 +371,8 @@ export async function fetchWorkReportPrintLogs(
       .order('log_date', { ascending: true })
       .order('created_at', { ascending: true });
 
+  const run = (...args: Parameters<typeof runRaw>) =>
+    withPartnerBillingFallback(() => runRaw(...args));
   let includeAgreedRegular = true;
   let includeExtraBilling = true;
   let result = await run(true, true, includeAgreedRegular, includeExtraBilling);
@@ -366,7 +408,7 @@ export async function fetchCustomerBillingLogs(
   supabase: SupabaseClient,
   workReportId: string,
 ): Promise<{ logs: WorkReportDailyLog[]; error: PostgrestError | null }> {
-  const run = (
+  const runRaw = (
     includeBillToPartner: boolean,
     includeWarehouse: boolean,
     includeAgreedRegular = true,
@@ -385,6 +427,8 @@ export async function fetchCustomerBillingLogs(
       .eq('work_report_id', workReportId)
       .order('log_date', { ascending: false });
 
+  const run = (...args: Parameters<typeof runRaw>) =>
+    withPartnerBillingFallback(() => runRaw(...args));
   let includeAgreedRegular = true;
   let includeExtraBilling = true;
   let result = await run(true, true, includeAgreedRegular, includeExtraBilling);

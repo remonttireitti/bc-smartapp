@@ -1,3 +1,4 @@
+import { logHoursPartnerBilled, partnerBillingContext } from './commissionBillingMode';
 import type { WorkReportDailyLog } from '../types';
 import { resolveDailyLogAuthorLabel } from '../types';
 import type { PartnerBillingRates } from './management';
@@ -118,6 +119,8 @@ export function calculateWorkReportCustomerBillable(input: {
   const overtimePolicy = input.overtimePolicy ?? DEFAULT_DAILY_OVERTIME_POLICY;
   const dailyOvertimeBilling = input.dailyOvertimeBilling ?? new Map();
   const byUserId = new Map<string, BillableCalculation['byUser'][number]>();
+  // Provisiotila / rivikohtainen laskutetaan-valinta: ei-laskutettavat rivit jäävät pois myös asiakkaalta.
+  const partnerCtx = partnerBillingContext(input.logs);
 
   function ensureUser(user: UserBillingProfile) {
     if (!byUserId.has(user.id)) {
@@ -150,8 +153,9 @@ export function calculateWorkReportCustomerBillable(input: {
       bill_expenses_enabled: true,
     };
     const summary = ensureUser(user);
+    const hoursRowBilled = logHoursPartnerBilled(partnerCtx, log);
 
-    const hourLines = buildDailyOvertimeHourLines({
+    const hourLines = !hoursRowBilled ? [] : buildDailyOvertimeHourLines({
       log,
       hourBillingMode,
       allocation: dailyOvertimeBilling.get(log.id),
@@ -159,7 +163,7 @@ export function calculateWorkReportCustomerBillable(input: {
       policy: overtimePolicy,
       resolveUnitPrice: (kind, hourLog) => resolveCustomerHourUnitPrice(hourLog, kind, rates),
     });
-    if (log.entry_type === 'fixed_price') {
+    if (log.entry_type === 'fixed_price' && hoursRowBilled) {
       const total = resolveUrakkaCustomerAmount(log);
       if (total == null || total <= 0) continue;
       summary.lines.push({
@@ -193,6 +197,7 @@ export function calculateWorkReportCustomerBillable(input: {
 
     for (const expense of log.expense_lines ?? []) {
       if (!expenseIncludedInCustomerInvoice(expense, expenseQuoteContext)) continue;
+      if (partnerCtx.commissionOnly.has(log.created_by ?? '') || expense.partner_billed === false) continue;
       const unitPrice = customerExpenseUnitPrice(expense, expenseQuoteContext);
       const priceMissing = customerExpensePriceMissing(expense, expenseQuoteContext);
       const billed =

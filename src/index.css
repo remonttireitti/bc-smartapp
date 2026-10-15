@@ -17219,3 +17219,13 @@ p.quote-outcome-unpriced {
 .daily-log-focus-section-title { margin: 0 0 8px; font-size: 15px; }
 .expense-price-confirmed { display: flex; gap: 6px; align-items: center; margin-top: 6px; font-size: 13px; }
 .work-report-add-log-buttons { display: flex; flex-wrap: wrap; gap: 8px; }
+
+/* Provisio + tunnit ja kulut: rivikohtainen laskutetaan-valinta */
+.expense-line-list li { display: flex; align-items: center; gap: 8px; }
+.expense-line-list li > .expense-line-list-item { flex: 1; }
+.expense-line-billed-toggle,
+.daily-log-billed-toggle { display: inline-flex; align-items: center; gap: 4px; font-size: 0.9em; white-space: nowrap; }
+.daily-log-billed-toggle { margin: 4px 0 8px; }
+.expense-line-not-billed .expense-line-list-item-title { opacity: 0.55; text-decoration: line-through; }
+.daily-log-commission-mode { border: 1px solid var(--border, #ddd); border-radius: 8px; padding: 8px 12px; margin-top: 8px; display: grid; gap: 6px; }
+.daily-log-commission-mode legend { font-weight: 600; padding: 0 4px; }
