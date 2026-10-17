@@ -43,7 +43,7 @@ export function buildHallintaGroups(ctx: HallintaContext): HallintaGroup[] {
     if (ctx.partnershipsEnabled !== false) {
       company.push({ title: 'Kumppanuudet', lines: ['Kumppaniyritykset', 'Hinnat ja oikeudet'], href: '/hallinta/kumppanuudet', color: '#6366f1' });
     }
-    if (ctx.billingModuleEnabled === true) {
+    if (ctx.billingModuleEnabled === true && ctx.partnershipsEnabled !== false) {
       company.push({ title: 'Kumppanilaskutus', lines: ['Laskutettavat työt', 'Yhteenveto'], href: '/hallinta/kumppanilaskutus', color: '#ec4899' });
     }
   }
@@ -54,6 +54,7 @@ export function buildHallintaGroups(ctx: HallintaContext): HallintaGroup[] {
       title: 'Globaali admin',
       tiles: [
         { title: 'Yritykset', lines: ['Kaikki yritykset', 'Moduulit ja huoltolajit', 'Käyttäjät'], href: '/hallinta/yritykset', color: '#ef4444' },
+        { title: 'Tilaukset', lines: ['Uudet tilaukset', 'Hyväksyntä ja kutsut', 'Esimerkkitiedot'], href: '/hallinta/global-admin/tilaukset', color: '#0ea5e9' },
         ...GBA_SECTIONS.map((s) => ({ title: s.title, lines: [...s.lines], href: `/hallinta/global-admin?osio=${s.id}`, color: s.color })),
       ],
     });
@@ -73,6 +74,7 @@ export function hallintaNavChildren(ctx: HallintaContext): { label: string; href
 /** Murupolun / otsikon nimi Hallinnan alasivulle. */
 export function hallintaPageTitle(pathname: string, search = ''): string | null {
   if (pathname.startsWith('/hallinta/yritykset')) return 'Yritykset';
+  if (pathname.startsWith('/hallinta/global-admin/tilaukset')) return 'Tilaukset';
   if (pathname.startsWith('/hallinta/global-admin')) {
     const osio = new URLSearchParams(search).get('osio');
     return GBA_SECTIONS.find((s) => s.id === osio)?.title ?? 'Globaali admin';

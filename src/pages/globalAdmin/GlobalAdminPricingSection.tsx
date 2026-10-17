@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
+import SubscriptionPriceEditor from '../../components/SubscriptionPriceEditor';
 
 /** Kaikkien yritysten hinnoittelu: kokeilujakso, peruspaketti, moduulit ja laitteet. */
 export default function GlobalAdminPricingSection() {
@@ -163,6 +164,8 @@ export default function GlobalAdminPricingSection() {
         </form>
         {catalogMessage && <p className="success">{catalogMessage}</p>}
         {error && <p className="error">{error}</p>}
+        <h3>Kumppanuudet, huoltolajit ja käyttäjät</h3>
+        <SubscriptionPriceEditor />
     </section>
   );
 }

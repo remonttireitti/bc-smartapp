@@ -8,6 +8,7 @@ import type { ManagementOutletContext } from '../../lib/managementOutletContext'
 import { supabase } from '../../lib/supabase';
 import type { Company } from '../../types';
 import UsersPage from '../UsersPage';
+import CompanyMonthlyTotal from '../../components/CompanyMonthlyTotal';
 import CompanyModulesEditor from './CompanyModulesEditor';
 import GlobalAdminCompanyDeleteDialog from './GlobalAdminCompanyDeleteDialog';
 
@@ -178,7 +179,10 @@ export default function GlobalAdminCompanyPage() {
       )}
 
       {tab === 'moduulit' && (
-        <CompanyModulesEditor companyId={company.id} settings={company.settings} ownCompanyId={profile.company_id} onSaved={load} />
+        <>
+          <CompanyModulesEditor companyId={company.id} settings={company.settings} ownCompanyId={profile.company_id} onSaved={load} />
+          <CompanyMonthlyTotal key={JSON.stringify(company.settings ?? null)} companyId={company.id} />
+        </>
       )}
 
       {tab === 'hinnasto' && (

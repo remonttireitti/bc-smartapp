@@ -50,7 +50,7 @@ export default function ManagementLayout({ session }: Props) {
     );
   }
 
-  if (billingModuleEnabled === false && location.pathname.startsWith('/hallinta/kumppanilaskutus')) {
+  if ((billingModuleEnabled === false || partnershipsEnabled === false) && location.pathname.startsWith('/hallinta/kumppanilaskutus')) {
     return <Navigate to="/hallinta/omat" replace />;
   }
 

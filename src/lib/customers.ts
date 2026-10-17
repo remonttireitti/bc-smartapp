@@ -123,4 +123,4 @@ export const CUSTOMER_SELECT = `
 `;
 
 export const EQUIPMENT_SELECT =
-  'id, name, tag, customer_id, owner_company_id, model, serial_number, location, notes, device_type, huolto_technical_snapshot, created_at';
+  'id, name, tag, customer_id, owner_company_id, model, serial_number, location, notes, device_type, huolto_technical_snapshot, is_onboarding_demo, created_at';

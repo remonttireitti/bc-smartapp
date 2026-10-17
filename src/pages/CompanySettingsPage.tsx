@@ -14,6 +14,8 @@ import type { ManagementOutletContext } from '../lib/managementOutletContext';
 import PartnerBillingRatesFields from '../components/PartnerBillingRatesFields';
 import DeviceRegistrySettingsFields from '../components/quoteRequest/DeviceRegistrySettingsFields';
 import ToggleSwitch from '../components/ToggleSwitch';
+import CompanyMonthlyTotal from '../components/CompanyMonthlyTotal';
+import { partnershipsModuleLicensed } from '../lib/partnershipsModule';
 import HuoltoSettingsSection from '../components/HuoltoSettingsSection';
 import { notifyHuoltoSettingsChanged } from '../hooks/useCompanyHuoltoSettings';
 import { parseHuoltoSettings } from '../lib/huoltoCategories';
@@ -289,12 +291,14 @@ export default function CompanySettingsPage() {
       <section className="form-section">
         <h2>Kumppanuudet ja laskutuksen seuranta</h2>
         <div className="settings-toggle-list">
-          <ToggleSwitch
-            label="Kumppanuudet"
-            checked={settings.partnerships_enabled === true}
-            onChange={(partnerships_enabled) => setSettings((current) => ({ ...current, partnerships_enabled }))}
-          />
-          {settings.partnerships_enabled === true && (
+          {partnershipsModuleLicensed(settings) && (
+            <ToggleSwitch
+              label="Kumppanuudet"
+              checked={settings.partnerships_enabled === true}
+              onChange={(partnerships_enabled) => setSettings((current) => ({ ...current, partnerships_enabled }))}
+            />
+          )}
+          {partnershipsModuleLicensed(settings) && settings.partnerships_enabled === true && (
             <>
               <ToggleSwitch
                 label="Salli kumppanuuskutsut"
@@ -323,6 +327,12 @@ export default function CompanySettingsPage() {
         </div>
       </section>
         </>
+      )}
+
+      {canEditSettings && tab === 'moduulit' && profile.company_id && (
+        <section className="form-section">
+          <CompanyMonthlyTotal companyId={profile.company_id} />
+        </section>
       )}
 
       {canEditSettings && tab === 'hinnat' && (

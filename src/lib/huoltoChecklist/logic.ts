@@ -54,6 +54,8 @@ export type ChecklistReportData = {
   signature?: string;
   signedAt?: string;
   huoltoWorkReportId?: string;
+  /** Esimerkkitieto (onboarding). */
+  onboardingDemo?: boolean;
 };
 
 export function todayYmd(now = new Date()): string {
@@ -136,6 +138,7 @@ export function normalizeChecklistReport(raw: unknown, category: ChecklistCatego
   return {
     ...base,
     customerId: str(r.customerId) || undefined,
+    ...(r.onboardingDemo === true ? { onboardingDemo: true } : {}),
     asiakas: str(r.asiakas),
     osoite: str(r.osoite),
     laiteTunnus: str(r.laiteTunnus),

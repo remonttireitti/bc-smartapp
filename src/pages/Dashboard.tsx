@@ -154,6 +154,7 @@ export default function Dashboard({ session }: Props) {
       {!portalView && (
         <OnboardingDemoPanel
           companyId={companyId}
+          canDelete={profile?.role === 'admin'}
           onChanged={() => setOnboardingRefreshKey((value) => value + 1)}
         />
       )}

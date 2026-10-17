@@ -82,6 +82,7 @@ export type Equipment = {
   notes?: string | null;
   device_type?: string | null;
   huolto_technical_snapshot?: Record<string, unknown> | null;
+  is_onboarding_demo?: boolean;
 };
 
 export type CustomerDocument = {
