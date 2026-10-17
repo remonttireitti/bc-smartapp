@@ -175,7 +175,7 @@ ${esc(form.contact_name)}, ${esc(form.email)}, ${esc(form.phone)}</p>
 <p style="font-size:15px"><b>Käyttäjät:</b></p><ul style="font-size:14px">${usersHtml}</ul>
 <p style="font-size:15px"><b>Arvio:</b> ${formatEur(estimate.net)}/kk alv 0 % (${formatEur(estimate.gross)}/kk sis. alv 25,5 %)</p>
 ${form.message ? `<p style="font-size:14px;white-space:pre-wrap">${esc(form.message)}</p>` : ''}
-<p style="margin:20px 0"><a href="${APP_URL}/hallinta/global-admin/tilaukset/${row.id}" style="background:#1f4e79;color:#fff;text-decoration:none;padding:10px 18px;border-radius:4px;display:inline-block">Avaa tilaus</a></p>`,
+<p style="margin:20px 0"><a href="${APP_URL}/palvelu/tilaukset/${row.id}" style="background:#1f4e79;color:#fff;text-decoration:none;padding:10px 18px;border-radius:4px;display:inline-block">Avaa tilaus</a></p>`,
   );
   const mail = await sendMail(adminEmail, `Uusi tilaus: ${form.company_name}`, html);
   if (!mail.ok) console.error('[company-signup] admin mail failed', mail.error);
@@ -185,6 +185,48 @@ ${form.message ? `<p style="font-size:14px;white-space:pre-wrap">${esc(form.mess
 
 type InviteResult = { email: string; status: 'invited' | 'exists' | 'error'; user_id?: string; error?: string };
 
+/** Y-tunnus 1234567-8 → ALV-numero FI12345678 (vain jos kenttä on tyhjä). */
+function vatIdFromBusinessId(businessId: string): string | null {
+  const m = /^(\d{7})-(\d)$/.exec(businessId.trim());
+  return m ? `FI${m[1]}${m[2]}` : null;
+}
+
+async function fillDerivedCompanyFields(admin: SupabaseClient, companyId: string, businessId: string) {
+  const vatId = vatIdFromBusinessId(businessId);
+  if (!vatId) return;
+  const { data } = await admin.from('companies').select('settings').eq('id', companyId).maybeSingle();
+  const settings = (data?.settings ?? {}) as Record<string, unknown>;
+  const billing = (settings.billing ?? {}) as Record<string, unknown>;
+  if (String(billing.vat_id ?? '').trim()) return;
+  const { error } = await admin
+    .from('companies')
+    .update({ settings: { ...settings, billing: { ...billing, vat_id: vatId } } })
+    .eq('id', companyId);
+  if (error) console.warn('[company-signup] vat_id', error.message);
+}
+
+/** Profiili yritykseen roolein; palauttaa virheviestin tai null. */
+async function attachProfile(
+  admin: SupabaseClient,
+  p: { userId: string; companyId: string; role: string; roles: string[]; email: string; displayName: string },
+): Promise<string | null> {
+  // Luotettava kutsutieto (vain palvelin voi kirjoittaa app_metadataa).
+  const { error: metaError } = await admin.auth.admin.updateUserById(p.userId, {
+    app_metadata: { company_id: p.companyId, role: p.role },
+  });
+  if (metaError) console.warn('[company-signup] app_metadata', metaError.message);
+  const { error: upsertError } = await admin
+    .from('profiles')
+    .upsert(
+      { id: p.userId, company_id: p.companyId, role: p.role, email: p.email, display_name: p.displayName },
+      { onConflict: 'id' },
+    );
+  if (upsertError) return `Profiili: ${upsertError.message}`;
+  const { error: rolesError } = await admin.from('profiles').update({ staff_roles: p.roles }).eq('id', p.userId);
+  if (rolesError) return `Roolit: ${rolesError.message}`;
+  return null;
+}
+
 async function handleApprove(body: Record<string, unknown>, admin: SupabaseClient, actorId: string) {
   const requestId = String(body.request_id ?? '');
   const { data: request, error } = await admin.from('company_signup_requests').select('*').eq('id', requestId).maybeSingle();
@@ -193,6 +235,8 @@ async function handleApprove(body: Record<string, unknown>, admin: SupabaseClien
 
   const { data: companyId, error: createError } = await admin.rpc('company_signup_create_company', { p_request_id: requestId });
   if (createError || !companyId) return json({ error: createError?.message ?? 'Yrityksen luonti epäonnistui' }, 500);
+
+  await fillDerivedCompanyFields(admin, companyId, String(request.business_id ?? ''));
 
   const previous: InviteResult[] = Array.isArray(request.invite_results?.users) ? request.invite_results.users : [];
   const results: InviteResult[] = [];
@@ -208,26 +252,33 @@ async function handleApprove(body: Record<string, unknown>, admin: SupabaseClien
     const roles = normalizeRoles(raw?.roles);
     const role = primaryRole(roles);
     const displayName = String(raw?.name ?? '').trim() || email.split('@')[0];
-    const { data: invited, error: inviteError } = await admin.auth.admin.inviteUserByEmail(email, {
-      data: { company_id: companyId, role, display_name: displayName, staff_roles: roles },
-      redirectTo: `${APP_URL}/aseta-uusi-salasana`,
-    });
-    if (inviteError || !invited?.user) {
-      const msg = inviteError?.message ?? 'Kutsu epäonnistui';
-      results.push({ email, status: /already|registered|exists/i.test(msg) ? 'exists' : 'error', error: msg });
-      continue;
+    // Edellisellä kerralla kutsu meni läpi mutta profiili jäi kesken: ei kutsuta uudelleen, korjataan profiili.
+    let userId = previous.find((p) => p.email === email && p.user_id)?.user_id ?? null;
+    if (!userId) {
+      const { data: invited, error: inviteError } = await admin.auth.admin.inviteUserByEmail(email, {
+        data: { company_id: companyId, role, display_name: displayName, staff_roles: roles },
+        redirectTo: `${APP_URL}/aseta-uusi-salasana`,
+      });
+      if (inviteError || !invited?.user) {
+        const msg = inviteError?.message ?? 'Kutsu epäonnistui';
+        if (/already|registered|exists/i.test(msg)) {
+          // Tunnus on jo tässä yrityksessä (esim. keskeytynyt hyväksyntä) → valmis.
+          const { data: own } = await admin
+            .from('profiles')
+            .select('id')
+            .eq('company_id', companyId)
+            .eq('email', email)
+            .maybeSingle();
+          results.push(own?.id ? { email, status: 'invited', user_id: own.id } : { email, status: 'exists', error: msg });
+        } else {
+          results.push({ email, status: 'error', error: msg });
+        }
+        continue;
+      }
+      userId = invited.user.id;
     }
-    const userId = invited.user.id;
-    // Luotettava kutsutieto (vain palvelin voi kirjoittaa app_metadataa).
-    await admin.auth.admin.updateUserById(userId, {
-      app_metadata: { company_id: companyId, role },
-    });
-    await admin
-      .from('profiles')
-      .upsert({ id: userId, company_id: companyId, role, email, display_name: displayName }, { onConflict: 'id' });
-    const { error: rolesError } = await admin.from('profiles').update({ staff_roles: roles }).eq('id', userId);
-    if (rolesError) console.warn('[company-signup] staff_roles', rolesError.message);
-    results.push({ email, status: 'invited', user_id: userId });
+    const profileError = await attachProfile(admin, { userId, companyId, role, roles, email, displayName });
+    results.push(profileError ? { email, status: 'error', user_id: userId, error: profileError } : { email, status: 'invited', user_id: userId });
   }
 
   let demo: unknown = request.invite_results?.demo ?? null;
@@ -241,7 +292,7 @@ async function handleApprove(body: Record<string, unknown>, admin: SupabaseClien
   }
 
   const inviteResults = { users: results, demo };
-  await admin
+  const { error: saveError } = await admin
     .from('company_signup_requests')
     .update({
       status: 'approved',
@@ -251,6 +302,7 @@ async function handleApprove(body: Record<string, unknown>, admin: SupabaseClien
       invite_results: inviteResults,
     })
     .eq('id', requestId);
+  if (saveError) console.error('[company-signup] request update', saveError.message);
 
   return json({ ok: true, company_id: companyId, invite_results: inviteResults });
 }
