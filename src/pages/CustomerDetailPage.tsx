@@ -10,6 +10,7 @@ import { HistoryIcon, PrinterIcon } from '../components/PrintIcons';
 import Tooltip from '../components/Tooltip';
 import ToggleSwitch from '../components/ToggleSwitch';
 import SubscriberPicker from '../components/SubscriberPicker';
+import CollapsibleSection from '../components/CollapsibleSection';
 import CustomerPortalSection from '../components/CustomerPortalSection';
 import CustomerSummaryStrip from '../components/CustomerSummaryStrip';
 import WorkReportSectionDialog from '../components/WorkReportSectionDialog';
@@ -87,6 +88,7 @@ export default function CustomerDetailPage({ session }: Props) {
   const [equipment, setEquipment] = useState<Equipment[]>([]);
   const [documents, setDocuments] = useState<CustomerLinkedDocument[]>([]);
   const [canWrite, setCanWrite] = useState(false);
+  const [infoOpen, setInfoOpen] = useState(false);
   const [sectionDialog, setSectionDialog] = useState<CustomerSectionDialog | null>(null);
   const [infoEditing, setInfoEditing] = useState(false);
   const [form, setForm] = useState({
@@ -561,6 +563,8 @@ export default function CustomerDetailPage({ session }: Props) {
   const managesRegistry = Boolean(
     customer && profile?.company_id && customer.owner_company_id === profile.company_id,
   );
+  /** Asiakasportaalin luonti: oma rekisteri tai asiakashallinnan oikeus (kumppani / globaali admin). */
+  const canManagePortal = managesRegistry || (canWrite && (profile?.role === 'admin' || profile?.is_global_admin === true));
 
   async function loadRegistrySubscribers(ownerCompanyId: string) {
     try {
@@ -611,7 +615,7 @@ export default function CustomerDetailPage({ session }: Props) {
                 + Uusi huoltoraportti
               </Link>
             ) : null}
-            {managesRegistry && (
+            {canManagePortal && (
               <button type="button" className="btn btn-secondary" onClick={() => setSectionDialog('portal')}>
                 Asiakasportaali
               </button>
@@ -633,8 +637,14 @@ export default function CustomerDetailPage({ session }: Props) {
         documents={documents}
       />
 
-      <section className="panel customer-info-panel">
-        <h2 className="customer-section-title">Asiakastiedot</h2>
+      <CollapsibleSection
+        variant="plain"
+        className="customer-info-panel customer-collapsible"
+        title="Asiakastiedot"
+        collapseKey="customer:info"
+        open={infoOpen || infoEditing}
+        onOpenChange={(o) => { setInfoOpen(o); if (!o) setInfoEditing(false); }}
+      >
         {infoEditing ? (
           <form className="form-grid" onSubmit={saveCustomer}>
             {managesRegistry ? (
@@ -758,7 +768,7 @@ export default function CustomerDetailPage({ session }: Props) {
             ) : null}
           </>
         )}
-      </section>
+      </CollapsibleSection>
 
       <WorkReportSectionDialog
         open={sectionDialog === 'portal'}
@@ -777,7 +787,7 @@ export default function CustomerDetailPage({ session }: Props) {
             customerId={customer.id}
             customerName={customer.name}
             companyId={customer.owner_company_id}
-            canManage={profile?.role === 'admin'}
+            canManage={profile?.role === 'admin' || profile?.is_global_admin === true}
           />
         )}
       </WorkReportSectionDialog>
@@ -833,8 +843,12 @@ export default function CustomerDetailPage({ session }: Props) {
         </ul>
       </WorkReportSectionDialog>
 
-      <section className="panel customer-section">
-        <h2 className="customer-section-title">Laitteet ({equipment.length})</h2>
+      <CollapsibleSection
+        variant="plain"
+        className="customer-section customer-collapsible"
+        title={`Laitteet (${equipment.length})`}
+        collapseKey="customer:equipment"
+      >
         {canWrite && (
           <div className="section-head compact-section-head">
             <button type="button" className="btn btn-secondary" onClick={() => setShowNewEquipment((v) => !v)}>
@@ -966,7 +980,7 @@ export default function CustomerDetailPage({ session }: Props) {
             />
           </>
         )}
-      </section>
+      </CollapsibleSection>
 
       {([
         ['work_report', 'Työraportit'],
@@ -978,14 +992,19 @@ export default function CustomerDetailPage({ session }: Props) {
         const list = documents.filter((d) => d.kind === kind);
         if (list.length === 0 && (kind === 'temp_monitor_report' || kind === 'file')) return null;
         return (
-          <section key={kind} className="panel customer-section">
-            <h2 className="customer-section-title">{label} ({list.length})</h2>
+          <CollapsibleSection
+            key={kind}
+            variant="plain"
+            className="customer-section customer-collapsible"
+            title={`${label} (${list.length})`}
+            collapseKey={`customer:${kind}`}
+          >
             {list.length === 0 ? (
               <p className="muted">Ei vielä.</p>
             ) : (
               <CustomerDocumentTable documents={list} hideKind />
             )}
-          </section>
+          </CollapsibleSection>
         );
       })}
 

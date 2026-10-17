@@ -17938,3 +17938,8 @@ label.has-error input { border-color: #b91c1c; }
 .quote-catalog-price-table td.num input { width: 7rem; text-align: right; }
 .quote-catalog-prices { margin: .5rem 0; }
 .quote-catalog-prices summary { cursor: pointer; padding: .35rem 0; }
+
+/* Asiakasnäkymän kokoontaitettavat osiot */
+.customer-collapsible.collapsible-section { margin-bottom: 0.9rem; }
+.customer-collapsible .collapsible-header { padding: 0.85rem 1.1rem; font-size: 1.02rem; font-weight: 600; }
+.customer-collapsible .collapsible-body { padding: 0 1.1rem 1rem; }
