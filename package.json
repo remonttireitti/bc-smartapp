@@ -109,7 +109,8 @@
     "test:expense-price-confirmed": "npx tsx scripts/test-expense-price-confirmed.mjs",
     "test:daily-log-focused-add": "npx tsx scripts/test-daily-log-focused-add.mjs",
     "test:data-table": "npx tsx scripts/test-data-table.mjs",
-    "test:work-report-partner-filter": "npx tsx scripts/test-work-report-partner-filter.mjs"
+    "test:work-report-partner-filter": "npx tsx scripts/test-work-report-partner-filter.mjs",
+    "test:equipment-device-fields": "npx tsx scripts/test-equipment-device-fields.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.1",

@@ -47,6 +47,7 @@ import { buildEquipmentListPrintHtml } from '../lib/equipmentListPrintHtml';
 import { openPrintHtml } from '../lib/openPrintWindow';
 import { isPortalUser } from '../lib/portalWorkOrder';
 import { supabase } from '../lib/supabase';
+import { effectiveDeviceFields, loadEquipmentDeviceFields, type EquipmentDeviceFields } from '../lib/equipmentDeviceFields';
 import { customerDetailTrail, withNavTrail } from '../lib/navigationTrail';
 import {
   loadCustomerLinkedDocuments,
@@ -113,6 +114,7 @@ export default function CustomerDetailPage({ session }: Props) {
     Awaited<ReturnType<typeof loadCustomerMaintenanceContext>>['workRows']
   >([]);
   const [printBusyId, setPrintBusyId] = useState<string | null>(null);
+  const [equipmentDeviceFields, setEquipmentDeviceFields] = useState<Map<string, EquipmentDeviceFields> | null>(null);
   const [selectedEquipmentIds, setSelectedEquipmentIds] = useState<Set<string>>(() => new Set());
   const [printingHistory, setPrintingHistory] = useState(false);
   const [printingEquipmentList, setPrintingEquipmentList] = useState(false);
@@ -200,6 +202,7 @@ export default function CustomerDetailPage({ session }: Props) {
     ]);
 
     setEquipment((equipmentRows as Equipment[]) ?? []);
+    void loadEquipmentDeviceFields(supabase, ((equipmentRows as Equipment[]) ?? []).map((eq) => eq.id)).then(setEquipmentDeviceFields);
     setDocuments(linkedDocuments);
     setMaintenanceRows(maintenanceContext.maintenanceRows);
     setWorkRows(maintenanceContext.workRows);
@@ -939,6 +942,7 @@ export default function CustomerDetailPage({ session }: Props) {
             </p>
             <CustomerEquipmentTable
               equipment={equipment}
+              deviceFields={(eq) => effectiveDeviceFields(equipmentDeviceFields?.get(eq.id), eq.huolto_technical_snapshot)}
               customerId={customer.id}
               latestMaintenance={(eq) =>
                 latestMaintenanceByEquipment[eq.id]

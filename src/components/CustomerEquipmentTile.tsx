@@ -3,6 +3,7 @@ import DataTable, { type DataTableColumn } from './DataTable';
 import { DeviceCardIcon, HistoryIcon } from './PrintIcons';
 import Tooltip from './Tooltip';
 import type { Equipment } from '../types';
+import { formatRefrigerant, type EquipmentDeviceFields } from '../lib/equipmentDeviceFields';
 import type { withNavTrail } from '../lib/navigationTrail';
 
 type NavTrailProps = ReturnType<typeof withNavTrail>;
@@ -10,6 +11,7 @@ type NavTrailProps = ReturnType<typeof withNavTrail>;
 type Props = {
   equipment: Equipment[];
   customerId: string;
+  deviceFields?: (eq: Equipment) => EquipmentDeviceFields;
   /** Viimeisin huolto: raaka päivä (lajittelu) ja näytettävä teksti. */
   latestMaintenance: (eq: Equipment) => { raw: string; label: string } | null;
   selectedIds: Set<string>;
@@ -28,6 +30,7 @@ type Props = {
 export function CustomerEquipmentTable({
   equipment,
   customerId,
+  deviceFields,
   latestMaintenance,
   selectedIds,
   canWrite,
@@ -60,7 +63,9 @@ export function CustomerEquipmentTable({
       ),
     },
     { key: 'tag', label: 'Tunnus', value: (eq) => eq.tag ?? '' },
+    { key: 'brand', label: 'Merkki', value: (eq) => deviceFields?.(eq).manufacturer ?? '' },
     { key: 'model', label: 'Malli', value: (eq) => eq.model ?? '' },
+    { key: 'refrigerant', label: 'Kylmäaine', value: (eq) => (deviceFields ? formatRefrigerant(deviceFields(eq)) : '') },
     { key: 'serial', label: 'Sarjanumero', value: (eq) => eq.serial_number ?? '' },
     { key: 'location', label: 'Sijainti', value: (eq) => eq.location ?? '' },
     {
