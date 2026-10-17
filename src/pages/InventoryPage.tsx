@@ -161,7 +161,7 @@ export default function InventoryPage({ session }: Props) {
 
   async function updateMaterialMeta(
     item: InventoryItem,
-    patch: Partial<Pick<InventoryItem, 'name' | 'sku' | 'unit' | 'min_qty' | 'location'>>,
+    patch: Partial<Pick<InventoryItem, 'name' | 'sku' | 'unit' | 'min_qty' | 'location' | 'purchase_price' | 'sale_price'>>,
   ) {
     if (!canEditWarehouse) return;
     setRowBusyId(item.id);
@@ -523,6 +523,28 @@ export default function InventoryPage({ session }: Props) {
                             }}
                           />
                         </label>
+                        {'purchase_price' in item ? (
+                          <>
+                            {(['purchase_price', 'sale_price'] as const).map((field) => (
+                              <label key={field}>
+                                {field === 'purchase_price' ? 'Ostohinta € (alv 0 %)' : 'Myyntihinta € (alv 0 %)'}
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  min="0"
+                                  defaultValue={item[field] != null ? String(item[field]) : ''}
+                                  disabled={rowBusy}
+                                  onBlur={(e) => {
+                                    const raw = e.target.value.trim().replace(',', '.');
+                                    const v = raw ? Number(raw) : null;
+                                    if (v != null && !Number.isFinite(v)) return;
+                                    if (v !== (item[field] ?? null)) void updateMaterialMeta(item, { [field]: v });
+                                  }}
+                                />
+                              </label>
+                            ))}
+                          </>
+                        ) : null}
                       </div>
                     </details>
                   )}

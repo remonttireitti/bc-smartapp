@@ -166,6 +166,9 @@ export type InventoryItem = {
   location: string | null;
   item_type: string;
   image_path: string | null;
+  /** varasto_link.sql: hinnat alv 0 % (puuttuvat ennen SQL:ää). */
+  purchase_price?: number | null;
+  sale_price?: number | null;
   created_at: string;
   updated_at: string;
 };
