@@ -1,4 +1,5 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
+import { generatePortalPassword } from '../_shared/portalPassword.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -55,7 +56,12 @@ Deno.serve(async (req) => {
 
     const body = await req.json();
     const email = String(body.email ?? '').trim();
-    const password = String(body.password ?? 'test123456');
+    const roleRaw = String(body.role ?? 'technician');
+    const isPortalRole = roleRaw === 'customer' || roleRaw === 'subscriber';
+    // Portaalikäyttäjälle palvelin luo pysyvän salasanan (ei pakotettua vaihtoa).
+    const generatedPassword = isPortalRole && body.generate_password === true ? generatePortalPassword() : null;
+    const password = generatedPassword ?? String(body.password ?? 'test123456');
+    const mustChangePassword = !generatedPassword;
     const displayName = String(body.display_name ?? email.split('@')[0] ?? 'Käyttäjä');
     const role = String(body.role ?? 'technician');
     const companyId = String(body.company_id ?? adminProfile.company_id);
@@ -146,7 +152,7 @@ Deno.serve(async (req) => {
       company_id: companyId,
       role,
       display_name: displayName,
-      must_change_password: true,
+      must_change_password: mustChangePassword,
       ...(subscriberId ? { subscriber_id: subscriberId } : {}),
       ...(customerId ? { customer_id: customerId } : {}),
     };
@@ -211,13 +217,13 @@ Deno.serve(async (req) => {
         display_name: displayName,
         subscriber_id: role === 'subscriber' ? subscriberId : null,
         customer_id: role === 'customer' ? customerId : null,
-        must_change_password: true,
+        must_change_password: mustChangePassword,
       },
       { onConflict: 'id' },
     );
     if (profileError) throw profileError;
 
-    return new Response(JSON.stringify({ ok: true, user_id: userId }), {
+    return new Response(JSON.stringify({ ok: true, user_id: userId, ...(generatedPassword ? { password: generatedPassword } : {}) }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (err) {
