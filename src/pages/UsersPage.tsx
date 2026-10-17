@@ -9,6 +9,7 @@ import {
   fetchCompanyUserDeletionImpact,
   type CompanyUserDeletionImpact,
 } from '../lib/deleteCompanyUser';
+import { LAST_ADMIN_MESSAGE, LAST_ADMIN_TITLE, isLastCompanyAdmin, profileErrorMessage } from '../lib/lastAdmin';
 import { inviteCompanyUser } from '../lib/inviteUser';
 import { supabase } from '../lib/supabase';
 import type { Company } from '../types';
@@ -190,13 +191,18 @@ export default function UsersPage({ fixedCompanyId }: { fixedCompanyId?: string 
 
     if (canEditAllCompanies && draft.company_id) {
       patch.company_id = draft.company_id;
+      if (draft.company_id !== (user.company_id ?? '') && isLastCompanyAdmin(user, users)) {
+        setSaveBusyId(null);
+        setError(LAST_ADMIN_MESSAGE);
+        return;
+      }
     }
 
     const { error: updateError } = await supabase.from('profiles').update(patch).eq('id', user.id);
     setSaveBusyId(null);
 
     if (updateError) {
-      setError(updateError.message);
+      setError(profileErrorMessage(updateError, 'Tallennus epäonnistui'));
       return;
     }
 
@@ -208,9 +214,16 @@ export default function UsersPage({ fixedCompanyId }: { fixedCompanyId?: string 
     setError(null);
     setMessage(null);
 
+    const target = users.find((u) => u.id === userId);
+    if (target && role !== 'admin' && isLastCompanyAdmin(target, users)) {
+      setError(LAST_ADMIN_MESSAGE);
+      return;
+    }
+
     const { error: updateError } = await supabase.from('profiles').update({ role }).eq('id', userId);
     if (updateError) {
-      setError(updateError.message);
+      setError(profileErrorMessage(updateError, 'Roolin päivitys epäonnistui'));
+      await loadUsers();
       return;
     }
 
@@ -338,13 +351,12 @@ export default function UsersPage({ fixedCompanyId }: { fixedCompanyId?: string 
       closeDeleteDialog();
       await loadUsers();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Käyttäjän poisto epäonnistui');
+      setError(profileErrorMessage(err, 'Käyttäjän poisto epäonnistui'));
     } finally {
       setDeleteBusy(false);
     }
   }
 
-  const adminCount = users.filter((u) => u.role === 'admin').length;
   const transferCandidates = users.filter(
     (user) => user.id !== deleteTarget?.id && user.company_id === deleteTarget?.company_id,
   );
@@ -446,7 +458,8 @@ export default function UsersPage({ fixedCompanyId }: { fixedCompanyId?: string 
                     className="user-role-select"
                     value={u.role}
                     onChange={(e) => void updateRole(u.id, e.target.value)}
-                    disabled={u.id === profile.id && u.role === 'admin' && adminCount <= 1}
+                    disabled={isLastCompanyAdmin(u, users)}
+                    title={isLastCompanyAdmin(u, users) ? LAST_ADMIN_TITLE : undefined}
                   >
                     {STAFF_ROLES.map((value) => (
                       <option key={value} value={value}>
@@ -460,7 +473,7 @@ export default function UsersPage({ fixedCompanyId }: { fixedCompanyId?: string 
                       <IconButton
                         label="Poista käyttäjä"
                         variant="danger"
-                        disabled={u.role === 'admin' && adminCount <= 1}
+                        disabled={isLastCompanyAdmin(u, users)}
                         onClick={() => void openDeleteDialog(u)}
                       >
                         <IconTrash />

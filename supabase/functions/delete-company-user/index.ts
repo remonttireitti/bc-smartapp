@@ -106,6 +106,18 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Viimeistä ylläpitäjää ei poisteta (tarkistus ennen tietojen siirtoa).
+    const { data: targetRow } = await adminClient.from('profiles').select('role').eq('id', userId).maybeSingle();
+    if (targetRow?.role === 'admin' && resolved.targetCompanyId) {
+      const { data: adminCount } = await adminClient.rpc('count_company_admins', { target_company: resolved.targetCompanyId });
+      if (typeof adminCount === 'number' && adminCount <= 1) {
+        return new Response(JSON.stringify({ error: 'Yrityksellä pitää olla vähintään yksi ylläpitäjä. Lisää ensin toinen ylläpitäjä.' }), {
+          status: 409,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+    }
+
     const { data: prepared, error: prepareError } = await adminClient.rpc('prepare_company_user_deletion', {
       p_user_id: userId,
       p_company_id: resolved.targetCompanyId,
