@@ -50,6 +50,21 @@ export default function CompanySubscriptionOrderForm({ license, onSubmitted }: P
     () => estimateOrderMonthlyTotal(baseActive, modules, license.pricing),
     [baseActive, modules, license.pricing],
   );
+  const orderLines = [
+    ...(baseActive ? [{ key: 'base', label: LICENSE_MODULE_LABELS.base, qty: 1, total: license.pricing.base_monthly_eur }] : []),
+    ...(baseActive && license.pricing.extras_monthly_eur > 0
+      ? [{ key: 'extras', label: 'Huoltolajit ja käyttäjät', qty: 1, total: license.pricing.extras_monthly_eur }]
+      : []),
+    ...offeredLicenseAddonModules(license.pricing)
+      .filter((k) => modules[k])
+      .map((k) => ({
+        key: k,
+        label: LICENSE_MODULE_LABELS[k],
+        qty: 1,
+        total: k === 'remote_monitoring' ? remoteMonitoringModuleDisplayPrice(license.pricing) : (license.pricing.module_prices[k] ?? 0),
+      })),
+  ];
+
   const hasSelection = baseActive || Object.values(modules).some(Boolean);
 
   async function onSubmit(e: FormEvent) {
@@ -165,11 +180,7 @@ export default function CompanySubscriptionOrderForm({ license, onSubmitted }: P
         })}
       </div>
 
-      <h4>Laskutusjakso</h4>
-      <p className="license-order-total">
-        Kuukausihinta: <strong>{formatLicenseMoney(monthlyTotal)}</strong> <span className="muted">alv 0 %</span>
-      </p>
-      <BillingPeriodPicker value={billingInterval} onChange={setBillingInterval} monthlyNet={monthlyTotal} prices={discounts} />
+      <BillingPeriodPicker lines={orderLines} value={billingInterval} onChange={setBillingInterval} monthlyNet={monthlyTotal} prices={discounts} />
 
       {error && <p className="error">{error}</p>}
       {message && <p className="success">{message}</p>}

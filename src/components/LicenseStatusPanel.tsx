@@ -1,11 +1,13 @@
 import { Link } from 'react-router-dom';
 import CompanySubscriptionOrderForm from './CompanySubscriptionOrderForm';
 import ModuleDescription, { minDeviceFee } from './ModuleDescription';
-import { billingPeriodLabel } from '../lib/companySignup';
+import { useEffect, useState } from 'react';
+import BillingPeriodPicker from './BillingPeriodPicker';
+import { supabase } from '../lib/supabase';
+import { DEFAULT_BILLING_DISCOUNTS, billingPeriodLabel, normalizeBillingPeriod, parsePriceList, type PriceList } from '../lib/companySignup';
 import { GLOBAL_ADMIN_SUPPORT } from '../lib/supportContacts';
 import {
   formatLicenseMoney,
-  formatLicensePeriodMoney,
   LICENSE_MODULE_DESCRIPTIONS,
   LICENSE_MODULE_LABELS,
   LICENSE_PAYMENT_STATUS_LABELS,
@@ -29,6 +31,16 @@ function formatDateFi(iso: string | null) {
 }
 
 export default function LicenseStatusPanel({ license, canManageOrder, onRefresh }: Props) {
+  const [discounts, setDiscounts] = useState<Pick<PriceList, 'billing_discounts'>>({ billing_discounts: DEFAULT_BILLING_DISCOUNTS });
+  useEffect(() => {
+    let alive = true;
+    void supabase.from('license_catalog').select('*').eq('id', 1).maybeSingle().then(({ data }) => {
+      if (alive && data) setDiscounts(parsePriceList(data));
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
   if (license.enrollment === 'legacy') return null;
 
   const daysLeft = trialDaysRemaining(license);
@@ -66,10 +78,17 @@ export default function LicenseStatusPanel({ license, canManageOrder, onRefresh 
         <p className="license-status-lead">
           Tilaus on voimassa
           {license.paid_through && <> · maksettu {formatDateFi(license.paid_through)} asti</>}.
-          Jakson hinta ({billingPeriodLabel(license.billing_interval)}):{' '}
-          <strong>{formatLicensePeriodMoney(pricing.estimated_period_total_eur, license.billing_interval)}</strong>
-          {license.billing_interval !== 'monthly' && <>{' '}({formatLicenseMoney(pricing.estimated_monthly_total_eur)} ennen jakson alennusta)</>}.
+          {' '}{billingPeriodLabel(license.billing_interval)}.
         </p>
+      )}
+
+      {license.effective_status === 'active' && (
+        <BillingPeriodPicker
+          lines={[{ key: 'sub', label: 'Tilaus', qty: 1, total: pricing.estimated_monthly_total_eur }]}
+          monthlyNet={pricing.estimated_monthly_total_eur}
+          value={normalizeBillingPeriod(license.billing_interval)}
+          prices={discounts}
+        />
       )}
 
       {license.payment_status !== 'none' && (
