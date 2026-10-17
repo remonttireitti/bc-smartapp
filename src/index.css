@@ -17674,3 +17674,14 @@ label.has-error input { border-color: #b91c1c; }
 .signup-demo-tool { display: flex; flex-wrap: wrap; gap: .75rem; align-items: flex-end; }
 .signup-demo-tool label { min-width: 260px; }
 .signup-requests-page .form-section { margin-top: 1.5rem; }
+
+/* Globaali admin → Hinnasto */
+.price-list-page { display: grid; gap: 1rem; }
+.price-list-page .price-input { width: 7.5rem; text-align: right; }
+.price-list-page .price-input.invalid { border-color: var(--danger, #dc2626); }
+.price-list-page .price-trial { display: inline-flex; align-items: center; gap: 0.5rem; margin-top: 0.75rem; }
+.price-list-page .price-trial input { width: 5rem; text-align: right; }
+.price-list-actions { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
+.price-example-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr)); gap: 1rem; margin-bottom: 1rem; }
+.price-example-grid fieldset { display: grid; gap: 0.35rem; border: 1px solid var(--border, #e5e7eb); border-radius: 8px; padding: 0.75rem; }
+.price-example-grid input[type='number'] { width: 4.5rem; }

@@ -11,7 +11,6 @@ export type HallintaContext = {
 export type HallintaGroup = { key: 'oma' | 'yritys' | 'gba'; title: string; tiles: HubTileData[] };
 
 export const GBA_SECTIONS = [
-  { id: 'hinnoittelu', title: 'Hinnoittelu', lines: ['Kokeilujakso', 'Moduulien ja laitteiden hinnat'], color: '#8b5cf6' },
   { id: 'rekisteri', title: 'Rekisterikorjaukset', lines: ['Omistajuus', 'Duplikaatit', 'Massamuokkaus'], color: '#f97316' },
   { id: 'loki', title: 'Loki ja varmuuskopiot', lines: ['Käyttäjätoiminta', 'Vedokset ja palautus'], color: '#64748b' },
 ] as const;
@@ -55,6 +54,7 @@ export function buildHallintaGroups(ctx: HallintaContext): HallintaGroup[] {
       tiles: [
         { title: 'Yritykset', lines: ['Kaikki yritykset', 'Moduulit ja huoltolajit', 'Käyttäjät'], href: '/hallinta/yritykset', color: '#ef4444' },
         { title: 'Tilaukset', lines: ['Uudet tilaukset', 'Hyväksyntä ja kutsut', 'Esimerkkitiedot'], href: '/hallinta/global-admin/tilaukset', color: '#0ea5e9' },
+        { title: 'Hinnasto', lines: ['Tilaushinnat €/kk', 'Moduulit, huolto, käyttäjät'], href: '/hallinta/global-admin/hinnasto', color: '#8b5cf6' },
         ...GBA_SECTIONS.map((s) => ({ title: s.title, lines: [...s.lines], href: `/hallinta/global-admin?osio=${s.id}`, color: s.color })),
       ],
     });
@@ -75,6 +75,8 @@ export function hallintaNavChildren(ctx: HallintaContext): { label: string; href
 export function hallintaPageTitle(pathname: string, search = ''): string | null {
   if (pathname.startsWith('/hallinta/yritykset')) return 'Yritykset';
   if (pathname.startsWith('/hallinta/global-admin/tilaukset')) return 'Tilaukset';
+  if (pathname.startsWith('/hallinta/global-admin/hinnasto')) return 'Hinnasto';
+  if (pathname.startsWith('/hallinta/global-admin') && new URLSearchParams(search).get('osio') === 'hinnoittelu') return 'Hinnasto';
   if (pathname.startsWith('/hallinta/global-admin')) {
     const osio = new URLSearchParams(search).get('osio');
     return GBA_SECTIONS.find((s) => s.id === osio)?.title ?? 'Globaali admin';

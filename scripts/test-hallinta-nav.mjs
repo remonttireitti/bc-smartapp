@@ -17,7 +17,7 @@ const gba = buildHallintaGroups({ ...base, isGlobalAdmin: true, globalAdminMode:
 assert.deepEqual(gba.tiles.map((t) => t.href), [
   '/hallinta/yritykset',
   '/hallinta/global-admin/tilaukset',
-  '/hallinta/global-admin?osio=hinnoittelu',
+  '/hallinta/global-admin/hinnasto',
   '/hallinta/global-admin?osio=rekisteri',
   '/hallinta/global-admin?osio=loki',
 ]);

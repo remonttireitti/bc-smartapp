@@ -113,6 +113,7 @@
     "test:equipment-device-fields": "npx tsx scripts/test-equipment-device-fields.mjs",
     "test:huolto-categories": "npx tsx scripts/test-huolto-categories.mjs",
     "test:hallinta-nav": "npx tsx scripts/test-hallinta-nav.mjs",
+    "test:price-list": "npx tsx scripts/test-price-list.mjs",
     "test:last-admin": "npx tsx scripts/test-last-admin.mjs",
     "test:profile-claim": "npx tsx scripts/test-profile-claim.mjs",
     "test:company-signup": "npx tsx scripts/test-company-signup.mjs",
