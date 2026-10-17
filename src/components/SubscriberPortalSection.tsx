@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useState } from 'react';
 import PortalUserCredentialsForm from './PortalUserCredentialsForm';
 import PasswordReveal from './PasswordReveal';
+import ToggleSwitch from './ToggleSwitch';
 import { inviteCompanyUser } from '../lib/inviteUser';
 import { supabase } from '../lib/supabase';
 
@@ -29,6 +30,7 @@ export default function SubscriberPortalSection({ subscriberId, subscriberName, 
     display_name: '',
   });
   const [busy, setBusy] = useState(false);
+  const [sendEmail, setSendEmail] = useState(true);
   const [createdPassword, setCreatedPassword] = useState<{ email: string; password: string } | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -75,12 +77,13 @@ export default function SubscriberPortalSection({ subscriberId, subscriberName, 
       const created = await inviteCompanyUser({
         email,
         generate_password: true,
+        send_email: sendEmail,
         display_name: invite.display_name.trim() || subscriberName,
         role: 'subscriber',
         company_id: companyId,
         subscriber_id: subscriberId,
       });
-      setMessage(`Portaalikäyttäjä luotu: ${email}`);
+      setMessage(`Portaalikäyttäjä luotu: ${email}.${created.mail_sent === true ? ' Tunnukset lähetetty sähköpostilla.' : created.mail_sent === false ? ` Sähköposti epäonnistui: ${created.mail_error ?? ''}` : ''}`);
       setCreatedPassword(created.password ? { email, password: created.password } : null);
       setShowInvite(false);
       await loadPortalUser();
@@ -152,7 +155,8 @@ export default function SubscriberPortalSection({ subscriberId, subscriberName, 
               placeholder={subscriberName}
             />
           </label>
-          <div className="form-actions">
+          <ToggleSwitch checked={sendEmail} onChange={setSendEmail} label="Lähetä tunnukset sähköpostilla" />
+              <div className="form-actions">
             <button type="submit" className="btn btn-primary" disabled={busy}>
               {busy ? 'Luodaan…' : 'Luo käyttäjä'}
             </button>

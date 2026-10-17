@@ -1,5 +1,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { generatePortalPassword } from '../_shared/portalPassword.ts';
+import { sendPortalCredentialsMail } from '../_shared/portalInviteMail.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -205,7 +206,14 @@ Deno.serve(async (req) => {
 
     if (profileError) throw profileError;
 
-    return new Response(JSON.stringify({ ok: true, user_id: userId, ...(generatedPassword ? { password: generatedPassword } : {}) }), {
+    let mail: { ok: boolean; error?: string } | null = null;
+    if (generatedPassword && body.send_email === true) {
+      mail = await sendPortalCredentialsMail(adminClient, {
+        to: email, password: generatedPassword, companyId: ownerCompanyId,
+        kind: targetProfile.role === 'subscriber' ? 'subscriber' : 'customer', isReset: true,
+      });
+    }
+    return new Response(JSON.stringify({ ok: true, user_id: userId, ...(generatedPassword ? { password: generatedPassword } : {}), ...(mail ? { mail_sent: mail.ok, mail_error: mail.error } : {}) }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (err) {

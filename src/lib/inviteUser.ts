@@ -5,6 +5,8 @@ export type InviteCompanyUserInput = {
   password?: string;
   /** Portaalikäyttäjä: palvelin luo pysyvän salasanan. */
   generate_password?: boolean;
+  /** Lähetä luodut tunnukset sähköpostilla. */
+  send_email?: boolean;
   display_name: string;
   role: string;
   company_id: string | null;
@@ -27,7 +29,7 @@ export async function inviteCompanyUser(input: InviteCompanyUserInput) {
       body: JSON.stringify(input),
     });
 
-    const data = (await response.json()) as { ok?: boolean; error?: string; user_id?: string; password?: string };
+    const data = (await response.json()) as { ok?: boolean; error?: string; user_id?: string; password?: string; mail_sent?: boolean; mail_error?: string };
     if (!response.ok) {
       throw new Error(data.error ?? 'Käyttäjän luonti epäonnistui');
     }
@@ -37,5 +39,5 @@ export async function inviteCompanyUser(input: InviteCompanyUserInput) {
   const { data, error } = await supabase.functions.invoke('invite-company-user', { body: input });
   if (error) throw new Error(error.message);
   if (data?.error) throw new Error(String(data.error));
-  return data as { ok: boolean; user_id?: string; password?: string };
+  return data as { ok: boolean; user_id?: string; password?: string; mail_sent?: boolean; mail_error?: string };
 }
