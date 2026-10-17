@@ -34,7 +34,7 @@ type ModuleTile = {
 
 const MODULES: ModuleTile[] = [
   { title: 'Työraportti', lines: ['Työtilaukset ja päiväkirjaukset', 'Kalenteri ja raportit'], color: '#0ea5e9', href: '/tyoraportit', licenseModule: 'base' },
-  { title: 'Laskutus', lines: ['Kumppanilaskutus', 'Asiakaslaskutus'], color: '#6366f1', href: '/laskutus', licenseModule: 'billing' },
+  { title: 'Laskutus', lines: ['Laskutettavat', 'Tilastot'], color: '#6366f1', href: '/laskutus', licenseModule: 'billing' },
   { title: 'Huoltoraportti', lines: ['Huoltopöytäkirjat', 'Laiterekisteri'], color: '#22c55e', href: '/huoltoraportit', licenseModule: 'base' },
   { title: 'Asiakkaat', lines: ['Asiakasrekisteri', 'Laitteet ja dokumentit'], color: '#3b82f6', href: '/asiakkaat', licenseModule: 'base' },
   { title: 'Tarjouspyyntö', lines: ['Tarjoukset ja laskelmat', 'Asennussuunnittelu'], color: '#f97316', href: '/tarjouspyynnot', licenseModule: 'quotes' },

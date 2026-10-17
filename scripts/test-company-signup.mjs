@@ -170,7 +170,7 @@ const navCtx = {
   isGlobalAdmin: true,
 };
 const hallinta = (ctx) => buildMainNav(ctx).find((i) => i.key === 'admin').children.map((c) => c.href);
-assert.ok(hallinta({ ...navCtx, partnershipsEnabled: true }).includes('/hallinta/kumppanilaskutus'));
+assert.ok(!hallinta({ ...navCtx, partnershipsEnabled: true }).includes('/hallinta/kumppanilaskutus'));
 assert.ok(!hallinta({ ...navCtx, partnershipsEnabled: false }).includes('/hallinta/kumppanilaskutus'));
 assert.ok(!hallinta({ ...navCtx, partnershipsEnabled: false }).includes('/hallinta/kumppanuudet'));
 const gbaTiles = (ctx) => [...buildHallintaGroups(ctx).flatMap((g) => g.tiles), ...buildServiceTiles(ctx)].map((t) => t.href);

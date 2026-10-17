@@ -22,7 +22,7 @@ interface Props {
 }
 
 const COMPANY_SETTINGS_PATH = '/hallinta/yritys';
-const ADMIN_PATHS = ['/hallinta/kayttajat', '/hallinta/kumppanuudet', '/hallinta/kumppanilaskutus'];
+const ADMIN_PATHS = ['/hallinta/kayttajat', '/hallinta/kumppanuudet'];
 const PORTAL_ADMIN_PATHS = ['/hallinta/tilaajat', '/hallinta/asiakasportaali'];
 
 export default function ManagementLayout({ session, scope = 'company' }: Props) {
@@ -58,10 +58,6 @@ export default function ManagementLayout({ session, scope = 'company' }: Props) 
         <p className="error">Yritys puuttuu profiilista. Aja npm run setup:dev ja kirjaudu uudelleen.</p>
       </AppLayout>
     );
-  }
-
-  if ((billingModuleEnabled === false || partnershipsEnabled === false) && location.pathname.startsWith('/hallinta/kumppanilaskutus')) {
-    return <Navigate to="/hallinta/omat" replace />;
   }
 
   if (partnershipsEnabled === false && location.pathname.startsWith('/hallinta/kumppanuudet')) {

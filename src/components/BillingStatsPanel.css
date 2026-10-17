@@ -1,0 +1,21 @@
+.billing-stats { display: grid; gap: .85rem; }
+.billing-stats-controls { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .5rem .75rem; }
+.billing-stats-range { display: flex; flex-wrap: wrap; gap: .5rem; align-items: end; }
+.billing-stats-range label { font-size: .8rem; }
+.billing-stats-tables { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: .85rem; align-items: start; }
+.billing-stats-tables .panel { margin: 0; }
+.billing-stats-tables h3 { margin: 0 0 .5rem; font-size: .95rem; }
+.billing-stats .billing-table { width: 100%; }
+.billing-stats-bar-cell { width: 28%; }
+.billing-stats-share { height: .45rem; border-radius: 999px; background: var(--surface-muted, #eef0f3); overflow: hidden; }
+.billing-stats-share > span { display: block; height: 100%; background: #6366f1; }
+.billing-stats-tag { margin-left: .35rem; font-size: .7rem; color: var(--text-muted, #6b7280); }
+.billing-stats-trend { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: .35rem; align-items: end; height: 150px; padding-top: .5rem; }
+.billing-stats-month { display: flex; flex-direction: column; align-items: stretch; justify-content: flex-end; height: 100%; min-width: 0; }
+.billing-stats-month-area { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; min-height: 0; }
+.billing-stats-month-bar { display: flex; flex-direction: column-reverse; border-radius: 4px 4px 0 0; overflow: hidden; min-height: 1px; }
+.billing-stats-month-bar .billed { background: #16a34a; }
+.billing-stats-month-bar .open { background: #fdba74; }
+.billing-stats-month-label { font-size: .68rem; text-align: center; color: var(--text-muted, #6b7280); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: .2rem; }
+.billing-stats-legend { display: flex; gap: .9rem; font-size: .75rem; color: var(--text-muted, #6b7280); margin-top: .4rem; }
+.billing-stats-legend i { display: inline-block; width: .7rem; height: .7rem; border-radius: 2px; margin-right: .3rem; vertical-align: -1px; }
