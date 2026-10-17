@@ -794,20 +794,24 @@ export default function CustomerDetailPage({ session }: Props) {
         onClose={closeSectionDialog}
         wide
       >
+        <CustomerPortalSection
+          customerId={customer.id}
+          customerName={customer.name}
+          companyId={customer.owner_company_id}
+          canManage={profile?.role === 'admin' || profile?.is_global_admin === true}
+        />
         {customer.subscriber_id ? (
-          <p className="muted">
-            Kohde on linkitetty tilaajaan <strong>{customer.subscriber?.name ?? '—'}</strong>. Monikohteinen
-            portaali hallitaan tilaajan kautta —{' '}
-            <Link to="/hallinta/tilaajat">Yrityksen hallinta → Tilaajaportaali</Link> → valitse tilaaja → tilaajaportaali.
-          </p>
-        ) : (
-          <CustomerPortalSection
-            customerId={customer.id}
-            customerName={customer.name}
-            companyId={customer.owner_company_id}
-            canManage={profile?.role === 'admin' || profile?.is_global_admin === true}
-          />
-        )}
+          <>
+            <h3 className="portal-subscriber-heading">Tilaajaportaali: {customer.subscriber?.name ?? '—'}</h3>
+            <CustomerPortalSection
+              subscriberId={customer.subscriber_id}
+              customerName={customer.subscriber?.name ?? ''}
+              companyId={customer.owner_company_id}
+              canManage={profile?.role === 'admin' || profile?.is_global_admin === true}
+              sectionId="subscriber-portal"
+            />
+          </>
+        ) : null}
       </WorkReportSectionDialog>
 
       <WorkReportSectionDialog

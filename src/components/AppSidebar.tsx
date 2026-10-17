@@ -7,7 +7,8 @@ import { useCompanyPartnershipsEnabled } from '../hooks/useCompanyPartnershipsEn
 import { useCompanyLicense } from '../hooks/useCompanyLicense';
 import { useCompanyHuoltoSettings } from '../hooks/useCompanyHuoltoSettings';
 import { useProfile } from '../hooks/useProfile';
-import { isPortalView } from '../lib/portalPreview';
+import { getPortalSubscriberId, isPortalView } from '../lib/portalPreview';
+import PortalKohdeSwitcher from './PortalKohdeSwitcher';
 import { activeMainNavChild, buildMainNav, isMainNavItemActive, type MainNavIconKey, type MainNavItem } from '../lib/mainNav';
 
 const ICON_PATHS: Record<MainNavIconKey | 'home', string> = {
@@ -122,6 +123,9 @@ export default function AppSidebar({ session, collapsed, onToggleCollapsed, mobi
           </svg>
           <span className="app-sidebar-label">Pienennä valikko</span>
         </button>
+        {portal && !railCollapsed && getPortalSubscriberId(profile) ? (
+          <PortalKohdeSwitcher subscriberId={getPortalSubscriberId(profile) as string} />
+        ) : null}
         {!portal ? <div className="app-sidebar-search">
           {railCollapsed ? (
             <button

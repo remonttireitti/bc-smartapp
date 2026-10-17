@@ -15,24 +15,26 @@ type PortalProfile = {
 };
 
 type Props = {
-  customerId: string;
+  /** Asiakasportaali (customerId) tai tilaajaportaali (subscriberId) — sama hallinta. */
+  customerId?: string;
+  subscriberId?: string;
   customerName: string;
   companyId: string;
   canManage: boolean;
   sectionId?: string;
 };
 
-function customerPortalPreviewUrl(customerId: string) {
-  return `/esikatselu/asiakas/${customerId}`;
-}
 
 export default function CustomerPortalSection({
   customerId,
+  subscriberId,
   customerName,
   companyId,
   canManage,
   sectionId = 'customer-portal',
 }: Props) {
+  const isSubscriber = !!subscriberId;
+  const entityId = (subscriberId ?? customerId) as string;
   const [portalUser, setPortalUser] = useState<PortalProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [showInvite, setShowInvite] = useState(false);
@@ -49,15 +51,15 @@ export default function CustomerPortalSection({
 
   useEffect(() => {
     void loadPortalUser();
-  }, [customerId]);
+  }, [entityId]);
 
   async function loadPortalUser() {
     setLoading(true);
     const { data, error: loadError } = await supabase
       .from('profiles')
       .select('id, email, display_name')
-      .eq('customer_id', customerId)
-      .eq('role', 'customer')
+      .eq(isSubscriber ? 'subscriber_id' : 'customer_id', entityId)
+      .eq('role', isSubscriber ? 'subscriber' : 'customer')
       .maybeSingle();
 
     if (loadError) {
@@ -71,7 +73,7 @@ export default function CustomerPortalSection({
 
   function openCustomerPortal() {
     rememberPortalPreviewReturn(`${window.location.pathname}${window.location.search}`);
-    navigate(customerPortalPreviewUrl(customerId));
+    navigate(`/esikatselu/${isSubscriber ? 'tilaaja' : 'asiakas'}/${entityId}`);
   }
 
   async function createPortalUser(e: FormEvent) {
@@ -93,9 +95,9 @@ export default function CustomerPortalSection({
         generate_password: true,
         send_email: sendEmail,
         display_name: invite.display_name.trim() || customerName,
-        role: 'customer',
+        role: isSubscriber ? 'subscriber' : 'customer',
         company_id: companyId,
-        customer_id: customerId,
+        ...(isSubscriber ? { subscriber_id: subscriberId } : { customer_id: customerId }),
       });
       setMessage(`Portaalikäyttäjä luotu: ${email}.${created.mail_sent === true ? ' Tunnukset lähetetty sähköpostilla.' : created.mail_sent === false ? ` Sähköposti epäonnistui: ${created.mail_error ?? ''}` : ''}`);
       setCreatedPassword(created.password ? { email, password: created.password } : null);
@@ -111,7 +113,11 @@ export default function CustomerPortalSection({
 
   return (
     <section className="panel customer-portal-panel" id={sectionId}>
-      <p className="muted">Asiakas kirjautuu, tilaa töitä ja näkee raportit.</p>
+      <p className="muted">
+        {isSubscriber
+          ? 'Tilaaja näkee kaikkien kohteidensa portaalit ja tilaa töitä niille.'
+          : 'Asiakas kirjautuu, tilaa töitä ja näkee raportit.'}
+      </p>
 
       {error && <p className="error">{error}</p>}
       {message && <p className="muted">{message}</p>}
@@ -126,6 +132,7 @@ export default function CustomerPortalSection({
               portalUser={portalUser}
               entityName={customerName}
               customerId={customerId}
+              subscriberId={subscriberId}
               onUpdated={loadPortalUser}
             />
           ) : (
@@ -142,7 +149,7 @@ export default function CustomerPortalSection({
           )}
           <div className="form-actions" style={{ marginTop: '1rem' }}>
             <button type="button" className="btn btn-primary" onClick={openCustomerPortal}>
-              Avaa asiakasportaali
+              {isSubscriber ? 'Avaa tilaajaportaali' : 'Avaa asiakasportaali'}
             </button>
           </div>
           
@@ -155,7 +162,7 @@ export default function CustomerPortalSection({
                 Luo portaalikäyttäjä
               </button>
               <button type="button" className="btn btn-secondary" onClick={openCustomerPortal}>
-                Esikatsele asiakasportaalia
+                {isSubscriber ? 'Esikatsele tilaajaportaalia' : 'Esikatsele asiakasportaalia'}
               </button>
             </div>
           ) : (
@@ -198,7 +205,9 @@ export default function CustomerPortalSection({
       ) : (
         <p className="muted">Vain ylläpitäjä voi luoda portaalikäyttäjiä.</p>
       )}
-      {canManage ? <PortalOrderRecipients customerId={customerId} /> : null}
+      {canManage ? (
+        isSubscriber ? <PortalOrderRecipients subscriberId={subscriberId} /> : <PortalOrderRecipients customerId={customerId} />
+      ) : null}
     </section>
   );
 }

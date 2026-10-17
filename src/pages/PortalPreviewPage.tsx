@@ -108,10 +108,6 @@ function PortalPreviewBootstrap({
         setError('Kohde ei kuulu yrityksellesi.');
         return;
       }
-      if (data.subscriber_id) {
-        setError('Kohde on linkitetty tilaajaan — avaa tilaajaportaali tilaajan kautta.');
-        return;
-      }
 
       setPortalPreview({
         kind: 'customer',
