@@ -1,7 +1,9 @@
-# BC Smartapp – vain julkinen etusivu ja kirjautuminen indeksoidaan.
+# BC Smartapp – vain julkinen etusivu, kirjautuminen ja esimerkkitulosteet indeksoidaan.
 User-agent: *
 Allow: /$
 Allow: /login$
+Allow: /sitemap.xml
+Allow: /esimerkit/
 Allow: /assets/
 Allow: /icon.svg
 Allow: /favicon
