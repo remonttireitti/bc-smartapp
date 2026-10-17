@@ -219,10 +219,38 @@ a { color: inherit; text-decoration: none; }
   margin: 0 auto 2rem;
 }
 
-.landing-features {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 1.25rem;
+/* Kortit: vajaa viimeinen rivi keskitetään (flex-wrap + kiinteät sarakeleveydet). */
+.landing-features,
+.landing-praise,
+.grid.hub-grid.landing-prints {
+  --landing-gap: 1.25rem;
+  --landing-cols: 3;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--landing-gap);
+}
+
+.landing-praise { --landing-gap: 1rem; }
+.grid.hub-grid.landing-prints { --landing-gap: .75rem; }
+
+.landing-features > *,
+.landing-praise > *,
+.grid.hub-grid.landing-prints > * {
+  flex: 0 0 calc((100% - (var(--landing-cols) - 1) * var(--landing-gap)) / var(--landing-cols));
+  min-width: 0;
+}
+
+@media (max-width: 899px) {
+  .landing-features,
+  .landing-praise,
+  .grid.hub-grid.landing-prints { --landing-cols: 2; }
+}
+
+@media (max-width: 599px) {
+  .landing-features,
+  .landing-praise,
+  .grid.hub-grid.landing-prints { --landing-cols: 1; }
 }
 
 .landing-feature-card {
@@ -254,8 +282,9 @@ a { color: inherit; text-decoration: none; }
 .landing-benefits {
   background: rgba(255, 255, 255, 0.55);
   border-radius: 16px;
-  margin: 0 1rem 1rem;
-  max-width: calc(1100px - 2rem);
+  margin: 0 auto 1rem;
+  width: calc(100% - 3rem);
+  max-width: calc(1100px - 3rem);
 }
 
 .landing-benefits-grid {
@@ -300,9 +329,6 @@ a { color: inherit; text-decoration: none; }
 }
 
 .landing-praise {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-  gap: 1rem;
   margin-top: 1.5rem;
 }
 
@@ -332,7 +358,9 @@ a { color: inherit; text-decoration: none; }
   background: linear-gradient(135deg, #1e40af 0%, #2563eb 55%, #0ea5e9 100%);
   color: #fff;
   border-radius: 16px;
-  margin-bottom: 2rem;
+  margin: 0 auto 2rem;
+  width: calc(100% - 3rem);
+  max-width: calc(1100px - 3rem);
   box-shadow: var(--shadow-md);
 }
 

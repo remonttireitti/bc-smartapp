@@ -94,16 +94,6 @@ export default function PublicLandingPage() {
         <Link to="/" className="landing-brand" aria-label="BC Smartapp">
           <BrandLogo variant="mark" size="1.7rem" />
         </Link>
-        <span className="landing-header-actions">
-          {prices ? (
-            <a href="#tilaa" className="btn btn-secondary landing-header-cta">
-              Tilaa
-            </a>
-          ) : null}
-          <Link to="/login" className="btn btn-primary landing-header-cta">
-            Kirjaudu sisään
-          </Link>
-        </span>
       </header>
 
       <section className="landing-hero">
