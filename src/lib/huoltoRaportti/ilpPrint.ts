@@ -24,7 +24,7 @@ import {
 } from './sisayksikkoTypes';
 import { getRefrigerantGWP } from './utils';
 import { ilpDeviceModel, ilpDeviceSerial } from './ilpIdentity';
-import { PRINT_SHELL_CSS, keepHeadingWithFirst } from './printShell';
+import { PRINT_SHELL_CSS, keepHeadingWithFirst, renderPrintBrand } from './printShell';
 import { calculateIlpSisayksikkoTeho, formatIlpSisayksikkoTeho } from './ilpTeho';
 
 export interface IlpPrintMeta {
@@ -314,7 +314,6 @@ function renderTests(data: HuoltoReportData, imageUrls?: Record<string, string>)
 export function generateIlpPrintHtml(data: HuoltoReportData, meta: IlpPrintMeta): string {
   const origin = typeof window !== 'undefined' ? window.location.origin : '';
   const pvm = txt(data.huoltoPaivamaara) || new Date().toLocaleDateString('fi-FI');
-  const logo = meta.logoUrl ? `<img src="${escAttr(meta.logoUrl)}" alt="" />` : '';
   const companyLine = [meta.companyName, ...(meta.companyLines ?? [])].filter(Boolean).join(' · ');
 
   const verdict = meta.fault
@@ -358,7 +357,7 @@ export function generateIlpPrintHtml(data: HuoltoReportData, meta: IlpPrintMeta)
   return `<style>${PRINT_SHELL_CSS}</style>
 <div class="rp ilp-print">
   <header class="hdr">
-    <div>${logo}${companyLine ? `<div class="co">${esc(companyLine)}</div>` : ''}</div>
+    <div>${renderPrintBrand(meta.logoUrl, companyLine)}</div>
     <div class="ttl"><h1>${esc(meta.docTitle)}</h1><div class="sub">Ilmalämpöpumppu${hasPrintableValue(data.laiteTunnus) ? ` · ${esc(txt(data.laiteTunnus))}` : ''}</div></div>
   </header>
   <div class="band">${bandItems.join('')}</div>

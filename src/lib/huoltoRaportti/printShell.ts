@@ -4,6 +4,7 @@ export const PRINT_SHELL_CSS = `
 .rp * { box-sizing: border-box; }
 .rp .hdr { display: grid; grid-template-columns: 1fr auto; align-items: end; gap: 8mm; padding-bottom: 3mm; border-bottom: 1.5px solid #111; }
 .rp .hdr img { max-height: 14mm; max-width: 55mm; display: block; }
+.rp .hdr .co-name { font-size: 11pt; font-weight: 700; }
 .rp .hdr .co { font-size: 8pt; color: #555; margin-top: 1mm; }
 .rp .hdr .ttl { text-align: right; }
 .rp h1 { font-size: 15pt; margin: 0; font-weight: 700; letter-spacing: .2px; }
@@ -85,10 +86,19 @@ function escAttr(v: unknown): string {
   return String(v ?? '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
 }
 
+/** Logo kuten työraportissa; ilman logoa yrityksen nimi lihavoituna (ei toistoa). */
+export function renderPrintBrand(logoUrl: string | undefined, companyLine: string): string {
+  if (logoUrl) {
+    return `<img class="logo" src="${escAttr(logoUrl)}" alt="" />${companyLine ? `<div class="co">${esc(companyLine)}</div>` : ''}`;
+  }
+  const [name, ...rest] = companyLine.split(' · ');
+  if (!name) return '';
+  return `<div class="co-name">${esc(name)}</div>${rest.length ? `<div class="co">${esc(rest.join(' · '))}</div>` : ''}`;
+}
+
 export function renderPrintHeader(opts: { logoUrl?: string; companyLine: string; title: string; subtitle: string }): string {
-  const logo = opts.logoUrl ? `<img src="${escAttr(opts.logoUrl)}" alt="" />` : '';
   return `<header class="hdr">
-    <div>${logo}${opts.companyLine ? `<div class="co">${esc(opts.companyLine)}</div>` : ''}</div>
+    <div>${renderPrintBrand(opts.logoUrl, opts.companyLine)}</div>
     <div class="ttl"><h1>${esc(opts.title)}</h1>${opts.subtitle ? `<div class="sub">${esc(opts.subtitle)}</div>` : ''}</div>
   </header>`;
 }
