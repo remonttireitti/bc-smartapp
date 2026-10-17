@@ -17960,3 +17960,4 @@ label.has-error input { border-color: #b91c1c; }
 .portal-order-recipients p { margin: 0; }
 /* Portaali: ei murupolkua */
 .portal-mode .breadcrumb { display: none; }
+.portal-order-recipients-group { font-size: 0.78rem; color: #6b7280; font-weight: 600; margin-top: 0.35rem; }

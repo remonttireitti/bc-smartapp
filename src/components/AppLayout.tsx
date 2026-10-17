@@ -135,7 +135,7 @@ export default function AppLayout({ session, children, noSidebar = false }: Prop
               <>
                 <LicenseStatusHeaderButton session={session} variant="sidebar" />
                 <Link
-                  to="/hallinta/omat"
+                  to={isPortalView(profile) ? '/' : '/hallinta/omat'}
                   className="app-sidebar-link app-sidebar-user"
                   title={[profile?.display_name ?? session.user.email, profile?.companies?.name, ROLE_LABELS[profile?.role ?? ''] ?? profile?.role].filter(Boolean).join(' • ')}
                 >

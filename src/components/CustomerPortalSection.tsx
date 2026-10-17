@@ -111,11 +111,7 @@ export default function CustomerPortalSection({
 
   return (
     <section className="panel customer-portal-panel" id={sectionId}>
-      <h2>Asiakasportaali</h2>
-      <p className="muted">
-        Kohde <strong>{customerName}</strong> — asiakas kirjautuu, lähettää työtilauksia ja näkee toimitetut
-        raportit.
-      </p>
+      <p className="muted">Asiakas kirjautuu, tilaa töitä ja näkee raportit.</p>
 
       {error && <p className="error">{error}</p>}
       {message && <p className="muted">{message}</p>}
@@ -149,10 +145,7 @@ export default function CustomerPortalSection({
               Avaa asiakasportaali
             </button>
           </div>
-          <p className="muted" style={{ marginTop: '0.75rem' }}>
-            Esikatselussa käytetään yrityskäyttäjän istuntoa, mutta näet asiakasportaalin näkymän kohteesi
-            oikeuksilla.
-          </p>
+          
         </div>
       ) : canManage ? (
         <>

@@ -269,7 +269,7 @@ export default function MaintenanceReportsPage({ session }: Props) {
           {grouped.done.length > 0 && (
             <section className="panel">
               <h2>{portalMode ? 'Valmiit' : 'Valmiit huoltoraportit'}</h2>
-              <MaintenanceReportListTable reports={grouped.done} myCompanyId={myCompanyId} linkTo={reportHref} />
+              <MaintenanceReportListTable reports={grouped.done} myCompanyId={myCompanyId} linkTo={reportHref} portal={portalMode} />
             </section>
           )}
         </>

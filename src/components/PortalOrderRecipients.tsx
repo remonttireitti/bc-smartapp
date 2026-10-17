@@ -2,17 +2,27 @@ import { useEffect, useState } from 'react';
 import ToggleSwitch from './ToggleSwitch';
 import { supabase } from '../lib/supabase';
 
-type Candidate = { user_id: string; display_name: string | null; email: string | null; selected: boolean };
+type Candidate = { kind: 'user' | 'partner'; target_id: string; label: string; selected: boolean };
+type RawCandidate = Partial<Candidate> & { user_id?: string; display_name?: string | null; email?: string | null };
 
-/** Kenelle asiakas voi lähettää työtilauksia. Ei valintoja = yritykselle. */
+function normalize(r: RawCandidate): Candidate {
+  // Yhteensopiva myös vanhan funktion (vain henkilöt) kanssa.
+  return {
+    kind: r.kind === 'partner' ? 'partner' : 'user',
+    target_id: String(r.target_id ?? r.user_id ?? ''),
+    label: String(r.label ?? r.display_name ?? r.email ?? '—'),
+    selected: r.selected === true,
+  };
+}
+
+/** Kenelle asiakas voi lähettää työtilauksia: oma henkilöstö tai kumppaniyritys. Ei valintoja = yritykselle. */
 export default function PortalOrderRecipients({ customerId }: { customerId: string }) {
   const [rows, setRows] = useState<Candidate[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   async function load() {
     const { data, error: e } = await supabase.rpc('portal_order_recipient_candidates', { p_customer_id: customerId });
-    // Ennen SQL-päivitystä funktiota ei ole: osio piilossa.
-    setRows(e ? null : ((data as Candidate[]) ?? []));
+    setRows(e ? null : ((data as RawCandidate[]) ?? []).map(normalize));
   }
 
   useEffect(() => {
@@ -21,10 +31,11 @@ export default function PortalOrderRecipients({ customerId }: { customerId: stri
 
   async function toggle(row: Candidate, on: boolean) {
     setError(null);
-    setRows((prev) => prev?.map((r) => (r.user_id === row.user_id ? { ...r, selected: on } : r)) ?? prev);
+    setRows((prev) => prev?.map((r) => (r.kind === row.kind && r.target_id === row.target_id ? { ...r, selected: on } : r)) ?? prev);
+    const col = row.kind === 'partner' ? 'partner_company_id' : 'user_id';
     const res = on
-      ? await supabase.from('portal_order_recipients').insert({ customer_id: customerId, user_id: row.user_id })
-      : await supabase.from('portal_order_recipients').delete().eq('customer_id', customerId).eq('user_id', row.user_id);
+      ? await supabase.from('portal_order_recipients').insert({ customer_id: customerId, [col]: row.target_id })
+      : await supabase.from('portal_order_recipients').delete().eq('customer_id', customerId).eq(col, row.target_id);
     if (res.error) {
       setError('Tallennus epäonnistui.');
       void load();
@@ -33,19 +44,20 @@ export default function PortalOrderRecipients({ customerId }: { customerId: stri
 
   if (!rows || rows.length === 0) return null;
   const none = rows.every((r) => !r.selected);
+  const users = rows.filter((r) => r.kind === 'user');
+  const partners = rows.filter((r) => r.kind === 'partner');
+  const item = (r: Candidate) => (
+    <ToggleSwitch key={`${r.kind}:${r.target_id}`} checked={r.selected} onChange={(on) => void toggle(r, on)} label={r.label} />
+  );
   return (
     <div className="portal-order-recipients">
       <h3>Työtilausten vastaanottaja</h3>
-      <p className="muted">{none ? 'Tilaukset menevät yritykselle.' : 'Tilaus kohdistetaan ensimmäiseksi valittuun.'}</p>
+      <p className="muted">{none ? 'Tilaukset menevät yritykselle.' : 'Tilaus menee ensimmäiseksi valitulle.'}</p>
       {error && <p className="error">{error}</p>}
-      {rows.map((r) => (
-        <ToggleSwitch
-          key={r.user_id}
-          checked={r.selected}
-          onChange={(on) => void toggle(r, on)}
-          label={r.display_name || r.email || '—'}
-        />
-      ))}
+      {users.length > 0 ? <span className="portal-order-recipients-group">Henkilöt</span> : null}
+      {users.map(item)}
+      {partners.length > 0 ? <span className="portal-order-recipients-group">Kumppanit</span> : null}
+      {partners.map(item)}
     </div>
   );
 }
