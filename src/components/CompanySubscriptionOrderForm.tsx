@@ -110,6 +110,11 @@ export default function CompanySubscriptionOrderForm({ license, onSubmitted }: P
           <span className="license-order-module-meta">
             {formatLicenseMoney(license.pricing.base_monthly_eur)}
             <span className="muted"> — {LICENSE_MODULE_DESCRIPTIONS.base}</span>
+            {license.pricing.extras_monthly_eur > 0 && (
+              <span className="muted">
+                {' '}+ huoltolajit ja käyttäjät {formatLicenseMoney(license.pricing.extras_monthly_eur)}
+              </span>
+            )}
           </span>
         </div>
         {PRICED_ADDON_MODULES.map((moduleKey) => {

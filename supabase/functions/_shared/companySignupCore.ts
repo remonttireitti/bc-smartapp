@@ -65,6 +65,8 @@ export type PriceList = {
 };
 
 export const DEFAULT_ROLE_PRICES: Record<StaffRole, number> = { admin: 0, manager: 15, technician: 10 };
+/** Sama kuin license_catalog.base_monthly_eur tuotannossa. */
+export const DEFAULT_BASE_MONTHLY_EUR = 49;
 export const DEFAULT_HUOLTO_PRICES: Record<HuoltoCategoryKey, number> = { kylma: 10, lvi: 10, iv: 10, sahko: 10 };
 
 export function roundCents(n: number): number {
@@ -93,7 +95,7 @@ export function parsePriceList(row: unknown): PriceList {
   for (const k of HUOLTO_KEYS) huolto_prices[k] = num(hp[k], DEFAULT_HUOLTO_PRICES[k]);
   const role_prices = {} as Record<StaffRole, number>;
   for (const k of STAFF_ROLES) role_prices[k] = num(rp[k], DEFAULT_ROLE_PRICES[k]);
-  return { base_monthly_eur: num(r.base_monthly_eur, 0), module_prices, huolto_prices, role_prices };
+  return { base_monthly_eur: num(r.base_monthly_eur, DEFAULT_BASE_MONTHLY_EUR), module_prices, huolto_prices, role_prices };
 }
 
 export function normalizeRoles(raw: unknown): StaffRole[] {
@@ -132,14 +134,15 @@ export function estimateMonthly(sel: PricedSelection, prices: PriceList): PriceE
   const lines: PriceLine[] = [];
   const add = (key: string, label: string, qty: number, unit: number) => {
     if (qty <= 0) return;
-    lines.push({ key, label, qty, unit: roundCents(unit), total: roundCents(qty * unit) });
+    lines.push({ key, label, qty, unit: roundCents(unit), total: (qty * Math.round(unit * 100)) / 100 });
   };
   if (sel.base) add('base', 'Peruspaketti', 1, prices.base_monthly_eur);
   for (const k of ADDON_MODULES) if (sel.modules[k]) add(`module:${k}`, ADDON_MODULE_LABELS[k], 1, prices.module_prices[k]);
-  for (const k of HUOLTO_KEYS) if (sel.huolto[k]) add(`huolto:${k}`, HUOLTO_LABELS[k], 1, prices.huolto_prices[k]);
+  // Huoltolajit ja käyttäjät laskutetaan peruspaketin kanssa (sama kuin SQL license_monthly_total).
+  if (sel.base) for (const k of HUOLTO_KEYS) if (sel.huolto[k]) add(`huolto:${k}`, HUOLTO_LABELS[k], 1, prices.huolto_prices[k]);
   // Käyttäjät ryhmitellään laskutettavan (kalleimman) roolin mukaan.
   const groups = new Map<string, { label: string; qty: number; unit: number }>();
-  for (const u of sel.users) {
+  for (const u of sel.base ? sel.users : []) {
     const rs = normalizeRoles(u.roles);
     if (!rs.length) continue;
     const unit = userMonthlyPrice(rs, prices);
@@ -154,7 +157,9 @@ export function estimateMonthly(sel: PricedSelection, prices: PriceList): PriceE
     if (g) add(`role:${r}`, g.label, g.qty, g.unit);
   }
   const net = roundCents(lines.reduce((s, l) => s + l.total, 0));
-  const vat = roundCents(net * VAT_RATE);
+  // Kokonaisina sentteinä, pyöristys puolikkaasta ylöspäin (= PostgreSQL round(numeric, 2)).
+  const netCents = Math.round(net * 100);
+  const vat = Math.floor((netCents * Math.round(VAT_RATE * 1000) + 500) / 1000) / 100;
   return { lines, net, vat, gross: roundCents(net + vat) };
 }
 

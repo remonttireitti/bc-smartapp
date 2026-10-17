@@ -34,10 +34,32 @@ export function companyPricedSelection(companySettings: unknown, profiles: Profi
   return sel;
 }
 
+/** SQL company_monthly_price_breakdown → PriceEstimate (null jos muoto ei kelpaa). */
+export function parseBreakdown(raw: unknown): PriceEstimate | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const r = raw as Record<string, unknown>;
+  if (!Array.isArray(r.lines)) return null;
+  const num = (v: unknown) => (Number.isFinite(Number(v)) ? Number(v) : 0);
+  return {
+    lines: r.lines.map((l) => {
+      const o = (l ?? {}) as Record<string, unknown>;
+      return { key: String(o.key ?? ''), label: String(o.label ?? ''), qty: num(o.qty), unit: num(o.unit), total: num(o.total) };
+    }),
+    net: num(r.net),
+    vat: num(r.vat),
+    gross: num(r.gross),
+  };
+}
+
+/** Yksi kuukausihinta: ensisijaisesti tietokannan laskenta (sama kuin lisenssin summa). */
 export async function loadCompanyMonthlyEstimate(
   supabase: SupabaseClient,
   companyId: string,
 ): Promise<PriceEstimate> {
+  const rpc = await supabase.rpc('company_monthly_price_breakdown', { p_company_id: companyId });
+  const fromDb = rpc.error ? null : parseBreakdown(rpc.data);
+  if (fromDb) return fromDb;
+  // Ennen SQL-ajoa: sama kaava selaimessa (ilman etävalvontalaitteita).
   const [catalog, company] = await Promise.all([
     supabase.from('license_catalog').select('*').eq('id', 1).maybeSingle(),
     supabase.from('companies').select('settings').eq('id', companyId).maybeSingle(),

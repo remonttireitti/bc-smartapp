@@ -11,7 +11,8 @@ import {
   validateSignup,
   VAT_RATE,
 } from '../supabase/functions/_shared/companySignupCore.ts';
-import { companyPricedSelection } from '../src/lib/companyMonthlyPrice.ts';
+import { companyPricedSelection, parseBreakdown } from '../src/lib/companyMonthlyPrice.ts';
+import { estimateOrderMonthlyTotal } from '../src/lib/companyLicense.ts';
 import { chunkStoragePaths, parseDemoStatus } from '../src/lib/onboardingDemoData.ts';
 import { partnershipsFeatureEnabled, partnershipsModuleLicensed } from '../src/lib/partnershipsModule.ts';
 import { companyPartnershipsEnabled } from '../src/lib/management.ts';
@@ -93,7 +94,7 @@ assert.ok(est.lines.some((l) => l.key === 'role:admin'));
 
 // Pyöristys: 3 × 9,99 → 29,97; alv 7,64235 → 7,64
 const p2 = parsePriceList({ base_monthly_eur: 0, role_prices: { admin: 9.99, manager: 9.99, technician: 9.99 } });
-const e2 = estimateMonthly({ base: false, modules: {}, huolto: {}, users: [{ roles: ['admin'] }, { roles: ['manager'] }, { roles: ['technician'] }] }, p2);
+const e2 = estimateMonthly({ base: true, modules: {}, huolto: {}, users: [{ roles: ['admin'] }, { roles: ['manager'] }, { roles: ['technician'] }] }, p2);
 assert.equal(e2.net, 29.97);
 assert.equal(e2.vat, 7.64);
 assert.equal(e2.gross, 37.61);
@@ -205,5 +206,29 @@ assert.deepEqual(parseDemoStatus({ has_demo: true, customers: 1, reports: 1, equ
   equipmentCount: 1,
   maintenanceReportCount: 3,
 });
+
+// Yksi kuukausihinta: huoltolajit ja käyttäjät vain peruspaketin kanssa (= SQL license_monthly_total).
+{
+  const p = parsePriceList(null);
+  const noBase = estimateMonthly({ base: false, modules: { partners: true }, huolto: { kylma: true }, users: [{ roles: ['manager'] }] }, p);
+  assert.deepEqual(noBase.lines.map((l) => l.key), ['module:partners']);
+  assert.equal(noBase.net, 10);
+  // Tuotannon kuivaharjoitus (2026-10-17): Kevytyrittäjä 179,00 + 45,65 = 224,65; Uudenmaan 89 + 22,70 = 111,70.
+  const kevyt = estimateMonthly(
+    { base: true, modules: { quotes: true, billing: true, remote_monitoring: true, tools: true, partners: true },
+      huolto: { kylma: true, lvi: true, iv: true, sahko: true }, users: [{ roles: ['admin'] }, { roles: ['manager'] }] }, p);
+  assert.equal(kevyt.net, 174); // + etävalvontalaitteet 5 € tietokannassa = 179
+  const ukh = estimateMonthly({ base: true, modules: { billing: true, partners: true }, huolto: { kylma: true }, users: [{ roles: ['admin', 'technician'] }] }, p);
+  assert.deepEqual([ukh.net, ukh.vat, ukh.gross], [89, 22.7, 111.7]);
+  // ALV sentilleen kuten PostgreSQL round(): 135,00 → 34,43 (liukuluku antaisi 34,42).
+  const v = estimateMonthly({ base: true, modules: {}, huolto: {}, users: [] }, parsePriceList({ base_monthly_eur: 135 }));
+  assert.deepEqual([v.net, v.vat, v.gross], [135, 34.43, 169.43]);
+  assert.deepEqual(parseBreakdown({ net: '89', vat: 22.7, gross: 111.7, lines: [{ key: 'base', label: 'Peruspaketti', qty: 1, unit: 49, total: 49 }] }).net, 89);
+  assert.equal(parseBreakdown({ net: 1 }), null);
+  const pricing = { base_monthly_eur: 49, module_prices: { billing: 10 }, temp_device_unit_prices: {}, remote_monitoring_devices: { billable_count: 0, monthly_eur: 0, by_type: [], unit_prices: {} }, estimated_monthly_total_eur: 0, estimated_period_total_eur: 0, extras_monthly_eur: 20 };
+  const mods = { quotes: false, billing: true, remote_monitoring: false, tools: false };
+  assert.equal(estimateOrderMonthlyTotal(true, mods, pricing), 79);
+  assert.equal(estimateOrderMonthlyTotal(false, mods, pricing), 10);
+}
 
 console.log('test-company-signup OK');

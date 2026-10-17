@@ -53,6 +53,8 @@ export type CompanyLicenseSnapshot = {
     remote_monitoring_devices: RemoteMonitoringDevicesPricing;
     estimated_monthly_total_eur: number;
     estimated_period_total_eur: number;
+    /** Huoltolajit + käyttäjät (lisätään peruspaketin kanssa; SQL company_extras_monthly_eur). */
+    extras_monthly_eur: number;
   };
   usage_this_month: Array<{
     module_key: string;
@@ -171,7 +173,7 @@ export function estimateOrderMonthlyTotal(
   pricing: CompanyLicenseSnapshot['pricing'],
 ): number {
   let total = 0;
-  if (baseActive) total += pricing.base_monthly_eur;
+  if (baseActive) total += pricing.base_monthly_eur + (pricing.extras_monthly_eur ?? 0);
   for (const key of PRICED_ADDON_MODULES) {
     if (!modules[key]) continue;
     if (key === 'remote_monitoring') {
@@ -284,6 +286,7 @@ export function parseCompanyLicenseSnapshot(raw: unknown): CompanyLicenseSnapsho
       ),
       estimated_monthly_total_eur: Number(pricingRaw.estimated_monthly_total_eur ?? 0),
       estimated_period_total_eur: Number(pricingRaw.estimated_period_total_eur ?? 0),
+      extras_monthly_eur: Number(pricingRaw.extras_monthly_eur ?? 0),
     },
     usage_this_month: Array.isArray(row.usage_this_month)
       ? row.usage_this_month.map((entry) => {
