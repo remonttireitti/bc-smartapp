@@ -46,6 +46,7 @@ import type {
   RefrigerantCylinderOwnership,
   RefrigerantRentalSupplier,
 } from '../../types/inventory';
+import { parseFiNumber, parseFiNumberOr } from '../../lib/fiNumber';
 import {
   REFRIGERANT_CYLINDER_OWNERSHIP_LABELS,
   REFRIGERANT_RENTAL_SUPPLIER_LABELS,
@@ -421,7 +422,7 @@ export default function RefrigerantInventorySection({
     let remaining = 0;
     let refType: string | null = null;
     if (bottleForm.has_content) {
-      remaining = Number(bottleForm.remaining_kg || 0);
+      remaining = parseFiNumberOr(bottleForm.remaining_kg, 0);
       if (remaining <= 0 || remaining > maxKg) {
         onError(`Anna määrä 0–${maxKg} kg (${formatBottleSizeLabel(size).toLowerCase()} pullo).`);
         return;
@@ -500,7 +501,7 @@ export default function RefrigerantInventorySection({
     if (!canEditWarehouse) return;
 
     const maxKg = bottleMaxContentKg(cylinder);
-    const kg = Number(retrieveForm.fill_kg);
+    const kg = parseFiNumber(retrieveForm.fill_kg);
     if (!(kg > 0) || kg > maxKg) {
       onError(`Anna määrä 0–${maxKg} kg.`);
       return;
@@ -807,9 +808,7 @@ export default function RefrigerantInventorySection({
               <label>
                 Määrä (kg)
                 <input
-                  type="number"
-                  step="0.1"
-                  min="0"
+                  inputMode="decimal"
                   value={bottleForm.remaining_kg}
                   onChange={(e) => setBottleForm({ ...bottleForm, remaining_kg: e.target.value })}
                   required
@@ -874,10 +873,7 @@ export default function RefrigerantInventorySection({
         <label>
           Määrä (kg), max {maxKg}
           <input
-            type="number"
-            step="0.1"
-            min="0"
-            max={maxKg}
+            inputMode="decimal"
             value={retrieveForm.fill_kg}
             onChange={(e) => setRetrieveForm({ ...retrieveForm, fill_kg: e.target.value })}
             required
