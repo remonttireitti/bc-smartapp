@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   quickSearchEntityLabel,
@@ -11,13 +11,23 @@ type Props = {
   placeholder?: string;
   resultLimit?: number;
   minChars?: number;
+  /** sidebar = kompakti kenttä sivupalkissa, tulokset kentän alla. */
+  variant?: 'default' | 'sidebar';
+  /** Kohdista kenttä heti (esim. kavennetun palkin hakuikonista). */
+  autoFocus?: boolean;
 };
 
 export default function QuickSearch({
   placeholder = 'Esim. laitetagi, asiakas, osoite…',
   resultLimit = 24,
   minChars = 2,
+  variant = 'default',
+  autoFocus = false,
 }: Props) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (autoFocus) inputRef.current?.focus();
+  }, [autoFocus]);
   const [query, setQuery] = useState('');
   const [hits, setHits] = useState<QuickSearchHit[]>([]);
   const [hitsFor, setHitsFor] = useState('');
@@ -59,9 +69,13 @@ export default function QuickSearch({
   const showResults = query.trim().length >= minChars && hitsFor === query.trim().toLowerCase();
 
   return (
-    <div className="quick-search">
+    <div className={`quick-search${variant === 'sidebar' ? ' quick-search--sidebar' : ''}`}>
       <input
+        ref={inputRef}
         type="search"
+        onKeyDown={(event) => {
+          if (event.key === 'Escape') setQuery('');
+        }}
         value={query}
         onChange={(event) => setQuery(event.target.value)}
         placeholder={placeholder}
@@ -83,7 +97,7 @@ export default function QuickSearch({
             return (
               <li key={`${hit.entity_type}-${hit.entity_id}`}>
                 {path ? (
-                  <Link to={path} className="report-link">
+                  <Link to={path} className="report-link" onClick={() => setQuery('')}>
                     <div className="report-link-body">
                       <strong>{hit.title}</strong>
                       <span className="muted">

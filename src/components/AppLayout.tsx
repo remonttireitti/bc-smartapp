@@ -1,6 +1,7 @@
 import { Link, useLocation } from 'react-router-dom';
 import { useCallback, useState, useSyncExternalStore, type ReactNode } from 'react';
 import AppSidebar from './AppSidebar';
+import { ROLE_LABELS } from '../lib/management';
 import { routeHidesSidebar } from '../lib/mainNav';
 import { isPortalView } from '../lib/portalPreview';
 import { isMonitorViewerRole } from '../lib/monitorReaderShares';
@@ -132,12 +133,19 @@ export default function AppLayout({ session, children, noSidebar = false }: Prop
                 <Link
                   to="/hallinta/omat"
                   className="app-sidebar-link app-sidebar-user"
-                  title={profile?.display_name ?? session.user.email ?? undefined}
+                  title={[profile?.display_name ?? session.user.email, profile?.companies?.name, ROLE_LABELS[profile?.role ?? ''] ?? profile?.role].filter(Boolean).join(' • ')}
                 >
                   <svg className="app-sidebar-icon" viewBox="0 0 24 24" aria-hidden="true">
                     <path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm-7 8c0-3.3 3.1-6 7-6s7 2.7 7 6" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
                   </svg>
-                  <span className="app-sidebar-label">{profile?.display_name ?? session.user.email}</span>
+                  <span className="app-sidebar-label app-sidebar-user-text">
+                    <span className="app-sidebar-user-name">{profile?.display_name ?? session.user.email}</span>
+                    <span className="app-sidebar-user-meta">
+                      {[profile?.companies?.name, ROLE_LABELS[profile?.role ?? ''] ?? profile?.role]
+                        .filter(Boolean)
+                        .join(' • ')}
+                    </span>
+                  </span>
                 </Link>
                 <button
                   type="button"

@@ -17338,3 +17338,31 @@ p.quote-outcome-unpriced {
 }
 .tile.tile-calm span { color: var(--text-muted, #6b7280); }
 .tile.tile-calm:hover { box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08); }
+
+/* Sivupalkin pikahaku ja käyttäjälohko */
+.app-sidebar-search { margin: 0 0 0.6rem; }
+.quick-search--sidebar input {
+  width: 100%; box-sizing: border-box; font-size: 0.88rem; padding: 0.4rem 0.55rem;
+  border: 1px solid var(--border, #d1d5db); border-radius: 6px; background: var(--bg-surface, #fff);
+}
+.quick-search--sidebar .quick-search-status { font-size: 0.82rem; margin: 0.35rem 0.2rem; }
+.quick-search--sidebar .quick-search-results {
+  list-style: none; margin: 0.35rem 0 0; padding: 0; max-height: 50vh; overflow-y: auto;
+  border: 1px solid var(--border, #e5e7eb); border-radius: 6px; background: var(--bg-surface, #fff);
+}
+.quick-search--sidebar .quick-search-results li + li { border-top: 1px solid var(--border, #eef0f3); }
+.quick-search--sidebar .report-link { display: block; padding: 0.4rem 0.55rem; text-decoration: none; color: inherit; border: 0; border-radius: 0; box-shadow: none; }
+.quick-search--sidebar .report-link:hover { background: rgba(0, 0, 0, 0.04); }
+.quick-search--sidebar .report-link-body { display: grid; gap: 1px; font-size: 0.84rem; }
+.quick-search--sidebar .report-link-body .muted { font-size: 0.76rem; }
+.sidebar-collapsed .app-sidebar .app-sidebar-search-btn { justify-content: center; padding-left: 0; padding-right: 0; }
+.app-sidebar-user-text { display: grid; line-height: 1.25; min-width: 0; }
+.app-sidebar-user-name, .app-sidebar-user-meta { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.app-sidebar-user-name { color: var(--text, #374151); }
+.app-sidebar-user-meta { font-size: 0.76rem; color: var(--text-muted, #6b7280); }
+@media (max-width: 899px) {
+  .quick-search--sidebar input { font-size: 16px; padding: 0.55rem 0.6rem; }
+  .sidebar-collapsed .app-sidebar .app-sidebar-user-text { display: grid; }
+}
+.app-with-sidebar .app-sidebar { justify-content: flex-start; }
+.app-sidebar-bottom { margin-top: auto; }

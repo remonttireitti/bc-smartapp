@@ -6,7 +6,6 @@ import AppLayout from '../components/AppLayout';
 import DashboardWelcomeCard from '../components/DashboardWelcomeCard';
 import OnboardingDemoPanel from '../components/OnboardingDemoPanel';
 import PendingWorkOrdersBanner from '../components/PendingWorkOrdersBanner';
-import QuickSearch from '../components/QuickSearch';
 import { incrementAppVisit } from '../lib/dashboardOnboarding';
 import { useCompanyBillingModuleEnabled } from '../hooks/useCompanyBillingModuleEnabled';
 import { useCompanyPartnershipsEnabled } from '../hooks/useCompanyPartnershipsEnabled';
@@ -128,9 +127,12 @@ export default function Dashboard({ session }: Props) {
 
   return (
     <AppLayout session={session}>
-      <p className="subtitle">
-        {profile?.companies?.name ?? 'Ei yritystä'} • {roleLabel}
-      </p>
+      {/* Sivupalkin käyttäjillä yritys + rooli ja Pikahaku ovat sivupalkissa. */}
+      {portalView ? (
+        <p className="subtitle">
+          {profile?.companies?.name ?? 'Ei yritystä'} • {roleLabel}
+        </p>
+      ) : null}
 
       {!portalView && (
         <DashboardWelcomeCard
@@ -152,13 +154,6 @@ export default function Dashboard({ session }: Props) {
         <PendingWorkOrdersBanner counts={pendingOrders} />
       )}
 
-      {!portalView && (
-        <section className="search-box">
-          <h2>Pikahaku</h2>
-          <p className="muted">Asiakkaat, laitteet ja raportit — kirjoita vähintään 2 merkkiä</p>
-          <QuickSearch />
-        </section>
-      )}
 
       <section className="grid">
         {visibleModules.map((m) => (
