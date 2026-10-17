@@ -57,8 +57,10 @@ export default function LicenseStatusPanel({ license, canManageOrder, onRefresh 
   }
 
   const daysLeft = trialDaysRemaining(license);
-  const trialByKey = new Map(license.module_trials.map((t) => [t.module_key as string, t]));
-  const shownTrials = license.module_trials.filter((t) => t.active || t.keep_after);
+  // Moduulikokeilut vain maksavalla tilauksella; kokeilujaksolla kaikki on jo auki.
+  const moduleTrials = license.effective_status === 'active' ? license.module_trials : [];
+  const trialByKey = new Map(moduleTrials.map((t) => [t.module_key as string, t]));
+  const shownTrials = moduleTrials.filter((t) => t.active || t.keep_after);
   const { pricing } = license;
   const showOrderForm =
     canManageOrder
@@ -101,7 +103,7 @@ export default function LicenseStatusPanel({ license, canManageOrder, onRefresh 
         <BillingPeriodPicker
           lines={[
             { key: 'sub', label: 'Tilaus', qty: 1, total: pricing.estimated_monthly_total_eur },
-            ...license.module_trials
+            ...moduleTrials
               .filter((t) => t.active)
               .map((t) => ({
                 key: `trial:${t.module_key}`,
