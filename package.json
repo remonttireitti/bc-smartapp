@@ -119,7 +119,8 @@
     "test:company-signup": "npx tsx scripts/test-company-signup.mjs",
     "test:billing-partner-gating": "npx tsx scripts/test-billing-partner-gating.mjs",
     "test:example-prints": "npx tsx scripts/test-example-prints.mjs",
-    "test:ilp-teho": "npx tsx scripts/test-ilp-teho.mjs"
+    "test:ilp-teho": "npx tsx scripts/test-ilp-teho.mjs",
+    "test:billing-stats": "TZ=Europe/Helsinki npx tsx scripts/test-billing-stats.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.1",

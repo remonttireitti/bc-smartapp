@@ -31,7 +31,6 @@ import WorkReportDetailPage from '../pages/WorkReportDetailPage';
 import WorkReportNewPage from '../pages/WorkReportNewPage';
 import PortalWorkOrderPage from '../pages/PortalWorkOrderPage';
 import WorkReportOrderPage from '../pages/WorkReportOrderPage';
-import WorkReportBillingSummaryPage from '../pages/WorkReportBillingSummaryPage';
 import WorkReportPartnerBillingPrintPage from '../pages/WorkReportPartnerBillingPrintPage';
 import WorkReportPrintPage from '../pages/WorkReportPrintPage';
 import BillingPage from '../pages/BillingPage';
@@ -170,14 +169,6 @@ const LicensedVrfMonitorDetailPage = withLicenseModule('remote_monitoring', VrfM
 const LicensedToolsPage = withLicenseModule('tools', ToolsPage);
 const LicensedToolBookingCalendarPage = withLicenseModule('tools', ToolBookingCalendarPage);
 
-function LicensedWorkReportBillingSummaryRoute({ session }: { session: Session }) {
-  return (
-    <LicenseModuleGate session={session} moduleKey="billing">
-      <WorkReportBillingSummaryPage />
-    </LicenseModuleGate>
-  );
-}
-
 export function buildAuthenticatedRoutes(session: Session): RouteObject[] {
   return [
     { path: '/login', element: <Navigate to="/" replace /> },
@@ -237,10 +228,8 @@ export function buildAuthenticatedRoutes(session: Session): RouteObject[] {
         { path: 'asiakasportaali', element: <CustomerPortalAdminPage /> },
         { path: 'kayttajat', element: <UsersPage /> },
         { path: 'kumppanuudet', element: <PartnershipsPage /> },
-        {
-          path: 'kumppanilaskutus',
-          element: <LicensedWorkReportBillingSummaryRoute session={session} />,
-        },
+        // Kumppanilaskutus-yhteenveto on Laskutus → Tilastot -näkymässä.
+        { path: 'kumppanilaskutus', element: <Navigate to="/laskutus" replace /> },
       ],
     },
     {

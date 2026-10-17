@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
 import AppLayout from '../components/AppLayout';
 import PartnerBillWorkflowDialog from '../components/PartnerBillWorkflowDialog';
+import BillingStatsPanel from '../components/BillingStatsPanel';
 import { useCompanyBillingModuleEnabled } from '../hooks/useCompanyBillingModuleEnabled';
 import { BILLING_MODULE_DESCRIPTION } from '../lib/companyLicense';
 import { useCompanyPartnershipsEnabled } from '../hooks/useCompanyPartnershipsEnabled';
@@ -150,6 +151,7 @@ export default function BillingPage({ session }: Props) {
   const partnershipsEnabled = useCompanyPartnershipsEnabled(profile?.company_id, session);
   const initialMode: BillingModuleMode = partnershipsEnabled !== false ? 'total' : 'customer';
   const [tab, setTab] = useState<Tab>('list');
+  const [view, setView] = useState<'list' | 'stats'>('list');
   const [billingMode, setBillingMode] = useState<BillingModuleMode>(initialMode);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('unbilled');
   const [search, setSearch] = useState('');
@@ -1041,6 +1043,23 @@ export default function BillingPage({ session }: Props) {
               <Link to="/hallinta/kayttajat">Yrityksen hallinta → Käyttäjät</Link>.
             </p>
           ) : null}
+          <div className="tabs billing-view-tabs" style={{ marginBottom: '.85rem' }}>
+            <button type="button" className={view === 'list' ? 'tab active' : 'tab'} onClick={() => setView('list')}>
+              Laskutettavat
+            </button>
+            <button type="button" className={view === 'stats' ? 'tab active' : 'tab'} onClick={() => setView('stats')}>
+              Tilastot
+            </button>
+          </div>
+          {view === 'stats' ? (
+            <BillingStatsPanel
+              rows={rows}
+              viewerCompanyId={profile?.company_id}
+              pageMode={billingMode}
+              partnershipsEnabled={partnershipsEnabled === true}
+              loading={loading}
+            />
+          ) : (
           <>
           <div className="billing-summary-header">
             <p className="billing-summary-period-label muted">
@@ -1460,6 +1479,7 @@ export default function BillingPage({ session }: Props) {
             </div>
           )}
           </>
+          )}
         </div>
       )}
       <PartnerBillWorkflowDialog

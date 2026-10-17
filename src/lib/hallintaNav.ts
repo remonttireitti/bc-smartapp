@@ -58,9 +58,6 @@ export function buildHallintaGroups(ctx: HallintaContext): HallintaGroup[] {
     if (ctx.partnershipsEnabled !== false) {
       company.push({ title: 'Kumppanuudet', lines: ['Kumppaniyritykset', 'Hinnat ja oikeudet'], href: '/hallinta/kumppanuudet', color: '#6366f1' });
     }
-    if (ctx.billingModuleEnabled === true && ctx.partnershipsEnabled === true) {
-      company.push({ title: 'Kumppanilaskutus', lines: ['Laskutettavat työt', 'Yhteenveto'], href: '/hallinta/kumppanilaskutus', color: '#ec4899' });
-    }
   }
   if (company.length) groups.push({ key: 'yritys', title: 'Yritys', tiles: company });
   return groups;
@@ -102,7 +99,6 @@ export function hallintaPageTitle(pathname: string): string | null {
     '/hallinta/tilaajat': 'Tilaajaportaali',
     '/hallinta/asiakasportaali': 'Asiakasportaali',
     '/hallinta/kumppanuudet': 'Kumppanuudet',
-    '/hallinta/kumppanilaskutus': 'Kumppanilaskutus',
   };
   const hit = Object.keys(map).find((p) => pathname === p || pathname.startsWith(`${p}/`));
   return hit ? map[hit] : null;

@@ -15,7 +15,7 @@ const titles = (ctx) => buildHallintaGroups({ ...base, ...ctx }).map((g) => [g.k
 
 assert.deepEqual(titles({}), [
   ['oma', ['Omat tiedot']],
-  ['yritys', ['Oma yritys', 'Käyttäjät', 'Tilaajaportaali', 'Asiakasportaali', 'Kumppanuudet', 'Kumppanilaskutus']],
+  ['yritys', ['Oma yritys', 'Käyttäjät', 'Tilaajaportaali', 'Asiakasportaali', 'Kumppanuudet']],
 ]);
 assert.deepEqual(titles({ role: 'technician' }), [['oma', ['Omat tiedot']]]);
 assert.deepEqual(titles({ role: 'manager' }), [['oma', ['Omat tiedot']], ['yritys', ['Oma yritys']]]);
@@ -39,7 +39,7 @@ for (const t of [...buildServiceTiles({ isGlobalAdmin: true }), ...buildHallinta
 }
 assert.deepEqual(
   hallintaNavChildren({ ...base, isGlobalAdmin: true }).map((c) => c.label),
-  ['Omat tiedot', 'Oma yritys', 'Käyttäjät', 'Tilaajaportaali', 'Asiakasportaali', 'Kumppanuudet', 'Kumppanilaskutus'],
+  ['Omat tiedot', 'Oma yritys', 'Käyttäjät', 'Tilaajaportaali', 'Asiakasportaali', 'Kumppanuudet'],
 );
 assert.deepEqual(serviceNavChildren({ isGlobalAdmin: true }).map((c) => c.label), ['Yritykset', 'Tilaukset', 'Hinnasto', 'Rekisterikorjaukset', 'Loki ja varmuuskopiot']);
 assert.equal(hallintaPageTitle('/hallinta/yritys'), 'Oma yritys');

@@ -13,15 +13,12 @@ assert.match(BILLING_MODULE_DESCRIPTION, /ei laskujen lähetystä/);
 assert.ok(BILLING_MODULE_DESCRIPTION.length <= 80);
 assert.match(PARTNER_BILLING_REQUIRES_PARTNERS, /Kumppanuudet/);
 
-// Kumppanilaskutus vain, kun Kumppanuudet on varmasti päällä (ei latauksen aikana).
+// Erillinen Kumppanilaskutus-sivu poistettu: ei ruutua eikä valikkokohtaa, reitti ohjaa Laskutukseen.
 const base = { role: 'admin', isGlobalAdmin: false, globalAdminMode: false, billingModuleEnabled: true };
-const has = (p) => buildHallintaGroups({ ...base, partnershipsEnabled: p }).flatMap((g) => g.tiles).some((t) => t.href === '/hallinta/kumppanilaskutus');
-assert.equal(has(true), true);
-assert.equal(has(false), false);
-assert.equal(has(null), false);
-const child = (p) => hallintaNavChildren({ ...base, partnershipsEnabled: p }).some((c) => c.href === '/hallinta/kumppanilaskutus');
-assert.equal(child(false), false);
-assert.equal(child(null), false);
+for (const p of [true, false, null]) {
+  assert.ok(!buildHallintaGroups({ ...base, partnershipsEnabled: p }).flatMap((g) => g.tiles).some((t) => t.href.includes('kumppanilaskutus')));
+  assert.ok(!hallintaNavChildren({ ...base, partnershipsEnabled: p }).some((c) => c.href.includes('kumppanilaskutus')));
+}
 
 // Tarjoamispaikat käyttävät yhteistä kuvausta.
 const src = (p) => readFileSync(new URL(`../src/${p}`, import.meta.url), 'utf8');
@@ -32,7 +29,8 @@ assert.match(src('components/CompanySignupForm.tsx'), /!form\.modules\.partners 
 // Työraportti, lista, yhteenveto ja tuloste tarkistavat Kumppanuudet-moduulin.
 assert.match(src('pages/WorkReportDetailPage.tsx'), /const partnerBillingOn = partnershipsEnabled === true;/);
 assert.match(src('components/ReportListItem.tsx'), /&& partnershipsEnabled\n/);
-assert.match(src('pages/WorkReportBillingSummaryPage.tsx'), /partnershipsEnabled !== true/);
+assert.match(src('routes/authenticatedRoutes.tsx'), /path: 'kumppanilaskutus', element: <Navigate to="\/laskutus" replace \/>/);
+assert.match(src('pages/BillingPage.tsx'), /partnershipsEnabled=\{partnershipsEnabled === true\}/);
 assert.match(src('lib/workReportPrintAction.ts'), /loadCompanyPartnershipsEnabled/);
 assert.match(src('routes/authenticatedRoutes.tsx'), /<PartnershipsModuleGate session=\{session\}>/);
 console.log('billing-partner-gating: ok');
