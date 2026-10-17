@@ -1,3 +1,4 @@
+import BrandLogo from './BrandLogo';
 import { Link, useLocation } from 'react-router-dom';
 import { useCallback, useState, useSyncExternalStore, type ReactNode } from 'react';
 import AppSidebar from './AppSidebar';
@@ -89,9 +90,8 @@ export default function AppLayout({ session, children, noSidebar = false }: Prop
               ☰
             </button>
           ) : null}
-          <Link to="/" className="brand-link">
-            <span className="brand-icon">🏢</span>
-            <span>BC Smartapp</span>
+          <Link to="/" className="brand-link" aria-label="BC Smartapp">
+            <BrandLogo variant="mark" size="1.55rem" />
           </Link>
         </div>
         {showSidebar ? null : (

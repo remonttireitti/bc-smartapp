@@ -11,12 +11,12 @@ export default defineConfig({
     tripDistancePlugin(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['icon.svg', 'pwa-180.png', 'pwa-192.png', 'pwa-512.png', 'refrigerant-bottle-default.png', 'BC-Smartapp-kayttoohje.pdf'],
+      includeAssets: ['icon.svg', 'favicon.svg', 'favicon-16.png', 'favicon-32.png', 'pwa-180.png', 'pwa-192.png', 'pwa-512.png', 'pwa-512-maskable.png', 'og.png', 'brand/logo-icon.svg', 'brand/logo-horizontal.svg', 'refrigerant-bottle-default.png', 'BC-Smartapp-kayttoohje.pdf'],
       manifest: {
         name: 'BC Smartapp',
         short_name: 'BC Smartapp',
         description: 'Työraportit, huollot, varasto ja asiakashallinta',
-        theme_color: '#1e40af',
+        theme_color: '#2563eb',
         background_color: '#ffffff',
         display: 'standalone',
         orientation: 'portrait-primary',
@@ -38,7 +38,7 @@ export default defineConfig({
             purpose: 'any',
           },
           {
-            src: 'pwa-512.png',
+            src: 'pwa-512-maskable.png',
             sizes: '512x512',
             type: 'image/png',
             purpose: 'maskable',

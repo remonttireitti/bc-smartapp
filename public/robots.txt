@@ -4,6 +4,9 @@ Allow: /$
 Allow: /login$
 Allow: /assets/
 Allow: /icon.svg
+Allow: /favicon
+Allow: /og.png
+Allow: /brand/
 Allow: /pwa-
 Disallow: /
 
