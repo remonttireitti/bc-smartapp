@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
 import { Navigate } from 'react-router-dom';
 import AppLayout from '../components/AppLayout';
+import { HubTileGrid } from '../components/HubTile';
 import DashboardWelcomeCard from '../components/DashboardWelcomeCard';
 import OnboardingDemoPanel from '../components/OnboardingDemoPanel';
 import PendingWorkOrdersBanner from '../components/PendingWorkOrdersBanner';
@@ -23,7 +23,7 @@ import { supabase } from '../lib/supabase';
 
 type ModuleTile = {
   title: string;
-  desc: string;
+  lines: string[];
   color: string;
   href: string;
   menuPath?: string;
@@ -31,21 +31,21 @@ type ModuleTile = {
 };
 
 const MODULES: ModuleTile[] = [
-  { title: 'Työraportti', desc: 'Työtilaukset ja raportit', color: '#0ea5e9', href: '/tyoraportit', licenseModule: 'base' },
-  { title: 'Laskutus', desc: 'Kumppani- ja asiakaslaskutus', color: '#6366f1', href: '/laskutus', licenseModule: 'billing' },
-  { title: 'Huoltoraportti', desc: 'Huoltopöytäkirjat ja laiterekisteri', color: '#22c55e', href: '/huoltoraportit', licenseModule: 'base' },
-  { title: 'Asiakkaat', desc: 'Asiakkaat, laitteet, dokumentit', color: '#3b82f6', href: '/asiakkaat', licenseModule: 'base' },
-  { title: 'Tarjouspyyntö', desc: 'Tarjoukset, laskelmat ja tulosteet', color: '#f97316', href: '/tarjouspyynnot', licenseModule: 'quotes' },
-  { title: 'Varasto', desc: 'Materiaalit ja kylmäaine', color: '#a855f7', href: '/varasto', licenseModule: 'base' },
+  { title: 'Työraportti', lines: ['Työtilaukset ja päiväkirjaukset', 'Kalenteri ja raportit'], color: '#0ea5e9', href: '/tyoraportit', licenseModule: 'base' },
+  { title: 'Laskutus', lines: ['Kumppanilaskutus', 'Asiakaslaskutus'], color: '#6366f1', href: '/laskutus', licenseModule: 'billing' },
+  { title: 'Huoltoraportti', lines: ['Huoltopöytäkirjat', 'Laiterekisteri'], color: '#22c55e', href: '/huoltoraportit', licenseModule: 'base' },
+  { title: 'Asiakkaat', lines: ['Asiakasrekisteri', 'Laitteet ja dokumentit'], color: '#3b82f6', href: '/asiakkaat', licenseModule: 'base' },
+  { title: 'Tarjouspyyntö', lines: ['Tarjoukset ja laskelmat', 'Asennussuunnittelu'], color: '#f97316', href: '/tarjouspyynnot', licenseModule: 'quotes' },
+  { title: 'Varasto', lines: ['Materiaalit', 'Kylmäainekirjanpito'], color: '#a855f7', href: '/varasto', licenseModule: 'base' },
   {
     title: 'Etäohjaus ja seuranta',
-    desc: 'Lämpötilaseuranta ja VRF-laitteet',
+    lines: ['Lämpötilaseuranta', 'VRF ohjaus ja seuranta'],
     color: '#14b8a6',
     href: '/etaseuranta',
     licenseModule: 'remote_monitoring',
   },
-  { title: 'Työkalut', desc: 'Työkaluinventaario', color: '#ec4899', href: '/tyokalut', licenseModule: 'tools' },
-  { title: 'Hallinta', desc: 'Omat tiedot, yritys ja kumppanuudet', color: '#8b5cf6', href: '/hallinta/omat' },
+  { title: 'Työkalut', lines: ['Työkaluinventaario', 'Lainaus ja varaukset'], color: '#ec4899', href: '/tyokalut', licenseModule: 'tools' },
+  { title: 'Hallinta', lines: ['Omat tiedot ja yritys', 'Käyttäjät ja kumppanuudet'], color: '#8b5cf6', href: '/hallinta/omat' },
 ];
 
 interface Props {
@@ -53,10 +53,10 @@ interface Props {
 }
 
 const PORTAL_MODULES: ModuleTile[] = [
-  { title: 'Työtilaus', desc: 'Lähetä työtilaus palveluyritykselle', color: '#0ea5e9', href: '/tyoraportit/tilaus/uusi' },
-  { title: 'Työraportit', desc: 'Omat tilaukset ja valmiit raportit', color: '#0284c7', href: '/tyoraportit' },
-  { title: 'Huoltoraportit', desc: 'Valmiit huoltopöytäkirjat', color: '#22c55e', href: '/huoltoraportit' },
-  { title: 'Kohteet', desc: 'Asiakaskohteet ja laitteet', color: '#3b82f6', href: '/asiakkaat' },
+  { title: 'Työtilaus', lines: ['Lähetä työtilaus', 'palveluyritykselle'], color: '#0ea5e9', href: '/tyoraportit/tilaus/uusi' },
+  { title: 'Työraportit', lines: ['Omat tilaukset', 'Valmiit raportit'], color: '#0284c7', href: '/tyoraportit' },
+  { title: 'Huoltoraportit', lines: ['Valmiit huoltopöytäkirjat'], color: '#22c55e', href: '/huoltoraportit' },
+  { title: 'Kohteet', lines: ['Kohteet', 'Laitteet'], color: '#3b82f6', href: '/asiakkaat' },
 ];
 
 const EMPTY_PENDING: PendingWorkOrderCounts = {
@@ -87,10 +87,10 @@ export default function Dashboard({ session }: Props) {
       return true;
     }).map((module) => {
       if (module.title === 'Laskutus' && partnershipsEnabled === false) {
-        return { ...module, desc: 'Asiakaslaskutus' };
+        return { ...module, lines: ['Asiakaslaskutus'] };
       }
       if (module.title === 'Hallinta' && partnershipsEnabled === false) {
-        return { ...module, desc: 'Omat tiedot ja yritysasetukset' };
+        return { ...module, lines: ['Omat tiedot', 'Yritysasetukset'] };
       }
       return module;
     });
@@ -155,15 +155,7 @@ export default function Dashboard({ session }: Props) {
       )}
 
 
-      <section className="grid">
-        {visibleModules.map((m) => (
-          <Link key={m.title} to={m.href} className="tile tile-calm" style={{ borderLeftColor: m.color }}>
-            {m.menuPath ? <span className="tile-menu-path">{m.menuPath}</span> : null}
-            <strong>{m.title}</strong>
-            <span>{m.desc}</span>
-          </Link>
-        ))}
-      </section>
+      <HubTileGrid tiles={visibleModules} />
     </AppLayout>
   );
 }
