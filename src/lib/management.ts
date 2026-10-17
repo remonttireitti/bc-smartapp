@@ -93,6 +93,8 @@ export type CompanySettings = {
   phone?: string;
   email?: string;
   website?: string;
+  /** Yhteyshenkilö (tilauslomakkeelta, muokattavissa Oma yritys -sivulla). */
+  contact?: { name?: string; email?: string; phone?: string };
   /** Tukes-pätevyysnumero (kylmälaiteasennukset), näytetään tarjouksessa. */
   tukes_number?: string;
   /** Tarjousten allekirjoittajan nimi (esim. Lämpökatsastus-tuloste). */
