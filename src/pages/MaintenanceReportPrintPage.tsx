@@ -80,7 +80,7 @@ export default function MaintenanceReportPrintPage({ session }: Props) {
     autoPrintTriggeredRef.current = false;
 
     try {
-      const bundle = await loadMaintenanceReportPrintBundle(reportId, { faultyKonvektoritOnly });
+      const bundle = await loadMaintenanceReportPrintBundle(reportId, { faultyKonvektoritOnly, embedImages: false });
       setReportData(bundle.data);
       setHtml(extractPrintableHtmlFragment(bundle.html));
       setPrintTitle(formatPrintSaveFileName(bundle.documentTitle));

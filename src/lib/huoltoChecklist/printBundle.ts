@@ -16,7 +16,7 @@ type Row = {
   equipment: { name: string; tag: string | null; model: string | null; serial_number: string | null; location: string | null } | null;
 };
 
-export async function loadChecklistPrintBundle(reportId: string, category: ChecklistCategoryKey) {
+export async function loadChecklistPrintBundle(reportId: string, category: ChecklistCategoryKey, embedImages = true) {
   const { data: rowData, error } = await supabase
     .from('maintenance_reports')
     .select('data, branding_company_id, owner_company_id, customers(name, address, postal_code, city), equipment(name, tag, model, serial_number, location)')
@@ -26,25 +26,32 @@ export async function loadChecklistPrintBundle(reportId: string, category: Check
   const row = rowData as unknown as Row;
   const data: ChecklistReportData = normalizeChecklistReport(row.data, category);
 
-  const { data: companyRow } = await supabase
-    .from('companies')
-    .select('name, logo_url')
-    .eq('id', row.branding_company_id ?? row.owner_company_id)
-    .single();
-  const company = companyRow as { name: string; logo_url: string | null } | null;
-  let logoUrl: string | undefined;
-  try {
-    const resolved = await resolveCompanyLogoUrl(company?.logo_url);
-    if (resolved) {
-      const embedded = await embedPrintThumbnail(resolved);
-      logoUrl = embedded.startsWith('data:') ? embedded : resolved;
+  const logoTask = (async () => {
+    const { data: companyRow } = await supabase
+      .from('companies')
+      .select('name, logo_url')
+      .eq('id', row.branding_company_id ?? row.owner_company_id)
+      .single();
+    const company = companyRow as { name: string; logo_url: string | null } | null;
+    let logoUrl: string | undefined;
+    try {
+      const resolved = await resolveCompanyLogoUrl(company?.logo_url);
+      if (resolved) {
+        const embedded = embedImages ? await embedPrintThumbnail(resolved) : resolved;
+        logoUrl = embedded.startsWith('data:') ? embedded : resolved;
+      }
+    } catch {
+      /* logo valinnainen */
     }
-  } catch {
-    /* logo valinnainen */
-  }
-
+    return { company, logoUrl };
+  })();
   const paths = Object.values(data.items).flatMap((s) => (s.photos ?? []).map((p) => p.storagePath));
-  const imageUrls = paths.length ? await shrinkUrlMapForPrint(await resolveMaintenanceReportImageUrls(paths)) : {};
+  const imagesTask = (async () => {
+    if (!paths.length) return {} as Record<string, string>;
+    const raw = await resolveMaintenanceReportImageUrls(paths);
+    return embedImages ? shrinkUrlMapForPrint(raw) : raw;
+  })();
+  const [{ company, logoUrl }, imageUrls] = await Promise.all([logoTask, imagesTask]);
 
   const customerName = row.customers?.name ?? data.asiakas;
   const documentTitle = buildChecklistPrintTitle(data, customerName);
