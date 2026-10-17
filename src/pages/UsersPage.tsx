@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
-import { Link, useOutletContext } from 'react-router-dom';
+import { useOutletContext } from 'react-router-dom';
 import IconButton from '../components/IconButton';
 import ToggleSwitch from '../components/ToggleSwitch';
 import { IconTrash } from '../components/icons';
@@ -40,7 +40,7 @@ function userLabel(user: Pick<CompanyUser, 'display_name' | 'email' | 'id'>) {
   return user.display_name?.trim() || user.email?.trim() || user.id;
 }
 
-export default function UsersPage() {
+export default function UsersPage({ fixedCompanyId }: { fixedCompanyId?: string } = {}) {
   const { profile, billingModuleEnabled } = useOutletContext<ManagementOutletContext>();
   const { globalAdminMode } = useGlobalAdminMode();
   const isGlobalAdmin = !!profile.is_global_admin;
@@ -51,7 +51,10 @@ export default function UsersPage() {
 
   const [users, setUsers] = useState<CompanyUser[]>([]);
   const [companies, setCompanies] = useState<Company[]>([]);
-  const [companyFilter, setCompanyFilter] = useState('');
+  const [companyFilter, setCompanyFilter] = useState(fixedCompanyId ?? '');
+  useEffect(() => {
+    if (fixedCompanyId) setCompanyFilter(fixedCompanyId);
+  }, [fixedCompanyId]);
   const [drafts, setDrafts] = useState<Record<string, UserDraft>>({});
   const [saveBusyId, setSaveBusyId] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -349,24 +352,11 @@ export default function UsersPage() {
   return (
     <>
       <section className="panel">
-        <h2>Käyttäjät</h2>
-        <p className="muted">
-          Yrityksen sisäiset käyttäjät (asentajat, ylläpitäjät). Asiakas- ja tilaajaportaalit hallitaan{' '}
-          <Link to="/asiakkaat">asiakaskorteilta</Link> ja <Link to="/hallinta/tilaajat">tilaajarekisteristä</Link>.
-        </p>
         {isGlobalAdmin && !globalAdminMode && (
-          <p className="muted global-admin-hint">
-            GBA-toiminnot (kaikki yritykset, nimen ja yrityksen muokkaus, poisto): ota yllä oleva{' '}
-            <strong>Globaali admin (GBA)</strong> -kytkin päälle.
-          </p>
-        )}
-        {gbaActive && (
-          <p className="muted global-admin-hint">
-            GBA päällä — näet kaikki yritykset. Voit korjata käyttäjän nimen ja yrityksen suoraan listasta.
-          </p>
+          <p className="muted global-admin-hint">Kaikkien yritysten käyttäjät: Hallinta → Globaali admin -kytkin.</p>
         )}
 
-        {gbaActive && companies.length > 0 && (
+        {gbaActive && !fixedCompanyId && companies.length > 0 && (
           <label className="user-company-filter">
             Rajaa yrityksellä
             <select value={companyFilter} onChange={(e) => setCompanyFilter(e.target.value)}>
@@ -560,7 +550,7 @@ export default function UsersPage() {
         </p>
         <form onSubmit={inviteUser}>
           <div className="line-form-grid">
-            {gbaActive && companies.length > 0 && (
+            {gbaActive && !fixedCompanyId && companies.length > 0 && (
               <label>
                 Yritys
                 <select

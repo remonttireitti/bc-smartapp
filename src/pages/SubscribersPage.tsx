@@ -207,14 +207,6 @@ export default function SubscribersPage() {
 
   return (
     <div>
-      <p className="breadcrumb">
-        <Link to="/">Etusivu</Link> / <Link to="/hallinta/yritys">Hallinta</Link> / Tilaajat
-      </p>
-      <h1>Tilaajat</h1>
-      <p className="muted">
-        Moniasiakas-tilaaja (esim. kiinteistönhallinta). Linkitä asiakaskohteet ja raportit tilaajaan —
-        tilaajalle voidaan myöntää oma kirjautuminen, jolloin hän näkee kaikki kohteensa.
-      </p>
 
       {message && <p className="success">{message}</p>}
       {error && <p className="error">{error}</p>}

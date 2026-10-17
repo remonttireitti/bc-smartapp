@@ -518,7 +518,7 @@ export default function PumpDeviceRegistryPage({ session }: Props) {
 
               muokataan{' '}
 
-              <Link to="/hallinta/yritys">yrityksen asetuksissa</Link>.
+              <Link to="/hallinta/yritys?osio=hinnat">yrityksen hinnoissa</Link>.
 
             </p>
 

@@ -1,3 +1,4 @@
+import { hallintaNavChildren } from './hallintaNav';
 import { isLicenseModuleAccessible, type CompanyLicenseSnapshot, type LicenseModuleKey } from './companyLicense';
 import { TEMP_MONITORING_BASE, VRF_MONITORING_BASE } from './remoteMonitoringRoutes';
 import { newHuoltoReportHref, type HuoltoAccess } from './huoltoCategories';
@@ -43,22 +44,8 @@ export type MainNavContext = {
 
 /** Sama gating kuin etusivun ruuduilla ja Hallinnan välilehdillä. */
 export function buildMainNav(ctx: MainNavContext): MainNavItem[] {
-  const isAdmin = ctx.role === 'admin';
-  const isManager = ctx.role === 'manager';
   const billingOn = ctx.billingModuleEnabled === true;
-  const partnershipsOff = ctx.partnershipsEnabled === false;
-
-  const hallinta: MainNavChild[] = [{ label: 'Omat tiedot', href: '/hallinta/omat' }];
-  if (isAdmin || isManager) hallinta.push({ label: 'Yritystiedot', href: '/hallinta/yritys' });
-  if (isAdmin) {
-    hallinta.push({ label: 'Tilaajat', href: '/hallinta/tilaajat' });
-    hallinta.push({ label: 'Käyttäjät', href: '/hallinta/kayttajat' });
-    if (!partnershipsOff) hallinta.push({ label: 'Kumppanuudet', href: '/hallinta/kumppanuudet' });
-    if (billingOn) hallinta.push({ label: 'Kumppanilaskutus', href: '/hallinta/kumppanilaskutus' });
-  }
-  if (ctx.isGlobalAdmin && ctx.globalAdminMode) {
-    hallinta.push({ label: 'Globaali admin', href: '/hallinta/global-admin' });
-  }
+  const hallinta: MainNavChild[] = hallintaNavChildren(ctx);
 
   const items: MainNavItem[] = [
     {
@@ -119,7 +106,7 @@ export function buildMainNav(ctx: MainNavContext): MainNavItem[] {
         { label: 'Varauskalenteri', href: '/tyokalut/varaus' },
       ],
     },
-    { key: 'admin', label: 'Hallinta', href: hallinta[1]?.href ?? '/hallinta/omat', bases: ['/hallinta'], children: hallinta },
+    { key: 'admin', label: 'Hallinta', href: '/hallinta', bases: ['/hallinta'], children: hallinta },
   ];
 
   return items.filter((item) => {

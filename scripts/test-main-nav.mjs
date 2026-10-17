@@ -11,12 +11,12 @@ for (const v of [false, null, undefined]) {
   assert.ok(!nav.some((i) => i.key === 'billing'));
   assert.ok(!nav.find((i) => i.key === 'admin').children.some((c) => c.href.includes('kumppanilaskutus')));
 }
-// Non-admin: only Omat tiedot; manager also Yritystiedot.
+// Non-admin: only Omat tiedot; manager also Oma yritys.
 assert.deepEqual(buildMainNav({ ...base, role: 'technician' }).find((i) => i.key === 'admin').children.map((c) => c.label), ['Omat tiedot']);
-assert.deepEqual(buildMainNav({ ...base, role: 'manager' }).find((i) => i.key === 'admin').children.map((c) => c.label), ['Omat tiedot', 'Yritystiedot']);
+assert.deepEqual(buildMainNav({ ...base, role: 'manager' }).find((i) => i.key === 'admin').children.map((c) => c.label), ['Omat tiedot', 'Oma yritys']);
 // Global admin tab only when GBA mode on.
-assert.ok(buildMainNav({ ...base, isGlobalAdmin: true, globalAdminMode: true }).find((i) => i.key === 'admin').children.some((c) => c.label === 'Globaali admin'));
-assert.ok(!buildMainNav({ ...base, isGlobalAdmin: true }).find((i) => i.key === 'admin').children.some((c) => c.label === 'Globaali admin'));
+assert.ok(buildMainNav({ ...base, isGlobalAdmin: true, globalAdminMode: true }).find((i) => i.key === 'admin').children.some((c) => c.label === 'Yritykset'));
+assert.ok(!buildMainNav({ ...base, isGlobalAdmin: true }).find((i) => i.key === 'admin').children.some((c) => c.label === 'Yritykset'));
 // Partnerships off => no Kumppanuudet, billing has no sub-modes.
 const np = buildMainNav({ ...base, partnershipsEnabled: false });
 assert.equal(np.find((i) => i.key === 'billing').children.length, 0);

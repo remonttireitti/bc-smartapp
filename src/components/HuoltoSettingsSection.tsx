@@ -13,6 +13,10 @@ type Props = {
   /** companies.settings kokonaisuudessaan (huolto-avain luetaan tästä). */
   companySettings: unknown;
   onChange: (next: HuoltoSettings) => void;
+  /** toggles = moduuli + lajit, prices = hinnasto käytössä oleville tyypeille. */
+  mode: 'toggles' | 'prices';
+  /** Ilman omaa otsikkoa/section-kääriä (esim. välilehdellä). */
+  bare?: boolean;
 };
 
 function fmt(n: number | null | undefined): string {
@@ -27,7 +31,7 @@ function parse(raw: string): number | null {
 }
 
 /** Yritystiedot → Huoltoraportit: lajit päälle/pois ja hinnasto (alv 0 %). */
-export default function HuoltoSettingsSection({ companySettings, onChange }: Props) {
+export default function HuoltoSettingsSection({ companySettings, onChange, mode, bare }: Props) {
   const settings = parseHuoltoSettings(companySettings);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
 
@@ -68,21 +72,50 @@ export default function HuoltoSettingsSection({ companySettings, onChange }: Pro
     );
   }
 
-  return (
-    <section className="form-section" id="huoltoraportit">
-      <h2>Huoltoraportit</h2>
-      <ToggleSwitch label="Käytössä" checked={settings.enabled} onChange={(enabled) => update({ ...settings, enabled })} />
+  if (mode === 'prices') {
+    const rows = HUOLTO_CATEGORIES.flatMap((category) =>
+      huoltoReportTypesOf(category.key)
+        .filter((t) => settings.enabled && settings.types[t.key]?.enabled)
+        .map((t) => ({ t, category })),
+    );
+    const body = rows.length === 0 ? (
+      <p className="muted">Ei käytössä olevia huoltolajeja.</p>
+    ) : (
+      <div className="huolto-settings-table-wrap">
+        <table className="huolto-settings-table">
+          <thead>
+            <tr>
+              <th>Laji</th>
+              <th>Perushinta € (alv 0 %)</th>
+              <th>Lisätunti €/h (alv 0 %)</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map(({ t, category }) => (
+              <tr key={t.key} className="huolto-settings-category" style={{ borderLeftColor: category.color }}>
+                <td>{t.key === category.key ? <strong>{t.label}</strong> : <>{category.short} · {t.label}</>}</td>
+                <td>{priceInput(t.key, 'price', false)}</td>
+                <td>{priceInput(t.key, 'hourly', false)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+    return bare ? body : (
+      <section className="form-section" id="huoltohinnasto">
+        <h2>Huoltohinnasto</h2>
+        {body}
+      </section>
+    );
+  }
+
+  const toggles = (
+    <>
+      <ToggleSwitch label="Huoltoraportit käytössä" checked={settings.enabled} onChange={(enabled) => update({ ...settings, enabled })} />
       {settings.enabled ? (
         <div className="huolto-settings-table-wrap">
           <table className="huolto-settings-table">
-            <thead>
-              <tr>
-                <th>Laji</th>
-                <th>Käytössä</th>
-                <th>Perushinta € (alv 0 %)</th>
-                <th>Lisätunti €/h (alv 0 %)</th>
-              </tr>
-            </thead>
             <tbody>
               {HUOLTO_CATEGORIES.map((category) => {
                 const types = huoltoReportTypesOf(category.key);
@@ -92,8 +125,6 @@ export default function HuoltoSettingsSection({ companySettings, onChange }: Pro
                     <tr key={category.key} className="huolto-settings-category" style={{ borderLeftColor: category.color }}>
                       <td><strong>{category.label}</strong></td>
                       <td><ToggleSwitch checked={on} onChange={(v) => setType(category.key, { enabled: v })} /></td>
-                      <td>{priceInput(category.key, 'price', !on)}</td>
-                      <td>{priceInput(category.key, 'hourly', !on)}</td>
                     </tr>
                   );
                 }
@@ -102,24 +133,20 @@ export default function HuoltoSettingsSection({ companySettings, onChange }: Pro
                   <Fragment key={category.key}>
                     <tr className="huolto-settings-category" style={{ borderLeftColor: category.color }}>
                       <td><strong>{category.label}</strong></td>
-                      <td>
-                        <ToggleSwitch checked={anyOn} onChange={(v) => setCategory(category.key, v)} />
-                      </td>
-                      <td />
-                      <td />
+                      <td><ToggleSwitch checked={anyOn} onChange={(v) => setCategory(category.key, v)} /></td>
                     </tr>
                     {anyOn
-                      ? types.map((t) => {
-                          const on = settings.types[t.key]?.enabled === true;
-                          return (
-                            <tr key={t.key} className="huolto-settings-type">
-                              <td>{t.label}</td>
-                              <td><ToggleSwitch checked={on} onChange={(v) => setType(t.key, { enabled: v })} /></td>
-                              <td>{priceInput(t.key, 'price', !on)}</td>
-                              <td>{priceInput(t.key, 'hourly', !on)}</td>
-                            </tr>
-                          );
-                        })
+                      ? types.map((t) => (
+                          <tr key={t.key} className="huolto-settings-type">
+                            <td>{t.label}</td>
+                            <td>
+                              <ToggleSwitch
+                                checked={settings.types[t.key]?.enabled === true}
+                                onChange={(v) => setType(t.key, { enabled: v })}
+                              />
+                            </td>
+                          </tr>
+                        ))
                       : null}
                   </Fragment>
                 );
@@ -128,6 +155,12 @@ export default function HuoltoSettingsSection({ companySettings, onChange }: Pro
           </table>
         </div>
       ) : null}
+    </>
+  );
+  return bare ? toggles : (
+    <section className="form-section" id="huoltoraportit">
+      <h2>Huoltoraportit</h2>
+      {toggles}
     </section>
   );
 }

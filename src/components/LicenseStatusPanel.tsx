@@ -161,7 +161,7 @@ export default function LicenseStatusPanel({ license, canManageOrder, onRefresh 
           Lataa käyttöohje (PDF)
         </a>
         {' · '}
-        <Link to="/hallinta/yritys">Yritystiedot</Link>
+        <Link to="/hallinta/yritys">Oma yritys</Link>
       </p>
     </section>
   );

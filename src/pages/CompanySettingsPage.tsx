@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useRef, useState } from 'react';
-import { useOutletContext } from 'react-router-dom';
+import { useLocation, useOutletContext, useSearchParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import {
   COMPANY_LOGO_MAX_BYTES,
@@ -37,6 +37,10 @@ export default function CompanySettingsPage() {
   const localPreviewRef = useRef<string | null>(null);
   const canManageLogo = canManageCompanyLogo(profile.role);
   const canEditSettings = canEditCompanySettings(profile.role);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const location = useLocation();
+  const rawTab = searchParams.get('osio') ?? (location.hash === '#huoltoraportit' ? 'moduulit' : 'perustiedot');
+  const tab = rawTab === 'moduulit' || rawTab === 'hinnat' ? rawTab : 'perustiedot';
 
   function revokeLocalPreview() {
     if (localPreviewRef.current) {
@@ -174,8 +178,31 @@ export default function CompanySettingsPage() {
     setSettings((s) => ({ ...s, billing: { ...s.billing, [field]: value } }));
   }
 
+  const tabs = [
+    { id: 'perustiedot', label: 'Perustiedot' },
+    { id: 'moduulit', label: 'Moduulit' },
+    { id: 'hinnat', label: 'Hinnat' },
+  ] as const;
+
   return (
     <form className="panel form-grid" onSubmit={onSubmit}>
+      {canEditSettings && (
+        <div className="tabs company-settings-tabs field-span-all">
+          {tabs.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              className={tab === t.id ? 'tab active' : 'tab'}
+              onClick={() => setSearchParams((p) => { const n = new URLSearchParams(p); n.set('osio', t.id); return n; }, { replace: true })}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {(tab === 'perustiedot' || !canEditSettings) && (
+        <>
       <section className="form-section">
         <h2>Perustiedot</h2>
         <label>
@@ -218,10 +245,10 @@ export default function CompanySettingsPage() {
             <p className="muted">Vain ylläpitäjä tai esimies voi vaihtaa logon.</p>
           )}
           <p className="muted">PNG, JPG, WebP tai GIF. Max {(COMPANY_LOGO_MAX_BYTES / (1024 * 1024)).toFixed(0)} MB.</p>
-        </div>      </section>
-
-      {canEditSettings ? (
-        <>
+        </div>
+      </section>
+          {canEditSettings && (
+            <>
           <section className="form-section">
             <h2>Yhteystiedot</h2>
         <div className="line-form-grid">
@@ -246,15 +273,96 @@ export default function CompanySettingsPage() {
           <label>Laskutus sähköposti<input type="email" value={settings.billing?.invoice_email ?? ''} onChange={(e) => setBilling('invoice_email', e.target.value)} /></label>
         </div>
       </section>
+            </>
+          )}
+        </>
+      )}
 
-      <DeviceRegistrySettingsFields settings={settings} onChange={setSettings} />
+      {canEditSettings && tab === 'moduulit' && (
+        <>
+      <HuoltoSettingsSection
+        mode="toggles"
+        companySettings={settings}
+        onChange={(huolto) => setSettings((current) => ({ ...current, huolto }))}
+      />
+
+      <section className="form-section">
+        <h2>Kumppanuudet ja laskutuksen seuranta</h2>
+        <div className="settings-toggle-list">
+          <ToggleSwitch
+            label="Kumppanuudet"
+            checked={settings.partnerships_enabled === true}
+            onChange={(partnerships_enabled) => setSettings((current) => ({ ...current, partnerships_enabled }))}
+          />
+          {settings.partnerships_enabled === true && (
+            <>
+              <ToggleSwitch
+                label="Salli kumppanuuskutsut"
+                checked={partnershipDiscoverable}
+                onChange={setPartnershipDiscoverable}
+              />
+              <ToggleSwitch
+                label="Kylmäaine kaikkien kumppanien käyttöön"
+                checked={settings.refrigerant?.trading_open_to_all_partners === true}
+                onChange={(trading_open_to_all_partners) =>
+                  setSettings((current) => ({
+                    ...current,
+                    refrigerant: { ...current.refrigerant, trading_open_to_all_partners },
+                  }))
+                }
+              />
+            </>
+          )}
+          <ToggleSwitch
+            label="Asiakaslaskutuksen seuranta"
+            checked={settings.billing?.track_customer_invoicing ?? false}
+            onChange={(track_customer_invoicing) =>
+              setSettings((s) => ({ ...s, billing: { ...s.billing, track_customer_invoicing } }))
+            }
+          />
+        </div>
+      </section>
+        </>
+      )}
+
+      {canEditSettings && tab === 'hinnat' && (
+        <>
+      <HuoltoSettingsSection
+        mode="prices"
+        companySettings={settings}
+        onChange={(huolto) => setSettings((current) => ({ ...current, huolto }))}
+      />
+
+      <section className="form-section">
+        <h2>Asiakaslaskutuksen oletustuntihinnat</h2>
+        <PartnerBillingRatesFields
+          rates={settings.billing?.customer_rates ?? {}}
+          onChange={(customer_rates) =>
+            setSettings((s) => ({
+              ...s,
+              billing: { ...s.billing, customer_rates: { ...s.billing?.customer_rates, ...customer_rates } },
+            }))
+          }
+        />
+      </section>
+
+      {showBillingSettings && showPartnershipSettings && (
+          <section className="form-section">
+            <h2>Kumppanilaskutuksen oletushinnat</h2>
+            <PartnerBillingRatesFields
+              rates={settings.billing?.partner_rates ?? {}}
+              onChange={(partner_rates) =>
+                setSettings((s) => ({
+                  ...s,
+                  billing: { ...s.billing, partner_rates: { ...s.billing?.partner_rates, ...partner_rates } },
+                }))
+              }
+            />
+          </section>
+      )}
 
       <section className="form-section">
         <h2>Tarjouspyynnöt</h2>
-        <p className="muted">
-          Oletusarvot asennustarvikke-laskurin sisäiseen hinnoitteluun (Työt → Asennus tarvikkeet). Voit
-          muuttaa arvoja myös tarjouskohtaisesti.
-        </p>
         <div className="line-form-grid">
           <label>
             Työn hankintahinta (€/h, alv 0)
@@ -321,10 +429,6 @@ export default function CompanySettingsPage() {
 
       <section className="form-section">
         <h2>Ajomatkat</h2>
-        <p className="muted">
-          Km-hintoja käytetään työkirjauksen automaattiseen km-korvausriviin. Oma hinta on kustannus tai
-          kumppanille kirjattava summa; asiakashinta erikseen asiakaslaskutuksessa.
-        </p>
         <div className="line-form-grid">
           <label>
             Km-korvaus — oma hinta (€/km)
@@ -363,137 +467,11 @@ export default function CompanySettingsPage() {
         </div>
       </section>
 
+      <DeviceRegistrySettingsFields settings={settings} onChange={setSettings} />
+
       {profile.company_id && <TripDestinationsSettingsSection companyId={profile.company_id} />}
-
-      <HuoltoSettingsSection
-        companySettings={settings}
-        onChange={(huolto) => setSettings((current) => ({ ...current, huolto }))}
-      />
-
-      <section className="form-section">
-        <h2>Kumppanuus- ja moniyritystoiminnot</h2>
-        <ToggleSwitch
-          label="Käytössä"
-          checked={settings.partnerships_enabled === true}
-          onChange={(partnerships_enabled) =>
-            setSettings((current) => ({
-              ...current,
-              partnerships_enabled,
-            }))
-          }
-        />
-        <p className="muted">
-          Kun pois päältä, sovellus toimii yksinyrityksenä: kumppanuudet, toimeksiannot kumppanille ja
-          kumppanilaskutus piilotetaan. Voit ottaa toiminnot käyttöön myöhemmin, kun tarvitset niitä.
-        </p>
-      </section>
-
-      {showPartnershipSettings && (
-      <section className="form-section">
-        <h2>Kumppanuudet</h2>
-        <ToggleSwitch
-          label="Salli kumppanuuskutsut"
-          checked={partnershipDiscoverable}
-          onChange={setPartnershipDiscoverable}
-        />
-        <p className="muted">
-          Kun sallittu, muut sovellusta käyttävät yritykset voivat löytää yrityksesi kumppanikutsua varten
-          (Hallinta → Kumppanuudet). Kun estetty, yritystä ei näy kutsulistalla eikä uusia kumppanuuksia voi
-          luoda — olemassa olevat kumppanuudet säilyvät.
-        </p>
-      </section>
-      )}
-
-      {showPartnershipSettings && (
-        <section className="form-section">
-          <h2>Kylmäaineen kauppa kumppaneille</h2>
-          <ToggleSwitch
-            label="Kaikki kumppanit saavat käyttää kylmäainetta työraporteilla"
-            checked={settings.refrigerant?.trading_open_to_all_partners === true}
-            onChange={(trading_open_to_all_partners) =>
-              setSettings((current) => ({
-                ...current,
-                refrigerant: {
-                  ...current.refrigerant,
-                  trading_open_to_all_partners,
-                },
-              }))
-            }
-          />
-          <p className="muted">
-            Oletuksena kumppani ei saa käyttää kylmäainettasi ilman erillistä oikeutta (Hallinta → Kumppanuudet →
-            Kylmäaineen kauppa). Kun tämä on päällä, jokainen aktiivinen kumppani voi käyttää pullojasi
-            työraporteillaan. Yksittäisiä kumppaneita voi silti rajata kumppanuusasetuksissa.
-          </p>
-        </section>
-      )}
-
-      <section className="form-section">
-        <h2>Asiakaslaskutuksen seuranta</h2>
-        <ToggleSwitch
-          label="Seurataan laskutusta asiakkaalta"
-          checked={settings.billing?.track_customer_invoicing ?? false}
-          onChange={(track_customer_invoicing) =>
-            setSettings((s) => ({
-              ...s,
-              billing: { ...s.billing, track_customer_invoicing },
-            }))
-          }
-        />
-        <p className="muted">
-          Koskee työraportteja ja tarjouspyyntöjä. Ei liity Laskutus-moduuliin (kumppanilaskutus). Työraportissa näkyy
-          asiakkaalle laskutettava summa ja tila erillään kumppanilaskutuksesta. Kumppanin tulosteessa voidaan näyttää
-          myös asiakkaalta laskutettava.
-        </p>
-      </section>
-
-      <section className="form-section">
-        <h2>Asiakaslaskutuksen oletustuntihinnat</h2>
-        <p className="muted">
-          Oletustuntihinnat työraportin asiakaslaskutuksessa. Kulurivillä oma hinta (ostohinta) ja erillinen asiakashinta.
-        </p>
-        <PartnerBillingRatesFields
-          rates={settings.billing?.customer_rates ?? {}}
-          onChange={(customer_rates) =>
-            setSettings((s) => ({
-              ...s,
-              billing: { ...s.billing, customer_rates: { ...s.billing?.customer_rates, ...customer_rates } },
-            }))
-          }
-        />
-      </section>
-
-      {showBillingSettings && showPartnershipSettings ? (
-        <>
-          <section className="form-section">
-            <h2>Kumppanilaskutuksen oletushinnat</h2>
-            <p className="muted">
-              Oletushinnat, joilla yrityksesi laskuttaa, kun teette työtä toisen yrityksen nimissä. Kumppanuus-sivulla
-              kumppani voi määrittää eri hinnan teille; raportin laatija voi poiketa yksittäisessä työraportissa.
-              Kulut lasketaan päiväkirjauksen riveiltä sellaisenaan.
-            </p>
-            <PartnerBillingRatesFields
-              rates={settings.billing?.partner_rates ?? {}}
-              onChange={(partner_rates) =>
-                setSettings((s) => ({
-                  ...s,
-                  billing: { ...s.billing, partner_rates: { ...s.billing?.partner_rates, ...partner_rates } },
-                }))
-              }
-            />
-          </section>
         </>
-      ) : (
-        <section className="form-section">
-          <p className="muted">
-            Laskutusmoduuli (kumppanilaskutus) ei ole käytössä. Kumppanilaskutuksen oletushinnat on piilotettu — ota
-            moduuli käyttöön globaalissa hallinnassa tarvittaessa.
-          </p>
-        </section>
       )}
-
-        </>
-      ) : null}
 
       {error && <p className="error">{error}</p>}
       {message && <p className="muted">{message}</p>}
@@ -501,16 +479,12 @@ export default function CompanySettingsPage() {
       {canEditSettings && (
         <div className="form-actions">
           <button type="submit" className="btn btn-primary" disabled={busy}>
-            {busy ? 'Tallennetaan…' : 'Tallenna yritystiedot'}
+            {busy ? 'Tallennetaan…' : 'Tallenna'}
           </button>
         </div>
       )}
 
-      {!canEditSettings && (
-        <p className="muted">
-          Esimies voi vaihtaa vain yrityksen logon. Muut yritystiedot muokkaa ylläpitäjä.
-        </p>
-      )}
+      {!canEditSettings && <p className="muted">Esimies voi vaihtaa logon. Muut tiedot muokkaa ylläpitäjä.</p>}
     </form>
   );
 }

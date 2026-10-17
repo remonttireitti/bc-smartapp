@@ -43,6 +43,9 @@ import InstallationPlanHubPage from '../pages/InstallationPlanHubPage';
 import InstallationPlansPage from '../pages/InstallationPlansPage';
 import InstallationPlanEditPage from '../pages/InstallationPlanEditPage';
 import InstallationPlanPrintPage from '../pages/InstallationPlanPrintPage';
+import HallintaHubPage from '../pages/HallintaHubPage';
+import GlobalAdminCompaniesPage from '../pages/globalAdmin/GlobalAdminCompaniesPage';
+import GlobalAdminCompanyPage from '../pages/globalAdmin/GlobalAdminCompanyPage';
 import GlobalAdminPage from '../pages/GlobalAdminPage';
 import PumpDeviceRegistryPage from '../pages/PumpDeviceRegistryPage';
 import InventoryPage from '../pages/InventoryPage';
@@ -212,7 +215,9 @@ export function buildAuthenticatedRoutes(session: Session): RouteObject[] {
       path: '/hallinta',
       element: <ManagementLayout session={session} />,
       children: [
-        { index: true, element: <Navigate to="/hallinta/omat" replace /> },
+        { index: true, element: <HallintaHubPage /> },
+        { path: 'yritykset', element: <GlobalAdminCompaniesPage /> },
+        { path: 'yritykset/:companyId', element: <GlobalAdminCompanyPage /> },
         { path: 'omat', element: <ProfileSettingsPage /> },
         { path: 'global-admin', element: <GlobalAdminPage /> },
         { path: 'yritys', element: <CompanySettingsPage /> },

@@ -191,7 +191,7 @@ export default function PartnershipsPage() {
       setEditingCustomersId(null);
       await load();
     } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : 'Tallennus epäonnistui.');
+      setError((saveError as { message?: string } | null)?.message || 'Tallennus epäonnistui.');
     }
   }
 

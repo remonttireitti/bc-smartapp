@@ -17619,3 +17619,11 @@ p.quote-outcome-unpriced {
 .huolto-settings-category td:first-child { border-left: 4px solid; border-left-color: inherit; }
 .huolto-settings-type td:first-child { padding-left: 1.6rem; }
 .huolto-price-input { width: 7rem; }
+
+/* ---------- Hallinta: etusivu ja välilehdet ---------- */
+.hallinta-hub { display: flex; flex-direction: column; gap: 1.1rem; }
+.hallinta-hub-title { font-size: .95rem; font-weight: 600; color: var(--text-muted); margin: 0 0 .4rem; text-transform: none; }
+.hallinta-hub-group .hub-grid { margin-top: 0; }
+.company-settings-tabs { margin: .25rem 0 .75rem; flex-wrap: wrap; }
+.settings-toggle-list { display: flex; flex-direction: column; align-items: flex-start; gap: .55rem; }
+.company-modules-editor .form-section + .form-section { margin-top: .75rem; }
