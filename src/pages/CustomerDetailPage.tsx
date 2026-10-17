@@ -620,7 +620,7 @@ export default function CustomerDetailPage({ session }: Props) {
           <h1>{customer.name}</h1>
           {!canWrite && !portalView ? <p className="muted">Vain luku</p> : null}
         </div>
-        {canWrite && (
+        {canWrite && !portalView && (
           <div className="page-header-actions">
             {huolto.loaded && huolto.access.moduleEnabled ? (
               <Link
@@ -866,7 +866,7 @@ export default function CustomerDetailPage({ session }: Props) {
         className="customer-section customer-collapsible"
         title={`Laitteet (${equipment.length})`}
         collapseKey="customer:equipment"
-        defaultOpen={portalView}
+        open={portalView ? true : undefined}
       >
         {canWrite && (
           <div className="section-head compact-section-head">
