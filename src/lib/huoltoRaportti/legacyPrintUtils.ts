@@ -2445,7 +2445,7 @@ export function generatePrintHTML(data: {
     (data.companyInfo as LegacyCompanyInfo | null)?.logoBase64 ?? '',
   ).trim();
   const logoOnlyHtml = logoSrc ? `
-    <img src="${escAttr(logoSrc)}" alt="Logo" style="max-height: 52px; max-width: 170px; width: auto; display: inline-block; vertical-align: middle;" />
+    <img class="logo" src="${escAttr(logoSrc)}" alt="Logo" style="max-height: 52px; max-width: 170px; width: auto; display: inline-block; vertical-align: middle;" />
   ` : '';
   const printSubtitle = [data.companyInfo?.name || '', data.asiakas || '', (() => {
     if (data.laiteTyyppi === 'konvektorit') {
