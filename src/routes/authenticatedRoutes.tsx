@@ -118,7 +118,7 @@ function LicensedWorkReportPartnerBillingPrintPage({ session }: { session: Sessi
   );
 }
 const LicensedBillingPage = withLicenseModule('billing', BillingPage);
-const LicensedInventoryPage = withLicenseModule('base', InventoryPage);
+const LicensedInventoryPage = withLicenseModule('inventory', InventoryPage);
 /** Huoltoraportit: lisenssi + yrityksen huoltolajit (Yritystiedot → Huoltoraportit). */
 function withHuolto<P extends { session: Session }>(Page: ComponentType<P>, category?: HuoltoCategoryKey) {
   return function HuoltoPage(props: P) {

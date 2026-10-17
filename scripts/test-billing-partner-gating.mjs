@@ -23,9 +23,10 @@ for (const p of [true, false, null]) {
 // Tarjoamispaikat käyttävät yhteistä kuvausta.
 const src = (p) => readFileSync(new URL(`../src/${p}`, import.meta.url), 'utf8');
 for (const p of ['components/CompanySignupForm.tsx', 'pages/globalAdmin/CompanyModulesEditor.tsx', 'lib/priceListAdmin.ts', 'pages/BillingPage.tsx']) {
-  assert.match(src(p), /BILLING_MODULE_DESCRIPTION/, p);
+  assert.match(src(p), /BILLING_MODULE_DESCRIPTION|MODULE_DESCRIPTIONS/, p);
 }
-assert.match(src('components/CompanySignupForm.tsx'), /!form\.modules\.partners && .*PARTNER_BILLING_REQUIRES_PARTNERS/);
+// Riippuvuushuomautus (MODULE_NOTES.billing) piiloutuu, kun Kumppanuudet on valittu.
+assert.match(src('components/CompanySignupForm.tsx'), /k === 'billing' && form\.modules\.partners \? null : MODULE_NOTES\[k\]/);
 // Työraportti, lista, yhteenveto ja tuloste tarkistavat Kumppanuudet-moduulin.
 assert.match(src('pages/WorkReportDetailPage.tsx'), /const partnerBillingOn = partnershipsEnabled === true;/);
 assert.match(src('components/ReportListItem.tsx'), /&& partnershipsEnabled\n/);

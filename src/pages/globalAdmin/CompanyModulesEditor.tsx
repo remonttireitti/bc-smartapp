@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import HuoltoSettingsSection from '../../components/HuoltoSettingsSection';
 import ToggleSwitch from '../../components/ToggleSwitch';
+import ModuleDescription, { DescriptionWithNote } from '../../components/ModuleDescription';
+import { HUOLTO_NOTE, MODULE_DESCRIPTIONS } from '../../lib/companySignup';
 import { invalidateCompanyLicenseCache } from '../../hooks/useCompanyLicense';
 import { notifyHuoltoSettingsChanged } from '../../hooks/useCompanyHuoltoSettings';
 import {
@@ -31,7 +33,7 @@ type Props = {
   onSaved: () => Promise<void> | void;
 };
 
-type Modules = { quotes: boolean; billing: boolean; remote_monitoring: boolean; tools: boolean };
+type Modules = { quotes: boolean; billing: boolean; remote_monitoring: boolean; inventory: boolean; tools: boolean };
 
 /** Lisenssimoduulin avain kumppanuuksille (hinnoittelu/gating toisaalla); tehokas kytkin = settings.partnerships_enabled. */
 export const PARTNERS_MODULE_KEY = 'partners';
@@ -50,7 +52,7 @@ export default function CompanyModulesEditor({ companyId, settings, ownCompanyId
   const [billingInterval, setBillingInterval] = useState<LicenseBillingInterval>('monthly');
   const [payment, setPayment] = useState<LicensePaymentStatus>('none');
   const [baseActive, setBaseActive] = useState(false);
-  const [modules, setModules] = useState<Modules>({ quotes: false, billing: false, remote_monitoring: false, tools: false });
+  const [modules, setModules] = useState<Modules>({ quotes: false, billing: false, remote_monitoring: false, inventory: false, tools: false });
   const [billingMenu, setBillingMenu] = useState(false);
   const [partnerships, setPartnerships] = useState(false);
   const [huolto, setHuolto] = useState<HuoltoSettings>(() => parseHuoltoSettings(settings));
@@ -90,6 +92,8 @@ export default function CompanyModulesEditor({ companyId, settings, ownCompanyId
         quotes: storedModules?.quotes === true,
         billing: storedModules?.billing === true,
         remote_monitoring: storedModules?.remote_monitoring === true,
+        // Ennen varasto_module.sql-ajoa avain puuttuu → Varasto kulkee peruspaketin mukana.
+        inventory: storedModules?.inventory === undefined ? stored.base_active === true : storedModules.inventory === true,
         tools: storedModules?.tools === true,
       });
     } else {
@@ -257,35 +261,57 @@ export default function CompanyModulesEditor({ companyId, settings, ownCompanyId
 
       <section className="form-section">
         <h2>Moduulit</h2>
-        <div className="settings-toggle-list">
+        <div className="settings-toggle-list module-toggle-list">
           {!legacy && (
             <>
-              <ToggleSwitch checked={baseActive} disabled={busy} label="Peruspaketti (työ- ja huoltoraportit, asiakkaat, varasto)" onChange={setBaseActive} />
-              <ToggleSwitch checked={modules.quotes} disabled={busy} label="Tarjoukset" onChange={(v) => setModules((m) => ({ ...m, quotes: v }))} />
+              <div className="module-toggle-row">
+                <ToggleSwitch checked={baseActive} disabled={busy} label="Peruspaketti" onChange={setBaseActive} />
+                <small className="muted"><ModuleDescription moduleKey="base" /></small>
+              </div>
+              <div className="module-toggle-row">
+                <ToggleSwitch checked={modules.quotes} disabled={busy} label="Tarjoukset" onChange={(v) => setModules((m) => ({ ...m, quotes: v }))} />
+                <small className="muted"><ModuleDescription moduleKey="quotes" /></small>
+              </div>
             </>
           )}
-          <ToggleSwitch
-            checked={legacy ? billingMenu : modules.billing}
-            disabled={busy}
-            label="Laskutus"
-            onChange={(v) => (legacy ? setBillingMenu(v) : setModules((m) => ({ ...m, billing: v })))}
-          />
+          <div className="module-toggle-row">
+            <ToggleSwitch
+              checked={legacy ? billingMenu : modules.billing}
+              disabled={busy}
+              label="Laskutus"
+              onChange={(v) => (legacy ? setBillingMenu(v) : setModules((m) => ({ ...m, billing: v })))}
+            />
+            <small className="muted">
+              <DescriptionWithNote description={BILLING_MODULE_DESCRIPTION} note={partnerships ? null : PARTNER_BILLING_REQUIRES_PARTNERS} />
+            </small>
+          </div>
           {!legacy && (
             <>
-              <ToggleSwitch checked={modules.remote_monitoring} disabled={busy} label="Etäseuranta" onChange={(v) => setModules((m) => ({ ...m, remote_monitoring: v }))} />
-              <ToggleSwitch checked={modules.tools} disabled={busy} label="Työkalut" onChange={(v) => setModules((m) => ({ ...m, tools: v }))} />
+              <div className="module-toggle-row">
+                <ToggleSwitch checked={modules.remote_monitoring} disabled={busy} label="Etäseuranta" onChange={(v) => setModules((m) => ({ ...m, remote_monitoring: v }))} />
+                <small className="muted"><ModuleDescription moduleKey="remote_monitoring" /></small>
+              </div>
+              <div className="module-toggle-row">
+                <ToggleSwitch checked={modules.inventory} disabled={busy} label="Varasto" onChange={(v) => setModules((m) => ({ ...m, inventory: v }))} />
+                <small className="muted"><ModuleDescription moduleKey="inventory" /></small>
+              </div>
+              <div className="module-toggle-row">
+                <ToggleSwitch checked={modules.tools} disabled={busy} label="Työkalut" onChange={(v) => setModules((m) => ({ ...m, tools: v }))} />
+                <small className="muted"><ModuleDescription moduleKey="tools" /></small>
+              </div>
             </>
           )}
-          <ToggleSwitch checked={partnerships} disabled={busy} label="Kumppanuudet" onChange={setPartnerships} />
+          <div className="module-toggle-row">
+            <ToggleSwitch checked={partnerships} disabled={busy} label="Kumppanuudet" onChange={setPartnerships} />
+            <small className="muted">{MODULE_DESCRIPTIONS.partners}</small>
+          </div>
         </div>
-        <p className="muted">
-          Laskutus: {BILLING_MODULE_DESCRIPTION}.{!partnerships && ` ${PARTNER_BILLING_REQUIRES_PARTNERS}.`}
-        </p>
         {!legacy && <p className="muted">Kokeilujaksolla kaikki moduulit ovat auki.</p>}
       </section>
 
       <section className="form-section">
         <h2>Huoltoraportit</h2>
+        <p className="muted module-note">{HUOLTO_NOTE}</p>
         <HuoltoSettingsSection
           bare
           mode="toggles"

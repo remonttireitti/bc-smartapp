@@ -77,6 +77,7 @@ import WorkReportStatusMenu from '../components/WorkReportStatusMenu';
 import { useCompanyCustomerBillingEnabled } from '../hooks/useCompanyCustomerBillingEnabled';
 import { useCompanyBillingModuleEnabled } from '../hooks/useCompanyBillingModuleEnabled';
 import { useCompanyLicense } from '../hooks/useCompanyLicense';
+import { isLicenseModuleAccessible } from '../lib/companyLicense';
 import { useCompanyPartnershipsEnabled } from '../hooks/useCompanyPartnershipsEnabled';
 import { useProfile } from '../hooks/useProfile';
 import { canDeleteWorkReport } from '../lib/deletePermissions';
@@ -1306,6 +1307,8 @@ export default function WorkReportDetailPage({ session }: Props) {
     profile?.is_global_admin,
   );
   const toolsModuleEnabled = companyLicense?.modules.tools === true;
+  /** Varasto-moduuli (ennen varasto_module.sql-ajoa = peruspaketin mukana). */
+  const inventoryModuleEnabled = isLicenseModuleAccessible(companyLicense ?? null, 'inventory');
   const partnershipsEnabled = useCompanyPartnershipsEnabled(profile?.company_id, session);
   const [report, setReport] = useState<WorkReport | null>(null);
   const [billing, setBilling] = useState<WorkReportBilling | null>(null);
@@ -4825,6 +4828,7 @@ export default function WorkReportDetailPage({ session }: Props) {
           hasPartnerCompanies={hasPartnerRefrigerantCompanies}
           showCustomerBillingFields={showCustomerBillingFeatures}
           partnerOwnedReport={isPartnerReport}
+          ownWarehouseEnabled={inventoryModuleEnabled}
         />
         <DailyLogPartnerPurchaseFields
           drafts={partnerPurchaseDrafts}
@@ -4832,6 +4836,7 @@ export default function WorkReportDetailPage({ session }: Props) {
           partnerOptions={partnerPurchaseCompanyOptions}
           inventoryCompanyId={profile?.company_id ?? null}
           toolsModuleEnabled={toolsModuleEnabled}
+          inventoryModuleEnabled={inventoryModuleEnabled}
         />
         {report && (
           <DailyLogTileSection

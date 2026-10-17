@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import CompanySubscriptionOrderForm from './CompanySubscriptionOrderForm';
+import ModuleDescription from './ModuleDescription';
 import { GLOBAL_ADMIN_SUPPORT } from '../lib/supportContacts';
 import {
   formatLicenseMoney,
@@ -7,7 +8,7 @@ import {
   LICENSE_MODULE_DESCRIPTIONS,
   LICENSE_MODULE_LABELS,
   LICENSE_PAYMENT_STATUS_LABELS,
-  PRICED_ADDON_MODULES,
+  offeredLicenseAddonModules,
   remoteMonitoringModuleDisplayPrice,
   tempDeviceTypeLabel,
   trialDaysRemaining,
@@ -85,7 +86,7 @@ export default function LicenseStatusPanel({ license, canManageOrder, onRefresh 
           <p className="license-state">{license.base_active ? 'Käytössä' : 'Ei tilauksessa'}</p>
         </article>
 
-        {PRICED_ADDON_MODULES.map((moduleKey) => {
+        {offeredLicenseAddonModules(pricing).map((moduleKey) => {
           const active = license.modules[moduleKey];
           const price =
             moduleKey === 'remote_monitoring'
@@ -95,7 +96,7 @@ export default function LicenseStatusPanel({ license, canManageOrder, onRefresh 
           return (
             <article key={moduleKey} className={`license-pricing-card${active ? ' is-active' : ''}`}>
               <h3>{LICENSE_MODULE_LABELS[moduleKey]}</h3>
-              <p className="muted">{LICENSE_MODULE_DESCRIPTIONS[moduleKey]}</p>
+              <p className="muted"><ModuleDescription moduleKey={moduleKey} /></p>
               <p className="license-price">{formatLicenseMoney(price)}</p>
               {moduleKey === 'remote_monitoring' && (
                 <div className="license-device-pricing-detail muted">

@@ -30,12 +30,14 @@ type Props = {
   hasPartnerCompanies: boolean;
   showCustomerBillingFields?: boolean;
   partnerOwnedReport?: boolean;
+  /** Varasto-moduuli: ilman sitä oman varaston pullovalinta piilotetaan (tukkuri/käsin toimii). */
+  ownWarehouseEnabled?: boolean;
 };
 
-function emptyRow(): RefrigerantLineDraft {
+function emptyRow(source: RefrigerantSource = 'warehouse'): RefrigerantLineDraft {
   return {
     key: crypto.randomUUID(),
-    source: 'warehouse',
+    source,
     cylinder_id: '',
     warehouse_company_id: '',
     owner_user_id: '',
@@ -59,6 +61,7 @@ export default function DailyLogRefrigerantFields({
   hasPartnerCompanies,
   showCustomerBillingFields = false,
   partnerOwnedReport = false,
+  ownWarehouseEnabled = true,
 }: Props) {
   function updateRow(index: number, patch: Partial<RefrigerantLineDraft>) {
     setDrafts(drafts.map((row, i) => (i === index ? { ...row, ...patch } : row)));
@@ -100,6 +103,9 @@ export default function DailyLogRefrigerantFields({
   const sourceOptions = (Object.entries(REFRIGERANT_SOURCE_LABELS) as [RefrigerantSource, string][]).filter(
     ([value]) => value !== 'partner_warehouse' || hasPartnerCompanies,
   );
+  // Vanha rivi oman varaston pullolla näkyy yhä oikein, vaikka Varasto olisi poistettu käytöstä.
+  const optionsForRow = (row: RefrigerantLineDraft) =>
+    sourceOptions.filter(([value]) => value !== 'warehouse' || ownWarehouseEnabled || row.source === 'warehouse');
 
   const sectionTitle = 'Kylmäaine';
 
@@ -112,7 +118,7 @@ export default function DailyLogRefrigerantFields({
       wide
     >
     <div className="expense-section expense-section-in-dialog">
-      <button type="button" className="btn btn-secondary" onClick={() => setDrafts([...drafts, emptyRow()])}>
+      <button type="button" className="btn btn-secondary" onClick={() => setDrafts([...drafts, emptyRow(ownWarehouseEnabled ? 'warehouse' : 'supplier')])}>
         + Lisää kylmäaine
       </button>
       {drafts.length === 0 ? (
@@ -139,7 +145,7 @@ export default function DailyLogRefrigerantFields({
               <label>
                 Lähde
                 <select value={row.source} onChange={(e) => onSourceChange(index, e.target.value as RefrigerantSource)}>
-                  {sourceOptions.map(([value, label]) => (
+                  {optionsForRow(row).map(([value, label]) => (
                     <option key={value} value={value}>
                       {label}
                     </option>
