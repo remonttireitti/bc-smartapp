@@ -565,7 +565,7 @@ export default function WorkReportsPage({ session }: Props) {
               {portalOpenOrders.length === 0 ? (
                 <p className="muted">Ei avoimia tilauksia.</p>
               ) : (
-                <PortalWorkReportTable reports={portalOpenOrders} hrefFor={(r) => `/tyoraportit/tilaus/${r.id}/muokkaa`} />
+                <PortalWorkReportTable reports={portalOpenOrders} hrefFor={(r) => (r.status === 'draft' ? `/tyoraportit/tilaus/${r.id}/muokkaa` : `/tyoraportit/${r.id}/tuloste`)} />
               )}
             </section>
 

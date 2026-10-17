@@ -15,7 +15,7 @@ export const PORTAL_COMPLETED_WORK_STATUSES: WorkStatus[] = [
 ];
 
 /** Oma työtilaus ennen kuin yritys ottaa sen käsittelyyn. */
-export const PORTAL_OWN_ORDER_OPEN_STATUSES: WorkStatus[] = ['draft'];
+export const PORTAL_OWN_ORDER_OPEN_STATUSES: WorkStatus[] = ['draft', 'delegated'];
 
 export function isWorkReportVisibleToPortal(
   status: string,

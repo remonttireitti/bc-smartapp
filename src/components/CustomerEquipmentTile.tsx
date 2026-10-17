@@ -20,6 +20,8 @@ type Props = {
   canDelete: boolean;
   /** Rivivalinta (joukkotulostus); piilossa portaalinäkymässä. */
   selectable?: boolean;
+  /** Rivin linkki (portaali: vain luku -laitekortti). */
+  hrefFor?: (eq: Equipment) => string;
   busy: boolean;
   printBusyId: string | null;
   navTrail?: NavTrailProps;
@@ -39,6 +41,7 @@ export function CustomerEquipmentTable({
   canWrite,
   canDelete,
   selectable = true,
+  hrefFor,
   busy,
   printBusyId,
   navTrail,
@@ -99,7 +102,7 @@ export function CustomerEquipmentTable({
       rows={equipment}
       columns={columns}
       rowKey={(eq) => eq.id}
-      rowHref={(eq) => `/asiakkaat/${customerId}/laitteet/${eq.id}`}
+      rowHref={hrefFor ?? ((eq) => `/asiakkaat/${customerId}/laitteet/${eq.id}`)}
       rowState={() => navTrail?.state}
       initialSort={{ key: 'name', dir: 'asc' }}
       ariaLabel="Laitteet"

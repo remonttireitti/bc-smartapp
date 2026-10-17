@@ -22,7 +22,7 @@ function equipmentLabel(r: WorkReport): string {
 /** Asiakasportaalin työraporttilista: työ, laite, päivä, tila. Ei laskutus- eikä sisäisiä tietoja. */
 export default function PortalWorkReportTable({
   reports,
-  hrefFor = (r) => `/tyoraportit/${r.id}`,
+  hrefFor = (r) => `/tyoraportit/${r.id}/tuloste`,
 }: {
   reports: WorkReport[];
   hrefFor?: (r: WorkReport) => string;

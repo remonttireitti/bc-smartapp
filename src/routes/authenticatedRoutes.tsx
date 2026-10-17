@@ -70,6 +70,7 @@ import SubscribersPage from '../pages/SubscribersPage';
 import ChangePasswordPage from '../pages/ChangePasswordPage';
 import PortalEquipmentPage from '../pages/PortalEquipmentPage';
 import PortalFilesPage from '../pages/PortalFilesPage';
+import PortalDeviceCardPage from '../pages/PortalDeviceCardPage';
 import ResetPasswordPage from '../pages/ResetPasswordPage';
 import {
   CustomerPortalPreviewPage,
@@ -211,6 +212,7 @@ export function buildAuthenticatedRoutes(session: Session): RouteObject[] {
     { path: '/tyokalut/varaus', element: <LicensedToolBookingCalendarPage session={session} /> },
     { path: '/tyokalut/varaus/:token', element: <ToolBookingPublicPage /> },
     { path: '/laitteet', element: <PortalEquipmentPage session={session} /> },
+    { path: '/laitteet/:id', element: <PortalDeviceCardPage session={session} /> },
     { path: '/tiedostot', element: <PortalFilesPage session={session} /> },
     { path: '/tarjoukset', element: <PortalFilesPage session={session} kind="quote_request" title="Tarjoukset" /> },
     { path: '/asiakkaat', element: <LicensedCustomersPage session={session} /> },

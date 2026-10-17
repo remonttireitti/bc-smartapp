@@ -192,3 +192,19 @@ export function isPortalRouteAllowed(pathname: string): boolean {
   if (pathname === '/huoltoraportit/uusi' || pathname.startsWith('/huoltoraportit/valitse') || pathname.startsWith('/huoltoraportit/uusi/')) return false;
   return allowed.some((p) => pathname.startsWith(p));
 }
+
+/** Portaali: muokattavat näkymät ohjataan asiakastulosteeseen / laitekorttiin. */
+export function portalRedirectFor(pathname: string): string | null {
+  let m = pathname.match(/^\/tyoraportit\/([0-9a-f-]{36})\/?$/);
+  if (m) return `/tyoraportit/${m[1]}/tuloste`;
+  m = pathname.match(/^\/tyoraportit\/([0-9a-f-]{36})\/(muokkaa|laskutus.*)$/);
+  if (m) return `/tyoraportit/${m[1]}/tuloste`;
+  m = pathname.match(/^\/huoltoraportit\/([0-9a-f-]{36})\/?$/);
+  if (m) return `/huoltoraportit/${m[1]}/tuloste`;
+  m = pathname.match(/^\/tarjouspyynnot\/([0-9a-f-]{36})\/?$/);
+  if (m) return `/tarjouspyynnot/${m[1]}/tuloste`;
+  m = pathname.match(/^\/asiakkaat\/[0-9a-f-]{36}\/laitteet\/([0-9a-f-]{36})/);
+  if (m) return `/laitteet/${m[1]}`;
+  if (pathname === '/asiakkaat') return '/laitteet';
+  return null;
+}

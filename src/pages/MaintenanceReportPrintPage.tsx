@@ -109,7 +109,7 @@ export default function MaintenanceReportPrintPage({ session }: Props) {
       <div className="maintenance-print-page maintenance-print-page--standalone">
         <section className="panel">
           <p className="error">{error}</p>
-          <Link to={maintenanceListTrail().backTo} className="btn btn-secondary">
+          <Link to={portalReadOnly ? '/huoltoraportit' : maintenanceListTrail().backTo} className="btn btn-secondary">
             Takaisin listaan
           </Link>
         </section>
