@@ -549,7 +549,7 @@ export default function QuoteRequestPrintPage({ session }: Props) {
         </button>
       </nav>
 
-      <div className="quote-print-breadcrumb" hidden={portal}>
+      <div className="quote-print-breadcrumb" style={portal ? { display: 'none' } : undefined}>
         <NavigationBreadcrumb
           items={[
             ...listTrail.breadcrumb,
@@ -604,7 +604,7 @@ export default function QuoteRequestPrintPage({ session }: Props) {
 
 
 
-      <section className="panel quote-print-toolbar" hidden={portal}>
+      {!portal ? (<section className="panel quote-print-toolbar">
 
         <div className="billing-filter-pills">
 
@@ -692,7 +692,7 @@ export default function QuoteRequestPrintPage({ session }: Props) {
           </CustomerPrintQuantitySettingsPopup>
         ) : null}
 
-      </section>
+      </section>) : null}
 
       <section className="panel print-preview-shell">
         {(termatekHtmlLoading && useTermatekTemplate) || (lampokatsastusHtmlLoading && useLampokatsastusTemplate) ? (
