@@ -89,3 +89,6 @@ verify_jwt = true
 
 [functions.company-signup]
 verify_jwt = false
+
+[functions.company-logo-url]
+verify_jwt = true
