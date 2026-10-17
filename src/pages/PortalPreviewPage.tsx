@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { useEffect, useRef, useState } from 'react';
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
 import AppLayout from '../components/AppLayout';
 import { useProfile } from '../hooks/useProfile';
@@ -33,9 +33,25 @@ function PortalPreviewBootstrap({
   const navigate = useNavigate();
   const { profile, loading } = useProfile(session);
   const [error, setError] = useState<string | null>(null);
+  const location = useLocation();
+  const onPreviewRoute = location.pathname.startsWith('/esikatselu/');
+  // Keep-alive pitää sivun muistissa: käynnistä vain kerran per kohde ja vain esikatselureitillä,
+  // muuten jokainen portaalin linkki palautuisi etusivulle.
+  const startedFor = useRef<string | null>(null);
+  const onPreviewRouteRef = useRef(onPreviewRoute);
+  onPreviewRouteRef.current = onPreviewRoute;
 
   useEffect(() => {
-    if (loading || !entityId) return;
+    if (!onPreviewRoute) {
+      startedFor.current = null;
+    }
+  }, [onPreviewRoute]);
+
+  useEffect(() => {
+    if (loading || !entityId || !onPreviewRoute) return;
+    const runKey = `${kind}:${entityId}`;
+    if (startedFor.current === runKey) return;
+    startedFor.current = runKey;
     // Esikatselu pitää pystyä avaamaan myös "yrityksenä" (esim. asentaja/esimies),
     // mutta ei tilaaja/asiakas-rooleilla.
     if (!profile || profile.role === 'subscriber' || profile.role === 'customer') {
@@ -73,7 +89,7 @@ function PortalPreviewBootstrap({
           subscriberName: data.name,
           companyId: data.owner_company_id,
         });
-        navigate('/', { replace: true });
+        if (onPreviewRouteRef.current) navigate('/', { replace: true });
         return;
       }
 
@@ -102,9 +118,9 @@ function PortalPreviewBootstrap({
         customerName: data.name,
         companyId: data.owner_company_id,
       });
-      navigate('/', { replace: true });
+      if (onPreviewRouteRef.current) navigate('/', { replace: true });
     })();
-  }, [loading, profile, entityId, kind, navigate]);
+  }, [loading, profile, entityId, kind, navigate, onPreviewRoute]);
 
   return (
     <AppLayout session={session}>
