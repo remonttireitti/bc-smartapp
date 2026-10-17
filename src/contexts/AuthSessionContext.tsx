@@ -8,6 +8,7 @@ import {
   type ReactNode,
 } from 'react';
 import type { AuthChangeEvent, Session } from '@supabase/supabase-js';
+import { useNavigate } from 'react-router-dom';
 import {
   ACTIVITY_STORAGE_KEY,
   IDLE_CHECK_INTERVAL_MS,
@@ -54,6 +55,9 @@ export function AuthSessionProvider({ children }: { children: ReactNode }) {
 
   const draftSaversRef = useRef(new Set<DraftSaver>());
   const signingOutRef = useRef(false);
+  const navigate = useNavigate();
+  const navigateRef = useRef(navigate);
+  navigateRef.current = navigate;
   const selfSignOutRef = useRef(false);
 
   const registerDraftSaver = useCallback((saver: DraftSaver) => {
@@ -86,8 +90,10 @@ export function AuthSessionProvider({ children }: { children: ReactNode }) {
       } catch (error) {
         console.error('Uloskirjautuminen epäonnistui:', error);
       } finally {
-        const query = reason === 'manual' ? '' : `?reason=${reason}`;
-        window.location.assign(`/login${query}`);
+        // Sovelluksen sisäinen siirtymä (ei sivulatausta) → asennettu PWA pysyy scopessa.
+        setSession(null);
+        signingOutRef.current = false;
+        navigateRef.current(reason === 'manual' ? '/' : `/login?reason=${reason}`, { replace: true });
       }
     },
     [flushDrafts],
@@ -104,7 +110,7 @@ export function AuthSessionProvider({ children }: { children: ReactNode }) {
     const { data: sub } = supabase.auth.onAuthStateChange((event: AuthChangeEvent, nextSession) => {
       if (event === 'TOKEN_REFRESHED') {
         if (!nextSession) {
-          window.location.assign('/login?reason=expired');
+          navigateRef.current('/login?reason=expired', { replace: true });
         }
         return;
       }
@@ -120,7 +126,7 @@ export function AuthSessionProvider({ children }: { children: ReactNode }) {
 
       if (event === 'SIGNED_OUT' && !selfSignOutRef.current && !signingOutRef.current) {
         void flushDrafts().finally(() => {
-          window.location.assign('/login?reason=remote');
+          navigateRef.current('/login?reason=remote', { replace: true });
         });
         return;
       }

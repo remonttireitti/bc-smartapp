@@ -15,8 +15,8 @@
     <meta property="og:image" content="https://bestcool.eu/pwa-512.png" />
     <meta name="twitter:card" content="summary" />
     <script>
-      // www → pääosoite (kanoninen https://bestcool.eu)
-      if (location.hostname === 'www.bestcool.eu') location.replace('https://bestcool.eu' + location.pathname + location.search + location.hash);
+      // www → pääosoite (kanoninen https://bestcool.eu). Ei asennetussa sovelluksessa: toinen origin olisi scopen ulkopuolella (selainpalkki).
+      if (location.hostname === 'www.bestcool.eu' && !matchMedia('(display-mode: standalone)').matches && !navigator.standalone) location.replace('https://bestcool.eu' + location.pathname + location.search + location.hash);
     </script>
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
