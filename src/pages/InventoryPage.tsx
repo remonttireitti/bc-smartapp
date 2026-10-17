@@ -16,6 +16,7 @@ import { removeInventoryImage, uploadInventoryImage } from '../lib/inventoryImag
 import { supabase } from '../lib/supabase';
 import type { Partnership } from '../types';
 import type { InventoryItem } from '../types/inventory';
+import { parseFiNumberOr } from '../lib/fiNumber';
 
 interface Props {
   session: Session;
@@ -199,7 +200,7 @@ export default function InventoryPage({ session }: Props) {
   async function quickAddMaterial(e: FormEvent) {
     e.preventDefault();
     if (!warehouseCompanyId || !canEditWarehouse || !quickMaterial.name.trim()) return;
-    const qty = Number(quickMaterial.qty || 0);
+    const qty = parseFiNumberOr(quickMaterial.qty, 0);
     if (qty <= ZERO_EPS) {
       setError('Anna saldo suurempi kuin nolla.');
       return;
@@ -321,9 +322,6 @@ export default function InventoryPage({ session }: Props) {
             <label>
               Saldo
               <input
-                type="number"
-                min="0.001"
-                step="1"
                 inputMode="decimal"
                 value={quickMaterial.qty}
                 onChange={(e) => setQuickMaterial({ ...quickMaterial, qty: e.target.value })}
@@ -390,6 +388,7 @@ export default function InventoryPage({ session }: Props) {
                         value={Number(item.qty_on_hand)}
                         step={1}
                         min={0}
+                        decimals={3}
                         unit={item.unit}
                         busy={rowBusyId === item.id}
                         onCommit={(next) => setMaterialQty(item, next)}
@@ -456,6 +455,7 @@ export default function InventoryPage({ session }: Props) {
                     value={Number(item.qty_on_hand)}
                     step={1}
                     min={0}
+                    decimals={3}
                     unit={item.unit}
                     disabled={!canEditWarehouse}
                     busy={rowBusy}
@@ -501,13 +501,11 @@ export default function InventoryPage({ session }: Props) {
                         <label>
                           Minimi
                           <input
-                            type="number"
-                            step="1"
-                            min="0"
+                            inputMode="decimal"
                             defaultValue={String(item.min_qty)}
                             disabled={rowBusy}
                             onBlur={(e) => {
-                              const v = Number(e.target.value || 0);
+                              const v = parseFiNumberOr(e.target.value, 0);
                               if (v !== Number(item.min_qty)) void updateMaterialMeta(item, { min_qty: v });
                             }}
                           />

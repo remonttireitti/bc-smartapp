@@ -1,3 +1,4 @@
+import { parseFiNumber, parseFiNumberOr } from './fiNumber';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 import type {
@@ -94,13 +95,13 @@ export function refrigerantLinesToDrafts(lines: WorkReportRefrigerantLine[]): Re
     owner_user_id: line.owner_user_id ?? '',
     supplier_name: line.supplier_name ?? '',
     supplier_paid_by: line.supplier_paid_by ?? '',
-    unit_price: Number(line.unit_price) > 0 ? String(line.unit_price) : '',
+    unit_price: parseFiNumber(line.unit_price) > 0 ? String(line.unit_price) : '',
     customer_unit_price:
-      line.customer_unit_price != null && Number(line.customer_unit_price) > 0
+      line.customer_unit_price != null && parseFiNumber(line.customer_unit_price) > 0
         ? String(line.customer_unit_price)
         : '',
     refrigerant_type: line.refrigerant_type,
-    qty_kg: Number(line.qty_kg) > 0 ? String(line.qty_kg) : '',
+    qty_kg: parseFiNumber(line.qty_kg) > 0 ? String(line.qty_kg) : '',
     notes: line.notes ?? '',
     cylinder_disposition: line.cylinder_disposition ?? 'partial_in_stock',
   }));
@@ -212,13 +213,13 @@ export function refrigerantBillingReminder(
 }
 
 export function refrigerantCustomerUnitPrice(line: WorkReportRefrigerantLine): number {
-  const customerPrice = line.customer_unit_price != null ? Number(line.customer_unit_price) : null;
+  const customerPrice = line.customer_unit_price != null && String(line.customer_unit_price).trim() !== '' ? parseFiNumber(line.customer_unit_price) : null;
   if (customerPrice != null && customerPrice > 0) return customerPrice;
-  return Number(line.unit_price || 0);
+  return parseFiNumberOr(line.unit_price, 0);
 }
 
 export function refrigerantLineTotal(line: WorkReportRefrigerantLine): number {
-  return Math.round(Number(line.qty_kg) * refrigerantCustomerUnitPrice(line) * 100) / 100;
+  return Math.round(parseFiNumberOr(line.qty_kg, 0) * refrigerantCustomerUnitPrice(line) * 100) / 100;
 }
 
 export function validateRefrigerantDrafts(
@@ -226,7 +227,7 @@ export function validateRefrigerantDrafts(
   options?: { requirePrices?: boolean; partnerOwnedReport?: boolean },
 ): string | null {
   for (const row of drafts) {
-    const qty = Number(row.qty_kg);
+    const qty = parseFiNumber(row.qty_kg);
     if (!Number.isFinite(qty) || qty <= 0) continue;
     if (row.source === 'supplier' && !row.supplier_paid_by) {
       return 'Valitse tukkurihankinnalle, kenen piikki kylmäaine hankittiin.';
@@ -235,10 +236,10 @@ export function validateRefrigerantDrafts(
       return 'Valitse mitä pulloon jää työkäytön jälkeen.';
     }
     if (options?.partnerOwnedReport && isWarehouseSource(row.source)) {
-      if (!Number(row.unit_price)) {
+      if (!parseFiNumber(row.unit_price)) {
         return 'Anna varastohinta (€/kg) — vähennetään seuraavasta laskutuksesta.';
       }
-      if (!Number(row.customer_unit_price)) {
+      if (!parseFiNumber(row.customer_unit_price)) {
         return 'Anna myyntihinta raportin omistajalle (€/kg).';
       }
     }
@@ -247,7 +248,7 @@ export function validateRefrigerantDrafts(
       source: row.source,
       supplier_paid_by: row.supplier_paid_by,
     });
-    if (billing.billToCustomer && !Number(row.unit_price) && !Number(row.customer_unit_price)) {
+    if (billing.billToCustomer && !parseFiNumber(row.unit_price) && !parseFiNumber(row.customer_unit_price)) {
       return 'Anna kylmäaineen hinta (€/kg) laskutusta varten.';
     }
   }
@@ -264,7 +265,7 @@ export async function restoreCylinderQuantities(
 ) {
   for (const line of lines) {
     if (!isWarehouseSource(line.source) || !line.cylinder_id) continue;
-    const qty = Number(line.qty_kg);
+    const qty = parseFiNumber(line.qty_kg);
     if (qty <= 0) continue;
 
     const { error } = await supabase.rpc('apply_refrigerant_cylinder_delta', {
@@ -294,7 +295,7 @@ export async function deductCylinderQuantity(
 }
 
 function isDraftRowFilled(row: RefrigerantLineDraft): boolean {
-  const qty = Number(row.qty_kg);
+  const qty = parseFiNumber(row.qty_kg);
   if (Number.isFinite(qty) && qty > 0) return true;
   if (isWarehouseSource(row.source) && row.cylinder_id) return true;
   if (row.source === 'supplier' && (row.supplier_name.trim() || row.supplier_paid_by)) return true;
@@ -302,7 +303,7 @@ function isDraftRowFilled(row: RefrigerantLineDraft): boolean {
 }
 
 function isDraftRowValid(row: RefrigerantLineDraft): boolean {
-  const qty = Number(row.qty_kg);
+  const qty = parseFiNumber(row.qty_kg);
   if (!Number.isFinite(qty) || qty <= 0) return false;
   if (isWarehouseSource(row.source)) {
     return !!row.cylinder_id && !!row.cylinder_disposition;
@@ -321,7 +322,7 @@ export function refrigerantWarehouseStockUnchanged(
   if (!isWarehouseSource(previous.source) || !isWarehouseSource(draft.source)) return false;
   if (previous.source !== draft.source) return false;
   if ((previous.cylinder_id ?? '') !== draft.cylinder_id) return false;
-  if (Math.abs(Number(previous.qty_kg) - Number(draft.qty_kg)) > 0.0005) return false;
+  if (Math.abs(parseFiNumberOr(previous.qty_kg, 0) - parseFiNumberOr(draft.qty_kg, 0)) > 0.0005) return false;
   const previousDisposition = previous.cylinder_disposition ?? 'partial_in_stock';
   const draftDisposition = draft.cylinder_disposition || 'partial_in_stock';
   return previousDisposition === draftDisposition;
@@ -330,7 +331,7 @@ export function refrigerantWarehouseStockUnchanged(
 function isWarehouseStockLine(
   line: Pick<WorkReportRefrigerantLine, 'source' | 'cylinder_id' | 'qty_kg'>,
 ): boolean {
-  return isWarehouseSource(line.source) && !!line.cylinder_id && Number(line.qty_kg) > 0;
+  return isWarehouseSource(line.source) && !!line.cylinder_id && parseFiNumber(line.qty_kg) > 0;
 }
 
 async function reinsertRefrigerantLines(
@@ -410,7 +411,7 @@ export async function saveRefrigerantLines(
     if (deleteError) throw deleteError;
 
     for (const row of valid) {
-      const qty = Number(row.qty_kg);
+      const qty = parseFiNumber(row.qty_kg);
       let cylinderId: string | null = null;
       let warehouseCompanyId: string | null = null;
       let ownerUserId: string | null = null;
@@ -454,8 +455,8 @@ export async function saveRefrigerantLines(
         source: row.source,
         supplier_paid_by: row.supplier_paid_by,
       });
-      const unitPrice = Number(row.unit_price || 0);
-      const customerUnitPriceRaw = Number(row.customer_unit_price);
+      const unitPrice = parseFiNumberOr(row.unit_price, 0);
+      const customerUnitPriceRaw = parseFiNumber(row.customer_unit_price);
       const customerUnitPrice =
         Number.isFinite(customerUnitPriceRaw) && customerUnitPriceRaw > 0 ? customerUnitPriceRaw : null;
 
@@ -526,7 +527,7 @@ export function formatRefrigerantLineLabel(
   report?: { owner_company_id: string; created_by_company_id: string } | null,
 ): string {
   const hideSource = view ? shouldHideRefrigerantSourceFromViewer(view) : false;
-  const qty = Number(line.qty_kg).toFixed(3);
+  const qty = parseFiNumberOr(line.qty_kg, 0).toFixed(3);
   const reportParties = report ?? (view
     ? { owner_company_id: view.ownerCompanyId, created_by_company_id: view.createdByCompanyId }
     : null);
@@ -576,9 +577,9 @@ export function formatRefrigerantWarehouseCostLabel(
   line: WorkReportRefrigerantLine,
   deducted: boolean,
 ): string {
-  const qty = Number(line.qty_kg).toFixed(3);
+  const qty = parseFiNumberOr(line.qty_kg, 0).toFixed(3);
   const unit = refrigerantWarehouseCostUnitPrice(line);
-  const total = Math.round(Number(line.qty_kg) * unit * 100) / 100;
+  const total = Math.round(parseFiNumberOr(line.qty_kg, 0) * unit * 100) / 100;
   const serial = line.cylinder?.serial_number?.trim();
   const bottle = serial ? ` · pullo ${serial}` : '';
   const status = deducted ? ' · vähennetty' : ' · ei vielä vähennetty';

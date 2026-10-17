@@ -182,6 +182,7 @@ import {
   loadPerformerCalendarContext,
   resolveReportPerformerUserId,
 } from '../lib/workReportCalendar';
+import { parseFiNumberOr } from '../lib/fiNumber';
 import { supabase } from '../lib/supabase';
 import {
   shouldCalculateCustomerBilling,
@@ -1244,8 +1245,8 @@ async function saveExpenseLines(
         daily_log_id: dailyLogId,
         expense_type: row.expense_type || 'other',
         description: row.description.trim(),
-        qty: Number(row.qty || 1),
-        unit_price: Number(row.unit_price || 0),
+        qty: parseFiNumberOr(row.qty, 1),
+        unit_price: parseFiNumberOr(row.unit_price, 0),
         ...(includeBillToPartner ? { bill_to_partner: row.bill_to_partner } : {}),
         bill_to_customer: row.bill_to_customer,
         ...(includeExtraBilling
