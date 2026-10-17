@@ -17229,3 +17229,95 @@ p.quote-outcome-unpriced {
 .expense-line-not-billed .expense-line-list-item-title { opacity: 0.55; text-decoration: line-through; }
 .daily-log-commission-mode { border: 1px solid var(--border, #ddd); border-radius: 8px; padding: 8px 12px; margin-top: 8px; display: grid; gap: 6px; }
 .daily-log-commission-mode legend { font-weight: 600; padding: 0 4px; }
+
+/* ===== Sivupalkki (päävalikko) ===== */
+.app-body { flex: 1; display: flex; align-items: stretch; min-width: 0; }
+.app-body > .main { min-width: 0; }
+.app-sidebar-burger { display: none; }
+.app-with-sidebar .app-sidebar {
+  --sb-accent: #2563eb;
+  flex: 0 0 232px;
+  width: 232px;
+  position: sticky;
+  top: 0;
+  align-self: flex-start;
+  height: 100vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  background: var(--bg-surface, #fff);
+  border-right: 1px solid var(--border, #e5e7eb);
+  padding: 0.75rem 0.5rem;
+  box-sizing: border-box;
+}
+.app-sidebar-list, .app-sidebar-sublist { list-style: none; margin: 0; padding: 0; }
+.app-sidebar-link, .app-sidebar-collapse {
+  display: flex; align-items: center; gap: 0.6rem;
+  padding: 0.5rem 0.6rem; border-radius: 6px;
+  color: var(--text, #374151); text-decoration: none; font-size: 0.92rem;
+  border: 0; border-left: 3px solid transparent; background: none; width: 100%;
+  cursor: pointer; text-align: left; box-sizing: border-box; font: inherit;
+}
+.app-sidebar-link:hover, .app-sidebar-collapse:hover { background: rgba(0, 0, 0, 0.04); }
+.app-sidebar-link.is-active { color: var(--sb-accent); font-weight: 600; border-left-color: var(--sb-accent); background: rgba(37, 99, 235, 0.06); }
+.app-sidebar-icon { width: 20px; height: 20px; flex: 0 0 20px; }
+.app-sidebar-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.app-sidebar-sublist { margin: 0.15rem 0 0.4rem 1.9rem; border-left: 1px solid var(--border, #e5e7eb); }
+.app-sidebar-sublink {
+  display: block; padding: 0.3rem 0.6rem; font-size: 0.86rem; color: var(--text-muted, #6b7280);
+  text-decoration: none; margin-left: -1px; border-left: 2px solid transparent;
+}
+.app-sidebar-sublink:hover { color: var(--text, #111827); }
+.app-sidebar-sublink.is-active { color: var(--sb-accent); border-left-color: var(--sb-accent); font-weight: 600; }
+.app-sidebar-collapse { color: var(--text-muted, #6b7280); margin-top: 0.75rem; border-top: 1px solid var(--border, #e5e7eb); border-radius: 0; padding-top: 0.75rem; }
+.app-sidebar-backdrop { display: none; }
+
+.sidebar-collapsed .app-sidebar { flex-basis: 56px; width: 56px; }
+.sidebar-collapsed .app-sidebar .app-sidebar-label { display: none; }
+.sidebar-collapsed .app-sidebar .app-sidebar-link,
+.sidebar-collapsed .app-sidebar .app-sidebar-collapse { justify-content: center; padding-left: 0; padding-right: 0; }
+
+/* Sivupalkki korvaa "Etusivu / X" -murupolun ja Hallinnan välilehdet työpöydällä. */
+@media (min-width: 900px) {
+  .app-with-sidebar .breadcrumb-home-only { display: none; }
+  .app-with-sidebar .management-tabs { display: none; }
+}
+
+@media (max-width: 899px) {
+  .app-sidebar-burger {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 40px; height: 40px; margin-right: 0.5rem; flex: 0 0 40px;
+    border: 1px solid var(--border, #d1d5db); border-radius: 6px;
+    background: var(--bg-surface, #fff); font-size: 1.2rem; cursor: pointer; color: inherit;
+  }
+  .app-with-sidebar .app-sidebar {
+    position: fixed; top: 0; left: 0; bottom: 0; z-index: 1000;
+    width: min(84vw, 300px); flex-basis: auto; height: 100%;
+    transform: translateX(-105%); transition: transform 0.18s ease;
+    box-shadow: 0 0 24px rgba(0, 0, 0, 0.18);
+  }
+  .app-with-sidebar .app-sidebar.is-mobile-open { transform: none; }
+  .sidebar-collapsed .app-sidebar .app-sidebar-label { display: inline; }
+  .sidebar-collapsed .app-sidebar .app-sidebar-link { justify-content: flex-start; padding: 0.65rem 0.6rem; }
+  .app-sidebar-link { padding: 0.65rem 0.6rem; font-size: 1rem; }
+  .app-sidebar-sublink { padding: 0.5rem 0.6rem; font-size: 0.95rem; }
+  .app-sidebar-collapse { display: none; }
+  .app-sidebar-backdrop { display: block; position: fixed; inset: 0; z-index: 999; background: rgba(0, 0, 0, 0.35); }
+}
+
+@media print {
+  .app-sidebar, .app-sidebar-backdrop, .app-sidebar-burger { display: none !important; }
+  .app-body { display: block; }
+}
+
+/* Etusivun ruudut rauhallisemmin: valkoinen pohja, värillinen reunaviiva */
+.tile.tile-calm {
+  background: var(--bg-surface, #fff) !important;
+  color: var(--text, #1f2937);
+  border: 1px solid var(--border, #e5e7eb);
+  border-left: 4px solid;
+  box-shadow: none;
+}
+.tile.tile-calm span { color: var(--text-muted, #6b7280); }
+.tile.tile-calm:hover { box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08); }

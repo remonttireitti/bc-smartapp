@@ -35,7 +35,7 @@ export default function RemoteMonitoringHubPage({ session }: Props) {
     <AppLayout session={session}>
       <div className="page-header">
         <div>
-          <p className="breadcrumb">
+          <p className="breadcrumb breadcrumb-home-only">
             <Link to="/">Etusivu</Link> / Etäohjaus ja seuranta
           </p>
           <h1>Etäohjaus ja seuranta</h1>

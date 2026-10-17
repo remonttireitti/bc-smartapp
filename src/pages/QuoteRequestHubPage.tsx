@@ -47,7 +47,7 @@ export default function QuoteRequestHubPage({ session }: Props) {
     <AppLayout session={session}>
       <div className="page-header">
         <div>
-          <p className="breadcrumb">
+          <p className="breadcrumb breadcrumb-home-only">
             <Link to="/">Etusivu</Link> / Tarjouspyyntö
           </p>
           <h1>Tarjouspyyntö</h1>

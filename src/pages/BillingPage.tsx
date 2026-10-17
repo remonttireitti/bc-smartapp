@@ -161,6 +161,10 @@ export default function BillingPage({ session }: Props) {
             : 'customer';
   const [tab, setTab] = useState<Tab>('list');
   const [billingMode, setBillingMode] = useState<BillingModuleMode>(initialMode);
+  // Sivupalkin alakohdat (?mode=…) vaihtavat näkymän myös sivun ollessa auki.
+  useEffect(() => {
+    if (urlMode === 'customer' || urlMode === 'partner' || urlMode === 'total') setBillingMode(urlMode);
+  }, [urlMode]);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('unbilled');
   const [search, setSearch] = useState('');
   const [disabledPartnerIds, setDisabledPartnerIds] = useState<Set<string>>(() => new Set());
@@ -1035,7 +1039,7 @@ export default function BillingPage({ session }: Props) {
     <AppLayout session={session}>
       <div className="page-header">
         <div>
-          <p className="breadcrumb">
+          <p className="breadcrumb breadcrumb-home-only">
             <Link to="/">Etusivu</Link> / Laskutus
           </p>
           <h1>Laskutettavat</h1>

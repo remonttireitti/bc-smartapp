@@ -162,7 +162,7 @@ export default function Dashboard({ session }: Props) {
 
       <section className="grid">
         {visibleModules.map((m) => (
-          <Link key={m.title} to={m.href} className="tile" style={{ background: m.color }}>
+          <Link key={m.title} to={m.href} className="tile tile-calm" style={{ borderLeftColor: m.color }}>
             {m.menuPath ? <span className="tile-menu-path">{m.menuPath}</span> : null}
             <strong>{m.title}</strong>
             <span>{m.desc}</span>
