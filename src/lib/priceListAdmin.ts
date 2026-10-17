@@ -3,7 +3,8 @@ import {
   ADDON_MODULE_LABELS,
   BASE_PACKAGE_DESCRIPTION,
   DEVICE_PRICE_NOTE,
-  DEVICE_PURCHASE_PRICE_TEXT,
+  deviceFromPrice,
+  remoteMonitoringNote,
   DEVICE_TYPE_LABELS,
   DEVICE_TYPES,
   HUOLTO_DESCRIPTIONS,
@@ -29,8 +30,8 @@ export type PriceRow = {
   group: PriceGroupKey;
   label: string;
   description: string;
-  /** Harmaa riippuvuushuomautus. */
-  note?: string;
+  /** Harmaa riippuvuushuomautus (funktio: tallennetuista hinnoista). */
+  note?: string | ((p: PriceList) => string | undefined);
   /** false → rivi piilotetaan (esim. Varasto ennen varasto_module.sql-ajoa). */
   available?: (p: PriceList) => boolean;
   get: (p: PriceList) => number;
@@ -49,7 +50,7 @@ const moduleRow = (k: AddonModuleKey): PriceRow => ({
   group: 'moduulit',
   label: ADDON_MODULE_LABELS[k],
   description: MODULE_DESCRIPTIONS[k],
-  note: MODULE_NOTES[k],
+  note: k === 'remote_monitoring' ? (p: PriceList) => remoteMonitoringNote(deviceFromPrice(p)) : MODULE_NOTES[k],
   ...(k === 'inventory' ? { available: (p: PriceList) => p.inventory_priced !== false } : {}),
   get: (p) => p.module_prices[k],
   set: (p, v) => ({ ...p, module_prices: { ...p.module_prices, [k]: v } }),
@@ -60,7 +61,6 @@ const deviceRow = (k: DeviceTypeKey): PriceRow => ({
   group: 'moduulit',
   label: `Laitemaksu: ${DEVICE_TYPE_LABELS[k]}`,
   description: DEVICE_PRICE_NOTE,
-  note: `Itse laite ${DEVICE_PURCHASE_PRICE_TEXT}`,
   get: (p) => p.device_prices[k],
   set: (p, v) => ({ ...p, device_prices: { ...p.device_prices, [k]: v } }),
 });

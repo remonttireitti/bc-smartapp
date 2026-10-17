@@ -109,8 +109,10 @@ assert.ok(offeredLicenseAddonModules({ module_prices: { inventory: 10 } }).inclu
 assert.equal(MODULE_DESCRIPTIONS.inventory, 'Materiaalit ja kylmäaine, saldot linkitettynä työraportteihin ja hinnoitteluun');
 assert.equal(BASE_PACKAGE_DESCRIPTION, 'Työraportit ja toimeksiannot, asiakkaat ja laiterekisteri, tilaajaportaali sekä yritys- ja käyttäjähallinta');
 assert.equal(MODULE_DESCRIPTIONS.remote_monitoring, 'Lämpötila, kosteus, paine, valaistus, NO/NC-tilatiedot, 0–10 V, jännitteet ja sähkönkulutus — hälytykset, trendit ja etäohjaus');
-assert.equal(MODULE_NOTES.remote_monitoring, 'Vaatii seurattavan laitteen tilauksen (alkaen 25,00 € / laite + toimitus, hinta mittauskohteiden mukaan)');
-assert.ok(PRICE_ROWS.filter((r) => r.key.startsWith('device:')).every((r) => r.note.includes('alkaen 25,00 € / laite + toimitus') && r.label.startsWith('Laitemaksu')));
+assert.equal(MODULE_NOTES.remote_monitoring, 'Laitemaksu alkaen 5,00 €/kk / laite · laite alkaen 25,00 € kertamaksu + toimitus');
+const rmRow = PRICE_ROWS.find((r) => r.key === 'module:remote_monitoring');
+assert.equal(rmRow.note({ ...p, device_prices: { jc3248: 6, esp32_ds18b20: 4.5, default: 7 } }), 'Laitemaksu alkaen 4,50 €/kk / laite · laite alkaen 25,00 € kertamaksu + toimitus');
+assert.ok(PRICE_ROWS.filter((r) => r.key.startsWith('device:')).every((r) => !r.note && r.label.startsWith('Laitemaksu')));
 for (const k of ['quotes', 'billing', 'remote_monitoring', 'inventory', 'tools']) assert.equal(LICENSE_MODULE_DESCRIPTIONS[k], MODULE_DESCRIPTIONS[k], k);
 for (const r of PRICE_ROWS.filter((x) => x.key.startsWith('module:'))) assert.equal(r.description, MODULE_DESCRIPTIONS[r.key.slice(7)]);
 for (const r of PRICE_ROWS.filter((x) => x.key.startsWith('huolto:'))) assert.equal(r.description, HUOLTO_DESCRIPTIONS[r.key.slice(7)]);

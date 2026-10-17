@@ -2,7 +2,7 @@ import { FormEvent, useEffect, useMemo, useState } from 'react';
 import BillingPeriodPicker from './BillingPeriodPicker';
 import { DEFAULT_BILLING_DISCOUNTS, billingPeriodLabel, parsePriceList, type BillingPeriod, type PriceList } from '../lib/companySignup';
 import ToggleSwitch from './ToggleSwitch';
-import ModuleDescription from './ModuleDescription';
+import ModuleDescription, { minDeviceFee } from './ModuleDescription';
 import {
   estimateOrderMonthlyTotal,
   formatLicenseMoney,
@@ -148,7 +148,7 @@ export default function CompanySubscriptionOrderForm({ license, onSubmitted }: P
                     laitetta)
                   </span>
                 )}
-                <span className="muted"> — <ModuleDescription moduleKey={moduleKey} /></span>
+                <span className="muted"> — <ModuleDescription moduleKey={moduleKey} deviceFeeEur={minDeviceFee(license.pricing.temp_device_unit_prices)} /></span>
                 {moduleKey === 'remote_monitoring' && showDevices && (
                   <ul className="license-device-pricing-list">
                     {license.pricing.remote_monitoring_devices.by_type.map((row) => (
