@@ -51,13 +51,26 @@ export const PRINT_SHELL_CSS = `
 .rp .legacy [style*="border"] { border-color: #d4d4d4 !important; }
 .rp .legacy [style*="border-bottom:2px"], .rp .legacy [style*="border-bottom: 2px"] { border-bottom-width: .5px !important; }
 .rp .legacy [style*="border-radius"] { border-radius: 0 !important; }
-.rp img[src*="/assets/konvektorit/"] { filter: grayscale(1); opacity: .85; }
 .rp .legacy [style*="#16a34a"], .rp .legacy [style*="#2e7d32"], .rp .legacy [style*="#388E3C"][style*="font-weight"], .rp .legacy .st-ok { color: #1b7f3b !important; }
 .rp .legacy [style*="#dc2626"], .rp .legacy [style*="#b91c1c"], .rp .legacy [style*="#c62828"], .rp .legacy [style*="#d32f2f"], .rp .legacy [style*="color:red"], .rp .legacy .st-bad { color: #b42318 !important; }
 .rp .legacy strong { font-weight: 700; }
 .rp .legacy h2, .rp .legacy h3, .rp .legacy h4 { font-size: 9pt !important; margin: 3mm 0 1mm !important; break-after: avoid; page-break-after: avoid; }
 .rp .legacy [style*="font-size:14px"], .rp .legacy [style*="font-size:13px"], .rp .legacy [style*="font-size:12px"], .rp .legacy [style*="font-size:16px"], .rp .legacy [style*="font-size: 14px"], .rp .legacy [style*="font-size:11pt"] { font-size: 9pt !important; }
 .rp .legacy [style*="font-size:18px"], .rp .legacy [style*="font-size:20px"], .rp .legacy [style*="font-size:22px"] { font-size: 10pt !important; }
+/* Maltillinen väri (ILP-sisäyksiköt, konvektorit): turkoosi korostus, värikuva, pehmeät tilamerkit; leipäteksti musta. */
+.rp .tint { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+.rp .tint h2 { color: #00646e; background: #e3f3f4; border-left: 3px solid #00838f; }
+.rp .tint h3 { color: #00646e; border-bottom: .5px solid #9fd3d8; padding-bottom: .6mm; }
+.rp .tint .unit-fig { border-color: #9fd3d8; background: #f7fcfc; }
+.rp .tint .unit-fig img, .rp .tint img[src*="/assets/konvektorit/"] { filter: saturate(.75); opacity: 1; }
+.rp .tint .chip { border-color: #4fb3bd; }
+.rp .tint .chip span { color: #00646e; }
+.rp .tint table.kv th, .rp .tint table.kv td { border-bottom-color: #d7ebed; }
+.rp .tint tr.teho td { font-weight: 700; color: #00646e; }
+.rp .tint .st-ok, .rp .tint .st-bad { padding: .2mm 1.2mm; border-radius: .8mm; }
+.rp .tint .st-ok { background: #e7f6ec; }
+.rp .tint .st-bad { background: #fdecea; }
+.rp .tint .note.fault-text { background: #fdf5f4; border-left: 2px solid #e8a39b; }
 .rp .kvr { display: grid; grid-template-columns: 42% 1fr; gap: 0 2mm; padding: .9mm 1mm; border-bottom: .5px solid #d4d4d4; font-size: 8.5pt; }
 .rp .kvr > span:first-child { color: #555; }
 .rp .kvr.full { display: block; }
