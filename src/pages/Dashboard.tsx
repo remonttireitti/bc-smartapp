@@ -47,7 +47,7 @@ const MODULES: ModuleTile[] = [
     licenseModule: 'remote_monitoring',
   },
   { title: 'Työkalut', lines: ['Työkaluinventaario', 'Lainaus ja varaukset'], color: '#ec4899', href: '/tyokalut', licenseModule: 'tools' },
-  { title: 'Hallinta', lines: ['Omat tiedot ja yritys', 'Käyttäjät ja kumppanuudet'], color: '#8b5cf6', href: '/hallinta/omat' },
+  { title: 'Hallinta', lines: ['Omat tiedot ja yritys', 'Käyttäjät ja kumppanuudet'], color: '#8b5cf6', href: '/hallinta' },
 ];
 
 interface Props {

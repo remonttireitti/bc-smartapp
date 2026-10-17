@@ -1,28 +1,3 @@
-export type GlobalAdminSectionId = 'companies' | 'licenses' | 'registry' | 'operations';
-
-export const GLOBAL_ADMIN_SECTIONS: { id: GlobalAdminSectionId; label: string; description: string }[] = [
-  {
-    id: 'companies',
-    label: 'Yritykset ja käyttäjät',
-    description: 'Uudet tenantit, rivimäärät ja käyttäjäkutsut',
-  },
-  {
-    id: 'licenses',
-    label: 'Tilaukset ja moduulit',
-    description: 'Kokeilujaksot, tilaukset, maksut ja moduulien käyttöoikeudet',
-  },
-  {
-    id: 'registry',
-    label: 'Rekisterikorjaukset',
-    description: 'Omistajuus, duplikaatit ja massamuokkaus',
-  },
-  {
-    id: 'operations',
-    label: 'Loki ja varmuuskopiot',
-    description: 'Käyttäjätoiminta, päivittäiset ja viikoittaiset vedokset, lataus ja palautus',
-  },
-];
-
 export type EntityType = 'work_reports' | 'maintenance_reports' | 'customers' | 'quote_requests';
 
 export const ENTITY_LABELS: Record<EntityType, string> = {

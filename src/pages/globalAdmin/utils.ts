@@ -75,3 +75,17 @@ export function pickDefaultDuplicateTarget(
     return a.created_at.localeCompare(b.created_at);
   })[0]?.id ?? customers[0]?.id ?? '';
 }
+
+/** Lisenssin tila lyhyesti (yrityslista ja yrityssivu). */
+export function licenseStatusText(snapshot: {
+  enrollment: string;
+  effective_status: string;
+  payment_status: string;
+}): string {
+  if (snapshot.enrollment === 'legacy') return 'Vanha sopimus';
+  if (snapshot.effective_status === 'pending_trial') return 'Odottaa kokeilua';
+  if (snapshot.effective_status === 'trial') return 'Kokeilujakso';
+  if (snapshot.effective_status === 'active') return 'Maksava';
+  if (snapshot.payment_status === 'awaiting_payment') return 'Odottaa maksua';
+  return 'Ei aktiivinen';
+}
