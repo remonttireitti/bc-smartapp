@@ -1,4 +1,5 @@
 import { ilpDeviceModel, ilpDeviceSerial, isIlpDevice, realIdentityValue } from './ilpIdentity';
+import { deviceFieldsFromSnapshot, fillEmptyEquipmentDeviceFields } from '../equipmentDeviceFields';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import {
   createEmptySisayksikkoData,
@@ -608,7 +609,7 @@ export async function syncEquipmentFromReport(
   equipmentId: string,
   snapshot: Record<string, unknown>,
   supabase: SupabaseClient,
-  identity?: { serial_number?: string; model?: string },
+  identity?: { serial_number?: string; model?: string; manufacturer?: string },
 ): Promise<void> {
   const deviceType = trim(snapshot.laiteTyyppi) || null;
   // ILP: laitteen sarjanumero/malli pidetään samana kuin ulkoyksikön (vain oikeat arvot).
@@ -625,6 +626,11 @@ export async function syncEquipmentFromReport(
     .eq('id', equipmentId);
 
   if (error) throw new Error(error.message);
+  await fillEmptyEquipmentDeviceFields(supabase, equipmentId, {
+    manufacturer: typeof identity?.manufacturer === 'string' ? identity.manufacturer : null,
+    refrigerant: deviceFieldsFromSnapshot(snapshot).refrigerant,
+    refrigerant_charge_kg: deviceFieldsFromSnapshot(snapshot).refrigerant_charge_kg,
+  });
 }
 
 function equipmentNameFromForm(form: HuoltoReportData): string {
@@ -632,6 +638,11 @@ function equipmentNameFromForm(form: HuoltoReportData): string {
     return trim(form.laiteKayttotarkoitus) || trim(form.laiteSijainti) || trim(form.laiteTunnus) || 'Konvektoriverkosto';
   }
   return trim(form.laiteTunnus) || trim(form.laiteMalli) || trim(form.laiteValmistaja) || 'Laite';
+}
+
+function deviceFieldsFromReport(form: HuoltoReportData, snapshot: Record<string, unknown>) {
+  const fromSnap = deviceFieldsFromSnapshot(snapshot);
+  return { manufacturer: realIdentityValue(form.laiteValmistaja) || null, refrigerant: fromSnap.refrigerant, refrigerant_charge_kg: fromSnap.refrigerant_charge_kg };
 }
 
 /** Create or update equipment row from report laitetiedot + technical snapshot. */
@@ -667,11 +678,13 @@ export async function saveEquipmentFromReport(
     delete updatePayload.customer_id;
     const { error } = await supabase.from('equipment').update(updatePayload).eq('id', equipmentId);
     if (error) throw new Error(error.message);
+    await fillEmptyEquipmentDeviceFields(supabase, equipmentId, deviceFieldsFromReport(form, snapshot));
     return equipmentId;
   }
 
   const { data, error } = await supabase.from('equipment').insert(payload).select('id').single();
   if (error || !data) throw new Error(error?.message ?? 'Laitteen luonti epäonnistui.');
+  await fillEmptyEquipmentDeviceFields(supabase, data.id as string, deviceFieldsFromReport(form, snapshot));
   return data.id as string;
 }
 
