@@ -29,10 +29,14 @@ file_size_limit = "50MiB"
 
 [auth]
 enabled = true
-site_url = "https://bc-smartapp.pages.dev"
+site_url = "https://bestcool.eu"
 additional_redirect_urls = [
   "http://localhost:5173",
   "http://localhost:5173/aseta-uusi-salasana",
+  "https://bestcool.eu",
+  "https://bestcool.eu/aseta-uusi-salasana",
+  "https://www.bestcool.eu",
+  "https://www.bestcool.eu/aseta-uusi-salasana",
   "https://bc-smartapp.pages.dev",
   "https://bc-smartapp.pages.dev/aseta-uusi-salasana",
 ]

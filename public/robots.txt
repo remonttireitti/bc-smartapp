@@ -1,0 +1,10 @@
+# BC Smartapp – vain julkinen etusivu ja kirjautuminen indeksoidaan.
+User-agent: *
+Allow: /$
+Allow: /login$
+Allow: /assets/
+Allow: /icon.svg
+Allow: /pwa-
+Disallow: /
+
+Sitemap: https://bestcool.eu/sitemap.xml
