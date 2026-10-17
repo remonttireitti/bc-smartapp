@@ -88,10 +88,20 @@ function workflowMenuVisible(p: RowProps): boolean {
 }
 
 /** Työraportit taulukkona: Työ, Asiakas, Ajankohta, Osapuoli, Tila. */
-export function WorkReportListTable({ rows }: { rows: RowProps[] }) {
+export function WorkReportListTable({ rows, showPartner = true }: { rows: RowProps[]; showPartner?: boolean }) {
   const showVisibility = rows.some((p) => p.report.subscriber_id || p.report.customers?.subscriber_id);
   const columns: DataTableColumn<RowProps>[] = [
-    { key: 'title', label: 'Työ', value: (p) => p.report.title },
+    {
+      key: 'title',
+      label: 'Työ',
+      value: (p) => p.report.title,
+      render: (p) => (
+        <>
+          {p.report.title}
+          {p.report.is_onboarding_demo ? <span className="badge badge-demo">Esimerkki</span> : null}
+        </>
+      ),
+    },
     { key: 'customer', label: 'Asiakas', value: (p) => p.report.customers?.name ?? '' },
     {
       key: 'when',
@@ -100,14 +110,14 @@ export function WorkReportListTable({ rows }: { rows: RowProps[] }) {
       render: (p) => scheduleLabel(p.report) || <span className="muted-cell">Ei ajastettu</span>,
       className: 'nowrap',
     },
-    {
+    ...(showPartner ? [{
       key: 'party',
       label: 'Kumppani',
       value: (p) =>
         (p.variant ?? 'default') === 'default'
           ? reportPartner(p.report, p.viewerCompanyId)?.name ?? 'Omat'
           : tileSubtitle(p.report, p.variant ?? 'default'),
-    },
+    }] as DataTableColumn<RowProps>[] : []),
   ];
   if (showVisibility) {
     columns.push({

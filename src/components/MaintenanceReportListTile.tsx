@@ -36,6 +36,14 @@ export function MaintenanceReportListTable<T extends MaintenanceReportListItem>(
       key: 'device',
       label: 'Laite',
       value: (r) => r.equipment?.name || [r.data?.laiteValmistaja, r.data?.laiteMalli].filter(Boolean).join(' ') || '',
+      render: (r) => (
+        <>
+          {r.equipment?.name || [r.data?.laiteValmistaja, r.data?.laiteMalli].filter(Boolean).join(' ')}
+          {(r.data as { onboardingDemo?: boolean } | null | undefined)?.onboardingDemo ? (
+            <span className="badge badge-demo">Esimerkki</span>
+          ) : null}
+        </>
+      ),
     },
     {
       key: 'tag',

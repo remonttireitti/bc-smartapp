@@ -1,3 +1,4 @@
+import { partnershipsFeatureEnabled } from './partnershipsModule';
 export type PartnershipAccessLevel = 'none' | 'read' | 'write';
 
 export type PartnershipPermissions = {
@@ -404,7 +405,7 @@ export function companyBillingModuleEnabled(settings: CompanySettings | null | u
 }
 
 export function companyPartnershipsEnabled(settings: CompanySettings | null | undefined): boolean {
-  return settings?.partnerships_enabled === true;
+  return partnershipsFeatureEnabled(settings);
 }
 
 export async function loadCompanyPartnershipsEnabled(

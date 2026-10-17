@@ -59,6 +59,7 @@ export function CustomerEquipmentTable({
             <span className="sr-only">Valitse {eq.name}</span>
           </label>
           {eq.name}
+          {eq.is_onboarding_demo ? <span className="badge badge-demo">Esimerkki</span> : null}
         </span>
       ),
     },

@@ -17627,3 +17627,50 @@ p.quote-outcome-unpriced {
 .company-settings-tabs { margin: .25rem 0 .75rem; flex-wrap: wrap; }
 .settings-toggle-list { display: flex; flex-direction: column; align-items: flex-start; gap: .55rem; }
 .company-modules-editor .form-section + .form-section { margin-top: .75rem; }
+/* Tilauslomake, tilaukset ja hinnasto */
+.landing-header-actions { display: inline-flex; gap: .5rem; align-items: center; }
+.landing-signup { max-width: 960px; margin-left: auto; margin-right: auto; }
+.signup-form { display: flex; flex-direction: column; gap: 1rem; text-align: left; }
+.signup-form fieldset { border: 1px solid var(--border-strong); border-radius: 8px; padding: .75rem 1rem 1rem; margin: 0; }
+.signup-form legend { font-weight: 600; padding: 0 .35rem; }
+.signup-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: .75rem; }
+.signup-checks { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: .35rem .75rem; }
+.signup-check { display: flex; flex-direction: row; align-items: center; gap: .4rem; font-weight: normal; }
+.signup-check input { width: auto; }
+.signup-check .muted { margin-left: auto; font-size: .9em; }
+.signup-users { display: flex; flex-direction: column; gap: .5rem; margin-bottom: .5rem; }
+.signup-user-row { display: grid; grid-template-columns: 1.2fr 1.4fr 1fr auto auto; gap: .5rem; align-items: start; padding: .5rem 0; border-bottom: 1px solid var(--border-strong); }
+.signup-user-roles { display: flex; flex-direction: column; gap: .15rem; padding-top: 1.2rem; }
+.signup-user-remove { margin-top: 1.4rem; }
+@media (max-width: 760px) {
+  .signup-user-row { grid-template-columns: 1fr; }
+  .signup-user-roles { flex-direction: row; flex-wrap: wrap; gap: .75rem; padding-top: 0; }
+  .signup-user-remove { margin-top: 0; justify-self: start; }
+}
+.signup-role-prices { font-size: .9em; margin: .5rem 0 0; }
+.field-error { color: #b91c1c; font-size: .85em; font-weight: normal; }
+label.has-error input { border-color: #b91c1c; }
+.signup-hp { position: absolute !important; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
+.signup-sent { padding: 1.25rem; border: 1px solid var(--border-strong); border-radius: 8px; }
+.price-estimate-table { width: 100%; max-width: 460px; border-collapse: collapse; font-size: .95em; }
+.price-estimate-table caption { text-align: left; font-weight: 600; padding-bottom: .35rem; }
+.price-estimate-table td, .price-estimate-table th { padding: .3rem .4rem; border-bottom: 1px solid var(--border-strong); text-align: left; }
+.price-estimate-table .num, .price-editor-table .num { text-align: right; white-space: nowrap; }
+.price-estimate-table tfoot th { border-top: 2px solid #334155; }
+.price-editor-table { border-collapse: collapse; margin-bottom: .5rem; }
+.price-editor-table td, .price-editor-table th { padding: .25rem .5rem; border-bottom: 1px solid var(--border-strong); text-align: left; }
+.price-editor-table input { width: 7rem; text-align: right; padding: .35rem .5rem; }
+.signup-detail { display: flex; flex-direction: column; gap: 1rem; }
+.signup-detail-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(260px, 460px); gap: 1.5rem; align-items: start; }
+@media (max-width: 760px) { .signup-detail-grid { grid-template-columns: 1fr; } }
+.signup-facts { display: grid; grid-template-columns: max-content 1fr; gap: .35rem 1rem; margin: 0; }
+.signup-facts dt { color: var(--text-muted, #64748b); }
+.signup-facts dd { margin: 0; }
+.signup-message { white-space: pre-wrap; }
+.signup-users-table { width: 100%; border-collapse: collapse; }
+.signup-users-table th, .signup-users-table td { padding: .35rem .5rem; border-bottom: 1px solid var(--border-strong); text-align: left; }
+.signup-actions { display: flex; gap: .5rem; flex-wrap: wrap; }
+.signup-reject { max-width: 560px; display: flex; flex-direction: column; gap: .5rem; }
+.signup-demo-tool { display: flex; flex-wrap: wrap; gap: .75rem; align-items: flex-end; }
+.signup-demo-tool label { min-width: 260px; }
+.signup-requests-page .form-section { margin-top: 1.5rem; }

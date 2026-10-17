@@ -86,3 +86,6 @@ verify_jwt = true
 
 [functions.update-portal-user]
 verify_jwt = true
+
+[functions.company-signup]
+verify_jwt = false

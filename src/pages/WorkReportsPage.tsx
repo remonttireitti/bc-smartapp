@@ -692,7 +692,7 @@ export default function WorkReportsPage({ session }: Props) {
         </div>
 
         <div className="toolbar-right">
-          {partnerOptions.partners.length > 0 ? (
+          {partnershipsEnabled !== false && partnerOptions.partners.length > 0 ? (
             <label className="work-report-partner-filter">
               <span>Kumppani</span>
               <select
@@ -852,6 +852,7 @@ export default function WorkReportsPage({ session }: Props) {
           ) : (
 
             <WorkReportListTable
+              showPartner={partnershipsEnabled !== false}
               rows={sortedActiveReports.map((r) =>
                 reportListItemProps(r, logsByReportId, companyId, billingModuleEnabled, customerBillingEnabled, loadReports, { showStatusMenu: true }))}
             />
@@ -892,6 +893,7 @@ export default function WorkReportsPage({ session }: Props) {
               <h2>Luonnokset</h2>
 
               <WorkReportListTable
+                showPartner={partnershipsEnabled !== false}
                 rows={draftReports.map((r) => ({
                   report: r,
                   linkTo: draftEditPath(r),
@@ -922,6 +924,7 @@ export default function WorkReportsPage({ session }: Props) {
           ) : (
 
             <WorkReportListTable
+              showPartner={partnershipsEnabled !== false}
               rows={historyReports.map((r) =>
                 reportListItemProps(r, logsByReportId, companyId, billingModuleEnabled, customerBillingEnabled, loadReports, { showStatusMenu: true }))}
             />

@@ -1,4 +1,8 @@
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { fetchSignupConfig, type PriceList } from '../lib/companySignup';
+
+const CompanySignupForm = lazy(() => import('../components/CompanySignupForm'));
 
 const FEATURES = [
   {
@@ -70,6 +74,18 @@ const PRAISE = [
 ];
 
 export default function PublicLandingPage() {
+  const [prices, setPrices] = useState<PriceList | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    void fetchSignupConfig().then((cfg) => {
+      if (alive && cfg.enabled && cfg.prices) setPrices(cfg.prices);
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
   return (
     <div className="public-landing">
       <header className="landing-header">
@@ -79,9 +95,16 @@ export default function PublicLandingPage() {
           </span>
           <span>BC Smartapp</span>
         </Link>
-        <Link to="/login" className="btn btn-primary landing-header-cta">
-          Kirjaudu sisään
-        </Link>
+        <span className="landing-header-actions">
+          {prices ? (
+            <a href="#tilaa" className="btn btn-secondary landing-header-cta">
+              Tilaa
+            </a>
+          ) : null}
+          <Link to="/login" className="btn btn-primary landing-header-cta">
+            Kirjaudu sisään
+          </Link>
+        </span>
       </header>
 
       <section className="landing-hero">
@@ -101,9 +124,15 @@ export default function PublicLandingPage() {
             <Link to="/login" className="btn btn-primary landing-btn-lg">
               Aloita kirjautumalla
             </Link>
-            <a href="#ominaisuudet" className="btn btn-secondary landing-btn-lg">
-              Katso ominaisuudet
-            </a>
+            {prices ? (
+              <a href="#tilaa" className="btn btn-secondary landing-btn-lg">
+                Tilaa BC Smartapp
+              </a>
+            ) : (
+              <a href="#ominaisuudet" className="btn btn-secondary landing-btn-lg">
+                Katso ominaisuudet
+              </a>
+            )}
           </div>
         </div>
       </section>
@@ -170,6 +199,15 @@ export default function PublicLandingPage() {
           Kirjaudu ja aloita
         </Link>
       </section>
+
+      {prices ? (
+        <section id="tilaa" className="landing-section landing-signup">
+          <h2>Tilaa BC Smartapp</h2>
+          <Suspense fallback={<p className="muted">Ladataan…</p>}>
+            <CompanySignupForm prices={prices} />
+          </Suspense>
+        </section>
+      ) : null}
 
       <footer className="landing-footer muted">
         BC Smartapp — moniyritys, kumppanuudet ja portaalit
