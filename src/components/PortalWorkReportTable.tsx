@@ -28,7 +28,7 @@ export default function PortalWorkReportTable({
   hrefFor?: (r: WorkReport) => string;
 }) {
   const columns: DataTableColumn<WorkReport>[] = [
-    { key: 'title', label: 'Työ', value: (r) => r.heading || r.title || '' },
+    { key: 'title', label: 'Työ', value: (r) => (r.heading || r.title || '').replace(/\s*bc_partner_copy_source_report_id:[0-9a-f-]{36}/gi, '') },
     { key: 'equipment', label: 'Laite', value: (r) => equipmentLabel(r) },
     {
       key: 'date',
