@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useState } from 'react';
 import PortalUserCredentialsForm from './PortalUserCredentialsForm';
 import PasswordReveal from './PasswordReveal';
+import ToggleSwitch from './ToggleSwitch';
 import { inviteCompanyUser } from '../lib/inviteUser';
 import { supabase } from '../lib/supabase';
 
@@ -37,6 +38,7 @@ export default function CustomerPortalSection({
     display_name: '',
   });
   const [busy, setBusy] = useState(false);
+  const [sendEmail, setSendEmail] = useState(true);
   const [createdPassword, setCreatedPassword] = useState<{ email: string; password: string } | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -84,12 +86,13 @@ export default function CustomerPortalSection({
       const created = await inviteCompanyUser({
         email,
         generate_password: true,
+        send_email: sendEmail,
         display_name: invite.display_name.trim() || customerName,
         role: 'customer',
         company_id: companyId,
         customer_id: customerId,
       });
-      setMessage(`Portaalikäyttäjä luotu: ${email}`);
+      setMessage(`Portaalikäyttäjä luotu: ${email}.${created.mail_sent === true ? ' Tunnukset lähetetty sähköpostilla.' : created.mail_sent === false ? ` Sähköposti epäonnistui: ${created.mail_error ?? ''}` : ''}`);
       setCreatedPassword(created.password ? { email, password: created.password } : null);
       setShowInvite(false);
       setInvite({ email: '', display_name: '' });
@@ -177,6 +180,7 @@ export default function CustomerPortalSection({
                   placeholder={customerName}
                 />
               </label>
+              <ToggleSwitch checked={sendEmail} onChange={setSendEmail} label="Lähetä tunnukset sähköpostilla" />
               <div className="form-actions">
                 <button type="submit" className="btn btn-primary" disabled={busy}>
                   {busy ? 'Luodaan…' : 'Luo ja avaa portaali'}
