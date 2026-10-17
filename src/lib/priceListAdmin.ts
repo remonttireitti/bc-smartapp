@@ -1,19 +1,22 @@
-import { BILLING_MODULE_DESCRIPTION } from './companyLicense';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import {
   ADDON_MODULE_LABELS,
   BASE_PACKAGE_DESCRIPTION,
+  DEVICE_PRICE_NOTE,
   DEVICE_TYPE_LABELS,
   DEVICE_TYPES,
+  HUOLTO_DESCRIPTIONS,
   HUOLTO_KEYS,
   HUOLTO_LABELS,
+  HUOLTO_NOTE,
+  MODULE_DESCRIPTIONS,
+  MODULE_NOTES,
+  STAFF_ROLE_DESCRIPTIONS,
   STAFF_ROLES,
   STAFF_ROLE_LABELS,
   type AddonModuleKey,
   type DeviceTypeKey,
-  type HuoltoCategoryKey,
   type PriceList,
-  type StaffRole,
 } from '../../supabase/functions/_shared/companySignupCore';
 import { isMissingRpcError } from './profileClaim';
 
@@ -25,6 +28,10 @@ export type PriceRow = {
   group: PriceGroupKey;
   label: string;
   description: string;
+  /** Harmaa riippuvuushuomautus. */
+  note?: string;
+  /** false → rivi piilotetaan (esim. Varasto ennen varasto_module.sql-ajoa). */
+  available?: (p: PriceList) => boolean;
   get: (p: PriceList) => number;
   set: (p: PriceList, v: number) => PriceList;
 };
@@ -32,36 +39,17 @@ export type PriceRow = {
 export const PRICE_GROUPS: { key: PriceGroupKey; title: string; note?: string }[] = [
   { key: 'perus', title: 'Peruspaketti' },
   { key: 'moduulit', title: 'Moduulit' },
-  { key: 'huolto', title: 'Huoltoraportit', note: 'Tilaushinta lajia kohden. Asiakkailta laskettavat huoltohinnat ovat yrityksen Huoltohinnastossa.' },
+  { key: 'huolto', title: 'Huoltoraportit', note: `Tilaushinta lajia kohden. ${HUOLTO_NOTE}. Asiakkailta laskettavat huoltohinnat ovat yrityksen Huoltohinnastossa.` },
   { key: 'kayttajat', title: 'Käyttäjät', note: 'Hinta käyttäjää kohden. Monta roolia: kalleimman roolin mukaan.' },
 ];
-
-const MODULE_DESCRIPTIONS: Record<AddonModuleKey, string> = {
-  quotes: 'Tarjouspyynnöt, laskelmat ja tulosteet',
-  billing: BILLING_MODULE_DESCRIPTION,
-  remote_monitoring: 'Lämpötilaseuranta ja etäohjaus (moduulimaksu)',
-  tools: 'Työkaluinventaario ja lainaus',
-  partners: 'Yhteistyö muiden yritysten kanssa',
-};
-
-const HUOLTO_DESCRIPTIONS: Record<HuoltoCategoryKey, string> = {
-  kylma: 'Kylmälaitteet ja lämpöpumput',
-  lvi: 'Käyttövesi, lämmitys, viemärit',
-  iv: 'Ilmanvaihto, suodattimet, LTO',
-  sahko: 'Keskukset, mittaukset',
-};
-
-const ROLE_DESCRIPTIONS: Record<StaffRole, string> = {
-  admin: 'Yrityksen hallinta ja käyttäjät',
-  manager: 'Työnjohto ja raportit',
-  technician: 'Työraportit ja huollot',
-};
 
 const moduleRow = (k: AddonModuleKey): PriceRow => ({
   key: `module:${k}`,
   group: 'moduulit',
   label: ADDON_MODULE_LABELS[k],
   description: MODULE_DESCRIPTIONS[k],
+  note: MODULE_NOTES[k],
+  ...(k === 'inventory' ? { available: (p: PriceList) => p.inventory_priced !== false } : {}),
   get: (p) => p.module_prices[k],
   set: (p, v) => ({ ...p, module_prices: { ...p.module_prices, [k]: v } }),
 });
@@ -70,7 +58,8 @@ const deviceRow = (k: DeviceTypeKey): PriceRow => ({
   key: `device:${k}`,
   group: 'moduulit',
   label: `Laite: ${DEVICE_TYPE_LABELS[k]}`,
-  description: 'Etäseuranta, €/kk per laite',
+  description: 'Etäseurannan seurattava laite, €/kk per laite (alkaen)',
+  note: DEVICE_PRICE_NOTE,
   get: (p) => p.device_prices[k],
   set: (p, v) => ({ ...p, device_prices: { ...p.device_prices, [k]: v } }),
 });
@@ -88,6 +77,7 @@ export const PRICE_ROWS: PriceRow[] = [
   moduleRow('billing'),
   moduleRow('remote_monitoring'),
   ...DEVICE_TYPES.map(deviceRow),
+  moduleRow('inventory'),
   moduleRow('tools'),
   moduleRow('partners'),
   ...HUOLTO_KEYS.map<PriceRow>((k) => ({
@@ -102,7 +92,7 @@ export const PRICE_ROWS: PriceRow[] = [
     key: `role:${k}`,
     group: 'kayttajat',
     label: STAFF_ROLE_LABELS[k],
-    description: ROLE_DESCRIPTIONS[k],
+    description: STAFF_ROLE_DESCRIPTIONS[k],
     get: (p) => p.role_prices[k],
     set: (p, v) => ({ ...p, role_prices: { ...p.role_prices, [k]: v } }),
   })),
@@ -128,6 +118,7 @@ export function applyDraft(
 ): { prices: PriceList } | { error: string } {
   let next = base;
   for (const r of PRICE_ROWS) {
+    if (r.available && !r.available(base)) continue;
     const v = parseEurInput(draft[r.key] ?? '');
     if (v === null) return { error: `Tarkista hinta: ${r.label}` };
     next = r.set(next, v);
@@ -142,7 +133,10 @@ export function priceListPayload(p: PriceList) {
   return {
     trial_days: p.trial_days,
     base_monthly_eur: p.base_monthly_eur,
-    module_prices: { ...p.module_prices },
+    // Ennen varasto_module.sql-ajoa RPC ei tunne 'inventory'-avainta → ei lähetetä.
+    module_prices: Object.fromEntries(
+      Object.entries(p.module_prices).filter(([k]) => k !== 'inventory' || p.inventory_priced !== false),
+    ),
     huolto_prices: { ...p.huolto_prices },
     role_prices: { ...p.role_prices },
     temp_device_monthly_prices: { ...p.device_prices },

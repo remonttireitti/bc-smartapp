@@ -88,7 +88,7 @@ export function buildMainNav(ctx: MainNavContext): MainNavItem[] {
       ],
     },
     {
-      key: 'inventory', label: 'Varasto', href: '/varasto', bases: ['/varasto'], licenseModule: 'base',
+      key: 'inventory', label: 'Varasto', href: '/varasto', bases: ['/varasto'], licenseModule: 'inventory',
       children: [
         { label: 'Kylmäaine', href: '/varasto?tab=refrigerant' },
         { label: 'Materiaalit', href: '/varasto?tab=materials' },

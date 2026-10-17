@@ -1,3 +1,4 @@
+import { HUOLTO_DESCRIPTIONS } from '../../supabase/functions/_shared/companySignupCore';
 import { Fragment, useState } from 'react';
 import ToggleSwitch from './ToggleSwitch';
 import {
@@ -123,7 +124,7 @@ export default function HuoltoSettingsSection({ companySettings, onChange, mode,
                   const on = settings.types[category.key]?.enabled === true;
                   return (
                     <tr key={category.key} className="huolto-settings-category" style={{ borderLeftColor: category.color }}>
-                      <td><strong>{category.label}</strong></td>
+                      <td><strong>{category.label}</strong><br /><small className="muted">{HUOLTO_DESCRIPTIONS[category.key]}</small></td>
                       <td><ToggleSwitch checked={on} onChange={(v) => setType(category.key, { enabled: v })} /></td>
                     </tr>
                   );
@@ -132,7 +133,7 @@ export default function HuoltoSettingsSection({ companySettings, onChange, mode,
                 return (
                   <Fragment key={category.key}>
                     <tr className="huolto-settings-category" style={{ borderLeftColor: category.color }}>
-                      <td><strong>{category.label}</strong></td>
+                      <td><strong>{category.label}</strong><br /><small className="muted">{HUOLTO_DESCRIPTIONS[category.key]}</small></td>
                       <td><ToggleSwitch checked={anyOn} onChange={(v) => setCategory(category.key, v)} /></td>
                     </tr>
                     {anyOn

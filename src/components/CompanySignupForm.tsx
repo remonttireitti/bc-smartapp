@@ -1,11 +1,16 @@
 import { FormEvent, useMemo, useRef, useState } from 'react';
 import PriceEstimateTable from './PriceEstimateTable';
-import { BILLING_MODULE_DESCRIPTION, PARTNER_BILLING_REQUIRES_PARTNERS } from '../lib/companyLicense';
+import { DescriptionWithNote } from './ModuleDescription';
 import {
-  ADDON_MODULES,
   ADDON_MODULE_LABELS,
   BASE_PACKAGE_DESCRIPTION,
+  DEVICE_PRICE_NOTE,
+  HUOLTO_DESCRIPTIONS,
   HUOLTO_KEYS,
+  MODULE_DESCRIPTIONS,
+  MODULE_NOTES,
+  deviceFromPrice,
+  offeredAddonModules,
   HUOLTO_LABELS,
   STAFF_ROLES,
   STAFF_ROLE_LABELS,
@@ -112,7 +117,7 @@ export default function CompanySignupForm({ prices }: Props) {
             <input type="checkbox" checked disabled /> Peruspaketti <span className="muted">{formatEur(prices.base_monthly_eur)}</span>
             <small className="signup-check-desc muted">{BASE_PACKAGE_DESCRIPTION}</small>
           </label>
-          {ADDON_MODULES.map((k) => (
+          {offeredAddonModules(prices).map((k) => (
             <label key={k} className="signup-check">
               <input
                 type="checkbox"
@@ -120,12 +125,17 @@ export default function CompanySignupForm({ prices }: Props) {
                 onChange={(e) => patch({ modules: { ...form.modules, [k]: e.target.checked } })}
               />{' '}
               {ADDON_MODULE_LABELS[k]} <span className="muted">{formatEur(prices.module_prices[k])}</span>
-              {k === 'billing' && (
-                <small className="signup-check-desc">
-                  {BILLING_MODULE_DESCRIPTION}
-                  {!form.modules.partners && <span className="signup-check-desc-off"> · {PARTNER_BILLING_REQUIRES_PARTNERS}</span>}
-                </small>
-              )}
+              <small className="signup-check-desc muted">
+                <DescriptionWithNote
+                  description={MODULE_DESCRIPTIONS[k]}
+                  note={k === 'billing' && form.modules.partners ? null : MODULE_NOTES[k]}
+                />
+                {k === 'remote_monitoring' && (
+                  <span className="module-note">
+                    {' '}· {DEVICE_PRICE_NOTE}: alkaen {formatEur(deviceFromPrice(prices))} / laite
+                  </span>
+                )}
+              </small>
             </label>
           ))}
           {HUOLTO_KEYS.map((k) => (
@@ -136,6 +146,7 @@ export default function CompanySignupForm({ prices }: Props) {
                 onChange={(e) => patch({ huolto: { ...form.huolto, [k]: e.target.checked } })}
               />{' '}
               {HUOLTO_LABELS[k]} <span className="muted">{formatEur(prices.huolto_prices[k])}</span>
+              <small className="signup-check-desc muted">{HUOLTO_DESCRIPTIONS[k]}</small>
             </label>
           ))}
         </div>
