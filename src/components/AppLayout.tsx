@@ -93,6 +93,7 @@ export default function AppLayout({ session, children, noSidebar = false }: Prop
             <span>BC Smartapp</span>
           </Link>
         </div>
+        {showSidebar ? null : (
         <div className="topbar-actions">
           <LicenseStatusHeaderButton session={session} />
           <div className="topbar-actions-group topbar-actions-user">
@@ -114,6 +115,7 @@ export default function AppLayout({ session, children, noSidebar = false }: Prop
             </button>
           </div>
         </div>
+        )}
       </header>
 
       <div className="app-body">
@@ -124,6 +126,33 @@ export default function AppLayout({ session, children, noSidebar = false }: Prop
             onToggleCollapsed={toggleCollapsed}
             mobileOpen={mobileOpen}
             onCloseMobile={closeMobile}
+            footer={
+              <>
+                <LicenseStatusHeaderButton session={session} variant="sidebar" />
+                <Link
+                  to="/hallinta/omat"
+                  className="app-sidebar-link app-sidebar-user"
+                  title={profile?.display_name ?? session.user.email ?? undefined}
+                >
+                  <svg className="app-sidebar-icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm-7 8c0-3.3 3.1-6 7-6s7 2.7 7 6" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+                  </svg>
+                  <span className="app-sidebar-label">{profile?.display_name ?? session.user.email}</span>
+                </Link>
+                <button
+                  type="button"
+                  className="app-sidebar-link app-sidebar-signout"
+                  onClick={() => void signOut()}
+                  disabled={signingOut}
+                  title="Kirjaudu ulos"
+                >
+                  <svg className="app-sidebar-icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M15 4h4v16h-4M10 8l-4 4 4 4M6 12h10" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                  <span className="app-sidebar-label">{signingOut ? 'Kirjaudutaan ulos…' : 'Kirjaudu ulos'}</span>
+                </button>
+              </>
+            }
           />
         ) : null}
         <main className="main">

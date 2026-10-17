@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, type ReactNode } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
 import { useCompanyBillingModuleEnabled } from '../hooks/useCompanyBillingModuleEnabled';
@@ -35,9 +35,11 @@ type Props = {
   onToggleCollapsed: () => void;
   mobileOpen: boolean;
   onCloseMobile: () => void;
+  /** Lisenssi, käyttäjä ja uloskirjautuminen sivupalkin alaosaan. */
+  footer?: ReactNode;
 };
 
-export default function AppSidebar({ session, collapsed, onToggleCollapsed, mobileOpen, onCloseMobile }: Props) {
+export default function AppSidebar({ session, collapsed, onToggleCollapsed, mobileOpen, onCloseMobile, footer }: Props) {
   const location = useLocation();
   const { profile } = useProfile(session);
   const billingModuleEnabled = useCompanyBillingModuleEnabled(profile?.company_id, session);
@@ -126,6 +128,8 @@ export default function AppSidebar({ session, collapsed, onToggleCollapsed, mobi
             );
           })}
         </ul>
+        <div className="app-sidebar-bottom">
+        {footer ? <div className="app-sidebar-footer">{footer}</div> : null}
         <button
           type="button"
           className="app-sidebar-collapse"
@@ -138,6 +142,7 @@ export default function AppSidebar({ session, collapsed, onToggleCollapsed, mobi
           </svg>
           <span className="app-sidebar-label">Kavenna</span>
         </button>
+        </div>
       </nav>
     </>
   );

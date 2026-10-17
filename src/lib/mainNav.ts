@@ -12,7 +12,12 @@ export type MainNavIconKey =
   | 'tools'
   | 'admin';
 
-export type MainNavChild = { label: string; href: string };
+export type MainNavChild = {
+  label: string;
+  href: string;
+  /** Syvät sivut, joilla alakohta on aktiivinen, vaikka polku ei ala hrefillä (esim. tallennettu tarjous). */
+  alsoMatch?: RegExp;
+};
 
 export type MainNavItem = {
   key: MainNavIconKey;
@@ -81,7 +86,11 @@ export function buildMainNav(ctx: MainNavContext): MainNavItem[] {
     {
       key: 'quotes', label: 'Tarjouspyyntö', href: '/tarjouspyynnot', bases: ['/tarjouspyynnot', '/asennus-suunnittelu'], licenseModule: 'quotes',
       children: [
-        { label: 'Tallennetut', href: '/tarjouspyynnot/lista' },
+        {
+          label: 'Tallennetut',
+          href: '/tarjouspyynnot/lista',
+          alsoMatch: /^\/tarjouspyynnot\/(?!uusi$|yhteenveto$|laiterekisteri$|lista$)[^/]+(\/.*)?$/,
+        },
         { label: 'Yhteenveto', href: '/tarjouspyynnot/yhteenveto' },
         { label: 'Uusi tarjouspyyntö', href: '/tarjouspyynnot/uusi' },
         { label: 'Asennus suunnittelu', href: '/asennus-suunnittelu' },
@@ -137,7 +146,13 @@ export function activeMainNavChild(item: MainNavItem, pathname: string, search: 
   let bestScore = -1;
   for (const child of item.children) {
     const [path, query] = child.href.split('?');
-    if (!pathMatches(pathname, path)) continue;
+    if (!pathMatches(pathname, path)) {
+      if (child.alsoMatch?.test(pathname) && bestScore < 0) {
+        best = child;
+        bestScore = 0;
+      }
+      continue;
+    }
     let score = path.length * 10;
     if (query) {
       const want = new URLSearchParams(query);
