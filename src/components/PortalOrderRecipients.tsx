@@ -16,26 +16,31 @@ function normalize(r: RawCandidate): Candidate {
 }
 
 /** Kenelle asiakas voi lähettää työtilauksia: oma henkilöstö tai kumppaniyritys. Ei valintoja = yritykselle. */
-export default function PortalOrderRecipients({ customerId }: { customerId: string }) {
+export default function PortalOrderRecipients({ customerId, subscriberId }: { customerId?: string; subscriberId?: string }) {
+  const ownerCol = subscriberId ? 'subscriber_id' : 'customer_id';
+  const ownerId = (subscriberId ?? customerId) as string;
   const [rows, setRows] = useState<Candidate[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   async function load() {
-    const { data, error: e } = await supabase.rpc('portal_order_recipient_candidates', { p_customer_id: customerId });
+    // Tilaajatason vastaanottajat vaativat SQL:n (subscriber_portal_recipients.sql); ennen sitä osio piilossa.
+    const { data, error: e } = subscriberId
+      ? await supabase.rpc('portal_order_recipient_candidates_subscriber', { p_subscriber_id: subscriberId })
+      : await supabase.rpc('portal_order_recipient_candidates', { p_customer_id: customerId });
     setRows(e ? null : ((data as RawCandidate[]) ?? []).map(normalize));
   }
 
   useEffect(() => {
     void load();
-  }, [customerId]);
+  }, [ownerId]);
 
   async function toggle(row: Candidate, on: boolean) {
     setError(null);
     setRows((prev) => prev?.map((r) => (r.kind === row.kind && r.target_id === row.target_id ? { ...r, selected: on } : r)) ?? prev);
     const col = row.kind === 'partner' ? 'partner_company_id' : 'user_id';
     const res = on
-      ? await supabase.from('portal_order_recipients').insert({ customer_id: customerId, [col]: row.target_id })
-      : await supabase.from('portal_order_recipients').delete().eq('customer_id', customerId).eq(col, row.target_id);
+      ? await supabase.from('portal_order_recipients').insert({ [ownerCol]: ownerId, [col]: row.target_id } as Record<string, string> as never)
+      : await supabase.from('portal_order_recipients').delete().eq(ownerCol, ownerId).eq(col, row.target_id);
     if (res.error) {
       setError('Tallennus epäonnistui.');
       void load();

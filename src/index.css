@@ -17961,3 +17961,7 @@ label.has-error input { border-color: #b91c1c; }
 /* Portaali: ei murupolkua */
 .portal-mode .breadcrumb { display: none; }
 .portal-order-recipients-group { font-size: 0.78rem; color: #6b7280; font-weight: 600; margin-top: 0.35rem; }
+
+.portal-kohde-switcher { display: grid; gap: 0.25rem; padding: 0.5rem 0.75rem; font-size: 0.8rem; color: var(--muted, #64748b); }
+.portal-kohde-switcher select { width: 100%; font-size: 0.9rem; }
+.portal-subscriber-heading { margin: 1.25rem 0 0.25rem; }
