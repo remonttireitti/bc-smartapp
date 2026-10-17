@@ -103,5 +103,6 @@ export function emptySignupForm(): SignupForm {
     huolto: { kylma: false, lvi: false, iv: false, sahko: false },
     users: [{ name: '', email: '', phone: '', roles: ['admin'] }],
     message: '',
+    billing_interval: 'monthly',
   };
 }

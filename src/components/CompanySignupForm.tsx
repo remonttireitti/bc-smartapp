@@ -1,6 +1,7 @@
 import CheckToggle from './CheckToggle';
 import { FormEvent, useMemo, useRef, useState, type ReactNode } from 'react';
 import PriceEstimateTable from './PriceEstimateTable';
+import BillingPeriodPicker from './BillingPeriodPicker';
 import { DescriptionWithNote } from './ModuleDescription';
 import {
   ADDON_MODULE_LABELS,
@@ -235,7 +236,13 @@ export default function CompanySignupForm({ prices }: Props) {
         <input tabIndex={-1} autoComplete="off" value={website} onChange={(e) => setWebsite(e.target.value)} />
       </label>
 
-      <PriceEstimateTable estimate={estimate} title="Arvioitu kuukausihinta" />
+      <PriceEstimateTable estimate={estimate} title="Kuukausihinta" />
+      <BillingPeriodPicker
+        value={form.billing_interval ?? 'monthly'}
+        onChange={(v) => patch({ billing_interval: v })}
+        monthlyNet={estimate.net}
+        prices={prices}
+      />
 
       {error && <p className="error">{error}</p>}
       <button type="submit" className="btn btn-primary landing-btn-lg" disabled={busy}>

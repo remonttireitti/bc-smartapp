@@ -1,12 +1,12 @@
-import { FormEvent, useMemo, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
+import BillingPeriodPicker from './BillingPeriodPicker';
+import { DEFAULT_BILLING_DISCOUNTS, billingPeriodLabel, parsePriceList, type BillingPeriod, type PriceList } from '../lib/companySignup';
 import ToggleSwitch from './ToggleSwitch';
 import ModuleDescription from './ModuleDescription';
 import {
   estimateOrderMonthlyTotal,
-  estimateOrderPeriodTotal,
   formatLicenseMoney,
   formatLicensePeriodMoney,
-  LICENSE_BILLING_INTERVALS,
   LICENSE_MODULE_DESCRIPTIONS,
   LICENSE_MODULE_LABELS,
   PRICED_ADDON_MODULES,
@@ -14,7 +14,6 @@ import {
   remoteMonitoringModuleDisplayPrice,
   tempDeviceTypeLabel,
   type CompanyLicenseSnapshot,
-  type LicenseBillingInterval,
 } from '../lib/companyLicense';
 import { supabase } from '../lib/supabase';
 
@@ -32,7 +31,17 @@ export default function CompanySubscriptionOrderForm({ license, onSubmitted }: P
     inventory: false,
     tools: false,
   });
-  const [billingInterval, setBillingInterval] = useState<LicenseBillingInterval>('monthly');
+  const [billingInterval, setBillingInterval] = useState<BillingPeriod>('monthly');
+  const [discounts, setDiscounts] = useState<Pick<PriceList, 'billing_discounts'>>({ billing_discounts: DEFAULT_BILLING_DISCOUNTS });
+  useEffect(() => {
+    let alive = true;
+    void supabase.from('license_catalog').select('*').eq('id', 1).maybeSingle().then(({ data }) => {
+      if (alive && data) setDiscounts(parsePriceList(data));
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -41,11 +50,6 @@ export default function CompanySubscriptionOrderForm({ license, onSubmitted }: P
     () => estimateOrderMonthlyTotal(baseActive, modules, license.pricing),
     [baseActive, modules, license.pricing],
   );
-  const periodTotal = useMemo(
-    () => estimateOrderPeriodTotal(monthlyTotal, billingInterval),
-    [monthlyTotal, billingInterval],
-  );
-
   const hasSelection = baseActive || Object.values(modules).some(Boolean);
 
   async function onSubmit(e: FormEvent) {
@@ -81,9 +85,9 @@ export default function CompanySubscriptionOrderForm({ license, onSubmitted }: P
       <div className="license-order-pending">
         <h3>Tilaus odottaa maksua</h3>
         <p className="muted">
-          Lähetetty {new Date(order.submitted_at).toLocaleString('fi-FI')}. Arvio jakson hinnasta:{' '}
+          Lähetetty {new Date(order.submitted_at).toLocaleString('fi-FI')}. Jakson hinta:{' '}
           <strong>{formatLicensePeriodMoney(order.estimated_period_eur, order.billing_interval)}</strong>
-          {' '}(n. {formatLicenseMoney(order.estimated_monthly_eur)}).
+          {' '}({formatLicenseMoney(order.estimated_monthly_eur)} ennen jakson alennusta).
         </p>
         <ul className="license-order-module-list">
           {order.base_active && <li>{LICENSE_MODULE_LABELS.base}</li>}
@@ -91,7 +95,7 @@ export default function CompanySubscriptionOrderForm({ license, onSubmitted }: P
             <li key={key}>{LICENSE_MODULE_LABELS[key]}</li>
           ))}
         </ul>
-        <p className="muted">Laskutusjakso: {license.billing_interval_label}</p>
+        <p className="muted">Laskutusjakso: {billingPeriodLabel(order.billing_interval)}</p>
       </div>
     );
   }
@@ -161,26 +165,11 @@ export default function CompanySubscriptionOrderForm({ license, onSubmitted }: P
         })}
       </div>
 
-      <label>
-        Laskutusjakso
-        <select
-          value={billingInterval}
-          onChange={(e) => setBillingInterval(e.target.value as LicenseBillingInterval)}
-        >
-          {LICENSE_BILLING_INTERVALS.map((item) => (
-            <option key={item.value} value={item.value}>
-              {item.label}
-            </option>
-          ))}
-        </select>
-      </label>
-
+      <h4>Laskutusjakso</h4>
       <p className="license-order-total">
-        Arvio: <strong>{formatLicensePeriodMoney(periodTotal, billingInterval)}</strong>
-        {billingInterval !== 'monthly' && (
-          <span className="muted"> (n. {formatLicenseMoney(monthlyTotal)} / kk)</span>
-        )}
+        Kuukausihinta: <strong>{formatLicenseMoney(monthlyTotal)}</strong> <span className="muted">alv 0 %</span>
       </p>
+      <BillingPeriodPicker value={billingInterval} onChange={setBillingInterval} monthlyNet={monthlyTotal} prices={discounts} />
 
       {error && <p className="error">{error}</p>}
       {message && <p className="success">{message}</p>}

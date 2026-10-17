@@ -18,6 +18,10 @@ import {
   parsePriceList,
   rejectSignup,
   signupSelection,
+  billingPeriodLabel,
+  normalizeBillingPeriod,
+  periodPrice,
+  type BillingPeriod,
   type InviteResult,
   type PriceList,
   type SignupRequestRow,
@@ -52,6 +56,10 @@ function selectionText(r: SignupRequestRow): string {
     ...ADDON_MODULES.filter((k) => r.modules?.[k]).map((k) => ADDON_MODULE_LABELS[k]),
     ...HUOLTO_KEYS.filter((k) => r.huolto?.[k]).map((k) => HUOLTO_LABELS[k]),
   ].join(', ');
+}
+
+function requestPeriod(r: SignupRequestRow): BillingPeriod {
+  return normalizeBillingPeriod((r.estimate as { billing_interval?: unknown } | null | undefined)?.billing_interval);
 }
 
 function requestEstimate(r: SignupRequestRow, prices: PriceList | null) {
@@ -202,6 +210,18 @@ function RequestDetail({ row, prices, onChanged }: { row: SignupRequestRow; pric
           <dd>{row.contact_name}, <a href={`mailto:${row.email}`}>{row.email}</a>, {row.phone}</dd>
           <dt>Moduulit</dt>
           <dd>Peruspaketti{selectionText(row) ? `, ${selectionText(row)}` : ''}</dd>
+          <dt>Laskutusjakso</dt>
+          <dd>
+            {billingPeriodLabel(requestPeriod(row))}
+            {requestPeriod(row) !== 'monthly' && estimate && prices ? (() => {
+              const p = periodPrice(estimate.net, requestPeriod(row), prices);
+              return (
+                <span className="muted">
+                  {' '}— {formatEur(p.net)} alv 0 % ({formatEur(p.gross)} sis. alv 25,5 %), alennus {p.discount_pct.toLocaleString('fi-FI')} %
+                </span>
+              );
+            })() : null}
+          </dd>
           {row.message ? (
             <>
               <dt>Lisätietoja</dt>
@@ -335,6 +355,7 @@ export default function SignupRequestsPage() {
           return n == null ? '' : formatEur(n);
         },
       },
+      { key: 'period', label: 'Laskutus', value: (r) => billingPeriodLabel(requestPeriod(r)) },
       { key: 'status', label: 'Tila', value: (r) => SIGNUP_STATUS_LABELS[r.status] },
     ],
     [prices],

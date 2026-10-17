@@ -144,6 +144,23 @@ export function priceListPayload(p: PriceList) {
   };
 }
 
+/** "10" / "7,5" → 7.5 (0–50 %); muuten null. */
+export function parsePctInput(raw: string): number | null {
+  const s = String(raw ?? '').replace(/\s/g, '').replace(',', '.').replace('%', '');
+  if (s === '' || !/^\d+(\.\d{0,2})?$/.test(s)) return null;
+  const n = Number(s);
+  return Number.isFinite(n) && n >= 0 && n <= 50 ? Math.round(n * 100) / 100 : null;
+}
+
+/** Laskutusjakson alennukset (annual_billing.sql: global_admin_update_billing_discounts). */
+export async function saveBillingDiscounts(supabase: SupabaseClient, d: PriceList['billing_discounts']): Promise<void> {
+  const { error } = await supabase.rpc('global_admin_update_billing_discounts', { p_discounts: { ...d } });
+  if (error) {
+    if (isMissingRpcError(error)) throw new Error('Jaksoalennukset tallentuvat, kun annual_billing.sql on ajettu.');
+    throw new Error(error.message);
+  }
+}
+
 /** Yksi tallennus. Ennen price_list.sql-ajoa: vanhat RPC:t peräkkäin. */
 export async function savePriceList(supabase: SupabaseClient, p: PriceList): Promise<void> {
   const payload = priceListPayload(p);
