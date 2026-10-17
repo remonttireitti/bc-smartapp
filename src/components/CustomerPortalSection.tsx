@@ -35,7 +35,7 @@ export default function CustomerPortalSection({
 }: Props) {
   const isSubscriber = !!subscriberId;
   const entityId = (subscriberId ?? customerId) as string;
-  const [portalUser, setPortalUser] = useState<PortalProfile | null>(null);
+  const [portalUsers, setPortalUsers] = useState<PortalProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [showInvite, setShowInvite] = useState(false);
   const [invite, setInvite] = useState({
@@ -60,13 +60,13 @@ export default function CustomerPortalSection({
       .select('id, email, display_name')
       .eq(isSubscriber ? 'subscriber_id' : 'customer_id', entityId)
       .eq('role', isSubscriber ? 'subscriber' : 'customer')
-      .maybeSingle();
+      .order('created_at');
 
     if (loadError) {
       console.error(loadError);
-      setPortalUser(null);
+      setPortalUsers([]);
     } else {
-      setPortalUser((data as PortalProfile | null) ?? null);
+      setPortalUsers((data as PortalProfile[] | null) ?? []);
     }
     setLoading(false);
   }
@@ -125,47 +125,29 @@ export default function CustomerPortalSection({
 
       {loading ? (
         <p className="muted">Ladataan…</p>
-      ) : portalUser ? (
-        <div className="customer-portal-active">
-          {canManage ? (
-            <PortalUserCredentialsForm
-              portalUser={portalUser}
-              entityName={customerName}
-              customerId={customerId}
-              subscriberId={subscriberId}
-              onUpdated={loadPortalUser}
-            />
-          ) : (
-            <dl className="detail-list compact">
-              <div>
-                <dt>Kirjautuminen</dt>
-                <dd>{portalUser.email ?? '—'}</dd>
-              </div>
-              <div>
-                <dt>Näyttönimi</dt>
-                <dd>{portalUser.display_name ?? '—'}</dd>
-              </div>
-            </dl>
-          )}
-          <div className="form-actions" style={{ marginTop: '1rem' }}>
-            <button type="button" className="btn btn-primary" onClick={openCustomerPortal}>
-              {isSubscriber ? 'Avaa tilaajaportaali' : 'Avaa asiakasportaali'}
-            </button>
-          </div>
-          
-        </div>
-      ) : canManage ? (
+      ) : (
         <>
-          {!showInvite ? (
-            <div className="form-actions">
-              <button type="button" className="btn btn-primary" onClick={() => setShowInvite(true)}>
-                Luo portaalikäyttäjä
-              </button>
-              <button type="button" className="btn btn-secondary" onClick={openCustomerPortal}>
-                {isSubscriber ? 'Esikatsele tilaajaportaalia' : 'Esikatsele asiakasportaalia'}
-              </button>
-            </div>
-          ) : (
+          {portalUsers.map((u) =>
+            canManage ? (
+              <div className="customer-portal-active" key={u.id}>
+                <PortalUserCredentialsForm
+                  portalUser={u}
+                  entityName={customerName}
+                  customerId={customerId}
+                  subscriberId={subscriberId}
+                  onUpdated={loadPortalUser}
+                />
+              </div>
+            ) : (
+              <dl className="detail-list compact" key={u.id}>
+                <div>
+                  <dt>Kirjautuminen</dt>
+                  <dd>{u.email ?? '—'}</dd>
+                </div>
+              </dl>
+            ),
+          )}
+          {showInvite && canManage ? (
             <form className="form-grid" onSubmit={(e) => void createPortalUser(e)}>
               <h3>Uusi portaalikäyttäjä</h3>
               <label>
@@ -188,22 +170,26 @@ export default function CustomerPortalSection({
               <ToggleSwitch checked={sendEmail} onChange={setSendEmail} label="Lähetä tunnukset sähköpostilla" />
               <div className="form-actions">
                 <button type="submit" className="btn btn-primary" disabled={busy}>
-                  {busy ? 'Luodaan…' : 'Luo ja avaa portaali'}
+                  {busy ? 'Luodaan…' : 'Luo käyttäjä'}
                 </button>
-                <button
-                  type="button"
-                  className="btn btn-secondary"
-                  disabled={busy}
-                  onClick={() => setShowInvite(false)}
-                >
+                <button type="button" className="btn btn-secondary" disabled={busy} onClick={() => setShowInvite(false)}>
                   Peruuta
                 </button>
               </div>
             </form>
+          ) : (
+            <div className="form-actions" style={{ marginTop: '1rem' }}>
+              {canManage ? (
+                <button type="button" className="btn btn-secondary" onClick={() => setShowInvite(true)}>
+                  Luo portaalikäyttäjä
+                </button>
+              ) : null}
+              <button type="button" className="btn btn-primary" onClick={openCustomerPortal}>
+                {isSubscriber ? 'Esikatsele tilaajaportaalia' : 'Esikatsele asiakasportaalia'}
+              </button>
+            </div>
           )}
         </>
-      ) : (
-        <p className="muted">Vain ylläpitäjä voi luoda portaalikäyttäjiä.</p>
       )}
       {canManage ? (
         isSubscriber ? <PortalOrderRecipients subscriberId={subscriberId} /> : <PortalOrderRecipients customerId={customerId} />
