@@ -2,7 +2,7 @@ import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
 import AppLayout from '../components/AppLayout';
-import { CustomerDocumentGrid, CustomerDocumentTile } from '../components/CustomerDocumentTile';
+import { CustomerDocumentTable } from '../components/CustomerDocumentTile';
 import EquipmentSnapshotTileView from '../components/equipment/EquipmentSnapshotTileView';
 import { DeviceCardIcon, HistoryIcon } from '../components/PrintIcons';
 import Tooltip from '../components/Tooltip';
@@ -549,11 +549,7 @@ export default function EquipmentDetailPage({ session }: Props) {
         {documents.length === 0 ? (
           <p className="muted">Ei tälle laitteelle kohdistettuja raportteja tai tarjouksia.</p>
         ) : (
-          <CustomerDocumentGrid>
-            {documents.map((doc) => (
-              <CustomerDocumentTile key={`${doc.kind}:${doc.id}`} document={doc} />
-            ))}
-          </CustomerDocumentGrid>
+          <CustomerDocumentTable documents={documents} />
         )}
       </WorkReportSectionDialog>
     </AppLayout>

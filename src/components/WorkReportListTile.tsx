@@ -1,11 +1,11 @@
-import type { ReactNode } from 'react';
-import { Link } from 'react-router-dom';
+import DataTable, { StatusMark, type DataTableColumn } from './DataTable';
 import WorkReportStatusBadges from './WorkReportStatusBadges';
 import WorkReportStatusMenu from './WorkReportStatusMenu';
 import { canChangeWorkflowStatus } from '../lib/workReportStatusUpdate';
 import { resolveWorkReportViewerRole } from '../lib/workReportViewerStatus';
 import { subscriberPortalVisibilityLabel } from '../lib/subscriberPortalVisibility';
 import {
+  getWorkStatusLabel,
   reportPartyLabels,
   type WorkReport,
   type WorkReportDailyLog,
@@ -43,6 +43,7 @@ type Props = {
   dailyLogs?: WorkReportDailyLog[];
   customerBillingEnabled?: boolean;
   linkTo?: string;
+  billingModuleEnabled?: boolean;
   onDelete?: () => void;
   deleteBusy?: boolean;
   /** Näytä työn tilan pikavaihto kortin alla (aktiiviset työt). */
@@ -50,101 +51,116 @@ type Props = {
   onStatusChanged?: () => void;
 };
 
-export function WorkReportListTile({
-  report,
-  variant = 'default',
-  portalView = false,
-  viewerCompanyId = null,
-  hasDailyLogs = false,
-  dailyLogs = [],
-  customerBillingEnabled = false,
-  linkTo,
-  onDelete,
-  deleteBusy = false,
-  showStatusMenu = false,
-  onStatusChanged,
-}: Props) {
-  const href = linkTo ?? `/tyoraportit/${report.id}`;
-  const scheduleLabel = report.scheduled_start
+type RowProps = Omit<Props, 'billingModuleEnabled'> & { billingModuleEnabled?: boolean };
+
+function scheduleLabel(report: WorkReport): string {
+  return report.scheduled_start
     ? new Date(report.scheduled_start).toLocaleString('fi-FI', {
         day: 'numeric',
         month: 'numeric',
+        year: '2-digit',
         hour: '2-digit',
         minute: '2-digit',
       })
-    : 'Ei ajastettu';
-  const showStatusBadges = !portalView && !!viewerCompanyId;
-  const showWorkflowMenu =
-    showStatusMenu
-    && variant === 'default'
-    && !portalView
-    && !!viewerCompanyId
-    && resolveWorkReportViewerRole(report, viewerCompanyId) !== 'incoming_partner'
-    && canChangeWorkflowStatus(report.status);
-
-  return (
-    <div className="work-report-list-tile-wrap">
-      <Link
-        to={href}
-        className="tile work-report-list-tile"
-        style={{ background: tileColor(report.status) }}
-      >
-        <div className="work-report-list-tile-body">
-          <strong className="work-report-list-tile-title">{report.title}</strong>
-          <span className="work-report-list-tile-line">{report.customers?.name ?? '—'}</span>
-          <span className="work-report-list-tile-line">{scheduleLabel}</span>
-          <span className="work-report-list-tile-meta">{tileSubtitle(report, variant)}</span>
-          {report.subscriber_id || report.customers?.subscriber_id ? (
-            <span className="work-report-list-tile-meta">
-              {subscriberPortalVisibilityLabel(report.subscriber_portal_visibility)}
-            </span>
-          ) : null}
-        </div>
-        {showStatusBadges ? (
-          <div className="work-report-list-tile-footer">
-            <WorkReportStatusBadges
-              workflowStatus={report.status}
-              context={{
-                status: report.status,
-                owner_company_id: report.owner_company_id,
-                created_by_company_id: report.created_by_company_id,
-                delegate_company_id: report.delegate_company_id,
-                billing: report.billing,
-                billable: report.billable,
-              }}
-              viewerCompanyId={viewerCompanyId}
-              hasDailyLogs={hasDailyLogs}
-              dailyLogs={dailyLogs}
-              customerBillingEnabled={customerBillingEnabled}
-              compact
-              hideWorkflowBadge={showWorkflowMenu}
-            />
-          </div>
-        ) : null}
-      </Link>
-      {showWorkflowMenu ? (
-        <div className="work-report-list-tile-status">
-          <WorkReportStatusMenu
-            reportId={report.id}
-            status={report.status}
-            onChanged={() => onStatusChanged?.()}
-          />
-        </div>
-      ) : null}
-      {onDelete ? (
-        <button
-          type="button"
-          className="btn btn-secondary btn-sm work-report-list-tile-delete"
-          disabled={deleteBusy}
-          onClick={onDelete}
-        >
-          {deleteBusy ? 'Poistetaan…' : 'Poista luonnos'}
-        </button>
-      ) : null}
-    </div>
-  );
+    : '';
 }
 
-export function WorkReportListGrid({ children }: { children: ReactNode }) {
-  return <div className="grid work-report-list-grid">{children}</div>;
+function workflowMenuVisible(p: RowProps): boolean {
+  return !!p.showStatusMenu
+    && (p.variant ?? 'default') === 'default'
+    && !p.portalView
+    && !!p.viewerCompanyId
+    && resolveWorkReportViewerRole(p.report, p.viewerCompanyId) !== 'incoming_partner'
+    && canChangeWorkflowStatus(p.report.status);
+}
+
+/** Työraportit taulukkona: Työ, Asiakas, Ajankohta, Osapuoli, Tila. */
+export function WorkReportListTable({ rows }: { rows: RowProps[] }) {
+  const showVisibility = rows.some((p) => p.report.subscriber_id || p.report.customers?.subscriber_id);
+  const columns: DataTableColumn<RowProps>[] = [
+    { key: 'title', label: 'Työ', value: (p) => p.report.title },
+    { key: 'customer', label: 'Asiakas', value: (p) => p.report.customers?.name ?? '' },
+    {
+      key: 'when',
+      label: 'Ajankohta',
+      value: (p) => p.report.scheduled_start ?? '',
+      render: (p) => scheduleLabel(p.report) || <span className="muted-cell">Ei ajastettu</span>,
+      className: 'nowrap',
+    },
+    { key: 'party', label: 'Osapuoli', value: (p) => tileSubtitle(p.report, p.variant ?? 'default') },
+  ];
+  if (showVisibility) {
+    columns.push({
+      key: 'visibility',
+      label: 'Tilaajalle',
+      value: (p) =>
+        p.report.subscriber_id || p.report.customers?.subscriber_id
+          ? subscriberPortalVisibilityLabel(p.report.subscriber_portal_visibility)
+          : '',
+    });
+  }
+  columns.push({
+    key: 'status',
+    label: 'Tila',
+    value: (p) => p.report.status,
+    render: (p) =>
+      !p.portalView && p.viewerCompanyId ? (
+        <WorkReportStatusBadges
+          workflowStatus={p.report.status}
+          context={{
+            status: p.report.status,
+            owner_company_id: p.report.owner_company_id,
+            created_by_company_id: p.report.created_by_company_id,
+            delegate_company_id: p.report.delegate_company_id,
+            billing: p.report.billing,
+            billable: p.report.billable,
+          }}
+          viewerCompanyId={p.viewerCompanyId}
+          hasDailyLogs={p.hasDailyLogs ?? false}
+          dailyLogs={p.dailyLogs ?? []}
+          customerBillingEnabled={p.customerBillingEnabled ?? false}
+          compact
+          hideWorkflowBadge={workflowMenuVisible(p)}
+        />
+      ) : (
+        <StatusMark color={tileColor(p.report.status)} label={getWorkStatusLabel(p.report.status)} />
+      ),
+  });
+  const anyActions = rows.some((p) => workflowMenuVisible(p) || p.onDelete);
+
+  return (
+    <DataTable
+      rows={rows}
+      columns={columns}
+      rowKey={(p) => p.report.id}
+      rowHref={(p) => p.linkTo ?? `/tyoraportit/${p.report.id}`}
+      ariaLabel="Työraportit"
+      hideFilter
+      actions={
+        anyActions
+          ? (p) => (
+              <>
+                {workflowMenuVisible(p) ? (
+                  <WorkReportStatusMenu
+                    reportId={p.report.id}
+                    status={p.report.status}
+                    onChanged={() => p.onStatusChanged?.()}
+                  />
+                ) : null}
+                {p.onDelete ? (
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    disabled={p.deleteBusy}
+                    onClick={p.onDelete}
+                  >
+                    {p.deleteBusy ? 'Poistetaan…' : 'Poista luonnos'}
+                  </button>
+                ) : null}
+              </>
+            )
+          : undefined
+      }
+    />
+  );
 }

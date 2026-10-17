@@ -1,47 +1,63 @@
-import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
+import DataTable, { type DataTableColumn } from './DataTable';
 import { customerAddressLine } from '../lib/customers';
 import { subscriberLabel } from '../lib/subscribers';
 import type { Customer } from '../types';
 
 type Props = {
-  customer: Customer;
-  color: string;
+  customers: Customer[];
   showSubscriber?: boolean;
-  showPortalAction?: boolean;
+  showPortalAction?: (customer: Customer) => boolean;
 };
 
-export function CustomerListTile({ customer, color, showSubscriber, showPortalAction }: Props) {
-  const hasSubscriber = Boolean(customer.subscriber_id || customer.subscriber?.name);
-  const portalHref = `/asiakkaat/${customer.id}#customer-portal`;
+/** Asiakasrekisteri taulukkona: Nimi, Osoite, Puhelin, Tilaaja, Rekisteri. */
+export function CustomerListTable({ customers, showSubscriber, showPortalAction }: Props) {
+  const columns: DataTableColumn<Customer>[] = [
+    {
+      key: 'name',
+      label: 'Nimi',
+      value: (c) => c.name,
+      render: (c) => (
+        <>
+          {c.name}
+          {c.is_onboarding_demo ? <span className="badge badge-demo" style={{ marginLeft: 6 }}>Esimerkki</span> : null}
+        </>
+      ),
+    },
+    { key: 'address', label: 'Osoite', value: (c) => customerAddressLine(c) },
+    { key: 'phone', label: 'Puhelin', value: (c) => c.phone ?? '', className: 'nowrap' },
+  ];
+  if (showSubscriber) {
+    columns.push({
+      key: 'subscriber',
+      label: 'Tilaaja',
+      value: (c) => (c.subscriber_id || c.subscriber?.name ? subscriberLabel(c.subscriber) : ''),
+    });
+  }
+  if (customers.some((c) => c.owner_company?.name)) {
+    columns.push({ key: 'registry', label: 'Rekisteri', value: (c) => c.owner_company?.name ?? '' });
+  }
+  const anyAction = !!showPortalAction && customers.some((c) => showPortalAction(c));
 
   return (
-    <div className="customer-list-tile-wrap">
-      <Link to={`/asiakkaat/${customer.id}`} className="tile customer-list-tile" style={{ background: color }}>
-        <div className="customer-list-tile-body">
-          <strong className="customer-list-tile-title">{customer.name}</strong>
-          {customer.is_onboarding_demo ? <span className="badge badge-demo">Esimerkki</span> : null}
-          <span className="customer-list-tile-line">{customerAddressLine(customer)}</span>
-          {customer.phone ? <span className="customer-list-tile-line">{customer.phone}</span> : null}
-          {showSubscriber ? (
-            <span className={`customer-list-tile-meta${hasSubscriber ? '' : ' customer-list-no-subscriber'}`}>
-              Tilaaja: {subscriberLabel(customer.subscriber)}
-            </span>
-          ) : null}
-          {customer.owner_company?.name ? (
-            <span className="customer-list-tile-meta">Rekisteri: {customer.owner_company.name}</span>
-          ) : null}
-        </div>
-      </Link>
-      {showPortalAction ? (
-        <Link to={portalHref} className="btn btn-secondary btn-sm customer-list-tile-action">
-          Asiakasportaali
-        </Link>
-      ) : null}
-    </div>
+    <DataTable
+      rows={customers}
+      columns={columns}
+      rowKey={(c) => c.id}
+      rowHref={(c) => `/asiakkaat/${c.id}`}
+      hideFilter
+      initialSort={{ key: 'name', dir: 'asc' }}
+      ariaLabel="Asiakasrekisteri"
+      actions={
+        anyAction
+          ? (c) =>
+              showPortalAction!(c) ? (
+                <Link to={`/asiakkaat/${c.id}#customer-portal`} className="btn btn-secondary btn-sm">
+                  Asiakasportaali
+                </Link>
+              ) : null
+          : undefined
+      }
+    />
   );
-}
-
-export function CustomerListGrid({ children }: { children: ReactNode }) {
-  return <div className="grid customer-list-grid">{children}</div>;
 }

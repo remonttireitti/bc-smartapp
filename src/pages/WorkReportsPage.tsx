@@ -13,7 +13,7 @@ import WorkReportFilters, {
 } from '../components/WorkReportFilters';
 
 import { ReportListItem } from '../components/ReportListItem';
-import { WorkReportListGrid, WorkReportListTile } from '../components/WorkReportListTile';
+import { WorkReportListTable } from '../components/WorkReportListTile';
 import WorkReportListSummary from '../components/WorkReportListSummary';
 
 import WorkReportCalendarView from '../components/WorkReportCalendarView';
@@ -826,14 +826,10 @@ export default function WorkReportsPage({ session }: Props) {
 
           ) : (
 
-            <WorkReportListGrid>
-              {sortedActiveReports.map((r) => (
-                <WorkReportListTile
-                  key={r.id}
-                  {...reportListItemProps(r, logsByReportId, companyId, billingModuleEnabled, customerBillingEnabled, loadReports, { showStatusMenu: true })}
-                />
-              ))}
-            </WorkReportListGrid>
+            <WorkReportListTable
+              rows={sortedActiveReports.map((r) =>
+                reportListItemProps(r, logsByReportId, companyId, billingModuleEnabled, customerBillingEnabled, loadReports, { showStatusMenu: true }))}
+            />
 
           )}
 
@@ -870,22 +866,17 @@ export default function WorkReportsPage({ session }: Props) {
 
               <h2>Luonnokset</h2>
 
-              <WorkReportListGrid>
-                {draftReports.map((r) => (
-                  <WorkReportListTile
-                    key={r.id}
-                    report={r}
-                    linkTo={draftEditPath(r)}
-                    viewerCompanyId={companyId}
-                    onDelete={
-                      canDeleteWorkReport(r, session.user.id, profile?.is_global_admin, profile?.role)
-                        ? () => void deleteDraftReport(r)
-                        : undefined
-                    }
-                    deleteBusy={deletingDraftId === r.id}
-                  />
-                ))}
-              </WorkReportListGrid>
+              <WorkReportListTable
+                rows={draftReports.map((r) => ({
+                  report: r,
+                  linkTo: draftEditPath(r),
+                  viewerCompanyId: companyId,
+                  onDelete: canDeleteWorkReport(r, session.user.id, profile?.is_global_admin, profile?.role)
+                    ? () => void deleteDraftReport(r)
+                    : undefined,
+                  deleteBusy: deletingDraftId === r.id,
+                }))}
+              />
 
             </>
 
@@ -905,14 +896,10 @@ export default function WorkReportsPage({ session }: Props) {
 
           ) : (
 
-            <WorkReportListGrid>
-              {historyReports.map((r) => (
-                <WorkReportListTile
-                  key={r.id}
-                  {...reportListItemProps(r, logsByReportId, companyId, billingModuleEnabled, customerBillingEnabled, loadReports, { showStatusMenu: true })}
-                />
-              ))}
-            </WorkReportListGrid>
+            <WorkReportListTable
+              rows={historyReports.map((r) =>
+                reportListItemProps(r, logsByReportId, companyId, billingModuleEnabled, customerBillingEnabled, loadReports, { showStatusMenu: true }))}
+            />
 
           )}
 
