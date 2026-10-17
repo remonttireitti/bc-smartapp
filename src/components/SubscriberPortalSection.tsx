@@ -1,6 +1,8 @@
 import { FormEvent, useEffect, useState } from 'react';
 import PortalUserCredentialsForm from './PortalUserCredentialsForm';
 import PasswordReveal from './PasswordReveal';
+import { useNavigate } from 'react-router-dom';
+import { rememberPortalPreviewReturn } from '../lib/portalPreview';
 import ToggleSwitch from './ToggleSwitch';
 import { inviteCompanyUser } from '../lib/inviteUser';
 import { supabase } from '../lib/supabase';
@@ -18,7 +20,7 @@ type Props = {
 };
 
 function subscriberPortalPreviewUrl(subscriberId: string) {
-  return `${window.location.origin}/esikatselu/tilaaja/${subscriberId}`;
+  return `/esikatselu/tilaaja/${subscriberId}`;
 }
 
 export default function SubscriberPortalSection({ subscriberId, subscriberName, companyId }: Props) {
@@ -29,6 +31,7 @@ export default function SubscriberPortalSection({ subscriberId, subscriberName, 
     email: '',
     display_name: '',
   });
+  const navigate = useNavigate();
   const [busy, setBusy] = useState(false);
   const [sendEmail, setSendEmail] = useState(true);
   const [createdPassword, setCreatedPassword] = useState<{ email: string; password: string } | null>(null);
@@ -58,7 +61,8 @@ export default function SubscriberPortalSection({ subscriberId, subscriberName, 
   }
 
   function openSubscriberPortal() {
-    window.open(subscriberPortalPreviewUrl(subscriberId), '_blank', 'noopener,noreferrer');
+    rememberPortalPreviewReturn(`${window.location.pathname}${window.location.search}`);
+    navigate(subscriberPortalPreviewUrl(subscriberId));
   }
 
   async function createPortalUser(e: FormEvent) {
