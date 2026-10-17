@@ -56,7 +56,8 @@ export default function AppLayout({ session, children, noSidebar = false }: Prop
     !noSidebar
     && !!profile
     && !isMonitorViewerRole(profile.role)
-    && !routeHidesSidebar(location.pathname);
+    // Portaalissa valikko näkyy myös tulostenäkymissä (ei paperilla).
+    && (!routeHidesSidebar(location.pathname) || (isPortalView(profile) && /\/tuloste\/?$/.test(location.pathname)));
 
   // Portaali: henkilöstön reitit (esim. asiakaslista/-valitsin) eivät ole saatavilla.
   if (profile && isPortalView(profile)) {

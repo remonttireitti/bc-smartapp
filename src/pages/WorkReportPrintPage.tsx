@@ -34,6 +34,11 @@ function resolvePrintMode(searchParams: URLSearchParams): WorkReportPrintMode {
   return searchParams.get('hinnat') === '1' ? 'internal' : 'customer';
 }
 
+/** Vanhoista kumppanikopioista jäänyt sisäinen tunniste ei kuulu tulosteeseen. */
+function stripInternalMarkers(text: string): string {
+  return text.replace(/\s*bc_partner_copy_source_report_id:[0-9a-f-]{36}/gi, '');
+}
+
 export default function WorkReportPrintPage({ session }: Props) {
   const { id } = useParams();
   const [searchParams] = useSearchParams();
@@ -77,7 +82,7 @@ export default function WorkReportPrintPage({ session }: Props) {
       });
       setReport(bundle.report);
       setPrintBundle(bundle);
-      setHtml(bundle.html);
+      setHtml(stripInternalMarkers(bundle.html));
       setCalculation(bundle.calculation);
       setCustomerCalculation(bundle.customerCalculation);
     } catch (err) {
@@ -155,7 +160,7 @@ export default function WorkReportPrintPage({ session }: Props) {
             {printMode === 'internal' && (
               <p className="muted">Kumppani- ja asiakaslaskutus sekä kaikki hinnat mukana.</p>
             )}
-            <p className="muted">{buildWorkReportPrintHeadline(report)}</p>
+            <p className="muted">{stripInternalMarkers(buildWorkReportPrintHeadline(report))}</p>
           </div>
           <div className="page-header-actions action-toolbar">
             {!portal ? <div className="btn-group print-mode-switch">
