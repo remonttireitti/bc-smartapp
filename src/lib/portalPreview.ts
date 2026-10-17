@@ -177,3 +177,18 @@ export function filterCustomersForPortalView<
   }
   return customers;
 }
+
+/** Portaalissa sallitut reitit — henkilöstön näkymät (asiakaslista, valitsimet, hallinta) eivät ole saatavilla. */
+export function isPortalRouteAllowed(pathname: string): boolean {
+  if (pathname === '/') return true;
+  if (pathname === '/asiakkaat') return false;
+  const allowed = [
+    '/tyoraportit', '/laitteet', '/huoltoraportit', '/tarjoukset', '/tiedostot', '/esikatselu/',
+    '/vaihda-salasana', '/aseta-uusi-salasana', '/j/', '/tyoraportti/jako/', '/asiakkaat/',
+  ];
+  if (pathname.startsWith('/tarjouspyynnot/') && pathname.endsWith('/tuloste')) return true;
+  if (pathname.startsWith('/etaseuranta/lampotila/raportit/') && pathname.endsWith('/tuloste')) return true;
+  if (pathname === '/tyoraportit/uusi' || pathname.startsWith('/tyoraportit/toimeksianto') || /^\/tyoraportit\/[^/]+\/muokkaa$/.test(pathname)) return false;
+  if (pathname === '/huoltoraportit/uusi' || pathname.startsWith('/huoltoraportit/valitse') || pathname.startsWith('/huoltoraportit/uusi/')) return false;
+  return allowed.some((p) => pathname.startsWith(p));
+}

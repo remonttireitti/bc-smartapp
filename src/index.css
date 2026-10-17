@@ -17958,3 +17958,5 @@ label.has-error input { border-color: #b91c1c; }
 .portal-order-recipients { margin-top: 1.25rem; padding-top: 1rem; border-top: 1px solid var(--border, #e5e7eb); display: flex; flex-direction: column; gap: 0.45rem; }
 .portal-order-recipients h3 { margin: 0; font-size: 1rem; }
 .portal-order-recipients p { margin: 0; }
+/* Portaali: ei murupolkua */
+.portal-mode .breadcrumb { display: none; }

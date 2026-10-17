@@ -1,10 +1,10 @@
 import BrandLogo from './BrandLogo';
-import { Link, useLocation } from 'react-router-dom';
+import { Navigate, Link, useLocation } from 'react-router-dom';
 import { useCallback, useState, useSyncExternalStore, type ReactNode } from 'react';
 import AppSidebar from './AppSidebar';
 import { ROLE_LABELS } from '../lib/management';
 import { routeHidesSidebar } from '../lib/mainNav';
-import { isPortalView } from '../lib/portalPreview';
+import { isPortalRouteAllowed, isPortalView } from '../lib/portalPreview';
 import { isMonitorViewerRole } from '../lib/monitorReaderShares';
 import type { Session } from '@supabase/supabase-js';
 import LicenseStatusHeaderButton from './LicenseStatusHeaderButton';
@@ -55,9 +55,13 @@ export default function AppLayout({ session, children, noSidebar = false }: Prop
   const showSidebar =
     !noSidebar
     && !!profile
-    && !isPortalView(profile)
     && !isMonitorViewerRole(profile.role)
     && !routeHidesSidebar(location.pathname);
+
+  // Portaali: henkilöstön reitit (esim. asiakaslista/-valitsin) eivät ole saatavilla.
+  if (profile && isPortalView(profile) && !isPortalRouteAllowed(location.pathname)) {
+    return <Navigate to={location.pathname === '/asiakkaat' ? '/laitteet' : '/'} replace />;
+  }
 
   function toggleCollapsed() {
     const next = !readCollapsed();
@@ -76,7 +80,7 @@ export default function AppLayout({ session, children, noSidebar = false }: Prop
   }
 
   return (
-    <div className={`dashboard${showSidebar ? ' app-with-sidebar' : ''}${showSidebar && collapsed ? ' sidebar-collapsed' : ''}`}>
+    <div className={`dashboard${isPortalView(profile) ? ' portal-mode' : ''}${showSidebar ? ' app-with-sidebar' : ''}${showSidebar && collapsed ? ' sidebar-collapsed' : ''}`}>
       <header className="topbar">
         <div className="brand">
           {showSidebar ? (
