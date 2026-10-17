@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
 import AppLayout from '../components/AppLayout';
+import DataTable, { StatusMark } from '../components/DataTable';
 import CollapsibleSection from '../components/CollapsibleSection';
 import InventoryPhotoThumb from '../components/inventory/InventoryPhotoThumb';
 import ToggleSwitch from '../components/ToggleSwitch';
@@ -722,8 +723,85 @@ export default function ToolsPage({ session }: Props) {
             {tools.length === 0 ? (
               <p className="muted">Ei työkaluja vielä.</p>
             ) : (
-              <ul className="tool-card-grid">
-                {tools.map((tool) => {
+              <DataTable
+                rows={tools}
+                rowKey={(t) => t.id}
+                onRowClick={(t) => {
+                  setEditingId(null);
+                  setExpandedId(t.id);
+                }}
+                initialSort={{ key: 'name', dir: 'asc' }}
+                filterPlaceholder="Suodata työkaluja…"
+                ariaLabel="Työkalut"
+                columns={[
+                  {
+                    key: 'name',
+                    label: 'Nimi',
+                    value: (t) => t.name,
+                    render: (t) => (
+                      <span className="data-table-thumb-cell">
+                        <InventoryPhotoThumb imagePath={(t.images ?? [])[0]?.image_path} label={t.name} size="sm" />
+                        {t.name}
+                      </span>
+                    ),
+                  },
+                  { key: 'tag', label: 'Tunnus', value: (t) => [t.serial_number ? `SN ${t.serial_number}` : null, t.tag_id ? `RFID ${t.tag_id}` : null].filter(Boolean).join(' · ') },
+                  { key: 'category', label: 'Luokka', value: (t) => t.category ?? '' },
+                  {
+                    key: 'holder',
+                    label: 'Haltija',
+                    value: (t) => borrowerLabel(t) ?? (activeBlockoutByTool.has(t.id) ? 'Suljettu pois lainauksesta' : ''),
+                  },
+                  {
+                    key: 'status',
+                    label: 'Tila',
+                    value: (t) => toolStatusBadgeLabel({
+                      is_loanable: t.is_loanable !== false,
+                      status: t.status,
+                      hasOpenRealLoan: activeRealLoanByTool.has(t.id),
+                      hasOpenBlockout: activeBlockoutByTool.has(t.id),
+                    }),
+                    render: (t) => {
+                      const busyTool = activeRealLoanByTool.has(t.id) || activeBlockoutByTool.has(t.id);
+                      const label = toolStatusBadgeLabel({
+                        is_loanable: t.is_loanable !== false,
+                        status: t.status,
+                        hasOpenRealLoan: activeRealLoanByTool.has(t.id),
+                        hasOpenBlockout: activeBlockoutByTool.has(t.id),
+                      });
+                      const color = t.is_loanable === false ? '#94a3b8' : busyTool ? '#f59e0b' : '#22c55e';
+                      return <StatusMark color={color} label={label} />;
+                    },
+                  },
+                  { key: 'rate', label: 'Hinta', value: (t) => toolDayRateBadge(t) ?? '', className: 'nowrap' },
+                ]}
+                actions={(t) =>
+                  activeRealLoanByTool.has(t.id) ? (
+                    <button type="button" className="btn btn-secondary btn-sm" disabled={busy} onClick={() => void returnTool(t.id)}>
+                      Palauta
+                    </button>
+                  ) : null}
+              />
+            )}
+            {expandedId && tools.some((t) => t.id === expandedId) && (
+              <div
+                className="leave-draft-overlay"
+                role="presentation"
+                onClick={() => {
+                  if (busy) return;
+                  setExpandedId(null);
+                  setEditingId(null);
+                }}
+              >
+              <div
+                className="leave-draft-dialog panel row-edit-dialog"
+                role="dialog"
+                aria-modal="true"
+                aria-label="Työkalu"
+                onClick={(e) => e.stopPropagation()}
+              >
+              <ul className="tool-card-grid row-edit-dialog-list">
+                {tools.filter((t) => t.id === expandedId).map((tool) => {
                   const hasOpenRealLoan = activeRealLoanByTool.has(tool.id);
                   const hasOpenBlockout = activeBlockoutByTool.has(tool.id);
                   const isLoaned = toolShowsAsLoaned({
@@ -855,14 +933,12 @@ export default function ToolsPage({ session }: Props) {
                           className="tool-card-toolbar"
                           onClick={(e) => e.stopPropagation()}
                         >
-                          {!isExpanded && (
-                            <ToggleSwitch
-                              checked={tool.is_loanable !== false}
-                              onChange={(checked) => void setToolLoanable(tool.id, checked)}
-                              label="Lainattavissa"
-                              disabled={busy}
-                            />
-                          )}
+                          <ToggleSwitch
+                            checked={tool.is_loanable !== false}
+                            onChange={(checked) => void setToolLoanable(tool.id, checked)}
+                            label="Lainattavissa"
+                            disabled={busy}
+                          />
                           {hasOpenRealLoan ? (
                             <button
                               type="button"
@@ -1239,7 +1315,8 @@ export default function ToolsPage({ session }: Props) {
                   );
                 })}
               </ul>
-
+              </div>
+              </div>
             )}
           </section>
 

@@ -63,6 +63,7 @@ export function MaintenanceReportListTable<T extends MaintenanceReportListItem>(
       rowState={() => withNavTrail(maintenanceListTrail()).state}
       hideFilter
       initialSort={{ key: 'updated', dir: 'desc' }}
+      rowAccent={(r) => maintenanceReportTileColor(r.status)}
       ariaLabel="Huoltoraportit"
       actions={
         anyDelete

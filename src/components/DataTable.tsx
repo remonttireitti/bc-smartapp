@@ -1,4 +1,4 @@
-import { useMemo, useState, type MouseEvent, type ReactNode } from 'react';
+import { useMemo, useState, type CSSProperties, type MouseEvent, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 export type DataTableColumn<T> = {
@@ -17,6 +17,10 @@ export type DataTableProps<T> = {
   rowKey: (row: T) => string;
   rowHref?: (row: T) => string | null;
   rowState?: (row: T) => unknown;
+  /** Rivin klikkaus ilman navigointia (esim. muokkausdialogi). */
+  onRowClick?: (row: T) => void;
+  /** Rivin vasemman reunan väripalkki (esim. tilan mukaan). */
+  rowAccent?: (row: T) => string | null | undefined;
   /** Toimintopainikkeet viimeiseen sarakkeeseen (eivät avaa riviä). */
   actions?: (row: T) => ReactNode;
   /** Piilota oma hakukenttä (sivulla on jo haku). */
@@ -80,6 +84,8 @@ export default function DataTable<T>({
   rowKey,
   rowHref,
   rowState,
+  onRowClick,
+  rowAccent,
   actions,
   hideFilter,
   filterPlaceholder = 'Suodata…',
@@ -97,9 +103,13 @@ export default function DataTable<T>({
   };
 
   const open = (row: T, e: MouseEvent) => {
+    if ((e.target as HTMLElement).closest('a,button,input,select,label,.data-table-actions')) return;
+    if (onRowClick) {
+      onRowClick(row);
+      return;
+    }
     const href = rowHref?.(row);
     if (!href) return;
-    if ((e.target as HTMLElement).closest('a,button,input,select,label,.data-table-actions')) return;
     if (e.metaKey || e.ctrlKey) {
       window.open(href, '_blank');
       return;
@@ -150,15 +160,18 @@ export default function DataTable<T>({
           </thead>
           <tbody>
             {visible.map((row) => {
-              const href = rowHref?.(row);
+              const href = rowHref?.(row) ?? (onRowClick ? '#' : null);
               return (
                 <tr
                   key={rowKey(row)}
                   className={href ? 'data-table-row-link' : undefined}
+                  style={rowAccent?.(row) ? ({ '--row-accent': rowAccent(row) } as CSSProperties) : undefined}
                   onClick={(e) => open(row, e)}
                   tabIndex={href ? 0 : undefined}
                   onKeyDown={(e) => {
-                    if (href && e.key === 'Enter' && e.target === e.currentTarget) navigate(href, { state: rowState?.(row) });
+                    if (!href || e.key !== 'Enter' || e.target !== e.currentTarget) return;
+                    if (onRowClick) onRowClick(row);
+                    else navigate(href, { state: rowState?.(row) });
                   }}
                 >
                   {columns.map((c) => (
@@ -188,7 +201,7 @@ export default function DataTable<T>({
 
 export function StatusMark({ color, label }: { color: string; label: string }) {
   return (
-    <span className="status-mark">
+    <span className="status-mark" style={{ '--status-color': color } as CSSProperties}>
       <span className="status-mark-dot" style={{ background: color }} aria-hidden="true" />
       {label}
     </span>
