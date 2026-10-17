@@ -46,7 +46,7 @@ export default defineConfig({
       },
       workbox: {
         // Main bundle exceeds Workbox default 2 MiB precache limit as app grows.
-        maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
+        maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
         globPatterns: ['**/*.{js,css,html,ico,svg,png,pdf,woff2}'],
         globIgnores: ['**/termatek/**', '**/firmware/**'],
         navigateFallback: '/index.html',

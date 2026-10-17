@@ -84,6 +84,8 @@ export type CustomerBillingRates = PartnerBillingRates;
 import type { CustomHeatPumpDeviceEntry, DeviceRegistryOverride } from '../data/deviceRegistryTypes';
 
 export type CompanySettings = {
+  /** Huoltoraporttilajit ja hinnasto; puuttuu = vanha yritys (kylmälaitehuolto päällä). */
+  huolto?: import('./huoltoCategories').HuoltoSettings;
   address?: string;
   postal_code?: string;
   city?: string;

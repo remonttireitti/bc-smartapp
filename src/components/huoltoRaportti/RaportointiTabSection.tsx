@@ -8,7 +8,7 @@ import type { Customer, Equipment } from '../../types';
 import type { SubscriberPortalVisibility } from '../../lib/subscriberPortalVisibility';
 import { useMaintenanceDocumentLayout } from '../../hooks/useMaintenanceDocumentLayout';
 import { DocumentModuleInspection } from './DocumentModuleInspection';
-import { deviceTypes } from '../../lib/huoltoRaportti/constants';
+import { useEnabledDeviceTypes } from './HuoltoTypeFilterContext';
 import { isIlpDevice } from '../../lib/huoltoRaportti/ilpIdentity';
 import { MaintenanceDeviceSummary } from './MaintenanceDeviceSummary';
 import { MaintenanceReportBasicsPanel } from './MaintenanceReportBasicsPanel';
@@ -102,6 +102,7 @@ export function RaportointiTabSection({
   onSubscriberPortalVisibilityChange,
 }: Props) {
   const documentLayout = useMaintenanceDocumentLayout();
+  const enabledDeviceTypes = useEnabledDeviceTypes(form.laiteTyyppi);
   const title = raportointiLaitetiedotTabTitle(form.laiteTyyppi, false);
 
   const editor = (draft: HuoltoReportData, patchDraft: (patch: Partial<HuoltoReportData>) => void) => (
@@ -155,7 +156,7 @@ export function RaportointiTabSection({
           }}
         >
           <option value="">— Valitse laitetyyppi —</option>
-          {deviceTypes.map((dt) => (
+          {enabledDeviceTypes.map((dt) => (
             <option key={dt.value} value={dt.value}>
               {dt.label}
             </option>

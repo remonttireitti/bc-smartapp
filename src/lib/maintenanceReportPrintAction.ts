@@ -10,6 +10,7 @@ import { openPrintHtml } from './openPrintWindow';
 import { embedPrintThumbnail, shrinkUrlMapForPrint } from './printImageEmbed';
 import { ensurePrintHtmlDocumentTitle } from './printDocumentShell';
 import { supabase } from './supabase';
+import { isChecklistCategory } from './huoltoCategories';
 
 export function buildMaintenanceReportPrintDocument(fragment: string, documentTitle: string): string {
   return ensurePrintHtmlDocumentTitle(fragment, documentTitle);
@@ -129,6 +130,24 @@ export async function loadMaintenanceReportPrintBundle(
   reportId: string,
   options?: { dataOverride?: HuoltoReportData; faultyKonvektoritOnly?: boolean },
 ) {
+  if (!options?.dataOverride) {
+    const { data: catRow } = await supabase
+      .from('maintenance_reports')
+      .select('category:data->>reportCategory')
+      .eq('id', reportId)
+      .maybeSingle();
+    const category = (catRow as { category?: string | null } | null)?.category;
+    if (isChecklistCategory(category)) {
+      const { loadChecklistPrintBundle } = await import('./huoltoChecklist/printBundle');
+      const bundle = await loadChecklistPrintBundle(reportId, category);
+      return {
+        data: bundle.data as unknown as HuoltoReportData,
+        fragment: bundle.html,
+        documentTitle: bundle.documentTitle,
+        html: bundle.html,
+      };
+    }
+  }
   const ctx = await loadMaintenancePrintContext(reportId, options?.dataOverride);
   let reportData = ctx.reportData;
   if (options?.faultyKonvektoritOnly) {

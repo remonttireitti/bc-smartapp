@@ -5,6 +5,7 @@ import type { Session } from '@supabase/supabase-js';
 import { useCompanyBillingModuleEnabled } from '../hooks/useCompanyBillingModuleEnabled';
 import { useCompanyPartnershipsEnabled } from '../hooks/useCompanyPartnershipsEnabled';
 import { useCompanyLicense } from '../hooks/useCompanyLicense';
+import { useCompanyHuoltoSettings } from '../hooks/useCompanyHuoltoSettings';
 import { useGlobalAdminMode } from '../hooks/useGlobalAdminMode';
 import { useProfile } from '../hooks/useProfile';
 import { activeMainNavChild, buildMainNav, isMainNavItemActive, type MainNavIconKey } from '../lib/mainNav';
@@ -47,6 +48,8 @@ export default function AppSidebar({ session, collapsed, onToggleCollapsed, mobi
   const partnershipsEnabled = useCompanyPartnershipsEnabled(profile?.company_id, session);
   const { license } = useCompanyLicense(profile?.company_id, session, !!profile?.is_global_admin);
   const { globalAdminMode } = useGlobalAdminMode();
+  const huolto = useCompanyHuoltoSettings(profile?.company_id, session);
+  const huoltoAccess = huolto.loaded ? huolto.access : null;
 
   const items = useMemo(
     () =>
@@ -57,8 +60,9 @@ export default function AppSidebar({ session, collapsed, onToggleCollapsed, mobi
         role: profile?.role,
         isGlobalAdmin: !!profile?.is_global_admin,
         globalAdminMode,
+        huolto: huoltoAccess,
       }),
-    [license, billingModuleEnabled, partnershipsEnabled, profile?.role, profile?.is_global_admin, globalAdminMode],
+    [license, billingModuleEnabled, partnershipsEnabled, profile?.role, profile?.is_global_admin, globalAdminMode, huoltoAccess],
   );
 
   // Mobiililaatikko sulkeutuu navigoinnissa.

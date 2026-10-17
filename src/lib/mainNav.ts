@@ -1,5 +1,6 @@
 import { isLicenseModuleAccessible, type CompanyLicenseSnapshot, type LicenseModuleKey } from './companyLicense';
 import { TEMP_MONITORING_BASE, VRF_MONITORING_BASE } from './remoteMonitoringRoutes';
+import { newHuoltoReportHref, type HuoltoAccess } from './huoltoCategories';
 
 export type MainNavIconKey =
   | 'work'
@@ -36,6 +37,8 @@ export type MainNavContext = {
   role: string | null | undefined;
   isGlobalAdmin: boolean;
   globalAdminMode: boolean;
+  /** Huoltoraporttilajit; null = ei vielä ladattu (piilotetaan), undefined = ei rajausta. */
+  huolto?: HuoltoAccess | null;
 };
 
 /** Sama gating kuin etusivun ruuduilla ja Hallinnan välilehdillä. */
@@ -73,7 +76,11 @@ export function buildMainNav(ctx: MainNavContext): MainNavItem[] {
       key: 'maintenance', label: 'Huoltoraportti', href: '/huoltoraportit', bases: ['/huoltoraportit'], licenseModule: 'base',
       children: [
         { label: 'Huoltoraportit', href: '/huoltoraportit' },
-        { label: 'Uusi huoltoraportti', href: '/huoltoraportit/uusi' },
+        {
+          label: 'Uusi huoltoraportti',
+          href: ctx.huolto ? newHuoltoReportHref(ctx.huolto) : '/huoltoraportit/uusi',
+          alsoMatch: /^\/huoltoraportit\/(uusi|valitse)(\/.*)?$/,
+        },
       ],
     },
     { key: 'customers', label: 'Asiakkaat', href: '/asiakkaat', bases: ['/asiakkaat'], licenseModule: 'base', children: [] },
@@ -118,6 +125,7 @@ export function buildMainNav(ctx: MainNavContext): MainNavItem[] {
   return items.filter((item) => {
     if (!item.licenseModule) return true;
     if (item.licenseModule === 'billing' && !billingOn) return false;
+    if (item.key === 'maintenance' && ctx.huolto && !ctx.huolto.moduleEnabled) return false;
     if (ctx.license && ctx.license.enrollment !== 'legacy') {
       return isLicenseModuleAccessible(ctx.license, item.licenseModule);
     }
@@ -140,13 +148,13 @@ export function activeMainNavChild(item: MainNavItem, pathname: string, search: 
   let bestScore = -1;
   for (const child of item.children) {
     const [path, query] = child.href.split('?');
-    if (!pathMatches(pathname, path)) {
-      if (child.alsoMatch?.test(pathname) && bestScore < 0) {
-        best = child;
-        bestScore = 0;
-      }
+    // Nimetty syvä polku voittaa yleisemmän listapolun (esim. /huoltoraportit/uusi/lvi → "Uusi").
+    if (child.alsoMatch?.test(pathname)) {
+      best = child;
+      bestScore = Number.MAX_SAFE_INTEGER;
       continue;
     }
+    if (!pathMatches(pathname, path)) continue;
     let score = path.length * 10;
     if (query) {
       const want = new URLSearchParams(query);

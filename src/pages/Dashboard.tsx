@@ -10,6 +10,8 @@ import { incrementAppVisit } from '../lib/dashboardOnboarding';
 import { useCompanyBillingModuleEnabled } from '../hooks/useCompanyBillingModuleEnabled';
 import { useCompanyPartnershipsEnabled } from '../hooks/useCompanyPartnershipsEnabled';
 import { useCompanyLicense } from '../hooks/useCompanyLicense';
+import { useCompanyHuoltoSettings } from '../hooks/useCompanyHuoltoSettings';
+import { HUOLTO_CATEGORIES } from '../lib/huoltoCategories';
 import { useProfile } from '../hooks/useProfile';
 import { isLicenseModuleAccessible, type LicenseModuleKey } from '../lib/companyLicense';
 import { isMonitorViewerRole, monitorReaderHubPath } from '../lib/monitorReaderShares';
@@ -75,12 +77,14 @@ export default function Dashboard({ session }: Props) {
     !!profile?.is_global_admin,
   );
   const portalView = isPortalView(profile);
+  const huolto = useCompanyHuoltoSettings(profile?.company_id, session);
   const visibleModules = useMemo(() => {
     if (portalView) return PORTAL_MODULES;
     return MODULES.filter((m) => {
       if (!m.licenseModule) return true;
       // Laskutus-moduulin kytkin (yrityksen asetus) piilottaa ruudun myös lisenssin kanssa.
       if (m.licenseModule === 'billing' && billingModuleEnabled !== true) return false;
+      if (m.href === '/huoltoraportit' && (!huolto.loaded || !huolto.access.moduleEnabled)) return false;
       if (license && license.enrollment !== 'legacy') {
         return isLicenseModuleAccessible(license, m.licenseModule);
       }
@@ -89,12 +93,16 @@ export default function Dashboard({ session }: Props) {
       if (module.title === 'Laskutus' && partnershipsEnabled === false) {
         return { ...module, lines: ['Asiakaslaskutus'] };
       }
+      if (module.href === '/huoltoraportit' && huolto.access.enabledCategories.length > 1) {
+        const labels = HUOLTO_CATEGORIES.filter((c) => huolto.access.isCategoryEnabled(c.key)).map((c) => c.short);
+        return { ...module, lines: [labels.join(', '), 'Laiterekisteri'] };
+      }
       if (module.title === 'Hallinta' && partnershipsEnabled === false) {
         return { ...module, lines: ['Omat tiedot', 'Yritysasetukset'] };
       }
       return module;
     });
-  }, [portalView, license, billingModuleEnabled, partnershipsEnabled]);
+  }, [portalView, license, billingModuleEnabled, partnershipsEnabled, huolto.loaded, huolto.access]);
   const [pendingOrders, setPendingOrders] = useState<PendingWorkOrderCounts>(EMPTY_PENDING);
   const [onboardingRefreshKey, setOnboardingRefreshKey] = useState(0);
 

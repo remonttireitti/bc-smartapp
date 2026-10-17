@@ -14,6 +14,9 @@ import type { ManagementOutletContext } from '../lib/managementOutletContext';
 import PartnerBillingRatesFields from '../components/PartnerBillingRatesFields';
 import DeviceRegistrySettingsFields from '../components/quoteRequest/DeviceRegistrySettingsFields';
 import ToggleSwitch from '../components/ToggleSwitch';
+import HuoltoSettingsSection from '../components/HuoltoSettingsSection';
+import { notifyHuoltoSettingsChanged } from '../hooks/useCompanyHuoltoSettings';
+import { parseHuoltoSettings } from '../lib/huoltoCategories';
 import TripDestinationsSettingsSection from '../components/TripDestinationsSettingsSection';
 
 export default function CompanySettingsPage() {
@@ -163,6 +166,7 @@ export default function CompanySettingsPage() {
       setError(updateError.message);
       return;
     }
+    if (profile.company_id) notifyHuoltoSettingsChanged(profile.company_id, parseHuoltoSettings(settings));
     setMessage('Yritystiedot tallennettu.');
   }
 
@@ -360,6 +364,11 @@ export default function CompanySettingsPage() {
       </section>
 
       {profile.company_id && <TripDestinationsSettingsSection companyId={profile.company_id} />}
+
+      <HuoltoSettingsSection
+        companySettings={settings}
+        onChange={(huolto) => setSettings((current) => ({ ...current, huolto }))}
+      />
 
       <section className="form-section">
         <h2>Kumppanuus- ja moniyritystoiminnot</h2>

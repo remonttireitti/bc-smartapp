@@ -2,6 +2,7 @@ import type { Equipment } from '../types';
 import { normalizeHuoltoReportData } from './huoltoRaportti/defaults';
 import { buildHuoltoEquipmentTechnicalSnapshot } from './huoltoRaportti/equipmentSnapshot';
 import type { HuoltoReportData } from './huoltoRaportti/types';
+import { reportCategoryOf } from './huoltoCategories';
 
 export type MaintenanceReportForEquipmentSync = {
   id: string;
@@ -51,8 +52,10 @@ export function compareMaintenanceReportsForEquipmentSync(
 
 export function findLatestMaintenanceReportForEquipment(
   equipment: Equipment,
-  reports: MaintenanceReportForEquipmentSync[],
+  allReports: MaintenanceReportForEquipmentSync[],
 ): MaintenanceReportForEquipmentSync | null {
+  // Tekninen snapshot (kylmäaine, malli…) vain kylmälaitehuolloista; LVI/IV/Sähkö ohitetaan.
+  const reports = allReports.filter((row) => reportCategoryOf(row.data) === 'kylma');
   const linked = reports.filter((row) => row.equipment_id === equipment.id);
   if (linked.length > 0) {
     return [...linked].sort(compareMaintenanceReportsForEquipmentSync)[0] ?? null;

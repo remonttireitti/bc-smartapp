@@ -15,6 +15,10 @@ import { MaintenanceReportDocumentView } from '../components/huoltoRaportti/Main
 import { MaintenanceReportTabContent } from '../components/huoltoRaportti/MaintenanceReportTabContent';
 import { useMaintenanceDocumentLayout } from '../hooks/useMaintenanceDocumentLayout';
 import { MaintenanceFlowStatus } from '../components/huoltoRaportti/MaintenanceFlowStatus';
+import HuoltoWorkReportTransfer from '../components/huoltoRaportti/HuoltoWorkReportTransfer';
+import { HuoltoTypeFilterContext } from '../components/huoltoRaportti/HuoltoTypeFilterContext';
+import { useCompanyHuoltoSettings } from '../hooks/useCompanyHuoltoSettings';
+import { huoltoReportTypeLabel } from '../lib/huoltoCategories';
 import { MaintenanceDeviceDialog } from '../components/huoltoRaportti/MaintenanceDeviceDialog';
 import {
   ilpDeviceModel,
@@ -167,6 +171,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
   const location = useLocation();
   const isNew = !id;
   const { profile, loading: profileLoading } = useProfile(session);
+  const huoltoSettings = useCompanyHuoltoSettings(profile?.company_id, session);
 
   const [reportId, setReportIdState] = useState<string | null>(id ?? null);
   // Ref päivittyy heti insertin jälkeen: vanhentunut automaattitallennuksen ajastin ei saa luoda toista riviä.
@@ -2186,6 +2191,33 @@ export default function MaintenanceReportEditPage({ session }: Props) {
         >
           {printBusy ? 'Avataan…' : 'Tulosta / PDF'}
         </button>
+        {!portalMode ? (
+          <HuoltoWorkReportTransfer
+            session={session}
+            report={{
+              id: reportId,
+              owner_company_id: ownerCompanyId,
+              branding_company_id: ownerCompanyId,
+              partnership_id: contextMode === 'partner' ? partnerships.find((p) => p.id === partnerId)?.id ?? null : null,
+              customer_id: customerId || null,
+              equipment_id: equipmentId || null,
+              subscriber_id: resolveSubscriberIdForReport(customerId, subscriberId, customers),
+            }}
+            typeKey={form.laiteTyyppi}
+            typeLabel={huoltoReportTypeLabel(form.laiteTyyppi)}
+            customerName={selectedCustomer?.name ?? form.asiakas}
+            deviceLabel={form.laiteTunnus.trim() || undefined}
+            logDate={String(form.huoltoPaivamaara || '').slice(0, 10) || new Date().toISOString().slice(0, 10)}
+            done={status === 'submitted'}
+            linkedWorkReportId={form.huoltoWorkReportId}
+            disabled={printBusy || busy}
+            beforeTransfer={() => saveReport()}
+            onLinked={async (workReportId) => {
+              patchForm({ huoltoWorkReportId: workReportId });
+              await saveReport();
+            }}
+          />
+        ) : null}
         {hasFaultyKonvektorit ? (
           <button
             type="button"
@@ -2202,6 +2234,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
 
   return (
     <AppLayout session={session}>
+      <HuoltoTypeFilterContext.Provider value={huoltoSettings.loaded ? huoltoSettings.access.enabledKylmaTypes : null}>
       <LeaveDraftDialog
         open={leaveGuard.showDialog}
         saveBusy={leaveGuard.saveAndLeaveBusy}
@@ -2459,6 +2492,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
       </form>
       </MaintenanceReportSectionSettingsProvider>
       </HuoltoEditUiProvider>
+      </HuoltoTypeFilterContext.Provider>
     </AppLayout>
   );
 }
