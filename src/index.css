@@ -17913,3 +17913,4 @@ label.has-error input { border-color: #b91c1c; }
 .license-trials-block { margin-top: 1rem; }
 .license-trial-row { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem 1rem; padding: .4rem 0; border-bottom: 1px solid rgba(148, 163, 184, .25); }
 .license-trial-row strong { min-width: 10rem; }
+.module-trials-name { min-width: 13rem; font-weight: 600; padding-left: 3.25rem; }

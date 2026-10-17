@@ -210,7 +210,11 @@ export default function GlobalAdminCompanyPage() {
       {tab === 'moduulit' && (
         <>
           <CompanyModulesEditor companyId={company.id} settings={company.settings} ownCompanyId={profile.company_id} onSaved={load} />
-          <CompanyModuleTrialsEditor companyId={company.id} onChanged={() => setTrialsVersion((v) => v + 1)} />
+          <CompanyModuleTrialsEditor
+            key={JSON.stringify(company.settings ?? null)}
+            companyId={company.id}
+            settings={company.settings}
+            onChanged={() => setTrialsVersion((v) => v + 1)} />
           <CompanyMonthlyTotal key={`${trialsVersion}:${JSON.stringify(company.settings ?? null)}`} companyId={company.id} />
         </>
       )}

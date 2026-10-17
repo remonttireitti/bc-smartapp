@@ -5,6 +5,9 @@ import {
 } from '../../supabase/functions/_shared/companySignupCore';
 import { parseModuleTrials, type ModuleTrial } from './moduleTrials';
 
+/** Yritysmalli enrollment = 'legacy' (entinen "Vanha sopimus"). */
+export const LEGACY_LICENSE_LABEL = 'Ilmainen käyttöoikeus (toistaiseksi)';
+
 export type LicenseModuleKey = 'base' | 'quotes' | 'billing' | 'remote_monitoring' | 'inventory' | 'tools';
 
 export type LicenseEffectiveStatus = 'pending_trial' | 'trial' | 'active' | 'expired';
@@ -416,7 +419,7 @@ export function parseLicenseOverviewRows(raw: unknown): LicenseOverviewRow[] {
 }
 
 export function licenseOverviewEnrollmentLabel(enrollment: string) {
-  if (enrollment === 'legacy') return 'Vanha sopimus';
+  if (enrollment === 'legacy') return LEGACY_LICENSE_LABEL;
   return 'Tilaus ja kokeilu';
 }
 
@@ -445,7 +448,7 @@ export function licenseOverviewLoginSummary(row: LicenseOverviewRow) {
 
 export function licenseOverviewTrialSummary(row: LicenseOverviewRow) {
   if (row.snapshot.enrollment === 'legacy') {
-    return 'Ei kokeilua (vanha sopimus, ei laskutusta)';
+    return `Ei kokeilua (${LEGACY_LICENSE_LABEL.toLowerCase()})`;
   }
   if (row.snapshot.effective_status === 'pending_trial') {
     return `Odottaa ensimmäistä kirjautumista · ${row.snapshot.trial_days} pv kokeilua`;
@@ -471,7 +474,7 @@ export function formatStoredModulesSummary(
   snapshot: CompanyLicenseSnapshot,
 ) {
   if (snapshot.enrollment === 'legacy') {
-    return 'Kaikki sallittu (vanha sopimus)';
+    return `Kaikki sallittu (${LEGACY_LICENSE_LABEL.toLowerCase()})`;
   }
   if (snapshot.effective_status === 'trial' || snapshot.effective_status === 'pending_trial') {
     return 'Kokeilussa: kaikki moduulit käytössä';

@@ -201,7 +201,7 @@ export default function CompanyModulesEditor({ companyId, settings, ownCompanyId
           <label>
             Yritysmalli
             <select value={enrollment} disabled={busy} onChange={(e) => setEnrollment(e.target.value as 'legacy' | 'subscription')}>
-              <option value="legacy">Vanha sopimus (kaikki moduulit)</option>
+              <option value="legacy">Ilmainen käyttöoikeus (toistaiseksi) – kaikki moduulit</option>
               <option value="subscription">Tilaus ja kokeilu</option>
             </select>
           </label>
@@ -236,7 +236,7 @@ export default function CompanyModulesEditor({ companyId, settings, ownCompanyId
           )}
         </div>
         {legacy && (
-          <ToggleSwitch checked={preserveLegacy} disabled={busy} label="Pidä vanha sopimus (ei massasiirtoa)" onChange={setPreserveLegacy} />
+          <ToggleSwitch checked={preserveLegacy} disabled={busy} label="Pidä ilmainen käyttöoikeus (ei massasiirtoa)" onChange={setPreserveLegacy} />
         )}
         {canExtend && (
           <div className="form-actions" style={{ justifyContent: 'flex-start' }}>
