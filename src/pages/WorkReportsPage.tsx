@@ -536,7 +536,7 @@ export default function WorkReportsPage({ session }: Props) {
             <p className="breadcrumb breadcrumb-home-only">
               <Link to="/">Etusivu</Link> / Työraportit
             </p>
-            <h1>Työtilaukset</h1>
+            <h1>Työraportit</h1>
             <p className="muted">
               {profile?.companies?.name ?? '—'} • lähetä työtilauksia ja seuraa tilauksen tilaa
             </p>
@@ -546,11 +546,6 @@ export default function WorkReportsPage({ session }: Props) {
                 luonnos tai käynnissä oleva työ näkyy tilaajalle.
               </p>
             )}
-          </div>
-          <div className="page-header-actions">
-            <Link to="/tyoraportit/tilaus/uusi" className="btn btn-primary">
-              + Uusi työtilaus
-            </Link>
           </div>
         </div>
 
@@ -590,24 +585,11 @@ export default function WorkReportsPage({ session }: Props) {
             {portalInProgressReports.length > 0 && (
               <section className="panel">
                 <h2>Käynnissä olevat työt</h2>
-                <ul className="report-list report-list-modern">
-                  {portalInProgressReports.map((report) => (
-                    <li key={report.id}>
-                      <Link to={`/tyoraportit/${report.id}`} className="report-link">
-                        <div className="report-link-body">
-                          <strong>{report.title}</strong>
-                          <span className="muted">
-                            {getPortalWorkStatusLabel(report.status)}
-                            {report.customers?.name ? ` • ${report.customers.name}` : ''}
-                            {report.scheduled_start
-                              ? ` • ${formatDateTime(report.scheduled_start)}`
-                              : ''}
-                          </span>
-                        </div>
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
+                <WorkReportListTable
+                  showPartner={false}
+                  rows={portalInProgressReports.map((r) =>
+                    reportListItemProps(r, logsByReportId, companyId, false, false, loadReports, { portalView: true }))}
+                />
               </section>
             )}
 
@@ -616,23 +598,11 @@ export default function WorkReportsPage({ session }: Props) {
               {portalHistoryOrders.length === 0 ? (
                 <p className="muted">Ei valmiita raportteja vielä.</p>
               ) : (
-                <ul className="report-list report-list-modern">
-                  {portalHistoryOrders.map((report) => (
-                    <li key={report.id}>
-                      <Link to={`/tyoraportit/${report.id}`} className="report-link">
-                        <div className="report-link-body">
-                          <strong>{report.title}</strong>
-                          <span className="muted">
-                            {getPortalWorkStatusLabel(report.status)}
-                            {report.completed_at
-                              ? ` • ${formatDateTime(report.completed_at)}`
-                              : ''}
-                          </span>
-                        </div>
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
+                <WorkReportListTable
+                  showPartner={false}
+                  rows={portalHistoryOrders.map((r) =>
+                    reportListItemProps(r, logsByReportId, companyId, false, false, loadReports, { portalView: true }))}
+                />
               )}
             </section>
           </>

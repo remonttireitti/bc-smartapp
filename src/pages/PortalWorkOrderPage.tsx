@@ -8,6 +8,8 @@ import { createRegistryCustomer } from '../lib/createRegistryCustomer';
 import { formatCustomerAddressParts } from '../lib/customers';
 import {
   companySubscriberOrderEditPath,
+  getPortalCustomerId,
+  getPortalSubscriberId,
   isPortalUser,
   loadPortalOrderCustomers,
   loadPortalOrderEquipment,
@@ -58,8 +60,9 @@ export default function PortalWorkOrderPage({ session }: Props) {
   const [savedAttachments, setSavedAttachments] = useState<WorkReportAttachment[]>([]);
   const [pendingAttachments, setPendingAttachments] = useState<File[]>([]);
 
-  const isSubscriber = profile?.role === 'subscriber';
-  const isCustomer = profile?.role === 'customer';
+  // Esikatselussa rooli on yrityskäyttäjä: päättele portaalin tyyppi esikatselun kohteesta.
+  const isSubscriber = !!getPortalSubscriberId(profile);
+  const isCustomer = !isSubscriber && !!getPortalCustomerId(profile);
   const portalOk = isPortalUser(profile);
   const isCompanyStaff =
     !!profile?.company_id && profile.role !== 'subscriber' && profile.role !== 'customer';
@@ -431,7 +434,7 @@ export default function PortalWorkOrderPage({ session }: Props) {
               type="text"
               value={contactName}
               onChange={(e) => setContactName(e.target.value)}
-              placeholder="Nimi paikan päällä"
+              
             />
           </label>
 
@@ -441,7 +444,7 @@ export default function PortalWorkOrderPage({ session }: Props) {
               type="text"
               value={heading}
               onChange={(e) => setHeading(e.target.value)}
-              placeholder="Esim. ILK 22A korjaukset"
+              
             />
           </label>
 
@@ -451,7 +454,7 @@ export default function PortalWorkOrderPage({ session }: Props) {
               rows={5}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="Kuvaile tehtävä, vika tai toiveinen ajankohta"
+              
               required
             />
           </label>

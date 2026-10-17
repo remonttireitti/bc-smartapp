@@ -24,8 +24,8 @@ type Props = {
   printBusyId: string | null;
   navTrail?: NavTrailProps;
   onToggleSelected: (id: string, checked: boolean) => void;
-  onPrintCard: (eq: Equipment) => void;
-  onPrintHistory: (eq: Equipment) => void;
+  onPrintCard?: (eq: Equipment) => void;
+  onPrintHistory?: (eq: Equipment) => void;
   onDelete: (eq: Equipment) => void;
 };
 
@@ -105,7 +105,7 @@ export function CustomerEquipmentTable({
       ariaLabel="Laitteet"
       actions={(eq) => (
         <>
-          <Tooltip label="Tulosta laitekortti">
+          {onPrintCard ? <Tooltip label="Tulosta laitekortti">
             <button
               type="button"
               className="icon-action-btn"
@@ -115,8 +115,8 @@ export function CustomerEquipmentTable({
             >
               <DeviceCardIcon />
             </button>
-          </Tooltip>
-          <Tooltip label="Tulosta huoltohistoria">
+          </Tooltip> : null}
+          {onPrintHistory ? <Tooltip label="Tulosta huoltohistoria">
             <button
               type="button"
               className="icon-action-btn"
@@ -126,7 +126,7 @@ export function CustomerEquipmentTable({
             >
               <HistoryIcon />
             </button>
-          </Tooltip>
+          </Tooltip> : null}
           {canWrite ? (
             <Link
               to={`/huoltoraportit/uusi?customerId=${customerId}&equipmentId=${eq.id}`}

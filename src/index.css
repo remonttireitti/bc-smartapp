@@ -17955,3 +17955,6 @@ label.has-error input { border-color: #b91c1c; }
 .customer-collapsible .data-table-actions-col, .customer-collapsible .data-table td:last-child { white-space: nowrap; width: 1%; }
 .customer-equipment-name-text, .customer-equipment-stack { display: inline-flex; flex-direction: column; line-height: 1.25; }
 .customer-equipment-name-text small, .customer-equipment-stack small { font-size: 0.75rem; }
+.portal-order-recipients { margin-top: 1.25rem; padding-top: 1rem; border-top: 1px solid var(--border, #e5e7eb); display: flex; flex-direction: column; gap: 0.45rem; }
+.portal-order-recipients h3 { margin: 0; font-size: 1rem; }
+.portal-order-recipients p { margin: 0; }

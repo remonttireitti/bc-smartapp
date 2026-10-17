@@ -68,6 +68,8 @@ import MonitorReaderVrfPage from '../pages/MonitorReaderVrfPage';
 import VrfMonitorDetailPage from '../pages/VrfMonitorDetailPage';
 import SubscribersPage from '../pages/SubscribersPage';
 import ChangePasswordPage from '../pages/ChangePasswordPage';
+import PortalEquipmentPage from '../pages/PortalEquipmentPage';
+import PortalFilesPage from '../pages/PortalFilesPage';
 import ResetPasswordPage from '../pages/ResetPasswordPage';
 import {
   CustomerPortalPreviewPage,
@@ -208,6 +210,8 @@ export function buildAuthenticatedRoutes(session: Session): RouteObject[] {
     { path: '/tyokalut', element: <LicensedToolsPage session={session} /> },
     { path: '/tyokalut/varaus', element: <LicensedToolBookingCalendarPage session={session} /> },
     { path: '/tyokalut/varaus/:token', element: <ToolBookingPublicPage /> },
+    { path: '/laitteet', element: <PortalEquipmentPage session={session} /> },
+    { path: '/tiedostot', element: <PortalFilesPage session={session} /> },
     { path: '/asiakkaat', element: <LicensedCustomersPage session={session} /> },
     {
       path: '/asiakkaat/:customerId/laitteet/:equipmentId',

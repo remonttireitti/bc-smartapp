@@ -4,6 +4,7 @@ import PasswordReveal from './PasswordReveal';
 import { useNavigate } from 'react-router-dom';
 import { rememberPortalPreviewReturn } from '../lib/portalPreview';
 import ToggleSwitch from './ToggleSwitch';
+import PortalOrderRecipients from './PortalOrderRecipients';
 import { inviteCompanyUser } from '../lib/inviteUser';
 import { supabase } from '../lib/supabase';
 
@@ -204,6 +205,7 @@ export default function CustomerPortalSection({
       ) : (
         <p className="muted">Vain ylläpitäjä voi luoda portaalikäyttäjiä.</p>
       )}
+      {canManage ? <PortalOrderRecipients customerId={customerId} /> : null}
     </section>
   );
 }
