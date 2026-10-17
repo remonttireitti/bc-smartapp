@@ -1,3 +1,4 @@
+import CheckToggle from '../../CheckToggle';
 import type { ReactNode } from 'react';
 
 export function HuoltoPrintForm({ children }: { children: ReactNode }) {
@@ -171,8 +172,7 @@ export function PrintCheckField({
 }) {
   return (
     <label className="huolto-print-check-field">
-      <input
-        type="checkbox"
+      <CheckToggle
         checked={checked}
         disabled={disabled}
         onChange={(event) => onChange(event.target.checked)}

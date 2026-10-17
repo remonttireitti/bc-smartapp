@@ -1,3 +1,4 @@
+import CheckToggle from '../CheckToggle';
 import { FormEvent, useEffect, useState } from 'react';
 import {
   createMonitorShare,
@@ -120,7 +121,7 @@ export default function VrfMonitorShareDialog({ open, deviceId, deviceName, onCl
             <input value={label} onChange={(e) => setLabel(e.target.value)} required />
           </label>
           <label className="vrf-share-check">
-            <input type="checkbox" checked={createUser} onChange={(e) => setCreateUser(e.target.checked)} />
+            <CheckToggle checked={createUser} onChange={(e) => setCreateUser(e.target.checked)} />
             Luo kirjautuva lukijakäyttäjä
           </label>
           {createUser && (

@@ -1,3 +1,4 @@
+import CheckToggle from '../components/CheckToggle';
 import {
   DEFAULT_COMMISSION_BILLING_MODE,
   logCommissionMode,
@@ -765,8 +766,7 @@ export function DailyLogFields({
         ) : null}
         {partnerRowToggles && !calendarOnlyHours ? (
           <label className="daily-log-billed-toggle">
-            <input
-              type="checkbox"
+            <CheckToggle
               checked={form.hours_billed}
               onChange={(e) => setForm({ ...form, hours_billed: e.target.checked })}
             />{' '}
@@ -985,8 +985,7 @@ export function DailyLogFields({
       {showFixed && (
         <div className="urakka-billing-split">
           <label className="compact-option">
-            <input
-              type="checkbox"
+            <CheckToggle
               checked={form.partner_urakka_manual}
               onChange={(e) =>
                 setForm({
@@ -1141,8 +1140,7 @@ export function DailyLogFields({
         />
         {partnerRowToggles && hasAutoTripKm ? (
           <label className="daily-log-billed-toggle">
-            <input
-              type="checkbox"
+            <CheckToggle
               checked={expenseDrafts.find(isLikelyAutoTripKmExpense)?.partner_billed !== false}
               onChange={(e) => {
                 const checked = e.target.checked;
@@ -4389,8 +4387,7 @@ export default function WorkReportDetailPage({ session }: Props) {
               {showOutgoingPartnerBilling ? (
               <Tooltip label="Poikkea vain tämän raportin hinnasta (esim. suullinen sopimus työmaalla). Oletuksena kumppanuushinnat.">
                 <label className="compact-option">
-                  <input
-                    type="checkbox"
+                  <CheckToggle
                     checked={useCustomRates}
                     disabled={ratesBusy}
                     onChange={(e) => void onCustomRatesToggle(e.target.checked)}
@@ -4584,8 +4581,7 @@ export default function WorkReportDetailPage({ session }: Props) {
             {canManageCustomerBillingRates && !customerUsesQuoteBasedBilling(billingQuoteSettings) ? (
               <Tooltip label="Poikkea vain tämän raportin asiakashinnoista.">
                 <label className="compact-option">
-                  <input
-                    type="checkbox"
+                  <CheckToggle
                     checked={useCustomCustomerRates}
                     disabled={customerRatesBusy}
                     onChange={(e) => void onCustomCustomerRatesToggle(e.target.checked)}

@@ -1,3 +1,4 @@
+import CheckToggle from '../components/CheckToggle';
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useOutletContext } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
@@ -72,7 +73,7 @@ export default function CustomerPortalAdminPage() {
       <div className="inline-actions" style={{ flexWrap: 'wrap', margin: '.5rem 0' }}>
         <input type="search" placeholder="Hae asiakasta…" value={search} onChange={(e) => setSearch(e.target.value)} style={{ maxWidth: '20rem' }} />
         <label className="signup-check">
-          <input type="checkbox" checked={onlyWithUser} onChange={(e) => setOnlyWithUser(e.target.checked)} /> Vain tunnukselliset ({withUser})
+          <CheckToggle checked={onlyWithUser} onChange={(e) => setOnlyWithUser(e.target.checked)} /> Vain tunnukselliset ({withUser})
         </label>
       </div>
       {error && <p className="error">{error}</p>}

@@ -1,3 +1,4 @@
+import CheckToggle from './CheckToggle';
 import { useMemo, useState } from 'react';
 import Tooltip from './Tooltip';
 import ToggleSwitch from './ToggleSwitch';
@@ -108,8 +109,7 @@ export default function PartnerCustomerSharingPicker({
           </Tooltip>
           <Tooltip label="Näytä vain manuaalisesti jaetut tai raportin kautta näkyvät asiakkaat.">
             <label className="compact-option partner-customer-picker-filter">
-              <input
-                type="checkbox"
+              <CheckToggle
                 checked={onlySelected}
                 disabled={disabled}
                 onChange={(e) => setOnlySelected(e.target.checked)}

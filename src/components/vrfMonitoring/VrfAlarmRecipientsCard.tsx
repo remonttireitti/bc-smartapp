@@ -1,3 +1,4 @@
+import CheckToggle from '../CheckToggle';
 import { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import {
@@ -95,8 +96,7 @@ export default function VrfAlarmRecipientsCard({ deviceId, settings, onDelayS, o
         {list.map((r, i) => (
           <li key={r.email}>
             <label className="vrf-recipient-toggle">
-              <input
-                type="checkbox"
+              <CheckToggle
                 checked={r.deviation}
                 disabled={readOnly || busy}
                 onChange={(e) => update(list.map((x, j) => (j === i ? { ...x, deviation: e.target.checked } : x)))}

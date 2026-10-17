@@ -1,3 +1,4 @@
+import CheckToggle from './CheckToggle';
 import { useEffect, useState } from 'react';
 
 import ExpenseBillingModeToggles from './ExpenseBillingModeToggles';
@@ -156,8 +157,7 @@ export default function DailyLogExpenseLinesSection({
             >
               {partnerBilledToggle ? (
                 <label className="expense-line-billed-toggle" title="Laskutetaan kumppanilta">
-                  <input
-                    type="checkbox"
+                  <CheckToggle
                     checked={row.partner_billed !== false}
                     onChange={(event) => {
                       const checked = event.target.checked;
@@ -384,8 +384,7 @@ function ExpenseLineEditor({
               </label>
               {expenseQuoteContext.linkedQuoteRequest && !autoTripKm && !(Number(row.unit_price) > 0) ? (
                 <label className="checkbox-label expense-price-confirmed">
-                  <input
-                    type="checkbox"
+                  <CheckToggle
                     checked={row.price_confirmed === true}
                     onChange={(e) => updateExpenseRow({ ...row, price_confirmed: e.target.checked })}
                   />
