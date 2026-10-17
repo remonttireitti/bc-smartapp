@@ -1,7 +1,6 @@
 import { Link } from 'react-router-dom';
 import CompanySubscriptionOrderForm from './CompanySubscriptionOrderForm';
-import ModuleDescription from './ModuleDescription';
-import { DEVICE_PURCHASE_PRICE_TEXT } from '../../supabase/functions/_shared/companySignupCore';
+import ModuleDescription, { minDeviceFee } from './ModuleDescription';
 import { billingPeriodLabel } from '../lib/companySignup';
 import { GLOBAL_ADMIN_SUPPORT } from '../lib/supportContacts';
 import {
@@ -98,7 +97,7 @@ export default function LicenseStatusPanel({ license, canManageOrder, onRefresh 
           return (
             <article key={moduleKey} className={`license-pricing-card${active ? ' is-active' : ''}`}>
               <h3>{LICENSE_MODULE_LABELS[moduleKey]}</h3>
-              <p className="muted"><ModuleDescription moduleKey={moduleKey} /></p>
+              <p className="muted"><ModuleDescription moduleKey={moduleKey} deviceFeeEur={minDeviceFee(pricing.temp_device_unit_prices)} /></p>
               <p className="license-price">{formatLicenseMoney(price)}</p>
               {moduleKey === 'remote_monitoring' && (
                 <div className="license-device-pricing-detail muted">
@@ -114,7 +113,6 @@ export default function LicenseStatusPanel({ license, canManageOrder, onRefresh 
                       <> · ei omia laitteita (demo ei laskuteta)</>
                     )}
                   </p>
-                  <p>Seurattava laite {DEVICE_PURCHASE_PRICE_TEXT}; laitemaksu €/kk per laite.</p>
                   {devicePricing.by_type.length > 0 && (
                     <ul className="license-device-pricing-list">
                       {devicePricing.by_type.map((row) => (

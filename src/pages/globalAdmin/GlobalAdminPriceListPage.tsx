@@ -79,7 +79,9 @@ export default function GlobalAdminPriceListPage() {
       key: 'description',
       label: 'Kuvaus',
       value: (r) => r.description,
-      render: (r) => <DescriptionWithNote description={r.description} note={r.note} />,
+      render: (r) => (
+        <DescriptionWithNote description={r.description} note={typeof r.note === 'function' ? r.note(stored ?? parsePriceList(null)) : r.note} />
+      ),
       className: 'muted price-row-desc',
     },
     {

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import HuoltoSettingsSection from '../../components/HuoltoSettingsSection';
 import ToggleSwitch from '../../components/ToggleSwitch';
-import ModuleDescription, { DescriptionWithNote } from '../../components/ModuleDescription';
+import ModuleDescription, { DescriptionWithNote, minDeviceFee } from '../../components/ModuleDescription';
 import { HUOLTO_NOTE, MODULE_DESCRIPTIONS } from '../../lib/companySignup';
 import { invalidateCompanyLicenseCache } from '../../hooks/useCompanyLicense';
 import { notifyHuoltoSettingsChanged } from '../../hooks/useCompanyHuoltoSettings';
@@ -304,7 +304,7 @@ export default function CompanyModulesEditor({ companyId, settings, ownCompanyId
             <>
               <div className="module-toggle-row">
                 <ToggleSwitch checked={modules.remote_monitoring} disabled={busy} label="Etäseuranta" onChange={(v) => setModules((m) => ({ ...m, remote_monitoring: v }))} />
-                <small className="muted"><ModuleDescription moduleKey="remote_monitoring" /></small>
+                <small className="muted"><ModuleDescription moduleKey="remote_monitoring" deviceFeeEur={minDeviceFee(snapshot.pricing.temp_device_unit_prices)} /></small>
               </div>
               <div className="module-toggle-row">
                 <ToggleSwitch checked={modules.inventory} disabled={busy} label="Varasto" onChange={(v) => setModules((m) => ({ ...m, inventory: v }))} />

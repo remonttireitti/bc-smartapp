@@ -11,6 +11,7 @@ import {
   MODULE_DESCRIPTIONS,
   MODULE_NOTES,
   deviceFromPrice,
+  remoteMonitoringNote,
   offeredAddonModules,
   HUOLTO_LABELS,
   STAFF_ROLES,
@@ -147,13 +148,14 @@ export default function CompanySignupForm({ prices }: Props) {
               <>
                 <DescriptionWithNote
                   description={MODULE_DESCRIPTIONS[k]}
-                  note={k === 'billing' && form.modules.partners ? null : MODULE_NOTES[k]}
+                  note={
+                    k === 'billing' && form.modules.partners
+                      ? null
+                      : k === 'remote_monitoring'
+                        ? remoteMonitoringNote(deviceFromPrice(prices))
+                        : MODULE_NOTES[k]
+                  }
                 />
-                {k === 'remote_monitoring' && (
-                  <span className="module-note">
-                    {' '}· laitemaksu alkaen {formatEur(deviceFromPrice(prices))}/kk / laite
-                  </span>
-                )}
               </>,
               prices.module_prices[k],
               form.modules[k],

@@ -26,7 +26,7 @@ for (const p of ['components/CompanySignupForm.tsx', 'pages/globalAdmin/CompanyM
   assert.match(src(p), /BILLING_MODULE_DESCRIPTION|MODULE_DESCRIPTIONS/, p);
 }
 // Riippuvuushuomautus (MODULE_NOTES.billing) piiloutuu, kun Kumppanuudet on valittu.
-assert.match(src('components/CompanySignupForm.tsx'), /k === 'billing' && form\.modules\.partners \? null : MODULE_NOTES\[k\]/);
+assert.match(src('components/CompanySignupForm.tsx'), /k === 'billing' && form\.modules\.partners\s*\?\s*null/);
 // Työraportti, lista, yhteenveto ja tuloste tarkistavat Kumppanuudet-moduulin.
 assert.match(src('pages/WorkReportDetailPage.tsx'), /const partnerBillingOn = partnershipsEnabled === true;/);
 assert.match(src('components/ReportListItem.tsx'), /&& partnershipsEnabled\n/);
