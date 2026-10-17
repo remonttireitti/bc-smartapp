@@ -148,10 +148,23 @@ Deno.serve(async (req) => {
       ...(customerId ? { customer_id: customerId } : {}),
     };
 
-    const authPatch: { email: string; email_confirm: boolean; user_metadata: typeof metadata; password?: string } = {
+    const authPatch: {
+      email: string;
+      email_confirm: boolean;
+      user_metadata: typeof metadata;
+      app_metadata: Record<string, unknown>;
+      password?: string;
+    } = {
       email,
       email_confirm: true,
       user_metadata: metadata,
+      // Luotettava kopio (vain palvelin voi kirjoittaa app_metadataa).
+      app_metadata: {
+        company_id: adminProfile.company_id,
+        role: targetProfile.role,
+        ...(subscriberId ? { subscriber_id: subscriberId } : {}),
+        ...(customerId ? { customer_id: customerId } : {}),
+      },
     };
     if (password.trim().length > 0) {
       if (password.trim().length < 6) {

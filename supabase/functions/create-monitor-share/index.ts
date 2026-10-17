@@ -98,7 +98,27 @@ Deno.serve(async (req) => {
       const existing = existingUsers?.users?.find((u) => u.email?.toLowerCase() === viewerEmail.toLowerCase());
 
       if (existing) {
+        // Vain saman yrityksen lukijatilin voi käyttää uudelleen (ei muiden tilien kaappausta).
+        const { data: existingProfile } = await admin
+          .from('profiles')
+          .select('company_id, role, is_global_admin')
+          .eq('id', existing.id)
+          .maybeSingle();
+        const reusable =
+          !existingProfile ||
+          (existingProfile.company_id === profile.company_id &&
+            existingProfile.role === 'monitor_viewer' &&
+            existingProfile.is_global_admin !== true);
+        if (!reusable) {
+          return new Response(JSON.stringify({ error: 'Sähköposti on jo käytössä toisella tilillä' }), {
+            status: 409,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
         viewerUserId = existing.id;
+        await admin.auth.admin.updateUserById(existing.id, {
+          app_metadata: { role: 'monitor_viewer', company_id: profile.company_id },
+        });
         await admin.from('profiles').upsert({
           id: existing.id,
           email: viewerEmail,
@@ -112,6 +132,7 @@ Deno.serve(async (req) => {
           password: viewerPassword,
           email_confirm: true,
           user_metadata: { role: 'monitor_viewer', company_id: profile.company_id },
+          app_metadata: { role: 'monitor_viewer', company_id: profile.company_id },
         });
         if (createError || !created.user) {
           return new Response(JSON.stringify({ error: createError?.message ?? 'Lukijakäyttäjän luonti epäonnistui' }), {

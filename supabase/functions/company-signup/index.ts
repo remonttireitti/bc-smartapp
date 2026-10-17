@@ -87,7 +87,7 @@ async function requireGlobalAdmin(req: Request, admin: SupabaseClient): Promise<
   const { data, error } = await admin.auth.getUser(token);
   if (error || !data.user) return null;
   const { data: profile } = await admin.from('profiles').select('is_global_admin').eq('id', data.user.id).maybeSingle();
-  const metaAdmin = (data.user.user_metadata as Record<string, unknown> | undefined)?.is_global_admin === true;
+  const metaAdmin = (data.user.app_metadata as Record<string, unknown> | undefined)?.is_global_admin === true;
   return profile?.is_global_admin === true || metaAdmin ? data.user.id : null;
 }
 
@@ -218,6 +218,10 @@ async function handleApprove(body: Record<string, unknown>, admin: SupabaseClien
       continue;
     }
     const userId = invited.user.id;
+    // Luotettava kutsutieto (vain palvelin voi kirjoittaa app_metadataa).
+    await admin.auth.admin.updateUserById(userId, {
+      app_metadata: { company_id: companyId, role },
+    });
     await admin
       .from('profiles')
       .upsert({ id: userId, company_id: companyId, role, email, display_name: displayName }, { onConflict: 'id' });

@@ -86,9 +86,10 @@ export async function assertGlobalAdminOrCron(
     .eq('id', authData.user.id)
     .maybeSingle();
 
+  // Vain app_metadata (palvelimen asettama); user_metadata on käyttäjän itse muokattavissa.
   const metaAdmin =
-    authData.user.user_metadata?.is_global_admin === true
-    || authData.user.user_metadata?.is_global_admin === 'true';
+    authData.user.app_metadata?.is_global_admin === true
+    || authData.user.app_metadata?.is_global_admin === 'true';
 
   if (!profile?.is_global_admin && !metaAdmin) {
     return { ok: false, status: 403, error: 'Vain globaali admin' };

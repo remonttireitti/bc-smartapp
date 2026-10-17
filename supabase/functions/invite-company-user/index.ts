@@ -141,14 +141,36 @@ Deno.serve(async (req) => {
     };
 
     const { data: listed } = await adminClient.auth.admin.listUsers();
-    const existing = listed?.users?.find((u) => u.email === email);
+    const existing = listed?.users?.find((u) => u.email?.toLowerCase() === email.toLowerCase());
     let userId = existing?.id;
 
+    // Luotettava kutsutieto: vain palvelin voi kirjoittaa app_metadataa.
+    const appMetadata = {
+      company_id: companyId,
+      role,
+      ...(subscriberId ? { subscriber_id: subscriberId } : {}),
+      ...(customerId ? { customer_id: customerId } : {}),
+    };
+
     if (existing) {
+      // Olemassa olevaa tiliä ei saa kaapata toisesta yrityksestä eikä globaalia adminia muuttaa.
+      const { data: existingProfile } = await adminClient
+        .from('profiles')
+        .select('company_id, is_global_admin')
+        .eq('id', existing.id)
+        .maybeSingle();
+      const otherCompany = existingProfile?.company_id && existingProfile.company_id !== companyId;
+      if (!isGlobalAdmin && (otherCompany || existingProfile?.is_global_admin === true)) {
+        return new Response(JSON.stringify({ error: 'Sähköposti on jo käytössä toisella tilillä' }), {
+          status: 409,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
       const { error } = await adminClient.auth.admin.updateUserById(userId!, {
         password,
         email_confirm: true,
         user_metadata: metadata,
+        app_metadata: appMetadata,
       });
       if (error) throw error;
     } else {
@@ -157,6 +179,7 @@ Deno.serve(async (req) => {
         password,
         email_confirm: true,
         user_metadata: metadata,
+        app_metadata: appMetadata,
       });
       if (error) throw error;
       userId = data.user.id;
