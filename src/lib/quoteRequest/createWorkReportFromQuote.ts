@@ -66,6 +66,12 @@ export function buildWorkReportPayloadFromQuote(input: {
   quote: QuoteForWorkReportCreation;
   customer: QuoteCustomerForWorkReport | null;
   sessionUserId: string;
+  /**
+   * Tilauksen merkitsijän yritys. Työraportin luoja = se, joka raportin luo (RLS:
+   * created_by_company_id = current_company_id()), ei tarjouksen laatinut yritys — esim.
+   * kumppani tilaa Lämpökatsastuksen laatiman tarjouksen.
+   */
+  creatorCompanyId?: string | null;
 }) {
   const customerName = input.customer?.name?.trim() ?? '';
   const normalized = normalizeQuoteRequestData(input.quote.data);
@@ -87,7 +93,7 @@ export function buildWorkReportPayloadFromQuote(input: {
     subscriber_id: input.quote.subscriber_id,
     location_text: null,
     owner_company_id: input.quote.owner_company_id,
-    created_by_company_id: input.quote.created_by_company_id,
+    created_by_company_id: input.creatorCompanyId || input.quote.created_by_company_id,
     branding_company_id: input.quote.branding_company_id,
     partnership_id: input.quote.partnership_id,
     customer_id: input.quote.customer_id,
@@ -134,6 +140,7 @@ export async function createWorkReportFromQuote(
     quote: QuoteForWorkReportCreation;
     customer: QuoteCustomerForWorkReport | null;
     sessionUserId: string;
+    creatorCompanyId?: string | null;
   },
 ): Promise<string> {
   if (input.quote.work_report_id) {
