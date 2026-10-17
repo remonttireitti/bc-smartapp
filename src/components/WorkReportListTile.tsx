@@ -1,5 +1,5 @@
+import { reportPartner } from '../lib/workReportPartnerFilter';
 import DataTable, { StatusMark, type DataTableColumn } from './DataTable';
-import WorkReportStatusBadges from './WorkReportStatusBadges';
 import WorkReportStatusMenu from './WorkReportStatusMenu';
 import { canChangeWorkflowStatus } from '../lib/workReportStatusUpdate';
 import { resolveWorkReportViewerRole } from '../lib/workReportViewerStatus';
@@ -14,14 +14,27 @@ import {
 type Variant = 'default' | 'incoming' | 'sent';
 
 const STATUS_COLORS: Record<string, string> = {
-  draft: '#94a3b8',
-  scheduled: '#94a3b8',
+  draft: '#64748b',
+  scheduled: '#64748b',
   in_progress: '#2563eb',
   completed: '#f97316',
   billed_partner: '#16a34a',
   billed_customer: '#16a34a',
   delegated: '#8b5cf6',
 };
+
+const LIST_STATUS_LABELS: Record<string, string> = {
+  draft: 'Luonnos',
+  scheduled: 'Tulossa',
+  in_progress: 'Työn alla',
+  completed: 'Laskuttamatta',
+  billed_partner: 'Laskutettu',
+  billed_customer: 'Laskutettu',
+};
+
+function listStatusLabel(status: string): string {
+  return LIST_STATUS_LABELS[status] ?? getWorkStatusLabel(status);
+}
 
 function tileColor(status: string): string {
   return STATUS_COLORS[status] ?? '#0ea5e9';
@@ -87,7 +100,14 @@ export function WorkReportListTable({ rows }: { rows: RowProps[] }) {
       render: (p) => scheduleLabel(p.report) || <span className="muted-cell">Ei ajastettu</span>,
       className: 'nowrap',
     },
-    { key: 'party', label: 'Osapuoli', value: (p) => tileSubtitle(p.report, p.variant ?? 'default') },
+    {
+      key: 'party',
+      label: 'Kumppani',
+      value: (p) =>
+        (p.variant ?? 'default') === 'default'
+          ? reportPartner(p.report, p.viewerCompanyId)?.name ?? 'Omat'
+          : tileSubtitle(p.report, p.variant ?? 'default'),
+    },
   ];
   if (showVisibility) {
     columns.push({
@@ -102,29 +122,8 @@ export function WorkReportListTable({ rows }: { rows: RowProps[] }) {
   columns.push({
     key: 'status',
     label: 'Tila',
-    value: (p) => p.report.status,
-    render: (p) =>
-      !p.portalView && p.viewerCompanyId ? (
-        <WorkReportStatusBadges
-          workflowStatus={p.report.status}
-          context={{
-            status: p.report.status,
-            owner_company_id: p.report.owner_company_id,
-            created_by_company_id: p.report.created_by_company_id,
-            delegate_company_id: p.report.delegate_company_id,
-            billing: p.report.billing,
-            billable: p.report.billable,
-          }}
-          viewerCompanyId={p.viewerCompanyId}
-          hasDailyLogs={p.hasDailyLogs ?? false}
-          dailyLogs={p.dailyLogs ?? []}
-          customerBillingEnabled={p.customerBillingEnabled ?? false}
-          compact
-          hideWorkflowBadge={workflowMenuVisible(p)}
-        />
-      ) : (
-        <StatusMark color={tileColor(p.report.status)} label={getWorkStatusLabel(p.report.status)} />
-      ),
+    value: (p) => listStatusLabel(p.report.status),
+    render: (p) => <StatusMark color={tileColor(p.report.status)} label={listStatusLabel(p.report.status)} />,
   });
   const anyActions = rows.some((p) => workflowMenuVisible(p) || p.onDelete);
 

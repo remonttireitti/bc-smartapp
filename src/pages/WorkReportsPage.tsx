@@ -13,6 +13,13 @@ import WorkReportFilters, {
 } from '../components/WorkReportFilters';
 
 import { ReportListItem } from '../components/ReportListItem';
+import {
+  OWN_PARTNER_KEY,
+  partnerFilterOptions,
+  readPartnerFilter,
+  reportPartnerKey,
+  writePartnerFilter,
+} from '../lib/workReportPartnerFilter';
 import { WorkReportListTable } from '../components/WorkReportListTile';
 import WorkReportListSummary from '../components/WorkReportListSummary';
 
@@ -339,12 +346,15 @@ export default function WorkReportsPage({ session }: Props) {
 
 
 
+  const [partnerFilter, setPartnerFilter] = useState<string>(() => readPartnerFilter());
   const filterOptions = useMemo(() => buildWorkReportFilterOptions(reports), [reports]);
 
+  const partnerOptions = useMemo(() => partnerFilterOptions(reports, companyId), [reports, companyId]);
   const filteredReports = useMemo(
     () =>
       reports.filter((report) =>
-        matchesWorkReportFilters(
+        (!partnerFilter || reportPartnerKey(report, companyId) === partnerFilter)
+        && matchesWorkReportFilters(
           report,
           {
             brandingId: brandingFilter,
@@ -682,6 +692,24 @@ export default function WorkReportsPage({ session }: Props) {
         </div>
 
         <div className="toolbar-right">
+          {partnerOptions.partners.length > 0 ? (
+            <label className="work-report-partner-filter">
+              <span>Kumppani</span>
+              <select
+                value={partnerFilter}
+                onChange={(e) => {
+                  setPartnerFilter(e.target.value);
+                  writePartnerFilter(e.target.value);
+                }}
+              >
+                <option value="">Kaikki</option>
+                {partnerOptions.partners.map((p) => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+                {partnerOptions.hasOwn ? <option value={OWN_PARTNER_KEY}>Omat</option> : null}
+              </select>
+            </label>
+          ) : null}
           <WorkReportFilters
             brandingId={brandingFilter}
             personId={personFilter}
@@ -692,6 +720,8 @@ export default function WorkReportsPage({ session }: Props) {
             options={filterOptions}
             hasActiveFilters={hasActiveFilters}
             onClear={() => {
+              setPartnerFilter('');
+              writePartnerFilter('');
               setBrandingFilter('');
               setPersonFilter('');
               setCustomerFilter('');

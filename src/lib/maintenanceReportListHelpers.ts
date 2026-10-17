@@ -16,7 +16,7 @@ export type MaintenanceReportListItem = {
 };
 
 const STATUS_COLORS: Record<string, string> = {
-  draft: '#94a3b8',
+  draft: '#64748b',
   submitted: '#16a34a',
 };
 
