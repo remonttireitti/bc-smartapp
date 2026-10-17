@@ -45,6 +45,7 @@ import {
   QUOTE_SECTION_LABELS,
   QUOTE_TYPE_LABELS,
   QUOTE_TYPE_ORDER,
+  QUOTE_TYPE_SHORT_LABELS,
   isPumpQuoteType,
   isRepairQuoteType,
   vatRateForQuoteProfile,
@@ -123,7 +124,7 @@ export default function QuoteRequestEditPage({ session }: Props) {
   const [workReportId, setWorkReportId] = useState<string | null>(null);
   /** Vanha raportin puolen linkki (billing_quote), kun quote_requests.work_report_id puuttuu. */
   const [billingLinkedReportId, setBillingLinkedReportId] = useState<string | null>(null);
-  const [form, setForm] = useState<QuoteRequestData>(() => createEmptyQuoteRequestData());
+  const [form, setForm] = useState<QuoteRequestData>(() => createEmptyQuoteRequestData('huolto'));
   const [activeSection, setActiveSection] = useState<QuoteEditSection>('asiakas');
   const [partnerships, setPartnerships] = useState<Partnership[]>([]);
   const [ownerCompany, setOwnerCompany] = useState<Company | null>(null);
@@ -685,7 +686,7 @@ export default function QuoteRequestEditPage({ session }: Props) {
         item.description.trim() ||
         Number(item.hours) > 0 ||
         (item.materials ?? []).some((mat) => mat.name.trim()),
-    );
+    ) || (form.installationSupplies ?? []).some((row) => row.name.trim());
     const needsWorkLines =
       isRepairQuoteType(form.type)
       || (form.type === 'ilma-ilma' && resolveIilpLaborPricingMode(form) === 'tuntityo');
@@ -1222,7 +1223,7 @@ export default function QuoteRequestEditPage({ session }: Props) {
               disabled={!canEdit}
               onClick={() => changeQuoteType(type)}
             >
-              {QUOTE_TYPE_LABELS[type]}
+              {QUOTE_TYPE_SHORT_LABELS[type]}
             </button>
           ))}
         </div>
@@ -1303,6 +1304,8 @@ export default function QuoteRequestEditPage({ session }: Props) {
             customerSelected={Boolean(customerId)}
             deliveryFeeMap={deliveryFeeMap}
             companyName={reportOwnerName}
+            catalogPrices={companySettings?.quotes?.catalog_prices}
+            hourlyRate={companySettings?.billing?.customer_rates?.hourly_regular || null}
           />
         )}
 

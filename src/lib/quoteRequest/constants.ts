@@ -1,11 +1,27 @@
 import type { QuoteProjectType, QuoteRegion, QuoteRequestData, QuoteType, QuoteVatProfile } from './types';
 
-export const QUOTE_TYPE_ORDER: QuoteType[] = ['vesi-ilma', 'ilma-ilma', 'huolto'];
+import { isTradeQuoteType } from './tradeCatalog';
 
+export const QUOTE_TYPE_ORDER: QuoteType[] = ['huolto', 'lvi', 'iv', 'sahko', 'vesi-ilma', 'ilma-ilma'];
+
+/** Tulosteen otsikko ja listan tyyppi. */
 export const QUOTE_TYPE_LABELS: Record<QuoteType, string> = {
   'vesi-ilma': 'Vesi-ilmalämpöpumppu',
   'ilma-ilma': 'Ilmalämpöpumppu',
   huolto: 'Tarjous huollosta tai korjauksesta',
+  lvi: 'LVI-tarjous',
+  iv: 'IV-tarjous',
+  sahko: 'Sähkötarjous',
+};
+
+/** Tyyppivalinnan lyhyet nimet. */
+export const QUOTE_TYPE_SHORT_LABELS: Record<QuoteType, string> = {
+  huolto: 'Huolto / korjaus',
+  lvi: 'LVI',
+  iv: 'IV',
+  sahko: 'Sähkö',
+  'vesi-ilma': 'Vesi-ilmalämpöpumppu',
+  'ilma-ilma': 'Ilmalämpöpumppu',
 };
 
 /** Uuden tarjouspyynnön oletus-introText (ei käyttäjän kirjoittama otsikko). */
@@ -106,6 +122,10 @@ export const quoteTemplates: Record<QuoteType, Partial<QuoteRequestData>> = {
     iilpBaseInstallMaterialsGross: 500,
   },
   huolto: { laborHours: 2, laborRate: 65, travelCost: 0, vatRate: 0 },
+  // laborHours 0: ei piilotyötä (laborHours × laborRate), kun työrivejä ei ole.
+  lvi: { laborHours: 0, laborRate: 65, travelCost: 0, vatRate: 0 },
+  iv: { laborHours: 0, laborRate: 65, travelCost: 0, vatRate: 0 },
+  sahko: { laborHours: 0, laborRate: 65, travelCost: 0, vatRate: 0 },
 };
 
 /** Matkakulut vain lämpöpumppu-tarjouksissa. */
@@ -138,18 +158,31 @@ export function isPumpQuoteType(type: QuoteType): boolean {
   return type === 'vesi-ilma' || type === 'ilma-ilma';
 }
 
-/** Huolto- tai korjaustarjous (työrivit + tarvikkeet). */
+/** Huolto/korjaus- tai LVI/IV/sähkötarjous (työrivit + tarvikkeet, sama tuloste ja työraporttilinkitys). */
 export function isRepairQuoteType(type: QuoteType): boolean {
-  return type === 'huolto';
+  return type === 'huolto' || isTradeQuoteType(type);
 }
 
+/** Sama rivirakenne (työt + tarvikkeet): tyypin vaihto tämän perheen sisällä ei tyhjennä rivejä. */
 export function isHuoltoQuoteType(type: QuoteType): boolean {
-  return type === 'huolto';
+  return isRepairQuoteType(type);
 }
 
 /** Näytetään tulosteessa ja yhteenvedossa kun ALV on 0 %. */
 export const QUOTE_ZERO_VAT_NOTICE = 'Kaikki hinnat ovat alv 0 %.';
 
-export function quoteShowsKotitalousDeduction(type: QuoteType): boolean {
-  return isPumpQuoteType(type);
+/** Lämpöpumput: vähennysarvio. LVI/IV/sähkö: työn osuus yksityisasiakkaalle (alv > 0). */
+export function quoteShowsKotitalousDeduction(type: QuoteType, vatRate?: number): boolean {
+  if (isPumpQuoteType(type)) return true;
+  return isTradeQuoteType(type) && Number(vatRate) > 0;
 }
+
+/** Kotitalousvähennys 2026–2027 (vero.fi): 40 % työn osuudesta sis. alv, omavastuu 150 €, enintään 2 100 € / hlö;
+ * öljylämmityksestä luopuminen 60 %, enintään 3 500 € / hlö. */
+export const KOTITALOUS_DEDUCTION = {
+  percent: 0.4,
+  maxPerPerson: 2100,
+  oilPercent: 0.6,
+  oilMaxPerPerson: 3500,
+  deductiblePerPerson: 150,
+} as const;

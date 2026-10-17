@@ -5,6 +5,7 @@ import { resolveLegacyDeviceIds, findDeviceById, resolveQuoteMainDeviceForTotals
 import { computePumpSizingNeedKw, resolveIilpLaborPricingMode } from './calculations';
 import { migrateLegacyMaterialsToInstallationSupplies } from './installationSupplies';
 import { DEFAULT_TERMATEK_IILP_QUOTE_TERMS, DEFAULT_QUOTE_TERMS_PRINT } from './termatekDefaultTerms';
+import { isTradeQuoteType } from './tradeCatalog';
 import {
   DEFAULT_IILP_OPTIONAL_ITEMS,
   DEFAULT_IILP_PAYMENT_TERMS,
@@ -76,7 +77,26 @@ export function defaultWorkItemsForType(type: QuoteType): QuoteWorkItem[] {
     ];
   }
 
+  // LVI/IV/sähkö: rivit tyyppiriveistä (pikalisäys), ei valmiita kylmähuollon töitä.
+  if (isTradeQuoteType(type)) return [];
+
   return [createEmptyWorkItem({ pricePerHour: rate })];
+}
+
+/** Onko työrivit koskemattomat tyypin oletukset (vaihdetaan uuden tyypin oletuksiin). */
+function workItemsArePristineDefaults(items: QuoteWorkItem[], type: QuoteType): boolean {
+  const defaults = defaultWorkItemsForType(type);
+  if (items.length !== defaults.length) return false;
+  return items.every((item, index) => {
+    const d = defaults[index];
+    return (
+      item.description === d.description
+      && Number(item.hours) === Number(d.hours)
+      && Number(item.pricePerHour) === Number(d.pricePerHour)
+      && !item.equipmentId
+      && (item.materials ?? []).length === 0
+    );
+  });
 }
 
 function normalizeMaterialList(raw: unknown): QuoteMaterial[] {
@@ -98,6 +118,7 @@ function normalizeMaterialList(raw: unknown): QuoteMaterial[] {
           ? row.rowKind
           : 'supply',
       unit: typeof row.unit === 'string' && row.unit.trim() ? row.unit.trim() : undefined,
+      catalogKey: typeof row.catalogKey === 'string' && row.catalogKey ? row.catalogKey : undefined,
     });
   });
 }
@@ -162,7 +183,7 @@ export function createEmptyQuoteRequestData(type: QuoteType = 'vesi-ilma'): Quot
   const validUntil = new Date();
   validUntil.setDate(validUntil.getDate() + 30);
   const template = quoteTemplates[type];
-  const quoteVatProfile = type === 'huolto' ? 'business' : 'consumer';
+  const quoteVatProfile = isRepairQuoteType(type) ? 'business' : 'consumer';
 
   return {
     type,
@@ -285,7 +306,9 @@ export function applyQuoteTypeChange(current: QuoteRequestData, nextType: QuoteT
   let workItems = current.workItems;
   let materials = current.materials;
 
-  if (crossingFamily && !hasContent) {
+  if (!crossingFamily && nextService && workItemsArePristineDefaults(workItems, current.type)) {
+    workItems = defaultWorkItemsForType(nextType);
+  } else if (crossingFamily && !hasContent) {
     workItems = nextService
       ? defaultWorkItemsForType(nextType)
       : [createEmptyWorkItem({ pricePerHour: template.laborRate ?? 65 })];
@@ -753,7 +776,10 @@ function normalizeVilpTankLiters(value: unknown): 0 | 180 | 230 {
 }
 
 function normalizeQuoteType(value: unknown): QuoteType | null {
-  if (value === 'vesi-ilma' || value === 'ilma-ilma' || value === 'huolto') {
+  if (
+    value === 'vesi-ilma' || value === 'ilma-ilma' || value === 'huolto'
+    || value === 'lvi' || value === 'iv' || value === 'sahko'
+  ) {
     return value;
   }
   if (value === 'korjaus' || value === 'asennus') {

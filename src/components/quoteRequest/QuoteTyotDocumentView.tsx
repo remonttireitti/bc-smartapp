@@ -7,7 +7,13 @@ import QuoteWorkMaterialsSection from './QuoteWorkMaterialsSection';
 import type { BrandDeliveryFeeByCategoryMap } from '../../data/devicePricingShared';
 import { isRepairQuoteType } from '../../lib/quoteRequest/constants';
 import { buildQuoteTyotTiles, type QuoteTyotTileId } from '../../lib/quoteRequest/quoteTyotEntries';
-import type { QuoteRequestData } from '../../lib/quoteRequest/types';
+import type { QuoteMaterialRowKind, QuoteRequestData } from '../../lib/quoteRequest/types';
+import {
+  isTradeQuoteType,
+  tradeCatalogItems,
+  type TradeCatalogItem,
+  type TradeCatalogPrices,
+} from '../../lib/quoteRequest/tradeCatalog';
 import type { Equipment } from '../../types';
 
 type Props = {
@@ -18,6 +24,10 @@ type Props = {
   customerSelected: boolean;
   deliveryFeeMap: BrandDeliveryFeeByCategoryMap | null;
   companyName?: string;
+  /** Yrityksen tarjousrivien hinnat (Yritystiedot → Huoltohinnasto). */
+  catalogPrices?: TradeCatalogPrices;
+  /** Asiakkaan oletustuntihinta alv 0. */
+  hourlyRate?: number | null;
 };
 
 export default function QuoteTyotDocumentView({
@@ -27,15 +37,29 @@ export default function QuoteTyotDocumentView({
   equipment,
   customerSelected,
   deliveryFeeMap,
+  catalogPrices,
+  hourlyRate,
 }: Props) {
   const tiles = buildQuoteTyotTiles(form);
+  const trade = isTradeQuoteType(form.type) ? form.type : null;
+  const catalogFor = (kind: QuoteMaterialRowKind): TradeCatalogItem[] | undefined =>
+    trade ? tradeCatalogItems(trade).filter((item) => item.kind === kind) : undefined;
+  const catalogProps = (kind: QuoteMaterialRowKind) => ({
+    catalogItems: catalogFor(kind),
+    catalogPrices,
+    hourlyRate,
+  });
+  // LVI/IV/sähkö: työt riveinä (h, m, kpl, kohde); vanhat tehtävärivit näkyvät vain jos niitä on.
+  const showTaskItems =
+    !trade
+    || form.workItems.some((w) => w.description.trim() || Number(w.hours) > 0 || (w.materials ?? []).length > 0);
 
   function renderTileContent(tileId: QuoteTyotTileId): ReactNode {
     switch (tileId) {
       case 'tyot':
         return (
           <>
-            {isRepairQuoteType(form.type) ? (
+            {!showTaskItems ? null : isRepairQuoteType(form.type) ? (
               <QuoteRepairWorkItemsSection
                 form={form}
                 canEdit={canEdit}
@@ -52,6 +76,7 @@ export default function QuoteTyotDocumentView({
               canEdit={canEdit}
               onChange={onChange}
               rowKindFilter="labor"
+              {...catalogProps('labor')}
             />
           </>
         );
@@ -62,6 +87,7 @@ export default function QuoteTyotDocumentView({
             canEdit={canEdit}
             onChange={onChange}
             rowKindFilter="supply"
+            {...catalogProps('supply')}
           />
         );
       case 'kulut':
@@ -71,6 +97,7 @@ export default function QuoteTyotDocumentView({
             canEdit={canEdit}
             onChange={onChange}
             rowKindFilter="expense"
+            {...catalogProps('expense')}
           />
         );
       case 'laite':
@@ -80,6 +107,7 @@ export default function QuoteTyotDocumentView({
             canEdit={canEdit}
             onChange={onChange}
             rowKindFilter="device"
+            {...catalogProps('device')}
           />
         );
       case 'iilp-laitteet':
@@ -103,7 +131,7 @@ export default function QuoteTyotDocumentView({
   return (
     <QuoteDocumentSectionView
       sectionTitle="Työt & tarvikkeet"
-      hint="Työt, tarvikkeet, kulut ja laitteet — avaa ruudusta."
+      hint={trade ? 'Lisää tyyppirivit ruuduista. Hinta tulee yrityksen hinnastosta.' : 'Työt, tarvikkeet, kulut ja laitteet — avaa ruudusta.'}
       tiles={tiles}
       renderTileContent={renderTileContent}
     />

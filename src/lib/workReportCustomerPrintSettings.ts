@@ -11,7 +11,8 @@ export type CustomerPrintQuantityUnit =
   | 'm²'
   | 'm³'
   | 'pv'
-  | 'vrk';
+  | 'vrk'
+  | 'kohde';
 
 export const CUSTOMER_PRINT_QUANTITY_UNIT_OPTIONS: Array<{
   value: CustomerPrintQuantityUnit;
@@ -29,6 +30,7 @@ export const CUSTOMER_PRINT_QUANTITY_UNIT_OPTIONS: Array<{
   { value: 'm³', label: 'm³' },
   { value: 'pv', label: 'pv (päivä)' },
   { value: 'vrk', label: 'vrk' },
+  { value: 'kohde', label: 'kohde' },
 ];
 
 export type CustomerPrintQuantitySettings = {
