@@ -27,13 +27,15 @@ import { generateWorkReportPrintHtml } from '../src/lib/workReportPrintHtml.ts';
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
 // --- 1. Linkin osoite ---------------------------------------------------------
-assert.equal(PUBLIC_APP_ORIGIN, 'https://bc-smartapp.pages.dev');
-assert.equal(workReportPrintShareUrl('abc123def456', 'https://bc-smartapp.pages.dev'), 'https://bc-smartapp.pages.dev/j/abc123def456');
-assert.equal(workReportPrintShareUrl('abc123def456', 'http://localhost:5173'), 'https://bc-smartapp.pages.dev/j/abc123def456');
-assert.equal(workReportPrintShareUrl('abc123def456', 'http://127.0.0.1:4173'), 'https://bc-smartapp.pages.dev/j/abc123def456');
-assert.equal(workReportPrintShareUrl('abc123def456', 'https://3f2a1b9c.bc-smartapp.pages.dev'), 'https://bc-smartapp.pages.dev/j/abc123def456');
-assert.equal(workReportPrintShareUrl('abc123def456', 'capacitor://localhost'), 'https://bc-smartapp.pages.dev/j/abc123def456');
-assert.equal(workReportPrintShareUrl('abc123def456', null), 'https://bc-smartapp.pages.dev/j/abc123def456');
+assert.equal(PUBLIC_APP_ORIGIN, 'https://bestcool.eu');
+assert.equal(workReportPrintShareUrl('abc123def456', 'https://bestcool.eu'), 'https://bestcool.eu/j/abc123def456');
+assert.equal(workReportPrintShareUrl('abc123def456', 'http://localhost:5173'), 'https://bestcool.eu/j/abc123def456');
+assert.equal(workReportPrintShareUrl('abc123def456', 'http://127.0.0.1:4173'), 'https://bestcool.eu/j/abc123def456');
+assert.equal(workReportPrintShareUrl('abc123def456', 'https://3f2a1b9c.bc-smartapp.pages.dev'), 'https://bestcool.eu/j/abc123def456');
+assert.equal(workReportPrintShareUrl('abc123def456', 'capacitor://localhost'), 'https://bestcool.eu/j/abc123def456');
+assert.equal(workReportPrintShareUrl('abc123def456', 'https://bc-smartapp.pages.dev'), 'https://bestcool.eu/j/abc123def456');
+assert.equal(workReportPrintShareUrl('abc123def456', 'https://www.bestcool.eu'), 'https://bestcool.eu/j/abc123def456');
+assert.equal(workReportPrintShareUrl('abc123def456', null), 'https://bestcool.eu/j/abc123def456');
 assert.equal(resolvePublicShareOrigin('https://app.remonttireitti.fi'), 'https://app.remonttireitti.fi', 'oma domain säilyy');
 assert.equal(resolvePublicShareOrigin('http://app.example.fi'), PUBLIC_APP_ORIGIN, 'ei http-linkkejä asiakkaalle');
 

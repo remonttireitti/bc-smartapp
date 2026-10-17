@@ -269,7 +269,7 @@ export async function processVrfAlarmEmail(
             `Aika: ${new Date(nowMs).toLocaleString('fi-FI', { timeZone: 'Europe/Helsinki' })}`,
             '',
             'Tarkista VRF-ohjain ja hälytyspiiri.',
-            `https://bc-smartapp.pages.dev/etaseuranta/vrf/${input.deviceId}`,
+            `https://bestcool.eu/etaseuranta/vrf/${input.deviceId}`,
           ].join('\n'),
         );
         state.alarm_active = true;
@@ -293,7 +293,7 @@ export async function processVrfAlarmEmail(
             `Tila: hälytys ei ole enää aktiivinen`,
             `Aika: ${new Date(nowMs).toLocaleString('fi-FI', { timeZone: 'Europe/Helsinki' })}`,
             '',
-            `https://bc-smartapp.pages.dev/etaseuranta/vrf/${input.deviceId}`,
+            `https://bestcool.eu/etaseuranta/vrf/${input.deviceId}`,
           ].join('\n'),
         );
         state.alarm_active = false;

@@ -8,3 +8,23 @@
 
 /workbox-*.js
   Cache-Control: no-cache
+
+# pages.dev-osoitteet ja esikatselut eivät indeksoidu (kanoninen https://bestcool.eu)
+https://:project.pages.dev/*
+  X-Robots-Tag: noindex
+
+https://:version.:project.pages.dev/*
+  X-Robots-Tag: noindex
+
+# Jakolinkit ja yksityiset näkymät eivät indeksoidu
+/j/*
+  X-Robots-Tag: noindex, nofollow
+
+/tyoraportti/jako/*
+  X-Robots-Tag: noindex, nofollow
+
+/seuranta/luku/*
+  X-Robots-Tag: noindex, nofollow
+
+/tyokalut/varaus/*
+  X-Robots-Tag: noindex, nofollow

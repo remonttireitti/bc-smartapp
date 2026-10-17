@@ -29,7 +29,7 @@ Supabase Studio: http://127.0.0.1:54323
 
 | | |
 |---|---|
-| Sovellus | https://bc-smartapp.pages.dev |
+| Sovellus | https://bestcool.eu |
 | Supabase | https://qvqmemeexberatbqxivw.supabase.co |
 | Studio | https://supabase.com/dashboard/project/qvqmemeexberatbqxivw |
 
@@ -71,7 +71,7 @@ Aseta Cloudflare Pages -ympäristöön `VITE_SUPABASE_URL` ja `VITE_SUPABASE_ANO
 | | |
 |---|---|
 | GitHub | https://github.com/remonttireitti/bc-smartapp |
-| Tuotanto | https://bc-smartapp.pages.dev |
+| Tuotanto | https://bestcool.eu |
 
 Muutokset: commit → `git push origin main` → Cloudflare Pages deployaa automaattisesti (jos repo on kytketty).
 

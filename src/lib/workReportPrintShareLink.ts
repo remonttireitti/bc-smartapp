@@ -17,7 +17,7 @@ export type WorkReportPrintShareBundle = {
 };
 
 /** Tuotannon osoite: asiakkaalle jaettava linkki ei saa osoittaa localhostiin tai esikatselu-buildiin. */
-export const PUBLIC_APP_ORIGIN = 'https://bc-smartapp.pages.dev';
+export const PUBLIC_APP_ORIGIN = 'https://bestcool.eu';
 
 export function workReportPrintSharePath(token: string): string {
   return `/j/${encodeURIComponent(token)}`;
@@ -25,7 +25,7 @@ export function workReportPrintSharePath(token: string): string {
 
 /**
  * Asiakkaalle jaettavan linkin origin. Oma domain säilyy; localhost, IP-osoitteet,
- * Cloudflare-esikatselut (<hash>.bc-smartapp.pages.dev) ja sovelluskääreet → tuotanto-osoite.
+ * pages.dev-osoitteet (myös <hash>.bc-smartapp.pages.dev), www.bestcool.eu ja sovelluskääreet → tuotanto-osoite.
  */
 export function resolvePublicShareOrigin(currentOrigin: string | null | undefined): string {
   const raw = String(currentOrigin ?? '').trim();
@@ -47,7 +47,9 @@ export function resolvePublicShareOrigin(currentOrigin: string | null | undefine
   ) {
     return PUBLIC_APP_ORIGIN;
   }
-  if (host.endsWith('.bc-smartapp.pages.dev')) return PUBLIC_APP_ORIGIN;
+  if (host === 'bc-smartapp.pages.dev' || host.endsWith('.bc-smartapp.pages.dev') || host === 'www.bestcool.eu') {
+    return PUBLIC_APP_ORIGIN;
+  }
   if (url.protocol !== 'https:') return PUBLIC_APP_ORIGIN;
   return url.origin;
 }
