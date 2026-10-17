@@ -4,6 +4,8 @@ import { useNavigate } from 'react-router-dom';
 export type DataTableColumn<T> = {
   key: string;
   label: string;
+  /** Otsikon työkaluvihje (lyhennetyt otsikot). */
+  title?: string;
   /** Lajittelu- ja hakuarvo. */
   value: (row: T) => string | number | null | undefined;
   render?: (row: T) => ReactNode;
@@ -140,6 +142,7 @@ export default function DataTable<T>({
                   <th
                     key={c.key}
                     className={c.className}
+                    title={c.title}
                     aria-sort={active ? (sort!.dir === 'asc' ? 'ascending' : 'descending') : undefined}
                   >
                     {sortable ? (
