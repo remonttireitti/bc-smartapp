@@ -1,4 +1,4 @@
-import { hallintaNavChildren } from './hallintaNav';
+import { COMPANY_ADMIN_TITLE, SERVICE_ADMIN_TITLE, hallintaNavChildren, serviceNavChildren } from './hallintaNav';
 import { isLicenseModuleAccessible, type CompanyLicenseSnapshot, type LicenseModuleKey } from './companyLicense';
 import { TEMP_MONITORING_BASE, VRF_MONITORING_BASE } from './remoteMonitoringRoutes';
 import { newHuoltoReportHref, type HuoltoAccess } from './huoltoCategories';
@@ -12,7 +12,8 @@ export type MainNavIconKey =
   | 'inventory'
   | 'remote'
   | 'tools'
-  | 'admin';
+  | 'admin'
+  | 'service';
 
 export type MainNavChild = {
   label: string;
@@ -29,6 +30,8 @@ export type MainNavItem = {
   bases: string[];
   licenseModule?: LicenseModuleKey;
   children: MainNavChild[];
+  /** Oma osio sivuvalikossa otsikolla (Palvelun hallinta). */
+  section?: string;
 };
 
 export type MainNavContext = {
@@ -37,7 +40,6 @@ export type MainNavContext = {
   partnershipsEnabled: boolean | null | undefined;
   role: string | null | undefined;
   isGlobalAdmin: boolean;
-  globalAdminMode: boolean;
   /** Huoltoraporttilajit; null = ei vielä ladattu (piilotetaan), undefined = ei rajausta. */
   huolto?: HuoltoAccess | null;
 };
@@ -106,8 +108,20 @@ export function buildMainNav(ctx: MainNavContext): MainNavItem[] {
         { label: 'Varauskalenteri', href: '/tyokalut/varaus' },
       ],
     },
-    { key: 'admin', label: 'Hallinta', href: '/hallinta', bases: ['/hallinta'], children: hallinta },
+    {
+      key: 'admin',
+      label: ctx.role === 'admin' || ctx.role === 'manager' ? COMPANY_ADMIN_TITLE : 'Hallinta',
+      href: '/hallinta',
+      bases: ['/hallinta'],
+      children: hallinta,
+    },
   ];
+  if (ctx.isGlobalAdmin) {
+    items.push({
+      key: 'service', label: SERVICE_ADMIN_TITLE, href: '/palvelu', bases: ['/palvelu'], section: 'Globaali admin',
+      children: serviceNavChildren(ctx),
+    });
+  }
 
   return items.filter((item) => {
     if (!item.licenseModule) return true;

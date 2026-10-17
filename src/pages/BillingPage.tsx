@@ -1038,7 +1038,7 @@ export default function BillingPage({ session }: Props) {
               Käyttäjien laskutusasetukset (tunnit/kulut) vaikuttavat laskurivien sisältöön. Kumppanin
               laskutusmoduuli ei vaikuta — lasket mitä kumppanille laskutat omista työraporteistasi.
               Tarvittaessa ota tunnit tai kulut mukaan kohdassa{' '}
-              <Link to="/hallinta/kayttajat">Hallinta → Käyttäjät</Link>.
+              <Link to="/hallinta/kayttajat">Yrityksen hallinta → Käyttäjät</Link>.
             </p>
           ) : null}
           <>

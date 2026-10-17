@@ -46,7 +46,7 @@ import InstallationPlansPage from '../pages/InstallationPlansPage';
 import InstallationPlanEditPage from '../pages/InstallationPlanEditPage';
 import InstallationPlanPrintPage from '../pages/InstallationPlanPrintPage';
 import ExamplePrintPageLazy from '../pages/ExamplePrintPageLazy';
-import HallintaHubPage from '../pages/HallintaHubPage';
+import HallintaHubPage, { LegacyServiceRedirect, ServiceAdminHubPage } from '../pages/HallintaHubPage';
 import GlobalAdminCompaniesPage from '../pages/globalAdmin/GlobalAdminCompaniesPage';
 import GlobalAdminCompanyPage from '../pages/globalAdmin/GlobalAdminCompanyPage';
 import GlobalAdminPage from '../pages/GlobalAdminPage';
@@ -193,7 +193,7 @@ export function buildAuthenticatedRoutes(session: Session): RouteObject[] {
       element: <CustomerPortalPreviewPage session={session} kind="customer" />,
     },
     { path: '/', element: <Dashboard session={session} /> },
-    { path: '/global-admin', element: <Navigate to="/hallinta/global-admin" replace /> },
+    { path: '/global-admin', element: <LegacyServiceRedirect /> },
     { path: '/tyoraportit', element: <LicensedWorkReportsPage session={session} /> },
     { path: '/laskutus', element: <LicensedBillingPage session={session} /> },
     { path: '/varasto', element: <LicensedInventoryPage session={session} /> },
@@ -228,13 +228,10 @@ export function buildAuthenticatedRoutes(session: Session): RouteObject[] {
       element: <ManagementLayout session={session} />,
       children: [
         { index: true, element: <HallintaHubPage /> },
-        { path: 'yritykset', element: <GlobalAdminCompaniesPage /> },
-        { path: 'yritykset/:companyId', element: <GlobalAdminCompanyPage /> },
+        // Vanhat globaalin adminin osoitteet: ManagementLayout ohjaa /palvelu-puolelle.
+        { path: 'yritykset/*', element: null },
+        { path: 'global-admin/*', element: null },
         { path: 'omat', element: <ProfileSettingsPage /> },
-        { path: 'global-admin', element: <GlobalAdminPage /> },
-        { path: 'global-admin/hinnasto', element: <GlobalAdminPriceListPage /> },
-        { path: 'global-admin/tilaukset', element: <SignupRequestsPage /> },
-        { path: 'global-admin/tilaukset/:id', element: <SignupRequestsPage /> },
         { path: 'yritys', element: <CompanySettingsPage /> },
         { path: 'tilaajat', element: <SubscribersPage /> },
         { path: 'asiakasportaali', element: <CustomerPortalAdminPage /> },
@@ -244,6 +241,20 @@ export function buildAuthenticatedRoutes(session: Session): RouteObject[] {
           path: 'kumppanilaskutus',
           element: <LicensedWorkReportBillingSummaryRoute session={session} />,
         },
+      ],
+    },
+    {
+      path: '/palvelu',
+      element: <ManagementLayout session={session} scope="service" />,
+      children: [
+        { index: true, element: <ServiceAdminHubPage /> },
+        { path: 'yritykset', element: <GlobalAdminCompaniesPage /> },
+        { path: 'yritykset/:companyId', element: <GlobalAdminCompanyPage /> },
+        { path: 'tilaukset', element: <SignupRequestsPage /> },
+        { path: 'tilaukset/:id', element: <SignupRequestsPage /> },
+        { path: 'hinnasto', element: <GlobalAdminPriceListPage /> },
+        { path: 'rekisteri', element: <GlobalAdminPage osio="rekisteri" /> },
+        { path: 'loki', element: <GlobalAdminPage osio="loki" /> },
       ],
     },
     { path: '/tyoraportit/tilaus/uusi', element: <PortalWorkOrderPage session={session} /> },

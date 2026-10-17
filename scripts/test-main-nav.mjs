@@ -1,10 +1,25 @@
 import assert from 'node:assert/strict';
 import { activeMainNavChild, buildMainNav, isMainNavItemActive, routeHidesSidebar } from '../src/lib/mainNav.ts';
 
-const base = { license: null, billingModuleEnabled: true, partnershipsEnabled: true, role: 'admin', isGlobalAdmin: false, globalAdminMode: false };
+const base = { license: null, billingModuleEnabled: true, partnershipsEnabled: true, role: 'admin', isGlobalAdmin: false };
 const labels = (ctx) => buildMainNav({ ...base, ...ctx }).map((i) => i.label);
 
-assert.deepEqual(labels({}), ['Työraportti', 'Laskutus', 'Huoltoraportti', 'Asiakkaat', 'Tarjouspyyntö', 'Varasto', 'Etäohjaus ja seuranta', 'Työkalut', 'Hallinta']);
+assert.deepEqual(labels({}), ['Työraportti', 'Laskutus', 'Huoltoraportti', 'Asiakkaat', 'Tarjouspyyntö', 'Varasto', 'Etäohjaus ja seuranta', 'Työkalut', 'Yrityksen hallinta']);
+// GBA: erillinen Palvelun hallinta -kohta omana osionaan, ei globaaleja alakohtia yrityksen puolella.
+{
+  const g = buildMainNav({ ...base, isGlobalAdmin: true });
+  assert.deepEqual(g.slice(-2).map((i) => i.label), ['Yrityksen hallinta', 'Palvelun hallinta']);
+  const svc = g.find((i) => i.key === 'service');
+  assert.equal(svc.href, '/palvelu');
+  assert.ok(svc.section);
+  assert.ok(svc.children.every((c) => c.href.startsWith('/palvelu/')));
+  assert.ok(g.find((i) => i.key === 'admin').children.every((c) => c.href.startsWith('/hallinta/')));
+  assert.ok(isMainNavItemActive(svc, '/palvelu/yritykset/x'));
+  assert.ok(!isMainNavItemActive(g.find((i) => i.key === 'admin'), '/palvelu/hinnasto'));
+  assert.equal(activeMainNavChild(svc, '/palvelu/tilaukset/abc', '').label, 'Tilaukset');
+  assert.ok(!buildMainNav(base).some((i) => i.key === 'service'));
+  assert.equal(buildMainNav({ ...base, role: 'technician' }).find((i) => i.key === 'admin').label, 'Hallinta');
+}
 // Billing module off/unknown => no Laskutus, no Kumppanilaskutus under Hallinta.
 for (const v of [false, null, undefined]) {
   const nav = buildMainNav({ ...base, billingModuleEnabled: v });
@@ -14,9 +29,6 @@ for (const v of [false, null, undefined]) {
 // Non-admin: only Omat tiedot; manager also Oma yritys.
 assert.deepEqual(buildMainNav({ ...base, role: 'technician' }).find((i) => i.key === 'admin').children.map((c) => c.label), ['Omat tiedot']);
 assert.deepEqual(buildMainNav({ ...base, role: 'manager' }).find((i) => i.key === 'admin').children.map((c) => c.label), ['Omat tiedot', 'Oma yritys']);
-// Global admin tab only when GBA mode on.
-assert.ok(buildMainNav({ ...base, isGlobalAdmin: true, globalAdminMode: true }).find((i) => i.key === 'admin').children.some((c) => c.label === 'Yritykset'));
-assert.ok(!buildMainNav({ ...base, isGlobalAdmin: true }).find((i) => i.key === 'admin').children.some((c) => c.label === 'Yritykset'));
 // Partnerships off => no Kumppanuudet, billing has no sub-modes.
 const np = buildMainNav({ ...base, partnershipsEnabled: false });
 assert.equal(np.find((i) => i.key === 'billing').children.length, 0);

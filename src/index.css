@@ -17272,6 +17272,18 @@ p.quote-outcome-unpriced {
 .app-sidebar-sublink.is-active { color: var(--sb-accent); border-left-color: var(--sb-accent); font-weight: 600; }
 .app-sidebar-collapse { color: var(--text-muted, #6b7280); margin-top: 0.75rem; border-top: 1px solid var(--border, #e5e7eb); border-radius: 0; padding-top: 0.75rem; }
 .app-sidebar-backdrop { display: none; }
+.app-sidebar-section-item { --sb-accent: #7c3aed; margin-top: 0.6rem; padding-top: 0.5rem; border-top: 1px solid var(--border, #e5e7eb); }
+.app-sidebar-section-label {
+  display: block; padding: 0 0.6rem 0.25rem; font-size: 0.7rem; font-weight: 600; letter-spacing: 0.06em;
+  text-transform: uppercase; color: var(--text-muted, #6b7280);
+}
+.app-sidebar-section-item > .app-sidebar-link:not(.is-active) .app-sidebar-icon { color: #7c3aed; }
+.app-sidebar-section-item .app-sidebar-link.is-active { background: rgba(124, 58, 237, 0.07); }
+.sidebar-collapsed .app-sidebar .app-sidebar-section-label { display: none; }
+.management-scope { margin: 0 0 0.15rem; font-size: 0.8rem; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; }
+.management-scope a { color: var(--text-muted, #6b7280); text-decoration: none; }
+.management-scope a:hover { color: var(--link-hover, #2563eb); }
+.management-scope--service a { color: #7c3aed; }
 
 .sidebar-collapsed .app-sidebar { flex-basis: 56px; width: 56px; }
 .sidebar-collapsed .app-sidebar .app-sidebar-label { display: none; }

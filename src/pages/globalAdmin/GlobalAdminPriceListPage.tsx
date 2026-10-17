@@ -34,7 +34,7 @@ const START_EXAMPLE: Example = {
   devices: 0,
 };
 
-/** Hallinta → Globaali admin → Hinnasto: kaikki tilaushinnat yhdessä paikassa. */
+/** Palvelun hallinta → Hinnasto: kaikki tilaushinnat yhdessä paikassa. */
 export default function GlobalAdminPriceListPage() {
   const [stored, setStored] = useState<PriceList | null>(null);
   const [draft, setDraft] = useState<Record<string, string>>({});

@@ -106,7 +106,7 @@ export default function ProfileSettingsPage() {
           <h3>Ajomatkat</h3>
           <p className="muted">
             Uuden työkirjauksen oletuslähtö tulee valitusta osoitteesta. Jos osoite puuttuu, käytetään yrityksen toimiston
-            osoitetta (Hallinta → Yritys).
+            osoitetta (Yrityksen hallinta → Yritys).
           </p>
           <div className="line-form-grid">
             <label>

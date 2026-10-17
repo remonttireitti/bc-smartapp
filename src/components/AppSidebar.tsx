@@ -6,7 +6,6 @@ import { useCompanyBillingModuleEnabled } from '../hooks/useCompanyBillingModule
 import { useCompanyPartnershipsEnabled } from '../hooks/useCompanyPartnershipsEnabled';
 import { useCompanyLicense } from '../hooks/useCompanyLicense';
 import { useCompanyHuoltoSettings } from '../hooks/useCompanyHuoltoSettings';
-import { useGlobalAdminMode } from '../hooks/useGlobalAdminMode';
 import { useProfile } from '../hooks/useProfile';
 import { activeMainNavChild, buildMainNav, isMainNavItemActive, type MainNavIconKey } from '../lib/mainNav';
 
@@ -20,6 +19,7 @@ const ICON_PATHS: Record<MainNavIconKey | 'home', string> = {
   inventory: 'M3 8l9-5 9 5v10l-9 5-9-5V8zm0 0l9 5 9-5M12 13v10',
   remote: 'M12 12v9M8.5 8.5a5 5 0 0 1 7 0M5.5 5.5a9.2 9.2 0 0 1 13 0',
   tools: 'M3 21l7-7M14 4l6 6-3 3-6-6 3-3zM9 9l6 6',
+  service: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM3 12h18M12 3c2.5 2.5 3.8 5.5 3.8 9s-1.3 6.5-3.8 9M12 3C9.5 5.5 8.2 8.5 8.2 12s1.3 6.5 3.8 9',
   admin: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1',
 };
 
@@ -47,7 +47,6 @@ export default function AppSidebar({ session, collapsed, onToggleCollapsed, mobi
   const billingModuleEnabled = useCompanyBillingModuleEnabled(profile?.company_id, session);
   const partnershipsEnabled = useCompanyPartnershipsEnabled(profile?.company_id, session);
   const { license } = useCompanyLicense(profile?.company_id, session, !!profile?.is_global_admin);
-  const { globalAdminMode } = useGlobalAdminMode();
   const huolto = useCompanyHuoltoSettings(profile?.company_id, session);
   const huoltoAccess = huolto.loaded ? huolto.access : null;
 
@@ -59,10 +58,9 @@ export default function AppSidebar({ session, collapsed, onToggleCollapsed, mobi
         partnershipsEnabled,
         role: profile?.role,
         isGlobalAdmin: !!profile?.is_global_admin,
-        globalAdminMode,
         huolto: huoltoAccess,
       }),
-    [license, billingModuleEnabled, partnershipsEnabled, profile?.role, profile?.is_global_admin, globalAdminMode, huoltoAccess],
+    [license, billingModuleEnabled, partnershipsEnabled, profile?.role, profile?.is_global_admin, huoltoAccess],
   );
 
   // Mobiililaatikko sulkeutuu navigoinnissa.
@@ -143,7 +141,12 @@ export default function AppSidebar({ session, collapsed, onToggleCollapsed, mobi
             const active = isMainNavItemActive(item, location.pathname);
             const activeChild = active ? activeMainNavChild(item, location.pathname, location.search) : null;
             return (
-              <li key={item.key}>
+              <li key={item.key} className={item.section ? 'app-sidebar-section-item' : undefined}>
+                {item.section ? (
+                  <span className="app-sidebar-section-label" aria-hidden={railCollapsed || undefined}>
+                    {railCollapsed ? '' : item.section}
+                  </span>
+                ) : null}
                 <Link
                   to={item.href}
                   className={`app-sidebar-link${active ? ' is-active' : ''}`}

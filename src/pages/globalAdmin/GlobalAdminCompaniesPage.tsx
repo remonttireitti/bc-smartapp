@@ -23,7 +23,7 @@ type Row = {
   billing: boolean;
 };
 
-/** /hallinta/yritykset: kaikki yritykset (GBA). Rivi avaa yrityksen sivun. */
+/** /palvelu/yritykset: kaikki yritykset (GBA). Rivi avaa yrityksen sivun. */
 export default function GlobalAdminCompaniesPage() {
   const { profile } = useOutletContext<ManagementOutletContext>();
   const { companies, counts, loading, loadMeta } = useGlobalAdminMeta(!!profile.is_global_admin);
@@ -171,7 +171,7 @@ export default function GlobalAdminCompaniesPage() {
           rows={rows}
           columns={columns}
           rowKey={(r) => r.id}
-          rowHref={(r) => `/hallinta/yritykset/${r.id}`}
+          rowHref={(r) => `/palvelu/yritykset/${r.id}`}
           initialSort={{ key: 'name', dir: 'asc' }}
           filterPlaceholder="Hae yritystä…"
           ariaLabel="Yritykset"

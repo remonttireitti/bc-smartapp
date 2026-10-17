@@ -38,7 +38,7 @@ export default function HuoltoGate({ session, category, children }: Props) {
           {canEdit ? (
             <>
               {' · '}
-              <Link to="/hallinta/yritys?osio=moduulit">Ota käyttöön: Hallinta → Oma yritys → Moduulit</Link>
+              <Link to="/hallinta/yritys?osio=moduulit">Ota käyttöön: Yrityksen hallinta → Oma yritys → Moduulit</Link>
             </>
           ) : null}
         </p>

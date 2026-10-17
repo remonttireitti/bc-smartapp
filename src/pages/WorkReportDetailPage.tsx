@@ -2143,7 +2143,7 @@ export default function WorkReportDetailPage({ session }: Props) {
         if (!partnershipModuleAccess(partnerPerms, 'work_reports', 'write')) {
           setDescriptionBusy(false);
           setError(
-            'Kumppani ei ole myöntänyt työraportin luontioikeutta. Pyydä kumppanin ylläpitäjää antamaan oikeus kohdassa Hallinta → Kumppanuudet.',
+            'Kumppani ei ole myöntänyt työraportin luontioikeutta. Pyydä kumppanin ylläpitäjää antamaan oikeus kohdassa Yrityksen hallinta → Kumppanuudet.',
           );
           return;
         }
@@ -4428,7 +4428,7 @@ export default function WorkReportDetailPage({ session }: Props) {
               <p className="error">
                 Tuntihinta on 0 € — {billableHoursQty(billableCalculation).toFixed(2)} h kirjattu.
                 {useCustomRates
-                  ? ' Aseta hinnat yllä tai Hallinta → Yritys.'
+                  ? ' Aseta hinnat yllä tai Yrityksen hallinta → Yritys.'
                   : ' Tarkista kumppanuushinnat, yrityksen oletushinnat tai ota Raporttihinnat käyttöön.'}
               </p>
             )}
@@ -4628,7 +4628,7 @@ export default function WorkReportDetailPage({ session }: Props) {
             <p className="error">
               Asiakkaan tuntihinta on 0 € — {billableHoursQty(customerBillableCalculation).toFixed(2)} h kirjattu.
               {useCustomCustomerRates
-                ? ' Aseta hinnat yllä tai Hallinta → Yritys.'
+                ? ' Aseta hinnat yllä tai Yrityksen hallinta → Yritys.'
                 : ' Tarkista yrityksen asiakashinnat tai ota Raporttihinnat käyttöön.'}
             </p>
           )}

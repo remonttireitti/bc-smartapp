@@ -1,23 +1,17 @@
-import { Navigate, useOutletContext, useSearchParams } from 'react-router-dom';
+import { Navigate, useOutletContext } from 'react-router-dom';
 import type { ManagementOutletContext } from '../lib/managementOutletContext';
-import { isGbaSectionId } from '../lib/hallintaNav';
+import type { GbaSectionId } from '../lib/hallintaNav';
 import GlobalAdminRegistrySection from './globalAdmin/GlobalAdminRegistrySection';
 import GlobalAdminOperationsSection from './globalAdmin/GlobalAdminOperationsSection';
 import { useGlobalAdminMeta } from './globalAdmin/useGlobalAdminMeta';
 
-/** /hallinta/global-admin?osio=rekisteri|loki (valinta Hallinnan etusivulta). Hinnasto: /hallinta/global-admin/hinnasto. */
-export default function GlobalAdminPage() {
+/** /palvelu/rekisteri ja /palvelu/loki. Vanhat ?osio=-osoitteet ohjataan hallintaNav.legacyServicePath-funktiolla. */
+export default function GlobalAdminPage({ osio }: { osio: GbaSectionId }) {
   const { profile } = useOutletContext<ManagementOutletContext>();
-  const [params] = useSearchParams();
-  const osio = params.get('osio');
   const needsMeta = osio === 'rekisteri' || osio === 'loki';
   const { companies, users, loading, refresh } = useGlobalAdminMeta(!!profile?.is_global_admin && needsMeta);
 
-  // Vanhat osiot: yritykset ja tilaukset ovat nyt yrityskohtaisella sivulla.
-  if (osio === 'companies' || osio === 'yritykset' || osio === 'licenses') return <Navigate to="/hallinta/yritykset" replace />;
-  // Vanha hinnoitteluosio → yksi Hinnasto-sivu.
-  if (osio === 'hinnoittelu' || osio === 'hinnasto') return <Navigate to="/hallinta/global-admin/hinnasto" replace />;
-  if (!isGbaSectionId(osio)) return <Navigate to="/hallinta" replace />;
+  if (!profile?.is_global_admin) return <Navigate to="/hallinta" replace />;
   if (loading) return <p className="muted">Ladataan…</p>;
   return (
     <div className="global-admin-section">
