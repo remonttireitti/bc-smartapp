@@ -89,7 +89,8 @@ function PortalPreviewBootstrap({
           subscriberName: data.name,
           companyId: data.owner_company_id,
         });
-        if (onPreviewRouteRef.current) navigate('/', { replace: true });
+        // Täysi lataus: henkilöstönäkymien välimuistisivut eivät jää esikatseluun (istunto säilyy).
+        if (onPreviewRouteRef.current) window.location.replace('/');
         return;
       }
 
@@ -118,7 +119,8 @@ function PortalPreviewBootstrap({
         customerName: data.name,
         companyId: data.owner_company_id,
       });
-      if (onPreviewRouteRef.current) navigate('/', { replace: true });
+      // Täysi lataus: henkilöstönäkymien välimuistisivut eivät jää esikatseluun (istunto säilyy).
+        if (onPreviewRouteRef.current) window.location.replace('/');
     })();
   }, [loading, profile, entityId, kind, navigate, onPreviewRoute]);
 
