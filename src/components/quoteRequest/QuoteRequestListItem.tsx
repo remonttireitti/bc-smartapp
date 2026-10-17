@@ -105,6 +105,7 @@ export function QuoteRequestListTable({ rows, linkedReportId, missingReport, can
       rowHref={(d) => `/tarjouspyynnot/${d.row.id}`}
       rowState={() => withNavTrail(quoteListTrail()).state}
       hideFilter
+      rowAccent={(d) => QUOTE_STATUS_COLORS[d.row.status] ?? QUOTE_STATUS_COLORS.draft}
       ariaLabel="Tarjouspyynnöt"
       actions={
         hasActions

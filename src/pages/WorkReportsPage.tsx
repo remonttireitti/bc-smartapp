@@ -646,11 +646,6 @@ export default function WorkReportsPage({ session }: Props) {
 
           <h1>Työraportit</h1>
 
-          <p className="muted">
-
-            {profile?.companies?.name ?? '—'} • kalenteri, aikataulu ja laskutus
-
-          </p>
 
         </div>
 

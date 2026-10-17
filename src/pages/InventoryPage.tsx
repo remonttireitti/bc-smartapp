@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
 import AppLayout from '../components/AppLayout';
+import DataTable, { StatusMark } from '../components/DataTable';
 import InventoryPhotoThumb from '../components/inventory/InventoryPhotoThumb';
 import InventoryQtyStepper from '../components/inventory/InventoryQtyStepper';
 import RefrigerantInventorySection from '../components/inventory/RefrigerantInventorySection';
@@ -54,6 +55,7 @@ export default function InventoryPage({ session }: Props) {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [rowBusyId, setRowBusyId] = useState<string | null>(null);
+  const [openItemId, setOpenItemId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [addPanel, setAddPanel] = useState<AddPanel>(null);
@@ -354,11 +356,82 @@ export default function InventoryPage({ session }: Props) {
       ) : loading ? (
         <section className="panel">Ladataan…</section>
       ) : (
-        <section className="inventory-card-list">
+        <section className="panel inventory-table-panel">
           {items.length === 0 ? (
             <p className="muted inventory-empty">Ei materiaaleja. Paina + Lisää.</p>
           ) : (
-            items.map((item) => {
+            <DataTable
+              rows={items}
+              rowKey={(item) => item.id}
+              onRowClick={(item) => setOpenItemId(item.id)}
+              initialSort={{ key: 'name', dir: 'asc' }}
+              filterPlaceholder="Suodata materiaaleja…"
+              ariaLabel="Materiaalit"
+              columns={[
+                {
+                  key: 'name',
+                  label: 'Nimi',
+                  value: (item) => item.name,
+                  render: (item) => (
+                    <span className="data-table-thumb-cell">
+                      <InventoryPhotoThumb imagePath={item.image_path} label={item.name} size="sm" />
+                      {item.name}
+                    </span>
+                  ),
+                },
+                { key: 'sku', label: 'Tuotenumero', value: (item) => item.sku ?? '' },
+                {
+                  key: 'qty',
+                  label: 'Määrä',
+                  value: (item) => Number(item.qty_on_hand),
+                  render: (item) =>
+                    canEditWarehouse ? (
+                      <InventoryQtyStepper
+                        value={Number(item.qty_on_hand)}
+                        step={1}
+                        min={0}
+                        unit={item.unit}
+                        busy={rowBusyId === item.id}
+                        onCommit={(next) => setMaterialQty(item, next)}
+                      />
+                    ) : (
+                      `${Number(item.qty_on_hand).toLocaleString('fi-FI')} ${item.unit}`
+                    ),
+                  className: 'nowrap',
+                },
+                {
+                  key: 'min',
+                  label: 'Minimi',
+                  value: (item) => Number(item.min_qty) || '',
+                  render: (item) =>
+                    Number(item.min_qty) > 0 ? (
+                      Number(item.qty_on_hand) < Number(item.min_qty) ? (
+                        <StatusMark color="#ef4444" label={`${item.min_qty} (alle)`} />
+                      ) : (
+                        String(item.min_qty)
+                      )
+                    ) : (
+                      '—'
+                    ),
+                  className: 'nowrap',
+                },
+                { key: 'location', label: 'Sijainti', value: (item) => item.location ?? '' },
+              ]}
+            />
+          )}
+        </section>
+      )}
+      {tab !== 'refrigerant' && openItemId && items.some((i) => i.id === openItemId) && (
+        <div className="leave-draft-overlay" role="presentation" onClick={() => setOpenItemId(null)}>
+          <div
+            className="leave-draft-dialog panel row-edit-dialog inventory-edit-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Materiaali"
+            onClick={(e) => e.stopPropagation()}
+          >
+          {(
+            items.filter((i) => i.id === openItemId).map((item) => {
               const rowBusy = rowBusyId === item.id;
               return (
                 <article key={item.id} className="inventory-card">
@@ -389,7 +462,7 @@ export default function InventoryPage({ session }: Props) {
                     onCommit={(next) => setMaterialQty(item, next)}
                   />
                   {canEditWarehouse && (
-                    <details className="inventory-card-details">
+                    <details className="inventory-card-details" open>
                       <summary>Tiedot</summary>
                       <div className="inventory-details-grid">
                         <label>
@@ -457,7 +530,13 @@ export default function InventoryPage({ session }: Props) {
               );
             })
           )}
-        </section>
+            <div className="form-actions">
+              <button type="button" className="btn btn-secondary" onClick={() => setOpenItemId(null)}>
+                Sulje
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </AppLayout>
   );

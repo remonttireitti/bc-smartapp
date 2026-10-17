@@ -14,12 +14,12 @@ import {
 type Variant = 'default' | 'incoming' | 'sent';
 
 const STATUS_COLORS: Record<string, string> = {
-  draft: '#64748b',
-  scheduled: '#0ea5e9',
-  in_progress: '#f59e0b',
-  completed: '#22c55e',
-  billed_partner: '#6366f1',
-  billed_customer: '#6366f1',
+  draft: '#94a3b8',
+  scheduled: '#94a3b8',
+  in_progress: '#2563eb',
+  completed: '#f97316',
+  billed_partner: '#16a34a',
+  billed_customer: '#16a34a',
   delegated: '#8b5cf6',
 };
 
@@ -134,6 +134,7 @@ export function WorkReportListTable({ rows }: { rows: RowProps[] }) {
       columns={columns}
       rowKey={(p) => p.report.id}
       rowHref={(p) => p.linkTo ?? `/tyoraportit/${p.report.id}`}
+      rowAccent={(p) => tileColor(p.report.status)}
       ariaLabel="Työraportit"
       hideFilter
       actions={
