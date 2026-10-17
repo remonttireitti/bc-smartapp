@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import CompanySubscriptionOrderForm from './CompanySubscriptionOrderForm';
 import ModuleDescription from './ModuleDescription';
+import { DEVICE_PURCHASE_PRICE_TEXT } from '../../supabase/functions/_shared/companySignupCore';
 import { GLOBAL_ADMIN_SUPPORT } from '../lib/supportContacts';
 import {
   formatLicenseMoney,
@@ -112,6 +113,7 @@ export default function LicenseStatusPanel({ license, canManageOrder, onRefresh 
                       <> · ei omia laitteita (demo ei laskuteta)</>
                     )}
                   </p>
+                  <p>Seurattava laite {DEVICE_PURCHASE_PRICE_TEXT}; laitemaksu €/kk per laite.</p>
                   {devicePricing.by_type.length > 0 && (
                     <ul className="license-device-pricing-list">
                       {devicePricing.by_type.map((row) => (

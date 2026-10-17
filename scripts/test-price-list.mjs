@@ -18,7 +18,7 @@ assert.deepEqual(p.device_prices, { jc3248: 5, esp32_ds18b20: 5, default: 5 });
 assert.deepEqual(PRICE_GROUPS.map((g) => g.title), ['Peruspaketti', 'Moduulit', 'Huoltoraportit', 'Käyttäjät']);
 assert.equal(new Set(PRICE_ROWS.map((r) => r.key)).size, PRICE_ROWS.length);
 assert.deepEqual(PRICE_ROWS.filter((r) => r.group === 'moduulit').map((r) => r.label), [
-  'Tarjoukset', 'Laskutus', 'Etäseuranta', 'Laite: JC3248-näyttölaite', 'Laite: ESP32 + DS18B20', 'Laite: Muu lämpötilalaite', 'Varasto', 'Työkalut', 'Kumppanuudet',
+  'Tarjoukset', 'Laskutus', 'Etäseuranta', 'Laitemaksu: JC3248-näyttölaite', 'Laitemaksu: ESP32 + DS18B20', 'Laitemaksu: Muu lämpötilalaite', 'Varasto', 'Työkalut', 'Kumppanuudet',
 ]);
 assert.equal(PRICE_ROWS.find((r) => r.key === 'module:billing').description, 'Laskettavat summat asiakkaalle ja kumppanien kesken — ei laskujen lähetystä');
 assert.equal(PRICE_ROWS.find((r) => r.key === 'base').description, BASE_PACKAGE_DESCRIPTION);
@@ -109,7 +109,8 @@ assert.ok(offeredLicenseAddonModules({ module_prices: { inventory: 10 } }).inclu
 assert.equal(MODULE_DESCRIPTIONS.inventory, 'Materiaalit ja kylmäaine, saldot linkitettynä työraportteihin ja hinnoitteluun');
 assert.equal(BASE_PACKAGE_DESCRIPTION, 'Työraportit ja toimeksiannot, asiakkaat ja laiterekisteri, tilaajaportaali sekä yritys- ja käyttäjähallinta');
 assert.equal(MODULE_DESCRIPTIONS.remote_monitoring, 'Lämpötila, kosteus, paine, valaistus, NO/NC-tilatiedot, 0–10 V, jännitteet ja sähkönkulutus — hälytykset, trendit ja etäohjaus');
-assert.equal(MODULE_NOTES.remote_monitoring, 'Vaatii seurattavan laitteen tilauksen, hinta mittauskohteiden mukaan');
+assert.equal(MODULE_NOTES.remote_monitoring, 'Vaatii seurattavan laitteen tilauksen (alkaen 25,00 € / laite + toimitus, hinta mittauskohteiden mukaan)');
+assert.ok(PRICE_ROWS.filter((r) => r.key.startsWith('device:')).every((r) => r.note.includes('alkaen 25,00 € / laite + toimitus') && r.label.startsWith('Laitemaksu')));
 for (const k of ['quotes', 'billing', 'remote_monitoring', 'inventory', 'tools']) assert.equal(LICENSE_MODULE_DESCRIPTIONS[k], MODULE_DESCRIPTIONS[k], k);
 for (const r of PRICE_ROWS.filter((x) => x.key.startsWith('module:'))) assert.equal(r.description, MODULE_DESCRIPTIONS[r.key.slice(7)]);
 for (const r of PRICE_ROWS.filter((x) => x.key.startsWith('huolto:'))) assert.equal(r.description, HUOLTO_DESCRIPTIONS[r.key.slice(7)]);

@@ -103,7 +103,7 @@ export const MODULE_DESCRIPTIONS: Record<AddonModuleKey, string> = {
 /** Harmaa riippuvuushuomautus (näytetään kuvauksen perässä). */
 export const MODULE_NOTES: Partial<Record<AddonModuleKey, string>> = {
   billing: 'Kumppanien välinen laskenta vaatii Kumppanuudet-moduulin',
-  remote_monitoring: 'Vaatii seurattavan laitteen tilauksen, hinta mittauskohteiden mukaan',
+  remote_monitoring: 'Vaatii seurattavan laitteen tilauksen (alkaen 25,00 € / laite + toimitus, hinta mittauskohteiden mukaan)',
   inventory: 'Ilman Varastoa kylmäaine kirjataan raportille käsin',
 };
 
@@ -121,11 +121,16 @@ export const STAFF_ROLE_DESCRIPTIONS: Record<StaffRole, string> = {
   technician: 'Omat ja itselle osoitetut työt, työ- ja huoltoraportit',
 };
 
-/** Seurattavan laitteen hinta: alkaen halvimmasta laitetyypistä (€/kk alv 0 % per laite). */
+/**
+ * Seurattavan laitteen hankintahinta (kertaluonteinen, ei hinnastossa): näyttöteksti.
+ * Eri asia kuin license_catalog.temp_device_monthly_prices = laskutettava laitemaksu €/kk per laite.
+ */
+export const DEVICE_PURCHASE_PRICE_TEXT = 'alkaen 25,00 € / laite + toimitus';
+/** Halvin laitemaksu €/kk per laite (temp_device_monthly_prices). */
 export function deviceFromPrice(prices: Pick<PriceList, 'device_prices'>): number {
   return Math.min(...DEVICE_TYPES.map((k) => prices.device_prices[k]));
 }
-export const DEVICE_PRICE_NOTE = 'Seurattava laite alkaen, hinta mittauskohteiden mukaan';
+export const DEVICE_PRICE_NOTE = 'Kuukausimaksu per seurattava laite, laskutetaan Etäseurannan kanssa';
 
 /** Onko hinnastossa Varasto-hinta (varasto_module.sql ajettu)? Ennen sitä Varastoa ei tarjota tilattavaksi. */
 export function inventoryModuleOffered(prices: Pick<PriceList, 'inventory_priced'>): boolean {

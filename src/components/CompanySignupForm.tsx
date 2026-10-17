@@ -5,7 +5,6 @@ import { DescriptionWithNote } from './ModuleDescription';
 import {
   ADDON_MODULE_LABELS,
   BASE_PACKAGE_DESCRIPTION,
-  DEVICE_PRICE_NOTE,
   HUOLTO_DESCRIPTIONS,
   HUOLTO_KEYS,
   MODULE_DESCRIPTIONS,
@@ -151,7 +150,7 @@ export default function CompanySignupForm({ prices }: Props) {
                 />
                 {k === 'remote_monitoring' && (
                   <span className="module-note">
-                    {' '}· {DEVICE_PRICE_NOTE}: alkaen {formatEur(deviceFromPrice(prices))} / laite
+                    {' '}· laitemaksu alkaen {formatEur(deviceFromPrice(prices))}/kk / laite
                   </span>
                 )}
               </>,
