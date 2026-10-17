@@ -183,7 +183,7 @@ export default function CompanySettingsPage() {
   const tabs = [
     { id: 'perustiedot', label: 'Perustiedot' },
     { id: 'moduulit', label: 'Moduulit' },
-    { id: 'hinnat', label: 'Hinnat' },
+    { id: 'hinnat', label: 'Huoltohinnasto' },
   ] as const;
 
   return (

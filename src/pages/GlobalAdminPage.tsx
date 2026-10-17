@@ -1,12 +1,11 @@
 import { Navigate, useOutletContext, useSearchParams } from 'react-router-dom';
 import type { ManagementOutletContext } from '../lib/managementOutletContext';
 import { isGbaSectionId } from '../lib/hallintaNav';
-import GlobalAdminPricingSection from './globalAdmin/GlobalAdminPricingSection';
 import GlobalAdminRegistrySection from './globalAdmin/GlobalAdminRegistrySection';
 import GlobalAdminOperationsSection from './globalAdmin/GlobalAdminOperationsSection';
 import { useGlobalAdminMeta } from './globalAdmin/useGlobalAdminMeta';
 
-/** /hallinta/global-admin?osio=hinnoittelu|rekisteri|loki (valinta Hallinnan etusivulta). */
+/** /hallinta/global-admin?osio=rekisteri|loki (valinta Hallinnan etusivulta). Hinnasto: /hallinta/global-admin/hinnasto. */
 export default function GlobalAdminPage() {
   const { profile } = useOutletContext<ManagementOutletContext>();
   const [params] = useSearchParams();
@@ -16,8 +15,9 @@ export default function GlobalAdminPage() {
 
   // Vanhat osiot: yritykset ja tilaukset ovat nyt yrityskohtaisella sivulla.
   if (osio === 'companies' || osio === 'yritykset' || osio === 'licenses') return <Navigate to="/hallinta/yritykset" replace />;
+  // Vanha hinnoitteluosio → yksi Hinnasto-sivu.
+  if (osio === 'hinnoittelu' || osio === 'hinnasto') return <Navigate to="/hallinta/global-admin/hinnasto" replace />;
   if (!isGbaSectionId(osio)) return <Navigate to="/hallinta" replace />;
-  if (osio === 'hinnoittelu') return <GlobalAdminPricingSection />;
   if (loading) return <p className="muted">Ladataan…</p>;
   return (
     <div className="global-admin-section">

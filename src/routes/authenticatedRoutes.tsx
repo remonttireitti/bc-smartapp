@@ -48,6 +48,7 @@ import HallintaHubPage from '../pages/HallintaHubPage';
 import GlobalAdminCompaniesPage from '../pages/globalAdmin/GlobalAdminCompaniesPage';
 import GlobalAdminCompanyPage from '../pages/globalAdmin/GlobalAdminCompanyPage';
 import GlobalAdminPage from '../pages/GlobalAdminPage';
+import GlobalAdminPriceListPage from '../pages/globalAdmin/GlobalAdminPriceListPage';
 import SignupRequestsPage from '../pages/SignupRequestsPage';
 import PumpDeviceRegistryPage from '../pages/PumpDeviceRegistryPage';
 import InventoryPage from '../pages/InventoryPage';
@@ -222,6 +223,7 @@ export function buildAuthenticatedRoutes(session: Session): RouteObject[] {
         { path: 'yritykset/:companyId', element: <GlobalAdminCompanyPage /> },
         { path: 'omat', element: <ProfileSettingsPage /> },
         { path: 'global-admin', element: <GlobalAdminPage /> },
+        { path: 'global-admin/hinnasto', element: <GlobalAdminPriceListPage /> },
         { path: 'global-admin/tilaukset', element: <SignupRequestsPage /> },
         { path: 'global-admin/tilaukset/:id', element: <SignupRequestsPage /> },
         { path: 'yritys', element: <CompanySettingsPage /> },

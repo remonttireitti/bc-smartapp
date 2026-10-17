@@ -62,7 +62,21 @@ export type PriceList = {
   module_prices: Record<AddonModuleKey, number>;
   huolto_prices: Record<HuoltoCategoryKey, number>;
   role_prices: Record<StaffRole, number>;
+  /** Etäseurannan laitemaksu €/kk per laite (tyyppi → hinta; 'default' muille). */
+  device_prices: Record<DeviceTypeKey, number>;
+  /** Kokeilujakson pituus (pv). */
+  trial_days: number;
 };
+
+export type DeviceTypeKey = 'jc3248' | 'esp32_ds18b20' | 'default';
+export const DEVICE_TYPES: DeviceTypeKey[] = ['jc3248', 'esp32_ds18b20', 'default'];
+export const DEVICE_TYPE_LABELS: Record<DeviceTypeKey, string> = {
+  jc3248: 'JC3248-näyttölaite',
+  esp32_ds18b20: 'ESP32 + DS18B20',
+  default: 'Muu lämpötilalaite',
+};
+export const DEFAULT_DEVICE_PRICES: Record<DeviceTypeKey, number> = { jc3248: 5, esp32_ds18b20: 5, default: 5 };
+export const DEFAULT_TRIAL_DAYS = 30;
 
 export const DEFAULT_ROLE_PRICES: Record<StaffRole, number> = { admin: 0, manager: 15, technician: 10 };
 /** Sama kuin license_catalog.base_monthly_eur tuotannossa. */
@@ -95,7 +109,18 @@ export function parsePriceList(row: unknown): PriceList {
   for (const k of HUOLTO_KEYS) huolto_prices[k] = num(hp[k], DEFAULT_HUOLTO_PRICES[k]);
   const role_prices = {} as Record<StaffRole, number>;
   for (const k of STAFF_ROLES) role_prices[k] = num(rp[k], DEFAULT_ROLE_PRICES[k]);
-  return { base_monthly_eur: num(r.base_monthly_eur, DEFAULT_BASE_MONTHLY_EUR), module_prices, huolto_prices, role_prices };
+  const dp = rec(r.temp_device_monthly_prices);
+  const device_prices = {} as Record<DeviceTypeKey, number>;
+  for (const k of DEVICE_TYPES) device_prices[k] = num(dp[k], DEFAULT_DEVICE_PRICES[k]);
+  const trial = Math.round(num(r.trial_days, DEFAULT_TRIAL_DAYS));
+  return {
+    base_monthly_eur: num(r.base_monthly_eur, DEFAULT_BASE_MONTHLY_EUR),
+    module_prices,
+    huolto_prices,
+    role_prices,
+    device_prices,
+    trial_days: trial >= 1 ? trial : DEFAULT_TRIAL_DAYS,
+  };
 }
 
 export function normalizeRoles(raw: unknown): StaffRole[] {
@@ -128,7 +153,31 @@ export type PricedSelection = {
   modules: Partial<Record<AddonModuleKey, boolean>>;
   huolto: Partial<Record<HuoltoCategoryKey, boolean>>;
   users: { roles: StaffRole[] }[];
+  /** Etäseurannan laskutettavat laitteet tyypeittäin (tyyppi → kpl). */
+  devices?: Partial<Record<string, number>>;
 };
+
+/** Laitemaksu yhteensä (sama kuin SQL company_remote_monitoring_devices_pricing). */
+export function devicesMonthly(devices: PricedSelection['devices'], prices: PriceList): number {
+  let cents = 0;
+  for (const [type, count] of Object.entries(devices ?? {})) {
+    const n = Math.max(0, Math.floor(Number(count) || 0));
+    const unit = (prices.device_prices as Record<string, number>)[type] ?? prices.device_prices.default;
+    cents += n * Math.round(unit * 100);
+  }
+  return cents / 100;
+}
+
+/** ALV sentilleen: kokonaisina sentteinä, puolikkaasta ylöspäin (= PostgreSQL round(numeric, 2)). */
+export function vatOf(net: number): number {
+  const netCents = Math.round(net * 100);
+  return Math.floor((netCents * Math.round(VAT_RATE * 1000) + 500) / 1000) / 100;
+}
+
+/** Hinta sis. alv (net + vatOf(net)). */
+export function grossOf(net: number): number {
+  return (Math.round(net * 100) + Math.round(vatOf(net) * 100)) / 100;
+}
 
 export function estimateMonthly(sel: PricedSelection, prices: PriceList): PriceEstimate {
   const lines: PriceLine[] = [];
@@ -137,7 +186,15 @@ export function estimateMonthly(sel: PricedSelection, prices: PriceList): PriceE
     lines.push({ key, label, qty, unit: roundCents(unit), total: (qty * Math.round(unit * 100)) / 100 });
   };
   if (sel.base) add('base', 'Peruspaketti', 1, prices.base_monthly_eur);
-  for (const k of ADDON_MODULES) if (sel.modules[k]) add(`module:${k}`, ADDON_MODULE_LABELS[k], 1, prices.module_prices[k]);
+  for (const k of ADDON_MODULES) {
+    if (!sel.modules[k]) continue;
+    add(`module:${k}`, ADDON_MODULE_LABELS[k], 1, prices.module_prices[k]);
+    // Laitemaksut heti etäseurannan jälkeen (sama järjestys kuin company_monthly_price_breakdown).
+    if (k === 'remote_monitoring') {
+      const dev = devicesMonthly(sel.devices, prices);
+      if (dev > 0) add('devices', 'Etäseurantalaitteet', 1, dev);
+    }
+  }
   // Huoltolajit ja käyttäjät laskutetaan peruspaketin kanssa (sama kuin SQL license_monthly_total).
   if (sel.base) for (const k of HUOLTO_KEYS) if (sel.huolto[k]) add(`huolto:${k}`, HUOLTO_LABELS[k], 1, prices.huolto_prices[k]);
   // Käyttäjät ryhmitellään laskutettavan (kalleimman) roolin mukaan.
@@ -157,10 +214,8 @@ export function estimateMonthly(sel: PricedSelection, prices: PriceList): PriceE
     if (g) add(`role:${r}`, g.label, g.qty, g.unit);
   }
   const net = roundCents(lines.reduce((s, l) => s + l.total, 0));
-  // Kokonaisina sentteinä, pyöristys puolikkaasta ylöspäin (= PostgreSQL round(numeric, 2)).
-  const netCents = Math.round(net * 100);
-  const vat = Math.floor((netCents * Math.round(VAT_RATE * 1000) + 500) / 1000) / 100;
-  return { lines, net, vat, gross: roundCents(net + vat) };
+  const vat = vatOf(net);
+  return { lines, net, vat, gross: grossOf(net) };
 }
 
 /** Y-tunnus: 1234567-8, tarkiste painoilla 7,9,10,5,8,4,2 (mod 11; jakojäännös 1 = virheellinen). */
