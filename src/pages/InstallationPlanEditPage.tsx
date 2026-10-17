@@ -307,7 +307,7 @@ export default function InstallationPlanEditPage({ session }: Props) {
       <div className="page-header">
         <div>
           <p className="breadcrumb">
-            <Link to="/">Etusivu</Link> / <Link to="/tarjouspyynnot">Tarjouspyyntö</Link> /{' '}
+            <Link to="/">Etusivu</Link> / <Link to="/tarjouspyynnot">Tarjouspyynnöt ja laskennat</Link> /{' '}
             <Link to="/asennus-suunnittelu">Asennus suunnittelu</Link> / {isNew ? 'Uusi' : 'Muokkaa'}
           </p>
           <h1>{displayTitle}</h1>

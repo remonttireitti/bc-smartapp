@@ -24,7 +24,7 @@ export type ModuleTrial = {
 };
 
 export const MODULE_TRIAL_KEYS: { key: ModuleTrialKey; label: string; group: 'module' | 'huolto' }[] = [
-  { key: 'quotes', label: 'Tarjoukset', group: 'module' },
+  { key: 'quotes', label: 'Tarjouspyynnöt ja laskennat', group: 'module' },
   { key: 'billing', label: 'Laskutus', group: 'module' },
   { key: 'remote_monitoring', label: 'Etäseuranta', group: 'module' },
   { key: 'inventory', label: 'Varasto', group: 'module' },

@@ -1,4 +1,5 @@
 import {
+  ADDON_MODULE_LABELS,
   BASE_PACKAGE_DESCRIPTION,
   MODULE_DESCRIPTIONS,
   MODULE_NOTES,
@@ -96,7 +97,7 @@ export const LICENSE_PAYMENT_STATUS_LABELS: Record<LicensePaymentStatus, string>
 
 export const LICENSE_MODULE_LABELS: Record<LicenseModuleKey, string> = {
   base: 'Peruspaketti',
-  quotes: 'Tarjoukset',
+  quotes: ADDON_MODULE_LABELS.quotes,
   billing: 'Laskutus',
   remote_monitoring: 'Etäseuranta',
   inventory: 'Varasto',
@@ -291,6 +292,7 @@ export function parseCompanyLicenseSnapshot(raw: unknown): CompanyLicenseSnapsho
     };
   }
 
+  const freeAccess = String(row.enrollment ?? '') === 'legacy';
   return {
     enrollment: String(row.enrollment ?? 'subscription'),
     status: String(row.status ?? 'pending_trial'),
@@ -329,8 +331,9 @@ export function parseCompanyLicenseSnapshot(raw: unknown): CompanyLicenseSnapsho
       remote_monitoring_devices: parseRemoteMonitoringDevicesPricing(
         pricingRaw.remote_monitoring_devices,
       ),
-      estimated_monthly_total_eur: Number(pricingRaw.estimated_monthly_total_eur ?? 0),
-      estimated_period_total_eur: Number(pricingRaw.estimated_period_total_eur ?? 0),
+      // Ilmainen käyttöoikeus (toistaiseksi): 0 € myös ennen free_access_zero.sql-ajoa.
+      estimated_monthly_total_eur: freeAccess ? 0 : Number(pricingRaw.estimated_monthly_total_eur ?? 0),
+      estimated_period_total_eur: freeAccess ? 0 : Number(pricingRaw.estimated_period_total_eur ?? 0),
       extras_monthly_eur: Number(pricingRaw.extras_monthly_eur ?? 0),
     },
     usage_this_month: Array.isArray(row.usage_this_month)

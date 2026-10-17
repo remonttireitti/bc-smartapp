@@ -27,8 +27,8 @@ const FEATURES = [
   },
   {
     icon: '💶',
-    title: 'Tarjoukset ja kassavirta',
-    desc: 'Tarjouspyynnöt ja valmiit tarjoustulosteet (lämpöpumppu, korjaus, ilmalämpöpumppu). Työraporteista kertyvät laskutettavat summat — kumppanille ja asiakkaalle erikseen. Kassavirran seuranta, ei laskutusohjelma.',
+    title: 'Tarjouspyynnöt, laskennat ja kassavirta',
+    desc: 'Tarjouspyynnöt ja valmiit tarjoustulosteet (huolto, LVI, IV, sähkö ja lämpöpumput). Työraporteista kertyvät laskutettavat summat — kumppanille ja asiakkaalle erikseen. Kassavirran seuranta, ei laskutusohjelma.',
     color: '#f97316',
   },
   {

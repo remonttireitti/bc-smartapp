@@ -74,7 +74,7 @@ export function buildMainNav(ctx: MainNavContext): MainNavItem[] {
     },
     { key: 'customers', label: 'Asiakkaat', href: '/asiakkaat', bases: ['/asiakkaat'], licenseModule: 'base', children: [] },
     {
-      key: 'quotes', label: 'Tarjouspyyntö', href: '/tarjouspyynnot', bases: ['/tarjouspyynnot', '/asennus-suunnittelu'], licenseModule: 'quotes',
+      key: 'quotes', label: 'Tarjouspyynnöt ja laskennat', href: '/tarjouspyynnot', bases: ['/tarjouspyynnot', '/asennus-suunnittelu'], licenseModule: 'quotes',
       children: [
         {
           label: 'Tallennetut',

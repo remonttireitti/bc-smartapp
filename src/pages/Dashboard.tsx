@@ -37,7 +37,7 @@ const MODULES: ModuleTile[] = [
   { title: 'Laskutus', lines: ['Laskutettavat', 'Tilastot'], color: '#6366f1', href: '/laskutus', licenseModule: 'billing' },
   { title: 'Huoltoraportti', lines: ['Huoltopöytäkirjat', 'Laiterekisteri'], color: '#22c55e', href: '/huoltoraportit', licenseModule: 'base' },
   { title: 'Asiakkaat', lines: ['Asiakasrekisteri', 'Laitteet ja dokumentit'], color: '#3b82f6', href: '/asiakkaat', licenseModule: 'base' },
-  { title: 'Tarjouspyyntö', lines: ['Tarjoukset ja laskelmat', 'Asennussuunnittelu'], color: '#f97316', href: '/tarjouspyynnot', licenseModule: 'quotes' },
+  { title: 'Tarjouspyynnöt ja laskennat', lines: ['Huolto, LVI, IV, sähkö, lämpöpumput', 'Asennussuunnittelu'], color: '#f97316', href: '/tarjouspyynnot', licenseModule: 'quotes' },
   { title: 'Varasto', lines: ['Materiaalit', 'Kylmäainekirjanpito'], color: '#a855f7', href: '/varasto', licenseModule: 'inventory' },
   {
     title: 'Etäohjaus ja seuranta',

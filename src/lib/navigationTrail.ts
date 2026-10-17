@@ -31,7 +31,7 @@ export function quoteListTrail(): NavigationTrailState {
   return {
     breadcrumb: [
       { label: 'Etusivu', to: '/' },
-      { label: 'Tarjouspyyntö', to: '/tarjouspyynnot' },
+      { label: 'Tarjouspyynnöt ja laskennat', to: '/tarjouspyynnot' },
       { label: 'Lista', to: '/tarjouspyynnot/lista' },
     ],
     backTo: '/tarjouspyynnot/lista',

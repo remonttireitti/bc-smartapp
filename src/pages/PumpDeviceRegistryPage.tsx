@@ -434,7 +434,7 @@ export default function PumpDeviceRegistryPage({ session }: Props) {
 
           <p className="breadcrumb">
 
-            <Link to="/">Etusivu</Link> / <Link to="/tarjouspyynnot">Tarjouspyyntö</Link> / Laiterekisteri
+            <Link to="/">Etusivu</Link> / <Link to="/tarjouspyynnot">Tarjouspyynnöt ja laskennat</Link> / Laiterekisteri
 
           </p>
 

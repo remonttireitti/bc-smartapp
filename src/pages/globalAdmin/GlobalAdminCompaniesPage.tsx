@@ -4,17 +4,19 @@ import DataTable, { type DataTableColumn } from '../../components/DataTable';
 import { invalidateCompanyLicenseCache } from '../../hooks/useCompanyLicense';
 import { parseLicenseOverviewRows, trialDaysRemaining, type LicenseOverviewRow } from '../../lib/companyLicense';
 import { billingPeriodLabel, normalizeBillingPeriod } from '../../lib/companySignup';
+import { parseBreakdown } from '../../lib/companyMonthlyPrice';
 import { HUOLTO_CATEGORIES, huoltoAccess, parseHuoltoSettings, type HuoltoCategoryKey } from '../../lib/huoltoCategories';
 import type { ManagementOutletContext } from '../../lib/managementOutletContext';
 import { supabase } from '../../lib/supabase';
 import { formatTrialEnd } from '../../lib/moduleTrials';
 import { licenseStatusText } from './utils';
 import { useGlobalAdminMeta } from './useGlobalAdminMeta';
+import { ADDON_MODULE_LABELS } from '../../../supabase/functions/_shared/companySignupCore';
 import './GlobalAdminCompaniesPage.css';
 
 /** Lisenssin moduulit sarakkeina: avain settings.license.modules, lyhyt otsikko, työkaluvihje. */
 const MODULE_COLUMNS: { key: string; short: string; label: string }[] = [
-  { key: 'quotes', short: 'Tarj.', label: 'Tarjoukset' },
+  { key: 'quotes', short: 'Tarj.', label: ADDON_MODULE_LABELS.quotes },
   { key: 'billing', short: 'Lask.', label: 'Laskutus' },
   { key: 'remote_monitoring', short: 'Etä', label: 'Etäseuranta' },
   { key: 'tools', short: 'Työk.', label: 'Työkalut' },
@@ -88,8 +90,9 @@ export default function GlobalAdminCompaniesPage() {
     void Promise.all(
       companyIds.split(',').map(async (id) => {
         const { data } = await supabase.rpc('company_monthly_price_breakdown', { p_company_id: id });
-        const net = Number(rec(data).net);
-        return [id, Number.isFinite(net) ? net : null] as const;
+        // parseBreakdown: ilmainen käyttöoikeus = 0 € (myös ennen free_access_zero.sql-ajoa).
+        const net = parseBreakdown(data)?.net;
+        return [id, net != null && Number.isFinite(net) ? net : null] as const;
       }),
     ).then((pairs) => {
       if (cancelled) return;
