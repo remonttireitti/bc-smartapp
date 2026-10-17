@@ -67,13 +67,7 @@ export function buildMainNav(ctx: MainNavContext): MainNavItem[] {
     },
     {
       key: 'billing', label: 'Laskutus', href: '/laskutus', bases: ['/laskutus'], licenseModule: 'billing',
-      children: partnershipsOff
-        ? []
-        : [
-            { label: 'Yhteensä', href: '/laskutus?mode=total' },
-            { label: 'Asiakaslaskutus', href: '/laskutus?mode=customer' },
-            { label: 'Kumppanilaskutus', href: '/laskutus?mode=partner' },
-          ],
+      children: [],
     },
     {
       key: 'maintenance', label: 'Huoltoraportti', href: '/huoltoraportit', bases: ['/huoltoraportit'], licenseModule: 'base',
