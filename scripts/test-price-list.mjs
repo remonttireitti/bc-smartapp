@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { estimateMonthly, grossOf, parsePriceList, vatOf, devicesMonthly } from '../supabase/functions/_shared/companySignupCore.ts';
+import { BASE_PACKAGE_DESCRIPTION, estimateMonthly, grossOf, parsePriceList, vatOf, devicesMonthly } from '../supabase/functions/_shared/companySignupCore.ts';
 import { PRICE_GROUPS, PRICE_ROWS, applyDraft, eurInput, parseEurInput, priceListPayload } from '../src/lib/priceListAdmin.ts';
 
 // Tuotannon license_catalog (2026-10-17).
@@ -21,6 +21,8 @@ assert.deepEqual(PRICE_ROWS.filter((r) => r.group === 'moduulit').map((r) => r.l
   'Tarjoukset', 'Laskutus', 'Etäseuranta', 'Laite: JC3248-näyttölaite', 'Laite: ESP32 + DS18B20', 'Laite: Muu lämpötilalaite', 'Työkalut', 'Kumppanuudet',
 ]);
 assert.equal(PRICE_ROWS.find((r) => r.key === 'module:billing').description, 'Laskettavat summat asiakkaalle ja kumppanien kesken — ei laskujen lähetystä');
+assert.equal(PRICE_ROWS.find((r) => r.key === 'base').description, BASE_PACKAGE_DESCRIPTION);
+for (const w of ['Työraportit', 'laiterekisteri', 'varasto', 'tilaajaportaali', 'käyttäjähallinta']) assert.ok(BASE_PACKAGE_DESCRIPTION.includes(w), w);
 assert.equal(PRICE_ROWS.filter((r) => r.group === 'huolto').length, 4);
 assert.equal(PRICE_ROWS.filter((r) => r.group === 'kayttajat').length, 3);
 

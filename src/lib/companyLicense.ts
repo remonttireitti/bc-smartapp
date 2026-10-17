@@ -1,3 +1,5 @@
+import { BASE_PACKAGE_DESCRIPTION } from '../../supabase/functions/_shared/companySignupCore';
+
 export type LicenseModuleKey = 'base' | 'quotes' | 'billing' | 'remote_monitoring' | 'tools';
 
 export type LicenseEffectiveStatus = 'pending_trial' | 'trial' | 'active' | 'expired';
@@ -86,7 +88,7 @@ export const LICENSE_MODULE_LABELS: Record<LicenseModuleKey, string> = {
 };
 
 export const LICENSE_MODULE_DESCRIPTIONS: Record<LicenseModuleKey, string> = {
-  base: 'Työraportit, varasto, huoltoraportit, asiakas- ja laiterekisteri',
+  base: BASE_PACKAGE_DESCRIPTION,
   quotes: 'Tarjouspyynnöt, laskelmat ja tulosteet',
   billing: 'Laskutettavat summat ja kumppanilaskutus',
   remote_monitoring: 'Lämpötilaseuranta ja etäohjaus. Moduulimaksu + laitemaksu (€/kk per laite, tyypistä riippuen).',

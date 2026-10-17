@@ -1,7 +1,7 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import LandingExamplePrints from '../components/LandingExamplePrints';
-import { fetchSignupConfig, type PriceList } from '../lib/companySignup';
+import { ADDON_MODULE_LABELS, ADDON_MODULES, BASE_PACKAGE_DESCRIPTION, fetchSignupConfig, type PriceList } from '../lib/companySignup';
 import BrandLogo from '../components/BrandLogo';
 
 const CompanySignupForm = lazy(() => import('../components/CompanySignupForm'));
@@ -157,6 +157,15 @@ export default function PublicLandingPage() {
             </article>
           ))}
         </div>
+        <ul className="landing-package-list">
+          <li>
+            <strong>Peruspaketti:</strong> {BASE_PACKAGE_DESCRIPTION}.
+          </li>
+          <li>
+            <strong>Lisämoduulit:</strong> {ADDON_MODULES.map((k) => ADDON_MODULE_LABELS[k]).join(', ')}. Huoltoraporttilajit
+            (kylmä, LVI, IV, sähkö) ja käyttäjät hinnoitellaan erikseen.
+          </li>
+        </ul>
       </section>
 
       <section className="landing-section landing-benefits">
