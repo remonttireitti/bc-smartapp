@@ -1,4 +1,5 @@
-import { useEffect, useMemo, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import QuickSearch from './QuickSearch';
 import { Link, useLocation } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
 import { useCompanyBillingModuleEnabled } from '../hooks/useCompanyBillingModuleEnabled';
@@ -76,6 +77,13 @@ export default function AppSidebar({ session, collapsed, onToggleCollapsed, mobi
   }, [mobileOpen, onCloseMobile]);
 
   const showChildren = !collapsed || mobileOpen;
+  const railCollapsed = collapsed && !mobileOpen;
+  const [focusSearch, setFocusSearch] = useState(false);
+  useEffect(() => {
+    if (!focusSearch) return;
+    const id = window.setTimeout(() => setFocusSearch(false), 300);
+    return () => window.clearTimeout(id);
+  }, [focusSearch]);
 
   return (
     <>
@@ -84,6 +92,26 @@ export default function AppSidebar({ session, collapsed, onToggleCollapsed, mobi
         className={`app-sidebar${collapsed ? ' is-collapsed' : ''}${mobileOpen ? ' is-mobile-open' : ''}`}
         aria-label="Päävalikko"
       >
+        <div className="app-sidebar-search">
+          {railCollapsed ? (
+            <button
+              type="button"
+              className="app-sidebar-link app-sidebar-search-btn"
+              title="Pikahaku"
+              aria-label="Pikahaku"
+              onClick={() => {
+                onToggleCollapsed();
+                setFocusSearch(true);
+              }}
+            >
+              <svg className="app-sidebar-icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14zm9 3l-4-4" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+              </svg>
+            </button>
+          ) : (
+            <QuickSearch variant="sidebar" placeholder="Hae asiakas, laite, raportti…" resultLimit={12} autoFocus={focusSearch} />
+          )}
+        </div>
         <ul className="app-sidebar-list">
           <li>
             <Link
