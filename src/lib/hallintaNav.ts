@@ -38,11 +38,16 @@ export function buildHallintaGroups(ctx: HallintaContext): HallintaGroup[] {
   }
   if (isAdmin) {
     company.push({ title: 'Käyttäjät', lines: ['Asentajat ja ylläpitäjät', 'Kutsut ja roolit'], href: '/hallinta/kayttajat', color: '#14b8a6' });
-    company.push({ title: 'Tilaajat', lines: ['Moniasiakas-tilaajat', 'Tilaajaportaali'], href: '/hallinta/tilaajat', color: '#f59e0b' });
+  }
+  if (isAdmin || ctx.isGlobalAdmin) {
+    company.push({ title: 'Tilaajaportaali', lines: ['Moniasiakastilaajat ja heidän portaalitunnuksensa'], href: '/hallinta/tilaajat', color: '#f59e0b' });
+    company.push({ title: 'Asiakasportaali', lines: ['Asiakkaiden portaalitunnukset ja esikatselu'], href: '/hallinta/asiakasportaali', color: '#8b5cf6' });
+  }
+  if (isAdmin) {
     if (ctx.partnershipsEnabled !== false) {
       company.push({ title: 'Kumppanuudet', lines: ['Kumppaniyritykset', 'Hinnat ja oikeudet'], href: '/hallinta/kumppanuudet', color: '#6366f1' });
     }
-    if (ctx.billingModuleEnabled === true && ctx.partnershipsEnabled !== false) {
+    if (ctx.billingModuleEnabled === true && ctx.partnershipsEnabled === true) {
       company.push({ title: 'Kumppanilaskutus', lines: ['Laskutettavat työt', 'Yhteenveto'], href: '/hallinta/kumppanilaskutus', color: '#ec4899' });
     }
   }
@@ -85,7 +90,8 @@ export function hallintaPageTitle(pathname: string, search = ''): string | null 
     '/hallinta/omat': 'Omat tiedot',
     '/hallinta/yritys': 'Oma yritys',
     '/hallinta/kayttajat': 'Käyttäjät',
-    '/hallinta/tilaajat': 'Tilaajat',
+    '/hallinta/tilaajat': 'Tilaajaportaali',
+    '/hallinta/asiakasportaali': 'Asiakasportaali',
     '/hallinta/kumppanuudet': 'Kumppanuudet',
     '/hallinta/kumppanilaskutus': 'Kumppanilaskutus',
   };

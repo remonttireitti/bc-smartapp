@@ -16,7 +16,8 @@ interface Props {
 }
 
 const COMPANY_SETTINGS_PATH = '/hallinta/yritys';
-const ADMIN_PATHS = ['/hallinta/tilaajat', '/hallinta/kayttajat', '/hallinta/kumppanuudet', '/hallinta/kumppanilaskutus'];
+const ADMIN_PATHS = ['/hallinta/kayttajat', '/hallinta/kumppanuudet', '/hallinta/kumppanilaskutus'];
+const PORTAL_ADMIN_PATHS = ['/hallinta/tilaajat', '/hallinta/asiakasportaali'];
 const GBA_PATHS = ['/hallinta/global-admin', '/hallinta/yritykset'];
 
 export default function ManagementLayout({ session }: Props) {
@@ -92,7 +93,9 @@ export default function ManagementLayout({ session }: Props) {
     );
   }
 
-  if (isAdminRoute && !isAdmin) {
+  // Portaalit: yrityksen ylläpitäjä tai GBA (oma yritys).
+  const isPortalRoute = PORTAL_ADMIN_PATHS.some((p) => location.pathname.startsWith(p));
+  if ((isAdminRoute && !isAdmin) || (isPortalRoute && !isAdmin && !isGlobalAdmin)) {
     return (
       <AppLayout session={session}>
         <p className="error">Vain ylläpitäjä voi muokata yrityksen hallinta-asetuksia.</p>

@@ -6,7 +6,9 @@ import { notifyHuoltoSettingsChanged } from '../../hooks/useCompanyHuoltoSetting
 import {
   formatLicensePeriodMoney,
   LICENSE_BILLING_INTERVALS,
+  BILLING_MODULE_DESCRIPTION,
   LICENSE_MODULE_LABELS,
+  PARTNER_BILLING_REQUIRES_PARTNERS,
   LICENSE_PAYMENT_STATUS_LABELS,
   PRICED_ADDON_MODULES,
   parseCompanyLicenseSnapshot,
@@ -276,6 +278,9 @@ export default function CompanyModulesEditor({ companyId, settings, ownCompanyId
           )}
           <ToggleSwitch checked={partnerships} disabled={busy} label="Kumppanuudet" onChange={setPartnerships} />
         </div>
+        <p className="muted">
+          Laskutus: {BILLING_MODULE_DESCRIPTION}.{!partnerships && ` ${PARTNER_BILLING_REQUIRES_PARTNERS}.`}
+        </p>
         {!legacy && <p className="muted">Kokeilujaksolla kaikki moduulit ovat auki.</p>}
       </section>
 

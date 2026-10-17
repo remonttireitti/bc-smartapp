@@ -5,6 +5,7 @@ export default function LandingExamplePrints() {
   return (
     <section id="esimerkit" className="landing-section">
       <h2>Esimerkkitulosteet</h2>
+      <p className="muted">Kaikki lomakkeet ja raporttien tulosteet voidaan räätälöidä tilaajan toiveiden mukaan.</p>
       <div className="grid hub-grid">
         {EXAMPLE_PRINTS.map((p) => (
           <a

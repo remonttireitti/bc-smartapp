@@ -1,6 +1,8 @@
 import { Navigate, useLocation, useParams, type RouteObject } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
 import type { ComponentType } from 'react';
+import CustomerPortalAdminPage from '../pages/CustomerPortalAdminPage';
+import PartnershipsModuleGate from '../components/PartnershipsModuleGate';
 import LicenseModuleGate from '../components/LicenseModuleGate';
 import ManagementLayout from '../components/ManagementLayout';
 import type { LicenseModuleKey } from '../lib/companyLicense';
@@ -108,7 +110,14 @@ function LicensedWorkReportNewRoute({ session }: { session: Session }) {
   return <LicensedWorkReportNewPage session={session} key={location.pathname} />;
 }
 const LicensedWorkReportPrintPage = withLicenseModule('base', WorkReportPrintPage);
-const LicensedWorkReportPartnerBillingPrintPage = withLicenseModule('billing', WorkReportPartnerBillingPrintPage);
+const LicensedWorkReportPartnerBillingPrintPageInner = withLicenseModule('billing', WorkReportPartnerBillingPrintPage);
+function LicensedWorkReportPartnerBillingPrintPage({ session }: { session: Session }) {
+  return (
+    <PartnershipsModuleGate session={session}>
+      <LicensedWorkReportPartnerBillingPrintPageInner session={session} />
+    </PartnershipsModuleGate>
+  );
+}
 const LicensedBillingPage = withLicenseModule('billing', BillingPage);
 const LicensedInventoryPage = withLicenseModule('base', InventoryPage);
 /** Huoltoraportit: lisenssi + yrityksen huoltolajit (Yritystiedot → Huoltoraportit). */
@@ -228,6 +237,7 @@ export function buildAuthenticatedRoutes(session: Session): RouteObject[] {
         { path: 'global-admin/tilaukset/:id', element: <SignupRequestsPage /> },
         { path: 'yritys', element: <CompanySettingsPage /> },
         { path: 'tilaajat', element: <SubscribersPage /> },
+        { path: 'asiakasportaali', element: <CustomerPortalAdminPage /> },
         { path: 'kayttajat', element: <UsersPage /> },
         { path: 'kumppanuudet', element: <PartnershipsPage /> },
         {

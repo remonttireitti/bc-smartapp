@@ -646,7 +646,7 @@ export default function CustomerDetailPage({ session }: Props) {
                   subscribers.length === 0 ? (
                     <>
                       Lisää tilaajia kohdassa{' '}
-                      <Link to="/hallinta/tilaajat">Hallinta → Tilaajat</Link>.
+                      <Link to="/hallinta/tilaajat">Hallinta → Tilaajaportaali</Link>.
                     </>
                   ) : (
                     'Linkitä kohde tilaajaan — tilaaja näkee kohteen raportit, laitteet ja voi lähettää työtilauksia.'
@@ -770,7 +770,7 @@ export default function CustomerDetailPage({ session }: Props) {
           <p className="muted">
             Kohde on linkitetty tilaajaan <strong>{customer.subscriber?.name ?? '—'}</strong>. Monikohteinen
             portaali hallitaan tilaajan kautta —{' '}
-            <Link to="/hallinta/tilaajat">Hallinta → Tilaajat</Link> → valitse tilaaja → tilaajaportaali.
+            <Link to="/hallinta/tilaajat">Hallinta → Tilaajaportaali</Link> → valitse tilaaja → tilaajaportaali.
           </p>
         ) : (
           <CustomerPortalSection

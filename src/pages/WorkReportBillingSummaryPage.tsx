@@ -7,6 +7,7 @@ import {
   type BillableCalculation,
 } from '../lib/workReportBilling';
 import type { ManagementOutletContext } from '../lib/managementOutletContext';
+import { PARTNER_BILLING_REQUIRES_PARTNERS } from '../lib/companyLicense';
 
 type BillableRow = {
   work_report_id: string;
@@ -22,7 +23,7 @@ type BillableRow = {
 };
 
 export default function WorkReportBillingSummaryPage() {
-  const { profile } = useOutletContext<ManagementOutletContext>();
+  const { profile, partnershipsEnabled } = useOutletContext<ManagementOutletContext>();
   const [rows, setRows] = useState<BillableRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -34,8 +35,8 @@ export default function WorkReportBillingSummaryPage() {
   const [toDate, setToDate] = useState(() => new Date().toISOString().slice(0, 10));
 
   useEffect(() => {
-    if (profile.company_id) void loadRows();
-  }, [profile.company_id, fromDate, toDate]);
+    if (profile.company_id && partnershipsEnabled === true) void loadRows();
+  }, [profile.company_id, partnershipsEnabled, fromDate, toDate]);
 
   async function loadRows() {
     setLoading(true);
@@ -88,6 +89,15 @@ export default function WorkReportBillingSummaryPage() {
     }
     return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name, 'fi'));
   }, [rows]);
+
+  if (partnershipsEnabled !== true) {
+    return (
+      <section className="panel">
+        <h2>Kumppanilaskutus</h2>
+        <p className="muted">{partnershipsEnabled === null ? 'Ladataan…' : PARTNER_BILLING_REQUIRES_PARTNERS}</p>
+      </section>
+    );
+  }
 
   return (
     <>

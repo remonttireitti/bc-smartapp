@@ -15,8 +15,11 @@ export function useCompanyPartnershipsEnabled(
       setEnabled(null);
       return;
     }
-    const value = await loadCompanyPartnershipsEnabled(supabase, companyId);
-    setEnabled(value);
+    try {
+      setEnabled(await loadCompanyPartnershipsEnabled(supabase, companyId));
+    } catch {
+      setEnabled(false);
+    }
   }, [companyId, session]);
 
   useEffect(() => {

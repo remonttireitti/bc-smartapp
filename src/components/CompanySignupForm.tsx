@@ -1,5 +1,6 @@
 import { FormEvent, useMemo, useRef, useState } from 'react';
 import PriceEstimateTable from './PriceEstimateTable';
+import { BILLING_MODULE_DESCRIPTION, PARTNER_BILLING_REQUIRES_PARTNERS } from '../lib/companyLicense';
 import {
   ADDON_MODULES,
   ADDON_MODULE_LABELS,
@@ -119,6 +120,12 @@ export default function CompanySignupForm({ prices }: Props) {
                 onChange={(e) => patch({ modules: { ...form.modules, [k]: e.target.checked } })}
               />{' '}
               {ADDON_MODULE_LABELS[k]} <span className="muted">{formatEur(prices.module_prices[k])}</span>
+              {k === 'billing' && (
+                <small className="signup-check-desc">
+                  {BILLING_MODULE_DESCRIPTION}
+                  {!form.modules.partners && <span className="signup-check-desc-off"> · {PARTNER_BILLING_REQUIRES_PARTNERS}</span>}
+                </small>
+              )}
             </label>
           ))}
           {HUOLTO_KEYS.map((k) => (

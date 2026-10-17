@@ -6,11 +6,11 @@ const titles = (ctx) => buildHallintaGroups({ ...base, ...ctx }).map((g) => [g.k
 
 assert.deepEqual(titles({}), [
   ['oma', ['Omat tiedot']],
-  ['yritys', ['Oma yritys', 'Käyttäjät', 'Tilaajat', 'Kumppanuudet', 'Kumppanilaskutus']],
+  ['yritys', ['Oma yritys', 'Käyttäjät', 'Tilaajaportaali', 'Asiakasportaali', 'Kumppanuudet', 'Kumppanilaskutus']],
 ]);
 assert.deepEqual(titles({ role: 'technician' }), [['oma', ['Omat tiedot']]]);
 assert.deepEqual(titles({ role: 'manager' }), [['oma', ['Omat tiedot']], ['yritys', ['Oma yritys']]]);
-assert.deepEqual(titles({ partnershipsEnabled: false, billingModuleEnabled: false })[1][1], ['Oma yritys', 'Käyttäjät', 'Tilaajat']);
+assert.deepEqual(titles({ partnershipsEnabled: false, billingModuleEnabled: false })[1][1], ['Oma yritys', 'Käyttäjät', 'Tilaajaportaali', 'Asiakasportaali']);
 // GBA vain tilan ollessa päällä.
 assert.equal(titles({ isGlobalAdmin: true }).length, 2);
 const gba = buildHallintaGroups({ ...base, isGlobalAdmin: true, globalAdminMode: true }).find((g) => g.key === 'gba');
@@ -29,7 +29,7 @@ for (const t of buildHallintaGroups({ ...base, isGlobalAdmin: true, globalAdminM
 // Sivuvalikko: GBA-osioista vain Yritykset.
 assert.deepEqual(
   hallintaNavChildren({ ...base, isGlobalAdmin: true, globalAdminMode: true }).map((c) => c.label),
-  ['Omat tiedot', 'Oma yritys', 'Käyttäjät', 'Tilaajat', 'Kumppanuudet', 'Kumppanilaskutus', 'Yritykset'],
+  ['Omat tiedot', 'Oma yritys', 'Käyttäjät', 'Tilaajaportaali', 'Asiakasportaali', 'Kumppanuudet', 'Kumppanilaskutus', 'Yritykset'],
 );
 assert.equal(hallintaPageTitle('/hallinta/yritys'), 'Oma yritys');
 assert.equal(hallintaPageTitle('/hallinta/yritykset/abc'), 'Yritykset');
@@ -38,3 +38,8 @@ assert.equal(hallintaPageTitle('/hallinta'), null);
 assert.equal(isGbaSectionId('rekisteri'), true);
 assert.equal(isGbaSectionId('companies'), false);
 console.log('hallinta-nav: ok');
+// Portaalit: yrityksen ylläpitäjä ja GBA (oma yritys), ei GBA-ryhmässä.
+const tiles = (ctx) => buildHallintaGroups({ ...base, ...ctx });
+assert.deepEqual(tiles({ role: 'technician', isGlobalAdmin: true, globalAdminMode: true }).find((g) => g.key === 'yritys').tiles.map((t) => t.title), ['Tilaajaportaali', 'Asiakasportaali']);
+assert.ok(!tiles({ isGlobalAdmin: true, globalAdminMode: true }).find((g) => g.key === 'gba').tiles.some((t) => /portaali/i.test(t.title)));
+assert.equal(hallintaPageTitle('/hallinta/asiakasportaali'), 'Asiakasportaali');
