@@ -5,6 +5,7 @@ export const KEEP_ALIVE_MAX_ROUTES = 16;
 
 const NEVER_CACHE_PREFIXES = [
   '/login',
+  '/esikatselu',
   '/unohdin-salasana',
   '/aseta-uusi-salasana',
   '/seuranta/luku',
