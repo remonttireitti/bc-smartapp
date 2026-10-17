@@ -16,16 +16,12 @@ import { ReportListItem } from '../components/ReportListItem';
 import { WorkReportListGrid, WorkReportListTile } from '../components/WorkReportListTile';
 import WorkReportListSummary from '../components/WorkReportListSummary';
 
-import WorkReportCalendarTimeline, {
-  calendarDayHoursLabel,
-} from '../components/WorkReportCalendarTimeline';
+import WorkReportCalendarView from '../components/WorkReportCalendarView';
 
 import {
   buildCalendarEvents,
   CALENDAR_LOG_SELECT,
   CALENDAR_DISPLAY_STATUSES,
-  formatAllowedOverlapLabel,
-  formatTimeRange,
 } from '../lib/workReportCalendar';
 import {
   readWorkReportListSortMode,
@@ -58,23 +54,13 @@ import { canDeleteWorkReport } from '../lib/deletePermissions';
 import { deleteWorkReportById } from '../lib/deleteWorkReport';
 
 import {
-
-  getWorkStatusLabel,
   getPortalWorkStatusLabel,
 
   buildWorkReportTitle,
 
   resolveWorkReportDescription,
 
-  addMonths,
-
   formatDateTime,
-
-  monthGridDays,
-
-  startOfMonth,
-
-  toLocalYmd,
 
   type WorkReport,
 
@@ -216,7 +202,6 @@ export default function WorkReportsPage({ session }: Props) {
   const [listSortMode, setListSortMode] = useState<WorkReportListSortMode>(() => readWorkReportListSortMode());
 
 
-  const [monthAnchor, setMonthAnchor] = useState(() => startOfMonth(new Date()));
 
   const [reports, setReports] = useState<WorkReport[]>([]);
 
@@ -406,19 +391,6 @@ export default function WorkReportsPage({ session }: Props) {
 
   );
 
-  const calendarDays = useMemo(() => monthGridDays(monthAnchor), [monthAnchor]);
-
-  const calendarSidebarEvents = useMemo(() => {
-    const visibleDays = new Set(calendarDays.map((day) => toLocalYmd(day)));
-    return calendarEvents
-      .filter((event) => event.kind === 'scheduled' && visibleDays.has(event.dayYmd))
-      .sort((a, b) => {
-        const byDay = a.dayYmd.localeCompare(b.dayYmd);
-        if (byDay !== 0) return byDay;
-        return a.startMinutes - b.startMinutes || a.title.localeCompare(b.title, 'fi');
-      });
-  }, [calendarEvents, calendarDays]);
-
   const allDraftReports = useMemo(
     () => filteredReports.filter((r) => r.status === DRAFT_STATUS),
     [filteredReports],
@@ -453,7 +425,6 @@ export default function WorkReportsPage({ session }: Props) {
     [filteredReports],
   );
 
-  const activeMonth = monthAnchor.getMonth();
 
   function workReportListTitle(report: WorkReport) {
     const description = report.description?.trim() || resolveWorkReportDescription(report);
@@ -755,121 +726,7 @@ export default function WorkReportsPage({ session }: Props) {
       ) : tab === 'calendar' ? (
 
         <section className="panel work-report-calendar-panel">
-
-          <div className="calendar-nav">
-
-            <button
-              type="button"
-              className="btn btn-secondary"
-              onClick={() => setMonthAnchor(addMonths(monthAnchor, -1))}
-            >
-
-              ← Edellinen kuukausi
-
-            </button>
-
-            <strong>
-
-              {monthAnchor.toLocaleDateString('fi-FI', { month: 'long', year: 'numeric' })}
-
-            </strong>
-
-            <button
-              type="button"
-              className="btn btn-secondary"
-              onClick={() => setMonthAnchor(addMonths(monthAnchor, 1))}
-            >
-
-              Seuraava kuukausi →
-
-            </button>
-
-          </div>
-
-          <div className="work-report-calendar-controls">
-
-            <span className="muted work-report-calendar-legend">
-              07–17 · kellon mukaan skaalattu · max {formatAllowedOverlapLabel()} päällekkäisyys sallittu
-            </span>
-
-          </div>
-
-          <div className="work-report-calendar-layout">
-
-          <div className="calendar-grid calendar-grid-month">
-
-            {calendarDays.map((day) => {
-
-              const dayYmd = toLocalYmd(day);
-
-              const hoursLabel = calendarDayHoursLabel(calendarEvents, dayYmd);
-
-              return (
-
-              <div
-                key={day.toISOString()}
-                className={[
-                  'calendar-day',
-                  day.getMonth() !== activeMonth ? 'outside-month' : '',
-                ]
-                  .filter(Boolean)
-                  .join(' ')}
-              >
-
-                <div className="calendar-day-head">
-
-                  {day.toLocaleDateString('fi-FI', { weekday: 'short', day: 'numeric', month: 'numeric' })}
-
-                  {hoursLabel && <span className="calendar-day-hours">{hoursLabel}</span>}
-
-                </div>
-
-                <div className="calendar-day-body calendar-day-body-month">
-
-                  <WorkReportCalendarTimeline
-                    dayYmd={dayYmd}
-                    events={calendarEvents}
-                    compact
-                  />
-
-                </div>
-
-              </div>
-
-            )})}
-
-          </div>
-
-          <aside className="work-report-calendar-sidebar panel">
-            <h3>Odottaa päiväkirjausta</h3>
-            {calendarSidebarEvents.length === 0 ? (
-              <p className="muted">Ei ajoitettuja töitä ilman kirjausta valitulla jaksolla.</p>
-            ) : (
-              <ul className="work-report-calendar-sidebar-list">
-                {calendarSidebarEvents.map((event) => (
-                  <li key={event.id}>
-                    <Link to={`/tyoraportit/${event.reportId}`} className="work-report-calendar-sidebar-item">
-                      <strong>{event.title}</strong>
-                      <span className="muted">
-                        {new Date(`${event.dayYmd}T12:00:00`).toLocaleDateString('fi-FI', {
-                          weekday: 'short',
-                          day: 'numeric',
-                          month: 'numeric',
-                        })}
-                        {' · '}
-                        {formatTimeRange(event.startMinutes, event.durationMinutes)}
-                        {' · '}
-                        {getWorkStatusLabel(event.status)}
-                      </span>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </aside>
-
-          </div>
-
+          <WorkReportCalendarView events={calendarEvents} />
         </section>
 
       ) : tab === 'list' ? (

@@ -92,6 +92,18 @@ export default function AppSidebar({ session, collapsed, onToggleCollapsed, mobi
         className={`app-sidebar${collapsed ? ' is-collapsed' : ''}${mobileOpen ? ' is-mobile-open' : ''}`}
         aria-label="Päävalikko"
       >
+        <button
+          type="button"
+          className="app-sidebar-collapse"
+          onClick={onToggleCollapsed}
+          aria-label={collapsed ? 'Laajenna valikko' : 'Pienennä valikko'}
+          title={collapsed ? 'Laajenna valikko' : 'Pienennä valikko'}
+        >
+          <svg className="app-sidebar-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path d={collapsed ? 'M9 6l6 6-6 6' : 'M15 6l-6 6 6 6'} fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          <span className="app-sidebar-label">Pienennä valikko</span>
+        </button>
         <div className="app-sidebar-search">
           {railCollapsed ? (
             <button
@@ -158,18 +170,7 @@ export default function AppSidebar({ session, collapsed, onToggleCollapsed, mobi
         </ul>
         <div className="app-sidebar-bottom">
         {footer ? <div className="app-sidebar-footer">{footer}</div> : null}
-        <button
-          type="button"
-          className="app-sidebar-collapse"
-          onClick={onToggleCollapsed}
-          aria-label={collapsed ? 'Laajenna valikko' : 'Kavenna valikko'}
-          title={collapsed ? 'Laajenna valikko' : 'Kavenna valikko'}
-        >
-          <svg className="app-sidebar-icon" viewBox="0 0 24 24" aria-hidden="true">
-            <path d={collapsed ? 'M9 6l6 6-6 6' : 'M15 6l-6 6 6 6'} fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-          <span className="app-sidebar-label">Kavenna</span>
-        </button>
+
         </div>
       </nav>
     </>

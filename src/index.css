@@ -17366,3 +17366,80 @@ p.quote-outcome-unpriced {
 }
 .app-with-sidebar .app-sidebar { justify-content: flex-start; }
 .app-sidebar-bottom { margin-top: auto; }
+
+/* Pienennä-painike ylhäällä, aina näkyvissä; palkki rullaa sisäisesti */
+.app-with-sidebar .app-sidebar .app-sidebar-collapse {
+  margin: 0 0 0.5rem; border-top: 0; border-bottom: 1px solid var(--border, #e5e7eb);
+  border-radius: 0; padding: 0.35rem 0.6rem 0.5rem; justify-content: flex-start; font-size: 0.82rem;
+}
+.sidebar-collapsed .app-sidebar .app-sidebar-collapse { justify-content: center; padding-left: 0; padding-right: 0; }
+@media (min-width: 900px) {
+  .app-with-sidebar .topbar { position: sticky; top: 0; z-index: 50; height: 52px; box-sizing: border-box; }
+  .app-with-sidebar .app-sidebar { top: 52px; height: calc(100vh - 52px); overscroll-behavior: contain; }
+}
+
+/* Kalenterinäkymät */
+.calendar-view-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem 1rem; margin-bottom: 0.85rem; }
+.calendar-view-nav { display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; }
+.calendar-view-title { margin-left: 0.4rem; font-size: 1.02rem; text-transform: capitalize; }
+.calendar-view-modes { display: inline-flex; border: 1px solid var(--border, #d1d5db); border-radius: 6px; overflow: hidden; }
+.calendar-view-modes button { border: 0; background: var(--bg-surface, #fff); padding: 0.35rem 0.8rem; font: inherit; font-size: 0.88rem; cursor: pointer; color: var(--text, #374151); }
+.calendar-view-modes button + button { border-left: 1px solid var(--border, #d1d5db); }
+.calendar-view-modes button.is-active { background: #2563eb; color: #fff; }
+.calendar-day.is-today { border-color: #2563eb; }
+.calendar-day.is-today .calendar-day-head { color: #1d4ed8; font-weight: 600; }
+.calendar-day-head { display: flex; align-items: center; gap: 0.35rem; }
+.calendar-day-head-btn { width: 100%; border: 0; border-bottom: 1px solid var(--border); font: inherit; font-size: .85rem; text-align: left; cursor: pointer; border-radius: 8px 8px 0 0; }
+.calendar-day-head-btn:hover { color: var(--text, #111827); }
+.calendar-pending-dot { width: 7px; height: 7px; border-radius: 50%; background: #d97706; flex: 0 0 7px; }
+.calendar-grid-month { gap: 0.4rem; }
+.calendar-grid-month .calendar-day { min-height: 120px; }
+.calendar-grid-month .calendar-month-block-label { font-size: 0.74rem; line-height: 1.2; }
+
+.calendar-week { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 0.4rem; }
+.calendar-week .calendar-day-body { padding: 0.35rem; }
+.calendar-week .calendar-timeline { grid-template-columns: 1.4rem 1fr; min-height: 26rem; }
+.calendar-week .calendar-timeline-track { height: 26rem; min-height: 26rem; }
+.calendar-week .calendar-timeline-event { font-size: 0.74rem; overflow: hidden; }
+.calendar-week .calendar-week-day:not(:first-child) .calendar-timeline-axis { visibility: hidden; }
+
+.calendar-year { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 0.9rem; }
+.calendar-year-month { border: 1px solid var(--border, #e5e7eb); border-radius: 8px; padding: 0.5rem; background: var(--bg-surface, #fff); }
+.calendar-year-month-title { border: 0; background: none; font: inherit; font-weight: 600; text-transform: capitalize; cursor: pointer; padding: 0 0 0.35rem; color: var(--text, #1f2937); }
+.calendar-year-month-title:hover { color: #2563eb; }
+.calendar-year-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+.calendar-year-wd { font-size: 0.66rem; color: var(--text-muted, #6b7280); text-align: center; }
+.calendar-year-day { aspect-ratio: 1; border: 0; border-radius: 3px; font-size: 0.7rem; padding: 0; cursor: pointer; background: #f3f4f6; color: #374151; position: relative; }
+.calendar-year-day.is-outside { background: none; cursor: default; }
+.calendar-year-day.level-1 { background: #dbeafe; }
+.calendar-year-day.level-2 { background: #93c5fd; }
+.calendar-year-day.level-3 { background: #3b82f6; color: #fff; }
+.calendar-year-day.is-today { outline: 2px solid #1d4ed8; outline-offset: -2px; }
+.calendar-year-day.has-pending::after { content: ''; position: absolute; top: 2px; right: 2px; width: 4px; height: 4px; border-radius: 50%; background: #d97706; }
+
+@media (max-width: 699px) {
+  .calendar-week { grid-template-columns: 1fr; }
+  .calendar-week .calendar-timeline { min-height: 0; display: block; }
+  .calendar-week .calendar-timeline-axis { display: none; }
+  /* Puhelin: päivälista – tapahtumat allekkain ilman aika-asteikkoa */
+  .calendar-week .calendar-timeline-track { height: auto; min-height: 0; background: none; border: 0; display: grid; gap: 0.3rem; }
+  .calendar-week .calendar-timeline-event { position: static !important; width: auto !important; height: auto !important; padding: 0.4rem 0.5rem; font-size: 0.85rem; }
+  .calendar-week .calendar-day { min-height: 0; }
+  .calendar-grid-month { gap: 2px; }
+  .calendar-grid-month .calendar-day { min-height: 64px; }
+  .calendar-grid-month .calendar-month-block-label { display: none; }
+  .calendar-year { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.5rem; }
+  .calendar-view-title { flex-basis: 100%; margin: 0.25rem 0 0; }
+}
+.calendar-day-hours { white-space: nowrap; }
+@media (max-width: 699px) {
+  /* Puhelin, kuukausi: tiivis 7 sarakkeen ruudukko; napautus avaa viikon */
+  .calendar-view .calendar-grid-month { grid-template-columns: repeat(7, minmax(0, 1fr)) !important; gap: 2px; }
+  .calendar-view .calendar-grid-month .calendar-day { min-height: 56px; border-radius: 4px; }
+  .calendar-view .calendar-grid-month .calendar-day-body { display: none; }
+  .calendar-view .calendar-grid-month .calendar-day-head-btn {
+    flex-direction: column; align-items: flex-start; gap: 2px; height: 100%; padding: 0.25rem;
+    font-size: 0.72rem; border-bottom: 0; border-radius: 4px;
+  }
+  .calendar-view .calendar-grid-month .calendar-day-hours { margin-left: 0; font-size: 0.66rem; }
+}
