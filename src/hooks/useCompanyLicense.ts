@@ -5,6 +5,7 @@ import {
   type CompanyLicenseSnapshot,
   type LicenseModuleKey,
 } from '../lib/companyLicense';
+import { setOwnCompanyModuleTrials } from '../lib/moduleTrials';
 import { supabase } from '../lib/supabase';
 
 const licenseCache = new Map<string, CompanyLicenseSnapshot>();
@@ -57,6 +58,7 @@ export function useCompanyLicense(
 
     const cached = licenseCache.get(companyId);
     if (cached) {
+      setOwnCompanyModuleTrials(cached.module_trials);
       setLicense(cached);
       setLoading(false);
     } else {
@@ -64,6 +66,7 @@ export function useCompanyLicense(
     }
 
     const next = await fetchLicenseSnapshot(companyId, session, isGlobalAdmin);
+    setOwnCompanyModuleTrials(next?.module_trials ?? []);
     if (next) {
       licenseCache.set(companyId, next);
     } else {

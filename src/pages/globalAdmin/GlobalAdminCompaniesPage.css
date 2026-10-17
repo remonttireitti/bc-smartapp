@@ -3,3 +3,4 @@
 .data-table th.module-flag-col .data-table-sort { justify-content: center; }
 .module-flag { display: inline-block; min-width: 1.2em; color: #b6bcc6; font-weight: 600; cursor: default; }
 .module-flag-on { color: #15803d; }
+.module-flag-trial { color: #d97706; font-weight: 700; }

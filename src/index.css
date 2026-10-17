@@ -17898,3 +17898,18 @@ label.has-error input { border-color: #b91c1c; }
 .price-card-period { margin: .3rem 0 0; font-size: .88em; }
 @media (max-width: 380px) { .price-card-head { flex-direction: column; align-items: stretch; } .price-card .seg { flex-basis: auto; } }
 .price-list-page .price-trial { margin-right: 1.5rem; }
+
+/* Moduulikokeilut (Palvelun hallinta → yritys → Moduulit, lisenssipaneeli) */
+.module-trials-all { display: flex; flex-wrap: wrap; align-items: flex-end; gap: .75rem; margin: .5rem 0 1rem; }
+.module-trials-all label { display: grid; gap: .25rem; font-weight: 600; }
+.module-trials-days { display: inline-flex; align-items: center; gap: .35rem; }
+.module-trials-days input { width: 5.5rem; }
+.module-trials-group { margin: .9rem 0 .35rem; font-size: .9rem; color: var(--muted, #64748b); }
+.module-trials-row { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem 1rem; padding: .35rem 0; border-bottom: 1px solid rgba(148, 163, 184, .25); }
+.module-trials-row > .toggle-switch:first-child { min-width: 13rem; }
+.module-trials-state { flex: 1 1 12rem; }
+.module-trial-badge { display: inline-block; padding: .1rem .5rem; border-radius: 999px; background: #fef3c7; color: #92400e; font-size: .85rem; font-weight: 600; }
+.module-trial-kept { display: inline-block; padding: .1rem .5rem; border-radius: 999px; background: #dcfce7; color: #166534; font-size: .85rem; font-weight: 600; }
+.license-trials-block { margin-top: 1rem; }
+.license-trial-row { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem 1rem; padding: .4rem 0; border-bottom: 1px solid rgba(148, 163, 184, .25); }
+.license-trial-row strong { min-width: 10rem; }
