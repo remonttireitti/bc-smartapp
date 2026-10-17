@@ -47,3 +47,27 @@ for (const p of ['/', '/tyoraportit', '/tyokalut/varaus', '/etaseuranta/vrf/1', 
   assert.ok(!routeHidesSidebar(p), p);
 }
 console.log('test-main-nav: ok');
+
+// Deep pages highlight the correct parent + sub-item (breadcrumbs are gone for sidebar users).
+{
+  const nav2 = buildMainNav(base);
+  const get = (k) => nav2.find((i) => i.key === k);
+  const cases = [
+    ['work', '/tyoraportit/abc', 'Työraportit'],
+    ['work', '/tyoraportit/abc/muokkaa', 'Työraportit'],
+    ['work', '/tyoraportit/toimeksianto/uusi', 'Työraportit'],
+    ['quotes', '/tarjouspyynnot/abc', 'Tallennetut'],
+    ['quotes', '/tarjouspyynnot/uusi', 'Uusi tarjouspyyntö'],
+    ['quotes', '/asennus-suunnittelu/abc', 'Asennus suunnittelu'],
+    ['maintenance', '/huoltoraportit/abc', 'Huoltoraportit'],
+    ['remote', '/etaseuranta/vrf/dev1', 'VRF ohjaus ja seuranta'],
+    ['remote', '/etaseuranta/lampotila/dev1', 'Lämpötilaseuranta'],
+    ['admin', '/hallinta/kayttajat', 'Käyttäjät'],
+  ];
+  for (const [k, p, label] of cases) {
+    assert.ok(isMainNavItemActive(get(k), p), p);
+    assert.equal(activeMainNavChild(get(k), p, '')?.label, label, p);
+  }
+  assert.ok(isMainNavItemActive(get('customers'), '/asiakkaat/c1/laitteet/e1'));
+}
+console.log('test-main-nav deep: ok');

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import type { Session } from '@supabase/supabase-js';
 import { LicenseSectionHeading } from './LicenseTermsHelp';
 import LicenseStatusPanel from './LicenseStatusPanel';
@@ -10,9 +11,11 @@ import { isPortalView } from '../lib/portalPreview';
 
 type Props = {
   session: Session;
+  /** sidebar = sivupalkin alaosa (ikoni + teksti, kavennettuna pelkkä ikoni + päivät). */
+  variant?: 'topbar' | 'sidebar';
 };
 
-export default function LicenseStatusHeaderButton({ session }: Props) {
+export default function LicenseStatusHeaderButton({ session, variant = 'topbar' }: Props) {
   const { profile } = useProfile(session);
   const portalView = isPortalView(profile);
   const isGlobalAdmin = !!profile?.is_global_admin;
@@ -48,8 +51,33 @@ export default function LicenseStatusHeaderButton({ session }: Props) {
 
   if (!showButton) return null;
 
+  const badgeText =
+    license?.effective_status === 'trial' && daysLeft != null
+      ? `${daysLeft} pv`
+      : license?.effective_status === 'pending_trial'
+        ? 'Kokeilu'
+        : null;
+
   return (
     <>
+      {variant === 'sidebar' ? (
+        <button
+          type="button"
+          className={`app-sidebar-link app-sidebar-license${isTrial ? ' is-trial' : ''}`}
+          aria-expanded={open}
+          aria-haspopup="dialog"
+          title={buttonTitle}
+          onClick={() => setOpen(true)}
+        >
+          <svg className="app-sidebar-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M14 10a4 4 0 1 0-3.9 3.1L4 19.2V21h3v-2h2v-2h2l1.1-1.1A4 4 0 0 0 14 10zm1-1.5a.5.5 0 1 0 0-1 .5.5 0 0 0 0 1z" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          <span className="app-sidebar-label">
+            {badgeText ? `Kokeilujakso` : LICENSE_SECTION_TITLES.companyPanel}
+          </span>
+          {badgeText ? <span className="app-sidebar-badge">{badgeText}</span> : null}
+        </button>
+      ) : (
       <button
         type="button"
         className={`topbar-license-btn${isTrial ? ' topbar-license-btn--trial' : ''}`}
@@ -69,8 +97,9 @@ export default function LicenseStatusHeaderButton({ session }: Props) {
           <span className="topbar-license-btn-label">{LICENSE_SECTION_TITLES.companyPanel}</span>
         )}
       </button>
+      )}
 
-      {open && (
+      {open && createPortal(
         <div
           className="license-status-overlay"
           role="presentation"
@@ -101,7 +130,8 @@ export default function LicenseStatusHeaderButton({ session }: Props) {
               onRefresh={() => void refresh()}
             />
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </>
   );

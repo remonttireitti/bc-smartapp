@@ -17279,9 +17279,26 @@ p.quote-outcome-unpriced {
 .sidebar-collapsed .app-sidebar .app-sidebar-collapse { justify-content: center; padding-left: 0; padding-right: 0; }
 
 /* Sivupalkki korvaa "Etusivu / X" -murupolun ja Hallinnan välilehdet työpöydällä. */
+/* Sivupalkin kanssa ei murupolkuja millään leveydellä: aktiivinen sivu näkyy valikossa. */
+.app-with-sidebar .breadcrumb { display: none; }
 @media (min-width: 900px) {
-  .app-with-sidebar .breadcrumb-home-only { display: none; }
   .app-with-sidebar .management-tabs { display: none; }
+}
+.app-sidebar-footer { border-top: 1px solid var(--border, #e5e7eb); margin-top: 0.75rem; padding-top: 0.5rem; display: grid; gap: 2px; }
+.app-sidebar-footer .app-sidebar-link { font-size: 0.86rem; color: var(--text-muted, #6b7280); }
+.app-sidebar-signout:disabled { opacity: 0.6; cursor: default; }
+.app-sidebar-badge {
+  margin-left: auto; font-size: 0.75rem; font-weight: 600; padding: 1px 6px; border-radius: 999px;
+  border: 1px solid var(--border, #d1d5db); color: var(--text, #374151); white-space: nowrap;
+}
+.app-sidebar-license.is-trial .app-sidebar-badge { border-color: #d97706; color: #b45309; }
+.sidebar-collapsed .app-sidebar .app-sidebar-license { flex-direction: column; gap: 2px; }
+.sidebar-collapsed .app-sidebar .app-sidebar-badge { margin: 0; font-size: 0.65rem; padding: 0 4px; }
+.app-with-sidebar .topbar { padding-top: 0.6rem; padding-bottom: 0.6rem; }
+@media (max-width: 899px) {
+  .app-with-sidebar .topbar { flex-wrap: nowrap; padding: 0.5rem 0.75rem; }
+  .sidebar-collapsed .app-sidebar .app-sidebar-license { flex-direction: row; gap: 0.6rem; }
+  .sidebar-collapsed .app-sidebar .app-sidebar-badge { margin-left: auto; font-size: 0.75rem; padding: 1px 6px; }
 }
 
 @media (max-width: 899px) {
