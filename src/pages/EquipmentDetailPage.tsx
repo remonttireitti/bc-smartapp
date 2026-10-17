@@ -6,8 +6,7 @@ import { CustomerDocumentTable } from '../components/CustomerDocumentTile';
 import EquipmentSnapshotTileView from '../components/equipment/EquipmentSnapshotTileView';
 import { DeviceCardIcon, HistoryIcon } from '../components/PrintIcons';
 import Tooltip from '../components/Tooltip';
-import { WorkReportSectionTile, WorkReportSectionTileGrid } from '../components/WorkReportSectionTile';
-import WorkReportSectionDialog from '../components/WorkReportSectionDialog';
+import CustomerSummaryStrip from '../components/CustomerSummaryStrip';
 import { resolveCompanyLogoUrl } from '../lib/companyLogo';
 import {
   canEditCustomersAsStaff,
@@ -20,15 +19,8 @@ import {
   buildLatestMaintenanceByEquipment,
   buildMaintenanceHistoryForEquipment,
   buildMaintenanceHistoryPrintHtml,
-  formatMaintenanceDateFi,
   loadCustomerMaintenanceContext,
 } from '../lib/equipmentMaintenanceHistory';
-import {
-  EQUIPMENT_SECTION_COLORS,
-  equipmentDocumentsSubtitle,
-  equipmentInfoSubtitle,
-  equipmentSnapshotSubtitle,
-} from '../lib/equipmentSectionHelpers';
 import { loadCustomerLinkedDocuments, type CustomerLinkedDocument } from '../lib/customerDocuments';
 import { deviceTypes } from '../lib/huoltoRaportti/constants';
 import { deviceTypeLabel, parseEquipmentSnapshot } from '../lib/huoltoRaportti/equipmentSnapshotDisplay';
@@ -43,7 +35,6 @@ interface Props {
   session: Session;
 }
 
-type EquipmentSectionDialog = 'info' | 'snapshot' | 'documents';
 
 type EquipmentEditDraft = {
   name: string;
@@ -91,7 +82,6 @@ export default function EquipmentDetailPage({ session }: Props) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [printBusy, setPrintBusy] = useState<'card' | 'history' | null>(null);
-  const [sectionDialog, setSectionDialog] = useState<EquipmentSectionDialog | null>(null);
 
   useEffect(() => {
     if (customerId && equipmentId) void load();
@@ -179,7 +169,6 @@ export default function EquipmentDetailPage({ session }: Props) {
     [equipment?.huolto_technical_snapshot],
   );
 
-  const latestMaintenanceYmd = equipment ? latestMaintenanceByEquipment[equipment.id] ?? null : null;
 
   async function loadPrintBranding(ownerCompanyId: string) {
     const { data } = await supabase.from('companies').select('name, logo_url').eq('id', ownerCompanyId).single();
@@ -231,12 +220,6 @@ export default function EquipmentDetailPage({ session }: Props) {
     } finally {
       setPrintBusy(null);
     }
-  }
-
-  function closeSectionDialog() {
-    setSectionDialog(null);
-    setInfoEditing(false);
-    setEditDraft(null);
   }
 
   function openInfoEdit() {
@@ -318,8 +301,10 @@ export default function EquipmentDetailPage({ session }: Props) {
           </p>
           <h1>{title}</h1>
           <p className="muted">
-            {deviceTypeLabel(equipment.device_type)} • {customerAddressLine(customer)}
-            {equipment.location ? ` • ${equipment.location}` : ''}
+            <Link to={`/asiakkaat/${customer.id}`} {...withNavTrail(customerDetailTrail(customer.id, customer.name))}>
+              {customer.name}
+            </Link>{' '}
+            • {customerAddressLine(customer)}
           </p>
         </div>
         <div className="page-header-actions">
@@ -360,31 +345,10 @@ export default function EquipmentDetailPage({ session }: Props) {
       {error && <p className="error">{error}</p>}
       {saveMessage && <p className="success">{saveMessage}</p>}
 
-      <WorkReportSectionTileGrid>
-        <WorkReportSectionTile
-          title="Laiteperustiedot"
-          subtitle={equipmentInfoSubtitle(equipment, latestMaintenanceYmd)}
-          color={EQUIPMENT_SECTION_COLORS.info}
-          active={sectionDialog === 'info'}
-          onClick={() => setSectionDialog('info')}
-        />
-        <WorkReportSectionTile
-          title="Kiinteät laitetiedot"
-          subtitle={equipmentSnapshotSubtitle(snapshot)}
-          color={EQUIPMENT_SECTION_COLORS.snapshot}
-          active={sectionDialog === 'snapshot'}
-          onClick={() => setSectionDialog('snapshot')}
-        />
-        <WorkReportSectionTile
-          title={`Dokumentit (${documents.length})`}
-          subtitle={equipmentDocumentsSubtitle(documents)}
-          color={EQUIPMENT_SECTION_COLORS.documents}
-          active={sectionDialog === 'documents'}
-          onClick={() => setSectionDialog('documents')}
-        />
-      </WorkReportSectionTileGrid>
+      <CustomerSummaryStrip documents={documents} />
 
-      <WorkReportSectionDialog open={sectionDialog === 'info'} title="Laiteperustiedot" onClose={closeSectionDialog}>
+      <section className="panel customer-info-panel">
+        <h2 className="customer-section-title">Laitetiedot</h2>
         {infoEditing && editDraft ? (
           <form className="line-form-grid" onSubmit={(event) => void saveEquipmentBasics(event)}>
             <label>
@@ -473,14 +437,6 @@ export default function EquipmentDetailPage({ session }: Props) {
           <>
             <dl className="detail-list">
               <div>
-                <dt>Asiakas</dt>
-                <dd>
-                  <Link to={`/asiakkaat/${customer.id}`} {...withNavTrail(customerDetailTrail(customer.id, customer.name))}>
-                    {customer.name}
-                  </Link>
-                </dd>
-              </div>
-              <div>
                 <dt>Laite</dt>
                 <dd>{equipment.name}</dd>
               </div>
@@ -505,31 +461,23 @@ export default function EquipmentDetailPage({ session }: Props) {
                 <dd>{equipment.location || '—'}</dd>
               </div>
               <div>
-                <dt>Viimeisin huolto</dt>
-                <dd>{latestMaintenanceYmd ? formatMaintenanceDateFi(latestMaintenanceYmd) : '—'}</dd>
-              </div>
-              <div>
                 <dt>Huomiot</dt>
                 <dd>{equipment.notes || '—'}</dd>
               </div>
             </dl>
             {canWrite ? (
               <div className="form-actions">
-                <button type="button" className="btn btn-primary" onClick={openInfoEdit}>
+                <button type="button" className="btn btn-secondary btn-sm" onClick={openInfoEdit}>
                   Muokkaa
                 </button>
               </div>
             ) : null}
           </>
         )}
-      </WorkReportSectionDialog>
+      </section>
 
-      <WorkReportSectionDialog
-        open={sectionDialog === 'snapshot'}
-        title="Kiinteät laitetiedot"
-        onClose={closeSectionDialog}
-        wide
-      >
+      <details className="panel customer-section equipment-snapshot-panel">
+        <summary className="customer-section-title">Tekniset tiedot huoltoraportilta (kylmäaine, valmistaja ym.)</summary>
         {snapshot ? (
           <EquipmentSnapshotTileView snapshot={snapshot} />
         ) : (
@@ -537,21 +485,23 @@ export default function EquipmentDetailPage({ session }: Props) {
             Ei vielä tallennettua teknistä tilannekuvaa. Tiedot päivittyvät, kun huoltopöytäkirja tallentaa laiterekisteriin.
           </p>
         )}
-      </WorkReportSectionDialog>
+      </details>
 
-      <WorkReportSectionDialog
-        open={sectionDialog === 'documents'}
-        title={`Dokumentit (${documents.length})`}
-        onClose={closeSectionDialog}
-        wide
-      >
-        <p className="muted">Tälle laitteelle kohdistetut työraportit, huoltoraportit ja tarjouspyynnöt.</p>
-        {documents.length === 0 ? (
-          <p className="muted">Ei tälle laitteelle kohdistettuja raportteja tai tarjouksia.</p>
-        ) : (
-          <CustomerDocumentTable documents={documents} />
-        )}
-      </WorkReportSectionDialog>
+      {([
+        ['work_report', 'Työraportit'],
+        ['maintenance_report', 'Huoltoraportit'],
+        ['quote_request', 'Tarjoukset'],
+        ['file', 'Tiedostot'],
+      ] as const).map(([kind, label]) => {
+        const list = documents.filter((d) => d.kind === kind);
+        if (list.length === 0 && kind === 'file') return null;
+        return (
+          <section key={kind} className="panel customer-section">
+            <h2 className="customer-section-title">{label} ({list.length})</h2>
+            {list.length === 0 ? <p className="muted">Ei tälle laitteelle kohdistettuja.</p> : <CustomerDocumentTable documents={list} hideKind />}
+          </section>
+        );
+      })}
     </AppLayout>
   );
 }

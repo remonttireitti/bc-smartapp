@@ -17549,3 +17549,17 @@ p.quote-outcome-unpriced {
   .data-table tbody tr td, .data-table tbody tr:nth-child(even) td, .data-table tbody tr[style*="--row-accent"] td, .data-table tbody tr[style*="--row-accent"]:nth-child(even) td { background: transparent; }
 }
 .work-report-partner-filter { display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.85rem; } .work-report-partner-filter select { max-width: 14rem; }
+/* Asiakas- ja laitesivu */
+.customer-summary-strip { display: flex; flex-wrap: wrap; gap: 0.35rem 1.25rem; padding: 0.55rem 0.8rem; margin: 0 0 1rem; background: var(--bg-surface, #fff); border: 1px solid var(--border, #e5e7eb); border-radius: 6px; font-size: 0.88rem; color: #4b5563; }
+.customer-summary-strip strong { color: var(--text, #111827); }
+.customer-summary-strip em { font-style: normal; color: #c2410c; }
+.customer-section-title { font-size: 1.02rem; margin: 0 0 0.6rem; }
+.customer-info-panel .detail-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 0.4rem 1.25rem; margin: 0; }
+.customer-info-panel .detail-list dt { font-size: 0.76rem; color: #6b7280; }
+.customer-info-panel .detail-list dd { margin: 0; }
+.customer-info-panel .form-actions { margin-top: 0.6rem; }
+.customer-section { margin-bottom: 1rem; }
+.customer-danger-zone { margin: 1.5rem 0 2rem; text-align: right; }
+.btn-link.btn-danger-link { background: none; border: none; color: #b91c1c; text-decoration: underline; font-size: 0.85rem; cursor: pointer; padding: 0; }
+@media (max-width: 640px) { .customer-summary-strip { font-size: 0.84rem; gap: 0.25rem 0.9rem; } }
+.equipment-snapshot-panel summary { cursor: pointer; margin: 0; } .equipment-snapshot-panel[open] summary { margin-bottom: 0.6rem; }

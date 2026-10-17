@@ -9,7 +9,7 @@ import Tooltip from '../components/Tooltip';
 import ToggleSwitch from '../components/ToggleSwitch';
 import SubscriberPicker from '../components/SubscriberPicker';
 import CustomerPortalSection from '../components/CustomerPortalSection';
-import { WorkReportSectionTile, WorkReportSectionTileGrid } from '../components/WorkReportSectionTile';
+import CustomerSummaryStrip from '../components/CustomerSummaryStrip';
 import WorkReportSectionDialog from '../components/WorkReportSectionDialog';
 import {
   isCustomerExplicitlySharedWithPartner,
@@ -49,20 +49,9 @@ import { isPortalUser } from '../lib/portalWorkOrder';
 import { supabase } from '../lib/supabase';
 import { customerDetailTrail, withNavTrail } from '../lib/navigationTrail';
 import {
-  CUSTOMER_DOCUMENT_KIND_LABELS,
-  countCustomerLinkedDocumentsByKind,
-  filterCustomerLinkedDocuments,
   loadCustomerLinkedDocuments,
-  type CustomerDocumentFilter,
   type CustomerLinkedDocument,
 } from '../lib/customerDocuments';
-import {
-  CUSTOMER_SECTION_COLORS,
-  customerDocumentsSubtitle,
-  customerEquipmentSubtitle,
-  customerInfoSubtitle,
-  customerSharingSubtitle,
-} from '../lib/customerSectionHelpers';
 import { useProfile } from '../hooks/useProfile';
 import type { Customer, Equipment, Partnership, Subscriber } from '../types';
 
@@ -93,7 +82,6 @@ export default function CustomerDetailPage({ session }: Props) {
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [equipment, setEquipment] = useState<Equipment[]>([]);
   const [documents, setDocuments] = useState<CustomerLinkedDocument[]>([]);
-  const [documentFilter, setDocumentFilter] = useState<CustomerDocumentFilter>('all');
   const [canWrite, setCanWrite] = useState(false);
   const [sectionDialog, setSectionDialog] = useState<CustomerSectionDialog | null>(null);
   const [infoEditing, setInfoEditing] = useState(false);
@@ -563,8 +551,6 @@ export default function CustomerDetailPage({ session }: Props) {
     profile?.is_global_admin,
   );
 
-  const documentCounts = countCustomerLinkedDocumentsByKind(documents);
-  const filteredDocuments = filterCustomerLinkedDocuments(documents, documentFilter);
 
   const managesRegistry = Boolean(
     customer && profile?.company_id && customer.owner_company_id === profile.company_id,
@@ -606,10 +592,7 @@ export default function CustomerDetailPage({ session }: Props) {
             <Link to="/">Etusivu</Link> / <Link to="/asiakkaat">Asiakkaat</Link> / {customer.name}
           </p>
           <h1>{customer.name}</h1>
-          <p className="muted">
-            Rekisteri: {customer.owner_company?.name ?? '—'}
-            {!canWrite && ' • vain luku'}
-          </p>
+          {!canWrite ? <p className="muted">Vain luku</p> : null}
         </div>
         {canWrite && (
           <div className="page-header-actions">
@@ -620,14 +603,14 @@ export default function CustomerDetailPage({ session }: Props) {
             >
               + Uusi huoltoraportti
             </Link>
-            {canDeleteRegistry && (
-              <button
-                type="button"
-                className="btn btn-danger"
-                disabled={busy}
-                onClick={() => void deleteCustomer()}
-              >
-                Poista asiakas
+            {managesRegistry && (
+              <button type="button" className="btn btn-secondary" onClick={() => setSectionDialog('portal')}>
+                Asiakasportaali
+              </button>
+            )}
+            {managesRegistry && shareablePartners.length > 0 && (
+              <button type="button" className="btn btn-secondary" onClick={() => setSectionDialog('sharing')}>
+                Kumppanijako ({sharedPartnerCount}/{shareablePartners.length})
               </button>
             )}
           </div>
@@ -637,56 +620,13 @@ export default function CustomerDetailPage({ session }: Props) {
       {error && <p className="error">{error}</p>}
       {message && <p className="muted">{message}</p>}
 
-      <WorkReportSectionTileGrid>
-        <WorkReportSectionTile
-          title="Asiakastiedot"
-          subtitle={customerInfoSubtitle(customer)}
-          color={CUSTOMER_SECTION_COLORS.info}
-          active={sectionDialog === 'info'}
-          onClick={() => {
-            setInfoEditing(false);
-            setSectionDialog('info');
-          }}
-        />
-        <WorkReportSectionTile
-          title={`Laitteet (${equipment.length})`}
-          subtitle={customerEquipmentSubtitle(equipment.length)}
-          color={CUSTOMER_SECTION_COLORS.equipment}
-          active={sectionDialog === 'equipment'}
-          onClick={() => setSectionDialog('equipment')}
-        />
-        <WorkReportSectionTile
-          title={`Dokumentit (${documents.length})`}
-          subtitle={customerDocumentsSubtitle(documents)}
-          color={CUSTOMER_SECTION_COLORS.documents}
-          active={sectionDialog === 'documents'}
-          onClick={() => setSectionDialog('documents')}
-        />
-        {managesRegistry && (
-          <WorkReportSectionTile
-            title="Asiakasportaali"
-            subtitle={customer.subscriber_id ? customer.subscriber?.name ?? 'Tilaaja' : 'Kutsu asiakas'}
-            color={CUSTOMER_SECTION_COLORS.portal}
-            active={sectionDialog === 'portal'}
-            onClick={() => setSectionDialog('portal')}
-          />
-        )}
-        {managesRegistry && shareablePartners.length > 0 && (
-          <WorkReportSectionTile
-            title="Kumppanijako"
-            subtitle={customerSharingSubtitle(sharedPartnerCount, shareablePartners.length)}
-            color={CUSTOMER_SECTION_COLORS.sharing}
-            active={sectionDialog === 'sharing'}
-            onClick={() => setSectionDialog('sharing')}
-          />
-        )}
-      </WorkReportSectionTileGrid>
+      <CustomerSummaryStrip
+        equipmentCount={equipment.length}
+        documents={documents}
+      />
 
-      <WorkReportSectionDialog
-        open={sectionDialog === 'info'}
-        title="Asiakastiedot"
-        onClose={closeSectionDialog}
-      >
+      <section className="panel customer-info-panel">
+        <h2 className="customer-section-title">Asiakastiedot</h2>
         {infoEditing ? (
           <form className="form-grid" onSubmit={saveCustomer}>
             {managesRegistry ? (
@@ -773,6 +713,10 @@ export default function CustomerDetailPage({ session }: Props) {
           <>
             <dl className="detail-list">
               <div>
+                <dt>Rekisteri</dt>
+                <dd>{customer.owner_company?.name ?? '—'}</dd>
+              </div>
+              <div>
                 <dt>Tilaaja</dt>
                 <dd>{subscriberLabel(customer.subscriber ?? null)}</dd>
               </div>
@@ -799,14 +743,14 @@ export default function CustomerDetailPage({ session }: Props) {
             </dl>
             {canWrite ? (
               <div className="form-actions">
-                <button type="button" className="btn btn-primary" onClick={openCustomerEdit}>
+                <button type="button" className="btn btn-secondary btn-sm" onClick={openCustomerEdit}>
                   Muokkaa
                 </button>
               </div>
             ) : null}
           </>
         )}
-      </WorkReportSectionDialog>
+      </section>
 
       <WorkReportSectionDialog
         open={sectionDialog === 'portal'}
@@ -881,12 +825,8 @@ export default function CustomerDetailPage({ session }: Props) {
         </ul>
       </WorkReportSectionDialog>
 
-      <WorkReportSectionDialog
-        open={sectionDialog === 'equipment'}
-        title={`Laitteet (${equipment.length})`}
-        onClose={closeSectionDialog}
-        wide
-      >
+      <section className="panel customer-section">
+        <h2 className="customer-section-title">Laitteet ({equipment.length})</h2>
         {canWrite && (
           <div className="section-head compact-section-head">
             <button type="button" className="btn btn-secondary" onClick={() => setShowNewEquipment((v) => !v)}>
@@ -1017,52 +957,36 @@ export default function CustomerDetailPage({ session }: Props) {
             />
           </>
         )}
-      </WorkReportSectionDialog>
+      </section>
 
-      <WorkReportSectionDialog
-        open={sectionDialog === 'documents'}
-        title={`Dokumentit (${documents.length})`}
-        onClose={closeSectionDialog}
-        wide
-      >
-        <p className="muted">
-          Asiakkaaseen kohdistetut työraportit, huoltoraportit, tarjouspyynnöt ja ladatut tiedostot.
-        </p>
-
-        {documents.length > 0 && (
-          <div className="customer-document-filters">
-            <button
-              type="button"
-              className={`btn btn-sm ${documentFilter === 'all' ? 'btn-primary' : 'btn-secondary'}`}
-              onClick={() => setDocumentFilter('all')}
-            >
-              Kaikki ({documents.length})
-            </button>
-            {(['work_report', 'maintenance_report', 'quote_request', 'file'] as const).map((kind) =>
-              documentCounts[kind] > 0 ? (
-                <button
-                  key={kind}
-                  type="button"
-                  className={`btn btn-sm ${documentFilter === kind ? 'btn-primary' : 'btn-secondary'}`}
-                  onClick={() => setDocumentFilter(kind)}
-                >
-                  {CUSTOMER_DOCUMENT_KIND_LABELS[kind]} ({documentCounts[kind]})
-                </button>
-              ) : null,
+      {([
+        ['work_report', 'Työraportit'],
+        ['maintenance_report', 'Huoltoraportit'],
+        ['quote_request', 'Tarjoukset'],
+        ['temp_monitor_report', 'Seurantaraportit'],
+        ['file', 'Tiedostot'],
+      ] as const).map(([kind, label]) => {
+        const list = documents.filter((d) => d.kind === kind);
+        if (list.length === 0 && (kind === 'temp_monitor_report' || kind === 'file')) return null;
+        return (
+          <section key={kind} className="panel customer-section">
+            <h2 className="customer-section-title">{label} ({list.length})</h2>
+            {list.length === 0 ? (
+              <p className="muted">Ei vielä.</p>
+            ) : (
+              <CustomerDocumentTable documents={list} hideKind />
             )}
-          </div>
-        )}
+          </section>
+        );
+      })}
 
-        {filteredDocuments.length === 0 ? (
-          <p className="muted">
-            {documents.length === 0
-              ? 'Ei vielä raportteja tai tarjouksia tälle asiakkaalle.'
-              : 'Ei dokumentteja valitulla suodattimella.'}
-          </p>
-        ) : (
-          <CustomerDocumentTable documents={filteredDocuments} />
-        )}
-      </WorkReportSectionDialog>
+      {canDeleteRegistry && (
+        <div className="customer-danger-zone">
+          <button type="button" className="btn btn-link btn-danger-link" disabled={busy} onClick={() => void deleteCustomer()}>
+            Poista asiakas…
+          </button>
+        </div>
+      )}
     </AppLayout>
   );
 }
