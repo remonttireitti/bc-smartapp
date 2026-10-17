@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import HuoltoSettingsSection from '../../components/HuoltoSettingsSection';
 import ToggleSwitch from '../../components/ToggleSwitch';
 import ModuleDescription, { DescriptionWithNote, minDeviceFee } from '../../components/ModuleDescription';
-import { HUOLTO_NOTE, MODULE_DESCRIPTIONS } from '../../lib/companySignup';
+import { ADDON_MODULE_LABELS, HUOLTO_NOTE, MODULE_DESCRIPTIONS } from '../../lib/companySignup';
 import { invalidateCompanyLicenseCache } from '../../hooks/useCompanyLicense';
 import { notifyHuoltoSettingsChanged } from '../../hooks/useCompanyHuoltoSettings';
 import {
@@ -187,7 +187,7 @@ export default function CompanyModulesEditor({ companyId, settings, ownCompanyId
     licenseStatusText(snapshot),
     snapshot.trial_ends_at && snapshot.effective_status === 'trial' ? `kokeilu ${fmtDate(snapshot.trial_ends_at)}${days != null ? ` (${days} pv)` : ''}` : '',
     snapshot.paid_through ? `maksettu ${fmtDate(snapshot.paid_through)} asti` : '',
-    snapshot.effective_status === 'active'
+    snapshot.effective_status === 'active' && !legacy
       ? formatLicensePeriodMoney(snapshot.pricing.estimated_period_total_eur, snapshot.billing_interval)
       : '',
   ].filter(Boolean).join(' · ');
@@ -284,7 +284,7 @@ export default function CompanyModulesEditor({ companyId, settings, ownCompanyId
                 <small className="muted"><ModuleDescription moduleKey="base" /></small>
               </div>
               <div className="module-toggle-row">
-                <ToggleSwitch checked={modules.quotes} disabled={busy} label="Tarjoukset" onChange={(v) => setModules((m) => ({ ...m, quotes: v }))} />
+                <ToggleSwitch checked={modules.quotes} disabled={busy} label={ADDON_MODULE_LABELS.quotes} onChange={(v) => setModules((m) => ({ ...m, quotes: v }))} />
                 <small className="muted"><ModuleDescription moduleKey="quotes" /></small>
               </div>
             </>

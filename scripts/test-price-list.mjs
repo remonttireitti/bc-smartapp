@@ -18,7 +18,7 @@ assert.deepEqual(p.device_prices, { jc3248: 5, esp32_ds18b20: 5, default: 5 });
 assert.deepEqual(PRICE_GROUPS.map((g) => g.title), ['Peruspaketti', 'Moduulit', 'Huoltoraportit', 'Käyttäjät']);
 assert.equal(new Set(PRICE_ROWS.map((r) => r.key)).size, PRICE_ROWS.length);
 assert.deepEqual(PRICE_ROWS.filter((r) => r.group === 'moduulit').map((r) => r.label), [
-  'Tarjoukset', 'Laskutus', 'Etäseuranta', 'Laitemaksu: JC3248-näyttölaite', 'Laitemaksu: ESP32 + DS18B20', 'Laitemaksu: Muu lämpötilalaite', 'Varasto', 'Työkalut', 'Kumppanuudet',
+  'Tarjouspyynnöt ja laskennat', 'Laskutus', 'Etäseuranta', 'Laitemaksu: JC3248-näyttölaite', 'Laitemaksu: ESP32 + DS18B20', 'Laitemaksu: Muu lämpötilalaite', 'Varasto', 'Työkalut', 'Kumppanuudet',
 ]);
 assert.equal(PRICE_ROWS.find((r) => r.key === 'module:billing').description, 'Laskettavat summat asiakkaalle ja kumppanien kesken — ei laskujen lähetystä');
 assert.equal(PRICE_ROWS.find((r) => r.key === 'base').description, BASE_PACKAGE_DESCRIPTION);

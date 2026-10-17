@@ -15,7 +15,7 @@ export type AddonModuleKey = 'quotes' | 'billing' | 'remote_monitoring' | 'inven
 /** Järjestys = laskun rivijärjestys (sama kuin SQL license_monthly_total / company_monthly_price_breakdown). */
 export const ADDON_MODULES: AddonModuleKey[] = ['quotes', 'billing', 'remote_monitoring', 'inventory', 'tools', 'partners'];
 export const ADDON_MODULE_LABELS: Record<AddonModuleKey, string> = {
-  quotes: 'Tarjoukset',
+  quotes: 'Tarjouspyynnöt ja laskennat',
   billing: 'Laskutus',
   remote_monitoring: 'Etäseuranta',
   inventory: 'Varasto',
@@ -154,7 +154,7 @@ export const BASE_PACKAGE_DESCRIPTION =
   'Työraportit ja toimeksiannot, asiakkaat ja laiterekisteri, tilaajaportaali sekä yritys- ja käyttäjähallinta';
 
 export const MODULE_DESCRIPTIONS: Record<AddonModuleKey, string> = {
-  quotes: 'Tarjouspyynnöt ja tarjoustulosteet, asennussuunnittelu ja lämpöpumppujen rekisteri',
+  quotes: 'Huolto-, LVI-, IV-, sähkö- ja lämpöpumpputarjoukset katelaskelmineen, asennussuunnittelu ja lämpöpumppujen rekisteri',
   billing: 'Laskettavat summat asiakkaalle ja kumppanien kesken — ei laskujen lähetystä',
   remote_monitoring: 'Lämpötila, kosteus, paine, valaistus, NO/NC-tilatiedot, 0–10 V, jännitteet ja sähkönkulutus — hälytykset, trendit ja etäohjaus',
   inventory: 'Materiaalit ja kylmäaine, saldot linkitettynä työraportteihin ja hinnoitteluun',

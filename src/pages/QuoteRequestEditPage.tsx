@@ -1114,7 +1114,7 @@ export default function QuoteRequestEditPage({ session }: Props) {
       <NavigationBreadcrumb
         items={[
           { label: 'Etusivu', to: '/' },
-          { label: 'Tarjouspyyntö', to: '/tarjouspyynnot' },
+          { label: 'Tarjouspyynnöt ja laskennat', to: '/tarjouspyynnot' },
           { label: isNew ? 'Uusi tarjouspyyntö' : pageTitle },
         ]}
       />

@@ -76,7 +76,7 @@ export default function InstallationPlansPage({ session }: Props) {
       <div className="page-header">
         <div>
           <p className="breadcrumb">
-            <Link to="/">Etusivu</Link> / <Link to="/tarjouspyynnot">Tarjouspyyntö</Link> /{' '}
+            <Link to="/">Etusivu</Link> / <Link to="/tarjouspyynnot">Tarjouspyynnöt ja laskennat</Link> /{' '}
             <Link to="/asennus-suunnittelu">Asennus suunnittelu</Link> / Lista
           </p>
           <h1>Tallennetut asennus suunnitelmat</h1>

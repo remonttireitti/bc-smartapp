@@ -19,7 +19,7 @@ export default function InstallationPlanHubPage({ session }: Props) {
       <div className="page-header">
         <div>
           <p className="breadcrumb">
-            <Link to="/">Etusivu</Link> / <Link to="/tarjouspyynnot">Tarjouspyyntö</Link> / Asennus suunnittelu
+            <Link to="/">Etusivu</Link> / <Link to="/tarjouspyynnot">Tarjouspyynnöt ja laskennat</Link> / Asennus suunnittelu
           </p>
           <h1>Asennus suunnittelu</h1>
         </div>

@@ -20,7 +20,7 @@ export const PARTNERSHIP_MODULES = [
   { key: 'inventory', label: 'Varasto' },
   { key: 'refrigerant_trading', label: 'Kylmäaineen kauppa' },
   { key: 'tools', label: 'Työkalut' },
-  { key: 'quotes', label: 'Tarjouspyynnöt' },
+  { key: 'quotes', label: 'Tarjouspyynnöt ja laskennat' },
 ] as const;
 
 export type PartnershipModuleKey = (typeof PARTNERSHIP_MODULES)[number]['key'];

@@ -24,7 +24,7 @@ export default function QuoteRequestHubPage({ session }: Props) {
           <p className="breadcrumb breadcrumb-home-only">
             <Link to="/">Etusivu</Link> / Tarjouspyyntö
           </p>
-          <h1>Tarjouspyyntö</h1>
+          <h1>Tarjouspyynnöt ja laskennat</h1>
         </div>
       </div>
 
