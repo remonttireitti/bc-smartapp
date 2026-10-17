@@ -3,68 +3,83 @@ import {
   formatEur,
   periodPrice,
   type BillingPeriod,
+  type PriceLine,
   type PriceList,
 } from '../lib/companySignup';
 
 type Props = {
-  value: BillingPeriod;
-  onChange: (v: BillingPeriod) => void;
+  /** Kuukausirivit (alv 0 %). */
+  lines: Pick<PriceLine, 'key' | 'label' | 'qty' | 'total'>[];
   /** Kuukausihinta alv 0 % ennen jakson alennusta. */
   monthlyNet: number;
+  value: BillingPeriod;
+  onChange?: (v: BillingPeriod) => void;
   prices: Pick<PriceList, 'billing_discounts'>;
+  title?: string;
   disabled?: boolean;
 };
 
-/** Kuukausilaskutus / 6 kk laskutus / Vuosilaskutus + jakson hinta ja säästö. */
-export default function BillingPeriodPicker({ value, onChange, monthlyNet, prices, disabled }: Props) {
+const SHORT: Record<BillingPeriod, string> = { monthly: 'Kuukausi', semi_annual: '6 kk', annual: 'Vuosi' };
+const pct = (n: number) => `${n.toLocaleString('fi-FI')} %`;
+
+/** Kuukausihinta-kortti: jaksovalinta (yksi rivi), rivit, yhteensä ja jakson hinta. */
+export default function BillingPeriodPicker({ lines, monthlyNet, value, onChange, prices, title = 'Kuukausihinta', disabled }: Props) {
   const p = periodPrice(monthlyNet, value, prices);
+  const discount = value !== 'monthly' && p.discount_pct > 0;
   return (
-    <div className="billing-period-picker">
-      <div className="billing-period-options" role="radiogroup" aria-label="Laskutusjakso">
-        {BILLING_PERIODS.map((b) => {
-          const pct = b.value === 'monthly' ? 0 : prices.billing_discounts?.[b.value] ?? 0;
-          return (
-            <button
-              key={b.value}
-              type="button"
-              role="radio"
-              aria-checked={value === b.value}
-              disabled={disabled}
-              className={`billing-period-option${value === b.value ? ' is-active' : ''}`}
-              onClick={() => onChange(b.value)}
-            >
-              {b.label}
-              {pct > 0 && <span className="billing-period-badge">−{pct.toLocaleString('fi-FI')} %</span>}
-            </button>
-          );
-        })}
+    <section className="price-card">
+      <div className="price-card-head">
+        <h4>{title}</h4>
+        {onChange && (
+          <div className="seg" role="radiogroup" aria-label="Laskutusjakso">
+            {BILLING_PERIODS.map((b) => {
+              const d = b.value === 'monthly' ? 0 : prices.billing_discounts?.[b.value] ?? 0;
+              return (
+                <button
+                  key={b.value}
+                  type="button"
+                  role="radio"
+                  aria-checked={value === b.value}
+                  disabled={disabled}
+                  className={value === b.value ? 'is-on' : undefined}
+                  onClick={() => onChange(b.value)}
+                >
+                  {SHORT[b.value]}
+                  {d > 0 && <span className="seg-pct">·{pct(d)}</span>}
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
+      <dl className="price-card-lines">
+        {lines.map((l) => (
+          <div key={l.key}>
+            <dt>{l.label}{l.qty > 1 ? ` × ${l.qty}` : ''}</dt>
+            <dd>{formatEur(l.total)}</dd>
+          </div>
+        ))}
+        {discount && (
+          <div className="price-card-discount">
+            <dt>{SHORT[value]} −{pct(p.discount_pct)}</dt>
+            <dd>−{formatEur(Math.round((monthlyNet - p.monthly_net) * 100) / 100)}</dd>
+          </div>
+        )}
+        <div className="price-card-total">
+          <dt>Yhteensä alv 0 %</dt>
+          <dd>{formatEur(discount ? p.monthly_net : monthlyNet)}/kk</dd>
+        </div>
+        <div className="price-card-muted">
+          <dt>Sis. alv 25,5 %</dt>
+          <dd>{formatEur(discount ? Math.round((p.gross / p.months) * 100) / 100 : p.gross)}/kk</dd>
+        </div>
+      </dl>
       {value !== 'monthly' && (
-        <table className="price-estimate-table billing-period-summary">
-          <tbody>
-            <tr>
-              <td>Kuukausihinta alennuksen jälkeen</td>
-              <td className="num">{formatEur(p.monthly_net)}/kk</td>
-            </tr>
-          </tbody>
-          <tfoot>
-            <tr>
-              <th>{p.months === 12 ? 'Vuosihinta' : `${p.months} kk hinta`} alv 0 %</th>
-              <th className="num">{formatEur(p.net)}</th>
-            </tr>
-            <tr className="muted">
-              <td>Sis. alv 25,5 %</td>
-              <td className="num">{formatEur(p.gross)}</td>
-            </tr>
-            {p.saving_net > 0 && (
-              <tr className="billing-period-saving">
-                <td>Säästö ({p.discount_pct.toLocaleString('fi-FI')} %)</td>
-                <td className="num">−{formatEur(p.saving_net)}/{p.months === 12 ? 'v' : `${p.months} kk`}</td>
-              </tr>
-            )}
-          </tfoot>
-        </table>
+        <p className="price-card-period">
+          {value === 'annual' ? 'Vuosi' : '6 kk'}: {formatEur(p.net)} alv 0 % · {formatEur(p.gross)} sis. alv
+          {p.saving_net > 0 && <> · säästö {formatEur(p.saving_net)}</>}
+        </p>
       )}
-    </div>
+    </section>
   );
 }
