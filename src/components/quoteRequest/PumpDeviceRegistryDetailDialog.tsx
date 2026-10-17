@@ -1,3 +1,4 @@
+import CheckToggle from '../CheckToggle';
 import { useEffect } from 'react';
 import { IILP_FEATURE_OPTIONS, VILP_FEATURE_OPTIONS } from '../../data/deviceFeatureOptions';
 import { getDefaultDiscountFromListPercent } from '../../data/devicePricingShared';
@@ -174,8 +175,7 @@ export default function PumpDeviceRegistryDetailDialog({
                 const selected = new Set(merged.selectedFeatureIds || []);
                 return (
                   <label key={opt.id} className="pump-device-feature-option">
-                    <input
-                      type="checkbox"
+                    <CheckToggle
                       checked={selected.has(opt.id)}
                       onChange={(e) => {
                         const next = new Set(merged.selectedFeatureIds || []);

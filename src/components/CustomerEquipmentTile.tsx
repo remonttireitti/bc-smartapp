@@ -1,3 +1,4 @@
+import CheckToggle from './CheckToggle';
 import { Link } from 'react-router-dom';
 import DataTable, { type DataTableColumn } from './DataTable';
 import { DeviceCardIcon, HistoryIcon } from './PrintIcons';
@@ -51,8 +52,7 @@ export function CustomerEquipmentTable({
       render: (eq) => (
         <span className="customer-equipment-name-cell">
           <label className="customer-equipment-row-select" onClick={(e) => e.stopPropagation()}>
-            <input
-              type="checkbox"
+            <CheckToggle
               checked={selectedIds.has(eq.id)}
               onChange={(e) => onToggleSelected(eq.id, e.target.checked)}
             />

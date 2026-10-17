@@ -1,3 +1,4 @@
+import CheckToggle from '../CheckToggle';
 import { formatRefrigerantWarehouseCostLabel } from '../../lib/refrigerantInventory';
 import { isRefrigerantWarehouseCostLine } from '../../lib/refrigerantPassThrough';
 import { formatEuro } from '../../lib/workReportBilling';
@@ -65,8 +66,7 @@ export default function RefrigerantWarehouseDeductionPanel({
                   <td className="num">{formatEuro(total)}</td>
                   <td>
                     <label className="inventory-check">
-                      <input
-                        type="checkbox"
+                      <CheckToggle
                         checked={Boolean(line.warehouse_cost_deducted)}
                         disabled={!canEdit || busyLineId === line.id}
                         onChange={(e) => onToggle(line.id, e.target.checked)}

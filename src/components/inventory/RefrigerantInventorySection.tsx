@@ -1,3 +1,4 @@
+import CheckToggle from '../CheckToggle';
 import { errorMessage } from '../../lib/errorMessage';
 import { FormEvent, Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
@@ -782,8 +783,7 @@ export default function RefrigerantInventorySection({
             />
           </label>
           <label className="inventory-check">
-            <input
-              type="checkbox"
+            <CheckToggle
               checked={bottleForm.has_content}
               onChange={(e) => setBottleForm({ ...bottleForm, has_content: e.target.checked })}
             />
@@ -818,8 +818,7 @@ export default function RefrigerantInventorySection({
             </>
           )}
           <label className="inventory-check inventory-bottle-editor-wide">
-            <input
-              type="checkbox"
+            <CheckToggle
               checked={bottleForm.non_recyclable}
               onChange={(e) => setBottleForm({ ...bottleForm, non_recyclable: e.target.checked })}
             />
@@ -892,8 +891,7 @@ export default function RefrigerantInventorySection({
           />
         </label>
         <label className="inventory-check">
-          <input
-            type="checkbox"
+          <CheckToggle
             checked={retrieveForm.non_recyclable}
             onChange={(e) => setRetrieveForm({ ...retrieveForm, non_recyclable: e.target.checked })}
           />
