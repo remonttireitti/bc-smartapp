@@ -1,6 +1,7 @@
 import { Link, Navigate } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
 import AppLayout from '../components/AppLayout';
+import { HubTileGrid, type HubTileData } from '../components/HubTile';
 import { useProfile } from '../hooks/useProfile';
 import { isMonitorViewerRole, monitorReaderHubPath } from '../lib/monitorReaderShares';
 import { TEMP_MONITORING_BASE, VRF_MONITORING_BASE } from '../lib/remoteMonitoringRoutes';
@@ -9,19 +10,9 @@ interface Props {
   session: Session;
 }
 
-const TILES = [
-  {
-    title: 'Lämpötilaseuranta',
-    desc: 'Mittauslaitteet, live-seuranta ja raportit',
-    href: TEMP_MONITORING_BASE,
-    color: '#14b8a6',
-  },
-  {
-    title: 'VRF ohjaus ja seuranta',
-    desc: 'Lämpöpumppu, lämpötilat, sulatus ja ohjaus',
-    href: VRF_MONITORING_BASE,
-    color: '#0d9488',
-  },
+const TILES: HubTileData[] = [
+  { title: 'Lämpötilaseuranta', lines: ['Mittauslaitteet ja live-seuranta', 'Hälytykset ja raportit'], href: TEMP_MONITORING_BASE, color: '#14b8a6', icon: '🌡' },
+  { title: 'VRF ohjaus ja seuranta', lines: ['Lämpötilat ja sulatukset', 'Etäohjaus ja jakolinkit'], href: VRF_MONITORING_BASE, color: '#0d9488', icon: '❄' },
 ];
 
 export default function RemoteMonitoringHubPage({ session }: Props) {
@@ -39,18 +30,10 @@ export default function RemoteMonitoringHubPage({ session }: Props) {
             <Link to="/">Etusivu</Link> / Etäohjaus ja seuranta
           </p>
           <h1>Etäohjaus ja seuranta</h1>
-          <p className="muted">{profile?.companies?.name ?? '—'} • valitse palvelu</p>
         </div>
       </div>
 
-      <section className="grid">
-        {TILES.map((tile) => (
-          <Link key={tile.title} to={tile.href} className="tile" style={{ background: tile.color }}>
-            <strong>{tile.title}</strong>
-            <span>{tile.desc}</span>
-          </Link>
-        ))}
-      </section>
+      <HubTileGrid tiles={TILES} />
     </AppLayout>
   );
 }

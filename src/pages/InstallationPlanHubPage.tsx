@@ -1,29 +1,18 @@
 import { Link } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
 import AppLayout from '../components/AppLayout';
-import { useProfile } from '../hooks/useProfile';
+import { HubTileGrid, type HubTileData } from '../components/HubTile';
 
 interface Props {
   session: Session;
 }
 
-const TILES = [
-  {
-    title: 'Tallennetut suunnitelmat',
-    desc: 'Lista, haku ja muokkaus',
-    href: '/asennus-suunnittelu/lista',
-    color: '#6366f1',
-  },
-  {
-    title: 'Uusi asennus suunnittelu',
-    desc: 'Taloyhtiöseloste pohjalla',
-    href: '/asennus-suunnittelu/uusi',
-    color: '#818cf8',
-  },
+const TILES: HubTileData[] = [
+  { title: 'Tallennetut suunnitelmat', lines: ['Kaikki suunnitelmat listana', 'Haku ja muokkaus'], href: '/asennus-suunnittelu/lista', color: '#6366f1', icon: '☰' },
+  { title: 'Uusi asennus suunnittelu', lines: ['Taloyhtiöseloste pohjalla', 'Liitteet mukaan'], href: '/asennus-suunnittelu/uusi', color: '#818cf8', icon: '+' },
 ];
 
 export default function InstallationPlanHubPage({ session }: Props) {
-  const { profile } = useProfile(session);
 
   return (
     <AppLayout session={session}>
@@ -33,18 +22,10 @@ export default function InstallationPlanHubPage({ session }: Props) {
             <Link to="/">Etusivu</Link> / <Link to="/tarjouspyynnot">Tarjouspyyntö</Link> / Asennus suunnittelu
           </p>
           <h1>Asennus suunnittelu</h1>
-          <p className="muted">{profile?.companies?.name ?? '—'} • taloyhtiöselosteet ja liitteet</p>
         </div>
       </div>
 
-      <section className="grid">
-        {TILES.map((tile) => (
-          <Link key={tile.title} to={tile.href} className="tile" style={{ background: tile.color }}>
-            <strong>{tile.title}</strong>
-            <span>{tile.desc}</span>
-          </Link>
-        ))}
-      </section>
+      <HubTileGrid tiles={TILES} />
     </AppLayout>
   );
 }
