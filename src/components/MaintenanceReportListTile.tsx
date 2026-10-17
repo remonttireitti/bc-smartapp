@@ -29,8 +29,9 @@ export function MaintenanceReportListTable<T extends MaintenanceReportListItem>(
   canDelete,
   onDelete,
   deletingId,
-}: Props<T>) {
-  const columns: DataTableColumn<T>[] = [
+  portal = false,
+}: Props<T> & { portal?: boolean }) {
+  const allColumns: DataTableColumn<T>[] = [
     { key: 'customer', label: 'Asiakas', value: (r) => maintenanceReportTileLines(r, myCompanyId).customerLine },
     {
       key: 'device',
@@ -61,6 +62,8 @@ export function MaintenanceReportListTable<T extends MaintenanceReportListItem>(
     { key: 'updated', label: 'Päivitetty', value: (r) => r.updated_at, render: (r) => fiDate(r.updated_at), className: 'nowrap' },
     { key: 'registry', label: 'Rekisteri', value: (r) => maintenanceReportTileLines(r, myCompanyId).registryLine ?? '' },
   ];
+  // Portaali: ei asiakas-, osoite- eikä rekisterisaraketta (vain oma kohde).
+  const columns = portal ? allColumns.filter((c) => !['customer', 'address', 'registry'].includes(c.key)) : allColumns;
   const anyDelete = !!onDelete && !!canDelete && reports.some((r) => canDelete(r));
 
   return (
