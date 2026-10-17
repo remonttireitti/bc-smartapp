@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
 import AppLayout from '../components/AppLayout';
-import { QuoteRequestListItem } from '../components/quoteRequest/QuoteRequestListItem';
+import { QuoteRequestListTable } from '../components/quoteRequest/QuoteRequestListItem';
 import { canDeleteQuoteRequest } from '../lib/deletePermissions';
 import { deleteQuoteRequestById } from '../lib/deleteQuoteRequest';
 import { supabase } from '../lib/supabase';
@@ -66,18 +66,14 @@ function QuoteRequestGrid({
   linkIndex: QuoteReportLinkIndex | null;
 }) {
   return (
-    <div className="grid quote-request-grid">
-      {rows.map((row) => (
-        <QuoteRequestListItem
-          key={row.id}
-          row={row}
-          linkedReportId={row.work_report_id ?? linkIndex?.quoteToReport.get(row.id) ?? null}
-          missingReport={!!linkIndex && isOrderedQuoteWithoutReport(row, linkIndex)}
-          onDelete={canDelete(row) ? () => onDelete(row) : undefined}
-          deleteBusy={deletingDraftId === row.id}
-        />
-      ))}
-    </div>
+    <QuoteRequestListTable
+      rows={rows}
+      linkedReportId={(row) => linkIndex?.quoteToReport.get(row.id) ?? null}
+      missingReport={(row) => !!linkIndex && isOrderedQuoteWithoutReport(row, linkIndex)}
+      canDelete={canDelete}
+      onDelete={onDelete}
+      deletingId={deletingDraftId}
+    />
   );
 }
 

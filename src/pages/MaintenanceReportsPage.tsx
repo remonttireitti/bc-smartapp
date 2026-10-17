@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
 import AppLayout from '../components/AppLayout';
-import { MaintenanceReportListGrid, MaintenanceReportListTile } from '../components/MaintenanceReportListTile';
+import { MaintenanceReportListTable } from '../components/MaintenanceReportListTile';
 import {
   maintenanceReportSearchText,
   type MaintenanceReportListItem,
@@ -229,34 +229,21 @@ export default function MaintenanceReportsPage({ session }: Props) {
           {grouped.drafts.length > 0 && (
             <section className="panel">
               <h2>Luonnokset</h2>
-              <MaintenanceReportListGrid>
-                {grouped.drafts.map((report) => (
-                  <MaintenanceReportListTile
-                    key={report.id}
-                    report={report}
-                    myCompanyId={myCompanyId}
-                    linkTo={reportHref(report)}
-                    onDelete={canDeleteDraft(report) ? () => void deleteDraftReport(report) : undefined}
-                    deleteBusy={deletingDraftId === report.id}
-                  />
-                ))}
-              </MaintenanceReportListGrid>
+              <MaintenanceReportListTable
+                reports={grouped.drafts}
+                myCompanyId={myCompanyId}
+                linkTo={reportHref}
+                canDelete={canDeleteDraft}
+                onDelete={(report) => void deleteDraftReport(report)}
+                deletingId={deletingDraftId}
+              />
             </section>
           )}
 
           {grouped.done.length > 0 && (
             <section className="panel">
               <h2>Valmiit huoltoraportit</h2>
-              <MaintenanceReportListGrid>
-                {grouped.done.map((report) => (
-                  <MaintenanceReportListTile
-                    key={report.id}
-                    report={report}
-                    myCompanyId={myCompanyId}
-                    linkTo={reportHref(report)}
-                  />
-                ))}
-              </MaintenanceReportListGrid>
+              <MaintenanceReportListTable reports={grouped.done} myCompanyId={myCompanyId} linkTo={reportHref} />
             </section>
           )}
         </>

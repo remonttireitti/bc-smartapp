@@ -4,8 +4,7 @@ import type { Session } from '@supabase/supabase-js';
 import AppLayout from '../components/AppLayout';
 import EmptyStateCallout from '../components/EmptyStateCallout';
 import ToggleSwitch from '../components/ToggleSwitch';
-import { CustomerListGrid, CustomerListTile } from '../components/CustomerListTile';
-import { customerListTileColor } from '../lib/customerSectionHelpers';
+import { CustomerListTable } from '../components/CustomerListTile';
 import { CUSTOMER_SELECT } from '../lib/customers';
 import type { QuickSearchHit } from '../lib/quickSearch';
 import { filterCustomersForPortalView, getPortalPreview, isPortalUser } from '../lib/portalPreview';
@@ -207,21 +206,14 @@ export default function CustomersPage({ session }: Props) {
               />
             )
           ) : (
-            <CustomerListGrid>
-              {filteredCustomers.map((c, index) => (
-                <CustomerListTile
-                  key={c.id}
-                  customer={c}
-                  color={customerListTileColor(index)}
-                  showSubscriber={!portalMode}
-                  showPortalAction={
-                    profile?.role === 'admin'
-                    && c.owner_company_id === profile.company_id
-                    && !c.subscriber_id
-                  }
-                />
-              ))}
-            </CustomerListGrid>
+            <CustomerListTable
+              customers={filteredCustomers}
+              showSubscriber={!portalMode}
+              showPortalAction={(c) =>
+                profile?.role === 'admin'
+                && c.owner_company_id === profile.company_id
+                && !c.subscriber_id}
+            />
           )}
         </section>
       )}

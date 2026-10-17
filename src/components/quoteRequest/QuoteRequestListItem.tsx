@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import DataTable, { StatusMark, type DataTableColumn } from '../DataTable';
 import { computeQuoteTotals } from '../../lib/quoteRequest/calculations';
 import { QUOTE_TYPE_LABELS } from '../../lib/quoteRequest/constants';
 import {
@@ -11,88 +12,127 @@ import { quoteCustomerDisplayName, quoteDeviceDisplayLabel } from '../../lib/quo
 import type { QuoteRequestRow } from '../../lib/quoteRequest/types';
 import { quoteListTrail, withNavTrail } from '../../lib/navigationTrail';
 
-const QUOTE_STATUS_TILE_COLORS: Record<string, string> = {
-  draft: 'linear-gradient(135deg, #475569 0%, #64748b 100%)',
-  sent: 'linear-gradient(135deg, #2563eb 0%, #3b82f6 100%)',
-  ordered: 'linear-gradient(135deg, #059669 0%, #10b981 100%)',
+const QUOTE_STATUS_COLORS: Record<string, string> = {
+  draft: '#94a3b8',
+  sent: '#3b82f6',
+  ordered: '#10b981',
+};
+
+type Derived = {
+  row: QuoteRequestRow;
+  title: string;
+  type: string;
+  customer: string;
+  device: string;
+  total: number;
+  linkedReportId: string | null;
+  missingReport: boolean;
 };
 
 type Props = {
-  row: QuoteRequestRow;
-  /** quote_requests.work_report_id tai vanha raportin puolen linkki. */
-  linkedReportId?: string | null;
-  /** Tilattu, mutta ei kohdistettu työraporttiin. */
-  missingReport?: boolean;
-  onDelete?: () => void;
-  deleteBusy?: boolean;
+  rows: QuoteRequestRow[];
+  linkedReportId: (row: QuoteRequestRow) => string | null;
+  missingReport: (row: QuoteRequestRow) => boolean;
+  canDelete: (row: QuoteRequestRow) => boolean;
+  onDelete: (row: QuoteRequestRow) => void;
+  deletingId: string | null;
 };
 
-export function QuoteRequestListItem({ row, linkedReportId, missingReport = false, onDelete, deleteBusy = false }: Props) {
-  const data = normalizeQuoteRequestData(row.data);
-  const total = computeQuoteTotals(data).grossTotal;
-  const updated = new Date(row.updated_at).toLocaleString('fi-FI');
-  const displayTitle = resolveQuoteDisplayTitle({
-    customerName: row.customers?.name,
-    quoteTypeLabel: quoteTitleSubject(data),
-    storedTitle: row.title,
+const eur = (n: number) => n.toLocaleString('fi-FI', { style: 'currency', currency: 'EUR' });
+
+/** Tarjouspyynnöt taulukkona. */
+export function QuoteRequestListTable({ rows, linkedReportId, missingReport, canDelete, onDelete, deletingId }: Props) {
+  const derived: Derived[] = rows.map((row) => {
+    const data = normalizeQuoteRequestData(row.data);
+    return {
+      row,
+      title: resolveQuoteDisplayTitle({
+        customerName: row.customers?.name,
+        quoteTypeLabel: quoteTitleSubject(data),
+        storedTitle: row.title,
+      }),
+      type: QUOTE_TYPE_LABELS[data.type] ?? '',
+      customer: quoteCustomerDisplayName(row) ?? '',
+      device: quoteDeviceDisplayLabel(data, row.equipment?.name ?? row.equipment?.tag) ?? '',
+      total: computeQuoteTotals(data).grossTotal,
+      linkedReportId: row.work_report_id ?? linkedReportId(row),
+      missingReport: missingReport(row),
+    };
   });
-  const deviceLabel = quoteDeviceDisplayLabel(data, row.equipment?.name ?? row.equipment?.tag);
-  const subtitleParts = [
-    QUOTE_TYPE_LABELS[data.type],
-    quoteCustomerDisplayName(row),
-    deviceLabel,
-  ].filter(Boolean);
-  const tileColor = QUOTE_STATUS_TILE_COLORS[row.status] ?? QUOTE_STATUS_TILE_COLORS.draft;
+
+  const columns: DataTableColumn<Derived>[] = [
+    { key: 'title', label: 'Otsikko', value: (d) => d.title },
+    { key: 'customer', label: 'Asiakas', value: (d) => d.customer },
+    { key: 'type', label: 'Tyyppi', value: (d) => d.type },
+    { key: 'device', label: 'Laite', value: (d) => d.device },
+    {
+      key: 'total',
+      label: 'Summa',
+      value: (d) => d.total,
+      render: (d) => eur(d.total),
+      className: 'nowrap data-table-num',
+    },
+    {
+      key: 'status',
+      label: 'Tila',
+      value: (d) => QUOTE_STATUS_LABELS[d.row.status] ?? d.row.status,
+      render: (d) => (
+        <StatusMark
+          color={QUOTE_STATUS_COLORS[d.row.status] ?? QUOTE_STATUS_COLORS.draft}
+          label={`${QUOTE_STATUS_LABELS[d.row.status] ?? d.row.status}${d.missingReport ? ' · ei työraporttia' : ''}`}
+        />
+      ),
+    },
+    {
+      key: 'updated',
+      label: 'Päivitetty',
+      value: (d) => d.row.updated_at,
+      render: (d) => new Date(d.row.updated_at).toLocaleDateString('fi-FI'),
+      className: 'nowrap',
+    },
+    { key: 'brand', label: 'Yritys', value: (d) => d.row.branding_company?.name ?? '' },
+  ];
+
+  const hasActions = derived.some(
+    (d) => (d.row.status === 'ordered' && d.linkedReportId) || d.missingReport || canDelete(d.row),
+  );
 
   return (
-    <div className="quote-request-tile-wrap">
-      <Link
-        to={`/tarjouspyynnot/${row.id}`}
-        className="tile quote-request-tile"
-        style={{ background: tileColor }}
-        {...withNavTrail(quoteListTrail())}
-      >
-        <div className="quote-request-tile-body">
-          <span className="quote-request-tile-badge">
-            {QUOTE_STATUS_LABELS[row.status] ?? row.status}
-            {missingReport ? ' · ei työraporttia' : null}
-          </span>
-          <strong className="quote-request-tile-title">{displayTitle}</strong>
-          <span className="quote-request-tile-line">{subtitleParts.join(' • ')}</span>
-          <span className="quote-request-tile-price">
-            {total.toLocaleString('fi-FI', { style: 'currency', currency: 'EUR' })}
-          </span>
-          <span className="quote-request-tile-meta">
-            {row.branding_company?.name ?? '—'} · {updated}
-          </span>
-        </div>
-      </Link>
-      {row.status === 'ordered' && (linkedReportId ?? row.work_report_id) ? (
-        <Link
-          to={`/tyoraportit/${linkedReportId ?? row.work_report_id}`}
-          className="btn btn-secondary btn-sm quote-request-tile-action"
-        >
-          Työraportti
-        </Link>
-      ) : missingReport ? (
-        <Link
-          to={`/tarjouspyynnot/${row.id}`}
-          className="btn btn-secondary btn-sm quote-request-tile-action"
-          {...withNavTrail(quoteListTrail())}
-        >
-          Kohdista työraporttiin
-        </Link>
-      ) : null}
-      {onDelete ? (
-        <button
-          type="button"
-          className="btn btn-secondary btn-sm quote-request-tile-delete"
-          disabled={deleteBusy}
-          onClick={onDelete}
-        >
-          {deleteBusy ? 'Poistetaan…' : row.status === 'sent' ? 'Poista tarjous' : 'Poista luonnos'}
-        </button>
-      ) : null}
-    </div>
+    <DataTable
+      rows={derived}
+      columns={columns}
+      rowKey={(d) => d.row.id}
+      rowHref={(d) => `/tarjouspyynnot/${d.row.id}`}
+      rowState={() => withNavTrail(quoteListTrail()).state}
+      hideFilter
+      ariaLabel="Tarjouspyynnöt"
+      actions={
+        hasActions
+          ? (d) => (
+              <>
+                {d.row.status === 'ordered' && d.linkedReportId ? (
+                  <Link to={`/tyoraportit/${d.linkedReportId}`} className="btn btn-secondary btn-sm">
+                    Työraportti
+                  </Link>
+                ) : d.missingReport ? (
+                  <Link to={`/tarjouspyynnot/${d.row.id}`} className="btn btn-secondary btn-sm" {...withNavTrail(quoteListTrail())}>
+                    Kohdista työraporttiin
+                  </Link>
+                ) : null}
+                {canDelete(d.row) ? (
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    disabled={deletingId === d.row.id}
+                    onClick={() => onDelete(d.row)}
+                  >
+                    {deletingId === d.row.id ? 'Poistetaan…' : d.row.status === 'sent' ? 'Poista tarjous' : 'Poista luonnos'}
+                  </button>
+                ) : null}
+              </>
+            )
+          : undefined
+      }
+    />
   );
 }

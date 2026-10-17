@@ -2,8 +2,8 @@ import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
 import AppLayout from '../components/AppLayout';
-import { CustomerDocumentGrid, CustomerDocumentTile } from '../components/CustomerDocumentTile';
-import { CustomerEquipmentGrid, CustomerEquipmentTile } from '../components/CustomerEquipmentTile';
+import { CustomerDocumentTable } from '../components/CustomerDocumentTile';
+import { CustomerEquipmentTable } from '../components/CustomerEquipmentTile';
 import { HistoryIcon, PrinterIcon } from '../components/PrintIcons';
 import Tooltip from '../components/Tooltip';
 import ToggleSwitch from '../components/ToggleSwitch';
@@ -61,7 +61,6 @@ import {
   customerDocumentsSubtitle,
   customerEquipmentSubtitle,
   customerInfoSubtitle,
-  customerListTileColor,
   customerSharingSubtitle,
 } from '../lib/customerSectionHelpers';
 import { useProfile } from '../hooks/useProfile';
@@ -996,33 +995,26 @@ export default function CustomerDetailPage({ session }: Props) {
               </div>
             </div>
             <p className="muted customer-equipment-bulk-hint">
-              Valitse laitteet ruudun valintaruudulla ja tulosta valittujen huoltohistoria.
+              Valitse laitteet rivin valintaruudulla ja tulosta valittujen huoltohistoria.
             </p>
-            <CustomerEquipmentGrid>
-              {equipment.map((eq, index) => (
-                <CustomerEquipmentTile
-                  key={eq.id}
-                  equipment={eq}
-                  customerId={customer.id}
-                  color={customerListTileColor(index)}
-                  latestMaintenanceLabel={
-                    latestMaintenanceByEquipment[eq.id]
-                      ? formatMaintenanceDateFi(latestMaintenanceByEquipment[eq.id])
-                      : null
-                  }
-                  selected={selectedEquipmentIds.has(eq.id)}
-                  canWrite={canWrite}
-                  canDelete={canDeleteRegistry}
-                  busy={busy}
-                  printBusyId={printBusyId}
-                  navTrail={equipmentNavTrail}
-                  onToggleSelected={(checked) => toggleEquipmentSelection(eq.id, checked)}
-                  onPrintCard={() => void printEquipmentCard(eq)}
-                  onPrintHistory={() => void printEquipmentHistory(eq)}
-                  onDelete={() => void deleteEquipmentItem(eq.id, eq.name)}
-                />
-              ))}
-            </CustomerEquipmentGrid>
+            <CustomerEquipmentTable
+              equipment={equipment}
+              customerId={customer.id}
+              latestMaintenance={(eq) =>
+                latestMaintenanceByEquipment[eq.id]
+                  ? { raw: latestMaintenanceByEquipment[eq.id], label: formatMaintenanceDateFi(latestMaintenanceByEquipment[eq.id]) }
+                  : null}
+              selectedIds={selectedEquipmentIds}
+              canWrite={canWrite}
+              canDelete={canDeleteRegistry}
+              busy={busy}
+              printBusyId={printBusyId}
+              navTrail={equipmentNavTrail}
+              onToggleSelected={toggleEquipmentSelection}
+              onPrintCard={(eq) => void printEquipmentCard(eq)}
+              onPrintHistory={(eq) => void printEquipmentHistory(eq)}
+              onDelete={(eq) => void deleteEquipmentItem(eq.id, eq.name)}
+            />
           </>
         )}
       </WorkReportSectionDialog>
@@ -1068,11 +1060,7 @@ export default function CustomerDetailPage({ session }: Props) {
               : 'Ei dokumentteja valitulla suodattimella.'}
           </p>
         ) : (
-          <CustomerDocumentGrid>
-            {filteredDocuments.map((doc) => (
-              <CustomerDocumentTile key={`${doc.kind}:${doc.id}`} document={doc} />
-            ))}
-          </CustomerDocumentGrid>
+          <CustomerDocumentTable documents={filteredDocuments} />
         )}
       </WorkReportSectionDialog>
     </AppLayout>

@@ -17455,3 +17455,45 @@ p.quote-outcome-unpriced {
 .hub-tile-lines { margin: 0; padding: 0 0 0 1rem; list-style: disc; color: var(--text-muted, #6b7280); font-size: 0.82rem; line-height: 1.4; }
 .hub-tile-lines li::marker { color: #cbd5e1; }
 @media (max-width: 640px) { .grid.hub-grid { grid-template-columns: 1fr; } }
+
+/* Taulukkolistat (korvaavat värikkäät korttiruudukot) */
+.data-table-block { width: 100%; margin-bottom: 1.25rem; }
+.data-table-filter { width: 100%; max-width: 320px; box-sizing: border-box; margin: 0 0 0.5rem; padding: 0.4rem 0.6rem; font-size: 0.88rem; border: 1px solid var(--border, #d1d5db); border-radius: 6px; }
+.data-table-scroll { width: 100%; overflow: auto; max-height: 75vh; border: 1px solid var(--border, #e5e7eb); border-radius: 6px; background: var(--bg-surface, #fff); }
+.data-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 0.86rem; color: var(--text, #1f2937); }
+.data-table th, .data-table td { text-align: left; padding: 0.4rem 0.6rem; border-bottom: 1px solid #eef0f3; vertical-align: middle; }
+.data-table thead th { position: sticky; top: 0; z-index: 2; background: #f8fafc; border-bottom: 1px solid var(--border, #e5e7eb); font-weight: 600; font-size: 0.78rem; color: #4b5563; white-space: nowrap; }
+.data-table-sort { all: unset; cursor: pointer; display: inline-flex; gap: 0.25rem; align-items: center; }
+.data-table-sort:focus-visible { outline: 2px solid #94a3b8; }
+.data-table-sort-mark { font-size: 0.6rem; color: #6b7280; min-width: 0.6rem; }
+.data-table tbody tr:last-child td { border-bottom: none; }
+.data-table-row-link { cursor: pointer; }
+.data-table-row-link:hover td { background: #f6f8fb; }
+.data-table-row-link:focus-visible { outline: 2px solid #94a3b8; outline-offset: -2px; }
+.data-table td:first-child { font-weight: 600; }
+.data-table-actions-col { width: 1%; white-space: nowrap; }
+.data-table-actions { display: flex; gap: 0.35rem; align-items: center; justify-content: flex-end; }
+.data-table-actions .btn-sm { padding: 0.2rem 0.5rem; font-size: 0.78rem; }
+.data-table .muted-cell { color: #6b7280; }
+.data-table .nowrap { white-space: nowrap; }
+.status-mark { display: inline-flex; align-items: center; gap: 0.35rem; white-space: nowrap; }
+.status-mark-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+/* Puhelin: tiivis pinottu rivi */
+@media (max-width: 640px) {
+  .data-table-filter { max-width: none; }
+  .data-table-scroll { max-height: none; overflow: visible; border: none; background: transparent; }
+  .data-table thead { display: none; }
+  .data-table, .data-table tbody, .data-table tr, .data-table td { display: block; width: 100%; box-sizing: border-box; }
+  .data-table tr { background: var(--bg-surface, #fff); border: 1px solid var(--border, #e5e7eb); border-radius: 6px; margin-bottom: 0.4rem; padding: 0.4rem 0.6rem; }
+  .data-table td { border: none; padding: 0.05rem 0; display: flex; gap: 0.5rem; font-size: 0.84rem; }
+  .data-table td::before { content: attr(data-label); flex: 0 0 6.5rem; color: #6b7280; font-size: 0.76rem; font-weight: 400; }
+  .data-table td:first-child { font-size: 0.92rem; }
+  .data-table td:first-child::before { display: none; }
+  .data-table td:empty, .data-table td.data-table-empty-cell { display: none; }
+  .data-table td.data-table-actions-col { padding-top: 0.3rem; }
+  .data-table td.data-table-actions-col::before { display: none; }
+  .data-table-actions { justify-content: flex-start; flex-wrap: wrap; }
+}
+.customer-equipment-name-cell { display: inline-flex; align-items: center; gap: 0.45rem; }
+.customer-equipment-row-select input { margin: 0; }
+.data-table .data-table-num { text-align: right; }
