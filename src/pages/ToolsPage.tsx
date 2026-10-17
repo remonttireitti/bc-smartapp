@@ -588,7 +588,7 @@ export default function ToolsPage({ session }: Props) {
     <AppLayout session={session}>
       <div className="page-header">
         <div>
-          <p className="breadcrumb">
+          <p className="breadcrumb breadcrumb-home-only">
             <Link to="/">Etusivu</Link> / Työkalut
           </p>
           <h1>Työkaluhallinta</h1>

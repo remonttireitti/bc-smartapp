@@ -78,6 +78,12 @@ export default function InventoryPage({ session }: Props) {
     if (openCylinderId) setTab('refrigerant');
   }, [openCylinderId]);
 
+  // Sivupalkin alakohdat: /varasto?tab=refrigerant | materials
+  const urlTab = searchParams.get('tab');
+  useEffect(() => {
+    if (urlTab === 'refrigerant' || urlTab === 'materials') setTab(urlTab);
+  }, [urlTab]);
+
   useEffect(() => {
     if (!myCompanyId) return;
     void loadInventoryPartnerships(supabase, myCompanyId).then(setPartnerships);
@@ -226,7 +232,7 @@ export default function InventoryPage({ session }: Props) {
     <AppLayout session={session}>
       <div className="page-header inventory-page-header">
         <div>
-          <p className="breadcrumb">
+          <p className="breadcrumb breadcrumb-home-only">
             <Link to="/">Etusivu</Link> / Varasto
           </p>
           <h1>Varasto</h1>

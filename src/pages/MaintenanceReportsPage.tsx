@@ -157,7 +157,7 @@ export default function MaintenanceReportsPage({ session }: Props) {
     <AppLayout session={session}>
       <div className="page-header">
         <div>
-          <p className="breadcrumb">
+          <p className="breadcrumb breadcrumb-home-only">
             <Link to="/">Etusivu</Link> / Huoltoraportit
           </p>
           <h1>Huoltoraportit</h1>

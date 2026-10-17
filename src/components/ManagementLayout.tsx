@@ -130,7 +130,7 @@ export default function ManagementLayout({ session }: Props) {
     <AppLayout session={session}>
       <div className="page-header">
         <div>
-          <p className="breadcrumb">
+          <p className="breadcrumb breadcrumb-home-only">
             <Link to="/">Etusivu</Link> / Hallinta
           </p>
           <h1>Hallinta</h1>
@@ -165,7 +165,7 @@ export default function ManagementLayout({ session }: Props) {
         </section>
       )}
 
-      <div className="toolbar">
+      <div className="toolbar management-tabs">
         <div className="tabs">
           {tabs.map((tab) => (
             <Link

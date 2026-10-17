@@ -551,7 +551,7 @@ export default function WorkReportsPage({ session }: Props) {
       <AppLayout session={session}>
         <div className="page-header">
           <div>
-            <p className="breadcrumb">
+            <p className="breadcrumb breadcrumb-home-only">
               <Link to="/">Etusivu</Link> / Työraportit
             </p>
             <h1>Työtilaukset</h1>
@@ -667,7 +667,7 @@ export default function WorkReportsPage({ session }: Props) {
 
         <div>
 
-          <p className="breadcrumb">
+          <p className="breadcrumb breadcrumb-home-only">
 
             <Link to="/">Etusivu</Link> / Työraportti
 
