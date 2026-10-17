@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
 import NavigationBreadcrumb from '../components/NavigationBreadcrumb';
+import AppLayout from '../components/AppLayout';
 import { useMaintenancePrintNavigation } from '../hooks/useMaintenancePrintNavigation';
 import { useProfile } from '../hooks/useProfile';
 import { loadMaintenanceReportPrintBundle } from '../lib/maintenanceReportPrintAction';
@@ -117,11 +118,11 @@ export default function MaintenanceReportPrintPage({ session }: Props) {
     );
   }
 
-  return (
+  const content = (
     <div className="maintenance-print-page maintenance-print-page--standalone">
       <div className="page-header no-print maintenance-print-toolbar">
         <div>
-          <NavigationBreadcrumb items={navigation.breadcrumb} />
+          {!portalReadOnly ? <NavigationBreadcrumb items={navigation.breadcrumb} /> : null}
           <h1>{faultyKonvektoritOnly ? 'Vialliset konvektorit' : 'Huoltoraportin tuloste'}</h1>
           {printTitle ? (
             <p className="muted maintenance-print-filename-hint">
@@ -149,4 +150,6 @@ export default function MaintenanceReportPrintPage({ session }: Props) {
       <div className="maintenance-print-host" dangerouslySetInnerHTML={{ __html: html }} />
     </div>
   );
+  // Asiakasportaali: sovelluksen valikko näkyy (ei paperilla).
+  return portalReadOnly ? <AppLayout session={session}>{content}</AppLayout> : content;
 }
