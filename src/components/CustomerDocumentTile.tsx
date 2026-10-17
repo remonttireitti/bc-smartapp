@@ -5,8 +5,8 @@ import { CUSTOMER_DOCUMENT_TILE_COLORS } from '../lib/customerSectionHelpers';
 import { CUSTOMER_DOCUMENT_KIND_LABELS, type CustomerLinkedDocument } from '../lib/customerDocuments';
 
 /** Asiakkaan / laitteen dokumentit taulukkona. */
-export function CustomerDocumentTable({ documents }: { documents: CustomerLinkedDocument[] }) {
-  const columns: DataTableColumn<CustomerLinkedDocument>[] = [
+export function CustomerDocumentTable({ documents, hideKind = false }: { documents: CustomerLinkedDocument[]; hideKind?: boolean }) {
+  const allColumns: DataTableColumn<CustomerLinkedDocument>[] = [
     { key: 'title', label: 'Dokumentti', value: (d) => d.title },
     {
       key: 'kind',
@@ -27,6 +27,7 @@ export function CustomerDocumentTable({ documents }: { documents: CustomerLinked
     },
     { key: 'equipment', label: 'Laite', value: (d) => d.equipmentLabel ?? '' },
   ];
+  const columns = allColumns.filter((c) => !(hideKind && c.key === 'kind'));
   const anyPrint = documents.some((d) => d.printHref);
   return (
     <DataTable
