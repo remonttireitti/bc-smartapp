@@ -36,6 +36,9 @@ export type ExpenseDraft = {
   extra_billing_allowed: boolean;
   /** Hinta 0 € vahvistettu (kulua ei syntynyt). */
   price_confirmed?: boolean;
+  /** Varaston materiaali (saldo päivittyy tallennettaessa). */
+  inventory_item_id?: string | null;
+  unit?: string | null;
 };
 
 export function emptyExpense(): ExpenseDraft {
@@ -183,6 +186,8 @@ export function expensesToDrafts(
       unit_price: String(line.unit_price),
       bill_to_partner: line.bill_to_partner !== false,
       partner_billed: line.partner_billed !== false,
+      inventory_item_id: line.inventory_item_id ?? null,
+      unit: line.unit ?? null,
       bill_to_customer: line.bill_to_customer !== false,
       customer_unit_price:
         customerPrice != null && customerPrice > 0 ? String(customerPrice) : '',

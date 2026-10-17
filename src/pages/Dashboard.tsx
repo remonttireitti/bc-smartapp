@@ -38,7 +38,7 @@ const MODULES: ModuleTile[] = [
   { title: 'Huoltoraportti', lines: ['Huoltopöytäkirjat', 'Laiterekisteri'], color: '#22c55e', href: '/huoltoraportit', licenseModule: 'base' },
   { title: 'Asiakkaat', lines: ['Asiakasrekisteri', 'Laitteet ja dokumentit'], color: '#3b82f6', href: '/asiakkaat', licenseModule: 'base' },
   { title: 'Tarjouspyyntö', lines: ['Tarjoukset ja laskelmat', 'Asennussuunnittelu'], color: '#f97316', href: '/tarjouspyynnot', licenseModule: 'quotes' },
-  { title: 'Varasto', lines: ['Materiaalit', 'Kylmäainekirjanpito'], color: '#a855f7', href: '/varasto', licenseModule: 'base' },
+  { title: 'Varasto', lines: ['Materiaalit ja kylmäaine', 'Linkitetty työhön ja hinnoitteluun'], color: '#a855f7', href: '/varasto', licenseModule: 'base' },
   {
     title: 'Etäohjaus ja seuranta',
     lines: ['Lämpötilaseuranta', 'VRF ohjaus ja seuranta'],
@@ -46,7 +46,7 @@ const MODULES: ModuleTile[] = [
     href: '/etaseuranta',
     licenseModule: 'remote_monitoring',
   },
-  { title: 'Työkalut', lines: ['Työkaluinventaario', 'Lainaus ja varaukset'], color: '#ec4899', href: '/tyokalut', licenseModule: 'tools' },
+  { title: 'Työkalut', lines: ['Työkaluinventaario', 'Vuokrauskalenteri ja varaukset'], color: '#ec4899', href: '/tyokalut', licenseModule: 'tools' },
   { title: 'Hallinta', lines: ['Omat tiedot ja yritys', 'Käyttäjät ja kumppanuudet'], color: '#8b5cf6', href: '/hallinta' },
 ];
 

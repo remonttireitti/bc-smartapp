@@ -90,7 +90,7 @@ export const LICENSE_MODULE_DESCRIPTIONS: Record<LicenseModuleKey, string> = {
   quotes: 'Tarjouspyynnöt, laskelmat ja tulosteet',
   billing: 'Laskutettavat summat ja kumppanilaskutus',
   remote_monitoring: 'Lämpötilaseuranta ja etäohjaus. Moduulimaksu + laitemaksu (€/kk per laite, tyypistä riippuen).',
-  tools: 'Työkaluinventaario',
+  tools: 'Työkaluinventaario linkitettynä työhön ja hinnoitteluun, työkalujen vuokrauskalenteri',
 };
 
 export const LICENSE_MODULE_HREFS: Record<LicenseModuleKey, string[]> = {

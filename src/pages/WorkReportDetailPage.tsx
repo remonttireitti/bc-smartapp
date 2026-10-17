@@ -8,6 +8,8 @@ import {
   type CommissionBillingMode,
 } from '../lib/commissionBillingMode';
 import { isPartnerBillingColumnSupported } from '../lib/workReportDailyLogSelect';
+import { isInventoryLinkSupported, loadInventoryPickItems, type InventoryPickItem } from '../lib/inventoryExpenseLink';
+import { InventoryPickContext } from '../components/inventory/InventoryMaterialPicker';
 import { FormEvent, type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import { focusedAddTargetLog, mergeFocusedAddRows, mergeFocusedAddWorkDone } from '../lib/dailyLogFocusedAdd';
 import type { UnpricedQuoteRow } from '../lib/quoteSeededRows';
@@ -1265,6 +1267,9 @@ async function saveExpenseLines(
         ...(isPartnerBillingColumnSupported() && row.partner_billed === false
           ? { partner_billed: false }
           : {}),
+        ...(isInventoryLinkSupported()
+          ? { inventory_item_id: row.inventory_item_id || null, unit: row.unit || null }
+          : {}),
         sort_order: index,
       };
     });
@@ -1407,6 +1412,22 @@ export default function WorkReportDetailPage({ session }: Props) {
   const [savedEquipmentIds, setSavedEquipmentIds] = useState<string[]>([]);
 
   const billingModuleEnabled = useCompanyBillingModuleEnabled(profile?.company_id, session);
+  const [inventoryPickItems, setInventoryPickItems] = useState<InventoryPickItem[]>([]);
+  const inventoryModuleEnabled = companyLicense ? companyLicense.base_active !== false : true;
+  useEffect(() => {
+    const companyId = profile?.company_id;
+    if (!companyId || !inventoryModuleEnabled) {
+      setInventoryPickItems([]);
+      return;
+    }
+    let cancelled = false;
+    void loadInventoryPickItems(supabase, companyId).then((items) => {
+      if (!cancelled) setInventoryPickItems(items);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [profile?.company_id, inventoryModuleEnabled, dailyLogs]);
   const ownerCustomerInvoicing = useCompanyCustomerBillingEnabled(report?.owner_company_id, session);
   const viewerBillingAllowed = billingModuleEnabled !== false;
   /** Linkit /laskutus-sivulle vain kun moduuli on varmasti käytössä. */
@@ -3599,6 +3620,7 @@ export default function WorkReportDetailPage({ session }: Props) {
   }
 
   return (
+    <InventoryPickContext.Provider value={inventoryPickItems}>
     <AppLayout session={session}>
       <div className="page-header">
         <div>
@@ -4871,5 +4893,6 @@ export default function WorkReportDetailPage({ session }: Props) {
         onClose={() => setDailyLogNotice(null)}
       />
     </AppLayout>
+    </InventoryPickContext.Provider>
   );
 }

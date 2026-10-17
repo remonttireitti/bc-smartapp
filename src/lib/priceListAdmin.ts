@@ -38,7 +38,7 @@ const MODULE_DESCRIPTIONS: Record<AddonModuleKey, string> = {
   quotes: 'Tarjouspyynnöt, laskelmat ja tulosteet',
   billing: 'Laskettavat summat asiakkaalle ja kumppanien kesken — ei laskujen lähetystä',
   remote_monitoring: 'Lämpötilaseuranta ja etäohjaus (moduulimaksu)',
-  tools: 'Työkaluinventaario ja lainaus',
+  tools: 'Työkaluinventaario linkitettynä työhön ja hinnoitteluun, työkalujen vuokrauskalenteri',
   partners: 'Yhteistyö muiden yritysten kanssa',
 };
 

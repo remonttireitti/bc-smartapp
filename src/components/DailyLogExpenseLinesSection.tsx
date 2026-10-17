@@ -1,3 +1,4 @@
+import InventoryMaterialPicker from './inventory/InventoryMaterialPicker';
 import { useEffect, useState } from 'react';
 
 import ExpenseBillingModeToggles from './ExpenseBillingModeToggles';
@@ -301,6 +302,9 @@ function ExpenseLineEditor({
           </p>
         )
       ) : null}
+      {!autoTripKm && !isDeviceExpense(row) && (!row.expense_type || row.expense_type === 'material' || row.expense_type === 'part') ? (
+        <InventoryMaterialPicker row={row} onChange={updateExpenseRow} />
+      ) : null}
       <label>
         Tyyppi
         <select
@@ -331,7 +335,7 @@ function ExpenseLineEditor({
         />
       </label>
       <label>
-        Määrä
+        Määrä{row.inventory_item_id && row.unit ? ` (${row.unit})` : ''}
         <input
           type="number"
           step="0.001"
