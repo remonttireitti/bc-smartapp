@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import CompanySubscriptionOrderForm from './CompanySubscriptionOrderForm';
 import ModuleDescription from './ModuleDescription';
 import { DEVICE_PURCHASE_PRICE_TEXT } from '../../supabase/functions/_shared/companySignupCore';
+import { billingPeriodLabel } from '../lib/companySignup';
 import { GLOBAL_ADMIN_SUPPORT } from '../lib/supportContacts';
 import {
   formatLicenseMoney,
@@ -66,9 +67,9 @@ export default function LicenseStatusPanel({ license, canManageOrder, onRefresh 
         <p className="license-status-lead">
           Tilaus on voimassa
           {license.paid_through && <> · maksettu {formatDateFi(license.paid_through)} asti</>}.
-          Arvio jakson hinnasta ({license.billing_interval_label}):{' '}
+          Jakson hinta ({billingPeriodLabel(license.billing_interval)}):{' '}
           <strong>{formatLicensePeriodMoney(pricing.estimated_period_total_eur, license.billing_interval)}</strong>
-          {' '}(n. {formatLicenseMoney(pricing.estimated_monthly_total_eur)} / kk).
+          {license.billing_interval !== 'monthly' && <>{' '}({formatLicenseMoney(pricing.estimated_monthly_total_eur)} ennen jakson alennusta)</>}.
         </p>
       )}
 

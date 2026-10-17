@@ -3,6 +3,7 @@ import { useOutletContext } from 'react-router-dom';
 import DataTable, { type DataTableColumn } from '../../components/DataTable';
 import { invalidateCompanyLicenseCache } from '../../hooks/useCompanyLicense';
 import { parseLicenseOverviewRows, trialDaysRemaining, type LicenseOverviewRow } from '../../lib/companyLicense';
+import { billingPeriodLabel, normalizeBillingPeriod } from '../../lib/companySignup';
 import { HUOLTO_CATEGORIES, huoltoAccess, parseHuoltoSettings, type HuoltoCategoryKey } from '../../lib/huoltoCategories';
 import type { ManagementOutletContext } from '../../lib/managementOutletContext';
 import { supabase } from '../../lib/supabase';
@@ -33,6 +34,7 @@ type Row = {
   modules: Record<string, boolean>;
   huolto: Record<HuoltoCategoryKey, boolean>;
   monthly: number | null;
+  period: string;
 };
 
 function rec(v: unknown): Record<string, unknown> {
@@ -120,6 +122,7 @@ export default function GlobalAdminCompaniesPage() {
         modules,
         huolto: Object.fromEntries(HUOLTO_CATEGORIES.map((k) => [k.key, access.isCategoryEnabled(k.key)])) as Record<HuoltoCategoryKey, boolean>,
         monthly: monthly[c.id] ?? null,
+        period: billingPeriodLabel(normalizeBillingPeriod(lic.billing_interval)),
       };
     });
   }, [companies, counts, overview, monthly]);
@@ -145,12 +148,13 @@ export default function GlobalAdminCompaniesPage() {
     flagCol('base', 'Perus', 'Peruspaketti', (r) => r.base),
     ...MODULE_COLUMNS.map((m) => flagCol(`m:${m.key}`, m.short, m.label, (r) => r.modules[m.key] === true)),
     ...HUOLTO_CATEGORIES.map((k) => flagCol(`h:${k.key}`, k.short, k.label, (r) => r.huolto[k.key])),
+    { key: 'period', label: 'Laskutus', value: (r) => r.period },
     { key: 'users', label: 'Käyttäjiä', value: (r) => r.users, className: 'num' },
     { key: 'rows', label: 'Rivejä', value: (r) => r.rows, className: 'num' },
     {
       key: 'monthly',
       label: '€/kk',
-      title: 'Kuukausihinta alv 0 %',
+      title: 'Kuukausihinta alv 0 % (laskutusjakson alennus huomioitu)',
       className: 'num',
       value: (r) => r.monthly,
       render: (r) => (r.monthly == null ? '—' : eur(r.monthly)),

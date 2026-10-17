@@ -58,6 +58,8 @@ export type SignupForm = {
   huolto: Record<HuoltoCategoryKey, boolean>;
   users: SignupUser[];
   message: string;
+  /** Valittu laskutusjakso (oletus kuukausi). */
+  billing_interval?: BillingPeriod;
 };
 
 export type PriceList = {
@@ -71,7 +73,67 @@ export type PriceList = {
   trial_days: number;
   /** false = license_catalog.module_prices ilman 'inventory'-avainta (varasto_module.sql ajamatta). */
   inventory_priced?: boolean;
+  /** Laskutusjakson alennus % (license_catalog.billing_discounts; annual_billing.sql). */
+  billing_discounts: Record<DiscountedPeriod, number>;
+  /** false = billing_discounts-saraketta ei vielä ole (annual_billing.sql ajamatta). */
+  billing_discounts_stored?: boolean;
 };
+
+/** Laskutusjaksot tilauksessa (arvot = companies.settings.license.billing_interval). */
+export type BillingPeriod = 'monthly' | 'semi_annual' | 'annual';
+export type DiscountedPeriod = Exclude<BillingPeriod, 'monthly'>;
+export const BILLING_PERIODS: { value: BillingPeriod; label: string; months: number }[] = [
+  { value: 'monthly', label: 'Kuukausilaskutus', months: 1 },
+  { value: 'semi_annual', label: '6 kk laskutus', months: 6 },
+  { value: 'annual', label: 'Vuosilaskutus', months: 12 },
+];
+export const DEFAULT_BILLING_DISCOUNTS: Record<DiscountedPeriod, number> = { semi_annual: 5, annual: 10 };
+
+export function normalizeBillingPeriod(raw: unknown): BillingPeriod {
+  return BILLING_PERIODS.some((b) => b.value === raw) ? (raw as BillingPeriod) : 'monthly';
+}
+
+export function billingPeriodLabel(raw: unknown): string {
+  if (raw === 'quarterly') return '3 kk laskutus';
+  return BILLING_PERIODS.find((b) => b.value === raw)?.label ?? 'Kuukausilaskutus';
+}
+
+export type PeriodPrice = {
+  period: BillingPeriod;
+  months: number;
+  discount_pct: number;
+  /** Jakson hinta ilman alennusta, alv 0 %. */
+  list_net: number;
+  /** Jakson hinta alennuksen jälkeen. */
+  net: number;
+  gross: number;
+  /** Kuukausihinta alennuksen jälkeen, alv 0 %. */
+  monthly_net: number;
+  /** Säästö jaksolta alv 0 %. */
+  saving_net: number;
+};
+
+/**
+ * Jakson hinta: kk-hinta × kk − alennus %, sentteihin (sama kuin SQL license_period_total).
+ * 59 €/kk vuosi −10 %: 708 → 637,20 € (sis. alv 799,69), kk 53,10, säästö 70,80.
+ */
+export function periodPrice(monthlyNet: number, period: BillingPeriod, prices: Pick<PriceList, 'billing_discounts'>): PeriodPrice {
+  const months = BILLING_PERIODS.find((b) => b.value === period)?.months ?? 1;
+  const pct = period === 'monthly' ? 0 : (prices.billing_discounts?.[period] ?? 0);
+  const listCents = Math.round(monthlyNet * 100) * months;
+  const netCents = Math.round((listCents * (100 - pct)) / 100);
+  const net = netCents / 100;
+  return {
+    period,
+    months,
+    discount_pct: pct,
+    list_net: listCents / 100,
+    net,
+    gross: grossOf(net),
+    monthly_net: Math.round(netCents / months) / 100,
+    saving_net: (listCents - netCents) / 100,
+  };
+}
 
 export type DeviceTypeKey = 'jc3248' | 'esp32_ds18b20' | 'default';
 export const DEVICE_TYPES: DeviceTypeKey[] = ['jc3248', 'esp32_ds18b20', 'default'];
@@ -177,6 +239,11 @@ export function parsePriceList(row: unknown): PriceList {
   const device_prices = {} as Record<DeviceTypeKey, number>;
   for (const k of DEVICE_TYPES) device_prices[k] = num(dp[k], DEFAULT_DEVICE_PRICES[k]);
   const trial = Math.round(num(r.trial_days, DEFAULT_TRIAL_DAYS));
+  const bd = rec(r.billing_discounts);
+  const pct = (v: unknown, f: number) => {
+    const n = num(v, f);
+    return n <= 100 ? n : f;
+  };
   return {
     base_monthly_eur: num(r.base_monthly_eur, DEFAULT_BASE_MONTHLY_EUR),
     module_prices,
@@ -185,6 +252,11 @@ export function parsePriceList(row: unknown): PriceList {
     device_prices,
     trial_days: trial >= 1 ? trial : DEFAULT_TRIAL_DAYS,
     inventory_priced: Object.prototype.hasOwnProperty.call(mp, 'inventory'),
+    billing_discounts: {
+      semi_annual: pct(bd.semi_annual, DEFAULT_BILLING_DISCOUNTS.semi_annual),
+      annual: pct(bd.annual, DEFAULT_BILLING_DISCOUNTS.annual),
+    },
+    billing_discounts_stored: Object.prototype.hasOwnProperty.call(r, 'billing_discounts'),
   };
 }
 
@@ -375,6 +447,7 @@ export function cleanSignup(form: SignupForm): SignupForm {
       roles: normalizeRoles(u.roles),
     })),
     message: t(form.message, 2000),
+    billing_interval: normalizeBillingPeriod(form.billing_interval),
   };
 }
 

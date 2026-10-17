@@ -69,12 +69,17 @@ export type CompanyLicenseSnapshot = {
   }>;
 };
 
+/** Valittavat laskutusjaksot (3 kk vain vanhoilla tilauksilla; ei tarjota). */
 export const LICENSE_BILLING_INTERVALS: { value: LicenseBillingInterval; label: string; months: number }[] = [
-  { value: 'monthly', label: 'Kuukausittain', months: 1 },
-  { value: 'quarterly', label: '3 kk välein', months: 3 },
-  { value: 'semi_annual', label: '6 kk välein', months: 6 },
-  { value: 'annual', label: 'Kerran vuodessa', months: 12 },
+  { value: 'monthly', label: 'Kuukausilaskutus', months: 1 },
+  { value: 'semi_annual', label: '6 kk laskutus', months: 6 },
+  { value: 'annual', label: 'Vuosilaskutus', months: 12 },
 ];
+
+export function licenseBillingIntervalMonths(interval: LicenseBillingInterval): number {
+  if (interval === 'quarterly') return 3;
+  return LICENSE_BILLING_INTERVALS.find((item) => item.value === interval)?.months ?? 1;
+}
 
 export const LICENSE_PAYMENT_STATUS_LABELS: Record<LicensePaymentStatus, string> = {
   none: 'Ei laskutusta',
@@ -187,8 +192,8 @@ export function formatLicenseMoney(value: number, suffix = '€/kk') {
 }
 
 export function formatLicensePeriodMoney(value: number, interval: LicenseBillingInterval) {
-  const entry = LICENSE_BILLING_INTERVALS.find((item) => item.value === interval);
-  const label = entry && entry.months > 1 ? `€ / ${entry.months} kk` : '€ / jakso';
+  const months = licenseBillingIntervalMonths(interval);
+  const label = months === 12 ? '€ / v' : months > 1 ? `€ / ${months} kk` : '€ / kk';
   return formatLicenseMoney(value, label);
 }
 
@@ -235,9 +240,11 @@ function parseRemoteMonitoringDevicesPricing(raw: unknown): RemoteMonitoringDevi
   };
 }
 
-export function estimateOrderPeriodTotal(monthly: number, interval: LicenseBillingInterval) {
-  const months = LICENSE_BILLING_INTERVALS.find((item) => item.value === interval)?.months ?? 1;
-  return Math.round(monthly * months * 100) / 100;
+/** Jakson hinta alennuksen jälkeen (sama kuin SQL license_period_total / periodPrice). */
+export function estimateOrderPeriodTotal(monthly: number, interval: LicenseBillingInterval, discountPct = 0) {
+  const months = licenseBillingIntervalMonths(interval);
+  const listCents = Math.round(monthly * 100) * months;
+  return Math.round((listCents * (100 - discountPct)) / 100) / 100;
 }
 
 export function trialDaysRemaining(snapshot: CompanyLicenseSnapshot | null): number | null {

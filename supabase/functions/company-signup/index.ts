@@ -20,6 +20,9 @@ import {
   signupSelection,
   validateSignup,
   type SignupForm,
+  billingPeriodLabel,
+  normalizeBillingPeriod,
+  periodPrice,
 } from '../_shared/companySignupCore.ts';
 
 const APP_URL = 'https://bestcool.eu';
@@ -139,7 +142,14 @@ async function handleSubmit(req: Request, body: Record<string, unknown>, admin: 
   if (dup && dup.length) return json({ error: 'Tällä Y-tunnuksella on jo käsiteltävä tilaus.' }, 409);
 
   const prices = await loadPrices(admin);
-  const estimate = estimateMonthly(signupSelection(form), prices);
+  const monthlyEstimate = estimateMonthly(signupSelection(form), prices);
+  // Laskutusjakso tallennetaan estimate-kenttään (annual_billing.sql vie sen yrityksen lisenssiin hyväksynnässä).
+  const billingInterval = normalizeBillingPeriod(form.billing_interval);
+  const estimate = {
+    ...monthlyEstimate,
+    billing_interval: billingInterval,
+    period: periodPrice(monthlyEstimate.net, billingInterval, prices),
+  };
 
   const { data: row, error: insertError } = await admin
     .from('company_signup_requests')
@@ -343,7 +353,18 @@ async function sendApprovedMail(
   if (!to) return { ok: false, error: 'Sähköposti puuttuu', at };
   const prices = await loadPrices(admin);
   const { data: breakdown } = await admin.rpc('company_monthly_price_breakdown', { p_company_id: companyId });
-  const b = (breakdown ?? {}) as { net?: number; gross?: number };
+  const b = (breakdown ?? {}) as {
+    net?: number;
+    gross?: number;
+    billing_interval?: string;
+    period_net?: number;
+    period_gross?: number;
+    discount_pct?: number;
+  };
+  const period = normalizeBillingPeriod(b.billing_interval);
+  const periodRow = period !== 'monthly' && Number.isFinite(Number(b.period_net))
+    ? `<tr><td style="${'padding:4px 12px 4px 0;font-size:15px;vertical-align:top;color:#6b7280;white-space:nowrap'}">Laskutusjakso</td><td style="${'padding:4px 12px 4px 0;font-size:15px;vertical-align:top'}">${esc(billingPeriodLabel(period))}: ${formatEur(Number(b.period_net))} alv 0 % (${formatEur(Number(b.period_gross))} sis. alv 25,5 %), alennus ${Number(b.discount_pct ?? 0).toLocaleString('fi-FI')} %</td></tr>`
+    : '';
   const net = Number(b.net);
   const gross = Number(b.gross);
   const modules = ['Peruspaketti', ...selectionLines({
@@ -360,6 +381,7 @@ async function sendApprovedMail(
 <p style="${p}">BC Smartapp -tilauksenne yritykselle <b>${esc(request.company_name)}</b> on hyväksytty.</p>
 <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 12px;border-collapse:collapse">
 <tr><td style="${th}">Moduulit</td><td style="${td}">${esc(modules.join(', '))}</td></tr>
+${periodRow}
 ${Number.isFinite(net) ? `<tr><td style="${th}">Kuukausihinta</td><td style="${td}">${formatEur(net)}/kk alv 0 % (${formatEur(Number.isFinite(gross) ? gross : net)}/kk sis. alv 25,5 %)</td></tr>` : ''}
 <tr><td style="${th}">Kokeilujakso</td><td style="${td}">${prices.trial_days} päivää, alkaa ensimmäisestä kirjautumisesta</td></tr>
 </table>
