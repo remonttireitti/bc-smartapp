@@ -143,7 +143,7 @@ export const DEVICE_TYPE_LABELS: Record<DeviceTypeKey, string> = {
   default: 'Muu lämpötilalaite',
 };
 export const DEFAULT_DEVICE_PRICES: Record<DeviceTypeKey, number> = { jc3248: 5, esp32_ds18b20: 5, default: 5 };
-export const DEFAULT_TRIAL_DAYS = 30;
+export const DEFAULT_TRIAL_DAYS = 14;
 
 /*
  * Moduulien, huoltolajien ja roolien yhden rivin kuvaukset — AINOA lähde (tilauslomake, lisenssipaneeli,
