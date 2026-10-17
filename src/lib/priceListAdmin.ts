@@ -3,6 +3,7 @@ import {
   ADDON_MODULE_LABELS,
   BASE_PACKAGE_DESCRIPTION,
   DEVICE_PRICE_NOTE,
+  DEVICE_PURCHASE_PRICE_TEXT,
   DEVICE_TYPE_LABELS,
   DEVICE_TYPES,
   HUOLTO_DESCRIPTIONS,
@@ -57,9 +58,9 @@ const moduleRow = (k: AddonModuleKey): PriceRow => ({
 const deviceRow = (k: DeviceTypeKey): PriceRow => ({
   key: `device:${k}`,
   group: 'moduulit',
-  label: `Laite: ${DEVICE_TYPE_LABELS[k]}`,
-  description: 'Etäseurannan seurattava laite, €/kk per laite (alkaen)',
-  note: DEVICE_PRICE_NOTE,
+  label: `Laitemaksu: ${DEVICE_TYPE_LABELS[k]}`,
+  description: DEVICE_PRICE_NOTE,
+  note: `Itse laite ${DEVICE_PURCHASE_PRICE_TEXT}`,
   get: (p) => p.device_prices[k],
   set: (p, v) => ({ ...p, device_prices: { ...p.device_prices, [k]: v } }),
 });
