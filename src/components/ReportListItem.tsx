@@ -46,6 +46,8 @@ export function ReportListItem({
 
   customerBillingEnabled = false,
 
+  partnershipsEnabled = true,
+
   showStatusMenu = false,
 
   portalView = false,
@@ -67,6 +69,8 @@ export function ReportListItem({
   billingModuleEnabled?: boolean;
 
   customerBillingEnabled?: boolean;
+  /** Kumppanuudet-moduuli: ilman sitä ei kumppanilaskutusta. */
+  partnershipsEnabled?: boolean;
 
   showStatusMenu?: boolean;
 
@@ -160,6 +164,7 @@ export function ReportListItem({
 
   const showPartnerBilling =
     !portalView
+    && partnershipsEnabled
     && !!viewerCompanyId
     && variant === 'default'
     && (canManageIncomingPartnerBilling(billingRow, viewerCompanyId, hasDailyLogs)

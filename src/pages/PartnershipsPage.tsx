@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import {
-  customerSharingSummary,
   loadCustomerSharingForPartnership,
   loadOwnCustomers,
   loadReportLinkedCustomersByPartnership,
@@ -12,8 +11,8 @@ import {
   ACCESS_LEVEL_OPTIONS,
   PARTNERSHIP_MODULES,
   applyPartnershipDependencies,
+  ACCESS_LEVEL_LABELS,
   emptyPartnershipPermissions,
-  formatPartnershipPerms,
   parsePartnershipPermissions,
   parsePartnerBillingRates,
   partnershipBillingRatesFieldPartnerChargesOwner,
@@ -32,10 +31,51 @@ import type { Company, Customer, Partnership } from '../types';
 
 type SharingSummary = {
   restricted: boolean;
-  sharedCount: number;
-  reportLinkedCount: number;
-  totalCount: number;
+  /** Omat asiakkaat, jotka kumppani näkee (jaetut + raportin kautta avautuneet). */
+  ourVisibleCount: number;
+  ourTotalCount: number;
+  /** Kumppanin asiakkaat, jotka me näemme. */
+  partnerSharedCount: number;
 };
+
+const fiNumber = new Intl.NumberFormat('fi-FI', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+function formatRate(value: number | null | undefined) {
+  return value == null ? '—' : fiNumber.format(Number(value));
+}
+
+/** "Uudenmaan Kylmähuolto Oy" -> "Uudenmaan Kylmähuolto Oy:lle"; muuten "kumppanille". */
+function toPartnerAllative(name: string) {
+  return /\b(oy|oyj|ab|ky|tmi|ry|ay)$/i.test(name.trim()) ? `${name.trim()}:lle` : 'kumppanille';
+}
+
+function LockIcon() {
+  return (
+    <svg className="partner-lock" viewBox="0 0 16 16" width="13" height="13" aria-hidden="true">
+      <path
+        fill="currentColor"
+        d="M8 1a3.5 3.5 0 0 0-3.5 3.5V6H4a1.5 1.5 0 0 0-1.5 1.5v6A1.5 1.5 0 0 0 4 15h8a1.5 1.5 0 0 0 1.5-1.5v-6A1.5 1.5 0 0 0 12 6h-.5V4.5A3.5 3.5 0 0 0 8 1Zm2 5H6V4.5a2 2 0 1 1 4 0V6Z"
+      />
+    </svg>
+  );
+}
+
+function PermissionTable({ raw }: { raw: unknown }) {
+  const perms = parsePartnershipPermissions(raw);
+  return (
+    <ul className="partner-perm-list">
+      {PARTNERSHIP_MODULES.map((mod) => {
+        const level = perms[mod.key];
+        return (
+          <li key={mod.key}>
+            <span>{mod.label}</span>
+            <span className={`perm-pill perm-pill-${level}`}>{ACCESS_LEVEL_LABELS[level]}</span>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
 
 function partnershipGrantsRegistryAccess(raw: unknown) {
   return (
@@ -109,18 +149,46 @@ export default function PartnershipsPage() {
           loadReportLinkedCustomersByPartnership(supabase, profile.company_id, partnershipLinks),
         ]);
 
-        const counts = new Map<string, number>();
+        const ownIds = new Set(customers.map((customer) => customer.id));
+        const ownShared = new Map<string, Set<string>>();
+        const foreignIds = new Map<string, string[]>();
         for (const row of accessRows ?? []) {
-          counts.set(row.partnership_id, (counts.get(row.partnership_id) ?? 0) + 1);
+          const customerId = row.customer_id as string;
+          if (ownIds.has(customerId)) {
+            if (!ownShared.has(row.partnership_id)) ownShared.set(row.partnership_id, new Set());
+            ownShared.get(row.partnership_id)!.add(customerId);
+          } else {
+            foreignIds.set(row.partnership_id, [...(foreignIds.get(row.partnership_id) ?? []), customerId]);
+          }
         }
+
+        // Kumppanin jakamat: vain kumppanin omistamat asiakkaat, jotka oikeasti näemme.
+        const partnerSharedCounts = new Map<string, number>();
+        await Promise.all(
+          partnershipLinks.map(async (link) => {
+            const ids = foreignIds.get(link.id) ?? [];
+            if (ids.length === 0) return;
+            const { data: visible } = await supabase
+              .from('customers')
+              .select('id')
+              .eq('owner_company_id', link.partnerCompanyId)
+              .in('id', ids);
+            partnerSharedCounts.set(link.id, visible?.length ?? 0);
+          }),
+        );
 
         const summaries: Record<string, SharingSummary> = {};
         for (const partnership of enriched) {
+          const restricted = Boolean(partnership.customer_access_restricted ?? true);
+          const visibleOwn = new Set([
+            ...(ownShared.get(partnership.id) ?? []),
+            ...(reportLinkedByPartnership[partnership.id] ?? []),
+          ]);
           summaries[partnership.id] = {
-            restricted: Boolean(partnership.customer_access_restricted ?? true),
-            sharedCount: counts.get(partnership.id) ?? 0,
-            reportLinkedCount: reportLinkedByPartnership[partnership.id]?.length ?? 0,
-            totalCount: customers.length,
+            restricted,
+            ourVisibleCount: restricted ? visibleOwn.size : customers.length,
+            ourTotalCount: customers.length,
+            partnerSharedCount: partnerSharedCounts.get(partnership.id) ?? 0,
           };
         }
         setSharingSummaries(summaries);
@@ -290,15 +358,11 @@ export default function PartnershipsPage() {
 
       <section className="panel">
         <h2>Aktiiviset kumppanuudet</h2>
-        <p className="muted">
-          Voit määrittää vain <strong>mitä kumppani saa tehdä yrityksesi nimissä</strong>.
-          Jokaiselle osiolle: ei oikeutta, lukuoikeus tai luonti ja muokkaus.
-          Oikeus toimia kumppanin nimissä määrittää aina kumppanin ylläpitäjä.
-        </p>
+        <p className="muted">Määrität täällä vain, mitä kumppani saa tehdä yrityksesi nimissä.</p>
         {partnerships.length === 0 ? (
           <p className="muted">Ei kumppanuuksia vielä.</p>
         ) : (
-          <ul className="report-list">
+          <div className="partner-card-list">
             {partnerships.map((p) => {
               const grantField = partnershipPermissionsForUs(p, profile.company_id!);
               const receiveField = partnershipPermissionsGrantedToUs(p, profile.company_id!);
@@ -311,162 +375,176 @@ export default function PartnershipsPage() {
               const ourRates = ratesField ? parsePartnerBillingRates(p[ratesField]) : {};
               const sharingSummary = sharingSummaries[p.id];
               const canManageCustomerSharing = grantField && partnershipGrantsRegistryAccess(grantedByUs);
+              const partnerName = p.partner_company.name;
+              const showRates = showBillingSettings && grantField && ratesField;
 
               return (
-                <li key={p.id}>
-                  <div className="report-link-body" style={{ width: '100%' }}>
-                    <strong>{p.partner_company.name}</strong>
-                    <div className="muted">
-                      <strong>Myönnät kumppanille:</strong> {formatPartnershipPerms(grantedByUs)}
-                    </div>
-                    <div className="muted">
-                      <strong>Kumppani myöntää teille:</strong> {formatPartnershipPerms(grantedToUs)}
-                      <span className="perm-readonly-note"> (vain luku — muokkaa kumppanin ylläpitäjä)</span>
-                    </div>
-
-                    {showBillingSettings && grantField && ratesField && (
-                    <div className="muted">
-                      <strong>Kumppanin laskutushinnat meille:</strong>{' '}
-                      {ourRates.hourly_regular != null
-                        ? `${ourRates.hourly_regular} €/h (ylityö ${ourRates.hourly_overtime ?? '—'}, päivystys ${ourRates.hourly_on_call ?? '—'})`
-                        : 'Ei erillisiä — käytetään kumppanin oletushintoja'}
-                    </div>
-                    )}
-
-                    {canManageCustomerSharing && sharingSummary && (
-                      <div className="muted">
-                        <strong>Jaetut asiakkaat:</strong>{' '}
-                        {customerSharingSummary(
-                          sharingSummary.restricted,
-                          sharingSummary.sharedCount,
-                          sharingSummary.reportLinkedCount,
-                          sharingSummary.totalCount,
+                <article key={p.id} className="partner-card">
+                  <header className="partner-card-head">
+                    <h3>{partnerName}</h3>
+                    {grantField && !isEditing && !isEditingRates && !isEditingCustomers && (
+                      <div className="partner-card-actions">
+                        <button type="button" className="btn btn-secondary btn-sm" onClick={() => startEdit(p)}>
+                          Muokkaa oikeuksia
+                        </button>
+                        {canManageCustomerSharing && (
+                          <button type="button" className="btn btn-secondary btn-sm" onClick={() => void startEditCustomers(p)}>
+                            Valitse asiakkaat
+                          </button>
+                        )}
+                        {showBillingSettings && (
+                          <button type="button" className="btn btn-secondary btn-sm" onClick={() => startEditRates(p)}>
+                            Muokkaa hintoja
+                          </button>
                         )}
                       </div>
                     )}
+                  </header>
 
-                    {canManageCustomerSharing && isEditingCustomers && (
-                      <div className="perm-grid">
-                        <p>
-                          <strong>Valitse asiakkaat, jotka {p.partner_company.name} näkee</strong>
-                        </p>
-                        <p className="muted">
-                          Oletus: kumppani ei näe yhtään asiakasta. Asiakas avautuu automaattisesti, kun
-                          kumppani on laatinut sille raportin. Voit myös jakaa asiakkaan etukäteen, jotta
-                          kumppani voi luoda raportin tai nähdä tiedot ilman aiempaa raporttia.
-                        </p>
-                        {ownCustomers.length === 0 ? (
-                          <p className="muted">Rekisterissäsi ei ole vielä asiakkaita.</p>
-                        ) : (
-                          <PartnerCustomerSharingPicker
-                            customers={ownCustomers}
-                            selectedIds={selectedCustomerIds}
-                            reportLinkedIds={reportLinkedCustomerIds}
-                            onChange={setSelectedCustomerIds}
-                          />
-                        )}
-                        <div className="form-actions" style={{ justifyContent: 'flex-start' }}>
-                          <button type="button" className="btn btn-primary" onClick={() => void saveCustomerSharing(p)}>
-                            Tallenna asiakkaat
-                          </button>
-                          <button type="button" className="btn btn-secondary" onClick={() => setEditingCustomersId(null)}>
-                            Peruuta
-                          </button>
-                        </div>
-                      </div>
-                    )}
-
-                    {showBillingSettings && grantField && isEditingRates && ratesField && (
-                      <div className="perm-grid">
-                        <p>
-                          <strong>
-                            Hinta, jolla {p.partner_company.name} laskuttaa meitä
-                          </strong>
-                        </p>
-                        <p className="muted">
-                          Kun annat kumppanille oikeuden tehdä raportteja {companyName} -nimissä, kumppani
-                          laskuttaa näillä hinnoilla. Tyhjät kentät = kumppanin oletushinnat (kumppanin Hallinta →
-                          Yritystiedot). Raportin laatija voi tarvittaessa muokata hintaa yksittäisessä
-                          työraportissa.
-                        </p>
-                        <PartnerBillingRatesFields rates={editRates} onChange={setEditRates} />
-                        <div className="form-actions" style={{ justifyContent: 'flex-start' }}>
-                          <button type="button" className="btn btn-primary" onClick={() => void saveBillingRates(p)}>
-                            Tallenna hinnat
-                          </button>
-                          <button type="button" className="btn btn-secondary" onClick={() => setEditingRatesId(null)}>
-                            Peruuta
-                          </button>
-                        </div>
-                      </div>
-                    )}
-
-                    {isEditing && grantField && (
-                      <div className="perm-grid">
-                        <p><strong>Myönnä kumppanille oikeus toimia {companyName} -nimissä</strong></p>
-                        {partnershipNeedsCustomersRead(editPerms) && (
-                          <p className="muted perm-dependency-note">
-                            Työ-/huoltoraportin tai tarjouspyynnön luonti vaatii vähintään asiakkaiden lukuoikeuden.
-                            Laiterekisteri (asiakkaan laitteet) seuraa samaa oikeutta.
-                          </p>
-                        )}
-                        <div className="perm-module-grid">
-                          {PARTNERSHIP_MODULES.map((mod) => (
-                            <label key={mod.key}>
-                              {mod.label}
-                              <select
-                                value={editPerms[mod.key]}
-                                onChange={(e) => setModuleLevel(mod.key, e.target.value)}
-                              >
-                                {ACCESS_LEVEL_OPTIONS.map((opt) => (
-                                  <option
-                                    key={opt.value}
-                                    value={opt.value}
-                                    disabled={
-                                      mod.key === 'customers'
-                                      && opt.value === 'none'
-                                      && partnershipNeedsCustomersRead(editPerms)
-                                    }
-                                  >
-                                    {opt.label}
-                                  </option>
-                                ))}
-                              </select>
-                            </label>
-                          ))}
-                        </div>
-                        <div className="form-actions" style={{ justifyContent: 'flex-start' }}>
-                          <button type="button" className="btn btn-primary" onClick={() => void savePermissions(p)}>
-                            Tallenna oikeudet
-                          </button>
-                          <button type="button" className="btn btn-secondary" onClick={() => setEditingId(null)}>
-                            Peruuta
-                          </button>
-                        </div>
-                      </div>
-                    )}
+                  <div className="partner-card-columns">
+                    <section>
+                      <h4>Me annamme {toPartnerAllative(partnerName)}</h4>
+                      <PermissionTable raw={grantedByUs} />
+                    </section>
+                    <section>
+                      <h4 title="Vain kumppanin ylläpitäjä voi muuttaa näitä">
+                        {partnerName} antaa meille <LockIcon />
+                      </h4>
+                      <PermissionTable raw={grantedToUs} />
+                    </section>
                   </div>
-                  {grantField && !isEditing && !isEditingRates && !isEditingCustomers && (
-                    <div className="partner-actions">
-                      <button type="button" className="btn btn-secondary" onClick={() => startEdit(p)}>
-                        Muokkaa oikeuksia
-                      </button>
-                      {canManageCustomerSharing && (
-                        <button type="button" className="btn btn-secondary" onClick={() => void startEditCustomers(p)}>
-                          Valitse asiakkaat
-                        </button>
+
+                  {(showRates || sharingSummary) && (
+                    <dl className="partner-card-stats">
+                      {showRates && (
+                        <div>
+                          <dt>Laskutushinnat meille</dt>
+                          <dd>
+                            {ourRates.hourly_regular != null
+                              ? `${formatRate(ourRates.hourly_regular)} €/h · ylityö ${formatRate(ourRates.hourly_overtime)} · päivystys ${formatRate(ourRates.hourly_on_call)}`
+                              : 'Kumppanin oletushinnat'}
+                          </dd>
+                        </div>
                       )}
-                      {showBillingSettings && (
-                        <button type="button" className="btn btn-secondary" onClick={() => startEditRates(p)}>
-                          Muokkaa hintoja
-                        </button>
+                      {sharingSummary && (
+                        <div>
+                          <dt>Jaetut asiakkaat</dt>
+                          <dd>
+                            Me jaamme {sharingSummary.restricted
+                              ? `${sharingSummary.ourVisibleCount}/${sharingSummary.ourTotalCount}`
+                              : `kaikki (${sharingSummary.ourTotalCount})`}
+                            {' · '}
+                            Kumppani jakaa {sharingSummary.restricted ? sharingSummary.partnerSharedCount : 'kaikki'}
+                          </dd>
+                        </div>
                       )}
-                    </div>
+                    </dl>
                   )}
-                </li>
+
+                {canManageCustomerSharing && isEditingCustomers && (
+                  <div className="perm-grid">
+                    <p>
+                      <strong>Valitse asiakkaat, jotka {p.partner_company.name} näkee</strong>
+                    </p>
+                    <p className="muted">
+                      Oletus: kumppani ei näe yhtään asiakasta. Asiakas avautuu automaattisesti, kun
+                      kumppani on laatinut sille raportin. Voit myös jakaa asiakkaan etukäteen, jotta
+                      kumppani voi luoda raportin tai nähdä tiedot ilman aiempaa raporttia.
+                    </p>
+                    {ownCustomers.length === 0 ? (
+                      <p className="muted">Rekisterissäsi ei ole vielä asiakkaita.</p>
+                    ) : (
+                      <PartnerCustomerSharingPicker
+                        customers={ownCustomers}
+                        selectedIds={selectedCustomerIds}
+                        reportLinkedIds={reportLinkedCustomerIds}
+                        onChange={setSelectedCustomerIds}
+                      />
+                    )}
+                    <div className="form-actions" style={{ justifyContent: 'flex-start' }}>
+                      <button type="button" className="btn btn-primary" onClick={() => void saveCustomerSharing(p)}>
+                        Tallenna asiakkaat
+                      </button>
+                      <button type="button" className="btn btn-secondary" onClick={() => setEditingCustomersId(null)}>
+                        Peruuta
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {showBillingSettings && grantField && isEditingRates && ratesField && (
+                  <div className="perm-grid">
+                    <p>
+                      <strong>
+                        Hinta, jolla {p.partner_company.name} laskuttaa meitä
+                      </strong>
+                    </p>
+                    <p className="muted">
+                      Kun annat kumppanille oikeuden tehdä raportteja {companyName} -nimissä, kumppani
+                      laskuttaa näillä hinnoilla. Tyhjät kentät = kumppanin oletushinnat (kumppanin Hallinta →
+                      Yritystiedot). Raportin laatija voi tarvittaessa muokata hintaa yksittäisessä
+                      työraportissa.
+                    </p>
+                    <PartnerBillingRatesFields rates={editRates} onChange={setEditRates} />
+                    <div className="form-actions" style={{ justifyContent: 'flex-start' }}>
+                      <button type="button" className="btn btn-primary" onClick={() => void saveBillingRates(p)}>
+                        Tallenna hinnat
+                      </button>
+                      <button type="button" className="btn btn-secondary" onClick={() => setEditingRatesId(null)}>
+                        Peruuta
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {isEditing && grantField && (
+                  <div className="perm-grid">
+                    <p><strong>Myönnä kumppanille oikeus toimia {companyName} -nimissä</strong></p>
+                    {partnershipNeedsCustomersRead(editPerms) && (
+                      <p className="muted perm-dependency-note">
+                        Työ-/huoltoraportin tai tarjouspyynnön luonti vaatii vähintään asiakkaiden lukuoikeuden.
+                        Laiterekisteri (asiakkaan laitteet) seuraa samaa oikeutta.
+                      </p>
+                    )}
+                    <div className="perm-module-grid">
+                      {PARTNERSHIP_MODULES.map((mod) => (
+                        <label key={mod.key}>
+                          {mod.label}
+                          <select
+                            value={editPerms[mod.key]}
+                            onChange={(e) => setModuleLevel(mod.key, e.target.value)}
+                          >
+                            {ACCESS_LEVEL_OPTIONS.map((opt) => (
+                              <option
+                                key={opt.value}
+                                value={opt.value}
+                                disabled={
+                                  mod.key === 'customers'
+                                  && opt.value === 'none'
+                                  && partnershipNeedsCustomersRead(editPerms)
+                                }
+                              >
+                                {opt.label}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                      ))}
+                    </div>
+                    <div className="form-actions" style={{ justifyContent: 'flex-start' }}>
+                      <button type="button" className="btn btn-primary" onClick={() => void savePermissions(p)}>
+                        Tallenna oikeudet
+                      </button>
+                      <button type="button" className="btn btn-secondary" onClick={() => setEditingId(null)}>
+                        Peruuta
+                      </button>
+                    </div>
+                  </div>
+                )}
+                </article>
               );
             })}
-          </ul>
+          </div>
         )}
       </section>
 

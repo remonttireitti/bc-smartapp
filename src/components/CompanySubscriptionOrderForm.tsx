@@ -1,5 +1,6 @@
 import { FormEvent, useMemo, useState } from 'react';
 import ToggleSwitch from './ToggleSwitch';
+import ModuleDescription from './ModuleDescription';
 import {
   estimateOrderMonthlyTotal,
   estimateOrderPeriodTotal,
@@ -9,6 +10,7 @@ import {
   LICENSE_MODULE_DESCRIPTIONS,
   LICENSE_MODULE_LABELS,
   PRICED_ADDON_MODULES,
+  offeredLicenseAddonModules,
   remoteMonitoringModuleDisplayPrice,
   tempDeviceTypeLabel,
   type CompanyLicenseSnapshot,
@@ -27,6 +29,7 @@ export default function CompanySubscriptionOrderForm({ license, onSubmitted }: P
     quotes: false,
     billing: false,
     remote_monitoring: false,
+    inventory: false,
     tools: false,
   });
   const [billingInterval, setBillingInterval] = useState<LicenseBillingInterval>('monthly');
@@ -117,7 +120,7 @@ export default function CompanySubscriptionOrderForm({ license, onSubmitted }: P
             )}
           </span>
         </div>
-        {PRICED_ADDON_MODULES.map((moduleKey) => {
+        {offeredLicenseAddonModules(license.pricing).map((moduleKey) => {
           const basePrice = license.pricing.module_prices[moduleKey] ?? 0;
           const displayPrice =
             moduleKey === 'remote_monitoring' && modules.remote_monitoring
@@ -141,7 +144,7 @@ export default function CompanySubscriptionOrderForm({ license, onSubmitted }: P
                     laitetta)
                   </span>
                 )}
-                <span className="muted"> — {LICENSE_MODULE_DESCRIPTIONS[moduleKey]}</span>
+                <span className="muted"> — <ModuleDescription moduleKey={moduleKey} /></span>
                 {moduleKey === 'remote_monitoring' && showDevices && (
                   <ul className="license-device-pricing-list">
                     {license.pricing.remote_monitoring_devices.by_type.map((row) => (

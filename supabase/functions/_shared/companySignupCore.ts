@@ -11,12 +11,14 @@ export const STAFF_ROLE_LABELS: Record<StaffRole, string> = {
   technician: 'Asentaja',
 };
 
-export type AddonModuleKey = 'quotes' | 'billing' | 'remote_monitoring' | 'tools' | 'partners';
-export const ADDON_MODULES: AddonModuleKey[] = ['quotes', 'billing', 'remote_monitoring', 'tools', 'partners'];
+export type AddonModuleKey = 'quotes' | 'billing' | 'remote_monitoring' | 'inventory' | 'tools' | 'partners';
+/** Järjestys = laskun rivijärjestys (sama kuin SQL license_monthly_total / company_monthly_price_breakdown). */
+export const ADDON_MODULES: AddonModuleKey[] = ['quotes', 'billing', 'remote_monitoring', 'inventory', 'tools', 'partners'];
 export const ADDON_MODULE_LABELS: Record<AddonModuleKey, string> = {
   quotes: 'Tarjoukset',
   billing: 'Laskutus',
   remote_monitoring: 'Etäseuranta',
+  inventory: 'Varasto',
   tools: 'Työkalut',
   partners: 'Kumppanuudet',
 };
@@ -24,6 +26,7 @@ export const DEFAULT_MODULE_PRICES: Record<AddonModuleKey, number> = {
   quotes: 10,
   billing: 10,
   remote_monitoring: 30,
+  inventory: 10,
   tools: 10,
   partners: 10,
 };
@@ -66,6 +69,8 @@ export type PriceList = {
   device_prices: Record<DeviceTypeKey, number>;
   /** Kokeilujakson pituus (pv). */
   trial_days: number;
+  /** false = license_catalog.module_prices ilman 'inventory'-avainta (varasto_module.sql ajamatta). */
+  inventory_priced?: boolean;
 };
 
 export type DeviceTypeKey = 'jc3248' | 'esp32_ds18b20' | 'default';
@@ -77,6 +82,60 @@ export const DEVICE_TYPE_LABELS: Record<DeviceTypeKey, string> = {
 };
 export const DEFAULT_DEVICE_PRICES: Record<DeviceTypeKey, number> = { jc3248: 5, esp32_ds18b20: 5, default: 5 };
 export const DEFAULT_TRIAL_DAYS = 30;
+
+/*
+ * Moduulien, huoltolajien ja roolien yhden rivin kuvaukset — AINOA lähde (tilauslomake, lisenssipaneeli,
+ * Hinnasto, yrityksen moduulieditori, etusivu). Tekstit perustuvat reitteihin/gatingiin koodissa.
+ * Peruspaketti = reitit LicenseModuleGate 'base' + ehdottomat reitit; huoltolajit, moduulit ja käyttäjät erikseen.
+ */
+export const BASE_PACKAGE_DESCRIPTION =
+  'Työraportit ja toimeksiannot, asiakkaat ja laiterekisteri, tilaajaportaali sekä yritys- ja käyttäjähallinta';
+
+export const MODULE_DESCRIPTIONS: Record<AddonModuleKey, string> = {
+  quotes: 'Tarjouspyynnöt ja tarjoustulosteet, asennussuunnittelu ja lämpöpumppujen rekisteri',
+  billing: 'Laskettavat summat asiakkaalle ja kumppanien kesken — ei laskujen lähetystä',
+  remote_monitoring: 'Lämpötila, kosteus, paine, valaistus, NO/NC-tilatiedot, 0–10 V, jännitteet ja sähkönkulutus — hälytykset, trendit ja etäohjaus',
+  inventory: 'Materiaalit ja kylmäaine, saldot linkitettynä työraportteihin ja hinnoitteluun',
+  tools: 'Työkaluinventaario ja lainaus, vuokrauskalenteri ja julkinen varauslinkki',
+  partners: 'Kumppaniyritykset, jaetut asiakkaat ja toimeksiannot, kumppanikohtaiset oikeudet ja hinnat',
+};
+
+/** Harmaa riippuvuushuomautus (näytetään kuvauksen perässä). */
+export const MODULE_NOTES: Partial<Record<AddonModuleKey, string>> = {
+  billing: 'Kumppanien välinen laskenta vaatii Kumppanuudet-moduulin',
+  remote_monitoring: 'Vaatii seurattavan laitteen tilauksen, hinta mittauskohteiden mukaan',
+  inventory: 'Ilman Varastoa kylmäaine kirjataan raportille käsin',
+};
+
+export const HUOLTO_DESCRIPTIONS: Record<HuoltoCategoryKey, string> = {
+  kylma: 'Lämpöpumput ja kylmäkoneet — kylmäaineet, tiiveyskoe ja vuototarkastus',
+  lvi: 'Käyttövesi ja lämmitysverkosto — venttiilit, vuodot ja viemärit',
+  iv: 'Ilmanvaihtokoneet — suodattimet, LTO, puhaltimet, ilmamäärät ja kanavisto',
+  sahko: 'Sähkökeskukset — vikavirtasuojat, mittaukset ja lämpökamera',
+};
+export const HUOLTO_NOTE = 'Huoltoraportit vaativat Peruspaketin';
+
+export const STAFF_ROLE_DESCRIPTIONS: Record<StaffRole, string> = {
+  admin: 'Yrityksen asetukset, käyttäjät, portaalit ja kumppanuudet',
+  manager: 'Yritystiedot ja kaikkien töiden hallinta — ei käyttäjähallintaa',
+  technician: 'Omat ja itselle osoitetut työt, työ- ja huoltoraportit',
+};
+
+/** Seurattavan laitteen hinta: alkaen halvimmasta laitetyypistä (€/kk alv 0 % per laite). */
+export function deviceFromPrice(prices: Pick<PriceList, 'device_prices'>): number {
+  return Math.min(...DEVICE_TYPES.map((k) => prices.device_prices[k]));
+}
+export const DEVICE_PRICE_NOTE = 'Seurattava laite alkaen, hinta mittauskohteiden mukaan';
+
+/** Onko hinnastossa Varasto-hinta (varasto_module.sql ajettu)? Ennen sitä Varastoa ei tarjota tilattavaksi. */
+export function inventoryModuleOffered(prices: Pick<PriceList, 'inventory_priced'>): boolean {
+  return prices.inventory_priced !== false;
+}
+
+/** Tilattavissa olevat lisämoduulit (Varasto vasta kun hinta on tietokannassa). */
+export function offeredAddonModules(prices: Pick<PriceList, 'inventory_priced'>): AddonModuleKey[] {
+  return ADDON_MODULES.filter((k) => k !== 'inventory' || inventoryModuleOffered(prices));
+}
 
 export const DEFAULT_ROLE_PRICES: Record<StaffRole, number> = { admin: 0, manager: 15, technician: 10 };
 /** Sama kuin license_catalog.base_monthly_eur tuotannossa. */
@@ -120,6 +179,7 @@ export function parsePriceList(row: unknown): PriceList {
     role_prices,
     device_prices,
     trial_days: trial >= 1 ? trial : DEFAULT_TRIAL_DAYS,
+    inventory_priced: Object.prototype.hasOwnProperty.call(mp, 'inventory'),
   };
 }
 

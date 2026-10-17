@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { estimateMonthly, grossOf, parsePriceList, vatOf, devicesMonthly } from '../supabase/functions/_shared/companySignupCore.ts';
+import { BASE_PACKAGE_DESCRIPTION, estimateMonthly, grossOf, parsePriceList, vatOf, devicesMonthly } from '../supabase/functions/_shared/companySignupCore.ts';
 import { PRICE_GROUPS, PRICE_ROWS, applyDraft, eurInput, parseEurInput, priceListPayload } from '../src/lib/priceListAdmin.ts';
 
 // Tuotannon license_catalog (2026-10-17).
@@ -18,9 +18,12 @@ assert.deepEqual(p.device_prices, { jc3248: 5, esp32_ds18b20: 5, default: 5 });
 assert.deepEqual(PRICE_GROUPS.map((g) => g.title), ['Peruspaketti', 'Moduulit', 'Huoltoraportit', 'Käyttäjät']);
 assert.equal(new Set(PRICE_ROWS.map((r) => r.key)).size, PRICE_ROWS.length);
 assert.deepEqual(PRICE_ROWS.filter((r) => r.group === 'moduulit').map((r) => r.label), [
-  'Tarjoukset', 'Laskutus', 'Etäseuranta', 'Laite: JC3248-näyttölaite', 'Laite: ESP32 + DS18B20', 'Laite: Muu lämpötilalaite', 'Työkalut', 'Kumppanuudet',
+  'Tarjoukset', 'Laskutus', 'Etäseuranta', 'Laite: JC3248-näyttölaite', 'Laite: ESP32 + DS18B20', 'Laite: Muu lämpötilalaite', 'Varasto', 'Työkalut', 'Kumppanuudet',
 ]);
 assert.equal(PRICE_ROWS.find((r) => r.key === 'module:billing').description, 'Laskettavat summat asiakkaalle ja kumppanien kesken — ei laskujen lähetystä');
+assert.equal(PRICE_ROWS.find((r) => r.key === 'base').description, BASE_PACKAGE_DESCRIPTION);
+assert.ok(!/varasto/i.test(BASE_PACKAGE_DESCRIPTION));
+for (const w of ['Työraportit', 'laiterekisteri', 'tilaajaportaali', 'käyttäjähallinta']) assert.ok(BASE_PACKAGE_DESCRIPTION.includes(w), w);
 assert.equal(PRICE_ROWS.filter((r) => r.group === 'huolto').length, 4);
 assert.equal(PRICE_ROWS.filter((r) => r.group === 'kayttajat').length, 3);
 
@@ -76,3 +79,41 @@ assert.deepEqual(kevyt.lines.map((l) => l.key), [
   'huolto:kylma', 'huolto:lvi', 'huolto:iv', 'huolto:sahko', 'role:admin',
 ]);
 console.log('test-price-list OK');
+
+// --- Varasto-moduuli: taaksepäin yhteensopiva ennen varasto_module.sql-ajoa ---
+import { MODULE_DESCRIPTIONS, MODULE_NOTES, HUOLTO_DESCRIPTIONS, STAFF_ROLE_DESCRIPTIONS, offeredAddonModules, deviceFromPrice } from '../supabase/functions/_shared/companySignupCore.ts';
+import { isLicenseModuleAccessible, licenseModuleForPath, parseCompanyLicenseSnapshot, offeredLicenseAddonModules, LICENSE_MODULE_DESCRIPTIONS } from '../src/lib/companyLicense.ts';
+assert.equal(p.inventory_priced, false);
+assert.ok(!offeredAddonModules(p).includes('inventory'));
+assert.equal(priceListPayload(p).module_prices.inventory, undefined, 'ei lähetetä ennen SQL:ää');
+const pInv = parsePriceList({ ...row, module_prices: { ...row.module_prices, inventory: 10 } });
+assert.equal(pInv.inventory_priced, true);
+assert.ok(offeredAddonModules(pInv).includes('inventory'));
+assert.equal(priceListPayload(pInv).module_prices.inventory, 10);
+// Laskun rivijärjestys = SQL: Etäseuranta (+laitteet), Varasto, Työkalut
+const inv = estimateMonthly({ base: false, modules: { remote_monitoring: true, inventory: true, tools: true }, huolto: {}, users: [], devices: { jc3248: 1 } }, pInv);
+assert.deepEqual(inv.lines.map((l) => l.key), ['module:remote_monitoring', 'devices', 'module:inventory', 'module:tools']);
+assert.equal(inv.net, 55);
+// Gating: /varasto → inventory; snapshot ilman avainta → peruspaketin mukaan.
+assert.equal(licenseModuleForPath('/varasto'), 'inventory');
+const snapOld = parseCompanyLicenseSnapshot({ enrollment: 'subscription', effective_status: 'active', base_active: true, modules: { tools: false } });
+assert.equal(isLicenseModuleAccessible(snapOld, 'inventory'), true);
+const snapOldNoBase = parseCompanyLicenseSnapshot({ enrollment: 'subscription', effective_status: 'active', base_active: false, modules: {} });
+assert.equal(isLicenseModuleAccessible(snapOldNoBase, 'inventory'), false);
+const snapNew = parseCompanyLicenseSnapshot({ enrollment: 'subscription', effective_status: 'active', base_active: true, modules: { inventory: false } });
+assert.equal(isLicenseModuleAccessible(snapNew, 'inventory'), false);
+assert.equal(isLicenseModuleAccessible(parseCompanyLicenseSnapshot({ ...snapNew, modules: { inventory: true } }), 'inventory'), true);
+assert.ok(!offeredLicenseAddonModules({ module_prices: { tools: 10 } }).includes('inventory'));
+assert.ok(offeredLicenseAddonModules({ module_prices: { inventory: 10 } }).includes('inventory'));
+// Yksi lähde kuvauksille
+assert.equal(MODULE_DESCRIPTIONS.inventory, 'Materiaalit ja kylmäaine, saldot linkitettynä työraportteihin ja hinnoitteluun');
+assert.equal(BASE_PACKAGE_DESCRIPTION, 'Työraportit ja toimeksiannot, asiakkaat ja laiterekisteri, tilaajaportaali sekä yritys- ja käyttäjähallinta');
+assert.equal(MODULE_DESCRIPTIONS.remote_monitoring, 'Lämpötila, kosteus, paine, valaistus, NO/NC-tilatiedot, 0–10 V, jännitteet ja sähkönkulutus — hälytykset, trendit ja etäohjaus');
+assert.equal(MODULE_NOTES.remote_monitoring, 'Vaatii seurattavan laitteen tilauksen, hinta mittauskohteiden mukaan');
+for (const k of ['quotes', 'billing', 'remote_monitoring', 'inventory', 'tools']) assert.equal(LICENSE_MODULE_DESCRIPTIONS[k], MODULE_DESCRIPTIONS[k], k);
+for (const r of PRICE_ROWS.filter((x) => x.key.startsWith('module:'))) assert.equal(r.description, MODULE_DESCRIPTIONS[r.key.slice(7)]);
+for (const r of PRICE_ROWS.filter((x) => x.key.startsWith('huolto:'))) assert.equal(r.description, HUOLTO_DESCRIPTIONS[r.key.slice(7)]);
+for (const r of PRICE_ROWS.filter((x) => x.key.startsWith('role:'))) assert.equal(r.description, STAFF_ROLE_DESCRIPTIONS[r.key.slice(5)]);
+for (const d of [...Object.values(MODULE_DESCRIPTIONS), ...Object.values(HUOLTO_DESCRIPTIONS), ...Object.values(STAFF_ROLE_DESCRIPTIONS)]) assert.ok(d.length <= 140, d);
+assert.equal(deviceFromPrice({ device_prices: { jc3248: 7, esp32_ds18b20: 5, default: 6 } }), 5);
+console.log('test-price-list varasto OK');

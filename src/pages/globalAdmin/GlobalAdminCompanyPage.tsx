@@ -20,7 +20,7 @@ const TABS = [
 ] as const;
 type TabId = (typeof TABS)[number]['id'];
 
-/** /hallinta/yritykset/:companyId — yksi yritys GBA:lle. */
+/** /palvelu/yritykset/:companyId — yksi yritys GBA:lle. */
 export default function GlobalAdminCompanyPage() {
   const { profile } = useOutletContext<ManagementOutletContext>();
   const { companyId } = useParams();
@@ -120,16 +120,16 @@ export default function GlobalAdminCompanyPage() {
       setDeleteError(e.message);
       return;
     }
-    navigate('/hallinta/yritykset', { replace: true });
+    navigate('/palvelu/yritykset', { replace: true });
   }
 
-  if (!companyId || notFound) return <Navigate to="/hallinta/yritykset" replace />;
+  if (!companyId || notFound) return <Navigate to="/palvelu/yritykset" replace />;
   if (!company) return error ? <p className="error">{error}</p> : <p className="muted">Ladataan…</p>;
 
   return (
     <section className="panel">
       <p className="muted" style={{ margin: 0 }}>
-        <Link to="/hallinta/yritykset">← Yritykset</Link>
+        <Link to="/palvelu/yritykset">← Yritykset</Link>
       </p>
       <h2 style={{ marginTop: '.4rem' }}>{company.name}</h2>
       <div className="tabs company-settings-tabs">

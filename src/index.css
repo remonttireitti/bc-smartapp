@@ -219,10 +219,38 @@ a { color: inherit; text-decoration: none; }
   margin: 0 auto 2rem;
 }
 
-.landing-features {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 1.25rem;
+/* Kortit: vajaa viimeinen rivi keskitetään (flex-wrap + kiinteät sarakeleveydet). */
+.landing-features,
+.landing-praise,
+.grid.hub-grid.landing-prints {
+  --landing-gap: 1.25rem;
+  --landing-cols: 3;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--landing-gap);
+}
+
+.landing-praise { --landing-gap: 1rem; }
+.grid.hub-grid.landing-prints { --landing-gap: .75rem; }
+
+.landing-features > *,
+.landing-praise > *,
+.grid.hub-grid.landing-prints > * {
+  flex: 0 0 calc((100% - (var(--landing-cols) - 1) * var(--landing-gap)) / var(--landing-cols));
+  min-width: 0;
+}
+
+@media (max-width: 899px) {
+  .landing-features,
+  .landing-praise,
+  .grid.hub-grid.landing-prints { --landing-cols: 2; }
+}
+
+@media (max-width: 599px) {
+  .landing-features,
+  .landing-praise,
+  .grid.hub-grid.landing-prints { --landing-cols: 1; }
 }
 
 .landing-feature-card {
@@ -254,8 +282,9 @@ a { color: inherit; text-decoration: none; }
 .landing-benefits {
   background: rgba(255, 255, 255, 0.55);
   border-radius: 16px;
-  margin: 0 1rem 1rem;
-  max-width: calc(1100px - 2rem);
+  margin: 0 auto 1rem;
+  width: calc(100% - 3rem);
+  max-width: calc(1100px - 3rem);
 }
 
 .landing-benefits-grid {
@@ -300,9 +329,6 @@ a { color: inherit; text-decoration: none; }
 }
 
 .landing-praise {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-  gap: 1rem;
   margin-top: 1.5rem;
 }
 
@@ -332,7 +358,9 @@ a { color: inherit; text-decoration: none; }
   background: linear-gradient(135deg, #1e40af 0%, #2563eb 55%, #0ea5e9 100%);
   color: #fff;
   border-radius: 16px;
-  margin-bottom: 2rem;
+  margin: 0 auto 2rem;
+  width: calc(100% - 3rem);
+  max-width: calc(1100px - 3rem);
   box-shadow: var(--shadow-md);
 }
 
@@ -17272,6 +17300,18 @@ p.quote-outcome-unpriced {
 .app-sidebar-sublink.is-active { color: var(--sb-accent); border-left-color: var(--sb-accent); font-weight: 600; }
 .app-sidebar-collapse { color: var(--text-muted, #6b7280); margin-top: 0.75rem; border-top: 1px solid var(--border, #e5e7eb); border-radius: 0; padding-top: 0.75rem; }
 .app-sidebar-backdrop { display: none; }
+.app-sidebar-section-item { --sb-accent: #7c3aed; margin-top: 0.6rem; padding-top: 0.5rem; border-top: 1px solid var(--border, #e5e7eb); }
+.app-sidebar-section-label {
+  display: block; padding: 0 0.6rem 0.25rem; font-size: 0.7rem; font-weight: 600; letter-spacing: 0.06em;
+  text-transform: uppercase; color: var(--text-muted, #6b7280);
+}
+.app-sidebar-section-item > .app-sidebar-link:not(.is-active) .app-sidebar-icon { color: #7c3aed; }
+.app-sidebar-section-item .app-sidebar-link.is-active { background: rgba(124, 58, 237, 0.07); }
+.sidebar-collapsed .app-sidebar .app-sidebar-section-label { display: none; }
+.management-scope { margin: 0 0 0.15rem; font-size: 0.8rem; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; }
+.management-scope a { color: var(--text-muted, #6b7280); text-decoration: none; }
+.management-scope a:hover { color: var(--link-hover, #2563eb); }
+.management-scope--service a { color: #7c3aed; }
 
 .sidebar-collapsed .app-sidebar { flex-basis: 56px; width: 56px; }
 .sidebar-collapsed .app-sidebar .app-sidebar-label { display: none; }
@@ -17638,6 +17678,9 @@ p.quote-outcome-unpriced {
 .signup-check { display: flex; flex-direction: row; align-items: center; gap: .4rem; font-weight: normal; }
 .signup-check input { width: auto; }
 .signup-check .muted { margin-left: auto; font-size: .9em; }
+.signup-check:has(.signup-check-desc) { flex-wrap: wrap; }
+.signup-check-desc { flex-basis: 100%; margin-left: 1.4rem; color: var(--text-muted); font-size: .8em; }
+.signup-check-desc-off { opacity: .6; }
 .signup-users { display: flex; flex-direction: column; gap: .5rem; margin-bottom: .5rem; }
 .signup-user-row { display: grid; grid-template-columns: 1.2fr 1.4fr 1fr auto auto; gap: .5rem; align-items: start; padding: .5rem 0; border-bottom: 1px solid var(--border-strong); }
 .signup-user-roles { display: flex; flex-direction: column; gap: .15rem; padding-top: 1.2rem; }
@@ -17682,9 +17725,6 @@ label.has-error input { border-color: #b91c1c; }
 .price-list-page .price-trial { display: inline-flex; align-items: center; gap: 0.5rem; margin-top: 0.75rem; }
 .price-list-page .price-trial input { width: 5rem; text-align: right; }
 .price-list-actions { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
-.price-example-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr)); gap: 1rem; margin-bottom: 1rem; }
-.price-example-grid fieldset { display: grid; gap: 0.35rem; border: 1px solid var(--border, #e5e7eb); border-radius: 8px; padding: 0.75rem; }
-.price-example-grid input[type='number'] { width: 4.5rem; }
 
 
 /* BC Smartapp brand mark */
@@ -17749,3 +17789,92 @@ label.has-error input { border-color: #b91c1c; }
 .inventory-picker-meta { font-size: 12px; color: #6b7280; }
 .inventory-picker-linked { padding: 8px 10px; border: 1px solid #d9dde3; border-left: 4px solid #a855f7; border-radius: 6px; background: #faf5ff; display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: center; }
 .inventory-picker-hint { width: 100%; margin: 0; font-size: 12px; }
+.signup-check { flex-wrap: wrap; }
+.signup-check .signup-check-desc { display: block; flex-basis: 100%; margin-left: 0; margin-top: 0.15rem; font-size: 0.8rem; line-height: 1.3; }
+.landing-package-list { max-width: 60rem; margin: 1.5rem auto 0; padding-left: 1.2rem; display: grid; gap: 0.4rem; text-align: left; }
+
+/* Kumppanuuskortit (Hallinta → Kumppanuudet) */
+.partner-card-list { display: flex; flex-direction: column; gap: 1rem; }
+.partner-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--shadow-panel);
+  padding: 1rem 1.1rem;
+  display: flex;
+  flex-direction: column;
+  gap: .85rem;
+}
+.partner-card-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: .5rem 1rem;
+}
+.partner-card-head h3 { margin: 0; font-size: 1.05rem; }
+.partner-card-actions { display: flex; flex-wrap: wrap; gap: .4rem; }
+.partner-card-columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: .85rem;
+}
+.partner-card-columns > section {
+  background: var(--bg-muted);
+  border-radius: 10px;
+  padding: .7rem .8rem;
+}
+.partner-card-columns h4 {
+  margin: 0 0 .45rem;
+  font-size: .88rem;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  gap: .35rem;
+}
+.partner-lock { color: var(--text-subtle); flex: none; cursor: help; }
+.partner-perm-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.partner-perm-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .5rem;
+  padding: .3rem 0;
+  font-size: .88rem;
+  border-top: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
+}
+.partner-perm-list li:first-child { border-top: 0; }
+.perm-pill {
+  font-size: .74rem;
+  font-weight: 600;
+  padding: .15rem .55rem;
+  border-radius: 999px;
+  white-space: nowrap;
+  border: 1px solid transparent;
+}
+.perm-pill-none { background: #f1f5f9; color: #64748b; border-color: #e2e8f0; }
+.perm-pill-read { background: #dbeafe; color: #1d4ed8; border-color: #bfdbfe; }
+.perm-pill-write { background: #dcfce7; color: #15803d; border-color: #bbf7d0; }
+.partner-card-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .4rem 1.5rem;
+  margin: 0;
+  padding-top: .65rem;
+  border-top: 1px solid var(--border);
+  font-size: .86rem;
+}
+.partner-card-stats dt { color: var(--text-subtle); font-size: .76rem; }
+.partner-card-stats dd { margin: 0; color: var(--text-secondary); font-weight: 500; }
+.partner-card .perm-grid { margin-top: 0; }
+@media (max-width: 720px) {
+  .partner-card-columns { grid-template-columns: 1fr; }
+  .partner-card-actions { width: 100%; }
+}
+
+/* Moduulikuvaukset + harmaa riippuvuushuomautus */
+.module-note { color: var(--muted, #6b7280); opacity: .75; }
+.module-toggle-list { display: grid; gap: .6rem; }
+.module-toggle-row { display: grid; gap: .15rem; }
+.module-toggle-row small { padding-left: 3.25rem; line-height: 1.3; }
+.price-row-desc .module-note { display: inline; }

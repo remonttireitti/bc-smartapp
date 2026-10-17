@@ -1,4 +1,5 @@
-import type { HuomioLuonne, HuoltoReportData, SisayksikkoData } from '../../lib/huoltoRaportti/types';
+import type { HuomioLuonne, HuoltoReportData, MittausSisayksikkoData, SisayksikkoData } from '../../lib/huoltoRaportti/types';
+import { calculateIlpSisayksikkoTeho, formatIlpSisayksikkoTeho, type IlpTehoMode } from '../../lib/huoltoRaportti/ilpTeho';
 import {
   createEmptySisayksikkoData,
   createEmptySisayksikkoMittausData,
@@ -490,7 +491,22 @@ export function LampopumppuSection({
                         type="number"
                         disabled={disabled}
                       />
+                      <FormInput
+                        label="Paluu RH % jäähdytys"
+                        value={mittaus.paluuKosteusRhJaahdytys ?? ''}
+                        onChange={(v) => patchMittaus({ paluuKosteusRhJaahdytys: v })}
+                        type="number"
+                        disabled={disabled}
+                      />
+                      <FormInput
+                        label="Puhallus RH % jäähdytys"
+                        value={mittaus.puhallusKosteusRhJaahdytys ?? ''}
+                        onChange={(v) => patchMittaus({ puhallusKosteusRhJaahdytys: v })}
+                        type="number"
+                        disabled={disabled}
+                      />
                     </div>
+                    <IlpTehoLine mittaus={mittaus} mode="jaahdytys" />
                   </>
                 ) : null}
 
@@ -555,7 +571,22 @@ export function LampopumppuSection({
                         type="number"
                         disabled={disabled}
                       />
+                      <FormInput
+                        label="Paluu RH % lämmitys"
+                        value={mittaus.paluuKosteusRhLammitys ?? ''}
+                        onChange={(v) => patchMittaus({ paluuKosteusRhLammitys: v })}
+                        type="number"
+                        disabled={disabled}
+                      />
+                      <FormInput
+                        label="Puhallus RH % lämmitys"
+                        value={mittaus.puhallusKosteusRhLammitys ?? ''}
+                        onChange={(v) => patchMittaus({ puhallusKosteusRhLammitys: v })}
+                        type="number"
+                        disabled={disabled}
+                      />
                     </div>
+                    <IlpTehoLine mittaus={mittaus} mode="lammitys" />
                   </>
                 ) : null}
               </div>
@@ -589,5 +620,16 @@ export function LampopumppuSection({
         </>,
       )}
     </>
+  );
+}
+
+function IlpTehoLine({ mittaus, mode }: { mittaus: MittausSisayksikkoData; mode: IlpTehoMode }) {
+  const teho = calculateIlpSisayksikkoTeho(mittaus, mode);
+  if (!teho) return null;
+  return (
+    <p className="muted">
+      Teho {teho.method === 'entalpia' ? '(entalpia)' : '(ΔT × ilmanmäärä)'}:{' '}
+      <strong>{formatIlpSisayksikkoTeho(teho, mode)}</strong>
+    </p>
   );
 }

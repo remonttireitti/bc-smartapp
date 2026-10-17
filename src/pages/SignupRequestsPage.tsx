@@ -347,7 +347,6 @@ export default function SignupRequestsPage() {
   if (missing) {
     return (
       <div className="signup-requests-page">
-        <p className="breadcrumb"><Link to="/hallinta/global-admin">Globaali admin</Link> / Tilaukset</p>
         <p className="muted">Tilaukset eivät ole vielä käytössä (tietokantapäivitys ajamatta).</p>
       </div>
     );
@@ -356,9 +355,8 @@ export default function SignupRequestsPage() {
   if (id) {
     return (
       <div className="signup-requests-page">
-        <p className="breadcrumb">
-          <Link to="/hallinta/global-admin">Globaali admin</Link> / <Link to="/hallinta/global-admin/tilaukset">Tilaukset</Link>
-          {selected ? ` / ${selected.company_name}` : ''}
+        <p className="muted" style={{ margin: 0 }}>
+          <Link to="/palvelu/tilaukset">← Tilaukset</Link>
         </p>
         {selected ? (
           <>
@@ -374,12 +372,11 @@ export default function SignupRequestsPage() {
 
   return (
     <div className="signup-requests-page">
-      <p className="breadcrumb"><Link to="/hallinta/global-admin">Globaali admin</Link> / Tilaukset</p>
       <DataTable
         rows={rows}
         columns={columns}
         rowKey={(r) => r.id}
-        onRowClick={(r) => navigate(`/hallinta/global-admin/tilaukset/${r.id}`)}
+        onRowClick={(r) => navigate(`/palvelu/tilaukset/${r.id}`)}
         rowAccent={(r) => STATUS_COLORS[r.status]}
         initialSort={{ key: 'created', dir: 'desc' }}
         emptyText="Ei tilauksia"

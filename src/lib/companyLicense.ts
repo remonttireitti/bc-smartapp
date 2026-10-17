@@ -1,4 +1,10 @@
-export type LicenseModuleKey = 'base' | 'quotes' | 'billing' | 'remote_monitoring' | 'tools';
+import {
+  BASE_PACKAGE_DESCRIPTION,
+  MODULE_DESCRIPTIONS,
+  MODULE_NOTES,
+} from '../../supabase/functions/_shared/companySignupCore';
+
+export type LicenseModuleKey = 'base' | 'quotes' | 'billing' | 'remote_monitoring' | 'inventory' | 'tools';
 
 export type LicenseEffectiveStatus = 'pending_trial' | 'trial' | 'active' | 'expired';
 
@@ -82,21 +88,35 @@ export const LICENSE_MODULE_LABELS: Record<LicenseModuleKey, string> = {
   quotes: 'Tarjoukset',
   billing: 'Laskutus',
   remote_monitoring: 'Etäseuranta',
+  inventory: 'Varasto',
   tools: 'Työkalut',
 };
 
+/** Laskutus-moduuli ei lähetä laskuja: se laskee summat. Tekstit: companySignupCore (yksi lähde). */
+export const BILLING_MODULE_DESCRIPTION = MODULE_DESCRIPTIONS.billing;
+export const PARTNER_BILLING_REQUIRES_PARTNERS = MODULE_NOTES.billing as string;
+
 export const LICENSE_MODULE_DESCRIPTIONS: Record<LicenseModuleKey, string> = {
-  base: 'Työraportit, varasto, huoltoraportit, asiakas- ja laiterekisteri',
-  quotes: 'Tarjouspyynnöt, laskelmat ja tulosteet',
-  billing: 'Laskutettavat summat ja kumppanilaskutus',
-  remote_monitoring: 'Lämpötilaseuranta ja etäohjaus. Moduulimaksu + laitemaksu (€/kk per laite, tyypistä riippuen).',
-  tools: 'Työkaluinventaario linkitettynä työhön ja hinnoitteluun, työkalujen vuokrauskalenteri',
+  base: BASE_PACKAGE_DESCRIPTION,
+  quotes: MODULE_DESCRIPTIONS.quotes,
+  billing: MODULE_DESCRIPTIONS.billing,
+  remote_monitoring: MODULE_DESCRIPTIONS.remote_monitoring,
+  inventory: MODULE_DESCRIPTIONS.inventory,
+  tools: MODULE_DESCRIPTIONS.tools,
+};
+
+/** Harmaa riippuvuushuomautus (sama lähde kuin tilauslomakkeessa). */
+export const LICENSE_MODULE_NOTES: Partial<Record<LicenseModuleKey, string>> = {
+  billing: MODULE_NOTES.billing,
+  remote_monitoring: MODULE_NOTES.remote_monitoring,
+  inventory: MODULE_NOTES.inventory,
 };
 
 export const LICENSE_MODULE_HREFS: Record<LicenseModuleKey, string[]> = {
-  base: ['/tyoraportit', '/varasto', '/huoltoraportit', '/asiakkaat'],
+  base: ['/tyoraportit', '/huoltoraportit', '/asiakkaat'],
+  inventory: ['/varasto'],
   quotes: ['/tarjouspyynnot', '/asennus-suunnittelu'],
-  billing: ['/laskutus', '/hallinta/kumppanilaskutus'],
+  billing: ['/laskutus'],
   remote_monitoring: ['/etaseuranta', '/lampotila'],
   tools: ['/tyokalut'],
 };
@@ -121,19 +141,24 @@ export const PRICED_ADDON_MODULES: Exclude<LicenseModuleKey, 'base'>[] = [
   'quotes',
   'billing',
   'remote_monitoring',
+  'inventory',
   'tools',
 ];
 
+/** Tilattavat lisämoduulit: Varasto vasta kun sen hinta on hinnastossa (varasto_module.sql). */
+export function offeredLicenseAddonModules(pricing: Pick<CompanyLicenseSnapshot['pricing'], 'module_prices'> | null | undefined) {
+  return PRICED_ADDON_MODULES.filter((k) => k !== 'inventory' || pricing?.module_prices?.inventory !== undefined);
+}
+
 const MODULE_BY_PATH_PREFIX: Array<{ prefix: string; module: LicenseModuleKey }> = [
   { prefix: '/laskutus', module: 'billing' },
-  { prefix: '/hallinta/kumppanilaskutus', module: 'billing' },
   { prefix: '/tarjouspyynnot', module: 'quotes' },
   { prefix: '/asennus-suunnittelu', module: 'quotes' },
   { prefix: '/etaseuranta', module: 'remote_monitoring' },
   { prefix: '/lampotila', module: 'remote_monitoring' },
   { prefix: '/tyokalut', module: 'tools' },
   { prefix: '/tyoraportit', module: 'base' },
-  { prefix: '/varasto', module: 'base' },
+  { prefix: '/varasto', module: 'inventory' },
   { prefix: '/huoltoraportit', module: 'base' },
   { prefix: '/asiakkaat', module: 'base' },
 ];
@@ -244,6 +269,7 @@ export function parseCompanyLicenseSnapshot(raw: unknown): CompanyLicenseSnapsho
         quotes: orderModules.quotes === true,
         billing: orderModules.billing === true,
         remote_monitoring: orderModules.remote_monitoring === true,
+        inventory: orderModules.inventory === true,
         tools: orderModules.tools === true,
       },
       billing_interval: (o.billing_interval as LicenseBillingInterval) ?? 'monthly',
@@ -271,6 +297,11 @@ export function parseCompanyLicenseSnapshot(raw: unknown): CompanyLicenseSnapsho
       quotes: modulesRaw.quotes === true,
       billing: modulesRaw.billing === true,
       remote_monitoring: modulesRaw.remote_monitoring === true,
+      // Ennen varasto_module.sql-ajoa snapshotissa ei ole avainta: Varasto kulkee peruspaketin mukana (ennallaan).
+      inventory:
+        modulesRaw.inventory === undefined
+          ? row.base_active === true || String(row.enrollment ?? '') === 'legacy'
+          : modulesRaw.inventory === true,
       tools: modulesRaw.tools === true,
     },
     pricing: {
@@ -340,6 +371,7 @@ function parseLicenseSettingsStored(raw: unknown): LicenseSettingsStored | null 
       quotes: modulesRaw.quotes === true,
       billing: modulesRaw.billing === true,
       remote_monitoring: modulesRaw.remote_monitoring === true,
+      inventory: modulesRaw.inventory === undefined ? row.base_active === true : modulesRaw.inventory === true,
       tools: modulesRaw.tools === true,
     },
     payment_status: (row.payment_status as LicensePaymentStatus) ?? undefined,
@@ -441,6 +473,7 @@ export function formatStoredModulesSummary(
     quotes: 'Tarj.',
     billing: 'Lask.',
     remote_monitoring: 'Etä',
+    inventory: 'Var.',
     tools: 'Työkalut',
   };
   for (const key of PRICED_ADDON_MODULES) {

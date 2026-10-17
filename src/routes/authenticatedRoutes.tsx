@@ -1,6 +1,8 @@
 import { Navigate, useLocation, useParams, type RouteObject } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
 import type { ComponentType } from 'react';
+import CustomerPortalAdminPage from '../pages/CustomerPortalAdminPage';
+import PartnershipsModuleGate from '../components/PartnershipsModuleGate';
 import LicenseModuleGate from '../components/LicenseModuleGate';
 import ManagementLayout from '../components/ManagementLayout';
 import type { LicenseModuleKey } from '../lib/companyLicense';
@@ -29,7 +31,6 @@ import WorkReportDetailPage from '../pages/WorkReportDetailPage';
 import WorkReportNewPage from '../pages/WorkReportNewPage';
 import PortalWorkOrderPage from '../pages/PortalWorkOrderPage';
 import WorkReportOrderPage from '../pages/WorkReportOrderPage';
-import WorkReportBillingSummaryPage from '../pages/WorkReportBillingSummaryPage';
 import WorkReportPartnerBillingPrintPage from '../pages/WorkReportPartnerBillingPrintPage';
 import WorkReportPrintPage from '../pages/WorkReportPrintPage';
 import BillingPage from '../pages/BillingPage';
@@ -44,7 +45,7 @@ import InstallationPlansPage from '../pages/InstallationPlansPage';
 import InstallationPlanEditPage from '../pages/InstallationPlanEditPage';
 import InstallationPlanPrintPage from '../pages/InstallationPlanPrintPage';
 import ExamplePrintPageLazy from '../pages/ExamplePrintPageLazy';
-import HallintaHubPage from '../pages/HallintaHubPage';
+import HallintaHubPage, { LegacyServiceRedirect, ServiceAdminHubPage } from '../pages/HallintaHubPage';
 import GlobalAdminCompaniesPage from '../pages/globalAdmin/GlobalAdminCompaniesPage';
 import GlobalAdminCompanyPage from '../pages/globalAdmin/GlobalAdminCompanyPage';
 import GlobalAdminPage from '../pages/GlobalAdminPage';
@@ -108,9 +109,16 @@ function LicensedWorkReportNewRoute({ session }: { session: Session }) {
   return <LicensedWorkReportNewPage session={session} key={location.pathname} />;
 }
 const LicensedWorkReportPrintPage = withLicenseModule('base', WorkReportPrintPage);
-const LicensedWorkReportPartnerBillingPrintPage = withLicenseModule('billing', WorkReportPartnerBillingPrintPage);
+const LicensedWorkReportPartnerBillingPrintPageInner = withLicenseModule('billing', WorkReportPartnerBillingPrintPage);
+function LicensedWorkReportPartnerBillingPrintPage({ session }: { session: Session }) {
+  return (
+    <PartnershipsModuleGate session={session}>
+      <LicensedWorkReportPartnerBillingPrintPageInner session={session} />
+    </PartnershipsModuleGate>
+  );
+}
 const LicensedBillingPage = withLicenseModule('billing', BillingPage);
-const LicensedInventoryPage = withLicenseModule('base', InventoryPage);
+const LicensedInventoryPage = withLicenseModule('inventory', InventoryPage);
 /** Huoltoraportit: lisenssi + yrityksen huoltolajit (Yritystiedot → Huoltoraportit). */
 function withHuolto<P extends { session: Session }>(Page: ComponentType<P>, category?: HuoltoCategoryKey) {
   return function HuoltoPage(props: P) {
@@ -161,14 +169,6 @@ const LicensedVrfMonitorDetailPage = withLicenseModule('remote_monitoring', VrfM
 const LicensedToolsPage = withLicenseModule('tools', ToolsPage);
 const LicensedToolBookingCalendarPage = withLicenseModule('tools', ToolBookingCalendarPage);
 
-function LicensedWorkReportBillingSummaryRoute({ session }: { session: Session }) {
-  return (
-    <LicenseModuleGate session={session} moduleKey="billing">
-      <WorkReportBillingSummaryPage />
-    </LicenseModuleGate>
-  );
-}
-
 export function buildAuthenticatedRoutes(session: Session): RouteObject[] {
   return [
     { path: '/login', element: <Navigate to="/" replace /> },
@@ -184,7 +184,7 @@ export function buildAuthenticatedRoutes(session: Session): RouteObject[] {
       element: <CustomerPortalPreviewPage session={session} kind="customer" />,
     },
     { path: '/', element: <Dashboard session={session} /> },
-    { path: '/global-admin', element: <Navigate to="/hallinta/global-admin" replace /> },
+    { path: '/global-admin', element: <LegacyServiceRedirect /> },
     { path: '/tyoraportit', element: <LicensedWorkReportsPage session={session} /> },
     { path: '/laskutus', element: <LicensedBillingPage session={session} /> },
     { path: '/varasto', element: <LicensedInventoryPage session={session} /> },
@@ -219,21 +219,31 @@ export function buildAuthenticatedRoutes(session: Session): RouteObject[] {
       element: <ManagementLayout session={session} />,
       children: [
         { index: true, element: <HallintaHubPage /> },
-        { path: 'yritykset', element: <GlobalAdminCompaniesPage /> },
-        { path: 'yritykset/:companyId', element: <GlobalAdminCompanyPage /> },
+        // Vanhat globaalin adminin osoitteet: ManagementLayout ohjaa /palvelu-puolelle.
+        { path: 'yritykset/*', element: null },
+        { path: 'global-admin/*', element: null },
         { path: 'omat', element: <ProfileSettingsPage /> },
-        { path: 'global-admin', element: <GlobalAdminPage /> },
-        { path: 'global-admin/hinnasto', element: <GlobalAdminPriceListPage /> },
-        { path: 'global-admin/tilaukset', element: <SignupRequestsPage /> },
-        { path: 'global-admin/tilaukset/:id', element: <SignupRequestsPage /> },
         { path: 'yritys', element: <CompanySettingsPage /> },
         { path: 'tilaajat', element: <SubscribersPage /> },
+        { path: 'asiakasportaali', element: <CustomerPortalAdminPage /> },
         { path: 'kayttajat', element: <UsersPage /> },
         { path: 'kumppanuudet', element: <PartnershipsPage /> },
-        {
-          path: 'kumppanilaskutus',
-          element: <LicensedWorkReportBillingSummaryRoute session={session} />,
-        },
+        // Kumppanilaskutus-yhteenveto on Laskutus → Tilastot -näkymässä.
+        { path: 'kumppanilaskutus', element: <Navigate to="/laskutus" replace /> },
+      ],
+    },
+    {
+      path: '/palvelu',
+      element: <ManagementLayout session={session} scope="service" />,
+      children: [
+        { index: true, element: <ServiceAdminHubPage /> },
+        { path: 'yritykset', element: <GlobalAdminCompaniesPage /> },
+        { path: 'yritykset/:companyId', element: <GlobalAdminCompanyPage /> },
+        { path: 'tilaukset', element: <SignupRequestsPage /> },
+        { path: 'tilaukset/:id', element: <SignupRequestsPage /> },
+        { path: 'hinnasto', element: <GlobalAdminPriceListPage /> },
+        { path: 'rekisteri', element: <GlobalAdminPage osio="rekisteri" /> },
+        { path: 'loki', element: <GlobalAdminPage osio="loki" /> },
       ],
     },
     { path: '/tyoraportit/tilaus/uusi', element: <PortalWorkOrderPage session={session} /> },

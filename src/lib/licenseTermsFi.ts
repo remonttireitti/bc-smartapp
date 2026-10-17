@@ -20,7 +20,7 @@ export const LICENSE_TERMS_HELP_CONTENT: Record<
       'Vanha sopimus: ei kokeilua eikä laskutusta, kaikki moduulit vapaasti (aiemmin luodut yritykset).',
       'Tilaus ja kokeilu: kokeilu alkaa ensimmäisestä kirjautumisesta. Maksavan asiakkaan moduulit (✓/✗) hallitset kohdassa Yrityksen tilaus ja moduulit.',
       'Kokeilua voi jatkaa ilman maksua (+30 pv). Kirjautuminen ja kokeilun päättyminen näkyvät omissa sarakkeissaan.',
-      'Sisäiset käyttäjät = ylläpitäjät, esimiehet ja asentajat (sama lista kuin Hallinta → Käyttäjät). Lukema "tiliä yhteensä" sisältää myös muut roolit samalla yrityksellä.',
+      'Sisäiset käyttäjät = ylläpitäjät, esimiehet ja asentajat (sama lista kuin Yrityksen hallinta → Käyttäjät). Lukema "tiliä yhteensä" sisältää myös muut roolit samalla yrityksellä.',
     ],
   },
   adminEditor: {

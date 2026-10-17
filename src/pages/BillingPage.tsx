@@ -3,7 +3,9 @@ import { Link } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
 import AppLayout from '../components/AppLayout';
 import PartnerBillWorkflowDialog from '../components/PartnerBillWorkflowDialog';
+import BillingStatsPanel from '../components/BillingStatsPanel';
 import { useCompanyBillingModuleEnabled } from '../hooks/useCompanyBillingModuleEnabled';
+import { BILLING_MODULE_DESCRIPTION } from '../lib/companyLicense';
 import { useCompanyPartnershipsEnabled } from '../hooks/useCompanyPartnershipsEnabled';
 import { useProfile } from '../hooks/useProfile';
 import { supabase } from '../lib/supabase';
@@ -149,6 +151,7 @@ export default function BillingPage({ session }: Props) {
   const partnershipsEnabled = useCompanyPartnershipsEnabled(profile?.company_id, session);
   const initialMode: BillingModuleMode = partnershipsEnabled !== false ? 'total' : 'customer';
   const [tab, setTab] = useState<Tab>('list');
+  const [view, setView] = useState<'list' | 'stats'>('list');
   const [billingMode, setBillingMode] = useState<BillingModuleMode>(initialMode);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('unbilled');
   const [search, setSearch] = useState('');
@@ -191,8 +194,11 @@ export default function BillingPage({ session }: Props) {
   }, [partnershipsEnabled, billingMode]);
 
   useEffect(() => {
-    if (profile?.company_id) void load(billingMode);
-  }, [profile?.company_id, billingMode]);
+    // Odota Kumppanuudet-tieto: muuten kumppanirivit ehtisivät näkyä ennen asiakastilaan vaihtoa.
+    if (!profile?.company_id || partnershipsEnabled === null) return;
+    if (partnershipsEnabled === false && billingMode !== 'customer') return;
+    void load(billingMode);
+  }, [profile?.company_id, billingMode, partnershipsEnabled]);
 
   function rowBillingMode(row: BillingListRow): 'partner' | 'customer' {
     return effectiveBillingRowMode(billingMode, row);
@@ -1014,6 +1020,7 @@ export default function BillingPage({ session }: Props) {
             <Link to="/">Etusivu</Link> / Laskutus
           </p>
           <h1>Laskutettavat</h1>
+          <p className="muted">{BILLING_MODULE_DESCRIPTION}</p>
         </div>
       </div>
 
@@ -1033,9 +1040,26 @@ export default function BillingPage({ session }: Props) {
               Käyttäjien laskutusasetukset (tunnit/kulut) vaikuttavat laskurivien sisältöön. Kumppanin
               laskutusmoduuli ei vaikuta — lasket mitä kumppanille laskutat omista työraporteistasi.
               Tarvittaessa ota tunnit tai kulut mukaan kohdassa{' '}
-              <Link to="/hallinta/kayttajat">Hallinta → Käyttäjät</Link>.
+              <Link to="/hallinta/kayttajat">Yrityksen hallinta → Käyttäjät</Link>.
             </p>
           ) : null}
+          <div className="tabs billing-view-tabs" style={{ marginBottom: '.85rem' }}>
+            <button type="button" className={view === 'list' ? 'tab active' : 'tab'} onClick={() => setView('list')}>
+              Laskutettavat
+            </button>
+            <button type="button" className={view === 'stats' ? 'tab active' : 'tab'} onClick={() => setView('stats')}>
+              Tilastot
+            </button>
+          </div>
+          {view === 'stats' ? (
+            <BillingStatsPanel
+              rows={rows}
+              viewerCompanyId={profile?.company_id}
+              pageMode={billingMode}
+              partnershipsEnabled={partnershipsEnabled === true}
+              loading={loading}
+            />
+          ) : (
           <>
           <div className="billing-summary-header">
             <p className="billing-summary-period-label muted">
@@ -1455,6 +1479,7 @@ export default function BillingPage({ session }: Props) {
             </div>
           )}
           </>
+          )}
         </div>
       )}
       <PartnerBillWorkflowDialog

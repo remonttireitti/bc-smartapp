@@ -347,6 +347,11 @@ export interface MittausSisayksikkoData {
   paluuLampotilaLammitys: string;
   puhallusLampotilaLammitys: string;
   ilmanmaaraM3hLammitys: string;
+  /** Valinnainen ilman suhteellinen kosteus % (paluu = sisään, puhallus = ulos) entalpiatehoon. */
+  paluuKosteusRhJaahdytys?: string;
+  puhallusKosteusRhJaahdytys?: string;
+  paluuKosteusRhLammitys?: string;
+  puhallusKosteusRhLammitys?: string;
 }
 
 /** Equipment registry technical snapshot (stored on equipment.huolto_technical_snapshot) */

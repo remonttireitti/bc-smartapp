@@ -1607,7 +1607,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
         if (!partnershipModuleAccess(partnerPerms, 'maintenance_reports', 'write')) {
           if (!options?.auto) {
             setError(
-              'Kumppani ei ole myöntänyt huoltoraportin luontioikeutta. Pyydä kumppanin ylläpitäjää antamaan oikeus kohdassa Hallinta → Kumppanuudet.',
+              'Kumppani ei ole myöntänyt huoltoraportin luontioikeutta. Pyydä kumppanin ylläpitäjää antamaan oikeus kohdassa Yrityksen hallinta → Kumppanuudet.',
             );
           }
           if (options?.auto) setAutoSaveState('idle');

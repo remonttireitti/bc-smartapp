@@ -34,11 +34,11 @@ type ModuleTile = {
 
 const MODULES: ModuleTile[] = [
   { title: 'Työraportti', lines: ['Työtilaukset ja päiväkirjaukset', 'Kalenteri ja raportit'], color: '#0ea5e9', href: '/tyoraportit', licenseModule: 'base' },
-  { title: 'Laskutus', lines: ['Kumppanilaskutus', 'Asiakaslaskutus'], color: '#6366f1', href: '/laskutus', licenseModule: 'billing' },
+  { title: 'Laskutus', lines: ['Laskutettavat', 'Tilastot'], color: '#6366f1', href: '/laskutus', licenseModule: 'billing' },
   { title: 'Huoltoraportti', lines: ['Huoltopöytäkirjat', 'Laiterekisteri'], color: '#22c55e', href: '/huoltoraportit', licenseModule: 'base' },
   { title: 'Asiakkaat', lines: ['Asiakasrekisteri', 'Laitteet ja dokumentit'], color: '#3b82f6', href: '/asiakkaat', licenseModule: 'base' },
   { title: 'Tarjouspyyntö', lines: ['Tarjoukset ja laskelmat', 'Asennussuunnittelu'], color: '#f97316', href: '/tarjouspyynnot', licenseModule: 'quotes' },
-  { title: 'Varasto', lines: ['Materiaalit ja kylmäaine', 'Linkitetty työhön ja hinnoitteluun'], color: '#a855f7', href: '/varasto', licenseModule: 'base' },
+  { title: 'Varasto', lines: ['Materiaalit ja kylmäaine', 'Linkitetty työhön ja hinnoitteluun'], color: '#a855f7', href: '/varasto', licenseModule: 'inventory' },
   {
     title: 'Etäohjaus ja seuranta',
     lines: ['Lämpötilaseuranta', 'VRF ohjaus ja seuranta'],
@@ -49,6 +49,8 @@ const MODULES: ModuleTile[] = [
   { title: 'Työkalut', lines: ['Työkaluinventaario', 'Vuokrauskalenteri ja varaukset'], color: '#ec4899', href: '/tyokalut', licenseModule: 'tools' },
   { title: 'Hallinta', lines: ['Omat tiedot ja yritys', 'Käyttäjät ja kumppanuudet'], color: '#8b5cf6', href: '/hallinta' },
 ];
+
+const SERVICE_TILE: ModuleTile = { title: 'Palvelun hallinta', lines: ['Yritykset ja tilaukset', 'Hinnasto'], color: '#7c3aed', href: '/palvelu' };
 
 interface Props {
   session: Session;
@@ -90,19 +92,24 @@ export default function Dashboard({ session }: Props) {
       }
       return true;
     }).map((module) => {
-      if (module.title === 'Laskutus' && partnershipsEnabled === false) {
+      if (module.title === 'Laskutus' && partnershipsEnabled !== true) {
         return { ...module, lines: ['Asiakaslaskutus'] };
       }
       if (module.href === '/huoltoraportit' && huolto.access.enabledCategories.length > 1) {
         const labels = HUOLTO_CATEGORIES.filter((c) => huolto.access.isCategoryEnabled(c.key)).map((c) => c.short);
         return { ...module, lines: [labels.join(', '), 'Laiterekisteri'] };
       }
-      if (module.title === 'Hallinta' && partnershipsEnabled === false) {
-        return { ...module, lines: ['Omat tiedot', 'Yritysasetukset'] };
+      if (module.href === '/hallinta') {
+        const isCompanyAdmin = profile?.role === 'admin' || profile?.role === 'manager';
+        return {
+          ...module,
+          title: isCompanyAdmin ? 'Yrityksen hallinta' : 'Hallinta',
+          lines: partnershipsEnabled === false ? ['Omat tiedot', 'Yritysasetukset'] : module.lines,
+        };
       }
       return module;
-    });
-  }, [portalView, license, billingModuleEnabled, partnershipsEnabled, huolto.loaded, huolto.access]);
+    }).concat(profile?.is_global_admin ? [SERVICE_TILE] : []);
+  }, [portalView, license, billingModuleEnabled, partnershipsEnabled, huolto.loaded, huolto.access, profile?.role, profile?.is_global_admin]);
   const [pendingOrders, setPendingOrders] = useState<PendingWorkOrderCounts>(EMPTY_PENDING);
   const [onboardingRefreshKey, setOnboardingRefreshKey] = useState(0);
 

@@ -17,7 +17,7 @@ import { chunkStoragePaths, parseDemoStatus } from '../src/lib/onboardingDemoDat
 import { partnershipsFeatureEnabled, partnershipsModuleLicensed } from '../src/lib/partnershipsModule.ts';
 import { companyPartnershipsEnabled } from '../src/lib/management.ts';
 import { buildMainNav } from '../src/lib/mainNav.ts';
-import { buildHallintaGroups, hallintaPageTitle } from '../src/lib/hallintaNav.ts';
+import { buildHallintaGroups, buildServiceTiles, hallintaPageTitle } from '../src/lib/hallintaNav.ts';
 
 // --- Y-tunnus ---
 for (const ok of ['0112038-9', '2908079-6', '2801074-5', '1572860-0', '0737546-2']) {
@@ -168,17 +168,16 @@ const navCtx = {
   billingModuleEnabled: true,
   role: 'admin',
   isGlobalAdmin: true,
-  globalAdminMode: true,
 };
 const hallinta = (ctx) => buildMainNav(ctx).find((i) => i.key === 'admin').children.map((c) => c.href);
-assert.ok(hallinta({ ...navCtx, partnershipsEnabled: true }).includes('/hallinta/kumppanilaskutus'));
+assert.ok(!hallinta({ ...navCtx, partnershipsEnabled: true }).includes('/hallinta/kumppanilaskutus'));
 assert.ok(!hallinta({ ...navCtx, partnershipsEnabled: false }).includes('/hallinta/kumppanilaskutus'));
 assert.ok(!hallinta({ ...navCtx, partnershipsEnabled: false }).includes('/hallinta/kumppanuudet'));
-const gbaTiles = (ctx) => buildHallintaGroups(ctx).flatMap((g) => g.tiles).map((t) => t.href);
-assert.ok(gbaTiles({ ...navCtx, partnershipsEnabled: true }).includes('/hallinta/global-admin/tilaukset'));
-assert.ok(!gbaTiles({ ...navCtx, partnershipsEnabled: true, isGlobalAdmin: false }).includes('/hallinta/global-admin/tilaukset'));
+const gbaTiles = (ctx) => [...buildHallintaGroups(ctx).flatMap((g) => g.tiles), ...buildServiceTiles(ctx)].map((t) => t.href);
+assert.ok(gbaTiles({ ...navCtx, partnershipsEnabled: true }).includes('/palvelu/tilaukset'));
+assert.ok(!gbaTiles({ ...navCtx, partnershipsEnabled: true, isGlobalAdmin: false }).includes('/palvelu/tilaukset'));
 assert.ok(!gbaTiles({ ...navCtx, partnershipsEnabled: false }).includes('/hallinta/kumppanilaskutus'));
-assert.equal(hallintaPageTitle('/hallinta/global-admin/tilaukset/abc'), 'Tilaukset');
+assert.equal(hallintaPageTitle('/palvelu/tilaukset/abc'), 'Tilaukset');
 
 // --- Esimerkkitiedot ---
 assert.deepEqual(

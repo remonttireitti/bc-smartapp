@@ -1,38 +1,48 @@
 import { Link, Navigate, Outlet, useLocation } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
 import AppLayout from './AppLayout';
-import ToggleSwitch from './ToggleSwitch';
-import Tooltip from './Tooltip';
-import { IconGear } from './icons';
 import { useCompanyBillingModuleEnabled } from '../hooks/useCompanyBillingModuleEnabled';
 import { useCompanyPartnershipsEnabled } from '../hooks/useCompanyPartnershipsEnabled';
-import { useGlobalAdminMode } from '../hooks/useGlobalAdminMode';
 import { useProfile } from '../hooks/useProfile';
 import { ROLE_LABELS } from '../lib/management';
-import { hallintaPageTitle } from '../lib/hallintaNav';
+import {
+  COMPANY_ADMIN_BASE,
+  COMPANY_ADMIN_TITLE,
+  SERVICE_ADMIN_BASE,
+  SERVICE_ADMIN_TITLE,
+  hallintaPageTitle,
+  legacyServicePath,
+  type ManagementScope,
+} from '../lib/hallintaNav';
 
 interface Props {
   session: Session;
+  /** company = /hallinta (oma yritys), service = /palvelu (globaali admin). */
+  scope?: ManagementScope;
 }
 
 const COMPANY_SETTINGS_PATH = '/hallinta/yritys';
-const ADMIN_PATHS = ['/hallinta/tilaajat', '/hallinta/kayttajat', '/hallinta/kumppanuudet', '/hallinta/kumppanilaskutus'];
-const GBA_PATHS = ['/hallinta/global-admin', '/hallinta/yritykset'];
+const ADMIN_PATHS = ['/hallinta/kayttajat', '/hallinta/kumppanuudet'];
+const PORTAL_ADMIN_PATHS = ['/hallinta/tilaajat', '/hallinta/asiakasportaali'];
 
-export default function ManagementLayout({ session }: Props) {
+export default function ManagementLayout({ session, scope = 'company' }: Props) {
   const location = useLocation();
   const { profile, loading, reload } = useProfile(session);
   const billingModuleEnabled = useCompanyBillingModuleEnabled(profile?.company_id, session);
   const partnershipsEnabled = useCompanyPartnershipsEnabled(profile?.company_id, session);
-  const { globalAdminMode, setGlobalAdminMode } = useGlobalAdminMode();
   const isAdmin = profile?.role === 'admin';
   const isManager = profile?.role === 'manager';
   const isGlobalAdmin = !!profile?.is_global_admin;
   const isCompanySettingsRoute = location.pathname.startsWith(COMPANY_SETTINGS_PATH);
   const isAdminRoute = ADMIN_PATHS.some((p) => location.pathname.startsWith(p));
-  const isGlobalAdminRoute = GBA_PATHS.some((p) => location.pathname.startsWith(p));
-  const isHub = location.pathname === '/hallinta' || location.pathname === '/hallinta/';
-  const pageTitle = hallintaPageTitle(location.pathname, location.search);
+  const isService = scope === 'service';
+  const base = isService ? SERVICE_ADMIN_BASE : COMPANY_ADMIN_BASE;
+  const isHub = location.pathname === base || location.pathname === `${base}/`;
+  const pageTitle = hallintaPageTitle(location.pathname);
+  const scopeTitle = isService ? SERVICE_ADMIN_TITLE : isAdmin || isManager ? COMPANY_ADMIN_TITLE : 'Hallinta';
+  const legacyTarget = isService ? null : legacyServicePath(location.pathname, location.search);
+
+  if (legacyTarget) return <Navigate to={`${legacyTarget}${location.hash}`} replace />;
 
   if (loading && !profile) {
     return (
@@ -50,35 +60,19 @@ export default function ManagementLayout({ session }: Props) {
     );
   }
 
-  if ((billingModuleEnabled === false || partnershipsEnabled === false) && location.pathname.startsWith('/hallinta/kumppanilaskutus')) {
-    return <Navigate to="/hallinta/omat" replace />;
-  }
-
   if (partnershipsEnabled === false && location.pathname.startsWith('/hallinta/kumppanuudet')) {
     return <Navigate to="/hallinta/omat" replace />;
   }
 
-  if (isGlobalAdminRoute) {
-    if (!isGlobalAdmin) {
-      return (
-        <AppLayout session={session}>
-          <p className="error">Vain globaali admin pääsee tälle sivulle.</p>
-          <p>
-            <Link to="/hallinta/omat">Siirry hallintaan</Link>
-          </p>
-        </AppLayout>
-      );
-    }
-    if (!globalAdminMode) {
-      return (
-        <AppLayout session={session}>
-          <p className="error">Globaali admin -tila on pois päältä.</p>
-          <p>
-            <Link to="/hallinta">Hallinta</Link>
-          </p>
-        </AppLayout>
-      );
-    }
+  if (isService && !isGlobalAdmin) {
+    return (
+      <AppLayout session={session}>
+        <p className="error">Vain globaali admin pääsee tälle sivulle.</p>
+        <p>
+          <Link to="/hallinta">{COMPANY_ADMIN_TITLE}</Link>
+        </p>
+      </AppLayout>
+    );
   }
 
   if (isCompanySettingsRoute && !isAdmin && !isManager) {
@@ -92,7 +86,9 @@ export default function ManagementLayout({ session }: Props) {
     );
   }
 
-  if (isAdminRoute && !isAdmin) {
+  // Portaalit: yrityksen ylläpitäjä tai GBA (oma yritys).
+  const isPortalRoute = PORTAL_ADMIN_PATHS.some((p) => location.pathname.startsWith(p));
+  if ((isAdminRoute && !isAdmin) || (isPortalRoute && !isAdmin && !isGlobalAdmin)) {
     return (
       <AppLayout session={session}>
         <p className="error">Vain ylläpitäjä voi muokata yrityksen hallinta-asetuksia.</p>
@@ -107,29 +103,18 @@ export default function ManagementLayout({ session }: Props) {
     <AppLayout session={session}>
       <div className="page-header">
         <div>
-          <p className="breadcrumb breadcrumb-home-only">
-            <Link to="/">Etusivu</Link> / {isHub ? 'Hallinta' : <Link to="/hallinta">Hallinta</Link>}
-            {pageTitle && !isHub ? ` / ${pageTitle}` : ''}
-          </p>
-          <h1>{isHub ? 'Hallinta' : pageTitle ?? 'Hallinta'}</h1>
-          {isHub && (
+          {!isHub && (
+            <p className={`management-scope${isService ? ' management-scope--service' : ''}`}>
+              <Link to={base}>{scopeTitle}</Link>
+            </p>
+          )}
+          <h1>{isHub ? scopeTitle : pageTitle ?? scopeTitle}</h1>
+          {isHub && !isService && (
             <p className="muted">
               {profile.companies?.name ?? '—'} • {ROLE_LABELS[profile.role] ?? profile.role}
             </p>
           )}
         </div>
-        {isHub && isGlobalAdmin && (
-          <Tooltip side="bottom" label="Globaali admin -tila: kaikkien yritysten hallinta.">
-            <ToggleSwitch
-              className="management-gba-toggle"
-              checked={globalAdminMode}
-              onChange={setGlobalAdminMode}
-              id="management-global-admin-mode"
-              label="Globaali admin"
-              icon={<IconGear className="ui-icon management-gba-icon" />}
-            />
-          </Tooltip>
-        )}
       </div>
 
       <Outlet
@@ -139,6 +124,7 @@ export default function ManagementLayout({ session }: Props) {
           reloadProfile: reload,
           billingModuleEnabled,
           partnershipsEnabled,
+          scope,
         }}
       />
     </AppLayout>

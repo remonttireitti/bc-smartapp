@@ -79,6 +79,7 @@ import WorkReportStatusMenu from '../components/WorkReportStatusMenu';
 import { useCompanyCustomerBillingEnabled } from '../hooks/useCompanyCustomerBillingEnabled';
 import { useCompanyBillingModuleEnabled } from '../hooks/useCompanyBillingModuleEnabled';
 import { useCompanyLicense } from '../hooks/useCompanyLicense';
+import { isLicenseModuleAccessible } from '../lib/companyLicense';
 import { useCompanyPartnershipsEnabled } from '../hooks/useCompanyPartnershipsEnabled';
 import { useProfile } from '../hooks/useProfile';
 import { canDeleteWorkReport } from '../lib/deletePermissions';
@@ -606,6 +607,7 @@ export function DailyLogFields({
   onAutoOpenExpenseHandled,
   quoteCommission,
   authorCommissionPlusElsewhere = false,
+  partnerBillingEnabled = true,
 }: {
   form: DailyLogFormState;
   setForm: React.Dispatch<React.SetStateAction<DailyLogFormState>>;
@@ -638,9 +640,12 @@ export function DailyLogFields({
   } | null;
   /** Saman tekijän toisessa kirjauksessa on provisio tilassa "Provisio + tunnit ja kulut". */
   authorCommissionPlusElsewhere?: boolean;
+  /** Kumppanuudet-moduuli: provision kumppanilaskutustapa ja rivikohtaiset kumppanivalinnat. */
+  partnerBillingEnabled?: boolean;
 }) {
   const partnerRowToggles =
-    isPartnerBillingColumnSupported()
+    partnerBillingEnabled
+    && isPartnerBillingColumnSupported()
     && (authorCommissionPlusElsewhere
       || (Number(form.commission_amount) > 0 && form.commission_mode !== 'commission_only')
       || form.hours_billed === false
@@ -1053,7 +1058,7 @@ export function DailyLogFields({
             />
           </label>
         </div>
-        {Number(form.commission_amount) > 0 && isPartnerBillingColumnSupported() ? (
+        {partnerBillingEnabled && Number(form.commission_amount) > 0 && isPartnerBillingColumnSupported() ? (
           <fieldset className="daily-log-commission-mode">
             <legend>Kumppanilaskutus</legend>
             <label>
@@ -1307,6 +1312,8 @@ export default function WorkReportDetailPage({ session }: Props) {
     profile?.is_global_admin,
   );
   const toolsModuleEnabled = companyLicense?.modules.tools === true;
+  /** Varasto-moduuli (ennen varasto_module.sql-ajoa = peruspaketin mukana). */
+  const inventoryModuleEnabled = isLicenseModuleAccessible(companyLicense ?? null, 'inventory');
   const partnershipsEnabled = useCompanyPartnershipsEnabled(profile?.company_id, session);
   const [report, setReport] = useState<WorkReport | null>(null);
   const [billing, setBilling] = useState<WorkReportBilling | null>(null);
@@ -1413,7 +1420,6 @@ export default function WorkReportDetailPage({ session }: Props) {
 
   const billingModuleEnabled = useCompanyBillingModuleEnabled(profile?.company_id, session);
   const [inventoryPickItems, setInventoryPickItems] = useState<InventoryPickItem[]>([]);
-  const inventoryModuleEnabled = companyLicense ? companyLicense.base_active !== false : true;
   useEffect(() => {
     const companyId = profile?.company_id;
     if (!companyId || !inventoryModuleEnabled) {
@@ -2160,7 +2166,7 @@ export default function WorkReportDetailPage({ session }: Props) {
         if (!partnershipModuleAccess(partnerPerms, 'work_reports', 'write')) {
           setDescriptionBusy(false);
           setError(
-            'Kumppani ei ole myöntänyt työraportin luontioikeutta. Pyydä kumppanin ylläpitäjää antamaan oikeus kohdassa Hallinta → Kumppanuudet.',
+            'Kumppani ei ole myöntänyt työraportin luontioikeutta. Pyydä kumppanin ylläpitäjää antamaan oikeus kohdassa Yrityksen hallinta → Kumppanuudet.',
           );
           return;
         }
@@ -3348,10 +3354,13 @@ export default function WorkReportDetailPage({ session }: Props) {
       : (report.owner_company?.name ?? '—');
   const showCustomerBillingFeatures =
     isOwnerCompany && (customerInvoicingEnabled || viewerBillingAllowed);
+  // Kumppanilaskutus vain, kun Kumppanuudet-moduuli on päällä.
+  const partnerBillingOn = partnershipsEnabled === true;
   const showOutgoingPartnerBilling =
-    isPartnerReport && canSeeCreatorBilling && !!billableCalculation;
+    partnerBillingOn && isPartnerReport && canSeeCreatorBilling && !!billableCalculation;
   const showIncomingPartnerBilling =
-    isPartnerReport
+    partnerBillingOn
+    && isPartnerReport
     && isOwnerCompany
     && !isCreatorCompany
     && viewerBillingAllowed
@@ -3585,7 +3594,8 @@ export default function WorkReportDetailPage({ session }: Props) {
   });
 
   const showPartnerBillingStatusInBasics =
-    !!partnerBillingListRow
+    partnerBillingOn
+    && !!partnerBillingListRow
     && hasPartnerBillingActivity(partnerBillingListRow, dailyLogs.length > 0)
     && (workReportStatusDisplay.viewerRole === 'incoming_partner'
       || workReportStatusDisplay.viewerRole === 'creator');
@@ -4442,7 +4452,7 @@ export default function WorkReportDetailPage({ session }: Props) {
               <p className="error">
                 Tuntihinta on 0 € — {billableHoursQty(billableCalculation).toFixed(2)} h kirjattu.
                 {useCustomRates
-                  ? ' Aseta hinnat yllä tai Hallinta → Yritys.'
+                  ? ' Aseta hinnat yllä tai Yrityksen hallinta → Yritys.'
                   : ' Tarkista kumppanuushinnat, yrityksen oletushinnat tai ota Raporttihinnat käyttöön.'}
               </p>
             )}
@@ -4642,7 +4652,7 @@ export default function WorkReportDetailPage({ session }: Props) {
             <p className="error">
               Asiakkaan tuntihinta on 0 € — {billableHoursQty(customerBillableCalculation).toFixed(2)} h kirjattu.
               {useCustomCustomerRates
-                ? ' Aseta hinnat yllä tai Hallinta → Yritys.'
+                ? ' Aseta hinnat yllä tai Yrityksen hallinta → Yritys.'
                 : ' Tarkista yrityksen asiakashinnat tai ota Raporttihinnat käyttöön.'}
             </p>
           )}
@@ -4688,7 +4698,7 @@ export default function WorkReportDetailPage({ session }: Props) {
                 Tulosta asiakkaalle
               </Link>
             </Tooltip>
-            <Tooltip label="Sisäinen tuloste: kumppanilaskutus, asiakkaalta laskutettava ja kaikki hinnat.">
+            <Tooltip label={partnerBillingOn ? "Sisäinen tuloste: kumppanilaskutus, asiakkaalta laskutettava ja kaikki hinnat." : "Sisäinen tuloste: asiakkaalta laskutettava ja kaikki hinnat."}>
               <Link to={`/tyoraportit/${report.id}/tuloste?hinnat=1`} className="btn btn-secondary">
                 Tulosta sisäinen (hinnat)
               </Link>
@@ -4752,7 +4762,7 @@ export default function WorkReportDetailPage({ session }: Props) {
           drafts={tripDrafts}
           setDrafts={setTripDrafts}
           tripDeparture={tripLegDeparture(tripDepartureLabel, tripDepartureLabel)}
-          showPartnerBilling={isPartnerReport || showCustomerBillingFeatures || viewerBillingAllowed}
+          showPartnerBilling={partnerBillingOn && (isPartnerReport || showCustomerBillingFeatures || viewerBillingAllowed)}
           showCustomerBilling={showCustomerBillingFeatures || isPartnerReport || viewerBillingAllowed}
           tripBillingMode={resolveTripBillingFromExpenses(expenseDrafts)}
           onTripBillingModeChange={(mode: ExpenseBillingMode) => {
@@ -4771,7 +4781,8 @@ export default function WorkReportDetailPage({ session }: Props) {
           setExpenseDrafts={setExpenseDrafts}
           showHourlyRate={showPartnerDailyLogHourlyRate}
           showCustomerHourlyRate={showCustomerBillingFeatures}
-          showPartnerExpenseFields={isPartnerReport}
+          showPartnerExpenseFields={partnerBillingOn && isPartnerReport}
+          partnerBillingEnabled={partnerBillingOn}
           showCustomerExpenseFields={showCustomerBillingFeatures}
           defaultHourlyRate={
             billableCalculation?.ratesUsed.hourly_regular
@@ -4838,6 +4849,7 @@ export default function WorkReportDetailPage({ session }: Props) {
           hasPartnerCompanies={hasPartnerRefrigerantCompanies}
           showCustomerBillingFields={showCustomerBillingFeatures}
           partnerOwnedReport={isPartnerReport}
+          ownWarehouseEnabled={inventoryModuleEnabled}
         />
         <DailyLogPartnerPurchaseFields
           drafts={partnerPurchaseDrafts}
@@ -4845,6 +4857,7 @@ export default function WorkReportDetailPage({ session }: Props) {
           partnerOptions={partnerPurchaseCompanyOptions}
           inventoryCompanyId={profile?.company_id ?? null}
           toolsModuleEnabled={toolsModuleEnabled}
+          inventoryModuleEnabled={inventoryModuleEnabled}
         />
         {report && (
           <DailyLogTileSection

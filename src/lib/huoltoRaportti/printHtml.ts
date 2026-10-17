@@ -974,7 +974,9 @@ export function generateMaintenanceReportHtml(
   ${renderVapaajahdytys(data)}
   ${renderChillerEnergy(data)}
   ${generateMlpFullPrintHtml(data)}
+  </div>
   ${renderKonvektoritTable(data)}
+  <div class="legacy">
   ${usesRefrigerantServiceExtras(data.laiteTyyppi) ? renderTiiveyskoe(data, imageUrls) : ''}
   ${usesRefrigerantServiceExtras(data.laiteTyyppi) ? renderTyhjiointi(data, imageUrls) : ''}
   ${renderCustomModulesPrintHtml(data.customModules)}

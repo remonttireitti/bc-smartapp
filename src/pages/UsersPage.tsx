@@ -3,7 +3,6 @@ import { useOutletContext } from 'react-router-dom';
 import IconButton from '../components/IconButton';
 import ToggleSwitch from '../components/ToggleSwitch';
 import { IconTrash } from '../components/icons';
-import { useGlobalAdminMode } from '../hooks/useGlobalAdminMode';
 import {
   deleteCompanyUser,
   fetchCompanyUserDeletionImpact,
@@ -42,10 +41,10 @@ function userLabel(user: Pick<CompanyUser, 'display_name' | 'email' | 'id'>) {
 }
 
 export default function UsersPage({ fixedCompanyId }: { fixedCompanyId?: string } = {}) {
-  const { profile, billingModuleEnabled } = useOutletContext<ManagementOutletContext>();
-  const { globalAdminMode } = useGlobalAdminMode();
+  const { profile, billingModuleEnabled, scope } = useOutletContext<ManagementOutletContext>();
   const isGlobalAdmin = !!profile.is_global_admin;
-  const gbaActive = isGlobalAdmin && globalAdminMode;
+  // Kaikkien yritysten käyttäjät vain Palvelun hallinnassa (/palvelu/yritykset/:id).
+  const gbaActive = isGlobalAdmin && scope === 'service';
   const canDeleteUsers = gbaActive;
   const canEditAllCompanies = gbaActive;
   const canEditNames = profile.role === 'admin' || gbaActive;
@@ -364,8 +363,8 @@ export default function UsersPage({ fixedCompanyId }: { fixedCompanyId?: string 
   return (
     <>
       <section className="panel">
-        {isGlobalAdmin && !globalAdminMode && (
-          <p className="muted global-admin-hint">Kaikkien yritysten käyttäjät: Hallinta → Globaali admin -kytkin.</p>
+        {isGlobalAdmin && !gbaActive && (
+          <p className="muted global-admin-hint">Muiden yritysten käyttäjät: Palvelun hallinta → Yritykset.</p>
         )}
 
         {gbaActive && !fixedCompanyId && companies.length > 0 && (

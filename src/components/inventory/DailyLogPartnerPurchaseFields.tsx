@@ -16,6 +16,8 @@ type Props = {
   partnerOptions: { id: string; name: string }[];
   inventoryCompanyId: string | null;
   toolsModuleEnabled: boolean;
+  /** Varasto-moduuli: ilman sitä ei kirjata varaosavarastoon. */
+  inventoryModuleEnabled?: boolean;
 };
 
 function rowTitle(row: PartnerPurchaseLineDraft, partnerName: string | undefined): string {
@@ -49,6 +51,7 @@ export default function DailyLogPartnerPurchaseFields({
   partnerOptions,
   inventoryCompanyId,
   toolsModuleEnabled,
+  inventoryModuleEnabled = true,
 }: Props) {
   const [materialOptions, setMaterialOptions] = useState<Array<{ id: string; name: string }>>([]);
 
@@ -214,7 +217,9 @@ export default function DailyLogPartnerPurchaseFields({
                   }
                 >
                   <option value="">Ei — vain laskutus</option>
-                  <option value="material">Varaosavarastoon (materiaali)</option>
+                  {inventoryModuleEnabled || row.inventory_kind === 'material' ? (
+                    <option value="material">Varaosavarastoon (materiaali)</option>
+                  ) : null}
                   {toolsModuleEnabled ? <option value="tool">Työkaluinventaarioon</option> : null}
                 </select>
               </label>
