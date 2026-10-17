@@ -57,10 +57,12 @@ interface Props {
 }
 
 const PORTAL_MODULES: ModuleTile[] = [
-  { title: 'Työtilaus', lines: ['Lähetä työtilaus', 'palveluyritykselle'], color: '#0ea5e9', href: '/tyoraportit/tilaus/uusi' },
-  { title: 'Työraportit', lines: ['Omat tilaukset', 'Valmiit raportit'], color: '#0284c7', href: '/tyoraportit' },
-  { title: 'Huoltoraportit', lines: ['Valmiit huoltopöytäkirjat'], color: '#22c55e', href: '/huoltoraportit' },
-  { title: 'Kohteet', lines: ['Kohteet', 'Laitteet'], color: '#3b82f6', href: '/asiakkaat' },
+  { title: 'Työtilaus', lines: ['Lähetä työtilaus'], color: '#0ea5e9', href: '/tyoraportit/tilaus/uusi' },
+  { title: 'Kohteet', lines: ['Kohteet ja niiden laitteet'], color: '#3b82f6', href: '/asiakkaat' },
+  { title: 'Laitteet', lines: ['Kaikki laitteet'], color: '#6366f1', href: '/laitteet' },
+  { title: 'Työraportit', lines: ['Tilaukset ja valmiit työt'], color: '#0284c7', href: '/tyoraportit' },
+  { title: 'Huoltopöytäkirjat', lines: ['Valmiit huollot'], color: '#22c55e', href: '/huoltoraportit' },
+  { title: 'Tiedostot', lines: ['Jaetut tiedostot'], color: '#64748b', href: '/tiedostot' },
 ];
 
 const EMPTY_PENDING: PendingWorkOrderCounts = {

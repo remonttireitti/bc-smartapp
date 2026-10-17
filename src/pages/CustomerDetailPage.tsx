@@ -639,10 +639,12 @@ export default function CustomerDetailPage({ session }: Props) {
       {error && <p className="error">{error}</p>}
       {message && <p className="muted">{message}</p>}
 
+      {!portalView ? (
       <CustomerSummaryStrip
         equipmentCount={equipment.length}
         documents={documents}
       />
+      ) : null}
 
       <CollapsibleSection
         variant="plain"
@@ -855,6 +857,7 @@ export default function CustomerDetailPage({ session }: Props) {
         className="customer-section customer-collapsible"
         title={`Laitteet (${equipment.length})`}
         collapseKey="customer:equipment"
+        defaultOpen={portalView}
       >
         {canWrite && (
           <div className="section-head compact-section-head">
@@ -998,6 +1001,8 @@ export default function CustomerDetailPage({ session }: Props) {
         ['temp_monitor_report', 'Seurantaraportit'],
         ['file', 'Tiedostot'],
       ] as const).map(([kind, label]) => {
+        // Portaalissa raportit ja tiedostot ovat omissa valikoissaan.
+        if (portalView) return null;
         const list = documents.filter((d) => d.kind === kind);
         if (list.length === 0 && (kind === 'temp_monitor_report' || kind === 'file')) return null;
         return (
