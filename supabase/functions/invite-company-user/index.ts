@@ -75,7 +75,18 @@ Deno.serve(async (req) => {
       });
     }
 
-    if (!isGlobalAdmin && companyId !== adminProfile.company_id) {
+    // Kumppani, jolla on asiakashallinnan kirjoitusoikeus omistajayritykseen, saa luoda
+    // asiakasportaalin kumppanin asiakkaalle (portaalikäyttäjä kuuluu omistajayritykseen).
+    let partnerCustomerPortal = false;
+    if (!isGlobalAdmin && role === 'customer' && customerId && companyId !== adminProfile.company_id) {
+      const { data: canWrite } = await userClient.rpc('can_write_module', {
+        target_owner: companyId,
+        module_key: 'customers',
+      });
+      partnerCustomerPortal = canWrite === true;
+    }
+
+    if (!isGlobalAdmin && !partnerCustomerPortal && companyId !== adminProfile.company_id) {
       return new Response(JSON.stringify({ error: 'Virheelliset tiedot' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -160,6 +171,12 @@ Deno.serve(async (req) => {
         .eq('id', existing.id)
         .maybeSingle();
       const otherCompany = existingProfile?.company_id && existingProfile.company_id !== companyId;
+      if (partnerCustomerPortal && existingProfile) {
+        return new Response(JSON.stringify({ error: 'Sähköposti on jo käytössä toisella tilillä' }), {
+          status: 409,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
       if (!isGlobalAdmin && (otherCompany || existingProfile?.is_global_admin === true)) {
         return new Response(JSON.stringify({ error: 'Sähköposti on jo käytössä toisella tilillä' }), {
           status: 409,

@@ -1,7 +1,8 @@
 import { Link } from 'react-router-dom';
 import type { CustomerLinkedDocument } from '../lib/customerDocuments';
 
-const OPEN_WORK = new Set(['scheduled', 'in_progress', 'completed', 'delegated']);
+/** Sama kuin työraporttilistan yhteenveto: valmis/laskutettu ei ole avoinna. */
+const OPEN_WORK = new Set(['scheduled', 'in_progress']);
 
 export function summarizeCustomerDocuments(documents: CustomerLinkedDocument[]) {
   const by = (k: CustomerLinkedDocument['kind']) => documents.filter((d) => d.kind === k);
