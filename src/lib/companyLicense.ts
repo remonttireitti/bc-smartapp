@@ -291,7 +291,7 @@ export function parseCompanyLicenseSnapshot(raw: unknown): CompanyLicenseSnapsho
     effective_status: String(row.effective_status ?? 'pending_trial') as LicenseEffectiveStatus,
     trial_started_at: typeof row.trial_started_at === 'string' ? row.trial_started_at : null,
     trial_ends_at: typeof row.trial_ends_at === 'string' ? row.trial_ends_at : null,
-    trial_days: Number(row.trial_days ?? 30),
+    trial_days: Number(row.trial_days ?? 14),
     billing_interval: (row.billing_interval as LicenseBillingInterval) ?? 'monthly',
     billing_interval_label: String(row.billing_interval_label ?? 'Kuukausittain'),
     billing_interval_months: Number(row.billing_interval_months ?? 1),

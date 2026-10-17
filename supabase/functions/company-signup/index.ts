@@ -383,7 +383,7 @@ async function sendApprovedMail(
 <tr><td style="${th}">Moduulit</td><td style="${td}">${esc(modules.join(', '))}</td></tr>
 ${periodRow}
 ${Number.isFinite(net) ? `<tr><td style="${th}">Kuukausihinta</td><td style="${td}">${formatEur(net)}/kk alv 0 % (${formatEur(Number.isFinite(gross) ? gross : net)}/kk sis. alv 25,5 %)</td></tr>` : ''}
-<tr><td style="${th}">Kokeilujakso</td><td style="${td}">${prices.trial_days} päivää, alkaa ensimmäisestä kirjautumisesta</td></tr>
+<tr><td style="${th}">Kokeilujakso</td><td style="${td}">${prices.trial_days} päivää maksutta, alkaa ensimmäisestä kirjautumisesta</td></tr>
 </table>
 ${invited.length ? `<p style="${p}">Kutsut lähetettiin käyttäjille: ${esc(invited.join(', '))}. Kukin asettaa salasanansa kutsuviestin linkistä.</p>` : ''}
 <p style="margin:20px 0"><a href="${APP_URL}" style="background:#2f3135;color:#fff;text-decoration:none;padding:10px 18px;border-radius:4px;display:inline-block">Kirjaudu: bestcool.eu</a></p>

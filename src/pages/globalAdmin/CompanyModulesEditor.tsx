@@ -58,6 +58,7 @@ export default function CompanyModulesEditor({ companyId, settings, ownCompanyId
   const [huolto, setHuolto] = useState<HuoltoSettings>(() => parseHuoltoSettings(settings));
   const [huoltoDirty, setHuoltoDirty] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [extendDays, setExtendDays] = useState('14');
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -159,16 +160,21 @@ export default function CompanyModulesEditor({ companyId, settings, ownCompanyId
   }
 
   async function extendTrial() {
+    const extra = Math.round(Number(extendDays));
+    if (!Number.isFinite(extra) || extra < 1 || extra > 365) {
+      setError('Jatko 1–365 päivää');
+      return;
+    }
     setBusy(true);
     setError(null);
-    const { error: e } = await supabase.rpc('global_admin_extend_company_trial', { p_company_id: companyId, p_extra_days: 30 });
+    const { error: e } = await supabase.rpc('global_admin_extend_company_trial', { p_company_id: companyId, p_extra_days: extra });
     setBusy(false);
     if (e) {
       setError(e.message);
       return;
     }
     invalidateCompanyLicenseCache(companyId);
-    setMessage('Kokeilua jatkettu 30 päivää.');
+    setMessage(`Kokeilua jatkettu ${extra} päivää.`);
     await load();
   }
 
@@ -234,8 +240,17 @@ export default function CompanyModulesEditor({ companyId, settings, ownCompanyId
         )}
         {canExtend && (
           <div className="form-actions" style={{ justifyContent: 'flex-start' }}>
+            <input
+              type="number"
+              min={1}
+              max={365}
+              value={extendDays}
+              onChange={(e) => setExtendDays(e.target.value)}
+              aria-label="Jatkopäivät"
+              style={{ width: '5rem' }}
+            />
             <button type="button" className="btn btn-secondary btn-sm" disabled={busy} onClick={() => void extendTrial()}>
-              Jatka kokeilua 30 pv
+              Jatka kokeilua {extendDays || '…'} pv
             </button>
           </div>
         )}

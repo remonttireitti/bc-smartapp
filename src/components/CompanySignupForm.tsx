@@ -243,6 +243,7 @@ export default function CompanySignupForm({ prices }: Props) {
         monthlyNet={estimate.net}
         prices={prices}
       />
+      <p className="muted">{prices.trial_days} päivää maksutta, alkaa ensimmäisestä kirjautumisesta.</p>
 
       {error && <p className="error">{error}</p>}
       <button type="submit" className="btn btn-primary landing-btn-lg" disabled={busy}>

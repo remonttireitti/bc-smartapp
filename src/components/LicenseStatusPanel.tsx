@@ -43,7 +43,7 @@ export default function LicenseStatusPanel({ license, canManageOrder, onRefresh 
     <section className="license-status-panel">
       {license.effective_status === 'pending_trial' && (
         <p className="license-status-lead">
-          Kokeilujakso alkaa, kun yrityksen ensimmäinen käyttäjä kirjautuu sisään. Jakso on{' '}
+          Maksuton kokeilujakso alkaa, kun yrityksen ensimmäinen käyttäjä kirjautuu sisään. Jakso on{' '}
           <strong>{license.trial_days} päivää</strong> ja sisältää kaikki moduulit.
         </p>
       )}
