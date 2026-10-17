@@ -4,7 +4,7 @@ import { useCallback, useState, useSyncExternalStore, type ReactNode } from 'rea
 import AppSidebar from './AppSidebar';
 import { ROLE_LABELS } from '../lib/management';
 import { routeHidesSidebar } from '../lib/mainNav';
-import { isPortalRouteAllowed, isPortalView } from '../lib/portalPreview';
+import { isPortalRouteAllowed, isPortalView, portalRedirectFor } from '../lib/portalPreview';
 import { isMonitorViewerRole } from '../lib/monitorReaderShares';
 import type { Session } from '@supabase/supabase-js';
 import LicenseStatusHeaderButton from './LicenseStatusHeaderButton';
@@ -59,8 +59,10 @@ export default function AppLayout({ session, children, noSidebar = false }: Prop
     && !routeHidesSidebar(location.pathname);
 
   // Portaali: henkilöstön reitit (esim. asiakaslista/-valitsin) eivät ole saatavilla.
-  if (profile && isPortalView(profile) && !isPortalRouteAllowed(location.pathname)) {
-    return <Navigate to={location.pathname === '/asiakkaat' ? '/laitteet' : '/'} replace />;
+  if (profile && isPortalView(profile)) {
+    const redirect = portalRedirectFor(location.pathname);
+    if (redirect) return <Navigate to={redirect} replace />;
+    if (!isPortalRouteAllowed(location.pathname)) return <Navigate to="/" replace />;
   }
 
   function toggleCollapsed() {

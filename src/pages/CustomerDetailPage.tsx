@@ -986,6 +986,7 @@ export default function CustomerDetailPage({ session }: Props) {
               selectedIds={selectedEquipmentIds}
               canWrite={canWrite}
               canDelete={canDeleteRegistry}
+              hrefFor={portalView ? (eq) => `/laitteet/${eq.id}` : undefined}
               busy={busy}
               printBusyId={printBusyId}
               navTrail={equipmentNavTrail}

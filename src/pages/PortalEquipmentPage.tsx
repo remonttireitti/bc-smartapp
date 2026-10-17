@@ -61,6 +61,7 @@ export default function PortalEquipmentPage({ session }: { session: Session }) {
               canWrite={false}
               canDelete={false}
               selectable={false}
+              hrefFor={(eq) => `/laitteet/${eq.id}`}
               busy={false}
               printBusyId={null}
               onToggleSelected={() => undefined}
