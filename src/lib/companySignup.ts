@@ -100,7 +100,7 @@ export function emptySignupForm(): SignupForm {
     email: '',
     phone: '',
     modules: { quotes: false, billing: false, remote_monitoring: false, inventory: false, tools: false, partners: false },
-    huolto: { kylma: true, lvi: false, iv: false, sahko: false },
+    huolto: { kylma: false, lvi: false, iv: false, sahko: false },
     users: [{ name: '', email: '', phone: '', roles: ['admin'] }],
     message: '',
   };
