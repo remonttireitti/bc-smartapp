@@ -343,6 +343,10 @@ export function inviteCompanyUserPlugin(): Plugin {
           const displayName = String(body.display_name ?? email.split('@')[0] ?? 'Käyttäjä');
           const role = String(body.role ?? 'technician');
           const companyId = String(body.company_id ?? adminProfile.company_id);
+          if (companyId !== adminProfile.company_id) {
+            sendJson(res, 400, { error: 'Virheelliset tiedot' });
+            return;
+          }
           const subscriberId = body.subscriber_id ? String(body.subscriber_id).trim() : '';
           const customerId = body.customer_id ? String(body.customer_id).trim() : '';
 
@@ -375,14 +379,31 @@ export function inviteCompanyUserPlugin(): Plugin {
           };
 
           const { data: listed } = await adminClient.auth.admin.listUsers();
-          const existing = listed?.users?.find((u) => u.email === email);
+          const existing = listed?.users?.find((u) => u.email?.toLowerCase() === email.toLowerCase());
           let userId = existing?.id;
+          const appMetadata = {
+            company_id: companyId,
+            role,
+            ...(subscriberId ? { subscriber_id: subscriberId } : {}),
+            ...(customerId ? { customer_id: customerId } : {}),
+          };
 
           if (existing) {
+            const { data: existingProfile } = await adminClient
+              .from('profiles')
+              .select('company_id, is_global_admin')
+              .eq('id', existing.id)
+              .maybeSingle();
+            const otherCompany = existingProfile?.company_id && existingProfile.company_id !== companyId;
+            if (otherCompany || existingProfile?.is_global_admin === true) {
+              sendJson(res, 409, { error: 'Sähköposti on jo käytössä toisella tilillä' });
+              return;
+            }
             const { error } = await adminClient.auth.admin.updateUserById(userId!, {
               password,
               email_confirm: true,
               user_metadata: metadata,
+              app_metadata: appMetadata,
             });
             if (error) throw error;
           } else {
@@ -391,6 +412,7 @@ export function inviteCompanyUserPlugin(): Plugin {
               password,
               email_confirm: true,
               user_metadata: metadata,
+              app_metadata: appMetadata,
             });
             if (error) throw error;
             userId = data.user.id;

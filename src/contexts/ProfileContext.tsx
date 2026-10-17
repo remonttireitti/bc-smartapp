@@ -2,6 +2,10 @@ import { createContext, useCallback, useEffect, useRef, useState, type ReactNode
 import type { Session } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import type { Profile } from '../types';
+import { claimInvitedProfile } from '../lib/profileClaim';
+
+const PROFILE_SELECT =
+  'id, display_name, email, tukes_number, home_address, workplace_address, trip_departure_source, role, company_id, subscriber_id, customer_id, is_global_admin, must_change_password';
 
 type ProfileRow = {
   id: string;
@@ -48,7 +52,6 @@ export function ProfileProvider({ session, children }: { session: Session; child
     const userEmail = session.user.email ?? '';
     const meta = session.user.user_metadata ?? {};
     const metaCompanyId = typeof meta.company_id === 'string' ? meta.company_id : null;
-    const metaGlobalAdmin = meta.is_global_admin === true;
 
     let cancelled = false;
 
@@ -58,43 +61,35 @@ export function ProfileProvider({ session, children }: { session: Session; child
         setLoading(true);
       }
 
-      let { data, error } = await supabase
-        .from('profiles')
-        .select(
-          'id, display_name, email, tukes_number, home_address, workplace_address, trip_departure_source, role, company_id, subscriber_id, customer_id, is_global_admin, must_change_password',
-        )
-        .eq('id', userId)
-        .maybeSingle();
+      let { data, error } = await supabase.from('profiles').select(PROFILE_SELECT).eq('id', userId).maybeSingle();
 
       if (error) console.error('Profiilin luku epäonnistui:', error.message);
 
-      if (!data && metaCompanyId) {
-        await supabase.from('profiles').upsert({
-          id: userId,
-          company_id: metaCompanyId,
-          email: userEmail,
-          display_name: (meta.display_name as string) ?? userEmail.split('@')[0] ?? 'Käyttäjä',
-          role: (meta.role as string) ?? 'technician',
-        });
-        const retry = await supabase
-          .from('profiles')
-          .select(
-            'id, display_name, email, tukes_number, home_address, workplace_address, trip_departure_source, role, company_id, subscriber_id, customer_id, is_global_admin, must_change_password',
-          )
-          .eq('id', userId)
-          .maybeSingle();
-        data = retry.data;
-      }
-
-      if (data && !data.company_id && metaCompanyId) {
-        await supabase
-          .from('profiles')
-          .update({
-            company_id: metaCompanyId,
-            role: (meta.role as string) ?? data.role,
-          })
-          .eq('id', userId);
-        data = { ...data, company_id: metaCompanyId };
+      if (!data || !data.company_id) {
+        // Kutsun vastaanotto palvelimella; käyttäjä ei saa itse asettaa yritystä/roolia.
+        const claim = await claimInvitedProfile(supabase);
+        if (claim === 'claimed') {
+          const retry = await supabase.from('profiles').select(PROFILE_SELECT).eq('id', userId).maybeSingle();
+          data = retry.data;
+        } else if (claim === 'unavailable' && metaCompanyId) {
+          // Vanha polku vain ennen profile_security.sql-ajoa.
+          if (!data) {
+            await supabase.from('profiles').upsert({
+              id: userId,
+              company_id: metaCompanyId,
+              email: userEmail,
+              display_name: (meta.display_name as string) ?? userEmail.split('@')[0] ?? 'Käyttäjä',
+              role: (meta.role as string) ?? 'technician',
+            });
+          } else {
+            await supabase
+              .from('profiles')
+              .update({ company_id: metaCompanyId, role: (meta.role as string) ?? data.role })
+              .eq('id', userId);
+          }
+          const retry = await supabase.from('profiles').select(PROFILE_SELECT).eq('id', userId).maybeSingle();
+          data = retry.data;
+        }
       }
 
       if (cancelled) return;
@@ -106,20 +101,9 @@ export function ProfileProvider({ session, children }: { session: Session; child
       }
 
       const row = data as ProfileRow;
-      if (metaGlobalAdmin && !row.is_global_admin) {
-        await supabase.from('profiles').update({ is_global_admin: true }).eq('id', userId);
-        row.is_global_admin = true;
-      }
-      const isGlobalAdmin = row.is_global_admin === true || metaGlobalAdmin;
-      let company = row.company_id ? await fetchCompany(row.company_id) : null;
-
-      if (!company && metaCompanyId) {
-        company = await fetchCompany(metaCompanyId);
-        if (company && !row.company_id) {
-          await supabase.from('profiles').update({ company_id: metaCompanyId }).eq('id', userId);
-          row.company_id = metaCompanyId;
-        }
-      }
+      // Globaali admin vain profiilista (user_metadata on käyttäjän itse muokattavissa).
+      const isGlobalAdmin = row.is_global_admin === true;
+      const company = row.company_id ? await fetchCompany(row.company_id) : null;
 
       if (cancelled) return;
 
@@ -132,7 +116,7 @@ export function ProfileProvider({ session, children }: { session: Session; child
         workplace_address: row.workplace_address ?? null,
         trip_departure_source: row.trip_departure_source === 'home' ? 'home' : 'workplace',
         role: row.role,
-        company_id: row.company_id ?? metaCompanyId,
+        company_id: row.company_id,
         subscriber_id: row.subscriber_id ?? null,
         customer_id: row.customer_id ?? null,
         is_global_admin: isGlobalAdmin,
