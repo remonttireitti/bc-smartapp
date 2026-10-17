@@ -240,7 +240,7 @@ export async function loadCustomerLinkedDocuments(
       statusLabel: QUOTE_STATUS_LABELS[quote.status] ?? quote.status,
       equipmentId: quote.equipment_id,
       equipmentLabel: formatEquipmentLabel(relationEquipment(quote.equipment)),
-      href: `/tarjouspyynnot/${quote.id}`,
+      href: portalReadOnly ? `/tarjouspyynnot/${quote.id}/tuloste` : `/tarjouspyynnot/${quote.id}`,
       printHref: `/tarjouspyynnot/${quote.id}/tuloste`,
     });
   }

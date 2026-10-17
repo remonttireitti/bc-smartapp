@@ -212,6 +212,7 @@ export function buildAuthenticatedRoutes(session: Session): RouteObject[] {
     { path: '/tyokalut/varaus/:token', element: <ToolBookingPublicPage /> },
     { path: '/laitteet', element: <PortalEquipmentPage session={session} /> },
     { path: '/tiedostot', element: <PortalFilesPage session={session} /> },
+    { path: '/tarjoukset', element: <PortalFilesPage session={session} kind="quote_request" title="Tarjoukset" /> },
     { path: '/asiakkaat', element: <LicensedCustomersPage session={session} /> },
     {
       path: '/asiakkaat/:customerId/laitteet/:equipmentId',

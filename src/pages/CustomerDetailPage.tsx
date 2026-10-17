@@ -1,7 +1,7 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useCompanyHuoltoSettings } from '../hooks/useCompanyHuoltoSettings';
 import { newHuoltoReportHref } from '../lib/huoltoCategories';
-import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
+import { Link, Navigate, useLocation, useNavigate, useParams } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
 import AppLayout from '../components/AppLayout';
 import { CustomerDocumentTable } from '../components/CustomerDocumentTile';
@@ -49,7 +49,7 @@ import {
 import { buildEquipmentListPrintHtml } from '../lib/equipmentListPrintHtml';
 import { openPrintHtml } from '../lib/openPrintWindow';
 import { isPortalUser } from '../lib/portalWorkOrder';
-import { isPortalView } from '../lib/portalPreview';
+import { getPortalCustomerId, getPortalSubscriberId, isPortalView } from '../lib/portalPreview';
 import { supabase } from '../lib/supabase';
 import { effectiveDeviceFields, loadEquipmentDeviceFields, type EquipmentDeviceFields } from '../lib/equipmentDeviceFields';
 import { customerDetailTrail, withNavTrail } from '../lib/navigationTrail';
@@ -555,6 +555,15 @@ export default function CustomerDetailPage({ session }: Props) {
 
   /** Asiakasportaali / esikatselu: täsmälleen asiakkaan näkymä, ei henkilöstön toimintoja. */
   const portalView = isPortalView(profile);
+  // Asiakasportaali on rajattu omaan kohteeseen (esikatselussakaan ei muiden asiakkaiden sivuja).
+  const portalCustomerId = getPortalCustomerId(profile);
+  if (portalView && portalCustomerId && customer.id !== portalCustomerId) {
+    return <Navigate to={`/asiakkaat/${portalCustomerId}`} replace />;
+  }
+  const portalSubscriberId = getPortalSubscriberId(profile);
+  if (portalView && portalSubscriberId && customer.subscriber_id !== portalSubscriberId) {
+    return <Navigate to="/laitteet" replace />;
+  }
   const canDeleteRegistry = !portalView && canDeleteCompanyOwnedEntity(
     customer.owner_company_id,
     profile?.company_id,
@@ -915,7 +924,7 @@ export default function CustomerDetailPage({ session }: Props) {
         ) : (
           <>
             <div className="customer-equipment-bulk-toolbar">
-              {!portalView ? <ToggleSwitch
+              <ToggleSwitch
                 className="customer-equipment-select-all-toggle"
                 checked={equipment.length > 0 && selectedEquipmentIds.size === equipment.length}
                 onChange={(checked) => {
@@ -926,7 +935,7 @@ export default function CustomerDetailPage({ session }: Props) {
                   }
                 }}
                 label="Valitse kaikki laitteet"
-              /> : null}
+              />
               <div className="customer-equipment-bulk-actions">
                 <button
                   type="button"
@@ -937,7 +946,6 @@ export default function CustomerDetailPage({ session }: Props) {
                   <PrinterIcon />
                   {printingEquipmentList ? 'Valmistellaan…' : 'Tulosta laiteluettelo (kaikki)'}
                 </button>
-                {!portalView ? (
                 <button
                   type="button"
                   className="btn btn-secondary btn-sm"
@@ -947,7 +955,6 @@ export default function CustomerDetailPage({ session }: Props) {
                   <PrinterIcon />
                   {printingEquipmentList ? 'Valmistellaan…' : 'Tulosta laiteluettelo (valitut)'}
                 </button>
-                ) : null}
                 <button
                   type="button"
                   className="btn btn-secondary btn-sm"
@@ -957,7 +964,6 @@ export default function CustomerDetailPage({ session }: Props) {
                   <HistoryIcon />
                   {printingHistory ? 'Haetaan…' : 'Tulosta huoltohistoria (kaikki)'}
                 </button>
-                {!portalView ? (
                 <button
                   type="button"
                   className="btn btn-secondary btn-sm"
@@ -967,7 +973,6 @@ export default function CustomerDetailPage({ session }: Props) {
                   <HistoryIcon />
                   {printingHistory ? 'Haetaan…' : 'Tulosta huoltohistoria (valitut)'}
                 </button>
-                ) : null}
               </div>
             </div>
             <CustomerEquipmentTable
@@ -981,7 +986,6 @@ export default function CustomerDetailPage({ session }: Props) {
               selectedIds={selectedEquipmentIds}
               canWrite={canWrite}
               canDelete={canDeleteRegistry}
-              selectable={!portalView}
               busy={busy}
               printBusyId={printBusyId}
               navTrail={equipmentNavTrail}

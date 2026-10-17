@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, Navigate } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
 import AppLayout from '../components/AppLayout';
 import { CustomerEquipmentTable } from '../components/CustomerEquipmentTile';
@@ -33,11 +33,12 @@ export default function PortalEquipmentPage({ session }: { session: Session }) {
   }, [loading, profile?.id, portal]);
 
   const empty = new Set<string>();
+  // Yksi kohde: avaa suoraan sen laitteet (tulostus ja valinnat siellä).
+  if (groups && groups.length === 1) return <Navigate to={`/asiakkaat/${groups[0].customer.id}`} replace />;
   return (
     <AppLayout session={session}>
       <div className="page-header">
         <div>
-          <p className="breadcrumb breadcrumb-home-only"><Link to="/">Etusivu</Link> / Laitteet</p>
           <h1>Laitteet</h1>
         </div>
       </div>
@@ -51,7 +52,7 @@ export default function PortalEquipmentPage({ session }: { session: Session }) {
       ) : (
         groups.filter((g) => g.equipment.length > 0).map(({ customer, equipment }) => (
           <section key={customer.id} className="panel customer-collapsible">
-            {groups.length > 1 ? <h2>{customer.name}</h2> : null}
+            <h2><Link to={`/asiakkaat/${customer.id}`}>{customer.name}</Link></h2>
             <CustomerEquipmentTable
               equipment={equipment}
               customerId={customer.id}
