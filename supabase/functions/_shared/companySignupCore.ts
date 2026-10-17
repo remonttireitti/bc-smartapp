@@ -78,6 +78,14 @@ export const DEVICE_TYPE_LABELS: Record<DeviceTypeKey, string> = {
 export const DEFAULT_DEVICE_PRICES: Record<DeviceTypeKey, number> = { jc3248: 5, esp32_ds18b20: 5, default: 5 };
 export const DEFAULT_TRIAL_DAYS = 30;
 
+/**
+ * Mitä pelkkä Peruspaketti avaa (tarkistettu reittien LicenseModuleGate 'base' + ehdottomat reitit):
+ * työraportit/toimeksiannot, asiakkaat + laitteet, varasto, tilaajaportaali, yritys- ja käyttäjähallinta.
+ * Huoltoraporttilajit, moduulit ja käyttäjät hinnoitellaan erikseen.
+ */
+export const BASE_PACKAGE_DESCRIPTION =
+  'Työraportit ja toimeksiannot, asiakkaat ja laiterekisteri, varasto (kylmäaine, materiaalit), tilaajaportaali sekä yritys- ja käyttäjähallinta';
+
 export const DEFAULT_ROLE_PRICES: Record<StaffRole, number> = { admin: 0, manager: 15, technician: 10 };
 /** Sama kuin license_catalog.base_monthly_eur tuotannossa. */
 export const DEFAULT_BASE_MONTHLY_EUR = 49;

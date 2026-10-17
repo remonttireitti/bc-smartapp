@@ -3,6 +3,7 @@ import PriceEstimateTable from './PriceEstimateTable';
 import {
   ADDON_MODULES,
   ADDON_MODULE_LABELS,
+  BASE_PACKAGE_DESCRIPTION,
   HUOLTO_KEYS,
   HUOLTO_LABELS,
   STAFF_ROLES,
@@ -108,6 +109,7 @@ export default function CompanySignupForm({ prices }: Props) {
         <div className="signup-checks">
           <label className="signup-check signup-check-fixed">
             <input type="checkbox" checked disabled /> Peruspaketti <span className="muted">{formatEur(prices.base_monthly_eur)}</span>
+            <small className="signup-check-desc muted">{BASE_PACKAGE_DESCRIPTION}</small>
           </label>
           {ADDON_MODULES.map((k) => (
             <label key={k} className="signup-check">

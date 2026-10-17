@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import {
   ADDON_MODULE_LABELS,
+  BASE_PACKAGE_DESCRIPTION,
   DEVICE_TYPE_LABELS,
   DEVICE_TYPES,
   HUOLTO_KEYS,
@@ -78,7 +79,7 @@ export const PRICE_ROWS: PriceRow[] = [
     key: 'base',
     group: 'perus',
     label: 'Peruspaketti',
-    description: 'Työraportit, varasto, asiakas- ja laiterekisteri',
+    description: BASE_PACKAGE_DESCRIPTION,
     get: (p) => p.base_monthly_eur,
     set: (p, v) => ({ ...p, base_monthly_eur: v }),
   },
