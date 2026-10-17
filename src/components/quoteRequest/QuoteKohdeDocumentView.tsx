@@ -36,9 +36,15 @@ export default function QuoteKohdeDocumentView({ form, canEdit, onChange }: Prop
               onChange={(e) => onChange({ introText: e.target.value })}
               disabled={!canEdit}
               placeholder={
-                isRepairQuoteType(form.type)
-                  ? 'Esim. Ilmalämpöpumpun huolto'
-                  : 'Esim. ILK 22A korjaukset'
+                form.type === 'iv'
+                  ? 'Esim. IV-kanavien puhdistus ja säätö'
+                  : form.type === 'lvi'
+                    ? 'Esim. Patteriverkoston huuhtelu ja perussäätö'
+                    : form.type === 'sahko'
+                      ? 'Esim. Latausaseman asennus'
+                      : isRepairQuoteType(form.type)
+                        ? 'Esim. Ilmalämpöpumpun huolto'
+                        : 'Esim. ILK 22A korjaukset'
               }
             />
           </label>

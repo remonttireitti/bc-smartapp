@@ -1,6 +1,7 @@
 export type QuoteRequestStatus = 'draft' | 'sent' | 'ordered';
 
-export type QuoteType = 'vesi-ilma' | 'ilma-ilma' | 'huolto';
+/** huolto = huolto/korjaus; lvi/iv/sahko = urakkatarjoukset omilla tyyppiriveillä. */
+export type QuoteType = 'vesi-ilma' | 'ilma-ilma' | 'huolto' | 'lvi' | 'iv' | 'sahko';
 
 /** Yritys ALV 0 % tai yksityishenkilö ALV 25,5 %. */
 export type QuoteVatProfile = 'business' | 'consumer';
@@ -41,6 +42,8 @@ export type QuoteMaterial = {
   rowKind?: QuoteMaterialRowKind;
   /** Tulosteen määräyksikkö (h, kpl, kg, erä, urakka…). */
   unit?: string;
+  /** Tyyppirivin avain (LVI/IV/sähkö-pikalisäys); 0 € = hinta puuttuu. */
+  catalogKey?: string;
 };
 
 /** Legacy simple line kept for older saved quotes. */

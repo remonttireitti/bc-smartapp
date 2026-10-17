@@ -24,31 +24,48 @@ import {
 import { computeManualDeviceSellNet } from '../../lib/quoteRequest/manualDevicePricing';
 import { CUSTOMER_PRINT_QUANTITY_UNIT_OPTIONS } from '../../lib/workReportCustomerPrintSettings';
 import type { QuoteMaterial, QuoteMaterialRowKind, QuoteRequestData } from '../../lib/quoteRequest/types';
+import {
+  isTradeRowPriceMissing,
+  tradeCatalogDefaultPrice,
+  type TradeCatalogItem,
+  type TradeCatalogPrices,
+} from '../../lib/quoteRequest/tradeCatalog';
 
 type Props = {
   form: QuoteRequestData;
   canEdit: boolean;
   onChange: (patch: Partial<QuoteRequestData>) => void;
   rowKindFilter?: QuoteMaterialRowKind;
+  /** LVI/IV/sähkö: tyyppirivit pikalisäykseen (tämän välilehden rivityyppi). */
+  catalogItems?: TradeCatalogItem[];
+  catalogPrices?: TradeCatalogPrices;
+  /** Asiakkaan oletustuntihinta (alv 0) tuntiriveille ilman omaa hintaa. */
+  hourlyRate?: number | null;
 };
 
 function formatEuro(value: number): string {
   return value.toLocaleString('fi-FI', { style: 'currency', currency: 'EUR' });
 }
 
-function quantityLabel(kind: QuoteMaterialRowKind): string {
-  return kind === 'labor' ? 'Tunnit' : 'Määrä';
+function isHourRow(kind: QuoteMaterialRowKind, unit: string | undefined): boolean {
+  return kind === 'labor' && (!unit || unit === 'h');
+}
+
+function quantityLabel(kind: QuoteMaterialRowKind, unit?: string): string {
+  return isHourRow(kind, unit) ? 'Tunnit' : 'Määrä';
 }
 
 function defaultUnitForKind(kind: QuoteMaterialRowKind): string {
   return kind === 'labor' ? 'h' : 'kpl';
 }
 
-function unitPriceLabel(kind: QuoteMaterialRowKind, side: 'purchase' | 'sell'): string {
-  if (kind === 'labor') {
+function unitPriceLabel(kind: QuoteMaterialRowKind, side: 'purchase' | 'sell', unit?: string): string {
+  if (isHourRow(kind, unit)) {
     return side === 'purchase' ? 'Hankinta €/h' : 'Myynti €/h';
   }
-  return side === 'purchase' ? 'Hankinta (€)' : 'Myynti / kpl (€)';
+  const u = unit && unit !== 'urakka' && unit !== 'erä' ? unit : kind === 'labor' ? '' : 'kpl';
+  if (side === 'purchase') return u ? `Hankinta €/${u}` : 'Hankinta (€)';
+  return u ? `Myynti €/${u}` : 'Myynti (€)';
 }
 
 function productLabel(kind: QuoteMaterialRowKind): string {
@@ -84,6 +101,9 @@ export default function QuoteInstallationSuppliesProductsSection({
   canEdit,
   onChange,
   rowKindFilter,
+  catalogItems,
+  catalogPrices,
+  hourlyRate,
 }: Props) {
   const items = form.installationSupplies ?? [];
   const visibleItems = rowKindFilter
@@ -191,6 +211,23 @@ export default function QuoteInstallationSuppliesProductsSection({
     );
   }
 
+  function addCatalogRow(item: TradeCatalogItem) {
+    const price = tradeCatalogDefaultPrice(item, catalogPrices ?? {}, hourlyRate);
+    updateItems([
+      ...items,
+      createEmptyMaterial({
+        name: item.name,
+        quantity: 1,
+        unit: item.unit,
+        rowKind: item.kind,
+        purchasePrice: 0,
+        marginPercent: 0,
+        sellPrice: price,
+        catalogKey: item.key,
+      }),
+    ]);
+  }
+
   const defaultRowKind = rowKindFilter ?? 'supply';
   const sectionTitle = rowKindFilter ? KIND_SECTION_TITLE[rowKindFilter] : 'Rivit';
   const addLabel = rowKindFilter ? KIND_ADD_LABEL[rowKindFilter] : '+ Lisää rivi';
@@ -233,6 +270,25 @@ export default function QuoteInstallationSuppliesProductsSection({
         ) : null}
       </div>
 
+      {canEdit && catalogItems && catalogItems.length > 0 ? (
+        <div className="quote-catalog-chips" aria-label="Pikalisäys">
+          {catalogItems.map((item) => {
+            const price = tradeCatalogDefaultPrice(item, catalogPrices ?? {}, hourlyRate);
+            return (
+              <button
+                key={item.key}
+                type="button"
+                className="quote-catalog-chip"
+                title={price > 0 ? `${formatEuro(price)} / ${item.unit}` : 'Hinta puuttuu'}
+                onClick={() => addCatalogRow(item)}
+              >
+                + {item.name} <span className="muted">{item.unit}</span>
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+
       {visibleItems.length === 0 ? (
         <p className="muted">Ei rivejä vielä.</p>
       ) : (
@@ -258,6 +314,7 @@ export default function QuoteInstallationSuppliesProductsSection({
                 <div className="quote-line-head">
                   <strong>
                     Rivi {index + 1} · {quoteMaterialRowKindLabel(rowKind)}
+                    {isTradeRowPriceMissing(item) ? <span className="quote-price-missing"> · hinta puuttuu</span> : null}
                   </strong>
                   {canEdit ? (
                     <button
@@ -300,11 +357,11 @@ export default function QuoteInstallationSuppliesProductsSection({
                     />
                   </label>
                   <label>
-                    {quantityLabel(rowKind)}
+                    {quantityLabel(rowKind, item.unit)}
                     <input
                       type="number"
                       min="0"
-                      step={rowKind === 'labor' ? '0.25' : '0.001'}
+                      step={isHourRow(rowKind, item.unit) ? '0.25' : '0.001'}
                       value={item.quantity}
                       onChange={(e) => updateRow(item.id, { quantity: Number(e.target.value) })}
                       disabled={!canEdit}
@@ -325,7 +382,7 @@ export default function QuoteInstallationSuppliesProductsSection({
                     </select>
                   </label>
                   <label>
-                    {unitPriceLabel(rowKind, 'purchase')}
+                    {unitPriceLabel(rowKind, 'purchase', item.unit ?? defaultUnitForKind(rowKind))}
                     <input
                       type="number"
                       min="0"
@@ -347,7 +404,7 @@ export default function QuoteInstallationSuppliesProductsSection({
                     />
                   </label>
                   <label>
-                    {unitPriceLabel(rowKind, 'sell')}
+                    {unitPriceLabel(rowKind, 'sell', item.unit ?? defaultUnitForKind(rowKind))}
                     <input
                       type="number"
                       min="0"

@@ -1,3 +1,4 @@
+import { isTradeQuoteType } from './tradeCatalog';
 import { materialSellTotal } from './calculations';
 import {
   filterInstallationSupplyRows,
@@ -96,6 +97,18 @@ export function buildAggregatedServiceCategoryRows(
 
   const settings = quantitySettings ?? DEFAULT_QUOTE_CUSTOMER_PRINT_QUANTITY_SETTINGS;
   const parts: string[] = [];
+
+  // LVI/IV/sähkö: rivit eriteltyinä (määrä ja yksikkö, esim. kanava m, pistorasia kpl).
+  if (isTradeQuoteType(data.type)) {
+    const rows = migrateLegacyMaterialsToInstallationSupplies(data).installationSupplies;
+    for (const kind of ['labor', 'supply', 'device', 'expense'] as const) {
+      for (const row of filterInstallationSupplyRows(rows, kind)) {
+        if (!row.name.trim()) continue;
+        parts.push(printMaterialRow(row, mode, settings));
+      }
+    }
+    return parts.join('');
+  }
 
   const suppliesSell = serviceQuoteSuppliesSellTotal(data);
   if (suppliesSell > 0.005) {

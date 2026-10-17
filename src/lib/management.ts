@@ -1,3 +1,4 @@
+import { parseTradeCatalogPrices } from './quoteRequest/tradeCatalog';
 import { partnershipsFeatureEnabled } from './partnershipsModule';
 export type PartnershipAccessLevel = 'none' | 'read' | 'write';
 
@@ -111,6 +112,8 @@ export type CompanySettings = {
     installation_vehicle_allowance?: number;
     /** Tuntimäärä per huoltoautokorvausjakso. */
     installation_vehicle_hours_per_block?: number;
+    /** LVI/IV/sähkö-tarjousten tyyppirivien omat myyntihinnat € / yksikkö (alv 0), avain = tyyppirivi. */
+    catalog_prices?: Record<string, number>;
   };
   billing?: {
     business_id?: string;
@@ -356,6 +359,7 @@ export function emptyCompanySettings(): CompanySettings {
   };
 }
 
+
 function parseOptionalPositiveNumber(value: unknown): number | undefined {
   const parsed = typeof value === 'number' ? value : Number(value);
   if (!Number.isFinite(parsed) || parsed <= 0) return undefined;
@@ -382,6 +386,7 @@ export function parseCompanySettings(raw: unknown): CompanySettings {
           installation_vehicle_hours_per_block: parseOptionalPositiveNumber(
             s.quotes.installation_vehicle_hours_per_block,
           ),
+          catalog_prices: parseTradeCatalogPrices(s.quotes.catalog_prices),
         }
       : undefined,
     partnerships_enabled: s.partnerships_enabled === true,

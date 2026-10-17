@@ -15,6 +15,7 @@ import PartnerBillingRatesFields from '../components/PartnerBillingRatesFields';
 import DeviceRegistrySettingsFields from '../components/quoteRequest/DeviceRegistrySettingsFields';
 import ToggleSwitch from '../components/ToggleSwitch';
 import CompanyMonthlyTotal from '../components/CompanyMonthlyTotal';
+import QuoteCatalogPricesSection from '../components/QuoteCatalogPricesSection';
 import { partnershipsModuleLicensed } from '../lib/partnershipsModule';
 import HuoltoSettingsSection from '../components/HuoltoSettingsSection';
 import { notifyHuoltoSettingsChanged } from '../hooks/useCompanyHuoltoSettings';
@@ -350,6 +351,13 @@ export default function CompanySettingsPage() {
         onChange={(huolto) => setSettings((current) => ({ ...current, huolto }))}
       />
 
+      <QuoteCatalogPricesSection
+        prices={settings.quotes?.catalog_prices ?? {}}
+        onChange={(catalog_prices) =>
+          setSettings((current) => ({ ...current, quotes: { ...current.quotes, catalog_prices } }))
+        }
+      />
+
       <section className="form-section">
         <h2>Asiakaslaskutuksen oletustuntihinnat</h2>
         <PartnerBillingRatesFields
@@ -379,7 +387,7 @@ export default function CompanySettingsPage() {
       )}
 
       <section className="form-section">
-        <h2>Tarjouspyynnöt</h2>
+        <h2>Tarjouspyynnöt ja laskennat</h2>
         <div className="line-form-grid">
           <label>
             Työn hankintahinta (€/h, alv 0)

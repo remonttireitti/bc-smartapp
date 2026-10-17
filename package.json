@@ -122,7 +122,8 @@
     "test:ilp-teho": "npx tsx scripts/test-ilp-teho.mjs",
     "test:billing-stats": "TZ=Europe/Helsinki npx tsx scripts/test-billing-stats.mjs",
     "test:module-trials": "npx tsx scripts/test-module-trials.mjs",
-    "test:free-access-price": "npx tsx scripts/test-free-access-price.mjs"
+    "test:free-access-price": "npx tsx scripts/test-free-access-price.mjs",
+    "test:quote-trade-types": "npx tsx scripts/test-quote-trade-types.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.1",

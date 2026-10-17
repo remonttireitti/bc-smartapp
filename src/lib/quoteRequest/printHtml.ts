@@ -38,6 +38,8 @@ import {
   resolveNonPumpDeviceSellNet,
 } from './manualDevicePricing';
 import type { QuoteLine, QuoteMaterial } from './types';
+import { isTradeQuoteType } from './tradeCatalog';
+import { quoteCustomTitleText } from './title';
 import { quoteLineTotal } from './defaults';
 import { optionalItemsPrintHtml } from './optionalItemsPrint';
 import {
@@ -349,6 +351,7 @@ function quotePrintStyles(): string {
     .mutual-billing-grid dt { color: #64748b; margin: 0; }
     .mutual-billing-grid dd { margin: 0; }
     .print-enduser .col-internal { display: none; }
+    .quote-labor-share { margin: 6px 0 12px; font-size: 10px; color: #475569; text-align: right; }
     .vat-notice {
       margin: 0 0 12px;
       padding: 8px 12px;
@@ -959,7 +962,7 @@ function generateQuoteOfferPrintHtmlRaw(input: {
   const tableBody = `${lineRows}${iilpBaseInstallRows(data, mode, quantitySettings)}${deviceRows}`;
 
   const kotitalous =
-    mode === 'enduser' && quoteShowsKotitalousDeduction(data.type)
+    mode === 'enduser' && quoteShowsKotitalousDeduction(data.type, data.vatRate)
       ? computeKotitalousDeduction(data)
       : null;
   const optionTotals = computeAllOptionTotals(data, feeMap);
@@ -1011,7 +1014,7 @@ function generateQuoteOfferPrintHtmlRaw(input: {
               ? ` (kahdella yhteensä enintään ${formatEuro(kotitalous.withSpouse)})`
               : ''
           }</div>
-          <div class="option-sub">Laskettu työn osuudesta ${formatEuro(kotitalous.laborOnlyGross)} (sis. ALV), ${(kotitalous.percent * 100).toFixed(0)}%, enintään ${formatEuro(kotitalous.maxPerPerson)} / hlö.</div>
+          <div class="option-sub">Laskettu työn osuudesta ${formatEuro(kotitalous.laborOnlyGross)} (sis. ALV), ${(kotitalous.percent * 100).toFixed(0)} %, omavastuu 150 €, enintään ${formatEuro(kotitalous.maxPerPerson)} / hlö.</div>
         </div>`
       : '';
 
@@ -1278,7 +1281,18 @@ function generateQuoteServicePrintHtmlRaw(input: {
   const logo = meta.logoUrl || smartappFallbackLogoSvg(meta.companyName);
   const customerAddress = formatCustomerAddressParts(customer);
   const typeLabel = QUOTE_TYPE_LABELS[data.type] || 'Tarjous';
-  const docTitle = data.introText.trim() || typeLabel;
+  // LVI/IV/sähkö: otsikko tyypistä (esim. IV-tarjous), oma otsikko perään.
+  const customTitle = quoteCustomTitleText(data);
+  const docTitle = isTradeQuoteType(data.type)
+    ? (customTitle ? `${typeLabel}: ${customTitle}` : typeLabel)
+    : data.introText.trim() || typeLabel;
+  const laborShare =
+    mode === 'enduser' && quoteShowsKotitalousDeduction(data.type, data.vatRate)
+      ? computeKotitalousDeduction(data).laborOnlyGross
+      : 0;
+  const laborShareHtml = laborShare > 0
+    ? `<p class="quote-labor-share">Kotitalousvähennykseen oikeuttava työn osuus ${formatEuro(laborShare)} (sis. alv ${String(Number(data.vatRate) || 0).replace('.', ',')} %)</p>`
+    : '';
   const vatRate = Number(data.vatRate) || 0;
   const totalRowLabel = quoteTotalRowLabel(vatRate);
 
@@ -1346,6 +1360,8 @@ function generateQuoteServicePrintHtmlRaw(input: {
         ${quotePrintTableFooter(mode, { data, totals, internal, totalRowLabel })}
       </tbody>
     </table>
+
+    ${laborShareHtml}
 
     ${mode === 'creator' && internal ? quoteCreatorMutualBillingBox(internal, totalRowLabel) : ''}
 
