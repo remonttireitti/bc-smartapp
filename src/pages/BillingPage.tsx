@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
 import AppLayout from '../components/AppLayout';
 import PartnerBillWorkflowDialog from '../components/PartnerBillWorkflowDialog';
@@ -147,24 +147,9 @@ export default function BillingPage({ session }: Props) {
   const { profile } = useProfile(session);
   const billingModuleEnabled = useCompanyBillingModuleEnabled(profile?.company_id, session);
   const partnershipsEnabled = useCompanyPartnershipsEnabled(profile?.company_id, session);
-  const [searchParams] = useSearchParams();
-  const urlMode = searchParams.get('mode');
-  const initialMode: BillingModuleMode =
-    urlMode === 'customer'
-      ? 'customer'
-      : urlMode === 'partner'
-        ? 'partner'
-        : urlMode === 'total'
-          ? 'total'
-          : partnershipsEnabled !== false
-            ? 'total'
-            : 'customer';
+  const initialMode: BillingModuleMode = partnershipsEnabled !== false ? 'total' : 'customer';
   const [tab, setTab] = useState<Tab>('list');
   const [billingMode, setBillingMode] = useState<BillingModuleMode>(initialMode);
-  // Sivupalkin alakohdat (?mode=…) vaihtavat näkymän myös sivun ollessa auki.
-  useEffect(() => {
-    if (urlMode === 'customer' || urlMode === 'partner' || urlMode === 'total') setBillingMode(urlMode);
-  }, [urlMode]);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('unbilled');
   const [search, setSearch] = useState('');
   const [disabledPartnerIds, setDisabledPartnerIds] = useState<Set<string>>(() => new Set());
@@ -192,17 +177,12 @@ export default function BillingPage({ session }: Props) {
   const [partnerOptions, setPartnerOptions] = useState<Array<{ id: string; name: string }>>([]);
   const [sourcePartnerDeductions, setSourcePartnerDeductions] = useState<PartnerBillingDeductionRow[]>([]);
   const [sourcePartnerDeductionsLoaded, setSourcePartnerDeductionsLoaded] = useState(false);
-  const [summaryPeriod, setSummaryPeriod] = useState<SummaryPeriod>('this_month');
+  const [summaryPeriod, setSummaryPeriod] = useState<SummaryPeriod>('all');
 
+  // Yksi näkymä: asiakas- ja kumppanilaskutus yhdessä (ilman kumppanuuksia vain asiakaslaskutus).
   useEffect(() => {
-    if (searchParams.get('mode') === 'customer') {
-      setBillingMode('customer');
-    } else if (searchParams.get('mode') === 'partner') {
-      setBillingMode(partnershipsEnabled === false ? 'customer' : 'partner');
-    } else if (searchParams.get('mode') === 'total' || !searchParams.get('mode')) {
-      setBillingMode(partnershipsEnabled === false ? 'customer' : 'total');
-    }
-  }, [searchParams, partnershipsEnabled]);
+    setBillingMode(partnershipsEnabled === false ? 'customer' : 'total');
+  }, [partnershipsEnabled]);
 
   useEffect(() => {
     if (partnershipsEnabled === false && billingMode !== 'customer') {
@@ -523,7 +503,6 @@ export default function BillingPage({ session }: Props) {
   }, [partnerOptions, rows, billingMode, profile?.company_id, sourcePartnerDeductions, sourcePartnerDeductionsLoaded]);
 
   const customers = useMemo(() => {
-    if (billingMode !== 'customer') return [];
     const map = new Map<string, { name: string; count: number }>();
     for (const row of rows) {
       const id = billToCustomerKey(row);
@@ -566,7 +545,7 @@ export default function BillingPage({ session }: Props) {
     return rows.filter((row) => {
       const mode = effectiveBillingRowMode(billingMode, row);
       if (isPartnerBillingRowExcluded(row)) return false;
-      if (billingMode === 'customer' && customerFilter && billToCustomerKey(row) !== customerFilter) {
+      if (customerFilter && billToCustomerKey(row) !== customerFilter) {
         return false;
       }
       if (!billingRowVisibleInList(row, mode, statusFilter)) return false;
@@ -592,7 +571,7 @@ export default function BillingPage({ session }: Props) {
     for (const row of rows) {
       const mode = effectiveBillingRowMode(billingMode, row);
       if (isPartnerBillingRowExcluded(row)) continue;
-      if (billingMode === 'customer' && customerFilter && billToCustomerKey(row) !== customerFilter) {
+      if (customerFilter && billToCustomerKey(row) !== customerFilter) {
         continue;
       }
 
@@ -670,7 +649,7 @@ export default function BillingPage({ session }: Props) {
     for (const row of rows) {
       const mode = effectiveBillingRowMode(billingMode, row);
       if (isPartnerBillingRowExcluded(row)) continue;
-      if (billingMode === 'customer' && customerFilter && billToCustomerKey(row) !== customerFilter) {
+      if (customerFilter && billToCustomerKey(row) !== customerFilter) {
         continue;
       }
       const ymd = toLocalYmd(billingRowDate(row));
@@ -1022,18 +1001,10 @@ export default function BillingPage({ session }: Props) {
   }
 
   const pageDisabled = billingModuleEnabled === false;
-  const customerModeActive = billingMode === 'customer';
   const partnerModeActive = billingMode === 'partner';
   const totalModeActive = billingMode === 'total';
 
-  const showPartnerBillingModes = partnershipsEnabled !== false;
 
-  const billingModeLabel =
-    billingMode === 'customer'
-      ? 'asiakaslaskutus omista työraporteista'
-      : billingMode === 'partner'
-        ? 'kumppanilaskutus työraporteista'
-        : 'asiakas- ja kumppanilaskutus yhteensä';
 
   return (
     <AppLayout session={session}>
@@ -1043,9 +1014,6 @@ export default function BillingPage({ session }: Props) {
             <Link to="/">Etusivu</Link> / Laskutus
           </p>
           <h1>Laskutettavat</h1>
-          <p className="muted">
-            {profile?.companies?.name ?? '—'} • {billingModeLabel}
-          </p>
         </div>
       </div>
 
@@ -1060,51 +1028,6 @@ export default function BillingPage({ session }: Props) {
         </section>
       ) : (
         <div className="billing-page">
-          <div className="billing-toolbar panel" style={{ marginBottom: '1rem' }}>
-            <div className="billing-filter-pills">
-              {showPartnerBillingModes && (
-                <button
-                  type="button"
-                  className={totalModeActive ? 'billing-pill active' : 'billing-pill'}
-                  onClick={() => {
-                    setBillingMode('total');
-                    setDisabledPartnerIds(new Set());
-                    setCustomerFilter('');
-                    setSelectedDay(null);
-                  }}
-                >
-                  Yhteensä
-                </button>
-              )}
-              <button
-                type="button"
-                className={customerModeActive ? 'billing-pill active' : 'billing-pill'}
-                onClick={() => {
-                  setBillingMode('customer');
-                  setDisabledPartnerIds(new Set());
-                  setCustomerFilter('');
-                  setSelectedDay(null);
-                }}
-              >
-                Omat asiakkaat
-              </button>
-              {showPartnerBillingModes && billingEnabled === true && (
-                <button
-                  type="button"
-                  className={partnerModeActive ? 'billing-pill active' : 'billing-pill'}
-                  onClick={() => {
-                    setBillingMode('partner');
-                    setDisabledPartnerIds(new Set());
-                    setCustomerFilter('');
-                    setSelectedDay(null);
-                  }}
-                >
-                  Kumppanit
-                </button>
-              )}
-            </div>
-          </div>
-
           {partnerModeActive && billingEnabled === false ? (
             <p className="muted panel" style={{ marginBottom: '1rem' }}>
               Käyttäjien laskutusasetukset (tunnit/kulut) vaikuttavat laskurivien sisältöön. Kumppanin
@@ -1119,7 +1042,7 @@ export default function BillingPage({ session }: Props) {
               Yhteenveto · {billingSummaryPeriodLabel(summaryPeriod).toLowerCase()}
             </p>
             <div className="billing-summary-period-pills">
-              {(['this_month', 'this_year', 'all'] as const).map((period) => (
+              {(['all', 'this_month', 'this_year'] as const).map((period) => (
                 <button
                   key={period}
                   type="button"
@@ -1241,9 +1164,9 @@ export default function BillingPage({ session }: Props) {
                   Kalenteri
                 </button>
               </div>
-              {billingMode === 'customer' ? (
+              {customers.length > 1 ? (
                 <label>
-                  Asiakas
+                  Laskutettava
                   <select
                     value={customerFilter}
                     onChange={(event) => {
