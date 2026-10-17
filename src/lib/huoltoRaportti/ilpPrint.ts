@@ -1,7 +1,7 @@
 /**
  * Ilmalämpöpumpun (yksi laite / pöytäkirja) huoltopöytäkirjan tuloste.
- * Hillitty A4-asettelu: musta/harmaa teksti, ohuet harmaat viivat, vaaleanharmaat otsikot,
- * väri vain tilassa (Kunnossa / Vika). Tulostuu hyvin myös mustavalkoisena.
+ * Hillitty A4-asettelu: musta/harmaa teksti, ohuet harmaat viivat, vaaleanharmaat otsikot.
+ * Sisäyksiköt maltillisesti värillisinä (.tint): turkoosi korostus, värikuva, pehmeät tilamerkit.
  */
 import type { HuoltoReportData, MittausSisayksikkoData, SisayksikkoData } from './types';
 import type { MaintenanceReportPhotoItem } from '../maintenanceReportImages';
@@ -25,6 +25,7 @@ import {
 import { getRefrigerantGWP } from './utils';
 import { ilpDeviceModel, ilpDeviceSerial } from './ilpIdentity';
 import { PRINT_SHELL_CSS, keepHeadingWithFirst } from './printShell';
+import { calculateIlpSisayksikkoTeho, formatIlpSisayksikkoTeho } from './ilpTeho';
 
 export interface IlpPrintMeta {
   companyName: string;
@@ -166,6 +167,12 @@ function renderIndoorUnit(
   const imu = modePair(bar(mm.imupaineJaahdytys), bar(mm.imupaineLammitys));
   const kp = modePair(bar(mm.korkeapaineJaahdytys), bar(mm.korkeapaineLammitys));
   const ilma = modePair(pick('ilmanmaaraM3hJaahdytys', 'ilmanmaaraM3h'), pick('ilmanmaaraM3hLammitys', 'ilmanmaaraM3h'));
+  const rh = (k: string) => (txt(mm[k]) ? `${txt(mm[k])} %` : '');
+  const paluuRh = modePair(rh('paluuKosteusRhJaahdytys'), rh('paluuKosteusRhLammitys'));
+  const puhallusRh = modePair(rh('puhallusKosteusRhJaahdytys'), rh('puhallusKosteusRhLammitys'));
+  const tehoJ = formatIlpSisayksikkoTeho(calculateIlpSisayksikkoTeho(m, 'jaahdytys'), 'jaahdytys');
+  const tehoL = formatIlpSisayksikkoTeho(calculateIlpSisayksikkoTeho(m, 'lammitys'), 'lammitys');
+  const teho = tehoJ && tehoL ? `J ${tehoJ} · L ${tehoL}` : tehoJ || tehoL;
 
   let figure = '';
   if (sisayksikkoSupportsSchematic(unit.tyyppi)) {
@@ -191,9 +198,12 @@ function renderIndoorUnit(
     figure ? '' : kv('Huone', huone),
     figure ? '' : kv('Paluu', paluu),
     figure ? '' : kv('Puhallus', puhallus),
+    kv('Kosteus paluu', paluuRh),
+    kv('Kosteus puhallus', puhallusRh),
     kv('Imupaine', imu),
     kv('Korkeapaine', kp),
     kv('Ilmanmäärä', ilma, 'm³/h'),
+    teho ? `<tr class="teho"><th>Teho</th><td>${esc(teho)}</td></tr>` : '',
   ]);
   const checks = checkTable(
     SISAYKSIKKO_TARKASTUS_ITEMS.map((item) => ({
@@ -363,7 +373,7 @@ export function generateIlpPrintHtml(data: HuoltoReportData, meta: IlpPrintMeta)
         <div><h2>Kylmäaine</h2>${refrigerant || '<table class="kv"><tr><td>—</td></tr></table>'}</div>
       </section>`
     : ''}
-  ${section('Sisäyksiköt ja mittaukset', renderIndoor(data, origin))}
+  ${section('Sisäyksiköt ja mittaukset', renderIndoor(data, origin), 'tint')}
   ${renderTests(data, meta.imageUrls)}
   ${section('Huomiot', notesInner)}
   <div class="sign">

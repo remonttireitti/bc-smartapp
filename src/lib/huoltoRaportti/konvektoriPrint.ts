@@ -39,7 +39,7 @@ function renderKonvektoriVerkostoSummary(
   esc: (v: unknown) => string,
 ): string {
   const cells = [
-    `<div><div style="color:#64748b;font-size:6px;margin-bottom:1px;">Konvektoreita</div><div style="font-weight:700;color:#0f766e;">${rowCount}</div></div>`,
+    `<div><div style="color:#64748b;font-size:6px;margin-bottom:1px;">Konvektoreita</div><div style="font-weight:700;color:#00646e;">${rowCount}</div></div>`,
   ];
 
   if (koide.kuvaus) {
@@ -54,7 +54,7 @@ function renderKonvektoriVerkostoSummary(
   }
 
   return `
-    <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;font-size:7px;line-height:1.35;margin:0 0 6px 0;padding:5px 7px;background:#f0fdfa;border:1px solid #99f6e4;border-radius:3px;">
+    <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;font-size:7px;line-height:1.35;margin:0 0 6px 0;padding:5px 7px;background:#f3fafa;border:.5px solid #cfe8ea;">
       ${cells.join('')}
     </div>`;
 }
@@ -109,12 +109,12 @@ function konvektoriCardColors(row: KonvektoriRowData): { background: string; bor
   const summary = konvektoriTarkastusSummary(row);
   const isVika = row.huomioTyyppi === 'vika' || summary.anyNo;
   if (isVika) {
-    return { background: '#fef2f2', border: '#fca5a5' };
+    return { background: '#fef7f6', border: '#f0b4ae' };
   }
   if (summary.complete && summary.allYes) {
-    return { background: '#f0fdf4', border: '#86efac' };
+    return { background: '#f6fcf7', border: '#a7dcb5' };
   }
-  return { background: '#fff', border: '#cbd5e1' };
+  return { background: '#fff', border: '#d4dbe0' };
 }
 
 function renderKonvektoriCheckLegend(esc: (v: unknown) => string): string {
@@ -124,8 +124,8 @@ function renderKonvektoriCheckLegend(esc: (v: unknown) => string): string {
   }).join('');
 
   return `
-    <div style="font-size:7px;color:#334155;line-height:1.35;margin:0 0 6px 0;padding:5px 7px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:3px;">
-      <div style="font-weight:700;margin-bottom:4px;color:#00838F;">Tarkastuskohdat (✓ = OK, ✗ = ei OK, – = ei vastattu)</div>
+    <div style="font-size:7px;color:#334155;line-height:1.35;margin:0 0 6px 0;padding:5px 7px;background:#fafafa;border:.5px solid #e5e5e5;">
+      <div style="font-weight:700;margin-bottom:4px;color:#00646e;">Tarkastuskohdat (✓ = OK, ✗ = ei OK, – = ei vastattu)</div>
       ${rows}
       <div style="margin-top:4px;color:#64748b;">Ruudun tausta: vihreä = kaikki OK · punertava = vika tai jokin kohta Ei. Kuvan päällä: Huone = imuilma, vasemmalla pino = tulo/virtaus/meno. Neste, virtaus ja laskettu teho otsikkorivillä.</div>
     </div>`;
@@ -206,11 +206,11 @@ function renderKonvektoriCard(
   const cardColors = konvektoriCardColors(row);
 
   return `
-    <div style="border:1px solid ${cardColors.border};border-radius:4px;padding:4px;background:${cardColors.background};page-break-inside:avoid;break-inside:avoid;display:flex;flex-direction:column;min-height:0;box-sizing:border-box;width:calc((100% - (var(--kc, 4) - 1) * 6px) / var(--kc, 4));">
-      <div style="font-size:7px;font-weight:700;color:#00838F;line-height:1.2;margin-bottom:2px;">${index + 1}. ${esc(typeLabel)}</div>
+    <div style="border:1px solid ${cardColors.border};padding:4px;background:${cardColors.background};page-break-inside:avoid;break-inside:avoid;display:flex;flex-direction:column;min-height:0;box-sizing:border-box;width:calc((100% - (var(--kc, 4) - 1) * 6px) / var(--kc, 4));">
+      <div style="font-size:7px;font-weight:700;color:#00646e;line-height:1.2;margin-bottom:2px;">${index + 1}. ${esc(typeLabel)}</div>
       <div style="font-size:6px;color:#334155;line-height:1.25;margin-bottom:3px;word-wrap:break-word;">${metaParts.length ? esc(metaParts.join(' · ')) : '—'}</div>
       ${nesteVirtausHtml}
-      <div style="position:relative;width:100%;height:80px;margin-bottom:3px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:3px;overflow:visible;">
+      <div style="position:relative;width:100%;height:80px;margin-bottom:3px;background:#fff;border:.5px solid #e2e8f0;overflow:visible;">
         <img src="${escAttr(imgUrl)}" alt="" style="width:100%;height:100%;object-fit:contain;display:block;" />
         ${overlayHtml}
       </div>
@@ -240,14 +240,12 @@ export function generateKonvektoritGridPrintHtml(
   const cards = list.map((row, idx) => renderKonvektoriCard(row, idx, esc, escAttr, origin)).join('');
 
   return `
-  <div class="box-content" style="border-color:#00838F;margin-top:6px;">
-    <div style="border-bottom:2px solid #00838F;padding-bottom:2px;margin-bottom:4px;">
-      <strong style="font-size:12px;color:#00838F;">KONVEKTORIT</strong>
-    </div>
+  <section class="sec tint konvektorit">
+    <h2>Konvektorit</h2>
     ${verkostoSummary}
     ${renderKonvektoriCheckLegend(esc)}
     <div style="--kc:${columns};display:flex;flex-wrap:wrap;gap:6px;align-items:stretch;">
       ${cards}
     </div>
-  </div>`;
+  </section>`;
 }
