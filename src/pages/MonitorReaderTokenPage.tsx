@@ -1,3 +1,4 @@
+import BrandLogo from '../components/BrandLogo';
 import { Link, useParams } from 'react-router-dom';
 import VrfMonitorReaderView from '../components/vrfMonitoring/VrfMonitorReaderView';
 
@@ -16,10 +17,8 @@ export default function MonitorReaderTokenPage() {
   return (
     <div className="monitor-reader-public">
       <header className="monitor-reader-public-topbar">
-        <span className="brand-icon" aria-hidden="true">
-          🏢
-        </span>
-        <span>BC Smartapp — jaettu seuranta</span>
+        <BrandLogo variant="mark" size="1.4rem" />
+        <span className="monitor-reader-public-title">— jaettu seuranta</span>
         <Link to="/login" className="btn btn-secondary monitor-reader-login-link">
           Kirjaudu
         </Link>

@@ -1,8 +1,9 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="BC Smartapp">
-  <rect width="512" height="512" rx="96" fill="#1e40af"/>
-  <rect x="96" y="128" width="320" height="256" rx="24" fill="#ffffff"/>
-  <rect x="144" y="176" width="224" height="32" rx="8" fill="#1e40af"/>
-  <rect x="144" y="232" width="176" height="24" rx="6" fill="#93c5fd"/>
-  <rect x="144" y="272" width="200" height="24" rx="6" fill="#93c5fd"/>
-  <rect x="144" y="312" width="144" height="24" rx="6" fill="#93c5fd"/>
+  <rect width="512" height="512" rx="96" fill="#ffffff"/>
+  <g transform="translate(64,64) scale(3)" fill="none">
+    <path d="M64 14 L108 52 V78 M64 14 L20 52 V108 H62" stroke="#2563eb" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M46 84 L70 110 L120 48" stroke="#2563eb" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M32 70 C40 62, 48 78, 56 70 S72 62, 80 70" stroke="#2563eb" stroke-width="9.5" stroke-linecap="round"/>
+    <path d="M32 88 C40 80, 48 96, 56 88 S72 80, 80 88" stroke="#2563eb" stroke-width="9.5" stroke-linecap="round"/>
+  </g>
 </svg>

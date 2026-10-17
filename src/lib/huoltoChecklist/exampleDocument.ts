@@ -1,5 +1,6 @@
 import type { ChecklistCategoryKey } from '../huoltoCategories';
 import { ensurePrintHtmlDocumentTitle } from '../printDocumentShell';
+import { EXAMPLE_COMPANY_LOGO_URL } from '../brandAssets';
 import { EXAMPLE_COMPANY_NAME, EXAMPLE_CUSTOMER, buildChecklistExampleReport } from './examples';
 import { buildChecklistPrintTitle, generateChecklistPrintHtml } from './printHtml';
 
@@ -9,6 +10,7 @@ export function buildChecklistExampleDocument(category: ChecklistCategoryKey, no
   const documentTitle = `Esimerkki — ${buildChecklistPrintTitle(data, EXAMPLE_CUSTOMER.name)}`;
   const html = generateChecklistPrintHtml(data, {
     companyName: EXAMPLE_COMPANY_NAME,
+    logoUrl: EXAMPLE_COMPANY_LOGO_URL,
     imageUrls: {},
     customer: { name: EXAMPLE_CUSTOMER.name, address: EXAMPLE_CUSTOMER.address },
     device: null,

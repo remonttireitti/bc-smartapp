@@ -9,6 +9,7 @@ import {
 } from '../lib/huoltoRaportti/konvektoriExamplePrint';
 import { buildKonvektoriExamplePrintDocument } from '../lib/huoltoRaportti/konvektoriExamplePrintDocument';
 import { filterFaultyKonvektoriRows } from '../lib/huoltoRaportti/konvektoriTarkastus';
+import { EXAMPLE_COMPANY_LOGO_URL } from '../lib/brandAssets';
 import {
   applyPrintDocumentTitle,
   extractPrintableHtmlFragment,
@@ -33,6 +34,7 @@ export default function KonvektoriExamplePrintPage({ session: _session }: Props)
       buildKonvektoriExamplePrintDocument(
         {
           companyName: KONVEKTORI_EXAMPLE_COMPANY_NAME,
+          logoUrl: EXAMPLE_COMPANY_LOGO_URL,
         },
         { faultyOnly, huoltoPaivamaara: exampleDate },
       ),

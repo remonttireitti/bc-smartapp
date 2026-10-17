@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import LandingExamplePrints from '../components/LandingExamplePrints';
 import { fetchSignupConfig, type PriceList } from '../lib/companySignup';
+import BrandLogo from '../components/BrandLogo';
 
 const CompanySignupForm = lazy(() => import('../components/CompanySignupForm'));
 
@@ -90,11 +91,8 @@ export default function PublicLandingPage() {
   return (
     <div className="public-landing">
       <header className="landing-header">
-        <Link to="/" className="landing-brand">
-          <span className="landing-brand-icon" aria-hidden="true">
-            🏢
-          </span>
-          <span>BC Smartapp</span>
+        <Link to="/" className="landing-brand" aria-label="BC Smartapp">
+          <BrandLogo variant="mark" size="1.7rem" />
         </Link>
         <span className="landing-header-actions">
           {prices ? (

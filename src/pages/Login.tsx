@@ -1,3 +1,4 @@
+import BrandLogo from '../components/BrandLogo';
 import { FormEvent, useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { SIGN_OUT_REASON_MESSAGES, type SignOutReason } from '../lib/authSessionConfig';
@@ -48,7 +49,9 @@ export default function Login() {
         <p className="login-back">
           <Link to="/">← Takaisin etusivulle</Link>
         </p>
-        <h1>BC Smartapp</h1>
+        <h1 className="login-brand">
+          <BrandLogo variant="horizontal" />
+        </h1>
         <p className="muted">Kirjaudu sisään</p>
         {signOutNotice && <p className="login-notice">{signOutNotice}</p>}
         <form onSubmit={onSubmit}>

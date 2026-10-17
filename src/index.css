@@ -17685,3 +17685,57 @@ label.has-error input { border-color: #b91c1c; }
 .price-example-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr)); gap: 1rem; margin-bottom: 1rem; }
 .price-example-grid fieldset { display: grid; gap: 0.35rem; border: 1px solid var(--border, #e5e7eb); border-radius: 8px; padding: 0.75rem; }
 .price-example-grid input[type='number'] { width: 4.5rem; }
+
+
+/* BC Smartapp brand mark */
+.brand-logo--mark {
+  display: inline-flex;
+  align-items: center;
+  gap: .45rem;
+  line-height: 1;
+}
+.brand-logo-mark-icon {
+  display: block;
+  flex-shrink: 0;
+  object-fit: contain;
+}
+.brand-logo-wordmark {
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  color: var(--text, #2f3135);
+  white-space: nowrap;
+}
+.brand-logo-wordmark strong {
+  font-weight: 700;
+}
+.brand-logo--horizontal {
+  display: block;
+  height: 2.25rem;
+  width: auto;
+  max-width: min(100%, 16rem);
+  object-fit: contain;
+}
+.login-brand {
+  margin: 0 0 .75rem;
+  display: flex;
+  justify-content: center;
+}
+.login-brand .brand-logo--horizontal {
+  height: 2.75rem;
+}
+.landing-brand .brand-logo--mark {
+  font-size: 1.15rem;
+}
+.brand-link {
+  text-decoration: none;
+  color: inherit;
+}
+.monitor-reader-public-topbar {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+}
+.monitor-reader-public-title {
+  color: var(--text-secondary, #64748b);
+  font-size: .95rem;
+}
