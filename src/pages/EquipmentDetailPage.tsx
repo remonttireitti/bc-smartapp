@@ -588,7 +588,7 @@ export default function EquipmentDetailPage({ session }: Props) {
       {([
         ['work_report', 'Työraportit'],
         ['maintenance_report', 'Huoltoraportit'],
-        ['quote_request', 'Tarjoukset'],
+        ['quote_request', 'Tarjouspyynnöt ja laskennat'],
         ['file', 'Tiedostot'],
       ] as const).map(([kind, label]) => {
         const list = documents.filter((d) => d.kind === kind);

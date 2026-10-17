@@ -985,7 +985,7 @@ export default function CustomerDetailPage({ session }: Props) {
       {([
         ['work_report', 'Työraportit'],
         ['maintenance_report', 'Huoltoraportit'],
-        ['quote_request', 'Tarjoukset'],
+        ['quote_request', 'Tarjouspyynnöt ja laskennat'],
         ['temp_monitor_report', 'Seurantaraportit'],
         ['file', 'Tiedostot'],
       ] as const).map(([kind, label]) => {
