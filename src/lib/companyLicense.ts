@@ -3,6 +3,7 @@ import {
   MODULE_DESCRIPTIONS,
   MODULE_NOTES,
 } from '../../supabase/functions/_shared/companySignupCore';
+import { parseModuleTrials, type ModuleTrial } from './moduleTrials';
 
 export type LicenseModuleKey = 'base' | 'quotes' | 'billing' | 'remote_monitoring' | 'inventory' | 'tools';
 
@@ -52,6 +53,8 @@ export type CompanyLicenseSnapshot = {
   order: CompanySubscriptionOrder | null;
   base_active: boolean;
   modules: Record<Exclude<LicenseModuleKey, 'base'>, boolean>;
+  /** Moduulikokeilut (module_trials.sql); tyhjä ennen ajoa. */
+  module_trials: ModuleTrial[];
   pricing: {
     base_monthly_eur: number;
     module_prices: Record<string, number>;
@@ -311,6 +314,7 @@ export function parseCompanyLicenseSnapshot(raw: unknown): CompanyLicenseSnapsho
           : modulesRaw.inventory === true,
       tools: modulesRaw.tools === true,
     },
+    module_trials: parseModuleTrials(row.module_trials),
     pricing: {
       base_monthly_eur: Number(pricingRaw.base_monthly_eur ?? 0),
       module_prices: Object.fromEntries(

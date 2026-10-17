@@ -11,6 +11,7 @@ import type { Company } from '../../types';
 import UsersPage from '../UsersPage';
 import CompanyMonthlyTotal from '../../components/CompanyMonthlyTotal';
 import CompanyModulesEditor from './CompanyModulesEditor';
+import CompanyModuleTrialsEditor from './CompanyModuleTrialsEditor';
 import GlobalAdminCompanyDeleteDialog from './GlobalAdminCompanyDeleteDialog';
 
 const TABS = [
@@ -64,6 +65,7 @@ export default function GlobalAdminCompanyPage() {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [trialsVersion, setTrialsVersion] = useState(0);
 
   const load = useCallback(async () => {
     if (!companyId) return;
@@ -208,7 +210,8 @@ export default function GlobalAdminCompanyPage() {
       {tab === 'moduulit' && (
         <>
           <CompanyModulesEditor companyId={company.id} settings={company.settings} ownCompanyId={profile.company_id} onSaved={load} />
-          <CompanyMonthlyTotal key={JSON.stringify(company.settings ?? null)} companyId={company.id} />
+          <CompanyModuleTrialsEditor companyId={company.id} onChanged={() => setTrialsVersion((v) => v + 1)} />
+          <CompanyMonthlyTotal key={`${trialsVersion}:${JSON.stringify(company.settings ?? null)}`} companyId={company.id} />
         </>
       )}
 

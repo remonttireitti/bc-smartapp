@@ -7,6 +7,7 @@ import {
   type HuoltoAccess,
   type HuoltoSettings,
 } from '../lib/huoltoCategories';
+import { MODULE_TRIALS_CHANGED_EVENT, ownCompanyTrialUnlockedKeys } from '../lib/moduleTrials';
 import { supabase } from '../lib/supabase';
 
 export const HUOLTO_SETTINGS_CHANGED_EVENT = 'huolto-settings-changed';
@@ -58,6 +59,16 @@ export function useCompanyHuoltoSettings(companyId: string | null | undefined, s
     };
   }, [companyId, refresh]);
 
-  const access: HuoltoAccess = useMemo(() => (settings ? huoltoAccess(settings) : HUOLTO_ACCESS_ALL), [settings]);
+  const [trialKeys, setTrialKeys] = useState<ReadonlySet<string>>(() => ownCompanyTrialUnlockedKeys());
+  useEffect(() => {
+    const onTrials = () => setTrialKeys(ownCompanyTrialUnlockedKeys());
+    window.addEventListener(MODULE_TRIALS_CHANGED_EVENT, onTrials);
+    return () => window.removeEventListener(MODULE_TRIALS_CHANGED_EVENT, onTrials);
+  }, []);
+
+  const access: HuoltoAccess = useMemo(
+    () => (settings ? huoltoAccess(settings, trialKeys) : HUOLTO_ACCESS_ALL),
+    [settings, trialKeys],
+  );
   return { settings, access, loaded: settings != null };
 }

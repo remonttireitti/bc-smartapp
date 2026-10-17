@@ -7,6 +7,7 @@ import { billingPeriodLabel, normalizeBillingPeriod } from '../../lib/companySig
 import { HUOLTO_CATEGORIES, huoltoAccess, parseHuoltoSettings, type HuoltoCategoryKey } from '../../lib/huoltoCategories';
 import type { ManagementOutletContext } from '../../lib/managementOutletContext';
 import { supabase } from '../../lib/supabase';
+import { formatTrialEnd } from '../../lib/moduleTrials';
 import { licenseStatusText } from './utils';
 import { useGlobalAdminMeta } from './useGlobalAdminMeta';
 import './GlobalAdminCompaniesPage.css';
@@ -33,6 +34,8 @@ type Row = {
   base: boolean;
   modules: Record<string, boolean>;
   huolto: Record<HuoltoCategoryKey, boolean>;
+  /** Aktiiviset moduulikokeilut: avain → päättymispäivä. */
+  trials: Record<string, string>;
   monthly: number | null;
   period: string;
 };
@@ -41,7 +44,14 @@ function rec(v: unknown): Record<string, unknown> {
   return v && typeof v === 'object' && !Array.isArray(v) ? (v as Record<string, unknown>) : {};
 }
 
-function OnOff({ on, label }: { on: boolean; label: string }) {
+function OnOff({ on, label, trialEnds }: { on: boolean; label: string; trialEnds?: string }) {
+  if (trialEnds) {
+    return (
+      <span className="module-flag module-flag-trial" title={`${label}: kokeilu, päättyy ${formatTrialEnd(trialEnds)}`}>
+        K
+      </span>
+    );
+  }
   return (
     <span className={on ? 'module-flag module-flag-on' : 'module-flag'} title={`${label}: ${on ? 'päällä' : 'pois'}`}>
       {on ? '✓' : '–'}
@@ -108,6 +118,13 @@ export default function GlobalAdminCompaniesPage() {
           ? legacy || lic.base_active === true
           : licModules[m.key] === true;
       }
+      const huoltoOn = Object.fromEntries(HUOLTO_CATEGORIES.map((k) => [k.key, access.isCategoryEnabled(k.key)])) as Record<HuoltoCategoryKey, boolean>;
+      // Kokeilun jälkeen jatkoon tilattu = tilattu.
+      for (const t of s?.module_trials ?? []) {
+        if (t.active || !t.keep_after) continue;
+        if (t.module_key in huoltoOn) huoltoOn[t.module_key as HuoltoCategoryKey] = true;
+        else modules[t.module_key] = true;
+      }
       const canExtend = !!s && s.enrollment !== 'legacy' && ['trial', 'expired', 'pending_trial'].includes(s.effective_status);
       return {
         id: c.id,
@@ -120,20 +137,27 @@ export default function GlobalAdminCompaniesPage() {
         canExtend,
         base: legacy || lic.base_active === true,
         modules,
-        huolto: Object.fromEntries(HUOLTO_CATEGORIES.map((k) => [k.key, access.isCategoryEnabled(k.key)])) as Record<HuoltoCategoryKey, boolean>,
+        trials: Object.fromEntries((s?.module_trials ?? []).filter((t) => t.active).map((t) => [t.module_key, t.ends_at])),
+        huolto: huoltoOn,
         monthly: monthly[c.id] ?? null,
         period: billingPeriodLabel(normalizeBillingPeriod(lic.billing_interval)),
       };
     });
   }, [companies, counts, overview, monthly]);
 
-  const flagCol = (key: string, short: string, label: string, on: (r: Row) => boolean): DataTableColumn<Row> => ({
+  const flagCol = (
+    key: string,
+    short: string,
+    label: string,
+    on: (r: Row) => boolean,
+    trialKey?: string,
+  ): DataTableColumn<Row> => ({
     key,
     label: short,
     title: label,
     className: 'module-flag-col',
-    value: (r) => (on(r) ? 1 : 0),
-    render: (r) => <OnOff on={on(r)} label={label} />,
+    value: (r) => (trialKey && r.trials[trialKey] ? 0.5 : on(r) ? 1 : 0),
+    render: (r) => <OnOff on={on(r)} label={label} trialEnds={trialKey ? r.trials[trialKey] : undefined} />,
   });
 
   const columns: DataTableColumn<Row>[] = [
@@ -146,8 +170,8 @@ export default function GlobalAdminCompaniesPage() {
       render: (r) => (r.trialDays != null ? `${r.status} (${r.trialDays} pv)` : r.status),
     },
     flagCol('base', 'Perus', 'Peruspaketti', (r) => r.base),
-    ...MODULE_COLUMNS.map((m) => flagCol(`m:${m.key}`, m.short, m.label, (r) => r.modules[m.key] === true)),
-    ...HUOLTO_CATEGORIES.map((k) => flagCol(`h:${k.key}`, k.short, k.label, (r) => r.huolto[k.key])),
+    ...MODULE_COLUMNS.map((m) => flagCol(`m:${m.key}`, m.short, m.label, (r) => r.modules[m.key] === true, m.key)),
+    ...HUOLTO_CATEGORIES.map((k) => flagCol(`h:${k.key}`, k.short, k.label, (r) => r.huolto[k.key], k.key)),
     { key: 'period', label: 'Laskutus', value: (r) => r.period },
     { key: 'users', label: 'Käyttäjiä', value: (r) => r.users, className: 'num' },
     { key: 'rows', label: 'Rivejä', value: (r) => r.rows, className: 'num' },

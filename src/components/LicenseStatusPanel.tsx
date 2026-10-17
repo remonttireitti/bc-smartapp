@@ -1,4 +1,6 @@
 import { Link } from 'react-router-dom';
+import ToggleSwitch from './ToggleSwitch';
+import { formatTrialEnd, moduleTrialLabel } from '../lib/moduleTrials';
 import CompanySubscriptionOrderForm from './CompanySubscriptionOrderForm';
 import ModuleDescription, { minDeviceFee } from './ModuleDescription';
 import { useEffect, useState } from 'react';
@@ -41,9 +43,22 @@ export default function LicenseStatusPanel({ license, canManageOrder, onRefresh 
       alive = false;
     };
   }, []);
+  const [trialBusy, setTrialBusy] = useState(false);
+  const [trialError, setTrialError] = useState<string | null>(null);
   if (license.enrollment === 'legacy') return null;
 
+  async function setKeep(moduleKey: string, keep: boolean) {
+    setTrialBusy(true);
+    setTrialError(null);
+    const { error } = await supabase.rpc('company_set_module_trial_keep', { p_module_key: moduleKey, p_keep: keep });
+    setTrialBusy(false);
+    if (error) setTrialError(error.message);
+    else onRefresh?.();
+  }
+
   const daysLeft = trialDaysRemaining(license);
+  const trialByKey = new Map(license.module_trials.map((t) => [t.module_key as string, t]));
+  const shownTrials = license.module_trials.filter((t) => t.active || t.keep_after);
   const { pricing } = license;
   const showOrderForm =
     canManageOrder
@@ -84,7 +99,17 @@ export default function LicenseStatusPanel({ license, canManageOrder, onRefresh 
 
       {license.effective_status === 'active' && (
         <BillingPeriodPicker
-          lines={[{ key: 'sub', label: 'Tilaus', qty: 1, total: pricing.estimated_monthly_total_eur }]}
+          lines={[
+            { key: 'sub', label: 'Tilaus', qty: 1, total: pricing.estimated_monthly_total_eur },
+            ...license.module_trials
+              .filter((t) => t.active)
+              .map((t) => ({
+                key: `trial:${t.module_key}`,
+                label: `${moduleTrialLabel(t.module_key)} — kokeilu päättyy ${formatTrialEnd(t.ends_at)}`,
+                qty: 1,
+                total: 0,
+              })),
+          ]}
           monthlyNet={pricing.estimated_monthly_total_eur}
           value={normalizeBillingPeriod(license.billing_interval)}
           prices={discounts}
@@ -144,11 +169,44 @@ export default function LicenseStatusPanel({ license, canManageOrder, onRefresh 
                   )}
                 </div>
               )}
-              <p className="license-state">{active ? 'Käytössä' : 'Ei tilauksessa'}</p>
+              <p className="license-state">
+                {trialByKey.get(moduleKey)?.active
+                  ? `Kokeilu — päättyy ${formatTrialEnd(trialByKey.get(moduleKey)!.ends_at, false)}`
+                  : active ? 'Käytössä' : 'Ei tilauksessa'}
+              </p>
             </article>
           );
         })}
       </div>
+
+      {shownTrials.length > 0 && (
+        <div className="license-trials-block">
+          <h3>Moduulikokeilut</h3>
+          <p className="muted">
+            Kokeilussa oleva moduuli on käytössä maksutta. Kokeilun päätyttyä se lukittuu, ellei sitä tilata.
+          </p>
+          {shownTrials.map((t) => (
+            <div key={t.module_key} className="license-trial-row">
+              <strong>{moduleTrialLabel(t.module_key)}</strong>
+              {t.active ? (
+                <span className="module-trial-badge">Kokeilu — päättyy {formatTrialEnd(t.ends_at, false)}</span>
+              ) : (
+                <span className="module-trial-kept">Tilattu</span>
+              )}
+              {canManageOrder && t.active && (
+                <ToggleSwitch
+                  checked={t.keep_after}
+                  disabled={trialBusy}
+                  label={t.keep_after ? 'Tilaa — jatkuu kokeilun jälkeen' : 'Tilaa'}
+                  onChange={(v) => void setKeep(t.module_key, v)}
+                />
+              )}
+              {!canManageOrder && t.active && t.keep_after && <span className="muted">Jatkuu kokeilun jälkeen</span>}
+            </div>
+          ))}
+          {trialError && <p className="error">{trialError}</p>}
+        </div>
+      )}
 
       {(showOrderForm || (canManageOrder && license.payment_status === 'awaiting_payment')) && (
         <CompanySubscriptionOrderForm
