@@ -171,7 +171,7 @@ export default function DailyLogRefrigerantFields({
                       Kumppanivarastosta ei löytynyt pulloja.
                       {partnerWarehouseNames.length > 0
                         ? ` Saatavilla: ${partnerWarehouseNames.join(', ')}.`
-                        : ' Varmista kumppanuus ja varasto-/kylmäaineen kauppa-oikeus (esim. Lämpökatsastus Oy → Hallinta → Kumppanuudet tai yritysasetuksissa "Kaikki kumppanit saavat käyttää kylmäainetta").'}
+                        : ' Varmista kumppanuus ja varasto-/kylmäaineen kauppa-oikeus (esim. Lämpökatsastus Oy → Yrityksen hallinta → Kumppanuudet tai yritysasetuksissa "Kaikki kumppanit saavat käyttää kylmäainetta").'}
                     </p>
                   ) : null}
                   <label>

@@ -897,7 +897,7 @@ export default function WorkReportNewPage({ session }: Props) {
 
           setError(
 
-            'Kumppani ei ole myöntänyt työraportin luontioikeutta. Pyydä kumppanin ylläpitäjää antamaan oikeus kohdassa Hallinta → Kumppanuudet.',
+            'Kumppani ei ole myöntänyt työraportin luontioikeutta. Pyydä kumppanin ylläpitäjää antamaan oikeus kohdassa Yrityksen hallinta → Kumppanuudet.',
 
           );
 

@@ -189,7 +189,7 @@ export default function DailyLogTripLegFields({
           Voit laskea matkan lähtöpisteestä kohteeseen tai syöttää kilometrit käsin.
           {rateLabel
             ? ` Km-korvaus (${rateLabel}) lasketaan automaattisesti täytetyistä matkoista.`
-            : ' Aseta €/km-hinta kohdassa Hallinta → Yritys.'}
+            : ' Aseta €/km-hinta kohdassa Yrityksen hallinta → Yritys.'}
         </p>
         {calcError ? <p className="error trip-leg-calc-error">{calcError}</p> : null}
 

@@ -1,17 +1,14 @@
-import { useOutletContext } from 'react-router-dom';
+import { Navigate, useLocation, useOutletContext } from 'react-router-dom';
 import { HubTileGrid } from '../components/HubTile';
-import { useGlobalAdminMode } from '../hooks/useGlobalAdminMode';
-import { buildHallintaGroups } from '../lib/hallintaNav';
+import { buildHallintaGroups, buildServiceTiles, legacyServicePath } from '../lib/hallintaNav';
 import type { ManagementOutletContext } from '../lib/managementOutletContext';
 
-/** /hallinta: ruudut ryhmittäin (Oma käyttäjä, Yritys, Globaali admin). */
+/** /hallinta: oman yrityksen ruudut (Oma käyttäjä, Yritys). */
 export default function HallintaHubPage() {
   const { profile, billingModuleEnabled, partnershipsEnabled } = useOutletContext<ManagementOutletContext>();
-  const { globalAdminMode } = useGlobalAdminMode();
   const groups = buildHallintaGroups({
     role: profile.role,
     isGlobalAdmin: !!profile.is_global_admin,
-    globalAdminMode,
     billingModuleEnabled,
     partnershipsEnabled,
   });
@@ -25,4 +22,20 @@ export default function HallintaHubPage() {
       ))}
     </div>
   );
+}
+
+/** /palvelu: koko palvelun (globaali admin) ruudut. */
+export function ServiceAdminHubPage() {
+  const { profile } = useOutletContext<ManagementOutletContext>();
+  return (
+    <div className="hallinta-hub">
+      <HubTileGrid tiles={buildServiceTiles({ isGlobalAdmin: !!profile.is_global_admin })} />
+    </div>
+  );
+}
+
+/** /global-admin (vanha) → /palvelu. */
+export function LegacyServiceRedirect() {
+  const location = useLocation();
+  return <Navigate to={legacyServicePath(location.pathname, location.search) ?? '/palvelu'} replace />;
 }

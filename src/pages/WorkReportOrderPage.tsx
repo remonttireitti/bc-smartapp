@@ -417,7 +417,7 @@ export default function WorkReportOrderPage({ session }: Props) {
           {partnerships.length === 0 ? (
             <p className="muted">
               Ei aktiivisia kumppanuuksia. Luo kumppanuus kohdassa{' '}
-              <Link to="/hallinta/kumppanuudet">Hallinta → Kumppanuudet</Link>.
+              <Link to="/hallinta/kumppanuudet">Yrityksen hallinta → Kumppanuudet</Link>.
             </p>
           ) : (
             <label>

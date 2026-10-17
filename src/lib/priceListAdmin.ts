@@ -17,7 +17,7 @@ import {
 } from '../../supabase/functions/_shared/companySignupCore';
 import { isMissingRpcError } from './profileClaim';
 
-/** Globaali admin → Hinnasto: tilaushinnat (license_catalog id = 1). Eri asia kuin yrityksen Huoltohinnasto. */
+/** Palvelun hallinta → Hinnasto: tilaushinnat (license_catalog id = 1). Eri asia kuin yrityksen Huoltohinnasto. */
 export type PriceGroupKey = 'perus' | 'moduulit' | 'huolto' | 'kayttajat';
 
 export type PriceRow = {

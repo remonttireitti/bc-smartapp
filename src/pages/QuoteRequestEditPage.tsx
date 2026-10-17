@@ -721,7 +721,7 @@ export default function QuoteRequestEditPage({ session }: Props) {
         );
         if (!partnershipModuleAccess(partnerPerms, 'quotes', 'write')) {
           setError(
-            'Kumppani ei ole myöntänyt tarjouspyynnön luontioikeutta. Pyydä oikeutta kohdasta Hallinta → Kumppanuudet.',
+            'Kumppani ei ole myöntänyt tarjouspyynnön luontioikeutta. Pyydä oikeutta kohdasta Yrityksen hallinta → Kumppanuudet.',
           );
           return false;
         }

@@ -50,6 +50,8 @@ const MODULES: ModuleTile[] = [
   { title: 'Hallinta', lines: ['Omat tiedot ja yritys', 'Käyttäjät ja kumppanuudet'], color: '#8b5cf6', href: '/hallinta' },
 ];
 
+const SERVICE_TILE: ModuleTile = { title: 'Palvelun hallinta', lines: ['Yritykset ja tilaukset', 'Hinnasto'], color: '#7c3aed', href: '/palvelu' };
+
 interface Props {
   session: Session;
 }
@@ -97,12 +99,17 @@ export default function Dashboard({ session }: Props) {
         const labels = HUOLTO_CATEGORIES.filter((c) => huolto.access.isCategoryEnabled(c.key)).map((c) => c.short);
         return { ...module, lines: [labels.join(', '), 'Laiterekisteri'] };
       }
-      if (module.title === 'Hallinta' && partnershipsEnabled === false) {
-        return { ...module, lines: ['Omat tiedot', 'Yritysasetukset'] };
+      if (module.href === '/hallinta') {
+        const isCompanyAdmin = profile?.role === 'admin' || profile?.role === 'manager';
+        return {
+          ...module,
+          title: isCompanyAdmin ? 'Yrityksen hallinta' : 'Hallinta',
+          lines: partnershipsEnabled === false ? ['Omat tiedot', 'Yritysasetukset'] : module.lines,
+        };
       }
       return module;
-    });
-  }, [portalView, license, billingModuleEnabled, partnershipsEnabled, huolto.loaded, huolto.access]);
+    }).concat(profile?.is_global_admin ? [SERVICE_TILE] : []);
+  }, [portalView, license, billingModuleEnabled, partnershipsEnabled, huolto.loaded, huolto.access, profile?.role, profile?.is_global_admin]);
   const [pendingOrders, setPendingOrders] = useState<PendingWorkOrderCounts>(EMPTY_PENDING);
   const [onboardingRefreshKey, setOnboardingRefreshKey] = useState(0);
 
