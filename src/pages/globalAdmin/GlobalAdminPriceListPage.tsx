@@ -9,7 +9,7 @@ import { supabase } from '../../lib/supabase';
 export default function GlobalAdminPriceListPage() {
   const [stored, setStored] = useState<PriceList | null>(null);
   const [draft, setDraft] = useState<Record<string, string>>({});
-  const [trialDraft, setTrialDraft] = useState('30');
+  const [trialDraft, setTrialDraft] = useState('14');
   const [discDraft, setDiscDraft] = useState({ semi_annual: '5', annual: '10' });
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
