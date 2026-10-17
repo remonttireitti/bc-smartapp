@@ -1,3 +1,5 @@
+import { isPortalPreviewActive } from './portalPreview';
+
 export function isAdminOrManager(role: string | null | undefined) {
   return role === 'admin' || role === 'manager';
 }
@@ -8,6 +10,8 @@ export function canDeleteCompanyOwnedEntity(
   role: string | null | undefined,
   isGlobalAdmin?: boolean,
 ) {
+  // Portaalin esikatselu on aina vain luku.
+  if (isPortalPreviewActive()) return false;
   if (isGlobalAdmin) return true;
   if (!myCompanyId || !isAdminOrManager(role)) return false;
   return ownerCompanyId === myCompanyId;
@@ -19,6 +23,8 @@ export function canDeleteWorkReport(
   isGlobalAdmin?: boolean,
   role?: string | null,
 ) {
+  // Portaalin esikatselu on aina vain luku.
+  if (isPortalPreviewActive()) return false;
   if (role === 'subscriber' || role === 'customer') return false;
   if (isGlobalAdmin) return true;
   return report.created_by_user_id === userId;
@@ -34,6 +40,8 @@ export function canDeleteQuoteRequest(
   role: string | null | undefined,
   isGlobalAdmin?: boolean,
 ) {
+  // Portaalin esikatselu on aina vain luku.
+  if (isPortalPreviewActive()) return false;
   if (role === 'subscriber' || role === 'customer') return false;
   if (quote.status !== 'draft' && quote.status !== 'sent') return false;
   if (isGlobalAdmin) return true;
@@ -62,6 +70,8 @@ export function canDeleteMaintenanceReport(
   role: string | null | undefined,
   isGlobalAdmin?: boolean,
 ) {
+  // Portaalin esikatselu on aina vain luku.
+  if (isPortalPreviewActive()) return false;
   if (role === 'subscriber' || role === 'customer') return false;
   if (isGlobalAdmin) return true;
   if (canDeleteCompanyOwnedEntity(report.owner_company_id, myCompanyId, role, isGlobalAdmin)) {

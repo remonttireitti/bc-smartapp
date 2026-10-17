@@ -18,6 +18,8 @@ type Props = {
   selectedIds: Set<string>;
   canWrite: boolean;
   canDelete: boolean;
+  /** Rivivalinta (joukkotulostus); piilossa portaalinäkymässä. */
+  selectable?: boolean;
   busy: boolean;
   printBusyId: string | null;
   navTrail?: NavTrailProps;
@@ -36,6 +38,7 @@ export function CustomerEquipmentTable({
   selectedIds,
   canWrite,
   canDelete,
+  selectable = true,
   busy,
   printBusyId,
   navTrail,
@@ -51,13 +54,13 @@ export function CustomerEquipmentTable({
       value: (eq) => eq.name,
       render: (eq) => (
         <span className="customer-equipment-name-cell">
-          <label className="customer-equipment-row-select" onClick={(e) => e.stopPropagation()}>
+          {selectable ? <label className="customer-equipment-row-select" onClick={(e) => e.stopPropagation()}>
             <CheckToggle
               checked={selectedIds.has(eq.id)}
               onChange={(e) => onToggleSelected(eq.id, e.target.checked)}
             />
             <span className="sr-only">Valitse {eq.name}</span>
-          </label>
+          </label> : null}
           {eq.name}
           {eq.is_onboarding_demo ? <span className="badge badge-demo">Esimerkki</span> : null}
         </span>
