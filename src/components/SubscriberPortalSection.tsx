@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useState } from 'react';
 import PortalUserCredentialsForm from './PortalUserCredentialsForm';
+import PasswordReveal from './PasswordReveal';
 import { inviteCompanyUser } from '../lib/inviteUser';
 import { supabase } from '../lib/supabase';
 
@@ -25,10 +26,10 @@ export default function SubscriberPortalSection({ subscriberId, subscriberName, 
   const [showInvite, setShowInvite] = useState(false);
   const [invite, setInvite] = useState({
     email: '',
-    password: 'test123456',
     display_name: '',
   });
   const [busy, setBusy] = useState(false);
+  const [createdPassword, setCreatedPassword] = useState<{ email: string; password: string } | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -71,15 +72,16 @@ export default function SubscriberPortalSection({ subscriberId, subscriberName, 
     setMessage(null);
 
     try {
-      await inviteCompanyUser({
+      const created = await inviteCompanyUser({
         email,
-        password: invite.password,
+        generate_password: true,
         display_name: invite.display_name.trim() || subscriberName,
         role: 'subscriber',
         company_id: companyId,
         subscriber_id: subscriberId,
       });
       setMessage(`Portaalikäyttäjä luotu: ${email}`);
+      setCreatedPassword(created.password ? { email, password: created.password } : null);
       setShowInvite(false);
       await loadPortalUser();
     } catch (err) {
@@ -99,6 +101,7 @@ export default function SubscriberPortalSection({ subscriberId, subscriberName, 
 
       {error && <p className="error">{error}</p>}
       {message && <p className="muted">{message}</p>}
+      {createdPassword ? <PasswordReveal email={createdPassword.email} password={createdPassword.password} /> : null}
 
       {loading ? (
         <p className="muted">Ladataan…</p>
@@ -147,14 +150,6 @@ export default function SubscriberPortalSection({ subscriberId, subscriberName, 
               value={invite.display_name}
               onChange={(e) => setInvite((i) => ({ ...i, display_name: e.target.value }))}
               placeholder={subscriberName}
-            />
-          </label>
-          <label>
-            Väliaikainen salasana
-            <input
-              type="text"
-              value={invite.password}
-              onChange={(e) => setInvite((i) => ({ ...i, password: e.target.value }))}
             />
           </label>
           <div className="form-actions">
