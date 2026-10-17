@@ -578,6 +578,8 @@ export interface MlpData {
 
 /** Core huoltoraportti data stored in maintenance_reports.data (BC-compatible subset) */
 export type HuoltoReportData = {
+  /** Huoltoraportista luotu työraportti (Siirrä työraporttiin). */
+  huoltoWorkReportId?: string;
   asiakas: string;
   customerId?: string;
   asiakasYtunnus?: string;

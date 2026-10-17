@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { deviceTypes } from '../../lib/huoltoRaportti/constants';
+import { useEnabledDeviceTypes } from './HuoltoTypeFilterContext';
 import {
   isChillerLikeDevice,
   isKonvektoritDevice,
@@ -31,6 +31,7 @@ export function MaintenanceDeviceDialog({
   onClose,
 }: Props) {
   const [draft, setDraft] = useState(form);
+  const enabledDeviceTypes = useEnabledDeviceTypes(form.laiteTyyppi);
 
   useEffect(() => {
     if (open) setDraft(form);
@@ -66,7 +67,7 @@ export function MaintenanceDeviceDialog({
           }}
         >
           <option value="">— Valitse laitetyyppi —</option>
-          {deviceTypes.map((dt) => (
+          {enabledDeviceTypes.map((dt) => (
             <option key={dt.value} value={dt.value}>
               {dt.label}
             </option>

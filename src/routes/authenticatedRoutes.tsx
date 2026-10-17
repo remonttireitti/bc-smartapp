@@ -20,6 +20,11 @@ import MaintenanceReportEditPage from '../pages/MaintenanceReportEditPage';
 import KonvektoriExamplePrintPage from '../pages/KonvektoriExamplePrintPage';
 import MaintenanceReportPrintPage from '../pages/MaintenanceReportPrintPage';
 import MaintenanceReportsPage from '../pages/MaintenanceReportsPage';
+import MaintenanceReportRoute from '../pages/MaintenanceReportRoute';
+import MaintenanceNewReportHubPage from '../pages/MaintenanceNewReportHubPage';
+import ChecklistReportEditPage from '../pages/ChecklistReportEditPageLazy';
+import HuoltoGate from '../components/HuoltoGate';
+import { isChecklistCategory, type HuoltoCategoryKey } from '../lib/huoltoCategories';
 import WorkReportDetailPage from '../pages/WorkReportDetailPage';
 import WorkReportNewPage from '../pages/WorkReportNewPage';
 import PortalWorkOrderPage from '../pages/PortalWorkOrderPage';
@@ -100,9 +105,33 @@ const LicensedWorkReportPrintPage = withLicenseModule('base', WorkReportPrintPag
 const LicensedWorkReportPartnerBillingPrintPage = withLicenseModule('billing', WorkReportPartnerBillingPrintPage);
 const LicensedBillingPage = withLicenseModule('billing', BillingPage);
 const LicensedInventoryPage = withLicenseModule('base', InventoryPage);
-const LicensedMaintenanceReportsPage = withLicenseModule('base', MaintenanceReportsPage);
-const LicensedMaintenanceReportEditPage = withLicenseModule('base', MaintenanceReportEditPage);
-const LicensedMaintenanceReportPrintPage = withLicenseModule('base', MaintenanceReportPrintPage);
+/** Huoltoraportit: lisenssi + yrityksen huoltolajit (Yritystiedot → Huoltoraportit). */
+function withHuolto<P extends { session: Session }>(Page: ComponentType<P>, category?: HuoltoCategoryKey) {
+  return function HuoltoPage(props: P) {
+    return (
+      <HuoltoGate session={props.session} category={category}>
+        <Page {...props} />
+      </HuoltoGate>
+    );
+  };
+}
+const LicensedMaintenanceReportsPage = withLicenseModule('base', withHuolto(MaintenanceReportsPage));
+const LicensedMaintenanceReportEditPage = withLicenseModule('base', withHuolto(MaintenanceReportEditPage, 'kylma'));
+const LicensedMaintenanceReportRoute = withLicenseModule('base', withHuolto(MaintenanceReportRoute));
+const LicensedMaintenanceNewReportHubPage = withLicenseModule('base', withHuolto(MaintenanceNewReportHubPage));
+const LicensedMaintenanceReportPrintPage = withLicenseModule('base', withHuolto(MaintenanceReportPrintPage));
+
+function ChecklistNewRoute({ session }: { session: Session }) {
+  const { category } = useParams();
+  if (!isChecklistCategory(category)) return <Navigate to="/huoltoraportit/valitse" replace />;
+  return (
+    <LicenseModuleGate session={session} moduleKey="base">
+      <HuoltoGate session={session} category={category}>
+        <ChecklistReportEditPage key={category} session={session} category={category} />
+      </HuoltoGate>
+    </LicenseModuleGate>
+  );
+}
 const LicensedKonvektoriExamplePrintPage = withLicenseModule('base', KonvektoriExamplePrintPage);
 const LicensedCustomersPage = withLicenseModule('base', CustomersPage);
 const LicensedCustomerDetailPage = withLicenseModule('base', CustomerDetailPage);
@@ -210,6 +239,8 @@ export function buildAuthenticatedRoutes(session: Session): RouteObject[] {
     { path: '/tyoraportit/:id', element: <LicensedWorkReportDetailPage session={session} /> },
     { path: '/huoltoraportit', element: <LicensedMaintenanceReportsPage session={session} /> },
     { path: '/huoltoraportit/uusi', element: <LicensedMaintenanceReportEditPage session={session} /> },
+    { path: '/huoltoraportit/valitse', element: <LicensedMaintenanceNewReportHubPage session={session} /> },
+    { path: '/huoltoraportit/uusi/:category', element: <ChecklistNewRoute session={session} /> },
     {
       path: '/huoltoraportit/esimerkki-konvektori/tuloste',
       element: <LicensedKonvektoriExamplePrintPage session={session} />,
@@ -218,7 +249,7 @@ export function buildAuthenticatedRoutes(session: Session): RouteObject[] {
       path: '/huoltoraportit/:id/tuloste',
       element: <LicensedMaintenanceReportPrintPage session={session} />,
     },
-    { path: '/huoltoraportit/:id', element: <LicensedMaintenanceReportEditPage session={session} /> },
+    { path: '/huoltoraportit/:id', element: <LicensedMaintenanceReportRoute session={session} /> },
     { path: '/tarjouspyynnot', element: <LicensedQuoteRequestHubPage session={session} /> },
     { path: '/tarjouspyynnot/lista', element: <LicensedQuoteRequestsPage session={session} /> },
     { path: '/tarjouspyynnot/yhteenveto', element: <LicensedQuoteRequestStatsPage session={session} /> },

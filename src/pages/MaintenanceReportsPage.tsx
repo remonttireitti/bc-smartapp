@@ -19,6 +19,8 @@ import { getPortalSubscriberId } from '../lib/portalPreview';
 import { usePortalPreview } from '../hooks/usePortalPreview';
 import { supabase } from '../lib/supabase';
 import { canDeleteMaintenanceReport } from '../lib/deletePermissions';
+import { useCompanyHuoltoSettings } from '../hooks/useCompanyHuoltoSettings';
+import { HUOLTO_CATEGORIES, newHuoltoReportHref, reportCategoryOf, type HuoltoCategoryKey } from '../lib/huoltoCategories';
 
 interface Props {
   session: Session;
@@ -43,6 +45,8 @@ export default function MaintenanceReportsPage({ session }: Props) {
   const [reports, setReports] = useState<MaintenanceReportListRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState<HuoltoCategoryKey | ''>('');
+  const huolto = useCompanyHuoltoSettings(profile?.company_id, session);
   const [deletingDraftId, setDeletingDraftId] = useState<string | null>(null);
   const portalMode = isPortalUser(profile);
 
@@ -101,11 +105,18 @@ export default function MaintenanceReportsPage({ session }: Props) {
   );
 
   const filteredReports = useMemo(() => {
-    const base = portalMode ? portalVisibleReports : reports;
+    const all = portalMode ? portalVisibleReports : reports;
+    const base = categoryFilter ? all.filter((r) => reportCategoryOf(r.data) === categoryFilter) : all;
     const query = search.trim().toLowerCase();
     if (!query) return base;
     return base.filter((report) => maintenanceReportSearchText(report).includes(query));
-  }, [reports, portalMode, portalVisibleReports, search]);
+  }, [reports, portalMode, portalVisibleReports, search, categoryFilter]);
+
+  // Suodatin vain, kun lajeja on useampi (käytössä olevat + listassa esiintyvät).
+  const filterCategories = useMemo(() => {
+    const present = new Set((portalMode ? portalVisibleReports : reports).map((r) => reportCategoryOf(r.data)));
+    return HUOLTO_CATEGORIES.filter((c) => present.has(c.key) || (!portalMode && huolto.access.isCategoryEnabled(c.key)));
+  }, [reports, portalVisibleReports, portalMode, huolto.access]);
 
   const grouped = useMemo(() => {
     const drafts = portalMode ? [] : filteredReports.filter((r) => r.status === 'draft');
@@ -177,15 +188,17 @@ export default function MaintenanceReportsPage({ session }: Props) {
 
         {!portalMode && (
           <div className="page-header-actions">
-            <Link
-              to="/huoltoraportit/esimerkki-konvektori/tuloste"
-              className="btn btn-secondary"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Konvektorin esimerkkituloste
-            </Link>
-            <Link to="/huoltoraportit/uusi" className="btn btn-primary" {...withNavTrail(maintenanceListTrail())}>
+            {huolto.access.isTypeEnabled('konvektorit') ? (
+              <Link
+                to="/huoltoraportit/esimerkki-konvektori/tuloste"
+                className="btn btn-secondary"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Konvektorin esimerkkituloste
+              </Link>
+            ) : null}
+            <Link to={newHuoltoReportHref(huolto.access)} className="btn btn-primary" {...withNavTrail(maintenanceListTrail())}>
               + Uusi huoltoraportti
             </Link>
           </div>
@@ -202,6 +215,19 @@ export default function MaintenanceReportsPage({ session }: Props) {
             placeholder="Asiakas, kumppani/rekisteri, laite, osoite…"
           />
         </label>
+        {filterCategories.length > 1 ? (
+          <label>
+            Laji
+            <select value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value as HuoltoCategoryKey | '')}>
+              <option value="">Kaikki</option>
+              {filterCategories.map((c) => (
+                <option key={c.key} value={c.key}>
+                  {c.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
       </div>
 
       {loading ? (

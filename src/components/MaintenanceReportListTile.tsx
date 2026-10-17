@@ -6,6 +6,7 @@ import {
 } from '../lib/maintenanceReportListHelpers';
 import { maintenanceListTrail, withNavTrail } from '../lib/navigationTrail';
 import { getMaintenanceReportStatusLabel } from '../types';
+import { reportTypeListLabel } from '../lib/huoltoCategories';
 
 type Props<T extends MaintenanceReportListItem> = {
   reports: T[];
@@ -20,7 +21,7 @@ function fiDate(iso: string): string {
   return new Date(iso).toLocaleDateString('fi-FI');
 }
 
-/** Huoltoraportit taulukkona: Asiakas, Laite, Tunnus/sijainti, Osoite, Tyyppi, Tila, Päivitetty, Rekisteri. */
+/** Huoltoraportit taulukkona: Asiakas, Laite, Tunnus/sijainti, Osoite, Laji, Tila, Päivitetty, Rekisteri. */
 export function MaintenanceReportListTable<T extends MaintenanceReportListItem>({
   reports,
   myCompanyId,
@@ -42,7 +43,7 @@ export function MaintenanceReportListTable<T extends MaintenanceReportListItem>(
       value: (r) => [r.equipment?.tag || r.data?.laiteTunnus, r.data?.laiteSijainti].filter((v) => v && String(v).trim()).join(' · '),
     },
     { key: 'address', label: 'Osoite', value: (r) => r.data?.osoite?.trim() ?? '' },
-    { key: 'type', label: 'Tyyppi', value: (r) => r.data?.laiteTyyppi?.trim() ?? '' },
+    { key: 'type', label: 'Laji', value: (r) => reportTypeListLabel(r.data) },
     {
       key: 'status',
       label: 'Tila',

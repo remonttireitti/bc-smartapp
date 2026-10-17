@@ -1,4 +1,6 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { useCompanyHuoltoSettings } from '../hooks/useCompanyHuoltoSettings';
+import { newHuoltoReportHref } from '../lib/huoltoCategories';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
 import AppLayout from '../components/AppLayout';
@@ -80,6 +82,7 @@ export default function CustomerDetailPage({ session }: Props) {
   const location = useLocation();
   const navigate = useNavigate();
   const { profile } = useProfile(session);
+  const huolto = useCompanyHuoltoSettings(profile?.company_id, session);
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [equipment, setEquipment] = useState<Equipment[]>([]);
   const [documents, setDocuments] = useState<CustomerLinkedDocument[]>([]);
@@ -599,13 +602,15 @@ export default function CustomerDetailPage({ session }: Props) {
         </div>
         {canWrite && (
           <div className="page-header-actions">
-            <Link
-              to={`/huoltoraportit/uusi?customerId=${customer.id}`}
-              className="btn btn-primary"
-              {...withNavTrail(customerDetailTrail(customer.id, customer.name))}
-            >
-              + Uusi huoltoraportti
-            </Link>
+            {huolto.loaded && huolto.access.moduleEnabled ? (
+              <Link
+                to={newHuoltoReportHref(huolto.access, `customerId=${customer.id}`)}
+                className="btn btn-primary"
+                {...withNavTrail(customerDetailTrail(customer.id, customer.name))}
+              >
+                + Uusi huoltoraportti
+              </Link>
+            ) : null}
             {managesRegistry && (
               <button type="button" className="btn btn-secondary" onClick={() => setSectionDialog('portal')}>
                 Asiakasportaali

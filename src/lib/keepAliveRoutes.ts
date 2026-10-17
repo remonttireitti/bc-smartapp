@@ -10,6 +10,8 @@ const NEVER_CACHE_PREFIXES = [
   '/seuranta/luku',
   '/tyoraportti/jako',
   '/j',
+  // Tarkastuslistaraportin luonti: tallennus vaihtaa reitin /huoltoraportit/:id:ksi.
+  '/huoltoraportit/uusi/',
 ] as const;
 
 export function keepAliveRouteKey(pathname: string, search = '', hash = '') {

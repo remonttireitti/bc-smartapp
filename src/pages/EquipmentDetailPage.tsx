@@ -1,4 +1,6 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { useCompanyHuoltoSettings } from '../hooks/useCompanyHuoltoSettings';
+import { newHuoltoReportHref } from '../lib/huoltoCategories';
 import { Link, useParams } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
 import AppLayout from '../components/AppLayout';
@@ -80,6 +82,7 @@ function draftFromEquipment(eq: Equipment, f?: EquipmentDeviceFields | null): Eq
 export default function EquipmentDetailPage({ session }: Props) {
   const { customerId, equipmentId } = useParams<{ customerId: string; equipmentId: string }>();
   const { profile } = useProfile(session);
+  const huolto = useCompanyHuoltoSettings(profile?.company_id, session);
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [equipment, setEquipment] = useState<Equipment | null>(null);
   const [canWrite, setCanWrite] = useState(false);
@@ -369,9 +372,9 @@ export default function EquipmentDetailPage({ session }: Props) {
               <HistoryIcon />
             </button>
           </Tooltip>
-          {!portalMode && (
+          {!portalMode && huolto.loaded && huolto.access.moduleEnabled && (
             <Link
-              to={`/huoltoraportit/uusi?customerId=${customer.id}&equipmentId=${equipment.id}`}
+              to={newHuoltoReportHref(huolto.access, `customerId=${customer.id}&equipmentId=${equipment.id}`)}
               className="btn btn-primary"
               {...withNavTrail(trail)}
             >
