@@ -604,6 +604,7 @@ export function DailyLogFields({
   onAutoOpenExpenseHandled,
   quoteCommission,
   authorCommissionPlusElsewhere = false,
+  partnerBillingEnabled = true,
 }: {
   form: DailyLogFormState;
   setForm: React.Dispatch<React.SetStateAction<DailyLogFormState>>;
@@ -636,9 +637,12 @@ export function DailyLogFields({
   } | null;
   /** Saman tekijän toisessa kirjauksessa on provisio tilassa "Provisio + tunnit ja kulut". */
   authorCommissionPlusElsewhere?: boolean;
+  /** Kumppanuudet-moduuli: provision kumppanilaskutustapa ja rivikohtaiset kumppanivalinnat. */
+  partnerBillingEnabled?: boolean;
 }) {
   const partnerRowToggles =
-    isPartnerBillingColumnSupported()
+    partnerBillingEnabled
+    && isPartnerBillingColumnSupported()
     && (authorCommissionPlusElsewhere
       || (Number(form.commission_amount) > 0 && form.commission_mode !== 'commission_only')
       || form.hours_billed === false
@@ -1051,7 +1055,7 @@ export function DailyLogFields({
             />
           </label>
         </div>
-        {Number(form.commission_amount) > 0 && isPartnerBillingColumnSupported() ? (
+        {partnerBillingEnabled && Number(form.commission_amount) > 0 && isPartnerBillingColumnSupported() ? (
           <fieldset className="daily-log-commission-mode">
             <legend>Kumppanilaskutus</legend>
             <label>
@@ -3327,10 +3331,13 @@ export default function WorkReportDetailPage({ session }: Props) {
       : (report.owner_company?.name ?? '—');
   const showCustomerBillingFeatures =
     isOwnerCompany && (customerInvoicingEnabled || viewerBillingAllowed);
+  // Kumppanilaskutus vain, kun Kumppanuudet-moduuli on päällä.
+  const partnerBillingOn = partnershipsEnabled === true;
   const showOutgoingPartnerBilling =
-    isPartnerReport && canSeeCreatorBilling && !!billableCalculation;
+    partnerBillingOn && isPartnerReport && canSeeCreatorBilling && !!billableCalculation;
   const showIncomingPartnerBilling =
-    isPartnerReport
+    partnerBillingOn
+    && isPartnerReport
     && isOwnerCompany
     && !isCreatorCompany
     && viewerBillingAllowed
@@ -3564,7 +3571,8 @@ export default function WorkReportDetailPage({ session }: Props) {
   });
 
   const showPartnerBillingStatusInBasics =
-    !!partnerBillingListRow
+    partnerBillingOn
+    && !!partnerBillingListRow
     && hasPartnerBillingActivity(partnerBillingListRow, dailyLogs.length > 0)
     && (workReportStatusDisplay.viewerRole === 'incoming_partner'
       || workReportStatusDisplay.viewerRole === 'creator');
@@ -4666,7 +4674,7 @@ export default function WorkReportDetailPage({ session }: Props) {
                 Tulosta asiakkaalle
               </Link>
             </Tooltip>
-            <Tooltip label="Sisäinen tuloste: kumppanilaskutus, asiakkaalta laskutettava ja kaikki hinnat.">
+            <Tooltip label={partnerBillingOn ? "Sisäinen tuloste: kumppanilaskutus, asiakkaalta laskutettava ja kaikki hinnat." : "Sisäinen tuloste: asiakkaalta laskutettava ja kaikki hinnat."}>
               <Link to={`/tyoraportit/${report.id}/tuloste?hinnat=1`} className="btn btn-secondary">
                 Tulosta sisäinen (hinnat)
               </Link>
@@ -4730,7 +4738,7 @@ export default function WorkReportDetailPage({ session }: Props) {
           drafts={tripDrafts}
           setDrafts={setTripDrafts}
           tripDeparture={tripLegDeparture(tripDepartureLabel, tripDepartureLabel)}
-          showPartnerBilling={isPartnerReport || showCustomerBillingFeatures || viewerBillingAllowed}
+          showPartnerBilling={partnerBillingOn && (isPartnerReport || showCustomerBillingFeatures || viewerBillingAllowed)}
           showCustomerBilling={showCustomerBillingFeatures || isPartnerReport || viewerBillingAllowed}
           tripBillingMode={resolveTripBillingFromExpenses(expenseDrafts)}
           onTripBillingModeChange={(mode: ExpenseBillingMode) => {
@@ -4749,7 +4757,8 @@ export default function WorkReportDetailPage({ session }: Props) {
           setExpenseDrafts={setExpenseDrafts}
           showHourlyRate={showPartnerDailyLogHourlyRate}
           showCustomerHourlyRate={showCustomerBillingFeatures}
-          showPartnerExpenseFields={isPartnerReport}
+          showPartnerExpenseFields={partnerBillingOn && isPartnerReport}
+          partnerBillingEnabled={partnerBillingOn}
           showCustomerExpenseFields={showCustomerBillingFeatures}
           defaultHourlyRate={
             billableCalculation?.ratesUsed.hourly_regular

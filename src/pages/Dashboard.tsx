@@ -90,7 +90,7 @@ export default function Dashboard({ session }: Props) {
       }
       return true;
     }).map((module) => {
-      if (module.title === 'Laskutus' && partnershipsEnabled === false) {
+      if (module.title === 'Laskutus' && partnershipsEnabled !== true) {
         return { ...module, lines: ['Asiakaslaskutus'] };
       }
       if (module.href === '/huoltoraportit' && huolto.access.enabledCategories.length > 1) {

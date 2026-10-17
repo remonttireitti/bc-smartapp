@@ -125,7 +125,7 @@ function reportListItemProps(
   billingModuleEnabled: boolean | null,
   customerBillingEnabled: boolean | null,
   onStatusChanged?: () => void,
-  options?: { showStatusMenu?: boolean; portalView?: boolean },
+  options?: { showStatusMenu?: boolean; portalView?: boolean; partnershipsEnabled?: boolean | null },
 ) {
   const logs = logsByReportId.get(report.id) ?? [];
   return {
@@ -135,6 +135,7 @@ function reportListItemProps(
     dailyLogs: logs,
     billingModuleEnabled: billingModuleEnabled === true,
     customerBillingEnabled: customerBillingEnabled === true,
+    partnershipsEnabled: options?.partnershipsEnabled === true,
     showStatusMenu: options?.showStatusMenu ?? false,
     portalView: options?.portalView ?? false,
     onStatusChanged,
@@ -792,7 +793,7 @@ export default function WorkReportsPage({ session }: Props) {
 
                   <li key={r.id}>
 
-                    <ReportListItem {...reportListItemProps(r, logsByReportId, companyId, billingModuleEnabled, customerBillingEnabled, loadReports)} variant="incoming" />
+                    <ReportListItem {...reportListItemProps(r, logsByReportId, companyId, billingModuleEnabled, customerBillingEnabled, loadReports, { partnershipsEnabled })} variant="incoming" />
 
                   </li>
 
@@ -820,7 +821,7 @@ export default function WorkReportsPage({ session }: Props) {
 
                   <li key={r.id}>
 
-                    <ReportListItem {...reportListItemProps(r, logsByReportId, companyId, billingModuleEnabled, customerBillingEnabled, loadReports)} variant="sent" />
+                    <ReportListItem {...reportListItemProps(r, logsByReportId, companyId, billingModuleEnabled, customerBillingEnabled, loadReports, { partnershipsEnabled })} variant="sent" />
 
                   </li>
 
@@ -854,7 +855,7 @@ export default function WorkReportsPage({ session }: Props) {
             <WorkReportListTable
               showPartner={partnershipsEnabled !== false}
               rows={sortedActiveReports.map((r) =>
-                reportListItemProps(r, logsByReportId, companyId, billingModuleEnabled, customerBillingEnabled, loadReports, { showStatusMenu: true }))}
+                reportListItemProps(r, logsByReportId, companyId, billingModuleEnabled, customerBillingEnabled, loadReports, { showStatusMenu: true, partnershipsEnabled }))}
             />
 
           )}
@@ -926,7 +927,7 @@ export default function WorkReportsPage({ session }: Props) {
             <WorkReportListTable
               showPartner={partnershipsEnabled !== false}
               rows={historyReports.map((r) =>
-                reportListItemProps(r, logsByReportId, companyId, billingModuleEnabled, customerBillingEnabled, loadReports, { showStatusMenu: true }))}
+                reportListItemProps(r, logsByReportId, companyId, billingModuleEnabled, customerBillingEnabled, loadReports, { showStatusMenu: true, partnershipsEnabled }))}
             />
 
           )}

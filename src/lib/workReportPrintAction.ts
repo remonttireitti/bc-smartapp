@@ -3,6 +3,7 @@ import { resolveCompanyLogoUrl } from './companyLogo';
 import { resolveDailyLogImagesForPrint } from './dailyLogImages';
 import { openPrintHtml } from './openPrintWindow';
 import { supabase } from './supabase';
+import { loadCompanyPartnershipsEnabled } from './management';
 import type { BillableCalculation } from './workReportBilling';
 import { fetchWorkReportPrintLogs } from './workReportDailyLogSelect';
 import {
@@ -182,8 +183,12 @@ export async function buildWorkReportPrintHtmlDocument(input: {
   const printMode: WorkReportPrintMode =
     input.printMode ?? (input.showPartnerPrices ? 'internal' : 'customer');
   const showInternalPrices = printMode === 'internal';
-  const partnerCalculation =
-    showInternalPrices && isPartnerReport ? (input.calculation ?? null) : null;
+  // Kumppanilaskutus vain, kun katsojan Kumppanuudet-moduuli on päällä.
+  const partnerBillingOn =
+    showInternalPrices && isPartnerReport && !!input.viewerCompanyId
+      ? await loadCompanyPartnershipsEnabled(db, input.viewerCompanyId).catch(() => false)
+      : false;
+  const partnerCalculation = partnerBillingOn ? (input.calculation ?? null) : null;
   let billingQuote = parseBillingQuoteSettings(input.billingQuote ?? {});
   const needsCustomerPrintRates =
     showInternalPrices

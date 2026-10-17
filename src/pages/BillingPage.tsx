@@ -4,6 +4,7 @@ import type { Session } from '@supabase/supabase-js';
 import AppLayout from '../components/AppLayout';
 import PartnerBillWorkflowDialog from '../components/PartnerBillWorkflowDialog';
 import { useCompanyBillingModuleEnabled } from '../hooks/useCompanyBillingModuleEnabled';
+import { BILLING_MODULE_DESCRIPTION } from '../lib/companyLicense';
 import { useCompanyPartnershipsEnabled } from '../hooks/useCompanyPartnershipsEnabled';
 import { useProfile } from '../hooks/useProfile';
 import { supabase } from '../lib/supabase';
@@ -191,8 +192,11 @@ export default function BillingPage({ session }: Props) {
   }, [partnershipsEnabled, billingMode]);
 
   useEffect(() => {
-    if (profile?.company_id) void load(billingMode);
-  }, [profile?.company_id, billingMode]);
+    // Odota Kumppanuudet-tieto: muuten kumppanirivit ehtisivät näkyä ennen asiakastilaan vaihtoa.
+    if (!profile?.company_id || partnershipsEnabled === null) return;
+    if (partnershipsEnabled === false && billingMode !== 'customer') return;
+    void load(billingMode);
+  }, [profile?.company_id, billingMode, partnershipsEnabled]);
 
   function rowBillingMode(row: BillingListRow): 'partner' | 'customer' {
     return effectiveBillingRowMode(billingMode, row);
@@ -1014,6 +1018,7 @@ export default function BillingPage({ session }: Props) {
             <Link to="/">Etusivu</Link> / Laskutus
           </p>
           <h1>Laskutettavat</h1>
+          <p className="muted">{BILLING_MODULE_DESCRIPTION}</p>
         </div>
       </div>
 

@@ -1,3 +1,4 @@
+import { BILLING_MODULE_DESCRIPTION } from './companyLicense';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import {
   ADDON_MODULE_LABELS,
@@ -37,7 +38,7 @@ export const PRICE_GROUPS: { key: PriceGroupKey; title: string; note?: string }[
 
 const MODULE_DESCRIPTIONS: Record<AddonModuleKey, string> = {
   quotes: 'Tarjouspyynnöt, laskelmat ja tulosteet',
-  billing: 'Laskettavat summat asiakkaalle ja kumppanien kesken — ei laskujen lähetystä',
+  billing: BILLING_MODULE_DESCRIPTION,
   remote_monitoring: 'Lämpötilaseuranta ja etäohjaus (moduulimaksu)',
   tools: 'Työkaluinventaario ja lainaus',
   partners: 'Yhteistyö muiden yritysten kanssa',

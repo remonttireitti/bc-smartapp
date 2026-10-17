@@ -117,6 +117,7 @@
     "test:last-admin": "npx tsx scripts/test-last-admin.mjs",
     "test:profile-claim": "npx tsx scripts/test-profile-claim.mjs",
     "test:company-signup": "npx tsx scripts/test-company-signup.mjs",
+    "test:billing-partner-gating": "npx tsx scripts/test-billing-partner-gating.mjs",
     "test:example-prints": "npx tsx scripts/test-example-prints.mjs"
   },
   "dependencies": {

@@ -87,10 +87,14 @@ export const LICENSE_MODULE_LABELS: Record<LicenseModuleKey, string> = {
   tools: 'Työkalut',
 };
 
+/** Laskutus-moduuli ei lähetä laskuja: se laskee summat. */
+export const BILLING_MODULE_DESCRIPTION = 'Laskettavat summat asiakkaalle ja kumppanien kesken — ei laskujen lähetystä';
+export const PARTNER_BILLING_REQUIRES_PARTNERS = 'Kumppanien välinen laskenta vaatii Kumppanuudet-moduulin';
+
 export const LICENSE_MODULE_DESCRIPTIONS: Record<LicenseModuleKey, string> = {
   base: BASE_PACKAGE_DESCRIPTION,
   quotes: 'Tarjouspyynnöt, laskelmat ja tulosteet',
-  billing: 'Laskutettavat summat ja kumppanilaskutus',
+  billing: BILLING_MODULE_DESCRIPTION,
   remote_monitoring: 'Lämpötilaseuranta ja etäohjaus. Moduulimaksu + laitemaksu (€/kk per laite, tyypistä riippuen).',
   tools: 'Työkaluinventaario',
 };
