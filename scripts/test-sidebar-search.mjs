@@ -1,0 +1,11 @@
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+const dash = readFileSync('src/pages/Dashboard.tsx', 'utf8');
+const sidebar = readFileSync('src/components/AppSidebar.tsx', 'utf8');
+const layout = readFileSync('src/components/AppLayout.tsx', 'utf8');
+assert.ok(!dash.includes('<QuickSearch'), 'Pikahaku removed from home page');
+assert.ok(!dash.includes('Asiakkaat, laitteet ja raportit — kirjoita'), 'long helper text removed');
+assert.ok(sidebar.includes('<QuickSearch variant="sidebar"'), 'Pikahaku in sidebar');
+assert.ok(sidebar.includes('app-sidebar-search-btn'), 'search icon on collapsed rail');
+assert.ok(layout.includes('app-sidebar-user-meta'), 'company + role in sidebar user block');
+console.log('test-sidebar-search: ok');

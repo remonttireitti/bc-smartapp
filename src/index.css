@@ -17364,3 +17364,5 @@ p.quote-outcome-unpriced {
   .quick-search--sidebar input { font-size: 16px; padding: 0.55rem 0.6rem; }
   .sidebar-collapsed .app-sidebar .app-sidebar-user-text { display: grid; }
 }
+.app-with-sidebar .app-sidebar { justify-content: flex-start; }
+.app-sidebar-bottom { margin-top: auto; }
