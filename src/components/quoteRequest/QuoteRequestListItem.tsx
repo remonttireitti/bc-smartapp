@@ -13,7 +13,7 @@ import type { QuoteRequestRow } from '../../lib/quoteRequest/types';
 import { quoteListTrail, withNavTrail } from '../../lib/navigationTrail';
 
 const QUOTE_STATUS_COLORS: Record<string, string> = {
-  draft: '#94a3b8',
+  draft: '#64748b',
   sent: '#3b82f6',
   ordered: '#10b981',
 };

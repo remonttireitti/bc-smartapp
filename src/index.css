@@ -17529,3 +17529,23 @@ p.quote-outcome-unpriced {
   .data-table .inventory-qty-btn { width: 2.4rem; height: 2.4rem; }
   .data-table .inventory-qty-value { height: 2.4rem; }
 }
+/* Vahvempi rivierottelu (palaute) */
+.data-table th, .data-table td { border-bottom: 1px solid #c7ccd4; border-right: 1px solid #d9dde3; }
+.data-table thead th { background: #e5e8ed; border-bottom: 2px solid #9aa3af; }
+.data-table tbody tr:nth-child(even) td { background: #f1f3f6; }
+.data-table tbody tr[style*="--row-accent"] td { background: color-mix(in srgb, var(--row-accent) 9%, white); }
+.data-table tbody tr[style*="--row-accent"]:nth-child(even) td { background: color-mix(in srgb, var(--row-accent) 15%, white); }
+.data-table tbody tr td:first-child { box-shadow: inset 6px 0 0 var(--row-accent, transparent); padding-left: 0.95rem; }
+.data-table-row-link:hover td, .data-table tbody tr.data-table-row-link:hover td { background: color-mix(in srgb, var(--row-accent, #3b82f6) 24%, white) !important; }
+.status-mark { background: var(--status-color, #94a3b8); color: #fff; font-weight: 600; }
+.status-mark-dot { display: none; }
+@media (max-width: 640px) {
+  .data-table tbody tr { box-shadow: inset 6px 0 0 var(--row-accent, transparent); border-color: #c7ccd4; }
+  .data-table tbody tr[style*="--row-accent"] { background: color-mix(in srgb, var(--row-accent) 9%, white); }
+  .data-table tbody tr[style*="--row-accent"] td { background: transparent; }
+}
+@media (max-width: 640px) {
+  .data-table tbody tr td:first-child { box-shadow: none; padding-left: 0; }
+  .data-table tbody tr td, .data-table tbody tr:nth-child(even) td, .data-table tbody tr[style*="--row-accent"] td, .data-table tbody tr[style*="--row-accent"]:nth-child(even) td { background: transparent; }
+}
+.work-report-partner-filter { display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.85rem; } .work-report-partner-filter select { max-width: 14rem; }

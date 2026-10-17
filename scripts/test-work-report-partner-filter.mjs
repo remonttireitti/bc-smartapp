@@ -1,0 +1,14 @@
+import assert from 'node:assert/strict';
+import { reportPartner, reportPartnerKey, partnerFilterOptions, OWN_PARTNER_KEY } from '../src/lib/workReportPartnerFilter.ts';
+const me = 'me';
+const own = { owner_company_id: me, created_by_company_id: me, delegate_company_id: null };
+const sent = { ...own, delegate_company_id: 'p1', delegate_company: { name: 'Lämpökatsastus Oy' } };
+const incoming = { owner_company_id: 'p2', created_by_company_id: 'p2', delegate_company_id: me, created_by_company: { name: 'Uudenmaan Kylmähuolto Oy' }, owner_company: { name: 'Uudenmaan Kylmähuolto Oy' } };
+assert.equal(reportPartner(own, me), null);
+assert.equal(reportPartnerKey(own, me), OWN_PARTNER_KEY);
+assert.equal(reportPartner(sent, me).name, 'Lämpökatsastus Oy');
+assert.equal(reportPartner(incoming, me).id, 'p2');
+const o = partnerFilterOptions([own, sent, incoming, sent], me);
+assert.deepEqual(o.partners.map((p) => p.name), ['Lämpökatsastus Oy', 'Uudenmaan Kylmähuolto Oy']);
+assert.equal(o.hasOwn, true);
+console.log('partner filter ok');
