@@ -61,16 +61,29 @@ export function CustomerEquipmentTable({
             />
             <span className="sr-only">Valitse {eq.name}</span>
           </label> : null}
-          {eq.name}
+          <span className="customer-equipment-name-text">
+            {eq.name}
+            {eq.tag ? <small className="muted">{eq.tag}</small> : null}
+          </span>
           {eq.is_onboarding_demo ? <span className="badge badge-demo">Esimerkki</span> : null}
         </span>
       ),
     },
-    { key: 'tag', label: 'Tunnus', value: (eq) => eq.tag ?? '' },
-    { key: 'brand', label: 'Merkki', value: (eq) => deviceFields?.(eq).manufacturer ?? '' },
-    { key: 'model', label: 'Malli', value: (eq) => eq.model ?? '' },
-    { key: 'refrigerant', label: 'Kylmäaine', value: (eq) => (deviceFields ? formatRefrigerant(deviceFields(eq)) : '') },
-    { key: 'serial', label: 'Sarjanumero', value: (eq) => eq.serial_number ?? '' },
+    {
+      key: 'model',
+      label: 'Merkki / malli',
+      value: (eq) => [deviceFields?.(eq).manufacturer, eq.model].filter(Boolean).join(' '),
+      render: (eq) => {
+        const text = [deviceFields?.(eq).manufacturer, eq.model].filter(Boolean).join(' ');
+        return (
+          <span className="customer-equipment-stack">
+            {text || '—'}
+            {eq.serial_number ? <small className="muted">SN {eq.serial_number}</small> : null}
+          </span>
+        );
+      },
+    },
+    { key: 'refrigerant', label: 'Kylmäaine', value: (eq) => (deviceFields ? formatRefrigerant(deviceFields(eq)) : ''), className: 'nowrap' },
     { key: 'location', label: 'Sijainti', value: (eq) => eq.location ?? '' },
     {
       key: 'latest',

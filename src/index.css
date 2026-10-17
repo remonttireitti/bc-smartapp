@@ -17947,3 +17947,11 @@ label.has-error input { border-color: #b91c1c; }
 .password-reveal { display: flex; flex-direction: column; gap: 0.35rem; padding: 0.75rem 0.9rem; border: 1px solid var(--border-strong); border-radius: 10px; background: #f6faf7; margin: 0.5rem 0; }
 .password-reveal-row { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; }
 .password-reveal-value { font-size: 1.15rem; letter-spacing: 0.04em; font-weight: 600; user-select: all; }
+
+/* Asiakasnäkymä / portaali: taulukot mahtuvat sivulle, ei sisäistä vierityslaatikkoa */
+.customer-collapsible .data-table-scroll { max-height: none; overflow-x: auto; overflow-y: visible; }
+.customer-collapsible .data-table td { white-space: normal; overflow-wrap: anywhere; }
+.customer-collapsible .data-table td.nowrap { white-space: nowrap; }
+.customer-collapsible .data-table-actions-col, .customer-collapsible .data-table td:last-child { white-space: nowrap; width: 1%; }
+.customer-equipment-name-text, .customer-equipment-stack { display: inline-flex; flex-direction: column; line-height: 1.25; }
+.customer-equipment-name-text small, .customer-equipment-stack small { font-size: 0.75rem; }

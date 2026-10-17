@@ -1,6 +1,8 @@
 import { FormEvent, useEffect, useState } from 'react';
 import PortalUserCredentialsForm from './PortalUserCredentialsForm';
 import PasswordReveal from './PasswordReveal';
+import { useNavigate } from 'react-router-dom';
+import { rememberPortalPreviewReturn } from '../lib/portalPreview';
 import ToggleSwitch from './ToggleSwitch';
 import { inviteCompanyUser } from '../lib/inviteUser';
 import { supabase } from '../lib/supabase';
@@ -20,7 +22,7 @@ type Props = {
 };
 
 function customerPortalPreviewUrl(customerId: string) {
-  return `${window.location.origin}/esikatselu/asiakas/${customerId}`;
+  return `/esikatselu/asiakas/${customerId}`;
 }
 
 export default function CustomerPortalSection({
@@ -37,6 +39,7 @@ export default function CustomerPortalSection({
     email: '',
     display_name: '',
   });
+  const navigate = useNavigate();
   const [busy, setBusy] = useState(false);
   const [sendEmail, setSendEmail] = useState(true);
   const [createdPassword, setCreatedPassword] = useState<{ email: string; password: string } | null>(null);
@@ -66,7 +69,8 @@ export default function CustomerPortalSection({
   }
 
   function openCustomerPortal() {
-    window.open(customerPortalPreviewUrl(customerId), '_blank', 'noopener,noreferrer');
+    rememberPortalPreviewReturn(`${window.location.pathname}${window.location.search}`);
+    navigate(customerPortalPreviewUrl(customerId));
   }
 
   async function createPortalUser(e: FormEvent) {

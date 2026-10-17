@@ -42,6 +42,23 @@ export function getPortalPreview(): PortalPreviewState | null {
   }
 }
 
+const RETURN_KEY = 'bc-smartapp.portal-preview-return.v1';
+
+/** Muista mistä esikatselu avattiin (Poistu esikatselusta palaa sinne). */
+export function rememberPortalPreviewReturn(path: string) {
+  try { sessionStorage.setItem(RETURN_KEY, path); } catch { /* ignore */ }
+}
+
+export function takePortalPreviewReturn(): string {
+  try {
+    const v = sessionStorage.getItem(RETURN_KEY);
+    sessionStorage.removeItem(RETURN_KEY);
+    return v && v.startsWith('/') && !v.startsWith('/esikatselu') ? v : '/';
+  } catch {
+    return '/';
+  }
+}
+
 export function clearPortalPreview() {
   sessionStorage.removeItem(STORAGE_KEY);
   window.dispatchEvent(new Event(PORTAL_PREVIEW_EVENT));
