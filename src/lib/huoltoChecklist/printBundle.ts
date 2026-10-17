@@ -48,7 +48,7 @@ export async function loadChecklistPrintBundle(reportId: string, category: Check
   const paths = Object.values(data.items).flatMap((s) => (s.photos ?? []).map((p) => p.storagePath));
   const imagesTask = (async () => {
     if (!paths.length) return {} as Record<string, string>;
-    const raw = await resolveMaintenanceReportImageUrls(paths);
+    const raw = await resolveMaintenanceReportImageUrls(paths, 3600, embedImages ? undefined : 960);
     return embedImages ? shrinkUrlMapForPrint(raw) : raw;
   })();
   const [{ company, logoUrl }, imageUrls] = await Promise.all([logoTask, imagesTask]);

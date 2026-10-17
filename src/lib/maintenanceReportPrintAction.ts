@@ -29,10 +29,14 @@ function collectPrintImagePaths(data: HuoltoReportData): string[] {
 
 async function resolveMaintenancePrintImageUrls(
   data: HuoltoReportData,
+  width?: number,
 ): Promise<Record<string, string>> {
   const paths = collectPrintImagePaths(data);
-  return resolveMaintenanceReportImageUrls(paths);
+  return resolveMaintenanceReportImageUrls(paths, 3600, width);
 }
+
+/** Tulostesivun kuvat: riittää A4-tulosteeseen, murto-osa alkuperäisestä koosta. */
+const PRINT_PAGE_IMAGE_WIDTH = 960;
 
 type MaintenanceReportRow = {
   data: HuoltoReportData;
@@ -114,7 +118,7 @@ async function loadMaintenancePrintContext(
         .eq('id', reportId)
         .then(() => undefined);
     }
-    const rawImageUrls = await resolveMaintenancePrintImageUrls(reportData);
+    const rawImageUrls = await resolveMaintenancePrintImageUrls(reportData, embed ? undefined : PRINT_PAGE_IMAGE_WIDTH);
     const imageUrls = embed ? await shrinkUrlMapForPrint(rawImageUrls) : rawImageUrls;
     return { reportData, imageUrls };
   })();
