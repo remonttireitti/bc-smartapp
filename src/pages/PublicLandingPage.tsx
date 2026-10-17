@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import LandingExamplePrints from '../components/LandingExamplePrints';
 import { fetchSignupConfig, type PriceList } from '../lib/companySignup';
 
 const CompanySignupForm = lazy(() => import('../components/CompanySignupForm'));
@@ -188,6 +189,8 @@ export default function PublicLandingPage() {
           ))}
         </div>
       </section>
+
+      <LandingExamplePrints />
 
       <section className="landing-section landing-cta-panel">
         <h2>Kannattaa liittyä — koko tiimi samalle linjalle</h2>

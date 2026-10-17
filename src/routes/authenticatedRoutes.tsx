@@ -43,6 +43,7 @@ import InstallationPlanHubPage from '../pages/InstallationPlanHubPage';
 import InstallationPlansPage from '../pages/InstallationPlansPage';
 import InstallationPlanEditPage from '../pages/InstallationPlanEditPage';
 import InstallationPlanPrintPage from '../pages/InstallationPlanPrintPage';
+import ExamplePrintPageLazy from '../pages/ExamplePrintPageLazy';
 import HallintaHubPage from '../pages/HallintaHubPage';
 import GlobalAdminCompaniesPage from '../pages/globalAdmin/GlobalAdminCompaniesPage';
 import GlobalAdminCompanyPage from '../pages/globalAdmin/GlobalAdminCompanyPage';
@@ -249,6 +250,7 @@ export function buildAuthenticatedRoutes(session: Session): RouteObject[] {
     { path: '/huoltoraportit/uusi', element: <LicensedMaintenanceReportEditPage session={session} /> },
     { path: '/huoltoraportit/valitse', element: <LicensedMaintenanceNewReportHubPage session={session} /> },
     { path: '/huoltoraportit/uusi/:category', element: <ChecklistNewRoute session={session} /> },
+    { path: '/esimerkit/:laji', element: <ExamplePrintPageLazy /> },
     {
       path: '/huoltoraportit/esimerkki-konvektori/tuloste',
       element: <LicensedKonvektoriExamplePrintPage session={session} />,

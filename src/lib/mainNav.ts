@@ -168,6 +168,7 @@ export function routeHidesSidebar(pathname: string): boolean {
     || pathname.startsWith('/tyoraportti/jako/')
     || /^\/tyokalut\/varaus\/[^/]+/.test(pathname)
     || pathname.startsWith('/esikatselu/')
+    || pathname.startsWith('/esimerkit/')
     || pathname === '/vaihda-salasana'
   );
 }
