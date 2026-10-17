@@ -76,3 +76,27 @@ assert.equal(billingQuote.quote_title, 'Messukeskus – Tarjous');
 assert.equal(workReportHasLinkedQuoteRequest(billingQuote), true);
 
 console.log('test-quote-ordered-status: ok');
+
+// Kumppani tilaa toisen yrityksen laatiman tarjouksen: luoja = tilaajan yritys (RLS), omistaja/brändi ennallaan.
+{
+  const partnerPayload = buildWorkReportPayloadFromQuote({
+    quote: {
+      id: 'quote-2',
+      title: 'Wärtsilä – Huolto',
+      data,
+      customer_id: 'cust-2',
+      owner_company_id: 'lampokatsastus',
+      created_by_company_id: 'lampokatsastus',
+      branding_company_id: 'lampokatsastus',
+      partnership_id: 'pship-1',
+      subscriber_id: null,
+    },
+    customer: { name: 'Wärtsilä' },
+    sessionUserId: 'enn',
+    creatorCompanyId: 'kevytyrittaja',
+  });
+  assert.equal(partnerPayload.created_by_company_id, 'kevytyrittaja');
+  assert.equal(partnerPayload.owner_company_id, 'lampokatsastus');
+  assert.equal(partnerPayload.branding_company_id, 'lampokatsastus');
+  assert.equal(partnerPayload.partnership_id, 'pship-1');
+}

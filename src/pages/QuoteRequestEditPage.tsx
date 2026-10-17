@@ -873,6 +873,7 @@ export default function QuoteRequestEditPage({ session }: Props) {
         quote: quoteRow,
         customer: selectedCustomer ?? null,
         sessionUserId: session.user.id,
+        creatorCompanyId: profile.company_id,
       });
       setWorkReportId(reportId);
       setStatus('ordered');
