@@ -64,7 +64,16 @@ export async function resolveCompanyLogoUrl(logoUrl: string | null | undefined) 
   if (isAllowedExternalStorageUrl(logoUrl)) return logoUrl;
   const path = toSupabaseStoragePath(logoUrl);
   if (!path) return null;
-  return getCompanyLogoSignedUrl(path);
+  try {
+    return await getCompanyLogoSignedUrl(path);
+  } catch (error) {
+    // Asiakasportaali: storage-policy estää suoran luvun, haetaan URL edge-funktiolla.
+    const companyId = path.split('/')[0];
+    const { data } = await supabase.functions.invoke('company-logo-url', { body: { company_id: companyId } });
+    const url = (data as { url?: string | null } | null)?.url;
+    if (url) return url;
+    throw error;
+  }
 }
 
 export async function uploadCompanyLogo(companyId: string, file: File, previousPath?: string | null) {
