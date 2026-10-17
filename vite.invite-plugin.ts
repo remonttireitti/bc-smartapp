@@ -112,6 +112,14 @@ async function handleDeleteCompanyUser(
 
   const targetCompanyId = targetProfile.company_id;
 
+  if (targetProfile.role === 'admin' && targetCompanyId) {
+    const { data: adminCount } = await adminClient.rpc('count_company_admins', { target_company: targetCompanyId });
+    if (typeof adminCount === 'number' && adminCount <= 1) {
+      sendJson(res, 409, { error: 'Yrityksellä pitää olla vähintään yksi ylläpitäjä. Lisää ensin toinen ylläpitäjä.' });
+      return;
+    }
+  }
+
   const { data: prepared, error: prepareError } = await adminClient.rpc('prepare_company_user_deletion', {
     p_user_id: userId,
     p_company_id: targetCompanyId,
