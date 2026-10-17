@@ -43,6 +43,13 @@ function PortalPreviewBootstrap({
       return;
     }
 
+    /** Oma yritys, globaali admin tai kumppanuuden kautta asiakashallinnan oikeus. */
+    const canPreviewOwner = async (ownerId: string) => {
+      if (ownerId === profile.company_id || profile.is_global_admin === true) return true;
+      const { data: ok } = await supabase.rpc('can_write_module', { target_owner: ownerId, module_key: 'customers' });
+      return ok === true;
+    };
+
     void (async () => {
       if (kind === 'subscriber') {
         const { data, error: loadError } = await supabase
@@ -55,7 +62,7 @@ function PortalPreviewBootstrap({
           setError('Tilaajaa ei löytynyt.');
           return;
         }
-        if (data.owner_company_id !== profile.company_id) {
+        if (!(await canPreviewOwner(data.owner_company_id))) {
           setError('Tilaaja ei kuulu yrityksellesi.');
           return;
         }
@@ -80,7 +87,7 @@ function PortalPreviewBootstrap({
         setError('Asiakaskohdetta ei löytynyt.');
         return;
       }
-      if (data.owner_company_id !== profile.company_id) {
+      if (!(await canPreviewOwner(data.owner_company_id))) {
         setError('Kohde ei kuulu yrityksellesi.');
         return;
       }
