@@ -176,6 +176,10 @@ export default function CompanySettingsPage() {
     setMessage('Yritystiedot tallennettu.');
   }
 
+  function setContact(field: 'name' | 'email' | 'phone', value: string) {
+    setSettings((s) => ({ ...s, contact: { ...s.contact, [field]: value } }));
+  }
+
   function setBilling(field: keyof NonNullable<CompanySettings['billing']>, value: string) {
     setSettings((s) => ({ ...s, billing: { ...s.billing, [field]: value } }));
   }
@@ -260,6 +264,9 @@ export default function CompanySettingsPage() {
           <label>Puhelin<input value={settings.phone ?? ''} onChange={(e) => setSettings((s) => ({ ...s, phone: e.target.value }))} /></label>
           <label>Sähköposti<input type="email" value={settings.email ?? ''} onChange={(e) => setSettings((s) => ({ ...s, email: e.target.value }))} /></label>
           <label>Verkkosivu<input value={settings.website ?? ''} onChange={(e) => setSettings((s) => ({ ...s, website: e.target.value }))} /></label>
+          <label>Yhteyshenkilö<input value={settings.contact?.name ?? ''} onChange={(e) => setContact('name', e.target.value)} /></label>
+          <label>Yhteyshenkilön sähköposti<input type="email" value={settings.contact?.email ?? ''} onChange={(e) => setContact('email', e.target.value)} /></label>
+          <label>Yhteyshenkilön puhelin<input type="tel" value={settings.contact?.phone ?? ''} onChange={(e) => setContact('phone', e.target.value)} /></label>
           <label>Tukes-pätevyys (kylmälaiteasennukset)<input value={settings.tukes_number ?? ''} onChange={(e) => setSettings((s) => ({ ...s, tukes_number: e.target.value }))} placeholder="Esim. TUKES123456" /></label>
         </div>
       </section>
