@@ -1,3 +1,4 @@
+import { subscriberPortalReportVisible } from '../lib/subscriberPortalVisibility';
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useCompanyHuoltoSettings } from '../hooks/useCompanyHuoltoSettings';
 import { newHuoltoReportHref } from '../lib/huoltoCategories';
@@ -1002,6 +1003,30 @@ export default function CustomerDetailPage({ session }: Props) {
           </>
         )}
       </CollapsibleSection>
+
+      {portalView && portalSubscriberId ? (
+        ([
+          ['work_report', 'Työraportit', 'work'],
+          ['maintenance_report', 'Huoltopöytäkirjat', 'maintenance'],
+          ['quote_request', 'Tarjoukset', 'quote'],
+        ] as const).map(([kind, label, visKind]) => {
+          // Tilaajaportaali: kohteen raportit, avautuvat vain asiakastulosteina.
+          const list = documents.filter(
+            (d) => d.kind === kind && subscriberPortalReportVisible({ kind: visKind, status: d.status ?? '' }),
+          );
+          return (
+            <CollapsibleSection
+              key={kind}
+              variant="plain"
+              className="customer-section customer-collapsible"
+              title={`${label} (${list.length})`}
+              collapseKey={`portal-customer:${kind}`}
+            >
+              {list.length === 0 ? <p className="muted">Ei vielä.</p> : <CustomerDocumentTable documents={list} hideKind />}
+            </CollapsibleSection>
+          );
+        })
+      ) : null}
 
       {([
         ['work_report', 'Työraportit'],
