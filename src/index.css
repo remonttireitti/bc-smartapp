@@ -17965,3 +17965,4 @@ label.has-error input { border-color: #b91c1c; }
 .portal-kohde-switcher { display: grid; gap: 0.25rem; padding: 0.5rem 0.75rem; font-size: 0.8rem; color: var(--muted, #64748b); }
 .portal-kohde-switcher select { width: 100%; font-size: 0.9rem; }
 .portal-subscriber-heading { margin: 1.25rem 0 0.25rem; }
+.portal-customers-search { width: 100%; max-width: 420px; margin-bottom: 0.75rem; }

@@ -183,7 +183,7 @@ export function isPortalRouteAllowed(pathname: string): boolean {
   if (pathname === '/') return true;
   if (pathname === '/asiakkaat') return false;
   const allowed = [
-    '/tyoraportit', '/laitteet', '/huoltoraportit', '/tarjoukset', '/tiedostot', '/esikatselu/',
+    '/tyoraportit', '/laitteet', '/kohteet', '/huoltoraportit', '/tarjoukset', '/tiedostot', '/esikatselu/',
     '/vaihda-salasana', '/aseta-uusi-salasana', '/j/', '/tyoraportti/jako/', '/asiakkaat/',
   ];
   if (pathname.startsWith('/tarjouspyynnot/') && pathname.endsWith('/tuloste')) return true;
@@ -205,6 +205,8 @@ export function portalRedirectFor(pathname: string): string | null {
   if (m) return `/tarjouspyynnot/${m[1]}/tuloste`;
   m = pathname.match(/^\/asiakkaat\/[0-9a-f-]{36}\/laitteet\/([0-9a-f-]{36})/);
   if (m) return `/laitteet/${m[1]}`;
+  m = pathname.match(/^\/asiakkaat\/([0-9a-f-]{36})\/?$/);
+  if (m) return `/kohteet/${m[1]}`;
   if (pathname === '/asiakkaat') return '/laitteet';
   return null;
 }

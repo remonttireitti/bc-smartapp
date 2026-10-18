@@ -8,7 +8,6 @@ import { useCompanyLicense } from '../hooks/useCompanyLicense';
 import { useCompanyHuoltoSettings } from '../hooks/useCompanyHuoltoSettings';
 import { useProfile } from '../hooks/useProfile';
 import { getPortalSubscriberId, isPortalView } from '../lib/portalPreview';
-import PortalKohdeSwitcher from './PortalKohdeSwitcher';
 import { activeMainNavChild, buildMainNav, isMainNavItemActive, type MainNavIconKey, type MainNavItem } from '../lib/mainNav';
 
 const ICON_PATHS: Record<MainNavIconKey | 'home', string> = {
@@ -42,6 +41,14 @@ const PORTAL_NAV: MainNavItem[] = [
   { key: 'quotes', label: 'Tarjoukset', href: '/tarjoukset', bases: ['/tarjoukset', '/tarjouspyynnot'], children: [] },
 ];
 
+/** Tilaajaportaali: lisäksi omat asiakkaat (kohteet). */
+const SUBSCRIBER_PORTAL_NAV: MainNavItem[] = [
+  PORTAL_NAV[0],
+  PORTAL_NAV[1],
+  { key: 'customers', label: 'Asiakkaat', href: '/kohteet', bases: ['/kohteet'], children: [] },
+  ...PORTAL_NAV.slice(2),
+];
+
 function portalNavActive(item: MainNavItem, pathname: string): boolean {
   if (item.href === '/tyoraportit') return pathname.startsWith('/tyoraportit') && !pathname.startsWith('/tyoraportit/tilaus');
   return item.bases.some((b) => pathname.startsWith(b));
@@ -68,7 +75,7 @@ export default function AppSidebar({ session, collapsed, onToggleCollapsed, mobi
 
   const portal = isPortalView(profile);
   const items = useMemo(
-    () => portal ? PORTAL_NAV : 
+    () => portal ? (getPortalSubscriberId(profile) ? SUBSCRIBER_PORTAL_NAV : PORTAL_NAV) : 
       buildMainNav({
         license,
         billingModuleEnabled,
@@ -77,7 +84,7 @@ export default function AppSidebar({ session, collapsed, onToggleCollapsed, mobi
         isGlobalAdmin: !!profile?.is_global_admin,
         huolto: huoltoAccess,
       }),
-    [portal, license, billingModuleEnabled, partnershipsEnabled, profile?.role, profile?.is_global_admin, huoltoAccess],
+    [portal, profile?.subscriber_id, license, billingModuleEnabled, partnershipsEnabled, profile?.role, profile?.is_global_admin, huoltoAccess],
   );
 
   // Mobiililaatikko sulkeutuu navigoinnissa.
@@ -123,9 +130,6 @@ export default function AppSidebar({ session, collapsed, onToggleCollapsed, mobi
           </svg>
           <span className="app-sidebar-label">Pienennä valikko</span>
         </button>
-        {portal && !railCollapsed && getPortalSubscriberId(profile) ? (
-          <PortalKohdeSwitcher subscriberId={getPortalSubscriberId(profile) as string} />
-        ) : null}
         {!portal ? <div className="app-sidebar-search">
           {railCollapsed ? (
             <button
