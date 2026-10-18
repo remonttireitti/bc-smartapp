@@ -51,7 +51,7 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,ico,svg,png,pdf,woff2}'],
         globIgnores: ['**/termatek/**', '**/firmware/**'],
         navigateFallback: '/index.html',
-        navigateFallbackDenylist: [/^\/api\//, /\.pdf$/i],
+        navigateFallbackDenylist: [/^\/api\//, /\.pdf$/i, /\.xml$/i, /\.txt$/i, /^\/brand\//, /^\/termatek\//, /^\/vrf-firmware\//],
         runtimeCaching: [
           {
             urlPattern: ({ request, url }) =>
