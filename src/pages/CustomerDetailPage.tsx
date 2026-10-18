@@ -558,11 +558,11 @@ export default function CustomerDetailPage({ session }: Props) {
   // Asiakasportaali on rajattu omaan kohteeseen (esikatselussakaan ei muiden asiakkaiden sivuja).
   const portalCustomerId = getPortalCustomerId(profile);
   if (portalView && portalCustomerId && customer.id !== portalCustomerId) {
-    return <Navigate to={`/asiakkaat/${portalCustomerId}`} replace />;
+    return <Navigate to={`/kohteet/${portalCustomerId}`} replace />;
   }
   const portalSubscriberId = getPortalSubscriberId(profile);
   if (portalView && portalSubscriberId && customer.subscriber_id !== portalSubscriberId) {
-    return <Navigate to="/laitteet" replace />;
+    return <Navigate to="/kohteet" replace />;
   }
   const canDeleteRegistry = !portalView && canDeleteCompanyOwnedEntity(
     customer.owner_company_id,

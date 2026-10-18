@@ -34,7 +34,7 @@ export default function PortalEquipmentPage({ session }: { session: Session }) {
 
   const empty = new Set<string>();
   // Yksi kohde: avaa suoraan sen laitteet (tulostus ja valinnat siellä).
-  if (groups && groups.length === 1) return <Navigate to={`/asiakkaat/${groups[0].customer.id}`} replace />;
+  if (groups && groups.length === 1) return <Navigate to={`/kohteet/${groups[0].customer.id}`} replace />;
   return (
     <AppLayout session={session}>
       <div className="page-header">
@@ -52,7 +52,7 @@ export default function PortalEquipmentPage({ session }: { session: Session }) {
       ) : (
         groups.filter((g) => g.equipment.length > 0).map(({ customer, equipment }) => (
           <section key={customer.id} className="panel customer-collapsible">
-            <h2><Link to={`/asiakkaat/${customer.id}`}>{customer.name}</Link></h2>
+            <h2><Link to={`/kohteet/${customer.id}`}>{customer.name}</Link></h2>
             <CustomerEquipmentTable
               equipment={equipment}
               customerId={customer.id}
