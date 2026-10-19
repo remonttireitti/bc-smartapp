@@ -46,7 +46,7 @@ const FEATURES = [
   {
     icon: '📦',
     title: 'Varasto ja työkalut',
-    desc: 'Materiaalit, kylmäaine ja työkaluinventaario linkitettynä työhön ja hinnoitteluun.',
+    desc: 'Materiaalit, kylmäaine ja työkaluinventaario linkitettynä työhön ja hinnoitteluun sekä työkalujen vuokrauskalenteri.',
     color: '#a855f7',
   },
 ];

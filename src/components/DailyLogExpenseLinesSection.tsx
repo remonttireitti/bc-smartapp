@@ -1,3 +1,4 @@
+import InventoryMaterialPicker from './inventory/InventoryMaterialPicker';
 import CheckToggle from './CheckToggle';
 import { useEffect, useState } from 'react';
 
@@ -302,6 +303,9 @@ function ExpenseLineEditor({
           </p>
         )
       ) : null}
+      {!autoTripKm && !isDeviceExpense(row) && (!row.expense_type || row.expense_type === 'material' || row.expense_type === 'part') ? (
+        <InventoryMaterialPicker row={row} onChange={updateExpenseRow} />
+      ) : null}
       <label>
         Tyyppi
         <select
@@ -332,7 +336,7 @@ function ExpenseLineEditor({
         />
       </label>
       <label>
-        Määrä
+        Määrä{row.inventory_item_id && row.unit ? ` (${row.unit})` : ''}
         <input
           inputMode="decimal"
           value={row.qty}

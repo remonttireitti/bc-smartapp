@@ -1,6 +1,7 @@
 import type { PostgrestError, SupabaseClient } from '@supabase/supabase-js';
 import { annotateExpensePriceConfirmed } from './dailyLogCustomerExtraBilling';
 import type { WorkReportDailyLog } from '../types';
+import { isInventoryLinkSupported, probeInventoryLink } from './inventoryExpenseLink';
 
 /** Expense line columns safe before migration 20260603000081. */
 export const EXPENSE_LINE_FIELDS_BASE =
@@ -100,7 +101,8 @@ export function expenseLinesSelectFragment(
           ? EXPENSE_LINE_FIELDS_WITH_PARTNER
           : EXPENSE_LINE_FIELDS_BASE;
   const partnerBilled = partnerBillingColumnSupported ? ', partner_billed' : '';
-  return `expense_lines:work_report_daily_expense_lines(${fields}${partnerBilled})`;
+  const inventory = isInventoryLinkSupported() ? ', inventory_item_id, unit' : '';
+  return `expense_lines:work_report_daily_expense_lines(${fields}${partnerBilled}${inventory})`;
 }
 
 export const PARTNER_PURCHASE_LINE_FIELDS =
@@ -265,6 +267,7 @@ export async function fetchWorkReportDetailLogs(
   billToPartnerSupported: boolean;
   agreedRegularSupported: boolean;
 }> {
+  await probeInventoryLink(supabase);
   const runRaw = (
     includeBillToPartner: boolean,
     includeWarehouse: boolean,
