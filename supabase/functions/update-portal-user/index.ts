@@ -1,4 +1,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
+import { generatePortalPassword } from '../_shared/portalPassword.ts';
+import { sendPortalCredentialsMail } from '../_shared/portalInviteMail.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -40,11 +42,12 @@ Deno.serve(async (req) => {
 
     const { data: adminProfile } = await userClient
       .from('profiles')
-      .select('role, company_id')
+      .select('role, company_id, is_global_admin')
       .eq('id', authData.user.id)
       .single();
 
-    if (!adminProfile || adminProfile.role !== 'admin') {
+    const isGlobalAdmin = adminProfile?.is_global_admin === true;
+    if (!adminProfile || (adminProfile.role !== 'admin' && !isGlobalAdmin)) {
       return new Response(JSON.stringify({ error: 'Vain ylläpitäjä voi muokata portaalikäyttäjiä' }), {
         status: 403,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -92,7 +95,17 @@ Deno.serve(async (req) => {
       });
     }
 
-    if (targetProfile.company_id !== adminProfile.company_id) {
+    // Oikeus: oma yritys, globaali admin tai kumppani, jolla asiakashallinnan kirjoitusoikeus omistajaan.
+    const ownerCompanyId = String(targetProfile.company_id ?? '');
+    let allowed = isGlobalAdmin || (!!ownerCompanyId && ownerCompanyId === adminProfile.company_id);
+    if (!allowed && ownerCompanyId && customerId && targetProfile.role === 'customer') {
+      const { data: canWrite } = await userClient.rpc('can_write_module', {
+        target_owner: ownerCompanyId,
+        module_key: 'customers',
+      });
+      allowed = canWrite === true;
+    }
+    if (!allowed) {
       return new Response(JSON.stringify({ error: 'Ei oikeutta muokata tätä käyttäjää' }), {
         status: 403,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -111,7 +124,7 @@ Deno.serve(async (req) => {
         .select('id, owner_company_id')
         .eq('id', subscriberId)
         .maybeSingle();
-      if (subscriberError || !subscriberRow || subscriberRow.owner_company_id !== adminProfile.company_id) {
+      if (subscriberError || !subscriberRow || subscriberRow.owner_company_id !== ownerCompanyId) {
         return new Response(JSON.stringify({ error: 'Valittu tilaaja ei kuulu yrityksellesi' }), {
           status: 400,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -131,7 +144,7 @@ Deno.serve(async (req) => {
         .select('id, owner_company_id')
         .eq('id', customerId)
         .maybeSingle();
-      if (customerError || !customerRow || customerRow.owner_company_id !== adminProfile.company_id) {
+      if (customerError || !customerRow || customerRow.owner_company_id !== ownerCompanyId) {
         return new Response(JSON.stringify({ error: 'Valittu asiakaskohde ei kuulu yrityksellesi' }), {
           status: 400,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -141,7 +154,7 @@ Deno.serve(async (req) => {
 
     const resolvedDisplayName = displayName || targetProfile.display_name || email.split('@')[0] || 'Käyttäjä';
     const metadata = {
-      company_id: adminProfile.company_id,
+      company_id: ownerCompanyId,
       role: targetProfile.role,
       display_name: resolvedDisplayName,
       ...(subscriberId ? { subscriber_id: subscriberId } : {}),
@@ -160,13 +173,16 @@ Deno.serve(async (req) => {
       user_metadata: metadata,
       // Luotettava kopio (vain palvelin voi kirjoittaa app_metadataa).
       app_metadata: {
-        company_id: adminProfile.company_id,
+        company_id: ownerCompanyId,
         role: targetProfile.role,
         ...(subscriberId ? { subscriber_id: subscriberId } : {}),
         ...(customerId ? { customer_id: customerId } : {}),
       },
     };
-    if (password.trim().length > 0) {
+    const generatedPassword = body.generate_password === true ? generatePortalPassword() : null;
+    if (generatedPassword) {
+      authPatch.password = generatedPassword;
+    } else if (password.trim().length > 0) {
       if (password.trim().length < 6) {
         return new Response(JSON.stringify({ error: 'Salasanan on oltava vähintään 6 merkkiä' }), {
           status: 400,
@@ -184,12 +200,20 @@ Deno.serve(async (req) => {
       .update({
         email,
         display_name: resolvedDisplayName,
+        ...(generatedPassword ? { must_change_password: false } : {}),
       })
       .eq('id', userId);
 
     if (profileError) throw profileError;
 
-    return new Response(JSON.stringify({ ok: true, user_id: userId }), {
+    let mail: { ok: boolean; error?: string } | null = null;
+    if (generatedPassword && body.send_email === true) {
+      mail = await sendPortalCredentialsMail(adminClient, {
+        to: email, password: generatedPassword, companyId: ownerCompanyId,
+        kind: targetProfile.role === 'subscriber' ? 'subscriber' : 'customer', isReset: true,
+      });
+    }
+    return new Response(JSON.stringify({ ok: true, user_id: userId, ...(generatedPassword ? { password: generatedPassword } : {}), ...(mail ? { mail_sent: mail.ok, mail_error: mail.error } : {}) }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (err) {

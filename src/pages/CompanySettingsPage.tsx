@@ -15,6 +15,7 @@ import PartnerBillingRatesFields from '../components/PartnerBillingRatesFields';
 import DeviceRegistrySettingsFields from '../components/quoteRequest/DeviceRegistrySettingsFields';
 import ToggleSwitch from '../components/ToggleSwitch';
 import CompanyMonthlyTotal from '../components/CompanyMonthlyTotal';
+import QuoteCatalogPricesSection from '../components/QuoteCatalogPricesSection';
 import { partnershipsModuleLicensed } from '../lib/partnershipsModule';
 import HuoltoSettingsSection from '../components/HuoltoSettingsSection';
 import { notifyHuoltoSettingsChanged } from '../hooks/useCompanyHuoltoSettings';
@@ -176,6 +177,10 @@ export default function CompanySettingsPage() {
     setMessage('Yritystiedot tallennettu.');
   }
 
+  function setContact(field: 'name' | 'email' | 'phone', value: string) {
+    setSettings((s) => ({ ...s, contact: { ...s.contact, [field]: value } }));
+  }
+
   function setBilling(field: keyof NonNullable<CompanySettings['billing']>, value: string) {
     setSettings((s) => ({ ...s, billing: { ...s.billing, [field]: value } }));
   }
@@ -260,6 +265,9 @@ export default function CompanySettingsPage() {
           <label>Puhelin<input value={settings.phone ?? ''} onChange={(e) => setSettings((s) => ({ ...s, phone: e.target.value }))} /></label>
           <label>Sähköposti<input type="email" value={settings.email ?? ''} onChange={(e) => setSettings((s) => ({ ...s, email: e.target.value }))} /></label>
           <label>Verkkosivu<input value={settings.website ?? ''} onChange={(e) => setSettings((s) => ({ ...s, website: e.target.value }))} /></label>
+          <label>Yhteyshenkilö<input value={settings.contact?.name ?? ''} onChange={(e) => setContact('name', e.target.value)} /></label>
+          <label>Yhteyshenkilön sähköposti<input type="email" value={settings.contact?.email ?? ''} onChange={(e) => setContact('email', e.target.value)} /></label>
+          <label>Yhteyshenkilön puhelin<input type="tel" value={settings.contact?.phone ?? ''} onChange={(e) => setContact('phone', e.target.value)} /></label>
           <label>Tukes-pätevyys (kylmälaiteasennukset)<input value={settings.tukes_number ?? ''} onChange={(e) => setSettings((s) => ({ ...s, tukes_number: e.target.value }))} placeholder="Esim. TUKES123456" /></label>
         </div>
       </section>
@@ -343,6 +351,13 @@ export default function CompanySettingsPage() {
         onChange={(huolto) => setSettings((current) => ({ ...current, huolto }))}
       />
 
+      <QuoteCatalogPricesSection
+        prices={settings.quotes?.catalog_prices ?? {}}
+        onChange={(catalog_prices) =>
+          setSettings((current) => ({ ...current, quotes: { ...current.quotes, catalog_prices } }))
+        }
+      />
+
       <section className="form-section">
         <h2>Asiakaslaskutuksen oletustuntihinnat</h2>
         <PartnerBillingRatesFields
@@ -372,7 +387,7 @@ export default function CompanySettingsPage() {
       )}
 
       <section className="form-section">
-        <h2>Tarjouspyynnöt</h2>
+        <h2>Tarjouspyynnöt ja laskennat</h2>
         <div className="line-form-grid">
           <label>
             Työn hankintahinta (€/h, alv 0)

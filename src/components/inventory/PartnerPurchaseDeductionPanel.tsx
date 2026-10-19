@@ -1,3 +1,4 @@
+import CheckToggle from '../CheckToggle';
 import {
   formatPartnerPurchaseDeductionLabel,
   isPartnerPurchaseOwedToViewer,
@@ -67,8 +68,7 @@ export default function PartnerPurchaseDeductionPanel({
                   <td className="num">{formatEuro(total)}</td>
                   <td>
                     <label className="inventory-check">
-                      <input
-                        type="checkbox"
+                      <CheckToggle
                         checked={Boolean(line.cost_deducted)}
                         disabled={!canEdit || busyLineId === line.id}
                         onChange={(e) => onToggle(line.id, e.target.checked)}

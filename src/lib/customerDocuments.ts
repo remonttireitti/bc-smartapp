@@ -177,7 +177,7 @@ export async function loadCustomerLinkedDocuments(
       equipmentId: equipmentIds[0] ?? report.equipment_id,
       equipmentIds,
       equipmentLabel,
-      href: `/tyoraportit/${report.id}`,
+      href: portalReadOnly ? `/tyoraportit/${report.id}/tuloste` : `/tyoraportit/${report.id}`,
       printHref: `/tyoraportit/${report.id}/tuloste`,
     });
   }
@@ -208,7 +208,7 @@ export async function loadCustomerLinkedDocuments(
       equipmentId: report.equipment_id,
       equipmentLabel: formatEquipmentLabel(relationEquipment(report.equipment)),
       href:
-        portalReadOnly && isMaintenanceReportPublished(report.status)
+        portalReadOnly
           ? printHref
           : `/huoltoraportit/${report.id}`,
       printHref,
@@ -240,7 +240,7 @@ export async function loadCustomerLinkedDocuments(
       statusLabel: QUOTE_STATUS_LABELS[quote.status] ?? quote.status,
       equipmentId: quote.equipment_id,
       equipmentLabel: formatEquipmentLabel(relationEquipment(quote.equipment)),
-      href: `/tarjouspyynnot/${quote.id}`,
+      href: portalReadOnly ? `/tarjouspyynnot/${quote.id}/tuloste` : `/tarjouspyynnot/${quote.id}`,
       printHref: `/tarjouspyynnot/${quote.id}/tuloste`,
     });
   }

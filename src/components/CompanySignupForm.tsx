@@ -1,15 +1,16 @@
-import { FormEvent, useMemo, useRef, useState } from 'react';
-import PriceEstimateTable from './PriceEstimateTable';
+import CheckToggle from './CheckToggle';
+import { FormEvent, useMemo, useRef, useState, type ReactNode } from 'react';
+import BillingPeriodPicker from './BillingPeriodPicker';
 import { DescriptionWithNote } from './ModuleDescription';
 import {
   ADDON_MODULE_LABELS,
   BASE_PACKAGE_DESCRIPTION,
-  DEVICE_PRICE_NOTE,
   HUOLTO_DESCRIPTIONS,
   HUOLTO_KEYS,
   MODULE_DESCRIPTIONS,
   MODULE_NOTES,
   deviceFromPrice,
+  remoteMonitoringNote,
   offeredAddonModules,
   HUOLTO_LABELS,
   STAFF_ROLES,
@@ -27,6 +28,27 @@ import {
 } from '../lib/companySignup';
 
 type Props = { prices: PriceList };
+
+function modRow(
+  key: string,
+  name: string,
+  desc: ReactNode,
+  price: number | undefined,
+  checked: boolean,
+  onToggle: (v: boolean) => void,
+  fixed = false,
+) {
+  return (
+    <label key={key} className={`signup-mod${fixed ? ' signup-mod-fixed' : ''}`}>
+      <CheckToggle checked={checked} disabled={fixed} onChange={(e) => onToggle(e.target.checked)} />
+      <span className="signup-mod-text">
+        <span className="signup-mod-name">{name}</span>
+        {desc ? <span className="signup-mod-desc">{desc}</span> : null}
+      </span>
+      <span className="signup-mod-price">{formatEur(price ?? 0)}/kk</span>
+    </label>
+  );
+}
 
 export default function CompanySignupForm({ prices }: Props) {
   const [form, setForm] = useState<SignupForm>(() => emptySignupForm());
@@ -112,43 +134,41 @@ export default function CompanySignupForm({ prices }: Props) {
 
       <fieldset>
         <legend>Moduulit</legend>
-        <div className="signup-checks">
-          <label className="signup-check signup-check-fixed">
-            <input type="checkbox" checked disabled /> Peruspaketti <span className="muted">{formatEur(prices.base_monthly_eur)}</span>
-            <small className="signup-check-desc muted">{BASE_PACKAGE_DESCRIPTION}</small>
-          </label>
-          {offeredAddonModules(prices).map((k) => (
-            <label key={k} className="signup-check">
-              <input
-                type="checkbox"
-                checked={form.modules[k]}
-                onChange={(e) => patch({ modules: { ...form.modules, [k]: e.target.checked } })}
-              />{' '}
-              {ADDON_MODULE_LABELS[k]} <span className="muted">{formatEur(prices.module_prices[k])}</span>
-              <small className="signup-check-desc muted">
+        <h4 className="signup-mod-group">Peruspaketti</h4>
+        <div className="signup-mods">
+          {modRow('base', 'Peruspaketti', BASE_PACKAGE_DESCRIPTION, prices.base_monthly_eur, true, () => {}, true)}
+        </div>
+        <h4 className="signup-mod-group">Lisämoduulit</h4>
+        <div className="signup-mods">
+          {offeredAddonModules(prices).map((k) =>
+            modRow(
+              k,
+              ADDON_MODULE_LABELS[k],
+              <>
                 <DescriptionWithNote
                   description={MODULE_DESCRIPTIONS[k]}
-                  note={k === 'billing' && form.modules.partners ? null : MODULE_NOTES[k]}
+                  note={
+                    k === 'billing' && form.modules.partners
+                      ? null
+                      : k === 'remote_monitoring'
+                        ? remoteMonitoringNote(deviceFromPrice(prices))
+                        : MODULE_NOTES[k]
+                  }
                 />
-                {k === 'remote_monitoring' && (
-                  <span className="module-note">
-                    {' '}· {DEVICE_PRICE_NOTE}: alkaen {formatEur(deviceFromPrice(prices))} / laite
-                  </span>
-                )}
-              </small>
-            </label>
-          ))}
-          {HUOLTO_KEYS.map((k) => (
-            <label key={k} className="signup-check">
-              <input
-                type="checkbox"
-                checked={form.huolto[k]}
-                onChange={(e) => patch({ huolto: { ...form.huolto, [k]: e.target.checked } })}
-              />{' '}
-              {HUOLTO_LABELS[k]} <span className="muted">{formatEur(prices.huolto_prices[k])}</span>
-              <small className="signup-check-desc muted">{HUOLTO_DESCRIPTIONS[k]}</small>
-            </label>
-          ))}
+              </>,
+              prices.module_prices[k],
+              form.modules[k],
+              (v) => patch({ modules: { ...form.modules, [k]: v } }),
+            ),
+          )}
+        </div>
+        <h4 className="signup-mod-group">Huoltoraportit</h4>
+        <div className="signup-mods">
+          {HUOLTO_KEYS.map((k) =>
+            modRow(k, HUOLTO_LABELS[k], HUOLTO_DESCRIPTIONS[k], prices.huolto_prices[k], form.huolto[k], (v) =>
+              patch({ huolto: { ...form.huolto, [k]: v } }),
+            ),
+          )}
         </div>
       </fieldset>
 
@@ -176,7 +196,7 @@ export default function CompanySignupForm({ prices }: Props) {
               <div className="signup-user-roles" role="group" aria-label="Roolit">
                 {STAFF_ROLES.map((r) => (
                   <label key={r} className="signup-check">
-                    <input type="checkbox" checked={u.roles.includes(r)} onChange={(e) => toggleRole(i, r, e.target.checked)} />{' '}
+                    <CheckToggle checked={u.roles.includes(r)} onChange={(e) => toggleRole(i, r, e.target.checked)} />{' '}
                     {STAFF_ROLE_LABELS[r]}
                   </label>
                 ))}
@@ -217,7 +237,14 @@ export default function CompanySignupForm({ prices }: Props) {
         <input tabIndex={-1} autoComplete="off" value={website} onChange={(e) => setWebsite(e.target.value)} />
       </label>
 
-      <PriceEstimateTable estimate={estimate} title="Arvioitu kuukausihinta" />
+      <BillingPeriodPicker
+        lines={estimate.lines}
+        value={form.billing_interval ?? 'monthly'}
+        onChange={(v) => patch({ billing_interval: v })}
+        monthlyNet={estimate.net}
+        prices={prices}
+      />
+      <p className="muted">{prices.trial_days} päivää maksutta, alkaa ensimmäisestä kirjautumisesta.</p>
 
       {error && <p className="error">{error}</p>}
       <button type="submit" className="btn btn-primary landing-btn-lg" disabled={busy}>

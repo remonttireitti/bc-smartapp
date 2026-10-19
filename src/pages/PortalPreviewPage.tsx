@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { useEffect, useRef, useState } from 'react';
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
 import AppLayout from '../components/AppLayout';
 import { useProfile } from '../hooks/useProfile';
@@ -33,15 +33,38 @@ function PortalPreviewBootstrap({
   const navigate = useNavigate();
   const { profile, loading } = useProfile(session);
   const [error, setError] = useState<string | null>(null);
+  const location = useLocation();
+  const onPreviewRoute = location.pathname.startsWith('/esikatselu/');
+  // Keep-alive pitää sivun muistissa: käynnistä vain kerran per kohde ja vain esikatselureitillä,
+  // muuten jokainen portaalin linkki palautuisi etusivulle.
+  const startedFor = useRef<string | null>(null);
+  const onPreviewRouteRef = useRef(onPreviewRoute);
+  onPreviewRouteRef.current = onPreviewRoute;
 
   useEffect(() => {
-    if (loading || !entityId) return;
+    if (!onPreviewRoute) {
+      startedFor.current = null;
+    }
+  }, [onPreviewRoute]);
+
+  useEffect(() => {
+    if (loading || !entityId || !onPreviewRoute) return;
+    const runKey = `${kind}:${entityId}`;
+    if (startedFor.current === runKey) return;
+    startedFor.current = runKey;
     // Esikatselu pitää pystyä avaamaan myös "yrityksenä" (esim. asentaja/esimies),
     // mutta ei tilaaja/asiakas-rooleilla.
     if (!profile || profile.role === 'subscriber' || profile.role === 'customer') {
       setError('Portaalin esikatselun voi avata vain yrityksen tunnuksilla.');
       return;
     }
+
+    /** Oma yritys, globaali admin tai kumppanuuden kautta asiakashallinnan oikeus. */
+    const canPreviewOwner = async (ownerId: string) => {
+      if (ownerId === profile.company_id || profile.is_global_admin === true) return true;
+      const { data: ok } = await supabase.rpc('can_write_module', { target_owner: ownerId, module_key: 'customers' });
+      return ok === true;
+    };
 
     void (async () => {
       if (kind === 'subscriber') {
@@ -55,7 +78,7 @@ function PortalPreviewBootstrap({
           setError('Tilaajaa ei löytynyt.');
           return;
         }
-        if (data.owner_company_id !== profile.company_id) {
+        if (!(await canPreviewOwner(data.owner_company_id))) {
           setError('Tilaaja ei kuulu yrityksellesi.');
           return;
         }
@@ -66,7 +89,8 @@ function PortalPreviewBootstrap({
           subscriberName: data.name,
           companyId: data.owner_company_id,
         });
-        navigate('/', { replace: true });
+        // Täysi lataus: henkilöstönäkymien välimuistisivut eivät jää esikatseluun (istunto säilyy).
+        if (onPreviewRouteRef.current) window.location.replace('/');
         return;
       }
 
@@ -80,12 +104,8 @@ function PortalPreviewBootstrap({
         setError('Asiakaskohdetta ei löytynyt.');
         return;
       }
-      if (data.owner_company_id !== profile.company_id) {
+      if (!(await canPreviewOwner(data.owner_company_id))) {
         setError('Kohde ei kuulu yrityksellesi.');
-        return;
-      }
-      if (data.subscriber_id) {
-        setError('Kohde on linkitetty tilaajaan — avaa tilaajaportaali tilaajan kautta.');
         return;
       }
 
@@ -95,9 +115,10 @@ function PortalPreviewBootstrap({
         customerName: data.name,
         companyId: data.owner_company_id,
       });
-      navigate('/', { replace: true });
+      // Täysi lataus: henkilöstönäkymien välimuistisivut eivät jää esikatseluun (istunto säilyy).
+        if (onPreviewRouteRef.current) window.location.replace('/');
     })();
-  }, [loading, profile, entityId, kind, navigate]);
+  }, [loading, profile, entityId, kind, navigate, onPreviewRoute]);
 
   return (
     <AppLayout session={session}>

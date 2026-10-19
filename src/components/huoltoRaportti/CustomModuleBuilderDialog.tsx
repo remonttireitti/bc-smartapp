@@ -1,3 +1,4 @@
+import CheckToggle from '../CheckToggle';
 import { useEffect, useState } from 'react';
 import {
   createCustomModuleField,
@@ -195,8 +196,7 @@ export function CustomModuleBuilderDialog({ open, module, onSave, onClose }: Pro
                       ) : null}
                       {field.type !== 'checkbox' ? (
                         <label className="checkbox-inline huolto-span-all">
-                          <input
-                            type="checkbox"
+                          <CheckToggle
                             checked={field.required === true}
                             onChange={(event) => patchField(index, { required: event.target.checked })}
                           />

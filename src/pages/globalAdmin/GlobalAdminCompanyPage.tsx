@@ -1,15 +1,17 @@
-import { useCallback, useEffect, useState } from 'react';
+import { Fragment, useCallback, useEffect, useState } from 'react';
 import { Link, Navigate, useNavigate, useOutletContext, useParams, useSearchParams } from 'react-router-dom';
 import HuoltoSettingsSection from '../../components/HuoltoSettingsSection';
 import { notifyHuoltoSettingsChanged } from '../../hooks/useCompanyHuoltoSettings';
 import { saveCompanyAdminPatch } from '../../lib/companyAdminSettings';
 import { parseHuoltoSettings, serializeHuoltoSettings, type HuoltoSettings } from '../../lib/huoltoCategories';
 import type { ManagementOutletContext } from '../../lib/managementOutletContext';
+import { parseCompanySettings } from '../../lib/management';
 import { supabase } from '../../lib/supabase';
 import type { Company } from '../../types';
 import UsersPage from '../UsersPage';
 import CompanyMonthlyTotal from '../../components/CompanyMonthlyTotal';
 import CompanyModulesEditor from './CompanyModulesEditor';
+import CompanyModuleTrialsEditor from './CompanyModuleTrialsEditor';
 import GlobalAdminCompanyDeleteDialog from './GlobalAdminCompanyDeleteDialog';
 
 const TABS = [
@@ -19,6 +21,31 @@ const TABS = [
   { id: 'kayttajat', label: 'Käyttäjät' },
 ] as const;
 type TabId = (typeof TABS)[number]['id'];
+
+/** Yhteys- ja laskutustiedot (yritys muokkaa Oma yritys -sivulla). */
+function CompanyContactFacts({ settings }: { settings: unknown }) {
+  const s = parseCompanySettings(settings);
+  const address = [s.address, `${s.postal_code ?? ''} ${s.city ?? ''}`.trim()].filter(Boolean).join(', ');
+  const contact = [s.contact?.name, s.contact?.email, s.contact?.phone].filter((v) => v?.trim()).join(', ');
+  const facts: [string, string | undefined][] = [
+    ['Y-tunnus', s.billing?.business_id],
+    ['Osoite', address],
+    ['Yhteyshenkilö', contact],
+    ['Yrityksen sähköposti', s.email],
+    ['Yrityksen puhelin', s.phone],
+    ['Laskutussähköposti', s.billing?.invoice_email],
+  ];
+  return (
+    <dl className="signup-facts" style={{ marginTop: '1rem' }}>
+      {facts.map(([k, v]) => (
+        <Fragment key={k}>
+          <dt>{k}</dt>
+          <dd>{v?.trim() || '—'}</dd>
+        </Fragment>
+      ))}
+    </dl>
+  );
+}
 
 /** /palvelu/yritykset/:companyId — yksi yritys GBA:lle. */
 export default function GlobalAdminCompanyPage() {
@@ -38,6 +65,7 @@ export default function GlobalAdminCompanyPage() {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [trialsVersion, setTrialsVersion] = useState(0);
 
   const load = useCallback(async () => {
     if (!companyId) return;
@@ -158,6 +186,7 @@ export default function GlobalAdminCompanyPage() {
               </label>
             )}
           </div>
+          <CompanyContactFacts settings={company.settings} />
           {message && <p className="success">{message}</p>}
           {error && <p className="error">{error}</p>}
           <div className="form-actions">
@@ -181,7 +210,12 @@ export default function GlobalAdminCompanyPage() {
       {tab === 'moduulit' && (
         <>
           <CompanyModulesEditor companyId={company.id} settings={company.settings} ownCompanyId={profile.company_id} onSaved={load} />
-          <CompanyMonthlyTotal key={JSON.stringify(company.settings ?? null)} companyId={company.id} />
+          <CompanyModuleTrialsEditor
+            key={JSON.stringify(company.settings ?? null)}
+            companyId={company.id}
+            settings={company.settings}
+            onChanged={() => setTrialsVersion((v) => v + 1)} />
+          <CompanyMonthlyTotal key={`${trialsVersion}:${JSON.stringify(company.settings ?? null)}`} companyId={company.id} />
         </>
       )}
 

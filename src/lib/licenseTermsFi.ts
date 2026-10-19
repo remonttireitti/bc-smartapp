@@ -17,18 +17,18 @@ export const LICENSE_TERMS_HELP_CONTENT: Record<
   adminOverview: {
     title: 'Yritysten tilaukset ja lisenssit',
     paragraphs: [
-      'Vanha sopimus: ei kokeilua eikä laskutusta, kaikki moduulit vapaasti (aiemmin luodut yritykset).',
+      'Ilmainen käyttöoikeus (toistaiseksi): ei kokeilua, kaikki moduulit vapaasti (aiemmin luodut yritykset).',
       'Tilaus ja kokeilu: kokeilu alkaa ensimmäisestä kirjautumisesta. Maksavan asiakkaan moduulit (✓/✗) hallitset kohdassa Yrityksen tilaus ja moduulit.',
-      'Kokeilua voi jatkaa ilman maksua (+30 pv). Kirjautuminen ja kokeilun päättyminen näkyvät omissa sarakkeissaan.',
+      'Kokeilua voi jatkaa maksutta rajattomasti (Yritykset-listan +30 pv tai haluttu määrä päiviä yrityksen Moduulit-välilehdellä). Kirjautuminen ja kokeilun päättyminen näkyvät omissa sarakkeissaan.',
       'Sisäiset käyttäjät = ylläpitäjät, esimiehet ja asentajat (sama lista kuin Yrityksen hallinta → Käyttäjät). Lukema "tiliä yhteensä" sisältää myös muut roolit samalla yrityksellä.',
     ],
   },
   adminEditor: {
     title: 'Yrityksen tilaus ja moduulit',
     paragraphs: [
-      'Yritysmalli määrittää, onko kyseessä vanha sopimus vai tilaus-/kokeilumalli.',
+      'Yritysmalli määrittää, onko kyseessä ilmainen käyttöoikeus (toistaiseksi) vai tilaus-/kokeilumalli.',
       'Tila ja maksu: kokeilujakso, maksava asiakas tai päättynyt tilaus. Moduulien kytkimet koskevat maksavaa asiakasta (kokeilussa kaikki auki).',
-      'Laskutus-kytkin: sekä tilaus/lisenssi että näkyvyys valikossa (ei erillistä lohkoa). Vanhassa sopimuksessa vain valikon näkyvyys.',
+      'Laskutus-kytkin: sekä tilaus/lisenssi että näkyvyys valikossa (ei erillistä lohkoa). Ilmaisessa käyttöoikeudessa vain valikon näkyvyys.',
     ],
   },
   nav: {

@@ -1,4 +1,5 @@
-import { FormEvent, useEffect, useRef, useState } from 'react';
+import CheckToggle from '../../components/CheckToggle';
+import { FormEvent, useState } from 'react';
 import { formatCustomerAddressParts } from '../../lib/customers';
 import { supabase } from '../../lib/supabase';
 import type { Company, Profile } from '../../types';
@@ -43,17 +44,10 @@ export default function GlobalAdminRegistrySection({ companies, users, onRefresh
   const [duplicateMessage, setDuplicateMessage] = useState<string | null>(null);
   const [duplicateError, setDuplicateError] = useState<string | null>(null);
   const [duplicateBusy, setDuplicateBusy] = useState(false);
-  const selectAllRef = useRef<HTMLInputElement>(null);
 
   const selectedCount = selectedIds.size;
   const allSelected = entityRows.length > 0 && selectedCount === entityRows.length;
-  const someSelected = selectedCount > 0 && !allSelected;
 
-  useEffect(() => {
-    if (selectAllRef.current) {
-      selectAllRef.current.indeterminate = someSelected;
-    }
-  }, [someSelected, entityRows.length]);
 
   async function loadEntityRows(ids?: string[]) {
     const select = ENTITY_SELECT[entityType];
@@ -442,9 +436,7 @@ export default function GlobalAdminRegistrySection({ companies, users, onRefresh
                     <tr>
                       <th className="select-col">
                         <label className="global-admin-select-all">
-                          <input
-                            ref={selectAllRef}
-                            type="checkbox"
+                          <CheckToggle
                             checked={allSelected}
                             onChange={(e) => setAllSelected(e.target.checked)}
                             aria-label="Valitse kaikki"
@@ -462,8 +454,7 @@ export default function GlobalAdminRegistrySection({ companies, users, onRefresh
                       return (
                         <tr key={row.id} className={checked ? undefined : 'global-admin-row-unselected'}>
                           <td className="select-col">
-                            <input
-                              type="checkbox"
+                            <CheckToggle
                               checked={checked}
                               onChange={(e) => toggleRowSelected(row.id, e.target.checked)}
                               aria-label={`Valitse ${row.customerLabel}`}

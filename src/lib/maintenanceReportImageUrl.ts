@@ -28,7 +28,12 @@ export function revokeMaintenanceReportImageBlob(storagePath: string) {
   }
 }
 
-async function signedUrlFromStorage(storagePath: string, expiresIn: number): Promise<string | null> {
+async function signedUrlFromStorage(storagePath: string, expiresIn: number, width?: number): Promise<string | null> {
+  if (width) {
+    // Pienennetty versio (Supabase image transform); epäonnistuessa alkuperäinen.
+    const t = await supabase.storage.from(BUCKET).createSignedUrl(storagePath, expiresIn, { transform: { width, resize: 'contain' } });
+    if (!t.error && t.data?.signedUrl) return t.data.signedUrl;
+  }
   const { data, error } = await supabase.storage.from(BUCKET).createSignedUrl(storagePath, expiresIn);
   if (!error && data?.signedUrl) return data.signedUrl;
   return null;
@@ -46,6 +51,7 @@ async function blobUrlFromStorage(storagePath: string): Promise<string | null> {
 export async function resolveMaintenanceReportImageUrl(
   rawPath: string,
   expiresIn = 3600,
+  width?: number,
 ): Promise<string | null> {
   const trimmed = String(rawPath ?? '').trim();
   if (!trimmed) return null;
@@ -59,7 +65,7 @@ export async function resolveMaintenanceReportImageUrl(
   const cached = cachedBlobUrl(storagePath);
   if (cached) return cached;
 
-  const signed = await signedUrlFromStorage(storagePath, expiresIn);
+  const signed = await signedUrlFromStorage(storagePath, expiresIn, width);
   if (signed) return signed;
 
   return blobUrlFromStorage(storagePath);
@@ -68,11 +74,12 @@ export async function resolveMaintenanceReportImageUrl(
 export async function resolveMaintenanceReportImageUrls(
   rawPaths: string[],
   expiresIn = 3600,
+  width?: number,
 ): Promise<Record<string, string>> {
   const map: Record<string, string> = {};
   await Promise.all(
     rawPaths.map(async (rawPath) => {
-      const url = await resolveMaintenanceReportImageUrl(rawPath, expiresIn);
+      const url = await resolveMaintenanceReportImageUrl(rawPath, expiresIn, width);
       if (url) map[rawPath] = url;
     }),
   );

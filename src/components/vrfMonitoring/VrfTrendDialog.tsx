@@ -1,3 +1,4 @@
+import CheckToggle from '../CheckToggle';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { printVrfTrendReport } from '../../lib/vrfTrendPrintAction';
@@ -610,7 +611,7 @@ export default function VrfTrendDialog({ open, deviceId, onClose, focusHotspot, 
               className={`vrf-tv-live ${live && liveAllowed ? 'on' : ''}`}
               title={liveAllowed ? 'Päivittää trendin minuutin välein' : 'Live toimii valmiilla aikavälillä ilman zoomausta'}
             >
-              <input type="checkbox" checked={live} onChange={toggleLive} disabled={!liveAllowed} />
+              <CheckToggle checked={live} onChange={toggleLive} disabled={!liveAllowed} />
               Live (1 min)
             </label>
           </div>

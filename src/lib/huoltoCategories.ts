@@ -123,8 +123,14 @@ export type HuoltoAccess = {
   enabledKylmaTypes: string[];
 };
 
-export function huoltoAccess(settings: HuoltoSettings): HuoltoAccess {
-  const typeOn = (key: string) => settings.enabled && settings.types[key]?.enabled === true;
+/** trialCategories: moduulikokeilun avaamat huoltolajit (koko laji käyttöön kokeilun ajaksi). */
+export function huoltoAccess(settings: HuoltoSettings, trialCategories?: ReadonlySet<string>): HuoltoAccess {
+  const trialOn = (key: string) => {
+    if (!trialCategories || trialCategories.size === 0) return false;
+    const cat = HUOLTO_REPORT_TYPES.find((t) => t.key === key)?.category;
+    return !!cat && trialCategories.has(cat);
+  };
+  const typeOn = (key: string) => (settings.enabled && settings.types[key]?.enabled === true) || trialOn(key);
   const categoryOn = (category: HuoltoCategoryKey) => huoltoReportTypesOf(category).some((t) => typeOn(t.key));
   const enabledCategories = HUOLTO_CATEGORIES.map((c) => c.key).filter(categoryOn);
   return {

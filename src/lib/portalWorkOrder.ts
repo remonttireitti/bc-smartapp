@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { CUSTOMER_SELECT, EQUIPMENT_SELECT } from './customers';
-import { isPortalView } from './portalPreview';
+import { getPortalCustomerId, getPortalPreview, getPortalSubscriberId, isPortalView } from './portalPreview';
 import {
   subscriberPortalReportVisible,
   type SubscriberPortalVisibility,
@@ -15,7 +15,7 @@ export const PORTAL_COMPLETED_WORK_STATUSES: WorkStatus[] = [
 ];
 
 /** Oma työtilaus ennen kuin yritys ottaa sen käsittelyyn. */
-export const PORTAL_OWN_ORDER_OPEN_STATUSES: WorkStatus[] = ['draft'];
+export const PORTAL_OWN_ORDER_OPEN_STATUSES: WorkStatus[] = ['draft', 'delegated'];
 
 export function isWorkReportVisibleToPortal(
   status: string,
@@ -102,21 +102,24 @@ export async function loadPortalOrderCustomers(
   supabase: SupabaseClient,
   profile: Pick<Profile, 'role' | 'subscriber_id' | 'customer_id' | 'company_id'>,
 ): Promise<Customer[]> {
-  if (profile.role === 'customer' && profile.customer_id) {
+  // Vain portaalin oma kohde / tilaajan kohteet — ei koskaan muiden asiakkaiden tietoja.
+  const portalCustomerId = getPortalCustomerId(profile);
+  const portalSubscriberId = getPortalSubscriberId(profile);
+  if (portalCustomerId) {
     const { data, error } = await supabase
       .from('customers')
       .select(CUSTOMER_SELECT)
-      .eq('id', profile.customer_id)
+      .eq('id', portalCustomerId)
       .maybeSingle();
     if (error) throw error;
     return data ? [data as unknown as Customer] : [];
   }
 
-  if (profile.role === 'subscriber' && profile.subscriber_id) {
+  if (portalSubscriberId) {
     const { data, error } = await supabase
       .from('customers')
       .select(CUSTOMER_SELECT)
-      .eq('subscriber_id', profile.subscriber_id)
+      .eq('subscriber_id', portalSubscriberId)
       .order('name');
     if (error) throw error;
     return (data as unknown as Customer[]) ?? [];
@@ -152,6 +155,10 @@ export async function resolvePortalServiceCompanyId(
   profile: Pick<Profile, 'company_id' | 'subscriber_id'> | null | undefined,
 ): Promise<string | null> {
   if (!profile) return null;
+  const preview = getPortalPreview();
+  if (preview && (profile as { role?: string }).role !== 'customer' && (profile as { role?: string }).role !== 'subscriber') {
+    return preview.companyId;
+  }
   if (profile.company_id) return profile.company_id;
   if (!profile.subscriber_id) return null;
 

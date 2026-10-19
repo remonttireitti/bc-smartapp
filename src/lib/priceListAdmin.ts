@@ -3,6 +3,8 @@ import {
   ADDON_MODULE_LABELS,
   BASE_PACKAGE_DESCRIPTION,
   DEVICE_PRICE_NOTE,
+  deviceFromPrice,
+  remoteMonitoringNote,
   DEVICE_TYPE_LABELS,
   DEVICE_TYPES,
   HUOLTO_DESCRIPTIONS,
@@ -28,8 +30,8 @@ export type PriceRow = {
   group: PriceGroupKey;
   label: string;
   description: string;
-  /** Harmaa riippuvuushuomautus. */
-  note?: string;
+  /** Harmaa riippuvuushuomautus (funktio: tallennetuista hinnoista). */
+  note?: string | ((p: PriceList) => string | undefined);
   /** false → rivi piilotetaan (esim. Varasto ennen varasto_module.sql-ajoa). */
   available?: (p: PriceList) => boolean;
   get: (p: PriceList) => number;
@@ -48,7 +50,7 @@ const moduleRow = (k: AddonModuleKey): PriceRow => ({
   group: 'moduulit',
   label: ADDON_MODULE_LABELS[k],
   description: MODULE_DESCRIPTIONS[k],
-  note: MODULE_NOTES[k],
+  note: k === 'remote_monitoring' ? (p: PriceList) => remoteMonitoringNote(deviceFromPrice(p)) : MODULE_NOTES[k],
   ...(k === 'inventory' ? { available: (p: PriceList) => p.inventory_priced !== false } : {}),
   get: (p) => p.module_prices[k],
   set: (p, v) => ({ ...p, module_prices: { ...p.module_prices, [k]: v } }),
@@ -57,9 +59,8 @@ const moduleRow = (k: AddonModuleKey): PriceRow => ({
 const deviceRow = (k: DeviceTypeKey): PriceRow => ({
   key: `device:${k}`,
   group: 'moduulit',
-  label: `Laite: ${DEVICE_TYPE_LABELS[k]}`,
-  description: 'Etäseurannan seurattava laite, €/kk per laite (alkaen)',
-  note: DEVICE_PRICE_NOTE,
+  label: `Laitemaksu: ${DEVICE_TYPE_LABELS[k]}`,
+  description: DEVICE_PRICE_NOTE,
   get: (p) => p.device_prices[k],
   set: (p, v) => ({ ...p, device_prices: { ...p.device_prices, [k]: v } }),
 });
@@ -141,6 +142,23 @@ export function priceListPayload(p: PriceList) {
     role_prices: { ...p.role_prices },
     temp_device_monthly_prices: { ...p.device_prices },
   };
+}
+
+/** "10" / "7,5" → 7.5 (0–50 %); muuten null. */
+export function parsePctInput(raw: string): number | null {
+  const s = String(raw ?? '').replace(/\s/g, '').replace(',', '.').replace('%', '');
+  if (s === '' || !/^\d+(\.\d{0,2})?$/.test(s)) return null;
+  const n = Number(s);
+  return Number.isFinite(n) && n >= 0 && n <= 50 ? Math.round(n * 100) / 100 : null;
+}
+
+/** Laskutusjakson alennukset (annual_billing.sql: global_admin_update_billing_discounts). */
+export async function saveBillingDiscounts(supabase: SupabaseClient, d: PriceList['billing_discounts']): Promise<void> {
+  const { error } = await supabase.rpc('global_admin_update_billing_discounts', { p_discounts: { ...d } });
+  if (error) {
+    if (isMissingRpcError(error)) throw new Error('Jaksoalennukset tallentuvat, kun annual_billing.sql on ajettu.');
+    throw new Error(error.message);
+  }
 }
 
 /** Yksi tallennus. Ennen price_list.sql-ajoa: vanhat RPC:t peräkkäin. */

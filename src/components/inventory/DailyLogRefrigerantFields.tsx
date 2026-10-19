@@ -265,9 +265,7 @@ export default function DailyLogRefrigerantFields({
               <label>
                 Määrä (kg)
                 <input
-                  type="number"
-                  step="0.001"
-                  min="0"
+                  inputMode="decimal"
                   value={row.qty_kg}
                   onChange={(e) => updateRow(index, { qty_kg: e.target.value })}
                   required
@@ -279,9 +277,7 @@ export default function DailyLogRefrigerantFields({
                   <label>
                     Ostohinta (€/kg)
                     <input
-                      type="number"
-                      step="0.01"
-                      min="0"
+                      inputMode="decimal"
                       value={row.unit_price}
                       onChange={(e) => updateRow(index, { unit_price: e.target.value })}
                     />
@@ -289,9 +285,7 @@ export default function DailyLogRefrigerantFields({
                   <label>
                     Asiakashinta (€/kg)
                     <input
-                      type="number"
-                      step="0.01"
-                      min="0"
+                      inputMode="decimal"
                       value={row.customer_unit_price}
                       onChange={(e) => updateRow(index, { customer_unit_price: e.target.value })}
                       placeholder="Tyhjä = ostohinta"
@@ -306,9 +300,7 @@ export default function DailyLogRefrigerantFields({
                   <label>
                     Varastohinta (€/kg)
                     <input
-                      type="number"
-                      step="0.01"
-                      min="0"
+                      inputMode="decimal"
                       value={row.unit_price}
                       onChange={(e) => updateRow(index, { unit_price: e.target.value })}
                       required
@@ -317,9 +309,7 @@ export default function DailyLogRefrigerantFields({
                   <label>
                     Myyntihinta raportin omistajalle (€/kg)
                     <input
-                      type="number"
-                      step="0.01"
-                      min="0"
+                      inputMode="decimal"
                       value={row.customer_unit_price}
                       onChange={(e) => updateRow(index, { customer_unit_price: e.target.value })}
                       required

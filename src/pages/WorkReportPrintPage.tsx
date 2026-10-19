@@ -1,3 +1,4 @@
+import { isPortalView } from '../lib/portalPreview';
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
@@ -33,12 +34,19 @@ function resolvePrintMode(searchParams: URLSearchParams): WorkReportPrintMode {
   return searchParams.get('hinnat') === '1' ? 'internal' : 'customer';
 }
 
+/** Vanhoista kumppanikopioista jäänyt sisäinen tunniste ei kuulu tulosteeseen. */
+function stripInternalMarkers(text: string): string {
+  return text.replace(/\s*bc_partner_copy_source_report_id:[0-9a-f-]{36}/gi, '');
+}
+
 export default function WorkReportPrintPage({ session }: Props) {
   const { id } = useParams();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { profile } = useProfile(session);
-  const printMode = resolvePrintMode(searchParams);
+  const portal = isPortalView(profile);
+  // Asiakasportaali: aina asiakastuloste (hinnat asiakastulosteen sääntöjen mukaan).
+  const printMode: WorkReportPrintMode = portal ? 'customer' : resolvePrintMode(searchParams);
   const customerPrintQuantitySettings = useMemo(
     () => parseCustomerPrintQuantitySettings(searchParams),
     [searchParams],
@@ -74,7 +82,7 @@ export default function WorkReportPrintPage({ session }: Props) {
       });
       setReport(bundle.report);
       setPrintBundle(bundle);
-      setHtml(bundle.html);
+      setHtml(stripInternalMarkers(bundle.html));
       setCalculation(bundle.calculation);
       setCustomerCalculation(bundle.customerCalculation);
     } catch (err) {
@@ -133,7 +141,7 @@ export default function WorkReportPrintPage({ session }: Props) {
     return (
       <AppLayout session={session}>
         <p className="error">{error ?? 'Työraporttia ei löytynyt.'}</p>
-        <Link to={id ? `/tyoraportit/${id}` : '/tyoraportit'}>← Takaisin</Link>
+        <Link to={id && !portal ? `/tyoraportit/${id}` : '/tyoraportit'}>← Takaisin</Link>
       </AppLayout>
     );
   }
@@ -152,10 +160,10 @@ export default function WorkReportPrintPage({ session }: Props) {
             {printMode === 'internal' && (
               <p className="muted">Kumppani- ja asiakaslaskutus sekä kaikki hinnat mukana.</p>
             )}
-            <p className="muted">{buildWorkReportPrintHeadline(report)}</p>
+            <p className="muted">{stripInternalMarkers(buildWorkReportPrintHeadline(report))}</p>
           </div>
           <div className="page-header-actions action-toolbar">
-            <div className="btn-group print-mode-switch">
+            {!portal ? <div className="btn-group print-mode-switch">
               <Link
                 to={customerPrintQuantitySettingsPath(report.id, customerPrintQuantitySettings)}
                 className={`btn btn-sm ${printMode === 'customer' ? 'btn-primary' : 'btn-secondary'}`}
@@ -170,15 +178,15 @@ export default function WorkReportPrintPage({ session }: Props) {
                   Sisäinen (hinnat)
                 </Link>
               )}
-            </div>
+            </div> : null}
             <IconButton
-              label="Takaisin raporttiin"
-              href={`/tyoraportit/${report.id}`}
+              label={portal ? 'Takaisin' : 'Takaisin raporttiin'}
+              href={portal ? '/tyoraportit' : `/tyoraportit/${report.id}`}
               tooltipSide="bottom"
             >
               <IconBack />
             </IconButton>
-            {printMode === 'customer' ? (
+            {printMode === 'customer' && !portal ? (
               <CustomerPrintQuantitySettingsPopup quantitiesEnabled={customerPrintQuantitySettings.showQuantities}>
                 <WorkReportCustomerPrintSettingsPanel
                   inDialog

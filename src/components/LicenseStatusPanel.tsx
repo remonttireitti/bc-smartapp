@@ -1,10 +1,15 @@
 import { Link } from 'react-router-dom';
+import ToggleSwitch from './ToggleSwitch';
+import { formatTrialEnd, moduleTrialLabel } from '../lib/moduleTrials';
 import CompanySubscriptionOrderForm from './CompanySubscriptionOrderForm';
-import ModuleDescription from './ModuleDescription';
+import ModuleDescription, { minDeviceFee } from './ModuleDescription';
+import { useEffect, useState } from 'react';
+import BillingPeriodPicker from './BillingPeriodPicker';
+import { supabase } from '../lib/supabase';
+import { DEFAULT_BILLING_DISCOUNTS, billingPeriodLabel, normalizeBillingPeriod, parsePriceList, type PriceList } from '../lib/companySignup';
 import { GLOBAL_ADMIN_SUPPORT } from '../lib/supportContacts';
 import {
   formatLicenseMoney,
-  formatLicensePeriodMoney,
   LICENSE_MODULE_DESCRIPTIONS,
   LICENSE_MODULE_LABELS,
   LICENSE_PAYMENT_STATUS_LABELS,
@@ -28,9 +33,34 @@ function formatDateFi(iso: string | null) {
 }
 
 export default function LicenseStatusPanel({ license, canManageOrder, onRefresh }: Props) {
+  const [discounts, setDiscounts] = useState<Pick<PriceList, 'billing_discounts'>>({ billing_discounts: DEFAULT_BILLING_DISCOUNTS });
+  useEffect(() => {
+    let alive = true;
+    void supabase.from('license_catalog').select('*').eq('id', 1).maybeSingle().then(({ data }) => {
+      if (alive && data) setDiscounts(parsePriceList(data));
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
+  const [trialBusy, setTrialBusy] = useState(false);
+  const [trialError, setTrialError] = useState<string | null>(null);
   if (license.enrollment === 'legacy') return null;
 
+  async function setKeep(moduleKey: string, keep: boolean) {
+    setTrialBusy(true);
+    setTrialError(null);
+    const { error } = await supabase.rpc('company_set_module_trial_keep', { p_module_key: moduleKey, p_keep: keep });
+    setTrialBusy(false);
+    if (error) setTrialError(error.message);
+    else onRefresh?.();
+  }
+
   const daysLeft = trialDaysRemaining(license);
+  // Moduulikokeilut vain maksavalla tilauksella; kokeilujaksolla kaikki on jo auki.
+  const moduleTrials = license.effective_status === 'active' ? license.module_trials : [];
+  const trialByKey = new Map(moduleTrials.map((t) => [t.module_key as string, t]));
+  const shownTrials = moduleTrials.filter((t) => t.active || t.keep_after);
   const { pricing } = license;
   const showOrderForm =
     canManageOrder
@@ -41,7 +71,7 @@ export default function LicenseStatusPanel({ license, canManageOrder, onRefresh 
     <section className="license-status-panel">
       {license.effective_status === 'pending_trial' && (
         <p className="license-status-lead">
-          Kokeilujakso alkaa, kun yrityksen ensimmäinen käyttäjä kirjautuu sisään. Jakso on{' '}
+          Maksuton kokeilujakso alkaa, kun yrityksen ensimmäinen käyttäjä kirjautuu sisään. Jakso on{' '}
           <strong>{license.trial_days} päivää</strong> ja sisältää kaikki moduulit.
         </p>
       )}
@@ -65,10 +95,27 @@ export default function LicenseStatusPanel({ license, canManageOrder, onRefresh 
         <p className="license-status-lead">
           Tilaus on voimassa
           {license.paid_through && <> · maksettu {formatDateFi(license.paid_through)} asti</>}.
-          Arvio jakson hinnasta ({license.billing_interval_label}):{' '}
-          <strong>{formatLicensePeriodMoney(pricing.estimated_period_total_eur, license.billing_interval)}</strong>
-          {' '}(n. {formatLicenseMoney(pricing.estimated_monthly_total_eur)} / kk).
+          {' '}{billingPeriodLabel(license.billing_interval)}.
         </p>
+      )}
+
+      {license.effective_status === 'active' && (
+        <BillingPeriodPicker
+          lines={[
+            { key: 'sub', label: 'Tilaus', qty: 1, total: pricing.estimated_monthly_total_eur },
+            ...moduleTrials
+              .filter((t) => t.active)
+              .map((t) => ({
+                key: `trial:${t.module_key}`,
+                label: `${moduleTrialLabel(t.module_key)} — kokeilu päättyy ${formatTrialEnd(t.ends_at)}`,
+                qty: 1,
+                total: 0,
+              })),
+          ]}
+          monthlyNet={pricing.estimated_monthly_total_eur}
+          value={normalizeBillingPeriod(license.billing_interval)}
+          prices={discounts}
+        />
       )}
 
       {license.payment_status !== 'none' && (
@@ -96,7 +143,7 @@ export default function LicenseStatusPanel({ license, canManageOrder, onRefresh 
           return (
             <article key={moduleKey} className={`license-pricing-card${active ? ' is-active' : ''}`}>
               <h3>{LICENSE_MODULE_LABELS[moduleKey]}</h3>
-              <p className="muted"><ModuleDescription moduleKey={moduleKey} /></p>
+              <p className="muted"><ModuleDescription moduleKey={moduleKey} deviceFeeEur={minDeviceFee(pricing.temp_device_unit_prices)} /></p>
               <p className="license-price">{formatLicenseMoney(price)}</p>
               {moduleKey === 'remote_monitoring' && (
                 <div className="license-device-pricing-detail muted">
@@ -124,11 +171,44 @@ export default function LicenseStatusPanel({ license, canManageOrder, onRefresh 
                   )}
                 </div>
               )}
-              <p className="license-state">{active ? 'Käytössä' : 'Ei tilauksessa'}</p>
+              <p className="license-state">
+                {trialByKey.get(moduleKey)?.active
+                  ? `Kokeilu — päättyy ${formatTrialEnd(trialByKey.get(moduleKey)!.ends_at, false)}`
+                  : active ? 'Käytössä' : 'Ei tilauksessa'}
+              </p>
             </article>
           );
         })}
       </div>
+
+      {shownTrials.length > 0 && (
+        <div className="license-trials-block">
+          <h3>Moduulikokeilut</h3>
+          <p className="muted">
+            Kokeilussa oleva moduuli on käytössä maksutta. Kokeilun päätyttyä se lukittuu, ellei sitä tilata.
+          </p>
+          {shownTrials.map((t) => (
+            <div key={t.module_key} className="license-trial-row">
+              <strong>{moduleTrialLabel(t.module_key)}</strong>
+              {t.active ? (
+                <span className="module-trial-badge">Kokeilu — päättyy {formatTrialEnd(t.ends_at, false)}</span>
+              ) : (
+                <span className="module-trial-kept">Tilattu</span>
+              )}
+              {canManageOrder && t.active && (
+                <ToggleSwitch
+                  checked={t.keep_after}
+                  disabled={trialBusy}
+                  label={t.keep_after ? 'Tilaa — jatkuu kokeilun jälkeen' : 'Tilaa'}
+                  onChange={(v) => void setKeep(t.module_key, v)}
+                />
+              )}
+              {!canManageOrder && t.active && t.keep_after && <span className="muted">Jatkuu kokeilun jälkeen</span>}
+            </div>
+          ))}
+          {trialError && <p className="error">{trialError}</p>}
+        </div>
+      )}
 
       {(showOrderForm || (canManageOrder && license.payment_status === 'awaiting_payment')) && (
         <CompanySubscriptionOrderForm

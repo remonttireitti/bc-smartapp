@@ -149,7 +149,7 @@ export default function InstallationPlanPrintPage({ session }: Props) {
         <div className="page-header no-print">
           <div>
             <p className="breadcrumb">
-              <Link to="/">Etusivu</Link> / <Link to="/tarjouspyynnot">Tarjouspyyntö</Link> /{' '}
+              <Link to="/">Etusivu</Link> / <Link to="/tarjouspyynnot">Tarjouspyynnöt ja laskennat</Link> /{' '}
               <Link to="/asennus-suunnittelu">Asennus suunnittelu</Link> /{' '}
               <Link to={`/asennus-suunnittelu/${id}`}>Muokkaa</Link> / Tuloste
             </p>

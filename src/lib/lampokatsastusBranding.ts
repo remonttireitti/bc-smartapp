@@ -211,7 +211,7 @@ export function buildLampokatsastusQuoteHeaderHtml(
 ): string {
   return `<header class="lk-header lk-header--quote">
     <div class="lk-header-top">
-      <div class="lk-logo"><img src="${helpers.attrUrl(helpers.logoSrc)}" alt="${helpers.esc(meta.companyName)}" /></div>
+      <div class="lk-logo">${helpers.logoSrc ? `<img src="${helpers.attrUrl(helpers.logoSrc)}" alt="${helpers.esc(meta.companyName)}" />` : `<strong>${helpers.esc(meta.companyName)}</strong>`}</div>
     </div>
     <p class="lk-tagline">${helpers.esc(LAMPOKATSASTUS_MARKETING_TAGLINE)}</p>
   </header>`;

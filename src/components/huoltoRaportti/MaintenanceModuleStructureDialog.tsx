@@ -1,3 +1,4 @@
+import CheckToggle from '../CheckToggle';
 import { useEffect, useMemo, useState } from 'react';
 import type { ModuleKey } from '../../lib/huoltoRaportti/constants';
 import {
@@ -328,8 +329,7 @@ export function MaintenanceModuleStructureDialog({
                 <div className="maintenance-module-structure-optional">
                   {optionalModules.map((option) => (
                     <label key={option.key} className="maintenance-module-structure-check">
-                      <input
-                        type="checkbox"
+                      <CheckToggle
                         checked={Boolean(draftModules[option.key])}
                         onChange={(event) => toggleOptionalModule(option.key, event.target.checked)}
                       />

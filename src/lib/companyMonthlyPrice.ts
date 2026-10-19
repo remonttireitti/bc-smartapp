@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import {
+  ADDON_MODULE_LABELS,
   ADDON_MODULES,
   HUOLTO_KEYS,
   STAFF_ROLES,
@@ -11,6 +12,28 @@ import {
   type StaffRole,
 } from '../../supabase/functions/_shared/companySignupCore';
 import { huoltoAccess, parseHuoltoSettings } from './huoltoCategories';
+import { LEGACY_LICENSE_LABEL } from './companyLicense';
+
+/** Ilmainen käyttöoikeus (toistaiseksi): ei laskuteta mitään. */
+export function freeAccessEstimate(): PriceEstimate {
+  return {
+    lines: [{ key: 'free_access', label: LEGACY_LICENSE_LABEL, qty: 1, unit: 0, total: 0 }],
+    net: 0,
+    vat: 0,
+    gross: 0,
+  };
+}
+
+/** Rivin nimi avaimen mukaan (yksi lähde: companySignupCore), ettei vanha SQL-nimi jää näkyviin. */
+function lineLabel(key: string, label: string): string {
+  const m = /^(module|trial):(.+)$/.exec(key);
+  if (m && m[2] in ADDON_MODULE_LABELS) {
+    const name = ADDON_MODULE_LABELS[m[2] as keyof typeof ADDON_MODULE_LABELS];
+    const old = label.split(' — ')[0];
+    return label.replace(old, name);
+  }
+  return label;
+}
 
 type ProfileRow = { role: string | null; staff_roles?: string[] | null };
 
@@ -34,16 +57,25 @@ export function companyPricedSelection(companySettings: unknown, profiles: Profi
   return sel;
 }
 
+export function isFreeAccessSettings(companySettings: unknown): boolean {
+  const s = (companySettings && typeof companySettings === 'object' ? companySettings : {}) as Record<string, unknown>;
+  const license = (s.license && typeof s.license === 'object' ? s.license : {}) as Record<string, unknown>;
+  return license.enrollment === 'legacy';
+}
+
 /** SQL company_monthly_price_breakdown → PriceEstimate (null jos muoto ei kelpaa). */
 export function parseBreakdown(raw: unknown): PriceEstimate | null {
   if (!raw || typeof raw !== 'object') return null;
   const r = raw as Record<string, unknown>;
   if (!Array.isArray(r.lines)) return null;
+  // Ennen free_access_zero.sql-ajoa SQL laskee ilmaiselle käyttöoikeudelle listahinnan: ohitetaan.
+  if (r.basis === 'legacy') return freeAccessEstimate();
   const num = (v: unknown) => (Number.isFinite(Number(v)) ? Number(v) : 0);
   return {
     lines: r.lines.map((l) => {
       const o = (l ?? {}) as Record<string, unknown>;
-      return { key: String(o.key ?? ''), label: String(o.label ?? ''), qty: num(o.qty), unit: num(o.unit), total: num(o.total) };
+      const key = String(o.key ?? '');
+      return { key, label: lineLabel(key, String(o.label ?? '')), qty: num(o.qty), unit: num(o.unit), total: num(o.total) };
     }),
     net: num(r.net),
     vat: num(r.vat),
@@ -66,6 +98,7 @@ export async function loadCompanyMonthlyEstimate(
   ]);
   if (catalog.error) throw catalog.error;
   if (company.error) throw company.error;
+  if (isFreeAccessSettings((company.data as { settings?: unknown } | null)?.settings)) return freeAccessEstimate();
   let profiles: ProfileRow[] = [];
   const withRoles = await supabase
     .from('profiles')

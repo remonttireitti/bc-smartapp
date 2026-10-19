@@ -17878,3 +17878,101 @@ label.has-error input { border-color: #b91c1c; }
 .module-toggle-row { display: grid; gap: .15rem; }
 .module-toggle-row small { padding-left: 3.25rem; line-height: 1.3; }
 .price-row-desc .module-note { display: inline; }
+/* Signup module rows */
+.signup-mod-group { margin: .75rem 0 .35rem; font-size: .85rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: .03em; }
+.signup-mods { display: grid; grid-template-columns: 1fr; gap: .4rem; }
+@media (min-width: 900px) { .signup-mods { grid-template-columns: 1fr 1fr; } }
+.signup-mod { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: .75rem; padding: .55rem .75rem; border: 1px solid var(--border, #ddd); border-radius: 8px; font-weight: normal; cursor: pointer; }
+.signup-mod-fixed { cursor: default; grid-column: 1 / -1; }
+.signup-mod-text { display: flex; flex-direction: column; min-width: 0; }
+.signup-mod-name { font-weight: 600; }
+.signup-mod-desc { color: var(--text-muted); font-size: .82rem; line-height: 1.3; }
+.signup-mod-price { white-space: nowrap; text-align: right; font-variant-numeric: tabular-nums; }
+
+/* Kuukausihinta-kortti (BillingPeriodPicker) */
+.price-card { max-width: 520px; margin: 1.25rem auto; background: #fff; color: #0f172a; border-radius: 12px; box-shadow: 0 1px 3px rgba(15,23,42,.08), 0 8px 24px rgba(15,23,42,.08); padding: 1.25rem 1.5rem; font-size: .95em; }
+.price-card-head { display: flex; align-items: center; justify-content: space-between; gap: .75rem; margin-bottom: .75rem; }
+.price-card-head h4 { margin: 0; font-size: 1em; font-weight: 600; }
+.price-card .seg { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px; padding: 3px; background: #f1f5f9; border-radius: 999px; flex: 0 1 280px; }
+.price-card .seg button { border: 0; border-radius: 999px; background: transparent; color: #475569; font: inherit; font-size: .85em; padding: .35rem .5rem; cursor: pointer; white-space: nowrap; min-height: 0; transition: background .15s, color .15s; }
+.price-card .seg button.is-on { background: #fff; color: var(--primary, #2563eb); font-weight: 600; box-shadow: 0 1px 2px rgba(15,23,42,.12); }
+.price-card .seg-pct { opacity: .75; margin-left: .2rem; }
+.price-card-lines { margin: 0; }
+.price-card-lines > div { display: flex; justify-content: space-between; gap: 1rem; padding: .4rem 0; border-bottom: 1px solid #e2e8f0; }
+.price-card-lines dt, .price-card-lines dd { margin: 0; }
+.price-card-lines dd { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.price-card-discount { color: #15803d; }
+.price-card-total { font-weight: 700; font-size: 1.15em; border-bottom: 0 !important; padding-top: .6rem !important; }
+.price-card-muted, .price-card-period { color: #64748b; }
+.price-card-muted { border-bottom: 0 !important; padding-top: 0 !important; }
+.price-card-period { margin: .3rem 0 0; font-size: .88em; }
+@media (max-width: 380px) { .price-card-head { flex-direction: column; align-items: stretch; } .price-card .seg { flex-basis: auto; } }
+.price-list-page .price-trial { margin-right: 1.5rem; }
+
+/* Moduulikokeilut (Palvelun hallinta → yritys → Moduulit, lisenssipaneeli) */
+.module-trials-all { display: flex; flex-wrap: wrap; align-items: flex-end; gap: .75rem; margin: .5rem 0 1rem; }
+.module-trials-all label { display: grid; gap: .25rem; font-weight: 600; }
+.module-trials-days { display: inline-flex; align-items: center; gap: .35rem; }
+.module-trials-days input { width: 5.5rem; }
+.module-trials-group { margin: .9rem 0 .35rem; font-size: .9rem; color: var(--muted, #64748b); }
+.module-trials-row { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem 1rem; padding: .35rem 0; border-bottom: 1px solid rgba(148, 163, 184, .25); }
+.module-trials-row > .toggle-switch:first-child { min-width: 13rem; }
+.module-trials-state { flex: 1 1 12rem; }
+.module-trial-badge { display: inline-block; padding: .1rem .5rem; border-radius: 999px; background: #fef3c7; color: #92400e; font-size: .85rem; font-weight: 600; }
+.module-trial-kept { display: inline-block; padding: .1rem .5rem; border-radius: 999px; background: #dcfce7; color: #166534; font-size: .85rem; font-weight: 600; }
+.license-trials-block { margin-top: 1rem; }
+.license-trial-row { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem 1rem; padding: .4rem 0; border-bottom: 1px solid rgba(148, 163, 184, .25); }
+.license-trial-row strong { min-width: 10rem; }
+.module-trials-name { min-width: 13rem; font-weight: 600; padding-left: 3.25rem; }
+
+/* LVI/IV/sähkö: tyyppirivien pikalisäys */
+.quote-catalog-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .4rem;
+  margin: 0 0 .75rem;
+}
+.quote-catalog-chip {
+  padding: .3rem .65rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg-surface);
+  color: var(--text);
+  font: inherit;
+  font-size: .85rem;
+  cursor: pointer;
+}
+.quote-catalog-chip:hover { border-color: #f97316; }
+.quote-catalog-chip .muted { font-size: .75rem; }
+.quote-price-missing { color: #b45309; font-weight: 600; }
+.quote-catalog-price-table td.num input { width: 7rem; text-align: right; }
+.quote-catalog-prices { margin: .5rem 0; }
+.quote-catalog-prices summary { cursor: pointer; padding: .35rem 0; }
+
+/* Asiakasnäkymän kokoontaitettavat osiot */
+.customer-collapsible.collapsible-section { margin-bottom: 0.9rem; }
+.customer-collapsible .collapsible-header { padding: 0.85rem 1.1rem; font-size: 1.02rem; font-weight: 600; }
+.customer-collapsible .collapsible-body { padding: 0 1.1rem 1rem; }
+
+.password-reveal { display: flex; flex-direction: column; gap: 0.35rem; padding: 0.75rem 0.9rem; border: 1px solid var(--border-strong); border-radius: 10px; background: #f6faf7; margin: 0.5rem 0; }
+.password-reveal-row { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; }
+.password-reveal-value { font-size: 1.15rem; letter-spacing: 0.04em; font-weight: 600; user-select: all; }
+
+/* Asiakasnäkymä / portaali: taulukot mahtuvat sivulle, ei sisäistä vierityslaatikkoa */
+.customer-collapsible .data-table-scroll { max-height: none; overflow-x: auto; overflow-y: visible; }
+.customer-collapsible .data-table td { white-space: normal; overflow-wrap: anywhere; }
+.customer-collapsible .data-table td.nowrap { white-space: nowrap; }
+.customer-collapsible .data-table-actions-col, .customer-collapsible .data-table td:last-child { white-space: nowrap; width: 1%; }
+.customer-equipment-name-text, .customer-equipment-stack { display: inline-flex; flex-direction: column; line-height: 1.25; }
+.customer-equipment-name-text small, .customer-equipment-stack small { font-size: 0.75rem; }
+.portal-order-recipients { margin-top: 1.25rem; padding-top: 1rem; border-top: 1px solid var(--border, #e5e7eb); display: flex; flex-direction: column; gap: 0.45rem; }
+.portal-order-recipients h3 { margin: 0; font-size: 1rem; }
+.portal-order-recipients p { margin: 0; }
+/* Portaali: ei murupolkua */
+.portal-mode .breadcrumb { display: none; }
+.portal-order-recipients-group { font-size: 0.78rem; color: #6b7280; font-weight: 600; margin-top: 0.35rem; }
+
+.portal-kohde-switcher { display: grid; gap: 0.25rem; padding: 0.5rem 0.75rem; font-size: 0.8rem; color: var(--muted, #64748b); }
+.portal-kohde-switcher select { width: 100%; font-size: 0.9rem; }
+.portal-subscriber-heading { margin: 1.25rem 0 0.25rem; }
+.portal-customers-search { width: 100%; max-width: 420px; margin-bottom: 0.75rem; }

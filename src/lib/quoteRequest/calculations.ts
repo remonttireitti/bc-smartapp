@@ -13,6 +13,7 @@ import {
   isPumpQuoteType,
   isRepairQuoteType,
   quoteShowsKotitalousDeduction,
+  KOTITALOUS_DEDUCTION,
   quoteUsesTravelCost,
 } from './constants';
 import {
@@ -480,7 +481,7 @@ export function computeAllOptionTotals(
     .filter((row) => row.totals != null);
 }
 export function computeKotitalousDeduction(data: QuoteRequestData) {
-  if (!quoteShowsKotitalousDeduction(data.type)) {
+  if (!quoteShowsKotitalousDeduction(data.type, data.vatRate)) {
     return {
       laborOnlyGross: 0,
       percent: 0,
@@ -494,16 +495,22 @@ export function computeKotitalousDeduction(data: QuoteRequestData) {
 
   const totals = computeQuoteTotals(data);
   const vatRate = Number(data.vatRate || 0);
-  const laborOnlyGross = totals.workNet * (1 + vatRate / 100);
+  const discount = Math.max(0, Math.min(100, Number(data.overallDiscountPercent || 0)));
+  // Työn osuus sis. alv, kokonaisalennus huomioituna; ei tarvikkeita, laitteita eikä matkakuluja (vero.fi).
+  const laborOnlyGross = Math.round(totals.workNet * (1 - discount / 100) * (1 + vatRate / 100) * 100) / 100;
   const isOilAbandonment =
-    data.oilBoilerRemoval ||
-    data.oilTankEmptying ||
-    String(data.currentHeating || '').toLowerCase().includes('ölj');
-  const percent = isOilAbandonment ? 0.6 : 0.35;
-  const maxPerPerson = isOilAbandonment ? 3500 : 1600;
+    isPumpQuoteType(data.type)
+    && (data.oilBoilerRemoval ||
+      data.oilTankEmptying ||
+      String(data.currentHeating || '').toLowerCase().includes('ölj'));
+  const percent = isOilAbandonment ? KOTITALOUS_DEDUCTION.oilPercent : KOTITALOUS_DEDUCTION.percent;
+  const maxPerPerson = isOilAbandonment ? KOTITALOUS_DEDUCTION.oilMaxPerPerson : KOTITALOUS_DEDUCTION.maxPerPerson;
+  const omavastuu = KOTITALOUS_DEDUCTION.deductiblePerPerson;
   const raw = laborOnlyGross * percent;
-  const onePerson = Math.max(0, Math.min(maxPerPerson, raw));
-  const withSpouse = Math.max(0, Math.min(maxPerPerson * 2, raw));
+  const round = (n: number) => Math.round(n * 100) / 100;
+  const onePerson = round(Math.max(0, Math.min(maxPerPerson, raw - omavastuu)));
+  // Kaksi henkilöä: kumpikin omavastuu 150 €, kumpikin enintään maksimi.
+  const withSpouse = round(Math.max(0, Math.min(maxPerPerson * 2, raw - 2 * omavastuu)));
   return {
     laborOnlyGross,
     percent,

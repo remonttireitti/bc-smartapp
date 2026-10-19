@@ -42,6 +42,23 @@ export function getPortalPreview(): PortalPreviewState | null {
   }
 }
 
+const RETURN_KEY = 'bc-smartapp.portal-preview-return.v1';
+
+/** Muista mistä esikatselu avattiin (Poistu esikatselusta palaa sinne). */
+export function rememberPortalPreviewReturn(path: string) {
+  try { sessionStorage.setItem(RETURN_KEY, path); } catch { /* ignore */ }
+}
+
+export function takePortalPreviewReturn(): string {
+  try {
+    const v = sessionStorage.getItem(RETURN_KEY);
+    sessionStorage.removeItem(RETURN_KEY);
+    return v && v.startsWith('/') && !v.startsWith('/esikatselu') ? v : '/';
+  } catch {
+    return '/';
+  }
+}
+
 export function clearPortalPreview() {
   sessionStorage.removeItem(STORAGE_KEY);
   window.dispatchEvent(new Event(PORTAL_PREVIEW_EVENT));
@@ -159,4 +176,37 @@ export function filterCustomersForPortalView<
     return customers.filter((c) => c.id === customerId);
   }
   return customers;
+}
+
+/** Portaalissa sallitut reitit — henkilöstön näkymät (asiakaslista, valitsimet, hallinta) eivät ole saatavilla. */
+export function isPortalRouteAllowed(pathname: string): boolean {
+  if (pathname === '/') return true;
+  if (pathname === '/asiakkaat') return false;
+  const allowed = [
+    '/tyoraportit', '/laitteet', '/kohteet', '/huoltoraportit', '/tarjoukset', '/tiedostot', '/esikatselu/',
+    '/vaihda-salasana', '/aseta-uusi-salasana', '/j/', '/tyoraportti/jako/', '/asiakkaat/',
+  ];
+  if (pathname.startsWith('/tarjouspyynnot/') && pathname.endsWith('/tuloste')) return true;
+  if (pathname.startsWith('/etaseuranta/lampotila/raportit/') && pathname.endsWith('/tuloste')) return true;
+  if (pathname === '/tyoraportit/uusi' || pathname.startsWith('/tyoraportit/toimeksianto') || /^\/tyoraportit\/[^/]+\/muokkaa$/.test(pathname)) return false;
+  if (pathname === '/huoltoraportit/uusi' || pathname.startsWith('/huoltoraportit/valitse') || pathname.startsWith('/huoltoraportit/uusi/')) return false;
+  return allowed.some((p) => pathname.startsWith(p));
+}
+
+/** Portaali: muokattavat näkymät ohjataan asiakastulosteeseen / laitekorttiin. */
+export function portalRedirectFor(pathname: string): string | null {
+  let m = pathname.match(/^\/tyoraportit\/([0-9a-f-]{36})\/?$/);
+  if (m) return `/tyoraportit/${m[1]}/tuloste`;
+  m = pathname.match(/^\/tyoraportit\/([0-9a-f-]{36})\/(muokkaa|laskutus.*)$/);
+  if (m) return `/tyoraportit/${m[1]}/tuloste`;
+  m = pathname.match(/^\/huoltoraportit\/([0-9a-f-]{36})\/?$/);
+  if (m) return `/huoltoraportit/${m[1]}/tuloste`;
+  m = pathname.match(/^\/tarjouspyynnot\/([0-9a-f-]{36})\/?$/);
+  if (m) return `/tarjouspyynnot/${m[1]}/tuloste`;
+  m = pathname.match(/^\/asiakkaat\/[0-9a-f-]{36}\/laitteet\/([0-9a-f-]{36})/);
+  if (m) return `/laitteet/${m[1]}`;
+  m = pathname.match(/^\/asiakkaat\/([0-9a-f-]{36})\/?$/);
+  if (m) return `/kohteet/${m[1]}`;
+  if (pathname === '/asiakkaat') return '/laitteet';
+  return null;
 }

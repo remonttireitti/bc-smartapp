@@ -1,4 +1,5 @@
 import InventoryMaterialPicker from './inventory/InventoryMaterialPicker';
+import CheckToggle from './CheckToggle';
 import { useEffect, useState } from 'react';
 
 import ExpenseBillingModeToggles from './ExpenseBillingModeToggles';
@@ -18,6 +19,7 @@ import {
 } from '../lib/workReportEntryCategories';
 import { DEVICE_EXPENSE_TYPE, isDeviceExpense } from '../lib/workReportDeviceEntries';
 import { formatEuro } from '../lib/workReportBilling';
+import { parseFiNumber } from '../lib/fiNumber';
 import {
   applyExpenseBillingMode,
   DEFAULT_SUPPLY_MARGIN_PERCENT,
@@ -157,8 +159,7 @@ export default function DailyLogExpenseLinesSection({
             >
               {partnerBilledToggle ? (
                 <label className="expense-line-billed-toggle" title="Laskutetaan kumppanilta">
-                  <input
-                    type="checkbox"
+                  <CheckToggle
                     checked={row.partner_billed !== false}
                     onChange={(event) => {
                       const checked = event.target.checked;
@@ -278,8 +279,8 @@ function ExpenseLineEditor({
     updateExpenseRow(next);
   };
   const partnerCustomerPreview =
-    billingMode === 'partner_and_customer' && Number(row.customer_unit_price) > 0
-      ? Number(row.customer_unit_price)
+    billingMode === 'partner_and_customer' && parseFiNumber(row.customer_unit_price) > 0
+      ? parseFiNumber(row.customer_unit_price)
       : null;
 
   return (
@@ -337,9 +338,7 @@ function ExpenseLineEditor({
       <label>
         Määrä{row.inventory_item_id && row.unit ? ` (${row.unit})` : ''}
         <input
-          type="number"
-          step="0.001"
-          min="0"
+          inputMode="decimal"
           value={row.qty}
           readOnly={autoTripKm}
           disabled={autoTripKm}
@@ -376,9 +375,7 @@ function ExpenseLineEditor({
               <label>
                 Hankintahinta (€)
                 <input
-                  type="number"
-                  step="0.01"
-                  min="0"
+                  inputMode="decimal"
                   value={row.unit_price}
                   readOnly={autoTripKm}
                   disabled={autoTripKm}
@@ -386,10 +383,9 @@ function ExpenseLineEditor({
                   placeholder="Suora kulu urakkaan"
                 />
               </label>
-              {expenseQuoteContext.linkedQuoteRequest && !autoTripKm && !(Number(row.unit_price) > 0) ? (
+              {expenseQuoteContext.linkedQuoteRequest && !autoTripKm && !(parseFiNumber(row.unit_price) > 0) ? (
                 <label className="checkbox-label expense-price-confirmed">
-                  <input
-                    type="checkbox"
+                  <CheckToggle
                     checked={row.price_confirmed === true}
                     onChange={(e) => updateExpenseRow({ ...row, price_confirmed: e.target.checked })}
                   />
@@ -407,9 +403,7 @@ function ExpenseLineEditor({
               <label>
                 Hankintahinta (€)
                 <input
-                  type="number"
-                  step="0.01"
-                  min="0"
+                  inputMode="decimal"
                   value={row.unit_price}
                   readOnly={autoTripKm}
                   disabled={autoTripKm}
@@ -424,10 +418,7 @@ function ExpenseLineEditor({
               <label>
                 Kate (%)
                 <input
-                  type="number"
-                  step="0.1"
-                  min="0"
-                  max="99.9"
+                  inputMode="decimal"
                   value={row.customer_margin_percent}
                   readOnly={autoTripKm}
                   disabled={autoTripKm}
@@ -478,9 +469,7 @@ function ExpenseLineEditor({
                     <label>
                       Asiakashinta (€)
                       <input
-                        type="number"
-                        step="0.01"
-                        min="0"
+                        inputMode="decimal"
                         value={row.customer_unit_price}
                         readOnly={autoTripKm}
                         disabled={autoTripKm}
@@ -493,17 +482,17 @@ function ExpenseLineEditor({
                   ) : null}
                 </>
               ) : null}
-              {Number(row.unit_price) > 0 ? (
+              {parseFiNumber(row.unit_price) > 0 ? (
                 <p className="muted expense-billing-preview">
                   {formatExpenseSupplyExtraBillingMarginNote(row, formatEuro, expenseQuoteContext)}
                   {(!showQuoteLinkedExtraBilling || (row.extra_billable && row.extra_billing_allowed))
-                    && Number(row.customer_unit_price) > 0 ? (
+                    && parseFiNumber(row.customer_unit_price) > 0 ? (
                     <>
                       {' '}
                       · Asiakkaalle laskutettava:{' '}
-                      <strong>{formatEuro(Number(row.customer_unit_price))}</strong>
+                      <strong>{formatEuro(parseFiNumber(row.customer_unit_price))}</strong>
                       {' '}
-                      (hankinta {formatEuro(Number(row.unit_price))} + kate{' '}
+                      (hankinta {formatEuro(parseFiNumber(row.unit_price))} + kate{' '}
                       {resolveSupplyMarginPercent(row)} %)
                     </>
                   ) : null}
@@ -516,9 +505,7 @@ function ExpenseLineEditor({
               <label>
                 Kumppanihinta (€)
                 <input
-                  type="number"
-                  step="0.01"
-                  min="0"
+                  inputMode="decimal"
                   value={row.unit_price}
                   readOnly={autoTripKm}
                   disabled={autoTripKm}
@@ -531,10 +518,7 @@ function ExpenseLineEditor({
               <label>
                 Kumppanin kate (%)
                 <input
-                  type="number"
-                  step="0.1"
-                  min="0"
-                  max="99.9"
+                  inputMode="decimal"
                   value={row.partner_expense_margin_percent}
                   readOnly={autoTripKm}
                   disabled={autoTripKm}
@@ -548,10 +532,10 @@ function ExpenseLineEditor({
               {partnerCustomerPreview != null ? (
                 <p className="muted expense-billing-preview">
                   Asiakkaalle laskutettava: <strong>{formatEuro(partnerCustomerPreview)}</strong>
-                  {Number(row.unit_price) > 0 ? (
+                  {parseFiNumber(row.unit_price) > 0 ? (
                     <>
                       {' '}
-                      (kumppani {formatEuro(Number(row.unit_price))} + kate{' '}
+                      (kumppani {formatEuro(parseFiNumber(row.unit_price))} + kate{' '}
                       {resolvePartnerExpenseMarginPercent(row)}{' '}
                       %)
                     </>
@@ -570,9 +554,7 @@ function ExpenseLineEditor({
           <label>
             Ostohinta (€)
             <input
-              type="number"
-              step="0.01"
-              min="0"
+              inputMode="decimal"
               value={row.unit_price}
               readOnly={autoTripKm}
               disabled={autoTripKm}
@@ -582,9 +564,7 @@ function ExpenseLineEditor({
           <label>
             Asiakashinta (€)
             <input
-              type="number"
-              step="0.01"
-              min="0"
+              inputMode="decimal"
               value={row.customer_unit_price}
               readOnly={autoTripKm}
               disabled={autoTripKm}
@@ -621,9 +601,7 @@ function ExpenseLineEditor({
         <label>
           á hinta (€)
           <input
-            type="number"
-            step="0.01"
-            min="0"
+            inputMode="decimal"
             value={row.unit_price}
             readOnly={autoTripKm}
             disabled={autoTripKm}

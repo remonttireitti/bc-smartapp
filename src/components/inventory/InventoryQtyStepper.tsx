@@ -1,3 +1,5 @@
+import { parseFiNumber } from '../../lib/fiNumber';
+
 type Props = {
   value: number;
   step: number;
@@ -26,7 +28,10 @@ export default function InventoryQtyStepper({
   busy,
   onCommit,
 }: Props) {
-  const display = decimals > 0 ? value.toFixed(decimals) : String(Math.round(value));
+  const display =
+    decimals > 0
+      ? String(roundTo(value, decimals)).replace(/(\.[0-9]*?)0+$/, '$1').replace(/\.$/, '')
+      : String(Math.round(value));
 
   function clamp(next: number) {
     let v = roundTo(next, decimals);
@@ -42,7 +47,7 @@ export default function InventoryQtyStepper({
 
   function onInputBlur(raw: string) {
     if (disabled || busy) return;
-    const parsed = Number(raw.replace(',', '.'));
+    const parsed = parseFiNumber(raw);
     if (Number.isNaN(parsed)) return;
     void onCommit(clamp(parsed));
   }

@@ -1,7 +1,8 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useCompanyHuoltoSettings } from '../hooks/useCompanyHuoltoSettings';
 import { newHuoltoReportHref } from '../lib/huoltoCategories';
-import { Link, useParams } from 'react-router-dom';
+import { Link, Navigate, useParams } from 'react-router-dom';
+import { getPortalCustomerId, getPortalSubscriberId } from '../lib/portalPreview';
 import type { Session } from '@supabase/supabase-js';
 import AppLayout from '../components/AppLayout';
 import { CustomerDocumentTable } from '../components/CustomerDocumentTile';
@@ -332,6 +333,12 @@ export default function EquipmentDetailPage({ session }: Props) {
   const shownFields = effectiveDeviceFields(deviceColumns, equipment.huolto_technical_snapshot);
   const trail = equipmentDetailTrail(customer.id, customer.name, title);
   const portalMode = isPortalUser(profile);
+  const portalCustomerId = getPortalCustomerId(profile);
+  const portalSubscriberId = getPortalSubscriberId(profile);
+  if (portalMode && ((portalCustomerId && customer.id !== portalCustomerId)
+    || (portalSubscriberId && (customer as { subscriber_id?: string | null }).subscriber_id !== portalSubscriberId))) {
+    return <Navigate to="/laitteet" replace />;
+  }
 
   return (
     <AppLayout session={session}>
@@ -587,8 +594,8 @@ export default function EquipmentDetailPage({ session }: Props) {
 
       {([
         ['work_report', 'Työraportit'],
-        ['maintenance_report', 'Huoltoraportit'],
-        ['quote_request', 'Tarjoukset'],
+        ['maintenance_report', portalMode ? 'Huoltopöytäkirjat' : 'Huoltoraportit'],
+        ['quote_request', portalMode ? 'Tarjoukset' : 'Tarjouspyynnöt ja laskennat'],
         ['file', 'Tiedostot'],
       ] as const).map(([kind, label]) => {
         const list = documents.filter((d) => d.kind === kind);

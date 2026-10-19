@@ -1,10 +1,10 @@
 import BrandLogo from './BrandLogo';
-import { Link, useLocation } from 'react-router-dom';
+import { Navigate, Link, useLocation } from 'react-router-dom';
 import { useCallback, useState, useSyncExternalStore, type ReactNode } from 'react';
 import AppSidebar from './AppSidebar';
 import { ROLE_LABELS } from '../lib/management';
 import { routeHidesSidebar } from '../lib/mainNav';
-import { isPortalView } from '../lib/portalPreview';
+import { isPortalRouteAllowed, isPortalView, portalRedirectFor } from '../lib/portalPreview';
 import { isMonitorViewerRole } from '../lib/monitorReaderShares';
 import type { Session } from '@supabase/supabase-js';
 import LicenseStatusHeaderButton from './LicenseStatusHeaderButton';
@@ -55,9 +55,16 @@ export default function AppLayout({ session, children, noSidebar = false }: Prop
   const showSidebar =
     !noSidebar
     && !!profile
-    && !isPortalView(profile)
     && !isMonitorViewerRole(profile.role)
-    && !routeHidesSidebar(location.pathname);
+    // Portaalissa valikko näkyy myös tulostenäkymissä (ei paperilla).
+    && (!routeHidesSidebar(location.pathname) || (isPortalView(profile) && /\/tuloste\/?$/.test(location.pathname)));
+
+  // Portaali: henkilöstön reitit (esim. asiakaslista/-valitsin) eivät ole saatavilla.
+  if (profile && isPortalView(profile)) {
+    const redirect = portalRedirectFor(location.pathname);
+    if (redirect) return <Navigate to={redirect} replace />;
+    if (!isPortalRouteAllowed(location.pathname)) return <Navigate to="/" replace />;
+  }
 
   function toggleCollapsed() {
     const next = !readCollapsed();
@@ -76,7 +83,7 @@ export default function AppLayout({ session, children, noSidebar = false }: Prop
   }
 
   return (
-    <div className={`dashboard${showSidebar ? ' app-with-sidebar' : ''}${showSidebar && collapsed ? ' sidebar-collapsed' : ''}`}>
+    <div className={`dashboard${isPortalView(profile) ? ' portal-mode' : ''}${showSidebar ? ' app-with-sidebar' : ''}${showSidebar && collapsed ? ' sidebar-collapsed' : ''}`}>
       <header className="topbar">
         <div className="brand">
           {showSidebar ? (
@@ -131,7 +138,7 @@ export default function AppLayout({ session, children, noSidebar = false }: Prop
               <>
                 <LicenseStatusHeaderButton session={session} variant="sidebar" />
                 <Link
-                  to="/hallinta/omat"
+                  to={isPortalView(profile) ? '/' : '/hallinta/omat'}
                   className="app-sidebar-link app-sidebar-user"
                   title={[profile?.display_name ?? session.user.email, profile?.companies?.name, ROLE_LABELS[profile?.role ?? ''] ?? profile?.role].filter(Boolean).join(' • ')}
                 >

@@ -59,6 +59,8 @@ import {
 import { localQuoteDraftKey, readLocalQuoteDraft, pickQuoteFormSource } from '../lib/quoteRequestDraftStorage';
 
 import { supabase } from '../lib/supabase';
+import { useProfile } from '../hooks/useProfile';
+import { isPortalView } from '../lib/portalPreview';
 
 
 
@@ -78,6 +80,9 @@ export default function QuoteRequestPrintPage({ session }: Props) {
 
   const { id } = useParams();
   const [searchParams] = useSearchParams();
+  const { profile: viewerProfile } = useProfile(session);
+  // Asiakasportaali: vain asiakastuloste, ei muokkaus- eikä sisäisiä näkymiä.
+  const portal = isPortalView(viewerProfile);
   const navigate = useNavigate();
   const quantitySettings = useMemo(
     () => parseQuoteCustomerPrintQuantitySettings(searchParams),
@@ -109,7 +114,8 @@ export default function QuoteRequestPrintPage({ session }: Props) {
 
   const [title, setTitle] = useState('Tarjous');
 
-  const [printMode, setPrintMode] = useState<QuotePrintMode>('creator');
+  const [printModeState, setPrintMode] = useState<QuotePrintMode>('creator');
+  const printMode: QuotePrintMode = portal ? 'enduser' : printModeState;
 
   const [printDocument, setPrintDocument] = useState<PrintDocument>('offer');
 
@@ -526,13 +532,13 @@ export default function QuoteRequestPrintPage({ session }: Props) {
       <div className="quote-print-page">
 
       <nav className="quote-print-sticky-nav no-print" aria-label="Tulostenäkymän navigointi">
-        {id ? (
+        {id && !portal ? (
           <Link to={`/tarjouspyynnot/${id}`} className="btn btn-secondary quote-print-sticky-nav-back">
             ← Takaisin
           </Link>
         ) : null}
         <Link
-          to={listTrail.backTo}
+          to={portal ? '/tarjoukset' : listTrail.backTo}
           className="btn btn-secondary quote-print-sticky-nav-list"
           {...withNavTrail(listTrail)}
         >
@@ -543,7 +549,7 @@ export default function QuoteRequestPrintPage({ session }: Props) {
         </button>
       </nav>
 
-      <div className="quote-print-breadcrumb">
+      <div className="quote-print-breadcrumb" style={portal ? { display: 'none' } : undefined}>
         <NavigationBreadcrumb
           items={[
             ...listTrail.breadcrumb,
@@ -561,7 +567,7 @@ export default function QuoteRequestPrintPage({ session }: Props) {
 
           <h1>Tuloste: {title}</h1>
 
-          <p className="muted">Valitse tulosteen tyyppi ja näkymä (kuten vanhassa sovelluksessa)</p>
+          {!portal ? <p className="muted">Valitse tulosteen tyyppi ja näkymä (kuten vanhassa sovelluksessa)</p> : null}
           <p className="muted quote-print-headers-help">
             Valitse tulostimena <strong>Tallenna PDF-muodossa</strong>. Poista valinnasta{' '}
             <strong>Ylätunnisteet ja alatunnisteet</strong>, jotta selaimen about:blank, päivämäärä ja
@@ -571,7 +577,7 @@ export default function QuoteRequestPrintPage({ session }: Props) {
         </div>
 
         <div className="page-header-actions action-toolbar">
-          {id ? (
+          {id && !portal ? (
             <IconButton
               label="Takaisin muokkaukseen"
               href={`/tarjouspyynnot/${id}`}
@@ -580,6 +586,7 @@ export default function QuoteRequestPrintPage({ session }: Props) {
               <IconBack />
             </IconButton>
           ) : null}
+          {!portal ? (
           <Link
             to={listTrail.backTo}
             className="btn btn-secondary"
@@ -587,6 +594,7 @@ export default function QuoteRequestPrintPage({ session }: Props) {
           >
             Tarjouspyyntöihin
           </Link>
+          ) : null}
           <button type="button" className="btn btn-primary" onClick={() => void handlePrint()}>
             Tulosta / PDF
           </button>
@@ -596,7 +604,7 @@ export default function QuoteRequestPrintPage({ session }: Props) {
 
 
 
-      <section className="panel quote-print-toolbar">
+      {!portal ? (<section className="panel quote-print-toolbar">
 
         <div className="billing-filter-pills">
 
@@ -684,7 +692,7 @@ export default function QuoteRequestPrintPage({ session }: Props) {
           </CustomerPrintQuantitySettingsPopup>
         ) : null}
 
-      </section>
+      </section>) : null}
 
       <section className="panel print-preview-shell">
         {(termatekHtmlLoading && useTermatekTemplate) || (lampokatsastusHtmlLoading && useLampokatsastusTemplate) ? (

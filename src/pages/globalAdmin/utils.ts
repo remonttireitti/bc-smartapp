@@ -82,7 +82,7 @@ export function licenseStatusText(snapshot: {
   effective_status: string;
   payment_status: string;
 }): string {
-  if (snapshot.enrollment === 'legacy') return 'Vanha sopimus';
+  if (snapshot.enrollment === 'legacy') return 'Ilmainen käyttöoikeus (toistaiseksi)';
   if (snapshot.effective_status === 'pending_trial') return 'Odottaa kokeilua';
   if (snapshot.effective_status === 'trial') return 'Kokeilujakso';
   if (snapshot.effective_status === 'active') return 'Maksava';

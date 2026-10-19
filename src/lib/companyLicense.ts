@@ -1,8 +1,13 @@
 import {
+  ADDON_MODULE_LABELS,
   BASE_PACKAGE_DESCRIPTION,
   MODULE_DESCRIPTIONS,
   MODULE_NOTES,
 } from '../../supabase/functions/_shared/companySignupCore';
+import { parseModuleTrials, type ModuleTrial } from './moduleTrials';
+
+/** Yritysmalli enrollment = 'legacy' (entinen "Vanha sopimus"). */
+export const LEGACY_LICENSE_LABEL = 'Ilmainen käyttöoikeus (toistaiseksi)';
 
 export type LicenseModuleKey = 'base' | 'quotes' | 'billing' | 'remote_monitoring' | 'inventory' | 'tools';
 
@@ -52,6 +57,8 @@ export type CompanyLicenseSnapshot = {
   order: CompanySubscriptionOrder | null;
   base_active: boolean;
   modules: Record<Exclude<LicenseModuleKey, 'base'>, boolean>;
+  /** Moduulikokeilut (module_trials.sql); tyhjä ennen ajoa. */
+  module_trials: ModuleTrial[];
   pricing: {
     base_monthly_eur: number;
     module_prices: Record<string, number>;
@@ -69,12 +76,17 @@ export type CompanyLicenseSnapshot = {
   }>;
 };
 
+/** Valittavat laskutusjaksot (3 kk vain vanhoilla tilauksilla; ei tarjota). */
 export const LICENSE_BILLING_INTERVALS: { value: LicenseBillingInterval; label: string; months: number }[] = [
-  { value: 'monthly', label: 'Kuukausittain', months: 1 },
-  { value: 'quarterly', label: '3 kk välein', months: 3 },
-  { value: 'semi_annual', label: '6 kk välein', months: 6 },
-  { value: 'annual', label: 'Kerran vuodessa', months: 12 },
+  { value: 'monthly', label: 'Kuukausilaskutus', months: 1 },
+  { value: 'semi_annual', label: '6 kk laskutus', months: 6 },
+  { value: 'annual', label: 'Vuosilaskutus', months: 12 },
 ];
+
+export function licenseBillingIntervalMonths(interval: LicenseBillingInterval): number {
+  if (interval === 'quarterly') return 3;
+  return LICENSE_BILLING_INTERVALS.find((item) => item.value === interval)?.months ?? 1;
+}
 
 export const LICENSE_PAYMENT_STATUS_LABELS: Record<LicensePaymentStatus, string> = {
   none: 'Ei laskutusta',
@@ -85,7 +97,7 @@ export const LICENSE_PAYMENT_STATUS_LABELS: Record<LicensePaymentStatus, string>
 
 export const LICENSE_MODULE_LABELS: Record<LicenseModuleKey, string> = {
   base: 'Peruspaketti',
-  quotes: 'Tarjoukset',
+  quotes: ADDON_MODULE_LABELS.quotes,
   billing: 'Laskutus',
   remote_monitoring: 'Etäseuranta',
   inventory: 'Varasto',
@@ -187,8 +199,8 @@ export function formatLicenseMoney(value: number, suffix = '€/kk') {
 }
 
 export function formatLicensePeriodMoney(value: number, interval: LicenseBillingInterval) {
-  const entry = LICENSE_BILLING_INTERVALS.find((item) => item.value === interval);
-  const label = entry && entry.months > 1 ? `€ / ${entry.months} kk` : '€ / jakso';
+  const months = licenseBillingIntervalMonths(interval);
+  const label = months === 12 ? '€ / v' : months > 1 ? `€ / ${months} kk` : '€ / kk';
   return formatLicenseMoney(value, label);
 }
 
@@ -235,9 +247,11 @@ function parseRemoteMonitoringDevicesPricing(raw: unknown): RemoteMonitoringDevi
   };
 }
 
-export function estimateOrderPeriodTotal(monthly: number, interval: LicenseBillingInterval) {
-  const months = LICENSE_BILLING_INTERVALS.find((item) => item.value === interval)?.months ?? 1;
-  return Math.round(monthly * months * 100) / 100;
+/** Jakson hinta alennuksen jälkeen (sama kuin SQL license_period_total / periodPrice). */
+export function estimateOrderPeriodTotal(monthly: number, interval: LicenseBillingInterval, discountPct = 0) {
+  const months = licenseBillingIntervalMonths(interval);
+  const listCents = Math.round(monthly * 100) * months;
+  return Math.round((listCents * (100 - discountPct)) / 100) / 100;
 }
 
 export function trialDaysRemaining(snapshot: CompanyLicenseSnapshot | null): number | null {
@@ -278,13 +292,14 @@ export function parseCompanyLicenseSnapshot(raw: unknown): CompanyLicenseSnapsho
     };
   }
 
+  const freeAccess = String(row.enrollment ?? '') === 'legacy';
   return {
     enrollment: String(row.enrollment ?? 'subscription'),
     status: String(row.status ?? 'pending_trial'),
     effective_status: String(row.effective_status ?? 'pending_trial') as LicenseEffectiveStatus,
     trial_started_at: typeof row.trial_started_at === 'string' ? row.trial_started_at : null,
     trial_ends_at: typeof row.trial_ends_at === 'string' ? row.trial_ends_at : null,
-    trial_days: Number(row.trial_days ?? 30),
+    trial_days: Number(row.trial_days ?? 14),
     billing_interval: (row.billing_interval as LicenseBillingInterval) ?? 'monthly',
     billing_interval_label: String(row.billing_interval_label ?? 'Kuukausittain'),
     billing_interval_months: Number(row.billing_interval_months ?? 1),
@@ -304,6 +319,7 @@ export function parseCompanyLicenseSnapshot(raw: unknown): CompanyLicenseSnapsho
           : modulesRaw.inventory === true,
       tools: modulesRaw.tools === true,
     },
+    module_trials: parseModuleTrials(row.module_trials),
     pricing: {
       base_monthly_eur: Number(pricingRaw.base_monthly_eur ?? 0),
       module_prices: Object.fromEntries(
@@ -315,8 +331,9 @@ export function parseCompanyLicenseSnapshot(raw: unknown): CompanyLicenseSnapsho
       remote_monitoring_devices: parseRemoteMonitoringDevicesPricing(
         pricingRaw.remote_monitoring_devices,
       ),
-      estimated_monthly_total_eur: Number(pricingRaw.estimated_monthly_total_eur ?? 0),
-      estimated_period_total_eur: Number(pricingRaw.estimated_period_total_eur ?? 0),
+      // Ilmainen käyttöoikeus (toistaiseksi): 0 € myös ennen free_access_zero.sql-ajoa.
+      estimated_monthly_total_eur: freeAccess ? 0 : Number(pricingRaw.estimated_monthly_total_eur ?? 0),
+      estimated_period_total_eur: freeAccess ? 0 : Number(pricingRaw.estimated_period_total_eur ?? 0),
       extras_monthly_eur: Number(pricingRaw.extras_monthly_eur ?? 0),
     },
     usage_this_month: Array.isArray(row.usage_this_month)
@@ -405,7 +422,7 @@ export function parseLicenseOverviewRows(raw: unknown): LicenseOverviewRow[] {
 }
 
 export function licenseOverviewEnrollmentLabel(enrollment: string) {
-  if (enrollment === 'legacy') return 'Vanha sopimus';
+  if (enrollment === 'legacy') return LEGACY_LICENSE_LABEL;
   return 'Tilaus ja kokeilu';
 }
 
@@ -434,7 +451,7 @@ export function licenseOverviewLoginSummary(row: LicenseOverviewRow) {
 
 export function licenseOverviewTrialSummary(row: LicenseOverviewRow) {
   if (row.snapshot.enrollment === 'legacy') {
-    return 'Ei kokeilua (vanha sopimus, ei laskutusta)';
+    return `Ei kokeilua (${LEGACY_LICENSE_LABEL.toLowerCase()})`;
   }
   if (row.snapshot.effective_status === 'pending_trial') {
     return `Odottaa ensimmäistä kirjautumista · ${row.snapshot.trial_days} pv kokeilua`;
@@ -460,7 +477,7 @@ export function formatStoredModulesSummary(
   snapshot: CompanyLicenseSnapshot,
 ) {
   if (snapshot.enrollment === 'legacy') {
-    return 'Kaikki sallittu (vanha sopimus)';
+    return `Kaikki sallittu (${LEGACY_LICENSE_LABEL.toLowerCase()})`;
   }
   if (snapshot.effective_status === 'trial' || snapshot.effective_status === 'pending_trial') {
     return 'Kokeilussa: kaikki moduulit käytössä';

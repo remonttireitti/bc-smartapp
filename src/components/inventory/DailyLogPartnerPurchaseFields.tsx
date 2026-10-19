@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-
+import { parseFiNumber, parseFiNumberOr } from '../../lib/fiNumber';
 import {
   partnerPurchaseLineTotal,
 } from '../../lib/partnerPurchaseDeduction';
@@ -24,11 +24,11 @@ function rowTitle(row: PartnerPurchaseLineDraft, partnerName: string | undefined
   const desc = row.description.trim() || 'Uusi osto';
   const parts = [desc];
   if (partnerName) parts.push(partnerName);
-  if (Number(row.unit_price) > 0) {
+  if (parseFiNumber(row.unit_price) > 0) {
     parts.push(`${partnerPurchaseLineTotal({
-      qty: Number(row.qty) || 1,
-      unit_price: Number(row.unit_price),
-      partner_margin_percent: Number(row.partner_margin_percent) || DEFAULT_PARTNER_EXPENSE_MARGIN_PERCENT,
+      qty: parseFiNumberOr(row.qty, 1),
+      unit_price: parseFiNumber(row.unit_price),
+      partner_margin_percent: parseFiNumberOr(row.partner_margin_percent, DEFAULT_PARTNER_EXPENSE_MARGIN_PERCENT),
     }).toFixed(2)} €`);
   }
   return parts.join(' · ');
@@ -125,12 +125,12 @@ export default function DailyLogPartnerPurchaseFields({
         {drafts.map((row, index) => {
           const partnerName = partnerOptions.find((opt) => opt.id === row.partner_company_id)?.name;
           const previewTotal =
-            Number(row.unit_price) > 0
+            parseFiNumber(row.unit_price) > 0
               ? partnerPurchaseLineTotal({
-                  qty: Number(row.qty) || 1,
-                  unit_price: Number(row.unit_price),
+                  qty: parseFiNumberOr(row.qty, 1),
+                  unit_price: parseFiNumber(row.unit_price),
                   partner_margin_percent:
-                    Number(row.partner_margin_percent) || DEFAULT_PARTNER_EXPENSE_MARGIN_PERCENT,
+                    parseFiNumberOr(row.partner_margin_percent, DEFAULT_PARTNER_EXPENSE_MARGIN_PERCENT),
                 })
               : null;
           const inventoryStatus = inventoryStatusLabel(row);
@@ -173,9 +173,7 @@ export default function DailyLogPartnerPurchaseFields({
               <label>
                 Määrä (kpl)
                 <input
-                  type="number"
-                  step="1"
-                  min="0.001"
+                  inputMode="decimal"
                   value={row.qty}
                   onChange={(e) => updateRow(index, { qty: e.target.value })}
                   required
@@ -184,9 +182,7 @@ export default function DailyLogPartnerPurchaseFields({
               <label>
                 Veroton hinta (€/kpl)
                 <input
-                  type="number"
-                  step="0.01"
-                  min="0"
+                  inputMode="decimal"
                   value={row.unit_price}
                   onChange={(e) => updateRow(index, { unit_price: e.target.value })}
                   required
@@ -195,10 +191,7 @@ export default function DailyLogPartnerPurchaseFields({
               <label>
                 Kumppanin välityspalkkio (%)
                 <input
-                  type="number"
-                  step="0.1"
-                  min="0"
-                  max="99"
+                  inputMode="decimal"
                   value={row.partner_margin_percent}
                   onChange={(e) => updateRow(index, { partner_margin_percent: e.target.value })}
                   required
@@ -241,8 +234,8 @@ export default function DailyLogPartnerPurchaseFields({
               ) : null}
               {row.inventory_kind === 'tool' && !row.inventory_recorded ? (
                 <p className="muted partner-purchase-preview">
-                  {targetToolCount(Number(row.qty) || 0) > 0
-                    ? `Luodaan ${targetToolCount(Number(row.qty) || 0)} työkalua kuvauksen perusteella.`
+                  {targetToolCount(parseFiNumberOr(row.qty, 0)) > 0
+                    ? `Luodaan ${targetToolCount(parseFiNumberOr(row.qty, 0))} työkalua kuvauksen perusteella.`
                     : 'Anna kokonaislukumäärä (kpl), jotta työkalut voidaan luoda.'}
                 </p>
               ) : null}

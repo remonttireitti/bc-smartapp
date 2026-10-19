@@ -1,5 +1,7 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { updatePortalUser } from '../lib/updatePortalUser';
+import PasswordReveal from './PasswordReveal';
+import ToggleSwitch from './ToggleSwitch';
 
 export type PortalUserCredentials = {
   id: string;
@@ -25,8 +27,9 @@ export default function PortalUserCredentialsForm({
   const [form, setForm] = useState({
     email: portalUser.email ?? '',
     display_name: portalUser.display_name ?? '',
-    password: '',
   });
+  const [newPassword, setNewPassword] = useState<string | null>(null);
+  const [sendEmail, setSendEmail] = useState(true);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -35,7 +38,6 @@ export default function PortalUserCredentialsForm({
     setForm({
       email: portalUser.email ?? '',
       display_name: portalUser.display_name ?? '',
-      password: '',
     });
     setMessage(null);
     setError(null);
@@ -58,15 +60,39 @@ export default function PortalUserCredentialsForm({
         user_id: portalUser.id,
         email,
         display_name: form.display_name.trim() || entityName,
-        ...(form.password.trim() ? { password: form.password } : {}),
         subscriber_id: subscriberId ?? null,
         customer_id: customerId ?? null,
       });
       setMessage('Kirjautumistiedot päivitetty.');
-      setForm((f) => ({ ...f, password: '' }));
       await onUpdated();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Tallennus epäonnistui.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function regeneratePassword() {
+    setBusy(true);
+    setError(null);
+    setMessage(null);
+    setNewPassword(null);
+    try {
+      const res = await updatePortalUser({
+        user_id: portalUser.id,
+        email: portalUser.email ?? form.email.trim(),
+        display_name: portalUser.display_name ?? entityName,
+        generate_password: true,
+        send_email: sendEmail,
+        subscriber_id: subscriberId ?? null,
+        customer_id: customerId ?? null,
+      });
+      if (!res.password) throw new Error('Salasanan luonti epäonnistui.');
+      setNewPassword(res.password);
+      const mailNote = res.mail_sent === true ? ' Tunnukset lähetetty sähköpostilla.' : res.mail_sent === false ? ` Sähköposti epäonnistui: ${res.mail_error ?? ''}` : '';
+      if (mailNote) setMessage(mailNote.trim());
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Salasanan luonti epäonnistui.');
     } finally {
       setBusy(false);
     }
@@ -76,10 +102,11 @@ export default function PortalUserCredentialsForm({
     <form className="form-grid portal-user-credentials-form" onSubmit={(e) => void saveCredentials(e)}>
       <h3>Kirjautumistiedot</h3>
       <p className="muted field-span-all">
-        Ylläpitäjä voi vaihtaa portaalin sähköpostin ja salasanan. Jätä salasana tyhjäksi, jos et vaihda sitä.
+        Portaalin sähköposti ja salasana.
       </p>
       {error && <p className="error field-span-all">{error}</p>}
       {message && <p className="muted field-span-all">{message}</p>}
+      {newPassword ? <PasswordReveal email={portalUser.email} password={newPassword} /> : null}
       <label>
         Sähköposti (kirjautuminen) *
         <input
@@ -98,19 +125,13 @@ export default function PortalUserCredentialsForm({
           placeholder={entityName}
         />
       </label>
-      <label className="field-span-all">
-        Uusi salasana
-        <input
-          type="text"
-          value={form.password}
-          onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
-          placeholder="Tyhjä = ei vaihdeta"
-          autoComplete="new-password"
-        />
-      </label>
       <div className="form-actions field-span-all">
         <button type="submit" className="btn btn-primary" disabled={busy}>
           {busy ? 'Tallennetaan…' : 'Tallenna kirjautumistiedot'}
+        </button>
+        <ToggleSwitch checked={sendEmail} onChange={setSendEmail} label="Lähetä tunnukset sähköpostilla" />
+        <button type="button" className="btn btn-secondary" disabled={busy} onClick={() => void regeneratePassword()}>
+          Luo uusi salasana
         </button>
       </div>
     </form>

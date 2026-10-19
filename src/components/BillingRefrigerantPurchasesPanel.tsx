@@ -1,3 +1,4 @@
+import CheckToggle from './CheckToggle';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
@@ -174,8 +175,7 @@ export default function BillingRefrigerantPurchasesPanel({
                   <td className="num">{formatEuro(row.total)}</td>
                   <td>
                     <label className="inventory-check">
-                      <input
-                        type="checkbox"
+                      <CheckToggle
                         checked={row.charged}
                         disabled={!canEdit || busyLineId === row.lineId}
                         onChange={(e) => onToggle(row.reportId, row.lineId, row.lineKind, e.target.checked)}

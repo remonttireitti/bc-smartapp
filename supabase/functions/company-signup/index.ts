@@ -20,6 +20,9 @@ import {
   signupSelection,
   validateSignup,
   type SignupForm,
+  billingPeriodLabel,
+  normalizeBillingPeriod,
+  periodPrice,
 } from '../_shared/companySignupCore.ts';
 
 const APP_URL = 'https://bestcool.eu';
@@ -71,7 +74,9 @@ async function sendMail(to: string, subject: string, html: string): Promise<{ ok
 
 function mailShell(title: string, body: string): string {
   return `<div style="font-family:Arial,Helvetica,sans-serif;color:#1f2933;max-width:560px;margin:0 auto;padding:24px;border:1px solid #d9dde3;border-radius:6px">
-<p style="font-size:13px;color:#6b7280;margin:0 0 16px">BC Smartapp</p>
+<table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 16px"><tr>
+<td style="vertical-align:middle"><img src="${APP_URL}/pwa-192.png" width="32" height="32" alt="" style="display:block;border:0"></td>
+<td style="vertical-align:middle;padding-left:8px;font-size:16px;color:#2f3135"><b>BC</b> Smartapp</td></tr></table>
 <h2 style="font-size:20px;margin:0 0 12px">${esc(title)}</h2>${body}</div>`;
 }
 
@@ -137,7 +142,14 @@ async function handleSubmit(req: Request, body: Record<string, unknown>, admin: 
   if (dup && dup.length) return json({ error: 'Tällä Y-tunnuksella on jo käsiteltävä tilaus.' }, 409);
 
   const prices = await loadPrices(admin);
-  const estimate = estimateMonthly(signupSelection(form), prices);
+  const monthlyEstimate = estimateMonthly(signupSelection(form), prices);
+  // Laskutusjakso tallennetaan estimate-kenttään (annual_billing.sql vie sen yrityksen lisenssiin hyväksynnässä).
+  const billingInterval = normalizeBillingPeriod(form.billing_interval);
+  const estimate = {
+    ...monthlyEstimate,
+    billing_interval: billingInterval,
+    period: periodPrice(monthlyEstimate.net, billingInterval, prices),
+  };
 
   const { data: row, error: insertError } = await admin
     .from('company_signup_requests')
@@ -191,24 +203,35 @@ function vatIdFromBusinessId(businessId: string): string | null {
   return m ? `FI${m[1]}${m[2]}` : null;
 }
 
-async function fillDerivedCompanyFields(admin: SupabaseClient, companyId: string, businessId: string) {
-  const vatId = vatIdFromBusinessId(businessId);
-  if (!vatId) return;
+/** Tilauksesta johdetut kentät, joita company_signup_create_company ei aseta: ALV-numero ja yhteyshenkilö. */
+async function fillDerivedCompanyFields(admin: SupabaseClient, companyId: string, request: Record<string, unknown>) {
   const { data } = await admin.from('companies').select('settings').eq('id', companyId).maybeSingle();
   const settings = (data?.settings ?? {}) as Record<string, unknown>;
   const billing = (settings.billing ?? {}) as Record<string, unknown>;
-  if (String(billing.vat_id ?? '').trim()) return;
-  const { error } = await admin
-    .from('companies')
-    .update({ settings: { ...settings, billing: { ...billing, vat_id: vatId } } })
-    .eq('id', companyId);
+  const next: Record<string, unknown> = { ...settings };
+  let changed = false;
+  const vatId = vatIdFromBusinessId(String(request.business_id ?? ''));
+  if (vatId && !String(billing.vat_id ?? '').trim()) {
+    next.billing = { ...billing, vat_id: vatId };
+    changed = true;
+  }
+  if (!settings.contact) {
+    next.contact = {
+      name: String(request.contact_name ?? '').trim(),
+      email: String(request.email ?? '').trim(),
+      phone: String(request.phone ?? '').trim(),
+    };
+    changed = true;
+  }
+  if (!changed) return;
+  const { error } = await admin.from('companies').update({ settings: next }).eq('id', companyId);
   if (error) console.warn('[company-signup] vat_id', error.message);
 }
 
 /** Profiili yritykseen roolein; palauttaa virheviestin tai null. */
 async function attachProfile(
   admin: SupabaseClient,
-  p: { userId: string; companyId: string; role: string; roles: string[]; email: string; displayName: string },
+  p: { userId: string; companyId: string; role: string; roles: string[]; email: string; displayName: string; phone: string },
 ): Promise<string | null> {
   // Luotettava kutsutieto (vain palvelin voi kirjoittaa app_metadataa).
   const { error: metaError } = await admin.auth.admin.updateUserById(p.userId, {
@@ -224,6 +247,11 @@ async function attachProfile(
   if (upsertError) return `Profiili: ${upsertError.message}`;
   const { error: rolesError } = await admin.from('profiles').update({ staff_roles: p.roles }).eq('id', p.userId);
   if (rolesError) return `Roolit: ${rolesError.message}`;
+  if (p.phone) {
+    // profiles.phone tulee order_contact.sql:llä; ennen sitä ohitetaan hiljaa.
+    const { error: phoneError } = await admin.from('profiles').update({ phone: p.phone }).eq('id', p.userId);
+    if (phoneError) console.warn('[company-signup] phone', phoneError.message);
+  }
   return null;
 }
 
@@ -236,7 +264,7 @@ async function handleApprove(body: Record<string, unknown>, admin: SupabaseClien
   const { data: companyId, error: createError } = await admin.rpc('company_signup_create_company', { p_request_id: requestId });
   if (createError || !companyId) return json({ error: createError?.message ?? 'Yrityksen luonti epäonnistui' }, 500);
 
-  await fillDerivedCompanyFields(admin, companyId, String(request.business_id ?? ''));
+  await fillDerivedCompanyFields(admin, companyId, request);
 
   const previous: InviteResult[] = Array.isArray(request.invite_results?.users) ? request.invite_results.users : [];
   const results: InviteResult[] = [];
@@ -277,7 +305,8 @@ async function handleApprove(body: Record<string, unknown>, admin: SupabaseClien
       }
       userId = invited.user.id;
     }
-    const profileError = await attachProfile(admin, { userId, companyId, role, roles, email, displayName });
+    const phone = String(raw?.phone ?? '').trim();
+    const profileError = await attachProfile(admin, { userId, companyId, role, roles, email, displayName, phone });
     results.push(profileError ? { email, status: 'error', user_id: userId, error: profileError } : { email, status: 'invited', user_id: userId });
   }
 
@@ -291,7 +320,12 @@ async function handleApprove(body: Record<string, unknown>, admin: SupabaseClien
     demo = seedError ? { ok: false, error: seedError.message } : seeded;
   }
 
-  const inviteResults = { users: results, demo };
+  let contactMail: unknown = request.invite_results?.contact_mail ?? null;
+  if (!(contactMail as { ok?: boolean } | null)?.ok) {
+    contactMail = await sendApprovedMail(admin, request, companyId, results);
+  }
+
+  const inviteResults = { users: results, demo, contact_mail: contactMail };
   const { error: saveError } = await admin
     .from('company_signup_requests')
     .update({
@@ -305,6 +339,59 @@ async function handleApprove(body: Record<string, unknown>, admin: SupabaseClien
   if (saveError) console.error('[company-signup] request update', saveError.message);
 
   return json({ ok: true, company_id: companyId, invite_results: inviteResults });
+}
+
+/** "Tilaus hyväksytty" tilauksen yhteyshenkilölle (kerran; tulos invite_results.contact_mail). */
+async function sendApprovedMail(
+  admin: SupabaseClient,
+  request: Record<string, unknown>,
+  companyId: string,
+  results: InviteResult[],
+): Promise<{ ok: boolean; error?: string; at: string }> {
+  const to = String(request.email ?? '').trim();
+  const at = new Date().toISOString();
+  if (!to) return { ok: false, error: 'Sähköposti puuttuu', at };
+  const prices = await loadPrices(admin);
+  const { data: breakdown } = await admin.rpc('company_monthly_price_breakdown', { p_company_id: companyId });
+  const b = (breakdown ?? {}) as {
+    net?: number;
+    gross?: number;
+    billing_interval?: string;
+    period_net?: number;
+    period_gross?: number;
+    discount_pct?: number;
+  };
+  const period = normalizeBillingPeriod(b.billing_interval);
+  const periodRow = period !== 'monthly' && Number.isFinite(Number(b.period_net))
+    ? `<tr><td style="${'padding:4px 12px 4px 0;font-size:15px;vertical-align:top;color:#6b7280;white-space:nowrap'}">Laskutusjakso</td><td style="${'padding:4px 12px 4px 0;font-size:15px;vertical-align:top'}">${esc(billingPeriodLabel(period))}: ${formatEur(Number(b.period_net))} alv 0 % (${formatEur(Number(b.period_gross))} sis. alv 25,5 %), alennus ${Number(b.discount_pct ?? 0).toLocaleString('fi-FI')} %</td></tr>`
+    : '';
+  const net = Number(b.net);
+  const gross = Number(b.gross);
+  const modules = ['Peruspaketti', ...selectionLines({
+    modules: (request.modules ?? {}) as SignupForm['modules'],
+    huolto: (request.huolto ?? {}) as SignupForm['huolto'],
+  })];
+  const invited = results.filter((r) => r.status === 'invited').map((r) => r.email);
+  const p = 'font-size:15px;line-height:1.5;margin:0 0 12px';
+  const td = 'padding:4px 12px 4px 0;font-size:15px;vertical-align:top';
+  const th = `${td};color:#6b7280;white-space:nowrap`;
+  const html = mailShell(
+    'Tilaus hyväksytty',
+    `<p style="${p}">Hei ${esc(request.contact_name)},</p>
+<p style="${p}">BC Smartapp -tilauksenne yritykselle <b>${esc(request.company_name)}</b> on hyväksytty.</p>
+<table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 12px;border-collapse:collapse">
+<tr><td style="${th}">Moduulit</td><td style="${td}">${esc(modules.join(', '))}</td></tr>
+${periodRow}
+${Number.isFinite(net) ? `<tr><td style="${th}">Kuukausihinta</td><td style="${td}">${formatEur(net)}/kk alv 0 % (${formatEur(Number.isFinite(gross) ? gross : net)}/kk sis. alv 25,5 %)</td></tr>` : ''}
+<tr><td style="${th}">Kokeilujakso</td><td style="${td}">${prices.trial_days} päivää maksutta, alkaa ensimmäisestä kirjautumisesta</td></tr>
+</table>
+${invited.length ? `<p style="${p}">Kutsut lähetettiin käyttäjille: ${esc(invited.join(', '))}. Kukin asettaa salasanansa kutsuviestin linkistä.</p>` : ''}
+<p style="margin:20px 0"><a href="${APP_URL}" style="background:#2f3135;color:#fff;text-decoration:none;padding:10px 18px;border-radius:4px;display:inline-block">Kirjaudu: bestcool.eu</a></p>
+<p style="font-size:14px;color:#6b7280;margin:16px 0 0">Kysyttävää? kotselainen@me.com</p>`,
+  );
+  const mail = await sendMail(to, `Tilaus hyväksytty: ${String(request.company_name ?? '')}`, html);
+  if (!mail.ok) console.error('[company-signup] approved mail failed', mail.error);
+  return { ok: mail.ok, error: mail.error, at };
 }
 
 async function handleReject(body: Record<string, unknown>, admin: SupabaseClient, actorId: string) {

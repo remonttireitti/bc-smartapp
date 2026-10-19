@@ -26,6 +26,8 @@ type CompanyUser = {
   id: string;
   display_name: string | null;
   email: string | null;
+  /** Puuttuu ennen order_contact.sql-ajoa. */
+  phone?: string | null;
   role: string;
   company_id: string | null;
   bill_hours_enabled: boolean;
@@ -34,7 +36,7 @@ type CompanyUser = {
 };
 
 type DeleteMode = 'keep_name' | 'transfer';
-type UserDraft = { display_name: string; company_id: string };
+type UserDraft = { display_name: string; company_id: string; phone: string };
 
 function userLabel(user: Pick<CompanyUser, 'display_name' | 'email' | 'id'>) {
   return user.display_name?.trim() || user.email?.trim() || user.id;
@@ -56,6 +58,8 @@ export default function UsersPage({ fixedCompanyId }: { fixedCompanyId?: string 
     if (fixedCompanyId) setCompanyFilter(fixedCompanyId);
   }, [fixedCompanyId]);
   const [drafts, setDrafts] = useState<Record<string, UserDraft>>({});
+  /** profiles.phone olemassa (order_contact.sql ajettu). */
+  const [phoneSupported, setPhoneSupported] = useState(false);
   const [saveBusyId, setSaveBusyId] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -114,7 +118,8 @@ export default function UsersPage({ fixedCompanyId }: { fixedCompanyId?: string 
     let query = supabase
       .from('profiles')
       .select(
-        'id, display_name, email, role, company_id, bill_hours_enabled, bill_expenses_enabled, companies(name)',
+        // '*': puhelin mukaan heti kun sarake on olemassa (taaksepäin yhteensopiva).
+        '*, companies(name)',
       )
       .in('role', [...STAFF_ROLES]);
 
@@ -141,6 +146,7 @@ export default function UsersPage({ fixedCompanyId }: { fixedCompanyId?: string 
       return userLabel(a).localeCompare(userLabel(b), 'fi');
     });
 
+    setPhoneSupported(rows.some((row) => 'phone' in row));
     setUsers(rows);
     setDrafts(
       Object.fromEntries(
@@ -149,6 +155,7 @@ export default function UsersPage({ fixedCompanyId }: { fixedCompanyId?: string 
           {
             display_name: user.display_name ?? '',
             company_id: user.company_id ?? '',
+            phone: user.phone ?? '',
           },
         ]),
       ),
@@ -172,6 +179,7 @@ export default function UsersPage({ fixedCompanyId }: { fixedCompanyId?: string 
     if (!draft) return false;
     return (
       draft.display_name.trim() !== (user.display_name ?? '').trim()
+      || (phoneSupported && draft.phone.trim() !== (user.phone ?? '').trim())
       || (canEditAllCompanies && draft.company_id !== (user.company_id ?? ''))
     );
   }
@@ -187,6 +195,7 @@ export default function UsersPage({ fixedCompanyId }: { fixedCompanyId?: string 
     const patch: Record<string, unknown> = {
       display_name: draft.display_name.trim() || null,
     };
+    if (phoneSupported) patch.phone = draft.phone.trim() || null;
 
     if (canEditAllCompanies && draft.company_id) {
       patch.company_id = draft.company_id;
@@ -426,6 +435,22 @@ export default function UsersPage({ fixedCompanyId }: { fixedCompanyId?: string 
                       <span className="user-field-label">Sähköposti</span>
                       <span className="muted user-field-value">{u.email ?? '—'}</span>
                     </div>
+                    {phoneSupported && (
+                      <div className="user-field-row">
+                        <span className="user-field-label">Puhelin</span>
+                        {canEditNames ? (
+                          <input
+                            className="user-field-input"
+                            type="tel"
+                            value={draft?.phone ?? u.phone ?? ''}
+                            placeholder="—"
+                            onChange={(e) => updateDraft(u.id, { phone: e.target.value })}
+                          />
+                        ) : (
+                          <span className="muted user-field-value">{u.phone || '—'}</span>
+                        )}
+                      </div>
+                    )}
                     {canEditNames && dirty && (
                       <button
                         type="button"
@@ -433,7 +458,7 @@ export default function UsersPage({ fixedCompanyId }: { fixedCompanyId?: string 
                         disabled={saveBusyId === u.id}
                         onClick={() => void saveUserProfile(u)}
                       >
-                        {saveBusyId === u.id ? 'Tallennetaan…' : 'Tallenna nimi / yritys'}
+                        {saveBusyId === u.id ? 'Tallennetaan…' : 'Tallenna'}
                       </button>
                     )}
                   </div>

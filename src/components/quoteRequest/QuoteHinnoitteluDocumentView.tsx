@@ -341,8 +341,10 @@ export function QuotePricingSummaryBox({
             ))}
         </div>
       )}
-      {quoteShowsKotitalousDeduction(form.type) && kotitalous.laborOnlyGross > 0 && (
+      {quoteShowsKotitalousDeduction(form.type, form.vatRate) && kotitalous.laborOnlyGross > 0 && (
         <div>
+          Työn osuus {kotitalous.laborOnlyGross.toLocaleString('fi-FI', { style: 'currency', currency: 'EUR' })} (sis. alv)
+          {' · '}
           {kotitalous.label}:{' '}
           {kotitalous.onePerson.toLocaleString('fi-FI', { style: 'currency', currency: 'EUR' })}
           {kotitalous.withSpouse > kotitalous.onePerson

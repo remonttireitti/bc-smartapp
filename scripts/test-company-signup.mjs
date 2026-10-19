@@ -10,9 +10,11 @@ import {
   userMonthlyPrice,
   validateSignup,
   VAT_RATE,
+  periodPrice,
+  normalizeBillingPeriod,
 } from '../supabase/functions/_shared/companySignupCore.ts';
 import { companyPricedSelection, parseBreakdown } from '../src/lib/companyMonthlyPrice.ts';
-import { estimateOrderMonthlyTotal } from '../src/lib/companyLicense.ts';
+import { estimateOrderMonthlyTotal, estimateOrderPeriodTotal } from '../src/lib/companyLicense.ts';
 import { chunkStoragePaths, parseDemoStatus } from '../src/lib/onboardingDemoData.ts';
 import { partnershipsFeatureEnabled, partnershipsModuleLicensed } from '../src/lib/partnershipsModule.ts';
 import { companyPartnershipsEnabled } from '../src/lib/management.ts';
@@ -228,6 +230,27 @@ assert.deepEqual(parseDemoStatus({ has_demo: true, customers: 1, reports: 1, equ
   const mods = { quotes: false, billing: true, remote_monitoring: false, tools: false };
   assert.equal(estimateOrderMonthlyTotal(true, mods, pricing), 79);
   assert.equal(estimateOrderMonthlyTotal(false, mods, pricing), 10);
+}
+
+// --- Laskutusjaksot (sama kuin SQL license_period_total) ---
+{
+  const p = parsePriceList({});
+  assert.deepEqual(p.billing_discounts, { semi_annual: 5, annual: 10 });
+  const y = periodPrice(59, 'annual', p);
+  assert.deepEqual([y.list_net, y.net, y.gross, y.monthly_net, y.saving_net], [708, 637.2, 799.69, 53.1, 70.8]);
+  const h = periodPrice(59, 'semi_annual', p);
+  assert.deepEqual([h.list_net, h.net, h.gross, h.monthly_net, h.saving_net], [354, 336.3, 422.06, 56.05, 17.7]);
+  const m = periodPrice(59, 'monthly', p);
+  assert.deepEqual([m.net, m.gross, m.saving_net], [59, 74.05, 0]);
+  assert.equal(periodPrice(59, 'annual', parsePriceList({ billing_discounts: { annual: 12.5 } })).net, 619.5);
+  assert.equal(estimateOrderPeriodTotal(59, 'annual', 10), 637.2);
+  assert.equal(estimateOrderPeriodTotal(59, 'quarterly'), 177);
+  assert.equal(normalizeBillingPeriod('x'), 'monthly');
+  assert.equal(cleanSignup({ ...emptyForTest(), billing_interval: 'annual' }).billing_interval, 'annual');
+}
+
+function emptyForTest() {
+  return { company_name: '', business_id: '', address: '', postal_code: '', city: '', contact_name: '', email: '', phone: '', modules: {}, huolto: {}, users: [], message: '' };
 }
 
 console.log('test-company-signup OK');

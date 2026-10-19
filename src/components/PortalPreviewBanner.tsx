@@ -1,4 +1,4 @@
-import { clearPortalPreview, getPortalPreviewLabel } from '../lib/portalPreview';
+import { clearPortalPreview, getPortalPreviewLabel, takePortalPreviewReturn } from '../lib/portalPreview';
 import { usePortalPreview } from '../hooks/usePortalPreview';
 
 export default function PortalPreviewBanner() {
@@ -18,8 +18,10 @@ export default function PortalPreviewBanner() {
         type="button"
         className="btn btn-secondary btn-sm"
         onClick={() => {
+          const back = takePortalPreviewReturn();
           clearPortalPreview();
-          window.location.assign('/');
+          // Täysi lataus tyhjentää esikatselun välimuistisivut; istunto säilyy.
+          window.location.assign(back);
         }}
       >
         Poistu esikatselusta

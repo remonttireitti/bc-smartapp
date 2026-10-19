@@ -1,3 +1,4 @@
+import CheckToggle from './CheckToggle';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
   billingQuoteHasData,
@@ -551,8 +552,7 @@ export default function WorkReportBillingQuotePanel({
           </label>
           {activeDeviceDraft.contractorId ? (
             <label className="compact-option span-2">
-              <input
-                type="checkbox"
+              <CheckToggle
                 checked={activeDeviceDraft.installerBillsSupplies}
                 disabled={deviceBusy}
                 onChange={(e) =>

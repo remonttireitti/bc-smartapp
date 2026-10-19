@@ -1,3 +1,4 @@
+import { parseFiNumber } from './fiNumber';
 import { expenseLinePriceMissing } from './expensePriceMissing';
 import {
   computeCustomerPriceFromPartnerCost,
@@ -121,7 +122,7 @@ export function partnerExpenseMarginFromLine(line: {
 
 export function syncExpenseCustomerPriceFromPartner(row: ExpenseDraft): ExpenseDraft {
   if (resolveExpenseBillingMode(row) !== 'partner_and_customer') return row;
-  const partner = Number(row.unit_price);
+  const partner = parseFiNumber(row.unit_price);
   if (!(partner > 0)) return row;
   const margin = resolvePartnerExpenseMarginPercent(row);
   return {

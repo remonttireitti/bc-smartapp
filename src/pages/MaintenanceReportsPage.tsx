@@ -169,9 +169,9 @@ export default function MaintenanceReportsPage({ session }: Props) {
       <div className="page-header">
         <div>
           <p className="breadcrumb breadcrumb-home-only">
-            <Link to="/">Etusivu</Link> / Huoltoraportit
+            <Link to="/">Etusivu</Link> / {portalMode ? 'Huoltopöytäkirjat' : 'Huoltoraportit'}
           </p>
-          <h1>Huoltoraportit</h1>
+          <h1>{portalMode ? 'Huoltopöytäkirjat' : 'Huoltoraportit'}</h1>
           <p className="muted">
             {profile?.companies?.name ?? '—'} •{' '}
             {portalMode
@@ -268,8 +268,8 @@ export default function MaintenanceReportsPage({ session }: Props) {
 
           {grouped.done.length > 0 && (
             <section className="panel">
-              <h2>Valmiit huoltoraportit</h2>
-              <MaintenanceReportListTable reports={grouped.done} myCompanyId={myCompanyId} linkTo={reportHref} />
+              <h2>{portalMode ? 'Valmiit' : 'Valmiit huoltoraportit'}</h2>
+              <MaintenanceReportListTable reports={grouped.done} myCompanyId={myCompanyId} linkTo={reportHref} portal={portalMode} />
             </section>
           )}
         </>

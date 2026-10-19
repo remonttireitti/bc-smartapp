@@ -1,6 +1,6 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useOutletContext } from 'react-router-dom';
-import SubscriberPortalSection from '../components/SubscriberPortalSection';
+import CustomerPortalSection from '../components/CustomerPortalSection';
 import { loadSubscribersForOwner } from '../lib/subscribers';
 import {
   clearSubscriberNewFormDraft,
@@ -278,10 +278,12 @@ export default function SubscribersPage() {
       </form>
 
       {editingId && ownerCompanyId && (
-        <SubscriberPortalSection
+        <CustomerPortalSection
           subscriberId={editingId}
-          subscriberName={form.name.trim() || subscribers.find((s) => s.id === editingId)?.name || 'Tilaaja'}
+          customerName={form.name.trim() || subscribers.find((s) => s.id === editingId)?.name || 'Tilaaja'}
           companyId={ownerCompanyId}
+          canManage={isAdmin || profile.is_global_admin === true}
+          sectionId="subscriber-portal"
         />
       )}
 

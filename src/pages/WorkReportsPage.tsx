@@ -1,3 +1,4 @@
+import PortalWorkReportTable from '../components/PortalWorkReportTable';
 import { useEffect, useMemo, useState } from 'react';
 
 import { Link, useLocation } from 'react-router-dom';
@@ -41,6 +42,7 @@ import { supabase } from '../lib/supabase';
 
 import {
   getPortalSubscriberId,
+  getPortalCustomerId,
   isPortalUser,
   companySubscriberOrderEditPath,
   isInternalCompanyOrderDraft,
@@ -61,13 +63,11 @@ import { canDeleteWorkReport } from '../lib/deletePermissions';
 import { deleteWorkReportById } from '../lib/deleteWorkReport';
 
 import {
-  getPortalWorkStatusLabel,
 
   buildWorkReportTitle,
 
   resolveWorkReportDescription,
 
-  formatDateTime,
 
   type WorkReport,
 
@@ -474,6 +474,10 @@ export default function WorkReportsPage({ session }: Props) {
   const portalMode = isPortalUser(profile);
   const isSubscriberPortal = profile?.role === 'subscriber' || portalPreview?.kind === 'subscriber';
   const adminSubscriberPreview = needsPortalClientFilter(profile) && !!portalSubscriberId;
+  // Asiakasportaali (myös esikatselu): vain portaalin oma kohde.
+  const portalCustomerId = getPortalCustomerId(profile);
+  const scopeToPortalCustomer = (list: WorkReport[]) =>
+    portalCustomerId ? list.filter((r) => r.customer_id === portalCustomerId) : list;
 
   const myPortalOrders = useMemo(
     () => reports.filter((r) => r.created_by_user_id === session.user.id),
@@ -488,8 +492,11 @@ export default function WorkReportsPage({ session }: Props) {
           && reportMatchesPortalSubscriber(r, portalSubscriberId, subscriberCustomerIds),
       );
     }
-    return myPortalOrders.filter((r) => PORTAL_OWN_ORDER_OPEN_STATUSES.includes(r.status));
-  }, [reports, myPortalOrders, adminSubscriberPreview, portalSubscriberId, subscriberCustomerIds]);
+    if (needsPortalClientFilter(profile) && portalCustomerId) {
+      return scopeToPortalCustomer(reports).filter((r) => PORTAL_OWN_ORDER_OPEN_STATUSES.includes(r.status));
+    }
+    return scopeToPortalCustomer(myPortalOrders).filter((r) => PORTAL_OWN_ORDER_OPEN_STATUSES.includes(r.status));
+  }, [reports, myPortalOrders, adminSubscriberPreview, portalSubscriberId, subscriberCustomerIds, portalCustomerId]);
 
   const portalHistoryOrders = useMemo(() => {
     let list = reports.filter(
@@ -502,12 +509,13 @@ export default function WorkReportsPage({ session }: Props) {
         reportMatchesPortalSubscriber(r, portalSubscriberId, subscriberCustomerIds),
       );
     }
+    list = scopeToPortalCustomer(list);
     return list.sort((a, b) => {
       const aTime = a.completed_at ?? a.scheduled_start ?? a.created_at;
       const bTime = b.completed_at ?? b.scheduled_start ?? b.created_at;
       return new Date(bTime).getTime() - new Date(aTime).getTime();
     });
-  }, [reports, adminSubscriberPreview, portalSubscriberId, subscriberCustomerIds]);
+  }, [reports, adminSubscriberPreview, portalSubscriberId, subscriberCustomerIds, portalCustomerId]);
 
   const portalInProgressReports = useMemo(() => {
     let list = reports.filter(
@@ -521,12 +529,13 @@ export default function WorkReportsPage({ session }: Props) {
         reportMatchesPortalSubscriber(r, portalSubscriberId, subscriberCustomerIds),
       );
     }
+    list = scopeToPortalCustomer(list);
     return list.sort((a, b) => {
       const aTime = a.scheduled_start ?? a.created_at;
       const bTime = b.scheduled_start ?? b.created_at;
       return new Date(aTime).getTime() - new Date(bTime).getTime();
     });
-  }, [reports, adminSubscriberPreview, portalSubscriberId, subscriberCustomerIds]);
+  }, [reports, adminSubscriberPreview, portalSubscriberId, subscriberCustomerIds, portalCustomerId]);
 
   if (portalMode) {
     return (
@@ -536,21 +545,14 @@ export default function WorkReportsPage({ session }: Props) {
             <p className="breadcrumb breadcrumb-home-only">
               <Link to="/">Etusivu</Link> / Työraportit
             </p>
-            <h1>Työtilaukset</h1>
-            <p className="muted">
-              {profile?.companies?.name ?? '—'} • lähetä työtilauksia ja seuraa tilauksen tilaa
-            </p>
+            <h1>Työraportit</h1>
+
             {isSubscriberPortal && (
               <p className="muted" style={{ marginTop: '0.5rem' }}>
                 Oletusarvoisesti näet vain valmiit työraportit. Palveluyritys voi sallia poikkeuksen, jolloin
                 luonnos tai käynnissä oleva työ näkyy tilaajalle.
               </p>
             )}
-          </div>
-          <div className="page-header-actions">
-            <Link to="/tyoraportit/tilaus/uusi" className="btn btn-primary">
-              + Uusi työtilaus
-            </Link>
           </div>
         </div>
 
@@ -559,80 +561,27 @@ export default function WorkReportsPage({ session }: Props) {
         ) : (
           <>
             <section className="panel">
-              <h2>Avoimet tilaukset</h2>
+              <h2>Lähetetyt tilaukset</h2>
               {portalOpenOrders.length === 0 ? (
                 <p className="muted">Ei avoimia tilauksia.</p>
               ) : (
-                <ul className="report-list report-list-modern">
-                  {portalOpenOrders.map((report) => (
-                    <li key={report.id}>
-                      <Link
-                        to={`/tyoraportit/tilaus/${report.id}/muokkaa`}
-                        className="report-link"
-                      >
-                        <div className="report-link-body">
-                          <strong>{report.title}</strong>
-                          <span className="muted">
-                            {getPortalWorkStatusLabel(report.status)}
-                            {report.customers?.name ? ` • ${report.customers.name}` : ''}
-                            {report.scheduled_start
-                              ? ` • ${formatDateTime(report.scheduled_start)}`
-                              : ''}
-                          </span>
-                        </div>
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
+                <PortalWorkReportTable reports={portalOpenOrders} hrefFor={(r) => (r.status === 'draft' ? `/tyoraportit/tilaus/${r.id}/muokkaa` : `/tyoraportit/${r.id}/tuloste`)} />
               )}
             </section>
 
             {portalInProgressReports.length > 0 && (
               <section className="panel">
-                <h2>Käynnissä olevat työt</h2>
-                <ul className="report-list report-list-modern">
-                  {portalInProgressReports.map((report) => (
-                    <li key={report.id}>
-                      <Link to={`/tyoraportit/${report.id}`} className="report-link">
-                        <div className="report-link-body">
-                          <strong>{report.title}</strong>
-                          <span className="muted">
-                            {getPortalWorkStatusLabel(report.status)}
-                            {report.customers?.name ? ` • ${report.customers.name}` : ''}
-                            {report.scheduled_start
-                              ? ` • ${formatDateTime(report.scheduled_start)}`
-                              : ''}
-                          </span>
-                        </div>
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
+                <h2>Käynnissä</h2>
+                <PortalWorkReportTable reports={portalInProgressReports} />
               </section>
             )}
 
             <section className="panel">
-              <h2>Valmiit työraportit</h2>
+              <h2>Valmiit</h2>
               {portalHistoryOrders.length === 0 ? (
                 <p className="muted">Ei valmiita raportteja vielä.</p>
               ) : (
-                <ul className="report-list report-list-modern">
-                  {portalHistoryOrders.map((report) => (
-                    <li key={report.id}>
-                      <Link to={`/tyoraportit/${report.id}`} className="report-link">
-                        <div className="report-link-body">
-                          <strong>{report.title}</strong>
-                          <span className="muted">
-                            {getPortalWorkStatusLabel(report.status)}
-                            {report.completed_at
-                              ? ` • ${formatDateTime(report.completed_at)}`
-                              : ''}
-                          </span>
-                        </div>
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
+                <PortalWorkReportTable reports={portalHistoryOrders} />
               )}
             </section>
           </>

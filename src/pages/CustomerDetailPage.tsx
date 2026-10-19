@@ -1,7 +1,8 @@
+import { subscriberPortalReportVisible } from '../lib/subscriberPortalVisibility';
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useCompanyHuoltoSettings } from '../hooks/useCompanyHuoltoSettings';
 import { newHuoltoReportHref } from '../lib/huoltoCategories';
-import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
+import { Link, Navigate, useLocation, useNavigate, useParams } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
 import AppLayout from '../components/AppLayout';
 import { CustomerDocumentTable } from '../components/CustomerDocumentTile';
@@ -10,6 +11,7 @@ import { HistoryIcon, PrinterIcon } from '../components/PrintIcons';
 import Tooltip from '../components/Tooltip';
 import ToggleSwitch from '../components/ToggleSwitch';
 import SubscriberPicker from '../components/SubscriberPicker';
+import CollapsibleSection from '../components/CollapsibleSection';
 import CustomerPortalSection from '../components/CustomerPortalSection';
 import CustomerSummaryStrip from '../components/CustomerSummaryStrip';
 import WorkReportSectionDialog from '../components/WorkReportSectionDialog';
@@ -48,6 +50,7 @@ import {
 import { buildEquipmentListPrintHtml } from '../lib/equipmentListPrintHtml';
 import { openPrintHtml } from '../lib/openPrintWindow';
 import { isPortalUser } from '../lib/portalWorkOrder';
+import { getPortalCustomerId, getPortalSubscriberId, isPortalView } from '../lib/portalPreview';
 import { supabase } from '../lib/supabase';
 import { effectiveDeviceFields, loadEquipmentDeviceFields, type EquipmentDeviceFields } from '../lib/equipmentDeviceFields';
 import { customerDetailTrail, withNavTrail } from '../lib/navigationTrail';
@@ -87,6 +90,7 @@ export default function CustomerDetailPage({ session }: Props) {
   const [equipment, setEquipment] = useState<Equipment[]>([]);
   const [documents, setDocuments] = useState<CustomerLinkedDocument[]>([]);
   const [canWrite, setCanWrite] = useState(false);
+  const [infoOpen, setInfoOpen] = useState(false);
   const [sectionDialog, setSectionDialog] = useState<CustomerSectionDialog | null>(null);
   const [infoEditing, setInfoEditing] = useState(false);
   const [form, setForm] = useState({
@@ -175,7 +179,7 @@ export default function CustomerDetailPage({ session }: Props) {
 
     const c = customerRow as unknown as Customer;
     setCustomer(c);
-    setCanWrite(canEditCustomersAsStaff(profile, c.owner_company_id, profile?.company_id, partnershipRows));
+    setCanWrite(!isPortalView(profile) && canEditCustomersAsStaff(profile, c.owner_company_id, profile?.company_id, partnershipRows));
     setForm({
       name: c.name,
       address: c.address ?? '',
@@ -550,7 +554,18 @@ export default function CustomerDetailPage({ session }: Props) {
     );
   }
 
-  const canDeleteRegistry = canDeleteCompanyOwnedEntity(
+  /** Asiakasportaali / esikatselu: täsmälleen asiakkaan näkymä, ei henkilöstön toimintoja. */
+  const portalView = isPortalView(profile);
+  // Asiakasportaali on rajattu omaan kohteeseen (esikatselussakaan ei muiden asiakkaiden sivuja).
+  const portalCustomerId = getPortalCustomerId(profile);
+  if (portalView && portalCustomerId && customer.id !== portalCustomerId) {
+    return <Navigate to={`/kohteet/${portalCustomerId}`} replace />;
+  }
+  const portalSubscriberId = getPortalSubscriberId(profile);
+  if (portalView && portalSubscriberId && customer.subscriber_id !== portalSubscriberId) {
+    return <Navigate to="/kohteet" replace />;
+  }
+  const canDeleteRegistry = !portalView && canDeleteCompanyOwnedEntity(
     customer.owner_company_id,
     profile?.company_id,
     profile?.role,
@@ -561,6 +576,8 @@ export default function CustomerDetailPage({ session }: Props) {
   const managesRegistry = Boolean(
     customer && profile?.company_id && customer.owner_company_id === profile.company_id,
   );
+  /** Asiakasportaalin luonti: oma rekisteri tai asiakashallinnan oikeus (kumppani / globaali admin). */
+  const canManagePortal = managesRegistry || (canWrite && (profile?.role === 'admin' || profile?.is_global_admin === true));
 
   async function loadRegistrySubscribers(ownerCompanyId: string) {
     try {
@@ -594,13 +611,17 @@ export default function CustomerDetailPage({ session }: Props) {
     <AppLayout session={session}>
       <div className="page-header">
         <div>
-          <p className="breadcrumb">
-            <Link to="/">Etusivu</Link> / <Link to="/asiakkaat">Asiakkaat</Link> / {customer.name}
-          </p>
+          {portalView ? (
+            <p className="breadcrumb"><Link to="/">Etusivu</Link></p>
+          ) : (
+            <p className="breadcrumb">
+              <Link to="/">Etusivu</Link> / <Link to="/asiakkaat">Asiakkaat</Link> / {customer.name}
+            </p>
+          )}
           <h1>{customer.name}</h1>
-          {!canWrite ? <p className="muted">Vain luku</p> : null}
+          {!canWrite && !portalView ? <p className="muted">Vain luku</p> : null}
         </div>
-        {canWrite && (
+        {canWrite && !portalView && (
           <div className="page-header-actions">
             {huolto.loaded && huolto.access.moduleEnabled ? (
               <Link
@@ -611,7 +632,7 @@ export default function CustomerDetailPage({ session }: Props) {
                 + Uusi huoltoraportti
               </Link>
             ) : null}
-            {managesRegistry && (
+            {canManagePortal && (
               <button type="button" className="btn btn-secondary" onClick={() => setSectionDialog('portal')}>
                 Asiakasportaali
               </button>
@@ -628,13 +649,21 @@ export default function CustomerDetailPage({ session }: Props) {
       {error && <p className="error">{error}</p>}
       {message && <p className="muted">{message}</p>}
 
+      {!portalView ? (
       <CustomerSummaryStrip
         equipmentCount={equipment.length}
         documents={documents}
       />
+      ) : null}
 
-      <section className="panel customer-info-panel">
-        <h2 className="customer-section-title">Asiakastiedot</h2>
+      <CollapsibleSection
+        variant="plain"
+        className="customer-info-panel customer-collapsible"
+        title="Asiakastiedot"
+        collapseKey="customer:info"
+        open={infoOpen || infoEditing}
+        onOpenChange={(o) => { setInfoOpen(o); if (!o) setInfoEditing(false); }}
+      >
         {infoEditing ? (
           <form className="form-grid" onSubmit={saveCustomer}>
             {managesRegistry ? (
@@ -758,7 +787,7 @@ export default function CustomerDetailPage({ session }: Props) {
             ) : null}
           </>
         )}
-      </section>
+      </CollapsibleSection>
 
       <WorkReportSectionDialog
         open={sectionDialog === 'portal'}
@@ -766,20 +795,24 @@ export default function CustomerDetailPage({ session }: Props) {
         onClose={closeSectionDialog}
         wide
       >
+        <CustomerPortalSection
+          customerId={customer.id}
+          customerName={customer.name}
+          companyId={customer.owner_company_id}
+          canManage={profile?.role === 'admin' || profile?.is_global_admin === true}
+        />
         {customer.subscriber_id ? (
-          <p className="muted">
-            Kohde on linkitetty tilaajaan <strong>{customer.subscriber?.name ?? '—'}</strong>. Monikohteinen
-            portaali hallitaan tilaajan kautta —{' '}
-            <Link to="/hallinta/tilaajat">Yrityksen hallinta → Tilaajaportaali</Link> → valitse tilaaja → tilaajaportaali.
-          </p>
-        ) : (
-          <CustomerPortalSection
-            customerId={customer.id}
-            customerName={customer.name}
-            companyId={customer.owner_company_id}
-            canManage={profile?.role === 'admin'}
-          />
-        )}
+          <>
+            <h3 className="portal-subscriber-heading">Tilaajaportaali: {customer.subscriber?.name ?? '—'}</h3>
+            <CustomerPortalSection
+              subscriberId={customer.subscriber_id}
+              customerName={customer.subscriber?.name ?? ''}
+              companyId={customer.owner_company_id}
+              canManage={profile?.role === 'admin' || profile?.is_global_admin === true}
+              sectionId="subscriber-portal"
+            />
+          </>
+        ) : null}
       </WorkReportSectionDialog>
 
       <WorkReportSectionDialog
@@ -833,8 +866,13 @@ export default function CustomerDetailPage({ session }: Props) {
         </ul>
       </WorkReportSectionDialog>
 
-      <section className="panel customer-section">
-        <h2 className="customer-section-title">Laitteet ({equipment.length})</h2>
+      <CollapsibleSection
+        variant="plain"
+        className="customer-section customer-collapsible"
+        title={`Laitteet (${equipment.length})`}
+        collapseKey="customer:equipment"
+        open={portalView ? true : undefined}
+      >
         {canWrite && (
           <div className="section-head compact-section-head">
             <button type="button" className="btn btn-secondary" onClick={() => setShowNewEquipment((v) => !v)}>
@@ -942,9 +980,6 @@ export default function CustomerDetailPage({ session }: Props) {
                 </button>
               </div>
             </div>
-            <p className="muted customer-equipment-bulk-hint">
-              Valitse laitteet rivin valintaruudulla ja tulosta valittujen huoltohistoria.
-            </p>
             <CustomerEquipmentTable
               equipment={equipment}
               deviceFields={(eq) => effectiveDeviceFields(equipmentDeviceFields?.get(eq.id), eq.huolto_technical_snapshot)}
@@ -956,6 +991,7 @@ export default function CustomerDetailPage({ session }: Props) {
               selectedIds={selectedEquipmentIds}
               canWrite={canWrite}
               canDelete={canDeleteRegistry}
+              hrefFor={portalView ? (eq) => `/laitteet/${eq.id}` : undefined}
               busy={busy}
               printBusyId={printBusyId}
               navTrail={equipmentNavTrail}
@@ -966,26 +1002,57 @@ export default function CustomerDetailPage({ session }: Props) {
             />
           </>
         )}
-      </section>
+      </CollapsibleSection>
+
+      {portalView && portalSubscriberId ? (
+        ([
+          ['work_report', 'Työraportit', 'work'],
+          ['maintenance_report', 'Huoltopöytäkirjat', 'maintenance'],
+          ['quote_request', 'Tarjoukset', 'quote'],
+        ] as const).map(([kind, label, visKind]) => {
+          // Tilaajaportaali: kohteen raportit, avautuvat vain asiakastulosteina.
+          const list = documents.filter(
+            (d) => d.kind === kind && subscriberPortalReportVisible({ kind: visKind, status: d.status ?? '' }),
+          );
+          return (
+            <CollapsibleSection
+              key={kind}
+              variant="plain"
+              className="customer-section customer-collapsible"
+              title={`${label} (${list.length})`}
+              collapseKey={`portal-customer:${kind}`}
+            >
+              {list.length === 0 ? <p className="muted">Ei vielä.</p> : <CustomerDocumentTable documents={list} hideKind />}
+            </CollapsibleSection>
+          );
+        })
+      ) : null}
 
       {([
         ['work_report', 'Työraportit'],
         ['maintenance_report', 'Huoltoraportit'],
-        ['quote_request', 'Tarjoukset'],
+        ['quote_request', 'Tarjouspyynnöt ja laskennat'],
         ['temp_monitor_report', 'Seurantaraportit'],
         ['file', 'Tiedostot'],
       ] as const).map(([kind, label]) => {
+        // Portaalissa raportit ja tiedostot ovat omissa valikoissaan.
+        if (portalView) return null;
         const list = documents.filter((d) => d.kind === kind);
         if (list.length === 0 && (kind === 'temp_monitor_report' || kind === 'file')) return null;
         return (
-          <section key={kind} className="panel customer-section">
-            <h2 className="customer-section-title">{label} ({list.length})</h2>
+          <CollapsibleSection
+            key={kind}
+            variant="plain"
+            className="customer-section customer-collapsible"
+            title={`${label} (${list.length})`}
+            collapseKey={`customer:${kind}`}
+          >
             {list.length === 0 ? (
               <p className="muted">Ei vielä.</p>
             ) : (
               <CustomerDocumentTable documents={list} hideKind />
             )}
-          </section>
+          </CollapsibleSection>
         );
       })}
 

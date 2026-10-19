@@ -7,7 +7,8 @@ import { useCompanyPartnershipsEnabled } from '../hooks/useCompanyPartnershipsEn
 import { useCompanyLicense } from '../hooks/useCompanyLicense';
 import { useCompanyHuoltoSettings } from '../hooks/useCompanyHuoltoSettings';
 import { useProfile } from '../hooks/useProfile';
-import { activeMainNavChild, buildMainNav, isMainNavItemActive, type MainNavIconKey } from '../lib/mainNav';
+import { getPortalSubscriberId, isPortalView } from '../lib/portalPreview';
+import { activeMainNavChild, buildMainNav, isMainNavItemActive, type MainNavIconKey, type MainNavItem } from '../lib/mainNav';
 
 const ICON_PATHS: Record<MainNavIconKey | 'home', string> = {
   home: 'M3 11l9-7 9 7M5 9.5V20h5v-6h4v6h5V9.5',
@@ -31,6 +32,28 @@ function NavIcon({ name }: { name: MainNavIconKey | 'home' }) {
   );
 }
 
+/** Asiakas-/tilaajaportaalin valikko. */
+const PORTAL_NAV: MainNavItem[] = [
+  { key: 'work', label: 'Uusi työtilaus', href: '/tyoraportit/tilaus/uusi', bases: ['/tyoraportit/tilaus'], children: [] },
+  { key: 'work', label: 'Työraportit', href: '/tyoraportit', bases: ['/tyoraportit'], children: [] },
+  { key: 'customers', label: 'Laitteet', href: '/laitteet', bases: ['/laitteet', '/asiakkaat'], children: [] },
+  { key: 'maintenance', label: 'Huoltopöytäkirjat', href: '/huoltoraportit', bases: ['/huoltoraportit'], children: [] },
+  { key: 'quotes', label: 'Tarjoukset', href: '/tarjoukset', bases: ['/tarjoukset', '/tarjouspyynnot'], children: [] },
+];
+
+/** Tilaajaportaali: lisäksi omat asiakkaat (kohteet). */
+const SUBSCRIBER_PORTAL_NAV: MainNavItem[] = [
+  PORTAL_NAV[0],
+  PORTAL_NAV[1],
+  { key: 'customers', label: 'Asiakkaat', href: '/kohteet', bases: ['/kohteet'], children: [] },
+  ...PORTAL_NAV.slice(2),
+];
+
+function portalNavActive(item: MainNavItem, pathname: string): boolean {
+  if (item.href === '/tyoraportit') return pathname.startsWith('/tyoraportit') && !pathname.startsWith('/tyoraportit/tilaus');
+  return item.bases.some((b) => pathname.startsWith(b));
+}
+
 type Props = {
   session: Session;
   collapsed: boolean;
@@ -50,8 +73,9 @@ export default function AppSidebar({ session, collapsed, onToggleCollapsed, mobi
   const huolto = useCompanyHuoltoSettings(profile?.company_id, session);
   const huoltoAccess = huolto.loaded ? huolto.access : null;
 
+  const portal = isPortalView(profile);
   const items = useMemo(
-    () =>
+    () => portal ? (getPortalSubscriberId(profile) ? SUBSCRIBER_PORTAL_NAV : PORTAL_NAV) : 
       buildMainNav({
         license,
         billingModuleEnabled,
@@ -60,7 +84,7 @@ export default function AppSidebar({ session, collapsed, onToggleCollapsed, mobi
         isGlobalAdmin: !!profile?.is_global_admin,
         huolto: huoltoAccess,
       }),
-    [license, billingModuleEnabled, partnershipsEnabled, profile?.role, profile?.is_global_admin, huoltoAccess],
+    [portal, profile?.subscriber_id, license, billingModuleEnabled, partnershipsEnabled, profile?.role, profile?.is_global_admin, huoltoAccess],
   );
 
   // Mobiililaatikko sulkeutuu navigoinnissa.
@@ -106,7 +130,7 @@ export default function AppSidebar({ session, collapsed, onToggleCollapsed, mobi
           </svg>
           <span className="app-sidebar-label">Pienennä valikko</span>
         </button>
-        <div className="app-sidebar-search">
+        {!portal ? <div className="app-sidebar-search">
           {railCollapsed ? (
             <button
               type="button"
@@ -125,9 +149,9 @@ export default function AppSidebar({ session, collapsed, onToggleCollapsed, mobi
           ) : (
             <QuickSearch variant="sidebar" placeholder="Hae asiakas, laite, raportti…" resultLimit={12} autoFocus={focusSearch} />
           )}
-        </div>
+        </div> : null}
         <ul className="app-sidebar-list">
-          <li>
+          {!portal ? <li>
             <Link
               to="/"
               className={`app-sidebar-link${location.pathname === '/' ? ' is-active' : ''}`}
@@ -136,12 +160,12 @@ export default function AppSidebar({ session, collapsed, onToggleCollapsed, mobi
               <NavIcon name="home" />
               <span className="app-sidebar-label">Etusivu</span>
             </Link>
-          </li>
+          </li> : null}
           {items.map((item) => {
-            const active = isMainNavItemActive(item, location.pathname);
+            const active = portal ? portalNavActive(item, location.pathname) : isMainNavItemActive(item, location.pathname);
             const activeChild = active ? activeMainNavChild(item, location.pathname, location.search) : null;
             return (
-              <li key={item.key} className={item.section ? 'app-sidebar-section-item' : undefined}>
+              <li key={item.href} className={item.section ? 'app-sidebar-section-item' : undefined}>
                 {item.section ? (
                   <span className="app-sidebar-section-label" aria-hidden={railCollapsed || undefined}>
                     {railCollapsed ? '' : item.section}

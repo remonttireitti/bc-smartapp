@@ -1,4 +1,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
+import { generatePortalPassword } from '../_shared/portalPassword.ts';
+import { sendPortalCredentialsMail } from '../_shared/portalInviteMail.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -55,7 +57,12 @@ Deno.serve(async (req) => {
 
     const body = await req.json();
     const email = String(body.email ?? '').trim();
-    const password = String(body.password ?? 'test123456');
+    const roleRaw = String(body.role ?? 'technician');
+    const isPortalRole = roleRaw === 'customer' || roleRaw === 'subscriber';
+    // Portaalikäyttäjälle palvelin luo pysyvän salasanan (ei pakotettua vaihtoa).
+    const generatedPassword = isPortalRole && body.generate_password === true ? generatePortalPassword() : null;
+    const password = generatedPassword ?? String(body.password ?? 'test123456');
+    const mustChangePassword = !generatedPassword;
     const displayName = String(body.display_name ?? email.split('@')[0] ?? 'Käyttäjä');
     const role = String(body.role ?? 'technician');
     const companyId = String(body.company_id ?? adminProfile.company_id);
@@ -75,7 +82,18 @@ Deno.serve(async (req) => {
       });
     }
 
-    if (!isGlobalAdmin && companyId !== adminProfile.company_id) {
+    // Kumppani, jolla on asiakashallinnan kirjoitusoikeus omistajayritykseen, saa luoda
+    // asiakasportaalin kumppanin asiakkaalle (portaalikäyttäjä kuuluu omistajayritykseen).
+    let partnerCustomerPortal = false;
+    if (!isGlobalAdmin && role === 'customer' && customerId && companyId !== adminProfile.company_id) {
+      const { data: canWrite } = await userClient.rpc('can_write_module', {
+        target_owner: companyId,
+        module_key: 'customers',
+      });
+      partnerCustomerPortal = canWrite === true;
+    }
+
+    if (!isGlobalAdmin && !partnerCustomerPortal && companyId !== adminProfile.company_id) {
       return new Response(JSON.stringify({ error: 'Virheelliset tiedot' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -135,7 +153,7 @@ Deno.serve(async (req) => {
       company_id: companyId,
       role,
       display_name: displayName,
-      must_change_password: true,
+      must_change_password: mustChangePassword,
       ...(subscriberId ? { subscriber_id: subscriberId } : {}),
       ...(customerId ? { customer_id: customerId } : {}),
     };
@@ -160,6 +178,12 @@ Deno.serve(async (req) => {
         .eq('id', existing.id)
         .maybeSingle();
       const otherCompany = existingProfile?.company_id && existingProfile.company_id !== companyId;
+      if (partnerCustomerPortal && existingProfile) {
+        return new Response(JSON.stringify({ error: 'Sähköposti on jo käytössä toisella tilillä' }), {
+          status: 409,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
       if (!isGlobalAdmin && (otherCompany || existingProfile?.is_global_admin === true)) {
         return new Response(JSON.stringify({ error: 'Sähköposti on jo käytössä toisella tilillä' }), {
           status: 409,
@@ -194,13 +218,19 @@ Deno.serve(async (req) => {
         display_name: displayName,
         subscriber_id: role === 'subscriber' ? subscriberId : null,
         customer_id: role === 'customer' ? customerId : null,
-        must_change_password: true,
+        must_change_password: mustChangePassword,
       },
       { onConflict: 'id' },
     );
     if (profileError) throw profileError;
 
-    return new Response(JSON.stringify({ ok: true, user_id: userId }), {
+    let mail: { ok: boolean; error?: string } | null = null;
+    if (generatedPassword && body.send_email === true) {
+      mail = await sendPortalCredentialsMail(adminClient, {
+        to: email, password: generatedPassword, companyId, kind: role as 'customer' | 'subscriber', isReset: false,
+      });
+    }
+    return new Response(JSON.stringify({ ok: true, user_id: userId, ...(generatedPassword ? { password: generatedPassword } : {}), ...(mail ? { mail_sent: mail.ok, mail_error: mail.error } : {}) }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (err) {

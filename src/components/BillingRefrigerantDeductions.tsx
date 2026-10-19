@@ -1,3 +1,4 @@
+import CheckToggle from './CheckToggle';
 import type { BillableLine } from '../lib/workReportBilling';
 import { formatEuro } from '../lib/workReportBilling';
 
@@ -36,8 +37,7 @@ export default function BillingRefrigerantDeductions({
                 <span className="billing-refrigerant-deduction-amount">{formatEuro(line.total)}</span>
                 {lineId ? (
                   <label className="inventory-check billing-refrigerant-deduction-check">
-                    <input
-                      type="checkbox"
+                    <CheckToggle
                       checked={isDeducted}
                       disabled={!canEdit || busyLineId === lineId}
                       onChange={(e) => onToggle(lineId, e.target.checked)}

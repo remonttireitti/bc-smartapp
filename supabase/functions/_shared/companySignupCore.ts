@@ -15,7 +15,7 @@ export type AddonModuleKey = 'quotes' | 'billing' | 'remote_monitoring' | 'inven
 /** Järjestys = laskun rivijärjestys (sama kuin SQL license_monthly_total / company_monthly_price_breakdown). */
 export const ADDON_MODULES: AddonModuleKey[] = ['quotes', 'billing', 'remote_monitoring', 'inventory', 'tools', 'partners'];
 export const ADDON_MODULE_LABELS: Record<AddonModuleKey, string> = {
-  quotes: 'Tarjoukset',
+  quotes: 'Tarjouspyynnöt ja laskennat',
   billing: 'Laskutus',
   remote_monitoring: 'Etäseuranta',
   inventory: 'Varasto',
@@ -58,6 +58,8 @@ export type SignupForm = {
   huolto: Record<HuoltoCategoryKey, boolean>;
   users: SignupUser[];
   message: string;
+  /** Valittu laskutusjakso (oletus kuukausi). */
+  billing_interval?: BillingPeriod;
 };
 
 export type PriceList = {
@@ -71,7 +73,67 @@ export type PriceList = {
   trial_days: number;
   /** false = license_catalog.module_prices ilman 'inventory'-avainta (varasto_module.sql ajamatta). */
   inventory_priced?: boolean;
+  /** Laskutusjakson alennus % (license_catalog.billing_discounts; annual_billing.sql). */
+  billing_discounts: Record<DiscountedPeriod, number>;
+  /** false = billing_discounts-saraketta ei vielä ole (annual_billing.sql ajamatta). */
+  billing_discounts_stored?: boolean;
 };
+
+/** Laskutusjaksot tilauksessa (arvot = companies.settings.license.billing_interval). */
+export type BillingPeriod = 'monthly' | 'semi_annual' | 'annual';
+export type DiscountedPeriod = Exclude<BillingPeriod, 'monthly'>;
+export const BILLING_PERIODS: { value: BillingPeriod; label: string; months: number }[] = [
+  { value: 'monthly', label: 'Kuukausilaskutus', months: 1 },
+  { value: 'semi_annual', label: '6 kk laskutus', months: 6 },
+  { value: 'annual', label: 'Vuosilaskutus', months: 12 },
+];
+export const DEFAULT_BILLING_DISCOUNTS: Record<DiscountedPeriod, number> = { semi_annual: 5, annual: 10 };
+
+export function normalizeBillingPeriod(raw: unknown): BillingPeriod {
+  return BILLING_PERIODS.some((b) => b.value === raw) ? (raw as BillingPeriod) : 'monthly';
+}
+
+export function billingPeriodLabel(raw: unknown): string {
+  if (raw === 'quarterly') return '3 kk laskutus';
+  return BILLING_PERIODS.find((b) => b.value === raw)?.label ?? 'Kuukausilaskutus';
+}
+
+export type PeriodPrice = {
+  period: BillingPeriod;
+  months: number;
+  discount_pct: number;
+  /** Jakson hinta ilman alennusta, alv 0 %. */
+  list_net: number;
+  /** Jakson hinta alennuksen jälkeen. */
+  net: number;
+  gross: number;
+  /** Kuukausihinta alennuksen jälkeen, alv 0 %. */
+  monthly_net: number;
+  /** Säästö jaksolta alv 0 %. */
+  saving_net: number;
+};
+
+/**
+ * Jakson hinta: kk-hinta × kk − alennus %, sentteihin (sama kuin SQL license_period_total).
+ * 59 €/kk vuosi −10 %: 708 → 637,20 € (sis. alv 799,69), kk 53,10, säästö 70,80.
+ */
+export function periodPrice(monthlyNet: number, period: BillingPeriod, prices: Pick<PriceList, 'billing_discounts'>): PeriodPrice {
+  const months = BILLING_PERIODS.find((b) => b.value === period)?.months ?? 1;
+  const pct = period === 'monthly' ? 0 : (prices.billing_discounts?.[period] ?? 0);
+  const listCents = Math.round(monthlyNet * 100) * months;
+  const netCents = Math.round((listCents * (100 - pct)) / 100);
+  const net = netCents / 100;
+  return {
+    period,
+    months,
+    discount_pct: pct,
+    list_net: listCents / 100,
+    net,
+    gross: grossOf(net),
+    monthly_net: Math.round(netCents / months) / 100,
+    saving_net: (listCents - netCents) / 100,
+  };
+}
 
 export type DeviceTypeKey = 'jc3248' | 'esp32_ds18b20' | 'default';
 export const DEVICE_TYPES: DeviceTypeKey[] = ['jc3248', 'esp32_ds18b20', 'default'];
@@ -81,7 +143,7 @@ export const DEVICE_TYPE_LABELS: Record<DeviceTypeKey, string> = {
   default: 'Muu lämpötilalaite',
 };
 export const DEFAULT_DEVICE_PRICES: Record<DeviceTypeKey, number> = { jc3248: 5, esp32_ds18b20: 5, default: 5 };
-export const DEFAULT_TRIAL_DAYS = 30;
+export const DEFAULT_TRIAL_DAYS = 14;
 
 /*
  * Moduulien, huoltolajien ja roolien yhden rivin kuvaukset — AINOA lähde (tilauslomake, lisenssipaneeli,
@@ -92,7 +154,7 @@ export const BASE_PACKAGE_DESCRIPTION =
   'Työraportit ja toimeksiannot, asiakkaat ja laiterekisteri, tilaajaportaali sekä yritys- ja käyttäjähallinta';
 
 export const MODULE_DESCRIPTIONS: Record<AddonModuleKey, string> = {
-  quotes: 'Tarjouspyynnöt ja tarjoustulosteet, asennussuunnittelu ja lämpöpumppujen rekisteri',
+  quotes: 'Huolto-, LVI-, IV-, sähkö- ja lämpöpumpputarjoukset katelaskelmineen, asennussuunnittelu ja lämpöpumppujen rekisteri',
   billing: 'Laskettavat summat asiakkaalle ja kumppanien kesken — ei laskujen lähetystä',
   remote_monitoring: 'Lämpötila, kosteus, paine, valaistus, NO/NC-tilatiedot, 0–10 V, jännitteet ja sähkönkulutus — hälytykset, trendit ja etäohjaus',
   inventory: 'Materiaalit ja kylmäaine, saldot linkitettynä työraportteihin ja hinnoitteluun',
@@ -101,9 +163,12 @@ export const MODULE_DESCRIPTIONS: Record<AddonModuleKey, string> = {
 };
 
 /** Harmaa riippuvuushuomautus (näytetään kuvauksen perässä). */
+/** Tilattavan seurattavan laitteen kertamaksu (ei hinnastossa; ei vaikuta kuukausisummiin). */
+export const DEVICE_PURCHASE_PRICE_TEXT = 'laite alkaen 25,00 € kertamaksu + toimitus';
+
 export const MODULE_NOTES: Partial<Record<AddonModuleKey, string>> = {
   billing: 'Kumppanien välinen laskenta vaatii Kumppanuudet-moduulin',
-  remote_monitoring: 'Vaatii seurattavan laitteen tilauksen, hinta mittauskohteiden mukaan',
+  remote_monitoring: remoteMonitoringNote(Math.min(...Object.values(DEFAULT_DEVICE_PRICES))),
   inventory: 'Ilman Varastoa kylmäaine kirjataan raportille käsin',
 };
 
@@ -121,11 +186,19 @@ export const STAFF_ROLE_DESCRIPTIONS: Record<StaffRole, string> = {
   technician: 'Omat ja itselle osoitetut työt, työ- ja huoltoraportit',
 };
 
-/** Seurattavan laitteen hinta: alkaen halvimmasta laitetyypistä (€/kk alv 0 % per laite). */
+/**
+ * Seurattavan laitteen hankintahinta (kertaluonteinen, ei hinnastossa): näyttöteksti.
+ * Eri asia kuin license_catalog.temp_device_monthly_prices = laskutettava laitemaksu €/kk per laite.
+ */
+/** Etäseurannan harmaa huomautus: laskutettava laitemaksu (halvin temp_device_monthly_prices) + laitteen kertamaksu. */
+export function remoteMonitoringNote(minDeviceFeeEur: number): string {
+  return `Laitemaksu alkaen ${formatEur(minDeviceFeeEur)}/kk / laite · ${DEVICE_PURCHASE_PRICE_TEXT}`;
+}
+/** Halvin laitemaksu €/kk per laite (temp_device_monthly_prices). */
 export function deviceFromPrice(prices: Pick<PriceList, 'device_prices'>): number {
   return Math.min(...DEVICE_TYPES.map((k) => prices.device_prices[k]));
 }
-export const DEVICE_PRICE_NOTE = 'Seurattava laite alkaen, hinta mittauskohteiden mukaan';
+export const DEVICE_PRICE_NOTE = 'Kuukausimaksu per seurattava laite, laskutetaan Etäseurannan kanssa';
 
 /** Onko hinnastossa Varasto-hinta (varasto_module.sql ajettu)? Ennen sitä Varastoa ei tarjota tilattavaksi. */
 export function inventoryModuleOffered(prices: Pick<PriceList, 'inventory_priced'>): boolean {
@@ -172,6 +245,11 @@ export function parsePriceList(row: unknown): PriceList {
   const device_prices = {} as Record<DeviceTypeKey, number>;
   for (const k of DEVICE_TYPES) device_prices[k] = num(dp[k], DEFAULT_DEVICE_PRICES[k]);
   const trial = Math.round(num(r.trial_days, DEFAULT_TRIAL_DAYS));
+  const bd = rec(r.billing_discounts);
+  const pct = (v: unknown, f: number) => {
+    const n = num(v, f);
+    return n <= 100 ? n : f;
+  };
   return {
     base_monthly_eur: num(r.base_monthly_eur, DEFAULT_BASE_MONTHLY_EUR),
     module_prices,
@@ -180,6 +258,11 @@ export function parsePriceList(row: unknown): PriceList {
     device_prices,
     trial_days: trial >= 1 ? trial : DEFAULT_TRIAL_DAYS,
     inventory_priced: Object.prototype.hasOwnProperty.call(mp, 'inventory'),
+    billing_discounts: {
+      semi_annual: pct(bd.semi_annual, DEFAULT_BILLING_DISCOUNTS.semi_annual),
+      annual: pct(bd.annual, DEFAULT_BILLING_DISCOUNTS.annual),
+    },
+    billing_discounts_stored: Object.prototype.hasOwnProperty.call(r, 'billing_discounts'),
   };
 }
 
@@ -370,6 +453,7 @@ export function cleanSignup(form: SignupForm): SignupForm {
       roles: normalizeRoles(u.roles),
     })),
     message: t(form.message, 2000),
+    billing_interval: normalizeBillingPeriod(form.billing_interval),
   };
 }
 

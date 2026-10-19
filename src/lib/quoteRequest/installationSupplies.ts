@@ -138,10 +138,10 @@ export function installationSuppliesExpensePurchaseNet(items: QuoteMaterial[] | 
 
 export function installationSuppliesLaborHours(items: QuoteMaterial[] | undefined): number {
   return roundMoney(
-    filterInstallationSupplyRows(items, 'labor').reduce(
-      (sum, row) => sum + (Number(row.quantity) || 0),
-      0,
-    ),
+    // Vain tuntirivit (yksikkö h); esim. kanava-asennus m tai puhdistus kpl ei ole tunteja.
+    filterInstallationSupplyRows(items, 'labor')
+      .filter((row) => !row.unit || row.unit === 'h')
+      .reduce((sum, row) => sum + (Number(row.quantity) || 0), 0),
   );
 }
 
@@ -408,7 +408,9 @@ export function installationSuppliesKindSubtitle(
   }
 
   if (parts.length === 0) return KIND_SUBTITLE_EMPTY[kind];
-  if (sellNet <= 0 && items.length > 0) parts.push('täytä hinnat');
+  const missing = items.filter((row) => row.catalogKey && !(Number(row.sellPrice) > 0)).length;
+  if (missing > 0) parts.push(`${missing} hinta puuttuu`);
+  else if (sellNet <= 0 && items.length > 0) parts.push('täytä hinnat');
   return parts.join(' · ');
 }
 

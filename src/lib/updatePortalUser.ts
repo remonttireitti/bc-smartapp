@@ -5,6 +5,10 @@ export type UpdatePortalUserInput = {
   email: string;
   display_name: string;
   password?: string;
+  /** Palvelin luo ja asettaa uuden pysyvän salasanan. */
+  generate_password?: boolean;
+  /** Lähetä luodut tunnukset sähköpostilla. */
+  send_email?: boolean;
   subscriber_id?: string | null;
   customer_id?: string | null;
 };
@@ -24,7 +28,7 @@ export async function updatePortalUser(input: UpdatePortalUserInput) {
       body: JSON.stringify(input),
     });
 
-    const data = (await response.json()) as { ok?: boolean; error?: string; user_id?: string };
+    const data = (await response.json()) as { ok?: boolean; error?: string; user_id?: string; password?: string; mail_sent?: boolean; mail_error?: string };
     if (!response.ok) {
       throw new Error(data.error ?? 'Portaalikäyttäjän päivitys epäonnistui');
     }
@@ -34,5 +38,5 @@ export async function updatePortalUser(input: UpdatePortalUserInput) {
   const { data, error } = await supabase.functions.invoke('update-portal-user', { body: input });
   if (error) throw new Error(error.message);
   if (data?.error) throw new Error(String(data.error));
-  return data as { ok: boolean; user_id?: string };
+  return data as { ok: boolean; user_id?: string; password?: string; mail_sent?: boolean; mail_error?: string };
 }

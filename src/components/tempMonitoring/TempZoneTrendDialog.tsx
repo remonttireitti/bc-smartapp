@@ -1,3 +1,4 @@
+import CheckToggle from '../CheckToggle';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import TempZoneTrendChart from './TempZoneTrendChart';
 import { formatTempC, type TempReading } from '../../lib/tempMonitoring';
@@ -263,8 +264,7 @@ export default function TempZoneTrendDialog({
         </details>
 
         <label className="temp-zone-trend-both">
-          <input
-            type="checkbox"
+          <CheckToggle
             checked={showBothSensors}
             onChange={(e) => setShowBothSensors(e.target.checked)}
           />

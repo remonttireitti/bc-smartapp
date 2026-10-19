@@ -132,19 +132,18 @@ export default function CustomersPage({ session }: Props) {
       <div className="page-header">
         <div>
           <p className="breadcrumb breadcrumb-home-only">
-            <Link to="/">Etusivu</Link> / Asiakkaat
+            <Link to="/">Etusivu</Link> / {portalMode ? 'Kohteet' : 'Asiakkaat'}
           </p>
-          <h1>Asiakkaat</h1>
+          <h1>{portalMode ? 'Kohteet' : 'Asiakkaat'}</h1>
           <p className="muted">
             {portalMode ? (
               isSubscriberPortal ? (
                 <>
-                  {profile?.companies?.name ?? '—'} • kohteet, laitteet ja toimitetut raportit linkitettynä
-                  tilaajanasi.
+                  Avaa kohde nähdäksesi sen laitteet.
                 </>
               ) : (
                 <>
-                  {profile?.companies?.name ?? '—'} • oman kohteen laitteet ja toimitetut raportit.
+                  Avaa kohde nähdäksesi sen laitteet.
                 </>
               )
             ) : (
@@ -158,12 +157,12 @@ export default function CustomersPage({ session }: Props) {
 
       <div className="toolbar">
         <label className="search-field-grow">
-          Hae asiakasta
+          {portalMode ? 'Hae kohdetta' : 'Hae asiakasta'}
           <input
             type="search"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Nimi, osoite, kaupunki, puhelin, tilaaja…"
+            placeholder={portalMode ? undefined : "Nimi, osoite, kaupunki, puhelin, tilaaja…"}
           />
         </label>
         {!portalMode && (

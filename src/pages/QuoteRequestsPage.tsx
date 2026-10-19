@@ -216,7 +216,7 @@ export default function QuoteRequestsPage({ session }: Props) {
       <div className="page-header">
         <div>
           <p className="breadcrumb">
-            <Link to="/">Etusivu</Link> / <Link to="/tarjouspyynnot">Tarjouspyyntö</Link> / Lista
+            <Link to="/">Etusivu</Link> / <Link to="/tarjouspyynnot">Tarjouspyynnöt ja laskennat</Link> / Lista
           </p>
           <h1>Tallennetut tarjouspyynnöt</h1>
           <p className="muted">

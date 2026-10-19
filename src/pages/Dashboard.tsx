@@ -37,8 +37,8 @@ const MODULES: ModuleTile[] = [
   { title: 'Laskutus', lines: ['Laskutettavat', 'Tilastot'], color: '#6366f1', href: '/laskutus', licenseModule: 'billing' },
   { title: 'Huoltoraportti', lines: ['Huoltopöytäkirjat', 'Laiterekisteri'], color: '#22c55e', href: '/huoltoraportit', licenseModule: 'base' },
   { title: 'Asiakkaat', lines: ['Asiakasrekisteri', 'Laitteet ja dokumentit'], color: '#3b82f6', href: '/asiakkaat', licenseModule: 'base' },
-  { title: 'Tarjouspyyntö', lines: ['Tarjoukset ja laskelmat', 'Asennussuunnittelu'], color: '#f97316', href: '/tarjouspyynnot', licenseModule: 'quotes' },
-  { title: 'Varasto', lines: ['Materiaalit ja kylmäaine', 'Linkitetty työhön ja hinnoitteluun'], color: '#a855f7', href: '/varasto', licenseModule: 'inventory' },
+  { title: 'Tarjouspyynnöt ja laskennat', lines: ['Huolto, LVI, IV, sähkö, lämpöpumput', 'Asennussuunnittelu'], color: '#f97316', href: '/tarjouspyynnot', licenseModule: 'quotes' },
+  { title: 'Varasto', lines: ['Materiaalit', 'Kylmäainekirjanpito'], color: '#a855f7', href: '/varasto', licenseModule: 'inventory' },
   {
     title: 'Etäohjaus ja seuranta',
     lines: ['Lämpötilaseuranta', 'VRF ohjaus ja seuranta'],
@@ -57,10 +57,11 @@ interface Props {
 }
 
 const PORTAL_MODULES: ModuleTile[] = [
-  { title: 'Työtilaus', lines: ['Lähetä työtilaus', 'palveluyritykselle'], color: '#0ea5e9', href: '/tyoraportit/tilaus/uusi' },
-  { title: 'Työraportit', lines: ['Omat tilaukset', 'Valmiit raportit'], color: '#0284c7', href: '/tyoraportit' },
-  { title: 'Huoltoraportit', lines: ['Valmiit huoltopöytäkirjat'], color: '#22c55e', href: '/huoltoraportit' },
-  { title: 'Kohteet', lines: ['Kohteet', 'Laitteet'], color: '#3b82f6', href: '/asiakkaat' },
+  { title: 'Uusi työtilaus', lines: ['Lähetä työtilaus'], color: '#0ea5e9', href: '/tyoraportit/tilaus/uusi' },
+  { title: 'Työraportit', lines: ['Tilaukset ja valmiit työt'], color: '#0284c7', href: '/tyoraportit' },
+  { title: 'Laitteet', lines: ['Laitteet ja huoltohistoria'], color: '#3b82f6', href: '/laitteet' },
+  { title: 'Huoltopöytäkirjat', lines: ['Valmiit huollot'], color: '#22c55e', href: '/huoltoraportit' },
+  { title: 'Tarjoukset', lines: ['Saadut tarjoukset'], color: '#6366f1', href: '/tarjoukset' },
 ];
 
 const EMPTY_PENDING: PendingWorkOrderCounts = {

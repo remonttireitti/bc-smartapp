@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import HuoltoSettingsSection from '../../components/HuoltoSettingsSection';
 import ToggleSwitch from '../../components/ToggleSwitch';
-import ModuleDescription, { DescriptionWithNote } from '../../components/ModuleDescription';
-import { HUOLTO_NOTE, MODULE_DESCRIPTIONS } from '../../lib/companySignup';
+import ModuleDescription, { DescriptionWithNote, minDeviceFee } from '../../components/ModuleDescription';
+import { ADDON_MODULE_LABELS, HUOLTO_NOTE, MODULE_DESCRIPTIONS } from '../../lib/companySignup';
 import { invalidateCompanyLicenseCache } from '../../hooks/useCompanyLicense';
 import { notifyHuoltoSettingsChanged } from '../../hooks/useCompanyHuoltoSettings';
 import {
@@ -58,6 +58,7 @@ export default function CompanyModulesEditor({ companyId, settings, ownCompanyId
   const [huolto, setHuolto] = useState<HuoltoSettings>(() => parseHuoltoSettings(settings));
   const [huoltoDirty, setHuoltoDirty] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [extendDays, setExtendDays] = useState('14');
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -159,16 +160,21 @@ export default function CompanyModulesEditor({ companyId, settings, ownCompanyId
   }
 
   async function extendTrial() {
+    const extra = Math.round(Number(extendDays));
+    if (!Number.isFinite(extra) || extra < 1 || extra > 365) {
+      setError('Jatko 1–365 päivää');
+      return;
+    }
     setBusy(true);
     setError(null);
-    const { error: e } = await supabase.rpc('global_admin_extend_company_trial', { p_company_id: companyId, p_extra_days: 30 });
+    const { error: e } = await supabase.rpc('global_admin_extend_company_trial', { p_company_id: companyId, p_extra_days: extra });
     setBusy(false);
     if (e) {
       setError(e.message);
       return;
     }
     invalidateCompanyLicenseCache(companyId);
-    setMessage('Kokeilua jatkettu 30 päivää.');
+    setMessage(`Kokeilua jatkettu ${extra} päivää.`);
     await load();
   }
 
@@ -181,7 +187,7 @@ export default function CompanyModulesEditor({ companyId, settings, ownCompanyId
     licenseStatusText(snapshot),
     snapshot.trial_ends_at && snapshot.effective_status === 'trial' ? `kokeilu ${fmtDate(snapshot.trial_ends_at)}${days != null ? ` (${days} pv)` : ''}` : '',
     snapshot.paid_through ? `maksettu ${fmtDate(snapshot.paid_through)} asti` : '',
-    snapshot.effective_status === 'active'
+    snapshot.effective_status === 'active' && !legacy
       ? formatLicensePeriodMoney(snapshot.pricing.estimated_period_total_eur, snapshot.billing_interval)
       : '',
   ].filter(Boolean).join(' · ');
@@ -195,7 +201,7 @@ export default function CompanyModulesEditor({ companyId, settings, ownCompanyId
           <label>
             Yritysmalli
             <select value={enrollment} disabled={busy} onChange={(e) => setEnrollment(e.target.value as 'legacy' | 'subscription')}>
-              <option value="legacy">Vanha sopimus (kaikki moduulit)</option>
+              <option value="legacy">Ilmainen käyttöoikeus (toistaiseksi) – kaikki moduulit</option>
               <option value="subscription">Tilaus ja kokeilu</option>
             </select>
           </label>
@@ -230,12 +236,21 @@ export default function CompanyModulesEditor({ companyId, settings, ownCompanyId
           )}
         </div>
         {legacy && (
-          <ToggleSwitch checked={preserveLegacy} disabled={busy} label="Pidä vanha sopimus (ei massasiirtoa)" onChange={setPreserveLegacy} />
+          <ToggleSwitch checked={preserveLegacy} disabled={busy} label="Pidä ilmainen käyttöoikeus (ei massasiirtoa)" onChange={setPreserveLegacy} />
         )}
         {canExtend && (
           <div className="form-actions" style={{ justifyContent: 'flex-start' }}>
+            <input
+              type="number"
+              min={1}
+              max={365}
+              value={extendDays}
+              onChange={(e) => setExtendDays(e.target.value)}
+              aria-label="Jatkopäivät"
+              style={{ width: '5rem' }}
+            />
             <button type="button" className="btn btn-secondary btn-sm" disabled={busy} onClick={() => void extendTrial()}>
-              Jatka kokeilua 30 pv
+              Jatka kokeilua {extendDays || '…'} pv
             </button>
           </div>
         )}
@@ -269,7 +284,7 @@ export default function CompanyModulesEditor({ companyId, settings, ownCompanyId
                 <small className="muted"><ModuleDescription moduleKey="base" /></small>
               </div>
               <div className="module-toggle-row">
-                <ToggleSwitch checked={modules.quotes} disabled={busy} label="Tarjoukset" onChange={(v) => setModules((m) => ({ ...m, quotes: v }))} />
+                <ToggleSwitch checked={modules.quotes} disabled={busy} label={ADDON_MODULE_LABELS.quotes} onChange={(v) => setModules((m) => ({ ...m, quotes: v }))} />
                 <small className="muted"><ModuleDescription moduleKey="quotes" /></small>
               </div>
             </>
@@ -289,7 +304,7 @@ export default function CompanyModulesEditor({ companyId, settings, ownCompanyId
             <>
               <div className="module-toggle-row">
                 <ToggleSwitch checked={modules.remote_monitoring} disabled={busy} label="Etäseuranta" onChange={(v) => setModules((m) => ({ ...m, remote_monitoring: v }))} />
-                <small className="muted"><ModuleDescription moduleKey="remote_monitoring" /></small>
+                <small className="muted"><ModuleDescription moduleKey="remote_monitoring" deviceFeeEur={minDeviceFee(snapshot.pricing.temp_device_unit_prices)} /></small>
               </div>
               <div className="module-toggle-row">
                 <ToggleSwitch checked={modules.inventory} disabled={busy} label="Varasto" onChange={(v) => setModules((m) => ({ ...m, inventory: v }))} />

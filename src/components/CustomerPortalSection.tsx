@@ -1,5 +1,10 @@
 import { FormEvent, useEffect, useState } from 'react';
 import PortalUserCredentialsForm from './PortalUserCredentialsForm';
+import PasswordReveal from './PasswordReveal';
+import { useNavigate } from 'react-router-dom';
+import { rememberPortalPreviewReturn } from '../lib/portalPreview';
+import ToggleSwitch from './ToggleSwitch';
+import PortalOrderRecipients from './PortalOrderRecipients';
 import { inviteCompanyUser } from '../lib/inviteUser';
 import { supabase } from '../lib/supabase';
 
@@ -10,60 +15,65 @@ type PortalProfile = {
 };
 
 type Props = {
-  customerId: string;
+  /** Asiakasportaali (customerId) tai tilaajaportaali (subscriberId) — sama hallinta. */
+  customerId?: string;
+  subscriberId?: string;
   customerName: string;
   companyId: string;
   canManage: boolean;
   sectionId?: string;
 };
 
-function customerPortalPreviewUrl(customerId: string) {
-  return `${window.location.origin}/esikatselu/asiakas/${customerId}`;
-}
 
 export default function CustomerPortalSection({
   customerId,
+  subscriberId,
   customerName,
   companyId,
   canManage,
   sectionId = 'customer-portal',
 }: Props) {
-  const [portalUser, setPortalUser] = useState<PortalProfile | null>(null);
+  const isSubscriber = !!subscriberId;
+  const entityId = (subscriberId ?? customerId) as string;
+  const [portalUsers, setPortalUsers] = useState<PortalProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [showInvite, setShowInvite] = useState(false);
   const [invite, setInvite] = useState({
     email: '',
-    password: 'test123456',
     display_name: '',
   });
+  const navigate = useNavigate();
   const [busy, setBusy] = useState(false);
+  const [sendEmail, setSendEmail] = useState(true);
+  const [createdPassword, setCreatedPassword] = useState<{ email: string; password: string } | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     void loadPortalUser();
-  }, [customerId]);
+  }, [entityId]);
 
   async function loadPortalUser() {
     setLoading(true);
     const { data, error: loadError } = await supabase
       .from('profiles')
       .select('id, email, display_name')
-      .eq('customer_id', customerId)
-      .eq('role', 'customer')
-      .maybeSingle();
+      .eq(isSubscriber ? 'subscriber_id' : 'customer_id', entityId)
+      .eq('role', isSubscriber ? 'subscriber' : 'customer')
+      .order('created_at');
 
     if (loadError) {
       console.error(loadError);
-      setPortalUser(null);
+      setPortalUsers([]);
     } else {
-      setPortalUser((data as PortalProfile | null) ?? null);
+      setPortalUsers((data as PortalProfile[] | null) ?? []);
     }
     setLoading(false);
   }
 
   function openCustomerPortal() {
-    window.open(customerPortalPreviewUrl(customerId), '_blank', 'noopener,noreferrer');
+    rememberPortalPreviewReturn(`${window.location.pathname}${window.location.search}`);
+    navigate(`/esikatselu/${isSubscriber ? 'tilaaja' : 'asiakas'}/${entityId}`);
   }
 
   async function createPortalUser(e: FormEvent) {
@@ -80,17 +90,19 @@ export default function CustomerPortalSection({
     setMessage(null);
 
     try {
-      await inviteCompanyUser({
+      const created = await inviteCompanyUser({
         email,
-        password: invite.password,
+        generate_password: true,
+        send_email: sendEmail,
         display_name: invite.display_name.trim() || customerName,
-        role: 'customer',
+        role: isSubscriber ? 'subscriber' : 'customer',
         company_id: companyId,
-        customer_id: customerId,
+        ...(isSubscriber ? { subscriber_id: subscriberId } : { customer_id: customerId }),
       });
-      setMessage(`Portaalikäyttäjä luotu: ${email}`);
+      setMessage(`Portaalikäyttäjä luotu: ${email}.${created.mail_sent === true ? ' Tunnukset lähetetty sähköpostilla.' : created.mail_sent === false ? ` Sähköposti epäonnistui: ${created.mail_error ?? ''}` : ''}`);
+      setCreatedPassword(created.password ? { email, password: created.password } : null);
       setShowInvite(false);
-      setInvite({ email: '', password: 'test123456', display_name: '' });
+      setInvite({ email: '', display_name: '' });
       await loadPortalUser();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Käyttäjän luonti epäonnistui.');
@@ -101,60 +113,41 @@ export default function CustomerPortalSection({
 
   return (
     <section className="panel customer-portal-panel" id={sectionId}>
-      <h2>Asiakasportaali</h2>
       <p className="muted">
-        Kohde <strong>{customerName}</strong> — asiakas kirjautuu, lähettää työtilauksia ja näkee toimitetut
-        raportit.
+        {isSubscriber
+          ? 'Tilaaja näkee kaikkien kohteidensa portaalit ja tilaa töitä niille.'
+          : 'Asiakas kirjautuu, tilaa töitä ja näkee raportit.'}
       </p>
 
       {error && <p className="error">{error}</p>}
       {message && <p className="muted">{message}</p>}
+      {createdPassword ? <PasswordReveal email={createdPassword.email} password={createdPassword.password} /> : null}
 
       {loading ? (
         <p className="muted">Ladataan…</p>
-      ) : portalUser ? (
-        <div className="customer-portal-active">
-          {canManage ? (
-            <PortalUserCredentialsForm
-              portalUser={portalUser}
-              entityName={customerName}
-              customerId={customerId}
-              onUpdated={loadPortalUser}
-            />
-          ) : (
-            <dl className="detail-list compact">
-              <div>
-                <dt>Kirjautuminen</dt>
-                <dd>{portalUser.email ?? '—'}</dd>
-              </div>
-              <div>
-                <dt>Näyttönimi</dt>
-                <dd>{portalUser.display_name ?? '—'}</dd>
-              </div>
-            </dl>
-          )}
-          <div className="form-actions" style={{ marginTop: '1rem' }}>
-            <button type="button" className="btn btn-primary" onClick={openCustomerPortal}>
-              Avaa asiakasportaali
-            </button>
-          </div>
-          <p className="muted" style={{ marginTop: '0.75rem' }}>
-            Esikatselussa käytetään yrityskäyttäjän istuntoa, mutta näet asiakasportaalin näkymän kohteesi
-            oikeuksilla.
-          </p>
-        </div>
-      ) : canManage ? (
+      ) : (
         <>
-          {!showInvite ? (
-            <div className="form-actions">
-              <button type="button" className="btn btn-primary" onClick={() => setShowInvite(true)}>
-                Luo portaalikäyttäjä
-              </button>
-              <button type="button" className="btn btn-secondary" onClick={openCustomerPortal}>
-                Esikatsele asiakasportaalia
-              </button>
-            </div>
-          ) : (
+          {portalUsers.map((u) =>
+            canManage ? (
+              <div className="customer-portal-active" key={u.id}>
+                <PortalUserCredentialsForm
+                  portalUser={u}
+                  entityName={customerName}
+                  customerId={customerId}
+                  subscriberId={subscriberId}
+                  onUpdated={loadPortalUser}
+                />
+              </div>
+            ) : (
+              <dl className="detail-list compact" key={u.id}>
+                <div>
+                  <dt>Kirjautuminen</dt>
+                  <dd>{u.email ?? '—'}</dd>
+                </div>
+              </dl>
+            ),
+          )}
+          {showInvite && canManage ? (
             <form className="form-grid" onSubmit={(e) => void createPortalUser(e)}>
               <h3>Uusi portaalikäyttäjä</h3>
               <label>
@@ -174,33 +167,33 @@ export default function CustomerPortalSection({
                   placeholder={customerName}
                 />
               </label>
-              <label>
-                Väliaikainen salasana
-                <input
-                  type="text"
-                  value={invite.password}
-                  onChange={(e) => setInvite((i) => ({ ...i, password: e.target.value }))}
-                />
-              </label>
+              <ToggleSwitch checked={sendEmail} onChange={setSendEmail} label="Lähetä tunnukset sähköpostilla" />
               <div className="form-actions">
                 <button type="submit" className="btn btn-primary" disabled={busy}>
-                  {busy ? 'Luodaan…' : 'Luo ja avaa portaali'}
+                  {busy ? 'Luodaan…' : 'Luo käyttäjä'}
                 </button>
-                <button
-                  type="button"
-                  className="btn btn-secondary"
-                  disabled={busy}
-                  onClick={() => setShowInvite(false)}
-                >
+                <button type="button" className="btn btn-secondary" disabled={busy} onClick={() => setShowInvite(false)}>
                   Peruuta
                 </button>
               </div>
             </form>
+          ) : (
+            <div className="form-actions" style={{ marginTop: '1rem' }}>
+              {canManage ? (
+                <button type="button" className="btn btn-secondary" onClick={() => setShowInvite(true)}>
+                  Luo portaalikäyttäjä
+                </button>
+              ) : null}
+              <button type="button" className="btn btn-primary" onClick={openCustomerPortal}>
+                {isSubscriber ? 'Esikatsele tilaajaportaalia' : 'Esikatsele asiakasportaalia'}
+              </button>
+            </div>
           )}
         </>
-      ) : (
-        <p className="muted">Vain ylläpitäjä voi luoda portaalikäyttäjiä.</p>
       )}
+      {canManage ? (
+        isSubscriber ? <PortalOrderRecipients subscriberId={subscriberId} /> : <PortalOrderRecipients customerId={customerId} />
+      ) : null}
     </section>
   );
 }
