@@ -30,7 +30,12 @@ const customer = (logs) =>
 // Hämeentie 31: 19.10 urakka (vanha yksi hinta 2500), 20.10 tavalliset 8 h.
 const urakka = log('d19', '2026-10-19', { entry_type: 'fixed_price', fixed_price_amount: 2500 });
 const before = partner([urakka, log('d20', '2026-10-20', {})]);
-assert.equal(before.grandTotal, 2940); // 2500 + 8 h × 55 = tunnit urakan päälle (käyttäjän tekemä tavallinen kirjaus)
+assert.equal(before.grandTotal, 2500); // urakkaraportissa tavalliset tunnit kuuluvat urakkaan
+assert.equal(before.excludedTotal, 440);
+const flagged = partner([urakka, log('d20', '2026-10-20', { partner_billing: { extra_billing: true } })]);
+assert.equal(flagged.grandTotal, 2940); // Lisälaskutus päällä: 2500 + 8 h × 55
+// Ilman urakkaa tunnit laskutetaan normaalisti.
+assert.equal(partner([log('d20', '2026-10-20', {})]).grandTotal, 440);
 
 // 20.10 urakkapäivänä 0 €: lasketaan vain kerran.
 for (const zero of [{ customer_fixed_price_amount: 0, fixed_price_amount: 0 }, { customer_fixed_price_amount: null, fixed_price_amount: null }, { customer_fixed_price_amount: 0, fixed_price_amount: null }]) {

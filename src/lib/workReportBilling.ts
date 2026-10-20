@@ -349,6 +349,8 @@ export function calculateWorkReportBillable(input: {
   }
 
   const partnerCtx = partnerBillingContext(input.logs);
+  // Urakkaraportti: tavalliset tunnit kuuluvat urakkaan (0 €), ellei kirjaus ole Lisälaskutus.
+  const urakkaReport = input.logs.some((log) => log.entry_type === 'fixed_price');
 
   for (const log of input.logs) {
     const authorLabel = resolveDailyLogAuthorLabel(log);
@@ -359,7 +361,8 @@ export function calculateWorkReportBillable(input: {
     );
     const summary = ensureUser(user);
     const { hoursEnabled, expensesEnabled } = resolveBillingFlags(user);
-    const hoursRowBilled = logHoursPartnerBilled(partnerCtx, log);
+    const hoursInUrakka = urakkaReport && log.entry_type !== 'fixed_price' && !logIsExtraBilling(log);
+    const hoursRowBilled = logHoursPartnerBilled(partnerCtx, log) && !hoursInUrakka;
     const tripsRowBilled = logTripsPartnerBilled(partnerCtx, log);
     const commissionOnlyAuthor = partnerCtx.commissionOnly.has(log.created_by ?? '');
     const logLineStart = summary.lines.length;
