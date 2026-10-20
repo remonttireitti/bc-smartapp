@@ -349,6 +349,8 @@ function initialLogForm() {
     customer_fixed_price_amount: '',
     partner_urakka_margin_percent: String(DEFAULT_PARTNER_URAKKA_MARGIN_PERCENT),
     partner_urakka_manual: false,
+    /** Vanha yksihintainen urakka: asiakaskenttä täytetty lomakkeelle, ei tallennettu. */
+    customer_price_synthetic: false,
     hourly_rate_override: '',
     customer_hourly_rate_override: '',
     commission_amount: '',
@@ -443,6 +445,7 @@ function urakkaLogToForm(log: WorkReportDailyLog) {
     customer_fixed_price_amount: legacySinglePrice ? partner : customer,
     partner_urakka_margin_percent:
       margin != null ? String(margin) : String(DEFAULT_PARTNER_URAKKA_MARGIN_PERCENT),
+    customer_price_synthetic: legacySinglePrice,
     partner_urakka_manual:
       legacySinglePrice || (Number(log.customer_fixed_price_amount) > 0 && Number(log.fixed_price_amount) > 0 && margin == null),
   };
@@ -492,7 +495,7 @@ function expenseSaveOptionsForReport(
 
 function buildLogPayload(
   form: DailyLogFormState,
-  options?: { includeAgreedRegular?: boolean; expenseDrafts?: ExpenseDraft[] },
+  options?: { includeAgreedRegular?: boolean; expenseDrafts?: ExpenseDraft[]; partnerUrakkaOnly?: boolean },
 ) {
   const { showRegular, showOvertime, showOnCall, showFixed } = hourFieldsForEntryType(form.entry_type);
   const hourlyOverride = parseOptionalHourlyRateOverride(form.hourly_rate_override);
@@ -504,7 +507,7 @@ function buildLogPayload(
     const n = Number(text);
     return Number.isFinite(n) && n >= 0 ? n : null;
   };
-  const customerFixedAmount = showFixed ? parseAmount(form.customer_fixed_price_amount) : null;
+  let customerFixedAmount = showFixed ? parseAmount(form.customer_fixed_price_amount) : null;
   const marginRaw = String(form.partner_urakka_margin_percent ?? '').trim();
   const marginPercent =
     marginRaw && Number.isFinite(Number(marginRaw)) ? Number(marginRaw) : DEFAULT_PARTNER_URAKKA_MARGIN_PERCENT;
@@ -512,7 +515,14 @@ function buildLogPayload(
   // 0 € tai tyhjä = päivää ei laskuteta; tunnit vain kalenteriin.
   let partnerFixedAmount: number | null = null;
   let storedMargin: number | null = null;
-  if (showFixed) {
+  if (showFixed && options?.partnerUrakkaOnly) {
+    // Kumppaniraportti: hinta = kumppanille laskutettava, ei provisiota eikä johdettua asiakashintaa.
+    partnerFixedAmount = parseAmount(form.fixed_price_amount);
+    customerFixedAmount = form.customer_price_synthetic ? null : customerFixedAmount;
+    storedMargin = customerFixedAmount != null && form.partner_urakka_margin_percent.trim() && !form.partner_urakka_manual
+      ? marginPercent
+      : null;
+  } else if (showFixed) {
     if (form.partner_urakka_manual) {
       partnerFixedAmount = parseAmount(form.fixed_price_amount);
     } else if (customerFixedAmount != null) {
@@ -819,7 +829,20 @@ export function DailyLogFields({
             quickbarAriaLabel="Lisää päivystystunteja"
           />
         )}
-        {showFixed && (
+        {showFixed && showPartnerPrices ? (
+          <label>
+            Urakkahinta kumppanille (€)
+            <input
+              type="number"
+              step="0.01"
+              min="0"
+              value={form.fixed_price_amount}
+              onChange={(e) => setForm({ ...form, fixed_price_amount: e.target.value })}
+              placeholder="0 = ei laskuteta"
+            />
+          </label>
+        ) : null}
+        {showFixed && !showPartnerPrices && (
           <>
             <label>
               Urakkahinta asiakkaalle (€)
@@ -966,7 +989,12 @@ export function DailyLogFields({
           ) : null}
         </div>
       ) : null}
-      {showFixed && (
+      {showFixed && showPartnerPrices ? (
+        <p className="muted" style={{ margin: '0 0 .65rem' }}>
+          Kumppanille laskutettava: <strong>{formatEuro(Number(form.fixed_price_amount) > 0 ? Number(form.fixed_price_amount) : 0)}</strong>
+        </p>
+      ) : null}
+      {showFixed && !showPartnerPrices && (
         <div className="urakka-billing-split">
           <label className="compact-option">
             <CheckToggle
@@ -2612,6 +2640,7 @@ export default function WorkReportDetailPage({ session }: Props) {
     const payload = buildLogPayload(logForm, {
       includeAgreedRegular: agreedRegularSupported,
       expenseDrafts: expensesForPayload,
+      partnerUrakkaOnly: partnerBillingOn && isPartnerReport,
     });
 
     const performerId = resolveReportPerformerUserId(report) ?? session.user.id;
@@ -3085,6 +3114,7 @@ export default function WorkReportDetailPage({ session }: Props) {
     const payload = buildLogPayload(logForm, {
       includeAgreedRegular: agreedRegularSupported,
       expenseDrafts: expensesForPayload,
+      partnerUrakkaOnly: partnerBillingOn && isPartnerReport,
     });
 
     const performerId = resolveReportPerformerUserId(report) ?? session.user.id;
