@@ -1,5 +1,9 @@
 import type { WorkReportDailyLog } from '../types';
-import { formatEuro } from './workReportBilling';
+
+// Ei importteja workReportBillingiin: tämä moduuli on lehti (muuten kiertoviittaus → TDZ tuotannossa).
+function formatEuro(amount: number) {
+  return `${amount.toFixed(2).replace('.', ',')} €`;
+}
 
 export const DEFAULT_PARTNER_URAKKA_MARGIN_PERCENT = 10;
 
@@ -21,10 +25,20 @@ export function computePartnerUrakkaFromCustomer(
   return roundUrakkaMoney(customerAmount * (1 - clamped / 100));
 }
 
+function storedAmount(value: number | string | null | undefined): number | null {
+  if (value == null || String(value).trim() === '') return null;
+  const n = Number(value);
+  return Number.isFinite(n) && n >= 0 ? n : null;
+}
+
+/**
+ * Asiakkaan urakkahinta tältä kirjaukselta. 0 € = päivää ei laskuteta (vain kalenteri).
+ * Vanha kirjaus ilman asiakashintaa: fixed_price_amount on sama hinta molemmille.
+ */
 export function resolveUrakkaCustomerAmount(log: UrakkaLog): number | null {
   if (log.entry_type !== 'fixed_price') return null;
-  const customer = Number(log.customer_fixed_price_amount);
-  if (customer > 0) return customer;
+  const customer = storedAmount(log.customer_fixed_price_amount);
+  if (customer != null) return customer > 0 ? customer : null;
   const legacy = Number(log.fixed_price_amount);
   if (legacy > 0) return legacy;
   return null;
@@ -32,8 +46,8 @@ export function resolveUrakkaCustomerAmount(log: UrakkaLog): number | null {
 
 export function resolveUrakkaPartnerAmount(log: UrakkaLog): number | null {
   if (log.entry_type !== 'fixed_price') return null;
-  const partnerStored = Number(log.fixed_price_amount);
-  if (partnerStored > 0) return partnerStored;
+  const partnerStored = storedAmount(log.fixed_price_amount);
+  if (partnerStored != null) return partnerStored > 0 ? partnerStored : null;
   const customer = Number(log.customer_fixed_price_amount);
   if (customer > 0) {
     const margin =
@@ -70,4 +84,22 @@ export function urakkaCustomerLineDescription(log: UrakkaLog): string {
     return 'Urakkahinta · asiakkaalta (kumppani saa erillisen hinnan)';
   }
   return 'Urakkahinta · asiakkaalta';
+}
+
+/** Vain tämän kirjauksen kumppanihinta (0 € kun hinta on 0 tai tyhjä). */
+export function previewPartnerUrakkaAmount(form: {
+  partner_urakka_manual: boolean;
+  fixed_price_amount: string;
+  customer_fixed_price_amount: string;
+  partner_urakka_margin_percent: string;
+}): number {
+  if (form.partner_urakka_manual) {
+    const manual = Number(form.fixed_price_amount);
+    return manual > 0 ? manual : 0;
+  }
+  const customer = Number(form.customer_fixed_price_amount);
+  if (!(customer > 0)) return 0;
+  const marginRaw = String(form.partner_urakka_margin_percent ?? '').trim();
+  const margin = marginRaw && Number.isFinite(Number(marginRaw)) ? Number(marginRaw) : DEFAULT_PARTNER_URAKKA_MARGIN_PERCENT;
+  return computePartnerUrakkaFromCustomer(customer, margin);
 }
