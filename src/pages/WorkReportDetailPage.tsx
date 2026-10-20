@@ -235,6 +235,7 @@ import {
 import {
   computePartnerUrakkaFromCustomer,
   DEFAULT_PARTNER_URAKKA_MARGIN_PERCENT,
+  previewPartnerUrakkaAmount,
 } from '../lib/workReportUrakkaBilling';
 import { refreshAndPersistPartnerBillable, markPartnerBillableRecalcNeeded } from '../lib/workReportPartnerBillingPersist';
 import { useReportQuoteLinker } from '../components/QuoteWorkReportLinker';
@@ -429,6 +430,24 @@ function addHourValue(current: string, delta: number): string {
   return String(Math.round(next * 100) / 100);
 }
 
+/** Urakkakentät lomakkeelle. 0 € näytetään 0:na; vanha kirjaus (vain yksi hinta) = sama hinta molemmille. */
+function urakkaLogToForm(log: WorkReportDailyLog) {
+  const amount = (value: number | null | undefined) =>
+    value == null || !Number.isFinite(Number(value)) ? '' : String(Number(value));
+  const customer = amount(log.customer_fixed_price_amount);
+  const partner = amount(log.fixed_price_amount);
+  const margin = log.partner_urakka_margin_percent;
+  const legacySinglePrice = log.entry_type === 'fixed_price' && customer === '' && Number(partner) > 0;
+  return {
+    fixed_price_amount: partner,
+    customer_fixed_price_amount: legacySinglePrice ? partner : customer,
+    partner_urakka_margin_percent:
+      margin != null ? String(margin) : String(DEFAULT_PARTNER_URAKKA_MARGIN_PERCENT),
+    partner_urakka_manual:
+      legacySinglePrice || (Number(log.customer_fixed_price_amount) > 0 && Number(log.fixed_price_amount) > 0 && margin == null),
+  };
+}
+
 function logToForm(log: WorkReportDailyLog): DailyLogFormState {
   return {
     log_date: log.log_date.slice(0, 10),
@@ -439,22 +458,7 @@ function logToForm(log: WorkReportDailyLog): DailyLogFormState {
     hours_regular: Number(log.hours_regular) > 0 ? String(log.hours_regular) : '',
     hours_overtime: Number(log.hours_overtime) > 0 ? String(log.hours_overtime) : '',
     hours_on_call: Number(log.hours_on_call) > 0 ? String(log.hours_on_call) : '',
-    fixed_price_amount:
-      log.fixed_price_amount != null && Number(log.fixed_price_amount) > 0
-        ? String(log.fixed_price_amount)
-        : '',
-    customer_fixed_price_amount:
-      log.customer_fixed_price_amount != null && Number(log.customer_fixed_price_amount) > 0
-        ? String(log.customer_fixed_price_amount)
-        : '',
-    partner_urakka_margin_percent:
-      log.partner_urakka_margin_percent != null
-        ? String(log.partner_urakka_margin_percent)
-        : String(DEFAULT_PARTNER_URAKKA_MARGIN_PERCENT),
-    partner_urakka_manual:
-      Number(log.customer_fixed_price_amount) > 0
-      && Number(log.fixed_price_amount) > 0
-      && log.partner_urakka_margin_percent == null,
+    ...urakkaLogToForm(log),
     hourly_rate_override: formatHourlyRateOverrideForForm(log.hourly_rate_override),
     customer_hourly_rate_override: formatHourlyRateOverrideForForm(log.customer_hourly_rate_override),
     commission_amount: Number(log.commission_amount) > 0 ? String(log.commission_amount) : '',
@@ -494,22 +498,26 @@ function buildLogPayload(
   const hourlyOverride = parseOptionalHourlyRateOverride(form.hourly_rate_override);
   const customerHourlyOverride = parseOptionalHourlyRateOverride(form.customer_hourly_rate_override);
 
-  const customerFixedRaw = String(form.customer_fixed_price_amount ?? '').trim();
-  const customerFixedAmount =
-    showFixed && customerFixedRaw && Number(customerFixedRaw) > 0 ? Number(customerFixedRaw) : null;
+  const parseAmount = (raw: string | null | undefined) => {
+    const text = String(raw ?? '').trim().replace(',', '.');
+    if (!text) return null;
+    const n = Number(text);
+    return Number.isFinite(n) && n >= 0 ? n : null;
+  };
+  const customerFixedAmount = showFixed ? parseAmount(form.customer_fixed_price_amount) : null;
   const marginRaw = String(form.partner_urakka_margin_percent ?? '').trim();
   const marginPercent =
     marginRaw && Number.isFinite(Number(marginRaw)) ? Number(marginRaw) : DEFAULT_PARTNER_URAKKA_MARGIN_PERCENT;
 
+  // 0 € tai tyhjä = päivää ei laskuteta; tunnit vain kalenteriin.
   let partnerFixedAmount: number | null = null;
   let storedMargin: number | null = null;
   if (showFixed) {
-    if (customerFixedAmount != null && !form.partner_urakka_manual) {
+    if (form.partner_urakka_manual) {
+      partnerFixedAmount = parseAmount(form.fixed_price_amount);
+    } else if (customerFixedAmount != null) {
       partnerFixedAmount = computePartnerUrakkaFromCustomer(customerFixedAmount, marginPercent);
       storedMargin = marginPercent;
-    } else {
-      const partnerRaw = String(form.fixed_price_amount ?? '').trim();
-      partnerFixedAmount = partnerRaw && Number(partnerRaw) > 0 ? Number(partnerRaw) : null;
     }
   }
 
@@ -549,28 +557,10 @@ function buildLogPayload(
   };
 }
 
-function previewPartnerUrakkaAmount(form: DailyLogFormState): number | null {
-  if (form.partner_urakka_manual) {
-    const manual = Number(form.fixed_price_amount);
-    return manual > 0 ? manual : null;
-  }
-  const customer = Number(form.customer_fixed_price_amount);
-  if (customer > 0) {
-    const margin = Number(form.partner_urakka_margin_percent) || DEFAULT_PARTNER_URAKKA_MARGIN_PERCENT;
-    return computePartnerUrakkaFromCustomer(customer, margin);
-  }
-  const legacy = Number(form.fixed_price_amount);
-  return legacy > 0 ? legacy : null;
-}
-
 function applyUrakkaCustomerPrice(form: DailyLogFormState, customerValue: string): DailyLogFormState {
   const next = { ...form, customer_fixed_price_amount: customerValue };
   if (!form.partner_urakka_manual) {
-    const customer = Number(customerValue);
-    if (customer > 0) {
-      const margin = Number(form.partner_urakka_margin_percent) || DEFAULT_PARTNER_URAKKA_MARGIN_PERCENT;
-      next.fixed_price_amount = String(computePartnerUrakkaFromCustomer(customer, margin));
-    }
+    next.fixed_price_amount = String(previewPartnerUrakkaAmount(next));
   }
   return next;
 }
@@ -578,11 +568,7 @@ function applyUrakkaCustomerPrice(form: DailyLogFormState, customerValue: string
 function applyUrakkaMargin(form: DailyLogFormState, marginValue: string): DailyLogFormState {
   const next = { ...form, partner_urakka_margin_percent: marginValue };
   if (!form.partner_urakka_manual) {
-    const customer = Number(form.customer_fixed_price_amount);
-    if (customer > 0) {
-      const margin = Number(marginValue) || DEFAULT_PARTNER_URAKKA_MARGIN_PERCENT;
-      next.fixed_price_amount = String(computePartnerUrakkaFromCustomer(customer, margin));
-    }
+    next.fixed_price_amount = String(previewPartnerUrakkaAmount(next));
   }
   return next;
 }
@@ -754,11 +740,6 @@ export function DailyLogFields({
         title="Tunnit"
         subtitle={dailyLogHoursSubtitle(form)}
         color={DAILY_LOG_SECTION_COLORS.hours}
-        incomplete={
-          form.entry_type === 'fixed_price'
-            ? !(Number(form.customer_fixed_price_amount) > 0 || Number(form.fixed_price_amount) > 0)
-            : false
-        }
         wide
       >
         {showQuoteLinkedCategories && !calendarOnlyHours ? (
@@ -848,7 +829,7 @@ export function DailyLogFields({
                 min="0"
                 value={form.customer_fixed_price_amount}
                 onChange={(e) => setForm(applyUrakkaCustomerPrice(form, e.target.value))}
-                placeholder="Hinta joka laskutetaan asiakkaalta"
+                placeholder="0 = ei laskuteta"
               />
             </label>
             {!form.partner_urakka_manual ? (
@@ -1002,7 +983,7 @@ export function DailyLogFields({
             />
             Kumppanihinta sovittu erikseen (syötä suoraan)
           </label>
-          {!form.partner_urakka_manual && partnerUrakkaPreview != null ? (
+          {!form.partner_urakka_manual ? (
             <p className="muted" style={{ margin: '0 0 .65rem' }}>
               Kumppanille laskutettava: <strong>{formatEuro(partnerUrakkaPreview)}</strong>
               {Number(form.customer_fixed_price_amount) > 0 ? (
@@ -2989,7 +2970,7 @@ export default function WorkReportDetailPage({ session }: Props) {
       focusAddBaseKeysRef.current = new Set();
       setEditingLogId(null);
       setEditingLog(null);
-      setLogForm({ ...initialLogForm(), log_date: date, work_done: DAILY_LOG_ADD_DEFAULT_WORK[kind] ?? '' });
+      setLogForm({ ...newLogFormForReport(), log_date: date, work_done: DAILY_LOG_ADD_DEFAULT_WORK[kind] ?? '' });
       setExpenseDrafts((current) => current.filter((row) => isNew(row.key) && !isLikelyAutoTripKmExpense(row)));
       void setupTripLegsForDialog(tripDrafts.filter((row) => isNew(row.key)));
       setRefrigerantDrafts([]);
@@ -2998,12 +2979,18 @@ export default function WorkReportDetailPage({ session }: Props) {
     setFocusAddTargetLogId(target?.id ?? null);
   }
 
+  /** Urakkatyössä uusi päivä on oletuksena urakkapäivä ilman hintaa (tunnit vain kalenteriin). */
+  function newLogFormForReport(): DailyLogFormState {
+    const base = initialLogForm();
+    return dailyLogs.some((log) => log.entry_type === 'fixed_price') ? { ...base, entry_type: 'fixed_price' } : base;
+  }
+
   function openAddLogDialog() {
     setLogDialogPreset(null);
     setQuoteCommissionDraft(quoteCommissionDraftFromSettings(billingQuoteSettings));
     setEditingLogId(null);
     setEditingLog(null);
-    setLogForm(initialLogForm());
+    setLogForm(newLogFormForReport());
     // Ensimmäinen kirjaus: tarjouksen tarvike-/kulurivit valmiiksi (0 €, kuuluu urakkaan).
     const offered = dailyLogs.length === 0 ? pendingQuoteRows : [];
     setOfferedQuoteRows(offered);
