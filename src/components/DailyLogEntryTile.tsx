@@ -1,3 +1,4 @@
+import { parseDailyLogPartnerBilling } from '../lib/commissionBillingMode';
 import type { WorkReportDailyLog } from '../types';
 import { expenseLinePriceMissing } from '../lib/expensePriceMissing';
 import { EXPENSE_TYPE_LABELS, HOUR_ENTRY_LABELS } from '../types';
@@ -83,7 +84,9 @@ export function buildDailyLogEntryTiles(
     logId: log.id,
     title: dateLabel,
     subtitle: workSubtitleParts.join(' · '),
-    ...(options.partnerBilling?.commissionOnly
+    ...(parseDailyLogPartnerBilling(log.partner_billing).extra_billing === true
+      ? { marker: 'lisälaskutus' }
+      : options.partnerBilling?.commissionOnly
       ? { marker: 'kumppanilta vain provisio' }
       : options.partnerBilling && !options.partnerBilling.hoursBilled
         ? { marker: 'ei kumppanilaskutukseen' }

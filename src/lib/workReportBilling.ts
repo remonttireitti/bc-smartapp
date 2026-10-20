@@ -1,6 +1,7 @@
 import {
   expensePartnerBilled,
   logHoursPartnerBilled,
+  logIsExtraBilling,
   logTripsPartnerBilled,
   partnerBillingContext,
 } from './commissionBillingMode';
@@ -81,6 +82,8 @@ export type BillableLine = {
   warehouseDeduction?: 'pending' | 'deducted';
   /** Päiväkirjan kulurivin tyyppi (material, part, parking, km, other) — tarjouskategoria. */
   expenseType?: string;
+  /** Lisälaskutus-osion rivi (urakan päälle). */
+  extraBilling?: boolean;
 };
 
 export type BillableUserSummary = {
@@ -359,6 +362,7 @@ export function calculateWorkReportBillable(input: {
     const hoursRowBilled = logHoursPartnerBilled(partnerCtx, log);
     const tripsRowBilled = logTripsPartnerBilled(partnerCtx, log);
     const commissionOnlyAuthor = partnerCtx.commissionOnly.has(log.created_by ?? '');
+    const logLineStart = summary.lines.length;
     const reasonFor = (rowBilled: boolean) =>
       commissionOnlyAuthor
         ? ({ notBilledReason: 'commission_only' } as const)
@@ -530,6 +534,11 @@ export function calculateWorkReportBillable(input: {
       });
       if (billed) summary.expensesTotal += total;
       else if (billToPartner) summary.excludedSubtotal += fullTotal;
+    }
+
+    // Lisälaskutus: tunnit/kulut omana osionaan; provisio pysyy erillisenä rivinä.
+    if (logIsExtraBilling(log)) {
+      for (let i = logLineStart; i < summary.lines.length; i += 1) summary.lines[i].extraBilling = true;
     }
 
     if (Number(log.commission_amount) > 0) {
@@ -1188,4 +1197,13 @@ export function hasZeroHourlyRates(calculation: BillableCalculation) {
   );
   if (hourLines.length === 0) return false;
   return hourLines.some((line) => line.unitPrice <= 0);
+}
+
+/** Lisälaskutus-osion summa (laskutettavat rivit). */
+export function extraBillingTotal(calculation: Pick<BillableCalculation, 'byUser'>): number {
+  let sum = 0;
+  for (const user of calculation.byUser ?? []) {
+    for (const line of user.lines ?? []) if (line.included && line.extraBilling) sum += Number(line.total) || 0;
+  }
+  return Math.round(sum * 100) / 100;
 }

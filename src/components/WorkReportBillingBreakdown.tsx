@@ -1,4 +1,6 @@
+import { Fragment } from 'react';
 import {
+  extraBillingTotal,
   formatEuro,
   type BillableCalculation,
   type BillableLine,
@@ -75,7 +77,11 @@ export default function WorkReportBillingBreakdown({
   billedAmount,
   openAmount,
 }: Props) {
-  const billedLines = collectDetailRows(calculation, true);
+  const billedAll = collectDetailRows(calculation, true);
+  const extraLines = billedAll.filter((line) => line.extraBilling);
+  const billedLines = [...billedAll.filter((line) => !line.extraBilling), ...extraLines];
+  const firstExtraIndex = billedLines.length - extraLines.length;
+  const extraTotal = extraBillingTotal(calculation);
   const excludedLines = collectDetailRows(calculation, false);
   const isQuoteFixed = calculation.billingMode === 'quote_fixed';
   const isQuotePlusExtras = calculation.billingMode === 'quote_plus_extras';
@@ -158,7 +164,14 @@ export default function WorkReportBillingBreakdown({
               </tr>
             ) : (
               billedLines.map((line, index) => (
-                <tr key={`${line.logId}-${line.kind}-${index}`}>
+                <Fragment key={`${line.logId}-${line.kind}-${index}`}>
+                {extraLines.length > 0 && index === firstExtraIndex ? (
+                  <tr className="billing-extra-heading">
+                    <td colSpan={6}><strong>Lisälaskutus</strong></td>
+                    <td className="num"><strong>{formatEuro(extraTotal)}</strong></td>
+                  </tr>
+                ) : null}
+                <tr>
                   <td>{formatDate(line.logDate)}</td>
                   <td>{line.userName}</td>
                   <td>{lineKindLabel(line)}</td>
@@ -185,6 +198,7 @@ export default function WorkReportBillingBreakdown({
                     </strong>
                   </td>
                 </tr>
+                </Fragment>
               ))
             )}
           </tbody>

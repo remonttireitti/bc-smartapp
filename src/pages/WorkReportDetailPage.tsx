@@ -349,6 +349,8 @@ function initialLogForm() {
     customer_fixed_price_amount: '',
     partner_urakka_margin_percent: String(DEFAULT_PARTNER_URAKKA_MARGIN_PERCENT),
     partner_urakka_manual: false,
+    /** Urakkaraportin lisälaskutus (partner_billing.extra_billing). */
+    partner_extra_billing: false,
     /** Vanha yksihintainen urakka: asiakaskenttä täytetty lomakkeelle, ei tallennettu. */
     customer_price_synthetic: false,
     hourly_rate_override: '',
@@ -470,6 +472,7 @@ function logToForm(log: WorkReportDailyLog): DailyLogFormState {
       ?? DEFAULT_COMMISSION_BILLING_MODE,
     hours_billed: parseDailyLogPartnerBilling(log.partner_billing).hours_billed !== false,
     trips_billed: parseDailyLogPartnerBilling(log.partner_billing).trips_billed !== false,
+    partner_extra_billing: parseDailyLogPartnerBilling(log.partner_billing).extra_billing === true,
     work_done: log.work_done,
     hours_agreed_regular:
       Number(log.hours_agreed_regular) > 0 ? String(log.hours_agreed_regular) : '',
@@ -554,6 +557,7 @@ function buildLogPayload(
               Number(form.commission_amount || 0) > 0 ? form.commission_mode : undefined,
             hours_billed: form.hours_billed,
             trips_billed: form.trips_billed,
+            extra_billing: form.partner_extra_billing && form.entry_type !== 'fixed_price',
           }),
         }
       : {}),
@@ -606,6 +610,7 @@ export function DailyLogFields({
   quoteCommission,
   authorCommissionPlusElsewhere = false,
   partnerBillingEnabled = true,
+  showExtraBillingToggle = false,
 }: {
   form: DailyLogFormState;
   setForm: React.Dispatch<React.SetStateAction<DailyLogFormState>>;
@@ -640,6 +645,8 @@ export function DailyLogFields({
   authorCommissionPlusElsewhere?: boolean;
   /** Kumppanuudet-moduuli: provision kumppanilaskutustapa ja rivikohtaiset kumppanivalinnat. */
   partnerBillingEnabled?: boolean;
+  /** Urakkaraportti: Lisälaskutus-kytkin tuntikirjaukselle. */
+  showExtraBillingToggle?: boolean;
 }) {
   const partnerRowToggles =
     partnerBillingEnabled
@@ -988,6 +995,15 @@ export function DailyLogFields({
             />
           ) : null}
         </div>
+      ) : null}
+      {showExtraBillingToggle && !showFixed ? (
+        <label className="compact-option">
+          <CheckToggle
+            checked={form.partner_extra_billing}
+            onChange={(e) => setForm({ ...form, partner_extra_billing: e.target.checked })}
+          />
+          Lisälaskutus (urakan päälle)
+        </label>
       ) : null}
       {showFixed && showPartnerPrices ? (
         <p className="muted" style={{ margin: '0 0 .65rem' }}>
@@ -3014,6 +3030,14 @@ export default function WorkReportDetailPage({ session }: Props) {
     return dailyLogs.some((log) => log.entry_type === 'fixed_price') ? { ...base, entry_type: 'fixed_price' } : base;
   }
 
+  /** Urakkaraportin lisälaskutus: tavallinen tuntikirjaus, laskutetaan urakan päälle omana osionaan. */
+  function openExtraBillingAdd() {
+    openAddLogDialog();
+    setOfferedQuoteRows([]);
+    setExpenseDrafts([]);
+    setLogForm((current) => ({ ...current, entry_type: 'regular', partner_extra_billing: true }));
+  }
+
   function openAddLogDialog() {
     setLogDialogPreset(null);
     setQuoteCommissionDraft(quoteCommissionDraftFromSettings(billingQuoteSettings));
@@ -3431,6 +3455,7 @@ export default function WorkReportDetailPage({ session }: Props) {
       ? formatEuro(billingQuoteSettings.customer_invoice_total)
       : 'Linkitetty tarjouspyyntö');
   const partnerTileBillingCtx = partnerBillingContext(dailyLogs);
+  const reportHasUrakka = dailyLogs.some((log) => log.entry_type === 'fixed_price');
   const dailyLogEntryTiles = dailyLogs.flatMap((log) =>
     buildDailyLogEntryTiles(log, {
       formatDate,
@@ -3855,6 +3880,11 @@ export default function WorkReportDetailPage({ session }: Props) {
             <button type="button" className="btn btn-secondary work-report-add-log-btn" onClick={() => openFocusedAdd('materials')}>
               + Lisää tarvike tai varaosa
             </button>
+            {reportHasUrakka ? (
+              <button type="button" className="btn btn-secondary work-report-add-log-btn" onClick={openExtraBillingAdd}>
+                + Lisälaskutus
+              </button>
+            ) : null}
           </div>
         )}
         {report.status === 'delegated' && !canAddDailyLogs && (
@@ -4748,7 +4778,7 @@ export default function WorkReportDetailPage({ session }: Props) {
             ? logDialogFocus.adding && focusAddTargetLogId
               ? `${logDialogFocus.title} · lisätään ${formatDate(logForm.log_date)} kirjaukseen`
               : logDialogFocus.title
-            : editingLogId ? 'Muokkaa työkirjausta' : 'Lisää työkirjaus'
+            : logForm.partner_extra_billing ? 'Lisälaskutus' : editingLogId ? 'Muokkaa työkirjausta' : 'Lisää työkirjaus'
         }
         focusSectionKeys={
           logDialogFocus
@@ -4798,6 +4828,7 @@ export default function WorkReportDetailPage({ session }: Props) {
           showPartnerExpenseFields={partnerBillingOn && isPartnerReport}
           partnerBillingEnabled={partnerBillingOn}
           showCustomerExpenseFields={showCustomerBillingFeatures}
+          showExtraBillingToggle={reportHasUrakka}
           defaultHourlyRate={
             billableCalculation?.ratesUsed.hourly_regular
             ?? partnershipRatesPreview.hourly_regular

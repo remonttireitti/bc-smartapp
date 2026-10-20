@@ -235,7 +235,9 @@ function partnerBillingLinesForPrint(
   lines: BillableCalculation['byUser'][number]['lines'] | undefined,
   showPartnerPrices: boolean,
 ) {
-  const safeLines = lines ?? [];
+  const all = lines ?? [];
+  // Lisälaskutus omana osionaan rivien lopussa.
+  const safeLines = [...all.filter((line) => !line.extraBilling), ...all.filter((line) => line.extraBilling)];
   if (!showPartnerPrices) return safeLines;
   return safeLines.filter(
     (line) => line.included || line.kind === 'refrigerant' || !!line.notBilledReason,
@@ -1107,7 +1109,17 @@ function generateWorkReportPrintHtmlRaw(input: {
                 billableUsers(calculation)
                   .flatMap((u) =>
                     partnerBillingLinesForPrint(u.lines, showPartnerPrices).map(
-                      (l) => `<tr>
+                      (l, i, arr) => `${
+                        l.extraBilling && !arr[i - 1]?.extraBilling
+                          ? `<tr><td colspan="${showPartnerPrices ? 6 : 5}"><strong>Lisälaskutus</strong></td>${
+                              showPartnerPrices
+                                ? `<td class="num"><strong>${formatEuro(
+                                    Math.round(arr.filter((x) => x.extraBilling && x.included).reduce((sum, x) => sum + Number(x.total || 0), 0) * 100) / 100,
+                                  )}</strong></td>`
+                                : ''
+                            }</tr>`
+                          : ''
+                      }<tr>
                           <td>${esc(u.userName)}</td>
                           <td>${esc(l.logDate)}</td>
                           <td>${esc(printLineKindLabel(l))}</td>
