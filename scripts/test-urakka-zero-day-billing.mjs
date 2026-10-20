@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
-import { calculateWorkReportBillable } from '../src/lib/workReportBilling.ts';
+import { calculateWorkReportBillable, extraBillingTotal } from '../src/lib/workReportBilling.ts';
+
 import { calculateWorkReportCustomerBillable } from '../src/lib/workReportCustomerBilling.ts';
 import {
   previewPartnerUrakkaAmount,
@@ -61,5 +62,19 @@ assert.equal(previewPartnerUrakkaAmount(f({ customer_fixed_price_amount: '0', fi
 assert.equal(previewPartnerUrakkaAmount(f({ customer_fixed_price_amount: '2500' })), 2250);
 assert.equal(previewPartnerUrakkaAmount(f({ customer_fixed_price_amount: '2500', partner_urakka_margin_percent: '0' })), 2500);
 assert.equal(previewPartnerUrakkaAmount(f({ partner_urakka_manual: true, fixed_price_amount: '0' })), 0);
+
+// Lisälaskutus: urakka 2500 + 2 h × 55 + materiaali 100 = 2710; provisio 10 € erikseen päälle.
+const extra = log('x1', '2026-10-21', {
+  hours_regular: 2, partner_billing: { extra_billing: true },
+  expense_lines: [{ id: 'm1', description: 'Materiaali', expense_type: 'material', qty: 1, unit_price: 100 }],
+});
+const withExtra = partner([urakka, log('d20', '2026-10-20', { entry_type: 'fixed_price', hours_regular: 8, fixed_price_amount: 0, customer_fixed_price_amount: 0 }), extra]);
+assert.equal(withExtra.grandTotal, 2710);
+assert.equal(extraBillingTotal(withExtra), 210);
+assert.equal(withExtra.byUser[0].lines.filter((l) => l.extraBilling).length, 2);
+const withCommission = partner([urakka, { ...extra, commission_amount: 10 }]);
+assert.equal(withCommission.grandTotal, 2720);
+assert.equal(extraBillingTotal(withCommission), 210);
+assert.equal(withCommission.byUser[0].lines.find((l) => l.kind === 'commission').extraBilling, undefined);
 
 console.log('urakka zero-day billing OK');

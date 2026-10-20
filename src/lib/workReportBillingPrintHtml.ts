@@ -1,6 +1,6 @@
-import type { BillableCalculation } from './workReportBilling';
+import type { BillableCalculation, BillableLine } from './workReportBilling';
 import { restrainPrintHtml } from './huoltoRaportti/printShell';
-import { formatEuro } from './workReportBilling';
+import { extraBillingTotal, formatEuro } from './workReportBilling';
 import { BILLABLE_RATES_SOURCE_LABELS } from './management';
 import {
   computePartnerNetMargin,
@@ -63,12 +63,7 @@ function generatePartnerBillingHtmlRaw(input: {
     )
     .join('');
 
-  const detailRows = billableUsers(calculation)
-    .flatMap((u) =>
-      (u.lines ?? [])
-        .filter((l) => l.included)
-        .map(
-          (l) => `
+  const detailRow = (u: { userName: string }, l: BillableLine) => `
         <tr>
           <td>${escapeHtml(u.userName)}</td>
           <td>${escapeHtml(l.logDate)}</td>
@@ -77,10 +72,17 @@ function generatePartnerBillingHtmlRaw(input: {
           <td class="num">${l.qty}</td>
           <td class="num">${formatEuro(l.unitPrice)}</td>
           <td class="num">${formatEuro(l.total)}</td>
-        </tr>`,
-        ),
-    )
+        </tr>`;
+  const users = billableUsers(calculation);
+  const baseRows = users
+    .flatMap((u) => (u.lines ?? []).filter((l) => l.included && !l.extraBilling).map((l) => detailRow(u, l)))
     .join('');
+  const extraRows = users
+    .flatMap((u) => (u.lines ?? []).filter((l) => l.included && l.extraBilling).map((l) => detailRow(u, l)))
+    .join('');
+  const detailRows = extraRows
+    ? `${baseRows}<tr><td colspan="6"><strong>Lisälaskutus</strong></td><td class="num"><strong>${formatEuro(extraBillingTotal(calculation))}</strong></td></tr>${extraRows}`
+    : baseRows;
 
   return `<!doctype html>
 <html lang="fi">

@@ -6,6 +6,8 @@ export interface DailyLogPartnerBilling {
   commission_mode?: CommissionBillingMode;
   hours_billed?: boolean;
   trips_billed?: boolean;
+  /** Urakkaraportin lisälaskutus: laskutetaan kumppanilta urakan päälle omana osionaan. */
+  extra_billing?: boolean;
 }
 
 export const DEFAULT_COMMISSION_BILLING_MODE: CommissionBillingMode = 'commission_plus';
@@ -27,6 +29,7 @@ export function parseDailyLogPartnerBilling(raw: unknown): DailyLogPartnerBillin
   }
   if (v.hours_billed === false) out.hours_billed = false;
   if (v.trips_billed === false) out.trips_billed = false;
+  if (v.extra_billing === true) out.extra_billing = true;
   return out;
 }
 
@@ -38,6 +41,7 @@ export function serializeDailyLogPartnerBilling(
   if (value.commission_mode === 'commission_only') out.commission_mode = 'commission_only';
   if (value.hours_billed === false) out.hours_billed = false;
   if (value.trips_billed === false) out.trips_billed = false;
+  if (value.extra_billing === true) out.extra_billing = true;
   return Object.keys(out).length ? out : null;
 }
 
@@ -103,4 +107,9 @@ export function notBilledReason(
 ): 'commission_only' | 'toggle' | null {
   if (isCommissionOnly(ctx, log)) return 'commission_only';
   return rowBilled ? null : 'toggle';
+}
+
+/** Lisälaskutus-kirjaus (urakkaraportissa urakan päälle laskutettava työ/kulut). */
+export function logIsExtraBilling(log: { partner_billing?: unknown }): boolean {
+  return parseDailyLogPartnerBilling(log.partner_billing).extra_billing === true;
 }
