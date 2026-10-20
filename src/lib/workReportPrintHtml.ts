@@ -1,4 +1,3 @@
-import { resolveUrakkaPartnerAmount } from './workReportUrakkaBilling';
 import { logHoursPartnerBilled, partnerBillingContext } from './commissionBillingMode';
 import { expenseLineHasNoPrice } from './expensePriceMissing';
 import { restrainPrintHtml } from './huoltoRaportti/printShell';
@@ -1546,7 +1545,7 @@ function summarizeLogs(
 
   for (const log of logs) {
     if (log.entry_type === 'fixed_price') {
-      fixed += resolveUrakkaPartnerAmount(log) ?? 0;
+      fixed += Number(log.fixed_price_amount || 0);
       fixedEntries += 1;
     } else if (log.entry_type === 'regular') {
       hours += Number(log.hours_regular);

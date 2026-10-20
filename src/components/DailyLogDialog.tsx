@@ -58,7 +58,7 @@ function DailyLogDialogFrame({
         {focused ? (
           onOpenFull ? (
             <p className="daily-log-dialog-hint">
-              <button type="button" className="btn btn-secondary btn-sm" onClick={onOpenFull} disabled={busy}>
+              <button type="button" className="btn-link" onClick={onOpenFull} disabled={busy}>
                 Avaa koko kirjaus
               </button>
             </p>
