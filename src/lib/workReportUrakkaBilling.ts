@@ -1,5 +1,9 @@
 import type { WorkReportDailyLog } from '../types';
-import { formatEuro } from './workReportBilling';
+
+// Ei importteja workReportBillingiin: tämä moduuli on lehti (muuten kiertoviittaus → TDZ tuotannossa).
+function formatEuro(amount: number) {
+  return `${amount.toFixed(2).replace('.', ',')} €`;
+}
 
 export const DEFAULT_PARTNER_URAKKA_MARGIN_PERCENT = 10;
 
