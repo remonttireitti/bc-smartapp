@@ -73,7 +73,8 @@ export function dailyLogHoursSubtitle(
     if (customer > 0) return `Urakka ${customer.toFixed(2)} €`;
     const partner = Number(form.fixed_price_amount);
     if (partner > 0) return `Urakka ${partner.toFixed(2)} €`;
-    return 'Urakkahinta';
+    const hours = Number(form.hours_regular);
+    return hours > 0 ? `${form.hours_regular} h · ei laskuteta` : 'Ei laskuteta';
   }
 
   const parts: string[] = [];
