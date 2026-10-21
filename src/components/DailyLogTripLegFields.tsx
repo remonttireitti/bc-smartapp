@@ -184,7 +184,7 @@ export default function DailyLogTripLegFields({
         ) : null}
 
         <p className="muted trip-leg-hint">
-          Valinnainen.{rateLabel ? ` Km-korvaus ${rateLabel}.` : ' Aseta €/km: Yrityksen hallinta → Yritys.'}
+          Valinnainen.{!rateLabel ? ' Aseta €/km: Yrityksen hallinta → Yritys.' : totalKm > 0 ? '' : ` Km-korvaus ${rateLabel}.`}
         </p>
         {calcError ? <p className="error trip-leg-calc-error">{calcError}</p> : null}
 
