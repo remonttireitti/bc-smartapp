@@ -5,6 +5,7 @@ import {
   logTripsPartnerBilled,
   partnerBillingContext,
 } from './commissionBillingMode';
+import { logHoursWarranty } from './workReportWarranty';
 import type { WorkReportDailyLog } from '../types';
 import { resolveDailyLogAuthorLabel, sumDailyCommission } from '../types';
 import type { BillableRatesSource, PartnerBillingRates } from './management';
@@ -84,6 +85,9 @@ export type BillableLine = {
   expenseType?: string;
   /** Lisälaskutus-osion rivi (urakan päälle). */
   extraBilling?: boolean;
+  /** Takuu: total 0, warrantyValue = arvo jota ei laskuteta. */
+  warranty?: boolean;
+  warrantyValue?: number;
 };
 
 export type BillableUserSummary = {
@@ -381,26 +385,35 @@ export function calculateWorkReportBillable(input: {
       policy: overtimePolicy,
       resolveUnitPrice: (kind, hourLog) => resolveHourUnitPrice(hourLog, kind, rates),
     });
-    if (log.entry_type === 'fixed_price') {
-      const total = resolveUrakkaPartnerAmount(log);
-      if (total == null || total <= 0) continue;
+    const hoursWarranty = logHoursWarranty(log);
+    const urakkaTotal = log.entry_type === 'fixed_price' ? resolveUrakkaPartnerAmount(log) : null;
+    if (urakkaTotal != null && urakkaTotal > 0) {
       const included = hoursEnabled && hoursRowBilled;
+      const total = hoursWarranty ? 0 : urakkaTotal;
       summary.lines.push({
         logId: log.id,
         logDate: log.log_date,
         kind: 'fixed_price',
         description: urakkaPartnerLineDescription(log),
         qty: 1,
-        unitPrice: total,
+        unitPrice: urakkaTotal,
         total,
         included,
         ...reasonFor(hoursRowBilled),
+        ...(hoursWarranty ? { warranty: true, warrantyValue: urakkaTotal } : {}),
       });
       if (included) summary.fixedTotal += total;
       else summary.excludedSubtotal += total;
     }
 
     for (const hl of hourLines) {
+      if (hoursWarranty) {
+        summary.lines.push({
+          logId: log.id, logDate: log.log_date, kind: hl.kind, description: hl.label, qty: hl.qty,
+          unitPrice: hl.unitPrice, total: 0, included: true, warranty: true, warrantyValue: lineTotal(hl.qty, hl.unitPrice),
+        });
+        continue;
+      }
       const total = lineTotal(hl.qty, hl.unitPrice);
       const included = hoursEnabled && hoursRowBilled;
       summary.lines.push({
@@ -433,6 +446,14 @@ export function calculateWorkReportBillable(input: {
               unitPrice: Number(expense.unit_price),
               total: lineTotal(Number(expense.qty), Number(expense.unit_price)),
             };
+      if (expense.warranty === true) {
+        summary.lines.push({
+          logId: log.id, logDate: log.log_date, kind: 'expense', description: expense.description, qty: billed.qty,
+          unitPrice: billed.unitPrice, total: 0, included: true, warranty: true, warrantyValue: billed.total,
+          ...(expense.expense_type ? { expenseType: expense.expense_type } : {}),
+        });
+        continue;
+      }
       summary.lines.push({
         logId: log.id,
         logDate: log.log_date,
@@ -1207,6 +1228,15 @@ export function extraBillingTotal(calculation: Pick<BillableCalculation, 'byUser
   let sum = 0;
   for (const user of calculation.byUser ?? []) {
     for (const line of user.lines ?? []) if (line.included && line.extraBilling) sum += Number(line.total) || 0;
+  }
+  return Math.round(sum * 100) / 100;
+}
+
+/** Takuurivien arvo, jota ei laskuteta. */
+export function warrantyTotal(calculation: Pick<BillableCalculation, 'byUser'> | null | undefined): number {
+  let sum = 0;
+  for (const user of calculation?.byUser ?? []) {
+    for (const line of user.lines ?? []) if (line.warranty) sum += Number(line.warrantyValue) || 0;
   }
   return Math.round(sum * 100) / 100;
 }

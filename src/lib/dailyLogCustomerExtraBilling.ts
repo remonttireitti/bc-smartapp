@@ -1,3 +1,4 @@
+import { withoutWarranty } from './workReportWarranty';
 import type { WorkReportDailyLog } from '../types';
 import { isLikelyAutoTripKmExpense } from './tripKmExpense';
 import type { BillingQuoteExtraCustomerWork, BillingQuoteExtraExpenseLine } from './billingQuoteExtraWork';
@@ -100,6 +101,7 @@ function parseSupplyLineFlags(raw: unknown): SupplyLineExtraBillingFlag[] {
         ? { customer_margin_percent: margin }
         : {}),
       ...(row.price_confirmed === true ? { price_confirmed: true } : {}),
+      ...(row.warranty === true ? { warranty: true } : {}),
     });
   }
   return parsed;
@@ -181,6 +183,7 @@ export function serializeDailyLogCustomerExtraBilling(
         ? { customer_margin_percent: row.customer_margin_percent }
         : {}),
       ...(row.price_confirmed === true ? { price_confirmed: true } : {}),
+      ...(row.warranty === true ? { warranty: true } : {}),
     }));
   }
 
@@ -501,8 +504,9 @@ function extraExpenseLinesFromLogExpenseRows(log: WorkReportDailyLog): BillingQu
 }
 
 export function extraCustomerWorkFromDailyLogs(
-  logs: WorkReportDailyLog[],
+  rawLogs: WorkReportDailyLog[],
 ): BillingQuoteExtraCustomerWork[] {
+  const logs = withoutWarranty(rawLogs);
   const works: BillingQuoteExtraCustomerWork[] = [];
   for (const log of logs) {
     const extra = parseDailyLogCustomerExtraBilling(log.customer_extra_billing);
@@ -561,7 +565,8 @@ export function extraCustomerWorkFromDailyLogs(
   return works;
 }
 
-export function shouldCalculateCustomerQuoteExtrasFromLogs(logs: WorkReportDailyLog[]): boolean {
+export function shouldCalculateCustomerQuoteExtrasFromLogs(rawLogs: WorkReportDailyLog[]): boolean {
+  const logs = withoutWarranty(rawLogs);
   return extraCustomerWorkFromDailyLogs(logs).length > 0;
 }
 
@@ -606,7 +611,7 @@ export type QuoteExtrasMarginLine = {
 
 /** Lisälaskutuksen vaikutus katteeseen (asiakas − kumppanilasku − piikki-hankinta). */
 export function computeQuoteExtrasMarginFromLogs(
-  logs: WorkReportDailyLog[],
+  rawLogs: WorkReportDailyLog[],
   partnerRates: { hourly_regular?: number | null },
   customerRates?: { hourly_regular?: number | null },
 ): {
@@ -616,6 +621,7 @@ export function computeQuoteExtrasMarginFromLogs(
   extrasMarginNet: number;
   lines: QuoteExtrasMarginLine[];
 } {
+  const logs = withoutWarranty(rawLogs);
   const partnerHourly = Number(partnerRates.hourly_regular) || 0;
   const customerHourlyDefault = Number(customerRates?.hourly_regular) || 0;
   const lines: QuoteExtrasMarginLine[] = [];
@@ -737,10 +743,11 @@ export type ExtraBillingMarginImpactLine = {
 
 /** Kaikki lisälaskutusrivit katevaikutuksineen — sekä odottavat että hyväksytyt. */
 export function collectExtraBillingMarginImpactLines(
-  logs: WorkReportDailyLog[],
+  rawLogs: WorkReportDailyLog[],
   partnerRates: { hourly_regular?: number | null },
   customerRates?: { hourly_regular?: number | null },
 ): ExtraBillingMarginImpactLine[] {
+  const logs = withoutWarranty(rawLogs);
   const partnerHourly = Number(partnerRates.hourly_regular) || 0;
   const customerHourlyDefault = Number(customerRates?.hourly_regular) || 0;
   const lines: ExtraBillingMarginImpactLine[] = [];
@@ -1028,9 +1035,11 @@ export function annotateExpensePriceConfirmed<T extends WorkReportDailyLog>(logs
     const flags = parseDailyLogCustomerExtraBilling(log.customer_extra_billing).supply_line_flags;
     const annotated = sorted.map((line, index) => {
       const flag = flags?.length ? resolveSupplyLineFlagForExpenseLine(line, index, sorted, flags) : null;
-      return flag?.price_confirmed === true && !(Number(line.unit_price) > 0)
+      let next = flag?.price_confirmed === true && !(Number(line.unit_price) > 0)
         ? { ...line, price_confirmed: true }
         : line;
+      if (flag?.warranty === true) next = { ...next, warranty: true };
+      return next;
     });
     return { ...log, expense_lines: annotated };
   });

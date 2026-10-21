@@ -265,7 +265,7 @@ export function dailyLogExpensesTotal(
   log: WorkReportDailyLog,
   tripKmRate?: number | null,
 ): number {
-  const expenseTotal = (log.expense_lines ?? []).reduce(
+  const expenseTotal = (log.expense_lines ?? []).filter((line) => line.warranty !== true).reduce(
     (sum, line) => sum + expenseLineTotal(line),
     0,
   );

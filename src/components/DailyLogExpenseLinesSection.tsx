@@ -345,6 +345,15 @@ function ExpenseLineEditor({
           onChange={(e) => updateExpenseRow({ ...row, qty: e.target.value })}
         />
       </label>
+      {!autoTripKm ? (
+        <label className="checkbox-label expense-warranty-toggle">
+          <CheckToggle
+            checked={row.warranty === true}
+            onChange={(e) => updateExpenseRow({ ...row, warranty: e.target.checked })}
+          />
+          Takuu
+        </label>
+      ) : null}
 
       {showPartnerPrices ? (
         <div className="expense-billing-panel">

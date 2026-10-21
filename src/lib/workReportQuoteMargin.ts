@@ -1,3 +1,4 @@
+import { withoutWarranty } from './workReportWarranty';
 import type { WorkReportDailyLog } from '../types';
 import {
   dailyLogCustomerExtraBillingHasData,
@@ -42,13 +43,14 @@ export type MarginEatingExpenseLine = {
  * katteesta kahdesti: tarvikkeina JA katetta syövinä kuluina.
  */
 export function analyzeMarginEatingExpenses(
-  logs: WorkReportDailyLog[],
+  rawLogs: WorkReportDailyLog[],
   options?: {
     excludeDiarySupplies?: boolean;
     /** Laiterivit (tyyppi Laite), jotka lasketaan katteen Laite-rivillä päiväkirjan hankintana. */
     excludeDeviceDiaryPurchases?: boolean;
   },
 ): { total: number; lines: MarginEatingExpenseLine[] } {
+  const logs = withoutWarranty(rawLogs);
   const lines: MarginEatingExpenseLine[] = [];
   let total = 0;
 

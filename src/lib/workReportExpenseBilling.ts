@@ -223,6 +223,8 @@ export type SupplyLineExtraBillingFlag = {
   customer_margin_percent?: number | null;
   /** Hinta 0 € vahvistettu (kulua ei syntynyt): ei "hinta puuttuu". */
   price_confirmed?: boolean;
+  /** Takuu: rivi ei laskutu. */
+  warranty?: boolean;
 };
 
 export type ExpenseDraftLike = ExpenseBillingFlags & {
@@ -273,6 +275,7 @@ export function buildSupplyLineFlagsFromExpenseDrafts(
         ...((row as { price_confirmed?: boolean }).price_confirmed === true && !(Number(row.unit_price) > 0)
           ? { price_confirmed: true }
           : {}),
+        ...((row as { warranty?: boolean }).warranty === true ? { warranty: true } : {}),
       };
     });
 }

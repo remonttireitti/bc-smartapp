@@ -1,6 +1,7 @@
 import { Fragment } from 'react';
 import {
   extraBillingTotal,
+  warrantyTotal,
   formatEuro,
   type BillableCalculation,
   type BillableLine,
@@ -82,6 +83,7 @@ export default function WorkReportBillingBreakdown({
   const billedLines = [...billedAll.filter((line) => !line.extraBilling), ...extraLines];
   const firstExtraIndex = billedLines.length - extraLines.length;
   const extraTotal = extraBillingTotal(calculation);
+  const warrantySum = warrantyTotal(calculation);
   const excludedLines = collectDetailRows(calculation, false);
   const isQuoteFixed = calculation.billingMode === 'quote_fixed';
   const isQuotePlusExtras = calculation.billingMode === 'quote_plus_extras';
@@ -174,7 +176,10 @@ export default function WorkReportBillingBreakdown({
                 <tr>
                   <td>{formatDate(line.logDate)}</td>
                   <td>{line.userName}</td>
-                  <td>{lineKindLabel(line)}</td>
+                  <td>
+                    {lineKindLabel(line)}
+                    {line.warranty ? <span className="billing-warranty-tag"> · Takuu</span> : null}
+                  </td>
                   <td>{line.description}</td>
                   <td className="num">{formatBillableLineQty(line.kind, line.qty)}</td>
                   <td className="num">
@@ -204,6 +209,12 @@ export default function WorkReportBillingBreakdown({
           </tbody>
           {billedLines.length > 0 && (
             <tfoot>
+              {warrantySum > 0 ? (
+                <tr className="billing-warranty-total">
+                  <td colSpan={6} className="num">Takuu (ei laskuteta)</td>
+                  <td className="num">{formatEuro(warrantySum)}</td>
+                </tr>
+              ) : null}
               <tr>
                 <td colSpan={6} className="num">
                   <strong>Laskutettava yhteensä</strong>
