@@ -13,6 +13,9 @@ import { formatRefrigerantLineLabelForReport } from './refrigerantInventory';
 import {
   refrigerantSaleToOwnerUnitPrice,
   shouldBillRefrigerantSaleToReportOwner,
+  isRefrigerantCustomerSaleLine,
+  refrigerantCommissionAmount,
+  refrigerantCustomerSaleNet,
 } from './refrigerantPassThrough';
 import {
   formatTripKmExpenseDescription,
@@ -510,6 +513,42 @@ export function calculateWorkReportBillable(input: {
       if (qty <= 0) continue;
       const authorLabel = resolveDailyLogAuthorLabel(log);
       const sellerLabel = authorLabel.name === '—' ? null : authorLabel.name;
+      const refDescription = () => input.report
+        ? formatRefrigerantLineLabelForReport(refLine, input.report, input.viewerCompanyId, sellerLabel)
+        : formatRefrigerantLineLabelForReport(refLine, {
+            owner_company_id: input.billToCompanyId ?? '',
+            created_by_company_id: input.billToCompanyId ?? '',
+          }, input.viewerCompanyId);
+      const customerSale = isRefrigerantCustomerSaleLine(refLine);
+
+      if (refLine.warranty === true) {
+        const value = customerSale
+          ? refrigerantCommissionAmount(refLine)
+          : input.report && shouldBillRefrigerantSaleToReportOwner(refLine, input.report)
+            ? lineTotal(qty, refrigerantSaleToOwnerUnitPrice(refLine))
+            : refLine.bill_to_customer ? lineTotal(qty, Number(refLine.unit_price || 0)) : 0;
+        summary.lines.push({
+          logId: log.id, logDate: log.log_date, kind: 'refrigerant', description: refDescription(), qty,
+          unitPrice: 0, total: 0, included: true, warranty: true, warrantyValue: value,
+        });
+        continue;
+      }
+
+      if (customerSale) {
+        // Kumppanin varasto: kylmäainetta ei myydä kumppanille — vain myyntiprovisio asiakasmyynnistä.
+        const commission = refrigerantCommissionAmount(refLine);
+        if (commission > 0) {
+          const included = hoursEnabled;
+          summary.lines.push({
+            logId: log.id, logDate: log.log_date, kind: 'commission',
+            description: `Myyntiprovisio ${Number(refLine.commission_percent)} % · ${refDescription()} (asiakas ${refrigerantCustomerSaleNet(refLine).toFixed(2).replace('.', ',')} €)`,
+            qty: 1, unitPrice: commission, total: commission, included,
+          });
+          if (included) summary.commissionTotal += commission;
+          else summary.excludedSubtotal += commission;
+        }
+        continue;
+      }
 
       if (input.report && shouldBillRefrigerantSaleToReportOwner(refLine, input.report)) {
         const unitPrice = refrigerantSaleToOwnerUnitPrice(refLine);

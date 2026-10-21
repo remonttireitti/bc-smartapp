@@ -47,6 +47,10 @@ export type RefrigerantLineDraft = {
   qty_kg: string;
   notes: string;
   cylinder_disposition: RefrigerantCylinderDisposition | '';
+  /** Takuu: 0 € kaikille. */
+  warranty?: boolean;
+  /** Kumppanin varasto: myyntiprovisio % asiakasmyynnistä. */
+  commission_percent?: string;
 };
 
 export type RefrigerantCylinderListRow = {
@@ -104,6 +108,8 @@ export function refrigerantLinesToDrafts(lines: WorkReportRefrigerantLine[]): Re
     qty_kg: parseFiNumber(line.qty_kg) > 0 ? String(line.qty_kg) : '',
     notes: line.notes ?? '',
     cylinder_disposition: line.cylinder_disposition ?? 'partial_in_stock',
+    ...(line.warranty === true ? { warranty: true } : {}),
+    ...(line.commission_percent != null && line.commission_percent > 0 ? { commission_percent: String(line.commission_percent) } : {}),
   }));
 }
 
@@ -215,6 +221,8 @@ export function refrigerantBillingReminder(
 export function refrigerantCustomerUnitPrice(line: WorkReportRefrigerantLine): number {
   const customerPrice = line.customer_unit_price != null && String(line.customer_unit_price).trim() !== '' ? parseFiNumber(line.customer_unit_price) : null;
   if (customerPrice != null && customerPrice > 0) return customerPrice;
+  // Kumppanin varaston asiakasmyynti: tyhjä hinta = ei asiakassummaa (ei varastohintaa).
+  if (line.customer_sale === true) return 0;
   return parseFiNumberOr(line.unit_price, 0);
 }
 
@@ -235,7 +243,7 @@ export function validateRefrigerantDrafts(
     if (isWarehouseSource(row.source) && !row.cylinder_disposition) {
       return 'Valitse mitä pulloon jää työkäytön jälkeen.';
     }
-    if (options?.partnerOwnedReport && isWarehouseSource(row.source)) {
+    if (options?.partnerOwnedReport && row.source === 'warehouse') {
       if (!parseFiNumber(row.unit_price)) {
         return 'Anna varastohinta (€/kg) — vähennetään seuraavasta laskutuksesta.';
       }
@@ -300,6 +308,26 @@ function isDraftRowFilled(row: RefrigerantLineDraft): boolean {
   if (isWarehouseSource(row.source) && row.cylinder_id) return true;
   if (row.source === 'supplier' && (row.supplier_name.trim() || row.supplier_paid_by)) return true;
   return false;
+}
+
+/**
+ * partner_billing.refrigerant_flags tallennusjärjestyksessä (samat rivit kuin saveRefrigerantLines lisää).
+ * Kumppanin varasto kumppanin raportilla = asiakasmyynti + provisio.
+ */
+export function refrigerantFlagsFromDrafts(
+  drafts: RefrigerantLineDraft[],
+  options?: { partnerOwnedReport?: boolean },
+): { warranty?: boolean; customer_sale?: boolean; commission_percent?: number }[] {
+  return drafts.filter(isDraftRowValid).map((row) => {
+    const flag: { warranty?: boolean; customer_sale?: boolean; commission_percent?: number } = {};
+    if (row.warranty) flag.warranty = true;
+    if (options?.partnerOwnedReport && row.source === 'partner_warehouse') {
+      flag.customer_sale = true;
+      const pct = parseFiNumber(row.commission_percent ?? '');
+      if (Number.isFinite(pct) && pct > 0 && pct <= 100) flag.commission_percent = pct;
+    }
+    return flag;
+  });
 }
 
 function isDraftRowValid(row: RefrigerantLineDraft): boolean {
