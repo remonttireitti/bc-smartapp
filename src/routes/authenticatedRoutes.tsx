@@ -1,3 +1,4 @@
+import StaticPageReload from '../components/StaticPageReload';
 import { Navigate, useLocation, useParams, type RouteObject } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
 import type { ComponentType } from 'react';
@@ -273,6 +274,7 @@ export function buildAuthenticatedRoutes(session: Session): RouteObject[] {
     { path: '/huoltoraportit/valitse', element: <LicensedMaintenanceNewReportHubPage session={session} /> },
     { path: '/huoltoraportit/uusi/:category', element: <ChecklistNewRoute session={session} /> },
     { path: '/esimerkit/:laji', element: <ExamplePrintPageLazy /> },
+    { path: '/esittely/*', element: <StaticPageReload /> },
     {
       path: '/huoltoraportit/esimerkki-konvektori/tuloste',
       element: <LicensedKonvektoriExamplePrintPage session={session} />,

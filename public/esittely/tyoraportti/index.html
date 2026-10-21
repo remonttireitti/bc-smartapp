@@ -1,0 +1,606 @@
+<!doctype html>
+<html lang="fi">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Työraportti – esimerkki | BestCool</title>
+<meta name="description" content="Esimerkki BestCool-työraportista: työkirjaukset, tunnit, tarvikkeet ja asiakastuloste yhdellä sivulla." />
+<link rel="canonical" href="https://bestcool.eu/esittely/tyoraportti/" />
+<meta property="og:title" content="Työraportti – esimerkki | BestCool" />
+<meta property="og:description" content="Esimerkki BestCool-työraportista: työkirjaukset, tunnit, tarvikkeet ja asiakastuloste yhdellä sivulla." />
+<meta property="og:url" content="https://bestcool.eu/esittely/tyoraportti/" />
+<meta property="og:image" content="https://bestcool.eu/og.png" />
+<link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+
+  
+  
+  <style>
+  
+    .lk-header {
+      margin-bottom: 12px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid #111;
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+    .lk-header-top {
+      display: grid;
+      grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+      gap: 16px;
+      align-items: start;
+    }
+    .lk-header--quote .lk-header-top {
+      grid-template-columns: 1fr;
+      justify-items: center;
+    }
+    .lk-header--quote .lk-logo img {
+      margin: 0 auto;
+    }
+    .lk-logo img {
+      max-height: 56px;
+      max-width: 220px;
+      width: auto;
+      object-fit: contain;
+      display: block;
+    }
+    .lk-contact {
+      text-align: right;
+      color: #333;
+      font-size: 10px;
+      line-height: 1.5;
+    }
+    .lk-company-name {
+      display: block;
+      font-size: 13px;
+      color: #111;
+      margin-bottom: 4px;
+    }
+    .lk-tagline {
+      margin: 10px 0 0;
+      padding: 10px 14px;
+      background: linear-gradient(180deg, #f3f3f3 0%, #f3f3f3 100%);
+      border-left: 1px solid #333;
+      border-radius:0;
+      color: #333;
+      font-size: var(--quote-tagline-font-size, 11.5px);
+      line-height: 1.5;
+      text-align: center;
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+    .lk-header--quote .lk-tagline {
+      border-left: none;
+      border-radius:0;
+      border-top: 1px solid #333;
+    }
+    .lk-footer {
+      margin-top: 14px;
+      padding-top: 10px;
+      border-top: 1px solid #d4d4d4;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 16px;
+      align-items: start;
+      font-size: 9px;
+      color: #444;
+      line-height: 1.45;
+      break-inside: avoid;
+      page-break-inside: avoid;
+      width: 100%;
+    }
+    .lk-footer--contact-only {
+      grid-template-columns: 1fr;
+      margin-top: 16px;
+      padding: 12px 8px 0;
+      border-top: 1px solid #111;
+      gap: 0;
+    }
+    .lk-footer--contact-only .lk-footer-contact {
+      text-align: center;
+      font-size: 10px;
+      line-height: 1.55;
+      color: #333;
+    }
+    .lk-footer--contact-only .lk-footer-contact .lk-company-name {
+      display: block;
+      font-size: 12px;
+      color: #111;
+      margin-bottom: 4px;
+    }
+    .lk-footer--contact-only .lk-footer-lines {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 2px 10px;
+    }
+    .lk-footer--contact-only .lk-footer-lines > span:not(:last-child)::after {
+      content: "·";
+      margin-left: 10px;
+      color: #999;
+    }
+    .lk-footer-terms-title {
+      font-weight: 700;
+      color: #111;
+      margin-bottom: 4px;
+    }
+    .lk-footer-contact {
+      text-align: right;
+    }
+    .lk-footer-contact .lk-company-name {
+      font-size: 11px;
+      margin-bottom: 2px;
+    }
+    .quote-print-page-2 {
+      page-break-before: always;
+      break-before: page;
+      min-height: calc(297mm - 24mm);
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .quote-print-page-2-body {
+      flex: 1 1 auto;
+    }
+    /* Tarjouksen sivu 2: ehdot+yhteystiedot sivun alareunaan. Työraportissa EI autoa. */
+    .quote-print-page-2 > .lk-footer {
+      margin-top: auto;
+    }
+    .lk-work-title-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 12px;
+      align-items: end;
+      margin: 0 0 12px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid #d4d4d4;
+    }
+    .lk-work-title-main h1 {
+      margin: 4px 0 0;
+      font-size: 16px;
+      line-height: 1.25;
+      color: #111;
+    }
+    .lk-work-title-row .doc-label {
+      font-size: 8.5pt;
+      font-weight: 700;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      color: #555;
+    }
+    .lk-work-title-row .lk-print-date {
+      text-align: right;
+      font-size: 10px;
+      color: #444;
+      white-space: nowrap;
+    }
+    .lk-work-title-row .lk-print-date strong {
+      display: block;
+      color: #111;
+      font-size: 11px;
+    }
+  
+  :root {
+    --text: #111;
+    --muted: #555;
+    --border: #d4d4d4;
+    --border-strong: #999;
+    --accent: #111;
+    --panel: #f3f3f3;
+    --panel-strong: #f3f3f3;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: Arial, Helvetica, sans-serif;
+    font-size: 10pt;
+    line-height: 1.45;
+    color: var(--text);
+    margin: 0;
+    background: #fff;
+  }
+  .work-report-print {
+    padding: 0;
+  }
+  .work-report-print > .lk-footer {
+    /* Keep footer with preceding content; do not force a lone page-2 orphan. */
+    break-before: avoid-page;
+    page-break-before: avoid;
+  }
+  .print-box {
+    border: 1px solid var(--border-strong);
+    border-radius:0;
+    background: #fff;
+    margin-bottom: 12px;
+    overflow: hidden;
+    break-inside: avoid-page;
+  }
+  .print-box-title {
+    margin: 0;
+    padding: 7px 12px;
+    background: var(--panel-strong);
+    border-bottom: 1px solid var(--border);
+    color: var(--accent);
+    font-size: 10.5pt;
+    font-weight: 700;
+    letter-spacing: .02em;
+    text-transform: uppercase;
+  }
+  .print-box-body { padding: 12px; }
+  .summary-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    min-height: 18mm;
+    padding-bottom: 12px;
+    margin-bottom: 12px;
+    border-bottom: 1px solid var(--accent);
+    flex-wrap: wrap;
+  }
+  .summary-brand {
+    flex: 0 1 52mm;
+    max-width: 52mm;
+  }
+  .logo { max-height: 16mm; max-width: 50mm; object-fit: contain; display: block; }
+  .logo-fallback { font-size: 11pt; font-weight: 700; color: var(--text); }
+  .doc-label {
+    font-size: 8.5pt;
+    font-weight: 700;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 2px;
+  }
+  .summary-title-block {
+    flex: 1 1 60mm;
+    min-width: 0;
+    text-align: center;
+  }
+  .summary-title-block h1 {
+    margin: 0;
+    font-size: 12.5pt;
+    line-height: 1.18;
+    color: var(--text);
+    word-break: break-word;
+    overflow-wrap: anywhere;
+  }
+  .summary-print-date {
+    flex: 0 0 auto;
+    text-align: right;
+    min-width: 28mm;
+  }
+  .field-label {
+    display: block;
+    font-size: 8pt;
+    font-weight: 700;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 2px;
+  }
+  .summary-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px 14px;
+  }
+  .summary-field-wide { grid-column: 1 / -1; }
+  .summary-description {
+    padding: 8px 10px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius:0;
+    white-space: pre-wrap;
+  }
+  .info-grid {
+    display: grid;
+    grid-template-columns: 30mm 1fr 30mm 1fr;
+    gap: 6px 12px;
+    margin: 0;
+  }
+  .info-grid dt {
+    margin: 0;
+    color: var(--muted);
+    font-size: 9pt;
+    font-weight: 700;
+  }
+  .info-grid dd { margin: 0; }
+  .summary-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 10px;
+    border: 1px solid var(--border);
+    border-radius:0;
+    background: var(--panel);
+    font-size: 9pt;
+  }
+  .log-block {
+    border: 1px solid var(--border);
+    border-left: 1px solid var(--accent);
+    border-radius:0;
+    background: var(--panel);
+    padding: 10px 12px;
+    margin-bottom: 10px;
+    break-inside: avoid;
+  }
+  .log-head {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 14px;
+    margin-bottom: 8px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--border);
+    font-size: 9pt;
+    color: var(--muted);
+  }
+  .log-head strong { color: var(--text); font-size: 10pt; }
+  .log-body { white-space: pre-wrap; }
+  .sub { margin: 8px 0 0; font-size: 9.5pt; color: var(--muted); }
+  .log-images-wrap { margin-top: 10px; }
+  .log-images-label {
+    font-size: 8pt;
+    font-weight: 700;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 6px;
+  }
+  .log-images {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 6px;
+    margin-top: 10px;
+  }
+  .log-image { margin: 0; break-inside: avoid; }
+  .log-image-full-link {
+    display: block;
+    text-decoration: none;
+  }
+  .log-image img {
+    display: block;
+    width: 100%;
+    max-height: 26mm;
+    object-fit: cover;
+    border: 1px solid var(--border);
+    border-radius:0;
+    background: #fff;
+    cursor: zoom-in;
+  }
+  @media screen {
+    .log-image-full-link:hover img {
+      border-color: var(--accent);
+    }
+  }
+  .log-image figcaption {
+    margin-top: 3px;
+    font-size: 7.5pt;
+    color: var(--muted);
+    word-break: break-word;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 8px 0 10px;
+    font-size: 9.5pt;
+  }
+  th, td {
+    border: 1px solid var(--border);
+    padding: 6px 8px;
+    text-align: left;
+    vertical-align: top;
+  }
+  th { background: #fff; color: #111; font-weight: 700; }
+  .mini-table { margin-top: 8px; }
+  .detail-table { font-size: 9pt; }
+  .num { text-align: right; white-space: nowrap; }
+  .meta-line, .muted-line { color: var(--muted); margin: 0 0 8px; }
+  .grand-total {
+    margin: 10px 0 0;
+    padding: 8px 10px;
+    border: 1px solid var(--border-strong);
+    border-radius:0;
+    background: var(--panel-strong);
+    font-size: 11pt;
+    text-align: right;
+  }
+  tr.profit-row td {
+    border-top: 1px solid var(--border-strong);
+    background: #fff;
+  }
+  tr.changed-row td {
+    background: #fff;
+  }
+  .billing-subheading {
+    margin: 12px 0 6px;
+    font-size: 10pt;
+    font-weight: 700;
+    color: var(--accent);
+  }
+  .billing-price-missing {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 1.1rem;
+    min-height: 1.1rem;
+    padding: 0 .2rem;
+    border-radius:0;
+    background: #fff;
+    color: #b91c1c;
+    font-weight: 800;
+    line-height: 1;
+  }
+  .billing-price-missing-note {
+    margin-top: 6px;
+    font-size: 8.5pt;
+    color: var(--muted);
+  }
+  .footer {
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid var(--border);
+    color: var(--muted);
+    font-size: 8.5pt;
+    text-align: center;
+  }
+  .deleted-user-marker {
+    color: #333;
+    font-weight: 700;
+  }
+  @media print {
+    body { margin: 10mm; }
+    .print-box, .log-block { break-inside: avoid-page; }
+    .summary-head {
+      flex-wrap: nowrap;
+    }
+  }
+</style>
+<style>
+  @page { size: A4 portrait; margin: 12mm 13mm; }
+  body.rp-doc { font-family: Arial, Helvetica, sans-serif !important; color: #111; }
+  body.rp-doc h1, body.rp-doc h2, body.rp-doc h3, body.rp-doc h4,
+  body.rp-doc .print-box-title, body.rp-doc .sec-h2, body.rp-doc .doc-label, body.rp-doc thead {
+    break-after: avoid; page-break-after: avoid;
+  }
+  body.rp-doc tr, body.rp-doc figure { break-inside: avoid; page-break-inside: avoid; }
+  body.rp-doc .print-box-title, body.rp-doc .sec-h2 {
+    font-size: 8pt !important; text-transform: uppercase; letter-spacing: .6px; color: #333 !important;
+    background: #efefef !important; border: 0 !important; padding: 1mm 2mm !important; text-align: left !important; margin: 0 0 1.5mm !important;
+  }
+  body.rp-doc .print-box { border: 0 !important; border-radius: 0 !important; margin-bottom: 4mm !important; overflow: visible !important; }
+  body.rp-doc .print-box-body { padding: 0 1mm !important; }
+  body.rp-doc table th, body.rp-doc table td { border-color: #d4d4d4 !important; }
+  body.rp-doc img { box-shadow: none !important; }
+  body.rp-doc .summary-head, body.rp-doc .lk-header-top { border-bottom: 1.5px solid #111 !important; }
+  body.rp-doc .summary-title-block { text-align: right !important; }
+  body.rp-doc .lk-tagline { font-size: 8pt !important; color: #555 !important; background: none !important; border: 0 !important; padding: 1mm 0 !important; margin: 0 !important; text-align: left !important; }
+  body.rp-doc .rp-hide { display: none !important; }
+  body.rp-doc .print-box { break-inside: auto !important; page-break-inside: auto !important; }
+  body.rp-doc .lk-header-top, body.rp-doc .lk-logo { justify-content: flex-start !important; justify-items: start !important; text-align: left !important; margin-left: 0 !important; }
+  body.rp-doc .lk-logo img { margin: 0 !important; }
+  body.rp-doc .header.header--termatek { background: #fff !important; height: auto !important; padding: 0 0 2mm !important; justify-content: flex-start !important; border-bottom: 1.5px solid #111 !important; }
+  body.rp-doc .header.header--termatek .brand-banner { height: 12mm !important; width: auto !important; }
+  body.rp-doc .footer.footer--bar { display: none !important; }
+body.rp-doc .lk-tagline{display:none !important;}</style>
+<style>
+.esittely-bar{font-family:system-ui,-apple-system,sans-serif;background:#0f172a;color:#fff;padding:10px 16px;display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center}
+.esittely-bar a{color:#fff;text-decoration:none;font-size:14px;padding:4px 8px;border-radius:6px}
+.esittely-bar a[aria-current]{background:#F0810F}
+.esittely-badge{background:#F0810F;color:#111;font-weight:700;font-size:12px;padding:3px 8px;border-radius:999px;text-transform:uppercase;letter-spacing:.04em}
+.esittely-head{font-family:system-ui,-apple-system,sans-serif;max-width:960px;margin:18px auto 6px;padding:0 16px}
+.esittely-head h1{font-size:24px;margin:0 0 4px}
+.esittely-head p{margin:0;color:#4b5563}
+.esittely-cta{display:inline-block;margin-top:10px;background:#F0810F;color:#111!important;font-weight:600;padding:8px 14px;border-radius:8px;text-decoration:none}
+.esittely-doc{max-width:960px;margin:12px auto 40px;padding:0 16px}
+@media print{.esittely-bar,.esittely-head{display:none}}</style>
+</head>
+<body>
+<nav class="esittely-bar" aria-label="Esittely"><span class="esittely-badge">Esimerkki</span><a href="/">BestCool</a><a href="/esittely/tyoraportti/" aria-current="page">Työraportti</a><a href="/esittely/huoltopoytakirja/">Huoltopöytäkirja</a><a href="/esittely/laitekortti/">Laitekortti</a><a href="/esittely/asiakasportaali/">Asiakasportaali</a><a href="/esittely/tarjoukset/">Tarjoukset ja laskennat</a></nav>
+<header class="esittely-head"><h1>Esimerkki: työraportti</h1><p>Esimerkki BestCool-työraportista: työkirjaukset, tunnit, tarvikkeet ja asiakastuloste yhdellä sivulla. Keksitty yritys ja asiakas.</p><a class="esittely-cta" href="/login">Kokeile BestCoolia</a></header>
+<main class="esittely-doc">
+  <div class="work-report-print">
+    
+    
+    <section class="print-box">
+      
+      <div class="print-box-body">
+    <div class="summary-head">
+      <div class="summary-brand">
+        <div class="logo-fallback">Esimerkki Kylmä Oy</div>
+      </div>
+      <div class="summary-title-block">
+        <div class="doc-label">Työraportti</div>
+        <h1>As Oy Esimerkkipuisto – Ilmalämpöpumpun vaihto</h1>
+      </div>
+      <div class="summary-print-date">
+        <span class="field-label">Tulostettu</span>
+        <strong>21.10.2026</strong>
+      </div>
+    </div>
+    <div class="summary-grid">
+      <div class="summary-field">
+        <span class="field-label">Yritys</span>
+        <strong>Esimerkki Kylmä Oy</strong>
+      </div>
+      <div class="summary-field">
+        <span class="field-label">Pvm</span>
+        <strong>15.9.2026 klo 18.00</strong>
+      </div>
+      <div class="summary-field">
+        <span class="field-label">Asiakas</span>
+        <strong>As Oy Esimerkkipuisto</strong>
+      </div>
+      <div class="summary-field summary-field-wide">
+        <span class="field-label">Kuvaus</span>
+        <div class="summary-description">Vanhan laitteen purku ja uuden asennus, as. B 7.<br /><br />Esimerkkikatu 12, Helsinki</div>
+      </div>
+    </div></div>
+    </section>
+    
+    <section class="print-box">
+      <h2 class="print-box-title">Perustiedot</h2>
+      <div class="print-box-body"><dl class="info-grid">
+      <dt>Tila</dt><dd>Valmis</dd>
+      <dt>Laatija</dt><dd>—</dd>
+      
+      <dt>Tilaaja</dt><dd>Isännöitsijä Liisa Malli</dd>
+      <dt>Laite</dt><dd>ILP-B7 — Ilmalämpöpumppu B 7</dd>
+      <dt>Aloitus</dt><dd>14.9.2026</dd>
+      <dt>Valmistuminen</dt><dd>15.9.2026</dd>
+      
+    </dl></div>
+    </section>
+    
+    <section class="print-box">
+      <h2 class="print-box-title">Päiväkirjaus</h2>
+      <div class="print-box-body"><div class="summary-row">
+      <span class="chip"><strong>Tunnit yhteensä:</strong> 13.50 h</span>
+      
+      <span class="chip"><strong>Kulurivejä:</strong> 3</span>
+      
+      
+    </div>
+    
+        <article class="log-block">
+          <div class="log-head">
+            <strong>14.9.2026</strong>
+            <span>Matti Esimerkki</span>
+            <span>Asennustyö (normaalihinta)</span>
+            <span>6 h</span>
+          </div>
+          <div class="log-body">Vanhan ilmalämpöpumpun purku ja putkitusten tarkastus.</div>
+          
+          
+          <table class="mini-table">
+                  <thead><tr><th>Kulu</th><th>Kuvaus</th><th class="num">Määrä</th></tr></thead>
+                  <tbody><tr><td>Tarvike</td><td>Kondenssiletku 10 m</td><td class="num">1 kpl</td></tr></tbody>
+                </table>
+          
+        </article>
+        <article class="log-block">
+          <div class="log-head">
+            <strong>15.9.2026</strong>
+            <span>Matti Esimerkki</span>
+            <span>Asennustyö (normaalihinta)</span>
+            <span>7.5 h</span>
+          </div>
+          <div class="log-body">Uuden ilmalämpöpumpun asennus, tyhjiöinti ja käyttöönotto. Käyttöopastus asukkaalle.</div>
+          
+          
+          <table class="mini-table">
+                  <thead><tr><th>Kulu</th><th>Kuvaus</th><th class="num">Määrä</th></tr></thead>
+                  <tbody><tr><td>Tarvike</td><td>Seinäteline</td><td class="num">1 kpl</td></tr><tr><td>Tarvike</td><td>Putkieriste 3 m</td><td class="num">2 kpl</td></tr></tbody>
+                </table>
+          
+        </article></div>
+    </section>
+    <div class="footer">
+      Esimerkki Kylmä Oy • Tulostettu 21.10.2026 klo 12.12.22
+    </div>
+  </div>
+</main>
+</body>
+</html>
