@@ -11,6 +11,7 @@ import MonitorReaderTokenPage from './pages/MonitorReaderTokenPage';
 import WorkReportPublicPrintPage from './pages/WorkReportPublicPrintPage';
 import ToolBookingPublicPage from './pages/ToolBookingPublicPage';
 import ExamplePrintPageLazy from './pages/ExamplePrintPageLazy';
+import StaticPageReload from './components/StaticPageReload';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import ResetPasswordPage from './pages/ResetPasswordPage';
 import OfflineBanner from './components/OfflineBanner';
@@ -42,6 +43,7 @@ function AppRoutes() {
         <Route path="/tyoraportti/jako/:token" element={<WorkReportPublicPrintPage />} />
         <Route path="/tyokalut/varaus/:token" element={<ToolBookingPublicPage />} />
         <Route path="/esimerkit/:laji" element={<ExamplePrintPageLazy />} />
+        <Route path="/esittely/*" element={<StaticPageReload />} />
         <Route path="*" element={<RequireLoginRedirect />} />
       </Routes>
     );

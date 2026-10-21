@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="fi">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Laitekortti ja huoltohistoria – esimerkki | BestCool</title>
+<meta name="description" content="Esimerkki laitekortista: laitteen tiedot ja koko huoltohistoria aikajärjestyksessä." />
+<link rel="canonical" href="https://bestcool.eu/esittely/laitekortti/" />
+<meta property="og:title" content="Laitekortti ja huoltohistoria – esimerkki | BestCool" />
+<meta property="og:description" content="Esimerkki laitekortista: laitteen tiedot ja koko huoltohistoria aikajärjestyksessä." />
+<meta property="og:url" content="https://bestcool.eu/esittely/laitekortti/" />
+<meta property="og:image" content="https://bestcool.eu/og.png" />
+<link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+
+
+
+<style>
+  @page { size: A4; margin: 14mm; }
+  :root { --text:#111827; --muted:#6b7280; --border:#e5e7eb; --soft:#f9fafb; --accent:#F0810F; --accent-strong:#D97706; }
+  *, *::before, *::after { box-sizing: border-box; }
+  body { font-family: Arial, sans-serif; color: var(--text); margin: 0; padding: 0 2mm; }
+  .header { display:grid; grid-template-columns: 55mm 1fr 55mm; align-items:start; border-bottom: 4px dashed var(--accent-strong); padding-bottom: 4mm; }
+  .h-left { display:flex; align-items:center; min-height: 24mm; }
+  .h-center { text-align:center; }
+  .h-right { text-align:right; color: var(--muted); font-size: 10pt; }
+  .logo { height: 18mm; max-width: 55mm; object-fit: contain; }
+  .logo-space { width: 55mm; height: 18mm; }
+  h1 { margin: 0; font-size: 18pt; }
+  .subtitle { margin-top: 1mm; color: var(--muted); font-size: 10.5pt; }
+  .badge { display:inline-block; margin-top: 2mm; padding: 1.5mm 3mm; border-radius: 999px; border:1px solid var(--border); background: var(--soft); font-size: 9.5pt; }
+  .main-block { margin-top: 5mm; }
+  .tbl { width:100%; border-collapse: collapse; margin-top: 2mm; font-size: 10.5pt; background: #fff; border: 2px solid var(--border); }
+  .tbl th, .tbl td { border:1px solid var(--border); padding: 2.8mm 2.5mm; vertical-align: top; }
+  .tbl th { background: var(--soft); text-align:left; font-size: 9.5pt; }
+  .kv-table th[scope="row"] { width: 34%; font-weight: 600; color: #374151; }
+  .sec-h2 { margin: 8mm auto 4mm; font-size: 12pt; color:#1f2937; text-align: center; border-bottom: 4px dashed var(--accent-strong); padding: 0 0 2.5mm; }
+  .footer { margin-top: 8mm; font-size: 9pt; color: var(--muted); border-top: 1px solid var(--border); padding-top: 4mm; }
+  .print-card-section { margin-top: 5mm; padding: 4mm; background: #fff; border: 1px solid var(--border); border-radius: 10px; break-inside: avoid; }
+  .print-card-h2 { margin: 0 0 3mm; padding-bottom: 2mm; font-size: 11pt; font-weight: 700; border-bottom: 2px solid var(--accent); }
+  .print-card-muted { margin: 2mm 0 0; font-size: 10pt; color: var(--muted); font-style: italic; }
+  .print-card-body { margin-top: 1mm; }
+  .print-card-h3 { margin: 3mm 0 2mm; font-size: 10.5pt; font-weight: 700; color: #374151; }
+  .print-card-h4 { margin: 0 0 2mm; font-size: 10pt; font-weight: 700; color: #4b5563; }
+  .print-card-subblock { margin-top: 3mm; padding: 3mm; border: 1px solid var(--border); border-radius: 8px; background: var(--soft); break-inside: avoid; }
+  .print-card-nest { margin-top: 2mm; padding-top: 1mm; border-top: 1px dashed var(--border); }
+  .print-card-lead { margin: 0 0 2mm; font-size: 10pt; }
+  .print-card-snapshot-wrap .print-card-section { margin-top: 3mm; }
+  .print-card-snapshot-wrap .print-card-section:first-child { margin-top: 0; }
+</style>
+
+<style>
+.esittely-bar{font-family:system-ui,-apple-system,sans-serif;background:#0f172a;color:#fff;padding:10px 16px;display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center}
+.esittely-bar a{color:#fff;text-decoration:none;font-size:14px;padding:4px 8px;border-radius:6px}
+.esittely-bar a[aria-current]{background:#F0810F}
+.esittely-badge{background:#F0810F;color:#111;font-weight:700;font-size:12px;padding:3px 8px;border-radius:999px;text-transform:uppercase;letter-spacing:.04em}
+.esittely-head{font-family:system-ui,-apple-system,sans-serif;max-width:960px;margin:18px auto 6px;padding:0 16px}
+.esittely-head h1{font-size:24px;margin:0 0 4px}
+.esittely-head p{margin:0;color:#4b5563}
+.esittely-cta{display:inline-block;margin-top:10px;background:#F0810F;color:#111!important;font-weight:600;padding:8px 14px;border-radius:8px;text-decoration:none}
+.esittely-doc{max-width:960px;margin:12px auto 40px;padding:0 16px}
+@media print{.esittely-bar,.esittely-head{display:none}}</style>
+</head>
+<body>
+<nav class="esittely-bar" aria-label="Esittely"><span class="esittely-badge">Esimerkki</span><a href="/">BestCool</a><a href="/esittely/tyoraportti/">Työraportti</a><a href="/esittely/huoltopoytakirja/">Huoltopöytäkirja</a><a href="/esittely/laitekortti/" aria-current="page">Laitekortti</a><a href="/esittely/asiakasportaali/">Asiakasportaali</a><a href="/esittely/tarjoukset/">Tarjoukset ja laskennat</a></nav>
+<header class="esittely-head"><h1>Esimerkki: laitekortti ja huoltohistoria</h1><p>Esimerkki laitekortista: laitteen tiedot ja koko huoltohistoria aikajärjestyksessä. Keksitty yritys ja asiakas.</p><a class="esittely-cta" href="/login">Kokeile BestCoolia</a></header>
+<main class="esittely-doc">
+  <div class="header">
+    <div class="h-left"><div class="logo-space"></div></div>
+    <div class="h-center">
+      <h1>Laitekortti</h1>
+      <div class="subtitle">ILP-B7 — Ilmalämpöpumppu B 7</div>
+      <div class="badge">Huollettava laite</div>
+    </div>
+    <div class="h-right"><div>Tulostettu: <strong>21.10.2026 klo 12.12.22</strong></div></div>
+  </div>
+  <div class="main-block"><div class="print-card-section"><h2 class="print-card-h2">Laiteperustiedot</h2><div class="print-card-body"><table class="tbl kv-table print-card-tbl"><tbody><tr><th scope="row">Asiakas</th><td>As Oy Esimerkkipuisto</td></tr><tr><th scope="row">Laitteen tyyppi</th><td>lampopumppu</td></tr><tr><th scope="row">Nimi</th><td>Ilmalämpöpumppu B 7</td></tr><tr><th scope="row">Tunniste</th><td>ILP-B7</td></tr><tr><th scope="row">Malli</th><td>Esimerkki Nordic 35</td></tr><tr><th scope="row">Sarjanumero</th><td>EX-2026-0147</td></tr><tr><th scope="row">Sijainti</th><td>As. B 7, olohuone</td></tr><tr><th scope="row">Huomiot</th><td>Asennettu 15.9.2026. Huoltoväli 12 kk.</td></tr></tbody></table></div></div><div class="print-card-section"><h2 class="print-card-h2">Viimeisin huolto</h2><div class="print-card-body"><table class="tbl kv-table print-card-tbl"><tbody><tr><th scope="row">Viimeisin huolto</th><td>15.9.2026</td></tr></tbody></table></div></div><div class="print-card-section"><h2 class="print-card-h2">Kiinteät laitetiedot</h2><div class="print-card-body"><p class="print-card-muted">Ei tallennettua tilannekuvaa — päivitä tiedot huoltopöytäkirjasta.</p></div></div></div>
+  <div class="footer">21.10.2026 klo 12.12.22 · Laitekortti</div>
+  <script>window.onload = function() { window.print(); };</script>
+<section style="margin-top:28px">
+  <div class="header">
+    <div class="h-left"><div class="logo-space"></div></div>
+    <div class="h-center">
+      <h1>Huoltohistoria</h1>
+      <div class="subtitle">As Oy Esimerkkipuisto</div>
+      <div class="badge">Asiakas</div>
+    </div>
+    <div class="h-right"><div>Tulostettu: <strong>21.10.2026 klo 12.12.22</strong></div></div>
+  </div>
+  <div class="main-block"><h2 class="sec-h2">ILP-B7 · Ilmalämpöpumppu B 7</h2>
+        <table class="tbl"><thead><tr><th>Päivämäärä / aika</th><th>Tyyppi</th><th>Kuvaus</th></tr></thead><tbody><tr><td>12.10.2024</td><td>Huoltopöytäkirja</td><td>Vuosihuolto: suodattimet ja kenno puhdistettu.</td></tr><tr><td>20.10.2025</td><td>Huoltopöytäkirja</td><td>Vuosihuolto.<div style="margin-top:4px;color:#b91c1c;font-weight:700">Vika / huomio: Kondenssiletku osittain tukossa, avattu.</div></td></tr><tr><td>15.9.2026</td><td>Työraportti</td><td>Ilmalämpöpumpun vaihto uuteen.</td></tr><tr><td>15.9.2026</td><td>Huoltopöytäkirja</td><td>Käyttöönottotarkastus, ei vikaa havaittu.</td></tr></tbody></table></div>
+  <div class="footer">21.10.2026 klo 12.12.22 · Työraportit ja huoltopöytäkirjat aikajärjestyksessä (vanhin ensin).</div>
+  <script>window.onload = function() { window.print(); };</script>
+</section></main>
+</body>
+</html>

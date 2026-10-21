@@ -125,7 +125,8 @@
     "test:module-trials": "npx tsx scripts/test-module-trials.mjs",
     "test:free-access-price": "npx tsx scripts/test-free-access-price.mjs",
     "test:quote-trade-types": "npx tsx scripts/test-quote-trade-types.mjs",
-    "test:urakka-zero-day-billing": "npx tsx scripts/test-urakka-zero-day-billing.mjs"
+    "test:urakka-zero-day-billing": "npx tsx scripts/test-urakka-zero-day-billing.mjs",
+    "gen:esittely": "npx tsx scripts/generate-esittely.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.1",

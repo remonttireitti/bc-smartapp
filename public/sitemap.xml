@@ -6,4 +6,10 @@
   <url><loc>https://bestcool.eu/esimerkit/lvi</loc><changefreq>yearly</changefreq><priority>0.5</priority></url>
   <url><loc>https://bestcool.eu/esimerkit/iv</loc><changefreq>yearly</changefreq><priority>0.5</priority></url>
   <url><loc>https://bestcool.eu/esimerkit/sahko</loc><changefreq>yearly</changefreq><priority>0.5</priority></url>
+  <url><loc>https://bestcool.eu/esittely/</loc><changefreq>yearly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://bestcool.eu/esittely/tyoraportti/</loc><changefreq>yearly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://bestcool.eu/esittely/huoltopoytakirja/</loc><changefreq>yearly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://bestcool.eu/esittely/laitekortti/</loc><changefreq>yearly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://bestcool.eu/esittely/asiakasportaali/</loc><changefreq>yearly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://bestcool.eu/esittely/tarjoukset/</loc><changefreq>yearly</changefreq><priority>0.6</priority></url>
 </urlset>
