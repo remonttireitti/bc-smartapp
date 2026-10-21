@@ -154,6 +154,8 @@ export type WorkReportRefrigerantLine = {
   warranty?: boolean;
   customer_sale?: boolean;
   commission_percent?: number;
+  /** Kumppanin varasto: varastohinta tiedoksi (ei vähennystä). */
+  warehouse_unit_price?: number;
   cylinder?: Pick<RefrigerantCylinder, 'serial_number' | 'refrigerant_type' | 'bottle_size' | 'notes'> | null;
   warehouse_company?: { name: string | null } | null;
   owner_user?: { display_name: string | null } | null;
