@@ -909,8 +909,7 @@ export function DailyLogFields({
               }
             />
             <span className="muted daily-log-hour-block-hint">
-              Tyhjä = käytetään raportin kumppanuus- tai yrityshintaa. Syötä 0 jos tunneista ei veloiteta
-              (esim. takuutyö).
+              Tyhjä = käytetään raportin kumppanuus- tai yrityshintaa.
             </span>
           </label>
         )}
