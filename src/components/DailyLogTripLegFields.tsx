@@ -1,11 +1,10 @@
 import { useState } from 'react';
 
 import TripDestinationInput from './TripDestinationInput';
-import { TripLegBillingPanel } from './TripLegBillingPanel';
+import { TripLegBillingPanel, type TripBillingChoice } from './TripLegBillingPanel';
 import { supabase } from '../lib/supabase';
 import { calculateTripLegDistances } from '../lib/tripDistanceApi';
 import type { TripDestinationOption } from '../lib/tripDestinations';
-import type { ExpenseBillingMode } from '../lib/workReportExpenseBilling';
 import {
   appendReturnTripLeg,
   findReturnLegIndex,
@@ -30,8 +29,8 @@ type Props = {
   tripDeparture: TripLegDeparture;
   showPartnerBilling?: boolean;
   showCustomerBilling?: boolean;
-  tripBillingMode?: ExpenseBillingMode;
-  onTripBillingModeChange?: (mode: ExpenseBillingMode) => void;
+  tripBillingMode?: TripBillingChoice;
+  onTripBillingModeChange?: (mode: TripBillingChoice) => void;
   destinationOptions?: TripDestinationOption[];
   tripKmRate?: number | null;
 };
@@ -185,11 +184,7 @@ export default function DailyLogTripLegFields({
         ) : null}
 
         <p className="muted trip-leg-hint">
-          Ajomatka on valinnainen — jätä tyhjäksi jos et käytä autoa tai et halua km-korvausta.
-          Voit laskea matkan lähtöpisteestä kohteeseen tai syöttää kilometrit käsin.
-          {rateLabel
-            ? ` Km-korvaus (${rateLabel}) lasketaan automaattisesti täytetyistä matkoista.`
-            : ' Aseta €/km-hinta kohdassa Yrityksen hallinta → Yritys.'}
+          Valinnainen.{rateLabel ? ` Km-korvaus ${rateLabel}.` : ' Aseta €/km: Yrityksen hallinta → Yritys.'}
         </p>
         {calcError ? <p className="error trip-leg-calc-error">{calcError}</p> : null}
 

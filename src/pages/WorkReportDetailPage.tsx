@@ -353,6 +353,8 @@ function initialLogForm() {
     partner_extra_billing: false,
     /** Takuu: tunnit eivät laskutu (partner_billing.warranty). */
     partner_warranty: false,
+    /** Takuu: ajomatkat eivät laskutu (partner_billing.trips_warranty). */
+    partner_trips_warranty: false,
     /** Vanha yksihintainen urakka: asiakaskenttä täytetty lomakkeelle, ei tallennettu. */
     customer_price_synthetic: false,
     hourly_rate_override: '',
@@ -476,6 +478,7 @@ function logToForm(log: WorkReportDailyLog): DailyLogFormState {
     trips_billed: parseDailyLogPartnerBilling(log.partner_billing).trips_billed !== false,
     partner_extra_billing: parseDailyLogPartnerBilling(log.partner_billing).extra_billing === true,
     partner_warranty: parseDailyLogPartnerBilling(log.partner_billing).warranty === true,
+    partner_trips_warranty: parseDailyLogPartnerBilling(log.partner_billing).trips_warranty === true,
     work_done: log.work_done,
     hours_agreed_regular:
       Number(log.hours_agreed_regular) > 0 ? String(log.hours_agreed_regular) : '',
@@ -562,6 +565,7 @@ function buildLogPayload(
             trips_billed: form.trips_billed,
             extra_billing: form.partner_extra_billing && form.entry_type !== 'fixed_price',
             warranty: form.partner_warranty,
+            trips_warranty: form.partner_trips_warranty,
           }),
         }
       : {}),
@@ -4818,8 +4822,10 @@ export default function WorkReportDetailPage({ session }: Props) {
           tripDeparture={tripLegDeparture(tripDepartureLabel, tripDepartureLabel)}
           showPartnerBilling={partnerBillingOn && (isPartnerReport || showCustomerBillingFeatures || viewerBillingAllowed)}
           showCustomerBilling={showCustomerBillingFeatures || isPartnerReport || viewerBillingAllowed}
-          tripBillingMode={resolveTripBillingFromExpenses(expenseDrafts)}
-          onTripBillingModeChange={(mode: ExpenseBillingMode) => {
+          tripBillingMode={logForm.partner_trips_warranty ? 'warranty' : resolveTripBillingFromExpenses(expenseDrafts)}
+          onTripBillingModeChange={(choice) => {
+            setLogForm((current) => ({ ...current, partner_trips_warranty: choice === 'warranty' }));
+            const mode: ExpenseBillingMode = choice === 'warranty' ? 'partner_and_customer' : choice;
             setExpenseDrafts((current) => applyTripBillingToExpenses(current, mode));
             setTripDrafts((current) =>
               current.map((leg) => ({ ...leg, bill_to_customer: tripLegsBillToCustomer(mode) })),

@@ -10,6 +10,8 @@ export interface DailyLogPartnerBilling {
   extra_billing?: boolean;
   /** Takuutyö: kirjauksen tunnit eivät laskutu asiakkaalta eikä kumppanilta. */
   warranty?: boolean;
+  /** Takuu: kirjauksen ajomatkat (km) eivät laskutu kenellekään. */
+  trips_warranty?: boolean;
 }
 
 export const DEFAULT_COMMISSION_BILLING_MODE: CommissionBillingMode = 'commission_plus';
@@ -33,6 +35,7 @@ export function parseDailyLogPartnerBilling(raw: unknown): DailyLogPartnerBillin
   if (v.trips_billed === false) out.trips_billed = false;
   if (v.extra_billing === true) out.extra_billing = true;
   if (v.warranty === true) out.warranty = true;
+  if (v.trips_warranty === true) out.trips_warranty = true;
   return out;
 }
 
@@ -46,6 +49,7 @@ export function serializeDailyLogPartnerBilling(
   if (value.trips_billed === false) out.trips_billed = false;
   if (value.extra_billing === true) out.extra_billing = true;
   if (value.warranty === true) out.warranty = true;
+  if (value.trips_warranty === true) out.trips_warranty = true;
   return Object.keys(out).length ? out : null;
 }
 

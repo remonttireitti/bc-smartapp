@@ -50,3 +50,20 @@ assert.equal(warrantyTotal(p), 240);
 assert.equal(warrantyTotal(c), 240);
 assert.equal(p.byUser[0].lines.filter((l) => l.warranty).length, 3);
 console.log('takuu ok', { before: [partner(base).grandTotal, customer(base).grandTotal], hoursW: 130, matW: 140, all: [p.grandTotal, c.grandTotal, warrantyTotal(p)] });
+
+// Ajomatkat: 56 km × 0,9 € = 50,40 €; Takuu (partner_billing.trips_warranty) → 0 €.
+const trip = (pb, withLine) => annotateExpensePriceConfirmed([{ ...base[0], hours_regular: 0, partner_billing: pb, customer_extra_billing: {},
+  expense_lines: withLine ? [{ id: 'auto-trip-km', description: 'Ajomatkat (56 km)', expense_type: 'km', qty: 56, unit_price: 0.9, sort_order: 0 }] : [],
+  trip_legs: [{ id: 't1', distance_km: 56 }] }]);
+const tp = (logs) => calculateWorkReportBillable({ logs, users: [user], rates, ratesSource: 'partnership', billToCompanyId: 'c2', billToCompanyName: 'X', tripKmRate: 0.9 });
+for (const withLine of [true, false]) {
+  assert.equal(tp(trip(null, withLine)).grandTotal, 50.4, `trip ${withLine}`);
+  const w = tp(trip({ trips_warranty: true }, withLine));
+  assert.equal(w.grandTotal, 0);
+  assert.equal(warrantyTotal(w), 50.4);
+}
+assert.equal(customer(trip(null, true)).grandTotal, 50.4);
+assert.equal(customer(trip({ trips_warranty: true }, true)).grandTotal, 0);
+assert.equal(warrantyTotal(customer(trip({ trips_warranty: true }, true))), 50.4);
+assert.equal(parseDailyLogPartnerBilling(serializeDailyLogPartnerBilling({ trips_warranty: true })).trips_warranty, true);
+console.log('trip takuu ok 50.4 -> 0');
