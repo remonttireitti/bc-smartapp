@@ -105,6 +105,8 @@ export function expenseDiarySuppliesTotal(
   extraBilling?: { extra_billable: boolean; extra_billing_allowed: boolean },
 ): { total: number; qty: number; unit: number; missing: boolean } {
   const none = { total: 0, qty: 0, unit: 0, missing: false };
+  // Takuurivi ei vaikuta katteeseen eikä hankintoihin.
+  if ((expense as { warranty?: boolean }).warranty === true) return none;
   if (isTripKmExpense(expense)) return none;
   if (!expenseCountsAsWorkReportPurchase(expense, extraBilling)) return none;
   const qty = Number(expense.qty) || 0;

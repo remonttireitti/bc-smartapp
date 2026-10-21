@@ -183,8 +183,7 @@ export default function DailyLogExpenseLinesSection({
                 </span>
                 <span className="expense-line-list-item-action">Muokkaa</span>
               </button>
-              {!deviceVariant ? (
-                <label className="expense-line-billed-toggle expense-line-warranty-toggle" title="Takuu: ei laskuteta">
+              <label className="expense-line-billed-toggle expense-line-warranty-toggle" title="Takuu: ei laskuteta">
                   <CheckToggle
                     checked={row.warranty === true}
                     onChange={(event) => {
@@ -196,7 +195,6 @@ export default function DailyLogExpenseLinesSection({
                   />{' '}
                   Takuu
                 </label>
-              ) : null}
             </li>
           ))}
         </ul>

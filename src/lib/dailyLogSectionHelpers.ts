@@ -38,11 +38,11 @@ export const DAILY_LOG_SECTION_COLORS = {
   images: '#6366F1',
 } as const;
 
-export function dailyLogTripsSubtitle(tripDrafts: TripLegDraft[]): string {
+export function dailyLogTripsSubtitle(tripDrafts: TripLegDraft[], warranty = false): string {
   const totalKm = sumTripLegDraftKm(tripDrafts);
   if (tripDrafts.length === 0) return 'Ei ajomatkoja';
-  if (totalKm > 0) return `${totalKm.toFixed(1)} km · ${tripDrafts.length} reittiä`;
-  return `${tripDrafts.length} reittiä`;
+  const base = totalKm > 0 ? `${totalKm.toFixed(1)} km · ${tripDrafts.length} reittiä` : `${tripDrafts.length} reittiä`;
+  return warranty ? `${base} · Takuu` : base;
 }
 
 export function dailyLogDaySubtitle(form: {
@@ -66,6 +66,7 @@ export function dailyLogHoursSubtitle(
     hours_extra_billable?: boolean;
     hours_extra_billing_allowed?: boolean;
     hours_extra_hours?: string;
+    partner_warranty?: boolean;
   },
 ): string {
   if (form.entry_type === 'fixed_price') {
@@ -88,6 +89,7 @@ export function dailyLogHoursSubtitle(
       : 'lisälaskutettavissa · ei lupaa';
     parts.push(extraHours > 0 ? `${extraHours} h lisälask. · ${status}` : status);
   }
+  if (form.partner_warranty && parts.length > 0) parts.push('Takuu');
   return parts.length > 0 ? parts.join(' · ') : 'Ei tunteja';
 }
 
@@ -100,10 +102,11 @@ export function dailyLogCommissionSubtitle(amount: string, note: string): string
   return note.trim() ? truncate(note, 48) : 'Ei provisiota';
 }
 
-export function dailyLogExpensesSubtitle(manualCount: number, hasAutoTripKm: boolean): string {
+export function dailyLogExpensesSubtitle(manualCount: number, hasAutoTripKm: boolean, warrantyCount = 0): string {
   const total = manualCount + (hasAutoTripKm ? 1 : 0);
   if (total === 0) return 'Ei kuluja';
-  return total === 1 ? '1 rivi' : `${total} riviä`;
+  const base = total === 1 ? '1 rivi' : `${total} riviä`;
+  return warrantyCount > 0 ? `${base} · Takuu ${warrantyCount}` : base;
 }
 
 export function dailyLogRefrigerantSubtitle(count: number): string {
