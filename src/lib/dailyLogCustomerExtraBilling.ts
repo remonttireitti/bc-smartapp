@@ -1046,6 +1046,7 @@ function annotateRefrigerantFlags<T extends WorkReportDailyLog>(log: T): T {
         ...(flag.warranty ? { warranty: true } : {}),
         ...(flag.customer_sale ? { customer_sale: true } : {}),
         ...(flag.commission_percent ? { commission_percent: flag.commission_percent } : {}),
+        ...(flag.warehouse_unit_price ? { warehouse_unit_price: flag.warehouse_unit_price } : {}),
       };
     }),
   };

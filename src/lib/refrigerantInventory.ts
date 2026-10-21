@@ -99,7 +99,10 @@ export function refrigerantLinesToDrafts(lines: WorkReportRefrigerantLine[]): Re
     owner_user_id: line.owner_user_id ?? '',
     supplier_name: line.supplier_name ?? '',
     supplier_paid_by: line.supplier_paid_by ?? '',
-    unit_price: parseFiNumber(line.unit_price) > 0 ? String(line.unit_price) : '',
+    unit_price:
+      line.customer_sale === true
+        ? line.warehouse_unit_price && line.warehouse_unit_price > 0 ? String(line.warehouse_unit_price) : ''
+        : parseFiNumber(line.unit_price) > 0 ? String(line.unit_price) : '',
     customer_unit_price:
       line.customer_unit_price != null && parseFiNumber(line.customer_unit_price) > 0
         ? String(line.customer_unit_price)
@@ -317,14 +320,16 @@ function isDraftRowFilled(row: RefrigerantLineDraft): boolean {
 export function refrigerantFlagsFromDrafts(
   drafts: RefrigerantLineDraft[],
   options?: { partnerOwnedReport?: boolean },
-): { warranty?: boolean; customer_sale?: boolean; commission_percent?: number }[] {
+): { warranty?: boolean; customer_sale?: boolean; commission_percent?: number; warehouse_unit_price?: number }[] {
   return drafts.filter(isDraftRowValid).map((row) => {
-    const flag: { warranty?: boolean; customer_sale?: boolean; commission_percent?: number } = {};
+    const flag: { warranty?: boolean; customer_sale?: boolean; commission_percent?: number; warehouse_unit_price?: number } = {};
     if (row.warranty) flag.warranty = true;
     if (options?.partnerOwnedReport && row.source === 'partner_warehouse') {
       flag.customer_sale = true;
       const pct = parseFiNumber(row.commission_percent ?? '');
       if (Number.isFinite(pct) && pct > 0 && pct <= 100) flag.commission_percent = pct;
+      const whp = parseFiNumber(row.unit_price);
+      if (Number.isFinite(whp) && whp > 0) flag.warehouse_unit_price = whp;
     }
     return flag;
   });
@@ -483,7 +488,9 @@ export async function saveRefrigerantLines(
         source: row.source,
         supplier_paid_by: row.supplier_paid_by,
       });
-      const unitPrice = parseFiNumberOr(row.unit_price, 0);
+      // Kumppanin varasto kumppanin raportilla: varastohinta vain tiedoksi (JSON), ei vähennystä.
+      const unitPrice =
+        input.partnerOwnedReport && row.source === 'partner_warehouse' ? 0 : parseFiNumberOr(row.unit_price, 0);
       const customerUnitPriceRaw = parseFiNumber(row.customer_unit_price);
       const customerUnitPrice =
         Number.isFinite(customerUnitPriceRaw) && customerUnitPriceRaw > 0 ? customerUnitPriceRaw : null;

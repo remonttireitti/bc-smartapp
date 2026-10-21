@@ -21,6 +21,8 @@ export type RefrigerantLineFlag = {
   /** Kumppanin varasto: ei myyntiä kumppanille, vain provisio % asiakasmyynnistä. */
   customer_sale?: boolean;
   commission_percent?: number;
+  /** Kumppanin varasto: varastohinta vain tiedoksi (sarakkeessa unit_price = 0, ei vähennystä). */
+  warehouse_unit_price?: number;
 };
 
 function parseRefrigerantFlags(raw: unknown): RefrigerantLineFlag[] | undefined {
@@ -33,6 +35,10 @@ function parseRefrigerantFlags(raw: unknown): RefrigerantLineFlag[] | undefined 
     const pct = Number(row.commission_percent);
     if (row.commission_percent != null && row.commission_percent !== '' && Number.isFinite(pct) && pct > 0 && pct <= 100) {
       flag.commission_percent = pct;
+    }
+    const whp = Number(row.warehouse_unit_price);
+    if (row.warehouse_unit_price != null && row.warehouse_unit_price !== '' && Number.isFinite(whp) && whp > 0) {
+      flag.warehouse_unit_price = whp;
     }
     return flag;
   });

@@ -38,3 +38,22 @@ old[0].partner_billing = null; delete old[0].refrigerant_lines[0].customer_sale;
 out.legacy = partner(old).grandTotal;
 assert.equal(out.legacy, 300);
 console.log('refrigerant ok', JSON.stringify(out));
+
+// Varastohinta 45 €/kg kumppanin varastosta: vain tiedoksi — ei vähennystä, ei vaikuta summiin.
+const { isRefrigerantWarehouseCostLine } = await import('../src/lib/refrigerantPassThrough.ts');
+const { buildPartnerBillingDeductionsFromSource } = await import('../src/lib/partnerBillingDeductions.ts');
+const { refrigerantLinesToDrafts } = await import('../src/lib/refrigerantInventory.ts');
+const d45 = draft({ unit_price: '45' });
+const flags45 = refrigerantFlagsFromDrafts([d45], { partnerOwnedReport: true });
+assert.equal(flags45[0].warehouse_unit_price, 45);
+const w = mk(d45); // tallennettu sarake unit_price = 0
+const line45 = w[0].refrigerant_lines[0];
+assert.equal(partner(w).grandTotal, 30);
+assert.equal(customer(w).grandTotal, 300);
+assert.equal(isRefrigerantWarehouseCostLine(line45, 'owner'), false);
+assert.equal(refrigerantLinesToDrafts([line45])[0].unit_price, '45');
+const rep = [{ id: 'r1', title: 'T', owner_company_id: 'owner', created_by_company_id: 'enn', delegate_company_id: null }];
+assert.equal(buildPartnerBillingDeductionsFromSource(rep, [{ ...line45 }], [], 'enn').length, 0);
+// Vanha rivi (unit_price 45 sarakkeessa, ei lippuja) tuottaa yhä vähennyksen kuten ennen.
+assert.equal(buildPartnerBillingDeductionsFromSource(rep, [{ ...line45, unit_price: 45, customer_sale: undefined }], [], 'enn')[0].total, 90);
+console.log('varastohinta 45: partner 30, customer 300, deductions 0');

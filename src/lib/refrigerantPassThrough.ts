@@ -42,9 +42,10 @@ export function shouldBillRefrigerantSaleToReportOwner(
 }
 
 export function isRefrigerantWarehouseCostLine(
-  line: Pick<WorkReportRefrigerantLine, 'source' | 'warehouse_company_id' | 'qty_kg'>,
+  line: Pick<WorkReportRefrigerantLine, 'source' | 'warehouse_company_id' | 'qty_kg'> & { customer_sale?: boolean },
   viewerCompanyId: string | null | undefined,
 ): boolean {
+  if (line.customer_sale === true) return false;
   if (!viewerCompanyId || !line.warehouse_company_id) return false;
   if (line.warehouse_company_id !== viewerCompanyId) return false;
   const qty = Number(line.qty_kg) || 0;
