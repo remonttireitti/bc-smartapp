@@ -5,7 +5,7 @@ import {
   logTripsPartnerBilled,
   partnerBillingContext,
 } from './commissionBillingMode';
-import { logHoursWarranty } from './workReportWarranty';
+import { logHoursWarranty, logTripsWarranty } from './workReportWarranty';
 import type { WorkReportDailyLog } from '../types';
 import { resolveDailyLogAuthorLabel, sumDailyCommission } from '../types';
 import type { BillableRatesSource, PartnerBillingRates } from './management';
@@ -482,6 +482,12 @@ export function calculateWorkReportBillable(input: {
     if (tripKm > 0 && kmRate && !hasKmExpenseLine) {
       const billing = resolveTripKmBillingLine(tripKm, kmRate);
       const total = tripKmLineTotal(billing.qty, billing.unitPrice, billing.usesMinimum);
+      if (logTripsWarranty(log)) {
+        summary.lines.push({
+          logId: log.id, logDate: log.log_date, kind: 'expense', description: formatTripKmExpenseDescription(tripKm, billing.usesMinimum),
+          qty: billing.qty, unitPrice: billing.unitPrice, total: 0, included: true, warranty: true, warrantyValue: total, expenseType: 'km',
+        });
+      } else {
       const included = expensesEnabled && tripsRowBilled;
       summary.lines.push({
         logId: log.id,
@@ -496,6 +502,7 @@ export function calculateWorkReportBillable(input: {
       });
       if (included) summary.expensesTotal += total;
       else summary.excludedSubtotal += total;
+      }
     }
 
     for (const refLine of log.refrigerant_lines ?? []) {

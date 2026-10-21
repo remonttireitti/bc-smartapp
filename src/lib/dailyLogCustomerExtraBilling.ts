@@ -1,4 +1,4 @@
-import { withoutWarranty } from './workReportWarranty';
+import { logTripsWarranty, withoutWarranty } from './workReportWarranty';
 import type { WorkReportDailyLog } from '../types';
 import { isLikelyAutoTripKmExpense } from './tripKmExpense';
 import type { BillingQuoteExtraCustomerWork, BillingQuoteExtraExpenseLine } from './billingQuoteExtraWork';
@@ -1033,12 +1033,16 @@ export function annotateExpensePriceConfirmed<T extends WorkReportDailyLog>(logs
     if (!lines?.length) return log;
     const sorted = [...lines].sort((a, b) => (Number(a.sort_order) || 0) - (Number(b.sort_order) || 0));
     const flags = parseDailyLogCustomerExtraBilling(log.customer_extra_billing).supply_line_flags;
+    const tripsW = logTripsWarranty(log);
     const annotated = sorted.map((line, index) => {
       const flag = flags?.length ? resolveSupplyLineFlagForExpenseLine(line, index, sorted, flags) : null;
       let next = flag?.price_confirmed === true && !(Number(line.unit_price) > 0)
         ? { ...line, price_confirmed: true }
         : line;
       if (flag?.warranty === true) next = { ...next, warranty: true };
+      if (tripsW && isLikelyAutoTripKmExpense({ key: line.id, expense_type: line.expense_type, description: line.description ?? '' })) {
+        next = { ...next, warranty: true };
+      }
       return next;
     });
     return { ...log, expense_lines: annotated };

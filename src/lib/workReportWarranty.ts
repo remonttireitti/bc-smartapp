@@ -10,6 +10,10 @@ export function logHoursWarranty(log: { partner_billing?: unknown }): boolean {
   return parseDailyLogPartnerBilling(log.partner_billing).warranty === true;
 }
 
+export function logTripsWarranty(log: { partner_billing?: unknown }): boolean {
+  return parseDailyLogPartnerBilling(log.partner_billing).trips_warranty === true;
+}
+
 export function expenseLineWarranty(line: { warranty?: boolean } | null | undefined): boolean {
   return line?.warranty === true;
 }
@@ -22,7 +26,11 @@ export function withoutWarranty<T extends WorkReportDailyLog>(logs: T[]): T[] {
 export function withoutWarrantyLog<T extends WorkReportDailyLog>(log: T): T {
   const lines = log.expense_lines ?? [];
   const keptLines = lines.some(expenseLineWarranty) ? lines.filter((line) => !expenseLineWarranty(line)) : lines;
-  if (!logHoursWarranty(log)) return keptLines === lines ? log : { ...log, expense_lines: keptLines };
+  const tripsW = logTripsWarranty(log);
+  if (!logHoursWarranty(log)) {
+    if (tripsW) return { ...log, expense_lines: keptLines, trip_legs: [] };
+    return keptLines === lines ? log : { ...log, expense_lines: keptLines };
+  }
   const extra =
     log.customer_extra_billing && typeof log.customer_extra_billing === 'object'
       ? { ...(log.customer_extra_billing as Record<string, unknown>), hours: 0 }
@@ -37,5 +45,6 @@ export function withoutWarrantyLog<T extends WorkReportDailyLog>(log: T): T {
     customer_fixed_price_amount: log.entry_type === 'fixed_price' ? 0 : log.customer_fixed_price_amount,
     customer_extra_billing: extra as T['customer_extra_billing'],
     expense_lines: keptLines,
+    ...(tripsW ? { trip_legs: [] } : {}),
   };
 }

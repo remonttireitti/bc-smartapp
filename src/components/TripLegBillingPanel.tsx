@@ -3,16 +3,19 @@ import {
   type ExpenseBillingMode,
 } from '../lib/workReportExpenseBilling';
 
+/** Ajomatkan laskutusvalinta: kulutila tai Takuu (partner_billing.trips_warranty). */
+export type TripBillingChoice = ExpenseBillingMode | 'warranty';
+
 type Props = {
-  mode: ExpenseBillingMode;
-  onChange: (mode: ExpenseBillingMode) => void;
+  mode: TripBillingChoice;
+  onChange: (mode: TripBillingChoice) => void;
   showPartnerBilling: boolean;
   showCustomerBilling: boolean;
   disabled?: boolean;
 };
 
 type BillingOption = {
-  mode: ExpenseBillingMode;
+  mode: TripBillingChoice;
   label: string;
 };
 
@@ -22,11 +25,13 @@ function billingOptions(showPartner: boolean, showCustomer: boolean): BillingOpt
       { mode: 'partner_and_customer', label: 'Laskutetaan normaalisti' },
       { mode: 'customer_only', label: 'Vain asiakas laskutetaan' },
       { mode: 'included_in_contract', label: 'Kuulu urakkaan' },
+      { mode: 'warranty', label: 'Takuu' },
     ];
   }
   return [
     { mode: 'partner_and_customer', label: 'Laskutetaan' },
     { mode: 'included_in_contract', label: expenseBillingModeShortLabel('included_in_contract') },
+    { mode: 'warranty', label: 'Takuu' },
   ];
 }
 
