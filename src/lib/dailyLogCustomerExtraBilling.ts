@@ -1,4 +1,5 @@
 import { logTripsWarranty, withoutWarranty } from './workReportWarranty';
+import { parseDailyLogPartnerBilling } from './commissionBillingMode';
 import type { WorkReportDailyLog } from '../types';
 import { isLikelyAutoTripKmExpense } from './tripKmExpense';
 import type { BillingQuoteExtraCustomerWork, BillingQuoteExtraExpenseLine } from './billingQuoteExtraWork';
@@ -1027,8 +1028,31 @@ export function formatExtraBillingMarginImpactNote(
  * Kulurivit sort_order-järjestykseen ja 0 €:n vahvistus (supply_line_flags[i].price_confirmed)
  * riville `price_confirmed`, jotta "hinta puuttuu" -tarkistus näkee sen kaikkialla.
  */
-export function annotateExpensePriceConfirmed<T extends WorkReportDailyLog>(logs: T[]): T[] {
-  return logs.map((log) => {
+/** partner_billing.refrigerant_flags → kylmäaineriveille (järjestys created_at, kuten tallennus). */
+function annotateRefrigerantFlags<T extends WorkReportDailyLog>(log: T): T {
+  const lines = log.refrigerant_lines;
+  const flags = parseDailyLogPartnerBilling(log.partner_billing).refrigerant_flags;
+  if (!lines?.length || !flags?.length) return log;
+  const sorted = [...lines].sort((a, b) =>
+    String(a.created_at ?? '').localeCompare(String(b.created_at ?? '')) || String(a.id).localeCompare(String(b.id)),
+  );
+  return {
+    ...log,
+    refrigerant_lines: sorted.map((line, index) => {
+      const flag = flags[index];
+      if (!flag) return line;
+      return {
+        ...line,
+        ...(flag.warranty ? { warranty: true } : {}),
+        ...(flag.customer_sale ? { customer_sale: true } : {}),
+        ...(flag.commission_percent ? { commission_percent: flag.commission_percent } : {}),
+      };
+    }),
+  };
+}
+
+export function annotateExpensePriceConfirmed<T extends WorkReportDailyLog>(rawLogs: T[]): T[] {
+  return rawLogs.map(annotateRefrigerantFlags).map((log) => {
     const lines = log.expense_lines;
     if (!lines?.length) return log;
     const sorted = [...lines].sort((a, b) => (Number(a.sort_order) || 0) - (Number(b.sort_order) || 0));

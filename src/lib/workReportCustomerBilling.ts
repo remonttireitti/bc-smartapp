@@ -241,8 +241,17 @@ export function calculateWorkReportCustomerBillable(input: {
     for (const refLine of log.refrigerant_lines ?? []) {
       if (!refrigerantIncludedInCustomerBilling(refLine)) continue;
       const unitPrice = refrigerantCustomerUnitPrice(refLine);
-      const priceMissing = refrigerantCustomerPriceMissing(refLine);
+      // Kumppanin varaston asiakasmyynti ilman hintaa: ei asiakassummaa eikä puuttuu-merkintää.
+      if (refLine.customer_sale === true && !(unitPrice > 0)) continue;
+      const priceMissing = refLine.customer_sale === true ? false : refrigerantCustomerPriceMissing(refLine);
       const total = refrigerantLineTotal(refLine);
+      if (refLine.warranty === true) {
+        summary.lines.push({
+          logId: log.id, logDate: log.log_date, kind: 'refrigerant', description: `${refLine.refrigerant_type} (kylmäaine)`,
+          qty: Number(refLine.qty_kg), unitPrice, total: 0, included: true, warranty: true, warrantyValue: total,
+        });
+        continue;
+      }
       summary.lines.push({
         logId: log.id,
         logDate: log.log_date,

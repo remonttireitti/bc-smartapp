@@ -6,6 +6,8 @@ import {
 } from '../../lib/refrigerantInventory';
 import { refrigerantTypes } from '../../lib/huoltoRaportti/constants';
 import DailyLogTileSection from '../DailyLogTileSection';
+import CheckToggle from '../CheckToggle';
+import { parseFiNumber } from '../../lib/fiNumber';
 import {
   DAILY_LOG_SECTION_COLORS,
   dailyLogRefrigerantSubtitle,
@@ -113,7 +115,7 @@ export default function DailyLogRefrigerantFields({
     <DailyLogTileSection
       sectionKey="refrigerant"
       title={sectionTitle}
-      subtitle={dailyLogRefrigerantSubtitle(drafts.length)}
+      subtitle={dailyLogRefrigerantSubtitle(drafts.length, drafts.filter((row) => row.warranty).length)}
       color={DAILY_LOG_SECTION_COLORS.refrigerant}
       wide
     >
@@ -272,7 +274,7 @@ export default function DailyLogRefrigerantFields({
                 />
               </label>
 
-              {showCustomerBillingFields && shouldShowRefrigerantCustomerPriceFields(row) && (
+              {showCustomerBillingFields && !showPassThroughPrices && shouldShowRefrigerantCustomerPriceFields(row) && (
                 <>
                   <label>
                     Ostohinta (€/kg)
@@ -295,7 +297,54 @@ export default function DailyLogRefrigerantFields({
                 </>
               )}
 
-              {showPassThroughPrices && (
+              {showPassThroughPrices && row.source === 'partner_warehouse' && (() => {
+                const qty = parseFiNumber(row.qty_kg) || 0;
+                const price = parseFiNumber(row.customer_unit_price) || 0;
+                const pct = parseFiNumber(row.commission_percent ?? '') || 0;
+                const sale = qty > 0 && price > 0 ? Math.round(qty * price * 100) / 100 : 0;
+                const commission = Math.round(sale * pct) / 100;
+                const eur = (v: number) => `${v.toFixed(2).replace('.', ',')} €`;
+                return (
+                  <>
+                    <label>
+                      Varastohinta (€/kg)
+                      <input
+                        inputMode="decimal"
+                        value={row.unit_price}
+                        onChange={(e) => updateRow(index, { unit_price: e.target.value })}
+                        placeholder="Valinnainen"
+                      />
+                    </label>
+                    <label>
+                      Hinta asiakkaalle (€/kg)
+                      <input
+                        inputMode="decimal"
+                        value={row.customer_unit_price}
+                        onChange={(e) => updateRow(index, { customer_unit_price: e.target.value })}
+                        placeholder="Valinnainen"
+                      />
+                    </label>
+                    <label>
+                      Myyntiprovisio (%)
+                      <input
+                        inputMode="decimal"
+                        value={row.commission_percent ?? ''}
+                        onChange={(e) => updateRow(index, { commission_percent: e.target.value })}
+                        placeholder="Esim. 10"
+                      />
+                    </label>
+                    <p className="muted refrigerant-billing-note inventory-bottle-editor-wide">
+                      {row.warranty
+                        ? 'Takuu — ei laskuteta.'
+                        : sale > 0
+                          ? `Asiakas ${eur(sale)} · provisio kumppanilta ${eur(commission)}`
+                          : 'Ei myyntiä kumppanille. Vähennetään varastosta.'}
+                    </p>
+                  </>
+                );
+              })()}
+
+              {showPassThroughPrices && row.source === 'warehouse' && (
                 <>
                   <label>
                     Varastohinta (€/kg)
@@ -316,11 +365,18 @@ export default function DailyLogRefrigerantFields({
                     />
                   </label>
                   <p className="muted refrigerant-billing-note inventory-bottle-editor-wide">
-                    Varastosta vähennetään automaattisesti. Omistajayritys näkee ostonsa raportin laatijalta — ei
-                    varaston nimeä tai pullonumeroa.
+                    Vähennetään varastosta automaattisesti.
                   </p>
                 </>
               )}
+
+              <label className="compact-option refrigerant-warranty-toggle">
+                <CheckToggle
+                  checked={row.warranty === true}
+                  onChange={(e) => updateRow(index, { warranty: e.target.checked })}
+                />
+                Takuu
+              </label>
 
               <button
                 type="button"

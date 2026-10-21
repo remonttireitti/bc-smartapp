@@ -1,3 +1,4 @@
+import { refrigerantCommissionAmount, refrigerantCustomerSaleNet } from './refrigerantPassThrough';
 import { logHoursWarranty } from './workReportWarranty';
 import { resolveUrakkaPartnerAmount } from './workReportUrakkaBilling';
 import { logHoursPartnerBilled, partnerBillingContext } from './commissionBillingMode';
@@ -799,14 +800,26 @@ function generateWorkReportPrintHtmlRaw(input: {
       const refrigerantRows = refrigerantLines
         .map((line) => {
           const reminder = refrigerantBillingReminder(line, report);
-          const includedInCustomerBilling = refrigerantIncludedInCustomerBilling(line);
           const customerUnit = refrigerantCustomerUnitPrice(line);
+          const includedInCustomerBilling =
+            refrigerantIncludedInCustomerBilling(line)
+            && line.warranty !== true
+            && !(line.customer_sale === true && !(customerUnit > 0));
           const customerTotal = refrigerantLineTotal(line);
           const priceMissing = includedInCustomerBilling && !(customerUnit > 0);
           const logAuthor = resolveDailyLogAuthorLabel(log);
           const sellerLabel = logAuthor.name === '—' ? null : logAuthor.name;
           let billingNote = '';
-          if (showInternalPrices) {
+          if (line.warranty === true) {
+            billingNote = ' · Takuu';
+          } else if (showInternalPrices && line.customer_sale === true) {
+            const sale = refrigerantCustomerSaleNet(line);
+            const commission = refrigerantCommissionAmount(line);
+            const saleShown = showCustomerRefrigerantPrices && includedInCustomerBilling;
+            billingNote = sale > 0
+              ? `${saleShown ? '' : ` · asiakas ${formatEuro(sale)}`}${commission > 0 ? ` · provisio ${formatEuro(commission)}` : ''}`
+              : '';
+          } else if (showInternalPrices) {
             if (showPartnerPrices && line.bill_to_customer) {
               billingNote = ` · laskutetaan asiakkaalta ${formatEuro(refrigerantLineTotal(line))}`;
             } else if (showCustomerRefrigerantPrices && includedInCustomerBilling) {

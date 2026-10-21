@@ -12,6 +12,31 @@ export interface DailyLogPartnerBilling {
   warranty?: boolean;
   /** Takuu: kirjauksen ajomatkat (km) eivät laskutu kenellekään. */
   trips_warranty?: boolean;
+  /** Kylmäainerivit (indeksi = tallennusjärjestys created_at): takuu, kumppanin varaston myyntiprovisio. */
+  refrigerant_flags?: RefrigerantLineFlag[];
+}
+
+export type RefrigerantLineFlag = {
+  warranty?: boolean;
+  /** Kumppanin varasto: ei myyntiä kumppanille, vain provisio % asiakasmyynnistä. */
+  customer_sale?: boolean;
+  commission_percent?: number;
+};
+
+function parseRefrigerantFlags(raw: unknown): RefrigerantLineFlag[] | undefined {
+  if (!Array.isArray(raw)) return undefined;
+  const out = raw.map((entry) => {
+    const row = entry && typeof entry === 'object' ? (entry as Record<string, unknown>) : {};
+    const flag: RefrigerantLineFlag = {};
+    if (row.warranty === true) flag.warranty = true;
+    if (row.customer_sale === true) flag.customer_sale = true;
+    const pct = Number(row.commission_percent);
+    if (row.commission_percent != null && row.commission_percent !== '' && Number.isFinite(pct) && pct > 0 && pct <= 100) {
+      flag.commission_percent = pct;
+    }
+    return flag;
+  });
+  return out.some((flag) => Object.keys(flag).length > 0) ? out : undefined;
 }
 
 export const DEFAULT_COMMISSION_BILLING_MODE: CommissionBillingMode = 'commission_plus';
@@ -36,6 +61,8 @@ export function parseDailyLogPartnerBilling(raw: unknown): DailyLogPartnerBillin
   if (v.extra_billing === true) out.extra_billing = true;
   if (v.warranty === true) out.warranty = true;
   if (v.trips_warranty === true) out.trips_warranty = true;
+  const refrigerantFlags = parseRefrigerantFlags(v.refrigerant_flags);
+  if (refrigerantFlags) out.refrigerant_flags = refrigerantFlags;
   return out;
 }
 
@@ -50,6 +77,8 @@ export function serializeDailyLogPartnerBilling(
   if (value.extra_billing === true) out.extra_billing = true;
   if (value.warranty === true) out.warranty = true;
   if (value.trips_warranty === true) out.trips_warranty = true;
+  const refrigerantFlags = parseRefrigerantFlags(value.refrigerant_flags);
+  if (refrigerantFlags) out.refrigerant_flags = refrigerantFlags;
   return Object.keys(out).length ? out : null;
 }
 

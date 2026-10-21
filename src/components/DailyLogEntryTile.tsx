@@ -152,6 +152,9 @@ export function buildDailyLogEntryTiles(
     } else if (refrigerantLines[0]) {
       subtitleParts.push(refrigerantLines[0].refrigerant_type ?? 'Kylmäaine');
     }
+    if (materialLines.some((line) => line.warranty) || refrigerantLines.some((line) => line.warranty)) {
+      subtitleParts.splice(1, 0, 'Takuu');
+    }
     const materialsUnpriced = materialLines.filter(expenseLinePriceMissing).length;
     tiles.push({
       key: `${log.id}:materials`,

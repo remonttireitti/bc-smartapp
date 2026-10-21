@@ -125,6 +125,7 @@ import {
   loadRefrigerantCylindersForReport,
   refrigerantBillingReminder,
   refrigerantLinesToDrafts,
+  refrigerantFlagsFromDrafts,
   restoreCylinderQuantities,
   saveRefrigerantLines,
   type RefrigerantLineDraft,
@@ -504,7 +505,12 @@ function expenseSaveOptionsForReport(
 
 function buildLogPayload(
   form: DailyLogFormState,
-  options?: { includeAgreedRegular?: boolean; expenseDrafts?: ExpenseDraft[]; partnerUrakkaOnly?: boolean },
+  options?: {
+    includeAgreedRegular?: boolean;
+    expenseDrafts?: ExpenseDraft[];
+    partnerUrakkaOnly?: boolean;
+    refrigerantFlags?: ReturnType<typeof refrigerantFlagsFromDrafts>;
+  },
 ) {
   const { showRegular, showOvertime, showOnCall, showFixed } = hourFieldsForEntryType(form.entry_type);
   const hourlyOverride = parseOptionalHourlyRateOverride(form.hourly_rate_override);
@@ -566,6 +572,7 @@ function buildLogPayload(
             extra_billing: form.partner_extra_billing && form.entry_type !== 'fixed_price',
             warranty: form.partner_warranty,
             trips_warranty: form.partner_trips_warranty,
+            refrigerant_flags: options?.refrigerantFlags,
           }),
         }
       : {}),
@@ -2672,6 +2679,7 @@ export default function WorkReportDetailPage({ session }: Props) {
       includeAgreedRegular: agreedRegularSupported,
       expenseDrafts: expensesForPayload,
       partnerUrakkaOnly: partnerBillingOn && isPartnerReport,
+      refrigerantFlags: refrigerantFlagsFromDrafts(refrigerantDrafts, { partnerOwnedReport: isPartnerReport }),
     });
 
     const performerId = resolveReportPerformerUserId(report) ?? session.user.id;
@@ -3154,6 +3162,7 @@ export default function WorkReportDetailPage({ session }: Props) {
       includeAgreedRegular: agreedRegularSupported,
       expenseDrafts: expensesForPayload,
       partnerUrakkaOnly: partnerBillingOn && isPartnerReport,
+      refrigerantFlags: refrigerantFlagsFromDrafts(refrigerantDrafts, { partnerOwnedReport: isPartnerReport }),
     });
 
     const performerId = resolveReportPerformerUserId(report) ?? session.user.id;

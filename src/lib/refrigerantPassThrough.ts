@@ -51,3 +51,25 @@ export function isRefrigerantWarehouseCostLine(
   if (qty <= 0) return false;
   return line.source === 'warehouse' || line.source === 'partner_warehouse';
 }
+
+/** Kumppanin varasto (uusi tapa): ei myyntiä kumppanille, vain myyntiprovisio asiakasmyynnistä. */
+export function isRefrigerantCustomerSaleLine(line: Pick<WorkReportRefrigerantLine, 'source' | 'customer_sale'>): boolean {
+  return line.source === 'partner_warehouse' && line.customer_sale === true;
+}
+
+/** Asiakasmyynti (kg × hinta asiakkaalle); 0 kun hinta puuttuu. */
+export function refrigerantCustomerSaleNet(line: Pick<WorkReportRefrigerantLine, 'qty_kg' | 'customer_unit_price'>): number {
+  const qty = Number(line.qty_kg) || 0;
+  const price = line.customer_unit_price != null ? Number(line.customer_unit_price) || 0 : 0;
+  if (!(qty > 0) || !(price > 0)) return 0;
+  return Math.round(qty * price * 100) / 100;
+}
+
+/** Myyntiprovisio = % × asiakasmyynti (laskutetaan kumppanilta). */
+export function refrigerantCommissionAmount(
+  line: Pick<WorkReportRefrigerantLine, 'qty_kg' | 'customer_unit_price' | 'commission_percent'>,
+): number {
+  const pct = Number(line.commission_percent) || 0;
+  if (!(pct > 0)) return 0;
+  return Math.round(refrigerantCustomerSaleNet(line) * pct) / 100;
+}

@@ -150,6 +150,10 @@ export type WorkReportRefrigerantLine = {
   cylinder_disposition: RefrigerantCylinderDisposition | null;
   created_by: string | null;
   created_at: string;
+  /** partner_billing.refrigerant_flags[i] (annotoitu latauksessa). */
+  warranty?: boolean;
+  customer_sale?: boolean;
+  commission_percent?: number;
   cylinder?: Pick<RefrigerantCylinder, 'serial_number' | 'refrigerant_type' | 'bottle_size' | 'notes'> | null;
   warehouse_company?: { name: string | null } | null;
   owner_user?: { display_name: string | null } | null;

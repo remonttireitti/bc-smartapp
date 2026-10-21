@@ -23,7 +23,11 @@ export function withoutWarranty<T extends WorkReportDailyLog>(logs: T[]): T[] {
   return logs.map((log) => withoutWarrantyLog(log));
 }
 
-export function withoutWarrantyLog<T extends WorkReportDailyLog>(log: T): T {
+export function withoutWarrantyLog<T extends WorkReportDailyLog>(rawLog: T): T {
+  const refrigerant = rawLog.refrigerant_lines ?? [];
+  const log = refrigerant.some((line) => line.warranty === true)
+    ? { ...rawLog, refrigerant_lines: refrigerant.filter((line) => line.warranty !== true) }
+    : rawLog;
   const lines = log.expense_lines ?? [];
   const keptLines = lines.some(expenseLineWarranty) ? lines.filter((line) => !expenseLineWarranty(line)) : lines;
   const tripsW = logTripsWarranty(log);

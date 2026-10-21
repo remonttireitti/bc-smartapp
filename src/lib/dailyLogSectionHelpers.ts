@@ -109,9 +109,10 @@ export function dailyLogExpensesSubtitle(manualCount: number, hasAutoTripKm: boo
   return warrantyCount > 0 ? `${base} · Takuu ${warrantyCount}` : base;
 }
 
-export function dailyLogRefrigerantSubtitle(count: number): string {
+export function dailyLogRefrigerantSubtitle(count: number, warrantyCount = 0): string {
   if (count === 0) return 'Ei kylmäainerivejä';
-  return count === 1 ? '1 rivi' : `${count} riviä`;
+  const base = count === 1 ? '1 rivi' : `${count} riviä`;
+  return warrantyCount > 0 ? `${base} · Takuu` : base;
 }
 
 export function dailyLogImagesSubtitle(savedCount: number, pendingCount: number): string {
