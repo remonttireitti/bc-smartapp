@@ -37,6 +37,8 @@ export type WorkReportDeviceEntry = {
   extraBilled: boolean;
   /** Rivi on toteutunut laitehankinta, joka korvaa tarjouspyynnön laitehinnan. */
   replacesQuoteDevice: boolean;
+  /** Takuu: 0 € asiakkaalle ja kumppanille, ei katteeseen. */
+  warranty?: boolean;
 };
 
 function lineQty(expense: ExpenseLine): number {
@@ -67,6 +69,14 @@ export function collectDeviceEntries(logs: WorkReportDailyLog[]): WorkReportDevi
       if (!isDeviceExpense(expense)) return;
       const extraBilling = resolveLogExpenseExtraBillingFlags(expense, index, lines, flags);
       const qty = lineQty(expense);
+      if (expense.warranty === true) {
+        entries.push({
+          id: String(expense.id ?? `${log.id}:${index}`), logId: log.id, logDate: String(log.log_date ?? '').slice(0, 10),
+          description: String(expense.description ?? '').trim() || 'Laite', qty, purchaseNet: null, customerNet: null,
+          billingMode: resolveExpenseBillingMode(expense), extraBilled: false, replacesQuoteDevice: false, warranty: true,
+        });
+        return;
+      }
       const mode = resolveExpenseBillingMode(expense);
       const diary = expenseDiarySuppliesTotal(expense, extraBilling).total;
       const unit = Number(expense.unit_price) || 0;
@@ -124,7 +134,7 @@ export function deviceEntryCostSplit(
   let partnerNet = 0;
   for (const user of partnerCalculation?.byUser ?? []) {
     for (const line of user.lines) {
-      if (!line.included || line.kind !== 'expense') continue;
+      if (!line.included || line.kind !== 'expense' || line.warranty) continue;
       if (!isDeviceExpense({ expense_type: line.expenseType })) continue;
       partnerNet += billableLineDisplayTotal(line);
     }
@@ -215,6 +225,7 @@ export function deviceTileSubtitle(
     if (purchase > 0.005) parts.push(`hankinta ${options.formatEuro(roundMoney(purchase))}`);
     if (customer > 0.005) parts.push(`asiakas ${options.formatEuro(roundMoney(customer))}`);
   }
+  if (entries.some((entry) => entry.warranty)) parts.push('Takuu');
   return parts.join(' · ');
 }
 

@@ -67,3 +67,20 @@ assert.equal(customer(trip({ trips_warranty: true }, true)).grandTotal, 0);
 assert.equal(warrantyTotal(customer(trip({ trips_warranty: true }, true))), 50.4);
 assert.equal(parseDailyLogPartnerBilling(serializeDailyLogPartnerBilling({ trips_warranty: true })).trips_warranty, true);
 console.log('trip takuu ok 50.4 -> 0');
+
+// Laite: myynti 700 € / hankinta 350 €; Takuu → 0 € molemmille, ei katteeseen.
+const { collectDeviceEntries } = await import('../src/lib/workReportDeviceEntries.ts');
+const { expenseDiarySuppliesTotal } = await import('../src/lib/workReportActualPurchase.ts');
+const dev = (flags) => annotateExpensePriceConfirmed([{ ...base[0], hours_regular: 0, partner_billing: null,
+  customer_extra_billing: flags ? { supply_line_flags: flags } : {},
+  expense_lines: [{ id: 'd1', description: 'Laite X', expense_type: 'device', qty: 1, unit_price: 350, customer_unit_price: 700, bill_to_partner: true, bill_to_customer: true, sort_order: 0 }] }]);
+const d0 = dev(null), d1 = dev([{ warranty: true }]);
+console.log('device before', partner(d0).grandTotal, customer(d0).grandTotal, 'after', partner(d1).grandTotal, customer(d1).grandTotal, 'takuu', warrantyTotal(partner(d1)), warrantyTotal(customer(d1)));
+assert.equal(partner(d1).grandTotal, 0);
+assert.equal(customer(d1).grandTotal, 0);
+assert.equal(warrantyTotal(customer(d1)), customer(d0).grandTotal);
+assert.equal(warrantyTotal(partner(d1)), partner(d0).grandTotal);
+assert.equal(expenseDiarySuppliesTotal(d1[0].expense_lines[0]).total, 0);
+const e1 = collectDeviceEntries(d1)[0];
+assert.equal(e1.warranty, true); assert.equal(e1.purchaseNet, null); assert.equal(e1.customerNet, null);
+console.log('device entries before', JSON.stringify(collectDeviceEntries(d0)[0]));

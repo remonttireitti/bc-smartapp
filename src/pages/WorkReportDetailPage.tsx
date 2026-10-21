@@ -672,12 +672,13 @@ export function DailyLogFields({
     (row) => !isLikelyAutoTripKmExpense(row) && !isDeviceExpense(row),
   );
   const deviceDrafts = expenseDrafts.filter((row) => isDeviceExpense(row));
-  const deviceSubtitle =
+  const deviceSubtitleBase =
     deviceDrafts.length === 0
       ? 'Ei laitetta'
       : deviceDrafts.length === 1
         ? deviceDrafts[0].description.trim() || '1 laite'
         : `${deviceDrafts.length} laitetta`;
+  const deviceSubtitle = deviceDrafts.some((row) => row.warranty) ? `${deviceSubtitleBase} · Takuu` : deviceSubtitleBase;
   const hasAutoTripKm = expenseDrafts.some(isLikelyAutoTripKmExpense);
   const expenseSectionTitle =
     expenseCategoryFilter === 'supplies'
@@ -1163,7 +1164,7 @@ export function DailyLogFields({
       <DailyLogTileSection
         sectionKey="expenses"
         title={expenseSectionTitle}
-        subtitle={dailyLogExpensesSubtitle(manualExpenseDrafts.length, hasAutoTripKm)}
+        subtitle={dailyLogExpensesSubtitle(manualExpenseDrafts.length, hasAutoTripKm, manualExpenseDrafts.filter((row) => row.warranty).length)}
         color={DAILY_LOG_SECTION_COLORS.expenses}
         wide
       >

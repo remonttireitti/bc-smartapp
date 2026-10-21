@@ -139,7 +139,7 @@ export default function DailyLogTripLegFields({
     <DailyLogTileSection
       sectionKey="trips"
       title={sectionTitle}
-      subtitle={dailyLogTripsSubtitle(drafts)}
+      subtitle={dailyLogTripsSubtitle(drafts, tripBillingMode === 'warranty')}
       color={DAILY_LOG_SECTION_COLORS.trips}
       wide
     >
