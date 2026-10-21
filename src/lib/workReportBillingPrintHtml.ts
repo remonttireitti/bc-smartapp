@@ -68,9 +68,9 @@ function generatePartnerBillingHtmlRaw(input: {
           <td>${escapeHtml(u.userName)}</td>
           <td>${escapeHtml(l.logDate)}</td>
           <td>${escapeHtml(LINE_KIND_LABELS[l.kind] ?? l.kind)}</td>
-          <td>${escapeHtml(l.description)}</td>
+          <td>${escapeHtml(l.description)}${l.warranty ? ' · Takuu' : ''}</td>
           <td class="num">${l.qty}</td>
-          <td class="num">${formatEuro(l.unitPrice)}</td>
+          <td class="num">${l.warranty ? '' : formatEuro(l.unitPrice)}</td>
           <td class="num">${formatEuro(l.total)}</td>
         </tr>`;
   const users = billableUsers(calculation);

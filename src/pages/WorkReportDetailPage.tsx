@@ -351,6 +351,8 @@ function initialLogForm() {
     partner_urakka_manual: false,
     /** Urakkaraportin lisälaskutus (partner_billing.extra_billing). */
     partner_extra_billing: false,
+    /** Takuu: tunnit eivät laskutu (partner_billing.warranty). */
+    partner_warranty: false,
     /** Vanha yksihintainen urakka: asiakaskenttä täytetty lomakkeelle, ei tallennettu. */
     customer_price_synthetic: false,
     hourly_rate_override: '',
@@ -473,6 +475,7 @@ function logToForm(log: WorkReportDailyLog): DailyLogFormState {
     hours_billed: parseDailyLogPartnerBilling(log.partner_billing).hours_billed !== false,
     trips_billed: parseDailyLogPartnerBilling(log.partner_billing).trips_billed !== false,
     partner_extra_billing: parseDailyLogPartnerBilling(log.partner_billing).extra_billing === true,
+    partner_warranty: parseDailyLogPartnerBilling(log.partner_billing).warranty === true,
     work_done: log.work_done,
     hours_agreed_regular:
       Number(log.hours_agreed_regular) > 0 ? String(log.hours_agreed_regular) : '',
@@ -558,6 +561,7 @@ function buildLogPayload(
             hours_billed: form.hours_billed,
             trips_billed: form.trips_billed,
             extra_billing: form.partner_extra_billing && form.entry_type !== 'fixed_price',
+            warranty: form.partner_warranty,
           }),
         }
       : {}),
@@ -996,6 +1000,13 @@ export function DailyLogFields({
           ) : null}
         </div>
       ) : null}
+      <label className="compact-option">
+        <CheckToggle
+          checked={form.partner_warranty}
+          onChange={(e) => setForm({ ...form, partner_warranty: e.target.checked })}
+        />
+        Takuu
+      </label>
       {showExtraBillingToggle && !showFixed ? (
         <label className="compact-option">
           <CheckToggle

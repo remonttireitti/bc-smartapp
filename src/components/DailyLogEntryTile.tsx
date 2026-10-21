@@ -84,7 +84,9 @@ export function buildDailyLogEntryTiles(
     logId: log.id,
     title: dateLabel,
     subtitle: workSubtitleParts.join(' · '),
-    ...(parseDailyLogPartnerBilling(log.partner_billing).extra_billing === true
+    ...(parseDailyLogPartnerBilling(log.partner_billing).warranty === true
+      ? { marker: 'takuu' }
+      : parseDailyLogPartnerBilling(log.partner_billing).extra_billing === true
       ? { marker: 'lisälaskutus' }
       : options.partnerBilling?.commissionOnly
       ? { marker: 'kumppanilta vain provisio' }

@@ -1,3 +1,4 @@
+import { logHoursWarranty } from './workReportWarranty';
 import { resolveUrakkaPartnerAmount } from './workReportUrakkaBilling';
 import { logHoursPartnerBilled, partnerBillingContext } from './commissionBillingMode';
 import { expenseLineHasNoPrice } from './expensePriceMissing';
@@ -349,9 +350,9 @@ function customerBillingPrintSection(
             <td>${esc(formatDate(line.logDate))}</td>
             <td>${esc(user.userName)}</td>
             <td>${esc(printLineKindLabel(line))}</td>
-            <td>${esc(line.description)}</td>
+            <td>${esc(line.description)}${line.warranty ? ' <span class="muted">· Takuu</span>' : ''}</td>
             <td class="num">${formatBillableLineQty(line.kind, line.qty)}</td>
-            <td class="num">${formatBillablePriceCell(line.unitPrice, line.priceMissing)}</td>
+            <td class="num">${line.warranty ? '' : formatBillablePriceCell(line.unitPrice, line.priceMissing)}</td>
             <td class="num"><strong>${line.priceMissing ? '<span class="billing-price-missing">?</span>' : formatEuro(line.total)}</strong></td>
           </tr>`,
         ),
@@ -710,6 +711,12 @@ function generateWorkReportPrintHtmlRaw(input: {
               ? resolveTripKmCustomerPrintDescription(line) ?? line.description
               : line.description;
           const qty = Number(line.qty);
+          if (line.warranty === true) {
+            const warrantyQty = printMode === 'customer' && !customerPrintQuantitySettings.showExpenseQuantities
+              ? ''
+              : `<td class="num">${qty}${showPartnerPrices || showCustomerExpensePrices ? ` · ${formatEuro(0)}` : ''}</td>`;
+            return `<tr><td>${esc(label)}</td><td>${esc(descriptionForPrint)} <span class="muted">· Takuu</span></td>${warrantyQty}</tr>`;
+          }
           const unit = Number(line.unit_price);
           const total = expenseLineTotal(line);
           const customerUnit =
@@ -822,7 +829,8 @@ function generateWorkReportPrintHtmlRaw(input: {
         })
         .join('');
 
-      const hourSummary =
+      const hoursWarrantyPrint = logHoursWarranty(log);
+      const hourSummaryBase =
         printMode === 'customer'
           ? (() => {
               const qtySummary = formatCustomerPrintHourSummary(log, customerPrintQuantitySettings);
@@ -832,10 +840,11 @@ function generateWorkReportPrintHtmlRaw(input: {
             })()
           : formatHourEntryForPrint(
               log,
-              showInternalPrices && (showPartnerPrices || showCustomerPricesInPrint),
-              showCustomerPricesInPrint,
+              !hoursWarrantyPrint && showInternalPrices && (showPartnerPrices || showCustomerPricesInPrint),
+              !hoursWarrantyPrint && showCustomerPricesInPrint,
               false,
             );
+      const hourSummary = hoursWarrantyPrint && hourSummaryBase ? `${hourSummaryBase} · Takuu` : hourSummaryBase;
       const quoteHourNote =
         customerQuoteBased && showInternalPrices && !/kuuluu tarjoukseen/i.test(hourSummary)
           ? ' · <span class="muted">kuuluu tarjoukseen</span>'
@@ -1125,13 +1134,13 @@ function generateWorkReportPrintHtmlRaw(input: {
                           <td>${esc(printLineKindLabel(l))}</td>
                           <td>${esc(l.description)}${
                             l.notBilledReason ? ` <span class="muted">· ${esc(notBilledLabel(l))}</span>` : ''
-                          }</td>
+                          }${l.warranty ? ' <span class="muted">· Takuu</span>' : ''}</td>
                           <td class="num">${formatBillableLineQty(l.kind, l.qty)}</td>
                           ${
                             showPartnerPrices
                               ? l.notBilledReason && !l.included
                                 ? `<td class="num muted">${formatEuro(l.unitPrice)}</td><td class="num muted"><s>${formatEuro(l.total)}</s></td>`
-                                : `<td class="num">${formatEuro(l.unitPrice)}</td><td class="num">${formatEuro(l.total)}</td>`
+                                : `<td class="num">${l.warranty ? '' : formatEuro(l.unitPrice)}</td><td class="num">${formatEuro(l.total)}</td>`
                               : ''
                           }
                         </tr>`,
@@ -1558,7 +1567,7 @@ function summarizeLogs(
 
   for (const log of logs) {
     if (log.entry_type === 'fixed_price') {
-      fixed += resolveUrakkaPartnerAmount(log) ?? 0;
+      if (!logHoursWarranty(log)) fixed += resolveUrakkaPartnerAmount(log) ?? 0;
       fixedEntries += 1;
     } else if (log.entry_type === 'regular') {
       hours += Number(log.hours_regular);
@@ -1574,6 +1583,7 @@ function summarizeLogs(
       commissionNotes += 1;
     }
     for (const line of log.expense_lines ?? []) {
+      if (line.warranty === true) continue;
       if (options?.hideUnpricedExpenses && expenseLineHasNoPrice(line)) continue;
       expenseLines += 1;
       if (showPrices) expenses += expenseLineTotal(line);

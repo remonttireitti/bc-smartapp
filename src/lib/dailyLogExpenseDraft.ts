@@ -37,6 +37,8 @@ export type ExpenseDraft = {
   extra_billing_allowed: boolean;
   /** Hinta 0 € vahvistettu (kulua ei syntynyt). */
   price_confirmed?: boolean;
+  /** Takuu: rivi ei laskutu (supply_line_flags[i].warranty). */
+  warranty?: boolean;
   /** Varaston materiaali (saldo päivittyy tallennettaessa). */
   inventory_item_id?: string | null;
   unit?: string | null;
@@ -205,6 +207,7 @@ export function expensesToDrafts(
       extra_billable: extraBillable,
       extra_billing_allowed: extraBillingAllowed,
       ...(fallback?.price_confirmed === true && !(unitPrice > 0) ? { price_confirmed: true } : {}),
+      ...(line.warranty === true || fallback?.warranty === true ? { warranty: true } : {}),
     };
   });
 }
@@ -221,6 +224,7 @@ export function expenseRowSectionTitle(
   const desc = row.description.trim() || 'Täytä tiedot';
   const parts = [type, desc];
   if (row.qty.trim()) parts.push(`${row.qty} kpl`);
+  if (row.warranty) parts.push('Takuu');
   if (resolveExpenseBillingMode(row) === 'customer_only' && expensePurchaseLineTotal(row) > 0) {
     parts.push(`hankinta ${expensePurchaseLineTotal(row).toFixed(2)} €`);
   }

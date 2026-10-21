@@ -135,6 +135,8 @@ export type DailyExpenseLine = {
   sort_order: number;
   /** Johdettu supply_line_flags-JSONista: hinta 0 € vahvistettu (kulua ei syntynyt). */
   price_confirmed?: boolean;
+  /** Johdettu supply_line_flags-JSONista: takuu, ei laskuteta. */
+  warranty?: boolean;
   inventory_item_id?: string | null;
   unit?: string | null;
 };

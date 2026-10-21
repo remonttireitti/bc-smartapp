@@ -126,6 +126,7 @@
     "test:free-access-price": "npx tsx scripts/test-free-access-price.mjs",
     "test:quote-trade-types": "npx tsx scripts/test-quote-trade-types.mjs",
     "test:urakka-zero-day-billing": "npx tsx scripts/test-urakka-zero-day-billing.mjs",
+    "test:takuu-billing": "npx tsx scripts/test-takuu-billing.mjs",
     "gen:esittely": "npx tsx scripts/generate-esittely.mjs"
   },
   "dependencies": {

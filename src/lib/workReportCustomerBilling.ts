@@ -1,3 +1,4 @@
+import { logHoursWarranty } from './workReportWarranty';
 import type { WorkReportDailyLog } from '../types';
 import { resolveDailyLogAuthorLabel } from '../types';
 import type { PartnerBillingRates } from './management';
@@ -159,23 +160,32 @@ export function calculateWorkReportCustomerBillable(input: {
       policy: overtimePolicy,
       resolveUnitPrice: (kind, hourLog) => resolveCustomerHourUnitPrice(hourLog, kind, rates),
     });
-    if (log.entry_type === 'fixed_price') {
-      const total = resolveUrakkaCustomerAmount(log);
-      if (total == null || total <= 0) continue;
+    const hoursWarranty = logHoursWarranty(log);
+    const urakkaTotal = log.entry_type === 'fixed_price' ? resolveUrakkaCustomerAmount(log) : null;
+    if (urakkaTotal != null && urakkaTotal > 0) {
+      const total = hoursWarranty ? 0 : urakkaTotal;
       summary.lines.push({
         logId: log.id,
         logDate: log.log_date,
         kind: 'fixed_price',
         description: urakkaCustomerLineDescription(log),
         qty: 1,
-        unitPrice: total,
+        unitPrice: urakkaTotal,
         total,
         included: true,
+        ...(hoursWarranty ? { warranty: true, warrantyValue: urakkaTotal } : {}),
       });
       summary.fixedTotal += total;
     }
 
     for (const hl of hourLines) {
+      if (hoursWarranty) {
+        summary.lines.push({
+          logId: log.id, logDate: log.log_date, kind: hl.kind, description: hl.label, qty: hl.qty,
+          unitPrice: hl.unitPrice, total: 0, included: true, warranty: true, warrantyValue: lineTotal(hl.qty, hl.unitPrice),
+        });
+        continue;
+      }
       const total = lineTotal(hl.qty, hl.unitPrice);
       summary.lines.push({
         logId: log.id,
@@ -207,6 +217,13 @@ export function calculateWorkReportCustomerBillable(input: {
               unitPrice,
               total: lineTotal(Number(expense.qty), unitPrice),
             };
+      if (expense.warranty === true) {
+        summary.lines.push({
+          logId: log.id, logDate: log.log_date, kind: 'expense', description: expense.description, qty: billed.qty,
+          unitPrice: billed.unitPrice, total: 0, included: true, warranty: true, warrantyValue: billed.total,
+        });
+        continue;
+      }
       summary.lines.push({
         logId: log.id,
         logDate: log.log_date,
