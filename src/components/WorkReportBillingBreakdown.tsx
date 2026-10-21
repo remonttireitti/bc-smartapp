@@ -183,7 +183,7 @@ export default function WorkReportBillingBreakdown({
                   <td>{line.description}</td>
                   <td className="num">{formatBillableLineQty(line.kind, line.qty)}</td>
                   <td className="num">
-                    {line.priceMissing ? (
+                    {line.warranty ? null : line.priceMissing ? (
                       <span className="billing-price-missing" title="Hinta puuttuu — määritä asiakkaalle">
                         ?
                       </span>
