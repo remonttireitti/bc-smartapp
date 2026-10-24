@@ -14,9 +14,11 @@ assert.deepEqual(EXAMPLE_PRINTS.map((p) => p.key), ['konvektori', 'lvi', 'iv', '
 assert.equal(isExamplePrintKey('lvi'), true);
 assert.equal(isExamplePrintKey('x'), false);
 const sitemap = readFileSync(new URL('../public/sitemap.xml', import.meta.url), 'utf8');
+assert.ok(!sitemap.includes('/login'), 'login ei sitemapissa');
 
 for (const p of EXAMPLE_PRINTS) {
-  assert.ok(sitemap.includes(`https://bestcool.eu${examplePrintHref(p.key)}`), `${p.key}: sitemapissa`);
+  // Esimerkkisivujen canonical = etusivu → ei sitemapissa.
+  assert.ok(!sitemap.includes(`https://bestcool.eu${examplePrintHref(p.key)}`), `${p.key}: ei sitemapissa`);
   assert.equal(routeHidesSidebar(examplePrintHref(p.key)), true);
   if (p.key === 'konvektori') continue; // konvektoridata: test:konvektori-example-print
   const { html, documentTitle } = buildExamplePrintDocument(p.key, now);
@@ -24,7 +26,8 @@ for (const p of EXAMPLE_PRINTS) {
   assert.match(fragment, /<style/, `${p.key}: tyylit säilyvät tulostesivulla`);
   assert.match(documentTitle, /^Esimerkki/);
   assert.ok(!/undefined|NaN|\[object/.test(fragment), `${p.key}: ei rikkinäisiä arvoja`);
-  assert.ok(sitemap.includes(`https://bestcool.eu${examplePrintHref(p.key)}`), `${p.key}: sitemapissa`);
+  // Esimerkkisivujen canonical = etusivu → ei sitemapissa.
+  assert.ok(!sitemap.includes(`https://bestcool.eu${examplePrintHref(p.key)}`), `${p.key}: ei sitemapissa`);
   assert.equal(routeHidesSidebar(examplePrintHref(p.key)), true);
 }
 

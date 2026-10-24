@@ -1,15 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <url><loc>https://bestcool.eu/</loc><changefreq>monthly</changefreq><priority>1.0</priority></url>
-  <url><loc>https://bestcool.eu/login</loc><changefreq>yearly</changefreq><priority>0.3</priority></url>
-  <url><loc>https://bestcool.eu/esimerkit/konvektori</loc><changefreq>yearly</changefreq><priority>0.5</priority></url>
-  <url><loc>https://bestcool.eu/esimerkit/lvi</loc><changefreq>yearly</changefreq><priority>0.5</priority></url>
-  <url><loc>https://bestcool.eu/esimerkit/iv</loc><changefreq>yearly</changefreq><priority>0.5</priority></url>
-  <url><loc>https://bestcool.eu/esimerkit/sahko</loc><changefreq>yearly</changefreq><priority>0.5</priority></url>
-  <url><loc>https://bestcool.eu/esittely/</loc><changefreq>yearly</changefreq><priority>0.6</priority></url>
-  <url><loc>https://bestcool.eu/esittely/tyoraportti/</loc><changefreq>yearly</changefreq><priority>0.6</priority></url>
-  <url><loc>https://bestcool.eu/esittely/huoltopoytakirja/</loc><changefreq>yearly</changefreq><priority>0.6</priority></url>
-  <url><loc>https://bestcool.eu/esittely/laitekortti/</loc><changefreq>yearly</changefreq><priority>0.6</priority></url>
-  <url><loc>https://bestcool.eu/esittely/asiakasportaali/</loc><changefreq>yearly</changefreq><priority>0.6</priority></url>
-  <url><loc>https://bestcool.eu/esittely/tarjoukset/</loc><changefreq>yearly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://bestcool.eu/</loc><lastmod>2026-10-24</lastmod></url>
+  <url><loc>https://bestcool.eu/esittely/</loc><lastmod>2026-10-24</lastmod></url>
+  <url><loc>https://bestcool.eu/esittely/tyoraportti/</loc><lastmod>2026-10-24</lastmod></url>
+  <url><loc>https://bestcool.eu/esittely/huoltopoytakirja/</loc><lastmod>2026-10-24</lastmod></url>
+  <url><loc>https://bestcool.eu/esittely/laitekortti/</loc><lastmod>2026-10-24</lastmod></url>
+  <url><loc>https://bestcool.eu/esittely/asiakasportaali/</loc><lastmod>2026-10-24</lastmod></url>
+  <url><loc>https://bestcool.eu/esittely/tarjoukset/</loc><lastmod>2026-10-24</lastmod></url>
 </urlset>
