@@ -1,5 +1,6 @@
 import type { LauhdutinType } from './types';
 import { moduleSelectionOptions, type DeviceTypeValue, type ModuleKey } from './constants';
+import type { LaiteKokoonpano } from './deviceKokoonpano';
 
 export const ALWAYS_OPTIONAL_MODULES: ModuleKey[] = ['tiiveyskoe', 'tyhjiointi'];
 
@@ -188,6 +189,7 @@ export function resolveAutoModules(input: {
   lauhdutinTyyppiLaite?: LauhdutinType | '';
   vapaajahdytysKaytossa?: boolean;
   manualModules?: Record<ModuleKey, boolean>;
+  laiteKokoonpano?: LaiteKokoonpano;
 }): Record<ModuleKey, boolean> {
   const modules = emptyModuleSelection();
   const deviceType = input.laiteTyyppi;
@@ -237,6 +239,19 @@ export function resolveAutoModules(input: {
       }
       if (input.vapaajahdytysKaytossa) {
         modules.vapaajahdytys = true;
+      }
+      if (input.laiteKokoonpano) {
+        if (input.laiteKokoonpano.vakKylmaainepiiri === false) {
+          // Ei kylmäainepiiriä: vain nestekiertoinen jäähdytyspiiri.
+          modules.kylmaainePiiri = false;
+          modules.hoyrystin = false;
+          modules.lauhdutin = false;
+          modules.nestelauhduttimet = false;
+          modules.vedenjajahdytyskone = true;
+        } else {
+          // Suora höyrystys ilmakennolla: ei jäähdytysvesipiiriä.
+          modules.vedenjajahdytyskone = false;
+        }
       }
       break;
     case 'pakastin':
@@ -335,6 +350,10 @@ export function showVjLauhdutuspiiriModules(
   condenserType: LauhdutinType | '' | undefined,
   modules: Record<ModuleKey, boolean>,
 ): boolean {
+  if (deviceType === 'pakastin' || deviceType === 'kylmäkoneikko') {
+    // Kylmiö: nestekiertoinen lauhdutus → lauhdutuspiirin (nesteen) tiedot.
+    return hasExternalNestelauhdutin(condenserType) && moduleIsActive(modules, 'lauhdutin');
+  }
   return (
     isChillerLikeDevice(deviceType) &&
     isLiquidCondenserType(condenserType) &&

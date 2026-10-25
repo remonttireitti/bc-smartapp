@@ -1,3 +1,4 @@
+import { kokoonpanoSummary } from './deviceKokoonpano';
 /**
  * Ilmalämpöpumpun (yksi laite / pöytäkirja) huoltopöytäkirjan tuloste.
  * Hillitty A4-asettelu: musta/harmaa teksti, ohuet harmaat viivat, vaaleanharmaat otsikot.
@@ -342,6 +343,7 @@ export function generateIlpPrintHtml(data: HuoltoReportData, meta: IlpPrintMeta)
     kv('Valmistaja', data.laiteValmistaja),
     kv('Malli', ilpDeviceModel(data)),
     kv('Sarjanumero', ilpDeviceSerial(data)),
+    kv('Järjestelmä', kokoonpanoSummary(data)),
   ]);
   const testRun = renderTestRun(data);
 

@@ -12,6 +12,7 @@ import {
   mlpKeruupiiriSectionTitle,
 } from './sectionTitles';
 import type { HuoltoReportData, LauhdutinType } from './types';
+import { mlpJaahdytyspiiriTitleFor, showMlpJaahdytyspiiriUnit } from './deviceKokoonpano';
 
 export type MlpDocumentUnitId =
   | 'keruupiiri'
@@ -61,11 +62,11 @@ export function buildMlpDocumentUnits(form: HuoltoReportData, tabId: string): Ml
         themeKey: 'mlpKeruupiiri',
       });
     }
-    if (showMaalampoOnly) {
+    if (showMaalampoOnly && showMlpJaahdytyspiiriUnit(form)) {
       units.push({
         id: 'jaahdytyspiiri',
         tabId: 'mlp:jaahdytyspiiri',
-        title: mlpJaahdytyspiiriSectionTitle(laiteTyyppi),
+        title: mlpJaahdytyspiiriTitleFor(form) ?? mlpJaahdytyspiiriSectionTitle(laiteTyyppi),
         themeKey: 'mlpJaahdytyspiiri',
       });
     }

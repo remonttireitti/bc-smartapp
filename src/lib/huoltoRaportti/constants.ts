@@ -174,7 +174,7 @@ export const chillerLauhdutinTypeOptions = [
     value: 'nestekiertoinen_vain_lmv',
     label: 'Levy-/putkilämmönvaihdin (ilman nestelauhdutinta)',
   },
-  { value: 'koneseen_integroitu', label: 'Ilmalauhdutin (koneseen integroitu)' },
+  { value: 'koneseen_integroitu', label: 'Ulkoasenteinen koneikko (integroitu ilmalauhdutin)' },
   { value: 'erillinen_ilma', label: 'Ilmalauhdutin (erillinen)' },
 ] as const;
 

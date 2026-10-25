@@ -630,6 +630,10 @@ export type HuoltoReportData = {
   evaporatorSamaKuinEnsimmainen: boolean[];
   condenserData: CondenserData[];
   lauhdutinTyyppiLaite?: LauhdutinType | '';
+  /** Laitekokoonpano (vaiheittainen täyttö). Puuttuu vanhoista raporteista. */
+  laiteKokoonpano?: import('./deviceKokoonpano').LaiteKokoonpano;
+  /** Kokoonpanon kenttämoduulit: moduuli → kenttä → arvo. */
+  kenttaModuulit?: import('./deviceKokoonpano').KenttaModuuliArvot;
   vjNestelauhdutusJaettu?: boolean;
   /** Vedenjäähdytyskone / VAK: yksi höyrystin kaikille kylmäainepiireille. */
   hoyrystinYhteinenPiireissa?: boolean;

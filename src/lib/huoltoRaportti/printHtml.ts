@@ -1,3 +1,5 @@
+import { kokoonpanoLauhdutinLabel, kokoonpanoSummary } from './deviceKokoonpano';
+import { fieldModuleValues, visibleFieldModules } from './fieldModules';
 import type {
   CompressorData,
   CondenserFanData,
@@ -131,6 +133,22 @@ function row(label: string, val: unknown, _borderColor = '#ccc'): string {
   if (!hasPrintableValue(val)) return '';
   if (!label) return `<div class="kvr full">${esc(val)}</div>`;
   return `<div class="kvr"><span>${esc(label)}</span><span>${esc(val)}</span></div>`;
+}
+
+function renderFieldModules(data: HuoltoReportData): string {
+  return visibleFieldModules(data)
+    .map((def) => {
+      const values = fieldModuleValues(data, def.id);
+      const inner = def.fields
+        .map((f) => {
+          const v = String(values[f.id] ?? '').trim();
+          if (!v) return '';
+          return row(f.label, f.type === 'text' && f.unit ? `${v} ${f.unit}` : v);
+        })
+        .join('');
+      return box(def.title.toUpperCase(), '#0f766e', inner);
+    })
+    .join('');
 }
 
 function gridField(label: string, val: unknown): string {
@@ -923,6 +941,7 @@ export function generateMaintenanceReportHtml(
         row('Sijainti', data.laiteSijainti, '#388E3C'),
         row('Sarjanumero', data.laiteSarjanumero, '#388E3C'),
         row('Käyttötarkoitus', data.laiteKayttotarkoitus, '#388E3C'),
+        row('Kokoonpano', kokoonpanoSummary(data, kokoonpanoLauhdutinLabel(data)), '#388E3C'),
       ]
         .filter(Boolean)
         .join(''),
@@ -979,6 +998,7 @@ export function generateMaintenanceReportHtml(
   <div class="legacy">
   ${usesRefrigerantServiceExtras(data.laiteTyyppi) ? renderTiiveyskoe(data, imageUrls) : ''}
   ${usesRefrigerantServiceExtras(data.laiteTyyppi) ? renderTyhjiointi(data, imageUrls) : ''}
+  ${renderFieldModules(data)}
   ${renderCustomModulesPrintHtml(data.customModules)}
   ${renderHuomiot(data, imageUrls)}
   </div>

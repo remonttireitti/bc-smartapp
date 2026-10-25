@@ -1,3 +1,6 @@
+import { KokoonpanoSection } from './KokoonpanoSection';
+import { FieldModuleSection } from './FieldModuleSection';
+import { findFieldModule } from '../../lib/huoltoRaportti/fieldModules';
 import { Link } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
 import ToggleSwitch from '../ToggleSwitch';
@@ -105,6 +108,7 @@ export type MaintenanceReportTabContentProps = {
   onDeviceTypeSelect?: (deviceType: string) => void;
   onCondenserTypeChange: (condenserType: HuoltoReportData['lauhdutinTyyppiLaite']) => void;
   onFreeCoolingChange: (enabled: boolean) => void;
+  onKokoonpanoChange: (next: import('../../lib/huoltoRaportti/deviceKokoonpano').LaiteKokoonpano, extra?: Partial<HuoltoReportData>) => void;
   onPrintKonvektoriFaults?: () => void;
   patchCustomModuleValues: (moduleId: string, values: Record<string, string | boolean>) => void;
   toggleModule: (key: ModuleKey, checked: boolean) => void;
@@ -174,6 +178,7 @@ export function MaintenanceReportTabContent({
   onDeviceTypeSelect,
   onCondenserTypeChange,
   onFreeCoolingChange,
+  onKokoonpanoChange,
   onPrintKonvektoriFaults,
   patchCustomModuleValues,
   toggleModule,
@@ -234,6 +239,22 @@ export function MaintenanceReportTabContent({
         />
       </section>
     );
+  }
+
+  if (tabId === 'kokoonpano') {
+    return (
+      <KokoonpanoSection
+        form={form}
+        onPatchForm={onPatchForm}
+        onCondenserTypeChange={onCondenserTypeChange}
+        onFreeCoolingChange={onFreeCoolingChange}
+        onKokoonpanoChange={onKokoonpanoChange}
+      />
+    );
+  }
+
+  if (findFieldModule(tabId)) {
+    return <FieldModuleSection moduleId={tabId} form={form} onPatchForm={onPatchForm} />;
   }
 
   if (tabId === 'kylmaaine' && showKylmaaineCharge) {

@@ -1128,8 +1128,10 @@ export function applyDeviceTypeDefaults(
   data: HuoltoReportData,
   deviceType: string,
 ): HuoltoReportData {
+  const keepsCondenserChoice =
+    isChillerLikeDevice(deviceType) || deviceType === 'pakastin' || deviceType === 'kylmäkoneikko';
   const condenserType =
-    isChillerLikeDevice(deviceType)
+    keepsCondenserChoice
       ? data.lauhdutinTyyppiLaite || defaultCondenserTypeForDevice(deviceType)
       : defaultCondenserTypeForDevice(deviceType);
 
@@ -1137,6 +1139,7 @@ export function applyDeviceTypeDefaults(
     laiteTyyppi: deviceType,
     lauhdutinTyyppiLaite: condenserType,
     vapaajahdytysKaytossa: data.vapaajahdytysKaytossa ?? false,
+    laiteKokoonpano: data.laiteKokoonpano,
     manualModules: {
       ...data.selectedModules,
       tiiveyskoe: data.selectedModules.tiiveyskoe,
@@ -1183,7 +1186,10 @@ export function applyDeviceTypeDefaults(
     }
   } else {
     patch.nestelauhduttimetVj = [];
-    patch.lauhdutuspiiriData = createEmptyLauhdutuspiiriData();
+    patch.lauhdutuspiiriData =
+      keepsCondenserChoice && data.lauhdutuspiiriData
+        ? ensureLauhdutuspiiriData(data.lauhdutuspiiriData)
+        : createEmptyLauhdutuspiiriData();
     patch.vjNestelauhdutusJaettu = false;
     patch.hoyrystinYhteinenPiireissa = false;
     patch.vapaajahdytysKaytossa = false;

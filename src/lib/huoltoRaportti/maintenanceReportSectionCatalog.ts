@@ -14,6 +14,8 @@ import {
   raportointiLaitetiedotTabTitle,
 } from './sectionTitles';
 import { mlpSectionTitle } from './deviceModuleLogic';
+import { usesKokoonpanoStep } from './deviceKokoonpano';
+import { findFieldModule, type FieldModuleId } from './fieldModules';
 import type { ModuleThemeKey } from './moduleThemes';
 import type {
   BuiltInMaintenanceReportTabId,
@@ -37,6 +39,19 @@ function showKylmaaineCharge(input: MaintenanceReportTabBuildInput): boolean {
     && (input.selectedModules.kylmaainePiiri || input.laiteTyyppi === 'lämpöpumppu');
 }
 
+function fieldModuleSection(id: FieldModuleId, themeKey: ModuleThemeKey): MaintenanceReportSectionDefinition {
+  return {
+    id,
+    themeKey,
+    printBlocks: ['fieldModules'],
+    label: () => findFieldModule(id)?.title ?? id,
+    isVisible: (input) => Boolean(findFieldModule(id)?.isVisible({
+      laiteTyyppi: input.laiteTyyppi,
+      laiteKokoonpano: input.laiteKokoonpano,
+    })),
+  };
+}
+
 /** Lomake + tuloste: yhteinen osiojärjestys ja metadata. */
 export const MAINTENANCE_REPORT_BUILTIN_SECTIONS: readonly MaintenanceReportSectionDefinition[] = [
   {
@@ -45,6 +60,13 @@ export const MAINTENANCE_REPORT_BUILTIN_SECTIONS: readonly MaintenanceReportSect
     printBlocks: ['header', 'company', 'customer', 'device'],
     label: (laiteTyyppi) => raportointiLaitetiedotTabTitle(laiteTyyppi, false),
     isVisible: () => true,
+  },
+  {
+    id: 'kokoonpano',
+    themeKey: 'vjOhjaus',
+    printBlocks: ['device'],
+    label: () => 'Kokoonpano',
+    isVisible: (input) => usesKokoonpanoStep(input.laiteTyyppi),
   },
   {
     id: 'kylmaaine',
@@ -82,6 +104,8 @@ export const MAINTENANCE_REPORT_BUILTIN_SECTIONS: readonly MaintenanceReportSect
     label: lauhdutuspiiriSectionTitle,
     isVisible: (input) => input.showLauhdutuspiiriSection,
   },
+  fieldModuleSection('ohjaukset', 'vjOhjaus'),
+  fieldModuleSection('kylmioMittaukset', 'mittaukset'),
   {
     id: 'nestelauhduttimet',
     themeKey: 'nestelauhduttimet',
@@ -103,6 +127,8 @@ export const MAINTENANCE_REPORT_BUILTIN_SECTIONS: readonly MaintenanceReportSect
     label: () => 'Vapaajäähdytys',
     isVisible: (input) => input.showVapaajahdytysSection,
   },
+  fieldModuleSection('kostutus', 'vapaajahdytys'),
+  fieldModuleSection('kuivaus', 'tiiveyskoe'),
   {
     id: 'konvektorit',
     themeKey: 'konvektorit',
@@ -124,6 +150,7 @@ export const MAINTENANCE_REPORT_BUILTIN_SECTIONS: readonly MaintenanceReportSect
     label: mlpSectionTitle,
     isVisible: (input) => input.showMlpSection,
   },
+  fieldModuleSection('mlpAktiivijaahdytys', 'mlpJaahdytyspiiri'),
   {
     id: 'kiinteistoJahdytys',
     themeKey: 'mlpKeruupiiri',
@@ -138,6 +165,7 @@ export const MAINTENANCE_REPORT_BUILTIN_SECTIONS: readonly MaintenanceReportSect
     label: energiatehokkuusSectionTitle,
     isVisible: (input) => input.showChillerEnergySection,
   },
+  fieldModuleSection('lammitystoiminto', 'konvektorit'),
   {
     id: 'huomiot',
     themeKey: 'huomiot',

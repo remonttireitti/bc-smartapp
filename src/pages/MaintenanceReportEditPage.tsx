@@ -9,6 +9,7 @@ import type { Session } from '@supabase/supabase-js';
 import AppLayout from '../components/AppLayout';
 import { type NewCustomerDraft } from '../components/CustomerRegistryPicker';
 import { type NewEquipmentDraft } from '../components/EquipmentRegistryPicker';
+import { vakUsesExplicitConfig, type LaiteKokoonpano } from '../lib/huoltoRaportti/deviceKokoonpano';
 import MaintenanceReportTabNav from '../components/huoltoRaportti/MaintenanceReportTabNav';
 import { MaintenanceReportTabDialog } from '../components/huoltoRaportti/MaintenanceReportTabDialog';
 import { MaintenanceReportDocumentView } from '../components/huoltoRaportti/MaintenanceReportDocumentView';
@@ -313,8 +314,8 @@ export default function MaintenanceReportEditPage({ session }: Props) {
   const showEvaporatorSection = showEvaporatorModules(form.laiteTyyppi, form.selectedModules);
   const showCondenserSection = showCondenserModules(form.laiteTyyppi, form.selectedModules);
   const showMlpSection = showMlpModules(form.laiteTyyppi, form.selectedModules);
-  const showChillerKiinteistoTab = showChillerKiinteistoSection(form.laiteTyyppi);
-  const showChillerEnergyTab = showChillerEnergySection(form.laiteTyyppi);
+  const showChillerKiinteistoTab = showChillerKiinteistoSection(form.laiteTyyppi) && !vakUsesExplicitConfig(form);
+  const showChillerEnergyTab = showChillerEnergySection(form.laiteTyyppi) && !vakUsesExplicitConfig(form);
   const showKonvektoritSection = form.selectedModules.konvektorit;
   const hasFaultyKonvektorit = useMemo(
     () =>
@@ -414,6 +415,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
   const maintenanceTabBuildInput = useMemo(
     () => ({
       laiteTyyppi: form.laiteTyyppi,
+      laiteKokoonpano: form.laiteKokoonpano,
       selectedModules: form.selectedModules,
       customModules: form.customModules ?? [],
       showEvaporatorSection,
@@ -430,6 +432,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
     }),
     [
       form.laiteTyyppi,
+      form.laiteKokoonpano,
       form.selectedModules,
       form.customModules,
       showEvaporatorSection,
@@ -1418,6 +1421,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
         laiteTyyppi: merged.laiteTyyppi,
         lauhdutinTyyppiLaite: merged.lauhdutinTyyppiLaite,
         vapaajahdytysKaytossa: merged.vapaajahdytysKaytossa,
+        laiteKokoonpano: merged.laiteKokoonpano,
         manualModules: merged.selectedModules,
       });
       return {
@@ -1438,6 +1442,10 @@ export default function MaintenanceReportEditPage({ session }: Props) {
 
   function onFreeCoolingChange(enabled: boolean) {
     syncResolvedModules({ vapaajahdytysKaytossa: enabled });
+  }
+
+  function onKokoonpanoChange(next: LaiteKokoonpano, extra?: Partial<HuoltoReportData>) {
+    syncResolvedModules({ ...(extra ?? {}), laiteKokoonpano: next });
   }
 
   function toggleModule(key: ModuleKey, checked: boolean) {
@@ -2119,6 +2127,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
     onModuleVisited: markModuleVisited,
     onCondenserTypeChange,
     onFreeCoolingChange,
+    onKokoonpanoChange,
     onPrintKonvektoriFaults: hasFaultyKonvektorit ? () => void openKonvektoriFaultPrint() : undefined,
     patchCustomModuleValues,
     toggleModule,
