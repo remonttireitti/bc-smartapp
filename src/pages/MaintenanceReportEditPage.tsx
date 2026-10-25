@@ -1950,6 +1950,17 @@ export default function MaintenanceReportEditPage({ session }: Props) {
 
   const brandingName = ownerCompany?.name ?? reportOwnerName;
 
+  /** Vaiheittainen täyttö: tallenna heti kun siirrytään moduulista toiseen. */
+  function flushStepSave() {
+    if (skipAutoSaveRef.current || busy || saveInFlightRef.current) return;
+    if (status !== 'draft' && !canEditPublishedReport) return;
+    if (!form.laiteTyyppi || (!customerId && !form.asiakas.trim()) || !isOnline) return;
+    void saveReport(
+      status === 'draft' ? (modulesComplete ? 'submitted' : 'draft') : undefined,
+      { auto: true },
+    );
+  }
+
   function handleMaintenanceTabChange(id: string) {
     if (documentLayout) {
       setActiveDocumentTabId(id as MaintenanceReportTabId);
@@ -2366,6 +2377,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
                 tabCompletion={tabCompletion}
                 navTargetTabId={documentNavTarget}
                 onNavTargetHandled={() => setDocumentNavTarget(null)}
+                onStepChange={flushStepSave}
                 onEnableOptionalModule={(key) => {
                   toggleModule(key, true);
                   setDocumentNavTarget(key);

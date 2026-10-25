@@ -1,4 +1,10 @@
-import { useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  MaintenanceStepFooter,
+  MaintenanceStepOverview,
+  MaintenanceStepSummary,
+  type MaintenanceStepItem,
+} from './MaintenanceStepOverview';
 import { HuoltoModuleDialogProvider, useHuoltoModuleDialog } from './HuoltoModuleDialogContext';
 import { HuoltoModulePresentationProvider } from './HuoltoModulePresentationContext';
 import { useHuoltoEditUi } from './HuoltoEditUiContext';
@@ -55,6 +61,8 @@ type Props = Omit<MaintenanceReportTabContentProps, 'tabId'> & {
   onNavTargetHandled?: () => void;
   onModuleVisited?: (tabId: string) => void;
   onEnableOptionalModule?: (key: ModuleKey) => void;
+  /** Vaiheen vaihto (Seuraava/Takaisin/hyppy): tallenna heti. */
+  onStepChange?: () => void;
 };
 
 export function MaintenanceReportDocumentView(props: Props) {
@@ -72,6 +80,7 @@ function MaintenanceReportDocumentViewInner({
   onNavTargetHandled,
   onModuleVisited,
   onEnableOptionalModule,
+  onStepChange,
   ...contentProps
 }: Props) {
   const ui = useHuoltoEditUi();
@@ -94,9 +103,38 @@ function MaintenanceReportDocumentViewInner({
     [form, onPatchForm],
   );
 
+  const [stepIndex, setStepIndex] = useState(0);
+  const summaryIndex = entries.length;
+  const activeStep = Math.min(stepIndex, summaryIndex);
+  const stepItems: MaintenanceStepItem[] = useMemo(
+    () => entries.map((entry) => ({
+      key: entry.key,
+      title: entry.title,
+      completion: documentEntryCompletion(entry, form, tabCompletion),
+    })),
+    [entries, form, tabCompletion],
+  );
+
+  const goToStep = useCallback((index: number) => {
+    const next = Math.max(0, Math.min(index, entries.length));
+    setStepIndex(next);
+    onStepChange?.();
+    const entry = entries[next];
+    if (entry && ui && !documentEntryUsesDialogLauncher(entry) && !maintenanceTabUsesDialogLauncher(entry.tabId as never)) {
+      ui.setOpen(`document:${entry.tabId}`, true);
+    }
+    window.requestAnimationFrame(() => {
+      document.querySelector('.maintenance-step-overview')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  }, [entries, onStepChange, ui]);
+
   useEffect(() => {
     if (!navTargetTabId || !ui) return;
     const targetId = documentNavTargetTabId(navTargetTabId, form);
+    const targetIndex = entries.findIndex(
+      (entry) => entry.tabId === targetId || entry.tabId.startsWith(`${targetId}:`) || targetId.startsWith(`${entry.tabId}:`),
+    );
+    if (targetIndex >= 0) setStepIndex(targetIndex);
     const opensDialog =
       targetId.includes(':') || maintenanceTabUsesDialogLauncher(targetId as never);
     if (opensDialog) {
@@ -110,42 +148,39 @@ function MaintenanceReportDocumentViewInner({
       openMaintenanceDocumentSection(targetId, ui.setOpen);
     }
     onNavTargetHandled?.();
-  }, [navTargetTabId, ui, moduleDialog, onNavTargetHandled, form, onModuleVisited]);
+  }, [navTargetTabId, ui, moduleDialog, onNavTargetHandled, form, onModuleVisited, entries]);
 
   return (
     <HuoltoModulePresentationProvider value="flat">
       <HuoltoPrintForm>
-        {showOptionalMeasurementActions ? (
-          <div className="maintenance-optional-module-actions">
-            {!form.selectedModules.tiiveyskoe ? (
-              <button
-                type="button"
-                className="btn btn-secondary btn-sm"
-                onClick={() => onEnableOptionalModule?.('tiiveyskoe')}
-              >
-                + Lisää tiiveyskoe
-              </button>
-            ) : null}
-            {!form.selectedModules.tyhjiointi ? (
-              <button
-                type="button"
-                className="btn btn-secondary btn-sm"
-                onClick={() => onEnableOptionalModule?.('tyhjiointi')}
-              >
-                + Lisää tyhjiöinti
-              </button>
-            ) : null}
-          </div>
-        ) : null}
+        <MaintenanceStepOverview
+          steps={stepItems}
+          optional={showOptionalMeasurementActions
+            ? (['tiiveyskoe', 'tyhjiointi'] as const)
+              .filter((key) => !form.selectedModules[key])
+              .map((key) => ({
+                key,
+                title: key === 'tiiveyskoe' ? 'Tiiveyskoe' : 'Tyhjiöinti',
+                onAdd: () => onEnableOptionalModule?.(key),
+              }))
+            : []}
+          activeIndex={activeStep}
+          summaryIndex={summaryIndex}
+          onJump={goToStep}
+        />
         {hasEvaporatorUnits ? <EvaporatorCircuitsSync form={form} onChange={onSyncForm} /> : null}
         {hasCondenserUnits ? <CondenserCircuitsSync form={form} onChange={onPatchForm} /> : null}
         {hasRefrigerantCircuitUnits ? <RefrigerantCircuitsSync form={form} onChange={onPatchForm} /> : null}
         <div className="grid maintenance-report-document">
-          {entries.map((entry) => {
+          {activeStep === summaryIndex ? (
+            <MaintenanceStepSummary steps={stepItems} onJump={goToStep} />
+          ) : null}
+          {entries.map((entry, entryIndex) => {
+            if (entryIndex !== activeStep) return null;
             const completion = documentEntryCompletion(entry, form, tabCompletion);
             const dialogLauncher =
               documentEntryUsesDialogLauncher(entry) || maintenanceTabUsesDialogLauncher(entry.tabId);
-            const defaultOpen = dialogLauncher ? false : completion !== 'ok';
+            const defaultOpen = !dialogLauncher;
             const theme = (entry.kind === 'mlpUnit' || entry.kind === 'lampopumppuUnit') && entry.themeKey
               ? getModuleTheme(entry.themeKey as ModuleThemeKey)
               : maintenanceDocumentTheme(
@@ -329,6 +364,7 @@ function MaintenanceReportDocumentViewInner({
             );
           })}
         </div>
+        <MaintenanceStepFooter activeIndex={activeStep} summaryIndex={summaryIndex} onJump={goToStep} />
       </HuoltoPrintForm>
     </HuoltoModulePresentationProvider>
   );
