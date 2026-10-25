@@ -3,8 +3,9 @@ import type { HuoltoReportData, RefrigerantCircuitData } from './types';
 
 export function circuitMeasurementsStatus(data: RefrigerantCircuitData): HuoltoInspectionStatus {
   if (!data.onKaytossa) return 'na';
-  // Mittaukset ovat vapaaehtoisia: kaikkia koneita ei voi tai ei kannata mitata.
-  return 'ok';
+  // Yksikin mitattu arvo riittää; tyhjä = kesken.
+  const values = [data.imupaine, data.imuLampotila, data.korkeapaine, data.nestePutkiLampotila, data.kuumakaasuLampotila];
+  return values.some((v) => String(v ?? '').trim() !== '') ? 'ok' : null;
 }
 
 export function circuitMeasurementsSubtitle(data: RefrigerantCircuitData): string {
