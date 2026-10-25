@@ -2421,14 +2421,16 @@ export default function MaintenanceReportEditPage({ session }: Props) {
 
         <div className="form-actions maintenance-form-actions">
           <div className="maintenance-actions-primary">
+            {documentLayout ? null : (
             <button
-              type="button"
-              className="btn btn-secondary maintenance-actions-back"
-              onClick={() => leaveGuard.requestLeave(navigation.backTo)}
-            >
-              <span className="maintenance-actions-back-short" aria-hidden="true">←</span>
-              <span className="maintenance-actions-back-label">Takaisin</span>
-            </button>
+                type="button"
+                className="btn btn-secondary maintenance-actions-back"
+                onClick={() => leaveGuard.requestLeave(navigation.backTo)}
+              >
+                <span className="maintenance-actions-back-short" aria-hidden="true">←</span>
+                <span className="maintenance-actions-back-label">Takaisin</span>
+              </button>
+            )}
             <span className={`badge badge-${displayStatus === 'draft' ? 'scheduled' : 'completed'} maintenance-actions-status`}>
               {getMaintenanceReportStatusLabel(displayStatus)}
             </span>

@@ -101,7 +101,7 @@ export function lauhdutuspiiriSectionTitle(deviceType: string): string {
 }
 
 export function nestelauhduttimetSectionTitle(deviceType: string): string {
-  if (isChillerLikeDevice(deviceType)) return 'Nestelauhduttimet (vedenjäähdytyskone)';
+  if (isChillerLikeDevice(deviceType)) return 'Nestelauhduttimet';
   return 'Nestelauhdutin';
 }
 
