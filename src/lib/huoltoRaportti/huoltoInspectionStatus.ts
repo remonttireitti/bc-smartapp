@@ -158,6 +158,7 @@ export function mlpKeruupiiriInspectionStatus(data: {
     data.keruupiirissaAutomaattinenIlmausTarkistettu,
     data.keruuPaisuntaAstiaTarkistettu,
   ].filter((v) => v !== undefined);
+  if (!checks.some((v) => v === true)) return null;
   if (checks.some((v) => v === false)) return 'faulty';
   if (checks.length > 0 && checks.every((v) => v === true)) return 'ok';
   return null;
@@ -165,6 +166,8 @@ export function mlpKeruupiiriInspectionStatus(data: {
 
 function legacyBooleanChecksStatus(checks: Array<boolean | undefined>): HuoltoInspectionStatus {
   const defined = checks.filter((v) => v !== undefined);
+  // Tyhjä (ei yhtään kuittausta) = kesken, ei vika.
+  if (!defined.some((v) => v === true)) return null;
   if (defined.some((v) => v === false)) return 'faulty';
   if (defined.length > 0 && defined.every((v) => v === true)) return 'ok';
   return null;
@@ -207,9 +210,8 @@ export function lauhdutuspiiriInspectionStatus(data: {
   const base = nestepiiriInspectionStatus(data);
   if (base === 'faulty') return 'faulty';
   if (data.virtausRiittävä === false) return 'faulty';
-  if (data.painesäätimenTarkistettu === false) return 'faulty';
   if (base === 'ok') return 'ok';
-  if (data.painesäätimenTarkistettu === true || data.virtausRiittävä === true) return 'ok';
+  if (data.painesäätimenTarkistettu === true) return 'ok';
   return null;
 }
 

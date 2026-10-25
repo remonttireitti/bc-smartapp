@@ -169,3 +169,12 @@ export function kokoonpanoLauhdutinLabel(form: { laiteTyyppi: string; lauhdutinT
       : lauhdutinTypeOptions;
   return opts.find((o) => o.value === value)?.label;
 }
+
+/** VJK lämmitystoiminnolla: piirien nimet kaksoisroolin mukaan (vanhat raportit ennallaan). */
+export function vjHeatingTitle(title: string, form: KokoonpanoForm): string {
+  if (!vjHeatingEnabled(form)) return title;
+  return title
+    .replace(/Kiinteistön jäähdytyspiiri/i, 'Kiinteistön jäähdytys-/lämmitysverkosto')
+    .replace(/^(\d+\.\d+ )?Jäähdytyspiiri$/i, '$1Jäähdytys-/lämmitysverkosto')
+    .replace(/Lauhdutuspiiri/i, 'Lauhdutus-/lämmönlähdepiiri');
+}
