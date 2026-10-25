@@ -1,3 +1,4 @@
+import { ilpSisayksikkoChoices } from '../../lib/huoltoRaportti/deviceKokoonpano';
 import type { HuomioLuonne, HuoltoReportData, MittausSisayksikkoData, SisayksikkoData } from '../../lib/huoltoRaportti/types';
 import { calculateIlpSisayksikkoTeho, formatIlpSisayksikkoTeho, type IlpTehoMode } from '../../lib/huoltoRaportti/ilpTeho';
 import {
@@ -186,7 +187,7 @@ export function LampopumppuSection({
         lampopumppuSisayksikkoTitle(form.laiteTyyppi),
         <>
           <div className="btn-group">
-            {[1, 2, 3, 4, 5].map((num) => (
+            {ilpSisayksikkoChoices(form.laiteKokoonpano?.ilpJarjestelma).map((num) => (
               <button
                 key={num}
                 type="button"

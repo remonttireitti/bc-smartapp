@@ -29,6 +29,8 @@ import {
 import type { MaintenanceReportTabId } from './maintenanceReportTabs';
 import { buildMaintenanceReportTabs, type MaintenanceReportTabBuildInput } from './maintenanceReportTabs';
 import { usesRefrigerantServiceExtras } from './deviceModuleLogic';
+import { kokoonpanoComplete } from './deviceKokoonpano';
+import { fieldModuleCompletion } from './fieldModules';
 import type { CompressorData, HuoltoReportData, RefrigerantCircuitData, TiiveyskoeData, TyhjiointiData } from './types';
 import { getEvaporatorCircuitCount } from './evaporatorHelpers';
 
@@ -144,6 +146,17 @@ function completionForTab(
 
     case 'kylmaaine':
       return isKylmaaineChargeComplete(form);
+
+    case 'kokoonpano':
+      return kokoonpanoComplete(form) ? 'ok' : 'incomplete';
+
+    case 'ohjaukset':
+    case 'kylmioMittaukset':
+    case 'lammitystoiminto':
+    case 'mlpAktiivijaahdytys':
+    case 'kostutus':
+    case 'kuivaus':
+      return fieldModuleCompletion(form, tabId);
 
     case 'kylmaainePiiri': {
       const circuitCount = Math.min(3, Math.max(1, parseInt(form.kylmaainePiireja, 10) || 1));

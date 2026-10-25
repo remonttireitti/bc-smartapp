@@ -18071,3 +18071,5 @@ label.has-error input { border-color: #b91c1c; }
   }
   .maintenance-step-overview-list li { flex: 0 0 auto; }
 }
+.huolto-kokoonpano-label { display: block; font-weight: 500; margin-bottom: .35rem; }
+.huolto-kokoonpano-choices { flex-wrap: wrap; }

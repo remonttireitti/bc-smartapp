@@ -2,6 +2,13 @@ import type { CustomReportModule } from './customModuleTypes';
 
 export type BuiltInMaintenanceReportTabId =
   | 'raportointi'
+  | 'kokoonpano'
+  | 'ohjaukset'
+  | 'kylmioMittaukset'
+  | 'lammitystoiminto'
+  | 'mlpAktiivijaahdytys'
+  | 'kostutus'
+  | 'kuivaus'
   | 'kylmaaine'
   | 'kylmaainePiiri'
   | 'hoyrystin'
@@ -29,6 +36,8 @@ export type MaintenanceReportTabItem = {
 
 export type MaintenanceReportTabBuildInput = {
   laiteTyyppi: string;
+  laiteKokoonpano?: import('./deviceKokoonpano').LaiteKokoonpano;
+  kenttaModuulit?: import('./deviceKokoonpano').KenttaModuuliArvot;
   selectedModules: Record<string, boolean>;
   showEvaporatorSection: boolean;
   showCondenserSection: boolean;

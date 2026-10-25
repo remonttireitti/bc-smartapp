@@ -1,3 +1,4 @@
+import { defaultLaiteKokoonpano } from './deviceKokoonpano';
 import { applyDeviceTypeDefaults, mergeHuoltoReportData } from './defaults';
 import { validateMaintenanceDeviceBasics } from './maintenanceReportBasicsValidation';
 import type { HuoltoReportData } from './types';
@@ -62,8 +63,10 @@ export function applyDeviceTypeSelection(
   deviceType: string,
 ): HuoltoReportData {
   if (!deviceType.trim() || deviceType === base.laiteTyyppi) return base;
+  const laiteKokoonpano = defaultLaiteKokoonpano(deviceType);
   return {
-    ...applyDeviceTypeDefaults(base, deviceType),
+    ...applyDeviceTypeDefaults({ ...base, laiteKokoonpano }, deviceType),
+    laiteKokoonpano,
     hiddenTabIds: [],
     moduleTabOrder: [],
   };

@@ -1,3 +1,5 @@
+import { kokoonpanoLauhdutinLabel, kokoonpanoSummary } from './deviceKokoonpano';
+import { fieldModuleSummary } from './fieldModules';
 import { konvektoriTarkastusSummary, konvektoriRowIsFaulty } from './konvektoriTarkastus';
 import { hideMaintenancePrintWarnings } from './defaults';
 import { isKonvektoritDevice, usesRefrigerantServiceExtras } from './deviceModuleLogic';
@@ -163,6 +165,17 @@ export function buildMaintenanceDocumentTabSummary(
 
     case 'huoltotiedot':
       return huoltotiedotSummary(form);
+
+    case 'kokoonpano':
+      return kokoonpanoSummary(form, kokoonpanoLauhdutinLabel(form));
+
+    case 'ohjaukset':
+    case 'kylmioMittaukset':
+    case 'lammitystoiminto':
+    case 'mlpAktiivijaahdytys':
+    case 'kostutus':
+    case 'kuivaus':
+      return fieldModuleSummary(form, tabId);
 
     default: {
       const customId = tabId.startsWith('custom:') ? tabId.slice('custom:'.length) : '';

@@ -1,3 +1,4 @@
+import { vakHasRefrigerant } from '../../lib/huoltoRaportti/deviceKokoonpano';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   MaintenanceStepFooter,
@@ -90,7 +91,7 @@ function MaintenanceReportDocumentViewInner({
 
   const entries = useMemo(() => buildMaintenanceDocumentEntries(tabs, form), [tabs, form]);
   const showOptionalMeasurementActions =
-    usesRefrigerantServiceExtras(form.laiteTyyppi) && Boolean(onEnableOptionalModule);
+    usesRefrigerantServiceExtras(form.laiteTyyppi) && vakHasRefrigerant(form) && Boolean(onEnableOptionalModule);
   const hasEvaporatorUnits = entries.some((entry) => entry.kind === 'evaporatorUnit');
   const hasCondenserUnits = entries.some((entry) => entry.kind === 'condenserUnit');
   const hasRefrigerantCircuitUnits = entries.some((entry) =>
