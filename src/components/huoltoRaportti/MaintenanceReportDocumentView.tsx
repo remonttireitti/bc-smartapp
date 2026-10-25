@@ -190,6 +190,7 @@ function MaintenanceReportDocumentViewInner({
             if (!activeEntryIndexes.has(entryIndex)) return null;
             const inCircuitStep = steps[activeStep]?.key.startsWith('piiri:');
             const shortTitle = inCircuitStep ? entry.title.replace(/^(Kylmä(aine)?piiri|Piiri) \d+\s*[—-]\s*/i, '') : entry.title;
+            const singleInStep = (steps[activeStep]?.entryIndexes.length ?? 0) === 1;
             const displayTitle = shortTitle.charAt(0).toUpperCase() + shortTitle.slice(1);
             const completion = documentEntryCompletion(entry, form, tabCompletion);
             const dialogLauncher =
@@ -343,7 +344,7 @@ function MaintenanceReportDocumentViewInner({
                 <MaintenanceReportDocumentTile
                   key={entry.key}
                   tabId={entry.tabId}
-                  title={displayTitle}
+                  title={singleInStep ? 'Avaa ja täytä' : displayTitle}
                   theme={theme}
                   form={form}
                   completion={completion}
@@ -370,6 +371,7 @@ function MaintenanceReportDocumentViewInner({
                 completion={completion}
                 defaultOpen={defaultOpen}
                 dialogLauncher={false}
+                hideHeader={singleInStep}
                 showSettings={tabIdForSettings ? maintenanceTabHasPrintSettings(tabIdForSettings, form) : false}
                 onOpenSettings={() => tabIdForSettings && sectionSettings?.openSettings(tabIdForSettings)}
               >

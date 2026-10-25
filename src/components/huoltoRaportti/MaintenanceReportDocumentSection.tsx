@@ -21,6 +21,8 @@ type Props = {
   headerExtra?: ReactNode;
   /** Otsikon klikkaus avaa moduulin popupin (ei laajennusta). */
   dialogLauncher?: boolean;
+  /** Vaiheen ainoa osio: otsikko näkyy jo vaiheessa, ei toisteta. */
+  hideHeader?: boolean;
   children: ReactNode;
 };
 
@@ -41,12 +43,13 @@ export function MaintenanceReportDocumentSection({
   onOpenSettings,
   headerExtra,
   dialogLauncher = false,
+  hideHeader = false,
   children,
 }: Props) {
   const contentId = useId();
   const moduleDialog = useHuoltoModuleDialog();
   const { open, toggle } = useHuoltoCollapse(`document:${tabId}`, defaultOpen);
-  const visuallyExpanded = dialogLauncher ? false : open;
+  const visuallyExpanded = dialogLauncher ? false : hideHeader || open;
   const collapsedSummary = dialogLauncher
     ? fallbackSummary(completion)
     : summary?.trim() || fallbackSummary(completion);
@@ -77,7 +80,7 @@ export function MaintenanceReportDocumentSection({
         } as React.CSSProperties
       }
     >
-      <button
+      {hideHeader ? null : <button
         type="button"
         className="maintenance-report-document-section-header"
         onClick={handleHeaderClick}
@@ -125,7 +128,7 @@ export function MaintenanceReportDocumentSection({
             <span className="maintenance-report-document-section-chevron" aria-hidden="true" />
           ) : null}
         </span>
-      </button>
+      </button>}
       {dialogLauncher ? (
         <div
           id={contentId}

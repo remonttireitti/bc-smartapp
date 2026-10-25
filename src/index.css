@@ -18058,3 +18058,4 @@ label.has-error input { border-color: #b91c1c; }
 .huolto-kokoonpano-label { display: block; font-weight: 500; margin-bottom: .35rem; }
 .huolto-kokoonpano-choices { flex-wrap: wrap; }
 .link-button { background: none; border: 0; padding: 0; font: inherit; color: var(--primary, #2563eb); text-decoration: underline; cursor: pointer; }
+.maintenance-report-document-tile strong { overflow-wrap: anywhere; hyphens: auto; }
