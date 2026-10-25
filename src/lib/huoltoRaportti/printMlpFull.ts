@@ -18,7 +18,7 @@ function kiinteistoPiiritPrintSectionHtml(m: MlpData, laiteTyyppi: string): stri
   let section = `
   <div class="box-content" style="border-color: #7B1FA2; margin-top: 12px; page-break-inside: avoid; break-inside: avoid;">
     <div style="border-bottom: 2px solid #7B1FA2; padding-bottom: 4px; margin-bottom: 8px;">
-      <strong style="font-size: 18px; color: #7B1FA2; text-decoration: underline;">${laiteTyyppi === 'Vedenjäähdytyskone' ? '5.4 KIINTEISTÖN JÄÄHDYTYSPIIRI' : '5.4 LÄMMITYSPIIRIT'}</strong>
+      <strong style="font-size: 18px; color: #7B1FA2; text-decoration: underline;">${laiteTyyppi === 'Vedenjäähdytyskone' ? 'KIINTEISTÖN JÄÄHDYTYSPIIRI' : 'LÄMMITYSPIIRIT'}</strong>
     </div>`;
 
   m.lampoPiirit.forEach((piiri: HeatingCircuitData & { nimi?: string }, index: number) => {
@@ -397,7 +397,7 @@ function generateMLPPrintHtml(
     mlpHtml += `
   <div class="box-content" style="border-color: #7B1FA2; margin-top: 12px; page-break-inside: avoid; break-inside: avoid;">
     <div style="border-bottom: 2px solid #7B1FA2; padding-bottom: 4px; margin-bottom: 8px;">
-      <strong style="font-size: 18px; color: #7B1FA2; text-decoration: underline;">${laiteTyyppi === 'Vedenjäähdytyskone' ? '5.1 JÄÄHDYTYSPIRII' : '5.1 KERUUPIRII (MAA/VESI)'}</strong>
+      <strong style="font-size: 18px; color: #7B1FA2; text-decoration: underline;">${laiteTyyppi === 'Vedenjäähdytyskone' ? 'JÄÄHDYTYSPIRII' : 'KERUUPIRII (MAA/VESI)'}</strong>
     </div>
     
     <!-- Tarkastukset -->
@@ -537,7 +537,7 @@ function generateMLPPrintHtml(
     mlpHtml += `
   <div class="box-content" style="border-color: #5E35B1; margin-top: 12px; page-break-inside: avoid; break-inside: avoid;">
     <div style="border-bottom: 2px solid #5E35B1; padding-bottom: 4px; margin-bottom: 8px;">
-      <strong style="font-size: 18px; color: #5E35B1; text-decoration: underline;">5.1b KERUU- / JÄÄHDYTYSPIIRI (ERILLINEN)</strong>
+      <strong style="font-size: 18px; color: #5E35B1; text-decoration: underline;">KERUU- / JÄÄHDYTYSPIIRI (ERILLINEN)</strong>
     </div>
     <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 8px; font-size: 11px;">
       <div>${renderCheckbox(m.keruuJaahdytysPiiri, 'Erillinen keruu- / jäähdytyspiiri')}</div>
@@ -642,7 +642,7 @@ function generateMLPPrintHtml(
     mlpHtml += `
   <div class="box-content" style="border-color: #7B1FA2; margin-top: 12px; page-break-inside: avoid; break-inside: avoid;">
     <div style="border-bottom: 2px solid #7B1FA2; padding-bottom: 4px; margin-bottom: 8px;">
-      <strong style="font-size: 18px; color: #7B1FA2; text-decoration: underline;">${laiteTyyppi === 'Vedenjäähdytyskone' ? '5.2 LAUHDUTUSPIRII' : '5.2 LATAUSPIRII'}</strong>
+      <strong style="font-size: 18px; color: #7B1FA2; text-decoration: underline;">${laiteTyyppi === 'Vedenjäähdytyskone' ? 'LAUHDUTUSPIRII' : 'LATAUSPIRII'}</strong>
     </div>
     
     <!-- Tarkastukset -->
@@ -758,7 +758,7 @@ function generateMLPPrintHtml(
     mlpHtml += `
   <div class="box-content" style="border-color: #7B1FA2; margin-top: 12px; page-break-inside: avoid; break-inside: avoid;">
     <div style="border-bottom: 2px solid #7B1FA2; padding-bottom: 4px; margin-bottom: 8px;">
-      <strong style="font-size: 18px; color: #7B1FA2; text-decoration: underline;">5.2b TULISTUSPIRII</strong>
+      <strong style="font-size: 18px; color: #7B1FA2; text-decoration: underline;">TULISTUSPIRII</strong>
     </div>
     
     <!-- Pumppu tiedot -->
@@ -857,7 +857,7 @@ function generateMLPPrintHtml(
     mlpHtml += `
   <div class="box-content" style="border-color: #7B1FA2; margin-top: 12px; page-break-inside: avoid; break-inside: avoid;">
     <div style="border-bottom: 2px solid #7B1FA2; padding-bottom: 4px; margin-bottom: 8px;">
-      <strong style="font-size: 18px; color: #7B1FA2; text-decoration: underline;">5.3 KÄYTTÖVESI</strong>
+      <strong style="font-size: 18px; color: #7B1FA2; text-decoration: underline;">KÄYTTÖVESI</strong>
     </div>
     
     <!-- Mittaukset -->
@@ -914,7 +914,7 @@ function generateMLPPrintHtml(
   mlpHtml += `
   <div class="box-content" style="border-color: #FF6D00; margin-top: 12px; page-break-inside: avoid; break-inside: avoid;">
     <div style="border-bottom: 2px solid #FF6D00; padding-bottom: 4px; margin-bottom: 8px;">
-      <strong style="font-size: 18px; color: #FF6D00; text-decoration: underline;">5.5 ENERGIATEHOKKUUS</strong>
+      <strong style="font-size: 18px; color: #FF6D00; text-decoration: underline;">ENERGIATEHOKKUUS</strong>
     </div>
     
     <!-- Energian SYÖTE -->
@@ -1106,7 +1106,7 @@ function generateMLPPrintHtml(
     mlpHtml += `
   <div class="box-content" style="border-color: #0288D1; margin-top: 12px; page-break-inside: avoid; break-inside: avoid;">
     <div style="border-bottom: 2px solid #0288D1; padding-bottom: 4px; margin-bottom: 8px;">
-      <strong style="font-size: 18px; color: #0288D1; text-decoration: underline;">5.6 ALIJÄÄHDYTYS (SUBCOOLING)</strong>
+      <strong style="font-size: 18px; color: #0288D1; text-decoration: underline;">ALIJÄÄHDYTYS (SUBCOOLING)</strong>
     </div>
     
     <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; font-size: 11px; margin-bottom: 8px;">

@@ -83,7 +83,7 @@ export function MlpSection({ form, onChange, part }: Props) {
       )}
 
       {showLatauspiiri && showHeatPumpCircuits && !part && (
-      <HuoltoModuleSection moduleKey="mlpLatauspiiri" title="5.2 Latauspiiri">
+      <HuoltoModuleSection moduleKey="mlpLatauspiiri" title="Latauspiiri">
         <div className="huolto-part-inspection-list">
           <MlpLatauspiiriInspection mlp={mlp} onChange={patchMlp} latausPower={latausPower} />
         </div>
@@ -91,7 +91,7 @@ export function MlpSection({ form, onChange, part }: Props) {
       )}
 
       {showHeatPumpCircuits && !part && (
-      <HuoltoModuleSection moduleKey="mlpKayttovesi" title="5.3 Käyttöveden lämmitys">
+      <HuoltoModuleSection moduleKey="mlpKayttovesi" title="Käyttöveden lämmitys">
         <div className="huolto-part-inspection-list">
           <MlpKayttovesiInspection title="Käyttöveden lämmitys" mlp={mlp} onChange={patchMlp} />
         </div>

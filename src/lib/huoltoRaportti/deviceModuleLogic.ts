@@ -114,40 +114,40 @@ export function getActiveModuleLabels(
 
   if (isGroundSourceHeatPump(deviceType)) {
     return [
-      '3. Kylmäaine',
+      'Kylmäaine',
       'Kylmäainepiiri 1 mittaukset',
-      '5.1 Keruupiiri (maa/vesi)',
-      '5.1b Erillinen keruu-/jäähdytyspiiri',
-      '5.2 Latauspiiri',
-      '5.3 Käyttöveden lämmitys',
-      '5.4 Kiinteistö lämmityspiiri',
-      '5.5 Lämpöpumpun energiatehokkuus',
+      'Keruupiiri (maa/vesi)',
+      'Erillinen keruu-/jäähdytyspiiri',
+      'Latauspiiri',
+      'Käyttöveden lämmitys',
+      'Kiinteistö lämmityspiiri',
+      'Lämpöpumpun energiatehokkuus',
       ...(modules.tiiveyskoe ? ['Tiiveyskoe'] : []),
       ...(modules.tyhjiointi ? ['Tyhjiöinti'] : []),
     ];
   }
   if (isWaterAirHeatPump(deviceType)) {
     return [
-      '3. Kylmäaine',
-      '4. Kylmäpiiri 1 mittaukset',
-      '4.1 Keruupiiri (lähde/vesi)',
-      '5.2 Latauspiiri',
-      '5.3 Käyttöveden lämmitys',
-      '5.4 Kiinteistö lämmityspiiri',
-      '4. Ulkoyksikkö (lähte side)',
+      'Kylmäaine',
+      'Kylmäpiiri 1 mittaukset',
+      'Keruupiiri (lähde/vesi)',
+      'Latauspiiri',
+      'Käyttöveden lämmitys',
+      'Kiinteistö lämmityspiiri',
+      'Ulkoyksikkö (lähte side)',
       ...(modules.tiiveyskoe ? ['Tiiveyskoe'] : []),
       ...(modules.tyhjiointi ? ['Tyhjiöinti'] : []),
     ];
   }
   if (isChillerLikeDevice(deviceType)) {
     const list = [
-      '3. Kylmäaine',
-      '4. Kylmäpiiri 1 mittaukset',
-      '4.1 Jäähdytyspiiri',
+      'Kylmäaine',
+      'Kylmäpiiri 1 mittaukset',
+      'Jäähdytyspiiri',
     ];
     if (modules.nestelauhduttimet) list.push('Nestelauhduttimet');
-    if (modules.lauhdutin) list.push('5.2 Lauhdutuspiiri');
-    list.push('5.4 Kiinteistön jäähdytyspiiri', '5.5 Lämpöpumpun energiatehokkuus');
+    if (modules.lauhdutin) list.push('Lauhdutuspiiri');
+    list.push('Kiinteistön jäähdytyspiiri', 'Lämpöpumpun energiatehokkuus');
     if (modules.vapaajahdytys) list.push('Vapaajäähdytys');
     if (modules.tiiveyskoe) list.push('Tiiveyskoe');
     if (modules.tyhjiointi) list.push('Tyhjiöinti');
@@ -155,20 +155,20 @@ export function getActiveModuleLabels(
   }
   if (isAirSourceHeatPump(deviceType)) {
     return [
-      '3. Kylmäaine',
-      '4. Ulkoyksikkö',
-      '5. Sisäyksiköt',
-      '6. Mittaukset',
-      '6. Huomiot',
-      '7. Huolto tiedot',
+      'Kylmäaine',
+      'Ulkoyksikkö',
+      'Sisäyksiköt',
+      'Mittaukset',
+      'Huomiot',
+      'Huolto tiedot',
       ...(modules.tiiveyskoe ? ['Tiiveyskoe'] : []),
       ...(modules.tyhjiointi ? ['Tyhjiöinti'] : []),
     ];
   }
   if (deviceType === 'pakastin' || deviceType === 'kylmäkoneikko' || deviceType === 'vakioilmastointtikone') {
     return [
-      '3. Kylmäaine',
-      '4. Kylmäpiiri 1 mittaukset',
+      'Kylmäaine',
+      'Kylmäpiiri 1 mittaukset',
       'Höyrystin',
       'Lauhdutin',
       ...(modules.tiiveyskoe ? ['Tiiveyskoe'] : []),
@@ -176,7 +176,7 @@ export function getActiveModuleLabels(
     ];
   }
   if (deviceType === 'konvektorit') {
-    return ['2. Konvektorit'];
+    return ['Konvektorit'];
   }
 
   return (Object.keys(modules) as ModuleKey[])

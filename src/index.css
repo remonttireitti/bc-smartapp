@@ -17995,41 +17995,46 @@ label.has-error input { border-color: #b91c1c; }
   list-style: none;
   margin: 0;
   padding: 0;
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr));
   gap: .35rem;
 }
 .maintenance-step-chip {
-  display: inline-flex;
+  width: 100%;
+  display: flex;
   align-items: center;
-  gap: .35rem;
+  gap: .4rem;
   border: 1px solid var(--border-strong);
-  border-radius: 999px;
-  padding: .25rem .6rem .25rem .3rem;
+  border-radius: 8px;
+  padding: .35rem .5rem .35rem .35rem;
   background: transparent;
   font: inherit;
   font-size: .85rem;
   cursor: pointer;
   color: inherit;
+  text-align: left;
 }
+.maintenance-step-chip-text { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.2; }
+.maintenance-step-chip-title { overflow-wrap: anywhere; }
 .maintenance-step-chip-num {
   display: inline-grid;
   place-items: center;
-  min-width: 1.4rem;
+  flex: 0 0 1.4rem;
   height: 1.4rem;
   border-radius: 999px;
   background: #e5e7eb;
   font-size: .75rem;
   font-weight: 600;
 }
-.maintenance-step-chip-status { font-size: .72rem; opacity: .8; }
+.maintenance-step-chip-status { font-size: .72rem; font-weight: 600; }
 .maintenance-step-chip.is-ok .maintenance-step-chip-num { background: #16a34a; color: #fff; }
-.maintenance-step-chip.is-attention .maintenance-step-chip-num { background: #d97706; color: #fff; }
-.maintenance-step-chip.is-na { opacity: .6; border-style: dashed; }
+.maintenance-step-chip.is-fault .maintenance-step-chip-num { background: #dc2626; color: #fff; }
+.maintenance-step-chip.is-ok .maintenance-step-chip-status { color: #16a34a; }
+.maintenance-step-chip.is-fault .maintenance-step-chip-status { color: #dc2626; }
+.maintenance-step-chip.is-incomplete .maintenance-step-chip-status { color: #b45309; }
 .maintenance-step-chip.is-active { border-color: var(--primary, #2563eb); box-shadow: 0 0 0 2px rgba(37, 99, 235, .25); font-weight: 600; }
-.maintenance-step-chip-status.is-ok { color: #16a34a; }
-.maintenance-step-chip-status.is-attention { color: #d97706; }
-.maintenance-step-chip-status.is-incomplete { color: #b91c1c; }
+.maintenance-step-open { margin: .25rem 0 .75rem; grid-column: 1 / -1; }
+.maintenance-step-optional { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 1rem; margin: 0 0 .75rem; }
 .maintenance-step-footer {
   position: sticky;
   bottom: 0;
@@ -18044,32 +18049,12 @@ label.has-error input { border-color: #b91c1c; }
   border-top: 1px solid var(--border-strong);
 }
 .maintenance-step-footer .btn { min-width: 8rem; }
-.maintenance-step-summary-list { list-style: none; margin: 0; padding: 0; }
-.maintenance-step-summary-row {
-  width: 100%;
-  display: flex;
-  justify-content: space-between;
-  padding: .55rem .25rem;
-  border: 0;
-  border-bottom: 1px solid var(--border, #e5e7eb);
-  background: transparent;
-  font: inherit;
-  color: inherit;
-  cursor: pointer;
-  text-align: left;
-}
 @media print {
   .maintenance-step-overview, .maintenance-step-footer { display: none; }
 }
 @media (max-width: 720px) {
-  .maintenance-step-overview-list {
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    scrollbar-width: thin;
-    padding-bottom: .25rem;
-    position: relative;
-  }
-  .maintenance-step-overview-list li { flex: 0 0 auto; }
+  .maintenance-step-overview-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 .huolto-kokoonpano-label { display: block; font-weight: 500; margin-bottom: .35rem; }
 .huolto-kokoonpano-choices { flex-wrap: wrap; }
+.link-button { background: none; border: 0; padding: 0; font: inherit; color: var(--primary, #2563eb); text-decoration: underline; cursor: pointer; }

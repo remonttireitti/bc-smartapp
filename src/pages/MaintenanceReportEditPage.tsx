@@ -2387,10 +2387,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
                 navTargetTabId={documentNavTarget}
                 onNavTargetHandled={() => setDocumentNavTarget(null)}
                 onStepChange={flushStepSave}
-                onEnableOptionalModule={(key) => {
-                  toggleModule(key, true);
-                  setDocumentNavTarget(key);
-                }}
+                onToggleOptionalModule={(key, on) => toggleModule(key, on)}
                 {...maintenanceTabContentProps}
               />
             ) : (

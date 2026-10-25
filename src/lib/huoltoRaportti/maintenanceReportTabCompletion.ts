@@ -280,7 +280,7 @@ export function isMaintenanceReportModulesComplete(
 
 export function maintenanceTabCompletionLabel(state: MaintenanceTabCompletionState | undefined): string {
   if (state === 'ok') return 'Valmis';
-  if (state === 'attention') return 'Tarkastettu, huomioita';
+  if (state === 'attention') return 'Vika';
   return 'Kesken';
 }
 
