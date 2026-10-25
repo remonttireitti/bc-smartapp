@@ -403,8 +403,8 @@ function lampopumppuDocumentUnitCompletion(
     if (!hasIdentity) {
       return 'incomplete';
     }
-    // Valitsematon tarkastus = ei kuulu.
-    return inspectionStatusToDocumentCompletion(ulkoyksikkoInspectionStatus(form) ?? 'na');
+    // Valitsematon tarkastus = kesken.
+    return inspectionStatusToDocumentCompletion(ulkoyksikkoInspectionStatus(form));
   }
 
   if (unitId === 'sisayksikko') {

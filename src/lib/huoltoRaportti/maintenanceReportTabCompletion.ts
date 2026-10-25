@@ -211,7 +211,7 @@ function completionForTab(
 
     case 'lampopumppu':
       if (form.laiteTyyppi === 'lämpöpumppu' && !ilpDeviceModel(form) && !ilpDeviceSerial(form)) return 'incomplete';
-      return aggregateInspectionStatuses([ulkoyksikkoInspectionStatus(form) ?? 'na']);
+      return aggregateInspectionStatuses([ulkoyksikkoInspectionStatus(form)]);
 
     case 'mlp': {
       const mlp = form.mlpData;

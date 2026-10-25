@@ -52,7 +52,6 @@ export function dryerInspectionStatus(data: {
   const explicit = normalizeHuoltoInspectionStatus(data.kuivainTila);
   if (explicit !== null) return explicit;
   if (data.kuivainOK === true) return 'ok';
-  if (data.kuivainOK === false) return 'faulty';
   return null;
 }
 
@@ -107,9 +106,7 @@ export function compressorInspectionStatus(data: {
     data.pehmokaynnistinTarkastettu,
     data.taajuusmuuttajaTarkastettu,
   ].filter((v) => v !== undefined);
-  if (checks.some((v) => v === false)) return 'faulty';
-  if (checks.length > 0 && checks.every((v) => v === true)) return 'ok';
-  return null;
+  return legacyBooleanChecksStatus(checks);
 }
 
 export function entityInspectionStatus(data: { tarkastusTila?: HuoltoInspectionStatus }): HuoltoInspectionStatus {
@@ -158,17 +155,12 @@ export function mlpKeruupiiriInspectionStatus(data: {
     data.keruupiirissaAutomaattinenIlmausTarkistettu,
     data.keruuPaisuntaAstiaTarkistettu,
   ].filter((v) => v !== undefined);
-  if (!checks.some((v) => v === true)) return null;
-  if (checks.some((v) => v === false)) return 'faulty';
-  if (checks.length > 0 && checks.every((v) => v === true)) return 'ok';
-  return null;
+  return legacyBooleanChecksStatus(checks);
 }
 
+/** Kuittauslista: kaikki kuitattu = ok, muuten kesken. Vika vain eksplisiittisestä Vika-merkinnästä. */
 function legacyBooleanChecksStatus(checks: Array<boolean | undefined>): HuoltoInspectionStatus {
   const defined = checks.filter((v) => v !== undefined);
-  // Tyhjä (ei yhtään kuittausta) = kesken, ei vika.
-  if (!defined.some((v) => v === true)) return null;
-  if (defined.some((v) => v === false)) return 'faulty';
   if (defined.length > 0 && defined.every((v) => v === true)) return 'ok';
   return null;
 }
@@ -222,7 +214,6 @@ export function vapaajahdytysInspectionStatus(data: {
   const explicit = normalizeHuoltoInspectionStatus(data.tarkastusTila);
   if (explicit !== null) return explicit;
   if (data.pumppuTarkastettu === true) return 'ok';
-  if (data.pumppuTarkastettu === false) return 'faulty';
   return null;
 }
 
