@@ -40,7 +40,7 @@ export function kylmaainePiiriCircuitLabel(deviceType: string, circuitNumber: nu
     return `Kylmäainepiiri ${circuitNumber} mittaukset`;
   }
   if (usesLegacySectionNumbers(deviceType) && !isChillerLikeDevice(deviceType)) {
-    return `4. Kylmäpiiri ${circuitNumber} mittaukset`;
+    return `Kylmäpiiri ${circuitNumber} mittaukset`;
   }
   return `Kylmäainepiiri ${circuitNumber}`;
 }
@@ -50,18 +50,18 @@ export function mlpKeruupiiriSectionTitle(deviceType: string): string {
     return `5.1 ${keruupiiriSectionTitle(deviceType)}`;
   }
   if (isWaterAirHeatPump(deviceType)) {
-    return `4.1 ${keruupiiriSectionTitle(deviceType)}`;
+    return `${keruupiiriSectionTitle(deviceType)}`;
   }
   if (isChillerLikeDevice(deviceType)) {
-    return '4.1 Jäähdytyspiiri';
+    return 'Jäähdytyspiiri';
   }
   return keruupiiriSectionTitle(deviceType);
 }
 
 export function mlpJaahdytyspiiriSectionTitle(deviceType: string): string {
   return isGroundSourceHeatPump(deviceType)
-    ? '5.1b Erillinen keruu- / jäähdytyspiiri'
-    : '4.1b Erillinen keruu- / jäähdytyspiiri';
+    ? 'Erillinen keruu- / jäähdytyspiiri'
+    : 'Erillinen keruu- / jäähdytyspiiri';
 }
 
 export function hoyrystinSectionTitle(deviceType: string): string {
@@ -70,11 +70,11 @@ export function hoyrystinSectionTitle(deviceType: string): string {
 }
 
 export function hoyrystinUnitTitle(deviceType: string, index: number): string {
-  if (deviceType === 'kylmäkoneikko') return `4.${index + 1} Höyrystimen tiedot — Höyrystin ${index + 1}`;
+  if (deviceType === 'kylmäkoneikko') return `Höyrystin ${index + 1}`;
   if (isChillerLikeDevice(deviceType)) {
-    return index === 0 ? '4.1 Höyrystin (yhteinen)' : `4.${index + 1} Höyrystin ${index + 1}`;
+    return index === 0 ? 'Höyrystin (yhteinen)' : `Höyrystin ${index + 1}`;
   }
-  if (deviceType === 'pakastin') return `4.${index + 1} Höyrystimen tiedot — Piiri ${index + 1}`;
+  if (deviceType === 'pakastin') return `Piiri ${index + 1}`;
   return `Höyrystin ${index + 1}`;
 }
 
@@ -91,12 +91,12 @@ export function lauhdutinUnitTitle(deviceType: string, index: number): string {
 }
 
 export function jaahdytysvesiSectionTitle(deviceType: string): string {
-  if (isChillerLikeDevice(deviceType)) return '4.1 Jäähdytyspiiri';
+  if (isChillerLikeDevice(deviceType)) return 'Jäähdytyspiiri';
   return 'Jäähdytysveden piiri';
 }
 
 export function lauhdutuspiiriSectionTitle(deviceType: string): string {
-  if (isChillerLikeDevice(deviceType)) return '5.2 Lauhdutuspiiri';
+  if (isChillerLikeDevice(deviceType)) return 'Lauhdutuspiiri';
   return 'Lauhdutuspiiri';
 }
 
@@ -107,7 +107,7 @@ export function nestelauhduttimetSectionTitle(deviceType: string): string {
 
 export function lampopumppuUlkoyksikkoTitle(deviceType: string): string {
   if (isAirSourceHeatPump(deviceType)) return 'Ulkoyksikkö';
-  if (isWaterAirHeatPump(deviceType)) return `4.1 ${keruupiiriSectionTitle(deviceType)}`;
+  if (isWaterAirHeatPump(deviceType)) return `${keruupiiriSectionTitle(deviceType)}`;
   return 'Ulkoyksikkö';
 }
 
@@ -122,14 +122,14 @@ export function lampopumppuMittauksetTitle(deviceType: string): string {
 }
 
 export function kiinteistoPiiriSectionTitle(deviceType: string): string {
-  if (isChillerLikeDevice(deviceType)) return '5.4 Kiinteistön jäähdytyspiiri';
-  if (isGroundSourceHeatPump(deviceType)) return '5.4 Kiinteistö lämmityspiiri';
+  if (isChillerLikeDevice(deviceType)) return 'Kiinteistön jäähdytyspiiri';
+  if (isGroundSourceHeatPump(deviceType)) return 'Kiinteistö lämmityspiiri';
   return 'Kiinteistön lämmitys-/jäähdytyspiiri';
 }
 
 export function energiatehokkuusSectionTitle(deviceType: string): string {
   if (isChillerLikeDevice(deviceType) || isGroundSourceHeatPump(deviceType)) {
-    return '5.5 Lämpöpumpun energiatehokkuus';
+    return 'Lämpöpumpun energiatehokkuus';
   }
   return 'Energiatehokkuus';
 }

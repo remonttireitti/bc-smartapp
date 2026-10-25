@@ -224,7 +224,7 @@ export function documentEntryCompletion(
     return inspectionStatusToDocumentCompletion(entityInspectionStatus(form.evaporatorData[entry.unitIndex]));
   }
   if (entry.kind === 'condenserUnit' && entry.unitIndex != null) {
-    return inspectionStatusToDocumentCompletion(condenserInspectionStatus(form.condenserData[entry.unitIndex]));
+    return inspectionStatusToDocumentCompletion(form.condenserData[entry.unitIndex] ? condenserInspectionStatus(form.condenserData[entry.unitIndex]) : null);
   }
   if (entry.kind === 'circuitMeasurementsUnit' && entry.unitIndex != null) {
     const circuit = getRefrigerantCircuitByIndex(form, entry.unitIndex);

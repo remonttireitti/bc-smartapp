@@ -109,8 +109,8 @@ export function compressorInspectionStatus(data: {
   return legacyBooleanChecksStatus(checks);
 }
 
-export function entityInspectionStatus(data: { tarkastusTila?: HuoltoInspectionStatus }): HuoltoInspectionStatus {
-  return normalizeHuoltoInspectionStatus(data.tarkastusTila);
+export function entityInspectionStatus(data: { tarkastusTila?: HuoltoInspectionStatus } | undefined): HuoltoInspectionStatus {
+  return normalizeHuoltoInspectionStatus(data?.tarkastusTila);
 }
 
 export function condenserInspectionStatus(data: {

@@ -44,7 +44,7 @@ export function resolveModuleTilePresentation(
     return {
       completion: 'attention',
       visited,
-      subtitle: 'Tarkastettu, huomioita',
+      subtitle: 'Vika',
       showCheck: false,
       showAttention: true,
     };
@@ -54,7 +54,7 @@ export function resolveModuleTilePresentation(
     return {
       completion: 'incomplete',
       visited: false,
-      subtitle: 'Täyttämättä',
+      subtitle: 'Kesken',
       showCheck: false,
       showAttention: false,
     };

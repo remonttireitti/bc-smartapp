@@ -9,7 +9,7 @@ import { hoyrystinUnitTitle } from '../../lib/huoltoRaportti/sectionTitles';
 export function evaporatorTitleForIndex(form: HuoltoReportData, index: number): string {
   if (isSharedEvaporatorAcrossCircuits(form.laiteTyyppi, form.hoyrystinYhteinenPiireissa) && index === 0) {
     if (isChillerLikeDevice(form.laiteTyyppi)) {
-      return '4.1 Höyrystin (yhteinen kaikille piireille)';
+      return 'Höyrystin (yhteinen kaikille piireille)';
     }
     return 'Höyrystin (yhteinen kaikille piireille)';
   }

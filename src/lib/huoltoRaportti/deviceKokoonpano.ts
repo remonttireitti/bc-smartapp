@@ -101,8 +101,8 @@ export function showMlpJaahdytyspiiriUnit(form: KokoonpanoForm): boolean {
 
 export function mlpJaahdytyspiiriTitleFor(form: KokoonpanoForm): string | null {
   const tila = form.laiteKokoonpano?.mlpJaahdytys;
-  if (tila === 'passiivinen') return '5.1b Passiivijäähdytys (keruupiiri)';
-  if (tila === 'aktiivinen_erillinen') return '5.1b Jäähdytyspiiri';
+  if (tila === 'passiivinen') return 'Passiivijäähdytys (keruupiiri)';
+  if (tila === 'aktiivinen_erillinen') return 'Jäähdytyspiiri';
   return null;
 }
 
