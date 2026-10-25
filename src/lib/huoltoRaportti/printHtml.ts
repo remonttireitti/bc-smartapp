@@ -1,4 +1,4 @@
-import { kokoonpanoLauhdutinLabel, kokoonpanoSummary } from './deviceKokoonpano';
+import { kokoonpanoLauhdutinLabel, kokoonpanoSummary, vjHeatingTitle } from './deviceKokoonpano';
 import { fieldModuleValues, visibleFieldModules } from './fieldModules';
 import type {
   CompressorData,
@@ -555,14 +555,14 @@ function renderJaahdytysvesi(data: HuoltoReportData): string {
     data.laiteTyyppi === 'vedenjäähdytyskone' || data.laiteTyyppi === 'vakioilmastointtikone'
       ? 'JÄÄHDYTYSPIIRI'
       : 'JÄÄHDYTYSVESEN PIIRI';
-  return box(title, '#01579B', inner);
+  return box(vjHeatingTitle(title, data).toUpperCase(), '#01579B', inner);
 }
 
 function renderLauhdutuspiiri(data: HuoltoReportData): string {
   if (!data.selectedModules.lauhdutin || !hasExternalNestelauhdutin(data.lauhdutinTyyppiLaite)) return '';
   const inner = renderNestepiiriFields('#1565C0', data.lauhdutuspiiriData);
   if (!inner) return '';
-  return box('LAUHDUTUSPIIRI', '#1565C0', inner);
+  return box(vjHeatingTitle('Lauhdutuspiiri', data).toUpperCase(), '#1565C0', inner);
 }
 
 function renderNestelauhduttimet(data: HuoltoReportData): string {
