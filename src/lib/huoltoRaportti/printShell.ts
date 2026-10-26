@@ -28,9 +28,9 @@ export const PRINT_SHELL_CSS = `
 .rp table.kv td, .rp .kvr span { overflow-wrap: anywhere; }
 .rp [style*="grid-template-columns"] > * { min-width: 0; }
 @media screen and (max-width: 640px) {
-  .rp .hdr { grid-template-columns: minmax(0, 1fr); gap: 2mm; }
-  .rp .hdr .ttl { text-align: left; }
-  .rp .info, .rp .cols-2, .rp .units-2 { grid-template-columns: minmax(0, 1fr) !important; }
+  .maintenance-print-host:not(.pdf-a4) .rp .hdr { grid-template-columns: minmax(0, 1fr); gap: 2mm; }
+  .maintenance-print-host:not(.pdf-a4) .rp .hdr .ttl { text-align: left; }
+  .maintenance-print-host:not(.pdf-a4) .rp :is(.info, .cols-2, .units-2) { grid-template-columns: minmax(0, 1fr) !important; }
 }
 .rp .unit { break-inside: avoid; page-break-inside: avoid; }
 .rp .unit-fig { position: relative; height: 34mm; border: .5px solid #d4d4d4; margin-bottom: 1.5mm; background: #fff; }
