@@ -78,7 +78,7 @@ export default function KonvektoriExamplePrintPage({ session: _session }: Props)
 
   function triggerPrint() {
     printCleanupRef.current?.();
-    printCleanupRef.current = printCurrentDocument(printTitle);
+    printCleanupRef.current = printCurrentDocument(printTitle, 0);
   }
 
   function setFaultyOnly(next: boolean) {

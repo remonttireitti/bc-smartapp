@@ -12,7 +12,7 @@ export const PRINT_SHELL_CSS = `
 .rp .band { display: flex; flex-wrap: wrap; gap: 2mm 6mm; align-items: center; margin: 3mm 0; padding: 2mm 3mm; border: 1px solid #bbb; border-left: 3px solid #111; }
 .rp .band .verdict { font-size: 10.5pt; font-weight: 700; }
 .rp .band .muted { color: #555; }
-.rp .info { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0 5mm; }
+.rp .info { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0 5mm; }
 .rp .info h2, .rp .sec h2 { font-size: 8pt; text-transform: uppercase; letter-spacing: .6px; color: #333; background: #efefef; margin: 0 0 1.5mm; padding: 1mm 2mm; font-weight: 700; break-after: avoid; page-break-after: avoid; }
 .rp .sec { margin-top: 4mm; break-inside: auto; }
 .rp .keep { break-inside: avoid; page-break-inside: avoid; }
@@ -22,9 +22,16 @@ export const PRINT_SHELL_CSS = `
 .rp table.kv th { font-weight: 400; color: #555; width: 42%; }
 .rp table.kv td.st-col { white-space: nowrap; }
 .rp .lines div { padding: .6mm 1mm; font-size: 8.5pt; }
-.rp .cols-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 5mm; }
+.rp .cols-2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0 5mm; }
 .rp .units { display: grid; gap: 4mm 5mm; }
-.rp .units-2 { grid-template-columns: 1fr 1fr; }
+.rp .units-2 { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.rp table.kv td, .rp .kvr span { overflow-wrap: anywhere; }
+.rp [style*="grid-template-columns"] > * { min-width: 0; }
+@media screen and (max-width: 640px) {
+  .rp .hdr { grid-template-columns: minmax(0, 1fr); gap: 2mm; }
+  .rp .hdr .ttl { text-align: left; }
+  .rp .info, .rp .cols-2, .rp .units-2 { grid-template-columns: minmax(0, 1fr) !important; }
+}
 .rp .unit { break-inside: avoid; page-break-inside: avoid; }
 .rp .unit-fig { position: relative; height: 34mm; border: .5px solid #d4d4d4; margin-bottom: 1.5mm; background: #fff; }
 .rp .unit-fig img { width: 100%; height: 100%; object-fit: contain; display: block; filter: grayscale(1); opacity: .85; }

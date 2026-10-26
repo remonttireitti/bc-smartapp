@@ -50,7 +50,7 @@ export default function ExamplePrintPage() {
             className="btn btn-primary"
             onClick={() => {
               cleanupRef.current?.();
-              cleanupRef.current = printCurrentDocument(printTitle);
+              cleanupRef.current = printCurrentDocument(printTitle, 0);
             }}
           >
             Tulosta / PDF

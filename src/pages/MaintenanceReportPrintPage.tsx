@@ -94,7 +94,7 @@ export default function MaintenanceReportPrintPage({ session }: Props) {
   function triggerPrint() {
     if (!printTitle) return;
     printCleanupRef.current?.();
-    printCleanupRef.current = printCurrentDocument(printTitle);
+    printCleanupRef.current = printCurrentDocument(printTitle, 0);
   }
 
   if (loading) {

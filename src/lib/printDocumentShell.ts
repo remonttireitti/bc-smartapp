@@ -63,6 +63,11 @@ export function extractPrintableHtmlFragment(html: string): string {
 /** Tulosta nykyinen sivu — sama malli kuin työraportin tulostesivulla (luotettava PDF-nimi). */
 export function printCurrentDocument(documentTitle: string, delayMs = 200): () => void {
   const releaseTitle = guardPrintTitle(documentTitle);
+  if (delayMs <= 0) {
+    // iOS Safari: print() pitää kutsua suoraan klikkauksesta, viive hukkaa käyttäjäeleen.
+    window.print();
+    return releaseTitle;
+  }
   const timer = window.setTimeout(() => {
     window.print();
   }, delayMs);
