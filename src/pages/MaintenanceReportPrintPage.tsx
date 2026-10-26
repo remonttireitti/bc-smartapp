@@ -12,6 +12,7 @@ import {
   formatPrintSaveFileName,
   printCurrentDocument,
 } from '../lib/printDocumentShell';
+import { renderElementToPdf, shareOrDownloadPdf, shouldUsePdfExport } from '../lib/pdfExport';
 import { isPortalReadOnly } from '../lib/portalWorkOrder';
 import type { HuoltoReportData } from '../lib/huoltoRaportti/types';
 import { maintenanceListTrail } from '../lib/navigationTrail';
@@ -35,6 +36,10 @@ export default function MaintenanceReportPrintPage({ session }: Props) {
   const portalReadOnly = isPortalReadOnly(profile);
   const autoPrintTriggeredRef = useRef(false);
   const printCleanupRef = useRef<(() => void) | null>(null);
+  const hostRef = useRef<HTMLDivElement>(null);
+  const [usePdf] = useState(() => shouldUsePdfExport());
+  const [pdfFile, setPdfFile] = useState<File | null>(null);
+  const [pdfState, setPdfState] = useState<'idle' | 'busy' | 'error'>('idle');
 
   useEffect(() => {
     if (!id) {
@@ -91,8 +96,27 @@ export default function MaintenanceReportPrintPage({ session }: Props) {
     }
   }
 
+  // iOS-kotivalikkosovellus: PDF valmiiksi taustalla, jotta jako käynnistyy suoraan painalluksesta.
+  useEffect(() => {
+    if (!usePdf || loading || !html || !printTitle || !hostRef.current) return undefined;
+    let cancelled = false;
+    setPdfFile(null);
+    setPdfState('busy');
+    const timer = window.setTimeout(() => {
+      if (!hostRef.current) return;
+      renderElementToPdf(hostRef.current, printTitle)
+        .then((file) => { if (!cancelled) { setPdfFile(file); setPdfState('idle'); } })
+        .catch(() => { if (!cancelled) setPdfState('error'); });
+    }, 400);
+    return () => { cancelled = true; window.clearTimeout(timer); };
+  }, [usePdf, loading, html, printTitle]);
+
   function triggerPrint() {
     if (!printTitle) return;
+    if (usePdf) {
+      if (pdfFile) void shareOrDownloadPdf(pdfFile);
+      return;
+    }
     printCleanupRef.current?.();
     printCleanupRef.current = printCurrentDocument(printTitle, 0);
   }
@@ -129,15 +153,20 @@ export default function MaintenanceReportPrintPage({ session }: Props) {
               PDF-tiedostonimi: <strong>{printTitle}</strong>
             </p>
           ) : null}
-          <p className="muted maintenance-print-help">
+          {usePdf ? null : <p className="muted maintenance-print-help">
             Valitse tulostimena <strong>Tallenna PDF-muodossa</strong> — tiedostonimi täyttyy automaattisesti
             yllä olevasta otsikosta. Poista valinnasta <strong>Ylätunnisteet ja alatunnisteet</strong>, jotta
             selaimen omat ylä- ja alatunnisteet eivät tule paperille.
-          </p>
+          </p>}
         </div>
         <div className="btn-group">
-          <button type="button" className="btn btn-primary" onClick={triggerPrint}>
-            Tulosta / PDF
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={triggerPrint}
+            disabled={usePdf && !pdfFile}
+          >
+            {usePdf && pdfState === 'busy' ? 'Luodaan PDF…' : usePdf && pdfState === 'error' ? 'PDF epäonnistui' : 'Tulosta / PDF'}
           </button>
           {navigation.linkToEdit && !portalReadOnly && (
             <Link {...navigation.linkToEdit} className="btn btn-secondary">
@@ -147,7 +176,7 @@ export default function MaintenanceReportPrintPage({ session }: Props) {
         </div>
       </div>
 
-      <div className="maintenance-print-host" dangerouslySetInnerHTML={{ __html: html }} />
+      <div ref={hostRef} className="maintenance-print-host" dangerouslySetInnerHTML={{ __html: html }} />
     </div>
   );
   // Asiakasportaali: sovelluksen valikko näkyy (ei paperilla).
