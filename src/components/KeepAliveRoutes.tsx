@@ -1,5 +1,12 @@
 import { useLayoutEffect, useRef, type ReactNode } from 'react';
-import { useLocation, useRoutes, type RouteObject } from 'react-router-dom';
+import {
+  UNSAFE_LocationContext,
+  useLocation,
+  useNavigationType,
+  useRoutes,
+  type Location,
+  type RouteObject,
+} from 'react-router-dom';
 import {
   keepAliveRouteKey,
   pruneKeepAliveCache,
@@ -15,11 +22,14 @@ type Props = {
 
 export default function KeepAliveRoutes({ routes, resetKey }: Props) {
   const location = useLocation();
+  const navigationType = useNavigationType();
   const activeElement = useRoutes(routes);
   const activeKey = keepAliveRouteKey(location.pathname, location.search, location.hash);
   const cacheable = shouldKeepAliveRoute(location.pathname);
 
   const cacheRef = useRef<Record<string, ReactNode>>({});
+  /** Each cached screen keeps the location it was opened with, so hidden screens never see another route's params. */
+  const locationRef = useRef<Record<string, Location>>({});
   const scrollRef = useRef<Record<string, number>>({});
   const previousKeyRef = useRef<string | null>(null);
   const resetRef = useRef(resetKey);
@@ -27,6 +37,7 @@ export default function KeepAliveRoutes({ routes, resetKey }: Props) {
   if (resetRef.current !== resetKey) {
     resetRef.current = resetKey;
     cacheRef.current = {};
+    locationRef.current = {};
     scrollRef.current = {};
     previousKeyRef.current = null;
   }
@@ -37,6 +48,10 @@ export default function KeepAliveRoutes({ routes, resetKey }: Props) {
         { ...cacheRef.current, [activeKey]: activeElement },
         activeKey,
       );
+    }
+    locationRef.current[activeKey] = location;
+    for (const key of Object.keys(locationRef.current)) {
+      if (!cacheRef.current[key]) delete locationRef.current[key];
     }
   }
 
@@ -65,7 +80,11 @@ export default function KeepAliveRoutes({ routes, resetKey }: Props) {
     <div className="keep-alive-root">
       {cachedEntries.map(([key, node]) => (
         <div key={key} className="keep-alive-panel" hidden={key !== activeKey || !cacheable}>
-          <KeepAliveActiveContext.Provider value={key === activeKey && cacheable}>{node}</KeepAliveActiveContext.Provider>
+          <UNSAFE_LocationContext.Provider
+            value={{ location: locationRef.current[key] ?? location, navigationType }}
+          >
+            <KeepAliveActiveContext.Provider value={key === activeKey && cacheable}>{node}</KeepAliveActiveContext.Provider>
+          </UNSAFE_LocationContext.Provider>
         </div>
       ))}
       {!cacheable && activeElement}
