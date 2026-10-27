@@ -13,7 +13,7 @@ import { createClient, type SupabaseClient } from 'npm:@supabase/supabase-js@2';
 type Admin = SupabaseClient<any, any, any>;
 type AnyRecord = Record<string, unknown>;
 
-const VERSION = 'device-public-card-2';
+const VERSION = 'device-public-card-3';
 const TOKEN_RE = /^[A-Za-z0-9_-]{32,128}$/;
 const PUBLISHED = ['submitted', 'completed', 'valmis', 'toimitettu', 'complete', 'ready', 'done'];
 
@@ -210,12 +210,17 @@ Deno.serve(async (req) => {
     const { data: visible } = await asUser.from('equipment').select('id').eq('id', equipmentId).maybeSingle();
     if (!visible) return notFound();
 
-    // Omat huoltopöytäkirjat: vain käyttäjälle RLS:n kautta näkyvät, valmiit.
-    const { data: reportRows } = await asUser
+    // Asentaja (oma yritys) näkee myös keskeneräiset; portaali vain valmiit.
+    const { data: prof } = await admin.from('profiles').select('role').eq('id', userData.user.id).maybeSingle();
+    const installer = ['admin', 'manager', 'technician'].includes(String((prof as AnyRecord | null)?.role ?? ''));
+
+    // Omat huoltopöytäkirjat: vain käyttäjälle RLS:n kautta näkyvät.
+    let repQuery = asUser
       .from('maintenance_reports')
       .select('id, status, data, completed_at, updated_at, branding_company_id, owner_company_id, created_by_company_id')
-      .eq('equipment_id', equipmentId)
-      .in('status', PUBLISHED);
+      .eq('equipment_id', equipmentId);
+    if (!installer) repQuery = repQuery.in('status', PUBLISHED);
+    const { data: reportRows } = await repQuery;
     const repRows = (reportRows ?? []) as AnyRecord[];
     const companyIds = [...new Set(repRows.map((r) => str(r.created_by_company_id) ?? str(r.owner_company_id)).filter(Boolean))] as string[];
     const { data: comps } = companyIds.length
@@ -223,7 +228,7 @@ Deno.serve(async (req) => {
       : { data: [] };
     const compName = new Map(((comps ?? []) as AnyRecord[]).map((c) => [String(c.id), str(c.name)]));
 
-    type Row = { id: string; date: string | null; type: string; company: string | null; text: string; reportId: string | null };
+    type Row = { id: string; date: string | null; type: string; company: string | null; text: string; reportId: string | null; draft?: boolean };
     const rows: Row[] = repRows.map((r) => {
       const d = (r.data ?? {}) as AnyRecord;
       const kind = d.huoltoReportDocumentKind === 'kayttoonotto' ? 'Käyttöönotto' : 'Huoltopöytäkirja';
@@ -234,6 +239,7 @@ Deno.serve(async (req) => {
         company: compName.get(String(str(r.created_by_company_id) ?? r.owner_company_id)) ?? null,
         text: (str(d.huomiot) ?? '').slice(0, 120),
         reportId: String(r.id),
+        draft: !PUBLISHED.includes(String(r.status ?? '')),
       };
     });
 

@@ -85,7 +85,7 @@ export default function DevicePublicCardPage() {
         </Link>
       ) : null}
       {card.rows.length === 0 ? (
-        <p className="device-public-status">Ei huoltohistoriaa.</p>
+        <p className="device-public-status">Ei merkintöjä vielä.</p>
       ) : (
         <ul className="device-public-rows">
           {card.rows.map((r) => {
@@ -93,6 +93,7 @@ export default function DevicePublicCardPage() {
               <>
                 <span className="device-public-row-head">
                   {r.date ? formatMaintenanceDateFi(r.date) : '—'} · {r.type}
+                  {r.draft ? <span className="device-notes-badge">Kesken</span> : null}
                   {r.company ? ` · ${r.company}` : ''}
                 </span>
                 {r.text ? <span className="device-public-row-text">{r.text}</span> : null}
@@ -101,7 +102,7 @@ export default function DevicePublicCardPage() {
             return (
               <li key={r.id}>
                 {r.reportId ? (
-                  <Link className="device-public-row is-link" to={`/huoltoraportit/${r.reportId}/tuloste`}>
+                  <Link className="device-public-row is-link" to={r.draft ? `/huoltoraportit/${r.reportId}` : `/huoltoraportit/${r.reportId}/tuloste`}>
                     {content}
                   </Link>
                 ) : (
@@ -119,6 +120,7 @@ export default function DevicePublicCardPage() {
           notes={[]}
           canAdd
           showList={false}
+          bare
           onAdded={() => setReloadKey((k) => k + 1)}
         />
       ) : null}
