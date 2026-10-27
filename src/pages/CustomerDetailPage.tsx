@@ -1,5 +1,6 @@
 import { subscriberPortalReportVisible } from '../lib/subscriberPortalVisibility';
 import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { useRefetchOnDataChange } from '../lib/dataRefresh';
 import { useCompanyHuoltoSettings } from '../hooks/useCompanyHuoltoSettings';
 import { newHuoltoReportHref } from '../lib/huoltoCategories';
 import { Link, Navigate, useLocation, useNavigate, useParams } from 'react-router-dom';
@@ -130,6 +131,8 @@ export default function CustomerDetailPage({ session }: Props) {
     if (id) void load();
   }, [id, profile?.company_id]);
 
+  useRefetchOnDataChange(() => void load({ silent: true }), Boolean(id));
+
   useEffect(() => {
     if (!customer || location.hash !== '#customer-portal') return;
     setSectionDialog('portal');
@@ -157,9 +160,9 @@ export default function CustomerDetailPage({ session }: Props) {
     return enriched;
   }
 
-  async function load() {
+  async function load(opts?: { silent?: boolean }) {
     if (!id) return;
-    setLoading(true);
+    if (!opts?.silent) setLoading(true);
     setError(null);
 
     const partnershipRows = await loadPartnerships();
