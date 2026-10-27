@@ -18081,3 +18081,13 @@ label.has-error input { border-color: #b91c1c; }
   .konvektori-tarkastus-dialog { width: 100%; }
 }
 .huolto-capacity-result { margin: .25rem 0 0; padding: .45rem .6rem; border-radius: 8px; background: var(--bg-muted, #f1f5f9); font-size: .9rem; overflow-wrap: anywhere; }
+
+/* iOS Safari zoomaa sisään, jos kentän fontti < 16px → sivu näyttää leikkautuvan vasemmalta.
+   Puhelimella kaikki kentät vähintään 16px. */
+@media (max-width: 720px), (pointer: coarse) {
+  input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='color']),
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}

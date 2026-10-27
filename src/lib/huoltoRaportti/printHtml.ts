@@ -360,7 +360,7 @@ function renderCircuitHtml(
 function evapCapacityRow(ev: EvaporatorData, color: string): string {
   if (ev.tyyppi === 'staatinen') {
     const r = staticEvaporatorEstimate(staticInput(ev));
-    return r ? row('Teho (arvio)', `${formatKw(r.kw)} (A ${r.areaM2.toFixed(1).replace('.', ',')} m², U ${r.uWm2K} W/m²K, ΔT ${r.dtK.toFixed(1).replace('.', ',')} K)`, color) : '';
+    return r ? row('Teho (arvio)', `${formatKw(r.kw)} (${!String(ev.kennoLampotila ?? '').trim() ? 'kenno = höyrystyminen, ' : ''}A ${r.areaM2.toFixed(1).replace('.', ',')} m², U ${r.uWm2K} W/m²K, ΔT ${r.dtK.toFixed(1).replace('.', ',')} K)`, color) : '';
   }
   const r = airCapacity({ tIn: ev.ilmaTuloLampotila, rhIn: ev.ilmaTuloRh, tOut: ev.ilmaPoistoLampotila, rhOut: ev.ilmaPoistoRh, airflowM3h: ev.ilmavirtaM3h, direction: 'cooling' });
   return r ? row('Teho', `${formatKw(r.totalKw)} (tuntuva ${formatKw(r.sensibleKw)}, latentti ${formatKw(r.latentKw)})`, color) : '';
