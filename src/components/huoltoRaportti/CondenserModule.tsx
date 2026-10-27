@@ -13,6 +13,8 @@ import { HuoltoPartInspectionRow } from './HuoltoPartInspectionRow';
 import { HuoltoInspectionDialogShell } from './HuoltoInspectionDialogShell';
 import { useRegisterHuoltoModuleDialog } from './HuoltoModuleDialogContext';
 import { TriStateInspectionToggle } from './TriStateInspectionToggle';
+import { airCapacity } from '../../lib/huoltoRaportti/airCapacity';
+import { AirCapacityResultView } from './CapacityResult';
 
 interface Props {
   index: number;
@@ -232,9 +234,17 @@ export function CondenserModule({ index, titleLabel, data, onChange, documentUni
           <h4>Mittaukset</h4>
           <div className="line-form-grid">
             <FormInput label="Lauhtuminen (°C)" type="number" value={source.lauhtumisLampotila || ''} onChange={(v) => set({ lauhtumisLampotila: v })} />
-            <FormInput label={liquidType ? 'Neste sisään (°C)' : 'Tuloilma (°C)'} type="number" value={source.ilmaTuloLampotila || ''} onChange={(v) => set({ ilmaTuloLampotila: v })} />
-            <FormInput label={liquidType ? 'Neste ulos (°C)' : 'Poistoilma (°C)'} type="number" value={source.ilmaPoistoLampotila || ''} onChange={(v) => set({ ilmaPoistoLampotila: v })} />
+            <FormInput label={liquidType ? 'Neste sisään (°C)' : 'Ilma ennen (°C)'} type="number" value={source.ilmaTuloLampotila || ''} onChange={(v) => set({ ilmaTuloLampotila: v })} />
+            <FormInput label={liquidType ? 'Neste ulos (°C)' : 'Ilma jälkeen (°C)'} type="number" value={source.ilmaPoistoLampotila || ''} onChange={(v) => set({ ilmaPoistoLampotila: v })} />
             <FormInput label="Alijäähtyminen (K)" type="number" value={source.alijaahtyminen || ''} onChange={(v) => set({ alijaahtyminen: v })} />
+            {airType ? (
+              <>
+                <FormInput label="Kosteus ennen (%)" type="number" value={source.ilmaTuloRh || ''} onChange={(v) => set({ ilmaTuloRh: v })} />
+                <FormInput label="Kosteus jälkeen (%)" type="number" value={source.ilmaPoistoRh || ''} onChange={(v) => set({ ilmaPoistoRh: v })} />
+                <FormInput label="Ilmavirta (m³/h)" type="number" value={source.ilmavirtaM3h || ''} onChange={(v) => set({ ilmavirtaM3h: v })} />
+                <AirCapacityResultView latent={false} result={airCapacity({ tIn: source.ilmaTuloLampotila, rhIn: source.ilmaTuloRh, tOut: source.ilmaPoistoLampotila, rhOut: source.ilmaPoistoRh, airflowM3h: source.ilmavirtaM3h, direction: 'heating', allowSensibleOnly: true })} />
+              </>
+            ) : null}
           </div>
         </div>
 

@@ -177,6 +177,9 @@ export interface CondenserData {
   ilmaTuloLampotila?: string;
   ilmaPoistoLampotila?: string;
   alijaahtyminen?: string;
+  ilmaTuloRh?: string;
+  ilmaPoistoRh?: string;
+  ilmavirtaM3h?: string;
 }
 
 export interface TiiveyskoeData {
@@ -230,6 +233,17 @@ export interface EvaporatorData {
   ilmaTuloLampotila?: string;
   ilmaPoistoLampotila?: string;
   hoyrystymisLampotila?: string;
+  /** Tehon laskenta. */
+  ilmaTuloRh?: string;
+  ilmaPoistoRh?: string;
+  ilmavirtaM3h?: string;
+  kylmioLampotila?: string;
+  kennoLampotila?: string;
+  kennoPituusMm?: string;
+  kennoKorkeusMm?: string;
+  kennoSyvyysMm?: string;
+  ripavaliMm?: string;
+  putkirivit?: string;
   /** Tarkastukset. */
   lamellitPuhtaat?: boolean;
   sulatusvesiPoistuu?: boolean;

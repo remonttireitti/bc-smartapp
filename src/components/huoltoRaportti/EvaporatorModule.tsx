@@ -24,6 +24,8 @@ import { HuoltoPartInspectionRow } from './HuoltoPartInspectionRow';
 import { HuoltoInspectionDialogShell } from './HuoltoInspectionDialogShell';
 import { useRegisterHuoltoModuleDialog } from './HuoltoModuleDialogContext';
 import { TriStateInspectionToggle } from './TriStateInspectionToggle';
+import { airCapacity, staticEvaporatorEstimate, staticInput } from '../../lib/huoltoRaportti/airCapacity';
+import { AirCapacityResultView, StaticCapacityResultView } from './CapacityResult';
 
 interface Props {
   index: number;
@@ -135,8 +137,9 @@ export function EvaporatorModule({
                 disabled={disabled}
               />
             )}
-            <label className={chillerHx ? 'huolto-span-all' : undefined}>
-              {chillerHx ? 'Lämmönvaihtimen tyyppi' : 'Höyrystimen tyyppi'}
+            {chillerHx ? (
+            <label className="huolto-span-all">
+              Lämmönvaihtimen tyyppi
               <select
                 value={selectVal}
                 disabled={disabled}
@@ -146,21 +149,31 @@ export function EvaporatorModule({
                   setSource((prev) => applyEvaporatorTypeChange(prev, next));
                 }}
               >
-                {chillerHx ? (
-                  <>
-                    <option value="" disabled>Valitse…</option>
-                    <option value="levy">Levy lämmönvaihdin</option>
-                    <option value="putki">Putkilämmönvaihdin</option>
-                    {isVak ? <option value="suorahoyrystin">Suorahöyrystin</option> : null}
-                  </>
-                ) : (
-                  <>
-                    <option value="staatinen">Staattinen höyrystin</option>
-                    <option value="puhallin">Puhallinhöyrystin</option>
-                  </>
-                )}
+                <option value="" disabled>Valitse…</option>
+                <option value="levy">Levy lämmönvaihdin</option>
+                <option value="putki">Putkilämmönvaihdin</option>
+                {isVak ? <option value="suorahoyrystin">Suorahöyrystin</option> : null}
               </select>
             </label>
+            ) : (
+              <div className="huolto-span-all">
+                <span className="konvektori-tarkastus-label">Höyrystimen tyyppi</span>
+                <div className="konvektori-yesno" role="group" aria-label="Höyrystimen tyyppi">
+                  {([['puhallin', 'Puhallin'], ['staatinen', 'Staattinen']] as const).map(([v, l]) => (
+                    <button
+                      key={v}
+                      type="button"
+                      className={`konvektori-yesno-btn${source.tyyppi === v ? ' konvektori-yesno-btn--active konvektori-yesno-btn--yes' : ''}`}
+                      aria-pressed={source.tyyppi === v}
+                      disabled={disabled}
+                      onClick={() => { if (source.tyyppi !== v) setSource((prev) => applyEvaporatorTypeChange(prev, v)); }}
+                    >
+                      {l}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
             <FormInput label="Valmistaja" value={source.valmistaja} disabled={disabled} onChange={(v) => setSource((prev) => ({ ...prev, valmistaja: v }))} />
             <FormInput label="Malli" value={source.malli} disabled={disabled} onChange={(v) => setSource((prev) => ({ ...prev, malli: v }))} />
             <FormInput label="Sarjanumero" value={source.sarjanumero} disabled={disabled} onChange={(v) => setSource((prev) => ({ ...prev, sarjanumero: v }))} />
@@ -299,9 +312,32 @@ export function EvaporatorModule({
                 <div className="huolto-submodule huolto-span-all">
                   <h4>Mittaukset</h4>
                   <div className="line-form-grid">
-                    <FormInput label="Tuloilma (°C)" type="number" value={source.ilmaTuloLampotila || ''} disabled={disabled} onChange={(v) => set({ ilmaTuloLampotila: v })} />
-                    <FormInput label="Poistoilma (°C)" type="number" value={source.ilmaPoistoLampotila || ''} disabled={disabled} onChange={(v) => set({ ilmaPoistoLampotila: v })} />
-                    <FormInput label="Höyrystyminen (°C)" type="number" value={source.hoyrystymisLampotila || ''} disabled={disabled} onChange={(v) => set({ hoyrystymisLampotila: v })} />
+                    {source.tyyppi === 'staatinen' ? (
+                      <>
+                        <FormInput label="Huoneen lämpötila (°C)" type="number" value={source.kylmioLampotila || ''} disabled={disabled} onChange={(v) => set({ kylmioLampotila: v })} />
+                        <FormInput label="Kennon lämpötila (°C)" type="number" value={source.kennoLampotila || ''} disabled={disabled} onChange={(v) => set({ kennoLampotila: v })} />
+                        <FormInput label="Pituus (mm)" type="number" value={source.kennoPituusMm || ''} disabled={disabled} onChange={(v) => set({ kennoPituusMm: v })} />
+                        <FormInput label="Korkeus (mm)" type="number" value={source.kennoKorkeusMm || ''} disabled={disabled} onChange={(v) => set({ kennoKorkeusMm: v })} />
+                        <FormInput label="Syvyys (mm)" type="number" value={source.kennoSyvyysMm || ''} disabled={disabled} onChange={(v) => set({ kennoSyvyysMm: v })} />
+                        <FormInput label="Ripaväli (mm)" type="number" placeholder="10" value={source.ripavaliMm || ''} disabled={disabled} onChange={(v) => set({ ripavaliMm: v })} />
+                        <FormInput label="Putkirivit" type="number" placeholder="auto" value={source.putkirivit || ''} disabled={disabled} onChange={(v) => set({ putkirivit: v })} />
+                        <FormInput label="Höyrystyminen (°C)" type="number" value={source.hoyrystymisLampotila || ''} disabled={disabled} onChange={(v) => set({ hoyrystymisLampotila: v })} />
+                        {(() => {
+                          const r = staticEvaporatorEstimate(staticInput(source));
+                          return r ? <StaticCapacityResultView kw={r.kw} dtK={r.dtK} areaM2={r.areaM2} u={r.uWm2K} /> : null;
+                        })()}
+                      </>
+                    ) : (
+                      <>
+                        <FormInput label="Ilma ennen (°C)" type="number" value={source.ilmaTuloLampotila || ''} disabled={disabled} onChange={(v) => set({ ilmaTuloLampotila: v })} />
+                        <FormInput label="Kosteus ennen (%)" type="number" value={source.ilmaTuloRh || ''} disabled={disabled} onChange={(v) => set({ ilmaTuloRh: v })} />
+                        <FormInput label="Ilma jälkeen (°C)" type="number" value={source.ilmaPoistoLampotila || ''} disabled={disabled} onChange={(v) => set({ ilmaPoistoLampotila: v })} />
+                        <FormInput label="Kosteus jälkeen (%)" type="number" value={source.ilmaPoistoRh || ''} disabled={disabled} onChange={(v) => set({ ilmaPoistoRh: v })} />
+                        <FormInput label="Ilmavirta (m³/h)" type="number" value={source.ilmavirtaM3h || ''} disabled={disabled} onChange={(v) => set({ ilmavirtaM3h: v })} />
+                        <FormInput label="Höyrystyminen (°C)" type="number" value={source.hoyrystymisLampotila || ''} disabled={disabled} onChange={(v) => set({ hoyrystymisLampotila: v })} />
+                        <AirCapacityResultView latent result={airCapacity({ tIn: source.ilmaTuloLampotila, rhIn: source.ilmaTuloRh, tOut: source.ilmaPoistoLampotila, rhOut: source.ilmaPoistoRh, airflowM3h: source.ilmavirtaM3h, direction: 'cooling' })} />
+                      </>
+                    )}
                   </div>
                 </div>
                 <div className="huolto-submodule huolto-span-all">
