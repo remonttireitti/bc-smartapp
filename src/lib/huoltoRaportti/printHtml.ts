@@ -1,4 +1,5 @@
 import { fieldModuleFieldVisible } from './fieldModules';
+import { airCapacity, formatKw, staticEvaporatorEstimate, staticInput } from './airCapacity';
 import { kokoonpanoLauhdutinLabel, kokoonpanoSummary, vjHeatingTitle } from './deviceKokoonpano';
 import { fieldModuleValues, visibleFieldModules } from './fieldModules';
 import type {
@@ -339,6 +340,15 @@ function renderCircuitHtml(
   );
 }
 
+function evapCapacityRow(ev: EvaporatorData, color: string): string {
+  if (ev.tyyppi === 'staatinen') {
+    const r = staticEvaporatorEstimate(staticInput(ev));
+    return r ? row('Teho (arvio)', `${formatKw(r.kw)} (A ${r.areaM2.toFixed(1).replace('.', ',')} m², U ${r.uWm2K} W/m²K, ΔT ${r.dtK.toFixed(1).replace('.', ',')} K)`, color) : '';
+  }
+  const r = airCapacity({ tIn: ev.ilmaTuloLampotila, rhIn: ev.ilmaTuloRh, tOut: ev.ilmaPoistoLampotila, rhOut: ev.ilmaPoistoRh, airflowM3h: ev.ilmavirtaM3h, direction: 'cooling' });
+  return r ? row('Teho', `${formatKw(r.totalKw)} (tuntuva ${formatKw(r.sensibleKw)}, latentti ${formatKw(r.latentKw)})`, color) : '';
+}
+
 function renderSingleEvaporatorHtml(
   ev: EvaporatorData,
   index: number,
@@ -395,9 +405,18 @@ function renderSingleEvaporatorHtml(
     .join('');
   const C = '#00838F';
   const extraHtml = [
-    row('Tuloilma (°C)', ev.ilmaTuloLampotila, C),
-    row('Poistoilma (°C)', ev.ilmaPoistoLampotila, C),
+    row('Ilma ennen (°C)', ev.ilmaTuloLampotila, C),
+    row('Kosteus ennen (%)', ev.ilmaTuloRh, C),
+    row('Ilma jälkeen (°C)', ev.ilmaPoistoLampotila, C),
+    row('Kosteus jälkeen (%)', ev.ilmaPoistoRh, C),
+    row('Ilmavirta (m³/h)', ev.ilmavirtaM3h, C),
+    row('Huoneen lämpötila (°C)', ev.kylmioLampotila, C),
+    row('Kennon lämpötila (°C)', ev.kennoLampotila, C),
+    row('Kenno P×K×S (mm)', ev.kennoPituusMm && ev.kennoKorkeusMm && ev.kennoSyvyysMm ? `${ev.kennoPituusMm}×${ev.kennoKorkeusMm}×${ev.kennoSyvyysMm}` : '', C),
+    row('Ripaväli (mm)', ev.ripavaliMm, C),
+    row('Putkirivit', ev.putkirivit, C),
     row('Höyrystyminen (°C)', ev.hoyrystymisLampotila, C),
+    evapCapacityRow(ev, C),
     checkRow(ev.lamellitPuhtaat, 'Lamellit puhtaat'),
     checkRow(ev.sulatusvesiPoistuu, 'Sulatusvesi poistuu'),
     checkRow(ev.jaatyminenOk, 'Ei jäätymistä'),
@@ -498,6 +517,13 @@ function renderCondensers(data: HuoltoReportData): string {
         gridField('Tulo (°C)', co.ilmaTuloLampotila),
         gridField('Poisto (°C)', co.ilmaPoistoLampotila),
         gridField('Alijäähtyminen (K)', co.alijaahtyminen),
+        gridField('Kosteus ennen (%)', co.ilmaTuloRh),
+        gridField('Kosteus jälkeen (%)', co.ilmaPoistoRh),
+        gridField('Ilmavirta (m³/h)', co.ilmavirtaM3h),
+        (() => {
+          const r = airCapacity({ tIn: co.ilmaTuloLampotila, rhIn: co.ilmaTuloRh, tOut: co.ilmaPoistoLampotila, rhOut: co.ilmaPoistoRh, airflowM3h: co.ilmavirtaM3h, direction: 'heating', allowSensibleOnly: true });
+          return r ? gridField('Teho', `${formatKw(r.totalKw)}${r.sensibleOnly ? ' (vain tuntuva)' : ''}`) : '';
+        })(),
         fanHtml,
       ]
         .filter(Boolean)
