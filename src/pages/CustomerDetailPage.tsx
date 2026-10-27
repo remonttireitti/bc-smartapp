@@ -65,6 +65,7 @@ import { useProfile } from '../hooks/useProfile';
 import { loadEquipmentNotes, type EquipmentNote } from '../lib/equipmentNotes';
 import { fetchDeviceQrTokens, generateDeviceQrToken, setDeviceQrToken } from '../lib/devicePublicCard';
 import { buildDeviceQrLabelsHtml } from '../lib/deviceQrLabel';
+import LinkSuggestionsReview from '../components/equipment/LinkSuggestionsReview';
 import type { Customer, Equipment, Partnership, Subscriber } from '../types';
 
 interface Props {
@@ -973,6 +974,7 @@ export default function CustomerDetailPage({ session }: Props) {
           <p className="muted">Ei laitteita rekisteröitynä.</p>
         ) : (
           <>
+            {!portalView ? <LinkSuggestionsReview customerId={customer.id} /> : null}
             <div className="customer-equipment-bulk-toolbar">
               <ToggleSwitch
                 className="customer-equipment-select-all-toggle"

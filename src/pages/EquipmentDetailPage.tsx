@@ -3,6 +3,18 @@ import { useCompanyHuoltoSettings } from '../hooks/useCompanyHuoltoSettings';
 import ToggleSwitch from '../components/ToggleSwitch';
 import DeviceQrPanel from '../components/equipment/DeviceQrPanel';
 import DeviceNotesPanel from '../components/equipment/DeviceNotesPanel';
+import DeviceLinksPanel from '../components/equipment/DeviceLinksPanel';
+import {
+  latestSharedYmd,
+  listEquipmentLinks,
+  loadEquipmentFillValues,
+  loadSharedHistory,
+  maxYmd,
+  sharedRowsToHistoryEntries,
+  type EquipmentFillValues,
+  type EquipmentLink,
+  type SharedHistoryRow,
+} from '../lib/equipmentLinks';
 import { HUOLTO_ASETUKSET_KEY, buildDeviceSchedule, defaultServiceIntervalMonths, formatTonnes, leakCheckInterval, readHuoltoAsetukset, refrigerantGwp, todayYmdLocal } from '../lib/huoltoSchedule';
 import { newHuoltoReportHrefForDevice } from '../lib/huoltoCategories';
 import { Link, Navigate, useParams } from 'react-router-dom';
@@ -113,6 +125,9 @@ export default function EquipmentDetailPage({ session }: Props) {
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const [documents, setDocuments] = useState<CustomerLinkedDocument[]>([]);
   const [equipmentNotes, setEquipmentNotes] = useState<EquipmentNote[] | null>(null);
+  const [links, setLinks] = useState<EquipmentLink[] | null>(null);
+  const [sharedRows, setSharedRows] = useState<SharedHistoryRow[]>([]);
+  const [fillValues, setFillValues] = useState<EquipmentFillValues>({});
   const [maintenanceRows, setMaintenanceRows] = useState<
     Awaited<ReturnType<typeof loadCustomerMaintenanceContext>>['maintenanceRows']
   >([]);
@@ -147,6 +162,19 @@ export default function EquipmentDetailPage({ session }: Props) {
       if (company) enriched.push({ ...p, partner_company: company });
     }
     return enriched;
+  }
+
+  async function loadLinks(id: string) {
+    const list = await listEquipmentLinks(supabase, id);
+    setLinks(list);
+    if (list && list.some((l) => l.status === 'active')) {
+      const [shared, fill] = await Promise.all([loadSharedHistory(supabase, id), loadEquipmentFillValues(supabase, id)]);
+      setSharedRows(shared ?? []);
+      setFillValues(fill ?? {});
+    } else {
+      setSharedRows([]);
+      setFillValues({});
+    }
   }
 
   async function load() {
@@ -202,6 +230,7 @@ export default function EquipmentDetailPage({ session }: Props) {
     );
     setMaintenanceRows(maintenanceContext.maintenanceRows);
     void loadEquipmentNotes(supabase, { customerId: customerId }).then(setEquipmentNotes);
+    void loadLinks(equipmentRow.id);
     setWorkRows(maintenanceContext.workRows);
     setLoading(false);
   }
@@ -218,11 +247,39 @@ export default function EquipmentDetailPage({ session }: Props) {
       refrigerant: f?.refrigerant,
       chargeKg: f?.refrigerant_charge_kg ?? null,
       asetukset: readHuoltoAsetukset(equipment?.huolto_technical_snapshot),
-      lastServiceYmd: equipment ? latestMaintenanceByEquipment[equipment.id] ?? null : null,
-      lastLeakCheckYmd: equipment ? buildLatestLeakCheckByEquipment(maintenanceRows)[equipment.id] ?? null : null,
+      lastServiceYmd: maxYmd(equipment ? latestMaintenanceByEquipment[equipment.id] ?? null : null, latestSharedYmd(sharedRows, 'service')),
+      lastLeakCheckYmd: maxYmd(equipment ? buildLatestLeakCheckByEquipment(maintenanceRows)[equipment.id] ?? null : null, latestSharedYmd(sharedRows, 'leak')),
       todayYmd: todayYmdLocal(),
     });
-  }, [equipment, deviceColumns, latestMaintenanceByEquipment, maintenanceRows]);
+  }, [equipment, deviceColumns, latestMaintenanceByEquipment, maintenanceRows, sharedRows]);
+
+  // 'Täydennä linkitetystä': vain tyhjät omat kentät, ei koskaan ylikirjoitusta.
+  const fillKeys = useMemo(() => {
+    if (!equipment) return [] as string[];
+    const blank = (v: unknown) => v == null || String(v).trim() === '' || /^ei\s*tiedossa$/i.test(String(v).trim());
+    const own: Record<string, unknown> = {
+      model: equipment.model,
+      serial_number: equipment.serial_number,
+      ...(deviceColumnsSupported
+        ? {
+            manufacturer: deviceColumns?.manufacturer,
+            refrigerant: deviceColumns?.refrigerant,
+            refrigerant_charge_kg: deviceColumns?.refrigerant_charge_kg,
+            installed_on: deviceColumns?.installed_on,
+          }
+        : {}),
+    };
+    return Object.keys(own).filter((k) => blank(own[k]) && !blank((fillValues as Record<string, unknown>)[k]));
+  }, [equipment, deviceColumns, deviceColumnsSupported, fillValues]);
+
+  async function applyFill() {
+    if (!equipment || fillKeys.length === 0) return;
+    const payload: Record<string, unknown> = {};
+    for (const k of fillKeys) payload[k] = (fillValues as Record<string, unknown>)[k];
+    const { error: fillError } = await supabase.from('equipment').update(payload).eq('id', equipment.id);
+    if (fillError) throw new Error(fillError.message);
+    await load();
+  }
 
   const snapshot = useMemo(
     () => parseEquipmentSnapshot(equipment?.huolto_technical_snapshot),
@@ -267,7 +324,7 @@ export default function EquipmentDetailPage({ session }: Props) {
     setPrintBusy('history');
     try {
       const branding = await loadPrintBranding(customer.owner_company_id);
-      const entries = buildMaintenanceHistoryForEquipment(equipment, maintenanceRows, workRows, equipmentNotes);
+      const entries = [...buildMaintenanceHistoryForEquipment(equipment, maintenanceRows, workRows, equipmentNotes), ...sharedRowsToHistoryEntries(sharedRows)].sort((a, b) => a.sortMs - b.sortMs);
       openPrintHtml(
         buildMaintenanceHistoryPrintHtml({
           customerName: customer.name,
@@ -692,6 +749,17 @@ export default function EquipmentDetailPage({ session }: Props) {
 
       {!portalMode ? (
         <DeviceQrPanel equipmentId={equipment.id} name={equipment.name} tag={equipment.tag} canWrite={canWrite} />
+      ) : null}
+
+      {links && !portalMode ? (
+        <DeviceLinksPanel
+          links={links}
+          shared={sharedRows}
+          fillKeys={fillKeys}
+          canWrite={canWrite}
+          onFill={applyFill}
+          onChanged={() => void loadLinks(equipment.id)}
+        />
       ) : null}
 
       <DeviceNotesPanel

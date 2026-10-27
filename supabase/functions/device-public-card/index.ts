@@ -206,6 +206,19 @@ Deno.serve(async (req) => {
     // EI hintoja, kuluja, laskutusta, provisiota eikä kumppanitietoja.
     const work = await loadWorkEntries(admin, equipmentId);
 
+    // Linkitettyjen laitteiden (toinen yritys) yhteenvetorivit; RPC valinnainen (ennen SQL:ää → tyhjä).
+    const { data: sharedRows, error: sharedError } = await admin.rpc('eqlink_shared_history_internal', { p_equipment: equipmentId });
+    if (sharedError && sharedError.code !== 'PGRST202' && sharedError.code !== '42883') console.error('device-public-card shared', sharedError.message);
+    const shared = ((sharedRows ?? []) as AnyRecord[]).slice(0, 300).map((r) => ({
+      date: str(r.entry_date),
+      kind: String(r.kind ?? ''),
+      company: str(r.company),
+      installer: str(r.installer),
+      tukes: str(r.tukes),
+      text: [str(r.summary), str(r.work_done)].filter(Boolean).join(': '),
+      serviceVisit: r.is_service === true,
+    }));
+
     const brandCompany = selected
       ? str(selected.row.branding_company_id) ?? str(selected.row.owner_company_id)
       : str(eq.owner_company_id);
@@ -228,6 +241,7 @@ Deno.serve(async (req) => {
       branding: brand,
       notes,
       work,
+      shared,
       history: reports.map((r) => ({ id: String(r.row.id), date: r.date || null })),
       report: selected ? { id: String(selected.row.id), date: selected.date || null, data: selected.row.data ?? {} } : null,
     });
