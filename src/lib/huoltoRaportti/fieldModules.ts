@@ -42,17 +42,27 @@ export type FieldModuleForm = {
   laiteKokoonpano?: LaiteKokoonpano;
   kenttaModuulit?: KenttaModuuliArvot;
   evaporatorData?: unknown[];
+  kylmaainePiireja?: string;
+  hoyrystimienMaara?: string;
 };
 
 export const HOYRYSTIN_OHJAUS_YHTEINEN = 'Yhteinen';
 export const HOYRYSTIN_OHJAUS_OMA = 'Jokaisella oma';
 
+/** Näkyvien höyrystimien määrä (sama sääntö kuin getEvaporatorCircuitCount kylmiöllä). */
 function evaporatorCount(form: FieldModuleForm): number {
-  return Array.isArray(form.evaporatorData) ? form.evaporatorData.length : 0;
+  const len = Array.isArray(form.evaporatorData) ? form.evaporatorData.length : 0;
+  const explicit = parseInt(String(form.hoyrystimienMaara ?? ''), 10);
+  if (isKylmioDevice(form.laiteTyyppi) && explicit >= 1) return Math.min(10, explicit);
+  if (form.laiteTyyppi === 'kylmäkoneikko') return len;
+  const circuits = Math.min(3, Math.max(1, parseInt(String(form.kylmaainePiireja ?? ''), 10) || 1));
+  return Math.min(len, circuits);
 }
 
 /** Kylmiö: onko höyrystimien ohjaus yhteinen (ohjaukset-vaiheessa) vai höyrystinkohtainen (höyrystimen kortilla). */
 export function kylmioEvaporatorOhjausShared(form: FieldModuleForm): boolean {
+  // Yksi höyrystin: ohjaus täytetään kerran höyrystimen kortilla, ei kysymystä eikä yhteisiä kenttiä.
+  if (evaporatorCount(form) <= 1) return false;
   return form.kenttaModuulit?.ohjaukset?.hoyrystinOhjaus !== HOYRYSTIN_OHJAUS_OMA;
 }
 const sharedOhjaus = (_v: Record<string, string | boolean>, form: FieldModuleForm) => kylmioEvaporatorOhjausShared(form);
@@ -75,7 +85,7 @@ export const FIELD_MODULES: readonly FieldModuleDefinition[] = [
       { id: 'halytykset', label: 'Hälytysten toiminta', type: 'select', options: KUNTO, required: true, section: 'Koneikko' },
       {
         id: 'hoyrystinOhjaus', label: 'Yhteinen vai oma', type: 'select', options: [HOYRYSTIN_OHJAUS_YHTEINEN, HOYRYSTIN_OHJAUS_OMA],
-        section: 'Höyrystimien ohjaus', requiredWhen: (_v, form) => evaporatorCount(form) > 1,
+        section: 'Höyrystimien ohjaus', when: (_v, form) => evaporatorCount(form) > 1, requiredWhen: (_v, form) => evaporatorCount(form) > 1,
       },
       { id: 'ohjausTyyppi', label: 'Ohjauksen tyyppi', type: 'select', options: ['Elektroninen säädin', 'Termostaatti', 'Kiinteistöautomaatio'], section: 'Höyrystimien ohjaus', when: sharedOhjaus },
       { id: 'asetusarvo', label: 'Lämpötila, asetus', type: 'text', unit: '°C', section: 'Höyrystimien ohjaus', when: sharedOhjaus, requiredWhen: sharedOhjaus },
@@ -207,6 +217,9 @@ export function fieldModuleFieldVisible(field: FieldModuleField, values: Record<
 
 /** Piilotettu kenttä, jolla on vanha arvo → näytetään vain luku -muodossa ("Aiemmin kirjattu"). */
 export function fieldModuleFieldArchived(field: FieldModuleField, values: Record<string, string | boolean>, form: FieldModuleForm): boolean {
+  // Yksi höyrystin: vanhat yhteiset ohjausarvot näytetään höyrystimen kortilla (ks. singleEvaporatorLegacyOhjaus).
+  if (field.id === 'hoyrystinOhjaus') return false;
+  if (field.section === 'Höyrystimien ohjaus' && evaporatorCount(form) <= 1 && isKylmioDevice(form.laiteTyyppi)) return false;
   return !fieldModuleFieldVisible(field, values, form) && String(values[field.id] ?? '').trim() !== '';
 }
 
@@ -224,4 +237,31 @@ export function fieldModuleDisplayValue(f: FieldModuleField, values: Record<stri
     return `${v} bar${t ? ` (${t} °C)` : ''}`;
   }
   return f.type === 'text' && f.unit ? `${v} ${f.unit}` : v;
+}
+
+/** Yksi höyrystin: vanhat vaiheen 5 yhteiset ohjausarvot höyrystimen kentille (vain tyhjien varana). */
+export function singleEvaporatorLegacyOhjaus(form: FieldModuleForm): Record<string, string> {
+  if (!isKylmioDevice(form.laiteTyyppi) || evaporatorCount(form) > 1) return {};
+  const o = form.kenttaModuulit?.ohjaukset ?? {};
+  const t = (k: string) => (typeof o[k] === 'string' ? (o[k] as string).trim() : '');
+  const ovi = t('ovi');
+  return Object.fromEntries(Object.entries({
+    lampotilaAsetus: t('asetusarvo'),
+    halytysYla: t('halytysYla'),
+    halytysAla: t('halytysAla'),
+    sulatusVali: t('sulatusvali'),
+    sulatusLopetusLämpötila: t('sulatusLopetus'),
+    ovikytkin: ovi === 'Ovikytkin' ? 'ovikytkin' : ovi === 'Munakello' ? 'munakello' : ovi === 'Ei ole' ? 'ei' : '',
+    ohjausTyyppi: t('ohjausTyyppi') === 'Elektroninen säädin' ? 'saadin' : t('ohjausTyyppi') === 'Termostaatti' ? 'termostaatti' : t('ohjausTyyppi') === 'Kiinteistöautomaatio' ? 'kiinteisto' : '',
+  }).filter(([, v]) => v));
+}
+
+/** Höyrystimen data + vanhat yhteiset ohjausarvot tyhjiin kenttiin (yksi höyrystin). */
+export function evaporatorWithLegacyOhjaus<T extends object>(ev: T, form: FieldModuleForm, index: number): T {
+  if (index !== 0 || !ev) return ev;
+  const rec = ev as Record<string, unknown>;
+  const legacy = singleEvaporatorLegacyOhjaus(form);
+  const keys = Object.keys(legacy).filter((k) => !String(rec[k] ?? '').trim());
+  if (!keys.length) return ev;
+  return { ...ev, ...Object.fromEntries(keys.map((k) => [k, legacy[k]])) } as T;
 }

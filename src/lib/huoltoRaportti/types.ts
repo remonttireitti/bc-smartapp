@@ -679,6 +679,8 @@ export type HuoltoReportData = {
   kylmaaineMaaraYhteensa: string;
   kylmaaineCO2Ekv: string;
   hoyrystimienMaara: string;
+  /** Kylmiö, erillinen ilmalauhdutin: lauhduttimien määrä (tyhjä = piirien mukaan). */
+  lauhduttimienMaara?: string;
   hoyrystinTyyppi: string;
   /** Maalämpöpumppu: lauhdutinpuolen levy-/putkilämmönvaihdin. */
   lauhdutinLmvTyyppi?: LmvTyyppi | '';

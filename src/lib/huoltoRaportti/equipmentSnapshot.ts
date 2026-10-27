@@ -408,6 +408,9 @@ export function buildHuoltoEquipmentTechnicalSnapshot(data: HuoltoReportData): R
     condenserData: data.condenserData.map(stripCondenserForRegistry),
     mlpData: isMLP && data.mlpData ? stripMlpDataForRegistry(data.mlpData) : null,
     ...(data.laiteKokoonpano ? { laiteKokoonpano: data.laiteKokoonpano } : {}),
+    ...(trim(data.hoyrystimienMaara) ? { hoyrystimienMaara: trim(data.hoyrystimienMaara) } : {}),
+    ...(trim(data.lauhduttimienMaara) ? { lauhduttimienMaara: trim(data.lauhduttimienMaara) } : {}),
+    ...(trim(data.lauhdutinTyyppiLaite) ? { lauhdutinTyyppiLaite: trim(data.lauhdutinTyyppiLaite) } : {}),
     ...(() => {
       const o = data.kenttaModuulit?.ohjaukset ?? {};
       const fixed: Record<string, string> = {};
@@ -537,6 +540,9 @@ export function applyEquipmentSnapshotToForm(
   if (snapAny.laiteKokoonpano && typeof snapAny.laiteKokoonpano === 'object') {
     // Laitteen kokoonpano korvaa uuden raportin oletuksen (esitäyttö tehdään vain uudelle/linkitettävälle raportille).
     patch.laiteKokoonpano = { ...(form.laiteKokoonpano ?? {}), ...(snapAny.laiteKokoonpano as object) } as HuoltoReportData['laiteKokoonpano'];
+  }
+  for (const k of ['hoyrystimienMaara', 'lauhduttimienMaara', 'lauhdutinTyyppiLaite'] as const) {
+    if (trim(snapAny[k]) && !trim((form as Record<string, unknown>)[k])) (patch as Record<string, unknown>)[k] = trim(snapAny[k]);
   }
   if (snapAny.ohjauksetKiinteat && typeof snapAny.ohjauksetKiinteat === 'object') {
     const current = form.kenttaModuulit?.ohjaukset ?? {};

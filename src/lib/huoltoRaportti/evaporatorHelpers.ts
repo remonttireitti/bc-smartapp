@@ -23,7 +23,22 @@ export function evapTyyppiLabel(value: string | undefined): string {
   return value?.trim() || '—';
 }
 
+/** Kylmiö: käyttäjän ilmoittama höyrystimien määrä (tyhjä = vanha päättely). */
+export function kylmioExplicitCount(laiteTyyppi: string, value: unknown): number | null {
+  if (laiteTyyppi !== 'pakastin' && laiteTyyppi !== 'kylmäkoneikko') return null;
+  const n = parseInt(String(value ?? ''), 10);
+  return Number.isFinite(n) && n >= 1 ? Math.min(10, n) : null;
+}
+
+/** Kylmiö: lauhduttimien määrä kysytään vain erillisellä ilmalauhduttimella. */
+export function getCondenserCount(form: Pick<HuoltoReportData, 'laiteTyyppi' | 'kylmaainePiireja'> & { lauhduttimienMaara?: unknown; lauhdutinTyyppiLaite?: unknown }): number {
+  const explicit = form.lauhdutinTyyppiLaite === 'erillinen_ilma' ? kylmioExplicitCount(form.laiteTyyppi, form.lauhduttimienMaara) : null;
+  return explicit ?? Math.min(3, Math.max(1, parseInt(form.kylmaainePiireja, 10) || 1));
+}
+
 export function getEvaporatorCircuitCount(form: HuoltoReportData): number {
+  const explicit = kylmioExplicitCount(form.laiteTyyppi, form.hoyrystimienMaara);
+  if (explicit != null) return explicit;
   if (form.laiteTyyppi === 'kylmäkoneikko') return form.evaporatorData.length;
   if (isSharedEvaporatorAcrossCircuits(form.laiteTyyppi, form.hoyrystinYhteinenPiireissa)) {
     return 1;

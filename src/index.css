@@ -18158,3 +18158,9 @@ label.has-error input { border-color: #b91c1c; }
   color: #475569 !important;
   line-height: 1.25;
 }
+.huolto-unit-counts { grid-column: 1 / -1; width: 100%; display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 12px; }
+.huolto-count-stepper { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.huolto-count-label { font-size: 0.85rem; font-weight: 500; color: #475569; }
+.huolto-count-stepper .konvektori-yesno { display: flex; align-items: stretch; gap: 8px; flex-wrap: nowrap; }
+.huolto-count-stepper .konvektori-yesno-btn { box-sizing: border-box; height: 48px; min-width: 48px; padding: 0; font-size: 20px; border-radius: 8px; border-color: #94a3b8; display: inline-flex; align-items: center; justify-content: center; }
+.huolto-count-value { box-sizing: border-box; height: 48px; min-width: 48px; flex: 1; display: inline-flex; align-items: center; justify-content: center; border: 1px solid #94a3b8; border-radius: 8px; font-size: 16px; font-weight: 600; background: #fff; }

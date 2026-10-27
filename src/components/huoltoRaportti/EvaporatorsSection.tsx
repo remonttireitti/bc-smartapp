@@ -1,4 +1,4 @@
-import { kylmioEvaporatorOhjausShared } from '../../lib/huoltoRaportti/fieldModules';
+import { kylmioEvaporatorOhjausShared, evaporatorWithLegacyOhjaus } from '../../lib/huoltoRaportti/fieldModules';
 import type { HuoltoReportData } from '../../lib/huoltoRaportti/types';
 import { EvaporatorModule } from './EvaporatorModule';
 import { hoyrystinSectionTitle } from '../../lib/huoltoRaportti/sectionTitles';
@@ -57,7 +57,7 @@ function EvaporatorsEditor({
             index={index}
             laiteTyyppi={form.laiteTyyppi}
             titleLabel={evaporatorTitleForIndex(form, index)}
-            data={evaporator}
+            data={evaporatorWithLegacyOhjaus(evaporator, form, index)}
             locked={false}
             showSameAsFirst={index > 0}
             sameAsFirst={form.evaporatorSamaKuinEnsimmainen[index]}

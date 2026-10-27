@@ -1,3 +1,4 @@
+import { getCondenserCount } from '../../lib/huoltoRaportti/evaporatorHelpers';
 import { useEffect } from 'react';
 import type { HuoltoReportData } from '../../lib/huoltoRaportti/types';
 import { createEmptyCondenserData } from '../../lib/huoltoRaportti/defaults';
@@ -8,7 +9,7 @@ interface Props {
 }
 
 export function CondenserCircuitsSync({ form, onChange }: Props) {
-  const circuitCount = Math.min(3, Math.max(1, parseInt(form.kylmaainePiireja, 10) || 1));
+  const circuitCount = getCondenserCount(form);
 
   useEffect(() => {
     if (form.condenserData.length === circuitCount) return;
