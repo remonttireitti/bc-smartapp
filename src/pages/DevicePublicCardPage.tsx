@@ -1,115 +1,67 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
 import DeviceNotesPanel from '../components/equipment/DeviceNotesPanel';
 import { supabase } from '../lib/supabase';
 import {
+  DeviceQrLoginRequiredError,
   DeviceQrNotFoundError,
   loadDevicePublicCard,
-  loadDevicePublicImageUrls,
+  sendPortalAccessRequest,
   type DevicePublicCard,
 } from '../lib/devicePublicCard';
-import { normalizeHuoltoReportData } from '../lib/huoltoRaportti/defaults';
-import { generateMaintenanceReportHtml } from '../lib/huoltoRaportti/printHtml';
-import type { HuoltoReportData } from '../lib/huoltoRaportti/types';
-import { collectMaintenancePrintImagePaths } from '../lib/maintenanceReportPrintImages';
-import { isChecklistCategory } from '../lib/huoltoCategories';
 import { formatMaintenanceDateFi } from '../lib/equipmentMaintenanceHistory';
-import { extractPrintableHtmlFragment } from '../lib/printDocumentShell';
 
-/** Julkinen, vain luku: QR-tarrasta avautuva laitteen huoltopöytäkirja + huoltohistoria. */
+type Role = string | null;
+
+/** QR-sivu: laitteen nimi + huoltohistoria riveinä. Kirjautumaton: vain Kirjaudu. */
 export default function DevicePublicCardPage() {
   const { token = '' } = useParams<{ token: string }>();
-  const [reportId, setReportId] = useState<string | undefined>();
+  const [session, setSession] = useState<Session | null | undefined>(undefined);
+  const [role, setRole] = useState<Role>(null);
   const [card, setCard] = useState<DevicePublicCard | null>(null);
-  const [html, setHtml] = useState('');
-  const [state, setState] = useState<'loading' | 'ok' | 'invalid' | 'error'>('loading');
-  const [session, setSession] = useState<Session | null>(null);
-  const [canAdd, setCanAdd] = useState(false);
+  const [state, setState] = useState<'loading' | 'ok' | 'invalid' | 'login' | 'error'>('loading');
   const [reloadKey, setReloadKey] = useState(0);
-  const loggedIn = Boolean(session);
 
   useEffect(() => {
-    void supabase.auth.getSession().then(({ data }) => setSession(data.session ?? null), () => undefined);
+    void supabase.auth.getSession().then(({ data }) => setSession(data.session ?? null), () => setSession(null));
   }, []);
 
-  // Kirjautunut: lisäysoikeus vain, jos laite näkyy käyttäjälle RLS:n kautta (ja merkintätaulu on olemassa).
-  const appEquipmentId = card?.appLink?.equipmentId ?? null;
   useEffect(() => {
-    if (!session || !appEquipmentId) {
-      setCanAdd(false);
+    if (!session) return;
+    void supabase.from('profiles').select('role').eq('id', session.user.id).maybeSingle().then(({ data }) => {
+      setRole(((data as { role?: string } | null)?.role ?? null) as Role);
+    });
+  }, [session]);
+
+  useEffect(() => {
+    if (session === undefined) return;
+    if (!session) {
+      setState('login');
       return;
     }
     let cancelled = false;
-    void Promise.all([
-      supabase.from('equipment').select('id').eq('id', appEquipmentId).maybeSingle(),
-      supabase.from('equipment_notes').select('id').eq('equipment_id', appEquipmentId).limit(1),
-    ]).then(([eq, notes]) => {
-      if (!cancelled) setCanAdd(Boolean(eq.data) && !notes.error);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [session, appEquipmentId]);
-
-  useEffect(() => {
-    let cancelled = false;
-    setState('loading');
-    void (async () => {
-      try {
-        const loaded = await loadDevicePublicCard(token, reportId);
-        if (cancelled) return;
-        let fragment = '';
-        if (loaded.report) {
-          const raw = loaded.report.data as Record<string, unknown>;
-          const category = (raw.reportCategory as string | null | undefined) ?? null;
-          if (isChecklistCategory(category)) {
-            const [{ normalizeChecklistReport }, { generateChecklistPrintHtml }] = await Promise.all([
-              import('../lib/huoltoChecklist/logic'),
-              import('../lib/huoltoChecklist/printHtml'),
-            ]);
-            const data = normalizeChecklistReport(raw, category);
-            const paths = Object.values(data.items).flatMap((s) => (s.photos ?? []).map((p) => p.storagePath));
-            const imageUrls = await loadDevicePublicImageUrls(token, loaded.report.id, paths);
-            const d = loaded.device;
-            fragment = generateChecklistPrintHtml(data, {
-              companyName: loaded.branding.companyName,
-              logoUrl: loaded.branding.logoUrl ?? undefined,
-              imageUrls,
-              customer: null,
-              device: { name: d.name, tag: d.tag, model: d.model, serial: d.serialNumber, location: d.location },
-            });
-          } else {
-            const data = normalizeHuoltoReportData(raw as Partial<HuoltoReportData>);
-            const paths = collectMaintenancePrintImagePaths(data);
-            const imageUrls = await loadDevicePublicImageUrls(token, loaded.report.id, paths);
-            fragment = generateMaintenanceReportHtml(data, {
-              companyName: loaded.branding.companyName,
-              logoUrl: loaded.branding.logoUrl ?? undefined,
-              imageUrls,
-            });
-          }
+    void loadDevicePublicCard(token).then(
+      (c) => {
+        if (!cancelled) {
+          setCard(c);
+          setState('ok');
         }
-        if (cancelled) return;
-        setCard(loaded);
-        setHtml(fragment ? extractPrintableHtmlFragment(fragment) : '');
-        setState('ok');
-      } catch (err) {
+      },
+      (err) => {
         if (cancelled) return;
         setCard(null);
-        setHtml('');
-        setState(err instanceof DeviceQrNotFoundError ? 'invalid' : 'error');
-      }
-    })();
+        setState(err instanceof DeviceQrLoginRequiredError ? 'login' : err instanceof DeviceQrNotFoundError ? 'invalid' : 'error');
+      },
+    );
     return () => {
       cancelled = true;
     };
-  }, [token, reportId, reloadKey]);
+  }, [session, token, reloadKey]);
 
-  if (state === 'loading' && !card) {
-    return <div className="device-public-page"><p className="device-public-status">Ladataan…</p></div>;
-  }
-  if (state === 'invalid' || state === 'error' || !card) {
+  if (state === 'loading') return <div className="device-public-page"><p className="device-public-status">Ladataan…</p></div>;
+  if (state === 'login') return <LoggedOutView token={token} />;
+  if (state !== 'ok' || !card) {
     return (
       <div className="device-public-page">
         <p className="device-public-status device-public-error" data-testid="device-public-invalid">
@@ -119,91 +71,120 @@ export default function DevicePublicCardPage() {
     );
   }
 
+  const portal = role === 'customer' || role === 'subscriber';
+  const installer = role === 'admin' || role === 'manager' || role === 'technician';
   const d = card.device;
   const title = [...new Set([d.tag, d.name].filter(Boolean))].join(' · ') || 'Laite';
-  const currentId = card.report?.id;
-  type TimelineItem =
-    | { kind: 'report'; id: string; date: string | null }
-    | { kind: 'note'; id: string; date: string | null; note: { text: string; company: string | null; installer: string | null; tukes: string | null; serviceVisit: boolean; label?: string } };
-  const timeline: TimelineItem[] = [
-    ...card.history.map((h) => ({ kind: 'report' as const, id: h.id, date: h.date })),
-    ...card.notes.map((n) => ({ kind: 'note' as const, id: `n-${n.id}`, date: n.date, note: n })),
-    ...card.shared.map((r, i) => ({ kind: 'note' as const, id: `s-${i}`, date: r.date, note: { text: r.text || '—', company: r.company, installer: r.installer, tukes: r.tukes, serviceVisit: false, label: { huoltopöytäkirja: 'Huoltopöytäkirja', merkintä: 'Merkintä', huoltokäynti: 'Huoltokäynti', työraportti: 'Työraportti' }[r.kind] ?? r.kind } })),
-    ...card.work.map((w) => ({ kind: 'note' as const, id: `w-${w.id}`, date: w.date, note: { ...w, serviceVisit: false, label: 'Työraportti' } })),
-  ].sort((a, b) => String(b.date ?? '').localeCompare(String(a.date ?? '')));
 
   return (
     <div className="device-public-page" data-testid="device-public-card">
-      <header className="device-public-head no-print">
-        <h1>{title}</h1>
-        <p className="muted">
-          {[d.manufacturer, d.model, d.location].filter(Boolean).join(' · ')}
-        </p>
-        {loggedIn && card.appLink?.customerId ? (
-          <Link
-            className="btn btn-secondary"
-            to={`/asiakkaat/${card.appLink.customerId}/laitteet/${card.appLink.equipmentId}`}
-          >
-            Avaa laitekortti
-          </Link>
-        ) : null}
-      </header>
-
-      {timeline.length > 0 ? (
-        <section className="device-public-history no-print">
-          <h2>Huoltohistoria</h2>
-          <ul>
-            {timeline.map((t) =>
-              t.kind === 'report' ? (
-                <li key={t.id}>
-                  <button
-                    type="button"
-                    className={`device-public-history-item${t.id === currentId ? ' is-active' : ''}`}
-                    onClick={() => setReportId(t.id)}
-                    aria-current={t.id === currentId ? 'true' : undefined}
-                  >
-                    {t.date ? formatMaintenanceDateFi(t.date) : '—'} · Huoltopöytäkirja
-                  </button>
-                </li>
-              ) : (
-                <li key={t.id} className="device-public-note">
-                  <strong>{t.date ? formatMaintenanceDateFi(t.date) : '—'}</strong>
-                  {t.note.serviceVisit ? <span className="device-notes-badge">Huoltokäynti</span> : null}
-                  {t.note.label ? <span className="device-notes-badge device-notes-badge--work">{t.note.label}</span> : null}
-                  <span className="device-notes-text">{t.note.text}</span>
-                  <span className="muted">
-                    {[t.note.company, [t.note.installer, t.note.tukes ? `Tukes ${t.note.tukes}` : null].filter(Boolean).join(', ')].filter(Boolean).join(' · ')}
-                  </span>
-                </li>
-              ),
-            )}
-          </ul>
-        </section>
-      ) : (
+      <h1 className="device-public-title">{title}</h1>
+      {installer && card.appLink?.customerId ? (
+        <Link className="device-public-applink" to={`/asiakkaat/${card.appLink.customerId}/laitteet/${card.appLink.equipmentId}`}>
+          Avaa laitekortti
+        </Link>
+      ) : null}
+      {card.rows.length === 0 ? (
         <p className="device-public-status">Ei huoltohistoriaa.</p>
+      ) : (
+        <ul className="device-public-rows">
+          {card.rows.map((r) => {
+            const content = (
+              <>
+                <span className="device-public-row-head">
+                  {r.date ? formatMaintenanceDateFi(r.date) : '—'} · {r.type}
+                  {r.company ? ` · ${r.company}` : ''}
+                </span>
+                {r.text ? <span className="device-public-row-text">{r.text}</span> : null}
+              </>
+            );
+            return (
+              <li key={r.id}>
+                {r.reportId ? (
+                  <Link className="device-public-row is-link" to={`/huoltoraportit/${r.reportId}/tuloste`}>
+                    {content}
+                  </Link>
+                ) : (
+                  <div className="device-public-row">{content}</div>
+                )}
+              </li>
+            );
+          })}
+        </ul>
       )}
-
-      {loggedIn && canAdd && appEquipmentId ? (
+      {installer && !portal && card.appLink ? (
         <DeviceNotesPanel
-          session={session}
-          equipmentId={appEquipmentId}
+          session={session ?? null}
+          equipmentId={card.appLink.equipmentId}
           notes={[]}
           canAdd
           showList={false}
           onAdded={() => setReloadKey((k) => k + 1)}
         />
       ) : null}
-      {!loggedIn ? (
-        <p className="device-public-login no-print">
-          <Link className="btn btn-secondary" to={`/login?redirect=${encodeURIComponent(`/q/${token}`)}`}>
-            Kirjaudu
-          </Link>
-        </p>
-      ) : null}
+    </div>
+  );
+}
 
-      {html ? (
-        <div className="maintenance-print-host device-public-report" dangerouslySetInnerHTML={{ __html: html }} />
-      ) : null}
+function LoggedOutView({ token }: { token: string }) {
+  const [open, setOpen] = useState(false);
+  const [form, setForm] = useState({ name: '', email: '', phone: '', message: '', website: '' });
+  const [sent, setSent] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const openedAt = useRef(0);
+
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setError(null);
+    try {
+      await sendPortalAccessRequest(token, { ...form, elapsedMs: Date.now() - openedAt.current });
+      setSent(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Lähetys epäonnistui.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const set = (k: keyof typeof form) => (e: { target: { value: string } }) => setForm((f) => ({ ...f, [k]: e.target.value }));
+
+  return (
+    <div className="device-public-page device-public-loggedout">
+      <p className="device-public-info">Asiakas: kirjaudu asiakasportaalin tunnuksilla.<br />Asentaja: kirjaudu omilla tunnuksillasi.</p>
+      <Link className="btn btn-primary" to={`/login?redirect=${encodeURIComponent(`/q/${token}`)}`}>
+        Kirjaudu
+      </Link>
+      {sent ? (
+        <p className="success" data-testid="portal-request-sent">Pyyntö lähetetty.</p>
+      ) : open ? (
+        <form className="device-notes-form" onSubmit={(e) => void submit(e)}>
+          <input aria-label="Nimi" placeholder="Nimi" value={form.name} onChange={set('name')} maxLength={100} required />
+          <input aria-label="Sähköposti" placeholder="Sähköposti" type="email" value={form.email} onChange={set('email')} maxLength={200} required />
+          <input aria-label="Puhelin" placeholder="Puhelin" type="tel" value={form.phone} onChange={set('phone')} maxLength={40} />
+          <input aria-label="Viesti" placeholder="Viesti (valinnainen)" value={form.message} onChange={set('message')} maxLength={500} />
+          <input className="hp-field" tabIndex={-1} autoComplete="off" aria-hidden="true" value={form.website} onChange={set('website')} />
+          <button type="submit" className="btn btn-primary" disabled={busy}>
+            {busy ? 'Lähetetään…' : 'Lähetä'}
+          </button>
+          {error ? <p className="error">{error}</p> : null}
+        </form>
+      ) : (
+        <button
+          type="button"
+          className="btn btn-secondary"
+          onClick={() => {
+            openedAt.current = Date.now();
+            setOpen(true);
+          }}
+        >
+          Tilaa asiakasportaalin tunnukset
+        </button>
+      )}
+      <a className="btn btn-secondary" href="/#tilaa">
+        Liity sovellukseen
+      </a>
     </div>
   );
 }

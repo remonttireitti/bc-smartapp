@@ -1,29 +1,21 @@
 import { createClient, type SupabaseClient } from 'npm:@supabase/supabase-js@2';
 
 /**
- * Laitteen julkinen huoltokortti (QR-tarra, /q/:token), ei vaadi kirjautumista. Vain luku.
- *
- * Turva:
- * - token = laitekohtainen satunnainen (≥ 32 merkkiä, base64url), equipment.public_qr_token; mitätöinti = null / uusi arvo.
- * - Palauttaa VAIN tämän laitteen perustiedot, julkaistut (valmiit) huoltopöytäkirjat ja niiden tulosteen tiedot
- *   + tulosteen brändin (yrityksen nimi/logo). Ei hintoja, laskutusta, kumppanitietoja, muita laitteita
- *   eikä asiakasrekisterin tietoja (vain se mitä pöytäkirjan tuloste jo näyttää).
- * - Kuvien allekirjoitetut URL:t vain polkuihin, jotka esiintyvät kyseisen raportin datassa.
- * - RLS:ää ei laajenneta: kysely service rolella vain tokenilla rajattuna.
+ * Laitteen QR-sivu (/q/:token): vain kirjautuneille, vain luku.
+ * - token = laitekohtainen satunnainen arvo (equipment.public_qr_token); mitätöinti = null / uusi arvo.
+ * - Käyttäjän JWT tarkistetaan; laitteen, huoltopöytäkirjojen, merkintöjen ja työraporttien näkyvyys ratkaistaan
+ *   käyttäjän omalla RLS:llä (portaalikäyttäjä näkee vain oman asiakkaansa laitteet).
+ * - Palauttaa vain historiarivit: pvm, tyyppi, yritys, lyhyt kuvaus. Ei hintoja/laskutusta/kumppanitietoja.
+ * - Linkitettyjen laitteiden rivit vain yhteenvetona (ei avattavia).
  */
 
 // deno-lint-ignore no-explicit-any
 type Admin = SupabaseClient<any, any, any>;
 type AnyRecord = Record<string, unknown>;
 
-const VERSION = 'device-public-card-1';
+const VERSION = 'device-public-card-2';
 const TOKEN_RE = /^[A-Za-z0-9_-]{32,128}$/;
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const PUBLISHED = ['submitted', 'completed', 'valmis', 'toimitettu', 'complete', 'ready', 'done'];
-const IMAGE_BUCKET = 'maintenance-report-images';
-const LOGO_BUCKET = 'company-logos';
-const SIGNED_URL_TTL = 60 * 60;
-const MAX_PATHS = 60;
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -43,21 +35,6 @@ const notFound = () => json({ error: 'Linkki ei ole voimassa', code: 'not_found'
 function str(v: unknown): string | null {
   const s = typeof v === 'string' ? v.trim() : '';
   return s || null;
-}
-
-async function signed(admin: Admin, bucket: string, path: string | null): Promise<string | null> {
-  if (!path) return null;
-  const { data, error } = await admin.storage.from(bucket).createSignedUrl(path, SIGNED_URL_TTL);
-  return error || !data?.signedUrl ? null : data.signedUrl;
-}
-
-async function branding(admin: Admin, companyId: string | null) {
-  if (!companyId) return { companyName: '', logoUrl: null as string | null };
-  const { data } = await admin.from('companies').select('name, logo_url').eq('id', companyId).maybeSingle();
-  const row = (data ?? {}) as AnyRecord;
-  const logo = str(row.logo_url);
-  const logoUrl = !logo ? null : /^https?:\/\//.test(logo) ? logo : await signed(admin, LOGO_BUCKET, logo.replace(/^\/+/, ''));
-  return { companyName: String(row.name ?? ''), logoUrl };
 }
 
 function reportDate(row: AnyRecord): string | null {
@@ -125,6 +102,77 @@ async function loadWorkEntries(admin: Admin, equipmentId: string) {
   }
 }
 
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+const clip = (v: unknown, n: number) => String(v ?? '').trim().slice(0, n);
+const escHtml = (v: string) => v.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
+
+/**
+ * Asiakasportaalin tunnuspyyntö QR-sivulta (ei kirjautumista). Menee laitteen omistajayritykselle:
+ * tallennus portal_access_requests-tauluun (jos olemassa) + sähköposti yrityksen admineille (Resend).
+ * Vastaus ei koskaan sisällä laitteen/asiakkaan tietoja.
+ */
+async function handlePortalRequest(token: string, body: AnyRecord): Promise<Response> {
+  if (clip(body.website, 200)) return json({ ok: true }); // hunajapurkki
+  const elapsed = Number(body.elapsedMs ?? 0);
+  if (!Number.isFinite(elapsed) || elapsed < 3000) return json({ error: 'Yritä uudelleen' }, 400);
+  const name = clip(body.name, 100);
+  const email = clip(body.email, 200).toLowerCase();
+  const phone = clip(body.phone, 40);
+  const message = clip(body.message, 500);
+  if (!name || !EMAIL_RE.test(email)) return json({ error: 'Nimi ja sähköposti vaaditaan' }, 400);
+
+  const admin = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
+  const { data: eqRow } = await admin
+    .from('equipment')
+    .select('id, owner_company_id, customer_id, name, tag, public_qr_token')
+    .eq('public_qr_token', token)
+    .maybeSingle();
+  const eq = eqRow as AnyRecord | null;
+  if (!eq || eq.public_qr_token !== token) return notFound();
+  const companyId = String(eq.owner_company_id);
+
+  // Rajoitus: max 5 pyyntöä / laite / tunti (jos taulu olemassa).
+  const since = new Date(Date.now() - 3600_000).toISOString();
+  const { count, error: cntErr } = await admin
+    .from('portal_access_requests')
+    .select('id', { count: 'exact', head: true })
+    .eq('equipment_id', eq.id)
+    .gte('created_at', since);
+  if (!cntErr && (count ?? 0) >= 5) return json({ error: 'Liian monta pyyntöä, yritä myöhemmin' }, 429);
+  if (!cntErr) {
+    const { error: insErr } = await admin.from('portal_access_requests').insert({
+      equipment_id: eq.id, owner_company_id: companyId, customer_id: eq.customer_id ?? null, name, email, phone: phone || null, message: message || null,
+    });
+    if (insErr) console.error('portal_request insert', insErr.message);
+  }
+
+  const apiKey = (Deno.env.get('RESEND_API_KEY') || '').trim();
+  if (apiKey) {
+    const [{ data: admins }, { data: cust }] = await Promise.all([
+      admin.from('profiles').select('email').eq('company_id', companyId).eq('role', 'admin').not('email', 'is', null).limit(10),
+      eq.customer_id ? admin.from('customers').select('name').eq('id', eq.customer_id).maybeSingle() : Promise.resolve({ data: null }),
+    ]);
+    const to = [...new Set(((admins ?? []) as AnyRecord[]).map((a) => String(a.email ?? '').trim()).filter((e) => EMAIL_RE.test(e)))];
+    if (to.length) {
+      const device = [str(eq.tag), str(eq.name)].filter(Boolean).filter((v, i, a) => a.indexOf(v) === i).join(' · ');
+      const custName = str((cust as AnyRecord | null)?.name) ?? '';
+      const link = eq.customer_id ? `https://bestcool.eu/asiakkaat/${eq.customer_id}` : 'https://bestcool.eu/asiakkaat';
+      const row = (k: string, v: string) => (v ? `<tr><td style="padding:4px 12px 4px 0;color:#6b7280">${k}</td><td style="padding:4px 0">${escHtml(v)}</td></tr>` : '');
+      const html = `<div style="font-family:Arial,Helvetica,sans-serif;color:#1f2933;max-width:560px;padding:20px">
+<h2 style="font-size:18px;margin:0 0 12px">Asiakasportaalin tunnuspyyntö</h2>
+<table role="presentation" cellpadding="0" cellspacing="0">${row('Nimi', name)}${row('Sähköposti', email)}${row('Puhelin', phone)}${row('Laite', device)}${row('Asiakas', custName)}${row('Viesti', message)}</table>
+<p style="margin:16px 0 0"><a href="${link}">Avaa asiakas sovelluksessa</a></p></div>`;
+      const res = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ from: 'BC Smartapp <huolto@bestcool.eu>', to, subject: `Tunnuspyyntö – ${device || 'laite'}`, html, reply_to: email }),
+      });
+      if (!res.ok) console.warn('portal_request mail failed', res.status);
+    }
+  }
+  return json({ ok: true });
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   if (req.method !== 'POST') return json({ error: 'Vain POST' }, 405);
@@ -135,115 +183,90 @@ Deno.serve(async (req) => {
     const token = String(body.token ?? '').trim();
     if (!TOKEN_RE.test(token)) return notFound();
 
-    const admin = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
-    const { data: eqRow, error: eqError } = await admin
+    if (body.action === 'portal_request') return await handlePortalRequest(token, body);
+
+    // Vain kirjautuneille: käyttäjän JWT tarkistetaan ja näkyvyys ratkaistaan käyttäjän omalla RLS:llä.
+    const authHeader = req.headers.get('Authorization') ?? '';
+    const jwt = authHeader.replace(/^Bearer\s+/i, '');
+    const url = Deno.env.get('SUPABASE_URL')!;
+    const admin = createClient(url, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
+    const { data: userData } = jwt ? await admin.auth.getUser(jwt) : { data: { user: null } };
+    if (!userData?.user) return json({ error: 'Kirjaudu sisään', code: 'login_required' }, 401);
+    const asUser = createClient(url, Deno.env.get('SUPABASE_ANON_KEY')!, {
+      global: { headers: { Authorization: `Bearer ${jwt}` } },
+      auth: { persistSession: false },
+    });
+
+    const { data: eqRow } = await admin
       .from('equipment')
-      .select('id, customer_id, owner_company_id, name, tag, model, serial_number, location, device_type, public_qr_token')
+      .select('id, customer_id, name, tag, public_qr_token')
       .eq('public_qr_token', token)
       .maybeSingle();
-    if (eqError) console.error('device-public-card equipment', eqError.message);
     const eq = eqRow as AnyRecord | null;
-    // Tarkistus myös täsmällisellä vertailulla (ei esim. tyhjää tokenia).
     if (!eq || eq.public_qr_token !== token) return notFound();
     const equipmentId = String(eq.id);
-    // Laitetietosarakkeet erikseen: vanhassa skeemassa niitä ei välttämättä ole.
-    const { data: extraRow } = await admin
-      .from('equipment')
-      .select('manufacturer, refrigerant, refrigerant_charge_kg')
-      .eq('id', equipmentId)
-      .maybeSingle();
-    const extra = (extraRow ?? {}) as AnyRecord;
-    const charge = Number(extra.refrigerant_charge_kg);
 
-    const { data: reportRows, error: repError } = await admin
+    // Portaali / yritys: laitteen pitää näkyä käyttäjälle normaalein säännöin.
+    const { data: visible } = await asUser.from('equipment').select('id').eq('id', equipmentId).maybeSingle();
+    if (!visible) return notFound();
+
+    // Omat huoltopöytäkirjat: vain käyttäjälle RLS:n kautta näkyvät, valmiit.
+    const { data: reportRows } = await asUser
       .from('maintenance_reports')
-      .select('id, status, data, completed_at, updated_at, branding_company_id, owner_company_id')
+      .select('id, status, data, completed_at, updated_at, branding_company_id, owner_company_id, created_by_company_id')
       .eq('equipment_id', equipmentId)
       .in('status', PUBLISHED);
-    if (repError) console.error('device-public-card reports', repError.message);
-    const reports = ((reportRows ?? []) as AnyRecord[])
-      .map((r) => ({ row: r, date: reportDate(r) ?? '' }))
-      .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
+    const repRows = (reportRows ?? []) as AnyRecord[];
+    const companyIds = [...new Set(repRows.map((r) => str(r.created_by_company_id) ?? str(r.owner_company_id)).filter(Boolean))] as string[];
+    const { data: comps } = companyIds.length
+      ? await admin.from('companies').select('id, name').in('id', companyIds)
+      : { data: [] };
+    const compName = new Map(((comps ?? []) as AnyRecord[]).map((c) => [String(c.id), str(c.name)]));
 
-    const requestedId = str(body.reportId);
-    if (requestedId && !UUID_RE.test(requestedId)) return notFound();
-    const selected = requestedId ? reports.find((r) => r.row.id === requestedId) : reports[0];
-    if (requestedId && !selected) return notFound();
+    type Row = { id: string; date: string | null; type: string; company: string | null; text: string; reportId: string | null };
+    const rows: Row[] = repRows.map((r) => {
+      const d = (r.data ?? {}) as AnyRecord;
+      const kind = d.huoltoReportDocumentKind === 'kayttoonotto' ? 'Käyttöönotto' : 'Huoltopöytäkirja';
+      return {
+        id: `r-${r.id}`,
+        date: reportDate(r),
+        type: kind,
+        company: compName.get(String(str(r.created_by_company_id) ?? r.owner_company_id)) ?? null,
+        text: (str(d.huomiot) ?? '').slice(0, 120),
+        reportId: String(r.id),
+      };
+    });
 
-    // Kuvien URL:t: vain valitun raportin datassa esiintyvät polut.
-    if (Array.isArray(body.paths)) {
-      if (!selected) return json({ imageUrls: {} });
-      const haystack = JSON.stringify(selected.row.data ?? {});
-      const out: Record<string, string> = {};
-      for (const p of (body.paths as unknown[]).slice(0, MAX_PATHS)) {
-        const path = typeof p === 'string' ? p.trim() : '';
-        if (!path || path.includes('..') || !haystack.includes(path)) continue;
-        const url = await signed(admin, IMAGE_BUCKET, path.replace(/^\/+/, ''));
-        if (url) out[path] = url;
-      }
-      return json({ imageUrls: out });
+    // Merkinnät (RLS: näkyy kun laite näkyy).
+    const { data: noteRows } = await asUser
+      .from('equipment_notes')
+      .select('id, entry_date, author_company_name, text, is_service_visit')
+      .eq('equipment_id', equipmentId)
+      .limit(200);
+    for (const n of (noteRows ?? []) as AnyRecord[]) {
+      rows.push({ id: `n-${n.id}`, date: str(n.entry_date), type: n.is_service_visit === true ? 'Huoltokäynti' : 'Merkintä', company: str(n.author_company_name), text: String(n.text ?? '').slice(0, 120), reportId: null });
     }
 
-    // Huoltohistoriamerkinnät (taulu valinnainen: virhe → tyhjä lista).
-    const { data: noteRows, error: noteError } = await admin
-      .from('equipment_notes')
-      .select('id, entry_date, author_company_name, installer_name, installer_tukes, text, is_service_visit')
-      .eq('equipment_id', equipmentId)
-      .order('entry_date', { ascending: false })
-      .limit(200);
-    if (noteError && noteError.code !== '42P01' && noteError.code !== 'PGRST205') console.error('device-public-card notes', noteError.message);
-    const notes = ((noteRows ?? []) as AnyRecord[]).map((n) => ({
-      id: String(n.id),
-      date: str(n.entry_date),
-      text: String(n.text ?? ''),
-      company: str(n.author_company_name),
-      installer: str(n.installer_name),
-      tukes: str(n.installer_tukes),
-      serviceVisit: n.is_service_visit === true,
-    }));
-
-    // Laitteeseen kohdistetut työraportit (valmiit): vain pvm, yritys, asentaja + Tukes, mitä tehtiin.
-    // EI hintoja, kuluja, laskutusta, provisiota eikä kumppanitietoja.
+    // Työraportit: yhteenveto, vain käyttäjälle näkyvät raportit.
     const work = await loadWorkEntries(admin, equipmentId);
+    if (work.length) {
+      const { data: visWork } = await asUser.from('work_reports').select('id').in('id', work.map((w) => w.id));
+      const ok = new Set(((visWork ?? []) as AnyRecord[]).map((w) => String(w.id)));
+      for (const w of work) if (ok.has(w.id)) rows.push({ id: `w-${w.id}`, date: w.date, type: 'Työraportti', company: w.company, text: w.text.slice(0, 120), reportId: null });
+    }
 
-    // Linkitettyjen laitteiden (toinen yritys) yhteenvetorivit; RPC valinnainen (ennen SQL:ää → tyhjä).
-    const { data: sharedRows, error: sharedError } = await admin.rpc('eqlink_shared_history_internal', { p_equipment: equipmentId });
-    if (sharedError && sharedError.code !== 'PGRST202' && sharedError.code !== '42883') console.error('device-public-card shared', sharedError.message);
-    const shared = ((sharedRows ?? []) as AnyRecord[]).slice(0, 300).map((r) => ({
-      date: str(r.entry_date),
-      kind: String(r.kind ?? ''),
-      company: str(r.company),
-      installer: str(r.installer),
-      tukes: str(r.tukes),
-      text: [str(r.summary), str(r.work_done)].filter(Boolean).join(': '),
-      serviceVisit: r.is_service === true,
-    }));
+    // Linkitettyjen laitteiden (toinen yritys) yhteenvetorivit — ei klikattavia.
+    const { data: sharedRows } = await admin.rpc('eqlink_shared_history_internal', { p_equipment: equipmentId });
+    const KIND: Record<string, string> = { 'huoltopöytäkirja': 'Huoltopöytäkirja', 'merkintä': 'Merkintä', 'huoltokäynti': 'Huoltokäynti', 'työraportti': 'Työraportti' };
+    ((sharedRows ?? []) as AnyRecord[]).slice(0, 300).forEach((r, i) => {
+      rows.push({ id: `s-${i}`, date: str(r.entry_date), type: KIND[String(r.kind)] ?? String(r.kind ?? ''), company: str(r.company), text: [str(r.summary), str(r.work_done)].filter(Boolean).join(': ').slice(0, 120), reportId: null });
+    });
 
-    const brandCompany = selected
-      ? str(selected.row.branding_company_id) ?? str(selected.row.owner_company_id)
-      : str(eq.owner_company_id);
-    const brand = await branding(admin, brandCompany);
-
+    rows.sort((a, b) => String(b.date ?? '').localeCompare(String(a.date ?? '')));
     return json({
-      device: {
-        name: str(eq.name),
-        tag: str(eq.tag),
-        model: str(eq.model),
-        serialNumber: str(eq.serial_number),
-        location: str(eq.location),
-        deviceType: str(eq.device_type),
-        manufacturer: str(extra.manufacturer),
-        refrigerant: str(extra.refrigerant),
-        refrigerantChargeKg: extra.refrigerant_charge_kg != null && Number.isFinite(charge) ? charge : null,
-      },
-      // Kirjautuneelle käyttäjälle linkki laitekorttiin (RLS ratkaisee pääsyn; tunnisteet eivät ole salaisuuksia).
+      device: { name: str(eq.name), tag: str(eq.tag) },
       appLink: { customerId: str(eq.customer_id), equipmentId },
-      branding: brand,
-      notes,
-      work,
-      shared,
-      history: reports.map((r) => ({ id: String(r.row.id), date: r.date || null })),
-      report: selected ? { id: String(selected.row.id), date: selected.date || null, data: selected.row.data ?? {} } : null,
+      rows,
     });
   } catch (error) {
     console.error('device-public-card', error instanceof Error ? error.message : error);
