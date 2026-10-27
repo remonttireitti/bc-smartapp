@@ -24,7 +24,7 @@ import { HuoltoPartInspectionRow } from './HuoltoPartInspectionRow';
 import { HuoltoInspectionDialogShell } from './HuoltoInspectionDialogShell';
 import { useRegisterHuoltoModuleDialog } from './HuoltoModuleDialogContext';
 import { TriStateInspectionToggle } from './TriStateInspectionToggle';
-import { airCapacity } from '../../lib/huoltoRaportti/airCapacity';
+import { airCapacity, evaporatorRoomTemp } from '../../lib/huoltoRaportti/airCapacity';
 import { AirCapacityResultView, StaticCapacityLine } from './CapacityResult';
 
 interface Props {
@@ -246,14 +246,11 @@ export function EvaporatorModule({
                     onChange={(v) => setSource((prev) => ({ ...prev, sulatusKelloMalli: v }))}
                   />
                 )}
-                {source.sulatusOhjaus === 'huonesäädin' && (
-                  <FormInput
-                    label="Säätimen malli"
-                    value={source.sulatusSäädinMalli || ''}
-                    disabled={disabled}
-                    onChange={(v) => setSource((prev) => ({ ...prev, sulatusSäädinMalli: v }))}
-                  />
-                )}
+              </>
+            )}
+
+            {fansDefrost && (
+              <>
                 <FormInput
                   label="Sulatuskertaa/päivä"
                   value={source.sulatusKertojaPäivässä || ''}
@@ -273,6 +270,9 @@ export function EvaporatorModule({
                   onChange={(v) => setSource((prev) => ({ ...prev, sulatusLopetusLämpötila: v }))}
                   type="number"
                 />
+                {String(source.sulatusVali ?? '').trim() !== '' && (
+                  <FormInput label="Sulatusväli (h)" value={source.sulatusVali || ''} disabled={disabled} onChange={(v) => setSource((prev) => ({ ...prev, sulatusVali: v }))} />
+                )}
               </>
             )}
 
@@ -309,30 +309,37 @@ export function EvaporatorModule({
 
             {!chillerHx && (
               <>
-                <div className="huolto-submodule huolto-span-all">
-                  <h4>Mittaukset</h4>
-                  <div className="line-form-grid">
-                    {source.tyyppi === 'staatinen' ? (
-                      <>
+                {source.tyyppi === 'staatinen' && (
+                  <div className="huolto-submodule huolto-span-all">
+                    <h4>Kenno</h4>
+                    <div className="line-form-grid">
                         <FormInput label="Pituus (mm)" type="number" value={source.kennoPituusMm || ''} disabled={disabled} onChange={(v) => set({ kennoPituusMm: v })} />
                         <FormInput label="Korkeus (mm)" type="number" value={source.kennoKorkeusMm || ''} disabled={disabled} onChange={(v) => set({ kennoKorkeusMm: v })} />
                         <FormInput label="Syvyys (mm)" type="number" value={source.kennoSyvyysMm || ''} disabled={disabled} onChange={(v) => set({ kennoSyvyysMm: v })} />
                         <FormInput label="Ripaväli (mm)" type="number" placeholder="10" value={source.ripavaliMm || ''} disabled={disabled} onChange={(v) => set({ ripavaliMm: v })} />
                         <FormInput label="Putkirivit" type="number" placeholder="auto" value={source.putkirivit || ''} disabled={disabled} onChange={(v) => set({ putkirivit: v })} />
-                        <FormInput label="Huoneen lämpötila (°C)" type="number" value={source.kylmioLampotila || ''} disabled={disabled} onChange={(v) => set({ kylmioLampotila: v })} />
+                    </div>
+                  </div>
+                )}
+                <div className="huolto-submodule huolto-span-all">
+                  <h4>Mittaukset</h4>
+                  <div className="line-form-grid">
+                    {source.tyyppi === 'staatinen' ? (
+                      <>
+                        <FormInput label="Huoneen lämpötila (°C)" type="number" value={source.kylmioLampotila || source.lampotilaMitattu || ''} disabled={disabled} onChange={(v) => set({ kylmioLampotila: v })} />
                         <FormInput label="Kennon lämpötila (°C)" type="number" placeholder={source.hoyrystymisLampotila ? `${source.hoyrystymisLampotila} (höyr.)` : ''} value={source.kennoLampotila || ''} disabled={disabled} onChange={(v) => set({ kennoLampotila: v })} />
                         <FormInput label="Höyrystyminen (°C)" type="number" value={source.hoyrystymisLampotila || ''} disabled={disabled} onChange={(v) => set({ hoyrystymisLampotila: v })} />
                         <StaticCapacityLine ev={source} />
                       </>
                     ) : (
                       <>
-                        <FormInput label="Ilma ennen (°C)" type="number" value={source.ilmaTuloLampotila || ''} disabled={disabled} onChange={(v) => set({ ilmaTuloLampotila: v })} />
+                        <FormInput label="Ilma ennen = huone (°C)" type="number" value={source.ilmaTuloLampotila || source.lampotilaMitattu || ''} disabled={disabled} onChange={(v) => set({ ilmaTuloLampotila: v })} />
                         <FormInput label="Kosteus ennen (%)" type="number" value={source.ilmaTuloRh || ''} disabled={disabled} onChange={(v) => set({ ilmaTuloRh: v })} />
                         <FormInput label="Ilma jälkeen (°C)" type="number" value={source.ilmaPoistoLampotila || ''} disabled={disabled} onChange={(v) => set({ ilmaPoistoLampotila: v })} />
                         <FormInput label="Kosteus jälkeen (%)" type="number" value={source.ilmaPoistoRh || ''} disabled={disabled} onChange={(v) => set({ ilmaPoistoRh: v })} />
                         <FormInput label="Ilmavirta (m³/h)" type="number" value={source.ilmavirtaM3h || ''} disabled={disabled} onChange={(v) => set({ ilmavirtaM3h: v })} />
                         <FormInput label="Höyrystyminen (°C)" type="number" value={source.hoyrystymisLampotila || ''} disabled={disabled} onChange={(v) => set({ hoyrystymisLampotila: v })} />
-                        <AirCapacityResultView latent result={airCapacity({ tIn: source.ilmaTuloLampotila, rhIn: source.ilmaTuloRh, tOut: source.ilmaPoistoLampotila, rhOut: source.ilmaPoistoRh, airflowM3h: source.ilmavirtaM3h, direction: 'cooling' })} />
+                        <AirCapacityResultView latent result={airCapacity({ tIn: source.ilmaTuloLampotila || source.lampotilaMitattu, rhIn: source.ilmaTuloRh, tOut: source.ilmaPoistoLampotila, rhOut: source.ilmaPoistoRh, airflowM3h: source.ilmavirtaM3h, direction: 'cooling' })} />
                       </>
                     )}
                   </div>
@@ -379,15 +386,11 @@ export function EvaporatorModule({
                           <option value="kiinteisto">Kiinteistöautomaatio</option>
                         </select>
                       </label>
-                      <FormInput label="Säädin (valmistaja / malli)" value={source.ohjausMalli || ''} disabled={disabled} onChange={(v) => set({ ohjausMalli: v })} />
-                      <FormInput label="Lämpötila mitattu (°C)" type="number" value={source.lampotilaMitattu || ''} disabled={disabled} onChange={(v) => set({ lampotilaMitattu: v })} />
+                      <FormInput label="Säädin (valmistaja / malli)" value={source.ohjausMalli || source.sulatusSäädinMalli || ''} disabled={disabled} onChange={(v) => set({ ohjausMalli: v })} />
                       <FormInput label="Lämpötila asetus (°C)" type="number" value={source.lampotilaAsetus || ''} disabled={disabled} onChange={(v) => set({ lampotilaAsetus: v })} />
+                      <p className="muted huolto-measured-ref">Mitattu: {evaporatorRoomTemp(source) ? `${evaporatorRoomTemp(source)} °C` : '—'}</p>
                       <FormInput label="Ylähälytysraja (°C)" type="number" value={source.halytysYla || ''} disabled={disabled} onChange={(v) => set({ halytysYla: v })} />
                       <FormInput label="Alahälytysraja (°C)" type="number" value={source.halytysAla || ''} disabled={disabled} onChange={(v) => set({ halytysAla: v })} />
-                      <FormInput label="Sulatusväli (h)" value={source.sulatusVali || ''} disabled={disabled} onChange={(v) => set({ sulatusVali: v })} />
-                      {source.sulatus !== 'sahko' && (
-                        <FormInput label="Sulatusaika" value={source.sulatusAika || ''} disabled={disabled} onChange={(v) => set({ sulatusAika: v })} />
-                      )}
                       <div className="huolto-span-all">
                         <FormCheckbox label="Ovikytkin / munakello" checked={source.ovikytkin === 'ovikytkin' || source.ovikytkin === 'munakello'} disabled={disabled} onChange={(v) => set({ ovikytkin: v ? 'ovikytkin' : 'ei' })} />
                       </div>

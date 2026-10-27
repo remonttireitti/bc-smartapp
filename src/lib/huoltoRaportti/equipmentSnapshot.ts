@@ -152,6 +152,7 @@ export function stripEvaporatorForRegistry(e: EvaporatorData): Partial<Evaporato
   for (const key of EVAPORATOR_FIXED_BOOL) {
     if (typeof e[key] === 'boolean') (out as Record<string, unknown>)[key] = e[key];
   }
+  if (!trim(e.ohjausMalli) && trim(e.sulatusSäädinMalli)) out.ohjausMalli = trim(e.sulatusSäädinMalli);
   for (const key of EVAPORATOR_FIXED_TEXT) {
     const v = trim(e[key]);
     if (v) (out as Record<string, unknown>)[key] = v;

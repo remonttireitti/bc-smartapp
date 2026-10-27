@@ -102,12 +102,12 @@ export function formatKw(kw: number): string {
   return `${kw.toFixed(2).replace('.', ',')} kW`;
 }
 
-type StaticEv = { kylmioLampotila?: string; kennoLampotila?: string; hoyrystymisLampotila?: string; kennoPituusMm?: string; kennoKorkeusMm?: string; kennoSyvyysMm?: string; ripavaliMm?: string; putkirivit?: string };
+type StaticEv = { kylmioLampotila?: string; lampotilaMitattu?: string; kennoLampotila?: string; hoyrystymisLampotila?: string; kennoPituusMm?: string; kennoKorkeusMm?: string; kennoSyvyysMm?: string; ripavaliMm?: string; putkirivit?: string };
 
 /** Höyrystimen tallennetuista kentistä staattisen arvion syöte. Tyhjä kenno → höyrystymislämpötila. */
 export function staticInput(ev: StaticEv) {
   const coil = num(ev.kennoLampotila) !== null ? ev.kennoLampotila : ev.hoyrystymisLampotila;
-  return { roomT: ev.kylmioLampotila, coilT: coil, lengthMm: ev.kennoPituusMm, heightMm: ev.kennoKorkeusMm, depthMm: ev.kennoSyvyysMm, finPitchMm: ev.ripavaliMm, tubeRows: ev.putkirivit };
+  return { roomT: num(ev.kylmioLampotila) !== null ? ev.kylmioLampotila : ev.lampotilaMitattu, coilT: coil, lengthMm: ev.kennoPituusMm, heightMm: ev.kennoKorkeusMm, depthMm: ev.kennoSyvyysMm, finPitchMm: ev.ripavaliMm, tubeRows: ev.putkirivit };
 }
 
 /** Tulos + mitä puuttuu, kun tehoa ei voi laskea. */
@@ -120,7 +120,7 @@ export function staticCapacityStatus(ev: StaticEv): {
   const result = staticEvaporatorEstimate(staticInput(ev));
   if (result) return { result, coilFromEvaporation, missing: null };
   const need: string[] = [];
-  if (num(ev.kylmioLampotila) === null) need.push('huoneen lämpötila');
+  if (num(ev.kylmioLampotila) === null && num(ev.lampotilaMitattu) === null) need.push('huoneen lämpötila');
   if (num(ev.kennoLampotila) === null && num(ev.hoyrystymisLampotila) === null) need.push('kennon lämpötila');
   const dims = [ev.kennoPituusMm, ev.kennoKorkeusMm, ev.kennoSyvyysMm].some((v) => !(Number(num(v)) > 0));
   if (dims) need.push('kennon mitat');
@@ -130,4 +130,11 @@ export function staticCapacityStatus(ev: StaticEv): {
     missing = `syötä ${missing}`;
   } else missing = 'huoneen pitää olla kennoa lämpimämpi';
   return { result: null, coilFromEvaporation, missing };
+}
+
+/** Huoneen mitattu lämpötila yhdestä paikasta: staattinen → huone, puhallin → ilma ennen; vanha "Lämpötila mitattu" varana. */
+export function evaporatorRoomTemp(ev: { tyyppi?: string; kylmioLampotila?: string; ilmaTuloLampotila?: string; lampotilaMitattu?: string }): string {
+  const t = (v?: string) => String(v ?? '').trim();
+  const primary = ev.tyyppi === 'staatinen' ? t(ev.kylmioLampotila) : t(ev.ilmaTuloLampotila) || t(ev.kylmioLampotila);
+  return primary || t(ev.lampotilaMitattu);
 }

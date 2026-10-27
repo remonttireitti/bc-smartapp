@@ -64,4 +64,10 @@ assert.equal((applyEquipmentSnapshotToForm(own, snap) as any).kenttaModuulit.ohj
   assert.equal(co.talvivarustus, true); assert.equal(co.talvivarustusTapa, 'tulvitusventtiili');
   assert.ok(!co.lauhdutinPuhdistettu && !co.lauhtumisLampotila);
 }
+{
+  const a: any = createEmptyHuoltoReportData(); a.laiteTyyppi = 'pakastin';
+  a.evaporatorData = [{ ...createEmptyEvaporatorData('pakastin'), sulatus: 'sahko', sahkoJannite: '400', sulatusSäädinMalli: 'Optima Control' }];
+  const e2: any = mergeHuoltoReportData(blank, applyEquipmentSnapshotToForm(blank, buildHuoltoEquipmentTechnicalSnapshot(a))).evaporatorData[0];
+  assert.equal(e2.ohjausMalli, 'Optima Control'); assert.equal(e2.sulatus, 'sahko'); assert.equal(e2.sahkoJannite, '400');
+}
 console.log('equipment-fixed-fields ok');
