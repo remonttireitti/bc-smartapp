@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { emitDataChanged } from '../lib/dataRefresh';
 import type { Session } from '@supabase/supabase-js';
 import AppLayout from '../components/AppLayout';
 import CustomerRegistryPicker, { type NewCustomerDraft } from '../components/CustomerRegistryPicker';
@@ -272,6 +273,7 @@ export default function ChecklistReportEditPage({ session, category: routeCatego
       let savedId = cur.reportId;
       if (savedId) {
         const { error: updateError } = await supabase.from('maintenance_reports').update(payload).eq('id', savedId);
+        if (!updateError) emitDataChanged();
         if (updateError) throw new Error(updateError.message);
       } else {
         const insertPayload = {
@@ -289,6 +291,7 @@ export default function ChecklistReportEditPage({ session, category: routeCatego
           .single();
         if (insertError || !created) throw new Error(insertError?.message ?? 'Tallennus epäonnistui.');
         savedId = (created as { id: string }).id;
+        emitDataChanged();
         setReportId(savedId);
         setRowMeta({
           owner_company_id: context.ownerCompanyId,

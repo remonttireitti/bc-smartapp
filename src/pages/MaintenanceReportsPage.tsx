@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { emitDataChanged, useRefetchOnDataChange } from '../lib/dataRefresh';
 import type { Session } from '@supabase/supabase-js';
 import AppLayout from '../components/AppLayout';
 import { MaintenanceReportListTable } from '../components/MaintenanceReportListTile';
@@ -50,6 +51,8 @@ export default function MaintenanceReportsPage({ session }: Props) {
   const [deletingDraftId, setDeletingDraftId] = useState<string | null>(null);
   const portalMode = isPortalUser(profile);
 
+  useRefetchOnDataChange(() => void loadReports({ silent: true }));
+
   useEffect(() => {
     void loadReports();
   }, [session.user.id, portalPreview?.kind, portalPreview?.kind === 'subscriber' ? portalPreview.subscriberId : portalPreview?.kind === 'customer' ? portalPreview.customerId : null]);
@@ -73,8 +76,8 @@ export default function MaintenanceReportsPage({ session }: Props) {
       });
   }, [portalSubscriberId, profile, portalPreview]);
 
-  async function loadReports() {
-    setLoading(true);
+  async function loadReports(opts?: { silent?: boolean }) {
+    if (!opts?.silent) setLoading(true);
 
     const { data, error } = await supabase
       .from('maintenance_reports')
@@ -139,6 +142,7 @@ export default function MaintenanceReportsPage({ session }: Props) {
     }
     setDeletingDraftId(report.id);
     const { error } = await supabase.from('maintenance_reports').delete().eq('id', report.id);
+    if (!error) emitDataChanged();
     setDeletingDraftId(null);
     if (error) {
       console.error(error);

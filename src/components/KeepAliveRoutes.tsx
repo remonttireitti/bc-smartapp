@@ -5,6 +5,7 @@ import {
   pruneKeepAliveCache,
   shouldKeepAliveRoute,
 } from '../lib/keepAliveRoutes';
+import { KeepAliveActiveContext } from '../lib/dataRefresh';
 
 type Props = {
   routes: RouteObject[];
@@ -64,7 +65,7 @@ export default function KeepAliveRoutes({ routes, resetKey }: Props) {
     <div className="keep-alive-root">
       {cachedEntries.map(([key, node]) => (
         <div key={key} className="keep-alive-panel" hidden={key !== activeKey || !cacheable}>
-          {node}
+          <KeepAliveActiveContext.Provider value={key === activeKey && cacheable}>{node}</KeepAliveActiveContext.Provider>
         </div>
       ))}
       {!cacheable && activeElement}

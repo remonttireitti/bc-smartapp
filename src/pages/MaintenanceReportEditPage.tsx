@@ -1,5 +1,6 @@
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { emitDataChanged } from '../lib/dataRefresh';
 import { huoltoPerformerFields } from '../lib/huoltoRaportti/performerFromProfile';
 import NavigationBreadcrumb from '../components/NavigationBreadcrumb';
 import LeaveDraftDialog from '../components/LeaveDraftDialog';
@@ -1710,6 +1711,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
           return false;
         }
         setSavedReportTitle(title);
+        emitDataChanged();
       } else {
         const { data, error: insertError } = await supabase
           .from('maintenance_reports')
@@ -1722,6 +1724,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
           if (options?.auto) setAutoSaveState('offline');
           return false;
         }
+        emitDataChanged();
         savedReportId = (data as { id: string }).id;
         setReportId(savedReportId);
         setSavedReportTitle(title);
@@ -1935,6 +1938,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
     setDeleteBusy(true);
     setError(null);
     const { error: deleteError } = await supabase.from('maintenance_reports').delete().eq('id', reportId);
+    if (!deleteError) emitDataChanged();
     setDeleteBusy(false);
 
     if (deleteError) {
