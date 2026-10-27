@@ -161,6 +161,9 @@ export type TyhjiointiPaineYksikko = 'micron' | 'mbar';
 
 export interface CondenserData {
   tyyppi?: LauhdutinType;
+  valmistaja?: string;
+  malli?: string;
+  sarjanumero?: string;
   lauhdutinPuhdistettu?: boolean;
   lauhdutinPuhdistusTapa?: string;
   puhaltimienMaara?: number;

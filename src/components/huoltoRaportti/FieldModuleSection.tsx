@@ -1,5 +1,6 @@
 import type { HuoltoReportData } from '../../lib/huoltoRaportti/types';
-import { type FieldModuleField, fieldModuleFieldRequired, fieldModuleFieldVisible, fieldModuleValues, findFieldModule } from '../../lib/huoltoRaportti/fieldModules';
+import { type FieldModuleField, fieldModuleDisplayValue, fieldModuleFieldArchived, fieldModuleFieldRequired, fieldModuleFieldVisible, fieldModuleValues, findFieldModule } from '../../lib/huoltoRaportti/fieldModules';
+import { getPressureFromSaturationTemp, getSaturationTempFromPressure, hasRefrigerantPtData } from '../../lib/huoltoRaportti/refrigerantPt';
 import { FormInput } from './FormInput';
 
 type Props = {
@@ -13,13 +14,17 @@ export function FieldModuleSection({ moduleId, form, onPatchForm }: Props) {
   const def = findFieldModule(moduleId);
   if (!def) return null;
   const values = fieldModuleValues(form, moduleId);
-  const patch = (fieldId: string, value: string) =>
+  const patchMany = (next: Record<string, string>) =>
     onPatchForm({
       kenttaModuulit: {
         ...(form.kenttaModuulit ?? {}),
-        [moduleId]: { ...values, [fieldId]: value },
+        [moduleId]: { ...values, ...next },
       },
     });
+  const patch = (fieldId: string, value: string) => patchMany({ [fieldId]: value });
+  const archived = def.fields.filter((f) => fieldModuleFieldArchived(f, values, form));
+  const refrigerant = String(form.kylmaaineTyyppi ?? '');
+  const fmt = (n: number, d: number) => (Number.isFinite(n) ? n.toFixed(d) : '');
 
   return (
     <section className="maintenance-report-tab-section form-grid huolto-field-module">
@@ -30,6 +35,14 @@ export function FieldModuleSection({ moduleId, form, onPatchForm }: Props) {
           : null;
         return [heading, renderField(field, required)];
       })}
+      {archived.length > 0 && (
+        <div className="huolto-span-all huolto-archived">
+          <h4 className="huolto-field-module-heading">Aiemmin kirjattu</h4>
+          {archived.map((f) => (
+            <p key={f.id} className="muted huolto-archived-row">{f.label}: {fieldModuleDisplayValue(f, values)}</p>
+          ))}
+        </div>
+      )}
     </section>
   );
 
@@ -46,6 +59,33 @@ export function FieldModuleSection({ moduleId, form, onPatchForm }: Props) {
                 ))}
               </select>
             </label>
+          );
+        }
+        if (field.type === 'pt') {
+          const tempValue = typeof values[field.tempId] === 'string' ? (values[field.tempId] as string) : '';
+          const pt = hasRefrigerantPtData(refrigerant);
+          return (
+            <div key={field.id} className="huolto-span-all line-form-grid huolto-pt-pair">
+              <FormInput
+                label={`${field.label} (bar)`}
+                type="number"
+                value={value}
+                onChange={(next) => {
+                  const t = pt && next.trim() ? getSaturationTempFromPressure(Number(next.replace(',', '.')), refrigerant) : NaN;
+                  patchMany({ [field.id]: next, [field.tempId]: fmt(t, 1) });
+                }}
+              />
+              <FormInput
+                label="Höyrystyminen (°C)"
+                type="number"
+                value={tempValue}
+                onChange={(next) => {
+                  const p = pt && next.trim() ? getPressureFromSaturationTemp(Number(next.replace(',', '.')), refrigerant) : NaN;
+                  patchMany({ [field.tempId]: next, [field.id]: fmt(p, 2) });
+                }}
+              />
+              {!pt && <p className="muted huolto-span-all">Valitse kylmäaine, niin paine ↔ lämpötila lasketaan.</p>}
+            </div>
           );
         }
         if (field.type === 'textarea') {

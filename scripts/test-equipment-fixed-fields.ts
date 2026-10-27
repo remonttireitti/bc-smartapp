@@ -49,4 +49,19 @@ assert.equal((buildHuoltoEquipmentTechnicalSnapshot(r2) as any).ohjauksetKiintea
 // Esitäyttö ei korvaa raportin omaa arvoa.
 const own: any = { ...blank, kenttaModuulit: { ohjaukset: { saadin: 'Oma' } } };
 assert.equal((applyEquipmentSnapshotToForm(own, snap) as any).kenttaModuulit.ohjaukset.saadin, 'Oma');
+// Lauhdutin + koneikon ohjaustapa.
+{
+  const a: any = createEmptyHuoltoReportData();
+  a.laiteTyyppi = 'pakastin';
+  a.kenttaModuulit = { ohjaukset: { koneikkoOhjaustapa: 'Imupaine', imupaineAsetus: '2.88', imupaineAsetusT: '-13' } };
+  a.condenserData = [{ ...(a.condenserData?.[0] ?? {}), valmistaja: 'Güntner', malli: 'GVH', sarjanumero: 'SN9', talvivarustus: true, talvivarustusTapa: 'tulvitusventtiili', lauhdutinPuhdistettu: true, lauhtumisLampotila: '35' }];
+  const s2 = buildHuoltoEquipmentTechnicalSnapshot(a);
+  const b: any = mergeHuoltoReportData(blank, applyEquipmentSnapshotToForm(blank, s2));
+  assert.equal(b.kenttaModuulit.ohjaukset.koneikkoOhjaustapa, 'Imupaine');
+  assert.ok(!b.kenttaModuulit.ohjaukset.imupaineAsetus, 'asetus on käyntikohtainen');
+  const co = b.condenserData[0];
+  assert.equal(co.valmistaja, 'Güntner'); assert.equal(co.malli, 'GVH'); assert.equal(co.sarjanumero, 'SN9');
+  assert.equal(co.talvivarustus, true); assert.equal(co.talvivarustusTapa, 'tulvitusventtiili');
+  assert.ok(!co.lauhdutinPuhdistettu && !co.lauhtumisLampotila);
+}
 console.log('equipment-fixed-fields ok');

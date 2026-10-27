@@ -80,6 +80,10 @@ export function CondenserModule({ index, titleLabel, data, onChange, documentUni
             </select>
           </label>
 
+          <FormInput label="Valmistaja" value={source.valmistaja || ''} onChange={(v) => setSource((prev) => ({ ...prev, valmistaja: v }))} />
+          <FormInput label="Malli" value={source.malli || ''} onChange={(v) => setSource((prev) => ({ ...prev, malli: v }))} />
+          <FormInput label="Sarjanumero" value={source.sarjanumero || ''} onChange={(v) => setSource((prev) => ({ ...prev, sarjanumero: v }))} />
+
           <FormCheckbox
             label="Kenno puhdistettu"
             checked={!!source.lauhdutinPuhdistettu}
@@ -159,7 +163,8 @@ export function CondenserModule({ index, titleLabel, data, onChange, documentUni
 
               {source.talvivarustus ? (
                 <FormInput
-                  label="Talvivarustuksen toteutustapa"
+                  label="Rakenne / selitys"
+                  placeholder="esim. painekytkinohjattu puhallin, tulvitusventtiili, pelti"
                   value={source.talvivarustusTapa || ''}
                   onChange={(v) => setSource((prev) => ({ ...prev, talvivarustusTapa: v }))}
                   className="huolto-span-all"

@@ -1,4 +1,4 @@
-import { fieldModuleFieldVisible } from './fieldModules';
+import { fieldModuleDisplayValue, fieldModuleFieldVisible } from './fieldModules';
 import { koneikkoCustomComponents, koneikkoLegacyReadOnly, koneikkoView, usesKoneikkoComponents } from './koneikkoComponents';
 import { refrigerantCircuitComponentLabel } from './refrigerantCircuitComponents';
 import { airCapacity, formatKw, staticEvaporatorEstimate, staticInput } from './airCapacity';
@@ -146,9 +146,9 @@ function renderFieldModules(data: HuoltoReportData): string {
       const inner = def.fields
         .filter((f) => fieldModuleFieldVisible(f, values, data))
         .map((f) => {
-          const v = String(values[f.id] ?? '').trim();
+          const v = fieldModuleDisplayValue(f, values);
           if (!v) return '';
-          return row(f.label, f.type === 'text' && f.unit ? `${v} ${f.unit}` : v);
+          return row(f.label, v);
         })
         .join('');
       return box(def.title.toUpperCase(), '#0f766e', inner);
@@ -519,6 +519,9 @@ function renderCondensers(data: HuoltoReportData): string {
         renderInspectionStatusRow(co.tarkastusTila ?? condenserInspectionStatus(co), 'Tarkastus', esc),
         renderInspectionHuomioRow(co.tarkastusHuomio, esc),
         gridField('Tyyppi', co.tyyppi ? getLauhdutinTypeText(co.tyyppi) : ''),
+        gridField('Valmistaja', co.valmistaja),
+        gridField('Malli', co.malli),
+        gridField('Sarjanumero', co.sarjanumero),
         gridField('Puhaltimien määrä', co.puhaltimienMaara),
         gridField('Ohjaus', co.puhallinOhjaus ? getOhjausText(co.puhallinOhjaus, co.puhallinOhjausMuu) : ''),
         gridField('Nopeussäädin', co.nopeussäädinMalli),
@@ -526,7 +529,7 @@ function renderCondensers(data: HuoltoReportData): string {
         checkRow(co.lauhdutinPuhdistettu, 'Kenno puhdistettu'),
         checkRow(co.painesäätimenTarkistettu, LAUHDUTIN_PAINEVENTTIILI_LABEL),
         checkRow(co.virtausRiittävä, 'Virtaus riittävä'),
-        checkRow(co.talvivarustus, 'Talvivarustus'),
+        co.talvivarustus ? gridField('Talvivarustus', String(co.talvivarustusTapa ?? '').trim() || 'Kyllä') : '',
         gridField('Lauhdutuksen asetus', co.lauhdutusAsetus),
         gridField('Puhallin käynnistyy', co.puhallinKaynnistysAsetus),
         gridField('Puhallin pysähtyy', co.puhallinPysaytysAsetus),
