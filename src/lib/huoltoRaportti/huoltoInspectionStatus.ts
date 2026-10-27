@@ -285,3 +285,8 @@ export function ulkoyksikkoInspectionStatus(data: {
   }
   return legacyBooleanChecksStatus(checks);
 }
+
+/** Lisätty/konfiguroitu komponentti: vanha "Ei kuulu" ei ole valmis → kesken. */
+export function componentStatus(status: HuoltoInspectionStatus): HuoltoInspectionStatus {
+  return status === 'na' ? null : status;
+}

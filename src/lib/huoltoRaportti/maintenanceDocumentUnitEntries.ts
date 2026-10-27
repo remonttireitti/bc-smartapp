@@ -1,3 +1,4 @@
+import { componentStatus } from './huoltoInspectionStatus';
 import { ilpDeviceModel, ilpDeviceSerial, isIlpDevice } from './ilpIdentity';
 import { isChillerLikeDevice, usesRefrigerantServiceExtras } from './deviceModuleLogic';
 import { tiiveyskoeTabCompletion, tyhjiointiTabCompletion } from './maintenanceReportTabCompletion';
@@ -222,10 +223,10 @@ export function documentEntryCompletion(
   tabCompletion?: Partial<Record<string, MaintenanceTabCompletionState>>,
 ): MaintenanceTabCompletionState | undefined {
   if (entry.kind === 'evaporatorUnit' && entry.unitIndex != null) {
-    return inspectionStatusToDocumentCompletion(entityInspectionStatus(form.evaporatorData[entry.unitIndex]));
+    return inspectionStatusToDocumentCompletion(componentStatus(entityInspectionStatus(form.evaporatorData[entry.unitIndex])));
   }
   if (entry.kind === 'condenserUnit' && entry.unitIndex != null) {
-    return inspectionStatusToDocumentCompletion(form.condenserData[entry.unitIndex] ? condenserInspectionStatus(form.condenserData[entry.unitIndex]) : null);
+    return inspectionStatusToDocumentCompletion(componentStatus(form.condenserData[entry.unitIndex] ? condenserInspectionStatus(form.condenserData[entry.unitIndex]) : null));
   }
   if (entry.kind === 'circuitMeasurementsUnit' && entry.unitIndex != null) {
     const circuit = getRefrigerantCircuitByIndex(form, entry.unitIndex);
@@ -371,13 +372,13 @@ function mlpDocumentUnitCompletion(
   if (!mlp) return 'incomplete';
 
   if (unitId === 'keruupiiri') {
-    return inspectionStatusToDocumentCompletion(mlpKeruupiiriInspectionStatus(mlp));
+    return inspectionStatusToDocumentCompletion(componentStatus(mlpKeruupiiriInspectionStatus(mlp)));
   }
   if (unitId === 'latauspiiri') {
-    return inspectionStatusToDocumentCompletion(mlpLatauspiiriInspectionStatus(mlp));
+    return inspectionStatusToDocumentCompletion(componentStatus(mlpLatauspiiriInspectionStatus(mlp)));
   }
   if (unitId === 'lampopiirit') {
-    return inspectionStatusToDocumentCompletion(mlpLampoInspectionStatus(mlp));
+    return inspectionStatusToDocumentCompletion(componentStatus(mlpLampoInspectionStatus(mlp)));
   }
   if (unitId === 'jaahdytyspiiri') {
     return !mlp.keruuJaahdytysPiiri ? 'ok' : mlp.keruuJaahdytysVirtaus?.trim() ? 'ok' : 'incomplete';

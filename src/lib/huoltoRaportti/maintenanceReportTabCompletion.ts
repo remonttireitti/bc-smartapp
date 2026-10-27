@@ -1,3 +1,4 @@
+import { componentStatus } from './huoltoInspectionStatus';
 import { koneikkoStatuses, usesKoneikkoComponents } from './koneikkoComponents';
 import { ilpDeviceModel, ilpDeviceSerial } from './ilpIdentity';
 import { parseCustomModuleTabId, type CustomReportModule } from './customModuleTypes';
@@ -173,7 +174,7 @@ function completionForTab(
 
     case 'hoyrystin': {
       const count = getEvaporatorCircuitCount(form);
-      const statuses = form.evaporatorData.slice(0, count).map((row) => entityInspectionStatus(row));
+      const statuses = form.evaporatorData.slice(0, count).map((row) => componentStatus(entityInspectionStatus(row)));
       return aggregateInspectionStatuses(statuses);
     }
 
@@ -181,7 +182,7 @@ function completionForTab(
       const circuitCount = Math.min(3, Math.max(1, parseInt(form.kylmaainePiireja, 10) || 1));
       const statuses = form.condenserData
         .slice(0, circuitCount)
-        .map((row) => condenserInspectionStatus(row));
+        .map((row) => componentStatus(condenserInspectionStatus(row)));
       return aggregateInspectionStatuses(statuses);
     }
 
@@ -193,14 +194,14 @@ function completionForTab(
     case 'nestelauhduttimet': {
       const units = form.nestelauhduttimetVj ?? [];
       if (units.length === 0) return 'incomplete';
-      return aggregateInspectionStatuses(units.map((unit) => nestelauhdutinInspectionStatus(unit)));
+      return aggregateInspectionStatuses(units.map((unit) => componentStatus(nestelauhdutinInspectionStatus(unit))));
     }
 
     case 'jaahdytysvesi':
-      return aggregateInspectionStatuses([nestepiiriInspectionStatus(form.jaahdytysvesiData ?? {})]);
+      return aggregateInspectionStatuses([componentStatus(nestepiiriInspectionStatus(form.jaahdytysvesiData ?? {}))]);
 
     case 'vapaajahdytys':
-      return aggregateInspectionStatuses([vapaajahdytysInspectionStatus(form.vapaajahdytysData ?? {})]);
+      return aggregateInspectionStatuses([componentStatus(vapaajahdytysInspectionStatus(form.vapaajahdytysData ?? {}))]);
 
     case 'konvektorit': {
       const rows = form.konvektoriRows ?? [];
