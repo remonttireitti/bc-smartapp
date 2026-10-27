@@ -24,8 +24,8 @@ import { HuoltoPartInspectionRow } from './HuoltoPartInspectionRow';
 import { HuoltoInspectionDialogShell } from './HuoltoInspectionDialogShell';
 import { useRegisterHuoltoModuleDialog } from './HuoltoModuleDialogContext';
 import { TriStateInspectionToggle } from './TriStateInspectionToggle';
-import { airCapacity, staticEvaporatorEstimate, staticInput } from '../../lib/huoltoRaportti/airCapacity';
-import { AirCapacityResultView, StaticCapacityResultView } from './CapacityResult';
+import { airCapacity } from '../../lib/huoltoRaportti/airCapacity';
+import { AirCapacityResultView, StaticCapacityLine } from './CapacityResult';
 
 interface Props {
   index: number;
@@ -314,18 +314,15 @@ export function EvaporatorModule({
                   <div className="line-form-grid">
                     {source.tyyppi === 'staatinen' ? (
                       <>
-                        <FormInput label="Huoneen lämpötila (°C)" type="number" value={source.kylmioLampotila || ''} disabled={disabled} onChange={(v) => set({ kylmioLampotila: v })} />
-                        <FormInput label="Kennon lämpötila (°C)" type="number" value={source.kennoLampotila || ''} disabled={disabled} onChange={(v) => set({ kennoLampotila: v })} />
                         <FormInput label="Pituus (mm)" type="number" value={source.kennoPituusMm || ''} disabled={disabled} onChange={(v) => set({ kennoPituusMm: v })} />
                         <FormInput label="Korkeus (mm)" type="number" value={source.kennoKorkeusMm || ''} disabled={disabled} onChange={(v) => set({ kennoKorkeusMm: v })} />
                         <FormInput label="Syvyys (mm)" type="number" value={source.kennoSyvyysMm || ''} disabled={disabled} onChange={(v) => set({ kennoSyvyysMm: v })} />
                         <FormInput label="Ripaväli (mm)" type="number" placeholder="10" value={source.ripavaliMm || ''} disabled={disabled} onChange={(v) => set({ ripavaliMm: v })} />
                         <FormInput label="Putkirivit" type="number" placeholder="auto" value={source.putkirivit || ''} disabled={disabled} onChange={(v) => set({ putkirivit: v })} />
+                        <FormInput label="Huoneen lämpötila (°C)" type="number" value={source.kylmioLampotila || ''} disabled={disabled} onChange={(v) => set({ kylmioLampotila: v })} />
+                        <FormInput label="Kennon lämpötila (°C)" type="number" placeholder={source.hoyrystymisLampotila ? `${source.hoyrystymisLampotila} (höyr.)` : ''} value={source.kennoLampotila || ''} disabled={disabled} onChange={(v) => set({ kennoLampotila: v })} />
                         <FormInput label="Höyrystyminen (°C)" type="number" value={source.hoyrystymisLampotila || ''} disabled={disabled} onChange={(v) => set({ hoyrystymisLampotila: v })} />
-                        {(() => {
-                          const r = staticEvaporatorEstimate(staticInput(source));
-                          return r ? <StaticCapacityResultView kw={r.kw} dtK={r.dtK} areaM2={r.areaM2} u={r.uWm2K} /> : null;
-                        })()}
+                        <StaticCapacityLine ev={source} />
                       </>
                     ) : (
                       <>

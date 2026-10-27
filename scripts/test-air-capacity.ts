@@ -29,3 +29,19 @@ const st2 = staticEvaporatorEstimate({ roomT: -18, coilT: -24, lengthMm: 1000, h
 near(st2.areaM2, 12 + 24 * Math.PI * 0.012, 1e-6, 'A ripaväli 5, 2 riviä');
 assert.equal(staticEvaporatorEstimate({ roomT: -18, coilT: -24, lengthMm: '', heightMm: 300, depthMm: 100 }), null);
 console.log('air-capacity ok');
+
+{
+  const { staticCapacityStatus } = await import('../src/lib/huoltoRaportti/airCapacity');
+  const enn = { kennoPituusMm: '1100', kennoKorkeusMm: '150', kennoSyvyysMm: '700', hoyrystymisLampotila: '6' };
+  const a = staticCapacityStatus(enn);
+  if (a.result || a.missing !== 'syötä huoneen lämpötila') throw new Error('missing room: ' + a.missing);
+  const b = staticCapacityStatus({ ...enn, kylmioLampotila: '12' });
+  if (!b.result || !b.coilFromEvaporation || Math.abs(b.result.dtK - 6) > 1e-9) throw new Error('fallback');
+  const c = staticCapacityStatus({ ...enn, kylmioLampotila: '12', kennoLampotila: '8' });
+  if (!c.result || c.coilFromEvaporation || Math.abs(c.result.dtK - 4) > 1e-9) throw new Error('kenno wins');
+  const d = staticCapacityStatus({});
+  if (d.missing !== 'syötä huoneen lämpötila, kennon lämpötila ja kennon mitat') throw new Error('all missing: ' + d.missing);
+  const e = staticCapacityStatus({ ...enn, kylmioLampotila: '2' });
+  if (e.missing !== 'huoneen pitää olla kennoa lämpimämpi') throw new Error('dt<=0');
+  console.log('static status ok', b.result.kw.toFixed(2), 'kW');
+}

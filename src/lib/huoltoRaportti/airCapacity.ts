@@ -102,7 +102,32 @@ export function formatKw(kw: number): string {
   return `${kw.toFixed(2).replace('.', ',')} kW`;
 }
 
-/** Höyrystimen tallennetuista kentistä staattisen arvion syöte. */
-export function staticInput(ev: { kylmioLampotila?: string; kennoLampotila?: string; kennoPituusMm?: string; kennoKorkeusMm?: string; kennoSyvyysMm?: string; ripavaliMm?: string; putkirivit?: string }) {
-  return { roomT: ev.kylmioLampotila, coilT: ev.kennoLampotila, lengthMm: ev.kennoPituusMm, heightMm: ev.kennoKorkeusMm, depthMm: ev.kennoSyvyysMm, finPitchMm: ev.ripavaliMm, tubeRows: ev.putkirivit };
+type StaticEv = { kylmioLampotila?: string; kennoLampotila?: string; hoyrystymisLampotila?: string; kennoPituusMm?: string; kennoKorkeusMm?: string; kennoSyvyysMm?: string; ripavaliMm?: string; putkirivit?: string };
+
+/** Höyrystimen tallennetuista kentistä staattisen arvion syöte. Tyhjä kenno → höyrystymislämpötila. */
+export function staticInput(ev: StaticEv) {
+  const coil = num(ev.kennoLampotila) !== null ? ev.kennoLampotila : ev.hoyrystymisLampotila;
+  return { roomT: ev.kylmioLampotila, coilT: coil, lengthMm: ev.kennoPituusMm, heightMm: ev.kennoKorkeusMm, depthMm: ev.kennoSyvyysMm, finPitchMm: ev.ripavaliMm, tubeRows: ev.putkirivit };
+}
+
+/** Tulos + mitä puuttuu, kun tehoa ei voi laskea. */
+export function staticCapacityStatus(ev: StaticEv): {
+  result: ReturnType<typeof staticEvaporatorEstimate>;
+  coilFromEvaporation: boolean;
+  missing: string | null;
+} {
+  const coilFromEvaporation = num(ev.kennoLampotila) === null && num(ev.hoyrystymisLampotila) !== null;
+  const result = staticEvaporatorEstimate(staticInput(ev));
+  if (result) return { result, coilFromEvaporation, missing: null };
+  const need: string[] = [];
+  if (num(ev.kylmioLampotila) === null) need.push('huoneen lämpötila');
+  if (num(ev.kennoLampotila) === null && num(ev.hoyrystymisLampotila) === null) need.push('kennon lämpötila');
+  const dims = [ev.kennoPituusMm, ev.kennoKorkeusMm, ev.kennoSyvyysMm].some((v) => !(Number(num(v)) > 0));
+  if (dims) need.push('kennon mitat');
+  let missing: string;
+  if (need.length) {
+    missing = need.length === 1 ? need[0] : `${need.slice(0, -1).join(', ')} ja ${need[need.length - 1]}`;
+    missing = `syötä ${missing}`;
+  } else missing = 'huoneen pitää olla kennoa lämpimämpi';
+  return { result: null, coilFromEvaporation, missing };
 }
