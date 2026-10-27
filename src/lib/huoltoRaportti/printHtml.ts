@@ -1,7 +1,7 @@
 import { fieldModuleDisplayValue, fieldModuleFieldVisible } from './fieldModules';
 import { koneikkoCustomComponents, koneikkoLegacyReadOnly, koneikkoView, usesKoneikkoComponents } from './koneikkoComponents';
 import { refrigerantCircuitComponentLabel } from './refrigerantCircuitComponents';
-import { airCapacity, formatKw, staticEvaporatorEstimate, staticInput } from './airCapacity';
+import { airCapacity, evaporatorRoomTemp, formatKw, staticEvaporatorEstimate, staticInput } from './airCapacity';
 import { kokoonpanoLauhdutinLabel, kokoonpanoSummary, vjHeatingTitle } from './deviceKokoonpano';
 import { fieldModuleValues, visibleFieldModules } from './fieldModules';
 import type {
@@ -362,7 +362,7 @@ function evapCapacityRow(ev: EvaporatorData, color: string): string {
     const r = staticEvaporatorEstimate(staticInput(ev));
     return r ? row('Teho (arvio)', `${formatKw(r.kw)} (${!String(ev.kennoLampotila ?? '').trim() ? 'kenno = höyrystyminen, ' : ''}A ${r.areaM2.toFixed(1).replace('.', ',')} m², U ${r.uWm2K} W/m²K, ΔT ${r.dtK.toFixed(1).replace('.', ',')} K)`, color) : '';
   }
-  const r = airCapacity({ tIn: ev.ilmaTuloLampotila, rhIn: ev.ilmaTuloRh, tOut: ev.ilmaPoistoLampotila, rhOut: ev.ilmaPoistoRh, airflowM3h: ev.ilmavirtaM3h, direction: 'cooling' });
+  const r = airCapacity({ tIn: ev.ilmaTuloLampotila || ev.lampotilaMitattu, rhIn: ev.ilmaTuloRh, tOut: ev.ilmaPoistoLampotila, rhOut: ev.ilmaPoistoRh, airflowM3h: ev.ilmavirtaM3h, direction: 'cooling' });
   return r ? row('Teho', `${formatKw(r.totalKw)} (tuntuva ${formatKw(r.sensibleKw)}, latentti ${formatKw(r.latentKw)})`, color) : '';
 }
 
@@ -422,12 +422,12 @@ function renderSingleEvaporatorHtml(
     .join('');
   const C = '#00838F';
   const extraHtml = [
-    row('Ilma ennen (°C)', ev.ilmaTuloLampotila, C),
+    row('Ilma ennen (°C)', ev.tyyppi === 'staatinen' ? '' : ev.ilmaTuloLampotila || ev.lampotilaMitattu, C),
     row('Kosteus ennen (%)', ev.ilmaTuloRh, C),
     row('Ilma jälkeen (°C)', ev.ilmaPoistoLampotila, C),
     row('Kosteus jälkeen (%)', ev.ilmaPoistoRh, C),
     row('Ilmavirta (m³/h)', ev.ilmavirtaM3h, C),
-    row('Huoneen lämpötila (°C)', ev.kylmioLampotila, C),
+    row('Huoneen lämpötila (°C)', ev.tyyppi === 'staatinen' ? evaporatorRoomTemp(ev) : ev.kylmioLampotila, C),
     row('Kennon lämpötila (°C)', ev.kennoLampotila, C),
     row('Kenno P×K×S (mm)', ev.kennoPituusMm && ev.kennoKorkeusMm && ev.kennoSyvyysMm ? `${ev.kennoPituusMm}×${ev.kennoKorkeusMm}×${ev.kennoSyvyysMm}` : '', C),
     row('Ripaväli (mm)', ev.ripavaliMm, C),
@@ -441,8 +441,7 @@ function renderSingleEvaporatorHtml(
     ev.magneettiventtiiliKaytossa !== false ? checkRow(ev.magneettiventtiiliTestattu, 'Magneettiventtiili testattu') : '',
     ev.paisuntaventtiiliKaytossa !== false ? row('Paisuntaventtiili', [ev.paisuntaventtiiliTyyppi, ev.paisuntaventtiiliMalli].filter(Boolean).join(' '), C) : '',
     ev.paisuntaventtiiliKaytossa !== false ? row('Tulistus (K)', ev.tulistus, C) : '',
-    ev.ohjausKaytossa !== false ? row('Ohjaus', [ev.ohjausTyyppi, ev.ohjausMalli].filter(Boolean).join(' '), C) : '',
-    ev.ohjausKaytossa !== false ? row('Lämpötila mitattu (°C)', ev.lampotilaMitattu, C) : '',
+    ev.ohjausKaytossa !== false ? row('Ohjaus', [ev.ohjausTyyppi, ev.ohjausMalli || ev.sulatusSäädinMalli].filter(Boolean).join(' '), C) : '',
     ev.ohjausKaytossa !== false ? row('Lämpötila asetus (°C)', ev.lampotilaAsetus, C) : '',
     ev.ohjausKaytossa !== false ? row('Ovikytkin / munakello', ev.ovikytkin, C) : '',
     ev.ohjausKaytossa !== false ? row('Ylähälytysraja (°C)', ev.halytysYla, C) : '',

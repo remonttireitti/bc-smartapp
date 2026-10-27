@@ -45,3 +45,11 @@ console.log('air-capacity ok');
   if (e.missing !== 'huoneen pitää olla kennoa lämpimämpi') throw new Error('dt<=0');
   console.log('static status ok', b.result.kw.toFixed(2), 'kW');
 }
+
+{
+  const { evaporatorRoomTemp, staticCapacityStatus } = await import('../src/lib/huoltoRaportti/airCapacity');
+  if (evaporatorRoomTemp({ tyyppi: 'staatinen', lampotilaMitattu: '-19' }) !== '-19') throw new Error('legacy mitattu');
+  if (evaporatorRoomTemp({ tyyppi: 'puhallin', ilmaTuloLampotila: '-18', lampotilaMitattu: '-19' }) !== '-18') throw new Error('ilma ennen');
+  if (!staticCapacityStatus({ lampotilaMitattu: '12', hoyrystymisLampotila: '6', kennoPituusMm: '1100', kennoKorkeusMm: '150', kennoSyvyysMm: '700' }).result) throw new Error('legacy room in teho');
+  console.log('room temp ok');
+}
