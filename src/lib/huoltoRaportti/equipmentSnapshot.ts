@@ -81,6 +81,14 @@ export function stripRefrigerantCircuitForRegistry(c: RefrigerantCircuitData): R
   delete rest.nestelasiKuiva;
   delete rest.kuivainOK;
   delete rest.kuivainLisatieto;
+  // Käyntikohtaiset tulokset/toimenpiteet (koneikon komponentit).
+  delete rest.nestelasiKuplat;
+  delete rest.nestelasiKosteus;
+  delete rest.kuivainVaihdettu;
+  delete rest.imusuodatinVaihdettu;
+  if (Array.isArray(rest.kompponentit)) {
+    rest.kompponentit = (rest.kompponentit as Record<string, unknown>[]).map((k) => ({ ...k, tila: null, kommentti: '' }));
+  }
   return {
     ...rest,
     kompressori1: stripCompressorForRegistry(c.kompressori1),
@@ -100,6 +108,16 @@ function huoltoFormShowsEvaporatorSection(
   if (laiteTyyppi === 'muu') return Boolean(selectedModules?.hoyrystin);
   return false;
 }
+
+/** Höyrystimen kiinteät tiedot (#231/#232): venttiilit, ohjaus, kennon mitat. Mittaukset ja tulokset jäävät raportille. */
+const EVAPORATOR_FIXED_BOOL = ['magneettiventtiiliKaytossa', 'paisuntaventtiiliKaytossa', 'ohjausKaytossa'] as const;
+const EVAPORATOR_FIXED_TEXT = [
+  'magneettiventtiiliMalli', 'paisuntaventtiiliTyyppi', 'paisuntaventtiiliMalli', 'ohjausTyyppi', 'ohjausMalli', 'ovikytkin',
+  'kennoPituusMm', 'kennoKorkeusMm', 'kennoSyvyysMm', 'ripavaliMm', 'putkirivit',
+] as const;
+
+/** Ohjaukset-vaiheen kiinteät kentät (laitekortille). */
+export const OHJAUKSET_FIXED_FIELDS = ['saadin', 'hoyrystinOhjaus', 'ohjausTyyppi'] as const;
 
 export function stripEvaporatorForRegistry(e: EvaporatorData): Partial<EvaporatorData> {
   const hx = e.tyyppi === 'levy' || e.tyyppi === 'putki';
@@ -130,6 +148,13 @@ export function stripEvaporatorForRegistry(e: EvaporatorData): Partial<Evaporato
       return { id: f.id, jannite: f.jannite } as CondenserFanData;
     });
     if (trim(e.huoneenTunnus)) out.huoneenTunnus = trim(e.huoneenTunnus);
+  }
+  for (const key of EVAPORATOR_FIXED_BOOL) {
+    if (typeof e[key] === 'boolean') (out as Record<string, unknown>)[key] = e[key];
+  }
+  for (const key of EVAPORATOR_FIXED_TEXT) {
+    const v = trim(e[key]);
+    if (v) (out as Record<string, unknown>)[key] = v;
   }
   return out;
 }
@@ -378,6 +403,13 @@ export function buildHuoltoEquipmentTechnicalSnapshot(data: HuoltoReportData): R
       : [],
     condenserData: data.condenserData.map(stripCondenserForRegistry),
     mlpData: isMLP && data.mlpData ? stripMlpDataForRegistry(data.mlpData) : null,
+    ...(data.laiteKokoonpano ? { laiteKokoonpano: data.laiteKokoonpano } : {}),
+    ...(() => {
+      const o = data.kenttaModuulit?.ohjaukset ?? {};
+      const fixed: Record<string, string> = {};
+      for (const k of OHJAUKSET_FIXED_FIELDS) if (trim(o[k])) fixed[k] = trim(o[k]);
+      return Object.keys(fixed).length ? { ohjauksetKiinteat: fixed } : {};
+    })(),
     isMLP,
     ulkoyksikko: {
       ulkoyksikkoMalli: strField(data, 'ulkoyksikkoMalli'),
@@ -495,6 +527,20 @@ export function applyEquipmentSnapshotToForm(
   ] as const) {
     const v = snap[key];
     if (v != null && trim(v)) (patch as Record<string, unknown>)[key] = trim(v);
+  }
+
+  const snapAny = snapshot as Record<string, unknown>;
+  if (snapAny.laiteKokoonpano && typeof snapAny.laiteKokoonpano === 'object') {
+    // Laitteen kokoonpano korvaa uuden raportin oletuksen (esitäyttö tehdään vain uudelle/linkitettävälle raportille).
+    patch.laiteKokoonpano = { ...(form.laiteKokoonpano ?? {}), ...(snapAny.laiteKokoonpano as object) } as HuoltoReportData['laiteKokoonpano'];
+  }
+  if (snapAny.ohjauksetKiinteat && typeof snapAny.ohjauksetKiinteat === 'object') {
+    const current = form.kenttaModuulit?.ohjaukset ?? {};
+    const filled: Record<string, string | boolean> = { ...current };
+    for (const [k, v] of Object.entries(snapAny.ohjauksetKiinteat as Record<string, unknown>)) {
+      if (!trim(current[k]) && trim(v)) filled[k] = trim(v);
+    }
+    patch.kenttaModuulit = { ...(form.kenttaModuulit ?? {}), ohjaukset: filled };
   }
 
   if (snap.kp1Data) {
