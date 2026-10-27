@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useCompanyHuoltoSettings } from '../hooks/useCompanyHuoltoSettings';
 import ToggleSwitch from '../components/ToggleSwitch';
 import DeviceQrPanel from '../components/equipment/DeviceQrPanel';
+import DeviceNotesPanel from '../components/equipment/DeviceNotesPanel';
 import { HUOLTO_ASETUKSET_KEY, buildDeviceSchedule, defaultServiceIntervalMonths, formatTonnes, leakCheckInterval, readHuoltoAsetukset, refrigerantGwp, todayYmdLocal } from '../lib/huoltoSchedule';
 import { newHuoltoReportHrefForDevice } from '../lib/huoltoCategories';
 import { Link, Navigate, useParams } from 'react-router-dom';
@@ -44,6 +45,7 @@ import { openPrintHtml } from '../lib/openPrintWindow';
 import { supabase } from '../lib/supabase';
 import { isPortalUser } from '../lib/portalWorkOrder';
 import { useProfile } from '../hooks/useProfile';
+import { loadEquipmentNotes, type EquipmentNote } from '../lib/equipmentNotes';
 import type { Customer, Equipment, Partnership } from '../types';
 
 interface Props {
@@ -110,6 +112,7 @@ export default function EquipmentDetailPage({ session }: Props) {
   const [saveBusy, setSaveBusy] = useState(false);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const [documents, setDocuments] = useState<CustomerLinkedDocument[]>([]);
+  const [equipmentNotes, setEquipmentNotes] = useState<EquipmentNote[] | null>(null);
   const [maintenanceRows, setMaintenanceRows] = useState<
     Awaited<ReturnType<typeof loadCustomerMaintenanceContext>>['maintenanceRows']
   >([]);
@@ -198,13 +201,14 @@ export default function EquipmentDetailPage({ session }: Props) {
       ),
     );
     setMaintenanceRows(maintenanceContext.maintenanceRows);
+    void loadEquipmentNotes(supabase, { customerId: customerId }).then(setEquipmentNotes);
     setWorkRows(maintenanceContext.workRows);
     setLoading(false);
   }
 
   const latestMaintenanceByEquipment = useMemo(
-    () => (equipment ? buildLatestMaintenanceByEquipment([equipment], maintenanceRows) : {}),
-    [equipment, maintenanceRows],
+    () => (equipment ? buildLatestMaintenanceByEquipment([equipment], maintenanceRows, equipmentNotes) : {}),
+    [equipment, maintenanceRows, equipmentNotes],
   );
 
   const schedule = useMemo(() => {
@@ -263,7 +267,7 @@ export default function EquipmentDetailPage({ session }: Props) {
     setPrintBusy('history');
     try {
       const branding = await loadPrintBranding(customer.owner_company_id);
-      const entries = buildMaintenanceHistoryForEquipment(equipment, maintenanceRows, workRows);
+      const entries = buildMaintenanceHistoryForEquipment(equipment, maintenanceRows, workRows, equipmentNotes);
       openPrintHtml(
         buildMaintenanceHistoryPrintHtml({
           customerName: customer.name,
@@ -689,6 +693,14 @@ export default function EquipmentDetailPage({ session }: Props) {
       {!portalMode ? (
         <DeviceQrPanel equipmentId={equipment.id} name={equipment.name} tag={equipment.tag} canWrite={canWrite} />
       ) : null}
+
+      <DeviceNotesPanel
+        session={session}
+        equipmentId={equipment.id}
+        notes={equipmentNotes}
+        canAdd={!portalMode}
+        onAdded={() => void loadEquipmentNotes(supabase, { customerId: customer.id }).then(setEquipmentNotes)}
+      />
 
       <details className="panel customer-section equipment-snapshot-panel">
         <summary className="customer-section-title">Tekniset tiedot huoltoraportilta (kylmäaine, valmistaja ym.)</summary>

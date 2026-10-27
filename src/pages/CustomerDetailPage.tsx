@@ -62,6 +62,7 @@ import {
   type CustomerLinkedDocument,
 } from '../lib/customerDocuments';
 import { useProfile } from '../hooks/useProfile';
+import { loadEquipmentNotes, type EquipmentNote } from '../lib/equipmentNotes';
 import { fetchDeviceQrTokens, generateDeviceQrToken, setDeviceQrToken } from '../lib/devicePublicCard';
 import { buildDeviceQrLabelsHtml } from '../lib/deviceQrLabel';
 import type { Customer, Equipment, Partnership, Subscriber } from '../types';
@@ -119,6 +120,7 @@ export default function CustomerDetailPage({ session }: Props) {
   const [shareablePartners, setShareablePartners] = useState<ShareablePartner[]>([]);
   const [ownerCustomerIds, setOwnerCustomerIds] = useState<string[]>([]);
   const [sharingBusyId, setSharingBusyId] = useState<string | null>(null);
+  const [equipmentNotes, setEquipmentNotes] = useState<EquipmentNote[] | null>(null);
   const [maintenanceRows, setMaintenanceRows] = useState<
     Awaited<ReturnType<typeof loadCustomerMaintenanceContext>>['maintenanceRows']
   >([]);
@@ -219,6 +221,7 @@ export default function CustomerDetailPage({ session }: Props) {
     void loadEquipmentDeviceFields(supabase, ((equipmentRows as Equipment[]) ?? []).map((eq) => eq.id)).then(setEquipmentDeviceFields);
     setDocuments(linkedDocuments);
     setMaintenanceRows(maintenanceContext.maintenanceRows);
+    void loadEquipmentNotes(supabase, { customerId: id }).then(setEquipmentNotes);
     setWorkRows(maintenanceContext.workRows);
 
     if (profile?.company_id && c.owner_company_id === profile.company_id) {
@@ -437,7 +440,7 @@ export default function CustomerDetailPage({ session }: Props) {
     setError(null);
     try {
       const branding = await loadPrintBranding(customer.owner_company_id);
-      const entries = buildMaintenanceHistoryForEquipment(eq, maintenanceRows, workRows);
+      const entries = buildMaintenanceHistoryForEquipment(eq, maintenanceRows, workRows, equipmentNotes);
       const html = buildMaintenanceHistoryPrintHtml({
         customerName: customer.name,
         sections: [{ deviceLabel: equipmentLabel(eq), entries }],
@@ -509,7 +512,7 @@ export default function CustomerDetailPage({ session }: Props) {
     setError(null);
     try {
       const branding = await loadPrintBranding(customer.owner_company_id);
-      const sections = buildMaintenanceHistorySectionsForEquipmentList(list, maintenanceRows, workRows);
+      const sections = buildMaintenanceHistorySectionsForEquipmentList(list, maintenanceRows, workRows, equipmentNotes);
       openPrintHtml(
         buildMaintenanceHistoryPrintHtml({
           customerName: customer.name,
@@ -573,8 +576,8 @@ export default function CustomerDetailPage({ session }: Props) {
   }
 
   const latestMaintenanceByEquipment = useMemo(
-    () => buildLatestMaintenanceByEquipment(equipment, maintenanceRows),
-    [equipment, maintenanceRows],
+    () => buildLatestMaintenanceByEquipment(equipment, maintenanceRows, equipmentNotes),
+    [equipment, maintenanceRows, equipmentNotes],
   );
   const latestLeakByEquipment = useMemo(() => buildLatestLeakCheckByEquipment(maintenanceRows), [maintenanceRows]);
   const todayYmd = todayYmdLocal();

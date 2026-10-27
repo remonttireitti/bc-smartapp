@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
+import type { Session } from '@supabase/supabase-js';
+import DeviceNotesPanel from '../components/equipment/DeviceNotesPanel';
 import { supabase } from '../lib/supabase';
 import {
   DeviceQrNotFoundError,
@@ -22,11 +24,33 @@ export default function DevicePublicCardPage() {
   const [card, setCard] = useState<DevicePublicCard | null>(null);
   const [html, setHtml] = useState('');
   const [state, setState] = useState<'loading' | 'ok' | 'invalid' | 'error'>('loading');
-  const [loggedIn, setLoggedIn] = useState(false);
+  const [session, setSession] = useState<Session | null>(null);
+  const [canAdd, setCanAdd] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
+  const loggedIn = Boolean(session);
 
   useEffect(() => {
-    void supabase.auth.getSession().then(({ data }) => setLoggedIn(Boolean(data.session)), () => undefined);
+    void supabase.auth.getSession().then(({ data }) => setSession(data.session ?? null), () => undefined);
   }, []);
+
+  // Kirjautunut: lisäysoikeus vain, jos laite näkyy käyttäjälle RLS:n kautta (ja merkintätaulu on olemassa).
+  const appEquipmentId = card?.appLink?.equipmentId ?? null;
+  useEffect(() => {
+    if (!session || !appEquipmentId) {
+      setCanAdd(false);
+      return;
+    }
+    let cancelled = false;
+    void Promise.all([
+      supabase.from('equipment').select('id').eq('id', appEquipmentId).maybeSingle(),
+      supabase.from('equipment_notes').select('id').eq('equipment_id', appEquipmentId).limit(1),
+    ]).then(([eq, notes]) => {
+      if (!cancelled) setCanAdd(Boolean(eq.data) && !notes.error);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [session, appEquipmentId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -80,7 +104,7 @@ export default function DevicePublicCardPage() {
     return () => {
       cancelled = true;
     };
-  }, [token, reportId]);
+  }, [token, reportId, reloadKey]);
 
   if (state === 'loading' && !card) {
     return <div className="device-public-page"><p className="device-public-status">Ladataan…</p></div>;
@@ -98,6 +122,14 @@ export default function DevicePublicCardPage() {
   const d = card.device;
   const title = [...new Set([d.tag, d.name].filter(Boolean))].join(' · ') || 'Laite';
   const currentId = card.report?.id;
+  type TimelineItem =
+    | { kind: 'report'; id: string; date: string | null }
+    | { kind: 'note'; id: string; date: string | null; note: { text: string; company: string | null; installer: string | null; tukes: string | null; serviceVisit: boolean; label?: string } };
+  const timeline: TimelineItem[] = [
+    ...card.history.map((h) => ({ kind: 'report' as const, id: h.id, date: h.date })),
+    ...card.notes.map((n) => ({ kind: 'note' as const, id: `n-${n.id}`, date: n.date, note: n })),
+    ...card.work.map((w) => ({ kind: 'note' as const, id: `w-${w.id}`, date: w.date, note: { ...w, serviceVisit: false, label: 'Työraportti' } })),
+  ].sort((a, b) => String(b.date ?? '').localeCompare(String(a.date ?? '')));
 
   return (
     <div className="device-public-page" data-testid="device-public-card">
@@ -116,27 +148,57 @@ export default function DevicePublicCardPage() {
         ) : null}
       </header>
 
-      {card.history.length > 0 ? (
+      {timeline.length > 0 ? (
         <section className="device-public-history no-print">
           <h2>Huoltohistoria</h2>
           <ul>
-            {card.history.map((h) => (
-              <li key={h.id}>
-                <button
-                  type="button"
-                  className={`device-public-history-item${h.id === currentId ? ' is-active' : ''}`}
-                  onClick={() => setReportId(h.id)}
-                  aria-current={h.id === currentId ? 'true' : undefined}
-                >
-                  {h.date ? formatMaintenanceDateFi(h.date) : '—'}
-                </button>
-              </li>
-            ))}
+            {timeline.map((t) =>
+              t.kind === 'report' ? (
+                <li key={t.id}>
+                  <button
+                    type="button"
+                    className={`device-public-history-item${t.id === currentId ? ' is-active' : ''}`}
+                    onClick={() => setReportId(t.id)}
+                    aria-current={t.id === currentId ? 'true' : undefined}
+                  >
+                    {t.date ? formatMaintenanceDateFi(t.date) : '—'} · Huoltopöytäkirja
+                  </button>
+                </li>
+              ) : (
+                <li key={t.id} className="device-public-note">
+                  <strong>{t.date ? formatMaintenanceDateFi(t.date) : '—'}</strong>
+                  {t.note.serviceVisit ? <span className="device-notes-badge">Huoltokäynti</span> : null}
+                  {t.note.label ? <span className="device-notes-badge device-notes-badge--work">{t.note.label}</span> : null}
+                  <span className="device-notes-text">{t.note.text}</span>
+                  <span className="muted">
+                    {[t.note.company, [t.note.installer, t.note.tukes ? `Tukes ${t.note.tukes}` : null].filter(Boolean).join(', ')].filter(Boolean).join(' · ')}
+                  </span>
+                </li>
+              ),
+            )}
           </ul>
         </section>
       ) : (
-        <p className="device-public-status">Ei valmiita huoltopöytäkirjoja.</p>
+        <p className="device-public-status">Ei huoltohistoriaa.</p>
       )}
+
+      {loggedIn && canAdd && appEquipmentId ? (
+        <DeviceNotesPanel
+          session={session}
+          equipmentId={appEquipmentId}
+          notes={[]}
+          canAdd
+          showList={false}
+          onAdded={() => setReloadKey((k) => k + 1)}
+        />
+      ) : null}
+      {!loggedIn ? (
+        <p className="device-public-login no-print">
+          <Link className="btn btn-secondary" to={`/login?redirect=${encodeURIComponent(`/q/${token}`)}`}>
+            Kirjaudu
+          </Link>
+        </p>
+      ) : null}
 
       {html ? (
         <div className="maintenance-print-host device-public-report" dangerouslySetInnerHTML={{ __html: html }} />

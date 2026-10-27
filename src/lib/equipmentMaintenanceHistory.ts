@@ -1,3 +1,5 @@
+import type { EquipmentNote } from './equipmentNotes';
+import { noteByline } from './equipmentNotes';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Equipment } from '../types';
 import { maintenanceReportListTitle, normalizeHuoltoReportData } from './huoltoRaportti/defaults';
@@ -13,7 +15,7 @@ import {
 import { isWorkReportEquipmentTableMissing } from './workReportEquipment';
 
 export type MaintenanceHistoryEntry = {
-  kind: 'työraportti' | 'huoltoraportti';
+  kind: 'työraportti' | 'huoltoraportti' | 'merkintä' | 'huoltokäynti';
   sortMs: number;
   dateLabel: string;
   summary: string;
@@ -34,6 +36,10 @@ type WorkReportRow = {
   id: string;
   equipment_id: string | null;
   equipment_ids?: string[];
+  owner_company_id?: string | null;
+  /** Päiväkirjaukset (mitä tehtiin) — ei hintoja. */
+  logs?: Array<{ id: string; log_date: string | null; work_done: string; installer: string | null; tukes: string | null }>;
+  company_name?: string | null;
   title: string;
   description: string | null;
   scheduled_start: string | null;
@@ -110,6 +116,43 @@ function huoltoSortMs(row: MaintenanceReportRow, data: HuoltoReportData): number
   return Date.parse(row.updated_at || row.created_at);
 }
 
+/** Työraporttien päiväkirjaukset huoltohistoriaan: pvm, yritys, asentaja + Tukes, mitä tehtiin. Virheet sivuutetaan. */
+async function attachWorkLogs(supabase: SupabaseClient, workRows: WorkReportRow[]) {
+  try {
+    const { data: logRows, error } = await supabase
+      .from('work_report_daily_logs')
+      .select('id, work_report_id, log_date, work_done, created_by, author_name_snapshot')
+      .in('work_report_id', workRows.map((r) => r.id));
+    if (error) return;
+    const logs = (logRows ?? []) as Array<{ id: string; work_report_id: string; log_date: string | null; work_done: string | null; created_by: string | null; author_name_snapshot: string | null }>;
+    const userIds = [...new Set(logs.map((l) => l.created_by).filter((v): v is string => Boolean(v)))];
+    const companyIds = [...new Set(workRows.map((r) => r.owner_company_id).filter((v): v is string => Boolean(v)))];
+    const [profRes, compRes] = await Promise.all([
+      userIds.length ? supabase.from('profiles').select('id, display_name, tukes_number').in('id', userIds) : Promise.resolve({ data: [] }),
+      companyIds.length ? supabase.from('companies').select('id, name').in('id', companyIds) : Promise.resolve({ data: [] }),
+    ]);
+    const prof = new Map(((profRes.data ?? []) as Array<{ id: string; display_name: string | null; tukes_number: string | null }>).map((p) => [p.id, p]));
+    const comp = new Map(((compRes.data ?? []) as Array<{ id: string; name: string | null }>).map((c) => [c.id, c.name]));
+    for (const row of workRows) {
+      row.company_name = row.owner_company_id ? comp.get(row.owner_company_id) ?? null : null;
+      row.logs = logs
+        .filter((l) => l.work_report_id === row.id && l.work_done?.trim())
+        .map((l) => {
+          const p = l.created_by ? prof.get(l.created_by) : undefined;
+          return {
+            id: l.id,
+            log_date: l.log_date,
+            work_done: String(l.work_done).trim(),
+            installer: l.author_name_snapshot || p?.display_name || null,
+            tukes: p?.tukes_number?.trim() || null,
+          };
+        });
+    }
+  } catch {
+    /* valinnainen */
+  }
+}
+
 export async function loadCustomerMaintenanceContext(
   supabase: SupabaseClient,
   customerId: string,
@@ -121,7 +164,7 @@ export async function loadCustomerMaintenanceContext(
       .eq('customer_id', customerId),
     supabase
       .from('work_reports')
-      .select('id, equipment_id, title, description, scheduled_start, completed_at, updated_at, created_at')
+      .select('id, equipment_id, owner_company_id, title, description, scheduled_start, completed_at, updated_at, created_at')
       .eq('customer_id', customerId),
   ]);
 
@@ -155,6 +198,8 @@ export async function loadCustomerMaintenanceContext(
     }
   }
 
+  if (workIds.length > 0) await attachWorkLogs(supabase, workRows);
+
   return {
     maintenanceRows: (maintenanceResult.data as MaintenanceReportRow[]) ?? [],
     workRows,
@@ -164,8 +209,15 @@ export async function loadCustomerMaintenanceContext(
 export function buildLatestMaintenanceByEquipment(
   equipment: Equipment[],
   maintenanceRows: MaintenanceReportRow[],
+  notes?: EquipmentNote[] | null,
 ): Record<string, string> {
   const out: Record<string, string> = {};
+  // Merkintä päivittää 'Viimeisin huolto' vain, jos se on merkitty huoltokäynniksi.
+  for (const n of notes ?? []) {
+    if (!n.is_service_visit || !n.entry_date) continue;
+    const ymd = n.entry_date.slice(0, 10);
+    if (!out[n.equipment_id] || ymd > out[n.equipment_id]) out[n.equipment_id] = ymd;
+  }
 
   for (const row of maintenanceRows) {
     const data = normalizeHuoltoReportData(row.data);
@@ -206,8 +258,20 @@ export function buildMaintenanceHistoryForEquipment(
   equipment: Equipment,
   maintenanceRows: MaintenanceReportRow[],
   workRows: WorkReportRow[],
+  notes?: EquipmentNote[] | null,
 ): MaintenanceHistoryEntry[] {
   const entries: MaintenanceHistoryEntry[] = [];
+
+  for (const n of notes ?? []) {
+    if (n.equipment_id !== equipment.id) continue;
+    const by = noteByline(n);
+    entries.push({
+      kind: n.is_service_visit ? 'huoltokäynti' : 'merkintä',
+      sortMs: parseMaintenanceDateMs(n.entry_date) || Date.parse(n.created_at) || 0,
+      dateLabel: formatMaintenanceDateFi(n.entry_date),
+      summary: by ? `${n.text} (${by})` : n.text,
+    });
+  }
 
   for (const row of workRows) {
     const linkedIds = row.equipment_ids?.length
@@ -216,6 +280,21 @@ export function buildMaintenanceHistoryForEquipment(
         ? [row.equipment_id]
         : [];
     if (!linkedIds.includes(equipment.id)) continue;
+    if (row.logs?.length) {
+      // Yksi rivi per työraportti: viimeisin kirjauspäivä, kaikki 'mitä tehtiin' -tekstit.
+      const dates = row.logs.map((l) => l.log_date).filter((d): d is string => Boolean(d)).sort();
+      const last = dates.at(-1) ?? null;
+      const installers = [...new Set(row.logs.map((l) => [l.installer, l.tukes ? `Tukes ${l.tukes}` : null].filter(Boolean).join(', ')).filter(Boolean))].join('; ');
+      const by = [row.company_name, installers].filter(Boolean).join(' · ');
+      const text = [...new Set(row.logs.map((l) => l.work_done))].join(' / ');
+      entries.push({
+        kind: 'työraportti',
+        sortMs: parseMaintenanceDateMs(last) || workSortMs(row),
+        dateLabel: last ? formatMaintenanceDateFi(last) : workDateLabel(row),
+        summary: by ? `${text} (${by})` : text,
+      });
+      continue;
+    }
     entries.push({
       kind: 'työraportti',
       sortMs: workSortMs(row),
@@ -249,10 +328,11 @@ export function buildMaintenanceHistorySectionsForEquipmentList(
   equipmentList: Equipment[],
   maintenanceRows: MaintenanceReportRow[],
   workRows: WorkReportRow[],
+  notes?: EquipmentNote[] | null,
 ): Array<{ deviceLabel: string; entries: MaintenanceHistoryEntry[] }> {
   return equipmentList.map((eq) => ({
     deviceLabel: equipmentLabel(eq),
-    entries: buildMaintenanceHistoryForEquipment(eq, maintenanceRows, workRows),
+    entries: buildMaintenanceHistoryForEquipment(eq, maintenanceRows, workRows, notes),
   }));
 }
 
@@ -276,7 +356,7 @@ export function buildMaintenanceHistoryPrintHtml(input: {
                   ? `<div style="margin-top:4px;color:#b91c1c;font-weight:700;font-size:12px">Huomautukset: ${escapeHtmlPrint(entry.huomiotComment)}</div>`
                   : '';
                 return `<tr><td>${escapeHtmlPrint(entry.dateLabel)}</td><td>${escapeHtmlPrint(
-                  entry.kind === 'työraportti' ? 'Työraportti' : 'Huoltopöytäkirja',
+                  entry.kind === 'työraportti' ? 'Työraportti' : entry.kind === 'merkintä' ? 'Merkintä' : entry.kind === 'huoltokäynti' ? 'Huoltokäynti' : 'Huoltopöytäkirja',
                 )}</td><td>${escapeHtmlPrint(entry.summary)}${huomVika}${huomKom}</td></tr>`;
               })
               .join('');

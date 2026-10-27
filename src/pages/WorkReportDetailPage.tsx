@@ -1,3 +1,4 @@
+import { EQUIPMENT_NOTE_QUICK_PICKS } from '../lib/equipmentNotes';
 import CheckToggle from '../components/CheckToggle';
 import {
   DEFAULT_COMMISSION_BILLING_MODE,
@@ -766,6 +767,19 @@ export function DailyLogFields({
             required
           />
         </label>
+        {/* Pikatekstit: lisäävät vain tähän kuvaukseen (ei erillistä historiamerkintää). */}
+        <div className="device-notes-chips">
+          {EQUIPMENT_NOTE_QUICK_PICKS.map((q) => (
+            <button
+              key={q}
+              type="button"
+              className="device-notes-chip"
+              onClick={() => setForm({ ...form, work_done: form.work_done.trim() ? `${form.work_done.trimEnd()}\n${q}` : q })}
+            >
+              {q}
+            </button>
+          ))}
+        </div>
       </DailyLogTileSection>
 
       <DailyLogTileSection

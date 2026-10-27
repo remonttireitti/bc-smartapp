@@ -67,6 +67,64 @@ function reportDate(row: AnyRecord): string | null {
   return str(row.completed_at)?.slice(0, 10) ?? str(row.updated_at)?.slice(0, 10) ?? null;
 }
 
+const WORK_DONE_STATUSES = ['completed', 'billed_partner', 'billed_customer'];
+
+async function loadWorkEntries(admin: Admin, equipmentId: string) {
+  try {
+    const ids = new Set<string>();
+    const direct = await admin.from('work_reports').select('id').eq('equipment_id', equipmentId).limit(500);
+    for (const r of (direct.data ?? []) as AnyRecord[]) ids.add(String(r.id));
+    const links = await admin.from('work_report_equipment').select('work_report_id').eq('equipment_id', equipmentId).limit(500);
+    if (!links.error) for (const r of (links.data ?? []) as AnyRecord[]) ids.add(String(r.work_report_id));
+    if (!ids.size) return [];
+    const { data: reps } = await admin
+      .from('work_reports')
+      .select('id, owner_company_id, assigned_user_id, completed_at, status')
+      .in('id', [...ids])
+      .in('status', WORK_DONE_STATUSES);
+    const reports = (reps ?? []) as AnyRecord[];
+    if (!reports.length) return [];
+    const { data: logRows } = await admin
+      .from('work_report_daily_logs')
+      .select('id, work_report_id, log_date, work_done, created_by, author_name_snapshot')
+      .in('work_report_id', reports.map((r) => String(r.id)))
+      .limit(1000);
+    const logs = (logRows ?? []) as AnyRecord[];
+    const companyIds = [...new Set(reports.map((r) => str(r.owner_company_id)).filter(Boolean))] as string[];
+    const userIds = [...new Set([...logs.map((l) => str(l.created_by)), ...reports.map((r) => str(r.assigned_user_id))].filter(Boolean))] as string[];
+    const [{ data: comps }, { data: profs }] = await Promise.all([
+      companyIds.length ? admin.from('companies').select('id, name').in('id', companyIds) : Promise.resolve({ data: [] }),
+      userIds.length ? admin.from('profiles').select('id, display_name, tukes_number').in('id', userIds) : Promise.resolve({ data: [] }),
+    ]);
+    const compName = new Map(((comps ?? []) as AnyRecord[]).map((c) => [String(c.id), str(c.name)]));
+    const prof = new Map(((profs ?? []) as AnyRecord[]).map((p) => [String(p.id), p]));
+    const byReport = new Map(reports.map((r) => [String(r.id), r]));
+    const out: Array<{ id: string; date: string | null; company: string | null; installer: string | null; tukes: string | null; text: string }> = [];
+    // Yksi rivi per työraportti (ei kirjauskohtaisia duplikaatteja).
+    for (const rep of reports) {
+      const mine = logs.filter((l) => String(l.work_report_id) === String(rep.id) && str(l.work_done));
+      if (!mine.length) continue;
+      const dates = mine.map((l) => str(l.log_date)).filter(Boolean).sort() as string[];
+      const people = [...new Set(mine.map((l) => {
+        const p = prof.get(String(l.created_by ?? '')) as AnyRecord | undefined;
+        return [str(l.author_name_snapshot) ?? str(p?.display_name), str(p?.tukes_number) ? `Tukes ${str(p?.tukes_number)}` : null].filter(Boolean).join(', ');
+      }).filter(Boolean))];
+      out.push({
+        id: String(rep.id),
+        date: dates.at(-1) ?? str(rep.completed_at)?.slice(0, 10) ?? null,
+        company: compName.get(String(rep.owner_company_id)) ?? null,
+        installer: people.join('; ') || null,
+        tukes: null,
+        text: [...new Set(mine.map((l) => str(l.work_done) as string))].join(' / '),
+      });
+    }
+    return out;
+  } catch (error) {
+    console.error('device-public-card work', error instanceof Error ? error.message : error);
+    return [];
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   if (req.method !== 'POST') return json({ error: 'Vain POST' }, 405);
@@ -126,6 +184,28 @@ Deno.serve(async (req) => {
       return json({ imageUrls: out });
     }
 
+    // Huoltohistoriamerkinnät (taulu valinnainen: virhe → tyhjä lista).
+    const { data: noteRows, error: noteError } = await admin
+      .from('equipment_notes')
+      .select('id, entry_date, author_company_name, installer_name, installer_tukes, text, is_service_visit')
+      .eq('equipment_id', equipmentId)
+      .order('entry_date', { ascending: false })
+      .limit(200);
+    if (noteError && noteError.code !== '42P01' && noteError.code !== 'PGRST205') console.error('device-public-card notes', noteError.message);
+    const notes = ((noteRows ?? []) as AnyRecord[]).map((n) => ({
+      id: String(n.id),
+      date: str(n.entry_date),
+      text: String(n.text ?? ''),
+      company: str(n.author_company_name),
+      installer: str(n.installer_name),
+      tukes: str(n.installer_tukes),
+      serviceVisit: n.is_service_visit === true,
+    }));
+
+    // Laitteeseen kohdistetut työraportit (valmiit): vain pvm, yritys, asentaja + Tukes, mitä tehtiin.
+    // EI hintoja, kuluja, laskutusta, provisiota eikä kumppanitietoja.
+    const work = await loadWorkEntries(admin, equipmentId);
+
     const brandCompany = selected
       ? str(selected.row.branding_company_id) ?? str(selected.row.owner_company_id)
       : str(eq.owner_company_id);
@@ -146,6 +226,8 @@ Deno.serve(async (req) => {
       // Kirjautuneelle käyttäjälle linkki laitekorttiin (RLS ratkaisee pääsyn; tunnisteet eivät ole salaisuuksia).
       appLink: { customerId: str(eq.customer_id), equipmentId },
       branding: brand,
+      notes,
+      work,
       history: reports.map((r) => ({ id: String(r.row.id), date: r.date || null })),
       report: selected ? { id: String(selected.row.id), date: selected.date || null, data: selected.row.data ?? {} } : null,
     });
