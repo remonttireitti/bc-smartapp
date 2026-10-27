@@ -18196,3 +18196,21 @@ label.has-error input { border-color: #b91c1c; }
 .device-public-history-item.is-active { border-color: #1f6feb; background: #e8f0fe; font-weight: 600; }
 .device-public-status { font-size: 16px; padding: 24px 0; text-align: center; }
 .device-public-report { margin-top: 16px; overflow-x: auto; }
+
+/* Laitteen merkinnät */
+.device-notes-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.device-notes-head .btn { min-height: 48px; font-size: 16px; }
+.device-notes-form { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
+.device-notes-form input { min-height: 48px; font-size: 16px; width: 100%; box-sizing: border-box; }
+.device-notes-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.device-notes-chip { min-height: 48px; font-size: 16px; padding: 0 14px; border: 1px solid #c8ced6; border-radius: 24px; background: #fff; color: inherit; }
+.device-notes-chip.is-active { border-color: #1f6feb; background: #e8f0fe; }
+.device-notes-list { list-style: none; padding: 0; margin: 10px 0 0; display: flex; flex-direction: column; gap: 8px; }
+.device-notes-list li { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; font-size: 16px; border-top: 1px solid #e3e7ec; padding-top: 8px; }
+.device-notes-text { flex: 1 1 100%; overflow-wrap: anywhere; }
+.device-notes-badge { font-size: 13px; padding: 2px 8px; border-radius: 10px; background: #e6f4ea; color: #1e6b34; }
+.device-public-history ul { flex-direction: column; flex-wrap: nowrap; }
+.device-public-history-item { width: 100%; text-align: left; }
+.device-public-note { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; font-size: 16px; padding: 8px 4px; border-top: 1px solid #e3e7ec; }
+.device-public-login .btn { min-height: 48px; font-size: 16px; display: inline-flex; align-items: center; }
+.device-notes-badge--work { background: #eef2ff; color: #3730a3; }

@@ -18,6 +18,8 @@ export type DevicePublicCard = {
   appLink: { customerId: string | null; equipmentId: string } | null;
   branding: { companyName: string; logoUrl: string | null };
   history: { id: string; date: string | null }[];
+  work: { id: string; date: string | null; company: string | null; installer: string | null; tukes: string | null; text: string }[];
+  notes: { id: string; date: string | null; text: string; company: string | null; installer: string | null; tukes: string | null; serviceVisit: boolean }[];
   report: { id: string; date: string | null; data: Record<string, unknown> } | null;
 };
 
@@ -70,6 +72,8 @@ export async function loadDevicePublicCard(token: string, reportId?: string): Pr
   return {
     ...parsed,
     history: Array.isArray(parsed.history) ? parsed.history : [],
+    notes: Array.isArray(parsed.notes) ? parsed.notes : [],
+    work: Array.isArray(parsed.work) ? parsed.work : [],
     branding: parsed.branding ?? { companyName: '', logoUrl: null },
     report: parsed.report ?? null,
     appLink: parsed.appLink ?? null,
