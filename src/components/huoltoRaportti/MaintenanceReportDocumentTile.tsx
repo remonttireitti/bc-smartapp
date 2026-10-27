@@ -1,3 +1,4 @@
+import { buildMaintenanceDocumentTabSummary } from '../../lib/huoltoRaportti/maintenanceDocumentTabSummary';
 import { useId, type ReactNode } from 'react';
 import {
   resolveModuleTilePresentation,
@@ -90,7 +91,11 @@ export function MaintenanceReportDocumentTile({
           </span>
         ) : null}
         <strong>{title}</strong>
-        <span>{presentation.subtitle}</span>
+        {tabId === 'raportointi' ? (
+          <span className="maintenance-tile-summary">{buildMaintenanceDocumentTabSummary('raportointi', form)} · Muokkaa</span>
+        ) : (
+          <span>{presentation.subtitle}</span>
+        )}
       </button>
       <div
         id={contentId}

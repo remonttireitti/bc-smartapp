@@ -117,6 +117,12 @@ const EVAPORATOR_FIXED_TEXT = [
 ] as const;
 
 /** Ohjaukset-vaiheen kiinteät kentät (laitekortille). */
+/** Laitetason kiinteät kokoonpanokentät (lauhdutustapa, LMV, höyrystimet, sulatus, VJK-jakotiedot). */
+export const DEVICE_CONFIG_FIELDS = [
+  'lauhdutinTyyppiLaite', 'lauhdutinLmvTyyppi', 'hoyrystinTyyppi', 'hoyrystimienMaara', 'sulatusKaytossa', 'sulatusTapa',
+  'vjNestelauhdutusJaettu', 'hoyrystinYhteinenPiireissa', 'vapaajahdytysKaytossa',
+] as const;
+
 export const OHJAUKSET_FIXED_FIELDS = ['koneikkoOhjaustapa', 'saadin', 'hoyrystinOhjaus', 'ohjausTyyppi'] as const;
 
 export function stripEvaporatorForRegistry(e: EvaporatorData): Partial<EvaporatorData> {
@@ -412,6 +418,14 @@ export function buildHuoltoEquipmentTechnicalSnapshot(data: HuoltoReportData): R
     ...(trim(data.lauhduttimienMaara) ? { lauhduttimienMaara: trim(data.lauhduttimienMaara) } : {}),
     ...(trim(data.lauhdutinTyyppiLaite) ? { lauhdutinTyyppiLaite: trim(data.lauhdutinTyyppiLaite) } : {}),
     ...(() => {
+      const cfg: Record<string, unknown> = {};
+      for (const k of DEVICE_CONFIG_FIELDS) {
+        const v = (data as Record<string, unknown>)[k];
+        if (typeof v === 'boolean' || (typeof v === 'string' && v.trim())) cfg[k] = typeof v === 'string' ? v.trim() : v;
+      }
+      return Object.keys(cfg).length ? { laiteKonfiguraatio: cfg } : {};
+    })(),
+    ...(() => {
       const o = data.kenttaModuulit?.ohjaukset ?? {};
       const fixed: Record<string, string> = {};
       for (const k of OHJAUKSET_FIXED_FIELDS) if (trim(o[k])) fixed[k] = trim(o[k]);
@@ -543,6 +557,14 @@ export function applyEquipmentSnapshotToForm(
   }
   for (const k of ['hoyrystimienMaara', 'lauhduttimienMaara', 'lauhdutinTyyppiLaite'] as const) {
     if (trim(snapAny[k]) && !trim((form as Record<string, unknown>)[k])) (patch as Record<string, unknown>)[k] = trim(snapAny[k]);
+  }
+  if (snapAny.laiteKonfiguraatio && typeof snapAny.laiteKonfiguraatio === 'object') {
+    for (const [k, v] of Object.entries(snapAny.laiteKonfiguraatio as Record<string, unknown>)) {
+      const cur = (form as Record<string, unknown>)[k];
+      const curEmpty = cur == null || (typeof cur === 'string' && !cur.trim()) || typeof cur === 'boolean';
+      // Boolean: raportin oletus ei ole käyttäjän valinta → laitekortin arvo voittaa uudella raportilla.
+      if (curEmpty) (patch as Record<string, unknown>)[k] = v;
+    }
   }
   if (snapAny.ohjauksetKiinteat && typeof snapAny.ohjauksetKiinteat === 'object') {
     const current = form.kenttaModuulit?.ohjaukset ?? {};

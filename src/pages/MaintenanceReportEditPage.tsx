@@ -516,6 +516,8 @@ export default function MaintenanceReportEditPage({ session }: Props) {
   useEffect(() => {
     if (!isNew || profileLoading || basicsComplete || newReportRaportointiOpenedRef.current) return;
     newReportRaportointiOpenedRef.current = true;
+    // Laitteelta luotu raportti: asiakas ja laite tiedetään jo → suoraan vaiheisiin, ei ponnahdusikkunaa.
+    if (searchParams.get('equipmentId')) return;
     setDocumentNavTarget('raportointi');
   }, [isNew, profileLoading, basicsComplete]);
 
@@ -1111,7 +1113,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
     const hydrateGen = ++equipmentHydrateGenRef.current;
     const { data } = await supabase
       .from('equipment')
-      .select('id, name, tag, model, serial_number, location, device_type, huolto_technical_snapshot')
+      .select('id, name, tag, model, serial_number, location, device_type, manufacturer, huolto_technical_snapshot')
       .eq('id', selectedEquipmentId)
       .single();
 
@@ -1121,6 +1123,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
       serial_number?: string;
       location?: string;
       device_type?: string | null;
+      manufacturer?: string | null;
       huolto_technical_snapshot?: Record<string, unknown> | null;
     };
 
@@ -1135,7 +1138,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
       : {
           laiteTunnus: String(eq.tag || eq.name || '').trim(),
           laiteMalli: String(eq.model || eq.name || '').trim(),
-          laiteValmistaja: String(currentForm.laiteValmistaja || '').trim(),
+          laiteValmistaja: String((currentForm.laiteValmistaja || '').trim() && currentForm.laiteValmistaja.trim() !== '—' ? currentForm.laiteValmistaja : eq.manufacturer || currentForm.laiteValmistaja || '').trim(),
           laiteSarjanumero: String(eq.serial_number || '').trim(),
           laiteSijainti: String(eq.location || '').trim(),
         };

@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useCompanyHuoltoSettings } from '../hooks/useCompanyHuoltoSettings';
-import { newHuoltoReportHref } from '../lib/huoltoCategories';
+import { newHuoltoReportHrefForDevice } from '../lib/huoltoCategories';
 import { Link, Navigate, useParams } from 'react-router-dom';
 import { getPortalCustomerId, getPortalSubscriberId } from '../lib/portalPreview';
 import type { Session } from '@supabase/supabase-js';
@@ -381,7 +381,7 @@ export default function EquipmentDetailPage({ session }: Props) {
           </Tooltip>
           {!portalMode && huolto.loaded && huolto.access.moduleEnabled && (
             <Link
-              to={newHuoltoReportHref(huolto.access, `customerId=${customer.id}&equipmentId=${equipment.id}`)}
+              to={newHuoltoReportHrefForDevice(huolto.access, equipment.device_type, `customerId=${customer.id}&equipmentId=${equipment.id}`)}
               className="btn btn-primary"
               {...withNavTrail(trail)}
             >

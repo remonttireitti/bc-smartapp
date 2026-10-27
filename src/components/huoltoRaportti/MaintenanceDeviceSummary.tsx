@@ -143,7 +143,7 @@ export function MaintenanceDeviceSummary({
               <div className="info-box">
                 <span className="info-label">Laite</span>
                 <strong>
-                  {[form.laiteValmistaja, form.laiteMalli].filter(Boolean).join(' ') || '—'}
+                  {[form.laiteValmistaja, form.laiteMalli].filter((v) => v && v.trim() !== '—').join(' ') || '—'}
                 </strong>
                 <span className="muted">
                   {[form.laiteTunnus, form.laiteSarjanumero].filter(Boolean).join(' · ')}

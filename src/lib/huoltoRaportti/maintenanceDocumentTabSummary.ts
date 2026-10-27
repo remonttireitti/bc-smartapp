@@ -68,7 +68,7 @@ function kylmaainePiiriSummary(form: HuoltoReportData): string {
 }
 
 function deviceLabel(form: HuoltoReportData): string {
-  return joinParts([trim(form.laiteValmistaja), trim(form.laiteMalli)], ' ');
+  return joinParts([trim(form.laiteValmistaja), trim(form.laiteMalli)].filter((v) => v !== '—'), ' ');
 }
 
 function huoltotiedotSummary(form: HuoltoReportData): string {

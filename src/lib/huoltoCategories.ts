@@ -160,6 +160,20 @@ export function newHuoltoReportHrefForCategory(category: HuoltoCategoryKey, quer
   return category === 'kylma' ? `/huoltoraportit/uusi${q}` : `/huoltoraportit/uusi/${category}${q}`;
 }
 
+/** Laitetyypistä pääteltävä laji (null = ei pääteltävissä → valinta). */
+export function huoltoCategoryForDeviceType(deviceType: string | null | undefined): HuoltoCategoryKey | null {
+  const key = String(deviceType ?? '').trim();
+  if (!key) return null;
+  return HUOLTO_REPORT_TYPES.find((t) => t.key === key)?.category ?? null;
+}
+
+/** Uusi raportti laitteelta: laji laitetyypistä, valinta vain jos ei pääteltävissä. */
+export function newHuoltoReportHrefForDevice(access: HuoltoAccess, deviceType: string | null | undefined, query = ''): string {
+  const cat = huoltoCategoryForDeviceType(deviceType);
+  if (cat && access.isCategoryEnabled(cat)) return newHuoltoReportHrefForCategory(cat, query);
+  return newHuoltoReportHref(access, query);
+}
+
 /** Raportin laji datasta: tarkastuslistaraportilla reportCategory, muuten kylmä. */
 export function reportCategoryOf(data: unknown): HuoltoCategoryKey {
   const cat = data && typeof data === 'object' ? (data as Record<string, unknown>).reportCategory : undefined;
