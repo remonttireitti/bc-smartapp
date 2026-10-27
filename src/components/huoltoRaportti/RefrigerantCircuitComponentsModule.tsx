@@ -19,6 +19,9 @@ import { HuoltoPartInspectionRow } from './HuoltoPartInspectionRow';
 import { HuoltoInspectionDialogShell } from './HuoltoInspectionDialogShell';
 import { useRegisterHuoltoModuleDialog } from './HuoltoModuleDialogContext';
 import { RefrigerantCircuitComponentDialog } from './RefrigerantCircuitComponentDialog';
+import { KoneikkoComponentsForm } from './KoneikkoComponentsForm';
+import { koneikkoStatuses, usesKoneikkoComponents } from '../../lib/huoltoRaportti/koneikkoComponents';
+import { refrigerantCircuitComponentsTitle } from '../../lib/huoltoRaportti/refrigerantCircuitHelpers';
 
 function aggregateComponentStatuses(statuses: HuoltoInspectionStatus[]): HuoltoInspectionStatus {
   if (statuses.length === 0) return null;
@@ -207,7 +210,8 @@ export function RefrigerantCircuitComponentsModule({
 }: Props) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [draft, setDraft] = useState(data);
-  const title = `Ohjaus ja komponentit — piiri ${circuitNumber}`;
+  const koneikko = usesKoneikkoComponents(laiteTyyppi);
+  const title = refrigerantCircuitComponentsTitle(circuitNumber, laiteTyyppi);
 
   useEffect(() => {
     if (dialogOpen) setDraft(data);
@@ -227,15 +231,15 @@ export function RefrigerantCircuitComponentsModule({
   if (!hidePartRow) {
     return (
       <div className="huolto-circuit-part-module">
-        <h3 className="huolto-circuit-part-module-title">Ohjaus ja komponentit</h3>
-        <CircuitComponentsForm
+        <h3 className="huolto-circuit-part-module-title">{koneikko ? 'Koneikon komponentit' : 'Ohjaus ja komponentit'}</h3>
+        {koneikko ? <KoneikkoComponentsForm data={data} onChange={onChange} /> : <CircuitComponentsForm
           circuitNumber={circuitNumber}
           data={data}
           onChange={onChange}
           laiteTyyppi={laiteTyyppi}
           isMLP={isMLP}
           firstCircuitData={firstCircuitData}
-        />
+        />}
       </div>
     );
   }
@@ -248,14 +252,14 @@ export function RefrigerantCircuitComponentsModule({
         titleId={`circuit-components-dialog-${circuitNumber}`}
         onClose={closeDialog}
       >
-        <CircuitComponentsForm
+        {koneikko ? <KoneikkoComponentsForm data={draft} onChange={setDraft} /> : <CircuitComponentsForm
           circuitNumber={circuitNumber}
           data={draft}
           onChange={setDraft}
           laiteTyyppi={laiteTyyppi}
           isMLP={isMLP}
           firstCircuitData={firstCircuitData}
-        />
+        />}
       </HuoltoInspectionDialogShell>
     </>
   );
@@ -268,6 +272,6 @@ export function circuitComponentsSummarySubtitle(data: RefrigerantCircuitData): 
   return labels.join(', ');
 }
 
-export function circuitComponentsSummaryStatus(data: RefrigerantCircuitData): HuoltoInspectionStatus {
-  return aggregateComponentStatuses(circuitComponentsInspectionStatuses(data));
+export function circuitComponentsSummaryStatus(data: RefrigerantCircuitData, laiteTyyppi?: string): HuoltoInspectionStatus {
+  return aggregateComponentStatuses(usesKoneikkoComponents(laiteTyyppi) ? koneikkoStatuses(data) : circuitComponentsInspectionStatuses(data));
 }

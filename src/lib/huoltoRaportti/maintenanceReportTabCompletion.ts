@@ -1,3 +1,4 @@
+import { koneikkoStatuses, usesKoneikkoComponents } from './koneikkoComponents';
 import { ilpDeviceModel, ilpDeviceSerial } from './ilpIdentity';
 import { parseCustomModuleTabId, type CustomReportModule } from './customModuleTypes';
 import {
@@ -47,7 +48,7 @@ function aggregateInspectionStatuses(statuses: HuoltoInspectionStatus[]): Mainte
 
 function isRefrigerantCircuitComplete(
   circuit: RefrigerantCircuitData,
-  _laiteTyyppi: string,
+  laiteTyyppi: string,
 ): MaintenanceTabCompletionState {
   if (!circuit.onKaytossa) return 'ok';
 
@@ -66,7 +67,7 @@ function isRefrigerantCircuitComplete(
     statuses.push(compressorInspectionStatus(circuit[compressorKeys[index]] as CompressorData));
   }
 
-  statuses.push(...circuitComponentsInspectionStatuses(circuit));
+  statuses.push(...(usesKoneikkoComponents(laiteTyyppi) ? koneikkoStatuses(circuit) : circuitComponentsInspectionStatuses(circuit)));
 
   return aggregateInspectionStatuses(statuses);
 }

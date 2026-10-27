@@ -52,6 +52,9 @@ export function refrigerantCircuitCompressorTitle(circuitNumber: number, compres
   return `Piiri ${circuitNumber} — kompressori ${compressorNumber}`;
 }
 
-export function refrigerantCircuitComponentsTitle(circuitNumber: number): string {
+export function refrigerantCircuitComponentsTitle(circuitNumber: number, laiteTyyppi?: string): string {
+  if (laiteTyyppi === 'pakastin' || laiteTyyppi === 'kylmäkoneikko') {
+    return circuitNumber > 1 ? `Koneikon komponentit — piiri ${circuitNumber}` : 'Koneikon komponentit';
+  }
   return `Piiri ${circuitNumber} — ohjaus ja komponentit`;
 }

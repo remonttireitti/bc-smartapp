@@ -108,6 +108,16 @@ export interface RefrigerantCircuitData {
   magneettiventtiiliSamaKuinPiiri1?: boolean;
   kuivainSamaKuinPiiri1?: boolean;
   kompponentit?: RefrigerantCircuitComponent[];
+  /** Koneikon komponentit (kylmiö). Puuttuva *Kaytossa = nestelasi/kuivain päällä, muut pois. */
+  nestelasiKaytossa?: boolean;
+  nestelasiKuplat?: '' | 'kupliton' | 'kuplii';
+  nestelasiKosteus?: '' | 'kuiva' | 'kostea';
+  kuivainKaytossa?: boolean;
+  kuivainVaihdettu?: boolean;
+  koneikkoKuivainMalli?: string;
+  imusuodatinKaytossa?: boolean;
+  imusuodatinVaihdettu?: boolean;
+  tarinanvaimennusKaytossa?: boolean;
 }
 
 export interface FanData {
