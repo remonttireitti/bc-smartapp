@@ -1,3 +1,4 @@
+import { useMemo, useState } from 'react';
 import CheckToggle from './CheckToggle';
 import { Link } from 'react-router-dom';
 import DataTable, { type DataTableColumn } from './DataTable';
@@ -31,6 +32,24 @@ type Props = {
   onDelete: (eq: Equipment) => void;
 };
 
+/** Laitetyypin ryhmä suodatinta varten (kylmiö + pakastin yhdessä). */
+const TYPE_GROUPS: { key: string; label: string; types: string[] }[] = [
+  { key: 'ilp', label: 'ILP', types: ['lämpöpumppu'] },
+  { key: 'kylmio', label: 'Kylmiö / pakastin', types: ['kylmäkoneikko', 'pakastin'] },
+  { key: 'vjk', label: 'VJK', types: ['vedenjäähdytyskone'] },
+  { key: 'mlp', label: 'MLP', types: ['mlp'] },
+  { key: 'vak', label: 'VAK', types: ['vakioilmastointtikone'] },
+  { key: 'vilp', label: 'VILP', types: ['vesiilmalampopumppu'] },
+  { key: 'konvektorit', label: 'Konvektorit', types: ['konvektorit'] },
+];
+
+function typeGroupOf(deviceType: string | null | undefined): string {
+  const t = String(deviceType ?? '').trim();
+  return TYPE_GROUPS.find((g) => g.types.includes(t))?.key ?? 'muu';
+}
+
+type SortKey = 'huolto_vanhin' | 'huolto_uusin' | 'nimi' | 'sijainti';
+
 /** Asiakkaan laitteet taulukkona. */
 export function CustomerEquipmentTable({
   equipment,
@@ -50,6 +69,50 @@ export function CustomerEquipmentTable({
   onPrintHistory,
   onDelete,
 }: Props) {
+  const [query, setQuery] = useState('');
+  const [sortKey, setSortKey] = useState<SortKey>('nimi');
+  const [typeFilter, setTypeFilter] = useState('');
+
+  const typeOptions = useMemo(() => {
+    const present = new Set(equipment.map((eq) => typeGroupOf(eq.device_type)));
+    const opts = TYPE_GROUPS.filter((g) => present.has(g.key)).map((g) => ({ key: g.key, label: g.label }));
+    if (present.has('muu')) opts.push({ key: 'muu', label: 'Muu' });
+    return opts;
+  }, [equipment]);
+
+  const visibleRows = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    const filtered = equipment.filter((eq) => {
+      if (typeFilter && typeGroupOf(eq.device_type) !== typeFilter) return false;
+      if (!q) return true;
+      const f = deviceFields?.(eq);
+      const hay = [eq.name, eq.tag, f?.manufacturer, eq.model, eq.serial_number, eq.location, f ? formatRefrigerant(f) : '']
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+      return q.split(/\s+/).every((w) => hay.includes(w));
+    });
+    const name = (eq: Equipment) => `${eq.name ?? ''} ${eq.tag ?? ''}`;
+    const cmp = (a: string, b: string) => a.localeCompare(b, 'fi', { numeric: true, sensitivity: 'base' });
+    return filtered
+      .map((eq, i) => ({ eq, i }))
+      .sort((x, y) => {
+        let c = 0;
+        if (sortKey === 'nimi') c = cmp(name(x.eq), name(y.eq));
+        else if (sortKey === 'sijainti') c = cmp(x.eq.location ?? '\uffff', y.eq.location ?? '\uffff');
+        else {
+          const ra = latestMaintenance(x.eq)?.raw ?? '';
+          const rb = latestMaintenance(y.eq)?.raw ?? '';
+          // Ei huoltoa: vanhin-järjestyksessä ensin (huoltamatta), uusin-järjestyksessä viimeisenä.
+          const dir = sortKey === 'huolto_uusin' ? -1 : 1;
+          if (!ra || !rb) c = !ra && !rb ? 0 : (!ra ? -1 : 1) * dir;
+          else c = (ra < rb ? -1 : ra > rb ? 1 : 0) * dir;
+        }
+        return c || cmp(name(x.eq), name(y.eq)) || x.i - y.i;
+      })
+      .map((x) => x.eq);
+  }, [equipment, query, typeFilter, sortKey, deviceFields, latestMaintenance]);
+
   const columns: DataTableColumn<Equipment>[] = [
     {
       key: 'name',
@@ -98,13 +161,40 @@ export function CustomerEquipmentTable({
   ];
 
   return (
+    <div className="customer-equipment-list">
+    <div className="customer-equipment-toolbar">
+      <input
+        type="search"
+        className="customer-equipment-search"
+        placeholder="Hae nimi, tunnus, SN…"
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        aria-label="Hae laitteita"
+      />
+      <select value={sortKey} onChange={(e) => setSortKey(e.target.value as SortKey)} aria-label="Järjestys">
+        <option value="nimi">Nimi A–Ö</option>
+        <option value="huolto_vanhin">Huolto: vanhin</option>
+        <option value="huolto_uusin">Huolto: uusin</option>
+        <option value="sijainti">Sijainti</option>
+      </select>
+      {typeOptions.length > 1 ? (
+        <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} aria-label="Laitetyyppi">
+          <option value="">Kaikki tyypit</option>
+          {typeOptions.map((o) => (
+            <option key={o.key} value={o.key}>{o.label}</option>
+          ))}
+        </select>
+      ) : null}
+    </div>
     <DataTable
-      rows={equipment}
+      key={`${sortKey}|${typeFilter}`}
+      hideFilter
+      emptyText="Ei hakua vastaavia laitteita."
+      rows={visibleRows}
       columns={columns}
       rowKey={(eq) => eq.id}
       rowHref={hrefFor ?? ((eq) => `/asiakkaat/${customerId}/laitteet/${eq.id}`)}
       rowState={() => navTrail?.state}
-      initialSort={{ key: 'name', dir: 'asc' }}
       ariaLabel="Laitteet"
       actions={(eq) => (
         <>
@@ -147,5 +237,6 @@ export function CustomerEquipmentTable({
         </>
       )}
     />
+    </div>
   );
 }

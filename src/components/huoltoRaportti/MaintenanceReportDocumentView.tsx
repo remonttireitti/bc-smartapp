@@ -177,9 +177,6 @@ function MaintenanceReportDocumentViewInner({
           {steps[activeStep]?.key === 'lopetus' || activeStep === steps.length - 1 ? (
             <MaintenanceStepOpenList steps={stepItems} activeIndex={activeStep} onJump={goToStep} />
           ) : null}
-          {steps[activeStep]?.key === 'lammonsiirtimet' && isKylmioDevice(form.laiteTyyppi) ? (
-            <KylmioUnitCounts form={form} onPatchForm={onPatchForm} />
-          ) : null}
           {steps[activeStep]?.key === 'kylmaaine' && showOptionalMeasurementActions ? (
             <div className="maintenance-step-optional">
               {(['tiiveyskoe', 'tyhjiointi'] as const).map((key) => (
@@ -192,7 +189,8 @@ function MaintenanceReportDocumentViewInner({
               ))}
             </div>
           ) : null}
-          {entries.map((entry, entryIndex) => {
+          {(() => {
+            const renderEntry = (entry: (typeof entries)[number], entryIndex: number) => {
             if (!activeEntryIndexes.has(entryIndex)) return null;
             const inCircuitStep = steps[activeStep]?.key.startsWith('piiri:');
             const shortTitle = inCircuitStep ? entry.title.replace(/^(Kylmä(aine)?piiri|Piiri) \d+\s*[—-]\s*/i, '') : entry.title;
@@ -385,7 +383,19 @@ function MaintenanceReportDocumentViewInner({
                 {hiddenChildren}
               </MaintenanceReportDocumentSection>
             );
-          })}
+            };
+            const isKok = (e: (typeof entries)[number]) => e.tabId === 'kokoonpano';
+            // Lauhdutustapa ensin, sitten määrät (Lauhduttimia riippuu lauhdutustavasta), sitten yksiköt.
+            return (
+              <>
+                {entries.map((e, i) => (isKok(e) ? renderEntry(e, i) : null))}
+                {steps[activeStep]?.key === 'lammonsiirtimet' && isKylmioDevice(form.laiteTyyppi) ? (
+                  <KylmioUnitCounts form={form} onPatchForm={onPatchForm} />
+                ) : null}
+                {entries.map((e, i) => (isKok(e) ? null : renderEntry(e, i)))}
+              </>
+            );
+          })()}
         </div>
         <MaintenanceStepFooter activeIndex={activeStep} count={steps.length} onJump={goToStep} />
       </HuoltoPrintForm>
