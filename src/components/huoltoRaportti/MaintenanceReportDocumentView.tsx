@@ -112,7 +112,7 @@ function MaintenanceReportDocumentViewInner({
     [form, onPatchForm],
   );
 
-  const steps = useMemo(() => buildMaintenanceSteps(entries), [entries]);
+  const steps = useMemo(() => buildMaintenanceSteps(entries, form.laiteTyyppi), [entries, form.laiteTyyppi]);
   const [stepIndex, setStepIndex] = useState(0);
   const activeStep = Math.min(stepIndex, Math.max(0, steps.length - 1));
   const stepItems: MaintenanceStepItem[] = useMemo(
@@ -351,7 +351,7 @@ function MaintenanceReportDocumentViewInner({
                 <MaintenanceReportDocumentTile
                   key={entry.key}
                   tabId={entry.tabId}
-                  title={singleInStep ? 'Avaa ja täytä' : displayTitle}
+                  title={entry.tabId === 'raportointi' ? 'Asiakas ja laite' : entry.tabId === 'kokoonpano' && isKylmioDevice(form.laiteTyyppi) ? 'Lauhdutustapa' : singleInStep ? 'Avaa ja täytä' : displayTitle}
                   theme={theme}
                   form={form}
                   completion={completion}

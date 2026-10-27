@@ -29,8 +29,10 @@ type GroupId =
 
 const ORDER: string[] = ['perustiedot', 'kylmaaine', 'piiri', 'lammonsiirtimet', 'yksikot', 'konvektorit', 'nestepiirit', 'mittaukset', 'lisat', 'lopetus'];
 
-function groupOf(entry: MaintenanceDocumentEntry): GroupId {
+function groupOf(entry: MaintenanceDocumentEntry, laiteTyyppi?: string): GroupId {
   const id = entry.tabId;
+  // Kylmiö: lauhdutustapa ohjaa vain lauhdutinosaa → näytetään Höyrystin ja lauhdutin -vaiheessa.
+  if (id === 'kokoonpano' && (laiteTyyppi === 'pakastin' || laiteTyyppi === 'kylmäkoneikko')) return 'lammonsiirtimet';
   if (id === 'raportointi' || id === 'kokoonpano') return 'perustiedot';
   if (id === 'kylmaaine' || id === 'tiiveyskoe' || id === 'tyhjiointi') return 'kylmaaine';
   if (id.startsWith('kylmaainePiiri')) return `piiri:${entry.unitIndex ?? 0}`;
@@ -66,10 +68,10 @@ function groupTitle(id: string, entries: MaintenanceDocumentEntry[], circuitCoun
   return 'Huomiot ja kuittaus';
 }
 
-export function buildMaintenanceSteps(entries: MaintenanceDocumentEntry[]): MaintenanceStepGroup[] {
+export function buildMaintenanceSteps(entries: MaintenanceDocumentEntry[], laiteTyyppi?: string): MaintenanceStepGroup[] {
   const map = new Map<string, number[]>();
   entries.forEach((entry, index) => {
-    const id = groupOf(entry);
+    const id = groupOf(entry, laiteTyyppi);
     if (!map.has(id)) map.set(id, []);
     map.get(id)!.push(index);
   });

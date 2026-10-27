@@ -146,6 +146,8 @@ export function RaportointiTabSection({
         onSubscriberPortalVisibilityChange={onSubscriberPortalVisibilityChange}
       />
       {/* Raportoinnissa valitaan vain laitetyyppi; laitteen tiedot muokataan laitekohtaisissa moduuleissa. */}
+      {/* Laitetyyppi kerran: valittuna se näkyy laitekortilla ja vaihdetaan sen Muokkaa-painikkeesta. */}
+      {(!form.laiteTyyppi || isIlpDevice(form.laiteTyyppi)) && (
       <label className="maintenance-device-type-select">
         Laitetyyppi *
         <select
@@ -163,6 +165,7 @@ export function RaportointiTabSection({
           ))}
         </select>
       </label>
+      )}
       {form.laiteTyyppi && !isIlpDevice(form.laiteTyyppi) ? (
       <MaintenanceDeviceSummary
         form={form}
