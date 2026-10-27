@@ -128,6 +128,7 @@ export default function DevicePublicCardPage() {
   const timeline: TimelineItem[] = [
     ...card.history.map((h) => ({ kind: 'report' as const, id: h.id, date: h.date })),
     ...card.notes.map((n) => ({ kind: 'note' as const, id: `n-${n.id}`, date: n.date, note: n })),
+    ...card.shared.map((r, i) => ({ kind: 'note' as const, id: `s-${i}`, date: r.date, note: { text: r.text || '—', company: r.company, installer: r.installer, tukes: r.tukes, serviceVisit: false, label: { huoltopöytäkirja: 'Huoltopöytäkirja', merkintä: 'Merkintä', huoltokäynti: 'Huoltokäynti', työraportti: 'Työraportti' }[r.kind] ?? r.kind } })),
     ...card.work.map((w) => ({ kind: 'note' as const, id: `w-${w.id}`, date: w.date, note: { ...w, serviceVisit: false, label: 'Työraportti' } })),
   ].sort((a, b) => String(b.date ?? '').localeCompare(String(a.date ?? '')));
 

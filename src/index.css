@@ -18214,3 +18214,13 @@ label.has-error input { border-color: #b91c1c; }
 .device-public-note { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; font-size: 16px; padding: 8px 4px; border-top: 1px solid #e3e7ec; }
 .device-public-login .btn { min-height: 48px; font-size: 16px; display: inline-flex; align-items: center; }
 .device-notes-badge--work { background: #eef2ff; color: #3730a3; }
+.device-links-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 8px; }
+.device-links-list li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; font-size: 16px; border-top: 1px solid #e3e7ec; padding-top: 8px; }
+.device-links-list .device-qr-actions { margin-top: 0; }
+.device-links-label { overflow-wrap: anywhere; min-width: 0; }
+.device-links-sub { font-size: 16px; margin: 14px 0 0; }
+.link-review-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 48px; font-size: 16px; border-top: 1px solid #e3e7ec; padding: 6px 0; }
+.link-review-row > div { min-width: 0; overflow-wrap: anywhere; }
+.link-review-score { font-size: 13px; padding: 2px 8px; border-radius: 10px; background: #e6f4ea; color: #1e6b34; margin-left: 6px; }
+.link-review-score--medium { background: #fff4e5; color: #8a4b00; }
+.link-review-row .toggle-switch-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
