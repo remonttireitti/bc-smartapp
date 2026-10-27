@@ -133,3 +133,24 @@ export function defaultSuggestionSelection(list: EquipmentLinkSuggestion[]): Set
   );
 }
 export const suggestionKey = (s: Pick<EquipmentLinkSuggestion, 'mine_id' | 'other_id'>) => `${s.mine_id}:${s.other_id}`;
+
+/** Linkitettyjen laitteiden viimeisin huolto / vuototarkastus per oma laite (RPC valinnainen → tyhjä). */
+export async function loadLinkedLastService(
+  s: SupabaseClient,
+  customerId: string,
+): Promise<Record<string, { service: string | null; leak: string | null }>> {
+  const rows = await rpc<Array<{ equipment_id: string; last_service: string | null; last_leak_check: string | null }>>(
+    s, 'equipment_linked_last_service', { p_customer_id: customerId });
+  const out: Record<string, { service: string | null; leak: string | null }> = {};
+  for (const r of rows ?? []) out[r.equipment_id] = { service: r.last_service?.slice(0, 10) ?? null, leak: r.last_leak_check?.slice(0, 10) ?? null };
+  return out;
+}
+
+export function mergeLatest(own: Record<string, string>, linked: Record<string, { service: string | null; leak: string | null }>, which: 'service' | 'leak'): Record<string, string> {
+  const out = { ...own };
+  for (const [id, v] of Object.entries(linked)) {
+    const m = maxYmd(out[id], v[which]);
+    if (m) out[id] = m;
+  }
+  return out;
+}

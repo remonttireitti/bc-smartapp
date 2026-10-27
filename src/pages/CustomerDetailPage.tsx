@@ -66,6 +66,7 @@ import { loadEquipmentNotes, type EquipmentNote } from '../lib/equipmentNotes';
 import { fetchDeviceQrTokens, generateDeviceQrToken, setDeviceQrToken } from '../lib/devicePublicCard';
 import { buildDeviceQrLabelsHtml } from '../lib/deviceQrLabel';
 import LinkSuggestionsReview from '../components/equipment/LinkSuggestionsReview';
+import { loadLinkedLastService, mergeLatest } from '../lib/equipmentLinks';
 import type { Customer, Equipment, Partnership, Subscriber } from '../types';
 
 interface Props {
@@ -122,6 +123,7 @@ export default function CustomerDetailPage({ session }: Props) {
   const [ownerCustomerIds, setOwnerCustomerIds] = useState<string[]>([]);
   const [sharingBusyId, setSharingBusyId] = useState<string | null>(null);
   const [equipmentNotes, setEquipmentNotes] = useState<EquipmentNote[] | null>(null);
+  const [linkedLast, setLinkedLast] = useState<Record<string, { service: string | null; leak: string | null }>>({});
   const [maintenanceRows, setMaintenanceRows] = useState<
     Awaited<ReturnType<typeof loadCustomerMaintenanceContext>>['maintenanceRows']
   >([]);
@@ -223,6 +225,7 @@ export default function CustomerDetailPage({ session }: Props) {
     setDocuments(linkedDocuments);
     setMaintenanceRows(maintenanceContext.maintenanceRows);
     void loadEquipmentNotes(supabase, { customerId: id }).then(setEquipmentNotes);
+    void loadLinkedLastService(supabase, id).then(setLinkedLast, () => setLinkedLast({}));
     setWorkRows(maintenanceContext.workRows);
 
     if (profile?.company_id && c.owner_company_id === profile.company_id) {
@@ -577,10 +580,13 @@ export default function CustomerDetailPage({ session }: Props) {
   }
 
   const latestMaintenanceByEquipment = useMemo(
-    () => buildLatestMaintenanceByEquipment(equipment, maintenanceRows, equipmentNotes),
-    [equipment, maintenanceRows, equipmentNotes],
+    () => mergeLatest(buildLatestMaintenanceByEquipment(equipment, maintenanceRows, equipmentNotes), linkedLast, 'service'),
+    [equipment, maintenanceRows, equipmentNotes, linkedLast],
   );
-  const latestLeakByEquipment = useMemo(() => buildLatestLeakCheckByEquipment(maintenanceRows), [maintenanceRows]);
+  const latestLeakByEquipment = useMemo(
+    () => mergeLatest(buildLatestLeakCheckByEquipment(maintenanceRows), linkedLast, 'leak'),
+    [maintenanceRows, linkedLast],
+  );
   const todayYmd = todayYmdLocal();
 
   if (loading) {
