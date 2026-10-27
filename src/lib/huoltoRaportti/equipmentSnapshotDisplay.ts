@@ -60,6 +60,8 @@ const ILMALAUHDUTIN_TYYPIT = new Set(['koneseen_integroitu', 'erillinen_ilma']);
 
 export function parseEquipmentSnapshot(raw: unknown): ParsedEquipmentSnapshot | null {
   if (!raw || typeof raw !== 'object') return null;
+  // Pelkät laitekohtaiset huoltoasetukset eivät ole teknistä tilannekuvaa.
+  if (Object.keys(raw).every((k) => k === 'huoltoAsetukset')) return null;
   return raw as ParsedEquipmentSnapshot;
 }
 

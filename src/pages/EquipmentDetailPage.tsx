@@ -1,5 +1,7 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useCompanyHuoltoSettings } from '../hooks/useCompanyHuoltoSettings';
+import ToggleSwitch from '../components/ToggleSwitch';
+import { HUOLTO_ASETUKSET_KEY, buildDeviceSchedule, defaultServiceIntervalMonths, formatTonnes, leakCheckInterval, readHuoltoAsetukset, refrigerantGwp, todayYmdLocal } from '../lib/huoltoSchedule';
 import { newHuoltoReportHrefForDevice } from '../lib/huoltoCategories';
 import { Link, Navigate, useParams } from 'react-router-dom';
 import { getPortalCustomerId, getPortalSubscriberId } from '../lib/portalPreview';
@@ -27,6 +29,8 @@ import {
 import {
   buildEquipmentCardPrintHtml,
   buildLatestMaintenanceByEquipment,
+  buildLatestLeakCheckByEquipment,
+  formatMaintenanceDateFi,
   buildMaintenanceHistoryForEquipment,
   buildMaintenanceHistoryPrintHtml,
   loadCustomerMaintenanceContext,
@@ -58,6 +62,10 @@ type EquipmentEditDraft = {
   refrigerant: string;
   refrigerant_charge_kg: string;
   installed_on: string;
+  huoltovaliKk: string;
+  gwp: string;
+  vuodonilmaisin: boolean;
+  hermeettinen: boolean;
 };
 
 function equipmentTitle(eq: Pick<Equipment, 'tag' | 'name'>): string {
@@ -77,6 +85,15 @@ function draftFromEquipment(eq: Equipment, f?: EquipmentDeviceFields | null): Eq
     location: eq.location ?? '',
     device_type: eq.device_type ?? '',
     notes: eq.notes ?? '',
+    ...(() => {
+      const a = readHuoltoAsetukset(eq.huolto_technical_snapshot);
+      return {
+        huoltovaliKk: a.huoltovaliKk ? String(a.huoltovaliKk) : '',
+        gwp: a.gwp != null ? String(a.gwp) : '',
+        vuodonilmaisin: Boolean(a.vuodonilmaisin),
+        hermeettinen: Boolean(a.hermeettinen),
+      };
+    })(),
   };
 }
 
@@ -189,6 +206,19 @@ export default function EquipmentDetailPage({ session }: Props) {
     [equipment, maintenanceRows],
   );
 
+  const schedule = useMemo(() => {
+    const f = equipment ? effectiveDeviceFields(deviceColumns, equipment.huolto_technical_snapshot) : null;
+    return buildDeviceSchedule({
+      deviceType: equipment?.device_type,
+      refrigerant: f?.refrigerant,
+      chargeKg: f?.refrigerant_charge_kg ?? null,
+      asetukset: readHuoltoAsetukset(equipment?.huolto_technical_snapshot),
+      lastServiceYmd: equipment ? latestMaintenanceByEquipment[equipment.id] ?? null : null,
+      lastLeakCheckYmd: equipment ? buildLatestLeakCheckByEquipment(maintenanceRows)[equipment.id] ?? null : null,
+      todayYmd: todayYmdLocal(),
+    });
+  }, [equipment, deviceColumns, latestMaintenanceByEquipment, maintenanceRows]);
+
   const snapshot = useMemo(
     () => parseEquipmentSnapshot(equipment?.huolto_technical_snapshot),
     [equipment?.huolto_technical_snapshot],
@@ -274,6 +304,15 @@ export default function EquipmentDetailPage({ session }: Props) {
       location: editDraft.location.trim() || null,
       device_type: editDraft.device_type.trim() || null,
       notes: editDraft.notes.trim() || null,
+      huolto_technical_snapshot: {
+        ...((equipment.huolto_technical_snapshot as Record<string, unknown> | null) ?? {}),
+        [HUOLTO_ASETUKSET_KEY]: {
+          huoltovaliKk: parseInt(editDraft.huoltovaliKk, 10) > 0 ? parseInt(editDraft.huoltovaliKk, 10) : null,
+          gwp: editDraft.gwp.trim() !== '' && Number.isFinite(Number(editDraft.gwp.replace(',', '.'))) ? Number(editDraft.gwp.replace(',', '.')) : null,
+          vuodonilmaisin: editDraft.vuodonilmaisin,
+          hermeettinen: editDraft.hermeettinen,
+        },
+      },
     };
     const fieldPayload: EquipmentDeviceFields | null = deviceColumnsSupported
       ? {
@@ -399,7 +438,7 @@ export default function EquipmentDetailPage({ session }: Props) {
       <section className="panel customer-info-panel">
         <h2 className="customer-section-title">Laitetiedot</h2>
         {infoEditing && editDraft ? (
-          <form className="line-form-grid" onSubmit={(event) => void saveEquipmentBasics(event)}>
+          <form className="line-form-grid equipment-edit-form" onSubmit={(event) => void saveEquipmentBasics(event)}>
             <label>
               Nimi *
               <input
@@ -489,6 +528,54 @@ export default function EquipmentDetailPage({ session }: Props) {
               />
             </label>
             <label>
+              Huoltoväli (kk)
+              <input
+                inputMode="numeric"
+                value={editDraft.huoltovaliKk}
+                placeholder={String(defaultServiceIntervalMonths(editDraft.device_type))}
+                onChange={(e) => setEditDraft((prev) => (prev ? { ...prev, huoltovaliKk: e.target.value.replace(/[^0-9]/g, '') } : prev))}
+                disabled={saveBusy}
+              />
+            </label>
+            <label>
+              GWP
+              <input
+                inputMode="decimal"
+                value={editDraft.gwp}
+                placeholder={String(refrigerantGwp(editDraft.refrigerant) ?? '')}
+                onChange={(e) => setEditDraft((prev) => (prev ? { ...prev, gwp: e.target.value } : prev))}
+                disabled={saveBusy}
+              />
+            </label>
+            <div className="equipment-toggle-row huolto-span-all">
+              <ToggleSwitch
+                label="Vuodonilmaisin"
+                checked={editDraft.vuodonilmaisin}
+                onChange={(on) => setEditDraft((prev) => (prev ? { ...prev, vuodonilmaisin: on } : prev))}
+                disabled={saveBusy}
+              />
+              <ToggleSwitch
+                label="Hermeettinen"
+                checked={editDraft.hermeettinen}
+                onChange={(on) => setEditDraft((prev) => (prev ? { ...prev, hermeettinen: on } : prev))}
+                disabled={saveBusy}
+              />
+            </div>
+            {(() => {
+              const lc = leakCheckInterval({
+                refrigerant: editDraft.refrigerant,
+                chargeKg: parseChargeKg(editDraft.refrigerant_charge_kg),
+                gwpOverride: editDraft.gwp.trim() ? Number(editDraft.gwp.replace(',', '.')) : null,
+                leakDetection: editDraft.vuodonilmaisin,
+                hermetic: editDraft.hermeettinen,
+              });
+              return (
+                <p className="muted huolto-span-all">
+                  CO₂e {formatTonnes(lc.co2eTonnes)} · Vuototarkastus {lc.intervalMonths ? `${lc.intervalMonths} kk` : 'ei vaadita'}
+                </p>
+              );
+            })()}
+            <label>
               Asennuspäivä
               <input
                 type="date"
@@ -564,6 +651,23 @@ export default function EquipmentDetailPage({ session }: Props) {
               <div>
                 <dt>Asennuspäivä</dt>
                 <dd>{shownFields.installed_on ? new Date(shownFields.installed_on).toLocaleDateString('fi-FI') : '—'}</dd>
+              </div>
+              <div>
+                <dt>Huolto</dt>
+                <dd>
+                  {schedule.serviceIntervalMonths} kk
+                  {schedule.service.dueYmd ? ` · seuraava ${formatMaintenanceDateFi(schedule.service.dueYmd)}` : ''}
+                </dd>
+              </div>
+              <div>
+                <dt>Vuototarkastus</dt>
+                <dd>
+                  CO₂e {formatTonnes(schedule.leak.co2eTonnes)} ·{' '}
+                  {schedule.leak.intervalMonths
+                    ? `${schedule.leak.intervalMonths} kk${schedule.leak.dueYmd ? ` · seuraava ${formatMaintenanceDateFi(schedule.leak.dueYmd)}` : ''}`
+                    : 'ei vaadita'}
+                  {schedule.combineHint ? <small className="muted"> · tee huollon yhteydessä</small> : null}
+                </dd>
               </div>
               <div>
                 <dt>Huomiot</dt>

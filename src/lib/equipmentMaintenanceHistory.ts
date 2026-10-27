@@ -188,6 +188,20 @@ export function buildLatestMaintenanceByEquipment(
   return out;
 }
 
+/** Viimeisin raportti, jossa vuototarkastus on tehty (huoltotiedot tai MLP:n kylmäainepiiri). */
+export function buildLatestLeakCheckByEquipment(maintenanceRows: MaintenanceReportRow[]): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const row of maintenanceRows) {
+    if (!row.equipment_id) continue;
+    const data = normalizeHuoltoReportData(row.data);
+    const done = data.huoltoKylmaaineVuotoTarkastus === true || data.mlpData?.kylmaainePaetosTarkastettu === true;
+    if (!done) continue;
+    const ymd = maintenanceDateYmd(row, data);
+    if (ymd && (!out[row.equipment_id] || ymd > out[row.equipment_id])) out[row.equipment_id] = ymd;
+  }
+  return out;
+}
+
 export function buildMaintenanceHistoryForEquipment(
   equipment: Equipment,
   maintenanceRows: MaintenanceReportRow[],

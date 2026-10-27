@@ -18175,3 +18175,11 @@ label.has-error input { border-color: #b91c1c; }
 .customer-equipment-toolbar select { width: 0; flex: 0 1 7.5rem; }
 .customer-equipment-toolbar .customer-equipment-search { width: 0; }
 @media (max-width: 360px) { .customer-equipment-toolbar select { flex-basis: 6rem; } }
+.customer-equipment-counts { margin: 0 0 6px; font-size: 0.9rem; color: #475569; }
+.device-chips { display: inline-flex; flex-wrap: wrap; gap: 4px; margin-left: 4px; }
+.device-chip { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 0.75rem; font-weight: 600; line-height: 1.6; white-space: nowrap; }
+.device-chip.chip-ok { background: #dcfce7; color: #166534; }
+.device-chip.chip-warn { background: #fef3c7; color: #92400e; }
+.device-chip.chip-late { background: #fee2e2; color: #991b1b; }
+.equipment-toggle-row { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; min-height: 48px; }
+.equipment-edit-form input:not([type=checkbox]):not([type=radio]), .equipment-edit-form select { box-sizing: border-box; min-height: 48px; font-size: 16px; }

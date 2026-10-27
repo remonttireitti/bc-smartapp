@@ -1,3 +1,4 @@
+import { refrigerantGwp } from '../huoltoSchedule';
 // Utility functions for the HuoltoRaportti form
 
 import {
@@ -180,22 +181,9 @@ export function resolveKylmaaineTyyppi(
 }
 
 // Get refrigerant GWP value
+/** GWP (EU) 2024/573 liitteiden I/VI mukaan (AR4, 100 v). */
 export function getRefrigerantGWP(refrigerantType: string): number {
-  const gwpMap: Record<string, number> = {
-    'R-134a': 1430,
-    'R-404A': 3922,
-    'R-407C': 1774,
-    'R-410A': 2088,
-    'R-448A': 1387,
-    'R-449A': 1282,
-    'R-452A': 2140,
-    'R-744': 1,
-    'R-1234yf': 4,
-    'R-32': 675,
-    'R-290': 3,
-    'R-600a': 3,
-  };
-  return gwpMap[refrigerantType] ?? 0;
+  return refrigerantGwp(refrigerantType) ?? 0;
 }
 
 // Format number with given decimals

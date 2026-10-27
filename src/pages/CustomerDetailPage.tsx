@@ -1,5 +1,6 @@
 import { subscriberPortalReportVisible } from '../lib/subscriberPortalVisibility';
 import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { buildDeviceSchedule, readHuoltoAsetukset, todayYmdLocal } from '../lib/huoltoSchedule';
 import { useRefetchOnDataChange } from '../lib/dataRefresh';
 import { useCompanyHuoltoSettings } from '../hooks/useCompanyHuoltoSettings';
 import { newHuoltoReportHref } from '../lib/huoltoCategories';
@@ -41,6 +42,7 @@ import { resolveCompanyLogoUrl } from '../lib/companyLogo';
 import {
   buildEquipmentCardPrintHtml,
   buildLatestMaintenanceByEquipment,
+  buildLatestLeakCheckByEquipment,
   buildMaintenanceHistoryForEquipment,
   buildMaintenanceHistoryPrintHtml,
   buildMaintenanceHistorySectionsForEquipmentList,
@@ -539,6 +541,8 @@ export default function CustomerDetailPage({ session }: Props) {
     () => buildLatestMaintenanceByEquipment(equipment, maintenanceRows),
     [equipment, maintenanceRows],
   );
+  const latestLeakByEquipment = useMemo(() => buildLatestLeakCheckByEquipment(maintenanceRows), [maintenanceRows]);
+  const todayYmd = todayYmdLocal();
 
   if (loading) {
     return (
@@ -987,6 +991,18 @@ export default function CustomerDetailPage({ session }: Props) {
               equipment={equipment}
               deviceFields={(eq) => effectiveDeviceFields(equipmentDeviceFields?.get(eq.id), eq.huolto_technical_snapshot)}
               customerId={customer.id}
+              schedule={portalView ? undefined : (eq) => {
+                const f = effectiveDeviceFields(equipmentDeviceFields?.get(eq.id), eq.huolto_technical_snapshot);
+                return buildDeviceSchedule({
+                  deviceType: eq.device_type,
+                  refrigerant: f?.refrigerant,
+                  chargeKg: f?.refrigerant_charge_kg ?? null,
+                  asetukset: readHuoltoAsetukset(eq.huolto_technical_snapshot),
+                  lastServiceYmd: latestMaintenanceByEquipment[eq.id] ?? null,
+                  lastLeakCheckYmd: latestLeakByEquipment[eq.id] ?? null,
+                  todayYmd,
+                });
+              }}
               latestMaintenance={(eq) =>
                 latestMaintenanceByEquipment[eq.id]
                   ? { raw: latestMaintenanceByEquipment[eq.id], label: formatMaintenanceDateFi(latestMaintenanceByEquipment[eq.id]) }

@@ -1,5 +1,7 @@
 import { useMemo, useState } from 'react';
 import CheckToggle from './CheckToggle';
+import type { DeviceSchedule } from '../lib/huoltoSchedule';
+import { formatMaintenanceDateFi } from '../lib/equipmentMaintenanceHistory';
 import { Link } from 'react-router-dom';
 import DataTable, { type DataTableColumn } from './DataTable';
 import { DeviceCardIcon, HistoryIcon } from './PrintIcons';
@@ -16,6 +18,8 @@ type Props = {
   deviceFields?: (eq: Equipment) => EquipmentDeviceFields;
   /** Viimeisin huolto: raaka päivä (lajittelu) ja näytettävä teksti. */
   latestMaintenance: (eq: Equipment) => { raw: string; label: string } | null;
+  /** Huolto- ja vuototarkastustila (vain varoitus). */
+  schedule?: (eq: Equipment) => DeviceSchedule | null;
   selectedIds: Set<string>;
   canWrite: boolean;
   canDelete: boolean;
@@ -48,7 +52,36 @@ function typeGroupOf(deviceType: string | null | undefined): string {
   return TYPE_GROUPS.find((g) => g.types.includes(t))?.key ?? 'muu';
 }
 
-type SortKey = 'huolto_vanhin' | 'huolto_uusin' | 'nimi' | 'sijainti';
+type SortKey = 'huolto_vanhin' | 'huolto_uusin' | 'nimi' | 'sijainti' | 'erääntyvät';
+
+const SERVICE_CHIP: Record<string, { label: string; cls: string } | null> = {
+  huollettu: { label: 'Huollettu', cls: 'chip-ok' },
+  'erääntyy': { label: 'Erääntyy', cls: 'chip-warn' },
+  'myöhässä': { label: 'Myöhässä', cls: 'chip-late' },
+  'ei-tietoa': { label: 'Ei huoltoa', cls: 'chip-warn' },
+  ok: null,
+};
+
+function ScheduleChips({ s }: { s: DeviceSchedule }) {
+  const svc = SERVICE_CHIP[s.service.state];
+  const leakDue = s.leak.state === 'erääntyy' || s.leak.state === 'myöhässä' || s.leak.state === 'ei-tietoa';
+  if (!svc && !leakDue) return null;
+  const leakTitle = s.leak.dueYmd ? `Vuototarkastus ${formatMaintenanceDateFi(s.leak.dueYmd)}` : 'Vuototarkastus';
+  return (
+    <span className="device-chips">
+      {svc ? (
+        <span className={`device-chip ${svc.cls}`} title={s.service.dueYmd ? `Seuraava huolto ${formatMaintenanceDateFi(s.service.dueYmd)}` : undefined}>
+          {svc.label}
+        </span>
+      ) : null}
+      {leakDue ? (
+        <span className={`device-chip ${s.leak.state === 'myöhässä' ? 'chip-late' : 'chip-warn'}`} title={s.combineHint ? `${leakTitle} – tee huollon yhteydessä` : leakTitle}>
+          Vuoto&shy;tarkastus
+        </span>
+      ) : null}
+    </span>
+  );
+}
 
 /** Asiakkaan laitteet taulukkona. */
 export function CustomerEquipmentTable({
@@ -56,6 +89,7 @@ export function CustomerEquipmentTable({
   customerId,
   deviceFields,
   latestMaintenance,
+  schedule,
   selectedIds,
   canWrite,
   canDelete,
@@ -83,7 +117,9 @@ export function CustomerEquipmentTable({
   const visibleRows = useMemo(() => {
     const q = query.trim().toLowerCase();
     const filtered = equipment.filter((eq) => {
-      if (typeFilter && typeGroupOf(eq.device_type) !== typeFilter) return false;
+      if (typeFilter === 'huollettavat') {
+        if (!schedule?.(eq)?.needsService) return false;
+      } else if (typeFilter && typeGroupOf(eq.device_type) !== typeFilter) return false;
       if (!q) return true;
       const f = deviceFields?.(eq);
       const hay = [eq.name, eq.tag, f?.manufacturer, eq.model, eq.serial_number, eq.location, f ? formatRefrigerant(f) : '']
@@ -98,7 +134,11 @@ export function CustomerEquipmentTable({
       .map((eq, i) => ({ eq, i }))
       .sort((x, y) => {
         let c = 0;
-        if (sortKey === 'nimi') c = cmp(name(x.eq), name(y.eq));
+        if (sortKey === 'erääntyvät') {
+          const ka = schedule?.(x.eq)?.sortKey ?? '9999';
+          const kb = schedule?.(y.eq)?.sortKey ?? '9999';
+          c = ka < kb ? -1 : ka > kb ? 1 : 0;
+        } else if (sortKey === 'nimi') c = cmp(name(x.eq), name(y.eq));
         else if (sortKey === 'sijainti') c = cmp(x.eq.location ?? '\uffff', y.eq.location ?? '\uffff');
         else {
           const ra = latestMaintenance(x.eq)?.raw ?? '';
@@ -111,7 +151,20 @@ export function CustomerEquipmentTable({
         return c || cmp(name(x.eq), name(y.eq)) || x.i - y.i;
       })
       .map((x) => x.eq);
-  }, [equipment, query, typeFilter, sortKey, deviceFields, latestMaintenance]);
+  }, [equipment, query, typeFilter, sortKey, deviceFields, latestMaintenance, schedule]);
+
+  const counts = useMemo(() => {
+    if (!schedule) return null;
+    let due = 0;
+    let done = 0;
+    for (const eq of equipment) {
+      const sc = schedule(eq);
+      if (!sc) continue;
+      if (sc.service.state === 'huollettu') done++;
+      else if (sc.needsService) due++;
+    }
+    return { due, done };
+  }, [equipment, schedule]);
 
   const columns: DataTableColumn<Equipment>[] = [
     {
@@ -132,6 +185,10 @@ export function CustomerEquipmentTable({
             {eq.tag ? <small className="muted">{eq.tag}</small> : null}
           </span>
           {eq.is_onboarding_demo ? <span className="badge badge-demo">Esimerkki</span> : null}
+          {(() => {
+            const sc = schedule?.(eq);
+            return sc ? <ScheduleChips s={sc} /> : null;
+          })()}
         </span>
       ),
     },
@@ -162,6 +219,11 @@ export function CustomerEquipmentTable({
 
   return (
     <div className="customer-equipment-list">
+    {counts && equipment.length > 0 ? (
+      <p className="customer-equipment-counts">
+        {counts.due} huollettavaa · {counts.done} huollettu
+      </p>
+    ) : null}
     <div className="customer-equipment-toolbar">
       <input
         type="search"
@@ -176,10 +238,12 @@ export function CustomerEquipmentTable({
         <option value="huolto_vanhin">Huolto: vanhin</option>
         <option value="huolto_uusin">Huolto: uusin</option>
         <option value="sijainti">Sijainti</option>
+        {schedule ? <option value="erääntyvät">Erääntyvät ensin</option> : null}
       </select>
-      {typeOptions.length > 1 ? (
+      {typeOptions.length > 1 || schedule ? (
         <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} aria-label="Laitetyyppi">
-          <option value="">Kaikki tyypit</option>
+          <option value="">Kaikki</option>
+          {schedule ? <option value="huollettavat">Huollettavat</option> : null}
           {typeOptions.map((o) => (
             <option key={o.key} value={o.key}>{o.label}</option>
           ))}

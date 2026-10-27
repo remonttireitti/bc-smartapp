@@ -115,7 +115,7 @@ export function getEquipmentSnapshotSections(snapshot: ParsedEquipmentSnapshot):
     });
   }
 
-  const ulko = snapshot.ulkoyksikko as Record<string, unknown>;
+  const ulko = (snapshot.ulkoyksikko ?? {}) as Record<string, unknown>;
   const ulkoFilled = ['ulkoyksikkoMalli', 'ulkoyksikkoSarjanumero', 'ulkoyksikkoJaahdytysTeho', 'ulkoyksikkoLammitysTeho']
     .some((key) => String(ulko[key] ?? '').trim());
   if (ulkoFilled) {

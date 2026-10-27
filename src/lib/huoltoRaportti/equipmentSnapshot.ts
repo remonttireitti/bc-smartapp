@@ -1,3 +1,4 @@
+import { carryHuoltoAsetukset } from '../huoltoSchedule';
 import { ilpDeviceModel, ilpDeviceSerial, isIlpDevice, realIdentityValue } from './ilpIdentity';
 import { deviceFieldsFromSnapshot, fillEmptyEquipmentDeviceFields } from '../equipmentDeviceFields';
 import type { SupabaseClient } from '@supabase/supabase-js';
@@ -709,10 +710,11 @@ export async function syncEquipmentFromReport(
   const identityPatch: Record<string, string> = {};
   if (identity?.serial_number?.trim()) identityPatch.serial_number = identity.serial_number.trim();
   if (identity?.model?.trim()) identityPatch.model = identity.model.trim();
+  const { data: prevRow } = await supabase.from('equipment').select('huolto_technical_snapshot').eq('id', equipmentId).maybeSingle();
   const { error } = await supabase
     .from('equipment')
     .update({
-      huolto_technical_snapshot: snapshot,
+      huolto_technical_snapshot: carryHuoltoAsetukset(snapshot, (prevRow as { huolto_technical_snapshot?: unknown } | null)?.huolto_technical_snapshot),
       device_type: deviceType,
       ...identityPatch,
     })
@@ -769,6 +771,8 @@ export async function saveEquipmentFromReport(
     if (!realIdentityValue(form.laiteTunnus) && !realIdentityValue(form.laiteMalli)) delete updatePayload.name;
     delete updatePayload.owner_company_id;
     delete updatePayload.customer_id;
+    const { data: prevRow } = await supabase.from('equipment').select('huolto_technical_snapshot').eq('id', equipmentId).maybeSingle();
+    updatePayload.huolto_technical_snapshot = carryHuoltoAsetukset(snapshot, (prevRow as { huolto_technical_snapshot?: unknown } | null)?.huolto_technical_snapshot);
     const { error } = await supabase.from('equipment').update(updatePayload).eq('id', equipmentId);
     if (error) throw new Error(error.message);
     await fillEmptyEquipmentDeviceFields(supabase, equipmentId, deviceFieldsFromReport(form, snapshot));
