@@ -1,3 +1,4 @@
+import { kylmioEvaporatorOhjausShared } from '../../lib/huoltoRaportti/fieldModules';
 import type { HuoltoReportData } from '../../lib/huoltoRaportti/types';
 import { EvaporatorModule } from './EvaporatorModule';
 import { hoyrystinSectionTitle } from '../../lib/huoltoRaportti/sectionTitles';
@@ -51,6 +52,7 @@ function EvaporatorsEditor({
       <div className="huolto-part-inspection-list">
         {form.evaporatorData.slice(0, circuitCount).map((evaporator, index) => (
           <EvaporatorModule
+            ohjausShared={kylmioEvaporatorOhjausShared(form)}
             key={index}
             index={index}
             laiteTyyppi={form.laiteTyyppi}

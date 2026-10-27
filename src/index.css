@@ -18059,3 +18059,24 @@ label.has-error input { border-color: #b91c1c; }
 .huolto-kokoonpano-choices { flex-wrap: wrap; }
 .link-button { background: none; border: 0; padding: 0; font: inherit; color: var(--primary, #2563eb); text-decoration: underline; cursor: pointer; }
 .maintenance-report-document-tile strong { overflow-wrap: anywhere; hyphens: auto; }
+
+/* Huoltopöytäkirjan sheetit ja vaiheet: mahtuu ≥320px leveyteen ilman vaakavieritystä */
+.konvektori-tarkastus-dialog { box-sizing: border-box; max-width: 100%; min-width: 0; overflow-x: hidden; }
+.konvektori-tarkastus-dialog * { min-width: 0; max-width: 100%; box-sizing: border-box; }
+.konvektori-tarkastus-dialog h2 { overflow-wrap: anywhere; }
+.konvektori-tarkastus-dialog .line-form-grid { grid-template-columns: repeat(auto-fit, minmax(min(140px, 100%), 1fr)); }
+.konvektori-tarkastus-item { flex-wrap: wrap; }
+.konvektori-yesno { flex-wrap: wrap; flex: 1 1 auto; justify-content: flex-end; }
+.huolto-circuit-component-actions { display: flex; flex-wrap: wrap; gap: .4rem; margin-bottom: .75rem; }
+.huolto-circuit-component-actions .btn { white-space: normal; text-align: left; }
+.huolto-circuit-custom-component { flex: 1 1 100%; display: flex; gap: .5rem; align-items: flex-end; }
+.huolto-circuit-custom-component > :first-child { flex: 1 1 auto; }
+.huolto-circuit-component-row { display: flex; gap: .5rem; align-items: center; }
+.huolto-circuit-component-row > :first-child { flex: 1 1 auto; }
+.huolto-submodule .form-toggle { margin: .35rem 0; }
+.maintenance-report-document, .maintenance-step-overview, .maintenance-step-footer { min-width: 0; max-width: 100%; }
+.maintenance-step-footer .btn { min-width: 0; flex: 0 1 8rem; }
+@media (max-width: 720px) {
+  html, body { overflow-x: clip; }
+  .konvektori-tarkastus-dialog { width: 100%; }
+}

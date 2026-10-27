@@ -1,3 +1,4 @@
+import { kylmioEvaporatorOhjausShared } from '../../lib/huoltoRaportti/fieldModules';
 import { vakHasRefrigerant, vjHeatingTitle } from '../../lib/huoltoRaportti/deviceKokoonpano';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
@@ -215,6 +216,7 @@ function MaintenanceReportDocumentViewInner({
             const hiddenChildren =
               entry.kind === 'evaporatorUnit' && entry.unitIndex != null ? (
                 <EvaporatorModule
+                  ohjausShared={kylmioEvaporatorOhjausShared(form)}
                   index={entry.unitIndex}
                   laiteTyyppi={form.laiteTyyppi}
                   titleLabel={evaporatorTitleForIndex(form, entry.unitIndex)}
