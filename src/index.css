@@ -18164,3 +18164,14 @@ label.has-error input { border-color: #b91c1c; }
 .huolto-count-stepper .konvektori-yesno { display: flex; align-items: stretch; gap: 8px; flex-wrap: nowrap; }
 .huolto-count-stepper .konvektori-yesno-btn { box-sizing: border-box; height: 48px; min-width: 48px; padding: 0; font-size: 20px; border-radius: 8px; border-color: #94a3b8; display: inline-flex; align-items: center; justify-content: center; }
 .huolto-count-value { box-sizing: border-box; height: 48px; min-width: 48px; flex: 1; display: inline-flex; align-items: center; justify-content: center; border: 1px solid #94a3b8; border-radius: 8px; font-size: 16px; font-weight: 600; background: #fff; }
+.customer-equipment-toolbar { display: flex; gap: 8px; align-items: stretch; margin-bottom: 8px; min-width: 0; }
+.customer-equipment-toolbar > * { box-sizing: border-box; height: 48px; font-size: 16px; min-width: 0; margin: 0; }
+.customer-equipment-toolbar .customer-equipment-search { flex: 1 1 140px; }
+.customer-equipment-toolbar select { flex: 0 1 auto; max-width: 9.5rem; }
+.customer-equipment-toolbar select { max-width: 7.5rem; padding-left: 8px; padding-right: 24px; text-overflow: ellipsis; }
+@media (max-width: 360px) { .customer-equipment-toolbar select { max-width: 6rem; } }
+.customer-equipment-list { min-width: 0; max-width: 100%; }
+.customer-equipment-toolbar { width: 100%; }
+.customer-equipment-toolbar select { width: 0; flex: 0 1 7.5rem; }
+.customer-equipment-toolbar .customer-equipment-search { width: 0; }
+@media (max-width: 360px) { .customer-equipment-toolbar select { flex-basis: 6rem; } }
