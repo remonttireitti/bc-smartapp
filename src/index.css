@@ -18224,3 +18224,14 @@ label.has-error input { border-color: #b91c1c; }
 .link-review-score { font-size: 13px; padding: 2px 8px; border-radius: 10px; background: #e6f4ea; color: #1e6b34; margin-left: 6px; }
 .link-review-score--medium { background: #fff4e5; color: #8a4b00; }
 .link-review-row .toggle-switch-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+.device-public-title { font-size: 20px; margin: 0 0 4px; overflow-wrap: anywhere; }
+.device-public-applink { font-size: 14px; display: inline-block; margin-bottom: 8px; }
+.device-public-rows { list-style: none; padding: 0; margin: 8px 0 0; }
+.device-public-row { display: flex; flex-direction: column; justify-content: center; min-height: 48px; padding: 6px 4px; border-top: 1px solid #e3e7ec; font-size: 16px; color: inherit; text-decoration: none; overflow-wrap: anywhere; box-sizing: border-box; }
+.device-public-row.is-link { color: #1f4fbf; }
+.device-public-row.is-link .device-public-row-head::after { content: ' ›'; }
+.device-public-row-text { color: #555; font-size: 15px; }
+.device-public-loggedout { display: flex; flex-direction: column; gap: 12px; }
+.device-public-loggedout > .btn { min-height: 48px; font-size: 16px; display: flex; align-items: center; justify-content: center; }
+.device-public-info { font-size: 16px; margin: 8px 0 0; }
+.hp-field { position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0; }
