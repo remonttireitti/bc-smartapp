@@ -23,10 +23,12 @@ type Props = {
   canAdd: boolean;
   onAdded: () => void;
   showList?: boolean;
+  /** Vain + Merkintä -painike ja lomake (ei korttia/otsikkoa). */
+  bare?: boolean;
 };
 
 /** Huoltohistoriamerkinnät: pikavalinnat + vapaa teksti; 'Huoltokäynti' päivittää viimeisimmän huollon. */
-export default function DeviceNotesPanel({ session, equipmentId, notes, canAdd, onAdded, showList = true }: Props) {
+export default function DeviceNotesPanel({ session, equipmentId, notes, canAdd, onAdded, showList = true, bare = false }: Props) {
   const { profile, reload } = useProfile(session);
   const [open, setOpen] = useState(false);
   const [date, setDate] = useState(todayYmdLocal());
@@ -77,8 +79,9 @@ export default function DeviceNotesPanel({ session, equipmentId, notes, canAdd, 
       setOpen(false);
       emitDataChanged();
       onAdded();
-    } catch {
-      setError('Tallennus epäonnistui.');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : (err as { message?: string } | null)?.message;
+      setError(`Tallennus epäonnistui${msg ? `: ${msg}` : '.'}`);
     } finally {
       setBusy(false);
     }
@@ -87,17 +90,7 @@ export default function DeviceNotesPanel({ session, equipmentId, notes, canAdd, 
   const list = (notes ?? []).filter((n) => n.equipment_id === equipmentId);
   if (!allowed && (!showList || list.length === 0)) return null;
 
-  return (
-    <section className="panel device-notes-panel" data-testid="device-notes-panel">
-      <div className="device-notes-head">
-        <h2 className="customer-section-title">Merkinnät</h2>
-        {allowed && !open ? (
-          <button type="button" className="btn btn-primary" onClick={() => setOpen(true)}>
-            + Merkintä
-          </button>
-        ) : null}
-      </div>
-      {open ? (
+  const formEl = (
         <form className="device-notes-form" onSubmit={(e) => void submit(e)}>
           <div className="device-notes-chips">
             {EQUIPMENT_NOTE_QUICK_PICKS.map((q) => (
@@ -127,9 +120,36 @@ export default function DeviceNotesPanel({ session, equipmentId, notes, canAdd, 
               Peruuta
             </button>
           </div>
-          {error ? <p className="error">{error}</p> : null}
+          {error ? <p className="error" role="alert">{error}</p> : null}
         </form>
-      ) : null}
+  );
+
+  if (bare) {
+    return (
+      <div className="device-notes-bare" data-testid="device-notes-panel">
+        {!open ? (
+          <button type="button" className="btn btn-primary" onClick={() => setOpen(true)}>
+            + Merkintä
+          </button>
+        ) : (
+          formEl
+        )}
+        {error && !open ? <p className="error" role="alert">{error}</p> : null}
+      </div>
+    );
+  }
+
+  return (
+    <section className="panel device-notes-panel" data-testid="device-notes-panel">
+      <div className="device-notes-head">
+        <h2 className="customer-section-title">Merkinnät</h2>
+        {allowed && !open ? (
+          <button type="button" className="btn btn-primary" onClick={() => setOpen(true)}>
+            + Merkintä
+          </button>
+        ) : null}
+      </div>
+      {open ? formEl : null}
       {showList && list.length > 0 ? (
         <ul className="device-notes-list">
           {list.map((n) => (

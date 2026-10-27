@@ -3,7 +3,7 @@ import { resolvePublicShareOrigin } from './workReportPrintShareLink';
 
 /** Laitteen julkinen huoltokortti (QR-tarra). Token: equipment.public_qr_token. */
 
-export type DevicePublicRow = { id: string; date: string | null; type: string; company: string | null; text: string; reportId: string | null };
+export type DevicePublicRow = { id: string; date: string | null; type: string; company: string | null; text: string; reportId: string | null; draft?: boolean };
 export type DevicePublicCard = {
   device: { name: string | null; tag: string | null };
   appLink: { customerId: string | null; equipmentId: string } | null;
