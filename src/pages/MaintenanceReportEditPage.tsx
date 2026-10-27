@@ -218,6 +218,8 @@ export default function MaintenanceReportEditPage({ session }: Props) {
   const equipmentHydrateGenRef = useRef(0);
   const skipAutoSaveRef = useRef(true);
   const saveInFlightRef = useRef(false);
+  /** Laite, johon tallennettu raportti on sidottu. Vaihtuu vain käyttäjän omasta valinnasta. */
+  const boundEquipmentIdRef = useRef<string | null>(null);
   const formStateRef = useRef({ form, customerId, equipmentId });
   formStateRef.current = { form, customerId, equipmentId };
   const lastSavedKonvektoriScoreRef = useRef(0);
@@ -744,6 +746,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
   function onReportOwnerChange(companyId: string) {
     setReportOwnerCompanyId(companyId);
     setCustomerId('');
+    boundEquipmentIdRef.current = null;
     setEquipmentId('');
     setHasUnsavedChanges(true);
   }
@@ -771,6 +774,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
     if (searchParams.get('copyFrom')) return;
     const cid = searchParams.get('customerId');
     const eid = searchParams.get('equipmentId');
+    if (reportIdRef.current) return;
     if (cid) setCustomerId(cid);
     if (eid) setEquipmentId(eid);
   }, [isNew, ownerCompanyId, searchParams]);
@@ -1020,6 +1024,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
     if (nextEquipmentId) {
       skipEquipmentRegistryHydrateRef.current = nextEquipmentId;
     }
+    boundEquipmentIdRef.current = nextEquipmentId || null;
     setEquipmentId(nextEquipmentId);
 
     const customerRows = await loadAccessibleCustomers();
@@ -1238,6 +1243,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
     try {
       const savedId = await saveEquipmentFromReport(nextForm, cid, ownerCompanyId, eid || null, supabase);
       if (!eid) {
+        boundEquipmentIdRef.current = savedId;
         formStateRef.current = { ...formStateRef.current, equipmentId: savedId };
         setEquipmentId(savedId);
         setEquipmentLinkState('created');
@@ -1254,6 +1260,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
 
   function selectCustomerFromRegistry(id: string) {
     setCustomerId(id);
+    boundEquipmentIdRef.current = null;
     setEquipmentId('');
     const customer = customers.find((entry) => entry.id === id);
     if (customer) {
@@ -1684,7 +1691,9 @@ export default function MaintenanceReportEditPage({ session }: Props) {
         customer_id: customerId || null,
         subscriber_id: resolveSubscriberIdForReport(customerId, subscriberId, customers),
         subscriber_portal_visibility: subscriberPortalVisibility,
-        equipment_id: formStateRef.current.equipmentId || equipmentId || null,
+        equipment_id: reportIdRef.current && boundEquipmentIdRef.current
+          ? boundEquipmentIdRef.current
+          : formStateRef.current.equipmentId || equipmentId || null,
         assigned_user_id: session.user.id,
         title,
         data: dataPayload,
@@ -1726,6 +1735,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
         }
         emitDataChanged();
         savedReportId = (data as { id: string }).id;
+        boundEquipmentIdRef.current = (rowPayload.equipment_id as string | null) ?? null;
         setReportId(savedReportId);
         setSavedReportTitle(title);
         clearLocalMaintenanceDraft(localDraftKey(null, session.user.id));
@@ -2104,15 +2114,18 @@ export default function MaintenanceReportEditPage({ session }: Props) {
     onSelectCustomer: selectCustomerFromRegistry,
     onClearCustomer: () => {
       setCustomerId('');
+      boundEquipmentIdRef.current = null;
       setEquipmentId('');
       if (profile?.company_id) void loadOwnerCompany(profile.company_id);
     },
     onCreateCustomer: createCustomerAndSelect,
     onSelectEquipment: (nextId: string) => {
+      boundEquipmentIdRef.current = nextId || null;
       setEquipmentLinkState('linked');
       setEquipmentId(nextId);
     },
     onClearEquipment: () => {
+      boundEquipmentIdRef.current = null;
       setEquipmentLinkState(null);
       setEquipmentId('');
     },
