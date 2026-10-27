@@ -1,4 +1,6 @@
-import { kylmioEvaporatorOhjausShared } from '../../lib/huoltoRaportti/fieldModules';
+import { KylmioUnitCounts } from './KylmioUnitCounts';
+import { isKylmioDevice } from '../../lib/huoltoRaportti/deviceKokoonpano';
+import { kylmioEvaporatorOhjausShared, evaporatorWithLegacyOhjaus } from '../../lib/huoltoRaportti/fieldModules';
 import { vakHasRefrigerant, vjHeatingTitle } from '../../lib/huoltoRaportti/deviceKokoonpano';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
@@ -175,6 +177,9 @@ function MaintenanceReportDocumentViewInner({
           {steps[activeStep]?.key === 'lopetus' || activeStep === steps.length - 1 ? (
             <MaintenanceStepOpenList steps={stepItems} activeIndex={activeStep} onJump={goToStep} />
           ) : null}
+          {steps[activeStep]?.key === 'lammonsiirtimet' && isKylmioDevice(form.laiteTyyppi) ? (
+            <KylmioUnitCounts form={form} onPatchForm={onPatchForm} />
+          ) : null}
           {steps[activeStep]?.key === 'kylmaaine' && showOptionalMeasurementActions ? (
             <div className="maintenance-step-optional">
               {(['tiiveyskoe', 'tyhjiointi'] as const).map((key) => (
@@ -220,7 +225,7 @@ function MaintenanceReportDocumentViewInner({
                   index={entry.unitIndex}
                   laiteTyyppi={form.laiteTyyppi}
                   titleLabel={evaporatorTitleForIndex(form, entry.unitIndex)}
-                  data={form.evaporatorData[entry.unitIndex]}
+                  data={evaporatorWithLegacyOhjaus(form.evaporatorData[entry.unitIndex], form, entry.unitIndex)}
                   locked={false}
                   showSameAsFirst={entry.unitIndex > 0}
                   sameAsFirst={form.evaporatorSamaKuinEnsimmainen[entry.unitIndex]}

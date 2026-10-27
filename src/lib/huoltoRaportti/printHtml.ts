@@ -1,4 +1,4 @@
-import { fieldModuleDisplayValue, fieldModuleFieldVisible } from './fieldModules';
+import { evaporatorWithLegacyOhjaus, fieldModuleDisplayValue, fieldModuleFieldVisible } from './fieldModules';
 import { koneikkoCustomComponents, koneikkoLegacyReadOnly, koneikkoView, usesKoneikkoComponents } from './koneikkoComponents';
 import { refrigerantCircuitComponentLabel } from './refrigerantCircuitComponents';
 import { airCapacity, evaporatorRoomTemp, formatKw, staticEvaporatorEstimate, staticInput } from './airCapacity';
@@ -462,7 +462,7 @@ function renderEvaporators(data: HuoltoReportData): string {
   }
   if (isChillerLikeDevice(data.laiteTyyppi)) return '';
   return data.evaporatorData
-    .map((ev, i) => renderSingleEvaporatorHtml(ev, i, data.laiteTyyppi))
+    .map((ev, i) => renderSingleEvaporatorHtml(evaporatorWithLegacyOhjaus(ev, data, i), i, data.laiteTyyppi))
     .join('');
 }
 
@@ -482,7 +482,7 @@ function renderCircuitsHtml(data: HuoltoReportData): string {
   let html = '';
   html += renderCircuitHtml(1, data.kylmaainePiiri1, data.kylmaaineTyyppi, data.laiteTyyppi);
   if (inlineEvaporators && data.evaporatorData[0]) {
-    html += renderSingleEvaporatorHtml(data.evaporatorData[0], 0, data.laiteTyyppi, sharedEvaporator);
+    html += renderSingleEvaporatorHtml(evaporatorWithLegacyOhjaus(data.evaporatorData[0], data, 0), 0, data.laiteTyyppi, sharedEvaporator);
   }
 
   if (data.kylmaainePiireja !== '1' && data.kylmaainePiiri2) {

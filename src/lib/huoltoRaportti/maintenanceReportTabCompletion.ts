@@ -1,3 +1,4 @@
+import { getCondenserCount } from './evaporatorHelpers';
 import { componentStatus } from './huoltoInspectionStatus';
 import { koneikkoStatuses, usesKoneikkoComponents } from './koneikkoComponents';
 import { ilpDeviceModel, ilpDeviceSerial } from './ilpIdentity';
@@ -179,7 +180,7 @@ function completionForTab(
     }
 
     case 'lauhdutin': {
-      const circuitCount = Math.min(3, Math.max(1, parseInt(form.kylmaainePiireja, 10) || 1));
+      const circuitCount = getCondenserCount(form);
       const statuses = form.condenserData
         .slice(0, circuitCount)
         .map((row) => componentStatus(condenserInspectionStatus(row)));

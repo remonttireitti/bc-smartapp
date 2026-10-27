@@ -1,16 +1,22 @@
 import assert from 'node:assert/strict';
-import { fieldModuleCompletion, fieldModuleFieldArchived, fieldModuleFieldVisible, findFieldModule, kylmioEvaporatorOhjausShared } from '../src/lib/huoltoRaportti/fieldModules';
+import { evaporatorWithLegacyOhjaus, fieldModuleCompletion, fieldModuleFieldArchived, fieldModuleFieldVisible, findFieldModule, kylmioEvaporatorOhjausShared } from '../src/lib/huoltoRaportti/fieldModules';
 
 const def = findFieldModule('ohjaukset')!;
 const vis = (form: any) => def.fields.filter((f) => fieldModuleFieldVisible(f, form.kenttaModuulit?.ohjaukset ?? {}, form)).map((f) => f.id);
-// Vanha raportti: yksi säädin + arvot → näkyvät (yhteinen ohjaus), valmis.
-const old = { laiteTyyppi: 'pakastin', evaporatorData: [{}], kenttaModuulit: { ohjaukset: { saadin: 'Danfoss', asetusarvo: '-20', halytysYla: '-15', halytykset: 'Kunnossa', ovi: 'Kunnossa' } } };
-assert.ok(kylmioEvaporatorOhjausShared(old));
-assert.deepEqual(vis(old).filter((id) => ['saadin', 'asetusarvo', 'halytysYla', 'ovi'].includes(id)).length, 4);
-assert.ok(vis(old).includes('hoyrystinOhjaus'));
+// Yksi höyrystin: ei Yhteinen/oma-kysymystä, ei yhteisiä kenttiä vaiheessa 5, ei keskeneräisyyttä valinnasta.
+const old = { laiteTyyppi: 'pakastin', evaporatorData: [{}], kenttaModuulit: { ohjaukset: { saadin: 'Danfoss', asetusarvo: '-20', halytysYla: '-15', halytykset: 'Kunnossa', ovi: 'Ovikytkin', hoyrystinOhjaus: 'Jokaisella oma' } } };
+assert.ok(!kylmioEvaporatorOhjausShared(old));
+assert.ok(!vis(old).includes('hoyrystinOhjaus') && !vis(old).includes('asetusarvo') && !vis(old).includes('ovi'));
+assert.ok(vis(old).includes('saadin') && vis(old).includes('koneikkoOhjaustapa'));
+assert.equal(def.fields.filter((f) => fieldModuleFieldArchived(f, old.kenttaModuulit.ohjaukset, old)).length, 0, 'ei arkistoa vaiheessa 5');
 assert.equal(fieldModuleCompletion(old, 'ohjaukset'), 'ok');
+assert.equal(fieldModuleCompletion({ ...old, kenttaModuulit: { ohjaukset: { halytykset: 'Kunnossa' } } }, 'ohjaukset'), 'ok');
+// Vanhat arvot siirtyvät höyrystimen kortille (vain tyhjiin).
+const ev = evaporatorWithLegacyOhjaus({ lampotilaAsetus: '', halytysAla: '-30' } as any, old, 0) as any;
+assert.equal(ev.lampotilaAsetus, '-20'); assert.equal(ev.halytysYla, '-15'); assert.equal(ev.halytysAla, '-30'); assert.equal(ev.ovikytkin, 'ovikytkin');
+assert.equal((evaporatorWithLegacyOhjaus({} as any, { ...old, kylmaainePiireja: '2', evaporatorData: [{}, {}] }, 0) as any).lampotilaAsetus, undefined);
 // Kaksi höyrystintä: valinta pakollinen.
-const two = { laiteTyyppi: 'pakastin', evaporatorData: [{}, {}], kenttaModuulit: { ohjaukset: { halytykset: 'Kunnossa', asetusarvo: '-20' } } };
+const two = { laiteTyyppi: 'pakastin', kylmaainePiireja: '2', evaporatorData: [{}, {}], kenttaModuulit: { ohjaukset: { halytykset: 'Kunnossa', asetusarvo: '-20' } } };
 assert.ok(vis(two).includes('hoyrystinOhjaus'));
 assert.equal(fieldModuleCompletion(two, 'ohjaukset'), 'incomplete');
 const own = { ...two, kenttaModuulit: { ohjaukset: { halytykset: 'Kunnossa', hoyrystinOhjaus: 'Jokaisella oma' } } };
@@ -47,3 +53,20 @@ import('../src/lib/huoltoRaportti/refrigerantPt').then(({ getPressureFromSaturat
   }
   console.log('kylmio-ohjaus ok');
 });
+
+// Explicit counts
+{
+  const { getEvaporatorCircuitCount, getCondenserCount } = await import('../src/lib/huoltoRaportti/evaporatorHelpers');
+  const { createEmptyHuoltoReportData } = await import('../src/lib/huoltoRaportti/defaults');
+  const { buildHuoltoEquipmentTechnicalSnapshot, applyEquipmentSnapshotToForm } = await import('../src/lib/huoltoRaportti/equipmentSnapshot');
+  const base = { ...createEmptyHuoltoReportData(), laiteTyyppi: 'pakastin', kylmaainePiireja: '1' } as any;
+  if (getEvaporatorCircuitCount(base) !== 1) throw new Error('legacy derive');
+  if (getEvaporatorCircuitCount({ ...base, hoyrystimienMaara: '2' }) !== 2) throw new Error('explicit evap');
+  if (getCondenserCount({ ...base, lauhduttimienMaara: '2' }) !== 1) throw new Error('cond count needs erillinen');
+  if (getCondenserCount({ ...base, lauhduttimienMaara: '2', lauhdutinTyyppiLaite: 'erillinen_ilma' }) !== 2) throw new Error('cond explicit');
+  const snap = buildHuoltoEquipmentTechnicalSnapshot({ ...base, hoyrystimienMaara: '2', lauhduttimienMaara: '2', lauhdutinTyyppiLaite: 'erillinen_ilma' } as any) as any;
+  const patch = applyEquipmentSnapshotToForm(base, snap) as any;
+  const p2 = patch?.patch ?? patch;
+  if (p2.hoyrystimienMaara !== '2' || p2.lauhduttimienMaara !== '2') throw new Error('snapshot prefill ' + JSON.stringify({ h: p2.hoyrystimienMaara }));
+  console.log('counts ok');
+}

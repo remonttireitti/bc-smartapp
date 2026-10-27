@@ -1,3 +1,4 @@
+import { getCondenserCount } from './evaporatorHelpers';
 import { componentStatus } from './huoltoInspectionStatus';
 import { ilpDeviceModel, ilpDeviceSerial, isIlpDevice } from './ilpIdentity';
 import { isChillerLikeDevice, usesRefrigerantServiceExtras } from './deviceModuleLogic';
@@ -101,7 +102,7 @@ export function buildMaintenanceDocumentEntries(
     }
 
     if (tab.id === 'lauhdutin') {
-      const count = Math.min(3, Math.max(1, parseInt(form.kylmaainePiireja, 10) || 1));
+      const count = getCondenserCount(form);
       for (let index = 0; index < count; index += 1) {
         entries.push({
           key: `lauhdutin:${index}`,

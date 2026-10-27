@@ -99,7 +99,7 @@ export function useEvaporatorCircuitsSync(
   );
 
   useEffect(() => {
-    if (isKylmakoneikko) return;
+    if (isKylmakoneikko && !String(form.hoyrystimienMaara ?? '').trim()) return;
     const patch: Partial<HuoltoReportData> = {};
     let evaporators = form.evaporatorData;
     const flags = form.evaporatorSamaKuinEnsimmainen;
@@ -128,6 +128,7 @@ export function useEvaporatorCircuitsSync(
   }, [
     circuitCount,
     isKylmakoneikko,
+    form.hoyrystimienMaara,
     sharedEvaporator,
     form.evaporatorData,
     form.evaporatorSamaKuinEnsimmainen,
