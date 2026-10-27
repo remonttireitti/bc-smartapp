@@ -64,6 +64,7 @@ import RemoteMonitoringHubPage from '../pages/RemoteMonitoringHubPage';
 import VrfMonitoringPage from '../pages/VrfMonitoringPage';
 import MonitorReaderTokenPage from '../pages/MonitorReaderTokenPage';
 import WorkReportPublicPrintPage from '../pages/WorkReportPublicPrintPage';
+import DevicePublicCardPage from '../pages/DevicePublicCardPage';
 import MonitorReaderHubPage from '../pages/MonitorReaderHubPage';
 import MonitorReaderVrfPage from '../pages/MonitorReaderVrfPage';
 import VrfMonitorDetailPage from '../pages/VrfMonitorDetailPage';
@@ -198,6 +199,7 @@ export function buildAuthenticatedRoutes(session: Session): RouteObject[] {
     { path: '/etaseuranta/luku/vrf/:deviceId', element: <MonitorReaderVrfPage session={session} /> },
     { path: '/seuranta/luku/:token', element: <MonitorReaderTokenPage /> },
     { path: '/j/:token', element: <WorkReportPublicPrintPage /> },
+    { path: '/q/:token', element: <DevicePublicCardPage /> },
     { path: '/tyoraportti/jako/:token', element: <WorkReportPublicPrintPage /> },
     { path: '/etaseuranta/lampotila', element: <LicensedTempMonitoringPage session={session} /> },
     {

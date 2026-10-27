@@ -62,6 +62,8 @@ import {
   type CustomerLinkedDocument,
 } from '../lib/customerDocuments';
 import { useProfile } from '../hooks/useProfile';
+import { fetchDeviceQrTokens, generateDeviceQrToken, setDeviceQrToken } from '../lib/devicePublicCard';
+import { buildDeviceQrLabelsHtml } from '../lib/deviceQrLabel';
 import type { Customer, Equipment, Partnership, Subscriber } from '../types';
 
 interface Props {
@@ -456,6 +458,39 @@ export default function CustomerDetailPage({ session }: Props) {
       else next.delete(equipmentId);
       return next;
     });
+  }
+
+  async function printQrLabelsForSelected() {
+    const list = equipment.filter((eq) => selectedEquipmentIds.has(eq.id));
+    if (list.length === 0) return;
+    setError(null);
+    const tokens = await fetchDeviceQrTokens(list.map((eq) => eq.id));
+    if (!tokens) {
+      setError('QR-tarrat vaativat tietokantapäivityksen.');
+      return;
+    }
+    const missing = list.filter((eq) => !tokens[eq.id]);
+    if (missing.length > 0) {
+      if (!canWrite) {
+        setError('Osalla laitteista ei ole QR-linkkiä.');
+        return;
+      }
+      if (!window.confirm(`${missing.length} laitteelle luodaan julkinen huoltopöytäkirjalinkki. Jatketaanko?`)) return;
+      try {
+        for (const eq of missing) {
+          const token = generateDeviceQrToken();
+          await setDeviceQrToken(eq.id, token);
+          tokens[eq.id] = token;
+        }
+      } catch {
+        setError('QR-linkin luonti epäonnistui.');
+        return;
+      }
+    }
+    const html = await buildDeviceQrLabelsHtml(
+      list.map((eq) => ({ token: tokens[eq.id] as string, name: eq.name, tag: eq.tag })),
+    );
+    openPrintHtml(html, { documentTitle: 'QR-tarrat' });
   }
 
   async function printMaintenanceHistoryForEquipmentList(mode: 'all' | 'selected') {
@@ -985,6 +1020,17 @@ export default function CustomerDetailPage({ session }: Props) {
                   <HistoryIcon />
                   {printingHistory ? 'Haetaan…' : 'Tulosta huoltohistoria (valitut)'}
                 </button>
+                {!portalView ? (
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    disabled={selectedEquipmentIds.size === 0}
+                    onClick={() => void printQrLabelsForSelected()}
+                  >
+                    <PrinterIcon />
+                    QR-tarrat (valitut)
+                  </button>
+                ) : null}
               </div>
             </div>
             <CustomerEquipmentTable
