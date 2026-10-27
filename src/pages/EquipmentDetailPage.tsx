@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useCompanyHuoltoSettings } from '../hooks/useCompanyHuoltoSettings';
 import ToggleSwitch from '../components/ToggleSwitch';
+import DeviceQrPanel from '../components/equipment/DeviceQrPanel';
 import { HUOLTO_ASETUKSET_KEY, buildDeviceSchedule, defaultServiceIntervalMonths, formatTonnes, leakCheckInterval, readHuoltoAsetukset, refrigerantGwp, todayYmdLocal } from '../lib/huoltoSchedule';
 import { newHuoltoReportHrefForDevice } from '../lib/huoltoCategories';
 import { Link, Navigate, useParams } from 'react-router-dom';
@@ -684,6 +685,10 @@ export default function EquipmentDetailPage({ session }: Props) {
           </>
         )}
       </section>
+
+      {!portalMode ? (
+        <DeviceQrPanel equipmentId={equipment.id} name={equipment.name} tag={equipment.tag} canWrite={canWrite} />
+      ) : null}
 
       <details className="panel customer-section equipment-snapshot-panel">
         <summary className="customer-section-title">Tekniset tiedot huoltoraportilta (kylmäaine, valmistaja ym.)</summary>

@@ -18183,3 +18183,16 @@ label.has-error input { border-color: #b91c1c; }
 .device-chip.chip-late { background: #fee2e2; color: #991b1b; }
 .equipment-toggle-row { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; min-height: 48px; }
 .equipment-edit-form input:not([type=checkbox]):not([type=radio]), .equipment-edit-form select { box-sizing: border-box; min-height: 48px; font-size: 16px; }
+
+/* Laitteen QR-tarra + julkinen huoltokortti */
+.device-qr-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.device-qr-actions .btn { min-height: 48px; font-size: 16px; display: inline-flex; align-items: center; }
+.device-public-page { max-width: 900px; margin: 0 auto; padding: 16px 12px 32px; font-size: 16px; }
+.device-public-head h1 { font-size: 22px; margin: 0 0 4px; overflow-wrap: anywhere; }
+.device-public-head .btn { min-height: 48px; font-size: 16px; display: inline-flex; align-items: center; margin-top: 8px; }
+.device-public-history h2 { font-size: 18px; margin: 16px 0 8px; }
+.device-public-history ul { list-style: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 8px; }
+.device-public-history-item { min-height: 48px; font-size: 16px; padding: 0 14px; border: 1px solid #c8ced6; border-radius: 8px; background: #fff; color: inherit; }
+.device-public-history-item.is-active { border-color: #1f6feb; background: #e8f0fe; font-weight: 600; }
+.device-public-status { font-size: 16px; padding: 24px 0; text-align: center; }
+.device-public-report { margin-top: 16px; overflow-x: auto; }

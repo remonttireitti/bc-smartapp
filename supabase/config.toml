@@ -71,6 +71,9 @@ verify_jwt = false
 [functions.work-report-print-share]
 verify_jwt = false
 
+[functions.device-public-card]
+verify_jwt = false
+
 [functions.monitor-share-view]
 verify_jwt = false
 
