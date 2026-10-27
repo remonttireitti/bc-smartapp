@@ -102,8 +102,11 @@ export function CircuitMeasurementsFields({
       (highBar > getCo2PtLimitBarGauge() && highBar > 0));
   const ptChartUrl = calcRefrigerant ? getRefrigerantPtChartUrl(calcRefrigerant) : null;
 
-  const showSuperheatCalc = circuitSuperheatPrintEnabled(data);
-  const showSubcoolingCalc = circuitSubcoolingPrintEnabled(data);
+  // Lomakkeella laskelma näkyy aina; tulosteen asetus vaikuttaa vain tulosteeseen.
+  const showSuperheatCalc = true;
+  const showSubcoolingCalc = true;
+  const printSuperheat = circuitSuperheatPrintEnabled(data);
+  const printSubcooling = circuitSubcoolingPrintEnabled(data);
 
   const calculatedSuperheat = showSuperheatCalc ? calculateSuperheat() : '';
   const calculatedSubcooling = showSubcoolingCalc ? calculateSubcooling() : '';
@@ -230,7 +233,7 @@ export function CircuitMeasurementsFields({
             <span className="muted">Tulistus (K)</span>
             {!printSettingsInPopup ? (
               <ToggleSwitch
-                checked={showSuperheatCalc}
+                checked={printSuperheat}
                 onChange={(v) => patch({ tulistusTulosteeseen: v })}
                 label="Tulosteeseen"
                 className="toggle-switch-inline huolto-calc-print-toggle"
@@ -246,9 +249,7 @@ export function CircuitMeasurementsFields({
               {calculatedSuperheat || '—'}
             </strong>
           ) : (
-            <span className="muted huolto-calc-off-hint">
-              {printSettingsInPopup ? 'Ei tulosteeseen (⚙ asetukset)' : 'Laskelmaa ei tulosteta'}
-            </span>
+            <span className="muted huolto-calc-off-hint">—</span>
           )}
         </div>
         <div className="huolto-calc-metric">
@@ -256,7 +257,7 @@ export function CircuitMeasurementsFields({
             <span className="muted">Alijäähdytys (K)</span>
             {!printSettingsInPopup ? (
               <ToggleSwitch
-                checked={showSubcoolingCalc}
+                checked={printSubcooling}
                 onChange={(v) => patch({ alijahdytysTulosteeseen: v })}
                 label="Tulosteeseen"
                 className="toggle-switch-inline huolto-calc-print-toggle"
@@ -272,9 +273,7 @@ export function CircuitMeasurementsFields({
               {calculatedSubcooling || '—'}
             </strong>
           ) : (
-            <span className="muted huolto-calc-off-hint">
-              {printSettingsInPopup ? 'Ei tulosteeseen (⚙ asetukset)' : 'Laskelmaa ei tulosteta'}
-            </span>
+            <span className="muted huolto-calc-off-hint">—</span>
           )}
         </div>
       </div>
@@ -288,7 +287,7 @@ export function CircuitMeasurementsFields({
               {ptSupported && Number.isFinite(dewSatC) && (
                 <>
                   {' '}
-                  Kaste imupaineella: <strong>{dewSatC.toFixed(1)} °C</strong>.
+                  Höyrystyminen: <strong>{dewSatC.toFixed(1)} °C</strong>.
                 </>
               )}
             </>
@@ -301,7 +300,7 @@ export function CircuitMeasurementsFields({
               {ptSupported && Number.isFinite(bubbleSatC) && (
                 <>
                   {' '}
-                  Kupla korkeapaineella: <strong>{bubbleSatC.toFixed(1)} °C</strong>.
+                  Lauhtuminen: <strong>{bubbleSatC.toFixed(1)} °C</strong>.
                 </>
               )}
             </>

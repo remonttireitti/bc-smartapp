@@ -22,6 +22,7 @@ import type { CompressorData, HuoltoReportData } from './types';
 import { getEvaporatorCircuitCount } from './evaporatorHelpers';
 import { circuitMeasurementsStatus } from './refrigerantCircuitHelpers';
 import { circuitComponentsInspectionStatuses } from './refrigerantCircuitComponents';
+import { koneikkoStatuses, usesKoneikkoComponents } from './koneikkoComponents';
 import {
   getRefrigerantCircuitByIndex,
   getRefrigerantCircuitCompressorCount,
@@ -189,7 +190,7 @@ function appendRefrigerantCircuitUnitEntries(entries: MaintenanceDocumentEntry[]
       key: `kylmaainePiiri:${circuitIndex}:components`,
       kind: 'circuitComponentsUnit',
       tabId: `kylmaainePiiri:${circuitIndex}:components`,
-      title: refrigerantCircuitComponentsTitle(circuitNumber),
+      title: refrigerantCircuitComponentsTitle(circuitNumber, form.laiteTyyppi),
       unitIndex: circuitIndex,
     });
   }
@@ -253,7 +254,7 @@ export function documentEntryCompletion(
   if (entry.kind === 'circuitComponentsUnit' && entry.unitIndex != null) {
     const circuit = getRefrigerantCircuitByIndex(form, entry.unitIndex);
     if (!circuit) return 'incomplete';
-    const statuses = circuitComponentsInspectionStatuses(circuit);
+    const statuses = usesKoneikkoComponents(form.laiteTyyppi) ? koneikkoStatuses(circuit) : circuitComponentsInspectionStatuses(circuit);
     if (statuses.length === 0) return 'ok';
     if (statuses.some((status) => status === null)) return 'incomplete';
     if (statuses.some((status) => status === 'faulty')) return 'attention';

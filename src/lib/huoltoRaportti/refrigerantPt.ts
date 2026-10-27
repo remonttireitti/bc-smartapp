@@ -12,6 +12,11 @@ import {
   type BarTempRow,
   type PsigTempRow,
 } from './refrigerantPtData';
+import { REFRIGERANT_PT_COOLPROP_BAR, REFRIGERANT_PT_COOLPROP_ZEOTROPIC_BAR } from './refrigerantPtCoolProp';
+
+function hasCoolProp(key: string): boolean {
+  return !!(REFRIGERANT_PT_COOLPROP_BAR[key] || REFRIGERANT_PT_COOLPROP_ZEOTROPIC_BAR[key]);
+}
 
 export type PtBarPoint = { bar: number; temp: number };
 
@@ -23,6 +28,7 @@ export function resolveRefrigerantPtKey(refrigerant: string): string | null {
   if (!key || key === 'Muu' || key === 'muu') return null;
   if (key.toUpperCase() === 'R-134A') key = 'R-134a';
   if (key === 'R-744') return 'R-744';
+  if (hasCoolProp(key)) return key;
   if (
     REFRIGERANT_PT_PSIG[key] ||
     REFRIGERANT_PT_BAR[key] ||
@@ -43,6 +49,7 @@ export function hasRefrigerantPtData(refrigerant: string): boolean {
 export function isRefrigerantPtApproximate(refrigerant: string): boolean {
   const key = (refrigerant || '').trim();
   if (!key || key === 'Muu' || key === 'muu') return false;
+  if (hasCoolProp(key)) return false;
   if (hasRefrigerantPtData(key) && !REFRIGERANT_PT_ALIASES[key]) return false;
   return REFRIGERANT_PT_ALIASES[key] != null;
 }
@@ -85,6 +92,10 @@ export function interpolatePtBarAscending(table: readonly PtBarPoint[], pressure
 }
 
 function getDewTable(key: string): PtBarPoint[] | null {
+  const cpZe = REFRIGERANT_PT_COOLPROP_ZEOTROPIC_BAR[key];
+  if (cpZe) return rowsBarToPoints(cpZe.dew);
+  const cp = REFRIGERANT_PT_COOLPROP_BAR[key];
+  if (cp) return rowsBarToPoints(cp);
   const barZe = REFRIGERANT_PT_ZEOTROPIC_BAR[key];
   if (barZe) return rowsBarToPoints(barZe.dew);
   const bar = REFRIGERANT_PT_BAR[key];
@@ -97,6 +108,10 @@ function getDewTable(key: string): PtBarPoint[] | null {
 }
 
 function getBubbleTable(key: string): PtBarPoint[] | null {
+  const cpZe = REFRIGERANT_PT_COOLPROP_ZEOTROPIC_BAR[key];
+  if (cpZe) return rowsBarToPoints(cpZe.bubble);
+  const cp = REFRIGERANT_PT_COOLPROP_BAR[key];
+  if (cp) return rowsBarToPoints(cp);
   const barZe = REFRIGERANT_PT_ZEOTROPIC_BAR[key];
   if (barZe) return rowsBarToPoints(barZe.bubble);
   const bar = REFRIGERANT_PT_BAR[key];
@@ -137,23 +152,26 @@ export function getBubblePointFromPressure(pressure: number, refrigerant: string
 }
 
 /** CO₂ (R-744) subkriittinen: bar gauge → °C (ei transkriittistä aluetta). */
+// CO₂ kyllästys (NIST, bar abs − 1,01325).
 const CO2_SUBCRITICAL: PtBarPoint[] = [
-  { bar: 5, temp: -60 },
-  { bar: 10, temp: -48 },
-  { bar: 15, temp: -40 },
-  { bar: 20, temp: -33 },
-  { bar: 25, temp: -27 },
-  { bar: 30, temp: -22 },
-  { bar: 35, temp: -17 },
-  { bar: 40, temp: -12 },
-  { bar: 45, temp: -8 },
-  { bar: 50, temp: -4 },
-  { bar: 55, temp: 0 },
-  { bar: 58, temp: 2 },
+  { bar: 5.807, temp: -50 },
+  { bar: 9.037, temp: -40 },
+  { bar: 13.267, temp: -30 },
+  { bar: 18.687, temp: -20 },
+  { bar: 25.477, temp: -10 },
+  { bar: 33.837, temp: 0 },
+  { bar: 38.677, temp: 5 },
+  { bar: 44.007, temp: 10 },
+  { bar: 49.847, temp: 15 },
+  { bar: 56.277, temp: 20 },
+  { bar: 63.327, temp: 25 },
+  { bar: 71.127, temp: 30 },
 ];
 
+const CO2_LIMIT_BAR_GAUGE = 71;
+
 function interpolateCo2Dew(pressure: number): number {
-  if (pressure > 58) return NaN;
+  if (pressure > CO2_LIMIT_BAR_GAUGE) return NaN;
   return interpolatePtBarAscending(CO2_SUBCRITICAL, pressure);
 }
 
@@ -162,7 +180,7 @@ function interpolateCo2Bubble(pressure: number): number {
 }
 
 export function getCo2PtLimitBarGauge(): number {
-  return 58;
+  return CO2_LIMIT_BAR_GAUGE;
 }
 
 export { REFRIGERANT_PT_CHART_URLS };

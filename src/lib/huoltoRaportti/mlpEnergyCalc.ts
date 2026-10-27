@@ -168,14 +168,15 @@ function warningsForRefrigerantCircuit(
   kp: HuoltoReportData['kylmaainePiiri1'] | null | undefined,
   ref: string,
   circuitLabel: string,
+  forPrint = false,
 ): string[] {
   if (!kp?.onKaytossa) return [];
   const prefix = circuitLabel ? `${circuitLabel}: ` : '';
   const warnings: string[] = [];
-  const sh = circuitSuperheatPrintEnabled(kp)
+  const sh = !forPrint || circuitSuperheatPrintEnabled(kp)
     ? calculateSuperheatFromMeasurements(parseNum(kp.imupaine), parseNum(kp.imuLampotila), ref)
     : null;
-  const sc = circuitSubcoolingPrintEnabled(kp)
+  const sc = !forPrint || circuitSubcoolingPrintEnabled(kp)
     ? calculateSubcoolingFromMeasurements(
         parseNum(kp.korkeapaine),
         parseNum(kp.nestePutkiLampotila),
@@ -205,16 +206,16 @@ function warningsForRefrigerantCircuit(
   return warnings;
 }
 
-export function buildRefrigerantCircuitWarnings(data: HuoltoReportData): string[] {
+export function buildRefrigerantCircuitWarnings(data: HuoltoReportData, forPrint = false): string[] {
   if (data.piilotaVaroitukset || data.laiteTyyppi === 'lämpöpumppu') return [];
   const ref = data.kylmaaineTyyppi || '';
   const circuits = data.kylmaainePiireja ?? '1';
-  const out = [...warningsForRefrigerantCircuit(data.kylmaainePiiri1, ref, '')];
+  const out = [...warningsForRefrigerantCircuit(data.kylmaainePiiri1, ref, '', forPrint)];
   if (circuits !== '1') {
-    out.push(...warningsForRefrigerantCircuit(data.kylmaainePiiri2, ref, 'Piiri 2'));
+    out.push(...warningsForRefrigerantCircuit(data.kylmaainePiiri2, ref, 'Piiri 2', forPrint));
   }
   if (circuits === '3' || circuits === '4') {
-    out.push(...warningsForRefrigerantCircuit(data.kylmaainePiiri3, ref, 'Piiri 3'));
+    out.push(...warningsForRefrigerantCircuit(data.kylmaainePiiri3, ref, 'Piiri 3', forPrint));
   }
   return out;
 }

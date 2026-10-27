@@ -1,4 +1,6 @@
 import { fieldModuleFieldVisible } from './fieldModules';
+import { koneikkoCustomComponents, koneikkoLegacyReadOnly, koneikkoView, usesKoneikkoComponents } from './koneikkoComponents';
+import { refrigerantCircuitComponentLabel } from './refrigerantCircuitComponents';
 import { airCapacity, formatKw, staticEvaporatorEstimate, staticInput } from './airCapacity';
 import { kokoonpanoLauhdutinLabel, kokoonpanoSummary, vjHeatingTitle } from './deviceKokoonpano';
 import { fieldModuleValues, visibleFieldModules } from './fieldModules';
@@ -314,7 +316,22 @@ function renderCircuitHtml(
   const pvLabel =
     expansionValveTypes.find((t) => t.value === kp.paisuntaventtiiliTyyppi)?.label ??
     kp.paisuntaventtiiliTyyppi;
-  const configRows = [
+  const kv = usesKoneikkoComponents(laiteTyyppi) ? koneikkoView(kp) : null;
+  const koneikkoRows = kv
+    ? [
+        kv.nestelasiOn ? row('Nestelasi', [kv.nestelasiKuplat === 'kupliton' ? 'kupliton' : kv.nestelasiKuplat === 'kuplii' ? 'kuplii' : '', kv.nestelasiKosteus ? `kosteus ${kv.nestelasiKosteus}` : ''].filter(Boolean).join(', '), '#E64A19') : '',
+        kv.kuivainOn ? row('Kuivain', [kv.kuivainMalli, kv.kuivainVaihdettu ? 'vaihdettu' : ''].filter(Boolean).join(', ') || 'on', '#E64A19') : '',
+        kv.imusuodatinOn ? row('Imusuodatin', kv.imusuodatinVaihdettu ? 'vaihdettu' : 'on', '#E64A19') : '',
+        kv.tarinaOn ? row('Tärinänvaimennus', 'on', '#E64A19') : '',
+        ...koneikkoCustomComponents(kp).map((c) => row('Muu komponentti', c.customName, '#E64A19')),
+        ...koneikkoLegacyReadOnly(kp)
+          .map((c) => row(refrigerantCircuitComponentLabel(c), [c.valmistaja, c.malli, c.kommentti].map((x) => String(x ?? '').trim()).filter(Boolean).join(' · ') || 'kirjattu', '#E64A19')),
+      ].filter(Boolean).join('')
+    : '';
+  const configRows = kv ? [
+    row('Ohjaustapa', kp.ohjaustapa, '#E64A19'),
+    koneikkoRows,
+  ].filter(Boolean).join('') : [
     row('Ohjaustapa', kp.ohjaustapa, '#E64A19'),
     row('Paisuntaventtiili', pvLabel, '#E64A19'),
     row('PV valmistaja', kp.paisuntaventtiiliValmistaja, '#E64A19'),
@@ -920,7 +937,7 @@ function renderHuomiot(data: HuoltoReportData, imageUrls?: Record<string, string
 
 function renderCircuitWarningsBanner(data: HuoltoReportData): string {
   if (isKonvektoritDevice(data.laiteTyyppi) || hideMaintenancePrintWarnings(data)) return '';
-  const warnings = buildRefrigerantCircuitWarnings(data);
+  const warnings = buildRefrigerantCircuitWarnings(data, true);
   if (!warnings.length) return '';
   const list = warnings.map((w) => `<li style="margin-bottom:4px;">${esc(w)}</li>`).join('');
   return `<div class="box-content" style="border-color:#d32f2f;margin-top:10px;page-break-inside:avoid;">
