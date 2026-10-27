@@ -190,3 +190,20 @@ export function getRefrigerantPtChartUrl(refrigerant: string): string | null {
   if (!key) return null;
   return REFRIGERANT_PT_CHART_URLS[key] ?? REFRIGERANT_PT_CHART_URLS[refrigerant.trim()] ?? null;
 }
+
+/** Käänteinen: höyrystymislämpötila (°C, kastepiste) → paine (bar gauge). NaN jos ei taulukkoa. */
+export function getPressureFromSaturationTemp(tempC: number, refrigerant: string): number {
+  if (!Number.isFinite(tempC) || !resolveRefrigerantPtKey(refrigerant)) return NaN;
+  let lo = 0.001, hi = 120;
+  const f = (p: number) => getSaturationTempFromPressure(p, refrigerant);
+  if (!Number.isFinite(f(lo)) || !Number.isFinite(f(hi))) {
+    // rajaa taulukon alueelle
+    while (hi > lo && !Number.isFinite(f(hi))) hi *= 0.8;
+  }
+  if (!(f(lo) <= tempC && tempC <= f(hi))) return NaN;
+  for (let i = 0; i < 80; i += 1) {
+    const mid = (lo + hi) / 2;
+    if (f(mid) < tempC) lo = mid; else hi = mid;
+  }
+  return (lo + hi) / 2;
+}

@@ -26,7 +26,9 @@ type FieldExtras = {
 export type FieldModuleField = FieldExtras & (
   | { id: string; label: string; type: 'text'; unit?: string; required?: boolean }
   | { id: string; label: string; type: 'select'; options: string[]; required?: boolean }
-  | { id: string; label: string; type: 'textarea' });
+  | { id: string; label: string; type: 'textarea' }
+  /** Paine (bar) ↔ höyrystymislämpötila (°C) kylmäaineen P-T-taulukosta; lämpötila tallennetaan tempId:hen. */
+  | { id: string; label: string; type: 'pt'; tempId: string; required?: boolean });
 
 export type FieldModuleDefinition = {
   id: FieldModuleId;
@@ -51,7 +53,6 @@ function evaporatorCount(form: FieldModuleForm): number {
 
 /** Kylmiö: onko höyrystimien ohjaus yhteinen (ohjaukset-vaiheessa) vai höyrystinkohtainen (höyrystimen kortilla). */
 export function kylmioEvaporatorOhjausShared(form: FieldModuleForm): boolean {
-  if (evaporatorCount(form) <= 1) return true;
   return form.kenttaModuulit?.ohjaukset?.hoyrystinOhjaus !== HOYRYSTIN_OHJAUS_OMA;
 }
 const sharedOhjaus = (_v: Record<string, string | boolean>, form: FieldModuleForm) => kylmioEvaporatorOhjausShared(form);
@@ -67,11 +68,14 @@ export const FIELD_MODULES: readonly FieldModuleDefinition[] = [
     title: 'Ohjaukset',
     isVisible: (form) => isKylmioDevice(form.laiteTyyppi),
     fields: [
+      { id: 'koneikkoOhjaustapa', label: 'Ohjaustapa', type: 'select', options: ['Imupaine', 'Lämpötila', 'Muu'], section: 'Koneikko' },
       { id: 'saadin', label: 'Säädin (valmistaja / malli)', type: 'text', section: 'Koneikko' },
+      { id: 'imupaineAsetus', label: 'Imupaine, asetus', type: 'pt', tempId: 'imupaineAsetusT', section: 'Koneikko', when: (v) => v.koneikkoOhjaustapa === 'Imupaine' },
+      { id: 'koneikkoLampoAsetus', label: 'Lämpötila, asetus', type: 'text', unit: '°C', section: 'Koneikko', when: (v) => v.koneikkoOhjaustapa === 'Lämpötila' },
       { id: 'halytykset', label: 'Hälytysten toiminta', type: 'select', options: KUNTO, required: true, section: 'Koneikko' },
       {
         id: 'hoyrystinOhjaus', label: 'Yhteinen vai oma', type: 'select', options: [HOYRYSTIN_OHJAUS_YHTEINEN, HOYRYSTIN_OHJAUS_OMA],
-        section: 'Höyrystimien ohjaus', when: (_v, form) => evaporatorCount(form) > 1, requiredWhen: (_v, form) => evaporatorCount(form) > 1,
+        section: 'Höyrystimien ohjaus', requiredWhen: (_v, form) => evaporatorCount(form) > 1,
       },
       { id: 'ohjausTyyppi', label: 'Ohjauksen tyyppi', type: 'select', options: ['Elektroninen säädin', 'Termostaatti', 'Kiinteistöautomaatio'], section: 'Höyrystimien ohjaus', when: sharedOhjaus },
       { id: 'asetusarvo', label: 'Lämpötila, asetus', type: 'text', unit: '°C', section: 'Höyrystimien ohjaus', when: sharedOhjaus, requiredWhen: sharedOhjaus },
@@ -88,7 +92,7 @@ export const FIELD_MODULES: readonly FieldModuleDefinition[] = [
     title: 'Mittaukset',
     isVisible: (form) => isKylmioDevice(form.laiteTyyppi),
     fields: [
-      { id: 'tilaLampo', label: 'Tilan lämpötila', type: 'text', unit: '°C', required: true },
+      { id: 'tilaLampo', label: 'Tilan lämpötila', type: 'text', unit: '°C', when: sharedOhjaus, requiredWhen: sharedOhjaus },
       { id: 'konehuoneLampo', label: 'Konehuone / ulkolämpötila', type: 'text', unit: '°C' },
       { id: 'hoyrystinIlmaSisaan', label: 'Höyrystin, ilma sisään', type: 'text', unit: '°C', legacy: true },
       { id: 'hoyrystinIlmaUlos', label: 'Höyrystin, ilma ulos', type: 'text', unit: '°C', legacy: true },
@@ -174,8 +178,9 @@ export function fieldModuleCompletion(form: FieldModuleForm, id: string): Mainte
   const filled = (fieldId: string) => String(values[fieldId] ?? '').trim() !== '';
   const isRequired = (f: FieldModuleField) =>
     f.type !== 'textarea' && (f.requiredWhen ? f.requiredWhen(values, form) : 'required' in f && !!f.required);
-  if (def.fields.some((f) => isRequired(f) && !filled(f.id))) return 'incomplete';
-  if (def.fields.some((f) => f.type === 'select' && values[f.id] === FIELD_MODULE_FAULT_VALUE)) return 'attention';
+  const shown = def.fields.filter((f) => fieldModuleFieldVisible(f, values, form));
+  if (shown.some((f) => isRequired(f) && !filled(f.id))) return 'incomplete';
+  if (shown.some((f) => f.type === 'select' && values[f.id] === FIELD_MODULE_FAULT_VALUE)) return 'attention';
   return 'ok';
 }
 
@@ -184,9 +189,9 @@ export function fieldModuleSummary(form: FieldModuleForm, id: string): string {
   if (!def) return '';
   const values = fieldModuleValues(form, id);
   return def.fields
-    .filter((f) => f.type !== 'textarea' && String(values[f.id] ?? '').trim())
+    .filter((f) => f.type !== 'textarea' && fieldModuleFieldVisible(f, values, form) && String(values[f.id] ?? '').trim())
     .slice(0, 3)
-    .map((f) => `${f.label}: ${String(values[f.id])}${f.type === 'text' && f.unit ? ` ${f.unit}` : ''}`)
+    .map((f) => `${f.label}: ${fieldModuleDisplayValue(f, values)}`)
     .join(' · ');
 }
 
@@ -196,13 +201,27 @@ export function hasFieldModuleFault(form: FieldModuleForm): boolean {
 
 /** Näytetäänkö kenttä lomakkeella / tulosteessa. */
 export function fieldModuleFieldVisible(field: FieldModuleField, values: Record<string, string | boolean>, form: FieldModuleForm): boolean {
-  const hasValue = String(values[field.id] ?? '').trim() !== '';
-  if (hasValue) return true;
-  if (field.legacy) return false;
+  if (field.legacy) return String(values[field.id] ?? '').trim() !== '';
   return field.when ? field.when(values, form) : true;
+}
+
+/** Piilotettu kenttä, jolla on vanha arvo → näytetään vain luku -muodossa ("Aiemmin kirjattu"). */
+export function fieldModuleFieldArchived(field: FieldModuleField, values: Record<string, string | boolean>, form: FieldModuleForm): boolean {
+  return !fieldModuleFieldVisible(field, values, form) && String(values[field.id] ?? '').trim() !== '';
 }
 
 export function fieldModuleFieldRequired(field: FieldModuleField, values: Record<string, string | boolean>, form: FieldModuleForm): boolean {
   if (field.type === 'textarea') return false;
   return field.requiredWhen ? field.requiredWhen(values, form) : !!field.required;
+}
+
+/** Kentän arvo tekstinä yksikköineen (tuloste, yhteenveto, vain luku). */
+export function fieldModuleDisplayValue(f: FieldModuleField, values: Record<string, string | boolean>): string {
+  const v = String(values[f.id] ?? '').trim();
+  if (!v) return '';
+  if (f.type === 'pt') {
+    const t = String(values[f.tempId] ?? '').trim();
+    return `${v} bar${t ? ` (${t} °C)` : ''}`;
+  }
+  return f.type === 'text' && f.unit ? `${v} ${f.unit}` : v;
 }

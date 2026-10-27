@@ -367,8 +367,8 @@ export function EvaporatorModule({
                       <FormInput label="Tulistus (K)" type="number" value={source.tulistus || ''} disabled={disabled} onChange={(v) => set({ tulistus: v })} />
                     </div>
                   )}
-                  {showOwnOhjaus && <FormCheckbox label="Ohjaus" checked={on(source.ohjausKaytossa)} disabled={disabled} onChange={(v) => set({ ohjausKaytossa: v })} />}
-                  {showOwnOhjaus && on(source.ohjausKaytossa) && (
+                  {showOwnOhjaus && <FormCheckbox label="Huoneen ohjaus (huonelämpötila)" checked={source.ohjausKaytossa !== false} disabled={disabled} onChange={(v) => set({ ohjausKaytossa: v })} />}
+                  {showOwnOhjaus && source.ohjausKaytossa !== false && (
                     <div className="line-form-grid">
                       <label>
                         Ohjauksen tyyppi
@@ -379,27 +379,26 @@ export function EvaporatorModule({
                           <option value="kiinteisto">Kiinteistöautomaatio</option>
                         </select>
                       </label>
-                      <FormInput label="Säätimen malli" value={source.ohjausMalli || ''} disabled={disabled} onChange={(v) => set({ ohjausMalli: v })} />
+                      <FormInput label="Säädin (valmistaja / malli)" value={source.ohjausMalli || ''} disabled={disabled} onChange={(v) => set({ ohjausMalli: v })} />
                       <FormInput label="Lämpötila mitattu (°C)" type="number" value={source.lampotilaMitattu || ''} disabled={disabled} onChange={(v) => set({ lampotilaMitattu: v })} />
                       <FormInput label="Lämpötila asetus (°C)" type="number" value={source.lampotilaAsetus || ''} disabled={disabled} onChange={(v) => set({ lampotilaAsetus: v })} />
                       <FormInput label="Ylähälytysraja (°C)" type="number" value={source.halytysYla || ''} disabled={disabled} onChange={(v) => set({ halytysYla: v })} />
                       <FormInput label="Alahälytysraja (°C)" type="number" value={source.halytysAla || ''} disabled={disabled} onChange={(v) => set({ halytysAla: v })} />
-                      <label>
-                        Ovikytkin / munakello
-                        <select value={source.ovikytkin || ''} disabled={disabled} onChange={(e) => set({ ovikytkin: e.target.value as EvaporatorData['ovikytkin'] })}>
-                          <option value="">Valitse…</option>
-                          <option value="ovikytkin">Ovikytkin</option>
-                          <option value="munakello">Munakello</option>
-                          <option value="ei">Ei</option>
-                        </select>
-                      </label>
-                      {fansDefrost && (
-                        <>
-                          <FormInput label="Sulatusväli (h)" value={source.sulatusVali || ''} disabled={disabled} onChange={(v) => set({ sulatusVali: v })} />
-                          {source.sulatus !== 'sahko' && (
-                            <FormInput label="Sulatusaika" value={source.sulatusAika || ''} disabled={disabled} onChange={(v) => set({ sulatusAika: v })} />
-                          )}
-                        </>
+                      <FormInput label="Sulatusväli (h)" value={source.sulatusVali || ''} disabled={disabled} onChange={(v) => set({ sulatusVali: v })} />
+                      {source.sulatus !== 'sahko' && (
+                        <FormInput label="Sulatusaika" value={source.sulatusAika || ''} disabled={disabled} onChange={(v) => set({ sulatusAika: v })} />
+                      )}
+                      <div className="huolto-span-all">
+                        <FormCheckbox label="Ovikytkin / munakello" checked={source.ovikytkin === 'ovikytkin' || source.ovikytkin === 'munakello'} disabled={disabled} onChange={(v) => set({ ovikytkin: v ? 'ovikytkin' : 'ei' })} />
+                      </div>
+                      {(source.ovikytkin === 'ovikytkin' || source.ovikytkin === 'munakello') && (
+                        <div className="huolto-span-all konvektori-yesno" role="group" aria-label="Ovikytkimen tyyppi">
+                          {(['ovikytkin', 'munakello'] as const).map((k) => (
+                            <button key={k} type="button" disabled={disabled} className={`konvektori-yesno-btn${source.ovikytkin === k ? ' konvektori-yesno-btn--active konvektori-yesno-btn--yes' : ''}`} aria-pressed={source.ovikytkin === k} onClick={() => set({ ovikytkin: k })}>
+                              {k === 'ovikytkin' ? 'Ovikytkin' : 'Munakello'}
+                            </button>
+                          ))}
+                        </div>
                       )}
                     </div>
                   )}

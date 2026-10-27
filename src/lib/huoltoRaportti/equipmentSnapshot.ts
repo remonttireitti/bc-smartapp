@@ -117,7 +117,7 @@ const EVAPORATOR_FIXED_TEXT = [
 ] as const;
 
 /** Ohjaukset-vaiheen kiinteät kentät (laitekortille). */
-export const OHJAUKSET_FIXED_FIELDS = ['saadin', 'hoyrystinOhjaus', 'ohjausTyyppi'] as const;
+export const OHJAUKSET_FIXED_FIELDS = ['koneikkoOhjaustapa', 'saadin', 'hoyrystinOhjaus', 'ohjausTyyppi'] as const;
 
 export function stripEvaporatorForRegistry(e: EvaporatorData): Partial<EvaporatorData> {
   const hx = e.tyyppi === 'levy' || e.tyyppi === 'putki';
@@ -175,6 +175,9 @@ export function stripCondenserForRegistry(c: CondenserData): Partial<CondenserDa
     return { id: f.id, phase: 1 as const, virtaL1: '', jannite: f.jannite };
   });
   const out: Partial<CondenserData> = { tyyppi: c.tyyppi, puhaltimet: fans };
+  if (trim(c.valmistaja)) out.valmistaja = trim(c.valmistaja);
+  if (trim(c.malli)) out.malli = trim(c.malli);
+  if (trim(c.sarjanumero)) out.sarjanumero = trim(c.sarjanumero);
   const pm = c.puhaltimienMaara != null ? Number(c.puhaltimienMaara) : 0;
   if (pm > 0) out.puhaltimienMaara = c.puhaltimienMaara;
   if (c.puhallinOhjaus) out.puhallinOhjaus = c.puhallinOhjaus;
