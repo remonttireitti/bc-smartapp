@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import ToggleSwitch from '../ToggleSwitch';
 import {
-  devicePublicPath,
   fetchDeviceQrTokens,
   generateDeviceQrToken,
   setDeviceQrToken,
@@ -66,7 +65,7 @@ export default function DeviceQrPanel({ equipmentId, name, tag, canWrite }: Prop
       {canWrite ? (
         <div className="equipment-toggle-row">
           <ToggleSwitch
-            label="Julkinen huoltopöytäkirja"
+            label="QR-tarra käytössä"
             checked={Boolean(token)}
             disabled={busy}
             onChange={(on) => void apply(on ? generateDeviceQrToken() : null)}
@@ -78,21 +77,6 @@ export default function DeviceQrPanel({ equipmentId, name, tag, canWrite }: Prop
           <button type="button" className="btn btn-primary" onClick={() => void print()}>
             Tulosta QR-tarra
           </button>
-          <a className="btn btn-secondary" href={devicePublicPath(token)} target="_blank" rel="noreferrer">
-            Avaa
-          </a>
-          {canWrite ? (
-            <button
-              type="button"
-              className="btn btn-secondary"
-              disabled={busy}
-              onClick={() => {
-                if (window.confirm('Uusi koodi mitätöi vanhan tarran. Jatketaanko?')) void apply(generateDeviceQrToken());
-              }}
-            >
-              Uusi koodi
-            </button>
-          ) : null}
         </div>
       ) : null}
       {error ? <p className="error">{error}</p> : null}

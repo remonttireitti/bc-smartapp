@@ -38,6 +38,14 @@ export type CustomerLinkedDocument = {
   printHref?: string;
 };
 
+/** Raportin huoltopäivä YYYY-MM-DD (huoltoPaivamaara: ISO tai d.m.yyyy), muuten null. */
+export function maintenanceServiceDate(data: unknown): string | null {
+  const v = String((data as { huoltoPaivamaara?: unknown } | null)?.huoltoPaivamaara ?? '').trim();
+  if (/^\d{4}-\d{2}-\d{2}/.test(v)) return v.slice(0, 10);
+  const m = v.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})/);
+  return m ? `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}` : null;
+}
+
 export type CustomerDocumentFilter = 'all' | CustomerLinkedDocumentKind;
 
 export const CUSTOMER_DOCUMENT_KIND_LABELS: Record<CustomerLinkedDocumentKind, string> = {
@@ -202,7 +210,8 @@ export async function loadCustomerLinkedDocuments(
         report.title,
         report.data ?? ({} as HuoltoReportData),
       ),
-      date: report.updated_at || report.created_at,
+      // Huoltopäivä raportilta (ei muokkausaikaleimaa, joka muuttuu jokaisesta tallennuksesta).
+      date: maintenanceServiceDate(report.data) || report.updated_at || report.created_at,
       status: report.status,
       statusLabel: getMaintenanceReportStatusLabel(report.status),
       equipmentId: report.equipment_id,

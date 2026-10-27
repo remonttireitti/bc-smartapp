@@ -3,16 +3,12 @@ import { useCompanyHuoltoSettings } from '../hooks/useCompanyHuoltoSettings';
 import ToggleSwitch from '../components/ToggleSwitch';
 import DeviceQrPanel from '../components/equipment/DeviceQrPanel';
 import DeviceNotesPanel from '../components/equipment/DeviceNotesPanel';
-import DeviceLinksPanel from '../components/equipment/DeviceLinksPanel';
 import {
   latestSharedYmd,
   listEquipmentLinks,
-  loadEquipmentFillValues,
   loadSharedHistory,
   maxYmd,
   sharedRowsToHistoryEntries,
-  type EquipmentFillValues,
-  type EquipmentLink,
   type SharedHistoryRow,
 } from '../lib/equipmentLinks';
 import { HUOLTO_ASETUKSET_KEY, buildDeviceSchedule, defaultServiceIntervalMonths, formatTonnes, leakCheckInterval, readHuoltoAsetukset, refrigerantGwp, todayYmdLocal } from '../lib/huoltoSchedule';
@@ -21,11 +17,8 @@ import { Link, Navigate, useParams } from 'react-router-dom';
 import { getPortalCustomerId, getPortalSubscriberId } from '../lib/portalPreview';
 import type { Session } from '@supabase/supabase-js';
 import AppLayout from '../components/AppLayout';
-import { CustomerDocumentTable } from '../components/CustomerDocumentTile';
-import EquipmentSnapshotTileView from '../components/equipment/EquipmentSnapshotTileView';
 import { DeviceCardIcon, HistoryIcon } from '../components/PrintIcons';
 import Tooltip from '../components/Tooltip';
-import CustomerSummaryStrip from '../components/CustomerSummaryStrip';
 import {
   effectiveDeviceFields,
   formatRefrigerant,
@@ -45,13 +38,14 @@ import {
   buildLatestMaintenanceByEquipment,
   buildLatestLeakCheckByEquipment,
   formatMaintenanceDateFi,
+  parseMaintenanceDateMs,
   buildMaintenanceHistoryForEquipment,
   buildMaintenanceHistoryPrintHtml,
   loadCustomerMaintenanceContext,
 } from '../lib/equipmentMaintenanceHistory';
 import { loadCustomerLinkedDocuments, type CustomerLinkedDocument } from '../lib/customerDocuments';
 import { deviceTypes } from '../lib/huoltoRaportti/constants';
-import { deviceTypeLabel, parseEquipmentSnapshot } from '../lib/huoltoRaportti/equipmentSnapshotDisplay';
+import { deviceTypeLabel } from '../lib/huoltoRaportti/equipmentSnapshotDisplay';
 import { customerDetailTrail, equipmentDetailTrail, withNavTrail } from '../lib/navigationTrail';
 import { openPrintHtml } from '../lib/openPrintWindow';
 import { supabase } from '../lib/supabase';
@@ -125,9 +119,8 @@ export default function EquipmentDetailPage({ session }: Props) {
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const [documents, setDocuments] = useState<CustomerLinkedDocument[]>([]);
   const [equipmentNotes, setEquipmentNotes] = useState<EquipmentNote[] | null>(null);
-  const [links, setLinks] = useState<EquipmentLink[] | null>(null);
   const [sharedRows, setSharedRows] = useState<SharedHistoryRow[]>([]);
-  const [fillValues, setFillValues] = useState<EquipmentFillValues>({});
+  const [ownCompanyName, setOwnCompanyName] = useState<string | null>(null);
   const [maintenanceRows, setMaintenanceRows] = useState<
     Awaited<ReturnType<typeof loadCustomerMaintenanceContext>>['maintenanceRows']
   >([]);
@@ -166,14 +159,10 @@ export default function EquipmentDetailPage({ session }: Props) {
 
   async function loadLinks(id: string) {
     const list = await listEquipmentLinks(supabase, id);
-    setLinks(list);
     if (list && list.some((l) => l.status === 'active')) {
-      const [shared, fill] = await Promise.all([loadSharedHistory(supabase, id), loadEquipmentFillValues(supabase, id)]);
-      setSharedRows(shared ?? []);
-      setFillValues(fill ?? {});
+      setSharedRows((await loadSharedHistory(supabase, id)) ?? []);
     } else {
       setSharedRows([]);
-      setFillValues({});
     }
   }
 
@@ -231,6 +220,10 @@ export default function EquipmentDetailPage({ session }: Props) {
     setMaintenanceRows(maintenanceContext.maintenanceRows);
     void loadEquipmentNotes(supabase, { customerId: customerId }).then(setEquipmentNotes);
     void loadLinks(equipmentRow.id);
+    if (profile?.company_id) {
+      void supabase.from('companies').select('name').eq('id', profile.company_id).maybeSingle()
+        .then(({ data }) => setOwnCompanyName((data as { name?: string } | null)?.name ?? null));
+    }
     setWorkRows(maintenanceContext.workRows);
     setLoading(false);
   }
@@ -253,39 +246,31 @@ export default function EquipmentDetailPage({ session }: Props) {
     });
   }, [equipment, deviceColumns, latestMaintenanceByEquipment, maintenanceRows, sharedRows]);
 
-  // 'Täydennä linkitetystä': vain tyhjät omat kentät, ei koskaan ylikirjoitusta.
-  const fillKeys = useMemo(() => {
-    if (!equipment) return [] as string[];
-    const blank = (v: unknown) => v == null || String(v).trim() === '' || /^ei\s*tiedossa$/i.test(String(v).trim());
-    const own: Record<string, unknown> = {
-      model: equipment.model,
-      serial_number: equipment.serial_number,
-      ...(deviceColumnsSupported
-        ? {
-            manufacturer: deviceColumns?.manufacturer,
-            refrigerant: deviceColumns?.refrigerant,
-            refrigerant_charge_kg: deviceColumns?.refrigerant_charge_kg,
-            installed_on: deviceColumns?.installed_on,
-          }
-        : {}),
-    };
-    return Object.keys(own).filter((k) => blank(own[k]) && !blank((fillValues as Record<string, unknown>)[k]));
-  }, [equipment, deviceColumns, deviceColumnsSupported, fillValues]);
-
-  async function applyFill() {
-    if (!equipment || fillKeys.length === 0) return;
-    const payload: Record<string, unknown> = {};
-    for (const k of fillKeys) payload[k] = (fillValues as Record<string, unknown>)[k];
-    const { error: fillError } = await supabase.from('equipment').update(payload).eq('id', equipment.id);
-    if (fillError) throw new Error(fillError.message);
-    await load();
-  }
-
-  const snapshot = useMemo(
-    () => parseEquipmentSnapshot(equipment?.huolto_technical_snapshot),
-    [equipment?.huolto_technical_snapshot],
-  );
-
+  /** Yksi huoltohistoria uusin ensin: pöytäkirjat (myös kesken), työraportit, merkinnät, linkitetyn laitteen toisen yrityksen rivit. */
+  const historyRows = useMemo(() => {
+    type Row = { key: string; ms: number; date: string; text: string; status?: string; href?: string };
+    const rows: Row[] = [];
+    for (const d of documents) {
+      if (d.kind !== 'maintenance_report' && d.kind !== 'work_report') continue;
+      const ms = parseMaintenanceDateMs(d.date);
+      rows.push({
+        key: `${d.kind}-${d.id}`,
+        ms,
+        date: formatMaintenanceDateFi(d.date),
+        text: d.kind === 'work_report' ? `Työraportti: ${d.title}` : d.title,
+        status: d.status === 'draft' ? 'Kesken' : undefined,
+        href: d.href,
+      });
+    }
+    for (const n of equipmentNotes ?? []) {
+      if (n.equipment_id !== equipmentId) continue;
+      rows.push({ key: `note-${n.id}`, ms: parseMaintenanceDateMs(n.entry_date), date: formatMaintenanceDateFi(n.entry_date), text: n.text });
+    }
+    // Linkitetyn laitteen rivit vain toiselta yritykseltä — omat ovat jo listassa.
+    const foreign = sharedRows.filter((r) => !ownCompanyName || r.company !== ownCompanyName);
+    sharedRowsToHistoryEntries(foreign).forEach((e, i) => rows.push({ key: `shared-${i}`, ms: e.sortMs, date: e.dateLabel, text: e.summary }));
+    return rows.sort((x, y) => y.ms - x.ms);
+  }, [documents, equipmentNotes, equipmentId, sharedRows, ownCompanyName]);
 
   async function loadPrintBranding(ownerCompanyId: string) {
     const { data } = await supabase.from('companies').select('name, logo_url').eq('id', ownerCompanyId).single();
@@ -494,8 +479,6 @@ export default function EquipmentDetailPage({ session }: Props) {
 
       {error && <p className="error">{error}</p>}
       {saveMessage && <p className="success">{saveMessage}</p>}
-
-      <CustomerSummaryStrip documents={documents} />
 
       <section className="panel customer-info-panel">
         <h2 className="customer-section-title">Laitetiedot</h2>
@@ -747,55 +730,61 @@ export default function EquipmentDetailPage({ session }: Props) {
         )}
       </section>
 
+      <section className="panel customer-section" data-testid="device-history">
+        <div className="device-notes-head">
+          <h2 className="customer-section-title">Huoltohistoria</h2>
+        </div>
+        {historyRows.length === 0 ? (
+          <p className="muted">Ei merkintöjä.</p>
+        ) : (
+          <ul className="device-history-list">
+            {historyRows.map((r) => {
+              const body = (
+                <>
+                  <strong>{r.date}</strong>
+                  <span className="device-history-text">{r.text}</span>
+                  {r.status ? <span className="device-notes-badge">{r.status}</span> : null}
+                </>
+              );
+              return (
+                <li key={r.key}>
+                  {r.href ? (
+                    <Link to={r.href} className="device-history-row" {...withNavTrail(trail)}>{body}</Link>
+                  ) : (
+                    <div className="device-history-row">{body}</div>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+        {!portalMode ? (
+          <DeviceNotesPanel
+            session={session}
+            equipmentId={equipment.id}
+            notes={equipmentNotes}
+            canAdd
+            bare
+            showList={false}
+            onAdded={() => void loadEquipmentNotes(supabase, { customerId: customer.id }).then(setEquipmentNotes)}
+          />
+        ) : null}
+      </section>
+
       {!portalMode ? (
         <DeviceQrPanel equipmentId={equipment.id} name={equipment.name} tag={equipment.tag} canWrite={canWrite} />
       ) : null}
 
-      {links && !portalMode ? (
-        <DeviceLinksPanel
-          links={links}
-          shared={sharedRows}
-          fillKeys={fillKeys}
-          canWrite={canWrite}
-          onFill={applyFill}
-          onChanged={() => void loadLinks(equipment.id)}
-        />
+      {documents.some((d) => d.kind === 'file') ? (
+        <section className="panel customer-section">
+          <h2 className="customer-section-title">Tiedostot</h2>
+          <ul className="device-history-list">
+            {documents.filter((d) => d.kind === 'file').map((d) => (
+              <li key={d.id}><a className="device-history-row" href={d.href} target="_blank" rel="noreferrer">{d.title}</a></li>
+            ))}
+          </ul>
+        </section>
       ) : null}
-
-      <DeviceNotesPanel
-        session={session}
-        equipmentId={equipment.id}
-        notes={equipmentNotes}
-        canAdd={!portalMode}
-        onAdded={() => void loadEquipmentNotes(supabase, { customerId: customer.id }).then(setEquipmentNotes)}
-      />
-
-      <details className="panel customer-section equipment-snapshot-panel">
-        <summary className="customer-section-title">Tekniset tiedot huoltoraportilta (kylmäaine, valmistaja ym.)</summary>
-        {snapshot ? (
-          <EquipmentSnapshotTileView snapshot={snapshot} />
-        ) : (
-          <p className="muted">
-            Ei vielä tallennettua teknistä tilannekuvaa. Tiedot päivittyvät, kun huoltopöytäkirja tallentaa laiterekisteriin.
-          </p>
-        )}
-      </details>
-
-      {([
-        ['work_report', 'Työraportit'],
-        ['maintenance_report', portalMode ? 'Huoltopöytäkirjat' : 'Huoltoraportit'],
-        ['quote_request', portalMode ? 'Tarjoukset' : 'Tarjouspyynnöt ja laskennat'],
-        ['file', 'Tiedostot'],
-      ] as const).map(([kind, label]) => {
-        const list = documents.filter((d) => d.kind === kind);
-        if (list.length === 0 && kind === 'file') return null;
-        return (
-          <section key={kind} className="panel customer-section">
-            <h2 className="customer-section-title">{label} ({list.length})</h2>
-            {list.length === 0 ? <p className="muted">Ei tälle laitteelle kohdistettuja.</p> : <CustomerDocumentTable documents={list} hideKind />}
-          </section>
-        );
-      })}
     </AppLayout>
   );
 }
