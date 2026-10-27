@@ -28,15 +28,7 @@ export function TriStateInspectionToggle({ value, onChange, name, disabled }: Pr
       >
         Vika
       </button>
-      <button
-        type="button"
-        className={`konvektori-yesno-btn${value === 'na' ? ' konvektori-yesno-btn--active' : ''}`}
-        aria-pressed={value === 'na'}
-        disabled={disabled}
-        onClick={() => onChange('na')}
-      >
-        Ei kuulu
-      </button>
+      {value === 'na' && <span className="muted huolto-legacy-na">Aiemmin: Ei kuulu</span>}
     </div>
   );
 }

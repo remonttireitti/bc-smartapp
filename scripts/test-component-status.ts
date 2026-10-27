@@ -1,0 +1,13 @@
+import assert from 'node:assert/strict';
+import { componentStatus } from '../src/lib/huoltoRaportti/huoltoInspectionStatus';
+import { documentEntryCompletion } from '../src/lib/huoltoRaportti/maintenanceDocumentUnitEntries';
+import { createEmptyHuoltoReportData, createEmptyEvaporatorData } from '../src/lib/huoltoRaportti/defaults';
+assert.equal(componentStatus('na'), null);
+assert.equal(componentStatus('ok'), 'ok');
+assert.equal(componentStatus('faulty'), 'faulty');
+const f: any = createEmptyHuoltoReportData(); f.laiteTyyppi = 'pakastin';
+f.evaporatorData = [{ ...createEmptyEvaporatorData('pakastin'), tarkastusTila: 'na' }];
+const entry: any = { key: 'hoyrystin:0', kind: 'evaporatorUnit', tabId: 'hoyrystin:0', title: 'Höyrystin', unitIndex: 0 };
+assert.equal(documentEntryCompletion(entry, f), 'incomplete');
+assert.equal(f.evaporatorData[0].tarkastusTila, 'na', 'tallennettu arvo säilyy');
+console.log('component-status ok');

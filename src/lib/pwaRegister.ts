@@ -21,6 +21,15 @@ export function registerPwa() {
     onRegisteredSW(_url, registration) {
       if (registration) {
         window.setInterval(() => void registration.update(), 60 * 60 * 1000);
+        // iOS-kotinäyttösovellus palaa taustalta ilman uudelleenlatausta → tarkista päivitys aina kun sovellus avataan.
+        let last = 0;
+        document.addEventListener('visibilitychange', () => {
+          if (document.visibilityState !== 'visible') return;
+          const now = Date.now();
+          if (now - last < 60 * 1000) return;
+          last = now;
+          void registration.update();
+        });
       }
     },
   });
