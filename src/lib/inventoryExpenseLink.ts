@@ -1,5 +1,6 @@
 /** Varaston materiaalin valinta työraportin tarvike-/varaosariville. Saldon muutos tehdään DB-triggerissä. */
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { inferPartnerExpenseMarginPercent } from './workReportExpenseBilling';
 
 export type InventoryPickItem = {
   id: string;
@@ -88,6 +89,7 @@ type PickTarget = {
   customer_margin_percent: string;
   inventory_item_id?: string | null;
   unit?: string | null;
+  partner_expense_margin_percent?: string;
 };
 
 /** Täyttää rivin varastotuotteesta (hinnat alv 0 %). Määrä jätetään käyttäjälle. */
@@ -102,6 +104,8 @@ export function applyInventoryPick<T extends PickTarget>(row: T, item: Inventory
     unit_price: item.purchase_price != null ? String(item.purchase_price) : row.unit_price,
     customer_unit_price: item.sale_price != null ? String(item.sale_price) : row.customer_unit_price,
     customer_margin_percent: margin != null ? String(margin) : row.customer_margin_percent,
+    // Kumppanin kautta asiakashinta lasketaan kumppanin katteesta (kate myyntihinnasta) — myyntihinta säilyy.
+    ...(margin != null && 'partner_expense_margin_percent' in row ? { partner_expense_margin_percent: String(inferPartnerExpenseMarginPercent(item.purchase_price as number, item.sale_price as number)) } : {}),
   };
 }
 

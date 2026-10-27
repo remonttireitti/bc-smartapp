@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { applyInventoryPick, marginPercentFromPrices, searchInventoryItems, projectedStock } from '../src/lib/inventoryExpenseLink';
-import { emptyExpense } from '../src/lib/dailyLogExpenseDraft';
+import { emptyExpense, normalizeExpenseDraftsForSave } from '../src/lib/dailyLogExpenseDraft';
 
 const items = [
   { id: 'a', name: 'Kupariputki 12mm', sku: 'CU12', unit: 'm', qty_on_hand: 25, purchase_price: 4, sale_price: 6 },
@@ -26,4 +26,9 @@ const r2 = applyInventoryPick({ ...emptyExpense(), unit_price: '9' }, items[1]);
 assert.equal(r2.unit_price, '9');
 assert.equal(projectedStock(items[0], 3), 22);
 assert.equal(projectedStock(items[0], 5, 3), 23);
+// Tallennus ei saa laskea myyntihintaa uudelleen oletuskatteella (kumppani + asiakas / vain asiakas).
+for (const mode of [{ bill_to_partner: true, bill_to_customer: true }, { bill_to_partner: false, bill_to_customer: true }]) {
+  const saved = normalizeExpenseDraftsForSave([{ ...applyInventoryPick({ ...emptyExpense(), qty: '3', ...mode }, items[0]) }])[0];
+  assert.equal(Number(saved.customer_unit_price), 6, JSON.stringify(mode));
+}
 console.log('inventory-expense-link ok');
