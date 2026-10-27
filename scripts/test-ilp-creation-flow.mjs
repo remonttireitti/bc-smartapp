@@ -63,8 +63,8 @@ test('existing saved values keep their meaning', () => {
   assert.equal(ulkoyksikkoInspectionStatus(f), 'ok');
   const html = generateMaintenanceReportHtml(f, { companyName: 'Firma' });
   assert.ok(html.includes('Ei kuulu'));
-  // imported legacy unticked outdoor box still derives fault
-  assert.equal(ulkoyksikkoInspectionStatus({ ulkoyksikkoKennosPuhdas: false, ulkoyksikkoTurvakytkin: true, legacyCompanyInfo: { a: 1 } }), 'faulty');
+  // Uusi tilasääntö: tila vain eksplisiittisestä valinnasta — vanha rastittamaton ruutu ei päättele vikaa (Kesken).
+  assert.equal(ulkoyksikkoInspectionStatus({ ulkoyksikkoKennosPuhdas: false, ulkoyksikkoTurvakytkin: true, legacyCompanyInfo: { a: 1 } }), null);
 });
 
 test('ILP equipment serial = outdoor unit serial (one field, synced)', () => {
