@@ -217,7 +217,6 @@ export default function MaintenanceReportEditPage({ session }: Props) {
   const equipmentHydrateGenRef = useRef(0);
   const skipAutoSaveRef = useRef(true);
   const saveInFlightRef = useRef(false);
-  const autoSubmitOnCompleteRef = useRef(false);
   const formStateRef = useRef({ form, customerId, equipmentId });
   formStateRef.current = { form, customerId, equipmentId };
   const lastSavedKonvektoriScoreRef = useRef(0);
@@ -500,7 +499,8 @@ export default function MaintenanceReportEditPage({ session }: Props) {
     [maintenanceTabs.length, incompleteModules],
   );
 
-  const displayStatus = modulesComplete && status === 'draft' ? 'submitted' : status;
+  /** Valmis vain eksplisiittisellä 'Merkitse valmiiksi' -toiminnolla. */
+  const displayStatus = status;
 
   const [openTabId, setOpenTabId] = useState<string | null>(null);
   const documentLayout = useMaintenanceDocumentLayout();
@@ -771,6 +771,27 @@ export default function MaintenanceReportEditPage({ session }: Props) {
     if (cid) setCustomerId(cid);
     if (eid) setEquipmentId(eid);
   }, [isNew, ownerCompanyId, searchParams]);
+
+  /** Uusi huolto laitteelta: jatka laitteen olemassa olevaa luonnosta uuden luomisen sijaan. */
+  const existingDraftCheckedRef = useRef(false);
+  useEffect(() => {
+    if (!isNew || !ownerCompanyId || existingDraftCheckedRef.current) return;
+    if (searchParams.get('copyFrom')) return;
+    const eid = searchParams.get('equipmentId');
+    if (!eid) return;
+    existingDraftCheckedRef.current = true;
+    void (async () => {
+      const { data } = await supabase
+        .from('maintenance_reports')
+        .select('id')
+        .eq('equipment_id', eid)
+        .eq('status', 'draft')
+        .order('updated_at', { ascending: false })
+        .limit(1);
+      const draftId = (data as { id: string }[] | null)?.[0]?.id;
+      if (draftId) navigate(`/huoltoraportit/${draftId}`, { replace: true });
+    })();
+  }, [isNew, ownerCompanyId, searchParams, navigate]);
 
   useEffect(() => {
     const copyFromId = searchParams.get('copyFrom');
@@ -1797,34 +1818,13 @@ export default function MaintenanceReportEditPage({ session }: Props) {
 
     const timer = window.setTimeout(() => {
       void saveReport(
-        status === 'draft' ? (modulesComplete ? 'submitted' : 'draft') : undefined,
+        status === 'draft' ? 'draft' : undefined,
         { auto: true },
       );
     }, 2500);
 
     return () => window.clearTimeout(timer);
   }, [form, customerId, equipmentId, contextMode, partnerId, ownerCompanyId, status, isOnline, busy, canEditPublishedReport, modulesComplete]);
-
-  useEffect(() => {
-    if (profileLoading || loadingReport || skipAutoSaveRef.current) return;
-    if (!modulesComplete) {
-      autoSubmitOnCompleteRef.current = false;
-      return;
-    }
-    if (status !== 'draft' || !reportId || !canSaveDraft || busy || saveInFlightRef.current) return;
-    if (autoSubmitOnCompleteRef.current) return;
-
-    autoSubmitOnCompleteRef.current = true;
-    void saveReport('submitted', { auto: true });
-  }, [
-    modulesComplete,
-    status,
-    reportId,
-    canSaveDraft,
-    busy,
-    profileLoading,
-    loadingReport,
-  ]);
 
   useRegisterDraftSaver(async () => {
     if (status !== 'draft') return;
@@ -1964,7 +1964,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
     if (status !== 'draft' && !canEditPublishedReport) return;
     if (!form.laiteTyyppi || (!customerId && !form.asiakas.trim()) || !isOnline) return;
     void saveReport(
-      status === 'draft' ? (modulesComplete ? 'submitted' : 'draft') : undefined,
+      status === 'draft' ? 'draft' : undefined,
       { auto: true },
     );
   }
