@@ -16,8 +16,9 @@ import {
   getKokoLaiteSahkoVaiheValinta,
   getMlpPumpSyottoValinta,
 } from './sahkoVaiheUtils';
-import { ensureKonvektoriRow, konvektoriRowsHaveMaintenanceData } from './defaults';
+import { createEmptyHuoltoReportData, ensureKonvektoriRow, konvektoriRowsHaveMaintenanceData } from './defaults';
 import type {
+  HeatingElementData,
   CompressorData,
   CondenserData,
   CondenserFanData,
@@ -122,6 +123,15 @@ export const DEVICE_CONFIG_FIELDS = [
   'lauhdutinTyyppiLaite', 'lauhdutinLmvTyyppi', 'hoyrystinTyyppi', 'hoyrystimienMaara', 'sulatusKaytossa', 'sulatusTapa',
   'vjNestelauhdutusJaettu', 'hoyrystinYhteinenPiireissa', 'vapaajahdytysKaytossa',
 ] as const;
+
+/** Vedenjäähdytyskone / VAK: nestepiirien kiinteät kentät laitekorttiin. */
+export const VJ_FIXED_FIELDS = {
+  vapaajahdytysData: ['neste', 'pumppuValmistaja', 'pumppuMalli', 'ohjaus'],
+  jaahdytysvesiData: ['neste', 'pumppuValmistaja', 'pumppuMalli', 'paisuntaAstiaKoko'],
+  lauhdutuspiiriData: ['neste', 'pumppuValmistaja', 'pumppuMalli', 'paisuntaAstiaKoko', 'painesäätimenMalli'],
+  hoyrystinPiiriData: ['neste', 'pumppuValmistaja', 'pumppuMalli', 'paisuntaAstiaKoko'],
+  vjOhjausData: ['ohjausValmistaja', 'lauhdutusOhjausLahde', 'asetusArvot'],
+} as const;
 
 export const OHJAUKSET_FIXED_FIELDS = ['koneikkoOhjaustapa', 'saadin', 'hoyrystinOhjaus', 'ohjausTyyppi'] as const;
 
@@ -233,80 +243,33 @@ function stripNestelauhdutinUnitForRegistry(u: Record<string, unknown>): Record<
   return out;
 }
 
-const MLP_DROP: (keyof MlpData)[] = [
-  'keruupiirinPaineTarkastettu',
-  'keruupiiriPaineBar',
-  'keruupiirissaMutapussiPuhdistettu',
-  'keruupiirinPumppuTarkastettu',
-  'keruupiirinEristeetKunnossa',
-  'keruupiirissaAutomaattinenIlmausTarkistettu',
-  'keruupiiriVirtaus',
-  'keruupiiriMeno',
-  'keruupiiriTulo',
-  'keruupiiriPumppuKolmeVaihetta',
-  'keruupiiriPumppuVirta1vaihe',
-  'keruupiiriPumppuVirtaL1',
-  'keruupiiriPumppuVirtaL2',
-  'keruupiiriPumppuVirtaL3',
-  'keruuPaisuntaAstiaTarkistettu',
-  'keruuJaahdytysMenoLampotila',
-  'keruuJaahdytysPaluuLampotila',
-  'keruuJaahdytysVirtaus',
-  'keruuJaahdytysKayntivirta',
-  'keruuJaahdytysPumppuKolmeVaihetta',
-  'keruuJaahdytysPumppuVirta1vaihe',
-  'keruuJaahdytysPumppuVirtaL1',
-  'keruuJaahdytysPumppuVirtaL2',
-  'keruuJaahdytysPumppuVirtaL3',
-  'latausPaineTarkastettu',
-  'latausPaineBar',
-  'latausMutapussiPuhdistettu',
-  'latausPumppuTarkastettu',
-  'latausEristeetKunnossa',
-  'latausAutomaattinenIlmausTarkistettu',
-  'latausPumppuKolmeVaihetta',
-  'latausPumppuVirta1vaihe',
-  'latausPumppuVirtaL1',
-  'latausPumppuVirtaL2',
-  'latausPumppuVirtaL3',
-  'latausVirtaus',
-  'latausMeno',
-  'latausTulo',
-  'latausPaisuntaAstiaTarkistettu',
-  'latausTulistusPumppuKolmeVaihetta',
-  'latausTulistusPumppuVirta1vaihe',
-  'latausTulistusPumppuVirtaL1',
-  'latausTulistusPumppuVirtaL2',
-  'latausTulistusPumppuVirtaL3',
-  'latausTulistusVirtaus',
-  'latausTulistusMeno',
-  'latausTulistusTulo',
-  'kayttovesiLampotilaNykyinen',
-  'kayttovesiToimilaitteetOK',
-  'kayttovesiKiertoVirtaus',
-  'kayttovesiKiertoKayntivirta',
-  'keruupiiriTehoLaskenta',
-  'lampoPaisuntaAstiaTarkistettu',
-  'lampoToimilaitteetOK',
-  'lampoAutomaattinenIlmausTarkistettu',
-  'lampoMutapussiPuhdistettu',
-  'kylmaainePaetosTarkastettu',
-  'kylmaaineVuotoja',
-  'kylmaainePaineLauhdutinBar',
-  'kylmaaineKyllaestymisLampotila',
-  'kylmaaineNestePutkiLampotila',
-  'kylmaaineAlijaahdytys',
-  'mittaaKokoLaiteSahko',
-  'kokoLaiteSahkoKolmeVaihetta',
-  'kokoLaiteVirta1vaihe',
-  'kokoLaiteVirtaL1',
-  'kokoLaiteVirtaL2',
-  'kokoLaiteVirtaL3',
+
+/** MLP: laitekorttiin vain kiinteä kokoonpano (allowlist) — ei käyntikohtaisia tiloja, huomioita, esipaineita, mittauksia. */
+const MLP_KEEP: (keyof MlpData)[] = [
+  'keruupiirinPumpunTyyppi', 'keruupiiriPumpunValmistaja', 'keruupiiriPumpunMalli', 'keruupiiriPumpunSyottoValinta', 'keruupiiriNeste',
+  'keruuPaisuntaAstiaKoko',
+  'keruuJaahdytysPiiri', 'keruuJaahdytysPiiriPumppu', 'keruuJaahdytysPumppuTyyppi', 'keruuJaahdytysPumpunValmistaja', 'keruuJaahdytysPumpunMalli', 'keruuJaahdytysPumpunSyottoValinta',
+  'latausPumpunTyyppi', 'latausPumpunValmistaja', 'latausPumpunMalli', 'latausPumpunSyottoValinta', 'latausNeste', 'latausPaisuntaAstiaKoko',
+  'latausTulistuspiiri', 'latausTulistuspiiriPumppu', 'latausTulistusPumppuTyyppi', 'latausTulistusPumpunValmistaja', 'latausTulistusPumpunMalli', 'latausTulistusPumpunSyottoValinta', 'latausTulistusNeste',
+  'latausJarjestelmanNeste',
+  'kayttovesiEnabled', 'kayttovesiTilavuus', 'kayttovesiLampotilaAsetus',
+  'kayttovesiSahkoVastuksetEnabled', 'kayttovesiSahkoVastuksetSijainti', 'kayttovesiSahkoVastuksetMaara', 'kayttovesiSahkoVastukset',
+  'kayttovesiKiertoEnabled', 'kayttovesiKiertoPumppuTyyppi', 'kayttovesiKiertoPumpunValmistaja', 'kayttovesiKiertoPumpunMalli',
+  'kiinteistoPiiritSisallytetaan', 'lampoPiireja', 'lampoPiirit', 'lampoPaisuntaAstiaKoko',
+  'lampoSahkoKattilaVaralampitykseen', 'lampoSahkoKattilaTeho', 'lampoSahkoKattilaTyyppi',
+  'mittaaKokoLaiteSahko', 'kokoLaiteSahkoVaiheValinta',
 ];
 
 export function stripMlpDataForRegistry(m: MlpData): Partial<MlpData> {
-  const copy = { ...m } as Record<string, unknown>;
-  for (const k of MLP_DROP) delete copy[k as string];
+  const copy: Record<string, unknown> = {};
+  for (const k of MLP_KEEP) if (m[k] !== undefined) copy[k as string] = m[k];
+  if (Array.isArray(m.kayttovesiSahkoVastukset)) {
+    copy.kayttovesiSahkoVastukset = m.kayttovesiSahkoVastukset.map((v) => {
+      const rest = { ...v } as Partial<HeatingElementData>;
+      delete rest.toimintaTestattu;
+      return rest;
+    });
+  }
   if (m.kiinteistoPiiritSisallytetaan === false) {
     for (const k of [
       'lampoPiirit',
@@ -431,6 +394,17 @@ export function buildHuoltoEquipmentTechnicalSnapshot(data: HuoltoReportData): R
       for (const k of OHJAUKSET_FIXED_FIELDS) if (trim(o[k])) fixed[k] = trim(o[k]);
       return Object.keys(fixed).length ? { ohjauksetKiinteat: fixed } : {};
     })(),
+    ...(() => {
+      const vj: Record<string, Record<string, unknown>> = {};
+      for (const [group, keys] of Object.entries(VJ_FIXED_FIELDS)) {
+        const src = (data as unknown as Record<string, unknown>)[group] as Record<string, unknown> | undefined;
+        if (!src || typeof src !== 'object') continue;
+        const o: Record<string, unknown> = {};
+        for (const k of keys) if (!isEmptyValue(src[k])) o[k] = typeof src[k] === 'string' ? trim(src[k]) : src[k];
+        if (Object.keys(o).length) vj[group] = o;
+      }
+      return Object.keys(vj).length ? { vjKiinteat: vj } : {};
+    })(),
     isMLP,
     ulkoyksikko: {
       ulkoyksikkoMalli: strField(data, 'ulkoyksikkoMalli'),
@@ -475,19 +449,32 @@ export function buildHuoltoEquipmentTechnicalSnapshot(data: HuoltoReportData): R
   return snapshot as unknown as Record<string, unknown>;
 }
 
+function isEmptyValue(v: unknown): boolean {
+  return v == null || (typeof v === 'string' && !v.trim()) || (Array.isArray(v) && v.length === 0);
+}
+
+/**
+ * Laitekortin arvo täyttää vain tyhjän / oletusarvoisen kentän — raportin oma arvo säilyy.
+ * `defaults` = tyhjän olion oletukset (boolean-oletus ei ole käyttäjän valinta).
+ */
+export function fillFromSnapshot<T extends object>(existing: T, snap: Partial<T>, defaults?: Partial<T>): T {
+  const out = { ...existing } as Record<string, unknown>;
+  const def = (defaults ?? {}) as Record<string, unknown>;
+  for (const [k, v] of Object.entries(snap as Record<string, unknown>)) {
+    if (v === undefined) continue;
+    const cur = out[k];
+    const isDefault = k in def && JSON.stringify(cur) === JSON.stringify(def[k]);
+    if (isEmptyValue(cur) || isDefault) out[k] = v;
+  }
+  return out as T;
+}
+
 function mergeCompressorConfig(existing: CompressorData, snap: Partial<CompressorData>): CompressorData {
-  return {
-    ...existing,
-    tyyppi: snap.tyyppi ?? existing.tyyppi,
-    valmistaja: snap.valmistaja ?? existing.valmistaja,
-    malli: snap.malli ?? existing.malli,
-    ohjaustapa: snap.ohjaustapa ?? existing.ohjaustapa,
-    kontaktoriTyyppi: snap.kontaktoriTyyppi ?? existing.kontaktoriTyyppi,
-    pehmokaynnistinTyyppi: snap.pehmokaynnistinTyyppi ?? existing.pehmokaynnistinTyyppi,
-    taajuusmuuttajaTyyppi: snap.taajuusmuuttajaTyyppi ?? existing.taajuusmuuttajaTyyppi,
-    ohjaustapaMuu: snap.ohjaustapaMuu ?? existing.ohjaustapaMuu,
-    kompressorinVaiheValinta: snap.kompressorinVaiheValinta ?? existing.kompressorinVaiheValinta,
-  };
+  const pick: Partial<CompressorData> = {};
+  for (const k of ['tyyppi', 'valmistaja', 'malli', 'ohjaustapa', 'kontaktoriTyyppi', 'pehmokaynnistinTyyppi', 'taajuusmuuttajaTyyppi', 'ohjaustapaMuu', 'kompressorinVaiheValinta'] as const) {
+    if (snap[k] !== undefined) (pick as Record<string, unknown>)[k] = snap[k];
+  }
+  return fillFromSnapshot(existing, pick, ensureRefrigerantCircuitData(null).kompressori1);
 }
 
 function mergeCircuitFromSnapshot(
@@ -495,7 +482,10 @@ function mergeCircuitFromSnapshot(
   snap: Record<string, unknown>,
 ): RefrigerantCircuitData {
   const base = ensureRefrigerantCircuitData(existing);
-  const merged = ensureRefrigerantCircuitData({ ...base, ...snap } as Partial<RefrigerantCircuitData>);
+  const flat = Object.fromEntries(Object.entries(snap).filter(([k]) => !/^kompressori\d$/.test(k)));
+  const merged = ensureRefrigerantCircuitData(
+    fillFromSnapshot(base, flat as Partial<RefrigerantCircuitData>, ensureRefrigerantCircuitData(null)),
+  );
   for (let i = 1; i <= 6; i++) {
     const key = `kompressori${i}` as 'kompressori1' | 'kompressori2' | 'kompressori3' | 'kompressori4' | 'kompressori5' | 'kompressori6';
     const snapComp = snap[key] as Partial<CompressorData> | undefined;
@@ -508,12 +498,12 @@ function mergeCircuitFromSnapshot(
 
 function mergeEvaporatorFromSnapshot(existing: EvaporatorData, snap: Partial<EvaporatorData>): EvaporatorData {
   const base = ensureEvaporatorData(existing);
-  return ensureEvaporatorData({ ...base, ...snap, puhaltimet: snap.puhaltimet ?? base.puhaltimet });
+  return ensureEvaporatorData(fillFromSnapshot(base, snap, ensureEvaporatorData(undefined)));
 }
 
 function mergeCondenserFromSnapshot(existing: CondenserData, snap: Partial<CondenserData>): CondenserData {
   const base = ensureCondenserData(existing);
-  return ensureCondenserData({ ...base, ...snap, puhaltimet: snap.puhaltimet ?? base.puhaltimet });
+  return ensureCondenserData(fillFromSnapshot(base, snap, ensureCondenserData(undefined)));
 }
 
 /** Apply stored equipment snapshot config into an in-progress report form. */
@@ -553,7 +543,11 @@ export function applyEquipmentSnapshotToForm(
   const snapAny = snapshot as Record<string, unknown>;
   if (snapAny.laiteKokoonpano && typeof snapAny.laiteKokoonpano === 'object') {
     // Laitteen kokoonpano korvaa uuden raportin oletuksen (esitäyttö tehdään vain uudelle/linkitettävälle raportille).
-    patch.laiteKokoonpano = { ...(form.laiteKokoonpano ?? {}), ...(snapAny.laiteKokoonpano as object) } as HuoltoReportData['laiteKokoonpano'];
+    patch.laiteKokoonpano = fillFromSnapshot(
+      (form.laiteKokoonpano ?? {}) as Record<string, unknown>,
+      snapAny.laiteKokoonpano as Record<string, unknown>,
+      (createEmptyHuoltoReportData().laiteKokoonpano ?? {}) as Record<string, unknown>,
+    ) as unknown as HuoltoReportData['laiteKokoonpano'];
   }
   for (const k of ['hoyrystimienMaara', 'lauhduttimienMaara', 'lauhdutinTyyppiLaite'] as const) {
     if (trim(snapAny[k]) && !trim((form as Record<string, unknown>)[k])) (patch as Record<string, unknown>)[k] = trim(snapAny[k]);
@@ -573,6 +567,15 @@ export function applyEquipmentSnapshotToForm(
       if (!trim(current[k]) && trim(v)) filled[k] = trim(v);
     }
     patch.kenttaModuulit = { ...(form.kenttaModuulit ?? {}), ohjaukset: filled };
+  }
+
+  if (snapAny.vjKiinteat && typeof snapAny.vjKiinteat === 'object') {
+    const emptyForm = createEmptyHuoltoReportData() as unknown as Record<string, unknown>;
+    for (const [group, vals] of Object.entries(snapAny.vjKiinteat as Record<string, Record<string, unknown>>)) {
+      if (!(group in VJ_FIXED_FIELDS) || !vals || typeof vals !== 'object') continue;
+      const cur = ((form as unknown as Record<string, unknown>)[group] ?? emptyForm[group] ?? {}) as Record<string, unknown>;
+      (patch as Record<string, unknown>)[group] = fillFromSnapshot(cur, vals, (emptyForm[group] ?? {}) as Record<string, unknown>);
+    }
   }
 
   if (snap.kp1Data) {
@@ -604,7 +607,7 @@ export function applyEquipmentSnapshotToForm(
   }
 
   if (snap.mlpData) {
-    patch.mlpData = ensureMlpData({ ...ensureMlpData(form.mlpData), ...snap.mlpData });
+    patch.mlpData = ensureMlpData(fillFromSnapshot(ensureMlpData(form.mlpData), snap.mlpData, ensureMlpData(null)));
   }
 
   if (snap.ulkoyksikko) {
@@ -617,15 +620,18 @@ export function applyEquipmentSnapshotToForm(
     patch.sisayksikkoMaara = snap.sisayksikko.maara;
     if (Array.isArray(snap.sisayksikko.data)) {
       patch.sisayksikkoData = snap.sisayksikko.data.map((snapUnit, index) =>
-        ensureSisayksikkoData({
-          ...(form.sisayksikkoData[index] ?? createEmptySisayksikkoData()),
-          ...stripSisayksikkoInspection(snapUnit as Partial<SisayksikkoData>),
-        }),
+        ensureSisayksikkoData(
+          fillFromSnapshot(
+            form.sisayksikkoData[index] ?? createEmptySisayksikkoData(),
+            stripSisayksikkoInspection(snapUnit as Partial<SisayksikkoData>),
+            createEmptySisayksikkoData(),
+          ),
+        ),
       );
     }
   }
 
-  if (Array.isArray(snap.nestelauhduttimetVj)) {
+  if (Array.isArray(snap.nestelauhduttimetVj) && !(form.nestelauhduttimetVj?.length)) {
     patch.nestelauhduttimetVj = snap.nestelauhduttimetVj as NestelauhdutinUnitData[];
   }
 
@@ -673,6 +679,15 @@ export function applyEquipmentSnapshotToForm(
     }
   }
 
+  // Raportin oma (ei-oletus) arvo säilyy: laitekortti täyttää vain tyhjät ylätason kentät.
+  const emptyForm = createEmptyHuoltoReportData() as unknown as Record<string, unknown>;
+  const formRec = form as unknown as Record<string, unknown>;
+  for (const k of Object.keys(patch)) {
+    const cur = formRec[k];
+    if (cur !== null && typeof cur === 'object') continue; // oliot/taulukot yhdistetty yllä
+    const isDefault = JSON.stringify(cur) === JSON.stringify(emptyForm[k]);
+    if (!isEmptyValue(cur) && !isDefault) delete (patch as Record<string, unknown>)[k];
+  }
   return patch;
 }
 
