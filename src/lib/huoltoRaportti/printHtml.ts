@@ -1,3 +1,4 @@
+import { fieldModuleFieldVisible } from './fieldModules';
 import { kokoonpanoLauhdutinLabel, kokoonpanoSummary, vjHeatingTitle } from './deviceKokoonpano';
 import { fieldModuleValues, visibleFieldModules } from './fieldModules';
 import type {
@@ -140,6 +141,7 @@ function renderFieldModules(data: HuoltoReportData): string {
     .map((def) => {
       const values = fieldModuleValues(data, def.id);
       const inner = def.fields
+        .filter((f) => fieldModuleFieldVisible(f, values, data))
         .map((f) => {
           const v = String(values[f.id] ?? '').trim();
           if (!v) return '';
@@ -391,11 +393,31 @@ function renderSingleEvaporatorHtml(
   ]
     .filter(Boolean)
     .join('');
-  if (!inner.trim() && !fanHtml && !defrostHtml) return '';
+  const C = '#00838F';
+  const extraHtml = [
+    row('Tuloilma (°C)', ev.ilmaTuloLampotila, C),
+    row('Poistoilma (°C)', ev.ilmaPoistoLampotila, C),
+    row('Höyrystyminen (°C)', ev.hoyrystymisLampotila, C),
+    checkRow(ev.lamellitPuhtaat, 'Lamellit puhtaat'),
+    checkRow(ev.sulatusvesiPoistuu, 'Sulatusvesi poistuu'),
+    checkRow(ev.jaatyminenOk, 'Ei jäätymistä'),
+    ev.magneettiventtiiliKaytossa !== false ? row('Magneettiventtiili', ev.magneettiventtiiliMalli, C) : '',
+    ev.magneettiventtiiliKaytossa !== false ? checkRow(ev.magneettiventtiiliTestattu, 'Magneettiventtiili testattu') : '',
+    ev.paisuntaventtiiliKaytossa !== false ? row('Paisuntaventtiili', [ev.paisuntaventtiiliTyyppi, ev.paisuntaventtiiliMalli].filter(Boolean).join(' '), C) : '',
+    ev.paisuntaventtiiliKaytossa !== false ? row('Tulistus (K)', ev.tulistus, C) : '',
+    ev.ohjausKaytossa !== false ? row('Ohjaus', [ev.ohjausTyyppi, ev.ohjausMalli].filter(Boolean).join(' '), C) : '',
+    ev.ohjausKaytossa !== false ? row('Lämpötila mitattu (°C)', ev.lampotilaMitattu, C) : '',
+    ev.ohjausKaytossa !== false ? row('Lämpötila asetus (°C)', ev.lampotilaAsetus, C) : '',
+    ev.ohjausKaytossa !== false ? row('Ovikytkin / munakello', ev.ovikytkin, C) : '',
+    ev.ohjausKaytossa !== false ? row('Ylähälytysraja (°C)', ev.halytysYla, C) : '',
+    ev.ohjausKaytossa !== false ? row('Alahälytysraja (°C)', ev.halytysAla, C) : '',
+    ev.ohjausKaytossa !== false ? row('Sulatusväli (h)', ev.sulatusVali, C) : '',
+  ].filter(Boolean).join('');
+  if (!inner.trim() && !fanHtml && !defrostHtml && !extraHtml) return '';
   return box(
     title,
     '#00838F',
-    `<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;">${inner}</div>${defrostHtml}${fanHtml}`,
+    `<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;">${inner}</div>${defrostHtml}${extraHtml}${fanHtml}`,
   );
 }
 
@@ -465,10 +487,17 @@ function renderCondensers(data: HuoltoReportData): string {
         gridField('Ohjaus', co.puhallinOhjaus ? getOhjausText(co.puhallinOhjaus, co.puhallinOhjausMuu) : ''),
         gridField('Nopeussäädin', co.nopeussäädinMalli),
         gridField('Taajuusmuuntaja', co.taajusmuuntajaMalli),
-        checkRow(co.lauhdutinPuhdistettu, 'Lauhdutin puhdistettu'),
+        checkRow(co.lauhdutinPuhdistettu, 'Kenno puhdistettu'),
         checkRow(co.painesäätimenTarkistettu, LAUHDUTIN_PAINEVENTTIILI_LABEL),
         checkRow(co.virtausRiittävä, 'Virtaus riittävä'),
         checkRow(co.talvivarustus, 'Talvivarustus'),
+        gridField('Lauhdutuksen asetus', co.lauhdutusAsetus),
+        gridField('Puhallin käynnistyy', co.puhallinKaynnistysAsetus),
+        gridField('Puhallin pysähtyy', co.puhallinPysaytysAsetus),
+        gridField('Lauhtuminen (°C)', co.lauhtumisLampotila),
+        gridField('Tulo (°C)', co.ilmaTuloLampotila),
+        gridField('Poisto (°C)', co.ilmaPoistoLampotila),
+        gridField('Alijäähtyminen (K)', co.alijaahtyminen),
         fanHtml,
       ]
         .filter(Boolean)

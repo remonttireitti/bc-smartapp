@@ -8,6 +8,7 @@ import type {
 } from '../../lib/huoltoRaportti/types';
 import { createEmptyEvaporatorFan } from '../../lib/huoltoRaportti/defaults';
 import { isChillerLikeDevice } from '../../lib/huoltoRaportti/deviceModuleLogic';
+import { isKylmioDevice } from '../../lib/huoltoRaportti/deviceKokoonpano';
 import {
   evaporatorShowsFansAndDefrost,
   isHeatExchangerEvaporatorType,
@@ -37,6 +38,8 @@ interface Props {
   /** Dokumenttinäkymä: rekisteröi yksikön popup avattavaksi ruudukkokortista. */
   documentUnitKey?: string;
   hidePartRow?: boolean;
+  /** Kylmiö: ohjaus on yhteinen (Ohjaukset-vaiheessa) → ei höyrystinkohtaista ohjausta. */
+  ohjausShared?: boolean;
 }
 
 function applyEvaporatorTypeChange(data: EvaporatorData, tyyppi: EvaporatorType): EvaporatorData {
@@ -70,6 +73,7 @@ export function EvaporatorModule({
   onChange,
   documentUnitKey,
   hidePartRow = false,
+  ohjausShared = true,
 }: Props) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [draft, setDraft] = useState(data);
@@ -84,18 +88,16 @@ export function EvaporatorModule({
   ]
     .map((v) => String(v ?? '').trim())
     .filter(Boolean)
-    .join(' Â· ');
+    .join(' · ');
 
   useEffect(() => {
     if (dialogOpen) setDraft(data);
   }, [dialogOpen, data]);
 
   const draftStatus = normalizeHuoltoInspectionStatus(draft.tarkastusTila) ?? entityInspectionStatus(draft);
-  const showDetails = draftStatus === 'ok' || draftStatus === 'faulty';
 
   const closeDialog = useCallback(() => {
-    const status = normalizeHuoltoInspectionStatus(draft.tarkastusTila) ?? entityInspectionStatus(draft);
-    if (status !== null) onChange(draft);
+    onChange(draft);
     setDialogOpen(false);
   }, [draft, onChange]);
 
@@ -110,7 +112,10 @@ export function EvaporatorModule({
     setSource: (updater: EvaporatorData | ((prev: EvaporatorData) => EvaporatorData)) => void,
     sourceStatus: ReturnType<typeof normalizeHuoltoInspectionStatus>,
   ) => {
-    const detailsVisible = sourceStatus === 'ok' || sourceStatus === 'faulty';
+    const detailsVisible = true;
+    const showOwnOhjaus = isKylmioDevice(laiteTyyppi) && !ohjausShared;
+    const on = (v: boolean | undefined) => v !== false;
+    const set = (patch: Partial<EvaporatorData>) => setSource((prev) => ({ ...prev, ...patch }));
     const fansDefrost = evaporatorShowsFansAndDefrost(source.tyyppi);
     const selectVal =
       chillerHx && !isHeatExchangerEvaporatorType(source.tyyppi) && source.tyyppi !== 'suorahoyrystin'
@@ -288,6 +293,86 @@ export function EvaporatorModule({
                 />
               </div>
             )}
+
+            {!chillerHx && (
+              <>
+                <div className="huolto-submodule huolto-span-all">
+                  <h4>Mittaukset</h4>
+                  <div className="line-form-grid">
+                    <FormInput label="Tuloilma (°C)" type="number" value={source.ilmaTuloLampotila || ''} disabled={disabled} onChange={(v) => set({ ilmaTuloLampotila: v })} />
+                    <FormInput label="Poistoilma (°C)" type="number" value={source.ilmaPoistoLampotila || ''} disabled={disabled} onChange={(v) => set({ ilmaPoistoLampotila: v })} />
+                    <FormInput label="Höyrystyminen (°C)" type="number" value={source.hoyrystymisLampotila || ''} disabled={disabled} onChange={(v) => set({ hoyrystymisLampotila: v })} />
+                  </div>
+                </div>
+                <div className="huolto-submodule huolto-span-all">
+                  <h4>Tarkastukset</h4>
+                  <FormCheckbox label="Lamellit puhtaat" checked={!!source.lamellitPuhtaat} disabled={disabled} onChange={(v) => set({ lamellitPuhtaat: v })} />
+                  <FormCheckbox label="Sulatusvesi poistuu" checked={!!source.sulatusvesiPoistuu} disabled={disabled} onChange={(v) => set({ sulatusvesiPoistuu: v })} />
+                  <FormCheckbox label="Ei jäätymistä" checked={!!source.jaatyminenOk} disabled={disabled} onChange={(v) => set({ jaatyminenOk: v })} />
+                </div>
+                <div className="huolto-submodule huolto-span-all">
+                  <FormCheckbox label="Magneettiventtiili" checked={on(source.magneettiventtiiliKaytossa)} disabled={disabled} onChange={(v) => set({ magneettiventtiiliKaytossa: v })} />
+                  {on(source.magneettiventtiiliKaytossa) && (
+                    <div className="line-form-grid">
+                      <FormInput label="Malli" value={source.magneettiventtiiliMalli || ''} disabled={disabled} onChange={(v) => set({ magneettiventtiiliMalli: v })} />
+                      <FormCheckbox label="Toiminta testattu" checked={!!source.magneettiventtiiliTestattu} disabled={disabled} onChange={(v) => set({ magneettiventtiiliTestattu: v })} />
+                    </div>
+                  )}
+                  <FormCheckbox label="Paisuntaventtiili" checked={on(source.paisuntaventtiiliKaytossa)} disabled={disabled} onChange={(v) => set({ paisuntaventtiiliKaytossa: v })} />
+                  {on(source.paisuntaventtiiliKaytossa) && (
+                    <div className="line-form-grid">
+                      <label>
+                        Tyyppi
+                        <select value={source.paisuntaventtiiliTyyppi || ''} disabled={disabled} onChange={(e) => set({ paisuntaventtiiliTyyppi: e.target.value })}>
+                          <option value="">Valitse…</option>
+                          <option value="TXV">Termostaattinen</option>
+                          <option value="EXV">Elektroninen</option>
+                          <option value="kapillaari">Kapillaari</option>
+                        </select>
+                      </label>
+                      <FormInput label="Malli" value={source.paisuntaventtiiliMalli || ''} disabled={disabled} onChange={(v) => set({ paisuntaventtiiliMalli: v })} />
+                      <FormInput label="Tulistus (K)" type="number" value={source.tulistus || ''} disabled={disabled} onChange={(v) => set({ tulistus: v })} />
+                    </div>
+                  )}
+                  {showOwnOhjaus && <FormCheckbox label="Ohjaus" checked={on(source.ohjausKaytossa)} disabled={disabled} onChange={(v) => set({ ohjausKaytossa: v })} />}
+                  {showOwnOhjaus && on(source.ohjausKaytossa) && (
+                    <div className="line-form-grid">
+                      <label>
+                        Ohjauksen tyyppi
+                        <select value={source.ohjausTyyppi || ''} disabled={disabled} onChange={(e) => set({ ohjausTyyppi: e.target.value })}>
+                          <option value="">Valitse…</option>
+                          <option value="saadin">Elektroninen säädin</option>
+                          <option value="termostaatti">Termostaatti</option>
+                          <option value="kiinteisto">Kiinteistöautomaatio</option>
+                        </select>
+                      </label>
+                      <FormInput label="Säätimen malli" value={source.ohjausMalli || ''} disabled={disabled} onChange={(v) => set({ ohjausMalli: v })} />
+                      <FormInput label="Lämpötila mitattu (°C)" type="number" value={source.lampotilaMitattu || ''} disabled={disabled} onChange={(v) => set({ lampotilaMitattu: v })} />
+                      <FormInput label="Lämpötila asetus (°C)" type="number" value={source.lampotilaAsetus || ''} disabled={disabled} onChange={(v) => set({ lampotilaAsetus: v })} />
+                      <FormInput label="Ylähälytysraja (°C)" type="number" value={source.halytysYla || ''} disabled={disabled} onChange={(v) => set({ halytysYla: v })} />
+                      <FormInput label="Alahälytysraja (°C)" type="number" value={source.halytysAla || ''} disabled={disabled} onChange={(v) => set({ halytysAla: v })} />
+                      <label>
+                        Ovikytkin / munakello
+                        <select value={source.ovikytkin || ''} disabled={disabled} onChange={(e) => set({ ovikytkin: e.target.value as EvaporatorData['ovikytkin'] })}>
+                          <option value="">Valitse…</option>
+                          <option value="ovikytkin">Ovikytkin</option>
+                          <option value="munakello">Munakello</option>
+                          <option value="ei">Ei</option>
+                        </select>
+                      </label>
+                      {fansDefrost && (
+                        <>
+                          <FormInput label="Sulatusväli (h)" value={source.sulatusVali || ''} disabled={disabled} onChange={(v) => set({ sulatusVali: v })} />
+                          {source.sulatus !== 'sahko' && (
+                            <FormInput label="Sulatusaika" value={source.sulatusAika || ''} disabled={disabled} onChange={(v) => set({ sulatusAika: v })} />
+                          )}
+                        </>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
           </div>
         ) : null}
 
@@ -342,7 +427,7 @@ export function EvaporatorModule({
           />
         </div>
 
-        {showDetails ? renderFormBody(draft, setDraft, draftStatus) : null}
+        {renderFormBody(draft, setDraft, draftStatus)}
       </HuoltoInspectionDialogShell>
     </>
   );

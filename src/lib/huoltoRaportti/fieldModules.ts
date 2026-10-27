@@ -13,10 +13,20 @@ export type FieldModuleId =
   | 'kostutus'
   | 'kuivaus';
 
-export type FieldModuleField =
+type FieldExtras = {
+  /** Väliotsikko, joka näytetään kun ryhmä vaihtuu. */
+  section?: string;
+  /** Näytetäänkö kenttä (vanha arvo näytetään aina). */
+  when?: (values: Record<string, string | boolean>, form: FieldModuleForm) => boolean;
+  /** Pakollisuus tilanteen mukaan (ohittaa required). */
+  requiredWhen?: (values: Record<string, string | boolean>, form: FieldModuleForm) => boolean;
+  /** Vain vanhojen raporttien arvo: näytetään vain jos täytetty. */
+  legacy?: boolean;
+};
+export type FieldModuleField = FieldExtras & (
   | { id: string; label: string; type: 'text'; unit?: string; required?: boolean }
   | { id: string; label: string; type: 'select'; options: string[]; required?: boolean }
-  | { id: string; label: string; type: 'textarea' };
+  | { id: string; label: string; type: 'textarea' });
 
 export type FieldModuleDefinition = {
   id: FieldModuleId;
@@ -29,7 +39,22 @@ export type FieldModuleForm = {
   laiteTyyppi: string;
   laiteKokoonpano?: LaiteKokoonpano;
   kenttaModuulit?: KenttaModuuliArvot;
+  evaporatorData?: unknown[];
 };
+
+export const HOYRYSTIN_OHJAUS_YHTEINEN = 'Yhteinen';
+export const HOYRYSTIN_OHJAUS_OMA = 'Jokaisella oma';
+
+function evaporatorCount(form: FieldModuleForm): number {
+  return Array.isArray(form.evaporatorData) ? form.evaporatorData.length : 0;
+}
+
+/** Kylmiö: onko höyrystimien ohjaus yhteinen (ohjaukset-vaiheessa) vai höyrystinkohtainen (höyrystimen kortilla). */
+export function kylmioEvaporatorOhjausShared(form: FieldModuleForm): boolean {
+  if (evaporatorCount(form) <= 1) return true;
+  return form.kenttaModuulit?.ohjaukset?.hoyrystinOhjaus !== HOYRYSTIN_OHJAUS_OMA;
+}
+const sharedOhjaus = (_v: Record<string, string | boolean>, form: FieldModuleForm) => kylmioEvaporatorOhjausShared(form);
 
 const KUNTO = ['Kunnossa', 'Vika'];
 const KUNTO_EI_OLE = ['Kunnossa', 'Vika', 'Ei ole'];
@@ -42,14 +67,19 @@ export const FIELD_MODULES: readonly FieldModuleDefinition[] = [
     title: 'Ohjaukset',
     isVisible: (form) => isKylmioDevice(form.laiteTyyppi),
     fields: [
-      { id: 'saadin', label: 'Säädin (valmistaja / malli)', type: 'text' },
-      { id: 'asetusarvo', label: 'Asetusarvo', type: 'text', unit: '°C', required: true },
-      { id: 'halytysYla', label: 'Ylähälytysraja', type: 'text', unit: '°C' },
-      { id: 'halytysAla', label: 'Alahälytysraja', type: 'text', unit: '°C' },
-      { id: 'sulatusvali', label: 'Sulatusväli', type: 'text', unit: 'h' },
-      { id: 'sulatusLopetus', label: 'Sulatuksen lopetus', type: 'text', unit: '°C' },
-      { id: 'halytykset', label: 'Hälytysten toiminta', type: 'select', options: KUNTO, required: true },
-      { id: 'ovi', label: 'Ovikytkin ja ovilämmitys', type: 'select', options: KUNTO_EI_OLE },
+      { id: 'saadin', label: 'Säädin (valmistaja / malli)', type: 'text', section: 'Koneikko' },
+      { id: 'halytykset', label: 'Hälytysten toiminta', type: 'select', options: KUNTO, required: true, section: 'Koneikko' },
+      {
+        id: 'hoyrystinOhjaus', label: 'Yhteinen vai oma', type: 'select', options: [HOYRYSTIN_OHJAUS_YHTEINEN, HOYRYSTIN_OHJAUS_OMA],
+        section: 'Höyrystimien ohjaus', when: (_v, form) => evaporatorCount(form) > 1, requiredWhen: (_v, form) => evaporatorCount(form) > 1,
+      },
+      { id: 'ohjausTyyppi', label: 'Ohjauksen tyyppi', type: 'select', options: ['Elektroninen säädin', 'Termostaatti', 'Kiinteistöautomaatio'], section: 'Höyrystimien ohjaus', when: sharedOhjaus },
+      { id: 'asetusarvo', label: 'Lämpötila, asetus', type: 'text', unit: '°C', section: 'Höyrystimien ohjaus', when: sharedOhjaus, requiredWhen: sharedOhjaus },
+      { id: 'halytysYla', label: 'Ylähälytysraja', type: 'text', unit: '°C', section: 'Höyrystimien ohjaus', when: sharedOhjaus },
+      { id: 'halytysAla', label: 'Alahälytysraja', type: 'text', unit: '°C', section: 'Höyrystimien ohjaus', when: sharedOhjaus },
+      { id: 'sulatusvali', label: 'Sulatusväli', type: 'text', unit: 'h', section: 'Höyrystimien ohjaus', when: sharedOhjaus },
+      { id: 'sulatusLopetus', label: 'Sulatuksen lopetus', type: 'text', unit: '°C', section: 'Höyrystimien ohjaus', when: sharedOhjaus },
+      { id: 'ovi', label: 'Ovikytkin / munakello', type: 'select', options: ['Ovikytkin', 'Munakello', 'Ei ole', 'Vika'], section: 'Höyrystimien ohjaus', when: sharedOhjaus },
       { id: 'huomio', label: 'Huomiot', type: 'textarea' },
     ],
   },
@@ -60,10 +90,10 @@ export const FIELD_MODULES: readonly FieldModuleDefinition[] = [
     fields: [
       { id: 'tilaLampo', label: 'Tilan lämpötila', type: 'text', unit: '°C', required: true },
       { id: 'konehuoneLampo', label: 'Konehuone / ulkolämpötila', type: 'text', unit: '°C' },
-      { id: 'hoyrystinIlmaSisaan', label: 'Höyrystin, ilma sisään', type: 'text', unit: '°C' },
-      { id: 'hoyrystinIlmaUlos', label: 'Höyrystin, ilma ulos', type: 'text', unit: '°C' },
-      { id: 'lauhdutinSisaan', label: 'Lauhdutin, ilma/neste sisään', type: 'text', unit: '°C' },
-      { id: 'lauhdutinUlos', label: 'Lauhdutin, ilma/neste ulos', type: 'text', unit: '°C' },
+      { id: 'hoyrystinIlmaSisaan', label: 'Höyrystin, ilma sisään', type: 'text', unit: '°C', legacy: true },
+      { id: 'hoyrystinIlmaUlos', label: 'Höyrystin, ilma ulos', type: 'text', unit: '°C', legacy: true },
+      { id: 'lauhdutinSisaan', label: 'Lauhdutin, ilma/neste sisään', type: 'text', unit: '°C', legacy: true },
+      { id: 'lauhdutinUlos', label: 'Lauhdutin, ilma/neste ulos', type: 'text', unit: '°C', legacy: true },
     ],
   },
   {
@@ -142,7 +172,9 @@ export function fieldModuleCompletion(form: FieldModuleForm, id: string): Mainte
   if (!def) return 'incomplete';
   const values = fieldModuleValues(form, id);
   const filled = (fieldId: string) => String(values[fieldId] ?? '').trim() !== '';
-  if (def.fields.some((f) => f.type !== 'textarea' && f.required && !filled(f.id))) return 'incomplete';
+  const isRequired = (f: FieldModuleField) =>
+    f.type !== 'textarea' && (f.requiredWhen ? f.requiredWhen(values, form) : 'required' in f && !!f.required);
+  if (def.fields.some((f) => isRequired(f) && !filled(f.id))) return 'incomplete';
   if (def.fields.some((f) => f.type === 'select' && values[f.id] === FIELD_MODULE_FAULT_VALUE)) return 'attention';
   return 'ok';
 }
@@ -160,4 +192,17 @@ export function fieldModuleSummary(form: FieldModuleForm, id: string): string {
 
 export function hasFieldModuleFault(form: FieldModuleForm): boolean {
   return visibleFieldModules(form).some((m) => fieldModuleCompletion(form, m.id) === 'attention');
+}
+
+/** Näytetäänkö kenttä lomakkeella / tulosteessa. */
+export function fieldModuleFieldVisible(field: FieldModuleField, values: Record<string, string | boolean>, form: FieldModuleForm): boolean {
+  const hasValue = String(values[field.id] ?? '').trim() !== '';
+  if (hasValue) return true;
+  if (field.legacy) return false;
+  return field.when ? field.when(values, form) : true;
+}
+
+export function fieldModuleFieldRequired(field: FieldModuleField, values: Record<string, string | boolean>, form: FieldModuleForm): boolean {
+  if (field.type === 'textarea') return false;
+  return field.requiredWhen ? field.requiredWhen(values, form) : !!field.required;
 }

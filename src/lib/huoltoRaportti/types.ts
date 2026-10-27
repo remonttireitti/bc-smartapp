@@ -168,6 +168,15 @@ export interface CondenserData {
   virtausOngelma?: string;
   tarkastusTila?: HuoltoInspectionStatus;
   tarkastusHuomio?: string;
+  /** Asetukset. */
+  lauhdutusAsetus?: string;
+  puhallinKaynnistysAsetus?: string;
+  puhallinPysaytysAsetus?: string;
+  /** Mittaukset (°C). */
+  lauhtumisLampotila?: string;
+  ilmaTuloLampotila?: string;
+  ilmaPoistoLampotila?: string;
+  alijaahtyminen?: string;
 }
 
 export interface TiiveyskoeData {
@@ -217,6 +226,31 @@ export interface EvaporatorData {
   puhaltimet: CondenserFanData[];
   tarkastusTila?: HuoltoInspectionStatus;
   tarkastusHuomio?: string;
+  /** Mittaukset (°C). */
+  ilmaTuloLampotila?: string;
+  ilmaPoistoLampotila?: string;
+  hoyrystymisLampotila?: string;
+  /** Tarkastukset. */
+  lamellitPuhtaat?: boolean;
+  sulatusvesiPoistuu?: boolean;
+  jaatyminenOk?: boolean;
+  /** Höyrystinkohtaiset osat — puuttuva arvo = käytössä (oletus päällä). */
+  magneettiventtiiliKaytossa?: boolean;
+  magneettiventtiiliMalli?: string;
+  magneettiventtiiliTestattu?: boolean;
+  paisuntaventtiiliKaytossa?: boolean;
+  paisuntaventtiiliTyyppi?: string;
+  paisuntaventtiiliMalli?: string;
+  tulistus?: string;
+  ohjausKaytossa?: boolean;
+  ohjausTyyppi?: string;
+  ohjausMalli?: string;
+  ovikytkin?: '' | 'ovikytkin' | 'munakello' | 'ei';
+  lampotilaMitattu?: string;
+  lampotilaAsetus?: string;
+  halytysYla?: string;
+  halytysAla?: string;
+  sulatusVali?: string;
 }
 
 export interface HeatingElementData {

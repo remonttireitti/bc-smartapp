@@ -34,11 +34,9 @@ export function CondenserModule({ index, titleLabel, data, onChange, documentUni
   }, [dialogOpen, data]);
 
   const draftStatus = normalizeHuoltoInspectionStatus(draft.tarkastusTila) ?? condenserInspectionStatus(draft);
-  const showDetails = draftStatus === 'ok' || draftStatus === 'faulty';
 
   const closeDialog = useCallback(() => {
-    const status = normalizeHuoltoInspectionStatus(draft.tarkastusTila) ?? condenserInspectionStatus(draft);
-    if (status !== null) onChange(draft);
+    onChange(draft);
     setDialogOpen(false);
   }, [draft, onChange]);
 
@@ -53,11 +51,10 @@ export function CondenserModule({ index, titleLabel, data, onChange, documentUni
     setSource: (updater: CondenserData | ((prev: CondenserData) => CondenserData)) => void,
     sourceStatus: ReturnType<typeof normalizeHuoltoInspectionStatus>,
   ) => {
-    const detailsVisible = sourceStatus === 'ok' || sourceStatus === 'faulty';
     const airType = source.tyyppi === 'koneseen_integroitu' || source.tyyppi === 'erillinen_ilma';
     const liquidType = source.tyyppi === 'nestekiertoinen';
 
-    if (!detailsVisible) return null;
+    const set = (patch: Partial<CondenserData>) => setSource((prev) => ({ ...prev, ...patch }));
 
     return (
       <>
@@ -82,7 +79,7 @@ export function CondenserModule({ index, titleLabel, data, onChange, documentUni
           </label>
 
           <FormCheckbox
-            label="Lauhdutin puhdistettu"
+            label="Kenno puhdistettu"
             checked={!!source.lauhdutinPuhdistettu}
             onChange={(checked) => setSource((prev) => ({ ...prev, lauhdutinPuhdistettu: checked }))}
           />
@@ -219,6 +216,28 @@ export function CondenserModule({ index, titleLabel, data, onChange, documentUni
           </div>
         ) : null}
 
+        <div className="huolto-submodule">
+          <h4>Asetukset</h4>
+          <div className="line-form-grid">
+            <FormInput label="Lauhdutuksen asetus (°C / bar)" value={source.lauhdutusAsetus || ''} onChange={(v) => set({ lauhdutusAsetus: v })} />
+            {airType ? (
+              <>
+                <FormInput label="Puhallin käynnistyy" value={source.puhallinKaynnistysAsetus || ''} onChange={(v) => set({ puhallinKaynnistysAsetus: v })} />
+                <FormInput label="Puhallin pysähtyy" value={source.puhallinPysaytysAsetus || ''} onChange={(v) => set({ puhallinPysaytysAsetus: v })} />
+              </>
+            ) : null}
+          </div>
+        </div>
+        <div className="huolto-submodule">
+          <h4>Mittaukset</h4>
+          <div className="line-form-grid">
+            <FormInput label="Lauhtuminen (°C)" type="number" value={source.lauhtumisLampotila || ''} onChange={(v) => set({ lauhtumisLampotila: v })} />
+            <FormInput label={liquidType ? 'Neste sisään (°C)' : 'Tuloilma (°C)'} type="number" value={source.ilmaTuloLampotila || ''} onChange={(v) => set({ ilmaTuloLampotila: v })} />
+            <FormInput label={liquidType ? 'Neste ulos (°C)' : 'Poistoilma (°C)'} type="number" value={source.ilmaPoistoLampotila || ''} onChange={(v) => set({ ilmaPoistoLampotila: v })} />
+            <FormInput label="Alijäähtyminen (K)" type="number" value={source.alijaahtyminen || ''} onChange={(v) => set({ alijaahtyminen: v })} />
+          </div>
+        </div>
+
         {sourceStatus === 'faulty' ? (
           <label className="konvektori-huomio-field">
             <span className="konvektori-tarkastus-label">Mikä on vikana?</span>
@@ -261,7 +280,7 @@ export function CondenserModule({ index, titleLabel, data, onChange, documentUni
           />
         </div>
 
-        {showDetails ? renderDetails(draft, setDraft, draftStatus) : null}
+        {renderDetails(draft, setDraft, draftStatus)}
       </HuoltoInspectionDialogShell>
     </>
   );

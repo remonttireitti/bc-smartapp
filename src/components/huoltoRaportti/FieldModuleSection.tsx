@@ -1,5 +1,5 @@
 import type { HuoltoReportData } from '../../lib/huoltoRaportti/types';
-import { fieldModuleValues, findFieldModule } from '../../lib/huoltoRaportti/fieldModules';
+import { type FieldModuleField, fieldModuleFieldRequired, fieldModuleFieldVisible, fieldModuleValues, findFieldModule } from '../../lib/huoltoRaportti/fieldModules';
 import { FormInput } from './FormInput';
 
 type Props = {
@@ -23,15 +23,25 @@ export function FieldModuleSection({ moduleId, form, onPatchForm }: Props) {
 
   return (
     <section className="maintenance-report-tab-section form-grid huolto-field-module">
-      {def.fields.map((field) => {
+      {def.fields.filter((field) => fieldModuleFieldVisible(field, values, form)).map((field, i, shown) => {
+        const required = fieldModuleFieldRequired(field, values, form);
+        const heading = field.section && field.section !== shown[i - 1]?.section
+          ? <h4 key={`h-${field.section}`} className="huolto-span-all huolto-field-module-heading">{field.section}</h4>
+          : null;
+        return [heading, renderField(field, required)];
+      })}
+    </section>
+  );
+
+  function renderField(field: FieldModuleField, required: boolean) {
         const value = typeof values[field.id] === 'string' ? (values[field.id] as string) : '';
         if (field.type === 'select') {
           return (
             <label key={field.id}>
-              {field.label}{field.required ? ' *' : ''}
+              {field.label}{required ? ' *' : ''}
               <select value={value} onChange={(e) => patch(field.id, e.target.value)}>
                 <option value="">Valitse…</option>
-                {field.options.map((opt) => (
+                {(value && !field.options.includes(value) ? [value, ...field.options] : field.options).map((opt) => (
                   <option key={opt} value={opt}>{opt}</option>
                 ))}
               </select>
@@ -50,12 +60,10 @@ export function FieldModuleSection({ moduleId, form, onPatchForm }: Props) {
           <FormInput
             key={field.id}
             label={field.unit ? `${field.label} (${field.unit})` : field.label}
-            required={field.required}
+            required={required}
             value={value}
             onChange={(next) => patch(field.id, next)}
           />
         );
-      })}
-    </section>
-  );
+  }
 }

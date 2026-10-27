@@ -85,7 +85,7 @@ export function lauhdutinSectionTitle(deviceType: string): string {
 
 export function lauhdutinUnitTitle(deviceType: string, index: number): string {
   if (deviceType === 'pakastin' || deviceType === 'kylmäkoneikko') {
-    return `3.${index + 1} Lauhdutimen tiedot — Piiri ${index + 1}`;
+    return `Lauhdutin — piiri ${index + 1}`;
   }
   return `Lauhdutin — piiri ${index + 1}`;
 }
