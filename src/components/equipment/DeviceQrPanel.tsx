@@ -1,10 +1,13 @@
 import { useEffect, useState } from 'react';
 import ToggleSwitch from '../ToggleSwitch';
 import {
+  assignNewDeviceQrCode,
+  devicePublicUrl,
   fetchDeviceQrTokens,
-  generateDeviceQrToken,
+  isShortDeviceQrCode,
   setDeviceQrToken,
 } from '../../lib/devicePublicCard';
+import { copyText } from '../../lib/copyText';
 import {
   buildDeviceQrLabelsHtml,
   deviceQrLabelFileName,
@@ -22,6 +25,7 @@ export default function DeviceQrPanel({ equipmentId, name, tag, canWrite }: Prop
   const [supported, setSupported] = useState<boolean | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -35,17 +39,38 @@ export default function DeviceQrPanel({ equipmentId, name, tag, canWrite }: Prop
     };
   }, [equipmentId]);
 
-  async function apply(next: string | null) {
+  /** next: 'new' = uusi lyhyt koodi (mitätöi vanhan), null = pois käytöstä. */
+  async function apply(next: 'new' | null) {
     setBusy(true);
     setError(null);
     try {
-      await setDeviceQrToken(equipmentId, next);
-      setToken(next);
+      if (next === 'new') setToken(await assignNewDeviceQrCode(equipmentId));
+      else {
+        await setDeviceQrToken(equipmentId, null);
+        setToken(null);
+      }
     } catch {
       setError('Tallennus epäonnistui.');
     } finally {
       setBusy(false);
     }
+  }
+
+  async function copyLink() {
+    if (!token) return;
+    setError(null);
+    try {
+      await copyText(devicePublicUrl(token));
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 2500);
+    } catch {
+      setError('Kopiointi epäonnistui — valitse linkki ja kopioi käsin.');
+    }
+  }
+
+  async function switchToShort() {
+    if (!window.confirm('Vaihdetaanko lyhyeen linkkiin? Vanha linkki ja jo tulostetut tarrat lakkaavat toimimasta.')) return;
+    await apply('new');
   }
 
   async function print() {
@@ -86,13 +111,20 @@ export default function DeviceQrPanel({ equipmentId, name, tag, canWrite }: Prop
             label="QR-tarra käytössä"
             checked={Boolean(token)}
             disabled={busy}
-            onChange={(on) => void apply(on ? generateDeviceQrToken() : null)}
+            onChange={(on) => void apply(on ? 'new' : null)}
           />
         </div>
       ) : null}
       {token ? (
         <>
+        <label className="device-qr-url">
+          QR-linkki
+          <input type="text" readOnly value={devicePublicUrl(token)} onFocus={(e) => e.target.select()} data-testid="device-qr-url" />
+        </label>
         <div className="device-qr-actions">
+          <button type="button" className="btn btn-secondary" onClick={() => void copyLink()}>
+            {copied ? 'Kopioitu ✓' : 'Kopioi linkki'}
+          </button>
           <button type="button" className="btn btn-primary" onClick={() => void print()}>
             Tulosta QR-tarra
           </button>
@@ -104,6 +136,13 @@ export default function DeviceQrPanel({ equipmentId, name, tag, canWrite }: Prop
           </button>
         </div>
         <p className="muted">Dymo XTL 300, 24 mm teippi · 60 × 24 mm</p>
+        {canWrite && !isShortDeviceQrCode(token) ? (
+          <p>
+            <button type="button" className="btn btn-secondary btn-sm" disabled={busy} onClick={() => void switchToShort()}>
+              Vaihda lyhyeen linkkiin
+            </button>
+          </p>
+        ) : null}
         </>
       ) : null}
       {error ? <p className="error">{error}</p> : null}

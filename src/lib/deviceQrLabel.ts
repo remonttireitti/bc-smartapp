@@ -12,7 +12,14 @@ const QR_QUIET_MODULES = 2;
 const TAGLINE_PT = 6.5;
 const TUNNUS_SIZES_PT = [20, 16, 13, 11, 9];
 
-export type DeviceQrLabelItem = { token: string; name: string | null; tag: string | null };
+/** token = laitteen QR-koodi; url = valmis osoite (esim. kylmäainepullo); tagline = tarran pieni teksti. */
+export type DeviceQrLabelItem = { token?: string; url?: string; name: string | null; tag: string | null; tagline?: string };
+
+function itemUrl(item: DeviceQrLabelItem, origin?: string): string {
+  if (item.url) return item.url;
+  if (!item.token) throw new Error('QR-linkki puuttuu.');
+  return devicePublicUrl(item.token, origin);
+}
 
 function esc(v: string): string {
   return v.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
@@ -62,10 +69,11 @@ const PT_MM = 25.4 / 72;
 export function layoutDeviceQrLabelText(
   tunnusText: string,
   measure: (text: string, pt: number, bold: boolean) => number,
+  tagline: string = DEVICE_QR_LABEL_TAGLINE,
 ): DeviceQrLabelText {
   const maxW = textWidthMm();
   const avail = qrBoxMm();
-  const tagLines = wrapLines(DEVICE_QR_LABEL_TAGLINE, maxW, (s) => measure(s, TAGLINE_PT, false)).slice(0, 3);
+  const tagLines = wrapLines(tagline, maxW, (s) => measure(s, TAGLINE_PT, false)).slice(0, 3);
   const tagH = tagLines.length * TAGLINE_PT * PT_MM * 1.2;
   let chosen = { pt: TUNNUS_SIZES_PT[TUNNUS_SIZES_PT.length - 1], lines: [tunnusText] };
   for (const pt of TUNNUS_SIZES_PT) {
@@ -90,8 +98,8 @@ export function layoutDeviceQrLabelText(
   return { tunnusPt: chosen.pt, tunnus, tagPt: TAGLINE_PT, tag };
 }
 
-function qrModules(token: string, origin?: string) {
-  const qr = QRCode.create(devicePublicUrl(token, origin), { errorCorrectionLevel: 'M' });
+function qrModules(url: string) {
+  const qr = QRCode.create(url, { errorCorrectionLevel: 'M' });
   return { size: qr.modules.size as number, data: qr.modules.data as ArrayLike<number> };
 }
 
@@ -100,13 +108,13 @@ export async function buildDeviceQrLabelsHtml(items: DeviceQrLabelItem[], origin
   const { widthMm: W, lengthMm: L, padMm, gapMm } = DEVICE_QR_LABEL;
   const labels = await Promise.all(
     items.map(async (item) => {
-      const svg = await QRCode.toString(devicePublicUrl(item.token, origin), {
+      const svg = await QRCode.toString(itemUrl(item, origin), {
         type: 'svg', margin: QR_QUIET_MODULES, errorCorrectionLevel: 'M', color: { dark: '#000000', light: '#ffffff' },
       });
       const name = deviceQrShortName(item);
       const len = name.length;
       const pt = len <= 8 ? 20 : len <= 12 ? 16 : len <= 18 ? 13 : len <= 24 ? 11 : 9;
-      return `<div class="qr-label"><div class="qr-code">${svg}</div><div class="qr-text"><strong style="font-size:${pt}pt">${esc(name)}</strong><span>${esc(DEVICE_QR_LABEL_TAGLINE)}</span></div></div>`;
+      return `<div class="qr-label"><div class="qr-code">${svg}</div><div class="qr-text"><strong style="font-size:${pt}pt">${esc(name)}</strong><span>${esc(item.tagline ?? DEVICE_QR_LABEL_TAGLINE)}</span></div></div>`;
     }),
   );
   return `<!doctype html><html lang="fi"><head><meta charset="utf-8"><title>QR-tarrat</title><style>
@@ -167,7 +175,7 @@ export async function renderDeviceQrLabelPng(item: DeviceQrLabelItem, origin?: s
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   ctx.imageSmoothingEnabled = false;
 
-  const qr = qrModules(item.token, origin);
+  const qr = qrModules(itemUrl(item, origin));
   const total = qr.size + 2 * QR_QUIET_MODULES;
   const boxPx = Math.floor(px(qrBoxMm()));
   const modulePx = Math.max(1, Math.floor(boxPx / total));
@@ -185,7 +193,7 @@ export async function renderDeviceQrLabelPng(item: DeviceQrLabelItem, origin?: s
   const layout = layoutDeviceQrLabelText(deviceQrShortName(item), (text, pt, bold) => {
     ctx.font = `${bold ? 'bold ' : ''}${fontPx(pt)}px Arial, Helvetica, sans-serif`;
     return (ctx.measureText(text).width * 25.4) / dpi;
-  });
+  }, item.tagline);
   ctx.textBaseline = 'alphabetic';
   ctx.fillStyle = '#000000';
   const tx = px(textXMm());
@@ -206,7 +214,7 @@ export async function renderDeviceQrLabelPdf(item: DeviceQrLabelItem, origin?: s
   const { widthMm: W, lengthMm: L, padMm } = DEVICE_QR_LABEL;
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: [L, W] });
   doc.setFillColor(0, 0, 0);
-  const qr = qrModules(item.token, origin);
+  const qr = qrModules(itemUrl(item, origin));
   const total = qr.size + 2 * QR_QUIET_MODULES;
   const mod = qrBoxMm() / total;
   const x0 = padMm + QR_QUIET_MODULES * mod;
@@ -220,7 +228,7 @@ export async function renderDeviceQrLabelPdf(item: DeviceQrLabelItem, origin?: s
     doc.setFont('helvetica', bold ? 'bold' : 'normal');
     doc.setFontSize(pt);
     return doc.getTextWidth(text);
-  });
+  }, item.tagline);
   doc.setTextColor(0, 0, 0);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(layout.tunnusPt);

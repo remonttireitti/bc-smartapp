@@ -18324,3 +18324,11 @@ a.device-history-row:hover { background: #f4f7fb; }
 .customer-equipment-list .data-table th, .customer-equipment-list .data-table td { padding-left: 0.35rem; padding-right: 0.35rem; }
 .customer-equipment-list .customer-equipment-name-cell { gap: 0.4rem; }
 .customer-equipment-list .data-table-actions .btn-sm { padding-left: 0.45rem; padding-right: 0.45rem; }
+
+/* QR-linkki näkyvissä ja kopioitavissa (t264u) */
+.device-qr-url, .inventory-bottle-qr-url { display: flex; flex-direction: column; gap: 4px; margin-top: 12px; font-weight: 600; }
+.device-qr-url input, .inventory-bottle-qr-url input { width: 100%; box-sizing: border-box; height: 48px; font-size: 16px; padding: 0 12px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+
+.inventory-bottle-detail-link { margin: 12px 0; }
+.inventory-bottle-detail-link label { display: flex; flex-direction: column; gap: 4px; }
+.inventory-bottle-detail-link .btn { align-self: flex-start; min-height: 48px; }

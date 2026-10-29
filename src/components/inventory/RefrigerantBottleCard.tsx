@@ -20,6 +20,7 @@ type Props = {
   onPickPhoto: (file: File) => void | Promise<void>;
   onShowDetails: () => void;
   onShowQr: () => void;
+  onCopyLink: () => void;
   onEdit: () => void;
   onRetrieve: () => void;
   onEmpty: () => void;
@@ -35,6 +36,7 @@ export default function RefrigerantBottleCard({
   onPickPhoto,
   onShowDetails,
   onShowQr,
+  onCopyLink,
   onEdit,
   onRetrieve,
   onEmpty,
@@ -135,7 +137,15 @@ export default function RefrigerantBottleCard({
                 className="inventory-bottle-menu-item"
                 onClick={() => runAction(onShowQr)}
               >
-                QR-koodi ja linkki
+                QR-koodi ja tarra
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                className="inventory-bottle-menu-item"
+                onClick={() => runAction(onCopyLink)}
+              >
+                Kopioi linkki
               </button>
               {canEdit && (
                 <>

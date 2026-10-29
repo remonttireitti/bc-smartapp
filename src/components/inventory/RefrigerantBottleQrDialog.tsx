@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 
-import { buildCylinderQrContent, copyCylinderScanUrl, downloadCylinderQrPng } from '../../lib/refrigerantCylinderQr';
+import { buildCylinderLabelHtml, buildCylinderQrContent, copyCylinderScanUrl, downloadCylinderLabel, downloadCylinderQrPng } from '../../lib/refrigerantCylinderQr';
+import { openPrintHtml } from '../../lib/openPrintWindow';
 import type { RefrigerantCylinder } from '../../types/inventory';
 
 type Props = {
@@ -82,6 +83,26 @@ export default function RefrigerantBottleQrDialog({ open, cylinder, onClose, onM
     }
   }
 
+  async function handlePrintLabel() {
+    if (!cylinder) return;
+    try {
+      openPrintHtml(await buildCylinderLabelHtml(cylinder), { documentTitle: 'Pullotarra' });
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Tarran tulostus epäonnistui');
+    }
+  }
+
+  async function handleLabelFile(kind: 'png' | 'pdf') {
+    if (!cylinder) return;
+    try {
+      await downloadCylinderLabel(cylinder, kind);
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Tiedoston luonti epäonnistui');
+    }
+  }
+
   if (!open || !cylinder) return null;
 
   return (
@@ -95,8 +116,8 @@ export default function RefrigerantBottleQrDialog({ open, cylinder, onClose, onM
       >
         <h2 id="inventory-bottle-qr-title">QR-koodi — {title || '…'}</h2>
         <p className="muted inventory-bottle-qr-hint">
-          Tulosta QR itse (esim. DYMO ID). Koodissa on pullo-linkki — skannaus avaa ajantasaiset tiedot
-          sovelluksesta.
+          Liitä linkki DYMO:n omaan QR-koodiin tai tulosta valmis tarra (Dymo XTL 300, 24 mm, 60 × 24 mm).
+          Skannaus avaa pullon tiedot sovelluksesta (vaatii kirjautumisen).
         </p>
 
         {loading ? <p className="muted">Luodaan QR-koodia…</p> : null}
@@ -122,7 +143,16 @@ export default function RefrigerantBottleQrDialog({ open, cylinder, onClose, onM
           <button type="button" className="btn btn-secondary" disabled={!scanUrl} onClick={() => void handleCopyLink()}>
             Kopioi linkki
           </button>
-          <button type="button" className="btn btn-primary" disabled={!qrDataUrl} onClick={() => void handleDownload()}>
+          <button type="button" className="btn btn-primary" disabled={!scanUrl} onClick={() => void handlePrintLabel()}>
+            Tulosta tarra
+          </button>
+          <button type="button" className="btn btn-secondary" disabled={!scanUrl} onClick={() => void handleLabelFile('png')}>
+            Tarra PNG
+          </button>
+          <button type="button" className="btn btn-secondary" disabled={!scanUrl} onClick={() => void handleLabelFile('pdf')}>
+            Tarra PDF
+          </button>
+          <button type="button" className="btn btn-secondary" disabled={!qrDataUrl} onClick={() => void handleDownload()}>
             Lataa QR-kuva
           </button>
         </div>

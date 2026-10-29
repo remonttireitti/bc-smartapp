@@ -23,6 +23,8 @@ import {
   loadRefrigerantPeriodReport,
   printRefrigerantPeriodReport,
 } from '../../lib/refrigerantInventoryReport';
+import { buildCylinderShortUrl } from '../../lib/refrigerantCylinderCode';
+import { copyText } from '../../lib/copyText';
 import { openSimplePrintPlaceholder } from '../../lib/openPrintWindow';
 import { supabase } from '../../lib/supabase';
 import type { RefrigerantCylinder } from '../../types/inventory';
@@ -43,6 +45,7 @@ type Props = {
   onClose: () => void;
   onEdit?: () => void;
   onShowQr?: () => void;
+  onMessage?: (message: string | null) => void;
   onError?: (message: string) => void;
 };
 
@@ -68,6 +71,7 @@ export default function RefrigerantBottleDetailDialog({
   onClose,
   onEdit,
   onShowQr,
+  onMessage,
   onError,
 }: Props) {
   const [historyFrom, setHistoryFrom] = useState('');
@@ -230,6 +234,30 @@ export default function RefrigerantBottleDetailDialog({
           ) : null}
         </dl>
 
+        <div className="inventory-bottle-qr-url inventory-bottle-detail-link">
+          <label>
+            Pullo-linkki
+            <input
+              type="text"
+              readOnly
+              data-testid="cylinder-link"
+              value={buildCylinderShortUrl(cylinder.id)}
+              onFocus={(e) => e.target.select()}
+            />
+          </label>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={() =>
+              void copyText(buildCylinderShortUrl(cylinder.id))
+                .then(() => onMessage?.('Linkki kopioitu.'))
+                .catch(() => onError?.('Linkin kopiointi epäonnistui'))
+            }
+          >
+            Kopioi linkki
+          </button>
+        </div>
+
         <section className="inventory-bottle-detail-history">
           <h3>Historia</h3>
           <div className="inventory-report-dates">
@@ -336,7 +364,7 @@ export default function RefrigerantBottleDetailDialog({
           </button>
           {onShowQr ? (
             <button type="button" className="btn btn-secondary" disabled={busy} onClick={onShowQr}>
-              QR-koodi ja linkki
+              QR-koodi ja tarra
             </button>
           ) : null}
           {canEdit && onEdit ? (

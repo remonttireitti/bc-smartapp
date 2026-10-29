@@ -19,7 +19,17 @@ export type DevicePublicDevice = {
 };
 export type DevicePublicCard = { device: DevicePublicDevice; rows: DevicePublicRow[] };
 
-export const DEVICE_QR_TOKEN_RE = /^[A-Za-z0-9_-]{32,128}$/;
+/** Lyhyt koodi (8 merkkiä) tai vanha pitkä token (43 merkkiä) — molemmat kelpaavat. */
+export const DEVICE_QR_TOKEN_RE = /^[A-Za-z0-9_-]{6,128}$/;
+
+/** Lyhyen koodin aakkosto: ei sekoittuvia merkkejä (ei 0/O, 1/I/L). 32 merkkiä → tasainen jakauma. */
+export const DEVICE_QR_CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+export const DEVICE_QR_CODE_LENGTH = 8;
+
+/** Lyhyt koodi vs. vanha pitkä token. */
+export function isShortDeviceQrCode(token: string | null | undefined): boolean {
+  return !!token && token.length <= 16;
+}
 
 export class DeviceQrNotFoundError extends Error {
   constructor() {
@@ -40,13 +50,13 @@ export function devicePublicUrl(token: string, origin = typeof window !== 'undef
   return `${resolvePublicShareOrigin(origin)}${devicePublicPath(token)}`;
 }
 
-/** 32 satunnaista tavua → 43 merkin base64url. */
-export function generateDeviceQrToken(): string {
-  const bytes = new Uint8Array(32);
+/** Lyhyt satunnainen koodi (8 merkkiä, 32 merkin aakkosto → 40 bittiä). */
+export function generateDeviceQrCode(length = DEVICE_QR_CODE_LENGTH): string {
+  const bytes = new Uint8Array(length);
   crypto.getRandomValues(bytes);
-  let bin = '';
-  for (const b of bytes) bin += String.fromCharCode(b);
-  return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  let out = '';
+  for (const b of bytes) out += DEVICE_QR_CODE_ALPHABET[b & 31];
+  return out;
 }
 
 /** Julkinen haku: ei kirjautumista, vain luku. Token mitätön → DeviceQrNotFoundError. */
@@ -78,4 +88,26 @@ export async function fetchDeviceQrTokens(equipmentIds: string[]): Promise<Recor
 export async function setDeviceQrToken(equipmentId: string, token: string | null): Promise<void> {
   const { error } = await supabase.from('equipment').update({ public_qr_token: token }).eq('id', equipmentId);
   if (error) throw new Error(error.message);
+}
+
+/**
+ * Tallenna laitteelle uusi lyhyt koodi. Uniikki-indeksi (equipment_public_qr_token_key) torjuu törmäykset → yritetään uudelleen.
+ * Palauttaa tallennetun koodin.
+ */
+export async function assignNewDeviceQrCode(equipmentId: string): Promise<string> {
+  let lastMessage = 'QR-linkin luonti epäonnistui.';
+  for (let attempt = 0; attempt < 6; attempt++) {
+    const code = generateDeviceQrCode();
+    const { error } = await supabase.from('equipment').update({ public_qr_token: code }).eq('id', equipmentId);
+    if (!error) return code;
+    lastMessage = error.message;
+    if (error.code !== '23505') break;
+  }
+  throw new Error(lastMessage);
+}
+
+/** Palauta laitteen nykyinen koodi tai luo lyhyt koodi, jos puuttuu (ensimmäinen kopiointi/tulostus). */
+export async function ensureDeviceQrCode(equipmentId: string, existing?: string | null): Promise<string> {
+  if (existing) return existing;
+  return assignNewDeviceQrCode(equipmentId);
 }

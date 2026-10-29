@@ -2,7 +2,7 @@ import { createClient, type SupabaseClient } from 'npm:@supabase/supabase-js@2';
 
 /**
  * Laitteen QR-sivu (/q/:token): julkinen, ei kirjautumista, vain luku.
- * - token = laitekohtainen satunnainen arvo (equipment.public_qr_token); mitätöinti = null / uusi arvo → 404.
+ * - token = laitekohtainen satunnainen arvo (equipment.public_qr_token): lyhyt 8 merkin koodi tai vanha 43 merkin token; mitätöinti = null / uusi arvo → 404.
  * - Data haetaan service rolella, rajattuna tiukasti tokenin laitteeseen (ja sen aktiivisesti linkitettyihin laitteisiin).
  * - Palauttaa vain: laitteen otsikkotiedot (tunnus, malli, kylmäaine, määrä, GWP, omistaja, osoite) ja
  *   historiarivit (pvm, asentaja, Tukes, mitä tehtiin). Ei hintoja, y-tunnusta, yhteystietoja, dokumentteja eikä raporttien tunnisteita.
@@ -12,8 +12,10 @@ import { createClient, type SupabaseClient } from 'npm:@supabase/supabase-js@2';
 type Admin = SupabaseClient<any, any, any>;
 type AnyRecord = Record<string, unknown>;
 
-const VERSION = 'device-public-card-4';
-const TOKEN_RE = /^[A-Za-z0-9_-]{32,128}$/;
+const VERSION = 'device-public-card-5';
+// Vanha pitkä token (43 merkkiä) ja uusi lyhyt koodi (8 merkkiä, isot kirjaimet + numerot) kelpaavat.
+const TOKEN_RE = /^[A-Za-z0-9_-]{6,128}$/;
+const SHORT_CODE_MAX = 16;
 const HUOLTO_STATUSES = ['draft', 'submitted', 'completed', 'valmis', 'toimitettu', 'complete', 'ready', 'done'];
 
 const corsHeaders = {
@@ -196,8 +198,10 @@ Deno.serve(async (req) => {
     const body = (await req.json().catch(() => ({}))) as AnyRecord;
     if (body.ping === true) return json({ ok: true, version: VERSION });
 
-    const token = String(body.token ?? '').trim();
+    let token = String(body.token ?? '').trim();
     if (!TOKEN_RE.test(token)) return notFound();
+    // Lyhyet koodit ovat isoja kirjaimia: kirjainkoko ei saa estää linkin avautumista.
+    if (token.length <= SHORT_CODE_MAX) token = token.toUpperCase();
 
     if (body.action === 'portal_request') return await handlePortalRequest(token, body);
 

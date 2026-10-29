@@ -11,8 +11,8 @@ const devices = [mk(1, 'Kylmiö A', 'KA-1', TOKEN), mk(2, 'Kylmiö B', 'KB-2', n
 const now = Math.floor(Date.now() / 1000);
 const fakeJwt = (o) => 'e30.' + Buffer.from(JSON.stringify(o)).toString('base64url') + '.sig';
 const session = { access_token: fakeJwt({ sub: uid, exp: now + 36000, role: 'authenticated' }), token_type: 'bearer', expires_in: 36000, expires_at: now + 36000, refresh_token: 'r', user: { id: uid, email: 't@example.com', aud: 'authenticated', role: 'authenticated', app_metadata: {}, user_metadata: {} } };
-const b = await chromium.launch(); const checks = {};
-const ctx = await b.newContext({ viewport: { width: 1366, height: 900 }, serviceWorkers: 'block', timezoneId: 'Europe/Helsinki' });
+const b = await chromium.launch(); const checks = {}; const SHORT = /^[A-Z2-9]{8}$/;
+const ctx = await b.newContext({ viewport: { width: 1366, height: 900 }, serviceWorkers: 'block', timezoneId: 'Europe/Helsinki', permissions: ['clipboard-read', 'clipboard-write'] });
 await ctx.addInitScript(() => {
   window.print = () => {}; window.close = () => {};
   const orig = window.open.bind(window);
@@ -65,21 +65,34 @@ const htmlA = await popupHtml(() => p.getByRole('menuitem', { name: 'Tulosta QR-
 checks['A: tulostusikkuna avautui 60×24 mm'] = !!htmlA && /size:\s*60mm 24mm/.test(htmlA);
 checks['A: tunnus KA-1 ja teksti tarrassa'] = !!htmlA && htmlA.includes('KA-1') && htmlA.includes('ylläpitää BC Smartapp');
 checks['A: token ei muuttunut, ei PATCH'] = patches.length === 0;
-// Laite B: ei tokenia → vahvistus + luonti
+// Laite B: ei tokenia → lyhyt koodi luodaan ilman vahvistusta
 let dlgMsg = '';
-p.once('dialog', (d) => { dlgMsg = d.message(); d.accept(); });
+p.on('dialog', (d) => { dlgMsg = d.message(); d.accept(); });
 await menuOf('Kylmiö B').click(); await p.waitForTimeout(200);
 const htmlB = await popupHtml(() => p.getByRole('menuitem', { name: 'Tulosta QR-tarra' }).click());
-checks['B: vahvistus laitteelle luodaan linkki'] = /Laitteelle luodaan julkinen/.test(dlgMsg);
-checks['B: public_qr_token tallennettu (43 merkkiä)'] = patches.length === 1 && patches[0].id === devices[1].id && /^[A-Za-z0-9_-]{43}$/.test(patches[0].body.public_qr_token || '');
+checks['B: ei vahvistusdialogia yhdelle laitteelle'] = dlgMsg === '';
+checks['B: public_qr_token tallennettu (lyhyt 8 merkkiä)'] = patches.length === 1 && patches[0].id === devices[1].id && SHORT.test(patches[0].body.public_qr_token || '');
 checks['B: tarra tulostui (KB-2)'] = !!htmlB && htmlB.includes('KB-2');
-// Peruutus: ei lisäkirjoituksia
+const codeB = patches[0]?.body.public_qr_token;
+// Rivivalikko: Kopioi QR-linkki (vanha pitkä token säilyy)
+await menuOf('Kylmiö A').click(); await p.waitForTimeout(200);
+await p.getByRole('menuitem', { name: 'Kopioi QR-linkki' }).click(); await p.waitForTimeout(600);
+checks['A: kopioitu vanha pitkä linkki'] = (await p.evaluate(() => navigator.clipboard.readText())) === `https://bestcool.eu/q/${TOKEN}`;
+await menuOf('Kylmiö B').click(); await p.waitForTimeout(200);
+await p.getByRole('menuitem', { name: 'Kopioi QR-linkki' }).click(); await p.waitForTimeout(600);
+checks['B: kopioitu lyhyt linkki'] = (await p.evaluate(() => navigator.clipboard.readText())) === `https://bestcool.eu/q/${codeB}`;
+checks['B: kopiointi ei luo uutta koodia'] = patches.length === 1;
 // Laitekortin QR-osio
 await p.goto(`${BASE}/asiakkaat/${customer.id}/laitteet/${devices[0].id}`); await p.waitForTimeout(5500);
 const root2 = (await p.locator(vis).count()) ? p.locator(vis) : p.locator('body');
 const panel = root2.getByTestId('device-qr-panel');
 checks['laitekortti: QR-osio näkyy'] = (await panel.count()) === 1;
 checks['laitekortti: Tulosta QR-tarra / PNG / PDF'] = (await panel.getByRole('button', { name: 'Tulosta QR-tarra' }).count()) === 1 && (await panel.getByRole('button', { name: 'Lataa PNG' }).count()) === 1 && (await panel.getByRole('button', { name: 'Lataa PDF' }).count()) === 1;
+const urlInput = panel.getByTestId('device-qr-url');
+checks['laitekortti: linkki näkyvissä tekstinä'] = (await urlInput.inputValue()) === `https://bestcool.eu/q/${TOKEN}`;
+await panel.getByRole('button', { name: 'Kopioi linkki' }).click(); await p.waitForTimeout(500);
+checks['laitekortti: Kopioi linkki'] = (await p.evaluate(() => navigator.clipboard.readText())) === `https://bestcool.eu/q/${TOKEN}`;
+checks['laitekortti: Vaihda lyhyeen linkkiin tarjolla vanhalle'] = (await panel.getByRole('button', { name: 'Vaihda lyhyeen linkkiin' }).count()) === 1;
 checks['ei muita kirjoituksia'] = otherWrites.length === 0;
 checks['ei sivuvirheitä'] = errs.length === 0;
 console.log(checks);
