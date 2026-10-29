@@ -354,6 +354,8 @@ function initialLogForm() {
     partner_extra_billing: false,
     /** Urakka-kytkin: tunnit ja kulut kuuluvat urakkahintaan (partner_billing.urakka_all_in). */
     partner_urakka_all_in: false,
+    /** Työtuntien Laskutettava (partner_billing.hours_row_billed): urakassa Lisälaskutus, takuussa takuun ulkopuolinen. */
+    partner_hours_row_billed: false,
     /** Takuu: tunnit eivät laskutu (partner_billing.warranty). */
     partner_warranty: false,
     /** Takuu: ajomatkat eivät laskutu (partner_billing.trips_warranty). */
@@ -481,6 +483,7 @@ function logToForm(log: WorkReportDailyLog): DailyLogFormState {
     trips_billed: parseDailyLogPartnerBilling(log.partner_billing).trips_billed !== false,
     partner_extra_billing: parseDailyLogPartnerBilling(log.partner_billing).extra_billing === true,
     partner_urakka_all_in: parseDailyLogPartnerBilling(log.partner_billing).urakka_all_in === true,
+    partner_hours_row_billed: parseDailyLogPartnerBilling(log.partner_billing).hours_row_billed === true,
     partner_warranty: parseDailyLogPartnerBilling(log.partner_billing).warranty === true,
     partner_trips_warranty: parseDailyLogPartnerBilling(log.partner_billing).trips_warranty === true,
     work_done: log.work_done,
@@ -575,6 +578,7 @@ function buildLogPayload(
             extra_billing: form.partner_extra_billing && form.entry_type !== 'fixed_price',
             warranty: form.partner_warranty,
             urakka_all_in: form.entry_type === 'fixed_price' && form.partner_urakka_all_in,
+            hours_row_billed: form.partner_hours_row_billed && (form.entry_type === 'fixed_price' || form.partner_warranty),
             trips_warranty: form.partner_trips_warranty,
             refrigerant_flags: options?.refrigerantFlags,
           }),
@@ -814,7 +818,9 @@ export function DailyLogFields({
                 onChange={(e) => setForm({ ...form, hours_regular: e.target.value })}
               />
               <span className="muted daily-log-hour-block-hint">
-                Ei laskuteta — käytetään vain kalenterissa ja päällekkäisyystarkistuksessa.
+                {form.partner_hours_row_billed
+                ? 'Laskutetaan normaalihinnalla urakan päälle (Lisälaskutus).'
+                : 'Ei laskuteta — käytetään vain kalenterissa ja päällekkäisyystarkistuksessa.'}
               </span>
             </label>
           ) : (
@@ -1043,6 +1049,15 @@ export function DailyLogFields({
         />
         Takuu
       </label>
+      {form.entry_type === 'fixed_price' || form.partner_warranty ? (
+        <label className="compact-option hours-row-bill-toggle">
+          <CheckToggle
+            checked={form.partner_hours_row_billed}
+            onChange={(e) => setForm({ ...form, partner_hours_row_billed: e.target.checked })}
+          />
+          Laskutettava (tunnit)
+        </label>
+      ) : null}
       {showExtraBillingToggle && !showFixed ? (
         <label className="compact-option">
           <CheckToggle

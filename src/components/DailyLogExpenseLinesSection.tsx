@@ -256,6 +256,7 @@ export default function DailyLogExpenseLinesSection({
               showQuoteLinkedExtraBilling={showQuoteLinkedExtraBilling}
               showQuoteLinkedCategories={showQuoteLinkedCategories}
               expenseQuoteContext={expenseQuoteContext}
+              rowBillMode={rowBillMode}
             />
             <div className="leave-draft-actions expense-line-dialog-actions">
               {!isAutoTripKmExpense(editingRow) ? (
@@ -287,6 +288,7 @@ function ExpenseLineEditor({
   showQuoteLinkedExtraBilling,
   showQuoteLinkedCategories,
   expenseQuoteContext,
+  rowBillMode = null,
 }: {
   row: ExpenseDraft;
   index: number;
@@ -296,6 +298,7 @@ function ExpenseLineEditor({
   showQuoteLinkedExtraBilling: boolean;
   showQuoteLinkedCategories: boolean;
   expenseQuoteContext: ExpenseBillingQuoteContext;
+  rowBillMode?: 'urakka' | 'warranty' | null;
 }) {
   const autoTripKm = isAutoTripKmExpense(row);
   const category = expenseDraftCategoryOrNull(row);
@@ -386,7 +389,21 @@ function ExpenseLineEditor({
           onChange={(e) => updateExpenseRow({ ...row, qty: e.target.value })}
         />
       </label>
-      {!autoTripKm ? (
+      {!autoTripKm && rowBillMode ? (
+        <label className="checkbox-label expense-warranty-toggle">
+          <CheckToggle
+            checked={rowBillMode === 'urakka' ? row.urakka_billed === true : row.warranty !== true}
+            onChange={(e) =>
+              updateExpenseRow(
+                rowBillMode === 'urakka'
+                  ? { ...row, urakka_billed: e.target.checked }
+                  : { ...row, warranty: !e.target.checked },
+              )
+            }
+          />
+          Laskutettava
+        </label>
+      ) : !autoTripKm ? (
         <label className="checkbox-label expense-warranty-toggle">
           <CheckToggle
             checked={row.warranty === true}

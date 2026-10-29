@@ -1,4 +1,4 @@
-import { logExpensesInUrakka } from './commissionBillingMode';
+import { logExpensesInUrakka, logUrakkaHoursBilled } from './commissionBillingMode';
 import { logHoursWarranty } from './workReportWarranty';
 import type { WorkReportDailyLog } from '../types';
 import { resolveDailyLogAuthorLabel } from '../types';
@@ -153,9 +153,10 @@ export function calculateWorkReportCustomerBillable(input: {
     };
     const summary = ensureUser(user);
 
+    const urakkaHoursBilled = logUrakkaHoursBilled(log);
     const hourLines = buildDailyOvertimeHourLines({
-      log,
-      hourBillingMode,
+      log: urakkaHoursBilled ? { ...log, entry_type: 'regular' } : log,
+      hourBillingMode: urakkaHoursBilled ? 'manual' : hourBillingMode,
       allocation: dailyOvertimeBilling.get(log.id),
       hourlyRegular: rates.hourly_regular,
       policy: overtimePolicy,
@@ -197,6 +198,7 @@ export function calculateWorkReportCustomerBillable(input: {
         unitPrice: hl.unitPrice,
         total,
         included: true,
+        ...(urakkaHoursBilled ? { extraBilling: true } : {}),
       });
       summary.hoursTotal += total;
       summary.hoursQty += hl.qty;

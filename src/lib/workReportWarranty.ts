@@ -7,7 +7,9 @@ import { parseDailyLogPartnerBilling } from './commissionBillingMode';
  * Lehtimoduuli: importoi vain tyypit ja commissionBillingModen (ei kiertoja).
  */
 export function logHoursWarranty(log: { partner_billing?: unknown }): boolean {
-  return parseDailyLogPartnerBilling(log.partner_billing).warranty === true;
+  const flags = parseDailyLogPartnerBilling(log.partner_billing);
+  // Laskutettava-kytkin: takuun ulkopuoliset tunnit laskutetaan.
+  return flags.warranty === true && flags.hours_row_billed !== true;
 }
 
 export function logTripsWarranty(log: { partner_billing?: unknown }): boolean {

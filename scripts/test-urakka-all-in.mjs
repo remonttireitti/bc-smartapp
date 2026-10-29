@@ -49,4 +49,27 @@ assert.equal(t.grandTotal, 2610);
 assert.equal(extraBillingTotal(t), 110);
 // Ilman Lisälaskutus-merkintää tunnit kuuluvat urakkaan.
 assert.equal(partner([urakka, log('d20', '2026-10-20', { hours_regular: 2 })]).grandTotal, 2500);
+
+// Työtuntirivin Laskutettava (urakka): tunnit laskutetaan normaalihinnalla Lisälaskutus-osiossa urakan päälle.
+const hoursBilled = log('d19', '2026-10-19', { entry_type: 'fixed_price', fixed_price_amount: 2500, customer_fixed_price_amount: 2500, hours_regular: 2, partner_billing: { urakka_all_in: true, hours_row_billed: true } });
+const hb = partner([hoursBilled]);
+assert.equal(hb.grandTotal, 2610); // 2500 + 2 h × 55
+assert.equal(extraBillingTotal(hb), 110);
+assert.equal(hb.byUser[0].fixedTotal, 2500);
+assert.equal(customer([hoursBilled]).grandTotal, 2610);
+assert.equal(extraBillingTotal(customer([hoursBilled])), 110);
+// Ilman kytkintä tunnit kuuluvat urakkaan (vanha käytös).
+const hoursOff = log('d19', '2026-10-19', { entry_type: 'fixed_price', fixed_price_amount: 2500, customer_fixed_price_amount: 2500, hours_regular: 2, partner_billing: { urakka_all_in: true } });
+assert.equal(partner([hoursOff]).grandTotal, 2500);
+assert.equal(customer([hoursOff]).grandTotal, 2500);
+// Lippu ei vaikuta tavalliseen kirjaukseen (ei urakka).
+assert.equal(partner([log('d1', '2026-10-19', { partner_billing: { hours_row_billed: true } })]).grandTotal, 440);
+// Takuu: tunnit 0 €; Laskutettava päällä → takuun ulkopuoliset tunnit laskutetaan.
+assert.equal(partner([log('d1', '2026-10-19', { partner_billing: { warranty: true } })]).grandTotal, 0);
+assert.equal(partner([log('d1', '2026-10-19', { partner_billing: { warranty: true, hours_row_billed: true } })]).grandTotal, 440);
+assert.equal(customer([log('d1', '2026-10-19', { partner_billing: { warranty: true, hours_row_billed: true } })]).grandTotal, 440);
+// Termatek/Hämeentie yhdistelmä: urakka + laskutettava tunnit samalla päivällä + erillinen Lisälaskutus 2 h.
+const tm = partner([hoursBilled, log('d20', '2026-10-20', { hours_regular: 2, partner_billing: { extra_billing: true } })]);
+assert.equal(tm.grandTotal, 2720);
+assert.equal(extraBillingTotal(tm), 220);
 console.log('urakka-all-in ok');

@@ -2,6 +2,7 @@ import {
   expensePartnerBilled,
   logHoursPartnerBilled,
   logExpensesInUrakka,
+  logUrakkaHoursBilled,
   logIsExtraBilling,
   logTripsPartnerBilled,
   partnerBillingContext,
@@ -381,9 +382,11 @@ export function calculateWorkReportBillable(input: {
           ? {}
           : ({ notBilledReason: 'toggle' } as const);
 
+    // Urakka + Laskutettava (tunnit): tunnit laskutetaan normaalihinnalla urakan päälle (Lisälaskutus).
+    const urakkaHoursBilled = logUrakkaHoursBilled(log);
     const hourLines = buildDailyOvertimeHourLines({
-      log,
-      hourBillingMode,
+      log: urakkaHoursBilled ? { ...log, entry_type: 'regular' } : log,
+      hourBillingMode: urakkaHoursBilled ? 'manual' : hourBillingMode,
       allocation: dailyOvertimeBilling.get(log.id),
       hourlyRegular: rates.hourly_regular,
       policy: overtimePolicy,
@@ -430,6 +433,7 @@ export function calculateWorkReportBillable(input: {
         total,
         included,
         ...reasonFor(hoursRowBilled),
+        ...(urakkaHoursBilled ? { extraBilling: true } : {}),
       });
       if (included) summary.hoursTotal += total;
       else summary.excludedSubtotal += total;

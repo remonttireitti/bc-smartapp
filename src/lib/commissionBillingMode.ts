@@ -14,6 +14,8 @@ export interface DailyLogPartnerBilling {
   trips_warranty?: boolean;
   /** Urakka: kirjauksen tunnit ja kulut kuuluvat urakkahintaan; vain rivikohtaisesti Laskutettava-merkityt kulurivit laskutetaan (Lisälaskutus). */
   urakka_all_in?: boolean;
+  /** Työtuntirivin Laskutettava: urakassa tunnit laskutetaan urakan päälle (Lisälaskutus), takuussa tunnit ovat takuun ulkopuolisia. */
+  hours_row_billed?: boolean;
   /** Kylmäainerivit (indeksi = tallennusjärjestys created_at): takuu, kumppanin varaston myyntiprovisio. */
   refrigerant_flags?: RefrigerantLineFlag[];
 }
@@ -70,6 +72,7 @@ export function parseDailyLogPartnerBilling(raw: unknown): DailyLogPartnerBillin
   if (v.warranty === true) out.warranty = true;
   if (v.trips_warranty === true) out.trips_warranty = true;
   if (v.urakka_all_in === true) out.urakka_all_in = true;
+  if (v.hours_row_billed === true) out.hours_row_billed = true;
   const refrigerantFlags = parseRefrigerantFlags(v.refrigerant_flags);
   if (refrigerantFlags) out.refrigerant_flags = refrigerantFlags;
   return out;
@@ -87,6 +90,7 @@ export function serializeDailyLogPartnerBilling(
   if (value.warranty === true) out.warranty = true;
   if (value.trips_warranty === true) out.trips_warranty = true;
   if (value.urakka_all_in === true) out.urakka_all_in = true;
+  if (value.hours_row_billed === true) out.hours_row_billed = true;
   const refrigerantFlags = parseRefrigerantFlags(value.refrigerant_flags);
   if (refrigerantFlags) out.refrigerant_flags = refrigerantFlags;
   return Object.keys(out).length ? out : null;
@@ -159,6 +163,11 @@ export function notBilledReason(
 /** Urakka-kirjaus, jossa tunnit ja kulut kuuluvat urakkahintaan (Urakka-kytkin). */
 export function logExpensesInUrakka(log: { entry_type?: string; partner_billing?: unknown }): boolean {
   return log.entry_type === 'fixed_price' && parseDailyLogPartnerBilling(log.partner_billing).urakka_all_in === true;
+}
+
+/** Urakka-kirjauksen tunnit laskutetaan urakan päälle (Laskutettava, Lisälaskutus-osio). */
+export function logUrakkaHoursBilled(log: { entry_type?: string; partner_billing?: unknown }): boolean {
+  return log.entry_type === 'fixed_price' && parseDailyLogPartnerBilling(log.partner_billing).hours_row_billed === true;
 }
 
 /** Lisälaskutus-kirjaus (urakkaraportissa urakan päälle laskutettava työ/kulut). */
