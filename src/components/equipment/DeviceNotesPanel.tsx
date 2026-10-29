@@ -8,7 +8,6 @@ import { isPortalView } from '../../lib/portalPreview';
 import { formatMaintenanceDateFi } from '../../lib/equipmentMaintenanceHistory';
 import { todayYmdLocal } from '../../lib/huoltoSchedule';
 import {
-  EQUIPMENT_NOTE_QUICK_PICKS,
   insertEquipmentNote,
   noteByline,
   type EquipmentNote,
@@ -92,18 +91,6 @@ export default function DeviceNotesPanel({ session, equipmentId, notes, canAdd, 
 
   const formEl = (
         <form className="device-notes-form" onSubmit={(e) => void submit(e)}>
-          <div className="device-notes-chips">
-            {EQUIPMENT_NOTE_QUICK_PICKS.map((q) => (
-              <button
-                key={q}
-                type="button"
-                className={`device-notes-chip${text === q ? ' is-active' : ''}`}
-                onClick={() => setText(q)}
-              >
-                {q}
-              </button>
-            ))}
-          </div>
           <input aria-label="Mitä tehtiin" placeholder="Mitä tehtiin" value={text} onChange={(e) => setText(e.target.value)} maxLength={500} />
           <input aria-label="Päivämäärä" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
           {needsTukes ? (

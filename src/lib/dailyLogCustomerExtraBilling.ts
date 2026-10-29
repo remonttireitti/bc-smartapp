@@ -103,6 +103,7 @@ function parseSupplyLineFlags(raw: unknown): SupplyLineExtraBillingFlag[] {
         : {}),
       ...(row.price_confirmed === true ? { price_confirmed: true } : {}),
       ...(row.warranty === true ? { warranty: true } : {}),
+      ...(row.urakka_billed === true ? { urakka_billed: true } : {}),
     });
   }
   return parsed;
@@ -185,6 +186,7 @@ export function serializeDailyLogCustomerExtraBilling(
         : {}),
       ...(row.price_confirmed === true ? { price_confirmed: true } : {}),
       ...(row.warranty === true ? { warranty: true } : {}),
+      ...(row.urakka_billed === true ? { urakka_billed: true } : {}),
     }));
   }
 
@@ -1065,6 +1067,7 @@ export function annotateExpensePriceConfirmed<T extends WorkReportDailyLog>(rawL
         ? { ...line, price_confirmed: true }
         : line;
       if (flag?.warranty === true) next = { ...next, warranty: true };
+      if (flag?.urakka_billed === true) next = { ...next, urakka_billed: true };
       if (tripsW && isLikelyAutoTripKmExpense({ key: line.id, expense_type: line.expense_type, description: line.description ?? '' })) {
         next = { ...next, warranty: true };
       }

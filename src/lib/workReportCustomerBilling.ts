@@ -1,3 +1,4 @@
+import { logExpensesInUrakka } from './commissionBillingMode';
 import { logHoursWarranty } from './workReportWarranty';
 import type { WorkReportDailyLog } from '../types';
 import { resolveDailyLogAuthorLabel } from '../types';
@@ -201,8 +202,11 @@ export function calculateWorkReportCustomerBillable(input: {
       summary.hoursQty += hl.qty;
     }
 
+    const expensesInUrakka = logExpensesInUrakka(log);
     for (const expense of log.expense_lines ?? []) {
       if (!expenseIncludedInCustomerInvoice(expense, expenseQuoteContext)) continue;
+      // Urakka-kytkin: kulut kuuluvat urakkaan, vain Laskutettava-rivit laskutetaan (Lisälaskutus).
+      if (expensesInUrakka && expense.urakka_billed !== true) continue;
       const unitPrice = customerExpenseUnitPrice(expense, expenseQuoteContext);
       const priceMissing = customerExpensePriceMissing(expense, expenseQuoteContext);
       const billed =
@@ -234,6 +238,7 @@ export function calculateWorkReportCustomerBillable(input: {
         total: billed.total,
         included: true,
         priceMissing,
+        ...(expensesInUrakka ? { extraBilling: true } : {}),
       });
       summary.expensesTotal += billed.total;
     }

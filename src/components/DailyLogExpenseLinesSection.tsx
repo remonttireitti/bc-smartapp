@@ -68,6 +68,8 @@ type Props = {
   onInitialEditingHandled?: () => void;
   /** Provisio + tunnit ja kulut: rivikohtainen "Laskutetaan"-valinta suoraan rivillä. */
   partnerBilledToggle?: boolean;
+  /** Urakka/Takuu päällä: rivikohtainen "Laskutettava" (oletuksena pois) korvaa rivin Takuu-kytkimen. */
+  rowBillMode?: 'urakka' | 'warranty' | null;
 };
 
 export default function DailyLogExpenseLinesSection({
@@ -83,6 +85,7 @@ export default function DailyLogExpenseLinesSection({
   variant = 'expenses',
   categoryFilter = null,
   partnerBilledToggle = false,
+  rowBillMode = null,
 }: Props) {
   const deviceVariant = variant === 'device';
   const expenseQuoteContext: ExpenseBillingQuoteContext = { linkedQuoteRequest };
@@ -116,7 +119,9 @@ export default function DailyLogExpenseLinesSection({
         : categoryFilter === 'expenses'
           ? { ...emptyExpense(), expense_type: 'other' }
           : emptyExpense();
-    setExpenseDrafts((current) => [...current, newRow]);
+    // Takuu: uusi rivi on oletuksena takuuta (ei laskuteta) — Laskutettava-kytkin laskuttaa sen.
+    const rowWithBillMode = rowBillMode === 'warranty' ? { ...newRow, warranty: true } : newRow;
+    setExpenseDrafts((current) => [...current, rowWithBillMode]);
     setEditingExpenseKey(newRow.key);
   }
 
@@ -183,6 +188,29 @@ export default function DailyLogExpenseLinesSection({
                 </span>
                 <span className="expense-line-list-item-action">Muokkaa</span>
               </button>
+              {rowBillMode ? (
+                <label
+                  className="expense-line-billed-toggle expense-line-row-bill-toggle"
+                  title={rowBillMode === 'urakka' ? 'Laskutetaan urakan päälle (Lisälaskutus)' : 'Takuun ulkopuolinen: laskutetaan'}
+                >
+                  <CheckToggle
+                    checked={rowBillMode === 'urakka' ? row.urakka_billed === true : row.warranty !== true}
+                    onChange={(event) => {
+                      const checked = event.target.checked;
+                      setExpenseDrafts((current) =>
+                        current.map((entry) =>
+                          entry.key !== row.key
+                            ? entry
+                            : rowBillMode === 'urakka'
+                              ? { ...entry, urakka_billed: checked }
+                              : { ...entry, warranty: !checked },
+                        ),
+                      );
+                    }}
+                  />{' '}
+                  Laskutettava
+                </label>
+              ) : (
               <label className="expense-line-billed-toggle expense-line-warranty-toggle" title="Takuu: ei laskuteta">
                   <CheckToggle
                     checked={row.warranty === true}
@@ -195,6 +223,7 @@ export default function DailyLogExpenseLinesSection({
                   />{' '}
                   Takuu
                 </label>
+              )}
             </li>
           ))}
         </ul>

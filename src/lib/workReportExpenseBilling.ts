@@ -225,6 +225,8 @@ export type SupplyLineExtraBillingFlag = {
   price_confirmed?: boolean;
   /** Takuu: rivi ei laskutu. */
   warranty?: boolean;
+  /** Urakka: rivi laskutetaan urakan päälle (Laskutettava). */
+  urakka_billed?: boolean;
 };
 
 export type ExpenseDraftLike = ExpenseBillingFlags & {
@@ -276,6 +278,7 @@ export function buildSupplyLineFlagsFromExpenseDrafts(
           ? { price_confirmed: true }
           : {}),
         ...((row as { warranty?: boolean }).warranty === true ? { warranty: true } : {}),
+        ...((row as { urakka_billed?: boolean }).urakka_billed === true ? { urakka_billed: true } : {}),
       };
     });
 }

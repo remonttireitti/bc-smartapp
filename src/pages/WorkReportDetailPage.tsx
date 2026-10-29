@@ -1,4 +1,3 @@
-import { EQUIPMENT_NOTE_QUICK_PICKS } from '../lib/equipmentNotes';
 import CheckToggle from '../components/CheckToggle';
 import {
   DEFAULT_COMMISSION_BILLING_MODE,
@@ -353,6 +352,8 @@ function initialLogForm() {
     partner_urakka_manual: false,
     /** Urakkaraportin lisälaskutus (partner_billing.extra_billing). */
     partner_extra_billing: false,
+    /** Urakka-kytkin: tunnit ja kulut kuuluvat urakkahintaan (partner_billing.urakka_all_in). */
+    partner_urakka_all_in: false,
     /** Takuu: tunnit eivät laskutu (partner_billing.warranty). */
     partner_warranty: false,
     /** Takuu: ajomatkat eivät laskutu (partner_billing.trips_warranty). */
@@ -479,6 +480,7 @@ function logToForm(log: WorkReportDailyLog): DailyLogFormState {
     hours_billed: parseDailyLogPartnerBilling(log.partner_billing).hours_billed !== false,
     trips_billed: parseDailyLogPartnerBilling(log.partner_billing).trips_billed !== false,
     partner_extra_billing: parseDailyLogPartnerBilling(log.partner_billing).extra_billing === true,
+    partner_urakka_all_in: parseDailyLogPartnerBilling(log.partner_billing).urakka_all_in === true,
     partner_warranty: parseDailyLogPartnerBilling(log.partner_billing).warranty === true,
     partner_trips_warranty: parseDailyLogPartnerBilling(log.partner_billing).trips_warranty === true,
     work_done: log.work_done,
@@ -572,6 +574,7 @@ function buildLogPayload(
             trips_billed: form.trips_billed,
             extra_billing: form.partner_extra_billing && form.entry_type !== 'fixed_price',
             warranty: form.partner_warranty,
+            urakka_all_in: form.entry_type === 'fixed_price' && form.partner_urakka_all_in,
             trips_warranty: form.partner_trips_warranty,
             refrigerant_flags: options?.refrigerantFlags,
           }),
@@ -695,6 +698,8 @@ export function DailyLogFields({
         ? 'Kulut'
         : 'Kulut ja tarvikkeet';
   const partnerUrakkaPreview = previewPartnerUrakkaAmount(form);
+  const rowBillMode: 'urakka' | 'warranty' | null =
+    form.entry_type === 'fixed_price' && form.partner_urakka_all_in ? 'urakka' : form.partner_warranty ? 'warranty' : null;
 
   return (
     <>
@@ -767,19 +772,6 @@ export function DailyLogFields({
             required
           />
         </label>
-        {/* Pikatekstit: lisäävät vain tähän kuvaukseen (ei erillistä historiamerkintää). */}
-        <div className="device-notes-chips">
-          {EQUIPMENT_NOTE_QUICK_PICKS.map((q) => (
-            <button
-              key={q}
-              type="button"
-              className="device-notes-chip"
-              onClick={() => setForm({ ...form, work_done: form.work_done.trim() ? `${form.work_done.trimEnd()}\n${q}` : q })}
-            >
-              {q}
-            </button>
-          ))}
-        </div>
       </DailyLogTileSection>
 
       <DailyLogTileSection
@@ -867,8 +859,8 @@ export function DailyLogFields({
           />
         )}
         {showFixed && showPartnerPrices ? (
-          <label>
-            Urakkahinta kumppanille (€)
+          <label className="urakka-price-field">
+            Urakkahinta (€, alv 0 %)
             <input
               type="number"
               step="0.01"
@@ -881,8 +873,8 @@ export function DailyLogFields({
         ) : null}
         {showFixed && !showPartnerPrices && (
           <>
-            <label>
-              Urakkahinta asiakkaalle (€)
+            <label className="urakka-price-field">
+              Urakkahinta (€, alv 0 %)
               <input
                 type="number"
                 step="0.01"
@@ -1027,8 +1019,27 @@ export function DailyLogFields({
       ) : null}
       <label className="compact-option">
         <CheckToggle
+          checked={form.entry_type === 'fixed_price'}
+          onChange={(e) =>
+            setForm((current) => ({
+              ...current,
+              entry_type: e.target.checked ? 'fixed_price' : 'regular',
+              partner_urakka_all_in: e.target.checked,
+              partner_extra_billing: e.target.checked ? false : current.partner_extra_billing,
+            }))
+          }
+        />
+        Urakka
+      </label>
+      <label className="compact-option">
+        <CheckToggle
           checked={form.partner_warranty}
-          onChange={(e) => setForm({ ...form, partner_warranty: e.target.checked })}
+          onChange={(e) => {
+            const checked = e.target.checked;
+            setForm({ ...form, partner_warranty: checked });
+            // Takuu: rivit ovat oletuksena takuuta; Laskutettava-kytkin laskuttaa takuun ulkopuoliset.
+            if (checked) setExpenseDrafts((current) => current.map((row) => (isLikelyAutoTripKmExpense(row) ? row : { ...row, warranty: true })));
+          }}
         />
         Takuu
       </label>
@@ -1201,6 +1212,7 @@ export function DailyLogFields({
           onInitialEditingHandled={onAutoOpenExpenseHandled}
           categoryFilter={expenseCategoryFilter}
           partnerBilledToggle={partnerRowToggles}
+          rowBillMode={rowBillMode}
         />
         {partnerRowToggles && hasAutoTripKm ? (
           <label className="daily-log-billed-toggle">
@@ -1239,6 +1251,7 @@ export function DailyLogFields({
           linkedQuoteRequest={linkedQuoteRequest}
           initialEditingKey={autoOpenExpenseKey}
           onInitialEditingHandled={onAutoOpenExpenseHandled}
+          rowBillMode={rowBillMode}
         />
       </DailyLogTileSection>
     </>

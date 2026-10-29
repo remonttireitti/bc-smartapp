@@ -137,6 +137,8 @@ export type DailyExpenseLine = {
   price_confirmed?: boolean;
   /** Johdettu supply_line_flags-JSONista: takuu, ei laskuteta. */
   warranty?: boolean;
+  /** Johdettu supply_line_flags-JSONista: urakka-kirjauksen rivi laskutetaan erikseen (Lisälaskutus). */
+  urakka_billed?: boolean;
   inventory_item_id?: string | null;
   unit?: string | null;
 };

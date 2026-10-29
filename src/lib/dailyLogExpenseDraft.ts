@@ -39,6 +39,8 @@ export type ExpenseDraft = {
   price_confirmed?: boolean;
   /** Takuu: rivi ei laskutu (supply_line_flags[i].warranty). */
   warranty?: boolean;
+  /** Urakka: rivi laskutetaan urakan päälle (supply_line_flags[i].urakka_billed). */
+  urakka_billed?: boolean;
   /** Varaston materiaali (saldo päivittyy tallennettaessa). */
   inventory_item_id?: string | null;
   unit?: string | null;
@@ -208,6 +210,7 @@ export function expensesToDrafts(
       extra_billing_allowed: extraBillingAllowed,
       ...(fallback?.price_confirmed === true && !(unitPrice > 0) ? { price_confirmed: true } : {}),
       ...(line.warranty === true || fallback?.warranty === true ? { warranty: true } : {}),
+      ...(line.urakka_billed === true || fallback?.urakka_billed === true ? { urakka_billed: true } : {}),
     };
   });
 }

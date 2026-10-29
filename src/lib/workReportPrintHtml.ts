@@ -150,7 +150,9 @@ function excludedPartnerSummary(calculation: BillableCalculation): string {
       const key = line.notBilledReason
         ? line.notBilledReason === 'commission_only'
           ? '§vain provisio laskutetaan'
-          : '§rivit valittu pois laskutuksesta'
+          : line.notBilledReason === 'urakka'
+            ? '§kuuluu urakkaan'
+            : '§rivit valittu pois laskutuksesta'
         : line.kind !== 'expense'
           ? 'tunnit'
           : line.expenseType === 'device'
@@ -246,8 +248,9 @@ function partnerBillingLinesForPrint(
   );
 }
 
-function notBilledLabel(line: { notBilledReason?: 'commission_only' | 'toggle' }): string {
+function notBilledLabel(line: { notBilledReason?: 'commission_only' | 'toggle' | 'urakka' }): string {
   if (line.notBilledReason === 'commission_only') return 'ei kumppanilaskutukseen (vain provisio)';
+  if (line.notBilledReason === 'urakka') return 'kuuluu urakkaan';
   if (line.notBilledReason === 'toggle') return 'ei kumppanilaskutukseen';
   return '';
 }
