@@ -18267,3 +18267,10 @@ a.device-history-row:hover { background: #f4f7fb; }
 
 .urakka-price-field input { box-sizing: border-box; min-height: 48px; font-size: 16px; }
 .expense-line-row-bill-toggle { min-height: 48px; display: inline-flex; align-items: center; gap: 8px; font-size: 16px; }
+
+/* Laite poistettu käytöstä */
+.decommission-date { display: grid; gap: 4px; font-size: 16px; }
+.decommission-date input { box-sizing: border-box; min-height: 48px; font-size: 16px; width: 100%; }
+.decommission-dialog .btn, .customer-removed-list .btn:not(.btn-sm) { min-height: 48px; font-size: 16px; }
+.customer-removed-list .customer-equipment-counts { display: none; }
+.device-removed-badge { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 0.75rem; font-weight: 600; background: #e2e8f0; color: #475569; white-space: nowrap; }

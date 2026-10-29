@@ -54,6 +54,7 @@ import {
 } from '../lib/huoltoRaportti/maintenanceDeviceDraft';
 import { offlineSaveAvailable } from '../lib/offline/sync';
 import { supabase } from '../lib/supabase';
+import { withoutDecommissioned } from '../lib/equipmentDecommission';
 import { createRegistryCustomer } from '../lib/createRegistryCustomer';
 import { EQUIPMENT_SELECT, formatCustomerAddressParts } from '../lib/customers';
 import {
@@ -1122,7 +1123,8 @@ export default function MaintenanceReportEditPage({ session }: Props) {
       .select(EQUIPMENT_SELECT)
       .eq('customer_id', selectedCustomerId)
       .order('name');
-    setEquipment((data as Equipment[]) ?? []);
+    const rowsAll = (data as Equipment[]) ?? [];
+    setEquipment(id ? rowsAll : await withoutDecommissioned(supabase, selectedCustomerId, rowsAll, new URLSearchParams(window.location.search).get('equipmentId')));
   }
 
   async function loadEquipmentIntoForm(selectedEquipmentId: string) {

@@ -67,6 +67,14 @@ import { loadEquipmentNotes, type EquipmentNote } from '../lib/equipmentNotes';
 import { fetchDeviceQrTokens, generateDeviceQrToken, setDeviceQrToken } from '../lib/devicePublicCard';
 import { buildDeviceQrLabelsHtml } from '../lib/deviceQrLabel';
 import LinkSuggestionsReview from '../components/equipment/LinkSuggestionsReview';
+import DecommissionDialog from '../components/equipment/DecommissionDialog';
+import {
+  loadDecommissionedForCustomer,
+  setEquipmentDecommissioned,
+  splitByDecommissioned,
+  type DecommissionedMap,
+} from '../lib/equipmentDecommission';
+import { emitDataChanged } from '../lib/dataRefresh';
 import { loadLinkedLastService, mergeLatest } from '../lib/equipmentLinks';
 import type { Customer, Equipment, Partnership, Subscriber } from '../types';
 
@@ -97,6 +105,10 @@ export default function CustomerDetailPage({ session }: Props) {
   const huolto = useCompanyHuoltoSettings(profile?.company_id, session);
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [equipment, setEquipment] = useState<Equipment[]>([]);
+  /** null = sarake puuttuu (SQL ajamatta) → toiminto piilossa. */
+  const [decommissioned, setDecommissioned] = useState<DecommissionedMap | null>(null);
+  const [decommissionTarget, setDecommissionTarget] = useState<Equipment | null>(null);
+  const [decommissionError, setDecommissionError] = useState<string | null>(null);
   const [documents, setDocuments] = useState<CustomerLinkedDocument[]>([]);
   const [canWrite, setCanWrite] = useState(false);
   const [infoOpen, setInfoOpen] = useState(false);
@@ -215,13 +227,15 @@ export default function CustomerDetailPage({ session }: Props) {
       setSubscribers([]);
     }
 
-    const [{ data: equipmentRows }, linkedDocuments, maintenanceContext] = await Promise.all([
+    const [{ data: equipmentRows }, decommissionedMap, linkedDocuments, maintenanceContext] = await Promise.all([
       supabase.from('equipment').select(EQUIPMENT_SELECT).eq('customer_id', id).order('name'),
+      loadDecommissionedForCustomer(supabase, id),
       loadCustomerLinkedDocuments(supabase, id, { portalReadOnly: isPortalUser(profile) }),
       loadCustomerMaintenanceContext(supabase, id),
     ]);
 
     setEquipment((equipmentRows as Equipment[]) ?? []);
+    setDecommissioned(decommissionedMap);
     void loadEquipmentDeviceFields(supabase, ((equipmentRows as Equipment[]) ?? []).map((eq) => eq.id)).then(setEquipmentDeviceFields);
     setDocuments(linkedDocuments);
     setMaintenanceRows(maintenanceContext.maintenanceRows);
@@ -469,7 +483,7 @@ export default function CustomerDetailPage({ session }: Props) {
   }
 
   async function printQrLabelsForSelected() {
-    const list = equipment.filter((eq) => selectedEquipmentIds.has(eq.id));
+    const list = activeEquipment.filter((eq) => selectedEquipmentIds.has(eq.id));
     if (list.length === 0) return;
     setError(null);
     const tokens = await fetchDeviceQrTokens(list.map((eq) => eq.id));
@@ -503,7 +517,7 @@ export default function CustomerDetailPage({ session }: Props) {
 
   async function printMaintenanceHistoryForEquipmentList(mode: 'all' | 'selected') {
     if (!customer) return;
-    const list = mode === 'all' ? equipment : equipment.filter((eq) => selectedEquipmentIds.has(eq.id));
+    const list = mode === 'all' ? activeEquipment : activeEquipment.filter((eq) => selectedEquipmentIds.has(eq.id));
     if (list.length === 0) {
       setError(
         mode === 'selected'
@@ -534,7 +548,7 @@ export default function CustomerDetailPage({ session }: Props) {
 
   async function printEquipmentList(mode: 'all' | 'selected') {
     if (!customer) return;
-    const list = mode === 'all' ? equipment : equipment.filter((eq) => selectedEquipmentIds.has(eq.id));
+    const list = mode === 'all' ? activeEquipment : activeEquipment.filter((eq) => selectedEquipmentIds.has(eq.id));
     if (list.length === 0) {
       setError(
         mode === 'selected'
@@ -579,6 +593,50 @@ export default function CustomerDetailPage({ session }: Props) {
     setMessage('Laite poistettu.');
     await load();
   }
+
+  async function confirmDecommission(ymd: string) {
+    if (!decommissionTarget) return;
+    setBusy(true);
+    setDecommissionError(null);
+    try {
+      await setEquipmentDecommissioned(supabase, decommissionTarget.id, ymd);
+    } catch (e) {
+      setBusy(false);
+      setDecommissionError(e instanceof Error ? e.message : 'Tallennus epäonnistui.');
+      return;
+    }
+    setBusy(false);
+    setSelectedEquipmentIds((prev) => {
+      const next = new Set(prev);
+      next.delete(decommissionTarget.id);
+      return next;
+    });
+    setDecommissionTarget(null);
+    setMessage('Laite poistettu käytöstä.');
+    emitDataChanged();
+    await load();
+  }
+
+  async function restoreEquipmentItem(eq: Equipment) {
+    setBusy(true);
+    setError(null);
+    try {
+      await setEquipmentDecommissioned(supabase, eq.id, null);
+    } catch (e) {
+      setBusy(false);
+      setError(e instanceof Error ? e.message : 'Palautus epäonnistui.');
+      return;
+    }
+    setBusy(false);
+    setMessage('Laite palautettu käyttöön.');
+    emitDataChanged();
+    await load();
+  }
+
+  const { active: activeEquipment, removed: removedEquipment } = useMemo(
+    () => splitByDecommissioned(equipment, decommissioned),
+    [equipment, decommissioned],
+  );
 
   const latestMaintenanceByEquipment = useMemo(
     () => mergeLatest(buildLatestMaintenanceByEquipment(equipment, maintenanceRows, equipmentNotes), linkedLast, 'service'),
@@ -629,6 +687,7 @@ export default function CustomerDetailPage({ session }: Props) {
   const managesRegistry = Boolean(
     customer && profile?.company_id && customer.owner_company_id === profile.company_id,
   );
+  const canDecommission = !portalView && canWrite && (managesRegistry || profile?.is_global_admin === true);
   /** Asiakasportaalin luonti: oma rekisteri tai asiakashallinnan oikeus (kumppani / globaali admin). */
   const canManagePortal = managesRegistry || (canWrite && (profile?.role === 'admin' || profile?.is_global_admin === true));
 
@@ -704,7 +763,7 @@ export default function CustomerDetailPage({ session }: Props) {
 
       {!portalView ? (
       <CustomerSummaryStrip
-        equipmentCount={equipment.length}
+        equipmentCount={activeEquipment.length}
         documents={documents}
       />
       ) : null}
@@ -922,7 +981,7 @@ export default function CustomerDetailPage({ session }: Props) {
       <CollapsibleSection
         variant="plain"
         className="customer-section customer-collapsible"
-        title={`Laitteet (${equipment.length})`}
+        title={`Laitteet (${activeEquipment.length})`}
         collapseKey="customer:equipment"
         open={portalView ? true : undefined}
       >
@@ -979,6 +1038,8 @@ export default function CustomerDetailPage({ session }: Props) {
 
         {equipment.length === 0 ? (
           <p className="muted">Ei laitteita rekisteröitynä.</p>
+        ) : activeEquipment.length === 0 ? (
+          <p className="muted">Ei käytössä olevia laitteita.</p>
         ) : (
           <>
             {!portalView ? <LinkSuggestionsReview customerId={customer.id} /> : null}
@@ -986,10 +1047,10 @@ export default function CustomerDetailPage({ session }: Props) {
             <div className="customer-equipment-bulk-toolbar">
               <ToggleSwitch
                 className="customer-equipment-select-all-toggle"
-                checked={equipment.length > 0 && selectedEquipmentIds.size === equipment.length}
+                checked={activeEquipment.length > 0 && selectedEquipmentIds.size === activeEquipment.length}
                 onChange={(checked) => {
                   if (checked) {
-                    setSelectedEquipmentIds(new Set(equipment.map((e) => e.id)));
+                    setSelectedEquipmentIds(new Set(activeEquipment.map((e) => e.id)));
                   } else {
                     setSelectedEquipmentIds(new Set());
                   }
@@ -1000,7 +1061,7 @@ export default function CustomerDetailPage({ session }: Props) {
                 <button
                   type="button"
                   className="btn btn-secondary btn-sm"
-                  disabled={printingEquipmentList || equipment.length === 0}
+                  disabled={printingEquipmentList || activeEquipment.length === 0}
                   onClick={() => void printEquipmentList('all')}
                 >
                   <PrinterIcon />
@@ -1018,7 +1079,7 @@ export default function CustomerDetailPage({ session }: Props) {
                 <button
                   type="button"
                   className="btn btn-secondary btn-sm"
-                  disabled={printingHistory || equipment.length === 0}
+                  disabled={printingHistory || activeEquipment.length === 0}
                   onClick={() => void printMaintenanceHistoryForEquipmentList('all')}
                 >
                   <HistoryIcon />
@@ -1047,7 +1108,7 @@ export default function CustomerDetailPage({ session }: Props) {
               </div>
             </div>
             <CustomerEquipmentTable
-              equipment={equipment}
+              equipment={activeEquipment}
               deviceFields={(eq) => effectiveDeviceFields(equipmentDeviceFields?.get(eq.id), eq.huolto_technical_snapshot)}
               customerId={customer.id}
               schedule={portalView ? undefined : (eq) => {
@@ -1077,10 +1138,56 @@ export default function CustomerDetailPage({ session }: Props) {
               onPrintCard={(eq) => void printEquipmentCard(eq)}
               onPrintHistory={(eq) => void printEquipmentHistory(eq)}
               onDelete={(eq) => void deleteEquipmentItem(eq.id, eq.name)}
+              onDecommission={decommissioned && canDecommission ? (eq) => {
+                setDecommissionError(null);
+                setDecommissionTarget(eq);
+              } : undefined}
             />
           </>
         )}
       </CollapsibleSection>
+
+      {removedEquipment.length > 0 ? (
+        <CollapsibleSection
+          variant="plain"
+          className="customer-section customer-collapsible"
+          title={`Poistetut laitteet (${removedEquipment.length})`}
+          collapseKey="customer:equipment-removed"
+        >
+          <CustomerEquipmentTable
+            equipment={removedEquipment}
+            deviceFields={(eq) => effectiveDeviceFields(equipmentDeviceFields?.get(eq.id), eq.huolto_technical_snapshot)}
+            customerId={customer.id}
+            removedOn={(eq) => decommissioned?.get(eq.id)}
+            latestMaintenance={(eq) =>
+              latestMaintenanceByEquipment[eq.id]
+                ? { raw: latestMaintenanceByEquipment[eq.id], label: formatMaintenanceDateFi(latestMaintenanceByEquipment[eq.id]) }
+                : null}
+            selectedIds={selectedEquipmentIds}
+            canWrite={false}
+            canDelete={canDeleteRegistry}
+            selectable={false}
+            hrefFor={portalView ? (eq) => `/laitteet/${eq.id}` : undefined}
+            busy={busy}
+            printBusyId={printBusyId}
+            navTrail={equipmentNavTrail}
+            onToggleSelected={toggleEquipmentSelection}
+            onPrintCard={(eq) => void printEquipmentCard(eq)}
+            onPrintHistory={(eq) => void printEquipmentHistory(eq)}
+            onDelete={(eq) => void deleteEquipmentItem(eq.id, eq.name)}
+            onRestore={canDecommission ? (eq) => void restoreEquipmentItem(eq) : undefined}
+          />
+        </CollapsibleSection>
+      ) : null}
+
+      <DecommissionDialog
+        open={decommissionTarget !== null}
+        deviceName={decommissionTarget ? (decommissionTarget.tag ? `${decommissionTarget.tag} — ${decommissionTarget.name}` : decommissionTarget.name) : ''}
+        busy={busy}
+        error={decommissionError}
+        onConfirm={(ymd) => void confirmDecommission(ymd)}
+        onCancel={() => setDecommissionTarget(null)}
+      />
 
       {portalView && portalSubscriberId ? (
         ([

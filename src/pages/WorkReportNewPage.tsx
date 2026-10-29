@@ -33,6 +33,7 @@ import SubscriberPicker from '../components/SubscriberPicker';
 import { loadWorkReportEquipmentLinks, saveWorkReportEquipmentLinks } from '../lib/workReportEquipment';
 
 import { supabase } from '../lib/supabase';
+import { withoutDecommissioned } from '../lib/equipmentDecommission';
 
 import { createRegistryCustomer } from '../lib/createRegistryCustomer';
 import { formatCustomerAddressParts } from '../lib/customers';
@@ -652,7 +653,8 @@ export default function WorkReportNewPage({ session }: Props) {
 
       .order('name');
 
-    setEquipment((data as Equipment[]) ?? []);
+    const rowsAll = (data as Equipment[]) ?? [];
+    setEquipment(editId ? rowsAll : await withoutDecommissioned(supabase, selectedCustomerId, rowsAll, new URLSearchParams(window.location.search).get('equipmentId')));
 
   }
 

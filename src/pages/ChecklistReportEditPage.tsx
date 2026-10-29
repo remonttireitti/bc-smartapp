@@ -41,6 +41,7 @@ import {
 } from '../lib/reportCustomerRegistry';
 import { resolveSubscriberIdForReport } from '../lib/subscribers';
 import { supabase } from '../lib/supabase';
+import { withoutDecommissioned } from '../lib/equipmentDecommission';
 import type { Customer, Equipment, Partnership } from '../types';
 
 interface Props {
@@ -129,8 +130,9 @@ export default function ChecklistReportEditPage({ session, category: routeCatego
       return;
     }
     const { data: rows } = await supabase.from('equipment').select(EQUIPMENT_SELECT).eq('customer_id', cid).order('name');
-    setEquipment((rows as unknown as Equipment[]) ?? []);
-  }, []);
+    const rowsAll = (rows as unknown as Equipment[]) ?? [];
+    setEquipment(id ? rowsAll : await withoutDecommissioned(supabase, cid, rowsAll, new URLSearchParams(window.location.search).get('equipmentId')));
+  }, [id]);
 
   useEffect(() => {
     void loadEquipment(customerId);

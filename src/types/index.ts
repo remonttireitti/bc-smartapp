@@ -83,6 +83,8 @@ export type Equipment = {
   device_type?: string | null;
   huolto_technical_snapshot?: Record<string, unknown> | null;
   is_onboarding_demo?: boolean;
+  /** Poistettu käytöstä (pvm); sarake tulee SQL:llä. */
+  decommissioned_at?: string | null;
 };
 
 export type CustomerDocument = {
