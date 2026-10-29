@@ -19,9 +19,6 @@ export type DevicePublicDevice = {
 };
 export type DevicePublicCard = { device: DevicePublicDevice; rows: DevicePublicRow[] };
 
-/** Lyhyt koodi (8 merkkiä) tai vanha pitkä token (43 merkkiä) — molemmat kelpaavat. */
-export const DEVICE_QR_TOKEN_RE = /^[A-Za-z0-9_-]{6,128}$/;
-
 /** Lyhyen koodin aakkosto: ei sekoittuvia merkkejä (ei 0/O, 1/I/L). 32 merkkiä → tasainen jakauma. */
 export const DEVICE_QR_CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 export const DEVICE_QR_CODE_LENGTH = 8;
@@ -59,20 +56,65 @@ export function generateDeviceQrCode(length = DEVICE_QR_CODE_LENGTH): string {
   return out;
 }
 
-/** Julkinen haku: ei kirjautumista, vain luku. Token mitätön → DeviceQrNotFoundError. */
-export async function loadDevicePublicCard(token: string): Promise<DevicePublicCard> {
-  if (!DEVICE_QR_TOKEN_RE.test(token)) throw new DeviceQrNotFoundError();
+const FETCH_TIMEOUT_MS = 20000;
+const RETRY_DELAY_MS = 1500;
+/** Vain selvästi virheellinen merkistö hylätään selaimessa; muun ratkaisee palvelin (vanha selainvälimuisti ei saa hylätä uutta koodia). */
+const DEVICE_QR_TOKEN_SANE_RE = /^[A-Za-z0-9_-]{1,128}$/;
+
+class TransientFetchError extends Error {}
+
+async function fetchDevicePublicCardOnce(token: string): Promise<DevicePublicCard> {
   const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
-  const response = await fetch(devicePublicCardFunctionUrl(), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${anonKey}`, apikey: anonKey },
-    body: JSON.stringify({ token }),
-  });
-  if (response.status === 404 || response.status === 400) throw new DeviceQrNotFoundError();
-  if (!response.ok) throw new Error('Tietojen haku epäonnistui.');
-  const parsed = (await response.json()) as DevicePublicCard | null;
-  if (!parsed?.device) throw new DeviceQrNotFoundError();
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  let response: Response;
+  try {
+    response = await fetch(devicePublicCardFunctionUrl(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${anonKey}`, apikey: anonKey },
+      body: JSON.stringify({ token }),
+      signal: controller.signal,
+    });
+  } catch {
+    throw new TransientFetchError('Tietojen haku epäonnistui.');
+  } finally {
+    clearTimeout(timer);
+  }
+  if (response.status === 404) {
+    // Selvä "ei voimassa" vain funktion omasta vastauksesta; yhdyskäytävän 404 (kylmäkäynnistys) yritetään uudelleen.
+    const body = (await response.json().catch(() => null)) as { code?: string } | null;
+    if (body?.code === 'not_found') throw new DeviceQrNotFoundError();
+    throw new TransientFetchError('Tietojen haku epäonnistui.');
+  }
+  if (!response.ok) throw new TransientFetchError('Tietojen haku epäonnistui.');
+  let parsed: DevicePublicCard | null;
+  try {
+    parsed = (await response.json()) as DevicePublicCard | null;
+  } catch {
+    throw new TransientFetchError('Tietojen haku epäonnistui.');
+  }
+  if (!parsed?.device) throw new TransientFetchError('Tietojen haku epäonnistui.');
   return { device: parsed.device, rows: Array.isArray(parsed.rows) ? parsed.rows : [] };
+}
+
+/**
+ * Julkinen haku: ei kirjautumista, vain luku. Token mitätön (palvelimen 404 not_found) → DeviceQrNotFoundError.
+ * Verkkovirhe, aikakatkaisu tai palvelinvirhe → yksi uusintayritys, sitten tavallinen virhe.
+ */
+export async function loadDevicePublicCard(token: string): Promise<DevicePublicCard> {
+  if (!DEVICE_QR_TOKEN_SANE_RE.test(token)) throw new DeviceQrNotFoundError();
+  try {
+    return await fetchDevicePublicCardOnce(token);
+  } catch (err) {
+    if (!(err instanceof TransientFetchError)) throw err;
+  }
+  await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY_MS));
+  try {
+    return await fetchDevicePublicCardOnce(token);
+  } catch (err) {
+    if (err instanceof TransientFetchError) throw new Error(err.message);
+    throw err;
+  }
 }
 
 /** Token-sarake on valinnainen (vaatii tietokantapäivityksen). undefined = saraketta ei ole. */

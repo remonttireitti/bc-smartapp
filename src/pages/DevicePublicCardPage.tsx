@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { DeviceQrNotFoundError, loadDevicePublicCard, type DevicePublicCard } from '../lib/devicePublicCard';
 import { refrigerantGwp } from '../lib/huoltoSchedule';
@@ -19,6 +19,9 @@ export default function DevicePublicCardPage() {
   const [card, setCard] = useState<DevicePublicCard | null>(null);
   const [state, setState] = useState<'loading' | 'ok' | 'invalid' | 'error'>('loading');
 
+  const [attempt, setAttempt] = useState(0);
+  const retry = useCallback(() => setAttempt((n) => n + 1), []);
+
   useEffect(() => {
     let cancelled = false;
     setState('loading');
@@ -37,15 +40,22 @@ export default function DevicePublicCardPage() {
     return () => {
       cancelled = true;
     };
-  }, [token]);
+  }, [token, attempt]);
 
-  if (state === 'loading') return <div className="device-public-page"><p className="device-public-status">Ladataan…</p></div>;
+  if (state === 'loading') return <div className="device-public-page"><p className="device-public-status" data-testid="device-public-loading">Ladataan…</p></div>;
   if (state !== 'ok' || !card) {
     return (
       <div className="device-public-page">
         <p className="device-public-status device-public-error" data-testid="device-public-invalid">
           {state === 'error' ? 'Tietojen haku epäonnistui.' : 'Linkki ei ole voimassa.'}
         </p>
+        {state === 'error' ? (
+          <p>
+            <button type="button" className="btn btn-secondary" data-testid="device-public-retry" onClick={retry}>
+              Yritä uudelleen
+            </button>
+          </p>
+        ) : null}
       </div>
     );
   }
