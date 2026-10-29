@@ -5,7 +5,13 @@ import {
   generateDeviceQrToken,
   setDeviceQrToken,
 } from '../../lib/devicePublicCard';
-import { buildDeviceQrLabelsHtml } from '../../lib/deviceQrLabel';
+import {
+  buildDeviceQrLabelsHtml,
+  deviceQrLabelFileName,
+  downloadBlob,
+  renderDeviceQrLabelPdf,
+  renderDeviceQrLabelPng,
+} from '../../lib/deviceQrLabel';
 import { openPrintHtml } from '../../lib/openPrintWindow';
 
 type Props = { equipmentId: string; name: string | null; tag: string | null; canWrite: boolean };
@@ -47,6 +53,18 @@ export default function DeviceQrPanel({ equipmentId, name, tag, canWrite }: Prop
     openPrintHtml(await buildDeviceQrLabelsHtml([{ token, name, tag }]), { documentTitle: 'QR-tarra' });
   }
 
+  async function download(kind: 'png' | 'pdf') {
+    if (!token) return;
+    setError(null);
+    try {
+      const item = { token, name, tag };
+      const blob = kind === 'png' ? await renderDeviceQrLabelPng(item) : await renderDeviceQrLabelPdf(item);
+      downloadBlob(blob, deviceQrLabelFileName(item, kind));
+    } catch {
+      setError('Tiedoston luonti epäonnistui.');
+    }
+  }
+
   if (supported === null) return null;
   if (!supported) {
     if (!canWrite) return null;
@@ -73,11 +91,20 @@ export default function DeviceQrPanel({ equipmentId, name, tag, canWrite }: Prop
         </div>
       ) : null}
       {token ? (
+        <>
         <div className="device-qr-actions">
           <button type="button" className="btn btn-primary" onClick={() => void print()}>
             Tulosta QR-tarra
           </button>
+          <button type="button" className="btn btn-secondary" onClick={() => void download('png')}>
+            Lataa PNG
+          </button>
+          <button type="button" className="btn btn-secondary" onClick={() => void download('pdf')}>
+            Lataa PDF
+          </button>
         </div>
+        <p className="muted">Dymo XTL 300, 24 mm teippi · 60 × 24 mm</p>
+        </>
       ) : null}
       {error ? <p className="error">{error}</p> : null}
     </section>
