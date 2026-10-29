@@ -15,7 +15,8 @@ import {
   IDLE_LOGOUT_MS,
   type SignOutReason,
 } from '../lib/authSessionConfig';
-import { supabase } from '../lib/supabase';
+import { readStoredSession, supabase } from '../lib/supabase';
+import { clearOfflineCaches, listOutbox } from '../lib/offline/store';
 
 type DraftSaver = () => void | Promise<void>;
 
@@ -87,6 +88,8 @@ export function AuthSessionProvider({ children }: { children: ReactNode }) {
       try {
         await flushDrafts();
         await supabase.auth.signOut({ scope: 'local' });
+        // Käsin uloskirjautuessa offline-välimuisti pois (jaettu laite); lähettämättömiä muutoksia ei koskaan poisteta.
+        if (reason === 'manual' && (await listOutbox().catch(() => [])).length === 0) await clearOfflineCaches().catch(() => undefined);
       } catch (error) {
         console.error('Uloskirjautuminen epäonnistui:', error);
       } finally {
@@ -103,9 +106,12 @@ export function AuthSessionProvider({ children }: { children: ReactNode }) {
     touchActivity();
 
     void supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session);
+      // Offline-käynnistys: tallennettu istunto kelpaa vaikka token olisi vanhentunut (päivittyy kun verkko palaa).
+      setSession(data.session ?? (navigator.onLine ? null : readStoredSession()));
       setLoading(false);
     });
+    const onBackOnline = () => void supabase.auth.getSession();
+    window.addEventListener('online', onBackOnline);
 
     const { data: sub } = supabase.auth.onAuthStateChange((event: AuthChangeEvent, nextSession) => {
       if (event === 'TOKEN_REFRESHED') {
@@ -132,7 +138,10 @@ export function AuthSessionProvider({ children }: { children: ReactNode }) {
       }
     });
 
-    return () => sub.subscription.unsubscribe();
+    return () => {
+      sub.subscription.unsubscribe();
+      window.removeEventListener('online', onBackOnline);
+    };
   }, []);
 
   useEffect(() => {

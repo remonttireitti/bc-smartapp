@@ -9,6 +9,7 @@ import type { Session } from '@supabase/supabase-js';
 import AppLayout from '../components/AppLayout';
 import { CustomerDocumentTable } from '../components/CustomerDocumentTile';
 import { CustomerEquipmentTable } from '../components/CustomerEquipmentTile';
+import OfflineCustomerToggle from '../components/OfflineCustomerToggle';
 import { HistoryIcon, PrinterIcon } from '../components/PrintIcons';
 import Tooltip from '../components/Tooltip';
 import ToggleSwitch from '../components/ToggleSwitch';
@@ -981,6 +982,7 @@ export default function CustomerDetailPage({ session }: Props) {
         ) : (
           <>
             {!portalView ? <LinkSuggestionsReview customerId={customer.id} /> : null}
+            {!portalView ? <OfflineCustomerToggle customerId={customer.id} customerName={customer.name} /> : null}
             <div className="customer-equipment-bulk-toolbar">
               <ToggleSwitch
                 className="customer-equipment-select-all-toggle"

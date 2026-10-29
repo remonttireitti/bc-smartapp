@@ -53,22 +53,7 @@ export default defineConfig({
         navigateFallback: '/index.html',
         navigateFallbackDenylist: [/^\/api\//, /^\/esittely(\/|$)/, /\.pdf$/i, /\.xml$/i, /\.txt$/i, /^\/brand\//, /^\/termatek\//, /^\/vrf-firmware\//],
         runtimeCaching: [
-          {
-            urlPattern: ({ request, url }) =>
-              request.method === 'GET' && /supabase\.co\/rest\/v1\//i.test(url.href),
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'supabase-rest',
-              expiration: {
-                maxEntries: 128,
-                maxAgeSeconds: 60 * 60 * 24,
-              },
-              networkTimeoutSeconds: 8,
-              cacheableResponse: {
-                statuses: [0, 200],
-              },
-            },
-          },
+          // Supabase REST -välimuisti hoidetaan sovelluksen offline-kerroksessa (src/lib/offline), ei service workerissa.
           {
             urlPattern: ({ url }) => /supabase\.co\/storage\/v1\//i.test(url.href),
             handler: 'CacheFirst',

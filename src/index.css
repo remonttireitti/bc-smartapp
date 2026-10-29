@@ -18257,3 +18257,8 @@ label.has-error input { border-color: #b91c1c; }
 .device-history-row { display: flex; align-items: center; gap: 10px; min-height: 48px; font-size: 16px; border-top: 1px solid #e3e7ec; padding: 6px 0; color: inherit; text-decoration: none; }
 a.device-history-row:hover { background: #f4f7fb; }
 .device-history-text { flex: 1 1 auto; overflow-wrap: anywhere; }
+.offline-banner { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; }
+.offline-banner.offline-banner-ok { background: #ecfdf5; border-color: #6ee7b7; color: #065f46; }
+.offline-banner.offline-banner-error { background: #fee2e2; border-color: #fca5a5; color: #991b1b; }
+.offline-customer-toggle { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin: 8px 0 12px; }
+.offline-customer-toggle .btn { min-height: 48px; font-size: 16px; }

@@ -22,7 +22,7 @@ await ctx.route('https://mock.supabase.co/**', async (route) => {
   const json = (o) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(o) });
   if (u.pathname.endsWith('/maintenance_reports') && req.method() !== 'GET') {
     let pd = {}; try { pd = req.postDataJSON(); pd = Array.isArray(pd) ? pd[0] : pd; } catch {}
-    if (req.method() === 'POST') { const id = `00000000-0000-4000-8000-00000000aa0${++seq}`; const row = { id, created_at: new Date().toISOString(), ...pd, updated_at: new Date().toISOString() }; reports.set(id, row); writes.push({ op: 'insert', id, equipment_id: pd.equipment_id, at: location0() }); return json(single ? row : [row]); }
+    if (req.method() === 'POST') { const id = pd.id ?? `00000000-0000-4000-8000-00000000aa0${++seq}`; const row = { id, created_at: new Date().toISOString(), ...pd, updated_at: new Date().toISOString() }; reports.set(id, row); writes.push({ op: 'insert', id, equipment_id: pd.equipment_id, at: location0() }); return json(single ? row : [row]); }
     if (req.method() === 'PATCH') { const id = eqParam(u, 'id'); const row = reports.get(id); if (row) { Object.assign(row, pd, { updated_at: new Date().toISOString() }); writes.push({ op: 'update', id, equipment_id: pd.equipment_id, tunnus: pd.data?.laiteTunnus, at: location0() }); } return json(single ? row : row ? [row] : []); }
     return json([]);
   }
