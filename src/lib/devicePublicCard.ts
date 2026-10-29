@@ -153,3 +153,17 @@ export async function ensureDeviceQrCode(equipmentId: string, existing?: string 
   if (existing) return existing;
   return assignNewDeviceQrCode(equipmentId);
 }
+
+/** CO₂-ekvivalentti tonneina: määrä (kg) × GWP / 1000. null, jos määrä tai GWP puuttuu / ei ole positiivinen. */
+export function co2EquivalentTonnes(chargeKg: number | null | undefined, gwp: number | null | undefined): number | null {
+  if (chargeKg == null || gwp == null) return null;
+  if (!Number.isFinite(chargeKg) || !Number.isFinite(gwp) || chargeKg <= 0 || gwp <= 0) return null;
+  return (chargeKg * gwp) / 1000;
+}
+
+/** "96,0 t CO2e" (suomalainen desimaalipilkku, 1 desimaali); tyhjä, jos ei laskettavissa. */
+export function formatCo2Equivalent(chargeKg: number | null | undefined, gwp: number | null | undefined): string | null {
+  const t = co2EquivalentTonnes(chargeKg, gwp);
+  if (t == null) return null;
+  return `${t.toLocaleString('fi-FI', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} t CO2e`;
+}
