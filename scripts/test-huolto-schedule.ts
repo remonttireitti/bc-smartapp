@@ -22,4 +22,14 @@ const s = buildDeviceSchedule({ deviceType: 'pakastin', refrigerant: 'R-404A', c
 assert.equal(s.serviceIntervalMonths, 6); assert.equal(s.service.state, 'myöhässä'); assert.equal(s.leak.state, 'erääntyy'); assert.ok(s.combineHint); assert.ok(s.needsService);
 const s2 = buildDeviceSchedule({ deviceType: 'lämpöpumppu', refrigerant: 'R-32', chargeKg: 0.38, lastServiceYmd: '2026-10-27', todayYmd: '2026-10-27' });
 assert.equal(s2.service.state, 'huollettu'); assert.equal(s2.leak.intervalMonths, null); assert.ok(!s2.needsService);
+import { agoLabelFi, untilLabelFi, leakStatusText, serviceStatusText } from '../src/lib/huoltoSchedule';
+assert.equal(agoLabelFi('2026-10-29', '2026-10-29'), 'tänään');
+assert.equal(agoLabelFi('2026-10-16', '2026-10-29'), '13 pv sitten');
+assert.equal(agoLabelFi('2026-10-15', '2026-10-29'), '2 vk sitten');
+assert.equal(agoLabelFi('2026-09-03', '2026-10-29'), '2 kk sitten');
+assert.equal(untilLabelFi('2026-11-03', '2026-10-29'), '5 pv päästä');
+assert.equal(untilLabelFi('2026-12-10', '2026-10-29'), '6 vk päästä');
+assert.equal(leakStatusText({ state: 'myöhässä', dueYmd: null }, '2026-10-29')?.label, 'Vuototarkastus myöhässä');
+assert.equal(leakStatusText({ state: 'erääntyy', dueYmd: '2026-11-12' }, '2026-10-29')?.label, 'Vuototarkastus erääntyy 2 vk päästä');
+assert.equal(serviceStatusText({ state: 'erääntyy', lastYmd: '2026-01-01', dueYmd: '2026-11-03' }, '2026-10-29').label, 'Huolto erääntyy 5 pv päästä');
 console.log('huolto-schedule ok');

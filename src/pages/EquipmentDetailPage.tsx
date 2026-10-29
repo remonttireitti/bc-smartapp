@@ -11,7 +11,7 @@ import {
   sharedRowsToHistoryEntries,
   type SharedHistoryRow,
 } from '../lib/equipmentLinks';
-import { HUOLTO_ASETUKSET_KEY, buildDeviceSchedule, defaultServiceIntervalMonths, formatTonnes, leakCheckInterval, readHuoltoAsetukset, refrigerantGwp, todayYmdLocal } from '../lib/huoltoSchedule';
+import { HUOLTO_ASETUKSET_KEY, buildDeviceSchedule, defaultServiceIntervalMonths, formatTonnes, leakCheckInterval, readHuoltoAsetukset, refrigerantGwp, leakStatusText, serviceStatusText, todayYmdLocal } from '../lib/huoltoSchedule';
 import { newHuoltoReportHrefForDevice } from '../lib/huoltoCategories';
 import { Link, Navigate, useParams } from 'react-router-dom';
 import { getPortalCustomerId, getPortalSubscriberId } from '../lib/portalPreview';
@@ -702,6 +702,8 @@ export default function EquipmentDetailPage({ session }: Props) {
                 <dd>
                   {schedule.serviceIntervalMonths} kk
                   {schedule.service.dueYmd ? ` · seuraava ${formatMaintenanceDateFi(schedule.service.dueYmd)}` : ''}
+                  {' · '}
+                  <span data-testid="service-status">{serviceStatusText(schedule.service, todayYmdLocal()).label}</span>
                 </dd>
               </div>
               <div>
@@ -711,6 +713,7 @@ export default function EquipmentDetailPage({ session }: Props) {
                   {schedule.leak.intervalMonths
                     ? `${schedule.leak.intervalMonths} kk${schedule.leak.dueYmd ? ` · seuraava ${formatMaintenanceDateFi(schedule.leak.dueYmd)}` : ''}`
                     : 'ei vaadita'}
+                  {leakStatusText(schedule.leak, todayYmdLocal()) ? ` · ${leakStatusText(schedule.leak, todayYmdLocal())!.label}` : ''}
                   {schedule.combineHint ? <small className="muted"> · tee huollon yhteydessä</small> : null}
                 </dd>
               </div>
