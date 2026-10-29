@@ -61,9 +61,12 @@ async function run(label, { supported }) {
     // Taaksepäin yhteensopivuus: sarake puuttuu → kaikki laitteet aktiivisia, ei uusia toimintoja.
     checks[`${label}: kaikki 4 laitetta listalla`] = (await root.getByText('Laitteet (4)').count()) > 0;
     await root.getByText('Laitteet (4)').first().click(); await p.waitForTimeout(1000);
-    checks[`${label}: ei Poista käytöstä -nappia`] = (await root.getByRole('button', { name: 'Poista käytöstä' }).count()) === 0;
+    await root.locator('.row-action-menu-btn').first().click(); await p.waitForTimeout(300);
+    const menuItems = await p.locator('.row-action-menu-panel [role=menuitem]').allInnerTexts();
+    await p.keyboard.press('Escape');
+    checks[`${label}: ei Poista käytöstä -valikkokohtaa`] = !menuItems.includes('Poista käytöstä');
     checks[`${label}: ei Poistetut-listaa`] = (await root.getByText(/Poistetut laitteet/).count()) === 0;
-    checks[`${label}: Poista (kova) säilyy`] = (await root.getByRole('button', { name: 'Poista', exact: true }).count()) === 4;
+    checks[`${label}: Poista (kova) säilyy valikossa`] = menuItems.includes('Poista') && (await root.locator('.row-action-menu-btn').count()) === 4;
     checks[`${label}: ei sivuvirheitä`] = errs.length === 0;
     await ctx.close();
     return;
@@ -84,7 +87,7 @@ async function run(label, { supported }) {
   checks[`${label}: Palauta käyttöön näkyy, ei Uusi huolto`] = (await removed.getByRole('button', { name: 'Palauta käyttöön' }).count()) === 1 && (await removed.getByText('Uusi huolto').count()) === 0;
   // Poista käytöstä: Poistettava
   const row = root.locator('.customer-equipment-list').first().locator('tr', { hasText: 'Poistettava' }).first();
-  await row.getByRole('button', { name: 'Poista käytöstä' }).click(); await p.waitForTimeout(500);
+  await row.locator('.row-action-menu-btn').click(); await p.waitForTimeout(200); await p.getByRole('menuitem', { name: 'Poista käytöstä' }).click(); await p.waitForTimeout(500);
   const dlg = p.getByRole('dialog');
   checks[`${label}: dialogi päivä oletuksena tänään`] = (await dlg.locator('input[type=date]').inputValue()) === todayYmd;
   const h = await dlg.locator('input[type=date]').evaluate((e) => { const c = getComputedStyle(e); return [parseFloat(c.height), parseFloat(c.fontSize)]; });
