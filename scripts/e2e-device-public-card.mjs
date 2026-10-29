@@ -18,6 +18,8 @@ await ctx.route('https://mock.supabase.co/**', async (route) => {
   const req = route.request(); const u = new URL(req.url());
   if (u.pathname.endsWith('/functions/v1/device-public-card')) {
     const body = JSON.parse(req.postData() || '{}'); calls.push({ method: req.method(), hasUserJwt: false, token: body.token, action: body.action });
+    const variant = { BIG: { chargeKg: 46 }, NOAMT: { chargeKg: null }, NOGWP: { refrigerant: 'Tuntematon-X' } }[body.token];
+    if (variant) return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ...card, device: { ...card.device, ...variant } }) });
     if (body.token === TOKEN) return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(card) });
     return route.fulfill({ status: 404, contentType: 'application/json', body: JSON.stringify({ code: 'not_found' }) });
   }
@@ -31,7 +33,7 @@ const text = await p.locator('[data-testid=device-public-card]').innerText();
 checks.title = (await p.getByTestId('device-public-title').innerText()) === 'JK-1';
 checks.model = (await p.getByTestId('device-public-model').innerText()).includes('Mitsubishi SRC80');
 const ref = await p.getByTestId('device-public-refrigerant').innerText();
-checks.refrigerant = /R-410A/.test(ref) && /3,5 kg/.test(ref) && /GWP 2\s?088/.test(ref);
+checks.refrigerant = /R-410A/.test(ref) && /3,5 kg/.test(ref) && /7,3 t CO2e/.test(ref) && !/GWP/.test(ref);
 checks.owner = (await p.getByTestId('device-public-owner').innerText()).includes('Messukeskus');
 checks.address = /Messuaukio 1, 00521 Helsinki/.test(await p.getByTestId('device-public-address').innerText());
 const rows = await p.locator('[data-testid=device-public-rows] > li').allInnerTexts();
@@ -45,6 +47,10 @@ const link = p.locator('.device-public-footer a');
 checks.footer = /Huoltopöytäkirjaa ylläpitää BC Smartapp/.test(await p.locator('.device-public-footer').innerText()) && (await link.getAttribute('href')) === 'https://bestcool.eu';
 checks.noPriceOrBusinessId = !/€|y-tunnus|Y-tunnus/.test(text);
 checks.noAuthCalls = !(await Promise.resolve(calls.some((c) => c.action))) && calls.length >= 1;
+const refOf = async (t) => { await p.goto(`${BASE}/q/${t}`); await p.waitForSelector('[data-testid=device-public-card]', { timeout: 15000 }); return (await p.getByTestId('device-public-refrigerant').innerText()).replace(/\s+/g, ' '); };
+const big = await refOf('BIG'); checks.co2eExample = /R-410A · 46 kg · 96,0 t CO2e/.test(big);
+const noAmt = await refOf('NOAMT'); checks.noAmountOmitsCo2 = /R-410A/.test(noAmt) && !/CO2e|kg|GWP|NaN|null/.test(noAmt);
+const noGwp = await refOf('NOGWP'); checks.noGwpOmitsCo2 = /Tuntematon-X/.test(noGwp) && /3,5 kg/.test(noGwp) && !/CO2e|GWP|NaN|null/.test(noGwp);
 await p.goto(`${BASE}/q/${BAD}`); await p.waitForSelector('[data-testid=device-public-invalid]', { timeout: 15000 });
 checks.invalid = /Linkki ei ole voimassa/.test(await p.getByTestId('device-public-invalid').innerText());
 checks.noWrites = other.length === 0;

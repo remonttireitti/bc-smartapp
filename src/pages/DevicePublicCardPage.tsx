@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { DeviceQrNotFoundError, loadDevicePublicCard, type DevicePublicCard } from '../lib/devicePublicCard';
+import { DeviceQrNotFoundError, formatCo2Equivalent, loadDevicePublicCard, type DevicePublicCard } from '../lib/devicePublicCard';
 import { refrigerantGwp } from '../lib/huoltoSchedule';
 
 /** d.m.yyyy */
@@ -64,7 +64,7 @@ export default function DevicePublicCardPage() {
   const title = d.tag || d.name || 'Laite';
   const model = [d.manufacturer, d.model].filter(Boolean).join(' ');
   const gwp = d.gwp ?? refrigerantGwp(d.refrigerant);
-  const refrigerant = [d.refrigerant, d.chargeKg != null ? formatKg(d.chargeKg) : null, gwp != null ? `GWP ${gwp.toLocaleString('fi-FI')}` : null]
+  const refrigerant = [d.refrigerant, d.chargeKg != null ? formatKg(d.chargeKg) : null, formatCo2Equivalent(d.chargeKg, gwp)]
     .filter(Boolean)
     .join(' · ');
   const site = [d.address, d.location].filter(Boolean).join(' · ');
