@@ -1,21 +1,20 @@
 import { createClient, type SupabaseClient } from 'npm:@supabase/supabase-js@2';
 
 /**
- * Laitteen QR-sivu (/q/:token): vain kirjautuneille, vain luku.
- * - token = laitekohtainen satunnainen arvo (equipment.public_qr_token); mitätöinti = null / uusi arvo.
- * - Käyttäjän JWT tarkistetaan; laitteen, huoltopöytäkirjojen, merkintöjen ja työraporttien näkyvyys ratkaistaan
- *   käyttäjän omalla RLS:llä (portaalikäyttäjä näkee vain oman asiakkaansa laitteet).
- * - Palauttaa vain historiarivit: pvm, tyyppi, yritys, lyhyt kuvaus. Ei hintoja/laskutusta/kumppanitietoja.
- * - Linkitettyjen laitteiden rivit vain yhteenvetona (ei avattavia).
+ * Laitteen QR-sivu (/q/:token): julkinen, ei kirjautumista, vain luku.
+ * - token = laitekohtainen satunnainen arvo (equipment.public_qr_token); mitätöinti = null / uusi arvo → 404.
+ * - Data haetaan service rolella, rajattuna tiukasti tokenin laitteeseen (ja sen aktiivisesti linkitettyihin laitteisiin).
+ * - Palauttaa vain: laitteen otsikkotiedot (tunnus, malli, kylmäaine, määrä, GWP, omistaja, osoite) ja
+ *   historiarivit (pvm, asentaja, Tukes, mitä tehtiin). Ei hintoja, y-tunnusta, yhteystietoja, dokumentteja eikä raporttien tunnisteita.
  */
 
 // deno-lint-ignore no-explicit-any
 type Admin = SupabaseClient<any, any, any>;
 type AnyRecord = Record<string, unknown>;
 
-const VERSION = 'device-public-card-3';
+const VERSION = 'device-public-card-4';
 const TOKEN_RE = /^[A-Za-z0-9_-]{32,128}$/;
-const PUBLISHED = ['submitted', 'completed', 'valmis', 'toimitettu', 'complete', 'ready', 'done'];
+const HUOLTO_STATUSES = ['draft', 'submitted', 'completed', 'valmis', 'toimitettu', 'complete', 'ready', 'done'];
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -82,16 +81,21 @@ async function loadWorkEntries(admin: Admin, equipmentId: string) {
       const mine = logs.filter((l) => String(l.work_report_id) === String(rep.id) && str(l.work_done));
       if (!mine.length) continue;
       const dates = mine.map((l) => str(l.log_date)).filter(Boolean).sort() as string[];
-      const people = [...new Set(mine.map((l) => {
+      const names: string[] = [];
+      const tukesList: string[] = [];
+      for (const l of mine) {
         const p = prof.get(String(l.created_by ?? '')) as AnyRecord | undefined;
-        return [str(l.author_name_snapshot) ?? str(p?.display_name), str(p?.tukes_number) ? `Tukes ${str(p?.tukes_number)}` : null].filter(Boolean).join(', ');
-      }).filter(Boolean))];
+        const n = str(l.author_name_snapshot) ?? str(p?.display_name);
+        const t = str(p?.tukes_number);
+        if (n && !names.includes(n)) names.push(n);
+        if (t && !tukesList.includes(t)) tukesList.push(t);
+      }
       out.push({
         id: String(rep.id),
         date: dates.at(-1) ?? str(rep.completed_at)?.slice(0, 10) ?? null,
         company: compName.get(String(rep.owner_company_id)) ?? null,
-        installer: people.join('; ') || null,
-        tukes: null,
+        installer: names.join(', ') || null,
+        tukes: tukesList.join(', ') || null,
         text: [...new Set(mine.map((l) => str(l.work_done) as string))].join(' / '),
       });
     }
@@ -173,6 +177,18 @@ async function handlePortalRequest(token: string, body: AnyRecord): Promise<Resp
   return json({ ok: true });
 }
 
+const clipText = (v: string | null, n: number) => (v && v.length > n ? `${v.slice(0, n - 1).trimEnd()}…` : v);
+
+function parseKg(v: unknown): number | null {
+  if (typeof v === 'number') return Number.isFinite(v) && v > 0 ? v : null;
+  const t = str(v);
+  if (!t) return null;
+  const n = Number(t.replace(',', '.').replace(/\s*kg$/i, ''));
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+type PublicRow = { id: string; date: string | null; type: string; installer: string | null; tukes: string | null; text: string };
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   if (req.method !== 'POST') return json({ error: 'Vain POST' }, 405);
@@ -185,94 +201,115 @@ Deno.serve(async (req) => {
 
     if (body.action === 'portal_request') return await handlePortalRequest(token, body);
 
-    // Vain kirjautuneille: käyttäjän JWT tarkistetaan ja näkyvyys ratkaistaan käyttäjän omalla RLS:llä.
-    const authHeader = req.headers.get('Authorization') ?? '';
-    const jwt = authHeader.replace(/^Bearer\s+/i, '');
-    const url = Deno.env.get('SUPABASE_URL')!;
-    const admin = createClient(url, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
-    const { data: userData } = jwt ? await admin.auth.getUser(jwt) : { data: { user: null } };
-    if (!userData?.user) return json({ error: 'Kirjaudu sisään', code: 'login_required' }, 401);
-    const asUser = createClient(url, Deno.env.get('SUPABASE_ANON_KEY')!, {
-      global: { headers: { Authorization: `Bearer ${jwt}` } },
+    const admin = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, {
       auth: { persistSession: false },
     });
 
     const { data: eqRow } = await admin
       .from('equipment')
-      .select('id, customer_id, name, tag, public_qr_token')
+      .select('id, customer_id, name, tag, model, manufacturer, refrigerant, refrigerant_charge_kg, location, huolto_technical_snapshot, public_qr_token')
       .eq('public_qr_token', token)
       .maybeSingle();
     const eq = eqRow as AnyRecord | null;
     if (!eq || eq.public_qr_token !== token) return notFound();
     const equipmentId = String(eq.id);
 
-    // Portaali / yritys: laitteen pitää näkyä käyttäjälle normaalein säännöin.
-    const { data: visible } = await asUser.from('equipment').select('id').eq('id', equipmentId).maybeSingle();
-    if (!visible) return notFound();
+    // Otsikko: omistaja (asiakkaan nimi) ja osoite. Ei y-tunnusta, yhteystietoja tai muuta asiakastietoa.
+    const { data: custRow } = eq.customer_id
+      ? await admin.from('customers').select('name, address, postal_code, city').eq('id', eq.customer_id).maybeSingle()
+      : { data: null };
+    const cust = custRow as AnyRecord | null;
+    const address = [str(cust?.address), [str(cust?.postal_code), str(cust?.city)].filter(Boolean).join(' ')].filter(Boolean).join(', ') || null;
 
-    // Asentaja (oma yritys) näkee myös keskeneräiset; portaali vain valmiit.
-    const { data: prof } = await admin.from('profiles').select('role').eq('id', userData.user.id).maybeSingle();
-    const installer = ['admin', 'manager', 'technician'].includes(String((prof as AnyRecord | null)?.role ?? ''));
+    const snap = (eq.huolto_technical_snapshot ?? {}) as AnyRecord;
+    const asetukset = (snap.huoltoAsetukset ?? {}) as AnyRecord;
+    const gwpOverride = typeof asetukset.gwp === 'number' && Number.isFinite(asetukset.gwp) && asetukset.gwp > 0 ? asetukset.gwp : null;
 
-    // Omat huoltopöytäkirjat: vain käyttäjälle RLS:n kautta näkyvät.
-    let repQuery = asUser
+    const rows: PublicRow[] = [];
+
+    // Huoltopöytäkirjat (valmiit ja keskeneräiset huoltona) — vain yhteenveto, ei raportin tunnistetta.
+    const { data: reportRows } = await admin
       .from('maintenance_reports')
-      .select('id, status, data, completed_at, updated_at, branding_company_id, owner_company_id, created_by_company_id')
-      .eq('equipment_id', equipmentId);
-    if (!installer) repQuery = repQuery.in('status', PUBLISHED);
-    const { data: reportRows } = await repQuery;
+      .select('id, status, data, completed_at, updated_at, created_by_company_id, owner_company_id')
+      .eq('equipment_id', equipmentId)
+      .in('status', HUOLTO_STATUSES)
+      .limit(500);
     const repRows = (reportRows ?? []) as AnyRecord[];
     const companyIds = [...new Set(repRows.map((r) => str(r.created_by_company_id) ?? str(r.owner_company_id)).filter(Boolean))] as string[];
-    const { data: comps } = companyIds.length
-      ? await admin.from('companies').select('id, name').in('id', companyIds)
-      : { data: [] };
+    const { data: comps } = companyIds.length ? await admin.from('companies').select('id, name').in('id', companyIds) : { data: [] };
     const compName = new Map(((comps ?? []) as AnyRecord[]).map((c) => [String(c.id), str(c.name)]));
-
-    type Row = { id: string; date: string | null; type: string; company: string | null; text: string; reportId: string | null; draft?: boolean };
-    const rows: Row[] = repRows.map((r) => {
+    for (const r of repRows) {
       const d = (r.data ?? {}) as AnyRecord;
-      const kind = d.huoltoReportDocumentKind === 'kayttoonotto' ? 'Käyttöönotto' : 'Huoltopöytäkirja';
-      return {
-        id: `r-${r.id}`,
+      const kind = d.huoltoReportDocumentKind === 'kayttoonotto' ? 'Käyttöönotto' : 'Huolto';
+      const leak = String(d.huoltoKylmaaineVuotoTarkastus ?? '') === 'true' || String(((d.mlpData ?? {}) as AnyRecord).kylmaainePaetosTarkastettu ?? '') === 'true';
+      const note = clipText(str(d.huomiot), 200);
+      const label = leak && kind === 'Huolto' ? 'Huolto, vuototarkastus' : kind;
+      rows.push({
+        id: `r-${rows.length}`,
         date: reportDate(r),
-        type: kind,
-        company: compName.get(String(str(r.created_by_company_id) ?? r.owner_company_id)) ?? null,
-        text: (str(d.huomiot) ?? '').slice(0, 120),
-        reportId: String(r.id),
-        draft: !PUBLISHED.includes(String(r.status ?? '')),
-      };
-    });
+        type: 'Huolto',
+        installer: str(d.huoltoSuorittajaNimi) ?? compName.get(String(str(r.created_by_company_id) ?? r.owner_company_id)) ?? null,
+        tukes: str(d.huoltoSuorittajaTUKES),
+        text: note ? `${label}: ${note}` : label,
+      });
+    }
 
-    // Merkinnät (RLS: näkyy kun laite näkyy).
-    const { data: noteRows } = await asUser
+    // Merkinnät
+    const { data: noteRows } = await admin
       .from('equipment_notes')
-      .select('id, entry_date, author_company_name, text, is_service_visit')
+      .select('entry_date, author_company_name, installer_name, installer_tukes, text, is_service_visit')
       .eq('equipment_id', equipmentId)
-      .limit(200);
+      .limit(300);
     for (const n of (noteRows ?? []) as AnyRecord[]) {
-      rows.push({ id: `n-${n.id}`, date: str(n.entry_date), type: n.is_service_visit === true ? 'Huoltokäynti' : 'Merkintä', company: str(n.author_company_name), text: String(n.text ?? '').slice(0, 120), reportId: null });
+      rows.push({
+        id: `n-${rows.length}`,
+        date: str(n.entry_date),
+        type: n.is_service_visit === true ? 'Huolto' : 'Merkintä',
+        installer: str(n.installer_name) ?? str(n.author_company_name),
+        tukes: str(n.installer_tukes),
+        text: clipText(str(n.text), 200) ?? '',
+      });
     }
 
-    // Työraportit: yhteenveto, vain käyttäjälle näkyvät raportit.
-    const work = await loadWorkEntries(admin, equipmentId);
-    if (work.length) {
-      const { data: visWork } = await asUser.from('work_reports').select('id').in('id', work.map((w) => w.id));
-      const ok = new Set(((visWork ?? []) as AnyRecord[]).map((w) => String(w.id)));
-      for (const w of work) if (ok.has(w.id)) rows.push({ id: `w-${w.id}`, date: w.date, type: 'Työraportti', company: w.company, text: w.text.slice(0, 120), reportId: null });
+    // Työraportit (korjaukset): vain pvm, tekijä, Tukes, tehty työ.
+    for (const w of await loadWorkEntries(admin, equipmentId)) {
+      rows.push({ id: `w-${rows.length}`, date: w.date, type: 'Korjaus', installer: w.installer ?? w.company, tukes: w.tukes, text: clipText(w.text, 200) ?? '' });
     }
 
-    // Linkitettyjen laitteiden (toinen yritys) yhteenvetorivit — ei klikattavia.
+    // Aktiivisesti linkitettyjen laitteiden (toinen yritys) rivit.
     const { data: sharedRows } = await admin.rpc('eqlink_shared_history_internal', { p_equipment: equipmentId });
-    const KIND: Record<string, string> = { 'huoltopöytäkirja': 'Huoltopöytäkirja', 'merkintä': 'Merkintä', 'huoltokäynti': 'Huoltokäynti', 'työraportti': 'Työraportti' };
-    ((sharedRows ?? []) as AnyRecord[]).slice(0, 300).forEach((r, i) => {
-      rows.push({ id: `s-${i}`, date: str(r.entry_date), type: KIND[String(r.kind)] ?? String(r.kind ?? ''), company: str(r.company), text: [str(r.summary), str(r.work_done)].filter(Boolean).join(': ').slice(0, 120), reportId: null });
-    });
+    for (const r of ((sharedRows ?? []) as AnyRecord[]).slice(0, 300)) {
+      const kind = String(r.kind ?? '');
+      const done = clipText(str(r.work_done), 200);
+      const label = str(r.summary);
+      rows.push({
+        id: `s-${rows.length}`,
+        date: str(r.entry_date),
+        type: kind === 'työraportti' ? 'Korjaus' : kind === 'merkintä' ? 'Merkintä' : 'Huolto',
+        installer: str(r.installer) ?? str(r.company),
+        tukes: str(r.tukes),
+        text: kind === 'huoltopöytäkirja' ? (done ? `${label ?? 'Huolto'}: ${done}` : label ?? 'Huolto') : done ?? label ?? '',
+      });
+    }
 
     rows.sort((a, b) => String(b.date ?? '').localeCompare(String(a.date ?? '')));
+
+    const refrigerant = str(eq.refrigerant) ?? str(snap.kylmaaineTyyppi) ?? str(snap.kylmaaineLaatu);
+    const chargeKg = (eq.refrigerant_charge_kg != null ? Number(eq.refrigerant_charge_kg) : null) ?? parseKg(snap.kylmaaineMaaraYhteensa);
     return json({
-      device: { name: str(eq.name), tag: str(eq.tag) },
-      appLink: { customerId: str(eq.customer_id), equipmentId },
-      rows,
+      device: {
+        tag: str(eq.tag),
+        name: str(eq.name),
+        model: str(eq.model),
+        manufacturer: str(eq.manufacturer),
+        refrigerant,
+        chargeKg: chargeKg && Number.isFinite(chargeKg) && chargeKg > 0 ? chargeKg : null,
+        gwp: gwpOverride,
+        owner: str(cust?.name),
+        address,
+        location: str(eq.location),
+      },
+      rows: rows.map((r) => ({ id: r.id, date: r.date, type: r.type, installer: r.installer, tukes: r.tukes, text: r.text })),
     });
   } catch (error) {
     console.error('device-public-card', error instanceof Error ? error.message : error);
