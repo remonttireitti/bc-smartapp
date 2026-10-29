@@ -22,6 +22,7 @@ import {
 } from '../../lib/huoltoRaportti/refrigerantCircuitHelpers';
 import ToggleSwitch from '../ToggleSwitch';
 import { FormInput } from './FormInput';
+import { hasAnyValue, TempMeasuredToggle, useTempMeasured } from './TempMeasuredToggle';
 import { HuoltoPartInspectionRow } from './HuoltoPartInspectionRow';
 import { HuoltoInspectionDialogShell, useHuoltoInspectionDialog } from './HuoltoInspectionDialogShell';
 import { useHuoltoPrintFormLayout } from '../../hooks/useHuoltoPrintFormLayout';
@@ -58,6 +59,7 @@ export function CircuitMeasurementsFields({
   const calcRefrigerant =
     refrigerantType && refrigerantType !== 'muu' && refrigerantType !== 'Muu' ? refrigerantType : '';
   const ptSupported = calcRefrigerant ? hasRefrigerantPtData(calcRefrigerant) : false;
+  const temp = useTempMeasured(hasAnyValue(data.imuLampotila, data.nestePutkiLampotila, data.kuumakaasuLampotila));
   const ptApproximate = calcRefrigerant ? isRefrigerantPtApproximate(calcRefrigerant) : false;
 
   const calculateSuperheat = () => {
@@ -197,16 +199,19 @@ export function CircuitMeasurementsFields({
           className={showLowSuperheatWarning ? 'input-warning' : ''}
         />
         <FormInput
-          label="Imu lämpötila (°C)"
-          value={data.imuLampotila}
-          onChange={(v) => patch({ imuLampotila: v })}
-          placeholder="0.0"
-          type="number"
-        />
-        <FormInput
           label="Korkeapaine (bar)"
           value={data.korkeapaine}
           onChange={(v) => patch({ korkeapaine: v })}
+          placeholder="0.0"
+          type="number"
+        />
+        <TempMeasuredToggle on={temp.on} onChange={temp.setOn} />
+        {temp.show ? (
+          <>
+        <FormInput
+          label="Imu lämpötila (°C)"
+          value={data.imuLampotila}
+          onChange={(v) => patch({ imuLampotila: v })}
           placeholder="0.0"
           type="number"
         />
@@ -225,6 +230,8 @@ export function CircuitMeasurementsFields({
           placeholder="0.0"
           type="number"
         />
+          </>
+        ) : null}
       </div>
 
       <div className="huolto-calc-row">

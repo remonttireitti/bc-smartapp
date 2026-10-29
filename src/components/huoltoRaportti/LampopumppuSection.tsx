@@ -13,6 +13,7 @@ import {
 import { normalizeLegacyInspectionStatus } from '../../lib/huoltoRaportti/huoltoInspectionStatus';
 import { ilpDeviceModel, ilpDeviceSerial, isIlpDevice } from '../../lib/huoltoRaportti/ilpIdentity';
 import { FormCheckbox } from './FormCheckbox';
+import { hasAnyValue, TempMeasuredToggle, useTempMeasured } from './TempMeasuredToggle';
 import { FormInput } from './FormInput';
 import {
   lampopumppuMittauksetTitle,
@@ -69,6 +70,16 @@ export function LampopumppuSection({
   const sisaSama = form.sisaSamaKuinEnsimmainen ?? [];
   const mittausSisayksikot = form.mittausSisayksikot ?? [createEmptySisayksikkoMittausData()];
   const mittausSama = form.mittausSamaKuinEnsimmainen ?? [];
+  const temp = useTempMeasured(
+    hasAnyValue(
+      form.mittausTestausLampotila,
+      form.mittausUlkoLampotila,
+      ...mittausSisayksikot.flatMap((m) => [
+        m.sisalampotilaJaahdytys, m.paluuLampotilaJaahdytys, m.puhallusLampotilaJaahdytys,
+        m.sisalampotilaLammitys, m.paluuLampotilaLammitys, m.puhallusLampotilaLammitys,
+      ]),
+    ),
+  );
 
   function setSisayksikkoMaara(count: number) {
     const nextData = [...sisayksikkoData];
@@ -372,6 +383,9 @@ export function LampopumppuSection({
               checked={!!form.mittausLammitysTestattu}
               onChange={(v) => onChange({ mittausLammitysTestattu: v })}
             />
+            <TempMeasuredToggle on={temp.on} onChange={temp.setOn} className="huolto-span-all" />
+            {temp.show ? (
+              <>
             <FormInput
               label="Lämpötila testauksen aikana (°C)"
               value={form.mittausTestausLampotila || ''}
@@ -384,6 +398,8 @@ export function LampopumppuSection({
               onChange={(v) => onChange({ mittausUlkoLampotila: v })}
               type="number"
             />
+              </>
+            ) : null}
           </div>
 
           {!form.mittausJaahdytysTestattu && !form.mittausLammitysTestattu ? (
@@ -450,6 +466,8 @@ export function LampopumppuSection({
                         disabled={disabled}
                       />
                     </div>
+                    {temp.show ? (
+                    <>
                     <p className="muted">Jäähdytys — lämpötilat (°C)</p>
                     <div className="line-form-grid">
                       <FormInput
@@ -507,6 +525,8 @@ export function LampopumppuSection({
                         disabled={disabled}
                       />
                     </div>
+                    </>
+                    ) : null}
                     <IlpTehoLine mittaus={mittaus} mode="jaahdytys" />
                   </>
                 ) : null}
@@ -530,6 +550,8 @@ export function LampopumppuSection({
                         disabled={disabled}
                       />
                     </div>
+                    {temp.show ? (
+                    <>
                     <p className="muted">Lämmitys — lämpötilat (°C)</p>
                     <div className="line-form-grid">
                       <FormInput
@@ -587,6 +609,8 @@ export function LampopumppuSection({
                         disabled={disabled}
                       />
                     </div>
+                    </>
+                    ) : null}
                     <IlpTehoLine mittaus={mittaus} mode="lammitys" />
                   </>
                 ) : null}

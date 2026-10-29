@@ -7,6 +7,7 @@ import {
 } from '../../lib/huoltoRaportti/huoltoInspectionStatus';
 import { useMaintenanceDocumentLayout } from '../../hooks/useMaintenanceDocumentLayout';
 import { FormCheckbox } from './FormCheckbox';
+import { hasAnyValue, TempMeasuredToggle, useTempMeasured } from './TempMeasuredToggle';
 import { FormInput } from './FormInput';
 import { HuoltoPartInspectionRow } from './HuoltoPartInspectionRow';
 import { HuoltoInspectionDialogShell, useHuoltoInspectionDialog } from './HuoltoInspectionDialogShell';
@@ -24,6 +25,7 @@ export function VapaajahdytysInspection({ data, onChange, documentModuleKey }: P
   const documentLayout = useMaintenanceDocumentLayout();
   const hideLauncher = documentLayout && !!documentModuleKey;
   const status = vapaajahdytysInspectionStatus(data);
+  const temp = useTempMeasured(hasAnyValue(data.meno, data.tulo));
 
   const applyDraft = (next: VapaajahdytysData) => onChange(next);
 
@@ -83,8 +85,13 @@ export function VapaajahdytysInspection({ data, onChange, documentModuleKey }: P
                 </select>
               </label>
               <FormInput label="Virtaus (m³/h)" value={draft.virtaus} onChange={(v) => patchDraft({ virtaus: v })} type="number" />
+              <TempMeasuredToggle on={temp.on} onChange={temp.setOn} />
+              {temp.show ? (
+                <>
               <FormInput label="Meno (°C)" value={draft.meno} onChange={(v) => patchDraft({ meno: v })} type="number" />
               <FormInput label="Paluu (°C)" value={draft.tulo} onChange={(v) => patchDraft({ tulo: v })} type="number" />
+                </>
+              ) : null}
             </div>
             <FormCheckbox
               label="Pumppu tarkastettu"

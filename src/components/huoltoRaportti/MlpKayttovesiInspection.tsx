@@ -2,6 +2,7 @@ import type { MlpData } from '../../lib/huoltoRaportti/types';
 import { kayttovesiLisalammitinSijaintiOptions } from '../../lib/huoltoRaportti/constants';
 import { createEmptyHeatingElementData } from '../../lib/huoltoRaportti/defaults';
 import { FormCheckbox } from './FormCheckbox';
+import { hasAnyValue, TempMeasuredToggle, useTempMeasured } from './TempMeasuredToggle';
 import { FormInput } from './FormInput';
 import { HeatingElementModule } from './HeatingElementModule';
 import { HuoltoPartInspectionRow } from './HuoltoPartInspectionRow';
@@ -23,6 +24,7 @@ export function MlpKayttovesiForm({
   draft: MlpData;
   patchDraft: (patch: Partial<MlpData>) => void;
 }) {
+  const temp = useTempMeasured(hasAnyValue(draft.kayttovesiLampotilaNykyinen));
   return (
     <>
       <FormCheckbox label="Käyttövesi mukana" checked={draft.kayttovesiEnabled} onChange={(v) => patchDraft({ kayttovesiEnabled: v })} />
@@ -31,7 +33,8 @@ export function MlpKayttovesiForm({
           <div className="line-form-grid">
             <FormInput label="Tilavuus (l)" value={draft.kayttovesiTilavuus} onChange={(v) => patchDraft({ kayttovesiTilavuus: v })} />
             <FormInput label="Lämpötila-asetus (°C)" value={draft.kayttovesiLampotilaAsetus} onChange={(v) => patchDraft({ kayttovesiLampotilaAsetus: v })} />
-            <FormInput label="Nykyinen lämpötila (°C)" value={draft.kayttovesiLampotilaNykyinen} onChange={(v) => patchDraft({ kayttovesiLampotilaNykyinen: v })} />
+            <TempMeasuredToggle on={temp.on} onChange={temp.setOn} className="huolto-span-all" />
+            {temp.show ? (<FormInput label="Nykyinen lämpötila (°C)" value={draft.kayttovesiLampotilaNykyinen} onChange={(v) => patchDraft({ kayttovesiLampotilaNykyinen: v })} />) : null}
             <FormCheckbox label="Toimilaitteet OK" checked={draft.kayttovesiToimilaitteetOK} onChange={(v) => patchDraft({ kayttovesiToimilaitteetOK: v })} />
           </div>
           <FormCheckbox

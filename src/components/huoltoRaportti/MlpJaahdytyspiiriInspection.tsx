@@ -1,6 +1,7 @@
 import type { MlpData, PumpunSyottoValinta } from '../../lib/huoltoRaportti/types';
 import { getMlpPumpSyottoValinta } from '../../lib/huoltoRaportti/sahkoVaiheUtils';
 import { FormCheckbox } from './FormCheckbox';
+import { hasAnyValue, TempMeasuredToggle, useTempMeasured } from './TempMeasuredToggle';
 import { FormInput } from './FormInput';
 import { HuoltoPartInspectionRow } from './HuoltoPartInspectionRow';
 import { HuoltoInspectionDialogShell, useHuoltoInspectionDialog } from './HuoltoInspectionDialogShell';
@@ -22,6 +23,7 @@ export function MlpJaahdytyspiiriForm({
   draft: MlpData;
   patchDraft: (patch: Partial<MlpData>) => void;
 }) {
+  const temp = useTempMeasured(hasAnyValue(draft.keruuJaahdytysMenoLampotila, draft.keruuJaahdytysPaluuLampotila));
   const setPumpSyotto = (v: PumpunSyottoValinta) => {
     patchDraft({
       keruuJaahdytysPumpunSyottoValinta: v,
@@ -57,8 +59,9 @@ export function MlpJaahdytyspiiriForm({
       ) : null}
       <div className="line-form-grid">
         <FormInput label="Virtaus (l/s)" value={draft.keruuJaahdytysVirtaus} onChange={(v) => patchDraft({ keruuJaahdytysVirtaus: v })} type="number" />
-        <FormInput label="Meno (°C)" value={draft.keruuJaahdytysMenoLampotila} onChange={(v) => patchDraft({ keruuJaahdytysMenoLampotila: v })} type="number" />
-        <FormInput label="Paluu (°C)" value={draft.keruuJaahdytysPaluuLampotila} onChange={(v) => patchDraft({ keruuJaahdytysPaluuLampotila: v })} type="number" />
+        <TempMeasuredToggle on={temp.on} onChange={temp.setOn} className="huolto-span-all" />
+        {temp.show ? (<FormInput label="Meno (°C)" value={draft.keruuJaahdytysMenoLampotila} onChange={(v) => patchDraft({ keruuJaahdytysMenoLampotila: v })} type="number" />) : null}
+        {temp.show ? (<FormInput label="Paluu (°C)" value={draft.keruuJaahdytysPaluuLampotila} onChange={(v) => patchDraft({ keruuJaahdytysPaluuLampotila: v })} type="number" />) : null}
         <FormInput label="Käyntivirta (A)" value={draft.keruuJaahdytysKayntivirta} onChange={(v) => patchDraft({ keruuJaahdytysKayntivirta: v })} type="number" />
       </div>
     </>

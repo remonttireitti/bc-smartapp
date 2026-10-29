@@ -7,6 +7,7 @@ import {
 import type { LauhdutuspiiriData, NestepiiriData } from '../../lib/huoltoRaportti/types';
 import { useHuoltoPrintFormLayout } from '../../hooks/useHuoltoPrintFormLayout';
 import { FormCheckbox } from './FormCheckbox';
+import { hasAnyValue, TempMeasuredToggle, useTempMeasured } from './TempMeasuredToggle';
 import { FormInput } from './FormInput';
 import {
   PrintCheckField,
@@ -31,6 +32,7 @@ interface Props {
 
 export function NestepiiriFields({ data, onChange, showLauhdutinTarkistukset, showPiiriTarkistukset }: Props) {
   const printLayout = useHuoltoPrintFormLayout();
+  const temp = useTempMeasured(hasAnyValue(data.meno, data.tulo));
   const lauhdutus = showLauhdutinTarkistukset && isLauhdutuspiiri(data) ? data : null;
 
   if (printLayout) {
@@ -188,8 +190,13 @@ export function NestepiiriFields({ data, onChange, showLauhdutinTarkistukset, sh
           </select>
         </label>
         <FormInput label="Virtaus (m³/h)" value={data.virtaus} onChange={(v) => onChange({ virtaus: v })} type="number" />
+        <TempMeasuredToggle on={temp.on} onChange={temp.setOn} />
+        {temp.show ? (
+          <>
         <FormInput label="Meno (°C)" value={data.meno} onChange={(v) => onChange({ meno: v })} type="number" />
         <FormInput label="Paluu (°C)" value={data.tulo} onChange={(v) => onChange({ tulo: v })} type="number" />
+          </>
+        ) : null}
       </div>
 
       <FormCheckbox

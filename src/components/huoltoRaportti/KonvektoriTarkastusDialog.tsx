@@ -8,6 +8,7 @@ import { KONVEKTORI_JAAHDYTYSNESTE_OPTIONS } from '../../lib/huoltoRaportti/konv
 import { getKonvektoriCalculationLines } from '../../lib/huoltoRaportti/konvektoriTeho';
 import { HuoltoInspectionDialogShell } from './HuoltoInspectionDialogShell';
 import { RichCommentEditor } from './RichCommentEditor';
+import { hasAnyValue, TempMeasuredToggle, useTempMeasured } from './TempMeasuredToggle';
 
 interface Props {
   open: boolean;
@@ -50,6 +51,7 @@ function YesNoToggle({
 
 export function KonvektoriTarkastusDialog({ open, row, rowLabel, onClose, onSave }: Props) {
   const [draft, setDraft] = useState(row);
+  const temp = useTempMeasured(hasAnyValue(row.huoneLampotila, row.tuloLampotila, row.menoLampotila, row.puhallusLampotila));
 
   useEffect(() => {
     if (open) setDraft(row);
@@ -117,6 +119,8 @@ export function KonvektoriTarkastusDialog({ open, row, rowLabel, onClose, onSave
               placeholder="esim. 0,8"
             />
           </label>
+          <TempMeasuredToggle on={temp.on} onChange={temp.setOn} disabled={false} className="" />
+          {temp.show ? (
           <label className="konvektori-mittaus-field">
             Huone °C (imuilma)
             <input
@@ -127,6 +131,7 @@ export function KonvektoriTarkastusDialog({ open, row, rowLabel, onClose, onSave
               placeholder="esim. 24"
             />
           </label>
+          ) : null}
           {ilmaLaskenta && (
             <label className="konvektori-mittaus-field">
               Imu-RH %
@@ -139,6 +144,7 @@ export function KonvektoriTarkastusDialog({ open, row, rowLabel, onClose, onSave
               />
             </label>
           )}
+          {temp.show ? (
           <label className="konvektori-mittaus-field">
             Tulo °C
             <input
@@ -149,6 +155,8 @@ export function KonvektoriTarkastusDialog({ open, row, rowLabel, onClose, onSave
               placeholder="esim. 7"
             />
           </label>
+          ) : null}
+          {temp.show ? (
           <label className="konvektori-mittaus-field">
             Meno °C
             <input
@@ -159,6 +167,7 @@ export function KonvektoriTarkastusDialog({ open, row, rowLabel, onClose, onSave
               placeholder="esim. 12"
             />
           </label>
+          ) : null}
           <label className="konvektori-mittaus-field">
             Ilmavirtaus m³/h
             <input
@@ -169,6 +178,7 @@ export function KonvektoriTarkastusDialog({ open, row, rowLabel, onClose, onSave
               placeholder="esim. 120"
             />
           </label>
+          {temp.show ? (
           <label className="konvektori-mittaus-field">
             Puhallus °C
             <input
@@ -179,6 +189,7 @@ export function KonvektoriTarkastusDialog({ open, row, rowLabel, onClose, onSave
               placeholder="esim. 16"
             />
           </label>
+          ) : null}
           {ilmaLaskenta && (
             <label className="konvektori-mittaus-field">
               Puhallus-RH %

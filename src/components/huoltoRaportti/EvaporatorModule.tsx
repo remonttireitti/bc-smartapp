@@ -26,6 +26,7 @@ import { useRegisterHuoltoModuleDialog } from './HuoltoModuleDialogContext';
 import { TriStateInspectionToggle } from './TriStateInspectionToggle';
 import { airCapacity, evaporatorRoomTemp } from '../../lib/huoltoRaportti/airCapacity';
 import { AirCapacityResultView, StaticCapacityLine } from './CapacityResult';
+import { hasAnyValue, TempMeasuredToggle, useTempMeasured } from './TempMeasuredToggle';
 
 interface Props {
   index: number;
@@ -80,6 +81,12 @@ export function EvaporatorModule({
   const [dialogOpen, setDialogOpen] = useState(false);
   const [draft, setDraft] = useState(data);
   const disabled = locked || !!sameAsFirst;
+  const temp = useTempMeasured(
+    hasAnyValue(
+      data.kylmioLampotila, data.lampotilaMitattu, data.kennoLampotila, data.hoyrystymisLampotila,
+      data.ilmaTuloLampotila, data.ilmaPoistoLampotila, data.ilmaTuloRh, data.ilmaPoistoRh, data.ilmavirtaM3h,
+    ),
+  );
   const chillerHx = isChillerLikeDevice(laiteTyyppi);
   const isVak = laiteTyyppi === 'vakioilmastointtikone';
   const status = entityInspectionStatus(data);
@@ -323,6 +330,8 @@ export function EvaporatorModule({
                 )}
                 <div className="huolto-submodule huolto-span-all">
                   <h4>Mittaukset</h4>
+                  <TempMeasuredToggle on={temp.on} onChange={temp.setOn} disabled={disabled} />
+                  {temp.show ? (
                   <div className="line-form-grid">
                     {source.tyyppi === 'staatinen' ? (
                       <>
@@ -343,6 +352,7 @@ export function EvaporatorModule({
                       </>
                     )}
                   </div>
+                  ) : null}
                 </div>
                 <div className="huolto-submodule huolto-span-all">
                   <h4>Tarkastukset</h4>
@@ -371,7 +381,6 @@ export function EvaporatorModule({
                         </select>
                       </label>
                       <FormInput label="Malli" value={source.paisuntaventtiiliMalli || ''} disabled={disabled} onChange={(v) => set({ paisuntaventtiiliMalli: v })} />
-                      <FormInput label="Tulistus (K)" type="number" value={source.tulistus || ''} disabled={disabled} onChange={(v) => set({ tulistus: v })} />
                     </div>
                   )}
                   {showOwnOhjaus && <FormCheckbox label="Huoneen ohjaus (huonelämpötila)" checked={source.ohjausKaytossa !== false} disabled={disabled} onChange={(v) => set({ ohjausKaytossa: v })} />}

@@ -9,6 +9,7 @@ import {
 } from '../../lib/huoltoRaportti/huoltoInspectionStatus';
 import { getMlpPumpSyottoValinta } from '../../lib/huoltoRaportti/sahkoVaiheUtils';
 import { FormCheckbox } from './FormCheckbox';
+import { hasAnyValue, TempMeasuredToggle, useTempMeasured } from './TempMeasuredToggle';
 import { FormInput } from './FormInput';
 import { HuoltoPartInspectionRow } from './HuoltoPartInspectionRow';
 import { HuoltoInspectionDialogShell, useHuoltoInspectionDialog } from './HuoltoInspectionDialogShell';
@@ -47,6 +48,7 @@ export function MlpLampopiiritInspection({
 
   const draftStatus = normalizeHuoltoInspectionStatus(draft.lampoTarkastusTila) ?? mlpLampoInspectionStatus(draft);
   const showDetails = draftStatus === 'ok' || draftStatus === 'faulty';
+  const temp = useTempMeasured(hasAnyValue(...(draft.lampoPiirit ?? []).flatMap((p) => [p.meno, p.tulo])));
   const patchDraft = (patch: Partial<MlpData>) => setDraft((prev) => ({ ...prev, ...patch }));
 
   useRegisterHuoltoModuleDialog(documentUnitKey, openDialog);
@@ -178,8 +180,9 @@ export function MlpLampopiiritInspection({
                 ) : null}
                 <div className="line-form-grid">
                   <FormInput label="Virtaus (l/s)" value={piiri.virtaus} onChange={(v) => { const next = [...draft.lampoPiirit]; next[idx] = { ...next[idx], virtaus: v }; patchDraft({ lampoPiirit: next }); }} type="number" />
-                  <FormInput label="Meno (°C)" value={piiri.meno} onChange={(v) => { const next = [...draft.lampoPiirit]; next[idx] = { ...next[idx], meno: v }; patchDraft({ lampoPiirit: next }); }} type="number" />
-                  <FormInput label="Tulo (°C)" value={piiri.tulo} onChange={(v) => { const next = [...draft.lampoPiirit]; next[idx] = { ...next[idx], tulo: v }; patchDraft({ lampoPiirit: next }); }} type="number" />
+                  {idx === 0 ? <TempMeasuredToggle on={temp.on} onChange={temp.setOn} className="huolto-span-all" /> : null}
+                  {temp.show ? (<FormInput label="Meno (°C)" value={piiri.meno} onChange={(v) => { const next = [...draft.lampoPiirit]; next[idx] = { ...next[idx], meno: v }; patchDraft({ lampoPiirit: next }); }} type="number" />) : null}
+                  {temp.show ? (<FormInput label="Tulo (°C)" value={piiri.tulo} onChange={(v) => { const next = [...draft.lampoPiirit]; next[idx] = { ...next[idx], tulo: v }; patchDraft({ lampoPiirit: next }); }} type="number" />) : null}
                 </div>
               </div>
             ))}
