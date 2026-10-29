@@ -1,6 +1,6 @@
 import { getCondenserCount } from '../../lib/huoltoRaportti/evaporatorHelpers';
 import { useEffect } from 'react';
-import type { HuoltoReportData } from '../../lib/huoltoRaportti/types';
+import type { CondenserData, HuoltoReportData } from '../../lib/huoltoRaportti/types';
 import { createEmptyCondenserData } from '../../lib/huoltoRaportti/defaults';
 
 interface Props {
@@ -17,9 +17,10 @@ export function CondenserCircuitsSync({ form, onChange }: Props) {
       onChange({
         condenserData: [
           ...form.condenserData,
-          ...Array.from({ length: circuitCount - form.condenserData.length }, () =>
-            createEmptyCondenserData(),
-          ),
+          ...Array.from({ length: circuitCount - form.condenserData.length }, () => ({
+            ...createEmptyCondenserData(),
+            tyyppi: (form.lauhdutinTyyppiLaite || undefined) as CondenserData['tyyppi'],
+          })),
         ],
       });
     } else {

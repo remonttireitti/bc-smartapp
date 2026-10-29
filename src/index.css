@@ -18092,13 +18092,8 @@ label.has-error input { border-color: #b91c1c; }
 
 /* Huoltopöytäkirjan arkit: kentät, valikot ja valintapainikkeet samankokoisia ja linjassa. */
 :is(.konvektori-tarkastus-dialog, .maintenance-report-tab-section, .huolto-field-module) {
-  --huolto-control-h: 44px;
+  --huolto-control-h: 48px;
   --huolto-control-r: 8px;
-}
-@media (max-width: 720px), (pointer: coarse) {
-  :is(.konvektori-tarkastus-dialog, .maintenance-report-tab-section, .huolto-field-module) {
-    --huolto-control-h: 48px;
-  }
 }
 :is(.konvektori-tarkastus-dialog, .maintenance-report-tab-section, .huolto-field-module)
   :is(input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='color']):not([type='file']), select) {
@@ -18110,6 +18105,7 @@ label.has-error input { border-color: #b91c1c; }
   border-radius: var(--huolto-control-r) !important;
   background-color: #fff;
   line-height: normal;
+  font-size: 16px;
   margin: 0;
   width: 100%;
 }
@@ -18135,9 +18131,28 @@ label.has-error input { border-color: #b91c1c; }
   align-items: center;
   justify-content: center;
 }
-:is(.konvektori-tarkastus-dialog, .maintenance-report-tab-section, .huolto-field-module) .line-form-grid,
-.huolto-field-module.form-grid {
+:is(.konvektori-tarkastus-dialog, .maintenance-report-tab-section, .huolto-field-module) .line-form-grid {
   align-items: start;
+}
+/* Kenttämoduuli (ohjaukset, mittaukset): kentät täyttävät rivin, eivät kutistu sisällön levyisiksi. */
+.huolto-field-module.form-grid {
+  align-items: stretch;
+}
+.huolto-field-module .huolto-print-grid-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.huolto-field-module .huolto-print-grid-label {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: #475569;
+  line-height: 1.25;
+}
+.huolto-field-module .huolto-print-grid-value {
+  display: block;
+  width: 100%;
 }
 :is(.konvektori-tarkastus-dialog, .maintenance-report-tab-section, .huolto-field-module) .line-form-grid > label,
 .huolto-field-module > label {

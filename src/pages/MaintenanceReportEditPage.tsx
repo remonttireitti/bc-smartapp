@@ -13,6 +13,8 @@ import { type NewEquipmentDraft } from '../components/EquipmentRegistryPicker';
 import { vakUsesExplicitConfig, type LaiteKokoonpano } from '../lib/huoltoRaportti/deviceKokoonpano';
 import MaintenanceReportTabNav from '../components/huoltoRaportti/MaintenanceReportTabNav';
 import { MaintenanceReportTabDialog } from '../components/huoltoRaportti/MaintenanceReportTabDialog';
+import { effectiveDeviceFields, loadEquipmentDeviceFields } from '../lib/equipmentDeviceFields';
+import { patchTouchesRefrigerant, snapshotWithRefrigerant } from '../lib/equipmentRefrigerant';
 import { MaintenanceReportDocumentView } from '../components/huoltoRaportti/MaintenanceReportDocumentView';
 import { MaintenanceReportTabContent } from '../components/huoltoRaportti/MaintenanceReportTabContent';
 import { useMaintenanceDocumentLayout } from '../hooks/useMaintenanceDocumentLayout';
@@ -590,11 +592,17 @@ export default function MaintenanceReportEditPage({ session }: Props) {
     [status, reportId, reportViewKey, draftStorageKey, contextMode, partnerId],
   );
 
+  /** Kylmäainetta muokattu tässä pöytäkirjassa → tallennus päivittää laitekortin. */
+  const refrigerantEditedRef = useRef(false);
+
   const applyFormPatch = useCallback(
     (patch: Partial<HuoltoReportData>, options?: { markDirty?: boolean }) => {
       const next = mergeHuoltoReportData(formStateRef.current.form, patch);
       persistDraftLocally(next);
-      if (options?.markDirty !== false) setHasUnsavedChanges(true);
+      if (options?.markDirty !== false) {
+        setHasUnsavedChanges(true);
+        if (patchTouchesRefrigerant(patch)) refrigerantEditedRef.current = true;
+      }
       setForm(next);
     },
     [persistDraftLocally],
@@ -1150,7 +1158,14 @@ export default function MaintenanceReportEditPage({ session }: Props) {
         };
     if (eq.device_type) basePatch.laiteTyyppi = eq.device_type;
 
-    const snapshotPatch = applyEquipmentSnapshotToForm(currentForm, eq.huolto_technical_snapshot);
+    // Kylmäaine esitäytetään laitekortin arvosta (sarakkeet ensin, varalla tilannekuva).
+    const cardColumns = await loadEquipmentDeviceFields(supabase, [selectedEquipmentId]);
+    if (hydrateGen !== equipmentHydrateGenRef.current) return;
+    const cardRefrigerant = effectiveDeviceFields(cardColumns?.get(selectedEquipmentId), eq.huolto_technical_snapshot);
+    const snapshotPatch = applyEquipmentSnapshotToForm(
+      currentForm,
+      snapshotWithRefrigerant(eq.huolto_technical_snapshot, cardRefrigerant),
+    );
     if (konvektoriRowsHaveMaintenanceData(currentForm.konvektoriRows)) {
       delete snapshotPatch.konvektoriRows;
     }
@@ -1331,6 +1346,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
         ownerCompanyId,
         targetEquipmentId,
         supabase,
+        { refrigerantEdited: true },
       );
       setEquipmentId(savedEquipmentId);
       if (!targetEquipmentId) setEquipmentLinkState('created');
@@ -1769,15 +1785,17 @@ export default function MaintenanceReportEditPage({ session }: Props) {
       if (linkedEquipmentId) {
         try {
           const snapshot = buildHuoltoEquipmentTechnicalSnapshot(dataPayload);
+          const syncOpts = { refrigerantEdited: refrigerantEditedRef.current };
           if (customerId && ownerCompanyId && !copySiblingMode) {
             // Linkitetty laite päivittyy tallennuksessa — erillistä "Päivitä laite rekisteriin" ei tarvita.
-            await saveEquipmentFromReport(dataPayload, customerId, ownerCompanyId, linkedEquipmentId, supabase);
+            await saveEquipmentFromReport(dataPayload, customerId, ownerCompanyId, linkedEquipmentId, supabase, syncOpts);
           }
           await syncEquipmentFromReport(linkedEquipmentId, snapshot, supabase, {
             ...(isIlpDevice(dataPayload.laiteTyyppi)
               ? { serial_number: ilpDeviceSerial(dataPayload), model: ilpDeviceModel(dataPayload) }
               : {}),
-          });
+          }, syncOpts);
+          refrigerantEditedRef.current = false;
         } catch (syncErr) {
           console.error(syncErr);
         }

@@ -11,6 +11,7 @@ import {
   sharedRowsToHistoryEntries,
   type SharedHistoryRow,
 } from '../lib/equipmentLinks';
+import { snapshotWithRefrigerant } from '../lib/equipmentRefrigerant';
 import { HUOLTO_ASETUKSET_KEY, buildDeviceSchedule, defaultServiceIntervalMonths, formatTonnes, leakCheckInterval, readHuoltoAsetukset, refrigerantGwp, leakStatusText, serviceStatusText, todayYmdLocal } from '../lib/huoltoSchedule';
 import { newHuoltoReportHrefForDevice } from '../lib/huoltoCategories';
 import { Link, Navigate, useParams } from 'react-router-dom';
@@ -352,7 +353,12 @@ export default function EquipmentDetailPage({ session }: Props) {
       device_type: editDraft.device_type.trim() || null,
       notes: editDraft.notes.trim() || null,
       huolto_technical_snapshot: {
-        ...((equipment.huolto_technical_snapshot as Record<string, unknown> | null) ?? {}),
+        // Kylmäaine: laitekortti on lähde, tilannekuva peilaa sen (uusi pöytäkirja esitäytetään tästä).
+        ...snapshotWithRefrigerant(
+          (equipment.huolto_technical_snapshot as Record<string, unknown> | null) ?? {},
+          { refrigerant: editDraft.refrigerant.trim() || null, refrigerant_charge_kg: parseChargeKg(editDraft.refrigerant_charge_kg) },
+          { clear: true },
+        ),
         [HUOLTO_ASETUKSET_KEY]: {
           huoltovaliKk: parseInt(editDraft.huoltovaliKk, 10) > 0 ? parseInt(editDraft.huoltovaliKk, 10) : null,
           gwp: editDraft.gwp.trim() !== '' && Number.isFinite(Number(editDraft.gwp.replace(',', '.'))) ? Number(editDraft.gwp.replace(',', '.')) : null,

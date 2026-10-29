@@ -1,6 +1,12 @@
 import { carryHuoltoAsetukset } from '../huoltoSchedule';
 import { ilpDeviceModel, ilpDeviceSerial, isIlpDevice, realIdentityValue } from './ilpIdentity';
-import { deviceFieldsFromSnapshot, fillEmptyEquipmentDeviceFields } from '../equipmentDeviceFields';
+import {
+  deviceFieldsFromSnapshot,
+  effectiveDeviceFields,
+  fillEmptyEquipmentDeviceFields,
+  loadEquipmentDeviceFields,
+} from '../equipmentDeviceFields';
+import { refrigerantFieldsFromReport, snapshotWithRefrigerant } from '../equipmentRefrigerant';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import {
   createEmptySisayksikkoData,
@@ -698,12 +704,54 @@ function stripSisayksikkoInspection(unit: Partial<SisayksikkoData>): Partial<Sis
   return rest;
 }
 
+export type ReportEquipmentSyncOptions = {
+  /** Käyttäjä muokkasi kylmäainetta tässä pöytäkirjassa → pöytäkirjan arvo päivittää laitekortin. */
+  refrigerantEdited?: boolean;
+};
+
+/**
+ * Kylmäaine: laitekortti on lähde. Tilannekuvaan kirjoitetaan laitekortin arvo (ei vanhentunutta
+ * pöytäkirjan kopiota), ja vain tässä pöytäkirjassa tehty muokkaus päivittää laitekortin.
+ */
+async function mirrorRefrigerantToSnapshot(
+  supabase: SupabaseClient,
+  equipmentId: string,
+  snapshot: Record<string, unknown>,
+  prevSnapshot: unknown,
+  edited: boolean,
+): Promise<Record<string, unknown>> {
+  const columnMap = await loadEquipmentDeviceFields(supabase, [equipmentId]);
+  const columns = columnMap?.get(equipmentId) ?? null;
+  const card = effectiveDeviceFields(columns, prevSnapshot);
+  let target = { refrigerant: card.refrigerant, refrigerant_charge_kg: card.refrigerant_charge_kg };
+  if (edited) {
+    const report = refrigerantFieldsFromReport(snapshot);
+    target = {
+      refrigerant: report.refrigerant ?? card.refrigerant,
+      refrigerant_charge_kg: report.refrigerant_charge_kg ?? card.refrigerant_charge_kg,
+    };
+    if (columnMap) {
+      const patch: Record<string, unknown> = {};
+      if (target.refrigerant && target.refrigerant !== columns?.refrigerant) patch.refrigerant = target.refrigerant;
+      if (target.refrigerant_charge_kg != null && target.refrigerant_charge_kg !== columns?.refrigerant_charge_kg) {
+        patch.refrigerant_charge_kg = target.refrigerant_charge_kg;
+      }
+      if (Object.keys(patch).length > 0) {
+        const { error } = await supabase.from('equipment').update(patch).eq('id', equipmentId);
+        if (error) throw new Error(error.message);
+      }
+    }
+  }
+  return snapshotWithRefrigerant(snapshot, target);
+}
+
 /** Persist latest technical snapshot and device type on linked equipment after submit. */
 export async function syncEquipmentFromReport(
   equipmentId: string,
   snapshot: Record<string, unknown>,
   supabase: SupabaseClient,
   identity?: { serial_number?: string; model?: string; manufacturer?: string },
+  opts: ReportEquipmentSyncOptions = {},
 ): Promise<void> {
   const deviceType = trim(snapshot.laiteTyyppi) || null;
   // ILP: laitteen sarjanumero/malli pidetään samana kuin ulkoyksikön (vain oikeat arvot).
@@ -711,10 +759,12 @@ export async function syncEquipmentFromReport(
   if (identity?.serial_number?.trim()) identityPatch.serial_number = identity.serial_number.trim();
   if (identity?.model?.trim()) identityPatch.model = identity.model.trim();
   const { data: prevRow } = await supabase.from('equipment').select('huolto_technical_snapshot').eq('id', equipmentId).maybeSingle();
+  const prevSnapshot = (prevRow as { huolto_technical_snapshot?: unknown } | null)?.huolto_technical_snapshot;
+  const mirrored = await mirrorRefrigerantToSnapshot(supabase, equipmentId, snapshot, prevSnapshot, Boolean(opts.refrigerantEdited));
   const { error } = await supabase
     .from('equipment')
     .update({
-      huolto_technical_snapshot: carryHuoltoAsetukset(snapshot, (prevRow as { huolto_technical_snapshot?: unknown } | null)?.huolto_technical_snapshot),
+      huolto_technical_snapshot: carryHuoltoAsetukset(mirrored, prevSnapshot),
       device_type: deviceType,
       ...identityPatch,
     })
@@ -723,8 +773,8 @@ export async function syncEquipmentFromReport(
   if (error) throw new Error(error.message);
   await fillEmptyEquipmentDeviceFields(supabase, equipmentId, {
     manufacturer: typeof identity?.manufacturer === 'string' ? identity.manufacturer : null,
-    refrigerant: deviceFieldsFromSnapshot(snapshot).refrigerant,
-    refrigerant_charge_kg: deviceFieldsFromSnapshot(snapshot).refrigerant_charge_kg,
+    refrigerant: deviceFieldsFromSnapshot(mirrored).refrigerant,
+    refrigerant_charge_kg: deviceFieldsFromSnapshot(mirrored).refrigerant_charge_kg ?? refrigerantFieldsFromReport(mirrored).refrigerant_charge_kg,
   });
 }
 
@@ -737,7 +787,11 @@ function equipmentNameFromForm(form: HuoltoReportData): string {
 
 function deviceFieldsFromReport(form: HuoltoReportData, snapshot: Record<string, unknown>) {
   const fromSnap = deviceFieldsFromSnapshot(snapshot);
-  return { manufacturer: realIdentityValue(form.laiteValmistaja) || null, refrigerant: fromSnap.refrigerant, refrigerant_charge_kg: fromSnap.refrigerant_charge_kg };
+  return {
+    manufacturer: realIdentityValue(form.laiteValmistaja) || null,
+    refrigerant: fromSnap.refrigerant,
+    refrigerant_charge_kg: fromSnap.refrigerant_charge_kg ?? refrigerantFieldsFromReport(snapshot).refrigerant_charge_kg,
+  };
 }
 
 /** Create or update equipment row from report laitetiedot + technical snapshot. */
@@ -747,6 +801,7 @@ export async function saveEquipmentFromReport(
   ownerCompanyId: string,
   equipmentId: string | null,
   supabase: SupabaseClient,
+  opts: ReportEquipmentSyncOptions = {},
 ): Promise<string> {
   const snapshot = buildHuoltoEquipmentTechnicalSnapshot(form);
   const payload = {
@@ -772,10 +827,12 @@ export async function saveEquipmentFromReport(
     delete updatePayload.owner_company_id;
     delete updatePayload.customer_id;
     const { data: prevRow } = await supabase.from('equipment').select('huolto_technical_snapshot').eq('id', equipmentId).maybeSingle();
-    updatePayload.huolto_technical_snapshot = carryHuoltoAsetukset(snapshot, (prevRow as { huolto_technical_snapshot?: unknown } | null)?.huolto_technical_snapshot);
+    const prevSnapshot = (prevRow as { huolto_technical_snapshot?: unknown } | null)?.huolto_technical_snapshot;
+    const mirrored = await mirrorRefrigerantToSnapshot(supabase, equipmentId, snapshot, prevSnapshot, Boolean(opts.refrigerantEdited));
+    updatePayload.huolto_technical_snapshot = carryHuoltoAsetukset(mirrored, prevSnapshot);
     const { error } = await supabase.from('equipment').update(updatePayload).eq('id', equipmentId);
     if (error) throw new Error(error.message);
-    await fillEmptyEquipmentDeviceFields(supabase, equipmentId, deviceFieldsFromReport(form, snapshot));
+    await fillEmptyEquipmentDeviceFields(supabase, equipmentId, deviceFieldsFromReport(form, mirrored));
     return equipmentId;
   }
 
