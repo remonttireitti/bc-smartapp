@@ -3,12 +3,21 @@ import { resolvePublicShareOrigin } from './workReportPrintShareLink';
 
 /** Laitteen julkinen huoltokortti (QR-tarra). Token: equipment.public_qr_token. */
 
-export type DevicePublicRow = { id: string; date: string | null; type: string; company: string | null; text: string; reportId: string | null; draft?: boolean };
-export type DevicePublicCard = {
-  device: { name: string | null; tag: string | null };
-  appLink: { customerId: string | null; equipmentId: string } | null;
-  rows: DevicePublicRow[];
+export type DevicePublicRow = { id: string; date: string | null; type: string; installer: string | null; tukes: string | null; text: string };
+export type DevicePublicDevice = {
+  tag: string | null;
+  name: string | null;
+  model: string | null;
+  manufacturer: string | null;
+  refrigerant: string | null;
+  chargeKg: number | null;
+  /** Laitekortin GWP-ylikirjoitus; muuten lasketaan kylmäaineesta. */
+  gwp: number | null;
+  owner: string | null;
+  address: string | null;
+  location: string | null;
 };
+export type DevicePublicCard = { device: DevicePublicDevice; rows: DevicePublicRow[] };
 
 export const DEVICE_QR_TOKEN_RE = /^[A-Za-z0-9_-]{32,128}$/;
 
@@ -40,29 +49,20 @@ export function generateDeviceQrToken(): string {
   return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 
-export class DeviceQrLoginRequiredError extends Error {
-  constructor() {
-    super('Kirjaudu sisään.');
-  }
-}
-
+/** Julkinen haku: ei kirjautumista, vain luku. Token mitätön → DeviceQrNotFoundError. */
 export async function loadDevicePublicCard(token: string): Promise<DevicePublicCard> {
   if (!DEVICE_QR_TOKEN_RE.test(token)) throw new DeviceQrNotFoundError();
-  const { data } = await supabase.auth.getSession();
-  const jwt = data.session?.access_token;
-  if (!jwt) throw new DeviceQrLoginRequiredError();
   const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
   const response = await fetch(devicePublicCardFunctionUrl(), {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${jwt}`, apikey: anonKey },
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${anonKey}`, apikey: anonKey },
     body: JSON.stringify({ token }),
   });
-  if (response.status === 401) throw new DeviceQrLoginRequiredError();
   if (response.status === 404 || response.status === 400) throw new DeviceQrNotFoundError();
   if (!response.ok) throw new Error('Tietojen haku epäonnistui.');
   const parsed = (await response.json()) as DevicePublicCard | null;
   if (!parsed?.device) throw new DeviceQrNotFoundError();
-  return { device: parsed.device, appLink: parsed.appLink ?? null, rows: Array.isArray(parsed.rows) ? parsed.rows : [] };
+  return { device: parsed.device, rows: Array.isArray(parsed.rows) ? parsed.rows : [] };
 }
 
 /** Token-sarake on valinnainen (vaatii tietokantapäivityksen). undefined = saraketta ei ole. */
@@ -78,21 +78,4 @@ export async function fetchDeviceQrTokens(equipmentIds: string[]): Promise<Recor
 export async function setDeviceQrToken(equipmentId: string, token: string | null): Promise<void> {
   const { error } = await supabase.from('equipment').update({ public_qr_token: token }).eq('id', equipmentId);
   if (error) throw new Error(error.message);
-}
-
-/** Asiakasportaalin tunnuspyyntö laitteen omistajayritykselle (ei kirjautumista). */
-export async function sendPortalAccessRequest(
-  token: string,
-  form: { name: string; email: string; phone: string; message: string; website: string; elapsedMs: number },
-): Promise<void> {
-  const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
-  const response = await fetch(devicePublicCardFunctionUrl(), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${anonKey}`, apikey: anonKey },
-    body: JSON.stringify({ token, action: 'portal_request', ...form }),
-  });
-  if (!response.ok) {
-    const body = (await response.json().catch(() => null)) as { error?: string } | null;
-    throw new Error(body?.error ?? 'Lähetys epäonnistui.');
-  }
 }
