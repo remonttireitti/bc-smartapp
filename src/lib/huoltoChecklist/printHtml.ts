@@ -1,4 +1,5 @@
-import { PRINT_SHELL_CSS, renderInfoColumns, renderPrintHeader, renderVerdictBand } from '../huoltoRaportti/printShell';
+import { PRINT_SHELL_CSS, printBrandStyle, renderInfoColumns, renderPrintFooter, renderPrintHeader, renderSignatureRow, renderVerdictBand } from '../huoltoRaportti/printShell';
+import { normalizePrintHtml } from '../huoltoRaportti/printFormat';
 import { CHECKLIST_STATUS_LABELS, CIRCUIT_LIMITS, checklistTemplate } from './templates';
 import {
   CHECKLIST_OVERALL_LABELS,
@@ -23,6 +24,7 @@ function escAttr(v: unknown): string {
 export type ChecklistPrintMeta = {
   companyName: string;
   logoUrl?: string;
+  brandColor?: string;
   /** storagePath → URL (tai data-URL). */
   imageUrls: Record<string, string>;
   customer?: { name?: string | null; address?: string | null; contact?: string | null } | null;
@@ -37,7 +39,6 @@ const EXTRA_CSS = `
 .rp table.cl td.num, .rp table.cl th.num { text-align: right; white-space: nowrap; }
 .rp table.cl .sub { color: #555; font-size: 8pt; }
 .rp .st-warn { color: #8a5a00; }
-.rp .sign img { max-height: 14mm; max-width: 55mm; display: block; }
 `;
 
 function statusCell(status: string | null | undefined): string {
@@ -158,14 +159,18 @@ export function generateChecklistPrintHtml(data: ChecklistReportData, meta: Chec
         .join('')}</div></section>`
     : '';
 
-  const signature = `<div class="sign">
-    <div><strong>${esc(data.suorittajaNimi)}</strong>Suorittaja${data.suorittajaPatevyys.trim() ? ` · ${esc(data.suorittajaPatevyys.trim())}` : ''}</div>
-    <div><strong>${esc(date)}</strong>Päivämäärä</div>
-    <div>${data.signature ? `<img src="${escAttr(data.signature)}" alt="" />` : '<strong></strong>'}Allekirjoitus</div>
-  </div>`;
+  const signature = renderSignatureRow({
+    name: data.suorittajaNimi,
+    tukes: data.suorittajaPatevyys.trim(),
+    tukesLabel: 'Pätevyys',
+    company: meta.companyName,
+    date,
+    signatureSrc: data.signature || undefined,
+  });
+  const footer = renderPrintFooter({ tukesLabel: 'Pätevyys', name: data.suorittajaNimi, tukes: data.suorittajaPatevyys.trim(), company: meta.companyName, date });
 
   const subtitle = [template.basis, checklistDeviceLabel(data)].filter(Boolean).join(' · ');
-  return `<style>${PRINT_SHELL_CSS}${EXTRA_CSS}</style>
+  return normalizePrintHtml(`<style>${PRINT_SHELL_CSS}${EXTRA_CSS}</style>${printBrandStyle(meta.brandColor)}
 <div class="rp">
   ${renderPrintHeader({ logoUrl: meta.logoUrl, companyLine: meta.companyName, title: template.title, subtitle })}
   ${band}
@@ -175,7 +180,8 @@ export function generateChecklistPrintHtml(data: ChecklistReportData, meta: Chec
   ${circuitsHtml}
   ${photosHtml}
   ${signature}
-</div>`;
+  ${footer}
+</div>`);
 }
 
 export { CHECKLIST_STATUS_LABELS };

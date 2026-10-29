@@ -25,12 +25,14 @@ import {
 } from './sisayksikkoTypes';
 import { getRefrigerantGWP } from './utils';
 import { ilpDeviceModel, ilpDeviceSerial } from './ilpIdentity';
-import { PRINT_SHELL_CSS, keepHeadingWithFirst, renderPrintBrand } from './printShell';
+import { PRINT_SHELL_CSS, keepHeadingWithFirst, printBrandStyle, renderPrintFooter, renderPrintHeader, renderSignatureRow } from './printShell';
+import { fiDate, humanValue } from './printFormat';
 import { calculateIlpSisayksikkoTeho, formatIlpSisayksikkoTeho } from './ilpTeho';
 
 export interface IlpPrintMeta {
   companyName: string;
   logoUrl?: string;
+  brandColor?: string;
   imageUrls?: Record<string, string>;
   docTitle: string;
   fault: boolean;
@@ -50,7 +52,7 @@ function txt(v: unknown): string {
 /** Avain–arvo-rivi; tyhjät jätetään pois. */
 function kv(label: string, value: unknown, unit = ''): string {
   if (!hasPrintableValue(value)) return '';
-  return `<tr><th>${esc(label)}</th><td>${esc(txt(value))}${unit ? ` ${esc(unit)}` : ''}</td></tr>`;
+  return `<tr><th>${esc(label)}</th><td>${esc(humanValue(txt(value)))}${unit ? ` ${esc(unit)}` : ''}</td></tr>`;
 }
 function kvTable(rows: string[]): string {
   const body = rows.filter(Boolean).join('');
@@ -122,7 +124,7 @@ function renderRefrigerant(data: HuoltoReportData): string {
   const co2 = txt(data.kylmaaineCO2Ekv);
   return kvTable([
     kv('Kylmäaine', tyyppi ? `${tyyppi}${gwp > 0 ? ` (GWP ${gwp})` : ''}` : ''),
-    valm > 0 ? kv('Valmistajan täyttö', valm, 'kg') : '',
+    valm > 0 ? kv('Täyttömäärä (tehdas)', valm, 'kg') : '',
     lis > 0 ? kv('Lisätty', lis, 'kg') : '',
     valm + lis > 0 && lis > 0 ? kv('Yhteensä', (valm + lis).toFixed(2), 'kg') : '',
     kv('Putkimatka', data.kylmaainePutkimatka, 'm'),
@@ -314,7 +316,7 @@ function renderTests(data: HuoltoReportData, imageUrls?: Record<string, string>)
 
 export function generateIlpPrintHtml(data: HuoltoReportData, meta: IlpPrintMeta): string {
   const origin = typeof window !== 'undefined' ? window.location.origin : '';
-  const pvm = txt(data.huoltoPaivamaara) || new Date().toLocaleDateString('fi-FI');
+  const pvm = fiDate(txt(data.huoltoPaivamaara)) || new Date().toLocaleDateString('fi-FI');
   const companyLine = [meta.companyName, ...(meta.companyLines ?? [])].filter(Boolean).join(' · ');
 
   const verdict = meta.fault
@@ -324,7 +326,7 @@ export function generateIlpPrintHtml(data: HuoltoReportData, meta: IlpPrintMeta)
       : '';
   const bandItems = [
     verdict,
-    data.huoltoSuoritettu ? '<span>Huolto suoritettu</span>' : '',
+    data.huoltoSuoritettu ? '<span class="pill">Huolto suoritettu</span>' : '',
     `<span class="muted">${esc(pvm)}</span>`,
     hasPrintableValue(data.huoltoSuorittajaNimi) ? `<span class="muted">${esc(txt(data.huoltoSuorittajaNimi))}</span>` : '',
   ].filter(Boolean);
@@ -356,12 +358,9 @@ export function generateIlpPrintHtml(data: HuoltoReportData, meta: IlpPrintMeta)
     photoGrid(data.huomiotLiitteet, 'Liite', meta.imageUrls),
   ].join('');
 
-  return `<style>${PRINT_SHELL_CSS}</style>
+  return `<style>${PRINT_SHELL_CSS}</style>${printBrandStyle(meta.brandColor)}
 <div class="rp ilp-print">
-  <header class="hdr">
-    <div>${renderPrintBrand(meta.logoUrl, companyLine)}</div>
-    <div class="ttl"><h1>${esc(meta.docTitle)}</h1><div class="sub">Ilmalämpöpumppu${hasPrintableValue(data.laiteTunnus) ? ` · ${esc(txt(data.laiteTunnus))}` : ''}</div></div>
-  </header>
+  ${renderPrintHeader({ logoUrl: meta.logoUrl, companyLine, title: meta.docTitle, subtitle: ['Ilmalämpöpumppu', hasPrintableValue(data.laiteTunnus) ? txt(data.laiteTunnus) : ''].filter(Boolean).join(' · ') })}
   <div class="band">${bandItems.join('')}</div>
   <div class="info keep">
     <div><h2>Asiakas</h2>${customer}</div>
@@ -377,10 +376,7 @@ export function generateIlpPrintHtml(data: HuoltoReportData, meta: IlpPrintMeta)
   ${section('Sisäyksiköt ja mittaukset', renderIndoor(data, origin), 'tint')}
   ${renderTests(data, meta.imageUrls)}
   ${section('Huomiot', notesInner)}
-  <div class="sign">
-    <div><strong>${esc(txt(data.huoltoSuorittajaNimi) || '')}</strong>Suorittaja${hasPrintableValue(data.huoltoSuorittajaTUKES) ? ` · TUKES ${esc(txt(data.huoltoSuorittajaTUKES))}` : ''}</div>
-    <div><strong>${esc(pvm)}</strong>Päivämäärä</div>
-    <div><strong></strong>Allekirjoitus</div>
-  </div>
+  ${renderSignatureRow({ name: txt(data.huoltoSuorittajaNimi), tukes: txt(data.huoltoSuorittajaTUKES), company: meta.companyName, date: pvm })}
+  ${renderPrintFooter({ name: txt(data.huoltoSuorittajaNimi), tukes: txt(data.huoltoSuorittajaTUKES), company: meta.companyName, date: pvm })}
 </div>`;
 }

@@ -118,5 +118,5 @@ test('Konvektori print: grid outside grey legacy wrapper, tinted, colour image',
   assert.match(grid, /^\s*<section class="sec tint konvektorit">\s*<h2>Konvektorit<\/h2>/);
   assert.ok(!PRINT_SHELL_CSS.includes('img[src*="/assets/konvektorit/"] { filter: grayscale'));
   const src = readFileSync(new URL('../src/lib/huoltoRaportti/printHtml.ts', import.meta.url), 'utf8');
-  assert.match(src, /<\/div>\n  \$\{renderKonvektoritTable\(data\)\}\n  <div class="legacy">/);
+  assert.match(src, /<\/div>\n  \$\{renderKonvektoritTable\(data\)\}\n/);
 });
