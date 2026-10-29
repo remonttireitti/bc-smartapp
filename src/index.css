@@ -18290,3 +18290,37 @@ a.device-history-row:hover { background: #f4f7fb; }
 .portal-pdf-state { font-size: 0.74rem; }
 .portal-pdf-state.error { color: #b91c1c; }
 @media (max-width: 640px) { .portal-pdf-cell { flex-wrap: wrap; } }
+
+/* Laitelista: mahtuu kannettavan leveyteen ilman vaakavieritystä (t261u) */
+.customer-equipment-list .data-table { table-layout: auto; }
+.customer-equipment-list .data-table th,
+.customer-equipment-list .data-table td { overflow-wrap: normal; word-break: normal; hyphens: manual; padding-left: 0.4rem; padding-right: 0.4rem; }
+.customer-equipment-list .data-table td { white-space: normal; vertical-align: top; }
+.customer-equipment-list .customer-equipment-name-cell { display: flex; align-items: flex-start; gap: 0.5rem; min-width: 7.5rem; }
+.customer-equipment-list .customer-equipment-row-select { flex: none; display: inline-flex; align-items: center; margin-top: 0.1rem; }
+.customer-equipment-list .customer-equipment-row-select .toggle-switch { flex: none; }
+.customer-equipment-list .customer-equipment-name-text { display: flex; flex-direction: column; align-items: flex-start; gap: 0.15rem; min-width: 0; flex: 1 1 auto; }
+.customer-equipment-list .customer-equipment-name { font-weight: 600; }
+.customer-equipment-list .device-chips { display: flex; flex-direction: column; align-items: flex-start; margin-left: 0; gap: 3px; }
+.customer-equipment-list .data-table thead th { white-space: normal; vertical-align: bottom; }
+.customer-equipment-list .data-table td:nth-child(2) { min-width: 6.5rem; }
+.customer-equipment-list .data-table td:nth-child(4) { min-width: 5rem; }
+.customer-equipment-list .data-table td.data-table-actions-col { vertical-align: top; width: 1%; white-space: nowrap; }
+.customer-equipment-list .data-table-actions { flex-wrap: nowrap; gap: 0.25rem; }
+.customer-equipment-list .data-table-actions .icon-action-btn { width: 1.9rem; height: 1.9rem; }
+.customer-equipment-list .data-table-actions .btn-sm { white-space: nowrap; }
+.row-action-menu-btn { font-size: 1.1rem; line-height: 1; font-weight: 700; }
+.row-action-menu-panel { position: fixed; z-index: 1000; min-width: 12rem; display: flex; flex-direction: column; padding: 0.3rem; background: #fff; border: 1px solid var(--border, #cbd5e1); border-radius: 10px; box-shadow: 0 8px 24px rgba(15, 23, 42, 0.18); }
+.row-action-menu-item { all: unset; box-sizing: border-box; cursor: pointer; padding: 0.6rem 0.8rem; min-height: 40px; display: flex; align-items: center; border-radius: 8px; font-size: 0.92rem; font-weight: 600; color: var(--text-secondary, #334155); white-space: nowrap; }
+.row-action-menu-item:hover:not(:disabled), .row-action-menu-item:focus-visible { background: var(--bg-subtle, #f1f5f9); color: var(--text, #0f172a); }
+.row-action-menu-item.is-danger { color: #b91c1c; }
+.row-action-menu-item:disabled { opacity: 0.5; cursor: not-allowed; }
+@media (max-width: 640px) {
+  .customer-equipment-list .customer-equipment-name-cell { min-width: 0; }
+  .customer-equipment-list .data-table-actions { flex-wrap: wrap; }
+}
+.customer-equipment-list .device-chip { white-space: normal; border-radius: 10px; line-height: 1.35; padding-top: 2px; padding-bottom: 2px; }
+.customer-collapsible .collapsible-body:has(.customer-equipment-list) { padding-left: 0.5rem; padding-right: 0.5rem; }
+.customer-equipment-list .data-table th, .customer-equipment-list .data-table td { padding-left: 0.35rem; padding-right: 0.35rem; }
+.customer-equipment-list .customer-equipment-name-cell { gap: 0.4rem; }
+.customer-equipment-list .data-table-actions .btn-sm { padding-left: 0.45rem; padding-right: 0.45rem; }

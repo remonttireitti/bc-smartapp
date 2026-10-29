@@ -4,8 +4,7 @@ import { leakStatusText, serviceStatusText, todayYmdLocal, type DeviceSchedule }
 import { formatMaintenanceDateFi } from '../lib/equipmentMaintenanceHistory';
 import { Link } from 'react-router-dom';
 import DataTable, { type DataTableColumn } from './DataTable';
-import { DeviceCardIcon, HistoryIcon } from './PrintIcons';
-import Tooltip from './Tooltip';
+import RowActionMenu, { type RowActionMenuItem } from './RowActionMenu';
 import type { Equipment } from '../types';
 import { formatRefrigerant, type EquipmentDeviceFields } from '../lib/equipmentDeviceFields';
 import type { withNavTrail } from '../lib/navigationTrail';
@@ -183,15 +182,15 @@ export function CustomerEquipmentTable({
             <span className="sr-only">Valitse {eq.name}</span>
           </label> : null}
           <span className="customer-equipment-name-text">
-            {eq.name}
-            {eq.tag ? <small className="muted">{eq.tag}</small> : null}
+            <span className="customer-equipment-name">{eq.name}</span>
+            {eq.tag && eq.tag.trim().toLowerCase() !== (eq.name ?? '').trim().toLowerCase() ? <small className="muted">{eq.tag}</small> : null}
+            {eq.is_onboarding_demo ? <span className="badge badge-demo">Esimerkki</span> : null}
+            {(() => {
+              if (removedMode) return null;
+              const sc = schedule?.(eq);
+              return sc ? <ScheduleChips s={sc} /> : null;
+            })()}
           </span>
-          {eq.is_onboarding_demo ? <span className="badge badge-demo">Esimerkki</span> : null}
-          {(() => {
-            if (removedMode) return null;
-            const sc = schedule?.(eq);
-            return sc ? <ScheduleChips s={sc} /> : null;
-          })()}
         </span>
       ),
     },
@@ -209,7 +208,21 @@ export function CustomerEquipmentTable({
         );
       },
     },
-    { key: 'refrigerant', label: 'Kylmäaine', value: (eq) => (deviceFields ? formatRefrigerant(deviceFields(eq)) : ''), className: 'nowrap' },
+    {
+      key: 'refrigerant',
+      label: 'Kylmäaine',
+      value: (eq) => (deviceFields ? formatRefrigerant(deviceFields(eq)) : ''),
+      render: (eq) => {
+        const parts = (deviceFields ? formatRefrigerant(deviceFields(eq)) : '').split(' · ').filter(Boolean);
+        if (parts.length === 0) return '';
+        return (
+          <span className="customer-equipment-stack">
+            <span className="nowrap">{parts[0]}</span>
+            {parts[1] ? <small className="muted nowrap">{parts.slice(1).join(' · ')}</small> : null}
+          </span>
+        );
+      },
+    },
     { key: 'location', label: 'Sijainti', value: (eq) => eq.location ?? '' },
     ...(removedMode
       ? [{
@@ -275,56 +288,32 @@ export function CustomerEquipmentTable({
       rowHref={hrefFor ?? ((eq) => `/asiakkaat/${customerId}/laitteet/${eq.id}`)}
       rowState={() => navTrail?.state}
       ariaLabel="Laitteet"
-      actions={(eq) => (
-        <>
-          {onPrintCard ? <Tooltip label="Tulosta laitekortti">
-            <button
-              type="button"
-              className="icon-action-btn"
-              disabled={printBusyId === `card:${eq.id}`}
-              onClick={() => onPrintCard(eq)}
-              aria-label="Tulosta laitekortti"
-            >
-              <DeviceCardIcon />
-            </button>
-          </Tooltip> : null}
-          {onPrintHistory ? <Tooltip label="Tulosta huoltohistoria">
-            <button
-              type="button"
-              className="icon-action-btn"
-              disabled={printBusyId === `history:${eq.id}`}
-              onClick={() => onPrintHistory(eq)}
-              aria-label="Tulosta huoltohistoria"
-            >
-              <HistoryIcon />
-            </button>
-          </Tooltip> : null}
-          {canWrite && !removedMode ? (
-            <Link
-              to={`/huoltoraportit/uusi?customerId=${customerId}&equipmentId=${eq.id}`}
-              className="btn btn-secondary btn-sm"
-              {...(navTrail ?? {})}
-            >
-              Uusi huolto
-            </Link>
-          ) : null}
-          {removedMode && onRestore ? (
-            <button type="button" className="btn btn-secondary btn-sm" disabled={busy} onClick={() => onRestore(eq)}>
-              Palauta käyttöön
-            </button>
-          ) : null}
-          {!removedMode && onDecommission ? (
-            <button type="button" className="btn btn-secondary btn-sm" disabled={busy} onClick={() => onDecommission(eq)}>
-              Poista käytöstä
-            </button>
-          ) : null}
-          {canDelete ? (
-            <button type="button" className="btn btn-danger btn-sm" disabled={busy} onClick={() => onDelete(eq)}>
-              Poista
-            </button>
-          ) : null}
-        </>
-      )}
+      actions={(eq) => {
+        const menu: RowActionMenuItem[] = [];
+        if (onPrintCard) menu.push({ label: 'Tulosta laitekortti', onClick: () => onPrintCard(eq), disabled: printBusyId === `card:${eq.id}` });
+        if (onPrintHistory) menu.push({ label: 'Tulosta huoltohistoria', onClick: () => onPrintHistory(eq), disabled: printBusyId === `history:${eq.id}` });
+        if (!removedMode && onDecommission) menu.push({ label: 'Poista käytöstä', onClick: () => onDecommission(eq), disabled: busy });
+        if (canDelete) menu.push({ label: 'Poista', onClick: () => onDelete(eq), disabled: busy, danger: true });
+        return (
+          <>
+            {canWrite && !removedMode ? (
+              <Link
+                to={`/huoltoraportit/uusi?customerId=${customerId}&equipmentId=${eq.id}`}
+                className="btn btn-secondary btn-sm"
+                {...(navTrail ?? {})}
+              >
+                Uusi huolto
+              </Link>
+            ) : null}
+            {removedMode && onRestore ? (
+              <button type="button" className="btn btn-secondary btn-sm" disabled={busy} onClick={() => onRestore(eq)}>
+                Palauta käyttöön
+              </button>
+            ) : null}
+            <RowActionMenu items={menu} />
+          </>
+        );
+      }}
     />
     </div>
   );
